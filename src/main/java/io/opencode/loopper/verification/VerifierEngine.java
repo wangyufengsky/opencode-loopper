@@ -6,7 +6,6 @@ import io.opencode.loopper.domain.VerificationState;
 import io.opencode.loopper.runtime.ProcessResult;
 import io.opencode.loopper.runtime.SafeProcessRunner;
 import java.nio.file.Files;
-import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -19,6 +18,10 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class VerifierEngine {
+    private static final int MAX_PATH_RULE_LENGTH = 512;
+    private static final int MAX_GIT_PATH_LENGTH = 32_768;
+    private static final long PATH_POLICY_WORK_BUDGET = 10_000_000L;
+    private static final Duration MAX_VERIFIER_TIMEOUT = Duration.ofHours(1);
     private static final Set<String> SHELL_EXECUTABLES = Set.of(
             "sh", "bash", "zsh", "dash", "ksh", "fish", "csh", "tcsh",
             "cmd", "cmd.exe", "powershell", "powershell.exe", "pwsh", "pwsh.exe");
@@ -26,12 +29,13 @@ public class VerifierEngine {
     public VerifierEngine(SafeProcessRunner runner) { this.runner = runner; }
 
     public VerifierOutcome verify(Path worktree, String baselineCommit, VerifierSpec spec, Duration timeout) {
+        Duration boundedTimeout = requireBoundedTimeout(timeout);
         String type = spec.type().toUpperCase();
         return switch (type) {
-            case "PROCESS" -> process(worktree, spec, timeout);
+            case "PROCESS" -> process(worktree, spec, boundedTimeout);
             case "FILE_EXISTS" -> file(worktree, spec, true);
             case "FILE_NOT_EXISTS" -> file(worktree, spec, false);
-            case "GIT_DIFF" -> gitDiff(worktree, baselineCommit, spec, timeout);
+            case "GIT_DIFF" -> gitDiff(worktree, baselineCommit, spec, boundedTimeout);
             default -> throw new TaskFailure("VERIFIER_TYPE_INVALID", "Unknown verifier type: " + type);
         };
     }
@@ -39,10 +43,21 @@ public class VerifierEngine {
     private VerifierOutcome process(Path worktree, VerifierSpec spec, Duration timeout) {
         requireDirectExecutable(spec.command());
         ProcessResult result = runner.run(worktree, spec.command(), timeout);
-        boolean passed = !result.timedOut() && result.exitCode() == 0;
+        boolean passed = !result.timedOut() && !result.outputTruncated() && result.exitCode() == 0;
+        String summary = result.timedOut() ? "Process verifier timed out"
+                : result.outputTruncated() ? "Process verifier output exceeded the safe limit"
+                : "Process exited " + result.exitCode();
         return new VerifierOutcome("PROCESS", passed ? VerificationState.PASS : VerificationState.FAIL,
-                result.timedOut() ? "Process verifier timed out" : "Process exited " + result.exitCode(),
-                Map.of("argv", spec.command(), "exitCode", result.exitCode(), "timedOut", result.timedOut(), "output", truncate(result.output())));
+                summary,
+                Map.of("argv", spec.command(), "exitCode", result.exitCode(), "timedOut", result.timedOut(),
+                        "outputTruncated", result.outputTruncated(), "output", truncate(result.output())));
+    }
+
+    private Duration requireBoundedTimeout(Duration timeout) {
+        if (timeout == null || timeout.isZero() || timeout.isNegative() || timeout.compareTo(MAX_VERIFIER_TIMEOUT) > 0) {
+            throw new TaskFailure("VERIFIER_TIMEOUT_INVALID", "Verifier timeout must be between 1 millisecond and 1 hour");
+        }
+        return timeout;
     }
 
     /**
@@ -75,11 +90,17 @@ public class VerifierEngine {
     private VerifierOutcome gitDiff(Path worktree, String baseline, VerifierSpec spec, Duration timeout) {
         if (baseline == null || baseline.isBlank()) throw new TaskFailure("GIT_BASELINE_MISSING", "GIT_DIFF verifier requires a task baseline commit");
         ProcessResult result = runner.run(worktree, List.of("git", "diff", "--name-status", baseline), timeout);
+        if (result.outputTruncated()) {
+            throw new TaskFailure("GIT_DIFF_OUTPUT_TRUNCATED", "Git diff exceeded the safe evidence limit");
+        }
         if (result.timedOut() || result.exitCode() != 0) {
             return new VerifierOutcome("GIT_DIFF", VerificationState.ERROR, "Unable to inspect Git diff",
                     Map.of("exitCode", result.exitCode(), "output", truncate(result.output())));
         }
         ProcessResult untrackedResult = runner.run(worktree, List.of("git", "ls-files", "--others", "--exclude-standard"), timeout);
+        if (untrackedResult.outputTruncated()) {
+            throw new TaskFailure("GIT_DIFF_OUTPUT_TRUNCATED", "Untracked-file evidence exceeded the safe limit");
+        }
         if (untrackedResult.timedOut() || untrackedResult.exitCode() != 0) {
             return new VerifierOutcome("GIT_DIFF", VerificationState.ERROR, "Unable to inspect untracked files",
                     Map.of("exitCode", untrackedResult.exitCode(), "output", truncate(untrackedResult.output())));
@@ -89,9 +110,14 @@ public class VerifierEngine {
         changed = new ArrayList<>(changed);
         changed.addAll(untracked);
         List<String> violations = new ArrayList<>();
-        for (String path : changed) {
-            if (isForbidden(path, spec.forbiddenPaths())) violations.add("forbidden path: " + path);
-            if (!spec.allowedPaths().isEmpty() && !isAllowed(path, spec.allowedPaths())) violations.add("outside allowed paths: " + path);
+        SlashGlobMatcher.WorkBudget policyBudget = new SlashGlobMatcher.WorkBudget(PATH_POLICY_WORK_BUDGET);
+        try {
+            for (String path : changed) {
+                if (isForbidden(path, spec.forbiddenPaths(), policyBudget)) violations.add("forbidden path: " + path);
+                if (!spec.allowedPaths().isEmpty() && !isAllowed(path, spec.allowedPaths(), policyBudget)) violations.add("outside allowed paths: " + path);
+            }
+        } catch (SlashGlobMatcher.WorkLimitExceeded exhausted) {
+            throw new TaskFailure("VERIFIER_PATH_POLICY_LIMIT_EXCEEDED", "Verifier path policy exceeded its bounded matching budget");
         }
         if (Boolean.TRUE.equals(spec.forbidDeletes())) {
             for (String line : result.output().lines().toList()) if (line.startsWith("D\t")) violations.add("deletion: " + line.substring(2));
@@ -133,27 +159,38 @@ public class VerifierEngine {
         }
         return paths;
     }
-    private boolean isForbidden(String path, List<String> rules) { return rules.stream().anyMatch(rule -> matchesPathRule(path, rule)); }
-    private boolean isAllowed(String path, List<String> rules) { return rules.stream().anyMatch(rule -> matchesPathRule(path, rule)); }
+    private boolean isForbidden(String path, List<String> rules, SlashGlobMatcher.WorkBudget budget) {
+        return rules.stream().anyMatch(rule -> matchesPathRule(path, rule, budget));
+    }
+    private boolean isAllowed(String path, List<String> rules, SlashGlobMatcher.WorkBudget budget) {
+        return rules.stream().anyMatch(rule -> matchesPathRule(path, rule, budget));
+    }
 
     /**
      * LoopSpec path policies accept either a directory/file prefix or a glob.
-     * Git emits slash-separated paths on every platform, so convert both the
-     * rule and candidate to the host separator only at the PathMatcher edge.
+     * Git emits slash-separated paths on every platform. Match normalized
+     * strings instead of the host FileSystem so the policy has identical
+     * semantics on Linux, macOS and Windows.
      */
-    private boolean matchesPathRule(String path, String inputRule) {
-        if (inputRule == null || inputRule.isBlank()) return false;
+    private boolean matchesPathRule(String path, String inputRule, SlashGlobMatcher.WorkBudget budget) {
+        if (inputRule == null || inputRule.isBlank()) {
+            budget.consume(1);
+            return false;
+        }
         String rule = inputRule.replace('\\', '/').replaceAll("^\\./+", "");
         String candidate = path.replace('\\', '/').replaceAll("^\\./+", "");
+        if (rule.length() > MAX_PATH_RULE_LENGTH || candidate.length() > MAX_GIT_PATH_LENGTH) {
+            throw new TaskFailure("VERIFIER_PATH_POLICY_INVALID", "Verifier path policy exceeds its safety limit");
+        }
         if (!containsGlob(rule)) {
+            budget.consume(rule.length() + candidate.length() + 1L);
             String prefix = rule.endsWith("/") ? rule : rule + "/";
             return candidate.equals(rule) || candidate.startsWith(prefix);
         }
         try {
-            String separator = java.io.File.separator;
-            String nativeRule = rule.replace("/", separator);
-            String nativeCandidate = candidate.replace("/", separator);
-            return FileSystems.getDefault().getPathMatcher("glob:" + nativeRule).matches(Path.of(nativeCandidate));
+            return SlashGlobMatcher.matches(rule, candidate, budget);
+        } catch (SlashGlobMatcher.WorkLimitExceeded exhausted) {
+            throw new TaskFailure("VERIFIER_PATH_POLICY_LIMIT_EXCEEDED", "Verifier path policy exceeded its bounded matching budget");
         } catch (RuntimeException invalidPattern) {
             throw new TaskFailure("VERIFIER_PATH_PATTERN_INVALID", "Invalid verifier path pattern: " + inputRule);
         }

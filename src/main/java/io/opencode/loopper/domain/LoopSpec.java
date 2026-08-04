@@ -1,9 +1,11 @@
 package io.opencode.loopper.domain;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.Size;
 import java.util.List;
 import java.util.Objects;
 
@@ -12,7 +14,7 @@ public record LoopSpec(
         @NotBlank String projectId,
         @NotBlank String goal,
         String context,
-        @NotEmpty List<@Valid StageSpec> stages,
+        @NotEmpty @Size(max = 64) List<@Valid StageSpec> stages,
         @Valid Limits limits,
         @Valid ModelSpec model,
         @Valid SessionPolicy sessionPolicy,
@@ -27,10 +29,10 @@ public record LoopSpec(
     }
     public record StageSpec(
             @NotBlank String objective,
-            List<String> allowedPaths,
-            List<String> forbiddenPaths,
+            @Size(max = 64) List<@Size(max = 512) String> allowedPaths,
+            @Size(max = 64) List<@Size(max = 512) String> forbiddenPaths,
             List<String> deliverables,
-            List<@Valid VerifierSpec> verifiers) {
+            @Size(max = 32) List<@Valid VerifierSpec> verifiers) {
         public StageSpec {
             allowedPaths = immutable(allowedPaths);
             forbiddenPaths = immutable(forbiddenPaths);
@@ -40,8 +42,10 @@ public record LoopSpec(
     }
 
     public record VerifierSpec(@NotBlank String type, List<String> command, String path,
-                               Boolean requireChanges, List<String> allowedPaths,
-                               List<String> forbiddenPaths, Boolean forbidDeletes) {
+                               Boolean requireChanges,
+                               @Size(max = 64) List<@Size(max = 512) String> allowedPaths,
+                               @Size(max = 64) List<@Size(max = 512) String> forbiddenPaths,
+                               Boolean forbidDeletes) {
         public VerifierSpec {
             type = type == null ? null : type.trim().toUpperCase();
             command = immutable(command);
@@ -53,7 +57,7 @@ public record LoopSpec(
     public record Limits(@Min(1) Integer maxStageAttempts, @Min(1) Integer maxTaskAttempts,
                          @Min(1) Integer sessionErrorLimit, @Min(1) Integer stagnationLimit,
                          @Min(1) Long maxDurationSeconds, @Min(1) Long attemptTimeoutSeconds,
-                         @Min(1) Long verifierTimeoutSeconds) {
+                         @Min(1) @Max(3600) Long verifierTimeoutSeconds) {
         public Limits {
             maxStageAttempts = maxStageAttempts == null ? 3 : maxStageAttempts;
             maxTaskAttempts = maxTaskAttempts == null ? 12 : maxTaskAttempts;
