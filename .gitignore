@@ -1,0 +1,17 @@
+.DS_Store
+.idea/
+*.iml
+target/
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
+data/
+*.db
+*.db-shm
+*.db-wal
+*.log
+.env
+.env.*
+!.env.example
+playwright-report/
+test-results/

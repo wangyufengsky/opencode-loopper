@@ -1,0 +1,27 @@
+spring:
+  ai:
+    mcp:
+      server:
+        annotation-scanner:
+          enabled: false
+        protocol: STREAMABLE
+        capabilities:
+          tool: true
+          resource: false
+          prompt: false
+          completion: false
+  datasource:
+    url: jdbc:sqlite:file:loopper-test?mode=memory&cache=shared
+  flyway:
+    clean-disabled: false
+mybatis:
+  configuration:
+    # Keep integration tests on the same constructor-mapping contract as the
+    # production JAR. Column-order fallback previously hid a real HTTP 500.
+    map-underscore-to-camel-case: true
+    arg-name-based-constructor-auto-mapping: true
+loopper:
+  data-dir: ${java.io.tmpdir}/loopper-test-data
+  monitor-delay: 1h
+  opencode:
+    mode: fake

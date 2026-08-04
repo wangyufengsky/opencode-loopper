@@ -1,0 +1,88 @@
+spring:
+  application:
+    name: opencode-loopper
+  ai:
+    mcp:
+      server:
+        annotation-scanner:
+          # ToolCallbackProvider below is the single source of the six tools;
+          # do not also start an empty annotation scanner.
+          enabled: false
+        protocol: STREAMABLE
+        name: opencode-loopper
+        version: 0.1.0
+        type: SYNC
+        instructions: >-
+          Use the six Loopper tools only. Designer access is READ_ONLY; proposals are
+          persisted as DRAFT_READY and require human confirmation before create_task.
+        capabilities:
+          tool: true
+          resource: false
+          prompt: false
+          completion: false
+        streamable-http:
+          # Keep /api/mcp as the backward-compatible JSON-RPC endpoint while Spring AI
+          # owns this protocol-native Streamable HTTP transport.
+          mcp-endpoint: /api/mcp-streamable
+          disallow-delete: true
+  datasource:
+    url: jdbc:sqlite:${LOOPPER_DATA_DIR:./data}/loopper.db?foreign_keys=on&busy_timeout=5000&journal_mode=WAL
+    driver-class-name: org.sqlite.JDBC
+  flyway:
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+  mvc:
+    problemdetails:
+      enabled: true
+  task:
+    scheduling:
+      # Task and Designer monitors must not starve each other. Deterministic
+      # verifiers run on their own bounded worker pool as an additional boundary.
+      pool:
+        size: 2
+
+server:
+  address: 127.0.0.1
+  port: ${SERVER_PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: true
+    arg-name-based-constructor-auto-mapping: true
+
+loopper:
+  data-dir: ${LOOPPER_DATA_DIR:./data}
+  max-stage-attempts: 3
+  max-task-attempts: 12
+  session-error-limit: 3
+  max-duration: 2h
+  attempt-timeout: 30m
+  verifier-timeout: 10m
+  monitor-delay: 2s
+  # A Task may be terminal while its last remote writer still needs best-effort
+  # cleanup. These bounded, persisted retries never start another Session.
+  abort-cleanup-attempts: 3
+  mcp:
+    bearer-token: ${LOOPPER_MCP_BEARER_TOKEN:}
+  opencode:
+    # auto first reuses a local healthy endpoint, then owns a new localhost process.
+    # http never starts or terminates an external OpenCode process; fake is for tests.
+    mode: ${LOOPPER_OPENCODE_MODE:auto}
+    base-url: ${OPENCODE_BASE_URL:http://127.0.0.1:4096}
+    username: ${OPENCODE_USERNAME:}
+    password: ${OPENCODE_PASSWORD:}
+    executable: ${OPENCODE_EXECUTABLE:}
+    model: ${OPENCODE_MODEL:}
+    connect-timeout: 5s
+    request-timeout: 30s
+    startup-timeout: 15s
