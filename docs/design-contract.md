@@ -71,9 +71,9 @@ and the machine-only LoopSpec payload is not shown in the conversation.
 
 Confirming a draft is an idempotent handoff. After the server returns the
 persisted Task id, the client loads that Task into the live store and navigates
-to its detail page even when worktree preparation ended in a terminal Task
-error. This keeps failures such as a missing Git HEAD visible instead of
-leaving the Designer on screen with a misleading success toast. A `READY` Task
+to its detail page even when execution-workspace preparation ended in a
+terminal Task error. Projects without a usable Git HEAD fall back to direct
+execution in the registered directory. A `READY` Task
 exposes an explicit **Start execution** action on its detail page.
 
 Each Task detail page also exposes a read-only **Model output / Thinking**

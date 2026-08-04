@@ -20,7 +20,7 @@ function openTask(task: { id: string }) { router.push(`/tasks/${task.id}`) }
 </script>
 
 <template>
-  <PageHeader eyebrow="Control Plane / Tasks" title="任务控制台" subtitle="每个 Task 都有隔离分支、worktree、执行证据与可恢复的 Session 边界。">
+  <PageHeader eyebrow="Control Plane / Tasks" title="任务控制台" subtitle="Git 项目使用隔离分支与 worktree；无 HEAD 项目直接执行并保留验证证据。">
     <template #actions><el-button plain @click="store.loadOverview"><Icon icon="lucide:refresh-cw" />刷新状态</el-button><el-button type="primary" @click="router.push('/designer')"><Icon icon="lucide:sparkles" />新建 Loop</el-button></template>
   </PageHeader>
   <main id="main-content" class="content" tabindex="-1">
@@ -29,7 +29,7 @@ function openTask(task: { id: string }) { router.push(`/tasks/${task.id}`) }
       <MetricCard label="运行中" :value="store.activeTasks.length" detail="包括验证、重试与 Judge" icon="lucide:orbit" accent="var(--color-accent-cyan)" />
       <MetricCard label="已完成" :value="finished" detail="确定性验证与 Judge 均通过" icon="lucide:badge-check" accent="var(--color-success)" />
       <MetricCard label="需要输入" :value="waitingInput" detail="需要用户决策后继续" icon="lucide:message-square-warning" accent="var(--color-accent-ai)" />
-      <MetricCard label="终止任务" :value="terminal" detail="保留 worktree 与全部证据" icon="lucide:shield-x" accent="var(--color-task-danger)" />
+      <MetricCard label="终止任务" :value="terminal" detail="保留执行目录与全部证据" icon="lucide:shield-x" accent="var(--color-task-danger)" />
     </section>
     <section class="toolbar"><div class="toolbar-group"><el-button-group><el-button v-for="item in ['ALL', 'RUNNING', 'RETRY_WAIT', 'WAITING_INPUT', 'FAILED']" :key="item" :type="filter === item ? 'primary' : undefined" size="small" @click="filter = item as typeof filter">{{ item === 'ALL' ? '全部' : item.replace(/_/g, ' ') }}</el-button></el-button-group></div><p class="mono tiny muted">{{ visibleTasks.length }} tasks · {{ store.usingDemo ? 'demo' : 'live' }}</p></section>
     <section v-if="store.loading" class="card card-pad"><div v-for="n in 5" :key="n" class="skeleton-block" style="height: 48px; margin-bottom: 8px" /></section>

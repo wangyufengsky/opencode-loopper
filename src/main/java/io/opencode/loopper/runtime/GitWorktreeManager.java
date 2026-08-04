@@ -10,24 +10,37 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class GitWorktreeManager {
+    public static final String DIRECT_BRANCH = "DIRECT";
     private static final Duration GIT_TIMEOUT = Duration.ofSeconds(30);
     private final SafeProcessRunner runner;
     private final LoopperProperties properties;
+    private final DirectWorkspaceBaselineManager directBaselines;
 
-    public GitWorktreeManager(SafeProcessRunner runner, LoopperProperties properties) {
+    public GitWorktreeManager(SafeProcessRunner runner, LoopperProperties properties,
+                              DirectWorkspaceBaselineManager directBaselines) {
         this.runner = runner;
         this.properties = properties;
+        this.directBaselines = directBaselines;
     }
 
     public Worktree create(Path projectRoot, String taskId) {
         try {
             Path root = projectRoot.toRealPath();
             ProcessResult repository = runner.run(root, List.of("git", "rev-parse", "--is-inside-work-tree"), GIT_TIMEOUT);
-            if (repository.exitCode() != 0 || !"true".equals(repository.output().trim())) {
-                throw new TaskFailure("INVALID_GIT_REPOSITORY", "Task execution requires a Git working tree with a valid HEAD");
+            if (repository.timedOut() || repository.outputTruncated() || repository.exitCode() != 0
+                    || !"true".equals(repository.output().trim())) {
+                return direct(root, taskId);
             }
+            ProcessResult topLevel = runner.run(root, List.of("git", "rev-parse", "--show-toplevel"), GIT_TIMEOUT);
+            if (topLevel.timedOut() || topLevel.outputTruncated() || topLevel.exitCode() != 0 || topLevel.output().isBlank()) {
+                return direct(root, taskId);
+            }
+            Path repositoryRoot;
+            try { repositoryRoot = Path.of(topLevel.output().trim()).toRealPath(); }
+            catch (Exception invalidTopLevel) { return direct(root, taskId); }
+            if (!repositoryRoot.equals(root)) return direct(root, taskId);
             ProcessResult head = runner.run(root, List.of("git", "rev-parse", "HEAD"), GIT_TIMEOUT);
-            if (head.exitCode() != 0) throw new TaskFailure("GIT_HEAD_UNAVAILABLE", "Cannot resolve the project's Git HEAD");
+            if (head.timedOut() || head.outputTruncated() || head.exitCode() != 0) return direct(root, taskId);
             Path base = properties.getDataDir().toAbsolutePath().normalize().resolve("worktrees");
             Files.createDirectories(base);
             Path worktree = base.resolve(taskId).normalize();
@@ -59,6 +72,29 @@ public class GitWorktreeManager {
         } catch (Exception e) {
             throw new TaskFailure("WORKTREE_UNAVAILABLE", "Task worktree is not available: " + e.getMessage());
         }
+    }
+
+    public void requireExecutionWorkspace(Path executionPath, Path projectRoot, String branch, String baseline) {
+        if (!DIRECT_BRANCH.equals(branch)) {
+            requireManaged(executionPath);
+            return;
+        }
+        try {
+            Path expected = projectRoot.toRealPath();
+            Path actual = executionPath.toRealPath();
+            if (!actual.equals(expected)) {
+                throw new TaskFailure("DIRECT_WORKSPACE_MISMATCH", "Direct task operation must use the registered project root");
+            }
+            directBaselines.requireAvailable(baseline);
+        } catch (TaskFailure failure) {
+            throw failure;
+        } catch (Exception exception) {
+            throw new TaskFailure("DIRECT_WORKSPACE_UNAVAILABLE", "Direct project directory is not available: " + exception.getMessage());
+        }
+    }
+
+    private Worktree direct(Path root, String taskId) {
+        return new Worktree(root, DIRECT_BRANCH, directBaselines.capture(root, taskId));
     }
 
     private String trim(String value) { return value == null ? "" : value.substring(0, Math.min(value.length(), 2000)); }

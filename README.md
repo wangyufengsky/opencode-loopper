@@ -2,15 +2,17 @@
 
 OpenCode Loopper is a local control plane for turning a natural-language coding
 request into a versioned, auditable execution loop. Spring Boot owns state,
-verification and recovery; local OpenCode sessions work in isolated Git
-worktrees; Vue provides a dark-first operator console.
+verification and recovery; local OpenCode sessions use isolated Git worktrees
+when HEAD is available and otherwise edit the registered directory directly;
+Vue provides a dark-first operator console.
 
 ## What v1 provides
 
-- Register local Git projects and inspect their baseline safely.
+- Register local project directories and inspect their baseline safely.
 - Plan through a real read-only OpenCode Designer Session, then draft and
   validate a staged LoopSpec before human confirmation.
-- Run each Task in `loopper/<taskId>` and a dedicated worktree.
+- Run Git projects in `loopper/<taskId>` and a dedicated worktree; fall back to
+  the registered directory when the project has no usable Git HEAD.
 - Persist Tasks, Stages, Attempts, Sessions, layered errors, Judge runs and
   immutable evidence artifacts in SQLite.
 - Pause, resume and cancel Tasks.
@@ -92,7 +94,7 @@ on user-specific `workspace.xml` state. Use `scripts/dev.sh` or
 
 | Environment variable | Default | Meaning |
 | --- | --- | --- |
-| `LOOPPER_DATA_DIR` | `./data` | SQLite, artifacts and Task worktrees |
+| `LOOPPER_DATA_DIR` | `./data` | SQLite, artifacts, Task worktrees and direct-execution baselines |
 | `SERVER_PORT` | `8080` | loopback HTTP port |
 | `LOOPPER_OPENCODE_MODE` | `auto` | `auto` reuses a healthy loopback server or starts an owned one; `http` only connects; `fake` is test-only |
 | `OPENCODE_BASE_URL` | `http://127.0.0.1:4096` | loopback OpenCode endpoint to probe/reuse |
@@ -133,7 +135,7 @@ records `SESSION_ABORT_CLEANUP_EXHAUSTED` if the bound is reached.
 ## Safety boundaries
 
 - HTTP servers bind to loopback.
-- Project and worktree paths are canonicalized and containment-checked.
+- Project and execution-workspace paths are canonicalized and containment-checked.
 - External paths, destructive commands and `git push` are not silently
   approved.
 - Commands are executed as argument arrays, without shell interpolation.

@@ -132,7 +132,9 @@ public class TaskService {
         if (TaskState.PAUSED.name().equals(task.state())) return resume(taskId);
         if (!TaskState.READY.name().equals(task.state())) throw new ConflictException("TASK_ALREADY_ACTIVE", "Task is already active");
         try {
-            worktrees.requireManaged(Path.of(requireWorktree(task)));
+            ProjectRow project = projects.get(task.projectId());
+            worktrees.requireExecutionWorkspace(Path.of(requireWorktree(task)), Path.of(project.rootPath()),
+                    task.branchName(), task.baselineCommit());
             if (!openCode.healthy()) throw new TaskFailure("OPENCODE_UNAVAILABLE", "No compatible OpenCode runtime is available");
             updateTask(state(task, TaskState.RUNNING));
             StageRow stage = mapper.listStages(task.id()).stream()
@@ -907,7 +909,7 @@ public class TaskService {
     private void updateStage(StageRow row) { if (mapper.updateStageState(row) != 1) throw new ConflictException("STAGE_VERSION_CONFLICT", "Stage was updated concurrently"); }
     private void updateAttempt(AttemptRow row) { if (mapper.finishAttempt(row) != 1) throw new ConflictException("ATTEMPT_VERSION_CONFLICT", "Attempt was updated concurrently"); }
     private void updateSession(ExecutionSessionRow row) { if (mapper.updateSessionState(row) != 1) throw new ConflictException("SESSION_VERSION_CONFLICT", "Session was updated concurrently"); }
-    private String requireWorktree(TaskRow task) { if (task.worktreePath() == null || task.worktreePath().isBlank()) throw new TaskFailure("WORKTREE_MISSING", "Task has no isolated worktree"); return task.worktreePath(); }
+    private String requireWorktree(TaskRow task) { if (task.worktreePath() == null || task.worktreePath().isBlank()) throw new TaskFailure("WORKTREE_MISSING", "Task has no prepared execution workspace"); return task.worktreePath(); }
     private String normalizedTitle(String title, String goal) { return title == null || title.isBlank() ? goal.substring(0, Math.min(goal.length(), 120)) : title.trim(); }
     private String promptWithBoundaries(LoopSpec spec, StageRow stage, String recovery) { return "Goal: " + spec.goal() + "\nStage: " + stage.objective() + "\nAllowed paths: " + stage.allowedPathsJson() + "\nForbidden paths: " + stage.forbiddenPathsJson() + "\n" + recovery; }
     private OpenCodeClient.OpenCodeModel model(LoopSpec spec) {

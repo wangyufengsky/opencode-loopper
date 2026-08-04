@@ -2,7 +2,8 @@
 
 OpenCode Loopper is a local modular monolith: Spring Boot owns authoritative
 state and verification, Vue renders the console, SQLite persists state, and a
-local OpenCode server performs model Sessions inside per-Task Git worktrees.
+local OpenCode server performs model Sessions inside per-Task Git worktrees or,
+when Git HEAD is unavailable, directly inside the registered project root.
 
 ## Module boundaries
 
@@ -12,7 +13,7 @@ local OpenCode server performs model Sessions inside per-Task Git worktrees.
 - `orchestrator`: state transitions, retry policy and recovery
 - `opencode`: HTTP/SSE adapter and managed process lifecycle
 - `verifier`: bounded-worker direct-process, file and Git diff evidence
-- `workspace`: branch/worktree lifecycle and path containment
+- `workspace`: isolated-worktree/direct-root selection, baseline lifecycle and path containment
 - `event`: persisted timeline and browser SSE
 - `judge`: independent read-only Requirement and Risk final review Sessions
 - `artifact`: immutable diffs, verification summaries and Judge metadata/results
@@ -63,7 +64,7 @@ but it is not an OS sandbox. A deliberately daemonizing hostile executable must
 be isolated by an external Job Object, cgroup or container rather than trusted
 as a LoopSpec verifier.
 
-File paths are worktree-relative and symlink-safe; Stage allowed/forbidden path
+File paths are execution-root-relative and symlink-safe; Stage allowed/forbidden path
 rules always add an implicit `GIT_DIFF` gate. Glob rules are normalized to `/`,
 matched by a bounded dynamic-programming engine with identical behavior on all
 supported operating systems, and rejected at the LoopSpec boundary when path
@@ -77,8 +78,12 @@ move the Task to `WAITING_INPUT`, never to a fabricated success.
 
 ## Workspace safety
 
-Planning may inspect a registered root read-only. Execution requires a Git
-repository with a valid HEAD and creates `loopper/<taskId>` under
-`$LOOPPER_DATA_DIR/worktrees/<taskId>`. Canonical paths must stay under the
-registered root or Task worktree as appropriate. Loopper never pushes, merges
-or deletes a completed worktree automatically.
+Planning may inspect a registered root read-only. When a project has a valid
+Git HEAD, execution creates `loopper/<taskId>` under
+`$LOOPPER_DATA_DIR/worktrees/<taskId>`. Otherwise OpenCode edits the canonical
+registered root directly and Loopper stores a private Git-compatible baseline
+under `$LOOPPER_DATA_DIR/direct-baselines/<taskId>` for deterministic path and
+deletion checks. The private baseline does not initialize or commit the target
+project. Canonical paths must stay under the registered root or Task worktree
+as appropriate. Loopper never pushes, merges or deletes a completed worktree
+automatically.

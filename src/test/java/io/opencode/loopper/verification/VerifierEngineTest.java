@@ -3,6 +3,8 @@ package io.opencode.loopper.verification;
 import io.opencode.loopper.domain.LoopSpec.VerifierSpec;
 import io.opencode.loopper.domain.TaskFailure;
 import io.opencode.loopper.domain.VerificationState;
+import io.opencode.loopper.config.LoopperProperties;
+import io.opencode.loopper.runtime.DirectWorkspaceBaselineManager;
 import io.opencode.loopper.runtime.ProcessResult;
 import io.opencode.loopper.runtime.SafeProcessRunner;
 import java.nio.file.Files;
@@ -59,6 +61,25 @@ class VerifierEngineTest {
                 Duration.ofSeconds(5)))
                 .isInstanceOf(TaskFailure.class)
                 .hasMessageContaining("Invalid verifier path pattern");
+    }
+
+    @Test
+    void directBaselineTracksProjectChangesWithoutAddingGitMetadataToProject() throws Exception {
+        Path project = Files.createDirectory(directory.resolve("plain-project"));
+        Files.writeString(project.resolve("README.md"), "base");
+        LoopperProperties properties = new LoopperProperties();
+        properties.setDataDir(project.resolve(".loopper-data"));
+        DirectWorkspaceBaselineManager baselines = new DirectWorkspaceBaselineManager(new SafeProcessRunner(), properties);
+        String baseline = baselines.capture(project, "task-direct-1");
+
+        Files.writeString(project.resolve("README.md"), "changed");
+        VerifierOutcome outcome = new VerifierEngine(new SafeProcessRunner(), baselines).verify(project, baseline,
+                new VerifierSpec("GIT_DIFF", null, null, true, List.of("README.md"), List.of(), true),
+                Duration.ofSeconds(5));
+
+        assertThat(outcome.state()).isEqualTo(VerificationState.PASS);
+        assertThat(outcome.evidence().get("changedPaths")).isEqualTo(List.of("README.md"));
+        assertThat(project.resolve(".git")).doesNotExist();
     }
 
     @Test

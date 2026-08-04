@@ -18,6 +18,7 @@ const store = useTaskStore()
 const activeTab = ref<'logs' | 'diff' | 'evidence' | 'judges'>('logs')
 const id = computed(() => route.params.id as string)
 const task = computed(() => store.tasks.find((item) => item.id === id.value))
+const isDirectExecution = computed(() => task.value?.branch === 'DIRECT')
 const attempts = computed<Attempt[]>(() => task.value?.attempts ?? task.value?.stages?.flatMap((stage) => stage.attempts) ?? [])
 const sessionErrors = computed<ErrorEvent[]>(() => (task.value?.errors ?? attempts.value.flatMap((attempt) => attempt.errors)).filter((error) => error.layer === 'SESSION'))
 const verifierErrors = computed<ErrorEvent[]>(() => (task.value?.errors ?? attempts.value.flatMap((attempt) => attempt.errors)).filter((error) => error.layer === 'VERIFICATION'))
@@ -40,7 +41,7 @@ onBeforeUnmount(() => store.stopWatching())
 async function confirmCancel() {
   if (!task.value) return
   try {
-    await ElMessageBox.confirm('将 Abort 当前 Session、停止验证器，并保留 worktree 和证据。此操作无法自动恢复。', '取消当前 Task？', { type: 'warning', confirmButtonText: '取消 Task', cancelButtonText: '继续执行' })
+    await ElMessageBox.confirm('将 Abort 当前 Session、停止验证器，并保留执行目录和证据。此操作无法自动恢复。', '取消当前 Task？', { type: 'warning', confirmButtonText: '取消 Task', cancelButtonText: '继续执行' })
     await store.updateTask(id.value, 'cancel')
   } catch {
     // User kept the running task.
@@ -56,7 +57,7 @@ async function confirmCancel() {
     <section v-if="!task" class="card empty-state"><div><Icon icon="lucide:search-x" width="30" /><strong>未找到此 Task</strong><p>它可能已被清理，或当前 API 尚未返回该条记录。</p></div></section>
     <template v-else>
       <section class="task-overview card card-pad">
-        <div><p class="eyebrow">ISOLATED EXECUTION</p><span class="mono tiny muted">{{ task.branch }} · {{ task.worktreePath }}</span></div>
+        <div><p class="eyebrow">{{ isDirectExecution ? 'DIRECT EXECUTION' : 'ISOLATED EXECUTION' }}</p><span class="mono tiny muted">{{ isDirectExecution ? '原项目目录' : task.branch }} · {{ task.worktreePath }}</span></div>
         <div class="overview-meta"><span><b>{{ task.attemptCount }}</b> / {{ task.maxAttempts }} attempts</span><span v-if="store.streamState !== 'idle'" :class="['stream-state', store.streamState]">{{ store.streamState === 'connected' ? 'SSE 已连接' : 'SSE 重连中' }}</span></div>
       </section>
       <section v-if="task.stages?.length" class="card card-pad" style="margin-top: 16px"><div class="card-header"><div><h2 class="card-title">Stage 进度</h2><p class="card-description">一个 Session 只执行当前 Stage；Session 失败不会直接终止 Task。</p></div></div><StageRail :stages="task.stages" /></section>

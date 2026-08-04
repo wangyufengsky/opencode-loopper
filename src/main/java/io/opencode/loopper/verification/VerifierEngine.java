@@ -4,6 +4,7 @@ import io.opencode.loopper.domain.LoopSpec.VerifierSpec;
 import io.opencode.loopper.domain.TaskFailure;
 import io.opencode.loopper.domain.VerificationState;
 import io.opencode.loopper.runtime.ProcessResult;
+import io.opencode.loopper.runtime.DirectWorkspaceBaselineManager;
 import io.opencode.loopper.runtime.SafeProcessRunner;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -15,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Autowired;
 
 @Component
 public class VerifierEngine {
@@ -26,7 +28,13 @@ public class VerifierEngine {
             "sh", "bash", "zsh", "dash", "ksh", "fish", "csh", "tcsh",
             "cmd", "cmd.exe", "powershell", "powershell.exe", "pwsh", "pwsh.exe");
     private final SafeProcessRunner runner;
-    public VerifierEngine(SafeProcessRunner runner) { this.runner = runner; }
+    private final DirectWorkspaceBaselineManager directBaselines;
+    public VerifierEngine(SafeProcessRunner runner) { this(runner, null); }
+    @Autowired
+    public VerifierEngine(SafeProcessRunner runner, DirectWorkspaceBaselineManager directBaselines) {
+        this.runner = runner;
+        this.directBaselines = directBaselines;
+    }
 
     public VerifierOutcome verify(Path worktree, String baselineCommit, VerifierSpec spec, Duration timeout) {
         Duration boundedTimeout = requireBoundedTimeout(timeout);
@@ -99,7 +107,17 @@ public class VerifierEngine {
 
     private VerifierOutcome gitDiff(Path worktree, String baseline, VerifierSpec spec, Duration timeout) {
         if (baseline == null || baseline.isBlank()) throw new TaskFailure("GIT_BASELINE_MISSING", "GIT_DIFF verifier requires a task baseline commit");
-        ProcessResult result = runner.run(worktree, List.of("git", "diff", "--name-status", baseline), timeout);
+        ProcessResult result;
+        ProcessResult untrackedResult;
+        if (baseline.startsWith(DirectWorkspaceBaselineManager.PREFIX)) {
+            if (directBaselines == null) throw new TaskFailure("DIRECT_BASELINE_UNAVAILABLE", "Direct-execution diff support is unavailable");
+            DirectWorkspaceBaselineManager.DiffResult diff = directBaselines.diff(worktree, baseline, timeout);
+            result = diff.tracked();
+            untrackedResult = diff.untracked();
+        } else {
+            result = runner.run(worktree, List.of("git", "diff", "--name-status", baseline), timeout);
+            untrackedResult = runner.run(worktree, List.of("git", "ls-files", "--others", "--exclude-standard"), timeout);
+        }
         if (result.outputTruncated()) {
             throw new TaskFailure("GIT_DIFF_OUTPUT_TRUNCATED", "Git diff exceeded the safe evidence limit");
         }
@@ -107,7 +125,6 @@ public class VerifierEngine {
             return new VerifierOutcome("GIT_DIFF", VerificationState.ERROR, "Unable to inspect Git diff",
                     Map.of("exitCode", result.exitCode(), "output", truncate(result.output())));
         }
-        ProcessResult untrackedResult = runner.run(worktree, List.of("git", "ls-files", "--others", "--exclude-standard"), timeout);
         if (untrackedResult.outputTruncated()) {
             throw new TaskFailure("GIT_DIFF_OUTPUT_TRUNCATED", "Untracked-file evidence exceeded the safe limit");
         }

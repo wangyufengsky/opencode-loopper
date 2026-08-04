@@ -223,12 +223,47 @@ class TaskServiceIntegrationTest {
     }
 
     @Test
-    void unworktreeableTaskBecomesTaskFailureWithEvidence() throws Exception {
+    void projectWithoutGitRunsInRegisteredDirectoryAndKeepsDiffPolicy() throws Exception {
         Path plainDirectory = Files.createDirectory(temp.resolve("not-a-repository"));
+        Files.writeString(plainDirectory.resolve("README.md"), "fixture");
         ProjectRow project = projects.create("plain", plainDirectory.toString());
-        TaskRow task = drafts.confirm(drafts.create(spec(project.id())).id(), "must fail");
-        assertThat(task.state()).isEqualTo("FAILED");
-        assertThat(tasks.errors(task.id())).anyMatch(error -> error.layer().equals(ErrorLayer.TASK.name()) && error.code().equals("INVALID_GIT_REPOSITORY"));
+        LoopSpec directSpec = new LoopSpec("v1", project.id(), "Create a source file", null,
+                List.of(new LoopSpec.StageSpec("Implement directly", List.of("src/**"), List.of("data/**"), List.of("src/App.java"),
+                        List.of(
+                                new LoopSpec.VerifierSpec("GIT_DIFF", null, null, true,
+                                        List.of("src/**"), List.of("data/**"), true),
+                                new LoopSpec.VerifierSpec("FILE_EXISTS", null, "src/App.java", null, null, null, null)))),
+                null, null, null, null);
+        TaskRow task = drafts.confirm(drafts.create(directSpec).id(), "run directly");
+
+        assertThat(task.state()).isEqualTo("READY");
+        assertThat(task.branchName()).isEqualTo("DIRECT");
+        assertThat(task.worktreePath()).isEqualTo(plainDirectory.toRealPath().toString());
+        assertThat(task.baselineCommit()).startsWith("direct:" + task.id() + ":");
+
+        Files.createDirectories(plainDirectory.resolve("src"));
+        Files.writeString(plainDirectory.resolve("src/App.java"), "class App {}");
+        tasks.start(task.id());
+        tasks.verify(task.id());
+
+        assertThat(tasks.get(task.id()).state()).isEqualTo("JUDGING");
+        assertThat(tasks.verifications(tasks.attempts(task.id()).getFirst().id()))
+                .allMatch(result -> result.state().equals("PASS"));
+    }
+
+    @Test
+    void projectWithUnbornGitRepositoryAlsoRunsDirectly() throws Exception {
+        Path projectRoot = Files.createDirectory(temp.resolve("unborn-repository"));
+        Files.writeString(projectRoot.resolve("README.md"), "fixture");
+        run(projectRoot, "git", "init");
+        run(projectRoot, "git", "add", "README.md");
+        ProjectRow project = projects.create("unborn", projectRoot.toString());
+
+        TaskRow task = drafts.confirm(drafts.create(spec(project.id())).id(), "no head yet");
+
+        assertThat(task.state()).isEqualTo("READY");
+        assertThat(task.branchName()).isEqualTo("DIRECT");
+        assertThat(task.worktreePath()).isEqualTo(projectRoot.toRealPath().toString());
     }
 
     @Test

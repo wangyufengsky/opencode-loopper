@@ -58,7 +58,7 @@ async function submit() {
 </script>
 
 <template>
-  <PageHeader eyebrow="Workspace / Projects" title="项目登记" subtitle="登记受控项目根目录；执行只会在独立 worktree 内进行。">
+  <PageHeader eyebrow="Workspace / Projects" title="项目登记" subtitle="登记受控项目根目录；有 Git HEAD 时隔离执行，否则直接修改原目录。">
     <template #actions><el-button type="primary" :icon="Icon" @click="openDialog"><Icon icon="lucide:plus" />登记项目</el-button></template>
   </PageHeader>
   <main id="main-content" class="content" tabindex="-1">
@@ -79,7 +79,7 @@ async function submit() {
   </main>
 
   <el-dialog v-model="dialogVisible" title="登记项目根目录" width="min(640px, calc(100vw - 32px))" :close-on-click-modal="false">
-    <p class="card-description" style="margin-top: -6px">只记录本机绝对路径。Task 会创建到 data/worktrees，不会直接写入原项目目录。</p>
+    <p class="card-description" style="margin-top: -6px">只记录本机绝对路径。有 Git HEAD 时 Task 创建到 data/worktrees；否则直接在登记目录执行。</p>
     <el-form label-position="top" style="margin-top: 18px" @submit.prevent="submit">
       <el-form-item label="项目名称"><el-input v-model="form.name" placeholder="例如 OpenCode Loopper" /></el-form-item>
       <el-form-item label="项目根路径">
