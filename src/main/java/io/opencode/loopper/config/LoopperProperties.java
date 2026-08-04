@@ -15,6 +15,8 @@ public class LoopperProperties {
     private Duration attemptTimeout = Duration.ofMinutes(30);
     private Duration verifierTimeout = Duration.ofMinutes(10);
     private Duration monitorDelay = Duration.ofSeconds(2);
+    /** Optional canonical parent directory for newly registered projects. */
+    private String allowedRoot = "";
     /** Follow-up abort attempts after a mutating Session could not be confirmed stopped. */
     private int abortCleanupAttempts = 3;
     private Mcp mcp = new Mcp();
@@ -35,6 +37,8 @@ public class LoopperProperties {
     public void setVerifierTimeout(Duration value) { this.verifierTimeout = value; }
     public Duration getMonitorDelay() { return monitorDelay; }
     public void setMonitorDelay(Duration value) { this.monitorDelay = value; }
+    public String getAllowedRoot() { return allowedRoot; }
+    public void setAllowedRoot(String value) { this.allowedRoot = value; }
     public int getAbortCleanupAttempts() { return abortCleanupAttempts; }
     public void setAbortCleanupAttempts(int value) { this.abortCleanupAttempts = value; }
     public Mcp getMcp() { return mcp; }

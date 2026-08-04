@@ -43,14 +43,24 @@ public class VerifierEngine {
     private VerifierOutcome process(Path worktree, VerifierSpec spec, Duration timeout) {
         requireDirectExecutable(spec.command());
         ProcessResult result = runner.run(worktree, spec.command(), timeout);
-        boolean passed = !result.timedOut() && !result.outputTruncated() && result.exitCode() == 0;
+        boolean outputMatched = spec.outputContains() == null || result.output().contains(spec.outputContains());
+        boolean passed = !result.timedOut() && !result.outputTruncated() && result.exitCode() == 0 && outputMatched;
         String summary = result.timedOut() ? "Process verifier timed out"
                 : result.outputTruncated() ? "Process verifier output exceeded the safe limit"
+                : !outputMatched ? "Process output did not contain required text: " + spec.outputContains()
                 : "Process exited " + result.exitCode();
+        Map<String, Object> evidence = new LinkedHashMap<>();
+        evidence.put("argv", spec.command());
+        evidence.put("exitCode", result.exitCode());
+        evidence.put("timedOut", result.timedOut());
+        evidence.put("outputTruncated", result.outputTruncated());
+        evidence.put("output", truncate(result.output()));
+        if (spec.outputContains() != null) {
+            evidence.put("outputContains", spec.outputContains());
+            evidence.put("outputMatched", outputMatched);
+        }
         return new VerifierOutcome("PROCESS", passed ? VerificationState.PASS : VerificationState.FAIL,
-                summary,
-                Map.of("argv", spec.command(), "exitCode", result.exitCode(), "timedOut", result.timedOut(),
-                        "outputTruncated", result.outputTruncated(), "output", truncate(result.output())));
+                summary, evidence);
     }
 
     private Duration requireBoundedTimeout(Duration timeout) {

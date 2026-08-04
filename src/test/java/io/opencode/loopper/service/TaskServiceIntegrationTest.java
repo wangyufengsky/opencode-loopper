@@ -57,6 +57,20 @@ class TaskServiceIntegrationTest {
     }
 
     @Test
+    void confirmationRejectsDesignerContractThatOnlyChecksGitDiff() throws Exception {
+        ProjectRow project = projects.create("weak-designer-acceptance", gitProject());
+        LoopSpec weak = new LoopSpec("v1", project.id(), "Compile and print PASS", null,
+                List.of(new LoopSpec.StageSpec("Implement and verify", List.of("src/**"), List.of("data/**"), List.of("source"),
+                        List.of(new LoopSpec.VerifierSpec("GIT_DIFF", null, null, true,
+                                List.of("src/**"), List.of("data/**"), true)))), null, null, null, null);
+        LoopDraftRow draft = drafts.create(weak);
+
+        assertThatThrownBy(() -> drafts.confirm(draft.id(), "must be executable"))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("GIT_DIFF only checks change scope");
+    }
+
+    @Test
     void providerRetryStatusFlowsThroughMonitorAsSessionErrorAndContinuesTaskLoop() throws Exception {
         ProjectRow project = projects.create("provider-retry", gitProject());
         TaskRow task = drafts.confirm(drafts.create(spec(project.id())).id(), "provider retry recovery");

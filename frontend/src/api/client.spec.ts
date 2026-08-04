@@ -5,6 +5,7 @@ import type { LoopSpec } from '@/types/domain'
 const spec: LoopSpec = {
   schemaVersion: 'v1', projectId: 'project-1', goal: 'Verify the contract', context: '',
   stages: [{ objective: 'Implement', allowedPaths: ['src/**'], forbiddenPaths: [], deliverables: ['source'], verifiers: [
+    { type: 'PROCESS', command: ['./mvnw', 'test'], outputContains: 'BUILD SUCCESS' },
     { type: 'FILE_EXISTS', path: 'src/App.java' },
     { type: 'GIT_DIFF', requireChanges: true, allowedPaths: ['src/**'], forbiddenPaths: ['data/**'], forbidDeletes: true },
   ] }],
@@ -43,12 +44,30 @@ describe('Loopper REST contract adapter', () => {
     await expect(api.getRuntime()).resolves.toMatchObject({ status: 'ONLINE', managed: true })
   })
 
+  it('loads and persists settings with a dynamic model catalog', async () => {
+    const settings = { cliPath: 'opencode', allowedRoot: '', provider: 'deepseek', model: 'deepseek-chat', maxTaskAttempts: 12, timeoutMinutes: 30, autoApprove: false }
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json(settings))
+      .mockResolvedValueOnce(json([{ id: 'deepseek/deepseek-chat', provider: 'deepseek', model: 'deepseek-chat', label: 'deepseek / deepseek-chat' }]))
+      .mockResolvedValueOnce(json(settings))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(api.getSettings()).resolves.toMatchObject({ provider: 'deepseek', model: 'deepseek-chat' })
+    await expect(api.getSettingsModels('opencode')).resolves.toMatchObject([{ id: 'deepseek/deepseek-chat' }])
+    await api.updateSettings(settings)
+
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/settings/models?cliPath=opencode')
+    expect(fetchMock.mock.calls[2]?.[0]).toBe('/api/settings')
+    expect(fetchMock.mock.calls[2]?.[1]).toMatchObject({ method: 'PUT' })
+  })
+
   it('round-trips structured verifier rules without converting them to PROCESS', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({ id: 'draft-1', status: 'DRAFT_READY', updatedAt: 'now', spec })))
 
     const draft = await api.getDraft('draft-1')
 
     expect(draft.spec.stages[0]?.verifiers).toEqual([
+      { type: 'PROCESS', command: ['./mvnw', 'test'], outputContains: 'BUILD SUCCESS' },
       { type: 'FILE_EXISTS', path: 'src/App.java' },
       { type: 'GIT_DIFF', requireChanges: true, allowedPaths: ['src/**'], forbiddenPaths: ['data/**'], forbidDeletes: true },
     ])

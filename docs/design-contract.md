@@ -83,3 +83,10 @@ the newest provider-exposed `THINKING`, `OUTPUT`, and `TOOL` parts; terminal
 Sessions remain selectable as history and refresh at a slower interval. Before
 the first model text arrives, an animated thinking indicator makes the active
 handoff distinguishable from an error or empty state.
+
+Designer acceptance criteria are not advisory prose. Every validation command
+shown in the Markdown proposal must also be represented in the corresponding
+LoopSpec stage as a direct-argv `PROCESS` verifier; expected success markers use
+`outputContains`. The Review Gate renders these machine checks separately and
+rejects saving or confirming a stage whose only verifier is `GIT_DIFF`, because
+that verifier proves change scope but not functional correctness.

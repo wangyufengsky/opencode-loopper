@@ -41,16 +41,25 @@ public record LoopSpec(
         }
     }
 
-    public record VerifierSpec(@NotBlank String type, List<String> command, String path,
+    public record VerifierSpec(@NotBlank String type,
+                               @Size(max = 64) List<@NotBlank @Size(max = 2_048) String> command,
+                               String path,
                                Boolean requireChanges,
                                @Size(max = 64) List<@Size(max = 512) String> allowedPaths,
                                @Size(max = 64) List<@Size(max = 512) String> forbiddenPaths,
-                               Boolean forbidDeletes) {
+                               Boolean forbidDeletes,
+                               @Size(max = 4_000) String outputContains) {
+        public VerifierSpec(String type, List<String> command, String path, Boolean requireChanges,
+                            List<String> allowedPaths, List<String> forbiddenPaths, Boolean forbidDeletes) {
+            this(type, command, path, requireChanges, allowedPaths, forbiddenPaths, forbidDeletes, null);
+        }
+
         public VerifierSpec {
             type = type == null ? null : type.trim().toUpperCase();
             command = immutable(command);
             allowedPaths = immutable(allowedPaths);
             forbiddenPaths = immutable(forbiddenPaths);
+            outputContains = blankToNull(outputContains);
         }
     }
 

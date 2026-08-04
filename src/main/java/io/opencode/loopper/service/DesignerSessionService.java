@@ -237,6 +237,9 @@ public class DesignerSessionService {
                 - Write the complete response as a well-structured Markdown document. Do not wrap the whole response in a code fence and do not emit raw HTML.
                 - Use meaningful headings, short paragraphs, lists, tables, and fenced code blocks where they make the proposal easier to review.
                 - Include concrete implementation boundaries, affected files or modules, validation commands, acceptance criteria, risks, and unresolved decisions when they are relevant.
+                - The Markdown acceptance criteria and the machine LoopSpec MUST describe the same checks. Every validation command shown in Markdown must appear in the corresponding stage.verifiers as a PROCESS argv array. Never leave a stage with GIT_DIFF as its only verifier: GIT_DIFF checks scope, not functional correctness.
+                - PROCESS commands are direct argv arrays, never shell snippets (for example ["./mvnw", "clean", "compile"]). When success requires stdout text such as PASS, set outputContains to that exact text. A PROCESS verifier must exit non-zero when its self-check fails.
+                - Use FILE_EXISTS or FILE_NOT_EXISTS for deterministic artifact checks, retain GIT_DIFF for path/delete policy, and choose limits.verifierTimeoutSeconds large enough for the slowest validation command.
                 - Whenever you describe a workflow, state transition, component interaction, dependency flow, or multi-step execution path, include a fenced `mermaid` diagram. Never draw flows with ASCII art.
                 - Keep identifiers, commands, file paths, and code in their original form. Use the same natural language as the user for explanatory prose.
                 - Your response MUST end with the complete updated LoopSpec JSON between the exact markers shown below. The JSON is machine-consumed and will be removed from the visible Markdown after validation.

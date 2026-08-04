@@ -2,6 +2,7 @@ package io.opencode.loopper.service;
 
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.ProjectRow;
+import io.opencode.loopper.config.LoopperProperties;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -13,11 +14,13 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class ProjectService {
     private final LoopperMapper mapper;
-    public ProjectService(LoopperMapper mapper) { this.mapper = mapper; }
+    private final LoopperProperties properties;
+    public ProjectService(LoopperMapper mapper, LoopperProperties properties) { this.mapper = mapper; this.properties = properties; }
     @Transactional
     public ProjectRow create(String name, String rootPath) {
         if (name == null || name.isBlank()) throw new BadRequestException("PROJECT_NAME_REQUIRED", "Project name is required");
         String root = canonicalDirectory(rootPath);
+        requireAllowedRoot(root);
         String now = Instant.now().toString();
         ProjectRow project = new ProjectRow(UUID.randomUUID().toString(), name.trim(), root, now, now, 0);
         mapper.insertProject(project);
@@ -46,5 +49,16 @@ public class ProjectService {
             return path.toString();
         } catch (BadRequestException e) { throw e; }
         catch (Exception e) { throw new BadRequestException("PROJECT_PATH_INVALID", "Project root cannot be resolved safely: " + e.getMessage()); }
+    }
+    private void requireAllowedRoot(String root) {
+        String configured = properties.getAllowedRoot();
+        if (configured == null || configured.isBlank()) return;
+        try {
+            Path allowed = Path.of(configured).toRealPath();
+            if (!Path.of(root).startsWith(allowed)) {
+                throw new BadRequestException("PROJECT_OUTSIDE_ALLOWED_ROOT", "Project root must be inside the configured allowed project root");
+            }
+        } catch (BadRequestException e) { throw e; }
+        catch (Exception e) { throw new BadRequestException("ALLOWED_ROOT_INVALID", "Configured allowed project root cannot be resolved safely"); }
     }
 }

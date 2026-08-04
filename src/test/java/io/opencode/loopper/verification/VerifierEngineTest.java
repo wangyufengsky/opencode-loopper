@@ -95,6 +95,23 @@ class VerifierEngineTest {
     }
 
     @Test
+    void processCanRequireDesignerSpecifiedOutputText() {
+        String java = Path.of(System.getProperty("java.home"), "bin", isWindows() ? "java.exe" : "java").toString();
+        List<String> command = List.of(java, "-cp", System.getProperty("java.class.path"), OutputFixture.class.getName());
+
+        VerifierOutcome pass = engine.verify(directory, "unused",
+                new VerifierSpec("PROCESS", command, null, null, null, null, null, "CROSS-CHECK PASS"), Duration.ofSeconds(5));
+        VerifierOutcome fail = engine.verify(directory, "unused",
+                new VerifierSpec("PROCESS", command, null, null, null, null, null, "MISSING MARKER"), Duration.ofSeconds(5));
+
+        assertThat(pass.state()).isEqualTo(VerificationState.PASS);
+        assertThat(pass.evidence()).containsEntry("outputMatched", true);
+        assertThat(fail.state()).isEqualTo(VerificationState.FAIL);
+        assertThat(fail.summary()).contains("MISSING MARKER");
+        assertThat(fail.evidence()).containsEntry("outputMatched", false);
+    }
+
+    @Test
     void rejectsVerifierTimeoutAboveRuntimeSafetyLimit() {
         assertThatThrownBy(() -> engine.verify(directory, "unused",
                 new VerifierSpec("FILE_NOT_EXISTS", null, "missing.txt", null, null, null, null),
@@ -167,6 +184,12 @@ class VerifierEngineTest {
             if (args.length > 0) Thread.sleep(Long.parseLong(args[0]));
             String block = "x".repeat(8_192);
             while (true) System.out.print(block);
+        }
+    }
+
+    public static final class OutputFixture {
+        public static void main(String[] args) {
+            System.out.println("CROSS-CHECK PASS");
         }
     }
 

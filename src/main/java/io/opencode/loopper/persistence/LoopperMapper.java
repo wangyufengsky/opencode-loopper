@@ -11,6 +11,23 @@ import org.apache.ibatis.annotations.Update;
 
 @Mapper
 public interface LoopperMapper {
+    @Select("SELECT * FROM app_settings WHERE id=1")
+    Optional<AppSettingsRow> findAppSettings();
+    @Insert("""
+            INSERT INTO app_settings(id,cli_path,allowed_root,provider_id,model_id,max_task_attempts,attempt_timeout_minutes,auto_approve,updated_at)
+            VALUES(1,#{cliPath},#{allowedRoot},#{providerId},#{modelId},#{maxTaskAttempts},#{attemptTimeoutMinutes},#{autoApprove},#{updatedAt})
+            ON CONFLICT(id) DO UPDATE SET
+              cli_path=excluded.cli_path,
+              allowed_root=excluded.allowed_root,
+              provider_id=excluded.provider_id,
+              model_id=excluded.model_id,
+              max_task_attempts=excluded.max_task_attempts,
+              attempt_timeout_minutes=excluded.attempt_timeout_minutes,
+              auto_approve=excluded.auto_approve,
+              updated_at=excluded.updated_at
+            """)
+    int upsertAppSettings(AppSettingsRow row);
+
     @Insert("INSERT INTO project(id,name,root_path,created_at,updated_at,version) VALUES(#{id},#{name},#{rootPath},#{createdAt},#{updatedAt},#{version})")
     int insertProject(ProjectRow row);
     @Select("SELECT * FROM project WHERE id=#{id}") Optional<ProjectRow> findProject(String id);

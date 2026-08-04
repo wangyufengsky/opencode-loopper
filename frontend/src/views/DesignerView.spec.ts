@@ -162,7 +162,7 @@ describe('Designer draft composer', () => {
       await flushPromises()
 
       expect(wrapper.findComponent(LoopSpecEditor).props('modelValue')).toContain('实现并验证 100000 位圆周率计算')
-      expect(wrapper.text()).toContain('1 stages')
+      expect(wrapper.text()).toContain('1 个阶段')
       wrapper.unmount()
     } finally {
       vi.useRealTimers()

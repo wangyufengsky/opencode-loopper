@@ -1,4 +1,4 @@
-import type { Artifact, Attempt, DesignerAppendResult, DesignerMessage, DesignerSession, DesignerSessionState, DirectorySelection, ErrorEvent, JudgeRun, LoopDraft, LoopSpec, LoopVerifierSpec, Project, RuntimeInfo, Stage, Task, TaskEvent, TaskSessionActivity, TaskSessionActivityPart, TaskSessionSummary } from '@/types/domain'
+import type { AppSettings, Artifact, Attempt, AvailableModel, DesignerAppendResult, DesignerMessage, DesignerSession, DesignerSessionState, DirectorySelection, ErrorEvent, JudgeRun, LoopDraft, LoopSpec, LoopVerifierSpec, Project, RuntimeInfo, Stage, Task, TaskEvent, TaskSessionActivity, TaskSessionActivityPart, TaskSessionSummary } from '@/types/domain'
 
 const apiBase = import.meta.env.VITE_API_BASE ?? '/api'
 
@@ -50,6 +50,7 @@ function parseVerifier(value: unknown): LoopVerifierSpec {
     ...(asArray(raw.allowedPaths).length ? { allowedPaths: asArray(raw.allowedPaths).map(String) } : {}),
     ...(asArray(raw.forbiddenPaths).length ? { forbiddenPaths: asArray(raw.forbiddenPaths).map(String) } : {}),
     ...(typeof raw.forbidDeletes === 'boolean' ? { forbidDeletes: raw.forbidDeletes } : {}),
+    ...(asString(raw.outputContains) ? { outputContains: asString(raw.outputContains) } : {}),
   }
 }
 
@@ -229,6 +230,27 @@ function normalizeRuntime(value: unknown): RuntimeInfo {
   }
 }
 
+function normalizeSettings(value: unknown): AppSettings {
+  const raw = asRecord(value)
+  return {
+    cliPath: asString(raw.cliPath, 'opencode'),
+    allowedRoot: asString(raw.allowedRoot),
+    provider: asString(raw.provider),
+    model: asString(raw.model),
+    maxTaskAttempts: asNumber(raw.maxTaskAttempts, 12),
+    timeoutMinutes: asNumber(raw.timeoutMinutes, 30),
+    autoApprove: raw.autoApprove === true,
+    updatedAt: asString(raw.updatedAt) || undefined,
+  }
+}
+
+function normalizeAvailableModel(value: unknown): AvailableModel {
+  const raw = asRecord(value)
+  const provider = asString(raw.provider)
+  const model = asString(raw.model)
+  return { id: asString(raw.id, `${provider}/${model}`), provider, model, label: asString(raw.label, `${provider} / ${model}`) }
+}
+
 function normalizeDraft(value: unknown): LoopDraft {
   const raw = asRecord(value)
   let parsed: unknown = raw.spec
@@ -298,6 +320,7 @@ function backendLoopSpec(spec: LoopSpec): JsonRecord {
         ...(verifier.allowedPaths?.length ? { allowedPaths: verifier.allowedPaths } : {}),
         ...(verifier.forbiddenPaths?.length ? { forbiddenPaths: verifier.forbiddenPaths } : {}),
         ...(typeof verifier.forbidDeletes === 'boolean' ? { forbidDeletes: verifier.forbidDeletes } : {}),
+        ...(verifier.outputContains ? { outputContains: verifier.outputContains } : {}),
       })),
     })),
     limits: { maxStageAttempts: spec.limits.maxStageAttempts, maxTaskAttempts: spec.limits.maxTaskAttempts, sessionErrorLimit: 3, stagnationLimit: 2, maxDurationSeconds: durationSeconds(spec.limits.maxDuration, 7200), attemptTimeoutSeconds: durationSeconds(spec.limits.attemptTimeout, 1800), verifierTimeoutSeconds: 600 },
@@ -321,6 +344,9 @@ export const api = {
   cancelTask: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}/cancel`, { method: 'POST' })),
   getRuntime: async () => normalizeRuntime(await request<unknown>('/runtime/opencode')),
   restartRuntime: async () => normalizeRuntime(await request<unknown>('/runtime/opencode/restart', { method: 'POST' })),
+  getSettings: async () => normalizeSettings(await request<unknown>('/settings')),
+  updateSettings: async (settings: AppSettings) => normalizeSettings(await request<unknown>('/settings', { method: 'PUT', body: JSON.stringify(settings) })),
+  getSettingsModels: async (cliPath?: string) => (await request<unknown[]>(`/settings/models${cliPath ? `?cliPath=${encodeURIComponent(cliPath)}` : ''}`)).map(normalizeAvailableModel),
   createDraft: async (spec: LoopSpec) => normalizeDraft(await request<unknown>('/loop-drafts', { method: 'POST', body: JSON.stringify({ spec: backendLoopSpec(spec) }) })),
   getDraft: async (id: string) => normalizeDraft(await request<unknown>(`/loop-drafts/${encodeURIComponent(id)}`)),
   updateDraft: async (id: string, spec: LoopDraft['spec']) => normalizeDraft(await request<unknown>(`/loop-drafts/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify({ spec: backendLoopSpec(spec) }) })),

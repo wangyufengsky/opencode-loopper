@@ -910,7 +910,16 @@ public class TaskService {
     private String requireWorktree(TaskRow task) { if (task.worktreePath() == null || task.worktreePath().isBlank()) throw new TaskFailure("WORKTREE_MISSING", "Task has no isolated worktree"); return task.worktreePath(); }
     private String normalizedTitle(String title, String goal) { return title == null || title.isBlank() ? goal.substring(0, Math.min(goal.length(), 120)) : title.trim(); }
     private String promptWithBoundaries(LoopSpec spec, StageRow stage, String recovery) { return "Goal: " + spec.goal() + "\nStage: " + stage.objective() + "\nAllowed paths: " + stage.allowedPathsJson() + "\nForbidden paths: " + stage.forbiddenPathsJson() + "\n" + recovery; }
-    private OpenCodeClient.OpenCodeModel model(LoopSpec spec) { return new OpenCodeClient.OpenCodeModel(spec.model().providerId(), spec.model().modelId(), spec.model().thinking()); }
+    private OpenCodeClient.OpenCodeModel model(LoopSpec spec) {
+        if (spec.model() != null && spec.model().providerId() != null && spec.model().modelId() != null) {
+            return new OpenCodeClient.OpenCodeModel(spec.model().providerId(), spec.model().modelId(), spec.model().thinking());
+        }
+        String configured = defaults.getOpenCode().getModel();
+        if (configured == null) return null;
+        int separator = configured.indexOf('/');
+        if (separator <= 0 || separator >= configured.length() - 1) return null;
+        return new OpenCodeClient.OpenCodeModel(configured.substring(0, separator), configured.substring(separator + 1), null);
+    }
     private String now() { return Instant.now().toString(); }
     private String safeMessage(Throwable t) { return safeMessage(t.getMessage()); }
     private String safeMessage(String value) { return value == null ? "Unknown error" : value.substring(0, Math.min(value.length(), 4000)); }

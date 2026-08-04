@@ -8,6 +8,7 @@ import StatusBadge from '@/components/StatusBadge.vue'
 import LayeredErrorPanel from '@/components/LayeredErrorPanel.vue'
 import LoopSpecEditor from '@/components/LoopSpecEditor.vue'
 import MarkdownDocument from '@/components/MarkdownDocument.vue'
+import ExecutionAcceptancePanel from '@/components/ExecutionAcceptancePanel.vue'
 import { api } from '@/api/client'
 import { demoDraft, demoMessages } from '@/mock/demoData'
 import { useTaskStore } from '@/stores/taskStore'
@@ -425,9 +426,10 @@ async function sendMessage() {
         </div>
       </article>
       <article class="card spec-panel">
-        <div class="card-pad card-header"><div><p class="eyebrow">REVIEW GATE</p><h2 class="card-title">LoopSpec v{{ draft.spec.schemaVersion.replace('v', '') }}</h2><p class="card-description">确认前的修改会重新通过 Schema 与 Java 业务校验。</p></div><el-button plain size="small" :loading="busy" @click="saveDraft"><Icon icon="lucide:save" />保存</el-button></div>
-        <div class="spec-meta"><span><Icon icon="lucide:folder-git-2" />{{ draft.spec.projectId }}</span><span><Icon icon="lucide:flag" />{{ draft.spec.stages.length }} stages</span><span><Icon icon="lucide:timer" />{{ draft.spec.limits.maxDuration }}</span></div>
-        <LoopSpecEditor v-model="editorValue" class="spec-editor" aria-label="LoopSpec JSON 编辑器" />
+        <div class="card-pad card-header"><div><p class="eyebrow">REVIEW GATE</p><h2 class="card-title">LoopSpec v{{ draft.spec.schemaVersion.replace('v', '') }}</h2><p class="card-description">后台仍使用标准 JSON；这里用中文字段逐项编辑，保存时重新通过 Schema 与 Java 业务校验。</p></div><el-button plain size="small" :loading="busy" @click="saveDraft"><Icon icon="lucide:save" />保存</el-button></div>
+        <div class="spec-meta"><span><Icon icon="lucide:folder-git-2" />{{ draft.spec.projectId }}</span><span><Icon icon="lucide:flag" />{{ draft.spec.stages.length }} 个阶段</span><span><Icon icon="lucide:timer" />{{ draft.spec.limits.maxDuration }}</span></div>
+        <ExecutionAcceptancePanel :source="editorValue" />
+        <LoopSpecEditor v-model="editorValue" class="spec-editor" aria-label="LoopSpec 中文结构化编辑器" />
         <LayeredErrorPanel v-if="fieldError" :error="fieldError" style="margin-top: 12px" />
         <div class="spec-footer"><span class="tiny muted"><Icon icon="lucide:lock-keyhole" /> 执行将创建隔离 worktree</span><span class="mono tiny">{{ draft.updatedAt }}</span></div>
       </article>
@@ -498,7 +500,7 @@ async function sendMessage() {
 .compose-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
 .spec-meta, .spec-footer { display: flex; align-items: center; gap: 12px; padding: 0 20px 14px; color: var(--color-text-secondary); font-family: var(--font-code); font-size: 10px; }
 .spec-meta span { display: inline-flex; align-items: center; gap: 5px; }
-.spec-editor { display: block; padding: 0 20px; }
+.spec-editor { display: block; }
 .spec-footer { justify-content: space-between; padding-top: 14px; border-top: 1px solid var(--color-border-default); }
 .spec-footer span { display: inline-flex; align-items: center; gap: 5px; }
 .designer-session-alert { display: flex; gap: 10px; margin: 0 20px 8px; padding: 12px; border: 1px solid rgb(245 158 11 / 35%); border-radius: 10px; background: rgb(245 158 11 / 9%); color: var(--color-status-session); }

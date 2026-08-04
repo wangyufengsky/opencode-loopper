@@ -43,6 +43,24 @@ export interface RuntimeInfo {
   checkedAt: string
 }
 
+export interface AppSettings {
+  cliPath: string
+  allowedRoot: string
+  provider: string
+  model: string
+  maxTaskAttempts: number
+  timeoutMinutes: number
+  autoApprove: boolean
+  updatedAt?: string
+}
+
+export interface AvailableModel {
+  id: string
+  provider: string
+  model: string
+  label: string
+}
+
 export interface ErrorEvent {
   id: string
   layer: ErrorLayer
@@ -176,6 +194,7 @@ export interface LoopVerifierSpec {
   allowedPaths?: string[]
   forbiddenPaths?: string[]
   forbidDeletes?: boolean
+  outputContains?: string
 }
 
 export interface LoopSpec {

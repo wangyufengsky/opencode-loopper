@@ -12,8 +12,6 @@ import io.opencode.loopper.service.DesignerSessionService;
 import io.opencode.loopper.service.LoopDraftService;
 import io.opencode.loopper.service.ProjectService;
 import io.opencode.loopper.service.TaskService;
-import jakarta.validation.Validator;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.springframework.ai.tool.annotation.Tool;
@@ -31,16 +29,14 @@ public class LoopperMcpTools {
     private final LoopDraftService drafts;
     private final TaskService tasks;
     private final LoopperMapper mapper;
-    private final Validator validator;
 
     public LoopperMcpTools(ProjectService projects, DesignerSessionService designerSessions, LoopDraftService drafts,
-                           TaskService tasks, LoopperMapper mapper, Validator validator) {
+                           TaskService tasks, LoopperMapper mapper) {
         this.projects = projects;
         this.designerSessions = designerSessions;
         this.drafts = drafts;
         this.tasks = tasks;
         this.mapper = mapper;
-        this.validator = validator;
     }
 
     @Tool(name = "get_project_context", description = "Read registered project context without file-write authority")
@@ -64,8 +60,7 @@ public class LoopperMcpTools {
         if (!normalizedProjectId.equals(spec.projectId())) {
             throw new BadRequestException("LOOPSPEC_PROJECT_MISMATCH", "spec.projectId must match projectId");
         }
-        List<String> errors = validationErrors(spec);
-        if (!"v1".equals(spec.schemaVersion())) errors = append(errors, "schemaVersion: only v1 is supported");
+        List<String> errors = drafts.validationErrors(spec, true);
         if (!errors.isEmpty()) throw new BadRequestException("LOOPSPEC_INVALID", String.join("; ", errors));
         LoopDraftRow draft = designerSessions.syncLoopSpec(sessionId, spec);
         return Map.of("designerSessionId", sessionId, "draft", draft, "spec", spec, "status", draft.status(),
@@ -113,8 +108,7 @@ public class LoopperMcpTools {
     }
 
     private Map<String, Object> validationResult(LoopSpec spec, String draftId, Long version) {
-        List<String> errors = validationErrors(spec);
-        if (!"v1".equals(spec.schemaVersion())) errors = append(errors, "schemaVersion: only v1 is supported");
+        List<String> errors = drafts.validationErrors(spec, true);
         return draftId == null ? Map.of("valid", errors.isEmpty(), "errors", errors)
                 : Map.of("valid", errors.isEmpty(), "errors", errors, "draftId", draftId, "version", version);
     }
@@ -143,13 +137,4 @@ public class LoopperMcpTools {
         return value.trim();
     }
 
-    private List<String> validationErrors(LoopSpec spec) {
-        return validator.validate(spec).stream().map(v -> v.getPropertyPath() + ": " + v.getMessage()).sorted().toList();
-    }
-
-    private List<String> append(List<String> values, String value) {
-        List<String> copy = new ArrayList<>(values);
-        copy.add(value);
-        return List.copyOf(copy);
-    }
 }

@@ -63,7 +63,7 @@ flowchart LR
 - 恢复后的新 Session 能读取上一轮摘要与 Diff。
 - Maven 测试和前端测试全部通过。
 
-> 右侧 LoopSpec JSON 仍是最终执行契约，确认前可以继续编辑。`, createdAt: '10:03' },
+> 右侧 LoopSpec 结构化表单仍是最终执行契约，确认前可以继续编辑。`, createdAt: '10:03' },
 ]
 
 export const demoArtifacts: Artifact[] = [
