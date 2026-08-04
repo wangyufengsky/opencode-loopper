@@ -13,8 +13,8 @@ spring:
         version: 0.1.0
         type: SYNC
         instructions: >-
-          Use the six Loopper tools only. Designer access is READ_ONLY; proposals are
-          persisted as DRAFT_READY and require human confirmation before create_task.
+          Use the six Loopper tools only. Designer access is READ_ONLY; proposals synchronize
+          the session-bound DRAFT_READY LoopSpec and require human confirmation before create_task.
         capabilities:
           tool: true
           resource: false

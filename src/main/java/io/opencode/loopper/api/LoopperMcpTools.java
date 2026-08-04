@@ -52,7 +52,7 @@ public class LoopperMcpTools {
                 "restriction", "MCP Designer tools never write repository files or alter a task without a confirmed draft.");
     }
 
-    @Tool(name = "propose_loop_spec", description = "Persist a complete DRAFT_READY LoopSpec from a read-only Designer session; human confirmation is required before task creation")
+    @Tool(name = "propose_loop_spec", description = "Validate and synchronize a complete DRAFT_READY LoopSpec into the draft bound to a read-only Designer session; human confirmation is required before task creation")
     public Map<String, Object> proposeLoopSpec(
             @ToolParam(description = "Read-only Designer session identifier", required = true) String designerSessionId,
             @ToolParam(description = "Registered project identifier", required = true) String projectId,
@@ -67,7 +67,7 @@ public class LoopperMcpTools {
         List<String> errors = validationErrors(spec);
         if (!"v1".equals(spec.schemaVersion())) errors = append(errors, "schemaVersion: only v1 is supported");
         if (!errors.isEmpty()) throw new BadRequestException("LOOPSPEC_INVALID", String.join("; ", errors));
-        LoopDraftRow draft = drafts.create(spec);
+        LoopDraftRow draft = designerSessions.syncLoopSpec(sessionId, spec);
         return Map.of("designerSessionId", sessionId, "draft", draft, "spec", spec, "status", draft.status(),
                 "requiresHumanConfirmation", true,
                 "nextStep", "Review and confirm the draft through the Loop Draft REST workflow before calling create_task.");

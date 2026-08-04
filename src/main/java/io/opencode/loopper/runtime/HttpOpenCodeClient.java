@@ -7,6 +7,7 @@ import java.net.URI;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Map;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.function.Supplier;
@@ -127,10 +128,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
     }
     @Override public String sessionOutput(OpenCodeSession session) {
         try {
-            JsonNode body = client().get().uri(uri -> uri.path("/session/{id}/message").queryParam("directory", session.worktree().toString()).build(session.id()))
-                    .retrieve().body(JsonNode.class);
-            JsonNode messages = body != null && body.isArray() ? body : body == null ? null : body.path("data");
-            if (messages == null || !messages.isArray()) throw new SessionFailure("OPENCODE_OUTPUT_MISSING", "OpenCode did not return a message list");
+            JsonNode messages = sessionMessages(session);
             String latest = null;
             for (JsonNode message : messages) {
                 JsonNode info = message.path("info");
@@ -143,6 +141,77 @@ public class HttpOpenCodeClient implements OpenCodeClient {
             return latest;
         } catch (SessionFailure e) { throw e; }
         catch (RuntimeException e) { throw new SessionFailure("OPENCODE_OUTPUT_FAILED", e.getMessage()); }
+    }
+
+    @Override public SessionTranscript sessionTranscript(OpenCodeSession session) {
+        try {
+            JsonNode messages = sessionMessages(session);
+            List<SessionPart> result = new ArrayList<>();
+            int messageIndex = 0;
+            for (JsonNode message : messages) {
+                JsonNode info = message.path("info");
+                String role = info.path("role").asText(message.path("role").asText(""));
+                if (!"assistant".equalsIgnoreCase(role)) { messageIndex++; continue; }
+                JsonNode parts = message.path("parts");
+                if (parts.isArray()) {
+                    int partIndex = 0;
+                    for (JsonNode part : parts) {
+                        SessionPart parsed = monitorPart(part, messageIndex, partIndex++);
+                        if (parsed != null && result.size() < 200) result.add(parsed);
+                    }
+                } else if (message.hasNonNull("text")) {
+                    result.add(new SessionPart("message-" + messageIndex, "OUTPUT", "模型输出",
+                            bounded(message.path("text").asText()), null));
+                }
+                messageIndex++;
+            }
+            return new SessionTranscript(result);
+        } catch (SessionFailure e) { throw e; }
+        catch (RuntimeException e) { throw new SessionFailure("OPENCODE_TRANSCRIPT_FAILED", e.getMessage()); }
+    }
+
+    private SessionPart monitorPart(JsonNode part, int messageIndex, int partIndex) {
+        String sourceType = part.path("type").asText("").toLowerCase();
+        String id = part.path("id").asText("message-" + messageIndex + "-part-" + partIndex);
+        if ("text".equals(sourceType)) {
+            String content = bounded(part.path("text").asText(""));
+            return content.isBlank() ? null : new SessionPart(id, "OUTPUT", "模型输出", content, null);
+        }
+        if ("reasoning".equals(sourceType) || "thinking".equals(sourceType)) {
+            String content = firstText(part.path("text"), part.path("content"), part.path("reasoning"));
+            return content.isBlank() ? null : new SessionPart(id, "THINKING", "Thinking", bounded(content), part.path("state").asText(null));
+        }
+        if ("tool".equals(sourceType) || "tool-call".equals(sourceType) || "tool_invocation".equals(sourceType)) {
+            JsonNode state = part.path("state");
+            String label = firstText(part.path("tool"), part.path("name"), state.path("title"));
+            String content = firstText(state.path("output"), state.path("title"), part.path("text"));
+            String status = firstText(state.path("status"), part.path("status"));
+            return new SessionPart(id, "TOOL", label.isBlank() ? "工具调用" : bounded(label), bounded(content), bounded(status));
+        }
+        return null;
+    }
+
+    private String firstText(JsonNode... candidates) {
+        for (JsonNode candidate : candidates) {
+            if (candidate != null && candidate.isValueNode()) {
+                String value = candidate.asText("");
+                if (!value.isBlank()) return value;
+            }
+        }
+        return "";
+    }
+
+    private String bounded(String value) {
+        if (value == null) return "";
+        return value.length() <= 40_000 ? value : value.substring(0, 40_000) + "\n… output truncated by Loopper …";
+    }
+
+    private JsonNode sessionMessages(OpenCodeSession session) {
+        JsonNode body = client().get().uri(uri -> uri.path("/session/{id}/message").queryParam("directory", session.worktree().toString()).build(session.id()))
+                .retrieve().body(JsonNode.class);
+        JsonNode messages = body != null && body.isArray() ? body : body == null ? null : body.path("data");
+        if (messages == null || !messages.isArray()) throw new SessionFailure("OPENCODE_OUTPUT_MISSING", "OpenCode did not return a message list");
+        return messages;
     }
     private String assistantText(JsonNode message) {
         StringBuilder text = new StringBuilder();
@@ -160,10 +229,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
     }
     private SessionStatus messageStatus(OpenCodeSession session) {
         try {
-            JsonNode body = client().get().uri(uri -> uri.path("/session/{id}/message").queryParam("directory", session.worktree().toString()).build(session.id()))
-                    .retrieve().body(JsonNode.class);
-            JsonNode messages = body != null && body.isArray() ? body : body == null ? null : body.path("data");
-            if (messages == null || !messages.isArray()) return new SessionStatus("UNKNOWN");
+            JsonNode messages = sessionMessages(session);
             boolean relevantMessage = false;
             int latestUserIndex = -1;
             int latestAssistantIndex = -1;

@@ -8,6 +8,7 @@ import StatusBadge from '@/components/StatusBadge.vue'
 import StageRail from '@/components/StageRail.vue'
 import AttemptTimeline from '@/components/AttemptTimeline.vue'
 import LayeredErrorPanel from '@/components/LayeredErrorPanel.vue'
+import SessionMonitorPanel from '@/components/SessionMonitorPanel.vue'
 import { useTaskStore } from '@/stores/taskStore'
 import type { Attempt, ErrorEvent } from '@/types/domain'
 
@@ -49,7 +50,7 @@ async function confirmCancel() {
 
 <template>
   <PageHeader eyebrow="Task / Inspection" :title="task?.title ?? '加载任务'" :subtitle="task?.goal ?? '读取持久化任务状态、SSE 流与验证证据。'">
-    <template #actions><StatusBadge v-if="task" :status="task.status" /><el-button plain @click="router.push('/tasks')"><Icon icon="lucide:list" />全部任务</el-button><template v-if="task?.status === 'RUNNING' || task?.status === 'VERIFYING'"><el-button plain @click="store.updateTask(id, 'pause')"><Icon icon="lucide:pause" />暂停</el-button><el-button plain type="danger" @click="confirmCancel"><Icon icon="lucide:square" />取消</el-button></template><el-button v-else-if="task?.status === 'PAUSED'" type="primary" @click="store.updateTask(id, 'resume')"><Icon icon="lucide:play" />继续</el-button></template>
+    <template #actions><StatusBadge v-if="task" :status="task.status" /><el-button plain @click="router.push('/tasks')"><Icon icon="lucide:list" />全部任务</el-button><el-button v-if="task?.status === 'READY'" type="primary" @click="store.updateTask(id, 'start')"><Icon icon="lucide:play" />开始执行</el-button><template v-else-if="task?.status === 'RUNNING' || task?.status === 'VERIFYING'"><el-button plain @click="store.updateTask(id, 'pause')"><Icon icon="lucide:pause" />暂停</el-button><el-button plain type="danger" @click="confirmCancel"><Icon icon="lucide:square" />取消</el-button></template><el-button v-else-if="task?.status === 'PAUSED'" type="primary" @click="store.updateTask(id, 'resume')"><Icon icon="lucide:play" />继续</el-button></template>
   </PageHeader>
   <main id="main-content" class="content" tabindex="-1">
     <section v-if="!task" class="card empty-state"><div><Icon icon="lucide:search-x" width="30" /><strong>未找到此 Task</strong><p>它可能已被清理，或当前 API 尚未返回该条记录。</p></div></section>
@@ -62,6 +63,7 @@ async function confirmCancel() {
       <section v-for="error in verifierErrors" :key="error.id" style="margin-top: 16px"><LayeredErrorPanel :error="error" /></section>
       <section v-for="error in sessionErrors" :key="error.id" style="margin-top: 16px"><LayeredErrorPanel :error="error" /></section>
       <section v-for="error in taskErrors" :key="error.id" style="margin-top: 16px"><LayeredErrorPanel :error="error" /></section>
+      <SessionMonitorPanel :task-id="task.id" />
       <section v-if="judges.length || task.status === 'JUDGING' || task.status === 'WAITING_INPUT'" class="card card-pad judge-section" style="margin-top: 16px" aria-labelledby="judge-heading">
         <div class="card-header"><div><p class="eyebrow">INDEPENDENT READ-ONLY REVIEW</p><h2 id="judge-heading" class="card-title">Requirement / Risk 双 Judge</h2><p class="card-description">两个 Session 独立审阅；只有双方明确 PASS，Task 才能成功。</p></div><StatusBadge :status="task.status" /></div>
         <div class="judge-grid">

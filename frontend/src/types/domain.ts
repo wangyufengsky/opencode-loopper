@@ -138,6 +138,36 @@ export interface JudgeRun {
   endedAt?: string
 }
 
+export interface TaskSessionSummary {
+  key: string
+  kind: 'IMPLEMENTATION' | 'JUDGE'
+  label: string
+  localSessionId: string
+  externalSessionId?: string
+  state: string
+  stageId?: string
+  attemptId?: string
+  createdAt: string
+  endedAt?: string
+}
+
+export interface TaskSessionActivityPart {
+  id: string
+  type: 'THINKING' | 'OUTPUT' | 'TOOL'
+  label: string
+  content: string
+  status?: string
+}
+
+export interface TaskSessionActivity {
+  session: TaskSessionSummary
+  remoteState: string
+  live: boolean
+  observedAt: string
+  parts: TaskSessionActivityPart[]
+  detail?: string
+}
+
 export interface LoopVerifierSpec {
   type: 'PROCESS' | 'FILE_EXISTS' | 'FILE_NOT_EXISTS' | 'GIT_DIFF' | string
   command?: string[]
@@ -194,6 +224,7 @@ export interface DesignerSession {
   readOnly: boolean
   permissionSummary?: string
   updatedAt?: string
+  draft?: LoopDraft
   messages: DesignerMessage[]
 }
 

@@ -1,4 +1,4 @@
-import type { Artifact, Attempt, DesignerAppendResult, DesignerMessage, DesignerSession, DesignerSessionState, DirectorySelection, ErrorEvent, JudgeRun, LoopDraft, LoopSpec, LoopVerifierSpec, Project, RuntimeInfo, Stage, Task, TaskEvent } from '@/types/domain'
+import type { Artifact, Attempt, DesignerAppendResult, DesignerMessage, DesignerSession, DesignerSessionState, DirectorySelection, ErrorEvent, JudgeRun, LoopDraft, LoopSpec, LoopVerifierSpec, Project, RuntimeInfo, Stage, Task, TaskEvent, TaskSessionActivity, TaskSessionActivityPart, TaskSessionSummary } from '@/types/domain'
 
 const apiBase = import.meta.env.VITE_API_BASE ?? '/api'
 
@@ -170,6 +170,46 @@ function normalizeTask(value: unknown): Task {
   return { id: taskId, projectId: asString(raw.projectId), projectName: asString(raw.projectName, 'Unknown project'), title: asString(raw.title), goal: asString(raw.goal), branch: asString(raw.branch) || '未创建分支', worktreePath: asString(raw.worktreePath) || '等待创建 worktree', status: asString(raw.status) as Task['status'], activeStage: stages.find((stage) => stage.status === 'RUNNING')?.ordinal, attemptCount: asNumber(raw.attemptCount, attempts.length), maxAttempts: asNumber(raw.maxAttempts, 12), createdAt: asString(raw.createdAt), updatedAt: asString(raw.updatedAt), stages, attempts, errors: asArray(raw.errors).map(normalizeError), judges: asArray(raw.judges).map(normalizeJudge), artifacts: asArray(raw.artifacts).map((artifact) => normalizeArtifact(artifact, taskId)) }
 }
 
+function normalizeTaskSession(value: unknown): TaskSessionSummary {
+  const raw = asRecord(value)
+  return {
+    key: asString(raw.key),
+    kind: asString(raw.kind) === 'JUDGE' ? 'JUDGE' : 'IMPLEMENTATION',
+    label: asString(raw.label, 'Session'),
+    localSessionId: asString(raw.localSessionId),
+    externalSessionId: asString(raw.externalSessionId) || undefined,
+    state: asString(raw.state, 'UNKNOWN'),
+    stageId: asString(raw.stageId) || undefined,
+    attemptId: asString(raw.attemptId) || undefined,
+    createdAt: asString(raw.createdAt),
+    endedAt: asString(raw.endedAt) || undefined,
+  }
+}
+
+function normalizeTaskSessionPart(value: unknown): TaskSessionActivityPart {
+  const raw = asRecord(value)
+  const type = asString(raw.type)
+  return {
+    id: asString(raw.id),
+    type: type === 'THINKING' || type === 'TOOL' ? type : 'OUTPUT',
+    label: asString(raw.label, type === 'THINKING' ? 'Thinking' : type === 'TOOL' ? '工具调用' : '模型输出'),
+    content: asString(raw.content),
+    status: asString(raw.status) || undefined,
+  }
+}
+
+function normalizeTaskSessionActivity(value: unknown): TaskSessionActivity {
+  const raw = asRecord(value)
+  return {
+    session: normalizeTaskSession(raw.session),
+    remoteState: asString(raw.remoteState, 'UNKNOWN'),
+    live: raw.live === true,
+    observedAt: asString(raw.observedAt),
+    parts: asArray(raw.parts).map(normalizeTaskSessionPart),
+    detail: asString(raw.detail) || undefined,
+  }
+}
+
 function normalizeRuntime(value: unknown): RuntimeInfo {
   const raw = asRecord(value)
   const backendStatus = asString(raw.status)
@@ -226,6 +266,7 @@ function normalizeDesignerSession(value: unknown): DesignerSession {
     readOnly: raw.readOnly !== false,
     permissionSummary: asString(raw.permissionSummary) || undefined,
     updatedAt: asString(raw.updatedAt) || undefined,
+    draft: raw.draft ? normalizeDraft(raw.draft) : undefined,
     messages: asArray(raw.messages).map(normalizeDesignerMessage),
   }
 }
@@ -272,6 +313,9 @@ export const api = {
   createProject: async (input: Pick<Project, 'name' | 'rootPath' | 'description'>) => normalizeProject(await request<unknown>('/projects', { method: 'POST', body: JSON.stringify({ name: input.name, rootPath: input.rootPath }) })),
   getTasks: async () => (await request<unknown[]>('/tasks')).map(normalizeTask),
   getTask: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}`)),
+  getTaskSessions: async (id: string) => (await request<unknown[]>(`/tasks/${encodeURIComponent(id)}/sessions`)).map(normalizeTaskSession),
+  getTaskSessionActivity: async (taskId: string, sessionKey: string) => normalizeTaskSessionActivity(await request<unknown>(`/tasks/${encodeURIComponent(taskId)}/sessions/${encodeURIComponent(sessionKey)}`)),
+  startTask: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}/start`, { method: 'POST' })),
   pauseTask: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}/pause`, { method: 'POST' })),
   resumeTask: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}/resume`, { method: 'POST' })),
   cancelTask: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}/cancel`, { method: 'POST' })),
@@ -281,7 +325,7 @@ export const api = {
   getDraft: async (id: string) => normalizeDraft(await request<unknown>(`/loop-drafts/${encodeURIComponent(id)}`)),
   updateDraft: async (id: string, spec: LoopDraft['spec']) => normalizeDraft(await request<unknown>(`/loop-drafts/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify({ spec: backendLoopSpec(spec) }) })),
   confirmDraft: async (id: string) => { const task = asRecord(await request<unknown>(`/loop-drafts/${encodeURIComponent(id)}/confirm`, { method: 'POST' })); return { taskId: asString(task.taskId) } },
-  createDesignerSession: async (projectId: string, initialMessage?: string) => normalizeDesignerSession(await request<unknown>('/designer-sessions', { method: 'POST', body: JSON.stringify({ projectId, ...(initialMessage ? { initialMessage } : {}) }) })),
+  createDesignerSession: async (projectId: string, draftId: string, initialMessage?: string) => normalizeDesignerSession(await request<unknown>('/designer-sessions', { method: 'POST', body: JSON.stringify({ projectId, draftId, ...(initialMessage ? { initialMessage } : {}) }) })),
   getDesignerSession: async (id: string) => normalizeDesignerSession(await request<unknown>(`/designer-sessions/${encodeURIComponent(id)}`)),
   getDesignerMessages: async (id: string) => (await request<unknown[]>(`/designer-sessions/${encodeURIComponent(id)}/messages`)).map(normalizeDesignerMessage),
   sendDesignerMessage: async (id: string, content: string): Promise<DesignerAppendResult> => {

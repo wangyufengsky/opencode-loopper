@@ -75,15 +75,18 @@ class DesignerSessionMcpIntegrationTest {
     @Test
     void designerHandoffPersistsOnlyActualReadOnlyAssistantOutputAndReusesTheCompletedSession() throws Exception {
         FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
-        fake.setDesignerOutput("Actual assistant plan: preserve the verifier list.");
         ProjectRow project = projects.create("designer-fixture", Files.createDirectory(temp.resolve("project")).toString());
+        LoopDraftRow boundDraft = drafts.create(spec(project.id()));
+        LoopSpec firstSpec = withGoal(spec(project.id()), "Preserve the verifier list with a synchronized LoopSpec");
+        fake.setDesignerOutput(designerOutput("# Actual assistant plan\n\nPreserve the verifier list.", firstSpec));
 
         MvcResult created = mvc.perform(post("/api/designer-sessions")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"projectId\":\"" + project.id() + "\"}"))
+                        .content("{\"projectId\":\"" + project.id() + "\",\"draftId\":\"" + boundDraft.id() + "\"}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.accessMode").value("READ_ONLY"))
                 .andExpect(jsonPath("$.readOnly").value(true))
+                .andExpect(jsonPath("$.draft.id").value(boundDraft.id()))
                 .andExpect(jsonPath("$.messages[0].role").value("SYSTEM"))
                 .andReturn();
         String sessionId = body(created).path("id").asText();
@@ -106,6 +109,10 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(fake.isReadOnlySession(dispatched.externalSessionId())).isTrue();
         assertThat(fake.modelForSession(dispatched.externalSessionId()))
                 .isEqualTo(new OpenCodeClient.OpenCodeModel("opencode", "deepseek-v4-flash-free", null));
+        assertThat(fake.promptForSession(dispatched.externalSessionId()))
+                .contains("well-structured Markdown document", "fenced `mermaid` diagram", "Never draw flows with ASCII art")
+                .contains("LOOPSPEC_JSON_START", boundDraft.id(), project.id())
+                .contains("Please preserve the verifier list");
         assertThat(designerSessions.messages(sessionId)).noneMatch(message -> message.role().equals("ASSISTANT"));
         assertThatThrownBy(() -> designerSessions.appendUserMessage(sessionId, "Unsafe concurrent prompt"))
                 .hasMessageContaining("still processing");
@@ -116,17 +123,21 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(completed.externalSessionState()).isEqualTo("COMPLETED");
         assertThat(designerSessions.messages(sessionId)).anySatisfy(message -> {
             assertThat(message.role()).isEqualTo("ASSISTANT");
-            assertThat(message.content()).isEqualTo("Actual assistant plan: preserve the verifier list.");
+            assertThat(message.content()).isEqualTo("# Actual assistant plan\n\nPreserve the verifier list.");
             assertThat(message.deliveryState()).isEqualTo("PERSISTED");
         });
+        assertThat(drafts.get(boundDraft.id()).version()).isEqualTo(1);
+        assertThat(drafts.spec(drafts.get(boundDraft.id()))).isEqualTo(firstSpec);
 
         String externalSessionId = completed.externalSessionId();
-        fake.setDesignerOutput("Actual second-turn assistant plan.");
+        LoopSpec secondSpec = withGoal(firstSpec, "Refined synchronized LoopSpec");
+        fake.setDesignerOutput(designerOutput("## Actual second-turn assistant plan", secondSpec));
         designerSessions.appendUserMessage(sessionId, "Refine the first plan");
         assertThat(designerSessions.get(sessionId).externalSessionId()).isEqualTo(externalSessionId);
         designerSessions.pollActiveHandoffs();
         assertThat(designerSessions.messages(sessionId).stream().filter(message -> message.role().equals("ASSISTANT")).map(message -> message.content()).toList())
-                .containsExactly("Actual assistant plan: preserve the verifier list.", "Actual second-turn assistant plan.");
+                .containsExactly("# Actual assistant plan\n\nPreserve the verifier list.", "## Actual second-turn assistant plan");
+        assertThat(drafts.spec(drafts.get(boundDraft.id()))).isEqualTo(secondSpec);
     }
 
     @Test
@@ -174,7 +185,8 @@ class DesignerSessionMcpIntegrationTest {
     @Test
     void mcpUsesBearerAndPreservesFullSpecWhileEnforcingHumanConfirmationAndIdempotency() throws Exception {
         ProjectRow project = projects.create("mcp-fixture", gitProject());
-        DesignerSessionRow designer = designerSessions.create(project.id(), null);
+        LoopDraftRow boundDraft = drafts.create(withGoal(spec(project.id()), "Initial placeholder"));
+        DesignerSessionRow designer = designerSessions.create(project.id(), boundDraft.id(), null);
 
         mvc.perform(post("/api/mcp").contentType(MediaType.APPLICATION_JSON).content(rpc(1, "initialize", "{\"protocolVersion\":\"2025-03-26\"}")))
                 .andExpect(status().isUnauthorized())
@@ -197,12 +209,13 @@ class DesignerSessionMcpIntegrationTest {
                 .andExpect(jsonPath("$.result.structuredContent.spec.stages[0].verifiers[0].type").value("FILE_EXISTS"))
                 .andReturn();
         String proposedDraftId = body(proposal).at("/result/structuredContent/draft/id").asText();
+        assertThat(proposedDraftId).isEqualTo(boundDraft.id());
         LoopDraftRow proposedDraft = drafts.get(proposedDraftId);
         assertThat(proposedDraft.status()).isEqualTo(LoopDraftStatus.DRAFT_READY.name());
         assertThat(drafts.spec(proposedDraft)).isEqualTo(fullSpec);
 
         mvc.perform(mcp(rpc(4, "tools/call", "{\"name\":\"validate_loop_spec\",\"arguments\":{\"draftId\":\""
-                + proposedDraftId + "\",\"version\":0}}")))
+                + proposedDraftId + "\",\"version\":1}}")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.result.structuredContent.valid").value(true));
         mvc.perform(mcp(rpc(5, "tools/call", "{\"name\":\"create_task\",\"arguments\":{\"draftId\":\""
                 + proposedDraftId + "\"}}")))
@@ -306,6 +319,16 @@ class DesignerSessionMcpIntegrationTest {
                         List.of(new LoopSpec.VerifierSpec("FILE_EXISTS", null, "README.md", null, List.of("README.md"), List.of(), true)))),
                 new LoopSpec.Limits(2, 3, 2, 2, 3600L, 120L, 60L), new LoopSpec.ModelSpec("opencode", "deepseek", false),
                 new LoopSpec.SessionPolicy(true, true), "Continue from verified evidence");
+    }
+
+    private LoopSpec withGoal(LoopSpec source, String goal) {
+        return new LoopSpec(source.schemaVersion(), source.projectId(), goal, source.context(), source.stages(),
+                source.limits(), source.model(), source.sessionPolicy(), source.nextAttemptPromptTemplate());
+    }
+
+    private String designerOutput(String markdown, LoopSpec spec) throws Exception {
+        return markdown + "\n\n<!-- LOOPSPEC_JSON_START -->\n```json\n"
+                + json.writeValueAsString(spec) + "\n```\n<!-- LOOPSPEC_JSON_END -->";
     }
 
     private String gitProject() throws Exception {

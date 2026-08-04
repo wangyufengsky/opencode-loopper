@@ -41,13 +41,40 @@ The verified OpenCode session API has no safe, documented operation for
 dynamically attaching Loopper's MCP server to an existing Session. Loopper does
 not invent one: a Designer uses an OpenCode `createReadOnlySession` against the
 registered project root, while Loopper's bearer-protected Spring AI MCP server
-is independently exposed at `/api/mcp-streamable`. A model reply is persisted
-only after `sessionOutput`; failed or unavailable Designer handoffs remain on
-the Designer Session and never transition a Task.
+is independently exposed at `/api/mcp-streamable`.
+
+The Designer REST workflow closes that transport gap deterministically. Each
+new Designer Session is persisted with the exact `loop_draft_id` shown in the
+Review Gate. The prompt includes that binding and the current full LoopSpec and
+requires a final JSON payload between `LOOPSPEC_JSON_START` and
+`LOOPSPEC_JSON_END`. After `sessionOutput`, Loopper parses and validates the
+payload, updates the bound draft using optimistic locking, strips the machine
+payload from the visible Markdown, and only then transitions the Session to
+`COMPLETED`. Missing, invalid, mismatched, or concurrently changed payloads
+produce `SESSION_ERROR`; they are never treated as a completed design.
+
+The MCP `propose_loop_spec` tool uses the same session-bound update path. It no
+longer creates an unrelated draft, so an external MCP client and the built-in
+Designer workflow converge on the same Review Gate state. Failed or unavailable
+Designer handoffs remain on the Designer Session and never transition a Task.
 
 All OpenCode adapter requests and runtime health probes use the configured
 connect and request timeouts. This bounds a stalled local server rather than
 letting scheduler monitors wait indefinitely.
+
+## Dynamic Task Session monitoring
+
+Task detail exposes a read-only projection of its OpenCode Sessions:
+
+- `GET /api/tasks/{taskId}/sessions` lists implementation and judge Sessions;
+- `GET /api/tasks/{taskId}/sessions/{sessionKey}` returns current status plus
+  bounded provider-exposed `THINKING`, `OUTPUT`, and `TOOL` parts.
+
+The UI polls active Sessions every 1.2 seconds and terminal history every three
+seconds. Monitoring never resumes, aborts, or otherwise mutates a Session, and
+transport errors shown by the panel do not alter Task state. Loopper displays
+only content returned by the OpenCode API; it does not fabricate or expose
+private model reasoning.
 
 ## Runtime ownership and permissions
 

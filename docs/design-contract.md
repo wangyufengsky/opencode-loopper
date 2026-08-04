@@ -63,3 +63,23 @@ and persists/displays an ASSISTANT message only after real OpenCode output is
 available; it never renders a queue notice as model output. A transient browser
 GET failure keeps the Session in a bounded-backoff reconnect loop, and the
 current Designer Session/draft pair is restored after a same-tab page refresh.
+The Session API returns its bound draft on every poll. A validated Designer
+reply therefore replaces the right-hand LoopSpec editor automatically while
+preserving any locally dirty editor text for explicit human resolution. Model
+responses render as sanitized Markdown; fenced `mermaid` blocks render as SVG,
+and the machine-only LoopSpec payload is not shown in the conversation.
+
+Confirming a draft is an idempotent handoff. After the server returns the
+persisted Task id, the client loads that Task into the live store and navigates
+to its detail page even when worktree preparation ended in a terminal Task
+error. This keeps failures such as a missing Git HEAD visible instead of
+leaving the Designer on screen with a misleading success toast. A `READY` Task
+exposes an explicit **Start execution** action on its detail page.
+
+Each Task detail page also exposes a read-only **Model output / Thinking**
+monitor. The operator can select any implementation or judge Session belonging
+to that Task. While a Session is active, the panel polls frequently and follows
+the newest provider-exposed `THINKING`, `OUTPUT`, and `TOOL` parts; terminal
+Sessions remain selectable as history and refresh at a slower interval. Before
+the first model text arrives, an animated thinking indicator makes the active
+handoff distinguishable from an error or empty state.

@@ -40,7 +40,30 @@ export const demoDraft: LoopDraft = {
 
 export const demoMessages: DesignerMessage[] = [
   { id: 'm-1', role: 'USER', content: '为错误恢复能力生成一个可验证的 LoopSpec。', createdAt: '10:02' },
-  { id: 'm-2', role: 'ASSISTANT', content: '我已形成三阶段方案：先固定边界，再实现恢复，最后做沙盒验收。你可以在右侧直接审阅或编辑 LoopSpec。', createdAt: '10:03' },
+  { id: 'm-2', role: 'ASSISTANT', content: `# 错误恢复 LoopSpec 提案
+
+## 目标
+
+建立可审计的错误边界：**Task 错误终止任务**，**Session 错误保留上下文并进入下一轮**，验证失败则按阶段预算重试。
+
+## 执行流程
+
+\`\`\`mermaid
+flowchart LR
+  A[冻结错误契约] --> B[实现 Session 恢复]
+  B --> C{验证结果}
+  C -->|通过| D[沙盒验收]
+  C -->|失败且有预算| B
+  C -->|Task 错误| E[终止并保留证据]
+\`\`\`
+
+## 验收重点
+
+- 状态迁移与错误层级有单元测试覆盖。
+- 恢复后的新 Session 能读取上一轮摘要与 Diff。
+- Maven 测试和前端测试全部通过。
+
+> 右侧 LoopSpec JSON 仍是最终执行契约，确认前可以继续编辑。`, createdAt: '10:03' },
 ]
 
 export const demoArtifacts: Artifact[] = [

@@ -95,6 +95,28 @@ class HttpOpenCodeClientTest {
     }
 
     @Test
+    void exposesIncrementalThinkingOutputAndToolPartsForLiveMonitoring() throws Exception {
+        LoopperProperties properties = new LoopperProperties();
+        properties.getOpenCode().setBaseUrl(new java.net.URI("http://127.0.0.1:" + server.getAddress().getPort()));
+        HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(), properties);
+        OpenCodeClient.OpenCodeSession session = client.createSession(worktree, "monitor", null);
+        messageBody.set("["
+                + "{\"info\":{\"role\":\"user\"},\"parts\":[{\"type\":\"text\",\"text\":\"prompt\"}]},"
+                + "{\"info\":{\"role\":\"assistant\"},\"parts\":["
+                + "{\"id\":\"reason-1\",\"type\":\"reasoning\",\"text\":\"Inspecting the project\"},"
+                + "{\"id\":\"tool-1\",\"type\":\"tool\",\"tool\":\"read\",\"state\":{\"status\":\"completed\",\"title\":\"Read pom.xml\"}},"
+                + "{\"id\":\"text-1\",\"type\":\"text\",\"text\":\"Implementation is in progress\"}]}]");
+
+        OpenCodeClient.SessionTranscript transcript = client.sessionTranscript(session);
+
+        assertThat(transcript.parts()).extracting(OpenCodeClient.SessionPart::type)
+                .containsExactly("THINKING", "TOOL", "OUTPUT");
+        assertThat(transcript.parts().get(0).content()).isEqualTo("Inspecting the project");
+        assertThat(transcript.parts().get(1).label()).isEqualTo("read");
+        assertThat(transcript.parts().get(2).content()).isEqualTo("Implementation is in progress");
+    }
+
+    @Test
     void requestTimeoutBoundsStalledOpenCodeTransport() throws Exception {
         LoopperProperties properties = new LoopperProperties();
         properties.getOpenCode().setBaseUrl(new java.net.URI("http://127.0.0.1:" + server.getAddress().getPort()));

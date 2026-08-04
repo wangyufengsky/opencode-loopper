@@ -7,7 +7,10 @@ import io.opencode.loopper.domain.LoopSpec;
 import io.opencode.loopper.persistence.LoopDraftRow;
 import io.opencode.loopper.persistence.LoopperMapper;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+import jakarta.validation.Validator;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,11 +20,14 @@ public class LoopDraftService {
     private final ProjectService projects;
     private final ObjectMapper json;
     private final TaskService tasks;
-    public LoopDraftService(LoopperMapper mapper, ProjectService projects, ObjectMapper json, TaskService tasks) {
-        this.mapper = mapper; this.projects = projects; this.json = json; this.tasks = tasks;
+    private final Validator validator;
+    public LoopDraftService(LoopperMapper mapper, ProjectService projects, ObjectMapper json, TaskService tasks,
+                            Validator validator) {
+        this.mapper = mapper; this.projects = projects; this.json = json; this.tasks = tasks; this.validator = validator;
     }
     @Transactional
     public LoopDraftRow create(LoopSpec spec) {
+        validate(spec);
         projects.get(spec.projectId());
         String now = Instant.now().toString();
         LoopDraftRow row = new LoopDraftRow(UUID.randomUUID().toString(), spec.projectId(), spec.goal(), write(spec),
@@ -31,6 +37,7 @@ public class LoopDraftService {
     public LoopDraftRow get(String id) { return mapper.findDraft(id).orElseThrow(() -> new NotFoundException("Loop draft not found: " + id)); }
     @Transactional
     public LoopDraftRow update(String id, LoopSpec spec) {
+        validate(spec);
         LoopDraftRow old = get(id);
         if (LoopDraftStatus.CONFIRMED.name().equals(old.status())) throw new ConflictException("DRAFT_CONFIRMED", "Confirmed LoopSpec is immutable; create a new draft");
         if (!old.projectId().equals(spec.projectId())) throw new BadRequestException("DRAFT_PROJECT_MISMATCH", "LoopSpec projectId cannot be changed");
@@ -54,5 +61,13 @@ public class LoopDraftService {
     private String write(LoopSpec spec) {
         try { return json.writeValueAsString(spec); }
         catch (JacksonException e) { throw new BadRequestException("LOOPSPEC_INVALID", e.getMessage()); }
+    }
+
+    public void validate(LoopSpec spec) {
+        if (spec == null) throw new BadRequestException("LOOPSPEC_REQUIRED", "LoopSpec is required");
+        List<String> errors = new ArrayList<>(validator.validate(spec).stream()
+                .map(violation -> violation.getPropertyPath() + ": " + violation.getMessage()).sorted().toList());
+        if (!"v1".equals(spec.schemaVersion())) errors.add("schemaVersion: only v1 is supported");
+        if (!errors.isEmpty()) throw new BadRequestException("LOOPSPEC_INVALID", String.join("; ", errors));
     }
 }

@@ -12,6 +12,7 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     private final ConcurrentHashMap<String, Boolean> readOnly = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> judgeRoleBySession = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> judgeOutputByRole = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, String> promptBySession = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, OpenCodeModel> modelBySession = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> detailBySession = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, AtomicInteger> failedReadOnlySessionsByRole = new ConcurrentHashMap<>();
@@ -38,6 +39,7 @@ public class FakeOpenCodeClient implements OpenCodeClient {
         return new OpenCodeSession(id, worktree);
     }
     @Override public void promptAsync(OpenCodeSession session, String prompt) {
+        promptBySession.put(session.id(), prompt);
         if (failedPrompts.getAndUpdate(value -> Math.max(0, value - 1)) > 0) {
             throw new SessionFailure("OPENCODE_PROMPT_FAILED", "Deterministic Designer prompt transport failure");
         }
@@ -47,6 +49,11 @@ public class FakeOpenCodeClient implements OpenCodeClient {
         return new SessionStatus(states.getOrDefault(session.id(), "FAILED"), detailBySession.get(session.id()));
     }
     @Override public String sessionOutput(OpenCodeSession session) { return judgeOutputByRole.getOrDefault(judgeRoleBySession.get(session.id()), judgeOutput); }
+    @Override public SessionTranscript sessionTranscript(OpenCodeSession session) {
+        String output = sessionOutput(session);
+        return new SessionTranscript(output == null || output.isBlank() ? java.util.List.of() : java.util.List.of(
+                new SessionPart("fake-output", "OUTPUT", "模型输出", output, states.get(session.id()))));
+    }
     @Override public String diff(OpenCodeSession session) { return "[]"; }
     @Override public void abort(OpenCodeSession session) {
         if (failedAborts.getAndUpdate(value -> Math.max(0, value - 1)) > 0) {
@@ -60,6 +67,7 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     public void setDesignerOutput(String output) { setJudgeOutput("DESIGNER", output); }
     public void setHealthy(boolean value) { healthy = value; }
     public OpenCodeModel modelForSession(String id) { return modelBySession.get(id); }
+    public String promptForSession(String id) { return promptBySession.get(id); }
     public void failNextPrompts(int count) { failedPrompts.set(Math.max(0, count)); }
     public void failNextAborts(int count) { failedAborts.set(Math.max(0, count)); }
     public void setSessionState(String id, String state) { states.put(id, state); detailBySession.remove(id); }
@@ -69,5 +77,5 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     }
     public void failNextReadOnlySessions(int count) { failedReadOnlySessions.set(Math.max(0, count)); }
     public void failNextReadOnlySessions(String role, int count) { failedReadOnlySessionsByRole.put(role.toUpperCase(), new AtomicInteger(Math.max(0, count))); }
-    public void reset() { states.clear(); readOnly.clear(); judgeRoleBySession.clear(); judgeOutputByRole.clear(); modelBySession.clear(); detailBySession.clear(); failedReadOnlySessionsByRole.clear(); failedReadOnlySessions.set(0); failedPrompts.set(0); failedAborts.set(0); judgeOutput = "{\"verdict\":\"PASS\",\"reason\":\"Deterministic evidence satisfies the review contract.\"}"; healthy = true; }
+    public void reset() { states.clear(); readOnly.clear(); judgeRoleBySession.clear(); judgeOutputByRole.clear(); promptBySession.clear(); modelBySession.clear(); detailBySession.clear(); failedReadOnlySessionsByRole.clear(); failedReadOnlySessions.set(0); failedPrompts.set(0); failedAborts.set(0); judgeOutput = "{\"verdict\":\"PASS\",\"reason\":\"Deterministic evidence satisfies the review contract.\"}"; healthy = true; }
 }

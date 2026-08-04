@@ -82,6 +82,33 @@ describe('Loopper REST contract adapter', () => {
     expect(task.attempts?.[0]?.status).toBe('TASK_ERROR')
   })
 
+  it('starts a prepared Task through the explicit start endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(json({
+      id: 'task-ready', projectId: 'project-1', title: 'Ready task', status: 'RUNNING', stages: [], errors: [], attempts: [],
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(api.startTask('task-ready')).resolves.toMatchObject({ id: 'task-ready', status: 'RUNNING' })
+    expect(fetchMock).toHaveBeenCalledWith('/api/tasks/task-ready/start', expect.objectContaining({ method: 'POST' }))
+  })
+
+  it('normalizes live Task Session thinking and output parts', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json([{ key: 'execution:local-1', kind: 'IMPLEMENTATION', label: 'Implementation Session', localSessionId: 'local-1', externalSessionId: 'remote-1', state: 'RUNNING', createdAt: 'now' }]))
+      .mockResolvedValueOnce(json({
+        session: { key: 'execution:local-1', kind: 'IMPLEMENTATION', label: 'Implementation Session', localSessionId: 'local-1', externalSessionId: 'remote-1', state: 'RUNNING', createdAt: 'now' },
+        remoteState: 'busy', live: true, observedAt: 'later',
+        parts: [{ id: 'reason-1', type: 'THINKING', label: 'Thinking', content: 'Inspecting files', status: 'running' }, { id: 'text-1', type: 'OUTPUT', label: '模型输出', content: 'Implementing now' }],
+      }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(api.getTaskSessions('task-1')).resolves.toMatchObject([{ key: 'execution:local-1', state: 'RUNNING' }])
+    await expect(api.getTaskSessionActivity('task-1', 'execution:local-1')).resolves.toMatchObject({
+      live: true, remoteState: 'busy', parts: [{ type: 'THINKING', content: 'Inspecting files' }, { type: 'OUTPUT', content: 'Implementing now' }],
+    })
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/tasks/task-1/sessions/execution%3Alocal-1')
+  })
+
   it('preserves paused Stage state and exposed execution Session id', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({
       id: 'task-paused', projectId: 'project-1', title: 'Paused', status: 'PAUSED', errors: [],

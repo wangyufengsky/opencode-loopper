@@ -73,7 +73,7 @@ public class McpController {
         }
         return Map.of("protocolVersion", PROTOCOL_VERSION, "capabilities", Map.of("tools", Map.of()),
                 "serverInfo", Map.of("name", "opencode-loopper", "version", "0.1.0"),
-                "instructions", "Designer access is read-only. Proposals create DRAFT_READY LoopSpecs; a human must confirm before create_task.");
+                "instructions", "Designer access is read-only. Proposals synchronize the session-bound DRAFT_READY LoopSpec; a human must confirm before create_task.");
     }
 
     private Object callTool(JsonNode params) {
@@ -164,7 +164,7 @@ public class McpController {
     private List<Map<String, Object>> tools() {
         return List.of(
                 tool("get_project_context", "Read registered project context without file-write authority", Map.of("projectId", stringSchema()), List.of("projectId")),
-                tool("propose_loop_spec", "Persist a complete DRAFT_READY LoopSpec from a read-only Designer session; human confirmation is still required", Map.of("designerSessionId", stringSchema(), "projectId", stringSchema(), "spec", Map.of("type", "object")), List.of("designerSessionId", "projectId", "spec")),
+                tool("propose_loop_spec", "Synchronize a complete DRAFT_READY LoopSpec into the draft bound to a read-only Designer session; human confirmation is still required", Map.of("designerSessionId", stringSchema(), "projectId", stringSchema(), "spec", Map.of("type", "object")), List.of("designerSessionId", "projectId", "spec")),
                 tool("validate_loop_spec", "Validate a LoopSpec v1 supplied as spec, or a persisted draftId with its exact version", Map.of("spec", Map.of("type", "object"), "draftId", stringSchema(), "version", Map.of("type", "integer", "minimum", 0)), List.of()),
                 tool("create_task", "Create or return the one task for a CONFIRMED draft; never auto-confirms and is idempotent", Map.of("draftId", stringSchema()), List.of("draftId")),
                 tool("start_task", "Start a task whose contract and worktree are already prepared", Map.of("taskId", stringSchema()), List.of("taskId")),

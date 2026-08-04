@@ -103,15 +103,15 @@ export const useTaskStore = defineStore('task', () => {
     }
   }
 
-  async function updateTask(id: string, action: 'pause' | 'resume' | 'cancel') {
+  async function updateTask(id: string, action: 'start' | 'pause' | 'resume' | 'cancel') {
     const old = tasks.value.find((task) => task.id === id)
     if (!old) return
     if (usingDemo.value) {
-      const status = action === 'pause' ? 'PAUSED' : action === 'resume' ? 'RUNNING' : 'CANCELLED'
+      const status = action === 'start' || action === 'resume' ? 'RUNNING' : action === 'pause' ? 'PAUSED' : 'CANCELLED'
       tasks.value = tasks.value.map((task) => task.id === id ? { ...task, status, updatedAt: new Date().toISOString() } : task)
       return
     }
-    const update = action === 'pause' ? api.pauseTask : action === 'resume' ? api.resumeTask : api.cancelTask
+    const update = action === 'start' ? api.startTask : action === 'pause' ? api.pauseTask : action === 'resume' ? api.resumeTask : api.cancelTask
     try {
       const changed = await update(id)
       tasks.value = tasks.value.map((task) => task.id === id ? changed : task)
