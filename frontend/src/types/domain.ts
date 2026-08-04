@@ -27,6 +27,12 @@ export interface Project {
   taskCount: number
 }
 
+export interface DirectorySelection {
+  selected: boolean
+  path?: string
+  name?: string
+}
+
 export interface RuntimeInfo {
   status: 'ONLINE' | 'OFFLINE' | 'STARTING' | 'INCOMPATIBLE'
   version?: string

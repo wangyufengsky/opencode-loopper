@@ -16,6 +16,17 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 afterEach(() => vi.unstubAllGlobals())
 
 describe('Loopper REST contract adapter', () => {
+  it('requests a native project directory only through the local UI endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(json({ selected: true, path: '/tmp/example-project', name: 'example-project' }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(api.pickProjectDirectory()).resolves.toEqual({ selected: true, path: '/tmp/example-project', name: 'example-project' })
+    expect(fetchMock).toHaveBeenCalledWith('/api/projects/pick-directory', expect.objectContaining({
+      method: 'POST',
+      headers: expect.objectContaining({ 'X-Loopper-Local-UI': '1' }),
+    }))
+  })
+
   it('wraps LoopSpec, reads taskId, and maps AVAILABLE to ONLINE', async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(json({ id: 'draft-1', status: 'DRAFT_READY', updatedAt: 'now', spec }, 201))

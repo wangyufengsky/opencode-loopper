@@ -10,6 +10,7 @@ import { useTaskStore } from '@/stores/taskStore'
 const store = useTaskStore()
 const dialogVisible = ref(false)
 const saving = ref(false)
+const pickingDirectory = ref(false)
 const fieldError = ref('')
 const form = ref({ name: '', rootPath: '', description: '' })
 
@@ -17,6 +18,24 @@ function openDialog() {
   form.value = { name: '', rootPath: '', description: '' }
   fieldError.value = ''
   dialogVisible.value = true
+}
+
+async function pickDirectory() {
+  fieldError.value = ''
+  pickingDirectory.value = true
+  try {
+    const selection = store.usingDemo
+      ? { selected: true, path: store.projects[0]?.rootPath ?? '/Users/name/IdeaProjects/project', name: store.projects[0]?.name ?? 'project' }
+      : await api.pickProjectDirectory()
+    if (!selection.selected || !selection.path) return
+    form.value.rootPath = selection.path
+    if (!form.value.name.trim()) form.value.name = selection.name ?? ''
+    ElMessage.success(store.usingDemo ? '演示模式：已回填示例目录' : '已选择项目根目录')
+  } catch (error) {
+    fieldError.value = error instanceof Error ? error.message : '无法打开文件夹选择器，请手工填写绝对路径。'
+  } finally {
+    pickingDirectory.value = false
+  }
 }
 
 async function submit() {
@@ -59,11 +78,18 @@ async function submit() {
     <section v-else class="card empty-state"><div><Icon icon="lucide:folder-plus" width="28" /><strong>尚未登记项目</strong><p>从一个本机目录开始。实际执行前平台会再检查 Git HEAD 和路径边界。</p></div></section>
   </main>
 
-  <el-dialog v-model="dialogVisible" title="登记项目根目录" width="520px" :close-on-click-modal="false">
+  <el-dialog v-model="dialogVisible" title="登记项目根目录" width="min(640px, calc(100vw - 32px))" :close-on-click-modal="false">
     <p class="card-description" style="margin-top: -6px">只记录本机绝对路径。Task 会创建到 data/worktrees，不会直接写入原项目目录。</p>
     <el-form label-position="top" style="margin-top: 18px" @submit.prevent="submit">
       <el-form-item label="项目名称"><el-input v-model="form.name" placeholder="例如 OpenCode Loopper" /></el-form-item>
-      <el-form-item label="项目根路径"><el-input v-model="form.rootPath" class="mono" placeholder="/Users/name/IdeaProjects/project" /><p v-if="fieldError" class="inline-field-error"><Icon icon="lucide:circle-alert" /> {{ fieldError }}</p></el-form-item>
+      <el-form-item label="项目根路径">
+        <div class="path-picker-row">
+          <el-input v-model="form.rootPath" class="mono path-input" placeholder="/Users/name/IdeaProjects/project" aria-label="项目根路径" />
+          <el-button class="folder-picker-button" :loading="pickingDirectory" :disabled="saving" aria-label="选择项目文件夹" @click="pickDirectory"><Icon icon="lucide:folder-open" />选择文件夹</el-button>
+        </div>
+        <p class="path-picker-help"><Icon icon="lucide:mouse-pointer-click" />打开本机目录面板；也可以直接粘贴绝对路径。</p>
+        <p v-if="fieldError" class="inline-field-error"><Icon icon="lucide:circle-alert" /> {{ fieldError }}</p>
+      </el-form-item>
       <el-form-item label="说明（可选）"><el-input v-model="form.description" type="textarea" :rows="3" placeholder="说明该项目的用途与约束" /></el-form-item>
     </el-form>
     <template #footer><el-button @click="dialogVisible = false">取消</el-button><el-button type="primary" :loading="saving" @click="submit">验证并登记</el-button></template>
@@ -73,5 +99,7 @@ async function submit() {
 <style scoped>
 .project-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 .project-card { min-height: 216px; }.project-icon { display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid rgb(139 92 246 / 42%); border-radius: 9px; color: var(--color-accent-ai); background: rgb(139 92 246 / 10%); }.project-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.project-footer { display: flex; justify-content: space-between; margin-top: 15px; color: var(--color-text-secondary); }
+.path-picker-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; width: 100%; }.path-input { min-width: 0; }.folder-picker-button { min-width: 126px; }.path-picker-help { display: inline-flex; align-items: center; gap: 6px; margin: 8px 0 0; color: var(--color-text-muted); font-size: 10px; }.path-picker-help svg { color: var(--color-accent-cyan); }
 @media (max-width: 1320px) { .project-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .path-picker-row { grid-template-columns: 1fr; }.folder-picker-button { width: 100%; } }
 </style>

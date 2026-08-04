@@ -3,6 +3,7 @@ package io.opencode.loopper.api;
 import io.opencode.loopper.service.BadRequestException;
 import io.opencode.loopper.service.ConflictException;
 import io.opencode.loopper.service.NotFoundException;
+import io.opencode.loopper.service.ServiceUnavailableException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
@@ -22,6 +23,8 @@ public class ApiExceptionHandler {
     ResponseEntity<ProblemDetail> badRequest(BadRequestException ex) { return problem(HttpStatus.BAD_REQUEST, ex.code(), ex.getMessage()); }
     @ExceptionHandler(ConflictException.class)
     ResponseEntity<ProblemDetail> conflict(ConflictException ex) { return problem(HttpStatus.CONFLICT, ex.code(), ex.getMessage()); }
+    @ExceptionHandler(ServiceUnavailableException.class)
+    ResponseEntity<ProblemDetail> serviceUnavailable(ServiceUnavailableException ex) { return problem(HttpStatus.SERVICE_UNAVAILABLE, ex.code(), ex.getMessage()); }
     @ExceptionHandler(HttpMessageNotReadableException.class)
     ResponseEntity<ProblemDetail> invalidJson(HttpMessageNotReadableException ex) { return problem(HttpStatus.BAD_REQUEST, "INVALID_JSON", "Request JSON is invalid"); }
     @ExceptionHandler(MethodArgumentNotValidException.class)

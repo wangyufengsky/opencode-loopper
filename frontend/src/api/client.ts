@@ -1,4 +1,4 @@
-import type { Artifact, Attempt, DesignerAppendResult, DesignerMessage, DesignerSession, DesignerSessionState, ErrorEvent, JudgeRun, LoopDraft, LoopSpec, LoopVerifierSpec, Project, RuntimeInfo, Stage, Task, TaskEvent } from '@/types/domain'
+import type { Artifact, Attempt, DesignerAppendResult, DesignerMessage, DesignerSession, DesignerSessionState, DirectorySelection, ErrorEvent, JudgeRun, LoopDraft, LoopSpec, LoopVerifierSpec, Project, RuntimeInfo, Stage, Task, TaskEvent } from '@/types/domain'
 
 const apiBase = import.meta.env.VITE_API_BASE ?? '/api'
 
@@ -265,6 +265,10 @@ function backendLoopSpec(spec: LoopSpec): JsonRecord {
 
 export const api = {
   getProjects: async () => (await request<unknown[]>('/projects')).map(normalizeProject),
+  pickProjectDirectory: async (): Promise<DirectorySelection> => {
+    const raw = asRecord(await request<unknown>('/projects/pick-directory', { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } }))
+    return { selected: raw.selected === true, path: asString(raw.path) || undefined, name: asString(raw.name) || undefined }
+  },
   createProject: async (input: Pick<Project, 'name' | 'rootPath' | 'description'>) => normalizeProject(await request<unknown>('/projects', { method: 'POST', body: JSON.stringify({ name: input.name, rootPath: input.rootPath }) })),
   getTasks: async () => (await request<unknown[]>('/tasks')).map(normalizeTask),
   getTask: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}`)),

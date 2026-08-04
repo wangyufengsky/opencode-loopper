@@ -73,6 +73,21 @@ On Windows PowerShell:
 .\scripts\dev.ps1
 ```
 
+### IntelliJ IDEA
+
+The shared `Loopper Full Stack` run configuration follows the same embedded
+frontend model as `Java-OpenCode-CLI`. Before Spring Boot starts, IDEA runs the
+Maven `process-resources` phase, which installs the pinned Node/npm toolchain
+when necessary, builds Vue, and copies the current bundle into
+`target/classes/static`. Spring Boot then serves the frontend and API together
+from [http://127.0.0.1:8080](http://127.0.0.1:8080); no orphaned Vite process is
+left behind when the backend stops.
+
+Select `Loopper Full Stack` in the IDEA run widget and use Run or Debug. The
+shared configuration contains the Maven before-launch task, so it does not rely
+on user-specific `workspace.xml` state. Use `scripts/dev.sh` or
+`scripts/dev.ps1` instead when Vite hot-module replacement is required.
+
 ## Configuration
 
 | Environment variable | Default | Meaning |
