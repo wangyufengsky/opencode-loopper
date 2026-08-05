@@ -96,6 +96,22 @@ public class TaskService {
 
     public TaskRow get(String id) { return mapper.findTask(id).orElseThrow(() -> new NotFoundException("Task not found: " + id)); }
     public List<TaskRow> list() { return mapper.listTasks(); }
+    public boolean archived(String id) { get(id); return mapper.isTaskArchived(id); }
+    @Transactional
+    public TaskRow archive(String id) {
+        TaskRow task = get(id);
+        if (!List.of(TaskState.SUCCEEDED.name(), TaskState.FAILED.name(), TaskState.CANCELLED.name()).contains(task.state())) {
+            throw new BadRequestException("TASK_NOT_ARCHIVABLE", "只有已成功、已失败或已取消的任务可以归档");
+        }
+        mapper.archiveTask(id, now());
+        return task;
+    }
+    @Transactional
+    public TaskRow restoreArchive(String id) {
+        TaskRow task = get(id);
+        mapper.restoreTask(id);
+        return task;
+    }
     public List<StageRow> stages(String taskId) { get(taskId); return mapper.listStages(taskId); }
     public List<AttemptRow> attempts(String taskId) { get(taskId); return mapper.listAttempts(taskId); }
     public List<ErrorEventRow> errors(String taskId) { get(taskId); return mapper.listErrors(taskId); }

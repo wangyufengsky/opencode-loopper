@@ -23,8 +23,10 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -77,6 +79,16 @@ public class TaskController {
     @PostMapping("/{id}/pause") public TaskDto pause(@PathVariable String id) { return dto(service.pause(id)); }
     @PostMapping("/{id}/resume") public TaskDto resume(@PathVariable String id) { return dto(service.resume(id)); }
     @PostMapping("/{id}/cancel") public TaskDto cancel(@PathVariable String id) { return dto(service.cancel(id)); }
+    @PutMapping("/{id}/archive")
+    public TaskDto archive(@PathVariable String id, @RequestHeader("X-Loopper-Local-UI") String localUi) {
+        requireLocalUi(localUi);
+        return dto(service.archive(id));
+    }
+    @DeleteMapping("/{id}/archive")
+    public TaskDto restoreArchive(@PathVariable String id, @RequestHeader("X-Loopper-Local-UI") String localUi) {
+        requireLocalUi(localUi);
+        return dto(service.restoreArchive(id));
+    }
     @GetMapping("/{id}/publication")
     public TaskPublicationService.PublicationStatus publication(@PathVariable String id) {
         return publication.status(id);
@@ -141,14 +153,14 @@ public class TaskController {
         LoopSpec spec = draft == null ? null : drafts.spec(draft);
         List<AttemptRow> attempts = service.attempts(task.id());
         return new TaskDto(task.id(), task.projectId(), projectName, task.title(), spec == null ? "" : spec.goal(), task.branchName(), task.worktreePath(), task.state(),
-                draft != null,
+                draft != null, service.archived(task.id()),
                 attempts.size(), spec == null ? 0 : spec.limits().maxTaskAttempts(), task.createdAt(), task.updatedAt(),
                 service.stages(task.id()).stream().map(this::stage).toList(), attempts.stream().map(this::attempt).toList(), service.errors(task.id()).stream().map(this::error).toList(),
                 service.judges(task.id()).stream().map(this::judge).toList(), service.artifacts(task.id()).stream().map(this::artifact).toList());
     }
     public record SseData(String type, String at, JsonNode data) { }
     public record TaskDto(String id, String projectId, String projectName, String title, String goal, String branch,
-                          String worktreePath, String status, boolean hasDesignHistory, int attemptCount, int maxAttempts, String createdAt,
+                          String worktreePath, String status, boolean hasDesignHistory, boolean archived, int attemptCount, int maxAttempts, String createdAt,
                           String updatedAt, List<StageDto> stages, List<AttemptDto> attempts, List<ErrorDto> errors,
                           List<JudgeDto> judges, List<ArtifactDto> artifacts) { }
     public record TaskDesignHistoryDto(String taskId, String taskTitle, String projectName, TaskLoopDraftDto draft,

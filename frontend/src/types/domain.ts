@@ -23,6 +23,7 @@ export interface Project {
   branch?: string
   description?: string
   status: 'READY' | 'NEEDS_GIT' | 'INVALID'
+  executionMode?: 'WORKTREE' | 'DIRECT' | 'UNAVAILABLE'
   updatedAt: string
   taskCount: number
 }
@@ -131,6 +132,7 @@ export interface Task {
   worktreePath: string
   status: TaskStatus
   hasDesignHistory?: boolean
+  archived?: boolean
   activeStage?: number
   attemptCount: number
   maxAttempts: number

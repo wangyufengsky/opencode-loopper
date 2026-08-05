@@ -89,15 +89,15 @@ onMounted(load)
         <div class="card-header"><div><p class="eyebrow">RUNTIME</p><h2 class="card-title">OpenCode 发现</h2></div><Icon icon="lucide:terminal-square" color="var(--color-accent-cyan)" /></div>
         <el-form label-position="top">
           <el-form-item label="CLI 路径"><el-input v-model="settings.cliPath" class="mono" name="opencode-cli" autocomplete="off" /><p v-if="fieldError" class="inline-field-error"><Icon icon="lucide:circle-alert" /> {{ fieldError }}</p></el-form-item>
-          <el-form-item label="允许项目根（可选）"><el-input v-model="settings.allowedRoot" class="mono" name="allowed-project-root" autocomplete="off" placeholder="/workspace/my-project 或 C:\workspace\my-project" /></el-form-item>
+          <el-form-item label="允许项目根（可选）"><el-input v-model="settings.allowedRoot" class="mono" name="allowed-project-root" autocomplete="off" placeholder="例如 /workspace/my-project…" /></el-form-item>
         </el-form>
       </article>
 
       <article class="card card-pad">
         <div class="card-header"><div><p class="eyebrow">MODEL</p><h2 class="card-title">默认模型</h2></div><el-button text :loading="refreshingModels" @click="refreshModels(true)"><Icon icon="lucide:refresh-cw" />刷新模型</el-button></div>
         <el-form label-position="top">
-          <el-form-item label="Provider"><el-select v-model="settings.provider" :disabled="refreshingModels || !providers.length" filterable style="width:100%"><el-option v-for="provider in providers" :key="provider" :label="provider" :value="provider" /></el-select></el-form-item>
-          <el-form-item label="Model"><el-select v-model="settings.model" :disabled="refreshingModels || !providerModels.length" filterable style="width:100%" placeholder="选择 OpenCode 模型"><el-option v-for="item in providerModels" :key="item.id" :label="item.model" :value="item.model"><span class="mono">{{ item.model }}</span></el-option></el-select></el-form-item>
+          <el-form-item label="Provider"><el-select v-model="settings.provider" :disabled="refreshingModels || !providers.length" filterable style="width:100%" aria-label="选择模型提供方"><el-option v-for="provider in providers" :key="provider" :label="provider" :value="provider" /></el-select></el-form-item>
+          <el-form-item label="Model"><el-select v-model="settings.model" :disabled="refreshingModels || !providerModels.length" filterable style="width:100%" placeholder="选择 OpenCode 模型…" aria-label="选择 OpenCode 模型"><el-option v-for="item in providerModels" :key="item.id" :label="item.model" :value="item.model"><span class="mono" translate="no">{{ item.model }}</span></el-option></el-select></el-form-item>
         </el-form>
         <p v-if="modelError" class="inline-field-error"><Icon icon="lucide:circle-alert" /> {{ modelError }}</p>
         <p class="card-description">列表由当前 CLI 的 <code>opencode models</code> 动态返回；保存时后端会再次校验模型仍然可用。</p>
@@ -105,12 +105,12 @@ onMounted(load)
 
       <article class="card card-pad">
         <div class="card-header"><div><p class="eyebrow">LIMITS</p><h2 class="card-title">调度上限</h2></div><Icon icon="lucide:gauge" color="var(--color-session-warning)" /></div>
-        <el-form label-position="top"><el-form-item label="每 Task 最大 Attempt"><el-input-number v-model="settings.maxTaskAttempts" :min="1" :max="50" style="width:100%" /></el-form-item><el-form-item label="单 Attempt 超时（分钟）"><el-input-number v-model="settings.timeoutMinutes" :min="1" :max="120" style="width:100%" /></el-form-item></el-form>
+        <el-form label-position="top"><el-form-item label="每个任务最大尝试次数"><el-input-number v-model="settings.maxTaskAttempts" :min="1" :max="50" aria-label="每个任务最大尝试次数" style="width:100%" /></el-form-item><el-form-item label="单次尝试超时（分钟）"><el-input-number v-model="settings.timeoutMinutes" :min="1" :max="120" aria-label="单次尝试超时分钟数" style="width:100%" /></el-form-item></el-form>
       </article>
 
       <article class="card card-pad">
         <div class="card-header"><div><p class="eyebrow">PERMISSIONS</p><h2 class="card-title">自动批准策略</h2></div><Icon icon="lucide:shield-check" color="var(--color-success)" /></div>
-        <el-switch :model-value="false" disabled inactive-text="所有 ask 权限均等待确认" />
+        <el-switch :model-value="false" disabled aria-label="自动批准权限，当前不可用" inactive-text="所有权限请求均等待确认" />
         <p class="card-description" style="margin-top:16px">当前版本保持 fail-closed：外部路径、git push、显式 deny 与破坏性命令不会自动批准。</p>
       </article>
     </section>

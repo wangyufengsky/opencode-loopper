@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import DOMPurify from 'dompurify'
 import MarkdownIt from 'markdown-it'
 
@@ -17,6 +17,8 @@ const overflowing = ref(props.collapsible)
 let renderVersion = 0
 let diagramSequence = 0
 let mermaidPromise: Promise<typeof import('mermaid')['default']> | undefined
+let mermaidObserver: IntersectionObserver | undefined
+const mermaidJobs = new Map<Element, () => Promise<void>>()
 
 const markdown = new MarkdownIt({
   breaks: true,
@@ -94,38 +96,65 @@ function normalizeMermaidSvg(svg: string) {
   return new XMLSerializer().serializeToString(parsed.documentElement)
 }
 
+async function renderMermaidFrame(frame: HTMLElement, source: string, version: number) {
+  const mermaid = await loadMermaid()
+  if (version !== renderVersion || !documentRoot.value?.contains(frame)) return
+  try {
+    const id = `loopper-mermaid-${++diagramSequence}`
+    const { svg, bindFunctions } = await mermaid.render(id, source)
+    if (version !== renderVersion || !documentRoot.value?.contains(frame)) return
+    frame.classList.remove('markdown-mermaid-pending')
+    frame.setAttribute('aria-label', 'Mermaid 流程图')
+    frame.innerHTML = DOMPurify.sanitize(normalizeMermaidSvg(svg), {
+      USE_PROFILES: { html: true, svg: true, svgFilters: true },
+    })
+    bindFunctions?.(frame)
+  } catch {
+    frame.classList.remove('markdown-mermaid-pending')
+    frame.classList.add('markdown-mermaid-error')
+    frame.textContent = '流程图语法无法渲染，请检查 Mermaid 文本。'
+  }
+  await measureOverflow()
+}
+
+function observeMermaidFrame(frame: HTMLElement, source: string, version: number) {
+  const render = () => renderMermaidFrame(frame, source, version)
+  if (typeof IntersectionObserver === 'undefined') {
+    void render()
+    return
+  }
+  mermaidObserver ??= new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue
+      const job = mermaidJobs.get(entry.target)
+      mermaidObserver?.unobserve(entry.target)
+      mermaidJobs.delete(entry.target)
+      if (job) void job()
+    }
+  }, { rootMargin: '240px 0px' })
+  mermaidJobs.set(frame, render)
+  mermaidObserver.observe(frame)
+}
+
 async function renderMermaidDiagrams() {
   const version = ++renderVersion
+  mermaidObserver?.disconnect()
+  mermaidJobs.clear()
   await nextTick()
   if (!documentRoot.value || version !== renderVersion) return
 
   const blocks = [...documentRoot.value.querySelectorAll<HTMLElement>('pre > code.language-mermaid')]
-  if (blocks.length === 0) return
-  const mermaid = await loadMermaid()
   for (const code of blocks) {
-    if (version !== renderVersion || !code.parentElement) return
+    if (!code.parentElement) continue
     const source = code.textContent?.trim()
     if (!source) continue
-
     const frame = document.createElement('figure')
-    frame.className = 'markdown-mermaid'
-    frame.setAttribute('aria-label', 'Mermaid 流程图')
-    try {
-      const id = `loopper-mermaid-${++diagramSequence}`
-      const { svg, bindFunctions } = await mermaid.render(id, source)
-      if (version !== renderVersion) return
-      frame.innerHTML = DOMPurify.sanitize(normalizeMermaidSvg(svg), {
-        USE_PROFILES: { html: true, svg: true, svgFilters: true },
-      })
-      code.parentElement.replaceWith(frame)
-      bindFunctions?.(frame)
-    } catch {
-      frame.classList.add('markdown-mermaid-error')
-      frame.textContent = '流程图语法无法渲染，已保留原始 Mermaid 文本。'
-      code.parentElement.before(frame)
-    }
+    frame.className = 'markdown-mermaid markdown-mermaid-pending'
+    frame.setAttribute('aria-label', 'Mermaid 流程图，接近可视区域时加载')
+    frame.textContent = '流程图将在滚动到此处时加载…'
+    code.parentElement.replaceWith(frame)
+    observeMermaidFrame(frame, source, version)
   }
-  await measureOverflow()
 }
 
 async function measureOverflow() {
@@ -153,6 +182,11 @@ watch(() => props.collapsible, measureOverflow, { flush: 'post' })
 onMounted(async () => {
   await renderMermaidDiagrams()
   await measureOverflow()
+})
+onBeforeUnmount(() => {
+  renderVersion += 1
+  mermaidObserver?.disconnect()
+  mermaidJobs.clear()
 })
 </script>
 
@@ -213,6 +247,7 @@ onMounted(async () => {
 .markdown-document :deep(th) { color: #f1f5f9; background: rgb(59 130 246 / 10%); font-weight: 680; }
 .markdown-document :deep(tr:nth-child(even) td) { background: rgb(7 13 24 / 35%); }
 .markdown-document :deep(.markdown-mermaid) { display: grid; place-items: center; max-width: 100%; margin: 18px 0; padding: 18px 12px; overflow: auto; border: 1px solid rgb(34 211 238 / 19%); border-radius: 11px; background: radial-gradient(circle at 50% 0, rgb(59 130 246 / 10%), transparent 55%), #090f1c; }
+.markdown-document :deep(.markdown-mermaid-pending) { min-height: 120px; color: var(--color-text-tertiary); font: 11px/1.5 var(--font-ui); }
 .markdown-document :deep(.markdown-mermaid svg) { display: block; max-width: 100%; height: auto; }
 .markdown-document :deep(.markdown-mermaid-error) { display: block; padding: 9px 12px; border-color: rgb(245 158 11 / 34%); background: rgb(245 158 11 / 8%); color: var(--color-session-warning); font-size: 11px; }
 </style>

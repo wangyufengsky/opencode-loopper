@@ -26,6 +26,7 @@ beforeEach(async () => {
     { path: '/tasks/:id', component: { template: '<div />' } },
     { path: '/tasks/:id/design', component: { template: '<div />' } },
     { path: '/designer', component: { template: '<div />' } },
+    { path: '/projects', component: { template: '<div />' } },
   ] })
   await router.push('/tasks')
   await router.isReady()
@@ -46,6 +47,10 @@ function mountView() {
     props: ['modelValue'], emits: ['update:modelValue'],
     template: '<select :value="modelValue" @change="$emit(\'update:modelValue\', $event.target.value)"><slot /></select>',
   })
+  const InputStub = defineComponent({
+    props: ['modelValue'], emits: ['update:modelValue'],
+    template: '<input class="input-stub" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
+  })
   return mount(TasksView, {
     global: {
       plugins: [router],
@@ -57,6 +62,7 @@ function mountView() {
         ElTable: TableStub,
         ElTableColumn: true,
         ElSelect: SelectStub,
+        ElInput: InputStub,
         ElOption: { props: ['label', 'value'], template: '<option :value="value">{{ label }}</option>' },
         ElButtonGroup: { template: '<div><slot /></div>' },
         ElButton: { template: '<button><slot /></button>' },
@@ -77,16 +83,56 @@ describe('Tasks filters and design history', () => {
     expect(wrapper.findAll('.task-link').map((link) => link.text())).toEqual(['A 的新任务', 'A 的旧任务'])
 
     await selects[0]!.setValue('ALL')
-    await selects[1]!.setValue('OLDEST')
+    await selects[2]!.setValue('OLDEST')
     await flushPromises()
     expect(wrapper.findAll('.task-link').map((link) => link.text())).toEqual(['A 的旧任务', 'B 的任务', 'A 的新任务'])
+  })
+
+  it('keeps search, grouping, archive scope and status in the URL', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('.input-stub').setValue('B 的任务')
+    await flushPromises()
+    expect(wrapper.findAll('.task-link').map((link) => link.text())).toEqual(['B 的任务'])
+    expect(router.currentRoute.value.query.q).toBe('B 的任务')
+
+    await wrapper.get('.input-stub').setValue('')
+    const groupButton = wrapper.findAll('button').find((button) => button.text().includes('按项目分组'))
+    await groupButton!.trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('.task-group-header')).toHaveLength(2)
+    expect(router.currentRoute.value.query.group).toBe('project')
+
+    await wrapper.get('button[aria-label^="归档任务"]').trigger('click')
+    await flushPromises()
+    expect(useTaskStore().tasks.filter((task) => task.archived)).toHaveLength(1)
+    await wrapper.findAll('select')[1]!.setValue('ARCHIVED')
+    await flushPromises()
+    expect(wrapper.findAll('.task-link')).toHaveLength(1)
+    expect(router.currentRoute.value.query.archive).toBe('archived')
+  })
+
+  it('guides first-time users to register a project before opening Designer', async () => {
+    const store = useTaskStore()
+    store.usingDemo = false
+    store.tasks = []
+    store.projects = []
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('先登记一个项目')
+    const register = wrapper.findAll('button').find((button) => button.text().includes('登记项目'))
+    await register!.trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.path).toBe('/projects')
   })
 
   it('opens the persisted design and LoopSpec history for a task', async () => {
     const wrapper = mountView()
     await flushPromises()
 
-    expect(wrapper.findAll('.design-history-link')[0]!.text()).toBe('设计')
+    expect(wrapper.findAll('.design-history-link')[0]!.text()).toBe('查看')
     await wrapper.findAll('.design-history-link')[0]!.trigger('click')
     await flushPromises()
 

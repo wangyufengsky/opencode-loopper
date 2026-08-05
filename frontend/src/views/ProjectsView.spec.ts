@@ -135,6 +135,25 @@ describe('Projects AGENTS.md convention flow', () => {
 })
 
 describe('Projects management', () => {
+  it('shows the real Git worktree or direct execution mode', () => {
+    const store = useTaskStore()
+    store.projects = [
+      { id: 'git-project', name: 'Git project', rootPath: '/tmp/git', description: 'Isolated changes', status: 'READY', executionMode: 'WORKTREE', branch: 'main', updatedAt: 'now', taskCount: 2 },
+      { id: 'plain-project', name: 'Plain project', rootPath: '/tmp/plain', status: 'NEEDS_GIT', executionMode: 'DIRECT', updatedAt: 'now', taskCount: 1 },
+    ]
+
+    const wrapper = mount(ProjectsView, {
+      global: { plugins: [ElementPlus], stubs: { teleport: true, PageHeader: { template: '<header><slot /><slot name="actions" /></header>' }, Icon: true } },
+    })
+
+    expect(wrapper.text()).toContain('Git 隔离')
+    expect(wrapper.text()).toContain('main')
+    expect(wrapper.text()).toContain('Isolated changes')
+    expect(wrapper.text()).toContain('直接模式')
+    expect(wrapper.text()).toContain('原项目目录')
+    expect(wrapper.text()).not.toContain('no git head')
+  })
+
   it('cancels management without deleting the project history from the UI contract', async () => {
     const store = useTaskStore()
     store.projects = [{ id: 'project-1', name: 'Example', rootPath: '/tmp/example', status: 'READY', updatedAt: '2026-08-05T00:00:00Z', taskCount: 4 }]

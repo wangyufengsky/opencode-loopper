@@ -34,12 +34,15 @@ async function openTab(wrapper: ReturnType<typeof mountPanel>, label: string) {
 describe('TaskAuditEvidencePanel', () => {
   afterEach(() => vi.clearAllMocks())
 
-  it('shows persisted verifier stdout as the task log instead of an empty artifact placeholder', () => {
+  it('starts with structured verification and keeps persisted stdout collapsed until requested', async () => {
     const wrapper = mountPanel()
 
+    expect(wrapper.text()).toContain('2 / 2 通过')
+    await openTab(wrapper, '日志')
     expect(wrapper.text()).toContain('确定性验证日志')
     expect(wrapper.text()).toContain('mvn test')
     expect(wrapper.get('.audit-log').text()).toContain('BUILD SUCCESS')
+    expect(wrapper.get('.audit-disclosure').attributes('open')).toBeUndefined()
   })
 
   it('uses GIT_DIFF verifier evidence when the OpenCode session patch is an empty array', async () => {

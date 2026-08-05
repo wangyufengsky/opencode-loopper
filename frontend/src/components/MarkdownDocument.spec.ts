@@ -1,5 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import MarkdownDocument from '@/components/MarkdownDocument.vue'
 
 const mermaidMocks = vi.hoisted(() => ({
@@ -12,7 +12,9 @@ vi.mock('mermaid', () => ({
 }))
 
 describe('MarkdownDocument', () => {
+  afterEach(() => vi.unstubAllGlobals())
   beforeEach(() => {
+    vi.stubGlobal('IntersectionObserver', undefined)
     mermaidMocks.render.mockReset()
     mermaidMocks.render.mockResolvedValue({ svg: '<svg role="img"><foreignObject width="120" height="30"><div><p>Rendered flow<br> safely</p><img src="x" onerror="alert(1)"></div></foreignObject></svg>' })
   })
@@ -46,6 +48,28 @@ describe('MarkdownDocument', () => {
     expect(wrapper.find('[onerror]').exists()).toBe(false)
     expect(wrapper.find('parsererror').exists()).toBe(false)
     expect(wrapper.find('code.language-mermaid').exists()).toBe(false)
+  })
+
+  it('defers Mermaid loading until the diagram approaches the viewport', async () => {
+    let notify: ((entries: Array<{ isIntersecting: boolean; target: Element }>) => void) | undefined
+    class FakeIntersectionObserver {
+      constructor(callback: typeof notify) { notify = callback }
+      observe = vi.fn()
+      unobserve = vi.fn()
+      disconnect = vi.fn()
+    }
+    vi.stubGlobal('IntersectionObserver', FakeIntersectionObserver)
+    const wrapper = mount(MarkdownDocument, {
+      props: { content: '```mermaid\nflowchart LR\nA --> B\n```' },
+    })
+    await flushPromises()
+
+    const placeholder = wrapper.get('.markdown-mermaid-pending').element
+    expect(mermaidMocks.render).not.toHaveBeenCalled()
+    notify?.([{ isIntersecting: true, target: placeholder }])
+    await flushPromises()
+    expect(mermaidMocks.render).toHaveBeenCalled()
+    expect(wrapper.find('.markdown-mermaid-pending').exists()).toBe(false)
   })
 
   it('collapses overflowing output to three lines until the user expands it', async () => {

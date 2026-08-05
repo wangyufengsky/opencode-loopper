@@ -8,6 +8,7 @@ import io.opencode.loopper.service.ProjectConventionService;
 import io.opencode.loopper.service.ProjectService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.List;
@@ -37,7 +38,7 @@ public class ProjectController {
     @GetMapping public List<ProjectDto> list() { return service.list().stream().map(this::dto).toList(); }
     @GetMapping("/{id}") public ProjectDto get(@PathVariable String id) { return dto(service.get(id)); }
     @PostMapping public ResponseEntity<ProjectDto> create(@Valid @RequestBody ProjectRequest request) {
-        ProjectRow row = service.create(request.name(), request.rootPath());
+        ProjectRow row = service.create(request.name(), request.rootPath(), request.description());
         return ResponseEntity.created(URI.create("/api/projects/" + row.id())).body(dto(row));
     }
     @PostMapping("/pick-directory")
@@ -76,14 +77,21 @@ public class ProjectController {
         requireLocalUi(localUi);
         return conventionDto(conventions.apply(id, draftId));
     }
-    public record ProjectRequest(@NotBlank String name, @NotBlank String rootPath) { }
+    public record ProjectRequest(@NotBlank String name, @NotBlank String rootPath,
+                                 @Size(max = 500) String description) { }
     public record RenameProjectRequest(@NotBlank String name) { }
     public record DirectorySelectionDto(boolean selected, String path, String name) { }
     public record ProjectConventionDto(String id, String projectId, String state, String operation,
                                        boolean readOnlyGeneration, String content, String error, String updatedAt) { }
     public record CurrentProjectConventionDto(String projectId, boolean exists, boolean loopperManaged, String content) { }
     private String directoryName(String path) { Path fileName = Path.of(path).getFileName(); return fileName == null ? path : fileName.toString(); }
-    private ProjectDto dto(ProjectRow row) { return new ProjectDto(row.id(), row.name(), row.rootPath(), "READY", null, null, row.updatedAt(), service.taskCount(row.id())); }
+    private ProjectDto dto(ProjectRow row) {
+        var inspection = service.inspect(row);
+        String status = !inspection.pathAvailable() ? "INVALID" : inspection.isolatedWorktree() ? "READY" : "NEEDS_GIT";
+        String executionMode = inspection.isolatedWorktree() ? "WORKTREE" : inspection.pathAvailable() ? "DIRECT" : "UNAVAILABLE";
+        return new ProjectDto(row.id(), row.name(), row.rootPath(), status, row.description(), inspection.branch(),
+                executionMode, row.updatedAt(), service.taskCount(row.id()));
+    }
     private ProjectConventionDto conventionDto(ProjectConventionDraftRow row) {
         return new ProjectConventionDto(row.id(), row.projectId(), row.state(), row.sourceExists() == 1 ? "UPDATE" : "CREATE",
                 true, row.proposedContent(), row.errorMessage(), row.updatedAt());
@@ -93,5 +101,6 @@ public class ProjectController {
             throw new BadRequestException("LOCAL_UI_HEADER_REQUIRED", "This operation is available only to the local Loopper UI");
         }
     }
-    public record ProjectDto(String id, String name, String rootPath, String status, String description, String branch, String updatedAt, int taskCount) { }
+    public record ProjectDto(String id, String name, String rootPath, String status, String description, String branch,
+                             String executionMode, String updatedAt, int taskCount) { }
 }

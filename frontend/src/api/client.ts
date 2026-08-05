@@ -71,7 +71,8 @@ function parseLoopSpec(value: unknown): LoopSpec {
 function normalizeProject(value: unknown): Project {
   const raw = asRecord(value)
   const status = asString(raw.status)
-  return { id: asString(raw.id), name: asString(raw.name), rootPath: asString(raw.rootPath), branch: asString(raw.branch) || undefined, description: asString(raw.description) || undefined, status: status === 'INVALID' || status === 'NEEDS_GIT' ? status : 'READY', updatedAt: asString(raw.updatedAt), taskCount: asNumber(raw.taskCount) }
+  const executionMode = asString(raw.executionMode)
+  return { id: asString(raw.id), name: asString(raw.name), rootPath: asString(raw.rootPath), branch: asString(raw.branch) || undefined, description: asString(raw.description) || undefined, status: status === 'INVALID' || status === 'NEEDS_GIT' ? status : 'READY', executionMode: executionMode === 'WORKTREE' || executionMode === 'DIRECT' || executionMode === 'UNAVAILABLE' ? executionMode : undefined, updatedAt: asString(raw.updatedAt), taskCount: asNumber(raw.taskCount) }
 }
 
 function normalizeProjectConvention(value: unknown): ProjectConventionDraft {
@@ -198,7 +199,7 @@ function normalizeTask(value: unknown): Task {
   const attempts = asArray(raw.attempts).map(normalizeAttempt)
   const stages = asArray(raw.stages).map((stage) => normalizeStage(stage, attempts))
   const taskId = asString(raw.id)
-  return { id: taskId, projectId: asString(raw.projectId), projectName: asString(raw.projectName, 'Unknown project'), title: asString(raw.title), goal: asString(raw.goal), branch: asString(raw.branch) || '等待选择执行模式', worktreePath: asString(raw.worktreePath) || '等待准备执行目录', status: asString(raw.status) as Task['status'], hasDesignHistory: raw.hasDesignHistory === true, activeStage: stages.find((stage) => stage.status === 'RUNNING')?.ordinal, attemptCount: asNumber(raw.attemptCount, attempts.length), maxAttempts: asNumber(raw.maxAttempts, 12), createdAt: asString(raw.createdAt), updatedAt: asString(raw.updatedAt), stages, attempts, errors: asArray(raw.errors).map(normalizeError), judges: asArray(raw.judges).map(normalizeJudge), artifacts: asArray(raw.artifacts).map((artifact) => normalizeArtifact(artifact, taskId)) }
+  return { id: taskId, projectId: asString(raw.projectId), projectName: asString(raw.projectName, 'Unknown project'), title: asString(raw.title), goal: asString(raw.goal), branch: asString(raw.branch) || '等待选择执行模式', worktreePath: asString(raw.worktreePath) || '等待准备执行目录', status: asString(raw.status) as Task['status'], hasDesignHistory: raw.hasDesignHistory === true, archived: raw.archived === true, activeStage: stages.find((stage) => stage.status === 'RUNNING')?.ordinal, attemptCount: asNumber(raw.attemptCount, attempts.length), maxAttempts: asNumber(raw.maxAttempts, 12), createdAt: asString(raw.createdAt), updatedAt: asString(raw.updatedAt), stages, attempts, errors: asArray(raw.errors).map(normalizeError), judges: asArray(raw.judges).map(normalizeJudge), artifacts: asArray(raw.artifacts).map((artifact) => normalizeArtifact(artifact, taskId)) }
 }
 
 function normalizeTaskDesignHistory(value: unknown): TaskDesignHistory {
@@ -471,7 +472,7 @@ export const api = {
     const raw = asRecord(await request<unknown>('/projects/pick-directory', { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } }))
     return { selected: raw.selected === true, path: asString(raw.path) || undefined, name: asString(raw.name) || undefined }
   },
-  createProject: async (input: Pick<Project, 'name' | 'rootPath' | 'description'>) => normalizeProject(await request<unknown>('/projects', { method: 'POST', body: JSON.stringify({ name: input.name, rootPath: input.rootPath }) })),
+  createProject: async (input: Pick<Project, 'name' | 'rootPath' | 'description'>) => normalizeProject(await request<unknown>('/projects', { method: 'POST', body: JSON.stringify({ name: input.name, rootPath: input.rootPath, description: input.description?.trim() || '' }) })),
   cancelProjectManagement: async (projectId: string) => request<void>(`/projects/${encodeURIComponent(projectId)}`, { method: 'DELETE', headers: { 'X-Loopper-Local-UI': '1' } }),
   getCurrentProjectConvention: async (projectId: string) => normalizeProjectConventionSnapshot(await request<unknown>(`/projects/${encodeURIComponent(projectId)}/agents-md`)),
   generateProjectConvention: async (projectId: string) => normalizeProjectConvention(await request<unknown>(`/projects/${encodeURIComponent(projectId)}/agents-md`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } })),
@@ -489,6 +490,8 @@ export const api = {
   pauseTask: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}/pause`, { method: 'POST' })),
   resumeTask: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}/resume`, { method: 'POST' })),
   cancelTask: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}/cancel`, { method: 'POST' })),
+  archiveTask: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}/archive`, { method: 'PUT', headers: { 'X-Loopper-Local-UI': '1' } })),
+  restoreArchivedTask: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}/archive`, { method: 'DELETE', headers: { 'X-Loopper-Local-UI': '1' } })),
   getTaskPublication: async (id: string) => normalizeTaskPublication(await request<unknown>(`/tasks/${encodeURIComponent(id)}/publication`)),
   generateTaskCommitMessage: async (id: string) => normalizeCommitSuggestion(await request<unknown>(`/tasks/${encodeURIComponent(id)}/publication/commit-message`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } })),
   publishTask: async (id: string, commitMessage?: string) => normalizeTaskPublication(await request<unknown>(`/tasks/${encodeURIComponent(id)}/publication`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify({ commitMessage }) })),

@@ -13,7 +13,7 @@ const props = defineProps<{
   directExecution: boolean
 }>()
 
-const activeTab = ref<'logs' | 'diff' | 'evidence' | 'judges'>('logs')
+const activeTab = ref<'logs' | 'diff' | 'evidence' | 'judges'>('evidence')
 const orderedAttempts = computed(() => [...props.attempts].sort((left, right) => right.ordinal - left.ordinal))
 const verificationRows = computed(() => orderedAttempts.value.flatMap((attempt) => attempt.verifiers.map((verifier, index) => ({ attempt, verifier, index }))))
 const logRows = computed(() => verificationRows.value.filter(({ verifier }) => Boolean(output(verifier))))
@@ -117,7 +117,7 @@ async function showDiff(path: string) {
 <template>
   <article class="card audit-panel">
     <div class="audit-header">
-      <div><p class="eyebrow">审计证据</p><h2 class="card-title">日志、差异、验证与评审</h2><p class="card-description">读取持久化证据并按用途整理，不直接展示内部 JSON。</p></div>
+      <div><p class="eyebrow">审计证据</p><h2 class="card-title">验证、差异、评审与日志</h2><p class="card-description">先展示结构化结果；需要排障时再展开原始日志。</p></div>
       <el-tabs v-model="activeTab" class="audit-tabs">
         <el-tab-pane label="日志" name="logs" />
         <el-tab-pane label="差异" name="diff" />
@@ -130,7 +130,7 @@ async function showDiff(path: string) {
       <template v-if="activeTab === 'logs'">
         <div class="source-note"><Icon icon="lucide:terminal-square" /><span><strong>确定性验证日志</strong>来自验证器真实进程输出；模型会话实时输出保留在上方会话面板。</span><b>{{ logRows.length }} 份</b></div>
         <div v-if="logRows.length" class="audit-stack">
-          <details v-for="({ attempt, verifier }, index) in logRows" :key="verifier.id" class="audit-disclosure" :open="index === 0">
+          <details v-for="({ attempt, verifier }) in logRows" :key="verifier.id" class="audit-disclosure">
             <summary><span :class="['state-dot', verifier.status.toLowerCase()]" /><span class="summary-main"><strong>{{ argv(verifier) }}</strong><small>尝试 {{ attempt.ordinal }} · {{ verifier.summary }}<template v-if="detail(verifier)"> · {{ detail(verifier) }}</template></small></span><Icon icon="lucide:chevron-down" /></summary>
             <pre class="audit-log">{{ output(verifier) }}</pre>
           </details>

@@ -14,6 +14,8 @@ import { api, subscribeDesignerEvents, type DesignerEventStream } from '@/api/cl
 import { demoDraft, demoMessages } from '@/mock/demoData'
 import { useTaskStore } from '@/stores/taskStore'
 import type { AppSettings, DesignerMessage, DesignerSession, ErrorEvent, LoopDraft, TaskSessionPendingQuestion } from '@/types/domain'
+import { formatDateTime } from '@/utils/dateTime'
+import { statusLabel } from '@/utils/displayLabels'
 
 const store = useTaskStore()
 const router = useRouter()
@@ -499,7 +501,12 @@ async function sendMessage() {
     <template v-if="draft" #actions><StatusBadge :status="draft.status === 'CONFIRMED' ? 'SUCCEEDED' : 'PENDING'" :label="draft.status" /><el-button class="restart-designer-button" plain :disabled="busy" @click="restartDesigner"><Icon icon="lucide:rotate-ccw" />重新开始</el-button><el-button type="primary" :loading="busy" @click="confirm"><Icon icon="lucide:circle-check-big" />确认并交接</el-button></template>
   </PageHeader>
   <main id="main-content" class="content" tabindex="-1">
-    <section v-if="!draft" class="designer-start-page">
+    <section v-if="!draft && !store.usingDemo && !store.loading && !store.projects.length" class="card designer-onboarding" aria-labelledby="designer-onboarding-title">
+      <span class="designer-onboarding-icon"><Icon icon="lucide:folder-plus" aria-hidden="true" /></span>
+      <div><p class="eyebrow">PROJECT REQUIRED</p><h2 id="designer-onboarding-title">先登记项目，再开始设计</h2><p>Designer 需要读取项目目录和约定，才能生成贴合代码库的 LoopSpec。登记项目不会启动 AI，也不会写入项目文件。</p></div>
+      <el-button type="primary" size="large" @click="router.push('/projects')">前往登记项目<Icon icon="lucide:arrow-right" aria-hidden="true" /></el-button>
+    </section>
+    <section v-else-if="!draft" class="designer-start-page">
       <header class="designer-start-heading">
         <span class="designer-start-mark"><Icon icon="lucide:sparkles" /></span>
         <div>
@@ -533,6 +540,8 @@ async function sendMessage() {
               type="textarea"
               :rows="8"
               maxlength="12000"
+              name="designer-goal"
+              autocomplete="off"
               resize="vertical"
               placeholder="描述期望结果、功能范围和验收标准……"
               aria-label="草案设计目标"
@@ -567,11 +576,11 @@ async function sendMessage() {
           <template v-if="selectedProject">
             <div class="context-project-name">
               <strong>{{ selectedProject.name }}</strong>
-              <span :class="['project-readiness', `is-${selectedProject.status.toLowerCase()}`]">{{ selectedProject.status === 'READY' ? '已就绪' : selectedProject.status === 'NEEDS_GIT' ? '无 Git HEAD' : '需处理' }}</span>
+              <span :class="['project-readiness', `is-${selectedProject.status.toLowerCase()}`]">{{ selectedProject.status === 'INVALID' ? '路径不可用' : selectedProject.executionMode === 'WORKTREE' ? 'Git 隔离' : '直接执行' }}</span>
             </div>
             <dl class="context-details">
               <div><dt>路径</dt><dd class="mono">{{ selectedProject.rootPath }}</dd></div>
-              <div><dt>分支</dt><dd class="mono">{{ selectedProject.branch || '未指定' }}</dd></div>
+              <div><dt>执行位置</dt><dd class="mono">{{ selectedProject.executionMode === 'WORKTREE' ? selectedProject.branch : selectedProject.executionMode === 'UNAVAILABLE' ? '不可用' : '原项目目录' }}</dd></div>
               <div><dt>历史任务</dt><dd>{{ selectedProject.taskCount }} 个</dd></div>
             </dl>
             <div class="context-capabilities">
@@ -607,7 +616,7 @@ async function sendMessage() {
                 <span class="chat-avatar"><Icon :icon="message.role === 'ASSISTANT' ? 'lucide:sparkles' : message.role === 'USER' ? 'lucide:user-round' : 'lucide:info'" /></span>
                 <span><strong class="chat-role">{{ message.role === 'USER' ? '你' : message.role === 'ASSISTANT' ? 'Designer' : '系统' }}</strong><small v-if="message.role === 'ASSISTANT'">Markdown 设计文档</small></span>
               </span>
-              <span class="chat-message-time">{{ message.deliveryState ? `${message.deliveryState} · ` : '' }}{{ message.createdAt }}</span>
+              <time class="chat-message-time" :datetime="message.createdAt">{{ message.deliveryState ? `${statusLabel(message.deliveryState)} · ` : '' }}{{ formatDateTime(message.createdAt) }}</time>
             </header>
             <MarkdownDocument v-if="message.role === 'ASSISTANT'" :content="message.content" collapsible />
             <p v-else class="plain-message-content">{{ message.content }}</p>
@@ -645,6 +654,8 @@ async function sendMessage() {
               type="textarea"
               :rows="10"
               maxlength="12000"
+              name="designer-follow-up"
+              autocomplete="off"
               resize="vertical"
               :disabled="designerSession?.state === 'RUNNING'"
               :placeholder="designerSession?.state === 'RUNNING' ? 'Designer 正在处理上一条消息…' : '继续描述目标、约束、边界条件或验收标准…'"
@@ -663,13 +674,14 @@ async function sendMessage() {
           <template #after-stages><ExecutionAcceptancePanel :source="editorValue" /></template>
         </LoopSpecEditor>
         <LayeredErrorPanel v-if="fieldError" :error="fieldError" style="margin-top: 12px" />
-        <div class="spec-footer"><span class="tiny muted"><Icon icon="lucide:lock-keyhole" /> Git 项目隔离执行；无 HEAD 项目直接执行</span><span class="mono tiny">{{ draft.updatedAt }}</span></div>
+        <div class="spec-footer"><span class="tiny muted"><Icon icon="lucide:lock-keyhole" /> Git 项目隔离执行；无 HEAD 项目直接执行</span><time class="mono tiny" :datetime="draft.updatedAt">{{ formatDateTime(draft.updatedAt) }}</time></div>
       </article>
     </section>
   </main>
 </template>
 
 <style scoped>
+.designer-onboarding { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 20px; width: min(900px, 100%); margin: 28px auto 0; padding: 28px; border-color: rgb(34 211 238 / 24%); background: linear-gradient(135deg, rgb(34 211 238 / 8%), rgb(139 92 246 / 7%)); }.designer-onboarding-icon { display: grid; width: 56px; height: 56px; place-items: center; border: 1px solid rgb(34 211 238 / 28%); border-radius: 15px; color: var(--color-accent-cyan); background: rgb(34 211 238 / 8%); }.designer-onboarding-icon svg { width: 25px; height: 25px; }.designer-onboarding h2 { margin: 4px 0 8px; font-size: 21px; text-wrap: balance; }.designer-onboarding p:last-child { max-width: 640px; margin: 0; color: var(--color-text-secondary); font-size: 12px; line-height: 1.7; }
 .designer-start-page { width: min(1080px, 100%); margin: 10px auto 0; }
 .designer-start-heading { display: flex; align-items: center; gap: 15px; margin: 0 0 18px 2px; }
 .designer-start-mark { display: grid; flex: 0 0 auto; place-items: center; width: 46px; height: 46px; border: 1px solid rgb(34 211 238 / 24%); border-radius: 14px; color: var(--color-accent-cyan); background: linear-gradient(145deg, rgb(34 211 238 / 13%), rgb(139 92 246 / 12%)); box-shadow: 0 12px 34px rgb(0 0 0 / 22%); }
@@ -805,6 +817,8 @@ async function sendMessage() {
 }
 
 @media (max-width: 680px) {
+  .designer-onboarding { grid-template-columns: 1fr; margin-top: 8px; padding: 22px; }
+  .designer-onboarding :deep(.el-button) { width: 100%; }
   .designer-start-heading { align-items: flex-start; }
   .composer-project-row { align-items: stretch; flex-direction: column; }
   .composer-project-row :deep(.el-select) { width: 100%; }

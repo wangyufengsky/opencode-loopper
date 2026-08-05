@@ -56,7 +56,7 @@ async function submit() {
   saving.value = true
   try {
     if (store.usingDemo) {
-      store.projects.push({ id: `demo-${Date.now()}`, ...form.value, status: 'NEEDS_GIT', updatedAt: new Date().toISOString(), taskCount: 0 })
+      store.projects.push({ id: `demo-${Date.now()}`, ...form.value, status: 'NEEDS_GIT', executionMode: 'DIRECT', updatedAt: new Date().toISOString(), taskCount: 0 })
     } else {
       store.projects.push(await api.createProject(form.value))
     }
@@ -193,11 +193,11 @@ onBeforeUnmount(clearConventionPoll)
     <section v-if="store.loading" class="metric-grid"><div v-for="n in 4" :key="n" class="skeleton-block" style="height: 150px" /></section>
     <section v-else-if="store.projects.length" class="project-grid">
       <article v-for="project in store.projects" :key="project.id" class="card card-pad project-card">
-        <div class="card-header"><div><div class="project-icon"><Icon icon="lucide:folder-git-2" /></div><h2 class="card-title" style="margin-top: 12px">{{ project.name }}</h2></div><StatusBadge :status="project.status === 'READY' ? 'SUCCEEDED' : project.status === 'INVALID' ? 'FAILED' : 'PENDING'" :label="project.status" /></div>
+        <div class="card-header"><div><div class="project-icon"><Icon :icon="project.executionMode === 'WORKTREE' ? 'lucide:folder-git-2' : 'lucide:folder-cog'" /></div><h2 class="card-title" style="margin-top: 12px">{{ project.name }}</h2></div><StatusBadge :status="project.status === 'INVALID' ? 'FAILED' : project.status === 'READY' ? 'SUCCEEDED' : 'PENDING'" :label="project.status === 'INVALID' ? '路径不可用' : project.executionMode === 'WORKTREE' ? 'Git 隔离' : '直接模式'" /></div>
         <p class="card-description">{{ project.description || '尚未添加说明' }}</p>
         <div class="divider" /><p class="mono tiny muted project-path">{{ project.rootPath }}</p>
         <div class="project-footer">
-          <div class="project-stats"><span class="mono tiny">{{ project.branch ?? 'no git head' }}</span><span class="tiny muted">{{ project.taskCount }} Tasks</span></div>
+          <div class="project-stats"><span class="execution-mode"><Icon :icon="project.executionMode === 'WORKTREE' ? 'lucide:git-branch' : 'lucide:folder-cog'" /><span class="mono tiny">{{ project.executionMode === 'WORKTREE' ? project.branch : project.executionMode === 'UNAVAILABLE' ? '目录不可访问' : '原项目目录' }}</span></span><span class="tiny muted">{{ project.taskCount }} 个任务</span></div>
           <div class="project-actions">
             <button type="button" class="convention-action" aria-label="查看 AGENTS.md 项目公约" title="查看 AGENTS.md 项目公约" @click="openConvention(project)">
               <Icon icon="lucide:file-text" aria-hidden="true" /><span>项目公约</span>
@@ -209,7 +209,7 @@ onBeforeUnmount(clearConventionPoll)
         </div>
       </article>
     </section>
-    <section v-else class="card empty-state"><div><Icon icon="lucide:folder-plus" width="28" /><strong>尚未登记项目</strong><p>从一个本机目录开始。实际执行前平台会再检查 Git HEAD 和路径边界。</p></div></section>
+    <section v-else class="card empty-state"><div><Icon icon="lucide:folder-plus" width="28" aria-hidden="true" /><strong>尚未登记项目</strong><p>先登记本机项目目录，Designer 才能读取上下文并生成 LoopSpec。登记本身不会修改项目文件。</p><el-button type="primary" @click="openDialog">登记第一个项目</el-button></div></section>
   </main>
 
   <el-dialog v-model="dialogVisible" title="登记项目根目录" width="min(640px, calc(100vw - 32px))" :close-on-click-modal="false">
@@ -224,7 +224,7 @@ onBeforeUnmount(clearConventionPoll)
         <p class="path-picker-help"><Icon icon="lucide:mouse-pointer-click" />打开本机目录面板；也可以直接粘贴绝对路径。</p>
         <p v-if="fieldError" class="inline-field-error"><Icon icon="lucide:circle-alert" /> {{ fieldError }}</p>
       </el-form-item>
-      <el-form-item label="说明（可选）"><el-input v-model="form.description" type="textarea" :rows="3" placeholder="说明该项目的用途与约束" /></el-form-item>
+      <el-form-item label="说明（可选）"><el-input v-model="form.description" type="textarea" :rows="3" maxlength="500" show-word-limit placeholder="说明该项目的用途与约束" /></el-form-item>
     </el-form>
     <template #footer><el-button @click="dialogVisible = false">取消</el-button><el-button type="primary" :loading="saving" @click="submit">验证并登记</el-button></template>
   </el-dialog>
@@ -272,12 +272,13 @@ onBeforeUnmount(clearConventionPoll)
 
 <style scoped>
 .project-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
-.project-card { min-height: 224px; }.project-icon { display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid rgb(139 92 246 / 42%); border-radius: 9px; color: var(--color-accent-ai); background: rgb(139 92 246 / 10%); }.project-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.project-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 13px; color: var(--color-text-secondary); }.project-stats { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; flex: 1; }.project-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
+.project-card { min-height: 224px; }.project-icon { display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid rgb(139 92 246 / 42%); border-radius: 9px; color: var(--color-accent-ai); background: rgb(139 92 246 / 10%); }.project-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.project-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 13px; color: var(--color-text-secondary); }.project-stats { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; flex: 1; }.execution-mode { display: inline-flex; min-width: 0; align-items: center; gap: 6px; }.execution-mode svg { flex: 0 0 auto; color: var(--color-accent-cyan); }.execution-mode span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.project-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
 .convention-action { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; gap: 6px; min-height: 30px; padding: 0 10px; border: 1px solid rgb(139 92 246 / 34%); border-radius: 7px; color: #c4b5fd; background: rgb(139 92 246 / 8%); font-size: 10px; font-weight: 680; line-height: 1; cursor: pointer; transition: color .16s ease, background-color .16s ease, border-color .16s ease, box-shadow .16s ease, transform .08s ease; touch-action: manipulation; }.convention-action svg { width: 13px; height: 13px; }.convention-action:hover:not(:disabled) { border-color: rgb(139 92 246 / 62%); color: #ede9fe; background: rgb(139 92 246 / 17%); box-shadow: 0 0 18px rgb(139 92 246 / 13%); }.convention-action:active:not(:disabled) { transform: translateY(1px); }.convention-action:focus-visible { outline: 2px solid var(--color-accent-cyan); outline-offset: 3px; }.convention-action:disabled { opacity: .5; cursor: wait; }
 .danger-action { border-color: rgb(248 113 113 / 28%); color: #fca5a5; background: rgb(127 29 29 / 8%); }.danger-action:hover:not(:disabled) { border-color: rgb(248 113 113 / 55%); color: #fecaca; background: rgb(127 29 29 / 20%); box-shadow: 0 0 18px rgb(248 113 113 / 10%); }
 .convention-progress { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 180px; }.convention-progress p { margin: 4px 0 0; }.convention-empty { display: grid; place-items: center; gap: 9px; min-height: 210px; margin-top: 16px; border: 1px dashed var(--color-border); border-radius: 10px; color: var(--color-text-secondary); background: rgb(15 23 42 / 30%); text-align: center; }.convention-empty svg { color: var(--color-accent-ai); }.convention-empty p { margin: 0; color: var(--color-text-muted); font-size: 12px; }.convention-error { margin: 16px 0; }.convention-meta { display: flex; justify-content: space-between; gap: 12px; margin: 18px 0 9px; }.convention-preview :deep(textarea) { line-height: 1.55; }.spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .path-picker-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; width: 100%; }.path-input { min-width: 0; }.folder-picker-button { min-width: 126px; }.path-picker-help { display: inline-flex; align-items: center; gap: 6px; margin: 8px 0 0; color: var(--color-text-muted); font-size: 10px; }.path-picker-help svg { color: var(--color-accent-cyan); }
 @media (max-width: 1320px) { .project-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 720px) { .project-grid { grid-template-columns: 1fr; }.project-footer { align-items: stretch; flex-direction: column; }.project-actions { justify-content: flex-start; } }
 @media (max-width: 560px) { .path-picker-row { grid-template-columns: 1fr; }.folder-picker-button { width: 100%; } }
 </style>

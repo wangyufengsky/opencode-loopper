@@ -13,7 +13,10 @@ import io.opencode.loopper.service.DirectoryPickerService;
 import io.opencode.loopper.service.ProjectConventionService;
 import io.opencode.loopper.service.ProjectService;
 import io.opencode.loopper.persistence.ProjectConventionDraftRow;
+import io.opencode.loopper.persistence.ProjectRow;
+import io.opencode.loopper.runtime.GitWorktreeManager.RepositoryInspection;
 import io.opencode.loopper.service.ProjectConventionService.CurrentConvention;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
@@ -25,6 +28,22 @@ class ProjectControllerTest {
     private final ProjectConventionService conventions = mock(ProjectConventionService.class);
     private final MockMvc mvc = MockMvcBuilders.standaloneSetup(new ProjectController(projects, directoryPicker, conventions))
             .setControllerAdvice(new ApiExceptionHandler()).build();
+
+    @Test
+    void returnsPersistedDescriptionAndActualRepositoryMode() throws Exception {
+        ProjectRow project = new ProjectRow("project-1", "Example", "/tmp/example", "Useful context",
+                "2026-08-05T00:00:00Z", "2026-08-05T00:00:01Z", 1, 0);
+        when(projects.list()).thenReturn(List.of(project));
+        when(projects.inspect(project)).thenReturn(new RepositoryInspection(true, true, "main"));
+        when(projects.taskCount("project-1")).thenReturn(2);
+
+        mvc.perform(get("/api/projects"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].description").value("Useful context"))
+                .andExpect(jsonPath("$[0].status").value("READY"))
+                .andExpect(jsonPath("$[0].executionMode").value("WORKTREE"))
+                .andExpect(jsonPath("$[0].branch").value("main"));
+    }
 
     @Test
     void returnsTheSelectedAbsoluteDirectoryToTheLocalUi() throws Exception {

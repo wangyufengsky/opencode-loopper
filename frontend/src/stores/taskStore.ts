@@ -120,6 +120,22 @@ export const useTaskStore = defineStore('task', () => {
     }
   }
 
+  async function setTaskArchived(id: string, archived: boolean) {
+    const old = tasks.value.find((task) => task.id === id)
+    if (!old) return
+    if (usingDemo.value) {
+      tasks.value = tasks.value.map((task) => task.id === id ? { ...task, archived } : task)
+      return
+    }
+    try {
+      const changed = archived ? await api.archiveTask(id) : await api.restoreArchivedTask(id)
+      tasks.value = tasks.value.map((task) => task.id === id ? changed : task)
+    } catch (cause) {
+      error.value = cause instanceof Error ? cause.message : archived ? '任务归档失败' : '任务恢复失败'
+      throw cause
+    }
+  }
+
   function watchTask(id: string) {
     stream.value?.close()
     if (snapshotTimer) window.clearTimeout(snapshotTimer)
@@ -164,5 +180,5 @@ export const useTaskStore = defineStore('task', () => {
     try { runtime.value = await api.restartRuntime() } catch (cause) { error.value = cause instanceof Error ? cause.message : 'Runtime 重启失败' }
   }
 
-  return { projects, tasks, runtime, artifacts, loading, error, usingDemo, streamState, activeTasks, selectedTask, activateDemo, loadOverview, loadTask, updateTask, watchTask, stopWatching, refreshRuntime, restartRuntime }
+  return { projects, tasks, runtime, artifacts, loading, error, usingDemo, streamState, activeTasks, selectedTask, activateDemo, loadOverview, loadTask, updateTask, setTaskArchived, watchTask, stopWatching, refreshRuntime, restartRuntime }
 })

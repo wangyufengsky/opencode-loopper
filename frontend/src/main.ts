@@ -1,5 +1,5 @@
 import { createApp } from 'vue'
-import { ElButton, ElButtonGroup, ElCheckbox, ElCheckboxGroup, ElDialog, ElForm, ElFormItem, ElInput, ElInputNumber, ElOption, ElRadio, ElRadioGroup, ElSelect, ElSwitch, ElTabPane, ElTable, ElTableColumn, ElTabs } from 'element-plus'
+import { ElButton, ElButtonGroup, ElCheckbox, ElCheckboxGroup, ElConfigProvider, ElDialog, ElForm, ElFormItem, ElInput, ElInputNumber, ElOption, ElRadio, ElRadioGroup, ElSelect, ElSwitch, ElTabPane, ElTable, ElTableColumn, ElTabs } from 'element-plus'
 import App from '@/App.vue'
 import { router } from '@/router'
 import { createPinia } from 'pinia'
@@ -28,5 +28,5 @@ import '@/styles/app.css'
 
 const app = createApp(App)
 app.use(createPinia()).use(router)
-for (const component of [ElButton, ElButtonGroup, ElCheckbox, ElCheckboxGroup, ElDialog, ElForm, ElFormItem, ElInput, ElInputNumber, ElOption, ElRadio, ElRadioGroup, ElSelect, ElSwitch, ElTabPane, ElTable, ElTableColumn, ElTabs]) app.use(component)
+for (const component of [ElButton, ElButtonGroup, ElCheckbox, ElCheckboxGroup, ElConfigProvider, ElDialog, ElForm, ElFormItem, ElInput, ElInputNumber, ElOption, ElRadio, ElRadioGroup, ElSelect, ElSwitch, ElTabPane, ElTable, ElTableColumn, ElTabs]) app.use(component)
 app.mount('#app')

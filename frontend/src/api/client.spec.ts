@@ -55,6 +55,20 @@ describe('Loopper REST contract adapter', () => {
     }))
   })
 
+  it('persists project descriptions and repository execution metadata', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(json({
+      id: 'project-1', name: 'Example', rootPath: '/tmp/example', description: 'Useful context',
+      status: 'READY', executionMode: 'WORKTREE', branch: 'main', updatedAt: 'now', taskCount: 0,
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(api.createProject({ name: 'Example', rootPath: '/tmp/example', description: '  Useful context  ' }))
+      .resolves.toMatchObject({ description: 'Useful context', executionMode: 'WORKTREE', branch: 'main' })
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
+      name: 'Example', rootPath: '/tmp/example', description: 'Useful context',
+    })
+  })
+
   it('wraps LoopSpec, reads taskId, and maps AVAILABLE to ONLINE', async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(json({ id: 'draft-1', status: 'DRAFT_READY', updatedAt: 'now', spec }, 201))
@@ -103,7 +117,7 @@ describe('Loopper REST contract adapter', () => {
   it('uses persisted verification and error field names from TaskController', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({
       id: 'task-1', projectId: 'project-1', projectName: 'Project', title: 'Task', goal: 'Goal', branch: 'loopper/task-1', worktreePath: '/tmp/task',
-      status: 'RUNNING', hasDesignHistory: true, attemptCount: 1, maxAttempts: 12, createdAt: 'start', updatedAt: 'now', stages: [],
+      status: 'RUNNING', hasDesignHistory: true, archived: true, attemptCount: 1, maxAttempts: 12, createdAt: 'start', updatedAt: 'now', stages: [],
       attempts: [{ id: 'attempt-1', stageId: 'stage-1', ordinal: 1, status: 'RUNNING', summary: 'running', startedAt: 'start', verifications: [{ id: 'verification-1', type: 'PROCESS', status: 'PASS', summary: 'ok', evidence: { argv: ['mvn', 'test'], exitCode: 0, output: 'BUILD SUCCESS' }, at: 'now' }] }],
       errors: [{ id: 'error-1', layer: 'SESSION', code: 'DISCONNECTED', message: 'reconnect', retryable: true, at: 'now' }],
       judges: [{ id: 'judge-1', role: 'RISK', ordinal: 1, status: 'COMPLETED', verdict: 'PASS', reason: 'No unsafe diff', createdAt: 'now', endedAt: 'later' }],
@@ -116,6 +130,19 @@ describe('Loopper REST contract adapter', () => {
     expect(task.judges?.[0]).toMatchObject({ role: 'RISK', verdict: 'PASS' })
     expect(task.artifacts?.[0]).toMatchObject({ kind: 'DIFF', title: 'worktree.diff', content: 'diff' })
     expect(task.hasDesignHistory).toBe(true)
+    expect(task.archived).toBe(true)
+  })
+
+  it('archives and restores tasks only through the local UI contract', async () => {
+    const response = { id: 'task-1', projectId: 'project-1', projectName: 'Project', title: 'Task', goal: 'Goal', branch: 'DIRECT', worktreePath: '/tmp/project', status: 'CANCELLED', archived: true, attemptCount: 1, maxAttempts: 3, createdAt: 'start', updatedAt: 'now' }
+    const fetchMock = vi.fn().mockResolvedValueOnce(json(response)).mockResolvedValueOnce(json({ ...response, archived: false }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(api.archiveTask('task 1')).resolves.toMatchObject({ archived: true })
+    await expect(api.restoreArchivedTask('task 1')).resolves.toMatchObject({ archived: false })
+
+    expect(fetchMock.mock.calls[0]).toEqual(['/api/tasks/task%201/archive', expect.objectContaining({ method: 'PUT', headers: expect.objectContaining({ 'X-Loopper-Local-UI': '1' }) })])
+    expect(fetchMock.mock.calls[1]).toEqual(['/api/tasks/task%201/archive', expect.objectContaining({ method: 'DELETE', headers: expect.objectContaining({ 'X-Loopper-Local-UI': '1' }) })])
   })
 
   it('loads an encoded task file diff preview', async () => {

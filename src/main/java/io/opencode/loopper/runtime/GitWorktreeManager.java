@@ -62,6 +62,30 @@ public class GitWorktreeManager {
         }
     }
 
+    public RepositoryInspection inspect(Path projectRoot) {
+        try {
+            Path root = projectRoot.toRealPath();
+            if (!Files.isDirectory(root)) return RepositoryInspection.unavailable();
+            ProcessResult result = runner.run(root,
+                    List.of("git", "rev-parse", "--is-inside-work-tree", "--show-toplevel", "HEAD", "--abbrev-ref", "HEAD"),
+                    Duration.ofSeconds(3));
+            if (result.timedOut() || result.outputTruncated() || result.exitCode() != 0) {
+                return RepositoryInspection.direct();
+            }
+            String[] lines = result.output().lines().map(String::trim).filter(line -> !line.isEmpty()).toArray(String[]::new);
+            if (lines.length < 4 || !"true".equals(lines[0])) return RepositoryInspection.direct();
+            Path repositoryRoot;
+            try { repositoryRoot = Path.of(lines[1]).toRealPath(); }
+            catch (Exception invalidTopLevel) { return RepositoryInspection.direct(); }
+            if (!repositoryRoot.equals(root)) return RepositoryInspection.direct();
+            String head = lines[2];
+            String branch = "HEAD".equals(lines[3]) ? "detached@" + head.substring(0, Math.min(12, head.length())) : lines[3];
+            return new RepositoryInspection(true, true, branch);
+        } catch (Exception unavailable) {
+            return RepositoryInspection.unavailable();
+        }
+    }
+
     public void requireManaged(Path worktree) {
         try {
             Path base = properties.getDataDir().toAbsolutePath().normalize().resolve("worktrees").toRealPath();
@@ -99,4 +123,8 @@ public class GitWorktreeManager {
 
     private String trim(String value) { return value == null ? "" : value.substring(0, Math.min(value.length(), 2000)); }
     public record Worktree(Path path, String branch, String baselineCommit) { }
+    public record RepositoryInspection(boolean pathAvailable, boolean isolatedWorktree, String branch) {
+        private static RepositoryInspection direct() { return new RepositoryInspection(true, false, null); }
+        private static RepositoryInspection unavailable() { return new RepositoryInspection(false, false, null); }
+    }
 }

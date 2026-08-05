@@ -27,13 +27,13 @@ public interface LoopperMapper {
             """)
     int upsertAppSettings(AppSettingsRow row);
 
-    @Insert("INSERT INTO project(id,name,root_path,created_at,updated_at,managed,version) VALUES(#{id},#{name},#{rootPath},#{createdAt},#{updatedAt},#{managed},#{version})")
+    @Insert("INSERT INTO project(id,name,root_path,description,created_at,updated_at,managed,version) VALUES(#{id},#{name},#{rootPath},#{description},#{createdAt},#{updatedAt},#{managed},#{version})")
     int insertProject(ProjectRow row);
     @Select("SELECT * FROM project WHERE id=#{id}") Optional<ProjectRow> findProject(String id);
     @Select("SELECT * FROM project WHERE root_path=#{rootPath}") Optional<ProjectRow> findProjectByRoot(String rootPath);
     @Select("SELECT * FROM project WHERE managed=1 ORDER BY created_at DESC") List<ProjectRow> listProjects();
     @Select("SELECT COUNT(*) FROM task WHERE project_id=#{projectId}") int countTasksForProject(String projectId);
-    @Update("UPDATE project SET name=#{name}, updated_at=#{updatedAt}, managed=#{managed}, version=version+1 WHERE id=#{id} AND version=#{version}")
+    @Update("UPDATE project SET name=#{name}, description=#{description}, updated_at=#{updatedAt}, managed=#{managed}, version=version+1 WHERE id=#{id} AND version=#{version}")
     int updateProject(ProjectRow row);
     @Update("UPDATE project SET managed=0, updated_at=#{updatedAt}, version=version+1 WHERE id=#{id} AND managed=1")
     int unmanageProject(@Param("id") String id, @Param("updatedAt") String updatedAt);
@@ -93,6 +93,11 @@ public interface LoopperMapper {
     @Select("SELECT * FROM task WHERE id=#{id}") Optional<TaskRow> findTask(String id);
     @Select("SELECT * FROM task WHERE loop_draft_id=#{draftId} ORDER BY created_at DESC LIMIT 1") Optional<TaskRow> findTaskByDraft(String draftId);
     @Select("SELECT * FROM task ORDER BY created_at DESC") List<TaskRow> listTasks();
+    @Select("SELECT COUNT(*) > 0 FROM task_archive WHERE task_id=#{taskId}") boolean isTaskArchived(String taskId);
+    @Insert("INSERT INTO task_archive(task_id,archived_at) VALUES(#{taskId},#{archivedAt}) ON CONFLICT(task_id) DO UPDATE SET archived_at=excluded.archived_at")
+    int archiveTask(@Param("taskId") String taskId, @Param("archivedAt") String archivedAt);
+    @org.apache.ibatis.annotations.Delete("DELETE FROM task_archive WHERE task_id=#{taskId}")
+    int restoreTask(String taskId);
     @Select("SELECT * FROM task WHERE state IN ('PREPARING','RUNNING','VERIFYING','RETRY_WAIT','JUDGING') ORDER BY created_at") List<TaskRow> listRecoverableTasks();
     @Update("UPDATE task SET state=#{state}, updated_at=#{updatedAt}, version=version+1 WHERE id=#{id} AND version=#{version}")
     int updateTaskState(TaskRow row);

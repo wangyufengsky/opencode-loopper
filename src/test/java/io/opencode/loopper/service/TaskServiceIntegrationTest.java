@@ -61,6 +61,25 @@ class TaskServiceIntegrationTest {
     }
 
     @Test
+    void archivesOnlyTerminalTasksAndRestoresThemWithoutChangingTaskState() throws Exception {
+        ProjectRow project = projects.create("archive", gitProject());
+        TaskRow ready = drafts.confirm(drafts.create(spec(project.id())).id(), "archive evidence");
+
+        assertThatThrownBy(() -> tasks.archive(ready.id()))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("只有已成功、已失败或已取消");
+
+        TaskRow cancelled = tasks.cancel(ready.id());
+        tasks.archive(cancelled.id());
+        assertThat(tasks.archived(cancelled.id())).isTrue();
+        assertThat(tasks.get(cancelled.id()).state()).isEqualTo("CANCELLED");
+
+        tasks.restoreArchive(cancelled.id());
+        assertThat(tasks.archived(cancelled.id())).isFalse();
+        assertThat(tasks.get(cancelled.id()).state()).isEqualTo("CANCELLED");
+    }
+
+    @Test
     void confirmationRejectsDesignerContractThatOnlyChecksGitDiff() throws Exception {
         ProjectRow project = projects.create("weak-designer-acceptance", gitProject());
         LoopSpec weak = new LoopSpec("v1", project.id(), "Compile and print PASS", null,
