@@ -10,6 +10,6 @@ class DesignerSessionMonitor {
 
     DesignerSessionMonitor(DesignerSessionService designerSessions) { this.designerSessions = designerSessions; }
 
-    @Scheduled(fixedDelayString = "${loopper.monitor-delay:2s}")
+    @Scheduled(fixedDelayString = "${loopper.designer-monitor-delay:750ms}")
     void poll() { designerSessions.pollActiveHandoffs(); }
 }

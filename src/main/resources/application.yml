@@ -69,6 +69,8 @@ loopper:
   attempt-timeout: 30m
   verifier-timeout: 10m
   monitor-delay: 2s
+  designer-monitor-delay: 750ms
+  designer-timeout: 15m
   # A Task may be terminal while its last remote writer still needs best-effort
   # cleanup. These bounded, persisted retries never start another Session.
   abort-cleanup-attempts: 3

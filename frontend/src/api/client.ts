@@ -1,4 +1,4 @@
-import type { AppSettings, Artifact, Attempt, AvailableModel, DesignerAppendResult, DesignerMessage, DesignerSession, DesignerSessionState, DirectorySelection, ErrorEvent, JudgeRun, LoopDraft, LoopSpec, LoopVerifierSpec, Project, RuntimeInfo, Stage, Task, TaskEvent, TaskSessionActivity, TaskSessionActivityPart, TaskSessionSummary } from '@/types/domain'
+import type { AppSettings, Artifact, Attempt, AvailableModel, DesignerAppendResult, DesignerMessage, DesignerSession, DesignerSessionState, DesignerStreamEvent, DirectorySelection, ErrorEvent, JudgeRun, LoopDraft, LoopSpec, LoopVerifierSpec, Project, RuntimeInfo, Stage, Task, TaskEvent, TaskSessionActivity, TaskSessionActivityPart, TaskSessionSummary } from '@/types/domain'
 
 const apiBase = import.meta.env.VITE_API_BASE ?? '/api'
 
@@ -294,6 +294,22 @@ function normalizeDesignerSession(value: unknown): DesignerSession {
   }
 }
 
+function normalizeDesignerStreamEvent(value: unknown): DesignerStreamEvent {
+  const raw = asRecord(value)
+  const type = asString(raw.type).toUpperCase()
+  return {
+    sequence: asNumber(raw.sequence),
+    sessionId: asString(raw.sessionId),
+    type: ['SNAPSHOT', 'STATUS', 'PARTIAL', 'COMPLETED', 'ERROR'].includes(type) ? type as DesignerStreamEvent['type'] : 'STATUS',
+    state: normalizeDesignerState(raw.state),
+    remoteState: asString(raw.remoteState) || undefined,
+    runtimeConnected: raw.runtimeConnected === true,
+    content: asString(raw.content),
+    detail: asString(raw.detail),
+    at: asString(raw.at) || new Date().toISOString(),
+  }
+}
+
 function durationSeconds(value: string, fallback: number): number {
   if (/^\d+$/.test(value)) return Number(value)
   const match = /^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/i.exec(value)
@@ -368,6 +384,24 @@ export const api = {
 
 export interface TaskEventStream {
   close: () => void
+}
+
+export interface DesignerEventStream { close: () => void }
+
+export function subscribeDesignerEvents(sessionId: string, onEvent: (event: DesignerStreamEvent) => void,
+                                        onState: (state: 'connected' | 'reconnecting') => void): DesignerEventStream {
+  if (typeof EventSource === 'undefined') {
+    onState('reconnecting')
+    return { close: () => undefined }
+  }
+  const source = new EventSource(`${apiBase}/designer-sessions/${encodeURIComponent(sessionId)}/events`)
+  source.onopen = () => onState('connected')
+  source.onmessage = (message) => {
+    try { onEvent(normalizeDesignerStreamEvent(JSON.parse(message.data))) }
+    catch { /* REST polling remains the recovery path for a malformed event. */ }
+  }
+  source.onerror = () => onState('reconnecting')
+  return { close: () => source.close() }
 }
 
 export function subscribeTaskEvents(taskId: string, onEvent: (event: TaskEvent) => void, onState: (state: 'connected' | 'reconnecting') => void): TaskEventStream {

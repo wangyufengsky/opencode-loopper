@@ -20,4 +20,19 @@ describe('ExecutionAcceptancePanel', () => {
     expect(wrapper.text()).toContain('java -cp target/classes PiCrossCheck')
     expect(wrapper.text()).toContain('CROSS-CHECK PASS')
   })
+
+  it('labels legacy FILE_EXISTS checks as non-blocking', () => {
+    const source = JSON.stringify({ stages: [{
+      objective: '旧规范',
+      verifiers: [
+        { type: 'PROCESS', command: ['java', 'SelfCheck'], outputContains: 'PASS' },
+        { type: 'FILE_EXISTS', path: 'target/model-output.txt' },
+      ],
+    }] })
+
+    const wrapper = mount(ExecutionAcceptancePanel, { props: { source } })
+
+    expect(wrapper.text()).toContain('兼容检查（不阻断）')
+    expect(wrapper.text()).toContain('仅记录：target/model-output.txt')
+  })
 })

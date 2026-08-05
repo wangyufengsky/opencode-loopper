@@ -12,6 +12,8 @@ public interface OpenCodeClient {
     SessionStatus sessionStatus(OpenCodeSession session);
     /** Returns the latest assistant text after a completed session, preserving the original model response. */
     String sessionOutput(OpenCodeSession session);
+    /** Returns the latest assistant turn even while OpenCode is still appending text parts. */
+    String sessionLiveOutput(OpenCodeSession session);
     /** Returns provider-exposed incremental assistant parts for the live local monitoring UI. */
     SessionTranscript sessionTranscript(OpenCodeSession session);
     String diff(OpenCodeSession session);

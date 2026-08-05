@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { api } from '@/api/client'
+import { api, subscribeDesignerEvents } from '@/api/client'
 import type { LoopSpec } from '@/types/domain'
 
 const spec: LoopSpec = {
@@ -17,6 +17,33 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 afterEach(() => vi.unstubAllGlobals())
 
 describe('Loopper REST contract adapter', () => {
+  it('streams normalized Designer partial output and connection state', () => {
+    class FakeEventSource {
+      static latest?: FakeEventSource
+      onopen?: () => void
+      onmessage?: (message: MessageEvent<string>) => void
+      onerror?: () => void
+      constructor(readonly url: string) { FakeEventSource.latest = this }
+      close = vi.fn()
+    }
+    vi.stubGlobal('EventSource', FakeEventSource)
+    const onEvent = vi.fn()
+    const onState = vi.fn()
+
+    const stream = subscribeDesignerEvents('designer 1', onEvent, onState)
+    FakeEventSource.latest?.onopen?.()
+    FakeEventSource.latest?.onmessage?.({ data: JSON.stringify({
+      sequence: 4, sessionId: 'designer 1', type: 'PARTIAL', state: 'RUNNING', remoteState: 'busy',
+      runtimeConnected: true, content: '## streamed', detail: 'receiving', at: 'now',
+    }) } as MessageEvent<string>)
+
+    expect(FakeEventSource.latest?.url).toBe('/api/designer-sessions/designer%201/events')
+    expect(onState).toHaveBeenCalledWith('connected')
+    expect(onEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'PARTIAL', content: '## streamed', runtimeConnected: true }))
+    stream.close()
+    expect(FakeEventSource.latest?.close).toHaveBeenCalled()
+  })
+
   it('requests a native project directory only through the local UI endpoint', async () => {
     const fetchMock = vi.fn().mockResolvedValue(json({ selected: true, path: '/tmp/example-project', name: 'example-project' }))
     vi.stubGlobal('fetch', fetchMock)

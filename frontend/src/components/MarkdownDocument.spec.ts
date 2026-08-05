@@ -47,4 +47,39 @@ describe('MarkdownDocument', () => {
     expect(wrapper.find('parsererror').exists()).toBe(false)
     expect(wrapper.find('code.language-mermaid').exists()).toBe(false)
   })
+
+  it('collapses overflowing output to three lines until the user expands it', async () => {
+    const scrollHeight = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(120)
+    const clientHeight = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(67)
+    const wrapper = mount(MarkdownDocument, {
+      props: { content: '第一行\n\n第二行\n\n第三行\n\n第四行', collapsible: true },
+    })
+    await flushPromises()
+
+    expect(wrapper.get('.markdown-document').classes()).toContain('is-collapsed')
+    expect(wrapper.get('.markdown-document').attributes('style')).toContain('--collapsed-lines: 3')
+    expect(wrapper.get('.markdown-expand-button').text()).toContain('展开完整输出')
+    expect(wrapper.get('.markdown-expand-button').attributes('aria-expanded')).toBe('false')
+
+    await wrapper.get('.markdown-expand-button').trigger('click')
+
+    expect(wrapper.get('.markdown-document').classes()).not.toContain('is-collapsed')
+    expect(wrapper.get('.markdown-expand-button').text()).toContain('收起输出')
+    expect(wrapper.get('.markdown-expand-button').attributes('aria-expanded')).toBe('true')
+    scrollHeight.mockRestore()
+    clientHeight.mockRestore()
+  })
+
+  it('does not show an expand control when output fits within three lines', async () => {
+    const scrollHeight = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(60)
+    const clientHeight = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(60)
+    const wrapper = mount(MarkdownDocument, {
+      props: { content: '简短输出', collapsible: true },
+    })
+    await flushPromises()
+
+    expect(wrapper.find('.markdown-expand-button').exists()).toBe(false)
+    scrollHeight.mockRestore()
+    clientHeight.mockRestore()
+  })
 })

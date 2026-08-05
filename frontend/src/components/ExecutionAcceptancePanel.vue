@@ -32,7 +32,7 @@ function label(verifier: LoopVerifierSpec) {
     const command = verifier.command?.join(' ') || '缺少命令'
     return verifier.outputContains ? `${command}  → 包含“${verifier.outputContains}”` : command
   }
-  if (type === 'FILE_EXISTS') return `文件存在：${verifier.path || '缺少路径'}`
+  if (type === 'FILE_EXISTS') return `仅记录：${verifier.path || '缺少路径'}`
   if (type === 'FILE_NOT_EXISTS') return `文件不存在：${verifier.path || '缺少路径'}`
   if (type === 'GIT_DIFF') return 'Git 改动范围与删除策略'
   return type || '未知 verifier'
@@ -41,7 +41,7 @@ function label(verifier: LoopVerifierSpec) {
 function typeLabel(verifier: LoopVerifierSpec) {
   const type = String(verifier.type).toUpperCase()
   if (type === 'PROCESS') return '命令验证'
-  if (type === 'FILE_EXISTS') return '文件存在'
+  if (type === 'FILE_EXISTS') return '兼容检查（不阻断）'
   if (type === 'FILE_NOT_EXISTS') return '文件不存在'
   if (type === 'GIT_DIFF') return 'Git 差异检查'
   return type || '未知验收器'

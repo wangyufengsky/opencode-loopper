@@ -186,6 +186,29 @@ class TaskServiceIntegrationTest {
     }
 
     @Test
+    void missingLegacyFileExistsVerifierDoesNotCreateAnotherModelAttempt() throws Exception {
+        ProjectRow project = projects.create("legacy-file-exists", gitProject());
+        LoopSpec legacy = new LoopSpec("v1", project.id(), "Keep legacy artifact checks non-blocking", null,
+                List.of(new LoopSpec.StageSpec("Implement and self-check", null, null, null,
+                        List.of(new LoopSpec.VerifierSpec("FILE_EXISTS", null, "target/model-guessed-output.txt",
+                                null, null, null, null)))), null, null, null, null);
+        TaskRow task = drafts.confirm(drafts.create(legacy).id(), "legacy file exists");
+        tasks.start(task.id());
+
+        TaskRow judging = tasks.verify(task.id());
+
+        assertThat(judging.state()).isEqualTo("JUDGING");
+        assertThat(tasks.attempts(task.id())).hasSize(1);
+        assertThat(tasks.verifications(tasks.attempts(task.id()).getFirst().id())).singleElement().satisfies(result -> {
+            assertThat(result.type()).isEqualTo("FILE_EXISTS");
+            assertThat(result.state()).isEqualTo("PASS");
+            assertThat(result.summary()).contains("non-blocking");
+            assertThat(result.evidenceJson()).contains("\"blocking\":false", "\"exists\":false");
+        });
+        assertThat(tasks.errors(task.id())).noneMatch(error -> error.layer().equals(ErrorLayer.VERIFICATION.name()));
+    }
+
+    @Test
     void malformedVerifierPathFailsTaskAndPersistsTaskErrorInsteadOfStallingMonitor() throws Exception {
         ProjectRow project = projects.create("invalid-verifier-path", gitProject());
         LoopSpec invalid = new LoopSpec("v1", project.id(), "Reject malformed verifier path", null,

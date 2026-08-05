@@ -143,6 +143,29 @@ public class HttpOpenCodeClient implements OpenCodeClient {
         catch (RuntimeException e) { throw new SessionFailure("OPENCODE_OUTPUT_FAILED", e.getMessage()); }
     }
 
+    @Override public String sessionLiveOutput(OpenCodeSession session) {
+        try {
+            JsonNode messages = sessionMessages(session);
+            int latestUserIndex = -1;
+            String latest = "";
+            int index = 0;
+            for (JsonNode message : messages) {
+                JsonNode info = message.path("info");
+                String role = info.path("role").asText(message.path("role").asText(""));
+                if ("user".equalsIgnoreCase(role)) {
+                    latestUserIndex = index;
+                    latest = "";
+                } else if ("assistant".equalsIgnoreCase(role) && index > latestUserIndex) {
+                    String output = assistantText(message);
+                    if (!output.isBlank()) latest = output;
+                }
+                index++;
+            }
+            return bounded(latest);
+        } catch (SessionFailure e) { throw e; }
+        catch (RuntimeException e) { throw new SessionFailure("OPENCODE_LIVE_OUTPUT_FAILED", e.getMessage()); }
+    }
+
     @Override public SessionTranscript sessionTranscript(OpenCodeSession session) {
         try {
             JsonNode messages = sessionMessages(session);
@@ -263,12 +286,19 @@ public class HttpOpenCodeClient implements OpenCodeClient {
             // when the latest assistant reply follows the latest user prompt.
             if (latestAssistant != null && latestAssistantIndex > latestUserIndex) {
                 JsonNode info = latestAssistant.path("info");
-                if (!info.path("error").isMissingNode() && !info.path("error").isNull()) return new SessionStatus("FAILED");
+                if (!info.path("error").isMissingNode() && !info.path("error").isNull()) {
+                    return new SessionStatus("FAILED", errorDetail(info.path("error")));
+                }
                 JsonNode completed = info.path("time").path("completed");
                 if (!completed.isMissingNode() && !completed.isNull()) return new SessionStatus("COMPLETED");
             }
             return relevantMessage ? new SessionStatus("RUNNING") : new SessionStatus("UNKNOWN");
         } catch (RuntimeException e) { throw new SessionFailure("OPENCODE_MESSAGES_FAILED", e.getMessage()); }
+    }
+    private String errorDetail(JsonNode error) {
+        String detail = firstText(error.path("message"), error.path("data").path("message"),
+                error.path("name"), error.path("code"));
+        return detail.isBlank() ? error.toString() : detail;
     }
     @Override public String diff(OpenCodeSession session) {
         try {

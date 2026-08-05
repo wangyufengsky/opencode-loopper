@@ -254,3 +254,15 @@ export interface DesignerAppendResult {
   persistedMessages: DesignerMessage[]
   notice: string
 }
+
+export interface DesignerStreamEvent {
+  sequence: number
+  sessionId: string
+  type: 'SNAPSHOT' | 'STATUS' | 'PARTIAL' | 'COMPLETED' | 'ERROR'
+  state: DesignerSessionState
+  remoteState?: string
+  runtimeConnected: boolean
+  content: string
+  detail: string
+  at: string
+}

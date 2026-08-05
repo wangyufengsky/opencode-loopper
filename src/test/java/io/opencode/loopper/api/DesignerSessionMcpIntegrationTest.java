@@ -10,6 +10,7 @@ import io.opencode.loopper.persistence.ProjectRow;
 import io.opencode.loopper.runtime.FakeOpenCodeClient;
 import io.opencode.loopper.runtime.OpenCodeClient;
 import io.opencode.loopper.service.DesignerSessionService;
+import io.opencode.loopper.service.DesignerEventHub;
 import io.opencode.loopper.service.LoopDraftService;
 import io.opencode.loopper.service.ProjectService;
 import java.nio.charset.StandardCharsets;
@@ -42,7 +43,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(classes = LoopperApplication.class, properties = {
-        "loopper.opencode.mode=fake", "loopper.opencode.model=opencode/deepseek-v4-flash-free", "loopper.monitor-delay=1h", "loopper.mcp.bearer-token=designer-mcp-test-token",
+        "loopper.opencode.mode=fake", "loopper.opencode.model=opencode/deepseek-v4-flash-free", "loopper.monitor-delay=1h",
+        "loopper.designer-monitor-delay=1h", "loopper.mcp.bearer-token=designer-mcp-test-token",
         "spring.ai.mcp.server.protocol=STREAMABLE", "spring.ai.mcp.server.name=opencode-loopper", "spring.ai.mcp.server.version=0.1.0",
         "spring.ai.mcp.server.annotation-scanner.enabled=false",
         "spring.ai.mcp.server.capabilities.resource=false", "spring.ai.mcp.server.capabilities.prompt=false", "spring.ai.mcp.server.capabilities.completion=false",
@@ -56,6 +58,7 @@ class DesignerSessionMcpIntegrationTest {
     @Autowired private Flyway flyway;
     @Autowired private ProjectService projects;
     @Autowired private DesignerSessionService designerSessions;
+    @Autowired private DesignerEventHub designerEvents;
     @Autowired private LoopDraftService drafts;
     @Autowired private LoopperMapper mapper;
     @Autowired private OpenCodeClient openCode;
@@ -180,6 +183,62 @@ class DesignerSessionMcpIntegrationTest {
             assertThat(message.content()).contains("OPENCODE_DESIGNER_RETRY", "no task was changed");
         });
         assertThat(mapper.listTasks()).isEmpty();
+    }
+
+    @Test
+    void designerPublishesLiveMarkdownAndImmediateProviderErrors() throws Exception {
+        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
+        ProjectRow project = projects.create("designer-live", Files.createDirectory(temp.resolve("live-project")).toString());
+        LoopDraftRow boundDraft = drafts.create(spec(project.id()));
+        fake.setDesignerOutput(designerOutput("## Live plan\n\nFirst visible chunk.", spec(project.id())));
+        DesignerSessionRow designer = designerSessions.create(project.id(), boundDraft.id(), "Stream the plan");
+        fake.setSessionState(designer.externalSessionId(), "RUNNING");
+
+        designerSessions.pollActiveHandoffs();
+
+        DesignerEventHub.DesignerEvent partial = designerEvents.latest(designer.id());
+        assertThat(partial.type()).isEqualTo("PARTIAL");
+        assertThat(partial.runtimeConnected()).isTrue();
+        assertThat(partial.content()).contains("First visible chunk").doesNotContain("LOOPSPEC_JSON_START");
+
+        fake.setSessionStatus(designer.externalSessionId(), "TIMED_OUT", "provider request timed out");
+        designerSessions.pollActiveHandoffs();
+
+        DesignerEventHub.DesignerEvent failed = designerEvents.latest(designer.id());
+        assertThat(failed.type()).isEqualTo("ERROR");
+        assertThat(failed.detail()).contains("OPENCODE_DESIGNER_TIMED_OUT", "provider request timed out");
+        mvc.perform(get("/api/designer-sessions/{id}/events", designer.id()).accept(MediaType.TEXT_EVENT_STREAM))
+                .andExpect(request().asyncStarted());
+    }
+
+    @Test
+    void rejectedDesignerLoopSpecBecomesOneSessionErrorWithoutPoisoningTheSchedulerTransaction() throws Exception {
+        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
+        ProjectRow project = projects.create("designer-invalid-spec",
+                Files.createDirectory(temp.resolve("invalid-spec-project")).toString());
+        LoopDraftRow boundDraft = drafts.create(spec(project.id()));
+        LoopSpec gitDiffOnly = new LoopSpec("v1", project.id(), "Invalid acceptance contract", "",
+                List.of(new LoopSpec.StageSpec("Change files", List.of("src/**"), List.of(), List.of("change"),
+                        List.of(new LoopSpec.VerifierSpec("GIT_DIFF", null, null, true,
+                                List.of("src/**"), List.of(), true)))),
+                LoopSpec.Limits.defaults(), null, null, "Continue");
+        fake.setDesignerOutput(designerOutput("## Proposed plan", gitDiffOnly));
+        DesignerSessionRow designer = designerSessions.create(project.id(), boundDraft.id(), "Generate a plan");
+
+        designerSessions.pollActiveHandoffs();
+
+        DesignerSessionRow failed = designerSessions.get(designer.id());
+        assertThat(failed.state()).isEqualTo("SESSION_ERROR");
+        assertThat(failed.externalSessionState()).isEqualTo("FAILED");
+        assertThat(drafts.get(boundDraft.id()).version()).isZero();
+        assertThat(designerSessions.messages(designer.id())).anySatisfy(message -> {
+            assertThat(message.deliveryState()).isEqualTo("SESSION_ERROR");
+            assertThat(message.content()).contains("LOOPSPEC_SYNC_FAILED", "GIT_DIFF only checks change scope");
+        });
+
+        long messageCount = designerSessions.messages(designer.id()).size();
+        designerSessions.pollActiveHandoffs();
+        assertThat(designerSessions.messages(designer.id())).hasSize((int) messageCount);
     }
 
     @Test

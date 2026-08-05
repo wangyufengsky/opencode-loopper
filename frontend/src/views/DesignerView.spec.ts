@@ -61,6 +61,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
   sessionStorage.clear()
 })
 
@@ -132,8 +133,42 @@ describe('Designer draft composer', () => {
 
     const thinking = wrapper.get('[aria-label="Agent 正在思考，等待 AI 回复"]')
     expect(thinking.text()).toContain('Agent 正在思考')
-    expect(thinking.text()).toContain('正在读取项目上下文并组织设计文档')
+    expect(thinking.text()).toContain('连接暂时中断，正在恢复并继续等待真实回复')
 
+    wrapper.unmount()
+  })
+
+  it('renders streamed Designer Markdown and live connection state before completion', async () => {
+    class FakeEventSource {
+      static latest?: FakeEventSource
+      onopen?: () => void
+      onmessage?: (message: MessageEvent<string>) => void
+      onerror?: () => void
+      constructor(readonly url: string) { FakeEventSource.latest = this }
+      close = vi.fn()
+    }
+    vi.stubGlobal('EventSource', FakeEventSource)
+    const runningSession: DesignerSession = { ...session, state: 'RUNNING' }
+    vi.spyOn(api, 'createDesignerSession').mockResolvedValue(runningSession)
+    vi.spyOn(api, 'createDraft').mockImplementation(async (spec) => draftFrom(spec))
+    vi.spyOn(api, 'getDesignerSession').mockImplementation(() => new Promise(() => {}))
+    const wrapper = mountDesigner()
+    await flushPromises()
+
+    await wrapper.get('textarea[aria-label="草案设计目标"]').setValue('创建可靠的执行计划')
+    await wrapper.get('.create-draft-button').trigger('click')
+    await flushPromises()
+    FakeEventSource.latest?.onopen?.()
+    FakeEventSource.latest?.onmessage?.({ data: JSON.stringify({
+      sequence: 2, sessionId: runningSession.id, type: 'PARTIAL', state: 'RUNNING', remoteState: 'busy',
+      runtimeConnected: true, content: '## 第一段回复\n\n正在分析项目。', detail: '正在接收模型回复', at: '2026-08-05T01:00:00Z',
+    }) } as MessageEvent<string>)
+    await flushPromises()
+
+    expect(wrapper.get('.designer-connection-strip').text()).toContain('实时通道已连接')
+    expect(wrapper.get('.designer-connection-strip').text()).toContain('OpenCode 已连接')
+    expect(wrapper.get('.chat-live').text()).toContain('第一段回复')
+    expect(wrapper.find('[aria-label="Agent 正在思考，等待 AI 回复"]').exists()).toBe(false)
     wrapper.unmount()
   })
 

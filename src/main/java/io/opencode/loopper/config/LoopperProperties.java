@@ -15,6 +15,8 @@ public class LoopperProperties {
     private Duration attemptTimeout = Duration.ofMinutes(30);
     private Duration verifierTimeout = Duration.ofMinutes(10);
     private Duration monitorDelay = Duration.ofSeconds(2);
+    private Duration designerMonitorDelay = Duration.ofMillis(750);
+    private Duration designerTimeout = Duration.ofMinutes(15);
     /** Optional canonical parent directory for newly registered projects. */
     private String allowedRoot = "";
     /** Follow-up abort attempts after a mutating Session could not be confirmed stopped. */
@@ -37,6 +39,10 @@ public class LoopperProperties {
     public void setVerifierTimeout(Duration value) { this.verifierTimeout = value; }
     public Duration getMonitorDelay() { return monitorDelay; }
     public void setMonitorDelay(Duration value) { this.monitorDelay = value; }
+    public Duration getDesignerMonitorDelay() { return designerMonitorDelay; }
+    public void setDesignerMonitorDelay(Duration value) { this.designerMonitorDelay = value; }
+    public Duration getDesignerTimeout() { return designerTimeout; }
+    public void setDesignerTimeout(Duration value) { this.designerTimeout = value; }
     public String getAllowedRoot() { return allowedRoot; }
     public void setAllowedRoot(String value) { this.allowedRoot = value; }
     public int getAbortCleanupAttempts() { return abortCleanupAttempts; }

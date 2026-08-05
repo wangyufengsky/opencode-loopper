@@ -199,7 +199,7 @@ function configureVerifier(verifier: LoopVerifierSpec) {
               <article v-for="(verifier, verifierIndex) in stage.verifiers" :key="verifierIndex" class="verifier-card">
                 <header><span class="verifier-index">验收 {{ verifierIndex + 1 }}</span><el-button text type="danger" aria-label="删除验收器" @click="removeVerifier(stageIndex, verifierIndex)"><Icon icon="lucide:trash-2" /></el-button></header>
                 <div class="verifier-grid">
-                  <label class="field-block compact-field"><span class="field-title">验收类型</span><el-select v-model="verifier.type" filterable allow-create style="width:100%" :aria-label="`阶段 ${stageIndex + 1} 验收器 ${verifierIndex + 1} 类型`" @change="configureVerifier(verifier)"><el-option label="Git 差异检查" value="GIT_DIFF" /><el-option label="运行命令" value="PROCESS" /><el-option label="文件必须存在" value="FILE_EXISTS" /><el-option label="文件必须不存在" value="FILE_NOT_EXISTS" /></el-select></label>
+                  <label class="field-block compact-field"><span class="field-title">验收类型</span><el-select v-model="verifier.type" filterable allow-create style="width:100%" :aria-label="`阶段 ${stageIndex + 1} 验收器 ${verifierIndex + 1} 类型`" @change="configureVerifier(verifier)"><el-option label="Git 差异检查" value="GIT_DIFF" /><el-option label="运行命令" value="PROCESS" /><el-option label="文件必须不存在" value="FILE_NOT_EXISTS" /></el-select></label>
                   <label v-if="verifier.type === 'FILE_EXISTS' || verifier.type === 'FILE_NOT_EXISTS'" class="field-block compact-field"><span class="field-title">目标路径</span><el-input v-model="verifier.path" type="textarea" :autosize="compactAutosize" resize="none" class="mono" placeholder="src/main/java/App.java" /></label>
                   <label v-if="verifier.type === 'PROCESS'" class="field-block compact-field full-width"><span class="field-title">输出必须包含（可选）</span><el-input v-model="verifier.outputContains" type="textarea" :autosize="compactAutosize" resize="none" placeholder="例如：BUILD SUCCESS" /></label>
                 </div>
@@ -222,6 +222,8 @@ function configureVerifier(verifier: LoopVerifierSpec) {
           </div>
         </article>
       </section>
+
+      <slot name="after-stages" />
 
       <section class="form-section limits-section">
         <header class="section-heading"><span class="section-icon violet"><Icon icon="lucide:gauge" /></span><div><p class="section-kicker">调度限制</p><h3>重试次数与超时时间</h3><p>限制 Agent 循环的最大成本，避免任务无限运行。</p></div></header>

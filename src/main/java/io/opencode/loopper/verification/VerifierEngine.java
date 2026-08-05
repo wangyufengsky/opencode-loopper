@@ -41,7 +41,7 @@ public class VerifierEngine {
         String type = spec.type().toUpperCase();
         return switch (type) {
             case "PROCESS" -> process(worktree, spec, boundedTimeout);
-            case "FILE_EXISTS" -> file(worktree, spec, true);
+            case "FILE_EXISTS" -> advisoryFileExists(worktree, spec);
             case "FILE_NOT_EXISTS" -> file(worktree, spec, false);
             case "GIT_DIFF" -> gitDiff(worktree, baselineCommit, spec, boundedTimeout);
             default -> throw new TaskFailure("VERIFIER_TYPE_INVALID", "Unknown verifier type: " + type);
@@ -103,6 +103,25 @@ public class VerifierEngine {
         return new VerifierOutcome(expected ? "FILE_EXISTS" : "FILE_NOT_EXISTS", passed ? VerificationState.PASS : VerificationState.FAIL,
                 (expected ? "Expected file to exist: " : "Expected file not to exist: ") + spec.path(),
                 Map.of("path", target.toString(), "exists", actual));
+    }
+
+    /**
+     * FILE_EXISTS used to be a hard gate. In practice it duplicated PROCESS
+     * self-checks while coupling otherwise-correct work to a Designer-guessed
+     * output path. Keep evaluating legacy specs for audit visibility, but never
+     * send an implementation back through the retry loop solely for this hint.
+     */
+    private VerifierOutcome advisoryFileExists(Path worktree, VerifierSpec spec) {
+        Path target = managedRelative(worktree, spec.path());
+        boolean actual = Files.exists(target);
+        Map<String, Object> evidence = new LinkedHashMap<>();
+        evidence.put("path", target.toString());
+        evidence.put("exists", actual);
+        evidence.put("blocking", false);
+        String summary = actual
+                ? "Optional file found: " + spec.path()
+                : "Optional file not found (non-blocking): " + spec.path();
+        return new VerifierOutcome("FILE_EXISTS", VerificationState.PASS, summary, evidence);
     }
 
     private VerifierOutcome gitDiff(Path worktree, String baseline, VerifierSpec spec, Duration timeout) {
@@ -172,7 +191,10 @@ public class VerifierEngine {
         Path resolved = root.resolve(supplied).normalize();
         if (!resolved.startsWith(root)) throw new TaskFailure("VERIFIER_PATH_ESCAPE", "Verifier path escaped its worktree");
         try {
-            Path check = Files.exists(resolved) ? resolved.toRealPath() : resolved.getParent().toRealPath();
+            Path existing = resolved;
+            while (existing != null && !Files.exists(existing)) existing = existing.getParent();
+            if (existing == null) throw new TaskFailure("VERIFIER_PATH_INVALID", "Verifier path has no resolvable ancestor");
+            Path check = existing.toRealPath();
             if (!check.startsWith(root)) throw new TaskFailure("VERIFIER_SYMLINK_ESCAPE", "Verifier path resolved outside its worktree");
         } catch (TaskFailure e) { throw e; }
         catch (Exception e) { throw new TaskFailure("VERIFIER_PATH_INVALID", "Verifier path cannot be resolved safely"); }

@@ -84,8 +84,16 @@ class HttpOpenCodeClientTest {
         messageBody.set("["
                 + "{\"info\":{\"role\":\"user\"}},"
                 + "{\"info\":{\"role\":\"assistant\",\"time\":{\"completed\":123}}},"
-                + "{\"info\":{\"role\":\"user\"}}]");
+                + "{\"info\":{\"role\":\"user\"}},"
+                + "{\"info\":{\"role\":\"assistant\"},\"parts\":[{\"type\":\"text\",\"text\":\"new partial reply\"}]}]");
         assertThat(client.sessionStatus(session).state()).isEqualTo("RUNNING");
+        assertThat(client.sessionLiveOutput(session)).isEqualTo("new partial reply");
+        messageBody.set("["
+                + "{\"info\":{\"role\":\"user\"}},"
+                + "{\"info\":{\"role\":\"assistant\",\"error\":{\"message\":\"provider timed out\"}}}]");
+        OpenCodeClient.SessionStatus failed = client.sessionStatus(session);
+        assertThat(failed.failed()).isTrue();
+        assertThat(failed.detail()).isEqualTo("provider timed out");
         messageBody.set("["
                 + "{\"info\":{\"role\":\"user\"}},"
                 + "{\"info\":{\"role\":\"assistant\",\"time\":{\"completed\":123}}},"

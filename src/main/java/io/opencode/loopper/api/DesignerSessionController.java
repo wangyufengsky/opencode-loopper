@@ -5,12 +5,16 @@ import io.opencode.loopper.persistence.DesignerSessionRow;
 import io.opencode.loopper.persistence.ProjectRow;
 import io.opencode.loopper.persistence.LoopDraftRow;
 import io.opencode.loopper.service.DesignerSessionService;
+import io.opencode.loopper.service.DesignerEventHub;
 import io.opencode.loopper.service.LoopDraftService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.net.URI;
+import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -18,6 +22,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /** REST surface for an actual read-only OpenCode Designer handoff. */
 @RestController
@@ -25,10 +30,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class DesignerSessionController {
     private final DesignerSessionService service;
     private final LoopDraftService drafts;
+    private final DesignerEventHub events;
 
-    public DesignerSessionController(DesignerSessionService service, LoopDraftService drafts) {
+    public DesignerSessionController(DesignerSessionService service, LoopDraftService drafts, DesignerEventHub events) {
         this.service = service;
         this.drafts = drafts;
+        this.events = events;
     }
 
     @PostMapping
@@ -39,6 +46,35 @@ public class DesignerSessionController {
 
     @GetMapping("/{id}")
     public DesignerSessionDto get(@PathVariable String id) { return dto(service.get(id)); }
+
+    @GetMapping(value = "/{id}/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter stream(@PathVariable String id) {
+        DesignerSessionRow current = service.get(id);
+        SseEmitter emitter = new SseEmitter(0L);
+        AtomicLong sent = new AtomicLong(-1L);
+        AutoCloseable subscription = events.subscribe(id, event -> sendIfNew(emitter, sent, event));
+        emitter.onCompletion(() -> close(subscription));
+        emitter.onTimeout(() -> { close(subscription); emitter.complete(); });
+        DesignerEventHub.DesignerEvent latest = events.latest(id);
+        if (latest != null) sendIfNew(emitter, sent, latest);
+        else sendIfNew(emitter, sent, new DesignerEventHub.DesignerEvent(0L, id, "SNAPSHOT", current.state(),
+                current.externalSessionState(), false, "", "等待 OpenCode 状态探测", current.updatedAt()));
+        return emitter;
+    }
+
+    private void sendIfNew(SseEmitter emitter, AtomicLong sent, DesignerEventHub.DesignerEvent event) {
+        if (event.sequence() <= sent.get()) return;
+        try {
+            synchronized (sent) {
+                if (event.sequence() > sent.get()) {
+                    emitter.send(SseEmitter.event().id(Long.toString(event.sequence())).data(event));
+                    sent.set(event.sequence());
+                }
+            }
+        } catch (IOException failure) { emitter.complete(); }
+    }
+
+    private void close(AutoCloseable value) { try { value.close(); } catch (Exception ignored) { } }
 
     @GetMapping("/{id}/messages")
     public List<DesignerMessageDto> messages(@PathVariable String id) {

@@ -3,8 +3,17 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import DOMPurify from 'dompurify'
 import MarkdownIt from 'markdown-it'
 
-const props = defineProps<{ content: string }>()
+const props = withDefaults(defineProps<{
+  content: string
+  collapsible?: boolean
+  collapsedLines?: number
+}>(), {
+  collapsible: false,
+  collapsedLines: 3,
+})
 const documentRoot = ref<HTMLElement>()
+const expanded = ref(false)
+const overflowing = ref(props.collapsible)
 let renderVersion = 0
 let diagramSequence = 0
 let mermaidPromise: Promise<typeof import('mermaid')['default']> | undefined
@@ -116,23 +125,66 @@ async function renderMermaidDiagrams() {
       code.parentElement.before(frame)
     }
   }
+  await measureOverflow()
 }
 
-watch(() => props.content, renderMermaidDiagrams, { flush: 'post' })
-onMounted(renderMermaidDiagrams)
+async function measureOverflow() {
+  await nextTick()
+  if (!props.collapsible || expanded.value || !documentRoot.value) {
+    if (!props.collapsible) overflowing.value = false
+    return
+  }
+  // Measure while the three-line cap is active. Measuring the fully expanded
+  // element would make scrollHeight equal clientHeight and hide the control.
+  overflowing.value = true
+  await nextTick()
+  overflowing.value = documentRoot.value.scrollHeight > documentRoot.value.clientHeight + 1
+}
+
+function toggleExpanded() {
+  expanded.value = !expanded.value
+}
+
+watch(() => props.content, async () => {
+  await renderMermaidDiagrams()
+  await measureOverflow()
+}, { flush: 'post' })
+watch(() => props.collapsible, measureOverflow, { flush: 'post' })
+onMounted(async () => {
+  await renderMermaidDiagrams()
+  await measureOverflow()
+})
 </script>
 
 <template>
-  <div
-    ref="documentRoot"
-    class="markdown-document"
-    aria-label="Markdown 文档"
-    v-html="renderedHtml"
-  />
+  <div class="markdown-output">
+    <div
+      ref="documentRoot"
+      :class="['markdown-document', { 'is-collapsed': collapsible && overflowing && !expanded }]"
+      :style="{ '--collapsed-lines': collapsedLines }"
+      aria-label="Markdown 文档"
+      v-html="renderedHtml"
+    />
+    <button
+      v-if="collapsible && overflowing"
+      type="button"
+      class="markdown-expand-button"
+      :aria-expanded="expanded"
+      @click="toggleExpanded"
+    >
+      {{ expanded ? '收起输出' : '展开完整输出' }}
+      <span aria-hidden="true">{{ expanded ? '↑' : '↓' }}</span>
+    </button>
+  </div>
 </template>
 
 <style scoped>
+.markdown-output { min-width: 0; }
 .markdown-document { color: var(--color-text-primary); font-size: 13px; line-height: 1.72; overflow-wrap: anywhere; }
+.markdown-document.is-collapsed { max-height: calc(var(--collapsed-lines) * 1.72em); overflow: hidden; }
+.markdown-expand-button { display: inline-flex; align-items: center; gap: 5px; margin-top: 8px; padding: 4px 0; border: 0; background: transparent; color: var(--color-accent-cyan); font: 600 11px/1.4 var(--font-ui); cursor: pointer; }
+.markdown-expand-button:hover { color: #e0f2fe; }
+.markdown-expand-button:focus-visible { border-radius: 4px; outline: 2px solid var(--color-accent-cyan); outline-offset: 3px; }
 .markdown-document :deep(> :first-child) { margin-top: 0; }
 .markdown-document :deep(> :last-child) { margin-bottom: 0; }
 .markdown-document :deep(h1),

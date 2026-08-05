@@ -49,6 +49,7 @@ public class FakeOpenCodeClient implements OpenCodeClient {
         return new SessionStatus(states.getOrDefault(session.id(), "FAILED"), detailBySession.get(session.id()));
     }
     @Override public String sessionOutput(OpenCodeSession session) { return judgeOutputByRole.getOrDefault(judgeRoleBySession.get(session.id()), judgeOutput); }
+    @Override public String sessionLiveOutput(OpenCodeSession session) { return sessionOutput(session); }
     @Override public SessionTranscript sessionTranscript(OpenCodeSession session) {
         String output = sessionOutput(session);
         return new SessionTranscript(output == null || output.isBlank() ? java.util.List.of() : java.util.List.of(

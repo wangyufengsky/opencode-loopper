@@ -103,6 +103,19 @@ class VerifierEngineTest {
     }
 
     @Test
+    void missingFileExistsVerifierIsRecordedWithoutBlockingLegacyTasks() {
+        VerifierOutcome outcome = engine.verify(directory, "unused",
+                new VerifierSpec("FILE_EXISTS", null, "target/model-guessed-output.txt", null, null, null, null),
+                Duration.ofSeconds(1));
+
+        assertThat(outcome.state()).isEqualTo(VerificationState.PASS);
+        assertThat(outcome.summary()).contains("non-blocking");
+        assertThat(outcome.evidence())
+                .containsEntry("exists", false)
+                .containsEntry("blocking", false);
+    }
+
+    @Test
     void drainsNoisyProcessWithoutDeadlock() {
         String java = Path.of(System.getProperty("java.home"), "bin", isWindows() ? "java.exe" : "java").toString();
         long startedAt = System.nanoTime();
