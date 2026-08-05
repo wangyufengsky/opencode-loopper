@@ -117,7 +117,7 @@ async function showDiff(path: string) {
 <template>
   <article class="card audit-panel">
     <div class="audit-header">
-      <div><p class="eyebrow">审计证据</p><h2 class="card-title">验证、差异、评审与日志</h2><p class="card-description">先展示结构化结果；需要排障时再展开原始日志。</p></div>
+      <div><p class="eyebrow">审计证据</p><h2 class="card-title">验证、差异、评审与日志</h2></div>
       <el-tabs v-model="activeTab" class="audit-tabs">
         <el-tab-pane label="日志" name="logs" />
         <el-tab-pane label="差异" name="diff" />
@@ -190,7 +190,7 @@ async function showDiff(path: string) {
 <style scoped>
 .audit-panel { min-width: 0; overflow: hidden; }
 .audit-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; padding: 20px 20px 0; border-bottom: 1px solid rgb(130 147 173 / 10%); }
-.audit-header > div { min-width: 0; }.audit-header .card-description { margin-bottom: 14px; }
+.audit-header > div { min-width: 0; }
 .audit-tabs { flex: 0 0 auto; }.audit-tabs :deep(.el-tabs__header) { margin: 0; }.audit-tabs :deep(.el-tabs__nav-wrap::after) { display: none; }
 .audit-content { min-height: 360px; padding: 16px 20px 20px; }
 .source-note { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 9px; padding: 10px 12px; border: 1px solid rgb(34 211 238 / 15%); border-radius: 8px; background: rgb(34 211 238 / 4%); color: var(--color-text-secondary); font-size: 11px; line-height: 1.55; }

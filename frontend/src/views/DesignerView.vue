@@ -668,7 +668,7 @@ async function sendMessage() {
         </div>
       </article>
       <article class="card spec-panel">
-        <div class="card-pad card-header"><div><p class="eyebrow">REVIEW GATE</p><h2 class="card-title">LoopSpec v{{ draft.spec.schemaVersion.replace('v', '') }}</h2><p class="card-description">后台仍使用标准 JSON；这里用中文字段逐项编辑，保存时重新通过 Schema 与 Java 业务校验。</p></div><el-button plain size="small" :loading="busy" @click="saveDraft"><Icon icon="lucide:save" />保存</el-button></div>
+        <div class="card-pad card-header"><div><p class="eyebrow">REVIEW GATE</p><h2 class="card-title">LoopSpec v{{ draft.spec.schemaVersion.replace('v', '') }}</h2></div><el-button plain size="small" :loading="busy" @click="saveDraft"><Icon icon="lucide:save" />保存</el-button></div>
         <div class="spec-meta"><span><Icon icon="lucide:folder-git-2" />{{ draft.spec.projectId }}</span><span><Icon icon="lucide:flag" />{{ draft.spec.stages.length }} 个阶段</span><span><Icon icon="lucide:timer" />{{ draft.spec.limits.maxDuration }}</span></div>
         <LoopSpecEditor v-model="editorValue" class="spec-editor" aria-label="LoopSpec 中文结构化编辑器">
           <template #after-stages><ExecutionAcceptancePanel :source="editorValue" /></template>

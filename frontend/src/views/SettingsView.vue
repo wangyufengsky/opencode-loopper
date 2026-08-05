@@ -100,7 +100,6 @@ onMounted(load)
           <el-form-item label="Model"><el-select v-model="settings.model" :disabled="refreshingModels || !providerModels.length" filterable style="width:100%" placeholder="选择 OpenCode 模型…" aria-label="选择 OpenCode 模型"><el-option v-for="item in providerModels" :key="item.id" :label="item.model" :value="item.model"><span class="mono" translate="no">{{ item.model }}</span></el-option></el-select></el-form-item>
         </el-form>
         <p v-if="modelError" class="inline-field-error"><Icon icon="lucide:circle-alert" /> {{ modelError }}</p>
-        <p class="card-description">列表由当前 CLI 的 <code>opencode models</code> 动态返回；保存时后端会再次校验模型仍然可用。</p>
       </article>
 
       <article class="card card-pad">
@@ -114,7 +113,7 @@ onMounted(load)
         <p class="card-description" style="margin-top:16px">当前版本保持 fail-closed：外部路径、git push、显式 deny 与破坏性命令不会自动批准。</p>
       </article>
     </section>
-    <section class="card card-pad settings-demo"><div><p class="eyebrow">DEVELOPMENT DATA</p><h2 class="card-title">演示数据模式</h2><p class="card-description">只用于前端交互验收；不会覆盖或掩盖真实 REST 错误。</p></div><el-button :type="store.usingDemo ? 'warning' : 'primary'" plain @click="store.activateDemo('已手动启用演示数据。')">{{ store.usingDemo ? '演示数据已启用' : '启用演示数据' }}</el-button></section>
+    <section class="card card-pad settings-demo"><div><p class="eyebrow">DEVELOPMENT DATA</p><h2 class="card-title">演示数据模式</h2></div><el-button :type="store.usingDemo ? 'warning' : 'primary'" plain @click="store.activateDemo('已手动启用演示数据。')">{{ store.usingDemo ? '演示数据已启用' : '启用演示数据' }}</el-button></section>
   </main>
 </template>
 

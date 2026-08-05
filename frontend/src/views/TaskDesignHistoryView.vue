@@ -57,7 +57,7 @@ watch(id, load, { immediate: true })
     <section v-else-if="error" class="card empty-state"><div><Icon icon="lucide:file-warning" width="30" /><strong>无法读取历史设计</strong><p>{{ error }}</p></div></section>
     <template v-else-if="record">
       <section class="history-overview card card-pad">
-        <div><p class="eyebrow">只读历史快照</p><h2>{{ record.projectName }}</h2><p>展示任务创建时关联的持久化 Designer 对话和最终确认 LoopSpec，不连接或恢复旧 OpenCode 会话。</p></div>
+        <div><p class="eyebrow">只读历史快照</p><h2>{{ record.projectName }}</h2></div>
         <div class="history-meta">
           <span><b>LoopSpec</b>{{ record.draft.status }}</span>
           <span><b>Designer</b>{{ record.designerSession?.state ?? '无关联会话' }}</span>

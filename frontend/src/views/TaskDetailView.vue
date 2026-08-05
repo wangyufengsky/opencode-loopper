@@ -83,13 +83,13 @@ async function confirmCancel() {
           <div><dt>评审通过</dt><dd>{{ passedJudges }} / {{ Math.max(judges.length, 2) }}</dd></div>
         </dl>
       </section>
-      <section v-if="task.stages?.length" class="card card-pad" style="margin-top: 16px"><div class="card-header"><div><h2 class="card-title">阶段进度</h2><p class="card-description">一个会话只执行当前阶段；会话失败不会直接终止任务。</p></div></div><StageRail :stages="task.stages" /></section>
+      <section v-if="task.stages?.length" class="card card-pad" style="margin-top: 16px"><div class="card-header"><div><h2 class="card-title">阶段进度</h2></div></div><StageRail :stages="task.stages" /></section>
       <section v-for="error in verifierErrors" :key="error.id" style="margin-top: 16px"><LayeredErrorPanel :error="error" /></section>
       <section v-for="error in sessionErrors" :key="error.id" style="margin-top: 16px"><LayeredErrorPanel :error="error" /></section>
       <section v-for="error in taskErrors" :key="error.id" style="margin-top: 16px"><LayeredErrorPanel :error="error" /></section>
       <SessionMonitorPanel :task-id="task.id" />
       <section v-if="judges.length || task.status === 'JUDGING' || task.status === 'WAITING_INPUT'" class="card card-pad judge-section" style="margin-top: 16px" aria-labelledby="judge-heading">
-        <div class="card-header"><div><p class="eyebrow">独立只读评审</p><h2 id="judge-heading" class="card-title">需求 / 风险双评审</h2><p class="card-description">两个会话独立审阅；只有双方明确通过，任务才能成功。</p></div><StatusBadge :status="task.status" /></div>
+        <div class="card-header"><div><p class="eyebrow">独立只读评审</p><h2 id="judge-heading" class="card-title">需求 / 风险双评审</h2></div><StatusBadge :status="task.status" /></div>
         <div class="judge-grid">
           <JudgeReviewCard v-for="judge in judges" :key="judge.id" :judge="judge" />
         </div>

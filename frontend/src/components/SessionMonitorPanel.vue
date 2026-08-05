@@ -274,7 +274,6 @@ onBeforeUnmount(() => {
       <div>
         <p class="eyebrow">模型会话实时输出</p>
         <h2 id="session-monitor-heading" class="card-title">模型输出 / 思考</h2>
-        <p class="card-description">动态读取 OpenCode 已公开的推理过程、正文输出与工具调用；不会伪造模型尚未返回的内容。</p>
       </div>
       <div class="live-indicator" :class="{ active }"><span />{{ active ? '实时 · 1.2 秒' : '监控 · 3 秒' }}</div>
     </header>
