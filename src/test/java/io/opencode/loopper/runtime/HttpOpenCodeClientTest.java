@@ -26,6 +26,8 @@ class HttpOpenCodeClientTest {
     private final AtomicReference<String> messageBody = new AtomicReference<>("[{\"info\":{\"role\":\"user\"}}]");
     private final AtomicReference<String> lastPathAndQuery = new AtomicReference<>();
     private final AtomicReference<String> createBody = new AtomicReference<>();
+    private final AtomicReference<String> questionBody = new AtomicReference<>("[]");
+    private final AtomicReference<String> questionActionBody = new AtomicReference<>();
     private final AtomicLong responseDelayMillis = new AtomicLong();
     @TempDir Path worktree;
 
@@ -34,6 +36,7 @@ class HttpOpenCodeClientTest {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/session", this::session);
         server.createContext("/session/status", exchange -> reply(exchange, statusBody.get()));
+        server.createContext("/question", this::question);
         server.start();
     }
     @AfterEach void stop() { server.stop(0); }
@@ -127,6 +130,32 @@ class HttpOpenCodeClientTest {
     }
 
     @Test
+    void listsOnlyQuestionsForTheSelectedSessionAndForwardsReplyAndReject() throws Exception {
+        LoopperProperties properties = new LoopperProperties();
+        properties.getOpenCode().setBaseUrl(new java.net.URI("http://127.0.0.1:" + server.getAddress().getPort()));
+        HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(), properties);
+        OpenCodeClient.OpenCodeSession session = client.createSession(worktree, "question", null);
+        questionBody.set("["
+                + "{\"id\":\"que-other\",\"sessionID\":\"other\",\"questions\":[]},"
+                + "{\"id\":\"que-1\",\"sessionID\":\"s1\",\"questions\":[{\"question\":\"How?\",\"header\":\"Choice\",\"options\":[{\"label\":\"Option A\",\"description\":\"Use A\"}],\"multiple\":false,\"custom\":true}]}]");
+
+        java.util.List<OpenCodeClient.PendingQuestion> pending = client.pendingQuestions(session);
+
+        assertThat(pending).hasSize(1);
+        assertThat(pending.getFirst().id()).isEqualTo("que-1");
+        assertThat(pending.getFirst().questions().getFirst().options().getFirst().label()).isEqualTo("Option A");
+        assertThat(pending.getFirst().questions().getFirst().custom()).isTrue();
+        assertThat(lastPathAndQuery.get()).contains("/question").contains("directory=");
+
+        client.replyQuestion(session, "que-1", java.util.List.of(java.util.List.of("Option A")));
+        assertThat(lastPathAndQuery.get()).contains("/question/que-1/reply").contains("directory=");
+        assertThat(questionActionBody.get()).isEqualTo("{\"answers\":[[\"Option A\"]]}");
+
+        client.rejectQuestion(session, "que-1");
+        assertThat(lastPathAndQuery.get()).contains("/question/que-1/reject").contains("directory=");
+    }
+
+    @Test
     void requestTimeoutBoundsStalledOpenCodeTransport() throws Exception {
         LoopperProperties properties = new LoopperProperties();
         properties.getOpenCode().setBaseUrl(new java.net.URI("http://127.0.0.1:" + server.getAddress().getPort()));
@@ -157,6 +186,14 @@ class HttpOpenCodeClientTest {
         else if (path.endsWith("/message")) reply(exchange, messageBody.get());
         else if (path.endsWith("/diff")) reply(exchange, "[]");
         else reply(exchange, "{}");
+    }
+    private void question(HttpExchange exchange) throws IOException {
+        String path = exchange.getRequestURI().getPath();
+        if (path.equals("/question")) reply(exchange, questionBody.get());
+        else {
+            questionActionBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            reply(exchange, "true");
+        }
     }
     private void reply(HttpExchange exchange, String body) throws IOException {
         lastPathAndQuery.set(exchange.getRequestURI().getPath() + "?" + exchange.getRequestURI().getQuery());

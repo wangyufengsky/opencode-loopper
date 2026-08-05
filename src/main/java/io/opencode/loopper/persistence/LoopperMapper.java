@@ -37,6 +37,34 @@ public interface LoopperMapper {
     int updateProject(ProjectRow row);
     @Delete("DELETE FROM project WHERE id=#{id}") int deleteProject(String id);
 
+    @Insert("""
+            INSERT INTO project_convention_draft(
+              id,project_id,state,external_session_id,external_session_state,
+              source_exists,source_sha256,source_content,proposed_content,error_message,
+              created_at,updated_at,version)
+            VALUES(#{id},#{projectId},#{state},#{externalSessionId},#{externalSessionState},
+              #{sourceExists},#{sourceSha256},#{sourceContent},#{proposedContent},#{errorMessage},
+              #{createdAt},#{updatedAt},#{version})
+            """)
+    int insertProjectConventionDraft(ProjectConventionDraftRow row);
+    @Select("SELECT * FROM project_convention_draft WHERE id=#{id}")
+    Optional<ProjectConventionDraftRow> findProjectConventionDraft(String id);
+    @Select("""
+            SELECT * FROM project_convention_draft
+            WHERE project_id=#{projectId} AND state='RUNNING'
+            ORDER BY created_at DESC LIMIT 1
+            """)
+    Optional<ProjectConventionDraftRow> activeProjectConventionDraft(String projectId);
+    @Select("SELECT * FROM project_convention_draft WHERE state='RUNNING' AND external_session_id IS NOT NULL ORDER BY updated_at")
+    List<ProjectConventionDraftRow> activeProjectConventionDrafts();
+    @Update("""
+            UPDATE project_convention_draft SET
+              state=#{state}, external_session_id=#{externalSessionId}, external_session_state=#{externalSessionState},
+              proposed_content=#{proposedContent}, error_message=#{errorMessage}, updated_at=#{updatedAt}, version=version+1
+            WHERE id=#{id} AND version=#{version}
+            """)
+    int updateProjectConventionDraft(ProjectConventionDraftRow row);
+
     @Insert("INSERT INTO loop_draft(id,project_id,goal,spec_json,status,created_at,updated_at,version) VALUES(#{id},#{projectId},#{goal},#{specJson},#{status},#{createdAt},#{updatedAt},#{version})")
     int insertDraft(LoopDraftRow row);
     @Select("SELECT * FROM loop_draft WHERE id=#{id}") Optional<LoopDraftRow> findDraft(String id);

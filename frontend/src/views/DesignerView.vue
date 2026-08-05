@@ -557,7 +557,7 @@ async function sendMessage() {
 .draft-save-state svg { color: var(--color-success); }
 .create-draft-button { min-width: 154px; }
 .designer-layout { display: grid; grid-template-columns: minmax(460px, 1.12fr) minmax(500px, .88fr); gap: 18px; }
-.designer-chat, .spec-panel { min-height: 820px; }
+.designer-chat, .spec-panel { min-width: 0; min-height: 820px; }
 .designer-chat { display: flex; flex-direction: column; }
 .designer-connection-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; margin: -4px 20px 10px; padding: 9px 11px; border: 1px solid rgb(71 85 105 / 42%); border-radius: 9px; color: var(--color-text-muted); background: rgb(2 6 23 / 30%); font: 9px/1.3 var(--font-code); }
 .designer-connection-strip span { display: inline-flex; align-items: center; gap: 6px; }

@@ -33,6 +33,17 @@ export interface DirectorySelection {
   name?: string
 }
 
+export interface ProjectConventionDraft {
+  id: string
+  projectId: string
+  state: 'RUNNING' | 'READY' | 'APPLIED' | 'FAILED'
+  operation: 'CREATE' | 'UPDATE'
+  readOnlyGeneration: boolean
+  content?: string
+  error?: string
+  updatedAt: string
+}
+
 export interface RuntimeInfo {
   status: 'ONLINE' | 'OFFLINE' | 'STARTING' | 'INCOMPATIBLE'
   version?: string
@@ -164,6 +175,8 @@ export interface TaskSessionSummary {
   externalSessionId?: string
   state: string
   stageId?: string
+  stageOrdinal?: number
+  stageObjective?: string
   attemptId?: string
   createdAt: string
   endedAt?: string
@@ -178,12 +191,31 @@ export interface TaskSessionActivityPart {
   startedAt?: string
 }
 
+export interface TaskSessionQuestionOption {
+  label: string
+  description: string
+}
+
+export interface TaskSessionQuestionPrompt {
+  question: string
+  header: string
+  options: TaskSessionQuestionOption[]
+  multiple: boolean
+  custom: boolean
+}
+
+export interface TaskSessionPendingQuestion {
+  id: string
+  questions: TaskSessionQuestionPrompt[]
+}
+
 export interface TaskSessionActivity {
   session: TaskSessionSummary
   remoteState: string
   live: boolean
   observedAt: string
   parts: TaskSessionActivityPart[]
+  pendingQuestions: TaskSessionPendingQuestion[]
   detail?: string
 }
 

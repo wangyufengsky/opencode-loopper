@@ -9,9 +9,9 @@ import StageRail from '@/components/StageRail.vue'
 import AttemptTimeline from '@/components/AttemptTimeline.vue'
 import LayeredErrorPanel from '@/components/LayeredErrorPanel.vue'
 import SessionMonitorPanel from '@/components/SessionMonitorPanel.vue'
+import JudgeReviewCard from '@/components/JudgeReviewCard.vue'
 import { useTaskStore } from '@/stores/taskStore'
 import type { Attempt, ErrorEvent } from '@/types/domain'
-import { judgeRoleLabel, statusLabel } from '@/utils/displayLabels'
 
 const route = useRoute()
 const router = useRouter()
@@ -69,11 +69,7 @@ async function confirmCancel() {
       <section v-if="judges.length || task.status === 'JUDGING' || task.status === 'WAITING_INPUT'" class="card card-pad judge-section" style="margin-top: 16px" aria-labelledby="judge-heading">
         <div class="card-header"><div><p class="eyebrow">独立只读评审</p><h2 id="judge-heading" class="card-title">需求 / 风险双评审</h2><p class="card-description">两个会话独立审阅；只有双方明确通过，任务才能成功。</p></div><StatusBadge :status="task.status" /></div>
         <div class="judge-grid">
-          <article v-for="judge in judges" :key="judge.id" :class="['judge-card', `judge-${(judge.verdict ?? judge.status).toLowerCase()}`]">
-            <div class="judge-card-head"><strong>{{ judgeRoleLabel(judge.role) }}</strong><span class="mono tiny">第 {{ judge.ordinal }} 次 · {{ statusLabel(judge.verdict ?? judge.status) }}</span></div>
-            <p>{{ judge.reason ?? (judge.status === 'SESSION_ERROR' ? '评审会话出错，系统将在预算内创建新的只读会话。' : '等待独立审阅结果…') }}</p>
-            <span v-if="judge.externalSessionId" class="mono tiny muted">{{ judge.externalSessionId }}</span>
-          </article>
+          <JudgeReviewCard v-for="judge in judges" :key="judge.id" :judge="judge" />
         </div>
       </section>
       <section class="task-detail-grid" style="margin-top: 16px">
@@ -86,5 +82,5 @@ async function confirmCancel() {
 
 <style scoped>
 .task-overview { display: flex; align-items: center; justify-content: space-between; gap: 18px; }.overview-meta { display: flex; align-items: center; gap: 15px; color: var(--color-text-secondary); font-family: var(--font-code); font-size: 11px; }.overview-meta b { color: var(--color-text-primary); }.stream-state { display: inline-flex; align-items: center; gap: 6px; }.stream-state::before { width: 7px; height: 7px; border-radius: 50%; background: currentColor; content: ""; }.stream-state.connected { color: var(--color-success); }.stream-state.reconnecting { color: var(--color-session-warning); }.task-detail-grid { display: grid; grid-template-columns: minmax(300px, .77fr) minmax(500px, 1.23fr); gap: 16px; }.evidence-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 20px 20px 0; }.evidence-tabs :deep(.el-tabs__header) { margin: 0; }.evidence-tabs :deep(.el-tabs__nav-wrap::after) { display: none; }.evidence-content { padding: 12px 20px 20px; }@media (max-width: 1320px) { .task-detail-grid { grid-template-columns: minmax(290px, .7fr) minmax(470px, 1.3fr); } }
-.judge-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }.judge-card { min-height: 112px; padding: 14px; border: 1px solid var(--color-border-default); border-radius: var(--radius-card); background: rgb(7 11 20 / 45%); }.judge-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }.judge-card-head strong { color: var(--color-text-primary); font-size: 12px; }.judge-card-head span { color: var(--color-accent-ai); }.judge-card p { margin: 10px 0 8px; color: var(--color-text-secondary); font-size: 12px; line-height: 1.55; }.judge-pass { border-color: rgb(34 197 94 / 38%); }.judge-pass .judge-card-head span { color: var(--color-success); }.judge-revise, .judge-blocked, .judge-unparseable { border-color: rgb(245 158 11 / 42%); }.judge-revise .judge-card-head span, .judge-blocked .judge-card-head span, .judge-unparseable .judge-card-head span, .judge-session_error .judge-card-head span { color: var(--color-session-warning); }
+.judge-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }@media (max-width: 960px) { .judge-grid { grid-template-columns: 1fr; } }
 </style>

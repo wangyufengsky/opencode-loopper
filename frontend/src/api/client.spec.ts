@@ -140,7 +140,7 @@ describe('Loopper REST contract adapter', () => {
 
   it('normalizes live Task Session thinking and output parts', async () => {
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce(json([{ key: 'execution:local-1', kind: 'IMPLEMENTATION', label: 'Implementation Session', localSessionId: 'local-1', externalSessionId: 'remote-1', state: 'RUNNING', createdAt: 'now' }]))
+      .mockResolvedValueOnce(json([{ key: 'execution:local-1', kind: 'IMPLEMENTATION', label: 'Implementation Session', localSessionId: 'local-1', externalSessionId: 'remote-1', state: 'RUNNING', stageId: 'stage-1', stageOrdinal: 1, stageObjective: '实现阶段目标', createdAt: 'now' }]))
       .mockResolvedValueOnce(json({
         session: { key: 'execution:local-1', kind: 'IMPLEMENTATION', label: 'Implementation Session', localSessionId: 'local-1', externalSessionId: 'remote-1', state: 'RUNNING', createdAt: 'now' },
         remoteState: 'busy', live: true, observedAt: 'later',
@@ -148,7 +148,9 @@ describe('Loopper REST contract adapter', () => {
       }))
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(api.getTaskSessions('task-1')).resolves.toMatchObject([{ key: 'execution:local-1', state: 'RUNNING' }])
+    await expect(api.getTaskSessions('task-1')).resolves.toMatchObject([{
+      key: 'execution:local-1', state: 'RUNNING', stageOrdinal: 1, stageObjective: '实现阶段目标',
+    }])
     await expect(api.getTaskSessionActivity('task-1', 'execution:local-1')).resolves.toMatchObject({
       live: true, remoteState: 'busy', parts: [{ type: 'THINKING', content: 'Inspecting files', startedAt: '2026-08-04T08:00:01Z' }, { type: 'OUTPUT', content: 'Implementing now' }],
     })

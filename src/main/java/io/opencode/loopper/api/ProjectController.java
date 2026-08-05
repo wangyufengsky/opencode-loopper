@@ -1,8 +1,10 @@
 package io.opencode.loopper.api;
 
 import io.opencode.loopper.persistence.ProjectRow;
+import io.opencode.loopper.persistence.ProjectConventionDraftRow;
 import io.opencode.loopper.service.BadRequestException;
 import io.opencode.loopper.service.DirectoryPickerService;
+import io.opencode.loopper.service.ProjectConventionService;
 import io.opencode.loopper.service.ProjectService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -25,7 +27,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class ProjectController {
     private final ProjectService service;
     private final DirectoryPickerService directoryPicker;
-    public ProjectController(ProjectService service, DirectoryPickerService directoryPicker) { this.service = service; this.directoryPicker = directoryPicker; }
+    private final ProjectConventionService conventions;
+    public ProjectController(ProjectService service, DirectoryPickerService directoryPicker,
+                             ProjectConventionService conventions) {
+        this.service = service;
+        this.directoryPicker = directoryPicker;
+        this.conventions = conventions;
+    }
     @GetMapping public List<ProjectDto> list() { return service.list().stream().map(this::dto).toList(); }
     @GetMapping("/{id}") public ProjectDto get(@PathVariable String id) { return dto(service.get(id)); }
     @PostMapping public ResponseEntity<ProjectDto> create(@Valid @RequestBody ProjectRequest request) {
@@ -34,19 +42,44 @@ public class ProjectController {
     }
     @PostMapping("/pick-directory")
     public DirectorySelectionDto pickDirectory(@RequestHeader("X-Loopper-Local-UI") String localUi) {
-        if (!"1".equals(localUi)) {
-            throw new BadRequestException("LOCAL_UI_HEADER_REQUIRED", "Folder selection is available only to the local Loopper UI");
-        }
+        requireLocalUi(localUi);
         return directoryPicker.pickDirectory()
                 .map(path -> new DirectorySelectionDto(true, path, directoryName(path)))
                 .orElseGet(() -> new DirectorySelectionDto(false, null, null));
     }
     @PutMapping("/{id}") public ProjectDto rename(@PathVariable String id, @Valid @RequestBody RenameProjectRequest request) { return dto(service.rename(id, request.name())); }
     @DeleteMapping("/{id}") public ResponseEntity<Void> delete(@PathVariable String id) { service.delete(id); return ResponseEntity.noContent().build(); }
+    @PostMapping("/{id}/agents-md")
+    public ResponseEntity<ProjectConventionDto> generateConvention(@PathVariable String id,
+                                                                    @RequestHeader("X-Loopper-Local-UI") String localUi) {
+        requireLocalUi(localUi);
+        return ResponseEntity.accepted().body(conventionDto(conventions.generate(id)));
+    }
+    @GetMapping("/{id}/agents-md/{draftId}")
+    public ProjectConventionDto convention(@PathVariable String id, @PathVariable String draftId) {
+        return conventionDto(conventions.get(id, draftId));
+    }
+    @PutMapping("/{id}/agents-md/{draftId}")
+    public ProjectConventionDto applyConvention(@PathVariable String id, @PathVariable String draftId,
+                                                @RequestHeader("X-Loopper-Local-UI") String localUi) {
+        requireLocalUi(localUi);
+        return conventionDto(conventions.apply(id, draftId));
+    }
     public record ProjectRequest(@NotBlank String name, @NotBlank String rootPath) { }
     public record RenameProjectRequest(@NotBlank String name) { }
     public record DirectorySelectionDto(boolean selected, String path, String name) { }
+    public record ProjectConventionDto(String id, String projectId, String state, String operation,
+                                       boolean readOnlyGeneration, String content, String error, String updatedAt) { }
     private String directoryName(String path) { Path fileName = Path.of(path).getFileName(); return fileName == null ? path : fileName.toString(); }
     private ProjectDto dto(ProjectRow row) { return new ProjectDto(row.id(), row.name(), row.rootPath(), "READY", null, null, row.updatedAt(), service.taskCount(row.id())); }
+    private ProjectConventionDto conventionDto(ProjectConventionDraftRow row) {
+        return new ProjectConventionDto(row.id(), row.projectId(), row.state(), row.sourceExists() == 1 ? "UPDATE" : "CREATE",
+                true, row.proposedContent(), row.errorMessage(), row.updatedAt());
+    }
+    private void requireLocalUi(String localUi) {
+        if (!"1".equals(localUi)) {
+            throw new BadRequestException("LOCAL_UI_HEADER_REQUIRED", "This operation is available only to the local Loopper UI");
+        }
+    }
     public record ProjectDto(String id, String name, String rootPath, String status, String description, String branch, String updatedAt, int taskCount) { }
 }

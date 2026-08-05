@@ -347,6 +347,9 @@ class TaskServiceIntegrationTest {
         assertThat(tasks.judges(task.id())).hasSize(2).allSatisfy(judge -> {
             assertThat(judge.state()).isEqualTo("RUNNING");
             assertThat(((FakeOpenCodeClient) openCode).isReadOnlySession(judge.externalSessionId())).isTrue();
+            assertThat(((FakeOpenCodeClient) openCode).promptForSession(judge.externalSessionId()))
+                    .contains("concise evidence-based Markdown", "## Evidence", "JSON-escape every newline")
+                    .doesNotContain("with no markdown");
         });
         assertThat(tasks.artifacts(task.id())).extracting(artifact -> artifact.kind())
                 .contains("GIT_DIFF", "VERIFICATION_SUMMARY", "JUDGE_LOG_METADATA");

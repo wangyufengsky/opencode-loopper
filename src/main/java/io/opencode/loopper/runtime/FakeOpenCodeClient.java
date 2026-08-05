@@ -55,6 +55,9 @@ public class FakeOpenCodeClient implements OpenCodeClient {
         return new SessionTranscript(output == null || output.isBlank() ? java.util.List.of() : java.util.List.of(
                 new SessionPart("fake-output", "OUTPUT", "模型输出", output, states.get(session.id()))));
     }
+    @Override public java.util.List<PendingQuestion> pendingQuestions(OpenCodeSession session) { return java.util.List.of(); }
+    @Override public void replyQuestion(OpenCodeSession session, String requestId, java.util.List<java.util.List<String>> answers) { }
+    @Override public void rejectQuestion(OpenCodeSession session, String requestId) { }
     @Override public String diff(OpenCodeSession session) { return "[]"; }
     @Override public void abort(OpenCodeSession session) {
         if (failedAborts.getAndUpdate(value -> Math.max(0, value - 1)) > 0) {

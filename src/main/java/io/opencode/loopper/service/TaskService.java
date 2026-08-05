@@ -818,7 +818,11 @@ public class TaskService {
                 + focus + "\nConfirmed goal: " + loopSpec.goal() + "\nContext: " + loopSpec.context()
                 + "\nFinal-stage objectives:\n- " + objectives + "\nDeterministic verification summary:\n" + verification
                 + "\nPersisted git diff evidence:\n" + diff + "\nAttempt: " + attempt.id()
-                + "\nReturn exactly one JSON object with no markdown: {\"verdict\":\"PASS|REVISE|BLOCKED\",\"reason\":\"specific evidence-based reason\"}.";
+                + "\nReturn exactly one JSON object with no surrounding prose or code fence: "
+                + "{\"verdict\":\"PASS|REVISE|BLOCKED\",\"reason\":\"concise evidence-based Markdown\"}. "
+                + "Inside the reason string, write a one-sentence conclusion followed by a '## Evidence' heading and a numbered list. "
+                + "Use inline code for commands and file paths. If the verdict is not PASS, add a '## Required actions' heading and a numbered list. "
+                + "Do not use fenced code blocks, and JSON-escape every newline in the reason string.";
     }
 
     private JudgeRunRow judgeState(JudgeRunRow row, String externalSessionId, String state, String verdict, String reason,

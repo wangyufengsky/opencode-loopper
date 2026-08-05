@@ -9,6 +9,9 @@ when Git HEAD is unavailable, directly inside the registered project root.
 
 - `project`: registered roots and Git baseline validation
 - `designer`: real read-only OpenCode planning Session and versioned Loop drafts
+- `project conventions`: read-only OpenCode project analysis plus a persisted
+  `AGENTS.md` preview; an explicit local-UI apply and matching source hash are
+  required before the project file is created or its Looper block is updated
 - `task`: Task, Stage and Attempt aggregate
 - `orchestrator`: state transitions, retry policy and recovery
 - `opencode`: HTTP/SSE adapter and managed process lifecycle

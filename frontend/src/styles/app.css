@@ -101,7 +101,123 @@ a { color: inherit; text-decoration: none; }
 .skeleton-block { border-radius: var(--radius-control); background: linear-gradient(90deg, #111a2c 20%, #18253c 38%, #111a2c 52%); background-size: 280% 100%; animation: shimmer 1.5s infinite; }
 @keyframes shimmer { to { background-position: -180% 0; } }
 
-.el-button { font-weight: 620; }.el-button--primary { box-shadow: 0 0 20px rgb(59 130 246 / 15%); }.el-input__wrapper, .el-textarea__inner { box-shadow: 0 0 0 1px var(--color-border-default) inset !important; background: #0b1221 !important; }.el-input__wrapper.is-focus, .el-textarea__inner:focus { box-shadow: 0 0 0 1px var(--color-action-primary) inset !important; }
+.el-button {
+  --el-button-text-color: #a9b7cb;
+  --el-button-bg-color: #10192b;
+  --el-button-border-color: #2a3a56;
+  --el-button-hover-text-color: #eef4ff;
+  --el-button-hover-bg-color: #17243b;
+  --el-button-hover-border-color: #3a557b;
+  --el-button-active-text-color: #eef4ff;
+  --el-button-active-bg-color: #0d1627;
+  --el-button-active-border-color: #45658f;
+  --el-button-divide-border-color: var(--el-button-border-color);
+  --el-button-disabled-text-color: #58677d;
+  --el-button-disabled-bg-color: rgb(13 20 36 / 72%);
+  --el-button-disabled-border-color: rgb(33 48 75 / 72%);
+  font-weight: 620;
+  box-shadow: none;
+  touch-action: manipulation;
+}
+
+.el-button.is-plain {
+  --el-button-text-color: #a9b7cb;
+  --el-button-bg-color: rgb(16 25 43 / 72%);
+  --el-button-border-color: #2a3a56;
+  --el-button-hover-text-color: #eef4ff;
+  --el-button-hover-bg-color: #17243b;
+  --el-button-hover-border-color: #3a557b;
+  --el-button-active-text-color: #eef4ff;
+  --el-button-active-bg-color: #0d1627;
+  --el-button-active-border-color: #45658f;
+}
+
+.el-button--primary,
+.el-button--primary.is-plain {
+  --el-button-text-color: #bfdbfe;
+  --el-button-bg-color: rgb(59 130 246 / 15%);
+  --el-button-border-color: rgb(59 130 246 / 48%);
+  --el-button-hover-text-color: #eff6ff;
+  --el-button-hover-bg-color: rgb(59 130 246 / 27%);
+  --el-button-hover-border-color: rgb(96 165 250 / 76%);
+  --el-button-active-text-color: #eff6ff;
+  --el-button-active-bg-color: rgb(37 99 235 / 22%);
+  --el-button-active-border-color: #60a5fa;
+  box-shadow: 0 0 18px rgb(59 130 246 / 8%);
+}
+
+.el-button--success,
+.el-button--success.is-plain {
+  --el-button-text-color: #86efac;
+  --el-button-bg-color: rgb(34 197 94 / 12%);
+  --el-button-border-color: rgb(34 197 94 / 42%);
+  --el-button-hover-text-color: #dcfce7;
+  --el-button-hover-bg-color: rgb(34 197 94 / 22%);
+  --el-button-hover-border-color: rgb(74 222 128 / 70%);
+  --el-button-active-text-color: #dcfce7;
+  --el-button-active-bg-color: rgb(22 163 74 / 18%);
+  --el-button-active-border-color: #4ade80;
+}
+
+.el-button--warning,
+.el-button--warning.is-plain {
+  --el-button-text-color: #fcd34d;
+  --el-button-bg-color: rgb(245 158 11 / 12%);
+  --el-button-border-color: rgb(245 158 11 / 42%);
+  --el-button-hover-text-color: #fef3c7;
+  --el-button-hover-bg-color: rgb(245 158 11 / 22%);
+  --el-button-hover-border-color: rgb(251 191 36 / 70%);
+  --el-button-active-text-color: #fef3c7;
+  --el-button-active-bg-color: rgb(217 119 6 / 18%);
+  --el-button-active-border-color: #fbbf24;
+}
+
+.el-button--danger,
+.el-button--danger.is-plain {
+  --el-button-text-color: #fca5a5;
+  --el-button-bg-color: rgb(239 68 68 / 11%);
+  --el-button-border-color: rgb(239 68 68 / 40%);
+  --el-button-hover-text-color: #fee2e2;
+  --el-button-hover-bg-color: rgb(239 68 68 / 21%);
+  --el-button-hover-border-color: rgb(248 113 113 / 70%);
+  --el-button-active-text-color: #fee2e2;
+  --el-button-active-bg-color: rgb(220 38 38 / 17%);
+  --el-button-active-border-color: #f87171;
+}
+
+.el-button--info,
+.el-button--info.is-plain {
+  --el-button-text-color: #cbd5e1;
+  --el-button-bg-color: rgb(100 116 139 / 13%);
+  --el-button-border-color: rgb(100 116 139 / 44%);
+  --el-button-hover-text-color: #f1f5f9;
+  --el-button-hover-bg-color: rgb(100 116 139 / 24%);
+  --el-button-hover-border-color: rgb(148 163 184 / 68%);
+  --el-button-active-text-color: #f1f5f9;
+  --el-button-active-bg-color: rgb(71 85 105 / 20%);
+  --el-button-active-border-color: #94a3b8;
+}
+
+.el-button.is-text,
+.el-button.is-link {
+  --el-button-bg-color: transparent;
+  --el-button-border-color: transparent;
+  --el-button-hover-bg-color: rgb(154 168 189 / 9%);
+  --el-button-hover-border-color: transparent;
+  --el-button-active-bg-color: rgb(154 168 189 / 14%);
+  --el-button-active-border-color: transparent;
+  box-shadow: none;
+}
+
+.el-button:focus-visible {
+  outline: 2px solid var(--color-accent-cyan);
+  outline-offset: 3px;
+}
+
+.el-input__wrapper,
+.el-textarea__inner { box-shadow: 0 0 0 1px var(--color-border-default) inset !important; background: #0b1221 !important; }
+.el-input__wrapper.is-focus,
+.el-textarea__inner:focus { box-shadow: 0 0 0 1px var(--color-action-primary) inset !important; }
 @media (max-width: 1320px) { .app-shell { grid-template-columns: 216px minmax(0, 1fr); }.page-header { padding-inline: 28px; }.content { padding-inline: 28px; }.metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 1160px) { .content-split { grid-template-columns: 1fr; }.app-shell { grid-template-columns: 196px minmax(0, 1fr); }.brand-copy { font-size: 14px; }.app-sidebar { padding-inline: 9px; }.page-header, .content { padding-inline: 22px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }

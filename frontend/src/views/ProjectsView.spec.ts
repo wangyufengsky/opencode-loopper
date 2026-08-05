@@ -65,3 +65,44 @@ describe('Projects folder picker', () => {
     expect((pathInput.element as HTMLInputElement).value).toBe('/tmp/keep-this-path')
   })
 })
+
+describe('Projects AGENTS.md convention flow', () => {
+  it('previews the AI proposal and applies it only after explicit confirmation', async () => {
+    const store = useTaskStore()
+    store.projects = [{ id: 'project-1', name: 'Example', rootPath: '/tmp/example', status: 'READY', updatedAt: '2026-08-05T00:00:00Z', taskCount: 0 }]
+    vi.spyOn(api, 'generateProjectConvention').mockResolvedValue({
+      id: 'draft-1', projectId: 'project-1', state: 'READY', operation: 'CREATE', readOnlyGeneration: true,
+      content: '<!-- LOOPPER:START -->\n# Project rules\n<!-- LOOPPER:END -->\n', updatedAt: '2026-08-05T00:00:01Z',
+    })
+    const apply = vi.spyOn(api, 'applyProjectConvention').mockResolvedValue({
+      id: 'draft-1', projectId: 'project-1', state: 'APPLIED', operation: 'CREATE', readOnlyGeneration: true,
+      content: '<!-- LOOPPER:START -->\n# Project rules\n<!-- LOOPPER:END -->\n', updatedAt: '2026-08-05T00:00:02Z',
+    })
+    const wrapper = mount(ProjectsView, {
+      global: {
+        plugins: [ElementPlus],
+        stubs: {
+          teleport: true,
+          PageHeader: { template: '<header><slot /><slot name="actions" /></header>' },
+          StatusBadge: true,
+          Icon: true,
+        },
+      },
+    })
+
+    const generate = wrapper.find('button[aria-label="生成或更新 AGENTS.md 项目公约"]')
+    expect(generate).toBeDefined()
+    await generate.trigger('click')
+    await flushPromises()
+
+    expect(api.generateProjectConvention).toHaveBeenCalledWith('project-1')
+    expect((wrapper.get('textarea[aria-label="AGENTS.md 完整预览"]').element as HTMLTextAreaElement).value).toContain('# Project rules')
+    const confirm = wrapper.findAll('button').find((button) => button.text().includes('确认写入 AGENTS.md'))
+    expect(confirm).toBeDefined()
+    expect(apply).not.toHaveBeenCalled()
+    await confirm!.trigger('click')
+    await flushPromises()
+
+    expect(apply).toHaveBeenCalledWith('project-1', 'draft-1')
+  })
+})

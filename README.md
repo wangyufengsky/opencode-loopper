@@ -13,6 +13,11 @@ Vue provides a dark-first operator console.
   validate a staged LoopSpec before human confirmation.
 - Run Git projects in `loopper/<taskId>` and a dedicated worktree; fall back to
   the registered directory when the project has no usable Git HEAD.
+- Generate or update a registered project's root `AGENTS.md` from the Projects
+  page. OpenCode inspects the project in a read-only Session, the UI previews
+  the complete result, and Loopper writes only after explicit confirmation.
+  Existing human content is preserved outside the managed
+  `<!-- LOOPPER:START -->` block and a source hash prevents stale overwrites.
 - Persist Tasks, Stages, Attempts, Sessions, layered errors, Judge runs and
   immutable evidence artifacts in SQLite.
 - Pause, resume and cancel Tasks.

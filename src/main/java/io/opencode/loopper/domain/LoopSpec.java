@@ -1,5 +1,6 @@
 package io.opencode.loopper.domain;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -42,6 +43,7 @@ public record LoopSpec(
     }
 
     public record VerifierSpec(@NotBlank String type,
+                               @JsonAlias("argv")
                                @Size(max = 64) List<@NotBlank @Size(max = 2_048) String> command,
                                String path,
                                Boolean requireChanges,

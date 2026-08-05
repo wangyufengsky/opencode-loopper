@@ -257,6 +257,9 @@ function configureVerifier(verifier: LoopVerifierSpec) {
 .field-title { display: block; color: var(--color-text-primary); font-size: 11px; font-weight: 700; }
 .field-title em { margin-left: 4px; color: var(--color-danger); font-size: 9px; font-style: normal; }
 .field-help { display: block; margin: 4px 0 8px; color: var(--color-text-muted); font-size: 9px; line-height: 1.45; }
+.loop-spec-form :deep(.el-input__inner), .loop-spec-form :deep(.el-textarea__inner), .loop-spec-form :deep(.el-select__selected-item) { font-family: var(--font-ui); font-size: 12px; font-weight: 450; letter-spacing: 0; }
+.loop-spec-form :deep(.el-input__inner), .loop-spec-form :deep(.el-textarea__inner) { color: var(--color-text-secondary); }
+.loop-spec-form :deep(.el-input__inner::placeholder), .loop-spec-form :deep(.el-textarea__inner::placeholder) { color: var(--color-text-muted); font-weight: 400; opacity: .8; }
 .field-block :deep(.el-textarea__inner) { padding: 10px 11px; line-height: 1.62; }
 .collection-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; padding: 2px 2px 0; }
 .stages-section { display: grid; gap: 12px; }
@@ -304,7 +307,7 @@ function configureVerifier(verifier: LoopVerifierSpec) {
 .limits-grid label > small { color: var(--color-text-muted); font-size: 8px; }
 .limits-grid :deep(.el-input-number) { width: 100%; }
 .parse-alert { display: flex; align-items: center; gap: 8px; padding: 14px; border: 1px solid rgb(248 113 113 / 32%); border-radius: 10px; color: #fecaca; background: rgb(239 68 68 / 8%); font-size: 11px; }
-.mono :deep(textarea), .mono :deep(input) { font-family: var(--font-code); }
+.loop-spec-form .mono :deep(.el-textarea__inner), .loop-spec-form .mono :deep(.el-input__inner) { font-family: var(--font-code); font-size: 10px; font-weight: 450; }
 @media (max-width: 720px) {
   .readonly-grid, .boundary-grid, .verifier-grid, .limits-grid { grid-template-columns: 1fr; }
   .collection-heading, .verifiers-heading { align-items: stretch; flex-direction: column; }

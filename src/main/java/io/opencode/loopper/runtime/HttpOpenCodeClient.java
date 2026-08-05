@@ -193,6 +193,59 @@ public class HttpOpenCodeClient implements OpenCodeClient {
         catch (RuntimeException e) { throw new SessionFailure("OPENCODE_TRANSCRIPT_FAILED", e.getMessage()); }
     }
 
+    @Override public List<PendingQuestion> pendingQuestions(OpenCodeSession session) {
+        try {
+            JsonNode body = client().get().uri(uri -> uri.path("/question")
+                            .queryParam("directory", session.worktree().toString()).build())
+                    .retrieve().body(JsonNode.class);
+            JsonNode requests = body != null && body.isArray() ? body : body == null ? null : body.path("data");
+            if (requests == null || !requests.isArray()) {
+                throw new SessionFailure("OPENCODE_QUESTION_INVALID_RESPONSE", "OpenCode did not return a pending question list");
+            }
+            List<PendingQuestion> result = new ArrayList<>();
+            for (JsonNode request : requests) {
+                String sessionId = request.path("sessionID").asText("");
+                if (!session.id().equals(sessionId)) continue;
+                String requestId = request.path("id").asText("");
+                if (requestId.isBlank()) continue;
+                List<QuestionPrompt> questions = new ArrayList<>();
+                JsonNode prompts = request.path("questions");
+                if (prompts.isArray()) {
+                    for (JsonNode prompt : prompts) {
+                        List<QuestionOption> options = new ArrayList<>();
+                        JsonNode optionNodes = prompt.path("options");
+                        if (optionNodes.isArray()) {
+                            for (JsonNode option : optionNodes) {
+                                options.add(new QuestionOption(option.path("label").asText(""), option.path("description").asText("")));
+                            }
+                        }
+                        questions.add(new QuestionPrompt(prompt.path("question").asText(""), prompt.path("header").asText(""),
+                                options, prompt.path("multiple").asBoolean(false), !prompt.has("custom") || prompt.path("custom").asBoolean(true)));
+                    }
+                }
+                result.add(new PendingQuestion(requestId, sessionId, questions));
+            }
+            return List.copyOf(result);
+        } catch (SessionFailure e) { throw e; }
+        catch (RuntimeException e) { throw new SessionFailure("OPENCODE_QUESTION_LIST_FAILED", e.getMessage()); }
+    }
+
+    @Override public void replyQuestion(OpenCodeSession session, String requestId, List<List<String>> answers) {
+        try {
+            client().post().uri(uri -> uri.path("/question/{requestId}/reply")
+                            .queryParam("directory", session.worktree().toString()).build(requestId))
+                    .contentType(MediaType.APPLICATION_JSON).body(Map.of("answers", answers)).retrieve().toBodilessEntity();
+        } catch (RuntimeException e) { throw new SessionFailure("OPENCODE_QUESTION_REPLY_FAILED", e.getMessage()); }
+    }
+
+    @Override public void rejectQuestion(OpenCodeSession session, String requestId) {
+        try {
+            client().post().uri(uri -> uri.path("/question/{requestId}/reject")
+                            .queryParam("directory", session.worktree().toString()).build(requestId))
+                    .retrieve().toBodilessEntity();
+        } catch (RuntimeException e) { throw new SessionFailure("OPENCODE_QUESTION_REJECT_FAILED", e.getMessage()); }
+    }
+
     private SessionPart monitorPart(JsonNode part, JsonNode message, int messageIndex, int partIndex) {
         String sourceType = part.path("type").asText("").toLowerCase();
         String id = part.path("id").asText("message-" + messageIndex + "-part-" + partIndex);

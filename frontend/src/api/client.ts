@@ -1,4 +1,4 @@
-import type { AppSettings, Artifact, Attempt, AvailableModel, DesignerAppendResult, DesignerMessage, DesignerSession, DesignerSessionState, DesignerStreamEvent, DirectorySelection, ErrorEvent, JudgeRun, LoopDraft, LoopSpec, LoopVerifierSpec, Project, RuntimeInfo, Stage, Task, TaskEvent, TaskSessionActivity, TaskSessionActivityPart, TaskSessionSummary } from '@/types/domain'
+import type { AppSettings, Artifact, Attempt, AvailableModel, DesignerAppendResult, DesignerMessage, DesignerSession, DesignerSessionState, DesignerStreamEvent, DirectorySelection, ErrorEvent, JudgeRun, LoopDraft, LoopSpec, LoopVerifierSpec, Project, ProjectConventionDraft, RuntimeInfo, Stage, Task, TaskEvent, TaskSessionActivity, TaskSessionActivityPart, TaskSessionPendingQuestion, TaskSessionSummary } from '@/types/domain'
 
 const apiBase = import.meta.env.VITE_API_BASE ?? '/api'
 
@@ -70,6 +70,21 @@ function normalizeProject(value: unknown): Project {
   const raw = asRecord(value)
   const status = asString(raw.status)
   return { id: asString(raw.id), name: asString(raw.name), rootPath: asString(raw.rootPath), branch: asString(raw.branch) || undefined, description: asString(raw.description) || undefined, status: status === 'INVALID' || status === 'NEEDS_GIT' ? status : 'READY', updatedAt: asString(raw.updatedAt), taskCount: asNumber(raw.taskCount) }
+}
+
+function normalizeProjectConvention(value: unknown): ProjectConventionDraft {
+  const raw = asRecord(value)
+  const state = asString(raw.state)
+  return {
+    id: asString(raw.id),
+    projectId: asString(raw.projectId),
+    state: state === 'READY' || state === 'APPLIED' || state === 'FAILED' ? state : 'RUNNING',
+    operation: asString(raw.operation) === 'UPDATE' ? 'UPDATE' : 'CREATE',
+    readOnlyGeneration: raw.readOnlyGeneration === true,
+    content: asString(raw.content) || undefined,
+    error: asString(raw.error) || undefined,
+    updatedAt: asString(raw.updatedAt),
+  }
 }
 
 function normalizeError(value: unknown): ErrorEvent {
@@ -181,6 +196,8 @@ function normalizeTaskSession(value: unknown): TaskSessionSummary {
     externalSessionId: asString(raw.externalSessionId) || undefined,
     state: asString(raw.state, 'UNKNOWN'),
     stageId: asString(raw.stageId) || undefined,
+    stageOrdinal: raw.stageOrdinal == null ? undefined : asNumber(raw.stageOrdinal),
+    stageObjective: asString(raw.stageObjective) || undefined,
     attemptId: asString(raw.attemptId) || undefined,
     createdAt: asString(raw.createdAt),
     endedAt: asString(raw.endedAt) || undefined,
@@ -200,6 +217,26 @@ function normalizeTaskSessionPart(value: unknown): TaskSessionActivityPart {
   }
 }
 
+function normalizeTaskSessionQuestion(value: unknown): TaskSessionPendingQuestion {
+  const raw = asRecord(value)
+  return {
+    id: asString(raw.id),
+    questions: asArray(raw.questions).map((value) => {
+      const question = asRecord(value)
+      return {
+        question: asString(question.question),
+        header: asString(question.header),
+        options: asArray(question.options).map((value) => {
+          const option = asRecord(value)
+          return { label: asString(option.label), description: asString(option.description) }
+        }),
+        multiple: question.multiple === true,
+        custom: question.custom !== false,
+      }
+    }),
+  }
+}
+
 function normalizeTaskSessionActivity(value: unknown): TaskSessionActivity {
   const raw = asRecord(value)
   return {
@@ -208,6 +245,7 @@ function normalizeTaskSessionActivity(value: unknown): TaskSessionActivity {
     live: raw.live === true,
     observedAt: asString(raw.observedAt),
     parts: asArray(raw.parts).map(normalizeTaskSessionPart),
+    pendingQuestions: asArray(raw.pendingQuestions).map(normalizeTaskSessionQuestion),
     detail: asString(raw.detail) || undefined,
   }
 }
@@ -351,10 +389,15 @@ export const api = {
     return { selected: raw.selected === true, path: asString(raw.path) || undefined, name: asString(raw.name) || undefined }
   },
   createProject: async (input: Pick<Project, 'name' | 'rootPath' | 'description'>) => normalizeProject(await request<unknown>('/projects', { method: 'POST', body: JSON.stringify({ name: input.name, rootPath: input.rootPath }) })),
+  generateProjectConvention: async (projectId: string) => normalizeProjectConvention(await request<unknown>(`/projects/${encodeURIComponent(projectId)}/agents-md`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } })),
+  getProjectConvention: async (projectId: string, draftId: string) => normalizeProjectConvention(await request<unknown>(`/projects/${encodeURIComponent(projectId)}/agents-md/${encodeURIComponent(draftId)}`)),
+  applyProjectConvention: async (projectId: string, draftId: string) => normalizeProjectConvention(await request<unknown>(`/projects/${encodeURIComponent(projectId)}/agents-md/${encodeURIComponent(draftId)}`, { method: 'PUT', headers: { 'X-Loopper-Local-UI': '1' } })),
   getTasks: async () => (await request<unknown[]>('/tasks')).map(normalizeTask),
   getTask: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}`)),
   getTaskSessions: async (id: string) => (await request<unknown[]>(`/tasks/${encodeURIComponent(id)}/sessions`)).map(normalizeTaskSession),
   getTaskSessionActivity: async (taskId: string, sessionKey: string) => normalizeTaskSessionActivity(await request<unknown>(`/tasks/${encodeURIComponent(taskId)}/sessions/${encodeURIComponent(sessionKey)}`)),
+  replyTaskSessionQuestion: async (taskId: string, sessionKey: string, questionId: string, answers: string[][]) => request<void>(`/tasks/${encodeURIComponent(taskId)}/sessions/${encodeURIComponent(sessionKey)}/questions/${encodeURIComponent(questionId)}/reply`, { method: 'POST', body: JSON.stringify({ answers }) }),
+  rejectTaskSessionQuestion: async (taskId: string, sessionKey: string, questionId: string) => request<void>(`/tasks/${encodeURIComponent(taskId)}/sessions/${encodeURIComponent(sessionKey)}/questions/${encodeURIComponent(questionId)}/reject`, { method: 'POST' }),
   startTask: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}/start`, { method: 'POST' })),
   pauseTask: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}/pause`, { method: 'POST' })),
   resumeTask: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}/resume`, { method: 'POST' })),

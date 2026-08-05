@@ -114,6 +114,7 @@ class DesignerSessionMcpIntegrationTest {
                 .isEqualTo(new OpenCodeClient.OpenCodeModel("opencode", "deepseek-v4-flash-free", null));
         assertThat(fake.promptForSession(dispatched.externalSessionId()))
                 .contains("well-structured Markdown document", "fenced `mermaid` diagram", "Never draw flows with ASCII art")
+                .contains("JSON field is exactly `command`", "Never rename this JSON field to `argv`, `args`, or `cmd`")
                 .contains("LOOPSPEC_JSON_START", boundDraft.id(), project.id())
                 .contains("Please preserve the verifier list");
         assertThat(designerSessions.messages(sessionId)).noneMatch(message -> message.role().equals("ASSISTANT"));
@@ -141,6 +142,35 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(designerSessions.messages(sessionId).stream().filter(message -> message.role().equals("ASSISTANT")).map(message -> message.content()).toList())
                 .containsExactly("# Actual assistant plan\n\nPreserve the verifier list.", "## Actual second-turn assistant plan");
         assertThat(drafts.spec(drafts.get(boundDraft.id()))).isEqualTo(secondSpec);
+    }
+
+    @Test
+    void designerAcceptsArgvAsAWeakModelAliasAndPersistsCanonicalCommand() throws Exception {
+        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
+        ProjectRow project = projects.create("designer-argv-alias",
+                Files.createDirectory(temp.resolve("argv-alias-project")).toString());
+        LoopDraftRow boundDraft = drafts.create(spec(project.id()));
+        LoopSpec processSpec = new LoopSpec("v1", project.id(), "Compile and verify", "",
+                List.of(new LoopSpec.StageSpec("Compile", List.of("src/**"), List.of(), List.of("classes"),
+                        List.of(new LoopSpec.VerifierSpec("PROCESS", List.of("./mvnw", "-q", "compile"),
+                                null, null, List.of(), List.of(), null, "PASS")))),
+                LoopSpec.Limits.defaults(), null, null, null);
+        String weakModelJson = json.writeValueAsString(processSpec).replace("\"command\":", "\"argv\":");
+        fake.setDesignerOutput("## Compile plan\n\n<!-- LOOPSPEC_JSON_START -->\n```json\n"
+                + weakModelJson + "\n```\n<!-- LOOPSPEC_JSON_END -->");
+        DesignerSessionRow designer = designerSessions.create(project.id(), boundDraft.id(), "Generate a plan");
+
+        designerSessions.pollActiveHandoffs();
+
+        DesignerSessionRow completed = designerSessions.get(designer.id());
+        assertThat(completed.state()).isEqualTo("COMPLETED");
+        assertThat(completed.externalSessionState()).isEqualTo("COMPLETED");
+        LoopSpec synchronizedSpec = drafts.spec(drafts.get(boundDraft.id()));
+        assertThat(synchronizedSpec.stages().getFirst().verifiers().getFirst().command())
+                .containsExactly("./mvnw", "-q", "compile");
+        String persistedJson = drafts.get(boundDraft.id()).specJson();
+        assertThat(persistedJson).contains("\"command\":[\"./mvnw\",\"-q\",\"compile\"]")
+                .doesNotContain("\"argv\"");
     }
 
     @Test

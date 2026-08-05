@@ -16,6 +16,10 @@ public interface OpenCodeClient {
     String sessionLiveOutput(OpenCodeSession session);
     /** Returns provider-exposed incremental assistant parts for the live local monitoring UI. */
     SessionTranscript sessionTranscript(OpenCodeSession session);
+    /** Returns pending interactive questions belonging to this exact session. */
+    List<PendingQuestion> pendingQuestions(OpenCodeSession session);
+    void replyQuestion(OpenCodeSession session, String requestId, List<List<String>> answers);
+    void rejectQuestion(OpenCodeSession session, String requestId);
     String diff(OpenCodeSession session);
     void abort(OpenCodeSession session);
     record OpenCodeSession(String id, Path worktree) { }
@@ -28,6 +32,13 @@ public interface OpenCodeClient {
             this(id, type, label, content, status, null);
         }
     }
+    record PendingQuestion(String id, String sessionId, List<QuestionPrompt> questions) {
+        public PendingQuestion { questions = questions == null ? List.of() : List.copyOf(questions); }
+    }
+    record QuestionPrompt(String question, String header, List<QuestionOption> options, boolean multiple, boolean custom) {
+        public QuestionPrompt { options = options == null ? List.of() : List.copyOf(options); }
+    }
+    record QuestionOption(String label, String description) { }
     record SessionStatus(String state, String detail) {
         public SessionStatus(String state) { this(state, null); }
         public boolean completed() { return "COMPLETED".equalsIgnoreCase(state) || "IDLE".equalsIgnoreCase(state) || "DONE".equalsIgnoreCase(state); }
