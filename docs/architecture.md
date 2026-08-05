@@ -90,4 +90,9 @@ under `$LOOPPER_DATA_DIR/direct-baselines/<taskId>` for deterministic path and
 deletion checks. The private baseline does not initialize or commit the target
 project. Canonical paths must stay under the registered root or Task worktree
 as appropriate. Loopper never pushes, merges or deletes a completed worktree
-automatically.
+automatically. After a Task reaches `SUCCEEDED`, the local UI may explicitly
+publish an isolated task branch: a human enters the four-digit work item,
+confirms the AI-suggested `#dddd_subject`, then Loopper commits and performs a
+normal (non-force) push. Direct-execution Tasks remain excluded. A subsequent
+“创建合并请求” action opens a prefilled GitLab/GitHub creation page; the hosting
+service still owns the final merge-request confirmation and merge.

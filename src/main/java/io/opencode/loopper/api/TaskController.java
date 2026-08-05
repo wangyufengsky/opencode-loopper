@@ -15,6 +15,7 @@ import io.opencode.loopper.persistence.VerificationResultRow;
 import io.opencode.loopper.domain.LoopSpec;
 import io.opencode.loopper.service.LoopDraftService;
 import io.opencode.loopper.service.TaskEventHub;
+import io.opencode.loopper.service.TaskPublicationService;
 import io.opencode.loopper.service.TaskService;
 import java.io.IOException;
 import java.util.List;
@@ -41,7 +42,12 @@ public class TaskController {
     private final TaskEventHub events;
     private final ObjectMapper json;
     private final LoopDraftService drafts;
-    public TaskController(TaskService service, LoopperMapper mapper, TaskEventHub events, ObjectMapper json, LoopDraftService drafts) { this.service = service; this.mapper = mapper; this.events = events; this.json = json; this.drafts = drafts; }
+    private final TaskPublicationService publication;
+    public TaskController(TaskService service, LoopperMapper mapper, TaskEventHub events, ObjectMapper json,
+                          LoopDraftService drafts, TaskPublicationService publication) {
+        this.service = service; this.mapper = mapper; this.events = events; this.json = json;
+        this.drafts = drafts; this.publication = publication;
+    }
     @GetMapping public List<TaskDto> list() { return service.list().stream().map(this::dto).toList(); }
     @GetMapping("/{id}") public TaskDto get(@PathVariable String id) { return dto(service.get(id)); }
     @GetMapping("/{id}/diff-preview")
@@ -71,6 +77,31 @@ public class TaskController {
     @PostMapping("/{id}/pause") public TaskDto pause(@PathVariable String id) { return dto(service.pause(id)); }
     @PostMapping("/{id}/resume") public TaskDto resume(@PathVariable String id) { return dto(service.resume(id)); }
     @PostMapping("/{id}/cancel") public TaskDto cancel(@PathVariable String id) { return dto(service.cancel(id)); }
+    @GetMapping("/{id}/publication")
+    public TaskPublicationService.PublicationStatus publication(@PathVariable String id) {
+        return publication.status(id);
+    }
+    @PostMapping("/{id}/publication/commit-message")
+    public TaskPublicationService.CommitSuggestion generateCommitMessage(
+            @PathVariable String id, @RequestHeader("X-Loopper-Local-UI") String localUi) {
+        requireLocalUi(localUi);
+        return publication.generateCommitMessage(id);
+    }
+    @PostMapping("/{id}/publication")
+    public TaskPublicationService.PublicationStatus publish(
+            @PathVariable String id, @RequestHeader("X-Loopper-Local-UI") String localUi,
+            @RequestBody PublishTaskRequest request) {
+        requireLocalUi(localUi);
+        return publication.commitAndPush(id, request == null ? null : request.commitMessage());
+    }
+    @PostMapping("/{id}/publication/merge-request")
+    public TaskPublicationService.MergeRequestDraft mergeRequest(
+            @PathVariable String id, @RequestHeader("X-Loopper-Local-UI") String localUi,
+            @RequestBody MergeRequestRequest request) {
+        requireLocalUi(localUi);
+        if (request == null) throw new io.opencode.loopper.service.BadRequestException("MERGE_REQUEST_REQUIRED", "合并请求参数不能为空");
+        return publication.mergeRequestDraft(id, request.targetBranch(), request.title(), request.description());
+    }
     @PostMapping("/{id}/attempts/{attemptId}/session-failure") public TaskDto sessionFailure(@PathVariable String id, @PathVariable String attemptId, @RequestBody SessionFailureRequest request) {
         return dto(service.sessionFailed(id, attemptId, request.code(), request.message()));
     }
@@ -101,6 +132,8 @@ public class TaskController {
     private long parseCursor(String raw) { try { return raw == null ? 0 : Math.max(0, Long.parseLong(raw)); } catch (NumberFormatException e) { return 0; } }
     private void close(AutoCloseable value) { try { value.close(); } catch (Exception ignored) { } }
     public record SessionFailureRequest(String code, String message) { }
+    public record PublishTaskRequest(String commitMessage) { }
+    public record MergeRequestRequest(String targetBranch, String title, String description) { }
     public record DiffPreviewDto(String path, String changeType, String patch, boolean truncated) { }
     private TaskDto dto(TaskRow task) {
         String projectName = mapper.findProject(task.projectId()).map(p -> p.name()).orElse("Unknown project");
@@ -151,4 +184,9 @@ public class TaskController {
     private JudgeDto judge(JudgeRunRow row) { return new JudgeDto(row.id(), row.role(), row.ordinal(), row.state(), row.verdict(), row.reason(), row.externalSessionId(), row.rawOutput(), row.createdAt(), row.endedAt()); }
     private ArtifactDto artifact(TaskArtifactRow row) { return new ArtifactDto(row.id(), row.kind(), row.name(), row.contentType(), row.content(), node(row.metadataJson()), row.attemptId(), row.judgeRunId(), row.createdAt()); }
     private JsonNode node(String source) { try { return source == null ? json.createObjectNode() : json.readTree(source); } catch (Exception e) { return json.createObjectNode().put("unreadable", true); } }
+    private void requireLocalUi(String localUi) {
+        if (!"1".equals(localUi)) {
+            throw new io.opencode.loopper.service.BadRequestException("LOCAL_UI_HEADER_REQUIRED", "This operation is available only to the local Loopper UI");
+        }
+    }
 }

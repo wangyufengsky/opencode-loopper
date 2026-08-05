@@ -49,7 +49,7 @@ class HttpOpenCodeClientTest {
         OpenCodeClient.OpenCodeSession session = client.createSession(worktree, "fixture", new OpenCodeClient.OpenCodeModel("opencode", "deepseek-v4-flash-free", false));
         assertThat(lastPathAndQuery.get()).contains("/session").contains("directory=");
         assertThat(createBody.get()).contains("providerID").contains("opencode").contains("deepseek-v4-flash-free");
-        assertThat(createBody.get()).contains("\"permission\"").contains("external_directory").contains("git push *")
+        assertThat(createBody.get()).contains("\"permission\"").contains("external_directory").contains("git commit *").contains("git push *")
                 .contains("git reset --hard*").contains("rm -rf*").contains("\"action\":\"deny\"");
         OpenCodeClient.OpenCodeSession judge = client.createReadOnlySession(worktree, "Requirement Judge", new OpenCodeClient.OpenCodeModel("opencode", "deepseek-v4-flash-free", false));
         assertThat(createBody.get()).contains("\"permission\":\"edit\"").contains("\"permission\":\"write\"")

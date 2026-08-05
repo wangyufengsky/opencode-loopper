@@ -105,6 +105,9 @@ public class TaskService {
     /** Immutable diff, verifier, and judge evidence retained independently of the worktree. */
     public List<TaskArtifactRow> artifacts(String taskId) { get(taskId); return mapper.listTaskArtifacts(taskId); }
 
+    /** User-facing goal retained with the confirmed LoopSpec for publication metadata. */
+    public String goal(String taskId) { return spec(get(taskId)).goal(); }
+
     public VerifierEngine.DiffPreview diffPreview(String taskId, String path) {
         TaskRow task = get(taskId);
         if (path == null || path.isBlank()) {

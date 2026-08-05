@@ -74,6 +74,8 @@ public class HttpOpenCodeClient implements OpenCodeClient {
             // is a narrow deny-list, not an implicit blanket permission grant.
             List<Map<String, String>> permissions = new java.util.ArrayList<>(List.of(
                     permissionRule("external_directory", "*", "deny"),
+                    permissionRule("bash", "git commit", "deny"),
+                    permissionRule("bash", "git commit *", "deny"),
                     permissionRule("bash", "git push", "deny"),
                     permissionRule("bash", "git push *", "deny"),
                     permissionRule("bash", "git reset --hard*", "deny"),

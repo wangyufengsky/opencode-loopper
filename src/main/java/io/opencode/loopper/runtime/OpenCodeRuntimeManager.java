@@ -32,7 +32,7 @@ import org.springframework.web.client.RestClient;
 public final class OpenCodeRuntimeManager implements AutoCloseable {
     private static final Duration POLL_INTERVAL = Duration.ofMillis(150);
     private static final String MANAGED_PERMISSION_CONFIG = """
-            {"permission":{"external_directory":"deny","bash":{"git push":"deny","git push *":"deny","git reset --hard*":"deny","rm -rf*":"deny"}}}
+            {"permission":{"external_directory":"deny","bash":{"git commit":"deny","git commit *":"deny","git push":"deny","git push *":"deny","git reset --hard*":"deny","rm -rf*":"deny"}}}
             """.strip();
 
     private final Object monitor = new Object();

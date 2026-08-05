@@ -29,7 +29,8 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     @Override public OpenCodeSession createReadOnlySession(Path worktree, String title, OpenCodeModel model) {
         String id = "fake-judge-" + UUID.randomUUID();
         readOnly.put(id, Boolean.TRUE);
-        String role = title != null && title.toUpperCase().contains("DESIGNER") ? "DESIGNER"
+        String role = title != null && title.toUpperCase().contains("COMMIT MESSAGE") ? "COMMIT"
+                : title != null && title.toUpperCase().contains("DESIGNER") ? "DESIGNER"
                 : title != null && title.toUpperCase().contains("RISK") ? "RISK" : "REQUIREMENT";
         judgeRoleBySession.put(id, role);
         // Null means "let the runtime choose its default model". ConcurrentHashMap

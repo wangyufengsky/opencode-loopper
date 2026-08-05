@@ -170,6 +170,36 @@ export interface TaskDiffPreview {
   truncated: boolean
 }
 
+export interface TaskPublicationStatus {
+  state: 'UNAVAILABLE' | 'NO_CHANGES' | 'READY' | 'COMMITTED' | 'PUSHED'
+  available: boolean
+  reason?: string
+  branch?: string
+  remoteName?: string
+  remoteUrl?: string
+  commitSha?: string
+  commitMessage?: string
+  targetBranch?: string
+  targetBranches: string[]
+  provider: 'GITLAB' | 'GITHUB' | 'UNKNOWN'
+  upstream?: string
+  hasChanges: boolean
+}
+
+export interface CommitMessageSuggestion {
+  subject: string
+  aiGenerated: boolean
+}
+
+export interface MergeRequestDraft {
+  provider: 'GITLAB' | 'GITHUB'
+  sourceBranch: string
+  targetBranch: string
+  title: string
+  description: string
+  creationUrl: string
+}
+
 export interface JudgeRun {
   id: string
   role: 'REQUIREMENT' | 'RISK'

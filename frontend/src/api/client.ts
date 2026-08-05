@@ -1,4 +1,4 @@
-import type { AppSettings, Artifact, Attempt, AvailableModel, DesignerAppendResult, DesignerMessage, DesignerSession, DesignerSessionState, DesignerStreamEvent, DirectorySelection, ErrorEvent, JudgeRun, LoopDraft, LoopSpec, LoopVerifierSpec, Project, ProjectConventionDraft, ProjectConventionSnapshot, RuntimeInfo, Stage, Task, TaskDesignHistory, TaskDiffPreview, TaskEvent, TaskSessionActivity, TaskSessionActivityPart, TaskSessionPendingQuestion, TaskSessionSummary } from '@/types/domain'
+import type { AppSettings, Artifact, Attempt, AvailableModel, CommitMessageSuggestion, DesignerAppendResult, DesignerMessage, DesignerSession, DesignerSessionState, DesignerStreamEvent, DirectorySelection, ErrorEvent, JudgeRun, LoopDraft, LoopSpec, LoopVerifierSpec, MergeRequestDraft, Project, ProjectConventionDraft, ProjectConventionSnapshot, RuntimeInfo, Stage, Task, TaskDesignHistory, TaskDiffPreview, TaskEvent, TaskPublicationStatus, TaskSessionActivity, TaskSessionActivityPart, TaskSessionPendingQuestion, TaskSessionSummary } from '@/types/domain'
 
 const apiBase = import.meta.env.VITE_API_BASE ?? '/api'
 
@@ -18,8 +18,10 @@ export class ApiError extends Error {
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${apiBase}${path}`, {
-    headers: { Accept: 'application/json', ...(init?.body ? { 'Content-Type': 'application/json' } : {}), ...init?.headers },
     ...init,
+    // Keep caller headers (for example the local-UI guard) without letting
+    // RequestInit overwrite the JSON content type assembled here.
+    headers: { Accept: 'application/json', ...(init?.body ? { 'Content-Type': 'application/json' } : {}), ...init?.headers },
   })
   if (!response.ok) {
     const problem = await response.json().catch(() => ({})) as { detail?: string; title?: string; errorCode?: string; errorLayer?: string }
@@ -425,6 +427,44 @@ function normalizeTaskDiffPreview(value: unknown): TaskDiffPreview {
   }
 }
 
+function normalizeTaskPublication(value: unknown): TaskPublicationStatus {
+  const raw = asRecord(value)
+  const state = asString(raw.state)
+  const provider = asString(raw.provider)
+  return {
+    state: ['UNAVAILABLE', 'NO_CHANGES', 'READY', 'COMMITTED', 'PUSHED'].includes(state) ? state as TaskPublicationStatus['state'] : 'UNAVAILABLE',
+    available: raw.available === true,
+    reason: asString(raw.reason) || undefined,
+    branch: asString(raw.branch) || undefined,
+    remoteName: asString(raw.remoteName) || undefined,
+    remoteUrl: asString(raw.remoteUrl) || undefined,
+    commitSha: asString(raw.commitSha) || undefined,
+    commitMessage: asString(raw.commitMessage) || undefined,
+    targetBranch: asString(raw.targetBranch) || undefined,
+    targetBranches: asArray(raw.targetBranches).map(String),
+    provider: provider === 'GITLAB' || provider === 'GITHUB' ? provider : 'UNKNOWN',
+    upstream: asString(raw.upstream) || undefined,
+    hasChanges: raw.hasChanges === true,
+  }
+}
+
+function normalizeCommitSuggestion(value: unknown): CommitMessageSuggestion {
+  const raw = asRecord(value)
+  return { subject: asString(raw.subject), aiGenerated: raw.aiGenerated === true }
+}
+
+function normalizeMergeRequestDraft(value: unknown): MergeRequestDraft {
+  const raw = asRecord(value)
+  return {
+    provider: asString(raw.provider) === 'GITHUB' ? 'GITHUB' : 'GITLAB',
+    sourceBranch: asString(raw.sourceBranch),
+    targetBranch: asString(raw.targetBranch),
+    title: asString(raw.title),
+    description: asString(raw.description),
+    creationUrl: asString(raw.creationUrl),
+  }
+}
+
 export const api = {
   getProjects: async () => (await request<unknown[]>('/projects')).map(normalizeProject),
   pickProjectDirectory: async (): Promise<DirectorySelection> => {
@@ -449,6 +489,10 @@ export const api = {
   pauseTask: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}/pause`, { method: 'POST' })),
   resumeTask: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}/resume`, { method: 'POST' })),
   cancelTask: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}/cancel`, { method: 'POST' })),
+  getTaskPublication: async (id: string) => normalizeTaskPublication(await request<unknown>(`/tasks/${encodeURIComponent(id)}/publication`)),
+  generateTaskCommitMessage: async (id: string) => normalizeCommitSuggestion(await request<unknown>(`/tasks/${encodeURIComponent(id)}/publication/commit-message`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } })),
+  publishTask: async (id: string, commitMessage?: string) => normalizeTaskPublication(await request<unknown>(`/tasks/${encodeURIComponent(id)}/publication`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify({ commitMessage }) })),
+  createTaskMergeRequestDraft: async (id: string, input: { targetBranch: string; title: string; description: string }) => normalizeMergeRequestDraft(await request<unknown>(`/tasks/${encodeURIComponent(id)}/publication/merge-request`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(input) })),
   getRuntime: async () => normalizeRuntime(await request<unknown>('/runtime/opencode')),
   restartRuntime: async () => normalizeRuntime(await request<unknown>('/runtime/opencode/restart', { method: 'POST' })),
   getSettings: async () => normalizeSettings(await request<unknown>('/settings')),
