@@ -200,18 +200,6 @@ public class TaskService {
             }
             LoopSpec spec = spec(initial);
             List<LoopSpec.VerifierSpec> verifierSpecs = read(stage.verifiersJson(), new TypeReference<>() {});
-            List<String> stageAllowedPaths = read(stage.allowedPathsJson(), new TypeReference<>() {});
-            List<String> stageForbiddenPaths = read(stage.forbiddenPathsJson(), new TypeReference<>() {});
-            if (!stageAllowedPaths.isEmpty() || !stageForbiddenPaths.isEmpty()) {
-                // Stage path boundaries are authoritative even when a user omits an
-                // explicit GIT_DIFF verifier. The model prompt is advisory; this
-                // implicit deterministic policy gate prevents an out-of-scope diff
-                // from completing the Stage.
-                List<LoopSpec.VerifierSpec> withStagePolicy = new ArrayList<>(verifierSpecs);
-                withStagePolicy.add(new LoopSpec.VerifierSpec("GIT_DIFF", null, null, false,
-                        stageAllowedPaths, stageForbiddenPaths, false));
-                verifierSpecs = List.copyOf(withStagePolicy);
-            }
             boolean passed = true;
             String failure = "";
             Duration timeout = Duration.ofSeconds(spec.limits().verifierTimeoutSeconds());

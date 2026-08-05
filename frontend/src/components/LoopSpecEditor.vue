@@ -16,13 +16,13 @@ const textAutosize = { minRows: 2, maxRows: 10 }
 const compactAutosize = { minRows: 1, maxRows: 6 }
 
 function defaultVerifier(): LoopVerifierSpec {
-  return { type: 'GIT_DIFF', requireChanges: true, allowedPaths: ['src/**'], forbiddenPaths: ['data/**'], forbidDeletes: true }
+  return { type: 'PROCESS', command: [] }
 }
 
 function normalizeVerifier(value: LoopVerifierSpec): LoopVerifierSpec {
   const verifier: LoopVerifierSpec = {
     ...value,
-    type: value.type || 'GIT_DIFF',
+    type: value.type || 'PROCESS',
   }
   if (value.command) verifier.command = [...value.command]
   if (value.allowedPaths) verifier.allowedPaths = [...value.allowedPaths]
@@ -69,10 +69,10 @@ watch(serialized, (value) => {
 function addStage() {
   spec.value?.stages.push({
     objective: '描述这个阶段要完成的结果',
-    allowedPaths: ['src/**'],
-    forbiddenPaths: ['data/**'],
+    allowedPaths: [],
+    forbiddenPaths: [],
     deliverables: ['可验证实现'],
-    verifiers: [defaultVerifier()],
+    verifiers: [],
   })
 }
 
@@ -113,7 +113,6 @@ function removeVerifierListItem(verifier: LoopVerifierSpec, key: VerifierListKey
 }
 
 function configureVerifier(verifier: LoopVerifierSpec) {
-  if (verifier.type === 'PROCESS' && verifierList(verifier, 'command').length === 0) verifier.command = ['mvn', 'test']
   if (verifier.type === 'GIT_DIFF') {
     verifier.requireChanges ??= true
     verifier.forbidDeletes ??= true
@@ -148,7 +147,7 @@ function configureVerifier(verifier: LoopVerifierSpec) {
 
       <section class="stages-section">
         <div class="collection-heading">
-          <div><p class="section-kicker">执行阶段</p><h3>分阶段交付与验收</h3><p>每个阶段都有独立的修改边界、交付物和验收器。</p></div>
+          <div><p class="section-kicker">执行阶段</p><h3>分阶段交付与验收</h3><p>修改路径是给 Agent 的可选建议，只有明确列出的验收器会决定阶段是否通过。</p></div>
           <el-button plain size="small" @click="addStage"><Icon icon="lucide:plus" />添加阶段</el-button>
         </div>
 
@@ -168,7 +167,7 @@ function configureVerifier(verifier: LoopVerifierSpec) {
 
             <div class="boundary-grid">
               <section class="list-field allowed-list">
-                <header><div><span>允许修改路径</span><small>仅允许 Agent 修改这些范围</small></div><button type="button" aria-label="添加允许路径" @click="addStageListItem(stageIndex, 'allowedPaths')"><Icon icon="lucide:plus" /></button></header>
+                <header><div><span>建议修改路径</span><small>仅作为 Agent 提示，不会自动加入验收</small></div><button type="button" aria-label="添加允许路径" @click="addStageListItem(stageIndex, 'allowedPaths')"><Icon icon="lucide:plus" /></button></header>
                 <div v-for="(_, itemIndex) in stage.allowedPaths" :key="itemIndex" class="list-row">
                   <el-input v-model="stage.allowedPaths[itemIndex]" type="textarea" :autosize="compactAutosize" resize="none" class="mono" :aria-label="`阶段 ${stageIndex + 1} 允许路径 ${itemIndex + 1}`" placeholder="src/**" />
                   <button type="button" aria-label="删除允许路径" @click="removeStageListItem(stageIndex, 'allowedPaths', itemIndex)"><Icon icon="lucide:x" /></button>
@@ -177,7 +176,7 @@ function configureVerifier(verifier: LoopVerifierSpec) {
               </section>
 
               <section class="list-field forbidden-list">
-                <header><div><span>禁止修改路径</span><small>明确不可触碰的目录或文件</small></div><button type="button" aria-label="添加禁止路径" @click="addStageListItem(stageIndex, 'forbiddenPaths')"><Icon icon="lucide:plus" /></button></header>
+                <header><div><span>建议避让路径</span><small>仅作为 Agent 提示，不会自动加入验收</small></div><button type="button" aria-label="添加禁止路径" @click="addStageListItem(stageIndex, 'forbiddenPaths')"><Icon icon="lucide:plus" /></button></header>
                 <div v-for="(_, itemIndex) in stage.forbiddenPaths" :key="itemIndex" class="list-row">
                   <el-input v-model="stage.forbiddenPaths[itemIndex]" type="textarea" :autosize="compactAutosize" resize="none" class="mono" :aria-label="`阶段 ${stageIndex + 1} 禁止路径 ${itemIndex + 1}`" placeholder="data/**" />
                   <button type="button" aria-label="删除禁止路径" @click="removeStageListItem(stageIndex, 'forbiddenPaths', itemIndex)"><Icon icon="lucide:x" /></button>

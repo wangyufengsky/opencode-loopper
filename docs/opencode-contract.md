@@ -81,10 +81,10 @@ private model reasoning.
 The Markdown plan and executable LoopSpec share one acceptance contract.
 Designer commands must be copied into stage `PROCESS` verifiers as argv arrays;
 `outputContains` turns an advertised marker such as `PASS` into a deterministic
-assertion over bounded process output. `GIT_DIFF` remains a scope verifier and
-cannot be the only verifier of a confirmation-ready stage. Draft creation may
-start with that placeholder, but Designer synchronization, manual save, MCP
-validation, and human confirmation all reject the weak contract.
+assertion over bounded process output. `GIT_DIFF` remains an opt-in scope
+verifier and cannot be the only verifier of a confirmation-ready stage. Drafts
+start without an implicit path verifier; Designer synchronization, manual save,
+MCP validation, and human confirmation require functional acceptance checks.
 
 ## Runtime ownership and permissions
 

@@ -166,7 +166,7 @@ class TaskServiceIntegrationTest {
     }
 
     @Test
-    void stagePathPolicyIsAlwaysEnforcedEvenWithoutAnExplicitGitDiffVerifier() throws Exception {
+    void stagePathGuidanceDoesNotCreateAnImplicitGitDiffVerifier() throws Exception {
         ProjectRow project = projects.create("path-policy", gitProject());
         LoopSpec restricted = new LoopSpec("v1", project.id(), "Keep changes in README", null,
                 List.of(new LoopSpec.StageSpec("Edit only README", List.of("README.md"), List.of("outside.txt"), null,
@@ -176,12 +176,13 @@ class TaskServiceIntegrationTest {
         tasks.start(task.id());
         Files.writeString(Path.of(task.worktreePath()).resolve("outside.txt"), "out of scope");
 
-        TaskRow retried = tasks.verify(task.id());
+        TaskRow judging = tasks.verify(task.id());
 
-        assertThat(retried.state()).isEqualTo("RUNNING");
-        assertThat(tasks.attempts(task.id())).hasSize(2);
-        assertThat(tasks.errors(task.id())).anyMatch(error -> error.layer().equals(ErrorLayer.VERIFICATION.name())
-                && error.message().contains("outside.txt"));
+        assertThat(judging.state()).isEqualTo("JUDGING");
+        assertThat(tasks.attempts(task.id())).hasSize(1);
+        assertThat(tasks.verifications(tasks.attempts(task.id()).getFirst().id()))
+                .extracting(result -> result.type()).containsExactly("FILE_EXISTS");
+        assertThat(tasks.errors(task.id())).noneMatch(error -> error.layer().equals(ErrorLayer.VERIFICATION.name()));
     }
 
     @Test

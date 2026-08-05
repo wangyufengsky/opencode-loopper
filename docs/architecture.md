@@ -64,11 +64,12 @@ but it is not an OS sandbox. A deliberately daemonizing hostile executable must
 be isolated by an external Job Object, cgroup or container rather than trusted
 as a LoopSpec verifier.
 
-File paths are execution-root-relative and symlink-safe; Stage allowed/forbidden path
-rules always add an implicit `GIT_DIFF` gate. Glob rules are normalized to `/`,
-matched by a bounded dynamic-programming engine with identical behavior on all
-supported operating systems, and rejected at the LoopSpec boundary when path
-policy size limits are exceeded. Before entering `VERIFYING`, the
+File paths are execution-root-relative and symlink-safe. Stage allowed/forbidden
+path rules are advisory prompt context and never add an implicit acceptance
+gate. When the confirmed LoopSpec explicitly contains a `GIT_DIFF` verifier,
+its glob rules are normalized to `/`, matched by a bounded dynamic-programming
+engine with identical behavior on all supported operating systems, and rejected
+at the LoopSpec boundary when path policy size limits are exceeded. Before entering `VERIFYING`, the
 orchestrator performs a second authoritative status read and requires the
 implementation Session to be terminal-completed, so the public API cannot race
 a still-mutating Session. Only after all deterministic gates

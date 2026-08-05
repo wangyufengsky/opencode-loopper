@@ -160,7 +160,7 @@ watch(draftPrompt, (value) => persistSessionText(draftPromptKey, value))
 watch(userMessage, (value) => persistSessionText(messageDraftKey, value))
 
 function blankSpec(projectId: string, goal: string): LoopDraft['spec'] {
-  return { schemaVersion: 'v1', projectId, goal, context: 'Execution 只允许在该 Task 的执行目录中修改；有 Git HEAD 时使用隔离 worktree，否则使用登记的项目目录。', stages: [{ objective: '分析目标并实现最小可验证改动', allowedPaths: ['src/**'], forbiddenPaths: ['data/**'], deliverables: ['可验证实现'], verifiers: [{ type: 'GIT_DIFF', requireChanges: true, allowedPaths: ['src/**'], forbiddenPaths: ['data/**'], forbidDeletes: true }] }], limits: { maxStageAttempts: 3, maxTaskAttempts: 12, maxDuration: 'PT2H', attemptTimeout: 'PT30M' } }
+  return { schemaVersion: 'v1', projectId, goal, context: 'Execution 只允许在该 Task 的执行目录中修改；有 Git HEAD 时使用隔离 worktree，否则使用登记的项目目录。', stages: [{ objective: '分析目标并实现最小可验证改动', allowedPaths: [], forbiddenPaths: [], deliverables: ['可验证实现'], verifiers: [] }], limits: { maxStageAttempts: 3, maxTaskAttempts: 12, maxDuration: 'PT2H', attemptTimeout: 'PT30M' } }
 }
 
 async function startDraft() {

@@ -139,8 +139,9 @@ records `SESSION_ABORT_CLEANUP_EXHAUSTED` if the bound is reached.
 - External paths, destructive commands and `git push` are not silently
   approved.
 - Commands are executed as argument arrays, without shell interpolation.
-- Stage path rules are enforced by an implicit Git-diff policy gate even when a
-  user omits an explicit `GIT_DIFF` verifier.
+- Stage path rules are advisory Agent guidance and do not create an implicit
+  acceptance gate. Path/delete policy is enforced only by an explicit
+  `GIT_DIFF` verifier proposed in the confirmed LoopSpec.
 - Deterministic verifiers run on a bounded worker pool so monitor polling stays
   responsive; HTTP and process work has explicit timeouts.
 - Verification is gated by a second authoritative OpenCode status read and is

@@ -85,6 +85,7 @@ describe('Designer draft composer', () => {
 
     expect(createSession).toHaveBeenCalledWith(project.id, 'draft-1', initialGoal)
     expect(createDraft.mock.calls[0]?.[0].goal).toBe(initialGoal)
+    expect(createDraft.mock.calls[0]?.[0].stages[0]).toMatchObject({ allowedPaths: [], forbiddenPaths: [], verifiers: [] })
     expect(sessionStorage.getItem('opencode-loopper.designer-draft-prompt')).toBeNull()
     expect(wrapper.find('textarea[aria-label="发送给只读 OpenCode Designer 的消息"]').exists()).toBe(true)
   })

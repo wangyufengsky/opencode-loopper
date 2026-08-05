@@ -15,7 +15,7 @@ describe('LoopSpecEditor', () => {
 
     expect(wrapper.attributes('aria-label')).toBe('LoopSpec 表单')
     expect(wrapper.text()).toContain('任务目标与执行上下文')
-    expect(wrapper.text()).toContain('允许修改路径')
+    expect(wrapper.text()).toContain('建议修改路径')
     expect(wrapper.text()).toContain('验收器')
     expect(wrapper.find('.cm-editor').exists()).toBe(false)
     expect(wrapper.findAllComponents(ElInput).some((input) => Boolean(input.props('autosize')))).toBe(true)
@@ -24,6 +24,17 @@ describe('LoopSpecEditor', () => {
     await flushPromises()
     const emitted = wrapper.emitted('update:modelValue')?.at(-1)?.[0] as string
     expect(JSON.parse(emitted).goal).toBe('更新后的目标')
+  })
+
+  it('does not add path rules or a Git diff verifier to a new stage by default', async () => {
+    const wrapper = mount(LoopSpecEditor, { props: { modelValue: source }, global: { plugins: [ElementPlus], stubs: { Icon: true } } })
+    const addStage = wrapper.findAll('button').find((button) => button.text().includes('添加阶段'))
+
+    await addStage!.trigger('click')
+    await flushPromises()
+
+    const emitted = wrapper.emitted('update:modelValue')?.at(-1)?.[0] as string
+    expect(JSON.parse(emitted).stages[1]).toMatchObject({ allowedPaths: [], forbiddenPaths: [], verifiers: [] })
   })
 
   it('follows external JSON updates without losing the structured view', async () => {
