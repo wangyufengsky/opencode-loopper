@@ -1,5 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import ElementPlus from 'element-plus'
+import { ElMessageBox } from 'element-plus'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/api/client'
@@ -67,9 +68,10 @@ describe('Projects folder picker', () => {
 })
 
 describe('Projects AGENTS.md convention flow', () => {
-  it('previews the AI proposal and applies it only after explicit confirmation', async () => {
+  it('shows an empty current convention before starting AI design and applies only after confirmation', async () => {
     const store = useTaskStore()
     store.projects = [{ id: 'project-1', name: 'Example', rootPath: '/tmp/example', status: 'READY', updatedAt: '2026-08-05T00:00:00Z', taskCount: 0 }]
+    vi.spyOn(api, 'getCurrentProjectConvention').mockResolvedValue({ projectId: 'project-1', exists: false, loopperManaged: false, content: '' })
     vi.spyOn(api, 'generateProjectConvention').mockResolvedValue({
       id: 'draft-1', projectId: 'project-1', state: 'READY', operation: 'CREATE', readOnlyGeneration: true,
       content: '<!-- LOOPPER:START -->\n# Project rules\n<!-- LOOPPER:END -->\n', updatedAt: '2026-08-05T00:00:01Z',
@@ -90,9 +92,17 @@ describe('Projects AGENTS.md convention flow', () => {
       },
     })
 
-    const generate = wrapper.find('button[aria-label="生成或更新 AGENTS.md 项目公约"]')
+    const view = wrapper.find('button[aria-label="查看 AGENTS.md 项目公约"]')
+    expect(view).toBeDefined()
+    await view.trigger('click')
+    await flushPromises()
+
+    expect(api.getCurrentProjectConvention).toHaveBeenCalledWith('project-1')
+    expect(wrapper.text()).toContain('暂时没有')
+    expect(api.generateProjectConvention).not.toHaveBeenCalled()
+    const generate = wrapper.findAll('button').find((button) => button.text().includes('新增 Loopper 公约'))
     expect(generate).toBeDefined()
-    await generate.trigger('click')
+    await generate!.trigger('click')
     await flushPromises()
 
     expect(api.generateProjectConvention).toHaveBeenCalledWith('project-1')
@@ -104,5 +114,40 @@ describe('Projects AGENTS.md convention flow', () => {
     await flushPromises()
 
     expect(apply).toHaveBeenCalledWith('project-1', 'draft-1')
+  })
+
+  it('shows the existing AGENTS.md without starting AI', async () => {
+    const store = useTaskStore()
+    store.projects = [{ id: 'project-1', name: 'Example', rootPath: '/tmp/example', status: 'READY', updatedAt: '2026-08-05T00:00:00Z', taskCount: 2 }]
+    vi.spyOn(api, 'getCurrentProjectConvention').mockResolvedValue({ projectId: 'project-1', exists: true, loopperManaged: true, content: '# Existing rules\n' })
+    const generate = vi.spyOn(api, 'generateProjectConvention')
+    const wrapper = mount(ProjectsView, {
+      global: { plugins: [ElementPlus], stubs: { teleport: true, PageHeader: { template: '<header><slot /><slot name="actions" /></header>' }, StatusBadge: true, Icon: true } },
+    })
+
+    await wrapper.get('button[aria-label="查看 AGENTS.md 项目公约"]').trigger('click')
+    await flushPromises()
+
+    expect((wrapper.get('textarea[aria-label="当前 AGENTS.md 项目公约"]').element as HTMLTextAreaElement).value).toContain('# Existing rules')
+    expect(wrapper.text()).toContain('AI 更新 Loopper 公约')
+    expect(generate).not.toHaveBeenCalled()
+  })
+})
+
+describe('Projects management', () => {
+  it('cancels management without deleting the project history from the UI contract', async () => {
+    const store = useTaskStore()
+    store.projects = [{ id: 'project-1', name: 'Example', rootPath: '/tmp/example', status: 'READY', updatedAt: '2026-08-05T00:00:00Z', taskCount: 4 }]
+    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
+    const cancel = vi.spyOn(api, 'cancelProjectManagement').mockResolvedValue(undefined)
+    const wrapper = mount(ProjectsView, {
+      global: { plugins: [ElementPlus], stubs: { teleport: true, PageHeader: { template: '<header><slot /><slot name="actions" /></header>' }, StatusBadge: true, Icon: true } },
+    })
+
+    await wrapper.get('button[aria-label="取消管理该项目"]').trigger('click')
+    await flushPromises()
+
+    expect(cancel).toHaveBeenCalledWith('project-1')
+    expect(store.projects).toHaveLength(0)
   })
 })

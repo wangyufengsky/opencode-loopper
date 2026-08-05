@@ -15,7 +15,7 @@ export const demoTasks: Task[] = [
   {
     id: 'tsk-019fc6ad', projectId: 'prj-loopper', projectName: 'OpenCode Loopper', title: '实现任务控制台的错误恢复',
     goal: '让验证失败、Session 错误与 Task 错误有明确、可审计的处理边界。', branch: 'loopper/tsk-019fc6ad',
-    worktreePath: 'data/worktrees/tsk-019fc6ad', status: 'RUNNING', activeStage: 2, attemptCount: 3, maxAttempts: 12,
+    worktreePath: 'data/worktrees/tsk-019fc6ad', status: 'RUNNING', hasDesignHistory: true, activeStage: 2, attemptCount: 3, maxAttempts: 12,
     createdAt: '2026-08-04T09:42:00+08:00', updatedAt: now,
     stages: [
       { id: 'stg-context', ordinal: 1, objective: '冻结状态机与错误契约', status: 'SUCCEEDED', attempts: [{ id: 'att-01', ordinal: 1, stageId: 'stg-context', sessionId: 'ses-901', status: 'VERIFIED', startedAt: '2026-08-04T09:42:00+08:00', endedAt: '2026-08-04T09:49:00+08:00', summary: '契约及迁移已验证。', errors: [], verifiers: [{ id: 'v-1', name: '状态机单元测试', status: 'PASS', summary: '24 passed', elapsedMs: 1253 }] }] },
@@ -26,8 +26,8 @@ export const demoTasks: Task[] = [
       { id: 'stg-e2e', ordinal: 3, objective: '验收重试和取消流程', status: 'PENDING', attempts: [] },
     ],
   },
-  { id: 'tsk-verifier', projectId: 'prj-sandbox', projectName: 'E2E Sandbox', title: '修复故意失败的单元测试', goal: '使沙盒测试稳定通过。', branch: 'loopper/tsk-verifier', worktreePath: 'data/worktrees/tsk-verifier', status: 'RETRY_WAIT', activeStage: 1, attemptCount: 1, maxAttempts: 3, createdAt: '2026-08-04T09:16:00+08:00', updatedAt: '2026-08-04T10:05:00+08:00' },
-  { id: 'tsk-blocked', projectId: 'prj-loopper', projectName: 'OpenCode Loopper', title: '路径边界演练', goal: '验证符号链接逃逸检测。', branch: 'loopper/tsk-blocked', worktreePath: 'data/worktrees/tsk-blocked', status: 'FAILED', activeStage: 1, attemptCount: 1, maxAttempts: 2, createdAt: '2026-08-04T08:52:00+08:00', updatedAt: '2026-08-04T09:08:00+08:00', errors: [{ id: 'err-task-1', layer: 'TASK', code: 'PATH_ESCAPE', message: '检测到项目路径越过登记根目录，任务已终止。', retryable: false, occurredAt: '2026-08-04T09:08:00+08:00', evidenceId: 'art-system-1' }] },
+  { id: 'tsk-verifier', projectId: 'prj-sandbox', projectName: 'E2E Sandbox', title: '修复故意失败的单元测试', goal: '使沙盒测试稳定通过。', branch: 'loopper/tsk-verifier', worktreePath: 'data/worktrees/tsk-verifier', status: 'RETRY_WAIT', hasDesignHistory: true, activeStage: 1, attemptCount: 1, maxAttempts: 3, createdAt: '2026-08-04T09:16:00+08:00', updatedAt: '2026-08-04T10:05:00+08:00' },
+  { id: 'tsk-blocked', projectId: 'prj-loopper', projectName: 'OpenCode Loopper', title: '路径边界演练', goal: '验证符号链接逃逸检测。', branch: 'loopper/tsk-blocked', worktreePath: 'data/worktrees/tsk-blocked', status: 'FAILED', hasDesignHistory: true, activeStage: 1, attemptCount: 1, maxAttempts: 2, createdAt: '2026-08-04T08:52:00+08:00', updatedAt: '2026-08-04T09:08:00+08:00', errors: [{ id: 'err-task-1', layer: 'TASK', code: 'PATH_ESCAPE', message: '检测到项目路径越过登记根目录，任务已终止。', retryable: false, occurredAt: '2026-08-04T09:08:00+08:00', evidenceId: 'art-system-1' }] },
 ]
 
 export const demoDraft: LoopDraft = {

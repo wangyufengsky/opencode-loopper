@@ -103,6 +103,13 @@ public class ProjectConventionService {
         return row;
     }
 
+    public CurrentConvention current(String projectId) {
+        ProjectRow project = projects.get(projectId);
+        SourceSnapshot source = readSource(project);
+        boolean loopperManaged = source.content().contains(START_MARKER) && source.content().contains(END_MARKER);
+        return new CurrentConvention(project.id(), source.exists(), loopperManaged, source.content());
+    }
+
     public void pollActiveGenerations() {
         for (ProjectConventionDraftRow row : mapper.activeProjectConventionDrafts()) {
             try { poll(row); }
@@ -372,5 +379,6 @@ public class ProjectConventionService {
         return normalized.substring(0, Math.min(normalized.length(), 500));
     }
     private static String now() { return Instant.now().toString(); }
+    public record CurrentConvention(String projectId, boolean exists, boolean loopperManaged, String content) { }
     private record SourceSnapshot(boolean exists, String content, String sha256) { }
 }

@@ -89,6 +89,19 @@ public class DesignerSessionController {
                 "Only actual OpenCode assistant text is persisted as an ASSISTANT message; inspect this session for delivery state."));
     }
 
+    @PostMapping("/{id}/questions/{questionId}/reply")
+    public ResponseEntity<Void> replyQuestion(@PathVariable String id, @PathVariable String questionId,
+                                              @RequestBody QuestionReplyRequest request) {
+        service.replyQuestion(id, questionId, request.answers());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/questions/{questionId}/reject")
+    public ResponseEntity<Void> rejectQuestion(@PathVariable String id, @PathVariable String questionId) {
+        service.rejectQuestion(id, questionId);
+        return ResponseEntity.noContent().build();
+    }
+
     private DesignerSessionDto dto(DesignerSessionRow row) {
         ProjectRow project = service.project(row.id());
         LoopDraftRow draft = service.draft(row.id());
@@ -96,7 +109,7 @@ public class DesignerSessionController {
                 "Designer may read registered project context and propose LoopSpecs only. It cannot change files or start tasks.",
                 row.createdAt(), row.updatedAt(), draft == null ? null : new DesignerDraftDto(
                         draft.id(), draft.status(), draft.updatedAt(), drafts.spec(draft)),
-                service.messages(row.id()).stream().map(this::message).toList());
+                service.messages(row.id()).stream().map(this::message).toList(), service.pendingQuestions(row.id()));
     }
 
     private DesignerMessageDto message(DesignerMessageRow row) {
@@ -108,9 +121,11 @@ public class DesignerSessionController {
     public record AppendDesignerMessageRequest(@NotBlank @Size(max = 12_000) String content) { }
     public record DesignerSessionDto(String id, String projectId, String projectName, String state, String accessMode,
                                      boolean readOnly, String permissionSummary, String createdAt, String updatedAt,
-                                     DesignerDraftDto draft, List<DesignerMessageDto> messages) { }
+                                     DesignerDraftDto draft, List<DesignerMessageDto> messages,
+                                     List<DesignerSessionService.PendingQuestion> pendingQuestions) { }
     public record DesignerDraftDto(String id, String status, String updatedAt,
                                    io.opencode.loopper.domain.LoopSpec spec) { }
     public record DesignerMessageDto(String id, int ordinal, String role, String content, String deliveryState, String createdAt) { }
     public record AppendMessageResult(String sessionId, String state, List<DesignerMessageDto> persistedMessages, String notice) { }
+    public record QuestionReplyRequest(List<List<String>> answers) { }
 }

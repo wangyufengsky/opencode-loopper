@@ -12,6 +12,7 @@ import io.opencode.loopper.runtime.OpenCodeClient;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.regex.Matcher;
@@ -96,6 +97,44 @@ public class DesignerSessionService {
     public List<DesignerMessageRow> messages(String sessionId) {
         get(sessionId);
         return mapper.listDesignerMessages(sessionId);
+    }
+
+    public List<PendingQuestion> pendingQuestions(String sessionId) {
+        DesignerSessionRow session = get(sessionId);
+        if (!RUNNING.equals(session.state()) || session.externalSessionId() == null || session.externalSessionId().isBlank()) {
+            return List.of();
+        }
+        OpenCodeClient.OpenCodeSession remote = remote(session);
+        try {
+            return openCode.pendingQuestions(remote).stream().map(this::question).toList();
+        } catch (SessionFailure failure) {
+            throw new ServiceUnavailableException(failure.code(), safeMessage(failure.getMessage()));
+        }
+    }
+
+    public void replyQuestion(String sessionId, String questionId, List<List<String>> answers) {
+        DesignerSessionRow session = requireRunningRemote(sessionId);
+        OpenCodeClient.OpenCodeSession remote = remote(session);
+        OpenCodeClient.PendingQuestion pending = pending(remote, questionId);
+        List<List<String>> normalized = validateAnswers(pending, answers);
+        try {
+            openCode.replyQuestion(remote, pending.id(), normalized);
+        } catch (SessionFailure failure) {
+            throw new ServiceUnavailableException(failure.code(), safeMessage(failure.getMessage()));
+        }
+        questionResolved(sessionId, "问题回答已提交，OpenCode Designer 继续生成设计稿");
+    }
+
+    public void rejectQuestion(String sessionId, String questionId) {
+        DesignerSessionRow session = requireRunningRemote(sessionId);
+        OpenCodeClient.OpenCodeSession remote = remote(session);
+        OpenCodeClient.PendingQuestion pending = pending(remote, questionId);
+        try {
+            openCode.rejectQuestion(remote, pending.id());
+        } catch (SessionFailure failure) {
+            throw new ServiceUnavailableException(failure.code(), safeMessage(failure.getMessage()));
+        }
+        questionResolved(sessionId, "问题已拒绝，OpenCode Designer 将自行处理");
     }
 
     public LoopDraftRow draft(String sessionId) {
@@ -189,6 +228,15 @@ public class DesignerSessionService {
         ProjectRow project = projects.get(session.projectId());
         OpenCodeClient.OpenCodeSession remote = new OpenCodeClient.OpenCodeSession(session.externalSessionId(), Path.of(project.rootPath()));
         try {
+            List<OpenCodeClient.PendingQuestion> pending = openCode.pendingQuestions(remote);
+            if (!pending.isEmpty()) {
+                DesignerSessionRow current = !same(session.externalSessionState(), "WAITING_INPUT")
+                        ? transition(session, RUNNING, session.externalSessionId(), "WAITING_INPUT") : session;
+                String liveOutput = visibleDesignerOutput(openCode.sessionLiveOutput(remote));
+                events.publish(current.id(), liveOutput.isBlank() ? "STATUS" : "PARTIAL", current.state(), "WAITING_INPUT", true,
+                        liveOutput, "OpenCode Designer 正在等待你的回答");
+                return;
+            }
             if (designerTimedOut(session)) {
                 try { openCode.abort(remote); } catch (RuntimeException ignoredAbortFailure) { }
                 sessionError(session, "OPENCODE_DESIGNER_TIMEOUT",
@@ -275,7 +323,8 @@ public class DesignerSessionService {
                 - PROCESS uses the schema { "type": "PROCESS", "command": ["./mvnw", "clean", "compile"] }. The `command` value is a direct argv array, never a shell snippet. Never rename this JSON field to `argv`, `args`, or `cmd`. When success requires stdout text such as PASS, set outputContains to that exact text. A PROCESS verifier must exit non-zero when its self-check fails.
                 - Do not add FILE_EXISTS verifiers: generated artifacts and build output directories are not fixed-path hard gates. Prove required output with a PROCESS self-check that exits non-zero on failure and optionally requires an exact PASS marker. FILE_NOT_EXISTS remains available only for explicit safety invariants. Do not add GIT_DIFF merely because stage.allowedPaths or stage.forbiddenPaths is populated: those stage fields are advisory Agent guidance. Add a GIT_DIFF verifier only when you explicitly propose a path/delete acceptance check in the visible Markdown, and choose limits.verifierTimeoutSeconds large enough for the slowest validation command.
                 - Whenever you describe a workflow, state transition, component interaction, dependency flow, or multi-step execution path, include a fenced `mermaid` diagram. Never draw flows with ASCII art.
-                - Keep identifiers, commands, file paths, and code in their original form. Use the same natural language as the user for explanatory prose.
+                - Explanatory prose, conclusions, reviews, risks, acceptance criteria, and unresolved decisions default to Simplified Chinese unless the user explicitly requests another language.
+                - Keep identifiers, commands, file paths, code, JSON field names, protocol enum values, and exact literal markers in their original form.
                 - Your response MUST end with the complete updated LoopSpec JSON between the exact markers shown below. The JSON is machine-consumed and will be removed from the visible Markdown after validation.
                 - Do not repeat or display the raw LoopSpec JSON anywhere else in the visible Markdown document; summarize its important decisions in prose, tables, and Mermaid diagrams instead.
                 - Keep schemaVersion and projectId unchanged. Return every field, including stages, verifiers, limits, model, sessionPolicy, and nextAttemptPromptTemplate. Use numeric *Seconds fields exactly as in the current JSON.
@@ -327,14 +376,94 @@ public class DesignerSessionService {
     private boolean designerTimedOut(DesignerSessionRow session) {
         Duration timeout = defaults.getDesignerTimeout();
         if (timeout == null || timeout.isZero() || timeout.isNegative()) return false;
-        String startedAt = mapper.listDesignerMessages(session.id()).stream()
+        String latestUserMessageAt = mapper.listDesignerMessages(session.id()).stream()
                 .filter(message -> "USER".equals(message.role()))
                 .reduce((first, second) -> second)
                 .map(DesignerMessageRow::createdAt)
                 .orElse(session.updatedAt());
-        try { return Duration.between(Instant.parse(startedAt), Instant.now()).compareTo(timeout) > 0; }
+        try {
+            Instant messageAt = Instant.parse(latestUserMessageAt);
+            Instant stateChangedAt = Instant.parse(session.updatedAt());
+            return Duration.between(messageAt.isAfter(stateChangedAt) ? messageAt : stateChangedAt, Instant.now()).compareTo(timeout) > 0;
+        }
         catch (RuntimeException invalidTimestamp) { return false; }
     }
+
+    private DesignerSessionRow requireRunningRemote(String sessionId) {
+        DesignerSessionRow session = get(sessionId);
+        if (!RUNNING.equals(session.state()) || session.externalSessionId() == null || session.externalSessionId().isBlank()) {
+            throw new ConflictException("DESIGNER_QUESTION_UNAVAILABLE", "Designer session has no running OpenCode question to answer");
+        }
+        return session;
+    }
+
+    private OpenCodeClient.OpenCodeSession remote(DesignerSessionRow session) {
+        ProjectRow project = projects.get(session.projectId());
+        return new OpenCodeClient.OpenCodeSession(session.externalSessionId(), Path.of(project.rootPath()));
+    }
+
+    private OpenCodeClient.PendingQuestion pending(OpenCodeClient.OpenCodeSession remote, String questionId) {
+        if (questionId == null || questionId.isBlank()) {
+            throw new BadRequestException("QUESTION_ID_REQUIRED", "Question id is required");
+        }
+        try {
+            return openCode.pendingQuestions(remote).stream()
+                    .filter(question -> questionId.equals(question.id()))
+                    .findFirst()
+                    .orElseThrow(() -> new NotFoundException("Pending question not found for this Designer Session: " + questionId));
+        } catch (SessionFailure failure) {
+            throw new ServiceUnavailableException(failure.code(), safeMessage(failure.getMessage()));
+        }
+    }
+
+    private PendingQuestion question(OpenCodeClient.PendingQuestion pending) {
+        return new PendingQuestion(pending.id(), pending.questions().stream().map(prompt -> new QuestionPrompt(
+                prompt.question(), prompt.header(), prompt.options().stream()
+                .map(option -> new QuestionOption(option.label(), option.description())).toList(),
+                prompt.multiple(), prompt.custom())).toList());
+    }
+
+    private List<List<String>> validateAnswers(OpenCodeClient.PendingQuestion pending, List<List<String>> answers) {
+        if (answers == null || answers.size() != pending.questions().size()) {
+            throw new BadRequestException("QUESTION_ANSWERS_INVALID", "Answers must contain one entry for every question");
+        }
+        List<List<String>> result = new ArrayList<>();
+        for (int index = 0; index < pending.questions().size(); index++) {
+            OpenCodeClient.QuestionPrompt prompt = pending.questions().get(index);
+            List<String> answer = answers.get(index);
+            if (answer == null) answer = List.of();
+            List<String> normalized = answer.stream().filter(value -> value != null && !value.isBlank())
+                    .map(String::trim).distinct().toList();
+            if (normalized.isEmpty()) {
+                throw new BadRequestException("QUESTION_ANSWER_REQUIRED", "Every question requires an answer");
+            }
+            if (!prompt.multiple() && normalized.size() > 1) {
+                throw new BadRequestException("QUESTION_ANSWER_MULTIPLE_FORBIDDEN", "This question accepts only one answer");
+            }
+            if (!prompt.custom()) {
+                List<String> labels = prompt.options().stream().map(OpenCodeClient.QuestionOption::label).toList();
+                if (!labels.containsAll(normalized)) {
+                    throw new BadRequestException("QUESTION_CUSTOM_ANSWER_FORBIDDEN", "This question only accepts listed options");
+                }
+            }
+            result.add(normalized);
+        }
+        return List.copyOf(result);
+    }
+
+    private void questionResolved(String sessionId, String detail) {
+        DesignerSessionRow current = get(sessionId);
+        try {
+            current = transition(current, RUNNING, current.externalSessionId(), "RUNNING");
+        } catch (ConflictException concurrentPoll) {
+            current = get(sessionId);
+        }
+        events.publish(current.id(), "STATUS", current.state(), current.externalSessionState(), true, "", detail);
+    }
+
+    public record PendingQuestion(String id, List<QuestionPrompt> questions) { }
+    public record QuestionPrompt(String question, String header, List<QuestionOption> options, boolean multiple, boolean custom) { }
+    public record QuestionOption(String label, String description) { }
 
     private record ParsedDesignerOutput(String markdown, LoopSpec spec) { }
 

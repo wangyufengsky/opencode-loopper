@@ -44,6 +44,13 @@ export interface ProjectConventionDraft {
   updatedAt: string
 }
 
+export interface ProjectConventionSnapshot {
+  projectId: string
+  exists: boolean
+  loopperManaged: boolean
+  content: string
+}
+
 export interface RuntimeInfo {
   status: 'ONLINE' | 'OFFLINE' | 'STARTING' | 'INCOMPATIBLE'
   version?: string
@@ -89,6 +96,7 @@ export interface VerifierResult {
   status: 'PASS' | 'FAIL' | 'PENDING'
   summary: string
   output?: string
+  evidence?: Record<string, unknown>
   elapsedMs?: number
 }
 
@@ -122,6 +130,7 @@ export interface Task {
   branch: string
   worktreePath: string
   status: TaskStatus
+  hasDesignHistory?: boolean
   activeStage?: number
   attemptCount: number
   maxAttempts: number
@@ -278,6 +287,22 @@ export interface DesignerSession {
   updatedAt?: string
   draft?: LoopDraft
   messages: DesignerMessage[]
+  pendingQuestions?: TaskSessionPendingQuestion[]
+}
+
+export interface TaskDesignHistory {
+  taskId: string
+  taskTitle: string
+  projectName: string
+  draft: LoopDraft
+  designerSession?: {
+    id: string
+    state: DesignerSessionState
+    accessMode: 'READ_ONLY'
+    createdAt: string
+    updatedAt: string
+    messages: DesignerMessage[]
+  }
 }
 
 export interface DesignerAppendResult {

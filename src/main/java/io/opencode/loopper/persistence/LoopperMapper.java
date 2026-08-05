@@ -2,7 +2,6 @@ package io.opencode.loopper.persistence;
 
 import java.util.List;
 import java.util.Optional;
-import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -28,14 +27,16 @@ public interface LoopperMapper {
             """)
     int upsertAppSettings(AppSettingsRow row);
 
-    @Insert("INSERT INTO project(id,name,root_path,created_at,updated_at,version) VALUES(#{id},#{name},#{rootPath},#{createdAt},#{updatedAt},#{version})")
+    @Insert("INSERT INTO project(id,name,root_path,created_at,updated_at,managed,version) VALUES(#{id},#{name},#{rootPath},#{createdAt},#{updatedAt},#{managed},#{version})")
     int insertProject(ProjectRow row);
     @Select("SELECT * FROM project WHERE id=#{id}") Optional<ProjectRow> findProject(String id);
-    @Select("SELECT * FROM project ORDER BY created_at DESC") List<ProjectRow> listProjects();
+    @Select("SELECT * FROM project WHERE root_path=#{rootPath}") Optional<ProjectRow> findProjectByRoot(String rootPath);
+    @Select("SELECT * FROM project WHERE managed=1 ORDER BY created_at DESC") List<ProjectRow> listProjects();
     @Select("SELECT COUNT(*) FROM task WHERE project_id=#{projectId}") int countTasksForProject(String projectId);
-    @Update("UPDATE project SET name=#{name}, updated_at=#{updatedAt}, version=version+1 WHERE id=#{id} AND version=#{version}")
+    @Update("UPDATE project SET name=#{name}, updated_at=#{updatedAt}, managed=#{managed}, version=version+1 WHERE id=#{id} AND version=#{version}")
     int updateProject(ProjectRow row);
-    @Delete("DELETE FROM project WHERE id=#{id}") int deleteProject(String id);
+    @Update("UPDATE project SET managed=0, updated_at=#{updatedAt}, version=version+1 WHERE id=#{id} AND managed=1")
+    int unmanageProject(@Param("id") String id, @Param("updatedAt") String updatedAt);
 
     @Insert("""
             INSERT INTO project_convention_draft(
@@ -74,6 +75,8 @@ public interface LoopperMapper {
     @Insert("INSERT INTO designer_session(id,project_id,state,access_mode,external_session_id,external_session_state,loop_draft_id,created_at,updated_at,version) VALUES(#{id},#{projectId},#{state},#{accessMode},#{externalSessionId},#{externalSessionState},#{loopDraftId},#{createdAt},#{updatedAt},#{version})")
     int insertDesignerSession(DesignerSessionRow row);
     @Select("SELECT * FROM designer_session WHERE id=#{id}") Optional<DesignerSessionRow> findDesignerSession(String id);
+    @Select("SELECT * FROM designer_session WHERE loop_draft_id=#{draftId} ORDER BY created_at DESC LIMIT 1")
+    Optional<DesignerSessionRow> findLatestDesignerSessionByDraft(String draftId);
     @Select("SELECT * FROM designer_session WHERE state='RUNNING' AND external_session_id IS NOT NULL ORDER BY updated_at")
     List<DesignerSessionRow> activeDesignerHandoffs();
     @Update("UPDATE designer_session SET state=#{state}, access_mode=#{accessMode}, external_session_id=#{externalSessionId}, external_session_state=#{externalSessionState}, loop_draft_id=#{loopDraftId}, updated_at=#{updatedAt}, version=version+1 WHERE id=#{id} AND version=#{version}")

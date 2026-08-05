@@ -570,7 +570,7 @@ public class TaskService {
     }
 
     private void completeStage(TaskRow task, StageRow stage, AttemptRow attempt) {
-        updateAttempt(finish(attempt, AttemptState.SUCCEEDED, null, "All deterministic verifiers passed"));
+        updateAttempt(finish(attempt, AttemptState.SUCCEEDED, null, "所有确定性验证均已通过"));
         updateStage(stageState(stage, StageState.SUCCEEDED));
         StageRow next = mapper.listStages(task.id()).stream().filter(s -> StageState.PENDING.name().equals(s.state())).findFirst().orElse(null);
         if (next == null) {
@@ -804,8 +804,8 @@ public class TaskService {
     private String judgePrompt(TaskRow task, AttemptRow attempt, String role) {
         LoopSpec loopSpec = spec(task);
         String focus = "REQUIREMENT".equals(role)
-                ? "Assess whether the delivered work fulfills the confirmed goal, final stage objectives, and deterministic evidence."
-                : "Assess regressions, unsafe changes, missing evidence, and any risk that makes release unsafe.";
+                ? "判断交付结果是否满足已确认目标、最终阶段目标和确定性验证证据。"
+                : "检查回归、越界或不安全变更、证据缺失，以及任何导致交付不安全的风险。";
         String objectives = mapper.listStages(task.id()).stream().filter(stage -> StageState.SUCCEEDED.name().equals(stage.state()))
                 .max(java.util.Comparator.comparingInt(StageRow::ordinal)).map(StageRow::objective).orElse("(no completed final stage)");
         String verification = mapper.listTaskArtifacts(task.id()).stream()
@@ -814,15 +814,17 @@ public class TaskService {
         String diff = mapper.listTaskArtifacts(task.id()).stream()
                 .filter(artifact -> attempt.id().equals(artifact.attemptId()) && "GIT_DIFF".equals(artifact.kind()))
                 .map(TaskArtifactRow::content).findFirst().orElse("No diff artifact was persisted.");
-        return "You are the " + roleTitle(role) + ". This is a strictly read-only review. Do not edit files, run shell commands, or delegate tasks.\n"
-                + focus + "\nConfirmed goal: " + loopSpec.goal() + "\nContext: " + loopSpec.context()
-                + "\nFinal-stage objectives:\n- " + objectives + "\nDeterministic verification summary:\n" + verification
-                + "\nPersisted git diff evidence:\n" + diff + "\nAttempt: " + attempt.id()
-                + "\nReturn exactly one JSON object with no surrounding prose or code fence: "
-                + "{\"verdict\":\"PASS|REVISE|BLOCKED\",\"reason\":\"concise evidence-based Markdown\"}. "
-                + "Inside the reason string, write a one-sentence conclusion followed by a '## Evidence' heading and a numbered list. "
-                + "Use inline code for commands and file paths. If the verdict is not PASS, add a '## Required actions' heading and a numbered list. "
-                + "Do not use fenced code blocks, and JSON-escape every newline in the reason string.";
+        String reviewer = "REQUIREMENT".equals(role) ? "需求评审员" : "风险评审员";
+        return "你是" + reviewer + "。这是严格的只读评审：不得编辑文件、运行终端命令或委派任务。\n"
+                + focus + "\n已确认目标：" + loopSpec.goal() + "\n上下文：" + loopSpec.context()
+                + "\n最终阶段目标：\n- " + objectives + "\n确定性验证摘要：\n" + verification
+                + "\n已持久化的 Git 差异证据：\n" + diff + "\n尝试记录：" + attempt.id()
+                + "\n仅返回一个 JSON 对象，不得附加说明或代码围栏："
+                + "{\"verdict\":\"PASS|REVISE|BLOCKED\",\"reason\":\"简洁、基于证据的中文 Markdown\"}。"
+                + "`verdict` 必须保留上述英文协议值；`reason` 必须使用简体中文。"
+                + "在 `reason` 中先写一句结论，再写 `## 证据` 标题和编号列表；命令与文件路径使用行内代码。"
+                + "若结论不是 PASS，再增加 `## 必须处理` 标题和编号列表。"
+                + "不要使用围栏代码块，并将 `reason` 内的每个换行正确转义为 JSON 字符串。";
     }
 
     private JudgeRunRow judgeState(JudgeRunRow row, String externalSessionId, String state, String verdict, String reason,
@@ -903,7 +905,13 @@ public class TaskService {
     private void updateSession(ExecutionSessionRow row) { if (mapper.updateSessionState(row) != 1) throw new ConflictException("SESSION_VERSION_CONFLICT", "Session was updated concurrently"); }
     private String requireWorktree(TaskRow task) { if (task.worktreePath() == null || task.worktreePath().isBlank()) throw new TaskFailure("WORKTREE_MISSING", "Task has no prepared execution workspace"); return task.worktreePath(); }
     private String normalizedTitle(String title, String goal) { return title == null || title.isBlank() ? goal.substring(0, Math.min(goal.length(), 120)) : title.trim(); }
-    private String promptWithBoundaries(LoopSpec spec, StageRow stage, String recovery) { return "Goal: " + spec.goal() + "\nStage: " + stage.objective() + "\nAllowed paths: " + stage.allowedPathsJson() + "\nForbidden paths: " + stage.forbiddenPathsJson() + "\n" + recovery; }
+    private String promptWithBoundaries(LoopSpec spec, StageRow stage, String recovery) {
+        return "Goal: " + spec.goal() + "\nStage: " + stage.objective()
+                + "\nAllowed paths: " + stage.allowedPathsJson() + "\nForbidden paths: " + stage.forbiddenPathsJson()
+                + "\nLanguage requirement: 使用简体中文撰写面向用户的进度说明、结论、评审和最终总结。"
+                + "代码、命令、路径、标识符、JSON 字段名、协议枚举值以及要求精确匹配的字面量保持原样；"
+                + "仅当用户目标明确要求其他语言时才切换语言。\n" + recovery;
+    }
     private OpenCodeClient.OpenCodeModel model(LoopSpec spec) {
         if (spec.model() != null && spec.model().providerId() != null && spec.model().modelId() != null) {
             return new OpenCodeClient.OpenCodeModel(spec.model().providerId(), spec.model().modelId(), spec.model().thinking());

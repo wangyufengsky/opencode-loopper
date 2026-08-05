@@ -7,6 +7,7 @@ import io.opencode.loopper.persistence.DesignerSessionRow;
 import io.opencode.loopper.persistence.LoopDraftRow;
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.ProjectRow;
+import io.opencode.loopper.persistence.TaskRow;
 import io.opencode.loopper.runtime.FakeOpenCodeClient;
 import io.opencode.loopper.runtime.OpenCodeClient;
 import io.opencode.loopper.service.DesignerSessionService;
@@ -115,6 +116,7 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(fake.promptForSession(dispatched.externalSessionId()))
                 .contains("well-structured Markdown document", "fenced `mermaid` diagram", "Never draw flows with ASCII art")
                 .contains("JSON field is exactly `command`", "Never rename this JSON field to `argv`, `args`, or `cmd`")
+                .contains("default to Simplified Chinese", "protocol enum values")
                 .contains("LOOPSPEC_JSON_START", boundDraft.id(), project.id())
                 .contains("Please preserve the verifier list");
         assertThat(designerSessions.messages(sessionId)).noneMatch(message -> message.role().equals("ASSISTANT"));
@@ -142,6 +144,84 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(designerSessions.messages(sessionId).stream().filter(message -> message.role().equals("ASSISTANT")).map(message -> message.content()).toList())
                 .containsExactly("# Actual assistant plan\n\nPreserve the verifier list.", "## Actual second-turn assistant plan");
         assertThat(drafts.spec(drafts.get(boundDraft.id()))).isEqualTo(secondSpec);
+    }
+
+    @Test
+    void taskHistoryReturnsThePersistedDesignerConversationAndConfirmedLoopSpec() throws Exception {
+        ProjectRow project = projects.create("history-fixture", Files.createDirectory(temp.resolve("history-project")).toString());
+        LoopDraftRow draft = drafts.create(spec(project.id()));
+        DesignerSessionRow designer = designerSessions.create(project.id(), draft.id(), "Design a durable history view");
+        TaskRow task = drafts.confirm(draft.id(), "Durable design history");
+
+        mvc.perform(get("/api/tasks/{id}", task.id()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.hasDesignHistory").value(true));
+
+        mvc.perform(get("/api/tasks/{id}/design-history", task.id()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.taskId").value(task.id()))
+                .andExpect(jsonPath("$.taskTitle").value("Durable design history"))
+                .andExpect(jsonPath("$.draft.id").value(draft.id()))
+                .andExpect(jsonPath("$.draft.status").value("CONFIRMED"))
+                .andExpect(jsonPath("$.draft.spec.goal").value(spec(project.id()).goal()))
+                .andExpect(jsonPath("$.designerSession.id").value(designer.id()))
+                .andExpect(jsonPath("$.designerSession.accessMode").value("READ_ONLY"))
+                .andExpect(jsonPath("$.designerSession.messages[*].content")
+                        .value(org.hamcrest.Matchers.hasItem("Design a durable history view")));
+    }
+
+    @Test
+    void designerQuestionsAreExposedAndCanBeAnsweredOrRejectedBeforeGenerationContinues() throws Exception {
+        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
+        ProjectRow project = projects.create("designer-question",
+                Files.createDirectory(temp.resolve("question-project")).toString());
+        LoopDraftRow boundDraft = drafts.create(spec(project.id()));
+        DesignerSessionRow designer = designerSessions.create(project.id(), boundDraft.id(), "Design another chain");
+        DesignerSessionRow running = designerSessions.get(designer.id());
+        String externalSessionId = running.externalSessionId();
+        OpenCodeClient.PendingQuestion pending = new OpenCodeClient.PendingQuestion("question-1", externalSessionId,
+                List.of(
+                        new OpenCodeClient.QuestionPrompt("Which scope?", "Scope", List.of(
+                                new OpenCodeClient.QuestionOption("New chain", "Add a new business chain"),
+                                new OpenCodeClient.QuestionOption("Tests only", "Only test existing chains")), false, false),
+                        new OpenCodeClient.QuestionPrompt("Which domain?", "Domain", List.of(
+                                new OpenCodeClient.QuestionOption("XML", "Stay in the current domain"),
+                                new OpenCodeClient.QuestionOption("Payment", "Use an independent domain")), false, true)));
+        fake.setPendingQuestion(externalSessionId, pending);
+
+        designerSessions.pollActiveHandoffs();
+
+        assertThat(designerSessions.get(designer.id()).state()).isEqualTo("RUNNING");
+        assertThat(designerSessions.get(designer.id()).externalSessionState()).isEqualTo("WAITING_INPUT");
+        mvc.perform(get("/api/designer-sessions/{id}", designer.id()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pendingQuestions[0].id").value("question-1"))
+                .andExpect(jsonPath("$.pendingQuestions[0].questions[0].options[0].label").value("New chain"))
+                .andExpect(jsonPath("$.pendingQuestions[0].questions[1].custom").value(true));
+
+        mvc.perform(post("/api/designer-sessions/{id}/questions/{questionId}/reply", designer.id(), "question-1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"answers\":[[\"New chain\",\"Tests only\"],[\"XML\"]]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("QUESTION_ANSWER_MULTIPLE_FORBIDDEN"));
+
+        mvc.perform(post("/api/designer-sessions/{id}/questions/{questionId}/reply", designer.id(), "question-1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"answers\":[[\"New chain\"],[\"由 Designer 决定\"]]}"))
+                .andExpect(status().isNoContent());
+        assertThat(fake.answersForQuestion("question-1"))
+                .containsExactly(List.of("New chain"), List.of("由 Designer 决定"));
+        assertThat(designerSessions.get(designer.id()).externalSessionState()).isEqualTo("RUNNING");
+        mvc.perform(get("/api/designer-sessions/{id}", designer.id()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pendingQuestions").isEmpty());
+
+        OpenCodeClient.PendingQuestion rejected = new OpenCodeClient.PendingQuestion("question-2", externalSessionId,
+                List.of(new OpenCodeClient.QuestionPrompt("Continue?", "Confirm", List.of(), false, true)));
+        fake.setPendingQuestion(externalSessionId, rejected);
+        mvc.perform(post("/api/designer-sessions/{id}/questions/{questionId}/reject", designer.id(), "question-2"))
+                .andExpect(status().isNoContent());
+        assertThat(fake.wasQuestionRejected("question-2")).isTrue();
     }
 
     @Test

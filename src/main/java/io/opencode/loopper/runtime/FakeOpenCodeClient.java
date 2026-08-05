@@ -15,11 +15,14 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     private final ConcurrentHashMap<String, String> promptBySession = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, OpenCodeModel> modelBySession = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> detailBySession = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, PendingQuestion> pendingQuestionBySession = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, java.util.List<java.util.List<String>>> answersByQuestion = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Boolean> rejectedQuestions = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, AtomicInteger> failedReadOnlySessionsByRole = new ConcurrentHashMap<>();
     private final AtomicInteger failedReadOnlySessions = new AtomicInteger();
     private final AtomicInteger failedPrompts = new AtomicInteger();
     private final AtomicInteger failedAborts = new AtomicInteger();
-    private volatile String judgeOutput = "{\"verdict\":\"PASS\",\"reason\":\"Deterministic evidence satisfies the review contract.\"}";
+    private volatile String judgeOutput = "{\"verdict\":\"PASS\",\"reason\":\"确定性证据满足评审要求。\"}";
     private volatile boolean healthy = true;
     @Override public boolean healthy() { return healthy; }
     @Override public OpenCodeSession createSession(Path worktree, String title, OpenCodeModel model) { String id = "fake-" + UUID.randomUUID(); states.put(id, "RUNNING"); return new OpenCodeSession(id, worktree); }
@@ -55,9 +58,20 @@ public class FakeOpenCodeClient implements OpenCodeClient {
         return new SessionTranscript(output == null || output.isBlank() ? java.util.List.of() : java.util.List.of(
                 new SessionPart("fake-output", "OUTPUT", "模型输出", output, states.get(session.id()))));
     }
-    @Override public java.util.List<PendingQuestion> pendingQuestions(OpenCodeSession session) { return java.util.List.of(); }
-    @Override public void replyQuestion(OpenCodeSession session, String requestId, java.util.List<java.util.List<String>> answers) { }
-    @Override public void rejectQuestion(OpenCodeSession session, String requestId) { }
+    @Override public java.util.List<PendingQuestion> pendingQuestions(OpenCodeSession session) {
+        PendingQuestion pending = pendingQuestionBySession.get(session.id());
+        return pending == null ? java.util.List.of() : java.util.List.of(pending);
+    }
+    @Override public void replyQuestion(OpenCodeSession session, String requestId, java.util.List<java.util.List<String>> answers) {
+        answersByQuestion.put(requestId, java.util.List.copyOf(answers));
+        pendingQuestionBySession.computeIfPresent(session.id(), (id, pending) -> requestId.equals(pending.id()) ? null : pending);
+        states.put(session.id(), "RUNNING");
+    }
+    @Override public void rejectQuestion(OpenCodeSession session, String requestId) {
+        rejectedQuestions.put(requestId, Boolean.TRUE);
+        pendingQuestionBySession.computeIfPresent(session.id(), (id, pending) -> requestId.equals(pending.id()) ? null : pending);
+        states.put(session.id(), "RUNNING");
+    }
     @Override public String diff(OpenCodeSession session) { return "[]"; }
     @Override public void abort(OpenCodeSession session) {
         if (failedAborts.getAndUpdate(value -> Math.max(0, value - 1)) > 0) {
@@ -79,7 +93,13 @@ public class FakeOpenCodeClient implements OpenCodeClient {
         states.put(id, state);
         if (detail == null || detail.isBlank()) detailBySession.remove(id); else detailBySession.put(id, detail);
     }
+    public void setPendingQuestion(String sessionId, PendingQuestion pending) {
+        pendingQuestionBySession.put(sessionId, pending);
+        states.put(sessionId, "RUNNING");
+    }
+    public java.util.List<java.util.List<String>> answersForQuestion(String questionId) { return answersByQuestion.get(questionId); }
+    public boolean wasQuestionRejected(String questionId) { return Boolean.TRUE.equals(rejectedQuestions.get(questionId)); }
     public void failNextReadOnlySessions(int count) { failedReadOnlySessions.set(Math.max(0, count)); }
     public void failNextReadOnlySessions(String role, int count) { failedReadOnlySessionsByRole.put(role.toUpperCase(), new AtomicInteger(Math.max(0, count))); }
-    public void reset() { states.clear(); readOnly.clear(); judgeRoleBySession.clear(); judgeOutputByRole.clear(); promptBySession.clear(); modelBySession.clear(); detailBySession.clear(); failedReadOnlySessionsByRole.clear(); failedReadOnlySessions.set(0); failedPrompts.set(0); failedAborts.set(0); judgeOutput = "{\"verdict\":\"PASS\",\"reason\":\"Deterministic evidence satisfies the review contract.\"}"; healthy = true; }
+    public void reset() { states.clear(); readOnly.clear(); judgeRoleBySession.clear(); judgeOutputByRole.clear(); promptBySession.clear(); modelBySession.clear(); detailBySession.clear(); pendingQuestionBySession.clear(); answersByQuestion.clear(); rejectedQuestions.clear(); failedReadOnlySessionsByRole.clear(); failedReadOnlySessions.set(0); failedPrompts.set(0); failedAborts.set(0); judgeOutput = "{\"verdict\":\"PASS\",\"reason\":\"确定性证据满足评审要求。\"}"; healthy = true; }
 }

@@ -4,6 +4,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import DesignerView from '@/views/DesignerView.vue'
 import LoopSpecEditor from '@/components/LoopSpecEditor.vue'
+import PendingQuestionCard from '@/components/PendingQuestionCard.vue'
 import { api } from '@/api/client'
 import { useTaskStore } from '@/stores/taskStore'
 import type { DesignerSession, LoopDraft, LoopSpec, Project, Task } from '@/types/domain'
@@ -119,6 +120,26 @@ describe('Designer draft composer', () => {
     expect(sessionStorage.getItem('opencode-loopper.designer-message-draft')).toBeNull()
   })
 
+  it('keeps the reply composer immediately after the naturally growing message history', async () => {
+    vi.spyOn(api, 'createDesignerSession').mockResolvedValue({
+      ...session,
+      messages: [{ id: 'assistant-1', role: 'ASSISTANT', content: '# 很长的设计回复\n\n正文', deliveryState: 'PERSISTED', createdAt: 'now' }],
+    })
+    vi.spyOn(api, 'createDraft').mockImplementation(async (spec) => draftFrom(spec))
+    const wrapper = mountDesigner()
+    await flushPromises()
+
+    await wrapper.get('textarea[aria-label="草案设计目标"]').setValue('检查回复框布局')
+    await wrapper.get('.create-draft-button').trigger('click')
+    await flushPromises()
+
+    const conversation = wrapper.get('.designer-conversation')
+    expect(conversation.element.children).toHaveLength(2)
+    expect(conversation.element.children[0]?.classList.contains('chat-history')).toBe(true)
+    expect(conversation.element.children[1]?.classList.contains('chat-compose')).toBe(true)
+    expect(wrapper.get('textarea[aria-label="发送给只读 OpenCode Designer 的消息"]').attributes('rows')).toBe('10')
+  })
+
   it('shows an animated thinking state only while the Designer request is running', async () => {
     const runningSession: DesignerSession = { ...session, state: 'RUNNING' }
     vi.spyOn(api, 'createDesignerSession').mockResolvedValue(runningSession)
@@ -169,6 +190,39 @@ describe('Designer draft composer', () => {
     expect(wrapper.get('.designer-connection-strip').text()).toContain('OpenCode 已连接')
     expect(wrapper.get('.chat-live').text()).toContain('第一段回复')
     expect(wrapper.find('[aria-label="Agent 正在思考，等待 AI 回复"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('renders pending Designer questions and submits their answers before continuing', async () => {
+    let answered = false
+    const pendingQuestion = {
+      id: 'question-1', questions: [{
+        question: '选择实现范围', header: '范围', multiple: false, custom: false,
+        options: [{ label: '新增链路', description: '创建新的业务责任链' }],
+      }],
+    }
+    const runningSession: DesignerSession = { ...session, state: 'RUNNING', pendingQuestions: [pendingQuestion] }
+    vi.spyOn(api, 'createDesignerSession').mockResolvedValue(runningSession)
+    vi.spyOn(api, 'createDraft').mockImplementation(async (spec) => draftFrom(spec))
+    vi.spyOn(api, 'getDesignerSession').mockImplementation(async () => ({
+      ...runningSession, pendingQuestions: answered ? [] : [pendingQuestion],
+    }))
+    const reply = vi.spyOn(api, 'replyDesignerQuestion').mockImplementation(async () => { answered = true })
+    const wrapper = mountDesigner()
+    await flushPromises()
+
+    await wrapper.get('textarea[aria-label="草案设计目标"]').setValue('创建新的责任链')
+    await wrapper.get('.create-draft-button').trigger('click')
+    await flushPromises()
+
+    const question = wrapper.getComponent(PendingQuestionCard)
+    expect(question.text()).toContain('选择实现范围')
+    expect(wrapper.find('[aria-label="Agent 正在思考，等待 AI 回复"]').exists()).toBe(false)
+    question.vm.$emit('submit', [['新增链路']])
+    await flushPromises()
+
+    expect(reply).toHaveBeenCalledWith(runningSession.id, pendingQuestion.id, [['新增链路']])
+    expect(wrapper.findComponent(PendingQuestionCard).exists()).toBe(false)
     wrapper.unmount()
   })
 

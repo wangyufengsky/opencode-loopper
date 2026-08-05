@@ -11,7 +11,18 @@ import type { TaskStatus } from '@/types/domain'
 const store = useTaskStore()
 const router = useRouter()
 const filter = ref<'ALL' | TaskStatus>('ALL')
-const visibleTasks = computed(() => filter.value === 'ALL' ? store.tasks : store.tasks.filter((task) => task.status === filter.value))
+const projectFilter = ref('ALL')
+const timeOrder = ref<'NEWEST' | 'OLDEST'>('NEWEST')
+const projectOptions = computed(() => Array.from(new Map(store.tasks.map((task) => [task.projectId, task.projectName])).entries())
+  .map(([id, name]) => ({ id, name })).sort((left, right) => left.name.localeCompare(right.name, 'zh-CN')))
+const visibleTasks = computed(() => store.tasks
+  .filter((task) => filter.value === 'ALL' || task.status === filter.value)
+  .filter((task) => projectFilter.value === 'ALL' || task.projectId === projectFilter.value)
+  .slice()
+  .sort((left, right) => {
+    const difference = new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()
+    return timeOrder.value === 'NEWEST' ? difference : -difference
+  }))
 const finished = computed(() => store.tasks.filter((task) => task.status === 'SUCCEEDED').length)
 const terminal = computed(() => store.tasks.filter((task) => ['FAILED', 'CANCELLED'].includes(task.status)).length)
 const waitingInput = computed(() => store.tasks.filter((task) => task.status === 'WAITING_INPUT').length)
@@ -31,9 +42,31 @@ function openTask(task: { id: string }) { router.push(`/tasks/${task.id}`) }
       <MetricCard label="需要输入" :value="waitingInput" detail="需要用户决策后继续" icon="lucide:message-square-warning" accent="var(--color-accent-ai)" />
       <MetricCard label="终止任务" :value="terminal" detail="保留执行目录与全部证据" icon="lucide:shield-x" accent="var(--color-task-danger)" />
     </section>
-    <section class="toolbar"><div class="toolbar-group"><el-button-group><el-button v-for="item in ['ALL', 'RUNNING', 'RETRY_WAIT', 'WAITING_INPUT', 'FAILED']" :key="item" :type="filter === item ? 'primary' : undefined" size="small" @click="filter = item as typeof filter">{{ item === 'ALL' ? '全部' : item.replace(/_/g, ' ') }}</el-button></el-button-group></div><p class="mono tiny muted">{{ visibleTasks.length }} tasks · {{ store.usingDemo ? 'demo' : 'live' }}</p></section>
+    <section class="toolbar task-toolbar">
+      <div class="toolbar-group task-filters">
+        <el-button-group><el-button v-for="item in ['ALL', 'RUNNING', 'RETRY_WAIT', 'WAITING_INPUT', 'FAILED']" :key="item" :type="filter === item ? 'primary' : undefined" size="small" @click="filter = item as typeof filter">{{ item === 'ALL' ? '全部' : item.replace(/_/g, ' ') }}</el-button></el-button-group>
+        <el-select v-model="projectFilter" class="project-filter" size="small" aria-label="按项目筛选任务">
+          <el-option label="全部项目" value="ALL" />
+          <el-option v-for="project in projectOptions" :key="project.id" :label="project.name" :value="project.id" />
+        </el-select>
+        <el-select v-model="timeOrder" class="time-sort" size="small" aria-label="按更新时间排序">
+          <el-option label="更新时间：最新优先" value="NEWEST" />
+          <el-option label="更新时间：最早优先" value="OLDEST" />
+        </el-select>
+      </div>
+      <p class="mono tiny muted">{{ visibleTasks.length }} tasks · {{ store.usingDemo ? 'demo' : 'live' }}</p>
+    </section>
     <section v-if="store.loading" class="card card-pad"><div v-for="n in 5" :key="n" class="skeleton-block" style="height: 48px; margin-bottom: 8px" /></section>
-    <section v-else-if="visibleTasks.length" class="task-table"><el-table :data="visibleTasks" row-key="id" :height="430"><el-table-column label="Task" min-width="285"><template #default="{ row }"><RouterLink class="task-link" :to="`/tasks/${row.id}`">{{ row.title }}</RouterLink><p class="mono tiny muted" style="margin: 5px 0 0">{{ row.branch }}</p></template></el-table-column><el-table-column label="状态" width="144"><template #default="{ row }"><StatusBadge :status="row.status" /></template></el-table-column><el-table-column label="进度" width="110"><template #default="{ row }"><span class="mono">{{ row.attemptCount }}/{{ row.maxAttempts }}</span></template></el-table-column><el-table-column label="项目" min-width="150" prop="projectName" /><el-table-column label="更新于" width="130"><template #default="{ row }"><span class="muted tiny">{{ formatDate(row.updatedAt) }}</span></template></el-table-column><el-table-column width="64"><template #default="{ row }"><el-button text circle aria-label="打开任务" @click="openTask(row)"><Icon icon="lucide:arrow-up-right" /></el-button></template></el-table-column></el-table></section>
+    <section v-else-if="visibleTasks.length" class="task-table"><el-table :data="visibleTasks" row-key="id" :height="430"><el-table-column label="Task" min-width="285"><template #default="{ row }"><RouterLink class="task-link" :title="row.goal || row.title" :to="`/tasks/${row.id}`">{{ row.title }}</RouterLink><p class="mono tiny muted" style="margin: 5px 0 0">{{ row.branch }}</p></template></el-table-column><el-table-column label="状态" width="132"><template #default="{ row }"><StatusBadge :status="row.status" /></template></el-table-column><el-table-column label="进度" width="90"><template #default="{ row }"><span class="mono">{{ row.attemptCount }}/{{ row.maxAttempts }}</span></template></el-table-column><el-table-column label="项目" min-width="140" prop="projectName" /><el-table-column label="更新于" width="120"><template #default="{ row }"><span class="muted tiny">{{ formatDate(row.updatedAt) }}</span></template></el-table-column><el-table-column label="历史设计" width="142"><template #default="{ row }"><el-button v-if="row.hasDesignHistory" class="design-history-link" plain size="small" @click="router.push(`/tasks/${row.id}/design`)"><Icon icon="lucide:messages-square" />设计</el-button><span v-else class="tiny muted">无关联记录</span></template></el-table-column><el-table-column width="56"><template #default="{ row }"><el-button text circle aria-label="打开任务" @click="openTask(row)"><Icon icon="lucide:arrow-up-right" /></el-button></template></el-table-column></el-table></section>
     <section v-else class="card empty-state"><div><Icon icon="lucide:orbit" width="30" /><strong>没有匹配的 Task</strong><p>切换筛选条件，或在 Designer 中创建第一条 LoopSpec。</p></div></section>
   </main>
 </template>
+
+<style scoped>
+.task-filters { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
+.project-filter { width: 180px; }
+.time-sort { width: 190px; }
+.task-link { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.design-history-link { padding-inline: 9px; }
+@media (max-width: 980px) { .task-toolbar { align-items: flex-start; flex-direction: column; } }
+</style>

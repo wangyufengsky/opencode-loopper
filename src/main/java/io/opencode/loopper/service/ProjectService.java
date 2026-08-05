@@ -22,7 +22,19 @@ public class ProjectService {
         String root = canonicalDirectory(rootPath);
         requireAllowedRoot(root);
         String now = Instant.now().toString();
-        ProjectRow project = new ProjectRow(UUID.randomUUID().toString(), name.trim(), root, now, now, 0);
+        var existing = mapper.findProjectByRoot(root);
+        if (existing.isPresent()) {
+            ProjectRow old = existing.get();
+            if (old.managed() == 1) {
+                throw new ConflictException("PROJECT_ALREADY_MANAGED", "Project root is already managed");
+            }
+            ProjectRow restored = new ProjectRow(old.id(), name.trim(), old.rootPath(), old.createdAt(), now, 1, old.version());
+            if (mapper.updateProject(restored) != 1) {
+                throw new ConflictException("PROJECT_VERSION_CONFLICT", "Project was updated concurrently");
+            }
+            return get(old.id());
+        }
+        ProjectRow project = new ProjectRow(UUID.randomUUID().toString(), name.trim(), root, now, now, 1, 0);
         mapper.insertProject(project);
         return project;
     }
@@ -33,13 +45,16 @@ public class ProjectService {
     public ProjectRow rename(String id, String name) {
         ProjectRow old = get(id);
         if (name == null || name.isBlank()) throw new BadRequestException("PROJECT_NAME_REQUIRED", "Project name is required");
-        ProjectRow changed = new ProjectRow(old.id(), name.trim(), old.rootPath(), old.createdAt(), Instant.now().toString(), old.version());
+        ProjectRow changed = new ProjectRow(old.id(), name.trim(), old.rootPath(), old.createdAt(), Instant.now().toString(), old.managed(), old.version());
         if (mapper.updateProject(changed) != 1) throw new ConflictException("PROJECT_VERSION_CONFLICT", "Project was updated concurrently");
         return get(id);
     }
     @Transactional
-    public void delete(String id) {
-        if (mapper.deleteProject(id) != 1) throw new NotFoundException("Project not found: " + id);
+    public void cancelManagement(String id) {
+        ProjectRow project = get(id);
+        if (project.managed() != 1 || mapper.unmanageProject(id, Instant.now().toString()) != 1) {
+            throw new NotFoundException("Managed project not found: " + id);
+        }
     }
     public String canonicalDirectory(String input) {
         if (input == null || input.isBlank()) throw new BadRequestException("PROJECT_PATH_REQUIRED", "Project root path is required");

@@ -9,10 +9,11 @@ import LayeredErrorPanel from '@/components/LayeredErrorPanel.vue'
 import LoopSpecEditor from '@/components/LoopSpecEditor.vue'
 import MarkdownDocument from '@/components/MarkdownDocument.vue'
 import ExecutionAcceptancePanel from '@/components/ExecutionAcceptancePanel.vue'
+import PendingQuestionCard from '@/components/PendingQuestionCard.vue'
 import { api, subscribeDesignerEvents, type DesignerEventStream } from '@/api/client'
 import { demoDraft, demoMessages } from '@/mock/demoData'
 import { useTaskStore } from '@/stores/taskStore'
-import type { DesignerMessage, DesignerSession, ErrorEvent, LoopDraft } from '@/types/domain'
+import type { DesignerMessage, DesignerSession, ErrorEvent, LoopDraft, TaskSessionPendingQuestion } from '@/types/domain'
 
 const store = useTaskStore()
 const router = useRouter()
@@ -30,6 +31,7 @@ const designerLiveResponse = ref('')
 const designerLiveError = ref('')
 const designerLiveDetail = ref('')
 const designerObservedAt = ref('')
+const submittingDesignerQuestion = ref('')
 const selectedProjectId = ref('')
 const designerWorkspaceKey = 'opencode-loopper.designer-workspace'
 const draftPromptKey = 'opencode-loopper.designer-draft-prompt'
@@ -66,7 +68,8 @@ const designerBadgeStatus = computed(() => {
 const designerSessionError = computed(() => designerSession.value?.state === 'SESSION_ERROR'
   ? [...messages.value].reverse().find((message) => message.deliveryState === 'SESSION_ERROR')
   : undefined)
-const designerIsThinking = computed(() => designerSession.value?.state === 'RUNNING' && !designerLiveResponse.value)
+const designerIsThinking = computed(() => designerSession.value?.state === 'RUNNING' && !designerLiveResponse.value
+  && (designerSession.value.pendingQuestions?.length ?? 0) === 0)
 const designerTransportLabel = computed(() => {
   if (designerStreamState.value === 'connected') return '实时通道已连接'
   if (designerStreamState.value === 'reconnecting') return '实时通道重连中'
@@ -164,6 +167,49 @@ function reconnectDesigner() {
   designerReconnecting.value = false
   startDesignerPolling()
   if (designerSession.value) startDesignerStream(designerSession.value.id)
+}
+
+async function answerDesignerQuestion(pending: TaskSessionPendingQuestion, answers: string[][]) {
+  if (!designerSession.value || submittingDesignerQuestion.value) return
+  submittingDesignerQuestion.value = pending.id
+  try {
+    await api.replyDesignerQuestion(designerSession.value.id, pending.id, answers)
+    designerSession.value = {
+      ...designerSession.value,
+      pendingQuestions: (designerSession.value.pendingQuestions ?? []).filter((question) => question.id !== pending.id),
+    }
+    designerRemoteState.value = 'RUNNING'
+    designerLiveDetail.value = '回答已提交，OpenCode Designer 继续生成设计稿'
+    ElMessage.success('回答已提交，Designer 继续执行')
+    await refreshDesignerSession()
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '回答提交失败')
+  } finally {
+    submittingDesignerQuestion.value = ''
+  }
+}
+
+async function rejectDesignerQuestion(pending: TaskSessionPendingQuestion) {
+  if (!designerSession.value || submittingDesignerQuestion.value) return
+  try {
+    await ElMessageBox.confirm('拒绝后，本次 question 工具调用会结束并把拒绝结果返回 Designer。', '拒绝这个问题？', { confirmButtonText: '确认拒绝', cancelButtonText: '返回回答', type: 'warning' })
+  } catch { return }
+  submittingDesignerQuestion.value = pending.id
+  try {
+    await api.rejectDesignerQuestion(designerSession.value.id, pending.id)
+    designerSession.value = {
+      ...designerSession.value,
+      pendingQuestions: (designerSession.value.pendingQuestions ?? []).filter((question) => question.id !== pending.id),
+    }
+    designerRemoteState.value = 'RUNNING'
+    designerLiveDetail.value = '问题已拒绝，OpenCode Designer 将自行处理'
+    ElMessage.success('问题已拒绝，Designer 继续执行')
+    await refreshDesignerSession()
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '拒绝操作失败')
+  } finally {
+    submittingDesignerQuestion.value = ''
+  }
 }
 
 function stopDesignerStream() {
@@ -474,7 +520,8 @@ async function sendMessage() {
         </div>
         <section v-if="designerSessionError" class="designer-session-alert" role="status" aria-live="polite"><Icon icon="lucide:refresh-cw" /><div><strong>Designer Session 已结束</strong><p>{{ designerSessionError.content }}</p><span class="tiny muted">只读设计会话受影响；Task 状态未改变。可重新发送，也可清理当前工作区后重新开始。</span><el-button class="restart-designer-inline" plain size="small" @click="restartDesigner"><Icon icon="lucide:rotate-ccw" />清理并重新开始</el-button></div></section>
         <section v-else-if="designerLiveError" class="designer-session-alert live-error" role="alert" aria-live="assertive"><Icon icon="lucide:triangle-alert" /><div><strong>OpenCode 实时错误</strong><p>{{ designerLiveError }}</p><span class="tiny muted">错误已从实时通道收到，正在同步持久化会话状态。</span></div></section>
-        <div class="chat-history">
+        <div class="designer-conversation">
+          <div class="chat-history">
           <article v-for="message in visibleMessages" :key="message.id" :class="['chat-message', `chat-${message.role.toLowerCase()}`]">
             <header class="chat-message-header">
               <span class="chat-author">
@@ -494,6 +541,14 @@ async function sendMessage() {
             <MarkdownDocument :content="designerLiveResponse" collapsible />
             <span v-if="designerSession?.state === 'RUNNING'" class="stream-caret" aria-hidden="true" />
           </article>
+          <PendingQuestionCard
+            v-for="pending in designerSession?.pendingQuestions ?? []"
+            :key="pending.id"
+            :pending="pending"
+            :submitting="submittingDesignerQuestion === pending.id"
+            @submit="(answers: string[][]) => answerDesignerQuestion(pending, answers)"
+            @reject="rejectDesignerQuestion(pending)"
+          />
           <article v-if="designerIsThinking" class="thinking-message" role="status" aria-live="polite" aria-label="Agent 正在思考，等待 AI 回复">
             <span class="thinking-orbit" aria-hidden="true"><span /></span>
             <div class="thinking-copy">
@@ -501,24 +556,25 @@ async function sendMessage() {
               <p>{{ designerReconnecting || designerStreamState === 'reconnecting' ? '连接暂时中断，正在恢复并继续等待真实回复。' : designerLiveDetail || 'OpenCode 已收到请求，等待首段模型回复。' }}</p>
             </div>
           </article>
-        </div>
-        <div class="chat-compose">
-          <div class="compose-heading"><label class="field-label" for="designer-message">继续补充设计要求</label><span class="tiny muted">自动暂存</span></div>
-          <el-input
-            id="designer-message"
-            v-model="userMessage"
-            class="designer-message-input"
-            type="textarea"
-            :rows="10"
-            maxlength="12000"
-            resize="vertical"
-            :disabled="designerSession?.state === 'RUNNING'"
-            :placeholder="designerSession?.state === 'RUNNING' ? 'Designer 正在处理上一条消息…' : '继续描述目标、约束、边界条件或验收标准…'"
-            aria-label="发送给只读 OpenCode Designer 的消息"
-            @keydown.meta.enter.prevent="sendMessage"
-            @keydown.ctrl.enter.prevent="sendMessage"
-          />
-          <div class="compose-actions"><span class="tiny muted">{{ designerSession?.state === 'RUNNING' ? '正在接收实时回复；断流后自动轮询恢复' : '⌘ / Ctrl + Enter 发送；发送失败会保留原文' }}</span><el-button type="primary" :loading="busy" :disabled="designerSession?.state === 'RUNNING' || !userMessage.trim()" @click="sendMessage"><Icon icon="lucide:send" />发送</el-button></div>
+          </div>
+          <div class="chat-compose">
+            <div class="compose-heading"><label class="field-label" for="designer-message">继续补充设计要求</label><span class="tiny muted">自动暂存</span></div>
+            <el-input
+              id="designer-message"
+              v-model="userMessage"
+              class="designer-message-input"
+              type="textarea"
+              :rows="10"
+              maxlength="12000"
+              resize="vertical"
+              :disabled="designerSession?.state === 'RUNNING'"
+              :placeholder="designerSession?.state === 'RUNNING' ? 'Designer 正在处理上一条消息…' : '继续描述目标、约束、边界条件或验收标准…'"
+              aria-label="发送给只读 OpenCode Designer 的消息"
+              @keydown.meta.enter.prevent="sendMessage"
+              @keydown.ctrl.enter.prevent="sendMessage"
+            />
+            <div class="compose-actions"><span class="tiny muted">{{ designerSession?.state === 'RUNNING' ? '正在接收实时回复；断流后自动轮询恢复' : '⌘ / Ctrl + Enter 发送；发送失败会保留原文' }}</span><el-button type="primary" :loading="busy" :disabled="designerSession?.state === 'RUNNING' || !userMessage.trim()" @click="sendMessage"><Icon icon="lucide:send" />发送</el-button></div>
+          </div>
         </div>
       </article>
       <article class="card spec-panel">
@@ -556,9 +612,10 @@ async function sendMessage() {
 .draft-save-state { display: inline-flex; align-items: center; gap: 7px; color: var(--color-text-muted); font-size: 10px; }
 .draft-save-state svg { color: var(--color-success); }
 .create-draft-button { min-width: 154px; }
-.designer-layout { display: grid; grid-template-columns: minmax(460px, 1.12fr) minmax(500px, .88fr); gap: 18px; }
-.designer-chat, .spec-panel { min-width: 0; min-height: 820px; }
-.designer-chat { display: flex; flex-direction: column; }
+.designer-layout { display: grid; align-items: start; grid-template-columns: minmax(460px, 1.12fr) minmax(500px, .88fr); gap: 18px; }
+.designer-chat, .spec-panel { min-width: 0; }
+.designer-chat { display: flex; align-self: start; flex-direction: column; min-height: 0; }
+.spec-panel { min-height: 820px; }
 .designer-connection-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; margin: -4px 20px 10px; padding: 9px 11px; border: 1px solid rgb(71 85 105 / 42%); border-radius: 9px; color: var(--color-text-muted); background: rgb(2 6 23 / 30%); font: 9px/1.3 var(--font-code); }
 .designer-connection-strip span { display: inline-flex; align-items: center; gap: 6px; }
 .designer-connection-strip time { margin-left: auto; color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
@@ -566,7 +623,8 @@ async function sendMessage() {
 .connection-dot.connecting { animation: live-pulse 1.2s ease-in-out infinite; }
 .connection-dot.connected { background: var(--color-success); box-shadow: 0 0 9px rgb(34 197 94 / 60%); }
 .connection-dot.reconnecting, .connection-dot.error { background: var(--color-session-warning); box-shadow: 0 0 9px rgb(245 158 11 / 45%); }
-.chat-history { flex: 1; min-height: 300px; padding: 0 20px 22px; overflow: auto; }
+.designer-conversation { display: flex; flex-direction: column; min-height: 0; }
+.chat-history { min-height: 0; padding: 0 20px 22px; }
 .chat-message { margin: 14px 0; padding: 13px 14px; border: 1px solid var(--color-border-default); border-radius: 12px; background: rgb(7 11 20 / 45%); }
 .chat-message-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 10px; }
 .chat-author { display: flex; align-items: center; gap: 9px; min-width: 0; }
@@ -622,7 +680,7 @@ async function sendMessage() {
   .draft-start-grid { grid-template-columns: 1fr; gap: 28px; }
   .draft-start-copy h2, .draft-start-copy > p:not(.eyebrow), .draft-safety-note { max-width: 680px; }
   .designer-layout { grid-template-columns: 1fr; }
-  .designer-chat, .spec-panel { min-height: 720px; }
+  .spec-panel { min-height: 720px; }
 }
 
 @media (max-width: 680px) {

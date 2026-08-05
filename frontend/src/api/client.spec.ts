@@ -103,18 +103,37 @@ describe('Loopper REST contract adapter', () => {
   it('uses persisted verification and error field names from TaskController', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({
       id: 'task-1', projectId: 'project-1', projectName: 'Project', title: 'Task', goal: 'Goal', branch: 'loopper/task-1', worktreePath: '/tmp/task',
-      status: 'RUNNING', attemptCount: 1, maxAttempts: 12, createdAt: 'start', updatedAt: 'now', stages: [],
-      attempts: [{ id: 'attempt-1', stageId: 'stage-1', ordinal: 1, status: 'RUNNING', summary: 'running', startedAt: 'start', verifications: [{ id: 'verification-1', type: 'PROCESS', status: 'PASS', summary: 'ok', evidence: { exitCode: 0 }, at: 'now' }] }],
+      status: 'RUNNING', hasDesignHistory: true, attemptCount: 1, maxAttempts: 12, createdAt: 'start', updatedAt: 'now', stages: [],
+      attempts: [{ id: 'attempt-1', stageId: 'stage-1', ordinal: 1, status: 'RUNNING', summary: 'running', startedAt: 'start', verifications: [{ id: 'verification-1', type: 'PROCESS', status: 'PASS', summary: 'ok', evidence: { argv: ['mvn', 'test'], exitCode: 0, output: 'BUILD SUCCESS' }, at: 'now' }] }],
       errors: [{ id: 'error-1', layer: 'SESSION', code: 'DISCONNECTED', message: 'reconnect', retryable: true, at: 'now' }],
       judges: [{ id: 'judge-1', role: 'RISK', ordinal: 1, status: 'COMPLETED', verdict: 'PASS', reason: 'No unsafe diff', createdAt: 'now', endedAt: 'later' }],
       artifacts: [{ id: 'artifact-1', kind: 'GIT_DIFF', name: 'worktree.diff', contentType: 'text/plain', content: 'diff', metadata: { available: true }, createdAt: 'now' }],
     })))
 
     const task = await api.getTask('task-1')
-    expect(task.attempts?.[0]?.verifiers).toMatchObject([{ id: 'verification-1', name: 'PROCESS', status: 'PASS' }])
+    expect(task.attempts?.[0]?.verifiers).toMatchObject([{ id: 'verification-1', name: 'PROCESS', status: 'PASS', output: 'BUILD SUCCESS', evidence: { argv: ['mvn', 'test'], exitCode: 0 } }])
     expect(task.errors?.[0]).toMatchObject({ layer: 'SESSION', occurredAt: 'now' })
     expect(task.judges?.[0]).toMatchObject({ role: 'RISK', verdict: 'PASS' })
     expect(task.artifacts?.[0]).toMatchObject({ kind: 'DIFF', title: 'worktree.diff', content: 'diff' })
+    expect(task.hasDesignHistory).toBe(true)
+  })
+
+  it('loads persisted task design history without opening a live Designer session', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(json({
+      taskId: 'task-1', taskTitle: 'Durable history', projectName: 'Project',
+      draft: { id: 'draft-1', status: 'CONFIRMED', updatedAt: 'now', spec },
+      designerSession: {
+        id: 'designer-1', state: 'COMPLETED', accessMode: 'READ_ONLY', createdAt: 'start', updatedAt: 'now',
+        messages: [{ id: 'message-1', ordinal: 1, role: 'USER', content: 'Original requirement', deliveryState: 'PERSISTED', createdAt: 'start' }],
+      },
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(api.getTaskDesignHistory('task 1')).resolves.toMatchObject({
+      taskId: 'task-1', draft: { id: 'draft-1', status: 'CONFIRMED', spec: { goal: 'Verify the contract' } },
+      designerSession: { id: 'designer-1', state: 'COMPLETED', messages: [{ role: 'USER', content: 'Original requirement' }] },
+    })
+    expect(fetchMock).toHaveBeenCalledWith('/api/tasks/task%201/design-history', expect.any(Object))
   })
 
   it('does not render a terminal Task attempt as still running', async () => {
@@ -175,16 +194,27 @@ describe('Loopper REST contract adapter', () => {
       .mockResolvedValueOnce(json({
         id: 'designer-1', projectId: 'project-1', state: 'RUNNING', accessMode: 'READ_ONLY', readOnly: true,
         updatedAt: 'now', messages: [{ id: 'user-1', role: 'USER', content: 'plan', deliveryState: 'PERSISTED', createdAt: 'now' }],
+        pendingQuestions: [{ id: 'question-1', questions: [{ question: 'Which scope?', header: 'Scope', options: [{ label: 'New chain', description: 'Add it' }], multiple: false, custom: false }] }],
       }))
       .mockResolvedValueOnce(json({
         sessionId: 'designer-1', state: 'SESSION_ERROR', notice: 'retry with a fresh session',
         persistedMessages: [{ id: 'error-1', role: 'SYSTEM', content: 'transport failed', deliveryState: 'SESSION_ERROR', createdAt: 'later' }],
       }, 202))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(api.getDesignerSession('designer-1')).resolves.toMatchObject({ state: 'RUNNING', updatedAt: 'now' })
+    await expect(api.getDesignerSession('designer-1')).resolves.toMatchObject({
+      state: 'RUNNING', updatedAt: 'now', pendingQuestions: [{ id: 'question-1', questions: [{ custom: false }] }],
+    })
     await expect(api.sendDesignerMessage('designer-1', 'continue')).resolves.toMatchObject({
       state: 'SESSION_ERROR', persistedMessages: [{ deliveryState: 'SESSION_ERROR' }],
     })
+    await expect(api.replyDesignerQuestion('designer-1', 'question-1', [['New chain']])).resolves.toBeUndefined()
+    await expect(api.rejectDesignerQuestion('designer-1', 'question-2')).resolves.toBeUndefined()
+    expect(fetchMock).toHaveBeenNthCalledWith(3, '/api/designer-sessions/designer-1/questions/question-1/reply', expect.objectContaining({
+      method: 'POST', body: JSON.stringify({ answers: [['New chain']] }),
+    }))
+    expect(fetchMock).toHaveBeenNthCalledWith(4, '/api/designer-sessions/designer-1/questions/question-2/reject', expect.objectContaining({ method: 'POST' }))
   })
 })

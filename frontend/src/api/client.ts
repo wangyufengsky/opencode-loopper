@@ -1,4 +1,4 @@
-import type { AppSettings, Artifact, Attempt, AvailableModel, DesignerAppendResult, DesignerMessage, DesignerSession, DesignerSessionState, DesignerStreamEvent, DirectorySelection, ErrorEvent, JudgeRun, LoopDraft, LoopSpec, LoopVerifierSpec, Project, ProjectConventionDraft, RuntimeInfo, Stage, Task, TaskEvent, TaskSessionActivity, TaskSessionActivityPart, TaskSessionPendingQuestion, TaskSessionSummary } from '@/types/domain'
+import type { AppSettings, Artifact, Attempt, AvailableModel, DesignerAppendResult, DesignerMessage, DesignerSession, DesignerSessionState, DesignerStreamEvent, DirectorySelection, ErrorEvent, JudgeRun, LoopDraft, LoopSpec, LoopVerifierSpec, Project, ProjectConventionDraft, ProjectConventionSnapshot, RuntimeInfo, Stage, Task, TaskDesignHistory, TaskEvent, TaskSessionActivity, TaskSessionActivityPart, TaskSessionPendingQuestion, TaskSessionSummary } from '@/types/domain'
 
 const apiBase = import.meta.env.VITE_API_BASE ?? '/api'
 
@@ -87,6 +87,16 @@ function normalizeProjectConvention(value: unknown): ProjectConventionDraft {
   }
 }
 
+function normalizeProjectConventionSnapshot(value: unknown): ProjectConventionSnapshot {
+  const raw = asRecord(value)
+  return {
+    projectId: asString(raw.projectId),
+    exists: raw.exists === true,
+    loopperManaged: raw.loopperManaged === true,
+    content: asString(raw.content),
+  }
+}
+
 function normalizeError(value: unknown): ErrorEvent {
   const raw = asRecord(value)
   const layer = asString(raw.layer)
@@ -118,11 +128,14 @@ function normalizeAttempt(value: unknown): Attempt {
     verifiers: verifications.map((verifier) => {
       const item = asRecord(verifier)
       const evidence = item.evidence
+      const evidenceRecord = asRecord(evidence)
       return {
         id: asString(item.id), name: asString(item.name) || asString(item.type),
         status: asString(item.status) === 'PASS' ? 'PASS' : asString(item.status) === 'FAIL' || asString(item.status) === 'ERROR' ? 'FAIL' : 'PENDING',
-        summary: asString(item.summary), output: typeof evidence === 'string' ? evidence : asString(item.output) || undefined,
-        elapsedMs: asNumber(item.elapsedMs) || undefined,
+        summary: asString(item.summary),
+        output: typeof evidence === 'string' ? evidence : asString(evidenceRecord.output) || asString(item.output) || undefined,
+        evidence: Object.keys(evidenceRecord).length ? evidenceRecord : undefined,
+        elapsedMs: asNumber(item.elapsedMs) || asNumber(evidenceRecord.elapsedMs) || undefined,
       }
     }),
   }
@@ -183,7 +196,26 @@ function normalizeTask(value: unknown): Task {
   const attempts = asArray(raw.attempts).map(normalizeAttempt)
   const stages = asArray(raw.stages).map((stage) => normalizeStage(stage, attempts))
   const taskId = asString(raw.id)
-  return { id: taskId, projectId: asString(raw.projectId), projectName: asString(raw.projectName, 'Unknown project'), title: asString(raw.title), goal: asString(raw.goal), branch: asString(raw.branch) || '等待选择执行模式', worktreePath: asString(raw.worktreePath) || '等待准备执行目录', status: asString(raw.status) as Task['status'], activeStage: stages.find((stage) => stage.status === 'RUNNING')?.ordinal, attemptCount: asNumber(raw.attemptCount, attempts.length), maxAttempts: asNumber(raw.maxAttempts, 12), createdAt: asString(raw.createdAt), updatedAt: asString(raw.updatedAt), stages, attempts, errors: asArray(raw.errors).map(normalizeError), judges: asArray(raw.judges).map(normalizeJudge), artifacts: asArray(raw.artifacts).map((artifact) => normalizeArtifact(artifact, taskId)) }
+  return { id: taskId, projectId: asString(raw.projectId), projectName: asString(raw.projectName, 'Unknown project'), title: asString(raw.title), goal: asString(raw.goal), branch: asString(raw.branch) || '等待选择执行模式', worktreePath: asString(raw.worktreePath) || '等待准备执行目录', status: asString(raw.status) as Task['status'], hasDesignHistory: raw.hasDesignHistory === true, activeStage: stages.find((stage) => stage.status === 'RUNNING')?.ordinal, attemptCount: asNumber(raw.attemptCount, attempts.length), maxAttempts: asNumber(raw.maxAttempts, 12), createdAt: asString(raw.createdAt), updatedAt: asString(raw.updatedAt), stages, attempts, errors: asArray(raw.errors).map(normalizeError), judges: asArray(raw.judges).map(normalizeJudge), artifacts: asArray(raw.artifacts).map((artifact) => normalizeArtifact(artifact, taskId)) }
+}
+
+function normalizeTaskDesignHistory(value: unknown): TaskDesignHistory {
+  const raw = asRecord(value)
+  const session = asRecord(raw.designerSession)
+  return {
+    taskId: asString(raw.taskId),
+    taskTitle: asString(raw.taskTitle),
+    projectName: asString(raw.projectName, 'Unknown project'),
+    draft: normalizeDraft(raw.draft),
+    designerSession: raw.designerSession ? {
+      id: asString(session.id),
+      state: normalizeDesignerState(session.state),
+      accessMode: 'READ_ONLY',
+      createdAt: asString(session.createdAt),
+      updatedAt: asString(session.updatedAt),
+      messages: asArray(session.messages).map(normalizeDesignerMessage),
+    } : undefined,
+  }
 }
 
 function normalizeTaskSession(value: unknown): TaskSessionSummary {
@@ -329,6 +361,7 @@ function normalizeDesignerSession(value: unknown): DesignerSession {
     updatedAt: asString(raw.updatedAt) || undefined,
     draft: raw.draft ? normalizeDraft(raw.draft) : undefined,
     messages: asArray(raw.messages).map(normalizeDesignerMessage),
+    pendingQuestions: asArray(raw.pendingQuestions).map(normalizeTaskSessionQuestion),
   }
 }
 
@@ -389,11 +422,14 @@ export const api = {
     return { selected: raw.selected === true, path: asString(raw.path) || undefined, name: asString(raw.name) || undefined }
   },
   createProject: async (input: Pick<Project, 'name' | 'rootPath' | 'description'>) => normalizeProject(await request<unknown>('/projects', { method: 'POST', body: JSON.stringify({ name: input.name, rootPath: input.rootPath }) })),
+  cancelProjectManagement: async (projectId: string) => request<void>(`/projects/${encodeURIComponent(projectId)}`, { method: 'DELETE', headers: { 'X-Loopper-Local-UI': '1' } }),
+  getCurrentProjectConvention: async (projectId: string) => normalizeProjectConventionSnapshot(await request<unknown>(`/projects/${encodeURIComponent(projectId)}/agents-md`)),
   generateProjectConvention: async (projectId: string) => normalizeProjectConvention(await request<unknown>(`/projects/${encodeURIComponent(projectId)}/agents-md`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } })),
-  getProjectConvention: async (projectId: string, draftId: string) => normalizeProjectConvention(await request<unknown>(`/projects/${encodeURIComponent(projectId)}/agents-md/${encodeURIComponent(draftId)}`)),
+  getProjectConventionDraft: async (projectId: string, draftId: string) => normalizeProjectConvention(await request<unknown>(`/projects/${encodeURIComponent(projectId)}/agents-md/${encodeURIComponent(draftId)}`)),
   applyProjectConvention: async (projectId: string, draftId: string) => normalizeProjectConvention(await request<unknown>(`/projects/${encodeURIComponent(projectId)}/agents-md/${encodeURIComponent(draftId)}`, { method: 'PUT', headers: { 'X-Loopper-Local-UI': '1' } })),
   getTasks: async () => (await request<unknown[]>('/tasks')).map(normalizeTask),
   getTask: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}`)),
+  getTaskDesignHistory: async (id: string) => normalizeTaskDesignHistory(await request<unknown>(`/tasks/${encodeURIComponent(id)}/design-history`)),
   getTaskSessions: async (id: string) => (await request<unknown[]>(`/tasks/${encodeURIComponent(id)}/sessions`)).map(normalizeTaskSession),
   getTaskSessionActivity: async (taskId: string, sessionKey: string) => normalizeTaskSessionActivity(await request<unknown>(`/tasks/${encodeURIComponent(taskId)}/sessions/${encodeURIComponent(sessionKey)}`)),
   replyTaskSessionQuestion: async (taskId: string, sessionKey: string, questionId: string, answers: string[][]) => request<void>(`/tasks/${encodeURIComponent(taskId)}/sessions/${encodeURIComponent(sessionKey)}/questions/${encodeURIComponent(questionId)}/reply`, { method: 'POST', body: JSON.stringify({ answers }) }),
@@ -414,6 +450,8 @@ export const api = {
   createDesignerSession: async (projectId: string, draftId: string, initialMessage?: string) => normalizeDesignerSession(await request<unknown>('/designer-sessions', { method: 'POST', body: JSON.stringify({ projectId, draftId, ...(initialMessage ? { initialMessage } : {}) }) })),
   getDesignerSession: async (id: string) => normalizeDesignerSession(await request<unknown>(`/designer-sessions/${encodeURIComponent(id)}`)),
   getDesignerMessages: async (id: string) => (await request<unknown[]>(`/designer-sessions/${encodeURIComponent(id)}/messages`)).map(normalizeDesignerMessage),
+  replyDesignerQuestion: async (id: string, questionId: string, answers: string[][]) => request<void>(`/designer-sessions/${encodeURIComponent(id)}/questions/${encodeURIComponent(questionId)}/reply`, { method: 'POST', body: JSON.stringify({ answers }) }),
+  rejectDesignerQuestion: async (id: string, questionId: string) => request<void>(`/designer-sessions/${encodeURIComponent(id)}/questions/${encodeURIComponent(questionId)}/reject`, { method: 'POST' }),
   sendDesignerMessage: async (id: string, content: string): Promise<DesignerAppendResult> => {
     const raw = asRecord(await request<unknown>(`/designer-sessions/${encodeURIComponent(id)}/messages`, { method: 'POST', body: JSON.stringify({ content }) }))
     return {

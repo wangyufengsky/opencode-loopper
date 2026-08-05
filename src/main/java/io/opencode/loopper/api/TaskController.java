@@ -1,6 +1,8 @@
 package io.opencode.loopper.api;
 
 import io.opencode.loopper.persistence.AttemptRow;
+import io.opencode.loopper.persistence.DesignerMessageRow;
+import io.opencode.loopper.persistence.DesignerSessionRow;
 import io.opencode.loopper.persistence.ErrorEventRow;
 import io.opencode.loopper.persistence.JudgeRunRow;
 import io.opencode.loopper.persistence.LoopDraftRow;
@@ -41,6 +43,23 @@ public class TaskController {
     public TaskController(TaskService service, LoopperMapper mapper, TaskEventHub events, ObjectMapper json, LoopDraftService drafts) { this.service = service; this.mapper = mapper; this.events = events; this.json = json; this.drafts = drafts; }
     @GetMapping public List<TaskDto> list() { return service.list().stream().map(this::dto).toList(); }
     @GetMapping("/{id}") public TaskDto get(@PathVariable String id) { return dto(service.get(id)); }
+    @GetMapping("/{id}/design-history")
+    public TaskDesignHistoryDto designHistory(@PathVariable String id) {
+        TaskRow task = service.get(id);
+        if (task.loopDraftId() == null || task.loopDraftId().isBlank()) {
+            throw new io.opencode.loopper.service.NotFoundException("Task has no persisted LoopSpec history: " + id);
+        }
+        LoopDraftRow draft = mapper.findDraft(task.loopDraftId())
+                .orElseThrow(() -> new io.opencode.loopper.service.NotFoundException("LoopSpec history not found for task: " + id));
+        DesignerSessionRow session = mapper.findLatestDesignerSessionByDraft(draft.id()).orElse(null);
+        List<DesignerHistoryMessageDto> messages = session == null ? List.of() : mapper.listDesignerMessages(session.id()).stream()
+                .map(this::designerHistoryMessage).toList();
+        String projectName = mapper.findProject(task.projectId()).map(p -> p.name()).orElse("Unknown project");
+        return new TaskDesignHistoryDto(task.id(), task.title(), projectName,
+                new TaskLoopDraftDto(draft.id(), draft.status(), draft.updatedAt(), drafts.spec(draft)),
+                session == null ? null : new DesignerHistorySessionDto(session.id(), session.state(), session.accessMode(),
+                        session.createdAt(), session.updatedAt(), messages));
+    }
     @PostMapping("/{id}/start") public TaskDto start(@PathVariable String id) { return dto(service.start(id)); }
     @PostMapping("/{id}/verify") public TaskDto verify(@PathVariable String id) { return dto(service.verify(id)); }
     @PostMapping("/{id}/pause") public TaskDto pause(@PathVariable String id) { return dto(service.pause(id)); }
@@ -82,15 +101,23 @@ public class TaskController {
         LoopSpec spec = draft == null ? null : drafts.spec(draft);
         List<AttemptRow> attempts = service.attempts(task.id());
         return new TaskDto(task.id(), task.projectId(), projectName, task.title(), spec == null ? "" : spec.goal(), task.branchName(), task.worktreePath(), task.state(),
+                draft != null,
                 attempts.size(), spec == null ? 0 : spec.limits().maxTaskAttempts(), task.createdAt(), task.updatedAt(),
                 service.stages(task.id()).stream().map(this::stage).toList(), attempts.stream().map(this::attempt).toList(), service.errors(task.id()).stream().map(this::error).toList(),
                 service.judges(task.id()).stream().map(this::judge).toList(), service.artifacts(task.id()).stream().map(this::artifact).toList());
     }
     public record SseData(String type, String at, JsonNode data) { }
     public record TaskDto(String id, String projectId, String projectName, String title, String goal, String branch,
-                          String worktreePath, String status, int attemptCount, int maxAttempts, String createdAt,
+                          String worktreePath, String status, boolean hasDesignHistory, int attemptCount, int maxAttempts, String createdAt,
                           String updatedAt, List<StageDto> stages, List<AttemptDto> attempts, List<ErrorDto> errors,
                           List<JudgeDto> judges, List<ArtifactDto> artifacts) { }
+    public record TaskDesignHistoryDto(String taskId, String taskTitle, String projectName, TaskLoopDraftDto draft,
+                                       DesignerHistorySessionDto designerSession) { }
+    public record TaskLoopDraftDto(String id, String status, String updatedAt, LoopSpec spec) { }
+    public record DesignerHistorySessionDto(String id, String state, String accessMode, String createdAt,
+                                             String updatedAt, List<DesignerHistoryMessageDto> messages) { }
+    public record DesignerHistoryMessageDto(String id, int ordinal, String role, String content,
+                                             String deliveryState, String createdAt) { }
     public record StageDto(String id, int ordinal, String objective, String status, JsonNode allowedPaths, JsonNode forbiddenPaths,
                            JsonNode deliverables, JsonNode verifiers, String startedAt, String updatedAt) { }
     public record AttemptDto(String id, String stageId, int ordinal, String sessionId, String status, String failureKind, String summary,
@@ -111,6 +138,9 @@ public class TaskController {
     }
     private VerificationDto verification(VerificationResultRow row) { return new VerificationDto(row.id(), row.verifierIndex(), row.type(), row.state(), row.summary(), node(row.evidenceJson()), row.createdAt()); }
     private ErrorDto error(ErrorEventRow row) { return new ErrorDto(row.id(), row.layer(), row.code(), row.message(), row.retryable(), row.stageId(), row.attemptId(), row.sessionId(), row.occurredAt(), node(row.evidenceJson())); }
+    private DesignerHistoryMessageDto designerHistoryMessage(DesignerMessageRow row) {
+        return new DesignerHistoryMessageDto(row.id(), row.ordinal(), row.role(), row.content(), row.deliveryState(), row.createdAt());
+    }
     private JudgeDto judge(JudgeRunRow row) { return new JudgeDto(row.id(), row.role(), row.ordinal(), row.state(), row.verdict(), row.reason(), row.externalSessionId(), row.rawOutput(), row.createdAt(), row.endedAt()); }
     private ArtifactDto artifact(TaskArtifactRow row) { return new ArtifactDto(row.id(), row.kind(), row.name(), row.contentType(), row.content(), node(row.metadataJson()), row.attemptId(), row.judgeRunId(), row.createdAt()); }
     private JsonNode node(String source) { try { return source == null ? json.createObjectNode() : json.readTree(source); } catch (Exception e) { return json.createObjectNode().put("unreadable", true); } }

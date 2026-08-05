@@ -77,6 +77,23 @@ class ProjectConventionServiceTest {
     }
 
     @Test
+    void readsCurrentConventionWithoutStartingAnAiSession() throws Exception {
+        Path root = Files.createDirectory(temp.resolve("read-current"));
+        ProjectRow project = projects.create("read-current", root.toString());
+
+        ProjectConventionService.CurrentConvention missing = conventions.current(project.id());
+        assertThat(missing.exists()).isFalse();
+        assertThat(missing.content()).isEmpty();
+
+        Files.writeString(root.resolve("AGENTS.md"), "# Human rules\n");
+        ProjectConventionService.CurrentConvention current = conventions.current(project.id());
+        assertThat(current.exists()).isTrue();
+        assertThat(current.loopperManaged()).isFalse();
+        assertThat(current.content()).isEqualTo("# Human rules\n");
+        assertThat(conventions.current(project.id()).content()).isEqualTo("# Human rules\n");
+    }
+
+    @Test
     void preservesHumanContentAndReplacesOnlyTheSingleManagedBlock() throws Exception {
         Path root = Files.createDirectory(temp.resolve("existing-project"));
         Path agents = root.resolve("AGENTS.md");

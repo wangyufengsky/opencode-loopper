@@ -48,7 +48,18 @@ public class ProjectController {
                 .orElseGet(() -> new DirectorySelectionDto(false, null, null));
     }
     @PutMapping("/{id}") public ProjectDto rename(@PathVariable String id, @Valid @RequestBody RenameProjectRequest request) { return dto(service.rename(id, request.name())); }
-    @DeleteMapping("/{id}") public ResponseEntity<Void> delete(@PathVariable String id) { service.delete(id); return ResponseEntity.noContent().build(); }
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> cancelManagement(@PathVariable String id,
+                                                 @RequestHeader("X-Loopper-Local-UI") String localUi) {
+        requireLocalUi(localUi);
+        service.cancelManagement(id);
+        return ResponseEntity.noContent().build();
+    }
+    @GetMapping("/{id}/agents-md")
+    public CurrentProjectConventionDto currentConvention(@PathVariable String id) {
+        ProjectConventionService.CurrentConvention current = conventions.current(id);
+        return new CurrentProjectConventionDto(current.projectId(), current.exists(), current.loopperManaged(), current.content());
+    }
     @PostMapping("/{id}/agents-md")
     public ResponseEntity<ProjectConventionDto> generateConvention(@PathVariable String id,
                                                                     @RequestHeader("X-Loopper-Local-UI") String localUi) {
@@ -70,6 +81,7 @@ public class ProjectController {
     public record DirectorySelectionDto(boolean selected, String path, String name) { }
     public record ProjectConventionDto(String id, String projectId, String state, String operation,
                                        boolean readOnlyGeneration, String content, String error, String updatedAt) { }
+    public record CurrentProjectConventionDto(String projectId, boolean exists, boolean loopperManaged, String content) { }
     private String directoryName(String path) { Path fileName = Path.of(path).getFileName(); return fileName == null ? path : fileName.toString(); }
     private ProjectDto dto(ProjectRow row) { return new ProjectDto(row.id(), row.name(), row.rootPath(), "READY", null, null, row.updatedAt(), service.taskCount(row.id())); }
     private ProjectConventionDto conventionDto(ProjectConventionDraftRow row) {

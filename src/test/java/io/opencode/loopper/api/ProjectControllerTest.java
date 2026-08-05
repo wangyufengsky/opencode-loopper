@@ -4,6 +4,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -11,6 +13,7 @@ import io.opencode.loopper.service.DirectoryPickerService;
 import io.opencode.loopper.service.ProjectConventionService;
 import io.opencode.loopper.service.ProjectService;
 import io.opencode.loopper.persistence.ProjectConventionDraftRow;
+import io.opencode.loopper.service.ProjectConventionService.CurrentConvention;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
@@ -60,6 +63,26 @@ class ProjectControllerTest {
                 .andExpect(jsonPath("$.operation").value("CREATE"))
                 .andExpect(jsonPath("$.readOnlyGeneration").value(true));
         mvc.perform(post("/api/projects/project-1/agents-md"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void readsTheCurrentConventionWithoutStartingAi() throws Exception {
+        when(conventions.current("project-1"))
+                .thenReturn(new CurrentConvention("project-1", true, true, "# Current rules\n"));
+
+        mvc.perform(get("/api/projects/project-1/agents-md"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.exists").value(true))
+                .andExpect(jsonPath("$.loopperManaged").value(true))
+                .andExpect(jsonPath("$.content").value("# Current rules\n"));
+    }
+
+    @Test
+    void cancelsManagementOnlyFromTheLocalUi() throws Exception {
+        mvc.perform(delete("/api/projects/project-1").header("X-Loopper-Local-UI", "1"))
+                .andExpect(status().isNoContent());
+        mvc.perform(delete("/api/projects/project-1"))
                 .andExpect(status().isBadRequest());
     }
 
