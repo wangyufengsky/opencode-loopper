@@ -102,10 +102,10 @@ class HttpOpenCodeClientTest {
         OpenCodeClient.OpenCodeSession session = client.createSession(worktree, "monitor", null);
         messageBody.set("["
                 + "{\"info\":{\"role\":\"user\"},\"parts\":[{\"type\":\"text\",\"text\":\"prompt\"}]},"
-                + "{\"info\":{\"role\":\"assistant\"},\"parts\":["
-                + "{\"id\":\"reason-1\",\"type\":\"reasoning\",\"text\":\"Inspecting the project\"},"
-                + "{\"id\":\"tool-1\",\"type\":\"tool\",\"tool\":\"read\",\"state\":{\"status\":\"completed\",\"title\":\"Read pom.xml\"}},"
-                + "{\"id\":\"text-1\",\"type\":\"text\",\"text\":\"Implementation is in progress\"}]}]");
+                + "{\"info\":{\"role\":\"assistant\",\"time\":{\"created\":1785836900057}},\"parts\":["
+                + "{\"id\":\"reason-1\",\"type\":\"reasoning\",\"text\":\"Inspecting the project\",\"time\":{\"start\":1785836901408}},"
+                + "{\"id\":\"tool-1\",\"type\":\"tool\",\"tool\":\"read\",\"state\":{\"status\":\"completed\",\"title\":\"Read pom.xml\",\"time\":{\"start\":1785836902020}}},"
+                + "{\"id\":\"text-1\",\"type\":\"text\",\"text\":\"Implementation is in progress\",\"time\":{\"start\":1785836902100}}]}]");
 
         OpenCodeClient.SessionTranscript transcript = client.sessionTranscript(session);
 
@@ -114,6 +114,8 @@ class HttpOpenCodeClientTest {
         assertThat(transcript.parts().get(0).content()).isEqualTo("Inspecting the project");
         assertThat(transcript.parts().get(1).label()).isEqualTo("read");
         assertThat(transcript.parts().get(2).content()).isEqualTo("Implementation is in progress");
+        assertThat(transcript.parts()).extracting(OpenCodeClient.SessionPart::startedAt)
+                .containsExactly("2026-08-04T09:48:21.408Z", "2026-08-04T09:48:22.020Z", "2026-08-04T09:48:22.100Z");
     }
 
     @Test

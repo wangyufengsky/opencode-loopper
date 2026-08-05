@@ -117,13 +117,13 @@ describe('Loopper REST contract adapter', () => {
       .mockResolvedValueOnce(json({
         session: { key: 'execution:local-1', kind: 'IMPLEMENTATION', label: 'Implementation Session', localSessionId: 'local-1', externalSessionId: 'remote-1', state: 'RUNNING', createdAt: 'now' },
         remoteState: 'busy', live: true, observedAt: 'later',
-        parts: [{ id: 'reason-1', type: 'THINKING', label: 'Thinking', content: 'Inspecting files', status: 'running' }, { id: 'text-1', type: 'OUTPUT', label: '模型输出', content: 'Implementing now' }],
+        parts: [{ id: 'reason-1', type: 'THINKING', label: 'Thinking', content: 'Inspecting files', status: 'running', startedAt: '2026-08-04T08:00:01Z' }, { id: 'text-1', type: 'OUTPUT', label: '模型输出', content: 'Implementing now' }],
       }))
     vi.stubGlobal('fetch', fetchMock)
 
     await expect(api.getTaskSessions('task-1')).resolves.toMatchObject([{ key: 'execution:local-1', state: 'RUNNING' }])
     await expect(api.getTaskSessionActivity('task-1', 'execution:local-1')).resolves.toMatchObject({
-      live: true, remoteState: 'busy', parts: [{ type: 'THINKING', content: 'Inspecting files' }, { type: 'OUTPUT', content: 'Implementing now' }],
+      live: true, remoteState: 'busy', parts: [{ type: 'THINKING', content: 'Inspecting files', startedAt: '2026-08-04T08:00:01Z' }, { type: 'OUTPUT', content: 'Implementing now' }],
     })
     expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/tasks/task-1/sessions/execution%3Alocal-1')
   })

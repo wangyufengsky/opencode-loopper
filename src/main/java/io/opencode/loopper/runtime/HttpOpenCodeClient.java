@@ -156,12 +156,12 @@ public class HttpOpenCodeClient implements OpenCodeClient {
                 if (parts.isArray()) {
                     int partIndex = 0;
                     for (JsonNode part : parts) {
-                        SessionPart parsed = monitorPart(part, messageIndex, partIndex++);
+                        SessionPart parsed = monitorPart(part, message, messageIndex, partIndex++);
                         if (parsed != null && result.size() < 200) result.add(parsed);
                     }
                 } else if (message.hasNonNull("text")) {
                     result.add(new SessionPart("message-" + messageIndex, "OUTPUT", "模型输出",
-                            bounded(message.path("text").asText()), null));
+                            bounded(message.path("text").asText()), null, startedAt(message.path("info").path("time").path("created"))));
                 }
                 messageIndex++;
             }
@@ -170,23 +170,38 @@ public class HttpOpenCodeClient implements OpenCodeClient {
         catch (RuntimeException e) { throw new SessionFailure("OPENCODE_TRANSCRIPT_FAILED", e.getMessage()); }
     }
 
-    private SessionPart monitorPart(JsonNode part, int messageIndex, int partIndex) {
+    private SessionPart monitorPart(JsonNode part, JsonNode message, int messageIndex, int partIndex) {
         String sourceType = part.path("type").asText("").toLowerCase();
         String id = part.path("id").asText("message-" + messageIndex + "-part-" + partIndex);
+        String startedAt = startedAt(part.path("time").path("start"), part.path("state").path("time").path("start"),
+                message.path("info").path("time").path("created"));
         if ("text".equals(sourceType)) {
             String content = bounded(part.path("text").asText(""));
-            return content.isBlank() ? null : new SessionPart(id, "OUTPUT", "模型输出", content, null);
+            return content.isBlank() ? null : new SessionPart(id, "OUTPUT", "模型输出", content, null, startedAt);
         }
         if ("reasoning".equals(sourceType) || "thinking".equals(sourceType)) {
             String content = firstText(part.path("text"), part.path("content"), part.path("reasoning"));
-            return content.isBlank() ? null : new SessionPart(id, "THINKING", "Thinking", bounded(content), part.path("state").asText(null));
+            return content.isBlank() ? null : new SessionPart(id, "THINKING", "Thinking", bounded(content), part.path("state").asText(null), startedAt);
         }
         if ("tool".equals(sourceType) || "tool-call".equals(sourceType) || "tool_invocation".equals(sourceType)) {
             JsonNode state = part.path("state");
             String label = firstText(part.path("tool"), part.path("name"), state.path("title"));
             String content = firstText(state.path("output"), state.path("title"), part.path("text"));
             String status = firstText(state.path("status"), part.path("status"));
-            return new SessionPart(id, "TOOL", label.isBlank() ? "工具调用" : bounded(label), bounded(content), bounded(status));
+            return new SessionPart(id, "TOOL", label.isBlank() ? "工具调用" : bounded(label), bounded(content), bounded(status), startedAt);
+        }
+        return null;
+    }
+
+    private String startedAt(JsonNode... candidates) {
+        for (JsonNode candidate : candidates) {
+            if (candidate == null || candidate.isMissingNode() || candidate.isNull()) continue;
+            if (candidate.isNumber()) {
+                long value = candidate.asLong();
+                if (value <= 0) continue;
+                return (value >= 10_000_000_000L ? java.time.Instant.ofEpochMilli(value) : java.time.Instant.ofEpochSecond(value)).toString();
+            }
+            if (candidate.isTextual() && !candidate.asText().isBlank()) return candidate.asText();
         }
         return null;
     }

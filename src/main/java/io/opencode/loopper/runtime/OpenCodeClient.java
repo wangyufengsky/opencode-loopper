@@ -21,7 +21,11 @@ public interface OpenCodeClient {
     record SessionTranscript(List<SessionPart> parts) {
         public SessionTranscript { parts = parts == null ? List.of() : List.copyOf(parts); }
     }
-    record SessionPart(String id, String type, String label, String content, String status) { }
+    record SessionPart(String id, String type, String label, String content, String status, String startedAt) {
+        public SessionPart(String id, String type, String label, String content, String status) {
+            this(id, type, label, content, status, null);
+        }
+    }
     record SessionStatus(String state, String detail) {
         public SessionStatus(String state) { this(state, null); }
         public boolean completed() { return "COMPLETED".equalsIgnoreCase(state) || "IDLE".equalsIgnoreCase(state) || "DONE".equalsIgnoreCase(state); }

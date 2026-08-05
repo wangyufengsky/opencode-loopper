@@ -196,6 +196,7 @@ function normalizeTaskSessionPart(value: unknown): TaskSessionActivityPart {
     label: asString(raw.label, type === 'THINKING' ? 'Thinking' : type === 'TOOL' ? '工具调用' : '模型输出'),
     content: asString(raw.content),
     status: asString(raw.status) || undefined,
+    startedAt: asString(raw.startedAt) || undefined,
   }
 }
 

@@ -30,7 +30,7 @@ class TaskSessionMonitorServiceTest {
         OpenCodeClient.OpenCodeSession remote = new OpenCodeClient.OpenCodeSession(session.externalSessionId(), Path.of(task.worktreePath()));
         when(openCode.sessionStatus(remote)).thenReturn(new OpenCodeClient.SessionStatus("busy", "editing"));
         when(openCode.sessionTranscript(remote)).thenReturn(new OpenCodeClient.SessionTranscript(List.of(
-                new OpenCodeClient.SessionPart("reason-1", "THINKING", "Thinking", "Inspecting files", "running"),
+                new OpenCodeClient.SessionPart("reason-1", "THINKING", "Thinking", "Inspecting files", "running", "2026-08-04T08:01:01Z"),
                 new OpenCodeClient.SessionPart("text-1", "OUTPUT", "模型输出", "Implementing now", null))));
 
         TaskSessionMonitorService.SessionActivity activity = monitor.activity(task.id(), "execution:" + session.id());
@@ -40,5 +40,6 @@ class TaskSessionMonitorServiceTest {
         assertThat(activity.parts()).extracting(TaskSessionMonitorService.ActivityPart::type)
                 .containsExactly("THINKING", "OUTPUT");
         assertThat(activity.parts().get(0).content()).isEqualTo("Inspecting files");
+        assertThat(activity.parts().get(0).startedAt()).isEqualTo("2026-08-04T08:01:01Z");
     }
 }

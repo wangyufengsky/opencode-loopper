@@ -47,7 +47,7 @@ public class TaskSessionMonitorService {
             OpenCodeClient.OpenCodeSession remote = new OpenCodeClient.OpenCodeSession(summary.externalSessionId(), Path.of(task.worktreePath()));
             OpenCodeClient.SessionStatus status = openCode.sessionStatus(remote);
             List<ActivityPart> parts = openCode.sessionTranscript(remote).parts().stream()
-                    .map(part -> new ActivityPart(part.id(), part.type(), part.label(), part.content(), part.status()))
+                    .map(part -> new ActivityPart(part.id(), part.type(), part.label(), part.content(), part.status(), part.startedAt()))
                     .toList();
             return new SessionActivity(summary, status.state(), true, Instant.now().toString(), parts, status.detail());
         } catch (SessionFailure failure) {
@@ -86,7 +86,8 @@ public class TaskSessionMonitorService {
 
     private List<ActivityPart> persistedOutput(SessionSummary summary, String output) {
         return output == null || output.isBlank() ? List.of()
-                : List.of(new ActivityPart(summary.key() + ":persisted", "OUTPUT", "已持久化模型输出", output, "COMPLETED"));
+                : List.of(new ActivityPart(summary.key() + ":persisted", "OUTPUT", "已持久化模型输出", output, "COMPLETED",
+                        summary.endedAt() == null ? summary.createdAt() : summary.endedAt()));
     }
 
     private String safe(String value) {
@@ -96,7 +97,7 @@ public class TaskSessionMonitorService {
 
     public record SessionSummary(String key, String kind, String label, String localSessionId, String externalSessionId,
                                  String state, String stageId, String attemptId, String createdAt, String endedAt) { }
-    public record ActivityPart(String id, String type, String label, String content, String status) { }
+    public record ActivityPart(String id, String type, String label, String content, String status, String startedAt) { }
     public record SessionActivity(SessionSummary session, String remoteState, boolean live, String observedAt,
                                   List<ActivityPart> parts, String detail) { }
     private record ResolvedSession(SessionSummary summary, String persistedOutput) { }

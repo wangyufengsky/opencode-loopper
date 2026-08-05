@@ -175,6 +175,7 @@ export interface TaskSessionActivityPart {
   label: string
   content: string
   status?: string
+  startedAt?: string
 }
 
 export interface TaskSessionActivity {
