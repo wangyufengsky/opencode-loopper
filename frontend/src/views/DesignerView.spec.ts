@@ -7,7 +7,7 @@ import LoopSpecEditor from '@/components/LoopSpecEditor.vue'
 import PendingQuestionCard from '@/components/PendingQuestionCard.vue'
 import { api } from '@/api/client'
 import { useTaskStore } from '@/stores/taskStore'
-import type { DesignerSession, LoopDraft, LoopSpec, Project, Task } from '@/types/domain'
+import type { AppSettings, DesignerSession, LoopDraft, LoopSpec, Project, Task } from '@/types/domain'
 
 const { routerPush } = vi.hoisted(() => ({ routerPush: vi.fn() }))
 vi.mock('vue-router', () => ({ onBeforeRouteLeave: vi.fn(), useRouter: () => ({ push: routerPush }) }))
@@ -29,6 +29,11 @@ const session: DesignerSession = {
   accessMode: 'READ_ONLY',
   readOnly: true,
   messages: [],
+}
+
+const settings: AppSettings = {
+  cliPath: 'opencode', allowedRoot: '/tmp', provider: 'openai', model: 'gpt-5',
+  maxTaskAttempts: 7, timeoutMinutes: 45, autoApprove: false,
 }
 
 function draftFrom(spec: LoopSpec): LoopDraft {
@@ -58,6 +63,7 @@ beforeEach(() => {
   const store = useTaskStore()
   store.usingDemo = false
   store.projects = [project]
+  vi.spyOn(api, 'getSettings').mockResolvedValue(settings)
 })
 
 afterEach(() => {
@@ -67,6 +73,35 @@ afterEach(() => {
 })
 
 describe('Designer draft composer', () => {
+  it('starts a structured brief from a quick template and persists it locally', async () => {
+    const wrapper = mountDesigner()
+    await flushPromises()
+
+    const repairTemplate = wrapper.findAll('.brief-template-row button').find((button) => button.text().includes('修复问题'))
+    expect(repairTemplate).toBeDefined()
+    await repairTemplate!.trigger('click')
+
+    const value = (wrapper.get('textarea[aria-label="草案设计目标"]').element as HTMLTextAreaElement).value
+    expect(value).toContain('当前现象：')
+    expect(value).toContain('验收方式：')
+    expect(sessionStorage.getItem('opencode-loopper.designer-draft-prompt')).toBe(value)
+  })
+
+  it('asks before a quick template overwrites the current draft', async () => {
+    const confirmation = vi.spyOn(ElMessageBox, 'confirm').mockRejectedValue('cancel')
+    const wrapper = mountDesigner()
+    await flushPromises()
+    const input = wrapper.get('textarea[aria-label="草案设计目标"]')
+    await input.setValue('保留这段现有草稿')
+    const repairTemplate = wrapper.findAll('.brief-template-row button').find((button) => button.text().includes('修复问题'))!
+
+    await repairTemplate.trigger('click')
+    await flushPromises()
+
+    expect(confirmation).toHaveBeenCalled()
+    expect((input.element as HTMLTextAreaElement).value).toBe('保留这段现有草稿')
+  })
+
   it('restores the initial goal and submits it as both the session message and LoopSpec goal', async () => {
     let wrapper = mountDesigner()
     await flushPromises()
@@ -88,6 +123,7 @@ describe('Designer draft composer', () => {
     expect(createSession).toHaveBeenCalledWith(project.id, 'draft-1', initialGoal)
     expect(createDraft.mock.calls[0]?.[0].goal).toBe(initialGoal)
     expect(createDraft.mock.calls[0]?.[0].stages[0]).toMatchObject({ allowedPaths: [], forbiddenPaths: [], verifiers: [] })
+    expect(createDraft.mock.calls[0]?.[0].limits).toMatchObject({ maxTaskAttempts: 7, attemptTimeout: 'PT45M' })
     expect(sessionStorage.getItem('opencode-loopper.designer-draft-prompt')).toBeNull()
     expect(wrapper.find('textarea[aria-label="发送给只读 OpenCode Designer 的消息"]').exists()).toBe(true)
   })

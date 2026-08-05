@@ -163,8 +163,8 @@ public class VerifierEngine {
             result = diff.tracked();
             untrackedResult = diff.untracked();
         } else {
-            result = runner.run(worktree, List.of("git", "diff", "--name-status", baseline), timeout);
-            untrackedResult = runner.run(worktree, List.of("git", "ls-files", "--others", "--exclude-standard"), timeout);
+            result = runner.run(worktree, List.of("git", "diff", "--name-status", "-z", baseline), timeout);
+            untrackedResult = runner.run(worktree, List.of("git", "ls-files", "-z", "--others", "--exclude-standard"), timeout);
         }
         if (result.outputTruncated()) {
             throw new TaskFailure("GIT_DIFF_OUTPUT_TRUNCATED", "Git diff exceeded the safe evidence limit");
@@ -180,9 +180,9 @@ public class VerifierEngine {
             return new VerifierOutcome("GIT_DIFF", VerificationState.ERROR, "Unable to inspect untracked files",
                     Map.of("exitCode", untrackedResult.exitCode(), "output", truncate(untrackedResult.output())));
         }
-        List<String> changed = changedPaths(result.output());
-        List<String> untracked = untrackedResult.output().lines().filter(s -> !s.isBlank()).toList();
-        changed = new ArrayList<>(changed);
+        List<GitChange> changes = gitChanges(result.output());
+        List<String> changed = changes.stream().flatMap(change -> policyPaths(change).stream()).collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+        List<String> untracked = paths(untrackedResult.output());
         changed.addAll(untracked);
         List<String> violations = new ArrayList<>();
         SlashGlobMatcher.WorkBudget policyBudget = new SlashGlobMatcher.WorkBudget(PATH_POLICY_WORK_BUDGET);
@@ -195,7 +195,10 @@ public class VerifierEngine {
             throw new TaskFailure("VERIFIER_PATH_POLICY_LIMIT_EXCEEDED", "Verifier path policy exceeded its bounded matching budget");
         }
         if (Boolean.TRUE.equals(spec.forbidDeletes())) {
-            for (String line : result.output().lines().toList()) if (line.startsWith("D\t")) violations.add("deletion: " + line.substring(2));
+            for (GitChange change : changes) {
+                if (change.kind() == 'D') violations.add("deletion: " + change.paths().getLast());
+                if (change.kind() == 'R') violations.add("rename removes source path: " + change.paths().getFirst());
+            }
         }
         boolean requiresChanges = Boolean.TRUE.equals(spec.requireChanges());
         if (requiresChanges && changed.isEmpty()) violations.add("expected a Git diff, but no files changed");
@@ -229,13 +232,56 @@ public class VerifierEngine {
         catch (Exception e) { throw new TaskFailure("VERIFIER_PATH_INVALID", "Verifier path cannot be resolved safely"); }
         return resolved;
     }
-    private List<String> changedPaths(String output) {
-        List<String> paths = new ArrayList<>();
-        for (String line : output.lines().toList()) {
-            String[] fields = line.split("\\t");
-            if (fields.length >= 2) paths.add(fields[fields.length - 1]);
+    private List<GitChange> gitChanges(String output) {
+        List<GitChange> changes = new ArrayList<>();
+        if (output.indexOf('\0') >= 0) {
+            String[] fields = output.split("\\x00", -1);
+            int index = 0;
+            while (index < fields.length && !fields[index].isEmpty()) {
+                String status = fields[index++];
+                int pathCount = renameOrCopy(status) ? 2 : 1;
+                if (index + pathCount > fields.length) invalidGitDiff();
+                List<String> changePaths = new ArrayList<>(pathCount);
+                for (int pathIndex = 0; pathIndex < pathCount; pathIndex++) {
+                    String path = fields[index++];
+                    if (path.isEmpty()) invalidGitDiff();
+                    changePaths.add(path);
+                }
+                changes.add(new GitChange(status, List.copyOf(changePaths)));
+            }
+            return List.copyOf(changes);
         }
-        return paths;
+        for (String line : output.lines().toList()) {
+            if (line.isBlank()) continue;
+            String[] fields = line.split("\\t", -1);
+            int pathCount = fields.length == 0 || !renameOrCopy(fields[0]) ? 1 : 2;
+            if (fields.length != pathCount + 1) invalidGitDiff();
+            changes.add(new GitChange(fields[0], List.of(fields).subList(1, fields.length)));
+        }
+        return List.copyOf(changes);
+    }
+
+    private List<String> paths(String output) {
+        if (output.indexOf('\0') >= 0) {
+            return java.util.Arrays.stream(output.split("\\x00", -1)).filter(path -> !path.isEmpty()).toList();
+        }
+        return output.lines().filter(path -> !path.isBlank()).toList();
+    }
+
+    private List<String> policyPaths(GitChange change) {
+        return change.kind() == 'R' ? change.paths() : List.of(change.paths().getLast());
+    }
+
+    private boolean renameOrCopy(String status) {
+        return status != null && !status.isBlank() && (status.charAt(0) == 'R' || status.charAt(0) == 'C');
+    }
+
+    private void invalidGitDiff() {
+        throw new TaskFailure("GIT_DIFF_OUTPUT_INVALID", "Git diff returned malformed path evidence");
+    }
+
+    private record GitChange(String status, List<String> paths) {
+        private char kind() { return status.charAt(0); }
     }
     private boolean isForbidden(String path, List<String> rules, SlashGlobMatcher.WorkBudget budget) {
         return rules.stream().anyMatch(rule -> matchesPathRule(path, rule, budget));

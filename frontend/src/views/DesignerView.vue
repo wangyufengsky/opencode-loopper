@@ -13,7 +13,7 @@ import PendingQuestionCard from '@/components/PendingQuestionCard.vue'
 import { api, subscribeDesignerEvents, type DesignerEventStream } from '@/api/client'
 import { demoDraft, demoMessages } from '@/mock/demoData'
 import { useTaskStore } from '@/stores/taskStore'
-import type { DesignerMessage, DesignerSession, ErrorEvent, LoopDraft, TaskSessionPendingQuestion } from '@/types/domain'
+import type { AppSettings, DesignerMessage, DesignerSession, ErrorEvent, LoopDraft, TaskSessionPendingQuestion } from '@/types/domain'
 
 const store = useTaskStore()
 const router = useRouter()
@@ -58,6 +58,23 @@ let designerEventStream: DesignerEventStream | undefined
 let designerStreamGeneration = 0
 const selectedProject = computed(() => store.projects.find((project) => project.id === selectedProjectId.value))
 const activeProjectName = computed(() => selectedProject.value?.name ?? '选择项目')
+const briefTemplates = [
+  {
+    label: '开发新功能',
+    icon: 'lucide:blocks',
+    prompt: '我想实现一个新功能。\n\n目标：\n使用场景：\n功能范围：\n限制与禁止项：\n验收标准：',
+  },
+  {
+    label: '修复问题',
+    icon: 'lucide:bug',
+    prompt: '我想修复一个问题。\n\n当前现象：\n期望行为：\n复现条件：\n可修改范围：\n验收方式：',
+  },
+  {
+    label: '重构模块',
+    icon: 'lucide:network',
+    prompt: '我想重构现有模块。\n\n重构目标：\n必须保持的行为：\n可调整范围：\n不可修改项：\n验收命令与标准：',
+  },
+]
 const dirty = computed(() => draft.value !== undefined && editorValue.value !== JSON.stringify(draft.value.spec, null, 2))
 const designerBadgeStatus = computed(() => {
   if (designerSession.value?.state === 'RUNNING') return 'RUNNING' as const
@@ -275,8 +292,22 @@ watch(() => store.projects, (projects) => {
 watch(draftPrompt, (value) => persistSessionText(draftPromptKey, value))
 watch(userMessage, (value) => persistSessionText(messageDraftKey, value))
 
-function blankSpec(projectId: string, goal: string): LoopDraft['spec'] {
-  return { schemaVersion: 'v1', projectId, goal, context: 'Execution 只允许在该 Task 的执行目录中修改；有 Git HEAD 时使用隔离 worktree，否则使用登记的项目目录。', stages: [{ objective: '分析目标并实现最小可验证改动', allowedPaths: [], forbiddenPaths: [], deliverables: ['可验证实现'], verifiers: [] }], limits: { maxStageAttempts: 3, maxTaskAttempts: 12, maxDuration: 'PT2H', attemptTimeout: 'PT30M' } }
+async function applyBriefTemplate(prompt: string) {
+  if (draftPrompt.value.trim() && draftPrompt.value !== prompt) {
+    try {
+      await ElMessageBox.confirm('使用快速模板会覆盖当前尚未提交的草稿内容。', '覆盖当前草稿？', {
+        confirmButtonText: '确认覆盖', cancelButtonText: '保留当前内容', type: 'warning',
+      })
+    } catch { return }
+  }
+  draftPrompt.value = prompt
+  const focusEditor = () => document.querySelector<HTMLTextAreaElement>('#designer-draft-prompt')?.focus()
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(focusEditor)
+  else focusEditor()
+}
+
+function blankSpec(projectId: string, goal: string, settings: AppSettings): LoopDraft['spec'] {
+  return { schemaVersion: 'v1', projectId, goal, context: 'Execution 只允许在该 Task 的执行目录中修改；有 Git HEAD 时使用隔离 worktree，否则使用登记的项目目录。', stages: [{ objective: '分析目标并实现最小可验证改动', allowedPaths: [], forbiddenPaths: [], deliverables: ['可验证实现'], verifiers: [] }], limits: { maxStageAttempts: 3, maxTaskAttempts: settings.maxTaskAttempts, maxDuration: 'PT2H', attemptTimeout: `PT${settings.timeoutMinutes}M` } }
 }
 
 async function startDraft() {
@@ -291,7 +322,8 @@ async function startDraft() {
   if (!project) { ElMessage.warning('请先在“项目”页面登记一个可用项目根目录。'); return }
   busy.value = true
   try {
-    const createdDraft = await api.createDraft(blankSpec(project.id, goal))
+    const settings = await api.getSettings()
+    const createdDraft = await api.createDraft(blankSpec(project.id, goal, settings))
     designerSession.value = await api.createDesignerSession(project.id, createdDraft.id, goal)
     messages.value = designerSession.value.messages
     draft.value = designerSession.value.draft ?? createdDraft
@@ -463,50 +495,97 @@ async function sendMessage() {
 </script>
 
 <template>
-  <PageHeader eyebrow="Designer / Plan" title="Designer 与 LoopSpec">
-    <template #actions><StatusBadge :status="draft?.status === 'CONFIRMED' ? 'SUCCEEDED' : 'PENDING'" :label="draft?.status ?? '等待草案'" /><el-button v-if="draft" class="restart-designer-button" plain :disabled="busy" @click="restartDesigner"><Icon icon="lucide:rotate-ccw" />重新开始</el-button><el-button type="primary" :loading="busy" :disabled="!draft" @click="confirm"><Icon icon="lucide:circle-check-big" />确认并交接</el-button></template>
+  <PageHeader :eyebrow="draft ? 'Designer / Plan' : 'Designer'" :title="draft ? 'Designer 与 LoopSpec' : '设计工作台'">
+    <template v-if="draft" #actions><StatusBadge :status="draft.status === 'CONFIRMED' ? 'SUCCEEDED' : 'PENDING'" :label="draft.status" /><el-button class="restart-designer-button" plain :disabled="busy" @click="restartDesigner"><Icon icon="lucide:rotate-ccw" />重新开始</el-button><el-button type="primary" :loading="busy" @click="confirm"><Icon icon="lucide:circle-check-big" />确认并交接</el-button></template>
   </PageHeader>
   <main id="main-content" class="content" tabindex="-1">
-    <section v-if="!draft" class="card draft-start-card">
-      <div class="draft-start-grid">
-        <div class="draft-start-copy">
-          <span class="draft-start-icon"><Icon icon="lucide:sparkles" width="26" /></span>
-          <p class="eyebrow">NEW DESIGN BRIEF</p>
-          <h2>把需求完整交给 Designer</h2>
-          <p>输入目标、约束和验收标准。内容会在当前浏览器中自动暂存，创建失败或刷新页面也不会丢失。</p>
-          <div class="draft-safety-note"><Icon icon="lucide:shield-check" /><span>Designer 只读取项目上下文，无法编辑工作区或运行 Shell。</span></div>
+    <section v-if="!draft" class="designer-start-page">
+      <header class="designer-start-heading">
+        <span class="designer-start-mark"><Icon icon="lucide:sparkles" /></span>
+        <div>
+          <p class="eyebrow">NEW DESIGN</p>
+          <h2>今天想推进什么？</h2>
+          <p>选择一个项目，描述你期望达成的结果。</p>
         </div>
-        <div class="draft-start-form">
-          <label v-if="!store.usingDemo" class="field-label" for="designer-project">目标项目</label>
-          <div v-if="!store.usingDemo" class="project-select-wrap">
-            <el-select id="designer-project" v-model="selectedProjectId" filterable placeholder="选择 Designer 项目" aria-label="选择 Designer 项目">
+      </header>
+
+      <div class="designer-start-layout">
+        <article class="card brief-composer">
+          <div v-if="!store.usingDemo" class="composer-project-row">
+            <div class="composer-project-label">
+              <span class="composer-project-icon"><Icon icon="lucide:folder-git-2" /></span>
+              <span><small>项目上下文</small><strong>{{ selectedProject?.name ?? '选择项目' }}</strong></span>
+            </div>
+            <el-select id="designer-project" v-model="selectedProjectId" filterable placeholder="选择项目" aria-label="选择 Designer 项目">
               <el-option v-for="project in store.projects" :key="project.id" :label="project.name" :value="project.id"><span>{{ project.name }}</span><span class="project-path">{{ project.rootPath }}</span></el-option>
             </el-select>
           </div>
-          <div class="draft-goal-heading">
-            <label class="field-label" for="designer-draft-prompt">设计目标</label>
-            <span class="tiny muted">最多 12,000 字符 · 自动暂存</span>
+
+          <div class="brief-editor">
+            <div class="draft-goal-heading">
+              <label for="designer-draft-prompt">描述你的目标</label>
+              <span class="draft-save-state"><Icon icon="lucide:cloud-check" />自动保存</span>
+            </div>
+            <el-input
+              id="designer-draft-prompt"
+              v-model="draftPrompt"
+              class="draft-goal-input"
+              type="textarea"
+              :rows="8"
+              maxlength="12000"
+              resize="vertical"
+              placeholder="描述期望结果、功能范围和验收标准……"
+              aria-label="草案设计目标"
+              @keydown.meta.enter.prevent="startDraft"
+              @keydown.ctrl.enter.prevent="startDraft"
+            />
           </div>
-          <el-input
-            id="designer-draft-prompt"
-            v-model="draftPrompt"
-            class="draft-goal-input"
-            type="textarea"
-            :rows="12"
-            maxlength="12000"
-            resize="vertical"
-            placeholder="例如：实现任务控制台的错误恢复。Task 错误必须退出任务；Session 错误保留上下文并继续下一轮。请同时补充允许修改的目录、禁止项和验收命令……"
-            aria-label="草案设计目标"
-            @keydown.meta.enter.prevent="startDraft"
-            @keydown.ctrl.enter.prevent="startDraft"
-          />
-          <div class="draft-create-actions">
-            <span class="draft-save-state"><Icon icon="lucide:cloud-check" />输入内容已在本地保留</span>
-            <el-button class="create-draft-button" type="primary" size="large" :loading="busy" :disabled="!draftPrompt.trim() || (!store.usingDemo && !selectedProjectId)" @click="startDraft">
-              <Icon icon="lucide:wand-sparkles" />{{ store.usingDemo ? '创建演示草案' : '创建草案' }}
-            </el-button>
+
+          <div class="brief-template-row" aria-label="需求模板">
+            <span>快速起稿</span>
+            <button v-for="template in briefTemplates" :key="template.label" type="button" @click="applyBriefTemplate(template.prompt)">
+              <Icon :icon="template.icon" />{{ template.label }}
+            </button>
           </div>
-        </div>
+
+          <footer class="draft-create-actions">
+            <span class="composer-boundary"><Icon icon="lucide:shield-check" />只读分析项目</span>
+            <div class="composer-submit">
+              <span class="composer-shortcut">⌘ / Ctrl + Enter</span>
+              <el-button class="create-draft-button" type="primary" size="large" :loading="busy" :disabled="!draftPrompt.trim() || (!store.usingDemo && !selectedProjectId)" @click="startDraft">
+                {{ store.usingDemo ? '开始演示' : '开始设计' }}<Icon icon="lucide:arrow-up-right" />
+              </el-button>
+            </div>
+          </footer>
+        </article>
+
+        <aside class="card project-context-card" aria-label="当前项目上下文">
+          <div class="context-card-heading">
+            <span><Icon icon="lucide:scan-search" /></span>
+            <div><small>DESIGN CONTEXT</small><h3>当前上下文</h3></div>
+          </div>
+          <template v-if="selectedProject">
+            <div class="context-project-name">
+              <strong>{{ selectedProject.name }}</strong>
+              <span :class="['project-readiness', `is-${selectedProject.status.toLowerCase()}`]">{{ selectedProject.status === 'READY' ? '已就绪' : selectedProject.status === 'NEEDS_GIT' ? '无 Git HEAD' : '需处理' }}</span>
+            </div>
+            <dl class="context-details">
+              <div><dt>路径</dt><dd class="mono">{{ selectedProject.rootPath }}</dd></div>
+              <div><dt>分支</dt><dd class="mono">{{ selectedProject.branch || '未指定' }}</dd></div>
+              <div><dt>历史任务</dt><dd>{{ selectedProject.taskCount }} 个</dd></div>
+            </dl>
+            <div class="context-capabilities">
+              <span><Icon icon="lucide:check" />读取项目文件</span>
+              <span><Icon icon="lucide:check" />生成 LoopSpec</span>
+              <span class="is-muted"><Icon icon="lucide:minus" />不修改工作区</span>
+            </div>
+          </template>
+          <div v-else class="context-empty">
+            <Icon icon="lucide:mouse-pointer-2" />
+            <strong>先选择项目</strong>
+            <p>Designer 将使用该项目的文件和约定生成方案。</p>
+          </div>
+        </aside>
       </div>
     </section>
     <section v-else class="designer-layout">
@@ -591,27 +670,69 @@ async function sendMessage() {
 </template>
 
 <style scoped>
-.draft-start-card { overflow: hidden; background: radial-gradient(circle at 82% 12%, rgb(59 130 246 / 14%), transparent 32%), linear-gradient(135deg, rgb(10 17 31 / 98%), rgb(6 11 21 / 98%)); }
-.draft-start-grid { display: grid; grid-template-columns: minmax(260px, .7fr) minmax(520px, 1.3fr); gap: 42px; padding: clamp(28px, 4vw, 52px); }
-.draft-start-copy { align-self: start; padding-top: 8px; }
-.draft-start-icon { display: inline-grid; place-items: center; width: 52px; height: 52px; margin-bottom: 28px; border: 1px solid rgb(96 165 250 / 30%); border-radius: 15px; background: linear-gradient(145deg, rgb(59 130 246 / 23%), rgb(34 211 238 / 7%)); color: var(--color-accent-cyan); box-shadow: 0 16px 45px rgb(0 0 0 / 28%); }
-.draft-start-copy h2 { max-width: 360px; margin: 8px 0 14px; color: var(--color-text-primary); font-size: clamp(25px, 2.5vw, 38px); line-height: 1.13; letter-spacing: -.03em; }
-.draft-start-copy > p:not(.eyebrow) { max-width: 390px; margin: 0; color: var(--color-text-secondary); font-size: 13px; line-height: 1.75; }
-.draft-safety-note { display: flex; gap: 10px; max-width: 390px; margin-top: 28px; padding: 13px 14px; border: 1px solid rgb(34 211 238 / 18%); border-radius: 11px; background: rgb(34 211 238 / 5%); color: var(--color-text-secondary); font-size: 11px; line-height: 1.55; }
-.draft-safety-note svg { flex: 0 0 auto; margin-top: 2px; color: var(--color-accent-cyan); }
-.draft-start-form { position: relative; z-index: 1; min-width: 0; padding: 22px; border: 1px solid rgb(148 163 184 / 13%); border-radius: 16px; background: rgb(8 14 26 / 78%); box-shadow: 0 24px 70px rgb(0 0 0 / 25%); }
+.designer-start-page { width: min(1080px, 100%); margin: 10px auto 0; }
+.designer-start-heading { display: flex; align-items: center; gap: 15px; margin: 0 0 18px 2px; }
+.designer-start-mark { display: grid; flex: 0 0 auto; place-items: center; width: 46px; height: 46px; border: 1px solid rgb(34 211 238 / 24%); border-radius: 14px; color: var(--color-accent-cyan); background: linear-gradient(145deg, rgb(34 211 238 / 13%), rgb(139 92 246 / 12%)); box-shadow: 0 12px 34px rgb(0 0 0 / 22%); }
+.designer-start-mark svg { width: 22px; height: 22px; }
+.designer-start-heading h2 { margin: 0; color: var(--color-text-primary); font-size: 26px; font-weight: 720; letter-spacing: -.035em; }
+.designer-start-heading > div > p:last-child { margin: 5px 0 0; color: var(--color-text-secondary); font-size: 12px; }
+.designer-start-layout { display: grid; align-items: start; grid-template-columns: minmax(0, 1fr) 276px; gap: 16px; }
+.brief-composer { overflow: hidden; border-color: rgb(57 78 113 / 78%); background: linear-gradient(155deg, rgb(17 27 46 / 98%), rgb(10 16 29 / 98%)); box-shadow: 0 24px 70px rgb(0 0 0 / 25%); }
+.composer-project-row { display: flex; align-items: center; justify-content: space-between; gap: 18px; min-height: 66px; padding: 11px 18px; border-bottom: 1px solid var(--color-border-default); background: rgb(7 11 20 / 32%); }
+.composer-project-row :deep(.el-select) { width: min(280px, 48%); }
+.composer-project-label { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.composer-project-label > span:last-child { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.composer-project-label small { color: var(--color-text-muted); font: 9px/1.2 var(--font-code); letter-spacing: .08em; text-transform: uppercase; }
+.composer-project-label strong { overflow: hidden; color: var(--color-text-primary); font-size: 12px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.composer-project-icon { display: grid; flex: 0 0 auto; place-items: center; width: 34px; height: 34px; border: 1px solid rgb(34 211 238 / 18%); border-radius: 9px; color: var(--color-accent-cyan); background: rgb(34 211 238 / 6%); }
+.brief-editor { padding: 16px 20px 12px; }
+.draft-goal-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.draft-goal-heading label { color: var(--color-text-primary); font-size: 13px; font-weight: 650; }
 .field-label { display: block; color: var(--color-text-primary); font-family: var(--font-code); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-.project-select-wrap { width: 100%; margin: 9px 0 20px; text-align: left; }
-.project-select-wrap :deep(.el-select) { width: 100%; }
 .project-path { float: right; max-width: 250px; overflow: hidden; color: var(--color-text-muted); font-family: var(--font-code); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
-.draft-goal-heading, .compose-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 9px; }
+.compose-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 9px; }
 .draft-goal-input, .designer-message-input { display: block; position: relative; z-index: 0; width: 100%; }
-.draft-goal-input :deep(.el-textarea__inner) { min-height: 286px !important; padding: 16px 17px; line-height: 1.65; }
+.draft-goal-input :deep(.el-textarea__inner) { min-height: 174px !important; padding: 16px 17px; border-color: rgb(45 63 94 / 82%); border-radius: 10px; background: rgb(5 10 20 / 72%); font-size: 13px; line-height: 1.7; box-shadow: inset 0 1px 0 rgb(255 255 255 / 2%); }
+.draft-goal-input :deep(.el-textarea__inner:focus) { border-color: rgb(59 130 246 / 76%); box-shadow: 0 0 0 3px rgb(59 130 246 / 10%); }
 .designer-message-input :deep(.el-textarea__inner) { min-height: 224px !important; padding: 14px 15px; line-height: 1.65; }
-.draft-create-actions { position: relative; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--color-border-default); }
-.draft-save-state { display: inline-flex; align-items: center; gap: 7px; color: var(--color-text-muted); font-size: 10px; }
+.brief-template-row { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; padding: 0 20px 14px; }
+.brief-template-row > span { margin-right: 2px; color: var(--color-text-muted); font-size: 10px; }
+.brief-template-row button { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 10px; border: 1px solid rgb(47 65 96 / 82%); border-radius: 999px; color: var(--color-text-secondary); background: rgb(14 23 40 / 72%); font-size: 10px; cursor: pointer; transition: border-color .14s ease, color .14s ease, background .14s ease; }
+.brief-template-row button:hover { border-color: rgb(34 211 238 / 32%); color: var(--color-text-primary); background: rgb(34 211 238 / 7%); }
+.brief-template-row button svg { color: var(--color-accent-cyan); }
+.draft-create-actions { position: relative; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 66px; padding: 10px 18px; border-top: 1px solid var(--color-border-default); background: rgb(7 11 20 / 32%); }
+.draft-save-state { display: inline-flex; align-items: center; gap: 6px; color: var(--color-text-muted); font-size: 10px; }
 .draft-save-state svg { color: var(--color-success); }
-.create-draft-button { min-width: 154px; }
+.composer-boundary { display: inline-flex; align-items: center; gap: 7px; color: var(--color-text-secondary); font-size: 10px; }
+.composer-boundary svg { color: var(--color-success); }
+.composer-submit { display: flex; align-items: center; gap: 11px; }
+.composer-shortcut { color: var(--color-text-muted); font: 9px/1 var(--font-code); }
+.create-draft-button { min-width: 134px; }
+.project-context-card { min-height: 100%; padding: 18px; background: linear-gradient(160deg, rgb(15 24 42 / 96%), rgb(9 15 27 / 96%)); box-shadow: none; }
+.context-card-heading { display: flex; align-items: center; gap: 10px; padding-bottom: 17px; border-bottom: 1px solid var(--color-border-default); }
+.context-card-heading > span { display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid rgb(139 92 246 / 20%); border-radius: 9px; color: #b9a4fb; background: rgb(139 92 246 / 8%); }
+.context-card-heading small { color: var(--color-text-muted); font: 8px/1.2 var(--font-code); letter-spacing: .1em; }
+.context-card-heading h3 { margin: 3px 0 0; color: var(--color-text-primary); font-size: 12px; }
+.context-project-name { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 17px 0 14px; }
+.context-project-name strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.project-readiness { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 5px; padding: 4px 7px; border: 1px solid currentcolor; border-radius: 999px; color: var(--color-text-secondary); background: rgb(154 168 189 / 6%); font-size: 8px; }
+.project-readiness::before { width: 5px; height: 5px; border-radius: 50%; background: currentcolor; content: ''; }
+.project-readiness.is-ready { color: var(--color-success); background: rgb(34 197 94 / 7%); }
+.project-readiness.is-needs_git { color: var(--color-session-warning); background: rgb(245 158 11 / 7%); }
+.project-readiness.is-invalid { color: var(--color-task-danger); background: rgb(239 68 68 / 7%); }
+.context-details { display: grid; gap: 12px; margin: 0; }
+.context-details div { display: grid; gap: 4px; }
+.context-details dt { color: var(--color-text-muted); font-size: 9px; }
+.context-details dd { margin: 0; overflow: hidden; color: var(--color-text-secondary); font-size: 10px; line-height: 1.45; overflow-wrap: anywhere; }
+.context-capabilities { display: grid; gap: 9px; margin-top: 18px; padding-top: 15px; border-top: 1px solid var(--color-border-default); }
+.context-capabilities span { display: flex; align-items: center; gap: 7px; color: var(--color-text-secondary); font-size: 10px; }
+.context-capabilities svg { color: var(--color-success); }
+.context-capabilities .is-muted { color: var(--color-text-muted); }
+.context-capabilities .is-muted svg { color: var(--color-text-muted); }
+.context-empty { display: grid; place-items: center; padding: 52px 8px 30px; color: var(--color-text-muted); text-align: center; }
+.context-empty > svg { width: 22px; height: 22px; margin-bottom: 12px; }
+.context-empty strong { color: var(--color-text-secondary); font-size: 11px; }
+.context-empty p { margin: 7px 0 0; font-size: 10px; line-height: 1.6; }
 .designer-layout { display: grid; align-items: start; grid-template-columns: minmax(460px, 1.12fr) minmax(500px, .88fr); gap: 18px; }
 .designer-chat, .spec-panel { min-width: 0; }
 .designer-chat { display: flex; align-self: start; flex-direction: column; min-height: 0; }
@@ -677,17 +798,21 @@ async function sendMessage() {
 .designer-state-actions { display: flex; align-items: center; gap: 8px; }
 
 @media (max-width: 1180px) {
-  .draft-start-grid { grid-template-columns: 1fr; gap: 28px; }
-  .draft-start-copy h2, .draft-start-copy > p:not(.eyebrow), .draft-safety-note { max-width: 680px; }
+  .designer-start-layout { grid-template-columns: 1fr; }
+  .project-context-card { display: none; }
   .designer-layout { grid-template-columns: 1fr; }
   .spec-panel { min-height: 720px; }
 }
 
 @media (max-width: 680px) {
-  .draft-start-grid { padding: 22px 16px; }
-  .draft-start-form { padding: 16px; }
+  .designer-start-heading { align-items: flex-start; }
+  .composer-project-row { align-items: stretch; flex-direction: column; }
+  .composer-project-row :deep(.el-select) { width: 100%; }
+  .brief-editor { padding-inline: 16px; }
+  .brief-template-row { padding-inline: 16px; }
   .draft-goal-input :deep(.el-textarea__inner) { min-height: 330px !important; }
   .draft-create-actions, .compose-actions { align-items: stretch; flex-direction: column; }
+  .composer-submit { justify-content: space-between; width: 100%; }
   .create-draft-button, .compose-actions :deep(.el-button) { width: 100%; }
   .designer-message-input :deep(.el-textarea__inner) { min-height: 260px !important; }
   .designer-connection-strip { align-items: flex-start; flex-direction: column; }

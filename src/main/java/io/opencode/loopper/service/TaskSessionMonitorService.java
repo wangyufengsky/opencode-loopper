@@ -1,6 +1,8 @@
 package io.opencode.loopper.service;
 
 import io.opencode.loopper.domain.SessionFailure;
+import io.opencode.loopper.domain.SessionState;
+import io.opencode.loopper.domain.TaskState;
 import io.opencode.loopper.persistence.ExecutionSessionRow;
 import io.opencode.loopper.persistence.JudgeRunRow;
 import io.opencode.loopper.persistence.LoopperMapper;
@@ -50,7 +52,9 @@ public class TaskSessionMonitorService {
             List<ActivityPart> parts = openCode.sessionTranscript(remote).parts().stream()
                     .map(part -> new ActivityPart(part.id(), part.type(), part.label(), part.content(), part.status(), part.startedAt()))
                     .toList();
-            List<PendingQuestion> questions = openCode.pendingQuestions(remote).stream().map(this::question).toList();
+            List<PendingQuestion> questions = interactive(task, summary)
+                    ? openCode.pendingQuestions(remote).stream().map(this::question).toList()
+                    : List.of();
             return new SessionActivity(summary, status.state(), true, Instant.now().toString(), parts, questions, status.detail());
         } catch (SessionFailure failure) {
             List<ActivityPart> persisted = persistedOutput(summary, resolved.persistedOutput());
@@ -90,10 +94,25 @@ public class TaskSessionMonitorService {
         TaskRow task = tasks.get(taskId);
         ResolvedSession resolved = resolve(taskId, key);
         SessionSummary summary = resolved.summary();
+        if (!interactive(task, summary)) {
+            throw new ConflictException("SESSION_QUESTION_NOT_ACTIVE",
+                    "Task 或 Session 已离开可回答问题的执行状态");
+        }
         if (summary.externalSessionId() == null || summary.externalSessionId().isBlank() || task.worktreePath() == null || task.worktreePath().isBlank()) {
             throw new ConflictException("SESSION_REMOTE_UNAVAILABLE", "Session 尚未获得可回答问题的 OpenCode 远端标识或 worktree");
         }
         return new ResolvedRemote(new OpenCodeClient.OpenCodeSession(summary.externalSessionId(), Path.of(task.worktreePath())));
+    }
+
+    private boolean interactive(TaskRow task, SessionSummary summary) {
+        boolean activeSession = SessionState.CREATING.name().equals(summary.state())
+                || SessionState.RUNNING.name().equals(summary.state());
+        if (!activeSession) return false;
+        return switch (summary.kind()) {
+            case "IMPLEMENTATION" -> TaskState.RUNNING.name().equals(task.state());
+            case "JUDGE" -> TaskState.JUDGING.name().equals(task.state());
+            default -> false;
+        };
     }
 
     private OpenCodeClient.PendingQuestion pending(OpenCodeClient.OpenCodeSession remote, String questionId) {

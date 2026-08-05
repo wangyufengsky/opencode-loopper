@@ -84,6 +84,28 @@ class VerifierEngineTest {
     }
 
     @Test
+    void gitDiffChecksBothRenamePathsAndTreatsTheSourceAsADeletion() throws Exception {
+        git("init"); git("config", "user.email", "test@example.invalid"); git("config", "user.name", "test");
+        Files.createDirectories(directory.resolve("forbidden"));
+        Files.writeString(directory.resolve("forbidden/secret.txt"), "base");
+        git("add", "forbidden/secret.txt"); git("commit", "-m", "base");
+        String baseline = git("rev-parse", "HEAD").trim();
+        Files.createDirectories(directory.resolve("allowed"));
+        git("mv", "forbidden/secret.txt", "allowed/secret.txt");
+
+        VerifierOutcome outcome = engine.verify(directory, baseline,
+                new VerifierSpec("GIT_DIFF", null, null, true, List.of("allowed/**"), List.of("forbidden/**"), true),
+                Duration.ofSeconds(5));
+
+        assertThat(outcome.state()).isEqualTo(VerificationState.FAIL);
+        assertThat(outcome.evidence().get("changedPaths")).isEqualTo(List.of("forbidden/secret.txt", "allowed/secret.txt"));
+        assertThat(outcome.summary())
+                .contains("forbidden path: forbidden/secret.txt")
+                .contains("outside allowed paths: forbidden/secret.txt")
+                .contains("rename removes source path: forbidden/secret.txt");
+    }
+
+    @Test
     void directBaselineTracksProjectChangesWithoutAddingGitMetadataToProject() throws Exception {
         Path project = Files.createDirectory(directory.resolve("plain-project"));
         Files.writeString(project.resolve("README.md"), "base");

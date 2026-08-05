@@ -65,8 +65,8 @@ public class DirectWorkspaceBaselineManager {
         Baseline baseline = requireAvailableBaseline(marker);
         try {
             Path root = projectRoot.toRealPath();
-            ProcessResult tracked = runner.run(root, git(root, baseline.gitDir(), "diff", "--name-status", baseline.tree()), timeout);
-            ProcessResult untracked = runner.run(root, git(root, baseline.gitDir(), "ls-files", "--others", "--exclude-standard"), timeout);
+            ProcessResult tracked = runner.run(root, git(root, baseline.gitDir(), "diff", "--name-status", "-z", baseline.tree()), timeout);
+            ProcessResult untracked = runner.run(root, git(root, baseline.gitDir(), "ls-files", "-z", "--others", "--exclude-standard"), timeout);
             return new DiffResult(tracked, untracked);
         } catch (TaskFailure failure) {
             throw failure;
