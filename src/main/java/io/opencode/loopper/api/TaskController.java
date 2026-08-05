@@ -27,6 +27,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import tools.jackson.databind.JsonNode;
@@ -43,6 +44,11 @@ public class TaskController {
     public TaskController(TaskService service, LoopperMapper mapper, TaskEventHub events, ObjectMapper json, LoopDraftService drafts) { this.service = service; this.mapper = mapper; this.events = events; this.json = json; this.drafts = drafts; }
     @GetMapping public List<TaskDto> list() { return service.list().stream().map(this::dto).toList(); }
     @GetMapping("/{id}") public TaskDto get(@PathVariable String id) { return dto(service.get(id)); }
+    @GetMapping("/{id}/diff-preview")
+    public DiffPreviewDto diffPreview(@PathVariable String id, @RequestParam String path) {
+        var preview = service.diffPreview(id, path);
+        return new DiffPreviewDto(preview.path(), preview.changeType(), preview.patch(), preview.truncated());
+    }
     @GetMapping("/{id}/design-history")
     public TaskDesignHistoryDto designHistory(@PathVariable String id) {
         TaskRow task = service.get(id);
@@ -95,6 +101,7 @@ public class TaskController {
     private long parseCursor(String raw) { try { return raw == null ? 0 : Math.max(0, Long.parseLong(raw)); } catch (NumberFormatException e) { return 0; } }
     private void close(AutoCloseable value) { try { value.close(); } catch (Exception ignored) { } }
     public record SessionFailureRequest(String code, String message) { }
+    public record DiffPreviewDto(String path, String changeType, String patch, boolean truncated) { }
     private TaskDto dto(TaskRow task) {
         String projectName = mapper.findProject(task.projectId()).map(p -> p.name()).orElse("Unknown project");
         LoopDraftRow draft = task.loopDraftId() == null ? null : mapper.findDraft(task.loopDraftId()).orElse(null);

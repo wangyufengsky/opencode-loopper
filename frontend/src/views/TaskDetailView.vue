@@ -70,7 +70,7 @@ async function confirmCancel() {
       </section>
       <section class="task-detail-grid" style="margin-top: 16px">
         <article class="card card-pad"><div class="card-header"><div><p class="eyebrow">尝试历史</p><h2 class="card-title">尝试与会话</h2></div><span class="mono tiny muted">{{ attempts.length }} 条记录</span></div><AttemptTimeline :attempts="attempts" /></article>
-        <TaskAuditEvidencePanel :attempts="attempts" :artifacts="artifacts" :judges="judges" :direct-execution="isDirectExecution" />
+        <TaskAuditEvidencePanel :task-id="task.id" :attempts="attempts" :artifacts="artifacts" :judges="judges" :direct-execution="isDirectExecution" />
       </section>
     </template>
   </main>

@@ -1,8 +1,11 @@
 import { mount } from '@vue/test-utils'
 import ElementPlus from 'element-plus'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import TaskAuditEvidencePanel from '@/components/TaskAuditEvidencePanel.vue'
+import { api } from '@/api/client'
 import type { Artifact, Attempt, JudgeRun } from '@/types/domain'
+
+vi.mock('@/api/client', () => ({ api: { getTaskDiffPreview: vi.fn() } }))
 
 const attempts: Attempt[] = [{
   id: 'attempt-1', ordinal: 1, stageId: 'stage-1', status: 'VERIFIED', startedAt: 'now', summary: '全部通过', errors: [],
@@ -17,8 +20,8 @@ const judges: JudgeRun[] = [{ id: 'judge-1', role: 'RISK', ordinal: 1, status: '
 
 function mountPanel(directExecution = false) {
   return mount(TaskAuditEvidencePanel, {
-    props: { attempts, artifacts, judges, directExecution },
-    global: { plugins: [ElementPlus], stubs: { Icon: true } },
+    props: { taskId: 'task-1', attempts, artifacts, judges, directExecution },
+    global: { plugins: [ElementPlus], stubs: { Icon: true, teleport: true } },
   })
 }
 
@@ -29,6 +32,8 @@ async function openTab(wrapper: ReturnType<typeof mountPanel>, label: string) {
 }
 
 describe('TaskAuditEvidencePanel', () => {
+  afterEach(() => vi.clearAllMocks())
+
   it('shows persisted verifier stdout as the task log instead of an empty artifact placeholder', () => {
     const wrapper = mountPanel()
 
@@ -62,5 +67,22 @@ describe('TaskAuditEvidencePanel', () => {
     expect(wrapper.text()).toContain('结论安全')
     expect(wrapper.text()).toContain('测试通过')
     expect(wrapper.text()).not.toContain('{"verdict"')
+  })
+
+  it('opens a dialog preview and marks added and removed lines', async () => {
+    vi.mocked(api.getTaskDiffPreview).mockResolvedValue({
+      path: 'src/Main.java', changeType: 'MODIFIED', truncated: false,
+      patch: 'diff --git a/src/Main.java b/src/Main.java\n--- a/src/Main.java\n+++ b/src/Main.java\n@@ -1 +1 @@\n-old value\n+new value',
+    })
+    const wrapper = mountPanel()
+    await openTab(wrapper, '差异')
+    await wrapper.get('button[aria-label="预览差异 src/Main.java"]').trigger('click')
+    await vi.waitFor(() => expect(wrapper.text()).toContain('文件差异预览'))
+
+    expect(api.getTaskDiffPreview).toHaveBeenCalledWith('task-1', 'src/Main.java')
+    expect(wrapper.get('.diff-preview-dialog').text()).toContain('src/Main.java')
+    expect(wrapper.get('.preview-line.added').text()).toContain('+new value')
+    expect(wrapper.get('.preview-line.removed').text()).toContain('-old value')
+    expect(wrapper.get('.preview-line.hunk').text()).toContain('@@')
   })
 })

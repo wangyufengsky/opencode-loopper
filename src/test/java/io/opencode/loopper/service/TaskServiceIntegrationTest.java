@@ -277,6 +277,13 @@ class TaskServiceIntegrationTest {
         assertThat(tasks.get(task.id()).state()).isEqualTo("JUDGING");
         assertThat(tasks.verifications(tasks.attempts(task.id()).getFirst().id()))
                 .allMatch(result -> result.state().equals("PASS"));
+        assertThat(tasks.diffPreview(task.id(), "src/App.java")).satisfies(preview -> {
+            assertThat(preview.changeType()).isEqualTo("NEW");
+            assertThat(preview.patch()).contains("+class App {}");
+        });
+        assertThatThrownBy(() -> tasks.diffPreview(task.id(), "README.md"))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("not present in persisted GIT_DIFF evidence");
     }
 
     @Test

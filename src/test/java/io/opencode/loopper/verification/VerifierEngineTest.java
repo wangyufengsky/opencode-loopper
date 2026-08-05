@@ -35,6 +35,26 @@ class VerifierEngineTest {
     }
 
     @Test
+    void previewsModifiedAndNewFilesAsUnifiedDiffs() throws Exception {
+        git("init"); git("config", "user.email", "test@example.invalid"); git("config", "user.name", "test");
+        Files.writeString(directory.resolve("tracked.txt"), "before\ncontext\n");
+        git("add", "tracked.txt"); git("commit", "-m", "base");
+        String baseline = git("rev-parse", "HEAD").trim();
+        Files.writeString(directory.resolve("tracked.txt"), "after\ncontext\n");
+        Files.writeString(directory.resolve("new file.txt"), "new line\n");
+
+        VerifierEngine.DiffPreview modified = engine.previewDiff(directory, baseline, "tracked.txt", false, Duration.ofSeconds(5));
+        VerifierEngine.DiffPreview added = engine.previewDiff(directory, baseline, "new file.txt", true, Duration.ofSeconds(5));
+
+        assertThat(modified.changeType()).isEqualTo("MODIFIED");
+        assertThat(modified.patch()).contains("-before", "+after");
+        assertThat(added.changeType()).isEqualTo("NEW");
+        assertThat(added.patch()).contains("+new line");
+        assertThatThrownBy(() -> engine.previewDiff(directory, baseline, "../outside.txt", false, Duration.ofSeconds(5)))
+                .isInstanceOf(TaskFailure.class).hasMessageContaining("escaped its worktree");
+    }
+
+    @Test
     void gitDiffPathPolicySupportsGlobRulesWithoutChangingPrefixSemantics() throws Exception {
         git("init"); git("config", "user.email", "test@example.invalid"); git("config", "user.name", "test");
         Files.createDirectories(directory.resolve("src/main"));
@@ -80,6 +100,9 @@ class VerifierEngineTest {
         assertThat(outcome.state()).isEqualTo(VerificationState.PASS);
         assertThat(outcome.evidence().get("changedPaths")).isEqualTo(List.of("README.md"));
         assertThat(project.resolve(".git")).doesNotExist();
+        VerifierEngine.DiffPreview preview = new VerifierEngine(new SafeProcessRunner(), baselines)
+                .previewDiff(project, baseline, "README.md", false, Duration.ofSeconds(5));
+        assertThat(preview.patch()).contains("-base", "+changed");
     }
 
     @Test

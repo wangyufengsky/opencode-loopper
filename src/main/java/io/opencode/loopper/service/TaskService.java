@@ -105,6 +105,47 @@ public class TaskService {
     /** Immutable diff, verifier, and judge evidence retained independently of the worktree. */
     public List<TaskArtifactRow> artifacts(String taskId) { get(taskId); return mapper.listTaskArtifacts(taskId); }
 
+    public VerifierEngine.DiffPreview diffPreview(String taskId, String path) {
+        TaskRow task = get(taskId);
+        if (path == null || path.isBlank()) {
+            throw new BadRequestException("DIFF_PATH_INVALID", "Diff preview requires a file path");
+        }
+        boolean verified = false;
+        boolean untracked = false;
+        List<AttemptRow> attempts = mapper.listAttempts(taskId);
+        for (int attemptIndex = attempts.size() - 1; attemptIndex >= 0 && !verified; attemptIndex--) {
+            for (VerificationResultRow row : mapper.listVerifications(attempts.get(attemptIndex).id())) {
+                if (!"GIT_DIFF".equalsIgnoreCase(row.type())) continue;
+                try {
+                    var evidence = json.readTree(row.evidenceJson());
+                    if (evidence.path("changedPaths").isArray()) {
+                        for (var item : evidence.path("changedPaths")) {
+                            if (path.equals(item.asText())) { verified = true; break; }
+                        }
+                    }
+                    if (verified && evidence.path("untrackedPaths").isArray()) {
+                        for (var item : evidence.path("untrackedPaths")) {
+                            if (path.equals(item.asText())) { untracked = true; break; }
+                        }
+                    }
+                } catch (Exception ignored) {
+                    // Unreadable historical evidence cannot authorize a file preview.
+                }
+            }
+        }
+        if (!verified) {
+            throw new BadRequestException("DIFF_PATH_NOT_VERIFIED", "The requested file is not present in persisted GIT_DIFF evidence");
+        }
+        if (task.worktreePath() == null || task.worktreePath().isBlank()) {
+            throw new BadRequestException("WORKTREE_UNAVAILABLE", "Task worktree is unavailable");
+        }
+        try {
+            return verifiers.previewDiff(Path.of(task.worktreePath()), task.baselineCommit(), path, untracked, Duration.ofSeconds(10));
+        } catch (TaskFailure failure) {
+            throw new BadRequestException(failure.code(), failure.getMessage());
+        }
+    }
+
     /** Applies time budgets before a monitor interprets an OpenCode status transition. */
     @Transactional
     public void enforceTimeouts(String taskId) {

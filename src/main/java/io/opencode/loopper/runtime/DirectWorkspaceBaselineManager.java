@@ -75,6 +75,19 @@ public class DirectWorkspaceBaselineManager {
         }
     }
 
+    public ProcessResult patch(Path projectRoot, String marker, String path, Duration timeout) {
+        Baseline baseline = requireAvailableBaseline(marker);
+        try {
+            Path root = projectRoot.toRealPath();
+            return runner.run(root, git(root, baseline.gitDir(), "--literal-pathspecs", "diff", "--no-ext-diff",
+                    "--no-textconv", "--no-color", "--unified=80", baseline.tree(), "--", path), timeout);
+        } catch (TaskFailure failure) {
+            throw failure;
+        } catch (Exception exception) {
+            throw new TaskFailure("DIRECT_BASELINE_UNAVAILABLE", "Direct-execution baseline cannot be used: " + exception.getMessage());
+        }
+    }
+
     public void requireAvailable(String marker) {
         requireAvailableBaseline(marker);
     }

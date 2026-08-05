@@ -1,4 +1,4 @@
-import type { AppSettings, Artifact, Attempt, AvailableModel, DesignerAppendResult, DesignerMessage, DesignerSession, DesignerSessionState, DesignerStreamEvent, DirectorySelection, ErrorEvent, JudgeRun, LoopDraft, LoopSpec, LoopVerifierSpec, Project, ProjectConventionDraft, ProjectConventionSnapshot, RuntimeInfo, Stage, Task, TaskDesignHistory, TaskEvent, TaskSessionActivity, TaskSessionActivityPart, TaskSessionPendingQuestion, TaskSessionSummary } from '@/types/domain'
+import type { AppSettings, Artifact, Attempt, AvailableModel, DesignerAppendResult, DesignerMessage, DesignerSession, DesignerSessionState, DesignerStreamEvent, DirectorySelection, ErrorEvent, JudgeRun, LoopDraft, LoopSpec, LoopVerifierSpec, Project, ProjectConventionDraft, ProjectConventionSnapshot, RuntimeInfo, Stage, Task, TaskDesignHistory, TaskDiffPreview, TaskEvent, TaskSessionActivity, TaskSessionActivityPart, TaskSessionPendingQuestion, TaskSessionSummary } from '@/types/domain'
 
 const apiBase = import.meta.env.VITE_API_BASE ?? '/api'
 
@@ -415,6 +415,16 @@ function backendLoopSpec(spec: LoopSpec): JsonRecord {
   }
 }
 
+function normalizeTaskDiffPreview(value: unknown): TaskDiffPreview {
+  const raw = asRecord(value)
+  return {
+    path: asString(raw.path),
+    changeType: raw.changeType === 'NEW' ? 'NEW' : 'MODIFIED',
+    patch: asString(raw.patch),
+    truncated: raw.truncated === true,
+  }
+}
+
 export const api = {
   getProjects: async () => (await request<unknown[]>('/projects')).map(normalizeProject),
   pickProjectDirectory: async (): Promise<DirectorySelection> => {
@@ -429,6 +439,7 @@ export const api = {
   applyProjectConvention: async (projectId: string, draftId: string) => normalizeProjectConvention(await request<unknown>(`/projects/${encodeURIComponent(projectId)}/agents-md/${encodeURIComponent(draftId)}`, { method: 'PUT', headers: { 'X-Loopper-Local-UI': '1' } })),
   getTasks: async () => (await request<unknown[]>('/tasks')).map(normalizeTask),
   getTask: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}`)),
+  getTaskDiffPreview: async (id: string, path: string) => normalizeTaskDiffPreview(await request<unknown>(`/tasks/${encodeURIComponent(id)}/diff-preview?path=${encodeURIComponent(path)}`)),
   getTaskDesignHistory: async (id: string) => normalizeTaskDesignHistory(await request<unknown>(`/tasks/${encodeURIComponent(id)}/design-history`)),
   getTaskSessions: async (id: string) => (await request<unknown[]>(`/tasks/${encodeURIComponent(id)}/sessions`)).map(normalizeTaskSession),
   getTaskSessionActivity: async (taskId: string, sessionKey: string) => normalizeTaskSessionActivity(await request<unknown>(`/tasks/${encodeURIComponent(taskId)}/sessions/${encodeURIComponent(sessionKey)}`)),

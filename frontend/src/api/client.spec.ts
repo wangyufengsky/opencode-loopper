@@ -118,6 +118,18 @@ describe('Loopper REST contract adapter', () => {
     expect(task.hasDesignHistory).toBe(true)
   })
 
+  it('loads an encoded task file diff preview', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(json({
+      path: 'src/new file.ts', changeType: 'NEW', patch: '--- /dev/null\n+++ b/src/new file.ts\n+const ready = true', truncated: false,
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(api.getTaskDiffPreview('task 1', 'src/new file.ts')).resolves.toMatchObject({
+      path: 'src/new file.ts', changeType: 'NEW', truncated: false,
+    })
+    expect(fetchMock).toHaveBeenCalledWith('/api/tasks/task%201/diff-preview?path=src%2Fnew%20file.ts', expect.any(Object))
+  })
+
   it('loads persisted task design history without opening a live Designer session', async () => {
     const fetchMock = vi.fn().mockResolvedValue(json({
       taskId: 'task-1', taskTitle: 'Durable history', projectName: 'Project',

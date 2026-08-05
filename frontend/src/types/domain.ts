@@ -163,6 +163,13 @@ export interface Artifact {
   metadata?: Record<string, unknown>
 }
 
+export interface TaskDiffPreview {
+  path: string
+  changeType: 'NEW' | 'MODIFIED'
+  patch: string
+  truncated: boolean
+}
+
 export interface JudgeRun {
   id: string
   role: 'REQUIREMENT' | 'RISK'
