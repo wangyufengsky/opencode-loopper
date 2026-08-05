@@ -463,7 +463,7 @@ async function sendMessage() {
 </script>
 
 <template>
-  <PageHeader eyebrow="Designer / Plan" title="Designer 与 LoopSpec" subtitle="先规划、再确认；消息通过只读 OpenCode 会话处理，只有真实模型回复才会显示为 Designer 消息。">
+  <PageHeader eyebrow="Designer / Plan" title="Designer 与 LoopSpec">
     <template #actions><StatusBadge :status="draft?.status === 'CONFIRMED' ? 'SUCCEEDED' : 'PENDING'" :label="draft?.status ?? '等待草案'" /><el-button v-if="draft" class="restart-designer-button" plain :disabled="busy" @click="restartDesigner"><Icon icon="lucide:rotate-ccw" />重新开始</el-button><el-button type="primary" :loading="busy" :disabled="!draft" @click="confirm"><Icon icon="lucide:circle-check-big" />确认并交接</el-button></template>
   </PageHeader>
   <main id="main-content" class="content" tabindex="-1">

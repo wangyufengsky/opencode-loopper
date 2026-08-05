@@ -80,7 +80,7 @@ onMounted(load)
 </script>
 
 <template>
-  <PageHeader eyebrow="System / Settings" title="执行策略与模型" subtitle="设置保存在本机 Loopper 数据库；Provider 密钥只从本机 OpenCode 环境读取，不会传递至浏览器。">
+  <PageHeader eyebrow="System / Settings" title="执行策略与模型">
     <template #actions><el-button class="settings-save" type="primary" :loading="saving" :disabled="loading" @click="save"><Icon icon="lucide:save" />保存设置</el-button></template>
   </PageHeader>
   <main id="main-content" class="content" tabindex="-1" v-loading="loading">

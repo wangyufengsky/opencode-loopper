@@ -182,7 +182,7 @@ onBeforeUnmount(clearConventionPoll)
 </script>
 
 <template>
-  <PageHeader eyebrow="Workspace / Projects" title="项目登记" subtitle="登记受控项目根目录；有 Git HEAD 时隔离执行，否则直接修改原目录。">
+  <PageHeader eyebrow="Workspace / Projects" title="项目登记">
     <template #actions><el-button type="primary" :icon="Icon" @click="openDialog"><Icon icon="lucide:plus" />登记项目</el-button></template>
   </PageHeader>
   <main id="main-content" class="content" tabindex="-1">

@@ -31,7 +31,7 @@ function openTask(task: { id: string }) { router.push(`/tasks/${task.id}`) }
 </script>
 
 <template>
-  <PageHeader eyebrow="Control Plane / Tasks" title="任务控制台" subtitle="Git 项目使用隔离分支与 worktree；无 HEAD 项目直接执行并保留验证证据。">
+  <PageHeader eyebrow="Control Plane / Tasks" title="任务控制台">
     <template #actions><el-button plain @click="store.loadOverview"><Icon icon="lucide:refresh-cw" />刷新状态</el-button><el-button type="primary" @click="router.push('/designer')"><Icon icon="lucide:sparkles" />新建 Loop</el-button></template>
   </PageHeader>
   <main id="main-content" class="content" tabindex="-1">
