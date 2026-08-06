@@ -1,0 +1,75 @@
+import { flushPromises, mount } from '@vue/test-utils'
+import ElementPlus, { ElMessageBox } from 'element-plus'
+import { createMemoryHistory, createRouter } from 'vue-router'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import TaskDetailView from '@/views/TaskDetailView.vue'
+
+const store = vi.hoisted(() => ({
+  tasks: [] as Array<Record<string, unknown>>,
+  artifacts: [] as Array<Record<string, unknown>>,
+  usingDemo: false,
+  streamState: 'idle',
+  loadTask: vi.fn().mockResolvedValue(undefined),
+  watchTask: vi.fn(),
+  stopWatching: vi.fn(),
+  updateTask: vi.fn(),
+  retryJudges: vi.fn().mockResolvedValue(undefined),
+}))
+
+vi.mock('@/stores/taskStore', () => ({ useTaskStore: () => store }))
+
+const reviewTask = {
+  id: 'task-review', projectId: 'project-1', title: '待评审任务', goal: '验证显式评审入口',
+  status: 'WAITING_INPUT', branch: 'DIRECT', worktreePath: '/tmp/project', attemptCount: 1, maxAttempts: 3,
+  createdAt: 'start', updatedAt: 'now', errors: [], artifacts: [], attempts: [],
+  stages: [{ id: 'stage-1', ordinal: 1, objective: '完成实现', status: 'SUCCEEDED', attempts: [] }],
+  judges: [
+    { id: 'requirement-1', role: 'REQUIREMENT', ordinal: 1, status: 'COMPLETED', verdict: 'BLOCKED', reason: '证据不足', createdAt: 'start' },
+    { id: 'risk-1', role: 'RISK', ordinal: 1, status: 'COMPLETED', verdict: 'PASS', reason: '风险可控', createdAt: 'start' },
+  ],
+}
+
+describe('TaskDetailView judge action', () => {
+  beforeEach(() => {
+    store.tasks = [reviewTask]
+    store.loadTask.mockClear()
+    store.watchTask.mockClear()
+    store.stopWatching.mockClear()
+    store.retryJudges.mockClear()
+  })
+
+  it('offers an explicit fresh double review for a deterministically accepted waiting task', async () => {
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/tasks/:id', component: { template: '<div />' } }] })
+    await router.push('/tasks/task-review')
+    await router.isReady()
+    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue(undefined as never)
+
+    const wrapper = mount(TaskDetailView, {
+      global: {
+        plugins: [router, ElementPlus],
+        stubs: {
+          Icon: true,
+          PageHeader: { template: '<header><slot name="actions" /></header><slot />' },
+          StatusBadge: true,
+          StageRail: true,
+          AttemptTimeline: true,
+          LayeredErrorPanel: true,
+          SessionMonitorPanel: true,
+          JudgeReviewCard: true,
+          TaskAuditEvidencePanel: true,
+          TaskPublicationActions: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    const action = wrapper.findAll('button').find((button) => button.text().includes('重新发起双评审'))
+    expect(action).toBeDefined()
+    expect(wrapper.find('#judge-review').exists()).toBe(true)
+    await action!.trigger('click')
+    await flushPromises()
+
+    expect(ElMessageBox.confirm).toHaveBeenCalledWith(expect.stringContaining('两个新的只读 OpenCode 评审 Session'), expect.any(String), expect.any(Object))
+    expect(store.retryJudges).toHaveBeenCalledWith('task-review')
+  })
+})

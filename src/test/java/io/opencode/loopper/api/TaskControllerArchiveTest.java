@@ -1,8 +1,10 @@
 package io.opencode.loopper.api;
 
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -50,6 +52,28 @@ class TaskControllerArchiveTest {
                 .andExpect(jsonPath("$.archived").value(true));
 
         mvc.perform(put("/api/tasks/task-1/archive"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void retriesJudgesOnlyThroughTheLocalUiContract() throws Exception {
+        TaskRow task = new TaskRow("task-1", "project-1", null, "Review", "JUDGING",
+                "/tmp/project", "DIRECT", null, "2026-08-05T00:00:00Z", "2026-08-05T00:01:00Z", 1);
+        when(tasks.retryJudges("task-1")).thenReturn(task);
+        when(tasks.archived("task-1")).thenReturn(false);
+        when(tasks.attempts("task-1")).thenReturn(List.of());
+        when(tasks.stages("task-1")).thenReturn(List.of());
+        when(tasks.errors("task-1")).thenReturn(List.of());
+        when(tasks.judges("task-1")).thenReturn(List.of());
+        when(tasks.artifacts("task-1")).thenReturn(List.of());
+        when(mapper.findProject("project-1")).thenReturn(Optional.empty());
+
+        mvc.perform(post("/api/tasks/task-1/judges/retry").header("X-Loopper-Local-UI", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("JUDGING"));
+        verify(tasks).retryJudges("task-1");
+
+        mvc.perform(post("/api/tasks/task-1/judges/retry"))
                 .andExpect(status().isBadRequest());
     }
 

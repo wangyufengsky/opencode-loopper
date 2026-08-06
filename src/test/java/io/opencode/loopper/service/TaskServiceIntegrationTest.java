@@ -619,6 +619,35 @@ class TaskServiceIntegrationTest {
     }
 
     @Test
+    void explicitJudgeRetryStartsAFreshPairAndCanCompleteAWaitingTask() throws Exception {
+        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
+        fake.setJudgeOutput("{\"verdict\":\"BLOCKED\",\"reason\":\"Missing release evidence\"}");
+        ProjectRow project = projects.create("judge-retry", gitProject());
+        TaskRow task = drafts.confirm(drafts.create(spec(project.id())).id(), "retry blocked judges");
+        tasks.start(task.id()); tasks.verify(task.id()); tasks.pollJudges(task.id());
+
+        assertThat(tasks.get(task.id()).state()).isEqualTo("WAITING_INPUT");
+        assertThat(tasks.judges(task.id())).hasSize(2);
+
+        fake.setJudgeOutput("{\"verdict\":\"PASS\",\"reason\":\"Current evidence is sufficient\"}");
+        TaskRow judging = tasks.retryJudges(task.id());
+
+        assertThat(judging.state()).isEqualTo("JUDGING");
+        assertThat(tasks.judges(task.id())).hasSize(4);
+        assertThat(mapper.latestJudgeRun(task.id(), "REQUIREMENT")).hasValueSatisfying(judge -> {
+            assertThat(judge.ordinal()).isEqualTo(2);
+            assertThat(judge.state()).isEqualTo("RUNNING");
+            assertThat(fake.isReadOnlySession(judge.externalSessionId())).isTrue();
+        });
+        assertThat(mapper.latestJudgeRun(task.id(), "RISK")).hasValueSatisfying(judge -> assertThat(judge.ordinal()).isEqualTo(2));
+
+        tasks.pollJudges(task.id());
+        assertThat(tasks.get(task.id()).state()).isEqualTo("SUCCEEDED");
+        assertThat(mapper.latestJudgeRun(task.id(), "REQUIREMENT")).hasValueSatisfying(judge -> assertThat(judge.verdict()).isEqualTo("PASS"));
+        assertThat(mapper.latestJudgeRun(task.id(), "RISK")).hasValueSatisfying(judge -> assertThat(judge.verdict()).isEqualTo("PASS"));
+    }
+
+    @Test
     void reviseAndUnparseableJudgeResponsesBothStopAtWaitingInput() throws Exception {
         ((FakeOpenCodeClient) openCode).setJudgeOutput("{\"verdict\":\"REVISE\",\"reason\":\"A release note is still required\"}");
         ProjectRow reviseProject = projects.create("revise", gitProject());
@@ -690,6 +719,15 @@ class TaskServiceIntegrationTest {
         assertThat(tasks.get(task.id()).state()).isNotEqualTo("FAILED");
         assertThat(tasks.judges(task.id()).stream().filter(judge -> judge.role().equals("REQUIREMENT") && judge.state().equals("SESSION_ERROR"))).hasSize(3);
         assertThat(tasks.errors(task.id())).anyMatch(error -> error.code().equals("JUDGE_SESSION_RETRY_EXHAUSTED") && error.layer().equals(ErrorLayer.VERIFICATION.name()));
+
+        TaskRow judging = tasks.retryJudges(task.id());
+        assertThat(judging.state()).isEqualTo("JUDGING");
+        assertThat(mapper.latestJudgeRun(task.id(), "REQUIREMENT")).hasValueSatisfying(judge -> {
+            assertThat(judge.ordinal()).isEqualTo(4);
+            assertThat(judge.state()).isEqualTo("RUNNING");
+        });
+        tasks.pollJudges(task.id());
+        assertThat(tasks.get(task.id()).state()).isEqualTo("SUCCEEDED");
     }
 
     private LoopSpec spec(String projectId) {

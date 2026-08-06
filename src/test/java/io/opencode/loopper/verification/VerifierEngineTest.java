@@ -333,6 +333,27 @@ class VerifierEngineTest {
     }
 
     @Test
+    void browserExecutableDiscoverySupportsLinuxPathAndExplicitOverride(@TempDir Path linuxRoot) throws Exception {
+        Path bin = Files.createDirectories(linuxRoot.resolve("bin"));
+        Path chromium = Files.writeString(bin.resolve("chromium"), "#!/bin/sh\n");
+        assertThat(chromium.toFile().setExecutable(true)).isTrue();
+
+        assertThat(BrowserExecutableLocator.resolve("Linux", Map.of("PATH", bin.toString())))
+                .isEqualTo(chromium.toAbsolutePath().normalize());
+        assertThat(BrowserExecutableLocator.resolve("Linux", Map.of("LOOPPER_CHROME_EXECUTABLE", chromium.toString())))
+                .isEqualTo(chromium.toAbsolutePath().normalize());
+    }
+
+    @Test
+    void invalidExplicitBrowserExecutableFailsClosed() {
+        assertThatThrownBy(() -> BrowserExecutableLocator.resolve("Linux", Map.of(
+                "LOOPPER_CHROME_EXECUTABLE", directory.resolve("missing-chrome").toString())))
+                .isInstanceOf(TaskFailure.class)
+                .hasMessageContaining("LOOPPER_CHROME_EXECUTABLE")
+                .hasMessageContaining("not an executable file");
+    }
+
+    @Test
     void rejectsExternalHttpAndArbitraryBrowserSelectorsBeforeNetworkOrBrowserUse() {
         assertThatThrownBy(() -> engine.verify(directory, "unused", nativeSpec("HTTP_STATUS", null, "http://example.com", "GET", 200, null, null, null, null, null, null, null), Duration.ofSeconds(5)))
                 .isInstanceOf(TaskFailure.class).hasMessageContaining("loopback");

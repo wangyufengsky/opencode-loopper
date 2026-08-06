@@ -82,6 +82,11 @@ public class TaskController {
     @PostMapping("/{id}/pause") public TaskDto pause(@PathVariable String id) { return dto(service.pause(id)); }
     @PostMapping("/{id}/resume") public TaskDto resume(@PathVariable String id) { return dto(service.resume(id)); }
     @PostMapping("/{id}/cancel") public TaskDto cancel(@PathVariable String id) { return dto(service.cancel(id)); }
+    @PostMapping("/{id}/judges/retry")
+    public TaskDto retryJudges(@PathVariable String id, @RequestHeader("X-Loopper-Local-UI") String localUi) {
+        requireLocalUi(localUi);
+        return dto(service.retryJudges(id));
+    }
     @PutMapping("/{id}/archive")
     public TaskDto archive(@PathVariable String id, @RequestHeader("X-Loopper-Local-UI") String localUi) {
         requireLocalUi(localUi);

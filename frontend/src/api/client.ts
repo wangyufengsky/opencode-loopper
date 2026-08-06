@@ -855,6 +855,7 @@ export const api = {
   pauseTask: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}/pause`, { method: 'POST' })),
   resumeTask: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}/resume`, { method: 'POST' })),
   cancelTask: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}/cancel`, { method: 'POST' })),
+  retryTaskJudges: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}/judges/retry`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } })),
   archiveTask: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}/archive`, { method: 'PUT', headers: { 'X-Loopper-Local-UI': '1' } })),
   restoreArchivedTask: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}/archive`, { method: 'DELETE', headers: { 'X-Loopper-Local-UI': '1' } })),
   getTaskPublication: async (id: string) => normalizeTaskPublication(await request<unknown>(`/tasks/${encodeURIComponent(id)}/publication`)),

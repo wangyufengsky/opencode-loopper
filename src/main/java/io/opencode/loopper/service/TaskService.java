@@ -780,23 +780,68 @@ public class TaskService {
 
     private void launchRequiredJudges(TaskRow task, AttemptRow finalAttempt) {
         for (String role : List.of("REQUIREMENT", "RISK")) {
-            if (mapper.latestJudgeRun(task.id(), role).isEmpty()) launchJudge(task, finalAttempt, role);
+            if (mapper.latestJudgeRun(task.id(), role).isEmpty()) launchJudge(task, finalAttempt, role, false);
         }
         if (TaskState.JUDGING.name().equals(get(task.id()).state())) {
             events.emit(task.id(), "task.judging", Map.of("state", TaskState.JUDGING.name(), "judges", List.of("REQUIREMENT", "RISK")));
         }
     }
 
-    private void launchJudge(TaskRow inputTask, AttemptRow finalAttempt, String role) {
+    /**
+     * Explicit local-UI review is the recovery path for missing, rejected, malformed, or
+     * retry-exhausted Judge runs. It authorizes exactly one fresh pair of read-only sessions;
+     * later transport failures still return to WAITING_INPUT instead of looping forever.
+     */
+    @Transactional
+    public TaskRow retryJudges(String taskId) {
+        TaskRow task = get(taskId);
+        if (!TaskState.WAITING_INPUT.name().equals(task.state()) && !TaskState.SUCCEEDED.name().equals(task.state())) {
+            throw new ConflictException("JUDGE_REVIEW_NOT_ACTIONABLE",
+                    "只有等待评审处理或缺少最终评审的已完成任务可以重新发起双评审");
+        }
+        if (!mapper.activeJudgeRuns(task.id()).isEmpty()) {
+            throw new ConflictException("JUDGE_REVIEW_ALREADY_RUNNING", "双评审仍在运行，无需重复启动");
+        }
+        StageRow finalStage = mapper.listStages(task.id()).stream()
+                .max(java.util.Comparator.comparingInt(StageRow::ordinal))
+                .orElseThrow(() -> new ConflictException("JUDGE_FINAL_STAGE_MISSING", "任务没有可评审的最终阶段"));
+        AttemptRow finalAttempt = mapper.latestAttempt(finalStage.id())
+                .orElseThrow(() -> new ConflictException("JUDGE_FINAL_ATTEMPT_MISSING", "最终阶段没有可评审的执行记录"));
+        if (!StageState.SUCCEEDED.name().equals(finalStage.state())
+                || !AttemptState.SUCCEEDED.name().equals(finalAttempt.state())) {
+            throw new ConflictException("JUDGE_DETERMINISTIC_ACCEPTANCE_REQUIRED",
+                    "只有最终阶段确定性验收通过后才能启动双评审");
+        }
+        JudgeRunRow requirement = mapper.latestJudgeRun(task.id(), "REQUIREMENT").orElse(null);
+        JudgeRunRow risk = mapper.latestJudgeRun(task.id(), "RISK").orElse(null);
+        if (approved(requirement) && approved(risk)) {
+            throw new ConflictException("JUDGE_REVIEW_ALREADY_APPROVED", "需求与风险双评审已经通过");
+        }
+
+        updateTask(state(task, TaskState.JUDGING));
+        events.emit(task.id(), "task.judge_retry_requested", Map.of(
+                "state", TaskState.JUDGING.name(), "source", "LOCAL_UI", "judges", List.of("REQUIREMENT", "RISK")));
+        for (String role : List.of("REQUIREMENT", "RISK")) {
+            if (!TaskState.JUDGING.name().equals(get(task.id()).state())) break;
+            launchJudge(get(task.id()), finalAttempt, role, true);
+        }
+        return get(task.id());
+    }
+
+    private boolean approved(JudgeRunRow judge) {
+        return judge != null && "COMPLETED".equals(judge.state()) && "PASS".equals(judge.verdict());
+    }
+
+    private void launchJudge(TaskRow inputTask, AttemptRow finalAttempt, String role, boolean explicitLocalRetry) {
         TaskRow task = get(inputTask.id());
         if (!TaskState.JUDGING.name().equals(task.state())) return;
         LoopSpec spec = spec(task);
-        if (mapper.countJudgeSessionErrors(task.id(), role) >= spec.limits().sessionErrorLimit()) {
+        if (!explicitLocalRetry && mapper.countJudgeSessionErrors(task.id(), role) >= spec.limits().sessionErrorLimit()) {
             waitForJudgeInput(task, finalAttempt, null, "JUDGE_SESSION_RETRY_EXHAUSTED",
                     role + " Judge exhausted its configured session retry limit");
             return;
         }
-        if (blockModelCallForBudget(task, null, finalAttempt)) return;
+        if (!explicitLocalRetry && blockModelCallForBudget(task, null, finalAttempt)) return;
         JudgeRunRow judge = new JudgeRunRow(UUID.randomUUID().toString(), task.id(), finalAttempt.id(), role,
                 mapper.nextJudgeOrdinal(task.id(), role), null, "CREATING", null, null, null, now(), null, 0);
         mapper.insertJudgeRun(judge);
@@ -885,7 +930,7 @@ public class TaskService {
             return;
         }
         events.emit(task.id(), "judge.session_failed", Map.of("judgeRunId", judge.id(), "role", judge.role(), "code", failure.code(), "recovery", "fresh_read_only_session"));
-        if (attempt != null) launchJudge(task, attempt, judge.role());
+        if (attempt != null) launchJudge(task, attempt, judge.role(), false);
     }
 
     private void evaluateJudgeDecision(TaskRow task) {

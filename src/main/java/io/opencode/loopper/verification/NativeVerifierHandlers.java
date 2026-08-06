@@ -14,6 +14,7 @@ import io.opencode.loopper.domain.LoopSpec.VerifierSpec;
 import io.opencode.loopper.domain.TaskFailure;
 import io.opencode.loopper.domain.VerificationState;
 import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -128,18 +129,19 @@ final class JunitXmlVerifier implements NativeVerifierHandler {
 }
 
 final class BrowserVerifier implements NativeVerifierHandler {
-    private static final Path CHROME = Path.of("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome");
     private static final String EXTERNAL_NETWORK_POLICY = "DEAD_LOOPBACK_PROXY_AND_HOST_RESOLVER_DENY";
     @Override public String type() { return "BROWSER"; }
     @Override public VerifierOutcome verify(NativeVerifierContext context, VerifierSpec spec) {
         URI initial = VerifierSafety.requireLoopbackHttp(spec.url());
-        if (!Files.isRegularFile(CHROME) || !Files.isExecutable(CHROME)) {
-            throw new TaskFailure("BROWSER_CHROME_UNAVAILABLE", "Google Chrome is not available at the local macOS application path");
-        }
+        Path chrome = BrowserExecutableLocator.resolve();
         List<Map<String, Object>> observed = new ArrayList<>();
         Path trace = context.artifacts().reserve("application/zip");
-        try (Playwright playwright = Playwright.create(); Browser browser = playwright.chromium().launch(new BrowserType.LaunchOptions()
-                .setExecutablePath(CHROME).setHeadless(true).setArgs(List.of(
+        // The product deliberately uses the operator-installed browser. Prevent Playwright from
+        // downloading a second platform-specific browser during first use of the packaged JAR.
+        try (Playwright playwright = Playwright.create(new Playwright.CreateOptions()
+                .setEnv(Map.of("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1")));
+             Browser browser = playwright.chromium().launch(new BrowserType.LaunchOptions()
+                .setExecutablePath(chrome).setHeadless(true).setArgs(List.of(
                         "--disable-extensions", "--no-first-run", "--no-default-browser-check",
                         "--disable-background-networking", "--disable-component-update", "--disable-domain-reliability",
                         "--disable-quic", "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
@@ -183,12 +185,90 @@ final class BrowserVerifier implements NativeVerifierHandler {
                 Map<String, Object> evidence = new LinkedHashMap<>();
                 evidence.put("url", page.url()); evidence.put("assertions", observed);
                 evidence.put("artifacts", List.of(screenshot.evidence(), traceArtifact.evidence()));
-                evidence.put("chromeExecutable", CHROME.toString()); evidence.put("loopbackOnly", true);
+                evidence.put("chromeExecutable", chrome.toString()); evidence.put("loopbackOnly", true);
                 evidence.put("serviceWorkers", "BLOCK"); evidence.put("externalNetworkPolicy", EXTERNAL_NETWORK_POLICY);
                 return NativeVerifierHandlers.outcome(type(), passed, passed ? "Browser assertions matched" : "One or more browser assertions failed", evidence);
             } finally { browserContext.close(); }
         } catch (TaskFailure failure) { throw failure; }
         catch (RuntimeException browserFailure) { throw new TaskFailure("BROWSER_VERIFICATION_FAILED", "Browser verifier failed: " + browserFailure.getMessage()); }
+    }
+}
+
+/** Resolves an operator-installed Chrome/Chromium without assuming a specific desktop OS. */
+final class BrowserExecutableLocator {
+    private static final String OVERRIDE = "LOOPPER_CHROME_EXECUTABLE";
+
+    private BrowserExecutableLocator() { }
+
+    static Path resolve() {
+        return resolve(System.getProperty("os.name", ""), System.getenv());
+    }
+
+    static Path resolve(String osName, Map<String, String> environment) {
+        String configured = environment.getOrDefault(OVERRIDE, "").trim();
+        if (!configured.isEmpty()) {
+            Path candidate = Path.of(configured).toAbsolutePath().normalize();
+            if (usable(candidate, osName)) return candidate;
+            throw unavailable("Configured " + OVERRIDE + " is not an executable file: " + candidate);
+        }
+
+        List<Path> candidates = new ArrayList<>();
+        String normalizedOs = osName.toLowerCase(Locale.ROOT);
+        if (normalizedOs.contains("mac")) {
+            candidates.add(Path.of("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"));
+            candidates.add(Path.of("/Applications/Chromium.app/Contents/MacOS/Chromium"));
+        } else if (normalizedOs.contains("win")) {
+            addWindowsCandidates(candidates, environment.get("PROGRAMFILES"));
+            addWindowsCandidates(candidates, environment.get("PROGRAMFILES(X86)"));
+            String localAppData = environment.get("LOCALAPPDATA");
+            if (localAppData != null && !localAppData.isBlank()) {
+                candidates.add(Path.of(localAppData, "Google", "Chrome", "Application", "chrome.exe"));
+                candidates.add(Path.of(localAppData, "Chromium", "Application", "chrome.exe"));
+            }
+        } else {
+            candidates.addAll(List.of(
+                    Path.of("/usr/bin/google-chrome"),
+                    Path.of("/usr/bin/google-chrome-stable"),
+                    Path.of("/usr/bin/chromium"),
+                    Path.of("/usr/bin/chromium-browser"),
+                    Path.of("/snap/bin/chromium"),
+                    Path.of("/var/lib/flatpak/exports/bin/com.google.Chrome"),
+                    Path.of("/var/lib/flatpak/exports/bin/org.chromium.Chromium")));
+        }
+
+        for (Path candidate : candidates) {
+            if (usable(candidate, osName)) return candidate.toAbsolutePath().normalize();
+        }
+        for (String directory : environment.getOrDefault("PATH", "").split(java.util.regex.Pattern.quote(File.pathSeparator))) {
+            if (directory.isBlank()) continue;
+            for (String executable : executableNames(normalizedOs)) {
+                Path candidate = Path.of(directory, executable);
+                if (usable(candidate, osName)) return candidate.toAbsolutePath().normalize();
+            }
+        }
+        throw unavailable("Chrome/Chromium was not found for " + osName);
+    }
+
+    private static void addWindowsCandidates(List<Path> candidates, String root) {
+        if (root == null || root.isBlank()) return;
+        candidates.add(Path.of(root, "Google", "Chrome", "Application", "chrome.exe"));
+        candidates.add(Path.of(root, "Chromium", "Application", "chrome.exe"));
+    }
+
+    private static List<String> executableNames(String osName) {
+        if (osName.contains("win")) return List.of("chrome.exe", "chromium.exe");
+        if (osName.contains("mac")) return List.of("google-chrome", "chromium", "chrome");
+        return List.of("google-chrome", "google-chrome-stable", "chromium", "chromium-browser");
+    }
+
+    private static boolean usable(Path candidate, String osName) {
+        return Files.isRegularFile(candidate)
+                && (Files.isExecutable(candidate) || osName.toLowerCase(Locale.ROOT).contains("win"));
+    }
+
+    private static TaskFailure unavailable(String detail) {
+        return new TaskFailure("BROWSER_CHROME_UNAVAILABLE",
+                detail + ". Install Google Chrome/Chromium or set " + OVERRIDE + " to its executable path");
     }
 }
 

@@ -330,6 +330,18 @@ describe('Loopper REST contract adapter', () => {
     expect(fetchMock).toHaveBeenCalledWith('/api/tasks/task-ready/start', expect.objectContaining({ method: 'POST' }))
   })
 
+  it('retries task judges only through the local UI contract', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(json({
+      id: 'task-review', projectId: 'project-1', title: 'Review task', status: 'JUDGING', stages: [], errors: [], attempts: [],
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(api.retryTaskJudges('task review')).resolves.toMatchObject({ id: 'task-review', status: 'JUDGING' })
+    expect(fetchMock).toHaveBeenCalledWith('/api/tasks/task%20review/judges/retry', expect.objectContaining({
+      method: 'POST', headers: expect.objectContaining({ 'X-Loopper-Local-UI': '1' }),
+    }))
+  })
+
   it('normalizes live Task Session thinking and output parts', async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(json([{ key: 'execution:local-1', kind: 'IMPLEMENTATION', label: 'Implementation Session', localSessionId: 'local-1', externalSessionId: 'remote-1', state: 'RUNNING', stageId: 'stage-1', stageOrdinal: 1, stageObjective: '实现阶段目标', createdAt: 'now' }]))

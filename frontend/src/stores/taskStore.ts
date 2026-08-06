@@ -120,6 +120,23 @@ export const useTaskStore = defineStore('task', () => {
     }
   }
 
+  async function retryJudges(id: string) {
+    const old = tasks.value.find((task) => task.id === id)
+    if (!old) return
+    if (usingDemo.value) {
+      tasks.value = tasks.value.map((task) => task.id === id ? { ...task, status: 'JUDGING', updatedAt: new Date().toISOString() } : task)
+      return
+    }
+    error.value = undefined
+    try {
+      const changed = await api.retryTaskJudges(id)
+      tasks.value = tasks.value.map((task) => task.id === id ? changed : task)
+    } catch (cause) {
+      error.value = cause instanceof Error ? cause.message : '双评审启动失败'
+      throw cause
+    }
+  }
+
   async function setTaskArchived(id: string, archived: boolean) {
     const old = tasks.value.find((task) => task.id === id)
     if (!old) return
@@ -180,5 +197,5 @@ export const useTaskStore = defineStore('task', () => {
     try { runtime.value = await api.restartRuntime() } catch (cause) { error.value = cause instanceof Error ? cause.message : 'Runtime 重启失败' }
   }
 
-  return { projects, tasks, runtime, artifacts, loading, error, usingDemo, streamState, activeTasks, selectedTask, activateDemo, loadOverview, loadTask, updateTask, setTaskArchived, watchTask, stopWatching, refreshRuntime, restartRuntime }
+  return { projects, tasks, runtime, artifacts, loading, error, usingDemo, streamState, activeTasks, selectedTask, activateDemo, loadOverview, loadTask, updateTask, retryJudges, setTaskArchived, watchTask, stopWatching, refreshRuntime, restartRuntime }
 })

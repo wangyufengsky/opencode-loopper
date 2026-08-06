@@ -7,7 +7,7 @@ afterEach(() => { vi.unstubAllGlobals() })
 describe('InsightsDashboardView', () => {
   it('renders unknown provider usage as unknown instead of zero and keeps currencies separate', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ usage: { totalTokens: null, unknownUsageCount: 2, costByCurrency: { USD: '1.20', CNY: '8.00' } }, tasks: [] }) }))
-    const wrapper = mount(InsightsDashboardView, { global: { plugins: [ElementPlus], stubs: { Icon: true, PageHeader: { template: '<header><slot name="actions" /></header>' } } } })
+    const wrapper = mount(InsightsDashboardView, { global: { plugins: [ElementPlus], stubs: { Icon: true, RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' }, PageHeader: { template: '<header><slot name="actions" /></header>' } } } })
     await flushPromises()
     expect(wrapper.text()).toContain('未知')
     expect(wrapper.text()).toContain('USD 1.20')
@@ -22,11 +22,12 @@ describe('InsightsDashboardView', () => {
       quality: { state, deterministicPassed: state === 'PASS', verificationCount: 1, verificationPassedCount: state === 'PASS' ? 1 : 0, requirementJudgePassed: state === 'PASS', riskJudgePassed: state === 'PASS' },
     })
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ usage: { totalTokens: 3, unknownUsageCount: 0, costByCurrency: {} }, tasks: [task('PASS'), task('PENDING'), task('REVIEW_REQUIRED')] }) }))
-    const wrapper = mount(InsightsDashboardView, { global: { plugins: [ElementPlus], stubs: { Icon: true, PageHeader: { template: '<header><slot name="actions" /></header>' } } } })
+    const wrapper = mount(InsightsDashboardView, { global: { plugins: [ElementPlus], stubs: { Icon: true, RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' }, PageHeader: { template: '<header><slot name="actions" /></header>' } } } })
     await flushPromises()
     const markers = wrapper.findAll('.quality')
     expect(markers.map(marker => marker.text())).toEqual(['质量通过', '待验收', '待评审'])
     expect(markers.every(marker => marker.find('.quality-icon').exists())).toBe(true)
     expect(markers.map(marker => marker.attributes('title'))).toEqual(['PASS', 'PENDING', 'REVIEW_REQUIRED'])
+    expect(wrapper.find('a[href="/tasks/REVIEW_REQUIRED#judge-review"]').exists()).toBe(true)
   })
 })

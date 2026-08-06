@@ -23,6 +23,7 @@
         <flyway.version>12.0.0</flyway.version>
         <sqlite.version>3.47.1.0</sqlite.version>
         <spring-ai.version>2.0.0</spring-ai.version>
+        <playwright.version>1.62.0</playwright.version>
         <frontend-maven-plugin.version>1.15.4</frontend-maven-plugin.version>
         <node.version>v22.14.0</node.version>
         <npm.version>10.9.2</npm.version>
@@ -69,7 +70,7 @@
         <dependency>
             <groupId>com.microsoft.playwright</groupId>
             <artifactId>playwright</artifactId>
-            <version>1.55.0</version>
+            <version>${playwright.version}</version>
         </dependency>
         <!-- Official Spring AI 2.0 Streamable HTTP MCP Server (WebMVC). -->
         <dependency>

@@ -55,6 +55,26 @@ java -jar target/opencode-loopper-0.1.0-SNAPSHOT.jar
 Open [http://127.0.0.1:8080](http://127.0.0.1:8080). Runtime data is written
 to `./data` unless `LOOPPER_DATA_DIR` is set.
 
+### Run the packaged JAR on Linux
+
+Copy only `target/opencode-loopper-0.1.0-SNAPSHOT.jar` to the Linux machine,
+then run it as a regular (non-root) user from a writable directory:
+
+```bash
+java -version # must report Java 21 or newer
+mkdir -p "$PWD/data"
+LOOPPER_DATA_DIR="$PWD/data" java -jar opencode-loopper-0.1.0-SNAPSHOT.jar
+```
+
+The JAR is architecture-independent Java bytecode and contains the Linux
+x86_64/aarch64 SQLite native libraries. Git and a compatible OpenCode CLI must
+be installed on the Linux host for real Task execution. For the optional
+`BROWSER` verifier, install Google Chrome or Chromium; set
+`LOOPPER_CHROME_EXECUTABLE=/absolute/path/to/chrome` when it is not on `PATH`
+or in a standard system location. A headless Linux server can register project
+paths by typing them in the UI; the native folder-picker button additionally
+requires `zenity`, `kdialog`, or `yad` and a graphical session.
+
 The Maven build downloads its own fixed Node.js `v22.14.0` and npm `10.9.2`,
 runs `npm ci`, type checking, Vitest and Vite, then copies `frontend/dist` to
 `target/classes/static` before the executable JAR is created. `mvn clean`
@@ -107,6 +127,7 @@ on user-specific `workspace.xml` state. Use `scripts/dev.sh` or
 | `OPENCODE_PASSWORD` | empty | Basic Auth password; never persisted |
 | `OPENCODE_EXECUTABLE` | PATH lookup | explicit OpenCode executable for managed `auto` mode |
 | `OPENCODE_MODEL` | OpenCode default | optional `provider/model` for Designer and Task Sessions |
+| `LOOPPER_CHROME_EXECUTABLE` | auto-detected | explicit Google Chrome/Chromium executable used by the optional `BROWSER` verifier |
 | `LOOPPER_MCP_BEARER_TOKEN` | random in-memory token | token for `/api/mcp-streamable` and compatibility `/api/mcp`; set it explicitly for an external MCP client |
 
 ## Error semantics

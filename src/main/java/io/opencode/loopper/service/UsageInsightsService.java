@@ -1,6 +1,7 @@
 package io.opencode.loopper.service;
 
 import io.opencode.loopper.domain.LoopSpec;
+import io.opencode.loopper.persistence.AttemptRow;
 import io.opencode.loopper.persistence.ExecutionSessionRow;
 import io.opencode.loopper.persistence.JudgeRunRow;
 import io.opencode.loopper.persistence.LoopperMapper;
@@ -95,25 +96,42 @@ public class UsageInsightsService {
     private Map<String, Object> taskInsight(TaskRow task) {
         Usage usage = usage(task.id());
         var attempts = mapper.listAttempts(task.id());
-        var verifications = attempts.stream().flatMap(attempt -> mapper.listVerifications(attempt.id()).stream()).toList();
+        var executionAttempts = attempts.stream()
+                .filter(attempt -> !"SESSION_FORK_SNAPSHOT".equals(attempt.failureKind()))
+                .toList();
+        Map<String, AttemptRow> latestAttemptsByStage = new LinkedHashMap<>();
+        for (var attempt : executionAttempts) {
+            latestAttemptsByStage.merge(attempt.stageId(), attempt,
+                    (current, candidate) -> candidate.ordinal() > current.ordinal() ? candidate : current);
+        }
+        // Failed retries remain available in the task audit trail, but only the final attempt for
+        // each stage represents the task's current deterministic acceptance state.
+        var verifications = latestAttemptsByStage.values().stream()
+                .flatMap(attempt -> mapper.listVerifications(attempt.id()).stream())
+                .toList();
         var judges = mapper.listJudgeRuns(task.id());
         long passed = verifications.stream().filter(row -> "PASS".equals(row.state())).count();
         boolean deterministicPassed = !verifications.isEmpty() && passed == verifications.size();
-        boolean requirementPassed = judges.stream().anyMatch(row -> "REQUIREMENT".equals(row.role()) && "PASS".equals(row.verdict()));
-        boolean riskPassed = judges.stream().anyMatch(row -> "RISK".equals(row.role()) && "PASS".equals(row.verdict()));
+        Map<String, JudgeRunRow> latestJudgesByRole = new LinkedHashMap<>();
+        for (var judge : judges) {
+            latestJudgesByRole.merge(judge.role(), judge,
+                    (current, candidate) -> candidate.ordinal() > current.ordinal() ? candidate : current);
+        }
+        boolean requirementPassed = "PASS".equals(java.util.Optional.ofNullable(latestJudgesByRole.get("REQUIREMENT"))
+                .map(JudgeRunRow::verdict).orElse(null));
+        boolean riskPassed = "PASS".equals(java.util.Optional.ofNullable(latestJudgesByRole.get("RISK"))
+                .map(JudgeRunRow::verdict).orElse(null));
         Map<String, Object> quality = new LinkedHashMap<>();
         quality.put("deterministicPassed", deterministicPassed);
         quality.put("verificationCount", verifications.size());
         quality.put("verificationPassedCount", passed);
         quality.put("requirementJudgePassed", requirementPassed);
         quality.put("riskJudgePassed", riskPassed);
-        quality.put("state", deterministicPassed && requirementPassed && riskPassed ? "PASS" : judges.isEmpty() ? "PENDING" : "REVIEW_REQUIRED");
+        quality.put("state", !deterministicPassed ? "PENDING"
+                : requirementPassed && riskPassed ? "PASS" : "REVIEW_REQUIRED");
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("taskId", task.id()); result.put("title", task.title()); result.put("state", task.state());
         result.put("durationMs", duration(task.createdAt(), terminalTask(task.state()) ? task.updatedAt() : Instant.now().toString()));
-        var executionAttempts = attempts.stream()
-                .filter(attempt -> !"SESSION_FORK_SNAPSHOT".equals(attempt.failureKind()))
-                .toList();
         long attemptedStages = executionAttempts.stream().map(attempt -> attempt.stageId()).distinct().count();
         long judgedRoles = judges.stream().map(JudgeRunRow::role).distinct().count();
         result.put("retryCount", Math.max(0, executionAttempts.size() - attemptedStages) + Math.max(0, judges.size() - judgedRoles));
