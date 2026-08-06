@@ -14,4 +14,19 @@ describe('InsightsDashboardView', () => {
     expect(wrapper.text()).toContain('CNY 8.00')
     expect(wrapper.text()).not.toContain('可靠总 Tokens 0')
   })
+
+  it('renders localized quality markers with an icon for every quality state', async () => {
+    const task = (state: 'PASS' | 'PENDING' | 'REVIEW_REQUIRED') => ({
+      taskId: state, title: state, state: 'SUCCEEDED', durationMs: 1000, retryCount: 0,
+      usage: { totalTokens: 1, unknownUsageCount: 0, costByCurrency: {} },
+      quality: { state, deterministicPassed: state === 'PASS', verificationCount: 1, verificationPassedCount: state === 'PASS' ? 1 : 0, requirementJudgePassed: state === 'PASS', riskJudgePassed: state === 'PASS' },
+    })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ usage: { totalTokens: 3, unknownUsageCount: 0, costByCurrency: {} }, tasks: [task('PASS'), task('PENDING'), task('REVIEW_REQUIRED')] }) }))
+    const wrapper = mount(InsightsDashboardView, { global: { plugins: [ElementPlus], stubs: { Icon: true, PageHeader: { template: '<header><slot name="actions" /></header>' } } } })
+    await flushPromises()
+    const markers = wrapper.findAll('.quality')
+    expect(markers.map(marker => marker.text())).toEqual(['质量通过', '待验收', '待评审'])
+    expect(markers.every(marker => marker.find('.quality-icon').exists())).toBe(true)
+    expect(markers.map(marker => marker.attributes('title'))).toEqual(['PASS', 'PENDING', 'REVIEW_REQUIRED'])
+  })
 })
