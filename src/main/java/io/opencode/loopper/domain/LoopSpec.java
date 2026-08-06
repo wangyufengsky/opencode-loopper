@@ -19,7 +19,15 @@ public record LoopSpec(
         @Valid Limits limits,
         @Valid ModelSpec model,
         @Valid SessionPolicy sessionPolicy,
-        String nextAttemptPromptTemplate) {
+        String nextAttemptPromptTemplate,
+        @Valid BudgetSpec budget) {
+    public LoopSpec(String schemaVersion, String projectId, String goal, String context,
+                    List<StageSpec> stages, Limits limits, ModelSpec model,
+                    SessionPolicy sessionPolicy, String nextAttemptPromptTemplate) {
+        this(schemaVersion, projectId, goal, context, stages, limits, model, sessionPolicy,
+                nextAttemptPromptTemplate, null);
+    }
+
     public LoopSpec {
         schemaVersion = schemaVersion == null || schemaVersion.isBlank() ? "v1" : schemaVersion.trim();
         context = context == null ? "" : context;
@@ -27,6 +35,7 @@ public record LoopSpec(
         limits = limits == null ? Limits.defaults() : limits;
         model = model == null ? new ModelSpec(null, null, null) : model;
         sessionPolicy = sessionPolicy == null ? SessionPolicy.defaults() : sessionPolicy;
+        budget = budget == null ? BudgetSpec.unlimited() : budget;
     }
     public record StageSpec(
             @NotBlank String objective,
@@ -50,10 +59,29 @@ public record LoopSpec(
                                @Size(max = 64) List<@Size(max = 512) String> allowedPaths,
                                @Size(max = 64) List<@Size(max = 512) String> forbiddenPaths,
                                Boolean forbidDeletes,
-                               @Size(max = 4_000) String outputContains) {
+                               @Size(max = 4_000) String outputContains,
+                               @Size(max = 2_048) String url,
+                               @Size(max = 16) String httpMethod,
+                               @Min(100) @Max(599) Integer expectedStatus,
+                               @Size(max = 1_024) String jsonPath,
+                               @Size(max = 4_000) String expectedValue,
+                               @Size(max = 32) String matchMode,
+                               @Size(max = 4_000) String expectedContent,
+                               @Size(min = 64, max = 64) String expectedSha256,
+                               @Size(max = 16_000) String sql,
+                               @Min(0) Integer expectedRowCount,
+                               @Size(max = 64) List<@Valid BrowserAssertion> assertions) {
+        public VerifierSpec(String type, List<String> command, String path, Boolean requireChanges,
+                            List<String> allowedPaths, List<String> forbiddenPaths, Boolean forbidDeletes,
+                            String outputContains) {
+            this(type, command, path, requireChanges, allowedPaths, forbiddenPaths, forbidDeletes,
+                    outputContains, null, null, null, null, null, null, null, null, null, null, null);
+        }
+
         public VerifierSpec(String type, List<String> command, String path, Boolean requireChanges,
                             List<String> allowedPaths, List<String> forbiddenPaths, Boolean forbidDeletes) {
-            this(type, command, path, requireChanges, allowedPaths, forbiddenPaths, forbidDeletes, null);
+            this(type, command, path, requireChanges, allowedPaths, forbiddenPaths, forbidDeletes, null,
+                    null, null, null, null, null, null, null, null, null, null, null);
         }
 
         public VerifierSpec {
@@ -62,6 +90,31 @@ public record LoopSpec(
             allowedPaths = immutable(allowedPaths);
             forbiddenPaths = immutable(forbiddenPaths);
             outputContains = blankToNull(outputContains);
+            url = blankToNull(url);
+            httpMethod = blankToNull(httpMethod);
+            httpMethod = httpMethod == null ? null : httpMethod.toUpperCase();
+            jsonPath = blankToNull(jsonPath);
+            expectedValue = blankToNull(expectedValue);
+            matchMode = blankToNull(matchMode);
+            matchMode = matchMode == null ? null : matchMode.toUpperCase();
+            expectedContent = blankToNull(expectedContent);
+            expectedSha256 = blankToNull(expectedSha256);
+            expectedSha256 = expectedSha256 == null ? null : expectedSha256.toLowerCase();
+            sql = blankToNull(sql);
+            assertions = immutable(assertions);
+        }
+    }
+
+    public record BrowserAssertion(@NotBlank String type,
+                                   @NotBlank @Size(max = 1_024) String selector,
+                                   @Size(max = 4_000) String value,
+                                   @Size(max = 256) String attribute,
+                                   @Min(0) Integer expectedCount) {
+        public BrowserAssertion {
+            type = type == null ? null : type.trim().toUpperCase();
+            selector = selector == null ? null : selector.trim();
+            value = blankToNull(value);
+            attribute = blankToNull(attribute);
         }
     }
 
@@ -94,6 +147,18 @@ public record LoopSpec(
             createFreshOnVerifierFailure = createFreshOnVerifierFailure == null || createFreshOnVerifierFailure;
         }
         public static SessionPolicy defaults() { return new SessionPolicy(true, true); }
+    }
+
+    /** Soft limits are enforced only from reliable provider usage. Null values mean unknown/unlimited. */
+    public record BudgetSpec(@Min(1) Long maxTotalTokens,
+                             @Size(max = 64) String maxCostAmount,
+                             @Size(max = 16) String currency) {
+        public BudgetSpec {
+            maxCostAmount = blankToNull(maxCostAmount);
+            currency = blankToNull(currency);
+            currency = currency == null ? null : currency.toUpperCase();
+        }
+        public static BudgetSpec unlimited() { return new BudgetSpec(null, null, null); }
     }
 
     private static <T> List<T> immutable(List<T> input) {

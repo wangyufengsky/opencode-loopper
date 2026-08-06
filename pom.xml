@@ -64,6 +64,13 @@
             <artifactId>sqlite-jdbc</artifactId>
             <version>${sqlite.version}</version>
         </dependency>
+        <!-- Product BROWSER verifier: always launches the operator-installed Chrome
+             via executablePath; no Playwright browser install is configured. -->
+        <dependency>
+            <groupId>com.microsoft.playwright</groupId>
+            <artifactId>playwright</artifactId>
+            <version>1.55.0</version>
+        </dependency>
         <!-- Official Spring AI 2.0 Streamable HTTP MCP Server (WebMVC). -->
         <dependency>
             <groupId>org.springframework.ai</groupId>

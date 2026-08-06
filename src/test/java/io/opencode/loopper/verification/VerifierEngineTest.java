@@ -1,16 +1,23 @@
 package io.opencode.loopper.verification;
 
 import io.opencode.loopper.domain.LoopSpec.VerifierSpec;
+import io.opencode.loopper.domain.LoopSpec;
 import io.opencode.loopper.domain.TaskFailure;
 import io.opencode.loopper.domain.VerificationState;
 import io.opencode.loopper.config.LoopperProperties;
 import io.opencode.loopper.runtime.DirectWorkspaceBaselineManager;
 import io.opencode.loopper.runtime.ProcessResult;
 import io.opencode.loopper.runtime.SafeProcessRunner;
+import com.sun.net.httpserver.HttpServer;
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.sql.DriverManager;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
@@ -254,6 +261,102 @@ class VerifierEngineTest {
                         null, null, null, null, null), Duration.ofSeconds(1)))
                 .isInstanceOf(TaskFailure.class)
                 .hasMessageContaining("not a shell");
+    }
+
+    @Test
+    void nativeHttpJsonAndFileVerifiersProduceBoundedStructuredEvidence() throws Exception {
+        Files.writeString(directory.resolve("proof.txt"), "hello loopper");
+        HttpServer server = server("{\"status\":\"ok\",\"items\":[\"one\"]}", "application/json");
+        try {
+            String url = "http://127.0.0.1:" + server.getAddress().getPort() + "/proof";
+            VerifierOutcome http = engine.verify(directory, "unused", nativeSpec("HTTP_STATUS", null, url, "GET", 200, null, null, null, null, null, null, null), Duration.ofSeconds(5));
+            VerifierOutcome json = engine.verify(directory, "unused", nativeSpec("JSON_PATH", null, url, "GET", null, "$.items[0]", "one", "EXACT", null, null, null, null), Duration.ofSeconds(5));
+            VerifierOutcome content = engine.verify(directory, "unused", nativeSpec("FILE_CONTENT", "proof.txt", null, null, null, null, null, "CONTAINS", "loopper", null, null, null), Duration.ofSeconds(5));
+            VerifierOutcome hash = engine.verify(directory, "unused", nativeSpec("FILE_HASH", "proof.txt", null, null, null, null, null, null, null,
+                    BinaryArtifactStore.sha256("hello loopper".getBytes(StandardCharsets.UTF_8)), null, null), Duration.ofSeconds(5));
+
+            assertThat(http.state()).isEqualTo(VerificationState.PASS);
+            assertThat(http.evidence()).containsEntry("loopbackOnly", true).containsKey("bodySha256");
+            assertThat(json.state()).isEqualTo(VerificationState.PASS);
+            assertThat(json.evidence()).containsEntry("observedValue", "one");
+            assertThat(content.state()).isEqualTo(VerificationState.PASS);
+            assertThat(hash.state()).isEqualTo(VerificationState.PASS);
+        } finally { server.stop(0); }
+    }
+
+    @Test
+    void nativeJunitAndSqliteVerifiersFailClosedForUnsafeInput() throws Exception {
+        Files.writeString(directory.resolve("report.xml"), "<testsuite tests=\"2\" failures=\"0\" errors=\"0\" skipped=\"1\"/>");
+        VerifierOutcome junit = engine.verify(directory, "unused", nativeSpec("JUNIT_XML", "report.xml", null, null, null, null, null, null, null, null, null, null), Duration.ofSeconds(5));
+        assertThat(junit.state()).isEqualTo(VerificationState.PASS);
+        assertThat(junit.evidence()).containsEntry("tests", 2L).containsEntry("skipped", 1L);
+        Files.writeString(directory.resolve("unsafe.xml"), "<!DOCTYPE x [<!ENTITY e SYSTEM 'file:///etc/passwd'>]><testsuite/>");
+        assertThatThrownBy(() -> engine.verify(directory, "unused", nativeSpec("JUNIT_XML", "unsafe.xml", null, null, null, null, null, null, null, null, null, null), Duration.ofSeconds(5)))
+                .isInstanceOf(TaskFailure.class).hasMessageContaining("DTD");
+
+        Path database = directory.resolve("fixture.sqlite");
+        try (var connection = DriverManager.getConnection("jdbc:sqlite:" + database)) {
+            connection.createStatement().execute("CREATE TABLE sample(value TEXT)");
+            connection.createStatement().execute("INSERT INTO sample VALUES ('ok')");
+        }
+        VerifierOutcome query = engine.verify(directory, "unused", nativeSpec("DATABASE_QUERY", "fixture.sqlite", null, null, null, null, null, null, null, null, "SELECT value FROM sample", 1), Duration.ofSeconds(5));
+        assertThat(query.state()).isEqualTo(VerificationState.PASS);
+        assertThatThrownBy(() -> engine.verify(directory, "unused", nativeSpec("DATABASE_QUERY", "fixture.sqlite", null, null, null, null, null, null, null, null, "SELECT 1; DELETE FROM sample", null), Duration.ofSeconds(5)))
+                .isInstanceOf(TaskFailure.class).hasMessageContaining("one comment-free");
+    }
+
+    @Test
+    void browserVerifierUsesOnlyLocalChromeLoopbackAndFilesystemArtifacts() throws Exception {
+        HttpServer server = server("""
+                <body data-ws="pending"><main id="proof">local browser proof</main>
+                <script>
+                  try { new WebSocket('ws://example.com/socket'); document.body.dataset.ws = 'attempted'; }
+                  catch (ignored) { document.body.dataset.ws = 'attempted'; }
+                </script></body>
+                """, "text/html");
+        try {
+            String url = "http://127.0.0.1:" + server.getAddress().getPort() + "/browser";
+            VerifierEngine browserEngine = new VerifierEngine(new SafeProcessRunner(), null, new BinaryArtifactStore(directory.resolve("loopper-data")));
+            LoopSpec.BrowserAssertion visible = new LoopSpec.BrowserAssertion("VISIBLE", "#proof", null, null, null);
+            LoopSpec.BrowserAssertion text = new LoopSpec.BrowserAssertion("TEXT_CONTAINS", "#proof", "browser proof", null, null);
+            LoopSpec.BrowserAssertion websocketAttempted = new LoopSpec.BrowserAssertion(
+                    "ATTRIBUTE_EQUALS", "body", "attempted", "data-ws", null);
+            VerifierSpec spec = new VerifierSpec("BROWSER", List.of(), null, null, List.of(), List.of(), null, null,
+                    url, "GET", null, null, null, null, null, null, null, null, List.of(visible, text, websocketAttempted));
+            VerifierOutcome outcome = browserEngine.verify(directory, "unused", spec, Duration.ofSeconds(15));
+            assertThat(outcome.state()).isEqualTo(VerificationState.PASS);
+            assertThat((List<?>) outcome.evidence().get("artifacts")).hasSize(2);
+            assertThat(outcome.evidence()).containsEntry("serviceWorkers", "BLOCK");
+            assertThat(outcome.evidence()).containsEntry("externalNetworkPolicy", "DEAD_LOOPBACK_PROXY_AND_HOST_RESOLVER_DENY");
+            assertThat(Files.list(directory.resolve("loopper-data/artifacts")).toList()).hasSize(2);
+        } finally { server.stop(0); }
+    }
+
+    @Test
+    void rejectsExternalHttpAndArbitraryBrowserSelectorsBeforeNetworkOrBrowserUse() {
+        assertThatThrownBy(() -> engine.verify(directory, "unused", nativeSpec("HTTP_STATUS", null, "http://example.com", "GET", 200, null, null, null, null, null, null, null), Duration.ofSeconds(5)))
+                .isInstanceOf(TaskFailure.class).hasMessageContaining("loopback");
+        assertThatThrownBy(() -> VerifierSafety.requireCssSelector("xpath=//body"))
+                .isInstanceOf(TaskFailure.class).hasMessageContaining("CSS selectors");
+    }
+
+    private HttpServer server(String response, String contentType) throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/", exchange -> {
+            byte[] payload = response.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", contentType);
+            exchange.sendResponseHeaders(200, payload.length);
+            exchange.getResponseBody().write(payload);
+            exchange.close();
+        });
+        server.start(); return server;
+    }
+
+    private VerifierSpec nativeSpec(String type, String path, String url, String method, Integer status, String jsonPath,
+                                    String expectedValue, String matchMode, String expectedContent, String expectedHash,
+                                    String sql, Integer expectedRows) {
+        return new VerifierSpec(type, List.of(), path, null, List.of(), List.of(), null, null,
+                url, method, status, jsonPath, expectedValue, matchMode, expectedContent, expectedHash, sql, expectedRows, List.of());
     }
 
     private boolean isWindows() { return System.getProperty("os.name").toLowerCase().contains("win"); }

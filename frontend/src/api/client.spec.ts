@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { api, subscribeDesignerEvents } from '@/api/client'
-import type { LoopSpec } from '@/types/domain'
+import { api, backendAutomationRule, normalizeAutomationRule, subscribeDesignerEvents } from '@/api/client'
+import type { AutomationRule, LoopSpec } from '@/types/domain'
 
 const spec: LoopSpec = {
   schemaVersion: 'v1', projectId: 'project-1', goal: 'Verify the contract', context: '',
@@ -112,6 +112,140 @@ describe('Loopper REST contract adapter', () => {
       { type: 'FILE_EXISTS', path: 'src/App.java' },
       { type: 'GIT_DIFF', requireChanges: true, allowedPaths: ['src/**'], forbiddenPaths: ['data/**'], forbidDeletes: true },
     ])
+  })
+
+  it('reads legacy PROCESS argv without writing the alias back', async () => {
+    const legacy = structuredClone(spec) as unknown as { stages: Array<{ verifiers: unknown[] }> }
+    legacy.stages[0]!.verifiers = [{ type: 'PROCESS', argv: ['mvn', 'test'] }]
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json({ id: 'draft-1', status: 'DRAFT_READY', updatedAt: 'now', spec: legacy }))
+      .mockResolvedValueOnce(json({ id: 'draft-1', status: 'DRAFT_READY', updatedAt: 'now', spec }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const draft = await api.getDraft('draft-1')
+    expect(draft.spec.stages[0]!.verifiers).toEqual([{ type: 'PROCESS', command: ['mvn', 'test'] }])
+    await api.updateDraft('draft-1', draft.spec)
+    const body = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))
+    expect(body.spec.stages[0].verifiers[0]).toEqual({ type: 'PROCESS', command: ['mvn', 'test'] })
+  })
+
+  it('rejects unknown verifier discriminators and missing native admission fields', async () => {
+    const invalid = structuredClone(spec) as unknown as { stages: Array<{ verifiers: unknown[] }> }
+    invalid.stages[0]!.verifiers = [{ type: 'SHELL_MAGIC', command: ['unsafe'] }]
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({ id: 'draft-1', status: 'DRAFT_READY', updatedAt: 'now', spec: invalid })))
+    await expect(api.getDraft('draft-1')).rejects.toThrow('Unsupported verifier type')
+
+    invalid.stages[0]!.verifiers = [{ type: 'HTTP_STATUS', url: 'http://127.0.0.1:8080/health' }]
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({ id: 'draft-1', status: 'DRAFT_READY', updatedAt: 'now', spec: invalid })))
+    await expect(api.getDraft('draft-1')).rejects.toThrow('expectedStatus is required')
+
+    invalid.stages[0]!.verifiers = [{ type: 'PROCESS', command: [] }]
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({ id: 'draft-1', status: 'DRAFT_READY', updatedAt: 'now', spec: invalid })))
+    await expect(api.getDraft('draft-1')).rejects.toThrow('PROCESS.command is required')
+
+    invalid.stages[0]!.verifiers = [{ type: 'BROWSER', url: 'http://127.0.0.1:8080', assertions: [] }]
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({ id: 'draft-1', status: 'DRAFT_READY', updatedAt: 'now', spec: invalid })))
+    await expect(api.getDraft('draft-1')).rejects.toThrow('requires at least one assertion')
+  })
+
+  it('round-trips the backend automation triggerType and triggerConfig wire shape', () => {
+    const rule = normalizeAutomationRule({
+      id: 'rule-1', name: 'Nightly', projectId: 'project-1', templateVersionId: 'version-1',
+      triggerType: 'CRON', triggerConfig: { expression: '0 2 * * *', timezone: 'Asia/Shanghai' },
+      state: 'DISABLED', approvalMode: 'REVIEW_REQUIRED', updatedAt: 'now', version: 2,
+    })
+
+    expect(rule).toMatchObject({ triggerType: 'CRON', triggerConfig: { expression: '0 2 * * *', timezone: 'Asia/Shanghai' } })
+    expect(backendAutomationRule(rule as AutomationRule)).toEqual({
+      id: 'rule-1', name: 'Nightly', projectId: 'project-1', templateVersionId: 'version-1',
+      triggerType: 'CRON', triggerConfig: { expression: '0 2 * * *', timezone: 'Asia/Shanghai' },
+      state: 'DISABLED', approvalMode: 'REVIEW_REQUIRED', updatedAt: 'now', version: 2,
+    })
+    expect(() => normalizeAutomationRule({ ...backendAutomationRule(rule), triggerType: 'EXEC' }))
+      .toThrow('Unsupported automation trigger type')
+  })
+
+  it('creates an inert webhook rule and keeps the one-time token outside list payloads', async () => {
+    const persistedRule = {
+      id: 'rule-webhook', name: 'Local hook', projectId: 'project-1', templateVersionId: 'version-1',
+      triggerType: 'WEBHOOK', triggerConfig: {}, state: 'DISABLED', approvalMode: 'REVIEW_REQUIRED',
+      updatedAt: 'now', version: 0,
+    }
+    const fetchMock = vi.fn().mockResolvedValue(json({
+      rule: persistedRule,
+      webhookToken: 'one-time-secret',
+      webhookPath: '/api/automations/webhooks/rule-webhook/{token}',
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const mutation = await api.createAutomationRule({
+      name: 'Local hook', projectId: 'project-1', templateVersionId: 'version-1',
+      triggerType: 'WEBHOOK', triggerConfig: {},
+    })
+
+    expect(mutation.rule).toMatchObject(persistedRule)
+    expect(mutation.webhookToken).toBe('one-time-secret')
+    const requestBody = JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body)) as Record<string, unknown>
+    expect(requestBody).toEqual({
+      name: 'Local hook', projectId: 'project-1', templateVersionId: 'version-1',
+      triggerType: 'WEBHOOK', triggerConfig: {},
+    })
+    expect(requestBody).not.toHaveProperty('state')
+    expect(requestBody).not.toHaveProperty('approvalMode')
+    expect(JSON.stringify(persistedRule)).not.toContain('one-time-secret')
+  })
+
+  it('uses the persisted Recovery wire contract and local UI mutation guard', async () => {
+    const recovery = {
+      taskId: 'child-1', parentTaskId: 'parent 1', mode: 'VERIFY_ONLY', parentStageId: 'stage-2',
+      workspaceFingerprint: 'fingerprint-1', writableSession: false,
+    }
+    const fetchMock = vi.fn().mockResolvedValueOnce(json([recovery])).mockResolvedValueOnce(json(recovery))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(api.getTaskRecoveries('parent 1')).resolves.toEqual([recovery])
+    await expect(api.createTaskRecovery('parent 1', 'VERIFY_ONLY')).resolves.toEqual(recovery)
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/tasks/parent%201/recoveries')
+    expect(fetchMock.mock.calls[1]).toEqual(['/api/tasks/parent%201/recoveries', expect.objectContaining({
+      method: 'POST', headers: expect.objectContaining({ 'X-Loopper-Local-UI': '1' }),
+      body: JSON.stringify({ mode: 'VERIFY_ONLY' }),
+    })])
+  })
+
+  it('uses local execution Session ids for persisted lifecycle snapshots and guarded mutations', async () => {
+    const todo = { id: 'todo-local', externalTodoId: 'todo-remote', content: '同步状态', status: 'OPEN', ordinal: 1, observedAt: 'now' }
+    const checkpoint = { id: 'checkpoint-1', taskId: 'task-1', sessionId: 'session-1', attemptId: 'attempt-1', externalMessageId: 'message-1', contentSha256: 'a'.repeat(64), createdAt: 'now' }
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json([todo]))
+      .mockResolvedValueOnce(json(checkpoint))
+      .mockResolvedValueOnce(json({ sessionId: 'session-fork', attemptId: 'attempt-2', externalSessionId: 'remote-fork', state: 'COMPLETED', createdAt: 'later' }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(api.getTaskSessionTodos('task 1', 'session 1')).resolves.toEqual([todo])
+    await expect(api.createTaskSessionCheckpoint('task 1', 'session 1', 'message-1')).resolves.toEqual(checkpoint)
+    await expect(api.forkTaskSession('task 1', 'session 1', 'message-1')).resolves.toMatchObject({ state: 'COMPLETED' })
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/tasks/task%201/sessions/session%201/todos')
+    expect(fetchMock.mock.calls[1]?.[1]).toEqual(expect.objectContaining({
+      method: 'POST', headers: expect.objectContaining({ 'X-Loopper-Local-UI': '1' }),
+      body: JSON.stringify({ externalMessageId: 'message-1' }),
+    }))
+    expect(fetchMock.mock.calls[2]?.[1]).toEqual(expect.objectContaining({
+      method: 'POST', headers: expect.objectContaining({ 'X-Loopper-Local-UI': '1' }),
+    }))
+  })
+
+  it('keeps unknown insight usage null and costs separated by currency', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({
+      tasks: [], generatedAt: 'now',
+      usage: { inputTokens: null, outputTokens: null, totalTokens: null, unknownUsageCount: 2, costByCurrency: { USD: '1.20', CNY: '8.00' } },
+    })))
+
+    await expect(api.getInsights()).resolves.toEqual({
+      tasks: [], generatedAt: 'now',
+      usage: { inputTokens: null, outputTokens: null, totalTokens: null, unknownUsageCount: 2, costByCurrency: { USD: '1.20', CNY: '8.00' } },
+    })
   })
 
   it('uses persisted verification and error field names from TaskController', async () => {

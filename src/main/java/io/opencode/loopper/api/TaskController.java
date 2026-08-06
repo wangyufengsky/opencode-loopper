@@ -52,6 +52,9 @@ public class TaskController {
     }
     @GetMapping public List<TaskDto> list() { return service.list().stream().map(this::dto).toList(); }
     @GetMapping("/{id}") public TaskDto get(@PathVariable String id) { return dto(service.get(id)); }
+    @GetMapping("/{id}/queue") public FeatureContracts.QueueStatusDto queue(@PathVariable String id) {
+        return service.queueStatus(id);
+    }
     @GetMapping("/{id}/diff-preview")
     public DiffPreviewDto diffPreview(@PathVariable String id, @RequestParam String path) {
         var preview = service.diffPreview(id, path);
@@ -183,7 +186,7 @@ public class TaskController {
     private StageDto stage(StageRow row) { return new StageDto(row.id(), row.ordinal(), row.objective(), row.state(), node(row.allowedPathsJson()), node(row.forbiddenPathsJson()), node(row.deliverablesJson()), node(row.verifiersJson()), row.createdAt(), row.updatedAt()); }
     private AttemptDto attempt(AttemptRow row) {
         String sessionId = mapper.latestSessionForAttempt(row.id())
-                .map(session -> session.externalSessionId() == null ? session.id() : session.externalSessionId())
+                .map(io.opencode.loopper.persistence.ExecutionSessionRow::id)
                 .orElse(null);
         return new AttemptDto(row.id(), row.stageId(), row.ordinal(), sessionId, row.state(), row.failureKind(), row.summary(),
                 row.createdAt(), row.endedAt(), service.verifications(row.id()).stream().map(this::verification).toList());

@@ -13,9 +13,14 @@ class SpaFallbackControllerTest {
 
     @Test
     void forwardsVueHistoryRoutesToThePackagedEntryPoint() throws Exception {
-        mvc.perform(get("/tasks/task-019fc6ad"))
-                .andExpect(status().isOk())
-                .andExpect(forwardedUrl("/index.html"));
+        for (String route : new String[]{
+                "/tasks/task-019fc6ad", "/tasks/task-019fc6ad/recovery", "/tasks/task-019fc6ad/design",
+                "/inbox", "/insights", "/automations"
+        }) {
+            mvc.perform(get(route))
+                    .andExpect(status().isOk())
+                    .andExpect(forwardedUrl("/index.html"));
+        }
     }
 
     @Test

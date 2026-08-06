@@ -28,6 +28,10 @@ class HttpOpenCodeClientTest {
     private final AtomicReference<String> createBody = new AtomicReference<>();
     private final AtomicReference<String> questionBody = new AtomicReference<>("[]");
     private final AtomicReference<String> questionActionBody = new AtomicReference<>();
+    private final AtomicReference<String> permissionBody = new AtomicReference<>("[]");
+    private final AtomicReference<String> permissionActionBody = new AtomicReference<>();
+    private final AtomicReference<String> todoBody = new AtomicReference<>("[]");
+    private final AtomicReference<String> sessionActionBody = new AtomicReference<>();
     private final AtomicLong responseDelayMillis = new AtomicLong();
     @TempDir Path worktree;
 
@@ -37,6 +41,7 @@ class HttpOpenCodeClientTest {
         server.createContext("/session", this::session);
         server.createContext("/session/status", exchange -> reply(exchange, statusBody.get()));
         server.createContext("/question", this::question);
+        server.createContext("/permission", this::permission);
         server.start();
     }
     @AfterEach void stop() { server.stop(0); }
@@ -52,7 +57,10 @@ class HttpOpenCodeClientTest {
         assertThat(createBody.get()).contains("\"permission\"").contains("external_directory").contains("git commit *").contains("git push *")
                 .contains("git reset --hard*").contains("rm -rf*").contains("\"action\":\"deny\"");
         OpenCodeClient.OpenCodeSession judge = client.createReadOnlySession(worktree, "Requirement Judge", new OpenCodeClient.OpenCodeModel("opencode", "deepseek-v4-flash-free", false));
-        assertThat(createBody.get()).contains("\"permission\":\"edit\"").contains("\"permission\":\"write\"")
+        assertThat(createBody.get()).contains("\"permission\":\"read\"")
+                .contains("\"permission\":\"glob\"").contains("\"permission\":\"grep\"")
+                .contains("\"action\":\"allow\"")
+                .contains("\"permission\":\"edit\"").contains("\"permission\":\"write\"")
                 .contains("\"permission\":\"bash\"").contains("\"permission\":\"task\"").contains("\"pattern\":\"*\"");
         client.promptAsync(session, "hello");
         assertThat(lastPathAndQuery.get()).contains("/session/s1/prompt_async").contains("directory=");
@@ -112,8 +120,8 @@ class HttpOpenCodeClientTest {
         HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(), properties);
         OpenCodeClient.OpenCodeSession session = client.createSession(worktree, "monitor", null);
         messageBody.set("["
-                + "{\"info\":{\"role\":\"user\"},\"parts\":[{\"type\":\"text\",\"text\":\"prompt\"}]},"
-                + "{\"info\":{\"role\":\"assistant\",\"time\":{\"created\":1785836900057}},\"parts\":["
+                + "{\"info\":{\"id\":\"message-user\",\"role\":\"user\"},\"parts\":[{\"type\":\"text\",\"text\":\"prompt\"}]},"
+                + "{\"info\":{\"id\":\"message-assistant\",\"role\":\"assistant\",\"time\":{\"created\":1785836900057,\"completed\":1785836902200}},\"parts\":["
                 + "{\"id\":\"reason-1\",\"type\":\"reasoning\",\"text\":\"Inspecting the project\",\"time\":{\"start\":1785836901408}},"
                 + "{\"id\":\"tool-1\",\"type\":\"tool\",\"tool\":\"read\",\"state\":{\"status\":\"completed\",\"title\":\"Read pom.xml\",\"time\":{\"start\":1785836902020}}},"
                 + "{\"id\":\"text-1\",\"type\":\"text\",\"text\":\"Implementation is in progress\",\"time\":{\"start\":1785836902100}}]}]");
@@ -127,6 +135,9 @@ class HttpOpenCodeClientTest {
         assertThat(transcript.parts().get(2).content()).isEqualTo("Implementation is in progress");
         assertThat(transcript.parts()).extracting(OpenCodeClient.SessionPart::startedAt)
                 .containsExactly("2026-08-04T09:48:21.408Z", "2026-08-04T09:48:22.020Z", "2026-08-04T09:48:22.100Z");
+        assertThat(client.sessionMessageRefs(session)).extracting(OpenCodeClient.SessionMessageRef::id)
+                .containsExactly("message-user", "message-assistant")
+                .doesNotContain("reason-1", "tool-1", "text-1");
     }
 
     @Test
@@ -153,6 +164,64 @@ class HttpOpenCodeClientTest {
 
         client.rejectQuestion(session, "que-1");
         assertThat(lastPathAndQuery.get()).contains("/question/que-1/reject").contains("directory=");
+    }
+
+    @Test
+    void supportsPermissionTodoSessionControlAndNullableUsageContracts() throws Exception {
+        LoopperProperties properties = new LoopperProperties();
+        properties.getOpenCode().setBaseUrl(new java.net.URI("http://127.0.0.1:" + server.getAddress().getPort()));
+        HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(), properties);
+        OpenCodeClient.OpenCodeSession session = client.createSession(worktree, "runtime", null);
+        permissionBody.set("["
+                + "{\"id\":\"perm-other\",\"sessionID\":\"other\",\"permission\":\"bash\",\"patterns\":[]},"
+                + "{\"id\":\"perm-1\",\"sessionID\":\"s1\",\"permission\":\"bash\",\"patterns\":[\"git push\"],\"metadata\":{\"title\":\"Publish\",\"nested\":{\"safe\":true}}}]");
+        todoBody.set("[{\"content\":\"Read docs\",\"status\":\"in_progress\",\"priority\":\"high\"}]");
+
+        assertThat(client.pendingPermissions(session)).singleElement().satisfies(permission -> {
+            assertThat(permission.id()).isEqualTo("perm-1");
+            assertThat(permission.patterns()).containsExactly("git push");
+            assertThat(permission.metadata()).containsEntry("title", "Publish");
+            assertThat(permission.title()).isEqualTo("Publish");
+        });
+        assertThat(lastPathAndQuery.get()).contains("/permission").contains("directory=");
+        client.replyPermission(session, "perm-1", OpenCodeClient.PermissionReply.SESSION, "approved for this session");
+        assertThat(lastPathAndQuery.get()).contains("/permission/perm-1/reply").contains("directory=");
+        assertThat(permissionActionBody.get()).isEqualTo("{\"reply\":\"always\",\"message\":\"approved for this session\"}");
+
+        assertThat(client.sessionTodos(session)).singleElement().satisfies(todo -> {
+            assertThat(todo.id()).isEqualTo("s1:todo:0");
+            assertThat(todo.content()).isEqualTo("Read docs");
+            assertThat(todo.ordinal()).isZero();
+        });
+        assertThat(lastPathAndQuery.get()).contains("/session/s1/todo").contains("directory=");
+        OpenCodeClient.OpenCodeSession fork = client.forkSession(session, "msg-1");
+        assertThat(fork.id()).isEqualTo("fork-1");
+        assertThat(lastPathAndQuery.get()).contains("/session/s1/fork").contains("directory=");
+        assertThat(sessionActionBody.get()).isEqualTo("{\"messageID\":\"msg-1\"}");
+        client.revertSession(session, "msg-1", "part-1");
+        assertThat(lastPathAndQuery.get()).contains("/session/s1/revert").contains("directory=");
+        assertThat(sessionActionBody.get()).isEqualTo("{\"messageID\":\"msg-1\",\"partID\":\"part-1\"}");
+        client.summarizeSession(session, new OpenCodeClient.OpenCodeModel("opencode", "model-1", null), true);
+        assertThat(lastPathAndQuery.get()).contains("/session/s1/summarize").contains("directory=");
+        assertThat(sessionActionBody.get()).isEqualTo("{\"providerID\":\"opencode\",\"modelID\":\"model-1\",\"auto\":true}");
+
+        messageBody.set("[{\"info\":{\"id\":\"msg-usage\",\"role\":\"assistant\",\"providerID\":\"opencode\",\"modelID\":\"model-1\",\"tokens\":{\"input\":11,\"output\":13}}}]");
+        assertThat(client.sessionUsage(session)).singleElement().satisfies(usage -> {
+            assertThat(usage.messageId()).isEqualTo("msg-usage");
+            assertThat(usage.inputTokens()).isEqualTo(11L);
+            assertThat(usage.outputTokens()).isEqualTo(13L);
+            assertThat(usage.totalTokens()).isNull();
+            assertThat(usage.costAmount()).isNull();
+        });
+        messageBody.set("[{\"info\":{\"id\":\"msg-without-usage\",\"role\":\"assistant\"}}]");
+        assertThat(client.sessionUsage(session)).singleElement().satisfies(usage -> {
+            assertThat(usage.messageId()).isEqualTo("msg-without-usage");
+            assertThat(usage.inputTokens()).isNull();
+            assertThat(usage.outputTokens()).isNull();
+            assertThat(usage.totalTokens()).isNull();
+            assertThat(usage.costAmount()).isNull();
+            assertThat(usage.reliable()).isFalse();
+        });
     }
 
     @Test
@@ -184,6 +253,9 @@ class HttpOpenCodeClientTest {
         String path = exchange.getRequestURI().getPath();
         if (path.equals("/session")) { createBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)); reply(exchange, "{\"id\":\"s1\"}"); }
         else if (path.endsWith("/message")) reply(exchange, messageBody.get());
+        else if (path.endsWith("/todo")) reply(exchange, todoBody.get());
+        else if (path.endsWith("/fork")) { sessionActionBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)); reply(exchange, "{\"id\":\"fork-1\"}"); }
+        else if (path.endsWith("/revert") || path.endsWith("/summarize")) { sessionActionBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)); reply(exchange, "true"); }
         else if (path.endsWith("/diff")) reply(exchange, "[]");
         else reply(exchange, "{}");
     }
@@ -192,6 +264,14 @@ class HttpOpenCodeClientTest {
         if (path.equals("/question")) reply(exchange, questionBody.get());
         else {
             questionActionBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            reply(exchange, "true");
+        }
+    }
+    private void permission(HttpExchange exchange) throws IOException {
+        String path = exchange.getRequestURI().getPath();
+        if (path.equals("/permission")) reply(exchange, permissionBody.get());
+        else {
+            permissionActionBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
             reply(exchange, "true");
         }
     }

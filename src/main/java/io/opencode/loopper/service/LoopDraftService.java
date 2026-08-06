@@ -17,7 +17,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class LoopDraftService {
-    private static final Set<String> SUPPORTED_VERIFIERS = Set.of("PROCESS", "FILE_EXISTS", "FILE_NOT_EXISTS", "GIT_DIFF");
+    private static final Set<String> SUPPORTED_VERIFIERS = Set.of(
+            "PROCESS", "FILE_EXISTS", "FILE_NOT_EXISTS", "GIT_DIFF",
+            "HTTP_STATUS", "JSON_PATH", "FILE_CONTENT", "FILE_HASH",
+            "JUNIT_XML", "BROWSER", "DATABASE_QUERY");
+    private static final Set<String> BROWSER_ASSERTIONS = Set.of(
+            "EXISTS", "VISIBLE", "TEXT_CONTAINS", "COUNT", "ATTRIBUTE_EQUALS");
     private final LoopperMapper mapper;
     private final ProjectService projects;
     private final ObjectMapper json;
@@ -49,10 +54,14 @@ public class LoopDraftService {
     }
     @Transactional
     public io.opencode.loopper.persistence.TaskRow confirm(String id, String title) {
+        return confirm(id, title, "MANUAL");
+    }
+    @Transactional
+    public io.opencode.loopper.persistence.TaskRow confirm(String id, String title, String admissionSource) {
         LoopDraftRow draft = get(id);
         if (LoopDraftStatus.CONFIRMED.name().equals(draft.status())) return mapper.findTaskByDraft(id).orElseThrow(() -> new ConflictException("DRAFT_TASK_MISSING", "Confirmed draft has no associated task"));
         validateExecutionContract(spec(draft));
-        io.opencode.loopper.persistence.TaskRow task = tasks.createFromDraft(draft, title);
+        io.opencode.loopper.persistence.TaskRow task = tasks.createFromDraft(draft, title, admissionSource);
         LoopDraftRow confirmed = new LoopDraftRow(draft.id(), draft.projectId(), draft.goal(), draft.specJson(), LoopDraftStatus.CONFIRMED.name(), draft.createdAt(), Instant.now().toString(), draft.version());
         if (mapper.updateDraft(confirmed) != 1) throw new ConflictException("DRAFT_VERSION_CONFLICT", "Loop draft was updated concurrently");
         return task;
@@ -96,12 +105,44 @@ public class LoopDraftService {
                         && (verifier.path() == null || verifier.path().isBlank())) {
                     errors.add(path + ".path: file verifier requires a relative path");
                 }
+                if (("FILE_CONTENT".equals(type) || "FILE_HASH".equals(type) || "JUNIT_XML".equals(type)
+                        || "DATABASE_QUERY".equals(type)) && blank(verifier.path())) {
+                    errors.add(path + ".path: " + type + " requires a relative path");
+                }
+                if (("HTTP_STATUS".equals(type) || "JSON_PATH".equals(type) || "BROWSER".equals(type))
+                        && blank(verifier.url())) {
+                    errors.add(path + ".url: " + type + " requires a loopback URL");
+                }
+                if ("HTTP_STATUS".equals(type) && verifier.expectedStatus() == null) {
+                    errors.add(path + ".expectedStatus: HTTP_STATUS requires an expected status");
+                }
+                if ("JSON_PATH".equals(type) && blank(verifier.jsonPath())) {
+                    errors.add(path + ".jsonPath: JSON_PATH requires a restricted JSON path");
+                }
+                if ("FILE_CONTENT".equals(type) && blank(verifier.expectedContent())) {
+                    errors.add(path + ".expectedContent: FILE_CONTENT requires bounded expected content");
+                }
+                if ("FILE_HASH".equals(type) && blank(verifier.expectedSha256())) {
+                    errors.add(path + ".expectedSha256: FILE_HASH requires SHA-256");
+                }
+                if ("DATABASE_QUERY".equals(type) && blank(verifier.sql())) {
+                    errors.add(path + ".sql: DATABASE_QUERY requires one read-only SELECT/WITH statement");
+                }
+                if ("BROWSER".equals(type)) {
+                    if (verifier.assertions().isEmpty()) errors.add(path + ".assertions: BROWSER requires at least one assertion");
+                    for (int assertionIndex = 0; assertionIndex < verifier.assertions().size(); assertionIndex++) {
+                        LoopSpec.BrowserAssertion assertion = verifier.assertions().get(assertionIndex);
+                        if (assertion.type() != null && !BROWSER_ASSERTIONS.contains(assertion.type())) {
+                            errors.add(path + ".assertions[" + assertionIndex + "].type: unsupported browser assertion " + assertion.type());
+                        }
+                    }
+                }
                 if (verifier.outputContains() != null && !"PROCESS".equals(type)) {
                     errors.add(path + ".outputContains: only PROCESS can assert command output");
                 }
             }
             if (requireExecutableAcceptance && !hasAcceptanceVerifier) {
-                errors.add("stages[" + stageIndex + "].verifiers: GIT_DIFF only checks change scope; add PROCESS, FILE_EXISTS, or FILE_NOT_EXISTS for the Designer acceptance criteria");
+                errors.add("stages[" + stageIndex + "].verifiers: GIT_DIFF only checks change scope; add a functional verifier for the Designer acceptance criteria");
             }
         }
         return List.copyOf(errors);
@@ -110,4 +151,6 @@ public class LoopDraftService {
     private void reject(List<String> errors) {
         if (!errors.isEmpty()) throw new BadRequestException("LOOPSPEC_INVALID", String.join("; ", errors));
     }
+
+    private boolean blank(String value) { return value == null || value.isBlank(); }
 }

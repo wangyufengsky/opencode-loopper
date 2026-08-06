@@ -267,8 +267,134 @@ export interface TaskSessionActivity {
   detail?: string
 }
 
-export interface LoopVerifierSpec {
-  type: 'PROCESS' | 'FILE_EXISTS' | 'FILE_NOT_EXISTS' | 'GIT_DIFF' | string
+export type InteractionAction = 'REPLY' | 'ONCE' | 'SESSION' | 'REJECT'
+export type InteractionState = 'PENDING' | 'RESOLVING' | 'RESOLVED' | 'REJECTED' | 'HARD_DENIED' | 'STALE'
+
+interface InteractionBase {
+  id: string
+  taskId?: string
+  designerSessionId?: string
+  sessionId?: string
+  externalRequestId: string
+  state: InteractionState
+  version: number
+  createdAt: string
+  updatedAt: string
+  resolvedAction?: InteractionAction
+  resolvedAt?: string
+}
+
+export interface QuestionInteraction extends InteractionBase {
+  kind: 'QUESTION'
+  payload: { questions: TaskSessionQuestionPrompt[] }
+}
+
+export interface PermissionInteraction extends InteractionBase {
+  kind: 'PERMISSION'
+  payload: { permission: string; patterns: string[]; title?: string; metadata: Record<string, unknown>; hardDenied: boolean; hardDenyReason?: string }
+}
+
+export type Interaction = QuestionInteraction | PermissionInteraction
+
+export interface TaskQueueStatus {
+  taskId: string
+  state: 'QUEUED' | 'ADMITTED' | 'CANCELLED' | 'FINISHED'
+  queuePosition?: number
+  leaseState: 'HELD' | 'RELEASE_PENDING' | 'RELEASED' | 'NOT_REQUIRED'
+  rootFingerprint?: string
+}
+
+export type RecoveryMode = 'FROM_FAILED_STAGE' | 'ALL_STAGES' | 'VERIFY_ONLY'
+
+export interface RecoveryDraft {
+  taskId: string
+  parentTaskId: string
+  mode: RecoveryMode
+  parentStageId?: string
+  workspaceFingerprint: string
+  writableSession: boolean
+}
+
+export interface SessionTodo {
+  id: string
+  externalTodoId: string
+  content: string
+  status: string
+  priority?: string
+  ordinal: number
+  observedAt: string
+}
+
+export interface SessionCheckpoint {
+  id: string
+  taskId: string
+  sessionId: string
+  attemptId: string
+  externalMessageId?: string
+  contentSha256: string
+  createdAt: string
+}
+
+export interface SessionForkResult {
+  sessionId: string
+  attemptId: string
+  externalSessionId: string
+  state: string
+  createdAt: string
+}
+
+export interface SessionRevertResult {
+  sessionId: string
+  message: string
+  revertedAt: string
+}
+
+export interface SessionSummaryResult {
+  sessionId: string
+  automatic: boolean
+  remoteStateBefore: string
+  remoteStateAfter: string
+  summarizedAt: string
+}
+
+export interface UsageAggregate {
+  inputTokens: number | null
+  outputTokens: number | null
+  totalTokens: number | null
+  costByCurrency: Record<string, string>
+  unknownUsageCount: number
+}
+
+export interface TaskInsight {
+  taskId: string
+  title: string
+  state: TaskStatus
+  durationMs: number
+  retryCount: number
+  usage: UsageAggregate
+  quality: {
+    state: 'PASS' | 'PENDING' | 'REVIEW_REQUIRED'
+    deterministicPassed: boolean
+    verificationCount: number
+    verificationPassedCount: number
+    requirementJudgePassed: boolean
+    riskJudgePassed: boolean
+  }
+}
+
+export interface InsightsSnapshot {
+  tasks: TaskInsight[]
+  usage: UsageAggregate
+  generatedAt: string
+}
+
+export type BrowserAssertion =
+  | { type: 'EXISTS' | 'VISIBLE'; selector: string }
+  | { type: 'TEXT_CONTAINS'; selector: string; value: string }
+  | { type: 'COUNT'; selector: string; expectedCount: number }
+  | { type: 'ATTRIBUTE_EQUALS'; selector: string; attribute: string; value: string }
+
+interface LoopVerifierFields {
   command?: string[]
   path?: string
   requireChanges?: boolean
@@ -276,7 +402,34 @@ export interface LoopVerifierSpec {
   forbiddenPaths?: string[]
   forbidDeletes?: boolean
   outputContains?: string
+  url?: string
+  httpMethod?: 'GET' | 'HEAD'
+  expectedStatus?: number
+  jsonPath?: string
+  expectedValue?: string
+  matchMode?: 'EXISTS' | 'EXACT' | 'CONTAINS'
+  expectedContent?: string
+  expectedSha256?: string
+  sql?: string
+  expectedRowCount?: number
+  assertions?: BrowserAssertion[]
 }
+
+/**
+ * The discriminator makes every verifier's admission fields mandatory while
+ * keeping optional policy fields readable by the shared LoopSpec editor.
+ */
+export type LoopVerifierSpec =
+  | (LoopVerifierFields & { type: 'PROCESS'; command: string[] })
+  | (LoopVerifierFields & { type: 'FILE_EXISTS' | 'FILE_NOT_EXISTS'; path: string })
+  | (LoopVerifierFields & { type: 'GIT_DIFF' })
+  | (LoopVerifierFields & { type: 'HTTP_STATUS'; url: string; expectedStatus: number })
+  | (LoopVerifierFields & { type: 'JSON_PATH'; url: string; jsonPath: string })
+  | (LoopVerifierFields & { type: 'FILE_CONTENT'; path: string; expectedContent: string })
+  | (LoopVerifierFields & { type: 'FILE_HASH'; path: string; expectedSha256: string })
+  | (LoopVerifierFields & { type: 'JUNIT_XML'; path: string })
+  | (LoopVerifierFields & { type: 'BROWSER'; url: string; assertions: BrowserAssertion[] })
+  | (LoopVerifierFields & { type: 'DATABASE_QUERY'; path: string; sql: string })
 
 export interface LoopSpec {
   schemaVersion: string
@@ -296,6 +449,104 @@ export interface LoopSpec {
     maxDuration: string
     attemptTimeout: string
   }
+  budget?: {
+    maxTotalTokens?: number
+    maxCostAmount?: string
+    currency?: string
+  }
+}
+
+export type AutomationTrigger =
+  | { type: 'MANUAL' }
+  | { type: 'CRON'; expression: string; timezone: string }
+  | { type: 'GIT_HEAD_CHANGED'; branch?: string }
+  | { type: 'WEBHOOK' }
+
+export interface LoopSpecTemplateVersion {
+  id: string
+  templateId: string
+  versionNumber: number
+  spec: LoopSpec
+  specSha256: string
+  immutable: boolean
+  autoStartApproved: boolean
+  createdAt: string
+}
+
+export interface LoopSpecTemplate {
+  id: string
+  name: string
+  description: string
+  state: 'ACTIVE' | 'ARCHIVED'
+  versions: LoopSpecTemplateVersion[]
+  updatedAt: string
+  version: number
+}
+
+interface AutomationRuleBase {
+  id: string
+  name: string
+  projectId: string
+  templateVersionId: string
+  state: 'DISABLED' | 'ENABLED'
+  approvalMode: 'REVIEW_REQUIRED' | 'AUTO_START'
+  updatedAt: string
+  version: number
+}
+
+/** REST wire shape shared with FeatureContracts.AutomationRuleDto. */
+export type AutomationRule = AutomationRuleBase & (
+  | { triggerType: 'MANUAL'; triggerConfig: Record<string, never> }
+  | { triggerType: 'CRON'; triggerConfig: { expression: string; timezone: string } }
+  | { triggerType: 'GIT_HEAD_CHANGED'; triggerConfig: { branch?: string } }
+  | { triggerType: 'WEBHOOK'; triggerConfig: Record<string, never> }
+)
+
+export type CreateAutomationRuleInput = Pick<AutomationRuleBase, 'name' | 'projectId' | 'templateVersionId'> & (
+  | { triggerType: 'MANUAL'; triggerConfig: Record<string, never> }
+  | { triggerType: 'CRON'; triggerConfig: { expression: string; timezone: string } }
+  | { triggerType: 'GIT_HEAD_CHANGED'; triggerConfig: { branch?: string } }
+  | { triggerType: 'WEBHOOK'; triggerConfig: Record<string, never> }
+)
+
+export interface AutomationRuleMutation {
+  rule: AutomationRule
+  /** Present only on the successful WEBHOOK create response; never returned by list APIs. */
+  webhookToken?: string
+  webhookPath?: string
+}
+
+export interface AutomationRun {
+  id: string
+  ruleId: string
+  triggerType: AutomationTrigger['type']
+  state: 'DETECTED' | 'REVIEW_REQUIRED' | 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'SKIPPED'
+  draftId?: string
+  taskId?: string
+  evidence: Record<string, unknown>
+  queueState?: string
+  error?: string
+  detectedAt: string
+  startedAt?: string
+  endedAt?: string
+}
+
+export interface AutomationRunFeed {
+  runs: AutomationRun[]
+  serverTime: string
+}
+
+export interface AutomationImportPreview {
+  previewId: string
+  templates: LoopSpecTemplate[]
+  rules: AutomationRule[]
+  expiresAt?: string
+}
+
+export interface AutomationImportResult {
+  templates: LoopSpecTemplate[]
+  /** WEBHOOK tokens, when any, appear only in these one-time mutation results. */
+  rules: AutomationRuleMutation[]
 }
 
 export interface LoopDraft {

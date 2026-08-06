@@ -20,14 +20,7 @@ function defaultVerifier(): LoopVerifierSpec {
 }
 
 function normalizeVerifier(value: LoopVerifierSpec): LoopVerifierSpec {
-  const verifier: LoopVerifierSpec = {
-    ...value,
-    type: value.type || 'PROCESS',
-  }
-  if (value.command) verifier.command = [...value.command]
-  if (value.allowedPaths) verifier.allowedPaths = [...value.allowedPaths]
-  if (value.forbiddenPaths) verifier.forbiddenPaths = [...value.forbiddenPaths]
-  return verifier
+  return structuredClone(value)
 }
 
 function normalizeSpec(value: LoopSpec): LoopSpec {

@@ -29,11 +29,18 @@ public class VerifierEngine {
             "cmd", "cmd.exe", "powershell", "powershell.exe", "pwsh", "pwsh.exe");
     private final SafeProcessRunner runner;
     private final DirectWorkspaceBaselineManager directBaselines;
-    public VerifierEngine(SafeProcessRunner runner) { this(runner, null); }
-    @Autowired
+    private final BinaryArtifactStore artifacts;
+    private final NativeVerifierRegistry nativeVerifiers;
+    public VerifierEngine(SafeProcessRunner runner) { this(runner, null, new BinaryArtifactStore(Path.of("./data"))); }
     public VerifierEngine(SafeProcessRunner runner, DirectWorkspaceBaselineManager directBaselines) {
+        this(runner, directBaselines, new BinaryArtifactStore(Path.of("./data")));
+    }
+    @Autowired
+    public VerifierEngine(SafeProcessRunner runner, DirectWorkspaceBaselineManager directBaselines, BinaryArtifactStore artifacts) {
         this.runner = runner;
         this.directBaselines = directBaselines;
+        this.artifacts = artifacts;
+        this.nativeVerifiers = new NativeVerifierRegistry();
     }
 
     public VerifierOutcome verify(Path worktree, String baselineCommit, VerifierSpec spec, Duration timeout) {
@@ -44,7 +51,7 @@ public class VerifierEngine {
             case "FILE_EXISTS" -> advisoryFileExists(worktree, spec);
             case "FILE_NOT_EXISTS" -> file(worktree, spec, false);
             case "GIT_DIFF" -> gitDiff(worktree, baselineCommit, spec, boundedTimeout);
-            default -> throw new TaskFailure("VERIFIER_TYPE_INVALID", "Unknown verifier type: " + type);
+            default -> nativeVerifiers.verify(new NativeVerifierContext(worktree, boundedTimeout, artifacts), spec);
         };
     }
 
@@ -210,27 +217,7 @@ public class VerifierEngine {
     }
 
     private Path managedRelative(Path worktree, String input) {
-        if (input == null || input.isBlank()) throw new TaskFailure("VERIFIER_PATH_INVALID", "File verifier requires a path");
-        Path supplied;
-        try { supplied = Path.of(input); }
-        catch (RuntimeException invalidPath) {
-            throw new TaskFailure("VERIFIER_PATH_INVALID", "Verifier path is not valid on this platform");
-        }
-        if (supplied.isAbsolute()) throw new TaskFailure("VERIFIER_PATH_ESCAPE", "Verifier paths must be relative to the worktree");
-        Path root;
-        try { root = worktree.toRealPath(); }
-        catch (Exception e) { throw new TaskFailure("WORKTREE_UNAVAILABLE", "Worktree cannot be resolved for file verification"); }
-        Path resolved = root.resolve(supplied).normalize();
-        if (!resolved.startsWith(root)) throw new TaskFailure("VERIFIER_PATH_ESCAPE", "Verifier path escaped its worktree");
-        try {
-            Path existing = resolved;
-            while (existing != null && !Files.exists(existing)) existing = existing.getParent();
-            if (existing == null) throw new TaskFailure("VERIFIER_PATH_INVALID", "Verifier path has no resolvable ancestor");
-            Path check = existing.toRealPath();
-            if (!check.startsWith(root)) throw new TaskFailure("VERIFIER_SYMLINK_ESCAPE", "Verifier path resolved outside its worktree");
-        } catch (TaskFailure e) { throw e; }
-        catch (Exception e) { throw new TaskFailure("VERIFIER_PATH_INVALID", "Verifier path cannot be resolved safely"); }
-        return resolved;
+        return VerifierSafety.managedRelative(worktree, input);
     }
     private List<GitChange> gitChanges(String output) {
         List<GitChange> changes = new ArrayList<>();

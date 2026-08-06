@@ -3,6 +3,7 @@ package io.opencode.loopper.persistence;
 import java.util.List;
 import java.util.Optional;
 import org.apache.ibatis.annotations.Insert;
+import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -128,6 +129,7 @@ public interface LoopperMapper {
     @Select("SELECT * FROM execution_session WHERE attempt_id=#{attemptId} ORDER BY created_at DESC LIMIT 1") Optional<ExecutionSessionRow> latestSessionForAttempt(String attemptId);
     @Select("SELECT * FROM execution_session WHERE task_id=#{taskId} ORDER BY created_at DESC") List<ExecutionSessionRow> listSessions(String taskId);
     @Select("SELECT * FROM execution_session WHERE task_id=#{taskId} AND state IN ('CREATING','RUNNING') ORDER BY created_at DESC") List<ExecutionSessionRow> activeSessions(String taskId);
+    @Select("SELECT * FROM execution_session WHERE state IN ('CREATING','RUNNING') ORDER BY created_at") List<ExecutionSessionRow> activeExecutionSessions();
     @Select("""
             SELECT session.* FROM execution_session session
             WHERE session.state='DISCONNECTED'
@@ -180,4 +182,180 @@ public interface LoopperMapper {
     int insertTaskEvent(TaskEventRow row);
     @Select("SELECT * FROM task_event WHERE task_id=#{taskId} AND sequence > #{sequence} ORDER BY sequence")
     List<TaskEventRow> eventsAfter(@Param("taskId") String taskId, @Param("sequence") long sequence);
+
+    @Select("SELECT * FROM workspace_lease WHERE canonical_root=#{canonicalRoot}")
+    Optional<WorkspaceLeaseRow> findWorkspaceLease(String canonicalRoot);
+    @Select("SELECT * FROM workspace_lease WHERE state IN ('HELD','RELEASE_PENDING') ORDER BY heartbeat_at")
+    List<WorkspaceLeaseRow> blockingWorkspaceLeases();
+    @Insert("""
+            INSERT INTO workspace_lease(canonical_root,root_fingerprint,mode,holder_task_id,writer_session_id,state,
+              acquired_at,heartbeat_at,released_at,release_reason,version)
+            VALUES(#{canonicalRoot},#{rootFingerprint},#{mode},#{holderTaskId},#{writerSessionId},#{state},
+              #{acquiredAt},#{heartbeatAt},#{releasedAt},#{releaseReason},#{version})
+            """)
+    int insertWorkspaceLease(WorkspaceLeaseRow row);
+    @Update("""
+            UPDATE workspace_lease SET root_fingerprint=#{rootFingerprint},mode=#{mode},holder_task_id=#{holderTaskId},
+              writer_session_id=#{writerSessionId},state=#{state},acquired_at=#{acquiredAt},heartbeat_at=#{heartbeatAt},
+              released_at=#{releasedAt},release_reason=#{releaseReason},version=version+1
+            WHERE canonical_root=#{canonicalRoot} AND version=#{version}
+            """)
+    int updateWorkspaceLease(WorkspaceLeaseRow row);
+
+    @Select("SELECT COALESCE(MAX(position),0)+1 FROM task_queue WHERE canonical_root=#{canonicalRoot}")
+    long nextQueuePosition(String canonicalRoot);
+    @Insert("""
+            INSERT INTO task_queue(task_id,canonical_root,root_fingerprint,position,source,state,enqueued_at,
+              admitted_at,finished_at,version)
+            VALUES(#{taskId},#{canonicalRoot},#{rootFingerprint},#{position},#{source},#{state},#{enqueuedAt},
+              #{admittedAt},#{finishedAt},#{version})
+            """)
+    int insertTaskQueue(TaskQueueRow row);
+    @Select("SELECT * FROM task_queue WHERE task_id=#{taskId}") Optional<TaskQueueRow> findTaskQueue(String taskId);
+    @Select("SELECT * FROM task_queue WHERE canonical_root=#{canonicalRoot} ORDER BY position")
+    List<TaskQueueRow> listTaskQueue(String canonicalRoot);
+    @Select("SELECT * FROM task_queue WHERE canonical_root=#{canonicalRoot} AND state='QUEUED' ORDER BY position LIMIT 1")
+    Optional<TaskQueueRow> nextQueuedTask(String canonicalRoot);
+    @Update("""
+            UPDATE task_queue SET state=#{state},admitted_at=#{admittedAt},finished_at=#{finishedAt},version=version+1
+            WHERE task_id=#{taskId} AND version=#{version}
+            """)
+    int updateTaskQueue(TaskQueueRow row);
+
+    /**
+     * A Provider request id can be observed more than once with richer permission details.  A newly observed
+     * dangerous payload may only promote an open/stale interaction to HARD_DENIED; it must never reopen a
+     * terminal interaction or relax an existing local hard deny.
+     */
+    @Insert("""
+            INSERT INTO interaction(id,scope_type,scope_id,task_id,designer_session_id,local_session_id,
+              external_session_id,external_request_id,kind,state,payload_json,resolved_action,response_json,
+              created_at,updated_at,resolved_at,version)
+            VALUES(#{id},#{scopeType},#{scopeId},#{taskId},#{designerSessionId},#{localSessionId},
+              #{externalSessionId},#{externalRequestId},#{kind},#{state},#{payloadJson},#{resolvedAction},#{responseJson},
+              #{createdAt},#{updatedAt},#{resolvedAt},#{version})
+            ON CONFLICT(external_session_id,external_request_id,kind) DO UPDATE SET
+              state=CASE
+                WHEN interaction.state IN ('PENDING','RESOLVING','STALE') AND excluded.state='HARD_DENIED' THEN 'HARD_DENIED'
+                ELSE interaction.state
+              END,
+              payload_json=CASE
+                WHEN interaction.state IN ('PENDING','RESOLVING','STALE') AND excluded.state='HARD_DENIED' THEN excluded.payload_json
+                ELSE interaction.payload_json
+              END,
+              updated_at=CASE
+                WHEN interaction.state IN ('PENDING','RESOLVING','STALE') AND excluded.state='HARD_DENIED' THEN excluded.updated_at
+                ELSE interaction.updated_at
+              END,
+              version=CASE
+                WHEN interaction.state IN ('PENDING','RESOLVING','STALE') AND excluded.state='HARD_DENIED' THEN interaction.version + 1
+                ELSE interaction.version
+              END
+            """)
+    int upsertInteraction(InteractionRow row);
+    @Select("SELECT * FROM interaction WHERE id=#{id}") Optional<InteractionRow> findInteraction(String id);
+    @Select("SELECT * FROM interaction WHERE state='PENDING' ORDER BY created_at") List<InteractionRow> pendingInteractions();
+    @Select("SELECT * FROM interaction WHERE state IN ('PENDING','RESOLVING','HARD_DENIED') ORDER BY created_at") List<InteractionRow> openInteractions();
+    @Select("SELECT * FROM interaction WHERE scope_type=#{scopeType} AND scope_id=#{scopeId} ORDER BY created_at")
+    List<InteractionRow> listInteractionsForScope(@Param("scopeType") String scopeType, @Param("scopeId") String scopeId);
+    @Update("""
+            UPDATE interaction SET state='RESOLVING',updated_at=#{updatedAt},version=version+1
+            WHERE id=#{id} AND version=#{version} AND state='PENDING'
+            """)
+    int claimInteraction(@Param("id") String id, @Param("version") long version, @Param("updatedAt") String updatedAt);
+    @Update("""
+            UPDATE interaction SET state='PENDING',updated_at=#{updatedAt},version=version+1
+            WHERE id=#{id} AND version=#{version} AND state='RESOLVING'
+            """)
+    int releaseInteractionClaim(@Param("id") String id, @Param("version") long version, @Param("updatedAt") String updatedAt);
+    @Update("""
+            UPDATE interaction SET state=#{state},resolved_action=#{resolvedAction},response_json=#{responseJson},
+              updated_at=#{updatedAt},resolved_at=#{resolvedAt},version=version+1
+            WHERE id=#{id} AND version=#{version} AND state='RESOLVING'
+            """)
+    int resolveInteraction(InteractionRow row);
+    @Update("""
+            UPDATE interaction SET state='STALE',updated_at=#{updatedAt},version=version+1
+            WHERE external_session_id=#{externalSessionId} AND state IN ('PENDING','HARD_DENIED')
+              AND external_request_id NOT IN (SELECT value FROM json_each(#{activeRequestIdsJson}))
+            """)
+    int markMissingInteractionsStale(@Param("externalSessionId") String externalSessionId,
+                                     @Param("activeRequestIdsJson") String activeRequestIdsJson,
+                                     @Param("updatedAt") String updatedAt);
+    @Update("""
+            UPDATE interaction SET state='STALE',updated_at=#{updatedAt},version=version+1
+            WHERE state IN ('PENDING','RESOLVING','HARD_DENIED')
+              AND local_session_id IN (
+                SELECT id FROM execution_session WHERE state NOT IN ('CREATING','RUNNING')
+              )
+            """)
+    int markTerminalSessionInteractionsStale(@Param("updatedAt") String updatedAt);
+
+    @Insert("INSERT INTO task_lineage(child_task_id,parent_task_id,recovery_mode,parent_stage_id,workspace_fingerprint,created_at) VALUES(#{childTaskId},#{parentTaskId},#{recoveryMode},#{parentStageId},#{workspaceFingerprint},#{createdAt})")
+    int insertTaskLineage(TaskLineageRow row);
+    @Select("SELECT * FROM task_lineage WHERE child_task_id=#{childTaskId}") Optional<TaskLineageRow> findTaskLineage(String childTaskId);
+    @Select("SELECT * FROM task_lineage WHERE parent_task_id=#{parentTaskId} ORDER BY created_at DESC") List<TaskLineageRow> childTasks(String parentTaskId);
+
+    @Insert("""
+            INSERT INTO session_todo(id,execution_session_id,external_todo_id,content,status,priority,ordinal,payload_json,observed_at,version)
+            VALUES(#{id},#{executionSessionId},#{externalTodoId},#{content},#{status},#{priority},#{ordinal},#{payloadJson},#{observedAt},#{version})
+            ON CONFLICT(execution_session_id,external_todo_id) DO UPDATE SET content=excluded.content,status=excluded.status,
+              priority=excluded.priority,ordinal=excluded.ordinal,payload_json=excluded.payload_json,observed_at=excluded.observed_at,version=session_todo.version+1
+            """)
+    int upsertSessionTodo(SessionTodoRow row);
+    @Select("SELECT * FROM session_todo WHERE execution_session_id=#{sessionId} ORDER BY ordinal") List<SessionTodoRow> listSessionTodos(String sessionId);
+    @Delete("""
+            DELETE FROM session_todo
+            WHERE execution_session_id=#{sessionId}
+              AND external_todo_id NOT IN (SELECT value FROM json_each(#{activeTodoIdsJson}))
+            """)
+    int deleteMissingSessionTodos(@Param("sessionId") String sessionId,
+                                  @Param("activeTodoIdsJson") String activeTodoIdsJson);
+
+    @Insert("INSERT INTO session_checkpoint(id,task_id,execution_session_id,attempt_id,external_message_id,message_refs_json,todo_refs_json,diff_ref_json,content_sha256,created_at,version) VALUES(#{id},#{taskId},#{executionSessionId},#{attemptId},#{externalMessageId},#{messageRefsJson},#{todoRefsJson},#{diffRefJson},#{contentSha256},#{createdAt},#{version})")
+    int insertSessionCheckpoint(SessionCheckpointRow row);
+    @Select("SELECT * FROM session_checkpoint WHERE id=#{id}") Optional<SessionCheckpointRow> findSessionCheckpoint(String id);
+    @Select("SELECT * FROM session_checkpoint WHERE execution_session_id=#{sessionId} ORDER BY created_at DESC") List<SessionCheckpointRow> listSessionCheckpoints(String sessionId);
+
+    @Insert("""
+            INSERT INTO session_usage(id,task_id,execution_session_id,judge_run_id,external_message_id,idempotency_key,provider_id,model_id,
+              input_tokens,output_tokens,total_tokens,cost_amount,currency,reliable,observed_at)
+            VALUES(#{id},#{taskId},#{executionSessionId},#{judgeRunId},#{externalMessageId},#{idempotencyKey},#{providerId},#{modelId},
+              #{inputTokens},#{outputTokens},#{totalTokens},#{costAmount},#{currency},#{reliable},#{observedAt})
+            ON CONFLICT(idempotency_key) DO NOTHING
+            """)
+    int insertSessionUsage(SessionUsageRow row);
+    @Select("SELECT * FROM session_usage WHERE task_id=#{taskId} ORDER BY observed_at") List<SessionUsageRow> listTaskUsage(String taskId);
+    @Select("SELECT * FROM session_usage ORDER BY observed_at") List<SessionUsageRow> listAllUsage();
+
+    @Insert("INSERT INTO binary_artifact(id,task_id,attempt_id,execution_session_id,verification_result_id,kind,media_type,relative_path,sha256,size_bytes,metadata_json,created_at) VALUES(#{id},#{taskId},#{attemptId},#{executionSessionId},#{verificationResultId},#{kind},#{mediaType},#{relativePath},#{sha256},#{sizeBytes},#{metadataJson},#{createdAt})")
+    int insertBinaryArtifact(BinaryArtifactRow row);
+    @Select("SELECT * FROM binary_artifact WHERE task_id=#{taskId} ORDER BY created_at DESC") List<BinaryArtifactRow> listBinaryArtifacts(String taskId);
+    @Select("SELECT * FROM binary_artifact WHERE verification_result_id=#{verificationResultId} ORDER BY created_at DESC") List<BinaryArtifactRow> listBinaryArtifactsForVerification(String verificationResultId);
+
+    @Insert("INSERT INTO loopspec_template(id,name,description,state,created_at,updated_at,version) VALUES(#{id},#{name},#{description},#{state},#{createdAt},#{updatedAt},#{version})")
+    int insertLoopSpecTemplate(LoopSpecTemplateRow row);
+    @Select("SELECT * FROM loopspec_template WHERE id=#{id}") Optional<LoopSpecTemplateRow> findLoopSpecTemplate(String id);
+    @Select("SELECT * FROM loopspec_template ORDER BY updated_at DESC") List<LoopSpecTemplateRow> listLoopSpecTemplates();
+    @Update("UPDATE loopspec_template SET name=#{name},description=#{description},state=#{state},updated_at=#{updatedAt},version=version+1 WHERE id=#{id} AND version=#{version}")
+    int updateLoopSpecTemplate(LoopSpecTemplateRow row);
+    @Insert("INSERT INTO loopspec_template_version(id,template_id,version_number,spec_json,spec_sha256,immutable,auto_start_approved,created_at) VALUES(#{id},#{templateId},#{versionNumber},#{specJson},#{specSha256},#{immutable},#{autoStartApproved},#{createdAt})")
+    int insertLoopSpecTemplateVersion(LoopSpecTemplateVersionRow row);
+    @Select("SELECT * FROM loopspec_template_version WHERE id=#{id}") Optional<LoopSpecTemplateVersionRow> findLoopSpecTemplateVersion(String id);
+    @Select("SELECT * FROM loopspec_template_version WHERE template_id=#{templateId} ORDER BY version_number DESC") List<LoopSpecTemplateVersionRow> listLoopSpecTemplateVersions(String templateId);
+    @Select("SELECT COALESCE(MAX(version_number),0)+1 FROM loopspec_template_version WHERE template_id=#{templateId}") int nextLoopSpecTemplateVersion(String templateId);
+
+    @Insert("INSERT INTO automation_rule(id,name,project_id,template_version_id,trigger_type,state,approval_mode,trigger_config_json,webhook_token_hash,last_observed_head,created_at,updated_at,version) VALUES(#{id},#{name},#{projectId},#{templateVersionId},#{triggerType},#{state},#{approvalMode},#{triggerConfigJson},#{webhookTokenHash},#{lastObservedHead},#{createdAt},#{updatedAt},#{version})")
+    int insertAutomationRule(AutomationRuleRow row);
+    @Select("SELECT * FROM automation_rule WHERE id=#{id}") Optional<AutomationRuleRow> findAutomationRule(String id);
+    @Select("SELECT * FROM automation_rule ORDER BY updated_at DESC") List<AutomationRuleRow> listAutomationRules();
+    @Select("SELECT * FROM automation_rule WHERE state='ENABLED' ORDER BY updated_at") List<AutomationRuleRow> enabledAutomationRules();
+    @Update("UPDATE automation_rule SET name=#{name},template_version_id=#{templateVersionId},trigger_type=#{triggerType},state=#{state},approval_mode=#{approvalMode},trigger_config_json=#{triggerConfigJson},webhook_token_hash=#{webhookTokenHash},last_observed_head=#{lastObservedHead},updated_at=#{updatedAt},version=version+1 WHERE id=#{id} AND version=#{version}")
+    int updateAutomationRule(AutomationRuleRow row);
+    @Insert("INSERT INTO automation_run(id,rule_id,trigger_type,idempotency_key,state,draft_id,task_id,evidence_json,detected_at,started_at,ended_at) VALUES(#{id},#{ruleId},#{triggerType},#{idempotencyKey},#{state},#{draftId},#{taskId},#{evidenceJson},#{detectedAt},#{startedAt},#{endedAt})")
+    int insertAutomationRun(AutomationRunRow row);
+    @Select("SELECT * FROM automation_run WHERE id=#{id}") Optional<AutomationRunRow> findAutomationRun(String id);
+    @Select("SELECT * FROM automation_run WHERE rule_id=#{ruleId} ORDER BY detected_at DESC") List<AutomationRunRow> listAutomationRuns(String ruleId);
+    @Update("UPDATE automation_run SET state=#{state},draft_id=#{draftId},task_id=#{taskId},evidence_json=#{evidenceJson},started_at=#{startedAt},ended_at=#{endedAt} WHERE id=#{id}")
+    int updateAutomationRun(AutomationRunRow row);
 }
