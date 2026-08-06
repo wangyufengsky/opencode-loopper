@@ -50,6 +50,25 @@ describe('MarkdownDocument', () => {
     expect(wrapper.find('code.language-mermaid').exists()).toBe(false)
   })
 
+  it('removes Mermaid error renderer artifacts when parsing fails', async () => {
+    mermaidMocks.render.mockImplementation(async (id: string) => {
+      const leakedError = document.createElement('div')
+      leakedError.id = `d${id}`
+      leakedError.innerHTML = `<svg id="${id}"><text>Syntax error in text</text></svg>`
+      document.body.append(leakedError)
+      throw new Error('Parse error')
+    })
+    const wrapper = mount(MarkdownDocument, {
+      props: { content: '```mermaid\nflowchart LR\nA[@ChainConfig] --> B\n```' },
+    })
+    await flushPromises()
+
+    expect(wrapper.get('.markdown-mermaid-error').text()).toBe('流程图语法无法渲染，请检查 Mermaid 文本。')
+    expect(document.body.textContent).not.toContain('Syntax error in text')
+    expect(document.querySelector('[id^="dloopper-mermaid-"]')).toBeNull()
+    wrapper.unmount()
+  })
+
   it('defers Mermaid loading until the diagram approaches the viewport', async () => {
     let notify: ((entries: Array<{ isIntersecting: boolean; target: Element }>) => void) | undefined
     class FakeIntersectionObserver {

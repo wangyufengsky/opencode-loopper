@@ -42,6 +42,7 @@ function loadMermaid() {
   mermaidPromise ??= import('mermaid').then(({ default: mermaid }) => {
     mermaid.initialize({
       startOnLoad: false,
+      suppressErrorRendering: true,
       securityLevel: 'strict',
       theme: 'dark',
       flowchart: { htmlLabels: false },
@@ -59,6 +60,12 @@ function loadMermaid() {
     return mermaid
   })
   return mermaidPromise
+}
+
+function removeMermaidRenderArtifacts(id: string) {
+  document.getElementById(`d${id}`)?.remove()
+  document.getElementById(`i${id}`)?.remove()
+  document.getElementById(id)?.remove()
 }
 
 /** Mermaid may use SVG foreignObject labels, which secure SVG sanitizers remove.
@@ -99,8 +106,8 @@ function normalizeMermaidSvg(svg: string) {
 async function renderMermaidFrame(frame: HTMLElement, source: string, version: number) {
   const mermaid = await loadMermaid()
   if (version !== renderVersion || !documentRoot.value?.contains(frame)) return
+  const id = `loopper-mermaid-${++diagramSequence}`
   try {
-    const id = `loopper-mermaid-${++diagramSequence}`
     const { svg, bindFunctions } = await mermaid.render(id, source)
     if (version !== renderVersion || !documentRoot.value?.contains(frame)) return
     frame.classList.remove('markdown-mermaid-pending')
@@ -110,6 +117,9 @@ async function renderMermaidFrame(frame: HTMLElement, source: string, version: n
     })
     bindFunctions?.(frame)
   } catch {
+    // Mermaid versions before suppressErrorRendering was consistently honored
+    // can leave their temporary error SVG attached directly to document.body.
+    removeMermaidRenderArtifacts(id)
     frame.classList.remove('markdown-mermaid-pending')
     frame.classList.add('markdown-mermaid-error')
     frame.textContent = '流程图语法无法渲染，请检查 Mermaid 文本。'

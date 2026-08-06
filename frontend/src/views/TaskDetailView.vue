@@ -9,7 +9,6 @@ import StageRail from '@/components/StageRail.vue'
 import AttemptTimeline from '@/components/AttemptTimeline.vue'
 import LayeredErrorPanel from '@/components/LayeredErrorPanel.vue'
 import SessionMonitorPanel from '@/components/SessionMonitorPanel.vue'
-import SessionLifecyclePanel from '@/components/SessionLifecyclePanel.vue'
 import JudgeReviewCard from '@/components/JudgeReviewCard.vue'
 import TaskAuditEvidencePanel from '@/components/TaskAuditEvidencePanel.vue'
 import TaskPublicationActions from '@/components/TaskPublicationActions.vue'
@@ -23,7 +22,6 @@ const id = computed(() => route.params.id as string)
 const task = computed(() => store.tasks.find((item) => item.id === id.value))
 const isDirectExecution = computed(() => task.value?.branch === 'DIRECT')
 const attempts = computed<Attempt[]>(() => task.value?.attempts ?? task.value?.stages?.flatMap((stage) => stage.attempts) ?? [])
-const lifecycleSession = computed(() => [...attempts.value].reverse().find((attempt) => attempt.sessionId))
 const sessionErrors = computed<ErrorEvent[]>(() => (task.value?.errors ?? attempts.value.flatMap((attempt) => attempt.errors)).filter((error) => error.layer === 'SESSION'))
 const verifierErrors = computed<ErrorEvent[]>(() => (task.value?.errors ?? attempts.value.flatMap((attempt) => attempt.errors)).filter((error) => error.layer === 'VERIFICATION'))
 const taskErrors = computed<ErrorEvent[]>(() => task.value?.errors?.filter((error) => error.layer === 'TASK') ?? [])
@@ -90,7 +88,6 @@ async function confirmCancel() {
       <section v-for="error in sessionErrors" :key="error.id" style="margin-top: 16px"><LayeredErrorPanel :error="error" /></section>
       <section v-for="error in taskErrors" :key="error.id" style="margin-top: 16px"><LayeredErrorPanel :error="error" /></section>
       <SessionMonitorPanel :task-id="task.id" />
-      <SessionLifecyclePanel v-if="lifecycleSession?.sessionId" :task-id="task.id" :session-id="lifecycleSession.sessionId" :session-state="lifecycleSession.status" :task-state="task.status" :direct-execution="isDirectExecution" />
       <section v-if="judges.length || task.status === 'JUDGING' || task.status === 'WAITING_INPUT'" class="card card-pad judge-section" style="margin-top: 16px" aria-labelledby="judge-heading">
         <div class="card-header"><div><p class="eyebrow">独立只读评审</p><h2 id="judge-heading" class="card-title">需求 / 风险双评审</h2></div><StatusBadge :status="task.status" /></div>
         <div class="judge-grid">
