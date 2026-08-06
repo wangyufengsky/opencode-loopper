@@ -9,6 +9,7 @@ import StageRail from '@/components/StageRail.vue'
 import AttemptTimeline from '@/components/AttemptTimeline.vue'
 import LayeredErrorPanel from '@/components/LayeredErrorPanel.vue'
 import SessionMonitorPanel from '@/components/SessionMonitorPanel.vue'
+import SessionLifecyclePanel from '@/components/SessionLifecyclePanel.vue'
 import JudgeReviewCard from '@/components/JudgeReviewCard.vue'
 import TaskAuditEvidencePanel from '@/components/TaskAuditEvidencePanel.vue'
 import TaskPublicationActions from '@/components/TaskPublicationActions.vue'
@@ -22,6 +23,7 @@ const id = computed(() => route.params.id as string)
 const task = computed(() => store.tasks.find((item) => item.id === id.value))
 const isDirectExecution = computed(() => task.value?.branch === 'DIRECT')
 const attempts = computed<Attempt[]>(() => task.value?.attempts ?? task.value?.stages?.flatMap((stage) => stage.attempts) ?? [])
+const lifecycleSession = computed(() => [...attempts.value].reverse().find((attempt) => attempt.sessionId))
 const sessionErrors = computed<ErrorEvent[]>(() => (task.value?.errors ?? attempts.value.flatMap((attempt) => attempt.errors)).filter((error) => error.layer === 'SESSION'))
 const verifierErrors = computed<ErrorEvent[]>(() => (task.value?.errors ?? attempts.value.flatMap((attempt) => attempt.errors)).filter((error) => error.layer === 'VERIFICATION'))
 const taskErrors = computed<ErrorEvent[]>(() => task.value?.errors?.filter((error) => error.layer === 'TASK') ?? [])
@@ -66,7 +68,7 @@ async function confirmCancel() {
 
 <template>
   <PageHeader eyebrow="任务 / 检视" :title="task?.title ?? '加载任务'" :title-tooltip="task?.goal || task?.title">
-    <template #actions><StatusBadge v-if="task" :status="task.status" /><el-button v-if="task?.hasDesignHistory" plain @click="router.push(`/tasks/${id}/design`)"><Icon icon="lucide:messages-square" />设计</el-button><el-button plain @click="router.push('/tasks')"><Icon icon="lucide:list" />全部任务</el-button><el-button v-if="task?.status === 'READY'" type="primary" @click="store.updateTask(id, 'start')"><Icon icon="lucide:play" />开始执行</el-button><template v-else-if="task?.status === 'RUNNING' || task?.status === 'VERIFYING'"><el-button plain @click="store.updateTask(id, 'pause')"><Icon icon="lucide:pause" />暂停</el-button><el-button plain type="danger" @click="confirmCancel"><Icon icon="lucide:square" />取消</el-button></template><el-button v-else-if="task?.status === 'PAUSED'" type="primary" @click="store.updateTask(id, 'resume')"><Icon icon="lucide:play" />继续</el-button><TaskPublicationActions v-if="task?.status === 'SUCCEEDED'" :task="task" :demo="store.usingDemo" /></template>
+    <template #actions><StatusBadge v-if="task" :status="task.status" /><el-button v-if="task?.hasDesignHistory" plain @click="router.push(`/tasks/${id}/design`)"><Icon icon="lucide:messages-square" />设计</el-button><el-button v-if="task?.status === 'FAILED' || task?.status === 'CANCELLED'" type="primary" @click="router.push(`/tasks/${id}/recovery`)"><Icon icon="lucide:git-fork" />恢复</el-button><el-button plain @click="router.push('/tasks')"><Icon icon="lucide:list" />全部任务</el-button><el-button v-if="task?.status === 'READY'" type="primary" @click="store.updateTask(id, 'start')"><Icon icon="lucide:play" />开始执行</el-button><template v-else-if="task?.status === 'RUNNING' || task?.status === 'VERIFYING'"><el-button plain @click="store.updateTask(id, 'pause')"><Icon icon="lucide:pause" />暂停</el-button><el-button plain type="danger" @click="confirmCancel"><Icon icon="lucide:square" />取消</el-button></template><el-button v-else-if="task?.status === 'PAUSED'" type="primary" @click="store.updateTask(id, 'resume')"><Icon icon="lucide:play" />继续</el-button><TaskPublicationActions v-if="task?.status === 'SUCCEEDED'" :task="task" :demo="store.usingDemo" /></template>
   </PageHeader>
   <main id="main-content" class="content" tabindex="-1">
     <section v-if="!task" class="card empty-state"><div><Icon icon="lucide:search-x" width="30" /><strong>未找到此任务</strong><p>它可能已被清理，或当前接口尚未返回该条记录。</p></div></section>
@@ -88,6 +90,7 @@ async function confirmCancel() {
       <section v-for="error in sessionErrors" :key="error.id" style="margin-top: 16px"><LayeredErrorPanel :error="error" /></section>
       <section v-for="error in taskErrors" :key="error.id" style="margin-top: 16px"><LayeredErrorPanel :error="error" /></section>
       <SessionMonitorPanel :task-id="task.id" />
+      <SessionLifecyclePanel v-if="lifecycleSession?.sessionId" :task-id="task.id" :session-id="lifecycleSession.sessionId" :session-state="lifecycleSession.status" :task-state="task.status" :direct-execution="isDirectExecution" />
       <section v-if="judges.length || task.status === 'JUDGING' || task.status === 'WAITING_INPUT'" class="card card-pad judge-section" style="margin-top: 16px" aria-labelledby="judge-heading">
         <div class="card-header"><div><p class="eyebrow">独立只读评审</p><h2 id="judge-heading" class="card-title">需求 / 风险双评审</h2></div><StatusBadge :status="task.status" /></div>
         <div class="judge-grid">

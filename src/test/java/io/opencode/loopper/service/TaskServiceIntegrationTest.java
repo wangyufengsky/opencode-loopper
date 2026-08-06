@@ -8,9 +8,11 @@ import io.opencode.loopper.persistence.ExecutionSessionRow;
 import io.opencode.loopper.persistence.LoopDraftRow;
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.ProjectRow;
+import io.opencode.loopper.persistence.SessionUsageRow;
 import io.opencode.loopper.persistence.TaskRow;
 import io.opencode.loopper.runtime.FakeOpenCodeClient;
 import io.opencode.loopper.runtime.OpenCodeClient;
+import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -34,6 +36,7 @@ class TaskServiceIntegrationTest {
     @Autowired private TaskMonitor monitor;
     @Autowired private OpenCodeClient openCode;
     @Autowired private LoopperMapper mapper;
+    @Autowired private UsageInsightsService usageInsights;
     @TempDir Path temp;
 
     @BeforeEach
@@ -58,6 +61,94 @@ class TaskServiceIntegrationTest {
         assertThat(recovered.state()).isEqualTo("RUNNING");
         assertThat(tasks.attempts(task.id())).hasSize(2);
         assertThat(tasks.errors(task.id())).anyMatch(error -> error.layer().equals(ErrorLayer.SESSION.name()));
+    }
+
+    @Test
+    void implementationPromptIncludesTheCompleteStageExecutionContract() throws Exception {
+        ProjectRow project = projects.create("prompt-contract", gitProject());
+        LoopSpec contract = new LoopSpec("v1", project.id(), "Create the automation fixture",
+                "先调用 question，确认后仅创建 automation.txt。",
+                List.of(new LoopSpec.StageSpec("Create automation.txt", List.of("automation.txt"), List.of(".git/**"),
+                        List.of("automation.txt"), List.of(new LoopSpec.VerifierSpec(
+                                "FILE_CONTENT", null, "automation.txt", null, null, null, null, null,
+                                null, null, null, null, null, "CONTAINS", "Loopper automation accepted",
+                                null, null, null, null)))), null, null, null, null);
+        TaskRow task = drafts.confirm(drafts.create(contract).id(), "complete prompt contract");
+
+        tasks.start(task.id());
+
+        ExecutionSessionRow session = mapper.activeSessions(task.id()).getFirst();
+        assertThat(((FakeOpenCodeClient) openCode).promptForSession(session.externalSessionId()))
+                .contains("Context: 先调用 question，确认后仅创建 automation.txt。")
+                .contains("Deliverables: [\"automation.txt\"]")
+                .contains("Verifier contract:")
+                .contains("\"expectedContent\":\"Loopper automation accepted\"");
+    }
+
+    @Test
+    void reliableUsageAtSoftLimitBlocksBeforeCreatingTheNextImplementationSession() throws Exception {
+        ProjectRow project = projects.create("implementation-budget", gitProject());
+        LoopSpec limited = new LoopSpec("v1", project.id(), "Respect provider usage", null,
+                List.of(new LoopSpec.StageSpec("Check README", null, null, null,
+                        List.of(new LoopSpec.VerifierSpec("FILE_EXISTS", null, "README.md", null, null, null, null)))),
+                null, null, null, null, new LoopSpec.BudgetSpec(10L, null, null));
+        TaskRow task = drafts.confirm(drafts.create(limited).id(), "implementation budget gate");
+        var stage = tasks.stages(task.id()).getFirst();
+        String now = Instant.now().toString();
+        AttemptRow completed = new AttemptRow("budget-attempt", task.id(), stage.id(), 1, "SUCCEEDED", null, "prior work", now, now, 0);
+        mapper.insertAttempt(completed);
+        ExecutionSessionRow prior = new ExecutionSessionRow("budget-session", task.id(), stage.id(), completed.id(),
+                "budget-remote", "COMPLETED", now, now, 0);
+        mapper.insertSession(prior);
+        mapper.insertSessionUsage(new SessionUsageRow("budget-usage", task.id(), prior.id(), null, "message-1",
+                "usage:session:budget-session:message-1", "provider", "model", 4L, 6L, 10L,
+                null, null, true, now));
+        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
+
+        TaskRow waiting = tasks.start(task.id());
+
+        assertThat(waiting.state()).isEqualTo("WAITING_INPUT");
+        assertThat(tasks.attempts(task.id())).hasSize(1);
+        assertThat(mapper.listSessions(task.id())).hasSize(1);
+        assertThat(fake.createSessionCalls()).isZero();
+        assertThat(fake.promptCalls()).isZero();
+        assertThat(tasks.errors(task.id())).anyMatch(error -> error.code().equals("BUDGET_TOKEN_LIMIT_REACHED"));
+    }
+
+    @Test
+    void completedJudgeUsageBlocksARetryBeforeCreatingAnotherReadOnlySession() throws Exception {
+        ProjectRow project = projects.create("judge-budget", gitProject());
+        LoopSpec limited = new LoopSpec("v1", project.id(), "Budget judges", null,
+                List.of(new LoopSpec.StageSpec("Check README", null, null, null,
+                        List.of(new LoopSpec.VerifierSpec("FILE_EXISTS", null, "README.md", null, null, null, null)))),
+                null, null, null, null, new LoopSpec.BudgetSpec(10L, null, null));
+        TaskRow task = drafts.confirm(drafts.create(limited).id(), "judge budget gate");
+        tasks.start(task.id());
+        tasks.verify(task.id());
+        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
+        var requirement = tasks.judges(task.id()).stream().filter(row -> row.role().equals("REQUIREMENT")).findFirst().orElseThrow();
+        var risk = tasks.judges(task.id()).stream().filter(row -> row.role().equals("RISK")).findFirst().orElseThrow();
+        mapper.updateJudgeRun(new io.opencode.loopper.persistence.JudgeRunRow(requirement.id(), requirement.taskId(), requirement.attemptId(),
+                requirement.role(), requirement.ordinal(), requirement.externalSessionId(), "COMPLETED", "PASS", "confirmed",
+                "{\"verdict\":\"PASS\"}", requirement.createdAt(), Instant.now().toString(), requirement.version()));
+        fake.setSessionUsage(requirement.externalSessionId(), List.of(new OpenCodeClient.UsageRecord(
+                "judge-message", "provider", "model", 4L, 6L, null, null, null, true)));
+        fake.setSessionState(risk.externalSessionId(), "RETRY");
+        int readOnlyCallsBeforeRetry = fake.createReadOnlySessionCalls();
+        int promptCallsBeforeRetry = fake.promptCalls();
+
+        tasks.pollJudges(task.id());
+
+        assertThat(tasks.get(task.id()).state()).isEqualTo("WAITING_INPUT");
+        assertThat(tasks.judges(task.id())).hasSize(2);
+        assertThat(fake.createReadOnlySessionCalls()).isEqualTo(readOnlyCallsBeforeRetry);
+        assertThat(fake.promptCalls()).isEqualTo(promptCallsBeforeRetry);
+        assertThat(mapper.listTaskUsage(task.id())).anySatisfy(row -> {
+            assertThat(row.judgeRunId()).isEqualTo(requirement.id());
+            assertThat(row.executionSessionId()).isNull();
+            assertThat(row.totalTokens()).isEqualTo(10L);
+        });
+        assertThat(tasks.errors(task.id())).anyMatch(error -> error.code().equals("BUDGET_TOKEN_LIMIT_REACHED"));
     }
 
     @Test
@@ -321,15 +412,109 @@ class TaskServiceIntegrationTest {
     }
 
     @Test
-    void pauseAndResumeKeepExistingSessionInsteadOfCreatingDuplicate() throws Exception {
+    void secondDirectTaskWaitsWithoutBaselineUntilTheHolderTerminates() throws Exception {
+        Path root = Files.createDirectory(temp.resolve("shared-direct-root"));
+        Files.writeString(root.resolve("README.md"), "fixture");
+        ProjectRow project = projects.create("shared-direct", root.toString());
+        TaskRow first = drafts.confirm(drafts.create(spec(project.id())).id(), "first direct writer");
+        TaskRow second = drafts.confirm(drafts.create(spec(project.id())).id(), "second direct writer");
+
+        assertThat(first.state()).isEqualTo("READY");
+        assertThat(second.state()).isEqualTo("QUEUED");
+        assertThat(second.worktreePath()).isNull();
+        assertThat(second.baselineCommit()).isNull();
+        assertThat(tasks.queueStatus(second.id())).satisfies(queue -> {
+            assertThat(queue.state()).isEqualTo("QUEUED");
+            assertThat(queue.queuePosition()).isEqualTo(1L);
+            assertThat(queue.leaseState()).isEqualTo("HELD");
+        });
+
+        tasks.cancel(first.id());
+
+        assertThat(tasks.get(first.id()).state()).isEqualTo("CANCELLED");
+        assertThat(tasks.get(second.id()).state()).isEqualTo("READY");
+        assertThat(tasks.get(second.id()).baselineCommit()).startsWith("direct:" + second.id() + ":");
+        assertThat(tasks.queueStatus(second.id()).state()).isEqualTo("ADMITTED");
+    }
+
+    @Test
+    void unconfirmedDirectWriterKeepsNextTaskQueuedUntilCleanupObservesTerminalState() throws Exception {
+        Path root = Files.createDirectory(temp.resolve("blocked-direct-root"));
+        Files.writeString(root.resolve("README.md"), "fixture");
+        ProjectRow project = projects.create("blocked-direct", root.toString());
+        TaskRow first = drafts.confirm(drafts.create(spec(project.id())).id(), "blocking direct writer");
+        TaskRow second = drafts.confirm(drafts.create(spec(project.id())).id(), "waiting direct writer");
+        tasks.start(first.id());
+        ExecutionSessionRow writer = mapper.activeSessions(first.id()).getFirst();
+        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
+        fake.setSessionState(writer.externalSessionId(), "RUNNING");
+        fake.failNextAborts(1);
+
+        tasks.cancel(first.id());
+
+        assertThat(tasks.get(first.id()).state()).isEqualTo("CANCELLED");
+        assertThat(tasks.get(second.id()).state()).isEqualTo("QUEUED");
+        assertThat(tasks.queueStatus(second.id()).leaseState()).isEqualTo("RELEASE_PENDING");
+
+        tasks.retrySessionCleanup(writer.id());
+
+        assertThat(tasks.get(second.id()).state()).isEqualTo("READY");
+        assertThat(tasks.queueStatus(second.id()).state()).isEqualTo("ADMITTED");
+    }
+
+    @Test
+    void restartRehydratesATerminalHolderAndAdmitsThePersistedNextTaskWithoutLeaseExpiry() throws Exception {
+        Path root = Files.createDirectory(temp.resolve("restart-direct-root"));
+        Files.writeString(root.resolve("README.md"), "fixture");
+        ProjectRow project = projects.create("restart-direct", root.toString());
+        TaskRow first = drafts.confirm(drafts.create(spec(project.id())).id(), "crashed terminal holder");
+        TaskRow second = drafts.confirm(drafts.create(spec(project.id())).id(), "persisted restart waiter");
+        mapper.updateTaskState(new TaskRow(first.id(), first.projectId(), first.loopDraftId(), first.title(), "CANCELLED",
+                first.worktreePath(), first.branchName(), first.baselineCommit(), first.createdAt(), Instant.now().toString(), first.version()));
+
+        tasks.recoverAfterRestart();
+
+        assertThat(tasks.get(first.id()).state()).isEqualTo("CANCELLED");
+        assertThat(tasks.get(second.id()).state()).isEqualTo("READY");
+        assertThat(tasks.queueStatus(second.id()).state()).isEqualTo("ADMITTED");
+    }
+
+    @Test
+    void pauseStopsTheOldSessionAndResumeCreatesAFreshAttempt() throws Exception {
         ProjectRow project = projects.create("fixture", gitProject());
         TaskRow task = drafts.confirm(drafts.create(spec(project.id())).id(), "pause");
         tasks.start(task.id());
         tasks.pause(task.id());
         TaskRow resumed = tasks.resume(task.id());
         assertThat(resumed.state()).isEqualTo("RUNNING");
-        assertThat(tasks.attempts(task.id())).hasSize(1);
+        assertThat(tasks.attempts(task.id())).hasSize(2);
+        assertThat(tasks.attempts(task.id())).anyMatch(attempt -> "PAUSED".equals(attempt.failureKind()));
         assertThat(tasks.stages(task.id())).allMatch(stage -> !stage.state().equals("PAUSED"));
+    }
+
+    @Test
+    void pauseWithUnconfirmedDirectWriterBlocksResumeUntilCleanupConfirmsTermination() throws Exception {
+        Path root = Files.createDirectory(temp.resolve("paused-direct-root"));
+        Files.writeString(root.resolve("README.md"), "fixture");
+        ProjectRow project = projects.create("paused-direct", root.toString());
+        TaskRow task = drafts.confirm(drafts.create(spec(project.id())).id(), "pause direct writer");
+        tasks.start(task.id());
+        ExecutionSessionRow writer = mapper.activeSessions(task.id()).getFirst();
+        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
+        fake.setSessionState(writer.externalSessionId(), "RUNNING");
+        fake.failNextAborts(1);
+
+        tasks.pause(task.id());
+
+        assertThat(tasks.get(task.id()).state()).isEqualTo("PAUSED");
+        assertThat(tasks.queueStatus(task.id()).leaseState()).isEqualTo("RELEASE_PENDING");
+        assertThatThrownBy(() -> tasks.resume(task.id()))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("writable takeover is blocked");
+
+        tasks.retrySessionCleanup(writer.id());
+        assertThat(tasks.queueStatus(task.id()).leaseState()).isEqualTo("HELD");
+        assertThat(tasks.resume(task.id()).state()).isEqualTo("RUNNING");
     }
 
     @Test
@@ -385,6 +570,13 @@ class TaskServiceIntegrationTest {
         assertThat(tasks.artifacts(task.id())).extracting(artifact -> artifact.kind())
                 .contains("GIT_DIFF", "VERIFICATION_SUMMARY", "JUDGE_LOG_METADATA");
 
+        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
+        var startedJudges = tasks.judges(task.id());
+        fake.setSessionUsage(startedJudges.get(0).externalSessionId(), List.of(new OpenCodeClient.UsageRecord(
+                "requirement-message", "provider", "model", 3L, 5L, null, new BigDecimal("0.12"), "CNY", true)));
+        fake.setSessionUsage(startedJudges.get(1).externalSessionId(), List.of(new OpenCodeClient.UsageRecord(
+                "risk-message", "provider", "model", 7L, 11L, null, null, null, true)));
+
         tasks.pollJudges(task.id());
         assertThat(tasks.get(task.id()).state()).isEqualTo("SUCCEEDED");
         assertThat(tasks.judges(task.id())).allSatisfy(judge -> {
@@ -392,6 +584,15 @@ class TaskServiceIntegrationTest {
             assertThat(judge.rawOutput()).contains("PASS");
         });
         assertThat(tasks.artifacts(task.id())).extracting(artifact -> artifact.kind()).contains("JUDGE_RESULT");
+        assertThat(mapper.listTaskUsage(task.id())).filteredOn(row -> row.judgeRunId() != null)
+                .hasSize(2)
+                .allSatisfy(row -> {
+                    assertThat(row.executionSessionId()).isNull();
+                    assertThat(row.idempotencyKey()).startsWith("usage:judge:" + row.judgeRunId() + ":");
+                    assertThat(row.reliable()).isTrue();
+                });
+        usageInsights.collectTaskUsage(task.id());
+        assertThat(mapper.listTaskUsage(task.id())).filteredOn(row -> row.judgeRunId() != null).hasSize(2);
 
         int attemptsAfterSuccess = tasks.attempts(task.id()).size();
         int errorsAfterSuccess = tasks.errors(task.id()).size();
@@ -453,13 +654,22 @@ class TaskServiceIntegrationTest {
         tasks.start(task.id());
         tasks.verify(task.id());
         var retryingJudge = tasks.judges(task.id()).getFirst();
-        ((FakeOpenCodeClient) openCode).setSessionStatus(retryingJudge.externalSessionId(), "RETRY", "Free usage exceeded");
+        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
+        fake.setSessionUsage(retryingJudge.externalSessionId(), List.of(new OpenCodeClient.UsageRecord(
+                "failed-judge-message", "provider", "model", 2L, 3L, null, null, null, true)));
+        fake.setSessionStatus(retryingJudge.externalSessionId(), "RETRY", "Free usage exceeded");
 
         tasks.pollJudges(task.id());
         assertThat(tasks.get(task.id()).state()).isEqualTo("JUDGING");
         assertThat(tasks.judges(task.id())).hasSize(3);
         assertThat(tasks.errors(task.id())).anyMatch(error -> error.layer().equals(ErrorLayer.SESSION.name())
                 && error.code().equals("JUDGE_SESSION_RETRY") && error.message().contains("Free usage exceeded"));
+        assertThat(mapper.listTaskUsage(task.id())).anySatisfy(row -> {
+            assertThat(row.judgeRunId()).isEqualTo(retryingJudge.id());
+            assertThat(row.executionSessionId()).isNull();
+            assertThat(row.totalTokens()).isEqualTo(5L);
+            assertThat(row.idempotencyKey()).isEqualTo("usage:judge:" + retryingJudge.id() + ":failed-judge-message");
+        });
 
         tasks.pollJudges(task.id());
         assertThat(tasks.get(task.id()).state()).isEqualTo("SUCCEEDED");
