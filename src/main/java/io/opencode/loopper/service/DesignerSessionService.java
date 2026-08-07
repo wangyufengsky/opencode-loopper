@@ -35,6 +35,8 @@ public class DesignerSessionService {
     public static final String COMPLETED = "COMPLETED";
     public static final String SESSION_ERROR = "SESSION_ERROR";
     private static final int MAX_MESSAGE_LENGTH = 12_000;
+    private static final int MAX_LOOP_SPEC_REPAIR_ATTEMPTS = 2;
+    private static final String LOOP_SPEC_REPAIR_MARKER = "SYSTEM_RECOVERY[LOOPSPEC_AUTO_REPAIR";
     private static final Pattern LOOP_SPEC_PAYLOAD = Pattern.compile(
             "<!--\\s*LOOPSPEC_JSON_START\\s*-->(.*?)<!--\\s*LOOPSPEC_JSON_END\\s*-->",
             Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
@@ -257,8 +259,14 @@ public class DesignerSessionService {
                     parsed = parseDesignerOutput(output);
                     syncLoopSpec(session.id(), parsed.spec());
                 } catch (BadRequestException | ConflictException failure) {
-                    appendMessage(session.id(), "ASSISTANT", visibleDesignerOutput(output), "PERSISTED");
-                    sessionError(get(session.id()), "LOOPSPEC_SYNC_FAILED", failure.getMessage());
+                    String visibleOutput = visibleDesignerOutput(output);
+                    if (!visibleOutput.isBlank()) {
+                        appendMessage(session.id(), "ASSISTANT", visibleOutput, "REJECTED");
+                    }
+                    DesignerSessionRow current = get(session.id());
+                    if (!requestLoopSpecRepair(current, remote, failure.getMessage())) {
+                        sessionError(current, "LOOPSPEC_SYNC_FAILED", failure.getMessage());
+                    }
                     return;
                 }
                 appendMessage(session.id(), "ASSISTANT", parsed.markdown(), "PERSISTED");
@@ -277,6 +285,60 @@ public class DesignerSessionService {
         } catch (RuntimeException failure) {
             sessionError(session, "OPENCODE_DESIGNER_STATUS_FAILED", failure.getMessage());
         }
+    }
+
+    private boolean requestLoopSpecRepair(DesignerSessionRow session, OpenCodeClient.OpenCodeSession remote,
+                                          String validationError) {
+        if (session.loopDraftId() == null || session.loopDraftId().isBlank()) return false;
+        int attempt = loopSpecRepairAttempts(session.id()) + 1;
+        if (attempt > MAX_LOOP_SPEC_REPAIR_ATTEMPTS) return false;
+        DesignerSessionRow repairing = transition(session, RUNNING, session.externalSessionId(),
+                "REPAIRING_LOOPSPEC_" + attempt);
+        DesignerMessageRow notice = appendSystem(repairing,
+                LOOP_SPEC_REPAIR_MARKER + " " + attempt + "/" + MAX_LOOP_SPEC_REPAIR_ATTEMPTS + "]: 上一次回复未通过 LoopSpec 校验，"
+                        + "系统正把具体错误回送给只读 Designer 自动纠正；不会生成代码、修改项目或创建 Task。",
+                "AUTO_REPAIR");
+        events.publish(repairing.id(), "STATUS", repairing.state(), repairing.externalSessionState(), true, "", notice.content());
+        try {
+            openCode.promptAsync(remote, loopSpecRepairPrompt(repairing, validationError));
+        } catch (SessionFailure failure) {
+            sessionError(get(session.id()), failure.code(), failure.getMessage());
+        } catch (RuntimeException failure) {
+            sessionError(get(session.id()), "OPENCODE_LOOPSPEC_REPAIR_FAILED", failure.getMessage());
+        }
+        return true;
+    }
+
+    private int loopSpecRepairAttempts(String sessionId) {
+        return (int) mapper.listDesignerMessages(sessionId).stream()
+                .filter(message -> "SYSTEM".equals(message.role()))
+                .filter(message -> message.content().startsWith(LOOP_SPEC_REPAIR_MARKER))
+                .count();
+    }
+
+    private String loopSpecRepairPrompt(DesignerSessionRow session, String validationError) {
+        LoopDraftRow draft = drafts.get(session.loopDraftId());
+        return """
+                Your previous response was rejected by the Loopper LoopSpec validator.
+                This is a protocol-repair turn only. Do not inspect more files, call repository tools, generate implementation code, edit files, run commands, create tasks, or discuss starting implementation.
+
+                Correct the complete Markdown design and the complete machine LoopSpec using only the project evidence already collected in this read-only session.
+                Address every validation error below. Every stage must contain at least one functional verifier in addition to any GIT_DIFF scope verifier. Normally use a PROCESS verifier with a direct `command` argv array and a command already supported by the inspected repository. Do not rename `command` to `argv`, `args`, or `cmd`.
+                The visible Markdown acceptance criteria and machine verifiers must describe the same checks.
+
+                Validation errors:
+                %s
+
+                Current bound LoopSpec JSON (unchanged because the rejected response was never synchronized):
+                %s
+
+                Return the complete corrected Markdown design followed by exactly one complete JSON object between these markers:
+                <!-- LOOPSPEC_JSON_START -->
+                ```json
+                { "schemaVersion": "v1", "projectId": "%s", "goal": "...", "context": "...", "stages": [], "limits": {} }
+                ```
+                <!-- LOOPSPEC_JSON_END -->
+                """.formatted(safeMessage(validationError), draft.specJson(), session.projectId());
     }
 
     private DesignerMessageRow sessionError(DesignerSessionRow session, String code, String detail) {

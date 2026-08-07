@@ -1,5 +1,6 @@
 package io.opencode.loopper.service;
 
+import java.awt.GraphicsEnvironment;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -9,6 +10,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import javax.swing.JFileChooser;
+import javax.swing.SwingUtilities;
 import org.springframework.stereotype.Service;
 
 /** Opens an operating-system directory chooser for this localhost-only application. */
@@ -16,14 +20,20 @@ import org.springframework.stereotype.Service;
 public class DirectoryPickerService {
     private static final Duration PICK_TIMEOUT = Duration.ofMinutes(10);
     private final PickerProcess process;
+    private final DesktopPicker desktopPicker;
     private final String osName;
 
     public DirectoryPickerService() {
-        this(new SystemPickerProcess(), System.getProperty("os.name", ""));
+        this(new SystemPickerProcess(), new SwingDesktopPicker(), System.getProperty("os.name", ""));
     }
 
     DirectoryPickerService(PickerProcess process, String osName) {
+        this(process, new SwingDesktopPicker(), osName);
+    }
+
+    DirectoryPickerService(PickerProcess process, DesktopPicker desktopPicker, String osName) {
         this.process = process;
+        this.desktopPicker = desktopPicker;
         this.osName = osName.toLowerCase(Locale.ROOT);
     }
 
@@ -54,7 +64,23 @@ public class DirectoryPickerService {
                 }
                 return Optional.of(canonical.toString());
             }
-            throw new ServiceUnavailableException("DIRECTORY_PICKER_UNAVAILABLE", "No desktop folder selector is available: " + compact(lastFailure));
+            if (osName.contains("linux")) {
+                try {
+                    Optional<String> selected = desktopPicker.pickDirectory();
+                    if (selected.isEmpty()) return Optional.empty();
+                    Path canonical = Path.of(selected.get()).toRealPath();
+                    if (!Files.isDirectory(canonical)) {
+                        throw new ServiceUnavailableException("DIRECTORY_PICKER_INVALID_RESULT", "The selected path is not a directory");
+                    }
+                    return Optional.of(canonical.toString());
+                } catch (ServiceUnavailableException failure) {
+                    throw failure;
+                } catch (Exception failure) {
+                    lastFailure = failure.getMessage();
+                }
+            }
+            throw new ServiceUnavailableException("DIRECTORY_PICKER_UNAVAILABLE",
+                    "无法打开桌面文件夹选择器；请确认 Linux 图形桌面可用，或直接粘贴服务器绝对路径。原因：" + compact(lastFailure));
         } catch (ServiceUnavailableException e) {
             throw e;
         } catch (InterruptedException e) {
@@ -102,6 +128,10 @@ public class DirectoryPickerService {
         PickerResult run(List<String> command, Duration timeout) throws IOException, InterruptedException;
     }
 
+    interface DesktopPicker {
+        Optional<String> pickDirectory() throws Exception;
+    }
+
     record PickerResult(int exitCode, String output, boolean timedOut) { }
 
     private static final class SystemPickerProcess implements PickerProcess {
@@ -115,6 +145,36 @@ public class DirectoryPickerService {
             }
             String output = new String(picker.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
             return new PickerResult(picker.exitValue(), output, false);
+        }
+    }
+
+    private static final class SwingDesktopPicker implements DesktopPicker {
+        @Override
+        public Optional<String> pickDirectory() throws Exception {
+            if (GraphicsEnvironment.isHeadless()) {
+                throw new IOException("Java 进程运行在无图形桌面的 headless 模式");
+            }
+            AtomicReference<Optional<String>> selected = new AtomicReference<>(Optional.empty());
+            AtomicReference<RuntimeException> failure = new AtomicReference<>();
+            Runnable showPicker = () -> {
+                try {
+                    JFileChooser chooser = new JFileChooser();
+                    chooser.setDialogTitle("选择 OpenCode Loopper 项目根目录");
+                    chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+                    chooser.setAcceptAllFileFilterUsed(false);
+                    Path home = Path.of(System.getProperty("user.home", "."));
+                    if (Files.isDirectory(home)) chooser.setCurrentDirectory(home.toFile());
+                    if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
+                        selected.set(Optional.of(chooser.getSelectedFile().getAbsolutePath()));
+                    }
+                } catch (RuntimeException exception) {
+                    failure.set(exception);
+                }
+            };
+            if (SwingUtilities.isEventDispatchThread()) showPicker.run();
+            else SwingUtilities.invokeAndWait(showPicker);
+            if (failure.get() != null) throw failure.get();
+            return selected.get();
         }
     }
 }

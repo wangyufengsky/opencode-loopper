@@ -226,6 +226,15 @@ describe('Designer draft composer', () => {
     expect(wrapper.get('.designer-connection-strip').text()).toContain('OpenCode 已连接')
     expect(wrapper.get('.chat-live').text()).toContain('第一段回复')
     expect(wrapper.find('[aria-label="Agent 正在思考，等待 AI 回复"]').exists()).toBe(false)
+
+    FakeEventSource.latest?.onmessage?.({ data: JSON.stringify({
+      sequence: 3, sessionId: runningSession.id, type: 'STATUS', state: 'RUNNING', remoteState: 'REPAIRING_LOOPSPEC_1',
+      runtimeConnected: true, content: '', detail: 'LoopSpec 校验失败，正在自动纠正；不会生成代码或创建 Task。', at: '2026-08-05T01:00:01Z',
+    }) } as MessageEvent<string>)
+    await flushPromises()
+
+    expect(wrapper.find('.chat-live').exists()).toBe(false)
+    expect(wrapper.get('[aria-label="正在自动纠正 LoopSpec"]').text()).toContain('不会生成代码或创建 Task')
     wrapper.unmount()
   })
 

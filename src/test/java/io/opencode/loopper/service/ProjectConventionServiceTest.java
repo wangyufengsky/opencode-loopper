@@ -94,6 +94,28 @@ class ProjectConventionServiceTest {
     }
 
     @Test
+    void resumesAnExistingGenerationInsteadOfLeavingTheProjectPermanentlyLocked() throws Exception {
+        Path root = Files.createDirectory(temp.resolve("resume-generation"));
+        ProjectRow project = projects.create("resume-generation", root.toString());
+        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
+        fake.setDesignerOutput(aiContext("""
+                ## 技术栈与目录
+                - Java 项目。
+                ## 常用命令
+                - `./mvnw test`
+                ## 现有约定与边界
+                - 保留人工内容。
+                """));
+
+        ProjectConventionDraftRow first = conventions.generate(project.id());
+        ProjectConventionDraftRow resumed = conventions.generate(project.id());
+
+        assertThat(resumed.id()).isEqualTo(first.id());
+        assertThat(resumed.state()).isEqualTo(ProjectConventionService.READY);
+        assertThat(fake.createReadOnlySessionCalls()).isEqualTo(1);
+    }
+
+    @Test
     void preservesHumanContentAndReplacesOnlyTheSingleManagedBlock() throws Exception {
         Path root = Files.createDirectory(temp.resolve("existing-project"));
         Path agents = root.resolve("AGENTS.md");

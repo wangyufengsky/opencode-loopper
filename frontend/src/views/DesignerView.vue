@@ -89,6 +89,7 @@ const designerSessionError = computed(() => designerSession.value?.state === 'SE
   : undefined)
 const designerIsThinking = computed(() => designerSession.value?.state === 'RUNNING' && !designerLiveResponse.value
   && (designerSession.value.pendingQuestions?.length ?? 0) === 0)
+const designerRepairingLoopSpec = computed(() => designerRemoteState.value.startsWith('REPAIRING_LOOPSPEC_'))
 const designerTransportLabel = computed(() => {
   if (designerStreamState.value === 'connected') return '实时通道已连接'
   if (designerStreamState.value === 'reconnecting') return '实时通道重连中'
@@ -248,6 +249,7 @@ function startDesignerStream(sessionId: string) {
     designerRemoteState.value = event.remoteState ?? event.state
     designerObservedAt.value = event.at
     designerLiveDetail.value = event.detail
+    if (event.type === 'STATUS' && event.remoteState?.startsWith('REPAIRING_LOOPSPEC_')) designerLiveResponse.value = ''
     if (event.content && (event.type === 'PARTIAL' || event.type === 'COMPLETED')) designerLiveResponse.value = event.content
     if (event.type === 'ERROR') designerLiveError.value = event.detail || 'OpenCode Designer 返回错误'
     if (designerSession.value && designerSession.value.state !== event.state) {
@@ -637,10 +639,10 @@ async function sendMessage() {
             @submit="(answers: string[][]) => answerDesignerQuestion(pending, answers)"
             @reject="rejectDesignerQuestion(pending)"
           />
-          <article v-if="designerIsThinking" class="thinking-message" role="status" aria-live="polite" aria-label="Agent 正在思考，等待 AI 回复">
+          <article v-if="designerIsThinking" class="thinking-message" role="status" aria-live="polite" :aria-label="designerRepairingLoopSpec ? '正在自动纠正 LoopSpec' : 'Agent 正在思考，等待 AI 回复'">
             <span class="thinking-orbit" aria-hidden="true"><span /></span>
             <div class="thinking-copy">
-              <strong>Agent 正在思考<span class="thinking-dots" aria-hidden="true"><i /><i /><i /></span></strong>
+              <strong>{{ designerRepairingLoopSpec ? '正在自动纠正 LoopSpec' : 'Agent 正在思考' }}<span class="thinking-dots" aria-hidden="true"><i /><i /><i /></span></strong>
               <p>{{ designerReconnecting || designerStreamState === 'reconnecting' ? '连接暂时中断，正在恢复并继续等待真实回复。' : designerLiveDetail || 'OpenCode 已收到请求，等待首段模型回复。' }}</p>
             </div>
           </article>

@@ -59,12 +59,13 @@ public class ProjectConventionService {
         this.properties = properties;
     }
 
-    public ProjectConventionDraftRow generate(String projectId) {
+    public synchronized ProjectConventionDraftRow generate(String projectId) {
         ProjectRow project = projects.get(projectId);
-        mapper.activeProjectConventionDraft(projectId).ifPresent(active -> {
-            throw new ConflictException("PROJECT_CONVENTION_GENERATION_ACTIVE",
-                    "An AGENTS.md proposal is already being generated for this project");
-        });
+        ProjectConventionDraftRow active = mapper.activeProjectConventionDraft(projectId).orElse(null);
+        if (active != null) {
+            ProjectConventionDraftRow recovered = reconcileActiveGeneration(active);
+            if (!FAILED.equals(recovered.state())) return recovered;
+        }
         if (!openCode.healthy()) {
             throw new ServiceUnavailableException("OPENCODE_UNAVAILABLE",
                     "OpenCode is unavailable; AGENTS.md generation requires a real read-only AI session");
@@ -112,17 +113,22 @@ public class ProjectConventionService {
 
     public void pollActiveGenerations() {
         for (ProjectConventionDraftRow row : mapper.activeProjectConventionDrafts()) {
-            try { poll(row); }
-            catch (RuntimeException failure) {
-                try {
-                    ProjectConventionDraftRow current = get(row.projectId(), row.id());
-                    if (RUNNING.equals(current.state())) {
-                        transition(current, FAILED, "FAILED", null, safeMessage(failure));
-                    }
-                }
-                catch (RuntimeException ignoredConcurrentTransition) { }
-            }
+            reconcileActiveGeneration(row);
         }
+    }
+
+    private ProjectConventionDraftRow reconcileActiveGeneration(ProjectConventionDraftRow row) {
+        try { poll(row); }
+        catch (RuntimeException failure) {
+            try {
+                ProjectConventionDraftRow current = get(row.projectId(), row.id());
+                if (RUNNING.equals(current.state())) {
+                    return transition(current, FAILED, "FAILED", null, safeMessage(failure));
+                }
+            }
+            catch (RuntimeException ignoredConcurrentTransition) { }
+        }
+        return get(row.projectId(), row.id());
     }
 
     @Transactional

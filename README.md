@@ -66,6 +66,29 @@ mkdir -p "$PWD/data"
 LOOPPER_DATA_DIR="$PWD/data" java -jar opencode-loopper-0.1.0-SNAPSHOT.jar
 ```
 
+For an offline or intranet Linux host, copy the packaged JAR together with
+`scripts/start-linux.sh`. The script runs the JAR directly, so it does not
+invoke Maven or download Node/npm. Its default JDK directory is `/opt/jdk-21`;
+edit `DEFAULT_JAVA_HOME` in the script or override it without changing the file:
+
+```bash
+chmod +x start-linux.sh
+LOOPPER_JAVA_HOME=/opt/java/jdk-21 ./start-linux.sh
+```
+
+JDK selection is deterministic: `LOOPPER_JAVA_HOME` wins, otherwise the script
+uses `DEFAULT_JAVA_HOME`. An inherited system `JAVA_HOME` is deliberately
+ignored so a legacy JDK 8 configuration cannot override the selected runtime.
+
+Running `sh start-linux.sh` is also accepted: the script detects a POSIX `sh`
+such as `dash` and re-executes itself with Bash before using Bash-only options.
+
+The default OpenCode endpoint is `http://127.0.0.1:4096`. Override credentials,
+model, port, or endpoint through the existing environment variables. When a
+Linux desktop and `xdg-open` are available, the script opens the console after
+the Actuator health endpoint reports `UP`; on a headless server it prints the
+URL and keeps Spring Boot in the foreground.
+
 The JAR is architecture-independent Java bytecode and contains the Linux
 x86_64/aarch64 SQLite native libraries. Git and a compatible OpenCode CLI must
 be installed on the Linux host for real Task execution. For the optional

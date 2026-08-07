@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -46,6 +47,18 @@ class DirectoryPickerServiceTest {
 
         assertThat(service.pickDirectory()).contains(directory.toRealPath().toString());
         assertThat(attemptedExecutables).containsExactly("zenity", "kdialog");
+    }
+
+    @Test
+    void fallsBackToBundledJavaChooserWhenLinuxUtilitiesAreNotInstalled() throws Exception {
+        List<String> attemptedExecutables = new ArrayList<>();
+        DirectoryPickerService service = new DirectoryPickerService((command, timeout) -> {
+            attemptedExecutables.add(command.getFirst());
+            throw new IOException(command.getFirst() + " not installed");
+        }, () -> Optional.of(directory.toString()), "Linux");
+
+        assertThat(service.pickDirectory()).contains(directory.toRealPath().toString());
+        assertThat(attemptedExecutables).containsExactly("zenity", "kdialog", "yad");
     }
 
     @Test

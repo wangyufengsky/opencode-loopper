@@ -3,6 +3,7 @@ import { ElButton, ElButtonGroup, ElCheckbox, ElCheckboxGroup, ElConfigProvider,
 import App from '@/App.vue'
 import { router } from '@/router'
 import { createPinia } from 'pinia'
+import { registerBundledIcons } from '@/icons'
 import 'element-plus/es/components/button/style/css'
 import 'element-plus/es/components/button-group/style/css'
 import 'element-plus/es/components/checkbox/style/css'
@@ -25,6 +26,8 @@ import 'element-plus/es/components/message/style/css'
 import 'element-plus/es/components/message-box/style/css'
 import '@/styles/tokens.css'
 import '@/styles/app.css'
+
+registerBundledIcons()
 
 const app = createApp(App)
 app.use(createPinia()).use(router)

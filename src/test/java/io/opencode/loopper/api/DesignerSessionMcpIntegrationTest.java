@@ -322,7 +322,7 @@ class DesignerSessionMcpIntegrationTest {
     }
 
     @Test
-    void rejectedDesignerLoopSpecBecomesOneSessionErrorWithoutPoisoningTheSchedulerTransaction() throws Exception {
+    void rejectedDesignerLoopSpecIsAutomaticallyCorrectedWithoutMutatingATask() throws Exception {
         FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
         ProjectRow project = projects.create("designer-invalid-spec",
                 Files.createDirectory(temp.resolve("invalid-spec-project")).toString());
@@ -337,10 +337,59 @@ class DesignerSessionMcpIntegrationTest {
 
         designerSessions.pollActiveHandoffs();
 
+        DesignerSessionRow repairing = designerSessions.get(designer.id());
+        assertThat(repairing.state()).isEqualTo("RUNNING");
+        assertThat(repairing.externalSessionState()).isEqualTo("REPAIRING_LOOPSPEC_1");
+        assertThat(drafts.get(boundDraft.id()).version()).isZero();
+        assertThat(designerSessions.messages(designer.id())).anySatisfy(message -> {
+            assertThat(message.deliveryState()).isEqualTo("AUTO_REPAIR");
+            assertThat(message.content()).contains("LOOPSPEC_AUTO_REPAIR 1/2", "不会生成代码", "不会生成代码、修改项目或创建 Task");
+        });
+        assertThat(fake.promptForSession(repairing.externalSessionId()))
+                .contains("protocol-repair turn only", "Do not inspect more files", "GIT_DIFF only checks change scope")
+                .contains("never synchronized", "LOOPSPEC_JSON_START");
+        assertThat(mapper.listTasks()).isEmpty();
+
+        LoopSpec corrected = new LoopSpec("v1", project.id(), "Generate ServerAop unit tests", "Use existing test conventions",
+                List.of(new LoopSpec.StageSpec("Add and verify tests", List.of("src/test/**"), List.of(), List.of("ServerAop tests"),
+                        List.of(new LoopSpec.VerifierSpec("PROCESS", List.of("./mvnw", "-q", "test", "-Dtest=ServerAopTest"),
+                                null, null, List.of(), List.of(), null, null)))),
+                LoopSpec.Limits.defaults(), null, null, "Continue from verifier evidence");
+        fake.setDesignerOutput(designerOutput("## Corrected test plan", corrected));
+        designerSessions.pollActiveHandoffs();
+
+        DesignerSessionRow completed = designerSessions.get(designer.id());
+        assertThat(completed.state()).isEqualTo("COMPLETED");
+        assertThat(drafts.spec(drafts.get(boundDraft.id()))).isEqualTo(corrected);
+        assertThat(designerSessions.messages(designer.id())).noneMatch(message -> message.deliveryState().equals("SESSION_ERROR"));
+        assertThat(mapper.listTasks()).isEmpty();
+    }
+
+    @Test
+    void repeatedInvalidDesignerOutputStopsAfterTwoAutomaticRepairs() throws Exception {
+        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
+        ProjectRow project = projects.create("designer-repair-limit",
+                Files.createDirectory(temp.resolve("repair-limit-project")).toString());
+        LoopDraftRow boundDraft = drafts.create(spec(project.id()));
+        LoopSpec gitDiffOnly = new LoopSpec("v1", project.id(), "Still invalid", "",
+                List.of(new LoopSpec.StageSpec("Change files", List.of("src/**"), List.of(), List.of("change"),
+                        List.of(new LoopSpec.VerifierSpec("GIT_DIFF", null, null, true,
+                                List.of("src/**"), List.of(), true)))),
+                LoopSpec.Limits.defaults(), null, null, "Continue");
+        fake.setDesignerOutput(designerOutput("## Invalid plan", gitDiffOnly));
+        DesignerSessionRow designer = designerSessions.create(project.id(), boundDraft.id(), "Generate a plan");
+
+        designerSessions.pollActiveHandoffs();
+        designerSessions.pollActiveHandoffs();
+        designerSessions.pollActiveHandoffs();
+
         DesignerSessionRow failed = designerSessions.get(designer.id());
         assertThat(failed.state()).isEqualTo("SESSION_ERROR");
         assertThat(failed.externalSessionState()).isEqualTo("FAILED");
+        assertThat(fake.promptCalls()).isEqualTo(3);
         assertThat(drafts.get(boundDraft.id()).version()).isZero();
+        assertThat(designerSessions.messages(designer.id()).stream()
+                .filter(message -> "AUTO_REPAIR".equals(message.deliveryState()))).hasSize(2);
         assertThat(designerSessions.messages(designer.id())).anySatisfy(message -> {
             assertThat(message.deliveryState()).isEqualTo("SESSION_ERROR");
             assertThat(message.content()).contains("LOOPSPEC_SYNC_FAILED", "GIT_DIFF only checks change scope");
