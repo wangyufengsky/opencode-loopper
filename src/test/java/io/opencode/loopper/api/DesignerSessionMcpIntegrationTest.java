@@ -126,6 +126,8 @@ class DesignerSessionMcpIntegrationTest {
                 .contains("Do not defer all tests or functional validation to the final stage")
                 .contains("final full-regression verifier may supplement but never replace")
                 .contains("JSON field is exactly `command`", "Never rename this JSON field to `argv`, `args`, or `cmd`")
+                .contains("Never assume Maven Wrapper is present", "use `./mvnw` only when the project root contains an executable `mvnw`")
+                .doesNotContain("[\"./mvnw\", \"clean\", \"compile\"]")
                 .contains("default to Simplified Chinese", "protocol enum values")
                 .contains("LOOPSPEC_JSON_START", boundDraft.id(), project.id())
                 .contains("Please preserve the verifier list");
@@ -288,8 +290,10 @@ class DesignerSessionMcpIntegrationTest {
     @Test
     void designerAcceptsArgvAsAWeakModelAliasAndPersistsCanonicalCommand() throws Exception {
         FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
-        ProjectRow project = projects.create("designer-argv-alias",
-                Files.createDirectory(temp.resolve("argv-alias-project")).toString());
+        Path root = Files.createDirectory(temp.resolve("argv-alias-project"));
+        Path wrapper = Files.writeString(root.resolve("mvnw"), "#!/bin/sh\nexit 0\n");
+        wrapper.toFile().setExecutable(true);
+        ProjectRow project = projects.create("designer-argv-alias", root.toString());
         LoopDraftRow boundDraft = drafts.create(spec(project.id()));
         LoopSpec processSpec = new LoopSpec("v1", project.id(), "Compile and verify", "",
                 List.of(new LoopSpec.StageSpec("Compile", List.of("src/**"), List.of(), List.of("classes"),
@@ -416,7 +420,7 @@ class DesignerSessionMcpIntegrationTest {
 
         LoopSpec corrected = new LoopSpec("v1", project.id(), "Generate ServerAop unit tests", "Use existing test conventions",
                 List.of(new LoopSpec.StageSpec("Add and verify tests", List.of("src/test/**"), List.of(), List.of("ServerAop tests"),
-                        List.of(new LoopSpec.VerifierSpec("PROCESS", List.of("./mvnw", "-q", "test", "-Dtest=ServerAopTest"),
+                        List.of(new LoopSpec.VerifierSpec("PROCESS", List.of("mvn", "-q", "test", "-Dtest=ServerAopTest"),
                                 null, null, List.of(), List.of(), null, null)))),
                 LoopSpec.Limits.defaults(), null, null, "Continue from verifier evidence");
         fake.setDesignerOutput(designerOutput("## Corrected test plan", corrected));
@@ -427,6 +431,44 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(drafts.spec(drafts.get(boundDraft.id()))).isEqualTo(corrected);
         assertThat(designerSessions.messages(designer.id())).noneMatch(message -> message.deliveryState().equals("SESSION_ERROR"));
         assertThat(mapper.listTasks()).isEmpty();
+    }
+
+    @Test
+    void missingMavenWrapperIsReturnedToDesignerForAutomaticCorrection() throws Exception {
+        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
+        Path root = Files.createDirectory(temp.resolve("project-without-wrapper"));
+        Files.writeString(root.resolve("pom.xml"), "<project />");
+        ProjectRow project = projects.create("designer-without-wrapper", root.toString());
+        LoopDraftRow boundDraft = drafts.create(spec(project.id()));
+        LoopSpec wrapperSpec = new LoopSpec("v1", project.id(), "Compile", "",
+                List.of(new LoopSpec.StageSpec("Compile", List.of("src/**"), List.of(), List.of("classes"),
+                        List.of(new LoopSpec.VerifierSpec("PROCESS", List.of("./mvnw", "-q", "compile"),
+                                null, null, List.of(), List.of(), null, null)))),
+                LoopSpec.Limits.defaults(), null, null, null);
+        fake.setDesignerOutput(designerOutput("## Compile plan", wrapperSpec));
+        DesignerSessionRow designer = designerSessions.create(project.id(), boundDraft.id(), "Generate a plan");
+
+        designerSessions.pollActiveHandoffs();
+
+        DesignerSessionRow repairing = designerSessions.get(designer.id());
+        assertThat(repairing.externalSessionState()).isEqualTo("REPAIRING_LOOPSPEC_1");
+        assertThat(fake.promptForSession(repairing.externalSessionId()))
+                .contains("./mvnw is not present in the registered project root")
+                .contains("Maven Wrapper is optional")
+                .contains("Never assume Maven Wrapper is present");
+        assertThat(drafts.get(boundDraft.id()).version()).isZero();
+        assertThat(mapper.listTasks()).isEmpty();
+
+        LoopSpec corrected = new LoopSpec("v1", project.id(), "Compile", "",
+                List.of(new LoopSpec.StageSpec("Compile", List.of("src/**"), List.of(), List.of("classes"),
+                        List.of(new LoopSpec.VerifierSpec("PROCESS", List.of("mvn", "-q", "compile"),
+                                null, null, List.of(), List.of(), null, null)))),
+                LoopSpec.Limits.defaults(), null, null, null);
+        fake.setDesignerOutput(designerOutput("## Corrected compile plan", corrected));
+        designerSessions.pollActiveHandoffs();
+
+        assertThat(designerSessions.get(designer.id()).state()).isEqualTo("COMPLETED");
+        assertThat(drafts.spec(drafts.get(boundDraft.id()))).isEqualTo(corrected);
     }
 
     @Test

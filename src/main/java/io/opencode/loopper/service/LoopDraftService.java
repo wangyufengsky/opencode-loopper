@@ -6,6 +6,8 @@ import io.opencode.loopper.domain.LoopDraftStatus;
 import io.opencode.loopper.domain.LoopSpec;
 import io.opencode.loopper.persistence.LoopDraftRow;
 import io.opencode.loopper.persistence.LoopperMapper;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -100,6 +102,17 @@ public class LoopDraftService {
                 if (!"GIT_DIFF".equals(type)) hasAcceptanceVerifier = true;
                 if ("PROCESS".equals(type) && verifier.command().isEmpty()) {
                     errors.add(path + ".command: PROCESS requires a direct argv command");
+                }
+                if (requireExecutableAcceptance && "PROCESS".equals(type) && !verifier.command().isEmpty()
+                        && "./mvnw".equals(verifier.command().getFirst())) {
+                    Path wrapper = Path.of(projects.get(spec.projectId()).rootPath()).resolve("mvnw");
+                    if (!Files.isRegularFile(wrapper)) {
+                        errors.add(path + ".command[0]: ./mvnw is not present in the registered project root; "
+                                + "Maven Wrapper is optional, so use an evidenced repository command such as mvn instead");
+                    } else if (!Files.isExecutable(wrapper)) {
+                        errors.add(path + ".command[0]: ./mvnw exists but is not executable; preserve its executable bit "
+                                + "or use another evidenced repository command such as mvn");
+                    }
                 }
                 if (("FILE_EXISTS".equals(type) || "FILE_NOT_EXISTS".equals(type))
                         && (verifier.path() == null || verifier.path().isBlank())) {
