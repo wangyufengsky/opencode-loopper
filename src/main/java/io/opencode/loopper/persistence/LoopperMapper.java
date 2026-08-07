@@ -88,6 +88,17 @@ public interface LoopperMapper {
     int insertDesignerMessage(DesignerMessageRow row);
     @Select("SELECT * FROM designer_message WHERE designer_session_id=#{sessionId} ORDER BY ordinal")
     List<DesignerMessageRow> listDesignerMessages(String sessionId);
+    @Select("""
+            SELECT message.* FROM designer_message message
+            JOIN designer_session session ON session.id=message.designer_session_id
+            WHERE session.loop_draft_id=#{draftId}
+              AND message.role='ASSISTANT'
+              AND message.delivery_state='PERSISTED'
+              AND TRIM(message.content)<>''
+            ORDER BY message.created_at DESC, message.ordinal DESC
+            LIMIT 1
+            """)
+    Optional<DesignerMessageRow> findLatestPersistedDesignerMessageByDraft(String draftId);
 
     @Insert("INSERT INTO task(id,project_id,loop_draft_id,title,state,worktree_path,branch_name,baseline_commit,created_at,updated_at,version) VALUES(#{id},#{projectId},#{loopDraftId},#{title},#{state},#{worktreePath},#{branchName},#{baselineCommit},#{createdAt},#{updatedAt},#{version})")
     int insertTask(TaskRow row);
@@ -172,6 +183,8 @@ public interface LoopperMapper {
     @Insert("INSERT INTO task_artifact(id,task_id,attempt_id,judge_run_id,kind,name,content_type,content,metadata_json,created_at) VALUES(#{id},#{taskId},#{attemptId},#{judgeRunId},#{kind},#{name},#{contentType},#{content},#{metadataJson},#{createdAt})")
     int insertTaskArtifact(TaskArtifactRow row);
     @Select("SELECT * FROM task_artifact WHERE task_id=#{taskId} ORDER BY created_at DESC") List<TaskArtifactRow> listTaskArtifacts(String taskId);
+    @Select("SELECT * FROM task_artifact WHERE task_id=#{taskId} AND kind=#{kind} ORDER BY created_at, id LIMIT 1")
+    Optional<TaskArtifactRow> findFirstTaskArtifactByKind(@Param("taskId") String taskId, @Param("kind") String kind);
 
     @Insert("INSERT INTO error_event(id,task_id,stage_id,attempt_id,session_id,layer,code,message,retryable,evidence_json,occurred_at) VALUES(#{id},#{taskId},#{stageId},#{attemptId},#{sessionId},#{layer},#{code},#{message},#{retryable},#{evidenceJson},#{occurredAt})")
     int insertError(ErrorEventRow row);

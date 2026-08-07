@@ -4,9 +4,12 @@ import io.opencode.loopper.LoopperApplication;
 import io.opencode.loopper.domain.LoopDraftStatus;
 import io.opencode.loopper.domain.LoopSpec;
 import io.opencode.loopper.persistence.DesignerSessionRow;
+import io.opencode.loopper.persistence.DesignerMessageRow;
+import io.opencode.loopper.persistence.ExecutionSessionRow;
 import io.opencode.loopper.persistence.LoopDraftRow;
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.ProjectRow;
+import io.opencode.loopper.persistence.TaskArtifactRow;
 import io.opencode.loopper.persistence.TaskRow;
 import io.opencode.loopper.runtime.FakeOpenCodeClient;
 import io.opencode.loopper.runtime.OpenCodeClient;
@@ -14,6 +17,7 @@ import io.opencode.loopper.service.DesignerSessionService;
 import io.opencode.loopper.service.DesignerEventHub;
 import io.opencode.loopper.service.LoopDraftService;
 import io.opencode.loopper.service.ProjectService;
+import io.opencode.loopper.service.TaskService;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -61,6 +65,7 @@ class DesignerSessionMcpIntegrationTest {
     @Autowired private DesignerSessionService designerSessions;
     @Autowired private DesignerEventHub designerEvents;
     @Autowired private LoopDraftService drafts;
+    @Autowired private TaskService tasks;
     @Autowired private LoopperMapper mapper;
     @Autowired private OpenCodeClient openCode;
     @Autowired private ToolCallbackProvider loopperMcpToolCallbackProvider;
@@ -168,6 +173,57 @@ class DesignerSessionMcpIntegrationTest {
                 .andExpect(jsonPath("$.designerSession.accessMode").value("READ_ONLY"))
                 .andExpect(jsonPath("$.designerSession.messages[*].content")
                         .value(org.hamcrest.Matchers.hasItem("Design a durable history view")));
+    }
+
+    @Test
+    void confirmedDesignerMarkdownIsFrozenAndSentToEveryExecutionAgentAttempt() throws Exception {
+        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
+        ProjectRow project = projects.create("frozen-design-context", gitProject());
+        LoopDraftRow draft = drafts.create(spec(project.id()));
+        String snapshotOnlyTail = "SNAPSHOT_ONLY_TAIL";
+        String confirmedMarkdown = """
+                # 已确认的 ServerAop 设计
+
+                - 复用现有测试基类与 Mock 约定。
+                - 不修改生产代码，失败时保留诊断证据。
+                """.trim() + "\n\n" + "x".repeat(12_100) + snapshotOnlyTail;
+        fake.setDesignerOutput(designerOutput(confirmedMarkdown, spec(project.id())));
+        DesignerSessionRow designer = designerSessions.create(project.id(), draft.id(), "设计 ServerAop 单元测试");
+        designerSessions.pollActiveHandoffs();
+
+        TaskRow task = drafts.confirm(draft.id(), "执行已确认设计");
+
+        TaskArtifactRow snapshot = tasks.artifacts(task.id()).stream()
+                .filter(artifact -> "DESIGN_CONTEXT".equals(artifact.kind())).findFirst().orElseThrow();
+        assertThat(snapshot.name()).isEqualTo("confirmed-designer-design.md");
+        assertThat(snapshot.contentType()).isEqualTo("text/markdown");
+        assertThat(snapshot.content()).isEqualTo(confirmedMarkdown);
+        assertThat(snapshot.metadataJson()).contains(draft.id(), designer.id());
+
+        // A later conversation record must not rewrite the Task's confirmation-time snapshot.
+        mapper.insertDesignerMessage(new DesignerMessageRow("later-design-message", designer.id(),
+                mapper.nextDesignerMessageOrdinal(designer.id()), "ASSISTANT", "## 未确认的后续设计", "PERSISTED",
+                "2026-08-07T00:00:00Z"));
+
+        tasks.start(task.id());
+        ExecutionSessionRow firstSession = mapper.activeSessions(task.id()).getFirst();
+        String firstPrompt = fake.promptForSession(firstSession.externalSessionId());
+        assertThat(firstPrompt)
+                .contains("Confirmed Designer design snapshot", "BEGIN CONFIRMED DESIGN", confirmedMarkdown.substring(0, 200))
+                .contains("structured LoopSpec and Verifier contract are authoritative")
+                .contains("complete snapshot remains persisted on the Task")
+                .doesNotContain(snapshotOnlyTail)
+                .doesNotContain("未确认的后续设计");
+
+        var firstAttempt = tasks.attempts(task.id()).getFirst();
+        tasks.sessionFailed(task.id(), firstAttempt.id(), "NETWORK", "retry with frozen context");
+        ExecutionSessionRow retrySession = mapper.activeSessions(task.id()).getFirst();
+        assertThat(fake.promptForSession(retrySession.externalSessionId()))
+                .contains(confirmedMarkdown.substring(0, 200))
+                .doesNotContain(snapshotOnlyTail)
+                .doesNotContain("未确认的后续设计");
+        assertThat(tasks.artifacts(task.id()).stream().filter(artifact -> "DESIGN_CONTEXT".equals(artifact.kind())))
+                .singleElement().extracting(TaskArtifactRow::content).isEqualTo(confirmedMarkdown);
     }
 
     @Test

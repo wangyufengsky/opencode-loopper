@@ -51,6 +51,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class TaskService {
+    private static final String DESIGN_CONTEXT_ARTIFACT_KIND = "DESIGN_CONTEXT";
+    private static final int MAX_EXECUTION_DESIGN_CONTEXT_CHARS = 12_000;
     private final LoopperMapper mapper;
     private final ObjectMapper json;
     private final ProjectService projects;
@@ -91,6 +93,7 @@ public class TaskService {
                 (direct ? TaskState.QUEUED : TaskState.PREPARING).name(),
                 null, null, null, now, now, 0);
         mapper.insertTask(task);
+        persistConfirmedDesignContext(task, draft);
         int ordinal = 0;
         for (LoopSpec.StageSpec stage : spec.stages()) {
             mapper.insertStage(new StageRow(UUID.randomUUID().toString(), taskId, ordinal++, stage.objective(),
@@ -565,7 +568,7 @@ public class TaskService {
                 // row. Provider ids remain on that row and may change across retry.
                 directLeases.heartbeat(directRoot(freshTask), freshTask.id(), running.id());
             }
-            openCode.promptAsync(remote, promptWithBoundaries(spec, stage, prompt));
+            openCode.promptAsync(remote, promptWithBoundaries(freshTask, spec, stage, prompt));
             events.emit(freshTask.id(), "session.started", Map.of("attemptId", attempt.id(), "sessionId", session.id(), "externalSessionId", remote.id(), "stageId", stage.id()));
         } catch (SessionFailure failure) {
             handleSessionFailure(freshTask, stage, attempt, session, failure);
@@ -1052,6 +1055,17 @@ public class TaskService {
                 contentType, content == null ? "" : content, write(metadata), now()));
     }
 
+    /** Freezes the last validator-accepted Designer Markdown when the Task is created. */
+    private void persistConfirmedDesignContext(TaskRow task, LoopDraftRow draft) {
+        mapper.findLatestPersistedDesignerMessageByDraft(draft.id()).ifPresent(message ->
+                persistArtifact(task, null, null, DESIGN_CONTEXT_ARTIFACT_KIND, "confirmed-designer-design.md",
+                        "text/markdown", message.content(), Map.of(
+                                "draftId", draft.id(),
+                                "designerSessionId", message.designerSessionId(),
+                                "designerMessageId", message.id(),
+                                "deliveryState", message.deliveryState())));
+    }
+
     private void abortJudgeSessions(TaskRow task) {
         if (task.worktreePath() == null) return;
         Path worktree = Path.of(task.worktreePath());
@@ -1324,13 +1338,26 @@ public class TaskService {
     private void updateSession(ExecutionSessionRow row) { if (mapper.updateSessionState(row) != 1) throw new ConflictException("SESSION_VERSION_CONFLICT", "Session was updated concurrently"); }
     private String requireWorktree(TaskRow task) { if (task.worktreePath() == null || task.worktreePath().isBlank()) throw new TaskFailure("WORKTREE_MISSING", "Task has no prepared execution workspace"); return task.worktreePath(); }
     private String normalizedTitle(String title, String goal) { return title == null || title.isBlank() ? goal.substring(0, Math.min(goal.length(), 120)) : title.trim(); }
-    private String promptWithBoundaries(LoopSpec spec, StageRow stage, String recovery) {
+    private String promptWithBoundaries(TaskRow task, LoopSpec spec, StageRow stage, String recovery) {
+        String designContext = executionDesignContext(task.id());
         return "Goal: " + spec.goal() + "\nContext: " + spec.context() + "\nStage: " + stage.objective()
                 + "\nAllowed paths: " + stage.allowedPathsJson() + "\nForbidden paths: " + stage.forbiddenPathsJson()
                 + "\nDeliverables: " + stage.deliverablesJson() + "\nVerifier contract: " + stage.verifiersJson()
+                + (designContext.isBlank() ? "" : "\nConfirmed Designer design snapshot (read-only context frozen at Task confirmation):"
+                + "\nUse this snapshot to preserve architecture, implementation decisions, risks, and acceptance rationale. "
+                + "If it conflicts with Goal, Context, Stage, path rules, Deliverables, or Verifier contract, the structured LoopSpec and Verifier contract are authoritative."
+                + "\n----- BEGIN CONFIRMED DESIGN -----\n" + designContext + "\n----- END CONFIRMED DESIGN -----")
                 + "\nLanguage requirement: 使用简体中文撰写面向用户的进度说明、结论、评审和最终总结。"
                 + "代码、命令、路径、标识符、JSON 字段名、协议枚举值以及要求精确匹配的字面量保持原样；"
                 + "仅当用户目标明确要求其他语言时才切换语言。\n" + recovery;
+    }
+
+    private String executionDesignContext(String taskId) {
+        String content = mapper.findFirstTaskArtifactByKind(taskId, DESIGN_CONTEXT_ARTIFACT_KIND)
+                .map(TaskArtifactRow::content).orElse("");
+        if (content.length() <= MAX_EXECUTION_DESIGN_CONTEXT_CHARS) return content;
+        return content.substring(0, MAX_EXECUTION_DESIGN_CONTEXT_CHARS)
+                + "\n… confirmed design context truncated for this execution prompt; the complete snapshot remains persisted on the Task …";
     }
     private OpenCodeClient.OpenCodeModel model(LoopSpec spec) {
         if (spec.model() != null && spec.model().providerId() != null && spec.model().modelId() != null) {
