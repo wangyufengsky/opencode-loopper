@@ -68,6 +68,7 @@ class ProjectConventionServiceTest {
         assertThat(ready.proposedContent())
                 .startsWith(ProjectConventionService.START_MARKER)
                 .contains("Java 21 与 Maven", "## Looper 设计公约", "## Looper 执行公约", "## Looper 验收公约")
+                .contains("优先拆成 2～6 个", "可立即执行的阶段验收", "不得把功能验收全部推迟到最后阶段")
                 .endsWith(ProjectConventionService.END_MARKER + "\n");
         assertThat(root.resolve("AGENTS.md")).doesNotExist();
 

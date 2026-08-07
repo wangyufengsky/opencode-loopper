@@ -120,6 +120,11 @@ class DesignerSessionMcpIntegrationTest {
                 .isEqualTo(new OpenCodeClient.OpenCodeModel("opencode", "deepseek-v4-flash-free", null));
         assertThat(fake.promptForSession(dispatched.externalSessionId()))
                 .contains("well-structured Markdown document", "fenced `mermaid` diagram", "Never draw flows with ASCII art")
+                .contains("Prefer 2 to 6 dependency-ordered stages", "single stage only when the requested change is genuinely atomic")
+                .contains("rows map one-to-one and in the same order to machine `stages`")
+                .contains("Every stage must leave the project in a coherent, safe-to-stop state")
+                .contains("Do not defer all tests or functional validation to the final stage")
+                .contains("final full-regression verifier may supplement but never replace")
                 .contains("JSON field is exactly `command`", "Never rename this JSON field to `argv`, `args`, or `cmd`")
                 .contains("default to Simplified Chinese", "protocol enum values")
                 .contains("LOOPSPEC_JSON_START", boundDraft.id(), project.id())
@@ -403,6 +408,9 @@ class DesignerSessionMcpIntegrationTest {
         });
         assertThat(fake.promptForSession(repairing.externalSessionId()))
                 .contains("protocol-repair turn only", "Do not inspect more files", "GIT_DIFF only checks change scope")
+                .contains("prefer 2 to 6 dependency-ordered stages", "split by independently deliverable behavior")
+                .contains("Every stage must own functional acceptance", "Do not defer all functional validation to the final stage")
+                .contains("final full-regression verifier may supplement, but never replace")
                 .contains("never synchronized", "LOOPSPEC_JSON_START");
         assertThat(mapper.listTasks()).isEmpty();
 
