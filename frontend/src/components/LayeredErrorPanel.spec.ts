@@ -46,6 +46,7 @@ describe('LayeredErrorPanel', () => {
     expect(wrapper.text()).toContain('风险评审')
     expect(wrapper.text()).toContain('交付结果满足目标。')
     expect(wrapper.text()).toContain('仍缺少安全边界证据。')
+    expect(wrapper.text()).toContain('完整评审证据保留在上方“需求 / 风险双评审”')
     expect(wrapper.text()).not.toContain('very long raw text')
   })
 

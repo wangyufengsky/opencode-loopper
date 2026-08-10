@@ -3,7 +3,7 @@ import ElementPlus from 'element-plus'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import TaskAuditEvidencePanel from '@/components/TaskAuditEvidencePanel.vue'
 import { api } from '@/api/client'
-import type { Artifact, Attempt, JudgeRun } from '@/types/domain'
+import type { Artifact, Attempt } from '@/types/domain'
 
 vi.mock('@/api/client', () => ({ api: { getTaskDiffPreview: vi.fn() } }))
 
@@ -16,11 +16,10 @@ const attempts: Attempt[] = [{
 }]
 
 const artifacts: Artifact[] = [{ id: 'artifact-diff', kind: 'DIFF', title: 'worktree.diff', createdAt: 'now', content: '[]' }]
-const judges: JudgeRun[] = [{ id: 'judge-1', role: 'RISK', ordinal: 1, status: 'COMPLETED', verdict: 'PASS', reason: '结论安全。\n\n## 证据\n\n1. 测试通过。', createdAt: 'now' }]
 
 function mountPanel(directExecution = false) {
   return mount(TaskAuditEvidencePanel, {
-    props: { taskId: 'task-1', attempts, artifacts, judges, directExecution },
+    props: { taskId: 'task-1', attempts, artifacts, directExecution },
     global: { plugins: [ElementPlus], stubs: { Icon: true, teleport: true } },
   })
 }
@@ -57,19 +56,16 @@ describe('TaskAuditEvidencePanel', () => {
     expect(wrapper.text()).not.toContain('没有检测到文件变更')
   })
 
-  it('formats verification and judge records without exposing protocol JSON', async () => {
+  it('keeps judge review out of the audit evidence tabs', async () => {
     const wrapper = mountPanel()
     await openTab(wrapper, '验证')
 
     expect(wrapper.text()).toContain('2 / 2 通过')
     expect(wrapper.text()).toContain('退出码 0')
     expect(wrapper.text()).toContain('已检查 2 个变更文件')
-
-    await openTab(wrapper, '评审')
-    expect(wrapper.text()).toContain('风险评审')
-    expect(wrapper.text()).toContain('结论安全')
-    expect(wrapper.text()).toContain('测试通过')
-    expect(wrapper.text()).not.toContain('{"verdict"')
+    expect(wrapper.text()).toContain('验证、差异与日志')
+    expect(wrapper.findAll('.el-tabs__item').map((item) => item.text())).toEqual(['日志', '差异', '验证'])
+    expect(wrapper.text()).not.toContain('独立双评审')
   })
 
   it('opens a dialog preview and marks added and removed lines', async () => {

@@ -1,19 +1,17 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { Icon } from '@iconify/vue'
-import JudgeReviewCard from '@/components/JudgeReviewCard.vue'
 import { api } from '@/api/client'
-import type { Artifact, Attempt, JudgeRun, TaskDiffPreview, VerifierResult } from '@/types/domain'
+import type { Artifact, Attempt, TaskDiffPreview, VerifierResult } from '@/types/domain'
 
 const props = defineProps<{
   taskId: string
   attempts: Attempt[]
   artifacts: Artifact[]
-  judges: JudgeRun[]
   directExecution: boolean
 }>()
 
-const activeTab = ref<'logs' | 'diff' | 'evidence' | 'judges'>('evidence')
+const activeTab = ref<'logs' | 'diff' | 'evidence'>('evidence')
 const orderedAttempts = computed(() => [...props.attempts].sort((left, right) => right.ordinal - left.ordinal))
 const verificationRows = computed(() => orderedAttempts.value.flatMap((attempt) => attempt.verifiers.map((verifier, index) => ({ attempt, verifier, index }))))
 const logRows = computed(() => verificationRows.value.filter(({ verifier }) => Boolean(output(verifier))))
@@ -117,12 +115,11 @@ async function showDiff(path: string) {
 <template>
   <article class="card audit-panel">
     <div class="audit-header">
-      <div><p class="eyebrow">审计证据</p><h2 class="card-title">验证、差异、评审与日志</h2></div>
+      <div><p class="eyebrow">审计证据</p><h2 class="card-title">验证、差异与日志</h2></div>
       <el-tabs v-model="activeTab" class="audit-tabs">
         <el-tab-pane label="日志" name="logs" />
         <el-tab-pane label="差异" name="diff" />
         <el-tab-pane label="验证" name="evidence" />
-        <el-tab-pane label="评审" name="judges" />
       </el-tabs>
     </div>
 
@@ -150,7 +147,7 @@ async function showDiff(path: string) {
         <p v-else-if="sessionDiff.empty && changedPaths.length" class="secondary-note">OpenCode 会话接口返回了空补丁 `[]`；上方文件清单来自实际通过的 GIT_DIFF 验证器。</p>
       </template>
 
-      <template v-else-if="activeTab === 'evidence'">
+      <template v-else>
         <div class="source-note"><Icon icon="lucide:badge-check" /><span><strong>确定性验证</strong>按尝试和验证器拆分展示，原始输出可单独展开。</span><b>{{ passedCount }} / {{ verificationRows.length }} 通过</b></div>
         <div v-if="verificationRows.length" class="verification-grid">
           <article v-for="({ attempt, verifier }, index) in verificationRows" :key="verifier.id" class="verification-card">
@@ -165,11 +162,6 @@ async function showDiff(path: string) {
         <div v-else class="audit-empty"><Icon icon="lucide:badge-help" /><strong>尚无验证结果</strong><p>任务进入确定性验证阶段后会在此生成结构化记录。</p></div>
       </template>
 
-      <template v-else>
-        <div class="source-note"><Icon icon="lucide:scale" /><span><strong>独立双评审</strong>只展示解析后的结论与 Markdown 证据，原始协议 JSON 保留在后端审计记录中。</span><b>{{ judges.length }} 份</b></div>
-        <div v-if="judges.length" class="judge-grid"><JudgeReviewCard v-for="judge in judges" :key="judge.id" :judge="judge" /></div>
-        <div v-else class="audit-empty"><Icon icon="lucide:hourglass" /><strong>评审尚未开始</strong><p>最终阶段的确定性验证全部通过后，系统会启动需求与风险两个只读评审会话。</p></div>
-      </template>
     </div>
 
     <el-dialog v-model="previewOpen" class="diff-preview-dialog" width="min(1040px, 92vw)" append-to-body destroy-on-close>
@@ -204,7 +196,6 @@ async function showDiff(path: string) {
 .diff-list { display: grid; gap: 1px; margin-top: 12px; overflow: hidden; border: 1px solid var(--color-border-default); border-radius: 9px; background: var(--color-border-default); }.diff-row { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; align-items: center; gap: 9px; width: 100%; padding: 8px 11px; border: 0; background: #0a1120; color: inherit; text-align: left; cursor: pointer; transition: background .15s ease; }.diff-row:hover, .diff-row:focus-visible { background: #101b30; outline: none; }.diff-row > svg { color: var(--color-text-muted); }.diff-row:hover > svg { color: var(--color-accent-cyan); }.diff-row code { min-width: 0; color: var(--color-text-secondary); font: 10px/1.45 var(--font-code); overflow-wrap: anywhere; }.diff-state { color: #fbbf24; font-size: 9px; font-weight: 700; }.diff-state.added { color: var(--color-success); }
 .violation-box { margin-top: 12px; padding: 11px 12px; border: 1px solid rgb(239 68 68 / 30%); border-radius: 8px; background: rgb(239 68 68 / 7%); color: var(--color-task-danger); font-size: 10px; }.violation-box strong { display: flex; align-items: center; gap: 6px; }.violation-box ul { margin: 7px 0 0; padding-left: 20px; }.secondary-note { margin: 11px 2px 0; color: var(--color-text-tertiary); font-size: 9px; line-height: 1.55; }
 .verification-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }.verification-card { min-width: 0; padding: 12px; border: 1px solid var(--color-border-default); border-radius: 9px; background: rgb(8 14 25 / 65%); }.verification-card header { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 9px; }.verification-card header > div { display: grid; min-width: 0; gap: 2px; }.verification-card header strong { color: var(--color-text-primary); font: 700 11px/1.4 var(--font-code); }.verification-card header small { color: var(--color-text-tertiary); font-size: 9px; }.verification-icon { display: grid; width: 25px; height: 25px; place-items: center; border-radius: 50%; background: rgb(101 115 138 / 12%); color: var(--color-text-muted); }.verification-icon.pass { background: rgb(34 197 94 / 10%); color: var(--color-success); }.verification-icon.fail { background: rgb(239 68 68 / 10%); color: var(--color-task-danger); }.result-pill { padding: 4px 7px; border-radius: 999px; background: rgb(101 115 138 / 10%); color: var(--color-text-tertiary); font-size: 9px; font-weight: 700; }.result-pill.pass { background: rgb(34 197 94 / 9%); color: var(--color-success); }.result-pill.fail { background: rgb(239 68 68 / 9%); color: var(--color-task-danger); }.verification-card > p { margin: 10px 0 0; color: var(--color-text-secondary); font-size: 10px; }.verification-card > code { display: block; margin-top: 8px; padding: 7px 8px; overflow: hidden; border-radius: 6px; background: #070c16; color: #bae6fd; font: 9px/1.45 var(--font-code); text-overflow: ellipsis; white-space: nowrap; }.verification-meta { margin-top: 7px; color: var(--color-text-tertiary); font: 9px/1.45 var(--font-code); }.inline-output { margin-top: 9px; }.inline-output > summary { color: var(--color-accent-cyan); font-size: 9px; cursor: pointer; }.inline-output .audit-log { max-height: 250px; margin: 8px -12px -12px; }
-.judge-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
 :global(.diff-preview-dialog) { overflow: hidden; border: 1px solid rgb(130 147 173 / 18%); border-radius: 12px; background: #0b1220; box-shadow: 0 24px 80px rgb(0 0 0 / 55%); }
 :global(.diff-preview-dialog .el-dialog__header) { margin: 0; padding: 16px 18px 13px; border-bottom: 1px solid var(--color-border-default); }
 :global(.diff-preview-dialog .el-dialog__body) { padding: 0; }
@@ -213,6 +204,6 @@ async function showDiff(path: string) {
 .preview-state { display: grid; min-height: 380px; place-content: center; justify-items: center; gap: 8px; color: var(--color-text-tertiary); text-align: center; }.preview-state strong { color: var(--color-text-secondary); font-size: 12px; }.preview-state p { max-width: 520px; margin: 0; font-size: 10px; }.preview-state.error > svg, .preview-state.error strong { color: var(--color-task-danger); }.spin { animation: spin .8s linear infinite; }
 .diff-preview { max-height: min(68vh, 720px); overflow: auto; background: #070c16; }.preview-line { display: grid; grid-template-columns: 52px max-content; min-width: 100%; width: max-content; color: #a8b5c9; font: 10px/1.58 var(--font-code); }.preview-line > span { position: sticky; left: 0; padding: 1px 10px; border-right: 1px solid rgb(130 147 173 / 10%); background: #09101c; color: #526079; text-align: right; user-select: none; }.preview-line > code { min-width: calc(min(92vw, 1040px) - 54px); padding: 1px 12px; color: inherit; font: inherit; white-space: pre; }.preview-line.added { background: rgb(34 197 94 / 13%); color: #bbf7d0; }.preview-line.removed { background: rgb(239 68 68 / 13%); color: #fecaca; }.preview-line.hunk { background: rgb(34 211 238 / 9%); color: #67e8f9; }.preview-line.header { color: #7d8da8; }.preview-line.added > span { background: #0d261e; color: #4ade80; }.preview-line.removed > span { background: #2a1118; color: #fb7185; }.preview-line.hunk > span { background: #0b202a; color: #22d3ee; }
 @keyframes spin { to { transform: rotate(360deg); } }
-@media (max-width: 1080px) { .verification-grid, .judge-grid { grid-template-columns: 1fr; } }
+@media (max-width: 1080px) { .verification-grid { grid-template-columns: 1fr; } }
 @media (max-width: 720px) { .audit-header { display: block; }.audit-tabs { margin-top: 5px; }.source-note { grid-template-columns: auto minmax(0, 1fr); }.source-note > b { grid-column: 2; }.verification-grid { grid-template-columns: 1fr; } }
 </style>

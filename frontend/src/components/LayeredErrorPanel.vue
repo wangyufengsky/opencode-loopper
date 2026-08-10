@@ -34,7 +34,7 @@ function judgeSummary(judge: JudgeRun) {
       <div>
         <p class="eyebrow">FINAL REVIEW / ACTION REQUIRED</p>
         <h3>{{ error.code === 'JUDGE_CONFLICT' ? '需求 / 风险双评审尚未达成一致' : '双评审结论需要处理' }}</h3>
-        <p>当前结论已拆分为结构化摘要；完整评审证据保留在下方“审计证据 → 评审”。</p>
+        <p>当前结论已拆分为结构化摘要；完整评审证据保留在上方“需求 / 风险双评审”。</p>
       </div>
       <span class="judge-attention-code">{{ error.code }}</span>
     </header>
