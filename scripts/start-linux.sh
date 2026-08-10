@@ -57,12 +57,12 @@ fi
 
 if [[ -n "${LOOPPER_JAR_PATH:-}" ]]; then
   JAR_PATH="${LOOPPER_JAR_PATH}"
-elif [[ -f "${APP_HOME}/target/opencode-loopper-0.1.0-SNAPSHOT.jar" ]]; then
-  JAR_PATH="${APP_HOME}/target/opencode-loopper-0.1.0-SNAPSHOT.jar"
-elif [[ -f "${APP_HOME}/opencode-loopper-0.1.0-SNAPSHOT.jar" ]]; then
-  JAR_PATH="${APP_HOME}/opencode-loopper-0.1.0-SNAPSHOT.jar"
+elif [[ -f "${APP_HOME}/target/opencode-loopper-0.1.1-SNAPSHOT.jar" ]]; then
+  JAR_PATH="${APP_HOME}/target/opencode-loopper-0.1.1-SNAPSHOT.jar"
+elif [[ -f "${APP_HOME}/opencode-loopper-0.1.1-SNAPSHOT.jar" ]]; then
+  JAR_PATH="${APP_HOME}/opencode-loopper-0.1.1-SNAPSHOT.jar"
 else
-  fail "找不到成品 JAR。请把 opencode-loopper-0.1.0-SNAPSHOT.jar 放到 ${APP_HOME}，或设置 LOOPPER_JAR_PATH。"
+  fail "找不到成品 JAR。请把 opencode-loopper-0.1.1-SNAPSHOT.jar 放到 ${APP_HOME}，或设置 LOOPPER_JAR_PATH。"
 fi
 
 [[ -f "${JAR_PATH}" ]] || fail "JAR 不存在：${JAR_PATH}"
@@ -72,11 +72,20 @@ export PATH="${JAVA_HOME}/bin:${PATH}"
 export LOOPPER_DATA_DIR="${LOOPPER_DATA_DIR:-${APP_HOME}/data}"
 export LOOPPER_OPENCODE_MODE="${LOOPPER_OPENCODE_MODE:-http}"
 export OPENCODE_BASE_URL="${OPENCODE_BASE_URL:-http://127.0.0.1:4096}"
+export LOOPPER_DESIGNER_TIMEOUT="${LOOPPER_DESIGNER_TIMEOUT:-30m}"
 export SERVER_PORT="${SERVER_PORT:-8080}"
 
 mkdir -p "${LOOPPER_DATA_DIR}"
 
 APP_URL="http://127.0.0.1:${SERVER_PORT}"
+
+if [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
+  JAVA_AWT_HEADLESS="false"
+  JAVA_AWT_MODE="图形模式（允许打开桌面文件夹选择器）"
+else
+  JAVA_AWT_HEADLESS="true"
+  JAVA_AWT_MODE="无图形模式（请直接填写服务器绝对路径）"
+fi
 
 echo "[Loopper] JDK：${JAVA_HOME}"
 echo "[Loopper] JDK 来源：${JAVA_HOME_SOURCE}"
@@ -84,7 +93,9 @@ echo "[Loopper] Java：${JAVA_VERSION_LINE}"
 echo "[Loopper] JAR：${JAR_PATH}"
 echo "[Loopper] 数据目录：${LOOPPER_DATA_DIR}"
 echo "[Loopper] OpenCode：${OPENCODE_BASE_URL}"
+echo "[Loopper] 项目公约超时：${LOOPPER_DESIGNER_TIMEOUT}"
 echo "[Loopper] 页面：${APP_URL}"
+echo "[Loopper] Java AWT：${JAVA_AWT_MODE}"
 
 if [[ -n "${OPENCODE_USERNAME:-}" ]]; then
   echo "[Loopper] OpenCode 已配置认证，跳过匿名健康探测，由应用使用认证信息连接。"
@@ -114,4 +125,4 @@ open_browser_when_ready() {
 open_browser_when_ready &
 
 # 保持 Java 在前台运行，Ctrl+C 会正常停止 Spring Boot。
-exec "${JAVA_BIN}" -jar "${JAR_PATH}" "$@"
+exec "${JAVA_BIN}" "-Djava.awt.headless=${JAVA_AWT_HEADLESS}" -jar "${JAR_PATH}" "$@"

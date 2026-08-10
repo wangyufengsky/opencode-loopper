@@ -106,8 +106,9 @@ public class VerifierEngine {
         boolean passed = !result.timedOut() && !result.outputTruncated() && result.exitCode() == 0 && outputMatched;
         String summary = result.timedOut() ? "Process verifier timed out"
                 : result.outputTruncated() ? "Process verifier output exceeded the safe limit"
+                : result.exitCode() != 0 ? "Process exited " + result.exitCode()
                 : !outputMatched ? "Process output did not contain required text: " + spec.outputContains()
-                : "Process exited " + result.exitCode();
+                : "Process exited 0";
         Map<String, Object> evidence = new LinkedHashMap<>();
         evidence.put("argv", resolved.argv());
         if (resolved.fallback()) {
@@ -180,6 +181,10 @@ public class VerifierEngine {
         if (command == null || command.isEmpty()) {
             throw new TaskFailure("VERIFIER_COMMAND_INVALID", "PROCESS verifier requires a non-empty argv array");
         }
+        ProcessCommandPolicy.collapsedMavenArgument(command).ifPresent(issue -> {
+            throw new TaskFailure("VERIFIER_COMMAND_INVALID",
+                    "PROCESS command[" + issue.index() + "]: " + issue.message());
+        });
         String executable;
         try { executable = Path.of(command.getFirst()).getFileName().toString().toLowerCase(Locale.ROOT); }
         catch (RuntimeException invalidPath) {

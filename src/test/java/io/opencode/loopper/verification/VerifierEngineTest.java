@@ -200,6 +200,33 @@ class VerifierEngineTest {
     }
 
     @Test
+    void rejectsCollapsedMavenArgumentsWithoutStartingTheProcess() {
+        assertThatThrownBy(() -> engine.verify(directory, "unused", new VerifierSpec("PROCESS",
+                List.of("mvn", "test -Dtest=Base64FieldTest -pl upfs-common"),
+                null, null, null, null, null, "BUILD SUCCESS"), Duration.ofSeconds(5)))
+                .isInstanceOf(TaskFailure.class)
+                .hasMessageContaining("command[1]")
+                .hasMessageContaining("multiple argv tokens");
+    }
+
+    @Test
+    void reportsNonZeroExitBeforeMissingOutputMarker() {
+        SafeProcessRunner failingRunner = new SafeProcessRunner() {
+            @Override public ProcessResult run(Path ignored, List<String> argv, Duration timeout) {
+                return new ProcessResult(1, "[ERROR] Unknown lifecycle phase", false);
+            }
+        };
+
+        VerifierOutcome outcome = new VerifierEngine(failingRunner).verify(directory, "unused",
+                new VerifierSpec("PROCESS", List.of("mvn", "test"),
+                        null, null, null, null, null, "BUILD SUCCESS"), Duration.ofSeconds(5));
+
+        assertThat(outcome.state()).isEqualTo(VerificationState.FAIL);
+        assertThat(outcome.summary()).isEqualTo("Process exited 1");
+        assertThat(outcome.evidence()).containsEntry("outputMatched", false);
+    }
+
+    @Test
     void missingMavenWrapperFallsBackToMavenAndRecordsActualCommand() {
         AtomicReference<List<String>> actualCommand = new AtomicReference<>();
         SafeProcessRunner recordingRunner = new SafeProcessRunner() {

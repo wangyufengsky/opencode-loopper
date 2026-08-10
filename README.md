@@ -49,7 +49,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 
 ```bash
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.1.0-SNAPSHOT.jar
+java -jar target/opencode-loopper-0.1.1-SNAPSHOT.jar
 ```
 
 Open [http://127.0.0.1:8080](http://127.0.0.1:8080). Runtime data is written
@@ -57,13 +57,13 @@ to `./data` unless `LOOPPER_DATA_DIR` is set.
 
 ### Run the packaged JAR on Linux
 
-Copy only `target/opencode-loopper-0.1.0-SNAPSHOT.jar` to the Linux machine,
+Copy only `target/opencode-loopper-0.1.1-SNAPSHOT.jar` to the Linux machine,
 then run it as a regular (non-root) user from a writable directory:
 
 ```bash
 java -version # must report Java 21 or newer
 mkdir -p "$PWD/data"
-LOOPPER_DATA_DIR="$PWD/data" java -jar opencode-loopper-0.1.0-SNAPSHOT.jar
+LOOPPER_DATA_DIR="$PWD/data" java -jar opencode-loopper-0.1.1-SNAPSHOT.jar
 ```
 
 For an offline or intranet Linux host, copy the packaged JAR together with
@@ -108,7 +108,7 @@ official npm registry.
 To inspect the packaged SPA without starting the application:
 
 ```bash
-jar tf target/opencode-loopper-0.1.0-SNAPSHOT.jar | rg 'BOOT-INF/classes/static/(index.html|assets/)'
+jar tf target/opencode-loopper-0.1.1-SNAPSHOT.jar | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
 For hot development:

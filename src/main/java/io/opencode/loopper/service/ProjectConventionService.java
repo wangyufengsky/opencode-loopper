@@ -40,6 +40,8 @@ public class ProjectConventionService {
     public static final String END_MARKER = "<!-- LOOPPER:END -->";
     private static final int MAX_AGENTS_BYTES = 256 * 1024;
     private static final int MAX_AI_CONTENT = 24_000;
+    private static final int MAX_PROJECT_CONTEXT_REPAIR_ATTEMPTS = 2;
+    private static final String PROJECT_CONTEXT_REPAIR_STATE = "REPAIRING_PROJECT_CONTEXT_";
     private static final Pattern MANAGED_BLOCK = Pattern.compile(
             Pattern.quote(START_MARKER) + ".*?" + Pattern.quote(END_MARKER), Pattern.DOTALL);
     private static final Pattern AI_PAYLOAD = Pattern.compile(
@@ -170,9 +172,52 @@ public class ProjectConventionService {
             return;
         }
         if (!status.completed()) return;
-        String projectContext = parseAiContext(openCode.sessionOutput(session(row)));
+        String output = openCode.sessionOutput(session(row));
+        String projectContext;
+        try {
+            projectContext = parseAiContext(output);
+        } catch (BadRequestException failure) {
+            if (requestProjectContextRepair(row, failure.getMessage())) return;
+            throw failure;
+        }
         String proposed = mergeManagedBlock(row.sourceContent(), managedBlock(projectContext));
         transition(row, ProjectConventionState.READY, safeState(status.state()), proposed, null);
+    }
+
+    private boolean requestProjectContextRepair(ProjectConventionDraftRow row, String validationError) {
+        int attempt = projectContextRepairAttempt(row.externalSessionState()) + 1;
+        if (attempt > MAX_PROJECT_CONTEXT_REPAIR_ATTEMPTS) return false;
+        transition(row, ProjectConventionState.RUNNING, PROJECT_CONTEXT_REPAIR_STATE + attempt, null, null);
+        openCode.promptAsync(session(row), projectContextRepairPrompt(validationError));
+        return true;
+    }
+
+    private int projectContextRepairAttempt(String externalState) {
+        if (externalState == null || !externalState.startsWith(PROJECT_CONTEXT_REPAIR_STATE)) return 0;
+        try { return Integer.parseInt(externalState.substring(PROJECT_CONTEXT_REPAIR_STATE.length())); }
+        catch (NumberFormatException ignored) { return MAX_PROJECT_CONTEXT_REPAIR_ATTEMPTS; }
+    }
+
+    private String projectContextRepairPrompt(String validationError) {
+        return """
+                Your previous response was rejected by the Loopper project-context validator.
+                This is a protocol-repair turn only. Do not inspect more files, call repository tools, edit files, run commands, create tasks, or discuss implementation.
+
+                Reformat the evidence-backed project context already collected in this read-only session. Do not add unverified facts, generic safety rules, secrets, credentials, personal data, or large source excerpts.
+
+                Validation error:
+                %s
+
+                Return only concise Chinese Markdown between exactly one pair of these markers. Do not wrap the markers in a code fence or add text outside them:
+                <!-- LOOPPER_PROJECT_CONTEXT_START -->
+                ## 技术栈与目录
+                ...
+                ## 常用命令
+                ...
+                ## 现有约定与边界
+                ...
+                <!-- LOOPPER_PROJECT_CONTEXT_END -->
+                """.formatted(safeMessage(validationError));
     }
 
     private OpenCodeClient.OpenCodeSession session(ProjectConventionDraftRow row) {

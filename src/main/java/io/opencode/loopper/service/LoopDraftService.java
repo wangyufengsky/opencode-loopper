@@ -9,6 +9,7 @@ import io.opencode.loopper.domain.LifecycleScopeType;
 import io.opencode.loopper.lifecycle.LifecycleTransitionService;
 import io.opencode.loopper.persistence.LoopDraftRow;
 import io.opencode.loopper.persistence.LoopperMapper;
+import io.opencode.loopper.verification.ProcessCommandPolicy;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -135,6 +136,10 @@ public class LoopDraftService {
                 if (!"GIT_DIFF".equals(type)) hasAcceptanceVerifier = true;
                 if ("PROCESS".equals(type) && verifier.command().isEmpty()) {
                     errors.add(path + ".command: PROCESS requires a direct argv command");
+                }
+                if ("PROCESS".equals(type)) {
+                    ProcessCommandPolicy.collapsedMavenArgument(verifier.command()).ifPresent(issue ->
+                            errors.add(path + ".command[" + issue.index() + "]: " + issue.message()));
                 }
                 if (requireExecutableAcceptance && "PROCESS".equals(type) && !verifier.command().isEmpty()
                         && "./mvnw".equals(verifier.command().getFirst())) {

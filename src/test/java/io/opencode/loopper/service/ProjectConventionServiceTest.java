@@ -176,14 +176,59 @@ class ProjectConventionServiceTest {
     void rejectsMalformedAiOutputWithoutWritingTheProject() throws Exception {
         Path root = Files.createDirectory(temp.resolve("malformed-project"));
         ProjectRow project = projects.create("malformed-project", root.toString());
-        ((FakeOpenCodeClient) openCode).setDesignerOutput("Here is an unbounded answer without markers");
+        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
+        fake.setDesignerOutput("Here is an unbounded answer without markers");
 
         ProjectConventionDraftRow running = conventions.generate(project.id());
+        conventions.pollActiveGenerations();
+        ProjectConventionDraftRow repairingOnce = conventions.get(project.id(), running.id());
+        assertThat(repairingOnce.state()).isEqualTo(ProjectConventionState.RUNNING.name());
+        assertThat(repairingOnce.externalSessionState()).isEqualTo("REPAIRING_PROJECT_CONTEXT_1");
+        assertThat(fake.promptForSession(running.externalSessionId()))
+                .contains("protocol-repair turn only", "required project-context payload");
+
+        conventions.pollActiveGenerations();
+        ProjectConventionDraftRow repairingTwice = conventions.get(project.id(), running.id());
+        assertThat(repairingTwice.state()).isEqualTo(ProjectConventionState.RUNNING.name());
+        assertThat(repairingTwice.externalSessionState()).isEqualTo("REPAIRING_PROJECT_CONTEXT_2");
+
         conventions.pollActiveGenerations();
 
         ProjectConventionDraftRow failed = conventions.get(project.id(), running.id());
         assertThat(failed.state()).isEqualTo(ProjectConventionState.FAILED.name());
         assertThat(failed.errorMessage()).contains("required project-context payload");
+        assertThat(fake.promptCalls()).isEqualTo(3);
+        assertThat(root.resolve("AGENTS.md")).doesNotExist();
+    }
+
+    @Test
+    void repairsMalformedAiOutputInTheSameReadOnlySession() throws Exception {
+        Path root = Files.createDirectory(temp.resolve("repaired-project"));
+        ProjectRow project = projects.create("repaired-project", root.toString());
+        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
+        fake.setDesignerOutput("Project facts without the required markers");
+
+        ProjectConventionDraftRow running = conventions.generate(project.id());
+        conventions.pollActiveGenerations();
+        ProjectConventionDraftRow repairing = conventions.get(project.id(), running.id());
+        assertThat(repairing.state()).isEqualTo(ProjectConventionState.RUNNING.name());
+        assertThat(repairing.externalSessionId()).isEqualTo(running.externalSessionId());
+
+        fake.setDesignerOutput(aiContext("""
+                ## 技术栈与目录
+                - Java 项目。
+                ## 常用命令
+                - `mvn test`
+                ## 现有约定与边界
+                - 不编辑 `target/`。
+                """));
+        conventions.pollActiveGenerations();
+
+        ProjectConventionDraftRow ready = conventions.get(project.id(), running.id());
+        assertThat(ready.state()).isEqualTo(ProjectConventionState.READY.name());
+        assertThat(ready.proposedContent()).contains("Java 项目", "mvn test");
+        assertThat(fake.createReadOnlySessionCalls()).isEqualTo(1);
+        assertThat(fake.promptCalls()).isEqualTo(2);
         assertThat(root.resolve("AGENTS.md")).doesNotExist();
     }
 
