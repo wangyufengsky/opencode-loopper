@@ -35,6 +35,43 @@ describe('MarkdownDocument', () => {
     expect(wrapper.text()).toContain('<script>alert(1)</script>')
   })
 
+  it('renders complete think blocks as a separate thinking card without leaking protocol tags', () => {
+    const wrapper = mount(MarkdownDocument, {
+      props: { content: '<think>正在检查项目结构与测试约定。</think>\n\n## 设计方案\n\n补充单元测试。' },
+    })
+
+    const card = wrapper.get('[aria-label="思考过程"]')
+    expect(card.text()).toContain('思考过程')
+    expect(card.text()).toContain('已完成')
+    expect(card.text()).toContain('正在检查项目结构与测试约定。')
+    expect(wrapper.get('.markdown-body-segment h2').text()).toBe('设计方案')
+    expect(wrapper.text()).not.toContain('<think>')
+    expect(wrapper.text()).not.toContain('</think>')
+  })
+
+  it('recognizes an unmatched closing think tag returned by a provider', () => {
+    const wrapper = mount(MarkdownDocument, {
+      props: { content: '找到了目标类，现在需要读取源码。\n</think>\n\n开始生成设计文档。' },
+    })
+
+    expect(wrapper.get('[aria-label="思考过程"]').text()).toContain('找到了目标类')
+    expect(wrapper.get('.markdown-body-segment').text()).toContain('开始生成设计文档')
+    expect(wrapper.text()).not.toContain('</think>')
+  })
+
+  it('marks a streaming unclosed think block active and lets the user collapse it', async () => {
+    const wrapper = mount(MarkdownDocument, {
+      props: { content: '<think>正在持续分析依赖关系。' },
+    })
+
+    const card = wrapper.get('[aria-label="思考过程"]')
+    expect(card.attributes('aria-busy')).toBe('true')
+    expect(card.text()).toContain('思考中')
+    await card.get('.markdown-thinking-toggle').trigger('click')
+    expect(card.get('.markdown-thinking-toggle').attributes('aria-expanded')).toBe('false')
+    expect(card.find('.markdown-thinking-content').isVisible()).toBe(false)
+  })
+
   it('turns fenced Mermaid source into a rendered diagram', async () => {
     const source = 'flowchart LR\n  A[需求] --> B[实现]'
     const wrapper = mount(MarkdownDocument, {

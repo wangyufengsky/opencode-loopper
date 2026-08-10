@@ -126,7 +126,7 @@ class DesignerSessionMcpIntegrationTest {
                 .contains("Do not defer all tests or functional validation to the final stage")
                 .contains("final full-regression verifier may supplement but never replace")
                 .contains("JSON field is exactly `command`", "Never rename this JSON field to `argv`, `args`, or `cmd`")
-                .contains("Never assume Maven Wrapper is present", "use `./mvnw` only when the project root contains an executable `mvnw`")
+                .contains("Never assume Maven Wrapper is present", "use `./mvnw` only when an executable `mvnw` is checked in")
                 .doesNotContain("[\"./mvnw\", \"clean\", \"compile\"]")
                 .contains("default to Simplified Chinese", "protocol enum values")
                 .contains("LOOPSPEC_JSON_START", boundDraft.id(), project.id())

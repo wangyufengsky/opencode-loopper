@@ -16,8 +16,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.DriverManager;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
@@ -195,6 +197,54 @@ class VerifierEngineTest {
         assertThat(fail.state()).isEqualTo(VerificationState.FAIL);
         assertThat(fail.summary()).contains("MISSING MARKER");
         assertThat(fail.evidence()).containsEntry("outputMatched", false);
+    }
+
+    @Test
+    void missingMavenWrapperFallsBackToMavenAndRecordsActualCommand() {
+        AtomicReference<List<String>> actualCommand = new AtomicReference<>();
+        SafeProcessRunner recordingRunner = new SafeProcessRunner() {
+            @Override public ProcessResult run(Path ignored, List<String> argv, Duration timeout) {
+                actualCommand.set(List.copyOf(argv));
+                return new ProcessResult(0, "BUILD SUCCESS", false);
+            }
+        };
+
+        VerifierOutcome outcome = new VerifierEngine(recordingRunner).verify(directory, "unused",
+                new VerifierSpec("PROCESS", List.of("./mvnw", "-q", "test"),
+                        null, null, null, null, null), Duration.ofSeconds(5));
+
+        assertThat(outcome.state()).isEqualTo(VerificationState.PASS);
+        assertThat(actualCommand.get()).containsExactly("mvn", "-q", "test");
+        assertThat(outcome.evidence())
+                .containsEntry("argv", List.of("mvn", "-q", "test"))
+                .containsEntry("declaredArgv", List.of("./mvnw", "-q", "test"))
+                .containsEntry("commandResolution", "MAVEN_WRAPPER_UNAVAILABLE_IN_WORKTREE");
+    }
+
+    @Test
+    void unstartableMavenWrapperFallsBackAfterProcessStartFailure() throws Exception {
+        Path wrapper = Files.writeString(directory.resolve("mvnw"), "#!/missing/interpreter\n");
+        wrapper.toFile().setExecutable(true);
+        AtomicReference<List<List<String>>> commands = new AtomicReference<>(new ArrayList<>());
+        SafeProcessRunner recordingRunner = new SafeProcessRunner() {
+            @Override public ProcessResult run(Path ignored, List<String> argv, Duration timeout) {
+                commands.get().add(List.copyOf(argv));
+                if ("./mvnw".equals(argv.getFirst())) {
+                    throw new TaskFailure("PROCESS_START_FAILED", "missing interpreter");
+                }
+                return new ProcessResult(0, "BUILD SUCCESS", false);
+            }
+        };
+
+        VerifierOutcome outcome = new VerifierEngine(recordingRunner).verify(directory, "unused",
+                new VerifierSpec("PROCESS", List.of("./mvnw", "test"),
+                        null, null, null, null, null), Duration.ofSeconds(5));
+
+        assertThat(outcome.state()).isEqualTo(VerificationState.PASS);
+        assertThat(commands.get()).containsExactly(List.of("./mvnw", "test"), List.of("mvn", "test"));
+        assertThat(outcome.evidence())
+                .containsEntry("argv", List.of("mvn", "test"))
+                .containsEntry("commandResolution", "MAVEN_WRAPPER_START_FAILED");
     }
 
     @Test

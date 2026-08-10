@@ -86,7 +86,22 @@ public class VerifierEngine {
 
     private VerifierOutcome process(Path worktree, VerifierSpec spec, Duration timeout) {
         requireDirectExecutable(spec.command());
-        ProcessResult result = runner.run(worktree, spec.command(), timeout);
+        List<String> declaredCommand = List.copyOf(spec.command());
+        ResolvedProcessCommand resolved = resolveProcessCommand(worktree, declaredCommand);
+        ProcessResult result;
+        try {
+            result = runner.run(worktree, resolved.argv(), timeout);
+        } catch (TaskFailure startFailure) {
+            if (usesMavenWrapper(declaredCommand) && !resolved.fallback()
+                    && "PROCESS_START_FAILED".equals(startFailure.code())) {
+                resolved = mavenFallback(declaredCommand, "MAVEN_WRAPPER_START_FAILED");
+                result = runMavenFallback(worktree, resolved.argv(), timeout, startFailure);
+            } else if (resolved.fallback() && "PROCESS_START_FAILED".equals(startFailure.code())) {
+                throw mavenUnavailable(startFailure);
+            } else {
+                throw startFailure;
+            }
+        }
         boolean outputMatched = spec.outputContains() == null || result.output().contains(spec.outputContains());
         boolean passed = !result.timedOut() && !result.outputTruncated() && result.exitCode() == 0 && outputMatched;
         String summary = result.timedOut() ? "Process verifier timed out"
@@ -94,7 +109,11 @@ public class VerifierEngine {
                 : !outputMatched ? "Process output did not contain required text: " + spec.outputContains()
                 : "Process exited " + result.exitCode();
         Map<String, Object> evidence = new LinkedHashMap<>();
-        evidence.put("argv", spec.command());
+        evidence.put("argv", resolved.argv());
+        if (resolved.fallback()) {
+            evidence.put("declaredArgv", declaredCommand);
+            evidence.put("commandResolution", resolved.reason());
+        }
         evidence.put("exitCode", result.exitCode());
         evidence.put("timedOut", result.timedOut());
         evidence.put("outputTruncated", result.outputTruncated());
@@ -105,6 +124,45 @@ public class VerifierEngine {
         }
         return new VerifierOutcome("PROCESS", passed ? VerificationState.PASS : VerificationState.FAIL,
                 summary, evidence);
+    }
+
+    private ResolvedProcessCommand resolveProcessCommand(Path worktree, List<String> declaredCommand) {
+        if (!usesMavenWrapper(declaredCommand)) return new ResolvedProcessCommand(declaredCommand, null);
+        Path wrapper = worktree.resolve("mvnw").normalize();
+        if (!wrapper.equals(worktree.resolve("mvnw")) || !Files.isRegularFile(wrapper) || !Files.isExecutable(wrapper)) {
+            return mavenFallback(declaredCommand, "MAVEN_WRAPPER_UNAVAILABLE_IN_WORKTREE");
+        }
+        return new ResolvedProcessCommand(declaredCommand, null);
+    }
+
+    private ProcessResult runMavenFallback(Path worktree, List<String> fallbackCommand, Duration timeout,
+                                           TaskFailure wrapperFailure) {
+        try {
+            return runner.run(worktree, fallbackCommand, timeout);
+        } catch (TaskFailure fallbackFailure) {
+            if ("PROCESS_START_FAILED".equals(fallbackFailure.code())) throw mavenUnavailable(wrapperFailure);
+            throw fallbackFailure;
+        }
+    }
+
+    private TaskFailure mavenUnavailable(TaskFailure cause) {
+        return new TaskFailure("MAVEN_COMMAND_UNAVAILABLE",
+                "The project Maven Wrapper could not be started and mvn is not available on the Loopper process PATH: "
+                        + cause.getMessage());
+    }
+
+    private ResolvedProcessCommand mavenFallback(List<String> declaredCommand, String reason) {
+        List<String> fallback = new ArrayList<>(declaredCommand);
+        fallback.set(0, "mvn");
+        return new ResolvedProcessCommand(List.copyOf(fallback), reason);
+    }
+
+    private boolean usesMavenWrapper(List<String> command) {
+        return command != null && !command.isEmpty() && "./mvnw".equals(command.getFirst());
+    }
+
+    private record ResolvedProcessCommand(List<String> argv, String reason) {
+        private boolean fallback() { return reason != null; }
     }
 
     private Duration requireBoundedTimeout(Duration timeout) {

@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import DOMPurify from 'dompurify'
 import MarkdownIt from 'markdown-it'
+import { splitThinkingContent } from '@/utils/thinkingContent'
 
 const props = withDefaults(defineProps<{
   content: string
@@ -14,6 +15,7 @@ const props = withDefaults(defineProps<{
 const documentRoot = ref<HTMLElement>()
 const expanded = ref(false)
 const overflowing = ref(props.collapsible)
+const collapsedThinking = ref(new Set<number>())
 let renderVersion = 0
 let diagramSequence = 0
 let mermaidPromise: Promise<typeof import('mermaid')['default']> | undefined
@@ -33,10 +35,23 @@ markdown.renderer.rules.link_open = (tokens, index, options, _env, self) => {
   return self.renderToken(tokens, index, options)
 }
 
-const renderedHtml = computed(() => DOMPurify.sanitize(markdown.render(props.content), {
-  ADD_ATTR: ['target'],
-  USE_PROFILES: { html: true },
-}))
+const renderedSegments = computed(() => splitThinkingContent(props.content).map((segment, index) => ({
+  ...segment,
+  index,
+  html: DOMPurify.sanitize(markdown.render(segment.content), {
+    ADD_ATTR: ['target'],
+    USE_PROFILES: { html: true },
+  }),
+})))
+const hasThinkingSegments = computed(() => renderedSegments.value.some(segment => segment.type === 'thinking'))
+
+function toggleThinking(index: number) {
+  const next = new Set(collapsedThinking.value)
+  if (next.has(index)) next.delete(index)
+  else next.add(index)
+  collapsedThinking.value = next
+  void measureOverflow()
+}
 
 function loadMermaid() {
   mermaidPromise ??= import('mermaid').then(({ default: mermaid }) => {
@@ -203,11 +218,51 @@ onBeforeUnmount(() => {
 <template>
   <div class="markdown-output">
     <div
+      v-if="hasThinkingSegments"
       ref="documentRoot"
       :class="['markdown-document', { 'is-collapsed': collapsible && overflowing && !expanded }]"
       :style="{ '--collapsed-lines': collapsedLines }"
       aria-label="Markdown 文档"
-      v-html="renderedHtml"
+    >
+      <template v-for="segment in renderedSegments" :key="`${segment.type}-${segment.index}`">
+        <section
+          v-if="segment.type === 'thinking'"
+          :class="['markdown-thinking-card', { 'is-active': !segment.complete }]"
+          :aria-busy="!segment.complete"
+          aria-label="思考过程"
+        >
+          <header class="markdown-thinking-header">
+            <span class="markdown-thinking-symbol" aria-hidden="true"><span /></span>
+            <span class="markdown-thinking-title">
+              <strong>思考过程</strong>
+              <small>{{ segment.complete ? '已完成' : '思考中' }}</small>
+            </span>
+            <button
+              type="button"
+              class="markdown-thinking-toggle"
+              :aria-expanded="!collapsedThinking.has(segment.index)"
+              @click="toggleThinking(segment.index)"
+            >
+              {{ collapsedThinking.has(segment.index) ? '展开' : '收起' }}
+              <span aria-hidden="true">{{ collapsedThinking.has(segment.index) ? '↓' : '↑' }}</span>
+            </button>
+          </header>
+          <div
+            v-show="!collapsedThinking.has(segment.index)"
+            class="markdown-thinking-content"
+            v-html="segment.html"
+          />
+        </section>
+        <div v-else class="markdown-body-segment" v-html="segment.html" />
+      </template>
+    </div>
+    <div
+      v-else
+      ref="documentRoot"
+      :class="['markdown-document', { 'is-collapsed': collapsible && overflowing && !expanded }]"
+      :style="{ '--collapsed-lines': collapsedLines }"
+      aria-label="Markdown 文档"
+      v-html="renderedSegments[0]?.html"
     />
     <button
       v-if="collapsible && overflowing"
@@ -226,6 +281,27 @@ onBeforeUnmount(() => {
 .markdown-output { min-width: 0; }
 .markdown-document { color: var(--color-text-primary); font-size: 13px; line-height: 1.72; overflow-wrap: anywhere; }
 .markdown-document.is-collapsed { max-height: calc(var(--collapsed-lines) * 1.72em); overflow: hidden; }
+.markdown-thinking-card { position: relative; margin: 10px 0 14px; overflow: hidden; border: 1px solid rgb(139 92 246 / 32%); border-radius: 11px; background: linear-gradient(135deg, rgb(139 92 246 / 10%), rgb(15 23 42 / 72%) 58%, rgb(34 211 238 / 6%)); box-shadow: inset 0 1px rgb(255 255 255 / 3%); }
+.markdown-thinking-card.is-active { background-size: 200% 100%; animation: markdown-thinking-sheen 3s ease-in-out infinite; }
+.markdown-thinking-card::before { position: absolute; inset: 0 auto 0 0; width: 2px; background: linear-gradient(180deg, #a78bfa, var(--color-accent-cyan)); content: ""; }
+.markdown-thinking-header { display: flex; align-items: center; gap: 10px; min-height: 43px; padding: 8px 11px 8px 13px; border-bottom: 1px solid rgb(139 92 246 / 18%); }
+.markdown-thinking-symbol { position: relative; display: grid; flex: 0 0 auto; place-items: center; width: 25px; height: 25px; border: 1px solid rgb(167 139 250 / 36%); border-radius: 8px; background: rgb(139 92 246 / 12%); }
+.markdown-thinking-symbol::before, .markdown-thinking-symbol::after, .markdown-thinking-symbol span { position: absolute; width: 4px; height: 4px; border-radius: 50%; background: #a78bfa; box-shadow: 0 0 7px rgb(167 139 250 / 55%); content: ""; }
+.markdown-thinking-symbol::before { transform: translate(-5px, 3px); }
+.markdown-thinking-symbol::after { transform: translate(5px, 3px); }
+.markdown-thinking-symbol span { background: var(--color-accent-cyan); transform: translateY(-4px); }
+.markdown-thinking-title { display: flex; min-width: 0; align-items: baseline; gap: 8px; }
+.markdown-thinking-title strong { color: #ede9fe; font: 700 11px/1.3 var(--font-ui); letter-spacing: .04em; }
+.markdown-thinking-title small { color: #a78bfa; font: 9px/1.3 var(--font-code); }
+.markdown-thinking-card.is-active .markdown-thinking-title small { color: var(--color-accent-cyan); }
+.markdown-thinking-toggle { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; padding: 4px 5px; border: 0; border-radius: 5px; color: var(--color-text-muted); background: transparent; font: 9px/1.3 var(--font-ui); cursor: pointer; }
+.markdown-thinking-toggle:hover { color: #ddd6fe; background: rgb(139 92 246 / 10%); }
+.markdown-thinking-toggle:focus-visible { outline: 2px solid #a78bfa; outline-offset: 2px; }
+.markdown-thinking-content { padding: 11px 14px 13px; color: #b9c4d5; font-size: 11px; line-height: 1.7; }
+.markdown-thinking-content :deep(> :first-child) { margin-top: 0; }
+.markdown-thinking-content :deep(> :last-child) { margin-bottom: 0; }
+@keyframes markdown-thinking-sheen { 0%, 100% { background-position: 0 50%; } 50% { background-position: 100% 50%; } }
+@media (prefers-reduced-motion: reduce) { .markdown-thinking-card.is-active { animation: none; } }
 .markdown-expand-button { display: inline-flex; align-items: center; gap: 5px; margin-top: 8px; padding: 4px 0; border: 0; background: transparent; color: var(--color-accent-cyan); font: 600 11px/1.4 var(--font-ui); cursor: pointer; }
 .markdown-expand-button:hover { color: #e0f2fe; }
 .markdown-expand-button:focus-visible { border-radius: 4px; outline: 2px solid var(--color-accent-cyan); outline-offset: 3px; }
