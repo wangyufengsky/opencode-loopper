@@ -472,6 +472,64 @@ class DesignerSessionMcpIntegrationTest {
     }
 
     @Test
+    void parseableCollapsedMavenArgumentsAreNormalizedWithoutDesignerRetry() throws Exception {
+        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
+        Path root = Files.createDirectory(temp.resolve("project-with-collapsed-maven-arguments"));
+        Files.writeString(root.resolve("pom.xml"), "<project />");
+        ProjectRow project = projects.create("designer-collapsed-maven-arguments", root.toString());
+        LoopDraftRow boundDraft = drafts.create(spec(project.id()));
+        LoopSpec invalid = new LoopSpec("v1", project.id(), "Run focused test", "",
+                List.of(new LoopSpec.StageSpec("Test", List.of("src/**"), List.of(), List.of("test passes"),
+                        List.of(new LoopSpec.VerifierSpec("PROCESS",
+                                List.of("mvn", "test -Dtest=Base64FieldTest -pl upfs-common"),
+                                null, null, List.of(), List.of(), null, null)))),
+                LoopSpec.Limits.defaults(), null, null, null);
+        fake.setDesignerOutput(designerOutput("## Test plan", invalid));
+        DesignerSessionRow designer = designerSessions.create(project.id(), boundDraft.id(), "Generate a plan");
+
+        designerSessions.pollActiveHandoffs();
+
+        DesignerSessionRow completed = designerSessions.get(designer.id());
+        assertThat(completed.state()).isEqualTo("COMPLETED");
+        assertThat(completed.externalSessionState()).isEqualTo("COMPLETED");
+        assertThat(fake.promptCalls()).isEqualTo(1);
+        assertThat(drafts.spec(drafts.get(boundDraft.id())).stages().getFirst()
+                .verifiers().getFirst().command())
+                .containsExactly("mvn", "test", "-Dtest=Base64FieldTest", "-pl", "upfs-common");
+        assertThat(designerSessions.messages(designer.id()))
+                .noneMatch(message -> message.deliveryState().equals("AUTO_REPAIR"))
+                .noneMatch(message -> message.deliveryState().equals("SESSION_ERROR"));
+        assertThat(mapper.listTasks()).isEmpty();
+    }
+
+    @Test
+    void unparseableCollapsedMavenArgumentsTriggerDesignerRetry() throws Exception {
+        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
+        Path root = Files.createDirectory(temp.resolve("project-with-unparseable-maven-arguments"));
+        Files.writeString(root.resolve("pom.xml"), "<project />");
+        ProjectRow project = projects.create("designer-unparseable-maven-arguments", root.toString());
+        LoopDraftRow boundDraft = drafts.create(spec(project.id()));
+        LoopSpec invalid = new LoopSpec("v1", project.id(), "Run focused test", "",
+                List.of(new LoopSpec.StageSpec("Test", List.of("src/**"), List.of(), List.of("test passes"),
+                        List.of(new LoopSpec.VerifierSpec("PROCESS",
+                                List.of("mvn", "test -Dtest='Base64FieldTest"),
+                                null, null, List.of(), List.of(), null, null)))),
+                LoopSpec.Limits.defaults(), null, null, null);
+        fake.setDesignerOutput(designerOutput("## Test plan", invalid));
+        DesignerSessionRow designer = designerSessions.create(project.id(), boundDraft.id(), "Generate a plan");
+
+        designerSessions.pollActiveHandoffs();
+
+        DesignerSessionRow repairing = designerSessions.get(designer.id());
+        assertThat(repairing.state()).isEqualTo("RUNNING");
+        assertThat(repairing.externalSessionState()).isEqualTo("REPAIRING_LOOPSPEC_1");
+        assertThat(fake.promptForSession(repairing.externalSessionId()))
+                .contains("stages[0].verifiers[0].command[1]", "cannot be parsed safely", "unclosed quote");
+        assertThat(drafts.get(boundDraft.id()).version()).isZero();
+        assertThat(mapper.listTasks()).isEmpty();
+    }
+
+    @Test
     void repeatedInvalidDesignerOutputStopsAfterTwoAutomaticRepairs() throws Exception {
         FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
         ProjectRow project = projects.create("designer-repair-limit",

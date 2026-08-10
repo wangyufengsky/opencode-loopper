@@ -90,3 +90,10 @@ LoopSpec stage as a direct-argv `PROCESS` verifier; expected success markers use
 `outputContains`. The Review Gate renders these machine checks separately and
 rejects saving or confirming a stage whose only verifier is `GIT_DIFF`, because
 that verifier proves change scope but not functional correctness.
+
+Maven verifier input is tolerant only where the argv boundary is deterministic.
+For example, `["mvn", "test -Dtest=FooTest -pl module"]` is normalized and stored
+as five direct argv items without a Designer retry or shell execution. Ambiguous
+input such as an unclosed quote remains a field validation error and enters the
+same bounded, read-only LoopSpec correction flow as other invalid Designer
+output. A rejected correction never mutates the draft or creates a Task.

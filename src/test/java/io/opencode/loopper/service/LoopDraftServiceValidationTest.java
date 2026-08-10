@@ -27,21 +27,26 @@ class LoopDraftServiceValidationTest {
     }
 
     @Test
-    void rejectsCollapsedMavenArgumentsBeforeConfirmation() {
+    void acceptsCollapsedMavenArgumentsThatCanBeParsedSafely() {
         List<String> errors = drafts.validationErrors(spec(List.of(
                 "mvn", "test -Dtest=Base64FieldTest -pl upfs-common")), true);
 
-        assertThat(errors).singleElement().asString()
-                .contains("stages[0].verifiers[0].command[1]")
-                .contains("multiple argv tokens");
+        assertThat(errors).isEmpty();
     }
 
     @Test
-    void rejectsAWholeMavenCommandStoredAsTheExecutable() {
+    void acceptsAWholeMavenCommandThatCanBeParsedSafely() {
         assertThat(drafts.validationErrors(spec(List.of("/usr/bin/mvn test -DskipTests")), true))
+                .isEmpty();
+    }
+
+    @Test
+    void rejectsCollapsedMavenArgumentsThatCannotBeParsedSafely() {
+        assertThat(drafts.validationErrors(spec(List.of(
+                "mvn", "test -Dtest='Base64FieldTest")), true))
                 .singleElement().asString()
-                .contains("stages[0].verifiers[0].command[0]")
-                .contains("multiple argv tokens");
+                .contains("stages[0].verifiers[0].command[1]")
+                .contains("cannot be parsed safely", "unclosed quote");
     }
 
     @Test

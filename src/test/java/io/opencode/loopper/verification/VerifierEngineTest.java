@@ -200,13 +200,32 @@ class VerifierEngineTest {
     }
 
     @Test
-    void rejectsCollapsedMavenArgumentsWithoutStartingTheProcess() {
-        assertThatThrownBy(() -> engine.verify(directory, "unused", new VerifierSpec("PROCESS",
+    void safelySplitsCollapsedMavenArgumentsBeforeStartingTheProcess() {
+        AtomicReference<List<String>> actualArgv = new AtomicReference<>();
+        SafeProcessRunner capturingRunner = new SafeProcessRunner() {
+            @Override public ProcessResult run(Path ignored, List<String> argv, Duration timeout) {
+                actualArgv.set(argv);
+                return new ProcessResult(0, "BUILD SUCCESS", false);
+            }
+        };
+
+        VerifierOutcome outcome = new VerifierEngine(capturingRunner).verify(directory, "unused", new VerifierSpec("PROCESS",
                 List.of("mvn", "test -Dtest=Base64FieldTest -pl upfs-common"),
+                null, null, null, null, null, "BUILD SUCCESS"), Duration.ofSeconds(5));
+
+        assertThat(outcome.state()).isEqualTo(VerificationState.PASS);
+        assertThat(actualArgv.get()).containsExactly("mvn", "test", "-Dtest=Base64FieldTest", "-pl", "upfs-common");
+        assertThat(outcome.evidence()).containsEntry("commandNormalization", "MAVEN_ARGUMENTS_SPLIT");
+    }
+
+    @Test
+    void rejectsCollapsedMavenArgumentsThatCannotBeParsedSafely() {
+        assertThatThrownBy(() -> engine.verify(directory, "unused", new VerifierSpec("PROCESS",
+                List.of("mvn", "test -Dtest='Base64FieldTest"),
                 null, null, null, null, null, "BUILD SUCCESS"), Duration.ofSeconds(5)))
                 .isInstanceOf(TaskFailure.class)
                 .hasMessageContaining("command[1]")
-                .hasMessageContaining("multiple argv tokens");
+                .hasMessageContaining("unclosed quote");
     }
 
     @Test

@@ -1,0 +1,386 @@
+# OpenCode Loopper Agent 开发公约
+
+本文件适用于仓库根目录及其全部子目录，是所有在本项目中工作的 Agent 的强制规则文件。若子目录以后增加更具体的 `AGENTS.md`，应同时遵守本文件和距离目标文件最近的规则；冲突时以用户的当前明确要求和更具体的子目录规则为准。
+
+## 0. 最高优先级：每次任务必须执行
+
+### 开始开发前
+
+任何 Agent 在分析、开发、修改、优化、重构、修复或评审本项目代码前，必须：
+
+1. **从头到尾阅读本文件**，不得依赖之前会话中的旧摘要代替当前文件。
+2. 执行 `git status --short`，识别并保护用户或其他 Agent 已有的未提交修改。
+3. 阅读与任务直接相关的源码、测试、类型、迁移和本文件指向的契约文档。
+4. 找到至少一个现有的相似实现和相似测试，优先延续项目已有模式。
+5. 明确本次任务的事实边界：源码、测试、打包 JAR、正在运行的 JVM、浏览器静态资源、OpenCode/模型状态是不同证据，禁止混为一谈。
+
+未完成以上步骤，不得开始写代码。
+
+### 开发结束前
+
+任何仓库更新完成前，Agent 必须：
+
+1. 为行为变化补充或更新自动化测试；不能测试时说明具体原因和未覆盖风险。
+2. 更新受影响的用户文档、架构契约或运维说明。
+3. **每次代码开发、修改、优化结束时都必须更新本 `AGENTS.md`**：
+   - 项目结构、命令、约束或契约有变化时，直接更新对应章节；
+   - 即使规则没有变化，也要更新“维护记录”，写明日期、范围、验证命令和 JAR 结果；
+   - 不得只更新维护记录而遗漏已经变化的正文。
+4. 运行与改动直接相关的聚焦测试，再运行完整验证和打包：
+
+   ```bash
+   ./scripts/verify.sh
+   ```
+
+5. 确认生成新的可执行 JAR：
+
+   ```bash
+   test -s target/opencode-loopper-0.1.1-SNAPSHOT.jar
+   jar tf target/opencode-loopper-0.1.1-SNAPSHOT.jar \
+     | rg 'BOOT-INF/classes/static/(index.html|assets/)'
+   shasum -a 256 target/opencode-loopper-0.1.1-SNAPSHOT.jar
+   ```
+
+6. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
+7. 最终交付必须明确报告：修改文件、验证命令及结果、新 JAR 路径与校验值、尚未执行的运行时验证和剩余限制。
+
+**“源码已改”“测试通过”“JAR 已生成”“端口 8080 正在运行新 JAR”“浏览器已加载新静态资源”是五个不同结论。** 未实际核验时不得宣称后一个结论。
+
+### 例外处理
+
+- 用户明确要求不运行测试/不打包时，遵从用户要求，但必须在最终交付中醒目标注未生成新 JAR。
+- 因环境、网络、依赖或已有用户改动导致完整验证失败时，不得伪造成功；先保留失败输出，尽可能运行安全的聚焦验证，并报告阻塞点。
+- 纯调查、解释或代码评审不授权修改文件，也不要求为只读任务打包；一旦实际修改仓库文件，就按上述交付流程执行。
+- 完整打包后仅回填本文件“维护记录”中的测试数、JAR 哈希和结果，不需要递归再次打包；该回填不改变可执行产物内容。
+- 不要为了满足打包要求擅自提交、推送、部署、重启服务或覆盖现有 JAR；这些是独立的外部状态变更，需要用户请求或任务明确授权。
+
+## 1. 项目目标与产品边界
+
+OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求转换为经人工确认的分阶段 `LoopSpec`，在受控工作区中驱动 OpenCode 实施，并通过确定性验证、独立 Requirement/Risk 双 Judge、恢复和发布流程形成可审计闭环。
+
+必须保持的产品边界：
+
+- Loopper、受管 OpenCode、MCP 和验证器网络访问默认只绑定或允许 loopback。
+- 服务端持久化状态是权威事实；前端不能制造队列、进度、用量、成本或模型输出。
+- Designer 只读；确认 LoopSpec 之前不得写业务源码、创建执行任务或假装交付完成。
+- 人工确认是不可跳过的边界：LoopSpec 确认、危险权限、成功任务发布、本地冲突写回都需要明确动作。
+- Loopper 不自动强推、不自动合并托管平台请求、不自动删除完成的 worktree。
+- Direct 模式直接写登记目录，但有独立租约、队列和私有基线；它不是较弱的“随便写”模式。
+- 本项目不是多租户远程执行平台，也不把模型推理内容或外部 Provider 状态伪造成 Loopper 生命周期。
+
+## 2. 技术栈和固定版本
+
+### 后端
+
+- Java 21；编译目标由 `pom.xml` 的 `maven.compiler.release=21` 固定。
+- Spring Boot 4.1.0、Spring WebMVC、Actuator、Bean Validation。
+- MyBatis 4.0.0、Flyway 12.0.0、SQLite JDBC 3.47.1.0。
+- Spring AI 2.0.0 Streamable HTTP MCP Server。
+- Playwright Java 1.62.0；产品 `BROWSER` 验证器只使用操作系统已安装的 Chrome/Chromium。
+
+### 前端
+
+- Vue 3.5、TypeScript 5.7、Vite 6、Pinia、Vue Router、Element Plus。
+- CodeMirror 用于代码/合并编辑，ECharts 用于洞察，Markdown-it + Mermaid + DOMPurify 用于安全文档渲染。
+- Vitest + Vue Test Utils；浏览器验收使用 Playwright。
+
+### 构建产物
+
+- Maven 项目版本：`0.1.1-SNAPSHOT`。
+- 正式产物：`target/opencode-loopper-0.1.1-SNAPSHOT.jar`。
+- Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
+- `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
+
+版本升级时必须同步检查并更新：
+
+- `pom.xml`；
+- `frontend/package.json`；
+- `README.md` 中的版本和命令；
+- `scripts/start-linux.sh` 中的 JAR 文件名；
+- `src/main/resources/application.yml` 中 MCP server version；
+- 本文件中的版本和产物路径。
+
+## 3. 项目结构地图
+
+```text
+.
+├── AGENTS.md                         # Agent 强制公约；每次代码任务结束更新
+├── README.md                         # 面向最终用户的安装、使用和运维说明
+├── pom.xml                           # Java/Maven、固定前端工具链和单 JAR 打包
+├── scripts/
+│   ├── dev.sh / dev.ps1              # 后端 + Vite 热开发
+│   ├── verify.sh                     # JDK 21 下的 clean verify 与正式打包
+│   └── start-linux.sh                # Linux/内网成品 JAR 启动
+├── docs/
+│   ├── architecture.md               # 权威架构、生命周期、错误和工作区边界
+│   ├── design-contract.md            # UI、Designer 和 Review Gate 合同
+│   ├── opencode-contract.md          # OpenCode HTTP、Session、MCP、权限契约
+│   └── seven-feature-contract.md     # Recovery、交互、验证器、洞察和自动化合同
+├── src/main/java/io/opencode/loopper/
+│   ├── api/                          # REST/MCP 接口、DTO、异常映射和认证过滤器
+│   ├── config/                       # 配置属性、数据目录、验证执行器
+│   ├── domain/                       # 持久化状态枚举、LoopSpec、错误语义
+│   ├── lifecycle/                    # 轻量状态机、转换策略和审计入口
+│   ├── persistence/                  # MyBatis Mapper 与数据库 Row
+│   ├── runtime/                      # OpenCode、进程、Git worktree/Direct 基线
+│   ├── service/                      # 编排、Designer、Recovery、发布、自动化
+│   ├── verification/                 # 确定性验证器与二进制证据
+│   └── web/                          # SPA fallback
+├── src/main/resources/
+│   ├── application.yml               # 运行配置、SQLite、OpenCode、MCP
+│   └── db/migration/                 # 只追加的 Flyway 迁移
+├── src/test/java/io/opencode/loopper/ # 后端单元/集成/契约测试
+└── frontend/
+    ├── src/api/                      # 类型化 API client
+    ├── src/components/               # 可复用状态、证据、冲突、评审组件
+    ├── src/views/                    # 路由页面
+    ├── src/stores/                   # Pinia 服务端状态投影
+    ├── src/types/                    # 前后端领域 DTO 类型
+    ├── src/utils/                    # 显示标签、时间、合并和输出工具
+    ├── src/styles/                   # 全局 token 与布局
+    ├── e2e/                          # Playwright 端到端测试
+    └── package-lock.json             # 必须保持可复现的 npm 依赖锁
+```
+
+## 4. 权威契约和阅读路由
+
+不要一次性加载所有文件。按任务类型先读本文件，再读下列最相关的契约与实现：
+
+| 任务类型 | 先读文档 | 重点源码 |
+| --- | --- | --- |
+| Task/Stage/Attempt/Session 状态 | `docs/architecture.md` | `domain/*State.java`、`domain/LifecycleEvent.java`、`lifecycle/`、`TaskService.java` |
+| Designer / LoopSpec / Review Gate | `docs/design-contract.md`、`docs/opencode-contract.md` | `DesignerSessionService.java`、`LoopDraftService.java`、`LoopSpec.java`、`DesignerView.vue` |
+| OpenCode Runtime / Session | `docs/opencode-contract.md` | `runtime/OpenCode*.java`、`TaskSessionMonitorService.java`、`RuntimeView.vue` |
+| 验证器 / Judge / 证据 | `docs/architecture.md`、`docs/seven-feature-contract.md` | `verification/`、`TaskVerificationDispatcher.java`、`TaskService.java` |
+| Git worktree / Direct / Recovery | `docs/architecture.md`、`docs/seven-feature-contract.md` | `GitWorktreeManager.java`、`DirectWorkspace*`、`RecoveryService.java` |
+| 发布 / 本地同步冲突 | `docs/architecture.md` | `TaskPublicationService.java`、`LocalSyncConflictService.java`、`TaskPublicationActions.vue`、`CodeMergeEditor.vue` |
+| Pending Center / 权限 | `docs/seven-feature-contract.md` | `InteractionService.java`、`InteractionController.java`、`InboxView.vue` |
+| 自动化 / 模板 | `docs/seven-feature-contract.md` | `AutomationService.java`、`LoopSpecTemplateService.java`、`AutomationsView.vue` |
+| 数据库变化 | 所有受影响契约 | `db/migration/`、`LoopperMapper.java`、对应集成测试 |
+| UI 视觉/状态 | `docs/design-contract.md` | 相似 `views/`、`components/`、`styles/tokens.css` 和 `.spec.ts` |
+| 打包/部署 | `README.md` | `pom.xml`、`application.yml`、`scripts/verify.sh`、`scripts/start-linux.sh` |
+
+文档与源码冲突时：
+
+1. 不要静默猜测。
+2. 先确认是否为文档陈旧、实现缺陷或未完成迁移。
+3. 涉及产品语义时向用户说明冲突和推荐选择。
+4. 完成决定后同时更新实现、测试和权威文档。
+
+## 5. 核心领域契约
+
+### 5.1 轻量状态机
+
+- Task、Stage、Attempt、Session、Designer Session、Judge、Interaction、Lease、Queue、Automation 等必须保持独立状态域，不得合并成一个巨型枚举或工作流。
+- 合法 `from + event -> to` 由项目内轻量状态机集中定义；不要引入 Spring Statemachine 或另一套工作流框架来绕过现有转换服务。
+- 新增内部状态或事件枚举时必须实现中文 `description()`，用于界面和诊断；数据库、审计和协议继续持久化稳定的 `Enum.name()`，不要把中文说明写入协议码。
+- 业务状态转换必须经过 `LifecycleTransitionService`/已有转换入口并产生审计记录。
+- 仅更新投影、内容、心跳或外部 Session 状态时使用无状态转换的 mutation 路径，不得伪造业务转换事件。
+- 使用现有 optimistic locking/version 规则；冲突应返回明确 409，不要最后写入覆盖并发变化。
+- Flyway V15 之前的数据没有伪造的创建事件；缺少早期 transition 不能被解释为实体从未变化。
+
+### 5.2 错误层级
+
+`ErrorLayer` 是公开持久化契约：
+
+- `FIELD`：输入或草稿校验，不改变运行状态。
+- `VERIFICATION`：当前 Attempt 验收失败，保留证据并在预算内继续循环。
+- `SESSION`：OpenCode Session 失败，关闭当前 Session/Attempt，安全确认后创建新 Session。
+- `TASK`：无法安全继续或预算耗尽，关闭所有子运行并进入 `FAILED`。
+
+Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级由编排器负责。终止 Task 不能伪造远端 Session 已停止：无法确认的写入者保留为 `DISCONNECTED`，并阻止重叠写入。
+
+### 5.3 Designer 和 LoopSpec
+
+- Designer 只能创建只读 OpenCode Session。
+- 可见 Markdown 与机器 LoopSpec 是不同内容：只显示清理后的 Markdown；只解析 `LOOPSPEC_JSON_START/END` 包裹的完整 JSON。
+- 只有完成、项目匹配、版本匹配且验证通过的 LoopSpec 才能同步到绑定草稿。
+- 无效 LoopSpec 最多进行项目规定次数的只读自动纠正；仍无效时保持未同步，不得创建 Task 或写源码。
+- Designer 合并在单个数组项中的 Maven 参数若能无歧义解析，应在同步时直接规范化并保存为独立 argv，不消耗自动纠正次数；只有引号未闭合等无法安全解析的输入才按无效 LoopSpec 回送纠正。
+- 人工确认必须是幂等边界；确认后创建唯一 Task，再由用户显式启动 `READY` Task。
+- 确认时冻结完整 Designer 设计为只读 `DESIGN_CONTEXT`；结构化 LoopSpec/verifier 合同优先级更高。
+- 非简单任务优先拆为 2–6 个依赖有序阶段；每阶段必须有聚焦、可立即执行的功能验收，不能把所有证明推迟到最后阶段。
+
+### 5.4 验证器与 Judge
+
+- `PROCESS.command` 是 argv 数组，直接调用程序；禁止 `sh -c`、`bash -c`、`cmd /c`、管道、重定向和 shell 插值。
+- Maven 参数兼容规范化只能进行确定性 token 拆分，不得启动 shell；新草稿保存规范化 argv，执行器还需兼容规范化历史草稿，并在证据中记录发生过拆分。
+- Stage 的 `allowedPaths` / `forbiddenPaths` 只是 Agent 提示；只有显式 `GIT_DIFF` 才是路径/删除的强验收门槛。
+- `GIT_DIFF` 只证明改动范围，不能作为一个阶段唯一的功能验证。
+- `FILE_EXISTS` 是兼容旧草稿的非阻断审计提示；不要为 Designer 新生成它。需要证明产物时，用会在缺失时非零退出的 `PROCESS` 自检，并可要求明确的 `outputContains` 标记。
+- `FILE_NOT_EXISTS` 只用于明确的安全不变量。
+- HTTP/JSON/BROWSER 只访问 loopback；BROWSER 不允许任意 JavaScript，必须保留截图和 trace 证据。
+- `DATABASE_QUERY` 只接受本地 SQLite 的只读单条 `SELECT`/`WITH`。
+- 外部进程、HTTP、浏览器和模型调用不能在 SQLite transaction 内执行。
+- 确定性验证成功与 Judge 成功是两套证据。Requirement 和 Risk Judge 都是独立只读 Session，必须明确 `PASS`。
+- `REVISE`、`BLOCKED`、Judge 冲突或 JSON 无法解析时进入人工处理/重新评审，不得丢弃已有确定性证据或伪造成功。
+
+### 5.5 工作区、租约与 Recovery
+
+- 有可用 Git HEAD：创建 `loopper/<taskId>` 和 `$LOOPPER_DATA_DIR/worktrees/<taskId>`。
+- 无可用 Git HEAD：直接使用登记根目录，并在 `direct-baselines/<taskId>` 保存私有 Git-compatible 基线；不得在用户项目中隐式初始化或提交 Git。
+- 所有路径 canonicalize 后进行 containment 和符号链接检查。
+- 同一 Direct root 同时只能有一个未释放写租约；旧写入者状态未知时保持租约并阻断 Recovery/Automation。
+- Recovery 仅从 `FAILED`/`CANCELLED` 派生，模式为 `FROM_FAILED_STAGE`、`ALL_STAGES` 或 `VERIFY_ONLY`。
+- `VERIFY_ONLY` 不创建可写 Session；Direct 模式不提供原地回滚。
+- fingerprint、baseline 或旧 writer 不匹配时必须 fail closed。
+
+### 5.6 发布与历史删除
+
+- 自动发布只面向 `SUCCEEDED` 的隔离 Git 任务；Direct 任务由用户在源仓库手工处理。
+- 用户必须提供四位数字工单号；提交格式为 `#dddd_subject`。AI 只能建议 subject，不能生成或替代工单号。
+- 推送必须是普通非 force push；PR/MR 只打开预填创建页，最终创建和合并仍由平台/用户确认。
+- 没有远端时走受控本地同步：比较任务 baseline、当前源项目和任务版本，写回前重新检查 source SHA/HEAD。
+- 同步冲突 UI 固定表达为 **源项目 | 合并结果 | 任务版本**；允许逐冲突选择、手工编辑和非自动采用的 AI 建议。
+- 应用冲突方案前再次明确确认，按原 LoopSpec 验证；任何写入或验证失败必须回滚本次涉及路径并保留证据。
+- 删除历史任务是终止操作：只允许已归档且终止的任务，需要二次确认，父任务仍有子 Recovery 时拒绝。
+- 历史记录删除不得删除源文件、Git 分支或 worktree。
+
+## 6. 后端开发约定
+
+- API Controller 只做输入/输出边界、校验和 DTO 映射；业务编排留在 `service/`。
+- 领域状态使用现有枚举和 typed failure；不要用散落字符串复制状态语义。
+- `TaskService` 负责 OpenCode、验证器、Judge 等副作用编排；状态机只决定合法转换，不承载外部 I/O。
+- 新 API 必须考虑：输入校验、local UI/MCP 授权、幂等、乐观锁、Problem Detail/明确错误码、终态重入。
+- MyBatis Mapper 方法应明确行数预期。状态更新和普通字段 mutation 分开，不能用同一 SQL 偷改状态。
+- 不得在持有数据库事务时等待模型、进程、网络、浏览器或长时间文件操作。
+- 所有外部命令使用参数数组；不要拼接未验证路径或用户内容到 shell。
+- 时间、超时、重试和最大输出必须有界，重启恢复必须能处理提交后的中间空档。
+- Secret 只来自进程环境/内存，不写入 SQLite、日志、artifact 或测试快照。
+
+### 数据库迁移
+
+- 已存在的 `V1`–`V17` 迁移视为不可变历史，禁止修改。
+- Schema 变化新增下一序号迁移；必须同时验证全新数据库和至少一个受支持旧版本升级路径。
+- SQLite 外键级联不能只靠假设；活动连接必须明确启用，终止删除路径仍要按依赖顺序显式清理并验证事务回滚。
+- 数据库枚举码、artifact kind、错误码和 audit event 是兼容性契约；修改前先搜索所有 Java、SQL、前端 type/label 和测试消费者。
+
+## 7. 前端开发约定
+
+- TypeScript 类型以 `frontend/src/types/domain.ts` 为边界，API 变更必须同步 DTO、client、store、view 和测试。
+- 服务端是权威状态；不要用计时器伪造阶段进度、用量、成本、Session 完成或 Judge 结果。
+- 所有等待、问题、权限、可恢复错误和终止错误都必须真实可见，并提供可执行的恢复动作；不要永久显示含糊的“待评审”。
+- 使用 `displayLabels.ts` 和现有 `StatusBadge`/错误组件表达中文含义；不要在多个页面复制英文枚举到中文的映射。
+- 遵循 `docs/design-contract.md` 的 dark-first token、错误层级和桌面优先结构；优先复用 `styles/tokens.css`，不要引入页面私有的另一套视觉系统。
+- Markdown 必须经过 DOMPurify；Mermaid 错误必须抑制并清理渲染残留，不允许把原始不可信 HTML 插入 DOM。
+- 冲突、代码、JSON 等编辑器优先复用 CodeMirror 组件和现有语言映射。
+- 交互写操作要有 loading、错误、幂等/版本冲突处理；破坏性操作必须明确确认。
+- 每个行为变化都在相邻 `.spec.ts` 中增加回归测试；路由级关键流程再考虑 `frontend/e2e/`。
+- UI 图标必须使用项目已打包的 Iconify/Lucide 资源，不依赖外网 CDN。
+
+## 8. 测试与验证策略
+
+### 聚焦验证
+
+先运行最接近变更的测试，以快速定位错误。示例：
+
+```bash
+# 单个后端测试类
+./mvnw -Dtest=TaskServiceIntegrationTest test
+
+# 单个前端测试文件
+npm --prefix frontend run test -- src/views/TaskDetailView.spec.ts
+
+# 前端类型与构建
+npm --prefix frontend run typecheck
+npm --prefix frontend run build
+```
+
+测试名称和命令必须来自当前仓库，不能凭记忆杜撰。遇到失败只摘取与根因相关的错误继续诊断，不用大段无关日志淹没上下文。
+
+### 完整验证和 JAR
+
+每次实际仓库更新的最终门槛：
+
+```bash
+./scripts/verify.sh
+```
+
+该命令执行 `./mvnw clean verify`。不能用以下结果替代：
+
+- 只运行 Java 单测；
+- 只运行 Vitest；
+- 只执行 `npm run build`；
+- 复用之前生成的 JAR；
+- 看到 `target/` 已存在就推断当前源码已打包。
+
+完整命令成功后必须检查：
+
+```bash
+JAR=target/opencode-loopper-0.1.1-SNAPSHOT.jar
+test -s "$JAR"
+jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
+jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
+shasum -a 256 "$JAR"
+```
+
+若变更涉及 Flyway、静态资源、Linux、Chrome 或 OpenCode 兼容性，应增加对应的启动/运行时验收，不能仅依赖 Maven 成功。
+
+### 运行时验收
+
+仅在任务授权启动或重启服务时执行。启动前先识别端口所有者，避免停止另一个 worktree/项目：
+
+```bash
+lsof -nP -iTCP:8080 -sTCP:LISTEN
+ps -p <PID> -o pid=,ppid=,cwd=,command=
+```
+
+启动/替换后至少核对：
+
+```bash
+curl --fail http://127.0.0.1:8080/actuator/health
+```
+
+前端变更还要证明实际 JVM 中的 JAR/静态资源是新版本；必要时检查 PID、cwd、JAR 时间/哈希、包内 asset 名和浏览器网络资源。浏览器看起来更新不能反推新 JAR 已部署。
+
+## 9. 文档同步规则
+
+| 变化 | 必须同步 |
+| --- | --- |
+| 面向用户的功能、安装、配置、页面或故障排查 | `README.md` |
+| 架构、生命周期、错误、事务、工作区或发布不变量 | `docs/architecture.md` |
+| Designer、Review Gate、视觉状态、交互语义 | `docs/design-contract.md` |
+| OpenCode API、Session、权限或 MCP | `docs/opencode-contract.md` |
+| Recovery、Interaction、Verifier、Insight、Automation | `docs/seven-feature-contract.md` |
+| Agent 命令、目录、开发规则、关键陷阱、完成定义 | `AGENTS.md` |
+| 版本/JAR 名称 | README、AGENTS、POM、前端 package、Linux 脚本、application.yml |
+
+更新文档时只写已经实现并验证的事实。计划、建议和未验证运行时结果必须清楚标注，不得写成现有能力。
+
+## 10. Git、文件和协作安全
+
+- 默认只修改用户明确要求的范围；不要顺手重构无关代码。
+- 工作区可能不干净。现有修改属于用户，除非有明确证据，否则不得恢复、覆盖、格式化或纳入本任务。
+- 禁止使用 `git reset --hard`、`git checkout -- <file>`、递归删除工作区或其他不可恢复操作。
+- 不要手工编辑 `target/`、`frontend/dist/`、`frontend/node_modules/`、SQLite 数据库或 Flyway 已执行迁移来“修复”源码问题。
+- 不创建提交、不切分支、不推送、不创建 PR/MR，除非用户明确要求。
+- 不自动删除 worktree、分支、运行数据或历史证据。
+- 修改前阅读文件，修改后检查 diff；批量格式化只能覆盖本任务文件。
+- 若用户修改与当前文件重叠，先停下说明冲突；能避开时保留用户修改继续。
+
+## 11. Agent 完成定义
+
+一次代码任务只有满足以下条件才算完成：
+
+- [ ] 开始前完整阅读当前 `AGENTS.md`。
+- [ ] 读取 `git status --short` 并保护已有修改。
+- [ ] 阅读相关契约、源码、测试和相似实现。
+- [ ] 实现范围与用户目标一致，没有无关重构。
+- [ ] 行为变化有自动化测试或明确的不可测边界。
+- [ ] 相关 README/docs 已同步。
+- [ ] 本 `AGENTS.md` 正文和维护记录已同步。
+- [ ] 聚焦测试通过。
+- [ ] `./scripts/verify.sh` 完成并生成新的可执行 JAR。
+- [ ] JAR 包含当前 Vue 静态资源，并记录新的 SHA-256。
+- [ ] `git diff --check` 通过，`git status` 中没有意外文件。
+- [ ] 如声称运行时有效，已核对真实 PID/cwd/JAR/health/浏览器证据。
+- [ ] 最终回复列出文件、验证、JAR、运行时边界和剩余风险。
+
+## 12. 维护记录
+
+本表必须由每次实际修改代码的 Agent 在结束前追加或更新。保持简短；详细证据放在任务回复或对应契约文档中。
+
+| 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
+| --- | --- | --- | --- |
+| 2026-08-10 | 初始化根目录 Agent 公约 | 新增强制预读、结束更新、完整验证、单 JAR 打包和项目契约地图 | `./scripts/verify.sh`：Java 222/222、Vitest 114/114，BUILD SUCCESS；JAR 262557087 bytes，SHA-256 `84e40ee48a61a985877ec2d06cd49144e043327f9f4db805adc55065f0986dcf` |
+| 2026-08-10 | Maven PROCESS 参数容错规范化 | 明确可解析的合并 Maven 参数直接规范化，只有无法安全解析时才触发 Designer 自动纠正；同步 README、Designer/OpenCode 合同 | `./scripts/verify.sh`：Java 225/225、Vitest 114/114，BUILD SUCCESS；JAR 262561953 bytes，SHA-256 `761515a69dc8792433e157ca15b04b05e26a2d359d55c4650a601db61372694c` |

@@ -85,8 +85,14 @@ public class VerifierEngine {
     }
 
     private VerifierOutcome process(Path worktree, VerifierSpec spec, Duration timeout) {
-        requireDirectExecutable(spec.command());
-        List<String> declaredCommand = List.copyOf(spec.command());
+        List<String> originalCommand = List.copyOf(spec.command());
+        ProcessCommandPolicy.Normalization normalization = ProcessCommandPolicy.normalizeMavenCommand(originalCommand);
+        if (normalization.failure() != null) {
+            throw new TaskFailure("VERIFIER_COMMAND_INVALID",
+                    "PROCESS command[" + normalization.failure().index() + "]: " + normalization.failure().message());
+        }
+        List<String> declaredCommand = normalization.command();
+        requireDirectExecutable(declaredCommand);
         ResolvedProcessCommand resolved = resolveProcessCommand(worktree, declaredCommand);
         ProcessResult result;
         try {
@@ -111,8 +117,12 @@ public class VerifierEngine {
                 : "Process exited 0";
         Map<String, Object> evidence = new LinkedHashMap<>();
         evidence.put("argv", resolved.argv());
+        if (normalization.changed()) {
+            evidence.put("declaredArgv", originalCommand);
+            evidence.put("commandNormalization", "MAVEN_ARGUMENTS_SPLIT");
+        }
         if (resolved.fallback()) {
-            evidence.put("declaredArgv", declaredCommand);
+            evidence.putIfAbsent("declaredArgv", declaredCommand);
             evidence.put("commandResolution", resolved.reason());
         }
         evidence.put("exitCode", result.exitCode());
@@ -181,10 +191,6 @@ public class VerifierEngine {
         if (command == null || command.isEmpty()) {
             throw new TaskFailure("VERIFIER_COMMAND_INVALID", "PROCESS verifier requires a non-empty argv array");
         }
-        ProcessCommandPolicy.collapsedMavenArgument(command).ifPresent(issue -> {
-            throw new TaskFailure("VERIFIER_COMMAND_INVALID",
-                    "PROCESS command[" + issue.index() + "]: " + issue.message());
-        });
         String executable;
         try { executable = Path.of(command.getFirst()).getFileName().toString().toLowerCase(Locale.ROOT); }
         catch (RuntimeException invalidPath) {

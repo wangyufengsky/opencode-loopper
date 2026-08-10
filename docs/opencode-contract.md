@@ -50,8 +50,10 @@ requires a final JSON payload between `LOOPSPEC_JSON_START` and
 `LOOPSPEC_JSON_END`. After `sessionOutput`, Loopper parses and validates the
 payload, updates the bound draft using optimistic locking, strips the machine
 payload from the visible Markdown, and only then transitions the Session to
-`COMPLETED`. Missing, invalid, mismatched, or concurrently changed payloads
-produce `SESSION_ERROR`; they are never treated as a completed design.
+`COMPLETED`. Missing, invalid, mismatched, or concurrently changed payloads are
+returned to the same read-only Designer for at most two document-correction
+turns. Exhausted correction attempts produce `SESSION_ERROR`; rejected output
+is never treated as a completed design and never creates a Task.
 
 The MCP `propose_loop_spec` tool uses the same session-bound update path. It no
 longer creates an unrelated draft, so an external MCP client and the built-in
@@ -85,6 +87,9 @@ assertion over bounded process output. `GIT_DIFF` remains an opt-in scope
 verifier and cannot be the only verifier of a confirmation-ready stage. Drafts
 start without an implicit path verifier; Designer synchronization, manual save,
 MCP validation, and human confirmation require functional acceptance checks.
+High-confidence Maven arguments accidentally combined into one array item are
+tokenized without a shell and persisted as canonical argv. Only a Maven command
+whose token boundary cannot be parsed safely is rejected for Designer repair.
 
 ## Runtime ownership and permissions
 

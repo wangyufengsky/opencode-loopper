@@ -107,7 +107,7 @@ public class LoopDraftService {
         catch (JacksonException e) { throw new BadRequestException("LOOPSPEC_INVALID", "Stored LoopSpec cannot be read: " + e.getMessage()); }
     }
     private String write(LoopSpec spec) {
-        try { return json.writeValueAsString(spec); }
+        try { return json.writeValueAsString(normalizeProcessCommands(spec)); }
         catch (JacksonException e) { throw new BadRequestException("LOOPSPEC_INVALID", e.getMessage()); }
     }
 
@@ -138,8 +138,12 @@ public class LoopDraftService {
                     errors.add(path + ".command: PROCESS requires a direct argv command");
                 }
                 if ("PROCESS".equals(type)) {
-                    ProcessCommandPolicy.collapsedMavenArgument(verifier.command()).ifPresent(issue ->
-                            errors.add(path + ".command[" + issue.index() + "]: " + issue.message()));
+                    ProcessCommandPolicy.Normalization normalization =
+                            ProcessCommandPolicy.normalizeMavenCommand(verifier.command());
+                    if (normalization.failure() != null) {
+                        errors.add(path + ".command[" + normalization.failure().index() + "]: "
+                                + normalization.failure().message());
+                    }
                 }
                 if (requireExecutableAcceptance && "PROCESS".equals(type) && !verifier.command().isEmpty()
                         && "./mvnw".equals(verifier.command().getFirst())) {
@@ -197,6 +201,44 @@ public class LoopDraftService {
             }
         }
         return List.copyOf(errors);
+    }
+
+    private LoopSpec normalizeProcessCommands(LoopSpec spec) {
+        boolean changed = false;
+        List<LoopSpec.StageSpec> stages = new ArrayList<>();
+        for (LoopSpec.StageSpec stage : spec.stages()) {
+            List<LoopSpec.VerifierSpec> verifiers = new ArrayList<>();
+            boolean stageChanged = false;
+            for (LoopSpec.VerifierSpec verifier : stage.verifiers()) {
+                ProcessCommandPolicy.Normalization normalization = "PROCESS".equals(verifier.type())
+                        ? ProcessCommandPolicy.normalizeMavenCommand(verifier.command())
+                        : new ProcessCommandPolicy.Normalization(verifier.command(), null, false);
+                if (normalization.changed() && normalization.failure() == null) {
+                    verifiers.add(withCommand(verifier, normalization.command()));
+                    stageChanged = true;
+                } else {
+                    verifiers.add(verifier);
+                }
+            }
+            if (stageChanged) {
+                stages.add(new LoopSpec.StageSpec(stage.objective(), stage.allowedPaths(), stage.forbiddenPaths(),
+                        stage.deliverables(), verifiers));
+                changed = true;
+            } else {
+                stages.add(stage);
+            }
+        }
+        if (!changed) return spec;
+        return new LoopSpec(spec.schemaVersion(), spec.projectId(), spec.goal(), spec.context(), stages,
+                spec.limits(), spec.model(), spec.sessionPolicy(), spec.nextAttemptPromptTemplate(), spec.budget());
+    }
+
+    private LoopSpec.VerifierSpec withCommand(LoopSpec.VerifierSpec verifier, List<String> command) {
+        return new LoopSpec.VerifierSpec(verifier.type(), command, verifier.path(), verifier.requireChanges(),
+                verifier.allowedPaths(), verifier.forbiddenPaths(), verifier.forbidDeletes(), verifier.outputContains(),
+                verifier.url(), verifier.httpMethod(), verifier.expectedStatus(), verifier.jsonPath(),
+                verifier.expectedValue(), verifier.matchMode(), verifier.expectedContent(), verifier.expectedSha256(),
+                verifier.sql(), verifier.expectedRowCount(), verifier.assertions());
     }
 
     private void reject(List<String> errors) {
