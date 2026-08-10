@@ -3,7 +3,8 @@ import { computed, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { api } from '@/api/client'
-import type { Task, TaskPublicationStatus } from '@/types/domain'
+import CodeMergeEditor from './CodeMergeEditor.vue'
+import type { LocalSyncConflictContent, LocalSyncConflictFile, LocalSyncConflictSession, LocalSyncResolution, Task, TaskPublicationStatus } from '@/types/domain'
 
 const props = withDefaults(defineProps<{ task: Task; demo?: boolean }>(), { demo: false })
 const publication = ref<TaskPublicationStatus>()
@@ -17,23 +18,36 @@ const commitError = ref('')
 const mergeDialogOpen = ref(false)
 const mergeError = ref('')
 const mergeForm = ref({ targetBranch: '', title: '', description: '' })
+const conflictDialogOpen = ref(false)
+const conflictSession = ref<LocalSyncConflictSession>()
+const conflictFiles = ref<LocalSyncConflictFile[]>([])
+const selectedConflictPath = ref('')
+const conflictContent = ref<LocalSyncConflictContent>()
+const mergeContent = ref('')
+const conflictLoading = ref(false)
+const conflictSaving = ref(false)
+const conflictError = ref('')
+const aiLoading = ref(false)
 
 const commitPreview = computed(() => `#${ticketNumber.value || '0000'}_${commitSubject.value.trim() || 'AI 生成提交信息'}`)
 const commitValid = computed(() => /^\d{4}$/.test(ticketNumber.value) && commitSubject.value.trim().length > 0 && commitPreview.value.length <= 126)
 const providerLabel = computed(() => publication.value?.provider === 'GITHUB' ? 'GitHub Pull Request' : 'GitLab Merge Request')
 const localPublication = computed(() => Boolean(publication.value && !publication.value.remoteName))
+const canApplyConflict = computed(() => Boolean(conflictSession.value
+  && ['READY', 'ROLLED_BACK'].includes(conflictSession.value.state)
+  && conflictSession.value.resolvedCount === conflictSession.value.conflictCount))
 
 async function loadPublication() {
   if (props.task.status !== 'SUCCEEDED') return
   if (props.demo) {
-    publication.value = { state: 'READY', available: true, branch: props.task.branch, remoteName: 'origin', targetBranch: 'main', targetBranches: ['main'], provider: 'GITLAB', hasChanges: true }
+    publication.value = { state: 'READY', available: true, branch: props.task.branch, remoteName: 'origin', targetBranch: 'main', targetBranches: ['main'], provider: 'GITLAB', hasChanges: true, conflictCount: 0, resolvedCount: 0 }
     return
   }
   loading.value = true
   try {
     publication.value = await api.getTaskPublication(props.task.id)
   } catch (cause) {
-    publication.value = { state: 'UNAVAILABLE', available: false, reason: cause instanceof Error ? cause.message : '无法读取任务发布状态', targetBranches: [], provider: 'UNKNOWN', hasChanges: false }
+    publication.value = { state: 'UNAVAILABLE', available: false, reason: cause instanceof Error ? cause.message : '无法读取任务发布状态', targetBranches: [], provider: 'UNKNOWN', hasChanges: false, conflictCount: 0, resolvedCount: 0 }
   } finally {
     loading.value = false
   }
@@ -90,7 +104,11 @@ async function submitCommit() {
       publication.value = await api.publishTask(props.task.id, commitPreview.value)
     }
     commitDialogOpen.value = false
-    ElMessage.success(localPublication.value ? '任务变更已同步到源项目' : '任务变更已提交并推送')
+    if (publication.value.state === 'LOCAL_SYNC_CONFLICT') {
+      await openConflictCenter()
+    } else {
+      ElMessage.success(localPublication.value ? '任务变更已同步到源项目' : '任务变更已提交并推送')
+    }
   } catch (cause) {
     commitError.value = cause instanceof Error ? cause.message : '提交或推送失败'
     await loadPublication()
@@ -113,7 +131,8 @@ async function retryPublication() {
   operationLoading.value = true
   try {
     publication.value = props.demo ? { ...(publication.value as TaskPublicationStatus), state: 'PUSHED' } : await api.publishTask(props.task.id)
-    ElMessage.success(local ? '任务变更已同步到源项目' : '任务分支已推送')
+    if (publication.value.state === 'LOCAL_SYNC_CONFLICT') await openConflictCenter()
+    else ElMessage.success(local ? '任务变更已同步到源项目' : '任务分支已推送')
   } catch (cause) {
     ElMessage.error(cause instanceof Error ? cause.message : local ? '同步失败' : '推送失败')
     await loadPublication()
@@ -132,6 +151,142 @@ function openMergeDialog() {
     description: `## 任务目标\n\n${props.task.goal}\n\n## 来源\n\nOpenCode Loopper 任务 ${props.task.id}`,
   }
   mergeDialogOpen.value = true
+}
+
+async function openConflictCenter() {
+  conflictDialogOpen.value = true
+  conflictError.value = ''
+  conflictLoading.value = true
+  try {
+    const sessionId = publication.value?.conflictSessionId
+    conflictSession.value = sessionId
+      ? await api.getLocalSyncConflictSession(props.task.id, sessionId)
+      : await api.createLocalSyncConflictSession(props.task.id)
+    await loadConflictFiles()
+  } catch (cause) {
+    conflictError.value = cause instanceof Error ? cause.message : '无法载入同步冲突会话'
+  } finally {
+    conflictLoading.value = false
+  }
+}
+
+async function loadConflictFiles(preferredPath?: string) {
+  const session = conflictSession.value
+  if (!session) return
+  conflictFiles.value = await api.getLocalSyncConflictFiles(props.task.id, session.id)
+  const path = preferredPath && conflictFiles.value.some((file) => file.path === preferredPath)
+    ? preferredPath : conflictFiles.value[0]?.path
+  if (path) await selectConflictFile(path)
+}
+
+async function selectConflictFile(path: string) {
+  const session = conflictSession.value
+  if (!session) return
+  selectedConflictPath.value = path
+  conflictError.value = ''
+  conflictContent.value = await api.getLocalSyncConflictContent(props.task.id, session.id, path)
+  mergeContent.value = conflictContent.value.mergedContent ?? conflictContent.value.sourceContent ?? ''
+}
+
+async function reloadConflictSession() {
+  if (!conflictSession.value) return
+  conflictSession.value = await api.getLocalSyncConflictSession(props.task.id, conflictSession.value.id)
+}
+
+async function saveResolution(resolution: Exclude<LocalSyncResolution, 'AUTO'>) {
+  const session = conflictSession.value
+  const content = conflictContent.value
+  if (!session || !content) return
+  conflictSaving.value = true
+  conflictError.value = ''
+  try {
+    conflictContent.value = await api.saveLocalSyncResolution(props.task.id, session.id, {
+      path: content.path, resolution, expectedVersion: content.version,
+      ...(resolution === 'MANUAL' ? { content: mergeContent.value } : {}),
+    })
+    await reloadConflictSession()
+    await loadConflictFiles(content.path)
+    ElMessage.success(resolution === 'MANUAL' ? '手工合并方案已保存' : '解决方式已保存')
+  } catch (cause) {
+    conflictError.value = cause instanceof Error ? cause.message : '保存解决方案失败'
+  } finally {
+    conflictSaving.value = false
+  }
+}
+
+async function requestAiSuggestion() {
+  const session = conflictSession.value
+  const content = conflictContent.value
+  if (!session || !content) return
+  try {
+    await ElMessageBox.confirm(
+      '将把此文件受限大小的 Base、源项目、任务内容和任务目标发送给当前 OpenCode 模型。建议不会自动选中或应用。',
+      '发送单文件内容给当前模型？',
+      { type: 'warning', confirmButtonText: '请求 AI 建议', cancelButtonText: '取消' },
+    )
+  } catch { return }
+  aiLoading.value = true
+  conflictError.value = ''
+  try {
+    const suggestion = await api.suggestLocalSyncResolution(props.task.id, session.id, { path: content.path, expectedVersion: content.version })
+    conflictContent.value = { ...content, aiSuggestion: suggestion.suggestion, version: suggestion.version }
+    const file = conflictFiles.value.find((candidate) => candidate.path === content.path)
+    if (file) { file.hasAiSuggestion = true; file.version = suggestion.version }
+  } catch (cause) {
+    conflictError.value = cause instanceof Error ? cause.message : 'AI 建议生成失败'
+  } finally {
+    aiLoading.value = false
+  }
+}
+
+function loadAiIntoEditor() {
+  if (!conflictContent.value?.aiSuggestion) return
+  mergeContent.value = conflictContent.value.aiSuggestion
+  ElMessage.info('AI 建议已载入编辑器，尚未保存或采用')
+}
+
+async function refreshConflictSession() {
+  conflictLoading.value = true
+  conflictError.value = ''
+  try {
+    conflictSession.value = await api.createLocalSyncConflictSession(props.task.id)
+    publication.value = { ...(publication.value as TaskPublicationStatus), conflictSessionId: conflictSession.value.id,
+      conflictCount: conflictSession.value.conflictCount, resolvedCount: conflictSession.value.resolvedCount }
+    await loadConflictFiles()
+  } catch (cause) {
+    conflictError.value = cause instanceof Error ? cause.message : '刷新冲突会话失败'
+  } finally {
+    conflictLoading.value = false
+  }
+}
+
+async function applyConflictSession() {
+  const session = conflictSession.value
+  if (!session || session.resolvedCount !== session.conflictCount) return
+  try {
+    await ElMessageBox.confirm(
+      `将把 ${session.conflictCount} 个任务差异文件写入源项目（HEAD ${session.sourceHead.slice(0, 10)}），按原 LoopSpec 顺序验证；任何写入或验证失败都会自动恢复全部任务路径。`,
+      '确认合并并同步？',
+      { type: 'warning', confirmButtonText: '确认合并并同步', cancelButtonText: '继续检查' },
+    )
+  } catch { return }
+  conflictSaving.value = true
+  conflictError.value = ''
+  try {
+    conflictSession.value = await api.applyLocalSyncConflict(props.task.id, session.id, { confirmed: true, expectedVersion: session.version })
+    if (conflictSession.value.state === 'APPLIED') {
+      conflictDialogOpen.value = false
+      await loadPublication()
+      ElMessage.success('冲突方案已验证并同步到源项目')
+    } else {
+      conflictError.value = conflictSession.value.errorMessage ?? '同步未完成'
+    }
+  } catch (cause) {
+    conflictError.value = cause instanceof Error ? cause.message : '应用冲突方案失败'
+    await reloadConflictSession().catch(() => undefined)
+  } finally {
+    conflictSaving.value = false
+  }
 }
 
 async function createMergeRequest() {
@@ -164,6 +319,7 @@ async function createMergeRequest() {
     <el-button v-if="loading || !publication" plain disabled :loading="loading">读取提交状态</el-button>
     <el-button v-else-if="publication.state === 'READY'" type="success" :loading="operationLoading" @click="openCommitDialog"><Icon :icon="localPublication ? 'lucide:folder-sync' : 'lucide:git-commit-horizontal'" />{{ localPublication ? '同步源代码' : '提交' }}</el-button>
     <el-button v-else-if="publication.state === 'COMMITTED'" type="warning" :loading="operationLoading" @click="retryPublication"><Icon :icon="localPublication ? 'lucide:folder-sync' : 'lucide:cloud-upload'" />{{ localPublication ? '继续同步源代码' : '继续推送' }}</el-button>
+    <el-button v-else-if="publication.state === 'LOCAL_SYNC_CONFLICT'" type="danger" plain @click="openConflictCenter"><Icon icon="lucide:git-merge" />解决同步冲突（{{ publication.conflictCount }}）</el-button>
     <el-button v-else-if="publication.state === 'SYNCED_LOCAL'" type="success" plain disabled><Icon icon="lucide:circle-check" />已同步源代码</el-button>
     <el-dropdown v-else-if="publication.state === 'PUSHED'" trigger="click" @command="openMergeDialog">
       <el-button type="primary"><Icon icon="lucide:git-merge" />合并分支<Icon icon="lucide:chevron-down" /></el-button>
@@ -201,6 +357,66 @@ async function createMergeRequest() {
     </el-form>
     <template #footer><el-button :disabled="operationLoading" @click="mergeDialogOpen = false">取消</el-button><el-button type="primary" :loading="operationLoading" @click="createMergeRequest">前往创建合并请求</el-button></template>
   </el-dialog>
+
+  <el-dialog v-model="conflictDialogOpen" class="local-sync-dialog" title="本地源代码同步冲突解决中心" width="min(1500px, 96vw)" append-to-body :close-on-click-modal="false" destroy-on-close>
+    <div v-if="conflictSession" class="conflict-session-bar">
+      <span><Icon icon="lucide:folder-git-2" />{{ conflictSession.sourceRoot }}</span>
+      <code>source HEAD {{ conflictSession.sourceHead.slice(0, 12) }}</code>
+      <strong>{{ conflictSession.resolvedCount }} / {{ conflictSession.conflictCount }} 已解决</strong>
+    </div>
+    <div v-if="conflictSession?.state === 'STALE'" class="conflict-state danger">
+      <Icon icon="lucide:refresh-cw" /><span>源项目已变化，会话已过期。刷新后会重新计算三方内容，旧方案不会写入。</span>
+      <el-button size="small" type="warning" :loading="conflictLoading" @click="refreshConflictSession">刷新预检</el-button>
+    </div>
+    <div v-else-if="conflictSession?.state === 'ROLLED_BACK'" class="conflict-state danger"><Icon icon="lucide:undo-2" /><span>上次验证或写入失败，全部任务路径已自动恢复。解决方案仍保留，可编辑后重试。</span></div>
+    <div v-else-if="conflictSession?.state === 'ROLLBACK_FAILED'" class="conflict-state danger"><Icon icon="lucide:triangle-alert" /><span>自动恢复失败，未标记同步成功。备份：{{ conflictSession.backupDir }}</span></div>
+    <div v-else-if="conflictSession?.state === 'APPLYING' || conflictSession?.state === 'VERIFYING'" class="conflict-state"><Icon icon="lucide:loader-circle" class="spin" /><span>{{ conflictSession.state === 'APPLYING' ? '正在原子写入源项目' : '正在按 LoopSpec 验证，失败会自动恢复' }}</span></div>
+
+    <div v-loading="conflictLoading" class="conflict-workbench">
+      <aside class="conflict-files">
+        <button v-for="file in conflictFiles" :key="file.path" type="button" :class="{ active: file.path === selectedConflictPath }" @click="selectConflictFile(file.path)">
+          <Icon :icon="file.resolved ? 'lucide:circle-check' : 'lucide:circle-alert'" />
+          <span><code>{{ file.path }}</code><small>{{ file.changeType }} · {{ file.contentType }}<template v-if="file.resolution"> · {{ file.resolution }}</template></small></span>
+        </button>
+      </aside>
+      <section v-if="conflictContent" class="conflict-detail">
+        <div class="resolution-toolbar">
+          <div>
+            <el-button size="small" :type="conflictContent.resolution === 'SOURCE' ? 'primary' : 'default'" :loading="conflictSaving" @click="saveResolution('SOURCE')">采用源项目</el-button>
+            <el-button size="small" :type="conflictContent.resolution === 'TASK' ? 'primary' : 'default'" :loading="conflictSaving" @click="saveResolution('TASK')">采用任务</el-button>
+            <el-button v-if="conflictContent.contentType === 'TEXT'" size="small" :type="conflictContent.resolution === 'MANUAL' ? 'success' : 'default'" :loading="conflictSaving" @click="saveResolution('MANUAL')">保存手工合并</el-button>
+          </div>
+          <el-button v-if="conflictContent.aiEligible" size="small" type="warning" plain :loading="aiLoading" @click="requestAiSuggestion"><Icon icon="lucide:sparkles" />AI 建议（内容将外发）</el-button>
+        </div>
+        <template v-if="conflictContent.contentType === 'TEXT'">
+          <div class="merge-grid">
+            <article><header>Base <code>{{ conflictContent.baseHash.slice(0, 10) }}</code></header><CodeMergeEditor :model-value="conflictContent.baseContent ?? '（文件不存在）'" readonly aria-label="Base 内容" /></article>
+            <article><header>源项目 <code>{{ conflictContent.sourceHash.slice(0, 10) }}</code></header><CodeMergeEditor :model-value="conflictContent.sourceContent ?? '（文件不存在）'" readonly aria-label="源项目内容" /></article>
+            <article><header>任务 <code>{{ conflictContent.taskHash.slice(0, 10) }}</code></header><CodeMergeEditor :model-value="conflictContent.taskContent ?? '（文件不存在）'" readonly aria-label="任务内容" /></article>
+            <article class="merge-result"><header>合并结果 <span>手工修改后需保存</span></header><CodeMergeEditor v-model="mergeContent" aria-label="合并结果编辑器" /></article>
+          </div>
+          <div v-if="conflictContent.aiSuggestion !== undefined" class="ai-suggestion">
+            <div><strong>AI 建议（尚未采用）</strong><span>必须载入编辑器、复核并保存手工合并后才会生效。</span></div>
+            <el-button size="small" @click="loadAiIntoEditor">载入编辑器</el-button>
+            <pre>{{ conflictContent.aiSuggestion }}</pre>
+          </div>
+        </template>
+        <div v-else class="non-text-resolution">
+          <Icon icon="lucide:file-warning" />
+          <strong>{{ conflictContent.contentType === 'BINARY' ? '二进制文件' : '超大文本文件' }}不在浏览器中打开</strong>
+          <p>只能选择源项目或任务版本；哈希会在应用前重新核对。</p>
+          <code>BASE {{ conflictContent.baseHash }}</code><code>SOURCE {{ conflictContent.sourceHash }}</code><code>TASK {{ conflictContent.taskHash }}</code>
+        </div>
+      </section>
+      <section v-else class="conflict-empty">选择一个冲突文件查看三方内容</section>
+    </div>
+    <p v-if="conflictError" class="publication-error"><Icon icon="lucide:triangle-alert" />{{ conflictError }}</p>
+    <template #footer>
+      <el-button :disabled="conflictSaving" @click="conflictDialogOpen = false">稍后处理</el-button>
+      <el-button v-if="conflictSession?.state === 'STALE'" type="warning" :loading="conflictLoading" @click="refreshConflictSession">刷新预检</el-button>
+      <el-button v-else type="success" :loading="conflictSaving" :disabled="!canApplyConflict" @click="applyConflictSession">确认合并并同步</el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <style scoped>
@@ -209,4 +425,8 @@ async function createMergeRequest() {
 .publication-error { display: flex; align-items: flex-start; gap: 6px; margin: 10px 0 0; color: var(--color-task-danger); font-size: 11px; line-height: 1.5; }.publication-error > svg { flex: 0 0 auto; margin-top: 2px; }.branch-flow { display: flex; align-items: center; gap: 10px; padding: 11px 12px; border: 1px solid rgb(34 211 238 / 18%); border-radius: 8px; background: rgb(34 211 238 / 4%); }.branch-flow code { min-width: 0; color: var(--color-accent-cyan); font: 10px/1.45 var(--font-code); overflow-wrap: anywhere; }.branch-flow > svg { flex: 0 0 auto; color: var(--color-text-muted); }.merge-note { display: flex; gap: 7px; margin: 0; color: var(--color-text-secondary); font-size: 10px; line-height: 1.55; }.merge-note > svg { flex: 0 0 auto; margin-top: 1px; }
 .spin { animation: spin .8s linear infinite; }@keyframes spin { to { transform: rotate(360deg); } }
 :global(.publication-dialog) { border: 1px solid rgb(130 147 173 / 18%); border-radius: 12px; background: #0b1220; box-shadow: 0 24px 80px rgb(0 0 0 / 55%); }:global(.publication-dialog .el-dialog__header) { margin: 0; padding-bottom: 14px; border-bottom: 1px solid var(--color-border-default); }:global(.publication-dialog .el-dialog__body) { padding-top: 18px; }
+.conflict-session-bar { display: flex; align-items: center; gap: 14px; min-width: 0; padding: 9px 12px; border: 1px solid var(--color-border-default); border-radius: 8px; background: #08111e; color: var(--color-text-secondary); font-size: 10px; }.conflict-session-bar span { display: flex; min-width: 0; align-items: center; gap: 6px; flex: 1; overflow-wrap: anywhere; }.conflict-session-bar code { color: var(--color-accent-cyan); }.conflict-session-bar strong { color: #86efac; }.conflict-state { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 9px 11px; border: 1px solid rgb(251 191 36 / 30%); border-radius: 7px; background: rgb(251 191 36 / 7%); color: #fde68a; font-size: 10px; }.conflict-state span { flex: 1; }.conflict-state.danger { border-color: rgb(248 113 113 / 32%); background: rgb(248 113 113 / 8%); color: #fecaca; }
+.conflict-workbench { display: grid; grid-template-columns: minmax(230px, 280px) minmax(0, 1fr); min-height: 590px; margin-top: 12px; overflow: hidden; border: 1px solid var(--color-border-default); border-radius: 9px; background: #07101b; }.conflict-files { overflow: auto; border-right: 1px solid var(--color-border-default); background: #091321; }.conflict-files button { display: flex; width: 100%; gap: 8px; align-items: flex-start; padding: 10px; border: 0; border-bottom: 1px solid rgb(130 147 173 / 10%); background: transparent; color: var(--color-text-secondary); text-align: left; cursor: pointer; }.conflict-files button.active { background: rgb(34 211 238 / 8%); color: #e0f2fe; }.conflict-files button > svg { flex: 0 0 auto; margin-top: 1px; }.conflict-files button span { min-width: 0; }.conflict-files code { display: block; color: inherit; font: 10px/1.4 var(--font-code); overflow-wrap: anywhere; }.conflict-files small { display: block; margin-top: 4px; color: var(--color-text-muted); font-size: 9px; }.conflict-detail { display: grid; min-width: 0; grid-template-rows: auto 1fr auto; }.resolution-toolbar { display: flex; justify-content: space-between; gap: 10px; padding: 9px 10px; border-bottom: 1px solid var(--color-border-default); }.merge-grid { display: grid; min-height: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(230px, 1fr)); gap: 1px; background: var(--color-border-default); }.merge-grid article { display: grid; min-width: 0; min-height: 0; grid-template-rows: auto 1fr; background: #07101d; }.merge-grid header { display: flex; justify-content: space-between; padding: 6px 9px; background: #0b1727; color: var(--color-text-secondary); font-size: 9px; }.merge-grid header code { color: var(--color-text-muted); }.merge-grid .merge-result header { color: #86efac; }.merge-grid header span { color: var(--color-text-muted); }.non-text-resolution { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--color-text-secondary); }.non-text-resolution > svg { width: 32px; height: 32px; color: #fbbf24; }.non-text-resolution p { margin: 0; }.non-text-resolution code { max-width: 80%; overflow-wrap: anywhere; color: var(--color-text-muted); font-size: 9px; }.ai-suggestion { display: grid; grid-template-columns: 1fr auto; gap: 7px; padding: 9px; border-top: 1px solid rgb(139 92 246 / 28%); background: rgb(139 92 246 / 6%); }.ai-suggestion div { display: grid; gap: 3px; }.ai-suggestion strong { color: #ddd6fe; font-size: 10px; }.ai-suggestion span { color: var(--color-text-muted); font-size: 9px; }.ai-suggestion pre { grid-column: 1 / -1; max-height: 110px; margin: 0; overflow: auto; white-space: pre-wrap; color: #c4b5fd; font: 9px/1.45 var(--font-code); }.conflict-empty { display: grid; place-items: center; color: var(--color-text-muted); font-size: 11px; }
+:global(.local-sync-dialog) { border: 1px solid rgb(130 147 173 / 22%); border-radius: 12px; background: #08111e; box-shadow: 0 30px 100px rgb(0 0 0 / 65%); }:global(.local-sync-dialog .el-dialog__header) { margin: 0; padding-bottom: 12px; border-bottom: 1px solid var(--color-border-default); }:global(.local-sync-dialog .el-dialog__body) { padding: 14px 16px 8px; }
+@media (max-width: 900px) { .conflict-workbench { grid-template-columns: 190px minmax(0, 1fr); }.merge-grid { grid-template-columns: 1fr; grid-template-rows: repeat(4, 220px); } }
 </style>

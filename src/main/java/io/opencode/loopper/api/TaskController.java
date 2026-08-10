@@ -14,6 +14,7 @@ import io.opencode.loopper.persistence.TaskRow;
 import io.opencode.loopper.persistence.VerificationResultRow;
 import io.opencode.loopper.domain.LoopSpec;
 import io.opencode.loopper.service.LoopDraftService;
+import io.opencode.loopper.service.LocalSyncConflictService;
 import io.opencode.loopper.service.TaskEventHub;
 import io.opencode.loopper.service.TaskPublicationService;
 import io.opencode.loopper.service.TaskService;
@@ -45,10 +46,13 @@ public class TaskController {
     private final ObjectMapper json;
     private final LoopDraftService drafts;
     private final TaskPublicationService publication;
+    private final LocalSyncConflictService localSyncConflicts;
     public TaskController(TaskService service, LoopperMapper mapper, TaskEventHub events, ObjectMapper json,
-                          LoopDraftService drafts, TaskPublicationService publication) {
+                          LoopDraftService drafts, TaskPublicationService publication,
+                          LocalSyncConflictService localSyncConflicts) {
         this.service = service; this.mapper = mapper; this.events = events; this.json = json;
         this.drafts = drafts; this.publication = publication;
+        this.localSyncConflicts = localSyncConflicts;
     }
     @GetMapping public List<TaskDto> list() { return service.list().stream().map(this::dto).toList(); }
     @GetMapping("/{id}") public TaskDto get(@PathVariable String id) { return dto(service.get(id)); }
@@ -121,6 +125,51 @@ public class TaskController {
         requireLocalUi(localUi);
         if (request == null) throw new io.opencode.loopper.service.BadRequestException("MERGE_REQUEST_REQUIRED", "合并请求参数不能为空");
         return publication.mergeRequestDraft(id, request.targetBranch(), request.title(), request.description());
+    }
+    @PostMapping("/{id}/publication/local-conflicts")
+    public LocalSyncConflictService.SessionView createOrRefreshLocalConflict(
+            @PathVariable String id, @RequestHeader("X-Loopper-Local-UI") String localUi) {
+        requireLocalUi(localUi);
+        return localSyncConflicts.createOrRefresh(id);
+    }
+    @GetMapping("/{id}/publication/local-conflicts/{sessionId}")
+    public LocalSyncConflictService.SessionView localConflict(
+            @PathVariable String id, @PathVariable String sessionId) {
+        return localSyncConflicts.get(id, sessionId);
+    }
+    @GetMapping("/{id}/publication/local-conflicts/{sessionId}/files")
+    public List<LocalSyncConflictService.FileSummary> localConflictFiles(
+            @PathVariable String id, @PathVariable String sessionId) {
+        return localSyncConflicts.files(id, sessionId);
+    }
+    @GetMapping("/{id}/publication/local-conflicts/{sessionId}/file")
+    public LocalSyncConflictService.FileContent localConflictFile(
+            @PathVariable String id, @PathVariable String sessionId, @RequestParam String path) {
+        return localSyncConflicts.content(id, sessionId, path);
+    }
+    @PutMapping("/{id}/publication/local-conflicts/{sessionId}/resolution")
+    public LocalSyncConflictService.FileContent saveLocalConflictResolution(
+            @PathVariable String id, @PathVariable String sessionId,
+            @RequestHeader("X-Loopper-Local-UI") String localUi,
+            @RequestBody LocalSyncConflictService.ResolutionRequest request) {
+        requireLocalUi(localUi);
+        return localSyncConflicts.saveResolution(id, sessionId, request);
+    }
+    @PostMapping("/{id}/publication/local-conflicts/{sessionId}/ai-suggestion")
+    public LocalSyncConflictService.AiSuggestion suggestLocalConflictResolution(
+            @PathVariable String id, @PathVariable String sessionId,
+            @RequestHeader("X-Loopper-Local-UI") String localUi,
+            @RequestBody LocalSyncConflictService.AiSuggestionRequest request) {
+        requireLocalUi(localUi);
+        return localSyncConflicts.suggest(id, sessionId, request);
+    }
+    @PostMapping("/{id}/publication/local-conflicts/{sessionId}/apply")
+    public LocalSyncConflictService.SessionView applyLocalConflict(
+            @PathVariable String id, @PathVariable String sessionId,
+            @RequestHeader("X-Loopper-Local-UI") String localUi,
+            @RequestBody LocalSyncConflictService.ApplyRequest request) {
+        requireLocalUi(localUi);
+        return localSyncConflicts.apply(id, sessionId, request);
     }
     @PostMapping("/{id}/attempts/{attemptId}/session-failure") public TaskDto sessionFailure(@PathVariable String id, @PathVariable String attemptId, @RequestBody SessionFailureRequest request) {
         return dto(service.sessionFailed(id, attemptId, request.code(), request.message()));

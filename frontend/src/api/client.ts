@@ -1,4 +1,4 @@
-import type { AppSettings, Artifact, Attempt, AutomationImportPreview, AutomationImportResult, AutomationRule, AutomationRuleMutation, AutomationRun, AutomationRunFeed, AvailableModel, BrowserAssertion, CommitMessageSuggestion, CreateAutomationRuleInput, DesignerAppendResult, DesignerMessage, DesignerSession, DesignerSessionState, DesignerStreamEvent, DirectorySelection, ErrorEvent, InsightsSnapshot, Interaction, InteractionAction, JudgeRun, LoopDraft, LoopSpec, LoopSpecTemplate, LoopSpecTemplateVersion, LoopVerifierSpec, MergeRequestDraft, Project, ProjectConventionDraft, ProjectConventionSnapshot, RecoveryDraft, RecoveryMode, RuntimeInfo, SessionCheckpoint, SessionForkResult, SessionRevertResult, SessionSummaryResult, SessionTodo, Stage, Task, TaskDesignHistory, TaskDiffPreview, TaskEvent, TaskInsight, TaskPublicationStatus, TaskSessionActivity, TaskSessionActivityPart, TaskSessionPendingQuestion, TaskSessionSummary, UsageAggregate } from '@/types/domain'
+import type { AppSettings, Artifact, Attempt, AutomationImportPreview, AutomationImportResult, AutomationRule, AutomationRuleMutation, AutomationRun, AutomationRunFeed, AvailableModel, BrowserAssertion, CommitMessageSuggestion, CreateAutomationRuleInput, DesignerAppendResult, DesignerMessage, DesignerSession, DesignerSessionState, DesignerStreamEvent, DirectorySelection, ErrorEvent, InsightsSnapshot, Interaction, InteractionAction, JudgeRun, LocalSyncConflictContent, LocalSyncConflictFile, LocalSyncConflictSession, LocalSyncResolution, LoopDraft, LoopSpec, LoopSpecTemplate, LoopSpecTemplateVersion, LoopVerifierSpec, MergeRequestDraft, Project, ProjectConventionDraft, ProjectConventionSnapshot, RecoveryDraft, RecoveryMode, RuntimeInfo, SessionCheckpoint, SessionForkResult, SessionRevertResult, SessionSummaryResult, SessionTodo, Stage, Task, TaskDesignHistory, TaskDiffPreview, TaskEvent, TaskInsight, TaskPublicationStatus, TaskSessionActivity, TaskSessionActivityPart, TaskSessionPendingQuestion, TaskSessionSummary, UsageAggregate } from '@/types/domain'
 
 const apiBase = import.meta.env.VITE_API_BASE ?? '/api'
 
@@ -545,7 +545,7 @@ function normalizeTaskPublication(value: unknown): TaskPublicationStatus {
   const state = asString(raw.state)
   const provider = asString(raw.provider)
   return {
-    state: ['UNAVAILABLE', 'NO_CHANGES', 'READY', 'COMMITTED', 'PUSHED', 'SYNCED_LOCAL'].includes(state) ? state as TaskPublicationStatus['state'] : 'UNAVAILABLE',
+    state: ['UNAVAILABLE', 'NO_CHANGES', 'READY', 'COMMITTED', 'PUSHED', 'SYNCED_LOCAL', 'LOCAL_SYNC_CONFLICT'].includes(state) ? state as TaskPublicationStatus['state'] : 'UNAVAILABLE',
     available: raw.available === true,
     reason: asString(raw.reason) || undefined,
     branch: asString(raw.branch) || undefined,
@@ -558,6 +558,48 @@ function normalizeTaskPublication(value: unknown): TaskPublicationStatus {
     provider: provider === 'GITLAB' || provider === 'GITHUB' ? provider : 'UNKNOWN',
     upstream: asString(raw.upstream) || undefined,
     hasChanges: raw.hasChanges === true,
+    conflictSessionId: asString(raw.conflictSessionId) || undefined,
+    conflictCount: asNumber(raw.conflictCount),
+    resolvedCount: asNumber(raw.resolvedCount),
+  }
+}
+
+function normalizeLocalSyncSession(value: unknown): LocalSyncConflictSession {
+  const raw = asRecord(value)
+  const state = asString(raw.state) as LocalSyncConflictSession['state']
+  return {
+    id: requiredString(raw, 'id', 'LocalSyncConflictSession'), taskId: requiredString(raw, 'taskId', 'LocalSyncConflictSession'),
+    state, sourceRoot: asString(raw.sourceRoot), sourceHead: asString(raw.sourceHead), taskCommit: asString(raw.taskCommit),
+    baselineCommit: asString(raw.baselineCommit), conflictCount: asNumber(raw.conflictCount), resolvedCount: asNumber(raw.resolvedCount),
+    errorMessage: asString(raw.errorMessage) || undefined, backupDir: asString(raw.backupDir) || undefined,
+    verificationEvidence: asString(raw.verificationEvidence) || undefined, createdAt: asString(raw.createdAt),
+    updatedAt: asString(raw.updatedAt), version: asNumber(raw.version),
+  }
+}
+
+function normalizeLocalSyncFile(value: unknown): LocalSyncConflictFile {
+  const raw = asRecord(value)
+  return {
+    path: requiredString(raw, 'path', 'LocalSyncConflictFile'), sourcePath: asString(raw.sourcePath), taskPath: asString(raw.taskPath),
+    changeType: asString(raw.changeType) as LocalSyncConflictFile['changeType'], contentType: asString(raw.contentType) as LocalSyncConflictFile['contentType'],
+    resolution: (asString(raw.resolution) || undefined) as LocalSyncResolution | undefined, resolved: raw.resolved === true,
+    hasAiSuggestion: raw.hasAiSuggestion === true, baseHash: asString(raw.baseHash), sourceHash: asString(raw.sourceHash),
+    taskHash: asString(raw.taskHash), version: asNumber(raw.version),
+  }
+}
+
+function normalizeLocalSyncContent(value: unknown): LocalSyncConflictContent {
+  const raw = asRecord(value)
+  return {
+    path: requiredString(raw, 'path', 'LocalSyncConflictContent'), contentType: asString(raw.contentType) as LocalSyncConflictContent['contentType'],
+    baseContent: typeof raw.baseContent === 'string' ? raw.baseContent : undefined,
+    sourceContent: typeof raw.sourceContent === 'string' ? raw.sourceContent : undefined,
+    taskContent: typeof raw.taskContent === 'string' ? raw.taskContent : undefined,
+    mergedContent: typeof raw.mergedContent === 'string' ? raw.mergedContent : undefined,
+    baseHash: asString(raw.baseHash), sourceHash: asString(raw.sourceHash), taskHash: asString(raw.taskHash),
+    resolution: (asString(raw.resolution) || undefined) as LocalSyncResolution | undefined,
+    aiSuggestion: typeof raw.aiSuggestion === 'string' ? raw.aiSuggestion : undefined,
+    aiEligible: raw.aiEligible === true, version: asNumber(raw.version),
   }
 }
 
@@ -863,6 +905,13 @@ export const api = {
   generateTaskCommitMessage: async (id: string) => normalizeCommitSuggestion(await request<unknown>(`/tasks/${encodeURIComponent(id)}/publication/commit-message`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } })),
   publishTask: async (id: string, commitMessage?: string) => normalizeTaskPublication(await request<unknown>(`/tasks/${encodeURIComponent(id)}/publication`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify({ commitMessage }) })),
   createTaskMergeRequestDraft: async (id: string, input: { targetBranch: string; title: string; description: string }) => normalizeMergeRequestDraft(await request<unknown>(`/tasks/${encodeURIComponent(id)}/publication/merge-request`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(input) })),
+  createLocalSyncConflictSession: async (id: string) => normalizeLocalSyncSession(await request<unknown>(`/tasks/${encodeURIComponent(id)}/publication/local-conflicts`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } })),
+  getLocalSyncConflictSession: async (id: string, sessionId: string) => normalizeLocalSyncSession(await request<unknown>(`/tasks/${encodeURIComponent(id)}/publication/local-conflicts/${encodeURIComponent(sessionId)}`)),
+  getLocalSyncConflictFiles: async (id: string, sessionId: string) => (await request<unknown[]>(`/tasks/${encodeURIComponent(id)}/publication/local-conflicts/${encodeURIComponent(sessionId)}/files`)).map(normalizeLocalSyncFile),
+  getLocalSyncConflictContent: async (id: string, sessionId: string, path: string) => normalizeLocalSyncContent(await request<unknown>(`/tasks/${encodeURIComponent(id)}/publication/local-conflicts/${encodeURIComponent(sessionId)}/file?path=${encodeURIComponent(path)}`)),
+  saveLocalSyncResolution: async (id: string, sessionId: string, input: { path: string; resolution: Exclude<LocalSyncResolution, 'AUTO'>; content?: string; expectedVersion: number }) => normalizeLocalSyncContent(await request<unknown>(`/tasks/${encodeURIComponent(id)}/publication/local-conflicts/${encodeURIComponent(sessionId)}/resolution`, { method: 'PUT', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(input) })),
+  suggestLocalSyncResolution: async (id: string, sessionId: string, input: { path: string; expectedVersion: number }) => request<{ path: string; suggestion: string; automaticallySelected: boolean; version: number }>(`/tasks/${encodeURIComponent(id)}/publication/local-conflicts/${encodeURIComponent(sessionId)}/ai-suggestion`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(input) }),
+  applyLocalSyncConflict: async (id: string, sessionId: string, input: { confirmed: boolean; expectedVersion: number }) => normalizeLocalSyncSession(await request<unknown>(`/tasks/${encodeURIComponent(id)}/publication/local-conflicts/${encodeURIComponent(sessionId)}/apply`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(input) })),
   getRuntime: async () => normalizeRuntime(await request<unknown>('/runtime/opencode')),
   restartRuntime: async () => normalizeRuntime(await request<unknown>('/runtime/opencode/restart', { method: 'POST' })),
   getSettings: async () => normalizeSettings(await request<unknown>('/settings')),

@@ -173,7 +173,7 @@ export interface TaskDiffPreview {
 }
 
 export interface TaskPublicationStatus {
-  state: 'UNAVAILABLE' | 'NO_CHANGES' | 'READY' | 'COMMITTED' | 'PUSHED' | 'SYNCED_LOCAL'
+  state: 'UNAVAILABLE' | 'NO_CHANGES' | 'READY' | 'COMMITTED' | 'PUSHED' | 'SYNCED_LOCAL' | 'LOCAL_SYNC_CONFLICT'
   available: boolean
   reason?: string
   branch?: string
@@ -186,6 +186,61 @@ export interface TaskPublicationStatus {
   provider: 'GITLAB' | 'GITHUB' | 'UNKNOWN'
   upstream?: string
   hasChanges: boolean
+  conflictSessionId?: string
+  conflictCount: number
+  resolvedCount: number
+}
+
+export type LocalSyncSessionState = 'OPEN' | 'READY' | 'APPLYING' | 'VERIFYING' | 'APPLIED' | 'STALE' | 'ROLLED_BACK' | 'ROLLBACK_FAILED'
+export type LocalSyncResolution = 'AUTO' | 'SOURCE' | 'TASK' | 'MANUAL'
+
+export interface LocalSyncConflictSession {
+  id: string
+  taskId: string
+  state: LocalSyncSessionState
+  sourceRoot: string
+  sourceHead: string
+  taskCommit: string
+  baselineCommit: string
+  conflictCount: number
+  resolvedCount: number
+  errorMessage?: string
+  backupDir?: string
+  verificationEvidence?: string
+  createdAt: string
+  updatedAt: string
+  version: number
+}
+
+export interface LocalSyncConflictFile {
+  path: string
+  sourcePath: string
+  taskPath: string
+  changeType: 'ADD' | 'MODIFY' | 'DELETE' | 'RENAME' | 'ADD_ADD' | 'MODIFY_DELETE' | 'DELETE_MODIFY' | 'RENAME_CONFLICT'
+  contentType: 'TEXT' | 'LARGE_TEXT' | 'BINARY'
+  resolution?: LocalSyncResolution
+  resolved: boolean
+  hasAiSuggestion: boolean
+  baseHash: string
+  sourceHash: string
+  taskHash: string
+  version: number
+}
+
+export interface LocalSyncConflictContent {
+  path: string
+  contentType: 'TEXT' | 'LARGE_TEXT' | 'BINARY'
+  baseContent?: string
+  sourceContent?: string
+  taskContent?: string
+  mergedContent?: string
+  baseHash: string
+  sourceHash: string
+  taskHash: string
+  resolution?: LocalSyncResolution
+  aiSuggestion?: string
+  aiEligible: boolean
+  version: number
 }
 
 export interface CommitMessageSuggestion {

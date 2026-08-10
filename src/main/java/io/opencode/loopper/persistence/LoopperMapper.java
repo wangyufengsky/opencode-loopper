@@ -12,6 +12,58 @@ import org.apache.ibatis.annotations.Update;
 @Mapper
 public interface LoopperMapper {
     @Insert("""
+            INSERT INTO local_sync_conflict_session(
+              id,task_id,source_root,baseline_commit,task_commit,source_head,state,conflict_count,resolved_count,
+              backup_dir,recovery_log_json,verification_evidence_json,error_message,created_at,updated_at,version)
+            VALUES(#{id},#{taskId},#{sourceRoot},#{baselineCommit},#{taskCommit},#{sourceHead},#{state},
+              #{conflictCount},#{resolvedCount},#{backupDir},#{recoveryLogJson},#{verificationEvidenceJson},
+              #{errorMessage},#{createdAt},#{updatedAt},#{version})
+            """)
+    int insertLocalSyncConflictSession(LocalSyncConflictSessionRow row);
+    @Select("SELECT * FROM local_sync_conflict_session WHERE id=#{id}")
+    Optional<LocalSyncConflictSessionRow> findLocalSyncConflictSession(String id);
+    @Select("""
+            SELECT * FROM local_sync_conflict_session
+            WHERE task_id=#{taskId} AND state IN ('OPEN','READY','APPLYING','VERIFYING','STALE','ROLLED_BACK','ROLLBACK_FAILED')
+            ORDER BY updated_at DESC LIMIT 1
+            """)
+    Optional<LocalSyncConflictSessionRow> findActiveLocalSyncConflictSession(String taskId);
+    @Select("SELECT * FROM local_sync_conflict_session WHERE state IN ('APPLYING','VERIFYING') ORDER BY updated_at")
+    List<LocalSyncConflictSessionRow> recoverableLocalSyncConflictSessions();
+    @Update("""
+            UPDATE local_sync_conflict_session SET state=#{state},conflict_count=#{conflictCount},
+              resolved_count=#{resolvedCount},backup_dir=#{backupDir},recovery_log_json=#{recoveryLogJson},
+              verification_evidence_json=#{verificationEvidenceJson},error_message=#{errorMessage},
+              updated_at=#{updatedAt},version=version+1
+            WHERE id=#{id} AND version=#{version}
+            """)
+    int updateLocalSyncConflictSession(LocalSyncConflictSessionRow row);
+    @Insert("""
+            INSERT INTO local_sync_conflict_file(
+              id,session_id,path,source_path,task_path,change_type,content_type,
+              base_hash,source_hash,task_hash,base_mode,source_mode,task_mode,
+              base_content,source_content,task_content,merged_content,resolution,resolved_content,
+              ai_suggestion,ai_suggestion_hash,external_dir,created_at,updated_at,version)
+            VALUES(#{id},#{sessionId},#{path},#{sourcePath},#{taskPath},#{changeType},#{contentType},
+              #{baseHash},#{sourceHash},#{taskHash},#{baseMode},#{sourceMode},#{taskMode},
+              #{baseContent},#{sourceContent},#{taskContent},#{mergedContent},#{resolution},#{resolvedContent},
+              #{aiSuggestion},#{aiSuggestionHash},#{externalDir},#{createdAt},#{updatedAt},#{version})
+            """)
+    int insertLocalSyncConflictFile(LocalSyncConflictFileRow row);
+    @Select("SELECT * FROM local_sync_conflict_file WHERE session_id=#{sessionId} ORDER BY path")
+    List<LocalSyncConflictFileRow> listLocalSyncConflictFiles(String sessionId);
+    @Select("SELECT * FROM local_sync_conflict_file WHERE session_id=#{sessionId} AND path=#{path}")
+    Optional<LocalSyncConflictFileRow> findLocalSyncConflictFile(@Param("sessionId") String sessionId,
+                                                                 @Param("path") String path);
+    @Update("""
+            UPDATE local_sync_conflict_file SET resolution=#{resolution},resolved_content=#{resolvedContent},
+              ai_suggestion=#{aiSuggestion},ai_suggestion_hash=#{aiSuggestionHash},updated_at=#{updatedAt},
+              version=version+1
+            WHERE id=#{id} AND version=#{version}
+            """)
+    int updateLocalSyncConflictFile(LocalSyncConflictFileRow row);
+
+    @Insert("""
             INSERT INTO state_transition_event(
               id,machine_type,entity_id,scope_type,scope_id,event,from_state,to_state,reason_code,metadata_json,occurred_at)
             VALUES(#{id},#{machineType},#{entityId},#{scopeType},#{scopeId},#{event},#{fromState},#{toState},

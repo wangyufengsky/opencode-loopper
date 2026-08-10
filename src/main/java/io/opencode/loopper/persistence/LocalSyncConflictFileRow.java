@@ -1,0 +1,28 @@
+package io.opencode.loopper.persistence;
+
+public record LocalSyncConflictFileRow(
+        String id,
+        String sessionId,
+        String path,
+        String sourcePath,
+        String taskPath,
+        String changeType,
+        String contentType,
+        String baseHash,
+        String sourceHash,
+        String taskHash,
+        String baseMode,
+        String sourceMode,
+        String taskMode,
+        String baseContent,
+        String sourceContent,
+        String taskContent,
+        String mergedContent,
+        String resolution,
+        String resolvedContent,
+        String aiSuggestion,
+        String aiSuggestionHash,
+        String externalDir,
+        String createdAt,
+        String updatedAt,
+        long version) { }

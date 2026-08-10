@@ -43,16 +43,19 @@ public class TaskPublicationService {
     private final SafeProcessRunner runner;
     private final OpenCodeClient openCode;
     private final LoopperProperties properties;
+    private final LocalSyncConflictService localConflicts;
     private final ConcurrentHashMap<String, ReentrantLock> taskLocks = new ConcurrentHashMap<>();
 
     public TaskPublicationService(TaskService tasks, ProjectService projects, GitWorktreeManager worktrees,
-                                  SafeProcessRunner runner, OpenCodeClient openCode, LoopperProperties properties) {
+                                  SafeProcessRunner runner, OpenCodeClient openCode, LoopperProperties properties,
+                                  LocalSyncConflictService localConflicts) {
         this.tasks = tasks;
         this.projects = projects;
         this.worktrees = worktrees;
         this.runner = runner;
         this.openCode = openCode;
         this.properties = properties;
+        this.localConflicts = localConflicts;
     }
 
     public PublicationStatus status(String taskId) {
@@ -125,7 +128,8 @@ public class TaskPublicationService {
         }
         try {
             PublicationStatus before = inspect(task);
-            if ("PUSHED".equals(before.state()) || "SYNCED_LOCAL".equals(before.state())) return before;
+            if ("PUSHED".equals(before.state()) || "SYNCED_LOCAL".equals(before.state())
+                    || "LOCAL_SYNC_CONFLICT".equals(before.state())) return before;
             Path workspace = workspace(task);
             if ("READY".equals(before.state())) {
                 String commitMessage = requireCommitMessage(requestedMessage);
@@ -140,13 +144,16 @@ public class TaskPublicationService {
 
             PublicationStatus committed = inspect(task);
             if (!"COMMITTED".equals(committed.state()) && !"PUSHED".equals(committed.state())
-                    && !"SYNCED_LOCAL".equals(committed.state())) {
+                    && !"SYNCED_LOCAL".equals(committed.state())
+                    && !"LOCAL_SYNC_CONFLICT".equals(committed.state())) {
                 throw new ConflictException("GIT_COMMIT_STATE_INVALID", "提交完成后工作区状态不一致，已停止发布");
             }
-            if ("PUSHED".equals(committed.state()) || "SYNCED_LOCAL".equals(committed.state())) return committed;
+            if ("PUSHED".equals(committed.state()) || "SYNCED_LOCAL".equals(committed.state())
+                    || "LOCAL_SYNC_CONFLICT".equals(committed.state())) return committed;
             if (committed.remoteName() == null) {
                 syncLocalSource(task, workspace, committed.commitSha());
                 PublicationStatus synced = inspect(task);
+                if ("LOCAL_SYNC_CONFLICT".equals(synced.state())) return synced;
                 if (!"SYNCED_LOCAL".equals(synced.state())) {
                     throw new ConflictException("LOCAL_SOURCE_SYNC_UNCONFIRMED", "源代码同步完成，但同步证据未能确认");
                 }
@@ -218,15 +225,20 @@ public class TaskPublicationService {
         String remoteName = preferredRemote(workspace);
         if (remoteName == null) {
             boolean synced = !hasChanges && committed && tasks.hasLocalSourceSync(task.id(), head);
-            String state = hasChanges ? "READY" : synced ? "SYNCED_LOCAL" : committed ? "COMMITTED" : "NO_CHANGES";
+            LocalSyncConflictService.SessionView conflict = synced ? null : localConflicts.active(task.id());
+            String state = hasChanges ? "READY" : synced ? "SYNCED_LOCAL"
+                    : conflict != null ? "LOCAL_SYNC_CONFLICT" : committed ? "COMMITTED" : "NO_CHANGES";
             String reason = "NO_CHANGES".equals(state) ? "任务没有产生可提交的文件变更"
-                    : "SYNCED_LOCAL".equals(state) ? "任务提交已同步到源项目目录" : null;
+                    : "SYNCED_LOCAL".equals(state) ? "任务提交已同步到源项目目录"
+                    : "LOCAL_SYNC_CONFLICT".equals(state) ? conflict.errorMessage() : null;
             if ("COMMITTED".equals(state) && (commitMessage == null || !COMMIT_MESSAGE.matcher(commitMessage).matches())) {
                 state = "UNAVAILABLE";
                 reason = "任务分支已有不符合 #四位数字_AI说明 格式的本地提交，请先在仓库中处理";
             }
             return new PublicationStatus(state, !"NO_CHANGES".equals(state) && !"UNAVAILABLE".equals(state), reason,
-                    branch, null, null, head, commitMessage, null, List.of(), "UNKNOWN", null, hasChanges);
+                    branch, null, null, head, commitMessage, null, List.of(), "UNKNOWN", null, hasChanges,
+                    conflict == null ? null : conflict.id(), conflict == null ? 0 : conflict.conflictCount(),
+                    conflict == null ? 0 : conflict.resolvedCount());
         }
         String remoteUrl = requiredOutput(workspace, List.of("git", "remote", "get-url", remoteName), "GIT_REMOTE_UNAVAILABLE");
         String upstream = optionalOutput(workspace,
@@ -243,7 +255,7 @@ public class TaskPublicationService {
         String target = preferredTarget(workspace, task, remoteName, targets);
         String provider = remoteRepository(remoteUrl).provider();
         return new PublicationStatus(state, !"NO_CHANGES".equals(state) && !"UNAVAILABLE".equals(state), reason, branch, remoteName,
-                remoteUrl, head, commitMessage, target, targets, provider, upstream, hasChanges);
+                remoteUrl, head, commitMessage, target, targets, provider, upstream, hasChanges, null, 0, 0);
     }
 
     private TaskRow requirePublishableTask(String taskId) {
@@ -269,14 +281,9 @@ public class TaskPublicationService {
             tasks.recordLocalSourceSync(task.id(), commitSha, "ALREADY_PRESENT");
             return;
         }
-        if (!task.baselineCommit().equals(sourceHead)) {
-            throw new ConflictException("LOCAL_SOURCE_BASELINE_DIVERGED",
-                    "源项目当前提交已偏离任务创建时的基线；为避免覆盖新提交，已停止同步");
-        }
-        requireCleanSourceIndex(source);
         String sourceStatus = requiredOutputAllowEmpty(source,
                 List.of("git", "status", "--porcelain=v1", "--untracked-files=all"), "SOURCE_GIT_STATUS_FAILED");
-        if (sourceStatus.isBlank()) {
+        if (task.baselineCommit().equals(sourceHead) && sourceStatus.isBlank()) {
             runRequired(source, List.of("git", "merge", "--ff-only", commitSha), GIT_WRITE_TIMEOUT,
                     "LOCAL_SOURCE_FAST_FORWARD_FAILED", "无法将任务提交快进到源项目目录");
             String mergedHead = requiredOutput(source, List.of("git", "rev-parse", "HEAD"), "SOURCE_GIT_HEAD_UNAVAILABLE");
@@ -286,20 +293,32 @@ public class TaskPublicationService {
             tasks.recordLocalSourceSync(task.id(), commitSha, "FAST_FORWARD");
             return;
         }
-        applyTaskPatch(task, workspace, source, commitSha);
-        tasks.recordLocalSourceSync(task.id(), commitSha, "WORKTREE_OVERLAY");
+        if (task.baselineCommit().equals(sourceHead)) {
+            requireNoStagedTaskPaths(task, workspace, source, commitSha);
+            try {
+                applyTaskPatch(task, workspace, source, commitSha);
+                tasks.recordLocalSourceSync(task.id(), commitSha, "WORKTREE_OVERLAY");
+                return;
+            } catch (ConflictException conflict) {
+                if (!"LOCAL_SOURCE_CONFLICT".equals(conflict.code())) throw conflict;
+            }
+        }
+        localConflicts.createOrRefresh(task.id());
     }
 
-    private void requireCleanSourceIndex(Path source) {
-        ProcessResult result = runner.run(source, List.of("git", "diff", "--cached", "--quiet", "--exit-code"), GIT_READ_TIMEOUT);
-        if (result.timedOut() || result.outputTruncated()) {
-            throw new ConflictException("SOURCE_GIT_INDEX_CHECK_FAILED", "检查源项目暂存区时失败");
-        }
-        if (result.exitCode() == 1) {
-            throw new ConflictException("LOCAL_SOURCE_INDEX_DIRTY", "源项目暂存区已有改动；请先提交或取消暂存后再同步");
-        }
-        if (result.exitCode() != 0) {
-            throw new ConflictException("SOURCE_GIT_INDEX_CHECK_FAILED", scrub(result.output()));
+    private void requireNoStagedTaskPaths(TaskRow task, Path workspace, Path source, String commitSha) {
+        String taskPaths = requiredOutputAllowEmpty(workspace,
+                List.of("git", "diff", "--name-only", "-z", task.baselineCommit(), commitSha, "--"),
+                "LOCAL_SOURCE_PATH_CHECK_FAILED");
+        String stagedPaths = requiredOutputAllowEmpty(source,
+                List.of("git", "diff", "--cached", "--name-only", "-z", "--"),
+                "SOURCE_GIT_INDEX_CHECK_FAILED");
+        Set<String> taskSet = new java.util.HashSet<>(List.of(taskPaths.split("\u0000", -1)));
+        boolean overlaps = List.of(stagedPaths.split("\u0000", -1)).stream()
+                .filter(path -> !path.isBlank()).anyMatch(taskSet::contains);
+        if (overlaps) {
+            throw new ConflictException("LOCAL_SOURCE_TASK_PATH_STAGED",
+                    "源项目中任务涉及路径已暂存；请取消暂存或提交后再同步");
         }
     }
 
@@ -534,7 +553,7 @@ public class TaskPublicationService {
 
     private PublicationStatus unavailable(TaskRow task, String reason) {
         return new PublicationStatus("UNAVAILABLE", false, reason, task.branchName(), null, null,
-                null, null, null, List.of(), "UNKNOWN", null, false);
+                null, null, null, List.of(), "UNKNOWN", null, false, null, 0, 0);
     }
 
     private RemoteRepository remoteRepository(String raw) {
@@ -589,7 +608,8 @@ public class TaskPublicationService {
     public record PublicationStatus(String state, boolean available, String reason, String branch,
                                     String remoteName, String remoteUrl, String commitSha, String commitMessage,
                                     String targetBranch, List<String> targetBranches, String provider,
-                                    String upstream, boolean hasChanges) { }
+                                    String upstream, boolean hasChanges, String conflictSessionId,
+                                    int conflictCount, int resolvedCount) { }
     public record CommitSuggestion(String subject, boolean aiGenerated) { }
     public record MergeRequestDraft(String provider, String sourceBranch, String targetBranch, String title,
                                     String description, String creationUrl) { }

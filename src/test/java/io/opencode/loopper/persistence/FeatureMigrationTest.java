@@ -15,20 +15,20 @@ class FeatureMigrationTest {
     @TempDir Path temporaryDirectory;
 
     @Test
-    void migratesBothEmptyAndV14DatabasesToLatestWithoutInventingAuditHistory() throws Exception {
+    void migratesBothEmptyAndV16DatabasesToLatestWithoutInventingAuditHistory() throws Exception {
         assertMigratesToLatest(temporaryDirectory.resolve("empty.db"), false);
         assertMigratesToLatest(temporaryDirectory.resolve("upgrade.db"), true);
     }
 
-    private void assertMigratesToLatest(Path database, boolean stopAtV14) throws Exception {
+    private void assertMigratesToLatest(Path database, boolean stopAtV16) throws Exception {
         String url = "jdbc:sqlite:" + database;
-        if (stopAtV14) {
-            Flyway.configure().dataSource(url, null, null).target(MigrationVersion.fromVersion("14")).load().migrate();
+        if (stopAtV16) {
+            Flyway.configure().dataSource(url, null, null).target(MigrationVersion.fromVersion("16")).load().migrate();
         }
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
 
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("16");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("17");
         try (var connection = DriverManager.getConnection(url);
              var statement = connection.prepareStatement("SELECT name FROM sqlite_master WHERE type='table'")) {
             try (var result = statement.executeQuery()) {
@@ -38,7 +38,7 @@ class FeatureMigrationTest {
                         "workspace_lease", "task_queue", "interaction", "task_lineage",
                         "session_checkpoint", "session_usage", "binary_artifact",
                         "loopspec_template", "loopspec_template_version", "automation_rule", "automation_run",
-                        "state_transition_event"));
+                        "state_transition_event", "local_sync_conflict_session", "local_sync_conflict_file"));
             }
         }
         try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {

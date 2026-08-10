@@ -14,6 +14,7 @@ import io.opencode.loopper.persistence.AttemptRow;
 import io.opencode.loopper.persistence.ExecutionSessionRow;
 import io.opencode.loopper.persistence.TaskRow;
 import io.opencode.loopper.service.LoopDraftService;
+import io.opencode.loopper.service.LocalSyncConflictService;
 import io.opencode.loopper.service.TaskEventHub;
 import io.opencode.loopper.service.TaskPublicationService;
 import io.opencode.loopper.service.TaskService;
@@ -28,7 +29,8 @@ class TaskControllerArchiveTest {
     private final TaskService tasks = mock(TaskService.class);
     private final LoopperMapper mapper = mock(LoopperMapper.class);
     private final TaskController controller = new TaskController(tasks, mapper, mock(TaskEventHub.class),
-            mock(ObjectMapper.class), mock(LoopDraftService.class), mock(TaskPublicationService.class));
+            mock(ObjectMapper.class), mock(LoopDraftService.class), mock(TaskPublicationService.class),
+            mock(LocalSyncConflictService.class));
     private final MockMvc mvc = MockMvcBuilders.standaloneSetup(controller)
             .setControllerAdvice(new ApiExceptionHandler()).build();
 
