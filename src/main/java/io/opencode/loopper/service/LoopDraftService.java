@@ -75,10 +75,22 @@ public class LoopDraftService {
     }
     @Transactional
     public io.opencode.loopper.persistence.TaskRow confirm(String id, String title, String admissionSource) {
+        return confirm(id, title, admissionSource, null);
+    }
+    @Transactional
+    public io.opencode.loopper.persistence.TaskRow confirmAtBaseline(String id, String title, String admissionSource,
+                                                                     String isolatedBaseline) {
+        if (isolatedBaseline == null || isolatedBaseline.isBlank()) {
+            throw new BadRequestException("REWORK_BASELINE_MISSING", "Rework requires the parent task baseline commit");
+        }
+        return confirm(id, title, admissionSource, isolatedBaseline);
+    }
+    private io.opencode.loopper.persistence.TaskRow confirm(String id, String title, String admissionSource,
+                                                             String isolatedBaseline) {
         LoopDraftRow draft = get(id);
         if (LoopDraftStatus.CONFIRMED.name().equals(draft.status())) return mapper.findTaskByDraft(id).orElseThrow(() -> new ConflictException("DRAFT_TASK_MISSING", "Confirmed draft has no associated task"));
         validateExecutionContract(spec(draft));
-        io.opencode.loopper.persistence.TaskRow task = tasks.createFromDraft(draft, title, admissionSource);
+        io.opencode.loopper.persistence.TaskRow task = tasks.createFromDraft(draft, title, admissionSource, isolatedBaseline);
         LoopDraftRow confirmed = new LoopDraftRow(draft.id(), draft.projectId(), draft.goal(), draft.specJson(), LoopDraftStatus.CONFIRMED.name(), draft.createdAt(), Instant.now().toString(), draft.version());
         lifecycle.transition(subject(confirmed), draft.status(), confirmed.status(), null, java.util.Map.of(),
                 () -> mapper.updateDraft(confirmed),

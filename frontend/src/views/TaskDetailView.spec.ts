@@ -14,6 +14,7 @@ const store = vi.hoisted(() => ({
   stopWatching: vi.fn(),
   updateTask: vi.fn(),
   retryJudges: vi.fn().mockResolvedValue(undefined),
+  reworkTask: vi.fn().mockResolvedValue('task-rework'),
 }))
 
 vi.mock('@/stores/taskStore', () => ({ useTaskStore: () => store }))
@@ -36,6 +37,7 @@ describe('TaskDetailView judge action', () => {
     store.watchTask.mockClear()
     store.stopWatching.mockClear()
     store.retryJudges.mockClear()
+    store.reworkTask.mockClear()
   })
 
   it('offers an explicit fresh double review for a deterministically accepted waiting task', async () => {
@@ -71,5 +73,41 @@ describe('TaskDetailView judge action', () => {
 
     expect(ElMessageBox.confirm).toHaveBeenCalledWith(expect.stringContaining('两个新的只读 OpenCode 评审 Session'), expect.any(String), expect.any(Object))
     expect(store.retryJudges).toHaveBeenCalledWith('task-review')
+  })
+
+  it('creates a new branch rework task and navigates to the child', async () => {
+    store.tasks = [{ ...reviewTask, id: 'task-success', title: '已完成任务', status: 'SUCCEEDED', branch: 'loopper/task-success' }]
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/tasks/:id', component: { template: '<div />' } }] })
+    await router.push('/tasks/task-success')
+    await router.isReady()
+    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue(undefined as never)
+
+    const wrapper = mount(TaskDetailView, {
+      global: {
+        plugins: [router, ElementPlus],
+        stubs: {
+          Icon: true,
+          PageHeader: { template: '<header><slot name="actions" /></header><slot />' },
+          StatusBadge: true,
+          StageRail: true,
+          AttemptTimeline: true,
+          LayeredErrorPanel: true,
+          SessionMonitorPanel: true,
+          JudgeReviewCard: true,
+          TaskAuditEvidencePanel: true,
+          TaskPublicationActions: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    const action = wrapper.findAll('button').find((button) => button.text().includes('新分支重做'))
+    expect(action).toBeDefined()
+    await action!.trigger('click')
+    await flushPromises()
+
+    expect(ElMessageBox.confirm).toHaveBeenCalledWith(expect.stringContaining('全新分支和 worktree'), '新分支重做任务？', expect.any(Object))
+    expect(store.reworkTask).toHaveBeenCalledWith('task-success')
+    expect(router.currentRoute.value.path).toBe('/tasks/task-rework')
   })
 })

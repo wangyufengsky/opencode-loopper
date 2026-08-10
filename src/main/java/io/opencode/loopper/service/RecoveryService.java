@@ -38,22 +38,26 @@ public class RecoveryService {
         RecoveryMode mode = requestedMode == null ? RecoveryMode.FROM_FAILED_STAGE : requestedMode;
         TaskRow parent = mapper.findTask(parentTaskId)
                 .orElseThrow(() -> new NotFoundException("Task not found: " + parentTaskId));
-        requireRecoverableParent(parent);
+        if (mode == RecoveryMode.REWORK_ALL_STAGES) requireReworkableParent(parent);
+        else requireRecoverableParent(parent);
         LoopDraftRow parentDraft = mapper.findDraft(parent.loopDraftId())
                 .orElseThrow(() -> new ConflictException("RECOVERY_CONTRACT_MISSING", "Recovery requires the parent LoopSpec draft"));
         ProjectRow project = projects.get(parent.projectId());
         String fingerprint = workspaceFingerprint(parent, project);
         List<StageRow> parentStages = mapper.listStages(parent.id());
-        StageRow recoveryPoint = recoveryPoint(parentStages);
-        List<LoopSpec.StageSpec> stages = copyStages(drafts.spec(parentDraft), recoveryPoint, mode);
+        StageRow recoveryPoint = mode == RecoveryMode.REWORK_ALL_STAGES ? null : recoveryPoint(parentStages);
         LoopSpec parentSpec = drafts.spec(parentDraft);
+        List<LoopSpec.StageSpec> stages = mode == RecoveryMode.REWORK_ALL_STAGES
+                ? List.copyOf(parentSpec.stages()) : copyStages(parentSpec, recoveryPoint, mode);
         String modeContext = recoveryContext(parentSpec.context(), parent.id(), mode, recoveryPoint);
         LoopSpec childSpec = new LoopSpec(parentSpec.schemaVersion(), parent.projectId(), parentSpec.goal(), modeContext,
                 stages, parentSpec.limits(), parentSpec.model(), parentSpec.sessionPolicy(),
                 parentSpec.nextAttemptPromptTemplate(), parentSpec.budget());
 
         LoopDraftRow childDraft = drafts.create(childSpec);
-        TaskRow child = drafts.confirm(childDraft.id(), recoveryTitle(parent.title(), mode), "RECOVERY");
+        TaskRow child = mode == RecoveryMode.REWORK_ALL_STAGES
+                ? drafts.confirmAtBaseline(childDraft.id(), recoveryTitle(parent.title(), mode), "RECOVERY", parent.baselineCommit())
+                : drafts.confirm(childDraft.id(), recoveryTitle(parent.title(), mode), "RECOVERY");
         mapper.insertTaskLineage(new TaskLineageRow(child.id(), parent.id(), mode.name(),
                 recoveryPoint == null ? null : recoveryPoint.id(), fingerprint, Instant.now().toString()));
         return new FeatureContracts.RecoveryDto(child.id(), parent.id(), mode,
@@ -84,6 +88,20 @@ public class RecoveryService {
         }
         if (parent.loopDraftId() == null || parent.loopDraftId().isBlank()) {
             throw new ConflictException("RECOVERY_CONTRACT_MISSING", "Recovery requires a parent LoopSpec");
+        }
+    }
+
+    private void requireReworkableParent(TaskRow parent) {
+        if (!List.of(TaskState.WAITING_INPUT.name(), TaskState.SUCCEEDED.name(), TaskState.FAILED.name(),
+                TaskState.CANCELLED.name()).contains(parent.state())) {
+            throw new ConflictException("REWORK_PARENT_ACTIVE", "只有等待输入或已结束的任务可以新分支重做");
+        }
+        if (parent.loopDraftId() == null || parent.loopDraftId().isBlank()) {
+            throw new ConflictException("RECOVERY_CONTRACT_MISSING", "Rework requires a parent LoopSpec");
+        }
+        if (GitWorktreeManager.DIRECT_BRANCH.equals(parent.branchName())
+                || parent.baselineCommit() == null || parent.baselineCommit().isBlank()) {
+            throw new ConflictException("REWORK_ISOLATED_BASELINE_REQUIRED", "重做需要父任务的隔离 Git 分支和基线提交");
         }
     }
 
@@ -128,7 +146,9 @@ public class RecoveryService {
     }
 
     private String recoveryContext(String existing, String parentTaskId, RecoveryMode mode, StageRow point) {
-        String boundary = mode == RecoveryMode.VERIFY_ONLY
+        String boundary = mode == RecoveryMode.REWORK_ALL_STAGES
+                ? "这是新分支重做任务：从父任务创建时的基线重新执行全部阶段，父任务、父分支和历史证据保持不变。"
+                : mode == RecoveryMode.VERIFY_ONLY
                 ? "这是只读验证型恢复草稿：不得创建 OpenCode 可写执行会话，也不得在原目录回滚。"
                 : "这是派生恢复草稿：不得对父任务或原目录执行 in-place revert。";
         return (existing == null || existing.isBlank() ? "" : existing.trim() + "\n\n")
@@ -139,7 +159,7 @@ public class RecoveryService {
 
     private String recoveryTitle(String title, RecoveryMode mode) {
         String base = title == null || title.isBlank() ? "任务" : title.trim();
-        String candidate = base + " · 恢复 " + mode.name();
+        String candidate = mode == RecoveryMode.REWORK_ALL_STAGES ? base + " · 重做" : base + " · 恢复 " + mode.name();
         return candidate.substring(0, Math.min(candidate.length(), 180));
     }
 }

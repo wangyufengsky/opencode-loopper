@@ -34,6 +34,7 @@ const changedFiles = computed(() => new Set(verificationRows.value.flatMap((veri
 })).size)
 const passedVerifications = computed(() => verificationRows.value.filter((verifier) => verifier.status === 'PASS').length)
 const judgeRetrying = ref(false)
+const reworking = ref(false)
 const deterministicAccepted = computed(() => Boolean(task.value?.stages?.length) && task.value!.stages!.every((stage) => stage.status === 'SUCCEEDED'))
 const latestJudge = (role: 'REQUIREMENT' | 'RISK') => judges.value
   .filter((judge) => judge.role === role)
@@ -43,6 +44,8 @@ const doubleReviewApproved = computed(() => ['REQUIREMENT', 'RISK'].every((role)
 const canRetryJudges = computed(() => deterministicAccepted.value
   && (task.value?.status === 'WAITING_INPUT' || (task.value?.status === 'SUCCEEDED' && !doubleReviewApproved.value)))
 const judgeActionLabel = computed(() => judges.value.length ? '重新发起双评审' : '启动双评审')
+const canRework = computed(() => !isDirectExecution.value
+  && ['WAITING_INPUT', 'SUCCEEDED', 'FAILED', 'CANCELLED'].includes(task.value?.status ?? ''))
 const nextAction = computed(() => {
   if (!task.value) return ''
   if (task.value.status === 'SUCCEEDED') return isDirectExecution.value ? '检查原项目目录中的变更并决定后续发布方式。' : '检查变更摘要，然后提交并发布当前分支。'
@@ -86,6 +89,24 @@ async function confirmRetryJudges() {
     judgeRetrying.value = false
   }
 }
+
+async function confirmRework() {
+  if (!canRework.value || reworking.value || !task.value) return
+  try {
+    await ElMessageBox.confirm(
+      '将从此任务创建时的 Git 基线拉取一个全新分支和 worktree，重新执行全部阶段。父任务、父分支和历史证据不会被修改。',
+      '新分支重做任务？',
+      { type: 'warning', confirmButtonText: '创建新分支并重做', cancelButtonText: '取消' },
+    )
+    reworking.value = true
+    const childId = await store.reworkTask(id.value)
+    if (childId) await router.push(`/tasks/${childId}`)
+  } catch {
+    // User cancelled, or the store exposed the backend error.
+  } finally {
+    reworking.value = false
+  }
+}
 </script>
 
 <template>
@@ -94,6 +115,7 @@ async function confirmRetryJudges() {
       <StatusBadge v-if="task" :status="task.status" />
       <el-button v-if="task?.hasDesignHistory" plain @click="router.push(`/tasks/${id}/design`)"><Icon icon="lucide:messages-square" />设计</el-button>
       <el-button v-if="task?.status === 'FAILED' || task?.status === 'CANCELLED'" type="primary" @click="router.push(`/tasks/${id}/recovery`)"><Icon icon="lucide:git-fork" />恢复</el-button>
+      <el-button v-if="canRework" type="warning" plain :loading="reworking" @click="confirmRework"><Icon icon="lucide:git-branch-plus" />新分支重做</el-button>
       <el-button plain @click="router.push('/tasks')"><Icon icon="lucide:list" />全部任务</el-button>
       <el-button v-if="task?.status === 'READY'" type="primary" @click="store.updateTask(id, 'start')"><Icon icon="lucide:play" />开始执行</el-button>
       <template v-else-if="task?.status === 'RUNNING' || task?.status === 'VERIFYING'"><el-button plain @click="store.updateTask(id, 'pause')"><Icon icon="lucide:pause" />暂停</el-button><el-button plain type="danger" @click="confirmCancel"><Icon icon="lucide:square" />取消</el-button></template>

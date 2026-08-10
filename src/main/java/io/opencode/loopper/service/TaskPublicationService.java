@@ -11,6 +11,7 @@ import io.opencode.loopper.runtime.SafeProcessRunner;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -124,7 +125,7 @@ public class TaskPublicationService {
         }
         try {
             PublicationStatus before = inspect(task);
-            if ("PUSHED".equals(before.state())) return before;
+            if ("PUSHED".equals(before.state()) || "SYNCED_LOCAL".equals(before.state())) return before;
             Path workspace = workspace(task);
             if ("READY".equals(before.state())) {
                 String commitMessage = requireCommitMessage(requestedMessage);
@@ -138,10 +139,19 @@ public class TaskPublicationService {
             }
 
             PublicationStatus committed = inspect(task);
-            if (!"COMMITTED".equals(committed.state()) && !"PUSHED".equals(committed.state())) {
-                throw new ConflictException("GIT_COMMIT_STATE_INVALID", "提交完成后工作区状态不一致，已停止推送");
+            if (!"COMMITTED".equals(committed.state()) && !"PUSHED".equals(committed.state())
+                    && !"SYNCED_LOCAL".equals(committed.state())) {
+                throw new ConflictException("GIT_COMMIT_STATE_INVALID", "提交完成后工作区状态不一致，已停止发布");
             }
-            if ("PUSHED".equals(committed.state())) return committed;
+            if ("PUSHED".equals(committed.state()) || "SYNCED_LOCAL".equals(committed.state())) return committed;
+            if (committed.remoteName() == null) {
+                syncLocalSource(task, workspace, committed.commitSha());
+                PublicationStatus synced = inspect(task);
+                if (!"SYNCED_LOCAL".equals(synced.state())) {
+                    throw new ConflictException("LOCAL_SOURCE_SYNC_UNCONFIRMED", "源代码同步完成，但同步证据未能确认");
+                }
+                return synced;
+            }
             runRequired(workspace,
                     List.of("git", "push", "--set-upstream", committed.remoteName(),
                             "HEAD:refs/heads/" + committed.branch()),
@@ -200,23 +210,31 @@ public class TaskPublicationService {
             throw new ConflictException("TASK_BRANCH_MISMATCH", "任务执行目录当前分支与记录不一致，已停止发布");
         }
         String head = requiredOutput(workspace, List.of("git", "rev-parse", "HEAD"), "GIT_HEAD_UNAVAILABLE");
-        String remoteName = preferredRemote(workspace);
-        if (remoteName == null) {
-            return new PublicationStatus("UNAVAILABLE", false, "当前仓库没有可推送的 Git remote", branch,
-                    null, null, head, null, null, List.of(), "UNKNOWN", null, false);
-        }
-        String remoteUrl = requiredOutput(workspace, List.of("git", "remote", "get-url", remoteName), "GIT_REMOTE_UNAVAILABLE");
         String status = requiredOutputAllowEmpty(workspace,
                 List.of("git", "status", "--porcelain=v1", "--untracked-files=all"), "GIT_STATUS_FAILED");
         boolean hasChanges = !status.isBlank();
+        boolean committed = task.baselineCommit() != null && !head.equals(task.baselineCommit());
+        String commitMessage = committed ? optionalOutput(workspace, List.of("git", "log", "-1", "--pretty=%s")) : null;
+        String remoteName = preferredRemote(workspace);
+        if (remoteName == null) {
+            boolean synced = !hasChanges && committed && tasks.hasLocalSourceSync(task.id(), head);
+            String state = hasChanges ? "READY" : synced ? "SYNCED_LOCAL" : committed ? "COMMITTED" : "NO_CHANGES";
+            String reason = "NO_CHANGES".equals(state) ? "任务没有产生可提交的文件变更"
+                    : "SYNCED_LOCAL".equals(state) ? "任务提交已同步到源项目目录" : null;
+            if ("COMMITTED".equals(state) && (commitMessage == null || !COMMIT_MESSAGE.matcher(commitMessage).matches())) {
+                state = "UNAVAILABLE";
+                reason = "任务分支已有不符合 #四位数字_AI说明 格式的本地提交，请先在仓库中处理";
+            }
+            return new PublicationStatus(state, !"NO_CHANGES".equals(state) && !"UNAVAILABLE".equals(state), reason,
+                    branch, null, null, head, commitMessage, null, List.of(), "UNKNOWN", null, hasChanges);
+        }
+        String remoteUrl = requiredOutput(workspace, List.of("git", "remote", "get-url", remoteName), "GIT_REMOTE_UNAVAILABLE");
         String upstream = optionalOutput(workspace,
                 List.of("git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"));
         String upstreamHead = upstream == null ? null : optionalOutput(workspace, List.of("git", "rev-parse", upstream));
         boolean pushed = !hasChanges && head.equals(upstreamHead);
-        boolean committed = !head.equals(task.baselineCommit());
         String state = hasChanges ? "READY" : pushed ? "PUSHED" : committed ? "COMMITTED" : "NO_CHANGES";
         String reason = "NO_CHANGES".equals(state) ? "任务没有产生可提交的文件变更" : null;
-        String commitMessage = committed ? optionalOutput(workspace, List.of("git", "log", "-1", "--pretty=%s")) : null;
         if ("COMMITTED".equals(state) && (commitMessage == null || !COMMIT_MESSAGE.matcher(commitMessage).matches())) {
             state = "UNAVAILABLE";
             reason = "任务分支已有不符合 #四位数字_AI说明 格式的本地提交，请先在仓库中处理";
@@ -231,12 +249,97 @@ public class TaskPublicationService {
     private TaskRow requirePublishableTask(String taskId) {
         TaskRow task = tasks.get(taskId);
         if (!TaskState.SUCCEEDED.name().equals(task.state())) {
-            throw new ConflictException("TASK_NOT_SUCCEEDED", "任务通过全部验收后才能提交和推送");
+            throw new ConflictException("TASK_NOT_SUCCEEDED", "任务通过全部验收后才能提交并发布");
         }
         if (GitWorktreeManager.DIRECT_BRANCH.equals(task.branchName())) {
             throw new ConflictException("DIRECT_TASK_PUBLICATION_UNSUPPORTED", "直接执行任务没有隔离分支，请在项目仓库中手工处理提交");
         }
         return task;
+    }
+
+    private void syncLocalSource(TaskRow task, Path workspace, String commitSha) {
+        if (task.baselineCommit() == null || task.baselineCommit().isBlank()) {
+            throw new ConflictException("TASK_BASELINE_MISSING", "任务缺少创建分支时的基线提交，无法安全同步源代码");
+        }
+        ProjectRow project = projects.get(task.projectId());
+        Path source = Path.of(project.rootPath());
+        requireExactRepository(source);
+        String sourceHead = requiredOutput(source, List.of("git", "rev-parse", "HEAD"), "SOURCE_GIT_HEAD_UNAVAILABLE");
+        if (commitSha.equals(sourceHead)) {
+            tasks.recordLocalSourceSync(task.id(), commitSha, "ALREADY_PRESENT");
+            return;
+        }
+        if (!task.baselineCommit().equals(sourceHead)) {
+            throw new ConflictException("LOCAL_SOURCE_BASELINE_DIVERGED",
+                    "源项目当前提交已偏离任务创建时的基线；为避免覆盖新提交，已停止同步");
+        }
+        requireCleanSourceIndex(source);
+        String sourceStatus = requiredOutputAllowEmpty(source,
+                List.of("git", "status", "--porcelain=v1", "--untracked-files=all"), "SOURCE_GIT_STATUS_FAILED");
+        if (sourceStatus.isBlank()) {
+            runRequired(source, List.of("git", "merge", "--ff-only", commitSha), GIT_WRITE_TIMEOUT,
+                    "LOCAL_SOURCE_FAST_FORWARD_FAILED", "无法将任务提交快进到源项目目录");
+            String mergedHead = requiredOutput(source, List.of("git", "rev-parse", "HEAD"), "SOURCE_GIT_HEAD_UNAVAILABLE");
+            if (!commitSha.equals(mergedHead)) {
+                throw new ConflictException("LOCAL_SOURCE_FAST_FORWARD_UNCONFIRMED", "源项目快进完成后提交状态不一致");
+            }
+            tasks.recordLocalSourceSync(task.id(), commitSha, "FAST_FORWARD");
+            return;
+        }
+        applyTaskPatch(task, workspace, source, commitSha);
+        tasks.recordLocalSourceSync(task.id(), commitSha, "WORKTREE_OVERLAY");
+    }
+
+    private void requireCleanSourceIndex(Path source) {
+        ProcessResult result = runner.run(source, List.of("git", "diff", "--cached", "--quiet", "--exit-code"), GIT_READ_TIMEOUT);
+        if (result.timedOut() || result.outputTruncated()) {
+            throw new ConflictException("SOURCE_GIT_INDEX_CHECK_FAILED", "检查源项目暂存区时失败");
+        }
+        if (result.exitCode() == 1) {
+            throw new ConflictException("LOCAL_SOURCE_INDEX_DIRTY", "源项目暂存区已有改动；请先提交或取消暂存后再同步");
+        }
+        if (result.exitCode() != 0) {
+            throw new ConflictException("SOURCE_GIT_INDEX_CHECK_FAILED", scrub(result.output()));
+        }
+    }
+
+    private void applyTaskPatch(TaskRow task, Path workspace, Path source, String commitSha) {
+        Path patch = null;
+        try {
+            Path directory = properties.getDataDir().toAbsolutePath().normalize().resolve("publication-patches");
+            Files.createDirectories(directory);
+            patch = Files.createTempFile(directory, "task-" + task.id() + "-", ".patch");
+            runRequired(workspace,
+                    List.of("git", "diff", "--binary", "--full-index", "--output=" + patch,
+                            task.baselineCommit(), commitSha, "--"),
+                    GIT_WRITE_TIMEOUT, "LOCAL_SOURCE_PATCH_CREATE_FAILED", "无法生成任务同步补丁");
+            ProcessResult check = runner.run(source,
+                    List.of("git", "apply", "--check", "--binary", "--whitespace=nowarn", patch.toString()),
+                    GIT_WRITE_TIMEOUT);
+            if (check.timedOut() || check.outputTruncated()) {
+                throw new ConflictException("LOCAL_SOURCE_CONFLICT", "任务补丁冲突检查失败；未修改源项目");
+            }
+            if (check.exitCode() != 0) {
+                ProcessResult alreadyApplied = runner.run(source,
+                        List.of("git", "apply", "--check", "--reverse", "--binary", "--whitespace=nowarn", patch.toString()),
+                        GIT_WRITE_TIMEOUT);
+                if (!alreadyApplied.timedOut() && !alreadyApplied.outputTruncated() && alreadyApplied.exitCode() == 0) return;
+                String detail = scrub(check.output());
+                throw new ConflictException("LOCAL_SOURCE_CONFLICT",
+                        "源项目现有改动与任务变更冲突；未修改源项目，请处理冲突后重试"
+                                + (detail.isBlank() ? "" : "：" + detail));
+            }
+            runRequired(source, List.of("git", "apply", "--binary", "--whitespace=nowarn", patch.toString()),
+                    GIT_WRITE_TIMEOUT, "LOCAL_SOURCE_APPLY_FAILED", "任务补丁检查通过，但写入源项目失败");
+        } catch (ConflictException failure) {
+            throw failure;
+        } catch (Exception failure) {
+            throw new ConflictException("LOCAL_SOURCE_SYNC_FAILED", "无法同步到源项目目录：" + safeMessage(failure));
+        } finally {
+            if (patch != null) {
+                try { Files.deleteIfExists(patch); } catch (Exception ignored) { }
+            }
+        }
     }
 
     private Path workspace(TaskRow task) {
@@ -306,7 +409,9 @@ public class TaskPublicationService {
         String output = requiredOutputAllowEmpty(workspace, List.of("git", "remote"), "GIT_REMOTE_UNAVAILABLE");
         List<String> remotes = output.lines().map(String::strip).filter(value -> !value.isBlank()).toList();
         if (remotes.contains("origin")) return "origin";
-        return remotes.size() == 1 ? remotes.getFirst() : null;
+        if (remotes.isEmpty()) return null;
+        if (remotes.size() == 1) return remotes.getFirst();
+        throw new ConflictException("GIT_REMOTE_AMBIGUOUS", "仓库存在多个 Git remote 且没有 origin，无法确定发布目标");
     }
 
     private String requireCommitMessage(String value) {

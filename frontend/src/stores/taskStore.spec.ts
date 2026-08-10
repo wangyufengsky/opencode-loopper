@@ -1,8 +1,24 @@
-import { describe, expect, it } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { demoTasks } from '@/mock/demoData'
-import { reduceTaskEvent, requiresTaskSnapshot } from '@/stores/taskStore'
+import { reduceTaskEvent, requiresTaskSnapshot, useTaskStore } from '@/stores/taskStore'
+
+const apiMocks = vi.hoisted(() => ({
+  createTaskRecovery: vi.fn(),
+  startTask: vi.fn(),
+}))
+
+vi.mock('@/api/client', () => ({
+  api: apiMocks,
+  ApiError: class ApiError extends Error {},
+  subscribeTaskEvents: vi.fn(),
+}))
 
 describe('task SSE reducer', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+  })
   it('updates task state from a persisted status event', () => {
     const next = reduceTaskEvent(demoTasks[0]!, { id: 'evt-1', type: 'task.status', at: '2026-08-04T10:20:00+08:00', data: { status: 'VERIFYING' } })
     expect(next.status).toBe('VERIFYING')
@@ -35,5 +51,23 @@ describe('task SSE reducer', () => {
     expect(requiresTaskSnapshot('verification.failed')).toBe(true)
     expect(requiresTaskSnapshot('task.status')).toBe(true)
     expect(requiresTaskSnapshot('log.appended')).toBe(false)
+  })
+
+  it('creates the rework child before starting that new task', async () => {
+    const parent = { ...demoTasks[0]!, id: 'parent-rework', status: 'SUCCEEDED' as const, branch: 'loopper/parent-rework' }
+    const child = { ...parent, id: 'child-rework', title: `${parent.title} · 重做`, status: 'RUNNING' as const, branch: 'loopper/child-rework' }
+    apiMocks.createTaskRecovery.mockResolvedValue({
+      taskId: child.id, parentTaskId: parent.id, mode: 'REWORK_ALL_STAGES', workspaceFingerprint: 'baseline', writableSession: true,
+    })
+    apiMocks.startTask.mockResolvedValue(child)
+    const store = useTaskStore()
+    store.usingDemo = false
+    store.tasks = [parent]
+
+    await expect(store.reworkTask(parent.id)).resolves.toBe(child.id)
+
+    expect(apiMocks.createTaskRecovery).toHaveBeenCalledWith(parent.id, 'REWORK_ALL_STAGES')
+    expect(apiMocks.startTask).toHaveBeenCalledWith(child.id)
+    expect(store.tasks).toContainEqual(child)
   })
 })

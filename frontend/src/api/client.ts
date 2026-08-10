@@ -545,7 +545,7 @@ function normalizeTaskPublication(value: unknown): TaskPublicationStatus {
   const state = asString(raw.state)
   const provider = asString(raw.provider)
   return {
-    state: ['UNAVAILABLE', 'NO_CHANGES', 'READY', 'COMMITTED', 'PUSHED'].includes(state) ? state as TaskPublicationStatus['state'] : 'UNAVAILABLE',
+    state: ['UNAVAILABLE', 'NO_CHANGES', 'READY', 'COMMITTED', 'PUSHED', 'SYNCED_LOCAL'].includes(state) ? state as TaskPublicationStatus['state'] : 'UNAVAILABLE',
     available: raw.available === true,
     reason: asString(raw.reason) || undefined,
     branch: asString(raw.branch) || undefined,
@@ -715,7 +715,7 @@ function normalizeAutomationImportPreview(value: unknown): AutomationImportPrevi
 function normalizeRecovery(value: unknown): RecoveryDraft {
   const raw = asRecord(value)
   const mode = asString(raw.mode).toUpperCase()
-  if (mode !== 'FROM_FAILED_STAGE' && mode !== 'ALL_STAGES' && mode !== 'VERIFY_ONLY') {
+  if (mode !== 'FROM_FAILED_STAGE' && mode !== 'ALL_STAGES' && mode !== 'VERIFY_ONLY' && mode !== 'REWORK_ALL_STAGES') {
     throw new TypeError(`Unsupported recovery mode: ${mode || '<missing>'}`)
   }
   return {

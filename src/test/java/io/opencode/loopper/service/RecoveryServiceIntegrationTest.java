@@ -11,6 +11,7 @@ import io.opencode.loopper.runtime.FakeOpenCodeClient;
 import io.opencode.loopper.runtime.OpenCodeClient;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.List;
 import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
@@ -119,6 +120,37 @@ class RecoveryServiceIntegrationTest {
         assertThat(mapper.childTasks(parent.id())).isEmpty();
     }
 
+    @Test
+    void reworkCreatesANewBranchFromParentBaseline() throws Exception {
+        Path root = Path.of(gitProject());
+        ProjectRow project = projects.create("rework-parent", root.toString());
+        TaskRow ready = drafts.confirm(drafts.create(twoStageSpec(project.id())).id(), "parent implementation");
+        TaskRow succeeded = new TaskRow(ready.id(), ready.projectId(), ready.loopDraftId(), ready.title(), "SUCCEEDED",
+                ready.worktreePath(), ready.branchName(), ready.baselineCommit(), ready.createdAt(), Instant.now().toString(), ready.version());
+        assertThat(mapper.updateTaskState(succeeded)).isEqualTo(1);
+        String parentBaseline = ready.baselineCommit();
+        Files.writeString(root.resolve("later.txt"), "source advanced after parent\n");
+        run(root, "git", "add", "later.txt");
+        run(root, "git", "commit", "-m", "advance source branch");
+        String currentSourceHead = run(root, "git", "rev-parse", "HEAD").strip();
+        assertThat(currentSourceHead).isNotEqualTo(parentBaseline);
+
+        FeatureContracts.RecoveryDto created = recoveries.create(ready.id(), RecoveryMode.REWORK_ALL_STAGES);
+        TaskRow child = tasks.get(created.taskId());
+
+        assertThat(created.mode()).isEqualTo(RecoveryMode.REWORK_ALL_STAGES);
+        assertThat(created.parentStageId()).isNull();
+        assertThat(created.workspaceFingerprint()).isEqualTo(parentBaseline);
+        assertThat(child.branchName()).startsWith("loopper/").isNotEqualTo(ready.branchName());
+        assertThat(child.baselineCommit()).isEqualTo(parentBaseline);
+        assertThat(run(Path.of(child.worktreePath()), "git", "rev-parse", "HEAD").strip()).isEqualTo(parentBaseline);
+        assertThat(Files.exists(Path.of(child.worktreePath()).resolve("later.txt"))).isFalse();
+        assertThat(tasks.stages(child.id())).extracting(StageRow::objective)
+                .containsExactly("验证第一阶段", "验证第二阶段");
+        assertThat(tasks.get(ready.id()).state()).isEqualTo("SUCCEEDED");
+        assertThat(recoveries.list(ready.id())).containsExactly(created);
+    }
+
     private LoopSpec twoStageSpec(String projectId) {
         return new LoopSpec("v1", projectId, "恢复两个阶段", null, List.of(
                 stage("验证第一阶段", "README.md"), stage("验证第二阶段", "README.md")), null, null, null, null);
@@ -150,10 +182,11 @@ class RecoveryServiceIntegrationTest {
         return root.toString();
     }
 
-    private void run(Path root, String... command) throws Exception {
+    private String run(Path root, String... command) throws Exception {
         Process process = new ProcessBuilder(command).directory(root.toFile()).redirectErrorStream(true).start();
         String output = new String(process.getInputStream().readAllBytes());
         if (process.waitFor() != 0) throw new AssertionError(output);
+        return output;
     }
 
     private long countRows(String table) throws Exception {

@@ -21,6 +21,7 @@ const mergeForm = ref({ targetBranch: '', title: '', description: '' })
 const commitPreview = computed(() => `#${ticketNumber.value || '0000'}_${commitSubject.value.trim() || 'AI 生成提交信息'}`)
 const commitValid = computed(() => /^\d{4}$/.test(ticketNumber.value) && commitSubject.value.trim().length > 0 && commitPreview.value.length <= 126)
 const providerLabel = computed(() => publication.value?.provider === 'GITHUB' ? 'GitHub Pull Request' : 'GitLab Merge Request')
+const localPublication = computed(() => Boolean(publication.value && !publication.value.remoteName))
 
 async function loadPublication() {
   if (props.task.status !== 'SUCCEEDED') return
@@ -72,10 +73,13 @@ async function submitCommit() {
     return
   }
   try {
+    const local = localPublication.value
     await ElMessageBox.confirm(
-      `将提交任务 worktree 的全部已验收变更，并推送分支 ${publication.value?.branch ?? props.task.branch}。`,
-      '确认提交并推送？',
-      { confirmButtonText: '提交并推送', cancelButtonText: '返回编辑', type: 'warning' },
+      local
+        ? '将提交任务 worktree 的全部已验收变更，并安全同步到源项目目录。若源目录存在冲突，操作会停止且不会覆盖现有改动。'
+        : `将提交任务 worktree 的全部已验收变更，并推送分支 ${publication.value?.branch ?? props.task.branch}。`,
+      local ? '确认提交并同步？' : '确认提交并推送？',
+      { confirmButtonText: local ? '提交并同步' : '提交并推送', cancelButtonText: '返回编辑', type: 'warning' },
     )
   } catch { return }
   operationLoading.value = true
@@ -86,7 +90,7 @@ async function submitCommit() {
       publication.value = await api.publishTask(props.task.id, commitPreview.value)
     }
     commitDialogOpen.value = false
-    ElMessage.success('任务变更已提交并推送')
+    ElMessage.success(localPublication.value ? '任务变更已同步到源项目' : '任务变更已提交并推送')
   } catch (cause) {
     commitError.value = cause instanceof Error ? cause.message : '提交或推送失败'
     await loadPublication()
@@ -95,20 +99,23 @@ async function submitCommit() {
   }
 }
 
-async function retryPush() {
+async function retryPublication() {
+  const local = localPublication.value
   try {
     await ElMessageBox.confirm(
-      `提交 ${publication.value?.commitSha?.slice(0, 8) ?? ''} 已保留，将重新推送到 ${publication.value?.remoteName ?? 'origin'}。`,
-      '继续推送任务分支？',
-      { confirmButtonText: '继续推送', cancelButtonText: '取消', type: 'warning' },
+      local
+        ? `提交 ${publication.value?.commitSha?.slice(0, 8) ?? ''} 已保留，将再次检查冲突并同步到源项目目录。`
+        : `提交 ${publication.value?.commitSha?.slice(0, 8) ?? ''} 已保留，将重新推送到 ${publication.value?.remoteName ?? 'origin'}。`,
+      local ? '继续同步源代码？' : '继续推送任务分支？',
+      { confirmButtonText: local ? '继续同步' : '继续推送', cancelButtonText: '取消', type: 'warning' },
     )
   } catch { return }
   operationLoading.value = true
   try {
     publication.value = props.demo ? { ...(publication.value as TaskPublicationStatus), state: 'PUSHED' } : await api.publishTask(props.task.id)
-    ElMessage.success('任务分支已推送')
+    ElMessage.success(local ? '任务变更已同步到源项目' : '任务分支已推送')
   } catch (cause) {
-    ElMessage.error(cause instanceof Error ? cause.message : '推送失败')
+    ElMessage.error(cause instanceof Error ? cause.message : local ? '同步失败' : '推送失败')
     await loadPublication()
   } finally {
     operationLoading.value = false
@@ -155,8 +162,9 @@ async function createMergeRequest() {
 <template>
   <template v-if="task.status === 'SUCCEEDED'">
     <el-button v-if="loading || !publication" plain disabled :loading="loading">读取提交状态</el-button>
-    <el-button v-else-if="publication.state === 'READY'" type="success" :loading="operationLoading" @click="openCommitDialog"><Icon icon="lucide:git-commit-horizontal" />提交</el-button>
-    <el-button v-else-if="publication.state === 'COMMITTED'" type="warning" :loading="operationLoading" @click="retryPush"><Icon icon="lucide:cloud-upload" />继续推送</el-button>
+    <el-button v-else-if="publication.state === 'READY'" type="success" :loading="operationLoading" @click="openCommitDialog"><Icon :icon="localPublication ? 'lucide:folder-sync' : 'lucide:git-commit-horizontal'" />{{ localPublication ? '同步源代码' : '提交' }}</el-button>
+    <el-button v-else-if="publication.state === 'COMMITTED'" type="warning" :loading="operationLoading" @click="retryPublication"><Icon :icon="localPublication ? 'lucide:folder-sync' : 'lucide:cloud-upload'" />{{ localPublication ? '继续同步源代码' : '继续推送' }}</el-button>
+    <el-button v-else-if="publication.state === 'SYNCED_LOCAL'" type="success" plain disabled><Icon icon="lucide:circle-check" />已同步源代码</el-button>
     <el-dropdown v-else-if="publication.state === 'PUSHED'" trigger="click" @command="openMergeDialog">
       <el-button type="primary"><Icon icon="lucide:git-merge" />合并分支<Icon icon="lucide:chevron-down" /></el-button>
       <template #dropdown><el-dropdown-menu><el-dropdown-item command="merge-request"><Icon icon="lucide:git-pull-request-create" />创建合并请求</el-dropdown-item></el-dropdown-menu></template>
@@ -166,7 +174,7 @@ async function createMergeRequest() {
     </el-tooltip>
   </template>
 
-  <el-dialog v-model="commitDialogOpen" class="publication-dialog" title="提交任务变更" width="min(660px, 92vw)" append-to-body :close-on-click-modal="false">
+  <el-dialog v-model="commitDialogOpen" class="publication-dialog" :title="localPublication ? '同步任务变更到源项目' : '提交任务变更'" width="min(660px, 92vw)" append-to-body :close-on-click-modal="false">
     <div class="publication-intro"><Icon icon="lucide:sparkles" /><div><strong>AI 已根据任务目标和实际差异生成默认说明</strong><p>你只需输入 4 位数字工单号；提交前仍可编辑说明。</p></div></div>
     <el-form label-position="top" style="margin-top: 18px" @submit.prevent="submitCommit">
       <el-form-item label="4 位数字工单号">
@@ -179,7 +187,7 @@ async function createMergeRequest() {
       <div class="commit-preview"><span>最终提交信息</span><code>{{ commitPreview }}</code></div>
       <p v-if="commitError" class="publication-error"><Icon icon="lucide:triangle-alert" />{{ commitError }}</p>
     </el-form>
-    <template #footer><el-button :disabled="operationLoading" @click="commitDialogOpen = false">取消</el-button><el-button type="success" :loading="operationLoading" :disabled="suggestionLoading" @click="submitCommit">确认提交并推送</el-button></template>
+    <template #footer><el-button :disabled="operationLoading" @click="commitDialogOpen = false">取消</el-button><el-button type="success" :loading="operationLoading" :disabled="suggestionLoading" @click="submitCommit">{{ localPublication ? '确认提交并同步' : '确认提交并推送' }}</el-button></template>
   </el-dialog>
 
   <el-dialog v-model="mergeDialogOpen" class="publication-dialog" title="创建合并请求" width="min(700px, 92vw)" append-to-body :close-on-click-modal="false">

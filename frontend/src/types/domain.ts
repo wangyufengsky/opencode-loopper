@@ -173,7 +173,7 @@ export interface TaskDiffPreview {
 }
 
 export interface TaskPublicationStatus {
-  state: 'UNAVAILABLE' | 'NO_CHANGES' | 'READY' | 'COMMITTED' | 'PUSHED'
+  state: 'UNAVAILABLE' | 'NO_CHANGES' | 'READY' | 'COMMITTED' | 'PUSHED' | 'SYNCED_LOCAL'
   available: boolean
   reason?: string
   branch?: string
@@ -304,7 +304,7 @@ export interface TaskQueueStatus {
   rootFingerprint?: string
 }
 
-export type RecoveryMode = 'FROM_FAILED_STAGE' | 'ALL_STAGES' | 'VERIFY_ONLY'
+export type RecoveryMode = 'FROM_FAILED_STAGE' | 'ALL_STAGES' | 'VERIFY_ONLY' | 'REWORK_ALL_STAGES'
 
 export interface RecoveryDraft {
   taskId: string

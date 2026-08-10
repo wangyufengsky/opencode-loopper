@@ -15,12 +15,12 @@ class FeatureMigrationTest {
     @TempDir Path temporaryDirectory;
 
     @Test
-    void migratesBothEmptyAndV14DatabasesToV15WithoutInventingAuditHistory() throws Exception {
-        assertMigratesToV15(temporaryDirectory.resolve("empty.db"), false);
-        assertMigratesToV15(temporaryDirectory.resolve("upgrade.db"), true);
+    void migratesBothEmptyAndV14DatabasesToLatestWithoutInventingAuditHistory() throws Exception {
+        assertMigratesToLatest(temporaryDirectory.resolve("empty.db"), false);
+        assertMigratesToLatest(temporaryDirectory.resolve("upgrade.db"), true);
     }
 
-    private void assertMigratesToV15(Path database, boolean stopAtV14) throws Exception {
+    private void assertMigratesToLatest(Path database, boolean stopAtV14) throws Exception {
         String url = "jdbc:sqlite:" + database;
         if (stopAtV14) {
             Flyway.configure().dataSource(url, null, null).target(MigrationVersion.fromVersion("14")).load().migrate();
@@ -28,7 +28,7 @@ class FeatureMigrationTest {
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
 
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("15");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("16");
         try (var connection = DriverManager.getConnection(url);
              var statement = connection.prepareStatement("SELECT name FROM sqlite_master WHERE type='table'")) {
             try (var result = statement.executeQuery()) {
@@ -60,6 +60,7 @@ class FeatureMigrationTest {
             statement.executeUpdate("INSERT INTO project(id,name,root_path,created_at,updated_at) VALUES('p','P','/tmp/p','now','now')");
             statement.executeUpdate("INSERT INTO task(id,project_id,title,state,created_at,updated_at) VALUES('task-scope','p','T','READY','now','now')");
             statement.executeUpdate("INSERT INTO task(id,project_id,title,state,created_at,updated_at) VALUES('task-other','p','Other','READY','now','now')");
+            statement.executeUpdate("INSERT INTO task_lineage(child_task_id,parent_task_id,recovery_mode,workspace_fingerprint,created_at) VALUES('task-other','task-scope','REWORK_ALL_STAGES','baseline','now')");
             statement.executeUpdate("INSERT INTO stage(id,task_id,ordinal,objective,allowed_paths_json,forbidden_paths_json,deliverables_json,verifiers_json,state,created_at,updated_at) VALUES('stage','task-scope',0,'S','[]','[]','[]','[]','SUCCEEDED','now','now')");
             statement.executeUpdate("INSERT INTO attempt(id,task_id,stage_id,ordinal,state,created_at) VALUES('attempt','task-scope','stage',1,'SUCCEEDED','now')");
             statement.executeUpdate("INSERT INTO execution_session(id,task_id,stage_id,attempt_id,state,created_at) VALUES('session','task-scope','stage','attempt','COMPLETED','now')");

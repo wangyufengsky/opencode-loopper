@@ -32,6 +32,7 @@ const modeDescription = computed(() => ({
   FROM_FAILED_STAGE: selectedStage.value ? `从阶段 ${selectedStage.value.ordinal} 开始复制，已通过阶段保持在父任务证据中。` : '从第一个未完成阶段开始复制。',
   ALL_STAGES: '重新派生完整 LoopSpec；不会对父任务或原目录执行原地回滚。',
   VERIFY_ONLY: '只创建不可写的验证型恢复任务；服务端会阻止任何 OpenCode 可写执行会话。',
+  REWORK_ALL_STAGES: '从父任务创建时的基线拉取新分支，并重新执行全部阶段。',
 }[mode.value]))
 
 async function load() {

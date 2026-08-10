@@ -61,6 +61,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 public class TaskService {
     private static final String DESIGN_CONTEXT_ARTIFACT_KIND = "DESIGN_CONTEXT";
+    private static final String LOCAL_SOURCE_SYNC_ARTIFACT_KIND = "LOCAL_SOURCE_SYNC";
     private static final int MAX_EXECUTION_DESIGN_CONTEXT_CHARS = 12_000;
     private final LoopperMapper mapper;
     private final LifecycleTransitionService lifecycle;
@@ -94,12 +95,19 @@ public class TaskService {
     }
     @Transactional
     public TaskRow createFromDraft(LoopDraftRow draft, String title, String admissionSource) {
+        return createFromDraft(draft, title, admissionSource, null);
+    }
+    @Transactional
+    public TaskRow createFromDraft(LoopDraftRow draft, String title, String admissionSource, String isolatedBaseline) {
         var existing = mapper.findTaskByDraft(draft.id());
         if (existing.isPresent()) return existing.get();
         LoopSpec spec = readSpec(draft);
         ProjectRow project = projects.get(draft.projectId());
         Path projectRoot = Path.of(project.rootPath());
         boolean direct = !worktrees.inspect(projectRoot).isolatedWorktree();
+        if (isolatedBaseline != null && direct) {
+            throw new BadRequestException("REWORK_REPOSITORY_REQUIRED", "新分支重做需要可用的 Git 仓库根目录");
+        }
         String now = now();
         String taskId = UUID.randomUUID().toString();
         TaskRow task = new TaskRow(taskId, project.id(), draft.id(), normalizedTitle(title, draft.goal()),
@@ -129,8 +137,11 @@ public class TaskService {
                 }
                 return prepareAdmittedDirectTask(taskId);
             }
-            return prepareIsolatedTask(taskId, projectRoot);
+            return prepareIsolatedTask(taskId, projectRoot, isolatedBaseline);
         } catch (TaskFailure failure) {
+            if (isolatedBaseline != null) {
+                throw new ConflictException(failure.code(), failure.getMessage());
+            }
             failTask(task, failure.code(), failure.getMessage(), null, null, null);
             return get(taskId);
         }
@@ -169,6 +180,20 @@ public class TaskService {
     public List<JudgeRunRow> judges(String taskId) { get(taskId); return mapper.listJudgeRuns(taskId); }
     /** Immutable diff, verifier, and judge evidence retained independently of the worktree. */
     public List<TaskArtifactRow> artifacts(String taskId) { get(taskId); return mapper.listTaskArtifacts(taskId); }
+
+    public boolean hasLocalSourceSync(String taskId, String commitSha) {
+        if (commitSha == null || commitSha.isBlank()) return false;
+        return artifacts(taskId).stream().anyMatch(artifact -> LOCAL_SOURCE_SYNC_ARTIFACT_KIND.equals(artifact.kind())
+                && commitSha.equals(artifact.content()));
+    }
+
+    @Transactional
+    public void recordLocalSourceSync(String taskId, String commitSha, String mode) {
+        TaskRow task = get(taskId);
+        if (hasLocalSourceSync(taskId, commitSha)) return;
+        persistArtifact(task, null, null, LOCAL_SOURCE_SYNC_ARTIFACT_KIND, "local-source-sync.txt", "text/plain",
+                commitSha, Map.of("source", "task-publication", "mode", mode));
+    }
 
     public FeatureContracts.QueueStatusDto queueStatus(String taskId) {
         TaskRow task = get(taskId);
@@ -1312,7 +1337,11 @@ public class TaskService {
     }
 
     private TaskRow prepareIsolatedTask(String taskId, Path projectRoot) {
-        GitWorktreeManager.Worktree worktree = worktrees.create(projectRoot, taskId);
+        return prepareIsolatedTask(taskId, projectRoot, null);
+    }
+
+    private TaskRow prepareIsolatedTask(String taskId, Path projectRoot, String isolatedBaseline) {
+        GitWorktreeManager.Worktree worktree = worktrees.create(projectRoot, taskId, isolatedBaseline);
         if (GitWorktreeManager.DIRECT_BRANCH.equals(worktree.branch())) {
             throw new TaskFailure("DIRECT_LEASE_REQUIRED",
                     "Repository inspection changed before preparation; refusing unleased Direct execution");

@@ -137,6 +137,29 @@ export const useTaskStore = defineStore('task', () => {
     }
   }
 
+  async function reworkTask(id: string) {
+    const parent = tasks.value.find((task) => task.id === id)
+    if (!parent) return undefined
+    if (usingDemo.value) {
+      const child = { ...copy(parent), id: `${parent.id}-rework`, title: `${parent.title} · 重做`, status: 'RUNNING' as const,
+        branch: `loopper/${parent.id}-rework`, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+      tasks.value.push(child)
+      return child.id
+    }
+    error.value = undefined
+    try {
+      const recovery = await api.createTaskRecovery(id, 'REWORK_ALL_STAGES')
+      const child = await api.startTask(recovery.taskId)
+      const index = tasks.value.findIndex((task) => task.id === child.id)
+      if (index === -1) tasks.value.push(child)
+      else tasks.value[index] = child
+      return child.id
+    } catch (cause) {
+      error.value = cause instanceof Error ? cause.message : '新分支重做启动失败'
+      throw cause
+    }
+  }
+
   async function setTaskArchived(id: string, archived: boolean) {
     const old = tasks.value.find((task) => task.id === id)
     if (!old) return
@@ -197,5 +220,5 @@ export const useTaskStore = defineStore('task', () => {
     try { runtime.value = await api.restartRuntime() } catch (cause) { error.value = cause instanceof Error ? cause.message : 'Runtime 重启失败' }
   }
 
-  return { projects, tasks, runtime, artifacts, loading, error, usingDemo, streamState, activeTasks, selectedTask, activateDemo, loadOverview, loadTask, updateTask, retryJudges, setTaskArchived, watchTask, stopWatching, refreshRuntime, restartRuntime }
+  return { projects, tasks, runtime, artifacts, loading, error, usingDemo, streamState, activeTasks, selectedTask, activateDemo, loadOverview, loadTask, updateTask, retryJudges, reworkTask, setTaskArchived, watchTask, stopWatching, refreshRuntime, restartRuntime }
 })

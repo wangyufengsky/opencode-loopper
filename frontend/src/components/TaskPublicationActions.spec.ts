@@ -11,6 +11,12 @@ const ready: TaskPublicationStatus = {
 const pushed: TaskPublicationStatus = {
   ...ready, state: 'PUSHED', hasChanges: false, commitSha: 'abc123456789', commitMessage: '#3032_完善任务发布流程', upstream: 'origin/loopper/task-1',
 }
+const localReady: TaskPublicationStatus = {
+  state: 'READY', available: true, branch: 'loopper/task-1', targetBranches: [], provider: 'UNKNOWN', hasChanges: true,
+}
+const localSynced: TaskPublicationStatus = {
+  ...localReady, state: 'SYNCED_LOCAL', hasChanges: false, commitSha: 'def987654321', commitMessage: '#3032_同步到源项目',
+}
 const mocks = vi.hoisted(() => ({
   getTaskPublication: vi.fn(),
   generateTaskCommitMessage: vi.fn(),
@@ -65,5 +71,28 @@ describe('TaskPublicationActions', () => {
 
     expect(publishTask).toHaveBeenCalledWith('task-1', '#3032_完善任务发布流程')
     expect(wrapper.text()).toContain('合并分支')
+  })
+
+  it('explains conflict-safe source synchronization when no remote exists', async () => {
+    getTaskPublication.mockResolvedValue(localReady)
+    publishTask.mockResolvedValue(localSynced)
+    const wrapper = mount(TaskPublicationActions, { props: { task }, global: { plugins: [ElementPlus] }, attachTo: document.body })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('同步源代码')
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+    const ticket = document.querySelector('input[aria-label="4 位数字工单号"]') as HTMLInputElement
+    ticket.value = '3032'
+    ticket.dispatchEvent(new Event('input', { bubbles: true }))
+    await flushPromises()
+    const confirm = [...document.querySelectorAll('button')]
+      .find((button) => button.textContent?.includes('确认提交并同步')) as HTMLButtonElement
+    confirm.click()
+    await flushPromises()
+
+    expect(ElMessageBox.confirm).toHaveBeenCalledWith(expect.stringContaining('不会覆盖现有改动'), '确认提交并同步？', expect.any(Object))
+    expect(publishTask).toHaveBeenCalledWith('task-1', '#3032_完善任务发布流程')
+    expect(wrapper.text()).toContain('已同步源代码')
   })
 })

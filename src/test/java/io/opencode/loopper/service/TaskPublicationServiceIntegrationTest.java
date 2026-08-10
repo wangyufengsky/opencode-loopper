@@ -102,6 +102,64 @@ class TaskPublicationServiceIntegrationTest {
                 .hasMessageContaining("直接执行");
     }
 
+    @Test
+    void repositoryWithoutRemoteFastForwardsVerifiedCommitIntoCleanSourceProject() throws Exception {
+        Path projectRoot = repositoryWithoutRemote();
+        ProjectRow project = projects.create("local-sync-clean", projectRoot.toString());
+        TaskRow task = succeededTask(project);
+        Files.writeString(Path.of(task.worktreePath()).resolve("feature.txt"), "verified local change\n");
+
+        TaskPublicationService.PublicationStatus ready = publication.status(task.id());
+        assertThat(ready.state()).isEqualTo("READY");
+        assertThat(ready.remoteName()).isNull();
+
+        TaskPublicationService.PublicationStatus synced = publication.commitAndPush(
+                task.id(), "#3032_同步无远端任务变更");
+
+        assertThat(synced.state()).isEqualTo("SYNCED_LOCAL");
+        assertThat(run(projectRoot, "git", "rev-parse", "HEAD").strip()).isEqualTo(synced.commitSha());
+        assertThat(Files.readString(projectRoot.resolve("feature.txt"))).isEqualTo("verified local change\n");
+        assertThat(run(projectRoot, "git", "status", "--porcelain")).isBlank();
+        assertThat(tasks.artifacts(task.id())).anyMatch(artifact -> "LOCAL_SOURCE_SYNC".equals(artifact.kind())
+                && synced.commitSha().equals(artifact.content()));
+    }
+
+    @Test
+    void repositoryWithoutRemoteOverlaysTaskPatchWhilePreservingUnrelatedSourceChanges() throws Exception {
+        Path projectRoot = repositoryWithoutRemote();
+        ProjectRow project = projects.create("local-sync-dirty", projectRoot.toString());
+        TaskRow task = succeededTask(project);
+        Files.writeString(projectRoot.resolve("README.md"), "user local change\n");
+        Files.writeString(Path.of(task.worktreePath()).resolve("feature.txt"), "verified task change\n");
+        String sourceHead = run(projectRoot, "git", "rev-parse", "HEAD").strip();
+
+        TaskPublicationService.PublicationStatus synced = publication.commitAndPush(
+                task.id(), "#3032_保留源目录已有改动");
+
+        assertThat(synced.state()).isEqualTo("SYNCED_LOCAL");
+        assertThat(run(projectRoot, "git", "rev-parse", "HEAD").strip()).isEqualTo(sourceHead);
+        assertThat(Files.readString(projectRoot.resolve("README.md"))).isEqualTo("user local change\n");
+        assertThat(Files.readString(projectRoot.resolve("feature.txt"))).isEqualTo("verified task change\n");
+        assertThat(run(projectRoot, "git", "status", "--short"))
+                .contains("README.md").contains("feature.txt");
+    }
+
+    @Test
+    void repositoryWithoutRemoteStopsBeforeWritingWhenSourceChangesConflict() throws Exception {
+        Path projectRoot = repositoryWithoutRemote();
+        ProjectRow project = projects.create("local-sync-conflict", projectRoot.toString());
+        TaskRow task = succeededTask(project);
+        Files.writeString(projectRoot.resolve("README.md"), "source side\n");
+        Files.writeString(Path.of(task.worktreePath()).resolve("README.md"), "task side\n");
+
+        assertThatThrownBy(() -> publication.commitAndPush(task.id(), "#3032_验证源目录冲突保护"))
+                .isInstanceOfSatisfying(ConflictException.class,
+                        conflict -> assertThat(conflict.code()).isEqualTo("LOCAL_SOURCE_CONFLICT"));
+
+        assertThat(Files.readString(projectRoot.resolve("README.md"))).isEqualTo("source side\n");
+        assertThat(publication.status(task.id()).state()).isEqualTo("COMMITTED");
+    }
+
     private TaskRow succeededTask(ProjectRow project) {
         LoopDraftRow draft = drafts.create(new io.opencode.loopper.domain.LoopSpec(
                 "v1", project.id(), "实现并验证任务发布流程", null,
@@ -132,6 +190,18 @@ class TaskPublicationServiceIntegrationTest {
         run(project, "git", "remote", "add", "origin", remote.toString());
         run(project, "git", "push", "-u", "origin", "main");
         return new Repository(project, remote);
+    }
+
+    private Path repositoryWithoutRemote() throws Exception {
+        Path project = temp.resolve("local-project-" + System.nanoTime());
+        Files.createDirectories(project);
+        run(project, "git", "init", "-b", "main");
+        run(project, "git", "config", "user.email", "test@example.invalid");
+        run(project, "git", "config", "user.name", "Loopper Test");
+        Files.writeString(project.resolve("README.md"), "fixture\n");
+        run(project, "git", "add", "README.md");
+        run(project, "git", "commit", "-m", "initial");
+        return project;
     }
 
     private String run(Path directory, String... argv) throws Exception {

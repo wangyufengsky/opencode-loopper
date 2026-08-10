@@ -24,23 +24,47 @@ public class GitWorktreeManager {
     }
 
     public Worktree create(Path projectRoot, String taskId) {
+        return create(projectRoot, taskId, null);
+    }
+
+    public Worktree create(Path projectRoot, String taskId, String requestedBaseline) {
         try {
             Path root = projectRoot.toRealPath();
             ProcessResult repository = runner.run(root, List.of("git", "rev-parse", "--is-inside-work-tree"), GIT_TIMEOUT);
             if (repository.timedOut() || repository.outputTruncated() || repository.exitCode() != 0
                     || !"true".equals(repository.output().trim())) {
+                if (requestedBaseline != null) throw new TaskFailure("REWORK_REPOSITORY_REQUIRED", "Rework requires an isolated Git repository");
                 return direct(root, taskId);
             }
             ProcessResult topLevel = runner.run(root, List.of("git", "rev-parse", "--show-toplevel"), GIT_TIMEOUT);
             if (topLevel.timedOut() || topLevel.outputTruncated() || topLevel.exitCode() != 0 || topLevel.output().isBlank()) {
+                if (requestedBaseline != null) throw new TaskFailure("REWORK_REPOSITORY_REQUIRED", "Rework requires an isolated Git repository");
                 return direct(root, taskId);
             }
             Path repositoryRoot;
             try { repositoryRoot = Path.of(topLevel.output().trim()).toRealPath(); }
-            catch (Exception invalidTopLevel) { return direct(root, taskId); }
-            if (!repositoryRoot.equals(root)) return direct(root, taskId);
+            catch (Exception invalidTopLevel) {
+                if (requestedBaseline != null) throw new TaskFailure("REWORK_REPOSITORY_REQUIRED", "Rework requires an isolated Git repository");
+                return direct(root, taskId);
+            }
+            if (!repositoryRoot.equals(root)) {
+                if (requestedBaseline != null) throw new TaskFailure("REWORK_REPOSITORY_REQUIRED", "Rework requires the registered Git repository root");
+                return direct(root, taskId);
+            }
             ProcessResult head = runner.run(root, List.of("git", "rev-parse", "HEAD"), GIT_TIMEOUT);
-            if (head.timedOut() || head.outputTruncated() || head.exitCode() != 0) return direct(root, taskId);
+            if (head.timedOut() || head.outputTruncated() || head.exitCode() != 0) {
+                if (requestedBaseline != null) throw new TaskFailure("REWORK_BASELINE_UNAVAILABLE", "Rework baseline cannot be resolved");
+                return direct(root, taskId);
+            }
+            String baseline = head.output().trim();
+            if (requestedBaseline != null) {
+                ProcessResult verified = runner.run(root,
+                        List.of("git", "rev-parse", "--verify", requestedBaseline + "^{commit}"), GIT_TIMEOUT);
+                if (verified.timedOut() || verified.outputTruncated() || verified.exitCode() != 0 || verified.output().isBlank()) {
+                    throw new TaskFailure("REWORK_BASELINE_UNAVAILABLE", "The parent task baseline is no longer available in Git");
+                }
+                baseline = verified.output().trim();
+            }
             Path base = properties.getDataDir().toAbsolutePath().normalize().resolve("worktrees");
             Files.createDirectories(base);
             Path worktree = base.resolve(taskId).normalize();
@@ -48,13 +72,13 @@ public class GitWorktreeManager {
             if (Files.exists(worktree)) throw new TaskFailure("WORKTREE_ALREADY_EXISTS", "A managed worktree already exists for task " + taskId);
             String branch = "loopper/" + taskId;
             ProcessResult added = runner.run(root,
-                    List.of("git", "worktree", "add", "-b", branch, worktree.toString(), head.output().trim()), GIT_TIMEOUT);
+                    List.of("git", "worktree", "add", "-b", branch, worktree.toString(), baseline), GIT_TIMEOUT);
             if (added.exitCode() != 0) throw new TaskFailure("WORKTREE_CREATE_FAILED", trim(added.output()));
             Path resolved = worktree.toRealPath();
             if (!resolved.startsWith(base.toRealPath())) {
                 throw new TaskFailure("WORKTREE_ESCAPE", "Created worktree did not remain inside the managed worktree directory");
             }
-            return new Worktree(resolved, branch, head.output().trim());
+            return new Worktree(resolved, branch, baseline);
         } catch (TaskFailure e) {
             throw e;
         } catch (Exception e) {
