@@ -26,23 +26,30 @@
    - 项目结构、命令、约束或契约有变化时，直接更新对应章节；
    - 即使规则没有变化，也要更新“维护记录”，写明日期、范围、验证命令和 JAR 结果；
    - 不得只更新维护记录而遗漏已经变化的正文。
-4. 运行与改动直接相关的聚焦测试，再运行完整验证和打包：
+4. **每次形成新的可交付 JAR 前必须先更新版本号**：
+   - 任何开发、修改或优化后的重新打包都视为一次新交付，必须先递增版本号；
+   - 版本采用递增且从未发布过的 SemVer，禁止复用 Maven 版本、Git 标签或 GitHub Release；
+   - 同步更新 `pom.xml`、`frontend/package.json`、`frontend/package-lock.json`、`application.yml`、Java MCP server info、README、本文件和 `scripts/start-linux.sh`；
+   - 使用 `rg` 检查旧版本是否仍残留在应同步的发布路径中；
+   - 同一版本下仅允许对失败的同一次构建做诊断重试；源码或交付内容再次变化后必须使用下一个版本。
+5. 运行与改动直接相关的聚焦测试，再运行完整验证和打包：
 
    ```bash
    ./scripts/verify.sh
    ```
 
-5. 确认生成新的可执行 JAR：
+6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.1.1-SNAPSHOT.jar
-   jar tf target/opencode-loopper-0.1.1-SNAPSHOT.jar \
+   test -s target/opencode-loopper-0.1.1.jar
+   jar tf target/opencode-loopper-0.1.1.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.1.1-SNAPSHOT.jar
+   shasum -a 256 target/opencode-loopper-0.1.1.jar
    ```
 
-6. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
-7. 最终交付必须明确报告：修改文件、验证命令及结果、新 JAR 路径与校验值、尚未执行的运行时验证和剩余限制。
+7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
+8. 对需要交付的代码更新，提交并推送版本修改后创建不可移动的 `v<version>` 标签并推送；标签会触发 `.github/workflows/release.yml`，由 GitHub 在标签提交上重新测试、打包并发布 JAR、`start-linux.sh` 和 `SHA256SUMS`。必须等待工作流结束并回读 Release 资产状态与 digest。
+9. 最终交付必须明确报告：修改文件、验证命令及结果、本地 JAR 路径与校验值、Git 标签、GitHub Release URL、Actions 结果、尚未执行的运行时验证和剩余限制。
 
 **“源码已改”“测试通过”“JAR 已生成”“端口 8080 正在运行新 JAR”“浏览器已加载新静态资源”是五个不同结论。** 未实际核验时不得宣称后一个结论。
 
@@ -52,7 +59,7 @@
 - 因环境、网络、依赖或已有用户改动导致完整验证失败时，不得伪造成功；先保留失败输出，尽可能运行安全的聚焦验证，并报告阻塞点。
 - 纯调查、解释或代码评审不授权修改文件，也不要求为只读任务打包；一旦实际修改仓库文件，就按上述交付流程执行。
 - 完整打包后仅回填本文件“维护记录”中的测试数、JAR 哈希和结果，不需要递归再次打包；该回填不改变可执行产物内容。
-- 不要为了满足打包要求擅自提交、推送、部署、重启服务或覆盖现有 JAR；这些是独立的外部状态变更，需要用户请求或任务明确授权。
+- 用户已将版本标签触发 GitHub Release 定义为本项目的标准代码交付流程，因此完成可交付代码更新时允许推送对应提交和新版本标签；除此之外，不要擅自推送其他分支、部署、重启服务或覆盖运行中的 JAR。
 
 ## 1. 项目目标与产品边界
 
@@ -86,8 +93,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.1.1-SNAPSHOT`。
-- 正式产物：`target/opencode-loopper-0.1.1-SNAPSHOT.jar`。
+- Maven 项目版本：`0.1.1`。
+- 正式产物：`target/opencode-loopper-0.1.1.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -111,6 +118,9 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 │   ├── dev.sh / dev.ps1              # 后端 + Vite 热开发
 │   ├── verify.sh                     # JDK 21 下的 clean verify 与正式打包
 │   └── start-linux.sh                # Linux/内网成品 JAR 启动
+├── .github/workflows/
+│   ├── ci.yml                        # main/PR 的三平台完整验证
+│   └── release.yml                   # v<version> 标签验证并发布 JAR/脚本/校验值
 ├── docs/
 │   ├── architecture.md               # 权威架构、生命周期、错误和工作区边界
 │   ├── design-contract.md            # UI、Designer 和 Review Gate 合同
@@ -307,7 +317,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.1.1-SNAPSHOT.jar
+JAR=target/opencode-loopper-0.1.1.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -354,6 +364,7 @@ curl --fail http://127.0.0.1:8080/actuator/health
 - 禁止使用 `git reset --hard`、`git checkout -- <file>`、递归删除工作区或其他不可恢复操作。
 - 不要手工编辑 `target/`、`frontend/dist/`、`frontend/node_modules/`、SQLite 数据库或 Flyway 已执行迁移来“修复”源码问题。
 - 不创建提交、不切分支、不推送、不创建 PR/MR，除非用户明确要求。
+- 本项目的版本发布公约是上条规则的已授权例外：完成交付型代码更新后，允许推送已核验的发布提交和全新 `v<version>` 标签，以触发标准 Release 工作流；禁止强推、移动或复用标签。
 - 不自动删除 worktree、分支、运行数据或历史证据。
 - 修改前阅读文件，修改后检查 diff；批量格式化只能覆盖本任务文件。
 - 若用户修改与当前文件重叠，先停下说明冲突；能避开时保留用户修改继续。
@@ -369,10 +380,13 @@ curl --fail http://127.0.0.1:8080/actuator/health
 - [ ] 行为变化有自动化测试或明确的不可测边界。
 - [ ] 相关 README/docs 已同步。
 - [ ] 本 `AGENTS.md` 正文和维护记录已同步。
+- [ ] 已在最终重新打包前把全部发布版本引用更新为一个未使用的新 SemVer。
 - [ ] 聚焦测试通过。
 - [ ] `./scripts/verify.sh` 完成并生成新的可执行 JAR。
 - [ ] JAR 包含当前 Vue 静态资源，并记录新的 SHA-256。
 - [ ] `git diff --check` 通过，`git status` 中没有意外文件。
+- [ ] 发布提交已推送，新 `v<version>` 标签指向该提交且与 Maven 版本一致。
+- [ ] Release 工作流成功，GitHub 资产包含 JAR、`start-linux.sh` 和 `SHA256SUMS`，远端 digest 已回读。
 - [ ] 如声称运行时有效，已核对真实 PID/cwd/JAR/health/浏览器证据。
 - [ ] 最终回复列出文件、验证、JAR、运行时边界和剩余风险。
 
@@ -384,3 +398,4 @@ curl --fail http://127.0.0.1:8080/actuator/health
 | --- | --- | --- | --- |
 | 2026-08-10 | 初始化根目录 Agent 公约 | 新增强制预读、结束更新、完整验证、单 JAR 打包和项目契约地图 | `./scripts/verify.sh`：Java 222/222、Vitest 114/114，BUILD SUCCESS；JAR 262557087 bytes，SHA-256 `84e40ee48a61a985877ec2d06cd49144e043327f9f4db805adc55065f0986dcf` |
 | 2026-08-10 | Maven PROCESS 参数容错规范化 | 明确可解析的合并 Maven 参数直接规范化，只有无法安全解析时才触发 Designer 自动纠正；同步 README、Designer/OpenCode 合同 | `./scripts/verify.sh`：Java 225/225、Vitest 114/114，BUILD SUCCESS；JAR 262561953 bytes，SHA-256 `761515a69dc8792433e157ca15b04b05e26a2d359d55c4650a601db61372694c` |
+| 2026-08-10 | 发布稳定版 0.1.1 | 规定每次形成新交付 JAR 必须递增版本号；新增 `v<version>` 标签校验、完整验证和 GitHub Release 自动发布合同 | `./scripts/verify.sh`：Java 225/225、Vitest 114/114，BUILD SUCCESS；JAR 262561925 bytes，SHA-256 `f3fc9611be5f4afaec48ccc5a035695c27f3c910c1dabd84ae16ca99963be10e`；发布目标：`v0.1.1` |

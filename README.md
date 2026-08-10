@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.1.1-SNAPSHOT`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.1.1`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -108,7 +108,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.1.1-SNAPSHOT.jar
+java -jar target/opencode-loopper-0.1.1.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -287,7 +287,7 @@ Git 隔离任务达到 `SUCCEEDED` 后：
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.1.1-SNAPSHOT.jar`
+- `target/opencode-loopper-0.1.1.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -319,7 +319,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:4096
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.1.1-SNAPSHOT.jar \
+jar tf target/opencode-loopper-0.1.1.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -384,6 +384,27 @@ Windows PowerShell：
 
 `mvn clean` 会先清理 Maven 管理的前端工具链与静态资源，避免新 JAR 意外携带旧前端。真实 OpenCode/模型端到端结果与 mock/契约测试应分别判断。
 
+### 版本发布
+
+每个可交付的新 JAR 必须使用一个未发布过且递增的 SemVer 版本。版本号需要同时更新 Maven、前端 package、MCP 配置、README、`AGENTS.md` 和 Linux 启动脚本，然后在该版本下重新执行完整验证。
+
+推送与 Maven 版本完全一致的 `v<version>` 标签会触发 [Release 工作流](.github/workflows/release.yml)。工作流在标签提交上使用 JDK 21 重新执行 `clean verify`，拒绝 SNAPSHOT 或标签不匹配的构建，并自动发布：
+
+- `opencode-loopper-<version>.jar`；
+- `start-linux.sh`；
+- `SHA256SUMS`。
+
+例如发布下一版本：
+
+```bash
+VERSION=0.1.2
+git tag "v$VERSION"
+git push origin main
+git push origin "v$VERSION"
+```
+
+标签必须指向已经包含全部版本修改的提交，且不得复用或强制移动已发布标签。
+
 常用的独立前端命令：
 
 ```bash
@@ -416,7 +437,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.1.1-SNAPSHOT.jar
+java -jar target/opencode-loopper-0.1.1.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。
