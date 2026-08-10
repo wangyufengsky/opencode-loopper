@@ -277,11 +277,6 @@ public interface LoopperMapper {
             """)
     int updateTaskQueue(TaskQueueRow row);
 
-    /**
-     * A Provider request id can be observed more than once with richer permission details.  A newly observed
-     * dangerous payload may only promote an open/stale interaction to HARD_DENIED; it must never reopen a
-     * terminal interaction or relax an existing local hard deny.
-     */
     @Insert("""
             INSERT INTO interaction(id,scope_type,scope_id,task_id,designer_session_id,local_session_id,
               external_session_id,external_request_id,kind,state,payload_json,resolved_action,response_json,
@@ -289,25 +284,14 @@ public interface LoopperMapper {
             VALUES(#{id},#{scopeType},#{scopeId},#{taskId},#{designerSessionId},#{localSessionId},
               #{externalSessionId},#{externalRequestId},#{kind},#{state},#{payloadJson},#{resolvedAction},#{responseJson},
               #{createdAt},#{updatedAt},#{resolvedAt},#{version})
-            ON CONFLICT(external_session_id,external_request_id,kind) DO UPDATE SET
-              state=CASE
-                WHEN interaction.state IN ('PENDING','RESOLVING','STALE') AND excluded.state='HARD_DENIED' THEN 'HARD_DENIED'
-                ELSE interaction.state
-              END,
-              payload_json=CASE
-                WHEN interaction.state IN ('PENDING','RESOLVING','STALE') AND excluded.state='HARD_DENIED' THEN excluded.payload_json
-                ELSE interaction.payload_json
-              END,
-              updated_at=CASE
-                WHEN interaction.state IN ('PENDING','RESOLVING','STALE') AND excluded.state='HARD_DENIED' THEN excluded.updated_at
-                ELSE interaction.updated_at
-              END,
-              version=CASE
-                WHEN interaction.state IN ('PENDING','RESOLVING','STALE') AND excluded.state='HARD_DENIED' THEN interaction.version + 1
-                ELSE interaction.version
-              END
             """)
-    int upsertInteraction(InteractionRow row);
+    int insertInteraction(InteractionRow row);
+    @Update("""
+            UPDATE interaction SET state='HARD_DENIED',payload_json=#{payloadJson},updated_at=#{updatedAt},version=version+1
+            WHERE id=#{id} AND version=#{version} AND state IN ('PENDING','RESOLVING','STALE')
+            """)
+    int promoteInteractionToHardDenied(@Param("id") String id, @Param("version") long version,
+                                       @Param("payloadJson") String payloadJson, @Param("updatedAt") String updatedAt);
     @Select("SELECT * FROM interaction WHERE id=#{id}") Optional<InteractionRow> findInteraction(String id);
     @Select("SELECT * FROM interaction WHERE external_session_id=#{externalSessionId} AND external_request_id=#{externalRequestId} AND kind=#{kind}")
     Optional<InteractionRow> findInteractionByExternalRequest(

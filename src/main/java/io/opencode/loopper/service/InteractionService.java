@@ -243,17 +243,14 @@ public class InteractionService {
                 write(payload), null, null, timestamp, timestamp, null, 0);
         InteractionRow existing = mapper.findInteractionByExternalRequest(externalSessionId, requestId, kind.name()).orElse(null);
         if (existing == null) {
-            lifecycle.create(subject(observed), observed.state(), Map.of(), () -> mapper.upsertInteraction(observed),
+            lifecycle.create(subject(observed), observed.state(), Map.of(), () -> mapper.insertInteraction(observed),
                     () -> new ConflictException("INTERACTION_CREATE_CONFLICT", "Interaction could not be persisted"));
         } else if (state == InteractionState.HARD_DENIED
                 && List.of(InteractionState.PENDING.name(), InteractionState.RESOLVING.name(), InteractionState.STALE.name())
                 .contains(existing.state())) {
             lifecycle.transition(subject(existing), existing.state(), InteractionState.HARD_DENIED.name(), null, Map.of(),
-                    () -> mapper.upsertInteraction(observed),
-                    () -> new ConflictException("INTERACTION_VERSION_CONFLICT", "Interaction changed concurrently"));
-        } else {
-            lifecycle.transition(subject(existing), existing.state(), existing.state(), null, Map.of(),
-                    () -> mapper.upsertInteraction(observed),
+                    () -> mapper.promoteInteractionToHardDenied(existing.id(), existing.version(),
+                            observed.payloadJson(), observed.updatedAt()),
                     () -> new ConflictException("INTERACTION_VERSION_CONFLICT", "Interaction changed concurrently"));
         }
     }

@@ -34,10 +34,6 @@ import tools.jackson.databind.ObjectMapper;
 @Service
 public class DesignerSessionService {
     public static final String READ_ONLY = "READ_ONLY";
-    public static final String PENDING_HANDOFF = DesignerSessionState.PENDING_HANDOFF.name();
-    public static final String RUNNING = DesignerSessionState.RUNNING.name();
-    public static final String COMPLETED = DesignerSessionState.COMPLETED.name();
-    public static final String SESSION_ERROR = DesignerSessionState.SESSION_ERROR.name();
     private static final int MAX_MESSAGE_LENGTH = 12_000;
     private static final int MAX_LOOP_SPEC_REPAIR_ATTEMPTS = 2;
     private static final String LOOP_SPEC_REPAIR_MARKER = "SYSTEM_RECOVERY[LOOPSPEC_AUTO_REPAIR";
@@ -85,13 +81,14 @@ public class DesignerSessionService {
             }
         }
         String now = now();
-        DesignerSessionRow session = new DesignerSessionRow(UUID.randomUUID().toString(), projectId, PENDING_HANDOFF,
+        DesignerSessionRow session = new DesignerSessionRow(UUID.randomUUID().toString(), projectId,
+                DesignerSessionState.PENDING_HANDOFF.name(),
                 READ_ONLY, now, now, 0, null, "PENDING", loopDraftId);
         lifecycle.create(subject(session), session.state(), java.util.Map.of(),
                 () -> mapper.insertDesignerSession(session),
                 () -> new ConflictException("DESIGNER_SESSION_CREATE_CONFLICT", "Designer session could not be created"));
         appendSystem(session, "Designer session created in read-only mode. OpenCode Designer handoff is pending; no model response has been generated.",
-                PENDING_HANDOFF);
+                DesignerSessionState.PENDING_HANDOFF.name());
         if (initialMessage != null && !initialMessage.isBlank()) appendUserMessage(session.id(), initialMessage);
         return get(session.id());
     }
@@ -112,7 +109,8 @@ public class DesignerSessionService {
 
     public List<PendingQuestion> pendingQuestions(String sessionId) {
         DesignerSessionRow session = get(sessionId);
-        if (!RUNNING.equals(session.state()) || session.externalSessionId() == null || session.externalSessionId().isBlank()) {
+        if (!DesignerSessionState.RUNNING.name().equals(session.state())
+                || session.externalSessionId() == null || session.externalSessionId().isBlank()) {
             return List.of();
         }
         OpenCodeClient.OpenCodeSession remote = remote(session);
@@ -173,7 +171,7 @@ public class DesignerSessionService {
     @Transactional
     public List<DesignerMessageRow> appendUserMessage(String sessionId, String content) {
         DesignerSessionRow session = get(sessionId);
-        if (RUNNING.equals(session.state())) {
+        if (DesignerSessionState.RUNNING.name().equals(session.state())) {
             throw new ConflictException("DESIGNER_SESSION_BUSY",
                     "OpenCode Designer is still processing the previous message; wait for its actual assistant response before sending another prompt");
         }
@@ -204,10 +202,10 @@ public class DesignerSessionService {
 
     private DesignerMessageRow dispatch(DesignerSessionRow session, String userMessage) {
         if (!openCode.healthy()) {
-            DesignerSessionRow pending = transition(session, PENDING_HANDOFF, null, "UNAVAILABLE");
+            DesignerSessionRow pending = transition(session, DesignerSessionState.PENDING_HANDOFF, null, "UNAVAILABLE");
             DesignerMessageRow notice = appendSystem(pending,
                     "SYSTEM_ERROR[SESSION]: OpenCode Designer runtime is unavailable. Message remains pending handoff; no assistant reply was fabricated.",
-                    PENDING_HANDOFF);
+                    DesignerSessionState.PENDING_HANDOFF.name());
             events.publish(pending.id(), "ERROR", pending.state(), pending.externalSessionState(), false, "", notice.content());
             return notice;
         }
@@ -217,14 +215,14 @@ public class DesignerSessionService {
             OpenCodeClient.OpenCodeSession remote = reusable(session)
                     ? new OpenCodeClient.OpenCodeSession(session.externalSessionId(), Path.of(project.rootPath()))
                     : openCode.createReadOnlySession(Path.of(project.rootPath()), "OpenCode Loopper Designer (READ_ONLY)", configuredModel());
-            current = transition(session, RUNNING, remote.id(), "CREATED");
+            current = transition(session, DesignerSessionState.RUNNING, remote.id(), "CREATED");
             events.publish(current.id(), "STATUS", current.state(), current.externalSessionState(), true, "",
                     "OpenCode 已连接，只读 Designer Session 已创建");
             openCode.promptAsync(remote, designerPrompt(current, project, userMessage));
-            current = transition(current, RUNNING, remote.id(), "RUNNING");
+            current = transition(current, DesignerSessionState.RUNNING, remote.id(), "RUNNING");
             DesignerMessageRow notice = appendSystem(current,
                     "Message was handed to the read-only OpenCode Designer. Waiting to persist the actual assistant response.",
-                    PENDING_HANDOFF);
+                    DesignerSessionState.PENDING_HANDOFF.name());
             events.publish(current.id(), "STATUS", current.state(), current.externalSessionState(), true, "",
                     "提示词已送达模型，等待首段回复");
             return notice;
@@ -242,7 +240,7 @@ public class DesignerSessionService {
             List<OpenCodeClient.PendingQuestion> pending = openCode.pendingQuestions(remote);
             if (!pending.isEmpty()) {
                 DesignerSessionRow current = !same(session.externalSessionState(), "WAITING_INPUT")
-                        ? transition(session, RUNNING, session.externalSessionId(), "WAITING_INPUT") : session;
+                        ? transition(session, DesignerSessionState.RUNNING, session.externalSessionId(), "WAITING_INPUT") : session;
                 String liveOutput = visibleDesignerOutput(openCode.sessionLiveOutput(remote));
                 events.publish(current.id(), liveOutput.isBlank() ? "STATUS" : "PARTIAL", current.state(), "WAITING_INPUT", true,
                         liveOutput, "OpenCode Designer 正在等待你的回答");
@@ -279,12 +277,13 @@ public class DesignerSessionService {
                     return;
                 }
                 appendMessage(session.id(), "ASSISTANT", parsed.markdown(), "PERSISTED");
-                DesignerSessionRow completed = transition(session, COMPLETED, session.externalSessionId(), "COMPLETED");
+                DesignerSessionRow completed = transition(session, DesignerSessionState.COMPLETED,
+                        session.externalSessionId(), "COMPLETED");
                 events.publish(completed.id(), "COMPLETED", completed.state(), completed.externalSessionState(), true,
                         parsed.markdown(), "Designer 回复完成，LoopSpec 已同步");
             } else {
                 DesignerSessionRow current = !same(session.externalSessionState(), status.state())
-                        ? transition(session, RUNNING, session.externalSessionId(), status.state()) : session;
+                        ? transition(session, DesignerSessionState.RUNNING, session.externalSessionId(), status.state()) : session;
                 String liveOutput = visibleDesignerOutput(openCode.sessionLiveOutput(remote));
                 events.publish(current.id(), liveOutput.isBlank() ? "STATUS" : "PARTIAL", current.state(), status.state(), true,
                         liveOutput, liveOutput.isBlank() ? "OpenCode 已连接，等待首段模型回复" : "正在接收模型回复");
@@ -301,7 +300,7 @@ public class DesignerSessionService {
         if (session.loopDraftId() == null || session.loopDraftId().isBlank()) return false;
         int attempt = loopSpecRepairAttempts(session.id()) + 1;
         if (attempt > MAX_LOOP_SPEC_REPAIR_ATTEMPTS) return false;
-        DesignerSessionRow repairing = transition(session, RUNNING, session.externalSessionId(),
+        DesignerSessionRow repairing = transition(session, DesignerSessionState.RUNNING, session.externalSessionId(),
                 "REPAIRING_LOOPSPEC_" + attempt);
         DesignerMessageRow notice = appendSystem(repairing,
                 LOOP_SPEC_REPAIR_MARKER + " " + attempt + "/" + MAX_LOOP_SPEC_REPAIR_ATTEMPTS + "]: 上一次回复未通过 LoopSpec 校验，"
@@ -353,15 +352,18 @@ public class DesignerSessionService {
     }
 
     private DesignerMessageRow sessionError(DesignerSessionRow session, String code, String detail) {
-        DesignerSessionRow failed = transition(session, SESSION_ERROR, session.externalSessionId(), "FAILED");
+        DesignerSessionRow failed = transition(session, DesignerSessionState.SESSION_ERROR,
+                session.externalSessionId(), "FAILED");
         DesignerMessageRow message = appendSystem(failed, "SYSTEM_ERROR[SESSION:" + code + "]: " + safeMessage(detail)
-                + ". This affected only the read-only Designer handoff; no task was changed.", SESSION_ERROR);
+                + ". This affected only the read-only Designer handoff; no task was changed.",
+                DesignerSessionState.SESSION_ERROR.name());
         events.publish(failed.id(), "ERROR", failed.state(), failed.externalSessionState(), false, "", message.content());
         return message;
     }
 
     private boolean reusable(DesignerSessionRow session) {
-        return session.externalSessionId() != null && !session.externalSessionId().isBlank() && !SESSION_ERROR.equals(session.state());
+        return session.externalSessionId() != null && !session.externalSessionId().isBlank()
+                && !DesignerSessionState.SESSION_ERROR.name().equals(session.state());
     }
 
     /** A parseable provider/model is passed through; absent or malformed configuration lets OpenCode choose its runtime default. */
@@ -467,7 +469,8 @@ public class DesignerSessionService {
 
     private DesignerSessionRow requireRunningRemote(String sessionId) {
         DesignerSessionRow session = get(sessionId);
-        if (!RUNNING.equals(session.state()) || session.externalSessionId() == null || session.externalSessionId().isBlank()) {
+        if (!DesignerSessionState.RUNNING.name().equals(session.state())
+                || session.externalSessionId() == null || session.externalSessionId().isBlank()) {
             throw new ConflictException("DESIGNER_QUESTION_UNAVAILABLE", "Designer session has no running OpenCode question to answer");
         }
         return session;
@@ -530,7 +533,7 @@ public class DesignerSessionService {
     private void questionResolved(String sessionId, String detail) {
         DesignerSessionRow current = get(sessionId);
         try {
-            current = transition(current, RUNNING, current.externalSessionId(), "RUNNING");
+            current = transition(current, DesignerSessionState.RUNNING, current.externalSessionId(), "RUNNING");
         } catch (ConflictException concurrentPoll) {
             current = get(sessionId);
         }
@@ -554,13 +557,18 @@ public class DesignerSessionService {
         return message;
     }
 
-    private DesignerSessionRow transition(DesignerSessionRow session, String state, String externalSessionId, String externalSessionState) {
-        DesignerSessionRow updated = new DesignerSessionRow(session.id(), session.projectId(), state, session.accessMode(),
+    private DesignerSessionRow transition(DesignerSessionRow session, DesignerSessionState state,
+                                          String externalSessionId, String externalSessionState) {
+        DesignerSessionRow updated = new DesignerSessionRow(session.id(), session.projectId(), state.name(), session.accessMode(),
                 session.createdAt(), now(), session.version(), externalSessionId, externalSessionState, session.loopDraftId());
-        lifecycle.transition(subject(updated), session.state(), updated.state(), null, java.util.Map.of(),
-                () -> session.state().equals(updated.state())
-                        ? mapper.updateDesignerSessionProjection(updated) : mapper.updateDesignerSession(updated),
-                () -> new ConflictException("DESIGNER_SESSION_VERSION_CONFLICT", "Designer session was updated concurrently"));
+        if (session.state().equals(updated.state())) {
+            lifecycle.mutateWithoutTransition(() -> mapper.updateDesignerSessionProjection(updated),
+                    () -> new ConflictException("DESIGNER_SESSION_VERSION_CONFLICT", "Designer session was updated concurrently"));
+        } else {
+            lifecycle.transition(subject(updated), session.state(), updated.state(), null, java.util.Map.of(),
+                    () -> mapper.updateDesignerSession(updated),
+                    () -> new ConflictException("DESIGNER_SESSION_VERSION_CONFLICT", "Designer session was updated concurrently"));
+        }
         return get(session.id());
     }
 

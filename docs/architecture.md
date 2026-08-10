@@ -41,6 +41,12 @@ Project scope, and workspace/automation records use their stable fingerprints
 or rule ids. Audit metadata is bounded and must not contain prompts, tokens,
 permission payloads, content, or filesystem paths.
 
+Lifecycle transitions and ordinary optimistic-lock updates are separate APIs.
+Calling `transition` with the same source and target does not silently become a
+field update: it is rejected unless the machine declares an explicit business
+self-transition event. Projection/content/heartbeat updates use the audit-free
+`mutateWithoutTransition` path and mapper statements that do not write state.
+
 The transition history is forward-only from Flyway V15: existing rows are not
 given fabricated creation events. `GET /api/state-transitions` can page either
 one machine/entity or one aggregate scope in ascending sequence order. The

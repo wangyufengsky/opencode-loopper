@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.opencode.loopper.LoopperApplication;
+import io.opencode.loopper.domain.ProjectConventionState;
 import io.opencode.loopper.persistence.ProjectConventionDraftRow;
 import io.opencode.loopper.persistence.ProjectRow;
 import io.opencode.loopper.runtime.FakeOpenCodeClient;
@@ -53,7 +54,7 @@ class ProjectConventionServiceTest {
 
         ProjectConventionDraftRow running = conventions.generate(project.id());
 
-        assertThat(running.state()).isEqualTo(ProjectConventionService.RUNNING);
+        assertThat(running.state()).isEqualTo(ProjectConventionState.RUNNING.name());
         assertThat(fake.isReadOnlySession(running.externalSessionId())).isTrue();
         assertThat(fake.modelForSession(running.externalSessionId()))
                 .isEqualTo(new OpenCodeClient.OpenCodeModel("opencode", "deepseek-v4-flash-free", null));
@@ -64,7 +65,7 @@ class ProjectConventionServiceTest {
 
         conventions.pollActiveGenerations();
         ProjectConventionDraftRow ready = conventions.get(project.id(), running.id());
-        assertThat(ready.state()).isEqualTo(ProjectConventionService.READY);
+        assertThat(ready.state()).isEqualTo(ProjectConventionState.READY.name());
         assertThat(ready.proposedContent())
                 .startsWith(ProjectConventionService.START_MARKER)
                 .contains("Java 21 与 Maven", "## Looper 设计公约", "## Looper 执行公约", "## Looper 验收公约")
@@ -73,7 +74,7 @@ class ProjectConventionServiceTest {
         assertThat(root.resolve("AGENTS.md")).doesNotExist();
 
         ProjectConventionDraftRow applied = conventions.apply(project.id(), ready.id());
-        assertThat(applied.state()).isEqualTo(ProjectConventionService.APPLIED);
+        assertThat(applied.state()).isEqualTo(ProjectConventionState.APPLIED.name());
         assertThat(Files.readString(root.resolve("AGENTS.md"))).isEqualTo(ready.proposedContent());
     }
 
@@ -112,7 +113,7 @@ class ProjectConventionServiceTest {
         ProjectConventionDraftRow resumed = conventions.generate(project.id());
 
         assertThat(resumed.id()).isEqualTo(first.id());
-        assertThat(resumed.state()).isEqualTo(ProjectConventionService.READY);
+        assertThat(resumed.state()).isEqualTo(ProjectConventionState.READY.name());
         assertThat(fake.createReadOnlySessionCalls()).isEqualTo(1);
     }
 
@@ -181,7 +182,7 @@ class ProjectConventionServiceTest {
         conventions.pollActiveGenerations();
 
         ProjectConventionDraftRow failed = conventions.get(project.id(), running.id());
-        assertThat(failed.state()).isEqualTo(ProjectConventionService.FAILED);
+        assertThat(failed.state()).isEqualTo(ProjectConventionState.FAILED.name());
         assertThat(failed.errorMessage()).contains("required project-context payload");
         assertThat(root.resolve("AGENTS.md")).doesNotExist();
     }

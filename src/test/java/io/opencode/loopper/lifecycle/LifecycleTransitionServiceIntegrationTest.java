@@ -69,6 +69,40 @@ class LifecycleTransitionServiceIntegrationTest {
         assertThat(auditCount(taskId)).isZero();
     }
 
+    @Test
+    void sameStateCallsCannotSilentlyBypassTheStateMachine() {
+        String suffix = UUID.randomUUID().toString().replace("-", "");
+        String projectId = "fsm-project-" + suffix;
+        String taskId = "fsm-task-" + suffix;
+        seedReadyTask(projectId, taskId);
+        AtomicBoolean mutated = new AtomicBoolean();
+
+        assertThatThrownBy(() -> lifecycle.transition(subject(taskId), "READY", "READY", null, Map.of(),
+                () -> { mutated.set(true); return 1; },
+                () -> new ConflictException("TASK_VERSION_CONFLICT", "task changed")))
+                .isInstanceOfSatisfying(ConflictException.class,
+                        failure -> assertThat(failure.code()).isEqualTo("STATE_TRANSITION_INVALID"));
+
+        assertThat(mutated).isFalse();
+        assertThat(auditCount(taskId)).isZero();
+    }
+
+    @Test
+    void nonLifecycleMutationUsesAnExplicitAuditFreePath() {
+        String suffix = UUID.randomUUID().toString().replace("-", "");
+        String projectId = "fsm-project-" + suffix;
+        String taskId = "fsm-task-" + suffix;
+        seedReadyTask(projectId, taskId);
+
+        lifecycle.mutateWithoutTransition(
+                () -> jdbc.update("UPDATE task SET title='renamed',version=version+1 WHERE id=? AND version=0", taskId),
+                () -> new ConflictException("TASK_VERSION_CONFLICT", "task changed"));
+
+        assertThat(jdbc.queryForObject("SELECT title FROM task WHERE id=?", String.class, taskId)).isEqualTo("renamed");
+        assertThat(jdbc.queryForObject("SELECT state FROM task WHERE id=?", String.class, taskId)).isEqualTo("READY");
+        assertThat(auditCount(taskId)).isZero();
+    }
+
     private void seedReadyTask(String projectId, String taskId) {
         String now = "2026-08-10T00:00:00Z";
         jdbc.update("INSERT INTO project(id,name,root_path,created_at,updated_at) VALUES(?,?,?,?,?)",

@@ -54,10 +54,6 @@ public final class LifecycleTransitionService {
     public void transition(Subject subject, String fromState, String toState, LifecycleEvent explicitEvent,
                            String reasonCode, Map<String, ?> metadata, IntSupplier mutation,
                            Supplier<? extends RuntimeException> conflict) {
-        if (fromState.equals(toState) && explicitEvent == null) {
-            mutateOnly(mutation, conflict);
-            return;
-        }
         LifecycleRegistry.ResolvedTransition resolved;
         try {
             resolved = registry.resolve(subject.machineType(), subject.entityId(), fromState, toState, explicitEvent);
@@ -68,7 +64,8 @@ public final class LifecycleTransitionService {
                 metadata, mutation, conflict, false);
     }
 
-    private void mutateOnly(IntSupplier mutation, Supplier<? extends RuntimeException> conflict) {
+    /** Executes an optimistic-lock mutation that deliberately does not change lifecycle state or write transition audit. */
+    public void mutateWithoutTransition(IntSupplier mutation, Supplier<? extends RuntimeException> conflict) {
         transactions.executeWithoutResult(status -> {
             if (mutation.getAsInt() != 1) throw conflict.get();
         });

@@ -16,6 +16,9 @@ import io.opencode.loopper.domain.VerificationState;
 import io.opencode.loopper.domain.LifecycleEvent;
 import io.opencode.loopper.domain.LifecycleMachineType;
 import io.opencode.loopper.domain.LifecycleScopeType;
+import io.opencode.loopper.domain.TaskQueueState;
+import io.opencode.loopper.domain.JudgeRunState;
+import io.opencode.loopper.domain.WorkspaceLeaseState;
 import io.opencode.loopper.lifecycle.LifecycleTransitionService;
 import io.opencode.loopper.persistence.AttemptRow;
 import io.opencode.loopper.persistence.ErrorEventRow;
@@ -114,7 +117,7 @@ public class TaskService {
             if (direct) {
                 DirectWorkspaceLeaseCoordinator.Admission admission = directLeases.acquireOrEnqueue(
                         projectRoot, taskId, normalizedAdmissionSource(admissionSource), null);
-                if (DirectWorkspaceLeaseCoordinator.QUEUE_QUEUED.equals(admission.state())) {
+                if (TaskQueueState.QUEUED.name().equals(admission.state())) {
                     events.emit(taskId, "task.queued", Map.of("state", TaskState.QUEUED.name(),
                             "queuePosition", queuePosition(taskId), "leaseState", admission.leaseState()));
                     return get(taskId);
@@ -166,10 +169,11 @@ public class TaskService {
         TaskRow task = get(taskId);
         TaskQueueRow queue = mapper.findTaskQueue(taskId).orElse(null);
         if (queue == null) {
-            return new FeatureContracts.QueueStatusDto(task.id(), "FINISHED", null, "NOT_REQUIRED", null);
+            return new FeatureContracts.QueueStatusDto(task.id(), TaskQueueState.FINISHED.name(), null, "NOT_REQUIRED", null);
         }
-        String leaseState = mapper.findWorkspaceLease(queue.canonicalRoot()).map(row -> row.state()).orElse("RELEASED");
-        Long position = DirectWorkspaceLeaseCoordinator.QUEUE_QUEUED.equals(queue.state()) ? queuePosition(taskId) : null;
+        String leaseState = mapper.findWorkspaceLease(queue.canonicalRoot()).map(row -> row.state())
+                .orElse(WorkspaceLeaseState.RELEASED.name());
+        Long position = TaskQueueState.QUEUED.name().equals(queue.state()) ? queuePosition(taskId) : null;
         return new FeatureContracts.QueueStatusDto(task.id(), queue.state(), position, leaseState, queue.rootFingerprint());
     }
 
@@ -842,7 +846,7 @@ public class TaskService {
     }
 
     private boolean approved(JudgeRunRow judge) {
-        return judge != null && "COMPLETED".equals(judge.state()) && "PASS".equals(judge.verdict());
+        return judge != null && JudgeRunState.COMPLETED.name().equals(judge.state()) && "PASS".equals(judge.verdict());
     }
 
     private void launchJudge(TaskRow inputTask, AttemptRow finalAttempt, String role, boolean explicitLocalRetry) {
@@ -856,17 +860,17 @@ public class TaskService {
         }
         if (!explicitLocalRetry && blockModelCallForBudget(task, null, finalAttempt)) return;
         JudgeRunRow judge = new JudgeRunRow(UUID.randomUUID().toString(), task.id(), finalAttempt.id(), role,
-                mapper.nextJudgeOrdinal(task.id(), role), null, "CREATING", null, null, null, now(), null, 0);
+                mapper.nextJudgeOrdinal(task.id(), role), null, JudgeRunState.CREATING.name(), null, null, null, now(), null, 0);
         lifecycle.create(subject(LifecycleMachineType.JUDGE_RUN, judge.id(), judge.taskId()), judge.state(),
                 Map.of("role", judge.role()), () -> mapper.insertJudgeRun(judge),
                 () -> new ConflictException("JUDGE_CREATE_CONFLICT", "Judge run could not be created"));
         persistArtifact(task, finalAttempt.id(), judge.id(), "JUDGE_LOG_METADATA", role.toLowerCase() + "-judge-start.json",
-                "application/json", write(Map.of("role", role, "state", "CREATING", "readOnly", true)),
+                "application/json", write(Map.of("role", role, "state", JudgeRunState.CREATING.name(), "readOnly", true)),
                 Map.of("source", "judge-session", "readOnly", true));
         try {
             Path worktree = Path.of(requireWorktree(task));
             OpenCodeClient.OpenCodeSession remote = openCode.createReadOnlySession(worktree, roleTitle(role), model(spec));
-            JudgeRunRow running = judgeState(judge, remote.id(), "RUNNING", null, null, null, null);
+            JudgeRunRow running = judgeState(judge, remote.id(), JudgeRunState.RUNNING, null, null, null, null);
             updateJudge(running);
             openCode.promptAsync(remote, judgePrompt(task, finalAttempt, role));
             events.emit(task.id(), "judge.started", Map.of("judgeRunId", judge.id(), "role", role, "externalSessionId", remote.id(), "readOnly", true));
@@ -879,7 +883,7 @@ public class TaskService {
 
     private void pollJudge(TaskRow inputTask, JudgeRunRow inputJudge) {
         JudgeRunRow judge = mapper.findJudgeRun(inputJudge.id()).orElse(inputJudge);
-        if (!"RUNNING".equals(judge.state()) || judge.externalSessionId() == null) return;
+        if (!JudgeRunState.RUNNING.name().equals(judge.state()) || judge.externalSessionId() == null) return;
         try {
             long timeoutSeconds = spec(inputTask).limits().attemptTimeoutSeconds();
             if (Instant.parse(judge.createdAt()).plusSeconds(timeoutSeconds).isBefore(Instant.now())) {
@@ -907,7 +911,7 @@ public class TaskService {
 
     private void completeJudge(TaskRow inputTask, JudgeRunRow inputJudge, String rawOutput) {
         JudgeRunRow judge = mapper.findJudgeRun(inputJudge.id()).orElse(inputJudge);
-        if (!"RUNNING".equals(judge.state())) return;
+        if (!JudgeRunState.RUNNING.name().equals(judge.state())) return;
         JudgeDecision decision = parseJudgeDecision(rawOutput);
         String verdict = decision.verdict();
         String reason = decision.reason();
@@ -915,12 +919,14 @@ public class TaskService {
             verdict = "UNPARSEABLE";
             reason = decision.parseError();
         }
-        JudgeRunRow completed = judgeState(judge, judge.externalSessionId(), "COMPLETED", verdict, reason, rawOutput, now());
+        JudgeRunRow completed = judgeState(judge, judge.externalSessionId(), JudgeRunState.COMPLETED,
+                verdict, reason, rawOutput, now());
         updateJudge(completed);
         usageInsights.collectTerminalJudgeUsage(inputTask.id(), completed.id());
         persistArtifact(inputTask, judge.attemptId(), judge.id(), "JUDGE_RESULT", judge.role().toLowerCase() + "-judge-result.txt",
                 "text/plain", rawOutput == null ? "" : rawOutput,
-                Map.of("role", judge.role(), "verdict", verdict, "reason", reason, "state", "COMPLETED"));
+                Map.of("role", judge.role(), "verdict", verdict, "reason", reason,
+                        "state", JudgeRunState.COMPLETED.name()));
         events.emit(inputTask.id(), "judge.completed", Map.of("judgeRunId", judge.id(), "role", judge.role(), "verdict", verdict));
     }
 
@@ -928,12 +934,15 @@ public class TaskService {
         TaskRow task = get(inputTask.id());
         if (!TaskState.JUDGING.name().equals(task.state())) return;
         JudgeRunRow judge = mapper.findJudgeRun(inputJudge.id()).orElse(inputJudge);
-        if (!"CREATING".equals(judge.state()) && !"RUNNING".equals(judge.state())) return;
-        JudgeRunRow failed = judgeState(judge, judge.externalSessionId(), "SESSION_ERROR", null, safeMessage(failure.getMessage()), null, now());
+        if (!JudgeRunState.CREATING.name().equals(judge.state())
+                && !JudgeRunState.RUNNING.name().equals(judge.state())) return;
+        JudgeRunRow failed = judgeState(judge, judge.externalSessionId(), JudgeRunState.SESSION_ERROR,
+                null, safeMessage(failure.getMessage()), null, now());
         updateJudge(failed);
         usageInsights.collectTerminalJudgeUsage(task.id(), failed.id());
         persistArtifact(task, judge.attemptId(), judge.id(), "JUDGE_LOG_METADATA", judge.role().toLowerCase() + "-judge-session-error.json",
-                "application/json", write(Map.of("role", judge.role(), "code", failure.code(), "message", safeMessage(failure.getMessage()), "state", "SESSION_ERROR")),
+                "application/json", write(Map.of("role", judge.role(), "code", failure.code(),
+                        "message", safeMessage(failure.getMessage()), "state", JudgeRunState.SESSION_ERROR.name())),
                 Map.of("source", "judge-session", "retryable", true));
         AttemptRow attempt = mapper.findAttempt(judge.attemptId()).orElse(null);
         recordError(task, null, attempt, null, ErrorLayer.SESSION, failure.code(), failure.getMessage(), true,
@@ -951,7 +960,9 @@ public class TaskService {
     private void evaluateJudgeDecision(TaskRow task) {
         JudgeRunRow requirement = mapper.latestJudgeRun(task.id(), "REQUIREMENT").orElse(null);
         JudgeRunRow risk = mapper.latestJudgeRun(task.id(), "RISK").orElse(null);
-        if (requirement == null || risk == null || !"COMPLETED".equals(requirement.state()) || !"COMPLETED".equals(risk.state())) return;
+        if (requirement == null || risk == null
+                || !JudgeRunState.COMPLETED.name().equals(requirement.state())
+                || !JudgeRunState.COMPLETED.name().equals(risk.state())) return;
         if (!"PASS".equals(requirement.verdict()) || !"PASS".equals(risk.verdict())) {
             String code = !requirement.verdict().equals(risk.verdict()) ? "JUDGE_CONFLICT" : "JUDGE_REVIEW_NOT_APPROVED";
             String message = "Requirement Judge=" + requirement.verdict() + ": " + safeMessage(requirement.reason())
@@ -977,7 +988,8 @@ public class TaskService {
         // terminal task fault.  Keeping it visible in the existing verification panel makes
         // the WAITING_INPUT reason discoverable without violating task/session error layering.
         recordError(task, null, attempt, null, ErrorLayer.VERIFICATION, code, message, false,
-                Map.of("judgeRunId", judge == null ? "" : judge.id(), "judgeRole", judge == null ? "" : judge.role(), "resolution", "WAITING_INPUT"));
+                Map.of("judgeRunId", judge == null ? "" : judge.id(), "judgeRole", judge == null ? "" : judge.role(),
+                        "resolution", TaskState.WAITING_INPUT.name()));
         updateTask(state(get(task.id()), TaskState.WAITING_INPUT));
         events.emit(task.id(), "task.judge_waiting_input", Map.of("state", TaskState.WAITING_INPUT.name(), "code", code, "message", safeMessage(message)));
     }
@@ -1003,7 +1015,7 @@ public class TaskService {
         UsageInsightsService.BudgetDecision decision = usageInsights.budget(task, spec(task));
         if (!decision.blocked()) return decision;
         recordError(task, stage, attempt, null, ErrorLayer.TASK, decision.code(), decision.message(), false,
-                Map.of("usage", decision.usage(), "resolution", "WAITING_INPUT", "nextCallBlocked", true,
+                Map.of("usage", decision.usage(), "resolution", TaskState.WAITING_INPUT.name(), "nextCallBlocked", true,
                         "operation", operation));
         String nextState = task.state();
         if (!TaskState.valueOf(task.state()).terminal()) {
@@ -1086,7 +1098,8 @@ public class TaskService {
                 try { openCode.abort(new OpenCodeClient.OpenCodeSession(judge.externalSessionId(), worktree)); }
                 catch (SessionFailure ignored) { /* terminal task decision and stored judge evidence remain authoritative */ }
             }
-            JudgeRunRow aborted = judgeState(judge, judge.externalSessionId(), "ABORTED", judge.verdict(), judge.reason(), judge.rawOutput(), now());
+            JudgeRunRow aborted = judgeState(judge, judge.externalSessionId(), JudgeRunState.ABORTED,
+                    judge.verdict(), judge.reason(), judge.rawOutput(), now());
             updateJudge(aborted);
             usageInsights.collectTerminalJudgeUsage(task.id(), aborted.id());
         }
@@ -1119,9 +1132,9 @@ public class TaskService {
                 + "不要使用围栏代码块，并将 `reason` 内的每个换行正确转义为 JSON 字符串。";
     }
 
-    private JudgeRunRow judgeState(JudgeRunRow row, String externalSessionId, String state, String verdict, String reason,
+    private JudgeRunRow judgeState(JudgeRunRow row, String externalSessionId, JudgeRunState state, String verdict, String reason,
                                    String rawOutput, String endedAt) {
-        return new JudgeRunRow(row.id(), row.taskId(), row.attemptId(), row.role(), row.ordinal(), externalSessionId, state,
+        return new JudgeRunRow(row.id(), row.taskId(), row.attemptId(), row.role(), row.ordinal(), externalSessionId, state.name(),
                 verdict, safeNullable(reason), rawOutput, row.createdAt(), endedAt, row.version());
     }
     private void updateJudge(JudgeRunRow row) {
@@ -1202,7 +1215,7 @@ public class TaskService {
         TaskRow task = get(taskId);
         TaskQueueRow queue = mapper.findTaskQueue(taskId)
                 .orElseThrow(() -> new TaskFailure("DIRECT_QUEUE_MISSING", "Admitted Direct task has no queue record"));
-        if (!DirectWorkspaceLeaseCoordinator.QUEUE_ADMITTED.equals(queue.state())) {
+        if (!TaskQueueState.ADMITTED.name().equals(queue.state())) {
             throw new TaskFailure("DIRECT_QUEUE_NOT_ADMITTED", "Direct task cannot prepare before FIFO admission");
         }
         Path root = directRoot(task);
@@ -1248,7 +1261,8 @@ public class TaskService {
                     Map.of("leaseRetained", true));
             return;
         }
-        events.emit(task.id(), "workspace.lease_released", Map.of("state", "RELEASED", "reason", reason));
+        events.emit(task.id(), "workspace.lease_released",
+                Map.of("state", WorkspaceLeaseState.RELEASED.name(), "reason", reason));
         if (release.admittedNext() == null) return;
         String nextTaskId = release.admittedNext().taskId();
         events.emit(nextTaskId, "task.admitted", Map.of("state", TaskState.QUEUED.name(),
@@ -1306,7 +1320,7 @@ public class TaskService {
 
     private boolean isAdmittedDirect(TaskRow task) {
         return mapper.findTaskQueue(task.id())
-                .map(row -> DirectWorkspaceLeaseCoordinator.QUEUE_ADMITTED.equals(row.state())).orElse(false);
+                .map(row -> TaskQueueState.ADMITTED.name().equals(row.state())).orElse(false);
     }
 
     private boolean isVerificationOnlyRecovery(String taskId) {
@@ -1330,7 +1344,7 @@ public class TaskService {
                 .orElseThrow(() -> new NotFoundException("Task queue entry not found: " + taskId));
         long position = 0;
         for (TaskQueueRow row : mapper.listTaskQueue(target.canonicalRoot())) {
-            if (!DirectWorkspaceLeaseCoordinator.QUEUE_QUEUED.equals(row.state())) continue;
+            if (!TaskQueueState.QUEUED.name().equals(row.state())) continue;
             position++;
             if (taskId.equals(row.taskId())) return position;
         }

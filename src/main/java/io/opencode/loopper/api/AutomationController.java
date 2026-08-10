@@ -63,7 +63,8 @@ public class AutomationController {
 
     private AutomationService.RuleInput input(FeatureContracts.CreateAutomationRuleRequest request) {
         return new AutomationService.RuleInput(request.name(), request.projectId(), request.templateVersionId(), request.triggerType(),
-                request.triggerConfig(), "DISABLED", io.opencode.loopper.domain.AutomationApprovalMode.REVIEW_REQUIRED);
+                request.triggerConfig(), io.opencode.loopper.domain.AutomationRuleState.DISABLED.name(),
+                io.opencode.loopper.domain.AutomationApprovalMode.REVIEW_REQUIRED);
     }
     private AutomationService.RuleInput input(AutomationService.RuleView old, FeatureContracts.UpdateAutomationRuleRequest request) {
         return new AutomationService.RuleInput(request.name(), old.projectId(), request.templateVersionId(), request.triggerType(),

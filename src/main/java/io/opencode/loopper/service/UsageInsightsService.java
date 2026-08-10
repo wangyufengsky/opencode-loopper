@@ -1,6 +1,9 @@
 package io.opencode.loopper.service;
 
 import io.opencode.loopper.domain.LoopSpec;
+import io.opencode.loopper.domain.JudgeRunState;
+import io.opencode.loopper.domain.SessionState;
+import io.opencode.loopper.domain.TaskState;
 import io.opencode.loopper.persistence.AttemptRow;
 import io.opencode.loopper.persistence.ExecutionSessionRow;
 import io.opencode.loopper.persistence.JudgeRunRow;
@@ -204,9 +207,9 @@ public class UsageInsightsService {
                 cost == null ? null : cost.toPlainString(), normalizeCurrency(record == null ? null : record.currency()), reliable,
                 Instant.now().toString()));
     }
-    private boolean terminal(String state) { return List.of("COMPLETED", "FAILED", "TIMED_OUT", "ABORTED").contains(state); }
-    private boolean terminalJudge(String state) { return List.of("COMPLETED", "SESSION_ERROR", "ABORTED", "FAILED", "TIMED_OUT").contains(state); }
-    private boolean terminalTask(String state) { return List.of("SUCCEEDED", "FAILED", "CANCELLED").contains(state); }
+    private boolean terminal(String state) { return SessionState.valueOf(state).terminal(); }
+    private boolean terminalJudge(String state) { return JudgeRunState.valueOf(state).terminal(); }
+    private boolean terminalTask(String state) { return TaskState.valueOf(state).terminal(); }
     private String normalizeCurrency(String value) { return value == null || value.isBlank() ? null : value.toUpperCase(Locale.ROOT); }
     private long duration(String start, String end) { try { return Math.max(0, Duration.between(Instant.parse(start), Instant.parse(end)).toMillis()); } catch (RuntimeException invalid) { return 0; } }
 

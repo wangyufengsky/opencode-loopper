@@ -59,9 +59,14 @@ public class LoopDraftService {
         if (LoopDraftStatus.CONFIRMED.name().equals(old.status())) throw new ConflictException("DRAFT_CONFIRMED", "Confirmed LoopSpec is immutable; create a new draft");
         if (!old.projectId().equals(spec.projectId())) throw new BadRequestException("DRAFT_PROJECT_MISMATCH", "LoopSpec projectId cannot be changed");
         LoopDraftRow changed = new LoopDraftRow(old.id(), old.projectId(), spec.goal(), write(spec), LoopDraftStatus.DRAFT_READY.name(), old.createdAt(), Instant.now().toString(), old.version());
-        lifecycle.transition(subject(changed), old.status(), changed.status(), null, java.util.Map.of(),
-                () -> old.status().equals(changed.status()) ? mapper.updateDraftContent(changed) : mapper.updateDraft(changed),
-                () -> new ConflictException("DRAFT_VERSION_CONFLICT", "Loop draft was updated concurrently"));
+        if (old.status().equals(changed.status())) {
+            lifecycle.mutateWithoutTransition(() -> mapper.updateDraftContent(changed),
+                    () -> new ConflictException("DRAFT_VERSION_CONFLICT", "Loop draft was updated concurrently"));
+        } else {
+            lifecycle.transition(subject(changed), old.status(), changed.status(), null, java.util.Map.of(),
+                    () -> mapper.updateDraft(changed),
+                    () -> new ConflictException("DRAFT_VERSION_CONFLICT", "Loop draft was updated concurrently"));
+        }
         return get(id);
     }
     @Transactional

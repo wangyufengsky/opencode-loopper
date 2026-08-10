@@ -7,4 +7,8 @@ public enum AutomationRunState implements DescribedEnum {
     private final String description;
     AutomationRunState(String description) { this.description = description; }
     @Override public String description() { return description; }
+
+    public boolean terminal() {
+        return this == SUCCEEDED || this == FAILED || this == SKIPPED;
+    }
 }

@@ -36,10 +36,6 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class ProjectConventionService {
-    public static final String RUNNING = ProjectConventionState.RUNNING.name();
-    public static final String READY = ProjectConventionState.READY.name();
-    public static final String APPLIED = ProjectConventionState.APPLIED.name();
-    public static final String FAILED = ProjectConventionState.FAILED.name();
     public static final String START_MARKER = "<!-- LOOPPER:START -->";
     public static final String END_MARKER = "<!-- LOOPPER:END -->";
     private static final int MAX_AGENTS_BYTES = 256 * 1024;
@@ -71,7 +67,7 @@ public class ProjectConventionService {
         ProjectConventionDraftRow active = mapper.activeProjectConventionDraft(projectId).orElse(null);
         if (active != null) {
             ProjectConventionDraftRow recovered = reconcileActiveGeneration(active);
-            if (!FAILED.equals(recovered.state())) return recovered;
+            if (!ProjectConventionState.FAILED.name().equals(recovered.state())) return recovered;
         }
         if (!openCode.healthy()) {
             throw new ServiceUnavailableException("OPENCODE_UNAVAILABLE",
@@ -86,20 +82,21 @@ public class ProjectConventionService {
             throw new ServiceUnavailableException("PROJECT_CONVENTION_SESSION_FAILED", safeMessage(failure));
         }
         String now = now();
-        ProjectConventionDraftRow created = new ProjectConventionDraftRow(UUID.randomUUID().toString(), project.id(), RUNNING,
+        ProjectConventionDraftRow created = new ProjectConventionDraftRow(UUID.randomUUID().toString(), project.id(),
+                ProjectConventionState.RUNNING.name(),
                 remote.id(), "CREATED", source.exists() ? 1 : 0, source.sha256(), source.content(), null, null,
                 now, now, 0);
         lifecycle.create(subject(created), created.state(), java.util.Map.of(),
                 () -> mapper.insertProjectConventionDraft(created),
                 () -> new ConflictException("PROJECT_CONVENTION_CREATE_CONFLICT", "AGENTS.md proposal could not be created"));
-        ProjectConventionDraftRow row = transition(created, RUNNING, "RUNNING", null, null);
+        ProjectConventionDraftRow row = transition(created, ProjectConventionState.RUNNING, "RUNNING", null, null);
         try {
             openCode.promptAsync(remote, prompt(project, source));
             return row;
         } catch (SessionFailure failure) {
-            return transition(row, FAILED, failure.code(), null, safeMessage(failure));
+            return transition(row, ProjectConventionState.FAILED, failure.code(), null, safeMessage(failure));
         } catch (RuntimeException failure) {
-            return transition(row, FAILED, "PROMPT_FAILED", null, safeMessage(failure));
+            return transition(row, ProjectConventionState.FAILED, "PROMPT_FAILED", null, safeMessage(failure));
         }
     }
 
@@ -131,8 +128,8 @@ public class ProjectConventionService {
         catch (RuntimeException failure) {
             try {
                 ProjectConventionDraftRow current = get(row.projectId(), row.id());
-                if (RUNNING.equals(current.state())) {
-                    return transition(current, FAILED, "FAILED", null, safeMessage(failure));
+                if (ProjectConventionState.RUNNING.name().equals(current.state())) {
+                    return transition(current, ProjectConventionState.FAILED, "FAILED", null, safeMessage(failure));
                 }
             }
             catch (RuntimeException ignoredConcurrentTransition) { }
@@ -143,7 +140,7 @@ public class ProjectConventionService {
     @Transactional
     public ProjectConventionDraftRow apply(String projectId, String draftId) {
         ProjectConventionDraftRow row = get(projectId, draftId);
-        if (!READY.equals(row.state()) || row.proposedContent() == null) {
+        if (!ProjectConventionState.READY.name().equals(row.state()) || row.proposedContent() == null) {
             throw new ConflictException("PROJECT_CONVENTION_NOT_READY",
                     "The AGENTS.md proposal must finish successfully before it can be applied");
         }
@@ -154,19 +151,19 @@ public class ProjectConventionService {
                     "AGENTS.md changed after generation started; generate a fresh proposal before applying");
         }
         writeAtomically(project, row.proposedContent());
-        return transition(row, APPLIED, row.externalSessionState(), row.proposedContent(), null);
+        return transition(row, ProjectConventionState.APPLIED, row.externalSessionState(), row.proposedContent(), null);
     }
 
     private void poll(ProjectConventionDraftRow row) {
-        if (!RUNNING.equals(row.state())) return;
+        if (!ProjectConventionState.RUNNING.name().equals(row.state())) return;
         if (timedOut(row)) {
             try { openCode.abort(session(row)); } catch (RuntimeException ignored) { }
-            transition(row, FAILED, "TIMED_OUT", null, "OpenCode AGENTS.md generation timed out");
+            transition(row, ProjectConventionState.FAILED, "TIMED_OUT", null, "OpenCode AGENTS.md generation timed out");
             return;
         }
         OpenCodeClient.SessionStatus status = openCode.sessionStatus(session(row));
         if (status.failed()) {
-            transition(row, FAILED, safeState(status.state()), null,
+            transition(row, ProjectConventionState.FAILED, safeState(status.state()), null,
                     status.detail() == null || status.detail().isBlank()
                             ? "OpenCode AGENTS.md generation failed: " + safeState(status.state())
                             : safeMessage(status.detail()));
@@ -175,7 +172,7 @@ public class ProjectConventionService {
         if (!status.completed()) return;
         String projectContext = parseAiContext(openCode.sessionOutput(session(row)));
         String proposed = mergeManagedBlock(row.sourceContent(), managedBlock(projectContext));
-        transition(row, READY, safeState(status.state()), proposed, null);
+        transition(row, ProjectConventionState.READY, safeState(status.state()), proposed, null);
     }
 
     private OpenCodeClient.OpenCodeSession session(ProjectConventionDraftRow row) {
@@ -350,15 +347,19 @@ public class ProjectConventionService {
                 """.formatted(project.name(), project.rootPath(), source.exists() ? "present; preserve non-Looper content" : "absent");
     }
 
-    private ProjectConventionDraftRow transition(ProjectConventionDraftRow row, String state, String externalState,
+    private ProjectConventionDraftRow transition(ProjectConventionDraftRow row, ProjectConventionState state, String externalState,
                                                  String proposedContent, String errorMessage) {
-        ProjectConventionDraftRow updated = new ProjectConventionDraftRow(row.id(), row.projectId(), state,
+        ProjectConventionDraftRow updated = new ProjectConventionDraftRow(row.id(), row.projectId(), state.name(),
                 row.externalSessionId(), externalState, row.sourceExists(), row.sourceSha256(), row.sourceContent(),
                 proposedContent, errorMessage, row.createdAt(), now(), row.version());
-        lifecycle.transition(subject(updated), row.state(), updated.state(), null, java.util.Map.of(),
-                () -> row.state().equals(updated.state())
-                        ? mapper.updateProjectConventionProjection(updated) : mapper.updateProjectConventionDraft(updated),
-                () -> new ConflictException("PROJECT_CONVENTION_VERSION_CONFLICT", "AGENTS.md proposal was updated concurrently"));
+        if (row.state().equals(updated.state())) {
+            lifecycle.mutateWithoutTransition(() -> mapper.updateProjectConventionProjection(updated),
+                    () -> new ConflictException("PROJECT_CONVENTION_VERSION_CONFLICT", "AGENTS.md proposal was updated concurrently"));
+        } else {
+            lifecycle.transition(subject(updated), row.state(), updated.state(), null, java.util.Map.of(),
+                    () -> mapper.updateProjectConventionDraft(updated),
+                    () -> new ConflictException("PROJECT_CONVENTION_VERSION_CONFLICT", "AGENTS.md proposal was updated concurrently"));
+        }
         return get(row.projectId(), row.id());
     }
 

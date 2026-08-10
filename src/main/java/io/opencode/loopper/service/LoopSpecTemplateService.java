@@ -54,10 +54,14 @@ public class LoopSpecTemplateService {
                 ? LoopSpecTemplateState.ARCHIVED.name() : LoopSpecTemplateState.ACTIVE.name();
         LoopSpecTemplateRow changed = new LoopSpecTemplateRow(old.id(), required(name, "TEMPLATE_NAME_REQUIRED"), safe(description),
                 normalizedState, old.createdAt(), now(), version);
-        lifecycle.transition(subject(old.id()), old.state(), changed.state(), null, java.util.Map.of(),
-                () -> old.state().equals(changed.state())
-                        ? mapper.updateLoopSpecTemplateDetails(changed) : mapper.updateLoopSpecTemplate(changed),
-                () -> new ConflictException("TEMPLATE_VERSION_CONFLICT", "Template changed concurrently"));
+        if (old.state().equals(changed.state())) {
+            lifecycle.mutateWithoutTransition(() -> mapper.updateLoopSpecTemplateDetails(changed),
+                    () -> new ConflictException("TEMPLATE_VERSION_CONFLICT", "Template changed concurrently"));
+        } else {
+            lifecycle.transition(subject(old.id()), old.state(), changed.state(), null, java.util.Map.of(),
+                    () -> mapper.updateLoopSpecTemplate(changed),
+                    () -> new ConflictException("TEMPLATE_VERSION_CONFLICT", "Template changed concurrently"));
+        }
         return view(getTemplate(id));
     }
 

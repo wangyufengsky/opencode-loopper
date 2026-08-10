@@ -5,6 +5,7 @@ import io.opencode.loopper.persistence.ExecutionSessionRow;
 import io.opencode.loopper.persistence.TaskRow;
 import io.opencode.loopper.runtime.OpenCodeClient;
 import io.opencode.loopper.domain.SessionFailure;
+import io.opencode.loopper.domain.TaskState;
 import java.nio.file.Path;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -31,16 +32,16 @@ class TaskMonitor {
             }
         }
         for (TaskRow task : mapper.listTasks()) {
-            if ("JUDGING".equals(task.state())) {
+            if (TaskState.JUDGING.name().equals(task.state())) {
                 try { tasks.pollJudges(task.id()); }
                 catch (RuntimeException ignoredConcurrentTransition) {
                     // A cancel or explicit operator transition can legitimately win the state race.
                 }
                 continue;
             }
-            if (!"RUNNING".equals(task.state()) || task.worktreePath() == null) continue;
+            if (!TaskState.RUNNING.name().equals(task.state()) || task.worktreePath() == null) continue;
             tasks.enforceTimeouts(task.id());
-            if (!"RUNNING".equals(tasks.get(task.id()).state())) continue;
+            if (!TaskState.RUNNING.name().equals(tasks.get(task.id()).state())) continue;
             for (ExecutionSessionRow session : mapper.activeSessions(task.id())) {
                 if (session.externalSessionId() == null) continue;
                 try {

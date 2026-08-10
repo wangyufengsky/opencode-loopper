@@ -7,4 +7,8 @@ public enum SessionState implements DescribedEnum {
     private final String description;
     SessionState(String description) { this.description = description; }
     @Override public String description() { return description; }
+
+    public boolean terminal() {
+        return this == COMPLETED || this == FAILED || this == TIMED_OUT || this == ABORTED;
+    }
 }

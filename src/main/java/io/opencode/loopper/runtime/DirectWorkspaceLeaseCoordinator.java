@@ -35,14 +35,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 @Component
 public class DirectWorkspaceLeaseCoordinator {
-    public static final String MODE_DIRECT = "DIRECT";
-    public static final String LEASE_HELD = WorkspaceLeaseState.HELD.name();
-    public static final String LEASE_RELEASE_PENDING = WorkspaceLeaseState.RELEASE_PENDING.name();
-    public static final String LEASE_RELEASED = WorkspaceLeaseState.RELEASED.name();
-    public static final String QUEUE_QUEUED = TaskQueueState.QUEUED.name();
-    public static final String QUEUE_ADMITTED = TaskQueueState.ADMITTED.name();
-    public static final String QUEUE_CANCELLED = TaskQueueState.CANCELLED.name();
-    public static final String QUEUE_FINISHED = TaskQueueState.FINISHED.name();
+    private static final String MODE_DIRECT = "DIRECT";
 
     private static final int CONCURRENCY_RETRIES = 3;
 
@@ -91,7 +84,8 @@ public class DirectWorkspaceLeaseCoordinator {
         WorkspaceIdentity workspace = identify(root);
         return required(transactions.execute(status -> {
             WorkspaceLeaseRow lease = holder(workspace, taskId);
-            if (!LEASE_HELD.equals(lease.state()) && !LEASE_RELEASE_PENDING.equals(lease.state())) {
+            if (!WorkspaceLeaseState.HELD.name().equals(lease.state())
+                    && !WorkspaceLeaseState.RELEASE_PENDING.name().equals(lease.state())) {
                 throw new TaskFailure("DIRECT_LEASE_NOT_HELD", "Direct workspace lease is not active");
             }
             updateLease(lease(lease, lease.state(), writerSessionId == null ? lease.writerSessionId() : writerSessionId,
@@ -108,11 +102,11 @@ public class DirectWorkspaceLeaseCoordinator {
         WorkspaceIdentity workspace = identify(root);
         return required(transactions.execute(status -> {
             WorkspaceLeaseRow lease = holder(workspace, taskId);
-            if (LEASE_RELEASED.equals(lease.state())) {
+            if (WorkspaceLeaseState.RELEASED.name().equals(lease.state())) {
                 throw new TaskFailure("DIRECT_LEASE_NOT_HELD", "A released direct workspace lease cannot be marked pending");
             }
             String detail = reason == null || reason.isBlank() ? "WRITER_TERMINATION_UNCONFIRMED" : bounded(reason);
-            updateLease(lease(lease, LEASE_RELEASE_PENDING,
+            updateLease(lease(lease, WorkspaceLeaseState.RELEASE_PENDING.name(),
                     writerSessionId == null ? lease.writerSessionId() : writerSessionId, now(), null, detail));
             return snapshot(mapper.findWorkspaceLease(workspace.canonicalRoot()).orElseThrow(), workspace, queue(taskId));
         }));
@@ -124,7 +118,7 @@ public class DirectWorkspaceLeaseCoordinator {
         return required(transactions.execute(status -> {
             WorkspaceLeaseRow lease = holder(workspace, taskId);
             String detail = reason == null || reason.isBlank() ? null : bounded(reason);
-            updateLease(lease(lease, LEASE_HELD, null, now(), null, detail));
+            updateLease(lease(lease, WorkspaceLeaseState.HELD.name(), null, now(), null, detail));
             return snapshot(mapper.findWorkspaceLease(workspace.canonicalRoot()).orElseThrow(), workspace, queue(taskId));
         }));
     }
@@ -133,7 +127,7 @@ public class DirectWorkspaceLeaseCoordinator {
     public LeaseSnapshot requireWritableLease(Path root, String taskId) {
         WorkspaceIdentity workspace = identify(root);
         WorkspaceLeaseRow lease = holder(workspace, taskId);
-        if (!LEASE_HELD.equals(lease.state())) {
+        if (!WorkspaceLeaseState.HELD.name().equals(lease.state())) {
             throw new TaskFailure("DIRECT_WRITER_TERMINATION_UNCONFIRMED",
                     "The previous direct writer is not confirmed terminal; writable takeover is blocked");
         }
@@ -154,11 +148,11 @@ public class DirectWorkspaceLeaseCoordinator {
     public QueueSnapshot cancelQueued(String taskId) {
         return required(transactions.execute(status -> {
             TaskQueueRow row = queue(taskId);
-            if (QUEUE_ADMITTED.equals(row.state())) {
+            if (TaskQueueState.ADMITTED.name().equals(row.state())) {
                 throw new TaskFailure("DIRECT_QUEUE_HOLDER_CANNOT_CANCEL", "An admitted task must confirm writer termination before release");
             }
-            if (QUEUE_QUEUED.equals(row.state())) {
-                updateQueue(queue(row, QUEUE_CANCELLED, null, now()));
+            if (TaskQueueState.QUEUED.name().equals(row.state())) {
+                updateQueue(queue(row, TaskQueueState.CANCELLED.name(), null, now()));
             }
             return queueSnapshot(mapper.findTaskQueue(taskId).orElseThrow());
         }));
@@ -196,12 +190,13 @@ public class DirectWorkspaceLeaseCoordinator {
         if (existingQueue != null) {
             requireSameWorkspace(existingQueue, workspace);
             WorkspaceLeaseRow existingLease = mapper.findWorkspaceLease(workspace.canonicalRoot()).orElse(null);
-            if (QUEUE_ADMITTED.equals(existingQueue.state()) && existingLease != null
-                    && taskId.equals(existingLease.holderTaskId()) && !LEASE_RELEASED.equals(existingLease.state())) {
-                return admission("ADMITTED", existingLease, existingQueue, workspace);
+            if (TaskQueueState.ADMITTED.name().equals(existingQueue.state()) && existingLease != null
+                    && taskId.equals(existingLease.holderTaskId())
+                    && !WorkspaceLeaseState.RELEASED.name().equals(existingLease.state())) {
+                return admission(TaskQueueState.ADMITTED.name(), existingLease, existingQueue, workspace);
             }
-            if (QUEUE_QUEUED.equals(existingQueue.state())) {
-                return admission("QUEUED", existingLease, existingQueue, workspace);
+            if (TaskQueueState.QUEUED.name().equals(existingQueue.state())) {
+                return admission(TaskQueueState.QUEUED.name(), existingLease, existingQueue, workspace);
             }
             throw new TaskFailure("DIRECT_QUEUE_NOT_ADMITTABLE", "Task already has a " + existingQueue.state() + " direct queue record");
         }
@@ -211,49 +206,50 @@ public class DirectWorkspaceLeaseCoordinator {
         long position = mapper.nextQueuePosition(workspace.canonicalRoot());
         if (lease == null) {
             WorkspaceLeaseRow held = new WorkspaceLeaseRow(workspace.canonicalRoot(), workspace.rootFingerprint(), MODE_DIRECT,
-                    taskId, writerSessionId, LEASE_HELD, timestamp, timestamp, null, null, 0);
+                    taskId, writerSessionId, WorkspaceLeaseState.HELD.name(), timestamp, timestamp, null, null, 0);
             createLease(held);
             TaskQueueRow admitted = new TaskQueueRow(taskId, workspace.canonicalRoot(), workspace.rootFingerprint(), position,
-                    source, QUEUE_ADMITTED, timestamp, timestamp, null, 0);
+                    source, TaskQueueState.ADMITTED.name(), timestamp, timestamp, null, 0);
             createQueue(admitted);
-            return admission("ADMITTED", held, admitted, workspace);
+            return admission(TaskQueueState.ADMITTED.name(), held, admitted, workspace);
         }
         requireSameWorkspace(lease, workspace);
-        if (LEASE_RELEASED.equals(lease.state())) {
+        if (WorkspaceLeaseState.RELEASED.name().equals(lease.state())) {
             WorkspaceLeaseRow held = new WorkspaceLeaseRow(lease.canonicalRoot(), lease.rootFingerprint(), MODE_DIRECT,
-                    taskId, writerSessionId, LEASE_HELD, timestamp, timestamp, null, null, lease.version());
+                    taskId, writerSessionId, WorkspaceLeaseState.HELD.name(), timestamp, timestamp, null, null, lease.version());
             updateLease(held);
             TaskQueueRow admitted = new TaskQueueRow(taskId, workspace.canonicalRoot(), workspace.rootFingerprint(), position,
-                    source, QUEUE_ADMITTED, timestamp, timestamp, null, 0);
+                    source, TaskQueueState.ADMITTED.name(), timestamp, timestamp, null, 0);
             createQueue(admitted);
-            return admission("ADMITTED", mapper.findWorkspaceLease(workspace.canonicalRoot()).orElseThrow(), admitted, workspace);
+            return admission(TaskQueueState.ADMITTED.name(),
+                    mapper.findWorkspaceLease(workspace.canonicalRoot()).orElseThrow(), admitted, workspace);
         }
         TaskQueueRow queued = new TaskQueueRow(taskId, workspace.canonicalRoot(), workspace.rootFingerprint(), position,
-                source, QUEUE_QUEUED, timestamp, null, null, 0);
+                source, TaskQueueState.QUEUED.name(), timestamp, null, null, 0);
         createQueue(queued);
-        return admission("QUEUED", lease, queued, workspace);
+        return admission(TaskQueueState.QUEUED.name(), lease, queued, workspace);
     }
 
     private Release release(WorkspaceIdentity workspace, String taskId, String reason) {
         WorkspaceLeaseRow lease = holder(workspace, taskId);
         TaskQueueRow current = queue(taskId);
-        if (!QUEUE_ADMITTED.equals(current.state())) {
+        if (!TaskQueueState.ADMITTED.name().equals(current.state())) {
             throw new TaskFailure("DIRECT_QUEUE_NOT_ADMITTED", "Only an admitted task can release a direct workspace");
         }
-        updateQueue(queue(current, QUEUE_FINISHED, current.admittedAt(), now()));
+        updateQueue(queue(current, TaskQueueState.FINISHED.name(), current.admittedAt(), now()));
         Optional<TaskQueueRow> next = mapper.nextQueuedTask(workspace.canonicalRoot());
         String timestamp = now();
         if (next.isEmpty()) {
             updateLease(new WorkspaceLeaseRow(lease.canonicalRoot(), lease.rootFingerprint(), MODE_DIRECT,
-                    null, null, LEASE_RELEASED, lease.acquiredAt(), timestamp, timestamp,
+                    null, null, WorkspaceLeaseState.RELEASED.name(), lease.acquiredAt(), timestamp, timestamp,
                     reason == null || reason.isBlank() ? "WRITER_STOPPED" : bounded(reason), lease.version()));
             return new Release(snapshot(mapper.findWorkspaceLease(workspace.canonicalRoot()).orElseThrow(), workspace, queue(taskId)), null);
         }
         TaskQueueRow admitted = next.get();
         requireSameWorkspace(admitted, workspace);
-        updateQueue(queue(admitted, QUEUE_ADMITTED, timestamp, null));
+        updateQueue(queue(admitted, TaskQueueState.ADMITTED.name(), timestamp, null));
         updateLease(new WorkspaceLeaseRow(lease.canonicalRoot(), lease.rootFingerprint(), MODE_DIRECT,
-                admitted.taskId(), null, LEASE_HELD, timestamp, timestamp, null, null, lease.version()));
+                admitted.taskId(), null, WorkspaceLeaseState.HELD.name(), timestamp, timestamp, null, null, lease.version()));
         return new Release(snapshot(mapper.findWorkspaceLease(workspace.canonicalRoot()).orElseThrow(), workspace, queue(taskId)),
                 queueSnapshot(mapper.findTaskQueue(admitted.taskId()).orElseThrow()));
     }
@@ -276,12 +272,18 @@ public class DirectWorkspaceLeaseCoordinator {
     private void updateLease(WorkspaceLeaseRow row) {
         WorkspaceLeaseRow current = mapper.findWorkspaceLease(row.canonicalRoot())
                 .orElseThrow(() -> new TaskFailure("DIRECT_LEASE_MISSING", "No direct workspace lease exists for this root"));
-        LifecycleEvent explicit = current.state().equals(row.state())
-                && !java.util.Objects.equals(current.holderTaskId(), row.holderTaskId()) ? LifecycleEvent.TRANSFER : null;
-        lifecycle.transition(leaseSubject(row), current.state(), row.state(), explicit, row.releaseReason(), java.util.Map.of(),
-                () -> current.state().equals(row.state())
-                        ? mapper.updateWorkspaceLeaseDetails(row) : mapper.updateWorkspaceLease(row),
-                () -> new TaskFailure("DIRECT_LEASE_CONCURRENT_CONFLICT", "Direct workspace lease changed concurrently; no transition was accepted"));
+        boolean sameState = current.state().equals(row.state());
+        boolean ownershipTransfer = sameState
+                && !java.util.Objects.equals(current.holderTaskId(), row.holderTaskId());
+        if (sameState && !ownershipTransfer) {
+            lifecycle.mutateWithoutTransition(() -> mapper.updateWorkspaceLeaseDetails(row),
+                    () -> new TaskFailure("DIRECT_LEASE_CONCURRENT_CONFLICT", "Direct workspace lease changed concurrently; no update was accepted"));
+        } else {
+            lifecycle.transition(leaseSubject(row), current.state(), row.state(),
+                    ownershipTransfer ? LifecycleEvent.TRANSFER : null, row.releaseReason(), java.util.Map.of(),
+                    () -> sameState ? mapper.updateWorkspaceLeaseDetails(row) : mapper.updateWorkspaceLease(row),
+                    () -> new TaskFailure("DIRECT_LEASE_CONCURRENT_CONFLICT", "Direct workspace lease changed concurrently; no transition was accepted"));
+        }
     }
 
     private void updateQueue(TaskQueueRow row) {

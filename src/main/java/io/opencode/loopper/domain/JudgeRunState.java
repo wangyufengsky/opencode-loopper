@@ -8,4 +8,9 @@ public enum JudgeRunState implements DescribedEnum {
     private final String description;
     JudgeRunState(String description) { this.description = description; }
     @Override public String description() { return description; }
+
+    public boolean terminal() {
+        return this == COMPLETED || this == SESSION_ERROR || this == ABORTED
+                || this == FAILED || this == TIMED_OUT;
+    }
 }

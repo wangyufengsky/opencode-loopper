@@ -4,6 +4,7 @@ import io.opencode.loopper.api.FeatureContracts;
 import io.opencode.loopper.domain.LoopSpec;
 import io.opencode.loopper.domain.RecoveryMode;
 import io.opencode.loopper.domain.TaskState;
+import io.opencode.loopper.domain.StageState;
 import io.opencode.loopper.persistence.LoopDraftRow;
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.ProjectRow;
@@ -110,9 +111,10 @@ public class RecoveryService {
 
     private StageRow recoveryPoint(List<StageRow> stages) {
         if (stages.isEmpty()) throw new ConflictException("RECOVERY_STAGE_MISSING", "The parent task has no stages to recover");
-        return stages.stream().filter(stage -> "FAILED".equals(stage.state())).findFirst()
-                .or(() -> stages.stream().filter(stage -> "RUNNING".equals(stage.state()) || "PAUSED".equals(stage.state())).findFirst())
-                .or(() -> stages.stream().filter(stage -> !"SUCCEEDED".equals(stage.state())).findFirst())
+        return stages.stream().filter(stage -> StageState.FAILED.name().equals(stage.state())).findFirst()
+                .or(() -> stages.stream().filter(stage -> StageState.RUNNING.name().equals(stage.state())
+                        || StageState.PAUSED.name().equals(stage.state())).findFirst())
+                .or(() -> stages.stream().filter(stage -> !StageState.SUCCEEDED.name().equals(stage.state())).findFirst())
                 .orElse(stages.getLast());
     }
 
