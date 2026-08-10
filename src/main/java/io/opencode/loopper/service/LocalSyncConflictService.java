@@ -445,7 +445,9 @@ public class LocalSyncConflictService {
             Files.write(temp.resolve("task"), orEmpty(task));
             ProcessResult result = runner.run(temp, List.of("git", "merge-file", "-p", "-L", "源项目",
                     "-L", "BASE", "-L", "任务", "source", "base", "task"), MERGE_TIMEOUT);
-            if (result.timedOut() || result.outputTruncated() || result.exitCode() > 1) {
+            // git merge-file returns the number of conflict regions (capped at 127),
+            // not just a boolean 0/1 status.  Only 128+ represents an execution error.
+            if (result.timedOut() || result.outputTruncated() || result.exitCode() > 127) {
                 throw new ConflictException("LOCAL_SYNC_MERGE_FAILED", "确定性三方合并失败");
             }
             return new ThreeWay(result.exitCode() == 0, result.output());

@@ -78,6 +78,27 @@ class LocalSyncConflictServiceIntegrationTest {
     }
 
     @Test
+    void multipleTextConflictRegionsRemainEditableInsteadOfBeingTreatedAsMergeToolFailure() throws Exception {
+        String base = java.util.stream.IntStream.rangeClosed(1, 24)
+                .mapToObj(index -> "line-" + index).collect(java.util.stream.Collectors.joining("\n", "", "\n"));
+        Path source = repository(base);
+        TaskRow task = task(source, verifier("git", "status", "--short"));
+        String sourceText = base.replace("line-2\n", "source-2\n").replace("line-22\n", "source-22\n");
+        String taskText = base.replace("line-2\n", "task-2\n").replace("line-22\n", "task-22\n");
+        Files.writeString(source.resolve("README.md"), sourceText);
+        Files.writeString(Path.of(task.worktreePath()).resolve("README.md"), taskText);
+        commitTask(task);
+
+        var session = conflicts.createOrRefresh(task.id());
+        var content = conflicts.content(task.id(), session.id(), "README.md");
+
+        assertThat(session.state()).isEqualTo("OPEN");
+        assertThat(content.resolution()).isNull();
+        assertThat(content.mergedContent()).contains("<<<<<<< 源项目", "source-2", "task-2", "source-22", "task-22");
+        assertThat(content.mergedContent().split("<<<<<<< 源项目", -1)).hasSize(3);
+    }
+
+    @Test
     void addAddDeleteModifyRenameAndBinaryExposeSafeResolutionChoices() throws Exception {
         Path source = repository("base\n");
         Files.writeString(source.resolve("rename-old.txt"), "rename me\n");
