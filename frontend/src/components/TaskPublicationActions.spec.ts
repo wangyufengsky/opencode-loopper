@@ -36,7 +36,7 @@ vi.mock('@/api/client', () => ({
   api: mocks,
 }))
 vi.mock('./CodeMergeEditor.vue', () => ({
-  default: { props: ['modelValue', 'readonly', 'ariaLabel'], emits: ['update:modelValue'], template: '<textarea :aria-label="ariaLabel" :readonly="readonly" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />' },
+  default: { props: ['modelValue', 'readonly', 'ariaLabel', 'language', 'changedLines', 'conflictLines', 'activeConflictLines'], emits: ['update:modelValue'], template: '<textarea :aria-label="ariaLabel" :data-language="language" :readonly="readonly" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />' },
 }))
 
 const task: Task = {
@@ -171,6 +171,42 @@ describe('TaskPublicationActions', () => {
     await flushPromises()
     expect((document.querySelector('textarea[aria-label="合并结果编辑器"]') as HTMLTextAreaElement).value).toBe('AI MERGED')
     expect(mocks.saveLocalSyncResolution).not.toHaveBeenCalled()
+  })
+
+  it('blocks unresolved git markers and shows verifier output after rollback', async () => {
+    const conflictPublication: TaskPublicationStatus = { ...localReady, state: 'LOCAL_SYNC_CONFLICT', hasChanges: false, conflictSessionId: 'session-markers', conflictCount: 1, resolvedCount: 1 }
+    const session = {
+      id: 'session-markers', taskId: 'task-1', state: 'ROLLED_BACK', sourceRoot: '/tmp/source', sourceHead: '1234567890abcdef',
+      taskCommit: 'task', baselineCommit: 'base', conflictCount: 1, resolvedCount: 1, errorMessage: '发布验证失败，已启动自动恢复：PROCESS[0:0] Process exited 1',
+      verificationEvidence: JSON.stringify({ passed: false, checks: [{ type: 'PROCESS', path: '0:0', passed: false, summary: 'Process exited 1', evidence: { output: '[ERROR] COMPILATION ERROR' } }] }),
+      createdAt: 'now', updatedAt: 'now', version: 2,
+    }
+    const file = { path: 'Main.java', sourcePath: 'Main.java', taskPath: 'Main.java', changeType: 'MODIFY', contentType: 'TEXT', resolution: 'MANUAL', resolved: true, hasAiSuggestion: false, baseHash: 'basehash', sourceHash: 'sourcehash', taskHash: 'taskhash', version: 1 }
+    const markers = '<<<<<<< 源项目\nsource\n=======\ntask\n>>>>>>> 任务\n'
+    const content = { path: 'Main.java', contentType: 'TEXT', baseContent: 'base', sourceContent: 'source', taskContent: 'task', mergedContent: markers, resolution: 'MANUAL', baseHash: 'basehash', sourceHash: 'sourcehash', taskHash: 'taskhash', aiEligible: true, version: 1 }
+    getTaskPublication.mockResolvedValue(conflictPublication)
+    mocks.getLocalSyncConflictSession.mockResolvedValue(session)
+    mocks.getLocalSyncConflictFiles.mockResolvedValue([file])
+    mocks.getLocalSyncConflictContent.mockResolvedValue(content)
+
+    const wrapper = mount(TaskPublicationActions, { props: { task }, global: { plugins: [ElementPlus] }, attachTo: document.body })
+    await flushPromises()
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+
+    expect(document.body.textContent).toContain('合并结果仍有 Git 冲突标记')
+    expect(document.body.textContent).toContain('[ERROR] COMPILATION ERROR')
+    expect(document.querySelectorAll('textarea[aria-label$="内容"], textarea[aria-label="合并结果编辑器"]')).toHaveLength(3)
+    expect((document.querySelector('textarea[aria-label="合并结果编辑器"]') as HTMLTextAreaElement).dataset.language).toBe('java')
+    const acceptBlock = [...document.querySelectorAll('button')].find((button) => button.textContent?.trim() === '本段采用源项目') as HTMLButtonElement
+    acceptBlock.click()
+    await flushPromises()
+    expect((document.querySelector('textarea[aria-label="合并结果编辑器"]') as HTMLTextAreaElement).value).toBe('source\n')
+    expect(document.body.textContent).not.toContain('合并结果仍有 Git 冲突标记')
+    const save = [...document.querySelectorAll('button')].find((button) => button.textContent?.includes('保存手工合并')) as HTMLButtonElement
+    save.click()
+    await flushPromises()
+    expect(mocks.saveLocalSyncResolution).toHaveBeenCalledWith('task-1', 'session-markers', expect.objectContaining({ resolution: 'MANUAL', content: 'source\n' }))
   })
 
   it('shows stale and rolled-back states as recoverable actions', async () => {

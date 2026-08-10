@@ -197,6 +197,10 @@ public class LocalSyncConflictService {
             if (manual.getBytes(StandardCharsets.UTF_8).length > MAX_TEXT_BYTES || manual.indexOf('\0') >= 0) {
                 throw new BadRequestException("LOCAL_SYNC_MANUAL_TOO_LARGE", "手工合并内容不能超过 1 MiB");
             }
+            if (containsUnresolvedMergeMarkers(manual)) {
+                throw new BadRequestException("LOCAL_SYNC_UNRESOLVED_MARKERS",
+                        "手工合并内容仍包含 <<<<<<< / ======= / >>>>>>> 冲突标记，请完成取舍后再保存");
+            }
         }
         LocalSyncConflictFileRow updated = copyFile(file, resolution, manual, file.aiSuggestion(),
                 file.aiSuggestionHash(), Instant.now().toString());
@@ -278,6 +282,7 @@ public class LocalSyncConflictService {
         if (files.isEmpty() || files.stream().anyMatch(file -> file.resolution() == null)) {
             throw new ConflictException("LOCAL_SYNC_UNRESOLVED", "全部文件解决后才能确认同步");
         }
+        rejectPersistedMergeMarkers(session, files);
         if (!Set.of(LocalSyncConflictState.READY.name(), LocalSyncConflictState.ROLLED_BACK.name()).contains(session.state())) {
             throw new ConflictException("LOCAL_SYNC_SESSION_NOT_READY", "当前冲突会话不能应用");
         }
@@ -305,7 +310,7 @@ public class LocalSyncConflictService {
             events.emit(taskId, "LOCAL_SYNC_VERIFIED", Map.of(
                     "conflictSessionId", session.id(), "passed", evidence.passed(), "checks", evidence.checks().size()));
             if (!evidence.passed()) {
-                throw new VerificationFailure(writeJson(evidence));
+                throw new VerificationFailure(writeJson(evidence), failedVerificationSummary(evidence));
             }
             session = updateSession(session, LocalSyncConflictState.APPLIED.name(), null, session.recoveryLogJson(),
                     writeJson(evidence), null);
@@ -633,10 +638,10 @@ public class LocalSyncConflictService {
                         try {
                             VerifierOutcome outcome = verifiers.verify(source, session.baselineCommit(), verifier, timeout);
                             checks.add(new VerificationCheck(type, stageIndex + ":" + verifierIndex,
-                                    outcome.state() == VerificationState.PASS, outcome.summary()));
+                                    outcome.state() == VerificationState.PASS, outcome.summary(), outcome.evidence()));
                         } catch (RuntimeException failure) {
                             checks.add(new VerificationCheck(type, stageIndex + ":" + verifierIndex,
-                                    false, safeMessage(failure)));
+                                    false, safeMessage(failure), Map.of("error", safeMessage(failure))));
                         }
                     }
                     verifierIndex++;
@@ -645,6 +650,57 @@ public class LocalSyncConflictService {
             }
         }
         return new VerificationEvidence(checks.stream().allMatch(VerificationCheck::passed), checks);
+    }
+
+    private void rejectPersistedMergeMarkers(LocalSyncConflictSessionRow session,
+                                              List<LocalSyncConflictFileRow> files) {
+        List<String> invalid = new ArrayList<>();
+        for (LocalSyncConflictFileRow file : files) {
+            if (!"MANUAL".equals(file.resolution()) || !containsUnresolvedMergeMarkers(file.resolvedContent())) {
+                continue;
+            }
+            LocalSyncConflictFileRow unresolved = copyFile(file, null, file.resolvedContent(), file.aiSuggestion(),
+                    file.aiSuggestionHash(), Instant.now().toString());
+            if (mapper.updateLocalSyncConflictFile(unresolved) != 1) {
+                throw new ConflictException("LOCAL_SYNC_FILE_VERSION_CONFLICT", "文件解决方案已被更新，请重新载入");
+            }
+            invalid.add(file.path());
+        }
+        if (invalid.isEmpty()) return;
+        refreshSessionCounts(session.id());
+        throw new ConflictException("LOCAL_SYNC_UNRESOLVED_MARKERS",
+                "以下手工合并仍包含 Git 冲突标记，已重新标记为未解决：" + String.join("、", invalid));
+    }
+
+    private boolean containsUnresolvedMergeMarkers(String content) {
+        if (content == null || content.isEmpty()) return false;
+        boolean opened = false;
+        boolean separated = false;
+        for (String line : content.split("\\R", -1)) {
+            String marker = line.stripLeading();
+            if (isConflictMarker(marker, "<<<<<<<")) {
+                opened = true;
+                separated = false;
+            } else if (opened && marker.stripTrailing().equals("=======")) {
+                separated = true;
+            } else if (opened && separated && isConflictMarker(marker, ">>>>>>>")) {
+                return true;
+            }
+        }
+        return opened;
+    }
+
+    private boolean isConflictMarker(String line, String marker) {
+        if (!line.startsWith(marker)) return false;
+        return line.length() == marker.length() || Character.isWhitespace(line.charAt(marker.length()));
+    }
+
+    private String failedVerificationSummary(VerificationEvidence evidence) {
+        String failures = evidence.checks().stream().filter(check -> !check.passed())
+                .limit(4)
+                .map(check -> check.type() + "[" + check.path() + "] " + check.summary())
+                .collect(java.util.stream.Collectors.joining("；"));
+        return failures.isBlank() ? "发布验证失败，已启动自动恢复" : "发布验证失败，已启动自动恢复：" + failures;
     }
 
     private Map<String, String> outsideChanges(Path source, Set<String> affected) {
@@ -1110,9 +1166,14 @@ public class LocalSyncConflictService {
     public record RecoveryLog(String backupDir, List<BackupEntry> entries) { }
     public record BackupEntry(String path, boolean existed, String mode, String hash, String backupFile) { }
     public record VerificationEvidence(boolean passed, List<VerificationCheck> checks) { }
-    public record VerificationCheck(String type, String path, boolean passed, String summary) { }
+    public record VerificationCheck(String type, String path, boolean passed, String summary,
+                                    Map<String, Object> evidence) {
+        public VerificationCheck(String type, String path, boolean passed, String summary) {
+            this(type, path, passed, summary, Map.of());
+        }
+    }
     private static final class VerificationFailure extends Exception {
         private final String evidence;
-        private VerificationFailure(String evidence) { super("发布验证失败，已启动自动恢复"); this.evidence = evidence; }
+        private VerificationFailure(String evidence, String message) { super(message); this.evidence = evidence; }
     }
 }

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
 import MetricCard from '@/components/MetricCard.vue'
@@ -23,6 +23,7 @@ const archiveFilter = ref<ArchiveFilter>('ACTIVE')
 const search = ref('')
 const groupByProject = ref(false)
 const archivingTaskId = ref('')
+const deletingTaskId = ref('')
 
 const statusOptions: Array<{ value: StatusFilter; label: string }> = [
   { value: 'ALL', label: '全部' },
@@ -123,7 +124,7 @@ function canArchive(task: Task) {
 }
 
 async function toggleArchive(task: Task) {
-  if (archivingTaskId.value) return
+  if (archivingTaskId.value || deletingTaskId.value) return
   archivingTaskId.value = task.id
   try {
     await store.setTaskArchived(task.id, !task.archived)
@@ -132,6 +133,26 @@ async function toggleArchive(task: Task) {
     ElMessage.error(cause instanceof Error ? cause.message : '任务归档状态更新失败')
   } finally {
     archivingTaskId.value = ''
+  }
+}
+
+async function confirmDelete(task: Task) {
+  if (!task.archived || archivingTaskId.value || deletingTaskId.value) return
+  try {
+    await ElMessageBox.confirm(
+      `将永久删除“${task.title}”的任务记录、验证、评审和关联设计历史。项目文件、Git 分支与 worktree 不会删除。此操作无法恢复。`,
+      '永久删除历史任务？',
+      { type: 'error', confirmButtonText: '永久删除', cancelButtonText: '取消' },
+    )
+    deletingTaskId.value = task.id
+    await store.deleteArchivedTask(task.id)
+    ElMessage.success('历史任务已永久删除')
+  } catch (cause) {
+    if (cause !== 'cancel' && cause !== 'close') {
+      ElMessage.error(cause instanceof Error ? cause.message : '历史任务删除失败')
+    }
+  } finally {
+    deletingTaskId.value = ''
   }
 }
 </script>
@@ -191,7 +212,7 @@ async function toggleArchive(task: Task) {
       <div v-else-if="visibleTasks.length" class="task-groups">
         <section v-for="group in taskGroups" :key="group.id" class="task-group">
           <header v-if="groupByProject" class="task-group-header"><div><Icon icon="lucide:folder" aria-hidden="true" /><h2>{{ group.name }}</h2></div><span>{{ group.tasks.length }} 个任务</span></header>
-          <div class="task-table"><el-table :data="group.tasks" row-key="id" :height="groupByProject ? undefined : 430"><el-table-column label="任务" min-width="285"><template #default="{ row }"><RouterLink class="task-link" :title="row.goal || row.title" :to="`/tasks/${row.id}`">{{ row.title }}</RouterLink><p class="mono tiny muted task-branch" translate="no">{{ row.branch }}</p></template></el-table-column><el-table-column label="状态" width="132"><template #default="{ row }"><StatusBadge :status="row.status" /></template></el-table-column><el-table-column label="进度" width="90"><template #default="{ row }"><span class="mono numeric">{{ row.attemptCount }}/{{ row.maxAttempts }}</span></template></el-table-column><el-table-column v-if="!groupByProject" label="项目" min-width="140" prop="projectName" /><el-table-column label="更新于" width="120"><template #default="{ row }"><time class="muted tiny" :datetime="row.updatedAt">{{ formatCompactDateTime(row.updatedAt) }}</time></template></el-table-column><el-table-column label="设计" width="96"><template #default="{ row }"><RouterLink v-if="row.hasDesignHistory" class="design-history-link" :to="`/tasks/${row.id}/design`"><Icon icon="lucide:messages-square" aria-hidden="true" />查看</RouterLink><span v-else class="tiny muted">无</span></template></el-table-column><el-table-column width="96"><template #default="{ row }"><div class="row-actions"><button v-if="row.archived || canArchive(row)" type="button" class="icon-action" :disabled="Boolean(archivingTaskId)" :aria-label="row.archived ? `恢复任务 ${row.title}` : `归档任务 ${row.title}`" :title="row.archived ? '恢复任务' : '归档任务'" @click="toggleArchive(row)"><Icon :icon="archivingTaskId === row.id ? 'lucide:loader-circle' : row.archived ? 'lucide:archive-restore' : 'lucide:archive'" :class="{ spin: archivingTaskId === row.id }" aria-hidden="true" /></button><RouterLink class="icon-action" :to="`/tasks/${row.id}`" :aria-label="`打开任务 ${row.title}`" title="打开任务"><Icon icon="lucide:arrow-up-right" aria-hidden="true" /></RouterLink></div></template></el-table-column></el-table></div>
+          <div class="task-table"><el-table :data="group.tasks" row-key="id" :height="groupByProject ? undefined : 430"><el-table-column label="任务" min-width="285"><template #default="{ row }"><RouterLink class="task-link" :title="row.goal || row.title" :to="`/tasks/${row.id}`">{{ row.title }}</RouterLink><p class="mono tiny muted task-branch" translate="no">{{ row.branch }}</p></template></el-table-column><el-table-column label="状态" width="132"><template #default="{ row }"><StatusBadge :status="row.status" /></template></el-table-column><el-table-column label="进度" width="90"><template #default="{ row }"><span class="mono numeric">{{ row.attemptCount }}/{{ row.maxAttempts }}</span></template></el-table-column><el-table-column v-if="!groupByProject" label="项目" min-width="140" prop="projectName" /><el-table-column label="更新于" width="120"><template #default="{ row }"><time class="muted tiny" :datetime="row.updatedAt">{{ formatCompactDateTime(row.updatedAt) }}</time></template></el-table-column><el-table-column label="设计" width="96"><template #default="{ row }"><RouterLink v-if="row.hasDesignHistory" class="design-history-link" :to="`/tasks/${row.id}/design`"><Icon icon="lucide:messages-square" aria-hidden="true" />查看</RouterLink><span v-else class="tiny muted">无</span></template></el-table-column><el-table-column width="132"><template #default="{ row }"><div class="row-actions"><button v-if="row.archived" type="button" class="icon-action danger" :disabled="Boolean(archivingTaskId || deletingTaskId)" :aria-label="`永久删除任务 ${row.title}`" title="永久删除" @click="confirmDelete(row)"><Icon :icon="deletingTaskId === row.id ? 'lucide:loader-circle' : 'lucide:trash-2'" :class="{ spin: deletingTaskId === row.id }" aria-hidden="true" /></button><button v-if="row.archived || canArchive(row)" type="button" class="icon-action" :disabled="Boolean(archivingTaskId || deletingTaskId)" :aria-label="row.archived ? `恢复任务 ${row.title}` : `归档任务 ${row.title}`" :title="row.archived ? '恢复任务' : '归档任务'" @click="toggleArchive(row)"><Icon :icon="archivingTaskId === row.id ? 'lucide:loader-circle' : row.archived ? 'lucide:archive-restore' : 'lucide:archive'" :class="{ spin: archivingTaskId === row.id }" aria-hidden="true" /></button><RouterLink class="icon-action" :to="`/tasks/${row.id}`" :aria-label="`打开任务 ${row.title}`" title="打开任务"><Icon icon="lucide:arrow-up-right" aria-hidden="true" /></RouterLink></div></template></el-table-column></el-table></div>
         </section>
       </div>
       <section v-else class="card empty-state"><div><Icon icon="lucide:search-x" width="30" aria-hidden="true" /><strong>{{ store.tasks.length ? '没有匹配的任务' : '还没有任务' }}</strong><p>{{ store.tasks.length ? '调整搜索或筛选条件，归档任务可从“已归档”中恢复。' : '项目已就绪，可以让 Designer 生成第一份 LoopSpec。' }}</p><el-button v-if="store.tasks.length" plain @click="resetFilters">清除筛选</el-button><el-button v-else type="primary" @click="router.push('/designer')">开始设计</el-button></div></section>
@@ -204,7 +225,7 @@ async function toggleArchive(task: Task) {
 .onboarding-icon { display: grid; width: 52px; height: 52px; place-items: center; border: 1px solid rgb(34 211 238 / 28%); border-radius: 14px; color: var(--color-accent-cyan); background: rgb(34 211 238 / 8%); }.onboarding-icon svg { width: 24px; height: 24px; }.onboarding-card h2 { margin: 3px 0 7px; font-size: 19px; text-wrap: balance; }.onboarding-card p:last-child { max-width: 680px; margin: 0; color: var(--color-text-secondary); font-size: 12px; line-height: 1.65; }
 .task-filter-stack { display: grid; min-width: 0; flex: 1; gap: 10px; }.task-filters { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }.task-query-row { display: flex; min-width: 0; align-items: center; flex-wrap: wrap; gap: 9px; }.task-search { width: min(320px, 100%); }.project-filter { width: 175px; }.archive-filter { width: 150px; }.time-sort { width: 155px; }
 .task-groups { display: grid; gap: 16px; }.task-group { min-width: 0; }.task-group-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 2px 8px; }.task-group-header > div { display: flex; min-width: 0; align-items: center; gap: 8px; }.task-group-header svg { color: var(--color-accent-cyan); }.task-group-header h2 { margin: 0; overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }.task-group-header span { color: var(--color-text-tertiary); font-size: 10px; }
-.task-link { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.task-branch { margin: 5px 0 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.numeric { font-variant-numeric: tabular-nums; }.design-history-link { display: inline-flex; align-items: center; gap: 5px; padding: 5px 8px; border: 1px solid var(--color-border-default); border-radius: 6px; color: var(--color-text-secondary); font-size: 10px; text-decoration: none; }.design-history-link:hover, .design-history-link:focus-visible { border-color: var(--color-accent-cyan); color: var(--color-accent-cyan); outline: none; }.row-actions { display: flex; justify-content: flex-end; gap: 4px; }.icon-action { display: inline-grid; width: 30px; height: 30px; padding: 0; place-items: center; border: 0; border-radius: 7px; background: transparent; color: var(--color-text-secondary); cursor: pointer; text-decoration: none; }.icon-action:hover, .icon-action:focus-visible { background: rgb(34 211 238 / 9%); color: var(--color-accent-cyan); outline: 2px solid transparent; }.icon-action:focus-visible { outline-color: var(--color-accent-cyan); outline-offset: 1px; }.icon-action:disabled { cursor: wait; opacity: .55; }.spin { animation: spin .8s linear infinite; }
+.task-link { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.task-branch { margin: 5px 0 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.numeric { font-variant-numeric: tabular-nums; }.design-history-link { display: inline-flex; align-items: center; gap: 5px; padding: 5px 8px; border: 1px solid var(--color-border-default); border-radius: 6px; color: var(--color-text-secondary); font-size: 10px; text-decoration: none; }.design-history-link:hover, .design-history-link:focus-visible { border-color: var(--color-accent-cyan); color: var(--color-accent-cyan); outline: none; }.row-actions { display: flex; justify-content: flex-end; gap: 4px; }.icon-action { display: inline-grid; width: 30px; height: 30px; padding: 0; place-items: center; border: 0; border-radius: 7px; background: transparent; color: var(--color-text-secondary); cursor: pointer; text-decoration: none; }.icon-action:hover, .icon-action:focus-visible { background: rgb(34 211 238 / 9%); color: var(--color-accent-cyan); outline: 2px solid transparent; }.icon-action.danger:hover, .icon-action.danger:focus-visible { background: rgb(239 68 68 / 10%); color: var(--color-task-danger); }.icon-action:focus-visible { outline-color: var(--color-accent-cyan); outline-offset: 1px; }.icon-action.danger:focus-visible { outline-color: var(--color-task-danger); }.icon-action:disabled { cursor: wait; opacity: .55; }.spin { animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 980px) { .task-toolbar { align-items: flex-start; flex-direction: column; }.onboarding-card { grid-template-columns: auto minmax(0, 1fr); }.onboarding-card > :last-child { grid-column: 2; justify-self: start; } }
 @media (max-width: 640px) { .task-filters, .task-query-row { width: 100%; }.task-filters :deep(.el-button-group) { display: flex; max-width: 100%; overflow-x: auto; }.task-search, .project-filter, .archive-filter, .time-sort { width: 100%; }.onboarding-card { grid-template-columns: 1fr; }.onboarding-card > :last-child { grid-column: 1; }.onboarding-icon { width: 44px; height: 44px; } }

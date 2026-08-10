@@ -12,6 +12,7 @@
     "typecheck": "vue-tsc -b"
   },
   "dependencies": {
+    "@codemirror/lang-java": "^6.0.2",
     "@codemirror/lang-json": "^6.0.2",
     "@codemirror/language": "^6.11.0",
     "@codemirror/state": "^6.5.2",

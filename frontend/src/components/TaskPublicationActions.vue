@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { api } from '@/api/client'
+import { changedLineNumbers, countChangedGroups, languageForPath, parseMergeConflicts, resolveMergeConflict, type MergeSide } from '@/utils/mergeView'
 import CodeMergeEditor from './CodeMergeEditor.vue'
 import type { LocalSyncConflictContent, LocalSyncConflictFile, LocalSyncConflictSession, LocalSyncResolution, Task, TaskPublicationStatus } from '@/types/domain'
 
@@ -28,6 +29,9 @@ const conflictLoading = ref(false)
 const conflictSaving = ref(false)
 const conflictError = ref('')
 const aiLoading = ref(false)
+const activeConflictIndex = ref(0)
+const baseReferenceOpen = ref(false)
+const resultEditor = ref<InstanceType<typeof CodeMergeEditor>>()
 
 const commitPreview = computed(() => `#${ticketNumber.value || '0000'}_${commitSubject.value.trim() || 'AI 生成提交信息'}`)
 const commitValid = computed(() => /^\d{4}$/.test(ticketNumber.value) && commitSubject.value.trim().length > 0 && commitPreview.value.length <= 126)
@@ -36,6 +40,56 @@ const localPublication = computed(() => Boolean(publication.value && !publicatio
 const canApplyConflict = computed(() => Boolean(conflictSession.value
   && ['READY', 'ROLLED_BACK'].includes(conflictSession.value.state)
   && conflictSession.value.resolvedCount === conflictSession.value.conflictCount))
+const manualHasConflictMarkers = computed(() => containsUnresolvedMergeMarkers(mergeContent.value))
+const baseDisplayContent = computed(() => conflictContent.value?.baseContent ?? '（文件不存在）')
+const sourceDisplayContent = computed(() => conflictContent.value?.sourceContent ?? '（文件不存在）')
+const taskDisplayContent = computed(() => conflictContent.value?.taskContent ?? '（文件不存在）')
+const mergeLanguage = computed(() => languageForPath(selectedConflictPath.value))
+const sourceChangedLines = computed(() => changedLineNumbers(baseDisplayContent.value, sourceDisplayContent.value))
+const taskChangedLines = computed(() => changedLineNumbers(baseDisplayContent.value, taskDisplayContent.value))
+const resultChangedLines = computed(() => changedLineNumbers(baseDisplayContent.value, mergeContent.value))
+const mergeConflicts = computed(() => parseMergeConflicts(mergeContent.value))
+const resultConflictLines = computed(() => mergeConflicts.value.flatMap((conflict) =>
+  Array.from({ length: conflict.endLine - conflict.startLine + 1 }, (_, index) => conflict.startLine + index)))
+const activeConflictLines = computed(() => {
+  const conflict = mergeConflicts.value[activeConflictIndex.value]
+  return conflict ? Array.from({ length: conflict.endLine - conflict.startLine + 1 }, (_, index) => conflict.startLine + index) : []
+})
+const changedGroupCount = computed(() => countChangedGroups(sourceChangedLines.value) + countChangedGroups(taskChangedLines.value))
+const failedVerificationChecks = computed(() => {
+  const serialized = conflictSession.value?.verificationEvidence
+  if (!serialized) return [] as Array<{ type: string; path: string; summary: string; output?: string }>
+  try {
+    const parsed = JSON.parse(serialized) as { checks?: unknown[] }
+    if (!Array.isArray(parsed.checks)) return []
+    return parsed.checks.flatMap((value) => {
+      if (!value || typeof value !== 'object') return []
+      const check = value as Record<string, unknown>
+      if (check.passed !== false) return []
+      const evidence = check.evidence && typeof check.evidence === 'object'
+        ? check.evidence as Record<string, unknown> : {}
+      return [{
+        type: String(check.type ?? 'VERIFY'),
+        path: String(check.path ?? ''),
+        summary: String(check.summary ?? '验证失败'),
+        output: typeof evidence.output === 'string' ? evidence.output : undefined,
+      }]
+    })
+  } catch { return [] }
+})
+
+function containsUnresolvedMergeMarkers(content: string) {
+  let opened = false
+  let separated = false
+  const isMarker = (line: string, marker: string) => line === marker || line.startsWith(`${marker} `) || line.startsWith(`${marker}\t`)
+  for (const rawLine of content.split(/\r?\n/)) {
+    const line = rawLine.trimStart()
+    if (isMarker(line, '<<<<<<<')) { opened = true; separated = false }
+    else if (opened && line.trimEnd() === '=======') separated = true
+    else if (opened && separated && isMarker(line, '>>>>>>>')) return true
+  }
+  return opened
+}
 
 async function loadPublication() {
   if (props.task.status !== 'SUCCEEDED') return
@@ -186,6 +240,33 @@ async function selectConflictFile(path: string) {
   conflictError.value = ''
   conflictContent.value = await api.getLocalSyncConflictContent(props.task.id, session.id, path)
   mergeContent.value = conflictContent.value.mergedContent ?? conflictContent.value.sourceContent ?? ''
+  activeConflictIndex.value = 0
+  baseReferenceOpen.value = false
+}
+
+watch(() => mergeConflicts.value.length, (count) => {
+  if (!count) activeConflictIndex.value = 0
+  else if (activeConflictIndex.value >= count) activeConflictIndex.value = count - 1
+})
+
+async function moveConflict(direction: number) {
+  const count = mergeConflicts.value.length
+  if (!count) return
+  activeConflictIndex.value = (activeConflictIndex.value + direction + count) % count
+  await nextTick()
+  resultEditor.value?.scrollToLine(mergeConflicts.value[activeConflictIndex.value]?.startLine ?? 1)
+}
+
+async function acceptActiveConflict(side: MergeSide) {
+  if (!mergeConflicts.value.length) return
+  mergeContent.value = resolveMergeConflict(mergeContent.value, activeConflictIndex.value, side)
+  await nextTick()
+  const remaining = mergeConflicts.value.length
+  if (remaining) {
+    activeConflictIndex.value = Math.min(activeConflictIndex.value, remaining - 1)
+    resultEditor.value?.scrollToLine(mergeConflicts.value[activeConflictIndex.value]?.startLine ?? 1)
+  }
+  ElMessage.info(side === 'source' ? '当前冲突块已采用源项目，保存手工合并后生效' : '当前冲突块已采用任务版本，保存手工合并后生效')
 }
 
 async function reloadConflictSession() {
@@ -197,6 +278,10 @@ async function saveResolution(resolution: Exclude<LocalSyncResolution, 'AUTO'>) 
   const session = conflictSession.value
   const content = conflictContent.value
   if (!session || !content) return
+  if (resolution === 'MANUAL' && manualHasConflictMarkers.value) {
+    conflictError.value = '合并结果仍包含 <<<<<<< / ======= / >>>>>>> 冲突标记。请保留需要的两侧代码并删除全部标记后再保存。'
+    return
+  }
   conflictSaving.value = true
   conflictError.value = ''
   try {
@@ -368,7 +453,7 @@ async function createMergeRequest() {
       <Icon icon="lucide:refresh-cw" /><span>源项目已变化，会话已过期。刷新后会重新计算三方内容，旧方案不会写入。</span>
       <el-button size="small" type="warning" :loading="conflictLoading" @click="refreshConflictSession">刷新预检</el-button>
     </div>
-    <div v-else-if="conflictSession?.state === 'ROLLED_BACK'" class="conflict-state danger"><Icon icon="lucide:undo-2" /><span>上次验证或写入失败，全部任务路径已自动恢复。解决方案仍保留，可编辑后重试。</span></div>
+    <div v-else-if="conflictSession?.state === 'ROLLED_BACK'" class="conflict-state danger"><Icon icon="lucide:undo-2" /><span>上次验证或写入失败，全部任务路径已自动恢复。{{ conflictSession.errorMessage || '解决方案仍保留，可编辑后重试。' }}</span></div>
     <div v-else-if="conflictSession?.state === 'ROLLBACK_FAILED'" class="conflict-state danger"><Icon icon="lucide:triangle-alert" /><span>自动恢复失败，未标记同步成功。备份：{{ conflictSession.backupDir }}</span></div>
     <div v-else-if="conflictSession?.state === 'APPLYING' || conflictSession?.state === 'VERIFYING'" class="conflict-state"><Icon icon="lucide:loader-circle" class="spin" /><span>{{ conflictSession.state === 'APPLYING' ? '正在原子写入源项目' : '正在按 LoopSpec 验证，失败会自动恢复' }}</span></div>
 
@@ -382,19 +467,45 @@ async function createMergeRequest() {
       <section v-if="conflictContent" class="conflict-detail">
         <div class="resolution-toolbar">
           <div>
-            <el-button size="small" :type="conflictContent.resolution === 'SOURCE' ? 'primary' : 'default'" :loading="conflictSaving" @click="saveResolution('SOURCE')">采用源项目</el-button>
-            <el-button size="small" :type="conflictContent.resolution === 'TASK' ? 'primary' : 'default'" :loading="conflictSaving" @click="saveResolution('TASK')">采用任务</el-button>
+            <el-button size="small" :type="conflictContent.resolution === 'SOURCE' ? 'primary' : 'default'" :loading="conflictSaving" @click="saveResolution('SOURCE')">整文件采用源项目</el-button>
+            <el-button size="small" :type="conflictContent.resolution === 'TASK' ? 'primary' : 'default'" :loading="conflictSaving" @click="saveResolution('TASK')">整文件采用任务</el-button>
             <el-button v-if="conflictContent.contentType === 'TEXT'" size="small" :type="conflictContent.resolution === 'MANUAL' ? 'success' : 'default'" :loading="conflictSaving" @click="saveResolution('MANUAL')">保存手工合并</el-button>
           </div>
           <el-button v-if="conflictContent.aiEligible" size="small" type="warning" plain :loading="aiLoading" @click="requestAiSuggestion"><Icon icon="lucide:sparkles" />AI 建议（内容将外发）</el-button>
         </div>
         <template v-if="conflictContent.contentType === 'TEXT'">
-          <div class="merge-grid">
-            <article><header>Base <code>{{ conflictContent.baseHash.slice(0, 10) }}</code></header><CodeMergeEditor :model-value="conflictContent.baseContent ?? '（文件不存在）'" readonly aria-label="Base 内容" /></article>
-            <article><header>源项目 <code>{{ conflictContent.sourceHash.slice(0, 10) }}</code></header><CodeMergeEditor :model-value="conflictContent.sourceContent ?? '（文件不存在）'" readonly aria-label="源项目内容" /></article>
-            <article><header>任务 <code>{{ conflictContent.taskHash.slice(0, 10) }}</code></header><CodeMergeEditor :model-value="conflictContent.taskContent ?? '（文件不存在）'" readonly aria-label="任务内容" /></article>
-            <article class="merge-result"><header>合并结果 <span>手工修改后需保存</span></header><CodeMergeEditor v-model="mergeContent" aria-label="合并结果编辑器" /></article>
+          <div class="merge-block-toolbar">
+            <div class="merge-path"><Icon icon="lucide:file-code-2" /><code>{{ conflictContent.path }}</code><span v-if="mergeLanguage !== 'plain'">{{ mergeLanguage.toUpperCase() }}</span></div>
+            <div class="merge-stats"><strong>{{ changedGroupCount }} 处变化</strong><span :class="{ danger: mergeConflicts.length }">{{ mergeConflicts.length }} 个未解决冲突</span></div>
+            <div class="merge-nav">
+              <el-button size="small" plain :disabled="!mergeConflicts.length" aria-label="上一个冲突" @click="moveConflict(-1)"><Icon icon="lucide:chevron-up" /></el-button>
+              <code>{{ mergeConflicts.length ? `${activeConflictIndex + 1} / ${mergeConflicts.length}` : '0 / 0' }}</code>
+              <el-button size="small" plain :disabled="!mergeConflicts.length" aria-label="下一个冲突" @click="moveConflict(1)"><Icon icon="lucide:chevron-down" /></el-button>
+              <el-button size="small" plain @click="baseReferenceOpen = !baseReferenceOpen"><Icon icon="lucide:history" />{{ baseReferenceOpen ? '收起 Base' : '查看 Base' }}</el-button>
+            </div>
           </div>
+          <div class="merge-grid">
+            <article class="merge-source">
+              <header><span>源项目（左）</span><code>{{ conflictContent.sourceHash.slice(0, 10) }}</code></header>
+              <CodeMergeEditor :key="`${conflictContent.path}:source`" :model-value="sourceDisplayContent" :language="mergeLanguage" :changed-lines="sourceChangedLines" readonly aria-label="源项目内容" />
+            </article>
+            <article class="merge-result">
+              <header>
+                <span>合并结果</span>
+                <div class="block-actions">
+                  <el-button size="small" :disabled="!mergeConflicts.length" @click="acceptActiveConflict('source')"><Icon icon="lucide:move-left" />本段采用源项目</el-button>
+                  <el-button size="small" :disabled="!mergeConflicts.length" @click="acceptActiveConflict('task')">本段采用任务<Icon icon="lucide:move-right" /></el-button>
+                </div>
+              </header>
+              <CodeMergeEditor ref="resultEditor" :key="`${conflictContent.path}:result`" v-model="mergeContent" :language="mergeLanguage" :changed-lines="resultChangedLines" :conflict-lines="resultConflictLines" :active-conflict-lines="activeConflictLines" aria-label="合并结果编辑器" />
+            </article>
+            <article class="merge-task">
+              <header><span>任务版本（右）</span><code>{{ conflictContent.taskHash.slice(0, 10) }}</code></header>
+              <CodeMergeEditor :key="`${conflictContent.path}:task`" :model-value="taskDisplayContent" :language="mergeLanguage" :changed-lines="taskChangedLines" readonly aria-label="任务内容" />
+            </article>
+          </div>
+          <div v-if="baseReferenceOpen" class="base-reference"><header><span>Base 共同祖先（仅供参考）</span><code>{{ conflictContent.baseHash.slice(0, 10) }}</code></header><pre>{{ baseDisplayContent }}</pre></div>
+          <div v-if="manualHasConflictMarkers" class="merge-marker-warning"><Icon icon="lucide:triangle-alert" /><span>合并结果仍有 Git 冲突标记，不能保存或同步。请合并两侧需要的代码并删除所有标记行。</span></div>
           <div v-if="conflictContent.aiSuggestion !== undefined" class="ai-suggestion">
             <div><strong>AI 建议（尚未采用）</strong><span>必须载入编辑器、复核并保存手工合并后才会生效。</span></div>
             <el-button size="small" @click="loadAiIntoEditor">载入编辑器</el-button>
@@ -409,6 +520,13 @@ async function createMergeRequest() {
         </div>
       </section>
       <section v-else class="conflict-empty">选择一个冲突文件查看三方内容</section>
+    </div>
+    <div v-if="failedVerificationChecks.length" class="verification-failures">
+      <strong>上次发布验证失败详情</strong>
+      <article v-for="check in failedVerificationChecks" :key="`${check.type}:${check.path}`">
+        <header><code>{{ check.type }} {{ check.path }}</code><span>{{ check.summary }}</span></header>
+        <pre v-if="check.output">{{ check.output }}</pre>
+      </article>
     </div>
     <p v-if="conflictError" class="publication-error"><Icon icon="lucide:triangle-alert" />{{ conflictError }}</p>
     <template #footer>
@@ -426,7 +544,9 @@ async function createMergeRequest() {
 .spin { animation: spin .8s linear infinite; }@keyframes spin { to { transform: rotate(360deg); } }
 :global(.publication-dialog) { border: 1px solid rgb(130 147 173 / 18%); border-radius: 12px; background: #0b1220; box-shadow: 0 24px 80px rgb(0 0 0 / 55%); }:global(.publication-dialog .el-dialog__header) { margin: 0; padding-bottom: 14px; border-bottom: 1px solid var(--color-border-default); }:global(.publication-dialog .el-dialog__body) { padding-top: 18px; }
 .conflict-session-bar { display: flex; align-items: center; gap: 14px; min-width: 0; padding: 9px 12px; border: 1px solid var(--color-border-default); border-radius: 8px; background: #08111e; color: var(--color-text-secondary); font-size: 10px; }.conflict-session-bar span { display: flex; min-width: 0; align-items: center; gap: 6px; flex: 1; overflow-wrap: anywhere; }.conflict-session-bar code { color: var(--color-accent-cyan); }.conflict-session-bar strong { color: #86efac; }.conflict-state { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 9px 11px; border: 1px solid rgb(251 191 36 / 30%); border-radius: 7px; background: rgb(251 191 36 / 7%); color: #fde68a; font-size: 10px; }.conflict-state span { flex: 1; }.conflict-state.danger { border-color: rgb(248 113 113 / 32%); background: rgb(248 113 113 / 8%); color: #fecaca; }
-.conflict-workbench { display: grid; grid-template-columns: minmax(230px, 280px) minmax(0, 1fr); min-height: 590px; margin-top: 12px; overflow: hidden; border: 1px solid var(--color-border-default); border-radius: 9px; background: #07101b; }.conflict-files { overflow: auto; border-right: 1px solid var(--color-border-default); background: #091321; }.conflict-files button { display: flex; width: 100%; gap: 8px; align-items: flex-start; padding: 10px; border: 0; border-bottom: 1px solid rgb(130 147 173 / 10%); background: transparent; color: var(--color-text-secondary); text-align: left; cursor: pointer; }.conflict-files button.active { background: rgb(34 211 238 / 8%); color: #e0f2fe; }.conflict-files button > svg { flex: 0 0 auto; margin-top: 1px; }.conflict-files button span { min-width: 0; }.conflict-files code { display: block; color: inherit; font: 10px/1.4 var(--font-code); overflow-wrap: anywhere; }.conflict-files small { display: block; margin-top: 4px; color: var(--color-text-muted); font-size: 9px; }.conflict-detail { display: grid; min-width: 0; grid-template-rows: auto 1fr auto; }.resolution-toolbar { display: flex; justify-content: space-between; gap: 10px; padding: 9px 10px; border-bottom: 1px solid var(--color-border-default); }.merge-grid { display: grid; min-height: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(230px, 1fr)); gap: 1px; background: var(--color-border-default); }.merge-grid article { display: grid; min-width: 0; min-height: 0; grid-template-rows: auto 1fr; background: #07101d; }.merge-grid header { display: flex; justify-content: space-between; padding: 6px 9px; background: #0b1727; color: var(--color-text-secondary); font-size: 9px; }.merge-grid header code { color: var(--color-text-muted); }.merge-grid .merge-result header { color: #86efac; }.merge-grid header span { color: var(--color-text-muted); }.non-text-resolution { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--color-text-secondary); }.non-text-resolution > svg { width: 32px; height: 32px; color: #fbbf24; }.non-text-resolution p { margin: 0; }.non-text-resolution code { max-width: 80%; overflow-wrap: anywhere; color: var(--color-text-muted); font-size: 9px; }.ai-suggestion { display: grid; grid-template-columns: 1fr auto; gap: 7px; padding: 9px; border-top: 1px solid rgb(139 92 246 / 28%); background: rgb(139 92 246 / 6%); }.ai-suggestion div { display: grid; gap: 3px; }.ai-suggestion strong { color: #ddd6fe; font-size: 10px; }.ai-suggestion span { color: var(--color-text-muted); font-size: 9px; }.ai-suggestion pre { grid-column: 1 / -1; max-height: 110px; margin: 0; overflow: auto; white-space: pre-wrap; color: #c4b5fd; font: 9px/1.45 var(--font-code); }.conflict-empty { display: grid; place-items: center; color: var(--color-text-muted); font-size: 11px; }
+.conflict-workbench { display: grid; grid-template-columns: minmax(220px, 250px) minmax(0, 1fr); min-height: 590px; margin-top: 12px; overflow: hidden; border: 1px solid var(--color-border-default); border-radius: 9px; background: #07101b; }.conflict-files { overflow: auto; border-right: 1px solid var(--color-border-default); background: #091321; }.conflict-files button { display: flex; width: 100%; gap: 8px; align-items: flex-start; padding: 10px; border: 0; border-bottom: 1px solid rgb(130 147 173 / 10%); background: transparent; color: var(--color-text-secondary); text-align: left; cursor: pointer; }.conflict-files button.active { background: rgb(34 211 238 / 8%); color: #e0f2fe; }.conflict-files button > svg { flex: 0 0 auto; margin-top: 1px; }.conflict-files button span { min-width: 0; }.conflict-files code { display: block; color: inherit; font: 10px/1.4 var(--font-code); overflow-wrap: anywhere; }.conflict-files small { display: block; margin-top: 4px; color: var(--color-text-muted); font-size: 9px; }.conflict-detail { display: flex; min-width: 0; min-height: 0; overflow-x: auto; flex-direction: column; }.resolution-toolbar { display: flex; min-width: 900px; justify-content: space-between; gap: 10px; padding: 9px 10px; border-bottom: 1px solid var(--color-border-default); }.merge-block-toolbar { display: grid; min-width: 900px; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 12px; min-height: 42px; padding: 7px 10px; border-bottom: 1px solid var(--color-border-default); background: #091321; }.merge-path { display: flex; min-width: 0; align-items: center; gap: 7px; color: var(--color-text-secondary); }.merge-path code { min-width: 0; overflow: hidden; color: #dbeafe; font: 10px var(--font-code); text-overflow: ellipsis; white-space: nowrap; }.merge-path span { padding: 2px 5px; border: 1px solid rgb(34 211 238 / 26%); border-radius: 4px; color: var(--color-accent-cyan); font: 8px var(--font-code); }.merge-stats { display: flex; gap: 9px; color: var(--color-text-muted); font-size: 9px; }.merge-stats strong { color: #86efac; }.merge-stats .danger { color: #fca5a5; }.merge-nav { display: flex; align-items: center; gap: 5px; }.merge-nav code { min-width: 42px; color: var(--color-text-secondary); font: 9px var(--font-code); text-align: center; }.merge-grid { display: grid; min-width: 900px; min-height: 470px; flex: 1; grid-template-columns: repeat(3, minmax(285px, 1fr)); gap: 1px; background: var(--color-border-default); }.conflict-detail > .merge-grid { overflow: hidden; }.merge-grid article { display: grid; min-width: 0; min-height: 0; grid-template-rows: auto 1fr; background: #07101d; }.merge-grid header { display: flex; min-height: 34px; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 9px; background: #0b1727; color: var(--color-text-secondary); font-size: 9px; }.merge-grid header code { color: var(--color-text-muted); }.merge-grid .merge-result header { border-bottom: 1px solid rgb(74 222 128 / 24%); color: #86efac; }.merge-grid header > span { color: inherit; font-weight: 700; }.block-actions { display: flex; gap: 4px; }.block-actions :deep(.el-button) { padding: 4px 5px; font-size: 8px; }.base-reference { min-width: 900px; border-top: 1px solid var(--color-border-default); background: #070e19; }.base-reference header { display: flex; justify-content: space-between; padding: 6px 10px; color: var(--color-text-muted); font-size: 9px; }.base-reference pre { max-height: 180px; margin: 0; padding: 10px 14px; overflow: auto; border-top: 1px solid rgb(130 147 173 / 12%); white-space: pre; color: #94a3b8; font: 10px/1.55 var(--font-code); }.non-text-resolution { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--color-text-secondary); }.non-text-resolution > svg { width: 32px; height: 32px; color: #fbbf24; }.non-text-resolution p { margin: 0; }.non-text-resolution code { max-width: 80%; overflow-wrap: anywhere; color: var(--color-text-muted); font-size: 9px; }.ai-suggestion { display: grid; min-width: 900px; grid-template-columns: 1fr auto; gap: 7px; padding: 9px; border-top: 1px solid rgb(139 92 246 / 28%); background: rgb(139 92 246 / 6%); }.ai-suggestion div { display: grid; gap: 3px; }.ai-suggestion strong { color: #ddd6fe; font-size: 10px; }.ai-suggestion span { color: var(--color-text-muted); font-size: 9px; }.ai-suggestion pre { grid-column: 1 / -1; max-height: 110px; margin: 0; overflow: auto; white-space: pre-wrap; color: #c4b5fd; font: 9px/1.45 var(--font-code); }.conflict-empty { display: grid; flex: 1; place-items: center; color: var(--color-text-muted); font-size: 11px; }
+.merge-marker-warning { display: flex; align-items: flex-start; gap: 7px; padding: 9px 11px; border-top: 1px solid rgb(248 113 113 / 30%); background: rgb(248 113 113 / 8%); color: #fecaca; font-size: 10px; line-height: 1.5; }.merge-marker-warning > svg { flex: 0 0 auto; margin-top: 1px; }
+.verification-failures { display: grid; gap: 7px; margin-top: 10px; padding: 10px; border: 1px solid rgb(248 113 113 / 28%); border-radius: 8px; background: rgb(248 113 113 / 6%); }.verification-failures > strong { color: #fecaca; font-size: 10px; }.verification-failures article { overflow: hidden; border: 1px solid rgb(130 147 173 / 16%); border-radius: 6px; background: #07101b; }.verification-failures header { display: flex; gap: 10px; justify-content: space-between; padding: 7px 9px; color: #fca5a5; font-size: 9px; }.verification-failures pre { max-height: 180px; margin: 0; padding: 9px; overflow: auto; border-top: 1px solid rgb(130 147 173 / 14%); white-space: pre-wrap; color: #cbd5e1; font: 9px/1.45 var(--font-code); }
 :global(.local-sync-dialog) { border: 1px solid rgb(130 147 173 / 22%); border-radius: 12px; background: #08111e; box-shadow: 0 30px 100px rgb(0 0 0 / 65%); }:global(.local-sync-dialog .el-dialog__header) { margin: 0; padding-bottom: 12px; border-bottom: 1px solid var(--color-border-default); }:global(.local-sync-dialog .el-dialog__body) { padding: 14px 16px 8px; }
-@media (max-width: 900px) { .conflict-workbench { grid-template-columns: 190px minmax(0, 1fr); }.merge-grid { grid-template-columns: 1fr; grid-template-rows: repeat(4, 220px); } }
+@media (max-width: 1200px) { .conflict-workbench { grid-template-columns: 190px minmax(0, 1fr); } }
 </style>

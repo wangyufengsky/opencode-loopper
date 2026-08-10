@@ -2,7 +2,8 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { defineComponent, h, type Slots, type VNode } from 'vue'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { ElMessageBox } from 'element-plus'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTaskStore } from '@/stores/taskStore'
 import TasksView from '@/views/TasksView.vue'
 import type { Task } from '@/types/domain'
@@ -16,6 +17,7 @@ const tasks: Task[] = [
 let router: ReturnType<typeof createRouter>
 
 beforeEach(async () => {
+  vi.restoreAllMocks()
   const pinia = createPinia()
   setActivePinia(pinia)
   const store = useTaskStore()
@@ -111,6 +113,24 @@ describe('Tasks filters and design history', () => {
     await flushPromises()
     expect(wrapper.findAll('.task-link')).toHaveLength(1)
     expect(router.currentRoute.value.query.archive).toBe('archived')
+  })
+
+  it('permanently deletes only an archived task after explicit confirmation', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue(undefined as never)
+
+    await wrapper.get('button[aria-label^="归档任务"]').trigger('click')
+    await wrapper.findAll('select')[1]!.setValue('ARCHIVED')
+    await flushPromises()
+
+    const remove = wrapper.get('button[aria-label^="永久删除任务"]')
+    await remove.trigger('click')
+    await flushPromises()
+
+    expect(ElMessageBox.confirm).toHaveBeenCalledWith(expect.stringContaining('项目文件、Git 分支与 worktree 不会删除'), '永久删除历史任务？', expect.objectContaining({ confirmButtonText: '永久删除' }))
+    expect(useTaskStore().tasks).toHaveLength(2)
+    expect(wrapper.findAll('.task-link')).toHaveLength(0)
   })
 
   it('guides first-time users to register a project before opening Designer', async () => {

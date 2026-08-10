@@ -201,6 +201,28 @@ class TaskServiceIntegrationTest {
     }
 
     @Test
+    void permanentlyDeletesOnlyArchivedTerminalTasksAndTheirPersistedHistory() throws Exception {
+        ProjectRow project = projects.create("delete-history", gitProject());
+        LoopDraftRow draft = drafts.create(spec(project.id()));
+        TaskRow task = drafts.confirm(draft.id(), "delete archived history");
+        TaskRow cancelled = tasks.cancel(task.id());
+
+        assertThatThrownBy(() -> tasks.deleteArchived(cancelled.id()))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("请先归档任务");
+
+        tasks.archive(cancelled.id());
+        tasks.deleteArchived(cancelled.id());
+
+        assertThat(mapper.findTask(cancelled.id())).isEmpty();
+        assertThat(mapper.findDraft(draft.id())).isEmpty();
+        assertThat(mapper.findLatestDesignerSessionByDraft(draft.id())).isEmpty();
+        assertThat(mapper.listStages(cancelled.id())).isEmpty();
+        assertThat(mapper.listTaskArtifacts(cancelled.id())).isEmpty();
+        assertThat(mapper.listStateTransitionsForScope("TASK", cancelled.id(), 0, 100)).isEmpty();
+    }
+
+    @Test
     void confirmationRejectsDesignerContractThatOnlyChecksGitDiff() throws Exception {
         ProjectRow project = projects.create("weak-designer-acceptance", gitProject());
         LoopSpec weak = new LoopSpec("v1", project.id(), "Compile and print PASS", null,

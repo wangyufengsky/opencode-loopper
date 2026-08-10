@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -100,6 +101,13 @@ public class TaskController {
     public TaskDto restoreArchive(@PathVariable String id, @RequestHeader("X-Loopper-Local-UI") String localUi) {
         requireLocalUi(localUi);
         return dto(service.restoreArchive(id));
+    }
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteArchived(@PathVariable String id,
+                                               @RequestHeader("X-Loopper-Local-UI") String localUi) {
+        requireLocalUi(localUi);
+        service.deleteArchived(id);
+        return ResponseEntity.noContent().build();
     }
     @GetMapping("/{id}/publication")
     public TaskPublicationService.PublicationStatus publication(@PathVariable String id) {

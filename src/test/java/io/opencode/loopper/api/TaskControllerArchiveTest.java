@@ -4,6 +4,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -54,6 +55,16 @@ class TaskControllerArchiveTest {
                 .andExpect(jsonPath("$.archived").value(true));
 
         mvc.perform(put("/api/tasks/task-1/archive"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void deletesArchivedHistoryOnlyThroughTheLocalUiContract() throws Exception {
+        mvc.perform(delete("/api/tasks/task-1").header("X-Loopper-Local-UI", "1"))
+                .andExpect(status().isNoContent());
+        verify(tasks).deleteArchived("task-1");
+
+        mvc.perform(delete("/api/tasks/task-1"))
                 .andExpect(status().isBadRequest());
     }
 

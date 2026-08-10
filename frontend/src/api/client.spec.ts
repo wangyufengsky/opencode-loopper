@@ -267,16 +267,18 @@ describe('Loopper REST contract adapter', () => {
     expect(task.archived).toBe(true)
   })
 
-  it('archives and restores tasks only through the local UI contract', async () => {
+  it('archives, restores and deletes task history only through the local UI contract', async () => {
     const response = { id: 'task-1', projectId: 'project-1', projectName: 'Project', title: 'Task', goal: 'Goal', branch: 'DIRECT', worktreePath: '/tmp/project', status: 'CANCELLED', archived: true, attemptCount: 1, maxAttempts: 3, createdAt: 'start', updatedAt: 'now' }
-    const fetchMock = vi.fn().mockResolvedValueOnce(json(response)).mockResolvedValueOnce(json({ ...response, archived: false }))
+    const fetchMock = vi.fn().mockResolvedValueOnce(json(response)).mockResolvedValueOnce(json({ ...response, archived: false })).mockResolvedValueOnce(new Response(null, { status: 204 }))
     vi.stubGlobal('fetch', fetchMock)
 
     await expect(api.archiveTask('task 1')).resolves.toMatchObject({ archived: true })
     await expect(api.restoreArchivedTask('task 1')).resolves.toMatchObject({ archived: false })
+    await expect(api.deleteArchivedTask('task 1')).resolves.toBeUndefined()
 
     expect(fetchMock.mock.calls[0]).toEqual(['/api/tasks/task%201/archive', expect.objectContaining({ method: 'PUT', headers: expect.objectContaining({ 'X-Loopper-Local-UI': '1' }) })])
     expect(fetchMock.mock.calls[1]).toEqual(['/api/tasks/task%201/archive', expect.objectContaining({ method: 'DELETE', headers: expect.objectContaining({ 'X-Loopper-Local-UI': '1' }) })])
+    expect(fetchMock.mock.calls[2]).toEqual(['/api/tasks/task%201', expect.objectContaining({ method: 'DELETE', headers: expect.objectContaining({ 'X-Loopper-Local-UI': '1' }) })])
   })
 
   it('loads an encoded task file diff preview', async () => {

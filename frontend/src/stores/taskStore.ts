@@ -176,6 +176,25 @@ export const useTaskStore = defineStore('task', () => {
     }
   }
 
+  async function deleteArchivedTask(id: string) {
+    const old = tasks.value.find((task) => task.id === id)
+    if (!old) return
+    if (!old.archived) throw new Error('请先归档任务，再永久删除')
+    if (usingDemo.value) {
+      tasks.value = tasks.value.filter((task) => task.id !== id)
+      artifacts.value = artifacts.value.filter((artifact) => artifact.taskId !== id)
+      return
+    }
+    try {
+      await api.deleteArchivedTask(id)
+      tasks.value = tasks.value.filter((task) => task.id !== id)
+      artifacts.value = artifacts.value.filter((artifact) => artifact.taskId !== id)
+    } catch (cause) {
+      error.value = cause instanceof Error ? cause.message : '历史任务删除失败'
+      throw cause
+    }
+  }
+
   function watchTask(id: string) {
     stream.value?.close()
     if (snapshotTimer) window.clearTimeout(snapshotTimer)
@@ -220,5 +239,5 @@ export const useTaskStore = defineStore('task', () => {
     try { runtime.value = await api.restartRuntime() } catch (cause) { error.value = cause instanceof Error ? cause.message : 'Runtime 重启失败' }
   }
 
-  return { projects, tasks, runtime, artifacts, loading, error, usingDemo, streamState, activeTasks, selectedTask, activateDemo, loadOverview, loadTask, updateTask, retryJudges, reworkTask, setTaskArchived, watchTask, stopWatching, refreshRuntime, restartRuntime }
+  return { projects, tasks, runtime, artifacts, loading, error, usingDemo, streamState, activeTasks, selectedTask, activateDemo, loadOverview, loadTask, updateTask, retryJudges, reworkTask, setTaskArchived, deleteArchivedTask, watchTask, stopWatching, refreshRuntime, restartRuntime }
 })

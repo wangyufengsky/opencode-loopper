@@ -96,6 +96,51 @@ class LocalSyncConflictServiceIntegrationTest {
         assertThat(content.resolution()).isNull();
         assertThat(content.mergedContent()).contains("<<<<<<< 源项目", "source-2", "task-2", "source-22", "task-22");
         assertThat(content.mergedContent().split("<<<<<<< 源项目", -1)).hasSize(3);
+        assertThatThrownBy(() -> conflicts.saveResolution(task.id(), session.id(),
+                new LocalSyncConflictService.ResolutionRequest("README.md", "MANUAL",
+                        content.mergedContent(), content.version())))
+                .isInstanceOfSatisfying(BadRequestException.class,
+                        failure -> assertThat(failure.code()).isEqualTo("LOCAL_SYNC_UNRESOLVED_MARKERS"))
+                .hasMessageContaining("冲突标记");
+    }
+
+    @Test
+    void legacyManualResolutionWithConflictMarkersIsReopenedBeforeAnySourceWrite() throws Exception {
+        Path source = repository("base\n");
+        TaskRow task = task(source, verifier("git", "status", "--short"));
+        Files.writeString(source.resolve("README.md"), "source\n");
+        Files.writeString(Path.of(task.worktreePath()).resolve("README.md"), "task\n");
+        commitTask(task);
+        var session = conflicts.createOrRefresh(task.id());
+        var file = mapper.listLocalSyncConflictFiles(session.id()).getFirst();
+        String unresolved = "<<<<<<< 源项目\nsource\n=======\ntask\n>>>>>>> 任务\n";
+        var legacyFile = new io.opencode.loopper.persistence.LocalSyncConflictFileRow(
+                file.id(), file.sessionId(), file.path(), file.sourcePath(), file.taskPath(), file.changeType(),
+                file.contentType(), file.baseHash(), file.sourceHash(), file.taskHash(), file.baseMode(),
+                file.sourceMode(), file.taskMode(), file.baseContent(), file.sourceContent(), file.taskContent(),
+                file.mergedContent(), "MANUAL", unresolved, file.aiSuggestion(), file.aiSuggestionHash(),
+                file.externalDir(), file.createdAt(), Instant.now().toString(), file.version());
+        assertThat(mapper.updateLocalSyncConflictFile(legacyFile)).isEqualTo(1);
+        LocalSyncConflictSessionRow stored = mapper.findLocalSyncConflictSession(session.id()).orElseThrow();
+        LocalSyncConflictSessionRow incorrectlyReady = new LocalSyncConflictSessionRow(
+                stored.id(), stored.taskId(), stored.sourceRoot(), stored.baselineCommit(), stored.taskCommit(),
+                stored.sourceHead(), "READY", stored.conflictCount(), stored.conflictCount(), stored.backupDir(),
+                stored.recoveryLogJson(), stored.verificationEvidenceJson(), null, stored.createdAt(),
+                Instant.now().toString(), stored.version());
+        assertThat(mapper.updateLocalSyncConflictSession(incorrectlyReady)).isEqualTo(1);
+        var ready = conflicts.get(task.id(), session.id());
+
+        assertThatThrownBy(() -> conflicts.apply(task.id(), ready.id(),
+                new LocalSyncConflictService.ApplyRequest(true, ready.version())))
+                .isInstanceOfSatisfying(ConflictException.class,
+                        failure -> assertThat(failure.code()).isEqualTo("LOCAL_SYNC_UNRESOLVED_MARKERS"));
+
+        var reopened = conflicts.get(task.id(), session.id());
+        assertThat(reopened.state()).isEqualTo("OPEN");
+        assertThat(reopened.resolvedCount()).isZero();
+        assertThat(conflicts.files(task.id(), session.id()).getFirst().resolution()).isNull();
+        assertThat(conflicts.content(task.id(), session.id(), "README.md").mergedContent()).isEqualTo(unresolved);
+        assertThat(Files.readString(source.resolve("README.md"))).isEqualTo("source\n");
     }
 
     @Test
@@ -247,7 +292,8 @@ class LocalSyncConflictServiceIntegrationTest {
                 new LocalSyncConflictService.ApplyRequest(true, session.version()));
 
         assertThat(result.state()).isEqualTo("ROLLED_BACK");
-        assertThat(result.verificationEvidence()).contains("PROCESS");
+        assertThat(result.verificationEvidence()).contains("PROCESS", "exitCode", "output");
+        assertThat(result.errorMessage()).contains("PROCESS[0:0]", "Process exited 1");
         assertThat(Files.readString(source.resolve("README.md"))).isEqualTo("source before\n");
         assertThat(conflicts.files(task.id(), session.id()).getFirst().resolution()).isEqualTo("TASK");
     }

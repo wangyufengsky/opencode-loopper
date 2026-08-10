@@ -6,6 +6,7 @@ import { reduceTaskEvent, requiresTaskSnapshot, useTaskStore } from '@/stores/ta
 const apiMocks = vi.hoisted(() => ({
   createTaskRecovery: vi.fn(),
   startTask: vi.fn(),
+  deleteArchivedTask: vi.fn(),
 }))
 
 vi.mock('@/api/client', () => ({
@@ -69,5 +70,20 @@ describe('task SSE reducer', () => {
     expect(apiMocks.createTaskRecovery).toHaveBeenCalledWith(parent.id, 'REWORK_ALL_STAGES')
     expect(apiMocks.startTask).toHaveBeenCalledWith(child.id)
     expect(store.tasks).toContainEqual(child)
+  })
+
+  it('removes an archived task and its loaded artifacts after backend deletion', async () => {
+    const archived = { ...demoTasks[0]!, id: 'archived-task', status: 'CANCELLED' as const, archived: true }
+    const store = useTaskStore()
+    store.usingDemo = false
+    store.tasks = [archived]
+    store.artifacts = [{ id: 'artifact-1', taskId: archived.id, kind: 'LOG', title: 'log', createdAt: 'now', content: 'evidence' }]
+    apiMocks.deleteArchivedTask.mockResolvedValue(undefined)
+
+    await store.deleteArchivedTask(archived.id)
+
+    expect(apiMocks.deleteArchivedTask).toHaveBeenCalledWith(archived.id)
+    expect(store.tasks).toEqual([])
+    expect(store.artifacts).toEqual([])
   })
 })

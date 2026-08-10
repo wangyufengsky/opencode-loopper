@@ -75,6 +75,48 @@ describe('TaskDetailView judge action', () => {
     expect(store.retryJudges).toHaveBeenCalledWith('task-review')
   })
 
+  it('hides a historical judge conflict after the latest double review passes', async () => {
+    store.tasks = [{
+      ...reviewTask,
+      id: 'task-approved',
+      status: 'SUCCEEDED',
+      errors: [
+        { id: 'old-conflict', layer: 'VERIFICATION', code: 'JUDGE_CONFLICT', message: '旧双评审冲突', retryable: false, occurredAt: 'earlier' },
+        { id: 'verification-note', layer: 'VERIFICATION', code: 'PROCESS_FAILED', message: '仍需展示的普通验证证据', retryable: false, occurredAt: 'earlier' },
+      ],
+      judges: [
+        ...reviewTask.judges,
+        { id: 'requirement-2', role: 'REQUIREMENT', ordinal: 2, status: 'COMPLETED', verdict: 'PASS', reason: '需求已满足', createdAt: 'later' },
+        { id: 'risk-2', role: 'RISK', ordinal: 2, status: 'COMPLETED', verdict: 'PASS', reason: '风险可控', createdAt: 'later' },
+      ],
+    }]
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/tasks/:id', component: { template: '<div />' } }] })
+    await router.push('/tasks/task-approved')
+    await router.isReady()
+
+    const wrapper = mount(TaskDetailView, {
+      global: {
+        plugins: [router, ElementPlus],
+        stubs: {
+          Icon: true,
+          PageHeader: { template: '<header><slot name="actions" /></header><slot />' },
+          StatusBadge: true,
+          StageRail: true,
+          AttemptTimeline: true,
+          LayeredErrorPanel: { props: ['error'], template: '<div class="layered-error-stub">{{ error.code }}</div>' },
+          SessionMonitorPanel: true,
+          JudgeReviewCard: true,
+          TaskAuditEvidencePanel: true,
+          TaskPublicationActions: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.findAll('.layered-error-stub').map((panel) => panel.text())).toEqual(['PROCESS_FAILED'])
+    expect(wrapper.find('#judge-review').exists()).toBe(true)
+  })
+
   it('creates a new branch rework task and navigates to the child', async () => {
     store.tasks = [{ ...reviewTask, id: 'task-success', title: '已完成任务', status: 'SUCCEEDED', branch: 'loopper/task-success' }]
     const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/tasks/:id', component: { template: '<div />' } }] })

@@ -901,6 +901,7 @@ export const api = {
   retryTaskJudges: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}/judges/retry`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } })),
   archiveTask: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}/archive`, { method: 'PUT', headers: { 'X-Loopper-Local-UI': '1' } })),
   restoreArchivedTask: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}/archive`, { method: 'DELETE', headers: { 'X-Loopper-Local-UI': '1' } })),
+  deleteArchivedTask: async (id: string) => request<void>(`/tasks/${encodeURIComponent(id)}`, { method: 'DELETE', headers: { 'X-Loopper-Local-UI': '1' } }),
   getTaskPublication: async (id: string) => normalizeTaskPublication(await request<unknown>(`/tasks/${encodeURIComponent(id)}/publication`)),
   generateTaskCommitMessage: async (id: string) => normalizeCommitSuggestion(await request<unknown>(`/tasks/${encodeURIComponent(id)}/publication/commit-message`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } })),
   publishTask: async (id: string, commitMessage?: string) => normalizeTaskPublication(await request<unknown>(`/tasks/${encodeURIComponent(id)}/publication`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify({ commitMessage }) })),

@@ -86,6 +86,51 @@ public interface LoopperMapper {
     List<StateTransitionEventRow> listStateTransitionsForScope(
             @Param("scopeType") String scopeType, @Param("scopeId") String scopeId,
             @Param("afterSequence") long afterSequence, @Param("limit") int limit);
+    @Delete("DELETE FROM state_transition_event WHERE scope_type=#{scopeType} AND scope_id=#{scopeId}")
+    int deleteStateTransitionsForScope(@Param("scopeType") String scopeType, @Param("scopeId") String scopeId);
+
+    @Delete("DELETE FROM local_sync_conflict_file WHERE session_id IN (SELECT id FROM local_sync_conflict_session WHERE task_id=#{taskId})")
+    int deleteLocalSyncConflictFilesForTask(String taskId);
+    @Delete("DELETE FROM local_sync_conflict_session WHERE task_id=#{taskId}")
+    int deleteLocalSyncConflictSessionsForTask(String taskId);
+    @Delete("DELETE FROM session_todo WHERE execution_session_id IN (SELECT id FROM execution_session WHERE task_id=#{taskId})")
+    int deleteSessionTodosForTask(String taskId);
+    @Delete("DELETE FROM session_checkpoint WHERE task_id=#{taskId}")
+    int deleteSessionCheckpointsForTask(String taskId);
+    @Delete("DELETE FROM session_usage WHERE task_id=#{taskId}")
+    int deleteSessionUsageForTask(String taskId);
+    @Delete("DELETE FROM binary_artifact WHERE task_id=#{taskId}")
+    int deleteBinaryArtifactsForTask(String taskId);
+    @Delete("DELETE FROM task_artifact WHERE task_id=#{taskId}")
+    int deleteTaskArtifactsForTask(String taskId);
+    @Delete("DELETE FROM verification_result WHERE attempt_id IN (SELECT id FROM attempt WHERE task_id=#{taskId})")
+    int deleteVerificationResultsForTask(String taskId);
+    @Delete("DELETE FROM interaction WHERE task_id=#{taskId}")
+    int deleteInteractionsForTask(String taskId);
+    @Delete("DELETE FROM error_event WHERE task_id=#{taskId}")
+    int deleteErrorsForTask(String taskId);
+    @Delete("DELETE FROM task_event WHERE task_id=#{taskId}")
+    int deleteEventsForTask(String taskId);
+    @Delete("DELETE FROM judge_run WHERE task_id=#{taskId}")
+    int deleteJudgeRunsForTask(String taskId);
+    @Update("UPDATE workspace_lease SET holder_task_id=NULL WHERE holder_task_id=#{taskId}")
+    int detachWorkspaceLeaseHolder(String taskId);
+    @Update("UPDATE workspace_lease SET writer_session_id=NULL WHERE writer_session_id IN (SELECT id FROM execution_session WHERE task_id=#{taskId})")
+    int detachWorkspaceLeaseWriterSessions(String taskId);
+    @Delete("DELETE FROM execution_session WHERE task_id=#{taskId}")
+    int deleteExecutionSessionsForTask(String taskId);
+    @Delete("DELETE FROM attempt WHERE task_id=#{taskId}")
+    int deleteAttemptsForTask(String taskId);
+    @Delete("DELETE FROM task_lineage WHERE child_task_id=#{taskId}")
+    int deleteTaskLineageForChild(String taskId);
+    @Delete("DELETE FROM stage WHERE task_id=#{taskId}")
+    int deleteStagesForTask(String taskId);
+    @Delete("DELETE FROM task_queue WHERE task_id=#{taskId}")
+    int deleteTaskQueueEntry(String taskId);
+    @Delete("DELETE FROM task_archive WHERE task_id=#{taskId}")
+    int deleteTaskArchiveEntry(String taskId);
+    @Update("UPDATE automation_run SET task_id=NULL WHERE task_id=#{taskId}")
+    int detachAutomationRunsFromTask(String taskId);
 
     @Select("SELECT * FROM app_settings WHERE id=1")
     Optional<AppSettingsRow> findAppSettings();
@@ -157,6 +202,15 @@ public interface LoopperMapper {
     int updateDraft(LoopDraftRow row);
     @Update("UPDATE loop_draft SET goal=#{goal}, spec_json=#{specJson}, updated_at=#{updatedAt}, version=version+1 WHERE id=#{id} AND version=#{version}")
     int updateDraftContent(LoopDraftRow row);
+    @Delete("DELETE FROM loop_draft WHERE id=#{id}")
+    int deleteDraft(String id);
+
+    @Delete("DELETE FROM designer_message WHERE designer_session_id IN (SELECT id FROM designer_session WHERE loop_draft_id=#{draftId})")
+    int deleteDesignerMessagesByDraft(String draftId);
+    @Delete("DELETE FROM interaction WHERE designer_session_id IN (SELECT id FROM designer_session WHERE loop_draft_id=#{draftId})")
+    int deleteDesignerInteractionsByDraft(String draftId);
+    @Update("UPDATE automation_run SET draft_id=NULL WHERE draft_id=#{draftId}")
+    int detachAutomationRunsFromDraft(String draftId);
 
     @Insert("INSERT INTO designer_session(id,project_id,state,access_mode,external_session_id,external_session_state,loop_draft_id,created_at,updated_at,version) VALUES(#{id},#{projectId},#{state},#{accessMode},#{externalSessionId},#{externalSessionState},#{loopDraftId},#{createdAt},#{updatedAt},#{version})")
     int insertDesignerSession(DesignerSessionRow row);
@@ -169,6 +223,8 @@ public interface LoopperMapper {
     int updateDesignerSession(DesignerSessionRow row);
     @Update("UPDATE designer_session SET access_mode=#{accessMode}, external_session_id=#{externalSessionId}, external_session_state=#{externalSessionState}, loop_draft_id=#{loopDraftId}, updated_at=#{updatedAt}, version=version+1 WHERE id=#{id} AND version=#{version}")
     int updateDesignerSessionProjection(DesignerSessionRow row);
+    @Delete("DELETE FROM designer_session WHERE loop_draft_id=#{draftId}")
+    int deleteDesignerSessionsByDraft(String draftId);
     @Select("SELECT COALESCE(MAX(ordinal), 0) + 1 FROM designer_message WHERE designer_session_id=#{sessionId}")
     int nextDesignerMessageOrdinal(String sessionId);
     @Insert("INSERT INTO designer_message(id,designer_session_id,ordinal,role,content,delivery_state,created_at) VALUES(#{id},#{designerSessionId},#{ordinal},#{role},#{content},#{deliveryState},#{createdAt})")
@@ -197,6 +253,8 @@ public interface LoopperMapper {
     int archiveTask(@Param("taskId") String taskId, @Param("archivedAt") String archivedAt);
     @org.apache.ibatis.annotations.Delete("DELETE FROM task_archive WHERE task_id=#{taskId}")
     int restoreTask(String taskId);
+    @Delete("DELETE FROM task WHERE id=#{id}")
+    int deleteTask(String id);
     @Select("SELECT * FROM task WHERE state IN ('PREPARING','RUNNING','VERIFYING','RETRY_WAIT','JUDGING') ORDER BY created_at") List<TaskRow> listRecoverableTasks();
     @Update("UPDATE task SET state=#{state}, updated_at=#{updatedAt}, version=version+1 WHERE id=#{id} AND version=#{version}")
     int updateTaskState(TaskRow row);

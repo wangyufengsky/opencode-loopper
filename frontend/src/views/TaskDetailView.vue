@@ -23,7 +23,6 @@ const task = computed(() => store.tasks.find((item) => item.id === id.value))
 const isDirectExecution = computed(() => task.value?.branch === 'DIRECT')
 const attempts = computed<Attempt[]>(() => task.value?.attempts ?? task.value?.stages?.flatMap((stage) => stage.attempts) ?? [])
 const sessionErrors = computed<ErrorEvent[]>(() => (task.value?.errors ?? attempts.value.flatMap((attempt) => attempt.errors)).filter((error) => error.layer === 'SESSION'))
-const verifierErrors = computed<ErrorEvent[]>(() => (task.value?.errors ?? attempts.value.flatMap((attempt) => attempt.errors)).filter((error) => error.layer === 'VERIFICATION'))
 const taskErrors = computed<ErrorEvent[]>(() => task.value?.errors?.filter((error) => error.layer === 'TASK') ?? [])
 const judges = computed(() => task.value?.judges ?? [])
 const artifacts = computed(() => task.value?.artifacts ?? store.artifacts.filter((artifact) => artifact.taskId === id.value))
@@ -41,6 +40,12 @@ const latestJudge = (role: 'REQUIREMENT' | 'RISK') => judges.value
   .sort((left, right) => right.ordinal - left.ordinal)[0]
 const passedJudges = computed(() => ['REQUIREMENT', 'RISK'].filter((role) => latestJudge(role as 'REQUIREMENT' | 'RISK')?.verdict === 'PASS').length)
 const doubleReviewApproved = computed(() => ['REQUIREMENT', 'RISK'].every((role) => latestJudge(role as 'REQUIREMENT' | 'RISK')?.verdict === 'PASS'))
+const currentJudges = computed(() => ['REQUIREMENT', 'RISK']
+  .map((role) => latestJudge(role as 'REQUIREMENT' | 'RISK'))
+  .filter((judge) => judge !== undefined))
+const verifierErrors = computed<ErrorEvent[]>(() => (task.value?.errors ?? attempts.value.flatMap((attempt) => attempt.errors))
+  .filter((error) => error.layer === 'VERIFICATION')
+  .filter((error) => !error.code.startsWith('JUDGE_') || (task.value?.status === 'WAITING_INPUT' && !doubleReviewApproved.value)))
 const canRetryJudges = computed(() => deterministicAccepted.value
   && (task.value?.status === 'WAITING_INPUT' || (task.value?.status === 'SUCCEEDED' && !doubleReviewApproved.value)))
 const judgeActionLabel = computed(() => judges.value.length ? '重新发起双评审' : '启动双评审')
@@ -140,7 +145,7 @@ async function confirmRework() {
         </dl>
       </section>
       <section v-if="task.stages?.length" class="card card-pad" style="margin-top: 16px"><div class="card-header"><div><h2 class="card-title">阶段进度</h2></div></div><StageRail :stages="task.stages" /></section>
-      <section v-for="error in verifierErrors" :key="error.id" style="margin-top: 16px"><LayeredErrorPanel :error="error" /></section>
+      <section v-for="error in verifierErrors" :key="error.id" style="margin-top: 16px"><LayeredErrorPanel :error="error" :judges="currentJudges" /></section>
       <section v-for="error in sessionErrors" :key="error.id" style="margin-top: 16px"><LayeredErrorPanel :error="error" /></section>
       <section v-for="error in taskErrors" :key="error.id" style="margin-top: 16px"><LayeredErrorPanel :error="error" /></section>
       <SessionMonitorPanel :task-id="task.id" />

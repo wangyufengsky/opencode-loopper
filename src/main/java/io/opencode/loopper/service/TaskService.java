@@ -172,6 +172,52 @@ public class TaskService {
         mapper.restoreTask(id);
         return task;
     }
+    @Transactional
+    public void deleteArchived(String id) {
+        TaskRow task = get(id);
+        if (!List.of(TaskState.SUCCEEDED.name(), TaskState.FAILED.name(), TaskState.CANCELLED.name()).contains(task.state())) {
+            throw new BadRequestException("TASK_NOT_DELETABLE", "只有已成功、已失败或已取消的任务可以删除");
+        }
+        if (!mapper.isTaskArchived(id)) {
+            throw new BadRequestException("TASK_NOT_ARCHIVED", "请先归档任务，再从已归档列表永久删除");
+        }
+        if (!mapper.childTasks(id).isEmpty()) {
+            throw new BadRequestException("TASK_HAS_RECOVERY_CHILDREN", "该任务仍有重做或恢复子任务，请先删除子任务");
+        }
+        String draftId = task.loopDraftId();
+        mapper.deleteLocalSyncConflictFilesForTask(id);
+        mapper.deleteLocalSyncConflictSessionsForTask(id);
+        mapper.deleteSessionTodosForTask(id);
+        mapper.deleteSessionCheckpointsForTask(id);
+        mapper.deleteSessionUsageForTask(id);
+        mapper.deleteBinaryArtifactsForTask(id);
+        mapper.deleteTaskArtifactsForTask(id);
+        mapper.deleteVerificationResultsForTask(id);
+        mapper.deleteInteractionsForTask(id);
+        mapper.deleteErrorsForTask(id);
+        mapper.deleteEventsForTask(id);
+        mapper.deleteJudgeRunsForTask(id);
+        mapper.detachWorkspaceLeaseHolder(id);
+        mapper.detachWorkspaceLeaseWriterSessions(id);
+        mapper.deleteExecutionSessionsForTask(id);
+        mapper.deleteAttemptsForTask(id);
+        mapper.deleteTaskLineageForChild(id);
+        mapper.deleteStagesForTask(id);
+        mapper.deleteTaskQueueEntry(id);
+        mapper.deleteTaskArchiveEntry(id);
+        mapper.detachAutomationRunsFromTask(id);
+        mapper.deleteStateTransitionsForScope(LifecycleScopeType.TASK.name(), id);
+        if (mapper.deleteTask(id) != 1) {
+            throw new NotFoundException("Task not found: " + id);
+        }
+        if (draftId != null && !draftId.isBlank()) {
+            mapper.deleteDesignerMessagesByDraft(draftId);
+            mapper.deleteDesignerInteractionsByDraft(draftId);
+            mapper.deleteDesignerSessionsByDraft(draftId);
+            mapper.detachAutomationRunsFromDraft(draftId);
+            mapper.deleteDraft(draftId);
+        }
+    }
     public List<StageRow> stages(String taskId) { get(taskId); return mapper.listStages(taskId); }
     public List<AttemptRow> attempts(String taskId) { get(taskId); return mapper.listAttempts(taskId); }
     public List<ErrorEventRow> errors(String taskId) { get(taskId); return mapper.listErrors(taskId); }
