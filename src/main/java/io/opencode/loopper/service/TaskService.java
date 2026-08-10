@@ -50,7 +50,9 @@ import java.util.UUID;
 import org.springframework.context.event.EventListener;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * The sole owner of execution-state transitions. In particular, only this class turns a
@@ -72,15 +74,18 @@ public class TaskService {
     private final UsageInsightsService usageInsights;
     private final TaskEventService events;
     private final LoopperProperties defaults;
+    private final TransactionTemplate transactions;
 
     public TaskService(LoopperMapper mapper, LifecycleTransitionService lifecycle, ObjectMapper json, ProjectService projects,
                        GitWorktreeManager worktrees, DirectWorkspaceLeaseCoordinator directLeases,
                        OpenCodeClient openCode, VerifierEngine verifiers,
                        BinaryArtifactPersistenceService binaryArtifacts, UsageInsightsService usageInsights,
-                       TaskEventService events, LoopperProperties defaults) {
+                       TaskEventService events, LoopperProperties defaults,
+                       PlatformTransactionManager transactionManager) {
         this.mapper = mapper; this.lifecycle = lifecycle; this.json = json; this.projects = projects;
         this.worktrees = worktrees; this.directLeases = directLeases; this.openCode = openCode;
         this.verifiers = verifiers; this.binaryArtifacts = binaryArtifacts; this.usageInsights = usageInsights; this.events = events; this.defaults = defaults;
+        this.transactions = new TransactionTemplate(transactionManager);
     }
 
     @Transactional
@@ -293,11 +298,10 @@ public class TaskService {
         return get(taskId);
     }
 
-    @Transactional
     public TaskRow verify(String taskId) {
         TaskRow initial = get(taskId);
         boolean verificationOnly = isVerificationOnlyRecovery(taskId);
-        if (!TaskState.RUNNING.name().equals(initial.state()) && !TaskState.VERIFYING.name().equals(initial.state())) {
+        if (!TaskState.RUNNING.name().equals(initial.state())) {
             throw new ConflictException("TASK_NOT_RUNNING", "Only a running task can be verified");
         }
         try {
@@ -323,17 +327,10 @@ public class TaskService {
                             "Verification cannot run while the implementation Session is " + safeMessage(remoteStatus.state()));
                 }
             }
-            updateTask(state(initial, TaskState.VERIFYING));
-            if (implementationSession != null && SessionState.RUNNING.name().equals(implementationSession.state())) {
-                updateSession(sessionState(implementationSession, SessionState.COMPLETED));
-            }
-            if (isAdmittedDirect(initial)) {
-                directLeases.retainAfterWriterStopped(directRoot(initial), initial.id(), "IMPLEMENTATION_SESSION_COMPLETED");
-            }
+            transactions.executeWithoutResult(status -> enterVerification(initial, implementationSession));
             LoopSpec spec = spec(initial);
             List<LoopSpec.VerifierSpec> verifierSpecs = read(stage.verifiersJson(), new TypeReference<>() {});
-            boolean passed = true;
-            String failure = "";
+            List<PendingVerification> pending = new ArrayList<>();
             Duration timeout = Duration.ofSeconds(spec.limits().verifierTimeoutSeconds());
             for (int i = 0; i < verifierSpecs.size(); i++) {
                 VerifierOutcome outcome;
@@ -347,25 +344,86 @@ public class TaskService {
                     throw new TaskFailure("VERIFIER_RUNTIME_ERROR",
                             "Verifier could not be evaluated safely: " + safeMessage(unexpectedFailure));
                 }
-                String verificationResultId = UUID.randomUUID().toString();
-                mapper.insertVerification(new VerificationResultRow(verificationResultId, attempt.id(), i, outcome.type(), outcome.state().name(),
-                        outcome.summary(), write(outcome.evidence()), now()));
-                binaryArtifacts.persistBrowserArtifacts(initial.id(), attempt.id(),
-                        implementationSession == null ? null : implementationSession.id(), verificationResultId, outcome);
-                if (outcome.state() != VerificationState.PASS) { passed = false; failure = outcome.summary(); }
+                pending.add(new PendingVerification(UUID.randomUUID().toString(), i, outcome));
             }
-            if (passed) completeStage(initial, stage, attempt);
-            else if (verificationOnly) {
-                updateAttempt(finish(attempt, AttemptState.VERIFICATION_FAILED, "VERIFICATION_FAILED", failure));
-                recordError(initial, stage, attempt, null, ErrorLayer.VERIFICATION,
-                        "VERIFICATION_FAILED", failure, true, Map.of("verifyOnly", true));
-                failTask(get(taskId), "VERIFY_ONLY_VERIFICATION_FAILED",
-                        "VERIFY_ONLY 恢复任务的原生验证失败；不会创建可写 OpenCode 修复会话", stage, attempt, null);
-            } else retryAfterVerificationFailure(initial, stage, attempt, failure, spec);
+            VerificationContinuation continuation = transactions.execute(status -> finishVerification(
+                    initial.id(), stage.id(), attempt.id(), implementationSession == null ? null : implementationSession.id(),
+                    pending, verificationOnly, spec));
+            continueAfterVerification(continuation);
         } catch (TaskFailure failure) {
             failTask(get(taskId), failure.code(), failure.getMessage(), null, null, null);
         }
         return get(taskId);
+    }
+
+    private void enterVerification(TaskRow initial, ExecutionSessionRow implementationSession) {
+        TaskRow current = get(initial.id());
+        if (!TaskState.RUNNING.name().equals(current.state()) || current.version() != initial.version()) {
+            throw new ConflictException("TASK_VERSION_CONFLICT", "Task changed before verification could start");
+        }
+        updateTask(state(current, TaskState.VERIFYING));
+        if (implementationSession != null) {
+            ExecutionSessionRow currentSession = mapper.findSession(implementationSession.id()).orElse(implementationSession);
+            if (SessionState.RUNNING.name().equals(currentSession.state())) {
+                updateSession(sessionState(currentSession, SessionState.COMPLETED));
+            }
+        }
+        if (isAdmittedDirect(current)) {
+            directLeases.retainAfterWriterStopped(directRoot(current), current.id(), "IMPLEMENTATION_SESSION_COMPLETED");
+        }
+    }
+
+    private VerificationContinuation finishVerification(String taskId, String stageId, String attemptId,
+                                                          String implementationSessionId,
+                                                          List<PendingVerification> pending,
+                                                          boolean verificationOnly, LoopSpec spec) {
+        TaskRow task = get(taskId);
+        if (!TaskState.VERIFYING.name().equals(task.state())) {
+            throw new ConflictException("TASK_VERIFICATION_INTERRUPTED",
+                    "Task changed while deterministic verification was running");
+        }
+        StageRow stage = mapper.findStage(stageId)
+                .orElseThrow(() -> new TaskFailure("STAGE_MISSING", "Verification stage disappeared"));
+        AttemptRow attempt = mapper.findAttempt(attemptId)
+                .orElseThrow(() -> new TaskFailure("ATTEMPT_MISSING", "Verification attempt disappeared"));
+        if (!StageState.RUNNING.name().equals(stage.state()) || !AttemptState.RUNNING.name().equals(attempt.state())) {
+            throw new ConflictException("TASK_VERIFICATION_INTERRUPTED",
+                    "Stage or attempt changed while deterministic verification was running");
+        }
+        for (PendingVerification result : pending) {
+            VerifierOutcome outcome = result.outcome();
+            mapper.insertVerification(new VerificationResultRow(result.id(), attempt.id(), result.index(), outcome.type(),
+                    outcome.state().name(), outcome.summary(), write(outcome.evidence()), now()));
+            binaryArtifacts.persistBrowserArtifacts(task.id(), attempt.id(), implementationSessionId, result.id(), outcome);
+        }
+        PendingVerification failed = pending.stream()
+                .filter(result -> result.outcome().state() != VerificationState.PASS).reduce((left, right) -> right).orElse(null);
+        if (failed == null) return completeStageState(task, stage, attempt);
+        String failure = failed.outcome().summary();
+        if (verificationOnly) {
+            updateAttempt(finish(attempt, AttemptState.VERIFICATION_FAILED, "VERIFICATION_FAILED", failure));
+            recordError(task, stage, attempt, null, ErrorLayer.VERIFICATION,
+                    "VERIFICATION_FAILED", failure, true, Map.of("verifyOnly", true));
+            failTask(get(taskId), "VERIFY_ONLY_VERIFICATION_FAILED",
+                    "VERIFY_ONLY 恢复任务的原生验证失败；不会创建可写 OpenCode 修复会话", stage, attempt, null);
+            return VerificationContinuation.none(taskId);
+        }
+        return retryAfterVerificationFailureState(task, stage, attempt, failure, spec);
+    }
+
+    private void continueAfterVerification(VerificationContinuation continuation) {
+        if (continuation == null || continuation.action() == VerificationAction.NONE) return;
+        TaskRow task = get(continuation.taskId());
+        StageRow stage = mapper.findStage(continuation.stageId())
+                .orElseThrow(() -> new TaskFailure("STAGE_MISSING", "Continuation stage disappeared"));
+        if (continuation.action() == VerificationAction.FINAL_REVIEW) {
+            AttemptRow attempt = mapper.findAttempt(continuation.attemptId())
+                    .orElseThrow(() -> new TaskFailure("ATTEMPT_MISSING", "Final verification attempt disappeared"));
+            captureFinalEvidence(task, attempt);
+            launchRequiredJudges(task, attempt);
+            return;
+        }
+        startNewAttempt(task, stage, continuation.prompt());
     }
 
     @Transactional
@@ -387,6 +445,15 @@ public class TaskService {
                 if (!stopped) {
                     recordAbortUnconfirmed(task, sessionStage, attempt, session,
                             "Task pause could not confirm the previous mutating Session stopped", evidence);
+                }
+            }
+            // Verification runs without an active writer Session. If pause wins
+            // while the verifier worker is outside SQLite, close that Attempt so
+            // resume cannot create a second RUNNING Attempt beside it.
+            for (AttemptRow attempt : mapper.listAttempts(task.id())) {
+                if (AttemptState.RUNNING.name().equals(attempt.state())) {
+                    updateAttempt(finish(attempt, AttemptState.SESSION_ERROR, "PAUSED",
+                            "Task paused while its current work was still in flight"));
                 }
             }
             allWritersStopped &= !hasUnconfirmedWriter(task.id());
@@ -444,7 +511,6 @@ public class TaskService {
         return get(taskId);
     }
 
-    @Transactional
     public void recoverAfterRestart() {
         rehydrateDirectLeases();
         for (TaskRow task : mapper.listRecoverableTasks()) {
@@ -467,6 +533,20 @@ public class TaskService {
                 // bounded fresh read-only session rather than turning a restart into TASK_ERROR.
                 for (JudgeRunRow judge : mapper.activeJudgeRuns(task.id())) {
                     handleJudgeSessionFailure(task, judge, new SessionFailure("JUDGE_RUNTIME_RESTART", "Application restart disconnected the previous judge session"));
+                }
+                TaskRow current = get(task.id());
+                if (TaskState.JUDGING.name().equals(current.state())) {
+                    StageRow finalStage = mapper.listStages(task.id()).stream()
+                            .max(java.util.Comparator.comparingInt(StageRow::ordinal))
+                            .orElse(null);
+                    AttemptRow finalAttempt = finalStage == null ? null : mapper.latestAttempt(finalStage.id()).orElse(null);
+                    if (finalStage == null || finalAttempt == null) {
+                        failTask(current, "JUDGE_FINAL_ATTEMPT_MISSING",
+                                "Application restart found no final attempt to review", finalStage, finalAttempt, null);
+                    } else {
+                        captureFinalEvidence(current, finalAttempt);
+                        launchRequiredJudges(current, finalAttempt);
+                    }
                 }
                 continue;
             }
@@ -523,7 +603,8 @@ public class TaskService {
             }
 
             StageRow stage = mapper.listStages(task.id()).stream()
-                    .filter(candidate -> StageState.RUNNING.name().equals(candidate.state()))
+                    .filter(candidate -> StageState.RUNNING.name().equals(candidate.state())
+                            || StageState.PENDING.name().equals(candidate.state()))
                     .findFirst().orElse(null);
             if (stage == null) {
                 failTask(get(task.id()), "RECOVERY_STAGE_MISSING",
@@ -749,31 +830,34 @@ public class TaskService {
                 Map.of("sessionId", session.id(), "attempt", attemptNumber, "limit", limit));
     }
 
-    private void retryAfterVerificationFailure(TaskRow task, StageRow stage, AttemptRow attempt, String message, LoopSpec spec) {
+    private VerificationContinuation retryAfterVerificationFailureState(TaskRow task, StageRow stage,
+                                                                          AttemptRow attempt, String message,
+                                                                          LoopSpec spec) {
         updateAttempt(finish(attempt, AttemptState.VERIFICATION_FAILED, "VERIFICATION_FAILED", message));
         recordError(task, stage, attempt, mapper.latestSessionForAttempt(attempt.id()).orElse(null), ErrorLayer.VERIFICATION,
                 "VERIFICATION_FAILED", message, true, Map.of());
         if (mapper.countAttemptsForTask(task.id()) >= spec.limits().maxTaskAttempts() || mapper.countAttemptsForStage(stage.id()) >= spec.limits().maxStageAttempts()) {
             failTask(get(task.id()), "ATTEMPT_LIMIT_EXHAUSTED", "Verifier failures exhausted configured attempts", stage, attempt, null);
-            return;
+            return VerificationContinuation.none(task.id());
         }
         updateTask(state(get(task.id()), TaskState.RETRY_WAIT));
         events.emit(task.id(), "verification.failed", Map.of("attemptId", attempt.id(), "recovery", "next_attempt", "summary", message));
         updateTask(state(get(task.id()), TaskState.RUNNING));
-        startNewAttempt(get(task.id()), stage, "Verification failed: " + message + ". Fix the evidence and retry the current stage.");
+        return VerificationContinuation.retry(task.id(), stage.id(),
+                "Verification failed: " + message + ". Fix the evidence and retry the current stage.");
     }
 
-    private void completeStage(TaskRow task, StageRow stage, AttemptRow attempt) {
+    private VerificationContinuation completeStageState(TaskRow task, StageRow stage, AttemptRow attempt) {
         updateAttempt(finish(attempt, AttemptState.SUCCEEDED, null, "所有确定性验证均已通过"));
         updateStage(stageState(stage, StageState.SUCCEEDED));
         StageRow next = mapper.listStages(task.id()).stream().filter(s -> StageState.PENDING.name().equals(s.state())).findFirst().orElse(null);
         if (next == null) {
             updateTask(state(get(task.id()), TaskState.JUDGING));
-            captureFinalEvidence(get(task.id()), attempt);
-            launchRequiredJudges(get(task.id()), attempt);
+            return VerificationContinuation.finalReview(task.id(), attempt.id(), stage.id());
         } else {
             updateTask(state(get(task.id()), TaskState.RUNNING));
-            startNewAttempt(get(task.id()), next, "Start next stage: " + next.objective());
+            return VerificationContinuation.nextStage(task.id(), next.id(),
+                    "Start next stage: " + next.objective());
         }
     }
 
@@ -1030,9 +1114,12 @@ public class TaskService {
 
     private void captureFinalEvidence(TaskRow task, AttemptRow attempt) {
         List<VerificationResultRow> verificationRows = mapper.listVerifications(attempt.id());
-        persistArtifact(task, attempt.id(), null, "VERIFICATION_SUMMARY", "verification-summary.json", "application/json",
-                write(Map.of("attemptId", attempt.id(), "allPassed", verificationRows.stream().allMatch(row -> VerificationState.PASS.name().equals(row.state())), "results", verificationRows)),
-                Map.of("source", "deterministic-verifier", "count", verificationRows.size()));
+        if (mapper.findFirstTaskArtifactByKind(task.id(), "VERIFICATION_SUMMARY").isEmpty()) {
+            persistArtifact(task, attempt.id(), null, "VERIFICATION_SUMMARY", "verification-summary.json", "application/json",
+                    write(Map.of("attemptId", attempt.id(), "allPassed", verificationRows.stream().allMatch(row -> VerificationState.PASS.name().equals(row.state())), "results", verificationRows)),
+                    Map.of("source", "deterministic-verifier", "count", verificationRows.size()));
+        }
+        if (mapper.findFirstTaskArtifactByKind(task.id(), "GIT_DIFF").isPresent()) return;
         String diff;
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("source", "opencode-session-diff");
@@ -1144,6 +1231,23 @@ public class TaskService {
                 () -> new ConflictException("JUDGE_VERSION_CONFLICT", "Judge run was updated concurrently"));
     }
     private String safeNullable(String value) { return value == null ? null : safeMessage(value); }
+    private record PendingVerification(String id, int index, VerifierOutcome outcome) { }
+    private enum VerificationAction { NONE, RETRY_STAGE, NEXT_STAGE, FINAL_REVIEW }
+    private record VerificationContinuation(VerificationAction action, String taskId, String stageId,
+                                            String attemptId, String prompt) {
+        private static VerificationContinuation none(String taskId) {
+            return new VerificationContinuation(VerificationAction.NONE, taskId, null, null, null);
+        }
+        private static VerificationContinuation retry(String taskId, String stageId, String prompt) {
+            return new VerificationContinuation(VerificationAction.RETRY_STAGE, taskId, stageId, null, prompt);
+        }
+        private static VerificationContinuation nextStage(String taskId, String stageId, String prompt) {
+            return new VerificationContinuation(VerificationAction.NEXT_STAGE, taskId, stageId, null, prompt);
+        }
+        private static VerificationContinuation finalReview(String taskId, String attemptId, String stageId) {
+            return new VerificationContinuation(VerificationAction.FINAL_REVIEW, taskId, stageId, attemptId, null);
+        }
+    }
     private record JudgeDecision(String verdict, String reason, String parseError) { }
 
     private void failTask(TaskRow task, String code, String message, StageRow stage, AttemptRow attempt, ExecutionSessionRow session) {
@@ -1158,6 +1262,11 @@ public class TaskService {
         for (AttemptRow active : mapper.listAttempts(current.id())) {
             if (AttemptState.RUNNING.name().equals(active.state())) {
                 updateAttempt(finish(active, AttemptState.TASK_ERROR, code, message));
+            }
+        }
+        for (StageRow active : mapper.listStages(current.id())) {
+            if (StageState.RUNNING.name().equals(active.state()) || StageState.PAUSED.name().equals(active.state())) {
+                updateStage(stageState(active, StageState.FAILED));
             }
         }
         recordError(current, stage, attempt, session, ErrorLayer.TASK, code, message, false, Map.of());

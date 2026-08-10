@@ -40,6 +40,18 @@ class FiniteStateMachineTest {
     }
 
     @Test
+    void activeStageCanEnterFailedStateAtTheTaskFatalBoundary() {
+        LifecycleRegistry registry = new LifecycleRegistry();
+
+        assertThat(registry.resolve(LifecycleMachineType.STAGE, "stage-1",
+                StageState.RUNNING.name(), StageState.FAILED.name(), null).event())
+                .isEqualTo(LifecycleEvent.FAIL);
+        assertThat(registry.resolve(LifecycleMachineType.STAGE, "stage-1",
+                StageState.PAUSED.name(), StageState.FAILED.name(), null).event())
+                .isEqualTo(LifecycleEvent.FAIL);
+    }
+
+    @Test
     void duplicateStateAndEventDefinitionFailsFast() {
         var builder = FiniteStateMachine.builder(LifecycleMachineType.STAGE, StageState.class, LifecycleEvent.class)
                 .transition(StageState.PENDING, LifecycleEvent.START, StageState.RUNNING);

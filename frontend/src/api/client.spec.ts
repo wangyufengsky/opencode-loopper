@@ -320,6 +320,21 @@ describe('Loopper REST contract adapter', () => {
     expect(task.attempts?.[0]?.status).toBe('TASK_ERROR')
   })
 
+  it('preserves historical terminal Judge states instead of fabricating RUNNING', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({
+      id: 'task-judge-history', projectId: 'project-1', title: 'Judge history', status: 'FAILED',
+      stages: [], attempts: [], errors: [],
+      judges: [
+        { id: 'judge-failed', role: 'REQUIREMENT', ordinal: 1, status: 'FAILED', createdAt: 'start', endedAt: 'end' },
+        { id: 'judge-timeout', role: 'RISK', ordinal: 1, status: 'TIMED_OUT', createdAt: 'start', endedAt: 'end' },
+      ],
+    })))
+
+    const task = await api.getTask('task-judge-history')
+
+    expect(task.judges?.map((judge) => judge.status)).toEqual(['FAILED', 'TIMED_OUT'])
+  })
+
   it('starts a prepared Task through the explicit start endpoint', async () => {
     const fetchMock = vi.fn().mockResolvedValue(json({
       id: 'task-ready', projectId: 'project-1', title: 'Ready task', status: 'RUNNING', stages: [], errors: [], attempts: [],

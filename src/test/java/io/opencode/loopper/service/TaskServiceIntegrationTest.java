@@ -12,6 +12,7 @@ import io.opencode.loopper.persistence.SessionUsageRow;
 import io.opencode.loopper.persistence.TaskRow;
 import io.opencode.loopper.runtime.FakeOpenCodeClient;
 import io.opencode.loopper.runtime.OpenCodeClient;
+import io.opencode.loopper.verification.VerifierEngine;
 import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -24,6 +25,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -37,6 +40,7 @@ class TaskServiceIntegrationTest {
     @Autowired private OpenCodeClient openCode;
     @Autowired private LoopperMapper mapper;
     @Autowired private UsageInsightsService usageInsights;
+    @MockitoSpyBean private VerifierEngine verifierEngine;
     @TempDir Path temp;
 
     @BeforeEach
@@ -326,6 +330,58 @@ class TaskServiceIntegrationTest {
     }
 
     @Test
+    void deterministicVerifierRunsOutsideTheSQLiteTransaction() throws Exception {
+        ProjectRow project = projects.create("verifier-transaction-boundary", gitProject());
+        TaskRow task = drafts.confirm(drafts.create(spec(project.id())).id(), "short verification transaction");
+        tasks.start(task.id());
+        java.util.concurrent.atomic.AtomicBoolean invoked = new java.util.concurrent.atomic.AtomicBoolean();
+        org.mockito.Mockito.doAnswer(invocation -> {
+            invoked.set(true);
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+            return invocation.callRealMethod();
+        }).when(verifierEngine).verify(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+
+        tasks.verify(task.id());
+
+        assertThat(invoked).isTrue();
+        assertThat(tasks.get(task.id()).state()).isEqualTo("JUDGING");
+    }
+
+    @Test
+    void pauseCanWinWhileVerificationIsOutsideSQLiteWithoutLeavingARunningAttempt() throws Exception {
+        ProjectRow project = projects.create("pause-during-verification", gitProject());
+        TaskRow task = drafts.confirm(drafts.create(spec(project.id())).id(), "pause verification safely");
+        tasks.start(task.id());
+        var verifierEntered = new java.util.concurrent.CountDownLatch(1);
+        var releaseVerifier = new java.util.concurrent.CountDownLatch(1);
+        org.mockito.Mockito.doAnswer(invocation -> {
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+            verifierEntered.countDown();
+            if (!releaseVerifier.await(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                throw new AssertionError("Timed out waiting to release verifier");
+            }
+            return invocation.callRealMethod();
+        }).when(verifierEngine).verify(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+        var verification = java.util.concurrent.CompletableFuture.supplyAsync(() -> tasks.verify(task.id()));
+
+        try {
+            assertThat(verifierEntered.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            assertThat(tasks.get(task.id()).state()).isEqualTo("VERIFYING");
+
+            TaskRow paused = tasks.pause(task.id());
+
+            assertThat(paused.state()).isEqualTo("PAUSED");
+            assertThat(tasks.attempts(task.id())).noneMatch(attempt -> attempt.state().equals("RUNNING"));
+        } finally {
+            releaseVerifier.countDown();
+        }
+        assertThatThrownBy(verification::join).hasCauseInstanceOf(ConflictException.class);
+        assertThat(tasks.verifications(tasks.attempts(task.id()).getFirst().id())).isEmpty();
+    }
+
+    @Test
     void missingLegacyFileExistsVerifierDoesNotCreateAnotherModelAttempt() throws Exception {
         ProjectRow project = projects.create("legacy-file-exists", gitProject());
         LoopSpec legacy = new LoopSpec("v1", project.id(), "Keep legacy artifact checks non-blocking", null,
@@ -367,6 +423,14 @@ class TaskServiceIntegrationTest {
         });
         assertThat(tasks.errors(task.id())).anyMatch(error -> error.layer().equals(ErrorLayer.TASK.name())
                 && error.code().equals("VERIFIER_PATH_INVALID"));
+        assertThat(tasks.stages(task.id())).singleElement().satisfies(stage ->
+                assertThat(stage.state()).isEqualTo("FAILED"));
+        assertThat(mapper.listStateTransitionsForScope("TASK", task.id(), 0, 100)).anySatisfy(event -> {
+            assertThat(event.machineType()).isEqualTo("STAGE");
+            assertThat(event.fromState()).isEqualTo("RUNNING");
+            assertThat(event.toState()).isEqualTo("FAILED");
+            assertThat(event.event()).isEqualTo("FAIL");
+        });
     }
 
     @Test

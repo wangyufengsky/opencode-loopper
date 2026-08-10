@@ -226,7 +226,8 @@ function normalizeJudge(value: unknown): JudgeRun {
     id: asString(raw.id),
     role: role === 'RISK' ? 'RISK' : 'REQUIREMENT',
     ordinal: asNumber(raw.ordinal, 1),
-    status: state === 'CREATING' || state === 'COMPLETED' || state === 'SESSION_ERROR' || state === 'ABORTED' ? state : 'RUNNING',
+    status: state === 'CREATING' || state === 'COMPLETED' || state === 'SESSION_ERROR' || state === 'ABORTED'
+      || state === 'FAILED' || state === 'TIMED_OUT' ? state : 'RUNNING',
     verdict: verdict === 'PASS' || verdict === 'REVISE' || verdict === 'BLOCKED' || verdict === 'UNPARSEABLE' ? verdict : undefined,
     reason: asString(raw.reason) || undefined,
     externalSessionId: asString(raw.externalSessionId) || undefined,

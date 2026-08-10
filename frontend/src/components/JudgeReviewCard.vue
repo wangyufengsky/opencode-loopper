@@ -15,13 +15,18 @@ const outcomeIcon = computed(() => {
   if (outcome.value === 'PASS') return 'lucide:circle-check'
   if (outcome.value === 'REVISE') return 'lucide:file-pen-line'
   if (outcome.value === 'BLOCKED') return 'lucide:circle-stop'
-  if (outcome.value === 'SESSION_ERROR' || outcome.value === 'UNPARSEABLE') return 'lucide:triangle-alert'
+  if (outcome.value === 'SESSION_ERROR' || outcome.value === 'UNPARSEABLE'
+    || outcome.value === 'FAILED' || outcome.value === 'TIMED_OUT') return 'lucide:triangle-alert'
   return 'lucide:loader-circle'
 })
 const reason = computed(() => props.judge.reason
   ?? (props.judge.status === 'SESSION_ERROR'
     ? '评审会话出错，系统将在预算内创建新的只读会话。'
-    : '等待独立审阅结果…'))
+    : props.judge.status === 'FAILED'
+      ? '历史评审已经失败，不再处于运行状态。'
+      : props.judge.status === 'TIMED_OUT'
+        ? '历史评审已经超时，不再处于运行状态。'
+        : '等待独立审阅结果…'))
 const formattedReason = computed(() => judgeReasonMarkdown(reason.value))
 </script>
 
@@ -75,8 +80,8 @@ const formattedReason = computed(() => judgeReasonMarkdown(reason.value))
 .judge-card-footer code { min-width: 0; overflow: hidden; color: var(--color-text-secondary); font-family: var(--font-code); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .judge-pass { border-color: rgb(34 197 94 / 34%); }
 .judge-pass .judge-verdict { border-color: rgb(34 197 94 / 36%); background: rgb(34 197 94 / 8%); color: var(--color-success); }
-.judge-revise, .judge-blocked, .judge-unparseable, .judge-session_error { border-color: rgb(245 158 11 / 38%); }
-.judge-revise .judge-verdict, .judge-blocked .judge-verdict, .judge-unparseable .judge-verdict, .judge-session_error .judge-verdict { border-color: rgb(245 158 11 / 38%); background: rgb(245 158 11 / 8%); color: var(--color-session-warning); }
+.judge-revise, .judge-blocked, .judge-unparseable, .judge-session_error, .judge-failed, .judge-timed_out { border-color: rgb(245 158 11 / 38%); }
+.judge-revise .judge-verdict, .judge-blocked .judge-verdict, .judge-unparseable .judge-verdict, .judge-session_error .judge-verdict, .judge-failed .judge-verdict, .judge-timed_out .judge-verdict { border-color: rgb(245 158 11 / 38%); background: rgb(245 158 11 / 8%); color: var(--color-session-warning); }
 
 @media (max-width: 620px) {
   .judge-card-head { align-items: flex-start; }

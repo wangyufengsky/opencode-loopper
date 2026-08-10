@@ -47,6 +47,13 @@ field update: it is rejected unless the machine declares an explicit business
 self-transition event. Projection/content/heartbeat updates use the audit-free
 `mutateWithoutTransition` path and mapper statements that do not write state.
 
+Deterministic verifier I/O never runs while a SQLite transaction is active.
+The Task first enters `VERIFYING` in a short transaction, process/HTTP/browser
+checks run outside the database lock, and their results plus the next lifecycle
+decision are committed in a second short transaction. Restart recovery handles
+the deliberate post-commit gaps before the next Stage Session or Judge Session
+is created, and final evidence capture is idempotent.
+
 The transition history is forward-only from Flyway V15: existing rows are not
 given fabricated creation events. `GET /api/state-transitions` can page either
 one machine/entity or one aggregate scope in ascending sequence order. The

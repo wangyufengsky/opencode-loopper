@@ -206,7 +206,7 @@ export interface JudgeRun {
   id: string
   role: 'REQUIREMENT' | 'RISK'
   ordinal: number
-  status: 'CREATING' | 'RUNNING' | 'COMPLETED' | 'SESSION_ERROR' | 'ABORTED'
+  status: 'CREATING' | 'RUNNING' | 'COMPLETED' | 'SESSION_ERROR' | 'ABORTED' | 'FAILED' | 'TIMED_OUT'
   verdict?: 'PASS' | 'REVISE' | 'BLOCKED' | 'UNPARSEABLE'
   reason?: string
   externalSessionId?: string

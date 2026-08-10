@@ -44,4 +44,15 @@ describe('JudgeReviewCard', () => {
     expect(wrapper.get('h2').text()).toBe('Evidence')
     expect(wrapper.findAll('ol > li').map((item) => item.text())).toEqual(['Tests passed.', 'Diff is scoped.'])
   })
+
+  it('renders historical timeout as terminal evidence instead of waiting progress', () => {
+    const wrapper = mount(JudgeReviewCard, {
+      props: { judge: { ...judge, status: 'TIMED_OUT', verdict: undefined, reason: undefined } },
+      global: { stubs: { Icon: true } },
+    })
+
+    expect(wrapper.get('.judge-verdict').text()).toContain('已超时')
+    expect(wrapper.get('.markdown-document').text()).toContain('不再处于运行状态')
+    expect(wrapper.text()).not.toContain('等待独立审阅结果')
+  })
 })

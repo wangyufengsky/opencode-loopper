@@ -102,6 +102,8 @@ public final class LifecycleRegistry {
                 .transition(StageState.PENDING, START, StageState.RUNNING)
                 .transition(StageState.PAUSED, RESUME, StageState.RUNNING)
                 .transition(StageState.RUNNING, PAUSE, StageState.PAUSED)
+                .transition(StageState.RUNNING, FAIL, StageState.FAILED)
+                .transition(StageState.PAUSED, FAIL, StageState.FAILED)
                 .transition(StageState.RUNNING, COMPLETE, StageState.SUCCEEDED).build();
     }
 
