@@ -6,6 +6,11 @@ import tools.jackson.databind.ObjectMapper;
 import io.opencode.loopper.domain.AutomationApprovalMode;
 import io.opencode.loopper.domain.AutomationTriggerType;
 import io.opencode.loopper.domain.LoopSpec;
+import io.opencode.loopper.domain.AutomationRuleState;
+import io.opencode.loopper.domain.AutomationRunState;
+import io.opencode.loopper.domain.LifecycleMachineType;
+import io.opencode.loopper.domain.LifecycleScopeType;
+import io.opencode.loopper.lifecycle.LifecycleTransitionService;
 import io.opencode.loopper.persistence.AutomationRuleRow;
 import io.opencode.loopper.persistence.AutomationRunRow;
 import io.opencode.loopper.persistence.LoopperMapper;
@@ -38,6 +43,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class AutomationService {
     private static final Duration GIT_TIMEOUT = Duration.ofSeconds(5);
     private final LoopperMapper mapper;
+    private final LifecycleTransitionService lifecycle;
     private final ObjectMapper json;
     private final LoopSpecTemplateService templates;
     private final ProjectService projects;
@@ -47,10 +53,11 @@ public class AutomationService {
     private final AutomationRunPersistence runPersistence;
     private final Map<String, WorkspacePreview> importPreviews = new ConcurrentHashMap<>();
 
-    public AutomationService(LoopperMapper mapper, ObjectMapper json, LoopSpecTemplateService templates, ProjectService projects,
+    public AutomationService(LoopperMapper mapper, LifecycleTransitionService lifecycle,
+                             ObjectMapper json, LoopSpecTemplateService templates, ProjectService projects,
                              LoopDraftService drafts, TaskService tasks, SafeProcessRunner runner,
                              AutomationRunPersistence runPersistence) {
-        this.mapper = mapper; this.json = json; this.templates = templates; this.projects = projects;
+        this.mapper = mapper; this.lifecycle = lifecycle; this.json = json; this.templates = templates; this.projects = projects;
         this.drafts = drafts; this.tasks = tasks; this.runner = runner; this.runPersistence = runPersistence;
     }
 
@@ -65,9 +72,10 @@ public class AutomationService {
         String token = trigger == AutomationTriggerType.WEBHOOK ? newToken() : null;
         String now = now();
         AutomationRuleRow row = new AutomationRuleRow(UUID.randomUUID().toString(), input.name().trim(), project.id(), input.templateVersionId(),
-                trigger.name(), "DISABLED", AutomationApprovalMode.REVIEW_REQUIRED.name(), write(config),
+                trigger.name(), AutomationRuleState.DISABLED.name(), AutomationApprovalMode.REVIEW_REQUIRED.name(), write(config),
                 token == null ? null : sha256(token), null, now, now, 0);
-        mapper.insertAutomationRule(row);
+        lifecycle.create(ruleSubject(row.id()), row.state(), Map.of(), () -> mapper.insertAutomationRule(row),
+                () -> new ConflictException("AUTOMATION_RULE_CREATE_CONFLICT", "Automation rule could not be created"));
         return new RuleMutation(rule(row), token, token == null ? null : "/api/automations/webhooks/" + row.id() + "/{token}");
     }
 
@@ -79,7 +87,8 @@ public class AutomationService {
         templates.version(input.templateVersionId());
         AutomationTriggerType trigger = requiredTrigger(input.triggerType());
         Map<String, Object> config = validateConfig(trigger, input.triggerConfig());
-        String state = "ENABLED".equals(input.state()) ? "ENABLED" : "DISABLED";
+        String state = AutomationRuleState.ENABLED.name().equals(input.state())
+                ? AutomationRuleState.ENABLED.name() : AutomationRuleState.DISABLED.name();
         AutomationApprovalMode approval = input.approvalMode() == AutomationApprovalMode.AUTO_START
                 ? AutomationApprovalMode.AUTO_START : AutomationApprovalMode.REVIEW_REQUIRED;
         if (approval == AutomationApprovalMode.AUTO_START) requireAutoStartApproved(input.templateVersionId());
@@ -87,7 +96,7 @@ public class AutomationService {
         if (trigger == AutomationTriggerType.WEBHOOK && tokenHash == null) throw new ConflictException("WEBHOOK_TOKEN_ROTATION_REQUIRED", "Create a new webhook rule to issue a token");
         AutomationRuleRow changed = new AutomationRuleRow(old.id(), input.name().trim(), old.projectId(), input.templateVersionId(), trigger.name(), state,
                 approval.name(), write(config), tokenHash, old.lastObservedHead(), old.createdAt(), now(), version);
-        if (mapper.updateAutomationRule(changed) != 1) throw new ConflictException("AUTOMATION_RULE_VERSION_CONFLICT", "Automation rule changed concurrently");
+        updateRule(old, changed);
         return rule(getRule(id));
     }
 
@@ -172,13 +181,14 @@ public class AutomationService {
             Map<String, Object> evidence = evidence(run);
             if ("FAILED".equals(stateFor(started))) evidence = taskFailureEvidence(evidence, started);
             AutomationRunRow changed = new AutomationRunRow(run.id(), run.ruleId(), run.triggerType(), run.idempotencyKey(), stateFor(started),
-                    run.draftId(), started.id(), write(evidence), run.detectedAt(), now(), terminal(started) ? now() : null);
+                    run.draftId(), started.id(), write(evidence), run.detectedAt(), now(), terminal(started) ? now() : null,
+                    run.version());
             runPersistence.update(changed);
             return run(changed);
         } catch (RuntimeException failure) {
             Map<String, Object> failedEvidence = failureEvidence(evidence(run), failure);
             AutomationRunRow failed = new AutomationRunRow(run.id(), run.ruleId(), run.triggerType(), run.idempotencyKey(), "FAILED",
-                    run.draftId(), taskId, write(failedEvidence), run.detectedAt(), run.startedAt(), now());
+                    run.draftId(), taskId, write(failedEvidence), run.detectedAt(), run.startedAt(), now(), run.version());
             runPersistence.update(failed);
             return run(failed);
         }
@@ -239,8 +249,8 @@ public class AutomationService {
             return mapper.listAutomationRuns(rule.id()).stream().filter(run -> key.equals(run.idempotencyKey())).findFirst().map(this::run).orElseThrow();
         }
         String detected = now();
-        AutomationRunRow detectedRun = new AutomationRunRow(UUID.randomUUID().toString(), rule.id(), actual.name(), key, "DETECTED", null, null,
-                write(evidence), detected, null, null);
+        AutomationRunRow detectedRun = new AutomationRunRow(UUID.randomUUID().toString(), rule.id(), actual.name(), key,
+                AutomationRunState.DETECTED.name(), null, null, write(evidence), detected, null, null, 0);
         try {
             runPersistence.insert(detectedRun);
         } catch (RuntimeException duplicate) {
@@ -258,8 +268,9 @@ public class AutomationService {
             var draft = drafts.create(bound);
             draftId = draft.id();
             if (AutomationApprovalMode.REVIEW_REQUIRED.name().equals(rule.approvalMode())) {
-                AutomationRunRow review = new AutomationRunRow(detectedRun.id(), rule.id(), actual.name(), key, "REVIEW_REQUIRED", draft.id(), null,
-                        detectedRun.evidenceJson(), detected, null, null);
+                AutomationRunRow review = new AutomationRunRow(detectedRun.id(), rule.id(), actual.name(), key,
+                        AutomationRunState.REVIEW_REQUIRED.name(), draft.id(), null,
+                        detectedRun.evidenceJson(), detected, null, null, detectedRun.version());
                 runPersistence.update(review);
                 return run(review);
             }
@@ -269,13 +280,14 @@ public class AutomationService {
             TaskRow started = "READY".equals(task.state()) ? tasks.start(task.id()) : task;
             Map<String, Object> finalEvidence = "FAILED".equals(stateFor(started)) ? taskFailureEvidence(evidence, started) : evidence;
             AutomationRunRow active = new AutomationRunRow(detectedRun.id(), rule.id(), actual.name(), key, stateFor(started), draft.id(), started.id(),
-                    write(finalEvidence), detected, now(), terminal(started) ? now() : null);
+                    write(finalEvidence), detected, now(), terminal(started) ? now() : null, detectedRun.version());
             runPersistence.update(active);
             return run(active);
         } catch (RuntimeException failure) {
             Map<String, Object> failedEvidence = failureEvidence(evidence, failure);
-            AutomationRunRow failed = new AutomationRunRow(detectedRun.id(), rule.id(), actual.name(), key, "FAILED", draftId, taskId,
-                    write(failedEvidence), detected, null, now());
+            AutomationRunRow failed = new AutomationRunRow(detectedRun.id(), rule.id(), actual.name(), key,
+                    AutomationRunState.FAILED.name(), draftId, taskId,
+                    write(failedEvidence), detected, null, now(), detectedRun.version());
             runPersistence.update(failed);
             return run(failed);
         }
@@ -286,8 +298,9 @@ public class AutomationService {
             if (run.taskId() == null || terminalRun(run.state())) continue;
             TaskRow task = tasks.get(run.taskId());
             String state = stateFor(task);
-            if (!state.equals(run.state())) mapper.updateAutomationRun(new AutomationRunRow(run.id(), run.ruleId(), run.triggerType(), run.idempotencyKey(), state,
-                    run.draftId(), run.taskId(), run.evidenceJson(), run.detectedAt(), run.startedAt(), terminal(task) ? now() : null));
+            if (!state.equals(run.state())) runPersistence.update(new AutomationRunRow(run.id(), run.ruleId(), run.triggerType(), run.idempotencyKey(), state,
+                    run.draftId(), run.taskId(), run.evidenceJson(), run.detectedAt(), run.startedAt(), terminal(task) ? now() : null,
+                    run.version()));
         }
     }
 
@@ -353,7 +366,17 @@ public class AutomationService {
     private void updateLastHead(AutomationRuleRow old, String head) {
         AutomationRuleRow changed = new AutomationRuleRow(old.id(), old.name(), old.projectId(), old.templateVersionId(), old.triggerType(), old.state(),
                 old.approvalMode(), old.triggerConfigJson(), old.webhookTokenHash(), head, old.createdAt(), now(), old.version());
-        mapper.updateAutomationRule(changed);
+        updateRule(old, changed);
+    }
+    private void updateRule(AutomationRuleRow old, AutomationRuleRow changed) {
+        lifecycle.transition(ruleSubject(old.id()), old.state(), changed.state(), null, Map.of(),
+                () -> old.state().equals(changed.state())
+                        ? mapper.updateAutomationRuleDetails(changed) : mapper.updateAutomationRule(changed),
+                () -> new ConflictException("AUTOMATION_RULE_VERSION_CONFLICT", "Automation rule changed concurrently"));
+    }
+    private LifecycleTransitionService.Subject ruleSubject(String ruleId) {
+        return new LifecycleTransitionService.Subject(LifecycleMachineType.AUTOMATION_RULE, ruleId,
+                LifecycleScopeType.AUTOMATION_RULE, ruleId);
     }
     private void requireAutoStartApproved(String versionId) {
         var version = templates.version(versionId);

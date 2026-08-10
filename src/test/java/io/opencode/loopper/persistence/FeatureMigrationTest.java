@@ -15,20 +15,20 @@ class FeatureMigrationTest {
     @TempDir Path temporaryDirectory;
 
     @Test
-    void migratesBothEmptyAndV11DatabasesToV14() throws Exception {
-        assertMigratesToV14(temporaryDirectory.resolve("empty.db"), false);
-        assertMigratesToV14(temporaryDirectory.resolve("upgrade.db"), true);
+    void migratesBothEmptyAndV14DatabasesToV15WithoutInventingAuditHistory() throws Exception {
+        assertMigratesToV15(temporaryDirectory.resolve("empty.db"), false);
+        assertMigratesToV15(temporaryDirectory.resolve("upgrade.db"), true);
     }
 
-    private void assertMigratesToV14(Path database, boolean stopAtV11) throws Exception {
+    private void assertMigratesToV15(Path database, boolean stopAtV14) throws Exception {
         String url = "jdbc:sqlite:" + database;
-        if (stopAtV11) {
-            Flyway.configure().dataSource(url, null, null).target(MigrationVersion.fromVersion("11")).load().migrate();
+        if (stopAtV14) {
+            Flyway.configure().dataSource(url, null, null).target(MigrationVersion.fromVersion("14")).load().migrate();
         }
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
 
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("14");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("15");
         try (var connection = DriverManager.getConnection(url);
              var statement = connection.prepareStatement("SELECT name FROM sqlite_master WHERE type='table'")) {
             try (var result = statement.executeQuery()) {
@@ -37,7 +37,19 @@ class FeatureMigrationTest {
                 assertThat(names).containsAll(List.of(
                         "workspace_lease", "task_queue", "interaction", "task_lineage",
                         "session_checkpoint", "session_usage", "binary_artifact",
-                        "loopspec_template", "loopspec_template_version", "automation_rule", "automation_run"));
+                        "loopspec_template", "loopspec_template_version", "automation_rule", "automation_run",
+                        "state_transition_event"));
+            }
+        }
+        try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
+            try (var result = statement.executeQuery("SELECT COUNT(*) FROM state_transition_event")) {
+                assertThat(result.next()).isTrue();
+                assertThat(result.getInt(1)).isZero();
+            }
+            try (var result = statement.executeQuery("PRAGMA table_info(automation_run)")) {
+                var columns = new java.util.ArrayList<String>();
+                while (result.next()) columns.add(result.getString("name"));
+                assertThat(columns).contains("version");
             }
         }
         assertAutomationApprovalAndImmutabilityGuards(url);

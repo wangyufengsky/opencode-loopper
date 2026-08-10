@@ -3,6 +3,10 @@ package io.opencode.loopper.service;
 import io.opencode.loopper.config.LoopperProperties;
 import io.opencode.loopper.domain.SessionFailure;
 import io.opencode.loopper.domain.LoopSpec;
+import io.opencode.loopper.domain.DesignerSessionState;
+import io.opencode.loopper.domain.LifecycleMachineType;
+import io.opencode.loopper.domain.LifecycleScopeType;
+import io.opencode.loopper.lifecycle.LifecycleTransitionService;
 import io.opencode.loopper.persistence.DesignerMessageRow;
 import io.opencode.loopper.persistence.DesignerSessionRow;
 import io.opencode.loopper.persistence.LoopDraftRow;
@@ -30,10 +34,10 @@ import tools.jackson.databind.ObjectMapper;
 @Service
 public class DesignerSessionService {
     public static final String READ_ONLY = "READ_ONLY";
-    public static final String PENDING_HANDOFF = "PENDING_HANDOFF";
-    public static final String RUNNING = "RUNNING";
-    public static final String COMPLETED = "COMPLETED";
-    public static final String SESSION_ERROR = "SESSION_ERROR";
+    public static final String PENDING_HANDOFF = DesignerSessionState.PENDING_HANDOFF.name();
+    public static final String RUNNING = DesignerSessionState.RUNNING.name();
+    public static final String COMPLETED = DesignerSessionState.COMPLETED.name();
+    public static final String SESSION_ERROR = DesignerSessionState.SESSION_ERROR.name();
     private static final int MAX_MESSAGE_LENGTH = 12_000;
     private static final int MAX_LOOP_SPEC_REPAIR_ATTEMPTS = 2;
     private static final String LOOP_SPEC_REPAIR_MARKER = "SYSTEM_RECOVERY[LOOPSPEC_AUTO_REPAIR";
@@ -44,6 +48,7 @@ public class DesignerSessionService {
             "<!--\\s*LOOPSPEC_JSON_START\\s*-->", Pattern.CASE_INSENSITIVE);
 
     private final LoopperMapper mapper;
+    private final LifecycleTransitionService lifecycle;
     private final ProjectService projects;
     private final OpenCodeClient openCode;
     private final LoopperProperties defaults;
@@ -51,10 +56,12 @@ public class DesignerSessionService {
     private final ObjectMapper json;
     private final DesignerEventHub events;
 
-    public DesignerSessionService(LoopperMapper mapper, ProjectService projects, OpenCodeClient openCode,
+    public DesignerSessionService(LoopperMapper mapper, LifecycleTransitionService lifecycle,
+                                  ProjectService projects, OpenCodeClient openCode,
                                   LoopperProperties defaults, LoopDraftService drafts, ObjectMapper json,
                                   DesignerEventHub events) {
         this.mapper = mapper;
+        this.lifecycle = lifecycle;
         this.projects = projects;
         this.openCode = openCode;
         this.defaults = defaults;
@@ -80,7 +87,9 @@ public class DesignerSessionService {
         String now = now();
         DesignerSessionRow session = new DesignerSessionRow(UUID.randomUUID().toString(), projectId, PENDING_HANDOFF,
                 READ_ONLY, now, now, 0, null, "PENDING", loopDraftId);
-        mapper.insertDesignerSession(session);
+        lifecycle.create(subject(session), session.state(), java.util.Map.of(),
+                () -> mapper.insertDesignerSession(session),
+                () -> new ConflictException("DESIGNER_SESSION_CREATE_CONFLICT", "Designer session could not be created"));
         appendSystem(session, "Designer session created in read-only mode. OpenCode Designer handoff is pending; no model response has been generated.",
                 PENDING_HANDOFF);
         if (initialMessage != null && !initialMessage.isBlank()) appendUserMessage(session.id(), initialMessage);
@@ -548,10 +557,16 @@ public class DesignerSessionService {
     private DesignerSessionRow transition(DesignerSessionRow session, String state, String externalSessionId, String externalSessionState) {
         DesignerSessionRow updated = new DesignerSessionRow(session.id(), session.projectId(), state, session.accessMode(),
                 session.createdAt(), now(), session.version(), externalSessionId, externalSessionState, session.loopDraftId());
-        if (mapper.updateDesignerSession(updated) != 1) {
-            throw new ConflictException("DESIGNER_SESSION_VERSION_CONFLICT", "Designer session was updated concurrently");
-        }
+        lifecycle.transition(subject(updated), session.state(), updated.state(), null, java.util.Map.of(),
+                () -> session.state().equals(updated.state())
+                        ? mapper.updateDesignerSessionProjection(updated) : mapper.updateDesignerSession(updated),
+                () -> new ConflictException("DESIGNER_SESSION_VERSION_CONFLICT", "Designer session was updated concurrently"));
         return get(session.id());
+    }
+
+    private LifecycleTransitionService.Subject subject(DesignerSessionRow row) {
+        return new LifecycleTransitionService.Subject(LifecycleMachineType.DESIGNER_SESSION, row.id(),
+                LifecycleScopeType.PROJECT, row.projectId());
     }
 
     private String normalizeMessage(String content) {

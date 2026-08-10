@@ -11,6 +11,30 @@ import org.apache.ibatis.annotations.Update;
 
 @Mapper
 public interface LoopperMapper {
+    @Insert("""
+            INSERT INTO state_transition_event(
+              id,machine_type,entity_id,scope_type,scope_id,event,from_state,to_state,reason_code,metadata_json,occurred_at)
+            VALUES(#{id},#{machineType},#{entityId},#{scopeType},#{scopeId},#{event},#{fromState},#{toState},
+              #{reasonCode},#{metadataJson},#{occurredAt})
+            """)
+    int insertStateTransitionEvent(StateTransitionEventRow row);
+    @Select("""
+            SELECT * FROM state_transition_event
+            WHERE machine_type=#{machineType} AND entity_id=#{entityId} AND sequence>#{afterSequence}
+            ORDER BY sequence LIMIT #{limit}
+            """)
+    List<StateTransitionEventRow> listStateTransitionsForEntity(
+            @Param("machineType") String machineType, @Param("entityId") String entityId,
+            @Param("afterSequence") long afterSequence, @Param("limit") int limit);
+    @Select("""
+            SELECT * FROM state_transition_event
+            WHERE scope_type=#{scopeType} AND scope_id=#{scopeId} AND sequence>#{afterSequence}
+            ORDER BY sequence LIMIT #{limit}
+            """)
+    List<StateTransitionEventRow> listStateTransitionsForScope(
+            @Param("scopeType") String scopeType, @Param("scopeId") String scopeId,
+            @Param("afterSequence") long afterSequence, @Param("limit") int limit);
+
     @Select("SELECT * FROM app_settings WHERE id=1")
     Optional<AppSettingsRow> findAppSettings();
     @Insert("""
@@ -66,12 +90,21 @@ public interface LoopperMapper {
             WHERE id=#{id} AND version=#{version}
             """)
     int updateProjectConventionDraft(ProjectConventionDraftRow row);
+    @Update("""
+            UPDATE project_convention_draft SET
+              external_session_id=#{externalSessionId}, external_session_state=#{externalSessionState},
+              proposed_content=#{proposedContent}, error_message=#{errorMessage}, updated_at=#{updatedAt}, version=version+1
+            WHERE id=#{id} AND version=#{version}
+            """)
+    int updateProjectConventionProjection(ProjectConventionDraftRow row);
 
     @Insert("INSERT INTO loop_draft(id,project_id,goal,spec_json,status,created_at,updated_at,version) VALUES(#{id},#{projectId},#{goal},#{specJson},#{status},#{createdAt},#{updatedAt},#{version})")
     int insertDraft(LoopDraftRow row);
     @Select("SELECT * FROM loop_draft WHERE id=#{id}") Optional<LoopDraftRow> findDraft(String id);
     @Update("UPDATE loop_draft SET goal=#{goal}, spec_json=#{specJson}, status=#{status}, updated_at=#{updatedAt}, version=version+1 WHERE id=#{id} AND version=#{version}")
     int updateDraft(LoopDraftRow row);
+    @Update("UPDATE loop_draft SET goal=#{goal}, spec_json=#{specJson}, updated_at=#{updatedAt}, version=version+1 WHERE id=#{id} AND version=#{version}")
+    int updateDraftContent(LoopDraftRow row);
 
     @Insert("INSERT INTO designer_session(id,project_id,state,access_mode,external_session_id,external_session_state,loop_draft_id,created_at,updated_at,version) VALUES(#{id},#{projectId},#{state},#{accessMode},#{externalSessionId},#{externalSessionState},#{loopDraftId},#{createdAt},#{updatedAt},#{version})")
     int insertDesignerSession(DesignerSessionRow row);
@@ -82,6 +115,8 @@ public interface LoopperMapper {
     List<DesignerSessionRow> activeDesignerHandoffs();
     @Update("UPDATE designer_session SET state=#{state}, access_mode=#{accessMode}, external_session_id=#{externalSessionId}, external_session_state=#{externalSessionState}, loop_draft_id=#{loopDraftId}, updated_at=#{updatedAt}, version=version+1 WHERE id=#{id} AND version=#{version}")
     int updateDesignerSession(DesignerSessionRow row);
+    @Update("UPDATE designer_session SET access_mode=#{accessMode}, external_session_id=#{externalSessionId}, external_session_state=#{externalSessionState}, loop_draft_id=#{loopDraftId}, updated_at=#{updatedAt}, version=version+1 WHERE id=#{id} AND version=#{version}")
+    int updateDesignerSessionProjection(DesignerSessionRow row);
     @Select("SELECT COALESCE(MAX(ordinal), 0) + 1 FROM designer_message WHERE designer_session_id=#{sessionId}")
     int nextDesignerMessageOrdinal(String sessionId);
     @Insert("INSERT INTO designer_message(id,designer_session_id,ordinal,role,content,delivery_state,created_at) VALUES(#{id},#{designerSessionId},#{ordinal},#{role},#{content},#{deliveryState},#{createdAt})")
@@ -214,6 +249,13 @@ public interface LoopperMapper {
             WHERE canonical_root=#{canonicalRoot} AND version=#{version}
             """)
     int updateWorkspaceLease(WorkspaceLeaseRow row);
+    @Update("""
+            UPDATE workspace_lease SET root_fingerprint=#{rootFingerprint},mode=#{mode},holder_task_id=#{holderTaskId},
+              writer_session_id=#{writerSessionId},acquired_at=#{acquiredAt},heartbeat_at=#{heartbeatAt},
+              released_at=#{releasedAt},release_reason=#{releaseReason},version=version+1
+            WHERE canonical_root=#{canonicalRoot} AND version=#{version}
+            """)
+    int updateWorkspaceLeaseDetails(WorkspaceLeaseRow row);
 
     @Select("SELECT COALESCE(MAX(position),0)+1 FROM task_queue WHERE canonical_root=#{canonicalRoot}")
     long nextQueuePosition(String canonicalRoot);
@@ -267,6 +309,11 @@ public interface LoopperMapper {
             """)
     int upsertInteraction(InteractionRow row);
     @Select("SELECT * FROM interaction WHERE id=#{id}") Optional<InteractionRow> findInteraction(String id);
+    @Select("SELECT * FROM interaction WHERE external_session_id=#{externalSessionId} AND external_request_id=#{externalRequestId} AND kind=#{kind}")
+    Optional<InteractionRow> findInteractionByExternalRequest(
+            @Param("externalSessionId") String externalSessionId,
+            @Param("externalRequestId") String externalRequestId,
+            @Param("kind") String kind);
     @Select("SELECT * FROM interaction WHERE state='PENDING' ORDER BY created_at") List<InteractionRow> pendingInteractions();
     @Select("SELECT * FROM interaction WHERE state IN ('PENDING','RESOLVING','HARD_DENIED') ORDER BY created_at") List<InteractionRow> openInteractions();
     @Select("SELECT * FROM interaction WHERE scope_type=#{scopeType} AND scope_id=#{scopeId} ORDER BY created_at")
@@ -287,22 +334,30 @@ public interface LoopperMapper {
             WHERE id=#{id} AND version=#{version} AND state='RESOLVING'
             """)
     int resolveInteraction(InteractionRow row);
-    @Update("""
-            UPDATE interaction SET state='STALE',updated_at=#{updatedAt},version=version+1
+    @Select("""
+            SELECT * FROM interaction
             WHERE external_session_id=#{externalSessionId} AND state IN ('PENDING','HARD_DENIED')
               AND external_request_id NOT IN (SELECT value FROM json_each(#{activeRequestIdsJson}))
+            ORDER BY created_at
             """)
-    int markMissingInteractionsStale(@Param("externalSessionId") String externalSessionId,
-                                     @Param("activeRequestIdsJson") String activeRequestIdsJson,
-                                     @Param("updatedAt") String updatedAt);
-    @Update("""
-            UPDATE interaction SET state='STALE',updated_at=#{updatedAt},version=version+1
-            WHERE state IN ('PENDING','RESOLVING','HARD_DENIED')
-              AND local_session_id IN (
+    List<InteractionRow> missingInteractionsForSession(
+            @Param("externalSessionId") String externalSessionId,
+            @Param("activeRequestIdsJson") String activeRequestIdsJson);
+    @Select("""
+            SELECT interaction.* FROM interaction
+            WHERE interaction.state IN ('PENDING','RESOLVING','HARD_DENIED')
+              AND interaction.local_session_id IN (
                 SELECT id FROM execution_session WHERE state NOT IN ('CREATING','RUNNING')
               )
+            ORDER BY interaction.created_at
             """)
-    int markTerminalSessionInteractionsStale(@Param("updatedAt") String updatedAt);
+    List<InteractionRow> terminalSessionInteractions();
+    @Update("""
+            UPDATE interaction SET state='STALE',updated_at=#{updatedAt},version=version+1
+            WHERE id=#{id} AND version=#{version} AND state IN ('PENDING','RESOLVING','HARD_DENIED')
+            """)
+    int markInteractionStale(@Param("id") String id, @Param("version") long version,
+                             @Param("updatedAt") String updatedAt);
 
     @Insert("INSERT INTO task_lineage(child_task_id,parent_task_id,recovery_mode,parent_stage_id,workspace_fingerprint,created_at) VALUES(#{childTaskId},#{parentTaskId},#{recoveryMode},#{parentStageId},#{workspaceFingerprint},#{createdAt})")
     int insertTaskLineage(TaskLineageRow row);
@@ -352,6 +407,8 @@ public interface LoopperMapper {
     @Select("SELECT * FROM loopspec_template ORDER BY updated_at DESC") List<LoopSpecTemplateRow> listLoopSpecTemplates();
     @Update("UPDATE loopspec_template SET name=#{name},description=#{description},state=#{state},updated_at=#{updatedAt},version=version+1 WHERE id=#{id} AND version=#{version}")
     int updateLoopSpecTemplate(LoopSpecTemplateRow row);
+    @Update("UPDATE loopspec_template SET name=#{name},description=#{description},updated_at=#{updatedAt},version=version+1 WHERE id=#{id} AND version=#{version}")
+    int updateLoopSpecTemplateDetails(LoopSpecTemplateRow row);
     @Insert("INSERT INTO loopspec_template_version(id,template_id,version_number,spec_json,spec_sha256,immutable,auto_start_approved,created_at) VALUES(#{id},#{templateId},#{versionNumber},#{specJson},#{specSha256},#{immutable},#{autoStartApproved},#{createdAt})")
     int insertLoopSpecTemplateVersion(LoopSpecTemplateVersionRow row);
     @Select("SELECT * FROM loopspec_template_version WHERE id=#{id}") Optional<LoopSpecTemplateVersionRow> findLoopSpecTemplateVersion(String id);
@@ -365,10 +422,12 @@ public interface LoopperMapper {
     @Select("SELECT * FROM automation_rule WHERE state='ENABLED' ORDER BY updated_at") List<AutomationRuleRow> enabledAutomationRules();
     @Update("UPDATE automation_rule SET name=#{name},template_version_id=#{templateVersionId},trigger_type=#{triggerType},state=#{state},approval_mode=#{approvalMode},trigger_config_json=#{triggerConfigJson},webhook_token_hash=#{webhookTokenHash},last_observed_head=#{lastObservedHead},updated_at=#{updatedAt},version=version+1 WHERE id=#{id} AND version=#{version}")
     int updateAutomationRule(AutomationRuleRow row);
-    @Insert("INSERT INTO automation_run(id,rule_id,trigger_type,idempotency_key,state,draft_id,task_id,evidence_json,detected_at,started_at,ended_at) VALUES(#{id},#{ruleId},#{triggerType},#{idempotencyKey},#{state},#{draftId},#{taskId},#{evidenceJson},#{detectedAt},#{startedAt},#{endedAt})")
+    @Update("UPDATE automation_rule SET name=#{name},template_version_id=#{templateVersionId},trigger_type=#{triggerType},approval_mode=#{approvalMode},trigger_config_json=#{triggerConfigJson},webhook_token_hash=#{webhookTokenHash},last_observed_head=#{lastObservedHead},updated_at=#{updatedAt},version=version+1 WHERE id=#{id} AND version=#{version}")
+    int updateAutomationRuleDetails(AutomationRuleRow row);
+    @Insert("INSERT INTO automation_run(id,rule_id,trigger_type,idempotency_key,state,draft_id,task_id,evidence_json,detected_at,started_at,ended_at,version) VALUES(#{id},#{ruleId},#{triggerType},#{idempotencyKey},#{state},#{draftId},#{taskId},#{evidenceJson},#{detectedAt},#{startedAt},#{endedAt},#{version})")
     int insertAutomationRun(AutomationRunRow row);
     @Select("SELECT * FROM automation_run WHERE id=#{id}") Optional<AutomationRunRow> findAutomationRun(String id);
     @Select("SELECT * FROM automation_run WHERE rule_id=#{ruleId} ORDER BY detected_at DESC") List<AutomationRunRow> listAutomationRuns(String ruleId);
-    @Update("UPDATE automation_run SET state=#{state},draft_id=#{draftId},task_id=#{taskId},evidence_json=#{evidenceJson},started_at=#{startedAt},ended_at=#{endedAt} WHERE id=#{id}")
+    @Update("UPDATE automation_run SET state=#{state},draft_id=#{draftId},task_id=#{taskId},evidence_json=#{evidenceJson},started_at=#{startedAt},ended_at=#{endedAt},version=version+1 WHERE id=#{id} AND version=#{version}")
     int updateAutomationRun(AutomationRunRow row);
 }

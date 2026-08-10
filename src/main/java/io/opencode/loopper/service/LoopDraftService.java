@@ -4,6 +4,9 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 import io.opencode.loopper.domain.LoopDraftStatus;
 import io.opencode.loopper.domain.LoopSpec;
+import io.opencode.loopper.domain.LifecycleMachineType;
+import io.opencode.loopper.domain.LifecycleScopeType;
+import io.opencode.loopper.lifecycle.LifecycleTransitionService;
 import io.opencode.loopper.persistence.LoopDraftRow;
 import io.opencode.loopper.persistence.LoopperMapper;
 import java.nio.file.Files;
@@ -26,13 +29,16 @@ public class LoopDraftService {
     private static final Set<String> BROWSER_ASSERTIONS = Set.of(
             "EXISTS", "VISIBLE", "TEXT_CONTAINS", "COUNT", "ATTRIBUTE_EQUALS");
     private final LoopperMapper mapper;
+    private final LifecycleTransitionService lifecycle;
     private final ProjectService projects;
     private final ObjectMapper json;
     private final TaskService tasks;
     private final Validator validator;
-    public LoopDraftService(LoopperMapper mapper, ProjectService projects, ObjectMapper json, TaskService tasks,
+    public LoopDraftService(LoopperMapper mapper, LifecycleTransitionService lifecycle,
+                            ProjectService projects, ObjectMapper json, TaskService tasks,
                             Validator validator) {
-        this.mapper = mapper; this.projects = projects; this.json = json; this.tasks = tasks; this.validator = validator;
+        this.mapper = mapper; this.lifecycle = lifecycle; this.projects = projects;
+        this.json = json; this.tasks = tasks; this.validator = validator;
     }
     @Transactional
     public LoopDraftRow create(LoopSpec spec) {
@@ -41,7 +47,9 @@ public class LoopDraftService {
         String now = Instant.now().toString();
         LoopDraftRow row = new LoopDraftRow(UUID.randomUUID().toString(), spec.projectId(), spec.goal(), write(spec),
                 LoopDraftStatus.DRAFT_READY.name(), now, now, 0);
-        mapper.insertDraft(row); return row;
+        lifecycle.create(subject(row), row.status(), java.util.Map.of(), () -> mapper.insertDraft(row),
+                () -> new ConflictException("DRAFT_CREATE_CONFLICT", "Loop draft could not be created"));
+        return row;
     }
     public LoopDraftRow get(String id) { return mapper.findDraft(id).orElseThrow(() -> new NotFoundException("Loop draft not found: " + id)); }
     @Transactional
@@ -51,7 +59,9 @@ public class LoopDraftService {
         if (LoopDraftStatus.CONFIRMED.name().equals(old.status())) throw new ConflictException("DRAFT_CONFIRMED", "Confirmed LoopSpec is immutable; create a new draft");
         if (!old.projectId().equals(spec.projectId())) throw new BadRequestException("DRAFT_PROJECT_MISMATCH", "LoopSpec projectId cannot be changed");
         LoopDraftRow changed = new LoopDraftRow(old.id(), old.projectId(), spec.goal(), write(spec), LoopDraftStatus.DRAFT_READY.name(), old.createdAt(), Instant.now().toString(), old.version());
-        if (mapper.updateDraft(changed) != 1) throw new ConflictException("DRAFT_VERSION_CONFLICT", "Loop draft was updated concurrently");
+        lifecycle.transition(subject(changed), old.status(), changed.status(), null, java.util.Map.of(),
+                () -> old.status().equals(changed.status()) ? mapper.updateDraftContent(changed) : mapper.updateDraft(changed),
+                () -> new ConflictException("DRAFT_VERSION_CONFLICT", "Loop draft was updated concurrently"));
         return get(id);
     }
     @Transactional
@@ -65,8 +75,14 @@ public class LoopDraftService {
         validateExecutionContract(spec(draft));
         io.opencode.loopper.persistence.TaskRow task = tasks.createFromDraft(draft, title, admissionSource);
         LoopDraftRow confirmed = new LoopDraftRow(draft.id(), draft.projectId(), draft.goal(), draft.specJson(), LoopDraftStatus.CONFIRMED.name(), draft.createdAt(), Instant.now().toString(), draft.version());
-        if (mapper.updateDraft(confirmed) != 1) throw new ConflictException("DRAFT_VERSION_CONFLICT", "Loop draft was updated concurrently");
+        lifecycle.transition(subject(confirmed), draft.status(), confirmed.status(), null, java.util.Map.of(),
+                () -> mapper.updateDraft(confirmed),
+                () -> new ConflictException("DRAFT_VERSION_CONFLICT", "Loop draft was updated concurrently"));
         return task;
+    }
+    private LifecycleTransitionService.Subject subject(LoopDraftRow row) {
+        return new LifecycleTransitionService.Subject(LifecycleMachineType.LOOP_DRAFT, row.id(),
+                LifecycleScopeType.PROJECT, row.projectId());
     }
     public LoopSpec spec(LoopDraftRow row) {
         try { return json.readValue(row.specJson(), LoopSpec.class); }

@@ -4,6 +4,7 @@ import io.opencode.loopper.service.BadRequestException;
 import io.opencode.loopper.service.ConflictException;
 import io.opencode.loopper.service.NotFoundException;
 import io.opencode.loopper.service.ServiceUnavailableException;
+import io.opencode.loopper.lifecycle.PersistedStateInvalidException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
@@ -25,6 +26,10 @@ public class ApiExceptionHandler {
     ResponseEntity<ProblemDetail> conflict(ConflictException ex) { return problem(HttpStatus.CONFLICT, ex.code(), ex.getMessage()); }
     @ExceptionHandler(ServiceUnavailableException.class)
     ResponseEntity<ProblemDetail> serviceUnavailable(ServiceUnavailableException ex) { return problem(HttpStatus.SERVICE_UNAVAILABLE, ex.code(), ex.getMessage()); }
+    @ExceptionHandler(PersistedStateInvalidException.class)
+    ResponseEntity<ProblemDetail> invalidPersistedState(PersistedStateInvalidException ex) {
+        return problem(HttpStatus.INTERNAL_SERVER_ERROR, "PERSISTED_STATE_INVALID", ex.getMessage());
+    }
     @ExceptionHandler(HttpMessageNotReadableException.class)
     ResponseEntity<ProblemDetail> invalidJson(HttpMessageNotReadableException ex) { return problem(HttpStatus.BAD_REQUEST, "INVALID_JSON", "Request JSON is invalid"); }
     @ExceptionHandler(MethodArgumentNotValidException.class)

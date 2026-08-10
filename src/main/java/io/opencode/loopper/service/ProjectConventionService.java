@@ -2,6 +2,10 @@ package io.opencode.loopper.service;
 
 import io.opencode.loopper.config.LoopperProperties;
 import io.opencode.loopper.domain.SessionFailure;
+import io.opencode.loopper.domain.ProjectConventionState;
+import io.opencode.loopper.domain.LifecycleMachineType;
+import io.opencode.loopper.domain.LifecycleScopeType;
+import io.opencode.loopper.lifecycle.LifecycleTransitionService;
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.ProjectConventionDraftRow;
 import io.opencode.loopper.persistence.ProjectRow;
@@ -32,10 +36,10 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class ProjectConventionService {
-    public static final String RUNNING = "RUNNING";
-    public static final String READY = "READY";
-    public static final String APPLIED = "APPLIED";
-    public static final String FAILED = "FAILED";
+    public static final String RUNNING = ProjectConventionState.RUNNING.name();
+    public static final String READY = ProjectConventionState.READY.name();
+    public static final String APPLIED = ProjectConventionState.APPLIED.name();
+    public static final String FAILED = ProjectConventionState.FAILED.name();
     public static final String START_MARKER = "<!-- LOOPPER:START -->";
     public static final String END_MARKER = "<!-- LOOPPER:END -->";
     private static final int MAX_AGENTS_BYTES = 256 * 1024;
@@ -47,13 +51,16 @@ public class ProjectConventionService {
             Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
 
     private final LoopperMapper mapper;
+    private final LifecycleTransitionService lifecycle;
     private final ProjectService projects;
     private final OpenCodeClient openCode;
     private final LoopperProperties properties;
 
-    public ProjectConventionService(LoopperMapper mapper, ProjectService projects, OpenCodeClient openCode,
+    public ProjectConventionService(LoopperMapper mapper, LifecycleTransitionService lifecycle,
+                                    ProjectService projects, OpenCodeClient openCode,
                                     LoopperProperties properties) {
         this.mapper = mapper;
+        this.lifecycle = lifecycle;
         this.projects = projects;
         this.openCode = openCode;
         this.properties = properties;
@@ -79,11 +86,13 @@ public class ProjectConventionService {
             throw new ServiceUnavailableException("PROJECT_CONVENTION_SESSION_FAILED", safeMessage(failure));
         }
         String now = now();
-        ProjectConventionDraftRow row = new ProjectConventionDraftRow(UUID.randomUUID().toString(), project.id(), RUNNING,
+        ProjectConventionDraftRow created = new ProjectConventionDraftRow(UUID.randomUUID().toString(), project.id(), RUNNING,
                 remote.id(), "CREATED", source.exists() ? 1 : 0, source.sha256(), source.content(), null, null,
                 now, now, 0);
-        mapper.insertProjectConventionDraft(row);
-        row = transition(row, RUNNING, "RUNNING", null, null);
+        lifecycle.create(subject(created), created.state(), java.util.Map.of(),
+                () -> mapper.insertProjectConventionDraft(created),
+                () -> new ConflictException("PROJECT_CONVENTION_CREATE_CONFLICT", "AGENTS.md proposal could not be created"));
+        ProjectConventionDraftRow row = transition(created, RUNNING, "RUNNING", null, null);
         try {
             openCode.promptAsync(remote, prompt(project, source));
             return row;
@@ -346,10 +355,16 @@ public class ProjectConventionService {
         ProjectConventionDraftRow updated = new ProjectConventionDraftRow(row.id(), row.projectId(), state,
                 row.externalSessionId(), externalState, row.sourceExists(), row.sourceSha256(), row.sourceContent(),
                 proposedContent, errorMessage, row.createdAt(), now(), row.version());
-        if (mapper.updateProjectConventionDraft(updated) != 1) {
-            throw new ConflictException("PROJECT_CONVENTION_VERSION_CONFLICT", "AGENTS.md proposal was updated concurrently");
-        }
+        lifecycle.transition(subject(updated), row.state(), updated.state(), null, java.util.Map.of(),
+                () -> row.state().equals(updated.state())
+                        ? mapper.updateProjectConventionProjection(updated) : mapper.updateProjectConventionDraft(updated),
+                () -> new ConflictException("PROJECT_CONVENTION_VERSION_CONFLICT", "AGENTS.md proposal was updated concurrently"));
         return get(row.projectId(), row.id());
+    }
+
+    private LifecycleTransitionService.Subject subject(ProjectConventionDraftRow row) {
+        return new LifecycleTransitionService.Subject(LifecycleMachineType.PROJECT_CONVENTION, row.id(),
+                LifecycleScopeType.PROJECT, row.projectId());
     }
 
     private boolean timedOut(ProjectConventionDraftRow row) {

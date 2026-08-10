@@ -3,6 +3,9 @@ package io.opencode.loopper.service;
 import io.opencode.loopper.domain.AttemptState;
 import io.opencode.loopper.domain.SessionState;
 import io.opencode.loopper.domain.TaskState;
+import io.opencode.loopper.domain.LifecycleMachineType;
+import io.opencode.loopper.domain.LifecycleScopeType;
+import io.opencode.loopper.lifecycle.LifecycleTransitionService;
 import io.opencode.loopper.persistence.AttemptRow;
 import io.opencode.loopper.persistence.ExecutionSessionRow;
 import io.opencode.loopper.persistence.LoopperMapper;
@@ -30,11 +33,14 @@ import tools.jackson.databind.ObjectMapper;
 @Service
 public class SessionLifecyclePersistence {
     private final LoopperMapper mapper;
+    private final LifecycleTransitionService lifecycle;
     private final TaskEventService events;
     private final ObjectMapper json;
 
-    public SessionLifecyclePersistence(LoopperMapper mapper, TaskEventService events, ObjectMapper json) {
+    public SessionLifecyclePersistence(LoopperMapper mapper, LifecycleTransitionService lifecycle,
+                                       TaskEventService events, ObjectMapper json) {
         this.mapper = mapper;
+        this.lifecycle = lifecycle;
         this.events = events;
         this.json = json;
     }
@@ -88,10 +94,14 @@ public class SessionLifecyclePersistence {
         String now = Instant.now().toString();
         AttemptRow attempt = new AttemptRow(UUID.randomUUID().toString(), taskId, stage.id(), ordinal,
                 AttemptState.SUCCEEDED.name(), "SESSION_FORK_SNAPSHOT", "OpenCode fork transcript snapshot", now, now, 0);
-        mapper.insertAttempt(attempt);
+        lifecycle.create(subject(LifecycleMachineType.ATTEMPT, attempt.id(), taskId), attempt.state(), Map.of("source", "fork"),
+                () -> mapper.insertAttempt(attempt),
+                () -> new ConflictException("ATTEMPT_CREATE_CONFLICT", "Fork snapshot attempt could not be created"));
         ExecutionSessionRow snapshot = new ExecutionSessionRow(UUID.randomUUID().toString(), taskId, stage.id(), attempt.id(),
                 childExternalSessionId, SessionState.COMPLETED.name(), now, now, 0);
-        mapper.insertSession(snapshot);
+        lifecycle.create(subject(LifecycleMachineType.EXECUTION_SESSION, snapshot.id(), taskId), snapshot.state(),
+                Map.of("source", "fork"), () -> mapper.insertSession(snapshot),
+                () -> new ConflictException("SESSION_CREATE_CONFLICT", "Fork snapshot session could not be created"));
         events.emit(taskId, "session.forked", Map.of("parentSessionId", parentSessionId, "sessionId", snapshot.id(),
                 "attemptId", attempt.id(), "externalSessionId", childExternalSessionId));
         return new ForkSnapshot(snapshot, attempt);
@@ -105,4 +115,8 @@ public class SessionLifecyclePersistence {
     private static String nullable(String value) { return value == null || value.isBlank() ? null : value.trim(); }
 
     public record ForkSnapshot(ExecutionSessionRow session, AttemptRow attempt) { }
+
+    private LifecycleTransitionService.Subject subject(LifecycleMachineType machine, String entityId, String taskId) {
+        return new LifecycleTransitionService.Subject(machine, entityId, LifecycleScopeType.TASK, taskId);
+    }
 }

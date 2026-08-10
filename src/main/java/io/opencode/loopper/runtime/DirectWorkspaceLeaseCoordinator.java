@@ -1,6 +1,12 @@
 package io.opencode.loopper.runtime;
 
 import io.opencode.loopper.domain.TaskFailure;
+import io.opencode.loopper.domain.WorkspaceLeaseState;
+import io.opencode.loopper.domain.TaskQueueState;
+import io.opencode.loopper.domain.LifecycleEvent;
+import io.opencode.loopper.domain.LifecycleMachineType;
+import io.opencode.loopper.domain.LifecycleScopeType;
+import io.opencode.loopper.lifecycle.LifecycleTransitionService;
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.TaskQueueRow;
 import io.opencode.loopper.persistence.WorkspaceLeaseRow;
@@ -30,21 +36,24 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Component
 public class DirectWorkspaceLeaseCoordinator {
     public static final String MODE_DIRECT = "DIRECT";
-    public static final String LEASE_HELD = "HELD";
-    public static final String LEASE_RELEASE_PENDING = "RELEASE_PENDING";
-    public static final String LEASE_RELEASED = "RELEASED";
-    public static final String QUEUE_QUEUED = "QUEUED";
-    public static final String QUEUE_ADMITTED = "ADMITTED";
-    public static final String QUEUE_CANCELLED = "CANCELLED";
-    public static final String QUEUE_FINISHED = "FINISHED";
+    public static final String LEASE_HELD = WorkspaceLeaseState.HELD.name();
+    public static final String LEASE_RELEASE_PENDING = WorkspaceLeaseState.RELEASE_PENDING.name();
+    public static final String LEASE_RELEASED = WorkspaceLeaseState.RELEASED.name();
+    public static final String QUEUE_QUEUED = TaskQueueState.QUEUED.name();
+    public static final String QUEUE_ADMITTED = TaskQueueState.ADMITTED.name();
+    public static final String QUEUE_CANCELLED = TaskQueueState.CANCELLED.name();
+    public static final String QUEUE_FINISHED = TaskQueueState.FINISHED.name();
 
     private static final int CONCURRENCY_RETRIES = 3;
 
     private final LoopperMapper mapper;
+    private final LifecycleTransitionService lifecycle;
     private final TransactionTemplate transactions;
 
-    public DirectWorkspaceLeaseCoordinator(LoopperMapper mapper, PlatformTransactionManager transactionManager) {
+    public DirectWorkspaceLeaseCoordinator(LoopperMapper mapper, LifecycleTransitionService lifecycle,
+                                           PlatformTransactionManager transactionManager) {
         this.mapper = mapper;
+        this.lifecycle = lifecycle;
         this.transactions = new TransactionTemplate(transactionManager);
     }
 
@@ -203,10 +212,10 @@ public class DirectWorkspaceLeaseCoordinator {
         if (lease == null) {
             WorkspaceLeaseRow held = new WorkspaceLeaseRow(workspace.canonicalRoot(), workspace.rootFingerprint(), MODE_DIRECT,
                     taskId, writerSessionId, LEASE_HELD, timestamp, timestamp, null, null, 0);
-            mapper.insertWorkspaceLease(held);
+            createLease(held);
             TaskQueueRow admitted = new TaskQueueRow(taskId, workspace.canonicalRoot(), workspace.rootFingerprint(), position,
                     source, QUEUE_ADMITTED, timestamp, timestamp, null, 0);
-            mapper.insertTaskQueue(admitted);
+            createQueue(admitted);
             return admission("ADMITTED", held, admitted, workspace);
         }
         requireSameWorkspace(lease, workspace);
@@ -216,12 +225,12 @@ public class DirectWorkspaceLeaseCoordinator {
             updateLease(held);
             TaskQueueRow admitted = new TaskQueueRow(taskId, workspace.canonicalRoot(), workspace.rootFingerprint(), position,
                     source, QUEUE_ADMITTED, timestamp, timestamp, null, 0);
-            mapper.insertTaskQueue(admitted);
+            createQueue(admitted);
             return admission("ADMITTED", mapper.findWorkspaceLease(workspace.canonicalRoot()).orElseThrow(), admitted, workspace);
         }
         TaskQueueRow queued = new TaskQueueRow(taskId, workspace.canonicalRoot(), workspace.rootFingerprint(), position,
                 source, QUEUE_QUEUED, timestamp, null, null, 0);
-        mapper.insertTaskQueue(queued);
+        createQueue(queued);
         return admission("QUEUED", lease, queued, workspace);
     }
 
@@ -265,15 +274,43 @@ public class DirectWorkspaceLeaseCoordinator {
     }
 
     private void updateLease(WorkspaceLeaseRow row) {
-        if (mapper.updateWorkspaceLease(row) != 1) {
-            throw new TaskFailure("DIRECT_LEASE_CONCURRENT_CONFLICT", "Direct workspace lease changed concurrently; no transition was accepted");
-        }
+        WorkspaceLeaseRow current = mapper.findWorkspaceLease(row.canonicalRoot())
+                .orElseThrow(() -> new TaskFailure("DIRECT_LEASE_MISSING", "No direct workspace lease exists for this root"));
+        LifecycleEvent explicit = current.state().equals(row.state())
+                && !java.util.Objects.equals(current.holderTaskId(), row.holderTaskId()) ? LifecycleEvent.TRANSFER : null;
+        lifecycle.transition(leaseSubject(row), current.state(), row.state(), explicit, row.releaseReason(), java.util.Map.of(),
+                () -> current.state().equals(row.state())
+                        ? mapper.updateWorkspaceLeaseDetails(row) : mapper.updateWorkspaceLease(row),
+                () -> new TaskFailure("DIRECT_LEASE_CONCURRENT_CONFLICT", "Direct workspace lease changed concurrently; no transition was accepted"));
     }
 
     private void updateQueue(TaskQueueRow row) {
-        if (mapper.updateTaskQueue(row) != 1) {
-            throw new TaskFailure("DIRECT_QUEUE_CONCURRENT_CONFLICT", "Direct workspace queue changed concurrently; no transition was accepted");
-        }
+        TaskQueueRow current = mapper.findTaskQueue(row.taskId())
+                .orElseThrow(() -> new TaskFailure("DIRECT_QUEUE_MISSING", "Task has no direct workspace queue record"));
+        lifecycle.transition(queueSubject(row), current.state(), row.state(), null, java.util.Map.of(),
+                () -> mapper.updateTaskQueue(row),
+                () -> new TaskFailure("DIRECT_QUEUE_CONCURRENT_CONFLICT", "Direct workspace queue changed concurrently; no transition was accepted"));
+    }
+
+    private void createLease(WorkspaceLeaseRow row) {
+        lifecycle.create(leaseSubject(row), row.state(), java.util.Map.of(), () -> mapper.insertWorkspaceLease(row),
+                () -> new TaskFailure("DIRECT_LEASE_CONCURRENT_CONFLICT", "Direct workspace lease could not be created"));
+    }
+
+    private void createQueue(TaskQueueRow row) {
+        lifecycle.create(queueSubject(row), row.state(), java.util.Map.of("source", row.source()),
+                () -> mapper.insertTaskQueue(row),
+                () -> new TaskFailure("DIRECT_QUEUE_CONCURRENT_CONFLICT", "Direct workspace queue could not be created"));
+    }
+
+    private LifecycleTransitionService.Subject leaseSubject(WorkspaceLeaseRow row) {
+        return new LifecycleTransitionService.Subject(LifecycleMachineType.WORKSPACE_LEASE, row.rootFingerprint(),
+                LifecycleScopeType.WORKSPACE, row.rootFingerprint());
+    }
+
+    private LifecycleTransitionService.Subject queueSubject(TaskQueueRow row) {
+        return new LifecycleTransitionService.Subject(LifecycleMachineType.TASK_QUEUE, row.taskId(),
+                LifecycleScopeType.TASK, row.taskId());
     }
 
     private WorkspaceLeaseRow lease(WorkspaceLeaseRow old, String state, String writerSessionId, String heartbeat,

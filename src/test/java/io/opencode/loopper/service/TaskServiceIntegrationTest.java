@@ -46,6 +46,32 @@ class TaskServiceIntegrationTest {
     }
 
     @Test
+    void taskAggregatePersistsOrderedLifecycleAuditAlongsideStateChanges() throws Exception {
+        ProjectRow project = projects.create("lifecycle-audit", gitProject());
+        TaskRow ready = drafts.confirm(drafts.create(spec(project.id())).id(), "audit transitions");
+
+        tasks.start(ready.id());
+
+        var events = mapper.listStateTransitionsForScope("TASK", ready.id(), 0, 100);
+        assertThat(events).extracting(io.opencode.loopper.persistence.StateTransitionEventRow::machineType)
+                .contains("TASK", "STAGE", "ATTEMPT", "EXECUTION_SESSION");
+        assertThat(events).anySatisfy(event -> {
+            assertThat(event.machineType()).isEqualTo("TASK");
+            assertThat(event.event()).isEqualTo("CREATED");
+            assertThat(event.fromState()).isNull();
+            assertThat(event.toState()).isEqualTo("PREPARING");
+        });
+        assertThat(events).anySatisfy(event -> {
+            assertThat(event.machineType()).isEqualTo("TASK");
+            assertThat(event.fromState()).isEqualTo("READY");
+            assertThat(event.toState()).isEqualTo("RUNNING");
+            assertThat(event.event()).isEqualTo("START");
+        });
+        assertThat(events).isSortedAccordingTo(java.util.Comparator.comparingLong(
+                io.opencode.loopper.persistence.StateTransitionEventRow::sequence));
+    }
+
+    @Test
     void sessionFailureCreatesNewAttemptAndDoesNotFailTask() throws Exception {
         ProjectRow project = projects.create("fixture", gitProject());
         LoopDraftRow draft = drafts.create(spec(project.id()));

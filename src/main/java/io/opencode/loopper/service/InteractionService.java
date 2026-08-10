@@ -4,6 +4,9 @@ import io.opencode.loopper.api.FeatureContracts;
 import io.opencode.loopper.domain.InteractionAction;
 import io.opencode.loopper.domain.InteractionKind;
 import io.opencode.loopper.domain.InteractionState;
+import io.opencode.loopper.domain.LifecycleMachineType;
+import io.opencode.loopper.domain.LifecycleScopeType;
+import io.opencode.loopper.lifecycle.LifecycleTransitionService;
 import io.opencode.loopper.persistence.DesignerSessionRow;
 import io.opencode.loopper.persistence.ExecutionSessionRow;
 import io.opencode.loopper.persistence.InteractionRow;
@@ -29,14 +32,17 @@ import tools.jackson.databind.ObjectMapper;
 @Service
 public class InteractionService {
     private final LoopperMapper mapper;
+    private final LifecycleTransitionService lifecycle;
     private final OpenCodeClient openCode;
     private final ObjectMapper json;
     private final TaskEventService taskEvents;
     private final Object interactionLock = new Object();
 
-    public InteractionService(LoopperMapper mapper, OpenCodeClient openCode, ObjectMapper json,
+    public InteractionService(LoopperMapper mapper, LifecycleTransitionService lifecycle,
+                              OpenCodeClient openCode, ObjectMapper json,
                               TaskEventService taskEvents) {
         this.mapper = mapper;
+        this.lifecycle = lifecycle;
         this.openCode = openCode;
         this.json = json;
         this.taskEvents = taskEvents;
@@ -72,11 +78,15 @@ public class InteractionService {
             throw new ConflictException("PERMISSION_HARD_DENIED",
                     "This permission is denied by the non-overridable local safety policy");
         }
-        String claimedAt = now();
-        if (mapper.claimInteraction(id, request.version(), claimedAt) != 1) {
+        if (!InteractionState.PENDING.name().equals(original.state())) {
             throw new ConflictException("INTERACTION_VERSION_CONFLICT",
                     "Interaction was already resolved or changed; refresh the Inbox");
         }
+        String claimedAt = now();
+        lifecycle.transition(subject(original), original.state(), InteractionState.RESOLVING.name(), null, Map.of(),
+                () -> mapper.claimInteraction(id, request.version(), claimedAt),
+                () -> new ConflictException("INTERACTION_VERSION_CONFLICT",
+                        "Interaction was already resolved or changed; refresh the Inbox"));
         InteractionRow claimed = mapper.findInteraction(id)
                 .orElseThrow(() -> new NotFoundException("Interaction not found after claim: " + id));
         try {
@@ -111,10 +121,10 @@ public class InteractionService {
                     claimed.payloadJson(), request.action().name(), write(Map.of(
                     "answers", request.answers(), "message", request.message() == null ? "" : request.message())),
                     claimed.createdAt(), resolvedAt, resolvedAt, claimed.version());
-            if (mapper.resolveInteraction(resolved) != 1) {
-                throw new ConflictException("INTERACTION_VERSION_CONFLICT",
-                        "Interaction changed while the provider response was being persisted");
-            }
+            lifecycle.transition(subject(claimed), claimed.state(), resolved.state(), null, Map.of(),
+                    () -> mapper.resolveInteraction(resolved),
+                    () -> new ConflictException("INTERACTION_VERSION_CONFLICT",
+                            "Interaction changed while the provider response was being persisted"));
             if (claimed.taskId() != null) {
                 taskEvents.emit(claimed.taskId(), "interaction.resolved", Map.of(
                         "interactionId", claimed.id(), "kind", claimed.kind(), "action", request.action().name()));
@@ -136,7 +146,7 @@ public class InteractionService {
         // A provider request cannot be acted on after its local writer has reached a terminal state.
         // Reconcile these rows before listing the Inbox so a crashed/timed-out task cannot leave
         // an indefinitely actionable-looking permission behind.
-        mapper.markTerminalSessionInteractionsStale(now());
+        markStale(mapper.terminalSessionInteractions());
         for (ExecutionSessionRow session : mapper.activeExecutionSessions()) {
             if (session.externalSessionId() == null) continue;
             TaskRow task = mapper.findTask(session.taskId()).orElse(null);
@@ -180,7 +190,7 @@ public class InteractionService {
                     }
                 }
             }
-            mapper.markMissingInteractionsStale(externalSessionId, write(activeIds), now());
+            markStale(mapper.missingInteractionsForSession(externalSessionId, write(activeIds)));
         } catch (RuntimeException ignored) {
             // Transport failure must not erase the last persisted pending state.
         }
@@ -207,7 +217,9 @@ public class InteractionService {
     private void releaseClaimIfStillResolving(String id, long version) {
         InteractionRow current = mapper.findInteraction(id).orElse(null);
         if (current != null && InteractionState.RESOLVING.name().equals(current.state()) && current.version() == version) {
-            mapper.releaseInteractionClaim(id, version, now());
+            lifecycle.transition(subject(current), current.state(), InteractionState.PENDING.name(), null, Map.of(),
+                    () -> mapper.releaseInteractionClaim(id, version, now()),
+                    () -> new ConflictException("INTERACTION_VERSION_CONFLICT", "Interaction claim changed concurrently"));
         }
     }
 
@@ -226,9 +238,38 @@ public class InteractionService {
                          String localSessionId, String externalSessionId, String requestId,
                          InteractionKind kind, InteractionState state, Object payload) {
         String timestamp = now();
-        mapper.upsertInteraction(new InteractionRow(UUID.randomUUID().toString(), scopeType, scopeId, taskId,
+        InteractionRow observed = new InteractionRow(UUID.randomUUID().toString(), scopeType, scopeId, taskId,
                 designerSessionId, localSessionId, externalSessionId, requestId, kind.name(), state.name(),
-                write(payload), null, null, timestamp, timestamp, null, 0));
+                write(payload), null, null, timestamp, timestamp, null, 0);
+        InteractionRow existing = mapper.findInteractionByExternalRequest(externalSessionId, requestId, kind.name()).orElse(null);
+        if (existing == null) {
+            lifecycle.create(subject(observed), observed.state(), Map.of(), () -> mapper.upsertInteraction(observed),
+                    () -> new ConflictException("INTERACTION_CREATE_CONFLICT", "Interaction could not be persisted"));
+        } else if (state == InteractionState.HARD_DENIED
+                && List.of(InteractionState.PENDING.name(), InteractionState.RESOLVING.name(), InteractionState.STALE.name())
+                .contains(existing.state())) {
+            lifecycle.transition(subject(existing), existing.state(), InteractionState.HARD_DENIED.name(), null, Map.of(),
+                    () -> mapper.upsertInteraction(observed),
+                    () -> new ConflictException("INTERACTION_VERSION_CONFLICT", "Interaction changed concurrently"));
+        } else {
+            lifecycle.transition(subject(existing), existing.state(), existing.state(), null, Map.of(),
+                    () -> mapper.upsertInteraction(observed),
+                    () -> new ConflictException("INTERACTION_VERSION_CONFLICT", "Interaction changed concurrently"));
+        }
+    }
+
+    private void markStale(List<InteractionRow> candidates) {
+        for (InteractionRow row : candidates) {
+            String updatedAt = now();
+            lifecycle.transition(subject(row), row.state(), InteractionState.STALE.name(), null, Map.of(),
+                    () -> mapper.markInteractionStale(row.id(), row.version(), updatedAt),
+                    () -> new ConflictException("INTERACTION_VERSION_CONFLICT", "Interaction changed during reconciliation"));
+        }
+    }
+
+    private LifecycleTransitionService.Subject subject(InteractionRow row) {
+        LifecycleScopeType scope = LifecycleScopeType.valueOf(row.scopeType());
+        return new LifecycleTransitionService.Subject(LifecycleMachineType.INTERACTION, row.id(), scope, row.scopeId());
     }
 
     private String hardDeny(InteractionRow row) {

@@ -1,0 +1,254 @@
+package io.opencode.loopper.lifecycle;
+
+import static io.opencode.loopper.domain.LifecycleEvent.*;
+
+import io.opencode.loopper.domain.*;
+import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.List;
+import java.util.Map;
+import org.springframework.stereotype.Component;
+
+/** Authoritative topology for every persisted business lifecycle. */
+@Component
+public final class LifecycleRegistry {
+    private final Map<LifecycleMachineType, RegisteredMachine<?>> machines = new EnumMap<>(LifecycleMachineType.class);
+
+    public LifecycleRegistry() {
+        register(LifecycleMachineType.TASK, TaskState.class, task());
+        register(LifecycleMachineType.STAGE, StageState.class, stage());
+        register(LifecycleMachineType.ATTEMPT, AttemptState.class, attempt());
+        register(LifecycleMachineType.EXECUTION_SESSION, SessionState.class, session());
+        register(LifecycleMachineType.JUDGE_RUN, JudgeRunState.class, judge());
+        register(LifecycleMachineType.LOOP_DRAFT, LoopDraftStatus.class, draft());
+        register(LifecycleMachineType.DESIGNER_SESSION, DesignerSessionState.class, designer());
+        register(LifecycleMachineType.PROJECT_CONVENTION, ProjectConventionState.class, convention());
+        register(LifecycleMachineType.INTERACTION, InteractionState.class, interaction());
+        register(LifecycleMachineType.WORKSPACE_LEASE, WorkspaceLeaseState.class, lease());
+        register(LifecycleMachineType.TASK_QUEUE, TaskQueueState.class, queue());
+        register(LifecycleMachineType.LOOPSPEC_TEMPLATE, LoopSpecTemplateState.class, template());
+        register(LifecycleMachineType.AUTOMATION_RULE, AutomationRuleState.class, rule());
+        register(LifecycleMachineType.AUTOMATION_RUN, AutomationRunState.class, automationRun());
+        if (machines.size() != LifecycleMachineType.values().length) {
+            throw new IllegalStateException("Every lifecycle machine type must be registered");
+        }
+    }
+
+    public ResolvedTransition resolve(LifecycleMachineType type, String entityId, String from, String to,
+                                      LifecycleEvent explicitEvent) {
+        RegisteredMachine<?> machine = machines.get(type);
+        if (machine == null) throw new IllegalStateException("Lifecycle machine is not registered: " + type);
+        return machine.resolve(entityId, from, to, explicitEvent);
+    }
+
+    public void requireState(LifecycleMachineType type, String entityId, String state) {
+        machines.get(type).requireState(entityId, state);
+    }
+
+    List<DefinedTransition> definitions() {
+        List<DefinedTransition> definitions = new ArrayList<>();
+        machines.forEach((type, machine) -> definitions.addAll(machine.definitions(type)));
+        return List.copyOf(definitions);
+    }
+
+    List<String> states(LifecycleMachineType type) { return machines.get(type).states(); }
+
+    private <S extends Enum<S> & DescribedEnum> void register(LifecycleMachineType type, Class<S> stateType,
+                                                               FiniteStateMachine<S, LifecycleEvent> machine) {
+        if (machines.putIfAbsent(type, new RegisteredMachine<>(stateType, machine)) != null) {
+            throw new IllegalStateException("Duplicate lifecycle machine: " + type);
+        }
+    }
+
+    private static FiniteStateMachine<TaskState, LifecycleEvent> task() {
+        var b = machine(LifecycleMachineType.TASK, TaskState.class);
+        b.transition(TaskState.QUEUED, PREPARE, TaskState.PREPARING)
+                .transition(TaskState.PREPARING, PREPARATION_SUCCEEDED, TaskState.READY)
+                .transition(TaskState.READY, START, TaskState.RUNNING)
+                .transition(TaskState.RUNNING, BEGIN_VERIFICATION, TaskState.VERIFYING)
+                .transition(TaskState.RUNNING, SCHEDULE_RETRY, TaskState.RETRY_WAIT)
+                .transition(TaskState.VERIFYING, SCHEDULE_RETRY, TaskState.RETRY_WAIT)
+                .transition(TaskState.RETRY_WAIT, RETRY, TaskState.RUNNING)
+                .transition(TaskState.VERIFYING, ADVANCE_STAGE, TaskState.RUNNING)
+                .transition(TaskState.VERIFYING, BEGIN_FINAL_REVIEW, TaskState.JUDGING)
+                .transition(TaskState.JUDGING, APPROVE, TaskState.SUCCEEDED)
+                .transition(TaskState.JUDGING, REQUIRE_INPUT, TaskState.WAITING_INPUT)
+                .transition(TaskState.WAITING_INPUT, RETRY_FINAL_REVIEW, TaskState.JUDGING)
+                .transition(TaskState.SUCCEEDED, REOPEN_FINAL_REVIEW, TaskState.JUDGING)
+                .transition(TaskState.RUNNING, PAUSE, TaskState.PAUSED)
+                .transition(TaskState.VERIFYING, PAUSE, TaskState.PAUSED)
+                .transition(TaskState.RETRY_WAIT, PAUSE, TaskState.PAUSED)
+                .transition(TaskState.PAUSED, RESUME, TaskState.RUNNING)
+                .transition(TaskState.RUNNING, REQUIRE_INPUT, TaskState.WAITING_INPUT)
+                .transition(TaskState.VERIFYING, REQUIRE_INPUT, TaskState.WAITING_INPUT)
+                .transition(TaskState.QUEUED, REQUIRE_INPUT, TaskState.WAITING_INPUT)
+                .transition(TaskState.PREPARING, REQUIRE_INPUT, TaskState.WAITING_INPUT)
+                .transition(TaskState.READY, REQUIRE_INPUT, TaskState.WAITING_INPUT)
+                .transition(TaskState.RETRY_WAIT, REQUIRE_INPUT, TaskState.WAITING_INPUT)
+                .transition(TaskState.PAUSED, REQUIRE_INPUT, TaskState.WAITING_INPUT)
+                .transition(TaskState.RUNNING, RECOVER, TaskState.RUNNING)
+                .transition(TaskState.VERIFYING, RECOVER, TaskState.RUNNING)
+                .transition(TaskState.RETRY_WAIT, RECOVER, TaskState.RUNNING);
+        for (TaskState state : TaskState.values()) {
+            if (!state.terminal()) {
+                b.transition(state, CANCEL, TaskState.CANCELLED).transition(state, FAIL, TaskState.FAILED);
+            }
+        }
+        return b.build();
+    }
+
+    private static FiniteStateMachine<StageState, LifecycleEvent> stage() {
+        return machine(LifecycleMachineType.STAGE, StageState.class)
+                .transition(StageState.PENDING, START, StageState.RUNNING)
+                .transition(StageState.PAUSED, RESUME, StageState.RUNNING)
+                .transition(StageState.RUNNING, PAUSE, StageState.PAUSED)
+                .transition(StageState.RUNNING, COMPLETE, StageState.SUCCEEDED).build();
+    }
+
+    private static FiniteStateMachine<AttemptState, LifecycleEvent> attempt() {
+        return machine(LifecycleMachineType.ATTEMPT, AttemptState.class)
+                .transition(AttemptState.RUNNING, COMPLETE, AttemptState.SUCCEEDED)
+                .transition(AttemptState.RUNNING, VERIFICATION_FAIL, AttemptState.VERIFICATION_FAILED)
+                .transition(AttemptState.RUNNING, SESSION_FAIL, AttemptState.SESSION_ERROR)
+                .transition(AttemptState.RUNNING, TASK_FAIL, AttemptState.TASK_ERROR)
+                .transition(AttemptState.RUNNING, CANCEL, AttemptState.CANCELLED).build();
+    }
+
+    private static FiniteStateMachine<SessionState, LifecycleEvent> session() {
+        var b = machine(LifecycleMachineType.EXECUTION_SESSION, SessionState.class)
+                .transition(SessionState.CREATING, START, SessionState.RUNNING)
+                .transition(SessionState.RUNNING, COMPLETE, SessionState.COMPLETED)
+                .transition(SessionState.CREATING, FAIL, SessionState.FAILED)
+                .transition(SessionState.RUNNING, FAIL, SessionState.FAILED)
+                .transition(SessionState.CREATING, DISCONNECT, SessionState.DISCONNECTED)
+                .transition(SessionState.RUNNING, DISCONNECT, SessionState.DISCONNECTED)
+                .transition(SessionState.CREATING, ABORT, SessionState.ABORTED)
+                .transition(SessionState.RUNNING, ABORT, SessionState.ABORTED)
+                .transition(SessionState.DISCONNECTED, ABORT, SessionState.ABORTED);
+        return b.build();
+    }
+
+    private static FiniteStateMachine<JudgeRunState, LifecycleEvent> judge() {
+        return machine(LifecycleMachineType.JUDGE_RUN, JudgeRunState.class)
+                .transition(JudgeRunState.CREATING, START, JudgeRunState.RUNNING)
+                .transition(JudgeRunState.RUNNING, COMPLETE, JudgeRunState.COMPLETED)
+                .transition(JudgeRunState.CREATING, SESSION_FAIL, JudgeRunState.SESSION_ERROR)
+                .transition(JudgeRunState.RUNNING, SESSION_FAIL, JudgeRunState.SESSION_ERROR)
+                .transition(JudgeRunState.CREATING, ABORT, JudgeRunState.ABORTED)
+                .transition(JudgeRunState.RUNNING, ABORT, JudgeRunState.ABORTED).build();
+    }
+
+    private static FiniteStateMachine<LoopDraftStatus, LifecycleEvent> draft() {
+        return machine(LifecycleMachineType.LOOP_DRAFT, LoopDraftStatus.class)
+                .transition(LoopDraftStatus.DRAFTING, UPDATE, LoopDraftStatus.DRAFT_READY)
+                .transition(LoopDraftStatus.HANDOFF_FAILED, UPDATE, LoopDraftStatus.DRAFT_READY)
+                .transition(LoopDraftStatus.DRAFT_READY, CONFIRM, LoopDraftStatus.CONFIRMED).build();
+    }
+
+    private static FiniteStateMachine<DesignerSessionState, LifecycleEvent> designer() {
+        return machine(LifecycleMachineType.DESIGNER_SESSION, DesignerSessionState.class)
+                .transition(DesignerSessionState.PENDING_HANDOFF, DISPATCH, DesignerSessionState.RUNNING)
+                .transition(DesignerSessionState.COMPLETED, DISPATCH, DesignerSessionState.RUNNING)
+                .transition(DesignerSessionState.SESSION_ERROR, DISPATCH, DesignerSessionState.RUNNING)
+                .transition(DesignerSessionState.COMPLETED, DEFER, DesignerSessionState.PENDING_HANDOFF)
+                .transition(DesignerSessionState.SESSION_ERROR, DEFER, DesignerSessionState.PENDING_HANDOFF)
+                .transition(DesignerSessionState.PENDING_HANDOFF, DEFER, DesignerSessionState.PENDING_HANDOFF)
+                .transition(DesignerSessionState.RUNNING, COMPLETE, DesignerSessionState.COMPLETED)
+                .transition(DesignerSessionState.RUNNING, SESSION_FAIL, DesignerSessionState.SESSION_ERROR).build();
+    }
+
+    private static FiniteStateMachine<ProjectConventionState, LifecycleEvent> convention() {
+        return machine(LifecycleMachineType.PROJECT_CONVENTION, ProjectConventionState.class)
+                .transition(ProjectConventionState.RUNNING, COMPLETE, ProjectConventionState.READY)
+                .transition(ProjectConventionState.RUNNING, FAIL, ProjectConventionState.FAILED)
+                .transition(ProjectConventionState.READY, APPLY, ProjectConventionState.APPLIED).build();
+    }
+
+    private static FiniteStateMachine<InteractionState, LifecycleEvent> interaction() {
+        var b = machine(LifecycleMachineType.INTERACTION, InteractionState.class)
+                .transition(InteractionState.PENDING, CLAIM, InteractionState.RESOLVING)
+                .transition(InteractionState.RESOLVING, RELEASE_CLAIM, InteractionState.PENDING)
+                .transition(InteractionState.RESOLVING, RESOLVE, InteractionState.RESOLVED)
+                .transition(InteractionState.RESOLVING, REJECT, InteractionState.REJECTED);
+        for (InteractionState state : new InteractionState[]{InteractionState.PENDING, InteractionState.RESOLVING,
+                InteractionState.HARD_DENIED}) b.transition(state, STALE, InteractionState.STALE);
+        for (InteractionState state : new InteractionState[]{InteractionState.PENDING, InteractionState.RESOLVING,
+                InteractionState.STALE}) b.transition(state, HARD_DENY, InteractionState.HARD_DENIED);
+        return b.build();
+    }
+
+    private static FiniteStateMachine<WorkspaceLeaseState, LifecycleEvent> lease() {
+        return machine(LifecycleMachineType.WORKSPACE_LEASE, WorkspaceLeaseState.class)
+                .transition(WorkspaceLeaseState.RELEASED, ACQUIRE, WorkspaceLeaseState.HELD)
+                .transition(WorkspaceLeaseState.HELD, TRANSFER, WorkspaceLeaseState.HELD)
+                .transition(WorkspaceLeaseState.RELEASE_PENDING, TRANSFER, WorkspaceLeaseState.HELD)
+                .transition(WorkspaceLeaseState.HELD, RELEASE_PENDING, WorkspaceLeaseState.RELEASE_PENDING)
+                .transition(WorkspaceLeaseState.RELEASE_PENDING, ACQUIRE, WorkspaceLeaseState.HELD)
+                .transition(WorkspaceLeaseState.HELD, RELEASE, WorkspaceLeaseState.RELEASED)
+                .transition(WorkspaceLeaseState.RELEASE_PENDING, RELEASE, WorkspaceLeaseState.RELEASED).build();
+    }
+
+    private static FiniteStateMachine<TaskQueueState, LifecycleEvent> queue() {
+        return machine(LifecycleMachineType.TASK_QUEUE, TaskQueueState.class)
+                .transition(TaskQueueState.QUEUED, ADMIT, TaskQueueState.ADMITTED)
+                .transition(TaskQueueState.QUEUED, CANCEL, TaskQueueState.CANCELLED)
+                .transition(TaskQueueState.ADMITTED, FINISH, TaskQueueState.FINISHED).build();
+    }
+
+    private static FiniteStateMachine<LoopSpecTemplateState, LifecycleEvent> template() {
+        return machine(LifecycleMachineType.LOOPSPEC_TEMPLATE, LoopSpecTemplateState.class)
+                .transition(LoopSpecTemplateState.ACTIVE, ARCHIVE, LoopSpecTemplateState.ARCHIVED)
+                .transition(LoopSpecTemplateState.ARCHIVED, RESTORE, LoopSpecTemplateState.ACTIVE).build();
+    }
+
+    private static FiniteStateMachine<AutomationRuleState, LifecycleEvent> rule() {
+        return machine(LifecycleMachineType.AUTOMATION_RULE, AutomationRuleState.class)
+                .transition(AutomationRuleState.DISABLED, ENABLE, AutomationRuleState.ENABLED)
+                .transition(AutomationRuleState.ENABLED, DISABLE, AutomationRuleState.DISABLED).build();
+    }
+
+    private static FiniteStateMachine<AutomationRunState, LifecycleEvent> automationRun() {
+        var b = machine(LifecycleMachineType.AUTOMATION_RUN, AutomationRunState.class)
+                .transition(AutomationRunState.DETECTED, REQUIRE_REVIEW, AutomationRunState.REVIEW_REQUIRED)
+                .transition(AutomationRunState.DETECTED, QUEUE, AutomationRunState.QUEUED)
+                .transition(AutomationRunState.DETECTED, START, AutomationRunState.RUNNING)
+                .transition(AutomationRunState.REVIEW_REQUIRED, QUEUE, AutomationRunState.QUEUED)
+                .transition(AutomationRunState.REVIEW_REQUIRED, START, AutomationRunState.RUNNING)
+                .transition(AutomationRunState.QUEUED, START, AutomationRunState.RUNNING);
+        for (AutomationRunState state : new AutomationRunState[]{AutomationRunState.DETECTED,
+                AutomationRunState.REVIEW_REQUIRED, AutomationRunState.QUEUED, AutomationRunState.RUNNING}) {
+            b.transition(state, SUCCEED, AutomationRunState.SUCCEEDED)
+                    .transition(state, FAIL, AutomationRunState.FAILED);
+        }
+        b.transition(AutomationRunState.DETECTED, SKIP, AutomationRunState.SKIPPED);
+        return b.build();
+    }
+
+    private static <S extends Enum<S> & DescribedEnum> FiniteStateMachine.Builder<S, LifecycleEvent>
+    machine(LifecycleMachineType type, Class<S> stateType) {
+        return FiniteStateMachine.builder(type, stateType, LifecycleEvent.class);
+    }
+
+    private record RegisteredMachine<S extends Enum<S> & DescribedEnum>(
+            Class<S> stateType, FiniteStateMachine<S, LifecycleEvent> machine) {
+        ResolvedTransition resolve(String entityId, String fromValue, String toValue, LifecycleEvent explicitEvent) {
+            S from = machine.parse(fromValue, entityId);
+            S to = machine.parse(toValue, entityId);
+            LifecycleEvent event = explicitEvent == null ? machine.defaultEvent(from, to) : explicitEvent;
+            machine.requireTarget(from, event, to);
+            return new ResolvedTransition(event, from.name(), to.name());
+        }
+        void requireState(String entityId, String value) { machine.parse(value, entityId); }
+        List<String> states() { return java.util.Arrays.stream(stateType.getEnumConstants()).map(Enum::name).toList(); }
+        List<DefinedTransition> definitions(LifecycleMachineType type) {
+            return machine.definitions().entrySet().stream()
+                    .map(entry -> new DefinedTransition(type, entry.getKey().state().name(),
+                            entry.getKey().event(), entry.getValue().name()))
+                    .toList();
+        }
+    }
+
+    public record ResolvedTransition(LifecycleEvent event, String fromState, String toState) { }
+    record DefinedTransition(LifecycleMachineType machineType, String fromState,
+                             LifecycleEvent event, String toState) { }
+}

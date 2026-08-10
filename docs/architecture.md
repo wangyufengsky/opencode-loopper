@@ -25,6 +25,33 @@ Controllers accept validated DTOs and delegate to application services. Only
 repositories/mappers update SQLite. Process and HTTP details remain behind
 adapters so deterministic fakes can exercise the orchestration state machine.
 
+## Authoritative lifecycle state machines
+
+Persisted business lifecycles use the project-local `FiniteStateMachine` rather
+than an external state-machine dependency. Each machine has typed State and
+Event enums with an internal Chinese `description`; the stable English enum
+name remains the only database and API protocol value. Services retain domain
+guards, while the machine is the final topology barrier before a versioned
+mapper mutation.
+
+`LifecycleTransitionService` commits the optimistic state mutation and its
+`state_transition_event` audit row in the same SQLite transaction. Task child
+machines share the Task scope, Designer/Draft/ProjectConvention share the
+Project scope, and workspace/automation records use their stable fingerprints
+or rule ids. Audit metadata is bounded and must not contain prompts, tokens,
+permission payloads, content, or filesystem paths.
+
+The transition history is forward-only from Flyway V15: existing rows are not
+given fabricated creation events. `GET /api/state-transitions` can page either
+one machine/entity or one aggregate scope in ascending sequence order. The
+absence of earlier events for a pre-V15 entity is therefore not evidence that
+the entity had no prior transitions.
+
+OpenCode `external_session_state`, Designer message delivery state, provider
+Todo snapshots, and immutable verifier outcomes are projections or results,
+not Loopper-owned lifecycle state. Refreshing those values never creates a
+business state transition.
+
 ## Error layers
 
 `ErrorLayer` is part of the public persisted contract:

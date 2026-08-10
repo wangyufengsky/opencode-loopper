@@ -3,6 +3,10 @@ package io.opencode.loopper.service;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 import io.opencode.loopper.domain.LoopSpec;
+import io.opencode.loopper.domain.LoopSpecTemplateState;
+import io.opencode.loopper.domain.LifecycleMachineType;
+import io.opencode.loopper.domain.LifecycleScopeType;
+import io.opencode.loopper.lifecycle.LifecycleTransitionService;
 import io.opencode.loopper.persistence.LoopSpecTemplateRow;
 import io.opencode.loopper.persistence.LoopSpecTemplateVersionRow;
 import io.opencode.loopper.persistence.LoopperMapper;
@@ -19,19 +23,23 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class LoopSpecTemplateService {
     private final LoopperMapper mapper;
+    private final LifecycleTransitionService lifecycle;
     private final ObjectMapper json;
     private final LoopDraftService drafts;
 
-    public LoopSpecTemplateService(LoopperMapper mapper, ObjectMapper json, LoopDraftService drafts) {
-        this.mapper = mapper; this.json = json; this.drafts = drafts;
+    public LoopSpecTemplateService(LoopperMapper mapper, LifecycleTransitionService lifecycle,
+                                   ObjectMapper json, LoopDraftService drafts) {
+        this.mapper = mapper; this.lifecycle = lifecycle; this.json = json; this.drafts = drafts;
     }
 
     @Transactional
     public TemplateView create(String name, String description) {
         String now = now();
         LoopSpecTemplateRow template = new LoopSpecTemplateRow(UUID.randomUUID().toString(), required(name, "TEMPLATE_NAME_REQUIRED"),
-                safe(description), "ACTIVE", now, now, 0);
-        mapper.insertLoopSpecTemplate(template);
+                safe(description), LoopSpecTemplateState.ACTIVE.name(), now, now, 0);
+        lifecycle.create(subject(template.id()), template.state(), java.util.Map.of(),
+                () -> mapper.insertLoopSpecTemplate(template),
+                () -> new ConflictException("TEMPLATE_CREATE_CONFLICT", "Template could not be created"));
         return get(template.id());
     }
 
@@ -42,10 +50,14 @@ public class LoopSpecTemplateService {
     @Transactional
     public TemplateView update(String id, String name, String description, String state, long version) {
         LoopSpecTemplateRow old = getTemplate(id);
-        String normalizedState = "ARCHIVED".equals(state) ? "ARCHIVED" : "ACTIVE";
+        String normalizedState = LoopSpecTemplateState.ARCHIVED.name().equals(state)
+                ? LoopSpecTemplateState.ARCHIVED.name() : LoopSpecTemplateState.ACTIVE.name();
         LoopSpecTemplateRow changed = new LoopSpecTemplateRow(old.id(), required(name, "TEMPLATE_NAME_REQUIRED"), safe(description),
                 normalizedState, old.createdAt(), now(), version);
-        if (mapper.updateLoopSpecTemplate(changed) != 1) throw new ConflictException("TEMPLATE_VERSION_CONFLICT", "Template changed concurrently");
+        lifecycle.transition(subject(old.id()), old.state(), changed.state(), null, java.util.Map.of(),
+                () -> old.state().equals(changed.state())
+                        ? mapper.updateLoopSpecTemplateDetails(changed) : mapper.updateLoopSpecTemplate(changed),
+                () -> new ConflictException("TEMPLATE_VERSION_CONFLICT", "Template changed concurrently"));
         return view(getTemplate(id));
     }
 
@@ -102,6 +114,10 @@ public class LoopSpecTemplateService {
     private String required(String value, String code) { if (value == null || value.isBlank()) throw new BadRequestException(code, "Template name is required"); return value.trim(); }
     private String safe(String value) { return value == null ? "" : value.trim(); }
     private String now() { return Instant.now().toString(); }
+    private LifecycleTransitionService.Subject subject(String templateId) {
+        return new LifecycleTransitionService.Subject(LifecycleMachineType.LOOPSPEC_TEMPLATE, templateId,
+                LifecycleScopeType.LOOPSPEC_TEMPLATE, templateId);
+    }
 
     public record TemplateView(String id, String name, String description, String state, String createdAt,
                                String updatedAt, long version, List<VersionView> versions) { }

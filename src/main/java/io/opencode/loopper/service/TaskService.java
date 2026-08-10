@@ -13,6 +13,10 @@ import io.opencode.loopper.domain.StageState;
 import io.opencode.loopper.domain.TaskFailure;
 import io.opencode.loopper.domain.TaskState;
 import io.opencode.loopper.domain.VerificationState;
+import io.opencode.loopper.domain.LifecycleEvent;
+import io.opencode.loopper.domain.LifecycleMachineType;
+import io.opencode.loopper.domain.LifecycleScopeType;
+import io.opencode.loopper.lifecycle.LifecycleTransitionService;
 import io.opencode.loopper.persistence.AttemptRow;
 import io.opencode.loopper.persistence.ErrorEventRow;
 import io.opencode.loopper.persistence.ExecutionSessionRow;
@@ -54,6 +58,7 @@ public class TaskService {
     private static final String DESIGN_CONTEXT_ARTIFACT_KIND = "DESIGN_CONTEXT";
     private static final int MAX_EXECUTION_DESIGN_CONTEXT_CHARS = 12_000;
     private final LoopperMapper mapper;
+    private final LifecycleTransitionService lifecycle;
     private final ObjectMapper json;
     private final ProjectService projects;
     private final GitWorktreeManager worktrees;
@@ -65,12 +70,12 @@ public class TaskService {
     private final TaskEventService events;
     private final LoopperProperties defaults;
 
-    public TaskService(LoopperMapper mapper, ObjectMapper json, ProjectService projects,
+    public TaskService(LoopperMapper mapper, LifecycleTransitionService lifecycle, ObjectMapper json, ProjectService projects,
                        GitWorktreeManager worktrees, DirectWorkspaceLeaseCoordinator directLeases,
                        OpenCodeClient openCode, VerifierEngine verifiers,
                        BinaryArtifactPersistenceService binaryArtifacts, UsageInsightsService usageInsights,
                        TaskEventService events, LoopperProperties defaults) {
-        this.mapper = mapper; this.json = json; this.projects = projects;
+        this.mapper = mapper; this.lifecycle = lifecycle; this.json = json; this.projects = projects;
         this.worktrees = worktrees; this.directLeases = directLeases; this.openCode = openCode;
         this.verifiers = verifiers; this.binaryArtifacts = binaryArtifacts; this.usageInsights = usageInsights; this.events = events; this.defaults = defaults;
     }
@@ -92,13 +97,18 @@ public class TaskService {
         TaskRow task = new TaskRow(taskId, project.id(), draft.id(), normalizedTitle(title, draft.goal()),
                 (direct ? TaskState.QUEUED : TaskState.PREPARING).name(),
                 null, null, null, now, now, 0);
-        mapper.insertTask(task);
+        lifecycle.create(subject(LifecycleMachineType.TASK, task.id(), task.id()), task.state(),
+                Map.of("source", normalizedAdmissionSource(admissionSource)), () -> mapper.insertTask(task),
+                () -> new ConflictException("TASK_CREATE_CONFLICT", "Task could not be created"));
         persistConfirmedDesignContext(task, draft);
         int ordinal = 0;
         for (LoopSpec.StageSpec stage : spec.stages()) {
-            mapper.insertStage(new StageRow(UUID.randomUUID().toString(), taskId, ordinal++, stage.objective(),
+            StageRow stageRow = new StageRow(UUID.randomUUID().toString(), taskId, ordinal++, stage.objective(),
                     write(stage.allowedPaths()), write(stage.forbiddenPaths()), write(stage.deliverables()), write(stage.verifiers()),
-                    StageState.PENDING.name(), now, now, 0));
+                    StageState.PENDING.name(), now, now, 0);
+            lifecycle.create(subject(LifecycleMachineType.STAGE, stageRow.id(), taskId), stageRow.state(), Map.of(),
+                    () -> mapper.insertStage(stageRow),
+                    () -> new ConflictException("STAGE_CREATE_CONFLICT", "Stage could not be created"));
         }
         try {
             if (direct) {
@@ -527,7 +537,7 @@ public class TaskService {
             // transport loss: preserve its evidence, then continue the loop with a
             // fresh Attempt/Session while budgets remain.
             if (!TaskState.RUNNING.name().equals(get(task.id()).state())) {
-                updateTask(state(get(task.id()), TaskState.RUNNING));
+                updateTask(state(get(task.id()), TaskState.RUNNING), LifecycleEvent.RECOVER);
             }
             startNewAttempt(get(task.id()), stage,
                     "Application restart disconnected the previous session. Continue the same stage in a fresh session.");
@@ -553,10 +563,10 @@ public class TaskService {
         if (blockModelCallForBudget(freshTask, stage, null)) return;
         int ordinal = mapper.countAttemptsForStage(stage.id()) + 1;
         AttemptRow attempt = new AttemptRow(UUID.randomUUID().toString(), freshTask.id(), stage.id(), ordinal, AttemptState.RUNNING.name(), null, null, now(), null, 0);
-        mapper.insertAttempt(attempt);
+        createAttempt(attempt);
         ExecutionSessionRow session = new ExecutionSessionRow(UUID.randomUUID().toString(), freshTask.id(), stage.id(), attempt.id(), null,
                 SessionState.CREATING.name(), now(), null, 0);
-        mapper.insertSession(session);
+        createSession(session);
         try {
             Path worktree = Path.of(requireWorktree(freshTask));
             OpenCodeClient.OpenCodeSession remote = openCode.createSession(worktree, freshTask.title(), model(spec));
@@ -593,7 +603,7 @@ public class TaskService {
         AttemptRow attempt = new AttemptRow(UUID.randomUUID().toString(), freshTask.id(), stage.id(),
                 mapper.countAttemptsForStage(stage.id()) + 1, AttemptState.RUNNING.name(), null,
                 "VERIFY_ONLY native verification; no writable OpenCode Session", now(), null, 0);
-        mapper.insertAttempt(attempt);
+        createAttempt(attempt);
         events.emit(freshTask.id(), "recovery.verify_only.started", Map.of("attemptId", attempt.id(),
                 "stageId", stage.id(), "writableSession", false));
     }
@@ -847,7 +857,9 @@ public class TaskService {
         if (!explicitLocalRetry && blockModelCallForBudget(task, null, finalAttempt)) return;
         JudgeRunRow judge = new JudgeRunRow(UUID.randomUUID().toString(), task.id(), finalAttempt.id(), role,
                 mapper.nextJudgeOrdinal(task.id(), role), null, "CREATING", null, null, null, now(), null, 0);
-        mapper.insertJudgeRun(judge);
+        lifecycle.create(subject(LifecycleMachineType.JUDGE_RUN, judge.id(), judge.taskId()), judge.state(),
+                Map.of("role", judge.role()), () -> mapper.insertJudgeRun(judge),
+                () -> new ConflictException("JUDGE_CREATE_CONFLICT", "Judge run could not be created"));
         persistArtifact(task, finalAttempt.id(), judge.id(), "JUDGE_LOG_METADATA", role.toLowerCase() + "-judge-start.json",
                 "application/json", write(Map.of("role", role, "state", "CREATING", "readOnly", true)),
                 Map.of("source", "judge-session", "readOnly", true));
@@ -1112,7 +1124,12 @@ public class TaskService {
         return new JudgeRunRow(row.id(), row.taskId(), row.attemptId(), row.role(), row.ordinal(), externalSessionId, state,
                 verdict, safeNullable(reason), rawOutput, row.createdAt(), endedAt, row.version());
     }
-    private void updateJudge(JudgeRunRow row) { if (mapper.updateJudgeRun(row) != 1) throw new ConflictException("JUDGE_VERSION_CONFLICT", "Judge run was updated concurrently"); }
+    private void updateJudge(JudgeRunRow row) {
+        JudgeRunRow current = mapper.findJudgeRun(row.id()).orElseThrow(() -> new NotFoundException("Judge run not found: " + row.id()));
+        lifecycle.transition(subject(LifecycleMachineType.JUDGE_RUN, row.id(), row.taskId()), current.state(), row.state(),
+                null, Map.of("role", row.role()), () -> mapper.updateJudgeRun(row),
+                () -> new ConflictException("JUDGE_VERSION_CONFLICT", "Judge run was updated concurrently"));
+    }
     private String safeNullable(String value) { return value == null ? null : safeMessage(value); }
     private record JudgeDecision(String verdict, String reason, String parseError) { }
 
@@ -1206,7 +1223,9 @@ public class TaskService {
         TaskRow task = get(taskId);
         TaskRow prepared = new TaskRow(task.id(), task.projectId(), task.loopDraftId(), task.title(), TaskState.READY.name(),
                 worktree.path().toString(), worktree.branch(), worktree.baselineCommit(), task.createdAt(), now(), task.version());
-        if (mapper.prepareTask(prepared) != 1) throw new ConflictException("TASK_VERSION_CONFLICT", "Task was updated concurrently");
+        lifecycle.transition(subject(LifecycleMachineType.TASK, prepared.id(), prepared.id()), task.state(), prepared.state(),
+                null, Map.of("workspaceMode", worktree.branch()), () -> mapper.prepareTask(prepared),
+                () -> new ConflictException("TASK_VERSION_CONFLICT", "Task was updated concurrently"));
         TaskRow ready = get(taskId);
         events.emit(taskId, "task.ready", Map.of("state", ready.state(), "branch", worktree.branch(),
                 "worktreePath", worktree.path().toString()));
@@ -1332,10 +1351,44 @@ public class TaskService {
     private StageRow stageState(StageRow row, StageState state) { return new StageRow(row.id(), row.taskId(), row.ordinal(), row.objective(), row.allowedPathsJson(), row.forbiddenPathsJson(), row.deliverablesJson(), row.verifiersJson(), state.name(), row.createdAt(), now(), row.version()); }
     private AttemptRow finish(AttemptRow row, AttemptState state, String failureKind, String summary) { return new AttemptRow(row.id(), row.taskId(), row.stageId(), row.ordinal(), state.name(), failureKind, safeMessage(summary), row.createdAt(), now(), row.version()); }
     private ExecutionSessionRow sessionState(ExecutionSessionRow row, SessionState state) { return new ExecutionSessionRow(row.id(), row.taskId(), row.stageId(), row.attemptId(), row.externalSessionId(), state.name(), row.createdAt(), now(), row.version()); }
-    private void updateTask(TaskRow row) { if (mapper.updateTaskState(row) != 1) throw new ConflictException("TASK_VERSION_CONFLICT", "Task was updated concurrently"); }
-    private void updateStage(StageRow row) { if (mapper.updateStageState(row) != 1) throw new ConflictException("STAGE_VERSION_CONFLICT", "Stage was updated concurrently"); }
-    private void updateAttempt(AttemptRow row) { if (mapper.finishAttempt(row) != 1) throw new ConflictException("ATTEMPT_VERSION_CONFLICT", "Attempt was updated concurrently"); }
-    private void updateSession(ExecutionSessionRow row) { if (mapper.updateSessionState(row) != 1) throw new ConflictException("SESSION_VERSION_CONFLICT", "Session was updated concurrently"); }
+    private void updateTask(TaskRow row) { updateTask(row, null); }
+    private void updateTask(TaskRow row, LifecycleEvent event) {
+        TaskRow current = mapper.findTask(row.id()).orElseThrow(() -> new NotFoundException("Task not found: " + row.id()));
+        lifecycle.transition(subject(LifecycleMachineType.TASK, row.id(), row.id()), current.state(), row.state(), event,
+                null, Map.of(), () -> mapper.updateTaskState(row),
+                () -> new ConflictException("TASK_VERSION_CONFLICT", "Task was updated concurrently"));
+    }
+    private void updateStage(StageRow row) {
+        StageRow current = mapper.findStage(row.id()).orElseThrow(() -> new NotFoundException("Stage not found: " + row.id()));
+        lifecycle.transition(subject(LifecycleMachineType.STAGE, row.id(), row.taskId()), current.state(), row.state(),
+                null, Map.of(), () -> mapper.updateStageState(row),
+                () -> new ConflictException("STAGE_VERSION_CONFLICT", "Stage was updated concurrently"));
+    }
+    private void updateAttempt(AttemptRow row) {
+        AttemptRow current = mapper.findAttempt(row.id()).orElseThrow(() -> new NotFoundException("Attempt not found: " + row.id()));
+        lifecycle.transition(subject(LifecycleMachineType.ATTEMPT, row.id(), row.taskId()), current.state(), row.state(),
+                row.failureKind(), Map.of(), () -> mapper.finishAttempt(row),
+                () -> new ConflictException("ATTEMPT_VERSION_CONFLICT", "Attempt was updated concurrently"));
+    }
+    private void updateSession(ExecutionSessionRow row) {
+        ExecutionSessionRow current = mapper.findSession(row.id()).orElseThrow(() -> new NotFoundException("Session not found: " + row.id()));
+        lifecycle.transition(subject(LifecycleMachineType.EXECUTION_SESSION, row.id(), row.taskId()), current.state(), row.state(),
+                null, Map.of(), () -> mapper.updateSessionState(row),
+                () -> new ConflictException("SESSION_VERSION_CONFLICT", "Session was updated concurrently"));
+    }
+    private void createAttempt(AttemptRow row) {
+        lifecycle.create(subject(LifecycleMachineType.ATTEMPT, row.id(), row.taskId()), row.state(), Map.of(),
+                () -> mapper.insertAttempt(row),
+                () -> new ConflictException("ATTEMPT_CREATE_CONFLICT", "Attempt could not be created"));
+    }
+    private void createSession(ExecutionSessionRow row) {
+        lifecycle.create(subject(LifecycleMachineType.EXECUTION_SESSION, row.id(), row.taskId()), row.state(), Map.of(),
+                () -> mapper.insertSession(row),
+                () -> new ConflictException("SESSION_CREATE_CONFLICT", "Session could not be created"));
+    }
+    private LifecycleTransitionService.Subject subject(LifecycleMachineType machine, String entityId, String taskId) {
+        return new LifecycleTransitionService.Subject(machine, entityId, LifecycleScopeType.TASK, taskId);
+    }
     private String requireWorktree(TaskRow task) { if (task.worktreePath() == null || task.worktreePath().isBlank()) throw new TaskFailure("WORKTREE_MISSING", "Task has no prepared execution workspace"); return task.worktreePath(); }
     private String normalizedTitle(String title, String goal) { return title == null || title.isBlank() ? goal.substring(0, Math.min(goal.length(), 120)) : title.trim(); }
     private String promptWithBoundaries(TaskRow task, LoopSpec spec, StageRow stage, String recovery) {
