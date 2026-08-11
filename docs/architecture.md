@@ -173,7 +173,16 @@ corresponding local or remote-tracking branch already exists. Characters
 that Git forbids in branch names are deterministically replaced with `-`, and
 the readable leaf is UTF-8 byte-bounded before the occurrence suffix is added.
 Git ending rules are applied again after truncation so an exposed `.lock`, dot,
-or other invalid tail cannot make worktree creation fail.
+or other invalid tail cannot make worktree creation fail. Before selecting the
+baseline, Loopper performs a bounded non-interactive fetch of the current
+branch's upstream (or the matching branch on the unambiguous preferred remote).
+A linear remote advance becomes the Task baseline without moving the registered
+source branch; local commits ahead of the remote remain included. Fetch/auth
+failure or diverged histories fail closed. This Git process and worktree I/O run
+with the caller's SQLite transaction suspended. The canonical managed worktree
+must be disjoint from the registered project root, preventing Loopper data from
+appearing as source-branch files. The local Task branch is not pushed until the
+post-success human publication action.
 Otherwise OpenCode edits the canonical
 registered root directly and Loopper stores a private Git-compatible baseline
 under `$LOOPPER_DATA_DIR/direct-baselines/<taskId>` for deterministic path and
@@ -186,3 +195,9 @@ confirms the AI-suggested `#dddd_subject`, then Loopper commits and performs a
 normal (non-force) push. Direct-execution Tasks remain excluded. A subsequent
 “创建合并请求” action opens a prefilled GitLab/GitHub creation page; the hosting
 service still owns the final merge-request confirmation and merge.
+
+Every OpenCode Session creation response must confirm the same canonical
+directory requested by Loopper. A missing or mismatched directory fails before
+the implementation prompt is sent. Runtime permissions hard-deny commit and
+Git ref/history/remote mutations in addition to push and destructive commands;
+the Spring publication service remains the only supported commit/push path.

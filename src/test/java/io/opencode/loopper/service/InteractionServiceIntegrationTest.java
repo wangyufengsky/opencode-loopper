@@ -104,6 +104,9 @@ class InteractionServiceIntegrationTest {
         List<String> dangerous = List.of(
                 "git -C /repo push origin main",
                 "git --git-dir=/repo/.git push origin main",
+                "git -C /repo commit --no-verify -m bypass",
+                "/usr/bin/git --git-dir=/repo/.git update-ref refs/heads/main HEAD",
+                "env git fetch origin main",
                 "/usr/bin/git reset --hard HEAD~1",
                 "rm --recursive --force ./output",
                 "rm -r ./output",

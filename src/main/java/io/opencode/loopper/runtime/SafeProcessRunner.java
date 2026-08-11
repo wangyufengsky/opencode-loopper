@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.springframework.stereotype.Component;
 
@@ -16,14 +17,24 @@ import org.springframework.stereotype.Component;
 @Component
 public class SafeProcessRunner {
     public ProcessResult run(Path directory, List<String> argv, Duration timeout) {
+        return run(directory, argv, timeout, Map.of());
+    }
+
+    /** Runs with a narrowly supplied environment overlay, for example non-interactive Git network access. */
+    public ProcessResult run(Path directory, List<String> argv, Duration timeout, Map<String, String> environment) {
         if (argv == null || argv.isEmpty() || argv.stream().anyMatch(s -> s == null || s.isBlank())) {
             throw new TaskFailure("PROCESS_ARGUMENT_INVALID", "Process verifier requires a non-empty argv vector");
         }
+        if (environment == null || environment.entrySet().stream().anyMatch(entry -> entry.getKey() == null
+                || entry.getKey().isBlank() || entry.getValue() == null)) {
+            throw new TaskFailure("PROCESS_ENVIRONMENT_INVALID", "Process environment entries must have non-empty names and values");
+        }
         try {
-            Process process = new ProcessBuilder(new ArrayList<>(argv))
+            ProcessBuilder builder = new ProcessBuilder(new ArrayList<>(argv))
                     .directory(directory.toFile())
-                    .redirectErrorStream(true)
-                    .start();
+                    .redirectErrorStream(true);
+            builder.environment().putAll(environment);
+            Process process = builder.start();
             ByteArrayOutputStream captured = new ByteArrayOutputStream();
             CappedOutputStream capped = new CappedOutputStream(captured, 1_000_000, () -> {
                 terminateTree(process);

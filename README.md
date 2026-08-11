@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.1.9`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.1.10`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -34,7 +34,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 - **项目公约**：只读分析项目并生成或更新根目录 `AGENTS.md`，展示完整预览后才写入；Loopper 管理区块以外的人工内容会被保留。
 - **分阶段执行循环**：按依赖顺序执行 Stage，每个阶段都携带目标、交付物、路径约束和可立即运行的验收规则。
 - **循环降噪**：验证失败后固化 Attempt 交接包，并用失败签名和可靠工作区指纹识别无进展重试；连续停滞时转入人工确认，不继续烧预算。
-- **隔离执行**：有 Git HEAD 的项目使用 `loopper/<任务名>` 分支和专用 worktree；本地或远端跟踪分支已有同名时依次追加 `(第2次)`、`(第3次)`，Git 禁止字符会替换为 `-`，UTF-8 截断后会再次修正 `.lock` 等非法结尾。其他项目在登记目录中直接执行，并保留私有基线用于差异检查。
+- **隔离执行**：有 Git HEAD 的项目先非交互 fetch 当前分支远端，再使用 `loopper/<任务名>` 分支和专用 worktree；远端线性领先时以最新远端提交为基线，但不移动原工作目录的分支。任务 worktree 必须位于原项目之外；OpenCode 必须回报相同规范目录，否则不会收到实施提示。其他项目在登记目录中直接执行，并保留私有基线用于差异检查。
 - **确定性验收**：支持进程、文件、Git 差异、HTTP、JSON、JUnit、浏览器和 SQLite 查询等验证器。
 - **独立双评审**：确定性验证通过后，由只读 Requirement Judge 和 Risk Judge 独立评审；两者都明确 `PASS` 才能成功。
 - **人工待办**：集中处理 Designer 或任务 Session 提出的 Question、Permission 和安全阻断，不把人工输入伪装成普通任务状态。
@@ -111,7 +111,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.1.9.jar
+java -jar target/opencode-loopper-0.1.10.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -213,10 +213,10 @@ LoopSpec 是执行前必须人工确认的结构化合同。核心字段包括�
 
 | 模式 | 触发条件 | 执行位置 | 发布方式 |
 | --- | --- | --- | --- |
-| Git worktree | 项目有可用 Git HEAD | `$LOOPPER_DATA_DIR/worktrees/<taskId>`，分支为 `loopper/<任务名>`；同名时追加 `(第N次)` | 成功后人工提交；有远端则正常推送，无远端则受控同步回源项目 |
+| Git worktree | 项目有可用 Git HEAD | 原项目之外的 `$LOOPPER_DATA_DIR/worktrees/<taskId>`，分支为 `loopper/<任务名>`；创建前非交互 fetch 当前远端分支，同名时追加 `(第N次)` | 成功后人工提交；有远端则正常推送，无远端则受控同步回源项目 |
 | Direct | 没有可用 Git HEAD | 已登记的原项目目录 | 不提供自动发布或原地回滚；使用私有基线做差异和删除检查 |
 
-Loopper 不会因为任务成功就自动提交、推送、合并或删除 worktree。
+Loopper 不会因为任务成功就自动提交、推送、合并或删除 worktree。任务创建时的 fetch 只更新 remote-tracking refs；任务分支在人工发布前仍是本地分支，不会提前出现在 GitLab/GitHub。远端认证失败或本地/远端历史分叉时，任务会失败关闭并要求先处理 Git 状态，不会退回过期基线继续实施。
 
 ### 错误层级
 
@@ -294,7 +294,7 @@ Git 隔离任务达到 `SUCCEEDED` 后：
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.1.9.jar`
+- `target/opencode-loopper-0.1.10.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -326,7 +326,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:4096
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.1.9.jar \
+jar tf target/opencode-loopper-0.1.10.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -348,7 +348,7 @@ jar tf target/opencode-loopper-0.1.9.jar \
 
 - Loopper HTTP、受管 OpenCode 与验证器网络访问都限制在 loopback。
 - 项目根和执行路径会 canonicalize，并进行目录 containment 与符号链接检查。
-- OpenCode 执行策略不自动批准外部路径、`git push`、危险删除或 hard reset；发布是成功后单独的人机确认流程。
+- OpenCode 创建 Session 后必须返回与请求一致的规范执行目录；缺失或不一致时在提示模型前停止。执行策略不可批准 `git commit`、引用/分支变更、fetch/pull/push、外部路径、危险删除或 hard reset；发布是成功后单独的人机确认流程。
 - 进程验证器使用参数数组启动，不进行 shell 插值；它不是操作系统沙箱，不应运行不可信的恶意二进制。
 - 密码和 MCP Token 不写入 SQLite、日志或证据。
 - 任务取消会停止执行并保留目录与证据；Loopper 不自动删除已完成 worktree。
@@ -404,7 +404,7 @@ Windows PowerShell：
 例如发布下一版本：
 
 ```bash
-VERSION=0.1.9
+VERSION=0.1.10
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -444,7 +444,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.1.9.jar
+java -jar target/opencode-loopper-0.1.10.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。

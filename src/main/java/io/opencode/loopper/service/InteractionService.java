@@ -305,6 +305,9 @@ public class InteractionService {
         if (tokens.contains("external_directory") || adjacent(tokens, "external", "directory")) return "外部目录访问不可授权";
         int git = commandIndex(tokens, "git");
         if (git >= 0 && containsAfter(tokens, git, "push")) return "git push 不可由运行 Session 授权";
+        if (git >= 0 && tokens.subList(git + 1, tokens.size()).stream().anyMatch(this::mutatesGitHistoryOrRefs)) {
+            return "运行 Session 不可修改 Git 提交、引用、分支或远端基线";
+        }
         if (git >= 0 && containsAfter(tokens, git, "reset") && containsAfter(tokens, git, "--hard")) return "hard reset 不可授权";
         int rm = commandIndex(tokens, "rm");
         boolean recursiveRm = rm >= 0 && tokens.subList(rm + 1, tokens.size()).stream().anyMatch(token ->
@@ -318,6 +321,14 @@ public class InteractionService {
             return "危险删除不可授权";
         }
         return null;
+    }
+
+    private boolean mutatesGitHistoryOrRefs(String token) {
+        return switch (token) {
+            case "commit", "commit-tree", "update-ref", "symbolic-ref", "branch", "checkout", "switch",
+                    "merge", "rebase", "cherry-pick", "tag", "stash", "worktree", "fetch", "pull" -> true;
+            default -> false;
+        };
     }
 
     /**

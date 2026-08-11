@@ -16,8 +16,10 @@ Verified locally on 2026-08-04 with `opencode serve --hostname 127.0.0.1
 | events | `GET /event` | SSE stream per published API |
 
 The adapter must always supply an explicit canonical `directory` query
-parameter. A managed server must bind loopback and use Basic Auth. Passwords
-remain in process memory/environment and are never logged or persisted.
+parameter and require the create response to confirm that exact canonical
+directory. A missing or mismatched response is a Session failure before any
+prompt is sent. A managed server must bind loopback and use Basic Auth.
+Passwords remain in process memory/environment and are never logged or persisted.
 
 ## Completion fallback observed with a real provider
 
@@ -105,8 +107,10 @@ whose token boundary cannot be parsed safely is rejected for Designer repair.
 
 `auto` mode first reuses a healthy loopback endpoint. Otherwise Loopper starts
 `opencode serve` on a random loopback port with random Basic credentials kept
-in memory and denies external directories, `git commit`, `git push`,
-`git reset --hard`, and `rm -rf` in its managed permission policy. Restart and shutdown may terminate
+in memory and denies external directories, all commit/ref/branch and remote
+baseline mutations (`commit`, `update-ref`, `branch`, `fetch`, `pull`, `push`,
+and related Git operations), `git reset --hard`, and `rm -rf` in its managed
+permission policy. Restart and shutdown may terminate
 only that owned process; an operator-owned endpoint is never killed. `http`
 mode is connect-only and rejects non-loopback endpoints.
 

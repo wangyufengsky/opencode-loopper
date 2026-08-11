@@ -8,7 +8,10 @@ import java.nio.file.Path;
 import java.text.Normalizer;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 @Component
 public class GitWorktreeManager {
@@ -28,10 +31,12 @@ public class GitWorktreeManager {
         this.directBaselines = directBaselines;
     }
 
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public Worktree create(Path projectRoot, String taskId) {
         return create(projectRoot, taskId, taskId, null);
     }
 
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public Worktree create(Path projectRoot, String taskId, String taskName, String requestedBaseline) {
         try {
             Path root = projectRoot.toRealPath();
@@ -69,11 +74,18 @@ public class GitWorktreeManager {
                     throw new TaskFailure("REWORK_BASELINE_UNAVAILABLE", "The parent task baseline is no longer available in Git");
                 }
                 baseline = verified.output().trim();
+            } else {
+                baseline = refreshRemoteBaseline(root, baseline);
             }
             Path base = properties.getDataDir().toAbsolutePath().normalize().resolve("worktrees");
             Files.createDirectories(base);
+            base = base.toRealPath();
             Path worktree = base.resolve(taskId).normalize();
             if (!worktree.getParent().equals(base)) throw new TaskFailure("WORKTREE_PATH_INVALID", "Task worktree escaped its managed directory");
+            if (worktree.startsWith(root) || root.startsWith(worktree)) {
+                throw new TaskFailure("WORKTREE_DATA_DIR_OVERLAP",
+                        "Loopper data worktrees must be outside the registered project root");
+            }
             if (Files.exists(worktree)) throw new TaskFailure("WORKTREE_ALREADY_EXISTS", "A managed worktree already exists for task " + taskId);
             for (int occurrence = 1; occurrence <= MAX_BRANCH_OCCURRENCES; occurrence++) {
                 String branch = branchNameForTask(taskName, taskId, occurrence);
@@ -100,6 +112,7 @@ public class GitWorktreeManager {
         }
     }
 
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public RepositoryInspection inspect(Path projectRoot) {
         try {
             Path root = projectRoot.toRealPath();
@@ -157,6 +170,71 @@ public class GitWorktreeManager {
 
     private Worktree direct(Path root, String taskId) {
         return new Worktree(root, DIRECT_BRANCH, directBaselines.capture(root, taskId));
+    }
+
+    /**
+     * Refreshes the current branch's remote baseline without moving or rewriting the registered source branch.
+     * A linear remote advance becomes the Task baseline; local unpublished commits remain included. Divergence is
+     * fail-closed because silently choosing either history would make later publication ambiguous.
+     */
+    private String refreshRemoteBaseline(Path root, String localHead) {
+        String branch = optionalOutput(root, List.of("git", "symbolic-ref", "--quiet", "--short", "HEAD"));
+        if (branch == null) return localHead;
+        List<String> remotes = remotes(root);
+        if (remotes.isEmpty()) return localHead;
+        String upstream = optionalOutput(root,
+                List.of("git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"));
+        String remote = remoteForUpstream(upstream, remotes);
+        if (remote == null) {
+            remote = remotes.contains("origin") ? "origin" : remotes.size() == 1 ? remotes.getFirst() : null;
+            if (remote == null) {
+                throw new TaskFailure("WORKTREE_REMOTE_AMBIGUOUS",
+                        "Multiple Git remotes exist without an upstream or origin; cannot refresh the Task baseline");
+            }
+            upstream = remote + "/" + branch;
+        }
+        ProcessResult fetched = runner.run(root, List.of("git", "fetch", "--prune", "--no-tags", remote),
+                GIT_TIMEOUT, Map.of("GIT_TERMINAL_PROMPT", "0"));
+        if (fetched.timedOut() || fetched.outputTruncated() || fetched.exitCode() != 0) {
+            throw new TaskFailure("WORKTREE_REMOTE_FETCH_FAILED",
+                    "Unable to refresh remote " + remote + " before Task isolation: " + trim(fetched.output()));
+        }
+        String remoteHead = optionalOutput(root, List.of("git", "rev-parse", "--verify", upstream + "^{commit}"));
+        if (remoteHead == null) return localHead;
+        if (ancestor(root, localHead, remoteHead)) return remoteHead;
+        if (ancestor(root, remoteHead, localHead)) return localHead;
+        throw new TaskFailure("WORKTREE_BASELINE_DIVERGED",
+                "The current source branch and " + upstream + " have diverged; reconcile them before creating a Task");
+    }
+
+    private List<String> remotes(Path root) {
+        String output = optionalOutput(root, List.of("git", "remote"));
+        if (output == null) return List.of();
+        return output.lines().map(String::strip).filter(value -> !value.isBlank()).toList();
+    }
+
+    private String remoteForUpstream(String upstream, List<String> remotes) {
+        if (upstream == null) return null;
+        return remotes.stream().filter(remote -> upstream.startsWith(remote + "/"))
+                .max(java.util.Comparator.comparingInt(String::length)).orElse(null);
+    }
+
+    private boolean ancestor(Path root, String older, String newer) {
+        ProcessResult result = runner.run(root, List.of("git", "merge-base", "--is-ancestor", older, newer), GIT_TIMEOUT);
+        if (result.timedOut() || result.outputTruncated() || (result.exitCode() != 0 && result.exitCode() != 1)) {
+            throw new TaskFailure("WORKTREE_BASELINE_COMPARE_FAILED", "Unable to compare local and remote Git baselines");
+        }
+        return result.exitCode() == 0;
+    }
+
+    private String optionalOutput(Path root, List<String> command) {
+        ProcessResult result = runner.run(root, command, GIT_TIMEOUT);
+        if (result.timedOut() || result.outputTruncated()) {
+            throw new TaskFailure("WORKTREE_GIT_INSPECTION_FAILED", "Git inspection timed out or exceeded its output limit");
+        }
+        if (result.exitCode() != 0) return null;
+        String output = result.output().strip();
+        return output.isBlank() ? null : output;
     }
 
     private boolean branchExists(Path root, String branch) {

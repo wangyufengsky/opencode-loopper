@@ -32,6 +32,7 @@ class HttpOpenCodeClientTest {
     private final AtomicReference<String> permissionActionBody = new AtomicReference<>();
     private final AtomicReference<String> todoBody = new AtomicReference<>("[]");
     private final AtomicReference<String> sessionActionBody = new AtomicReference<>();
+    private final AtomicReference<String> createResponseDirectory = new AtomicReference<>();
     private final AtomicLong responseDelayMillis = new AtomicLong();
     @TempDir Path worktree;
 
@@ -54,7 +55,8 @@ class HttpOpenCodeClientTest {
         OpenCodeClient.OpenCodeSession session = client.createSession(worktree, "fixture", new OpenCodeClient.OpenCodeModel("opencode", "deepseek-v4-flash-free", false));
         assertThat(lastPathAndQuery.get()).contains("/session").contains("directory=");
         assertThat(createBody.get()).contains("providerID").contains("opencode").contains("deepseek-v4-flash-free");
-        assertThat(createBody.get()).contains("\"permission\"").contains("external_directory").contains("git commit *").contains("git push *")
+        assertThat(createBody.get()).contains("\"permission\"").contains("external_directory").contains("*git*commit*")
+                .contains("*git*update-ref*").contains("*git*push*")
                 .contains("git reset --hard*").contains("rm -rf*").contains("\"action\":\"deny\"");
         OpenCodeClient.OpenCodeSession judge = client.createReadOnlySession(worktree, "Requirement Judge", new OpenCodeClient.OpenCodeModel("opencode", "deepseek-v4-flash-free", false));
         assertThat(createBody.get()).contains("\"permission\":\"read\"")
@@ -111,6 +113,24 @@ class HttpOpenCodeClientTest {
                 + "{\"info\":{\"role\":\"user\"}},"
                 + "{\"info\":{\"role\":\"assistant\",\"time\":{\"completed\":456}}}]");
         assertThat(client.sessionStatus(session).completed()).isTrue();
+    }
+
+    @Test
+    void rejectsMissingOrMismatchedSessionDirectoryBeforePrompting() throws Exception {
+        LoopperProperties properties = new LoopperProperties();
+        properties.getOpenCode().setBaseUrl(new java.net.URI("http://127.0.0.1:" + server.getAddress().getPort()));
+        HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(), properties);
+        Path outside = Files.createDirectory(worktree.resolve("outside"));
+
+        createResponseDirectory.set(outside.toString());
+        assertThatThrownBy(() -> client.createSession(worktree, "wrong directory", null))
+                .isInstanceOf(SessionFailure.class)
+                .hasMessageContaining("outside the requested execution workspace");
+
+        createResponseDirectory.set("");
+        assertThatThrownBy(() -> client.createSession(worktree, "missing directory", null))
+                .isInstanceOf(SessionFailure.class)
+                .hasMessageContaining("did not confirm the execution directory");
     }
 
     @Test
@@ -251,7 +271,13 @@ class HttpOpenCodeClientTest {
         lastPathAndQuery.set(exchange.getRequestURI().getPath() + "?" + exchange.getRequestURI().getQuery());
         sleep(responseDelayMillis.get());
         String path = exchange.getRequestURI().getPath();
-        if (path.equals("/session")) { createBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)); reply(exchange, "{\"id\":\"s1\"}"); }
+        if (path.equals("/session")) {
+            createBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            String directory = createResponseDirectory.get();
+            if (directory == null) directory = worktree.toRealPath().toString();
+            if (directory.isEmpty()) reply(exchange, "{\"id\":\"s1\"}");
+            else reply(exchange, "{\"id\":\"s1\",\"directory\":\"" + json(directory) + "\"}");
+        }
         else if (path.endsWith("/message")) reply(exchange, messageBody.get());
         else if (path.endsWith("/todo")) reply(exchange, todoBody.get());
         else if (path.endsWith("/fork")) { sessionActionBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)); reply(exchange, "{\"id\":\"fork-1\"}"); }
@@ -281,6 +307,9 @@ class HttpOpenCodeClientTest {
         exchange.getResponseHeaders().add("Content-Type", "application/json");
         exchange.sendResponseHeaders(200, bytes.length);
         exchange.getResponseBody().write(bytes); exchange.close();
+    }
+    private String json(String value) {
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     private static void sleep(long delayMillis) throws IOException {

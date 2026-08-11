@@ -75,10 +75,22 @@ public class HttpOpenCodeClient implements OpenCodeClient {
             // is a narrow deny-list, not an implicit blanket permission grant.
             List<Map<String, String>> permissions = new java.util.ArrayList<>(List.of(
                     permissionRule("external_directory", "*", "deny"),
-                    permissionRule("bash", "git commit", "deny"),
-                    permissionRule("bash", "git commit *", "deny"),
-                    permissionRule("bash", "git push", "deny"),
-                    permissionRule("bash", "git push *", "deny"),
+                    permissionRule("bash", "*git*commit*", "deny"),
+                    permissionRule("bash", "*git*commit-tree*", "deny"),
+                    permissionRule("bash", "*git*update-ref*", "deny"),
+                    permissionRule("bash", "*git*symbolic-ref*", "deny"),
+                    permissionRule("bash", "*git*push*", "deny"),
+                    permissionRule("bash", "*git*branch*", "deny"),
+                    permissionRule("bash", "*git*checkout*", "deny"),
+                    permissionRule("bash", "*git*switch*", "deny"),
+                    permissionRule("bash", "*git*merge*", "deny"),
+                    permissionRule("bash", "*git*rebase*", "deny"),
+                    permissionRule("bash", "*git*cherry-pick*", "deny"),
+                    permissionRule("bash", "*git*tag*", "deny"),
+                    permissionRule("bash", "*git*stash*", "deny"),
+                    permissionRule("bash", "*git*worktree*", "deny"),
+                    permissionRule("bash", "*git*fetch*", "deny"),
+                    permissionRule("bash", "*git*pull*", "deny"),
                     permissionRule("bash", "git reset --hard*", "deny"),
                     permissionRule("bash", "rm -rf*", "deny")
             ));
@@ -103,6 +115,19 @@ public class HttpOpenCodeClient implements OpenCodeClient {
             String id = body == null ? null : body.path("id").asText(null);
             if (id == null && body != null) id = body.path("session").path("id").asText(null);
             if (id == null || id.isBlank()) throw new SessionFailure("OPENCODE_INVALID_RESPONSE", "OpenCode did not return a session id");
+            String reportedDirectory = body.path("directory").asText(null);
+            if ((reportedDirectory == null || reportedDirectory.isBlank()) && body.has("session")) {
+                reportedDirectory = body.path("session").path("directory").asText(null);
+            }
+            if (reportedDirectory == null || reportedDirectory.isBlank()) {
+                throw new SessionFailure("OPENCODE_DIRECTORY_MISSING",
+                        "OpenCode did not confirm the execution directory for the new session");
+            }
+            Path reported = Path.of(reportedDirectory).toRealPath();
+            if (!reported.equals(canonical)) {
+                throw new SessionFailure("OPENCODE_DIRECTORY_MISMATCH",
+                        "OpenCode created the session outside the requested execution workspace");
+            }
             return new OpenCodeSession(id, canonical);
         } catch (SessionFailure e) { throw e; }
         catch (Exception e) { throw new SessionFailure("OPENCODE_SESSION_CREATE_FAILED", e.getMessage()); }
