@@ -9,7 +9,16 @@ permissions:
   contents: write
 
 jobs:
+  validate-windows-script:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate Windows startup script
+        shell: cmd
+        run: scripts\start-windows.bat --validate
+
   release:
+    needs: validate-windows-script
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -48,9 +57,10 @@ jobs:
           mkdir -p target/release
           cp "$JAR" target/release/
           cp scripts/start-linux.sh target/release/
+          cp scripts/start-windows.bat target/release/
           (
             cd target/release
-            sha256sum "${{ steps.version.outputs.jar_name }}" start-linux.sh > SHA256SUMS
+            sha256sum "${{ steps.version.outputs.jar_name }}" start-linux.sh start-windows.bat > SHA256SUMS
           )
 
       - name: Publish GitHub Release
@@ -60,6 +70,7 @@ jobs:
           gh release create "$GITHUB_REF_NAME" \
             "target/release/${{ steps.version.outputs.jar_name }}#OpenCode Loopper ${{ steps.version.outputs.version }} executable JAR" \
             "target/release/start-linux.sh#Linux intranet startup script" \
+            "target/release/start-windows.bat#Windows startup script" \
             "target/release/SHA256SUMS#SHA-256 checksums" \
             --verify-tag \
             --title "OpenCode Loopper ${{ steps.version.outputs.version }}" \

@@ -50,7 +50,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(classes = LoopperApplication.class, properties = {
         "loopper.opencode.mode=fake", "loopper.opencode.model=opencode/deepseek-v4-flash-free", "loopper.monitor-delay=1h",
         "loopper.designer-monitor-delay=1h", "loopper.mcp.bearer-token=designer-mcp-test-token",
-        "spring.ai.mcp.server.protocol=STREAMABLE", "spring.ai.mcp.server.name=opencode-loopper", "spring.ai.mcp.server.version=0.1.11",
+        "spring.ai.mcp.server.protocol=STREAMABLE", "spring.ai.mcp.server.name=opencode-loopper", "spring.ai.mcp.server.version=0.1.12",
         "spring.ai.mcp.server.annotation-scanner.enabled=false",
         "spring.ai.mcp.server.capabilities.resource=false", "spring.ai.mcp.server.capabilities.prompt=false", "spring.ai.mcp.server.capabilities.completion=false",
         "spring.ai.mcp.server.streamable-http.mcp-endpoint=/api/mcp-streamable", "spring.ai.mcp.server.streamable-http.disallow-delete=true"})
@@ -576,7 +576,7 @@ class DesignerSessionMcpIntegrationTest {
         mvc.perform(mcp(rpc(1, "initialize", "{\"protocolVersion\":\"2025-03-26\"}")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.protocolVersion").value("2025-03-26"))
-                .andExpect(jsonPath("$.result.serverInfo.version").value("0.1.11"));
+                .andExpect(jsonPath("$.result.serverInfo.version").value("0.1.12"));
         MvcResult list = mvc.perform(mcp(rpc(2, "tools/list", "{}"))).andExpect(status().isOk()).andReturn();
         assertThat(list.getResponse().getContentAsString())
                 .contains("get_project_context", "propose_loop_spec", "validate_loop_spec", "create_task", "start_task", "get_task_status")
@@ -649,7 +649,7 @@ class DesignerSessionMcpIntegrationTest {
         MvcResult initialized = mvc.perform(streamable(initialize, null))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.serverInfo.name").value("opencode-loopper"))
-                .andExpect(jsonPath("$.result.serverInfo.version").value("0.1.11"))
+                .andExpect(jsonPath("$.result.serverInfo.version").value("0.1.12"))
                 .andExpect(jsonPath("$.result.protocolVersion").value("2025-03-26"))
                 .andReturn();
         String sessionId = initialized.getResponse().getHeader("Mcp-Session-Id");

@@ -29,7 +29,7 @@
 4. **每次形成新的可交付 JAR 前必须先更新版本号**：
    - 任何开发、修改或优化后的重新打包都视为一次新交付，必须先递增版本号；
    - 版本采用递增且从未发布过的 SemVer，禁止复用 Maven 版本、Git 标签或 GitHub Release；
-   - 同步更新 `pom.xml`、`frontend/package.json`、`frontend/package-lock.json`、`application.yml`、Java MCP server info、README、本文件和 `scripts/start-linux.sh`；
+   - 同步更新 `pom.xml`、`frontend/package.json`、`frontend/package-lock.json`、`application.yml`、Java MCP server info、README、本文件、`scripts/start-linux.sh` 和 `scripts/start-windows.bat`；
    - 使用 `rg` 检查旧版本是否仍残留在应同步的发布路径中；
    - 同一版本下仅允许对失败的同一次构建做诊断重试；源码或交付内容再次变化后必须使用下一个版本。
 5. 运行与改动直接相关的聚焦测试，再运行完整验证和打包：
@@ -41,14 +41,14 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.1.11.jar
-   jar tf target/opencode-loopper-0.1.11.jar \
+   test -s target/opencode-loopper-0.1.12.jar
+   jar tf target/opencode-loopper-0.1.12.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.1.11.jar
+   shasum -a 256 target/opencode-loopper-0.1.12.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
-8. 对需要交付的代码更新，提交并推送版本修改后创建不可移动的 `v<version>` 标签并推送；标签会触发 `.github/workflows/release.yml`，由 GitHub 在标签提交上重新测试、打包并发布 JAR、`start-linux.sh` 和 `SHA256SUMS`。必须等待工作流结束并回读 Release 资产状态与 digest。
+8. 对需要交付的代码更新，提交并推送版本修改后创建不可移动的 `v<version>` 标签并推送；标签会触发 `.github/workflows/release.yml`，由 GitHub 在标签提交上重新测试、打包并发布 JAR、`start-linux.sh`、`start-windows.bat` 和 `SHA256SUMS`。必须等待工作流结束并回读 Release 资产状态与 digest。
 9. 最终交付必须明确报告：修改文件、验证命令及结果、本地 JAR 路径与校验值、Git 标签、GitHub Release URL、Actions 结果、尚未执行的运行时验证和剩余限制。
 
 **“源码已改”“测试通过”“JAR 已生成”“端口 8080 正在运行新 JAR”“浏览器已加载新静态资源”是五个不同结论。** 未实际核验时不得宣称后一个结论。
@@ -93,8 +93,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.1.11`。
-- 正式产物：`target/opencode-loopper-0.1.11.jar`。
+- Maven 项目版本：`0.1.12`。
+- 正式产物：`target/opencode-loopper-0.1.12.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -104,6 +104,7 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 - `frontend/package.json`；
 - `README.md` 中的版本和命令；
 - `scripts/start-linux.sh` 中的 JAR 文件名；
+- `scripts/start-windows.bat` 中的 JAR 文件名；
 - `src/main/resources/application.yml` 中 MCP server version；
 - 本文件中的版本和产物路径。
 
@@ -117,7 +118,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 ├── scripts/
 │   ├── dev.sh / dev.ps1              # 后端 + Vite 热开发
 │   ├── verify.sh                     # JDK 21 下的 clean verify 与正式打包
-│   └── start-linux.sh                # Linux/内网成品 JAR 启动
+│   ├── start-linux.sh                # Linux/内网成品 JAR 启动
+│   └── start-windows.bat             # Windows 成品 JAR/OpenCode 启动
 ├── .github/workflows/
 │   ├── ci.yml                        # main/PR 的三平台完整验证
 │   └── release.yml                   # v<version> 标签验证并发布 JAR/脚本/校验值
@@ -168,7 +170,7 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 | 自动化 / 模板 | `docs/seven-feature-contract.md` | `AutomationService.java`、`LoopSpecTemplateService.java`、`AutomationsView.vue` |
 | 数据库变化 | 所有受影响契约 | `db/migration/`、`LoopperMapper.java`、对应集成测试 |
 | UI 视觉/状态 | `docs/design-contract.md` | 相似 `views/`、`components/`、`styles/tokens.css` 和 `.spec.ts` |
-| 打包/部署 | `README.md` | `pom.xml`、`application.yml`、`scripts/verify.sh`、`scripts/start-linux.sh` |
+| 打包/部署 | `README.md` | `pom.xml`、`application.yml`、`scripts/verify.sh`、`scripts/start-linux.sh`、`scripts/start-windows.bat` |
 
 文档与源码冲突时：
 
@@ -328,7 +330,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.1.11.jar
+JAR=target/opencode-loopper-0.1.12.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -399,7 +401,7 @@ curl --fail http://127.0.0.1:8080/actuator/health
 - [ ] JAR 包含当前 Vue 静态资源，并记录新的 SHA-256。
 - [ ] `git diff --check` 通过，`git status` 中没有意外文件。
 - [ ] 发布提交已推送，新 `v<version>` 标签指向该提交且与 Maven 版本一致。
-- [ ] Release 工作流成功，GitHub 资产包含 JAR、`start-linux.sh` 和 `SHA256SUMS`，远端 digest 已回读。
+- [ ] Release 工作流成功，GitHub 资产包含 JAR、`start-linux.sh`、`start-windows.bat` 和 `SHA256SUMS`，远端 digest 已回读。
 - [ ] 如声称运行时有效，已核对真实 PID/cwd/JAR/health/浏览器证据。
 - [ ] 最终回复列出文件、验证、JAR、运行时边界和剩余风险。
 
@@ -420,3 +422,4 @@ curl --fail http://127.0.0.1:8080/actuator/health
 | 2026-08-11 | 修复 LoopSpec 往返、Attempt 重试/指纹、等待动作和分支截断并发布 0.1.9 | 完整保留重试策略；人工继续 fail-closed 并复用模板；服务端投影当前等待动作；截断后重验 Git 结尾 | 聚焦验证：Java 52/52、MCP Java 14/14、Vitest 119/119；`0.1.8` 首次完整构建 249/250，因遗留 MCP 版本断言失败后按规则递增；`./scripts/verify.sh`：Java 250/250、Vitest 119/119，BUILD SUCCESS；JAR 262591570 bytes，SHA-256 `9a2e0c073794c9b9e4ff7a286c5ef795dfc3ba0c4c558e60f52d0b1493ac7e33`；18089 隔离运行 health、LoopSpec 和 Task DTO 验收通过；发布目标：`v0.1.9` |
 | 2026-08-11 | 修复内网远端基线与 worktree 执行隔离并发布 0.1.10 | 创建任务前非交互 fetch 线性远端基线且不移动源分支；拒绝嵌套 worktree；核验 OpenCode Session 目录并阻断运行期 Git 提交/引用变更；同步 README、架构和 OpenCode 合同 | 聚焦验证：Java 21/21、Vitest 119/119；`./scripts/verify.sh`：Java 253/253、Vitest 119/119，BUILD SUCCESS；JAR 262595222 bytes，SHA-256 `562dc640aab9f129282963acb8b2a5a20b8fb2ece2f4263ea3983361232e1458`；发布目标：`v0.1.10` |
 | 2026-08-11 | 修复 Windows 大仓库 worktree 检出失败并发布 0.1.11 | worktree checkout 改用独立 10 分钟边界、`--quiet` 和命令局部长路径支持；错误保留尾部 fatal；同步 README 与架构合同 | 聚焦验证：Java 6/6、Vitest 119/119；`./scripts/verify.sh`：Java 255/255、Vitest 119/119，BUILD SUCCESS；JAR 262595536 bytes，SHA-256 `465476c3e307ee5a290a24997da3c31993e764aa21c06c94cbdc1357686c0408`；发布目标：`v0.1.11` |
+| 2026-08-11 | 新增 Windows BAT 启动器并发布 0.1.12 | Windows 脚本校验 Java 21、确认或启动 OpenCode loopback 服务后启动 Loopper；Release 同步发布 BAT 并纳入 SHA256SUMS | 聚焦验证：Java 16/16；`./scripts/verify.sh`：Java 257/257、Vitest 119/119，BUILD SUCCESS；JAR 262595537 bytes，SHA-256 `772b65fe4159f91ffc3e687e25f837485214b25b664aac54f9c8e53bfcef0e86`；发布目标：`v0.1.12` |

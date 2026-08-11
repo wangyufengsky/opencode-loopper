@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.1.11`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.1.12`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -20,7 +20,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 - [LoopSpec 与验证器](#loopspec-与验证器)
 - [任务、恢复与发布](#任务恢复与发布)
 - [配置](#配置)
-- [Linux 与内网部署](#linux-与内网部署)
+- [Linux 与 Windows 部署](#linux-与-windows-部署)
 - [数据、安全与备份](#数据安全与备份)
 - [开发与验证](#开发与验证)
 - [MCP 接入](#mcp-接入)
@@ -111,7 +111,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.1.11.jar
+java -jar target/opencode-loopper-0.1.12.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -276,9 +276,9 @@ Git 隔离任务达到 `SUCCEEDED` 后：
 | `OPENCODE_MODEL` | OpenCode 默认值 | 可选的 `provider/model` 默认模型 |
 | `LOOPPER_CHROME_EXECUTABLE` | 自动检测 | `BROWSER` 验证器使用的 Chrome/Chromium 绝对路径 |
 | `LOOPPER_MCP_BEARER_TOKEN` | 每次启动随机生成 | `/api/mcp-streamable` 和 `/api/mcp` 的 Bearer Token |
-| `LOOPPER_JAVA_HOME` | Linux 脚本默认 `/opt/jdk-21` | `scripts/start-linux.sh` 使用的 JDK 目录 |
-| `LOOPPER_JAR_PATH` | 自动查找当前版本 JAR | Linux 脚本使用的成品 JAR 路径 |
-| `LOOPPER_OPEN_BROWSER` | `true` | Linux 图形环境健康后是否自动打开浏览器 |
+| `LOOPPER_JAVA_HOME` | Linux 脚本默认 `/opt/jdk-21`；Windows 依次回退到 `JAVA_HOME`、`PATH` | 启动脚本使用的 JDK 目录 |
+| `LOOPPER_JAR_PATH` | 自动查找当前版本 JAR | Linux/Windows 启动脚本使用的成品 JAR 路径 |
+| `LOOPPER_OPEN_BROWSER` | `true` | 启动后是否自动打开浏览器；设为 `false` 可关闭 |
 
 更多尝试次数、超时和监控间隔可通过 Spring Boot 外部配置覆盖 `loopper.*` 属性；默认值见 [`src/main/resources/application.yml`](src/main/resources/application.yml)。生产环境默认启用 `loopper.scheduling.enabled` 和 `loopper.startup-recovery.enabled`，后者统一恢复中断任务、本地同步与自动化状态。UI 中的设置保存在本地 SQLite，并应用于新建 Session。
 
@@ -288,13 +288,15 @@ Git 隔离任务达到 `SUCCEEDED` 后：
 - `http`：只连接已有的 OpenCode 服务，Loopper 不启动也不终止它。出于本地安全边界，只接受 loopback 端点。
 - `fake`：确定性测试适配器，不应在真实任务中使用。
 
-## Linux 与内网部署
+## Linux 与 Windows 部署
 
-正式 JAR 已包含前端静态资源和 Linux x86_64/aarch64 SQLite 原生库。运行成品不需要 Maven、Node 或 npm。
+正式 JAR 已包含前端静态资源和运行所需的 SQLite JDBC 原生库。运行成品不需要 Maven、Node 或 npm。
+
+### Linux / 内网
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.1.11.jar`
+- `target/opencode-loopper-0.1.12.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -316,6 +318,32 @@ export OPENCODE_BASE_URL=http://127.0.0.1:4096
 
 因此应先在同一台机器启动并配置兼容的 OpenCode 服务。Loopper 与 OpenCode 都应保持 loopback，项目绝对路径必须在这台主机上可见。
 
+### Windows
+
+从同一个 GitHub Release 下载并放在同一目录：
+
+- `opencode-loopper-0.1.12.jar`
+- `start-windows.bat`
+
+确认 JDK 21、Git 和 OpenCode CLI 已加入 `PATH`，然后双击 `start-windows.bat`，或在 CMD 中运行：
+
+```bat
+start-windows.bat
+```
+
+脚本按 `LOOPPER_JAVA_HOME`、`JAVA_HOME`、`PATH` 的顺序查找 Java 并拒绝低于 21 的版本。它先检查 `http://127.0.0.1:4096/global/health`；若默认端点离线，则从 `OPENCODE_EXECUTABLE` 或 `PATH` 查找 `opencode.exe` / `opencode.cmd`，执行 `opencode serve --hostname 127.0.0.1 --port 4096` 并最多等待 30 秒。健康检查通过后才启动 Loopper，避免把尚未启动的 OpenCode 误显示成离线。
+
+需要固定路径或端口时，可先设置环境变量：
+
+```bat
+set "LOOPPER_JAVA_HOME=C:\Program Files\Java\jdk-21"
+set "OPENCODE_EXECUTABLE=C:\Tools\opencode.exe"
+set "SERVER_PORT=8080"
+start-windows.bat
+```
+
+若显式设置了非默认 `OPENCODE_BASE_URL`，脚本只连接该地址，不会擅自启动另一个端点；该地址离线时会直接报错。设置 `LOOPPER_OPEN_BROWSER=false` 可禁止自动打开页面。脚本启动的 OpenCode 服务是独立本机进程，Loopper 退出后不会终止它；再次启动时会复用健康的现有服务。
+
 其他注意事项：
 
 - 服务端无桌面时，直接在 UI 输入项目绝对路径；原生目录选择按钮需要图形会话及 `zenity`、`kdialog` 或 `yad`。
@@ -326,7 +354,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:4096
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.1.11.jar \
+jar tf target/opencode-loopper-0.1.12.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -393,18 +421,19 @@ Windows PowerShell：
 
 ### 版本发布
 
-每个可交付的新 JAR 必须使用一个未发布过且递增的 SemVer 版本。版本号需要同时更新 Maven、前端 package、MCP 配置、README、`AGENTS.md` 和 Linux 启动脚本，然后在该版本下重新执行完整验证。
+每个可交付的新 JAR 必须使用一个未发布过且递增的 SemVer 版本。版本号需要同时更新 Maven、前端 package、MCP 配置、README、`AGENTS.md`、Linux 与 Windows 启动脚本，然后在该版本下重新执行完整验证。
 
 推送与 Maven 版本完全一致的 `v<version>` 标签会触发 [Release 工作流](.github/workflows/release.yml)。工作流在标签提交上使用 JDK 21 重新执行 `clean verify`，拒绝 SNAPSHOT 或标签不匹配的构建，并自动发布：
 
 - `opencode-loopper-<version>.jar`；
 - `start-linux.sh`；
+- `start-windows.bat`；
 - `SHA256SUMS`。
 
 例如发布下一版本：
 
 ```bash
-VERSION=0.1.11
+VERSION=0.1.12
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -444,7 +473,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.1.11.jar
+java -jar target/opencode-loopper-0.1.12.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。
@@ -472,7 +501,7 @@ lsof -nP -iTCP:8080 -sTCP:LISTEN
 
 ### Windows 提交任务时停在 `Updating files` 后报 `WORKTREE_CREATE_FAILED`
 
-`0.1.11` 起，Loopper 不再用 30 秒短检查超时限制大仓库检出，并会隐藏 Git checkout 进度噪音、保留尾部真正的 `fatal` 诊断，同时命令局部启用 `core.longpaths=true`。升级后请重新提交任务。旧版本失败可能留下 `$LOOPPER_DATA_DIR/worktrees/<taskId>` 和对应 `loopper/*` 分支；先用 `git worktree list` 精确确认残留，确认它确实属于失败任务后再手工清理，不要删除仍在使用或已完成任务的 worktree。
+`0.1.11` 起，Loopper 不再用 30 秒短检查超时限制大仓库检出，并会隐藏 Git checkout 进度噪音、保留尾部真正的 `fatal` 诊断，同时命令局部启用 `core.longpaths=true`。升级后请重新提交任务。旧版本失败可能留下 `$LOOPPER_DATA_DIR/worktrees/<taskId>` 和对应 `loopper/*` 分支；先用 `git worktree list` 精确确认残留，确认它确实属于失败任务后再手工清理，不要删除仍在使用或已完成任务的 worktree。`0.1.12` 起可使用 Release 附带的 `start-windows.bat`，由脚本先确认或启动默认 OpenCode loopback 服务，再启动 Loopper。
 
 ### 一直显示 remote busy / Agent 正在思考
 
