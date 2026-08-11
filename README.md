@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.1.1`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.1.2`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -33,7 +33,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 - **只读 Designer**：先读取代码库与项目约定，再通过对话生成、纠正和确认 LoopSpec；设计阶段不写业务源码。
 - **项目公约**：只读分析项目并生成或更新根目录 `AGENTS.md`，展示完整预览后才写入；Loopper 管理区块以外的人工内容会被保留。
 - **分阶段执行循环**：按依赖顺序执行 Stage，每个阶段都携带目标、交付物、路径约束和可立即运行的验收规则。
-- **隔离执行**：有 Git HEAD 的项目使用 `loopper/<taskId>` 分支和专用 worktree；其他项目在登记目录中直接执行，并保留私有基线用于差异检查。
+- **隔离执行**：有 Git HEAD 的项目使用 `loopper/<任务名>` 分支和专用 worktree；本地或远端跟踪分支已有同名时依次追加 `(第2次)`、`(第3次)`，Git 禁止字符会替换为 `-`。其他项目在登记目录中直接执行，并保留私有基线用于差异检查。
 - **确定性验收**：支持进程、文件、Git 差异、HTTP、JSON、JUnit、浏览器和 SQLite 查询等验证器。
 - **独立双评审**：确定性验证通过后，由只读 Requirement Judge 和 Risk Judge 独立评审；两者都明确 `PASS` 才能成功。
 - **人工待办**：集中处理 Designer 或任务 Session 提出的 Question、Permission 和安全阻断，不把人工输入伪装成普通任务状态。
@@ -108,7 +108,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.1.1.jar
+java -jar target/opencode-loopper-0.1.2.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -210,7 +210,7 @@ LoopSpec 是执行前必须人工确认的结构化合同。核心字段包括�
 
 | 模式 | 触发条件 | 执行位置 | 发布方式 |
 | --- | --- | --- | --- |
-| Git worktree | 项目有可用 Git HEAD | `$LOOPPER_DATA_DIR/worktrees/<taskId>`，分支为 `loopper/<taskId>` | 成功后人工提交；有远端则正常推送，无远端则受控同步回源项目 |
+| Git worktree | 项目有可用 Git HEAD | `$LOOPPER_DATA_DIR/worktrees/<taskId>`，分支为 `loopper/<任务名>`；同名时追加 `(第N次)` | 成功后人工提交；有远端则正常推送，无远端则受控同步回源项目 |
 | Direct | 没有可用 Git HEAD | 已登记的原项目目录 | 不提供自动发布或原地回滚；使用私有基线做差异和删除检查 |
 
 Loopper 不会因为任务成功就自动提交、推送、合并或删除 worktree。
@@ -287,7 +287,7 @@ Git 隔离任务达到 `SUCCEEDED` 后：
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.1.1.jar`
+- `target/opencode-loopper-0.1.2.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -319,7 +319,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:4096
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.1.1.jar \
+jar tf target/opencode-loopper-0.1.2.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -437,7 +437,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.1.1.jar
+java -jar target/opencode-loopper-0.1.2.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。

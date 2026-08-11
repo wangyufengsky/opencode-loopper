@@ -76,6 +76,27 @@ class TaskServiceIntegrationTest {
     }
 
     @Test
+    void isolatedBranchesUseTaskTitleAndNumberRepeatedNames() throws Exception {
+        Path root = Path.of(gitProject());
+        ProjectRow project = projects.create("named-branches", root.toString());
+
+        TaskRow first = drafts.confirm(drafts.create(spec(project.id())).id(), "隔离分支命名");
+        TaskRow second = drafts.confirm(drafts.create(spec(project.id())).id(), "隔离分支命名");
+        TaskRow third = drafts.confirm(drafts.create(spec(project.id())).id(), "隔离分支命名");
+        TaskRow normalized = drafts.confirm(drafts.create(spec(project.id())).id(), "修复 分支/命名");
+        run(root, "git", "update-ref", "refs/remotes/origin/loopper/远端同名任务", "HEAD");
+        TaskRow remoteCollision = drafts.confirm(drafts.create(spec(project.id())).id(), "远端同名任务");
+
+        assertThat(first.branchName()).isEqualTo("loopper/隔离分支命名");
+        assertThat(second.branchName()).isEqualTo("loopper/隔离分支命名(第2次)");
+        assertThat(third.branchName()).isEqualTo("loopper/隔离分支命名(第3次)");
+        assertThat(normalized.branchName()).isEqualTo("loopper/修复-分支-命名");
+        assertThat(remoteCollision.branchName()).isEqualTo("loopper/远端同名任务(第2次)");
+        assertThat(localBranches(root)).contains(first.branchName(), second.branchName(), third.branchName(),
+                normalized.branchName(), remoteCollision.branchName());
+    }
+
+    @Test
     void sessionFailureCreatesNewAttemptAndDoesNotFailTask() throws Exception {
         ProjectRow project = projects.create("fixture", gitProject());
         LoopDraftRow draft = drafts.create(spec(project.id()));
@@ -857,5 +878,12 @@ class TaskServiceIntegrationTest {
         Process process = new ProcessBuilder(command).directory(root.toFile()).redirectErrorStream(true).start();
         String output = new String(process.getInputStream().readAllBytes());
         if (process.waitFor() != 0) throw new AssertionError(output);
+    }
+    private List<String> localBranches(Path root) throws Exception {
+        Process process = new ProcessBuilder("git", "for-each-ref", "--format=%(refname:short)", "refs/heads")
+                .directory(root.toFile()).redirectErrorStream(true).start();
+        String output = new String(process.getInputStream().readAllBytes());
+        if (process.waitFor() != 0) throw new AssertionError(output);
+        return output.lines().toList();
     }
 }

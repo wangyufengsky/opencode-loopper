@@ -1387,7 +1387,8 @@ public class TaskService {
     }
 
     private TaskRow prepareIsolatedTask(String taskId, Path projectRoot, String isolatedBaseline) {
-        GitWorktreeManager.Worktree worktree = worktrees.create(projectRoot, taskId, isolatedBaseline);
+        TaskRow task = get(taskId);
+        GitWorktreeManager.Worktree worktree = worktrees.create(projectRoot, taskId, task.title(), isolatedBaseline);
         if (GitWorktreeManager.DIRECT_BRANCH.equals(worktree.branch())) {
             throw new TaskFailure("DIRECT_LEASE_REQUIRED",
                     "Repository inspection changed before preparation; refusing unleased Direct execution");

@@ -123,8 +123,13 @@ move the Task to `WAITING_INPUT`, never to a fabricated success.
 ## Workspace safety
 
 Planning may inspect a registered root read-only. When a project has a valid
-Git HEAD, execution creates `loopper/<taskId>` under
-`$LOOPPER_DATA_DIR/worktrees/<taskId>`. Otherwise OpenCode edits the canonical
+Git HEAD, execution creates `loopper/<taskName>` under
+`$LOOPPER_DATA_DIR/worktrees/<taskId>`. Repeated task names use
+`loopper/<taskName>(第2次)`, `loopper/<taskName>(第3次)`, and so on when the
+corresponding local or remote-tracking branch already exists. Characters
+that Git forbids in branch names are deterministically replaced with `-`, and
+the readable leaf is UTF-8 byte-bounded before the occurrence suffix is added.
+Otherwise OpenCode edits the canonical
 registered root directly and Loopper stores a private Git-compatible baseline
 under `$LOOPPER_DATA_DIR/direct-baselines/<taskId>` for deterministic path and
 deletion checks. The private baseline does not initialize or commit the target

@@ -2,8 +2,10 @@ package io.opencode.loopper.runtime;
 
 import io.opencode.loopper.config.LoopperProperties;
 import io.opencode.loopper.domain.TaskFailure;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.text.Normalizer;
 import java.time.Duration;
 import java.util.List;
 import org.springframework.stereotype.Component;
@@ -12,6 +14,9 @@ import org.springframework.stereotype.Component;
 public class GitWorktreeManager {
     public static final String DIRECT_BRANCH = "DIRECT";
     private static final Duration GIT_TIMEOUT = Duration.ofSeconds(30);
+    private static final String BRANCH_NAMESPACE = "loopper/";
+    private static final int MAX_BRANCH_LEAF_BYTES = 180;
+    private static final int MAX_BRANCH_OCCURRENCES = 10_000;
     private final SafeProcessRunner runner;
     private final LoopperProperties properties;
     private final DirectWorkspaceBaselineManager directBaselines;
@@ -24,10 +29,10 @@ public class GitWorktreeManager {
     }
 
     public Worktree create(Path projectRoot, String taskId) {
-        return create(projectRoot, taskId, null);
+        return create(projectRoot, taskId, taskId, null);
     }
 
-    public Worktree create(Path projectRoot, String taskId, String requestedBaseline) {
+    public Worktree create(Path projectRoot, String taskId, String taskName, String requestedBaseline) {
         try {
             Path root = projectRoot.toRealPath();
             ProcessResult repository = runner.run(root, List.of("git", "rev-parse", "--is-inside-work-tree"), GIT_TIMEOUT);
@@ -70,15 +75,25 @@ public class GitWorktreeManager {
             Path worktree = base.resolve(taskId).normalize();
             if (!worktree.getParent().equals(base)) throw new TaskFailure("WORKTREE_PATH_INVALID", "Task worktree escaped its managed directory");
             if (Files.exists(worktree)) throw new TaskFailure("WORKTREE_ALREADY_EXISTS", "A managed worktree already exists for task " + taskId);
-            String branch = "loopper/" + taskId;
-            ProcessResult added = runner.run(root,
-                    List.of("git", "worktree", "add", "-b", branch, worktree.toString(), baseline), GIT_TIMEOUT);
-            if (added.exitCode() != 0) throw new TaskFailure("WORKTREE_CREATE_FAILED", trim(added.output()));
-            Path resolved = worktree.toRealPath();
-            if (!resolved.startsWith(base.toRealPath())) {
-                throw new TaskFailure("WORKTREE_ESCAPE", "Created worktree did not remain inside the managed worktree directory");
+            String branchBase = normalizedBranchLeaf(taskName, taskId);
+            for (int occurrence = 1; occurrence <= MAX_BRANCH_OCCURRENCES; occurrence++) {
+                String branch = branchName(branchBase, occurrence);
+                if (branchExists(root, branch)) continue;
+                ProcessResult added = runner.run(root,
+                        List.of("git", "worktree", "add", "-b", branch, worktree.toString(), baseline), GIT_TIMEOUT);
+                if (added.exitCode() != 0) {
+                    // Branch creation is atomic. If another Task won the same name concurrently,
+                    // continue with the next occurrence while the managed path is still untouched.
+                    if (!Files.exists(worktree) && branchExists(root, branch)) continue;
+                    throw new TaskFailure("WORKTREE_CREATE_FAILED", trim(added.output()));
+                }
+                Path resolved = worktree.toRealPath();
+                if (!resolved.startsWith(base.toRealPath())) {
+                    throw new TaskFailure("WORKTREE_ESCAPE", "Created worktree did not remain inside the managed worktree directory");
+                }
+                return new Worktree(resolved, branch, baseline);
             }
-            return new Worktree(resolved, branch, baseline);
+            throw new TaskFailure("WORKTREE_BRANCH_EXHAUSTED", "Too many isolated branches already use this task name");
         } catch (TaskFailure e) {
             throw e;
         } catch (Exception e) {
@@ -143,6 +158,77 @@ public class GitWorktreeManager {
 
     private Worktree direct(Path root, String taskId) {
         return new Worktree(root, DIRECT_BRANCH, directBaselines.capture(root, taskId));
+    }
+
+    private boolean branchExists(Path root, String branch) {
+        ProcessResult local = runner.run(root,
+                List.of("git", "show-ref", "--verify", "--quiet", "refs/heads/" + branch), GIT_TIMEOUT);
+        if (local.timedOut() || local.outputTruncated() || (local.exitCode() != 0 && local.exitCode() != 1)) {
+            throw new TaskFailure("WORKTREE_BRANCH_CHECK_FAILED", "Unable to check isolated branch name availability");
+        }
+        if (local.exitCode() == 0) return true;
+        ProcessResult remote = runner.run(root,
+                List.of("git", "branch", "--remotes", "--list", "*/" + branch), GIT_TIMEOUT);
+        if (remote.timedOut() || remote.outputTruncated() || remote.exitCode() != 0) {
+            throw new TaskFailure("WORKTREE_BRANCH_CHECK_FAILED", "Unable to check remote-tracking branch name availability");
+        }
+        return !remote.output().isBlank();
+    }
+
+    private String branchName(String base, int occurrence) {
+        String suffix = occurrence == 1 ? "" : "(第" + occurrence + "次)";
+        int suffixBytes = suffix.getBytes(StandardCharsets.UTF_8).length;
+        String leaf = truncateUtf8(base, MAX_BRANCH_LEAF_BYTES - suffixBytes);
+        leaf = trimInvalidEnding(leaf);
+        if (leaf.isBlank()) leaf = "task";
+        return BRANCH_NAMESPACE + leaf + suffix;
+    }
+
+    private String normalizedBranchLeaf(String taskName, String taskId) {
+        String source = taskName == null || taskName.isBlank() ? "task-" + taskId : taskName.trim();
+        source = Normalizer.normalize(source, Normalizer.Form.NFKC);
+        StringBuilder normalized = new StringBuilder();
+        source.codePoints().forEach(codePoint -> {
+            if (codePoint <= 0x20 || codePoint == 0x7f || "~^:?*[\\/".indexOf(codePoint) >= 0) {
+                normalized.append('-');
+            } else {
+                normalized.appendCodePoint(codePoint);
+            }
+        });
+        String value = normalized.toString()
+                .replace("@{", "-")
+                .replaceAll("\\.{2,}", "-")
+                .replaceAll("-{2,}", "-")
+                .replaceAll("^[.-]+", "");
+        value = trimInvalidEnding(value);
+        if (value.equals("@") || value.isBlank()) value = "task-" + taskId;
+        if (value.endsWith(".lock")) value += "-branch";
+        return value;
+    }
+
+    private String truncateUtf8(String value, int maxBytes) {
+        StringBuilder result = new StringBuilder();
+        int bytes = 0;
+        for (int offset = 0; offset < value.length();) {
+            int codePoint = value.codePointAt(offset);
+            String character = new String(Character.toChars(codePoint));
+            int characterBytes = character.getBytes(StandardCharsets.UTF_8).length;
+            if (bytes + characterBytes > maxBytes) break;
+            result.append(character);
+            bytes += characterBytes;
+            offset += Character.charCount(codePoint);
+        }
+        return result.toString();
+    }
+
+    private String trimInvalidEnding(String value) {
+        int end = value.length();
+        while (end > 0) {
+            char last = value.charAt(end - 1);
+            if (last != '.' && last != '-' && last != '/') break;
+            end--;
+        }
+        return value.substring(0, end);
     }
 
     private String trim(String value) { return value == null ? "" : value.substring(0, Math.min(value.length(), 2000)); }
