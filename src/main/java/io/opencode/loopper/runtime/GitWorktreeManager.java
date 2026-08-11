@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class GitWorktreeManager {
     public static final String DIRECT_BRANCH = "DIRECT";
     private static final Duration GIT_TIMEOUT = Duration.ofSeconds(30);
+    static final Duration WORKTREE_CREATE_TIMEOUT = Duration.ofMinutes(10);
     private static final String BRANCH_NAMESPACE = "loopper/";
     private static final int MAX_BRANCH_LEAF_BYTES = 180;
     private static final int MAX_BRANCH_OCCURRENCES = 10_000;
@@ -91,7 +92,17 @@ public class GitWorktreeManager {
                 String branch = branchNameForTask(taskName, taskId, occurrence);
                 if (branchExists(root, branch)) continue;
                 ProcessResult added = runner.run(root,
-                        List.of("git", "worktree", "add", "-b", branch, worktree.toString(), baseline), GIT_TIMEOUT);
+                        List.of("git", "-c", "core.longpaths=true", "worktree", "add", "--quiet",
+                                "-b", branch, worktree.toString(), baseline), WORKTREE_CREATE_TIMEOUT);
+                if (added.timedOut()) {
+                    throw new TaskFailure("WORKTREE_CREATE_FAILED",
+                            "Git worktree checkout exceeded the 10-minute safety limit. "
+                                    + "Check disk/antivirus performance and remove any incomplete managed worktree before retrying.");
+                }
+                if (added.outputTruncated()) {
+                    throw new TaskFailure("WORKTREE_CREATE_FAILED",
+                            "Git worktree checkout exceeded the process output safety limit: " + trim(added.output()));
+                }
                 if (added.exitCode() != 0) {
                     // Branch creation is atomic. If another Task won the same name concurrently,
                     // continue with the next occurrence while the managed path is still untouched.
@@ -318,7 +329,11 @@ public class GitWorktreeManager {
         return value.substring(0, end);
     }
 
-    private String trim(String value) { return value == null ? "" : value.substring(0, Math.min(value.length(), 2000)); }
+    private String trim(String value) {
+        if (value == null) return "";
+        int start = Math.max(0, value.length() - 2000);
+        return value.substring(start).strip();
+    }
     public record Worktree(Path path, String branch, String baselineCommit) { }
     public record RepositoryInspection(boolean pathAvailable, boolean isolatedWorktree, String branch) {
         private static RepositoryInspection direct() { return new RepositoryInspection(true, false, null); }

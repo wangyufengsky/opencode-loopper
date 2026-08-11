@@ -4,6 +4,9 @@ import io.opencode.loopper.config.LoopperProperties;
 import io.opencode.loopper.domain.TaskFailure;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -73,6 +76,69 @@ class GitWorktreeManagerIntegrationTest {
                 .isInstanceOf(TaskFailure.class)
                 .hasMessageContaining("outside the registered project root");
         assertThat(run(project, "git", "status", "--porcelain")).isBlank();
+    }
+
+    @Test
+    void givesLargeWindowsCheckoutsASeparateBoundedTimeoutAndEnablesLongPaths() throws Exception {
+        Path project = initializedProject("slow-checkout-project");
+        RecordingRunner runner = new RecordingRunner(new ProcessResult(-1, "Updating files: 28%", true, false));
+        LoopperProperties properties = new LoopperProperties();
+        properties.setDataDir(temp.resolve("slow-checkout-data"));
+        GitWorktreeManager manager = new GitWorktreeManager(runner, properties, null);
+
+        assertThatThrownBy(() -> manager.create(project, "task-slow", "Windows large checkout", null))
+                .isInstanceOfSatisfying(TaskFailure.class, failure -> {
+                    assertThat(failure.code()).isEqualTo("WORKTREE_CREATE_FAILED");
+                    assertThat(failure).hasMessageContaining("10-minute safety limit");
+                });
+        assertThat(runner.worktreeTimeout).isEqualTo(GitWorktreeManager.WORKTREE_CREATE_TIMEOUT);
+        assertThat(runner.worktreeCommand).containsSubsequence("git", "-c", "core.longpaths=true", "worktree", "add", "--quiet");
+    }
+
+    @Test
+    void reportsTheFatalTailInsteadOfCheckoutProgressNoise() throws Exception {
+        Path project = initializedProject("failed-checkout-project");
+        String output = "Updating files: 28%\r".repeat(300) + "fatal: cannot create directory: Filename too long";
+        RecordingRunner runner = new RecordingRunner(new ProcessResult(128, output, false, false));
+        LoopperProperties properties = new LoopperProperties();
+        properties.setDataDir(temp.resolve("failed-checkout-data"));
+        GitWorktreeManager manager = new GitWorktreeManager(runner, properties, null);
+
+        assertThatThrownBy(() -> manager.create(project, "task-failed", "Windows failed checkout", null))
+                .isInstanceOfSatisfying(TaskFailure.class, failure -> {
+                    assertThat(failure.code()).isEqualTo("WORKTREE_CREATE_FAILED");
+                    assertThat(failure).hasMessageContaining("fatal: cannot create directory: Filename too long");
+                });
+    }
+
+    private Path initializedProject(String name) throws Exception {
+        Path project = temp.resolve(name);
+        run(temp, "git", "init", "--initial-branch=main", project.toString());
+        configureIdentity(project);
+        Files.writeString(project.resolve("README.md"), "initial\n");
+        run(project, "git", "add", "README.md");
+        run(project, "git", "commit", "-m", "initial");
+        return project;
+    }
+
+    private static final class RecordingRunner extends SafeProcessRunner {
+        private final ProcessResult worktreeResult;
+        private List<String> worktreeCommand;
+        private Duration worktreeTimeout;
+
+        private RecordingRunner(ProcessResult worktreeResult) {
+            this.worktreeResult = worktreeResult;
+        }
+
+        @Override
+        public ProcessResult run(Path directory, List<String> argv, Duration timeout, Map<String, String> environment) {
+            if (argv.contains("worktree") && argv.contains("add")) {
+                worktreeCommand = List.copyOf(argv);
+                worktreeTimeout = timeout;
+                return worktreeResult;
+            }
+            return super.run(directory, argv, timeout, environment);
+        }
     }
 
     private void configureIdentity(Path repository) throws Exception {

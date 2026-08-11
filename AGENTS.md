@@ -41,10 +41,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.1.10.jar
-   jar tf target/opencode-loopper-0.1.10.jar \
+   test -s target/opencode-loopper-0.1.11.jar
+   jar tf target/opencode-loopper-0.1.11.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.1.10.jar
+   shasum -a 256 target/opencode-loopper-0.1.11.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -93,8 +93,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.1.10`。
-- 正式产物：`target/opencode-loopper-0.1.10.jar`。
+- Maven 项目版本：`0.1.11`。
+- 正式产物：`target/opencode-loopper-0.1.11.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -233,6 +233,7 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 
 - 有可用 Git HEAD：创建 `loopper/<任务名>` 和 `$LOOPPER_DATA_DIR/worktrees/<taskId>`；本地或远端跟踪分支已有同名时从第二次起追加 `(第2次)`、`(第3次)`，Git 禁止字符确定性替换为 `-`，分支叶名称按 UTF-8 字节安全截断，并在截断后重新修正 `.lock` 等非法结尾。
 - 创建隔离任务前以非交互方式 fetch 当前分支的 upstream/明确首选远端；远端线性领先时从远端最新提交创建任务，但不移动源目录分支。本地领先时保留本地提交；认证失败、fetch 失败或历史分叉必须 fail closed。
+- worktree checkout 使用独立 10 分钟有界超时、`--quiet` 和命令局部 `core.longpaths=true`；短 Git 检查仍使用 30 秒边界，失败诊断保留输出尾部，不得让进度噪音遮住真正的 `fatal`。
 - `$LOOPPER_DATA_DIR/worktrees/<taskId>` 的规范路径不得位于登记项目根目录内；OpenCode 创建 Session 后必须回报与请求一致的规范执行目录，缺失或不一致时不得发送实施提示。
 - 无可用 Git HEAD：直接使用登记根目录，并在 `direct-baselines/<taskId>` 保存私有 Git-compatible 基线；不得在用户项目中隐式初始化或提交 Git。
 - 所有路径 canonicalize 后进行 containment 和符号链接检查。
@@ -327,7 +328,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.1.10.jar
+JAR=target/opencode-loopper-0.1.11.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -418,3 +419,4 @@ curl --fail http://127.0.0.1:8080/actuator/health
 | 2026-08-11 | Attempt 交接、停滞检测与 0.1.7 发布 | 验证失败固化有界交接证据；可靠无进展达到阈值后等待人工“继续一轮”，且每轮使用全新 Session；同步 README、架构、设计、OpenCode 和七特性合同 | 聚焦验证：Java 60/60、Vitest 116/116；`./scripts/verify.sh`：Java 244/244、Vitest 116/116，BUILD SUCCESS；JAR 262586349 bytes，SHA-256 `c4f27c123574fd663901b9af0803681bd3304c2105090ae09bb31aafc292524e`；发布目标：`v0.1.7` |
 | 2026-08-11 | 修复 LoopSpec 往返、Attempt 重试/指纹、等待动作和分支截断并发布 0.1.9 | 完整保留重试策略；人工继续 fail-closed 并复用模板；服务端投影当前等待动作；截断后重验 Git 结尾 | 聚焦验证：Java 52/52、MCP Java 14/14、Vitest 119/119；`0.1.8` 首次完整构建 249/250，因遗留 MCP 版本断言失败后按规则递增；`./scripts/verify.sh`：Java 250/250、Vitest 119/119，BUILD SUCCESS；JAR 262591570 bytes，SHA-256 `9a2e0c073794c9b9e4ff7a286c5ef795dfc3ba0c4c558e60f52d0b1493ac7e33`；18089 隔离运行 health、LoopSpec 和 Task DTO 验收通过；发布目标：`v0.1.9` |
 | 2026-08-11 | 修复内网远端基线与 worktree 执行隔离并发布 0.1.10 | 创建任务前非交互 fetch 线性远端基线且不移动源分支；拒绝嵌套 worktree；核验 OpenCode Session 目录并阻断运行期 Git 提交/引用变更；同步 README、架构和 OpenCode 合同 | 聚焦验证：Java 21/21、Vitest 119/119；`./scripts/verify.sh`：Java 253/253、Vitest 119/119，BUILD SUCCESS；JAR 262595222 bytes，SHA-256 `562dc640aab9f129282963acb8b2a5a20b8fb2ece2f4263ea3983361232e1458`；发布目标：`v0.1.10` |
+| 2026-08-11 | 修复 Windows 大仓库 worktree 检出失败并发布 0.1.11 | worktree checkout 改用独立 10 分钟边界、`--quiet` 和命令局部长路径支持；错误保留尾部 fatal；同步 README 与架构合同 | 聚焦验证：Java 6/6、Vitest 119/119；`./scripts/verify.sh`：Java 255/255、Vitest 119/119，BUILD SUCCESS；JAR 262595536 bytes，SHA-256 `465476c3e307ee5a290a24997da3c31993e764aa21c06c94cbdc1357686c0408`；发布目标：`v0.1.11` |

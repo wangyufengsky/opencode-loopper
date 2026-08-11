@@ -182,7 +182,10 @@ failure or diverged histories fail closed. This Git process and worktree I/O run
 with the caller's SQLite transaction suspended. The canonical managed worktree
 must be disjoint from the registered project root, preventing Loopper data from
 appearing as source-branch files. The local Task branch is not pushed until the
-post-success human publication action.
+post-success human publication action. Worktree checkout has its own bounded
+10-minute timeout rather than the short Git-inspection timeout, suppresses
+checkout progress noise so the fatal diagnostic remains visible, and enables
+Git's command-local `core.longpaths` support for deep Windows repositories.
 Otherwise OpenCode edits the canonical
 registered root directly and Loopper stores a private Git-compatible baseline
 under `$LOOPPER_DATA_DIR/direct-baselines/<taskId>` for deterministic path and
