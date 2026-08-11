@@ -137,6 +137,23 @@ export const useTaskStore = defineStore('task', () => {
     }
   }
 
+  async function retryWaitingLoop(id: string) {
+    const old = tasks.value.find((task) => task.id === id)
+    if (!old) return
+    if (usingDemo.value) {
+      tasks.value = tasks.value.map((task) => task.id === id ? { ...task, status: 'RUNNING', updatedAt: new Date().toISOString() } : task)
+      return
+    }
+    error.value = undefined
+    try {
+      const changed = await api.retryWaitingTaskLoop(id)
+      tasks.value = tasks.value.map((task) => task.id === id ? changed : task)
+    } catch (cause) {
+      error.value = cause instanceof Error ? cause.message : '循环重试启动失败'
+      throw cause
+    }
+  }
+
   async function reworkTask(id: string) {
     const parent = tasks.value.find((task) => task.id === id)
     if (!parent) return undefined
@@ -239,5 +256,5 @@ export const useTaskStore = defineStore('task', () => {
     try { runtime.value = await api.restartRuntime() } catch (cause) { error.value = cause instanceof Error ? cause.message : 'Runtime 重启失败' }
   }
 
-  return { projects, tasks, runtime, artifacts, loading, error, usingDemo, streamState, activeTasks, selectedTask, activateDemo, loadOverview, loadTask, updateTask, retryJudges, reworkTask, setTaskArchived, deleteArchivedTask, watchTask, stopWatching, refreshRuntime, restartRuntime }
+  return { projects, tasks, runtime, artifacts, loading, error, usingDemo, streamState, activeTasks, selectedTask, activateDemo, loadOverview, loadTask, updateTask, retryJudges, retryWaitingLoop, reworkTask, setTaskArchived, deleteArchivedTask, watchTask, stopWatching, refreshRuntime, restartRuntime }
 })

@@ -52,10 +52,17 @@ contrast.
 ## Error presentation invariant
 
 1. Field errors remain inline and do not change runtime state.
-2. Verification failures are evidence for the next Attempt.
+2. Verification failures create a bounded, immutable Attempt handoff for the
+   next fresh Session. Repeated reliable fingerprints stop at `WAITING_INPUT`.
 3. Session failures close only the current Session and visibly announce that a
    fresh Session will continue the Loop.
 4. Task failures stop scheduling and use the red terminal treatment.
+
+When the current wait reason is `LOOP_STAGNATION_DETECTED` or
+`LOOP_FRESH_SESSION_REQUIRED`, Task detail explains the stop and offers a
+confirmed **继续一轮** action. The browser does not infer progress or reset the
+streak locally; the server records the override and returns the authoritative
+Task state.
 
 Designer handoff states are also explicit: `PENDING_HANDOFF`, `RUNNING`,
 `COMPLETED`, and `SESSION_ERROR`. The console polls an active read-only Session

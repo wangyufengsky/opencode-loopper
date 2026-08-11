@@ -899,6 +899,7 @@ export const api = {
   resumeTask: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}/resume`, { method: 'POST' })),
   cancelTask: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}/cancel`, { method: 'POST' })),
   retryTaskJudges: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}/judges/retry`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } })),
+  retryWaitingTaskLoop: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}/loop/retry`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } })),
   archiveTask: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}/archive`, { method: 'PUT', headers: { 'X-Loopper-Local-UI': '1' } })),
   restoreArchivedTask: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}/archive`, { method: 'DELETE', headers: { 'X-Loopper-Local-UI': '1' } })),
   deleteArchivedTask: async (id: string) => request<void>(`/tasks/${encodeURIComponent(id)}`, { method: 'DELETE', headers: { 'X-Loopper-Local-UI': '1' } }),

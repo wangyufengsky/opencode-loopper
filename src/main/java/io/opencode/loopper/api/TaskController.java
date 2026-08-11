@@ -91,6 +91,11 @@ public class TaskController {
         requireLocalUi(localUi);
         return dto(service.retryJudges(id));
     }
+    @PostMapping("/{id}/loop/retry")
+    public TaskDto retryWaitingLoop(@PathVariable String id, @RequestHeader("X-Loopper-Local-UI") String localUi) {
+        requireLocalUi(localUi);
+        return dto(service.retryWaitingLoop(id));
+    }
     @PutMapping("/{id}/archive")
     public TaskDto archive(@PathVariable String id, @RequestHeader("X-Loopper-Local-UI") String localUi) {
         requireLocalUi(localUi);

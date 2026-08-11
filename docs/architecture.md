@@ -117,6 +117,28 @@ but it is not an OS sandbox. A deliberately daemonizing hostile executable must
 be isolated by an external Job Object, cgroup or container rather than trusted
 as a LoopSpec verifier.
 
+After a deterministic failure, the orchestrator captures an immutable
+`ATTEMPT_HANDOFF` artifact outside the SQLite transaction. It contains bounded
+failure and verifier summaries, changed paths, and a workspace content digest.
+The digest reads at most 64 changed paths and 16 MiB of file content; excessive
+or unreadable input marks the snapshot unreliable, and unreliable snapshots are
+never compared for stagnation. A reliable fingerprint combines the Stage id,
+failed-verifier signature, and workspace digest. Repeating that fingerprint up
+to `limits.stagnationLimit` moves the Task to `WAITING_INPUT` with
+`LOOP_STAGNATION_DETECTED` rather than scheduling another model call.
+
+The local UI may explicitly continue that loop through
+`POST /api/tasks/{taskId}/loop/retry`. The transition records a
+`LOOP_STAGNATION_OVERRIDE`, rechecks budget, lease, writer and Stage state in a
+short transaction, then starts a fresh Attempt and fresh mutating Session after
+commit. The next prompt is built from the persisted handoff and the bounded
+`sessionPolicy.nextAttemptPromptTemplate`; supported placeholders are
+`attemptOrdinal`, `failureSummary`, `verificationSummary`, `changedPaths`, and
+`workspaceFingerprint`, and the final retry handoff is capped at 12,000
+characters. Implementation transcripts are never reused across
+Attempts. Setting `createFreshOnVerifierFailure=false` therefore requires an
+explicit UI continuation instead of authorizing reuse of the old Session.
+
 Production scheduling is enabled by default through
 `loopper.scheduling.enabled`, and durable ApplicationReady recovery is enabled by
 default through `loopper.startup-recovery.enabled`. Integration tests disable both

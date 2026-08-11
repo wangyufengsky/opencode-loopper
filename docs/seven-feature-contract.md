@@ -43,6 +43,13 @@ mismatch. Direct in-place revert is forbidden; operators create a derived
 Recovery instead. Fork/revert require a paused Task and confirmed old-writer
 termination. A checkpoint hashes message, todo and diff references.
 
+Normal verifier-loop continuation is distinct from Recovery. Every failed
+Attempt stores a bounded immutable `ATTEMPT_HANDOFF`; only reliable equal
+failure/workspace fingerprints increment the stagnation streak. At the configured
+threshold the running Task moves to `WAITING_INPUT`, and only a confirmed local-UI
+action records an override and creates a fresh Attempt/Session. Snapshot I/O and
+Session creation remain outside SQLite transactions.
+
 ## Verifiers and artifacts
 
 Existing `PROCESS`, `FILE_EXISTS`, `FILE_NOT_EXISTS`, and `GIT_DIFF` remain.

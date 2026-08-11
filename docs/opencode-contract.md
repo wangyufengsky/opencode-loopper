@@ -64,6 +64,14 @@ All OpenCode adapter requests and runtime health probes use the configured
 connect and request timeouts. This bounds a stalled local server rather than
 letting scheduler monitors wait indefinitely.
 
+A mutating implementation Session belongs to exactly one Attempt. After a
+verification failure, Loopper persists a bounded `ATTEMPT_HANDOFF` and supplies
+it to a newly created Session; it never continues the previous transcript.
+`sessionPolicy.createFreshOnVerifierFailure=false` means automatic continuation
+is disabled and the Task waits for an explicit local-UI retry. The legacy
+`reuseHealthySession` field remains wire-compatible but does not authorize
+cross-Attempt Session reuse.
+
 ## Dynamic Task Session monitoring
 
 Task detail exposes a read-only projection of its OpenCode Sessions:

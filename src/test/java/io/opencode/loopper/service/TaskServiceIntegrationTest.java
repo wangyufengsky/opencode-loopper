@@ -883,9 +883,113 @@ class TaskServiceIntegrationTest {
         assertThat(tasks.get(task.id()).state()).isEqualTo("SUCCEEDED");
     }
 
+    @Test
+    void verifierFailurePersistsBoundedHandoffAndInjectsConfiguredRetryInstructions() throws Exception {
+        ProjectRow project = projects.create("attempt-handoff", gitProject());
+        LoopSpec handoffSpec = failingContentSpec(project.id(), 3,
+                "优先处理 ${failureSummary}；复核 ${changedPaths}；指纹 ${workspaceFingerprint}",
+                new LoopSpec.SessionPolicy(true, true));
+        TaskRow task = drafts.confirm(drafts.create(handoffSpec).id(), "persist attempt handoff");
+        tasks.start(task.id());
+
+        TaskRow retrying = tasks.verify(task.id());
+
+        assertThat(retrying.state()).isEqualTo("RUNNING");
+        assertThat(tasks.attempts(task.id())).hasSize(2);
+        assertThat(tasks.artifacts(task.id())).filteredOn(artifact -> artifact.kind().equals("ATTEMPT_HANDOFF"))
+                .singleElement().satisfies(artifact -> {
+                    assertThat(artifact.content()).contains("\"workspaceReliable\":true", "\"consecutiveStagnationCount\":1");
+                    assertThat(artifact.content().length()).isLessThan(40_000);
+        });
+        ExecutionSessionRow retrySession = mapper.activeSessions(task.id()).getFirst();
+        String retryPrompt = ((FakeOpenCodeClient) openCode).promptForSession(retrySession.externalSessionId());
+        assertThat(retryPrompt.length()).isLessThan(20_000);
+        assertThat(retryPrompt)
+                .contains("Previous Attempt handoff (server-generated, bounded, and read-only)")
+                .contains("LoopSpec next-attempt instructions")
+                .contains("优先处理", "复核 (none)", "指纹");
+    }
+
+    @Test
+    void unchangedFailureStopsAtStagnationLimitAndExplicitConfirmationStartsOneFreshRetry() throws Exception {
+        ProjectRow project = projects.create("stagnation-stop", gitProject());
+        LoopSpec stagnant = failingContentSpec(project.id(), 2, null, new LoopSpec.SessionPolicy(true, true));
+        TaskRow task = drafts.confirm(drafts.create(stagnant).id(), "stop unchanged loop");
+        tasks.start(task.id());
+
+        tasks.verify(task.id());
+        TaskRow waiting = tasks.verify(task.id());
+
+        assertThat(waiting.state()).isEqualTo("WAITING_INPUT");
+        assertThat(tasks.attempts(task.id())).hasSize(2);
+        assertThat(mapper.activeSessions(task.id())).isEmpty();
+        assertThat(tasks.errors(task.id())).filteredOn(error -> error.code().equals("LOOP_STAGNATION_DETECTED"))
+                .singleElement().satisfies(error -> {
+                    assertThat(error.layer()).isEqualTo(ErrorLayer.VERIFICATION.name());
+                    assertThat(error.retryable()).isTrue();
+                    assertThat(error.evidenceJson()).contains("\"stagnationCount\":2", "\"explicitRetryAvailable\":true");
+                });
+        assertThat(tasks.artifacts(task.id())).filteredOn(artifact -> artifact.kind().equals("ATTEMPT_HANDOFF"))
+                .hasSize(2).anySatisfy(artifact -> assertThat(artifact.content()).contains("\"consecutiveStagnationCount\":2"));
+
+        TaskRow retried = tasks.retryWaitingLoop(task.id());
+
+        assertThat(retried.state()).isEqualTo("RUNNING");
+        assertThat(tasks.attempts(task.id())).hasSize(3);
+        assertThat(tasks.artifacts(task.id())).anyMatch(artifact -> artifact.kind().equals("LOOP_STAGNATION_OVERRIDE"));
+        ExecutionSessionRow retrySession = mapper.activeSessions(task.id()).getFirst();
+        assertThat(((FakeOpenCodeClient) openCode).promptForSession(retrySession.externalSessionId()))
+                .contains("user explicitly approved one fresh retry", "Latest persisted Attempt handoff");
+    }
+
+    @Test
+    void changedWorkspaceFingerprintPreventsFalseStagnationEvenWhenVerifierSummaryIsUnchanged() throws Exception {
+        ProjectRow project = projects.create("stagnation-progress", gitProject());
+        LoopSpec progressing = failingContentSpec(project.id(), 2, null, new LoopSpec.SessionPolicy(true, true));
+        TaskRow task = drafts.confirm(drafts.create(progressing).id(), "recognize workspace progress");
+        tasks.start(task.id());
+
+        tasks.verify(task.id());
+        Files.writeString(Path.of(task.worktreePath()).resolve("README.md"), "different work without the required marker");
+        TaskRow retrying = tasks.verify(task.id());
+
+        assertThat(retrying.state()).isEqualTo("RUNNING");
+        assertThat(tasks.attempts(task.id())).hasSize(3);
+        assertThat(tasks.errors(task.id())).noneMatch(error -> error.code().equals("LOOP_STAGNATION_DETECTED"));
+        assertThat(tasks.artifacts(task.id())).filteredOn(artifact -> artifact.kind().equals("ATTEMPT_HANDOFF"))
+                .hasSize(2).allSatisfy(artifact -> assertThat(artifact.content()).contains("\"consecutiveStagnationCount\":1"));
+    }
+
+    @Test
+    void disabledFreshSessionPolicyWaitsForExplicitRetryInsteadOfSilentlyReusingTranscript() throws Exception {
+        ProjectRow project = projects.create("fresh-session-policy", gitProject());
+        LoopSpec manualFresh = failingContentSpec(project.id(), 3, null,
+                new LoopSpec.SessionPolicy(true, false));
+        TaskRow task = drafts.confirm(drafts.create(manualFresh).id(), "require explicit fresh retry");
+        tasks.start(task.id());
+
+        TaskRow waiting = tasks.verify(task.id());
+
+        assertThat(waiting.state()).isEqualTo("WAITING_INPUT");
+        assertThat(tasks.attempts(task.id())).hasSize(1);
+        assertThat(tasks.errors(task.id())).anyMatch(error -> error.code().equals("LOOP_FRESH_SESSION_REQUIRED"));
+    }
+
     private LoopSpec spec(String projectId) {
         return new LoopSpec("v1", projectId, "Verify README", null, List.of(new LoopSpec.StageSpec("Check README", null, null, null,
                 List.of(new LoopSpec.VerifierSpec("FILE_EXISTS", null, "README.md", null, null, null, null)))), null, null, null, null);
+    }
+    private LoopSpec failingContentSpec(String projectId, int stagnationLimit, String retryTemplate,
+                                        LoopSpec.SessionPolicy sessionPolicy) {
+        LoopSpec.VerifierSpec verifier = new LoopSpec.VerifierSpec(
+                "FILE_CONTENT", null, "README.md", null, null, null, null, null,
+                null, null, null, null, null, "CONTAINS", "content-that-is-not-present",
+                null, null, null, null);
+        return new LoopSpec("v1", projectId, "Make README contain the required marker", null,
+                List.of(new LoopSpec.StageSpec("Update and verify README", List.of("README.md"), null,
+                        List.of("README contains the marker"), List.of(verifier))),
+                new LoopSpec.Limits(4, 6, 3, stagnationLimit, 7200L, 1800L, 600L),
+                null, sessionPolicy, retryTemplate);
     }
     private String gitProject() throws Exception {
         Path root = Files.createDirectory(temp.resolve("git-" + System.nanoTime()));

@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.1.6`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.1.7`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -33,6 +33,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 - **只读 Designer**：先读取代码库与项目约定，再通过对话生成、纠正和确认 LoopSpec；设计阶段不写业务源码。
 - **项目公约**：只读分析项目并生成或更新根目录 `AGENTS.md`，展示完整预览后才写入；Loopper 管理区块以外的人工内容会被保留。
 - **分阶段执行循环**：按依赖顺序执行 Stage，每个阶段都携带目标、交付物、路径约束和可立即运行的验收规则。
+- **循环降噪**：验证失败后固化 Attempt 交接包，并用失败签名和可靠工作区指纹识别无进展重试；连续停滞时转入人工确认，不继续烧预算。
 - **隔离执行**：有 Git HEAD 的项目使用 `loopper/<任务名>` 分支和专用 worktree；本地或远端跟踪分支已有同名时依次追加 `(第2次)`、`(第3次)`，Git 禁止字符会替换为 `-`。其他项目在登记目录中直接执行，并保留私有基线用于差异检查。
 - **确定性验收**：支持进程、文件、Git 差异、HTTP、JSON、JUnit、浏览器和 SQLite 查询等验证器。
 - **独立双评审**：确定性验证通过后，由只读 Requirement Judge 和 Risk Judge 独立评审；两者都明确 `PASS` 才能成功。
@@ -51,7 +52,9 @@ flowchart LR
     C --> D["创建并启动任务"]
     D --> E["OpenCode 分阶段实施"]
     E --> F["确定性验证"]
-    F -->|未通过且仍有预算| E
+    F -->|未通过且仍有预算| K["固化 Attempt 交接包并检查进展"]
+    K -->|工作区有进展| E
+    K -->|连续无进展| H
     F -->|通过| G["需求与风险双评审"]
     G -->|需修改或输出无效| H["等待人工处理或重新评审"]
     G -->|双 PASS| I["成功任务"]
@@ -108,7 +111,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.1.6.jar
+java -jar target/opencode-loopper-0.1.7.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -150,8 +153,8 @@ LoopSpec 是执行前必须人工确认的结构化合同。核心字段包括�
 - `projectId`、`goal` 和补充 `context`；
 - 一个或多个 `stages`；
 - 每个阶段的 `objective`、`deliverables`、允许/禁止路径和 `verifiers`；
-- 尝试次数、总时长、单次尝试、验证超时和可选 Token/成本预算；
-- 可选模型与 Session 重试策略。
+- 尝试次数、停滞阈值、总时长、单次尝试、验证超时和可选 Token/成本预算；
+- 可选模型、Session 重试策略和下一次 Attempt 的服务端提示模板。
 
 下面是一个最小示例。实际使用时通常由 Designer 生成，再在 Review Gate 中可视化检查和修改：
 
@@ -226,6 +229,10 @@ Loopper 不会因为任务成功就自动提交、推送、合并或删除 workt
 
 当旧的可写 Session 无法确认终止时，Loopper 会失败关闭，拒绝创建第二个并发写入者。远端终止状态未知会显示为 `DISCONNECTED`，不会伪装成 `ABORTED`。
 
+确定性验证失败后，Loopper 会把失败摘要、验证事实、变更路径和工作区内容指纹保存为不可变 `ATTEMPT_HANDOFF` 证据。只有完整且可靠的指纹才参与停滞判断；路径过多、文件读取异常或总哈希内容超过 16 MiB 时会标记为不可比较，避免误判。相同失败签名和工作区指纹连续达到 `stagnationLimit` 后，任务进入 `WAITING_INPUT` 并显示“继续一轮”，不会自动创建更多 Session。
+
+用户确认继续后，服务端记录 `LOOP_STAGNATION_OVERRIDE` 并创建全新 Attempt 和全新可写 Session。验证失败后的下一轮不会复用旧 Session 对话；若 `createFreshOnVerifierFailure=false`，任务会直接等待人工确认。`nextAttemptPromptTemplate` 只支持 `${attemptOrdinal}`、`${failureSummary}`、`${verificationSummary}`、`${changedPaths}` 和 `${workspaceFingerprint}` 五个有界占位符，替换后的完整交接提示最多 12,000 字符。
+
 ### Recovery
 
 只有 `FAILED` 或 `CANCELLED` 任务可以创建派生 Recovery：
@@ -287,7 +294,7 @@ Git 隔离任务达到 `SUCCEEDED` 后：
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.1.6.jar`
+- `target/opencode-loopper-0.1.7.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -319,7 +326,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:4096
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.1.6.jar \
+jar tf target/opencode-loopper-0.1.7.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -397,7 +404,7 @@ Windows PowerShell：
 例如发布下一版本：
 
 ```bash
-VERSION=0.1.6
+VERSION=0.1.7
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -437,7 +444,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.1.6.jar
+java -jar target/opencode-loopper-0.1.7.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。

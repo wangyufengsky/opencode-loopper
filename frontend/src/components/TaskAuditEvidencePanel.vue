@@ -15,6 +15,7 @@ const activeTab = ref<'logs' | 'diff' | 'evidence'>('evidence')
 const orderedAttempts = computed(() => [...props.attempts].sort((left, right) => right.ordinal - left.ordinal))
 const verificationRows = computed(() => orderedAttempts.value.flatMap((attempt) => attempt.verifiers.map((verifier, index) => ({ attempt, verifier, index }))))
 const logRows = computed(() => verificationRows.value.filter(({ verifier }) => Boolean(output(verifier))))
+const handoffArtifacts = computed(() => props.artifacts.filter((artifact) => artifact.title.startsWith('attempt-handoff-')))
 const diffArtifact = computed(() => props.artifacts.find((artifact) => artifact.kind === 'DIFF'))
 const gitDiffRows = computed(() => verificationRows.value.filter(({ verifier }) => verifier.name.toUpperCase() === 'GIT_DIFF'))
 const changedPaths = computed(() => unique(gitDiffRows.value.flatMap(({ verifier }) => strings(verifier.evidence?.changedPaths))))
@@ -125,8 +126,12 @@ async function showDiff(path: string) {
 
     <div class="audit-content">
       <template v-if="activeTab === 'logs'">
-        <div class="source-note"><Icon icon="lucide:terminal-square" /><span><strong>确定性验证日志</strong>来自验证器真实进程输出；模型会话实时输出保留在上方会话面板。</span><b>{{ logRows.length }} 份</b></div>
-        <div v-if="logRows.length" class="audit-stack">
+        <div class="source-note"><Icon icon="lucide:terminal-square" /><span><strong>确定性验证日志与 Attempt 交接</strong>均来自服务端持久化事实；模型会话实时输出保留在上方会话面板。</span><b>{{ logRows.length + handoffArtifacts.length }} 份</b></div>
+        <div v-if="logRows.length || handoffArtifacts.length" class="audit-stack">
+          <details v-for="artifact in handoffArtifacts" :key="artifact.id" class="audit-disclosure handoff">
+            <summary><span class="state-dot handoff" /><span class="summary-main"><strong>{{ artifact.title }}</strong><small>结构化重试交接 · {{ artifact.attemptId || '任务级证据' }}</small></span><Icon icon="lucide:chevron-down" /></summary>
+            <pre class="audit-log">{{ artifact.content }}</pre>
+          </details>
           <details v-for="({ attempt, verifier }) in logRows" :key="verifier.id" class="audit-disclosure">
             <summary><span :class="['state-dot', verifier.status.toLowerCase()]" /><span class="summary-main"><strong>{{ argv(verifier) }}</strong><small>尝试 {{ attempt.ordinal }} · {{ verifier.summary }}<template v-if="detail(verifier)"> · {{ detail(verifier) }}</template></small></span><Icon icon="lucide:chevron-down" /></summary>
             <pre class="audit-log">{{ output(verifier) }}</pre>
@@ -190,6 +195,7 @@ async function showDiff(path: string) {
 .audit-stack { display: grid; gap: 9px; margin-top: 12px; }.audit-disclosure { overflow: hidden; border: 1px solid var(--color-border-default); border-radius: 9px; background: rgb(7 12 22 / 56%); }.audit-disclosure.secondary { margin-top: 12px; }
 .audit-disclosure summary { display: flex; align-items: center; gap: 9px; padding: 11px 12px; color: var(--color-text-secondary); cursor: pointer; list-style: none; }.audit-disclosure summary::-webkit-details-marker { display: none; }.audit-disclosure summary > svg { flex: 0 0 auto; transition: transform .16s ease; }.audit-disclosure[open] summary > svg { transform: rotate(180deg); }
 .state-dot { flex: 0 0 7px; width: 7px; height: 7px; border-radius: 50%; background: var(--color-text-muted); }.state-dot.pass { background: var(--color-success); }.state-dot.fail { background: var(--color-task-danger); }
+.state-dot.handoff { background: #a78bfa; }.audit-disclosure.handoff { border-color: rgb(167 139 250 / 24%); }
 .summary-main { display: grid; min-width: 0; flex: 1; gap: 3px; }.summary-main strong { overflow: hidden; color: var(--color-text-primary); font: 620 11px/1.4 var(--font-code); text-overflow: ellipsis; white-space: nowrap; }.summary-main small { color: var(--color-text-tertiary); font-size: 9px; }
 .audit-log { max-height: 390px; margin: 0; padding: 13px 14px; overflow: auto; border-top: 1px solid var(--color-border-default); background: #070c16; color: #b8c8de; font: 10px/1.62 var(--font-code); white-space: pre-wrap; overflow-wrap: anywhere; }
 .audit-empty { display: grid; justify-items: center; gap: 6px; min-height: 260px; place-content: center; color: var(--color-text-tertiary); text-align: center; }.audit-empty > svg { margin-bottom: 4px; color: var(--color-text-muted); }.audit-empty strong { color: var(--color-text-secondary); font-size: 12px; }.audit-empty p { max-width: 380px; margin: 0; font-size: 10px; line-height: 1.6; }

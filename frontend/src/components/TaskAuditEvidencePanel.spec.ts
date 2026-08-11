@@ -15,7 +15,10 @@ const attempts: Attempt[] = [{
   ],
 }]
 
-const artifacts: Artifact[] = [{ id: 'artifact-diff', kind: 'DIFF', title: 'worktree.diff', createdAt: 'now', content: '[]' }]
+const artifacts: Artifact[] = [
+  { id: 'artifact-diff', kind: 'DIFF', title: 'worktree.diff', createdAt: 'now', content: '[]' },
+  { id: 'artifact-handoff', kind: 'LOG', title: 'attempt-handoff-1.json', createdAt: 'now', attemptId: 'attempt-1', content: '{"consecutiveStagnationCount":1}' },
+]
 
 function mountPanel(directExecution = false) {
   return mount(TaskAuditEvidencePanel, {
@@ -39,8 +42,10 @@ describe('TaskAuditEvidencePanel', () => {
     expect(wrapper.text()).toContain('2 / 2 通过')
     await openTab(wrapper, '日志')
     expect(wrapper.text()).toContain('确定性验证日志')
+    expect(wrapper.text()).toContain('attempt-handoff-1.json')
+    expect(wrapper.text()).toContain('结构化重试交接')
     expect(wrapper.text()).toContain('mvn test')
-    expect(wrapper.get('.audit-log').text()).toContain('BUILD SUCCESS')
+    expect(wrapper.findAll('.audit-log').some((log) => log.text().includes('BUILD SUCCESS'))).toBe(true)
     expect(wrapper.get('.audit-disclosure').attributes('open')).toBeUndefined()
   })
 

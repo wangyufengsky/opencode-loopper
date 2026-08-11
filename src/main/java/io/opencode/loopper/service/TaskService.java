@@ -60,7 +60,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class TaskService {
     private static final String DESIGN_CONTEXT_ARTIFACT_KIND = "DESIGN_CONTEXT";
     private static final String LOCAL_SOURCE_SYNC_ARTIFACT_KIND = "LOCAL_SOURCE_SYNC";
+    private static final String ATTEMPT_HANDOFF_ARTIFACT_KIND = "ATTEMPT_HANDOFF";
+    private static final String LOOP_STAGNATION_OVERRIDE_ARTIFACT_KIND = "LOOP_STAGNATION_OVERRIDE";
     private static final int MAX_EXECUTION_DESIGN_CONTEXT_CHARS = 12_000;
+    private static final int MAX_RETRY_HANDOFF_CHARS = 8_000;
     private final LoopperMapper mapper;
     private final LifecycleTransitionService lifecycle;
     private final ObjectMapper json;
@@ -69,6 +72,7 @@ public class TaskService {
     private final DirectWorkspaceLeaseCoordinator directLeases;
     private final OpenCodeClient openCode;
     private final VerifierEngine verifiers;
+    private final AttemptHandoffService attemptHandoffs;
     private final BinaryArtifactPersistenceService binaryArtifacts;
     private final UsageInsightsService usageInsights;
     private final TaskEventService events;
@@ -78,12 +82,14 @@ public class TaskService {
     public TaskService(LoopperMapper mapper, LifecycleTransitionService lifecycle, ObjectMapper json, ProjectService projects,
                        GitWorktreeManager worktrees, DirectWorkspaceLeaseCoordinator directLeases,
                        OpenCodeClient openCode, VerifierEngine verifiers,
+                       AttemptHandoffService attemptHandoffs,
                        BinaryArtifactPersistenceService binaryArtifacts, UsageInsightsService usageInsights,
                        TaskEventService events, LoopperProperties defaults,
                        PlatformTransactionManager transactionManager) {
         this.mapper = mapper; this.lifecycle = lifecycle; this.json = json; this.projects = projects;
         this.worktrees = worktrees; this.directLeases = directLeases; this.openCode = openCode;
-        this.verifiers = verifiers; this.binaryArtifacts = binaryArtifacts; this.usageInsights = usageInsights; this.events = events; this.defaults = defaults;
+        this.verifiers = verifiers; this.attemptHandoffs = attemptHandoffs; this.binaryArtifacts = binaryArtifacts;
+        this.usageInsights = usageInsights; this.events = events; this.defaults = defaults;
         this.transactions = new TransactionTemplate(transactionManager);
     }
 
@@ -415,9 +421,21 @@ public class TaskService {
                 }
                 pending.add(new PendingVerification(UUID.randomUUID().toString(), i, outcome));
             }
+            AttemptHandoffService.Capture handoff = null;
+            PendingVerification failedPreview = pending.stream()
+                    .filter(result -> result.outcome().state() != VerificationState.PASS)
+                    .reduce((left, right) -> right).orElse(null);
+            if (!verificationOnly && failedPreview != null) {
+                handoff = attemptHandoffs.capture(Path.of(requireWorktree(initial)), initial.baselineCommit(),
+                        stage.id(), attempt.id(), attempt.ordinal(), pending.stream()
+                                .map(result -> new AttemptHandoffService.VerificationFact(result.outcome().type(),
+                                        result.outcome().state().name(), result.outcome().summary())).toList(),
+                        failedPreview.outcome().summary(), timeout);
+            }
+            AttemptHandoffService.Capture capturedHandoff = handoff;
             VerificationContinuation continuation = transactions.execute(status -> finishVerification(
                     initial.id(), stage.id(), attempt.id(), implementationSession == null ? null : implementationSession.id(),
-                    pending, verificationOnly, spec));
+                    pending, capturedHandoff, verificationOnly, spec));
             continueAfterVerification(continuation);
         } catch (TaskFailure failure) {
             failTask(get(taskId), failure.code(), failure.getMessage(), null, null, null);
@@ -445,6 +463,7 @@ public class TaskService {
     private VerificationContinuation finishVerification(String taskId, String stageId, String attemptId,
                                                           String implementationSessionId,
                                                           List<PendingVerification> pending,
+                                                          AttemptHandoffService.Capture handoff,
                                                           boolean verificationOnly, LoopSpec spec) {
         TaskRow task = get(taskId);
         if (!TaskState.VERIFYING.name().equals(task.state())) {
@@ -477,7 +496,8 @@ public class TaskService {
                     "VERIFY_ONLY 恢复任务的原生验证失败；不会创建可写 OpenCode 修复会话", stage, attempt, null);
             return VerificationContinuation.none(taskId);
         }
-        return retryAfterVerificationFailureState(task, stage, attempt, failure, spec);
+        int stagnationCount = persistAttemptHandoff(task, stage, attempt, handoff);
+        return retryAfterVerificationFailureState(task, stage, attempt, failure, spec, handoff, stagnationCount);
     }
 
     private void continueAfterVerification(VerificationContinuation continuation) {
@@ -901,7 +921,9 @@ public class TaskService {
 
     private VerificationContinuation retryAfterVerificationFailureState(TaskRow task, StageRow stage,
                                                                           AttemptRow attempt, String message,
-                                                                          LoopSpec spec) {
+                                                                          LoopSpec spec,
+                                                                          AttemptHandoffService.Capture handoff,
+                                                                          int stagnationCount) {
         updateAttempt(finish(attempt, AttemptState.VERIFICATION_FAILED, "VERIFICATION_FAILED", message));
         recordError(task, stage, attempt, mapper.latestSessionForAttempt(attempt.id()).orElse(null), ErrorLayer.VERIFICATION,
                 "VERIFICATION_FAILED", message, true, Map.of());
@@ -909,11 +931,161 @@ public class TaskService {
             failTask(get(task.id()), "ATTEMPT_LIMIT_EXHAUSTED", "Verifier failures exhausted configured attempts", stage, attempt, null);
             return VerificationContinuation.none(task.id());
         }
+        if (!Boolean.TRUE.equals(spec.sessionPolicy().createFreshOnVerifierFailure())) {
+            return waitForLoopInput(task, stage, attempt, "LOOP_FRESH_SESSION_REQUIRED",
+                    "LoopSpec disabled automatic fresh-session recovery; Loopper will not reuse a completed mutating Session. Confirm one explicit fresh retry to continue.",
+                    stagnationCount, handoff);
+        }
+        if (handoff != null && handoff.comparableForStagnation()
+                && stagnationCount >= spec.limits().stagnationLimit()) {
+            return waitForLoopInput(task, stage, attempt, "LOOP_STAGNATION_DETECTED",
+                    "The verifier failure and reliable workspace fingerprint remained unchanged for "
+                            + stagnationCount + " consecutive Attempts. Loopper stopped before starting another model Session.",
+                    stagnationCount, handoff);
+        }
         updateTask(state(get(task.id()), TaskState.RETRY_WAIT));
         events.emit(task.id(), "verification.failed", Map.of("attemptId", attempt.id(), "recovery", "next_attempt", "summary", message));
         updateTask(state(get(task.id()), TaskState.RUNNING));
         return VerificationContinuation.retry(task.id(), stage.id(),
-                "Verification failed: " + message + ". Fix the evidence and retry the current stage.");
+                handoff == null
+                        ? "Verification failed: " + message + ". Fix the evidence and retry the current stage."
+                        : attemptHandoffs.retryPrompt(handoff, spec.nextAttemptPromptTemplate()));
+    }
+
+    private VerificationContinuation waitForLoopInput(TaskRow task, StageRow stage, AttemptRow attempt,
+                                                       String code, String message, int stagnationCount,
+                                                       AttemptHandoffService.Capture handoff) {
+        Map<String, Object> evidence = new LinkedHashMap<>();
+        evidence.put("resolution", TaskState.WAITING_INPUT.name());
+        evidence.put("explicitRetryAvailable", true);
+        evidence.put("stagnationCount", stagnationCount);
+        if (handoff != null && handoff.stagnationFingerprint() != null) {
+            evidence.put("stagnationFingerprint", handoff.stagnationFingerprint());
+        }
+        recordError(task, stage, attempt, null, ErrorLayer.VERIFICATION, code, message, true, evidence);
+        updateTask(state(get(task.id()), TaskState.WAITING_INPUT));
+        events.emit(task.id(), "task.loop_waiting_input", Map.of("state", TaskState.WAITING_INPUT.name(),
+                "code", code, "message", safeMessage(message), "stagnationCount", stagnationCount));
+        return VerificationContinuation.none(task.id());
+    }
+
+    private int persistAttemptHandoff(TaskRow task, StageRow stage, AttemptRow attempt,
+                                      AttemptHandoffService.Capture handoff) {
+        if (handoff == null) return 0;
+        int stagnationCount = consecutiveStagnationCount(task.id(), stage.id(), handoff);
+        Map<String, Object> content = new LinkedHashMap<>();
+        content.put("schemaVersion", handoff.schemaVersion());
+        content.put("taskId", task.id());
+        content.put("stageId", stage.id());
+        content.put("attemptId", attempt.id());
+        content.put("attemptOrdinal", attempt.ordinal());
+        content.put("failureSummary", handoff.failureSummary());
+        content.put("verifications", handoff.verifications());
+        content.put("changedPaths", handoff.changedPaths());
+        content.put("changedPathCount", handoff.changedPathCount());
+        content.put("workspaceSha256", handoff.workspaceSha256());
+        content.put("workspaceReliable", handoff.workspaceReliable());
+        content.put("workspaceUnavailableReason", handoff.workspaceUnavailableReason());
+        content.put("stagnationFingerprint", handoff.stagnationFingerprint());
+        content.put("consecutiveStagnationCount", stagnationCount);
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("source", "deterministic-verifier-and-workspace");
+        metadata.put("stageId", stage.id());
+        metadata.put("attemptOrdinal", attempt.ordinal());
+        metadata.put("workspaceReliable", handoff.workspaceReliable());
+        metadata.put("stagnationComparable", handoff.comparableForStagnation());
+        metadata.put("stagnationFingerprint", handoff.stagnationFingerprint());
+        metadata.put("consecutiveStagnationCount", stagnationCount);
+        persistArtifact(task, attempt.id(), null, ATTEMPT_HANDOFF_ARTIFACT_KIND,
+                "attempt-handoff-" + attempt.ordinal() + ".json", "application/json", write(content), metadata);
+        return stagnationCount;
+    }
+
+    private int consecutiveStagnationCount(String taskId, String stageId,
+                                           AttemptHandoffService.Capture current) {
+        if (!current.comparableForStagnation()) return 0;
+        int count = 1;
+        for (TaskArtifactRow artifact : mapper.listTaskArtifacts(taskId)) {
+            if (LOOP_STAGNATION_OVERRIDE_ARTIFACT_KIND.equals(artifact.kind())) {
+                if (metadataText(artifact, "stageId").equals(stageId)) break;
+                continue;
+            }
+            if (!ATTEMPT_HANDOFF_ARTIFACT_KIND.equals(artifact.kind())) continue;
+            if (!metadataText(artifact, "stageId").equals(stageId)) continue;
+            if (!metadataBoolean(artifact, "stagnationComparable")) break;
+            if (!current.stagnationFingerprint().equals(metadataText(artifact, "stagnationFingerprint"))) break;
+            count++;
+        }
+        return count;
+    }
+
+    private String metadataText(TaskArtifactRow artifact, String field) {
+        try { return json.readTree(artifact.metadataJson()).path(field).asText(""); }
+        catch (Exception unreadable) { return ""; }
+    }
+
+    private boolean metadataBoolean(TaskArtifactRow artifact, String field) {
+        try { return json.readTree(artifact.metadataJson()).path(field).asBoolean(false); }
+        catch (Exception unreadable) { return false; }
+    }
+
+    /** Explicit local confirmation authorizes exactly one fresh retry after loop noise protection stopped automation. */
+    public TaskRow retryWaitingLoop(String taskId) {
+        StageRow stage = transactions.execute(status -> prepareWaitingLoopRetry(taskId));
+        if (stage == null) throw new ConflictException("LOOP_RETRY_PREPARATION_FAILED", "Unable to prepare the explicit loop retry");
+        String handoff = mapper.listTaskArtifacts(taskId).stream()
+                .filter(artifact -> ATTEMPT_HANDOFF_ARTIFACT_KIND.equals(artifact.kind()))
+                .filter(artifact -> stage.id().equals(metadataText(artifact, "stageId")))
+                .map(TaskArtifactRow::content).findFirst().orElse("No persisted Attempt handoff is available.");
+        String prompt = "The user explicitly approved one fresh retry after Loopper stopped an unchanged or policy-blocked loop.\n"
+                + "Latest persisted Attempt handoff (read-only):\n"
+                + (handoff.length() <= MAX_RETRY_HANDOFF_CHARS ? handoff : handoff.substring(0, MAX_RETRY_HANDOFF_CHARS)
+                + "\n… handoff truncated for the retry prompt …");
+        startNewAttempt(get(taskId), stage, prompt);
+        return get(taskId);
+    }
+
+    private StageRow prepareWaitingLoopRetry(String taskId) {
+        TaskRow task = get(taskId);
+        if (!TaskState.WAITING_INPUT.name().equals(task.state())) {
+            throw new ConflictException("LOOP_RETRY_NOT_WAITING", "Only a task waiting on loop noise protection can be retried");
+        }
+        ErrorEventRow waitingReason = mapper.listErrors(task.id()).stream()
+                .filter(error -> TaskState.WAITING_INPUT.name().equals(errorEvidenceText(error, "resolution")))
+                .findFirst().orElse(null);
+        boolean actionable = waitingReason != null && ("LOOP_STAGNATION_DETECTED".equals(waitingReason.code())
+                || "LOOP_FRESH_SESSION_REQUIRED".equals(waitingReason.code()));
+        if (!actionable) {
+            throw new ConflictException("LOOP_RETRY_NOT_ACTIONABLE", "This waiting task requires a different explicit resolution");
+        }
+        if (!mapper.activeSessions(task.id()).isEmpty() || hasUnconfirmedWriter(task.id())) {
+            throw new ConflictException("SESSION_WRITER_ACTIVE", "A fresh retry cannot overlap an existing or unconfirmed writer");
+        }
+        StageRow stage = mapper.listStages(task.id()).stream()
+                .filter(row -> StageState.RUNNING.name().equals(row.state())).findFirst()
+                .orElseThrow(() -> new ConflictException("STAGE_NOT_RUNNING", "The waiting task has no active stage to retry"));
+        LoopSpec spec = spec(task);
+        if (mapper.countAttemptsForTask(task.id()) >= spec.limits().maxTaskAttempts()
+                || mapper.countAttemptsForStage(stage.id()) >= spec.limits().maxStageAttempts()) {
+            throw new ConflictException("ATTEMPT_LIMIT_EXHAUSTED", "The configured attempt limit was reached");
+        }
+        if (isAdmittedDirect(task)) {
+            try { directLeases.requireWritableLease(directRoot(task), task.id()); }
+            catch (TaskFailure failure) { throw new ConflictException(failure.code(), failure.getMessage()); }
+        }
+        persistArtifact(task, null, null, LOOP_STAGNATION_OVERRIDE_ARTIFACT_KIND,
+                "loop-stagnation-override.json", "application/json",
+                write(Map.of("stageId", stage.id(), "source", "LOCAL_UI", "approvedAt", now())),
+                Map.of("stageId", stage.id(), "source", "LOCAL_UI"));
+        updateTask(state(task, TaskState.RUNNING));
+        events.emit(task.id(), "task.loop_retry_requested", Map.of("state", TaskState.RUNNING.name(),
+                "stageId", stage.id(), "source", "LOCAL_UI", "freshSession", true));
+        return mapper.findStage(stage.id()).orElse(stage);
+    }
+
+    private String errorEvidenceText(ErrorEventRow error, String field) {
+        try { return json.readTree(error.evidenceJson()).path(field).asText(""); }
+        catch (Exception unreadable) { return ""; }
     }
 
     private VerificationContinuation completeStageState(TaskRow task, StageRow stage, AttemptRow attempt) {

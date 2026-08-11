@@ -14,6 +14,7 @@ const store = vi.hoisted(() => ({
   stopWatching: vi.fn(),
   updateTask: vi.fn(),
   retryJudges: vi.fn().mockResolvedValue(undefined),
+  retryWaitingLoop: vi.fn().mockResolvedValue(undefined),
   reworkTask: vi.fn().mockResolvedValue('task-rework'),
 }))
 
@@ -37,6 +38,7 @@ describe('TaskDetailView judge action', () => {
     store.watchTask.mockClear()
     store.stopWatching.mockClear()
     store.retryJudges.mockClear()
+    store.retryWaitingLoop.mockClear()
     store.reworkTask.mockClear()
   })
 
@@ -115,6 +117,50 @@ describe('TaskDetailView judge action', () => {
 
     expect(wrapper.findAll('.layered-error-stub').map((panel) => panel.text())).toEqual(['PROCESS_FAILED'])
     expect(wrapper.find('#judge-review').exists()).toBe(true)
+  })
+
+  it('offers one explicit fresh retry when unchanged loop protection is waiting for input', async () => {
+    store.tasks = [{
+      ...reviewTask,
+      id: 'task-stagnant',
+      title: '停滞任务',
+      attempts: [{ id: 'attempt-2', stageId: 'stage-1', ordinal: 2, status: 'VERIFICATION_FAILED', verifiers: [] }],
+      stages: [{ id: 'stage-1', ordinal: 1, objective: '修复验证', status: 'RUNNING', attempts: [] }],
+      judges: [],
+      errors: [{ id: 'stagnation', layer: 'VERIFICATION', code: 'LOOP_STAGNATION_DETECTED', message: '连续两轮未变化', retryable: true, occurredAt: 'now' }],
+    }]
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/tasks/:id', component: { template: '<div />' } }] })
+    await router.push('/tasks/task-stagnant')
+    await router.isReady()
+    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue(undefined as never)
+
+    const wrapper = mount(TaskDetailView, {
+      global: {
+        plugins: [router, ElementPlus],
+        stubs: {
+          Icon: true,
+          PageHeader: { template: '<header><slot name="actions" /></header><slot />' },
+          StatusBadge: true,
+          StageRail: true,
+          AttemptTimeline: true,
+          LayeredErrorPanel: true,
+          SessionMonitorPanel: true,
+          JudgeReviewCard: true,
+          TaskAuditEvidencePanel: true,
+          TaskPublicationActions: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    const action = wrapper.findAll('button').find((button) => button.text().includes('继续一轮'))
+    expect(action).toBeDefined()
+    expect(wrapper.text()).toContain('循环已因重复失败或重试策略暂停')
+    await action!.trigger('click')
+    await flushPromises()
+
+    expect(ElMessageBox.confirm).toHaveBeenCalledWith(expect.stringContaining('全新的可写 OpenCode Session'), '确认继续一轮？', expect.any(Object))
+    expect(store.retryWaitingLoop).toHaveBeenCalledWith('task-stagnant')
   })
 
   it('creates a new branch rework task and navigates to the child', async () => {

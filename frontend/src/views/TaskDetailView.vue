@@ -33,6 +33,7 @@ const changedFiles = computed(() => new Set(verificationRows.value.flatMap((veri
 })).size)
 const passedVerifications = computed(() => verificationRows.value.filter((verifier) => verifier.status === 'PASS').length)
 const judgeRetrying = ref(false)
+const loopRetrying = ref(false)
 const reworking = ref(false)
 const deterministicAccepted = computed(() => Boolean(task.value?.stages?.length) && task.value!.stages!.every((stage) => stage.status === 'SUCCEEDED'))
 const latestJudge = (role: 'REQUIREMENT' | 'RISK') => judges.value
@@ -48,6 +49,10 @@ const verifierErrors = computed<ErrorEvent[]>(() => (task.value?.errors ?? attem
   .filter((error) => !error.code.startsWith('JUDGE_') || (task.value?.status === 'WAITING_INPUT' && !doubleReviewApproved.value)))
 const canRetryJudges = computed(() => deterministicAccepted.value
   && (task.value?.status === 'WAITING_INPUT' || (task.value?.status === 'SUCCEEDED' && !doubleReviewApproved.value)))
+const loopWaitingError = computed(() => (task.value?.errors ?? []).find((error) =>
+  error.code === 'LOOP_STAGNATION_DETECTED' || error.code === 'LOOP_FRESH_SESSION_REQUIRED'))
+const canRetryLoop = computed(() => task.value?.status === 'WAITING_INPUT'
+  && !deterministicAccepted.value && Boolean(loopWaitingError.value))
 const judgeActionLabel = computed(() => judges.value.length ? '重新发起双评审' : '启动双评审')
 const canRework = computed(() => !isDirectExecution.value
   && ['WAITING_INPUT', 'SUCCEEDED', 'FAILED', 'CANCELLED'].includes(task.value?.status ?? ''))
@@ -57,6 +62,7 @@ const nextAction = computed(() => {
   if (task.value.status === 'FAILED') return '先查看最上方错误与失败验证，再根据证据重新设计或新建任务。'
   if (task.value.status === 'CANCELLED') return '任务已取消；执行目录和证据仍保留，可据此新建设计。'
   if (task.value.status === 'WAITING_INPUT' && canRetryJudges.value) return '查看未通过或异常的评审证据；补齐条件后可重新发起需求 / 风险双评审。'
+  if (task.value.status === 'WAITING_INPUT' && canRetryLoop.value) return '循环已因重复失败或重试策略暂停。检查结构化交接后，可明确确认再执行一轮全新 Session。'
   if (task.value.status === 'WAITING_INPUT') return '回答页面中的待处理问题，任务将从当前阶段继续。'
   if (task.value.status === 'PAUSED') return '确认当前状态后点击“继续”，任务会从原阶段恢复。'
   if (task.value.status === 'READY') return '执行目录已准备完成，可以开始任务。'
@@ -95,6 +101,23 @@ async function confirmRetryJudges() {
   }
 }
 
+async function confirmRetryLoop() {
+  if (!canRetryLoop.value || loopRetrying.value) return
+  try {
+    await ElMessageBox.confirm(
+      '将依据最新结构化 Attempt 交接启动一个全新的可写 OpenCode Session。历史失败和工作区证据会保留；若结果仍无变化，Loopper 会再次暂停。',
+      '确认继续一轮？',
+      { type: 'warning', confirmButtonText: '继续一轮', cancelButtonText: '暂不继续' },
+    )
+    loopRetrying.value = true
+    await store.retryWaitingLoop(id.value)
+  } catch {
+    // User cancelled, or the store exposed the backend error.
+  } finally {
+    loopRetrying.value = false
+  }
+}
+
 async function confirmRework() {
   if (!canRework.value || reworking.value || !task.value) return
   try {
@@ -125,6 +148,7 @@ async function confirmRework() {
       <el-button v-if="task?.status === 'READY'" type="primary" @click="store.updateTask(id, 'start')"><Icon icon="lucide:play" />开始执行</el-button>
       <template v-else-if="task?.status === 'RUNNING' || task?.status === 'VERIFYING'"><el-button plain @click="store.updateTask(id, 'pause')"><Icon icon="lucide:pause" />暂停</el-button><el-button plain type="danger" @click="confirmCancel"><Icon icon="lucide:square" />取消</el-button></template>
       <el-button v-else-if="task?.status === 'PAUSED'" type="primary" @click="store.updateTask(id, 'resume')"><Icon icon="lucide:play" />继续</el-button>
+      <el-button v-if="canRetryLoop" type="warning" :loading="loopRetrying" @click="confirmRetryLoop"><Icon icon="lucide:rotate-ccw" />继续一轮</el-button>
       <el-button v-if="canRetryJudges" type="warning" :loading="judgeRetrying" @click="confirmRetryJudges"><Icon icon="lucide:scan-eye" />{{ judgeActionLabel }}</el-button>
       <TaskPublicationActions v-if="task?.status === 'SUCCEEDED'" :task="task" :demo="store.usingDemo" />
     </template>

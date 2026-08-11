@@ -91,6 +91,28 @@ class TaskControllerArchiveTest {
     }
 
     @Test
+    void retriesAWaitingLoopOnlyThroughTheLocalUiContract() throws Exception {
+        TaskRow task = new TaskRow("task-loop", "project-1", null, "Stagnant", "RUNNING",
+                "/tmp/project", "DIRECT", null, "2026-08-05T00:00:00Z", "2026-08-05T00:01:00Z", 1);
+        when(tasks.retryWaitingLoop("task-loop")).thenReturn(task);
+        when(tasks.archived("task-loop")).thenReturn(false);
+        when(tasks.attempts("task-loop")).thenReturn(List.of());
+        when(tasks.stages("task-loop")).thenReturn(List.of());
+        when(tasks.errors("task-loop")).thenReturn(List.of());
+        when(tasks.judges("task-loop")).thenReturn(List.of());
+        when(tasks.artifacts("task-loop")).thenReturn(List.of());
+        when(mapper.findProject("project-1")).thenReturn(Optional.empty());
+
+        mvc.perform(post("/api/tasks/task-loop/loop/retry").header("X-Loopper-Local-UI", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RUNNING"));
+        verify(tasks).retryWaitingLoop("task-loop");
+
+        mvc.perform(post("/api/tasks/task-loop/loop/retry"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void returnsPersistedQueueAndLeaseStatus() throws Exception {
         when(tasks.queueStatus("task-queued")).thenReturn(
                 new FeatureContracts.QueueStatusDto("task-queued", "QUEUED", 2L, "RELEASE_PENDING", "abc123"));

@@ -13,13 +13,13 @@ import java.util.Objects;
 public record LoopSpec(
         String schemaVersion,
         @NotBlank String projectId,
-        @NotBlank String goal,
-        String context,
+        @NotBlank @Size(max = 12_000) String goal,
+        @Size(max = 12_000) String context,
         @NotEmpty @Size(max = 64) List<@Valid StageSpec> stages,
         @Valid Limits limits,
         @Valid ModelSpec model,
         @Valid SessionPolicy sessionPolicy,
-        String nextAttemptPromptTemplate,
+        @Size(max = 4_000) String nextAttemptPromptTemplate,
         @Valid BudgetSpec budget) {
     public LoopSpec(String schemaVersion, String projectId, String goal, String context,
                     List<StageSpec> stages, Limits limits, ModelSpec model,
@@ -38,10 +38,10 @@ public record LoopSpec(
         budget = budget == null ? BudgetSpec.unlimited() : budget;
     }
     public record StageSpec(
-            @NotBlank String objective,
+            @NotBlank @Size(max = 4_000) String objective,
             @Size(max = 64) List<@Size(max = 512) String> allowedPaths,
             @Size(max = 64) List<@Size(max = 512) String> forbiddenPaths,
-            List<String> deliverables,
+            @Size(max = 64) List<@Size(max = 2_000) String> deliverables,
             @Size(max = 32) List<@Valid VerifierSpec> verifiers) {
         public StageSpec {
             allowedPaths = immutable(allowedPaths);
@@ -118,9 +118,12 @@ public record LoopSpec(
         }
     }
 
-    public record Limits(@Min(1) Integer maxStageAttempts, @Min(1) Integer maxTaskAttempts,
-                         @Min(1) Integer sessionErrorLimit, @Min(1) Integer stagnationLimit,
-                         @Min(1) Long maxDurationSeconds, @Min(1) Long attemptTimeoutSeconds,
+    public record Limits(@Min(1) @Max(20) Integer maxStageAttempts,
+                         @Min(1) @Max(100) Integer maxTaskAttempts,
+                         @Min(1) @Max(20) Integer sessionErrorLimit,
+                         @Min(1) @Max(20) Integer stagnationLimit,
+                         @Min(1) @Max(604800) Long maxDurationSeconds,
+                         @Min(1) @Max(86400) Long attemptTimeoutSeconds,
                          @Min(1) @Max(3600) Long verifierTimeoutSeconds) {
         public Limits {
             maxStageAttempts = maxStageAttempts == null ? 3 : maxStageAttempts;
