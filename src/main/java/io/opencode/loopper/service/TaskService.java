@@ -718,9 +718,10 @@ public class TaskService {
         ExecutionSessionRow session = new ExecutionSessionRow(UUID.randomUUID().toString(), freshTask.id(), stage.id(), attempt.id(), null,
                 SessionState.CREATING.name(), now(), null, 0);
         createSession(session);
+        OpenCodeClient.OpenCodeSession remote;
         try {
             Path worktree = Path.of(requireWorktree(freshTask));
-            OpenCodeClient.OpenCodeSession remote = openCode.createSession(worktree, freshTask.title(), model(spec));
+            remote = openCode.createSession(worktree, freshTask.title(), model(spec));
             ExecutionSessionRow running = new ExecutionSessionRow(session.id(), session.taskId(), session.stageId(), session.attemptId(), remote.id(),
                     SessionState.RUNNING.name(), session.createdAt(), null, session.version());
             updateSession(running);
@@ -730,13 +731,15 @@ public class TaskService {
                 directLeases.heartbeat(directRoot(freshTask), freshTask.id(), running.id());
             }
             openCode.promptAsync(remote, promptWithBoundaries(freshTask, spec, stage, prompt));
-            events.emit(freshTask.id(), "session.started", Map.of("attemptId", attempt.id(), "sessionId", session.id(), "externalSessionId", remote.id(), "stageId", stage.id()));
         } catch (SessionFailure failure) {
             handleSessionFailure(freshTask, stage, attempt, session, failure);
+            return;
         } catch (RuntimeException exception) {
             handleSessionFailure(freshTask, stage, attempt, session,
                     new SessionFailure("SESSION_RUNTIME_ERROR", safeMessage(exception)));
+            return;
         }
+        events.emit(freshTask.id(), "session.started", Map.of("attemptId", attempt.id(), "sessionId", session.id(), "externalSessionId", remote.id(), "stageId", stage.id()));
     }
 
     /** Starts a deterministic verifier attempt without creating an OpenCode implementation Session. */
@@ -1017,18 +1020,21 @@ public class TaskService {
         persistArtifact(task, finalAttempt.id(), judge.id(), "JUDGE_LOG_METADATA", role.toLowerCase() + "-judge-start.json",
                 "application/json", write(Map.of("role", role, "state", JudgeRunState.CREATING.name(), "readOnly", true)),
                 Map.of("source", "judge-session", "readOnly", true));
+        OpenCodeClient.OpenCodeSession remote;
         try {
             Path worktree = Path.of(requireWorktree(task));
-            OpenCodeClient.OpenCodeSession remote = openCode.createReadOnlySession(worktree, roleTitle(role), model(spec));
+            remote = openCode.createReadOnlySession(worktree, roleTitle(role), model(spec));
             JudgeRunRow running = judgeState(judge, remote.id(), JudgeRunState.RUNNING, null, null, null, null);
             updateJudge(running);
             openCode.promptAsync(remote, judgePrompt(task, finalAttempt, role));
-            events.emit(task.id(), "judge.started", Map.of("judgeRunId", judge.id(), "role", role, "externalSessionId", remote.id(), "readOnly", true));
         } catch (SessionFailure failure) {
             handleJudgeSessionFailure(task, judge, failure);
+            return;
         } catch (RuntimeException exception) {
             handleJudgeSessionFailure(task, judge, new SessionFailure("JUDGE_SESSION_RUNTIME_ERROR", safeMessage(exception)));
+            return;
         }
+        events.emit(task.id(), "judge.started", Map.of("judgeRunId", judge.id(), "role", role, "externalSessionId", remote.id(), "readOnly", true));
     }
 
     private void pollJudge(TaskRow inputTask, JudgeRunRow inputJudge) {

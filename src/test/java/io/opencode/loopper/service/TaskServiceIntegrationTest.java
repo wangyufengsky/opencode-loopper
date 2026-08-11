@@ -19,6 +19,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -40,6 +41,7 @@ class TaskServiceIntegrationTest {
     @Autowired private OpenCodeClient openCode;
     @Autowired private LoopperMapper mapper;
     @Autowired private UsageInsightsService usageInsights;
+    @Autowired private TaskEventHub taskEvents;
     @MockitoSpyBean private VerifierEngine verifierEngine;
     @TempDir Path temp;
 
@@ -112,6 +114,24 @@ class TaskServiceIntegrationTest {
         assertThat(recovered.state()).isEqualTo("RUNNING");
         assertThat(tasks.attempts(task.id())).hasSize(2);
         assertThat(tasks.errors(task.id())).anyMatch(error -> error.layer().equals(ErrorLayer.SESSION.name()));
+    }
+
+    @Test
+    void disconnectedTaskEventSubscriberCannotBecomeAnOpenCodeSessionFailure() throws Exception {
+        ProjectRow project = projects.create("sse-isolation", gitProject());
+        TaskRow task = drafts.confirm(drafts.create(spec(project.id())).id(), "SSE disconnect isolation");
+        AtomicInteger failedDeliveries = new AtomicInteger();
+        taskEvents.subscribe(task.id(), event -> {
+            failedDeliveries.incrementAndGet();
+            throw new IllegalStateException("AsyncContext cannot be used after onError");
+        });
+
+        TaskRow running = tasks.start(task.id());
+
+        assertThat(running.state()).isEqualTo("RUNNING");
+        assertThat(failedDeliveries).hasValue(1);
+        assertThat(tasks.attempts(task.id())).hasSize(1);
+        assertThat(tasks.errors(task.id())).noneMatch(error -> error.code().equals("SESSION_RUNTIME_ERROR"));
     }
 
     @Test

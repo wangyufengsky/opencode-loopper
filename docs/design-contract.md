@@ -69,6 +69,13 @@ preserving any locally dirty editor text for explicit human resolution. Model
 responses render as sanitized Markdown; fenced `mermaid` blocks render as SVG,
 and the machine-only LoopSpec payload is not shown in the conversation.
 
+Live SSE delivery is presentation transport only. A page refresh, timeout,
+client disconnect, or already-closed servlet `AsyncContext` removes that one
+subscription and leaves the Designer/Task/OpenCode lifecycle unchanged. Task
+pages reconnect with `Last-Event-ID` replay, while Designer pages reload the
+latest persisted snapshot. These transport failures must never surface as
+`SESSION_RUNTIME_ERROR` or trigger remote Session cleanup.
+
 Confirming a draft is an idempotent handoff. After the server returns the
 persisted Task id, the client loads that Task into the live store and navigates
 to its detail page even when execution-workspace preparation ended in a

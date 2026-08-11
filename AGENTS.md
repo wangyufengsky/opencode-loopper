@@ -41,10 +41,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.1.5.jar
-   jar tf target/opencode-loopper-0.1.5.jar \
+   test -s target/opencode-loopper-0.1.6.jar
+   jar tf target/opencode-loopper-0.1.6.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.1.5.jar
+   shasum -a 256 target/opencode-loopper-0.1.6.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -93,8 +93,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.1.5`。
-- 正式产物：`target/opencode-loopper-0.1.5.jar`。
+- Maven 项目版本：`0.1.6`。
+- 正式产物：`target/opencode-loopper-0.1.6.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -258,6 +258,7 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 - 不得在持有数据库事务时等待模型、进程、网络、浏览器或长时间文件操作。
 - 所有外部命令使用参数数组；不要拼接未验证路径或用户内容到 shell。
 - 时间、超时、重试和最大输出必须有界，重启恢复必须能处理提交后的中间空档。
+- 浏览器 SSE 只是权威状态的尽力投影：Task 事件提交后再发布，各订阅者必须隔离；断线、超时、`IOException` 或已关闭的 Servlet `AsyncContext` 只移除对应订阅，不得升级为 Designer、OpenCode Session、Attempt 或 Task 失败。
 - Secret 只来自进程环境/内存，不写入 SQLite、日志、artifact 或测试快照。
 
 ### 数据库迁移
@@ -319,7 +320,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.1.5.jar
+JAR=target/opencode-loopper-0.1.6.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -406,3 +407,4 @@ curl --fail http://127.0.0.1:8080/actuator/health
 | 2026-08-11 | 隔离分支使用任务名并处理重名 | 工作区契约改为 `loopper/<任务名>`；同名任务追加中文次数，非法字符规范化并限制 UTF-8 长度；同步 README、架构与 0.1.2 发布路径 | `./scripts/verify.sh`：Java 226/226、Vitest 114/114，BUILD SUCCESS；JAR 262564155 bytes，SHA-256 `b827de6ad36c8327146d9ae5fe20a6eff18778a87ff2746305047dd2acdc540e`；发布目标：`v0.1.2` |
 | 2026-08-11 | 修复 Linux Release CI（第一轮） | 固定 Chrome 发现优先级、强化 Direct 指纹并隔离测试调度；同步 README、架构、验证器与 Recovery 契约及 0.1.4 发布路径 | 本地 `./scripts/verify.sh`：Java 229/229、Vitest 114/114，BUILD SUCCESS；JAR 262564882 bytes，SHA-256 `1ee8e6b1697582070122f1a7f6c96e8c16036de21e7dd824f1c99d2e5550170d`；`v0.1.4` Release Action 因启动恢复读取共享测试数据失败 |
 | 2026-08-11 | 隔离测试启动恢复并发布 0.1.5 | 将 Task、本地同步和自动化的 ApplicationReady 恢复集中到可配置 Coordinator；测试关闭自动恢复并保留显式恢复入口 | `./scripts/verify.sh`：Java 231/231、Vitest 114/114，BUILD SUCCESS；JAR 262565774 bytes，SHA-256 `6cc646f9764885fdd19782fadca4be4d3ac286bed44715ab6e89d0e9c66da778`；发布目标：`v0.1.5` |
+| 2026-08-11 | 隔离 SSE 断线与运行生命周期并发布 0.1.6 | Task 事件提交后发布，逐订阅隔离浏览器断线与已关闭 `AsyncContext`；展示层异常不再触发 Session 清理；同步 README、架构和设计契约 | 聚焦验证：Java 43/43、Vitest 114/114；`./scripts/verify.sh`：Java 239/239、Vitest 114/114，BUILD SUCCESS；JAR 262570171 bytes，SHA-256 `7d7d50a9db090cfee2223b5c88719d61d26d19a7035fcb16b4ee8346dd8c5e7a`；发布目标：`v0.1.6` |

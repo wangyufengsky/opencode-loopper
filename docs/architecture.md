@@ -25,6 +25,16 @@ Controllers accept validated DTOs and delegate to application services. Only
 repositories/mappers update SQLite. Process and HTTP details remain behind
 adapters so deterministic fakes can exercise the orchestration state machine.
 
+Browser SSE is a best-effort projection of authoritative server state, not a
+runtime lifecycle input. Persisted Task events become eligible for live
+publication only after their transaction commits, and each subscriber is
+isolated so one stale browser connection cannot interrupt persistence or other
+subscribers. An `IOException`, closed Tomcat `AsyncContext`, timeout, or browser
+disconnect only removes that subscription; it must never create a Designer,
+OpenCode Session, Attempt, or Task failure. Task streams recover with persisted
+event replay from `Last-Event-ID`; Designer streams recover from the latest
+persisted snapshot.
+
 ## Authoritative lifecycle state machines
 
 Persisted business lifecycles use the project-local `FiniteStateMachine` rather

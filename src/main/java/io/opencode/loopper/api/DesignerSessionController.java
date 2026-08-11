@@ -11,7 +11,6 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.net.URI;
-import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.http.MediaType;
@@ -52,29 +51,29 @@ public class DesignerSessionController {
         DesignerSessionRow current = service.get(id);
         SseEmitter emitter = new SseEmitter(0L);
         AtomicLong sent = new AtomicLong(-1L);
-        AutoCloseable subscription = events.subscribe(id, event -> sendIfNew(emitter, sent, event));
-        emitter.onCompletion(() -> close(subscription));
-        emitter.onTimeout(() -> { close(subscription); emitter.complete(); });
+        SseEmitterLifecycle lifecycle = new SseEmitterLifecycle();
+        lifecycle.attach(events.subscribe(id, event -> sendIfNew(emitter, sent, lifecycle, event)));
+        emitter.onCompletion(lifecycle::close);
+        emitter.onTimeout(lifecycle::close);
+        emitter.onError(ignored -> lifecycle.close());
         DesignerEventHub.DesignerEvent latest = events.latest(id);
-        if (latest != null) sendIfNew(emitter, sent, latest);
-        else sendIfNew(emitter, sent, new DesignerEventHub.DesignerEvent(0L, id, "SNAPSHOT", current.state(),
+        if (latest != null) sendIfNew(emitter, sent, lifecycle, latest);
+        else sendIfNew(emitter, sent, lifecycle, new DesignerEventHub.DesignerEvent(0L, id, "SNAPSHOT", current.state(),
                 current.externalSessionState(), false, "", "等待 OpenCode 状态探测", current.updatedAt()));
         return emitter;
     }
 
-    private void sendIfNew(SseEmitter emitter, AtomicLong sent, DesignerEventHub.DesignerEvent event) {
+    private void sendIfNew(SseEmitter emitter, AtomicLong sent, SseEmitterLifecycle lifecycle,
+                           DesignerEventHub.DesignerEvent event) {
         if (event.sequence() <= sent.get()) return;
-        try {
-            synchronized (sent) {
-                if (event.sequence() > sent.get()) {
-                    emitter.send(SseEmitter.event().id(Long.toString(event.sequence())).data(event));
-                    sent.set(event.sequence());
-                }
+        synchronized (sent) {
+            if (event.sequence() > sent.get()) {
+                boolean delivered = lifecycle.send(() ->
+                        emitter.send(SseEmitter.event().id(Long.toString(event.sequence())).data(event)));
+                if (delivered) sent.set(event.sequence());
             }
-        } catch (IOException failure) { emitter.complete(); }
+        }
     }
-
-    private void close(AutoCloseable value) { try { value.close(); } catch (Exception ignored) { } }
 
     @GetMapping("/{id}/messages")
     public List<DesignerMessageDto> messages(@PathVariable String id) {

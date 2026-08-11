@@ -18,7 +18,6 @@ import io.opencode.loopper.service.LocalSyncConflictService;
 import io.opencode.loopper.service.TaskEventHub;
 import io.opencode.loopper.service.TaskPublicationService;
 import io.opencode.loopper.service.TaskService;
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -188,26 +187,27 @@ public class TaskController {
         long cursor = parseCursor(lastEventId);
         SseEmitter emitter = new SseEmitter(0L);
         AtomicLong sent = new AtomicLong(cursor);
-        AutoCloseable subscription = events.subscribe(id, event -> sendIfNew(emitter, sent, event));
-        emitter.onCompletion(() -> close(subscription));
-        emitter.onTimeout(() -> { close(subscription); emitter.complete(); });
-        for (TaskEventRow event : mapper.eventsAfter(id, cursor)) sendIfNew(emitter, sent, event);
+        SseEmitterLifecycle lifecycle = new SseEmitterLifecycle();
+        lifecycle.attach(events.subscribe(id, event -> sendIfNew(emitter, sent, lifecycle, event)));
+        emitter.onCompletion(lifecycle::close);
+        emitter.onTimeout(lifecycle::close);
+        emitter.onError(ignored -> lifecycle.close());
+        for (TaskEventRow event : mapper.eventsAfter(id, cursor)) sendIfNew(emitter, sent, lifecycle, event);
         return emitter;
     }
-    private void sendIfNew(SseEmitter emitter, AtomicLong sent, TaskEventRow event) {
+    private void sendIfNew(SseEmitter emitter, AtomicLong sent, SseEmitterLifecycle lifecycle, TaskEventRow event) {
         if (event.sequence() <= sent.get()) return;
-        try {
-            synchronized (sent) {
-                if (event.sequence() > sent.get()) {
+        synchronized (sent) {
+            if (event.sequence() > sent.get()) {
+                boolean delivered = lifecycle.send(() -> {
                     JsonNode data = json.readTree(event.payloadJson());
                     emitter.send(SseEmitter.event().id(Long.toString(event.sequence())).data(new SseData(event.type(), event.occurredAt(), data)));
-                    sent.set(event.sequence());
-                }
+                });
+                if (delivered) sent.set(event.sequence());
             }
-        } catch (IOException e) { emitter.complete(); }
+        }
     }
     private long parseCursor(String raw) { try { return raw == null ? 0 : Math.max(0, Long.parseLong(raw)); } catch (NumberFormatException e) { return 0; } }
-    private void close(AutoCloseable value) { try { value.close(); } catch (Exception ignored) { } }
     public record SessionFailureRequest(String code, String message) { }
     public record PublishTaskRequest(String commitMessage) { }
     public record MergeRequestRequest(String targetBranch, String title, String description) { }
