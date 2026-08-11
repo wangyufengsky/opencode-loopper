@@ -47,8 +47,11 @@ Normal verifier-loop continuation is distinct from Recovery. Every failed
 Attempt stores a bounded immutable `ATTEMPT_HANDOFF`; only reliable equal
 failure/workspace fingerprints increment the stagnation streak. At the configured
 threshold the running Task moves to `WAITING_INPUT`, and only a confirmed local-UI
-action records an override and creates a fresh Attempt/Session. Snapshot I/O and
-Session creation remain outside SQLite transactions.
+action records an override and creates a fresh Attempt/Session. Fingerprinting
+counts actual bytes and rejects files whose size, modification time, or file key
+changes during the read. The Task projection exposes the current wait reason and
+whether this action is available; historical wait errors do not enable it.
+Snapshot I/O and Session creation remain outside SQLite transactions.
 
 ## Verifiers and artifacts
 

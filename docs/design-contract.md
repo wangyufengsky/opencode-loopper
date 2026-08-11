@@ -58,11 +58,13 @@ contrast.
    fresh Session will continue the Loop.
 4. Task failures stop scheduling and use the red terminal treatment.
 
-When the current wait reason is `LOOP_STAGNATION_DETECTED` or
-`LOOP_FRESH_SESSION_REQUIRED`, Task detail explains the stop and offers a
-confirmed **继续一轮** action. The browser does not infer progress or reset the
-streak locally; the server records the override and returns the authoritative
-Task state.
+Task responses expose the current `waitingReasonCode` and authoritative
+`loopRetryAvailable` projection. When the current wait reason is
+`LOOP_STAGNATION_DETECTED` or `LOOP_FRESH_SESSION_REQUIRED`, Task detail explains
+the stop and offers a confirmed **继续一轮** action. Historical errors never
+enable that action. The browser does not infer progress or reset the streak
+locally; the server records the override and returns the authoritative Task
+state.
 
 Designer handoff states are also explicit: `PENDING_HANDOFF`, `RUNNING`,
 `COMPLETED`, and `SESSION_ERROR`. The console polls an active read-only Session
@@ -72,7 +74,9 @@ GET failure keeps the Session in a bounded-backoff reconnect loop, and the
 current Designer Session/draft pair is restored after a same-tab page refresh.
 The Session API returns its bound draft on every poll. A validated Designer
 reply therefore replaces the right-hand LoopSpec editor automatically while
-preserving any locally dirty editor text for explicit human resolution. Model
+preserving any locally dirty editor text for explicit human resolution. The
+structured editor round-trips every LoopSpec limit, model selection, Session
+policy, and next-Attempt prompt template before confirmation. Model
 responses render as sanitized Markdown; fenced `mermaid` blocks render as SVG,
 and the machine-only LoopSpec payload is not shown in the conversation.
 

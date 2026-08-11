@@ -70,7 +70,9 @@ it to a newly created Session; it never continues the previous transcript.
 `sessionPolicy.createFreshOnVerifierFailure=false` means automatic continuation
 is disabled and the Task waits for an explicit local-UI retry. The legacy
 `reuseHealthySession` field remains wire-compatible but does not authorize
-cross-Attempt Session reuse.
+cross-Attempt Session reuse. Explicit retry parses the persisted handoff before
+changing Task state and renders the same bounded `nextAttemptPromptTemplate` as
+automatic continuation; missing or malformed handoff evidence is fail-closed.
 
 ## Dynamic Task Session monitoring
 

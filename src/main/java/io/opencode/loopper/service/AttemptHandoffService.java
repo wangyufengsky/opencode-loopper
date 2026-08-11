@@ -6,15 +6,18 @@ import io.opencode.loopper.domain.VerificationState;
 import io.opencode.loopper.verification.VerifierEngine;
 import io.opencode.loopper.verification.VerifierOutcome;
 import java.io.InputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.HexFormat;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 
 /** Builds a bounded, deterministic handoff between isolated implementation Attempts. */
 @org.springframework.stereotype.Service
@@ -68,12 +71,21 @@ public class AttemptHandoffService {
     }
 
     public String retryPrompt(Capture capture, String nextAttemptPromptTemplate) {
+        return retryPrompt(capture, nextAttemptPromptTemplate, "");
+    }
+
+    public String explicitRetryPrompt(Capture capture, String nextAttemptPromptTemplate) {
+        return retryPrompt(capture, nextAttemptPromptTemplate,
+                "The user explicitly approved one fresh retry after Loopper stopped an unchanged or policy-blocked loop.\n");
+    }
+
+    private String retryPrompt(Capture capture, String nextAttemptPromptTemplate, String prefix) {
         String changed = capture.changedPaths().isEmpty() ? "(none)"
                 : String.join(", ", capture.changedPaths().stream().limit(MAX_PROMPT_PATHS).toList());
         String verification = capture.verifications().stream()
                 .map(fact -> fact.type() + "=" + fact.state() + " (" + fact.summary() + ")")
                 .reduce((left, right) -> left + "; " + right).orElse("(none)");
-        String structured = "Previous Attempt handoff (server-generated, bounded, and read-only):\n"
+        String structured = prefix + "Previous Attempt handoff (server-generated, bounded, and read-only):\n"
                 + "- Attempt: " + capture.attemptOrdinal() + "\n"
                 + "- Verification failure: " + capture.failureSummary() + "\n"
                 + "- Verification results: " + verification + "\n"
@@ -141,24 +153,54 @@ public class AttemptHandoffService {
                     update(digest, "NON_REGULAR");
                     continue;
                 }
-                long size = Files.size(resolved);
+                BasicFileAttributes before = Files.readAttributes(resolved, BasicFileAttributes.class,
+                        LinkOption.NOFOLLOW_LINKS);
+                long size = before.size();
                 if (size < 0 || consumed + size > MAX_HASHED_FILE_BYTES) {
                     return WorkspaceFingerprint.unavailable("Changed file content exceeds the bounded fingerprint byte budget");
                 }
                 update(digest, "FILE:" + size);
+                long actualBytes;
                 try (InputStream input = Files.newInputStream(resolved)) {
-                    int read;
-                    while ((read = input.read(buffer)) >= 0) {
-                        if (read > 0) digest.update(buffer, 0, read);
-                    }
+                    actualBytes = digestBounded(input, digest, buffer, MAX_HASHED_FILE_BYTES - consumed);
+                } catch (FingerprintLimitExceededException exceeded) {
+                    return WorkspaceFingerprint.unavailable("Changed file content exceeds the bounded fingerprint byte budget");
                 }
-                consumed += size;
+                BasicFileAttributes after = Files.readAttributes(resolved, BasicFileAttributes.class,
+                        LinkOption.NOFOLLOW_LINKS);
+                if (!unchangedDuringRead(before, after, actualBytes)) {
+                    return WorkspaceFingerprint.unavailable("Changed file content changed while its fingerprint was being read");
+                }
+                consumed += actualBytes;
             }
             return new WorkspaceFingerprint(HexFormat.of().formatHex(digest.digest()), true, null);
         } catch (Exception failure) {
             return WorkspaceFingerprint.unavailable("Unable to fingerprint the workspace: " + failure.getMessage());
         }
     }
+
+    static long digestBounded(InputStream input, MessageDigest digest, byte[] buffer, long remainingBytes)
+            throws IOException {
+        long readBytes = 0;
+        int read;
+        while ((read = input.read(buffer)) >= 0) {
+            if (read == 0) continue;
+            if (readBytes + read > remainingBytes) throw new FingerprintLimitExceededException();
+            digest.update(buffer, 0, read);
+            readBytes += read;
+        }
+        return readBytes;
+    }
+
+    static boolean unchangedDuringRead(BasicFileAttributes before, BasicFileAttributes after, long actualBytes) {
+        return before.isRegularFile() && after.isRegularFile()
+                && actualBytes == before.size()
+                && before.size() == after.size()
+                && before.lastModifiedTime().equals(after.lastModifiedTime())
+                && Objects.equals(before.fileKey(), after.fileKey());
+    }
+
+    private static final class FingerprintLimitExceededException extends IOException { }
 
     private String failedSignature(List<VerificationFact> facts) {
         return facts.stream().filter(fact -> !"PASS".equals(fact.state()))

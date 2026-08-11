@@ -6,7 +6,10 @@ import LoopSpecEditor from '@/components/LoopSpecEditor.vue'
 const source = JSON.stringify({
   schemaVersion: 'v1', projectId: 'project-1', goal: '实现任务控制台', context: '只允许修改 src/**',
   stages: [{ objective: '实现并验证', allowedPaths: ['src/**'], forbiddenPaths: ['data/**'], deliverables: ['可验证实现'], verifiers: [{ type: 'GIT_DIFF', requireChanges: true, allowedPaths: ['src/**'], forbiddenPaths: ['data/**'], forbidDeletes: true }] }],
-  limits: { maxStageAttempts: 3, maxTaskAttempts: 12, maxDuration: 'PT2H', attemptTimeout: 'PT30M' },
+  limits: { maxStageAttempts: 3, maxTaskAttempts: 12, sessionErrorLimit: 4, stagnationLimit: 5, maxDuration: 'PT2H', attemptTimeout: 'PT30M', verifierTimeout: 'PT7M' },
+  model: { providerId: 'provider-1', modelId: 'model-1', thinking: true },
+  sessionPolicy: { reuseHealthySession: false, createFreshOnVerifierFailure: false },
+  nextAttemptPromptTemplate: '处理 ${failureSummary}',
 }, null, 2)
 
 describe('LoopSpecEditor', () => {
@@ -23,7 +26,13 @@ describe('LoopSpecEditor', () => {
     await wrapper.get('textarea[aria-label="任务目标"]').setValue('更新后的目标')
     await flushPromises()
     const emitted = wrapper.emitted('update:modelValue')?.at(-1)?.[0] as string
-    expect(JSON.parse(emitted).goal).toBe('更新后的目标')
+    expect(JSON.parse(emitted)).toMatchObject({
+      goal: '更新后的目标',
+      limits: { sessionErrorLimit: 4, stagnationLimit: 5, verifierTimeout: 'PT7M' },
+      model: { providerId: 'provider-1', modelId: 'model-1', thinking: true },
+      sessionPolicy: { reuseHealthySession: false, createFreshOnVerifierFailure: false },
+      nextAttemptPromptTemplate: '处理 ${failureSummary}',
+    })
   })
 
   it('orders the review cards by the user workflow', () => {
@@ -40,6 +49,23 @@ describe('LoopSpecEditor', () => {
       'acceptance-marker',
       'form-section limits-section',
     ])
+  })
+
+  it('edits the fresh-session policy and next-attempt template without losing the threshold', async () => {
+    const wrapper = mount(LoopSpecEditor, { props: { modelValue: source }, global: { plugins: [ElementPlus], stubs: { Icon: true } } })
+
+    await wrapper.get('textarea[aria-label="下一轮提示模板"]').setValue('下一轮先复核 ${changedPaths}')
+    const freshSessionSwitch = wrapper.find('[aria-label="验证失败后自动新建 Session"]')
+    expect(freshSessionSwitch.exists()).toBe(true)
+    await freshSessionSwitch.trigger('click')
+    await flushPromises()
+
+    const emitted = wrapper.emitted('update:modelValue')?.at(-1)?.[0] as string
+    expect(JSON.parse(emitted)).toMatchObject({
+      limits: { stagnationLimit: 5 },
+      sessionPolicy: { reuseHealthySession: false, createFreshOnVerifierFailure: true },
+      nextAttemptPromptTemplate: '下一轮先复核 ${changedPaths}',
+    })
   })
 
   it('does not add path rules or a Git diff verifier to a new stage by default', async () => {

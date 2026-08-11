@@ -357,7 +357,10 @@ describe('Designer draft composer', () => {
     const loopSpec: LoopSpec = {
       schemaVersion: 'v1', projectId: project.id, goal: '交接到任务控制台', context: '只在隔离 worktree 修改。',
       stages: [{ objective: '实现功能', allowedPaths: ['src/**'], forbiddenPaths: [], deliverables: ['实现'], verifiers: [{ type: 'GIT_DIFF', requireChanges: true }] }],
-      limits: { maxStageAttempts: 3, maxTaskAttempts: 12, maxDuration: '7200', attemptTimeout: '1800' },
+      limits: { maxStageAttempts: 3, maxTaskAttempts: 12, sessionErrorLimit: 4, stagnationLimit: 5, maxDuration: '7200', attemptTimeout: '1800', verifierTimeout: '420' },
+      model: { providerId: 'provider-1', modelId: 'model-1', thinking: false },
+      sessionPolicy: { reuseHealthySession: false, createFreshOnVerifierFailure: false },
+      nextAttemptPromptTemplate: '人工继续时处理 ${failureSummary}',
     }
     const readyDraft = draftFrom(loopSpec)
     const confirmedDraft: LoopDraft = { ...readyDraft, status: 'CONFIRMED', updatedAt: 'confirmed' }
@@ -384,6 +387,12 @@ describe('Designer draft composer', () => {
     await flushPromises()
 
     expect(api.confirmDraft).toHaveBeenCalledWith(readyDraft.id)
+    expect(api.updateDraft).toHaveBeenCalledWith(readyDraft.id, expect.objectContaining({
+      limits: expect.objectContaining({ sessionErrorLimit: 4, stagnationLimit: 5, verifierTimeout: '420' }),
+      model: { providerId: 'provider-1', modelId: 'model-1', thinking: false },
+      sessionPolicy: { reuseHealthySession: false, createFreshOnVerifierFailure: false },
+      nextAttemptPromptTemplate: '人工继续时处理 ${failureSummary}',
+    }))
     expect(useTaskStore().tasks).toContainEqual(failedTask)
     expect(routerPush).toHaveBeenCalledWith(`/tasks/${failedTask.id}`)
   })

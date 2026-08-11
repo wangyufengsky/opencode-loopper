@@ -14,6 +14,16 @@ const parseError = ref('')
 
 const textAutosize = { minRows: 2, maxRows: 10 }
 const compactAutosize = { minRows: 1, maxRows: 6 }
+const createFreshOnVerifierFailure = computed({
+  get: () => spec.value?.sessionPolicy?.createFreshOnVerifierFailure ?? true,
+  set: (value: boolean) => {
+    if (!spec.value) return
+    spec.value.sessionPolicy = {
+      reuseHealthySession: spec.value.sessionPolicy?.reuseHealthySession ?? true,
+      createFreshOnVerifierFailure: value,
+    }
+  },
+})
 
 function defaultVerifier(): LoopVerifierSpec {
   return { type: 'PROCESS', command: [] }
@@ -38,8 +48,16 @@ function normalizeSpec(value: LoopSpec): LoopSpec {
     limits: {
       maxStageAttempts: value.limits?.maxStageAttempts ?? 3,
       maxTaskAttempts: value.limits?.maxTaskAttempts ?? 12,
+      sessionErrorLimit: value.limits?.sessionErrorLimit ?? 3,
+      stagnationLimit: value.limits?.stagnationLimit ?? 2,
       maxDuration: value.limits?.maxDuration ?? 'PT2H',
       attemptTimeout: value.limits?.attemptTimeout ?? 'PT30M',
+      verifierTimeout: value.limits?.verifierTimeout ?? 'PT10M',
+    },
+    model: { ...(value.model ?? {}) },
+    sessionPolicy: {
+      reuseHealthySession: value.sessionPolicy?.reuseHealthySession ?? true,
+      createFreshOnVerifierFailure: value.sessionPolicy?.createFreshOnVerifierFailure ?? true,
     },
   }
 }
@@ -223,8 +241,17 @@ function configureVerifier(verifier: LoopVerifierSpec) {
         <div class="limits-grid">
           <label><span>每阶段最大尝试次数</span><el-input-number v-model="spec.limits.maxStageAttempts" :min="1" :max="50" /></label>
           <label><span>整个任务最大尝试次数</span><el-input-number v-model="spec.limits.maxTaskAttempts" :min="1" :max="100" /></label>
+          <label><span>连续停滞阈值</span><el-input-number v-model="spec.limits.stagnationLimit" :min="1" :max="20" aria-label="连续停滞阈值" /></label>
           <label><span>任务最长运行时间</span><el-input v-model="spec.limits.maxDuration" class="mono" placeholder="PT2H" /><small>支持 ISO-8601（PT2H）或秒数（7200）</small></label>
           <label><span>单次尝试超时</span><el-input v-model="spec.limits.attemptTimeout" class="mono" placeholder="PT30M" /><small>支持 ISO-8601（PT30M）或秒数（1800）</small></label>
+        </div>
+        <div class="retry-policy-grid">
+          <label class="switch-field"><span>验证失败后自动新建 Session</span><el-switch v-model="createFreshOnVerifierFailure" aria-label="验证失败后自动新建 Session" /></label>
+          <label class="field-block">
+            <span class="field-title">下一轮提示模板</span>
+            <span class="field-help">支持服务端限定的 Attempt、失败摘要、验证结果、变更路径和工作区指纹占位符。</span>
+            <el-input v-model="spec.nextAttemptPromptTemplate" type="textarea" :autosize="textAutosize" resize="none" aria-label="下一轮提示模板" />
+          </label>
         </div>
       </section>
     </template>
@@ -299,6 +326,8 @@ function configureVerifier(verifier: LoopVerifierSpec) {
 .limits-grid label > span { color: var(--color-text-secondary); font-size: 9px; font-weight: 650; }
 .limits-grid label > small { color: var(--color-text-muted); font-size: 8px; }
 .limits-grid :deep(.el-input-number) { width: 100%; }
+.retry-policy-grid { display: grid; gap: 12px; margin-top: 16px; padding-top: 14px; border-top: 1px solid rgb(71 85 105 / 42%); }
+.switch-field { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--color-text-secondary); font-size: 10px; font-weight: 650; }
 .parse-alert { display: flex; align-items: center; gap: 8px; padding: 14px; border: 1px solid rgb(248 113 113 / 32%); border-radius: 10px; color: #fecaca; background: rgb(239 68 68 / 8%); font-size: 11px; }
 .loop-spec-form .mono :deep(.el-textarea__inner), .loop-spec-form .mono :deep(.el-input__inner) { font-family: var(--font-code); font-size: 10px; font-weight: 450; }
 @media (max-width: 720px) {

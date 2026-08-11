@@ -63,7 +63,6 @@ public class TaskService {
     private static final String ATTEMPT_HANDOFF_ARTIFACT_KIND = "ATTEMPT_HANDOFF";
     private static final String LOOP_STAGNATION_OVERRIDE_ARTIFACT_KIND = "LOOP_STAGNATION_OVERRIDE";
     private static final int MAX_EXECUTION_DESIGN_CONTEXT_CHARS = 12_000;
-    private static final int MAX_RETRY_HANDOFF_CHARS = 8_000;
     private final LoopperMapper mapper;
     private final LifecycleTransitionService lifecycle;
     private final ObjectMapper json;
@@ -1031,31 +1030,19 @@ public class TaskService {
 
     /** Explicit local confirmation authorizes exactly one fresh retry after loop noise protection stopped automation. */
     public TaskRow retryWaitingLoop(String taskId) {
-        StageRow stage = transactions.execute(status -> prepareWaitingLoopRetry(taskId));
-        if (stage == null) throw new ConflictException("LOOP_RETRY_PREPARATION_FAILED", "Unable to prepare the explicit loop retry");
-        String handoff = mapper.listTaskArtifacts(taskId).stream()
-                .filter(artifact -> ATTEMPT_HANDOFF_ARTIFACT_KIND.equals(artifact.kind()))
-                .filter(artifact -> stage.id().equals(metadataText(artifact, "stageId")))
-                .map(TaskArtifactRow::content).findFirst().orElse("No persisted Attempt handoff is available.");
-        String prompt = "The user explicitly approved one fresh retry after Loopper stopped an unchanged or policy-blocked loop.\n"
-                + "Latest persisted Attempt handoff (read-only):\n"
-                + (handoff.length() <= MAX_RETRY_HANDOFF_CHARS ? handoff : handoff.substring(0, MAX_RETRY_HANDOFF_CHARS)
-                + "\n… handoff truncated for the retry prompt …");
-        startNewAttempt(get(taskId), stage, prompt);
+        LoopRetryPreparation preparation = transactions.execute(status -> prepareWaitingLoopRetry(taskId));
+        if (preparation == null) throw new ConflictException("LOOP_RETRY_PREPARATION_FAILED", "Unable to prepare the explicit loop retry");
+        startNewAttempt(get(taskId), preparation.stage(), preparation.prompt());
         return get(taskId);
     }
 
-    private StageRow prepareWaitingLoopRetry(String taskId) {
+    private LoopRetryPreparation prepareWaitingLoopRetry(String taskId) {
         TaskRow task = get(taskId);
         if (!TaskState.WAITING_INPUT.name().equals(task.state())) {
             throw new ConflictException("LOOP_RETRY_NOT_WAITING", "Only a task waiting on loop noise protection can be retried");
         }
-        ErrorEventRow waitingReason = mapper.listErrors(task.id()).stream()
-                .filter(error -> TaskState.WAITING_INPUT.name().equals(errorEvidenceText(error, "resolution")))
-                .findFirst().orElse(null);
-        boolean actionable = waitingReason != null && ("LOOP_STAGNATION_DETECTED".equals(waitingReason.code())
-                || "LOOP_FRESH_SESSION_REQUIRED".equals(waitingReason.code()));
-        if (!actionable) {
+        LoopRetryStatus retryStatus = loopRetryStatus(task);
+        if (!retryStatus.loopRetryAvailable()) {
             throw new ConflictException("LOOP_RETRY_NOT_ACTIONABLE", "This waiting task requires a different explicit resolution");
         }
         if (!mapper.activeSessions(task.id()).isEmpty() || hasUnconfirmedWriter(task.id())) {
@@ -1073,6 +1060,24 @@ public class TaskService {
             try { directLeases.requireWritableLease(directRoot(task), task.id()); }
             catch (TaskFailure failure) { throw new ConflictException(failure.code(), failure.getMessage()); }
         }
+        TaskArtifactRow handoffArtifact = mapper.listTaskArtifacts(task.id()).stream()
+                .filter(artifact -> ATTEMPT_HANDOFF_ARTIFACT_KIND.equals(artifact.kind()))
+                .filter(artifact -> stage.id().equals(metadataText(artifact, "stageId")))
+                .findFirst()
+                .orElseThrow(() -> new ConflictException("ATTEMPT_HANDOFF_MISSING",
+                        "The latest Attempt handoff required for this retry is missing"));
+        AttemptHandoffService.Capture handoff;
+        try {
+            handoff = json.readValue(handoffArtifact.content(), AttemptHandoffService.Capture.class);
+        } catch (Exception unreadable) {
+            throw new ConflictException("ATTEMPT_HANDOFF_INVALID",
+                    "The latest Attempt handoff required for this retry is unreadable");
+        }
+        if (!stage.id().equals(handoff.stageId()) || handoff.attemptId() == null || handoff.attemptId().isBlank()) {
+            throw new ConflictException("ATTEMPT_HANDOFF_INVALID",
+                    "The latest Attempt handoff does not belong to the active stage");
+        }
+        String prompt = attemptHandoffs.explicitRetryPrompt(handoff, spec.nextAttemptPromptTemplate());
         persistArtifact(task, null, null, LOOP_STAGNATION_OVERRIDE_ARTIFACT_KIND,
                 "loop-stagnation-override.json", "application/json",
                 write(Map.of("stageId", stage.id(), "source", "LOCAL_UI", "approvedAt", now())),
@@ -1080,13 +1085,31 @@ public class TaskService {
         updateTask(state(task, TaskState.RUNNING));
         events.emit(task.id(), "task.loop_retry_requested", Map.of("state", TaskState.RUNNING.name(),
                 "stageId", stage.id(), "source", "LOCAL_UI", "freshSession", true));
-        return mapper.findStage(stage.id()).orElse(stage);
+        return new LoopRetryPreparation(mapper.findStage(stage.id()).orElse(stage), prompt);
+    }
+
+    public LoopRetryStatus loopRetryStatus(String taskId) {
+        return loopRetryStatus(get(taskId));
+    }
+
+    private LoopRetryStatus loopRetryStatus(TaskRow task) {
+        if (!TaskState.WAITING_INPUT.name().equals(task.state())) return new LoopRetryStatus(null, false);
+        ErrorEventRow waitingReason = mapper.listErrors(task.id()).stream()
+                .filter(error -> TaskState.WAITING_INPUT.name().equals(errorEvidenceText(error, "resolution")))
+                .findFirst().orElse(null);
+        String code = waitingReason == null ? null : waitingReason.code();
+        boolean available = "LOOP_STAGNATION_DETECTED".equals(code)
+                || "LOOP_FRESH_SESSION_REQUIRED".equals(code);
+        return new LoopRetryStatus(code, available);
     }
 
     private String errorEvidenceText(ErrorEventRow error, String field) {
         try { return json.readTree(error.evidenceJson()).path(field).asText(""); }
         catch (Exception unreadable) { return ""; }
     }
+
+    public record LoopRetryStatus(String waitingReasonCode, boolean loopRetryAvailable) { }
+    private record LoopRetryPreparation(StageRow stage, String prompt) { }
 
     private VerificationContinuation completeStageState(TaskRow task, StageRow stage, AttemptRow attempt) {
         updateAttempt(finish(attempt, AttemptState.SUCCEEDED, null, "所有确定性验证均已通过"));

@@ -127,6 +127,8 @@ describe('TaskDetailView judge action', () => {
       attempts: [{ id: 'attempt-2', stageId: 'stage-1', ordinal: 2, status: 'VERIFICATION_FAILED', verifiers: [] }],
       stages: [{ id: 'stage-1', ordinal: 1, objective: '修复验证', status: 'RUNNING', attempts: [] }],
       judges: [],
+      waitingReasonCode: 'LOOP_STAGNATION_DETECTED',
+      loopRetryAvailable: true,
       errors: [{ id: 'stagnation', layer: 'VERIFICATION', code: 'LOOP_STAGNATION_DETECTED', message: '连续两轮未变化', retryable: true, occurredAt: 'now' }],
     }]
     const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/tasks/:id', component: { template: '<div />' } }] })
@@ -161,6 +163,46 @@ describe('TaskDetailView judge action', () => {
 
     expect(ElMessageBox.confirm).toHaveBeenCalledWith(expect.stringContaining('全新的可写 OpenCode Session'), '确认继续一轮？', expect.any(Object))
     expect(store.retryWaitingLoop).toHaveBeenCalledWith('task-stagnant')
+  })
+
+  it('does not offer loop retry when an old stagnation error is not the current waiting reason', async () => {
+    store.tasks = [{
+      ...reviewTask,
+      id: 'task-budget-wait',
+      title: '预算等待任务',
+      stages: [{ id: 'stage-1', ordinal: 1, objective: '继续实现', status: 'RUNNING', attempts: [] }],
+      judges: [],
+      waitingReasonCode: 'TASK_BUDGET_WAITING_INPUT',
+      loopRetryAvailable: false,
+      errors: [
+        { id: 'budget', layer: 'TASK', code: 'TASK_BUDGET_WAITING_INPUT', message: '等待调整预算', retryable: true, occurredAt: 'later' },
+        { id: 'old-stagnation', layer: 'VERIFICATION', code: 'LOOP_STAGNATION_DETECTED', message: '历史停滞', retryable: true, occurredAt: 'earlier' },
+      ],
+    }]
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/tasks/:id', component: { template: '<div />' } }] })
+    await router.push('/tasks/task-budget-wait')
+    await router.isReady()
+
+    const wrapper = mount(TaskDetailView, {
+      global: {
+        plugins: [router, ElementPlus],
+        stubs: {
+          Icon: true,
+          PageHeader: { template: '<header><slot name="actions" /></header><slot />' },
+          StatusBadge: true,
+          StageRail: true,
+          AttemptTimeline: true,
+          LayeredErrorPanel: true,
+          SessionMonitorPanel: true,
+          JudgeReviewCard: true,
+          TaskAuditEvidencePanel: true,
+          TaskPublicationActions: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.findAll('button').some((button) => button.text().includes('继续一轮'))).toBe(false)
   })
 
   it('creates a new branch rework task and navigates to the child', async () => {

@@ -222,7 +222,9 @@ public class TaskController {
         LoopDraftRow draft = task.loopDraftId() == null ? null : mapper.findDraft(task.loopDraftId()).orElse(null);
         LoopSpec spec = draft == null ? null : drafts.spec(draft);
         List<AttemptRow> attempts = service.attempts(task.id());
+        TaskService.LoopRetryStatus loopRetry = service.loopRetryStatus(task.id());
         return new TaskDto(task.id(), task.projectId(), projectName, task.title(), spec == null ? "" : spec.goal(), task.branchName(), task.worktreePath(), task.state(),
+                loopRetry.waitingReasonCode(), loopRetry.loopRetryAvailable(),
                 draft != null, service.archived(task.id()),
                 attempts.size(), spec == null ? 0 : spec.limits().maxTaskAttempts(), task.createdAt(), task.updatedAt(),
                 service.stages(task.id()).stream().map(this::stage).toList(), attempts.stream().map(this::attempt).toList(), service.errors(task.id()).stream().map(this::error).toList(),
@@ -230,7 +232,8 @@ public class TaskController {
     }
     public record SseData(String type, String at, JsonNode data) { }
     public record TaskDto(String id, String projectId, String projectName, String title, String goal, String branch,
-                          String worktreePath, String status, boolean hasDesignHistory, boolean archived, int attemptCount, int maxAttempts, String createdAt,
+                          String worktreePath, String status, String waitingReasonCode, boolean loopRetryAvailable,
+                          boolean hasDesignHistory, boolean archived, int attemptCount, int maxAttempts, String createdAt,
                           String updatedAt, List<StageDto> stages, List<AttemptDto> attempts, List<ErrorDto> errors,
                           List<JudgeDto> judges, List<ArtifactDto> artifacts) { }
     public record TaskDesignHistoryDto(String taskId, String taskTitle, String projectName, TaskLoopDraftDto draft,

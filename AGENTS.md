@@ -41,10 +41,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.1.7.jar
-   jar tf target/opencode-loopper-0.1.7.jar \
+   test -s target/opencode-loopper-0.1.9.jar
+   jar tf target/opencode-loopper-0.1.9.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.1.7.jar
+   shasum -a 256 target/opencode-loopper-0.1.9.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -93,8 +93,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.1.7`。
-- 正式产物：`target/opencode-loopper-0.1.7.jar`。
+- Maven 项目版本：`0.1.9`。
+- 正式产物：`target/opencode-loopper-0.1.9.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -227,11 +227,11 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 - 外部进程、HTTP、浏览器和模型调用不能在 SQLite transaction 内执行。
 - 确定性验证成功与 Judge 成功是两套证据。Requirement 和 Risk Judge 都是独立只读 Session，必须明确 `PASS`。
 - `REVISE`、`BLOCKED`、Judge 冲突或 JSON 无法解析时进入人工处理/重新评审，不得丢弃已有确定性证据或伪造成功。
-- Attempt 交接的差异扫描、文件读取、内容哈希和新 Session 创建都在 SQLite transaction 外执行；不可完整读取或超过 16 MiB 的工作区快照标记为不可比较，不得据此触发停滞。
+- Attempt 交接的差异扫描、文件读取、内容哈希和新 Session 创建都在 SQLite transaction 外执行；按实际读取字节限制 16 MiB，并在读取前后核对文件大小、修改时间和 file key；不可完整读取或读取期间变化的快照标记为不可比较，不得据此触发停滞。
 
 ### 5.5 工作区、租约与 Recovery
 
-- 有可用 Git HEAD：创建 `loopper/<任务名>` 和 `$LOOPPER_DATA_DIR/worktrees/<taskId>`；本地或远端跟踪分支已有同名时从第二次起追加 `(第2次)`、`(第3次)`，Git 禁止字符确定性替换为 `-`，分支叶名称按 UTF-8 字节安全截断。
+- 有可用 Git HEAD：创建 `loopper/<任务名>` 和 `$LOOPPER_DATA_DIR/worktrees/<taskId>`；本地或远端跟踪分支已有同名时从第二次起追加 `(第2次)`、`(第3次)`，Git 禁止字符确定性替换为 `-`，分支叶名称按 UTF-8 字节安全截断，并在截断后重新修正 `.lock` 等非法结尾。
 - 无可用 Git HEAD：直接使用登记根目录，并在 `direct-baselines/<taskId>` 保存私有 Git-compatible 基线；不得在用户项目中隐式初始化或提交 Git。
 - 所有路径 canonicalize 后进行 containment 和符号链接检查。
 - 同一 Direct root 同时只能有一个未释放写租约；旧写入者状态未知时保持租约并阻断 Recovery/Automation。
@@ -273,7 +273,8 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 
 ## 7. 前端开发约定
 
-- TypeScript 类型以 `frontend/src/types/domain.ts` 为边界，API 变更必须同步 DTO、client、store、view 和测试。
+- TypeScript 类型以 `frontend/src/types/domain.ts` 为边界，API 变更必须同步 DTO、client、store、view 和测试；Designer 保存/确认必须无损往返全部 LoopSpec limits、model、sessionPolicy 和 nextAttemptPromptTemplate。
+- Task 等待动作以服务端 `waitingReasonCode` / `loopRetryAvailable` 投影为准，前端不得从历史错误推断当前“继续一轮”入口。
 - 服务端是权威状态；不要用计时器伪造阶段进度、用量、成本、Session 完成或 Judge 结果。
 - 所有等待、问题、权限、可恢复错误和终止错误都必须真实可见，并提供可执行的恢复动作；不要永久显示含糊的“待评审”。
 - 使用 `displayLabels.ts` 和现有 `StatusBadge`/错误组件表达中文含义；不要在多个页面复制英文枚举到中文的映射。
@@ -323,7 +324,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.1.7.jar
+JAR=target/opencode-loopper-0.1.9.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -412,3 +413,4 @@ curl --fail http://127.0.0.1:8080/actuator/health
 | 2026-08-11 | 隔离测试启动恢复并发布 0.1.5 | 将 Task、本地同步和自动化的 ApplicationReady 恢复集中到可配置 Coordinator；测试关闭自动恢复并保留显式恢复入口 | `./scripts/verify.sh`：Java 231/231、Vitest 114/114，BUILD SUCCESS；JAR 262565774 bytes，SHA-256 `6cc646f9764885fdd19782fadca4be4d3ac286bed44715ab6e89d0e9c66da778`；发布目标：`v0.1.5` |
 | 2026-08-11 | 隔离 SSE 断线与运行生命周期并发布 0.1.6 | Task 事件提交后发布，逐订阅隔离浏览器断线与已关闭 `AsyncContext`；展示层异常不再触发 Session 清理；同步 README、架构和设计契约 | 聚焦验证：Java 43/43、Vitest 114/114；`./scripts/verify.sh`：Java 239/239、Vitest 114/114，BUILD SUCCESS；JAR 262570171 bytes，SHA-256 `7d7d50a9db090cfee2223b5c88719d61d26d19a7035fcb16b4ee8346dd8c5e7a`；发布目标：`v0.1.6` |
 | 2026-08-11 | Attempt 交接、停滞检测与 0.1.7 发布 | 验证失败固化有界交接证据；可靠无进展达到阈值后等待人工“继续一轮”，且每轮使用全新 Session；同步 README、架构、设计、OpenCode 和七特性合同 | 聚焦验证：Java 60/60、Vitest 116/116；`./scripts/verify.sh`：Java 244/244、Vitest 116/116，BUILD SUCCESS；JAR 262586349 bytes，SHA-256 `c4f27c123574fd663901b9af0803681bd3304c2105090ae09bb31aafc292524e`；发布目标：`v0.1.7` |
+| 2026-08-11 | 修复 LoopSpec 往返、Attempt 重试/指纹、等待动作和分支截断并发布 0.1.9 | 完整保留重试策略；人工继续 fail-closed 并复用模板；服务端投影当前等待动作；截断后重验 Git 结尾 | 聚焦验证：Java 52/52、MCP Java 14/14、Vitest 119/119；`0.1.8` 首次完整构建 249/250，因遗留 MCP 版本断言失败后按规则递增；`./scripts/verify.sh`：Java 250/250、Vitest 119/119，BUILD SUCCESS；JAR 262591570 bytes，SHA-256 `9a2e0c073794c9b9e4ff7a286c5ef795dfc3ba0c4c558e60f52d0b1493ac7e33`；18089 隔离运行 health、LoopSpec 和 Task DTO 验收通过；发布目标：`v0.1.9` |

@@ -120,9 +120,11 @@ as a LoopSpec verifier.
 After a deterministic failure, the orchestrator captures an immutable
 `ATTEMPT_HANDOFF` artifact outside the SQLite transaction. It contains bounded
 failure and verifier summaries, changed paths, and a workspace content digest.
-The digest reads at most 64 changed paths and 16 MiB of file content; excessive
-or unreadable input marks the snapshot unreliable, and unreliable snapshots are
-never compared for stagnation. A reliable fingerprint combines the Stage id,
+The digest reads at most 64 changed paths and 16 MiB of actual file content.
+It counts bytes while reading and compares size, modification time, and file key
+before and after each file; excessive, unreadable, or concurrently changed input
+marks the snapshot unreliable, and unreliable snapshots are never compared for
+stagnation. A reliable fingerprint combines the Stage id,
 failed-verifier signature, and workspace digest. Repeating that fingerprint up
 to `limits.stagnationLimit` moves the Task to `WAITING_INPUT` with
 `LOOP_STAGNATION_DETECTED` rather than scheduling another model call.
@@ -130,9 +132,11 @@ to `limits.stagnationLimit` moves the Task to `WAITING_INPUT` with
 The local UI may explicitly continue that loop through
 `POST /api/tasks/{taskId}/loop/retry`. The transition records a
 `LOOP_STAGNATION_OVERRIDE`, rechecks budget, lease, writer and Stage state in a
-short transaction, then starts a fresh Attempt and fresh mutating Session after
-commit. The next prompt is built from the persisted handoff and the bounded
-`sessionPolicy.nextAttemptPromptTemplate`; supported placeholders are
+short transaction, and first parses the latest persisted handoff. A missing or
+malformed handoff aborts the transaction without changing Task state. After
+commit, Loopper starts a fresh Attempt and fresh mutating Session. Manual and
+automatic retry prompts use the same bounded `nextAttemptPromptTemplate`;
+supported placeholders are
 `attemptOrdinal`, `failureSummary`, `verificationSummary`, `changedPaths`, and
 `workspaceFingerprint`, and the final retry handoff is capped at 12,000
 characters. Implementation transcripts are never reused across
@@ -168,6 +172,8 @@ Git HEAD, execution creates `loopper/<taskName>` under
 corresponding local or remote-tracking branch already exists. Characters
 that Git forbids in branch names are deterministically replaced with `-`, and
 the readable leaf is UTF-8 byte-bounded before the occurrence suffix is added.
+Git ending rules are applied again after truncation so an exposed `.lock`, dot,
+or other invalid tail cannot make worktree creation fail.
 Otherwise OpenCode edits the canonical
 registered root directly and Loopper stores a private Git-compatible baseline
 under `$LOOPPER_DATA_DIR/direct-baselines/<taskId>` for deterministic path and

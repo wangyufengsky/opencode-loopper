@@ -131,6 +131,8 @@ export interface Task {
   branch: string
   worktreePath: string
   status: TaskStatus
+  waitingReasonCode?: string
+  loopRetryAvailable?: boolean
   hasDesignHistory?: boolean
   archived?: boolean
   activeStage?: number
@@ -501,9 +503,22 @@ export interface LoopSpec {
   limits: {
     maxStageAttempts: number
     maxTaskAttempts: number
+    sessionErrorLimit?: number
+    stagnationLimit?: number
     maxDuration: string
     attemptTimeout: string
+    verifierTimeout?: string
   }
+  model?: {
+    providerId?: string
+    modelId?: string
+    thinking?: boolean
+  }
+  sessionPolicy?: {
+    reuseHealthySession: boolean
+    createFreshOnVerifierFailure: boolean
+  }
+  nextAttemptPromptTemplate?: string
   budget?: {
     maxTotalTokens?: number
     maxCostAmount?: string

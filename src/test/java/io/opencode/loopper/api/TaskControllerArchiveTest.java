@@ -1,5 +1,6 @@
 package io.opencode.loopper.api;
 
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -22,6 +23,7 @@ import io.opencode.loopper.service.TaskService;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import tools.jackson.databind.ObjectMapper;
@@ -35,6 +37,11 @@ class TaskControllerArchiveTest {
     private final MockMvc mvc = MockMvcBuilders.standaloneSetup(controller)
             .setControllerAdvice(new ApiExceptionHandler()).build();
 
+    @BeforeEach
+    void defaultLoopRetryProjection() {
+        when(tasks.loopRetryStatus(anyString())).thenReturn(new TaskService.LoopRetryStatus(null, false));
+    }
+
     @Test
     void archivesOnlyThroughTheLocalUiContractAndReturnsRecoverableMetadata() throws Exception {
         TaskRow task = new TaskRow("task-1", "project-1", null, "Finished", "CANCELLED",
@@ -47,7 +54,6 @@ class TaskControllerArchiveTest {
         when(tasks.judges("task-1")).thenReturn(List.of());
         when(tasks.artifacts("task-1")).thenReturn(List.of());
         when(mapper.findProject("project-1")).thenReturn(Optional.empty());
-
         mvc.perform(put("/api/tasks/task-1/archive").header("X-Loopper-Local-UI", "1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value("task-1"))
@@ -105,7 +111,9 @@ class TaskControllerArchiveTest {
 
         mvc.perform(post("/api/tasks/task-loop/loop/retry").header("X-Loopper-Local-UI", "1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("RUNNING"));
+                .andExpect(jsonPath("$.status").value("RUNNING"))
+                .andExpect(jsonPath("$.waitingReasonCode").doesNotExist())
+                .andExpect(jsonPath("$.loopRetryAvailable").value(false));
         verify(tasks).retryWaitingLoop("task-loop");
 
         mvc.perform(post("/api/tasks/task-loop/loop/retry"))

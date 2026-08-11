@@ -9,7 +9,10 @@ const spec: LoopSpec = {
     { type: 'FILE_EXISTS', path: 'src/App.java' },
     { type: 'GIT_DIFF', requireChanges: true, allowedPaths: ['src/**'], forbiddenPaths: ['data/**'], forbidDeletes: true },
   ] }],
-  limits: { maxStageAttempts: 3, maxTaskAttempts: 12, maxDuration: 'PT2H', attemptTimeout: 'PT30M' },
+  limits: { maxStageAttempts: 3, maxTaskAttempts: 12, sessionErrorLimit: 4, stagnationLimit: 5, maxDuration: 'PT2H', attemptTimeout: 'PT30M', verifierTimeout: 'PT7M' },
+  model: { providerId: 'provider-1', modelId: 'model-1', thinking: false },
+  sessionPolicy: { reuseHealthySession: false, createFreshOnVerifierFailure: false },
+  nextAttemptPromptTemplate: '修复 ${failureSummary}',
 }
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -112,6 +115,27 @@ describe('Loopper REST contract adapter', () => {
       { type: 'FILE_EXISTS', path: 'src/App.java' },
       { type: 'GIT_DIFF', requireChanges: true, allowedPaths: ['src/**'], forbiddenPaths: ['data/**'], forbidDeletes: true },
     ])
+  })
+
+  it('round-trips every retry policy field without replacing non-default values', async () => {
+    const backendSpec = {
+      ...spec,
+      limits: { maxStageAttempts: 7, maxTaskAttempts: 19, sessionErrorLimit: 6, stagnationLimit: 4, maxDurationSeconds: 9100, attemptTimeoutSeconds: 2300, verifierTimeoutSeconds: 321 },
+    }
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json({ id: 'draft-1', status: 'DRAFT_READY', updatedAt: 'now', spec: backendSpec }))
+      .mockResolvedValueOnce(json({ id: 'draft-1', status: 'DRAFT_READY', updatedAt: 'later', spec: backendSpec }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const draft = await api.getDraft('draft-1')
+    await api.updateDraft('draft-1', draft.spec)
+
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body)).spec).toMatchObject({
+      limits: { maxStageAttempts: 7, maxTaskAttempts: 19, sessionErrorLimit: 6, stagnationLimit: 4, maxDurationSeconds: 9100, attemptTimeoutSeconds: 2300, verifierTimeoutSeconds: 321 },
+      model: { providerId: 'provider-1', modelId: 'model-1', thinking: false },
+      sessionPolicy: { reuseHealthySession: false, createFreshOnVerifierFailure: false },
+      nextAttemptPromptTemplate: '修复 ${failureSummary}',
+    })
   })
 
   it('reads legacy PROCESS argv without writing the alias back', async () => {
@@ -251,7 +275,7 @@ describe('Loopper REST contract adapter', () => {
   it('uses persisted verification and error field names from TaskController', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({
       id: 'task-1', projectId: 'project-1', projectName: 'Project', title: 'Task', goal: 'Goal', branch: 'loopper/task-1', worktreePath: '/tmp/task',
-      status: 'RUNNING', hasDesignHistory: true, archived: true, attemptCount: 1, maxAttempts: 12, createdAt: 'start', updatedAt: 'now', stages: [],
+      status: 'WAITING_INPUT', waitingReasonCode: 'LOOP_STAGNATION_DETECTED', loopRetryAvailable: true, hasDesignHistory: true, archived: true, attemptCount: 1, maxAttempts: 12, createdAt: 'start', updatedAt: 'now', stages: [],
       attempts: [{ id: 'attempt-1', stageId: 'stage-1', ordinal: 1, status: 'RUNNING', summary: 'running', startedAt: 'start', verifications: [{ id: 'verification-1', type: 'PROCESS', status: 'PASS', summary: 'ok', evidence: { argv: ['mvn', 'test'], exitCode: 0, output: 'BUILD SUCCESS' }, at: 'now' }] }],
       errors: [{ id: 'error-1', layer: 'SESSION', code: 'DISCONNECTED', message: 'reconnect', retryable: true, at: 'now' }],
       judges: [{ id: 'judge-1', role: 'RISK', ordinal: 1, status: 'COMPLETED', verdict: 'PASS', reason: 'No unsafe diff', createdAt: 'now', endedAt: 'later' }],
@@ -265,6 +289,8 @@ describe('Loopper REST contract adapter', () => {
     expect(task.artifacts?.[0]).toMatchObject({ kind: 'DIFF', title: 'worktree.diff', content: 'diff' })
     expect(task.hasDesignHistory).toBe(true)
     expect(task.archived).toBe(true)
+    expect(task.waitingReasonCode).toBe('LOOP_STAGNATION_DETECTED')
+    expect(task.loopRetryAvailable).toBe(true)
   })
 
   it('archives, restores and deletes task history only through the local UI contract', async () => {

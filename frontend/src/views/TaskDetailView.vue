@@ -49,10 +49,8 @@ const verifierErrors = computed<ErrorEvent[]>(() => (task.value?.errors ?? attem
   .filter((error) => !error.code.startsWith('JUDGE_') || (task.value?.status === 'WAITING_INPUT' && !doubleReviewApproved.value)))
 const canRetryJudges = computed(() => deterministicAccepted.value
   && (task.value?.status === 'WAITING_INPUT' || (task.value?.status === 'SUCCEEDED' && !doubleReviewApproved.value)))
-const loopWaitingError = computed(() => (task.value?.errors ?? []).find((error) =>
-  error.code === 'LOOP_STAGNATION_DETECTED' || error.code === 'LOOP_FRESH_SESSION_REQUIRED'))
 const canRetryLoop = computed(() => task.value?.status === 'WAITING_INPUT'
-  && !deterministicAccepted.value && Boolean(loopWaitingError.value))
+  && !deterministicAccepted.value && task.value.loopRetryAvailable === true)
 const judgeActionLabel = computed(() => judges.value.length ? '重新发起双评审' : '启动双评审')
 const canRework = computed(() => !isDirectExecution.value
   && ['WAITING_INPUT', 'SUCCEEDED', 'FAILED', 'CANCELLED'].includes(task.value?.status ?? ''))

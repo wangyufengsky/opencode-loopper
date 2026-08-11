@@ -75,9 +75,8 @@ public class GitWorktreeManager {
             Path worktree = base.resolve(taskId).normalize();
             if (!worktree.getParent().equals(base)) throw new TaskFailure("WORKTREE_PATH_INVALID", "Task worktree escaped its managed directory");
             if (Files.exists(worktree)) throw new TaskFailure("WORKTREE_ALREADY_EXISTS", "A managed worktree already exists for task " + taskId);
-            String branchBase = normalizedBranchLeaf(taskName, taskId);
             for (int occurrence = 1; occurrence <= MAX_BRANCH_OCCURRENCES; occurrence++) {
-                String branch = branchName(branchBase, occurrence);
+                String branch = branchNameForTask(taskName, taskId, occurrence);
                 if (branchExists(root, branch)) continue;
                 ProcessResult added = runner.run(root,
                         List.of("git", "worktree", "add", "-b", branch, worktree.toString(), baseline), GIT_TIMEOUT);
@@ -178,10 +177,20 @@ public class GitWorktreeManager {
     private String branchName(String base, int occurrence) {
         String suffix = occurrence == 1 ? "" : "(第" + occurrence + "次)";
         int suffixBytes = suffix.getBytes(StandardCharsets.UTF_8).length;
-        String leaf = truncateUtf8(base, MAX_BRANCH_LEAF_BYTES - suffixBytes);
-        leaf = trimInvalidEnding(leaf);
-        if (leaf.isBlank()) leaf = "task";
+        String leaf = validTruncatedLeaf(base, MAX_BRANCH_LEAF_BYTES - suffixBytes);
         return BRANCH_NAMESPACE + leaf + suffix;
+    }
+
+    String branchNameForTask(String taskName, String taskId, int occurrence) {
+        return branchName(normalizedBranchLeaf(taskName, taskId), occurrence);
+    }
+
+    private String validTruncatedLeaf(String value, int maxBytes) {
+        String leaf = trimInvalidEnding(truncateUtf8(value, maxBytes));
+        if (leaf.equals("@") || leaf.isBlank()) leaf = "task";
+        if (leaf.endsWith(".lock")) leaf = leaf.substring(0, leaf.length() - 5) + "-lock";
+        leaf = trimInvalidEnding(truncateUtf8(leaf, maxBytes));
+        return leaf.equals("@") || leaf.isBlank() ? "task" : leaf;
     }
 
     private String normalizedBranchLeaf(String taskName, String taskId) {

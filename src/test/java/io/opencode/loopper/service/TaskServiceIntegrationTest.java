@@ -5,6 +5,7 @@ import io.opencode.loopper.domain.ErrorLayer;
 import io.opencode.loopper.domain.LoopSpec;
 import io.opencode.loopper.persistence.AttemptRow;
 import io.opencode.loopper.persistence.ExecutionSessionRow;
+import io.opencode.loopper.persistence.ErrorEventRow;
 import io.opencode.loopper.persistence.LoopDraftRow;
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.ProjectRow;
@@ -26,6 +27,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -41,6 +43,7 @@ class TaskServiceIntegrationTest {
     @Autowired private OpenCodeClient openCode;
     @Autowired private LoopperMapper mapper;
     @Autowired private UsageInsightsService usageInsights;
+    @Autowired private JdbcTemplate jdbc;
     @Autowired private TaskEventHub taskEvents;
     @MockitoSpyBean private VerifierEngine verifierEngine;
     @TempDir Path temp;
@@ -913,7 +916,9 @@ class TaskServiceIntegrationTest {
     @Test
     void unchangedFailureStopsAtStagnationLimitAndExplicitConfirmationStartsOneFreshRetry() throws Exception {
         ProjectRow project = projects.create("stagnation-stop", gitProject());
-        LoopSpec stagnant = failingContentSpec(project.id(), 2, null, new LoopSpec.SessionPolicy(true, true));
+        LoopSpec stagnant = failingContentSpec(project.id(), 2,
+                "人工继续时优先处理 ${failureSummary}，并检查 ${changedPaths}",
+                new LoopSpec.SessionPolicy(true, true));
         TaskRow task = drafts.confirm(drafts.create(stagnant).id(), "stop unchanged loop");
         tasks.start(task.id());
 
@@ -939,7 +944,48 @@ class TaskServiceIntegrationTest {
         assertThat(tasks.artifacts(task.id())).anyMatch(artifact -> artifact.kind().equals("LOOP_STAGNATION_OVERRIDE"));
         ExecutionSessionRow retrySession = mapper.activeSessions(task.id()).getFirst();
         assertThat(((FakeOpenCodeClient) openCode).promptForSession(retrySession.externalSessionId()))
-                .contains("user explicitly approved one fresh retry", "Latest persisted Attempt handoff");
+                .contains("user explicitly approved one fresh retry",
+                        "Previous Attempt handoff (server-generated, bounded, and read-only)",
+                        "LoopSpec next-attempt instructions", "人工继续时优先处理");
+    }
+
+    @Test
+    void explicitLoopRetryRejectsUnreadableHandoffBeforeChangingState() throws Exception {
+        ProjectRow project = projects.create("invalid-handoff", gitProject());
+        LoopSpec stagnant = failingContentSpec(project.id(), 2, null, new LoopSpec.SessionPolicy(true, true));
+        TaskRow task = drafts.confirm(drafts.create(stagnant).id(), "reject corrupt handoff");
+        tasks.start(task.id());
+        tasks.verify(task.id());
+        tasks.verify(task.id());
+        int attemptsBefore = tasks.attempts(task.id()).size();
+        jdbc.update("UPDATE task_artifact SET content=? WHERE task_id=? AND kind='ATTEMPT_HANDOFF'", "{", task.id());
+
+        assertThatThrownBy(() -> tasks.retryWaitingLoop(task.id()))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("unreadable");
+
+        assertThat(tasks.get(task.id()).state()).isEqualTo("WAITING_INPUT");
+        assertThat(tasks.attempts(task.id())).hasSize(attemptsBefore);
+        assertThat(tasks.artifacts(task.id())).noneMatch(artifact -> artifact.kind().equals("LOOP_STAGNATION_OVERRIDE"));
+    }
+
+    @Test
+    void loopRetryProjectionUsesTheNewestWaitingReasonOnly() throws Exception {
+        ProjectRow project = projects.create("waiting-reason", gitProject());
+        LoopSpec stagnant = failingContentSpec(project.id(), 2, null, new LoopSpec.SessionPolicy(true, true));
+        TaskRow task = drafts.confirm(drafts.create(stagnant).id(), "project current waiting reason");
+        tasks.start(task.id());
+        tasks.verify(task.id());
+        tasks.verify(task.id());
+
+        assertThat(tasks.loopRetryStatus(task.id())).isEqualTo(
+                new TaskService.LoopRetryStatus("LOOP_STAGNATION_DETECTED", true));
+        mapper.insertError(new ErrorEventRow("newer-budget-wait", task.id(), null, null, null,
+                ErrorLayer.TASK.name(), "TASK_BUDGET_WAITING_INPUT", "等待用户调整预算", true,
+                "{\"resolution\":\"WAITING_INPUT\"}", "9999-12-31T23:59:59Z"));
+
+        assertThat(tasks.loopRetryStatus(task.id())).isEqualTo(
+                new TaskService.LoopRetryStatus("TASK_BUDGET_WAITING_INPUT", false));
     }
 
     @Test

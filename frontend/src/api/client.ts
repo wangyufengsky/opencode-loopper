@@ -118,13 +118,34 @@ function parseVerifier(value: unknown): LoopVerifierSpec {
 
 function parseLoopSpec(value: unknown): LoopSpec {
   const raw = asRecord(value)
+  const limits = asRecord(raw.limits)
+  const model = asRecord(raw.model)
+  const sessionPolicy = asRecord(raw.sessionPolicy)
   return {
     schemaVersion: asString(raw.schemaVersion, 'v1'), projectId: asString(raw.projectId), goal: asString(raw.goal), context: asString(raw.context),
     stages: asArray(raw.stages).map((stage) => {
       const item = asRecord(stage)
       return { objective: asString(item.objective), allowedPaths: asArray(item.allowedPaths).map(String), forbiddenPaths: asArray(item.forbiddenPaths).map(String), deliverables: asArray(item.deliverables).map(String), verifiers: asArray(item.verifiers).map(parseVerifier) }
     }),
-    limits: { maxStageAttempts: asNumber(asRecord(raw.limits).maxStageAttempts, 3), maxTaskAttempts: asNumber(asRecord(raw.limits).maxTaskAttempts, 12), maxDuration: asString(asRecord(raw.limits).maxDuration, String(asNumber(asRecord(raw.limits).maxDurationSeconds, 7200))), attemptTimeout: asString(asRecord(raw.limits).attemptTimeout, String(asNumber(asRecord(raw.limits).attemptTimeoutSeconds, 1800))) },
+    limits: {
+      maxStageAttempts: asNumber(limits.maxStageAttempts, 3),
+      maxTaskAttempts: asNumber(limits.maxTaskAttempts, 12),
+      sessionErrorLimit: asNumber(limits.sessionErrorLimit, 3),
+      stagnationLimit: asNumber(limits.stagnationLimit, 2),
+      maxDuration: asString(limits.maxDuration, String(asNumber(limits.maxDurationSeconds, 7200))),
+      attemptTimeout: asString(limits.attemptTimeout, String(asNumber(limits.attemptTimeoutSeconds, 1800))),
+      verifierTimeout: asString(limits.verifierTimeout, String(asNumber(limits.verifierTimeoutSeconds, 600))),
+    },
+    model: {
+      ...(asString(model.providerId) ? { providerId: asString(model.providerId) } : {}),
+      ...(asString(model.modelId) ? { modelId: asString(model.modelId) } : {}),
+      ...(typeof model.thinking === 'boolean' ? { thinking: model.thinking } : {}),
+    },
+    sessionPolicy: {
+      reuseHealthySession: typeof sessionPolicy.reuseHealthySession === 'boolean' ? sessionPolicy.reuseHealthySession : true,
+      createFreshOnVerifierFailure: typeof sessionPolicy.createFreshOnVerifierFailure === 'boolean' ? sessionPolicy.createFreshOnVerifierFailure : true,
+    },
+    ...(typeof raw.nextAttemptPromptTemplate === 'string' ? { nextAttemptPromptTemplate: raw.nextAttemptPromptTemplate } : {}),
     budget: {
       ...(typeof asRecord(raw.budget).maxTotalTokens === 'number' ? { maxTotalTokens: asNumber(asRecord(raw.budget).maxTotalTokens) } : {}),
       ...(asString(asRecord(raw.budget).maxCostAmount) ? { maxCostAmount: asString(asRecord(raw.budget).maxCostAmount) } : {}),
@@ -265,7 +286,7 @@ function normalizeTask(value: unknown): Task {
   const attempts = asArray(raw.attempts).map(normalizeAttempt)
   const stages = asArray(raw.stages).map((stage) => normalizeStage(stage, attempts))
   const taskId = asString(raw.id)
-  return { id: taskId, projectId: asString(raw.projectId), projectName: asString(raw.projectName, 'Unknown project'), title: asString(raw.title), goal: asString(raw.goal), branch: asString(raw.branch) || '等待选择执行模式', worktreePath: asString(raw.worktreePath) || '等待准备执行目录', status: asString(raw.status) as Task['status'], hasDesignHistory: raw.hasDesignHistory === true, archived: raw.archived === true, activeStage: stages.find((stage) => stage.status === 'RUNNING')?.ordinal, attemptCount: asNumber(raw.attemptCount, attempts.length), maxAttempts: asNumber(raw.maxAttempts, 12), createdAt: asString(raw.createdAt), updatedAt: asString(raw.updatedAt), stages, attempts, errors: asArray(raw.errors).map(normalizeError), judges: asArray(raw.judges).map(normalizeJudge), artifacts: asArray(raw.artifacts).map((artifact) => normalizeArtifact(artifact, taskId)) }
+  return { id: taskId, projectId: asString(raw.projectId), projectName: asString(raw.projectName, 'Unknown project'), title: asString(raw.title), goal: asString(raw.goal), branch: asString(raw.branch) || '等待选择执行模式', worktreePath: asString(raw.worktreePath) || '等待准备执行目录', status: asString(raw.status) as Task['status'], waitingReasonCode: asString(raw.waitingReasonCode) || undefined, loopRetryAvailable: raw.loopRetryAvailable === true, hasDesignHistory: raw.hasDesignHistory === true, archived: raw.archived === true, activeStage: stages.find((stage) => stage.status === 'RUNNING')?.ordinal, attemptCount: asNumber(raw.attemptCount, attempts.length), maxAttempts: asNumber(raw.maxAttempts, 12), createdAt: asString(raw.createdAt), updatedAt: asString(raw.updatedAt), stages, attempts, errors: asArray(raw.errors).map(normalizeError), judges: asArray(raw.judges).map(normalizeJudge), artifacts: asArray(raw.artifacts).map((artifact) => normalizeArtifact(artifact, taskId)) }
 }
 
 function normalizeTaskDesignHistory(value: unknown): TaskDesignHistory {
@@ -525,7 +546,18 @@ function backendLoopSpec(spec: LoopSpec): JsonRecord {
         ...(verifier.assertions?.length ? { assertions: verifier.assertions } : {}),
       })),
     })),
-    limits: { maxStageAttempts: spec.limits.maxStageAttempts, maxTaskAttempts: spec.limits.maxTaskAttempts, sessionErrorLimit: 3, stagnationLimit: 2, maxDurationSeconds: durationSeconds(spec.limits.maxDuration, 7200), attemptTimeoutSeconds: durationSeconds(spec.limits.attemptTimeout, 1800), verifierTimeoutSeconds: 600 },
+    limits: {
+      maxStageAttempts: spec.limits.maxStageAttempts,
+      maxTaskAttempts: spec.limits.maxTaskAttempts,
+      sessionErrorLimit: spec.limits.sessionErrorLimit ?? 3,
+      stagnationLimit: spec.limits.stagnationLimit ?? 2,
+      maxDurationSeconds: durationSeconds(spec.limits.maxDuration, 7200),
+      attemptTimeoutSeconds: durationSeconds(spec.limits.attemptTimeout, 1800),
+      verifierTimeoutSeconds: durationSeconds(spec.limits.verifierTimeout ?? '600', 600),
+    },
+    model: spec.model ?? {},
+    sessionPolicy: spec.sessionPolicy ?? { reuseHealthySession: true, createFreshOnVerifierFailure: true },
+    nextAttemptPromptTemplate: spec.nextAttemptPromptTemplate || null,
     budget: spec.budget ?? {},
   }
 }
