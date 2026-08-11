@@ -432,12 +432,15 @@ class VerifierEngineTest {
     void browserExecutableDiscoverySupportsLinuxPathAndExplicitOverride(@TempDir Path linuxRoot) throws Exception {
         Path bin = Files.createDirectories(linuxRoot.resolve("bin"));
         Path chromium = Files.writeString(bin.resolve("chromium"), "#!/bin/sh\n");
+        Path override = Files.writeString(linuxRoot.resolve("override-chrome"), "#!/bin/sh\n");
         assertThat(chromium.toFile().setExecutable(true)).isTrue();
+        assertThat(override.toFile().setExecutable(true)).isTrue();
 
         assertThat(BrowserExecutableLocator.resolve("Linux", Map.of("PATH", bin.toString())))
                 .isEqualTo(chromium.toAbsolutePath().normalize());
-        assertThat(BrowserExecutableLocator.resolve("Linux", Map.of("LOOPPER_CHROME_EXECUTABLE", chromium.toString())))
-                .isEqualTo(chromium.toAbsolutePath().normalize());
+        assertThat(BrowserExecutableLocator.resolve("Linux", Map.of(
+                "PATH", bin.toString(), "LOOPPER_CHROME_EXECUTABLE", override.toString())))
+                .isEqualTo(override.toAbsolutePath().normalize());
     }
 
     @Test

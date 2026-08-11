@@ -22,6 +22,10 @@ mybatis:
     arg-name-based-constructor-auto-mapping: true
 loopper:
   data-dir: ${java.io.tmpdir}/loopper-test-data
+  # Integration tests invoke monitor beans directly. Automatic polling would
+  # race Flyway clean/migrate against the shared in-memory SQLite schema.
+  scheduling:
+    enabled: false
   monitor-delay: 1h
   opencode:
     mode: fake

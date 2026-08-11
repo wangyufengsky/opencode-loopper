@@ -236,15 +236,17 @@ final class BrowserExecutableLocator {
                     Path.of("/var/lib/flatpak/exports/bin/org.chromium.Chromium")));
         }
 
-        for (Path candidate : candidates) {
-            if (usable(candidate, osName)) return candidate.toAbsolutePath().normalize();
-        }
+        // PATH is an operator-controlled discovery boundary and must remain deterministic
+        // even on hosts that also preinstall Chrome in a standard absolute location.
         for (String directory : environment.getOrDefault("PATH", "").split(java.util.regex.Pattern.quote(File.pathSeparator))) {
             if (directory.isBlank()) continue;
             for (String executable : executableNames(normalizedOs)) {
                 Path candidate = Path.of(directory, executable);
                 if (usable(candidate, osName)) return candidate.toAbsolutePath().normalize();
             }
+        }
+        for (Path candidate : candidates) {
+            if (usable(candidate, osName)) return candidate.toAbsolutePath().normalize();
         }
         throw unavailable("Chrome/Chromium was not found for " + osName);
     }

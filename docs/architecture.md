@@ -107,6 +107,11 @@ but it is not an OS sandbox. A deliberately daemonizing hostile executable must
 be isolated by an external Job Object, cgroup or container rather than trusted
 as a LoopSpec verifier.
 
+Production scheduling is enabled by default through
+`loopper.scheduling.enabled`. Integration tests disable only scheduled invocation
+while retaining monitor beans for explicit calls, preventing Flyway schema resets
+from racing background SQLite queries.
+
 File paths are execution-root-relative and symlink-safe. Stage allowed/forbidden
 path rules are advisory prompt context and never add an implicit acceptance
 gate. When the confirmed LoopSpec explicitly contains a `GIT_DIFF` verifier,

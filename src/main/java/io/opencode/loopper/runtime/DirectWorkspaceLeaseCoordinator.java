@@ -173,9 +173,11 @@ public class DirectWorkspaceLeaseCoordinator {
             }
             BasicFileAttributes attributes = Files.readAttributes(canonical, BasicFileAttributes.class);
             Object fileKey = attributes.fileKey();
-            String stableFileIdentity = fileKey == null
-                    ? "created:" + attributes.creationTime().toMillis()
-                    : fileKey.toString();
+            // Some Linux filesystems can immediately reuse an inode after deletion. Combining
+            // the stable file key with birth time distinguishes that replacement while keeping
+            // the fingerprint stable when ordinary files inside the directory change.
+            String stableFileIdentity = "fileKey:" + (fileKey == null ? "unavailable" : fileKey)
+                    + "\u0000created:" + attributes.creationTime().toInstant();
             String root = canonical.toString();
             return new WorkspaceIdentity(root, sha256(root + "\u0000" + stableFileIdentity));
         } catch (TaskFailure failure) {
@@ -213,9 +215,11 @@ public class DirectWorkspaceLeaseCoordinator {
             createQueue(admitted);
             return admission(TaskQueueState.ADMITTED.name(), held, admitted, workspace);
         }
-        requireSameWorkspace(lease, workspace);
         if (WorkspaceLeaseState.RELEASED.name().equals(lease.state())) {
-            WorkspaceLeaseRow held = new WorkspaceLeaseRow(lease.canonicalRoot(), lease.rootFingerprint(), MODE_DIRECT,
+            // A released lease has no writer to protect, so refresh its fingerprint. This also
+            // lets a safely idle workspace cross fingerprint-algorithm upgrades without weakening
+            // the fail-closed check for HELD or RELEASE_PENDING leases.
+            WorkspaceLeaseRow held = new WorkspaceLeaseRow(lease.canonicalRoot(), workspace.rootFingerprint(), MODE_DIRECT,
                     taskId, writerSessionId, WorkspaceLeaseState.HELD.name(), timestamp, timestamp, null, null, lease.version());
             updateLease(held);
             TaskQueueRow admitted = new TaskQueueRow(taskId, workspace.canonicalRoot(), workspace.rootFingerprint(), position,
@@ -224,6 +228,7 @@ public class DirectWorkspaceLeaseCoordinator {
             return admission(TaskQueueState.ADMITTED.name(),
                     mapper.findWorkspaceLease(workspace.canonicalRoot()).orElseThrow(), admitted, workspace);
         }
+        requireSameWorkspace(lease, workspace);
         TaskQueueRow queued = new TaskQueueRow(taskId, workspace.canonicalRoot(), workspace.rootFingerprint(), position,
                 source, TaskQueueState.QUEUED.name(), timestamp, null, null, 0);
         createQueue(queued);

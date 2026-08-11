@@ -41,10 +41,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.1.2.jar
-   jar tf target/opencode-loopper-0.1.2.jar \
+   test -s target/opencode-loopper-0.1.4.jar
+   jar tf target/opencode-loopper-0.1.4.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.1.2.jar
+   shasum -a 256 target/opencode-loopper-0.1.4.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -93,8 +93,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.1.2`。
-- 正式产物：`target/opencode-loopper-0.1.2.jar`。
+- Maven 项目版本：`0.1.4`。
+- 正式产物：`target/opencode-loopper-0.1.4.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -220,6 +220,7 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 - `FILE_EXISTS` 是兼容旧草稿的非阻断审计提示；不要为 Designer 新生成它。需要证明产物时，用会在缺失时非零退出的 `PROCESS` 自检，并可要求明确的 `outputContains` 标记。
 - `FILE_NOT_EXISTS` 只用于明确的安全不变量。
 - HTTP/JSON/BROWSER 只访问 loopback；BROWSER 不允许任意 JavaScript，必须保留截图和 trace 证据。
+- BROWSER 可执行文件发现顺序固定为显式 `LOOPPER_CHROME_EXECUTABLE`、进程 `PATH`、操作系统标准位置；显式路径无效时必须 fail closed。
 - `DATABASE_QUERY` 只接受本地 SQLite 的只读单条 `SELECT`/`WITH`。
 - 外部进程、HTTP、浏览器和模型调用不能在 SQLite transaction 内执行。
 - 确定性验证成功与 Judge 成功是两套证据。Requirement 和 Risk Judge 都是独立只读 Session，必须明确 `PASS`。
@@ -234,6 +235,7 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 - Recovery 仅从 `FAILED`/`CANCELLED` 派生，模式为 `FROM_FAILED_STAGE`、`ALL_STAGES` 或 `VERIFY_ONLY`。
 - `VERIFY_ONLY` 不创建可写 Session；Direct 模式不提供原地回滚。
 - fingerprint、baseline 或旧 writer 不匹配时必须 fail closed。
+- Direct root fingerprint 必须同时包含 canonical path、目录 file key 和创建时间，避免 Linux inode 立即复用；只有 `RELEASED` 且无写入者的租约可在新任务准入时刷新指纹。
 
 ### 5.6 发布与历史删除
 
@@ -317,7 +319,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.1.2.jar
+JAR=target/opencode-loopper-0.1.4.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -325,6 +327,8 @@ shasum -a 256 "$JAR"
 ```
 
 若变更涉及 Flyway、静态资源、Linux、Chrome 或 OpenCode 兼容性，应增加对应的启动/运行时验收，不能仅依赖 Maven 成功。
+
+集成测试通过 `loopper.scheduling.enabled=false` 关闭自动轮询，但保留 Monitor Bean 供测试显式调用；不得让后台 `@Scheduled` 查询与共享 SQLite 的 Flyway `clean/migrate` 并发。
 
 ### 运行时验收
 
@@ -400,3 +404,4 @@ curl --fail http://127.0.0.1:8080/actuator/health
 | 2026-08-10 | Maven PROCESS 参数容错规范化 | 明确可解析的合并 Maven 参数直接规范化，只有无法安全解析时才触发 Designer 自动纠正；同步 README、Designer/OpenCode 合同 | `./scripts/verify.sh`：Java 225/225、Vitest 114/114，BUILD SUCCESS；JAR 262561953 bytes，SHA-256 `761515a69dc8792433e157ca15b04b05e26a2d359d55c4650a601db61372694c` |
 | 2026-08-10 | 发布稳定版 0.1.1 | 规定每次形成新交付 JAR 必须递增版本号；新增 `v<version>` 标签校验、完整验证和 GitHub Release 自动发布合同 | `./scripts/verify.sh`：Java 225/225、Vitest 114/114，BUILD SUCCESS；JAR 262561925 bytes，SHA-256 `f3fc9611be5f4afaec48ccc5a035695c27f3c910c1dabd84ae16ca99963be10e`；发布目标：`v0.1.1` |
 | 2026-08-11 | 隔离分支使用任务名并处理重名 | 工作区契约改为 `loopper/<任务名>`；同名任务追加中文次数，非法字符规范化并限制 UTF-8 长度；同步 README、架构与 0.1.2 发布路径 | `./scripts/verify.sh`：Java 226/226、Vitest 114/114，BUILD SUCCESS；JAR 262564155 bytes，SHA-256 `b827de6ad36c8327146d9ae5fe20a6eff18778a87ff2746305047dd2acdc540e`；发布目标：`v0.1.2` |
+| 2026-08-11 | 修复 Linux Release CI | 固定 Chrome 发现优先级、强化 Direct 指纹并隔离测试调度；同步 README、架构、验证器与 Recovery 契约及 0.1.4 发布路径 | `./scripts/verify.sh`：Java 229/229、Vitest 114/114，BUILD SUCCESS；JAR 262564882 bytes，SHA-256 `1ee8e6b1697582070122f1a7f6c96e8c16036de21e7dd824f1c99d2e5550170d`；发布目标：`v0.1.4` |

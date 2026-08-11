@@ -133,6 +133,26 @@ class DirectWorkspaceLeaseCoordinatorIntegrationTest {
         assertThat(after.rootFingerprint()).isNotEqualTo(before.rootFingerprint());
     }
 
+    @Test
+    void aReleasedLeaseRefreshesItsFingerprintBeforeAReplacementRootIsAdmitted() throws Exception {
+        Path root = Files.createDirectory(temporaryDirectory.resolve("released-replacement"));
+        task("finished", root);
+        DirectWorkspaceLeaseCoordinator.Admission first = leases.acquireOrEnqueue(root, "finished", "MANUAL", null);
+        leases.releaseAfterWriterStopped(root, "finished", "writer stopped");
+
+        Files.delete(root);
+        Files.createDirectory(root);
+        task("replacement", root);
+
+        DirectWorkspaceLeaseCoordinator.Admission replacement = leases.acquireOrEnqueue(root, "replacement", "MANUAL", null);
+
+        assertThat(replacement.state()).isEqualTo("ADMITTED");
+        assertThat(replacement.rootFingerprint()).isNotEqualTo(first.rootFingerprint());
+        assertThat(mapper.findWorkspaceLease(root.toRealPath().toString())).get()
+                .extracting(WorkspaceLeaseRow::rootFingerprint)
+                .isEqualTo(replacement.rootFingerprint());
+    }
+
     private void task(String id, Path root) throws Exception {
         String now = Instant.now().toString();
         String canonicalRoot = root.toRealPath().toString();

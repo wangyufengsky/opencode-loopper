@@ -26,7 +26,10 @@ are hard-denied before the provider reply and cannot be overridden.
 
 ## Direct queue and lease
 
-A canonical real path plus root fingerprint identifies a Direct workspace.
+A canonical real path plus a fingerprint of the directory file key and creation
+time identifies a Direct workspace, including on Linux filesystems that reuse an
+inode immediately after deletion. A released lease may refresh that fingerprint
+before admitting a new writer; active and release-pending leases still fail closed.
 Only one non-released lease exists for a root. FIFO queue admission is persisted.
 An abort response alone never releases a lease: the old writer must be observed
 terminal. Unknown writer state keeps the lease and blocks Recovery and Automation.
@@ -45,7 +48,9 @@ termination. A checkpoint hashes message, todo and diff references.
 Existing `PROCESS`, `FILE_EXISTS`, `FILE_NOT_EXISTS`, and `GIT_DIFF` remain.
 Native types are `HTTP_STATUS`, `JSON_PATH`, `FILE_CONTENT`, `FILE_HASH`,
 `JUNIT_XML`, `BROWSER`, and `DATABASE_QUERY`. HTTP/browser access is loopback
-only. Browser assertions are bounded and contain no arbitrary JavaScript.
+only. Browser assertions are bounded and contain no arbitrary JavaScript. Browser
+executable discovery is explicit override, then process `PATH`, then standard OS
+locations; an invalid explicit override fails closed without fallback.
 `DATABASE_QUERY` accepts one read-only local SQLite `SELECT`/`WITH` statement.
 Screenshots and traces live below the configured data directory; SQLite stores
 only relative path, SHA-256, size and metadata.
