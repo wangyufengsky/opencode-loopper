@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.1.13`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.1.14`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -29,18 +29,18 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 ## 核心能力
 
-- **本地项目登记**：登记绝对路径，识别 Git 隔离模式或无可用 Git HEAD 时的直接模式。
+- **本地项目登记**：登记绝对路径，识别 Git 任务分支模式或无可用 Git HEAD 时的直接模式。
 - **只读 Designer**：先读取代码库与项目约定，再通过对话生成、纠正和确认 LoopSpec；设计阶段不写业务源码。
 - **项目公约**：只读分析项目并生成或更新根目录 `AGENTS.md`，展示完整预览后才写入；Loopper 管理区块以外的人工内容会被保留。
 - **分阶段执行循环**：按依赖顺序执行 Stage，每个阶段都携带目标、交付物、路径约束和可立即运行的验收规则。
 - **循环降噪**：验证失败后固化 Attempt 交接包，并用失败签名和可靠工作区指纹识别无进展重试；连续停滞时转入人工确认，不继续烧预算。
-- **隔离执行**：有 Git HEAD 的项目先非交互 fetch 当前分支远端，再使用 `loopper/<任务名>` 分支和专用 worktree；远端线性领先时以最新远端提交为基线，但不移动原工作目录的分支。任务 worktree 必须位于原项目之外；OpenCode 必须回报相同规范目录，否则不会收到实施提示。其他项目在登记目录中直接执行，并保留私有基线用于差异检查。
+- **原项目任务分支执行**：有 Git HEAD 的项目先确认登记目录无未提交/未跟踪文件，非交互 fetch 当前分支远端，再把登记目录直接切换到 `loopper/<任务名>` 分支；IDE 内 AgentBridge、OpenCode 和验证器因此共享同一目录与分支。远端线性领先时以最新远端提交为基线。其他项目在登记目录中直接执行，并保留私有基线用于差异检查。
 - **确定性验收**：支持进程、文件、Git 差异、HTTP、JSON、JUnit、浏览器和 SQLite 查询等验证器。
 - **独立双评审**：确定性验证通过后，由只读 Requirement Judge 和 Risk Judge 独立评审；两者都明确 `PASS` 才能成功。
 - **人工待办**：集中处理 Designer 或任务 Session 提出的 Question、Permission 和安全阻断，不把人工输入伪装成普通任务状态。
 - **失败恢复**：区分字段、验证、Session 和 Task 四层错误；可恢复的 Session 失败会创建新 Session，终止任务可派生 Recovery。
 - **证据与洞察**：保留阶段、尝试、Session、验证结果、评审、用量、成本和状态迁移记录。
-- **受控发布**：成功的 Git 隔离任务可在人工确认后提交并推送；无远端仓库可安全同步回源项目，并在冲突中心逐文件解决三方合并。
+- **受控发布**：成功的 Git 任务分支可在人工确认后直接提交登记目录中的变更；有远端时普通推送，无远端时保留本地任务分支提交。
 - **模板与自动化**：通过不可变 LoopSpec 模板版本创建手动、CRON、Git HEAD 变化或本机 Webhook 规则；新规则默认停用并需要评审。
 
 ## 工作方式
@@ -76,7 +76,7 @@ Loopper 把四类事实分开保存和展示：
 | 本地控制面 | Java 21、Spring Boot 4、MyBatis、Flyway | 生命周期编排、权限边界、验证、恢复、发布和 API |
 | 持久化 | SQLite（WAL） | 任务状态、审计事件、LoopSpec、交互和证据索引 |
 | Agent Runtime | OpenCode loopback HTTP API | 只读设计、代码实施、独立 Judge 与模型目录 |
-| 工作区与交付 | Git branch/worktree | 隔离执行、差异、普通提交、推送和本地三方同步 |
+| 工作区与交付 | Git task branch / Direct | 原项目分支切换、差异、普通提交、推送和本地提交 |
 | 验收 | 直接进程、Playwright + 本机 Chrome、文件/HTTP/SQLite 读取 | 生成可复查的确定性结果与二进制证据 |
 
 ## 快速开始
@@ -86,7 +86,7 @@ Loopper 把四类事实分开保存和展示：
 | 依赖 | 要求 | 用途 |
 | --- | --- | --- |
 | JDK | 21 或更高 | 构建并运行 Spring Boot |
-| Git | 可从 `PATH` 使用 | worktree 隔离、差异与发布 |
+| Git | 可从 `PATH` 使用 | 原项目任务分支切换、差异与发布 |
 | OpenCode CLI | 1.18.x 或兼容版本 | Designer、实施 Session 与 Judge |
 | Node.js / npm | 仅前端热开发需要 | Maven 正式构建会准备固定版本的 Node/npm |
 | Chrome / Chromium | 可选 | 只在使用 `BROWSER` 验证器时需要 |
@@ -111,7 +111,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.1.13.jar
+java -jar target/opencode-loopper-0.1.14.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -215,10 +215,10 @@ LoopSpec 是执行前必须人工确认的结构化合同。核心字段包括�
 
 | 模式 | 触发条件 | 执行位置 | 发布方式 |
 | --- | --- | --- | --- |
-| Git worktree | 项目有可用 Git HEAD | 原项目之外的 `$LOOPPER_DATA_DIR/worktrees/<taskId>`，分支为 `loopper/<任务名>`；创建前非交互 fetch 当前远端分支，同名时追加 `(第N次)` | 成功后人工提交；有远端则正常推送，无远端则受控同步回源项目 |
+| Git 任务分支 | 项目有可用 Git HEAD | 已登记的原项目目录；创建前要求工作区干净，非交互 fetch 当前远端分支后切换到 `loopper/<任务名>`，同名时追加 `(第N次)` | 成功后人工提交；有远端则正常推送，无远端则保留本地提交 |
 | Direct | 没有可用 Git HEAD | 已登记的原项目目录 | 不提供自动发布或原地回滚；使用私有基线做差异和删除检查 |
 
-Loopper 不会因为任务成功就自动提交、推送、合并或删除 worktree。任务创建时的 fetch 只更新 remote-tracking refs；任务分支在人工发布前仍是本地分支，不会提前出现在 GitLab/GitHub。远端认证失败或本地/远端历史分叉时，任务会失败关闭并要求先处理 Git 状态，不会退回过期基线继续实施。大仓库的 worktree 检出使用独立的 10 分钟有界超时，并为 Windows 命令局部启用 Git 长路径支持。
+Loopper 不会因为任务成功就自动提交、推送、合并或切回原分支。每个登记目录通过持久化 FIFO 写租约串行执行；前一个任务仍有未发布改动时，后一个任务不会切换分支。任务创建时的 fetch 只更新 remote-tracking refs；任务分支在人工发布前仍是本地分支，不会提前出现在 GitLab/GitHub。远端认证失败、本地/远端历史分叉或登记目录不干净时，任务会失败关闭，不会覆盖、stash 或丢弃用户改动。分支切换使用 10 分钟有界超时，并为 Windows 命令局部启用 Git 长路径支持。
 
 ### 错误层级
 
@@ -247,20 +247,20 @@ Recovery 会保留父任务、来源阶段和工作区指纹。Direct 指纹同�
 
 ### 成功任务发布
 
-Git 隔离任务达到 `SUCCEEDED` 后：
+Git 任务分支达到 `SUCCEEDED` 后：
 
 1. Loopper 根据任务和实际差异建议提交说明；用户必须输入四位数字工单号，最终格式为 `#1234_subject`。
 2. 用户检查并确认后，Loopper 使用普通 Git 提交；存在远端时执行非强制推送。
 3. 推送成功后可打开预填的 GitHub Pull Request 或 GitLab Merge Request 创建页，最终创建与合并仍由托管平台确认。
-4. 如果仓库没有远端，Loopper 会对任务基线、当前源项目和任务版本做三方比较；无冲突时同步回源项目，有冲突时进入冲突中心。
-5. 冲突中心按文件展示 **源项目 / 合并结果 / 任务版本**，可选择一侧、手工编辑或请求仅供参考的 AI 建议。写回前会重新检查源项目版本并按原 LoopSpec 验证；失败会回滚本次同步涉及的任务路径。
+4. 如果仓库没有远端，Loopper 在当前原项目任务分支创建本地提交并记录同步证据，不进行第二份目录之间的三方覆盖。
+5. 发布成功且登记目录已经干净后才释放写租约；队列中的下一个任务随后才能切换自己的任务分支。
 
 ### 归档与删除
 
 - 归档只改变任务在列表中的可见状态，不删除证据或源码。
 - 历史删除是终止操作，需要二次确认。
 - 正在运行、未归档或仍有派生子任务的记录受保护，不能删除。
-- 删除历史记录不会删除源文件、Git 分支或 worktree。
+- 删除历史记录不会删除源文件、Git 分支或旧版本遗留的 worktree。
 
 ## 配置
 
@@ -268,7 +268,7 @@ Git 隔离任务达到 `SUCCEEDED` 后：
 
 | 环境变量 | 默认值 | 说明 |
 | --- | --- | --- |
-| `LOOPPER_DATA_DIR` | `./data` | SQLite、证据、二进制工件、worktree 和 Direct 私有基线 |
+| `LOOPPER_DATA_DIR` | `./data` | SQLite、证据、二进制工件、Direct 私有基线和旧版 worktree 兼容数据 |
 | `SERVER_PORT` | `8080` | Loopper HTTP 端口；监听地址固定为 loopback |
 | `LOOPPER_OPENCODE_MODE` | `auto` | `auto` 复用或启动本机服务；`http` 只连接；`fake` 仅用于测试 |
 | `OPENCODE_BASE_URL` | `http://127.0.0.1:4096` | 要探测或复用的 OpenCode loopback 端点 |
@@ -298,7 +298,7 @@ Git 隔离任务达到 `SUCCEEDED` 后：
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.1.13.jar`
+- `target/opencode-loopper-0.1.14.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -324,7 +324,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:4096
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.1.13.jar`
+- `opencode-loopper-0.1.14.jar`
 - `start-windows.bat`
 
 确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
@@ -362,7 +362,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.1.13.jar \
+jar tf target/opencode-loopper-0.1.14.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -373,7 +373,7 @@ jar tf target/opencode-loopper-0.1.13.jar \
 默认 `./data` 中包含：
 
 - `loopper.db` 及 SQLite WAL 相关文件；
-- `worktrees/`：Git 隔离任务工作区；
+- `worktrees/`：旧版本或历史任务的 Git worktree 兼容目录；新任务直接切换登记目录的任务分支；
 - `direct-baselines/`：Direct 任务的私有比较基线；
 - `artifacts/`：浏览器截图、trace 等二进制证据；
 - `publication-patches/`、`local-sync-conflicts/`：发布与同步冲突材料。
@@ -387,7 +387,7 @@ jar tf target/opencode-loopper-0.1.13.jar \
 - OpenCode 创建 Session 后必须返回与请求一致的规范执行目录；缺失或不一致时在提示模型前停止。执行策略不可批准 `git commit`、引用/分支变更、fetch/pull/push、外部路径、危险删除或 hard reset；发布是成功后单独的人机确认流程。
 - 进程验证器使用参数数组启动，不进行 shell 插值；它不是操作系统沙箱，不应运行不可信的恶意二进制。
 - 密码和 MCP Token 不写入 SQLite、日志或证据。
-- 任务取消会停止执行并保留目录与证据；Loopper 不自动删除已完成 worktree。
+- 任务取消会停止执行并保留目录、分支与证据；Loopper 不自动丢弃文件改动，也不删除旧版 worktree。
 - 自动化同样经过队列、权限、验证器和双 Judge，不会绕过人工或安全门槛。
 
 ## 开发与验证
@@ -441,7 +441,7 @@ Windows PowerShell：
 例如发布下一版本：
 
 ```bash
-VERSION=0.1.13
+VERSION=0.1.14
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -481,7 +481,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.1.13.jar
+java -jar target/opencode-loopper-0.1.14.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。
@@ -509,7 +509,7 @@ lsof -nP -iTCP:8080 -sTCP:LISTEN
 
 ### Windows 提交任务时停在 `Updating files` 后报 `WORKTREE_CREATE_FAILED`
 
-`0.1.11` 起，Loopper 不再用 30 秒短检查超时限制大仓库检出，并会隐藏 Git checkout 进度噪音、保留尾部真正的 `fatal` 诊断，同时命令局部启用 `core.longpaths=true`。升级后请重新提交任务。旧版本失败可能留下 `$LOOPPER_DATA_DIR/worktrees/<taskId>` 和对应 `loopper/*` 分支；先用 `git worktree list` 精确确认残留，确认它确实属于失败任务后再手工清理，不要删除仍在使用或已完成任务的 worktree。`0.1.12` 起可使用 Release 附带的 `start-windows.bat`；`0.1.13` 修复了 OpenCode 已成功监听但脚本因遗留 `%ERRORLEVEL%` 误报启动失败的问题。PowerShell 中请使用 `.\start-windows.bat`。
+`0.1.11` 起，Loopper 不再用 30 秒短检查超时限制大仓库检出，并会隐藏 Git checkout 进度噪音、保留尾部真正的 `fatal` 诊断，同时命令局部启用 `core.longpaths=true`。旧版本失败可能留下 `$LOOPPER_DATA_DIR/worktrees/<taskId>` 和对应 `loopper/*` 分支；先用 `git worktree list` 精确确认残留，确认它确实属于失败任务后再手工清理。`0.1.12` 起可使用 Release 附带的 `start-windows.bat`；`0.1.13` 修复了 OpenCode 已成功监听但脚本因遗留 `%ERRORLEVEL%` 误报启动失败的问题；`0.1.14` 起新任务不再创建隐藏 worktree，而是把登记的原项目目录直接切到任务分支，使 IDEA AgentBridge、OpenCode 和验证器使用同一目录。PowerShell 中请使用 `.\start-windows.bat`。
 
 ### 一直显示 remote busy / Agent 正在思考
 
@@ -525,7 +525,7 @@ Designer 只有在模型返回可解析、项目匹配且通过验证的 LoopSpe
 
 ### 成功任务为什么不能发布
 
-自动发布仅适用于满足发布前提的 Git 隔离任务。检查任务是否为 Direct 模式、worktree/任务分支是否仍匹配、是否有可提交差异以及远端配置。没有远端并不阻止本地同步；Loopper 会改走受控源项目同步流程。
+自动发布仅适用于满足发布前提的 Git 任务分支。检查任务是否为 Direct 模式、登记目录当前分支是否仍与任务记录匹配、是否有可提交差异以及远端配置。没有远端并不阻止发布；Loopper 会在原项目当前任务分支保留本地提交。
 
 ### BROWSER 验证器找不到浏览器
 

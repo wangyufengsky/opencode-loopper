@@ -116,8 +116,8 @@ mode is connect-only and rejects non-loopback endpoints.
 
 The OpenCode execution permission boundary continues to deny `git push`.
 Publication is a separate Spring service available only after persisted Task
-success and an explicit local-UI confirmation. It revalidates the exact managed
-worktree and task branch, accepts only `#` plus four digits plus `_subject`,
+success and an explicit local-UI confirmation. It revalidates the exact registered
+checkout and current task branch, accepts only `#` plus four digits plus `_subject`,
 uses argv-only Git calls, and never force-pushes. AI commit-subject generation
 runs in a distinct read-only OpenCode session; the four-digit work item always
 comes from the user.

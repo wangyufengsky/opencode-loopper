@@ -12,9 +12,9 @@
 
     <groupId>io.opencode</groupId>
     <artifactId>opencode-loopper</artifactId>
-    <version>0.1.13</version>
+    <version>0.1.14</version>
     <name>OpenCode Loopper</name>
-    <description>Local, worktree-isolated OpenCode orchestration</description>
+    <description>Local, task-branch-isolated OpenCode orchestration</description>
 
     <properties>
         <java.version>21</java.version>

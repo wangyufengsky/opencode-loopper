@@ -183,7 +183,7 @@ class VerifierEngineTest {
     }
 
     @Test
-    void processCanRequireDesignerSpecifiedOutputText() {
+    void processCanRequireDesignerSpecifiedOutputText() throws Exception {
         String java = Path.of(System.getProperty("java.home"), "bin", isWindows() ? "java.exe" : "java").toString();
         List<String> command = List.of(java, "-cp", System.getProperty("java.class.path"), OutputFixture.class.getName());
 
@@ -193,7 +193,9 @@ class VerifierEngineTest {
                 new VerifierSpec("PROCESS", command, null, null, null, null, null, "MISSING MARKER"), Duration.ofSeconds(5));
 
         assertThat(pass.state()).isEqualTo(VerificationState.PASS);
-        assertThat(pass.evidence()).containsEntry("outputMatched", true);
+        assertThat(pass.evidence())
+                .containsEntry("outputMatched", true)
+                .containsEntry("workingDirectory", directory.toRealPath().toString());
         assertThat(fail.state()).isEqualTo(VerificationState.FAIL);
         assertThat(fail.summary()).contains("MISSING MARKER");
         assertThat(fail.evidence()).containsEntry("outputMatched", false);

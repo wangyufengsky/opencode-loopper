@@ -193,7 +193,7 @@ onBeforeUnmount(clearConventionPoll)
     <section v-if="store.loading" class="metric-grid"><div v-for="n in 4" :key="n" class="skeleton-block" style="height: 150px" /></section>
     <section v-else-if="store.projects.length" class="project-grid">
       <article v-for="project in store.projects" :key="project.id" class="card card-pad project-card">
-        <div class="card-header"><div><div class="project-icon"><Icon :icon="project.executionMode === 'WORKTREE' ? 'lucide:folder-git-2' : 'lucide:folder-cog'" /></div><h2 class="card-title" style="margin-top: 12px">{{ project.name }}</h2></div><StatusBadge :status="project.status === 'INVALID' ? 'FAILED' : project.status === 'READY' ? 'SUCCEEDED' : 'PENDING'" :label="project.status === 'INVALID' ? '路径不可用' : project.executionMode === 'WORKTREE' ? 'Git 隔离' : '直接模式'" /></div>
+        <div class="card-header"><div><div class="project-icon"><Icon :icon="project.executionMode === 'WORKTREE' ? 'lucide:folder-git-2' : 'lucide:folder-cog'" /></div><h2 class="card-title" style="margin-top: 12px">{{ project.name }}</h2></div><StatusBadge :status="project.status === 'INVALID' ? 'FAILED' : project.status === 'READY' ? 'SUCCEEDED' : 'PENDING'" :label="project.status === 'INVALID' ? '路径不可用' : project.executionMode === 'WORKTREE' ? 'Git 分支模式' : '直接模式'" /></div>
         <p class="card-description">{{ project.description || '尚未添加说明' }}</p>
         <div class="divider" /><p class="mono tiny muted project-path">{{ project.rootPath }}</p>
         <div class="project-footer">
@@ -213,7 +213,7 @@ onBeforeUnmount(clearConventionPoll)
   </main>
 
   <el-dialog v-model="dialogVisible" title="登记项目根目录" width="min(640px, calc(100vw - 32px))" :close-on-click-modal="false">
-    <p class="card-description" style="margin-top: -6px">只记录本机绝对路径。有 Git HEAD 时 Task 创建到 data/worktrees；否则直接在登记目录执行。</p>
+    <p class="card-description" style="margin-top: -6px">只记录本机绝对路径。有 Git HEAD 时 Task 会把登记目录切换到独立任务分支；否则直接在登记目录执行。</p>
     <el-form label-position="top" style="margin-top: 18px" @submit.prevent="submit">
       <el-form-item label="项目名称"><el-input v-model="form.name" placeholder="例如 OpenCode Loopper" /></el-form-item>
       <el-form-item label="项目根路径">

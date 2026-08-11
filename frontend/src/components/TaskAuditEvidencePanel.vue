@@ -57,6 +57,10 @@ function exitCode(verifier: VerifierResult) {
   return typeof verifier.evidence?.exitCode === 'number' ? verifier.evidence.exitCode : undefined
 }
 
+function workingDirectory(verifier: VerifierResult) {
+  return typeof verifier.evidence?.workingDirectory === 'string' ? verifier.evidence.workingDirectory : ''
+}
+
 function detail(verifier: VerifierResult) {
   const items: string[] = []
   const code = exitCode(verifier)
@@ -141,7 +145,7 @@ async function showDiff(path: string) {
       </template>
 
       <template v-else-if="activeTab === 'diff'">
-        <div class="source-note"><Icon icon="lucide:git-compare-arrows" /><span><strong>不需要连接远端 Git。</strong>{{ directExecution ? '当前任务使用 Loopper 私有基线对比原项目目录。' : '当前任务使用本地 Git HEAD 与隔离 worktree 进行对比。' }}</span><b>{{ changedPaths.length }} 个文件</b></div>
+        <div class="source-note"><Icon icon="lucide:git-compare-arrows" /><span><strong>不需要连接远端 Git。</strong>{{ directExecution ? '当前任务使用 Loopper 私有基线对比原项目目录。' : '当前任务使用任务创建时的 Git 基线，对比原项目目录中的当前任务分支。' }}</span><b>{{ changedPaths.length }} 个文件</b></div>
         <div v-if="changedPaths.length" class="diff-list" aria-label="变更文件">
           <button v-for="path in changedPaths" :key="path" type="button" class="diff-row" :aria-label="`预览差异 ${path}`" @click="showDiff(path)"><span :class="['diff-state', { added: untrackedPaths.has(path) }]">{{ pathState(path) }}</span><code>{{ path }}</code><Icon icon="lucide:eye" /></button>
         </div>
@@ -158,6 +162,7 @@ async function showDiff(path: string) {
           <article v-for="({ attempt, verifier }, index) in verificationRows" :key="verifier.id" class="verification-card">
             <header><span :class="['verification-icon', verifier.status.toLowerCase()]"><Icon :icon="verifier.status === 'PASS' ? 'lucide:check' : verifier.status === 'FAIL' ? 'lucide:x' : 'lucide:loader-circle'" /></span><div><strong>{{ verifier.name }}</strong><small>尝试 {{ attempt.ordinal }} · 验证 {{ index + 1 }}</small></div><span :class="['result-pill', verifier.status.toLowerCase()]">{{ verifier.status === 'PASS' ? '通过' : verifier.status === 'FAIL' ? '失败' : '等待' }}</span></header>
             <p>{{ verifier.summary }}</p>
+            <div v-if="workingDirectory(verifier)" class="verification-meta">执行目录 <code>{{ workingDirectory(verifier) }}</code></div>
             <code v-if="verifier.evidence?.argv">{{ argv(verifier) }}</code>
             <div v-if="detail(verifier)" class="verification-meta">{{ detail(verifier) }}</div>
             <details v-if="output(verifier)" class="inline-output"><summary>查看完整输出</summary><pre class="audit-log">{{ output(verifier) }}</pre></details>

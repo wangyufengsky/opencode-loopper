@@ -136,11 +136,19 @@ class RecoveryServiceIntegrationTest {
         assertThat(currentSourceHead).isNotEqualTo(parentBaseline);
 
         FeatureContracts.RecoveryDto created = recoveries.create(ready.id(), RecoveryMode.REWORK_ALL_STAGES);
-        TaskRow child = tasks.get(created.taskId());
+        TaskRow queuedChild = tasks.get(created.taskId());
 
         assertThat(created.mode()).isEqualTo(RecoveryMode.REWORK_ALL_STAGES);
         assertThat(created.parentStageId()).isNull();
         assertThat(created.workspaceFingerprint()).isEqualTo(parentBaseline);
+        assertThat(queuedChild.state()).isEqualTo("QUEUED");
+        assertThat(queuedChild.branchName()).isNull();
+
+        // A terminal task keeps the registered-checkout writer lease until its
+        // clean branch has reached a durable publication/cleanup boundary.
+        tasks.releaseWorkspaceAfterPublication(ready.id());
+        TaskRow child = tasks.get(created.taskId());
+
         assertThat(child.branchName()).startsWith("loopper/").isNotEqualTo(ready.branchName());
         assertThat(child.baselineCommit()).isEqualTo(parentBaseline);
         assertThat(run(Path.of(child.worktreePath()), "git", "rev-parse", "HEAD").strip()).isEqualTo(parentBaseline);

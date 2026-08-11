@@ -107,15 +107,14 @@ public class TaskService {
         LoopSpec spec = readSpec(draft);
         ProjectRow project = projects.get(draft.projectId());
         Path projectRoot = Path.of(project.rootPath());
-        boolean direct = !worktrees.inspect(projectRoot).isolatedWorktree();
-        if (isolatedBaseline != null && direct) {
+        boolean gitSourceBranch = worktrees.inspect(projectRoot).isolatedWorktree();
+        if (isolatedBaseline != null && !gitSourceBranch) {
             throw new BadRequestException("REWORK_REPOSITORY_REQUIRED", "新分支重做需要可用的 Git 仓库根目录");
         }
         String now = now();
         String taskId = UUID.randomUUID().toString();
         TaskRow task = new TaskRow(taskId, project.id(), draft.id(), normalizedTitle(title, draft.goal()),
-                (direct ? TaskState.QUEUED : TaskState.PREPARING).name(),
-                null, null, null, now, now, 0);
+                TaskState.QUEUED.name(), null, null, isolatedBaseline, now, now, 0);
         lifecycle.create(subject(LifecycleMachineType.TASK, task.id(), task.id()), task.state(),
                 Map.of("source", normalizedAdmissionSource(admissionSource)), () -> mapper.insertTask(task),
                 () -> new ConflictException("TASK_CREATE_CONFLICT", "Task could not be created"));
@@ -130,17 +129,14 @@ public class TaskService {
                     () -> new ConflictException("STAGE_CREATE_CONFLICT", "Stage could not be created"));
         }
         try {
-            if (direct) {
-                DirectWorkspaceLeaseCoordinator.Admission admission = directLeases.acquireOrEnqueue(
-                        projectRoot, taskId, normalizedAdmissionSource(admissionSource), null);
-                if (TaskQueueState.QUEUED.name().equals(admission.state())) {
-                    events.emit(taskId, "task.queued", Map.of("state", TaskState.QUEUED.name(),
-                            "queuePosition", queuePosition(taskId), "leaseState", admission.leaseState()));
-                    return get(taskId);
-                }
-                return prepareAdmittedDirectTask(taskId);
+            DirectWorkspaceLeaseCoordinator.Admission admission = directLeases.acquireOrEnqueue(
+                    projectRoot, taskId, normalizedAdmissionSource(admissionSource), null);
+            if (TaskQueueState.QUEUED.name().equals(admission.state())) {
+                events.emit(taskId, "task.queued", Map.of("state", TaskState.QUEUED.name(),
+                        "queuePosition", queuePosition(taskId), "leaseState", admission.leaseState()));
+                return get(taskId);
             }
-            return prepareIsolatedTask(taskId, projectRoot, isolatedBaseline);
+            return prepareAdmittedInPlaceTask(taskId);
         } catch (TaskFailure failure) {
             if (isolatedBaseline != null) {
                 throw new ConflictException(failure.code(), failure.getMessage());
@@ -244,6 +240,16 @@ public class TaskService {
                 commitSha, Map.of("source", "task-publication", "mode", mode));
     }
 
+    /** Releases the registered-checkout writer lease only after publication is durable. */
+    public void releaseWorkspaceAfterPublication(String taskId) {
+        TaskRow task = get(taskId);
+        if (!TaskState.SUCCEEDED.name().equals(task.state())) {
+            throw new ConflictException("TASK_PUBLICATION_LEASE_NOT_RELEASABLE",
+                    "Only a succeeded Task can release its workspace after publication");
+        }
+        settleTerminalInPlaceLease(task, !hasUnconfirmedWriter(task.id()), "TASK_PUBLISHED");
+    }
+
     public FeatureContracts.QueueStatusDto queueStatus(String taskId) {
         TaskRow task = get(taskId);
         TaskQueueRow queue = mapper.findTaskQueue(taskId).orElse(null);
@@ -331,7 +337,7 @@ public class TaskService {
             ProjectRow project = projects.get(task.projectId());
             worktrees.requireExecutionWorkspace(Path.of(requireWorktree(task)), Path.of(project.rootPath()),
                     task.branchName(), task.baselineCommit());
-            requireDirectWritable(task, project);
+            requireInPlaceWritable(task, project);
             if (verificationOnly) {
                 updateTask(state(task, TaskState.RUNNING));
                 StageRow stage = mapper.listStages(task.id()).stream()
@@ -401,6 +407,9 @@ public class TaskService {
                             "Verification cannot run while the implementation Session is " + safeMessage(remoteStatus.state()));
                 }
             }
+            ProjectRow project = projects.get(initial.projectId());
+            worktrees.requireExecutionWorkspace(Path.of(requireWorktree(initial)), Path.of(project.rootPath()),
+                    initial.branchName(), initial.baselineCommit());
             transactions.executeWithoutResult(status -> enterVerification(initial, implementationSession));
             LoopSpec spec = spec(initial);
             List<LoopSpec.VerifierSpec> verifierSpecs = read(stage.verifiersJson(), new TypeReference<>() {});
@@ -454,8 +463,8 @@ public class TaskService {
                 updateSession(sessionState(currentSession, SessionState.COMPLETED));
             }
         }
-        if (isAdmittedDirect(current)) {
-            directLeases.retainAfterWriterStopped(directRoot(current), current.id(), "IMPLEMENTATION_SESSION_COMPLETED");
+        if (isAdmittedInPlace(current)) {
+            directLeases.retainAfterWriterStopped(inPlaceRoot(current), current.id(), "IMPLEMENTATION_SESSION_COMPLETED");
         }
     }
 
@@ -549,8 +558,8 @@ public class TaskService {
                 if (StageState.RUNNING.name().equals(stage.state())) updateStage(stageState(stage, StageState.PAUSED));
             }
             updateTask(state(task, TaskState.PAUSED));
-            if (isAdmittedDirect(task) && allWritersStopped) {
-                directLeases.retainAfterWriterStopped(directRoot(task), task.id(), "TASK_PAUSED_WRITER_STOPPED");
+            if (isAdmittedInPlace(task) && allWritersStopped) {
+                directLeases.retainAfterWriterStopped(inPlaceRoot(task), task.id(), "TASK_PAUSED_WRITER_STOPPED");
             }
             events.emit(taskId, "task.paused", Map.of("state", TaskState.PAUSED.name(),
                     "writerTerminationConfirmed", allWritersStopped));
@@ -565,8 +574,8 @@ public class TaskService {
         if (TaskState.WAITING_INPUT.name().equals(task.state())) throw new ConflictException("TASK_WAITING_INPUT", "A waiting task needs an explicit revised LoopSpec or judge decision");
         StageRow stage = mapper.listStages(taskId).stream().filter(s -> StageState.PAUSED.name().equals(s.state()) || StageState.PENDING.name().equals(s.state())).findFirst()
                 .orElseThrow(() -> new ConflictException("STAGE_NOT_PAUSED", "Task has no paused stage"));
-        if (isAdmittedDirect(task)) {
-            try { directLeases.requireWritableLease(directRoot(task), task.id()); }
+        if (isAdmittedInPlace(task)) {
+            try { directLeases.requireWritableLease(inPlaceRoot(task), task.id()); }
             catch (TaskFailure failure) { throw new ConflictException(failure.code(), failure.getMessage()); }
         }
         updateTask(state(task, TaskState.RUNNING));
@@ -595,7 +604,7 @@ public class TaskService {
         }
         updateTask(state(get(taskId), TaskState.CANCELLED));
         events.emit(taskId, "task.cancelled", Map.of("state", TaskState.CANCELLED.name()));
-        settleTerminalDirectLease(get(taskId), writersStopped, "TASK_CANCELLED");
+        settleTerminalInPlaceLease(get(taskId), writersStopped, "TASK_CANCELLED");
         return get(taskId);
     }
 
@@ -607,7 +616,7 @@ public class TaskService {
                 // worktree. Treat this as task-level state corruption, not a retryable
                 // Session fault.
                 failTask(task, "PREPARATION_INTERRUPTED",
-                        "Application restart interrupted task preparation before a managed worktree was recorded",
+                        "Application restart interrupted task preparation before an execution workspace was recorded",
                         null, null, null);
                 continue;
             }
@@ -740,16 +749,19 @@ public class TaskService {
         OpenCodeClient.OpenCodeSession remote;
         try {
             Path worktree = Path.of(requireWorktree(freshTask));
+            ProjectRow project = projects.get(freshTask.projectId());
+            worktrees.requireExecutionWorkspace(worktree, Path.of(project.rootPath()),
+                    freshTask.branchName(), freshTask.baselineCommit());
             remote = openCode.createSession(worktree, freshTask.title(), model(spec));
             ExecutionSessionRow running = new ExecutionSessionRow(session.id(), session.taskId(), session.stageId(), session.attemptId(), remote.id(),
                     SessionState.RUNNING.name(), session.createdAt(), null, session.version());
             updateSession(running);
-            if (isAdmittedDirect(freshTask)) {
+            if (isAdmittedInPlace(freshTask)) {
                 // V12 deliberately references the durable local execution_session
                 // row. Provider ids remain on that row and may change across retry.
-                directLeases.heartbeat(directRoot(freshTask), freshTask.id(), running.id());
+                directLeases.heartbeat(inPlaceRoot(freshTask), freshTask.id(), running.id());
             }
-            openCode.promptAsync(remote, promptWithBoundaries(freshTask, spec, stage, prompt));
+            openCode.promptAsync(remote, promptWithBoundaries(freshTask, spec, stage, worktree, prompt));
         } catch (SessionFailure failure) {
             handleSessionFailure(freshTask, stage, attempt, session, failure);
             return;
@@ -804,8 +816,8 @@ public class TaskService {
                     stage, attempt, session);
             return;
         }
-        if (isAdmittedDirect(currentTask)) {
-            directLeases.retainAfterWriterStopped(directRoot(currentTask), currentTask.id(), "SESSION_RETRY_WRITER_STOPPED");
+        if (isAdmittedInPlace(currentTask)) {
+            directLeases.retainAfterWriterStopped(inPlaceRoot(currentTask), currentTask.id(), "SESSION_RETRY_WRITER_STOPPED");
         }
         LoopSpec spec = spec(currentTask);
         if (mapper.countSessionErrorsForStage(stage.id()) >= spec.limits().sessionErrorLimit()) {
@@ -897,11 +909,11 @@ public class TaskService {
                     "The remote Session was confirmed stopped by bounded cleanup", false, evidence);
             events.emit(task.id(), "session.cleanup_confirmed",
                     Map.of("sessionId", session.id(), "attempt", attemptNumber));
-            if (isAdmittedDirect(task)) {
+            if (isAdmittedInPlace(task)) {
                 if (TaskState.valueOf(task.state()).terminal()) {
-                    settleTerminalDirectLease(task, true, "SESSION_ABORT_CLEANUP_CONFIRMED");
+                    settleTerminalInPlaceLease(task, true, "SESSION_ABORT_CLEANUP_CONFIRMED");
                 } else {
-                    directLeases.retainAfterWriterStopped(directRoot(task), task.id(), "SESSION_ABORT_CLEANUP_CONFIRMED");
+                    directLeases.retainAfterWriterStopped(inPlaceRoot(task), task.id(), "SESSION_ABORT_CLEANUP_CONFIRMED");
                 }
             }
             return;
@@ -1056,8 +1068,8 @@ public class TaskService {
                 || mapper.countAttemptsForStage(stage.id()) >= spec.limits().maxStageAttempts()) {
             throw new ConflictException("ATTEMPT_LIMIT_EXHAUSTED", "The configured attempt limit was reached");
         }
-        if (isAdmittedDirect(task)) {
-            try { directLeases.requireWritableLease(directRoot(task), task.id()); }
+        if (isAdmittedInPlace(task)) {
+            try { directLeases.requireWritableLease(inPlaceRoot(task), task.id()); }
             catch (TaskFailure failure) { throw new ConflictException(failure.code(), failure.getMessage()); }
         }
         TaskArtifactRow handoffArtifact = mapper.listTaskArtifacts(task.id()).stream()
@@ -1328,7 +1340,7 @@ public class TaskService {
         usageInsights.collectTaskUsage(task.id());
         updateTask(state(get(task.id()), TaskState.SUCCEEDED));
         events.emit(task.id(), "task.succeeded", Map.of("state", TaskState.SUCCEEDED.name(), "judges", List.of("REQUIREMENT", "RISK")));
-        settleTerminalDirectLease(get(task.id()), !hasUnconfirmedWriter(task.id()), "TASK_SUCCEEDED");
+        settleTerminalInPlaceLease(get(task.id()), !hasUnconfirmedWriter(task.id()), "TASK_SUCCEEDED");
     }
 
     private void waitForJudgeInput(TaskRow inputTask, AttemptRow attempt, JudgeRunRow judge, String code, String message) {
@@ -1539,7 +1551,7 @@ public class TaskService {
         recordError(current, stage, attempt, session, ErrorLayer.TASK, code, message, false, Map.of());
         updateTask(state(get(current.id()), TaskState.FAILED));
         events.emit(current.id(), "task.failed", Map.of("state", TaskState.FAILED.name(), "code", code, "message", message));
-        settleTerminalDirectLease(get(current.id()), writersStopped && !hasUnconfirmedWriter(current.id()), code);
+        settleTerminalInPlaceLease(get(current.id()), writersStopped && !hasUnconfirmedWriter(current.id()), code);
     }
 
     private boolean abortSessions(TaskRow task) {
@@ -1572,43 +1584,31 @@ public class TaskService {
         persistentEvidence.put("cleanupLimit", Math.max(1, defaults.getAbortCleanupAttempts()));
         recordError(task, stage, attempt, session, ErrorLayer.SESSION,
                 "SESSION_ABORT_UNCONFIRMED", message, true, persistentEvidence);
-        if (isAdmittedDirect(task)) {
-            directLeases.markWriterUnconfirmed(directRoot(task), task.id(), session.id(), message);
+        if (isAdmittedInPlace(task)) {
+            directLeases.markWriterUnconfirmed(inPlaceRoot(task), task.id(), session.id(), message);
         }
         events.emit(task.id(), "session.cleanup_pending", Map.of("sessionId", session.id()));
     }
 
-    private TaskRow prepareIsolatedTask(String taskId, Path projectRoot) {
-        return prepareIsolatedTask(taskId, projectRoot, null);
-    }
-
-    private TaskRow prepareIsolatedTask(String taskId, Path projectRoot, String isolatedBaseline) {
-        TaskRow task = get(taskId);
-        GitWorktreeManager.Worktree worktree = worktrees.create(projectRoot, taskId, task.title(), isolatedBaseline);
-        if (GitWorktreeManager.DIRECT_BRANCH.equals(worktree.branch())) {
-            throw new TaskFailure("DIRECT_LEASE_REQUIRED",
-                    "Repository inspection changed before preparation; refusing unleased Direct execution");
-        }
-        return persistPreparedTask(taskId, worktree);
-    }
-
-    private TaskRow prepareAdmittedDirectTask(String taskId) {
+    private TaskRow prepareAdmittedInPlaceTask(String taskId) {
         TaskRow task = get(taskId);
         TaskQueueRow queue = mapper.findTaskQueue(taskId)
-                .orElseThrow(() -> new TaskFailure("DIRECT_QUEUE_MISSING", "Admitted Direct task has no queue record"));
+                .orElseThrow(() -> new TaskFailure("DIRECT_QUEUE_MISSING", "Admitted in-place task has no queue record"));
         if (!TaskQueueState.ADMITTED.name().equals(queue.state())) {
-            throw new TaskFailure("DIRECT_QUEUE_NOT_ADMITTED", "Direct task cannot prepare before FIFO admission");
+            throw new TaskFailure("DIRECT_QUEUE_NOT_ADMITTED", "In-place task cannot prepare before FIFO admission");
         }
-        Path root = directRoot(task);
+        Path root = inPlaceRoot(task);
         directLeases.requireWritableLease(root, task.id());
         if (TaskState.QUEUED.name().equals(task.state())) {
             updateTask(state(task, TaskState.PREPARING));
             task = get(taskId);
         }
-        GitWorktreeManager.Worktree worktree = worktrees.create(root, taskId);
-        if (!GitWorktreeManager.DIRECT_BRANCH.equals(worktree.branch())) {
-            throw new TaskFailure("DIRECT_WORKSPACE_MODE_CHANGED",
-                    "A queued Direct root became an isolated Git repository before preparation");
+        boolean gitSourceBranch = worktrees.inspect(root).isolatedWorktree();
+        GitWorktreeManager.Worktree worktree = gitSourceBranch
+                ? worktrees.checkoutSourceBranch(root, task.id(), task.title(), task.baselineCommit())
+                : worktrees.create(root, task.id());
+        if (task.baselineCommit() != null && GitWorktreeManager.DIRECT_BRANCH.equals(worktree.branch())) {
+            throw new TaskFailure("REWORK_REPOSITORY_REQUIRED", "Rework requires a Git source branch");
         }
         return persistPreparedTask(task.id(), worktree);
     }
@@ -1626,17 +1626,25 @@ public class TaskService {
         return ready;
     }
 
-    private void settleTerminalDirectLease(TaskRow task, boolean writerTerminationConfirmed, String reason) {
-        if (!isAdmittedDirect(task)) return;
+    private void settleTerminalInPlaceLease(TaskRow task, boolean writerTerminationConfirmed, String reason) {
+        if (!isAdmittedInPlace(task)) return;
         DirectWorkspaceLeaseCoordinator.Release release;
         try {
             if (!writerTerminationConfirmed || hasUnconfirmedWriter(task.id())) {
                 mapper.listSessions(task.id()).stream().filter(session -> session.externalSessionId() != null)
                         .findFirst().ifPresent(session -> directLeases.markWriterUnconfirmed(
-                                directRoot(task), task.id(), session.id(), reason));
+                                inPlaceRoot(task), task.id(), session.id(), reason));
                 return;
             }
-            release = directLeases.releaseAfterWriterStopped(directRoot(task), task.id(), reason);
+            if (!GitWorktreeManager.DIRECT_BRANCH.equals(task.branchName())
+                    && worktrees.sourceCheckoutHasChanges(inPlaceRoot(task))) {
+                directLeases.retainAfterWriterStopped(inPlaceRoot(task), task.id(), reason);
+                events.emit(task.id(), "workspace.lease_retained",
+                        Map.of("state", WorkspaceLeaseState.HELD.name(), "reason", reason,
+                                "waitingFor", "TASK_BRANCH_PUBLICATION_OR_CLEANUP"));
+                return;
+            }
+            release = directLeases.releaseAfterWriterStopped(inPlaceRoot(task), task.id(), reason);
         } catch (TaskFailure leaseFailure) {
             recordError(task, null, null, null, ErrorLayer.TASK, leaseFailure.code(), leaseFailure.getMessage(), false,
                     Map.of("leaseRetained", true));
@@ -1649,7 +1657,7 @@ public class TaskService {
         events.emit(nextTaskId, "task.admitted", Map.of("state", TaskState.QUEUED.name(),
                 "queuePosition", release.admittedNext().position()));
         try {
-            prepareAdmittedDirectTask(nextTaskId);
+            prepareAdmittedInPlaceTask(nextTaskId);
         } catch (TaskFailure failure) {
             failTask(get(nextTaskId), failure.code(), failure.getMessage(), null, null, null);
         }
@@ -1659,15 +1667,15 @@ public class TaskService {
         for (DirectWorkspaceLeaseCoordinator.BlockingLease lease : directLeases.blockingLeases()) {
             if (!lease.rootAvailable() || !lease.fingerprintMatches() || lease.holderTaskId() == null) continue;
             TaskRow task = mapper.findTask(lease.holderTaskId()).orElse(null);
-            if (task == null || !isAdmittedDirect(task)) continue;
+            if (task == null || !isAdmittedInPlace(task)) continue;
             if (TaskState.QUEUED.name().equals(task.state()) || TaskState.PREPARING.name().equals(task.state())) {
-                try { prepareAdmittedDirectTask(task.id()); }
+                try { prepareAdmittedInPlaceTask(task.id()); }
                 catch (TaskFailure failure) { failTask(task, failure.code(), failure.getMessage(), null, null, null); }
                 continue;
             }
             if (!TaskState.valueOf(task.state()).terminal()) continue;
             if (lease.writerSessionId() == null) {
-                settleTerminalDirectLease(task, !hasUnconfirmedWriter(task.id()), "RESTART_TERMINAL_TASK");
+                settleTerminalInPlaceLease(task, !hasUnconfirmedWriter(task.id()), "RESTART_TERMINAL_TASK");
                 continue;
             }
             ExecutionSessionRow writer = mapper.listSessions(task.id()).stream()
@@ -1675,7 +1683,7 @@ public class TaskService {
             if (writer == null || SessionState.DISCONNECTED.name().equals(writer.state())) continue;
             if (List.of(SessionState.COMPLETED.name(), SessionState.FAILED.name(), SessionState.TIMED_OUT.name(),
                     SessionState.ABORTED.name()).contains(writer.state())) {
-                settleTerminalDirectLease(task, !hasUnconfirmedWriter(task.id()), "RESTART_WRITER_ALREADY_TERMINAL");
+                settleTerminalInPlaceLease(task, !hasUnconfirmedWriter(task.id()), "RESTART_WRITER_ALREADY_TERMINAL");
                 continue;
             }
             Map<String, Object> evidence = new LinkedHashMap<>();
@@ -1683,7 +1691,7 @@ public class TaskService {
             boolean stopped = confirmStoppedBeforeRetry(task, writer, evidence);
             if (stopped) {
                 updateSession(sessionState(writer, SessionState.ABORTED));
-                settleTerminalDirectLease(task, true, "RESTART_WRITER_TERMINAL_CONFIRMED");
+                settleTerminalInPlaceLease(task, true, "RESTART_WRITER_TERMINAL_CONFIRMED");
             } else {
                 updateSession(sessionState(writer, SessionState.DISCONNECTED));
                 AttemptRow attempt = mapper.findAttempt(writer.attemptId()).orElse(null);
@@ -1694,12 +1702,12 @@ public class TaskService {
         }
     }
 
-    private void requireDirectWritable(TaskRow task, ProjectRow project) {
-        if (!GitWorktreeManager.DIRECT_BRANCH.equals(task.branchName())) return;
+    private void requireInPlaceWritable(TaskRow task, ProjectRow project) {
+        if (mapper.findTaskQueue(task.id()).isEmpty()) return;
         directLeases.requireWritableLease(Path.of(project.rootPath()), task.id());
     }
 
-    private boolean isAdmittedDirect(TaskRow task) {
+    private boolean isAdmittedInPlace(TaskRow task) {
         return mapper.findTaskQueue(task.id())
                 .map(row -> TaskQueueState.ADMITTED.name().equals(row.state())).orElse(false);
     }
@@ -1718,7 +1726,7 @@ public class TaskService {
                         && error.sessionId() != null && !confirmed.contains(error.sessionId()));
     }
 
-    private Path directRoot(TaskRow task) { return Path.of(projects.get(task.projectId()).rootPath()); }
+    private Path inPlaceRoot(TaskRow task) { return Path.of(projects.get(task.projectId()).rootPath()); }
 
     private long queuePosition(String taskId) {
         TaskQueueRow target = mapper.findTaskQueue(taskId)
@@ -1786,9 +1794,13 @@ public class TaskService {
     }
     private String requireWorktree(TaskRow task) { if (task.worktreePath() == null || task.worktreePath().isBlank()) throw new TaskFailure("WORKTREE_MISSING", "Task has no prepared execution workspace"); return task.worktreePath(); }
     private String normalizedTitle(String title, String goal) { return title == null || title.isBlank() ? goal.substring(0, Math.min(goal.length(), 120)) : title.trim(); }
-    private String promptWithBoundaries(TaskRow task, LoopSpec spec, StageRow stage, String recovery) {
+    private String promptWithBoundaries(TaskRow task, LoopSpec spec, StageRow stage, Path executionWorkspace, String recovery) {
         String designContext = executionDesignContext(task.id());
-        return "Goal: " + spec.goal() + "\nContext: " + spec.context() + "\nStage: " + stage.objective()
+        return "Authoritative execution workspace: " + executionWorkspace
+                + "\nWorkspace branch: " + task.branchName()
+                + "\nAll reads, writes, AgentBridge tool calls, searches, and commands must target this checkout and its current Task branch."
+                + "\nDo not switch branches, create another worktree, or write outside this workspace."
+                + "\nGoal: " + spec.goal() + "\nContext: " + spec.context() + "\nStage: " + stage.objective()
                 + "\nAllowed paths: " + stage.allowedPathsJson() + "\nForbidden paths: " + stage.forbiddenPathsJson()
                 + "\nDeliverables: " + stage.deliverablesJson() + "\nVerifier contract: " + stage.verifiersJson()
                 + (designContext.isBlank() ? "" : "\nConfirmed Designer design snapshot (read-only context frozen at Task confirmation):"

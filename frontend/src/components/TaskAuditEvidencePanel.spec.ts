@@ -10,7 +10,7 @@ vi.mock('@/api/client', () => ({ api: { getTaskDiffPreview: vi.fn() } }))
 const attempts: Attempt[] = [{
   id: 'attempt-1', ordinal: 1, stageId: 'stage-1', status: 'VERIFIED', startedAt: 'now', summary: '全部通过', errors: [],
   verifiers: [
-    { id: 'process-1', name: 'PROCESS', status: 'PASS', summary: 'Process exited 0', output: '[INFO] BUILD SUCCESS', evidence: { argv: ['mvn', 'test'], exitCode: 0, output: '[INFO] BUILD SUCCESS' } },
+    { id: 'process-1', name: 'PROCESS', status: 'PASS', summary: 'Process exited 0', output: '[INFO] BUILD SUCCESS', evidence: { argv: ['mvn', 'test'], exitCode: 0, output: '[INFO] BUILD SUCCESS', workingDirectory: '/repo/project' } },
     { id: 'diff-1', name: 'GIT_DIFF', status: 'PASS', summary: 'Git diff satisfies policy', evidence: { changedPaths: ['src/Main.java', 'src/New.java'], untrackedPaths: ['src/New.java'], violations: [] } },
   ],
 }]
@@ -40,6 +40,7 @@ describe('TaskAuditEvidencePanel', () => {
     const wrapper = mountPanel()
 
     expect(wrapper.text()).toContain('2 / 2 通过')
+    expect(wrapper.text()).toContain('执行目录 /repo/project')
     await openTab(wrapper, '日志')
     expect(wrapper.text()).toContain('确定性验证日志')
     expect(wrapper.text()).toContain('attempt-handoff-1.json')

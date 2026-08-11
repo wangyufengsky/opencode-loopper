@@ -32,7 +32,7 @@ export const demoTasks: Task[] = [
 
 export const demoDraft: LoopDraft = {
   id: 'draft-01', status: 'DRAFT_READY', updatedAt: now,
-  spec: { schemaVersion: 'v1', projectId: 'prj-loopper', goal: '实现一个可靠、本地优先的 OpenCode Loop 控制台。', context: '所有执行都在独立 worktree 中；错误分层必须可审计。', stages: [
+  spec: { schemaVersion: 'v1', projectId: 'prj-loopper', goal: '实现一个可靠、本地优先的 OpenCode Loop 控制台。', context: 'Git 执行在登记项目目录的串行任务分支中；错误分层必须可审计。', stages: [
     { objective: '冻结领域状态及错误模型', allowedPaths: ['src/main/**'], forbiddenPaths: ['pom.xml'], deliverables: ['状态机', '迁移'], verifiers: [{ type: 'PROCESS', command: ['./mvnw', 'test'] }] },
     { objective: '实现运行时恢复与安全终止', allowedPaths: ['src/main/**'], forbiddenPaths: ['data/**'], deliverables: ['runtime adapter'], verifiers: [{ type: 'PROCESS', command: ['./mvnw', 'test'] }] },
   ], limits: { maxStageAttempts: 3, maxTaskAttempts: 12, maxDuration: 'PT2H', attemptTimeout: 'PT30M' } },

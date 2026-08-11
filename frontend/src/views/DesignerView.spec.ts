@@ -355,7 +355,7 @@ describe('Designer draft composer', () => {
 
   it('loads the confirmed Task into the store and opens its detail even when worktree preparation failed', async () => {
     const loopSpec: LoopSpec = {
-      schemaVersion: 'v1', projectId: project.id, goal: '交接到任务控制台', context: '只在隔离 worktree 修改。',
+      schemaVersion: 'v1', projectId: project.id, goal: '交接到任务控制台', context: '只在登记项目目录的任务分支修改。',
       stages: [{ objective: '实现功能', allowedPaths: ['src/**'], forbiddenPaths: [], deliverables: ['实现'], verifiers: [{ type: 'GIT_DIFF', requireChanges: true }] }],
       limits: { maxStageAttempts: 3, maxTaskAttempts: 12, sessionErrorLimit: 4, stagnationLimit: 5, maxDuration: '7200', attemptTimeout: '1800', verifierTimeout: '420' },
       model: { providerId: 'provider-1', modelId: 'model-1', thinking: false },

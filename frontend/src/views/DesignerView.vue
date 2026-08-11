@@ -311,7 +311,7 @@ async function applyBriefTemplate(prompt: string) {
 }
 
 function blankSpec(projectId: string, goal: string, settings: AppSettings): LoopDraft['spec'] {
-  return { schemaVersion: 'v1', projectId, goal, context: 'Execution 只允许在该 Task 的执行目录中修改；有 Git HEAD 时使用隔离 worktree，否则使用登记的项目目录。', stages: [{ objective: '分析目标并实现最小可验证改动', allowedPaths: [], forbiddenPaths: [], deliverables: ['可验证实现'], verifiers: [] }], limits: { maxStageAttempts: 3, maxTaskAttempts: settings.maxTaskAttempts, maxDuration: 'PT2H', attemptTimeout: `PT${settings.timeoutMinutes}M` } }
+  return { schemaVersion: 'v1', projectId, goal, context: 'Execution 只允许在该 Task 的执行目录中修改；有 Git HEAD 时把登记项目目录切换到任务分支，否则直接使用登记的项目目录。', stages: [{ objective: '分析目标并实现最小可验证改动', allowedPaths: [], forbiddenPaths: [], deliverables: ['可验证实现'], verifiers: [] }], limits: { maxStageAttempts: 3, maxTaskAttempts: settings.maxTaskAttempts, maxDuration: 'PT2H', attemptTimeout: `PT${settings.timeoutMinutes}M` } }
 }
 
 async function startDraft() {
@@ -578,11 +578,11 @@ async function sendMessage() {
           <template v-if="selectedProject">
             <div class="context-project-name">
               <strong>{{ selectedProject.name }}</strong>
-              <span :class="['project-readiness', `is-${selectedProject.status.toLowerCase()}`]">{{ selectedProject.status === 'INVALID' ? '路径不可用' : selectedProject.executionMode === 'WORKTREE' ? 'Git 隔离' : '直接执行' }}</span>
+              <span :class="['project-readiness', `is-${selectedProject.status.toLowerCase()}`]">{{ selectedProject.status === 'INVALID' ? '路径不可用' : selectedProject.executionMode === 'WORKTREE' ? 'Git 分支' : '直接执行' }}</span>
             </div>
             <dl class="context-details">
               <div><dt>路径</dt><dd class="mono">{{ selectedProject.rootPath }}</dd></div>
-              <div><dt>执行位置</dt><dd class="mono">{{ selectedProject.executionMode === 'WORKTREE' ? selectedProject.branch : selectedProject.executionMode === 'UNAVAILABLE' ? '不可用' : '原项目目录' }}</dd></div>
+              <div><dt>执行位置</dt><dd class="mono">{{ selectedProject.executionMode === 'WORKTREE' ? '原项目目录（任务创建时切分支）' : selectedProject.executionMode === 'UNAVAILABLE' ? '不可用' : '原项目目录' }}</dd></div>
               <div><dt>历史任务</dt><dd>{{ selectedProject.taskCount }} 个</dd></div>
             </dl>
             <div class="context-capabilities">
@@ -676,7 +676,7 @@ async function sendMessage() {
           <template #after-stages><ExecutionAcceptancePanel :source="editorValue" /></template>
         </LoopSpecEditor>
         <LayeredErrorPanel v-if="fieldError" :error="fieldError" style="margin-top: 12px" />
-        <div class="spec-footer"><span class="tiny muted"><Icon icon="lucide:lock-keyhole" /> Git 项目隔离执行；无 HEAD 项目直接执行</span><time class="mono tiny" :datetime="draft.updatedAt">{{ formatDateTime(draft.updatedAt) }}</time></div>
+        <div class="spec-footer"><span class="tiny muted"><Icon icon="lucide:git-branch" /> Git 项目切换原目录任务分支；无 HEAD 项目直接执行</span><time class="mono tiny" :datetime="draft.updatedAt">{{ formatDateTime(draft.updatedAt) }}</time></div>
       </article>
     </section>
   </main>

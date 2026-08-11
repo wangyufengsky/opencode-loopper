@@ -135,7 +135,7 @@ describe('Projects AGENTS.md convention flow', () => {
 })
 
 describe('Projects management', () => {
-  it('shows the real Git worktree or direct execution mode', () => {
+  it('shows the real Git task-branch or direct execution mode', () => {
     const store = useTaskStore()
     store.projects = [
       { id: 'git-project', name: 'Git project', rootPath: '/tmp/git', description: 'Isolated changes', status: 'READY', executionMode: 'WORKTREE', branch: 'main', updatedAt: 'now', taskCount: 2 },
@@ -146,7 +146,7 @@ describe('Projects management', () => {
       global: { plugins: [ElementPlus], stubs: { teleport: true, PageHeader: { template: '<header><slot /><slot name="actions" /></header>' }, Icon: true } },
     })
 
-    expect(wrapper.text()).toContain('Git 隔离')
+    expect(wrapper.text()).toContain('Git 分支模式')
     expect(wrapper.text()).toContain('main')
     expect(wrapper.text()).toContain('Isolated changes')
     expect(wrapper.text()).toContain('直接模式')

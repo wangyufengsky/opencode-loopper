@@ -24,15 +24,20 @@ persisted version and update only a still-`PENDING` row; stale versions return
 HTTP 409. Push, external-directory access, dangerous deletion and hard reset
 are hard-denied before the provider reply and cannot be overridden.
 
-## Direct queue and lease
+## In-place workspace queue and lease
 
 A canonical real path plus a fingerprint of the directory file key and creation
-time identifies a Direct workspace, including on Linux filesystems that reuse an
+time identifies every registered in-place workspace, including Git task branches
+and Direct mode, and remains safe on Linux filesystems that reuse an
 inode immediately after deletion. A released lease may refresh that fingerprint
 before admitting a new writer; active and release-pending leases still fail closed.
 Only one non-released lease exists for a root. FIFO queue admission is persisted.
 An abort response alone never releases a lease: the old writer must be observed
 terminal. Unknown writer state keeps the lease and blocks Recovery and Automation.
+For a valid Git HEAD, the admitted Task requires a clean checkout and switches that
+same registered directory to its `loopper/*` branch. Unpublished file changes keep
+the lease after Task success; publication makes the checkout clean and releases it
+before the next queued Task may switch branches.
 
 ## Recovery and Session lifecycle
 

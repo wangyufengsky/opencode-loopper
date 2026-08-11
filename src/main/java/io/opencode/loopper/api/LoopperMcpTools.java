@@ -85,7 +85,7 @@ public class LoopperMcpTools {
         return validationResult(spec, null, null);
     }
 
-    @Tool(name = "create_task", description = "Create or return the one task for a CONFIRMED draft; use an isolated worktree when Git HEAD exists, otherwise the registered directory; this never auto-confirms a draft")
+    @Tool(name = "create_task", description = "Create or return the one task for a CONFIRMED draft; switch the registered checkout to a serialized Task branch when Git HEAD exists, otherwise use the registered directory directly; this never auto-confirms a draft")
     public TaskRow createTask(
             @ToolParam(description = "Human-confirmed LoopSpec draft identifier", required = true) String draftId) {
         LoopDraftRow draft = drafts.get(requiredText(draftId, "DRAFT_ID_REQUIRED", "draftId"));

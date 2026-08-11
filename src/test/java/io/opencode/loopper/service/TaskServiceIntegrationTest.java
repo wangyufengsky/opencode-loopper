@@ -68,6 +68,12 @@ class TaskServiceIntegrationTest {
             assertThat(event.machineType()).isEqualTo("TASK");
             assertThat(event.event()).isEqualTo("CREATED");
             assertThat(event.fromState()).isNull();
+            assertThat(event.toState()).isEqualTo("QUEUED");
+        });
+        assertThat(events).anySatisfy(event -> {
+            assertThat(event.machineType()).isEqualTo("TASK");
+            assertThat(event.event()).isEqualTo("PREPARE");
+            assertThat(event.fromState()).isEqualTo("QUEUED");
             assertThat(event.toState()).isEqualTo("PREPARING");
         });
         assertThat(events).anySatisfy(event -> {
@@ -81,7 +87,7 @@ class TaskServiceIntegrationTest {
     }
 
     @Test
-    void isolatedBranchesUseTaskTitleAndNumberRepeatedNames() throws Exception {
+    void serializedSourceBranchesUseTaskTitleAndNumberRepeatedNames() throws Exception {
         Path root = Path.of(gitProject());
         ProjectRow project = projects.create("named-branches", root.toString());
 
@@ -93,9 +99,21 @@ class TaskServiceIntegrationTest {
         TaskRow remoteCollision = drafts.confirm(drafts.create(spec(project.id())).id(), "远端同名任务");
 
         assertThat(first.branchName()).isEqualTo("loopper/隔离分支命名");
+        assertThat(first.worktreePath()).isEqualTo(root.toRealPath().toString());
+        assertThat(second.state()).isEqualTo("QUEUED");
+        assertThat(second.branchName()).isNull();
+
+        tasks.cancel(first.id());
+        second = tasks.get(second.id());
         assertThat(second.branchName()).isEqualTo("loopper/隔离分支命名(第2次)");
+        tasks.cancel(second.id());
+        third = tasks.get(third.id());
         assertThat(third.branchName()).isEqualTo("loopper/隔离分支命名(第3次)");
+        tasks.cancel(third.id());
+        normalized = tasks.get(normalized.id());
         assertThat(normalized.branchName()).isEqualTo("loopper/修复-分支-命名");
+        tasks.cancel(normalized.id());
+        remoteCollision = tasks.get(remoteCollision.id());
         assertThat(remoteCollision.branchName()).isEqualTo("loopper/远端同名任务(第2次)");
         assertThat(localBranches(root)).contains(first.branchName(), second.branchName(), third.branchName(),
                 normalized.branchName(), remoteCollision.branchName());
@@ -139,7 +157,8 @@ class TaskServiceIntegrationTest {
 
     @Test
     void implementationPromptIncludesTheCompleteStageExecutionContract() throws Exception {
-        ProjectRow project = projects.create("prompt-contract", gitProject());
+        Path projectRoot = Path.of(gitProject()).toRealPath();
+        ProjectRow project = projects.create("prompt-contract", projectRoot.toString());
         LoopSpec contract = new LoopSpec("v1", project.id(), "Create the automation fixture",
                 "先调用 question，确认后仅创建 automation.txt。",
                 List.of(new LoopSpec.StageSpec("Create automation.txt", List.of("automation.txt"), List.of(".git/**"),
@@ -153,6 +172,9 @@ class TaskServiceIntegrationTest {
 
         ExecutionSessionRow session = mapper.activeSessions(task.id()).getFirst();
         assertThat(((FakeOpenCodeClient) openCode).promptForSession(session.externalSessionId()))
+                .contains("Authoritative execution workspace: " + projectRoot)
+                .contains("Workspace branch: " + task.branchName())
+                .contains("All reads, writes, AgentBridge tool calls")
                 .contains("Context: 先调用 question，确认后仅创建 automation.txt。")
                 .contains("Deliverables: [\"automation.txt\"]")
                 .contains("Verifier contract:")

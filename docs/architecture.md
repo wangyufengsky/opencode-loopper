@@ -2,8 +2,9 @@
 
 OpenCode Loopper is a local modular monolith: Spring Boot owns authoritative
 state and verification, Vue renders the console, SQLite persists state, and a
-local OpenCode server performs model Sessions inside per-Task Git worktrees or,
-when Git HEAD is unavailable, directly inside the registered project root.
+local OpenCode server performs model Sessions inside the registered project
+checkout after Loopper switches it to a serialized per-Task Git branch, or,
+when Git HEAD is unavailable, directly inside that same registered root.
 
 ## Module boundaries
 
@@ -16,7 +17,7 @@ when Git HEAD is unavailable, directly inside the registered project root.
 - `orchestrator`: state transitions, retry policy and recovery
 - `opencode`: HTTP/SSE adapter and managed process lifecycle
 - `verifier`: bounded-worker direct-process, file and Git diff evidence
-- `workspace`: isolated-worktree/direct-root selection, baseline lifecycle and path containment
+- `workspace`: source-branch/direct-root selection, FIFO writer lease, baseline lifecycle and path containment
 - `event`: persisted timeline and browser SSE
 - `judge`: independent read-only Requirement and Risk final review Sessions
 - `artifact`: immutable diffs, verification summaries and Judge metadata/results
@@ -166,23 +167,24 @@ move the Task to `WAITING_INPUT`, never to a fabricated success.
 ## Workspace safety
 
 Planning may inspect a registered root read-only. When a project has a valid
-Git HEAD, execution creates `loopper/<taskName>` under
-`$LOOPPER_DATA_DIR/worktrees/<taskId>`. Repeated task names use
+Git HEAD, execution requires the registered checkout to be clean, then creates
+and checks out `loopper/<taskName>` in that registered checkout itself. Repeated task names use
 `loopper/<taskName>(第2次)`, `loopper/<taskName>(第3次)`, and so on when the
 corresponding local or remote-tracking branch already exists. Characters
 that Git forbids in branch names are deterministically replaced with `-`, and
 the readable leaf is UTF-8 byte-bounded before the occurrence suffix is added.
 Git ending rules are applied again after truncation so an exposed `.lock`, dot,
-or other invalid tail cannot make worktree creation fail. Before selecting the
+or other invalid tail cannot make branch creation fail. Before selecting the
 baseline, Loopper performs a bounded non-interactive fetch of the current
 branch's upstream (or the matching branch on the unambiguous preferred remote).
-A linear remote advance becomes the Task baseline without moving the registered
-source branch; local commits ahead of the remote remain included. Fetch/auth
-failure or diverged histories fail closed. This Git process and worktree I/O run
-with the caller's SQLite transaction suspended. The canonical managed worktree
-must be disjoint from the registered project root, preventing Loopper data from
-appearing as source-branch files. The local Task branch is not pushed until the
-post-success human publication action. Worktree checkout has its own bounded
+A linear remote advance becomes the Task baseline before the registered checkout
+is switched to the Task branch; local commits ahead of the remote remain included.
+Fetch/auth failure, dirty source files, or diverged histories fail closed. Git
+I/O runs with the caller's SQLite transaction suspended. A persistent FIFO writer
+lease permits only one Task to own a registered checkout, so IDEA-bound AgentBridge,
+OpenCode and every verifier observe the same canonical directory and current branch.
+The local Task branch is not pushed until the post-success human publication action.
+Branch checkout has its own bounded
 10-minute timeout rather than the short Git-inspection timeout, suppresses
 checkout progress noise so the fatal diagnostic remains visible, and enables
 Git's command-local `core.longpaths` support for deep Windows repositories.
@@ -190,10 +192,12 @@ Otherwise OpenCode edits the canonical
 registered root directly and Loopper stores a private Git-compatible baseline
 under `$LOOPPER_DATA_DIR/direct-baselines/<taskId>` for deterministic path and
 deletion checks. The private baseline does not initialize or commit the target
-project. Canonical paths must stay under the registered root or Task worktree
-as appropriate. Loopper never pushes, merges or deletes a completed worktree
-automatically. After a Task reaches `SUCCEEDED`, the local UI may explicitly
-publish an isolated task branch: a human enters the four-digit work item,
+project. Canonical execution paths must equal the registered root for new Tasks.
+Loopper never discards changes, switches back, pushes, or merges automatically.
+If a terminal Git Task still has file changes, its writer lease remains held until
+the branch is published or manually cleaned; the next queued Task cannot switch
+the checkout underneath it. After a Task reaches `SUCCEEDED`, the local UI may
+explicitly publish its task branch: a human enters the four-digit work item,
 confirms the AI-suggested `#dddd_subject`, then Loopper commits and performs a
 normal (non-force) push. Direct-execution Tasks remain excluded. A subsequent
 “创建合并请求” action opens a prefilled GitLab/GitHub creation page; the hosting

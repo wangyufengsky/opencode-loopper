@@ -17,6 +17,79 @@ class GitWorktreeManagerIntegrationTest {
     @TempDir Path temp;
 
     @Test
+    void switchesRegisteredCheckoutToTaskBranchWithoutRemote() throws Exception {
+        Path project = initializedProject("local-source-branch-project");
+        String baseline = run(project, "git", "rev-parse", "HEAD").strip();
+        LoopperProperties properties = new LoopperProperties();
+        properties.setDataDir(temp.resolve("local-source-branch-data"));
+        GitWorktreeManager manager = new GitWorktreeManager(new SafeProcessRunner(), properties, null);
+
+        GitWorktreeManager.Worktree task = manager.checkoutSourceBranch(
+                project, "task-local", "无远端原项目分支", null);
+
+        assertThat(task.path()).isEqualTo(project.toRealPath());
+        assertThat(task.baselineCommit()).isEqualTo(baseline);
+        assertThat(task.branch()).startsWith("loopper/");
+        assertThat(run(project, "git", "branch", "--show-current").strip()).isEqualTo(task.branch());
+        Files.writeString(project.resolve("task-only.txt"), "visible in IDEA checkout\n");
+        assertThat(run(project, "git", "status", "--porcelain")).contains("?? task-only.txt");
+        manager.requireExecutionWorkspace(project, project, task.branch(), baseline);
+    }
+
+    @Test
+    void refusesToSwitchRegisteredCheckoutWhenItHasLocalChanges() throws Exception {
+        Path project = initializedProject("dirty-source-branch-project");
+        Files.writeString(project.resolve("local-only.txt"), "preserve me\n");
+        LoopperProperties properties = new LoopperProperties();
+        properties.setDataDir(temp.resolve("dirty-source-branch-data"));
+        GitWorktreeManager manager = new GitWorktreeManager(new SafeProcessRunner(), properties, null);
+
+        assertThatThrownBy(() -> manager.checkoutSourceBranch(project, "task-dirty", "脏目录任务", null))
+                .isInstanceOfSatisfying(TaskFailure.class, failure -> {
+                    assertThat(failure.code()).isEqualTo("SOURCE_BRANCH_WORKSPACE_DIRTY");
+                    assertThat(failure).hasMessageContaining("uncommitted or untracked files");
+                });
+        assertThat(run(project, "git", "branch", "--show-current").strip()).isEqualTo("main");
+        assertThat(Files.readString(project.resolve("local-only.txt"))).isEqualTo("preserve me\n");
+    }
+
+    @Test
+    void refreshesRemoteThenSwitchesRegisteredCheckoutToTaskBranch() throws Exception {
+        Path remote = temp.resolve("source-branch-remote.git");
+        run(temp, "git", "init", "--bare", "--initial-branch=main", remote.toString());
+        Path seed = temp.resolve("source-branch-seed");
+        run(temp, "git", "init", "--initial-branch=main", seed.toString());
+        configureIdentity(seed);
+        Files.writeString(seed.resolve("README.md"), "initial\n");
+        run(seed, "git", "add", "README.md");
+        run(seed, "git", "commit", "-m", "initial");
+        run(seed, "git", "remote", "add", "origin", remote.toString());
+        run(seed, "git", "push", "-u", "origin", "main");
+        Path project = temp.resolve("source-branch-project");
+        Path updater = temp.resolve("source-branch-updater");
+        run(temp, "git", "clone", remote.toString(), project.toString());
+        run(temp, "git", "clone", remote.toString(), updater.toString());
+        configureIdentity(updater);
+        Files.writeString(updater.resolve("README.md"), "remote advance\n");
+        run(updater, "git", "add", "README.md");
+        run(updater, "git", "commit", "-m", "remote advance");
+        run(updater, "git", "push", "origin", "main");
+        String remoteHead = run(remote, "git", "rev-parse", "refs/heads/main").strip();
+        LoopperProperties properties = new LoopperProperties();
+        properties.setDataDir(temp.resolve("source-branch-data"));
+        GitWorktreeManager manager = new GitWorktreeManager(new SafeProcessRunner(), properties, null);
+
+        GitWorktreeManager.Worktree task = manager.checkoutSourceBranch(
+                project, "task-remote", "有远端原项目分支", null);
+
+        assertThat(task.path()).isEqualTo(project.toRealPath());
+        assertThat(task.baselineCommit()).isEqualTo(remoteHead);
+        assertThat(run(project, "git", "branch", "--show-current").strip()).isEqualTo(task.branch());
+        assertThat(Files.readString(project.resolve("README.md"))).isEqualTo("remote advance\n");
+        assertThat(run(remote, "git", "branch", "--list", task.branch())).isBlank();
+    }
+
+    @Test
     void fetchesLinearRemoteAdvanceWithoutMovingOrDirtyingTheRegisteredBranch() throws Exception {
         Path remote = temp.resolve("remote.git");
         run(temp, "git", "init", "--bare", "--initial-branch=main", remote.toString());

@@ -236,7 +236,7 @@ describe('TaskDetailView judge action', () => {
     await action!.trigger('click')
     await flushPromises()
 
-    expect(ElMessageBox.confirm).toHaveBeenCalledWith(expect.stringContaining('全新分支和 worktree'), '新分支重做任务？', expect.any(Object))
+    expect(ElMessageBox.confirm).toHaveBeenCalledWith(expect.stringContaining('原项目目录切换到该分支'), '新分支重做任务？', expect.any(Object))
     expect(store.reworkTask).toHaveBeenCalledWith('task-success')
     expect(router.currentRoute.value.path).toBe('/tasks/task-rework')
   })

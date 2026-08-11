@@ -120,7 +120,7 @@ async function confirmRework() {
   if (!canRework.value || reworking.value || !task.value) return
   try {
     await ElMessageBox.confirm(
-      '将从此任务创建时的 Git 基线拉取一个全新分支和 worktree，重新执行全部阶段。父任务、父分支和历史证据不会被修改。',
+      '将从此任务创建时的 Git 基线创建全新任务分支，并把登记的原项目目录切换到该分支后重新执行全部阶段。父任务、父分支和历史证据不会被修改。',
       '新分支重做任务？',
       { type: 'warning', confirmButtonText: '创建新分支并重做', cancelButtonText: '取消' },
     )
@@ -155,7 +155,7 @@ async function confirmRework() {
     <section v-if="!task" class="card empty-state"><div><Icon icon="lucide:search-x" width="30" /><strong>未找到此任务</strong><p>它可能已被清理，或当前接口尚未返回该条记录。</p></div></section>
     <template v-else>
       <section class="task-overview card card-pad">
-        <div><p class="eyebrow">{{ isDirectExecution ? '直接执行' : '隔离执行' }}</p><span class="mono tiny muted">{{ isDirectExecution ? '原项目目录' : task.branch }} · {{ task.worktreePath }}</span></div>
+        <div><p class="eyebrow">{{ isDirectExecution ? '直接执行' : '原项目任务分支' }}</p><span class="mono tiny muted">{{ isDirectExecution ? '原项目目录' : task.branch }} · {{ task.worktreePath }}</span></div>
         <div class="overview-meta"><span><b>{{ task.attemptCount }}</b> / {{ task.maxAttempts }} 次尝试</span><span v-if="store.streamState !== 'idle'" :class="['stream-state', store.streamState]">{{ store.streamState === 'connected' ? 'SSE 已连接' : 'SSE 重连中' }}</span></div>
       </section>
       <section class="result-summary card card-pad" aria-labelledby="result-summary-heading">

@@ -123,6 +123,74 @@ public class GitWorktreeManager {
         }
     }
 
+    /**
+     * Creates and checks out a Task branch in the registered repository itself.
+     *
+     * <p>This mode is intentionally serialized by the workspace lease coordinator:
+     * IDE-bound tools such as AgentBridge always operate on the checkout opened by
+     * IDEA, so the registered checkout must be the authoritative Task workspace.</p>
+     */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public Worktree checkoutSourceBranch(Path projectRoot, String taskId, String taskName, String requestedBaseline) {
+        try {
+            Path root = projectRoot.toRealPath();
+            ProcessResult topLevel = runner.run(root, List.of("git", "rev-parse", "--show-toplevel"), GIT_TIMEOUT);
+            ProcessResult head = runner.run(root, List.of("git", "rev-parse", "HEAD"), GIT_TIMEOUT);
+            if (topLevel.timedOut() || topLevel.outputTruncated() || topLevel.exitCode() != 0
+                    || head.timedOut() || head.outputTruncated() || head.exitCode() != 0) {
+                throw new TaskFailure("SOURCE_BRANCH_REPOSITORY_REQUIRED",
+                        "Source-branch execution requires a Git repository root with a valid HEAD");
+            }
+            Path repositoryRoot = Path.of(topLevel.output().trim()).toRealPath();
+            if (!repositoryRoot.equals(root)) {
+                throw new TaskFailure("SOURCE_BRANCH_REPOSITORY_ROOT_REQUIRED",
+                        "Source-branch execution requires the registered Git repository root");
+            }
+            String status = optionalOutput(root,
+                    List.of("git", "status", "--porcelain=v1", "--untracked-files=all"));
+            if (status != null) {
+                throw new TaskFailure("SOURCE_BRANCH_WORKSPACE_DIRTY",
+                        "The registered source checkout has uncommitted or untracked files; commit, stash, or remove them before switching to a Task branch");
+            }
+            String baseline = head.output().trim();
+            if (requestedBaseline != null) {
+                ProcessResult verified = runner.run(root,
+                        List.of("git", "rev-parse", "--verify", requestedBaseline + "^{commit}"), GIT_TIMEOUT);
+                if (verified.timedOut() || verified.outputTruncated() || verified.exitCode() != 0 || verified.output().isBlank()) {
+                    throw new TaskFailure("REWORK_BASELINE_UNAVAILABLE", "The parent task baseline is no longer available in Git");
+                }
+                baseline = verified.output().trim();
+            } else {
+                baseline = refreshRemoteBaseline(root, baseline);
+            }
+            for (int occurrence = 1; occurrence <= MAX_BRANCH_OCCURRENCES; occurrence++) {
+                String branch = branchNameForTask(taskName, taskId, occurrence);
+                if (branchExists(root, branch)) continue;
+                ProcessResult switched = runner.run(root,
+                        List.of("git", "-c", "core.longpaths=true", "switch", "--create", branch, baseline),
+                        WORKTREE_CREATE_TIMEOUT);
+                if (switched.timedOut()) {
+                    throw new TaskFailure("SOURCE_BRANCH_CHECKOUT_FAILED",
+                            "Switching the registered source checkout to the Task branch exceeded the 10-minute safety limit");
+                }
+                if (switched.outputTruncated() || switched.exitCode() != 0) {
+                    if (branchExists(root, branch)) {
+                        throw new TaskFailure("SOURCE_BRANCH_CHECKOUT_FAILED", trim(switched.output()));
+                    }
+                    continue;
+                }
+                requireSourceBranch(root, branch, baseline);
+                return new Worktree(root, branch, baseline);
+            }
+            throw new TaskFailure("WORKTREE_BRANCH_EXHAUSTED", "Too many source branches already use this task name");
+        } catch (TaskFailure failure) {
+            throw failure;
+        } catch (Exception failure) {
+            throw new TaskFailure("SOURCE_BRANCH_CHECKOUT_FAILED",
+                    "Unable to switch the registered source checkout to a Task branch: " + failure.getMessage());
+        }
+    }
+
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public RepositoryInspection inspect(Path projectRoot) {
         try {
@@ -161,13 +229,17 @@ public class GitWorktreeManager {
     }
 
     public void requireExecutionWorkspace(Path executionPath, Path projectRoot, String branch, String baseline) {
-        if (!DIRECT_BRANCH.equals(branch)) {
-            requireManaged(executionPath);
-            return;
-        }
         try {
             Path expected = projectRoot.toRealPath();
             Path actual = executionPath.toRealPath();
+            if (!DIRECT_BRANCH.equals(branch) && actual.equals(expected)) {
+                requireSourceBranch(actual, branch, baseline);
+                return;
+            }
+            if (!DIRECT_BRANCH.equals(branch)) {
+                requireManaged(actual);
+                return;
+            }
             if (!actual.equals(expected)) {
                 throw new TaskFailure("DIRECT_WORKSPACE_MISMATCH", "Direct task operation must use the registered project root");
             }
@@ -176,6 +248,46 @@ public class GitWorktreeManager {
             throw failure;
         } catch (Exception exception) {
             throw new TaskFailure("DIRECT_WORKSPACE_UNAVAILABLE", "Direct project directory is not available: " + exception.getMessage());
+        }
+    }
+
+    /**
+     * Returns whether the registered Git checkout still contains unpublished file changes.
+     * A caller uses this before releasing the serialized in-place writer lease; inability to
+     * prove a clean checkout fails closed instead of allowing another Task to switch branches.
+     */
+    public boolean sourceCheckoutHasChanges(Path projectRoot) {
+        try {
+            Path root = projectRoot.toRealPath();
+            ProcessResult result = runner.run(root,
+                    List.of("git", "status", "--porcelain=v1", "--untracked-files=all"), GIT_TIMEOUT);
+            if (result.timedOut() || result.outputTruncated() || result.exitCode() != 0) {
+                throw new TaskFailure("SOURCE_BRANCH_STATUS_FAILED",
+                        "Unable to confirm that the registered source checkout is clean");
+            }
+            return !result.output().isBlank();
+        } catch (TaskFailure failure) {
+            throw failure;
+        } catch (Exception failure) {
+            throw new TaskFailure("SOURCE_BRANCH_STATUS_FAILED",
+                    "Unable to inspect the registered source checkout: " + failure.getMessage());
+        }
+    }
+
+    private void requireSourceBranch(Path root, String expectedBranch, String baseline) {
+        String branch = optionalOutput(root, List.of("git", "branch", "--show-current"));
+        if (!expectedBranch.equals(branch)) {
+            throw new TaskFailure("SOURCE_BRANCH_MISMATCH",
+                    "Registered source checkout is on " + (branch == null ? "detached HEAD" : branch)
+                            + " instead of Task branch " + expectedBranch);
+        }
+        if (baseline == null || baseline.isBlank()) {
+            throw new TaskFailure("TASK_BASELINE_MISSING", "Source-branch Task has no Git baseline");
+        }
+        String head = optionalOutput(root, List.of("git", "rev-parse", "HEAD"));
+        if (head == null || !ancestor(root, baseline, head)) {
+            throw new TaskFailure("SOURCE_BRANCH_BASELINE_MISMATCH",
+                    "Task branch HEAD no longer contains its recorded baseline");
         }
     }
 

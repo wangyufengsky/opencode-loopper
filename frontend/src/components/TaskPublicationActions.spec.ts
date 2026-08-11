@@ -104,11 +104,11 @@ describe('TaskPublicationActions', () => {
     ticket.dispatchEvent(new Event('input', { bubbles: true }))
     await flushPromises()
     const confirm = [...document.querySelectorAll('button')]
-      .find((button) => button.textContent?.includes('确认提交并同步')) as HTMLButtonElement
+      .find((button) => button.textContent?.includes('提交本地分支')) as HTMLButtonElement
     confirm.click()
     await flushPromises()
 
-    expect(ElMessageBox.confirm).toHaveBeenCalledWith(expect.stringContaining('不会覆盖现有改动'), '确认提交并同步？', expect.any(Object))
+    expect(ElMessageBox.confirm).toHaveBeenCalledWith(expect.stringContaining('原项目目录中当前任务分支'), '确认提交本地任务分支？', expect.any(Object))
     expect(publishTask).toHaveBeenCalledWith('task-1', '#3032_完善任务发布流程')
     expect(wrapper.text()).toContain('已同步源代码')
   })

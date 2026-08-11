@@ -11,6 +11,7 @@ import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.ProjectRow;
 import io.opencode.loopper.persistence.TaskRow;
 import io.opencode.loopper.runtime.FakeOpenCodeClient;
+import io.opencode.loopper.runtime.GitWorktreeManager;
 import io.opencode.loopper.runtime.OpenCodeClient;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -38,6 +39,7 @@ class LocalSyncConflictServiceIntegrationTest {
     @Autowired private TaskService tasks;
     @Autowired private LocalSyncConflictService conflicts;
     @Autowired private LoopperMapper mapper;
+    @Autowired private GitWorktreeManager worktrees;
     @Autowired private OpenCodeClient openCode;
     @Autowired private ObjectMapper json;
     @TempDir Path temp;
@@ -533,6 +535,16 @@ class LocalSyncConflictServiceIntegrationTest {
                 List.of(new LoopSpec.StageSpec("verify merged source", List.of(), List.of(), List.of("source"),
                         List.of(verifier))), null, null, null, null));
         TaskRow ready = drafts.confirm(draft.id(), "local sync conflict test");
+        // The conflict center is retained only for legacy hidden-worktree tasks.
+        // New tasks edit the registered checkout directly and therefore never
+        // need to merge a separate task checkout back into that same directory.
+        GitWorktreeManager.Worktree legacy = worktrees.create(root, ready.id(),
+                "legacy local sync conflict test", ready.baselineCommit());
+        TaskRow legacyReady = new TaskRow(ready.id(), ready.projectId(), ready.loopDraftId(), ready.title(), ready.state(),
+                legacy.path().toString(), legacy.branch(), legacy.baselineCommit(), ready.createdAt(),
+                Instant.now().toString(), ready.version());
+        assertThat(mapper.prepareTask(legacyReady)).isEqualTo(1);
+        ready = tasks.get(ready.id());
         TaskRow succeeded = new TaskRow(ready.id(), ready.projectId(), ready.loopDraftId(), ready.title(), "SUCCEEDED",
                 ready.worktreePath(), ready.branchName(), ready.baselineCommit(), ready.createdAt(), Instant.now().toString(), ready.version());
         assertThat(mapper.updateTaskState(succeeded)).isEqualTo(1);

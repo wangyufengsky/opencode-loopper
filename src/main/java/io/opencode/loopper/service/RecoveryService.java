@@ -101,7 +101,7 @@ public class RecoveryService {
         }
         if (GitWorktreeManager.DIRECT_BRANCH.equals(parent.branchName())
                 || parent.baselineCommit() == null || parent.baselineCommit().isBlank()) {
-            throw new ConflictException("REWORK_ISOLATED_BASELINE_REQUIRED", "重做需要父任务的隔离 Git 分支和基线提交");
+            throw new ConflictException("REWORK_ISOLATED_BASELINE_REQUIRED", "重做需要父任务的 Git 任务分支和基线提交");
         }
     }
 

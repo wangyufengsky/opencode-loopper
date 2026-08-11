@@ -144,10 +144,10 @@ async function submitCommit() {
     const local = localPublication.value
     await ElMessageBox.confirm(
       local
-        ? '将提交任务 worktree 的全部已验收变更，并安全同步到源项目目录。若源目录存在冲突，操作会停止且不会覆盖现有改动。'
-        : `将提交任务 worktree 的全部已验收变更，并推送分支 ${publication.value?.branch ?? props.task.branch}。`,
-      local ? '确认提交并同步？' : '确认提交并推送？',
-      { confirmButtonText: local ? '提交并同步' : '提交并推送', cancelButtonText: '返回编辑', type: 'warning' },
+        ? '将提交原项目目录中当前任务分支的全部已验收变更，并保留为本地提交。'
+        : `将提交原项目目录中当前任务分支的全部已验收变更，并推送分支 ${publication.value?.branch ?? props.task.branch}。`,
+      local ? '确认提交本地任务分支？' : '确认提交并推送？',
+      { confirmButtonText: local ? '提交本地分支' : '提交并推送', cancelButtonText: '返回编辑', type: 'warning' },
     )
   } catch { return }
   operationLoading.value = true
@@ -176,7 +176,7 @@ async function retryPublication() {
   try {
     await ElMessageBox.confirm(
       local
-        ? `提交 ${publication.value?.commitSha?.slice(0, 8) ?? ''} 已保留，将再次检查冲突并同步到源项目目录。`
+        ? `提交 ${publication.value?.commitSha?.slice(0, 8) ?? ''} 已保留，将再次确认本地任务分支状态。`
         : `提交 ${publication.value?.commitSha?.slice(0, 8) ?? ''} 已保留，将重新推送到 ${publication.value?.remoteName ?? 'origin'}。`,
       local ? '继续同步源代码？' : '继续推送任务分支？',
       { confirmButtonText: local ? '继续同步' : '继续推送', cancelButtonText: '取消', type: 'warning' },
@@ -428,7 +428,7 @@ async function createMergeRequest() {
       <div class="commit-preview"><span>最终提交信息</span><code>{{ commitPreview }}</code></div>
       <p v-if="commitError" class="publication-error"><Icon icon="lucide:triangle-alert" />{{ commitError }}</p>
     </el-form>
-    <template #footer><el-button :disabled="operationLoading" @click="commitDialogOpen = false">取消</el-button><el-button type="success" :loading="operationLoading" :disabled="suggestionLoading" @click="submitCommit">{{ localPublication ? '确认提交并同步' : '确认提交并推送' }}</el-button></template>
+    <template #footer><el-button :disabled="operationLoading" @click="commitDialogOpen = false">取消</el-button><el-button type="success" :loading="operationLoading" :disabled="suggestionLoading" @click="submitCommit">{{ localPublication ? '提交本地分支' : '确认提交并推送' }}</el-button></template>
   </el-dialog>
 
   <el-dialog v-model="mergeDialogOpen" class="publication-dialog" title="创建合并请求" width="min(700px, 92vw)" append-to-body :close-on-click-modal="false">

@@ -68,7 +68,7 @@ class ProjectServiceIntegrationTest {
         Files.writeString(gitRoot.resolve("README.md"), "fixture\n");
         git(gitRoot, "add", "README.md");
         git(gitRoot, "commit", "-m", "fixture");
-        ProjectRow gitProject = projects.create("Git", gitRoot.toString(), "Uses an isolated worktree");
+        ProjectRow gitProject = projects.create("Git", gitRoot.toString(), "Uses the registered checkout task branch");
 
         var gitInspection = projects.inspect(gitProject);
 

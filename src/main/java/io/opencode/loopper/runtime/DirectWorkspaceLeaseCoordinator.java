@@ -28,8 +28,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * Persistent admission control for tasks which edit a registered directory in place.
  *
- * <p>Git worktrees are already isolated. Direct workspaces are not: exactly one task
- * may hold a writer lease for one canonical {@code toRealPath()} root. A terminal task
+ * <p>Tasks now edit their registered checkout in place so IDE-bound tools and verifiers
+ * share one authoritative directory. Exactly one task may hold a writer lease for one
+ * canonical {@code toRealPath()} root. A terminal task
  * whose old writer has not been positively stopped stays {@code RELEASE_PENDING}; this
  * class deliberately has no force-release operation.</p>
  */
@@ -62,7 +63,7 @@ public class DirectWorkspaceLeaseCoordinator {
         for (int attempt = 0; attempt < CONCURRENCY_RETRIES; attempt++) {
             try {
                 Admission result = transactions.execute(status -> acquire(workspace, taskId, normalizedSource, writerSessionId));
-                if (result == null) throw new TaskFailure("DIRECT_LEASE_TRANSACTION_FAILED", "Direct workspace admission did not return a result");
+                if (result == null) throw new TaskFailure("DIRECT_LEASE_TRANSACTION_FAILED", "In-place workspace admission did not return a result");
                 return result;
             } catch (RuntimeException failure) {
                 if (!concurrencyFailure(failure) || attempt + 1 == CONCURRENCY_RETRIES) {

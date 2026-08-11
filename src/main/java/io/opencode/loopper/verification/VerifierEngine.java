@@ -116,6 +116,7 @@ public class VerifierEngine {
                 : !outputMatched ? "Process output did not contain required text: " + spec.outputContains()
                 : "Process exited 0";
         Map<String, Object> evidence = new LinkedHashMap<>();
+        evidence.put("workingDirectory", canonicalWorkingDirectory(worktree));
         evidence.put("argv", resolved.argv());
         if (normalization.changed()) {
             evidence.put("declaredArgv", originalCommand);
@@ -135,6 +136,15 @@ public class VerifierEngine {
         }
         return new VerifierOutcome("PROCESS", passed ? VerificationState.PASS : VerificationState.FAIL,
                 summary, evidence);
+    }
+
+    private String canonicalWorkingDirectory(Path worktree) {
+        try {
+            return worktree.toRealPath().toString();
+        } catch (java.io.IOException unavailable) {
+            throw new TaskFailure("WORKTREE_UNAVAILABLE",
+                    "Verifier working directory is unavailable: " + unavailable.getMessage());
+        }
     }
 
     private ResolvedProcessCommand resolveProcessCommand(Path worktree, List<String> declaredCommand) {

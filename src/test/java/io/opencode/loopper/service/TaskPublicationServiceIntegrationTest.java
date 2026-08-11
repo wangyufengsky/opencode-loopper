@@ -28,7 +28,6 @@ class TaskPublicationServiceIntegrationTest {
     @Autowired private LoopDraftService drafts;
     @Autowired private TaskService tasks;
     @Autowired private TaskPublicationService publication;
-    @Autowired private LocalSyncConflictService localConflicts;
     @Autowired private LoopperMapper mapper;
     @Autowired private OpenCodeClient openCode;
     @TempDir Path temp;
@@ -108,6 +107,8 @@ class TaskPublicationServiceIntegrationTest {
         Path projectRoot = repositoryWithoutRemote();
         ProjectRow project = projects.create("local-sync-clean", projectRoot.toString());
         TaskRow task = succeededTask(project);
+        TaskRow waiting = readyTask(project);
+        assertThat(waiting.state()).isEqualTo("QUEUED");
         Files.writeString(Path.of(task.worktreePath()).resolve("feature.txt"), "verified local change\n");
 
         TaskPublicationService.PublicationStatus ready = publication.status(task.id());
@@ -123,65 +124,56 @@ class TaskPublicationServiceIntegrationTest {
         assertThat(run(projectRoot, "git", "status", "--porcelain")).isBlank();
         assertThat(tasks.artifacts(task.id())).anyMatch(artifact -> "LOCAL_SOURCE_SYNC".equals(artifact.kind())
                 && synced.commitSha().equals(artifact.content()));
+        assertThat(tasks.queueStatus(task.id()).state()).isEqualTo("FINISHED");
+        assertThat(tasks.get(waiting.id()).state()).isEqualTo("READY");
+        assertThat(tasks.get(waiting.id()).worktreePath()).isEqualTo(projectRoot.toRealPath().toString());
+        assertThat(run(projectRoot, "git", "branch", "--show-current").strip())
+                .isEqualTo(tasks.get(waiting.id()).branchName());
     }
 
     @Test
-    void repositoryWithoutRemoteOverlaysTaskPatchWhilePreservingUnrelatedSourceChanges() throws Exception {
+    void repositoryWithoutRemoteCommitsAllChangesInTheRegisteredCheckout() throws Exception {
         Path projectRoot = repositoryWithoutRemote();
         ProjectRow project = projects.create("local-sync-dirty", projectRoot.toString());
         TaskRow task = succeededTask(project);
         Files.writeString(projectRoot.resolve("README.md"), "user local change\n");
         Files.writeString(Path.of(task.worktreePath()).resolve("feature.txt"), "verified task change\n");
-        String sourceHead = run(projectRoot, "git", "rev-parse", "HEAD").strip();
+        String baseline = run(projectRoot, "git", "rev-parse", "HEAD").strip();
+
+        assertThat(Path.of(task.worktreePath()).toRealPath()).isEqualTo(projectRoot.toRealPath());
+        assertThat(run(projectRoot, "git", "branch", "--show-current").strip()).isEqualTo(task.branchName());
 
         TaskPublicationService.PublicationStatus synced = publication.commitAndPush(
                 task.id(), "#3032_保留源目录已有改动");
 
         assertThat(synced.state()).isEqualTo("SYNCED_LOCAL");
-        assertThat(run(projectRoot, "git", "rev-parse", "HEAD").strip()).isEqualTo(sourceHead);
+        assertThat(run(projectRoot, "git", "rev-parse", "HEAD").strip()).isEqualTo(synced.commitSha()).isNotEqualTo(baseline);
         assertThat(Files.readString(projectRoot.resolve("README.md"))).isEqualTo("user local change\n");
         assertThat(Files.readString(projectRoot.resolve("feature.txt"))).isEqualTo("verified task change\n");
-        assertThat(run(projectRoot, "git", "status", "--short"))
-                .contains("README.md").contains("feature.txt");
+        assertThat(run(projectRoot, "git", "status", "--short")).isBlank();
     }
 
     @Test
-    void repositoryWithoutRemoteCreatesActionableSessionWhenSourceChangesConflict() throws Exception {
+    void publicationRefusesToRunAfterTheRegisteredCheckoutLeavesItsTaskBranch() throws Exception {
         Path projectRoot = repositoryWithoutRemote();
-        ProjectRow project = projects.create("local-sync-conflict", projectRoot.toString());
+        ProjectRow project = projects.create("local-sync-branch-mismatch", projectRoot.toString());
         TaskRow task = succeededTask(project);
-        Files.writeString(projectRoot.resolve("README.md"), "source side\n");
-        Files.writeString(Path.of(task.worktreePath()).resolve("README.md"), "task side\n");
+        run(projectRoot, "git", "switch", "main");
 
-        TaskPublicationService.PublicationStatus conflict = publication.commitAndPush(
-                task.id(), "#3032_验证源目录冲突保护");
-
-        assertThat(Files.readString(projectRoot.resolve("README.md"))).isEqualTo("source side\n");
-        assertThat(conflict.state()).isEqualTo("LOCAL_SYNC_CONFLICT");
-        assertThat(conflict.conflictSessionId()).isNotBlank();
-        assertThat(conflict.conflictCount()).isEqualTo(1);
-        assertThat(conflict.resolvedCount()).isZero();
-
-        var file = localConflicts.content(task.id(), conflict.conflictSessionId(), "README.md");
-        assertThat(file.baseContent()).isEqualTo("fixture\n");
-        assertThat(file.sourceContent()).isEqualTo("source side\n");
-        assertThat(file.taskContent()).isEqualTo("task side\n");
-
-        file = localConflicts.saveResolution(task.id(), conflict.conflictSessionId(),
-                new LocalSyncConflictService.ResolutionRequest("README.md", "MANUAL", "merged side\n", file.version()));
-        assertThat(file.resolution()).isEqualTo("MANUAL");
-        var session = localConflicts.get(task.id(), conflict.conflictSessionId());
-        assertThat(session.state()).isEqualTo("READY");
-
-        var applied = localConflicts.apply(task.id(), session.id(),
-                new LocalSyncConflictService.ApplyRequest(true, session.version()));
-
-        assertThat(applied.state()).isEqualTo("APPLIED");
-        assertThat(Files.readString(projectRoot.resolve("README.md"))).isEqualTo("merged side\n");
-        assertThat(publication.status(task.id()).state()).isEqualTo("SYNCED_LOCAL");
+        TaskPublicationService.PublicationStatus status = publication.status(task.id());
+        assertThat(status.state()).isEqualTo("UNAVAILABLE");
+        assertThat(status.reason()).contains("instead of Task branch");
     }
 
     private TaskRow succeededTask(ProjectRow project) {
+        TaskRow ready = readyTask(project);
+        TaskRow succeeded = new TaskRow(ready.id(), ready.projectId(), ready.loopDraftId(), ready.title(), "SUCCEEDED",
+                ready.worktreePath(), ready.branchName(), ready.baselineCommit(), ready.createdAt(), Instant.now().toString(), ready.version());
+        assertThat(mapper.updateTaskState(succeeded)).isEqualTo(1);
+        return tasks.get(ready.id());
+    }
+
+    private TaskRow readyTask(ProjectRow project) {
         LoopDraftRow draft = drafts.create(new io.opencode.loopper.domain.LoopSpec(
                 "v1", project.id(), "实现并验证任务发布流程", null,
                 List.of(new io.opencode.loopper.domain.LoopSpec.StageSpec(
@@ -189,11 +181,7 @@ class TaskPublicationServiceIntegrationTest {
                         List.of(new io.opencode.loopper.domain.LoopSpec.VerifierSpec(
                                 "PROCESS", List.of("git", "status", "--short"), null, null, null, null, null)))),
                 null, null, null, null));
-        TaskRow ready = drafts.confirm(draft.id(), "任务发布流程");
-        TaskRow succeeded = new TaskRow(ready.id(), ready.projectId(), ready.loopDraftId(), ready.title(), "SUCCEEDED",
-                ready.worktreePath(), ready.branchName(), ready.baselineCommit(), ready.createdAt(), Instant.now().toString(), ready.version());
-        assertThat(mapper.updateTaskState(succeeded)).isEqualTo(1);
-        return tasks.get(ready.id());
+        return drafts.confirm(draft.id(), "任务发布流程");
     }
 
     private Repository repositoryWithRemote() throws Exception {

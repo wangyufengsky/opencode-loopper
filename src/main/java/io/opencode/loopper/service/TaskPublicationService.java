@@ -27,7 +27,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 
-/** Human-triggered publication for a successfully verified, isolated Task worktree. */
+/** Human-triggered publication for a successfully verified Git Task branch. */
 @Service
 public class TaskPublicationService {
     private static final Duration GIT_READ_TIMEOUT = Duration.ofSeconds(30);
@@ -129,7 +129,12 @@ public class TaskPublicationService {
         try {
             PublicationStatus before = inspect(task);
             if ("PUSHED".equals(before.state()) || "SYNCED_LOCAL".equals(before.state())
-                    || "LOCAL_SYNC_CONFLICT".equals(before.state())) return before;
+                    || "LOCAL_SYNC_CONFLICT".equals(before.state())) {
+                if ("PUSHED".equals(before.state()) || "SYNCED_LOCAL".equals(before.state())) {
+                    tasks.releaseWorkspaceAfterPublication(task.id());
+                }
+                return before;
+            }
             Path workspace = workspace(task);
             if ("READY".equals(before.state())) {
                 String commitMessage = requireCommitMessage(requestedMessage);
@@ -157,6 +162,7 @@ public class TaskPublicationService {
                 if (!"SYNCED_LOCAL".equals(synced.state())) {
                     throw new ConflictException("LOCAL_SOURCE_SYNC_UNCONFIRMED", "源代码同步完成，但同步证据未能确认");
                 }
+                tasks.releaseWorkspaceAfterPublication(task.id());
                 return synced;
             }
             runRequired(workspace,
@@ -167,6 +173,7 @@ public class TaskPublicationService {
             if (!"PUSHED".equals(pushed.state())) {
                 throw new ConflictException("GIT_PUSH_STATE_UNCONFIRMED", "Git push 返回成功，但远端跟踪分支尚未与本地提交一致");
             }
+            tasks.releaseWorkspaceAfterPublication(task.id());
             return pushed;
         } finally {
             lock.unlock();
@@ -229,7 +236,7 @@ public class TaskPublicationService {
             String state = hasChanges ? "READY" : synced ? "SYNCED_LOCAL"
                     : conflict != null ? "LOCAL_SYNC_CONFLICT" : committed ? "COMMITTED" : "NO_CHANGES";
             String reason = "NO_CHANGES".equals(state) ? "任务没有产生可提交的文件变更"
-                    : "SYNCED_LOCAL".equals(state) ? "任务提交已同步到源项目目录"
+                    : "SYNCED_LOCAL".equals(state) ? "任务提交已保留在原项目目录的本地任务分支"
                     : "LOCAL_SYNC_CONFLICT".equals(state) ? conflict.errorMessage() : null;
             if ("COMMITTED".equals(state) && (commitMessage == null || !COMMIT_MESSAGE.matcher(commitMessage).matches())) {
                 state = "UNAVAILABLE";
@@ -366,7 +373,9 @@ public class TaskPublicationService {
             throw new ConflictException("TASK_WORKTREE_MISSING", "任务执行目录不存在");
         }
         Path workspace = Path.of(task.worktreePath());
-        worktrees.requireManaged(workspace);
+        ProjectRow project = projects.get(task.projectId());
+        worktrees.requireExecutionWorkspace(workspace, Path.of(project.rootPath()),
+                task.branchName(), task.baselineCommit());
         return workspace;
     }
 

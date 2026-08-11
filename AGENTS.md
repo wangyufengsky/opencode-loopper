@@ -41,10 +41,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.1.13.jar
-   jar tf target/opencode-loopper-0.1.13.jar \
+   test -s target/opencode-loopper-0.1.14.jar
+   jar tf target/opencode-loopper-0.1.14.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.1.13.jar
+   shasum -a 256 target/opencode-loopper-0.1.14.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -71,7 +71,7 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 - 服务端持久化状态是权威事实；前端不能制造队列、进度、用量、成本或模型输出。
 - Designer 只读；确认 LoopSpec 之前不得写业务源码、创建执行任务或假装交付完成。
 - 人工确认是不可跳过的边界：LoopSpec 确认、危险权限、成功任务发布、本地冲突写回都需要明确动作。
-- Loopper 不自动强推、不自动合并托管平台请求、不自动删除完成的 worktree。
+- Loopper 不自动强推、不自动合并托管平台请求、不自动切回用户分支或删除旧版 worktree。
 - Direct 模式直接写登记目录，但有独立租约、队列和私有基线；它不是较弱的“随便写”模式。
 - 本项目不是多租户远程执行平台，也不把模型推理内容或外部 Provider 状态伪造成 Loopper 生命周期。
 
@@ -93,8 +93,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.1.13`。
-- 正式产物：`target/opencode-loopper-0.1.13.jar`。
+- Maven 项目版本：`0.1.14`。
+- 正式产物：`target/opencode-loopper-0.1.14.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -134,7 +134,7 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 │   ├── domain/                       # 持久化状态枚举、LoopSpec、错误语义
 │   ├── lifecycle/                    # 轻量状态机、转换策略和审计入口
 │   ├── persistence/                  # MyBatis Mapper 与数据库 Row
-│   ├── runtime/                      # OpenCode、进程、Git worktree/Direct 基线
+│   ├── runtime/                      # OpenCode、进程、Git 任务分支/Direct 基线
 │   ├── service/                      # 编排、Designer、Recovery、发布、自动化
 │   ├── verification/                 # 确定性验证器与二进制证据
 │   └── web/                          # SPA fallback
@@ -164,7 +164,7 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 | Designer / LoopSpec / Review Gate | `docs/design-contract.md`、`docs/opencode-contract.md` | `DesignerSessionService.java`、`LoopDraftService.java`、`LoopSpec.java`、`DesignerView.vue` |
 | OpenCode Runtime / Session | `docs/opencode-contract.md` | `runtime/OpenCode*.java`、`TaskSessionMonitorService.java`、`RuntimeView.vue` |
 | 验证器 / Judge / 证据 | `docs/architecture.md`、`docs/seven-feature-contract.md` | `verification/`、`TaskVerificationDispatcher.java`、`TaskService.java` |
-| Git worktree / Direct / Recovery | `docs/architecture.md`、`docs/seven-feature-contract.md` | `GitWorktreeManager.java`、`DirectWorkspace*`、`RecoveryService.java` |
+| Git 任务分支 / Direct / Recovery | `docs/architecture.md`、`docs/seven-feature-contract.md` | `GitWorktreeManager.java`、`DirectWorkspace*`、`RecoveryService.java` |
 | 发布 / 本地同步冲突 | `docs/architecture.md` | `TaskPublicationService.java`、`LocalSyncConflictService.java`、`TaskPublicationActions.vue`、`CodeMergeEditor.vue` |
 | Pending Center / 权限 | `docs/seven-feature-contract.md` | `InteractionService.java`、`InteractionController.java`、`InboxView.vue` |
 | 自动化 / 模板 | `docs/seven-feature-contract.md` | `AutomationService.java`、`LoopSpecTemplateService.java`、`AutomationsView.vue` |
@@ -233,13 +233,13 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 
 ### 5.5 工作区、租约与 Recovery
 
-- 有可用 Git HEAD：创建 `loopper/<任务名>` 和 `$LOOPPER_DATA_DIR/worktrees/<taskId>`；本地或远端跟踪分支已有同名时从第二次起追加 `(第2次)`、`(第3次)`，Git 禁止字符确定性替换为 `-`，分支叶名称按 UTF-8 字节安全截断，并在截断后重新修正 `.lock` 等非法结尾。
-- 创建隔离任务前以非交互方式 fetch 当前分支的 upstream/明确首选远端；远端线性领先时从远端最新提交创建任务，但不移动源目录分支。本地领先时保留本地提交；认证失败、fetch 失败或历史分叉必须 fail closed。
-- worktree checkout 使用独立 10 分钟有界超时、`--quiet` 和命令局部 `core.longpaths=true`；短 Git 检查仍使用 30 秒边界，失败诊断保留输出尾部，不得让进度噪音遮住真正的 `fatal`。
-- `$LOOPPER_DATA_DIR/worktrees/<taskId>` 的规范路径不得位于登记项目根目录内；OpenCode 创建 Session 后必须回报与请求一致的规范执行目录，缺失或不一致时不得发送实施提示。
+- 有可用 Git HEAD：要求登记目录无未提交和未跟踪文件，在登记目录本身创建并切换 `loopper/<任务名>`；本地或远端跟踪分支已有同名时从第二次起追加 `(第2次)`、`(第3次)`，Git 禁止字符确定性替换为 `-`，分支叶名称按 UTF-8 字节安全截断，并在截断后重新修正 `.lock` 等非法结尾。
+- 创建任务分支前以非交互方式 fetch 当前分支的 upstream/明确首选远端；远端线性领先时从远端最新提交创建任务。本地领先时保留本地提交；认证失败、fetch 失败、工作区不干净或历史分叉必须 fail closed，禁止自动 stash、覆盖或丢弃改动。
+- 原项目分支 checkout 使用独立 10 分钟有界超时和命令局部 `core.longpaths=true`；短 Git 检查仍使用 30 秒边界，失败诊断保留输出尾部。
+- OpenCode 创建 Session 后必须回报与登记项目根一致的规范执行目录，缺失或不一致时不得发送实施提示；实施提示明确 AgentBridge、搜索、命令和验证器都使用该目录及当前任务分支。
 - 无可用 Git HEAD：直接使用登记根目录，并在 `direct-baselines/<taskId>` 保存私有 Git-compatible 基线；不得在用户项目中隐式初始化或提交 Git。
 - 所有路径 canonicalize 后进行 containment 和符号链接检查。
-- 同一 Direct root 同时只能有一个未释放写租约；旧写入者状态未知时保持租约并阻断 Recovery/Automation。
+- 同一登记 root（Git 或 Direct）同时只能有一个未释放写租约；旧写入者状态未知时保持租约并阻断 Recovery/Automation。Git 任务仍有未发布文件改动时保留租约，发布并确认目录干净后才允许下一个任务切分支。
 - Recovery 仅从 `FAILED`/`CANCELLED` 派生，模式为 `FROM_FAILED_STAGE`、`ALL_STAGES` 或 `VERIFY_ONLY`。
 - `VERIFY_ONLY` 不创建可写 Session；Direct 模式不提供原地回滚。
 - fingerprint、baseline 或旧 writer 不匹配时必须 fail closed。
@@ -247,12 +247,11 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 
 ### 5.6 发布与历史删除
 
-- 自动发布只面向 `SUCCEEDED` 的隔离 Git 任务；Direct 任务由用户在源仓库手工处理。
+- 自动发布只面向 `SUCCEEDED` 的 Git 任务分支；Direct 任务由用户在源仓库手工处理。
 - 用户必须提供四位数字工单号；提交格式为 `#dddd_subject`。AI 只能建议 subject，不能生成或替代工单号。
 - 推送必须是普通非 force push；PR/MR 只打开预填创建页，最终创建和合并仍由平台/用户确认。
-- 没有远端时走受控本地同步：比较任务 baseline、当前源项目和任务版本，写回前重新检查 source SHA/HEAD。
-- 同步冲突 UI 固定表达为 **源项目 | 合并结果 | 任务版本**；允许逐冲突选择、手工编辑和非自动采用的 AI 建议。
-- 应用冲突方案前再次明确确认，按原 LoopSpec 验证；任何写入或验证失败必须回滚本次涉及路径并保留证据。
+- 没有远端时直接在登记目录当前任务分支创建本地提交并记录同步证据；新任务不存在源目录与隐藏 worktree 的二次覆盖。
+- 历史隐藏-worktree 任务仍保留旧版本地同步与冲突证据兼容能力，但不得用于新任务。
 - 删除历史任务是终止操作：只允许已归档且终止的任务，需要二次确认，父任务仍有子 Recovery 时拒绝。
 - 历史记录删除不得删除源文件、Git 分支或 worktree。
 
@@ -265,7 +264,7 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 - MyBatis Mapper 方法应明确行数预期。状态更新和普通字段 mutation 分开，不能用同一 SQL 偷改状态。
 - 不得在持有数据库事务时等待模型、进程、网络、浏览器或长时间文件操作。
 - 所有外部命令使用参数数组；不要拼接未验证路径或用户内容到 shell。
-- Git fetch/worktree 检查和创建必须暂停调用方 SQLite transaction；远端 fetch 设置 `GIT_TERMINAL_PROMPT=0`，不得因凭据提示无限等待。
+- Git fetch/分支检查和 checkout 必须暂停调用方 SQLite transaction；远端 fetch 设置 `GIT_TERMINAL_PROMPT=0`，不得因凭据提示无限等待。
 - 时间、超时、重试和最大输出必须有界，重启恢复必须能处理提交后的中间空档。
 - 浏览器 SSE 只是权威状态的尽力投影：Task 事件提交后再发布，各订阅者必须隔离；断线、超时、`IOException` 或已关闭的 Servlet `AsyncContext` 只移除对应订阅，不得升级为 Designer、OpenCode Session、Attempt 或 Task 失败。
 - Secret 只来自进程环境/内存，不写入 SQLite、日志、artifact 或测试快照。
@@ -330,7 +329,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.1.13.jar
+JAR=target/opencode-loopper-0.1.14.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -424,3 +423,4 @@ curl --fail http://127.0.0.1:8080/actuator/health
 | 2026-08-11 | 修复 Windows 大仓库 worktree 检出失败并发布 0.1.11 | worktree checkout 改用独立 10 分钟边界、`--quiet` 和命令局部长路径支持；错误保留尾部 fatal；同步 README 与架构合同 | 聚焦验证：Java 6/6、Vitest 119/119；`./scripts/verify.sh`：Java 255/255、Vitest 119/119，BUILD SUCCESS；JAR 262595536 bytes，SHA-256 `465476c3e307ee5a290a24997da3c31993e764aa21c06c94cbdc1357686c0408`；发布目标：`v0.1.11` |
 | 2026-08-11 | 新增 Windows BAT 启动器并发布 0.1.12 | Windows 脚本校验 Java 21、确认或启动 OpenCode loopback 服务后启动 Loopper；Release 同步发布 BAT 并纳入 SHA256SUMS | 聚焦验证：Java 16/16；`./scripts/verify.sh`：Java 257/257、Vitest 119/119，BUILD SUCCESS；JAR 262595537 bytes，SHA-256 `772b65fe4159f91ffc3e687e25f837485214b25b664aac54f9c8e53bfcef0e86`；发布目标：`v0.1.12` |
 | 2026-08-11 | 修复 Windows OpenCode 启动成功误报与演示模式无法退出并发布 0.1.13 | BAT 以 `/global/health` 为启动权威结果；设置页支持退出演示数据并重新加载真实 API，启用提示不再写入 Runtime 错误 | 聚焦验证：Java 16/16、演示切换 Vitest 11/11；`./scripts/verify.sh`：Java 257/257、Vitest 121/121，BUILD SUCCESS；JAR 262595766 bytes，SHA-256 `cd686f1dec075f9034cb10ae20fa2bc302fe2586c54cfae0031b1681b38b0cfd`；发布目标：`v0.1.13` |
+| 2026-08-11 | 原项目目录任务分支与 AgentBridge 同目录执行并发布 0.1.14 | 新任务串行切换登记项目的 `loopper/*` 分支；IDE AgentBridge、OpenCode 和验证器统一根目录；脏目录拒绝切换，发布后释放租约；同步 README、架构、OpenCode 与七特性合同 | 聚焦验证：Java 80/80、Vitest 121/121；`./scripts/verify.sh`：Java 260/260、Vitest 121/121，BUILD SUCCESS；18080 有远程/无远程真实 Git E2E 均成功，PROCESS 证据目录等于登记根目录，发布分别为 `PUSHED`/`SYNCED_LOCAL`；JAR 262597940 bytes，SHA-256 `719ba8def087a0f83c9c4ec765b5526c91f5947f3955f36847af341940c3023d`；发布目标：`v0.1.14` |
