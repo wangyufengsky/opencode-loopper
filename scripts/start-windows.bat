@@ -3,6 +3,12 @@ setlocal EnableExtensions DisableDelayedExpansion
 
 if /I "%~1"=="--wait-browser" goto wait_browser
 if /I "%~1"=="--validate" (
+  cmd /d /c exit 7
+  call :start_background "Loopper Start Validation" "%ComSpec%" /d /c exit 0
+  if errorlevel 1 (
+    echo [Loopper] ERROR: Windows background-start validation failed. 1>&2
+    exit /b 1
+  )
   echo [Loopper] Windows startup script validation passed.
   exit /b 0
 )
@@ -51,12 +57,12 @@ if errorlevel 1 goto java_version_unknown
 if %JAVA_MAJOR_NUMBER% LSS 21 goto java_too_old
 
 if defined LOOPPER_JAR_PATH goto jar_from_environment
-if exist "%APP_HOME%\target\opencode-loopper-0.1.12.jar" (
-  set "JAR_PATH=%APP_HOME%\target\opencode-loopper-0.1.12.jar"
+if exist "%APP_HOME%\target\opencode-loopper-0.1.13.jar" (
+  set "JAR_PATH=%APP_HOME%\target\opencode-loopper-0.1.13.jar"
   goto jar_ready
 )
-if exist "%APP_HOME%\opencode-loopper-0.1.12.jar" (
-  set "JAR_PATH=%APP_HOME%\opencode-loopper-0.1.12.jar"
+if exist "%APP_HOME%\opencode-loopper-0.1.13.jar" (
+  set "JAR_PATH=%APP_HOME%\opencode-loopper-0.1.13.jar"
   goto jar_ready
 )
 goto jar_missing
@@ -105,8 +111,9 @@ if defined OPENCODE_USERNAME set "OPENCODE_SERVER_USERNAME=%OPENCODE_USERNAME%"
 if defined OPENCODE_PASSWORD set "OPENCODE_SERVER_PASSWORD=%OPENCODE_PASSWORD%"
 
 echo [Loopper] OpenCode is offline; starting a loopback server with: %OPENCODE_BIN%
-start "Loopper OpenCode Server" /B "%OPENCODE_BIN%" serve --hostname 127.0.0.1 --port 4096
-if errorlevel 1 goto opencode_start_failed
+rem START is asynchronous and can preserve an earlier nonzero ERRORLEVEL on success.
+rem The health endpoint below is the authoritative startup result.
+call :start_background "Loopper OpenCode Server" "%OPENCODE_BIN%" serve --hostname 127.0.0.1 --port 4096
 
 for /L %%I in (1,1,30) do (
   call :opencode_health
@@ -145,7 +152,7 @@ echo [Loopper] ERROR: JDK 21 or newer is required. Current version: %JAVA_VERSIO
 exit /b 1
 
 :jar_missing
-echo [Loopper] ERROR: opencode-loopper-0.1.12.jar was not found under "%APP_HOME%". Put the release JAR beside this script or set LOOPPER_JAR_PATH. 1>&2
+echo [Loopper] ERROR: opencode-loopper-0.1.13.jar was not found under "%APP_HOME%". Put the release JAR beside this script or set LOOPPER_JAR_PATH. 1>&2
 exit /b 1
 
 :data_dir_failed
@@ -166,10 +173,6 @@ echo [Loopper] ERROR: OpenCode is offline and the opencode command was not found
 echo [Loopper] Install OpenCode or set OPENCODE_EXECUTABLE to opencode.exe/opencode.cmd. 1>&2
 exit /b 1
 
-:opencode_start_failed
-echo [Loopper] ERROR: Failed to start OpenCode: %OPENCODE_BIN% 1>&2
-exit /b 1
-
 :opencode_start_timeout
 echo [Loopper] ERROR: OpenCode did not become healthy within 30 seconds. Check whether port 4096 is occupied. 1>&2
 exit /b 1
@@ -186,4 +189,8 @@ exit /b 1
 
 :browser_ready
 start "" "%WAIT_URL%"
+exit /b 0
+
+:start_background
+start %*
 exit /b 0

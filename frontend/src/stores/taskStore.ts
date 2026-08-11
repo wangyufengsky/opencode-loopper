@@ -56,13 +56,23 @@ export const useTaskStore = defineStore('task', () => {
   const activeTasks = computed(() => tasks.value.filter((task) => ['RUNNING', 'VERIFYING', 'RETRY_WAIT', 'JUDGING'].includes(task.status)))
   const selectedTask = (id: string) => computed(() => tasks.value.find((task) => task.id === id))
 
-  function activateDemo(message?: string) {
+  function activateDemo() {
     usingDemo.value = true
     projects.value = copy(demoProjects)
     tasks.value = copy(demoTasks)
     runtime.value = copy(demoRuntime)
     artifacts.value = copy(demoArtifacts)
-    if (message) error.value = message
+    error.value = undefined
+  }
+
+  async function deactivateDemo() {
+    usingDemo.value = false
+    projects.value = []
+    tasks.value = []
+    runtime.value = undefined
+    artifacts.value = []
+    error.value = undefined
+    await loadOverview()
   }
 
   async function loadOverview() {
@@ -256,5 +266,5 @@ export const useTaskStore = defineStore('task', () => {
     try { runtime.value = await api.restartRuntime() } catch (cause) { error.value = cause instanceof Error ? cause.message : 'Runtime 重启失败' }
   }
 
-  return { projects, tasks, runtime, artifacts, loading, error, usingDemo, streamState, activeTasks, selectedTask, activateDemo, loadOverview, loadTask, updateTask, retryJudges, retryWaitingLoop, reworkTask, setTaskArchived, deleteArchivedTask, watchTask, stopWatching, refreshRuntime, restartRuntime }
+  return { projects, tasks, runtime, artifacts, loading, error, usingDemo, streamState, activeTasks, selectedTask, activateDemo, deactivateDemo, loadOverview, loadTask, updateTask, retryJudges, retryWaitingLoop, reworkTask, setTaskArchived, deleteArchivedTask, watchTask, stopWatching, refreshRuntime, restartRuntime }
 })

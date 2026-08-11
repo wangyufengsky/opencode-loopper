@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.1.12`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.1.13`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -111,7 +111,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.1.12.jar
+java -jar target/opencode-loopper-0.1.13.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -142,9 +142,11 @@ java -jar target/opencode-loopper-0.1.12.jar
 | 模板与自动化 | 管理不可变模板版本、自动化规则、导入导出与运行记录 |
 | Recovery Studio | 从失败或取消任务派生恢复任务，保留父子关系和工作区指纹 |
 | 运行环境 | 查看或重启 Loopper 管理的 OpenCode Runtime；外部 Runtime 只重新检测 |
-| 设置 | 配置 CLI、允许项目根、默认模型、任务尝试上限和单次超时 |
+| 设置 | 配置 CLI、允许项目根、默认模型、任务尝试上限和单次超时；可启用演示数据，并随时退出以重新加载真实 API 数据 |
 
 取消项目管理只会移除登记关系；不会删除项目目录、历史任务、Designer 对话、LoopSpec 或执行证据。
+
+演示数据只用于界面预览。启用后，设置页按钮会切换为 **退出演示数据**；退出时会清空演示投影并立即重新读取本地服务中的项目、任务和 Runtime 状态。演示模式本身不作为 Runtime 错误展示。
 
 ## LoopSpec 与验证器
 
@@ -296,7 +298,7 @@ Git 隔离任务达到 `SUCCEEDED` 后：
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.1.12.jar`
+- `target/opencode-loopper-0.1.13.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -322,16 +324,22 @@ export OPENCODE_BASE_URL=http://127.0.0.1:4096
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.1.12.jar`
+- `opencode-loopper-0.1.13.jar`
 - `start-windows.bat`
 
-确认 JDK 21、Git 和 OpenCode CLI 已加入 `PATH`，然后双击 `start-windows.bat`，或在 CMD 中运行：
+确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
 
 ```bat
 start-windows.bat
 ```
 
-脚本按 `LOOPPER_JAVA_HOME`、`JAVA_HOME`、`PATH` 的顺序查找 Java 并拒绝低于 21 的版本。它先检查 `http://127.0.0.1:4096/global/health`；若默认端点离线，则从 `OPENCODE_EXECUTABLE` 或 `PATH` 查找 `opencode.exe` / `opencode.cmd`，执行 `opencode serve --hostname 127.0.0.1 --port 4096` 并最多等待 30 秒。健康检查通过后才启动 Loopper，避免把尚未启动的 OpenCode 误显示成离线。
+PowerShell 默认不会从当前目录搜索命令，必须带 `./` 或 `.\`：
+
+```powershell
+.\start-windows.bat
+```
+
+脚本按 `LOOPPER_JAVA_HOME`、`JAVA_HOME`、`PATH` 的顺序查找 Java，并拒绝低于 21 的版本。它先检查 `http://127.0.0.1:4096/global/health`；若默认端点离线，则从 `OPENCODE_EXECUTABLE` 或 `PATH` 查找 `opencode.exe` / `opencode.cmd`，异步执行 `opencode serve --hostname 127.0.0.1 --port 4096` 并最多等待 30 秒。`start` 命令本身的遗留错误码不作为失败依据，只有健康检查超时才判定启动失败；健康通过后再启动 Loopper。
 
 需要固定路径或端口时，可先设置环境变量：
 
@@ -354,7 +362,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.1.12.jar \
+jar tf target/opencode-loopper-0.1.13.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -433,7 +441,7 @@ Windows PowerShell：
 例如发布下一版本：
 
 ```bash
-VERSION=0.1.12
+VERSION=0.1.13
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -473,7 +481,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.1.12.jar
+java -jar target/opencode-loopper-0.1.13.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。
@@ -501,7 +509,7 @@ lsof -nP -iTCP:8080 -sTCP:LISTEN
 
 ### Windows 提交任务时停在 `Updating files` 后报 `WORKTREE_CREATE_FAILED`
 
-`0.1.11` 起，Loopper 不再用 30 秒短检查超时限制大仓库检出，并会隐藏 Git checkout 进度噪音、保留尾部真正的 `fatal` 诊断，同时命令局部启用 `core.longpaths=true`。升级后请重新提交任务。旧版本失败可能留下 `$LOOPPER_DATA_DIR/worktrees/<taskId>` 和对应 `loopper/*` 分支；先用 `git worktree list` 精确确认残留，确认它确实属于失败任务后再手工清理，不要删除仍在使用或已完成任务的 worktree。`0.1.12` 起可使用 Release 附带的 `start-windows.bat`，由脚本先确认或启动默认 OpenCode loopback 服务，再启动 Loopper。
+`0.1.11` 起，Loopper 不再用 30 秒短检查超时限制大仓库检出，并会隐藏 Git checkout 进度噪音、保留尾部真正的 `fatal` 诊断，同时命令局部启用 `core.longpaths=true`。升级后请重新提交任务。旧版本失败可能留下 `$LOOPPER_DATA_DIR/worktrees/<taskId>` 和对应 `loopper/*` 分支；先用 `git worktree list` 精确确认残留，确认它确实属于失败任务后再手工清理，不要删除仍在使用或已完成任务的 worktree。`0.1.12` 起可使用 Release 附带的 `start-windows.bat`；`0.1.13` 修复了 OpenCode 已成功监听但脚本因遗留 `%ERRORLEVEL%` 误报启动失败的问题。PowerShell 中请使用 `.\start-windows.bat`。
 
 ### 一直显示 remote busy / Agent 正在思考
 

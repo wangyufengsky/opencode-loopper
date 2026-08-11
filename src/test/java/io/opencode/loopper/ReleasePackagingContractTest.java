@@ -26,16 +26,19 @@ class ReleasePackagingContractTest {
     }
 
     @Test
-    void windowsScriptPinsCurrentJarAndWaitsForOpenCodeHealth() throws IOException {
+    void windowsScriptPinsCurrentJarAndUsesHealthInsteadOfStaleStartErrorLevel() throws IOException {
         String script = Files.readString(PROJECT_ROOT.resolve("scripts/start-windows.bat"));
 
         assertThat(script)
-                .contains("opencode-loopper-0.1.12.jar")
+                .contains("opencode-loopper-0.1.13.jar")
                 .contains("if %JAVA_MAJOR_NUMBER% LSS 21 goto java_too_old")
                 .contains("%OPENCODE_BASE_URL%/global/health")
-                .contains("serve --hostname 127.0.0.1 --port 4096")
+                .contains("cmd /d /c exit 7")
+                .contains("call :start_background \"Loopper OpenCode Server\"")
+                .contains("START is asynchronous and can preserve an earlier nonzero ERRORLEVEL on success")
                 .contains("goto opencode_start_timeout")
                 .contains("%WAIT_URL%/actuator/health")
-                .contains("-jar \"%JAR_PATH%\"");
+                .contains("-jar \"%JAR_PATH%\"")
+                .doesNotContain("if errorlevel 1 goto opencode_start_failed");
     }
 }

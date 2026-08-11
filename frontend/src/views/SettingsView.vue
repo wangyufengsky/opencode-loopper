@@ -13,6 +13,7 @@ const availableModels = ref<AvailableModel[]>([])
 const loading = ref(true)
 const saving = ref(false)
 const refreshingModels = ref(false)
+const switchingDemo = ref(false)
 const fieldError = ref('')
 const modelError = ref('')
 
@@ -76,6 +77,22 @@ async function save() {
   }
 }
 
+async function toggleDemo() {
+  switchingDemo.value = true
+  try {
+    if (store.usingDemo) {
+      await store.deactivateDemo()
+      if (store.error) ElMessage.error(`已退出演示数据，但实时数据加载失败：${store.error}`)
+      else ElMessage.success('已退出演示数据，恢复实时数据。')
+    } else {
+      store.activateDemo()
+      ElMessage.warning('已启用演示数据；该模式不会调用真实任务数据。')
+    }
+  } finally {
+    switchingDemo.value = false
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -113,7 +130,14 @@ onMounted(load)
         <p class="card-description" style="margin-top:16px">当前版本保持 fail-closed：外部路径、git push、显式 deny 与破坏性命令不会自动批准。</p>
       </article>
     </section>
-    <section class="card card-pad settings-demo"><div><p class="eyebrow">DEVELOPMENT DATA</p><h2 class="card-title">演示数据模式</h2></div><el-button :type="store.usingDemo ? 'warning' : 'primary'" plain @click="store.activateDemo('已手动启用演示数据。')">{{ store.usingDemo ? '演示数据已启用' : '启用演示数据' }}</el-button></section>
+    <section class="card card-pad settings-demo">
+      <div>
+        <p class="eyebrow">DEVELOPMENT DATA</p>
+        <h2 class="card-title">演示数据模式</h2>
+        <p class="card-description">{{ store.usingDemo ? '当前展示演示数据；退出后会立即重新加载本地服务的真实数据。' : '仅用于界面预览，不会调用真实任务数据。' }}</p>
+      </div>
+      <el-button :type="store.usingDemo ? 'warning' : 'primary'" plain :loading="switchingDemo" @click="toggleDemo">{{ store.usingDemo ? '退出演示数据' : '启用演示数据' }}</el-button>
+    </section>
   </main>
 </template>
 

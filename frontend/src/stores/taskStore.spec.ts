@@ -1,12 +1,15 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { demoTasks } from '@/mock/demoData'
+import { demoProjects, demoRuntime, demoTasks } from '@/mock/demoData'
 import { reduceTaskEvent, requiresTaskSnapshot, useTaskStore } from '@/stores/taskStore'
 
 const apiMocks = vi.hoisted(() => ({
   createTaskRecovery: vi.fn(),
   startTask: vi.fn(),
   deleteArchivedTask: vi.fn(),
+  getProjects: vi.fn(),
+  getTasks: vi.fn(),
+  getRuntime: vi.fn(),
 }))
 
 vi.mock('@/api/client', () => ({
@@ -85,5 +88,31 @@ describe('task SSE reducer', () => {
     expect(apiMocks.deleteArchivedTask).toHaveBeenCalledWith(archived.id)
     expect(store.tasks).toEqual([])
     expect(store.artifacts).toEqual([])
+  })
+
+  it('exits demo mode and reloads authoritative backend data', async () => {
+    const realProject = { ...demoProjects[0]!, id: 'real-project', name: '真实项目' }
+    const realTask = { ...demoTasks[0]!, id: 'real-task', projectId: realProject.id, title: '真实任务' }
+    const realRuntime = { ...demoRuntime, pid: 9001, endpoint: '127.0.0.1:4096' }
+    apiMocks.getProjects.mockResolvedValue([realProject])
+    apiMocks.getTasks.mockResolvedValue([realTask])
+    apiMocks.getRuntime.mockResolvedValue(realRuntime)
+    const store = useTaskStore()
+    store.error = '旧错误'
+
+    store.activateDemo()
+    expect(store.usingDemo).toBe(true)
+    expect(store.error).toBeUndefined()
+
+    await store.deactivateDemo()
+
+    expect(store.usingDemo).toBe(false)
+    expect(store.projects).toEqual([realProject])
+    expect(store.tasks).toEqual([realTask])
+    expect(store.runtime).toEqual(realRuntime)
+    expect(store.artifacts).toEqual([])
+    expect(apiMocks.getProjects).toHaveBeenCalledOnce()
+    expect(apiMocks.getTasks).toHaveBeenCalledOnce()
+    expect(apiMocks.getRuntime).toHaveBeenCalledOnce()
   })
 })
