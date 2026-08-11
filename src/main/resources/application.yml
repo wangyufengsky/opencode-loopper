@@ -10,7 +10,7 @@ spring:
           enabled: false
         protocol: STREAMABLE
         name: opencode-loopper
-        version: 0.1.4
+        version: 0.1.5
         type: SYNC
         instructions: >-
           Use the six Loopper tools only. Designer access is READ_ONLY; proposals synchronize
@@ -63,6 +63,8 @@ mybatis:
 loopper:
   data-dir: ${LOOPPER_DATA_DIR:./data}
   scheduling:
+    enabled: true
+  startup-recovery:
     enabled: true
   max-stage-attempts: 3
   max-task-attempts: 12

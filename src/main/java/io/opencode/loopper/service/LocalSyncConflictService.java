@@ -45,8 +45,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
-import org.springframework.boot.context.event.ApplicationReadyEvent;
-import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.ObjectMapper;
 
@@ -347,7 +345,6 @@ public class LocalSyncConflictService {
         }
     }
 
-    @EventListener(ApplicationReadyEvent.class)
     public void recoverInterruptedApplications() {
         for (LocalSyncConflictSessionRow session : mapper.recoverableLocalSyncConflictSessions()) {
             if (session.recoveryLogJson() == null || session.backupDir() == null) {

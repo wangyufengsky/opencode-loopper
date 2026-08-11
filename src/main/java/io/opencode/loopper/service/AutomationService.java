@@ -33,8 +33,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import org.springframework.context.event.EventListener;
-import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -213,7 +211,6 @@ public class AutomationService {
         }
     }
 
-    @EventListener(ApplicationReadyEvent.class)
     public void recoverAfterRestart() { poll(); }
 
     private void pollGitHead(AutomationRuleRow rule) {

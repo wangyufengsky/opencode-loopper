@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.1.4`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.1.5`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -108,7 +108,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.1.4.jar
+java -jar target/opencode-loopper-0.1.5.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -273,7 +273,7 @@ Git 隔离任务达到 `SUCCEEDED` 后：
 | `LOOPPER_JAR_PATH` | 自动查找当前版本 JAR | Linux 脚本使用的成品 JAR 路径 |
 | `LOOPPER_OPEN_BROWSER` | `true` | Linux 图形环境健康后是否自动打开浏览器 |
 
-更多尝试次数、超时和监控间隔可通过 Spring Boot 外部配置覆盖 `loopper.*` 属性；默认值见 [`src/main/resources/application.yml`](src/main/resources/application.yml)。UI 中的设置保存在本地 SQLite，并应用于新建 Session。
+更多尝试次数、超时和监控间隔可通过 Spring Boot 外部配置覆盖 `loopper.*` 属性；默认值见 [`src/main/resources/application.yml`](src/main/resources/application.yml)。生产环境默认启用 `loopper.scheduling.enabled` 和 `loopper.startup-recovery.enabled`，后者统一恢复中断任务、本地同步与自动化状态。UI 中的设置保存在本地 SQLite，并应用于新建 Session。
 
 ### OpenCode 运行模式
 
@@ -287,7 +287,7 @@ Git 隔离任务达到 `SUCCEEDED` 后：
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.1.4.jar`
+- `target/opencode-loopper-0.1.5.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -319,7 +319,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:4096
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.1.4.jar \
+jar tf target/opencode-loopper-0.1.5.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -397,7 +397,7 @@ Windows PowerShell：
 例如发布下一版本：
 
 ```bash
-VERSION=0.1.4
+VERSION=0.1.5
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -437,7 +437,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.1.4.jar
+java -jar target/opencode-loopper-0.1.5.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。

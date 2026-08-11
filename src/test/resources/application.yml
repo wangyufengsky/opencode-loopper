@@ -26,6 +26,10 @@ loopper:
   # race Flyway clean/migrate against the shared in-memory SQLite schema.
   scheduling:
     enabled: false
+  # Startup recovery is a separate ApplicationReady side effect. Integration
+  # tests invoke recovery methods explicitly against their own prepared rows.
+  startup-recovery:
+    enabled: false
   monitor-delay: 1h
   opencode:
     mode: fake

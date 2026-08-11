@@ -108,9 +108,11 @@ be isolated by an external Job Object, cgroup or container rather than trusted
 as a LoopSpec verifier.
 
 Production scheduling is enabled by default through
-`loopper.scheduling.enabled`. Integration tests disable only scheduled invocation
-while retaining monitor beans for explicit calls, preventing Flyway schema resets
-from racing background SQLite queries.
+`loopper.scheduling.enabled`, and durable ApplicationReady recovery is enabled by
+default through `loopper.startup-recovery.enabled`. Integration tests disable both
+automatic side-effect paths while retaining monitor and recovery services for
+explicit calls, preventing Flyway schema resets and prepared test rows from racing
+or contaminating another shared-SQLite ApplicationContext.
 
 File paths are execution-root-relative and symlink-safe. Stage allowed/forbidden
 path rules are advisory prompt context and never add an implicit acceptance

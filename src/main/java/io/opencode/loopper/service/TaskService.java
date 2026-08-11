@@ -47,8 +47,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import org.springframework.context.event.EventListener;
-import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
@@ -702,9 +700,6 @@ public class TaskService {
                     "recovery", "fresh_session"));
         }
     }
-
-    @EventListener(ApplicationReadyEvent.class)
-    public void onReady() { recoverAfterRestart(); }
 
     private void startNewAttempt(TaskRow task, StageRow inputStage, String prompt) {
         TaskRow freshTask = get(task.id());
