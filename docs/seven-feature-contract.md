@@ -69,6 +69,10 @@ Native types are `HTTP_STATUS`, `JSON_PATH`, `FILE_CONTENT`, `FILE_HASH`,
 only. Browser assertions are bounded and contain no arbitrary JavaScript. Browser
 executable discovery is explicit override, then process `PATH`, then standard OS
 locations; an invalid explicit override fails closed without fallback.
+`FILE_CONTENT.expectedContent` is preserved as authored after admission; leading
+or trailing whitespace and a final newline are not normalized away. `EXACT`
+compares that persisted UTF-8 text without trimming, while an all-whitespace
+expectation remains invalid as a missing acceptance contract.
 `PROCESS` remains a direct argv contract. Windows resolves project wrapper
 aliases from the Task root and bare programs through the Loopper process
 `PATH`/`PATHEXT`, then stores the actual absolute executable and resolution

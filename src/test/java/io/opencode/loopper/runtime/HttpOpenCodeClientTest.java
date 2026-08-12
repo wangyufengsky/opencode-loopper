@@ -87,6 +87,20 @@ class HttpOpenCodeClientTest {
     }
 
     @Test
+    void percentEncodesPlusInEveryDirectoryQueryValue() throws Exception {
+        LoopperProperties properties = new LoopperProperties();
+        properties.getOpenCode().setBaseUrl(new java.net.URI("http://127.0.0.1:" + server.getAddress().getPort()));
+        HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(), properties);
+        Path plusWorktree = Files.createDirectory(worktree.resolve("project+plus")).toRealPath();
+        createResponseDirectory.set(plusWorktree.toString());
+
+        OpenCodeClient.OpenCodeSession session = client.createSession(plusWorktree, "plus path", null);
+
+        assertThat(session.worktree()).isEqualTo(plusWorktree);
+        assertThat(lastPathAndQuery.get()).contains("project%2Bplus").doesNotContain("project+plus");
+    }
+
+    @Test
     void reusedSessionWaitsForAssistantReplyAfterItsLatestUserPrompt() throws Exception {
         LoopperProperties properties = new LoopperProperties();
         properties.getOpenCode().setBaseUrl(new java.net.URI("http://127.0.0.1:" + server.getAddress().getPort()));
@@ -268,7 +282,7 @@ class HttpOpenCodeClientTest {
     }
 
     private void session(HttpExchange exchange) throws IOException {
-        lastPathAndQuery.set(exchange.getRequestURI().getPath() + "?" + exchange.getRequestURI().getQuery());
+        lastPathAndQuery.set(exchange.getRequestURI().getPath() + "?" + exchange.getRequestURI().getRawQuery());
         sleep(responseDelayMillis.get());
         String path = exchange.getRequestURI().getPath();
         if (path.equals("/session")) {
@@ -302,7 +316,7 @@ class HttpOpenCodeClientTest {
         }
     }
     private void reply(HttpExchange exchange, String body) throws IOException {
-        lastPathAndQuery.set(exchange.getRequestURI().getPath() + "?" + exchange.getRequestURI().getQuery());
+        lastPathAndQuery.set(exchange.getRequestURI().getPath() + "?" + exchange.getRequestURI().getRawQuery());
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().add("Content-Type", "application/json");
         exchange.sendResponseHeaders(200, bytes.length);

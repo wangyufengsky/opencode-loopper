@@ -444,6 +444,19 @@ class VerifierEngineTest {
     }
 
     @Test
+    void fileContentExactPreservesAndMatchesTrailingNewline() throws Exception {
+        Files.writeString(directory.resolve("exact.txt"), "direct-mode-ok\n", StandardCharsets.UTF_8);
+        VerifierSpec spec = nativeSpec("FILE_CONTENT", "exact.txt", null, null, null, null, null,
+                "EXACT", "direct-mode-ok\n", null, null, null);
+
+        VerifierOutcome outcome = engine.verify(directory, "unused", spec, Duration.ofSeconds(5));
+
+        assertThat(spec.expectedContent()).isEqualTo("direct-mode-ok\n");
+        assertThat(outcome.state()).isEqualTo(VerificationState.PASS);
+        assertThat(outcome.evidence()).containsEntry("expectedContent", "direct-mode-ok\n");
+    }
+
+    @Test
     void nativeJunitAndSqliteVerifiersFailClosedForUnsafeInput() throws Exception {
         Files.writeString(directory.resolve("report.xml"), "<testsuite tests=\"2\" failures=\"0\" errors=\"0\" skipped=\"1\"/>");
         VerifierOutcome junit = engine.verify(directory, "unused", nativeSpec("JUNIT_XML", "report.xml", null, null, null, null, null, null, null, null, null, null), Duration.ofSeconds(5));

@@ -16,9 +16,11 @@ Verified locally on 2026-08-04 with `opencode serve --hostname 127.0.0.1
 | events | `GET /event` | SSE stream per published API |
 
 The adapter must always supply an explicit canonical `directory` query
-parameter and require the create response to confirm that exact canonical
-directory. A missing or mismatched response is a Session failure before any
-prompt is sent. A managed server must bind loopback and use Basic Auth.
+parameter as an encoded URI template value; reserved path characters such as
+`+` must be percent-encoded rather than interpreted with form semantics. The
+create response must confirm that exact canonical directory. A missing or
+mismatched response is a Session failure before any prompt is sent. A managed
+server must bind loopback and use Basic Auth.
 Passwords remain in process memory/environment and are never logged or persisted.
 
 ## Completion fallback observed with a real provider

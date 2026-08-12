@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.1.35`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.1.37`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -111,7 +111,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.1.35.jar
+java -jar target/opencode-loopper-0.1.37.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -217,7 +217,7 @@ REST/JSON/浏览器条件使用阶段 `verificationRuntime` 启动本次代码�
 | `GIT_DIFF` | 是否有改动、允许/禁止路径、禁止删除 | 必须在 LoopSpec 中显式声明 |
 | `HTTP_STATUS` | HTTP 状态码 | 仅 loopback URL；支持受限方法 |
 | `JSON_PATH` | loopback JSON 响应中的值 | 使用受限 JSONPath 和匹配模式 |
-| `FILE_CONTENT` | 文件内容精确或包含匹配 | 路径 containment 与大小受限 |
+| `FILE_CONTENT` | 文件内容精确或包含匹配 | 路径 containment 与大小受限；保留期望文本的尾随换行和空白 |
 | `FILE_HASH` | 文件 SHA-256 | 需要 64 位十六进制摘要 |
 | `JUNIT_XML` | JUnit XML 中的失败/错误 | 本地 XML 文件 |
 | `BROWSER` | CSS 选择器存在、可见、文本、数量或属性 | 仅 loopback；不允许任意 JavaScript；保存截图和 trace |
@@ -323,7 +323,7 @@ Git 任务分支达到 `SUCCEEDED` 后：
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.1.35.jar`
+- `target/opencode-loopper-0.1.37.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -354,7 +354,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:51234
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.1.35.jar`
+- `opencode-loopper-0.1.37.jar`
 - `start-windows.bat`
 
 确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
@@ -392,7 +392,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.1.35.jar \
+jar tf target/opencode-loopper-0.1.37.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -471,7 +471,7 @@ Windows PowerShell：
 例如发布下一版本：
 
 ```bash
-VERSION=0.1.35
+VERSION=0.1.37
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -511,7 +511,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.1.35.jar
+java -jar target/opencode-loopper-0.1.37.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。
@@ -563,6 +563,8 @@ echo %PATHEXT%
 `0.1.34` 起，`PROCESS TEST` 只接受精确的 Maven/Gradle/npm 可执行文件名，并在真正启动进程前再次拒绝拆分形式的跳过参数和 npm 可选脚本绕过。最终双 Judge 使用覆盖全部成功阶段的 v2 验证摘要；确认合同超过 96 KiB 或完整提示超过 128 KiB 时会在模型调用前停止并等待人工处理。Runtime 的启动和重启动作都要求本地 UI 标识，编辑器的启动/停止超时与阶段尝试次数上限与后端合同一致。
 
 `0.1.35` 起，每轮最终评审会先构造并校验本轮全部待启动角色的完整提示。Requirement 或 Risk 任一提示超过 128 KiB 时，整批评审都不会创建 Judge 记录、只读 Session 或发起模型调用，任务直接进入 `WAITING_INPUT`；本地 UI 发起的双评审重试遵循同一批次边界。
+
+`0.1.37` 修复真实环境发现的三个兼容性问题：OpenCode 的 canonical `directory` 查询值使用 URI 模板变量百分号编码，包含 `+` 的合法项目路径不再被解释为空格；`FILE_CONTENT EXACT` 保存并比较未裁剪的期望文本，包括尾随换行；扩展名为空的深层未知前端路由返回打包 SPA 并由 Vue Router 处理，同时 `/api`、`/actuator` 和静态资源缺失仍保持 404。
 
 ### 一直显示 remote busy / Agent 正在思考
 

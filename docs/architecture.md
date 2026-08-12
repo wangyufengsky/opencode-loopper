@@ -25,6 +25,9 @@ when Git HEAD is unavailable, directly inside that same registered root.
 Controllers accept validated DTOs and delegate to application services. Only
 repositories/mappers update SQLite. Process and HTTP details remain behind
 adapters so deterministic fakes can exercise the orchestration state machine.
+The web boundary forwards extensionless browser-history paths to the packaged
+SPA, including unknown deep links, but excludes API, actuator, asset, and
+file-extension namespaces so operational 404s are never replaced with HTML.
 
 Browser SSE is a best-effort projection of authoritative server state, not a
 runtime lifecycle input. Persisted Task events become eligible for live

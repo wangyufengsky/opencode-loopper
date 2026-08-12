@@ -41,10 +41,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.1.35.jar
-   jar tf target/opencode-loopper-0.1.35.jar \
+   test -s target/opencode-loopper-0.1.37.jar
+   jar tf target/opencode-loopper-0.1.37.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.1.35.jar
+   shasum -a 256 target/opencode-loopper-0.1.37.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -93,8 +93,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.1.35`。
-- 正式产物：`target/opencode-loopper-0.1.35.jar`。
+- Maven 项目版本：`0.1.37`。
+- 正式产物：`target/opencode-loopper-0.1.37.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -229,6 +229,7 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 - `GIT_DIFF` 只证明改动范围，不能作为一个阶段唯一的功能验证。
 - `FILE_EXISTS` 是兼容旧草稿的非阻断审计提示；不要为 Designer 新生成它。需要证明产物时，用会在缺失时非零退出的 `PROCESS` 自检，并可要求明确的 `outputContains` 标记。
 - `FILE_NOT_EXISTS` 只用于明确的安全不变量。
+- `FILE_CONTENT` 的 `expectedContent` 是精确文本合同；除纯空白输入仍按缺失拒绝外，不得裁剪首尾空白或尾随换行，`EXACT` 必须比较原始持久化文本。
 - v2 `PROCESS` 必须声明 `processPurpose`。compile/package/build/typecheck/lint/install 属于 `BUILD`；`TEST` 必须是未跳过测试的 Maven/Gradle/npm 测试命令并列出 `testTargets`；`SELF_CHECK` 必须有明确 `outputContains`。`GIT_DIFF`、`FILE_NOT_EXISTS`、`JUNIT_XML` 和 `FILE_EXISTS` 分别只属于范围、安全、报告和提示证据，不能覆盖行为条件。
 - Java 生产代码行为默认使用 `BOTH`，生产实现和聚焦 Maven/Gradle 单元测试放在同一阶段；计划测试目标可由该阶段新增，设计时不要求已存在，但不得使用缺失目标忽略参数制造成功。普通测试无法可靠表达时才使用 `SELF_CHECK`。草稿与运行时共用直接命令策略，拒绝 shell launcher/fragment、命令行塞入单个 executable、`java -e` 和 source-text search 伪行为证明。
 - v2 HTTP/JSON/BROWSER 条件只有绑定本阶段 `verificationRuntime` 和 `http://127.0.0.1:{{LOOPPER_PORT}}` 时才算行为覆盖。启动命令仍是无 shell argv，只允许 `{{LOOPPER_PORT}}`、`{{LOOPPER_TEMP}}`；固定 loopback 可作补充但不能证明本次代码已启动。
@@ -248,7 +249,7 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 - 有可用 Git HEAD：登记目录有未提交或未跟踪文件时，任务持有租约进入 `WAITING_INPUT`，本地 UI 显示具体文件并要求逐文件选择提交、stash 或移除；处理决定必须绑定分支、HEAD、索引、状态和内容快照，取消弹窗直接把任务标记为失败且不改文件。重新检查干净后，在登记目录本身创建并切换 `loopper/<任务名>`；本地或远端跟踪分支已有同名时从第二次起追加 `(第2次)`、`(第3次)`，Git 禁止字符确定性替换为 `-`，分支叶名称按 UTF-8 字节安全截断，并在截断后重新修正 `.lock` 等非法结尾。
 - 创建任务分支前以非交互方式 fetch 当前分支的 upstream/明确首选远端；远端线性领先时从远端最新提交创建任务。本地领先时保留本地提交；认证失败、fetch 失败或历史分叉必须 fail closed。未收到逐路径确认时禁止自动 stash、提交、覆盖或丢弃改动；移除操作必须二次确认。外部 Git 操作部分成功后不得伪造事务回滚，必须回读最新状态继续处理。
 - 原项目分支 checkout 使用独立 10 分钟有界超时和命令局部 `core.longpaths=true`；短 Git 检查仍使用 30 秒边界，失败诊断保留输出尾部。
-- OpenCode 创建 Session 后必须回报与登记项目根一致的规范执行目录，缺失或不一致时不得发送实施提示；实施提示明确 AgentBridge、搜索、命令和验证器都使用该目录及当前任务分支。
+- OpenCode 的 canonical `directory` 查询值必须作为 URI 模板变量百分号编码，禁止让合法路径中的 `+` 被表单语义解码为空格；创建 Session 后必须回报与登记项目根一致的规范执行目录，缺失或不一致时不得发送实施提示；实施提示明确 AgentBridge、搜索、命令和验证器都使用该目录及当前任务分支。
 - 无可用 Git HEAD：直接使用登记根目录，并在 `direct-baselines/<taskId>` 保存私有 Git-compatible 基线；不得在用户项目中隐式初始化或提交 Git。
 - 所有路径 canonicalize 后进行 containment 和符号链接检查。
 - 同一登记 root（Git 或 Direct）同时只能有一个未释放写租约；旧写入者状态未知时保持租约并阻断 Recovery/Automation。Git 任务仍有未提交文件改动时保留租约；用户确认提交后恢复任务开始前的源分支并释放租约，有排队任务时再切换到下一任务分支。
@@ -308,6 +309,7 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 - Runtime 显式启动和重启都必须携带本地 UI 标识，服务端须在检查进程所有权或执行副作用前验证；LoopSpec 编辑器的数值上限必须与领域 Bean Validation 一致（启动 300 秒、停止 60 秒、单阶段尝试 20 次）。
 - 每个行为变化都在相邻 `.spec.ts` 中增加回归测试；路由级关键流程再考虑 `frontend/e2e/`。
 - UI 图标必须使用项目已打包的 Iconify/Lucide 资源，不依赖外网 CDN。
+- Spring SPA fallback 必须接住无扩展名的深层前端 history 路由；`/api`、`/actuator`、`/assets` 和带文件扩展名的静态资源路径不得被改写为 `index.html`。
 
 ## 8. 测试与验证策略
 
@@ -348,7 +350,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.1.35.jar
+JAR=target/opencode-loopper-0.1.37.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -479,3 +481,4 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 | 2026-08-12 | Designer 机器验收与最终 AI Judge 双重计划并发布 0.1.32 | LoopSpec v2 条件支持 `MACHINE`、`JUDGE`、`BOTH`；Java 默认同阶段聚焦 Maven/Gradle 单元测试与最终 Judge；统一拒绝 shell、`java -e`、源码搜索和可跳过目标的伪行为验证，同时保留带空格的直接可执行路径；同步 README、架构、设计与验证器合同 | 聚焦 Java 51/51、Vitest 139/139；首次完整验证因既有本地同步并发用例时序失败，单独复跑通过；最终 `./scripts/verify.sh`：Java 315 项中 314 通过、Windows 条件用例 1 项跳过，Vitest 139/139，BUILD SUCCESS；隔离 JAR 在 18087 实测 health、打包 SPA、`BOTH`/`JUDGE` 评估与 `java -e` 拒绝，关闭后无监听残留；JAR 262726851 bytes，SHA-256 `fc0496c81d6c0207db968c7c6889a2c62cced40dc58a35f63be5ce1f53ae308d`；发布目标：`v0.1.32` |
 | 2026-08-12 | 修复验收边界并发布 0.1.34 | PROCESS TEST 精确识别并在执行前复核；Judge 汇总全部阶段证据并增加双层 UTF-8 预算；LoopSpec 空字段分析返回错误而非异常；Runtime 重启要求本地 UI；前端数值上限与后端一致；同步 README、架构、设计与验证器合同 | 聚焦 Java 91/91、Vitest 37/37；`0.1.33` 首次完整验证因 2 处旧版本断言失败后按规则递增；最终 `./scripts/verify.sh`：Java 322 项中 321 通过、Windows 条件用例 1 项跳过，Vitest 140/140，BUILD SUCCESS；隔离 JAR PID 33181 监听 `127.0.0.1:62813`，health `UP`、返回打包 SPA、Runtime 重启本地 UI 边界生效，退出后端口释放；JAR 262733264 bytes，SHA-256 `7530f5d87293e871f4ad76cdd33b83117e52d6fdce1093d96dd3b1945b1fd9a9`；发布目标：`v0.1.34` |
 | 2026-08-12 | 修复双 Judge 提示预算原子预检并发布 0.1.35 | 每轮先构造并校验全部待启动角色提示；任一角色超过 128 KiB 时，整批不创建 Judge 记录、只读 Session 或模型调用；显式双评审重试遵循同一边界；同步 README、架构、设计与七特性合同 | 聚焦 Java 71/71；`./scripts/verify.sh`：Java 323 项中 322 通过、Windows 条件用例 1 项跳过，Vitest 140/140，BUILD SUCCESS；JAR 262733719 bytes，SHA-256 `75c3e9759921c234324ab94954bacf378b3e39ffa56dde515c6eef027e22dee3`；未启动运行时；发布目标：`v0.1.35` |
+| 2026-08-13 | 修复真实环境三项缺陷并发布 0.1.37 | OpenCode 目录查询编码保留 `+`；FILE_CONTENT 保留尾随换行；深层无扩展名路由进入 SPA 且后端/静态 404 不变；同步 README、架构、设计、OpenCode 与验证器合同 | 聚焦缺陷回归 Java 41/41、Vitest 140/140；首次 0.1.36 运行时复测发现 catch-all 抢占静态资源，补全真实 Spring MVC 集成覆盖后，`./scripts/verify.sh` 在 JDK 21 下 Java 325 项通过 324、跳过 1，Vitest 140/140，BUILD SUCCESS；`target/opencode-loopper-0.1.37.jar` 262734548 bytes，SHA-256 `19cf7f18aa6ba203bd835218cba6e27f7f68150685ad28b87fc2fc50685af25f`；真实 JAR 回归：含 `+` 项目路径的 AGENTS 只读生成进入 READY，15-byte 尾随 LF 的 FILE_CONTENT EXACT 任务 SUCCEEDED/PASS，SPA 根路由/深链/打包资产为 200 且 API、Actuator、缺失资产与文件式路径为 404；临时 JVM/OpenCode 已停止且端口释放；发布目标：`v0.1.37` |

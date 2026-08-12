@@ -109,7 +109,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
                 permissions.add(permissionRule("task", "*", "deny"));
             }
             request.put("permission", permissions);
-            JsonNode body = client().post().uri(uri -> uri.path("/session").queryParam("directory", canonical.toString()).build())
+            JsonNode body = client().post().uri(uri -> directoryUri(uri, "/session", canonical))
                     .contentType(MediaType.APPLICATION_JSON).body(request)
                     .retrieve().body(JsonNode.class);
             String id = body == null ? null : body.path("id").asText(null);
@@ -137,13 +137,13 @@ public class HttpOpenCodeClient implements OpenCodeClient {
     }
     @Override public void promptAsync(OpenCodeSession session, String prompt) {
         try {
-            client().post().uri(uri -> uri.path("/session/{id}/prompt_async").queryParam("directory", session.worktree().toString()).build(session.id())).contentType(MediaType.APPLICATION_JSON)
+            client().post().uri(uri -> sessionUri(uri, "/session/{id}/prompt_async", session)).contentType(MediaType.APPLICATION_JSON)
                     .body(Map.of("parts", java.util.List.of(Map.of("type", "text", "text", prompt)))).retrieve().toBodilessEntity();
         } catch (RuntimeException e) { throw new SessionFailure("OPENCODE_PROMPT_FAILED", e.getMessage()); }
     }
     @Override public SessionStatus sessionStatus(OpenCodeSession session) {
         try {
-            JsonNode body = client().get().uri(uri -> uri.path("/session/status").queryParam("directory", session.worktree().toString()).build())
+            JsonNode body = client().get().uri(uri -> directoryUri(uri, "/session/status", session.worktree()))
                     .retrieve().body(JsonNode.class);
             JsonNode entry = body == null ? null : body.get(session.id());
             if (entry == null || entry.isNull()) {
@@ -249,8 +249,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
 
     @Override public List<PendingQuestion> pendingQuestions(OpenCodeSession session) {
         try {
-            JsonNode body = client().get().uri(uri -> uri.path("/question")
-                            .queryParam("directory", session.worktree().toString()).build())
+            JsonNode body = client().get().uri(uri -> directoryUri(uri, "/question", session.worktree()))
                     .retrieve().body(JsonNode.class);
             JsonNode requests = body != null && body.isArray() ? body : body == null ? null : body.path("data");
             if (requests == null || !requests.isArray()) {
@@ -286,24 +285,23 @@ public class HttpOpenCodeClient implements OpenCodeClient {
 
     @Override public void replyQuestion(OpenCodeSession session, String requestId, List<List<String>> answers) {
         try {
-            client().post().uri(uri -> uri.path("/question/{requestId}/reply")
-                            .queryParam("directory", session.worktree().toString()).build(requestId))
+            client().post().uri(uri -> directoryUri(uri, "/question/{requestId}/reply", session.worktree(),
+                            Map.of("requestId", requestId)))
                     .contentType(MediaType.APPLICATION_JSON).body(Map.of("answers", answers)).retrieve().toBodilessEntity();
         } catch (RuntimeException e) { throw new SessionFailure("OPENCODE_QUESTION_REPLY_FAILED", e.getMessage()); }
     }
 
     @Override public void rejectQuestion(OpenCodeSession session, String requestId) {
         try {
-            client().post().uri(uri -> uri.path("/question/{requestId}/reject")
-                            .queryParam("directory", session.worktree().toString()).build(requestId))
+            client().post().uri(uri -> directoryUri(uri, "/question/{requestId}/reject", session.worktree(),
+                            Map.of("requestId", requestId)))
                     .retrieve().toBodilessEntity();
         } catch (RuntimeException e) { throw new SessionFailure("OPENCODE_QUESTION_REJECT_FAILED", e.getMessage()); }
     }
 
     @Override public List<PendingPermission> pendingPermissions(OpenCodeSession session) {
         try {
-            JsonNode body = client().get().uri(uri -> uri.path("/permission")
-                            .queryParam("directory", session.worktree().toString()).build())
+            JsonNode body = client().get().uri(uri -> directoryUri(uri, "/permission", session.worktree()))
                     .retrieve().body(JsonNode.class);
             JsonNode requests = listBody(body);
             if (requests == null) {
@@ -336,8 +334,8 @@ public class HttpOpenCodeClient implements OpenCodeClient {
                 case REJECT -> "reject";
             });
             if (message != null && !message.isBlank()) request.put("message", message);
-            client().post().uri(uri -> uri.path("/permission/{requestId}/reply")
-                            .queryParam("directory", session.worktree().toString()).build(requestId))
+            client().post().uri(uri -> directoryUri(uri, "/permission/{requestId}/reply", session.worktree(),
+                            Map.of("requestId", requestId)))
                     .contentType(MediaType.APPLICATION_JSON).body(request).retrieve().toBodilessEntity();
         } catch (SessionFailure e) { throw e; }
         catch (RuntimeException e) { throw new SessionFailure("OPENCODE_PERMISSION_REPLY_FAILED", e.getMessage()); }
@@ -345,8 +343,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
 
     @Override public List<SessionTodo> sessionTodos(OpenCodeSession session) {
         try {
-            JsonNode body = client().get().uri(uri -> uri.path("/session/{id}/todo")
-                            .queryParam("directory", session.worktree().toString()).build(session.id()))
+            JsonNode body = client().get().uri(uri -> sessionUri(uri, "/session/{id}/todo", session))
                     .retrieve().body(JsonNode.class);
             JsonNode todos = listBody(body);
             if (todos == null) throw new SessionFailure("OPENCODE_TODO_INVALID_RESPONSE", "OpenCode did not return a todo list");
@@ -367,8 +364,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
         try {
             Map<String, Object> request = new LinkedHashMap<>();
             if (messageId != null && !messageId.isBlank()) request.put("messageID", messageId);
-            JsonNode body = client().post().uri(uri -> uri.path("/session/{id}/fork")
-                            .queryParam("directory", session.worktree().toString()).build(session.id()))
+            JsonNode body = client().post().uri(uri -> sessionUri(uri, "/session/{id}/fork", session))
                     .contentType(MediaType.APPLICATION_JSON).body(request).retrieve().body(JsonNode.class);
             String id = body == null ? null : body.path("id").asText(null);
             if (id == null && body != null) id = body.path("session").path("id").asText(null);
@@ -384,8 +380,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
             Map<String, Object> request = new LinkedHashMap<>();
             request.put("messageID", messageId);
             if (partId != null && !partId.isBlank()) request.put("partID", partId);
-            client().post().uri(uri -> uri.path("/session/{id}/revert")
-                            .queryParam("directory", session.worktree().toString()).build(session.id()))
+            client().post().uri(uri -> sessionUri(uri, "/session/{id}/revert", session))
                     .contentType(MediaType.APPLICATION_JSON).body(request).retrieve().toBodilessEntity();
         } catch (SessionFailure e) { throw e; }
         catch (RuntimeException e) { throw new SessionFailure("OPENCODE_REVERT_FAILED", e.getMessage()); }
@@ -399,8 +394,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
                 request.put("modelID", model.modelId());
             }
             request.put("auto", automatic);
-            client().post().uri(uri -> uri.path("/session/{id}/summarize")
-                            .queryParam("directory", session.worktree().toString()).build(session.id()))
+            client().post().uri(uri -> sessionUri(uri, "/session/{id}/summarize", session))
                     .contentType(MediaType.APPLICATION_JSON).body(request).retrieve().toBodilessEntity();
         } catch (SessionFailure e) { throw e; }
         catch (RuntimeException e) { throw new SessionFailure("OPENCODE_SUMMARIZE_FAILED", e.getMessage()); }
@@ -532,7 +526,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
     }
 
     private JsonNode sessionMessages(OpenCodeSession session) {
-        JsonNode body = client().get().uri(uri -> uri.path("/session/{id}/message").queryParam("directory", session.worktree().toString()).build(session.id()))
+        JsonNode body = client().get().uri(uri -> sessionUri(uri, "/session/{id}/message", session))
                 .retrieve().body(JsonNode.class);
         JsonNode messages = body != null && body.isArray() ? body : body == null ? null : body.path("data");
         if (messages == null || !messages.isArray()) throw new SessionFailure("OPENCODE_OUTPUT_MISSING", "OpenCode did not return a message list");
@@ -589,13 +583,25 @@ public class HttpOpenCodeClient implements OpenCodeClient {
     }
     @Override public String diff(OpenCodeSession session) {
         try {
-            return client().get().uri(uri -> uri.path("/session/{id}/diff").queryParam("directory", session.worktree().toString()).build(session.id()))
+            return client().get().uri(uri -> sessionUri(uri, "/session/{id}/diff", session))
                     .retrieve().body(String.class);
         } catch (RuntimeException e) { throw new SessionFailure("OPENCODE_DIFF_FAILED", e.getMessage()); }
     }
     @Override public void abort(OpenCodeSession session) {
-        try { client().post().uri(uri -> uri.path("/session/{id}/abort").queryParam("directory", session.worktree().toString()).build(session.id())).retrieve().toBodilessEntity(); }
+        try { client().post().uri(uri -> sessionUri(uri, "/session/{id}/abort", session)).retrieve().toBodilessEntity(); }
         catch (RuntimeException e) { throw new SessionFailure("OPENCODE_ABORT_FAILED", e.getMessage()); }
+    }
+    private static URI sessionUri(org.springframework.web.util.UriBuilder uri, String path, OpenCodeSession session) {
+        return directoryUri(uri, path, session.worktree(), Map.of("id", session.id()));
+    }
+    private static URI directoryUri(org.springframework.web.util.UriBuilder uri, String path, Path directory) {
+        return directoryUri(uri, path, directory, Map.of());
+    }
+    private static URI directoryUri(org.springframework.web.util.UriBuilder uri, String path, Path directory,
+                                    Map<String, ?> pathVariables) {
+        Map<String, Object> variables = new LinkedHashMap<>(pathVariables);
+        variables.put("directory", directory.toString());
+        return uri.path(path).queryParam("directory", "{directory}").build(variables);
     }
     private RestClient client() {
         ConnectionDetails connection = connectionSupplier.get();

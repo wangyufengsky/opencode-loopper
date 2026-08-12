@@ -49,6 +49,14 @@ contrast.
 - Log viewer, Diff viewer and evidence panel
 - Approval dialog and empty/loading states
 
+## Browser history fallback
+
+The packaged Spring application forwards every extensionless Vue history path,
+including an unknown multi-segment path, to `index.html`; Vue Router then applies
+its own not-found redirect. The catch-all must not turn missing `/api`,
+`/actuator`, `/assets`, or file-extension URLs into HTML, so backend and static
+resource errors remain observable as HTTP 404 responses.
+
 ## Error presentation invariant
 
 1. Field errors remain inline and do not change runtime state.

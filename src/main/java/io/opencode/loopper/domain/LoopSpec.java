@@ -167,7 +167,7 @@ public record LoopSpec(
             expectedValue = blankToNull(expectedValue);
             matchMode = blankToNull(matchMode);
             matchMode = matchMode == null ? null : matchMode.toUpperCase();
-            expectedContent = blankToNull(expectedContent);
+            expectedContent = blankPreservingToNull(expectedContent);
             expectedSha256 = blankToNull(expectedSha256);
             expectedSha256 = expectedSha256 == null ? null : expectedSha256.toLowerCase();
             sql = blankToNull(sql);
@@ -243,5 +243,8 @@ public record LoopSpec(
     }
     private static String blankToNull(String input) {
         return input == null || input.isBlank() ? null : input.trim();
+    }
+    private static String blankPreservingToNull(String input) {
+        return input == null || input.isBlank() ? null : input;
     }
 }
