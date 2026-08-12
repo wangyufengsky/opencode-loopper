@@ -31,6 +31,7 @@ import org.springframework.web.client.RestClient;
  */
 public final class OpenCodeRuntimeManager implements AutoCloseable {
     private static final Duration POLL_INTERVAL = Duration.ofMillis(150);
+    private static final Duration STARTUP_PROBE_TIMEOUT = Duration.ofSeconds(1);
     private static final String MANAGED_PERMISSION_CONFIG = """
             {"permission":{"external_directory":"deny","bash":{"git commit":"deny","git commit *":"deny","git push":"deny","git push *":"deny","git reset --hard*":"deny","rm -rf*":"deny"}}}
             """.strip();
@@ -43,6 +44,7 @@ public final class OpenCodeRuntimeManager implements AutoCloseable {
     private volatile Connection connection;
     private volatile ManagedProcess owned;
     private volatile String lastStartFailure;
+    private volatile URI lastAttemptedEndpoint;
 
     public OpenCodeRuntimeManager(LoopperProperties properties) {
         this(properties, OpenCodeRuntimeManager::startProcess, Clock.systemUTC());
@@ -56,8 +58,8 @@ public final class OpenCodeRuntimeManager implements AutoCloseable {
 
     /**
      * Returns the connection for the HTTP adapter. A failed local launch leaves
-     * the app up and returns the configured endpoint, so a later restart/status
-     * check can recover and task transport faults remain session-layer errors.
+     * the app up but fails closed on an unused loopback endpoint. A failed
+     * launch is retried only through the explicit local-UI start action.
      */
     public Connection connectionForClient() {
         synchronized (monitor) {
@@ -73,12 +75,16 @@ public final class OpenCodeRuntimeManager implements AutoCloseable {
     public RuntimeSnapshot status() {
         synchronized (monitor) {
             if (mode() == Mode.FAKE) {
-                return new RuntimeSnapshot("AVAILABLE", "fake", false, null, configuredConnection().endpoint().toString(), model(), now());
+                return new RuntimeSnapshot("AVAILABLE", "fake", false, null, configuredConnection().endpoint().toString(), model(), now(), null);
             }
             if (mode() == Mode.HTTP && !isSafeLoopback(configuredConnection().endpoint())) {
-                return new RuntimeSnapshot("OFFLINE", null, false, null, "loopback-host-required", model(), now());
+                return new RuntimeSnapshot("OFFLINE", null, false, null, "loopback-host-required", model(), now(), null);
             }
             if (mode() == Mode.AUTO) ensureAutoStarted(false);
+            if (mode() == Mode.AUTO && lastStartFailure != null && owned == null) {
+                return new RuntimeSnapshot("OFFLINE", null, false, null,
+                        lastAttemptedEndpoint == null ? null : lastAttemptedEndpoint.toString(), model(), now(), lastStartFailure);
+            }
             Connection target = connection == null ? configuredConnection() : connection;
             Health health = probe(target);
             ManagedProcess local = owned;
@@ -86,7 +92,7 @@ public final class OpenCodeRuntimeManager implements AutoCloseable {
             boolean managed = local != null && processAlive;
             Long pid = managed ? local.process().pid() : null;
             String status = health.healthy() && processAlive ? "AVAILABLE" : "OFFLINE";
-            return new RuntimeSnapshot(status, health.version(), managed, pid, target.endpoint().toString(), model(), now());
+            return new RuntimeSnapshot(status, health.version(), managed, pid, target.endpoint().toString(), model(), now(), null);
         }
     }
 
@@ -103,6 +109,23 @@ public final class OpenCodeRuntimeManager implements AutoCloseable {
         }
     }
 
+    /** Explicit local-UI recovery after a managed auto launch failed. */
+    public RuntimeSnapshot startAndCheck() {
+        synchronized (monitor) {
+            if (mode() != Mode.AUTO) {
+                throw new IllegalStateException("Only auto mode can start a managed OpenCode runtime");
+            }
+            if (owned != null && owned.process().isAlive()) return status();
+            connection = null;
+            lastStartFailure = null;
+            lastAttemptedEndpoint = null;
+            ensureAutoStarted(true);
+            return status();
+        }
+    }
+
+    public boolean manuallyStartable() { return mode() == Mode.AUTO; }
+
     public boolean restartable() {
         ManagedProcess local = owned;
         return mode() == Mode.AUTO && local != null && local.process().isAlive();
@@ -117,22 +140,24 @@ public final class OpenCodeRuntimeManager implements AutoCloseable {
             return;
         }
         if (owned != null) owned = null;
+        if (!force && lastStartFailure != null) return;
         if (!force && connection != null && !connection.managed() && probe(connection).healthy()) return;
 
         Connection configured = configuredConnection();
-        Connection fallback = isSafeLoopback(configured.endpoint()) ? configured : unavailableLoopbackConnection();
         if (isSafeLoopback(configured.endpoint()) && probe(configured).healthy()) {
             connection = configured.asExternal();
             lastStartFailure = null;
+            lastAttemptedEndpoint = null;
             return;
         }
         try {
+            lastAttemptedEndpoint = null;
             startOwned();
             lastStartFailure = null;
         } catch (RuntimeException e) {
             // Do not include command output or generated credentials in status/API data.
             lastStartFailure = safeFailure(e);
-            connection = fallback;
+            connection = unavailableLoopbackConnection();
         }
     }
 
@@ -140,6 +165,7 @@ public final class OpenCodeRuntimeManager implements AutoCloseable {
         Path executable = findExecutable();
         int port = reserveLoopbackPort();
         URI endpoint = URI.create("http://127.0.0.1:" + port);
+        lastAttemptedEndpoint = endpoint;
         String username = "loopper";
         String password = randomSecret();
         Connection candidate = new Connection(endpoint, username, password, true);
@@ -155,20 +181,23 @@ public final class OpenCodeRuntimeManager implements AutoCloseable {
             throw new IllegalStateException("Unable to start local OpenCode executable", e);
         }
         ManagedProcess started = new ManagedProcess(process, candidate);
-        Instant deadline = now().plus(properties.getOpenCode().getStartupTimeout());
-        while (now().isBefore(deadline)) {
-            if (!process.isAlive()) {
-                throw new IllegalStateException("Managed OpenCode exited before it became healthy");
+        try {
+            Instant deadline = now().plus(properties.getOpenCode().getStartupTimeout());
+            while (now().isBefore(deadline)) {
+                if (!process.isAlive()) {
+                    throw new IllegalStateException("Managed OpenCode exited with code " + process.exitValue() + " before it became healthy");
+                }
+                if (probe(candidate, startupProbeTimeout(deadline)).healthy()) {
+                    owned = started;
+                    connection = candidate;
+                    return;
+                }
+                sleepBriefly();
             }
-            if (probe(candidate).healthy()) {
-                owned = started;
-                connection = candidate;
-                return;
-            }
-            sleepBriefly();
+            throw new IllegalStateException("Managed OpenCode did not become healthy before startup-timeout");
+        } finally {
+            if (owned != started) terminate(process);
         }
-        terminate(process);
-        throw new IllegalStateException("Managed OpenCode did not become healthy before startup-timeout");
     }
 
     private Path findExecutable() {
@@ -222,9 +251,17 @@ public final class OpenCodeRuntimeManager implements AutoCloseable {
     }
 
     private Health probe(Connection target) {
+        return probe(target, properties.getOpenCode().getConnectTimeout(), properties.getOpenCode().getRequestTimeout());
+    }
+
+    private Health probe(Connection target, Duration timeout) {
+        return probe(target, timeout, timeout);
+    }
+
+    private Health probe(Connection target, Duration connectTimeout, Duration requestTimeout) {
         try {
-            RestClient.Builder builder = OpenCodeHttpTransport.bounded(RestClient.builder(), properties.getOpenCode().getConnectTimeout(),
-                    properties.getOpenCode().getRequestTimeout()).baseUrl(target.endpoint().toString());
+            RestClient.Builder builder = OpenCodeHttpTransport.bounded(RestClient.builder(), connectTimeout, requestTimeout)
+                    .baseUrl(target.endpoint().toString());
             if (!blank(target.username())) builder.defaultHeaders(headers -> headers.setBasicAuth(target.username(), target.password()));
             var body = builder.build().get().uri("/global/health").accept(MediaType.APPLICATION_JSON).retrieve().body(tools.jackson.databind.JsonNode.class);
             boolean healthy = body != null && body.path("healthy").asBoolean(false);
@@ -232,6 +269,12 @@ public final class OpenCodeRuntimeManager implements AutoCloseable {
         } catch (RuntimeException ignored) {
             return new Health(false, null);
         }
+    }
+
+    private Duration startupProbeTimeout(Instant deadline) {
+        Duration remaining = Duration.between(now(), deadline);
+        if (remaining.isNegative() || remaining.isZero()) return Duration.ofMillis(1);
+        return remaining.compareTo(STARTUP_PROBE_TIMEOUT) < 0 ? remaining : STARTUP_PROBE_TIMEOUT;
     }
 
     private Connection configuredConnection() {
@@ -311,5 +354,6 @@ public final class OpenCodeRuntimeManager implements AutoCloseable {
     public record Connection(URI endpoint, String username, String password, boolean managed) {
         Connection asExternal() { return new Connection(endpoint, username, password, false); }
     }
-    public record RuntimeSnapshot(String status, String version, boolean managed, Long pid, String endpoint, String model, Instant checkedAt) { }
+    public record RuntimeSnapshot(String status, String version, boolean managed, Long pid, String endpoint,
+                                  String model, Instant checkedAt, String startupFailure) { }
 }

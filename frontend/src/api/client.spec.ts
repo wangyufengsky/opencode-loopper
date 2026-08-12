@@ -76,7 +76,7 @@ describe('Loopper REST contract adapter', () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(json({ id: 'draft-1', status: 'DRAFT_READY', updatedAt: 'now', spec }, 201))
       .mockResolvedValueOnce(json({ taskId: 'task-1' }))
-      .mockResolvedValueOnce(json({ status: 'AVAILABLE', managed: true, endpoint: 'http://127.0.0.1:4096', checkedAt: 'now' }))
+      .mockResolvedValueOnce(json({ status: 'OFFLINE', managed: false, endpoint: 'http://127.0.0.1:51234', checkedAt: 'now', startupFailure: 'Managed OpenCode exited with code 1 before it became healthy' }))
     vi.stubGlobal('fetch', fetchMock)
 
     await api.createDraft(spec)
@@ -85,7 +85,10 @@ describe('Loopper REST contract adapter', () => {
     expect(createBody.spec.stages[0].verifiers).toEqual(spec.stages[0]?.verifiers)
 
     await expect(api.confirmDraft('draft-1')).resolves.toEqual({ taskId: 'task-1' })
-    await expect(api.getRuntime()).resolves.toMatchObject({ status: 'ONLINE', managed: true })
+    await expect(api.getRuntime()).resolves.toMatchObject({
+      status: 'OFFLINE', managed: false, endpoint: 'http://127.0.0.1:51234',
+      startupFailure: 'Managed OpenCode exited with code 1 before it became healthy',
+    })
   })
 
   it('loads and persists settings with a dynamic model catalog', async () => {
@@ -103,6 +106,51 @@ describe('Loopper REST contract adapter', () => {
     expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/settings/models?cliPath=opencode')
     expect(fetchMock.mock.calls[2]?.[0]).toBe('/api/settings')
     expect(fetchMock.mock.calls[2]?.[1]).toMatchObject({ method: 'PUT' })
+  })
+
+  it('starts and checks OpenCode only through the explicit local UI endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(json({
+      status: 'AVAILABLE', managed: true, pid: 6400, endpoint: 'http://127.0.0.1:34020',
+      version: '1.18.16', checkedAt: '2026-08-12T06:30:00Z',
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(api.startRuntime()).resolves.toMatchObject({ status: 'ONLINE', managed: true, pid: 6400 })
+    expect(fetchMock).toHaveBeenCalledWith('/api/runtime/opencode/start', expect.objectContaining({
+      method: 'POST',
+      headers: expect.objectContaining({ 'X-Loopper-Local-UI': '1' }),
+    }))
+  })
+
+  it('round-trips snapshot-bound dirty-workspace decisions through local UI endpoints', async () => {
+    const workspace = {
+      branch: 'main', head: 'abc123', snapshotId: 'snapshot-1', clean: false,
+      files: [{ path: 'README.md', originalPath: null, indexStatus: ' ', workTreeStatus: 'M', untracked: false }],
+    }
+    const readyTask = {
+      id: 'task-1', projectId: 'project-1', projectName: 'Example', title: 'Task', goal: '',
+      branch: 'loopper/Task', worktreePath: '/tmp/example', status: 'READY', waitingReasonCode: null,
+      loopRetryAvailable: false, hasDesignHistory: true, archived: false, attemptCount: 0, maxAttempts: 3,
+      createdAt: 'now', updatedAt: 'later', stages: [], attempts: [], errors: [], judges: [], artifacts: [],
+    }
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json(workspace))
+      .mockResolvedValueOnce(json({ task: readyTask, workspace: { ...workspace, clean: true, files: [] } }))
+      .mockResolvedValueOnce(json({ ...readyTask, status: 'FAILED', branch: null, worktreePath: null }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(api.getDirtyWorkspace('task 1')).resolves.toMatchObject({ snapshotId: 'snapshot-1', files: [{ path: 'README.md' }] })
+    await expect(api.resolveDirtyWorkspace('task 1', {
+      snapshotId: 'snapshot-1', resolutions: [{ path: 'README.md', action: 'COMMIT' }], commitMessage: 'save work',
+    })).resolves.toMatchObject({ task: { status: 'READY' }, workspace: { clean: true } })
+    await expect(api.cancelDirtyWorkspace('task 1')).resolves.toMatchObject({ status: 'FAILED' })
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/tasks/task%201/workspace-dirty')
+    expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({ method: 'POST', headers: expect.objectContaining({ 'X-Loopper-Local-UI': '1' }) })
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({
+      snapshotId: 'snapshot-1', resolutions: [{ path: 'README.md', action: 'COMMIT' }], commitMessage: 'save work',
+    })
+    expect(fetchMock.mock.calls[2]?.[1]).toMatchObject({ method: 'POST', headers: expect.objectContaining({ 'X-Loopper-Local-UI': '1' }) })
   })
 
   it('round-trips structured verifier rules without converting them to PROCESS', async () => {

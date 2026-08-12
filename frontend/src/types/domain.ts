@@ -60,6 +60,7 @@ export interface RuntimeInfo {
   endpoint?: string
   model?: string
   checkedAt: string
+  startupFailure?: string
 }
 
 export interface AppSettings {
@@ -89,6 +90,30 @@ export interface ErrorEvent {
   occurredAt: string
   evidenceId?: string
   sessionId?: string
+  evidence?: Record<string, unknown>
+}
+
+export type DirtyWorkspaceAction = 'COMMIT' | 'STASH' | 'REMOVE'
+
+export interface DirtyWorkspaceFile {
+  path: string
+  originalPath?: string
+  indexStatus: string
+  workTreeStatus: string
+  untracked: boolean
+}
+
+export interface DirtyWorkspaceState {
+  branch: string
+  head: string
+  snapshotId: string
+  clean: boolean
+  files: DirtyWorkspaceFile[]
+}
+
+export interface DirtyWorkspaceResolution {
+  task: Task
+  workspace: DirtyWorkspaceState
 }
 
 export interface VerifierResult {

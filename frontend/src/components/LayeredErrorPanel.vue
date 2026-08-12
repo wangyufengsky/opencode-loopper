@@ -64,6 +64,7 @@ function judgeSummary(judge: JudgeRun) {
     <div>
       <h3 v-if="error.layer === 'SESSION'">当前 Session 已结束，新 Session 将继续 Loop</h3>
       <h3 v-else-if="error.layer === 'VERIFICATION'">验证未通过，平台将携带证据进入下一轮</h3>
+      <h3 v-else-if="error.code === 'SOURCE_BRANCH_WORKSPACE_DIRTY'">检测到未提交文件，等待人工处理</h3>
       <h3 v-else>Task 已终止，后续 Session 不会再创建</h3>
       <p>{{ error.message }}</p>
       <p class="mono tiny">{{ error.code }} · {{ error.occurredAt }}</p>

@@ -138,6 +138,9 @@ public class TaskService {
             }
             return prepareAdmittedInPlaceTask(taskId);
         } catch (TaskFailure failure) {
+            if ("SOURCE_BRANCH_WORKSPACE_DIRTY".equals(failure.code())) {
+                return waitForDirtyWorkspace(get(taskId), failure.getMessage());
+            }
             if (isolatedBaseline != null) {
                 throw new ConflictException(failure.code(), failure.getMessage());
             }
@@ -1125,7 +1128,87 @@ public class TaskService {
     }
 
     public record LoopRetryStatus(String waitingReasonCode, boolean loopRetryAvailable) { }
+    public record WorkspaceDirtyResolution(TaskRow task, GitWorktreeManager.DirtyWorkspace workspace) { }
     private record LoopRetryPreparation(StageRow stage, String prompt) { }
+
+    public GitWorktreeManager.DirtyWorkspace workspaceDirtyStatus(String taskId) {
+        TaskRow task = requireWorkspaceDirtyWait(taskId);
+        return worktrees.inspectDirtyWorkspace(inPlaceRoot(task));
+    }
+
+    /** Local-UI boundary for applying a complete, snapshot-bound per-file cleanup decision. */
+    public WorkspaceDirtyResolution resolveDirtyWorkspace(
+            String taskId, String expectedSnapshot,
+            List<GitWorktreeManager.DirtyFileResolution> resolutions, String commitMessage) {
+        TaskRow waiting = requireWorkspaceDirtyWait(taskId);
+        Path root = inPlaceRoot(waiting);
+        directLeases.requireWritableLease(root, waiting.id());
+        GitWorktreeManager.DirtyWorkspace workspace;
+        try {
+            workspace = worktrees.resolveDirtyWorkspace(root, expectedSnapshot, resolutions, commitMessage);
+        } catch (TaskFailure failure) {
+            throw new ConflictException(failure.code(), failure.getMessage());
+        }
+        if (!workspace.clean()) return new WorkspaceDirtyResolution(get(taskId), workspace);
+
+        updateTask(state(get(taskId), TaskState.PREPARING), LifecycleEvent.RETRY_PREPARATION);
+        events.emit(taskId, "workspace.cleanup_confirmed",
+                Map.of("state", TaskState.PREPARING.name(), "source", "LOCAL_UI"));
+        try {
+            TaskRow prepared = prepareAdmittedInPlaceTask(taskId);
+            return new WorkspaceDirtyResolution(prepared, worktrees.inspectDirtyWorkspace(root));
+        } catch (TaskFailure failure) {
+            if ("SOURCE_BRANCH_WORKSPACE_DIRTY".equals(failure.code())) {
+                TaskRow paused = waitForDirtyWorkspace(get(taskId), failure.getMessage());
+                return new WorkspaceDirtyResolution(paused, worktrees.inspectDirtyWorkspace(root));
+            }
+            failTask(get(taskId), failure.code(), failure.getMessage(), null, null, null);
+            return new WorkspaceDirtyResolution(get(taskId), worktrees.inspectDirtyWorkspace(root));
+        }
+    }
+
+    /** Explicit dialog cancellation is a preparation failure, not a rollback or ordinary task cancellation. */
+    public TaskRow failDirtyWorkspace(String taskId) {
+        TaskRow task = requireWorkspaceDirtyWait(taskId);
+        failTask(task, "SOURCE_BRANCH_WORKSPACE_CANCELLED",
+                "User cancelled source-workspace cleanup before the Task branch was created", null, null, null);
+        return get(taskId);
+    }
+
+    private TaskRow requireWorkspaceDirtyWait(String taskId) {
+        TaskRow task = get(taskId);
+        LoopRetryStatus wait = loopRetryStatus(task);
+        if (!TaskState.WAITING_INPUT.name().equals(task.state())
+                || !"SOURCE_BRANCH_WORKSPACE_DIRTY".equals(wait.waitingReasonCode())) {
+            throw new ConflictException("SOURCE_BRANCH_WORKSPACE_NOT_ACTIONABLE",
+                    "This task is not waiting for source-workspace cleanup");
+        }
+        if (task.branchName() != null || task.worktreePath() != null) {
+            throw new ConflictException("SOURCE_BRANCH_WORKSPACE_ALREADY_PREPARED",
+                    "The task execution workspace has already been prepared");
+        }
+        return task;
+    }
+
+    private TaskRow waitForDirtyWorkspace(TaskRow task, String message) {
+        GitWorktreeManager.DirtyWorkspace workspace = worktrees.inspectDirtyWorkspace(inPlaceRoot(task));
+        List<Map<String, Object>> files = workspace.files().stream().map(file -> {
+            Map<String, Object> evidence = new LinkedHashMap<>();
+            evidence.put("path", file.path());
+            if (file.originalPath() != null) evidence.put("originalPath", file.originalPath());
+            evidence.put("indexStatus", file.indexStatus());
+            evidence.put("workTreeStatus", file.workTreeStatus());
+            evidence.put("untracked", file.untracked());
+            return evidence;
+        }).toList();
+        recordError(task, null, null, null, ErrorLayer.TASK, "SOURCE_BRANCH_WORKSPACE_DIRTY",
+                message, true, Map.of("resolution", TaskState.WAITING_INPUT.name(),
+                        "snapshotId", workspace.snapshotId(), "files", files));
+        updateTask(state(task, TaskState.WAITING_INPUT), LifecycleEvent.REQUIRE_INPUT);
+        events.emit(task.id(), "task.workspace_cleanup_required",
+                Map.of("state", TaskState.WAITING_INPUT.name(), "fileCount", workspace.files().size()));
+        return get(task.id());
+    }
 
     private VerificationContinuation completeStageState(TaskRow task, StageRow stage, AttemptRow attempt) {
         updateAttempt(finish(attempt, AttemptState.SUCCEEDED, null, "所有确定性验证均已通过"));
@@ -1641,7 +1724,9 @@ public class TaskService {
                                 inPlaceRoot(task), task.id(), session.id(), reason));
                 return;
             }
-            if (!GitWorktreeManager.DIRECT_BRANCH.equals(task.branchName())) {
+            if (task.branchName() == null) {
+                release = directLeases.releaseAfterWriterStopped(inPlaceRoot(task), task.id(), reason);
+            } else if (!GitWorktreeManager.DIRECT_BRANCH.equals(task.branchName())) {
                 if (worktrees.sourceCheckoutHasChanges(inPlaceRoot(task))) {
                     directLeases.retainAfterWriterStopped(inPlaceRoot(task), task.id(), reason);
                     events.emit(task.id(), "workspace.lease_retained",
@@ -1652,8 +1737,10 @@ public class TaskService {
                 // Centralize the clean-checkout restoration so restart recovery and non-publication
                 // terminal paths cannot admit the next Task while the old Task branch is still checked out.
                 worktrees.restoreSourceBranch(inPlaceRoot(task), task.branchName(), task.sourceBranch());
+                release = directLeases.releaseAfterWriterStopped(inPlaceRoot(task), task.id(), reason);
+            } else {
+                release = directLeases.releaseAfterWriterStopped(inPlaceRoot(task), task.id(), reason);
             }
-            release = directLeases.releaseAfterWriterStopped(inPlaceRoot(task), task.id(), reason);
         } catch (TaskFailure leaseFailure) {
             recordError(task, null, null, null, ErrorLayer.TASK, leaseFailure.code(), leaseFailure.getMessage(), false,
                     Map.of("leaseRetained", true));
@@ -1668,7 +1755,11 @@ public class TaskService {
         try {
             prepareAdmittedInPlaceTask(nextTaskId);
         } catch (TaskFailure failure) {
-            failTask(get(nextTaskId), failure.code(), failure.getMessage(), null, null, null);
+            if ("SOURCE_BRANCH_WORKSPACE_DIRTY".equals(failure.code())) {
+                waitForDirtyWorkspace(get(nextTaskId), failure.getMessage());
+            } else {
+                failTask(get(nextTaskId), failure.code(), failure.getMessage(), null, null, null);
+            }
         }
     }
 

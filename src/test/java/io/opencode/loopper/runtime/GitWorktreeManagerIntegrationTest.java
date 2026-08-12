@@ -64,6 +64,57 @@ class GitWorktreeManagerIntegrationTest {
     }
 
     @Test
+    void listsAndAppliesCommitStashAndRemoveForEveryDirtyFile() throws Exception {
+        Path project = initializedProject("dirty-resolution-project");
+        Files.writeString(project.resolve("commit me.txt"), "original commit\n");
+        Files.writeString(project.resolve("remove-me.txt"), "original remove\n");
+        run(project, "git", "add", "commit me.txt", "remove-me.txt");
+        run(project, "git", "commit", "-m", "tracked fixtures");
+        Files.writeString(project.resolve("commit me.txt"), "protected local change\n");
+        Files.writeString(project.resolve("stash me.txt"), "stash-only untracked change\n");
+        Files.writeString(project.resolve("remove-me.txt"), "discard this change\n");
+        LoopperProperties properties = new LoopperProperties();
+        properties.setDataDir(temp.resolve("dirty-resolution-data"));
+        GitWorktreeManager manager = new GitWorktreeManager(new SafeProcessRunner(), properties, null);
+
+        GitWorktreeManager.DirtyWorkspace snapshot = manager.inspectDirtyWorkspace(project);
+
+        assertThat(snapshot.clean()).isFalse();
+        assertThat(snapshot.files()).extracting(GitWorktreeManager.DirtyFile::path)
+                .containsExactly("commit me.txt", "remove-me.txt", "stash me.txt");
+        GitWorktreeManager.DirtyWorkspace resolved = manager.resolveDirtyWorkspace(project, snapshot.snapshotId(), List.of(
+                new GitWorktreeManager.DirtyFileResolution("commit me.txt", GitWorktreeManager.DirtyFileAction.COMMIT),
+                new GitWorktreeManager.DirtyFileResolution("remove-me.txt", GitWorktreeManager.DirtyFileAction.REMOVE),
+                new GitWorktreeManager.DirtyFileResolution("stash me.txt", GitWorktreeManager.DirtyFileAction.STASH)
+        ), "chore: preserve local source changes");
+
+        assertThat(resolved.clean()).isTrue();
+        assertThat(run(project, "git", "show", "HEAD:commit me.txt")).isEqualTo("protected local change\n");
+        assertThat(Files.readString(project.resolve("remove-me.txt"))).isEqualTo("original remove\n");
+        assertThat(Files.exists(project.resolve("stash me.txt"))).isFalse();
+        assertThat(run(project, "git", "stash", "show", "--include-untracked", "--name-only", "stash@{0}"))
+                .contains("stash me.txt");
+    }
+
+    @Test
+    void rejectsAResolutionWhenTheDirtySnapshotChanged() throws Exception {
+        Path project = initializedProject("dirty-snapshot-project");
+        Files.writeString(project.resolve("first.txt"), "first\n");
+        LoopperProperties properties = new LoopperProperties();
+        properties.setDataDir(temp.resolve("dirty-snapshot-data"));
+        GitWorktreeManager manager = new GitWorktreeManager(new SafeProcessRunner(), properties, null);
+        GitWorktreeManager.DirtyWorkspace snapshot = manager.inspectDirtyWorkspace(project);
+        Files.writeString(project.resolve("second.txt"), "second\n");
+
+        assertThatThrownBy(() -> manager.resolveDirtyWorkspace(project, snapshot.snapshotId(), List.of(
+                new GitWorktreeManager.DirtyFileResolution("first.txt", GitWorktreeManager.DirtyFileAction.STASH)
+        ), null)).isInstanceOfSatisfying(TaskFailure.class, failure ->
+                assertThat(failure.code()).isEqualTo("SOURCE_BRANCH_WORKSPACE_CHANGED"));
+        assertThat(Files.exists(project.resolve("first.txt"))).isTrue();
+        assertThat(Files.exists(project.resolve("second.txt"))).isTrue();
+    }
+
+    @Test
     void refreshesRemoteThenSwitchesRegisteredCheckoutToTaskBranch() throws Exception {
         Path remote = temp.resolve("source-branch-remote.git");
         run(temp, "git", "init", "--bare", "--initial-branch=main", remote.toString());

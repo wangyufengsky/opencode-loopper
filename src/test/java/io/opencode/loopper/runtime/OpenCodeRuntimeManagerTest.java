@@ -92,6 +92,98 @@ class OpenCodeRuntimeManagerTest {
     }
 
     @Test
+    void autoReportsTheActualAttemptInsteadOfTheDefaultProbeWhenLaunchFails() throws Exception {
+        Path executable = executable();
+        LoopperProperties properties = properties("auto", URI.create("http://127.0.0.1:4096"));
+        properties.getOpenCode().setExecutable(executable.toString());
+        OpenCodeRuntimeManager manager = new OpenCodeRuntimeManager(properties, (command, environment) -> {
+            throw new IOException("exec failed");
+        }, Clock.systemUTC());
+
+        OpenCodeRuntimeManager.RuntimeSnapshot status = manager.status();
+
+        assertThat(status.status()).isEqualTo("OFFLINE");
+        assertThat(status.endpoint()).startsWith("http://127.0.0.1:").doesNotEndWith(":4096");
+        assertThat(status.startupFailure()).isEqualTo("Unable to start local OpenCode executable");
+        assertThat(status.managed()).isFalse();
+        assertThat(status.pid()).isNull();
+        assertThat(manager.connectionForClient().endpoint()).isEqualTo(URI.create("http://127.0.0.1:9"));
+        manager.close();
+    }
+
+    @Test
+    void failedAutoLaunchWaitsForAnExplicitStartAndChecksTheNewConnection() throws Exception {
+        Path executable = executable();
+        LoopperProperties properties = properties("auto", URI.create("http://127.0.0.1:4096"));
+        properties.getOpenCode().setExecutable(executable.toString());
+        AtomicInteger starts = new AtomicInteger();
+        List<FakeProcess> processes = new ArrayList<>();
+        OpenCodeRuntimeManager manager = new OpenCodeRuntimeManager(properties, (command, environment) -> {
+            if (starts.incrementAndGet() == 1) throw new IOException("first launch failed");
+            int port = Integer.parseInt(command.get(command.indexOf("--port") + 1));
+            String expectedAuthorization = "Basic " + java.util.Base64.getEncoder().encodeToString(
+                    (environment.get("OPENCODE_SERVER_USERNAME") + ":" + environment.get("OPENCODE_SERVER_PASSWORD")).getBytes(StandardCharsets.UTF_8));
+            healthServer(port, expectedAuthorization);
+            FakeProcess process = new FakeProcess(6400);
+            processes.add(process);
+            return process;
+        }, Clock.systemUTC());
+
+        assertThat(manager.status().status()).isEqualTo("OFFLINE");
+        assertThat(starts).hasValue(1);
+
+        assertThat(manager.status().status()).isEqualTo("OFFLINE");
+        assertThat(manager.connectionForClient().endpoint()).isEqualTo(URI.create("http://127.0.0.1:9"));
+        assertThat(starts).hasValue(1);
+
+        OpenCodeRuntimeManager.RuntimeSnapshot started = manager.startAndCheck();
+
+        assertThat(starts).hasValue(2);
+        assertThat(started.status()).isEqualTo("AVAILABLE");
+        assertThat(started.managed()).isTrue();
+        assertThat(started.pid()).isEqualTo(6400L);
+        assertThat(started.startupFailure()).isNull();
+        manager.close();
+        assertThat(processes.getFirst().destroyed).isTrue();
+    }
+
+    @Test
+    void autoRetriesAStartupProbeWithoutLettingOneRequestConsumeTheWholeBudget() throws Exception {
+        Path executable = executable();
+        LoopperProperties properties = properties("auto", URI.create("http://127.0.0.1:1"));
+        properties.getOpenCode().setExecutable(executable.toString());
+        properties.getOpenCode().setStartupTimeout(java.time.Duration.ofSeconds(3));
+        List<FakeProcess> processes = new ArrayList<>();
+        AtomicInteger healthRequests = new AtomicInteger();
+        OpenCodeRuntimeManager manager = new OpenCodeRuntimeManager(properties, (command, environment) -> {
+            int port = Integer.parseInt(command.get(command.indexOf("--port") + 1));
+            String expectedAuthorization = "Basic " + java.util.Base64.getEncoder().encodeToString(
+                    (environment.get("OPENCODE_SERVER_USERNAME") + ":" + environment.get("OPENCODE_SERVER_PASSWORD")).getBytes(StandardCharsets.UTF_8));
+            HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", port), 0);
+            server.createContext("/global/health", exchange -> {
+                if (healthRequests.incrementAndGet() == 1) {
+                    try { Thread.sleep(1_200); }
+                    catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); }
+                }
+                health(exchange, expectedAuthorization);
+            });
+            server.start();
+            servers.add(server);
+            FakeProcess process = new FakeProcess(6300);
+            processes.add(process);
+            return process;
+        }, Clock.systemUTC());
+
+        OpenCodeRuntimeManager.RuntimeSnapshot status = manager.status();
+
+        assertThat(status.status()).isEqualTo("AVAILABLE");
+        assertThat(status.managed()).isTrue();
+        assertThat(healthRequests).hasValueGreaterThanOrEqualTo(2);
+        manager.close();
+        assertThat(processes.getFirst().destroyed).isTrue();
+    }
+
+    @Test
     void httpModeNeverStartsOrStopsAnExternalRuntime() {
         LoopperProperties properties = properties("http", URI.create("http://127.0.0.1:1"));
         AtomicInteger starts = new AtomicInteger();

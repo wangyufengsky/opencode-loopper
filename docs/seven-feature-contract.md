@@ -34,8 +34,11 @@ before admitting a new writer; active and release-pending leases still fail clos
 Only one non-released lease exists for a root. FIFO queue admission is persisted.
 An abort response alone never releases a lease: the old writer must be observed
 terminal. Unknown writer state keeps the lease and blocks Recovery and Automation.
-For a valid Git HEAD, the admitted Task requires a clean checkout and switches that
-same registered directory to its `loopper/*` branch. Unpublished file changes keep
+For a valid Git HEAD, a dirty admitted checkout holds the lease and moves the Task
+to `WAITING_INPUT`. The local UI displays the exact status paths and requires a
+snapshot-bound `COMMIT | STASH | REMOVE` choice for every path. A clean recheck
+resumes preparation and switches that same registered directory to its `loopper/*`
+branch; cancelling this dialog fails the Task and leaves files untouched. Unpublished file changes keep
 the lease after Task success; publication makes the checkout clean and releases it
 before the next queued Task may switch branches.
 

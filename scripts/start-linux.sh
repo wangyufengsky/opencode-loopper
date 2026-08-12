@@ -57,12 +57,12 @@ fi
 
 if [[ -n "${LOOPPER_JAR_PATH:-}" ]]; then
   JAR_PATH="${LOOPPER_JAR_PATH}"
-elif [[ -f "${APP_HOME}/target/opencode-loopper-0.1.20.jar" ]]; then
-  JAR_PATH="${APP_HOME}/target/opencode-loopper-0.1.20.jar"
-elif [[ -f "${APP_HOME}/opencode-loopper-0.1.20.jar" ]]; then
-  JAR_PATH="${APP_HOME}/opencode-loopper-0.1.20.jar"
+elif [[ -f "${APP_HOME}/target/opencode-loopper-0.1.24.jar" ]]; then
+  JAR_PATH="${APP_HOME}/target/opencode-loopper-0.1.24.jar"
+elif [[ -f "${APP_HOME}/opencode-loopper-0.1.24.jar" ]]; then
+  JAR_PATH="${APP_HOME}/opencode-loopper-0.1.24.jar"
 else
-  fail "找不到成品 JAR。请把 opencode-loopper-0.1.20.jar 放到 ${APP_HOME}，或设置 LOOPPER_JAR_PATH。"
+  fail "找不到成品 JAR。请把 opencode-loopper-0.1.24.jar 放到 ${APP_HOME}，或设置 LOOPPER_JAR_PATH。"
 fi
 
 [[ -f "${JAR_PATH}" ]] || fail "JAR 不存在：${JAR_PATH}"
@@ -198,6 +198,25 @@ if [[ -z "${LOOPPER_OPENCODE_MODE:-}" ]]; then
   fi
 fi
 
+if [[ "${LOOPPER_OPENCODE_MODE}" == "auto" ]]; then
+  OPENCODE_CLI_PATH=""
+  if [[ -n "${OPENCODE_EXECUTABLE:-}" ]]; then
+    if [[ "${OPENCODE_EXECUTABLE}" == */* ]]; then
+      [[ -f "${OPENCODE_EXECUTABLE}" && -x "${OPENCODE_EXECUTABLE}" ]] \
+        || fail "OPENCODE_EXECUTABLE 不是可执行文件：${OPENCODE_EXECUTABLE}"
+      OPENCODE_CLI_DIR="$(cd "$(dirname "${OPENCODE_EXECUTABLE}")" && pwd -P)"
+      OPENCODE_CLI_PATH="${OPENCODE_CLI_DIR}/$(basename "${OPENCODE_EXECUTABLE}")"
+    else
+      OPENCODE_CLI_PATH="$(type -P "${OPENCODE_EXECUTABLE}" 2>/dev/null || true)"
+    fi
+  else
+    OPENCODE_CLI_PATH="$(type -P opencode 2>/dev/null || true)"
+  fi
+  [[ -n "${OPENCODE_CLI_PATH}" ]] \
+    || fail "auto 模式需要 OpenCode CLI，但当前 PATH 中找不到 opencode。请安装 OpenCode，或设置 OPENCODE_EXECUTABLE=/绝对路径/opencode。"
+  export OPENCODE_EXECUTABLE="${OPENCODE_CLI_PATH}"
+fi
+
 if [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
   JAVA_AWT_HEADLESS="false"
   JAVA_AWT_MODE="图形模式（允许打开桌面文件夹选择器）"
@@ -215,6 +234,7 @@ if [[ -n "${OPENCODE_BASE_URL:-}" ]]; then
   echo "[Loopper] OpenCode：${OPENCODE_BASE_URL}（来源：${OPENCODE_BASE_URL_SOURCE}）"
 else
   echo "[Loopper] OpenCode：未发现可复用端点，将由 auto 模式在动态 loopback 端口启动"
+  echo "[Loopper] OpenCode CLI：${OPENCODE_EXECUTABLE}"
 fi
 echo "[Loopper] 项目公约超时：${LOOPPER_DESIGNER_TIMEOUT}"
 echo "[Loopper] 页面：${APP_URL}"

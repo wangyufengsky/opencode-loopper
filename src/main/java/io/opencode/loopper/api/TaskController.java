@@ -13,6 +13,7 @@ import io.opencode.loopper.persistence.TaskArtifactRow;
 import io.opencode.loopper.persistence.TaskRow;
 import io.opencode.loopper.persistence.VerificationResultRow;
 import io.opencode.loopper.domain.LoopSpec;
+import io.opencode.loopper.runtime.GitWorktreeManager;
 import io.opencode.loopper.service.LoopDraftService;
 import io.opencode.loopper.service.LocalSyncConflictService;
 import io.opencode.loopper.service.TaskEventHub;
@@ -95,6 +96,38 @@ public class TaskController {
     public TaskDto retryWaitingLoop(@PathVariable String id, @RequestHeader("X-Loopper-Local-UI") String localUi) {
         requireLocalUi(localUi);
         return dto(service.retryWaitingLoop(id));
+    }
+    @GetMapping("/{id}/workspace-dirty")
+    public WorkspaceDirtyDto workspaceDirty(@PathVariable String id) {
+        return workspaceDirty(service.workspaceDirtyStatus(id));
+    }
+    @PostMapping("/{id}/workspace-dirty/resolve")
+    public WorkspaceDirtyResolutionDto resolveWorkspaceDirty(
+            @PathVariable String id, @RequestHeader("X-Loopper-Local-UI") String localUi,
+            @RequestBody WorkspaceDirtyResolutionRequest request) {
+        requireLocalUi(localUi);
+        if (request == null || request.resolutions() == null) {
+            throw new io.opencode.loopper.service.BadRequestException(
+                    "SOURCE_BRANCH_WORKSPACE_RESOLUTION_REQUIRED", "Workspace cleanup decisions are required");
+        }
+        List<GitWorktreeManager.DirtyFileResolution> resolutions = request.resolutions().stream().map(item -> {
+            try {
+                return new GitWorktreeManager.DirtyFileResolution(item.path(),
+                        GitWorktreeManager.DirtyFileAction.valueOf(item.action()));
+            } catch (RuntimeException invalid) {
+                throw new io.opencode.loopper.service.BadRequestException(
+                        "SOURCE_BRANCH_WORKSPACE_ACTION_INVALID", "Dirty-file action must be COMMIT, STASH, or REMOVE");
+            }
+        }).toList();
+        TaskService.WorkspaceDirtyResolution result = service.resolveDirtyWorkspace(
+                id, request.snapshotId(), resolutions, request.commitMessage());
+        return new WorkspaceDirtyResolutionDto(dto(result.task()), workspaceDirty(result.workspace()));
+    }
+    @PostMapping("/{id}/workspace-dirty/cancel")
+    public TaskDto cancelWorkspaceDirty(
+            @PathVariable String id, @RequestHeader("X-Loopper-Local-UI") String localUi) {
+        requireLocalUi(localUi);
+        return dto(service.failDirtyWorkspace(id));
     }
     @PutMapping("/{id}/archive")
     public TaskDto archive(@PathVariable String id, @RequestHeader("X-Loopper-Local-UI") String localUi) {
@@ -216,6 +249,15 @@ public class TaskController {
     public record SessionFailureRequest(String code, String message) { }
     public record PublishTaskRequest(String commitMessage) { }
     public record MergeRequestRequest(String targetBranch, String title, String description) { }
+    public record WorkspaceDirtyFileResolutionRequest(String path, String action) { }
+    public record WorkspaceDirtyResolutionRequest(String snapshotId,
+                                                  List<WorkspaceDirtyFileResolutionRequest> resolutions,
+                                                  String commitMessage) { }
+    public record WorkspaceDirtyFileDto(String path, String originalPath, String indexStatus,
+                                        String workTreeStatus, boolean untracked) { }
+    public record WorkspaceDirtyDto(String branch, String head, String snapshotId, boolean clean,
+                                    List<WorkspaceDirtyFileDto> files) { }
+    public record WorkspaceDirtyResolutionDto(TaskDto task, WorkspaceDirtyDto workspace) { }
     public record DiffPreviewDto(String path, String changeType, String patch, boolean truncated) { }
     private TaskDto dto(TaskRow task) {
         String projectName = mapper.findProject(task.projectId()).map(p -> p.name()).orElse("Unknown project");
@@ -269,6 +311,11 @@ public class TaskController {
     private JudgeDto judge(JudgeRunRow row) { return new JudgeDto(row.id(), row.role(), row.ordinal(), row.state(), row.verdict(), row.reason(), row.externalSessionId(), row.rawOutput(), row.createdAt(), row.endedAt()); }
     private ArtifactDto artifact(TaskArtifactRow row) { return new ArtifactDto(row.id(), row.kind(), row.name(), row.contentType(), row.content(), node(row.metadataJson()), row.attemptId(), row.judgeRunId(), row.createdAt()); }
     private JsonNode node(String source) { try { return source == null ? json.createObjectNode() : json.readTree(source); } catch (Exception e) { return json.createObjectNode().put("unreadable", true); } }
+    private WorkspaceDirtyDto workspaceDirty(GitWorktreeManager.DirtyWorkspace workspace) {
+        return new WorkspaceDirtyDto(workspace.branch(), workspace.head(), workspace.snapshotId(), workspace.clean(),
+                workspace.files().stream().map(file -> new WorkspaceDirtyFileDto(
+                        file.path(), file.originalPath(), file.indexStatus(), file.workTreeStatus(), file.untracked())).toList());
+    }
     private void requireLocalUi(String localUi) {
         if (!"1".equals(localUi)) {
             throw new io.opencode.loopper.service.BadRequestException("LOCAL_UI_HEADER_REQUIRED", "This operation is available only to the local Loopper UI");

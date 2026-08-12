@@ -2,7 +2,7 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { api, ApiError, subscribeTaskEvents, type TaskEventStream } from '@/api/client'
 import { demoArtifacts, demoProjects, demoRuntime, demoTasks } from '@/mock/demoData'
-import type { Artifact, Project, RuntimeInfo, Task, TaskEvent, TaskStatus } from '@/types/domain'
+import type { Artifact, DirtyWorkspaceAction, Project, RuntimeInfo, Task, TaskEvent, TaskStatus } from '@/types/domain'
 
 function copy<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
@@ -164,6 +164,34 @@ export const useTaskStore = defineStore('task', () => {
     }
   }
 
+  async function resolveDirtyWorkspace(id: string, input: {
+    snapshotId: string
+    resolutions: Array<{ path: string; action: DirtyWorkspaceAction }>
+    commitMessage?: string
+  }) {
+    error.value = undefined
+    try {
+      const result = await api.resolveDirtyWorkspace(id, input)
+      tasks.value = tasks.value.map((task) => task.id === id ? result.task : task)
+      return result
+    } catch (cause) {
+      error.value = cause instanceof Error ? cause.message : '未提交文件处理失败'
+      throw cause
+    }
+  }
+
+  async function failDirtyWorkspace(id: string) {
+    error.value = undefined
+    try {
+      const changed = await api.cancelDirtyWorkspace(id)
+      tasks.value = tasks.value.map((task) => task.id === id ? changed : task)
+      return changed
+    } catch (cause) {
+      error.value = cause instanceof Error ? cause.message : '无法终止等待清理的任务'
+      throw cause
+    }
+  }
+
   async function reworkTask(id: string) {
     const parent = tasks.value.find((task) => task.id === id)
     if (!parent) return undefined
@@ -266,5 +294,20 @@ export const useTaskStore = defineStore('task', () => {
     try { runtime.value = await api.restartRuntime() } catch (cause) { error.value = cause instanceof Error ? cause.message : 'Runtime 重启失败' }
   }
 
-  return { projects, tasks, runtime, artifacts, loading, error, usingDemo, streamState, activeTasks, selectedTask, activateDemo, deactivateDemo, loadOverview, loadTask, updateTask, retryJudges, retryWaitingLoop, reworkTask, setTaskArchived, deleteArchivedTask, watchTask, stopWatching, refreshRuntime, restartRuntime }
+  async function startRuntime() {
+    if (usingDemo.value) {
+      runtime.value = { ...demoRuntime, checkedAt: new Date().toISOString() }
+      return runtime.value
+    }
+    error.value = undefined
+    try {
+      runtime.value = await api.startRuntime()
+      return runtime.value
+    } catch (cause) {
+      error.value = cause instanceof Error ? cause.message : 'OpenCode 启动与连接检查失败'
+      return undefined
+    }
+  }
+
+  return { projects, tasks, runtime, artifacts, loading, error, usingDemo, streamState, activeTasks, selectedTask, activateDemo, deactivateDemo, loadOverview, loadTask, updateTask, retryJudges, retryWaitingLoop, resolveDirtyWorkspace, failDirtyWorkspace, reworkTask, setTaskArchived, deleteArchivedTask, watchTask, stopWatching, refreshRuntime, restartRuntime, startRuntime }
 })

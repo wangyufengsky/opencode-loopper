@@ -41,10 +41,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.1.20.jar
-   jar tf target/opencode-loopper-0.1.20.jar \
+   test -s target/opencode-loopper-0.1.24.jar
+   jar tf target/opencode-loopper-0.1.24.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.1.20.jar
+   shasum -a 256 target/opencode-loopper-0.1.24.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -93,8 +93,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.1.20`。
-- 正式产物：`target/opencode-loopper-0.1.20.jar`。
+- Maven 项目版本：`0.1.24`。
+- 正式产物：`target/opencode-loopper-0.1.24.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -235,8 +235,8 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 
 ### 5.5 工作区、租约与 Recovery
 
-- 有可用 Git HEAD：要求登记目录无未提交和未跟踪文件，在登记目录本身创建并切换 `loopper/<任务名>`；本地或远端跟踪分支已有同名时从第二次起追加 `(第2次)`、`(第3次)`，Git 禁止字符确定性替换为 `-`，分支叶名称按 UTF-8 字节安全截断，并在截断后重新修正 `.lock` 等非法结尾。
-- 创建任务分支前以非交互方式 fetch 当前分支的 upstream/明确首选远端；远端线性领先时从远端最新提交创建任务。本地领先时保留本地提交；认证失败、fetch 失败、工作区不干净或历史分叉必须 fail closed，禁止自动 stash、覆盖或丢弃改动。
+- 有可用 Git HEAD：登记目录有未提交或未跟踪文件时，任务持有租约进入 `WAITING_INPUT`，本地 UI 显示具体文件并要求逐文件选择提交、stash 或移除；处理决定必须绑定分支、HEAD、索引、状态和内容快照，取消弹窗直接把任务标记为失败且不改文件。重新检查干净后，在登记目录本身创建并切换 `loopper/<任务名>`；本地或远端跟踪分支已有同名时从第二次起追加 `(第2次)`、`(第3次)`，Git 禁止字符确定性替换为 `-`，分支叶名称按 UTF-8 字节安全截断，并在截断后重新修正 `.lock` 等非法结尾。
+- 创建任务分支前以非交互方式 fetch 当前分支的 upstream/明确首选远端；远端线性领先时从远端最新提交创建任务。本地领先时保留本地提交；认证失败、fetch 失败或历史分叉必须 fail closed。未收到逐路径确认时禁止自动 stash、提交、覆盖或丢弃改动；移除操作必须二次确认。外部 Git 操作部分成功后不得伪造事务回滚，必须回读最新状态继续处理。
 - 原项目分支 checkout 使用独立 10 分钟有界超时和命令局部 `core.longpaths=true`；短 Git 检查仍使用 30 秒边界，失败诊断保留输出尾部。
 - OpenCode 创建 Session 后必须回报与登记项目根一致的规范执行目录，缺失或不一致时不得发送实施提示；实施提示明确 AgentBridge、搜索、命令和验证器都使用该目录及当前任务分支。
 - 无可用 Git HEAD：直接使用登记根目录，并在 `direct-baselines/<taskId>` 保存私有 Git-compatible 基线；不得在用户项目中隐式初始化或提交 Git。
@@ -283,6 +283,7 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 
 - TypeScript 类型以 `frontend/src/types/domain.ts` 为边界，API 变更必须同步 DTO、client、store、view 和测试；Designer 保存/确认必须无损往返全部 LoopSpec limits、model、sessionPolicy 和 nextAttemptPromptTemplate。
 - Task 等待动作以服务端 `waitingReasonCode` / `loopRetryAvailable` 投影为准，前端不得从历史错误推断当前“继续一轮”入口。
+- `SOURCE_BRANCH_WORKSPACE_DIRTY` 必须打开不可静默关闭的文件处理弹窗，逐文件选择提交、stash 或移除；重新检查成功前不得制造任务分支已创建的状态，取消只能经确认后把任务标记为失败。
 - 服务端是权威状态；不要用计时器伪造阶段进度、用量、成本、Session 完成或 Judge 结果。
 - 所有等待、问题、权限、可恢复错误和终止错误都必须真实可见，并提供可执行的恢复动作；不要永久显示含糊的“待评审”。
 - 使用 `displayLabels.ts` 和现有 `StatusBadge`/错误组件表达中文含义；不要在多个页面复制英文枚举到中文的映射。
@@ -332,7 +333,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.1.20.jar
+JAR=target/opencode-loopper-0.1.24.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -368,8 +369,14 @@ Linux/Windows 成品启动脚本不得写死 OpenCode 端口。显式
 loopback `/global/health` 的 `healthy=true` 验真。通配监听地址必须转换
 为 loopback 连接地址，并兼容 OpenCode 官方 `OPENCODE_SERVER_USERNAME`/
 `OPENCODE_SERVER_PASSWORD`。没有可复用实例时使用 `auto` 模式，由
+Linux 启动器先把 OpenCode CLI 解析为确定的可执行文件路径，再由
 Loopper 在动态 loopback 端口启动受管进程；不得把任意监听端口直接
-推断为 OpenCode。
+推断为 OpenCode。受管启动失败必须公开安全的失败原因和实际尝试地址，
+不得把默认探测地址 4096 伪装成正在监听的地址。启动阶段单次健康请求
+必须短于总启动预算并持续重试，不得让通用请求超时吞掉整个启动窗口。
+一次受管启动失败后，普通状态读取和内部 client 获取不得反复拉起进程；
+Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且必须在受认证的
+`/global/health` 返回 `healthy=true` 后才能显示连接成功。
 
 ## 9. 文档同步规则
 
@@ -444,3 +451,7 @@ Loopper 在动态 loopback 端口启动受管进程；不得把任意监听端�
 | 2026-08-12 | 修复 Windows 端口发现解析并发布 0.1.18 | 去除 PowerShell 正则中会被 CMD 当作管道的未转义 `|`；Windows `--validate` 真实执行端口发现语句 | 聚焦验证：Java 16/16、Vitest 122/122；`./scripts/verify.sh`：Java 260/260、Vitest 122/122，BUILD SUCCESS；Linux 隔离运行发现 49861 且 Runtime 为 `AVAILABLE`/`managed=false`；JAR 262600078 bytes，SHA-256 `3bf6b85cefd8fa2397df7cf773ad77e7ebc83e06c185b440ae7bb1f914b85e7d`；发布目标：`v0.1.18` |
 | 2026-08-12 | 修复 Linux TUI/Web OpenCode 动态端口发现并发布 0.1.19 | Linux 启动器按已确认的 OpenCode PID 通过 `lsof`/`ss` 读取监听端口，再用 `/global/health` 验真；同步 README 与 OpenCode 合同 | 聚焦验证：Java 18/18、Vitest 122/122；`./scripts/verify.sh`：Java 262/262、Vitest 122/122，BUILD SUCCESS；真实 `opencode web` 无 `--port` 进程被发现为 4096，Runtime 为 `AVAILABLE`/`managed=false`；JAR 262600078 bytes，SHA-256 `84b6e079402180550d24cacc36df0f1a88502d6c8f8d415fba5dab4c8119c83d`；发布目标：`v0.1.19` |
 | 2026-08-12 | 修复 Linux 隐藏 socket 归属时无法发现 OpenCode 并发布 0.1.20 | 修复 Bash 空数组在 `set -u` 下提前退出；无 PID 归属时严格健康检查本机监听端口；规范化通配监听地址并兼容官方 Basic Auth 环境变量；同步 README 与 OpenCode 合同 | 修复前真实回归复现 `opencode_pids[@]: unbound variable`；聚焦验证：Java 20/20、Vitest 122/122；`./scripts/verify.sh`：Java 264/264、Vitest 122/122，BUILD SUCCESS；最终 JAR 真实连接 OpenCode 1.18.12（`0.0.0.0:18082`、无 socket PID 视角、Basic Auth），health `UP`、Runtime `AVAILABLE`；JAR 262600086 bytes，SHA-256 `e0e1126a6bbe9f15df9ff50b65ff087cd1da20726f2d9a4d6517c647c833e25c`；发布目标：`v0.1.20` |
+| 2026-08-12 | 修复 Linux auto 启动失败误显示 4096，准备 0.1.21（暂不发布） | Linux auto 启动前锁定真实 CLI 路径；受管启动失败公开安全原因和实际动态尝试地址，客户端落到不可用 loopback；同步 README、OpenCode 合同和 Runtime UI | 聚焦验证：Java 26/26、Vitest 123/123，Runtime/API Vitest 27/27；`./scripts/verify.sh`：Java 266/266、Vitest 123/123，BUILD SUCCESS；真实 OpenCode 1.18.12 由 PID 73760 启动为 PID 73819，监听 `127.0.0.1:52068`，Runtime `AVAILABLE`/`managed=true`，父进程停止后子进程同步停止；失败 CLI 返回 `OFFLINE`、实际尝试 `127.0.0.1:52117`、退出码 1，未出现 4096；JAR 262600597 bytes，SHA-256 `d67ef40eb1e827b8010ae94f0908fc4e03f3821e9cd5c4940e9b5674356dbda6`；按用户要求未提交、未推送、未打标签、未发布 |
+| 2026-08-12 | 修复 Linux auto 启动健康探测耗尽总超时，准备 0.1.22（暂不发布） | 将受管启动期间单次健康请求限制为 1 秒及剩余总预算的较小值，允许在 15 秒启动窗口内持续重试；同步 README 与 OpenCode 合同 | 聚焦验证：Java 27/27、Vitest 123/123；延迟 1.2 秒的首次健康响应在 3 秒总预算内成功触发重试；`./scripts/verify.sh`：Java 267/267、Vitest 123/123，BUILD SUCCESS；最终 JAR 启动 Loopper PID 83403，并自动启动 OpenCode 1.18.12 PID 83600，监听动态端口 `127.0.0.1:55280`，Runtime `AVAILABLE`/`managed=true`，停止父进程后子进程同步停止；JAR 262600979 bytes，SHA-256 `eb5bf405cbaa2a9c56facb6e1cfe422b5b42d49b6f0a503c6dde0f56a884c955`；按用户要求未提交、未推送、未打标签、未发布 |
+| 2026-08-12 | Runtime 失败后显式启动并检查连接，准备 0.1.23（暂不发布） | Auto 失败卡片新增本地 UI 专用启动动作；普通读取不再重复拉起；仅健康检查通过后提示连接成功；同步 README、OpenCode 与设计合同 | 聚焦验证：Java 29/29、Vitest 125/125；`./scripts/verify.sh`：Java 269/269、Vitest 125/125，BUILD SUCCESS；真实流程第一次子进程退出码 41，连续 GET 保持同一失败且不重启，无本地 UI 标识返回 400，显式 POST 随后启动 OpenCode 1.18.12 PID 90888，监听 `127.0.0.1:56741`，Runtime `AVAILABLE`/`managed=true`，父进程停止后子进程同步停止；JAR 262601831 bytes，SHA-256 `47b8ccebf6403e808c9db567a8419d1ad476da93e2485e1c0d441c351a692312`；按用户要求未提交、未推送、未打标签、未发布 |
+| 2026-08-12 | 未提交文件逐项处理并发布 0.1.24（包含 0.1.21–0.1.23 Runtime 累积修复） | 脏登记目录改为 `WAITING_INPUT`，展示精确文件并按快照逐项提交、暂存或移除；重新检查后继续创建任务分支；取消直接使任务失败且不改文件；同步 README、架构、设计、OpenCode 与七特性合同 | 聚焦验证：TaskService 44/44、Git/Controller/前端相关回归通过；`./scripts/verify.sh`：Java 275/275、Vitest 128/128，BUILD SUCCESS；0.1.24 隔离真实 JAR 验证提交+暂存后进入 `READY`/任务分支，取消后保持源分支和脏文件；JAR 262625680 bytes，SHA-256 `6dea210cd2ee475cbcca6e3b4513039a7496f041bc2873e83dc1c63767192028`；发布目标：`v0.1.24` |

@@ -120,6 +120,59 @@ class TaskServiceIntegrationTest {
     }
 
     @Test
+    void dirtySourceCheckoutWaitsForPerFileResolutionThenPreparesTheTaskBranch() throws Exception {
+        Path root = Path.of(gitProject());
+        Files.writeString(root.resolve("README.md"), "local source change\n");
+        Files.writeString(root.resolve("stash-only.txt"), "preserve in stash\n");
+        ProjectRow project = projects.create("dirty-source-resolution", root.toString());
+
+        TaskRow waiting = drafts.confirm(drafts.create(spec(project.id())).id(), "处理未提交文件");
+
+        assertThat(waiting.state()).isEqualTo("WAITING_INPUT");
+        assertThat(waiting.branchName()).isNull();
+        assertThat(tasks.loopRetryStatus(waiting.id()).waitingReasonCode())
+                .isEqualTo("SOURCE_BRANCH_WORKSPACE_DIRTY");
+        assertThat(tasks.errors(waiting.id())).anySatisfy(error -> {
+            assertThat(error.code()).isEqualTo("SOURCE_BRANCH_WORKSPACE_DIRTY");
+            assertThat(error.retryable()).isTrue();
+            assertThat(error.evidenceJson()).contains("README.md", "stash-only.txt");
+        });
+        var snapshot = tasks.workspaceDirtyStatus(waiting.id());
+        TaskService.WorkspaceDirtyResolution resolution = tasks.resolveDirtyWorkspace(waiting.id(), snapshot.snapshotId(), List.of(
+                new io.opencode.loopper.runtime.GitWorktreeManager.DirtyFileResolution(
+                        "README.md", io.opencode.loopper.runtime.GitWorktreeManager.DirtyFileAction.COMMIT),
+                new io.opencode.loopper.runtime.GitWorktreeManager.DirtyFileResolution(
+                        "stash-only.txt", io.opencode.loopper.runtime.GitWorktreeManager.DirtyFileAction.STASH)
+        ), "chore: preserve pre-task source changes");
+
+        assertThat(resolution.task().state()).isEqualTo("READY");
+        assertThat(resolution.task().branchName()).startsWith("loopper/处理未提交文件");
+        assertThat(resolution.task().worktreePath()).isEqualTo(root.toRealPath().toString());
+        assertThat(resolution.workspace().clean()).isTrue();
+        assertThat(Files.exists(root.resolve("stash-only.txt"))).isFalse();
+        assertThat(runOutput(root, "git", "show", "HEAD:README.md")).isEqualTo("local source change\n");
+        assertThat(mapper.listStateTransitionsForScope("TASK", waiting.id(), 0, 100))
+                .extracting(io.opencode.loopper.persistence.StateTransitionEventRow::event)
+                .contains("REQUIRE_INPUT", "RETRY_PREPARATION", "PREPARATION_SUCCEEDED");
+    }
+
+    @Test
+    void cancellingDirtyWorkspaceMarksTheTaskFailedWithoutChangingLocalFiles() throws Exception {
+        Path root = Path.of(gitProject());
+        Files.writeString(root.resolve("local-only.txt"), "keep me\n");
+        ProjectRow project = projects.create("dirty-source-cancel", root.toString());
+        TaskRow waiting = drafts.confirm(drafts.create(spec(project.id())).id(), "取消工作区处理");
+
+        TaskRow failed = tasks.failDirtyWorkspace(waiting.id());
+
+        assertThat(failed.state()).isEqualTo("FAILED");
+        assertThat(failed.branchName()).isNull();
+        assertThat(Files.readString(root.resolve("local-only.txt"))).isEqualTo("keep me\n");
+        assertThat(tasks.errors(failed.id())).anyMatch(error ->
+                error.code().equals("SOURCE_BRANCH_WORKSPACE_CANCELLED"));
+    }
+
+    @Test
     void sessionFailureCreatesNewAttemptAndDoesNotFailTask() throws Exception {
         ProjectRow project = projects.create("fixture", gitProject());
         LoopDraftRow draft = drafts.create(spec(project.id()));
@@ -1070,6 +1123,12 @@ class TaskServiceIntegrationTest {
         Process process = new ProcessBuilder(command).directory(root.toFile()).redirectErrorStream(true).start();
         String output = new String(process.getInputStream().readAllBytes());
         if (process.waitFor() != 0) throw new AssertionError(output);
+    }
+    private String runOutput(Path root, String... command) throws Exception {
+        Process process = new ProcessBuilder(command).directory(root.toFile()).redirectErrorStream(true).start();
+        String output = new String(process.getInputStream().readAllBytes());
+        if (process.waitFor() != 0) throw new AssertionError(output);
+        return output;
     }
     private List<String> localBranches(Path root) throws Exception {
         Process process = new ProcessBuilder("git", "for-each-ref", "--format=%(refname:short)", "refs/heads")

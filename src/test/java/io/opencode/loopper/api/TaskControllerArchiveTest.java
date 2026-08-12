@@ -15,6 +15,7 @@ import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.AttemptRow;
 import io.opencode.loopper.persistence.ExecutionSessionRow;
 import io.opencode.loopper.persistence.TaskRow;
+import io.opencode.loopper.runtime.GitWorktreeManager;
 import io.opencode.loopper.service.LoopDraftService;
 import io.opencode.loopper.service.LocalSyncConflictService;
 import io.opencode.loopper.service.TaskEventHub;
@@ -156,5 +157,71 @@ class TaskControllerArchiveTest {
         mvc.perform(get("/api/tasks/{id}", task.id()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.attempts[0].sessionId").value("session-local"));
+    }
+
+    @Test
+    void exposesDirtyFilesAndResolvesThemOnlyThroughTheLocalUiContract() throws Exception {
+        GitWorktreeManager.DirtyWorkspace dirty = new GitWorktreeManager.DirtyWorkspace(
+                "main", "abc123", "snapshot-1", List.of(
+                new GitWorktreeManager.DirtyFile("README.md", null, " ", "M", false),
+                new GitWorktreeManager.DirtyFile("notes.txt", null, "?", "?", true)));
+        TaskRow ready = new TaskRow("task-dirty", "project-1", null, "Dirty", "READY",
+                "/tmp/project", "loopper/Dirty", "abc123", "2026-08-12T00:00:00Z", "2026-08-12T00:01:00Z", 2);
+        GitWorktreeManager.DirtyWorkspace clean = new GitWorktreeManager.DirtyWorkspace(
+                "loopper/Dirty", "def456", "snapshot-2", List.of());
+        when(tasks.workspaceDirtyStatus("task-dirty")).thenReturn(dirty);
+        when(tasks.resolveDirtyWorkspace(org.mockito.ArgumentMatchers.eq("task-dirty"),
+                org.mockito.ArgumentMatchers.eq("snapshot-1"), org.mockito.ArgumentMatchers.anyList(),
+                org.mockito.ArgumentMatchers.eq("save local work")))
+                .thenReturn(new TaskService.WorkspaceDirtyResolution(ready, clean));
+        when(tasks.archived(ready.id())).thenReturn(false);
+        when(tasks.attempts(ready.id())).thenReturn(List.of());
+        when(tasks.stages(ready.id())).thenReturn(List.of());
+        when(tasks.errors(ready.id())).thenReturn(List.of());
+        when(tasks.judges(ready.id())).thenReturn(List.of());
+        when(tasks.artifacts(ready.id())).thenReturn(List.of());
+        when(mapper.findProject(ready.projectId())).thenReturn(Optional.empty());
+
+        mvc.perform(get("/api/tasks/task-dirty/workspace-dirty"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.snapshotId").value("snapshot-1"))
+                .andExpect(jsonPath("$.files[0].path").value("README.md"))
+                .andExpect(jsonPath("$.files[1].untracked").value(true));
+
+        String body = """
+                {"snapshotId":"snapshot-1","commitMessage":"save local work","resolutions":[
+                  {"path":"README.md","action":"COMMIT"},{"path":"notes.txt","action":"STASH"}
+                ]}
+                """;
+        mvc.perform(post("/api/tasks/task-dirty/workspace-dirty/resolve")
+                        .header("X-Loopper-Local-UI", "1")
+                        .contentType("application/json").content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.task.status").value("READY"))
+                .andExpect(jsonPath("$.workspace.clean").value(true));
+        mvc.perform(post("/api/tasks/task-dirty/workspace-dirty/resolve")
+                        .contentType("application/json").content(body))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void cancellingDirtyWorkspaceFailsTheTaskOnlyThroughTheLocalUiContract() throws Exception {
+        TaskRow failed = new TaskRow("task-dirty", "project-1", null, "Dirty", "FAILED",
+                "/tmp/project", null, null, "2026-08-12T00:00:00Z", "2026-08-12T00:01:00Z", 2);
+        when(tasks.failDirtyWorkspace(failed.id())).thenReturn(failed);
+        when(tasks.archived(failed.id())).thenReturn(false);
+        when(tasks.attempts(failed.id())).thenReturn(List.of());
+        when(tasks.stages(failed.id())).thenReturn(List.of());
+        when(tasks.errors(failed.id())).thenReturn(List.of());
+        when(tasks.judges(failed.id())).thenReturn(List.of());
+        when(tasks.artifacts(failed.id())).thenReturn(List.of());
+        when(mapper.findProject(failed.projectId())).thenReturn(Optional.empty());
+
+        mvc.perform(post("/api/tasks/task-dirty/workspace-dirty/cancel")
+                        .header("X-Loopper-Local-UI", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("FAILED"));
+        mvc.perform(post("/api/tasks/task-dirty/workspace-dirty/cancel"))
+                .andExpect(status().isBadRequest());
     }
 }

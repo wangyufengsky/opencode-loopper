@@ -2,7 +2,8 @@ package io.opencode.loopper.domain;
 
 /** Stable internal event codes shared by the small aggregate state machines. */
 public enum LifecycleEvent implements DescribedEnum {
-    CREATED("创建实体"), PREPARE("开始准备"), PREPARATION_SUCCEEDED("准备完成"), START("开始执行"),
+    CREATED("创建实体"), PREPARE("开始准备"), RETRY_PREPARATION("重新准备执行环境"),
+    PREPARATION_SUCCEEDED("准备完成"), START("开始执行"),
     BEGIN_VERIFICATION("开始验证"), SCHEDULE_RETRY("安排重试"), RETRY("执行重试"),
     ADVANCE_STAGE("推进到下一阶段"), BEGIN_FINAL_REVIEW("开始最终评审"),
     RETRY_FINAL_REVIEW("重试最终评审"), REOPEN_FINAL_REVIEW("重新打开最终评审"),

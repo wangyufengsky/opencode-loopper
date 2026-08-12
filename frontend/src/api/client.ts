@@ -1,4 +1,4 @@
-import type { AppSettings, Artifact, Attempt, AutomationImportPreview, AutomationImportResult, AutomationRule, AutomationRuleMutation, AutomationRun, AutomationRunFeed, AvailableModel, BrowserAssertion, CommitMessageSuggestion, CreateAutomationRuleInput, DesignerAppendResult, DesignerMessage, DesignerSession, DesignerSessionState, DesignerStreamEvent, DirectorySelection, ErrorEvent, InsightsSnapshot, Interaction, InteractionAction, JudgeRun, LocalSyncConflictContent, LocalSyncConflictFile, LocalSyncConflictSession, LocalSyncResolution, LoopDraft, LoopSpec, LoopSpecTemplate, LoopSpecTemplateVersion, LoopVerifierSpec, MergeRequestDraft, Project, ProjectConventionDraft, ProjectConventionSnapshot, RecoveryDraft, RecoveryMode, RuntimeInfo, SessionCheckpoint, SessionForkResult, SessionRevertResult, SessionSummaryResult, SessionTodo, Stage, Task, TaskDesignHistory, TaskDiffPreview, TaskEvent, TaskInsight, TaskPublicationStatus, TaskSessionActivity, TaskSessionActivityPart, TaskSessionPendingQuestion, TaskSessionSummary, UsageAggregate } from '@/types/domain'
+import type { AppSettings, Artifact, Attempt, AutomationImportPreview, AutomationImportResult, AutomationRule, AutomationRuleMutation, AutomationRun, AutomationRunFeed, AvailableModel, BrowserAssertion, CommitMessageSuggestion, CreateAutomationRuleInput, DesignerAppendResult, DesignerMessage, DesignerSession, DesignerSessionState, DesignerStreamEvent, DirectorySelection, DirtyWorkspaceAction, DirtyWorkspaceResolution, DirtyWorkspaceState, ErrorEvent, InsightsSnapshot, Interaction, InteractionAction, JudgeRun, LocalSyncConflictContent, LocalSyncConflictFile, LocalSyncConflictSession, LocalSyncResolution, LoopDraft, LoopSpec, LoopSpecTemplate, LoopSpecTemplateVersion, LoopVerifierSpec, MergeRequestDraft, Project, ProjectConventionDraft, ProjectConventionSnapshot, RecoveryDraft, RecoveryMode, RuntimeInfo, SessionCheckpoint, SessionForkResult, SessionRevertResult, SessionSummaryResult, SessionTodo, Stage, Task, TaskDesignHistory, TaskDiffPreview, TaskEvent, TaskInsight, TaskPublicationStatus, TaskSessionActivity, TaskSessionActivityPart, TaskSessionPendingQuestion, TaskSessionSummary, UsageAggregate } from '@/types/domain'
 
 const apiBase = import.meta.env.VITE_API_BASE ?? '/api'
 
@@ -200,7 +200,33 @@ function normalizeError(value: unknown): ErrorEvent {
     occurredAt: asString(raw.at) || asString(raw.occurredAt),
     evidenceId: asString(raw.evidenceId) || asString(raw.id),
     sessionId: asString(raw.sessionId) || undefined,
+    evidence: asRecord(raw.evidence),
   }
+}
+
+function normalizeDirtyWorkspace(value: unknown): DirtyWorkspaceState {
+  const raw = asRecord(value)
+  return {
+    branch: asString(raw.branch),
+    head: asString(raw.head),
+    snapshotId: asString(raw.snapshotId),
+    clean: raw.clean === true,
+    files: asArray(raw.files).map((value) => {
+      const file = asRecord(value)
+      return {
+        path: asString(file.path),
+        originalPath: asString(file.originalPath) || undefined,
+        indexStatus: asString(file.indexStatus),
+        workTreeStatus: asString(file.workTreeStatus),
+        untracked: file.untracked === true,
+      }
+    }),
+  }
+}
+
+function normalizeDirtyWorkspaceResolution(value: unknown): DirtyWorkspaceResolution {
+  const raw = asRecord(value)
+  return { task: normalizeTask(raw.task), workspace: normalizeDirtyWorkspace(raw.workspace) }
 }
 
 function normalizeAttempt(value: unknown): Attempt {
@@ -422,6 +448,7 @@ function normalizeRuntime(value: unknown): RuntimeInfo {
     endpoint: asString(raw.endpoint) || undefined,
     model: asString(raw.model) || undefined,
     checkedAt: asString(raw.checkedAt) || new Date().toISOString(),
+    startupFailure: asString(raw.startupFailure) || undefined,
   }
 }
 
@@ -885,6 +912,9 @@ export const api = {
   applyProjectConvention: async (projectId: string, draftId: string) => normalizeProjectConvention(await request<unknown>(`/projects/${encodeURIComponent(projectId)}/agents-md/${encodeURIComponent(draftId)}`, { method: 'PUT', headers: { 'X-Loopper-Local-UI': '1' } })),
   getTasks: async () => (await request<unknown[]>('/tasks')).map(normalizeTask),
   getTask: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}`)),
+  getDirtyWorkspace: async (id: string) => normalizeDirtyWorkspace(await request<unknown>(`/tasks/${encodeURIComponent(id)}/workspace-dirty`)),
+  resolveDirtyWorkspace: async (id: string, input: { snapshotId: string; resolutions: Array<{ path: string; action: DirtyWorkspaceAction }>; commitMessage?: string }) => normalizeDirtyWorkspaceResolution(await request<unknown>(`/tasks/${encodeURIComponent(id)}/workspace-dirty/resolve`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(input) })),
+  cancelDirtyWorkspace: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}/workspace-dirty/cancel`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } })),
   getTaskRecoveries: async (id: string) => (await request<unknown[]>(`/tasks/${encodeURIComponent(id)}/recoveries`)).map(normalizeRecovery),
   createTaskRecovery: async (id: string, mode: RecoveryMode) => normalizeRecovery(await request<unknown>(`/tasks/${encodeURIComponent(id)}/recoveries`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify({ mode }) })),
   getTaskDiffPreview: async (id: string, path: string) => normalizeTaskDiffPreview(await request<unknown>(`/tasks/${encodeURIComponent(id)}/diff-preview?path=${encodeURIComponent(path)}`)),
@@ -947,6 +977,7 @@ export const api = {
   suggestLocalSyncResolution: async (id: string, sessionId: string, input: { path: string; expectedVersion: number }) => request<{ path: string; suggestion: string; automaticallySelected: boolean; version: number }>(`/tasks/${encodeURIComponent(id)}/publication/local-conflicts/${encodeURIComponent(sessionId)}/ai-suggestion`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(input) }),
   applyLocalSyncConflict: async (id: string, sessionId: string, input: { confirmed: boolean; expectedVersion: number }) => normalizeLocalSyncSession(await request<unknown>(`/tasks/${encodeURIComponent(id)}/publication/local-conflicts/${encodeURIComponent(sessionId)}/apply`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(input) })),
   getRuntime: async () => normalizeRuntime(await request<unknown>('/runtime/opencode')),
+  startRuntime: async () => normalizeRuntime(await request<unknown>('/runtime/opencode/start', { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } })),
   restartRuntime: async () => normalizeRuntime(await request<unknown>('/runtime/opencode/restart', { method: 'POST' })),
   getSettings: async () => normalizeSettings(await request<unknown>('/settings')),
   updateSettings: async (settings: AppSettings) => normalizeSettings(await request<unknown>('/settings', { method: 'PUT', body: JSON.stringify(settings) })),

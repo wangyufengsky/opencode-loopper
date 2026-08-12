@@ -167,8 +167,14 @@ move the Task to `WAITING_INPUT`, never to a fabricated success.
 ## Workspace safety
 
 Planning may inspect a registered root read-only. When a project has a valid
-Git HEAD, execution requires the registered checkout to be clean, then creates
-and checks out `loopper/<taskName>` in that registered checkout itself. Repeated task names use
+Git HEAD, execution first snapshots the registered checkout. A dirty checkout
+moves the admitted Task to `WAITING_INPUT` while retaining its writer lease and
+exposes every porcelain-status path to the local UI. The user must choose
+`COMMIT`, `STASH`, or `REMOVE` per path, or cancel and fail the Task without
+changing the files. Cleanup is accepted only against the same branch, HEAD,
+index, status, and file-content snapshot. After an authoritative clean recheck,
+Loopper creates and checks out `loopper/<taskName>` in that registered checkout
+itself. Repeated task names use
 `loopper/<taskName>(第2次)`, `loopper/<taskName>(第3次)`, and so on when the
 corresponding local or remote-tracking branch already exists. Characters
 that Git forbids in branch names are deterministically replaced with `-`, and
@@ -179,7 +185,7 @@ baseline, Loopper performs a bounded non-interactive fetch of the current
 branch's upstream (or the matching branch on the unambiguous preferred remote).
 A linear remote advance becomes the Task baseline before the registered checkout
 is switched to the Task branch; local commits ahead of the remote remain included.
-Fetch/auth failure, dirty source files, or diverged histories fail closed. Git
+Fetch/auth failure or diverged histories fail closed. Git cleanup and checkout
 I/O runs with the caller's SQLite transaction suspended. A persistent FIFO writer
 lease permits only one Task to own a registered checkout, so IDEA-bound AgentBridge,
 OpenCode and every verifier observe the same canonical directory and current branch.
@@ -193,7 +199,11 @@ registered root directly and Loopper stores a private Git-compatible baseline
 under `$LOOPPER_DATA_DIR/direct-baselines/<taskId>` for deterministic path and
 deletion checks. The private baseline does not initialize or commit the target
 project. Canonical execution paths must equal the registered root for new Tasks.
-Loopper never discards changes or merges automatically.
+Loopper never discards changes, creates a protection commit, or stashes paths
+without explicit path-level local-UI decisions. A `REMOVE` decision is destructive
+and requires a second confirmation. Because external Git operations cannot be one
+SQLite transaction, a later action failure preserves completed Git actions and
+returns a refreshed snapshot rather than claiming rollback.
 If a terminal Git Task still has file changes, its writer lease remains held until
 the branch is published or manually cleaned; the next queued Task cannot switch
 the checkout underneath it. After a Task reaches `SUCCEEDED`, the local UI may

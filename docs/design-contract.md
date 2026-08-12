@@ -62,6 +62,20 @@ A Task in `WAITING_INPUT` must keep its context-specific recovery action when on
 is available and also expose a destructive, confirmed cancel action. Cancellation
 retains the execution directory, branch, and evidence instead of implying rollback.
 
+When `waitingReasonCode` is `SOURCE_BRANCH_WORKSPACE_DIRTY`, Task detail opens a
+non-dismissible **发现未提交文件** dialog backed by the server's current Git
+snapshot. It lists every path and requires one explicit `提交 / stash / 移除`
+decision per file before **重新检查并继续** is enabled. Removal has an additional
+destructive confirmation. The only alternate exit is the confirmed **取消并标记任务失败**
+action, which must leave local files unchanged. Snapshot conflicts refresh the
+authoritative list; the browser never assumes cleanup or branch creation succeeded.
+
+The Runtime failure card exposes **启动 OpenCode 并检查连接** only after an Auto
+launch has failed. The button stays loading while the server performs the bounded
+launch and health check. The UI announces success and replaces the failure card
+only when the returned authoritative Runtime snapshot is online; process creation
+or a frontend timer must never be presented as a successful connection.
+
 Task responses expose the current `waitingReasonCode` and authoritative
 `loopRetryAvailable` projection. When the current wait reason is
 `LOOP_STAGNATION_DETECTED` or `LOOP_FRESH_SESSION_REQUIRED`, Task detail explains

@@ -37,7 +37,7 @@ class ReleasePackagingContractTest {
         String linux = Files.readString(PROJECT_ROOT.resolve("scripts/start-linux.sh"));
 
         assertThat(windows)
-                .contains("opencode-loopper-0.1.20.jar")
+                .contains("opencode-loopper-0.1.24.jar")
                 .contains("if %JAVA_MAJOR_NUMBER% LSS 21 goto java_too_old")
                 .contains("%OPENCODE_BASE_URL%/global/health")
                 .contains("call :discover_opencode")
@@ -53,13 +53,14 @@ class ReleasePackagingContractTest {
                 .doesNotContain("serve --hostname 127.0.0.1 --port 4096");
 
         assertThat(linux)
-                .contains("opencode-loopper-0.1.20.jar")
+                .contains("opencode-loopper-0.1.24.jar")
                 .contains("discover_opencode_base_url()")
                 .contains("ps -eo pid=,args=")
                 .contains("lsof -nP -a -p")
                 .contains("ss -H -ltnp")
                 .contains("ss -H -ltn")
                 .contains("OPENCODE_SERVER_PASSWORD")
+                .contains("type -P opencode")
                 .contains("environment wildcard normalized to loopback")
                 .contains("running opencode process")
                 .contains("LOOPPER_OPENCODE_MODE=\"auto\"")
@@ -116,6 +117,26 @@ class ReleasePackagingContractTest {
                 .contains("JAVA_OPENCODE_PASSWORD_SET=true");
     }
 
+    @Test
+    void linuxStartupPinsTheResolvedCliBeforeManagedAutoStartup() throws Exception {
+        Path bin = Files.createDirectories(tempDir.resolve("bin"));
+        Path javaHome = fakeJavaHome();
+        Path jar = Files.writeString(tempDir.resolve("loopper.jar"), "test");
+        executable(bin.resolve("ps"), "#!/usr/bin/env bash\nprintf '999 unrelated-service\\n'\n");
+        executable(bin.resolve("lsof"), "#!/usr/bin/env bash\nexit 0\n");
+        executable(bin.resolve("ss"), "#!/usr/bin/env bash\nexit 0\n");
+        executable(bin.resolve("curl"), healthCurl("http://127.0.0.1:1/global/health", null));
+        executable(bin.resolve("opencode"), "#!/usr/bin/env bash\nexit 0\n");
+
+        String output = runLinuxStartup(bin, javaHome, jar, Map.of());
+
+        assertThat(output)
+                .contains("OpenCode：未发现可复用端点，将由 auto 模式在动态 loopback 端口启动")
+                .contains("OpenCode CLI：" + bin.resolve("opencode"))
+                .contains("JAVA_OPENCODE_EXECUTABLE=" + bin.resolve("opencode"))
+                .contains("JAVA_OPENCODE_MODE=auto");
+    }
+
     private void assertLinuxTuiDiscovery(String listenerTool) throws Exception {
         Path bin = Files.createDirectories(tempDir.resolve("bin"));
         Path javaHome = fakeJavaHome();
@@ -150,9 +171,9 @@ class ReleasePackagingContractTest {
                   echo 'openjdk version "21.0.2"' >&2
                   exit 0
                 fi
-                printf 'JAVA_OPENCODE_BASE_URL=%s\nJAVA_OPENCODE_MODE=%s\nJAVA_OPENCODE_USERNAME=%s\nJAVA_OPENCODE_PASSWORD_SET=%s\n' \
+                printf 'JAVA_OPENCODE_BASE_URL=%s\nJAVA_OPENCODE_MODE=%s\nJAVA_OPENCODE_USERNAME=%s\nJAVA_OPENCODE_PASSWORD_SET=%s\nJAVA_OPENCODE_EXECUTABLE=%s\n' \
                   "${OPENCODE_BASE_URL:-}" "${LOOPPER_OPENCODE_MODE:-}" "${OPENCODE_USERNAME:-}" \
-                  "$([[ -n "${OPENCODE_PASSWORD:-}" ]] && printf true || printf false)"
+                  "$([[ -n "${OPENCODE_PASSWORD:-}" ]] && printf true || printf false)" "${OPENCODE_EXECUTABLE:-}"
                 """);
         return javaHome;
     }

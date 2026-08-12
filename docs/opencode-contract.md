@@ -128,8 +128,27 @@ official OpenCode Basic Auth variables. Candidates are accepted only when the
 authenticated or anonymous loopback `/global/health` response reports
 `healthy=true`. If no endpoint can be reused, the scripts select `auto` mode
 so Loopper starts an owned OpenCode process on a dynamically allocated loopback
-port. Discovery never treats an unrelated listener as OpenCode and never stops
-an externally owned process.
+port. Before Linux enters managed `auto` mode, the launcher resolves
+`OPENCODE_EXECUTABLE` or `opencode` from `PATH` to a concrete executable path
+and fails immediately when no executable is available. Discovery never treats
+an unrelated listener as OpenCode and never stops an externally owned process.
+
+Each managed launch records its newly allocated endpoint before the process is
+created. If process creation, early exit, or the bounded health wait fails, the
+Runtime API returns `OFFLINE`, `managed=false`, the actual attempted endpoint,
+and a sanitized `startupFailure`. It must not present the configured default
+probe endpoint (commonly `127.0.0.1:4096`) as a listener. Internal requests fail
+closed against an unused loopback endpoint until an explicit local-UI retry
+succeeds. Ordinary Runtime reads and internal client lookups must not repeatedly
+spawn processes after a recorded launch failure. `POST /api/runtime/opencode/start`
+is the local-UI-only recovery boundary: it clears the prior failure, performs one
+Auto launch attempt, and returns `AVAILABLE` only after the authenticated
+`/global/health` response reports `healthy=true`. A created process alone is not
+a successful connection.
+During managed startup, each health request is capped at one second or the
+remaining startup budget, whichever is shorter. A general OpenCode request
+timeout must never consume the whole startup budget before another health probe
+can run.
 
 The OpenCode execution permission boundary continues to deny `git push`.
 Publication is a separate Spring service available only after persisted Task
