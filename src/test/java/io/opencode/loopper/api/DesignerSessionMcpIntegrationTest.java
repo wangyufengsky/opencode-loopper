@@ -3,6 +3,7 @@ package io.opencode.loopper.api;
 import io.opencode.loopper.LoopperApplication;
 import io.opencode.loopper.domain.LoopDraftStatus;
 import io.opencode.loopper.domain.LoopSpec;
+import io.opencode.loopper.verification.ProcessCommandPolicy;
 import io.opencode.loopper.persistence.DesignerSessionRow;
 import io.opencode.loopper.persistence.DesignerMessageRow;
 import io.opencode.loopper.persistence.ExecutionSessionRow;
@@ -50,7 +51,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(classes = LoopperApplication.class, properties = {
         "loopper.opencode.mode=fake", "loopper.opencode.model=opencode/deepseek-v4-flash-free", "loopper.monitor-delay=1h",
         "loopper.designer-monitor-delay=1h", "loopper.mcp.bearer-token=designer-mcp-test-token",
-        "spring.ai.mcp.server.protocol=STREAMABLE", "spring.ai.mcp.server.name=opencode-loopper", "spring.ai.mcp.server.version=0.1.24",
+        "spring.ai.mcp.server.protocol=STREAMABLE", "spring.ai.mcp.server.name=opencode-loopper", "spring.ai.mcp.server.version=0.1.26",
         "spring.ai.mcp.server.annotation-scanner.enabled=false",
         "spring.ai.mcp.server.capabilities.resource=false", "spring.ai.mcp.server.capabilities.prompt=false", "spring.ai.mcp.server.capabilities.completion=false",
         "spring.ai.mcp.server.streamable-http.mcp-endpoint=/api/mcp-streamable", "spring.ai.mcp.server.streamable-http.disallow-delete=true"})
@@ -126,7 +127,7 @@ class DesignerSessionMcpIntegrationTest {
                 .contains("Do not defer all tests or functional validation to the final stage")
                 .contains("final full-regression verifier may supplement but never replace")
                 .contains("JSON field is exactly `command`", "Never rename this JSON field to `argv`, `args`, or `cmd`")
-                .contains("Never assume Maven Wrapper is present", "use `./mvnw` only when an executable `mvnw` is checked in")
+                .contains("Never assume Maven Wrapper is present", "portable `./mvnw` alias", "`mvnw.cmd` on Windows")
                 .doesNotContain("[\"./mvnw\", \"clean\", \"compile\"]")
                 .contains("default to Simplified Chinese", "protocol enum values")
                 .contains("LOOPSPEC_JSON_START", boundDraft.id(), project.id())
@@ -291,8 +292,10 @@ class DesignerSessionMcpIntegrationTest {
     void designerAcceptsArgvAsAWeakModelAliasAndPersistsCanonicalCommand() throws Exception {
         FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
         Path root = Files.createDirectory(temp.resolve("argv-alias-project"));
-        Path wrapper = Files.writeString(root.resolve("mvnw"), "#!/bin/sh\nexit 0\n");
-        wrapper.toFile().setExecutable(true);
+        Path wrapper = ProcessCommandPolicy.platformMavenWrapper(root, System.getProperty("os.name", ""));
+        boolean windows = System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win");
+        Files.writeString(wrapper, windows ? "@echo off\r\nexit /b 0\r\n" : "#!/bin/sh\nexit 0\n");
+        if (!windows) wrapper.toFile().setExecutable(true);
         ProjectRow project = projects.create("designer-argv-alias", root.toString());
         LoopDraftRow boundDraft = drafts.create(spec(project.id()));
         LoopSpec processSpec = new LoopSpec("v1", project.id(), "Compile and verify", "",
@@ -453,7 +456,7 @@ class DesignerSessionMcpIntegrationTest {
         DesignerSessionRow repairing = designerSessions.get(designer.id());
         assertThat(repairing.externalSessionState()).isEqualTo("REPAIRING_LOOPSPEC_1");
         assertThat(fake.promptForSession(repairing.externalSessionId()))
-                .contains("./mvnw is not present in the registered project root")
+                .contains("the platform Maven Wrapper is not present in the registered project root")
                 .contains("Maven Wrapper is optional")
                 .contains("Never assume Maven Wrapper is present");
         assertThat(drafts.get(boundDraft.id()).version()).isZero();
@@ -576,7 +579,7 @@ class DesignerSessionMcpIntegrationTest {
         mvc.perform(mcp(rpc(1, "initialize", "{\"protocolVersion\":\"2025-03-26\"}")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.protocolVersion").value("2025-03-26"))
-                .andExpect(jsonPath("$.result.serverInfo.version").value("0.1.24"));
+                .andExpect(jsonPath("$.result.serverInfo.version").value("0.1.26"));
         MvcResult list = mvc.perform(mcp(rpc(2, "tools/list", "{}"))).andExpect(status().isOk()).andReturn();
         assertThat(list.getResponse().getContentAsString())
                 .contains("get_project_context", "propose_loop_spec", "validate_loop_spec", "create_task", "start_task", "get_task_status")
@@ -649,7 +652,7 @@ class DesignerSessionMcpIntegrationTest {
         MvcResult initialized = mvc.perform(streamable(initialize, null))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.serverInfo.name").value("opencode-loopper"))
-                .andExpect(jsonPath("$.result.serverInfo.version").value("0.1.24"))
+                .andExpect(jsonPath("$.result.serverInfo.version").value("0.1.26"))
                 .andExpect(jsonPath("$.result.protocolVersion").value("2025-03-26"))
                 .andReturn();
         String sessionId = initialized.getResponse().getHeader("Mcp-Session-Id");

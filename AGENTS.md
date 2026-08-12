@@ -41,10 +41,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.1.24.jar
-   jar tf target/opencode-loopper-0.1.24.jar \
+   test -s target/opencode-loopper-0.1.26.jar
+   jar tf target/opencode-loopper-0.1.26.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.1.24.jar
+   shasum -a 256 target/opencode-loopper-0.1.26.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -93,8 +93,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.1.24`。
-- 正式产物：`target/opencode-loopper-0.1.24.jar`。
+- Maven 项目版本：`0.1.26`。
+- 正式产物：`target/opencode-loopper-0.1.26.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -220,6 +220,7 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 ### 5.4 验证器与 Judge
 
 - `PROCESS.command` 是 argv 数组，直接调用程序；禁止 `sh -c`、`bash -c`、`cmd /c`、管道、重定向和 shell 插值。
+- Windows PROCESS 必须在启动前按任务根目录解析 `mvnw`/`gradlew` 包装器，并按 Loopper 进程 `PATH`/`PATHEXT` 解析裸程序的 `.com`/`.exe`/`.bat`/`.cmd` 入口；证据保存实际绝对 argv 与解析原因。Linux/macOS 保留原生 PATH 与可执行位语义。该适配不得放开用户 shell 启动器或 shell 片段，Windows 批处理启动必须启用 JDK 严格命令引用模式。
 - Maven 参数兼容规范化只能进行确定性 token 拆分，不得启动 shell；新草稿保存规范化 argv，执行器还需兼容规范化历史草稿，并在证据中记录发生过拆分。
 - Stage 的 `allowedPaths` / `forbiddenPaths` 只是 Agent 提示；只有显式 `GIT_DIFF` 才是路径/删除的强验收门槛。
 - `GIT_DIFF` 只证明改动范围，不能作为一个阶段唯一的功能验证。
@@ -283,6 +284,7 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 
 - TypeScript 类型以 `frontend/src/types/domain.ts` 为边界，API 变更必须同步 DTO、client、store、view 和测试；Designer 保存/确认必须无损往返全部 LoopSpec limits、model、sessionPolicy 和 nextAttemptPromptTemplate。
 - Task 等待动作以服务端 `waitingReasonCode` / `loopRetryAvailable` 投影为准，前端不得从历史错误推断当前“继续一轮”入口。
+- `SOURCE_BRANCH_WORKSPACE_DIRTY` 错误事件作为审计历史保留，但活动红色提示只在 Task 仍为 `WAITING_INPUT` 且当前 `waitingReasonCode` 与其一致时显示；进入 `READY`/执行阶段后不得残留为当前故障。
 - `SOURCE_BRANCH_WORKSPACE_DIRTY` 必须打开不可静默关闭的文件处理弹窗，逐文件选择提交、stash 或移除；重新检查成功前不得制造任务分支已创建的状态，取消只能经确认后把任务标记为失败。
 - 服务端是权威状态；不要用计时器伪造阶段进度、用量、成本、Session 完成或 Judge 结果。
 - 所有等待、问题、权限、可恢复错误和终止错误都必须真实可见，并提供可执行的恢复动作；不要永久显示含糊的“待评审”。
@@ -333,7 +335,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.1.24.jar
+JAR=target/opencode-loopper-0.1.26.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -455,3 +457,5 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 | 2026-08-12 | 修复 Linux auto 启动健康探测耗尽总超时，准备 0.1.22（暂不发布） | 将受管启动期间单次健康请求限制为 1 秒及剩余总预算的较小值，允许在 15 秒启动窗口内持续重试；同步 README 与 OpenCode 合同 | 聚焦验证：Java 27/27、Vitest 123/123；延迟 1.2 秒的首次健康响应在 3 秒总预算内成功触发重试；`./scripts/verify.sh`：Java 267/267、Vitest 123/123，BUILD SUCCESS；最终 JAR 启动 Loopper PID 83403，并自动启动 OpenCode 1.18.12 PID 83600，监听动态端口 `127.0.0.1:55280`，Runtime `AVAILABLE`/`managed=true`，停止父进程后子进程同步停止；JAR 262600979 bytes，SHA-256 `eb5bf405cbaa2a9c56facb6e1cfe422b5b42d49b6f0a503c6dde0f56a884c955`；按用户要求未提交、未推送、未打标签、未发布 |
 | 2026-08-12 | Runtime 失败后显式启动并检查连接，准备 0.1.23（暂不发布） | Auto 失败卡片新增本地 UI 专用启动动作；普通读取不再重复拉起；仅健康检查通过后提示连接成功；同步 README、OpenCode 与设计合同 | 聚焦验证：Java 29/29、Vitest 125/125；`./scripts/verify.sh`：Java 269/269、Vitest 125/125，BUILD SUCCESS；真实流程第一次子进程退出码 41，连续 GET 保持同一失败且不重启，无本地 UI 标识返回 400，显式 POST 随后启动 OpenCode 1.18.12 PID 90888，监听 `127.0.0.1:56741`，Runtime `AVAILABLE`/`managed=true`，父进程停止后子进程同步停止；JAR 262601831 bytes，SHA-256 `47b8ccebf6403e808c9db567a8419d1ad476da93e2485e1c0d441c351a692312`；按用户要求未提交、未推送、未打标签、未发布 |
 | 2026-08-12 | 未提交文件逐项处理并发布 0.1.24（包含 0.1.21–0.1.23 Runtime 累积修复） | 脏登记目录改为 `WAITING_INPUT`，展示精确文件并按快照逐项提交、暂存或移除；重新检查后继续创建任务分支；取消直接使任务失败且不改文件；同步 README、架构、设计、OpenCode 与七特性合同 | 聚焦验证：TaskService 44/44、Git/Controller/前端相关回归通过；`./scripts/verify.sh`：Java 275/275、Vitest 128/128，BUILD SUCCESS；0.1.24 隔离真实 JAR 验证提交+暂存后进入 `READY`/任务分支，取消后保持源分支和脏文件；JAR 262625680 bytes，SHA-256 `6dea210cd2ee475cbcca6e3b4513039a7496f041bc2873e83dc1c63767192028`；发布目标：`v0.1.24` |
+| 2026-08-12 | 清理人工工作区检查后的活动提示，准备 0.1.25（暂不发布） | `SOURCE_BRANCH_WORKSPACE_DIRTY` 继续保留为审计历史，但仅在服务端当前等待原因仍匹配时显示活动红色告警；进入 `READY`/执行阶段即隐藏；同步 README 与设计合同 | 聚焦 TaskDetail Vitest 8/8、前端类型检查及版本/MCP 测试通过；`./scripts/verify.sh`：Java 275/275、Vitest 130/130，BUILD SUCCESS；JAR 262625669 bytes，SHA-256 `ff60a2aae2b1d2c435188791fd649644f3555b230a984f40976bc4574e3554ee`；按用户要求未提交、未推送、未打标签、未发布 |
+| 2026-08-12 | 修复 Windows PROCESS 找不到 Maven 并发布 0.1.26 | Windows 按任务根解析 Maven/Gradle Wrapper，按 Loopper 进程 `PATH`/`PATHEXT` 解析 `.com`/`.exe`/`.bat`/`.cmd` 并记录实际 argv；启用 JDK 严格 Windows 命令引用；Linux/macOS 保留原生 PATH 与可执行位语义；同步 README、架构、设计和验证器合同 | 聚焦 Java 58 项：57 通过、Windows 实机条件用例 1 项在 macOS 跳过；Vitest 130/130；`./scripts/verify.sh`：Java 283 项中 282 通过、Windows 条件用例 1 项跳过，Vitest 130/130，BUILD SUCCESS；Java 21 隔离启动 18086 health `UP` 且返回打包 SPA；JAR 262634284 bytes，SHA-256 `730063b9d1a0b011cff2b7429feaf2e73012b6fdaec837bba90ab21ddab05c3d`；发布目标：`v0.1.26` |

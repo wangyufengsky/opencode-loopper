@@ -5,6 +5,7 @@ import io.opencode.loopper.domain.TaskFailure;
 import io.opencode.loopper.domain.VerificationState;
 import io.opencode.loopper.runtime.ProcessResult;
 import io.opencode.loopper.runtime.DirectWorkspaceBaselineManager;
+import io.opencode.loopper.runtime.ExecutableResolver;
 import io.opencode.loopper.runtime.SafeProcessRunner;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -100,9 +101,10 @@ public class VerifierEngine {
         } catch (TaskFailure startFailure) {
             if (usesMavenWrapper(declaredCommand) && !resolved.fallback()
                     && "PROCESS_START_FAILED".equals(startFailure.code())) {
-                resolved = mavenFallback(declaredCommand, "MAVEN_WRAPPER_START_FAILED");
+                resolved = mavenFallback(worktree, declaredCommand, "MAVEN_WRAPPER_START_FAILED", startFailure);
                 result = runMavenFallback(worktree, resolved.argv(), timeout, startFailure);
-            } else if (resolved.fallback() && "PROCESS_START_FAILED".equals(startFailure.code())) {
+            } else if ((resolved.fallback() || usesSystemMaven(declaredCommand))
+                    && "PROCESS_START_FAILED".equals(startFailure.code())) {
                 throw mavenUnavailable(startFailure);
             } else {
                 throw startFailure;
@@ -124,7 +126,11 @@ public class VerifierEngine {
         }
         if (resolved.fallback()) {
             evidence.putIfAbsent("declaredArgv", declaredCommand);
-            evidence.put("commandResolution", resolved.reason());
+            evidence.put("commandResolution", resolved.commandReason());
+        }
+        if (resolved.executableReason() != null) {
+            evidence.putIfAbsent("declaredArgv", declaredCommand);
+            evidence.put("executableResolution", resolved.executableReason());
         }
         evidence.put("exitCode", result.exitCode());
         evidence.put("timedOut", result.timedOut());
@@ -148,12 +154,32 @@ public class VerifierEngine {
     }
 
     private ResolvedProcessCommand resolveProcessCommand(Path worktree, List<String> declaredCommand) {
-        if (!usesMavenWrapper(declaredCommand)) return new ResolvedProcessCommand(declaredCommand, null);
-        Path wrapper = worktree.resolve("mvnw").normalize();
-        if (!wrapper.equals(worktree.resolve("mvnw")) || !Files.isRegularFile(wrapper) || !Files.isExecutable(wrapper)) {
-            return mavenFallback(declaredCommand, "MAVEN_WRAPPER_UNAVAILABLE_IN_WORKTREE");
+        if (usesMavenWrapper(declaredCommand)) {
+            try {
+                ExecutableResolver.Resolution platform = runner.resolve(worktree, declaredCommand);
+                if (platform.changed()) {
+                    return new ResolvedProcessCommand(platform.argv(), null, platform.reason());
+                }
+            } catch (TaskFailure unavailable) {
+                if (!"PROCESS_COMMAND_UNAVAILABLE".equals(unavailable.code())) throw unavailable;
+                return mavenFallback(worktree, declaredCommand,
+                        "MAVEN_WRAPPER_UNAVAILABLE_IN_WORKTREE", unavailable);
+            }
+            Path wrapper = worktree.resolve("mvnw").normalize();
+            if (!wrapper.equals(worktree.resolve("mvnw")) || !Files.isRegularFile(wrapper) || !Files.isExecutable(wrapper)) {
+                return mavenFallback(worktree, declaredCommand,
+                        "MAVEN_WRAPPER_UNAVAILABLE_IN_WORKTREE", null);
+            }
         }
-        return new ResolvedProcessCommand(declaredCommand, null);
+        try {
+            ExecutableResolver.Resolution platform = runner.resolve(worktree, declaredCommand);
+            return new ResolvedProcessCommand(platform.argv(), null, platform.reason());
+        } catch (TaskFailure unavailable) {
+            if (usesSystemMaven(declaredCommand) && "PROCESS_COMMAND_UNAVAILABLE".equals(unavailable.code())) {
+                throw mavenUnavailable(unavailable);
+            }
+            throw unavailable;
+        }
     }
 
     private ProcessResult runMavenFallback(Path worktree, List<String> fallbackCommand, Duration timeout,
@@ -168,22 +194,36 @@ public class VerifierEngine {
 
     private TaskFailure mavenUnavailable(TaskFailure cause) {
         return new TaskFailure("MAVEN_COMMAND_UNAVAILABLE",
-                "The project Maven Wrapper could not be started and mvn is not available on the Loopper process PATH: "
-                        + cause.getMessage());
+                "Maven could not be resolved or started for direct argv execution. On Windows ensure mvn.cmd is on the "
+                        + "Loopper process PATH; on Linux/macOS ensure mvn is executable. Cause: "
+                        + (cause == null ? "no platform Maven executable was found" : cause.getMessage()));
     }
 
-    private ResolvedProcessCommand mavenFallback(List<String> declaredCommand, String reason) {
+    private ResolvedProcessCommand mavenFallback(Path worktree, List<String> declaredCommand, String reason,
+                                                  TaskFailure wrapperFailure) {
         List<String> fallback = new ArrayList<>(declaredCommand);
         fallback.set(0, "mvn");
-        return new ResolvedProcessCommand(List.copyOf(fallback), reason);
+        try {
+            ExecutableResolver.Resolution platform = runner.resolve(worktree, List.copyOf(fallback));
+            return new ResolvedProcessCommand(platform.argv(), reason, platform.reason());
+        } catch (TaskFailure unavailable) {
+            if ("PROCESS_COMMAND_UNAVAILABLE".equals(unavailable.code())) {
+                throw mavenUnavailable(wrapperFailure == null ? unavailable : wrapperFailure);
+            }
+            throw unavailable;
+        }
     }
 
     private boolean usesMavenWrapper(List<String> command) {
-        return command != null && !command.isEmpty() && "./mvnw".equals(command.getFirst());
+        return command != null && !command.isEmpty() && ProcessCommandPolicy.isMavenWrapper(command.getFirst());
     }
 
-    private record ResolvedProcessCommand(List<String> argv, String reason) {
-        private boolean fallback() { return reason != null; }
+    private boolean usesSystemMaven(List<String> command) {
+        return command != null && !command.isEmpty() && ProcessCommandPolicy.isSystemMaven(command.getFirst());
+    }
+
+    private record ResolvedProcessCommand(List<String> argv, String commandReason, String executableReason) {
+        private boolean fallback() { return commandReason != null; }
     }
 
     private Duration requireBoundedTimeout(Duration timeout) {

@@ -146,13 +146,15 @@ public class LoopDraftService {
                     }
                 }
                 if (requireExecutableAcceptance && "PROCESS".equals(type) && !verifier.command().isEmpty()
-                        && "./mvnw".equals(verifier.command().getFirst())) {
-                    Path wrapper = Path.of(projects.get(spec.projectId()).rootPath()).resolve("mvnw");
+                        && ProcessCommandPolicy.isMavenWrapper(verifier.command().getFirst())) {
+                    String osName = System.getProperty("os.name", "");
+                    Path wrapper = ProcessCommandPolicy.platformMavenWrapper(
+                            Path.of(projects.get(spec.projectId()).rootPath()), osName);
                     if (!Files.isRegularFile(wrapper)) {
-                        errors.add(path + ".command[0]: ./mvnw is not present in the registered project root; "
-                                + "Maven Wrapper is optional, so use an evidenced repository command such as mvn instead");
-                    } else if (!Files.isExecutable(wrapper)) {
-                        errors.add(path + ".command[0]: ./mvnw exists but is not executable; preserve its executable bit "
+                        errors.add(path + ".command[0]: the platform Maven Wrapper is not present in the registered project root (expected "
+                                + wrapper.getFileName() + "); Maven Wrapper is optional, so use an evidenced repository command such as mvn instead");
+                    } else if (!osName.toLowerCase(java.util.Locale.ROOT).contains("win") && !Files.isExecutable(wrapper)) {
+                        errors.add(path + ".command[0]: " + wrapper.getFileName() + " exists but is not executable; preserve its executable bit "
                                 + "or use another evidenced repository command such as mvn");
                     }
                 }

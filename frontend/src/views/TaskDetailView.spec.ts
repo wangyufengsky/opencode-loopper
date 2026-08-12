@@ -240,6 +240,85 @@ describe('TaskDetailView judge action', () => {
     expect(wrapper.findAll('button').some((button) => button.text().includes('继续一轮'))).toBe(false)
   })
 
+  it('hides the resolved dirty-workspace alert after execution preparation continues', async () => {
+    store.tasks = [{
+      ...reviewTask,
+      id: 'task-dirty-resolved',
+      status: 'RUNNING',
+      branch: 'loopper/task-dirty-resolved',
+      waitingReasonCode: undefined,
+      judges: [],
+      errors: [{
+        id: 'dirty-history', layer: 'TASK', code: 'SOURCE_BRANCH_WORKSPACE_DIRTY',
+        message: '历史未提交文件提示', retryable: true, occurredAt: 'earlier',
+      }],
+    }]
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/tasks/:id', component: { template: '<div />' } }] })
+    await router.push('/tasks/task-dirty-resolved')
+    await router.isReady()
+
+    const wrapper = mount(TaskDetailView, {
+      global: {
+        plugins: [router, ElementPlus],
+        stubs: {
+          Icon: true,
+          PageHeader: { template: '<header><slot name="actions" /></header><slot />' },
+          StatusBadge: true,
+          StageRail: true,
+          AttemptTimeline: true,
+          LayeredErrorPanel: { props: ['error'], template: '<div class="layered-error-stub">{{ error.code }}</div>' },
+          SessionMonitorPanel: true,
+          JudgeReviewCard: true,
+          TaskAuditEvidencePanel: true,
+          TaskPublicationActions: true,
+          DirtyWorkspaceDialog: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.find('.layered-error-stub').exists()).toBe(false)
+  })
+
+  it('keeps the dirty-workspace alert visible while that wait reason is current', async () => {
+    store.tasks = [{
+      ...reviewTask,
+      id: 'task-dirty-current',
+      status: 'WAITING_INPUT',
+      waitingReasonCode: 'SOURCE_BRANCH_WORKSPACE_DIRTY',
+      judges: [],
+      errors: [{
+        id: 'dirty-current', layer: 'TASK', code: 'SOURCE_BRANCH_WORKSPACE_DIRTY',
+        message: '当前未提交文件提示', retryable: true, occurredAt: 'now',
+      }],
+    }]
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/tasks/:id', component: { template: '<div />' } }] })
+    await router.push('/tasks/task-dirty-current')
+    await router.isReady()
+
+    const wrapper = mount(TaskDetailView, {
+      global: {
+        plugins: [router, ElementPlus],
+        stubs: {
+          Icon: true,
+          PageHeader: { template: '<header><slot name="actions" /></header><slot />' },
+          StatusBadge: true,
+          StageRail: true,
+          AttemptTimeline: true,
+          LayeredErrorPanel: { props: ['error'], template: '<div class="layered-error-stub">{{ error.code }}</div>' },
+          SessionMonitorPanel: true,
+          JudgeReviewCard: true,
+          TaskAuditEvidencePanel: true,
+          TaskPublicationActions: true,
+          DirtyWorkspaceDialog: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.find('.layered-error-stub').text()).toBe('SOURCE_BRANCH_WORKSPACE_DIRTY')
+  })
+
   it('creates a new branch rework task and navigates to the child', async () => {
     store.tasks = [{ ...reviewTask, id: 'task-success', title: '已完成任务', status: 'SUCCEEDED', branch: 'loopper/task-success' }]
     const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/tasks/:id', component: { template: '<div />' } }] })

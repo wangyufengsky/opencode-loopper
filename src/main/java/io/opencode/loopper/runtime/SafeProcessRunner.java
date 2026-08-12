@@ -16,21 +16,42 @@ import org.springframework.stereotype.Component;
 /** Runs an argv vector only. Callers never pass shell snippets to this boundary. */
 @Component
 public class SafeProcessRunner {
+    static {
+        if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
+            // Force the JDK's strict quoting/validation path when CreateProcess launches a .cmd/.bat file.
+            System.setProperty("jdk.lang.Process.allowAmbiguousCommands", "false");
+        }
+    }
+
+    private final ExecutableResolver executableResolver;
+
+    public SafeProcessRunner() {
+        this(new ExecutableResolver());
+    }
+
+    public SafeProcessRunner(ExecutableResolver executableResolver) {
+        this.executableResolver = executableResolver;
+    }
+
+    public ExecutableResolver.Resolution resolve(Path directory, List<String> argv) {
+        validateArguments(argv);
+        return executableResolver.resolve(directory, argv);
+    }
+
     public ProcessResult run(Path directory, List<String> argv, Duration timeout) {
         return run(directory, argv, timeout, Map.of());
     }
 
     /** Runs with a narrowly supplied environment overlay, for example non-interactive Git network access. */
     public ProcessResult run(Path directory, List<String> argv, Duration timeout, Map<String, String> environment) {
-        if (argv == null || argv.isEmpty() || argv.stream().anyMatch(s -> s == null || s.isBlank())) {
-            throw new TaskFailure("PROCESS_ARGUMENT_INVALID", "Process verifier requires a non-empty argv vector");
-        }
+        validateArguments(argv);
         if (environment == null || environment.entrySet().stream().anyMatch(entry -> entry.getKey() == null
                 || entry.getKey().isBlank() || entry.getValue() == null)) {
             throw new TaskFailure("PROCESS_ENVIRONMENT_INVALID", "Process environment entries must have non-empty names and values");
         }
+        ExecutableResolver.Resolution resolution = executableResolver.resolve(directory, argv, environment);
         try {
-            ProcessBuilder builder = new ProcessBuilder(new ArrayList<>(argv))
+            ProcessBuilder builder = new ProcessBuilder(new ArrayList<>(resolution.argv()))
                     .directory(directory.toFile())
                     .redirectErrorStream(true);
             builder.environment().putAll(environment);
@@ -72,6 +93,12 @@ public class SafeProcessRunner {
             throw new TaskFailure("PROCESS_INTERRUPTED", "Process execution was interrupted");
         } catch (IOException e) {
             throw new TaskFailure("PROCESS_START_FAILED", "Unable to start process: " + e.getMessage());
+        }
+    }
+
+    private static void validateArguments(List<String> argv) {
+        if (argv == null || argv.isEmpty() || argv.stream().anyMatch(s -> s == null || s.isBlank())) {
+            throw new TaskFailure("PROCESS_ARGUMENT_INVALID", "Process verifier requires a non-empty argv vector");
         }
     }
 

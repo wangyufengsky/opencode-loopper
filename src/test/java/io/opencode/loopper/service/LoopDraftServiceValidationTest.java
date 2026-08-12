@@ -6,6 +6,7 @@ import io.opencode.loopper.persistence.LoopperMapper;
 import jakarta.validation.Validator;
 import java.util.List;
 import java.util.Set;
+import java.nio.file.Path;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
@@ -55,6 +56,15 @@ class LoopDraftServiceValidationTest {
                 "mvn", "test", "-Dtest=Base64FieldTest", "-pl", "upfs-common")), true)).isEmpty();
         assertThat(drafts.validationErrors(spec(List.of(
                 "mvn", "-DargLine=-Xmx512m -XX:+UseSerialGC", "test")), true)).isEmpty();
+    }
+
+    @Test
+    void selectsThePlatformSpecificMavenWrapperName() {
+        Path root = Path.of("project");
+        assertThat(io.opencode.loopper.verification.ProcessCommandPolicy.platformMavenWrapper(root, "Linux"))
+                .isEqualTo(root.resolve("mvnw"));
+        assertThat(io.opencode.loopper.verification.ProcessCommandPolicy.platformMavenWrapper(root, "Windows 10"))
+                .isEqualTo(root.resolve("mvnw.cmd"));
     }
 
     private LoopSpec spec(List<String> command) {

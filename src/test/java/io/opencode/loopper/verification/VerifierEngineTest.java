@@ -6,6 +6,7 @@ import io.opencode.loopper.domain.TaskFailure;
 import io.opencode.loopper.domain.VerificationState;
 import io.opencode.loopper.config.LoopperProperties;
 import io.opencode.loopper.runtime.DirectWorkspaceBaselineManager;
+import io.opencode.loopper.runtime.ExecutableResolver;
 import io.opencode.loopper.runtime.ProcessResult;
 import io.opencode.loopper.runtime.SafeProcessRunner;
 import com.sun.net.httpserver.HttpServer;
@@ -204,7 +205,7 @@ class VerifierEngineTest {
     @Test
     void safelySplitsCollapsedMavenArgumentsBeforeStartingTheProcess() {
         AtomicReference<List<String>> actualArgv = new AtomicReference<>();
-        SafeProcessRunner capturingRunner = new SafeProcessRunner() {
+        SafeProcessRunner capturingRunner = new SafeProcessRunner(new ExecutableResolver("Linux", Map.of())) {
             @Override public ProcessResult run(Path ignored, List<String> argv, Duration timeout) {
                 actualArgv.set(argv);
                 return new ProcessResult(0, "BUILD SUCCESS", false);
@@ -232,7 +233,7 @@ class VerifierEngineTest {
 
     @Test
     void reportsNonZeroExitBeforeMissingOutputMarker() {
-        SafeProcessRunner failingRunner = new SafeProcessRunner() {
+        SafeProcessRunner failingRunner = new SafeProcessRunner(new ExecutableResolver("Linux", Map.of())) {
             @Override public ProcessResult run(Path ignored, List<String> argv, Duration timeout) {
                 return new ProcessResult(1, "[ERROR] Unknown lifecycle phase", false);
             }
@@ -250,7 +251,7 @@ class VerifierEngineTest {
     @Test
     void missingMavenWrapperFallsBackToMavenAndRecordsActualCommand() {
         AtomicReference<List<String>> actualCommand = new AtomicReference<>();
-        SafeProcessRunner recordingRunner = new SafeProcessRunner() {
+        SafeProcessRunner recordingRunner = new SafeProcessRunner(new ExecutableResolver("Linux", Map.of())) {
             @Override public ProcessResult run(Path ignored, List<String> argv, Duration timeout) {
                 actualCommand.set(List.copyOf(argv));
                 return new ProcessResult(0, "BUILD SUCCESS", false);
@@ -274,7 +275,7 @@ class VerifierEngineTest {
         Path wrapper = Files.writeString(directory.resolve("mvnw"), "#!/missing/interpreter\n");
         wrapper.toFile().setExecutable(true);
         AtomicReference<List<List<String>>> commands = new AtomicReference<>(new ArrayList<>());
-        SafeProcessRunner recordingRunner = new SafeProcessRunner() {
+        SafeProcessRunner recordingRunner = new SafeProcessRunner(new ExecutableResolver("Linux", Map.of())) {
             @Override public ProcessResult run(Path ignored, List<String> argv, Duration timeout) {
                 commands.get().add(List.copyOf(argv));
                 if ("./mvnw".equals(argv.getFirst())) {
@@ -293,6 +294,31 @@ class VerifierEngineTest {
         assertThat(outcome.evidence())
                 .containsEntry("argv", List.of("mvn", "test"))
                 .containsEntry("commandResolution", "MAVEN_WRAPPER_START_FAILED");
+    }
+
+    @Test
+    void resolvesWindowsMavenCmdFromPathAndRecordsTheActualExecutable() throws Exception {
+        Path bin = Files.createDirectories(directory.resolve("windows-maven/bin"));
+        Path maven = Files.writeString(bin.resolve("mvn.cmd"), "@echo off\r\n");
+        AtomicReference<List<String>> actualCommand = new AtomicReference<>();
+        SafeProcessRunner recordingRunner = new SafeProcessRunner(new ExecutableResolver("Windows 10", Map.of(
+                "PATH", bin.toString(), "PATHEXT", ".EXE;.CMD;.BAT"))) {
+            @Override public ProcessResult run(Path ignored, List<String> argv, Duration timeout) {
+                actualCommand.set(List.copyOf(argv));
+                return new ProcessResult(0, "BUILD SUCCESS", false);
+            }
+        };
+
+        VerifierOutcome outcome = new VerifierEngine(recordingRunner).verify(directory, "unused",
+                new VerifierSpec("PROCESS", List.of("mvn", "test"),
+                        null, null, null, null, null, "BUILD SUCCESS"), Duration.ofSeconds(5));
+
+        List<String> resolved = List.of(maven.toAbsolutePath().normalize().toString(), "test");
+        assertThat(actualCommand.get()).isEqualTo(resolved);
+        assertThat(outcome.evidence())
+                .containsEntry("argv", resolved)
+                .containsEntry("declaredArgv", List.of("mvn", "test"))
+                .containsEntry("executableResolution", "WINDOWS_PATHEXT_PATH");
     }
 
     @Test

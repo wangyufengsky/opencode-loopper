@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.1.24`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.1.26`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -111,7 +111,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.1.24.jar
+java -jar target/opencode-loopper-0.1.26.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -190,13 +190,13 @@ LoopSpec 是执行前必须人工确认的结构化合同。核心字段包括�
 }
 ```
 
-`PROCESS.command` 是参数数组，不是 shell 字符串；请写 `['./mvnw', 'test']` 这一类直接命令，不要写 `sh -c`、管道或重定向。为兼容 Designer 偶尔把 Maven 参数合并到同一数组项的情况，Loopper 会在不启动 shell 的前提下自动拆分能够无歧义解析的 Maven 参数；引号未闭合等无法安全解析的输入仍会触发只读 Designer 自动纠正。`GIT_DIFF` 只证明改动范围，不能作为一个阶段唯一的功能验收。
+`PROCESS.command` 是参数数组，不是 shell 字符串；请写 `['./mvnw', 'test']` 这一类直接命令，不要写 `sh -c`、`cmd /c`、管道或重定向。Linux/macOS 保持操作系统原生 argv 解析，项目脚本必须具有可执行位；Windows 会先把 `./mvnw`、`./gradlew` 映射到项目根中的 `.cmd`/`.bat` 包装器，并按 Loopper 进程的 `PATH`/`PATHEXT` 解析 `mvn`、`npm`、`npx`、`opencode` 等命令的 `.exe`/`.com`/`.bat`/`.cmd` 入口。解析后的绝对程序路径和原因会写入验证证据，但用户仍不能提交 shell 启动器或 shell 片段。为兼容 Designer 偶尔把 Maven 参数合并到同一数组项的情况，Loopper 会在不接受 shell 语法的前提下自动拆分能够无歧义解析的 Maven 参数；引号未闭合等无法安全解析的输入仍会触发只读 Designer 自动纠正。`GIT_DIFF` 只证明改动范围，不能作为一个阶段唯一的功能验收。
 
 ### 可用验证器
 
 | 类型 | 验证内容 | 关键限制 |
 | --- | --- | --- |
-| `PROCESS` | 直接启动命令并检查退出码/输出 | argv 形式；禁止 shell 启动器；有超时和输出上限 |
+| `PROCESS` | 直接启动命令并检查退出码/输出 | argv 形式；禁止用户 shell 启动器；Windows 解析 `PATH`/`PATHEXT`，Linux/macOS 保留原生可执行位语义；有超时和输出上限 |
 | `FILE_EXISTS` / `FILE_NOT_EXISTS` | 记录文件存在性 | 路径必须位于执行根目录内；`FILE_EXISTS` 仅保留为非阻断审计提示，`FILE_NOT_EXISTS` 才是阻断性安全检查 |
 | `GIT_DIFF` | 是否有改动、允许/禁止路径、禁止删除 | 必须在 LoopSpec 中显式声明 |
 | `HTTP_STATUS` | HTTP 状态码 | 仅 loopback URL；支持受限方法 |
@@ -220,7 +220,7 @@ LoopSpec 是执行前必须人工确认的结构化合同。核心字段包括�
 
 Loopper 不会因为任务成功就自动提交、推送或合并。每个登记目录通过持久化 FIFO 写租约串行执行；前一个任务仍有未提交改动时，后一个任务不会切换分支。用户确认提交后，Loopper 把改动提交到任务分支并恢复任务开始前的源分支；有排队任务时再从源分支进入下一任务分支。任务创建时的 fetch 只更新 remote-tracking refs；任务分支在人工发布前仍是本地分支，不会提前出现在 GitLab/GitHub。
 
-任务开始前发现脏工作区时，任务会停在 `WAITING_INPUT`，详情页自动弹出具体文件列表。每个文件必须明确选择“提交到当前源分支”“暂存到 Git stash”或“移除/丢弃改动”，再点击“重新检查并继续”。处理请求绑定当前 Git 状态快照；期间文件、索引、HEAD 或分支有变化时会拒绝旧决定并刷新列表，避免把过期选择用于新内容。提交只生成本地提交，不自动推送；stash 只包含选择的路径；移除未跟踪文件或丢弃跟踪文件改动前还会二次确认。外部 Git 操作不是数据库事务，若中途某一步失败，已成功的 Git 操作不会伪装回滚，弹窗会按最新状态重新列出剩余文件。点击“取消并标记任务失败”会保留全部现有文件并直接终止任务。远端认证失败或本地/远端历史分叉仍会失败关闭。分支切换使用 10 分钟有界超时，并为 Windows 命令局部启用 Git 长路径支持。
+任务开始前发现脏工作区时，任务会停在 `WAITING_INPUT`，详情页自动弹出具体文件列表。每个文件必须明确选择“提交到当前源分支”“暂存到 Git stash”或“移除/丢弃改动”，再点击“重新检查并继续”。处理请求绑定当前 Git 状态快照；期间文件、索引、HEAD 或分支有变化时会拒绝旧决定并刷新列表，避免把过期选择用于新内容。提交只生成本地提交，不自动推送；stash 只包含选择的路径；移除未跟踪文件或丢弃跟踪文件改动前还会二次确认。外部 Git 操作不是数据库事务，若中途某一步失败，已成功的 Git 操作不会伪装回滚，弹窗会按最新状态重新列出剩余文件。处理完成后，历史错误仍作为审计证据保留，但详情页进入 `READY` 或执行状态时不再显示“检测到未提交文件”的活动红色告警。点击“取消并标记任务失败”会保留全部现有文件并直接终止任务。远端认证失败或本地/远端历史分叉仍会失败关闭。分支切换使用 10 分钟有界超时，并为 Windows 命令局部启用 Git 长路径支持。
 
 ### 错误层级
 
@@ -301,7 +301,7 @@ Git 任务分支达到 `SUCCEEDED` 后：
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.1.24.jar`
+- `target/opencode-loopper-0.1.26.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -332,7 +332,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:51234
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.1.24.jar`
+- `opencode-loopper-0.1.26.jar`
 - `start-windows.bat`
 
 确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
@@ -370,7 +370,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.1.24.jar \
+jar tf target/opencode-loopper-0.1.26.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -449,7 +449,7 @@ Windows PowerShell：
 例如发布下一版本：
 
 ```bash
-VERSION=0.1.24
+VERSION=0.1.26
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -489,7 +489,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.1.24.jar
+java -jar target/opencode-loopper-0.1.26.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。
@@ -514,6 +514,19 @@ lsof -nP -iTCP:8080 -sTCP:LISTEN
 ### Runtime 显示离线
 
 检查 `opencode --version`、OpenCode 的模型认证、`OPENCODE_BASE_URL` 和 `/global/health`。Linux 自动发现直接运行的 TUI/`opencode web` 动态端口时还需要 `lsof` 或 `ss` 至少一个可用；`http` 模式不会替你启动 OpenCode，`auto` 模式需要能从 `PATH` 或 `OPENCODE_EXECUTABLE` 找到 CLI。`0.1.21` 起，Linux 脚本会在启动 Loopper 前输出实际使用的 OpenCode CLI 路径；若子进程仍启动失败，运行环境页会显示退出码或超时原因及本次动态尝试地址。`0.1.22` 起，Auto 启动阶段的单次健康请求最多等待 1 秒并持续重试，避免通用 30 秒请求超时吞掉完整的 15 秒启动预算。`0.1.23` 起，失败卡片提供“启动 OpenCode 并检查连接”，成功标准是服务端完成受认证的 `/global/health` 检查，而不是仅创建了进程。
+
+### Windows 中 `mvn -v` 正常，但 PROCESS 报 `CreateProcess error=2`
+
+Windows 的 CMD 会依据 `PATHEXT` 把 `mvn` 解析为 `mvn.cmd`，Java 直接启动裸命令时不会始终得到同样的解析结果。`0.1.26` 起，Loopper 在启动 PROCESS 前使用自身进程的 `PATH` 和 `PATHEXT` 定位真实入口，并把实际绝对路径写入证据；`./mvnw` 和 `./gradlew` 也会在任务目录中选择 Windows 包装器。更新 JAR 后必须重启 Loopper，使它继承最新环境变量。仍失败时在启动 Loopper 的同一个 CMD 中检查：
+
+```bat
+where mvn
+where mvn.cmd
+echo %PATH%
+echo %PATHEXT%
+```
+
+如果 `where` 只能在另一个新开的终端中成功，说明正在运行的 Loopper 仍持有旧环境；重启即可。Linux/macOS 不使用 `PATHEXT`，应检查 `command -v mvn`、脚本 shebang 和可执行位。
 
 ### Windows 提交任务时停在 `Updating files` 后报 `WORKTREE_CREATE_FAILED`
 

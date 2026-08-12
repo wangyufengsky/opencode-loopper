@@ -69,6 +69,10 @@ decision per file before **重新检查并继续** is enabled. Removal has an ad
 destructive confirmation. The only alternate exit is the confirmed **取消并标记任务失败**
 action, which must leave local files unchanged. Snapshot conflicts refresh the
 authoritative list; the browser never assumes cleanup or branch creation succeeded.
+The `SOURCE_BRANCH_WORKSPACE_DIRTY` error event remains immutable audit history,
+but its active red alert is rendered only while the Task is still in
+`WAITING_INPUT` with that exact `waitingReasonCode`. Once preparation reaches
+`READY` or execution continues, the stale alert disappears without deleting evidence.
 
 The Runtime failure card exposes **启动 OpenCode 并检查连接** only after an Auto
 launch has failed. The button stays loading while the server performs the bounded
@@ -132,4 +136,9 @@ For example, `["mvn", "test -Dtest=FooTest -pl module"]` is normalized and store
 as five direct argv items without a Designer retry or shell execution. Ambiguous
 input such as an unclosed quote remains a field validation error and enters the
 same bounded, read-only LoopSpec correction flow as other invalid Designer
-output. A rejected correction never mutates the draft or creates a Task.
+output. The portable `./mvnw` alias is offered only when the registered project
+contains the current platform wrapper (`mvnw` on Linux/macOS, `mvnw.cmd` on
+Windows); otherwise Designer selects an evidenced repository command such as
+`mvn`. Windows executable suffix resolution happens at execution time and does
+not widen the accepted LoopSpec shell syntax. A rejected correction never
+mutates the draft or creates a Task.

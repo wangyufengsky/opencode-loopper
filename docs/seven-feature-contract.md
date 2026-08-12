@@ -69,6 +69,13 @@ Native types are `HTTP_STATUS`, `JSON_PATH`, `FILE_CONTENT`, `FILE_HASH`,
 only. Browser assertions are bounded and contain no arbitrary JavaScript. Browser
 executable discovery is explicit override, then process `PATH`, then standard OS
 locations; an invalid explicit override fails closed without fallback.
+`PROCESS` remains a direct argv contract. Windows resolves project wrapper
+aliases from the Task root and bare programs through the Loopper process
+`PATH`/`PATHEXT`, then stores the actual absolute executable and resolution
+reason in evidence. Linux/macOS leave native PATH lookup unchanged and require
+project scripts to be executable. Missing programs fail before launch with a
+typed error; this compatibility layer does not permit user-supplied shell
+launchers or snippets.
 `DATABASE_QUERY` accepts one read-only local SQLite `SELECT`/`WITH` statement.
 Screenshots and traces live below the configured data directory; SQLite stores
 only relative path, SHA-256, size and metadata.

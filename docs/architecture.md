@@ -113,10 +113,16 @@ safe continuation is impossible. Recovery then promotes the condition to
 
 Deterministic verifiers run on a dedicated bounded executor rather than the
 scheduler thread. `PROCESS` is an argv contract and rejects shell launchers;
-its runner terminates the observed process tree on timeout or output overflow,
-but it is not an OS sandbox. A deliberately daemonizing hostile executable must
-be isolated by an external Job Object, cgroup or container rather than trusted
-as a LoopSpec verifier.
+its runner terminates the observed process tree on timeout or output overflow.
+On Windows, the runner resolves project `mvnw`/`gradlew` aliases against the
+Task directory and other bare executables against the Loopper process
+`PATH`/`PATHEXT` (`.COM`, `.EXE`, `.BAT`, `.CMD`). It records the resolved
+absolute executable and forces the JDK's strict Windows command quoting mode;
+the LoopSpec still cannot supply `cmd`, PowerShell, shell syntax, expansion,
+pipes, or redirects. Linux/macOS retain native direct-argv lookup and executable
+permission semantics. The runner is not an OS sandbox. A deliberately
+daemonizing hostile executable must be isolated by an external Job Object,
+cgroup or container rather than trusted as a LoopSpec verifier.
 
 After a deterministic failure, the orchestrator captures an immutable
 `ATTEMPT_HANDOFF` artifact outside the SQLite transaction. It contains bounded

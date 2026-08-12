@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Pattern;
+import java.nio.file.Path;
 
 /** Normalizes high-confidence Maven argv mistakes without invoking a shell. */
 public final class ProcessCommandPolicy {
@@ -122,11 +123,34 @@ public final class ProcessCommandPolicy {
         return new Tokenization(List.copyOf(tokens), null);
     }
 
-    private static boolean isMavenExecutable(String executable) {
+    public static boolean isMavenExecutable(String executable) {
         String normalized = executable.replace('\\', '/');
         int slash = normalized.lastIndexOf('/');
         String fileName = slash >= 0 ? normalized.substring(slash + 1) : normalized;
         return MAVEN_EXECUTABLES.contains(fileName.toLowerCase(Locale.ROOT));
+    }
+
+    public static boolean isMavenWrapper(String executable) {
+        return mavenBaseName(executable).equals("mvnw");
+    }
+
+    public static boolean isSystemMaven(String executable) {
+        return mavenBaseName(executable).equals("mvn");
+    }
+
+    public static Path platformMavenWrapper(Path projectRoot, String osName) {
+        boolean windows = osName != null && osName.toLowerCase(Locale.ROOT).contains("win");
+        return projectRoot.resolve(windows ? "mvnw.cmd" : "mvnw");
+    }
+
+    private static String mavenBaseName(String executable) {
+        if (executable == null) return "";
+        String normalized = executable.replace('\\', '/');
+        String fileName = normalized.substring(normalized.lastIndexOf('/') + 1).toLowerCase(Locale.ROOT);
+        for (String extension : List.of(".cmd", ".bat", ".exe")) {
+            if (fileName.endsWith(extension)) return fileName.substring(0, fileName.length() - extension.length());
+        }
+        return fileName;
     }
 
     private static int firstWhitespace(String value) {
