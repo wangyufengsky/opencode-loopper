@@ -406,10 +406,7 @@ async function createMergeRequest() {
     <el-button v-else-if="publication.state === 'COMMITTED'" type="warning" :loading="operationLoading" @click="retryPublication"><Icon :icon="localPublication ? 'lucide:git-commit-horizontal' : 'lucide:cloud-upload'" />{{ localPublication ? '确认本地提交' : '继续推送' }}</el-button>
     <el-button v-else-if="publication.state === 'LOCAL_SYNC_CONFLICT'" type="danger" plain @click="openConflictCenter"><Icon icon="lucide:git-merge" />解决同步冲突（{{ publication.conflictCount }}）</el-button>
     <el-button v-else-if="publication.state === 'SYNCED_LOCAL'" type="success" plain disabled><Icon icon="lucide:circle-check" />已提交本地任务分支</el-button>
-    <el-dropdown v-else-if="publication.state === 'PUSHED'" trigger="click" @command="openMergeDialog">
-      <el-button type="primary"><Icon icon="lucide:git-pull-request-create" />创建合并请求<Icon icon="lucide:chevron-down" /></el-button>
-      <template #dropdown><el-dropdown-menu><el-dropdown-item command="merge-request"><Icon icon="lucide:git-pull-request-create" />创建合并请求</el-dropdown-item></el-dropdown-menu></template>
-    </el-dropdown>
+    <el-button v-else-if="publication.state === 'PUSHED'" type="primary" @click="openMergeDialog"><Icon icon="lucide:git-pull-request-create" />创建合并请求</el-button>
     <el-tooltip v-else :content="publication.reason ?? '当前任务不可提交'" placement="bottom">
       <span><el-button plain disabled><Icon icon="lucide:git-commit-horizontal" />提交</el-button></span>
     </el-tooltip>

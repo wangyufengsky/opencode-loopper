@@ -57,6 +57,7 @@ describe('TaskPublicationActions', () => {
     mocks.saveLocalSyncResolution.mockReset()
     mocks.suggestLocalSyncResolution.mockReset()
     mocks.applyLocalSyncConflict.mockReset()
+    mocks.createTaskMergeRequestDraft.mockReset()
     vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
   })
 
@@ -88,6 +89,21 @@ describe('TaskPublicationActions', () => {
 
     expect(publishTask).toHaveBeenCalledWith('task-1', '#3032_完善任务发布流程')
     expect(wrapper.text()).toContain('创建合并请求')
+  })
+
+  it('opens the merge request dialog directly from the pushed-state button', async () => {
+    getTaskPublication.mockResolvedValue(pushed)
+    const wrapper = mount(TaskPublicationActions, { props: { task }, global: { plugins: [ElementPlus] }, attachTo: document.body })
+    await flushPromises()
+
+    const create = wrapper.findAll('button').find((button) => button.text().includes('创建合并请求'))
+    expect(create).toBeDefined()
+    await create!.trigger('click')
+    await flushPromises()
+
+    expect(document.body.textContent).toContain('前往创建合并请求')
+    expect(document.body.textContent).toContain('loopper/task-1')
+    expect(document.body.textContent).toContain('develop')
   })
 
   it('explains local task branch submission when no remote exists', async () => {

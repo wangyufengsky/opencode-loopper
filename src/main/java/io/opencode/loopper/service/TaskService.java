@@ -279,6 +279,26 @@ public class TaskService {
         }
         boolean verified = false;
         boolean untracked = false;
+        TaskArtifactRow snapshot = mapper.listTaskArtifacts(taskId).stream()
+                .filter(artifact -> "GIT_DIFF".equals(artifact.kind()))
+                .findFirst().orElse(null);
+        if (snapshot != null) {
+            try {
+                var evidence = json.readTree(snapshot.metadataJson());
+                if (evidence.path("changedPaths").isArray()) {
+                    for (var item : evidence.path("changedPaths")) {
+                        if (path.equals(item.asText())) { verified = true; break; }
+                    }
+                    if (verified && evidence.path("untrackedPaths").isArray()) {
+                        for (var item : evidence.path("untrackedPaths")) {
+                            if (path.equals(item.asText())) { untracked = true; break; }
+                        }
+                    }
+                }
+            } catch (Exception ignored) {
+                // Historical session-diff artifacts did not contain structured path metadata.
+            }
+        }
         List<AttemptRow> attempts = mapper.listAttempts(taskId);
         for (int attemptIndex = attempts.size() - 1; attemptIndex >= 0 && !verified; attemptIndex--) {
             for (VerificationResultRow row : mapper.listVerifications(attempts.get(attemptIndex).id())) {
@@ -307,7 +327,8 @@ public class TaskService {
             throw new BadRequestException("WORKTREE_UNAVAILABLE", "Task worktree is unavailable");
         }
         try {
-            return verifiers.previewDiff(Path.of(task.worktreePath()), task.baselineCommit(), path, untracked, Duration.ofSeconds(10));
+            return verifiers.previewDiff(Path.of(task.worktreePath()), task.baselineCommit(), task.branchName(),
+                    path, untracked, Duration.ofSeconds(10));
         } catch (TaskFailure failure) {
             throw new BadRequestException(failure.code(), failure.getMessage());
         }
@@ -1485,25 +1506,21 @@ public class TaskService {
                     write(Map.of("attemptId", attempt.id(), "allPassed", verificationRows.stream().allMatch(row -> VerificationState.PASS.name().equals(row.state())), "results", verificationRows)),
                     Map.of("source", "deterministic-verifier", "count", verificationRows.size()));
         }
-        if (mapper.findFirstTaskArtifactByKind(task.id(), "GIT_DIFF").isPresent()) return;
-        String diff;
-        Map<String, Object> metadata = new LinkedHashMap<>();
-        metadata.put("source", "opencode-session-diff");
-        try {
-            ExecutionSessionRow session = mapper.latestSessionForAttempt(attempt.id()).orElse(null);
-            if (session == null || session.externalSessionId() == null) throw new SessionFailure("DIFF_SESSION_MISSING", "No implementation session is available for diff capture");
-            diff = openCode.diff(new OpenCodeClient.OpenCodeSession(session.externalSessionId(), Path.of(requireWorktree(task))));
-            metadata.put("available", true);
-        } catch (SessionFailure failure) {
-            diff = write(Map.of("available", false, "code", failure.code(), "message", safeMessage(failure.getMessage())));
-            metadata.put("available", false);
-            metadata.put("code", failure.code());
-        } catch (RuntimeException exception) {
-            diff = write(Map.of("available", false, "code", "DIFF_CAPTURE_FAILED", "message", safeMessage(exception)));
-            metadata.put("available", false);
-            metadata.put("code", "DIFF_CAPTURE_FAILED");
+        boolean alreadyCaptured = mapper.listTaskArtifacts(task.id()).stream()
+                .anyMatch(artifact -> "GIT_DIFF".equals(artifact.kind()) && attempt.id().equals(artifact.attemptId()));
+        if (alreadyCaptured) return;
+        VerifierOutcome snapshot = verifiers.verify(Path.of(requireWorktree(task)), task.baselineCommit(),
+                new LoopSpec.VerifierSpec("GIT_DIFF", null, null, false, List.of(), List.of(), false),
+                Duration.ofSeconds(10));
+        if (snapshot.state() != VerificationState.PASS) {
+            throw new TaskFailure("TASK_DIFF_CAPTURE_FAILED", snapshot.summary());
         }
-        persistArtifact(task, attempt.id(), null, "GIT_DIFF", "worktree.diff", "text/plain", diff, metadata);
+        Map<String, Object> metadata = new LinkedHashMap<>(snapshot.evidence());
+        metadata.put("source", "deterministic-task-baseline-diff");
+        metadata.put("taskBranch", task.branchName());
+        metadata.put("attemptId", attempt.id());
+        persistArtifact(task, attempt.id(), null, "GIT_DIFF", "task-diff.json", "application/json",
+                write(metadata), metadata);
     }
 
     private JudgeDecision parseJudgeDecision(String rawOutput) {

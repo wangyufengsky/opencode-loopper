@@ -39,6 +39,7 @@ class TaskServiceIntegrationTest {
     @Autowired private ProjectService projects;
     @Autowired private LoopDraftService drafts;
     @Autowired private TaskService tasks;
+    @Autowired private TaskPublicationService publication;
     @Autowired private TaskMonitor monitor;
     @Autowired private OpenCodeClient openCode;
     @Autowired private LoopperMapper mapper;
@@ -833,6 +834,35 @@ class TaskServiceIntegrationTest {
         assertThat(tasks.get(task.id()).state()).isEqualTo("SUCCEEDED");
         assertThat(tasks.attempts(task.id())).hasSize(attemptsAfterSuccess);
         assertThat(tasks.errors(task.id())).hasSize(errorsAfterSuccess);
+    }
+
+    @Test
+    void finalEvidenceCapturesBaselineDiffWithoutGitDiffVerifierAndPreviewSurvivesBranchRestore() throws Exception {
+        ProjectRow project = projects.create("stable-task-diff", gitProject());
+        TaskRow task = drafts.confirm(drafts.create(spec(project.id())).id(), "stable task diff");
+        Path workspace = Path.of(task.worktreePath());
+        Files.writeString(workspace.resolve("feature.txt"), "verified change\n");
+        tasks.start(task.id());
+
+        tasks.verify(task.id());
+        tasks.pollJudges(task.id());
+
+        assertThat(tasks.get(task.id()).state()).isEqualTo("SUCCEEDED");
+        assertThat(tasks.verifications(tasks.attempts(task.id()).getFirst().id()))
+                .noneMatch(result -> result.type().equals("GIT_DIFF"));
+        assertThat(tasks.artifacts(task.id())).filteredOn(artifact -> artifact.kind().equals("GIT_DIFF"))
+                .singleElement().satisfies(artifact -> {
+                    assertThat(artifact.name()).isEqualTo("task-diff.json");
+                    assertThat(artifact.metadataJson()).contains("deterministic-task-baseline-diff", "feature.txt");
+                });
+        assertThat(tasks.diffPreview(task.id(), "feature.txt").patch()).contains("+verified change");
+
+        TaskPublicationService.PublicationStatus published = publication.commitAndPush(
+                task.id(), "#3032_持久化任务分支差异");
+
+        assertThat(published.state()).isEqualTo("SYNCED_LOCAL");
+        assertThat(runOutput(workspace, "git", "branch", "--show-current").strip()).isEqualTo(task.sourceBranch());
+        assertThat(tasks.diffPreview(task.id(), "feature.txt").patch()).contains("+verified change");
     }
 
     @Test

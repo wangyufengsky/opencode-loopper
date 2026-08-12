@@ -170,6 +170,14 @@ pass do two read-only OpenCode Judges run. Both Requirement and Risk Judges must
 return an explicit `PASS`; conflicts, `REVISE`, `BLOCKED`, or unparseable output
 move the Task to `WAITING_INPUT`, never to a fabricated success.
 
+Independently of that optional acceptance gate, the final successful Attempt
+persists a bounded deterministic baseline-diff snapshot with changed and
+untracked paths. Task detail uses this snapshot as its primary diff file list.
+While the Task branch is checked out, previews include its working tree; after
+publication restores the source branch or admits another Task, previews compare
+the persisted baseline with explicit `refs/heads/<taskBranch>`. They never infer
+an old Task's diff from whichever branch happens to be checked out later.
+
 ## Workspace safety
 
 Planning may inspect a registered root read-only. When a project has a valid
@@ -222,7 +230,8 @@ explicit `refs/heads/<taskBranch>` ref, so neither push nor merge-request creati
 requires the old Task branch to be checked out. A remote publication is a normal
 non-force push. Without a remote, the commit remains only on the local Task branch;
 the restored source branch is not fast-forwarded or overlaid. Direct-execution Tasks remain excluded. A subsequent
-“创建合并请求” action opens a prefilled GitLab/GitHub creation page; the hosting
+The single-action “创建合并请求” button opens its confirmation dialog directly,
+then opens a prefilled GitLab/GitHub creation page; the hosting
 service still owns the final merge-request confirmation and merge.
 
 Every OpenCode Session creation response must confirm the same canonical

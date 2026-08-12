@@ -16,7 +16,7 @@ const attempts: Attempt[] = [{
 }]
 
 const artifacts: Artifact[] = [
-  { id: 'artifact-diff', kind: 'DIFF', title: 'worktree.diff', createdAt: 'now', content: '[]' },
+  { id: 'artifact-diff', kind: 'DIFF', title: 'task-diff.json', createdAt: 'now', content: '{"changedPaths":["src/Main.java","src/New.java"]}', metadata: { changedPaths: ['src/Main.java', 'src/New.java'], untrackedPaths: ['src/New.java'] } },
   { id: 'artifact-handoff', kind: 'LOG', title: 'attempt-handoff-1.json', createdAt: 'now', attemptId: 'attempt-1', content: '{"consecutiveStagnationCount":1}' },
 ]
 
@@ -50,15 +50,19 @@ describe('TaskAuditEvidencePanel', () => {
     expect(wrapper.get('.audit-disclosure').attributes('open')).toBeUndefined()
   })
 
-  it('uses GIT_DIFF verifier evidence when the OpenCode session patch is an empty array', async () => {
-    const wrapper = mountPanel(true)
+  it('uses the persisted task baseline snapshot without requiring a GIT_DIFF verifier', async () => {
+    const processOnly: Attempt[] = [{ ...attempts[0]!, verifiers: attempts[0]!.verifiers.filter((verifier) => verifier.name === 'PROCESS') }]
+    const wrapper = mount(TaskAuditEvidencePanel, {
+      props: { taskId: 'task-1', attempts: processOnly, artifacts, directExecution: true },
+      global: { plugins: [ElementPlus], stubs: { Icon: true, teleport: true } },
+    })
     await openTab(wrapper, '差异')
 
     expect(wrapper.text()).toContain('不需要连接远端 Git')
     expect(wrapper.text()).toContain('Loopper 私有基线')
     expect(wrapper.text()).toContain('src/Main.java')
     expect(wrapper.text()).toContain('src/New.java')
-    expect(wrapper.text()).toContain('会话接口返回了空补丁')
+    expect(wrapper.text()).toContain('任务基线差异快照')
     expect(wrapper.text()).not.toContain('没有检测到文件变更')
   })
 

@@ -18,10 +18,15 @@ const logRows = computed(() => verificationRows.value.filter(({ verifier }) => B
 const handoffArtifacts = computed(() => props.artifacts.filter((artifact) => artifact.title.startsWith('attempt-handoff-')))
 const diffArtifact = computed(() => props.artifacts.find((artifact) => artifact.kind === 'DIFF'))
 const gitDiffRows = computed(() => verificationRows.value.filter(({ verifier }) => verifier.name.toUpperCase() === 'GIT_DIFF'))
-const changedPaths = computed(() => unique(gitDiffRows.value.flatMap(({ verifier }) => strings(verifier.evidence?.changedPaths))))
-const untrackedPaths = computed(() => new Set(gitDiffRows.value.flatMap(({ verifier }) => strings(verifier.evidence?.untrackedPaths))))
+const changedPaths = computed(() => unique([
+  ...strings(diffArtifact.value?.metadata?.changedPaths),
+  ...gitDiffRows.value.flatMap(({ verifier }) => strings(verifier.evidence?.changedPaths)),
+]))
+const untrackedPaths = computed(() => new Set([
+  ...strings(diffArtifact.value?.metadata?.untrackedPaths),
+  ...gitDiffRows.value.flatMap(({ verifier }) => strings(verifier.evidence?.untrackedPaths)),
+]))
 const violations = computed(() => unique(gitDiffRows.value.flatMap(({ verifier }) => strings(verifier.evidence?.violations))))
-const sessionDiff = computed(() => parseSessionDiff(diffArtifact.value?.content))
 const passedCount = computed(() => verificationRows.value.filter(({ verifier }) => verifier.status === 'PASS').length)
 const previewOpen = ref(false)
 const previewLoading = ref(false)
@@ -69,22 +74,6 @@ function detail(verifier: VerifierResult) {
   if (verifier.evidence?.timedOut === true) items.push('已超时')
   if (verifier.evidence?.outputTruncated === true) items.push('输出已截断')
   return items.join(' · ')
-}
-
-function parseSessionDiff(content?: string) {
-  if (!content?.trim()) return { empty: true, text: '' }
-  try {
-    const parsed = JSON.parse(content) as unknown
-    if (Array.isArray(parsed)) return { empty: parsed.length === 0, text: parsed.length ? JSON.stringify(parsed, null, 2) : '' }
-    if (parsed && typeof parsed === 'object') {
-      const record = parsed as Record<string, unknown>
-      if (record.available === false) return { empty: true, text: '', unavailable: typeof record.message === 'string' ? record.message : '会话差异不可用' }
-      return { empty: false, text: JSON.stringify(parsed, null, 2) }
-    }
-  } catch {
-    return { empty: false, text: content }
-  }
-  return { empty: false, text: content }
 }
 
 function pathState(path: string) {
@@ -149,11 +138,9 @@ async function showDiff(path: string) {
         <div v-if="changedPaths.length" class="diff-list" aria-label="变更文件">
           <button v-for="path in changedPaths" :key="path" type="button" class="diff-row" :aria-label="`预览差异 ${path}`" @click="showDiff(path)"><span :class="['diff-state', { added: untrackedPaths.has(path) }]">{{ pathState(path) }}</span><code>{{ path }}</code><Icon icon="lucide:eye" /></button>
         </div>
-        <div v-else class="audit-empty"><Icon icon="lucide:file-diff" /><strong>没有检测到文件变更</strong><p>确定性 GIT_DIFF 证据与会话补丁均未报告变更。</p></div>
+        <div v-else class="audit-empty"><Icon icon="lucide:file-diff" /><strong>没有检测到文件变更</strong><p>任务基线差异快照与显式 GIT_DIFF 验证器均未报告变更。</p></div>
         <div v-if="violations.length" class="violation-box"><strong><Icon icon="lucide:triangle-alert" />范围违规</strong><ul><li v-for="item in violations" :key="item">{{ item }}</li></ul></div>
-        <details v-if="sessionDiff.text" class="audit-disclosure secondary"><summary><span class="summary-main"><strong>OpenCode 会话补丁</strong><small>{{ diffArtifact?.title }} · 补充证据</small></span><Icon icon="lucide:chevron-down" /></summary><pre class="audit-log">{{ sessionDiff.text }}</pre></details>
-        <p v-else-if="sessionDiff.unavailable" class="secondary-note">OpenCode 会话补丁不可用：{{ sessionDiff.unavailable }}。上方确定性文件范围证据仍然有效。</p>
-        <p v-else-if="sessionDiff.empty && changedPaths.length" class="secondary-note">OpenCode 会话接口返回了空补丁 `[]`；上方文件清单来自实际通过的 GIT_DIFF 验证器。</p>
+        <details v-if="diffArtifact?.content" class="audit-disclosure secondary"><summary><span class="summary-main"><strong>任务基线差异快照</strong><small>{{ diffArtifact.title }} · 持久化证据</small></span><Icon icon="lucide:chevron-down" /></summary><pre class="audit-log">{{ diffArtifact.content }}</pre></details>
       </template>
 
       <template v-else>

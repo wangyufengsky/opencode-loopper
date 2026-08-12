@@ -116,6 +116,14 @@ terminal Task error. Projects without a usable Git HEAD fall back to direct
 execution in the registered directory. A `READY` Task
 exposes an explicit **Start execution** action on its detail page.
 
+The Task detail diff tab uses the final Attempt's persisted deterministic
+baseline-diff snapshot even when the confirmed LoopSpec did not include a
+`GIT_DIFF` verifier. The latter remains a path-policy acceptance gate, not a UI
+data prerequisite. After publication switches the registered checkout away,
+file previews still address the completed Task branch explicitly. A pushed Task
+shows one ordinary **创建合并请求** button; one click opens the confirmation
+dialog, with no duplicate single-item dropdown step.
+
 Each Task detail page also exposes a read-only **Model output / Thinking**
 monitor. The operator can select any implementation or judge Session belonging
 to that Task. While a Session is active, the panel polls frequently and follows

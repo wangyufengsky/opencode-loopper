@@ -57,20 +57,31 @@ public class VerifierEngine {
     }
 
     public DiffPreview previewDiff(Path worktree, String baseline, String path, boolean untracked, Duration timeout) {
+        return previewDiff(worktree, baseline, null, path, untracked, timeout);
+    }
+
+    public DiffPreview previewDiff(Path worktree, String baseline, String taskBranch, String path,
+                                   boolean untracked, Duration timeout) {
         Duration boundedTimeout = requireBoundedTimeout(timeout);
         if (baseline == null || baseline.isBlank()) {
             throw new TaskFailure("GIT_BASELINE_MISSING", "Diff preview requires a task baseline");
         }
         managedRelative(worktree, path);
         ProcessResult result;
-        if (untracked) {
+        boolean direct = baseline.startsWith(DirectWorkspaceBaselineManager.PREFIX);
+        boolean taskBranchCheckedOut = direct || taskBranch == null || taskBranch.isBlank()
+                || taskBranch.equals(currentGitBranch(worktree, boundedTimeout));
+        if (untracked && taskBranchCheckedOut) {
             result = runner.run(worktree, List.of("git", "--literal-pathspecs", "diff", "--no-index", "--no-ext-diff",
                     "--no-textconv", "--no-color", "--unified=80", "--", "/dev/null", path), boundedTimeout);
-        } else if (baseline.startsWith(DirectWorkspaceBaselineManager.PREFIX)) {
+        } else if (direct) {
             if (directBaselines == null) {
                 throw new TaskFailure("DIRECT_BASELINE_UNAVAILABLE", "Direct-execution diff support is unavailable");
             }
             result = directBaselines.patch(worktree, baseline, path, boundedTimeout);
+        } else if (!taskBranchCheckedOut) {
+            result = runner.run(worktree, List.of("git", "--literal-pathspecs", "diff", "--no-ext-diff", "--no-textconv",
+                    "--no-color", "--unified=80", baseline, "refs/heads/" + taskBranch, "--", path), boundedTimeout);
         } else {
             result = runner.run(worktree, List.of("git", "--literal-pathspecs", "diff", "--no-ext-diff", "--no-textconv",
                     "--no-color", "--unified=80", baseline, "--", path), boundedTimeout);
@@ -83,6 +94,14 @@ public class VerifierEngine {
             throw new TaskFailure("DIFF_PREVIEW_FAILED", "Unable to generate diff preview: " + truncate(result.output()));
         }
         return new DiffPreview(path, untracked ? "NEW" : "MODIFIED", result.output(), result.outputTruncated());
+    }
+
+    private String currentGitBranch(Path worktree, Duration timeout) {
+        ProcessResult result = runner.run(worktree, List.of("git", "branch", "--show-current"), timeout);
+        if (result.timedOut() || result.outputTruncated() || result.exitCode() != 0) {
+            throw new TaskFailure("DIFF_PREVIEW_BRANCH_FAILED", "Unable to identify the currently checked out branch");
+        }
+        return result.output().strip();
     }
 
     private VerifierOutcome process(Path worktree, VerifierSpec spec, Duration timeout) {
