@@ -80,6 +80,22 @@ launchers or snippets.
 Screenshots and traces live below the configured data directory; SQLite stores
 only relative path, SHA-256, size and metadata.
 
+For new LoopSpec v2 contracts, the server classifies verifier evidence rather
+than trusting a Designer label. Each Stage has observable criteria and every
+criterion needs a mapped behavior verifier. Build/static checks, scope-only
+`GIT_DIFF`, safety-only `FILE_NOT_EXISTS`, `JUNIT_XML` reports, and advisory
+`FILE_EXISTS` cannot satisfy that mapping. The final Attempt's automatic task
+diff remains separate audit evidence. `POST /api/loop-drafts/validate` and MCP
+return the same classification and coverage result.
+
+Network behavior coverage requires a Stage-managed runtime with dynamic
+`{{LOOPPER_PORT}}`, bounded readiness, and direct argv startup. V19 records its
+PID/start identity, port and argv hash. Cleanup covers completion, failure,
+pause, cancellation and application restart; PID identity mismatch is fail
+closed and never kills the unrelated process. Existing v1 templates,
+Automations, tasks and Recovery keep their prior verifier semantics, while new
+template versions and imports require v2.
+
 ## Usage and automation
 
 Usage is idempotent per provider message. Missing provider usage/cost stays

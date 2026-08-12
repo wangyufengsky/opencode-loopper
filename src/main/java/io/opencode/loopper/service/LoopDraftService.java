@@ -35,15 +35,31 @@ public class LoopDraftService {
     private final ObjectMapper json;
     private final TaskService tasks;
     private final Validator validator;
+    private final LoopSpecAcceptanceService acceptance;
     public LoopDraftService(LoopperMapper mapper, LifecycleTransitionService lifecycle,
                             ProjectService projects, ObjectMapper json, TaskService tasks,
-                            Validator validator) {
+                            Validator validator, LoopSpecAcceptanceService acceptance) {
         this.mapper = mapper; this.lifecycle = lifecycle; this.projects = projects;
-        this.json = json; this.tasks = tasks; this.validator = validator;
+        this.json = json; this.tasks = tasks; this.validator = validator; this.acceptance = acceptance;
     }
     @Transactional
     public LoopDraftRow create(LoopSpec spec) {
-        validate(spec);
+        reject(assessment(spec, false, true).errors());
+        return insert(spec);
+    }
+
+    /** Public/new-draft boundary: new contracts cannot opt back into legacy v1 semantics. */
+    @Transactional
+    public LoopDraftRow createNew(LoopSpec spec) {
+        if (spec == null || !"v2".equals(spec.schemaVersion())) {
+            throw new BadRequestException("LOOPSPEC_V2_REQUIRED", "New LoopSpecs must use schemaVersion v2");
+        }
+        reject(validator.validate(spec).stream()
+                .map(violation -> violation.getPropertyPath() + ": " + violation.getMessage()).sorted().toList());
+        return insert(spec);
+    }
+
+    private LoopDraftRow insert(LoopSpec spec) {
         projects.get(spec.projectId());
         String now = Instant.now().toString();
         LoopDraftRow row = new LoopDraftRow(UUID.randomUUID().toString(), spec.projectId(), spec.goal(), write(spec),
@@ -53,10 +69,29 @@ public class LoopDraftService {
         return row;
     }
     public LoopDraftRow get(String id) { return mapper.findDraft(id).orElseThrow(() -> new NotFoundException("Loop draft not found: " + id)); }
+
+    /** Copies immutable legacy content into an editable v2 shell; behavior mappings must then be completed explicitly. */
+    @Transactional
+    public LoopDraftRow copyAsV2(String id) {
+        LoopSpec source = spec(get(id));
+        if (!"v1".equals(source.schemaVersion())) {
+            throw new BadRequestException("LOOPSPEC_COPY_V2_SOURCE_INVALID", "Only a persisted v1 draft can be copied to v2");
+        }
+        List<LoopSpec.StageSpec> stages = source.stages().stream().map(stage -> new LoopSpec.StageSpec(
+                stage.objective(), stage.allowedPaths(), stage.forbiddenPaths(), stage.deliverables(),
+                stage.verifiers(), List.of(), null)).toList();
+        return insert(new LoopSpec("v2", source.projectId(), source.goal(), source.context(), stages,
+                source.limits(), source.model(), source.sessionPolicy(), source.nextAttemptPromptTemplate()));
+    }
     @Transactional
     public LoopDraftRow update(String id, LoopSpec spec) {
-        validateExecutionContract(spec);
         LoopDraftRow old = get(id);
+        LoopSpec oldSpec = spec(old);
+        if (!oldSpec.schemaVersion().equals(spec.schemaVersion())) {
+            throw new BadRequestException("LOOPSPEC_SCHEMA_IMMUTABLE",
+                    "Persisted drafts cannot change schemaVersion; copy the draft to upgrade it");
+        }
+        reject(assessment(spec, true, true).errors());
         if (LoopDraftStatus.CONFIRMED.name().equals(old.status())) throw new ConflictException("DRAFT_CONFIRMED", "Confirmed LoopSpec is immutable; create a new draft");
         if (!old.projectId().equals(spec.projectId())) throw new BadRequestException("DRAFT_PROJECT_MISMATCH", "LoopSpec projectId cannot be changed");
         LoopDraftRow changed = new LoopDraftRow(old.id(), old.projectId(), spec.goal(), write(spec), LoopDraftStatus.DRAFT_READY.name(), old.createdAt(), Instant.now().toString(), old.version());
@@ -121,10 +156,17 @@ public class LoopDraftService {
     }
 
     public List<String> validationErrors(LoopSpec spec, boolean requireExecutableAcceptance) {
+        return assessment(spec, requireExecutableAcceptance, true).errors();
+    }
+
+    public LoopSpecAcceptanceService.Assessment assessment(LoopSpec spec, boolean requireExecutableAcceptance,
+                                                           boolean allowPersistedLegacy) {
         if (spec == null) throw new BadRequestException("LOOPSPEC_REQUIRED", "LoopSpec is required");
         List<String> errors = new ArrayList<>(validator.validate(spec).stream()
                 .map(violation -> violation.getPropertyPath() + ": " + violation.getMessage()).sorted().toList());
-        if (!"v1".equals(spec.schemaVersion())) errors.add("schemaVersion: only v1 is supported");
+        if (!Set.of("v1", "v2").contains(spec.schemaVersion())) {
+            errors.add("schemaVersion: only persisted v1 and new v2 are supported");
+        }
         for (int stageIndex = 0; stageIndex < spec.stages().size(); stageIndex++) {
             LoopSpec.StageSpec stage = spec.stages().get(stageIndex);
             boolean hasAcceptanceVerifier = false;
@@ -133,7 +175,7 @@ public class LoopDraftService {
                 String path = "stages[" + stageIndex + "].verifiers[" + verifierIndex + "]";
                 String type = verifier.type() == null ? "" : verifier.type();
                 if (!SUPPORTED_VERIFIERS.contains(type)) errors.add(path + ".type: unsupported verifier " + type);
-                if (!"GIT_DIFF".equals(type)) hasAcceptanceVerifier = true;
+                if ("v1".equals(spec.schemaVersion()) && !"GIT_DIFF".equals(type)) hasAcceptanceVerifier = true;
                 if ("PROCESS".equals(type) && verifier.command().isEmpty()) {
                     errors.add(path + ".command: PROCESS requires a direct argv command");
                 }
@@ -198,11 +240,11 @@ public class LoopDraftService {
                     errors.add(path + ".outputContains: only PROCESS can assert command output");
                 }
             }
-            if (requireExecutableAcceptance && !hasAcceptanceVerifier) {
+            if ("v1".equals(spec.schemaVersion()) && requireExecutableAcceptance && !hasAcceptanceVerifier) {
                 errors.add("stages[" + stageIndex + "].verifiers: GIT_DIFF only checks change scope; add a functional verifier for the Designer acceptance criteria");
             }
         }
-        return List.copyOf(errors);
+        return acceptance.assess(spec, errors, allowPersistedLegacy);
     }
 
     private LoopSpec normalizeProcessCommands(LoopSpec spec) {
@@ -224,7 +266,7 @@ public class LoopDraftService {
             }
             if (stageChanged) {
                 stages.add(new LoopSpec.StageSpec(stage.objective(), stage.allowedPaths(), stage.forbiddenPaths(),
-                        stage.deliverables(), verifiers));
+                        stage.deliverables(), verifiers, stage.acceptanceCriteria(), stage.verificationRuntime()));
                 changed = true;
             } else {
                 stages.add(stage);
@@ -240,7 +282,8 @@ public class LoopDraftService {
                 verifier.allowedPaths(), verifier.forbiddenPaths(), verifier.forbidDeletes(), verifier.outputContains(),
                 verifier.url(), verifier.httpMethod(), verifier.expectedStatus(), verifier.jsonPath(),
                 verifier.expectedValue(), verifier.matchMode(), verifier.expectedContent(), verifier.expectedSha256(),
-                verifier.sql(), verifier.expectedRowCount(), verifier.assertions());
+                verifier.sql(), verifier.expectedRowCount(), verifier.assertions(), verifier.criterionIds(),
+                verifier.processPurpose(), verifier.testTargets());
     }
 
     private void reject(List<String> errors) {

@@ -7,6 +7,7 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -96,6 +97,37 @@ public class SafeProcessRunner {
         }
     }
 
+    /** Starts a bounded, directly-addressable process for a stage-managed verification runtime. */
+    public ManagedProcess startManaged(Path directory, List<String> argv, Map<String, String> environment) {
+        validateArguments(argv);
+        if (environment == null || environment.entrySet().stream().anyMatch(entry -> entry.getKey() == null
+                || entry.getKey().isBlank() || entry.getValue() == null)) {
+            throw new TaskFailure("PROCESS_ENVIRONMENT_INVALID", "Process environment entries must have non-empty names and values");
+        }
+        ExecutableResolver.Resolution resolution = executableResolver.resolve(directory, argv, environment);
+        try {
+            ProcessBuilder builder = new ProcessBuilder(new ArrayList<>(resolution.argv()))
+                    .directory(directory.toFile()).redirectErrorStream(true);
+            builder.environment().putAll(environment);
+            Process process = builder.start();
+            ByteArrayOutputStream captured = new ByteArrayOutputStream();
+            CappedOutputStream capped = new CappedOutputStream(captured, 1_000_000, () -> {
+                terminateTree(process);
+                closeProcessStreams(process);
+            });
+            Thread drainer = Thread.ofVirtual().name("loopper-managed-process-drain").start(() -> {
+                try (var input = process.getInputStream(); OutputStream output = capped) {
+                    input.transferTo(output);
+                } catch (IOException ignored) {
+                    // Normal when the managed process is stopped or exceeds its evidence budget.
+                }
+            });
+            return new ManagedProcess(process, List.copyOf(resolution.argv()), captured, capped, drainer);
+        } catch (IOException failure) {
+            throw new TaskFailure("PROCESS_START_FAILED", "Unable to start process: " + failure.getMessage());
+        }
+    }
+
     private static void validateArguments(List<String> argv) {
         if (argv == null || argv.isEmpty() || argv.stream().anyMatch(s -> s == null || s.isBlank())) {
             throw new TaskFailure("PROCESS_ARGUMENT_INVALID", "Process verifier requires a non-empty argv vector");
@@ -108,6 +140,52 @@ public class SafeProcessRunner {
             if (descendant.isAlive()) descendant.destroyForcibly();
         }
         if (process.isAlive()) process.destroyForcibly();
+    }
+
+    public static final class ManagedProcess {
+        private final Process process;
+        private final List<String> resolvedArgv;
+        private final ByteArrayOutputStream captured;
+        private final CappedOutputStream capped;
+        private final Thread drainer;
+
+        private ManagedProcess(Process process, List<String> resolvedArgv, ByteArrayOutputStream captured,
+                               CappedOutputStream capped, Thread drainer) {
+            this.process = process;
+            this.resolvedArgv = resolvedArgv;
+            this.captured = captured;
+            this.capped = capped;
+            this.drainer = drainer;
+        }
+
+        public long pid() { return process.pid(); }
+        public Instant startInstant() { return process.info().startInstant().orElse(null); }
+        public List<String> resolvedArgv() { return resolvedArgv; }
+        public boolean alive() { return process.isAlive(); }
+        public Integer exitCode() { return process.isAlive() ? null : process.exitValue(); }
+        public boolean outputTruncated() { return capped.truncated(); }
+        public synchronized String output() { return captured.toString(StandardCharsets.UTF_8); }
+
+        public boolean stop(Duration timeout) {
+            long millis = Math.max(1, timeout.toMillis());
+            try {
+                List<ProcessHandle> descendants = process.descendants().toList();
+                for (ProcessHandle descendant : descendants.reversed()) if (descendant.isAlive()) descendant.destroy();
+                if (process.isAlive()) process.destroy();
+                process.waitFor(millis, TimeUnit.MILLISECONDS);
+                if (process.isAlive() || descendants.stream().anyMatch(ProcessHandle::isAlive)) {
+                    for (ProcessHandle descendant : descendants.reversed()) if (descendant.isAlive()) descendant.destroyForcibly();
+                    if (process.isAlive()) process.destroyForcibly();
+                    process.waitFor(Math.min(millis, 2_000), TimeUnit.MILLISECONDS);
+                }
+                closeProcessStreams(process);
+                drainer.join(Math.min(millis, 2_000));
+                return !process.isAlive() && descendants.stream().noneMatch(ProcessHandle::isAlive);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+        }
     }
 
     private static void closeProcessStreams(Process process) {

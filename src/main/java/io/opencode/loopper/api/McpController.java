@@ -72,7 +72,7 @@ public class McpController {
             throw new BadRequestException("MCP_PROTOCOL_UNSUPPORTED", "Unsupported MCP protocol version: " + requested);
         }
         return Map.of("protocolVersion", PROTOCOL_VERSION, "capabilities", Map.of("tools", Map.of()),
-                "serverInfo", Map.of("name", "opencode-loopper", "version", "0.1.27"),
+                "serverInfo", Map.of("name", "opencode-loopper", "version", "0.1.28"),
                 "instructions", "Designer access is read-only. Proposals synchronize the session-bound DRAFT_READY LoopSpec; a human must confirm before create_task.");
     }
 
@@ -165,7 +165,7 @@ public class McpController {
         return List.of(
                 tool("get_project_context", "Read registered project context without file-write authority", Map.of("projectId", stringSchema()), List.of("projectId")),
                 tool("propose_loop_spec", "Synchronize a complete DRAFT_READY LoopSpec into the draft bound to a read-only Designer session; human confirmation is still required", Map.of("designerSessionId", stringSchema(), "projectId", stringSchema(), "spec", Map.of("type", "object")), List.of("designerSessionId", "projectId", "spec")),
-                tool("validate_loop_spec", "Validate a LoopSpec v1 supplied as spec, or a persisted draftId with its exact version", Map.of("spec", Map.of("type", "object"), "draftId", stringSchema(), "version", Map.of("type", "integer", "minimum", 0)), List.of()),
+                tool("validate_loop_spec", "Validate a new LoopSpec v2 supplied as spec, or a persisted v1/v2 draftId with its exact version", Map.of("spec", Map.of("type", "object"), "draftId", stringSchema(), "version", Map.of("type", "integer", "minimum", 0)), List.of()),
                 tool("create_task", "Create or return the one task for a CONFIRMED draft; never auto-confirms and is idempotent", Map.of("draftId", stringSchema()), List.of("draftId")),
                 tool("start_task", "Start a task whose contract and execution workspace are already prepared", Map.of("taskId", stringSchema()), List.of("taskId")),
                 tool("get_task_status", "Read task, stage, attempt and layered error state", Map.of("taskId", stringSchema()), List.of("taskId")));

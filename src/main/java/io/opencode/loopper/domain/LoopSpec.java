@@ -42,12 +42,55 @@ public record LoopSpec(
             @Size(max = 64) List<@Size(max = 512) String> allowedPaths,
             @Size(max = 64) List<@Size(max = 512) String> forbiddenPaths,
             @Size(max = 64) List<@Size(max = 2_000) String> deliverables,
-            @Size(max = 32) List<@Valid VerifierSpec> verifiers) {
+            @Size(max = 32) List<@Valid VerifierSpec> verifiers,
+            @Size(max = 64) List<@Valid AcceptanceCriterion> acceptanceCriteria,
+            @Valid VerificationRuntime verificationRuntime) {
+        public StageSpec(String objective, List<String> allowedPaths, List<String> forbiddenPaths,
+                         List<String> deliverables, List<VerifierSpec> verifiers) {
+            this(objective, allowedPaths, forbiddenPaths, deliverables, verifiers, null, null);
+        }
         public StageSpec {
             allowedPaths = immutable(allowedPaths);
             forbiddenPaths = immutable(forbiddenPaths);
             deliverables = immutable(deliverables);
             verifiers = immutable(verifiers);
+            acceptanceCriteria = immutable(acceptanceCriteria);
+        }
+    }
+
+    public record AcceptanceCriterion(@NotBlank @Size(max = 64) String id,
+                                      @NotBlank @Size(max = 2_000) String description) {
+        public AcceptanceCriterion {
+            id = id == null ? null : id.trim();
+            description = description == null ? null : description.trim();
+        }
+    }
+
+    public record VerificationRuntime(
+            @Size(max = 64) List<@NotBlank @Size(max = 2_048) String> startCommand,
+            @Valid RuntimeReadiness readiness,
+            @Min(1) @Max(300) Integer startupTimeoutSeconds,
+            @Min(1) @Max(60) Integer shutdownTimeoutSeconds) {
+        public VerificationRuntime {
+            startCommand = immutable(startCommand);
+            startupTimeoutSeconds = startupTimeoutSeconds == null ? 60 : startupTimeoutSeconds;
+            shutdownTimeoutSeconds = shutdownTimeoutSeconds == null ? 10 : shutdownTimeoutSeconds;
+        }
+    }
+
+    public record RuntimeReadiness(
+            @NotBlank @Size(max = 1_024) String path,
+            @Min(100) @Max(599) Integer expectedStatus,
+            @Size(max = 1_024) String jsonPath,
+            @Size(max = 4_000) String expectedValue,
+            @Size(max = 32) String matchMode) {
+        public RuntimeReadiness {
+            path = path == null ? null : path.trim();
+            expectedStatus = expectedStatus == null ? 200 : expectedStatus;
+            jsonPath = blankToNull(jsonPath);
+            expectedValue = blankToNull(expectedValue);
+            matchMode = blankToNull(matchMode);
+            matchMode = matchMode == null ? null : matchMode.toUpperCase();
         }
     }
 
@@ -70,18 +113,34 @@ public record LoopSpec(
                                @Size(min = 64, max = 64) String expectedSha256,
                                @Size(max = 16_000) String sql,
                                @Min(0) Integer expectedRowCount,
-                               @Size(max = 64) List<@Valid BrowserAssertion> assertions) {
+                               @Size(max = 64) List<@Valid BrowserAssertion> assertions,
+                               @Size(max = 64) List<@NotBlank @Size(max = 64) String> criterionIds,
+                               @Size(max = 32) String processPurpose,
+                               @Size(max = 64) List<@NotBlank @Size(max = 512) String> testTargets) {
+        public VerifierSpec(String type, List<String> command, String path, Boolean requireChanges,
+                            List<String> allowedPaths, List<String> forbiddenPaths, Boolean forbidDeletes,
+                            String outputContains, String url, String httpMethod, Integer expectedStatus,
+                            String jsonPath, String expectedValue, String matchMode, String expectedContent,
+                            String expectedSha256, String sql, Integer expectedRowCount,
+                            List<BrowserAssertion> assertions) {
+            this(type, command, path, requireChanges, allowedPaths, forbiddenPaths, forbidDeletes,
+                    outputContains, url, httpMethod, expectedStatus, jsonPath, expectedValue, matchMode,
+                    expectedContent, expectedSha256, sql, expectedRowCount, assertions, null, null, null);
+        }
+
         public VerifierSpec(String type, List<String> command, String path, Boolean requireChanges,
                             List<String> allowedPaths, List<String> forbiddenPaths, Boolean forbidDeletes,
                             String outputContains) {
             this(type, command, path, requireChanges, allowedPaths, forbiddenPaths, forbidDeletes,
-                    outputContains, null, null, null, null, null, null, null, null, null, null, null);
+                    outputContains, null, null, null, null, null, null, null, null, null, null, null,
+                    null, null, null);
         }
 
         public VerifierSpec(String type, List<String> command, String path, Boolean requireChanges,
                             List<String> allowedPaths, List<String> forbiddenPaths, Boolean forbidDeletes) {
             this(type, command, path, requireChanges, allowedPaths, forbiddenPaths, forbidDeletes, null,
-                    null, null, null, null, null, null, null, null, null, null, null);
+                    null, null, null, null, null, null, null, null, null, null, null,
+                    null, null, null);
         }
 
         public VerifierSpec {
@@ -102,6 +161,10 @@ public record LoopSpec(
             expectedSha256 = expectedSha256 == null ? null : expectedSha256.toLowerCase();
             sql = blankToNull(sql);
             assertions = immutable(assertions);
+            criterionIds = immutable(criterionIds);
+            processPurpose = blankToNull(processPurpose);
+            processPurpose = processPurpose == null ? null : processPurpose.toUpperCase();
+            testTargets = immutable(testTargets);
         }
     }
 

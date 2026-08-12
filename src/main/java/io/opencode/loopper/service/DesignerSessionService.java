@@ -326,12 +326,19 @@ public class DesignerSessionService {
 
     private String loopSpecRepairPrompt(DesignerSessionRow session, String validationError) {
         LoopDraftRow draft = drafts.get(session.loopDraftId());
+        boolean legacy = "v1".equals(drafts.spec(draft).schemaVersion());
+        String acceptanceContract = legacy
+                ? "Address every validation error below. Preserve this persisted v1 draft without changing schemaVersion. Every stage must contain at least one functional verifier in addition to any GIT_DIFF scope verifier. GIT_DIFF only checks change scope. Normally use a PROCESS verifier with a direct `command` argv array and a command already supported by the inspected repository. Never assume Maven Wrapper is present: use the portable `./mvnw` alias only when the current platform wrapper (`mvnw` on Linux/macOS or `mvnw.cmd` on Windows) is checked in. Loopper resolves platform executable suffixes without accepting shell snippets. Every Maven lifecycle, goal, option, and value must be a separate array item."
+                : "Address every validation error below, especially each named uncovered acceptance criterion. This draft uses LoopSpec v2: every stage needs acceptanceCriteria with stable IDs, and every criterion needs a valid BEHAVIOR verifier whose criterionIds explicitly include that ID. Build/package/typecheck/lint, GIT_DIFF, FILE_NOT_EXISTS, JUNIT_XML, and FILE_EXISTS are supplementary evidence and never satisfy behavior coverage. PROCESS must declare processPurpose. TEST must run a recognized focused test command, must not skip tests, and needs testTargets; SELF_CHECK needs an exact outputContains success marker. HTTP_STATUS, JSON_PATH, and BROWSER behavior evidence must use `http://127.0.0.1:{{LOOPPER_PORT}}/...` and a stage verificationRuntime whose direct startCommand consumes `{{LOOPPER_PORT}}` and has a readiness probe. Never use a shell launcher.";
+        String payloadExample = legacy
+                ? "{ \"schemaVersion\": \"v1\", \"projectId\": \"" + session.projectId() + "\", \"goal\": \"...\", \"context\": \"...\", \"stages\": [], \"limits\": {} }"
+                : "{ \"schemaVersion\": \"v2\", \"projectId\": \"" + session.projectId() + "\", \"goal\": \"...\", \"context\": \"...\", \"stages\": [{ \"objective\": \"...\", \"acceptanceCriteria\": [{\"id\":\"AC-1\",\"description\":\"...\"}], \"verifiers\": [{\"type\":\"PROCESS\",\"processPurpose\":\"TEST\",\"command\":[\"mvn\",\"test\",\"-Dtest=FooTest\"],\"testTargets\":[\"FooTest\"],\"criterionIds\":[\"AC-1\"]}] }], \"limits\": {} }";
         return """
                 Your previous response was rejected by the Loopper LoopSpec validator.
                 This is a protocol-repair turn only. Do not inspect more files, call repository tools, generate implementation code, edit files, run commands, create tasks, or discuss starting implementation.
 
                 Correct the complete Markdown design and the complete machine LoopSpec using only the project evidence already collected in this read-only session.
-                Address every validation error below. Every stage must contain at least one functional verifier in addition to any GIT_DIFF scope verifier. Normally use a PROCESS verifier with a direct `command` argv array and a command already supported by the inspected repository. Never assume Maven Wrapper is present: use the portable `./mvnw` alias only when the current platform wrapper (`mvnw` on Linux/macOS or `mvnw.cmd` on Windows) is checked in and will be present in the registered checkout on its Task branch; otherwise choose the repository's real supported command, such as `mvn`, `./gradlew`, or an npm script. Loopper resolves platform executable suffixes without accepting shell snippets. Do not rename `command` to `argv`, `args`, or `cmd`. Every Maven lifecycle, goal, option, and value must be a separate array item: use `["mvn", "test", "-Dtest=FooTest", "-pl", "module"]`, never `["mvn", "test -Dtest=FooTest -pl module"]`.
+                %s
                 Re-evaluate stage boundaries while repairing: prefer 2 to 6 dependency-ordered stages for non-trivial work, keep a single stage only for an atomic change, and split by independently deliverable behavior rather than by generic activities such as analysis, coding, and testing.
                 Every stage must own functional acceptance that can run immediately after that stage and prove its stated deliverables. Do not defer all functional validation to the final stage. A final full-regression verifier may supplement, but never replace, the focused verifier of each earlier stage.
                 The visible Markdown acceptance criteria and machine verifiers must describe the same checks.
@@ -345,10 +352,10 @@ public class DesignerSessionService {
                 Return the complete corrected Markdown design followed by exactly one complete JSON object between these markers:
                 <!-- LOOPSPEC_JSON_START -->
                 ```json
-                { "schemaVersion": "v1", "projectId": "%s", "goal": "...", "context": "...", "stages": [], "limits": {} }
+                %s
                 ```
                 <!-- LOOPSPEC_JSON_END -->
-                """.formatted(safeMessage(validationError), draft.specJson(), session.projectId());
+                """.formatted(acceptanceContract, safeMessage(validationError), draft.specJson(), payloadExample);
     }
 
     private DesignerMessageRow sessionError(DesignerSessionRow session, String code, String detail) {
@@ -381,6 +388,16 @@ public class DesignerSessionService {
     private String designerPrompt(DesignerSessionRow session, ProjectRow project, String message) {
         LoopDraftRow draft = session.loopDraftId() == null ? null : drafts.get(session.loopDraftId());
         String currentSpec = draft == null ? "{}" : draft.specJson();
+        boolean legacy = draft != null && "v1".equals(drafts.spec(draft).schemaVersion());
+        String acceptanceContract = legacy
+                ? "- This is a persisted v1 draft. Keep schemaVersion v1 and preserve its legacy verifier behavior. The Markdown acceptance criteria and machine LoopSpec MUST describe the same checks. Every validation command shown in Markdown must appear in the corresponding stage.verifiers as a PROCESS verifier whose JSON field is exactly `command`. Never leave a stage with GIT_DIFF as its only verifier: GIT_DIFF checks scope, not functional correctness.\n- PROCESS uses the schema { \"type\": \"PROCESS\", \"command\": [\"program\", \"arg\"] }. The `command` value is a direct argv array, never a shell snippet. Select `program` from commands actually supported by the inspected repository. Never assume Maven Wrapper is present: use the portable `./mvnw` alias only when the current platform wrapper (`mvnw` on Linux/macOS or `mvnw.cmd` on Windows) is checked in. Loopper resolves Windows executable suffixes without accepting shell snippets. Never rename this JSON field to `argv`, `args`, or `cmd`. Every Maven lifecycle, goal, option, and value must be a separate array item. Do not add v2-only fields unless the user first copies this design into a new v2 draft."
+                : "- The Markdown acceptance criteria and machine stage.acceptanceCriteria MUST describe the same observable behaviors. Assign stable IDs such as AC-1, and map each behavior verifier through criterionIds. Every criterion needs at least one BEHAVIOR verifier.\n- Classify evidence correctly: compile/package/build/typecheck/lint/install PROCESS commands are BUILD only; GIT_DIFF is SCOPE; FILE_NOT_EXISTS is SAFETY; JUNIT_XML is REPORT; FILE_EXISTS is ADVISORY. None of them can satisfy behavior coverage. PROCESS requires processPurpose BUILD, TEST, or SELF_CHECK. TEST must invoke an evidenced Maven/Gradle/npm test command without skip flags and list concrete testTargets. SELF_CHECK must exit non-zero on failure and require an exact outputContains marker.\n- For REST behavior use HTTP_STATUS/JSON_PATH; for UI interaction use BROWSER; for SQLite behavior use DATABASE_QUERY; for deterministic files use FILE_CONTENT/FILE_HASH. HTTP_STATUS, JSON_PATH, and BROWSER mapped to a criterion must target `http://127.0.0.1:{{LOOPPER_PORT}}/...` and the same stage must define verificationRuntime.startCommand as direct argv containing `{{LOOPPER_PORT}}`, plus a bounded readiness path. A fixed loopback check may remain supplemental but cannot cover a criterion. `{{LOOPPER_TEMP}}` is the only other placeholder. Shell launchers and shell fragments are forbidden.";
+        String preserveFields = legacy
+                ? "- Keep schemaVersion v1 and projectId unchanged. Return every legacy field, including stages, verifiers, limits, model, sessionPolicy, and nextAttemptPromptTemplate. Use numeric *Seconds fields exactly as in the current JSON."
+                : "- Keep schemaVersion v2 and projectId unchanged. Return every field, including acceptanceCriteria, verificationRuntime, criterionIds, processPurpose, testTargets, limits, model, sessionPolicy, and nextAttemptPromptTemplate. Use numeric *Seconds fields exactly as in the current JSON.";
+        String payloadExample = legacy
+                ? "{ \"schemaVersion\": \"v1\", \"projectId\": \"" + project.id() + "\", \"goal\": \"...\", \"context\": \"...\", \"stages\": [], \"limits\": {} }"
+                : "{ \"schemaVersion\": \"v2\", \"projectId\": \"" + project.id() + "\", \"goal\": \"...\", \"context\": \"...\", \"stages\": [{ \"objective\": \"...\", \"acceptanceCriteria\": [{\"id\":\"AC-1\",\"description\":\"...\"}], \"verifiers\": [{\"type\":\"PROCESS\",\"processPurpose\":\"TEST\",\"command\":[\"mvn\",\"test\",\"-Dtest=FooTest\"],\"testTargets\":[\"FooTest\"],\"criterionIds\":[\"AC-1\"]}] }], \"limits\": {} }";
         return """
                 You are the OpenCode Loopper Designer. Work in read-only advisory mode only.
                 You may inspect the registered project but must not edit files, run shell commands, create tasks, or claim an action completed without evidence.
@@ -397,15 +414,14 @@ public class DesignerSessionService {
                 - Prefer 2 to 6 dependency-ordered stages for non-trivial work. Keep a single stage only when the requested change is genuinely atomic, and state the single-stage reason in the Markdown. Split by independently deliverable, independently verifiable behavior; do not split mechanically into analysis, coding, and testing phases.
                 - Include a Markdown stage plan whose rows map one-to-one and in the same order to machine `stages`. For every stage show its observable result, affected scope, deliverables, dependency on earlier stages, and acceptance command or check.
                 - Every stage must leave the project in a coherent, safe-to-stop state and must own functional acceptance that can run immediately after that stage. Use the narrowest reliable stage-specific verifier first. Do not defer all tests or functional validation to the final stage; a final full-regression verifier may supplement but never replace each earlier stage's focused acceptance.
-                - The Markdown acceptance criteria and the machine LoopSpec MUST describe the same checks. Every validation command shown in Markdown must appear in the corresponding stage.verifiers as a PROCESS verifier whose JSON field is exactly `command`. Never leave a stage with GIT_DIFF as its only verifier: GIT_DIFF checks scope, not functional correctness.
-                - PROCESS uses the schema { "type": "PROCESS", "command": ["program", "arg"] }. The `command` value is a direct argv array, never a shell snippet. Select `program` from commands actually supported by the inspected repository and its project conventions. Never assume Maven Wrapper is present or require a project to add it: use the portable `./mvnw` alias only when the current platform wrapper (`mvnw` on Linux/macOS or `mvnw.cmd` on Windows) is checked in and will be present in the registered checkout on its Task branch; otherwise use another evidenced command such as `mvn`, `./gradlew`, or an npm script. Loopper resolves Windows `.exe`/`.com`/`.bat`/`.cmd` PATH suffixes and project-relative wrappers without accepting shell snippets. Never rename this JSON field to `argv`, `args`, or `cmd`. Every Maven lifecycle, goal, option, and value must be a separate array item: use `["mvn", "test", "-Dtest=FooTest", "-pl", "module"]`, never `["mvn", "test -Dtest=FooTest -pl module"]`. When success requires stdout text such as PASS, set outputContains to that exact text. A PROCESS verifier must exit non-zero when its self-check fails.
+                %s
                 - Do not add FILE_EXISTS verifiers: generated artifacts and build output directories are not fixed-path hard gates. Prove required output with a PROCESS self-check that exits non-zero on failure and optionally requires an exact PASS marker. FILE_NOT_EXISTS remains available only for explicit safety invariants. Do not add GIT_DIFF merely because stage.allowedPaths or stage.forbiddenPaths is populated: those stage fields are advisory Agent guidance. Add a GIT_DIFF verifier only when you explicitly propose a path/delete acceptance check in the visible Markdown, and choose limits.verifierTimeoutSeconds large enough for the slowest validation command.
                 - Whenever you describe a workflow, state transition, component interaction, dependency flow, or multi-step execution path, include a fenced `mermaid` diagram. Never draw flows with ASCII art.
                 - Explanatory prose, conclusions, reviews, risks, acceptance criteria, and unresolved decisions default to Simplified Chinese unless the user explicitly requests another language.
                 - Keep identifiers, commands, file paths, code, JSON field names, protocol enum values, and exact literal markers in their original form.
                 - Your response MUST end with the complete updated LoopSpec JSON between the exact markers shown below. The JSON is machine-consumed and will be removed from the visible Markdown after validation.
                 - Do not repeat or display the raw LoopSpec JSON anywhere else in the visible Markdown document; summarize its important decisions in prose, tables, and Mermaid diagrams instead.
-                - Keep schemaVersion and projectId unchanged. Return every field, including stages, verifiers, limits, model, sessionPolicy, and nextAttemptPromptTemplate. Use numeric *Seconds fields exactly as in the current JSON.
+                %s
 
                 Current bound LoopSpec JSON:
                 %s
@@ -413,13 +429,14 @@ public class DesignerSessionService {
                 Required machine payload format:
                 <!-- LOOPSPEC_JSON_START -->
                 ```json
-                { "schemaVersion": "v1", "projectId": "%s", "goal": "...", "context": "...", "stages": [], "limits": {} }
+                %s
                 ```
                 <!-- LOOPSPEC_JSON_END -->
 
                 User message:
                 %s
-                """.formatted(project.rootPath(), session.id(), session.loopDraftId(), currentSpec, project.id(), message);
+                """.formatted(project.rootPath(), session.id(), session.loopDraftId(), acceptanceContract,
+                        preserveFields, currentSpec, payloadExample, message);
     }
 
     private ParsedDesignerOutput parseDesignerOutput(String output) {

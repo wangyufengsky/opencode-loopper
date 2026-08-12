@@ -1,4 +1,4 @@
-import type { AppSettings, Artifact, Attempt, AutomationImportPreview, AutomationImportResult, AutomationRule, AutomationRuleMutation, AutomationRun, AutomationRunFeed, AvailableModel, BrowserAssertion, CommitMessageSuggestion, CreateAutomationRuleInput, DesignerAppendResult, DesignerMessage, DesignerSession, DesignerSessionState, DesignerStreamEvent, DirectorySelection, DirtyWorkspaceAction, DirtyWorkspaceResolution, DirtyWorkspaceState, ErrorEvent, InsightsSnapshot, Interaction, InteractionAction, JudgeRun, LocalSyncConflictContent, LocalSyncConflictFile, LocalSyncConflictSession, LocalSyncResolution, LoopDraft, LoopSpec, LoopSpecTemplate, LoopSpecTemplateVersion, LoopVerifierSpec, MergeRequestDraft, Project, ProjectConventionDraft, ProjectConventionSnapshot, RecoveryDraft, RecoveryMode, RuntimeInfo, SessionCheckpoint, SessionForkResult, SessionRevertResult, SessionSummaryResult, SessionTodo, Stage, Task, TaskDesignHistory, TaskDiffPreview, TaskEvent, TaskInsight, TaskPublicationStatus, TaskSessionActivity, TaskSessionActivityPart, TaskSessionPendingQuestion, TaskSessionSummary, UsageAggregate } from '@/types/domain'
+import type { AppSettings, Artifact, Attempt, AutomationImportPreview, AutomationImportResult, AutomationRule, AutomationRuleMutation, AutomationRun, AutomationRunFeed, AvailableModel, BrowserAssertion, CommitMessageSuggestion, CreateAutomationRuleInput, DesignerAppendResult, DesignerMessage, DesignerSession, DesignerSessionState, DesignerStreamEvent, DirectorySelection, DirtyWorkspaceAction, DirtyWorkspaceResolution, DirtyWorkspaceState, ErrorEvent, InsightsSnapshot, Interaction, InteractionAction, JudgeRun, LocalSyncConflictContent, LocalSyncConflictFile, LocalSyncConflictSession, LocalSyncResolution, LoopDraft, LoopSpec, LoopSpecAssessment, LoopSpecTemplate, LoopSpecTemplateVersion, LoopVerifierSpec, MergeRequestDraft, Project, ProjectConventionDraft, ProjectConventionSnapshot, RecoveryDraft, RecoveryMode, RuntimeInfo, SessionCheckpoint, SessionForkResult, SessionRevertResult, SessionSummaryResult, SessionTodo, Stage, Task, TaskDesignHistory, TaskDiffPreview, TaskEvent, TaskInsight, TaskPublicationStatus, TaskSessionActivity, TaskSessionActivityPart, TaskSessionPendingQuestion, TaskSessionSummary, UsageAggregate } from '@/types/domain'
 
 const apiBase = import.meta.env.VITE_API_BASE ?? '/api'
 
@@ -88,6 +88,9 @@ function parseVerifier(value: unknown): LoopVerifierSpec {
     ...(typeof raw.expectedValue === 'string' ? { expectedValue: raw.expectedValue } : {}),
     ...(matchMode ? { matchMode } : {}),
     ...(typeof raw.expectedRowCount === 'number' ? { expectedRowCount: raw.expectedRowCount } : {}),
+    ...(asArray(raw.criterionIds).length ? { criterionIds: asArray(raw.criterionIds).map(String) } : {}),
+    ...(['BUILD', 'TEST', 'SELF_CHECK'].includes(asString(raw.processPurpose)) ? { processPurpose: asString(raw.processPurpose) as 'BUILD' | 'TEST' | 'SELF_CHECK' } : {}),
+    ...(asArray(raw.testTargets).length ? { testTargets: asArray(raw.testTargets).map(String) } : {}),
   }
   switch (type) {
     case 'PROCESS': {
@@ -125,7 +128,17 @@ function parseLoopSpec(value: unknown): LoopSpec {
     schemaVersion: asString(raw.schemaVersion, 'v1'), projectId: asString(raw.projectId), goal: asString(raw.goal), context: asString(raw.context),
     stages: asArray(raw.stages).map((stage) => {
       const item = asRecord(stage)
-      return { objective: asString(item.objective), allowedPaths: asArray(item.allowedPaths).map(String), forbiddenPaths: asArray(item.forbiddenPaths).map(String), deliverables: asArray(item.deliverables).map(String), verifiers: asArray(item.verifiers).map(parseVerifier) }
+      const runtime = asRecord(item.verificationRuntime)
+      const readiness = asRecord(runtime.readiness)
+      return {
+        objective: asString(item.objective), allowedPaths: asArray(item.allowedPaths).map(String), forbiddenPaths: asArray(item.forbiddenPaths).map(String), deliverables: asArray(item.deliverables).map(String), verifiers: asArray(item.verifiers).map(parseVerifier),
+        acceptanceCriteria: asArray(item.acceptanceCriteria).map((criterion) => ({ id: asString(asRecord(criterion).id), description: asString(asRecord(criterion).description) })),
+        ...(asArray(runtime.startCommand).length ? { verificationRuntime: {
+          startCommand: asArray(runtime.startCommand).map(String),
+          readiness: { path: asString(readiness.path), expectedStatus: asNumber(readiness.expectedStatus, 200), ...(asString(readiness.jsonPath) ? { jsonPath: asString(readiness.jsonPath) } : {}), ...(typeof readiness.expectedValue === 'string' ? { expectedValue: readiness.expectedValue } : {}), ...(['EXISTS', 'EXACT', 'CONTAINS'].includes(asString(readiness.matchMode)) ? { matchMode: asString(readiness.matchMode) as 'EXISTS' | 'EXACT' | 'CONTAINS' } : {}) },
+          startupTimeoutSeconds: asNumber(runtime.startupTimeoutSeconds, 60), shutdownTimeoutSeconds: asNumber(runtime.shutdownTimeoutSeconds, 10),
+        } } : {}),
+      }
     }),
     limits: {
       maxStageAttempts: asNumber(limits.maxStageAttempts, 3),
@@ -549,6 +562,8 @@ function backendLoopSpec(spec: LoopSpec): JsonRecord {
       allowedPaths: stage.allowedPaths,
       forbiddenPaths: stage.forbiddenPaths,
       deliverables: stage.deliverables,
+      acceptanceCriteria: stage.acceptanceCriteria ?? [],
+      ...(stage.verificationRuntime ? { verificationRuntime: stage.verificationRuntime } : {}),
       // Preserve verifier type and policy fields exactly. Converting every
       // rule to PROCESS would silently turn FILE_EXISTS/GIT_DIFF into commands.
       verifiers: stage.verifiers.map((verifier) => ({
@@ -571,6 +586,9 @@ function backendLoopSpec(spec: LoopSpec): JsonRecord {
         ...(verifier.sql ? { sql: verifier.sql } : {}),
         ...(typeof verifier.expectedRowCount === 'number' ? { expectedRowCount: verifier.expectedRowCount } : {}),
         ...(verifier.assertions?.length ? { assertions: verifier.assertions } : {}),
+        ...(verifier.criterionIds?.length ? { criterionIds: verifier.criterionIds } : {}),
+        ...(verifier.processPurpose ? { processPurpose: verifier.processPurpose } : {}),
+        ...(verifier.testTargets?.length ? { testTargets: verifier.testTargets } : {}),
       })),
     })),
     limits: {
@@ -983,6 +1001,8 @@ export const api = {
   updateSettings: async (settings: AppSettings) => normalizeSettings(await request<unknown>('/settings', { method: 'PUT', body: JSON.stringify(settings) })),
   getSettingsModels: async (cliPath?: string) => (await request<unknown[]>(`/settings/models${cliPath ? `?cliPath=${encodeURIComponent(cliPath)}` : ''}`)).map(normalizeAvailableModel),
   createDraft: async (spec: LoopSpec) => normalizeDraft(await request<unknown>('/loop-drafts', { method: 'POST', body: JSON.stringify({ spec: backendLoopSpec(spec) }) })),
+  validateDraft: async (spec: LoopSpec) => request<LoopSpecAssessment>('/loop-drafts/validate', { method: 'POST', body: JSON.stringify({ spec: backendLoopSpec(spec) }) }),
+  copyDraftAsV2: async (id: string) => normalizeDraft(await request<unknown>(`/loop-drafts/${encodeURIComponent(id)}/copy-v2`, { method: 'POST' })),
   getDraft: async (id: string) => normalizeDraft(await request<unknown>(`/loop-drafts/${encodeURIComponent(id)}`)),
   updateDraft: async (id: string, spec: LoopDraft['spec']) => normalizeDraft(await request<unknown>(`/loop-drafts/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify({ spec: backendLoopSpec(spec) }) })),
   confirmDraft: async (id: string) => { const task = asRecord(await request<unknown>(`/loop-drafts/${encodeURIComponent(id)}/confirm`, { method: 'POST' })); return { taskId: asString(task.taskId) } },

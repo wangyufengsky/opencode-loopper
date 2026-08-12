@@ -124,6 +124,32 @@ permission semantics. The runner is not an OS sandbox. A deliberately
 daemonizing hostile executable must be isolated by an external Job Object,
 cgroup or container rather than trusted as a LoopSpec verifier.
 
+LoopSpec v2 acceptance analysis is a single server service shared by REST,
+MCP, Designer synchronization, draft save/confirm, templates and Automation.
+Every criterion requires a valid `BEHAVIOR` mapping. Evidence categories are
+`BUILD`, `BEHAVIOR`, `SCOPE`, `SAFETY`, `REPORT`, and `ADVISORY`; only the second
+forms coverage. Persisted v1 contracts retain their historical behavior and are
+never upgraded in place. New drafts, imports, and template versions are v2.
+
+A v2 Stage may own one temporary verification runtime. Loopper allocates a
+dynamic loopback port and private temp directory outside SQLite transactions,
+replaces only `{{LOOPPER_PORT}}` and `{{LOOPPER_TEMP}}`, starts a direct argv
+root process, and polls bounded readiness before running bound HTTP/JSON/BROWSER
+checks. Every exit path stops the observed process tree and records resolved
+argv, PID/start identity, port, readiness attempts, bounded output, and cleanup.
+Git-visible changes made by the verifier fail with
+`VERIFIER_WORKSPACE_MUTATED`. Unconfirmed termination becomes
+`VERIFIER_RUNTIME_TERMINATION_UNCONFIRMED`, leaves the runtime `DISCONNECTED`,
+retains the writer lease, and prevents overlapping work.
+
+V19 persists `verifier_runtime` ownership with optimistic locking. Startup
+recovery may terminate a residual PID only when its recorded start identity
+matches. A missing process is reconciled as stopped; PID reuse or an unprovable
+identity is never killed and instead moves the owning Task to manual-safe
+failure. Pause and cancel stop active verification runtimes before changing Task
+or Attempt state. Process operations and workspace scans remain outside SQLite
+transactions.
+
 After a deterministic failure, the orchestrator captures an immutable
 `ATTEMPT_HANDOFF` artifact outside the SQLite transaction. It contains bounded
 failure and verifier summaries, changed paths, and a workspace content digest.

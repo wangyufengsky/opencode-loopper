@@ -470,11 +470,13 @@ export interface InsightsSnapshot {
   generatedAt: string
 }
 
-export type BrowserAssertion =
-  | { type: 'EXISTS' | 'VISIBLE'; selector: string }
-  | { type: 'TEXT_CONTAINS'; selector: string; value: string }
-  | { type: 'COUNT'; selector: string; expectedCount: number }
-  | { type: 'ATTRIBUTE_EQUALS'; selector: string; attribute: string; value: string }
+export interface BrowserAssertion {
+  type: 'EXISTS' | 'VISIBLE' | 'TEXT_CONTAINS' | 'COUNT' | 'ATTRIBUTE_EQUALS'
+  selector: string
+  value?: string
+  expectedCount?: number
+  attribute?: string
+}
 
 interface LoopVerifierFields {
   command?: string[]
@@ -495,6 +497,9 @@ interface LoopVerifierFields {
   sql?: string
   expectedRowCount?: number
   assertions?: BrowserAssertion[]
+  criterionIds?: string[]
+  processPurpose?: 'BUILD' | 'TEST' | 'SELF_CHECK'
+  testTargets?: string[]
 }
 
 /**
@@ -524,6 +529,13 @@ export interface LoopSpec {
     forbiddenPaths: string[]
     deliverables: string[]
     verifiers: LoopVerifierSpec[]
+    acceptanceCriteria?: Array<{ id: string; description: string }>
+    verificationRuntime?: {
+      startCommand: string[]
+      readiness: { path: string; expectedStatus?: number; jsonPath?: string; expectedValue?: string; matchMode?: 'EXISTS' | 'EXACT' | 'CONTAINS' }
+      startupTimeoutSeconds?: number
+      shutdownTimeoutSeconds?: number
+    }
   }>
   limits: {
     maxStageAttempts: number
@@ -549,6 +561,18 @@ export interface LoopSpec {
     maxCostAmount?: string
     currency?: string
   }
+}
+
+export interface LoopSpecAssessment {
+  valid: boolean
+  schemaVersion: string
+  legacy: boolean
+  errors: string[]
+  stageAssessments: Array<{
+    stageIndex: number
+    criteria: Array<{ id: string; description: string; covered: boolean; verifierIndexes: number[] }>
+    verifiers: Array<{ index: number; type: string; category: 'BUILD' | 'BEHAVIOR' | 'SCOPE' | 'SAFETY' | 'REPORT' | 'ADVISORY'; blocking: boolean; criterionIds: string[]; reason: string }>
+  }>
 }
 
 export type AutomationTrigger =

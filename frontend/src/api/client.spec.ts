@@ -186,6 +186,47 @@ describe('Loopper REST contract adapter', () => {
     })
   })
 
+  it('round-trips v2 acceptance coverage and managed-runtime fields and calls the shared validator', async () => {
+    const v2: LoopSpec = {
+      ...spec,
+      schemaVersion: 'v2',
+      stages: [{
+        objective: 'API behavior', allowedPaths: [], forbiddenPaths: [], deliverables: ['running API'],
+        acceptanceCriteria: [{ id: 'AC-1', description: 'health endpoint returns UP' }],
+        verificationRuntime: {
+          startCommand: ['java', '-jar', 'app.jar', '--server.port={{LOOPPER_PORT}}'],
+          readiness: { path: '/health', expectedStatus: 200, jsonPath: '$.status', expectedValue: 'UP', matchMode: 'EXACT' },
+          startupTimeoutSeconds: 30, shutdownTimeoutSeconds: 5,
+        },
+        verifiers: [{
+          type: 'JSON_PATH', url: 'http://127.0.0.1:{{LOOPPER_PORT}}/health', httpMethod: 'GET',
+          jsonPath: '$.status', expectedValue: 'UP', matchMode: 'EXACT', criterionIds: ['AC-1'],
+        }],
+      }],
+    }
+    const assessment = {
+      valid: true, schemaVersion: 'v2', legacy: false, errors: [],
+      stageAssessments: [{ stageIndex: 0, criteria: [{ id: 'AC-1', description: 'health endpoint returns UP', covered: true, verifierIndexes: [0] }], verifiers: [{ index: 0, type: 'JSON_PATH', category: 'BEHAVIOR', blocking: true, criterionIds: ['AC-1'], reason: 'managed runtime' }] }],
+    }
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json({ id: 'draft-v2', status: 'DRAFT_READY', updatedAt: 'now', spec: v2 }))
+      .mockResolvedValueOnce(json({ id: 'draft-v2', status: 'DRAFT_READY', updatedAt: 'later', spec: v2 }))
+      .mockResolvedValueOnce(json(assessment))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const draft = await api.getDraft('draft-v2')
+    await api.updateDraft('draft-v2', draft.spec)
+    await expect(api.validateDraft(draft.spec)).resolves.toEqual(assessment)
+
+    const persisted = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body)).spec
+    expect(persisted.stages[0]).toMatchObject({
+      acceptanceCriteria: [{ id: 'AC-1', description: 'health endpoint returns UP' }],
+      verificationRuntime: { startupTimeoutSeconds: 30, shutdownTimeoutSeconds: 5 },
+      verifiers: [{ type: 'JSON_PATH', criterionIds: ['AC-1'], matchMode: 'EXACT' }],
+    })
+    expect(fetchMock.mock.calls[2]?.[0]).toBe('/api/loop-drafts/validate')
+  })
+
   it('reads legacy PROCESS argv without writing the alias back', async () => {
     const legacy = structuredClone(spec) as unknown as { stages: Array<{ verifiers: unknown[] }> }
     legacy.stages[0]!.verifiers = [{ type: 'PROCESS', argv: ['mvn', 'test'] }]

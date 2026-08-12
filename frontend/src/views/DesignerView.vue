@@ -13,7 +13,7 @@ import PendingQuestionCard from '@/components/PendingQuestionCard.vue'
 import { api, subscribeDesignerEvents, type DesignerEventStream } from '@/api/client'
 import { demoDraft, demoMessages } from '@/mock/demoData'
 import { useTaskStore } from '@/stores/taskStore'
-import type { AppSettings, DesignerMessage, DesignerSession, ErrorEvent, LoopDraft, TaskSessionPendingQuestion } from '@/types/domain'
+import type { AppSettings, DesignerMessage, DesignerSession, ErrorEvent, LoopDraft, LoopSpecAssessment, TaskSessionPendingQuestion } from '@/types/domain'
 import { formatDateTime } from '@/utils/dateTime'
 import { statusLabel } from '@/utils/displayLabels'
 
@@ -24,6 +24,7 @@ const designerSession = ref<DesignerSession>()
 const messages = ref<DesignerMessage[]>([])
 const editorValue = ref('')
 const fieldError = ref<ErrorEvent>()
+const acceptanceAssessment = ref<LoopSpecAssessment>()
 const busy = ref(false)
 const designerReconnecting = ref(false)
 const designerStreamState = ref<'idle' | 'connecting' | 'connected' | 'reconnecting'>('idle')
@@ -311,7 +312,7 @@ async function applyBriefTemplate(prompt: string) {
 }
 
 function blankSpec(projectId: string, goal: string, settings: AppSettings): LoopDraft['spec'] {
-  return { schemaVersion: 'v1', projectId, goal, context: 'Execution 只允许在该 Task 的执行目录中修改；有 Git HEAD 时把登记项目目录切换到任务分支，否则直接使用登记的项目目录。', stages: [{ objective: '分析目标并实现最小可验证改动', allowedPaths: [], forbiddenPaths: [], deliverables: ['可验证实现'], verifiers: [] }], limits: { maxStageAttempts: 3, maxTaskAttempts: settings.maxTaskAttempts, maxDuration: 'PT2H', attemptTimeout: `PT${settings.timeoutMinutes}M` } }
+  return { schemaVersion: 'v2', projectId, goal, context: 'Execution 只允许在该 Task 的执行目录中修改；有 Git HEAD 时把登记项目目录切换到任务分支，否则直接使用登记的项目目录。', stages: [{ objective: '分析目标并实现最小可验证改动', allowedPaths: [], forbiddenPaths: [], deliverables: ['可验证实现'], acceptanceCriteria: [], verifiers: [] }], limits: { maxStageAttempts: 3, maxTaskAttempts: settings.maxTaskAttempts, maxDuration: 'PT2H', attemptTimeout: `PT${settings.timeoutMinutes}M` } }
 }
 
 async function startDraft() {
@@ -438,6 +439,11 @@ async function saveDraft(): Promise<boolean> {
   designerLiveError.value = ''
   designerLiveDetail.value = '正在将提示词交给 OpenCode'
   try {
+    if (!store.usingDemo) {
+      const assessment = await api.validateDraft(spec)
+      acceptanceAssessment.value = assessment
+      if (!assessment.valid) throw new Error(assessment.errors.join('；'))
+    }
     draft.value = store.usingDemo ? { ...draft.value, spec, updatedAt: new Date().toISOString() } : await api.updateDraft(draft.value.id, spec)
     editorValue.value = JSON.stringify(draft.value.spec, null, 2)
     fieldError.value = undefined
@@ -446,6 +452,23 @@ async function saveDraft(): Promise<boolean> {
   } catch (error) {
     fieldError.value = { id: 'field-api', layer: 'FIELD', code: 'LOOPSPEC_SAVE_FAILED', message: error instanceof Error ? error.message : '保存失败', retryable: true, occurredAt: '刚刚' }
     return false
+  } finally { busy.value = false }
+}
+
+async function copyLegacyDraftAsV2() {
+  if (!draft.value || draft.value.spec.schemaVersion !== 'v1' || store.usingDemo) return
+  busy.value = true
+  try {
+    const copied = await api.copyDraftAsV2(draft.value.id)
+    designerSession.value = await api.createDesignerSession(copied.spec.projectId, copied.id)
+    messages.value = designerSession.value.messages
+    draft.value = designerSession.value.draft ?? copied
+    editorValue.value = JSON.stringify(draft.value.spec, null, 2)
+    acceptanceAssessment.value = undefined
+    sessionStorage.setItem(designerWorkspaceKey, JSON.stringify({ sessionId: designerSession.value.id, draftId: draft.value.id }))
+    ElMessage.success('已复制为新的 v2 草稿；请补齐验收条件与行为验证器后保存')
+  } catch (error) {
+    fieldError.value = { id: 'field-copy-v2', layer: 'FIELD', code: 'LOOPSPEC_COPY_V2_FAILED', message: error instanceof Error ? error.message : '复制 v2 草稿失败', retryable: true, occurredAt: '刚刚' }
   } finally { busy.value = false }
 }
 
@@ -670,8 +693,12 @@ async function sendMessage() {
         </div>
       </article>
       <article class="card spec-panel">
-        <div class="card-pad card-header"><div><p class="eyebrow">REVIEW GATE</p><h2 class="card-title">LoopSpec v{{ draft.spec.schemaVersion.replace('v', '') }}</h2></div><el-button plain size="small" :loading="busy" @click="saveDraft"><Icon icon="lucide:save" />保存</el-button></div>
-        <div class="spec-meta"><span><Icon icon="lucide:folder-git-2" />{{ draft.spec.projectId }}</span><span><Icon icon="lucide:flag" />{{ draft.spec.stages.length }} 个阶段</span><span><Icon icon="lucide:timer" />{{ draft.spec.limits.maxDuration }}</span></div>
+        <div class="card-pad card-header"><div><p class="eyebrow">REVIEW GATE</p><h2 class="card-title">LoopSpec v{{ draft.spec.schemaVersion.replace('v', '') }}</h2></div><div class="review-actions"><el-button v-if="draft.spec.schemaVersion === 'v1' && !store.usingDemo" plain size="small" :loading="busy" @click="copyLegacyDraftAsV2">复制为 v2</el-button><el-button plain size="small" :loading="busy" @click="saveDraft"><Icon icon="lucide:save" />保存</el-button></div></div>
+        <div class="spec-meta"><span><Icon icon="lucide:folder-git-2" />{{ draft.spec.projectId }}</span><span><Icon icon="lucide:flag" />{{ draft.spec.stages.length }} 个阶段</span><span><Icon icon="lucide:timer" />{{ draft.spec.limits.maxDuration }}</span><span v-if="draft.spec.schemaVersion === 'v1'" class="legacy-contract">旧合同（兼容）</span></div>
+        <section v-if="acceptanceAssessment && !acceptanceAssessment.legacy" class="acceptance-matrix" aria-label="验收条件覆盖矩阵">
+          <header><strong>行为验收覆盖</strong><span :class="acceptanceAssessment.valid ? 'matrix-pass' : 'matrix-fail'">{{ acceptanceAssessment.valid ? '覆盖完整' : `${acceptanceAssessment.errors.length} 项阻断` }}</span></header>
+          <div v-for="stage in acceptanceAssessment.stageAssessments" :key="stage.stageIndex" class="matrix-stage"><span>阶段 {{ stage.stageIndex + 1 }}</span><div v-for="criterion in stage.criteria" :key="criterion.id"><code>{{ criterion.id }}</code><span>{{ criterion.description }}</span><b :class="criterion.covered ? 'matrix-pass' : 'matrix-fail'">{{ criterion.covered ? `验收器 ${criterion.verifierIndexes.map(index => index + 1).join(', ')}` : '未覆盖' }}</b></div><div class="matrix-verifiers"><small v-for="verifier in stage.verifiers" :key="verifier.index">#{{ verifier.index + 1 }} {{ verifier.category }} · {{ verifier.reason }}</small></div></div>
+        </section>
         <LoopSpecEditor v-model="editorValue" class="spec-editor" aria-label="LoopSpec 中文结构化编辑器">
           <template #after-stages><ExecutionAcceptancePanel :source="editorValue" /></template>
         </LoopSpecEditor>
@@ -704,6 +731,18 @@ async function sendMessage() {
 .draft-goal-heading label { color: var(--color-text-primary); font-size: 13px; font-weight: 650; }
 .field-label { display: block; color: var(--color-text-primary); font-family: var(--font-code); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .project-path { float: right; max-width: 250px; overflow: hidden; color: var(--color-text-muted); font-family: var(--font-code); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.legacy-contract { color: #fbbf24 !important; }
+.review-actions { display: flex; align-items: center; gap: 6px; }
+.acceptance-matrix { margin: 12px 20px 0; padding: 12px; border: 1px solid rgb(34 211 238 / 22%); border-radius: 10px; background: rgb(8 47 73 / 12%); }
+.acceptance-matrix > header { display: flex; justify-content: space-between; gap: 12px; font-size: 11px; }
+.matrix-stage { display: grid; gap: 6px; margin-top: 10px; }
+.matrix-stage > span { color: var(--color-text-muted); font: 9px var(--font-code); }
+.matrix-stage > div:not(.matrix-verifiers) { display: grid; grid-template-columns: 60px minmax(0,1fr) auto; gap: 8px; align-items: center; padding: 7px; border-radius: 7px; background: rgb(2 6 23 / 35%); font-size: 9px; }
+.matrix-stage b { font-weight: 650; }
+.matrix-pass { color: #86efac; }
+.matrix-fail { color: #fca5a5; }
+.matrix-verifiers { display: flex; flex-wrap: wrap; gap: 6px; }
+.matrix-verifiers small { padding: 4px 6px; border: 1px solid rgb(71 85 105 / 40%); border-radius: 6px; color: var(--color-text-muted); font: 8px var(--font-code); }
 .compose-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 9px; }
 .draft-goal-input, .designer-message-input { display: block; position: relative; z-index: 0; width: 100%; }
 .draft-goal-input :deep(.el-textarea__inner) { min-height: 174px !important; padding: 16px 17px; border-color: rgb(45 63 94 / 82%); border-radius: 10px; background: rgb(5 10 20 / 72%); font-size: 13px; line-height: 1.7; box-shadow: inset 0 1px 0 rgb(255 255 255 / 2%); }

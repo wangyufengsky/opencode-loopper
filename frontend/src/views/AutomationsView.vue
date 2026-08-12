@@ -44,7 +44,7 @@ type AutomationApi = {
 }
 const automation = api as unknown as AutomationApi
 const workspace = ref<Workspace>(); const projects = ref<Project[]>([]); const loading = ref(true); const error = ref(''); const message = ref('')
-const templateName = ref(''); const templateDescription = ref(''); const versionTemplateId = ref(''); const specJson = ref('{\n  "schemaVersion": "v1"\n}'); const autoStartApproved = ref(false)
+const templateName = ref(''); const templateDescription = ref(''); const versionTemplateId = ref(''); const specJson = ref('{\n  "schemaVersion": "v2"\n}'); const autoStartApproved = ref(false)
 const ruleName = ref(''); const ruleProjectId = ref(''); const ruleVersion = ref(''); const triggerType = ref<Trigger>('MANUAL'); const triggerConfig = ref('{}')
 const importJson = ref(''); const preview = ref<{ previewId: string; templates: Template[]; rules: Rule[] }>(); const exported = ref(''); const revealedTokens = ref<Record<string, string>>({})
 const versions = computed(() => workspace.value?.templates.flatMap(template => template.versions.map(version => ({ ...version, label: `${template.name} · v${version.versionNumber}` }))) ?? [])

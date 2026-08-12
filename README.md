@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.1.27`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.1.28`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -111,7 +111,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.1.27.jar
+java -jar target/opencode-loopper-0.1.28.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -154,7 +154,7 @@ LoopSpec 是执行前必须人工确认的结构化合同。核心字段包括�
 
 - `projectId`、`goal` 和补充 `context`；
 - 一个或多个 `stages`；
-- 每个阶段的 `objective`、`deliverables`、允许/禁止路径和 `verifiers`；
+- 每个阶段的 `objective`、`deliverables`、可观察 `acceptanceCriteria`、允许/禁止路径和 `verifiers`；
 - 尝试次数、停滞阈值、总时长、单次尝试、验证超时和可选 Token/成本预算；
 - 可选模型、Session 重试策略和下一次 Attempt 的服务端提示模板。
 
@@ -162,7 +162,7 @@ LoopSpec 是执行前必须人工确认的结构化合同。核心字段包括�
 
 ```json
 {
-  "schemaVersion": "v1",
+  "schemaVersion": "v2",
   "projectId": "替换为已登记项目 ID",
   "goal": "为服务增加健康检查并补充测试",
   "context": "保持现有 API 兼容，不修改部署端口",
@@ -172,11 +172,16 @@ LoopSpec 是执行前必须人工确认的结构化合同。核心字段包括�
       "allowedPaths": ["src/**", "README.md"],
       "forbiddenPaths": ["data/**"],
       "deliverables": ["健康检查端点", "自动化测试", "使用说明"],
+      "acceptanceCriteria": [
+        { "id": "AC-1", "description": "聚焦测试验证健康检查返回 UP" }
+      ],
       "verifiers": [
         {
           "type": "PROCESS",
-          "command": ["./mvnw", "test"],
-          "outputContains": "BUILD SUCCESS"
+          "processPurpose": "TEST",
+          "command": ["./mvnw", "test", "-Dtest=HealthControllerTest"],
+          "testTargets": ["HealthControllerTest"],
+          "criterionIds": ["AC-1"]
         },
         {
           "type": "GIT_DIFF",
@@ -190,13 +195,17 @@ LoopSpec 是执行前必须人工确认的结构化合同。核心字段包括�
 }
 ```
 
-`PROCESS.command` 是参数数组，不是 shell 字符串；请写 `['./mvnw', 'test']` 这一类直接命令，不要写 `sh -c`、`cmd /c`、管道或重定向。Linux/macOS 保持操作系统原生 argv 解析，项目脚本必须具有可执行位；Windows 会先把 `./mvnw`、`./gradlew` 映射到项目根中的 `.cmd`/`.bat` 包装器，并按 Loopper 进程的 `PATH`/`PATHEXT` 解析 `mvn`、`npm`、`npx`、`opencode` 等命令的 `.exe`/`.com`/`.bat`/`.cmd` 入口。解析后的绝对程序路径和原因会写入验证证据，但用户仍不能提交 shell 启动器或 shell 片段。为兼容 Designer 偶尔把 Maven 参数合并到同一数组项的情况，Loopper 会在不接受 shell 语法的前提下自动拆分能够无歧义解析的 Maven 参数；引号未闭合等无法安全解析的输入仍会触发只读 Designer 自动纠正。`GIT_DIFF` 只证明改动范围，不能作为一个阶段唯一的功能验收。
+新建草稿、导入和模板新版本必须使用 `schemaVersion: "v2"`。每个条件必须由至少一个 `BEHAVIOR` 验证器通过 `criterionIds` 覆盖；构建、差异范围、安全、报告和提示类证据不能代替行为验收。已持久化 v1 草稿、模板、Automation、任务和 Recovery 保持旧合同；Review Gate 标记“旧合同（兼容）”，需要升级时使用“复制为 v2”，原草稿不会被原地改版。
+
+`PROCESS.command` 是参数数组，不是 shell 字符串；请写 `['./mvnw', 'test']` 这一类直接命令，不要写 `sh -c`、`cmd /c`、管道或重定向。v2 `PROCESS` 还要声明 `processPurpose`：`BUILD` 不形成行为覆盖，`TEST` 必须是未跳过测试的 Maven/Gradle/npm 测试命令并列出 `testTargets`，`SELF_CHECK` 必须配置明确的 `outputContains` 成功标记。Linux/macOS 保持操作系统原生 argv 解析；Windows 解析包装器和 `PATH`/`PATHEXT`。能够无歧义拆分的 Maven 合并参数仍会被规范化，歧义输入进入只读纠正。`GIT_DIFF` 只证明改动范围。
+
+REST/JSON/浏览器条件使用阶段 `verificationRuntime` 启动本次代码：`startCommand` 是无 shell argv，只允许 `{{LOOPPER_PORT}}` 和 `{{LOOPPER_TEMP}}`，readiness 成功后才运行网络验证器。验收 URL 必须使用 `http://127.0.0.1:{{LOOPPER_PORT}}/...` 才能覆盖 criterion；固定 loopback 服务只可作为补充检查。Loopper 在成功、失败、暂停、取消和重启恢复时按 PID 启动身份清理完整进程树，无法确认停止时保留写租约并阻止重叠执行。
 
 ### 可用验证器
 
 | 类型 | 验证内容 | 关键限制 |
 | --- | --- | --- |
-| `PROCESS` | 直接启动命令并检查退出码/输出 | argv 形式；禁止用户 shell 启动器；Windows 解析 `PATH`/`PATHEXT`，Linux/macOS 保留原生可执行位语义；有超时和输出上限 |
+| `PROCESS` | 直接启动命令并检查退出码/输出 | v2 分类为 `BUILD`、`TEST` 或 `SELF_CHECK`；argv 形式；禁止 shell；有超时和输出上限 |
 | `FILE_EXISTS` / `FILE_NOT_EXISTS` | 记录文件存在性 | 路径必须位于执行根目录内；`FILE_EXISTS` 仅保留为非阻断审计提示，`FILE_NOT_EXISTS` 才是阻断性安全检查 |
 | `GIT_DIFF` | 是否有改动、允许/禁止路径、禁止删除 | 必须在 LoopSpec 中显式声明 |
 | `HTTP_STATUS` | HTTP 状态码 | 仅 loopback URL；支持受限方法 |
@@ -208,6 +217,7 @@ LoopSpec 是执行前必须人工确认的结构化合同。核心字段包括�
 | `DATABASE_QUERY` | 本地 SQLite 查询结果 | 仅只读 `SELECT` / `WITH` |
 
 路径允许/禁止规则会作为 Agent 指导；只有显式 `GIT_DIFF` 验证器才构成强制的差异验收门槛。
+最终 Attempt 自动保存的任务基线差异快照只回答“改了什么”，不属于 LoopSpec 验证器，也不会参与 v2 条件覆盖计算。`POST /api/loop-drafts/validate` 与 MCP `validate_loop_spec` 返回同一份分类、错误和条件覆盖矩阵。
 
 ## 任务、恢复与发布
 
@@ -301,7 +311,7 @@ Git 任务分支达到 `SUCCEEDED` 后：
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.1.27.jar`
+- `target/opencode-loopper-0.1.28.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -332,7 +342,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:51234
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.1.27.jar`
+- `opencode-loopper-0.1.28.jar`
 - `start-windows.bat`
 
 确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
@@ -370,7 +380,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.1.27.jar \
+jar tf target/opencode-loopper-0.1.28.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -449,7 +459,7 @@ Windows PowerShell：
 例如发布下一版本：
 
 ```bash
-VERSION=0.1.27
+VERSION=0.1.28
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -489,7 +499,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.1.27.jar
+java -jar target/opencode-loopper-0.1.28.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。
@@ -530,7 +540,7 @@ echo %PATHEXT%
 
 ### Windows 提交任务时停在 `Updating files` 后报 `WORKTREE_CREATE_FAILED`
 
-`0.1.11` 起，Loopper 不再用 30 秒短检查超时限制大仓库检出，并会隐藏 Git checkout 进度噪音、保留尾部真正的 `fatal` 诊断，同时命令局部启用 `core.longpaths=true`。旧版本失败可能留下 `$LOOPPER_DATA_DIR/worktrees/<taskId>` 和对应 `loopper/*` 分支；先用 `git worktree list` 精确确认残留，确认它确实属于失败任务后再手工清理。`0.1.12` 起可使用 Release 附带的 `start-windows.bat`；`0.1.13` 修复了 OpenCode 已成功监听但脚本因遗留 `%ERRORLEVEL%` 误报启动失败的问题；`0.1.14` 起新任务不再创建隐藏 worktree，而是把登记的原项目目录直接切到任务分支，使 IDEA AgentBridge、OpenCode 和验证器使用同一目录；`0.1.15` 起等待输入的任务可在详情页直接确认取消；`0.1.16` 起任务提交后恢复开始前的源分支，推送和合并请求仅按任务分支引用操作；`0.1.18` 起 Linux/Windows 启动器自动发现当前健康 OpenCode 的真实端口，找不到时使用动态端口自启；`0.1.19` 起 Linux 还会按 OpenCode PID 解析实际监听端口，覆盖 TUI 与 `opencode web` 未在命令行暴露端口的情形；`0.1.20` 起即使 Linux 对非特权进程隐藏 socket 归属，也会对本机监听端口执行严格健康验真，并兼容 OpenCode 官方 Basic Auth 环境变量；`0.1.21` 起 Linux auto 模式会锁定真实 CLI 路径，并在受管启动失败时显示实际尝试端口和失败原因，不再误显示默认探测端口 4096；`0.1.22` 起启动健康探测使用短请求循环，单次请求不再耗尽整个启动预算；`0.1.23` 起 Auto 启动失败后可从 Runtime 页明确启动并检查连接；`0.1.27` 起最终 Attempt 无条件保存任务基线差异快照，切回源分支后仍按任务分支预览，创建合并请求入口改为单击普通按钮。PowerShell 中请使用 `.\start-windows.bat`。
+`0.1.11` 起，Loopper 不再用 30 秒短检查超时限制大仓库检出，并会隐藏 Git checkout 进度噪音、保留尾部真正的 `fatal` 诊断，同时命令局部启用 `core.longpaths=true`。旧版本失败可能留下 `$LOOPPER_DATA_DIR/worktrees/<taskId>` 和对应 `loopper/*` 分支；先用 `git worktree list` 精确确认残留，确认它确实属于失败任务后再手工清理。`0.1.12` 起可使用 Release 附带的 `start-windows.bat`；`0.1.13` 修复了 OpenCode 已成功监听但脚本因遗留 `%ERRORLEVEL%` 误报启动失败的问题；`0.1.14` 起新任务不再创建隐藏 worktree，而是把登记的原项目目录直接切到任务分支，使 IDEA AgentBridge、OpenCode 和验证器使用同一目录；`0.1.15` 起等待输入的任务可在详情页直接确认取消；`0.1.16` 起任务提交后恢复开始前的源分支，推送和合并请求仅按任务分支引用操作；`0.1.18` 起 Linux/Windows 启动器自动发现当前健康 OpenCode 的真实端口，找不到时使用动态端口自启；`0.1.19` 起 Linux 还会按 OpenCode PID 解析实际监听端口，覆盖 TUI 与 `opencode web` 未在命令行暴露端口的情形；`0.1.20` 起即使 Linux 对非特权进程隐藏 socket 归属，也会对本机监听端口执行严格健康验真，并兼容 OpenCode 官方 Basic Auth 环境变量；`0.1.21` 起 Linux auto 模式会锁定真实 CLI 路径，并在受管启动失败时显示实际尝试端口和失败原因，不再误显示默认探测端口 4096；`0.1.22` 起启动健康探测使用短请求循环，单次请求不再耗尽整个启动预算；`0.1.23` 起 Auto 启动失败后可从 Runtime 页明确启动并检查连接；`0.1.27` 起最终 Attempt 无条件保存任务基线差异快照，切回源分支后仍按任务分支预览，创建合并请求入口改为单击普通按钮；`0.1.28` 起新草稿使用 LoopSpec v2 的条件覆盖合同，并支持动态端口托管 HTTP/JSON/BROWSER 验收。PowerShell 中请使用 `.\start-windows.bat`。
 
 ### 一直显示 remote busy / Agent 正在思考
 

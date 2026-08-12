@@ -73,6 +73,7 @@ public class TaskService {
     private final VerifierEngine verifiers;
     private final AttemptHandoffService attemptHandoffs;
     private final BinaryArtifactPersistenceService binaryArtifacts;
+    private final ManagedVerificationRuntimeService managedVerifierRuntimes;
     private final UsageInsightsService usageInsights;
     private final TaskEventService events;
     private final LoopperProperties defaults;
@@ -82,12 +83,15 @@ public class TaskService {
                        GitWorktreeManager worktrees, DirectWorkspaceLeaseCoordinator directLeases,
                        OpenCodeClient openCode, VerifierEngine verifiers,
                        AttemptHandoffService attemptHandoffs,
-                       BinaryArtifactPersistenceService binaryArtifacts, UsageInsightsService usageInsights,
+                       BinaryArtifactPersistenceService binaryArtifacts,
+                       ManagedVerificationRuntimeService managedVerifierRuntimes,
+                       UsageInsightsService usageInsights,
                        TaskEventService events, LoopperProperties defaults,
                        PlatformTransactionManager transactionManager) {
         this.mapper = mapper; this.lifecycle = lifecycle; this.json = json; this.projects = projects;
         this.worktrees = worktrees; this.directLeases = directLeases; this.openCode = openCode;
         this.verifiers = verifiers; this.attemptHandoffs = attemptHandoffs; this.binaryArtifacts = binaryArtifacts;
+        this.managedVerifierRuntimes = managedVerifierRuntimes;
         this.usageInsights = usageInsights; this.events = events; this.defaults = defaults;
         this.transactions = new TransactionTemplate(transactionManager);
     }
@@ -195,6 +199,7 @@ public class TaskService {
         mapper.deleteBinaryArtifactsForTask(id);
         mapper.deleteTaskArtifactsForTask(id);
         mapper.deleteVerificationResultsForTask(id);
+        mapper.deleteVerifierRuntimesForTask(id);
         mapper.deleteInteractionsForTask(id);
         mapper.deleteErrorsForTask(id);
         mapper.deleteEventsForTask(id);
@@ -443,19 +448,46 @@ public class TaskService {
             List<LoopSpec.VerifierSpec> verifierSpecs = read(stage.verifiersJson(), new TypeReference<>() {});
             List<PendingVerification> pending = new ArrayList<>();
             Duration timeout = Duration.ofSeconds(spec.limits().verifierTimeoutSeconds());
-            for (int i = 0; i < verifierSpecs.size(); i++) {
-                VerifierOutcome outcome;
-                try {
-                    outcome = verifiers.verify(Path.of(requireWorktree(initial)), initial.baselineCommit(), verifierSpecs.get(i), timeout);
-                } catch (TaskFailure knownFailure) {
-                    throw knownFailure;
-                } catch (RuntimeException unexpectedFailure) {
-                    // Never strand a Task in RUNNING when a verifier cannot be
-                    // evaluated. Unknown verifier faults cross the task-fatal boundary.
-                    throw new TaskFailure("VERIFIER_RUNTIME_ERROR",
-                            "Verifier could not be evaluated safely: " + safeMessage(unexpectedFailure));
+            LoopSpec.StageSpec stageContract = spec.stages().get(stage.ordinal());
+            ManagedVerificationRuntimeService.Lease managedRuntime = null;
+            try {
+                if ("v2".equals(spec.schemaVersion()) && stageContract.verificationRuntime() != null) {
+                    ManagedVerificationRuntimeService.StartResult start = managedVerifierRuntimes.start(
+                            initial.id(), stage.id(), attempt.id(), Path.of(requireWorktree(initial)),
+                            stageContract.verificationRuntime());
+                    managedRuntime = start.lease();
+                    if (start.failure() != null) {
+                        if (start.failure().state() == VerificationState.ERROR) {
+                            throw new TaskFailure(String.valueOf(start.failure().evidence().getOrDefault("code",
+                                    "VERIFIER_RUNTIME_TERMINATION_UNCONFIRMED")), start.failure().summary());
+                        }
+                        pending.add(new PendingVerification(UUID.randomUUID().toString(), -1, start.failure()));
+                    }
                 }
-                pending.add(new PendingVerification(UUID.randomUUID().toString(), i, outcome));
+                if (pending.isEmpty()) {
+                    for (int i = 0; i < verifierSpecs.size(); i++) {
+                        VerifierOutcome outcome;
+                        try {
+                            LoopSpec.VerifierSpec bound = managedVerifierRuntimes.bind(verifierSpecs.get(i), managedRuntime);
+                            outcome = verifiers.verify(Path.of(requireWorktree(initial)), initial.baselineCommit(), bound, timeout);
+                        } catch (TaskFailure knownFailure) {
+                            throw knownFailure;
+                        } catch (RuntimeException unexpectedFailure) {
+                            throw new TaskFailure("VERIFIER_RUNTIME_ERROR",
+                                    "Verifier could not be evaluated safely: " + safeMessage(unexpectedFailure));
+                        }
+                        pending.add(new PendingVerification(UUID.randomUUID().toString(), i, outcome));
+                    }
+                }
+            } finally {
+                if (managedRuntime != null) {
+                    VerifierOutcome runtimeOutcome = managedVerifierRuntimes.stop(managedRuntime, "stage-verification-complete").outcome();
+                    pending.add(new PendingVerification(UUID.randomUUID().toString(), -1, runtimeOutcome));
+                    if (runtimeOutcome.state() == VerificationState.ERROR) {
+                        throw new TaskFailure(String.valueOf(runtimeOutcome.evidence().getOrDefault("code",
+                                "VERIFIER_RUNTIME_TERMINATION_UNCONFIRMED")), runtimeOutcome.summary());
+                    }
+                }
             }
             AttemptHandoffService.Capture handoff = null;
             PendingVerification failedPreview = pending.stream()
@@ -551,8 +583,16 @@ public class TaskService {
         startNewAttempt(task, stage, continuation.prompt());
     }
 
-    @Transactional
     public TaskRow pause(String taskId) {
+        VerifierOutcome runtimeStop = managedVerifierRuntimes.stopTask(taskId, "task-paused");
+        if (runtimeStop != null && runtimeStop.state() == VerificationState.ERROR) {
+            failTaskForManagedRuntime(taskId, runtimeStop);
+            return get(taskId);
+        }
+        return transactions.execute(status -> pauseState(taskId));
+    }
+
+    private TaskRow pauseState(String taskId) {
         TaskRow task = get(taskId);
         if (TaskState.RUNNING.name().equals(task.state()) || TaskState.VERIFYING.name().equals(task.state()) || TaskState.RETRY_WAIT.name().equals(task.state())) {
             boolean allWritersStopped = true;
@@ -615,8 +655,16 @@ public class TaskService {
         return get(taskId);
     }
 
-    @Transactional
     public TaskRow cancel(String taskId) {
+        VerifierOutcome runtimeStop = managedVerifierRuntimes.stopTask(taskId, "task-cancelled");
+        if (runtimeStop != null && runtimeStop.state() == VerificationState.ERROR) {
+            failTaskForManagedRuntime(taskId, runtimeStop);
+            return get(taskId);
+        }
+        return transactions.execute(status -> cancelState(taskId));
+    }
+
+    private TaskRow cancelState(String taskId) {
         TaskRow task = get(taskId);
         if (TaskState.valueOf(task.state()).terminal()) return task;
         if (TaskState.QUEUED.name().equals(task.state())) {
@@ -637,8 +685,18 @@ public class TaskService {
     }
 
     public void recoverAfterRestart() {
+        ManagedVerificationRuntimeService.RecoveryResult runtimeRecovery = managedVerifierRuntimes.recoverActive();
+        // Reconcile verifier writers before any terminal lease can be released.
+        // A PID-identity mismatch is persisted as DISCONNECTED and therefore
+        // participates in hasUnconfirmedWriter during lease rehydration.
         rehydrateDirectLeases();
         for (TaskRow task : mapper.listRecoverableTasks()) {
+            if (runtimeRecovery.blockedTaskIds().contains(task.id())) {
+                failTask(task, "VERIFIER_RUNTIME_TERMINATION_UNCONFIRMED",
+                        "Application restart could not prove that the previous managed verifier runtime stopped; refusing overlapping writes",
+                        null, null, null);
+                continue;
+            }
             if (TaskState.PREPARING.name().equals(task.state())) {
                 // Preparation has no resumable Session contract or confirmed managed
                 // worktree. Treat this as task-level state corruption, not a retryable
@@ -1658,6 +1716,12 @@ public class TaskService {
         settleTerminalInPlaceLease(get(current.id()), writersStopped && !hasUnconfirmedWriter(current.id()), code);
     }
 
+    private void failTaskForManagedRuntime(String taskId, VerifierOutcome outcome) {
+        TaskRow task = get(taskId);
+        String code = String.valueOf(outcome.evidence().getOrDefault("code", "VERIFIER_RUNTIME_TERMINATION_UNCONFIRMED"));
+        failTask(task, code, outcome.summary(), null, null, null);
+    }
+
     private boolean abortSessions(TaskRow task) {
         boolean allStopped = true;
         for (ExecutionSessionRow session : mapper.activeSessions(task.id())) {
@@ -1835,6 +1899,9 @@ public class TaskService {
     }
 
     private boolean hasUnconfirmedWriter(String taskId) {
+        if (mapper.listVerifierRuntimes(taskId).stream()
+                .anyMatch(runtime -> List.of("STARTING", "RUNNING", "STOPPING", "DISCONNECTED")
+                        .contains(runtime.state()))) return true;
         java.util.Set<String> confirmed = mapper.listErrors(taskId).stream()
                 .filter(error -> "SESSION_ABORT_CLEANUP_CONFIRMED".equals(error.code()) && error.sessionId() != null)
                 .map(ErrorEventRow::sessionId).collect(java.util.stream.Collectors.toSet());

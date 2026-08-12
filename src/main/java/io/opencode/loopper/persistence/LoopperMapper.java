@@ -105,6 +105,8 @@ public interface LoopperMapper {
     int deleteTaskArtifactsForTask(String taskId);
     @Delete("DELETE FROM verification_result WHERE attempt_id IN (SELECT id FROM attempt WHERE task_id=#{taskId})")
     int deleteVerificationResultsForTask(String taskId);
+    @Delete("DELETE FROM verifier_runtime WHERE task_id=#{taskId}")
+    int deleteVerifierRuntimesForTask(String taskId);
     @Delete("DELETE FROM interaction WHERE task_id=#{taskId}")
     int deleteInteractionsForTask(String taskId);
     @Delete("DELETE FROM error_event WHERE task_id=#{taskId}")
@@ -313,6 +315,27 @@ public interface LoopperMapper {
     @Insert("INSERT INTO verification_result(id,attempt_id,verifier_index,type,state,summary,evidence_json,created_at) VALUES(#{id},#{attemptId},#{verifierIndex},#{type},#{state},#{summary},#{evidenceJson},#{createdAt})")
     int insertVerification(VerificationResultRow row);
     @Select("SELECT * FROM verification_result WHERE attempt_id=#{attemptId} ORDER BY verifier_index") List<VerificationResultRow> listVerifications(String attemptId);
+
+    @Insert("""
+            INSERT INTO verifier_runtime(id,task_id,stage_id,attempt_id,state,pid,process_start_instant,port,
+              argv_sha256,resolved_argv_json,temp_dir,evidence_json,created_at,updated_at,ended_at,version)
+            VALUES(#{id},#{taskId},#{stageId},#{attemptId},#{state},#{pid},#{processStartInstant},#{port},
+              #{argvSha256},#{resolvedArgvJson},#{tempDir},#{evidenceJson},#{createdAt},#{updatedAt},#{endedAt},#{version})
+            """)
+    int insertVerifierRuntime(VerifierRuntimeRow row);
+    @Select("SELECT * FROM verifier_runtime WHERE id=#{id}")
+    Optional<VerifierRuntimeRow> findVerifierRuntime(String id);
+    @Select("SELECT * FROM verifier_runtime WHERE task_id=#{taskId} ORDER BY created_at DESC")
+    List<VerifierRuntimeRow> listVerifierRuntimes(String taskId);
+    @Select("SELECT * FROM verifier_runtime WHERE state IN ('STARTING','RUNNING','STOPPING') ORDER BY created_at")
+    List<VerifierRuntimeRow> activeVerifierRuntimes();
+    @Update("""
+            UPDATE verifier_runtime SET state=#{state},pid=#{pid},process_start_instant=#{processStartInstant},
+              port=#{port},argv_sha256=#{argvSha256},resolved_argv_json=#{resolvedArgvJson},temp_dir=#{tempDir},
+              evidence_json=#{evidenceJson},updated_at=#{updatedAt},ended_at=#{endedAt},version=version+1
+            WHERE id=#{id} AND version=#{version}
+            """)
+    int updateVerifierRuntime(VerifierRuntimeRow row);
 
     @Insert("INSERT INTO judge_run(id,task_id,attempt_id,role,ordinal,external_session_id,state,verdict,reason,raw_output,created_at,ended_at,version) VALUES(#{id},#{taskId},#{attemptId},#{role},#{ordinal},#{externalSessionId},#{state},#{verdict},#{reason},#{rawOutput},#{createdAt},#{endedAt},#{version})")
     int insertJudgeRun(JudgeRunRow row);

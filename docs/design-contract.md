@@ -102,6 +102,15 @@ policy, and next-Attempt prompt template before confirmation. Model
 responses render as sanitized Markdown; fenced `mermaid` blocks render as SVG,
 and the machine-only LoopSpec payload is not shown in the conversation.
 
+New drafts use LoopSpec v2. Each Stage declares observable
+`acceptanceCriteria`; every criterion must be mapped by `criterionIds` to at
+least one server-classified `BEHAVIOR` verifier. Review Gate renders the
+criterion-to-verifier matrix, category and field-level reason. Invalid coverage
+blocks Designer synchronization, manual save, template publication, MCP
+proposal and confirmation without an ignore action. Persisted v1 drafts show
+**旧合同（兼容）** and keep their old behavior. Their schema version is immutable;
+the operator can copy one to a new v2 draft and then complete its criteria.
+
 Live SSE delivery is presentation transport only. A page refresh, timeout,
 client disconnect, or already-closed servlet `AsyncContext` removes that one
 subscription and leaves the Designer/Task/OpenCode lifecycle unchanged. Task
@@ -132,12 +141,20 @@ Sessions remain selectable as history and refresh at a slower interval. Before
 the first model text arrives, an animated thinking indicator makes the active
 handoff distinguishable from an error or empty state.
 
-Designer acceptance criteria are not advisory prose. Every validation command
-shown in the Markdown proposal must also be represented in the corresponding
-LoopSpec stage as a direct-argv `PROCESS` verifier; expected success markers use
-`outputContains`. The Review Gate renders these machine checks separately and
-rejects saving or confirming a stage whose only verifier is `GIT_DIFF`, because
-that verifier proves change scope but not functional correctness.
+Designer acceptance criteria are not advisory prose. `PROCESS` is classified by
+the server: compile/package/build/typecheck/lint/install are `BUILD`; a
+recognized non-skipping Maven/Gradle/npm test with `testTargets` is `BEHAVIOR`;
+`SELF_CHECK` becomes `BEHAVIOR` only with an explicit `outputContains` marker.
+`GIT_DIFF`, `FILE_NOT_EXISTS`, `JUNIT_XML`, and `FILE_EXISTS` are respectively
+scope, safety, report, and advisory evidence and cannot cover behavior. The
+automatic final Task baseline-diff snapshot is presentation/audit data, never a
+LoopSpec verifier and never a source for the coverage matrix.
+
+HTTP, JSON and browser criteria must address the same Stage-managed instance at
+`127.0.0.1:{{LOOPPER_PORT}}`. A fixed loopback check may remain supplemental but
+cannot cover a criterion. The editor exposes all native verifier fields and the
+managed runtime command/readiness/timeouts; verifier types come from a closed
+selection rather than arbitrary input.
 
 Maven verifier input is tolerant only where the argv boundary is deterministic.
 For example, `["mvn", "test -Dtest=FooTest -pl module"]` is normalized and stored

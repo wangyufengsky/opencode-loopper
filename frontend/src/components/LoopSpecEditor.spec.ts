@@ -79,12 +79,37 @@ describe('LoopSpecEditor', () => {
     expect(JSON.parse(emitted).stages[1]).toMatchObject({ allowedPaths: [], forbiddenPaths: [], verifiers: [] })
   })
 
-  it('does not offer FILE_EXISTS as a new hard verifier', () => {
+  it('offers every native verifier type without accepting unknown free text', () => {
     const wrapper = mount(LoopSpecEditor, { props: { modelValue: source }, global: { plugins: [ElementPlus], stubs: { Icon: true } } })
     const verifierOptions = wrapper.findAllComponents(ElOption).map((option) => option.props('value'))
 
-    expect(verifierOptions).not.toContain('FILE_EXISTS')
-    expect(verifierOptions).toContain('FILE_NOT_EXISTS')
+    expect(verifierOptions).toEqual(expect.arrayContaining([
+      'PROCESS', 'HTTP_STATUS', 'JSON_PATH', 'BROWSER', 'DATABASE_QUERY', 'FILE_CONTENT', 'FILE_HASH',
+      'JUNIT_XML', 'GIT_DIFF', 'FILE_NOT_EXISTS', 'FILE_EXISTS',
+    ]))
+  })
+
+  it('edits v2 criteria mappings and managed-runtime fields', async () => {
+    const v2 = JSON.stringify({
+      ...JSON.parse(source), schemaVersion: 'v2',
+      stages: [{
+        objective: 'HTTP behavior', allowedPaths: [], forbiddenPaths: [], deliverables: ['API'],
+        acceptanceCriteria: [{ id: 'AC-1', description: 'health is UP' }],
+        verificationRuntime: {
+          startCommand: ['java', '-jar', 'app.jar', '--server.port={{LOOPPER_PORT}}'],
+          readiness: { path: '/health', expectedStatus: 200, jsonPath: '$.status', expectedValue: 'UP', matchMode: 'EXACT' },
+          startupTimeoutSeconds: 30, shutdownTimeoutSeconds: 5,
+        },
+        verifiers: [{ type: 'JSON_PATH', url: 'http://127.0.0.1:{{LOOPPER_PORT}}/health', httpMethod: 'GET', jsonPath: '$.status', expectedValue: 'UP', matchMode: 'EXACT', criterionIds: ['AC-1'] }],
+      }],
+    }, null, 2)
+    const wrapper = mount(LoopSpecEditor, { props: { modelValue: v2 }, global: { plugins: [ElementPlus], stubs: { Icon: true } } })
+
+    expect(wrapper.text()).toContain('行为验收条件')
+    expect(wrapper.text()).toContain('托管临时运行时')
+    expect(wrapper.text()).toContain('覆盖的验收条件')
+    expect(wrapper.text()).toContain('JSON 匹配方式')
+    expect(wrapper.text()).toContain('启动超时（秒）')
   })
 
   it('follows external JSON updates without losing the structured view', async () => {

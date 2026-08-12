@@ -112,7 +112,12 @@ public class LoopSpecTemplateService {
         catch (JacksonException invalid) { throw new ConflictException("TEMPLATE_VERSION_INVALID", "Stored template version cannot be read"); }
     }
     private LoopSpecTemplateRow getTemplate(String id) { return mapper.findLoopSpecTemplate(id).orElseThrow(() -> new NotFoundException("Template not found: " + id)); }
-    private void validate(LoopSpec spec) { drafts.validateExecutionContract(spec); }
+    private void validate(LoopSpec spec) {
+        var assessment = drafts.assessment(spec, true, false);
+        if (!assessment.valid()) {
+            throw new BadRequestException("LOOPSPEC_INVALID", String.join("; ", assessment.errors()));
+        }
+    }
     private String write(LoopSpec spec) { try { return json.writeValueAsString(spec); } catch (JacksonException failure) { throw new BadRequestException("TEMPLATE_INVALID", "Template LoopSpec cannot be serialized"); } }
     private String sha256(String value) { try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8))); } catch (Exception impossible) { throw new IllegalStateException("SHA-256 unavailable", impossible); } }
     private String required(String value, String code) { if (value == null || value.isBlank()) throw new BadRequestException(code, "Template name is required"); return value.trim(); }

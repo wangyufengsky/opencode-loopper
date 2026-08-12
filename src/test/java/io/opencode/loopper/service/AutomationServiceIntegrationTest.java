@@ -5,11 +5,14 @@ import io.opencode.loopper.domain.AutomationApprovalMode;
 import io.opencode.loopper.domain.AutomationTriggerType;
 import io.opencode.loopper.domain.LoopSpec;
 import io.opencode.loopper.persistence.LoopperMapper;
+import io.opencode.loopper.persistence.LoopSpecTemplateVersionRow;
 import io.opencode.loopper.persistence.ProjectRow;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -101,6 +104,30 @@ class AutomationServiceIntegrationTest {
                         failure -> assertThat(failure.code()).isEqualTo("AUTOMATION_IMPORT_HASH_MISMATCH"));
         assertThat(mapper.listLoopSpecTemplates()).hasSize(templatesBefore);
         assertThat(mapper.listAutomationRules()).hasSize(rulesBefore);
+    }
+
+    @Test
+    void persistedLegacyTemplateAutomationKeepsV1Behavior() throws Exception {
+        ProjectRow project = projects.create("legacy-automation", gitProject("legacy"));
+        var template = templates.create("legacy template", "persisted before v2");
+        LoopSpec legacySpec = new LoopSpec("v1", project.id(), "legacy", "",
+                List.of(new LoopSpec.StageSpec("legacy check", List.of(), List.of(), List.of(),
+                        List.of(new LoopSpec.VerifierSpec("FILE_NOT_EXISTS", null, "never-created.txt", null,
+                                List.of(), List.of(), false)))), null, null, null, null);
+        String source = json.writeValueAsString(legacySpec);
+        LoopSpecTemplateVersionRow legacyVersion = new LoopSpecTemplateVersionRow(UUID.randomUUID().toString(),
+                template.id(), 1, source, "legacy-sha", true, false, Instant.now().toString());
+        assertThat(mapper.insertLoopSpecTemplateVersion(legacyVersion)).isEqualTo(1);
+        var created = automation.create(new AutomationService.RuleInput("legacy manual", project.id(),
+                legacyVersion.id(), AutomationTriggerType.MANUAL, Map.of(), null, null));
+        var enabled = automation.update(created.rule().id(), new AutomationService.RuleInput("legacy manual",
+                project.id(), legacyVersion.id(), AutomationTriggerType.MANUAL, Map.of(), "ENABLED",
+                AutomationApprovalMode.REVIEW_REQUIRED), created.rule().version());
+
+        var run = automation.manual(enabled.id());
+
+        assertThat(run.state()).isEqualTo("REVIEW_REQUIRED");
+        assertThat(drafts.spec(drafts.get(run.draftId())).schemaVersion()).isEqualTo("v1");
     }
 
     @Test
@@ -234,8 +261,12 @@ class AutomationServiceIntegrationTest {
     }
 
     private LoopSpec spec(String projectId) {
-        return new LoopSpec("v1", projectId, "verify", null, List.of(new LoopSpec.StageSpec("check", null, null, null,
-                List.of(new LoopSpec.VerifierSpec("FILE_NOT_EXISTS", null, "never-created.txt", null, null, null, null)))), null, null, null, null);
+        return new LoopSpec("v2", projectId, "verify", null, List.of(new LoopSpec.StageSpec("check", null, null, null,
+                List.of(new LoopSpec.VerifierSpec("PROCESS", List.of("mvn", "test"), null, null,
+                        null, null, null, null, null, null, null, null, null, null, null, null,
+                        null, null, List.of(), List.of("AC-1"), "TEST", List.of("automation scenario"))),
+                List.of(new LoopSpec.AcceptanceCriterion("AC-1", "automation scenario passes")), null)),
+                null, null, null, null);
     }
     private String gitProject(String suffix) throws Exception {
         Path root = Files.createDirectory(temp.resolve("git-" + suffix)); Files.writeString(root.resolve("README.md"), "fixture");

@@ -51,7 +51,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(classes = LoopperApplication.class, properties = {
         "loopper.opencode.mode=fake", "loopper.opencode.model=opencode/deepseek-v4-flash-free", "loopper.monitor-delay=1h",
         "loopper.designer-monitor-delay=1h", "loopper.mcp.bearer-token=designer-mcp-test-token",
-        "spring.ai.mcp.server.protocol=STREAMABLE", "spring.ai.mcp.server.name=opencode-loopper", "spring.ai.mcp.server.version=0.1.27",
+        "spring.ai.mcp.server.protocol=STREAMABLE", "spring.ai.mcp.server.name=opencode-loopper", "spring.ai.mcp.server.version=0.1.28",
         "spring.ai.mcp.server.annotation-scanner.enabled=false",
         "spring.ai.mcp.server.capabilities.resource=false", "spring.ai.mcp.server.capabilities.prompt=false", "spring.ai.mcp.server.capabilities.completion=false",
         "spring.ai.mcp.server.streamable-http.mcp-endpoint=/api/mcp-streamable", "spring.ai.mcp.server.streamable-http.disallow-delete=true"})
@@ -579,7 +579,7 @@ class DesignerSessionMcpIntegrationTest {
         mvc.perform(mcp(rpc(1, "initialize", "{\"protocolVersion\":\"2025-03-26\"}")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.protocolVersion").value("2025-03-26"))
-                .andExpect(jsonPath("$.result.serverInfo.version").value("0.1.27"));
+                .andExpect(jsonPath("$.result.serverInfo.version").value("0.1.28"));
         MvcResult list = mvc.perform(mcp(rpc(2, "tools/list", "{}"))).andExpect(status().isOk()).andReturn();
         assertThat(list.getResponse().getContentAsString())
                 .contains("get_project_context", "propose_loop_spec", "validate_loop_spec", "create_task", "start_task", "get_task_status")
@@ -627,6 +627,48 @@ class DesignerSessionMcpIntegrationTest {
     }
 
     @Test
+    void restAndMcpReturnTheSameStrictV2CoverageAssessmentAndNewDraftsRejectV1() throws Exception {
+        ProjectRow project = projects.create("v2-validation", Files.createDirectory(temp.resolve("v2-validation")).toString());
+        LoopSpec buildOnly = new LoopSpec("v2", project.id(), "Prove behavior", "",
+                List.of(new LoopSpec.StageSpec("Build only", List.of(), List.of(), List.of("jar"),
+                        List.of(new LoopSpec.VerifierSpec("PROCESS", List.of("mvn", "package"), null, null,
+                                List.of(), List.of(), false, null, null, null, null, null, null, null,
+                                null, null, null, null, List.of(), List.of("AC-1"), "BUILD", List.of())),
+                        List.of(new LoopSpec.AcceptanceCriterion("AC-1", "Feature behaves correctly")), null)),
+                LoopSpec.Limits.defaults(), null, null, null);
+        String request = "{\"spec\":" + json.writeValueAsString(buildOnly) + "}";
+
+        MvcResult rest = mvc.perform(post("/api/loop-drafts/validate").contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.valid").value(false))
+                .andExpect(jsonPath("$.schemaVersion").value("v2"))
+                .andExpect(jsonPath("$.stageAssessments[0].verifiers[0].category").value("BUILD"))
+                .andExpect(jsonPath("$.stageAssessments[0].criteria[0].covered").value(false))
+                .andReturn();
+        MvcResult mcpValidation = mvc.perform(mcp(rpc(30, "tools/call",
+                        "{\"name\":\"validate_loop_spec\",\"arguments\":{\"spec\":"
+                                + json.writeValueAsString(buildOnly) + "}}")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.structuredContent.valid").value(false))
+                .andExpect(jsonPath("$.result.structuredContent.stageAssessments[0].verifiers[0].category").value("BUILD"))
+                .andReturn();
+        assertThat(body(rest).path("errors")).isEqualTo(body(mcpValidation).at("/result/structuredContent/errors"));
+
+        mvc.perform(post("/api/loop-drafts").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"spec\":" + json.writeValueAsString(spec(project.id())) + "}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("LOOPSPEC_V2_REQUIRED"));
+
+        LoopDraftRow legacy = drafts.create(spec(project.id()));
+        mvc.perform(post("/api/loop-drafts/{id}/copy-v2", legacy.id()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(org.hamcrest.Matchers.not(legacy.id())))
+                .andExpect(jsonPath("$.spec.schemaVersion").value("v2"))
+                .andExpect(jsonPath("$.spec.stages[0].acceptanceCriteria").isEmpty());
+    }
+
+    @Test
     void springAiStreamableServerRegistersTheSixToolsAndRequiresBearer() throws Exception {
         ProjectRow project = projects.create("streamable-fixture", Files.createDirectory(temp.resolve("streamable-project")).toString());
         assertThat(java.util.Arrays.stream(loopperMcpToolCallbackProvider.getToolCallbacks())
@@ -652,7 +694,7 @@ class DesignerSessionMcpIntegrationTest {
         MvcResult initialized = mvc.perform(streamable(initialize, null))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.serverInfo.name").value("opencode-loopper"))
-                .andExpect(jsonPath("$.result.serverInfo.version").value("0.1.27"))
+                .andExpect(jsonPath("$.result.serverInfo.version").value("0.1.28"))
                 .andExpect(jsonPath("$.result.protocolVersion").value("2025-03-26"))
                 .andReturn();
         String sessionId = initialized.getResponse().getHeader("Mcp-Session-Id");

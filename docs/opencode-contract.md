@@ -61,6 +61,11 @@ The MCP `propose_loop_spec` tool uses the same session-bound update path. It no
 longer creates an unrelated draft, so an external MCP client and the built-in
 Designer workflow converge on the same Review Gate state. Failed or unavailable
 Designer handoffs remain on the Designer Session and never transition a Task.
+For v2 drafts, `propose_loop_spec` and `validate_loop_spec` expose the same
+server-computed criterion coverage and evidence categories as
+`POST /api/loop-drafts/validate`. The model cannot self-declare a verifier as
+behavior evidence. A persisted v1 binding may continue to propose v1 updates,
+but an unbound/new proposal cannot use v1 to bypass strict validation.
 
 All OpenCode adapter requests and runtime health probes use the configured
 connect and request timeouts. This bounds a stalled local server rather than
@@ -92,13 +97,16 @@ private model reasoning.
 
 ## Designer acceptance handoff
 
-The Markdown plan and executable LoopSpec share one acceptance contract.
-Designer commands must be copied into stage `PROCESS` verifiers as argv arrays;
-`outputContains` turns an advertised marker such as `PASS` into a deterministic
-assertion over bounded process output. `GIT_DIFF` remains an opt-in scope
-verifier and cannot be the only verifier of a confirmation-ready stage. Drafts
-start without an implicit path verifier; Designer synchronization, manual save,
-MCP validation, and human confirmation require functional acceptance checks.
+The Markdown plan and executable LoopSpec share one acceptance contract. New
+v2 drafts first define observable criterion IDs, then map them to server-valid
+behavior verifiers. `PROCESS` commands remain argv arrays: `TEST` requires a
+recognized non-skipping test command and concrete targets; `SELF_CHECK` requires
+an explicit bounded-output marker; build commands cannot cover criteria.
+`GIT_DIFF` remains an opt-in scope verifier and cannot establish functional
+correctness. Network criteria additionally require the same Stage's managed
+dynamic-port runtime; an already-running fixed-port service cannot make the new
+code pass. Designer synchronization, manual save, MCP validation, template
+publication and human confirmation all call the same analyzer.
 High-confidence Maven arguments accidentally combined into one array item are
 tokenized without a shell and persisted as canonical argv. Only a Maven command
 whose token boundary cannot be parsed safely is rejected for Designer repair.

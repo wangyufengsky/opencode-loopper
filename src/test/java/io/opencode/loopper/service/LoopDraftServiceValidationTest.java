@@ -24,7 +24,8 @@ class LoopDraftServiceValidationTest {
         Validator validator = mock(Validator.class);
         doReturn(Set.of()).when(validator).validate(any());
         drafts = new LoopDraftService(mock(LoopperMapper.class), mock(LifecycleTransitionService.class),
-                mock(ProjectService.class), mock(ObjectMapper.class), mock(TaskService.class), validator);
+                mock(ProjectService.class), mock(ObjectMapper.class), mock(TaskService.class), validator,
+                new LoopSpecAcceptanceService());
     }
 
     @Test

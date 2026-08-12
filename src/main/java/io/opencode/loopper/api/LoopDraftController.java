@@ -22,9 +22,17 @@ public class LoopDraftController {
     private final LoopDraftService service;
     public LoopDraftController(LoopDraftService service) { this.service = service; }
     @PostMapping public ResponseEntity<LoopDraftDto> create(@Valid @RequestBody DraftSpecRequest request) {
-        LoopDraftRow row = service.create(request.spec()); return ResponseEntity.created(URI.create("/api/loop-drafts/" + row.id())).body(dto(row));
+        LoopDraftRow row = service.createNew(request.spec()); return ResponseEntity.created(URI.create("/api/loop-drafts/" + row.id())).body(dto(row));
+    }
+    @PostMapping("/validate") public io.opencode.loopper.service.LoopSpecAcceptanceService.Assessment validate(
+            @Valid @RequestBody DraftSpecRequest request) {
+        return service.assessment(request.spec(), true, false);
     }
     @GetMapping("/{id}") public LoopDraftDto get(@PathVariable String id) { return dto(service.get(id)); }
+    @PostMapping("/{id}/copy-v2") public ResponseEntity<LoopDraftDto> copyV2(@PathVariable String id) {
+        LoopDraftRow row = service.copyAsV2(id);
+        return ResponseEntity.created(URI.create("/api/loop-drafts/" + row.id())).body(dto(row));
+    }
     @PutMapping("/{id}") public LoopDraftDto update(@PathVariable String id, @Valid @RequestBody DraftSpecRequest request) { return dto(service.update(id, request.spec())); }
     @PostMapping("/{id}/confirm") public TaskReference confirm(@PathVariable String id, @RequestBody(required = false) ConfirmDraftRequest request) {
         return new TaskReference(service.confirm(id, request == null ? null : request.title()).id());

@@ -64,6 +64,9 @@ beforeEach(() => {
   store.usingDemo = false
   store.projects = [project]
   vi.spyOn(api, 'getSettings').mockResolvedValue(settings)
+  vi.spyOn(api, 'validateDraft').mockImplementation(async (spec) => ({
+    valid: true, schemaVersion: spec.schemaVersion, legacy: spec.schemaVersion === 'v1', errors: [], stageAssessments: [],
+  }))
 })
 
 afterEach(() => {
@@ -122,6 +125,7 @@ describe('Designer draft composer', () => {
 
     expect(createSession).toHaveBeenCalledWith(project.id, 'draft-1', initialGoal)
     expect(createDraft.mock.calls[0]?.[0].goal).toBe(initialGoal)
+    expect(createDraft.mock.calls[0]?.[0].schemaVersion).toBe('v2')
     expect(createDraft.mock.calls[0]?.[0].stages[0]).toMatchObject({ allowedPaths: [], forbiddenPaths: [], verifiers: [] })
     expect(createDraft.mock.calls[0]?.[0].limits).toMatchObject({ maxTaskAttempts: 7, attemptTimeout: 'PT45M' })
     expect(sessionStorage.getItem('opencode-loopper.designer-draft-prompt')).toBeNull()
@@ -276,10 +280,10 @@ describe('Designer draft composer', () => {
     try {
       const runningSession: DesignerSession = { ...session, state: 'RUNNING' }
       const generatedSpec: LoopSpec = {
-        schemaVersion: 'v1', projectId: project.id,
+        schemaVersion: 'v2', projectId: project.id,
         goal: '帮我实现一个可以精确算出圆周率小数点后10万位的java代码',
         context: '使用 BigDecimal 与可验证的高精度算法。',
-        stages: [{ objective: '实现并验证 100000 位圆周率计算', allowedPaths: ['src/**'], forbiddenPaths: ['data/**'], deliverables: ['Java 实现'], verifiers: [{ type: 'GIT_DIFF', requireChanges: true }] }],
+        stages: [{ objective: '实现并验证 100000 位圆周率计算', allowedPaths: ['src/**'], forbiddenPaths: ['data/**'], deliverables: ['Java 实现'], acceptanceCriteria: [{ id: 'AC-1', description: '测试验证 100000 位输出' }], verifiers: [{ type: 'PROCESS', command: ['mvn', 'test', '-Dtest=PiTest'], processPurpose: 'TEST', testTargets: ['PiTest'], criterionIds: ['AC-1'] }] }],
         limits: { maxStageAttempts: 3, maxTaskAttempts: 12, maxDuration: '7200', attemptTimeout: '1800' },
       }
       const synchronizedDraft = { ...draftFrom(generatedSpec), updatedAt: 'later' }
@@ -355,8 +359,8 @@ describe('Designer draft composer', () => {
 
   it('loads the confirmed Task into the store and opens its detail even when worktree preparation failed', async () => {
     const loopSpec: LoopSpec = {
-      schemaVersion: 'v1', projectId: project.id, goal: '交接到任务控制台', context: '只在登记项目目录的任务分支修改。',
-      stages: [{ objective: '实现功能', allowedPaths: ['src/**'], forbiddenPaths: [], deliverables: ['实现'], verifiers: [{ type: 'GIT_DIFF', requireChanges: true }] }],
+      schemaVersion: 'v2', projectId: project.id, goal: '交接到任务控制台', context: '只在登记项目目录的任务分支修改。',
+      stages: [{ objective: '实现功能', allowedPaths: ['src/**'], forbiddenPaths: [], deliverables: ['实现'], acceptanceCriteria: [{ id: 'AC-1', description: '聚焦测试通过' }], verifiers: [{ type: 'PROCESS', command: ['mvn', 'test', '-Dtest=FeatureTest'], processPurpose: 'TEST', testTargets: ['FeatureTest'], criterionIds: ['AC-1'] }] }],
       limits: { maxStageAttempts: 3, maxTaskAttempts: 12, sessionErrorLimit: 4, stagnationLimit: 5, maxDuration: '7200', attemptTimeout: '1800', verifierTimeout: '420' },
       model: { providerId: 'provider-1', modelId: 'model-1', thinking: false },
       sessionPolicy: { reuseHealthySession: false, createFreshOnVerifierFailure: false },
@@ -395,6 +399,41 @@ describe('Designer draft composer', () => {
     }))
     expect(useTaskStore().tasks).toContainEqual(failedTask)
     expect(routerPush).toHaveBeenCalledWith(`/tasks/${failedTask.id}`)
+  })
+
+  it('renders the coverage matrix and blocks save when a v2 criterion is uncovered', async () => {
+    const invalidSpec: LoopSpec = {
+      schemaVersion: 'v2', projectId: project.id, goal: '严格验收', context: '',
+      stages: [{ objective: '实现', allowedPaths: [], forbiddenPaths: [], deliverables: ['实现'],
+        acceptanceCriteria: [{ id: 'AC-1', description: '用户能观察到结果' }],
+        verifiers: [{ type: 'PROCESS', command: ['mvn', 'package'], processPurpose: 'BUILD', criterionIds: ['AC-1'] }] }],
+      limits: { maxStageAttempts: 3, maxTaskAttempts: 12, maxDuration: '7200', attemptTimeout: '1800' },
+    }
+    const readyDraft = draftFrom(invalidSpec)
+    vi.spyOn(api, 'createDraft').mockResolvedValue(readyDraft)
+    vi.spyOn(api, 'createDesignerSession').mockResolvedValue({ ...session, draft: readyDraft })
+    vi.mocked(api.validateDraft).mockResolvedValueOnce({
+      valid: false, schemaVersion: 'v2', legacy: false,
+      errors: ['stages[0].acceptanceCriteria[AC-1]: no valid BEHAVIOR verifier covers this criterion'],
+      stageAssessments: [{ stageIndex: 0,
+        criteria: [{ id: 'AC-1', description: '用户能观察到结果', covered: false, verifierIndexes: [] }],
+        verifiers: [{ index: 0, type: 'PROCESS', category: 'BUILD', blocking: true, criterionIds: ['AC-1'], reason: 'compile/build/static-quality command' }],
+      }],
+    })
+    const update = vi.spyOn(api, 'updateDraft')
+    const wrapper = mountDesigner()
+    await flushPromises()
+    await wrapper.get('textarea[aria-label="草案设计目标"]').setValue(invalidSpec.goal)
+    await wrapper.get('.create-draft-button').trigger('click')
+    await flushPromises()
+
+    const save = wrapper.findAll('button').find((button) => button.text().includes('保存'))!
+    await save.trigger('click')
+    await flushPromises()
+
+    expect(update).not.toHaveBeenCalled()
+    expect(wrapper.get('[aria-label="验收条件覆盖矩阵"]').text()).toContain('未覆盖')
+    expect(wrapper.get('[aria-label="验收条件覆盖矩阵"]').text()).toContain('BUILD')
   })
 
   it('reopens an already confirmed draft idempotently without trying to modify the immutable LoopSpec', async () => {
