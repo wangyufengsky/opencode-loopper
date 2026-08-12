@@ -99,6 +99,17 @@ class FiniteStateMachineTest {
     }
 
     @Test
+    void mergedPublicationHasNoOutgoingTransition() {
+        LifecycleRegistry registry = new LifecycleRegistry();
+
+        assertThat(registry.definitions()).noneMatch(edge -> edge.machineType() == LifecycleMachineType.TASK_PUBLICATION
+                && TaskPublicationState.MERGED.name().equals(edge.fromState()));
+        assertThatThrownBy(() -> registry.resolve(LifecycleMachineType.TASK_PUBLICATION, "task-1",
+                TaskPublicationState.MERGED.name(), TaskPublicationState.PUSHED.name(), LifecycleEvent.RECORD_PUSH))
+                .isInstanceOf(InvalidStateTransitionException.class);
+    }
+
+    @Test
     void everyDescribedDomainEnumValueHasTrimmedChineseDescription() throws Exception {
         Path domainDirectory = Path.of(DescribedEnum.class.getProtectionDomain().getCodeSource().getLocation().toURI())
                 .resolve("io/opencode/loopper/domain");

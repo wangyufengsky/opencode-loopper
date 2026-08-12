@@ -16,7 +16,9 @@ public enum LifecycleEvent implements DescribedEnum {
     STALE("标记失效"), ACQUIRE("获取租约"), TRANSFER("转移租约"),
     RELEASE_PENDING("等待释放"), RELEASE("释放"), ENQUEUE("进入队列"), ADMIT("准入"),
     FINISH("结束"), ARCHIVE("归档"), RESTORE("恢复归档"), ENABLE("启用"), DISABLE("停用"),
-    REQUIRE_REVIEW("要求人工评审"), QUEUE("加入执行队列"), SUCCEED("标记成功"), SKIP("跳过");
+    REQUIRE_REVIEW("要求人工评审"), QUEUE("加入执行队列"), SUCCEED("标记成功"), SKIP("跳过"),
+    RECORD_COMMIT("记录提交"), RECORD_PUSH("记录推送"), OPEN_MERGE_REQUEST("记录合并请求"),
+    CLOSE_MERGE_REQUEST("关闭合并请求"), RECORD_MERGE("记录合并"), COMPLETE_LOCAL_PUBLICATION("完成本地交付");
 
     private final String description;
     LifecycleEvent(String description) { this.description = description; }

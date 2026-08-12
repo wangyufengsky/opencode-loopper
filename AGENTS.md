@@ -41,10 +41,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.1.28.jar
-   jar tf target/opencode-loopper-0.1.28.jar \
+   test -s target/opencode-loopper-0.1.30.jar
+   jar tf target/opencode-loopper-0.1.30.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.1.28.jar
+   shasum -a 256 target/opencode-loopper-0.1.30.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -93,8 +93,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.1.28`。
-- 正式产物：`target/opencode-loopper-0.1.28.jar`。
+- Maven 项目版本：`0.1.30`。
+- 正式产物：`target/opencode-loopper-0.1.30.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -258,6 +258,9 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 - 自动发布只面向 `SUCCEEDED` 的 Git 任务分支；Direct 任务由用户在源仓库手工处理。
 - 用户必须提供四位数字工单号；提交格式为 `#dddd_subject`。AI 只能建议 subject，不能生成或替代工单号。
 - 推送必须是普通非 force push；PR/MR 只打开预填创建页，最终创建和合并仍由平台/用户确认。
+- HTTP/HTTPS remote 的 MR/PR Web 地址保留显式协议；SSH remote 默认使用 HTTPS，但 `loopper.publication.http-web-hosts` 中精确列出的主机使用 HTTP。成品启动脚本必须默认加入 `gitlab.spdb.com`，且不得改变 SSH 推送协议。
+- `TaskState.SUCCEEDED` 只表示执行验收成功；远端交付使用独立 `TaskPublicationState`。`COMMITTED`、`PUSHED`、MR 打开/关闭和 `MERGED` 均为持久化事实，其中 `MERGED` 无出向转换，且原任务的提交、推送、创建 MR 和重新评审入口必须拒绝；新分支重做不改变原记录。
+- 只有配置主机完全匹配、并由 GitLab API 按源分支、目标分支和任务提交 SHA 唯一确认的 `merged` MR 才能推进 `MERGED`。删除源分支或引用、打开创建页、人工点击和本地 Git 推断都不能单独证明合并。Token 只从 `LOOPPER_GITLAB_PRIVATE_TOKEN` 注入，不写入持久化、日志、DTO 或 artifact；外部查询位于 SQLite transaction 外并在返回后复核 Task 与 Publication 版本。
 - 新任务必须持久化任务开始前的源分支。提交任务分支后先恢复该源分支；有排队任务时再进入下一任务分支。推送、推送重试和 PR/MR 状态只使用明确的任务分支引用，不得为了发布旧任务而切换当前项目分支。
 - 没有远端时在登记目录任务分支创建本地提交并记录证据，恢复后的源分支不快进、不覆盖；新任务不存在源目录与隐藏 worktree 的二次同步。
 - 历史隐藏-worktree 任务仍保留旧版本地同步与冲突证据兼容能力，但不得用于新任务。
@@ -280,7 +283,7 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 
 ### 数据库迁移
 
-- 已存在的 `V1`–`V18` 迁移视为不可变历史，禁止修改。
+- 已存在的 `V1`–`V19` 迁移视为不可变历史，禁止修改。
 - Schema 变化新增下一序号迁移；必须同时验证全新数据库和至少一个受支持旧版本升级路径。
 - SQLite 外键级联不能只靠假设；活动连接必须明确启用，终止删除路径仍要按依赖顺序显式清理并验证事务回滚。
 - 数据库枚举码、artifact kind、错误码和 audit event 是兼容性契约；修改前先搜索所有 Java、SQL、前端 type/label 和测试消费者。
@@ -340,7 +343,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.1.28.jar
+JAR=target/opencode-loopper-0.1.30.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -466,3 +469,5 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 | 2026-08-12 | 修复 Windows PROCESS 找不到 Maven 并发布 0.1.26 | Windows 按任务根解析 Maven/Gradle Wrapper，按 Loopper 进程 `PATH`/`PATHEXT` 解析 `.com`/`.exe`/`.bat`/`.cmd` 并记录实际 argv；启用 JDK 严格 Windows 命令引用；Linux/macOS 保留原生 PATH 与可执行位语义；同步 README、架构、设计和验证器合同 | 聚焦 Java 58 项：57 通过、Windows 实机条件用例 1 项在 macOS 跳过；Vitest 130/130；`./scripts/verify.sh`：Java 283 项中 282 通过、Windows 条件用例 1 项跳过，Vitest 130/130，BUILD SUCCESS；Java 21 隔离启动 18086 health `UP` 且返回打包 SPA；JAR 262634284 bytes，SHA-256 `730063b9d1a0b011cff2b7429feaf2e73012b6fdaec837bba90ab21ddab05c3d`；发布目标：`v0.1.26` |
 | 2026-08-12 | 修复任务分支差异快照与合并请求入口并发布 0.1.27 | 成功 Attempt 固化独立于显式 `GIT_DIFF` 验证器的任务基线差异；恢复源分支后按持久化任务分支引用预览；合并请求改为单击普通按钮直接打开确认对话框；同步 README、架构与设计合同 | 聚焦任务基线/分支恢复 Java 1/1、发布及差异面板 Vitest 11/11；首次 `./scripts/verify.sh` 因既有本地同步并发测试时序失败，单独复跑通过；最终 `./scripts/verify.sh`：Java 284 项中 283 通过、Windows 条件用例 1 项跳过，Vitest 131/131，BUILD SUCCESS；JAR 262634583 bytes，SHA-256 `6355b79510620d6cde5c510ec003b6e5735770cf52ee97bc5c643ea63c5f1f29`；发布目标：`v0.1.27` |
 | 2026-08-12 | LoopSpec v2 行为覆盖与托管验证运行时并发布 0.1.28 | 新草稿/模板使用 criterion 覆盖合同；统一 REST/MCP/Designer/保存/确认分析；V19 持久化动态端口运行时与 PID 身份恢复；v1 保持兼容并可复制为新 v2；同步 README、架构、设计、OpenCode 与七特性合同 | 聚焦 Java 43/43、Vitest 134/134；`./scripts/verify.sh`：Java 298 项中 297 通过、Windows 条件用例 1 项跳过，Vitest 134/134，BUILD SUCCESS；隔离 JAR 实测 v2 REST、Review Gate 阻断/完整矩阵、HTTP/JSON/BROWSER、截图/trace、PID/端口清理和双 Judge 全部通过；JAR 262693773 bytes，SHA-256 `02b748e451ee16237089476d6e0e1e5856807083dc99868c9fa5bb531e25de0b`；发布目标：`v0.1.28` |
+| 2026-08-12 | 配置化内网 GitLab HTTP MR 地址，准备 0.1.29（暂不发布） | 新增精确主机白名单；SSH remote 命中时只将 MR Web 地址改用 HTTP，显式 HTTP/HTTPS 和 SSH 推送协议不变；Linux/Windows 启动脚本默认加入 `gitlab.spdb.com`；同步 README 与架构合同 | 聚焦 Java 28/28、Vitest 134/134；`./scripts/verify.sh`：Java 298 项中 297 通过、Windows 条件用例 1 项跳过，Vitest 134/134，BUILD SUCCESS；隔离端口 64131 启动 JAR，health `UP` 且返回打包 SPA；JAR 262695237 bytes，SHA-256 `59cfd48d7111912f7fc7e95ab19d248f354766de8067523ad99bca409076453c`；按用户要求未提交、未推送、未打标签、未发布 |
+| 2026-08-12 | GitLab 合并确认与不可逆交付终态，准备 0.1.30（暂不发布） | 新增独立 Publication 状态轴和 V20 持久化；GitLab API 精确匹配任务提交并确认 MR opened/closed/merged；任务页展示执行/交付双状态，`MERGED` 后阻断原任务发布写操作；同步 README、架构与设计合同 | 聚焦 Java 31/31、Publication Vitest 11/11；`./scripts/verify.sh`：Java 309 项中 308 通过、Windows 条件用例 1 项跳过，Vitest 138/138，BUILD SUCCESS；隔离 JAR 实测 `PUSHED → MERGE_REQUEST_OPENED → MERGED`，合并后写操作返回 409，临时进程无残留；JAR 262721662 bytes，SHA-256 `6d8584a0e6d50a1af1909c5a40d839a03f2c17d729ae999fdd3011953fbf0bc9`；按用户要求未提交、未推送、未打标签、未发布 |

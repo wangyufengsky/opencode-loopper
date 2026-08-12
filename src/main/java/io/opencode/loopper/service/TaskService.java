@@ -193,6 +193,7 @@ public class TaskService {
         String draftId = task.loopDraftId();
         mapper.deleteLocalSyncConflictFilesForTask(id);
         mapper.deleteLocalSyncConflictSessionsForTask(id);
+        mapper.deleteTaskPublicationForTask(id);
         mapper.deleteSessionTodosForTask(id);
         mapper.deleteSessionCheckpointsForTask(id);
         mapper.deleteSessionUsageForTask(id);
@@ -1338,6 +1339,10 @@ public class TaskService {
     @Transactional
     public TaskRow retryJudges(String taskId) {
         TaskRow task = get(taskId);
+        if (mapper.findTaskPublication(taskId).map(io.opencode.loopper.persistence.TaskPublicationRow::state)
+                .filter(io.opencode.loopper.domain.TaskPublicationState.MERGED.name()::equals).isPresent()) {
+            throw new ConflictException("TASK_PUBLICATION_MERGED", "任务已经合并，不能重新打开原任务评审；请使用新分支重做");
+        }
         if (!TaskState.WAITING_INPUT.name().equals(task.state()) && !TaskState.SUCCEEDED.name().equals(task.state())) {
             throw new ConflictException("JUDGE_REVIEW_NOT_ACTIONABLE",
                     "只有等待评审处理或缺少最终评审的已完成任务可以重新发起双评审");

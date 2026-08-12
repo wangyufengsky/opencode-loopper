@@ -255,10 +255,36 @@ from that source branch to the next Task branch. Push status and retry use the
 explicit `refs/heads/<taskBranch>` ref, so neither push nor merge-request creation
 requires the old Task branch to be checked out. A remote publication is a normal
 non-force push. Without a remote, the commit remains only on the local Task branch;
-the restored source branch is not fast-forwarded or overlaid. Direct-execution Tasks remain excluded. A subsequent
+the restored source branch is not fast-forwarded or overlaid. Direct-execution Tasks remain excluded.
 The single-action “创建合并请求” button opens its confirmation dialog directly,
 then opens a prefilled GitLab/GitHub creation page; the hosting
-service still owns the final merge-request confirmation and merge.
+service still owns the final merge-request confirmation and merge. HTTP/HTTPS
+Git remotes retain their explicit Web scheme. For SSH remotes, HTTPS remains
+the default unless the exact host appears in `loopper.publication.http-web-hosts`;
+the release startup scripts add `gitlab.spdb.com` so its MR page uses HTTP without
+changing the SSH transport used for push.
+
+Execution and delivery are separate state axes. `TaskState.SUCCEEDED` remains the
+execution terminal state, while V20 stores `TaskPublicationState` and its evidence
+in `task_publication`. Remote milestones advance through `COMMITTED`, `PUSHED`,
+`MERGE_REQUEST_OPENED` or `MERGE_REQUEST_CLOSED`, and finally `MERGED`;
+`MERGED` has no outgoing transition. `PUSHED` is historical evidence and does not
+regress when a remote ref is deleted or pruned. No-remote Git Tasks terminate at
+`LOCAL_COMPLETED`, while Direct Tasks are projected as `NOT_APPLICABLE`.
+
+Opening the prefilled page records only `creationRequestedAt`. A bounded GitLab
+API client may advance MR states only when the configured host exactly matches
+both the Git remote and API base URL and one MR uniquely matches source branch,
+target branch, and Task commit SHA. The API call and Git inspection run outside
+SQLite transactions; Task identity/version and Publication version/commit are
+rechecked before persisting the result. Credentials come from
+`LOOPPER_GITLAB_PRIVATE_TOKEN`, are sent only to that exact host, and never enter
+the database, artifact, log, or API DTO. Missing credentials, ambiguity, timeout,
+authentication failure, malformed data, or an oversized response preserves the
+previous milestone and records a bounded diagnostic. Source-branch deletion alone
+never proves a merge. Historical Tasks are reconciled lazily rather than guessed
+during migration. GitHub keeps its creation-page flow without automatic merge
+confirmation in this version.
 
 Every OpenCode Session creation response must confirm the same canonical
 directory requested by Loopper. A missing or mismatched directory fails before

@@ -171,6 +171,12 @@ public class TaskController {
         if (request == null) throw new io.opencode.loopper.service.BadRequestException("MERGE_REQUEST_REQUIRED", "合并请求参数不能为空");
         return publication.mergeRequestDraft(id, request.targetBranch(), request.title(), request.description());
     }
+    @PostMapping("/{id}/publication/reconcile")
+    public TaskPublicationService.PublicationStatus reconcilePublication(
+            @PathVariable String id, @RequestHeader("X-Loopper-Local-UI") String localUi) {
+        requireLocalUi(localUi);
+        return publication.reconcile(id);
+    }
     @PostMapping("/{id}/publication/local-conflicts")
     public LocalSyncConflictService.SessionView createOrRefreshLocalConflict(
             @PathVariable String id, @RequestHeader("X-Loopper-Local-UI") String localUi) {

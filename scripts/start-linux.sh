@@ -57,12 +57,12 @@ fi
 
 if [[ -n "${LOOPPER_JAR_PATH:-}" ]]; then
   JAR_PATH="${LOOPPER_JAR_PATH}"
-elif [[ -f "${APP_HOME}/target/opencode-loopper-0.1.28.jar" ]]; then
-  JAR_PATH="${APP_HOME}/target/opencode-loopper-0.1.28.jar"
-elif [[ -f "${APP_HOME}/opencode-loopper-0.1.28.jar" ]]; then
-  JAR_PATH="${APP_HOME}/opencode-loopper-0.1.28.jar"
+elif [[ -f "${APP_HOME}/target/opencode-loopper-0.1.30.jar" ]]; then
+  JAR_PATH="${APP_HOME}/target/opencode-loopper-0.1.30.jar"
+elif [[ -f "${APP_HOME}/opencode-loopper-0.1.30.jar" ]]; then
+  JAR_PATH="${APP_HOME}/opencode-loopper-0.1.30.jar"
 else
-  fail "找不到成品 JAR。请把 opencode-loopper-0.1.28.jar 放到 ${APP_HOME}，或设置 LOOPPER_JAR_PATH。"
+  fail "找不到成品 JAR。请把 opencode-loopper-0.1.30.jar 放到 ${APP_HOME}，或设置 LOOPPER_JAR_PATH。"
 fi
 
 [[ -f "${JAR_PATH}" ]] || fail "JAR 不存在：${JAR_PATH}"
@@ -71,6 +71,9 @@ export JAVA_HOME
 export PATH="${JAVA_HOME}/bin:${PATH}"
 export LOOPPER_DATA_DIR="${LOOPPER_DATA_DIR:-${APP_HOME}/data}"
 export LOOPPER_DESIGNER_TIMEOUT="${LOOPPER_DESIGNER_TIMEOUT:-30m}"
+export LOOPPER_PUBLICATION_HTTP_WEB_HOSTS="gitlab.spdb.com${LOOPPER_PUBLICATION_HTTP_WEB_HOSTS:+,${LOOPPER_PUBLICATION_HTTP_WEB_HOSTS}}"
+export LOOPPER_GITLAB_HOST="${LOOPPER_GITLAB_HOST:-gitlab.spdb.com}"
+export LOOPPER_GITLAB_API_BASE_URL="${LOOPPER_GITLAB_API_BASE_URL:-http://gitlab.spdb.com/api/v4}"
 export SERVER_PORT="${SERVER_PORT:-8080}"
 
 mkdir -p "${LOOPPER_DATA_DIR}"

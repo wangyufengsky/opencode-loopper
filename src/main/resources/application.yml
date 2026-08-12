@@ -10,7 +10,7 @@ spring:
           enabled: false
         protocol: STREAMABLE
         name: opencode-loopper
-        version: 0.1.28
+        version: 0.1.30
         type: SYNC
         instructions: >-
           Use the six Loopper tools only. Designer access is READ_ONLY; proposals synchronize
@@ -80,6 +80,16 @@ loopper:
   abort-cleanup-attempts: 3
   mcp:
     bearer-token: ${LOOPPER_MCP_BEARER_TOKEN:}
+  publication:
+    # Comma-separated exact hosts. Only ambiguous SSH remotes use HTTP; an
+    # explicit http:// or https:// remote always keeps its declared scheme.
+    http-web-hosts: ${LOOPPER_PUBLICATION_HTTP_WEB_HOSTS:}
+    gitlab:
+      host: ${LOOPPER_GITLAB_HOST:}
+      api-base-url: ${LOOPPER_GITLAB_API_BASE_URL:}
+      private-token: ${LOOPPER_GITLAB_PRIVATE_TOKEN:}
+      connect-timeout: 3s
+      request-timeout: 10s
   opencode:
     # auto first reuses a local healthy endpoint, then owns a new localhost process.
     # http never starts or terminates an external OpenCode process; fake is for tests.

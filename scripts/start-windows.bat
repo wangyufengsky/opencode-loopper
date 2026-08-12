@@ -62,12 +62,12 @@ if errorlevel 1 goto java_version_unknown
 if %JAVA_MAJOR_NUMBER% LSS 21 goto java_too_old
 
 if defined LOOPPER_JAR_PATH goto jar_from_environment
-if exist "%APP_HOME%\target\opencode-loopper-0.1.28.jar" (
-  set "JAR_PATH=%APP_HOME%\target\opencode-loopper-0.1.28.jar"
+if exist "%APP_HOME%\target\opencode-loopper-0.1.30.jar" (
+  set "JAR_PATH=%APP_HOME%\target\opencode-loopper-0.1.30.jar"
   goto jar_ready
 )
-if exist "%APP_HOME%\opencode-loopper-0.1.28.jar" (
-  set "JAR_PATH=%APP_HOME%\opencode-loopper-0.1.28.jar"
+if exist "%APP_HOME%\opencode-loopper-0.1.30.jar" (
+  set "JAR_PATH=%APP_HOME%\opencode-loopper-0.1.30.jar"
   goto jar_ready
 )
 goto jar_missing
@@ -83,6 +83,13 @@ set "OPENCODE_BASE_URL_EXPLICIT=false"
 set "OPENCODE_BASE_URL_SOURCE=environment"
 if defined OPENCODE_BASE_URL set "OPENCODE_BASE_URL_EXPLICIT=true"
 if not defined LOOPPER_DESIGNER_TIMEOUT set "LOOPPER_DESIGNER_TIMEOUT=30m"
+if defined LOOPPER_PUBLICATION_HTTP_WEB_HOSTS (
+  set "LOOPPER_PUBLICATION_HTTP_WEB_HOSTS=gitlab.spdb.com,%LOOPPER_PUBLICATION_HTTP_WEB_HOSTS%"
+) else (
+  set "LOOPPER_PUBLICATION_HTTP_WEB_HOSTS=gitlab.spdb.com"
+)
+if not defined LOOPPER_GITLAB_HOST set "LOOPPER_GITLAB_HOST=gitlab.spdb.com"
+if not defined LOOPPER_GITLAB_API_BASE_URL set "LOOPPER_GITLAB_API_BASE_URL=http://gitlab.spdb.com/api/v4"
 if not defined SERVER_PORT set "SERVER_PORT=8080"
 if not exist "%LOOPPER_DATA_DIR%" mkdir "%LOOPPER_DATA_DIR%"
 if errorlevel 1 goto data_dir_failed
@@ -170,7 +177,7 @@ echo [Loopper] ERROR: JDK 21 or newer is required. Current version: %JAVA_VERSIO
 exit /b 1
 
 :jar_missing
-echo [Loopper] ERROR: opencode-loopper-0.1.28.jar was not found under "%APP_HOME%". Put the release JAR beside this script or set LOOPPER_JAR_PATH. 1>&2
+echo [Loopper] ERROR: opencode-loopper-0.1.30.jar was not found under "%APP_HOME%". Put the release JAR beside this script or set LOOPPER_JAR_PATH. 1>&2
 exit /b 1
 
 :data_dir_failed

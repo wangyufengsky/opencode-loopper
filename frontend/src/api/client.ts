@@ -622,7 +622,7 @@ function normalizeTaskPublication(value: unknown): TaskPublicationStatus {
   const state = asString(raw.state)
   const provider = asString(raw.provider)
   return {
-    state: ['UNAVAILABLE', 'NO_CHANGES', 'READY', 'COMMITTED', 'PUSHED', 'SYNCED_LOCAL', 'LOCAL_SYNC_CONFLICT'].includes(state) ? state as TaskPublicationStatus['state'] : 'UNAVAILABLE',
+    state: ['UNAVAILABLE', 'NO_CHANGES', 'READY', 'COMMITTED', 'PUSHED', 'SYNCED_LOCAL', 'LOCAL_SYNC_CONFLICT', 'MERGE_REQUEST_OPENED', 'MERGE_REQUEST_CLOSED', 'MERGED'].includes(state) ? state as TaskPublicationStatus['state'] : 'UNAVAILABLE',
     available: raw.available === true,
     reason: asString(raw.reason) || undefined,
     branch: asString(raw.branch) || undefined,
@@ -638,6 +638,13 @@ function normalizeTaskPublication(value: unknown): TaskPublicationStatus {
     conflictSessionId: asString(raw.conflictSessionId) || undefined,
     conflictCount: asNumber(raw.conflictCount),
     resolvedCount: asNumber(raw.resolvedCount),
+    deliveryState: (['NOT_STARTED', 'COMMITTED', 'PUSHED', 'MERGE_REQUEST_OPENED', 'MERGE_REQUEST_CLOSED', 'MERGED', 'LOCAL_COMPLETED', 'NOT_APPLICABLE'].includes(asString(raw.deliveryState)) ? asString(raw.deliveryState) : 'NOT_STARTED') as TaskPublicationStatus['deliveryState'],
+    deliveryFinal: raw.deliveryFinal === true,
+    creationRequestedAt: asString(raw.creationRequestedAt) || undefined,
+    mergeRequest: raw.mergeRequest && typeof raw.mergeRequest === 'object' ? (() => { const mr = asRecord(raw.mergeRequest); const mrProvider = asString(mr.provider); return { provider: (mrProvider === 'GITLAB' || mrProvider === 'GITHUB' ? mrProvider : 'UNKNOWN') as 'GITLAB' | 'GITHUB' | 'UNKNOWN', iid: asNumber(mr.iid), url: asString(mr.url) || undefined, state: asString(mr.state) || undefined, sourceBranch: asString(mr.sourceBranch) || undefined, targetBranch: asString(mr.targetBranch) || undefined, headSha: asString(mr.headSha) || undefined, mergeCommitSha: asString(mr.mergeCommitSha) || undefined, openedAt: asString(mr.openedAt) || undefined, mergedAt: asString(mr.mergedAt) || undefined, checkedAt: asString(mr.checkedAt) || undefined } })() : undefined,
+    reconciliationAvailable: raw.reconciliationAvailable === true,
+    lastCheckError: asString(raw.lastCheckError) || undefined,
+    lastCheckedAt: asString(raw.lastCheckedAt) || undefined,
   }
 }
 
@@ -987,6 +994,7 @@ export const api = {
   generateTaskCommitMessage: async (id: string) => normalizeCommitSuggestion(await request<unknown>(`/tasks/${encodeURIComponent(id)}/publication/commit-message`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } })),
   publishTask: async (id: string, commitMessage?: string) => normalizeTaskPublication(await request<unknown>(`/tasks/${encodeURIComponent(id)}/publication`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify({ commitMessage }) })),
   createTaskMergeRequestDraft: async (id: string, input: { targetBranch: string; title: string; description: string }) => normalizeMergeRequestDraft(await request<unknown>(`/tasks/${encodeURIComponent(id)}/publication/merge-request`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(input) })),
+  reconcileTaskPublication: async (id: string) => normalizeTaskPublication(await request<unknown>(`/tasks/${encodeURIComponent(id)}/publication/reconcile`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } })),
   createLocalSyncConflictSession: async (id: string) => normalizeLocalSyncSession(await request<unknown>(`/tasks/${encodeURIComponent(id)}/publication/local-conflicts`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } })),
   getLocalSyncConflictSession: async (id: string, sessionId: string) => normalizeLocalSyncSession(await request<unknown>(`/tasks/${encodeURIComponent(id)}/publication/local-conflicts/${encodeURIComponent(sessionId)}`)),
   getLocalSyncConflictFiles: async (id: string, sessionId: string) => (await request<unknown[]>(`/tasks/${encodeURIComponent(id)}/publication/local-conflicts/${encodeURIComponent(sessionId)}/files`)).map(normalizeLocalSyncFile),

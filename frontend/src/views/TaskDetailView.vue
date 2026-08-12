@@ -14,7 +14,7 @@ import TaskAuditEvidencePanel from '@/components/TaskAuditEvidencePanel.vue'
 import TaskPublicationActions from '@/components/TaskPublicationActions.vue'
 import DirtyWorkspaceDialog from '@/components/DirtyWorkspaceDialog.vue'
 import { useTaskStore } from '@/stores/taskStore'
-import type { Attempt, ErrorEvent } from '@/types/domain'
+import type { Attempt, ErrorEvent, TaskPublicationStatus } from '@/types/domain'
 
 const route = useRoute()
 const router = useRouter()
@@ -41,6 +41,8 @@ const judgeRetrying = ref(false)
 const loopRetrying = ref(false)
 const reworking = ref(false)
 const dirtyWorkspaceDialogOpen = ref(false)
+const publicationState = ref<TaskPublicationStatus['deliveryState']>('NOT_STARTED')
+watch(id, () => { publicationState.value = 'NOT_STARTED' })
 const deterministicAccepted = computed(() => Boolean(task.value?.stages?.length) && task.value!.stages!.every((stage) => stage.status === 'SUCCEEDED'))
 const latestJudge = (role: 'REQUIREMENT' | 'RISK') => judges.value
   .filter((judge) => judge.role === role)
@@ -54,6 +56,7 @@ const verifierErrors = computed<ErrorEvent[]>(() => (task.value?.errors ?? attem
   .filter((error) => error.layer === 'VERIFICATION')
   .filter((error) => !error.code.startsWith('JUDGE_') || (task.value?.status === 'WAITING_INPUT' && !doubleReviewApproved.value)))
 const canRetryJudges = computed(() => deterministicAccepted.value
+  && publicationState.value !== 'MERGED'
   && (task.value?.status === 'WAITING_INPUT' || (task.value?.status === 'SUCCEEDED' && !doubleReviewApproved.value)))
 const canRetryLoop = computed(() => task.value?.status === 'WAITING_INPUT'
   && !deterministicAccepted.value && task.value.loopRetryAvailable === true)
@@ -63,7 +66,7 @@ const canRework = computed(() => !isDirectExecution.value
   && ['WAITING_INPUT', 'SUCCEEDED', 'FAILED', 'CANCELLED'].includes(task.value?.status ?? ''))
 const nextAction = computed(() => {
   if (!task.value) return ''
-  if (task.value.status === 'SUCCEEDED') return isDirectExecution.value ? '检查原项目目录中的变更并决定后续发布方式。' : '检查变更摘要，然后提交并发布当前分支。'
+  if (task.value.status === 'SUCCEEDED') return publicationState.value === 'MERGED' ? '代码已推送并由 GitLab 确认合并，原任务交付状态不可再改变。' : isDirectExecution.value ? '检查原项目目录中的变更并决定后续发布方式。' : '检查变更摘要，然后提交并发布当前分支。'
   if (task.value.status === 'FAILED') return '先查看最上方错误与失败验证，再根据证据重新设计或新建任务。'
   if (task.value.status === 'CANCELLED') return '任务已取消；执行目录和证据仍保留，可据此新建设计。'
   if (waitingForWorkspaceCleanup.value) return '逐项处理源分支中的未提交文件；重新检查确认干净后，Loopper 才会创建任务分支。'
@@ -158,7 +161,7 @@ async function confirmRework() {
       <el-button v-if="task?.status === 'WAITING_INPUT' && !waitingForWorkspaceCleanup" plain type="danger" @click="confirmCancel"><Icon icon="lucide:square" />取消任务</el-button>
       <el-button v-if="canRetryLoop" type="warning" :loading="loopRetrying" @click="confirmRetryLoop"><Icon icon="lucide:rotate-ccw" />继续一轮</el-button>
       <el-button v-if="canRetryJudges" type="warning" :loading="judgeRetrying" @click="confirmRetryJudges"><Icon icon="lucide:scan-eye" />{{ judgeActionLabel }}</el-button>
-      <TaskPublicationActions v-if="task?.status === 'SUCCEEDED'" :task="task" :demo="store.usingDemo" />
+      <TaskPublicationActions v-if="task?.status === 'SUCCEEDED'" :task="task" :demo="store.usingDemo" @delivery-state="publicationState = $event" />
     </template>
   </PageHeader>
   <main id="main-content" class="content" tabindex="-1">

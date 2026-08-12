@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { api } from '@/api/client'
@@ -8,6 +8,7 @@ import CodeMergeEditor from './CodeMergeEditor.vue'
 import type { LocalSyncConflictContent, LocalSyncConflictFile, LocalSyncConflictSession, LocalSyncResolution, Task, TaskPublicationStatus } from '@/types/domain'
 
 const props = withDefaults(defineProps<{ task: Task; demo?: boolean }>(), { demo: false })
+const emit = defineEmits<{ deliveryState: [state: TaskPublicationStatus['deliveryState']] }>()
 const publication = ref<TaskPublicationStatus>()
 const loading = ref(false)
 const operationLoading = ref(false)
@@ -32,10 +33,16 @@ const aiLoading = ref(false)
 const activeConflictIndex = ref(0)
 const baseReferenceOpen = ref(false)
 const resultEditor = ref<InstanceType<typeof CodeMergeEditor>>()
+const lastAutomaticReconcileAt = ref(0)
+const RECONCILE_COOLDOWN_MS = 30_000
 
 const commitPreview = computed(() => `#${ticketNumber.value || '0000'}_${commitSubject.value.trim() || 'AI 生成提交信息'}`)
 const commitValid = computed(() => /^\d{4}$/.test(ticketNumber.value) && commitSubject.value.trim().length > 0 && commitPreview.value.length <= 126)
 const providerLabel = computed(() => publication.value?.provider === 'GITHUB' ? 'GitHub Pull Request' : 'GitLab Merge Request')
+const deliveryLabel = computed(() => ({
+  NOT_STARTED: '待提交', COMMITTED: '已提交', PUSHED: '已推送', MERGE_REQUEST_OPENED: '合并请求已创建',
+  MERGE_REQUEST_CLOSED: '合并请求已关闭', MERGED: '已合并', LOCAL_COMPLETED: '本地交付已完成', NOT_APPLICABLE: '不适用',
+}[publication.value?.deliveryState ?? 'NOT_STARTED']))
 const localPublication = computed(() => Boolean(publication.value && !publication.value.remoteName))
 const canApplyConflict = computed(() => Boolean(conflictSession.value
   && ['READY', 'ROLLED_BACK'].includes(conflictSession.value.state)
@@ -94,20 +101,52 @@ function containsUnresolvedMergeMarkers(content: string) {
 async function loadPublication() {
   if (props.task.status !== 'SUCCEEDED') return
   if (props.demo) {
-    publication.value = { state: 'READY', available: true, branch: props.task.branch, remoteName: 'origin', targetBranch: 'main', targetBranches: ['main'], provider: 'GITLAB', hasChanges: true, conflictCount: 0, resolvedCount: 0 }
+    publication.value = { state: 'READY', available: true, branch: props.task.branch, remoteName: 'origin', targetBranch: 'main', targetBranches: ['main'], provider: 'GITLAB', hasChanges: true, conflictCount: 0, resolvedCount: 0, deliveryState: 'NOT_STARTED', deliveryFinal: false, reconciliationAvailable: false }
     return
   }
   loading.value = true
   try {
     publication.value = await api.getTaskPublication(props.task.id)
+    await reconcilePublication(false)
   } catch (cause) {
-    publication.value = { state: 'UNAVAILABLE', available: false, reason: cause instanceof Error ? cause.message : '无法读取任务发布状态', targetBranches: [], provider: 'UNKNOWN', hasChanges: false, conflictCount: 0, resolvedCount: 0 }
+    publication.value = { state: 'UNAVAILABLE', available: false, reason: cause instanceof Error ? cause.message : '无法读取任务发布状态', targetBranches: [], provider: 'UNKNOWN', hasChanges: false, conflictCount: 0, resolvedCount: 0, deliveryState: 'NOT_STARTED', deliveryFinal: false, reconciliationAvailable: false }
   } finally {
     loading.value = false
   }
 }
 
-watch(() => [props.task.id, props.task.status], loadPublication, { immediate: true })
+watch(() => [props.task.id, props.task.status] as const, ([taskId], previous) => {
+  if (!previous || taskId !== previous[0]) {
+    publication.value = undefined
+    lastAutomaticReconcileAt.value = 0
+  }
+  void loadPublication()
+}, { immediate: true })
+watch(() => publication.value?.deliveryState, (state) => { if (state) emit('deliveryState', state) })
+
+async function reconcilePublication(manual: boolean) {
+  if (props.demo || !publication.value?.reconciliationAvailable || publication.value.deliveryFinal) return
+  if (!['COMMITTED', 'PUSHED', 'MERGE_REQUEST_OPENED', 'MERGE_REQUEST_CLOSED'].includes(publication.value.deliveryState)) return
+  const now = Date.now()
+  if (!manual && now - lastAutomaticReconcileAt.value < RECONCILE_COOLDOWN_MS) return
+  lastAutomaticReconcileAt.value = now
+  operationLoading.value = true
+  try {
+    publication.value = await api.reconcileTaskPublication(props.task.id)
+    if (manual) ElMessage.success(publication.value.deliveryState === 'MERGED' ? '已确认合并完成' : '合并状态已更新')
+  } catch (cause) {
+    if (manual) ElMessage.error(cause instanceof Error ? cause.message : '无法检查合并状态')
+  } finally {
+    operationLoading.value = false
+  }
+}
+
+function handleWindowFocus() { void reconcilePublication(false) }
+function openMergeRequest() {
+  if (publication.value?.mergeRequest?.url) window.open(publication.value.mergeRequest.url, '_blank', 'noopener,noreferrer')
+}
+onMounted(() => window.addEventListener('focus', handleWindowFocus))
+onBeforeUnmount(() => window.removeEventListener('focus', handleWindowFocus))
 
 function normalizeTicket(value: string) {
   ticketNumber.value = value.replace(/\D/g, '').slice(0, 4)
@@ -153,7 +192,7 @@ async function submitCommit() {
   operationLoading.value = true
   try {
     if (props.demo) {
-      publication.value = { ...(publication.value as TaskPublicationStatus), state: 'PUSHED', hasChanges: false, commitMessage: commitPreview.value, commitSha: '3f7a2c1', upstream: `origin/${props.task.branch}` }
+      publication.value = { ...(publication.value as TaskPublicationStatus), state: 'PUSHED', hasChanges: false, commitMessage: commitPreview.value, commitSha: '3f7a2c1', upstream: `origin/${props.task.branch}`, deliveryState: 'PUSHED' }
     } else {
       publication.value = await api.publishTask(props.task.id, commitPreview.value)
     }
@@ -184,7 +223,7 @@ async function retryPublication() {
   } catch { return }
   operationLoading.value = true
   try {
-    publication.value = props.demo ? { ...(publication.value as TaskPublicationStatus), state: 'PUSHED' } : await api.publishTask(props.task.id)
+    publication.value = props.demo ? { ...(publication.value as TaskPublicationStatus), state: 'PUSHED', deliveryState: 'PUSHED' } : await api.publishTask(props.task.id)
     if (publication.value.state === 'LOCAL_SYNC_CONFLICT') await openConflictCenter()
     else ElMessage.success(local ? '任务变更已同步到源项目' : '任务分支已推送')
   } catch (cause) {
@@ -390,6 +429,7 @@ async function createMergeRequest() {
       return
     }
     mergeDialogOpen.value = false
+    if (publication.value) publication.value = { ...publication.value, creationRequestedAt: new Date().toISOString() }
     ElMessage.success(`已打开 ${draft.provider === 'GITHUB' ? 'Pull Request' : 'Merge Request'} 创建页`)
   } catch (cause) {
     mergeError.value = cause instanceof Error ? cause.message : '无法创建合并请求入口'
@@ -401,16 +441,36 @@ async function createMergeRequest() {
 
 <template>
   <template v-if="task.status === 'SUCCEEDED'">
+    <el-tag v-if="publication" :type="publication.deliveryState === 'MERGED' || publication.deliveryState === 'LOCAL_COMPLETED' ? 'success' : publication.deliveryState === 'MERGE_REQUEST_CLOSED' ? 'danger' : 'info'">交付：{{ deliveryLabel }}</el-tag>
     <el-button v-if="loading || !publication" plain disabled :loading="loading">读取提交状态</el-button>
     <el-button v-else-if="publication.state === 'READY'" type="success" :loading="operationLoading" @click="openCommitDialog"><Icon icon="lucide:git-commit-horizontal" />{{ localPublication ? '提交本地任务分支' : '提交' }}</el-button>
     <el-button v-else-if="publication.state === 'COMMITTED'" type="warning" :loading="operationLoading" @click="retryPublication"><Icon :icon="localPublication ? 'lucide:git-commit-horizontal' : 'lucide:cloud-upload'" />{{ localPublication ? '确认本地提交' : '继续推送' }}</el-button>
     <el-button v-else-if="publication.state === 'LOCAL_SYNC_CONFLICT'" type="danger" plain @click="openConflictCenter"><Icon icon="lucide:git-merge" />解决同步冲突（{{ publication.conflictCount }}）</el-button>
     <el-button v-else-if="publication.state === 'SYNCED_LOCAL'" type="success" plain disabled><Icon icon="lucide:circle-check" />已提交本地任务分支</el-button>
-    <el-button v-else-if="publication.state === 'PUSHED'" type="primary" @click="openMergeDialog"><Icon icon="lucide:git-pull-request-create" />创建合并请求</el-button>
+    <template v-else-if="publication.state === 'PUSHED'">
+      <el-button v-if="publication.creationRequestedAt" type="primary" plain :loading="operationLoading" @click="reconcilePublication(true)"><Icon icon="lucide:refresh-cw" />检查合并状态</el-button>
+      <el-button type="primary" @click="openMergeDialog"><Icon icon="lucide:git-pull-request-create" />{{ publication.creationRequestedAt ? '重新打开创建页' : '创建合并请求' }}</el-button>
+    </template>
+    <template v-else-if="publication.state === 'MERGE_REQUEST_OPENED'">
+      <el-button type="success" plain @click="openMergeRequest"><Icon icon="lucide:external-link" />查看合并请求</el-button>
+      <el-button plain :loading="operationLoading" @click="reconcilePublication(true)"><Icon icon="lucide:refresh-cw" />检查合并状态</el-button>
+    </template>
+    <template v-else-if="publication.state === 'MERGE_REQUEST_CLOSED'">
+      <el-button type="danger" plain disabled><Icon icon="lucide:circle-x" />合并请求已关闭</el-button>
+      <el-button plain :loading="operationLoading" @click="reconcilePublication(true)"><Icon icon="lucide:refresh-cw" />检查合并状态</el-button>
+      <el-button type="primary" plain @click="openMergeDialog"><Icon icon="lucide:git-pull-request-create" />重新打开创建页</el-button>
+    </template>
+    <el-button v-else-if="publication.state === 'MERGED'" type="success" disabled><Icon icon="lucide:badge-check" />已合并</el-button>
     <el-tooltip v-else :content="publication.reason ?? '当前任务不可提交'" placement="bottom">
       <span><el-button plain disabled><Icon icon="lucide:git-commit-horizontal" />提交</el-button></span>
     </el-tooltip>
   </template>
+
+  <el-tooltip v-if="publication?.provider === 'GITLAB' && ['PUSHED', 'MERGE_REQUEST_OPENED', 'MERGE_REQUEST_CLOSED'].includes(publication.deliveryState) && !publication.reconciliationAvailable" content="未配置 GitLab Token，无法自动确认合并状态" placement="bottom">
+    <el-tag type="warning">无法自动确认合并</el-tag>
+  </el-tooltip>
+  <el-tag v-if="publication?.provider === 'GITHUB' && ['PUSHED', 'MERGE_REQUEST_OPENED', 'MERGE_REQUEST_CLOSED'].includes(publication.deliveryState)" type="info">GitHub 合并状态暂未接入自动确认</el-tag>
+  <el-tooltip v-if="publication?.lastCheckError" :content="publication.lastCheckError" placement="bottom"><el-tag type="danger">最近检查失败</el-tag></el-tooltip>
 
   <el-dialog v-model="commitDialogOpen" class="publication-dialog" :title="localPublication ? '提交本地任务分支' : '提交任务变更'" width="min(660px, 92vw)" append-to-body :close-on-click-modal="false">
     <div class="publication-intro"><Icon icon="lucide:sparkles" /><div><strong>AI 已根据任务目标和实际差异生成默认说明</strong><p>你只需输入 4 位数字工单号；提交前仍可编辑说明。</p></div></div>

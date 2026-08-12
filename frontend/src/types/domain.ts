@@ -200,7 +200,7 @@ export interface TaskDiffPreview {
 }
 
 export interface TaskPublicationStatus {
-  state: 'UNAVAILABLE' | 'NO_CHANGES' | 'READY' | 'COMMITTED' | 'PUSHED' | 'SYNCED_LOCAL' | 'LOCAL_SYNC_CONFLICT'
+  state: 'UNAVAILABLE' | 'NO_CHANGES' | 'READY' | 'COMMITTED' | 'PUSHED' | 'SYNCED_LOCAL' | 'LOCAL_SYNC_CONFLICT' | 'MERGE_REQUEST_OPENED' | 'MERGE_REQUEST_CLOSED' | 'MERGED'
   available: boolean
   reason?: string
   branch?: string
@@ -216,6 +216,17 @@ export interface TaskPublicationStatus {
   conflictSessionId?: string
   conflictCount: number
   resolvedCount: number
+  deliveryState: 'NOT_STARTED' | 'COMMITTED' | 'PUSHED' | 'MERGE_REQUEST_OPENED' | 'MERGE_REQUEST_CLOSED' | 'MERGED' | 'LOCAL_COMPLETED' | 'NOT_APPLICABLE'
+  deliveryFinal: boolean
+  creationRequestedAt?: string
+  mergeRequest?: {
+    provider: 'GITLAB' | 'GITHUB' | 'UNKNOWN'; iid: number; url?: string; state?: string
+    sourceBranch?: string; targetBranch?: string; headSha?: string; mergeCommitSha?: string
+    openedAt?: string; mergedAt?: string; checkedAt?: string
+  }
+  reconciliationAvailable: boolean
+  lastCheckError?: string
+  lastCheckedAt?: string
 }
 
 export type LocalSyncSessionState = 'OPEN' | 'READY' | 'APPLYING' | 'VERIFYING' | 'APPLIED' | 'STALE' | 'ROLLED_BACK' | 'ROLLBACK_FAILED'

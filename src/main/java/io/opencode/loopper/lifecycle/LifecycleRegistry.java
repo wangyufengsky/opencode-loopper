@@ -29,6 +29,7 @@ public final class LifecycleRegistry {
         register(LifecycleMachineType.LOOPSPEC_TEMPLATE, LoopSpecTemplateState.class, template());
         register(LifecycleMachineType.AUTOMATION_RULE, AutomationRuleState.class, rule());
         register(LifecycleMachineType.AUTOMATION_RUN, AutomationRunState.class, automationRun());
+        register(LifecycleMachineType.TASK_PUBLICATION, TaskPublicationState.class, taskPublication());
         if (machines.size() != LifecycleMachineType.values().length) {
             throw new IllegalStateException("Every lifecycle machine type must be registered");
         }
@@ -96,6 +97,26 @@ public final class LifecycleRegistry {
                 b.transition(state, CANCEL, TaskState.CANCELLED).transition(state, FAIL, TaskState.FAILED);
             }
         }
+        return b.build();
+    }
+
+    private static FiniteStateMachine<TaskPublicationState, LifecycleEvent> taskPublication() {
+        var b = machine(LifecycleMachineType.TASK_PUBLICATION, TaskPublicationState.class);
+        b.transition(TaskPublicationState.NOT_STARTED, RECORD_COMMIT, TaskPublicationState.COMMITTED)
+                .transition(TaskPublicationState.NOT_STARTED, RECORD_PUSH, TaskPublicationState.PUSHED)
+                .transition(TaskPublicationState.NOT_STARTED, COMPLETE_LOCAL_PUBLICATION, TaskPublicationState.LOCAL_COMPLETED)
+                .transition(TaskPublicationState.COMMITTED, RECORD_PUSH, TaskPublicationState.PUSHED)
+                .transition(TaskPublicationState.COMMITTED, COMPLETE_LOCAL_PUBLICATION, TaskPublicationState.LOCAL_COMPLETED)
+                .transition(TaskPublicationState.COMMITTED, OPEN_MERGE_REQUEST, TaskPublicationState.MERGE_REQUEST_OPENED)
+                .transition(TaskPublicationState.COMMITTED, CLOSE_MERGE_REQUEST, TaskPublicationState.MERGE_REQUEST_CLOSED)
+                .transition(TaskPublicationState.COMMITTED, RECORD_MERGE, TaskPublicationState.MERGED)
+                .transition(TaskPublicationState.PUSHED, OPEN_MERGE_REQUEST, TaskPublicationState.MERGE_REQUEST_OPENED)
+                .transition(TaskPublicationState.PUSHED, CLOSE_MERGE_REQUEST, TaskPublicationState.MERGE_REQUEST_CLOSED)
+                .transition(TaskPublicationState.PUSHED, RECORD_MERGE, TaskPublicationState.MERGED)
+                .transition(TaskPublicationState.MERGE_REQUEST_OPENED, CLOSE_MERGE_REQUEST, TaskPublicationState.MERGE_REQUEST_CLOSED)
+                .transition(TaskPublicationState.MERGE_REQUEST_OPENED, RECORD_MERGE, TaskPublicationState.MERGED)
+                .transition(TaskPublicationState.MERGE_REQUEST_CLOSED, OPEN_MERGE_REQUEST, TaskPublicationState.MERGE_REQUEST_OPENED)
+                .transition(TaskPublicationState.MERGE_REQUEST_CLOSED, RECORD_MERGE, TaskPublicationState.MERGED);
         return b.build();
     }
 

@@ -37,7 +37,10 @@ class ReleasePackagingContractTest {
         String linux = Files.readString(PROJECT_ROOT.resolve("scripts/start-linux.sh"));
 
         assertThat(windows)
-                .contains("opencode-loopper-0.1.28.jar")
+                .contains("opencode-loopper-0.1.30.jar")
+                .contains("LOOPPER_PUBLICATION_HTTP_WEB_HOSTS=gitlab.spdb.com")
+                .contains("LOOPPER_GITLAB_HOST=gitlab.spdb.com")
+                .contains("LOOPPER_GITLAB_API_BASE_URL=http://gitlab.spdb.com/api/v4")
                 .contains("if %JAVA_MAJOR_NUMBER% LSS 21 goto java_too_old")
                 .contains("%OPENCODE_BASE_URL%/global/health")
                 .contains("call :discover_opencode")
@@ -53,7 +56,10 @@ class ReleasePackagingContractTest {
                 .doesNotContain("serve --hostname 127.0.0.1 --port 4096");
 
         assertThat(linux)
-                .contains("opencode-loopper-0.1.28.jar")
+                .contains("opencode-loopper-0.1.30.jar")
+                .contains("LOOPPER_PUBLICATION_HTTP_WEB_HOSTS=\"gitlab.spdb.com")
+                .contains("LOOPPER_GITLAB_HOST=\"${LOOPPER_GITLAB_HOST:-gitlab.spdb.com}\"")
+                .contains("LOOPPER_GITLAB_API_BASE_URL=\"${LOOPPER_GITLAB_API_BASE_URL:-http://gitlab.spdb.com/api/v4}\"")
                 .contains("discover_opencode_base_url()")
                 .contains("ps -eo pid=,args=")
                 .contains("lsof -nP -a -p")
@@ -134,6 +140,7 @@ class ReleasePackagingContractTest {
                 .contains("OpenCode：未发现可复用端点，将由 auto 模式在动态 loopback 端口启动")
                 .contains("OpenCode CLI：" + bin.resolve("opencode"))
                 .contains("JAVA_OPENCODE_EXECUTABLE=" + bin.resolve("opencode"))
+                .contains("JAVA_HTTP_WEB_HOSTS=gitlab.spdb.com")
                 .contains("JAVA_OPENCODE_MODE=auto");
     }
 
@@ -171,9 +178,10 @@ class ReleasePackagingContractTest {
                   echo 'openjdk version "21.0.2"' >&2
                   exit 0
                 fi
-                printf 'JAVA_OPENCODE_BASE_URL=%s\nJAVA_OPENCODE_MODE=%s\nJAVA_OPENCODE_USERNAME=%s\nJAVA_OPENCODE_PASSWORD_SET=%s\nJAVA_OPENCODE_EXECUTABLE=%s\n' \
+                printf 'JAVA_OPENCODE_BASE_URL=%s\nJAVA_OPENCODE_MODE=%s\nJAVA_OPENCODE_USERNAME=%s\nJAVA_OPENCODE_PASSWORD_SET=%s\nJAVA_OPENCODE_EXECUTABLE=%s\nJAVA_HTTP_WEB_HOSTS=%s\n' \
                   "${OPENCODE_BASE_URL:-}" "${LOOPPER_OPENCODE_MODE:-}" "${OPENCODE_USERNAME:-}" \
-                  "$([[ -n "${OPENCODE_PASSWORD:-}" ]] && printf true || printf false)" "${OPENCODE_EXECUTABLE:-}"
+                  "$([[ -n "${OPENCODE_PASSWORD:-}" ]] && printf true || printf false)" "${OPENCODE_EXECUTABLE:-}" \
+                  "${LOOPPER_PUBLICATION_HTTP_WEB_HOSTS:-}"
                 """);
         return javaHome;
     }

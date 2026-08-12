@@ -263,6 +263,31 @@ public interface LoopperMapper {
     @Update("UPDATE task SET worktree_path=#{worktreePath}, branch_name=#{branchName}, source_branch=#{sourceBranch}, baseline_commit=#{baselineCommit}, state=#{state}, updated_at=#{updatedAt}, version=version+1 WHERE id=#{id} AND version=#{version}")
     int prepareTask(TaskRow row);
 
+    @Insert("""
+            INSERT INTO task_publication(task_id,state,remote_name,remote_url,provider,source_branch,target_branch,
+              task_commit_sha,commit_message,creation_requested_at,merge_request_iid,merge_request_url,
+              merge_request_state,merge_request_head_sha,merge_commit_sha,merge_request_opened_at,merged_at,
+              last_checked_at,last_check_error,created_at,updated_at,version)
+            VALUES(#{taskId},#{state},#{remoteName},#{remoteUrl},#{provider},#{sourceBranch},#{targetBranch},
+              #{taskCommitSha},#{commitMessage},#{creationRequestedAt},#{mergeRequestIid},#{mergeRequestUrl},
+              #{mergeRequestState},#{mergeRequestHeadSha},#{mergeCommitSha},#{mergeRequestOpenedAt},#{mergedAt},
+              #{lastCheckedAt},#{lastCheckError},#{createdAt},#{updatedAt},#{version})
+            """)
+    int insertTaskPublication(TaskPublicationRow row);
+    @Select("SELECT * FROM task_publication WHERE task_id=#{taskId}") Optional<TaskPublicationRow> findTaskPublication(String taskId);
+    @Update("""
+            UPDATE task_publication SET state=#{state},remote_name=#{remoteName},remote_url=#{remoteUrl},
+              provider=#{provider},source_branch=#{sourceBranch},target_branch=#{targetBranch},
+              task_commit_sha=#{taskCommitSha},commit_message=#{commitMessage},creation_requested_at=#{creationRequestedAt},
+              merge_request_iid=#{mergeRequestIid},merge_request_url=#{mergeRequestUrl},merge_request_state=#{mergeRequestState},
+              merge_request_head_sha=#{mergeRequestHeadSha},merge_commit_sha=#{mergeCommitSha},
+              merge_request_opened_at=#{mergeRequestOpenedAt},merged_at=#{mergedAt},last_checked_at=#{lastCheckedAt},
+              last_check_error=#{lastCheckError},updated_at=#{updatedAt},version=version+1
+            WHERE task_id=#{taskId} AND version=#{version}
+            """)
+    int updateTaskPublication(TaskPublicationRow row);
+    @Delete("DELETE FROM task_publication WHERE task_id=#{taskId}") int deleteTaskPublicationForTask(String taskId);
+
     @Insert("INSERT INTO stage(id,task_id,ordinal,objective,allowed_paths_json,forbidden_paths_json,deliverables_json,verifiers_json,state,created_at,updated_at,version) VALUES(#{id},#{taskId},#{ordinal},#{objective},#{allowedPathsJson},#{forbiddenPathsJson},#{deliverablesJson},#{verifiersJson},#{state},#{createdAt},#{updatedAt},#{version})")
     int insertStage(StageRow row);
     @Select("SELECT * FROM stage WHERE id=#{id}") Optional<StageRow> findStage(String id);

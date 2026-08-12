@@ -133,6 +133,22 @@ file previews still address the completed Task branch explicitly. A pushed Task
 shows one ordinary **创建合并请求** button; one click opens the confirmation
 dialog, with no duplicate single-item dropdown step.
 
+Task detail renders execution and delivery separately: a Task can be **已成功**
+while delivery is **待提交**, **已推送**, **合并请求已创建**, **合并请求已关闭**,
+or **已合并**. Opening a GitLab creation page changes only the available actions;
+it does not claim that an MR exists. After that action, the page offers a manual
+**检查合并状态** and a secondary **重新打开创建页**. An opened MR offers
+**查看合并请求** plus manual checking; a closed MR remains visibly closed and can
+open a new creation page. **已合并** is a disabled final badge and hides all
+original-Task commit, push, MR creation, and judge-retry actions while preserving
+**新分支重做**.
+
+The page performs one reconciliation on entry and when browser focus returns,
+with a 30-second cooldown and no background polling. Missing GitLab credentials
+show **无法自动确认合并状态**. GitHub displays that automatic merge confirmation
+is not yet integrated. The browser never infers a merge from a missing branch;
+all labels and actions project the server's persisted Publication state.
+
 Each Task detail page also exposes a read-only **Model output / Thinking**
 monitor. The operator can select any implementation or judge Session belonging
 to that Task. While a Session is active, the panel polls frequently and follows

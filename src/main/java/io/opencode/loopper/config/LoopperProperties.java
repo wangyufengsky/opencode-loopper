@@ -3,6 +3,7 @@ package io.opencode.loopper.config;
 import java.net.URI;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Set;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties("loopper")
@@ -23,6 +24,7 @@ public class LoopperProperties {
     private int abortCleanupAttempts = 3;
     private Mcp mcp = new Mcp();
     private OpenCode openCode = new OpenCode();
+    private Publication publication = new Publication();
     public Path getDataDir() { return dataDir; }
     public void setDataDir(Path dataDir) { this.dataDir = dataDir; }
     public int getMaxStageAttempts() { return maxStageAttempts; }
@@ -56,6 +58,34 @@ public class LoopperProperties {
     }
     public OpenCode getOpenCode() { return openCode; }
     public void setOpenCode(OpenCode value) { this.openCode = value; }
+    public Publication getPublication() { return publication; }
+    public void setPublication(Publication value) { this.publication = value; }
+    public static class Publication {
+        /** Exact Git hosts whose SSH remotes should open their web UI over HTTP. */
+        private Set<String> httpWebHosts = Set.of();
+        private GitLab gitlab = new GitLab();
+        public Set<String> getHttpWebHosts() { return httpWebHosts; }
+        public void setHttpWebHosts(Set<String> value) { this.httpWebHosts = value == null ? Set.of() : value; }
+        public GitLab getGitlab() { return gitlab; }
+        public void setGitlab(GitLab value) { this.gitlab = value == null ? new GitLab() : value; }
+    }
+    public static class GitLab {
+        private String host = "";
+        private URI apiBaseUrl;
+        private String privateToken = "";
+        private Duration connectTimeout = Duration.ofSeconds(3);
+        private Duration requestTimeout = Duration.ofSeconds(10);
+        public String getHost() { return host; }
+        public void setHost(String value) { this.host = value; }
+        public URI getApiBaseUrl() { return apiBaseUrl; }
+        public void setApiBaseUrl(URI value) { this.apiBaseUrl = value; }
+        public String getPrivateToken() { return privateToken; }
+        public void setPrivateToken(String value) { this.privateToken = value; }
+        public Duration getConnectTimeout() { return connectTimeout; }
+        public void setConnectTimeout(Duration value) { this.connectTimeout = value; }
+        public Duration getRequestTimeout() { return requestTimeout; }
+        public void setRequestTimeout(Duration value) { this.requestTimeout = value; }
+    }
     public static class OpenCode {
         /**
          * fake is deterministic for tests, http connects to an operator-owned server,

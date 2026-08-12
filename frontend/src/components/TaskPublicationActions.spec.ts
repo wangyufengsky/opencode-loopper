@@ -7,21 +7,24 @@ import type { Task, TaskPublicationStatus } from '@/types/domain'
 const ready: TaskPublicationStatus = {
   state: 'READY', available: true, branch: 'loopper/task-1', remoteName: 'origin', targetBranch: 'develop',
   targetBranches: ['develop', 'main'], provider: 'GITLAB', hasChanges: true, conflictCount: 0, resolvedCount: 0,
+  deliveryState: 'NOT_STARTED', deliveryFinal: false, reconciliationAvailable: false,
 }
 const pushed: TaskPublicationStatus = {
-  ...ready, state: 'PUSHED', hasChanges: false, commitSha: 'abc123456789', commitMessage: '#3032_完善任务发布流程', upstream: 'origin/loopper/task-1',
+  ...ready, state: 'PUSHED', hasChanges: false, commitSha: 'abc123456789', commitMessage: '#3032_完善任务发布流程', upstream: 'origin/loopper/task-1', deliveryState: 'PUSHED', reconciliationAvailable: true,
 }
 const localReady: TaskPublicationStatus = {
   state: 'READY', available: true, branch: 'loopper/task-1', targetBranches: [], provider: 'UNKNOWN', hasChanges: true, conflictCount: 0, resolvedCount: 0,
+  deliveryState: 'NOT_STARTED', deliveryFinal: false, reconciliationAvailable: false,
 }
 const localSynced: TaskPublicationStatus = {
-  ...localReady, state: 'SYNCED_LOCAL', hasChanges: false, commitSha: 'def987654321', commitMessage: '#3032_同步到源项目',
+  ...localReady, state: 'SYNCED_LOCAL', hasChanges: false, commitSha: 'def987654321', commitMessage: '#3032_同步到源项目', deliveryState: 'LOCAL_COMPLETED', deliveryFinal: true,
 }
 const mocks = vi.hoisted(() => ({
   getTaskPublication: vi.fn(),
   generateTaskCommitMessage: vi.fn(),
   publishTask: vi.fn(),
   createTaskMergeRequestDraft: vi.fn(),
+  reconcileTaskPublication: vi.fn(),
   getLocalSyncConflictSession: vi.fn(),
   createLocalSyncConflictSession: vi.fn(),
   getLocalSyncConflictFiles: vi.fn(),
@@ -58,6 +61,8 @@ describe('TaskPublicationActions', () => {
     mocks.suggestLocalSyncResolution.mockReset()
     mocks.applyLocalSyncConflict.mockReset()
     mocks.createTaskMergeRequestDraft.mockReset()
+    mocks.reconcileTaskPublication.mockReset()
+    mocks.reconcileTaskPublication.mockResolvedValue(pushed)
     vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
   })
 
@@ -104,6 +109,70 @@ describe('TaskPublicationActions', () => {
     expect(document.body.textContent).toContain('前往创建合并请求')
     expect(document.body.textContent).toContain('loopper/task-1')
     expect(document.body.textContent).toContain('develop')
+  })
+
+  it('shows an immutable merged result without another create action', async () => {
+    getTaskPublication.mockResolvedValue({ ...pushed, state: 'MERGED', deliveryState: 'MERGED', deliveryFinal: true,
+      mergeRequest: { provider: 'GITLAB', iid: 1686, url: 'http://gitlab.example/group/project/-/merge_requests/1686', state: 'merged' } })
+    const wrapper = mount(TaskPublicationActions, { props: { task }, global: { plugins: [ElementPlus] }, attachTo: document.body })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('交付：已合并')
+    expect(wrapper.text()).toContain('已合并')
+    expect(wrapper.text()).not.toContain('创建合并请求')
+  })
+
+  it('checks on entry and focus with a thirty-second cooldown', async () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(100_000)
+    const listeners = vi.spyOn(window, 'addEventListener')
+    getTaskPublication.mockResolvedValue(pushed)
+    const wrapper = mount(TaskPublicationActions, { props: { task }, global: { plugins: [ElementPlus] }, attachTo: document.body })
+    await flushPromises()
+    expect(mocks.reconcileTaskPublication).toHaveBeenCalledTimes(1)
+    const focus = listeners.mock.calls.find(([type]) => type === 'focus')?.[1] as EventListener
+
+    focus(new Event('focus'))
+    await flushPromises()
+    expect(mocks.reconcileTaskPublication).toHaveBeenCalledTimes(1)
+
+    now.mockReturnValue(130_001)
+    focus(new Event('focus'))
+    await flushPromises()
+    expect(mocks.reconcileTaskPublication).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+  })
+
+  it('shows opened and closed merge request actions', async () => {
+    const opened: TaskPublicationStatus = { ...pushed, state: 'MERGE_REQUEST_OPENED', deliveryState: 'MERGE_REQUEST_OPENED',
+      mergeRequest: { provider: 'GITLAB', iid: 1686, url: 'http://gitlab.example/group/project/-/merge_requests/1686', state: 'opened' } }
+    getTaskPublication.mockResolvedValue(opened)
+    mocks.reconcileTaskPublication.mockResolvedValue(opened)
+    const wrapper = mount(TaskPublicationActions, { props: { task }, global: { plugins: [ElementPlus] }, attachTo: document.body })
+    await flushPromises()
+    expect(wrapper.text()).toContain('查看合并请求')
+    expect(wrapper.text()).toContain('检查合并状态')
+
+    const closed: TaskPublicationStatus = { ...opened, state: 'MERGE_REQUEST_CLOSED', deliveryState: 'MERGE_REQUEST_CLOSED',
+      mergeRequest: { ...opened.mergeRequest!, state: 'closed' } }
+    mocks.reconcileTaskPublication.mockResolvedValue(closed)
+    const check = wrapper.findAll('button').find((button) => button.text().includes('检查合并状态'))
+    await check!.trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('合并请求已关闭')
+    expect(wrapper.text()).toContain('重新打开创建页')
+  })
+
+  it('explains unavailable GitLab credentials and GitHub reconciliation', async () => {
+    getTaskPublication.mockResolvedValue({ ...pushed, reconciliationAvailable: false })
+    const gitLab = mount(TaskPublicationActions, { props: { task }, global: { plugins: [ElementPlus] }, attachTo: document.body })
+    await flushPromises()
+    expect(gitLab.text()).toContain('无法自动确认合并')
+    gitLab.unmount()
+
+    getTaskPublication.mockResolvedValue({ ...pushed, provider: 'GITHUB', reconciliationAvailable: false })
+    const github = mount(TaskPublicationActions, { props: { task }, global: { plugins: [ElementPlus] }, attachTo: document.body })
+    await flushPromises()
+    expect(github.text()).toContain('GitHub 合并状态暂未接入自动确认')
   })
 
   it('explains local task branch submission when no remote exists', async () => {
