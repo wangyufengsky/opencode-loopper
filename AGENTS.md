@@ -41,10 +41,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.1.17.jar
-   jar tf target/opencode-loopper-0.1.17.jar \
+   test -s target/opencode-loopper-0.1.18.jar
+   jar tf target/opencode-loopper-0.1.18.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.1.17.jar
+   shasum -a 256 target/opencode-loopper-0.1.18.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -93,8 +93,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.1.17`。
-- 正式产物：`target/opencode-loopper-0.1.17.jar`。
+- Maven 项目版本：`0.1.18`。
+- 正式产物：`target/opencode-loopper-0.1.18.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -332,7 +332,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.1.17.jar
+JAR=target/opencode-loopper-0.1.18.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -435,4 +435,5 @@ Linux/Windows 成品启动脚本不得写死 OpenCode 端口。显式
 | 2026-08-11 | 原项目目录任务分支与 AgentBridge 同目录执行并发布 0.1.14 | 新任务串行切换登记项目的 `loopper/*` 分支；IDE AgentBridge、OpenCode 和验证器统一根目录；脏目录拒绝切换，发布后释放租约；同步 README、架构、OpenCode 与七特性合同 | 聚焦验证：Java 80/80、Vitest 121/121；`./scripts/verify.sh`：Java 260/260、Vitest 121/121，BUILD SUCCESS；18080 有远程/无远程真实 Git E2E 均成功，PROCESS 证据目录等于登记根目录，发布分别为 `PUSHED`/`SYNCED_LOCAL`；JAR 262597940 bytes，SHA-256 `719ba8def087a0f83c9c4ec765b5526c91f5947f3955f36847af341940c3023d`；发布目标：`v0.1.14` |
 | 2026-08-12 | 等待输入任务直接取消并发布 0.1.15 | 任务详情为 `WAITING_INPUT` 保留带确认的取消入口；取消继续保留目录、分支与证据；同步 README 和设计契约 | 聚焦验证：TaskDetail Vitest 6/6、版本/MCP Java 16/16；`./scripts/verify.sh`：Java 260/260、Vitest 122/122，BUILD SUCCESS；JAR 262597915 bytes，SHA-256 `0ad3b1ba48e18de13170d18268845ad26cfd2848ae95bf7e46ad5b885612be42`；发布目标：`v0.1.15` |
 | 2026-08-12 | 提交后恢复源分支并发布 0.1.16 | 持久化任务开始前分支；提交后恢复源分支并转交队列；推送、重试和 MR 只按任务分支引用，不切换项目分支；同步 README 与架构契约 | 聚焦验证：Git/发布 Java 13/13、Vitest 122/122；`./scripts/verify.sh`：Java 260/260、Vitest 122/122，BUILD SUCCESS；JAR 262600078 bytes，SHA-256 `6d4bafc99adb42dc3e95af9af61d61244ef319bdcee056d98b5e05fbbe7604f6`；发布目标：`v0.1.16` |
-| 2026-08-12 | 启动脚本动态发现 OpenCode 端口并发布 0.1.17 | Linux/Windows 启动器从当前 `opencode serve --port` 进程提取并健康验证真实端口；无可复用实例时切换 auto 动态端口；同步 README 与 OpenCode 合同 | 聚焦验证：Java 16/16、Vitest 122/122；`./scripts/verify.sh`：Java 260/260、Vitest 122/122，BUILD SUCCESS；Linux 隔离运行发现 64964 且 Runtime 为 `AVAILABLE`/`managed=false`；JAR 262600078 bytes，SHA-256 `9ea799cbe264f2449d4583cac12fde273004409096f05c5c26c7b8de363e250e`；发布目标：`v0.1.17` |
+| 2026-08-12 | 启动脚本动态发现 OpenCode 端口第一轮 0.1.17 | Linux/Windows 启动器从当前 `opencode serve --port` 进程提取并健康验证真实端口；无可复用实例时切换 auto 动态端口；同步 README 与 OpenCode 合同 | 聚焦验证：Java 16/16、Vitest 122/122；`./scripts/verify.sh`：Java 260/260、Vitest 122/122，BUILD SUCCESS；Linux 隔离运行发现 64964 且 Runtime 为 `AVAILABLE`/`managed=false`；JAR 262600078 bytes，SHA-256 `9ea799cbe264f2449d4583cac12fde273004409096f05c5c26c7b8de363e250e`；`v0.1.17` Windows 校验因 BAT 正则中的未转义管道符失败，未生成 Release |
+| 2026-08-12 | 修复 Windows 端口发现解析并发布 0.1.18 | 去除 PowerShell 正则中会被 CMD 当作管道的未转义 `|`；Windows `--validate` 真实执行端口发现语句 | 聚焦验证：Java 16/16、Vitest 122/122；`./scripts/verify.sh`：Java 260/260、Vitest 122/122，BUILD SUCCESS；Linux 隔离运行发现 49861 且 Runtime 为 `AVAILABLE`/`managed=false`；JAR 262600078 bytes，SHA-256 `3bf6b85cefd8fa2397df7cf773ad77e7ebc83e06c185b440ae7bb1f914b85e7d`；发布目标：`v0.1.18` |

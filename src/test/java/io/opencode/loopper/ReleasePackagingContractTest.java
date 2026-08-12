@@ -31,12 +31,12 @@ class ReleasePackagingContractTest {
         String linux = Files.readString(PROJECT_ROOT.resolve("scripts/start-linux.sh"));
 
         assertThat(windows)
-                .contains("opencode-loopper-0.1.17.jar")
+                .contains("opencode-loopper-0.1.18.jar")
                 .contains("if %JAVA_MAJOR_NUMBER% LSS 21 goto java_too_old")
                 .contains("%OPENCODE_BASE_URL%/global/health")
                 .contains("call :discover_opencode")
                 .contains("Get-CimInstance Win32_Process")
-                .contains("--port(?:=|\\s+)(\\d{1,5})")
+                .contains("--port[= ]+(\\d{1,5})")
                 .contains("$health.healthy -eq $true")
                 .contains("auto mode will start it on a dynamic loopback port")
                 .contains("cmd /d /c exit 7")
@@ -47,7 +47,7 @@ class ReleasePackagingContractTest {
                 .doesNotContain("serve --hostname 127.0.0.1 --port 4096");
 
         assertThat(linux)
-                .contains("opencode-loopper-0.1.17.jar")
+                .contains("opencode-loopper-0.1.18.jar")
                 .contains("discover_opencode_base_url()")
                 .contains("ps -eo pid=,args=")
                 .contains("running opencode process")
