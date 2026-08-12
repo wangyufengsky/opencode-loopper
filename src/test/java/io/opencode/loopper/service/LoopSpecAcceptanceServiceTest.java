@@ -1,10 +1,12 @@
 package io.opencode.loopper.service;
 
 import io.opencode.loopper.domain.LoopSpec;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.groups.Tuple.tuple;
 
 class LoopSpecAcceptanceServiceTest {
@@ -109,6 +111,39 @@ class LoopSpecAcceptanceServiceTest {
     }
 
     @Test
+    void rejectsLookalikeExecutablesAndSplitGradleTestExclusions() {
+        for (List<String> command : List.of(
+                List.of("mvn-evil", "test"),
+                List.of("gradle-helper", "test"),
+                List.of("gradle", "test", "-x", "test"),
+                List.of("./gradlew", "check", "--exclude-task", ":module:test"),
+                List.of("npm", "run", "test:unit", "--if-present"))) {
+            var result = service.assess(spec(process("TEST", command, List.of("AC-1"), List.of("FooTest")), null),
+                    List.of(), false);
+            assertThat(result.valid()).isFalse();
+            assertThat(result.errors()).anyMatch(error -> error.contains("command"));
+        }
+    }
+
+    @Test
+    void returnsValidationErrorsForMissingVerifierFieldsWithoutThrowing() {
+        LoopSpec.VerifierSpec missingType = new LoopSpec.VerifierSpec(null, List.of(), null, null,
+                List.of(), List.of(), false, null, null, null, null, null, null, null,
+                null, null, null, null, List.of(), List.of(), null, List.of());
+        LoopSpec.VerifierSpec missingPurpose = new LoopSpec.VerifierSpec("PROCESS", List.of("mvn", "test"), null,
+                null, List.of(), List.of(), false, null, null, null, null, null, null, null,
+                null, null, null, null, List.of(), List.of("AC-1"), null, List.of("FooTest"));
+
+        assertThatCode(() -> service.assess(spec(missingType, null), List.of("verifier type is required"), false))
+                .doesNotThrowAnyException();
+        var result = service.assess(spec(missingPurpose, null), List.of("processPurpose is required"), false);
+
+        assertThat(result.valid()).isFalse();
+        assertThat(result.errors()).contains("processPurpose is required")
+                .anyMatch(error -> error.contains("processPurpose") && error.contains("requires"));
+    }
+
+    @Test
     void acceptsNetworkBehaviorBoundToManagedDynamicRuntime() {
         LoopSpec.VerifierSpec http = new LoopSpec.VerifierSpec("HTTP_STATUS", null, null, null, List.of(), List.of(),
                 false, null, "http://127.0.0.1:{{LOOPPER_PORT}}/health", "GET", 200, null, null, null,
@@ -156,6 +191,24 @@ class LoopSpecAcceptanceServiceTest {
                 null, null, null, null);
         assertThat(service.assess(legacy, List.of(), true).valid()).isTrue();
         assertThat(service.assess(legacy, List.of(), false).valid()).isFalse();
+    }
+
+    @Test
+    void rejectsConfirmedJudgeContractThatExceedsTheUtf8Budget() {
+        List<LoopSpec.AcceptanceCriterion> criteria = new ArrayList<>();
+        for (int index = 0; index < 30; index++) {
+            criteria.add(criterion("AC-" + index, "需要人工判断的结果 " + index, "JUDGE",
+                    "评".repeat(4_000), "没有可靠的确定性断言"));
+        }
+        LoopSpec.StageSpec stage = new LoopSpec.StageSpec("bounded review", List.of(), List.of(), List.of("evidence"),
+                List.of(verifier("FILE_NOT_EXISTS", List.of())), criteria, null);
+
+        var result = service.assess(new LoopSpec("v2", "project", "goal", "", List.of(stage),
+                null, null, null, null), List.of(), false);
+
+        assertThat(result.valid()).isFalse();
+        assertThat(result.errors()).anyMatch(error -> error.contains("judgeContract")
+                && error.contains(Integer.toString(JudgePromptPolicy.MAX_CONTRACT_UTF8_BYTES)));
     }
 
     private LoopSpec spec(LoopSpec.VerifierSpec verifier, LoopSpec.VerificationRuntime runtime) {

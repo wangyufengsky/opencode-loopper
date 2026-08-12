@@ -108,6 +108,17 @@ public class VerifierEngine {
         }
         List<String> declaredCommand = normalization.command();
         requireDirectExecutable(declaredCommand);
+        if ("TEST".equals(spec.processPurpose())) {
+            ProcessCommandPolicy.TestCommandAssessment test = ProcessCommandPolicy.assessTestCommand(declaredCommand);
+            if (!test.recognized()) {
+                throw new TaskFailure("VERIFIER_TEST_COMMAND_INVALID",
+                        "PROCESS TEST requires a recognized Maven, Gradle, or npm test invocation");
+            }
+            if (test.skipped()) {
+                throw new TaskFailure("VERIFIER_TESTS_SKIPPED",
+                        "PROCESS TEST must not disable or skip tests, or ignore missing target tests");
+            }
+        }
         ResolvedProcessCommand resolved = resolveProcessCommand(worktree, declaredCommand);
         ProcessResult result;
         try {

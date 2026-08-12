@@ -232,6 +232,19 @@ class VerifierEngineTest {
     }
 
     @Test
+    void revalidatesV2TestCommandsBeforeResolvingOrStartingThem() {
+        for (List<String> command : List.of(
+                List.of("mvn-evil", "test"),
+                List.of("gradle", "test", "-x", "test"),
+                List.of("./gradlew", "check", "--exclude-task=:module:test"))) {
+            assertThatThrownBy(() -> engine.verify(directory, "unused", processTest(command), Duration.ofSeconds(5)))
+                    .isInstanceOf(TaskFailure.class)
+                    .satisfies(error -> assertThat(((TaskFailure) error).code())
+                            .isIn("VERIFIER_TEST_COMMAND_INVALID", "VERIFIER_TESTS_SKIPPED"));
+        }
+    }
+
+    @Test
     void reportsNonZeroExitBeforeMissingOutputMarker() {
         SafeProcessRunner failingRunner = new SafeProcessRunner(new ExecutableResolver("Linux", Map.of())) {
             @Override public ProcessResult run(Path ignored, List<String> argv, Duration timeout) {
@@ -530,6 +543,12 @@ class VerifierEngineTest {
     }
 
     private boolean isWindows() { return System.getProperty("os.name").toLowerCase().contains("win"); }
+
+    private VerifierSpec processTest(List<String> command) {
+        return new VerifierSpec("PROCESS", command, null, null, List.of(), List.of(), false, null,
+                null, null, null, null, null, null, null, null, null, null, List.of(),
+                List.of("AC-1"), "TEST", List.of("FooTest"));
+    }
 
     public static final class NoisyProcessFixture {
         public static void main(String[] args) throws Exception {

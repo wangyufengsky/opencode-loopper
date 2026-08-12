@@ -122,6 +122,20 @@ describe('Loopper REST contract adapter', () => {
     }))
   })
 
+  it('restarts a managed OpenCode runtime only through the local UI endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(json({
+      status: 'AVAILABLE', managed: true, pid: 6500, endpoint: 'http://127.0.0.1:35020',
+      version: '1.18.16', checkedAt: '2026-08-12T06:31:00Z',
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(api.restartRuntime()).resolves.toMatchObject({ status: 'ONLINE', managed: true, pid: 6500 })
+    expect(fetchMock).toHaveBeenCalledWith('/api/runtime/opencode/restart', expect.objectContaining({
+      method: 'POST',
+      headers: expect.objectContaining({ 'X-Loopper-Local-UI': '1' }),
+    }))
+  })
+
   it('round-trips snapshot-bound dirty-workspace decisions through local UI endpoints', async () => {
     const workspace = {
       branch: 'main', head: 'abc123', snapshotId: 'snapshot-1', clean: false,

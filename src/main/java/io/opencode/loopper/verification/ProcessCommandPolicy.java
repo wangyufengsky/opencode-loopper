@@ -16,6 +16,10 @@ public final class ProcessCommandPolicy {
     private static final Set<String> MAVEN_EXECUTABLES = Set.of(
             "mvn", "mvn.cmd", "mvn.bat", "mvn.exe",
             "mvnw", "mvnw.cmd", "mvnw.bat", "mvnw.exe");
+    private static final Set<String> GRADLE_EXECUTABLES = Set.of(
+            "gradle", "gradle.cmd", "gradle.bat", "gradle.exe",
+            "gradlew", "gradlew.cmd", "gradlew.bat", "gradlew.exe");
+    private static final Set<String> NPM_EXECUTABLES = Set.of("npm", "npm.cmd", "npm.exe");
     private static final Set<String> MAVEN_PHASES = Set.of(
             "pre-clean", "clean", "post-clean",
             "validate", "initialize", "generate-sources", "process-sources",
@@ -169,6 +173,38 @@ public final class ProcessCommandPolicy {
         return mavenBaseName(executable).equals("mvn");
     }
 
+    /**
+     * Classifies the small set of direct test invocations that LoopSpec v2 may use as
+     * behavior evidence. This is shared by draft validation and the execution boundary so
+     * a persisted contract cannot bypass the policy after confirmation.
+     */
+    public static TestCommandAssessment assessTestCommand(List<String> command) {
+        if (command == null || command.isEmpty()) {
+            return new TestCommandAssessment(false, false, "command is not a recognized test invocation");
+        }
+        String executable = baseName(command.getFirst());
+        List<String> args = command.stream().skip(1)
+                .map(value -> value == null ? "" : value.toLowerCase(Locale.ROOT))
+                .toList();
+        boolean recognized;
+        if (MAVEN_EXECUTABLES.contains(executable)) {
+            recognized = args.stream().anyMatch(arg -> Set.of("test", "integration-test", "verify").contains(arg));
+        } else if (GRADLE_EXECUTABLES.contains(executable)) {
+            recognized = args.stream().anyMatch(ProcessCommandPolicy::isGradleTestTask);
+        } else if (NPM_EXECUTABLES.contains(executable)) {
+            recognized = !args.isEmpty() && (args.getFirst().equals("test")
+                    || (args.size() > 1 && args.getFirst().equals("run") && args.get(1).startsWith("test")));
+        } else {
+            recognized = false;
+        }
+        if (!recognized) {
+            return new TestCommandAssessment(false, false, "command is not a recognized test invocation");
+        }
+        boolean skipped = skipsTests(executable, args);
+        return new TestCommandAssessment(true, skipped,
+                skipped ? "test command disables tests" : "targeted test command");
+    }
+
     public static Path platformMavenWrapper(Path projectRoot, String osName) {
         boolean windows = osName != null && osName.toLowerCase(Locale.ROOT).contains("win");
         return projectRoot.resolve(windows ? "mvnw.cmd" : "mvnw");
@@ -190,6 +226,46 @@ public final class ProcessCommandPolicy {
         return normalized.substring(normalized.lastIndexOf('/') + 1);
     }
 
+    private static boolean skipsTests(String executable, List<String> args) {
+        if (MAVEN_EXECUTABLES.contains(executable)) {
+            return args.stream().map(value -> value.replace(" ", ""))
+                    .anyMatch(value -> value.equals("-dskiptests") || value.equals("-dskiptests=true")
+                            || value.equals("-dmaven.test.skip") || value.equals("-dmaven.test.skip=true")
+                            || value.equals("--skiptests")
+                            || value.equals("--skip-tests") || value.equals("-dskipits")
+                            || value.equals("-dskipits=true")
+                            || value.equals("-dsurefire.failifnospecifiedtests=false")
+                            || value.equals("-dfailsafe.failifnospecifiedtests=false"));
+        }
+        if (GRADLE_EXECUTABLES.contains(executable)) {
+            for (int index = 0; index < args.size(); index++) {
+                String argument = args.get(index);
+                if ((argument.equals("-x") || argument.equals("--exclude-task")) && index + 1 < args.size()
+                        && isGradleTestTask(args.get(index + 1))) {
+                    return true;
+                }
+                if (argument.startsWith("--exclude-task=")
+                        && isGradleTestTask(argument.substring("--exclude-task=".length()))) {
+                    return true;
+                }
+                if (argument.startsWith("-x") && argument.length() > 2) {
+                    String excluded = argument.substring(2);
+                    if (excluded.startsWith("=")) excluded = excluded.substring(1);
+                    if (isGradleTestTask(excluded)) return true;
+                }
+            }
+            return false;
+        }
+        return NPM_EXECUTABLES.contains(executable)
+                && args.stream().anyMatch(value -> value.equals("--if-present") || value.equals("--ignore-scripts"));
+    }
+
+    private static boolean isGradleTestTask(String value) {
+        if (value == null) return false;
+        String task = value.toLowerCase(Locale.ROOT);
+        return task.equals("test") || task.equals("check") || task.endsWith(":test") || task.endsWith(":check");
+    }
+
     private static int firstWhitespace(String value) {
         for (int index = 0; index < value.length(); index++) {
             if (Character.isWhitespace(value.charAt(index))) return index;
@@ -200,6 +276,8 @@ public final class ProcessCommandPolicy {
     public record Normalization(List<String> command, ParseFailure failure, boolean changed) { }
 
     public record ParseFailure(int index, String message) { }
+
+    public record TestCommandAssessment(boolean recognized, boolean skipped, String reason) { }
 
     private record Tokenization(List<String> tokens, String error) { }
 }

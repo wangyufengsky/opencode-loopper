@@ -1014,7 +1014,7 @@ export const api = {
   applyLocalSyncConflict: async (id: string, sessionId: string, input: { confirmed: boolean; expectedVersion: number }) => normalizeLocalSyncSession(await request<unknown>(`/tasks/${encodeURIComponent(id)}/publication/local-conflicts/${encodeURIComponent(sessionId)}/apply`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(input) })),
   getRuntime: async () => normalizeRuntime(await request<unknown>('/runtime/opencode')),
   startRuntime: async () => normalizeRuntime(await request<unknown>('/runtime/opencode/start', { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } })),
-  restartRuntime: async () => normalizeRuntime(await request<unknown>('/runtime/opencode/restart', { method: 'POST' })),
+  restartRuntime: async () => normalizeRuntime(await request<unknown>('/runtime/opencode/restart', { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } })),
   getSettings: async () => normalizeSettings(await request<unknown>('/settings')),
   updateSettings: async (settings: AppSettings) => normalizeSettings(await request<unknown>('/settings', { method: 'PUT', body: JSON.stringify(settings) })),
   getSettingsModels: async (cliPath?: string) => (await request<unknown[]>(`/settings/models${cliPath ? `?cliPath=${encodeURIComponent(cliPath)}` : ''}`)).map(normalizeAvailableModel),

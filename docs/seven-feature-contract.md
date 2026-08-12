@@ -76,6 +76,11 @@ reason in evidence. Linux/macOS leave native PATH lookup unchanged and require
 project scripts to be executable. Missing programs fail before launch with a
 typed error; this compatibility layer does not permit user-supplied shell
 launchers or snippets.
+V2 `PROCESS TEST` recognition uses exact Maven/Gradle/npm executable basenames,
+detects split exclusion arguments and npm optional-script bypasses, and is
+rechecked at the execution boundary after Maven argv normalization. A saved
+contract therefore cannot gain behavior coverage from a lookalike executable or
+later disable the tests it claimed to run.
 `DATABASE_QUERY` accepts one read-only local SQLite `SELECT`/`WITH` statement.
 Screenshots and traces live below the configured data directory; SQLite stores
 only relative path, SHA-256, size and metadata.
@@ -88,7 +93,12 @@ needs a reason. Every Stage still needs a blocking deterministic gate. Build/sta
 `GIT_DIFF`, safety-only `FILE_NOT_EXISTS`, `JUNIT_XML` reports, and advisory
 `FILE_EXISTS` cannot satisfy that mapping. The final Attempt's automatic task
 diff remains separate audit evidence. After every deterministic Stage passes,
-both read-only Judges receive all stages' planned Judge criteria. `POST
+Loopper persists an ordered v2 summary containing each successful Stage Attempt
+and all of its verifier results, then gives that aggregate to both read-only
+Judges together with all stages' planned Judge criteria. Evidence excerpts are
+bounded and hashed; the confirmed Judge contract and complete prompt have
+separate UTF-8 byte limits, with overflow returning to explicit human handling
+before any Judge model call. `POST
 /api/loop-drafts/validate` and MCP return the same classification and planning
 result.
 

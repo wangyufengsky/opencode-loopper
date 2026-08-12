@@ -10,6 +10,7 @@ import io.opencode.loopper.persistence.LoopDraftRow;
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.ProjectRow;
 import io.opencode.loopper.persistence.SessionUsageRow;
+import io.opencode.loopper.persistence.TaskArtifactRow;
 import io.opencode.loopper.persistence.TaskRow;
 import io.opencode.loopper.runtime.FakeOpenCodeClient;
 import io.opencode.loopper.runtime.OpenCodeClient;
@@ -20,6 +21,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
@@ -839,6 +841,51 @@ class TaskServiceIntegrationTest {
     }
 
     @Test
+    void finalReviewAggregatesDeterministicEvidenceFromEverySucceededStage() throws Exception {
+        ProjectRow project = projects.create("multi-stage-judge", gitProject());
+        TaskRow task = drafts.confirm(drafts.create(multiStageJudgeContractSpec(project.id())).id(),
+                "multi stage judges");
+        tasks.start(task.id());
+
+        assertThat(tasks.verify(task.id()).state()).isEqualTo("RUNNING");
+        assertThat(tasks.verify(task.id()).state()).isEqualTo("JUDGING");
+
+        String summary = tasks.artifacts(task.id()).stream()
+                .filter(artifact -> artifact.kind().equals("VERIFICATION_SUMMARY"))
+                .map(TaskArtifactRow::content)
+                .filter(content -> content.contains("\"schemaVersion\":\"v2\""))
+                .findFirst().orElseThrow();
+        assertThat(summary)
+                .contains("\"ordinal\":0", "\"ordinal\":1", "Stage one", "Stage two")
+                .contains("\"allPassed\":true");
+        assertThat(tasks.judges(task.id())).hasSize(2).allSatisfy(judge ->
+                assertThat(((FakeOpenCodeClient) openCode).promptForSession(judge.externalSessionId()))
+                        .contains("跨阶段确定性验证摘要", "阶段 1：Stage one", "阶段 2：Stage two")
+                        .contains("\"ordinal\":0", "\"ordinal\":1", "AC-1", "AC-2"));
+    }
+
+    @Test
+    void oversizedJudgePromptWaitsForInputBeforeCreatingAnyJudgeSession() throws Exception {
+        ProjectRow project = projects.create("bounded-judge-prompt", gitProject());
+        TaskRow task = drafts.confirm(drafts.create(judgeContractSpec(project.id())).id(), "bounded judges");
+        tasks.start(task.id());
+        AttemptRow attempt = tasks.attempts(task.id()).getFirst();
+        mapper.insertTaskArtifact(new TaskArtifactRow(UUID.randomUUID().toString(), task.id(), attempt.id(), null,
+                "GIT_DIFF", "oversized-task-diff.json", "application/json",
+                "x".repeat(JudgePromptPolicy.MAX_PROMPT_UTF8_BYTES), "{}", Instant.now().toString()));
+        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
+        int promptCallsBeforeReview = fake.promptCalls();
+
+        TaskRow waiting = tasks.verify(task.id());
+
+        assertThat(waiting.state()).isEqualTo("WAITING_INPUT");
+        assertThat(tasks.judges(task.id())).isEmpty();
+        assertThat(fake.promptCalls()).isEqualTo(promptCallsBeforeReview);
+        assertThat(tasks.errors(task.id())).anyMatch(error -> error.code().equals("JUDGE_PROMPT_BUDGET_EXCEEDED")
+                && error.layer().equals(ErrorLayer.VERIFICATION.name()));
+    }
+
+    @Test
     void finalEvidenceCapturesBaselineDiffWithoutGitDiffVerifierAndPreviewSurvivesBranchRestore() throws Exception {
         ProjectRow project = projects.create("stable-task-diff", gitProject());
         TaskRow task = drafts.confirm(drafts.create(spec(project.id())).id(), "stable task diff");
@@ -1142,6 +1189,24 @@ class TaskServiceIntegrationTest {
         return new LoopSpec("v2", projectId, "Verify README", null,
                 List.of(new LoopSpec.StageSpec("Check README", List.of("README.md"), List.of(),
                         List.of("verified README"), List.of(verifier), List.of(criterion), null)),
+                null, null, null, null);
+    }
+    private LoopSpec multiStageJudgeContractSpec(String projectId) {
+        LoopSpec.VerifierSpec first = new LoopSpec.VerifierSpec(
+                "FILE_CONTENT", null, "README.md", null, List.of(), List.of(), false, null,
+                null, null, null, null, null, "EXACT", "fixture", null, null, null,
+                List.of(), List.of("AC-1"), null, List.of());
+        LoopSpec.VerifierSpec second = new LoopSpec.VerifierSpec(
+                "FILE_CONTENT", null, "README.md", null, List.of(), List.of(), false, null,
+                null, null, null, null, null, "CONTAINS", "fix", null, null, null,
+                List.of(), List.of("AC-2"), null, List.of());
+        return new LoopSpec("v2", projectId, "Verify README through two stages", null, List.of(
+                new LoopSpec.StageSpec("Stage one", List.of("README.md"), List.of(), List.of("first evidence"),
+                        List.of(first), List.of(new LoopSpec.AcceptanceCriterion("AC-1", "first observable result",
+                        "BOTH", "review the first-stage result", null)), null),
+                new LoopSpec.StageSpec("Stage two", List.of("README.md"), List.of(), List.of("second evidence"),
+                        List.of(second), List.of(new LoopSpec.AcceptanceCriterion("AC-2", "second observable result",
+                        "BOTH", "review the second-stage result", null)), null)),
                 null, null, null, null);
     }
     private LoopSpec failingContentSpec(String projectId, int stagnationLimit, String retryTemplate,

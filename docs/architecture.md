@@ -124,6 +124,13 @@ permission semantics. The runner is not an OS sandbox. A deliberately
 daemonizing hostile executable must be isolated by an external Job Object,
 cgroup or container rather than trusted as a LoopSpec verifier.
 
+For v2 `PROCESS` entries with `processPurpose=TEST`, executable recognition is
+an exact basename allowlist for Maven, Gradle, and npm rather than a prefix
+match. Split and joined Maven/Gradle/npm skip flags are rejected. The same
+policy runs again immediately before process launch, after deterministic Maven
+argv normalization, so an older persisted contract cannot bypass the current
+test-evidence boundary.
+
 LoopSpec v2 acceptance analysis is a single server service shared by REST,
 MCP, Designer synchronization, draft save/confirm, templates and Automation.
 Each criterion declares `MACHINE`, `JUDGE`, or `BOTH`. `MACHINE` and `BOTH`
@@ -198,7 +205,13 @@ implementation Session to be terminal-completed, so the public API cannot race
 a still-mutating Session. Only after all deterministic gates
 pass do two read-only OpenCode Judges run. Both Requirement and Risk Judges must
 receive every Stage's `JUDGE`/`BOTH` criterion and rubric together with the
-persisted deterministic summary and diff. They must return an explicit `PASS`;
+persisted deterministic summary and diff. The final `VERIFICATION_SUMMARY` v2
+artifact is ordered by Stage and records that Stage's successful Attempt and
+every verifier result; each evidence excerpt is limited to 4 KiB and retains a
+SHA-256 for traceability. Confirmed goal/context/Judge criteria are limited to
+96 KiB UTF-8, and the complete runtime Judge prompt to 128 KiB. A runtime
+overflow creates no Judge row or model call and moves the Task to
+`WAITING_INPUT` with `JUDGE_PROMPT_BUDGET_EXCEEDED`. They must return an explicit `PASS`;
 conflicts, `REVISE`, `BLOCKED`, or unparseable output
 move the Task to `WAITING_INPUT`, never to a fabricated success.
 

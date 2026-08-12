@@ -40,9 +40,12 @@ import io.opencode.loopper.verification.VerifierEngine;
 import io.opencode.loopper.verification.VerifierOutcome;
 import io.opencode.loopper.verification.BinaryArtifactPersistenceService;
 import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -1390,6 +1393,14 @@ public class TaskService {
                     role + " Judge exhausted its configured session retry limit");
             return;
         }
+        String prompt;
+        try {
+            prompt = judgePrompt(task, finalAttempt, role);
+        } catch (TaskFailure failure) {
+            if (!"JUDGE_PROMPT_BUDGET_EXCEEDED".equals(failure.code())) throw failure;
+            waitForJudgeInput(task, finalAttempt, null, failure.code(), failure.getMessage());
+            return;
+        }
         if (!explicitLocalRetry && blockModelCallForBudget(task, null, finalAttempt)) return;
         JudgeRunRow judge = new JudgeRunRow(UUID.randomUUID().toString(), task.id(), finalAttempt.id(), role,
                 mapper.nextJudgeOrdinal(task.id(), role), null, JudgeRunState.CREATING.name(), null, null, null, now(), null, 0);
@@ -1405,7 +1416,7 @@ public class TaskService {
             remote = openCode.createReadOnlySession(worktree, roleTitle(role), model(spec));
             JudgeRunRow running = judgeState(judge, remote.id(), JudgeRunState.RUNNING, null, null, null, null);
             updateJudge(running);
-            openCode.promptAsync(remote, judgePrompt(task, finalAttempt, role));
+            openCode.promptAsync(remote, prompt);
         } catch (SessionFailure failure) {
             handleJudgeSessionFailure(task, judge, failure);
             return;
@@ -1564,11 +1575,57 @@ public class TaskService {
     }
 
     private void captureFinalEvidence(TaskRow task, AttemptRow attempt) {
-        List<VerificationResultRow> verificationRows = mapper.listVerifications(attempt.id());
-        if (mapper.findFirstTaskArtifactByKind(task.id(), "VERIFICATION_SUMMARY").isEmpty()) {
-            persistArtifact(task, attempt.id(), null, "VERIFICATION_SUMMARY", "verification-summary.json", "application/json",
-                    write(Map.of("attemptId", attempt.id(), "allPassed", verificationRows.stream().allMatch(row -> VerificationState.PASS.name().equals(row.state())), "results", verificationRows)),
-                    Map.of("source", "deterministic-verifier", "count", verificationRows.size()));
+        boolean aggregateCaptured = mapper.listTaskArtifacts(task.id()).stream()
+                .anyMatch(artifact -> "VERIFICATION_SUMMARY".equals(artifact.kind())
+                        && attempt.id().equals(artifact.attemptId())
+                        && artifact.content().contains("\"schemaVersion\":\"v2\""));
+        if (!aggregateCaptured) {
+            List<Map<String, Object>> stageEvidence = new ArrayList<>();
+            int resultCount = 0;
+            for (StageRow stage : mapper.listStages(task.id())) {
+                AttemptRow stageAttempt = mapper.latestAttempt(stage.id()).orElseThrow(() ->
+                        new TaskFailure("JUDGE_STAGE_EVIDENCE_MISSING",
+                                "Stage " + stage.ordinal() + " has no deterministic attempt evidence"));
+                if (!StageState.SUCCEEDED.name().equals(stage.state())
+                        || !AttemptState.SUCCEEDED.name().equals(stageAttempt.state())) {
+                    throw new TaskFailure("JUDGE_STAGE_EVIDENCE_INCOMPLETE",
+                            "Stage " + stage.ordinal() + " has not completed deterministic acceptance");
+                }
+                List<Map<String, Object>> results = new ArrayList<>();
+                for (VerificationResultRow row : mapper.listVerifications(stageAttempt.id())) {
+                    Map<String, Object> result = new LinkedHashMap<>();
+                    String evidence = row.evidenceJson() == null ? "" : row.evidenceJson();
+                    result.put("verifierIndex", row.verifierIndex());
+                    result.put("type", row.type());
+                    result.put("state", row.state());
+                    result.put("summary", row.summary());
+                    result.put("evidenceExcerpt", JudgePromptPolicy.evidenceExcerpt(evidence));
+                    result.put("evidenceTruncated", JudgePromptPolicy.utf8Bytes(evidence)
+                            > JudgePromptPolicy.MAX_EVIDENCE_EXCERPT_UTF8_BYTES);
+                    result.put("evidenceSha256", sha256(evidence));
+                    results.add(result);
+                }
+                resultCount += results.size();
+                Map<String, Object> stageResult = new LinkedHashMap<>();
+                stageResult.put("stageId", stage.id());
+                stageResult.put("ordinal", stage.ordinal());
+                stageResult.put("objective", stage.objective());
+                stageResult.put("attemptId", stageAttempt.id());
+                stageResult.put("attemptOrdinal", stageAttempt.ordinal());
+                stageResult.put("results", results);
+                stageEvidence.add(stageResult);
+            }
+            Map<String, Object> aggregate = new LinkedHashMap<>();
+            aggregate.put("schemaVersion", "v2");
+            aggregate.put("taskId", task.id());
+            aggregate.put("finalAttemptId", attempt.id());
+            aggregate.put("allPassed", stageEvidence.stream().flatMap(stage -> ((List<?>) stage.get("results")).stream())
+                    .map(result -> (Map<?, ?>) result)
+                    .allMatch(result -> VerificationState.PASS.name().equals(result.get("state"))));
+            aggregate.put("stages", stageEvidence);
+            persistArtifact(task, attempt.id(), null, "VERIFICATION_SUMMARY", "verification-summary-v2.json", "application/json",
+                    write(aggregate), Map.of("source", "deterministic-verifier-aggregate", "stageCount", stageEvidence.size(),
+                            "resultCount", resultCount, "schemaVersion", "v2"));
         }
         boolean alreadyCaptured = mapper.listTaskArtifacts(task.id()).stream()
                 .anyMatch(artifact -> "GIT_DIFF".equals(artifact.kind()) && attempt.id().equals(artifact.attemptId()));
@@ -1645,20 +1702,23 @@ public class TaskService {
         String focus = "REQUIREMENT".equals(role)
                 ? "判断交付结果是否满足已确认目标、最终阶段目标和确定性验证证据。"
                 : "检查回归、越界或不安全变更、证据缺失，以及任何导致交付不安全的风险。";
-        String objectives = mapper.listStages(task.id()).stream().filter(stage -> StageState.SUCCEEDED.name().equals(stage.state()))
-                .max(java.util.Comparator.comparingInt(StageRow::ordinal)).map(StageRow::objective).orElse("(no completed final stage)");
+        String objectives = mapper.listStages(task.id()).stream()
+                .filter(stage -> StageState.SUCCEEDED.name().equals(stage.state()))
+                .map(stage -> "- 阶段 " + (stage.ordinal() + 1) + "：" + stage.objective())
+                .collect(java.util.stream.Collectors.joining("\n"));
         String verification = mapper.listTaskArtifacts(task.id()).stream()
-                .filter(artifact -> attempt.id().equals(artifact.attemptId()) && "VERIFICATION_SUMMARY".equals(artifact.kind()))
+                .filter(artifact -> attempt.id().equals(artifact.attemptId())
+                        && "VERIFICATION_SUMMARY".equals(artifact.kind())
+                        && artifact.content().contains("\"schemaVersion\":\"v2\""))
                 .map(TaskArtifactRow::content).findFirst().orElse("No verification summary was persisted.");
         String diff = mapper.listTaskArtifacts(task.id()).stream()
                 .filter(artifact -> attempt.id().equals(artifact.attemptId()) && "GIT_DIFF".equals(artifact.kind()))
                 .map(TaskArtifactRow::content).findFirst().orElse("No diff artifact was persisted.");
         String reviewer = "REQUIREMENT".equals(role) ? "需求评审员" : "风险评审员";
-        return "你是" + reviewer + "。这是严格的只读评审：不得编辑文件、运行终端命令或委派任务。\n"
+        String prompt = "你是" + reviewer + "。这是严格的只读评审：不得编辑文件、运行终端命令或委派任务。\n"
                 + focus + "\n必须逐项评审下面列出的 AI 验收合同；MACHINE 条件由确定性验证负责，不要把计划中的 Judge 评审误写成已由机器证明。\n"
-                + "已确认目标：" + loopSpec.goal() + "\n上下文：" + loopSpec.context()
-                + "\n跨阶段 AI 验收合同：\n" + judgeCriteria(loopSpec)
-                + "\n最终阶段目标：\n- " + objectives + "\n确定性验证摘要：\n" + verification
+                + JudgePromptPolicy.contract(loopSpec)
+                + "\n已完成阶段目标：\n" + objectives + "\n跨阶段确定性验证摘要：\n" + verification
                 + "\n已持久化的 Git 差异证据：\n" + diff + "\n尝试记录：" + attempt.id()
                 + "\n仅返回一个 JSON 对象，不得附加说明或代码围栏："
                 + "{\"verdict\":\"PASS|REVISE|BLOCKED\",\"reason\":\"简洁、基于证据的中文 Markdown\"}。"
@@ -1666,28 +1726,17 @@ public class TaskService {
                 + "在 `reason` 中先写一句结论，再写 `## 证据` 标题和编号列表；命令与文件路径使用行内代码。"
                 + "若结论不是 PASS，再增加 `## 必须处理` 标题和编号列表。"
                 + "不要使用围栏代码块，并将 `reason` 内的每个换行正确转义为 JSON 字符串。";
+        JudgePromptPolicy.requirePromptWithinBudget(prompt);
+        return prompt;
     }
 
-    private String judgeCriteria(LoopSpec loopSpec) {
-        StringBuilder result = new StringBuilder();
-        for (int stageIndex = 0; stageIndex < loopSpec.stages().size(); stageIndex++) {
-            LoopSpec.StageSpec stage = loopSpec.stages().get(stageIndex);
-            for (LoopSpec.AcceptanceCriterion criterion : stage.acceptanceCriteria()) {
-                if (!Set.of("JUDGE", "BOTH").contains(criterion.verificationMode())) continue;
-                result.append("- 阶段 ").append(stageIndex + 1).append("（")
-                        .append(stage.objective()).append("） ").append(criterion.id())
-                        .append(" [").append(criterion.verificationMode()).append("]: ")
-                        .append(criterion.description()).append("\n  评审准则：")
-                        .append(criterion.judgeRubric());
-                if ("JUDGE".equals(criterion.verificationMode())) {
-                    result.append("\n  仅 AI 评审原因：").append(criterion.judgeOnlyReason());
-                }
-                result.append('\n');
-            }
+    private String sha256(String value) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest((value == null ? "" : value).getBytes(StandardCharsets.UTF_8)));
+        } catch (Exception impossible) {
+            throw new IllegalStateException("SHA-256 unavailable", impossible);
         }
-        return result.isEmpty()
-                ? "- 此草案没有显式 JUDGE/BOTH 条件；按兼容规则评审整体需求与风险。"
-                : result.toString().stripTrailing();
     }
 
     private JudgeRunRow judgeState(JudgeRunRow row, String externalSessionId, JudgeRunState state, String verdict, String reason,

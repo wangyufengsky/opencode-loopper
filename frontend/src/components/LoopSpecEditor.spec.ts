@@ -1,5 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils'
-import ElementPlus, { ElInput, ElOption } from 'element-plus'
+import ElementPlus, { ElInput, ElInputNumber, ElOption } from 'element-plus'
 import { describe, expect, it } from 'vitest'
 import LoopSpecEditor from '@/components/LoopSpecEditor.vue'
 
@@ -112,6 +112,10 @@ describe('LoopSpecEditor', () => {
     expect(wrapper.text()).toContain('覆盖的验收条件')
     expect(wrapper.text()).toContain('JSON 匹配方式')
     expect(wrapper.text()).toContain('启动超时（秒）')
+    const numberInputs = wrapper.findAllComponents(ElInputNumber)
+    expect(numberInputs.find((input) => input.attributes('data-testid') === 'runtime-startup-timeout')?.props('max')).toBe(300)
+    expect(numberInputs.find((input) => input.attributes('data-testid') === 'runtime-shutdown-timeout')?.props('max')).toBe(60)
+    expect(numberInputs.find((input) => input.attributes('data-testid') === 'max-stage-attempts')?.props('max')).toBe(20)
   })
 
   it('follows external JSON updates without losing the structured view', async () => {

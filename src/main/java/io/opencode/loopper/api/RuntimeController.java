@@ -1,14 +1,14 @@
 package io.opencode.loopper.api;
 
 import io.opencode.loopper.runtime.OpenCodeRuntimeManager;
+import io.opencode.loopper.service.BadRequestException;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
-import io.opencode.loopper.service.BadRequestException;
 import org.springframework.web.server.ResponseStatusException;
-import org.springframework.http.HttpStatus;
 
 @RestController
 @RequestMapping("/api/runtime/opencode")
@@ -24,7 +24,9 @@ public class RuntimeController {
         }
         return dto(runtimeManager.startAndCheck());
     }
-    @PostMapping("/restart") public RuntimeDto restart() {
+    @PostMapping("/restart") public RuntimeDto restart(
+            @RequestHeader(value = "X-Loopper-Local-UI", required = false) String localUi) {
+        requireLocalUi(localUi);
         if (!runtimeManager.restartable()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Only an OpenCode process managed by this Loopper instance can be restarted");
         }

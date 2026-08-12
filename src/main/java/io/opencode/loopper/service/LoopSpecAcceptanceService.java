@@ -58,11 +58,12 @@ public class LoopSpecAcceptanceService {
             for (int verifierIndex = 0; verifierIndex < stage.verifiers().size(); verifierIndex++) {
                 LoopSpec.VerifierSpec verifier = stage.verifiers().get(verifierIndex);
                 String path = stagePath + ".verifiers[" + verifierIndex + "]";
+                String verifierType = text(verifier.type());
                 Classification classification = classify(verifier);
                 List<String> reasons = new ArrayList<>(classification.reasons());
                 boolean processValid = validateProcess(verifier, classification, path, errors, reasons);
                 boolean runtimeBound = validateRuntimeBinding(stage, verifier, path, errors, reasons);
-                boolean runtimeDependent = Set.of("HTTP_STATUS", "JSON_PATH", "BROWSER").contains(verifier.type());
+                boolean runtimeDependent = Set.of("HTTP_STATUS", "JSON_PATH", "BROWSER").contains(verifierType);
                 boolean runtimeReady = !runtimeDependent || (runtimeValid && runtimeBound);
                 boolean behavior = classification.category() == Category.BEHAVIOR
                         && classification.valid() && processValid && runtimeReady;
@@ -86,7 +87,7 @@ public class LoopSpecAcceptanceService {
                         machineCoverage.get(criterionId).add(verifierIndex);
                     }
                 }
-                verifierAssessments.add(new VerifierAssessment(verifierIndex, verifier.type(),
+                verifierAssessments.add(new VerifierAssessment(verifierIndex, verifierType,
                         classification.category(), blocking,
                         verifier.criterionIds(), String.join("; ", reasons)));
             }
@@ -98,7 +99,7 @@ public class LoopSpecAcceptanceService {
             for (LoopSpec.AcceptanceCriterion criterion : stage.acceptanceCriteria()) {
                 List<Integer> verifierIndexes = machineCoverage.getOrDefault(criterion.id(), List.of());
                 boolean machineCovered = !verifierIndexes.isEmpty();
-                String mode = criterion.verificationMode();
+                String mode = text(criterion.verificationMode());
                 boolean modeValid = Set.of("MACHINE", "JUDGE", "BOTH").contains(mode);
                 if (!modeValid) errors.add(stagePath + ".acceptanceCriteria[" + criterion.id() + "].verificationMode: must be MACHINE, JUDGE, or BOTH");
                 boolean judgePlanned = Set.of("JUDGE", "BOTH").contains(mode) && !blank(criterion.judgeRubric());
@@ -127,6 +128,12 @@ public class LoopSpecAcceptanceService {
             stages.add(new StageAssessment(stageIndex, List.copyOf(criterionAssessments),
                     List.copyOf(verifierAssessments)));
         }
+        int judgeContractBytes = JudgePromptPolicy.utf8Bytes(JudgePromptPolicy.contract(spec));
+        if (judgeContractBytes > JudgePromptPolicy.MAX_CONTRACT_UTF8_BYTES) {
+            errors.add("judgeContract: confirmed goal, context, and all JUDGE/BOTH criteria use "
+                    + judgeContractBytes + " UTF-8 bytes; maximum is "
+                    + JudgePromptPolicy.MAX_CONTRACT_UTF8_BYTES);
+        }
         return new Assessment(errors.isEmpty(), spec.schemaVersion(), false, List.copyOf(errors), List.copyOf(stages));
     }
 
@@ -145,14 +152,11 @@ public class LoopSpecAcceptanceService {
     }
 
     private Classification classifyProcess(LoopSpec.VerifierSpec verifier) {
-        String purpose = verifier.processPurpose();
+        String purpose = text(verifier.processPurpose());
         if ("TEST".equals(purpose)) {
-            boolean recognized = recognizedTestCommand(verifier.command());
-            boolean skipped = skipsTests(verifier.command());
-            return new Classification(recognized && !skipped ? Category.BEHAVIOR : Category.BUILD,
-                    recognized && !skipped, List.of(recognized
-                            ? skipped ? "test command disables tests" : "targeted test command"
-                            : "command is not a recognized test invocation"));
+            ProcessCommandPolicy.TestCommandAssessment test = ProcessCommandPolicy.assessTestCommand(verifier.command());
+            return new Classification(test.recognized() && !test.skipped() ? Category.BEHAVIOR : Category.BUILD,
+                    test.recognized() && !test.skipped(), List.of(test.reason()));
         }
         if ("SELF_CHECK".equals(purpose)) {
             boolean valid = !blank(verifier.outputContains());
@@ -165,36 +169,38 @@ public class LoopSpecAcceptanceService {
 
     private boolean validateProcess(LoopSpec.VerifierSpec verifier, Classification classification,
                                     String path, List<String> errors, List<String> reasons) {
-        if (!"PROCESS".equals(verifier.type())) return true;
+        if (!"PROCESS".equals(text(verifier.type()))) return true;
         boolean valid = true;
+        String purpose = text(verifier.processPurpose());
         String commandError = ProcessCommandPolicy.directCommandError(verifier.command());
         if (commandError != null) {
             errors.add(path + ".command: " + commandError);
             valid = false;
         }
-        if (!Set.of("BUILD", "TEST", "SELF_CHECK").contains(verifier.processPurpose())) {
+        if (!Set.of("BUILD", "TEST", "SELF_CHECK").contains(purpose)) {
             errors.add(path + ".processPurpose: v2 PROCESS requires BUILD, TEST, or SELF_CHECK");
             valid = false;
         }
-        if ("TEST".equals(verifier.processPurpose())) {
+        if ("TEST".equals(purpose)) {
             if (verifier.testTargets().isEmpty()) {
                 errors.add(path + ".testTargets: TEST requires explicit test targets; planned tests may be new deliverables in this stage");
                 valid = false;
             }
-            if (!recognizedTestCommand(verifier.command())) {
+            ProcessCommandPolicy.TestCommandAssessment test = ProcessCommandPolicy.assessTestCommand(verifier.command());
+            if (!test.recognized()) {
                 errors.add(path + ".command: TEST requires a recognized Maven, Gradle, or npm test invocation");
                 valid = false;
             }
-            if (skipsTests(verifier.command())) {
+            if (test.skipped()) {
                 errors.add(path + ".command: TEST must not disable or skip tests, or ignore missing target tests");
                 valid = false;
             }
         }
-        if ("SELF_CHECK".equals(verifier.processPurpose()) && blank(verifier.outputContains())) {
+        if ("SELF_CHECK".equals(purpose) && blank(verifier.outputContains())) {
             errors.add(path + ".outputContains: SELF_CHECK requires an explicit success marker");
             valid = false;
         }
-        if ("SELF_CHECK".equals(verifier.processPurpose()) && sourceTextSearch(verifier.command())) {
+        if ("SELF_CHECK".equals(purpose) && sourceTextSearch(verifier.command())) {
             errors.add(path + ".command: source-text search cannot prove runtime behavior; use a focused test or native behavior verifier");
             valid = false;
         }
@@ -245,7 +251,7 @@ public class LoopSpecAcceptanceService {
 
     private boolean validateRuntimeBinding(LoopSpec.StageSpec stage, LoopSpec.VerifierSpec verifier,
                                            String path, List<String> errors, List<String> reasons) {
-        if (!Set.of("HTTP_STATUS", "JSON_PATH", "BROWSER").contains(verifier.type())) return true;
+        if (!Set.of("HTTP_STATUS", "JSON_PATH", "BROWSER").contains(text(verifier.type()))) return true;
         boolean valid = stage.verificationRuntime() != null && verifier.url() != null
                 && (verifier.url().equals(RUNTIME_URL_PREFIX) || verifier.url().startsWith(RUNTIME_URL_PREFIX + "/"));
         if (!valid) {
@@ -256,31 +262,6 @@ public class LoopSpecAcceptanceService {
             reasons.add("not bound to this stage managed runtime");
         }
         return valid;
-    }
-
-    private boolean recognizedTestCommand(List<String> command) {
-        if (command == null || command.isEmpty()) return false;
-        String executable = baseName(command.getFirst());
-        List<String> args = command.stream().skip(1).map(value -> value.toLowerCase(Locale.ROOT)).toList();
-        if (executable.startsWith("mvn")) return args.stream().anyMatch(arg -> Set.of("test", "integration-test", "verify").contains(arg));
-        if (executable.startsWith("gradle") || executable.startsWith("gradlew")) {
-            return args.stream().anyMatch(arg -> arg.equals("test") || arg.endsWith(":test") || arg.equals("check"));
-        }
-        if (Set.of("npm", "npm.cmd", "npm.exe").contains(executable)) {
-            return !args.isEmpty() && (args.getFirst().equals("test")
-                    || (args.size() > 1 && args.getFirst().equals("run") && args.get(1).startsWith("test")));
-        }
-        return false;
-    }
-
-    private boolean skipsTests(List<String> command) {
-        if (command == null) return false;
-        return command.stream().map(value -> value.toLowerCase(Locale.ROOT).replace(" ", ""))
-                .anyMatch(value -> value.equals("-dskiptests") || value.equals("-dskiptests=true")
-                        || value.equals("-dmaven.test.skip=true") || value.equals("--skiptests")
-                        || value.equals("-dsurefire.failifnospecifiedtests=false")
-                        || value.equals("-dfailsafe.failifnospecifiedtests=false")
-                        || value.equals("-xtest") || value.equals("--exclude-task=test"));
     }
 
     private boolean sourceTextSearch(List<String> command) {
@@ -311,6 +292,7 @@ public class LoopSpecAcceptanceService {
     }
 
     private boolean blank(String value) { return value == null || value.isBlank(); }
+    private String text(String value) { return value == null ? "" : value; }
 
     public enum Category { BUILD, BEHAVIOR, SCOPE, SAFETY, REPORT, ADVISORY }
     public record Classification(Category category, boolean valid, List<String> reasons) { }

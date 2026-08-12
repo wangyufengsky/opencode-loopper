@@ -79,6 +79,9 @@ launch has failed. The button stays loading while the server performs the bounde
 launch and health check. The UI announces success and replaces the failure card
 only when the returned authoritative Runtime snapshot is online; process creation
 or a frontend timer must never be presented as a successful connection.
+Both explicit start and restart POSTs require the local-UI marker before the
+server inspects or mutates Runtime ownership; the SPA sends that marker for both
+actions.
 
 Task responses expose the current `waitingReasonCode` and authoritative
 `loopRetryAvailable` projection. When the current wait reason is
@@ -115,6 +118,9 @@ blocks Designer synchronization, manual save, template publication, MCP
 proposal and confirmation without an ignore action. Persisted v1 drafts show
 **旧合同（兼容）** and keep their old behavior. Their schema version is immutable;
 the operator can copy one to a new v2 draft and then complete its criteria.
+The confirmed goal, context, and complete cross-Stage `JUDGE`/`BOTH` contract
+must fit within 96 KiB UTF-8; the Review Gate reports an explicit field error
+instead of allowing a prompt that cannot be reviewed safely.
 
 Live SSE delivery is presentation transport only. A page refresh, timeout,
 client disconnect, or already-closed servlet `AsyncContext` removes that one
@@ -174,8 +180,10 @@ LoopSpec verifier and never a source for the coverage matrix.
 HTTP, JSON and browser criteria must address the same Stage-managed instance at
 `127.0.0.1:{{LOOPPER_PORT}}`. A fixed loopback check may remain supplemental but
 cannot cover a criterion. The editor exposes all native verifier fields and the
-managed runtime command/readiness/timeouts; verifier types come from a closed
-selection rather than arbitrary input.
+managed runtime command/readiness/timeouts; its numeric maxima match the domain
+contract (`startupTimeoutSeconds=300`, `shutdownTimeoutSeconds=60`, and
+`maxStageAttempts=20`). Verifier types come from a closed selection rather than
+arbitrary input.
 
 For Java production changes, Designer defaults behavior criteria to `BOTH` and
 keeps the production code and focused Maven/Gradle unit test in the same Stage.
