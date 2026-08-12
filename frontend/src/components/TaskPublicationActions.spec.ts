@@ -66,7 +66,7 @@ describe('TaskPublicationActions', () => {
     vi.clearAllMocks()
   })
 
-  it('generates the default subject, enforces four digits, then changes to merge branch after push', async () => {
+  it('generates the default subject, enforces four digits, then offers a merge request after push', async () => {
     const wrapper = mount(TaskPublicationActions, { props: { task }, global: { plugins: [ElementPlus] }, attachTo: document.body })
     await flushPromises()
 
@@ -87,16 +87,16 @@ describe('TaskPublicationActions', () => {
     await flushPromises()
 
     expect(publishTask).toHaveBeenCalledWith('task-1', '#3032_完善任务发布流程')
-    expect(wrapper.text()).toContain('合并分支')
+    expect(wrapper.text()).toContain('创建合并请求')
   })
 
-  it('explains conflict-safe source synchronization when no remote exists', async () => {
+  it('explains local task branch submission when no remote exists', async () => {
     getTaskPublication.mockResolvedValue(localReady)
     publishTask.mockResolvedValue(localSynced)
     const wrapper = mount(TaskPublicationActions, { props: { task }, global: { plugins: [ElementPlus] }, attachTo: document.body })
     await flushPromises()
 
-    expect(wrapper.text()).toContain('同步源代码')
+    expect(wrapper.text()).toContain('提交本地任务分支')
     await wrapper.get('button').trigger('click')
     await flushPromises()
     const ticket = document.querySelector('input[aria-label="4 位数字工单号"]') as HTMLInputElement
@@ -110,7 +110,7 @@ describe('TaskPublicationActions', () => {
 
     expect(ElMessageBox.confirm).toHaveBeenCalledWith(expect.stringContaining('原项目目录中当前任务分支'), '确认提交本地任务分支？', expect.any(Object))
     expect(publishTask).toHaveBeenCalledWith('task-1', '#3032_完善任务发布流程')
-    expect(wrapper.text()).toContain('已同步源代码')
+    expect(wrapper.text()).toContain('已提交本地任务分支')
   })
 
   it('opens the conflict center, keeps apply disabled, then enables it after an explicit resolution', async () => {

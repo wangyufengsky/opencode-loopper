@@ -41,10 +41,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.1.15.jar
-   jar tf target/opencode-loopper-0.1.15.jar \
+   test -s target/opencode-loopper-0.1.16.jar
+   jar tf target/opencode-loopper-0.1.16.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.1.15.jar
+   shasum -a 256 target/opencode-loopper-0.1.16.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -71,7 +71,7 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 - 服务端持久化状态是权威事实；前端不能制造队列、进度、用量、成本或模型输出。
 - Designer 只读；确认 LoopSpec 之前不得写业务源码、创建执行任务或假装交付完成。
 - 人工确认是不可跳过的边界：LoopSpec 确认、危险权限、成功任务发布、本地冲突写回都需要明确动作。
-- Loopper 不自动强推、不自动合并托管平台请求、不自动切回用户分支或删除旧版 worktree。
+- Loopper 不自动强推、不自动合并托管平台请求或删除旧版 worktree；只有用户确认任务提交后，才自动恢复该任务开始前记录的源分支。
 - Direct 模式直接写登记目录，但有独立租约、队列和私有基线；它不是较弱的“随便写”模式。
 - 本项目不是多租户远程执行平台，也不把模型推理内容或外部 Provider 状态伪造成 Loopper 生命周期。
 
@@ -93,8 +93,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.1.15`。
-- 正式产物：`target/opencode-loopper-0.1.15.jar`。
+- Maven 项目版本：`0.1.16`。
+- 正式产物：`target/opencode-loopper-0.1.16.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -241,7 +241,7 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 - OpenCode 创建 Session 后必须回报与登记项目根一致的规范执行目录，缺失或不一致时不得发送实施提示；实施提示明确 AgentBridge、搜索、命令和验证器都使用该目录及当前任务分支。
 - 无可用 Git HEAD：直接使用登记根目录，并在 `direct-baselines/<taskId>` 保存私有 Git-compatible 基线；不得在用户项目中隐式初始化或提交 Git。
 - 所有路径 canonicalize 后进行 containment 和符号链接检查。
-- 同一登记 root（Git 或 Direct）同时只能有一个未释放写租约；旧写入者状态未知时保持租约并阻断 Recovery/Automation。Git 任务仍有未发布文件改动时保留租约，发布并确认目录干净后才允许下一个任务切分支。
+- 同一登记 root（Git 或 Direct）同时只能有一个未释放写租约；旧写入者状态未知时保持租约并阻断 Recovery/Automation。Git 任务仍有未提交文件改动时保留租约；用户确认提交后恢复任务开始前的源分支并释放租约，有排队任务时再切换到下一任务分支。
 - Recovery 仅从 `FAILED`/`CANCELLED` 派生，模式为 `FROM_FAILED_STAGE`、`ALL_STAGES` 或 `VERIFY_ONLY`。
 - `VERIFY_ONLY` 不创建可写 Session；Direct 模式不提供原地回滚。
 - fingerprint、baseline 或旧 writer 不匹配时必须 fail closed。
@@ -252,7 +252,8 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 - 自动发布只面向 `SUCCEEDED` 的 Git 任务分支；Direct 任务由用户在源仓库手工处理。
 - 用户必须提供四位数字工单号；提交格式为 `#dddd_subject`。AI 只能建议 subject，不能生成或替代工单号。
 - 推送必须是普通非 force push；PR/MR 只打开预填创建页，最终创建和合并仍由平台/用户确认。
-- 没有远端时直接在登记目录当前任务分支创建本地提交并记录同步证据；新任务不存在源目录与隐藏 worktree 的二次覆盖。
+- 新任务必须持久化任务开始前的源分支。提交任务分支后先恢复该源分支；有排队任务时再进入下一任务分支。推送、推送重试和 PR/MR 状态只使用明确的任务分支引用，不得为了发布旧任务而切换当前项目分支。
+- 没有远端时在登记目录任务分支创建本地提交并记录证据，恢复后的源分支不快进、不覆盖；新任务不存在源目录与隐藏 worktree 的二次同步。
 - 历史隐藏-worktree 任务仍保留旧版本地同步与冲突证据兼容能力，但不得用于新任务。
 - 删除历史任务是终止操作：只允许已归档且终止的任务，需要二次确认，父任务仍有子 Recovery 时拒绝。
 - 历史记录删除不得删除源文件、Git 分支或 worktree。
@@ -331,7 +332,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.1.15.jar
+JAR=target/opencode-loopper-0.1.16.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -427,3 +428,4 @@ curl --fail http://127.0.0.1:8080/actuator/health
 | 2026-08-11 | 修复 Windows OpenCode 启动成功误报与演示模式无法退出并发布 0.1.13 | BAT 以 `/global/health` 为启动权威结果；设置页支持退出演示数据并重新加载真实 API，启用提示不再写入 Runtime 错误 | 聚焦验证：Java 16/16、演示切换 Vitest 11/11；`./scripts/verify.sh`：Java 257/257、Vitest 121/121，BUILD SUCCESS；JAR 262595766 bytes，SHA-256 `cd686f1dec075f9034cb10ae20fa2bc302fe2586c54cfae0031b1681b38b0cfd`；发布目标：`v0.1.13` |
 | 2026-08-11 | 原项目目录任务分支与 AgentBridge 同目录执行并发布 0.1.14 | 新任务串行切换登记项目的 `loopper/*` 分支；IDE AgentBridge、OpenCode 和验证器统一根目录；脏目录拒绝切换，发布后释放租约；同步 README、架构、OpenCode 与七特性合同 | 聚焦验证：Java 80/80、Vitest 121/121；`./scripts/verify.sh`：Java 260/260、Vitest 121/121，BUILD SUCCESS；18080 有远程/无远程真实 Git E2E 均成功，PROCESS 证据目录等于登记根目录，发布分别为 `PUSHED`/`SYNCED_LOCAL`；JAR 262597940 bytes，SHA-256 `719ba8def087a0f83c9c4ec765b5526c91f5947f3955f36847af341940c3023d`；发布目标：`v0.1.14` |
 | 2026-08-12 | 等待输入任务直接取消并发布 0.1.15 | 任务详情为 `WAITING_INPUT` 保留带确认的取消入口；取消继续保留目录、分支与证据；同步 README 和设计契约 | 聚焦验证：TaskDetail Vitest 6/6、版本/MCP Java 16/16；`./scripts/verify.sh`：Java 260/260、Vitest 122/122，BUILD SUCCESS；JAR 262597915 bytes，SHA-256 `0ad3b1ba48e18de13170d18268845ad26cfd2848ae95bf7e46ad5b885612be42`；发布目标：`v0.1.15` |
+| 2026-08-12 | 提交后恢复源分支并发布 0.1.16 | 持久化任务开始前分支；提交后恢复源分支并转交队列；推送、重试和 MR 只按任务分支引用，不切换项目分支；同步 README 与架构契约 | 聚焦验证：Git/发布 Java 13/13、Vitest 122/122；`./scripts/verify.sh`：Java 260/260、Vitest 122/122，BUILD SUCCESS；JAR 262600078 bytes，SHA-256 `6d4bafc99adb42dc3e95af9af61d61244ef319bdcee056d98b5e05fbbe7604f6`；发布目标：`v0.1.16` |

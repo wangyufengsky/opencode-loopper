@@ -114,7 +114,7 @@ public class TaskService {
         String now = now();
         String taskId = UUID.randomUUID().toString();
         TaskRow task = new TaskRow(taskId, project.id(), draft.id(), normalizedTitle(title, draft.goal()),
-                TaskState.QUEUED.name(), null, null, isolatedBaseline, now, now, 0);
+                TaskState.QUEUED.name(), null, null, null, isolatedBaseline, now, now, 0);
         lifecycle.create(subject(LifecycleMachineType.TASK, task.id(), task.id()), task.state(),
                 Map.of("source", normalizedAdmissionSource(admissionSource)), () -> mapper.insertTask(task),
                 () -> new ConflictException("TASK_CREATE_CONFLICT", "Task could not be created"));
@@ -240,14 +240,18 @@ public class TaskService {
                 commitSha, Map.of("source", "task-publication", "mode", mode));
     }
 
-    /** Releases the registered-checkout writer lease only after publication is durable. */
-    public void releaseWorkspaceAfterPublication(String taskId) {
+    /** Restores the Task start branch and releases the registered checkout after the Task commit is durable. */
+    public void releaseWorkspaceAfterTaskCommit(String taskId) {
         TaskRow task = get(taskId);
         if (!TaskState.SUCCEEDED.name().equals(task.state())) {
             throw new ConflictException("TASK_PUBLICATION_LEASE_NOT_RELEASABLE",
                     "Only a succeeded Task can release its workspace after publication");
         }
-        settleTerminalInPlaceLease(task, !hasUnconfirmedWriter(task.id()), "TASK_PUBLISHED");
+        if (!isAdmittedInPlace(task)) return;
+        if (!GitWorktreeManager.DIRECT_BRANCH.equals(task.branchName())) {
+            worktrees.restoreSourceBranch(inPlaceRoot(task), task.branchName(), task.sourceBranch());
+        }
+        settleTerminalInPlaceLease(task, !hasUnconfirmedWriter(task.id()), "TASK_COMMITTED");
     }
 
     public FeatureContracts.QueueStatusDto queueStatus(String taskId) {
@@ -1616,7 +1620,8 @@ public class TaskService {
     private TaskRow persistPreparedTask(String taskId, GitWorktreeManager.Worktree worktree) {
         TaskRow task = get(taskId);
         TaskRow prepared = new TaskRow(task.id(), task.projectId(), task.loopDraftId(), task.title(), TaskState.READY.name(),
-                worktree.path().toString(), worktree.branch(), worktree.baselineCommit(), task.createdAt(), now(), task.version());
+                worktree.path().toString(), worktree.branch(), worktree.sourceBranch(), worktree.baselineCommit(),
+                task.createdAt(), now(), task.version());
         lifecycle.transition(subject(LifecycleMachineType.TASK, prepared.id(), prepared.id()), task.state(), prepared.state(),
                 null, Map.of("workspaceMode", worktree.branch()), () -> mapper.prepareTask(prepared),
                 () -> new ConflictException("TASK_VERSION_CONFLICT", "Task was updated concurrently"));
@@ -1636,13 +1641,17 @@ public class TaskService {
                                 inPlaceRoot(task), task.id(), session.id(), reason));
                 return;
             }
-            if (!GitWorktreeManager.DIRECT_BRANCH.equals(task.branchName())
-                    && worktrees.sourceCheckoutHasChanges(inPlaceRoot(task))) {
-                directLeases.retainAfterWriterStopped(inPlaceRoot(task), task.id(), reason);
-                events.emit(task.id(), "workspace.lease_retained",
-                        Map.of("state", WorkspaceLeaseState.HELD.name(), "reason", reason,
-                                "waitingFor", "TASK_BRANCH_PUBLICATION_OR_CLEANUP"));
-                return;
+            if (!GitWorktreeManager.DIRECT_BRANCH.equals(task.branchName())) {
+                if (worktrees.sourceCheckoutHasChanges(inPlaceRoot(task))) {
+                    directLeases.retainAfterWriterStopped(inPlaceRoot(task), task.id(), reason);
+                    events.emit(task.id(), "workspace.lease_retained",
+                            Map.of("state", WorkspaceLeaseState.HELD.name(), "reason", reason,
+                                    "waitingFor", "TASK_BRANCH_PUBLICATION_OR_CLEANUP"));
+                    return;
+                }
+                // Centralize the clean-checkout restoration so restart recovery and non-publication
+                // terminal paths cannot admit the next Task while the old Task branch is still checked out.
+                worktrees.restoreSourceBranch(inPlaceRoot(task), task.branchName(), task.sourceBranch());
             }
             release = directLeases.releaseAfterWriterStopped(inPlaceRoot(task), task.id(), reason);
         } catch (TaskFailure leaseFailure) {
@@ -1750,7 +1759,7 @@ public class TaskService {
                 attempt == null ? null : attempt.id(), session == null ? null : session.id(), layer.name(), code,
                 safeMessage(message), retryable, write(evidence), now()));
     }
-    private TaskRow state(TaskRow row, TaskState state) { return new TaskRow(row.id(), row.projectId(), row.loopDraftId(), row.title(), state.name(), row.worktreePath(), row.branchName(), row.baselineCommit(), row.createdAt(), now(), row.version()); }
+    private TaskRow state(TaskRow row, TaskState state) { return new TaskRow(row.id(), row.projectId(), row.loopDraftId(), row.title(), state.name(), row.worktreePath(), row.branchName(), row.sourceBranch(), row.baselineCommit(), row.createdAt(), now(), row.version()); }
     private StageRow stageState(StageRow row, StageState state) { return new StageRow(row.id(), row.taskId(), row.ordinal(), row.objective(), row.allowedPathsJson(), row.forbiddenPathsJson(), row.deliverablesJson(), row.verifiersJson(), state.name(), row.createdAt(), now(), row.version()); }
     private AttemptRow finish(AttemptRow row, AttemptState state, String failureKind, String summary) { return new AttemptRow(row.id(), row.taskId(), row.stageId(), row.ordinal(), state.name(), failureKind, safeMessage(summary), row.createdAt(), now(), row.version()); }
     private ExecutionSessionRow sessionState(ExecutionSessionRow row, SessionState state) { return new ExecutionSessionRow(row.id(), row.taskId(), row.stageId(), row.attemptId(), row.externalSessionId(), state.name(), row.createdAt(), now(), row.version()); }

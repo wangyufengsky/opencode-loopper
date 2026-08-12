@@ -243,7 +243,7 @@ public interface LoopperMapper {
             """)
     Optional<DesignerMessageRow> findLatestPersistedDesignerMessageByDraft(String draftId);
 
-    @Insert("INSERT INTO task(id,project_id,loop_draft_id,title,state,worktree_path,branch_name,baseline_commit,created_at,updated_at,version) VALUES(#{id},#{projectId},#{loopDraftId},#{title},#{state},#{worktreePath},#{branchName},#{baselineCommit},#{createdAt},#{updatedAt},#{version})")
+    @Insert("INSERT INTO task(id,project_id,loop_draft_id,title,state,worktree_path,branch_name,source_branch,baseline_commit,created_at,updated_at,version) VALUES(#{id},#{projectId},#{loopDraftId},#{title},#{state},#{worktreePath},#{branchName},#{sourceBranch},#{baselineCommit},#{createdAt},#{updatedAt},#{version})")
     int insertTask(TaskRow row);
     @Select("SELECT * FROM task WHERE id=#{id}") Optional<TaskRow> findTask(String id);
     @Select("SELECT * FROM task WHERE loop_draft_id=#{draftId} ORDER BY created_at DESC LIMIT 1") Optional<TaskRow> findTaskByDraft(String draftId);
@@ -258,7 +258,7 @@ public interface LoopperMapper {
     @Select("SELECT * FROM task WHERE state IN ('PREPARING','RUNNING','VERIFYING','RETRY_WAIT','JUDGING') ORDER BY created_at") List<TaskRow> listRecoverableTasks();
     @Update("UPDATE task SET state=#{state}, updated_at=#{updatedAt}, version=version+1 WHERE id=#{id} AND version=#{version}")
     int updateTaskState(TaskRow row);
-    @Update("UPDATE task SET worktree_path=#{worktreePath}, branch_name=#{branchName}, baseline_commit=#{baselineCommit}, state=#{state}, updated_at=#{updatedAt}, version=version+1 WHERE id=#{id} AND version=#{version}")
+    @Update("UPDATE task SET worktree_path=#{worktreePath}, branch_name=#{branchName}, source_branch=#{sourceBranch}, baseline_commit=#{baselineCommit}, state=#{state}, updated_at=#{updatedAt}, version=version+1 WHERE id=#{id} AND version=#{version}")
     int prepareTask(TaskRow row);
 
     @Insert("INSERT INTO stage(id,task_id,ordinal,objective,allowed_paths_json,forbidden_paths_json,deliverables_json,verifiers_json,state,created_at,updated_at,version) VALUES(#{id},#{taskId},#{ordinal},#{objective},#{allowedPathsJson},#{forbiddenPathsJson},#{deliverablesJson},#{verifiersJson},#{state},#{createdAt},#{updatedAt},#{version})")

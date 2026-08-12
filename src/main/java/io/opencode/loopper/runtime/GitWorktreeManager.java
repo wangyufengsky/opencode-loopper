@@ -68,6 +68,7 @@ public class GitWorktreeManager {
                 return direct(root, taskId);
             }
             String baseline = head.output().trim();
+            String sourceBranch = optionalOutput(root, List.of("git", "symbolic-ref", "--quiet", "--short", "HEAD"));
             if (requestedBaseline != null) {
                 ProcessResult verified = runner.run(root,
                         List.of("git", "rev-parse", "--verify", requestedBaseline + "^{commit}"), GIT_TIMEOUT);
@@ -113,7 +114,7 @@ public class GitWorktreeManager {
                 if (!resolved.startsWith(base.toRealPath())) {
                     throw new TaskFailure("WORKTREE_ESCAPE", "Created worktree did not remain inside the managed worktree directory");
                 }
-                return new Worktree(resolved, branch, baseline);
+                return new Worktree(resolved, branch, baseline, sourceBranch);
             }
             throw new TaskFailure("WORKTREE_BRANCH_EXHAUSTED", "Too many isolated branches already use this task name");
         } catch (TaskFailure e) {
@@ -152,6 +153,11 @@ public class GitWorktreeManager {
                 throw new TaskFailure("SOURCE_BRANCH_WORKSPACE_DIRTY",
                         "The registered source checkout has uncommitted or untracked files; commit, stash, or remove them before switching to a Task branch");
             }
+            String sourceBranch = optionalOutput(root, List.of("git", "symbolic-ref", "--quiet", "--short", "HEAD"));
+            if (sourceBranch == null || sourceBranch.startsWith(BRANCH_NAMESPACE)) {
+                throw new TaskFailure("SOURCE_BRANCH_UNAVAILABLE",
+                        "The registered checkout must start from a named non-Task branch");
+            }
             String baseline = head.output().trim();
             if (requestedBaseline != null) {
                 ProcessResult verified = runner.run(root,
@@ -180,7 +186,7 @@ public class GitWorktreeManager {
                     continue;
                 }
                 requireSourceBranch(root, branch, baseline);
-                return new Worktree(root, branch, baseline);
+                return new Worktree(root, branch, baseline, sourceBranch);
             }
             throw new TaskFailure("WORKTREE_BRANCH_EXHAUSTED", "Too many source branches already use this task name");
         } catch (TaskFailure failure) {
@@ -274,6 +280,59 @@ public class GitWorktreeManager {
         }
     }
 
+    /** Restores a clean registered checkout after its Task changes have been committed to the Task branch. */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public void restoreSourceBranch(Path projectRoot, String taskBranch, String recordedSourceBranch) {
+        try {
+            Path root = projectRoot.toRealPath();
+            String current = optionalOutput(root, List.of("git", "symbolic-ref", "--quiet", "--short", "HEAD"));
+            String sourceBranch = recordedSourceBranch == null || recordedSourceBranch.isBlank()
+                    ? inferHistoricalSourceBranch(root, taskBranch) : recordedSourceBranch;
+            if (sourceBranch == null || sourceBranch.equals(taskBranch) || sourceBranch.startsWith(BRANCH_NAMESPACE)) {
+                throw new TaskFailure("TASK_SOURCE_BRANCH_UNAVAILABLE",
+                        "Task start branch is unavailable; the registered checkout was not switched");
+            }
+            if (sourceBranch.equals(current)) return;
+            if (!taskBranch.equals(current)) {
+                throw new TaskFailure("TASK_SOURCE_BRANCH_RESTORE_MISMATCH",
+                        "Registered checkout is on " + (current == null ? "detached HEAD" : current)
+                                + " instead of Task branch " + taskBranch);
+            }
+            if (sourceCheckoutHasChanges(root)) {
+                throw new TaskFailure("TASK_SOURCE_BRANCH_RESTORE_DIRTY",
+                        "Task branch still has uncommitted files; the registered checkout was not switched");
+            }
+            ProcessResult switched = runner.run(root,
+                    List.of("git", "-c", "core.longpaths=true", "switch", sourceBranch), WORKTREE_CREATE_TIMEOUT);
+            if (switched.timedOut() || switched.outputTruncated() || switched.exitCode() != 0) {
+                throw new TaskFailure("TASK_SOURCE_BRANCH_RESTORE_FAILED",
+                        "Unable to restore source branch " + sourceBranch + ": " + trim(switched.output()));
+            }
+            String restored = optionalOutput(root, List.of("git", "symbolic-ref", "--quiet", "--short", "HEAD"));
+            if (!sourceBranch.equals(restored)) {
+                throw new TaskFailure("TASK_SOURCE_BRANCH_RESTORE_UNCONFIRMED",
+                        "Git switch completed without restoring the recorded source branch");
+            }
+        } catch (TaskFailure failure) {
+            throw failure;
+        } catch (Exception failure) {
+            throw new TaskFailure("TASK_SOURCE_BRANCH_RESTORE_FAILED",
+                    "Unable to restore the Task start branch: " + failure.getMessage());
+        }
+    }
+
+    private String inferHistoricalSourceBranch(Path root, String taskBranch) {
+        String reflog = optionalOutput(root, List.of("git", "reflog", "--format=%gs", "-n", "100", "HEAD"));
+        if (reflog == null) return null;
+        String suffix = " to " + taskBranch;
+        for (String line : reflog.lines().toList()) {
+            String value = line.strip();
+            if (!value.startsWith("checkout: moving from ") || !value.endsWith(suffix)) continue;
+            return value.substring("checkout: moving from ".length(), value.length() - suffix.length());
+        }
+        return null;
+    }
+
     private void requireSourceBranch(Path root, String expectedBranch, String baseline) {
         String branch = optionalOutput(root, List.of("git", "branch", "--show-current"));
         if (!expectedBranch.equals(branch)) {
@@ -292,7 +351,7 @@ public class GitWorktreeManager {
     }
 
     private Worktree direct(Path root, String taskId) {
-        return new Worktree(root, DIRECT_BRANCH, directBaselines.capture(root, taskId));
+        return new Worktree(root, DIRECT_BRANCH, directBaselines.capture(root, taskId), null);
     }
 
     /**
@@ -446,7 +505,7 @@ public class GitWorktreeManager {
         int start = Math.max(0, value.length() - 2000);
         return value.substring(start).strip();
     }
-    public record Worktree(Path path, String branch, String baselineCommit) { }
+    public record Worktree(Path path, String branch, String baselineCommit, String sourceBranch) { }
     public record RepositoryInspection(boolean pathAvailable, boolean isolatedWorktree, String branch) {
         private static RepositoryInspection direct() { return new RepositoryInspection(true, false, null); }
         private static RepositoryInspection unavailable() { return new RepositoryInspection(false, false, null); }

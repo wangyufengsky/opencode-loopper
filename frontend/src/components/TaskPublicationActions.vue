@@ -161,7 +161,7 @@ async function submitCommit() {
     if (publication.value.state === 'LOCAL_SYNC_CONFLICT') {
       await openConflictCenter()
     } else {
-      ElMessage.success(localPublication.value ? '任务变更已同步到源项目' : '任务变更已提交并推送')
+      ElMessage.success(localPublication.value ? '任务变更已提交到本地任务分支' : '任务变更已提交并推送')
     }
   } catch (cause) {
     commitError.value = cause instanceof Error ? cause.message : '提交或推送失败'
@@ -178,7 +178,7 @@ async function retryPublication() {
       local
         ? `提交 ${publication.value?.commitSha?.slice(0, 8) ?? ''} 已保留，将再次确认本地任务分支状态。`
         : `提交 ${publication.value?.commitSha?.slice(0, 8) ?? ''} 已保留，将重新推送到 ${publication.value?.remoteName ?? 'origin'}。`,
-      local ? '继续同步源代码？' : '继续推送任务分支？',
+      local ? '继续确认本地任务分支提交？' : '继续推送任务分支？',
       { confirmButtonText: local ? '继续同步' : '继续推送', cancelButtonText: '取消', type: 'warning' },
     )
   } catch { return }
@@ -402,12 +402,12 @@ async function createMergeRequest() {
 <template>
   <template v-if="task.status === 'SUCCEEDED'">
     <el-button v-if="loading || !publication" plain disabled :loading="loading">读取提交状态</el-button>
-    <el-button v-else-if="publication.state === 'READY'" type="success" :loading="operationLoading" @click="openCommitDialog"><Icon :icon="localPublication ? 'lucide:folder-sync' : 'lucide:git-commit-horizontal'" />{{ localPublication ? '同步源代码' : '提交' }}</el-button>
-    <el-button v-else-if="publication.state === 'COMMITTED'" type="warning" :loading="operationLoading" @click="retryPublication"><Icon :icon="localPublication ? 'lucide:folder-sync' : 'lucide:cloud-upload'" />{{ localPublication ? '继续同步源代码' : '继续推送' }}</el-button>
+    <el-button v-else-if="publication.state === 'READY'" type="success" :loading="operationLoading" @click="openCommitDialog"><Icon icon="lucide:git-commit-horizontal" />{{ localPublication ? '提交本地任务分支' : '提交' }}</el-button>
+    <el-button v-else-if="publication.state === 'COMMITTED'" type="warning" :loading="operationLoading" @click="retryPublication"><Icon :icon="localPublication ? 'lucide:git-commit-horizontal' : 'lucide:cloud-upload'" />{{ localPublication ? '确认本地提交' : '继续推送' }}</el-button>
     <el-button v-else-if="publication.state === 'LOCAL_SYNC_CONFLICT'" type="danger" plain @click="openConflictCenter"><Icon icon="lucide:git-merge" />解决同步冲突（{{ publication.conflictCount }}）</el-button>
-    <el-button v-else-if="publication.state === 'SYNCED_LOCAL'" type="success" plain disabled><Icon icon="lucide:circle-check" />已同步源代码</el-button>
+    <el-button v-else-if="publication.state === 'SYNCED_LOCAL'" type="success" plain disabled><Icon icon="lucide:circle-check" />已提交本地任务分支</el-button>
     <el-dropdown v-else-if="publication.state === 'PUSHED'" trigger="click" @command="openMergeDialog">
-      <el-button type="primary"><Icon icon="lucide:git-merge" />合并分支<Icon icon="lucide:chevron-down" /></el-button>
+      <el-button type="primary"><Icon icon="lucide:git-pull-request-create" />创建合并请求<Icon icon="lucide:chevron-down" /></el-button>
       <template #dropdown><el-dropdown-menu><el-dropdown-item command="merge-request"><Icon icon="lucide:git-pull-request-create" />创建合并请求</el-dropdown-item></el-dropdown-menu></template>
     </el-dropdown>
     <el-tooltip v-else :content="publication.reason ?? '当前任务不可提交'" placement="bottom">
@@ -415,7 +415,7 @@ async function createMergeRequest() {
     </el-tooltip>
   </template>
 
-  <el-dialog v-model="commitDialogOpen" class="publication-dialog" :title="localPublication ? '同步任务变更到源项目' : '提交任务变更'" width="min(660px, 92vw)" append-to-body :close-on-click-modal="false">
+  <el-dialog v-model="commitDialogOpen" class="publication-dialog" :title="localPublication ? '提交本地任务分支' : '提交任务变更'" width="min(660px, 92vw)" append-to-body :close-on-click-modal="false">
     <div class="publication-intro"><Icon icon="lucide:sparkles" /><div><strong>AI 已根据任务目标和实际差异生成默认说明</strong><p>你只需输入 4 位数字工单号；提交前仍可编辑说明。</p></div></div>
     <el-form label-position="top" style="margin-top: 18px" @submit.prevent="submitCommit">
       <el-form-item label="4 位数字工单号">

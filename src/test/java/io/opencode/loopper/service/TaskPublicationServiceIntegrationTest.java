@@ -44,6 +44,8 @@ class TaskPublicationServiceIntegrationTest {
         Repository fixture = repositoryWithRemote();
         ProjectRow project = projects.create("publish-fixture", fixture.project().toString());
         TaskRow task = succeededTask(project);
+        TaskRow waiting = readyTask(project);
+        assertThat(waiting.state()).isEqualTo("QUEUED");
         Files.writeString(Path.of(task.worktreePath()).resolve("feature.txt"), "verified change\n");
         ((FakeOpenCodeClient) openCode).setJudgeOutput("COMMIT", "完善任务提交与合并请求流程");
 
@@ -57,6 +59,11 @@ class TaskPublicationServiceIntegrationTest {
         assertThat(pushed.state()).isEqualTo("PUSHED");
         assertThat(pushed.commitMessage()).isEqualTo("#3032_完善任务提交与合并请求流程");
         assertThat(run(fixture.remote(), "git", "rev-parse", "refs/heads/" + task.branchName()).strip())
+                .isEqualTo(pushed.commitSha());
+        assertThat(tasks.get(waiting.id()).state()).isEqualTo("READY");
+        assertThat(run(fixture.project(), "git", "branch", "--show-current").strip())
+                .isEqualTo(tasks.get(waiting.id()).branchName());
+        assertThat(run(fixture.project(), "git", "rev-parse", "refs/heads/" + task.branchName()).strip())
                 .isEqualTo(pushed.commitSha());
 
         run(Path.of(task.worktreePath()), "git", "remote", "set-url", "origin", "git@gitlab.example:group/project.git");
@@ -103,7 +110,7 @@ class TaskPublicationServiceIntegrationTest {
     }
 
     @Test
-    void repositoryWithoutRemoteFastForwardsVerifiedCommitIntoCleanSourceProject() throws Exception {
+    void repositoryWithoutRemoteKeepsCommitOnTaskBranchAndAdmitsNextTaskFromSourceBranch() throws Exception {
         Path projectRoot = repositoryWithoutRemote();
         ProjectRow project = projects.create("local-sync-clean", projectRoot.toString());
         TaskRow task = succeededTask(project);
@@ -119,8 +126,11 @@ class TaskPublicationServiceIntegrationTest {
                 task.id(), "#3032_同步无远端任务变更");
 
         assertThat(synced.state()).isEqualTo("SYNCED_LOCAL");
-        assertThat(run(projectRoot, "git", "rev-parse", "HEAD").strip()).isEqualTo(synced.commitSha());
-        assertThat(Files.readString(projectRoot.resolve("feature.txt"))).isEqualTo("verified local change\n");
+        assertThat(run(projectRoot, "git", "rev-parse", "refs/heads/" + task.branchName()).strip())
+                .isEqualTo(synced.commitSha());
+        assertThat(run(projectRoot, "git", "show", task.branchName() + ":feature.txt").strip())
+                .isEqualTo("verified local change");
+        assertThat(Files.exists(projectRoot.resolve("feature.txt"))).isFalse();
         assertThat(run(projectRoot, "git", "status", "--porcelain")).isBlank();
         assertThat(tasks.artifacts(task.id())).anyMatch(artifact -> "LOCAL_SOURCE_SYNC".equals(artifact.kind())
                 && synced.commitSha().equals(artifact.content()));
@@ -132,7 +142,7 @@ class TaskPublicationServiceIntegrationTest {
     }
 
     @Test
-    void repositoryWithoutRemoteCommitsAllChangesInTheRegisteredCheckout() throws Exception {
+    void repositoryWithoutRemoteRestoresSourceBranchWhenNoTaskIsWaiting() throws Exception {
         Path projectRoot = repositoryWithoutRemote();
         ProjectRow project = projects.create("local-sync-dirty", projectRoot.toString());
         TaskRow task = succeededTask(project);
@@ -147,9 +157,16 @@ class TaskPublicationServiceIntegrationTest {
                 task.id(), "#3032_保留源目录已有改动");
 
         assertThat(synced.state()).isEqualTo("SYNCED_LOCAL");
-        assertThat(run(projectRoot, "git", "rev-parse", "HEAD").strip()).isEqualTo(synced.commitSha()).isNotEqualTo(baseline);
-        assertThat(Files.readString(projectRoot.resolve("README.md"))).isEqualTo("user local change\n");
-        assertThat(Files.readString(projectRoot.resolve("feature.txt"))).isEqualTo("verified task change\n");
+        assertThat(run(projectRoot, "git", "branch", "--show-current").strip()).isEqualTo("main");
+        assertThat(run(projectRoot, "git", "rev-parse", "HEAD").strip()).isEqualTo(baseline);
+        assertThat(run(projectRoot, "git", "rev-parse", "refs/heads/" + task.branchName()).strip())
+                .isEqualTo(synced.commitSha()).isNotEqualTo(baseline);
+        assertThat(Files.readString(projectRoot.resolve("README.md"))).isEqualTo("fixture\n");
+        assertThat(Files.exists(projectRoot.resolve("feature.txt"))).isFalse();
+        assertThat(run(projectRoot, "git", "show", task.branchName() + ":README.md").strip())
+                .isEqualTo("user local change");
+        assertThat(run(projectRoot, "git", "show", task.branchName() + ":feature.txt").strip())
+                .isEqualTo("verified task change");
         assertThat(run(projectRoot, "git", "status", "--short")).isBlank();
     }
 
@@ -162,13 +179,14 @@ class TaskPublicationServiceIntegrationTest {
 
         TaskPublicationService.PublicationStatus status = publication.status(task.id());
         assertThat(status.state()).isEqualTo("UNAVAILABLE");
-        assertThat(status.reason()).contains("instead of Task branch");
+        assertThat(status.reason()).contains("尚无可发布提交");
     }
 
     private TaskRow succeededTask(ProjectRow project) {
         TaskRow ready = readyTask(project);
         TaskRow succeeded = new TaskRow(ready.id(), ready.projectId(), ready.loopDraftId(), ready.title(), "SUCCEEDED",
-                ready.worktreePath(), ready.branchName(), ready.baselineCommit(), ready.createdAt(), Instant.now().toString(), ready.version());
+                ready.worktreePath(), ready.branchName(), ready.sourceBranch(), ready.baselineCommit(),
+                ready.createdAt(), Instant.now().toString(), ready.version());
         assertThat(mapper.updateTaskState(succeeded)).isEqualTo(1);
         return tasks.get(ready.id());
     }

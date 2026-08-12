@@ -146,7 +146,7 @@ class RecoveryServiceIntegrationTest {
 
         // A terminal task keeps the registered-checkout writer lease until its
         // clean branch has reached a durable publication/cleanup boundary.
-        tasks.releaseWorkspaceAfterPublication(ready.id());
+        tasks.releaseWorkspaceAfterTaskCommit(ready.id());
         TaskRow child = tasks.get(created.taskId());
 
         assertThat(child.branchName()).startsWith("loopper/").isNotEqualTo(ready.branchName());

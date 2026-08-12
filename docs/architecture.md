@@ -193,13 +193,19 @@ registered root directly and Loopper stores a private Git-compatible baseline
 under `$LOOPPER_DATA_DIR/direct-baselines/<taskId>` for deterministic path and
 deletion checks. The private baseline does not initialize or commit the target
 project. Canonical execution paths must equal the registered root for new Tasks.
-Loopper never discards changes, switches back, pushes, or merges automatically.
+Loopper never discards changes or merges automatically.
 If a terminal Git Task still has file changes, its writer lease remains held until
 the branch is published or manually cleaned; the next queued Task cannot switch
 the checkout underneath it. After a Task reaches `SUCCEEDED`, the local UI may
 explicitly publish its task branch: a human enters the four-digit work item,
-confirms the AI-suggested `#dddd_subject`, then Loopper commits and performs a
-normal (non-force) push. Direct-execution Tasks remain excluded. A subsequent
+confirms the AI-suggested `#dddd_subject`, then Loopper commits the Task branch.
+The Task's recorded start branch is restored before any remote push; if another
+Task is queued, lease transfer immediately switches the same registered checkout
+from that source branch to the next Task branch. Push status and retry use the
+explicit `refs/heads/<taskBranch>` ref, so neither push nor merge-request creation
+requires the old Task branch to be checked out. A remote publication is a normal
+non-force push. Without a remote, the commit remains only on the local Task branch;
+the restored source branch is not fast-forwarded or overlaid. Direct-execution Tasks remain excluded. A subsequent
 “创建合并请求” action opens a prefilled GitLab/GitHub creation page; the hosting
 service still owns the final merge-request confirmation and merge.
 

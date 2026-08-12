@@ -29,11 +29,21 @@ class GitWorktreeManagerIntegrationTest {
 
         assertThat(task.path()).isEqualTo(project.toRealPath());
         assertThat(task.baselineCommit()).isEqualTo(baseline);
+        assertThat(task.sourceBranch()).isEqualTo("main");
         assertThat(task.branch()).startsWith("loopper/");
         assertThat(run(project, "git", "branch", "--show-current").strip()).isEqualTo(task.branch());
         Files.writeString(project.resolve("task-only.txt"), "visible in IDEA checkout\n");
         assertThat(run(project, "git", "status", "--porcelain")).contains("?? task-only.txt");
         manager.requireExecutionWorkspace(project, project, task.branch(), baseline);
+
+        run(project, "git", "add", "task-only.txt");
+        run(project, "git", "commit", "-m", "task change");
+        manager.restoreSourceBranch(project, task.branch(), task.sourceBranch());
+
+        assertThat(run(project, "git", "branch", "--show-current").strip()).isEqualTo("main");
+        assertThat(Files.exists(project.resolve("task-only.txt"))).isFalse();
+        assertThat(run(project, "git", "show", task.branch() + ":task-only.txt").strip())
+                .isEqualTo("visible in IDEA checkout");
     }
 
     @Test
@@ -84,6 +94,7 @@ class GitWorktreeManagerIntegrationTest {
 
         assertThat(task.path()).isEqualTo(project.toRealPath());
         assertThat(task.baselineCommit()).isEqualTo(remoteHead);
+        assertThat(task.sourceBranch()).isEqualTo("main");
         assertThat(run(project, "git", "branch", "--show-current").strip()).isEqualTo(task.branch());
         assertThat(Files.readString(project.resolve("README.md"))).isEqualTo("remote advance\n");
         assertThat(run(remote, "git", "branch", "--list", task.branch())).isBlank();
