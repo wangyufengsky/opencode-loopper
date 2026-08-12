@@ -3,6 +3,11 @@ setlocal EnableExtensions DisableDelayedExpansion
 
 if /I "%~1"=="--wait-browser" goto wait_browser
 if /I "%~1"=="--validate" (
+  call :discover_opencode
+  if errorlevel 1 (
+    echo [Loopper] ERROR: Windows OpenCode discovery validation failed. 1>&2
+    exit /b 1
+  )
   cmd /d /c exit 7
   call :start_background "Loopper Start Validation" "%ComSpec%" /d /c exit 0
   if errorlevel 1 (
@@ -57,12 +62,12 @@ if errorlevel 1 goto java_version_unknown
 if %JAVA_MAJOR_NUMBER% LSS 21 goto java_too_old
 
 if defined LOOPPER_JAR_PATH goto jar_from_environment
-if exist "%APP_HOME%\target\opencode-loopper-0.1.16.jar" (
-  set "JAR_PATH=%APP_HOME%\target\opencode-loopper-0.1.16.jar"
+if exist "%APP_HOME%\target\opencode-loopper-0.1.17.jar" (
+  set "JAR_PATH=%APP_HOME%\target\opencode-loopper-0.1.17.jar"
   goto jar_ready
 )
-if exist "%APP_HOME%\opencode-loopper-0.1.16.jar" (
-  set "JAR_PATH=%APP_HOME%\opencode-loopper-0.1.16.jar"
+if exist "%APP_HOME%\opencode-loopper-0.1.17.jar" (
+  set "JAR_PATH=%APP_HOME%\opencode-loopper-0.1.17.jar"
   goto jar_ready
 )
 goto jar_missing
@@ -74,8 +79,9 @@ set "JAR_PATH=%LOOPPER_JAR_PATH%"
 if not exist "%JAR_PATH%" goto jar_missing
 
 if not defined LOOPPER_DATA_DIR set "LOOPPER_DATA_DIR=%APP_HOME%\data"
-if not defined LOOPPER_OPENCODE_MODE set "LOOPPER_OPENCODE_MODE=http"
-if not defined OPENCODE_BASE_URL set "OPENCODE_BASE_URL=http://127.0.0.1:4096"
+set "OPENCODE_BASE_URL_EXPLICIT=false"
+set "OPENCODE_BASE_URL_SOURCE=environment"
+if defined OPENCODE_BASE_URL set "OPENCODE_BASE_URL_EXPLICIT=true"
 if not defined LOOPPER_DESIGNER_TIMEOUT set "LOOPPER_DESIGNER_TIMEOUT=30m"
 if not defined SERVER_PORT set "SERVER_PORT=8080"
 if not exist "%LOOPPER_DATA_DIR%" mkdir "%LOOPPER_DATA_DIR%"
@@ -87,43 +93,39 @@ echo [Loopper] Java source: %JAVA_SOURCE%
 echo [Loopper] Java: %JAVA_VERSION_LINE%
 echo [Loopper] JAR: %JAR_PATH%
 echo [Loopper] Data directory: %LOOPPER_DATA_DIR%
-echo [Loopper] OpenCode: %OPENCODE_BASE_URL%
 echo [Loopper] Designer timeout: %LOOPPER_DESIGNER_TIMEOUT%
 echo [Loopper] Page: %APP_URL%
 
 where curl.exe >nul 2>&1
 if errorlevel 1 goto curl_missing
 
+if /I "%LOOPPER_OPENCODE_MODE%"=="fake" goto start_loopper
+if /I "%OPENCODE_BASE_URL_EXPLICIT%"=="true" goto check_explicit_opencode
+
+call :discover_opencode
+if errorlevel 1 goto opencode_discovery_failed
+if defined OPENCODE_BASE_URL (
+  set "OPENCODE_BASE_URL_SOURCE=running opencode process"
+  if not defined LOOPPER_OPENCODE_MODE set "LOOPPER_OPENCODE_MODE=http"
+  goto opencode_ready
+)
+
+if /I "%LOOPPER_OPENCODE_MODE%"=="http" goto opencode_not_found_http
+if not defined LOOPPER_OPENCODE_MODE set "LOOPPER_OPENCODE_MODE=auto"
+echo [Loopper] OpenCode: no reusable endpoint was found; auto mode will start it on a dynamic loopback port.
+goto start_loopper
+
+:check_explicit_opencode
+if not defined LOOPPER_OPENCODE_MODE set "LOOPPER_OPENCODE_MODE=http"
 call :opencode_health
 if not errorlevel 1 goto opencode_ready
-
-if /I not "%OPENCODE_BASE_URL%"=="http://127.0.0.1:4096" goto custom_opencode_offline
-
-set "OPENCODE_BIN="
-if defined OPENCODE_EXECUTABLE set "OPENCODE_BIN=%OPENCODE_EXECUTABLE%"
-if not defined OPENCODE_BIN for /f "delims=" %%I in ('where opencode.exe 2^>nul') do if not defined OPENCODE_BIN set "OPENCODE_BIN=%%I"
-if not defined OPENCODE_BIN for /f "delims=" %%I in ('where opencode.cmd 2^>nul') do if not defined OPENCODE_BIN set "OPENCODE_BIN=%%I"
-if not defined OPENCODE_BIN for /f "delims=" %%I in ('where opencode 2^>nul') do if not defined OPENCODE_BIN set "OPENCODE_BIN=%%I"
-if not defined OPENCODE_BIN goto opencode_missing
-if not exist "%OPENCODE_BIN%" goto opencode_missing
-
-if defined OPENCODE_USERNAME set "OPENCODE_SERVER_USERNAME=%OPENCODE_USERNAME%"
-if defined OPENCODE_PASSWORD set "OPENCODE_SERVER_PASSWORD=%OPENCODE_PASSWORD%"
-
-echo [Loopper] OpenCode is offline; starting a loopback server with: %OPENCODE_BIN%
-rem START is asynchronous and can preserve an earlier nonzero ERRORLEVEL on success.
-rem The health endpoint below is the authoritative startup result.
-call :start_background "Loopper OpenCode Server" "%OPENCODE_BIN%" serve --hostname 127.0.0.1 --port 4096
-
-for /L %%I in (1,1,30) do (
-  call :opencode_health
-  if not errorlevel 1 goto opencode_ready
-  >nul 2>&1 ping 127.0.0.1 -n 2
-)
-goto opencode_start_timeout
+goto custom_opencode_offline
 
 :opencode_ready
+if defined OPENCODE_BASE_URL echo [Loopper] OpenCode: %OPENCODE_BASE_URL% ^(source: %OPENCODE_BASE_URL_SOURCE%^)
 echo [Loopper] OpenCode health check passed.
+
+:start_loopper
 if /I not "%LOOPPER_OPEN_BROWSER%"=="false" start "Loopper Browser Waiter" /B "%ComSpec%" /d /s /c ""%~f0" --wait-browser "%APP_URL%""
 echo [Loopper] Starting Loopper. Press Ctrl+C to stop it.
 "%JAVA_BIN%" "-Djava.awt.headless=false" -jar "%JAR_PATH%" %*
@@ -139,6 +141,22 @@ if defined OPENCODE_USERNAME (
 )
 exit /b %ERRORLEVEL%
 
+:discover_opencode
+set "DISCOVERED_OPENCODE_BASE_URL="
+set "OPENCODE_DISCOVERY_VALID="
+for /f "usebackq delims=" %%U in (`powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$ErrorActionPreference='SilentlyContinue'; $headers=@{}; if($env:OPENCODE_USERNAME){ $pair=$env:OPENCODE_USERNAME + ':' + $env:OPENCODE_PASSWORD; $headers.Authorization='Basic ' + [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($pair)) }; $result=Get-CimInstance Win32_Process ^| Where-Object { $_.CommandLine -and $_.CommandLine -match '(?i)opencode(?:\.exe|\.cmd|\.bat)?[\"'']?\s+serve(?:\s|$)' } ^| Sort-Object CreationDate -Descending ^| ForEach-Object { if($_.CommandLine -match '(?i)--port(?:=|\s+)(\d{1,5})'){ $port=[int]$Matches[1]; if($port -ge 1 -and $port -le 65535){ $url='http://127.0.0.1:' + $port; try { $health=Invoke-RestMethod -TimeoutSec 3 -Headers $headers -Uri ($url + '/global/health'); if($health.healthy -eq $true){ $url } } catch {} } } } ^| Select-Object -First 1; if($result){ $result }; 'DISCOVERY_OK'" 2^>nul`) do call :capture_discovery_line "%%U"
+if not defined OPENCODE_DISCOVERY_VALID exit /b 1
+if defined DISCOVERED_OPENCODE_BASE_URL set "OPENCODE_BASE_URL=%DISCOVERED_OPENCODE_BASE_URL%"
+exit /b 0
+
+:capture_discovery_line
+if /I "%~1"=="DISCOVERY_OK" (
+  set "OPENCODE_DISCOVERY_VALID=true"
+  exit /b 0
+)
+if not defined DISCOVERED_OPENCODE_BASE_URL set "DISCOVERED_OPENCODE_BASE_URL=%~1"
+exit /b 0
+
 :java_missing
 echo [Loopper] ERROR: Java was not found. Set LOOPPER_JAVA_HOME to a JDK 21 directory, or configure JAVA_HOME/PATH. 1>&2
 exit /b 1
@@ -152,7 +170,7 @@ echo [Loopper] ERROR: JDK 21 or newer is required. Current version: %JAVA_VERSIO
 exit /b 1
 
 :jar_missing
-echo [Loopper] ERROR: opencode-loopper-0.1.16.jar was not found under "%APP_HOME%". Put the release JAR beside this script or set LOOPPER_JAR_PATH. 1>&2
+echo [Loopper] ERROR: opencode-loopper-0.1.17.jar was not found under "%APP_HOME%". Put the release JAR beside this script or set LOOPPER_JAR_PATH. 1>&2
 exit /b 1
 
 :data_dir_failed
@@ -165,16 +183,16 @@ exit /b 1
 
 :custom_opencode_offline
 echo [Loopper] ERROR: The configured OpenCode service is offline: %OPENCODE_BASE_URL% 1>&2
-echo [Loopper] Start that service first, or remove OPENCODE_BASE_URL to let this script start 127.0.0.1:4096. 1>&2
+echo [Loopper] Start that service first, or remove OPENCODE_BASE_URL to enable process discovery and dynamic auto startup. 1>&2
 exit /b 1
 
-:opencode_missing
-echo [Loopper] ERROR: OpenCode is offline and the opencode command was not found. 1>&2
-echo [Loopper] Install OpenCode or set OPENCODE_EXECUTABLE to opencode.exe/opencode.cmd. 1>&2
+:opencode_not_found_http
+echo [Loopper] ERROR: LOOPPER_OPENCODE_MODE=http was requested, but no healthy running OpenCode process was discovered. 1>&2
+echo [Loopper] Set OPENCODE_BASE_URL explicitly, or use auto mode for dynamic loopback startup. 1>&2
 exit /b 1
 
-:opencode_start_timeout
-echo [Loopper] ERROR: OpenCode did not become healthy within 30 seconds. Check whether port 4096 is occupied. 1>&2
+:opencode_discovery_failed
+echo [Loopper] ERROR: Failed to inspect current Windows processes for an OpenCode endpoint. 1>&2
 exit /b 1
 
 :wait_browser

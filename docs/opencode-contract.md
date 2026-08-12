@@ -114,6 +114,15 @@ permission policy. Restart and shutdown may terminate
 only that owned process; an operator-owned endpoint is never killed. `http`
 mode is connect-only and rejects non-loopback endpoints.
 
+Release startup scripts do not assume that OpenCode listens on port 4096.
+Unless `OPENCODE_BASE_URL` is explicitly supplied, they inspect current
+`opencode serve --port ...` process command lines, order candidates newest
+first, and accept only a loopback endpoint whose authenticated or anonymous
+`/global/health` response reports `healthy=true`. If no endpoint can be
+reused, the scripts select `auto` mode so Loopper starts an owned OpenCode
+process on a dynamically allocated loopback port. Discovery never treats an
+unverified listener as OpenCode and never stops an externally owned process.
+
 The OpenCode execution permission boundary continues to deny `git push`.
 Publication is a separate Spring service available only after persisted Task
 success and an explicit local-UI confirmation. It revalidates the exact registered

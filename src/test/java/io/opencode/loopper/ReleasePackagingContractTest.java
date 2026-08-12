@@ -26,19 +26,33 @@ class ReleasePackagingContractTest {
     }
 
     @Test
-    void windowsScriptPinsCurrentJarAndUsesHealthInsteadOfStaleStartErrorLevel() throws IOException {
-        String script = Files.readString(PROJECT_ROOT.resolve("scripts/start-windows.bat"));
+    void startupScriptsPinCurrentJarAndDiscoverOpenCodeWithoutFixedPort() throws IOException {
+        String windows = Files.readString(PROJECT_ROOT.resolve("scripts/start-windows.bat"));
+        String linux = Files.readString(PROJECT_ROOT.resolve("scripts/start-linux.sh"));
 
-        assertThat(script)
-                .contains("opencode-loopper-0.1.16.jar")
+        assertThat(windows)
+                .contains("opencode-loopper-0.1.17.jar")
                 .contains("if %JAVA_MAJOR_NUMBER% LSS 21 goto java_too_old")
                 .contains("%OPENCODE_BASE_URL%/global/health")
+                .contains("call :discover_opencode")
+                .contains("Get-CimInstance Win32_Process")
+                .contains("--port(?:=|\\s+)(\\d{1,5})")
+                .contains("$health.healthy -eq $true")
+                .contains("auto mode will start it on a dynamic loopback port")
                 .contains("cmd /d /c exit 7")
-                .contains("call :start_background \"Loopper OpenCode Server\"")
-                .contains("START is asynchronous and can preserve an earlier nonzero ERRORLEVEL on success")
-                .contains("goto opencode_start_timeout")
+                .contains("call :start_background \"Loopper Start Validation\"")
                 .contains("%WAIT_URL%/actuator/health")
                 .contains("-jar \"%JAR_PATH%\"")
-                .doesNotContain("if errorlevel 1 goto opencode_start_failed");
+                .doesNotContain("127.0.0.1:4096")
+                .doesNotContain("serve --hostname 127.0.0.1 --port 4096");
+
+        assertThat(linux)
+                .contains("opencode-loopper-0.1.17.jar")
+                .contains("discover_opencode_base_url()")
+                .contains("ps -eo pid=,args=")
+                .contains("running opencode process")
+                .contains("LOOPPER_OPENCODE_MODE=\"auto\"")
+                .contains("动态 loopback 端口")
+                .doesNotContain("127.0.0.1:4096");
     }
 }

@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.1.16`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.1.17`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -111,7 +111,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.1.16.jar
+java -jar target/opencode-loopper-0.1.17.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -299,7 +299,7 @@ Git 任务分支达到 `SUCCEEDED` 后：
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.1.16.jar`
+- `target/opencode-loopper-0.1.17.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -311,11 +311,11 @@ LOOPPER_JAVA_HOME=/opt/java/jdk-21 ./start-linux.sh
 
 脚本也允许误用 `sh start-linux.sh`，它会先切换到 Bash。JDK 选择顺序是 `LOOPPER_JAVA_HOME`，然后是脚本内的 `DEFAULT_JAVA_HOME=/opt/jdk-21`；脚本故意忽略继承的 `JAVA_HOME`，避免旧 JDK 8 覆盖指定版本。
 
-Linux 启动脚本默认使用连接已有服务的模式：
+Linux 启动脚本不再固定 OpenCode 端口。未设置 `OPENCODE_BASE_URL` 时，它会从当前主机正在运行的 `opencode serve --port ...` 进程中按新到旧提取候选端口，并以 `/global/health` 的 `healthy=true` 验真；发现后以 `http` 模式复用。若没有可复用实例，则使用 `auto` 模式，由 Loopper 在动态 loopback 端口启动并管理 OpenCode。显式地址仍可覆盖自动发现：
 
 ```bash
 export LOOPPER_OPENCODE_MODE=http
-export OPENCODE_BASE_URL=http://127.0.0.1:4096
+export OPENCODE_BASE_URL=http://127.0.0.1:51234
 ./start-linux.sh
 ```
 
@@ -325,7 +325,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:4096
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.1.16.jar`
+- `opencode-loopper-0.1.17.jar`
 - `start-windows.bat`
 
 确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
@@ -340,7 +340,7 @@ PowerShell 默认不会从当前目录搜索命令，必须带 `./` 或 `.\`：
 .\start-windows.bat
 ```
 
-脚本按 `LOOPPER_JAVA_HOME`、`JAVA_HOME`、`PATH` 的顺序查找 Java，并拒绝低于 21 的版本。它先检查 `http://127.0.0.1:4096/global/health`；若默认端点离线，则从 `OPENCODE_EXECUTABLE` 或 `PATH` 查找 `opencode.exe` / `opencode.cmd`，异步执行 `opencode serve --hostname 127.0.0.1 --port 4096` 并最多等待 30 秒。`start` 命令本身的遗留错误码不作为失败依据，只有健康检查超时才判定启动失败；健康通过后再启动 Loopper。
+脚本按 `LOOPPER_JAVA_HOME`、`JAVA_HOME`、`PATH` 的顺序查找 Java，并拒绝低于 21 的版本。未显式设置 `OPENCODE_BASE_URL` 时，它通过 Windows 进程信息读取正在运行的 `opencode serve --port ...` 候选端口，优先复用最新且 `/global/health` 返回 `healthy=true` 的 loopback 实例。若没有可复用实例，则使用 `auto` 模式，由 Loopper 在动态 loopback 端口启动并管理 OpenCode，不再把 4096 写死为启动端口。
 
 需要固定路径或端口时，可先设置环境变量：
 
@@ -351,7 +351,7 @@ set "SERVER_PORT=8080"
 start-windows.bat
 ```
 
-若显式设置了非默认 `OPENCODE_BASE_URL`，脚本只连接该地址，不会擅自启动另一个端点；该地址离线时会直接报错。设置 `LOOPPER_OPEN_BROWSER=false` 可禁止自动打开页面。脚本启动的 OpenCode 服务是独立本机进程，Loopper 退出后不会终止它；再次启动时会复用健康的现有服务。
+若显式设置了 `OPENCODE_BASE_URL`，脚本只连接该地址；该地址离线时会直接报错。发现需要认证的已有实例时，同时设置 `OPENCODE_USERNAME` 和 `OPENCODE_PASSWORD`，否则健康检查不会把它当成可复用端点。设置 `LOOPPER_OPEN_BROWSER=false` 可禁止自动打开页面。由 `auto` 模式启动的 OpenCode 归 Loopper 管理，Loopper 退出时会停止该进程；外部已运行实例不会被停止。
 
 其他注意事项：
 
@@ -363,7 +363,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.1.16.jar \
+jar tf target/opencode-loopper-0.1.17.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -442,7 +442,7 @@ Windows PowerShell：
 例如发布下一版本：
 
 ```bash
-VERSION=0.1.16
+VERSION=0.1.17
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -482,7 +482,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.1.16.jar
+java -jar target/opencode-loopper-0.1.17.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。
@@ -510,7 +510,7 @@ lsof -nP -iTCP:8080 -sTCP:LISTEN
 
 ### Windows 提交任务时停在 `Updating files` 后报 `WORKTREE_CREATE_FAILED`
 
-`0.1.11` 起，Loopper 不再用 30 秒短检查超时限制大仓库检出，并会隐藏 Git checkout 进度噪音、保留尾部真正的 `fatal` 诊断，同时命令局部启用 `core.longpaths=true`。旧版本失败可能留下 `$LOOPPER_DATA_DIR/worktrees/<taskId>` 和对应 `loopper/*` 分支；先用 `git worktree list` 精确确认残留，确认它确实属于失败任务后再手工清理。`0.1.12` 起可使用 Release 附带的 `start-windows.bat`；`0.1.13` 修复了 OpenCode 已成功监听但脚本因遗留 `%ERRORLEVEL%` 误报启动失败的问题；`0.1.14` 起新任务不再创建隐藏 worktree，而是把登记的原项目目录直接切到任务分支，使 IDEA AgentBridge、OpenCode 和验证器使用同一目录；`0.1.15` 起等待输入的任务可在详情页直接确认取消；`0.1.16` 起任务提交后恢复开始前的源分支，推送和合并请求仅按任务分支引用操作。PowerShell 中请使用 `.\start-windows.bat`。
+`0.1.11` 起，Loopper 不再用 30 秒短检查超时限制大仓库检出，并会隐藏 Git checkout 进度噪音、保留尾部真正的 `fatal` 诊断，同时命令局部启用 `core.longpaths=true`。旧版本失败可能留下 `$LOOPPER_DATA_DIR/worktrees/<taskId>` 和对应 `loopper/*` 分支；先用 `git worktree list` 精确确认残留，确认它确实属于失败任务后再手工清理。`0.1.12` 起可使用 Release 附带的 `start-windows.bat`；`0.1.13` 修复了 OpenCode 已成功监听但脚本因遗留 `%ERRORLEVEL%` 误报启动失败的问题；`0.1.14` 起新任务不再创建隐藏 worktree，而是把登记的原项目目录直接切到任务分支，使 IDEA AgentBridge、OpenCode 和验证器使用同一目录；`0.1.15` 起等待输入的任务可在详情页直接确认取消；`0.1.16` 起任务提交后恢复开始前的源分支，推送和合并请求仅按任务分支引用操作；`0.1.17` 起 Linux/Windows 启动器自动发现当前健康 OpenCode 的真实端口，找不到时使用动态端口自启。PowerShell 中请使用 `.\start-windows.bat`。
 
 ### 一直显示 remote busy / Agent 正在思考
 

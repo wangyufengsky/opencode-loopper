@@ -57,12 +57,12 @@ fi
 
 if [[ -n "${LOOPPER_JAR_PATH:-}" ]]; then
   JAR_PATH="${LOOPPER_JAR_PATH}"
-elif [[ -f "${APP_HOME}/target/opencode-loopper-0.1.16.jar" ]]; then
-  JAR_PATH="${APP_HOME}/target/opencode-loopper-0.1.16.jar"
-elif [[ -f "${APP_HOME}/opencode-loopper-0.1.16.jar" ]]; then
-  JAR_PATH="${APP_HOME}/opencode-loopper-0.1.16.jar"
+elif [[ -f "${APP_HOME}/target/opencode-loopper-0.1.17.jar" ]]; then
+  JAR_PATH="${APP_HOME}/target/opencode-loopper-0.1.17.jar"
+elif [[ -f "${APP_HOME}/opencode-loopper-0.1.17.jar" ]]; then
+  JAR_PATH="${APP_HOME}/opencode-loopper-0.1.17.jar"
 else
-  fail "找不到成品 JAR。请把 opencode-loopper-0.1.16.jar 放到 ${APP_HOME}，或设置 LOOPPER_JAR_PATH。"
+  fail "找不到成品 JAR。请把 opencode-loopper-0.1.17.jar 放到 ${APP_HOME}，或设置 LOOPPER_JAR_PATH。"
 fi
 
 [[ -f "${JAR_PATH}" ]] || fail "JAR 不存在：${JAR_PATH}"
@@ -70,14 +70,65 @@ fi
 export JAVA_HOME
 export PATH="${JAVA_HOME}/bin:${PATH}"
 export LOOPPER_DATA_DIR="${LOOPPER_DATA_DIR:-${APP_HOME}/data}"
-export LOOPPER_OPENCODE_MODE="${LOOPPER_OPENCODE_MODE:-http}"
-export OPENCODE_BASE_URL="${OPENCODE_BASE_URL:-http://127.0.0.1:4096}"
 export LOOPPER_DESIGNER_TIMEOUT="${LOOPPER_DESIGNER_TIMEOUT:-30m}"
 export SERVER_PORT="${SERVER_PORT:-8080}"
 
 mkdir -p "${LOOPPER_DATA_DIR}"
 
 APP_URL="http://127.0.0.1:${SERVER_PORT}"
+
+opencode_health() {
+  local base_url="$1"
+  local curl_args=(--fail --silent --show-error --max-time 3)
+  if [[ -n "${OPENCODE_USERNAME:-}" ]]; then
+    curl_args+=(--user "${OPENCODE_USERNAME}:${OPENCODE_PASSWORD:-}")
+  fi
+  curl "${curl_args[@]}" "${base_url%/}/global/health" 2>/dev/null \
+    | grep -Eq '"healthy"[[:space:]]*:[[:space:]]*true'
+}
+
+discover_opencode_base_url() {
+  command -v ps >/dev/null 2>&1 || return 1
+  command -v curl >/dev/null 2>&1 || return 1
+
+  local process_line command_line port candidate
+  while IFS= read -r process_line; do
+    command_line="${process_line#* }"
+    [[ "${command_line}" =~ (^|[[:space:]/])opencode([[:space:]]|$) ]] || continue
+    [[ "${command_line}" =~ [[:space:]]serve([[:space:]]|$) ]] || continue
+    if [[ "${command_line}" =~ --port=([0-9]{1,5})([[:space:]]|$) ]]; then
+      port="${BASH_REMATCH[1]}"
+    elif [[ "${command_line}" =~ --port[[:space:]]+([0-9]{1,5})([[:space:]]|$) ]]; then
+      port="${BASH_REMATCH[1]}"
+    else
+      continue
+    fi
+    (( port >= 1 && port <= 65535 )) || continue
+    candidate="http://127.0.0.1:${port}"
+    if opencode_health "${candidate}"; then
+      printf '%s\n' "${candidate}"
+      return 0
+    fi
+  done < <(ps -eo pid=,args= 2>/dev/null | sort -rn)
+  return 1
+}
+
+OPENCODE_BASE_URL_SOURCE="environment"
+if [[ -z "${OPENCODE_BASE_URL:-}" ]]; then
+  OPENCODE_BASE_URL_SOURCE="managed auto startup"
+  if DISCOVERED_OPENCODE_BASE_URL="$(discover_opencode_base_url)"; then
+    export OPENCODE_BASE_URL="${DISCOVERED_OPENCODE_BASE_URL}"
+    OPENCODE_BASE_URL_SOURCE="running opencode process"
+  fi
+fi
+
+if [[ -z "${LOOPPER_OPENCODE_MODE:-}" ]]; then
+  if [[ -n "${OPENCODE_BASE_URL:-}" ]]; then
+    export LOOPPER_OPENCODE_MODE="http"
+  else
+    export LOOPPER_OPENCODE_MODE="auto"
+  fi
+fi
 
 if [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
   JAVA_AWT_HEADLESS="false"
@@ -92,15 +143,17 @@ echo "[Loopper] JDK 来源：${JAVA_HOME_SOURCE}"
 echo "[Loopper] Java：${JAVA_VERSION_LINE}"
 echo "[Loopper] JAR：${JAR_PATH}"
 echo "[Loopper] 数据目录：${LOOPPER_DATA_DIR}"
-echo "[Loopper] OpenCode：${OPENCODE_BASE_URL}"
+if [[ -n "${OPENCODE_BASE_URL:-}" ]]; then
+  echo "[Loopper] OpenCode：${OPENCODE_BASE_URL}（来源：${OPENCODE_BASE_URL_SOURCE}）"
+else
+  echo "[Loopper] OpenCode：未发现可复用端点，将由 auto 模式在动态 loopback 端口启动"
+fi
 echo "[Loopper] 项目公约超时：${LOOPPER_DESIGNER_TIMEOUT}"
 echo "[Loopper] 页面：${APP_URL}"
 echo "[Loopper] Java AWT：${JAVA_AWT_MODE}"
 
-if [[ -n "${OPENCODE_USERNAME:-}" ]]; then
-  echo "[Loopper] OpenCode 已配置认证，跳过匿名健康探测，由应用使用认证信息连接。"
-elif command -v curl >/dev/null 2>&1; then
-  if ! curl --fail --silent --show-error --max-time 3 "${OPENCODE_BASE_URL%/}/global/health" >/dev/null; then
+if [[ -n "${OPENCODE_BASE_URL:-}" ]] && command -v curl >/dev/null 2>&1; then
+  if ! opencode_health "${OPENCODE_BASE_URL}"; then
     echo "[Loopper] 警告：当前无法访问 OpenCode 健康检查；Loopper 仍会启动，但 Runtime 会显示离线。" >&2
   fi
 fi
