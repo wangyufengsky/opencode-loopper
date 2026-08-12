@@ -37,9 +37,44 @@ describe('TaskDetailView judge action', () => {
     store.loadTask.mockClear()
     store.watchTask.mockClear()
     store.stopWatching.mockClear()
+    store.updateTask.mockClear()
     store.retryJudges.mockClear()
     store.retryWaitingLoop.mockClear()
     store.reworkTask.mockClear()
+  })
+
+  it('offers a confirmed cancel action while the task is waiting for input', async () => {
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/tasks/:id', component: { template: '<div />' } }] })
+    await router.push('/tasks/task-review')
+    await router.isReady()
+    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue(undefined as never)
+
+    const wrapper = mount(TaskDetailView, {
+      global: {
+        plugins: [router, ElementPlus],
+        stubs: {
+          Icon: true,
+          PageHeader: { template: '<header><slot name="actions" /></header><slot />' },
+          StatusBadge: true,
+          StageRail: true,
+          AttemptTimeline: true,
+          LayeredErrorPanel: true,
+          SessionMonitorPanel: true,
+          JudgeReviewCard: true,
+          TaskAuditEvidencePanel: true,
+          TaskPublicationActions: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    const action = wrapper.findAll('button').find((button) => button.text().includes('取消任务'))
+    expect(action).toBeDefined()
+    await action!.trigger('click')
+    await flushPromises()
+
+    expect(ElMessageBox.confirm).toHaveBeenCalledWith(expect.stringContaining('保留执行目录和证据'), '取消当前任务？', expect.any(Object))
+    expect(store.updateTask).toHaveBeenCalledWith('task-review', 'cancel')
   })
 
   it('offers an explicit fresh double review for a deterministically accepted waiting task', async () => {

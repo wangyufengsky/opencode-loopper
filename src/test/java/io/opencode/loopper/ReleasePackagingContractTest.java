@@ -30,7 +30,7 @@ class ReleasePackagingContractTest {
         String script = Files.readString(PROJECT_ROOT.resolve("scripts/start-windows.bat"));
 
         assertThat(script)
-                .contains("opencode-loopper-0.1.14.jar")
+                .contains("opencode-loopper-0.1.15.jar")
                 .contains("if %JAVA_MAJOR_NUMBER% LSS 21 goto java_too_old")
                 .contains("%OPENCODE_BASE_URL%/global/health")
                 .contains("cmd /d /c exit 7")

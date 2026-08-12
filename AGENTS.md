@@ -41,10 +41,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.1.14.jar
-   jar tf target/opencode-loopper-0.1.14.jar \
+   test -s target/opencode-loopper-0.1.15.jar
+   jar tf target/opencode-loopper-0.1.15.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.1.14.jar
+   shasum -a 256 target/opencode-loopper-0.1.15.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -93,8 +93,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.1.14`。
-- 正式产物：`target/opencode-loopper-0.1.14.jar`。
+- Maven 项目版本：`0.1.15`。
+- 正式产物：`target/opencode-loopper-0.1.15.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -201,6 +201,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 - `TASK`：无法安全继续或预算耗尽，关闭所有子运行并进入 `FAILED`。
 
 Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级由编排器负责。终止 Task 不能伪造远端 Session 已停止：无法确认的写入者保留为 `DISCONNECTED`，并阻止重叠写入。
+
+`WAITING_INPUT` 任务必须在本地任务详情中保留直接取消入口；取消需二次确认并保留执行目录、分支和证据，不得伪装成回滚。
 
 验证失败后的 Attempt 必须固化有界 `ATTEMPT_HANDOFF`，下一轮只能使用新 Attempt 和新可写 Session；不得复用旧实施对话。只有可靠且相同的失败签名与工作区内容指纹才累计停滞次数，达到 `stagnationLimit` 后必须进入 `WAITING_INPUT`，由本地 UI 明确确认继续。
 
@@ -329,7 +331,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.1.14.jar
+JAR=target/opencode-loopper-0.1.15.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -424,3 +426,4 @@ curl --fail http://127.0.0.1:8080/actuator/health
 | 2026-08-11 | 新增 Windows BAT 启动器并发布 0.1.12 | Windows 脚本校验 Java 21、确认或启动 OpenCode loopback 服务后启动 Loopper；Release 同步发布 BAT 并纳入 SHA256SUMS | 聚焦验证：Java 16/16；`./scripts/verify.sh`：Java 257/257、Vitest 119/119，BUILD SUCCESS；JAR 262595537 bytes，SHA-256 `772b65fe4159f91ffc3e687e25f837485214b25b664aac54f9c8e53bfcef0e86`；发布目标：`v0.1.12` |
 | 2026-08-11 | 修复 Windows OpenCode 启动成功误报与演示模式无法退出并发布 0.1.13 | BAT 以 `/global/health` 为启动权威结果；设置页支持退出演示数据并重新加载真实 API，启用提示不再写入 Runtime 错误 | 聚焦验证：Java 16/16、演示切换 Vitest 11/11；`./scripts/verify.sh`：Java 257/257、Vitest 121/121，BUILD SUCCESS；JAR 262595766 bytes，SHA-256 `cd686f1dec075f9034cb10ae20fa2bc302fe2586c54cfae0031b1681b38b0cfd`；发布目标：`v0.1.13` |
 | 2026-08-11 | 原项目目录任务分支与 AgentBridge 同目录执行并发布 0.1.14 | 新任务串行切换登记项目的 `loopper/*` 分支；IDE AgentBridge、OpenCode 和验证器统一根目录；脏目录拒绝切换，发布后释放租约；同步 README、架构、OpenCode 与七特性合同 | 聚焦验证：Java 80/80、Vitest 121/121；`./scripts/verify.sh`：Java 260/260、Vitest 121/121，BUILD SUCCESS；18080 有远程/无远程真实 Git E2E 均成功，PROCESS 证据目录等于登记根目录，发布分别为 `PUSHED`/`SYNCED_LOCAL`；JAR 262597940 bytes，SHA-256 `719ba8def087a0f83c9c4ec765b5526c91f5947f3955f36847af341940c3023d`；发布目标：`v0.1.14` |
+| 2026-08-12 | 等待输入任务直接取消并发布 0.1.15 | 任务详情为 `WAITING_INPUT` 保留带确认的取消入口；取消继续保留目录、分支与证据；同步 README 和设计契约 | 聚焦验证：TaskDetail Vitest 6/6、版本/MCP Java 16/16；`./scripts/verify.sh`：Java 260/260、Vitest 122/122，BUILD SUCCESS；JAR 262597915 bytes，SHA-256 `0ad3b1ba48e18de13170d18268845ad26cfd2848ae95bf7e46ad5b885612be42`；发布目标：`v0.1.15` |

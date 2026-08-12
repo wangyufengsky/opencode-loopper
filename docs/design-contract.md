@@ -58,6 +58,10 @@ contrast.
    fresh Session will continue the Loop.
 4. Task failures stop scheduling and use the red terminal treatment.
 
+A Task in `WAITING_INPUT` must keep its context-specific recovery action when one
+is available and also expose a destructive, confirmed cancel action. Cancellation
+retains the execution directory, branch, and evidence instead of implying rollback.
+
 Task responses expose the current `waitingReasonCode` and authoritative
 `loopRetryAvailable` projection. When the current wait reason is
 `LOOP_STAGNATION_DETECTED` or `LOOP_FRESH_SESSION_REQUIRED`, Task detail explains

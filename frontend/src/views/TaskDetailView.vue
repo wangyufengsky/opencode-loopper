@@ -146,6 +146,7 @@ async function confirmRework() {
       <el-button v-if="task?.status === 'READY'" type="primary" @click="store.updateTask(id, 'start')"><Icon icon="lucide:play" />开始执行</el-button>
       <template v-else-if="task?.status === 'RUNNING' || task?.status === 'VERIFYING'"><el-button plain @click="store.updateTask(id, 'pause')"><Icon icon="lucide:pause" />暂停</el-button><el-button plain type="danger" @click="confirmCancel"><Icon icon="lucide:square" />取消</el-button></template>
       <el-button v-else-if="task?.status === 'PAUSED'" type="primary" @click="store.updateTask(id, 'resume')"><Icon icon="lucide:play" />继续</el-button>
+      <el-button v-if="task?.status === 'WAITING_INPUT'" plain type="danger" @click="confirmCancel"><Icon icon="lucide:square" />取消任务</el-button>
       <el-button v-if="canRetryLoop" type="warning" :loading="loopRetrying" @click="confirmRetryLoop"><Icon icon="lucide:rotate-ccw" />继续一轮</el-button>
       <el-button v-if="canRetryJudges" type="warning" :loading="judgeRetrying" @click="confirmRetryJudges"><Icon icon="lucide:scan-eye" />{{ judgeActionLabel }}</el-button>
       <TaskPublicationActions v-if="task?.status === 'SUCCEEDED'" :task="task" :demo="store.usingDemo" />
