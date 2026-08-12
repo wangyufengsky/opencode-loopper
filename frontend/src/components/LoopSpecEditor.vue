@@ -43,7 +43,10 @@ function normalizeSpec(value: LoopSpec): LoopSpec {
       allowedPaths: [...(stage.allowedPaths ?? [])],
       forbiddenPaths: [...(stage.forbiddenPaths ?? [])],
       deliverables: [...(stage.deliverables ?? [])],
-      acceptanceCriteria: [...(stage.acceptanceCriteria ?? [])],
+      acceptanceCriteria: (stage.acceptanceCriteria ?? []).map((criterion) => ({
+        ...criterion,
+        verificationMode: criterion.verificationMode ?? 'MACHINE',
+      })),
       verifiers: (stage.verifiers ?? []).map(normalizeVerifier),
     })),
     limits: {
@@ -113,7 +116,7 @@ function addCriterion(stageIndex: number) {
   const used = new Set(criteria.map((criterion) => criterion.id))
   let ordinal = criteria.length + 1
   while (used.has(`AC-${ordinal}`)) ordinal++
-  criteria.push({ id: `AC-${ordinal}`, description: '' })
+  criteria.push({ id: `AC-${ordinal}`, description: '', verificationMode: 'MACHINE' })
 }
 
 function removeCriterion(stageIndex: number, criterionIndex: number) {
@@ -236,11 +239,24 @@ function configureVerifier(verifier: LoopVerifierSpec) {
             </section>
 
             <section v-if="spec.schemaVersion === 'v2'" class="list-field criteria-list">
-              <header><div><span>行为验收条件</span><small>每项都必须由至少一个行为验收器覆盖</small></div><button type="button" aria-label="添加验收条件" @click="addCriterion(stageIndex)"><Icon icon="lucide:plus" /></button></header>
+              <header><div><span>行为验收条件</span><small>分别规划机器验证、AI Judge 评审，或两者共同验收</small></div><button type="button" aria-label="添加验收条件" @click="addCriterion(stageIndex)"><Icon icon="lucide:plus" /></button></header>
               <div v-for="(criterion, criterionIndex) in stage.acceptanceCriteria" :key="criterionIndex" class="criterion-row">
                 <el-input v-model="criterion.id" class="mono" placeholder="AC-1" :aria-label="`阶段 ${stageIndex + 1} 验收条件 ID ${criterionIndex + 1}`" />
                 <el-input v-model="criterion.description" type="textarea" :autosize="compactAutosize" resize="none" placeholder="描述用户可观察、可判定的行为结果" :aria-label="`阶段 ${stageIndex + 1} 验收条件 ${criterionIndex + 1}`" />
+                <el-select v-model="criterion.verificationMode" :aria-label="`阶段 ${stageIndex + 1} 验收方式 ${criterionIndex + 1}`">
+                  <el-option label="机器验证" value="MACHINE" />
+                  <el-option label="AI 评审" value="JUDGE" />
+                  <el-option label="机器 + AI" value="BOTH" />
+                </el-select>
                 <button type="button" aria-label="删除验收条件" @click="removeCriterion(stageIndex, criterionIndex)"><Icon icon="lucide:x" /></button>
+                <label v-if="criterion.verificationMode === 'JUDGE' || criterion.verificationMode === 'BOTH'" class="field-block criterion-detail">
+                  <span class="field-title">AI 评审准则</span>
+                  <el-input v-model="criterion.judgeRubric" type="textarea" :autosize="compactAutosize" resize="none" placeholder="Judge 应依据哪些差异、证据和边界作出判断" />
+                </label>
+                <label v-if="criterion.verificationMode === 'JUDGE'" class="field-block criterion-detail">
+                  <span class="field-title">仅使用 AI 评审的原因</span>
+                  <el-input v-model="criterion.judgeOnlyReason" type="textarea" :autosize="compactAutosize" resize="none" placeholder="说明为什么无法用可靠的确定性验证器证明" />
+                </label>
               </div>
               <button v-if="!stage.acceptanceCriteria?.length" type="button" class="empty-add" @click="addCriterion(stageIndex)">+ 添加行为验收条件</button>
             </section>
@@ -369,7 +385,8 @@ function configureVerifier(verifier: LoopVerifierSpec) {
 .list-row :deep(.el-textarea__inner) { min-height: 32px !important; padding: 7px 8px; font-size: 10px; line-height: 1.45; }
 .deliverables-list { margin-top: 10px; }
 .criteria-list, .runtime-block { margin-top: 10px; }
-.criterion-row { display: grid; grid-template-columns: 100px minmax(0, 1fr) 25px; align-items: start; gap: 6px; margin-top: 6px; }
+.criterion-row { display: grid; grid-template-columns: 100px minmax(0, 1fr) 145px 25px; align-items: start; gap: 6px; margin-top: 8px; padding: 8px; border: 1px solid rgb(71 85 105 / 34%); border-radius: 8px; }
+.criterion-detail { grid-column: 1 / 4; margin-top: 2px; }
 .runtime-block { padding: 11px; border: 1px solid rgb(34 211 238 / 22%); border-radius: 10px; background: rgb(8 47 73 / 14%); }
 .runtime-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .runtime-heading span { display: block; font-size: 10px; font-weight: 700; }
@@ -404,6 +421,7 @@ function configureVerifier(verifier: LoopVerifierSpec) {
 .loop-spec-form .mono :deep(.el-textarea__inner), .loop-spec-form .mono :deep(.el-input__inner) { font-family: var(--font-code); font-size: 10px; font-weight: 450; }
 @media (max-width: 720px) {
   .readonly-grid, .boundary-grid, .verifier-grid, .limits-grid, .runtime-grid, .criterion-row, .browser-assertion { grid-template-columns: 1fr; }
+  .criterion-detail { grid-column: 1; }
   .collection-heading, .verifiers-heading { align-items: stretch; flex-direction: column; }
 }
 </style>

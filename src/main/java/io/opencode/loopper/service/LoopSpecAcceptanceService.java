@@ -1,6 +1,7 @@
 package io.opencode.loopper.service;
 
 import io.opencode.loopper.domain.LoopSpec;
+import io.opencode.loopper.verification.ProcessCommandPolicy;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -18,8 +19,6 @@ public class LoopSpecAcceptanceService {
     private static final String RUNTIME_URL_PREFIX = "http://127.0.0.1:{{LOOPPER_PORT}}";
     private static final Pattern PLACEHOLDER = Pattern.compile("\\{\\{([A-Z0-9_]+)}}");
     private static final Set<String> ALLOWED_RUNTIME_PLACEHOLDERS = Set.of("LOOPPER_PORT", "LOOPPER_TEMP");
-    private static final Set<String> SHELLS = Set.of("sh", "bash", "zsh", "fish", "cmd", "cmd.exe",
-            "powershell", "powershell.exe", "pwsh", "pwsh.exe");
 
     public Assessment assess(LoopSpec spec, List<String> baseErrors, boolean allowPersistedLegacy) {
         List<String> errors = new ArrayList<>(baseErrors == null ? List.of() : baseErrors);
@@ -51,19 +50,28 @@ public class LoopSpecAcceptanceService {
                 errors.add(stagePath + ".acceptanceCriteria: v2 requires at least one observable acceptance criterion");
             }
 
-            validateRuntime(stage, stagePath, errors);
-            Map<String, List<Integer>> coverage = new LinkedHashMap<>();
-            criteria.keySet().forEach(id -> coverage.put(id, new ArrayList<>()));
+            boolean runtimeValid = validateRuntime(stage, stagePath, errors);
+            Map<String, List<Integer>> machineCoverage = new LinkedHashMap<>();
+            criteria.keySet().forEach(id -> machineCoverage.put(id, new ArrayList<>()));
             List<VerifierAssessment> verifierAssessments = new ArrayList<>();
+            boolean hasBlockingDeterministicVerifier = false;
             for (int verifierIndex = 0; verifierIndex < stage.verifiers().size(); verifierIndex++) {
                 LoopSpec.VerifierSpec verifier = stage.verifiers().get(verifierIndex);
                 String path = stagePath + ".verifiers[" + verifierIndex + "]";
                 Classification classification = classify(verifier);
                 List<String> reasons = new ArrayList<>(classification.reasons());
-                validateProcess(verifier, classification, path, errors, reasons);
+                boolean processValid = validateProcess(verifier, classification, path, errors, reasons);
                 boolean runtimeBound = validateRuntimeBinding(stage, verifier, path, errors, reasons);
+                boolean runtimeDependent = Set.of("HTTP_STATUS", "JSON_PATH", "BROWSER").contains(verifier.type());
+                boolean runtimeReady = !runtimeDependent || (runtimeValid && runtimeBound);
                 boolean behavior = classification.category() == Category.BEHAVIOR
-                        && classification.valid() && runtimeBound;
+                        && classification.valid() && processValid && runtimeReady;
+                boolean blocking = classification.valid() && processValid
+                        && classification.category() != Category.ADVISORY
+                        && runtimeReady;
+                if (blocking) {
+                    hasBlockingDeterministicVerifier = true;
+                }
                 if (behavior && verifier.criterionIds().isEmpty()) {
                     errors.add(path + ".criterionIds: behavior verifier must cover at least one acceptance criterion");
                 }
@@ -75,24 +83,46 @@ public class LoopSpecAcceptanceService {
                     } else if (!criteria.containsKey(criterionId)) {
                         errors.add(path + ".criterionIds[" + idIndex + "]: unknown acceptance criterion " + criterionId);
                     } else if (behavior) {
-                        coverage.get(criterionId).add(verifierIndex);
+                        machineCoverage.get(criterionId).add(verifierIndex);
                     }
                 }
                 verifierAssessments.add(new VerifierAssessment(verifierIndex, verifier.type(),
-                        classification.category(), classification.category() != Category.ADVISORY,
+                        classification.category(), blocking,
                         verifier.criterionIds(), String.join("; ", reasons)));
+            }
+            if (!hasBlockingDeterministicVerifier) {
+                errors.add(stagePath + ".verifiers: v2 requires at least one blocking deterministic verifier even when criteria use JUDGE review");
             }
 
             List<CriterionAssessment> criterionAssessments = new ArrayList<>();
             for (LoopSpec.AcceptanceCriterion criterion : stage.acceptanceCriteria()) {
-                List<Integer> verifierIndexes = coverage.getOrDefault(criterion.id(), List.of());
-                boolean covered = !verifierIndexes.isEmpty();
-                if (!covered && !blank(criterion.id())) {
-                    errors.add(stagePath + ".acceptanceCriteria[" + criterion.id()
-                            + "]: no valid BEHAVIOR verifier covers this criterion");
+                List<Integer> verifierIndexes = machineCoverage.getOrDefault(criterion.id(), List.of());
+                boolean machineCovered = !verifierIndexes.isEmpty();
+                String mode = criterion.verificationMode();
+                boolean modeValid = Set.of("MACHINE", "JUDGE", "BOTH").contains(mode);
+                if (!modeValid) errors.add(stagePath + ".acceptanceCriteria[" + criterion.id() + "].verificationMode: must be MACHINE, JUDGE, or BOTH");
+                boolean judgePlanned = Set.of("JUDGE", "BOTH").contains(mode) && !blank(criterion.judgeRubric());
+                if (Set.of("JUDGE", "BOTH").contains(mode) && blank(criterion.judgeRubric())) {
+                    errors.add(stagePath + ".acceptanceCriteria[" + criterion.id() + "].judgeRubric: " + mode + " requires an explicit AI review rubric");
                 }
-                criterionAssessments.add(new CriterionAssessment(criterion.id(), criterion.description(),
-                        covered, List.copyOf(verifierIndexes)));
+                if ("JUDGE".equals(mode) && blank(criterion.judgeOnlyReason())) {
+                    errors.add(stagePath + ".acceptanceCriteria[" + criterion.id() + "].judgeOnlyReason: JUDGE requires a reason why deterministic behavior evidence is not reliable");
+                }
+                if ("JUDGE".equals(mode) && machineCovered) {
+                    errors.add(stagePath + ".acceptanceCriteria[" + criterion.id() + "].verificationMode: machine evidence is already mapped; use BOTH instead of JUDGE");
+                }
+                if (Set.of("MACHINE", "BOTH").contains(mode) && !machineCovered && !blank(criterion.id())) {
+                    errors.add(stagePath + ".acceptanceCriteria[" + criterion.id() + "]: no valid BEHAVIOR verifier provides required machine coverage");
+                }
+                boolean overallPlanned = modeValid && switch (mode) {
+                    case "MACHINE" -> machineCovered;
+                    case "JUDGE" -> judgePlanned && !blank(criterion.judgeOnlyReason());
+                    case "BOTH" -> machineCovered && judgePlanned;
+                    default -> false;
+                };
+                criterionAssessments.add(new CriterionAssessment(criterion.id(), criterion.description(), mode,
+                        machineCovered, machineCovered, judgePlanned, overallPlanned, criterion.judgeRubric(),
+                        criterion.judgeOnlyReason(), List.copyOf(verifierIndexes)));
             }
             stages.add(new StageAssessment(stageIndex, List.copyOf(criterionAssessments),
                     List.copyOf(verifierAssessments)));
@@ -133,33 +163,57 @@ public class LoopSpecAcceptanceService {
                 List.of("compile/build/static-quality command"));
     }
 
-    private void validateProcess(LoopSpec.VerifierSpec verifier, Classification classification,
-                                 String path, List<String> errors, List<String> reasons) {
-        if (!"PROCESS".equals(verifier.type())) return;
+    private boolean validateProcess(LoopSpec.VerifierSpec verifier, Classification classification,
+                                    String path, List<String> errors, List<String> reasons) {
+        if (!"PROCESS".equals(verifier.type())) return true;
+        boolean valid = true;
+        String commandError = ProcessCommandPolicy.directCommandError(verifier.command());
+        if (commandError != null) {
+            errors.add(path + ".command: " + commandError);
+            valid = false;
+        }
         if (!Set.of("BUILD", "TEST", "SELF_CHECK").contains(verifier.processPurpose())) {
             errors.add(path + ".processPurpose: v2 PROCESS requires BUILD, TEST, or SELF_CHECK");
+            valid = false;
         }
         if ("TEST".equals(verifier.processPurpose())) {
-            if (verifier.testTargets().isEmpty()) errors.add(path + ".testTargets: TEST requires explicit test targets");
-            if (!recognizedTestCommand(verifier.command())) errors.add(path + ".command: TEST requires a recognized Maven, Gradle, or npm test invocation");
-            if (skipsTests(verifier.command())) errors.add(path + ".command: TEST must not disable or skip tests");
+            if (verifier.testTargets().isEmpty()) {
+                errors.add(path + ".testTargets: TEST requires explicit test targets; planned tests may be new deliverables in this stage");
+                valid = false;
+            }
+            if (!recognizedTestCommand(verifier.command())) {
+                errors.add(path + ".command: TEST requires a recognized Maven, Gradle, or npm test invocation");
+                valid = false;
+            }
+            if (skipsTests(verifier.command())) {
+                errors.add(path + ".command: TEST must not disable or skip tests, or ignore missing target tests");
+                valid = false;
+            }
         }
         if ("SELF_CHECK".equals(verifier.processPurpose()) && blank(verifier.outputContains())) {
             errors.add(path + ".outputContains: SELF_CHECK requires an explicit success marker");
+            valid = false;
+        }
+        if ("SELF_CHECK".equals(verifier.processPurpose()) && sourceTextSearch(verifier.command())) {
+            errors.add(path + ".command: source-text search cannot prove runtime behavior; use a focused test or native behavior verifier");
+            valid = false;
         }
         if (!classification.valid() && reasons.isEmpty()) reasons.add("invalid PROCESS acceptance contract");
+        return valid;
     }
 
-    private void validateRuntime(LoopSpec.StageSpec stage, String path, List<String> errors) {
+    private boolean validateRuntime(LoopSpec.StageSpec stage, String path, List<String> errors) {
         LoopSpec.VerificationRuntime runtime = stage.verificationRuntime();
-        if (runtime == null) return;
+        if (runtime == null) return true;
+        boolean valid = true;
         if (runtime.startCommand().isEmpty()) {
             errors.add(path + ".verificationRuntime.startCommand: managed runtime requires a direct argv command");
-            return;
+            return false;
         }
-        String executable = baseName(runtime.startCommand().getFirst());
-        if (SHELLS.contains(executable)) {
-            errors.add(path + ".verificationRuntime.startCommand[0]: shell launchers are forbidden");
+        String commandError = ProcessCommandPolicy.directCommandError(runtime.startCommand());
+        if (commandError != null) {
+            errors.add(path + ".verificationRuntime.startCommand: " + commandError);
+            valid = false;
         }
         boolean hasPort = false;
         for (int index = 0; index < runtime.startCommand().size(); index++) {
@@ -170,16 +224,23 @@ public class LoopSpecAcceptanceService {
                 if (!ALLOWED_RUNTIME_PLACEHOLDERS.contains(matcher.group(1))) {
                     errors.add(path + ".verificationRuntime.startCommand[" + index
                             + "]: unsupported placeholder {{" + matcher.group(1) + "}}");
+                    valid = false;
                 }
             }
         }
-        if (!hasPort) errors.add(path + ".verificationRuntime.startCommand: command must consume {{LOOPPER_PORT}}");
+        if (!hasPort) {
+            errors.add(path + ".verificationRuntime.startCommand: command must consume {{LOOPPER_PORT}}");
+            valid = false;
+        }
         if (runtime.readiness() == null) {
             errors.add(path + ".verificationRuntime.readiness: managed runtime requires readiness probing");
+            valid = false;
         } else if (blank(runtime.readiness().path()) || !runtime.readiness().path().startsWith("/")
                 || runtime.readiness().path().contains("://") || runtime.readiness().path().contains("..")) {
             errors.add(path + ".verificationRuntime.readiness.path: readiness must be a safe relative HTTP path beginning with /");
+            valid = false;
         }
+        return valid;
     }
 
     private boolean validateRuntimeBinding(LoopSpec.StageSpec stage, LoopSpec.VerifierSpec verifier,
@@ -217,7 +278,15 @@ public class LoopSpecAcceptanceService {
         return command.stream().map(value -> value.toLowerCase(Locale.ROOT).replace(" ", ""))
                 .anyMatch(value -> value.equals("-dskiptests") || value.equals("-dskiptests=true")
                         || value.equals("-dmaven.test.skip=true") || value.equals("--skiptests")
+                        || value.equals("-dsurefire.failifnospecifiedtests=false")
+                        || value.equals("-dfailsafe.failifnospecifiedtests=false")
                         || value.equals("-xtest") || value.equals("--exclude-task=test"));
+    }
+
+    private boolean sourceTextSearch(List<String> command) {
+        if (command == null || command.isEmpty()) return false;
+        return Set.of("rg", "rg.exe", "grep", "grep.exe", "egrep", "fgrep", "findstr", "findstr.exe")
+                .contains(baseName(command.getFirst()));
     }
 
     private List<StageAssessment> legacyStages(LoopSpec spec) {
@@ -249,7 +318,10 @@ public class LoopSpecAcceptanceService {
                              List<StageAssessment> stageAssessments) { }
     public record StageAssessment(int stageIndex, List<CriterionAssessment> criteria,
                                   List<VerifierAssessment> verifiers) { }
-    public record CriterionAssessment(String id, String description, boolean covered,
+    public record CriterionAssessment(String id, String description, String verificationMode,
+                                      boolean covered,
+                                      boolean machineCovered, boolean judgePlanned, boolean overallPlanned,
+                                      String judgeRubric, String judgeOnlyReason,
                                       List<Integer> verifierIndexes) { }
     public record VerifierAssessment(int index, String type, Category category, boolean blocking,
                                      List<String> criterionIds, String reason) { }

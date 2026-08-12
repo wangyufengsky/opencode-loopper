@@ -132,7 +132,17 @@ function parseLoopSpec(value: unknown): LoopSpec {
       const readiness = asRecord(runtime.readiness)
       return {
         objective: asString(item.objective), allowedPaths: asArray(item.allowedPaths).map(String), forbiddenPaths: asArray(item.forbiddenPaths).map(String), deliverables: asArray(item.deliverables).map(String), verifiers: asArray(item.verifiers).map(parseVerifier),
-        acceptanceCriteria: asArray(item.acceptanceCriteria).map((criterion) => ({ id: asString(asRecord(criterion).id), description: asString(asRecord(criterion).description) })),
+        acceptanceCriteria: asArray(item.acceptanceCriteria).map((criterion) => {
+          const rawCriterion = asRecord(criterion)
+          const mode = asString(rawCriterion.verificationMode, 'MACHINE')
+          return {
+            id: asString(rawCriterion.id),
+            description: asString(rawCriterion.description),
+            verificationMode: (['MACHINE', 'JUDGE', 'BOTH'].includes(mode) ? mode : 'MACHINE') as 'MACHINE' | 'JUDGE' | 'BOTH',
+            ...(asString(rawCriterion.judgeRubric) ? { judgeRubric: asString(rawCriterion.judgeRubric) } : {}),
+            ...(asString(rawCriterion.judgeOnlyReason) ? { judgeOnlyReason: asString(rawCriterion.judgeOnlyReason) } : {}),
+          }
+        }),
         ...(asArray(runtime.startCommand).length ? { verificationRuntime: {
           startCommand: asArray(runtime.startCommand).map(String),
           readiness: { path: asString(readiness.path), expectedStatus: asNumber(readiness.expectedStatus, 200), ...(asString(readiness.jsonPath) ? { jsonPath: asString(readiness.jsonPath) } : {}), ...(typeof readiness.expectedValue === 'string' ? { expectedValue: readiness.expectedValue } : {}), ...(['EXISTS', 'EXACT', 'CONTAINS'].includes(asString(readiness.matchMode)) ? { matchMode: asString(readiness.matchMode) as 'EXISTS' | 'EXACT' | 'CONTAINS' } : {}) },

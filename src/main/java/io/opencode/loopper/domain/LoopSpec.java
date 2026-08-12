@@ -8,6 +8,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 public record LoopSpec(
@@ -59,10 +60,20 @@ public record LoopSpec(
     }
 
     public record AcceptanceCriterion(@NotBlank @Size(max = 64) String id,
-                                      @NotBlank @Size(max = 2_000) String description) {
+                                      @NotBlank @Size(max = 2_000) String description,
+                                      @Size(max = 32) String verificationMode,
+                                      @Size(max = 4_000) String judgeRubric,
+                                      @Size(max = 2_000) String judgeOnlyReason) {
+        public AcceptanceCriterion(String id, String description) {
+            this(id, description, null, null, null);
+        }
         public AcceptanceCriterion {
             id = id == null ? null : id.trim();
             description = description == null ? null : description.trim();
+            verificationMode = blankToNull(verificationMode);
+            verificationMode = verificationMode == null ? "MACHINE" : verificationMode.toUpperCase(Locale.ROOT);
+            judgeRubric = blankToNull(judgeRubric);
+            judgeOnlyReason = blankToNull(judgeOnlyReason);
         }
     }
 

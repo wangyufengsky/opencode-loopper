@@ -14,11 +14,27 @@ describe('ExecutionAcceptancePanel', () => {
 
     const wrapper = mount(ExecutionAcceptancePanel, { props: { source } })
 
-    expect(wrapper.text()).toContain('实际执行验收')
+    expect(wrapper.text()).toContain('双重验收计划')
+    expect(wrapper.text()).toContain('机器执行验收')
     expect(wrapper.text()).toContain('只有 Git 差异检查，无法证明 Designer 描述的功能验收')
     expect(wrapper.text()).toContain('命令验证')
     expect(wrapper.text()).toContain('java -cp target/classes PiCrossCheck')
     expect(wrapper.text()).toContain('CROSS-CHECK PASS')
+  })
+
+  it('shows Judge criteria as planned review rather than executed coverage', () => {
+    const source = JSON.stringify({ stages: [{
+      objective: 'Java behavior',
+      acceptanceCriteria: [{ id: 'AC-1', description: 'works', verificationMode: 'BOTH', judgeRubric: '评审边界行为' }],
+      verifiers: [{ type: 'PROCESS', command: ['mvn', '-Dtest=FooTest', 'test'], processPurpose: 'TEST' }],
+    }] })
+
+    const wrapper = mount(ExecutionAcceptancePanel, { props: { source } })
+
+    expect(wrapper.text()).toContain('最终 AI Judge 评审计划')
+    expect(wrapper.text()).toContain('机器 + AI')
+    expect(wrapper.text()).toContain('评审边界行为')
+    expect(wrapper.text()).not.toContain('AI 已通过')
   })
 
   it('labels legacy FILE_EXISTS checks as non-blocking', () => {

@@ -94,7 +94,7 @@ describe('LoopSpecEditor', () => {
       ...JSON.parse(source), schemaVersion: 'v2',
       stages: [{
         objective: 'HTTP behavior', allowedPaths: [], forbiddenPaths: [], deliverables: ['API'],
-        acceptanceCriteria: [{ id: 'AC-1', description: 'health is UP' }],
+        acceptanceCriteria: [{ id: 'AC-1', description: 'health is UP', verificationMode: 'BOTH', judgeRubric: 'review health semantics' }],
         verificationRuntime: {
           startCommand: ['java', '-jar', 'app.jar', '--server.port={{LOOPPER_PORT}}'],
           readiness: { path: '/health', expectedStatus: 200, jsonPath: '$.status', expectedValue: 'UP', matchMode: 'EXACT' },
@@ -106,6 +106,8 @@ describe('LoopSpecEditor', () => {
     const wrapper = mount(LoopSpecEditor, { props: { modelValue: v2 }, global: { plugins: [ElementPlus], stubs: { Icon: true } } })
 
     expect(wrapper.text()).toContain('行为验收条件')
+    expect(wrapper.text()).toContain('分别规划机器验证、AI Judge 评审')
+    expect(wrapper.text()).toContain('AI 评审准则')
     expect(wrapper.text()).toContain('托管临时运行时')
     expect(wrapper.text()).toContain('覆盖的验收条件')
     expect(wrapper.text()).toContain('JSON 匹配方式')

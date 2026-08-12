@@ -41,10 +41,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.1.30.jar
-   jar tf target/opencode-loopper-0.1.30.jar \
+   test -s target/opencode-loopper-0.1.32.jar
+   jar tf target/opencode-loopper-0.1.32.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.1.30.jar
+   shasum -a 256 target/opencode-loopper-0.1.32.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -93,8 +93,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.1.30`。
-- 正式产物：`target/opencode-loopper-0.1.30.jar`。
+- Maven 项目版本：`0.1.32`。
+- 正式产物：`target/opencode-loopper-0.1.32.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -216,7 +216,7 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 - 人工确认必须是幂等边界；确认后创建唯一 Task，再由用户显式启动 `READY` Task。
 - 确认时冻结完整 Designer 设计为只读 `DESIGN_CONTEXT`；结构化 LoopSpec/verifier 合同优先级更高。
 - 非简单任务优先拆为 2–6 个依赖有序阶段；每阶段必须有聚焦、可立即执行的功能验收，不能把所有证明推迟到最后阶段。
-- 新建、导入和模板新版本使用 LoopSpec v2：每阶段至少一个可观察 `acceptanceCriteria`，每个条件必须由服务端分类为 `BEHAVIOR` 的验证器通过 `criterionIds` 覆盖；已持久化 v1 继续兼容且不得原地改版，只能复制为新 v2 草稿后补齐覆盖。
+- 新建、导入和模板新版本使用 LoopSpec v2：每阶段至少一个可观察 `acceptanceCriteria`。条件通过 `verificationMode` 选择 `MACHINE`、`JUDGE` 或 `BOTH`；机器模式必须由服务端分类为 `BEHAVIOR` 的验证器通过 `criterionIds` 覆盖，Judge 模式必须提供 `judgeRubric`，仅 Judge 还必须提供 `judgeOnlyReason` 且不能已有机器行为映射。每阶段无论模式都至少有一个阻断性确定性验证器。已持久化且未写模式的 v2 条件默认 `MACHINE`；v1 继续兼容且不得原地改版，只能复制为新 v2 草稿后补齐计划。
 
 ### 5.4 验证器与 Judge
 
@@ -229,6 +229,7 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 - `FILE_EXISTS` 是兼容旧草稿的非阻断审计提示；不要为 Designer 新生成它。需要证明产物时，用会在缺失时非零退出的 `PROCESS` 自检，并可要求明确的 `outputContains` 标记。
 - `FILE_NOT_EXISTS` 只用于明确的安全不变量。
 - v2 `PROCESS` 必须声明 `processPurpose`。compile/package/build/typecheck/lint/install 属于 `BUILD`；`TEST` 必须是未跳过测试的 Maven/Gradle/npm 测试命令并列出 `testTargets`；`SELF_CHECK` 必须有明确 `outputContains`。`GIT_DIFF`、`FILE_NOT_EXISTS`、`JUNIT_XML` 和 `FILE_EXISTS` 分别只属于范围、安全、报告和提示证据，不能覆盖行为条件。
+- Java 生产代码行为默认使用 `BOTH`，生产实现和聚焦 Maven/Gradle 单元测试放在同一阶段；计划测试目标可由该阶段新增，设计时不要求已存在，但不得使用缺失目标忽略参数制造成功。普通测试无法可靠表达时才使用 `SELF_CHECK`。草稿与运行时共用直接命令策略，拒绝 shell launcher/fragment、命令行塞入单个 executable、`java -e` 和 source-text search 伪行为证明。
 - v2 HTTP/JSON/BROWSER 条件只有绑定本阶段 `verificationRuntime` 和 `http://127.0.0.1:{{LOOPPER_PORT}}` 时才算行为覆盖。启动命令仍是无 shell argv，只允许 `{{LOOPPER_PORT}}`、`{{LOOPPER_TEMP}}`；固定 loopback 可作补充但不能证明本次代码已启动。
 - 托管验证运行时的分配、启动、readiness、停止、工作区扫描和重启恢复都在 SQLite transaction 外。V19 用 PID 加启动身份防止误杀；终止不确定必须保留租约并以 `VERIFIER_RUNTIME_TERMINATION_UNCONFIRMED` 阻断重叠写入。
 - HTTP/JSON/BROWSER 只访问 loopback；BROWSER 不允许任意 JavaScript，必须保留截图和 trace 证据。
@@ -236,6 +237,7 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 - `DATABASE_QUERY` 只接受本地 SQLite 的只读单条 `SELECT`/`WITH`。
 - 外部进程、HTTP、浏览器和模型调用不能在 SQLite transaction 内执行。
 - 确定性验证成功与 Judge 成功是两套证据。Requirement 和 Risk Judge 都是独立只读 Session，必须明确 `PASS`。
+- 两个最终 Judge 都接收所有阶段的 `JUDGE`/`BOTH` 条件与 rubric，以及已持久化的确定性摘要和差异；不为每个 Stage 额外启动 Judge，也不得把尚未执行的 Judge 计划显示成覆盖或通过。
 - `REVISE`、`BLOCKED`、Judge 冲突或 JSON 无法解析时进入人工处理/重新评审，不得丢弃已有确定性证据或伪造成功。
 - Attempt 交接的差异扫描、文件读取、内容哈希和新 Session 创建都在 SQLite transaction 外执行；按实际读取字节限制 16 MiB，并在读取前后核对文件大小、修改时间和 file key；不可完整读取或读取期间变化的快照标记为不可比较，不得据此触发停滞。
 
@@ -343,7 +345,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.1.30.jar
+JAR=target/opencode-loopper-0.1.32.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -471,3 +473,4 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 | 2026-08-12 | LoopSpec v2 行为覆盖与托管验证运行时并发布 0.1.28 | 新草稿/模板使用 criterion 覆盖合同；统一 REST/MCP/Designer/保存/确认分析；V19 持久化动态端口运行时与 PID 身份恢复；v1 保持兼容并可复制为新 v2；同步 README、架构、设计、OpenCode 与七特性合同 | 聚焦 Java 43/43、Vitest 134/134；`./scripts/verify.sh`：Java 298 项中 297 通过、Windows 条件用例 1 项跳过，Vitest 134/134，BUILD SUCCESS；隔离 JAR 实测 v2 REST、Review Gate 阻断/完整矩阵、HTTP/JSON/BROWSER、截图/trace、PID/端口清理和双 Judge 全部通过；JAR 262693773 bytes，SHA-256 `02b748e451ee16237089476d6e0e1e5856807083dc99868c9fa5bb531e25de0b`；发布目标：`v0.1.28` |
 | 2026-08-12 | 配置化内网 GitLab HTTP MR 地址，准备 0.1.29（暂不发布） | 新增精确主机白名单；SSH remote 命中时只将 MR Web 地址改用 HTTP，显式 HTTP/HTTPS 和 SSH 推送协议不变；Linux/Windows 启动脚本默认加入 `gitlab.spdb.com`；同步 README 与架构合同 | 聚焦 Java 28/28、Vitest 134/134；`./scripts/verify.sh`：Java 298 项中 297 通过、Windows 条件用例 1 项跳过，Vitest 134/134，BUILD SUCCESS；隔离端口 64131 启动 JAR，health `UP` 且返回打包 SPA；JAR 262695237 bytes，SHA-256 `59cfd48d7111912f7fc7e95ab19d248f354766de8067523ad99bca409076453c`；按用户要求未提交、未推送、未打标签、未发布 |
 | 2026-08-12 | GitLab 合并确认与不可逆交付终态，准备 0.1.30（暂不发布） | 新增独立 Publication 状态轴和 V20 持久化；GitLab API 精确匹配任务提交并确认 MR opened/closed/merged；任务页展示执行/交付双状态，`MERGED` 后阻断原任务发布写操作；同步 README、架构与设计合同 | 聚焦 Java 31/31、Publication Vitest 11/11；`./scripts/verify.sh`：Java 309 项中 308 通过、Windows 条件用例 1 项跳过，Vitest 138/138，BUILD SUCCESS；隔离 JAR 实测 `PUSHED → MERGE_REQUEST_OPENED → MERGED`，合并后写操作返回 409，临时进程无残留；JAR 262721662 bytes，SHA-256 `6d8584a0e6d50a1af1909c5a40d839a03f2c17d729ae999fdd3011953fbf0bc9`；按用户要求未提交、未推送、未打标签、未发布 |
+| 2026-08-12 | Designer 机器验收与最终 AI Judge 双重计划并发布 0.1.32 | LoopSpec v2 条件支持 `MACHINE`、`JUDGE`、`BOTH`；Java 默认同阶段聚焦 Maven/Gradle 单元测试与最终 Judge；统一拒绝 shell、`java -e`、源码搜索和可跳过目标的伪行为验证，同时保留带空格的直接可执行路径；同步 README、架构、设计与验证器合同 | 聚焦 Java 51/51、Vitest 139/139；首次完整验证因既有本地同步并发用例时序失败，单独复跑通过；最终 `./scripts/verify.sh`：Java 315 项中 314 通过、Windows 条件用例 1 项跳过，Vitest 139/139，BUILD SUCCESS；隔离 JAR 在 18087 实测 health、打包 SPA、`BOTH`/`JUDGE` 评估与 `java -e` 拒绝，关闭后无监听残留；JAR 262726851 bytes，SHA-256 `fc0496c81d6c0207db968c7c6889a2c62cced40dc58a35f63be5ce1f53ae308d`；发布目标：`v0.1.32` |

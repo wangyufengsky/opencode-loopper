@@ -416,7 +416,8 @@ describe('Designer draft composer', () => {
       valid: false, schemaVersion: 'v2', legacy: false,
       errors: ['stages[0].acceptanceCriteria[AC-1]: no valid BEHAVIOR verifier covers this criterion'],
       stageAssessments: [{ stageIndex: 0,
-        criteria: [{ id: 'AC-1', description: '用户能观察到结果', covered: false, verifierIndexes: [] }],
+        criteria: [{ id: 'AC-1', description: '用户能观察到结果', verificationMode: 'MACHINE', covered: false,
+          machineCovered: false, judgePlanned: false, overallPlanned: false, verifierIndexes: [] }],
         verifiers: [{ index: 0, type: 'PROCESS', category: 'BUILD', blocking: true, criterionIds: ['AC-1'], reason: 'compile/build/static-quality command' }],
       }],
     })
@@ -432,8 +433,8 @@ describe('Designer draft composer', () => {
     await flushPromises()
 
     expect(update).not.toHaveBeenCalled()
-    expect(wrapper.get('[aria-label="验收条件覆盖矩阵"]').text()).toContain('未覆盖')
-    expect(wrapper.get('[aria-label="验收条件覆盖矩阵"]').text()).toContain('BUILD')
+    expect(wrapper.get('[aria-label="双重验收计划矩阵"]').text()).toContain('机器：不适用')
+    expect(wrapper.get('[aria-label="双重验收计划矩阵"]').text()).toContain('BUILD')
   })
 
   it('reopens an already confirmed draft idempotently without trying to modify the immutable LoopSpec', async () => {

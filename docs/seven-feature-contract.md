@@ -81,12 +81,16 @@ Screenshots and traces live below the configured data directory; SQLite stores
 only relative path, SHA-256, size and metadata.
 
 For new LoopSpec v2 contracts, the server classifies verifier evidence rather
-than trusting a Designer label. Each Stage has observable criteria and every
-criterion needs a mapped behavior verifier. Build/static checks, scope-only
+than trusting a Designer label. Each observable criterion chooses deterministic
+machine verification, final AI Judge review, or both. Machine modes need mapped
+behavior evidence; Judge modes need an explicit rubric, and Judge-only use also
+needs a reason. Every Stage still needs a blocking deterministic gate. Build/static checks, scope-only
 `GIT_DIFF`, safety-only `FILE_NOT_EXISTS`, `JUNIT_XML` reports, and advisory
 `FILE_EXISTS` cannot satisfy that mapping. The final Attempt's automatic task
-diff remains separate audit evidence. `POST /api/loop-drafts/validate` and MCP
-return the same classification and coverage result.
+diff remains separate audit evidence. After every deterministic Stage passes,
+both read-only Judges receive all stages' planned Judge criteria. `POST
+/api/loop-drafts/validate` and MCP return the same classification and planning
+result.
 
 Network behavior coverage requires a Stage-managed runtime with dynamic
 `{{LOOPPER_PORT}}`, bounded readiness, and direct argv startup. V19 records its

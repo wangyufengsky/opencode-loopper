@@ -9,6 +9,10 @@ import java.nio.file.Path;
 
 /** Normalizes high-confidence Maven argv mistakes without invoking a shell. */
 public final class ProcessCommandPolicy {
+    private static final Set<String> SHELL_EXECUTABLES = Set.of(
+            "sh", "bash", "zsh", "dash", "ksh", "fish", "csh", "tcsh",
+            "cmd", "cmd.exe", "powershell", "powershell.exe", "pwsh", "pwsh.exe");
+    private static final Set<String> SHELL_OPERATORS = Set.of("|", "||", "&&", ";", ">", ">>", "<", "<<");
     private static final Set<String> MAVEN_EXECUTABLES = Set.of(
             "mvn", "mvn.cmd", "mvn.bat", "mvn.exe",
             "mvnw", "mvnw.cmd", "mvnw.bat", "mvnw.exe");
@@ -25,6 +29,33 @@ public final class ProcessCommandPolicy {
             "[A-Za-z0-9_.-]+(?::[A-Za-z0-9_.-]+){1,3}");
 
     private ProcessCommandPolicy() { }
+
+    /** Returns a stable validation message when argv attempts to smuggle shell or inline Java execution. */
+    public static String directCommandError(List<String> command) {
+        if (command == null || command.isEmpty()) return "PROCESS requires a non-empty direct argv command";
+        String rawExecutable = command.getFirst();
+        if (rawExecutable == null || rawExecutable.isBlank()) return "PROCESS executable is invalid";
+        boolean pathLikeExecutable = rawExecutable.indexOf('/') >= 0 || rawExecutable.indexOf('\\') >= 0;
+        if (!pathLikeExecutable && rawExecutable.chars().anyMatch(Character::isWhitespace)) {
+            return "PROCESS executable must be one direct argv item, not a command line";
+        }
+        try { Path.of(rawExecutable); }
+        catch (RuntimeException invalidPath) { return "PROCESS executable is invalid"; }
+        String executable = baseName(rawExecutable);
+        if (executable.isEmpty()) return "PROCESS executable is invalid";
+        if (SHELL_EXECUTABLES.contains(executable)) return "PROCESS must invoke a program directly, not a shell; shell launchers are forbidden";
+        for (int index = 1; index < command.size(); index++) {
+            String argument = command.get(index);
+            if (argument == null) continue;
+            if (SHELL_OPERATORS.contains(argument) || argument.contains("$(") || argument.indexOf('`') >= 0) {
+                return "PROCESS command[" + index + "] contains a forbidden shell fragment";
+            }
+        }
+        if (Set.of("java", "java.exe").contains(executable) && command.stream().skip(1).anyMatch("-e"::equals)) {
+            return "Java does not support -e inline execution; plan a focused unit test in this stage instead";
+        }
+        return null;
+    }
 
     public static Normalization normalizeMavenCommand(List<String> command) {
         if (command == null || command.isEmpty() || command.getFirst() == null) {
@@ -151,6 +182,12 @@ public final class ProcessCommandPolicy {
             if (fileName.endsWith(extension)) return fileName.substring(0, fileName.length() - extension.length());
         }
         return fileName;
+    }
+
+    private static String baseName(String executable) {
+        if (executable == null) return "";
+        String normalized = executable.replace('\\', '/').toLowerCase(Locale.ROOT);
+        return normalized.substring(normalized.lastIndexOf('/') + 1);
     }
 
     private static int firstWhitespace(String value) {

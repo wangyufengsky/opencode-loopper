@@ -5,6 +5,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.groups.Tuple.tuple;
 
 class LoopSpecAcceptanceServiceTest {
     private final LoopSpecAcceptanceService service = new LoopSpecAcceptanceService();
@@ -34,6 +35,63 @@ class LoopSpecAcceptanceServiceTest {
                         null, null, null, null, List.of(), List.of("AC-1"), "SELF_CHECK", List.of()))) {
             assertThat(service.assess(spec(verifier, null), List.of(), false).valid()).isTrue();
         }
+    }
+
+    @Test
+    void separatesMachineJudgeAndBothAcceptancePlanning() {
+        LoopSpec.VerifierSpec focusedTest = process("TEST", List.of("mvn", "-Dtest=CacheReloadTaskTest", "test"),
+                List.of("AC-BOTH"), List.of("CacheReloadTaskTest"));
+        LoopSpec.VerifierSpec safetyGate = verifier("FILE_NOT_EXISTS", List.of());
+        LoopSpec.StageSpec stage = new LoopSpec.StageSpec("Java behavior", List.of(), List.of(), List.of("implementation and test"),
+                List.of(focusedTest, safetyGate), List.of(
+                        criterion("AC-BOTH", "reload delegates to cache manager", "BOTH", "review scheduling semantics", null),
+                        criterion("AC-JUDGE", "implementation remains maintainable", "JUDGE", "review design cohesion", "maintainability has no reliable binary assertion")), null);
+
+        var result = service.assess(new LoopSpec("v2", "project", "goal", "", List.of(stage), null, null, null, null), List.of(), false);
+
+        assertThat(result.valid()).isTrue();
+        assertThat(result.stageAssessments().getFirst().criteria())
+                .extracting(LoopSpecAcceptanceService.CriterionAssessment::verificationMode,
+                        LoopSpecAcceptanceService.CriterionAssessment::covered,
+                        LoopSpecAcceptanceService.CriterionAssessment::machineCovered,
+                        LoopSpecAcceptanceService.CriterionAssessment::judgePlanned,
+                        LoopSpecAcceptanceService.CriterionAssessment::overallPlanned)
+                .containsExactly(tuple("BOTH", true, true, true, true), tuple("JUDGE", false, false, true, true));
+    }
+
+    @Test
+    void rejectsIncompleteOrConflictingJudgePlans() {
+        LoopSpec.VerifierSpec focusedTest = process("TEST", List.of("mvn", "-Dtest=FooTest", "test"),
+                List.of("AC-1"), List.of("FooTest"));
+        LoopSpec.StageSpec stage = new LoopSpec.StageSpec("behavior", List.of(), List.of(), List.of("evidence"),
+                List.of(focusedTest), List.of(
+                        criterion("AC-1", "observable", "JUDGE", "review it", null),
+                        criterion("AC-2", "another result", "BOTH", null, null)), null);
+
+        var result = service.assess(new LoopSpec("v2", "project", "goal", "", List.of(stage), null, null, null, null), List.of(), false);
+
+        assertThat(result.errors()).anyMatch(error -> error.contains("use BOTH instead of JUDGE"));
+        assertThat(result.errors()).anyMatch(error -> error.contains("judgeOnlyReason"));
+        assertThat(result.errors()).anyMatch(error -> error.contains("judgeRubric"));
+        assertThat(result.errors()).anyMatch(error -> error.contains("AC-2") && error.contains("machine coverage"));
+    }
+
+    @Test
+    void rejectsShellInlineJavaAndMissingTargetBypassAtDesignTime() {
+        for (List<String> command : List.of(
+                List.of("bash", "-c", "mvn test"),
+                List.of("java", "-e", "System.out.println(1)"),
+                List.of("mvn test && echo PASS"),
+                List.of("mvn", "-Dtest=MissingTest", "-Dsurefire.failIfNoSpecifiedTests=false", "test"))) {
+            var result = service.assess(spec(process("TEST", command, List.of("AC-1"), List.of("MissingTest")), null), List.of(), false);
+            assertThat(result.valid()).isFalse();
+            assertThat(result.errors()).anyMatch(error -> error.contains("command"));
+        }
+        LoopSpec.VerifierSpec sourceSearch = new LoopSpec.VerifierSpec("PROCESS", List.of("rg", "reload", "src/main/java"),
+                null, null, List.of(), List.of(), false, "PASS", null, null, null, null, null, null,
+                null, null, null, null, List.of(), List.of("AC-1"), "SELF_CHECK", List.of());
+        assertThat(service.assess(spec(sourceSearch, null), List.of(), false).errors())
+                .anyMatch(error -> error.contains("source-text search cannot prove runtime behavior"));
     }
 
     @Test
@@ -116,5 +174,10 @@ class LoopSpecAcceptanceServiceTest {
         String path = List.of("FILE_NOT_EXISTS", "JUNIT_XML", "FILE_EXISTS").contains(type) ? "target/result" : null;
         return new LoopSpec.VerifierSpec(type, null, path, true, List.of(), List.of(), false, null,
                 null, null, null, null, null, null, null, null, null, null, List.of(), criterionIds, null, List.of());
+    }
+
+    private LoopSpec.AcceptanceCriterion criterion(String id, String description, String mode,
+                                                    String rubric, String judgeOnlyReason) {
+        return new LoopSpec.AcceptanceCriterion(id, description, mode, rubric, judgeOnlyReason);
     }
 }

@@ -540,7 +540,13 @@ export interface LoopSpec {
     forbiddenPaths: string[]
     deliverables: string[]
     verifiers: LoopVerifierSpec[]
-    acceptanceCriteria?: Array<{ id: string; description: string }>
+    acceptanceCriteria?: Array<{
+      id: string
+      description: string
+      verificationMode?: 'MACHINE' | 'JUDGE' | 'BOTH'
+      judgeRubric?: string
+      judgeOnlyReason?: string
+    }>
     verificationRuntime?: {
       startCommand: string[]
       readiness: { path: string; expectedStatus?: number; jsonPath?: string; expectedValue?: string; matchMode?: 'EXISTS' | 'EXACT' | 'CONTAINS' }
@@ -581,7 +587,18 @@ export interface LoopSpecAssessment {
   errors: string[]
   stageAssessments: Array<{
     stageIndex: number
-    criteria: Array<{ id: string; description: string; covered: boolean; verifierIndexes: number[] }>
+    criteria: Array<{
+      id: string
+      description: string
+      verificationMode: 'MACHINE' | 'JUDGE' | 'BOTH'
+      covered: boolean
+      machineCovered: boolean
+      judgePlanned: boolean
+      overallPlanned: boolean
+      judgeRubric?: string
+      judgeOnlyReason?: string
+      verifierIndexes: number[]
+    }>
     verifiers: Array<{ index: number; type: string; category: 'BUILD' | 'BEHAVIOR' | 'SCOPE' | 'SAFETY' | 'REPORT' | 'ADVISORY'; blocking: boolean; criterionIds: string[]; reason: string }>
   }>
 }

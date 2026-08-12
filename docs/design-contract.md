@@ -103,9 +103,14 @@ responses render as sanitized Markdown; fenced `mermaid` blocks render as SVG,
 and the machine-only LoopSpec payload is not shown in the conversation.
 
 New drafts use LoopSpec v2. Each Stage declares observable
-`acceptanceCriteria`; every criterion must be mapped by `criterionIds` to at
-least one server-classified `BEHAVIOR` verifier. Review Gate renders the
-criterion-to-verifier matrix, category and field-level reason. Invalid coverage
+`acceptanceCriteria`. Each criterion selects `verificationMode` as `MACHINE`,
+`JUDGE`, or `BOTH`: machine modes require at least one server-classified
+`BEHAVIOR` verifier mapped through `criterionIds`; Judge modes require an
+explicit `judgeRubric`, and Judge-only criteria also require `judgeOnlyReason`
+and cannot carry machine behavior coverage. Every Stage retains at least one
+blocking deterministic verifier even when all of its criteria are Judge-only.
+Review Gate renders machine coverage and planned final Judge review separately;
+planned review is never labelled as executed or passed. Invalid planning
 blocks Designer synchronization, manual save, template publication, MCP
 proposal and confirmation without an ignore action. Persisted v1 drafts show
 **旧合同（兼容）** and keep their old behavior. Their schema version is immutable;
@@ -171,6 +176,14 @@ HTTP, JSON and browser criteria must address the same Stage-managed instance at
 cannot cover a criterion. The editor exposes all native verifier fields and the
 managed runtime command/readiness/timeouts; verifier types come from a closed
 selection rather than arbitrary input.
+
+For Java production changes, Designer defaults behavior criteria to `BOTH` and
+keeps the production code and focused Maven/Gradle unit test in the same Stage.
+The planned test target is a deliverable and need not exist while Designer is
+still read-only. Missing-target bypass flags are forbidden. `SELF_CHECK` is a
+fallback only when a normal test framework cannot express the behavior; shell
+launchers/fragments, source-text searches as behavior proof, and `java -e` are
+rejected or repaired before confirmation.
 
 Maven verifier input is tolerant only where the argv boundary is deterministic.
 For example, `["mvn", "test -Dtest=FooTest -pl module"]` is normalized and stored

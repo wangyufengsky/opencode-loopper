@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.1.30`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.1.32`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -111,7 +111,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.1.30.jar
+java -jar target/opencode-loopper-0.1.32.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -173,13 +173,18 @@ LoopSpec 是执行前必须人工确认的结构化合同。核心字段包括�
       "forbiddenPaths": ["data/**"],
       "deliverables": ["健康检查端点", "自动化测试", "使用说明"],
       "acceptanceCriteria": [
-        { "id": "AC-1", "description": "聚焦测试验证健康检查返回 UP" }
+        {
+          "id": "AC-1",
+          "description": "聚焦测试验证健康检查返回 UP",
+          "verificationMode": "BOTH",
+          "judgeRubric": "结合实现差异与测试证据评审端点语义、兼容性和边界行为"
+        }
       ],
       "verifiers": [
         {
           "type": "PROCESS",
           "processPurpose": "TEST",
-          "command": ["./mvnw", "test", "-Dtest=HealthControllerTest"],
+          "command": ["./mvnw", "-Dtest=HealthControllerTest", "test"],
           "testTargets": ["HealthControllerTest"],
           "criterionIds": ["AC-1"]
         },
@@ -195,9 +200,11 @@ LoopSpec 是执行前必须人工确认的结构化合同。核心字段包括�
 }
 ```
 
-新建草稿、导入和模板新版本必须使用 `schemaVersion: "v2"`。每个条件必须由至少一个 `BEHAVIOR` 验证器通过 `criterionIds` 覆盖；构建、差异范围、安全、报告和提示类证据不能代替行为验收。已持久化 v1 草稿、模板、Automation、任务和 Recovery 保持旧合同；Review Gate 标记“旧合同（兼容）”，需要升级时使用“复制为 v2”，原草稿不会被原地改版。
+新建草稿、导入和模板新版本必须使用 `schemaVersion: "v2"`。每个条件通过 `verificationMode` 选择 `MACHINE`、`JUDGE` 或 `BOTH`：`MACHINE`/`BOTH` 必须由至少一个 `BEHAVIOR` 验证器通过 `criterionIds` 提供机器覆盖；`JUDGE`/`BOTH` 必须填写 `judgeRubric`；仅 `JUDGE` 还要填写 `judgeOnlyReason`，说明为何无法可靠地确定性验证。每个 Stage 无论采用哪种模式，都至少保留一个阻断性的确定性验证器。Review Gate 会分别显示机器覆盖与“AI 计划评审”，不会把尚未执行的 Judge 计划标成已通过。已持久化但未写模式的 v2 条件默认 `MACHINE`；v1 草稿、模板、Automation、任务和 Recovery 保持旧合同。
 
-`PROCESS.command` 是参数数组，不是 shell 字符串；请写 `['./mvnw', 'test']` 这一类直接命令，不要写 `sh -c`、`cmd /c`、管道或重定向。v2 `PROCESS` 还要声明 `processPurpose`：`BUILD` 不形成行为覆盖，`TEST` 必须是未跳过测试的 Maven/Gradle/npm 测试命令并列出 `testTargets`，`SELF_CHECK` 必须配置明确的 `outputContains` 成功标记。Linux/macOS 保持操作系统原生 argv 解析；Windows 解析包装器和 `PATH`/`PATHEXT`。能够无歧义拆分的 Maven 合并参数仍会被规范化，歧义输入进入只读纠正。`GIT_DIFF` 只证明改动范围。
+新增 Java 代码时，Designer 默认推荐 `BOTH`，并把生产代码和聚焦的 Maven/Gradle 单元测试放在同一阶段；计划中的测试类可以是本阶段将新增的交付物，设计时不要求已经存在。禁止通过 `surefire.failIfNoSpecifiedTests=false` 等参数让不存在的测试目标假通过。普通单元测试无法可靠表达时才使用带明确成功标记的 `SELF_CHECK`。
+
+`PROCESS.command` 是参数数组，不是 shell 字符串；请写 `['./mvnw', 'test']` 这一类直接命令，不要写 `sh -c`、`cmd /c`、管道、重定向或 `java -e`。这些限制在草稿保存和实际运行时共用同一策略。v2 `PROCESS` 还要声明 `processPurpose`：`BUILD` 不形成行为覆盖，`TEST` 必须是未跳过测试的 Maven/Gradle/npm 测试命令并列出 `testTargets`，`SELF_CHECK` 必须配置明确的 `outputContains` 成功标记。Linux/macOS 保持操作系统原生 argv 解析；Windows 解析包装器和 `PATH`/`PATHEXT`。能够无歧义拆分的 Maven 合并参数仍会被规范化，歧义输入进入只读纠正。`GIT_DIFF` 只证明改动范围。
 
 REST/JSON/浏览器条件使用阶段 `verificationRuntime` 启动本次代码：`startCommand` 是无 shell argv，只允许 `{{LOOPPER_PORT}}` 和 `{{LOOPPER_TEMP}}`，readiness 成功后才运行网络验证器。验收 URL 必须使用 `http://127.0.0.1:{{LOOPPER_PORT}}/...` 才能覆盖 criterion；固定 loopback 服务只可作为补充检查。Loopper 在成功、失败、暂停、取消和重启恢复时按 PID 启动身份清理完整进程树，无法确认停止时保留写租约并阻止重叠执行。
 
@@ -316,7 +323,7 @@ Git 任务分支达到 `SUCCEEDED` 后：
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.1.30.jar`
+- `target/opencode-loopper-0.1.32.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -347,7 +354,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:51234
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.1.30.jar`
+- `opencode-loopper-0.1.32.jar`
 - `start-windows.bat`
 
 确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
@@ -385,7 +392,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.1.30.jar \
+jar tf target/opencode-loopper-0.1.32.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -464,7 +471,7 @@ Windows PowerShell：
 例如发布下一版本：
 
 ```bash
-VERSION=0.1.30
+VERSION=0.1.32
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -504,7 +511,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.1.30.jar
+java -jar target/opencode-loopper-0.1.32.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。
@@ -550,6 +557,8 @@ echo %PATHEXT%
 `0.1.29` 起，成品启动脚本默认把 `gitlab.spdb.com` 加入 HTTP Web 主机白名单；它只影响 SSH remote 推导出的 MR 网页协议，不改变 Git 的 SSH 推送协议。直接运行 JAR 时可通过 `LOOPPER_PUBLICATION_HTTP_WEB_HOSTS` 配置逗号分隔的精确主机列表。
 
 `0.1.30` 起，GitLab 任务拥有独立持久化的交付状态。启动脚本只设置主机和 API 地址；如需自动确认合并，请另外设置 `LOOPPER_GITLAB_PRIVATE_TOKEN`。Token 缺失、认证失败、超时或候选不唯一时保留原状态并显示诊断；GitHub 暂时只保留 Pull Request 创建入口。
+
+`0.1.32` 起，LoopSpec v2 可为每个条件选择机器验证、最终 AI Judge 评审或双重验收。新增 Java 行为默认推荐同阶段生产代码加聚焦单元测试，并由两类证据共同验收；Designer 保存前和实际执行时都会拒绝 shell 包装、`java -e` 及测试目标假通过参数，同时保留 Windows 等平台带空格的直接可执行路径。
 
 ### 一直显示 remote busy / Agent 正在思考
 

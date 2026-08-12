@@ -51,7 +51,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(classes = LoopperApplication.class, properties = {
         "loopper.opencode.mode=fake", "loopper.opencode.model=opencode/deepseek-v4-flash-free", "loopper.monitor-delay=1h",
         "loopper.designer-monitor-delay=1h", "loopper.mcp.bearer-token=designer-mcp-test-token",
-        "spring.ai.mcp.server.protocol=STREAMABLE", "spring.ai.mcp.server.name=opencode-loopper", "spring.ai.mcp.server.version=0.1.30",
+        "spring.ai.mcp.server.protocol=STREAMABLE", "spring.ai.mcp.server.name=opencode-loopper", "spring.ai.mcp.server.version=0.1.32",
         "spring.ai.mcp.server.annotation-scanner.enabled=false",
         "spring.ai.mcp.server.capabilities.resource=false", "spring.ai.mcp.server.capabilities.prompt=false", "spring.ai.mcp.server.capabilities.completion=false",
         "spring.ai.mcp.server.streamable-http.mcp-endpoint=/api/mcp-streamable", "spring.ai.mcp.server.streamable-http.disallow-delete=true"})
@@ -579,7 +579,7 @@ class DesignerSessionMcpIntegrationTest {
         mvc.perform(mcp(rpc(1, "initialize", "{\"protocolVersion\":\"2025-03-26\"}")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.protocolVersion").value("2025-03-26"))
-                .andExpect(jsonPath("$.result.serverInfo.version").value("0.1.30"));
+                .andExpect(jsonPath("$.result.serverInfo.version").value("0.1.32"));
         MvcResult list = mvc.perform(mcp(rpc(2, "tools/list", "{}"))).andExpect(status().isOk()).andReturn();
         assertThat(list.getResponse().getContentAsString())
                 .contains("get_project_context", "propose_loop_spec", "validate_loop_spec", "create_task", "start_task", "get_task_status")
@@ -669,6 +669,31 @@ class DesignerSessionMcpIntegrationTest {
     }
 
     @Test
+    void v2DesignerRecommendsFocusedJavaTestsAndSeparatesMachineFromJudgePlanning() throws Exception {
+        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
+        ProjectRow project = projects.create("v2-designer-prompt", Files.createDirectory(temp.resolve("v2-designer-prompt")).toString());
+        LoopSpec.VerifierSpec test = new LoopSpec.VerifierSpec("PROCESS", List.of("mvn", "-Dtest=FooTest", "test"),
+                null, null, List.of(), List.of(), false, null, null, null, null, null, null, null,
+                null, null, null, null, List.of(), List.of("AC-1"), "TEST", List.of("FooTest"));
+        LoopSpec.AcceptanceCriterion criterion = new LoopSpec.AcceptanceCriterion(
+                "AC-1", "Java behavior works", "BOTH", "review boundary behavior", null);
+        LoopSpec v2 = new LoopSpec("v2", project.id(), "Add Java behavior", "",
+                List.of(new LoopSpec.StageSpec("Implement and test", List.of(), List.of(), List.of("code and test"),
+                        List.of(test), List.of(criterion), null)), LoopSpec.Limits.defaults(), null, null, null);
+        LoopDraftRow draft = drafts.create(v2);
+
+        DesignerSessionRow designer = designerSessions.create(project.id(), draft.id(), "Design the Java change");
+        String prompt = fake.promptForSession(designer.externalSessionId());
+
+        assertThat(prompt)
+                .contains("verificationMode MACHINE, JUDGE, or BOTH", "default each behavior criterion to BOTH")
+                .contains("production change plus its focused Maven/Gradle unit test in the same stage")
+                .contains("does not need to exist during design", "must not skip tests or make a missing target pass")
+                .contains("judgeRubric", "judgeOnlyReason", "`java -e`")
+                .contains("[\"mvn\",\"-Dtest=FooTest\",\"test\"]");
+    }
+
+    @Test
     void springAiStreamableServerRegistersTheSixToolsAndRequiresBearer() throws Exception {
         ProjectRow project = projects.create("streamable-fixture", Files.createDirectory(temp.resolve("streamable-project")).toString());
         assertThat(java.util.Arrays.stream(loopperMcpToolCallbackProvider.getToolCallbacks())
@@ -694,7 +719,7 @@ class DesignerSessionMcpIntegrationTest {
         MvcResult initialized = mvc.perform(streamable(initialize, null))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.serverInfo.name").value("opencode-loopper"))
-                .andExpect(jsonPath("$.result.serverInfo.version").value("0.1.30"))
+                .andExpect(jsonPath("$.result.serverInfo.version").value("0.1.32"))
                 .andExpect(jsonPath("$.result.protocolVersion").value("2025-03-26"))
                 .andReturn();
         String sessionId = initialized.getResponse().getHeader("Mcp-Session-Id");

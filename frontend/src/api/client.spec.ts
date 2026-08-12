@@ -192,7 +192,7 @@ describe('Loopper REST contract adapter', () => {
       schemaVersion: 'v2',
       stages: [{
         objective: 'API behavior', allowedPaths: [], forbiddenPaths: [], deliverables: ['running API'],
-        acceptanceCriteria: [{ id: 'AC-1', description: 'health endpoint returns UP' }],
+        acceptanceCriteria: [{ id: 'AC-1', description: 'health endpoint returns UP', verificationMode: 'BOTH', judgeRubric: 'review health semantics' }],
         verificationRuntime: {
           startCommand: ['java', '-jar', 'app.jar', '--server.port={{LOOPPER_PORT}}'],
           readiness: { path: '/health', expectedStatus: 200, jsonPath: '$.status', expectedValue: 'UP', matchMode: 'EXACT' },
@@ -206,7 +206,7 @@ describe('Loopper REST contract adapter', () => {
     }
     const assessment = {
       valid: true, schemaVersion: 'v2', legacy: false, errors: [],
-      stageAssessments: [{ stageIndex: 0, criteria: [{ id: 'AC-1', description: 'health endpoint returns UP', covered: true, verifierIndexes: [0] }], verifiers: [{ index: 0, type: 'JSON_PATH', category: 'BEHAVIOR', blocking: true, criterionIds: ['AC-1'], reason: 'managed runtime' }] }],
+      stageAssessments: [{ stageIndex: 0, criteria: [{ id: 'AC-1', description: 'health endpoint returns UP', verificationMode: 'BOTH', covered: true, machineCovered: true, judgePlanned: true, overallPlanned: true, judgeRubric: 'review health semantics', verifierIndexes: [0] }], verifiers: [{ index: 0, type: 'JSON_PATH', category: 'BEHAVIOR', blocking: true, criterionIds: ['AC-1'], reason: 'managed runtime' }] }],
     }
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(json({ id: 'draft-v2', status: 'DRAFT_READY', updatedAt: 'now', spec: v2 }))
@@ -220,7 +220,7 @@ describe('Loopper REST contract adapter', () => {
 
     const persisted = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body)).spec
     expect(persisted.stages[0]).toMatchObject({
-      acceptanceCriteria: [{ id: 'AC-1', description: 'health endpoint returns UP' }],
+      acceptanceCriteria: [{ id: 'AC-1', description: 'health endpoint returns UP', verificationMode: 'BOTH', judgeRubric: 'review health semantics' }],
       verificationRuntime: { startupTimeoutSeconds: 30, shutdownTimeoutSeconds: 5 },
       verifiers: [{ type: 'JSON_PATH', criterionIds: ['AC-1'], matchMode: 'EXACT' }],
     })

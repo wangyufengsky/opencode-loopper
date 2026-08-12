@@ -388,6 +388,28 @@ class VerifierEngineTest {
     }
 
     @Test
+    void rejectsShellFragmentsInlineJavaAndCommandLineExecutableAtRuntime() {
+        for (List<String> command : List.of(
+                List.of("java", "-e", "System.out.println(1)"),
+                List.of("mvn", "test", "&&", "echo", "PASS"),
+                List.of("mvn test && echo PASS"))) {
+            assertThatThrownBy(() -> engine.verify(directory, "unused",
+                    new VerifierSpec("PROCESS", command, null, null, null, null, null), Duration.ofSeconds(1)))
+                    .isInstanceOf(TaskFailure.class);
+        }
+    }
+
+    @Test
+    void acceptsDirectExecutablePathsContainingSpaces() {
+        assertThat(ProcessCommandPolicy.directCommandError(
+                List.of("C:\\Program Files\\Java\\bin\\java.exe", "-version"))).isNull();
+        assertThat(ProcessCommandPolicy.directCommandError(
+                List.of("/opt/runtime with spaces/bin/java", "-version"))).isNull();
+        assertThat(ProcessCommandPolicy.directCommandError(List.of("java -version")))
+                .contains("one direct argv item");
+    }
+
+    @Test
     void nativeHttpJsonAndFileVerifiersProduceBoundedStructuredEvidence() throws Exception {
         Files.writeString(directory.resolve("proof.txt"), "hello loopper");
         HttpServer server = server("{\"status\":\"ok\",\"items\":[\"one\"]}", "application/json");

@@ -695,9 +695,17 @@ async function sendMessage() {
       <article class="card spec-panel">
         <div class="card-pad card-header"><div><p class="eyebrow">REVIEW GATE</p><h2 class="card-title">LoopSpec v{{ draft.spec.schemaVersion.replace('v', '') }}</h2></div><div class="review-actions"><el-button v-if="draft.spec.schemaVersion === 'v1' && !store.usingDemo" plain size="small" :loading="busy" @click="copyLegacyDraftAsV2">复制为 v2</el-button><el-button plain size="small" :loading="busy" @click="saveDraft"><Icon icon="lucide:save" />保存</el-button></div></div>
         <div class="spec-meta"><span><Icon icon="lucide:folder-git-2" />{{ draft.spec.projectId }}</span><span><Icon icon="lucide:flag" />{{ draft.spec.stages.length }} 个阶段</span><span><Icon icon="lucide:timer" />{{ draft.spec.limits.maxDuration }}</span><span v-if="draft.spec.schemaVersion === 'v1'" class="legacy-contract">旧合同（兼容）</span></div>
-        <section v-if="acceptanceAssessment && !acceptanceAssessment.legacy" class="acceptance-matrix" aria-label="验收条件覆盖矩阵">
-          <header><strong>行为验收覆盖</strong><span :class="acceptanceAssessment.valid ? 'matrix-pass' : 'matrix-fail'">{{ acceptanceAssessment.valid ? '覆盖完整' : `${acceptanceAssessment.errors.length} 项阻断` }}</span></header>
-          <div v-for="stage in acceptanceAssessment.stageAssessments" :key="stage.stageIndex" class="matrix-stage"><span>阶段 {{ stage.stageIndex + 1 }}</span><div v-for="criterion in stage.criteria" :key="criterion.id"><code>{{ criterion.id }}</code><span>{{ criterion.description }}</span><b :class="criterion.covered ? 'matrix-pass' : 'matrix-fail'">{{ criterion.covered ? `验收器 ${criterion.verifierIndexes.map(index => index + 1).join(', ')}` : '未覆盖' }}</b></div><div class="matrix-verifiers"><small v-for="verifier in stage.verifiers" :key="verifier.index">#{{ verifier.index + 1 }} {{ verifier.category }} · {{ verifier.reason }}</small></div></div>
+        <section v-if="acceptanceAssessment && !acceptanceAssessment.legacy" class="acceptance-matrix" aria-label="双重验收计划矩阵">
+          <header><strong>双重验收计划</strong><span :class="acceptanceAssessment.valid ? 'matrix-pass' : 'matrix-fail'">{{ acceptanceAssessment.valid ? '计划有效' : `${acceptanceAssessment.errors.length} 项阻断` }}</span></header>
+          <div v-for="stage in acceptanceAssessment.stageAssessments" :key="stage.stageIndex" class="matrix-stage">
+            <span>阶段 {{ stage.stageIndex + 1 }}</span>
+            <div v-for="criterion in stage.criteria" :key="criterion.id">
+              <code>{{ criterion.id }}</code><span>{{ criterion.description }}</span><em>{{ criterion.verificationMode }}</em>
+              <b :class="criterion.machineCovered ? 'matrix-pass' : 'matrix-muted'">{{ criterion.machineCovered ? `机器：验收器 ${criterion.verifierIndexes.map(index => index + 1).join(', ')}` : '机器：不适用' }}</b>
+              <b :class="criterion.judgePlanned ? 'matrix-planned' : 'matrix-muted'">{{ criterion.judgePlanned ? 'AI：计划评审' : 'AI：不适用' }}</b>
+            </div>
+            <div class="matrix-verifiers"><small v-for="verifier in stage.verifiers" :key="verifier.index">#{{ verifier.index + 1 }} {{ verifier.category }} · {{ verifier.reason }}</small></div>
+          </div>
         </section>
         <LoopSpecEditor v-model="editorValue" class="spec-editor" aria-label="LoopSpec 中文结构化编辑器">
           <template #after-stages><ExecutionAcceptancePanel :source="editorValue" /></template>
@@ -737,10 +745,13 @@ async function sendMessage() {
 .acceptance-matrix > header { display: flex; justify-content: space-between; gap: 12px; font-size: 11px; }
 .matrix-stage { display: grid; gap: 6px; margin-top: 10px; }
 .matrix-stage > span { color: var(--color-text-muted); font: 9px var(--font-code); }
-.matrix-stage > div:not(.matrix-verifiers) { display: grid; grid-template-columns: 60px minmax(0,1fr) auto; gap: 8px; align-items: center; padding: 7px; border-radius: 7px; background: rgb(2 6 23 / 35%); font-size: 9px; }
+.matrix-stage > div:not(.matrix-verifiers) { display: grid; grid-template-columns: 60px minmax(0,1fr) 58px auto auto; gap: 8px; align-items: center; padding: 7px; border-radius: 7px; background: rgb(2 6 23 / 35%); font-size: 9px; }
+.matrix-stage em { color: var(--color-accent-ai); font: 700 8px var(--font-code); font-style: normal; }
 .matrix-stage b { font-weight: 650; }
 .matrix-pass { color: #86efac; }
 .matrix-fail { color: #fca5a5; }
+.matrix-planned { color: #c4b5fd; }
+.matrix-muted { color: var(--color-text-muted); }
 .matrix-verifiers { display: flex; flex-wrap: wrap; gap: 6px; }
 .matrix-verifiers small { padding: 4px 6px; border: 1px solid rgb(71 85 105 / 40%); border-radius: 6px; color: var(--color-text-muted); font: 8px var(--font-code); }
 .compose-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 9px; }

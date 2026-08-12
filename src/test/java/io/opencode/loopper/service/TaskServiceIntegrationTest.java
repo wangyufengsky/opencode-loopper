@@ -786,7 +786,7 @@ class TaskServiceIntegrationTest {
     @Test
     void finalDeterministicPassRequiresTwoReadOnlyJudgesAndRetainsEvidence() throws Exception {
         ProjectRow project = projects.create("fixture", gitProject());
-        TaskRow task = drafts.confirm(drafts.create(spec(project.id())).id(), "two judges");
+        TaskRow task = drafts.confirm(drafts.create(judgeContractSpec(project.id())).id(), "two judges");
         tasks.start(task.id());
 
         TaskRow judging = tasks.verify(task.id());
@@ -796,6 +796,8 @@ class TaskServiceIntegrationTest {
             assertThat(((FakeOpenCodeClient) openCode).isReadOnlySession(judge.externalSessionId())).isTrue();
             assertThat(((FakeOpenCodeClient) openCode).promptForSession(judge.externalSessionId()))
                     .contains("基于证据的中文 Markdown", "## 证据", "`reason` 必须使用简体中文", "每个换行正确转义")
+                    .contains("跨阶段 AI 验收合同", "AC-1 [BOTH]", "评审准则：检查边界行为与需求一致性")
+                    .contains("MACHINE 条件由确定性验证负责")
                     .contains("PASS|REVISE|BLOCKED")
                     .doesNotContain("## Evidence");
         });
@@ -1129,6 +1131,18 @@ class TaskServiceIntegrationTest {
     private LoopSpec spec(String projectId) {
         return new LoopSpec("v1", projectId, "Verify README", null, List.of(new LoopSpec.StageSpec("Check README", null, null, null,
                 List.of(new LoopSpec.VerifierSpec("FILE_EXISTS", null, "README.md", null, null, null, null)))), null, null, null, null);
+    }
+    private LoopSpec judgeContractSpec(String projectId) {
+        LoopSpec.VerifierSpec verifier = new LoopSpec.VerifierSpec(
+                "FILE_CONTENT", null, "README.md", null, List.of(), List.of(), false, null,
+                null, null, null, null, null, "EXACT", "fixture", null, null, null,
+                List.of(), List.of("AC-1"), null, List.of());
+        LoopSpec.AcceptanceCriterion criterion = new LoopSpec.AcceptanceCriterion(
+                "AC-1", "README 行为满足已确认要求", "BOTH", "检查边界行为与需求一致性", null);
+        return new LoopSpec("v2", projectId, "Verify README", null,
+                List.of(new LoopSpec.StageSpec("Check README", List.of("README.md"), List.of(),
+                        List.of("verified README"), List.of(verifier), List.of(criterion), null)),
+                null, null, null, null);
     }
     private LoopSpec failingContentSpec(String projectId, int stagnationLimit, String retryTemplate,
                                         LoopSpec.SessionPolicy sessionPolicy) {

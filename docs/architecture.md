@@ -126,9 +126,13 @@ cgroup or container rather than trusted as a LoopSpec verifier.
 
 LoopSpec v2 acceptance analysis is a single server service shared by REST,
 MCP, Designer synchronization, draft save/confirm, templates and Automation.
-Every criterion requires a valid `BEHAVIOR` mapping. Evidence categories are
+Each criterion declares `MACHINE`, `JUDGE`, or `BOTH`. `MACHINE` and `BOTH`
+require a valid mapped `BEHAVIOR` verifier; `JUDGE` and `BOTH` require an
+explicit rubric, while Judge-only criteria also explain why deterministic proof
+is unreliable. Every Stage still has a blocking deterministic gate. Evidence categories are
 `BUILD`, `BEHAVIOR`, `SCOPE`, `SAFETY`, `REPORT`, and `ADVISORY`; only the second
-forms coverage. Persisted v1 contracts retain their historical behavior and are
+forms machine coverage. Persisted v2 criteria without an explicit mode default
+to `MACHINE`; persisted v1 contracts retain their historical behavior and are
 never upgraded in place. New drafts, imports, and template versions are v2.
 
 A v2 Stage may own one temporary verification runtime. Loopper allocates a
@@ -193,7 +197,9 @@ orchestrator performs a second authoritative status read and requires the
 implementation Session to be terminal-completed, so the public API cannot race
 a still-mutating Session. Only after all deterministic gates
 pass do two read-only OpenCode Judges run. Both Requirement and Risk Judges must
-return an explicit `PASS`; conflicts, `REVISE`, `BLOCKED`, or unparseable output
+receive every Stage's `JUDGE`/`BOTH` criterion and rubric together with the
+persisted deterministic summary and diff. They must return an explicit `PASS`;
+conflicts, `REVISE`, `BLOCKED`, or unparseable output
 move the Task to `WAITING_INPUT`, never to a fabricated success.
 
 Independently of that optional acceptance gate, the final successful Attempt

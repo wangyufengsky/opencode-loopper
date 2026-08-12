@@ -11,11 +11,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Locale;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.springframework.stereotype.Component;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -25,9 +23,6 @@ public class VerifierEngine {
     private static final int MAX_GIT_PATH_LENGTH = 32_768;
     private static final long PATH_POLICY_WORK_BUDGET = 10_000_000L;
     private static final Duration MAX_VERIFIER_TIMEOUT = Duration.ofHours(1);
-    private static final Set<String> SHELL_EXECUTABLES = Set.of(
-            "sh", "bash", "zsh", "dash", "ksh", "fish", "csh", "tcsh",
-            "cmd", "cmd.exe", "powershell", "powershell.exe", "pwsh", "pwsh.exe");
     private final SafeProcessRunner runner;
     private final DirectWorkspaceBaselineManager directBaselines;
     private final BinaryArtifactStore artifacts;
@@ -257,17 +252,8 @@ public class VerifierEngine {
      * launchers keeps quoting, expansion and command chaining outside this trust boundary.
      */
     private void requireDirectExecutable(List<String> command) {
-        if (command == null || command.isEmpty()) {
-            throw new TaskFailure("VERIFIER_COMMAND_INVALID", "PROCESS verifier requires a non-empty argv array");
-        }
-        String executable;
-        try { executable = Path.of(command.getFirst()).getFileName().toString().toLowerCase(Locale.ROOT); }
-        catch (RuntimeException invalidPath) {
-            throw new TaskFailure("VERIFIER_COMMAND_INVALID", "PROCESS verifier executable is invalid");
-        }
-        if (SHELL_EXECUTABLES.contains(executable)) {
-            throw new TaskFailure("VERIFIER_SHELL_FORBIDDEN", "PROCESS verifier must invoke a program directly, not a shell");
-        }
+        String error = ProcessCommandPolicy.directCommandError(command);
+        if (error != null) throw new TaskFailure(error.contains("shell") ? "VERIFIER_SHELL_FORBIDDEN" : "VERIFIER_COMMAND_INVALID", error);
     }
 
     private VerifierOutcome file(Path worktree, VerifierSpec spec, boolean expected) {

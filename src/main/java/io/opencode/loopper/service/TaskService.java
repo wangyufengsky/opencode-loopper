@@ -46,6 +46,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -1654,7 +1655,9 @@ public class TaskService {
                 .map(TaskArtifactRow::content).findFirst().orElse("No diff artifact was persisted.");
         String reviewer = "REQUIREMENT".equals(role) ? "需求评审员" : "风险评审员";
         return "你是" + reviewer + "。这是严格的只读评审：不得编辑文件、运行终端命令或委派任务。\n"
-                + focus + "\n已确认目标：" + loopSpec.goal() + "\n上下文：" + loopSpec.context()
+                + focus + "\n必须逐项评审下面列出的 AI 验收合同；MACHINE 条件由确定性验证负责，不要把计划中的 Judge 评审误写成已由机器证明。\n"
+                + "已确认目标：" + loopSpec.goal() + "\n上下文：" + loopSpec.context()
+                + "\n跨阶段 AI 验收合同：\n" + judgeCriteria(loopSpec)
                 + "\n最终阶段目标：\n- " + objectives + "\n确定性验证摘要：\n" + verification
                 + "\n已持久化的 Git 差异证据：\n" + diff + "\n尝试记录：" + attempt.id()
                 + "\n仅返回一个 JSON 对象，不得附加说明或代码围栏："
@@ -1663,6 +1666,28 @@ public class TaskService {
                 + "在 `reason` 中先写一句结论，再写 `## 证据` 标题和编号列表；命令与文件路径使用行内代码。"
                 + "若结论不是 PASS，再增加 `## 必须处理` 标题和编号列表。"
                 + "不要使用围栏代码块，并将 `reason` 内的每个换行正确转义为 JSON 字符串。";
+    }
+
+    private String judgeCriteria(LoopSpec loopSpec) {
+        StringBuilder result = new StringBuilder();
+        for (int stageIndex = 0; stageIndex < loopSpec.stages().size(); stageIndex++) {
+            LoopSpec.StageSpec stage = loopSpec.stages().get(stageIndex);
+            for (LoopSpec.AcceptanceCriterion criterion : stage.acceptanceCriteria()) {
+                if (!Set.of("JUDGE", "BOTH").contains(criterion.verificationMode())) continue;
+                result.append("- 阶段 ").append(stageIndex + 1).append("（")
+                        .append(stage.objective()).append("） ").append(criterion.id())
+                        .append(" [").append(criterion.verificationMode()).append("]: ")
+                        .append(criterion.description()).append("\n  评审准则：")
+                        .append(criterion.judgeRubric());
+                if ("JUDGE".equals(criterion.verificationMode())) {
+                    result.append("\n  仅 AI 评审原因：").append(criterion.judgeOnlyReason());
+                }
+                result.append('\n');
+            }
+        }
+        return result.isEmpty()
+                ? "- 此草案没有显式 JUDGE/BOTH 条件；按兼容规则评审整体需求与风险。"
+                : result.toString().stripTrailing();
     }
 
     private JudgeRunRow judgeState(JudgeRunRow row, String externalSessionId, JudgeRunState state, String verdict, String reason,
