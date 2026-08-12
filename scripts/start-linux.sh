@@ -57,12 +57,12 @@ fi
 
 if [[ -n "${LOOPPER_JAR_PATH:-}" ]]; then
   JAR_PATH="${LOOPPER_JAR_PATH}"
-elif [[ -f "${APP_HOME}/target/opencode-loopper-0.1.19.jar" ]]; then
-  JAR_PATH="${APP_HOME}/target/opencode-loopper-0.1.19.jar"
-elif [[ -f "${APP_HOME}/opencode-loopper-0.1.19.jar" ]]; then
-  JAR_PATH="${APP_HOME}/opencode-loopper-0.1.19.jar"
+elif [[ -f "${APP_HOME}/target/opencode-loopper-0.1.20.jar" ]]; then
+  JAR_PATH="${APP_HOME}/target/opencode-loopper-0.1.20.jar"
+elif [[ -f "${APP_HOME}/opencode-loopper-0.1.20.jar" ]]; then
+  JAR_PATH="${APP_HOME}/opencode-loopper-0.1.20.jar"
 else
-  fail "找不到成品 JAR。请把 opencode-loopper-0.1.19.jar 放到 ${APP_HOME}，或设置 LOOPPER_JAR_PATH。"
+  fail "找不到成品 JAR。请把 opencode-loopper-0.1.20.jar 放到 ${APP_HOME}，或设置 LOOPPER_JAR_PATH。"
 fi
 
 [[ -f "${JAR_PATH}" ]] || fail "JAR 不存在：${JAR_PATH}"
@@ -77,9 +77,19 @@ mkdir -p "${LOOPPER_DATA_DIR}"
 
 APP_URL="http://127.0.0.1:${SERVER_PORT}"
 
+# OpenCode itself uses OPENCODE_SERVER_USERNAME/PASSWORD. Reuse those values
+# when the operator did not supply Loopper's compatibility aliases explicitly.
+if [[ -z "${OPENCODE_PASSWORD:-}" && -n "${OPENCODE_SERVER_PASSWORD:-}" ]]; then
+  export OPENCODE_PASSWORD="${OPENCODE_SERVER_PASSWORD}"
+fi
+if [[ -z "${OPENCODE_USERNAME:-}" && -n "${OPENCODE_PASSWORD:-}" ]]; then
+  export OPENCODE_USERNAME="${OPENCODE_SERVER_USERNAME:-opencode}"
+fi
+
 opencode_health() {
   local base_url="$1"
-  local curl_args=(--fail --silent --show-error --max-time 3)
+  local max_time="${2:-3}"
+  local curl_args=(--fail --silent --show-error --max-time "${max_time}")
   if [[ -n "${OPENCODE_USERNAME:-}" ]]; then
     curl_args+=(--user "${OPENCODE_USERNAME}:${OPENCODE_PASSWORD:-}")
   fi
@@ -111,7 +121,8 @@ discover_opencode_base_url() {
   # dynamically selected port that is absent from the command line. Resolve
   # listening ports only for already identified OpenCode PIDs, then require the
   # OpenCode health contract before accepting an endpoint.
-  for pid in "${opencode_pids[@]}"; do
+  for pid in "${opencode_pids[@]:-}"; do
+    [[ -n "${pid}" ]] || continue
     if command -v lsof >/dev/null 2>&1; then
       while IFS= read -r listener_line; do
         [[ "${listener_line}" == n* ]] || continue
@@ -130,12 +141,33 @@ discover_opencode_base_url() {
     fi
   done
 
-  for port in "${candidate_ports[@]}"; do
+  # Linux may hide socket ownership from an unprivileged process (the same
+  # `ss` row is only annotated with users/PIDs under sudo). In that case use
+  # the bounded set of local TCP listeners as candidates, but never infer
+  # identity from the port: every candidate still has to satisfy OpenCode's
+  # exact /global/health JSON contract over loopback.
+  if command -v ss >/dev/null 2>&1; then
+    while IFS= read -r listener_line; do
+      read -r _ _ _ listener_address _ <<< "${listener_line}"
+      port="${listener_address##*:}"
+      [[ "${port}" =~ ^[0-9]{1,5}$ ]] && candidate_ports+=("${port}")
+    done < <(ss -H -ltn 2>/dev/null || true)
+  elif command -v lsof >/dev/null 2>&1; then
+    while IFS= read -r listener_line; do
+      [[ "${listener_line}" == n* ]] || continue
+      listener_address="${listener_line#n}"
+      port="${listener_address##*:}"
+      [[ "${port}" =~ ^[0-9]{1,5}$ ]] && candidate_ports+=("${port}")
+    done < <(lsof -nP -iTCP -sTCP:LISTEN -Fn 2>/dev/null || true)
+  fi
+
+  for port in "${candidate_ports[@]:-}"; do
+    [[ -n "${port}" ]] || continue
     (( port >= 1 && port <= 65535 )) || continue
     [[ "${checked_ports}" == *" ${port} "* ]] && continue
     checked_ports+="${port} "
     candidate="http://127.0.0.1:${port}"
-    if opencode_health "${candidate}"; then
+    if opencode_health "${candidate}" 1; then
       printf '%s\n' "${candidate}"
       return 0
     fi
@@ -144,7 +176,13 @@ discover_opencode_base_url() {
 }
 
 OPENCODE_BASE_URL_SOURCE="environment"
-if [[ -z "${OPENCODE_BASE_URL:-}" ]]; then
+if [[ "${OPENCODE_BASE_URL:-}" =~ ^http://0\.0\.0\.0:([0-9]{1,5})/?$ ]]; then
+  export OPENCODE_BASE_URL="http://127.0.0.1:${BASH_REMATCH[1]}"
+  OPENCODE_BASE_URL_SOURCE="environment wildcard normalized to loopback"
+elif [[ "${OPENCODE_BASE_URL:-}" =~ ^http://\[::\]:([0-9]{1,5})/?$ ]]; then
+  export OPENCODE_BASE_URL="http://[::1]:${BASH_REMATCH[1]}"
+  OPENCODE_BASE_URL_SOURCE="environment wildcard normalized to loopback"
+elif [[ -z "${OPENCODE_BASE_URL:-}" ]]; then
   OPENCODE_BASE_URL_SOURCE="managed auto startup"
   if DISCOVERED_OPENCODE_BASE_URL="$(discover_opencode_base_url)"; then
     export OPENCODE_BASE_URL="${DISCOVERED_OPENCODE_BASE_URL}"

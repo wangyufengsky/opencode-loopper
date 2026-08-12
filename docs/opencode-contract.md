@@ -119,8 +119,13 @@ Unless `OPENCODE_BASE_URL` is explicitly supplied, they inspect current
 OpenCode process command lines and explicit `--port` values. On Linux they
 also resolve listening TCP ports owned by those OpenCode PIDs, covering the
 TUI and `opencode web` servers whose dynamically selected port may be absent
-from the command line. Candidates are ordered newest first and accepted only
-when the authenticated or anonymous loopback `/global/health` response reports
+from the command line. If Linux hides socket ownership from an unprivileged
+process, the launcher health-checks the bounded set of local TCP listeners
+instead; it never accepts a port without the exact OpenCode health contract.
+`0.0.0.0` and `[::]` addresses are normalized to loopback before connecting,
+and `OPENCODE_SERVER_USERNAME`/`OPENCODE_SERVER_PASSWORD` are accepted as the
+official OpenCode Basic Auth variables. Candidates are accepted only when the
+authenticated or anonymous loopback `/global/health` response reports
 `healthy=true`. If no endpoint can be reused, the scripts select `auto` mode
 so Loopper starts an owned OpenCode process on a dynamically allocated loopback
 port. Discovery never treats an unrelated listener as OpenCode and never stops

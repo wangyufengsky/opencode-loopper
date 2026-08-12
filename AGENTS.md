@@ -41,10 +41,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.1.19.jar
-   jar tf target/opencode-loopper-0.1.19.jar \
+   test -s target/opencode-loopper-0.1.20.jar
+   jar tf target/opencode-loopper-0.1.20.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.1.19.jar
+   shasum -a 256 target/opencode-loopper-0.1.20.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -93,8 +93,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.1.19`。
-- 正式产物：`target/opencode-loopper-0.1.19.jar`。
+- Maven 项目版本：`0.1.20`。
+- 正式产物：`target/opencode-loopper-0.1.20.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -332,7 +332,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.1.19.jar
+JAR=target/opencode-loopper-0.1.20.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -363,10 +363,13 @@ curl --fail http://127.0.0.1:8080/actuator/health
 Linux/Windows 成品启动脚本不得写死 OpenCode 端口。显式
 `OPENCODE_BASE_URL` 优先；否则从当前 OpenCode 进程的显式 `--port`
 提取候选。Linux 还必须按已确认的 OpenCode PID 读取实际监听端口，
-覆盖 TUI 和 `opencode web` 的动态端口；所有候选都必须用
-`/global/health` 的 `healthy=true` 验真。没有可复用实例时使用 `auto`
-模式，由 Loopper 在动态 loopback 端口启动受管进程；不得把任意监听
-端口推断为 OpenCode。
+覆盖 TUI 和 `opencode web` 的动态端口；若非特权进程看不到 socket
+归属，可扫描本机 TCP 监听端口作为有界候选，但所有候选都必须用
+loopback `/global/health` 的 `healthy=true` 验真。通配监听地址必须转换
+为 loopback 连接地址，并兼容 OpenCode 官方 `OPENCODE_SERVER_USERNAME`/
+`OPENCODE_SERVER_PASSWORD`。没有可复用实例时使用 `auto` 模式，由
+Loopper 在动态 loopback 端口启动受管进程；不得把任意监听端口直接
+推断为 OpenCode。
 
 ## 9. 文档同步规则
 
@@ -440,3 +443,4 @@ Linux/Windows 成品启动脚本不得写死 OpenCode 端口。显式
 | 2026-08-12 | 启动脚本动态发现 OpenCode 端口第一轮 0.1.17 | Linux/Windows 启动器从当前 `opencode serve --port` 进程提取并健康验证真实端口；无可复用实例时切换 auto 动态端口；同步 README 与 OpenCode 合同 | 聚焦验证：Java 16/16、Vitest 122/122；`./scripts/verify.sh`：Java 260/260、Vitest 122/122，BUILD SUCCESS；Linux 隔离运行发现 64964 且 Runtime 为 `AVAILABLE`/`managed=false`；JAR 262600078 bytes，SHA-256 `9ea799cbe264f2449d4583cac12fde273004409096f05c5c26c7b8de363e250e`；`v0.1.17` Windows 校验因 BAT 正则中的未转义管道符失败，未生成 Release |
 | 2026-08-12 | 修复 Windows 端口发现解析并发布 0.1.18 | 去除 PowerShell 正则中会被 CMD 当作管道的未转义 `|`；Windows `--validate` 真实执行端口发现语句 | 聚焦验证：Java 16/16、Vitest 122/122；`./scripts/verify.sh`：Java 260/260、Vitest 122/122，BUILD SUCCESS；Linux 隔离运行发现 49861 且 Runtime 为 `AVAILABLE`/`managed=false`；JAR 262600078 bytes，SHA-256 `3bf6b85cefd8fa2397df7cf773ad77e7ebc83e06c185b440ae7bb1f914b85e7d`；发布目标：`v0.1.18` |
 | 2026-08-12 | 修复 Linux TUI/Web OpenCode 动态端口发现并发布 0.1.19 | Linux 启动器按已确认的 OpenCode PID 通过 `lsof`/`ss` 读取监听端口，再用 `/global/health` 验真；同步 README 与 OpenCode 合同 | 聚焦验证：Java 18/18、Vitest 122/122；`./scripts/verify.sh`：Java 262/262、Vitest 122/122，BUILD SUCCESS；真实 `opencode web` 无 `--port` 进程被发现为 4096，Runtime 为 `AVAILABLE`/`managed=false`；JAR 262600078 bytes，SHA-256 `84b6e079402180550d24cacc36df0f1a88502d6c8f8d415fba5dab4c8119c83d`；发布目标：`v0.1.19` |
+| 2026-08-12 | 修复 Linux 隐藏 socket 归属时无法发现 OpenCode 并发布 0.1.20 | 修复 Bash 空数组在 `set -u` 下提前退出；无 PID 归属时严格健康检查本机监听端口；规范化通配监听地址并兼容官方 Basic Auth 环境变量；同步 README 与 OpenCode 合同 | 修复前真实回归复现 `opencode_pids[@]: unbound variable`；聚焦验证：Java 20/20、Vitest 122/122；`./scripts/verify.sh`：Java 264/264、Vitest 122/122，BUILD SUCCESS；最终 JAR 真实连接 OpenCode 1.18.12（`0.0.0.0:18082`、无 socket PID 视角、Basic Auth），health `UP`、Runtime `AVAILABLE`；JAR 262600086 bytes，SHA-256 `e0e1126a6bbe9f15df9ff50b65ff087cd1da20726f2d9a4d6517c647c833e25c`；发布目标：`v0.1.20` |

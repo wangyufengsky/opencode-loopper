@@ -10,7 +10,7 @@ spring:
           enabled: false
         protocol: STREAMABLE
         name: opencode-loopper
-        version: 0.1.19
+        version: 0.1.20
         type: SYNC
         instructions: >-
           Use the six Loopper tools only. Designer access is READ_ONLY; proposals synchronize
@@ -85,8 +85,8 @@ loopper:
     # http never starts or terminates an external OpenCode process; fake is for tests.
     mode: ${LOOPPER_OPENCODE_MODE:auto}
     base-url: ${OPENCODE_BASE_URL:http://127.0.0.1:4096}
-    username: ${OPENCODE_USERNAME:}
-    password: ${OPENCODE_PASSWORD:}
+    username: ${OPENCODE_USERNAME:${OPENCODE_SERVER_USERNAME:}}
+    password: ${OPENCODE_PASSWORD:${OPENCODE_SERVER_PASSWORD:}}
     executable: ${OPENCODE_EXECUTABLE:}
     model: ${OPENCODE_MODEL:}
     connect-timeout: 5s
