@@ -40,6 +40,27 @@ final class JudgePromptPolicy {
                 : result.toString().stripTrailing();
     }
 
+    static String prompt(LoopSpec spec, String role, String objectives, String verification,
+                         String diff, String attemptId) {
+        String focus = "REQUIREMENT".equals(role)
+                ? "判断交付结果是否满足已确认目标、最终阶段目标和确定性验证证据。"
+                : "检查回归、越界或不安全变更、证据缺失，以及任何导致交付不安全的风险。";
+        String reviewer = "REQUIREMENT".equals(role) ? "需求评审员" : "风险评审员";
+        String prompt = "你是" + reviewer + "。这是严格的只读评审：不得编辑文件、运行终端命令或委派任务。\n"
+                + focus + "\n必须逐项评审下面列出的 AI 验收合同；MACHINE 条件由确定性验证负责，不要把计划中的 Judge 评审误写成已由机器证明。\n"
+                + contract(spec)
+                + "\n已完成阶段目标：\n" + text(objectives) + "\n跨阶段确定性验证摘要：\n" + text(verification)
+                + "\n已持久化的 Git 差异证据：\n" + text(diff) + "\n尝试记录：" + text(attemptId)
+                + "\n仅返回一个 JSON 对象，不得附加说明或代码围栏："
+                + "{\"verdict\":\"PASS|REVISE|BLOCKED\",\"reason\":\"简洁、基于证据的中文 Markdown\"}。"
+                + "`verdict` 必须保留上述英文协议值；`reason` 必须使用简体中文。"
+                + "在 `reason` 中先写一句结论，再写 `## 证据` 标题和编号列表；命令与文件路径使用行内代码。"
+                + "若结论不是 PASS，再增加 `## 必须处理` 标题和编号列表。"
+                + "不要使用围栏代码块，并将 `reason` 内的每个换行正确转义为 JSON 字符串。";
+        requirePromptWithinBudget(prompt);
+        return prompt;
+    }
+
     static int utf8Bytes(String value) {
         return text(value).getBytes(StandardCharsets.UTF_8).length;
     }

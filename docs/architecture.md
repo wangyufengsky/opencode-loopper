@@ -209,8 +209,10 @@ persisted deterministic summary and diff. The final `VERIFICATION_SUMMARY` v2
 artifact is ordered by Stage and records that Stage's successful Attempt and
 every verifier result; each evidence excerpt is limited to 4 KiB and retains a
 SHA-256 for traceability. Confirmed goal/context/Judge criteria are limited to
-96 KiB UTF-8, and the complete runtime Judge prompt to 128 KiB. A runtime
-overflow creates no Judge row or model call and moves the Task to
+96 KiB UTF-8, and the complete runtime Judge prompt to 128 KiB. Before starting
+any pending Judge in a review batch, Loopper constructs and validates every
+pending role prompt. A runtime overflow in either role creates no Judge row,
+read-only Session, or model call for the entire batch and moves the Task to
 `WAITING_INPUT` with `JUDGE_PROMPT_BUDGET_EXCEEDED`. They must return an explicit `PASS`;
 conflicts, `REVISE`, `BLOCKED`, or unparseable output
 move the Task to `WAITING_INPUT`, never to a fabricated success.

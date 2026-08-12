@@ -97,8 +97,9 @@ Loopper persists an ordered v2 summary containing each successful Stage Attempt
 and all of its verifier results, then gives that aggregate to both read-only
 Judges together with all stages' planned Judge criteria. Evidence excerpts are
 bounded and hashed; the confirmed Judge contract and complete prompt have
-separate UTF-8 byte limits, with overflow returning to explicit human handling
-before any Judge model call. `POST
+separate UTF-8 byte limits. Every pending role prompt is preflighted as one
+review batch, with overflow returning to explicit human handling before any
+Judge row, read-only Session, or model call in that batch. `POST
 /api/loop-drafts/validate` and MCP return the same classification and planning
 result.
 

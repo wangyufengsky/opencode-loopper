@@ -3,6 +3,7 @@ package io.opencode.loopper.service;
 import io.opencode.loopper.LoopperApplication;
 import io.opencode.loopper.domain.ErrorLayer;
 import io.opencode.loopper.domain.LoopSpec;
+import io.opencode.loopper.domain.TaskFailure;
 import io.opencode.loopper.persistence.AttemptRow;
 import io.opencode.loopper.persistence.ExecutionSessionRow;
 import io.opencode.loopper.persistence.ErrorEventRow;
@@ -881,6 +882,51 @@ class TaskServiceIntegrationTest {
         assertThat(waiting.state()).isEqualTo("WAITING_INPUT");
         assertThat(tasks.judges(task.id())).isEmpty();
         assertThat(fake.promptCalls()).isEqualTo(promptCallsBeforeReview);
+        assertThat(tasks.errors(task.id())).anyMatch(error -> error.code().equals("JUDGE_PROMPT_BUDGET_EXCEEDED")
+                && error.layer().equals(ErrorLayer.VERIFICATION.name()));
+    }
+
+    @Test
+    void preflightsBothRolePromptsBeforeStartingRequirementJudgeOnExplicitRetry() throws Exception {
+        ProjectRow project = projects.create("boundary-judge-prompt", gitProject());
+        LoopSpec loopSpec = judgeContractSpec(project.id());
+        TaskRow task = drafts.confirm(drafts.create(loopSpec).id(), "boundary judges");
+        tasks.start(task.id());
+        AttemptRow attempt = tasks.attempts(task.id()).getFirst();
+        mapper.insertTaskArtifact(new TaskArtifactRow(UUID.randomUUID().toString(), task.id(), attempt.id(), null,
+                "GIT_DIFF", "initial-oversized-task-diff.json", "application/json",
+                "x".repeat(JudgePromptPolicy.MAX_PROMPT_UTF8_BYTES), "{}", Instant.now().toString()));
+        assertThat(tasks.verify(task.id()).state()).isEqualTo("WAITING_INPUT");
+
+        String objectives = "- 阶段 1：" + mapper.listStages(task.id()).getFirst().objective();
+        String verification = tasks.artifacts(task.id()).stream()
+                .filter(artifact -> artifact.kind().equals("VERIFICATION_SUMMARY"))
+                .map(TaskArtifactRow::content)
+                .filter(content -> content.contains("\"schemaVersion\":\"v2\""))
+                .findFirst().orElseThrow();
+        String requirementWithoutDiff = JudgePromptPolicy.prompt(loopSpec, "REQUIREMENT", objectives,
+                verification, "", attempt.id());
+        int boundaryDiffBytes = JudgePromptPolicy.MAX_PROMPT_UTF8_BYTES
+                - JudgePromptPolicy.utf8Bytes(requirementWithoutDiff);
+        String boundaryDiff = "x".repeat(boundaryDiffBytes);
+        assertThat(JudgePromptPolicy.utf8Bytes(JudgePromptPolicy.prompt(loopSpec, "REQUIREMENT", objectives,
+                verification, boundaryDiff, attempt.id()))).isEqualTo(JudgePromptPolicy.MAX_PROMPT_UTF8_BYTES);
+        assertThatThrownBy(() -> JudgePromptPolicy.prompt(loopSpec, "RISK", objectives,
+                verification, boundaryDiff, attempt.id()))
+                .isInstanceOf(TaskFailure.class)
+                .satisfies(error -> assertThat(((TaskFailure) error).code())
+                        .isEqualTo("JUDGE_PROMPT_BUDGET_EXCEEDED"));
+        mapper.insertTaskArtifact(new TaskArtifactRow(UUID.randomUUID().toString(), task.id(), attempt.id(), null,
+                "GIT_DIFF", "boundary-task-diff.json", "application/json", boundaryDiff, "{}",
+                Instant.now().plusSeconds(30).toString()));
+        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
+        int promptCallsBeforeRetry = fake.promptCalls();
+
+        TaskRow waiting = tasks.retryJudges(task.id());
+
+        assertThat(waiting.state()).isEqualTo("WAITING_INPUT");
+        assertThat(tasks.judges(task.id())).isEmpty();
+        assertThat(fake.promptCalls()).isEqualTo(promptCallsBeforeRetry);
         assertThat(tasks.errors(task.id())).anyMatch(error -> error.code().equals("JUDGE_PROMPT_BUDGET_EXCEEDED")
                 && error.layer().equals(ErrorLayer.VERIFICATION.name()));
     }

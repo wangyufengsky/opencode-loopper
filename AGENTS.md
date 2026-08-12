@@ -41,10 +41,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.1.34.jar
-   jar tf target/opencode-loopper-0.1.34.jar \
+   test -s target/opencode-loopper-0.1.35.jar
+   jar tf target/opencode-loopper-0.1.35.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.1.34.jar
+   shasum -a 256 target/opencode-loopper-0.1.35.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -93,8 +93,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.1.34`。
-- 正式产物：`target/opencode-loopper-0.1.34.jar`。
+- Maven 项目版本：`0.1.35`。
+- 正式产物：`target/opencode-loopper-0.1.35.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -239,7 +239,7 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 - 外部进程、HTTP、浏览器和模型调用不能在 SQLite transaction 内执行。
 - 确定性验证成功与 Judge 成功是两套证据。Requirement 和 Risk Judge 都是独立只读 Session，必须明确 `PASS`。
 - 两个最终 Judge 都接收所有阶段的 `JUDGE`/`BOTH` 条件与 rubric，以及已持久化的确定性摘要和差异；不为每个 Stage 额外启动 Judge，也不得把尚未执行的 Judge 计划显示成覆盖或通过。
-- 最终 `VERIFICATION_SUMMARY` 必须按阶段顺序聚合每个成功 Stage 的最终成功 Attempt 与全部验证结果；单项证据摘录限制为 4 KiB UTF-8 并保留完整证据 SHA-256。确认目标、上下文和全部 Judge 合同总计不得超过 96 KiB UTF-8，完整 Judge 提示不得超过 128 KiB；运行时超限必须在创建 Judge row/Session 和模型调用前进入 `WAITING_INPUT`，错误码为 `JUDGE_PROMPT_BUDGET_EXCEEDED`。
+- 最终 `VERIFICATION_SUMMARY` 必须按阶段顺序聚合每个成功 Stage 的最终成功 Attempt 与全部验证结果；单项证据摘录限制为 4 KiB UTF-8 并保留完整证据 SHA-256。确认目标、上下文和全部 Judge 合同总计不得超过 96 KiB UTF-8，完整 Judge 提示不得超过 128 KiB；每轮必须先批量构造并校验全部待启动角色的提示，任一超限时整批都不得创建 Judge row、只读 Session 或模型调用，直接进入 `WAITING_INPUT`，错误码为 `JUDGE_PROMPT_BUDGET_EXCEEDED`。
 - `REVISE`、`BLOCKED`、Judge 冲突或 JSON 无法解析时进入人工处理/重新评审，不得丢弃已有确定性证据或伪造成功。
 - Attempt 交接的差异扫描、文件读取、内容哈希和新 Session 创建都在 SQLite transaction 外执行；按实际读取字节限制 16 MiB，并在读取前后核对文件大小、修改时间和 file key；不可完整读取或读取期间变化的快照标记为不可比较，不得据此触发停滞。
 
@@ -348,7 +348,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.1.34.jar
+JAR=target/opencode-loopper-0.1.35.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -478,3 +478,4 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 | 2026-08-12 | GitLab 合并确认与不可逆交付终态，准备 0.1.30（暂不发布） | 新增独立 Publication 状态轴和 V20 持久化；GitLab API 精确匹配任务提交并确认 MR opened/closed/merged；任务页展示执行/交付双状态，`MERGED` 后阻断原任务发布写操作；同步 README、架构与设计合同 | 聚焦 Java 31/31、Publication Vitest 11/11；`./scripts/verify.sh`：Java 309 项中 308 通过、Windows 条件用例 1 项跳过，Vitest 138/138，BUILD SUCCESS；隔离 JAR 实测 `PUSHED → MERGE_REQUEST_OPENED → MERGED`，合并后写操作返回 409，临时进程无残留；JAR 262721662 bytes，SHA-256 `6d8584a0e6d50a1af1909c5a40d839a03f2c17d729ae999fdd3011953fbf0bc9`；按用户要求未提交、未推送、未打标签、未发布 |
 | 2026-08-12 | Designer 机器验收与最终 AI Judge 双重计划并发布 0.1.32 | LoopSpec v2 条件支持 `MACHINE`、`JUDGE`、`BOTH`；Java 默认同阶段聚焦 Maven/Gradle 单元测试与最终 Judge；统一拒绝 shell、`java -e`、源码搜索和可跳过目标的伪行为验证，同时保留带空格的直接可执行路径；同步 README、架构、设计与验证器合同 | 聚焦 Java 51/51、Vitest 139/139；首次完整验证因既有本地同步并发用例时序失败，单独复跑通过；最终 `./scripts/verify.sh`：Java 315 项中 314 通过、Windows 条件用例 1 项跳过，Vitest 139/139，BUILD SUCCESS；隔离 JAR 在 18087 实测 health、打包 SPA、`BOTH`/`JUDGE` 评估与 `java -e` 拒绝，关闭后无监听残留；JAR 262726851 bytes，SHA-256 `fc0496c81d6c0207db968c7c6889a2c62cced40dc58a35f63be5ce1f53ae308d`；发布目标：`v0.1.32` |
 | 2026-08-12 | 修复验收边界并发布 0.1.34 | PROCESS TEST 精确识别并在执行前复核；Judge 汇总全部阶段证据并增加双层 UTF-8 预算；LoopSpec 空字段分析返回错误而非异常；Runtime 重启要求本地 UI；前端数值上限与后端一致；同步 README、架构、设计与验证器合同 | 聚焦 Java 91/91、Vitest 37/37；`0.1.33` 首次完整验证因 2 处旧版本断言失败后按规则递增；最终 `./scripts/verify.sh`：Java 322 项中 321 通过、Windows 条件用例 1 项跳过，Vitest 140/140，BUILD SUCCESS；隔离 JAR PID 33181 监听 `127.0.0.1:62813`，health `UP`、返回打包 SPA、Runtime 重启本地 UI 边界生效，退出后端口释放；JAR 262733264 bytes，SHA-256 `7530f5d87293e871f4ad76cdd33b83117e52d6fdce1093d96dd3b1945b1fd9a9`；发布目标：`v0.1.34` |
+| 2026-08-12 | 修复双 Judge 提示预算原子预检并发布 0.1.35 | 每轮先构造并校验全部待启动角色提示；任一角色超过 128 KiB 时，整批不创建 Judge 记录、只读 Session 或模型调用；显式双评审重试遵循同一边界；同步 README、架构、设计与七特性合同 | 聚焦 Java 71/71；`./scripts/verify.sh`：Java 323 项中 322 通过、Windows 条件用例 1 项跳过，Vitest 140/140，BUILD SUCCESS；JAR 262733719 bytes，SHA-256 `75c3e9759921c234324ab94954bacf378b3e39ffa56dde515c6eef027e22dee3`；未启动运行时；发布目标：`v0.1.35` |

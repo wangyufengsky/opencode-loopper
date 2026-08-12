@@ -1327,9 +1327,10 @@ public class TaskService {
     }
 
     private void launchRequiredJudges(TaskRow task, AttemptRow finalAttempt) {
-        for (String role : List.of("REQUIREMENT", "RISK")) {
-            if (mapper.latestJudgeRun(task.id(), role).isEmpty()) launchJudge(task, finalAttempt, role, false);
-        }
+        List<String> pendingRoles = List.of("REQUIREMENT", "RISK").stream()
+                .filter(role -> mapper.latestJudgeRun(task.id(), role).isEmpty())
+                .toList();
+        launchJudges(task, finalAttempt, pendingRoles, false);
         if (TaskState.JUDGING.name().equals(get(task.id()).state())) {
             events.emit(task.id(), "task.judging", Map.of("state", TaskState.JUDGING.name(), "judges", List.of("REQUIREMENT", "RISK")));
         }
@@ -1373,10 +1374,7 @@ public class TaskService {
         updateTask(state(task, TaskState.JUDGING));
         events.emit(task.id(), "task.judge_retry_requested", Map.of(
                 "state", TaskState.JUDGING.name(), "source", "LOCAL_UI", "judges", List.of("REQUIREMENT", "RISK")));
-        for (String role : List.of("REQUIREMENT", "RISK")) {
-            if (!TaskState.JUDGING.name().equals(get(task.id()).state())) break;
-            launchJudge(get(task.id()), finalAttempt, role, true);
-        }
+        launchJudges(get(task.id()), finalAttempt, List.of("REQUIREMENT", "RISK"), true);
         return get(task.id());
     }
 
@@ -1384,23 +1382,37 @@ public class TaskService {
         return judge != null && JudgeRunState.COMPLETED.name().equals(judge.state()) && "PASS".equals(judge.verdict());
     }
 
-    private void launchJudge(TaskRow inputTask, AttemptRow finalAttempt, String role, boolean explicitLocalRetry) {
+    private void launchJudges(TaskRow inputTask, AttemptRow finalAttempt, List<String> roles,
+                              boolean explicitLocalRetry) {
+        TaskRow task = get(inputTask.id());
+        if (!TaskState.JUDGING.name().equals(task.state()) || roles.isEmpty()) return;
+        LoopSpec spec = spec(task);
+        Map<String, String> prompts = new LinkedHashMap<>();
+        for (String role : roles) {
+            if (!explicitLocalRetry && mapper.countJudgeSessionErrors(task.id(), role) >= spec.limits().sessionErrorLimit()) {
+                waitForJudgeInput(task, finalAttempt, null, "JUDGE_SESSION_RETRY_EXHAUSTED",
+                        role + " Judge exhausted its configured session retry limit");
+                return;
+            }
+            try {
+                prompts.put(role, judgePrompt(task, finalAttempt, role));
+            } catch (TaskFailure failure) {
+                if (!"JUDGE_PROMPT_BUDGET_EXCEEDED".equals(failure.code())) throw failure;
+                waitForJudgeInput(task, finalAttempt, null, failure.code(), failure.getMessage());
+                return;
+            }
+        }
+        for (String role : roles) {
+            if (!TaskState.JUDGING.name().equals(get(task.id()).state())) break;
+            launchJudge(get(task.id()), finalAttempt, role, explicitLocalRetry, prompts.get(role));
+        }
+    }
+
+    private void launchJudge(TaskRow inputTask, AttemptRow finalAttempt, String role,
+                             boolean explicitLocalRetry, String prompt) {
         TaskRow task = get(inputTask.id());
         if (!TaskState.JUDGING.name().equals(task.state())) return;
         LoopSpec spec = spec(task);
-        if (!explicitLocalRetry && mapper.countJudgeSessionErrors(task.id(), role) >= spec.limits().sessionErrorLimit()) {
-            waitForJudgeInput(task, finalAttempt, null, "JUDGE_SESSION_RETRY_EXHAUSTED",
-                    role + " Judge exhausted its configured session retry limit");
-            return;
-        }
-        String prompt;
-        try {
-            prompt = judgePrompt(task, finalAttempt, role);
-        } catch (TaskFailure failure) {
-            if (!"JUDGE_PROMPT_BUDGET_EXCEEDED".equals(failure.code())) throw failure;
-            waitForJudgeInput(task, finalAttempt, null, failure.code(), failure.getMessage());
-            return;
-        }
         if (!explicitLocalRetry && blockModelCallForBudget(task, null, finalAttempt)) return;
         JudgeRunRow judge = new JudgeRunRow(UUID.randomUUID().toString(), task.id(), finalAttempt.id(), role,
                 mapper.nextJudgeOrdinal(task.id(), role), null, JudgeRunState.CREATING.name(), null, null, null, now(), null, 0);
@@ -1500,7 +1512,7 @@ public class TaskService {
             return;
         }
         events.emit(task.id(), "judge.session_failed", Map.of("judgeRunId", judge.id(), "role", judge.role(), "code", failure.code(), "recovery", "fresh_read_only_session"));
-        if (attempt != null) launchJudge(task, attempt, judge.role(), false);
+        if (attempt != null) launchJudges(task, attempt, List.of(judge.role()), false);
     }
 
     private void evaluateJudgeDecision(TaskRow task) {
@@ -1699,9 +1711,6 @@ public class TaskService {
     private String roleTitle(String role) { return "REQUIREMENT".equals(role) ? "Requirement Judge" : "Risk Judge"; }
     private String judgePrompt(TaskRow task, AttemptRow attempt, String role) {
         LoopSpec loopSpec = spec(task);
-        String focus = "REQUIREMENT".equals(role)
-                ? "判断交付结果是否满足已确认目标、最终阶段目标和确定性验证证据。"
-                : "检查回归、越界或不安全变更、证据缺失，以及任何导致交付不安全的风险。";
         String objectives = mapper.listStages(task.id()).stream()
                 .filter(stage -> StageState.SUCCEEDED.name().equals(stage.state()))
                 .map(stage -> "- 阶段 " + (stage.ordinal() + 1) + "：" + stage.objective())
@@ -1714,20 +1723,7 @@ public class TaskService {
         String diff = mapper.listTaskArtifacts(task.id()).stream()
                 .filter(artifact -> attempt.id().equals(artifact.attemptId()) && "GIT_DIFF".equals(artifact.kind()))
                 .map(TaskArtifactRow::content).findFirst().orElse("No diff artifact was persisted.");
-        String reviewer = "REQUIREMENT".equals(role) ? "需求评审员" : "风险评审员";
-        String prompt = "你是" + reviewer + "。这是严格的只读评审：不得编辑文件、运行终端命令或委派任务。\n"
-                + focus + "\n必须逐项评审下面列出的 AI 验收合同；MACHINE 条件由确定性验证负责，不要把计划中的 Judge 评审误写成已由机器证明。\n"
-                + JudgePromptPolicy.contract(loopSpec)
-                + "\n已完成阶段目标：\n" + objectives + "\n跨阶段确定性验证摘要：\n" + verification
-                + "\n已持久化的 Git 差异证据：\n" + diff + "\n尝试记录：" + attempt.id()
-                + "\n仅返回一个 JSON 对象，不得附加说明或代码围栏："
-                + "{\"verdict\":\"PASS|REVISE|BLOCKED\",\"reason\":\"简洁、基于证据的中文 Markdown\"}。"
-                + "`verdict` 必须保留上述英文协议值；`reason` 必须使用简体中文。"
-                + "在 `reason` 中先写一句结论，再写 `## 证据` 标题和编号列表；命令与文件路径使用行内代码。"
-                + "若结论不是 PASS，再增加 `## 必须处理` 标题和编号列表。"
-                + "不要使用围栏代码块，并将 `reason` 内的每个换行正确转义为 JSON 字符串。";
-        JudgePromptPolicy.requirePromptWithinBudget(prompt);
-        return prompt;
+        return JudgePromptPolicy.prompt(loopSpec, role, objectives, verification, diff, attempt.id());
     }
 
     private String sha256(String value) {

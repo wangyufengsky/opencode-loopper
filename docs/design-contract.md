@@ -120,7 +120,10 @@ proposal and confirmation without an ignore action. Persisted v1 drafts show
 the operator can copy one to a new v2 draft and then complete its criteria.
 The confirmed goal, context, and complete cross-Stage `JUDGE`/`BOTH` contract
 must fit within 96 KiB UTF-8; the Review Gate reports an explicit field error
-instead of allowing a prompt that cannot be reviewed safely.
+instead of allowing a prompt that cannot be reviewed safely. At runtime, both
+pending final-review role prompts are preflighted as one batch before either
+Judge row, read-only Session, or model call is created; local-UI double-review
+retries use the same all-role boundary.
 
 Live SSE delivery is presentation transport only. A page refresh, timeout,
 client disconnect, or already-closed servlet `AsyncContext` removes that one
