@@ -3,13 +3,19 @@ package io.opencode.loopper;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class ReleasePackagingContractTest {
 
     private static final Path PROJECT_ROOT = Path.of(System.getProperty("user.dir"));
+
+    @TempDir
+    Path tempDir;
 
     @Test
     void releasePublishesBothPlatformStartupScriptsWithChecksums() throws IOException {
@@ -31,7 +37,7 @@ class ReleasePackagingContractTest {
         String linux = Files.readString(PROJECT_ROOT.resolve("scripts/start-linux.sh"));
 
         assertThat(windows)
-                .contains("opencode-loopper-0.1.18.jar")
+                .contains("opencode-loopper-0.1.19.jar")
                 .contains("if %JAVA_MAJOR_NUMBER% LSS 21 goto java_too_old")
                 .contains("%OPENCODE_BASE_URL%/global/health")
                 .contains("call :discover_opencode")
@@ -47,12 +53,86 @@ class ReleasePackagingContractTest {
                 .doesNotContain("serve --hostname 127.0.0.1 --port 4096");
 
         assertThat(linux)
-                .contains("opencode-loopper-0.1.18.jar")
+                .contains("opencode-loopper-0.1.19.jar")
                 .contains("discover_opencode_base_url()")
                 .contains("ps -eo pid=,args=")
+                .contains("lsof -nP -a -p")
+                .contains("ss -H -ltnp")
                 .contains("running opencode process")
                 .contains("LOOPPER_OPENCODE_MODE=\"auto\"")
                 .contains("动态 loopback 端口")
                 .doesNotContain("127.0.0.1:4096");
+    }
+
+    @Test
+    void linuxStartupDiscoversTuiServerFromItsListeningPort() throws Exception {
+        assertLinuxTuiDiscovery("lsof");
+    }
+
+    @Test
+    void linuxStartupFallsBackToSsForTuiServerDiscovery() throws Exception {
+        assertLinuxTuiDiscovery("ss");
+    }
+
+    private void assertLinuxTuiDiscovery(String listenerTool) throws Exception {
+        Path bin = Files.createDirectories(tempDir.resolve("bin"));
+        Path javaHome = Files.createDirectories(tempDir.resolve("jdk/bin")).getParent();
+        Path jar = Files.writeString(tempDir.resolve("loopper.jar"), "test");
+
+        executable(javaHome.resolve("bin/java"), """
+                #!/usr/bin/env bash
+                if [[ "${1:-}" == "-version" ]]; then
+                  echo 'openjdk version "21.0.2"' >&2
+                  exit 0
+                fi
+                printf 'JAVA_OPENCODE_BASE_URL=%s\nJAVA_OPENCODE_MODE=%s\n' \
+                  "${OPENCODE_BASE_URL:-}" "${LOOPPER_OPENCODE_MODE:-}"
+                """);
+        executable(bin.resolve("ps"), """
+                #!/usr/bin/env bash
+                printf '4321 opencode\n'
+                """);
+        executable(bin.resolve("lsof"), listenerTool.equals("lsof") ? """
+                #!/usr/bin/env bash
+                printf 'p4321\nn127.0.0.1:54321\n'
+                """ : "#!/usr/bin/env bash\nexit 0\n");
+        executable(bin.resolve("ss"), listenerTool.equals("ss") ? """
+                #!/usr/bin/env bash
+                printf 'LISTEN 0 128 127.0.0.1:54321 0.0.0.0:* users:(("opencode",pid=4321,fd=8))\n'
+                """ : "#!/usr/bin/env bash\nexit 0\n");
+        executable(bin.resolve("curl"), """
+                #!/usr/bin/env bash
+                url="${!#}"
+                if [[ "${url}" == "http://127.0.0.1:54321/global/health" ]]; then
+                  printf '{"healthy":true,"version":"test"}\n'
+                  exit 0
+                fi
+                exit 22
+                """);
+
+        ProcessBuilder builder = new ProcessBuilder("bash", PROJECT_ROOT.resolve("scripts/start-linux.sh").toString());
+        Map<String, String> environment = builder.environment();
+        environment.put("PATH", bin + ":" + environment.get("PATH"));
+        environment.put("LOOPPER_JAVA_HOME", javaHome.toString());
+        environment.put("LOOPPER_JAR_PATH", jar.toString());
+        environment.put("LOOPPER_DATA_DIR", tempDir.resolve("data").toString());
+        environment.put("LOOPPER_OPEN_BROWSER", "false");
+        environment.remove("OPENCODE_BASE_URL");
+        environment.remove("LOOPPER_OPENCODE_MODE");
+        builder.redirectErrorStream(true);
+
+        Process process = builder.start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+
+        assertThat(process.waitFor()).isZero();
+        assertThat(output)
+                .contains("OpenCode：http://127.0.0.1:54321（来源：running opencode process）")
+                .contains("JAVA_OPENCODE_BASE_URL=http://127.0.0.1:54321")
+                .contains("JAVA_OPENCODE_MODE=http");
+    }
+
+    private static void executable(Path path, String content) throws IOException {
+        Files.writeString(path, content, StandardCharsets.UTF_8);
+        assertThat(path.toFile().setExecutable(true)).isTrue();
     }
 }
