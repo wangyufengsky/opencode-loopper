@@ -377,6 +377,51 @@ describe('Designer draft composer', () => {
     expect(redesign).toHaveBeenCalledWith(failedSession.id)
   })
 
+  it('restores the Decomposer card, package rail, retry counters, and waiting-input boundary', async () => {
+    const decomposedSession: DesignerSession = {
+      ...session,
+      state: 'WAITING_INPUT', workflowPhase: 'FAILED', activeActor: 'VALIDATOR',
+      requirementRevision: 3, activeWorkPackageId: 'WP-2',
+      requirement: { revision: 3, state: 'WAITING_INPUT', modelCallsUsed: 9, maxModelCalls: 24, sourceDraftVersion: 4 },
+      decomposition: { id: 'decomposition-3', state: 'COMPLETED', resultType: 'DECOMPOSED', repairCount: 1, transportRetryCount: 0 },
+      compiler: { id: 'compiler-wp2', state: 'SESSION_ERROR', externalSessionState: 'FAILED', repairCount: 2, designRevision: 1, workPackageId: 'WP-2' },
+      workPackages: [
+        { id: 'WP-1', ordinal: 0, title: '查询能力', objective: '可查询结果', dependencies: [], state: 'COMPLETED', redesignCount: 0, compilerRepairCount: 0 },
+        { id: 'WP-2', ordinal: 1, title: '变更能力', objective: '可变更结果', dependencies: ['WP-1'], state: 'WAITING_INPUT', redesignCount: 1, compilerRepairCount: 2, lastErrorCode: 'COMPILER_RETRY_EXHAUSTED' },
+      ],
+      messages: [
+        { id: 'decomposer', role: 'ASSISTANT', actor: 'DECOMPOSER', content: '拆解校验通过：形成 2 个工作包。', deliveryState: 'COMPILED', requirementRevision: 3, createdAt: 'now' },
+        { id: 'raw', role: 'ASSISTANT', actor: 'COMPILER', content: '<!-- LOOPSPEC_COMPILATION_JSON_START -->{"stages":["secret"]}', deliveryState: 'COMPILED', requirementRevision: 3, workPackageId: 'WP-2', createdAt: 'now' },
+        { id: 'failure', role: 'SYSTEM', actor: 'VALIDATOR', content: 'COMPILER_RETRY_EXHAUSTED：需要人工恢复', deliveryState: 'TERMINAL_ERROR', requirementRevision: 3, workPackageId: 'WP-2', createdAt: 'now' },
+      ],
+    }
+    vi.spyOn(api, 'createDraft').mockImplementation(async (spec) => draftFrom(spec))
+    vi.spyOn(api, 'createDesignerSession').mockResolvedValue(decomposedSession)
+    vi.spyOn(api, 'getDesignerSession').mockResolvedValue(decomposedSession)
+    const retry = vi.spyOn(api, 'retryWorkPackageCompiler').mockResolvedValue(undefined)
+    const redesign = vi.spyOn(api, 'redesignWorkPackage').mockResolvedValue(undefined)
+    const wrapper = mountDesigner()
+    await flushPromises()
+    await wrapper.get('textarea[aria-label="草案设计目标"]').setValue('设计两个纵向能力')
+    await wrapper.get('.create-draft-button').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('.chat-decomposer').text()).toContain('Task Decomposer / 任务拆解器')
+    expect(wrapper.get('[aria-label="工作包设计轨道"]').text()).toContain('WP-1')
+    expect(wrapper.get('[aria-label="工作包设计轨道"]').text()).toContain('依赖 WP-1 · 重设计 1/1 · 编译修复 2/2')
+    expect(wrapper.get('.designer-connection-strip').text()).toContain('模型调用 9/24')
+    expect(wrapper.text()).not.toContain('"stages":["secret"]')
+    const confirmButton = wrapper.findAll('button').find((button) => button.text().includes('确认并交接'))!
+    expect(confirmButton.attributes('disabled')).toBeDefined()
+
+    await wrapper.findAll('button').find((button) => button.text().includes('重新编译当前包'))!.trigger('click')
+    await flushPromises()
+    await wrapper.findAll('button').find((button) => button.text().includes('重新设计当前包'))!.trigger('click')
+    await flushPromises()
+    expect(retry).toHaveBeenCalledWith(decomposedSession.id, 'WP-2')
+    expect(redesign).toHaveBeenCalledWith(decomposedSession.id, 'WP-2')
+  })
+
   it('clears the restored workspace and local message drafts when starting over', async () => {
     vi.spyOn(api, 'createDesignerSession').mockResolvedValue(session)
     vi.spyOn(api, 'createDraft').mockImplementation(async (spec) => draftFrom(spec))

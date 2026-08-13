@@ -112,12 +112,14 @@ function addStageListItem(stageIndex: number, key: StageListKey) {
 }
 
 function addCriterion(stageIndex: number) {
+  const workPackageId = spec.value?.stages[stageIndex]?.workPackageId
   const criteria = spec.value?.stages[stageIndex]?.acceptanceCriteria
   if (!criteria) return
   const used = new Set(criteria.map((criterion) => criterion.id))
   let ordinal = criteria.length + 1
-  while (used.has(`AC-${ordinal}`)) ordinal++
-  criteria.push({ id: `AC-${ordinal}`, description: '', verificationMode: 'MACHINE' })
+  const prefix = workPackageId ? `${workPackageId}-AC-` : 'AC-'
+  while (used.has(`${prefix}${ordinal}`)) ordinal++
+  criteria.push({ id: `${prefix}${ordinal}`, description: '', verificationMode: 'MACHINE' })
 }
 
 function removeCriterion(stageIndex: number, criterionIndex: number) {
@@ -196,10 +198,10 @@ function configureVerifier(verifier: LoopVerifierSpec) {
           <el-button plain size="small" @click="addStage"><Icon icon="lucide:plus" />添加阶段</el-button>
         </div>
 
-        <article v-for="(stage, stageIndex) in spec.stages" :key="stageIndex" class="stage-card">
+        <article v-for="(stage, stageIndex) in spec.stages" :key="stageIndex" :class="['stage-card', { 'package-stage': stage.workPackageId }]">
           <header class="stage-header">
             <div class="stage-number">{{ stageIndex + 1 }}</div>
-            <div><span>阶段 {{ stageIndex + 1 }}</span><strong>{{ stage.objective || '尚未填写阶段目标' }}</strong></div>
+            <div><span>{{ stage.workPackageId ? `${stage.workPackageId} · ` : '' }}阶段 {{ stageIndex + 1 }}</span><strong>{{ stage.objective || '尚未填写阶段目标' }}</strong></div>
             <el-button text type="danger" :disabled="spec.stages.length <= 1" aria-label="删除阶段" @click="removeStage(stageIndex)"><Icon icon="lucide:trash-2" /></el-button>
           </header>
 

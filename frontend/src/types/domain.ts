@@ -142,9 +142,20 @@ export interface Attempt {
 export interface Stage {
   id: string
   ordinal: number
+  workPackageId?: string
   objective: string
   status: 'PENDING' | 'RUNNING' | 'VERIFYING' | 'PAUSED' | 'SUCCEEDED' | 'BLOCKED'
   attempts: Attempt[]
+}
+
+export interface TaskWorkPackageProgress {
+  id: string
+  ordinal: number
+  status: 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED'
+  stageCount: number
+  completedStages: number
+  attemptCount: number
+  attemptLimit: number
 }
 
 export interface Task {
@@ -166,6 +177,7 @@ export interface Task {
   createdAt: string
   updatedAt: string
   stages?: Stage[]
+  workPackages?: TaskWorkPackageProgress[]
   attempts?: Attempt[]
   errors?: ErrorEvent[]
   judges?: JudgeRun[]
@@ -535,6 +547,7 @@ export interface LoopSpec {
   goal: string
   context: string
   stages: Array<{
+    workPackageId?: string
     objective: string
     allowedPaths: string[]
     forbiddenPaths: string[]
@@ -707,15 +720,50 @@ export interface LoopDraft {
 export interface DesignerMessage {
   id: string
   role: 'USER' | 'ASSISTANT' | 'SYSTEM'
-  actor: 'USER' | 'DESIGNER' | 'COMPILER' | 'VALIDATOR' | 'SYSTEM'
+  actor: 'USER' | 'DECOMPOSER' | 'DESIGNER' | 'COMPILER' | 'VALIDATOR' | 'SYSTEM'
   content: string
   deliveryState?: 'PERSISTED' | 'PENDING_HANDOFF' | 'COMPILED' | 'DESIGN_INCOMPLETE' | 'PASS' | 'RETRYABLE_ERROR' | 'TERMINAL_ERROR' | 'SESSION_ERROR'
+  requirementRevision?: number
+  workPackageId?: string
   createdAt: string
 }
 
-export type DesignerSessionState = 'PENDING_HANDOFF' | 'RUNNING' | 'COMPLETED' | 'SESSION_ERROR'
-export type DesignWorkflowPhase = 'DESIGNING' | 'COMPILING' | 'VALIDATING' | 'REDESIGNING' | 'COMPLETED' | 'FAILED'
+export type DesignerSessionState = 'PENDING_HANDOFF' | 'RUNNING' | 'WAITING_INPUT' | 'COMPLETED' | 'SESSION_ERROR'
+export type DesignWorkflowPhase = 'DECOMPOSING' | 'VALIDATING_DECOMPOSITION' | 'DESIGNING' | 'COMPILING' | 'VALIDATING' | 'REDESIGNING' | 'AGGREGATING' | 'COMPLETED' | 'FAILED'
 export type DesignerActor = DesignerMessage['actor']
+
+export interface DesignRequirementRevisionStatus {
+  revision: number
+  state: string
+  modelCallsUsed: number
+  maxModelCalls: number
+  sourceDraftVersion: number
+}
+
+export interface TaskDecompositionStatus {
+  id: string
+  state: string
+  resultType?: 'DIRECT_DESIGN' | 'DECOMPOSED' | 'NEEDS_INPUT' | 'MULTI_TASK_REQUIRED'
+  repairCount: number
+  transportRetryCount: number
+  lastErrorCode?: string
+  lastErrorDetail?: string
+}
+
+export interface DesignWorkPackageStatus {
+  id: string
+  ordinal: number
+  title: string
+  objective: string
+  state: string
+  dependencies: string[]
+  redesignCount: number
+  compilerRepairCount: number
+  compilerSummary?: string
+  handoffSummary?: string
+  lastErrorCode?: string
+  lastErrorDetail?: string
+}
 
 export interface DesignerSession {
   id: string
@@ -739,7 +787,13 @@ export interface DesignerSession {
     designRevision: number
     lastErrorCode?: string
     lastErrorDetail?: string
+    workPackageId?: string
   }
+  requirement?: DesignRequirementRevisionStatus
+  decomposition?: TaskDecompositionStatus
+  workPackages?: DesignWorkPackageStatus[]
+  requirementRevision?: number
+  activeWorkPackageId?: string
 }
 
 export interface TaskDesignHistory {
@@ -755,6 +809,27 @@ export interface TaskDesignHistory {
     updatedAt: string
     messages: DesignerMessage[]
   }
+  requirement?: {
+    revision: number
+    state: string
+    requirementText: string
+    modelCallsUsed: number
+    maxModelCalls: number
+  }
+  decomposition?: {
+    state: string
+    resultType?: string
+    planJson: string
+  }
+  workPackages?: Array<{
+    id: string
+    ordinal: number
+    title: string
+    objective: string
+    state: string
+    compilerSummary?: string
+    handoffSummary?: string
+  }>
 }
 
 export interface DesignerAppendResult {
@@ -776,4 +851,8 @@ export interface DesignerStreamEvent {
   content: string
   detail: string
   at: string
+  requirementRevision?: number
+  activeWorkPackageId?: string
+  modelCallsUsed: number
+  maxModelCalls: number
 }

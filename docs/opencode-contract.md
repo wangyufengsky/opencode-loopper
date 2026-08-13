@@ -47,32 +47,45 @@ not invent one: a Designer uses an OpenCode `createReadOnlySession` against the
 registered project root, while Loopper's bearer-protected Spring AI MCP server
 is independently exposed at `/api/mcp-streamable`.
 
-The REST workflow uses two model roles. Each persisted Designer Session is bound
-to the exact `loop_draft_id` shown in Review Gate. Designer receives the user
-request and read-only project context and returns one complete Markdown design;
-it is never asked to populate LoopSpec fields. Loopper freezes that message and
-design revision, then creates a brand-new read-only LoopSpec Compiler Session
-using the same configured model. Compiler may use `read`, `glob`, and `grep`, but
-may not write, execute commands, ask questions, or create a Task.
+The REST workflow uses three model roles plus a deterministic server validator.
+Each overall Designer Session is bound to the exact `loop_draft_id` shown in
+Review Gate. Task Decomposer first receives a frozen, numbered requirement
+revision and read-only project context. It may use only `read`, `glob`, and
+`grep`, and returns a marked `DIRECT_DESIGN`, `DECOMPOSED`, `NEEDS_INPUT`, or
+`MULTI_TASK_REQUIRED` envelope. It cannot write, execute commands, ask a
+model-side question, or create a Task. The server verifies complete requirement
+coverage and dependency order before persisting packages.
 
-Compiler returns one marked envelope with either `COMPILED` (complete LoopSpec,
-bounded summary, and an exact Designer excerpt for every criterion) or
+For each package in order, Loopper creates a brand-new read-only Designer
+Session. Designer receives the original requirement, frozen package plan,
+global constraints, and bounded prerequisite handoffs and returns one complete
+Markdown package design; it is never asked to populate LoopSpec fields. Loopper
+then creates a brand-new read-only Compiler Session with the same configured
+model. Compiler has the same `read`/`glob`/`grep`-only boundary and cannot ask
+questions or create a Task.
+
+Compiler returns one marked envelope with either `COMPILED` (a 1–3 Stage package
+fragment, bounded summary/handoff, and an exact Designer excerpt for every criterion) or
 `DESIGN_INCOMPLETE` (a closed semantic gap code plus concrete gaps). Loopper
 checks each excerpt against the frozen design and then runs the same field,
 verifier, coverage, project, and draft-version validation used by other entry
-points. JSON/schema/verifier/coverage failures create a new Compiler repair
-Session, at most twice after the initial compile. Missing observable outcome,
+points. JSON/schema/verifier/coverage failures create another bounded repair
+turn in the same Compiler Session, at most twice after the initial compile. Missing observable outcome,
 exception semantics, scope, or acceptance intent requests at most one automatic
-full replacement from the original Designer Session. Format errors cannot be
+full replacement from a fresh Designer Session for the current package. Format errors cannot be
 relabelled as design gaps. Retry exhaustion or optimistic draft conflict leaves
-the draft unchanged and exposes explicit manual recompile/redesign actions.
-Only successful deterministic validation synchronizes the draft and completes
-the overall Session; no branch, Task, or writable Session is created beforehand.
+the draft unchanged and exposes explicit manual decomposition/package recovery.
+Each requirement revision permits at most 24 model calls across all roles and
+one fresh-Session transport retry per role invocation. After every package
+passes, Loopper—not a model—concatenates fragments in package order and runs the
+complete validation before an optimistic draft update. No branch, Task, or
+writable Session is created beforehand.
 
-The MCP `propose_loop_spec` tool uses the same session-bound update path. It no
+The MCP `propose_loop_spec` tool uses the same session-bound update path, but is
+rejected while an active decomposed design workflow has not completed. It no
 longer creates an unrelated draft, so an external MCP client and the built-in
 Designer workflow converge on the same Review Gate state. Failed or unavailable
-Designer/Compiler handoffs remain on the Designer Session and never transition a Task.
+Decomposer/Designer/Compiler handoffs remain on the Designer Session and never transition a Task.
 For v2 drafts, `propose_loop_spec` and `validate_loop_spec` expose the same
 server-computed criterion coverage and evidence categories as
 `POST /api/loop-drafts/validate`. The model cannot self-declare a verifier as

@@ -77,6 +77,39 @@ describe('TaskDetailView judge action', () => {
     expect(store.updateTask).toHaveBeenCalledWith('task-review', 'cancel')
   })
 
+  it('groups execution progress by work package and shows each independent attempt pool', async () => {
+    store.tasks = [{
+      ...reviewTask,
+      id: 'task-packages', status: 'RUNNING', judges: [],
+      workPackages: [
+        { id: 'WP-1', status: 'SUCCEEDED', stageCount: 2, completedStages: 2, attemptCount: 2, attemptLimit: 4 },
+        { id: 'WP-2', status: 'RUNNING', stageCount: 1, completedStages: 0, attemptCount: 1, attemptLimit: 3 },
+      ],
+    }]
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/tasks/:id', component: { template: '<div />' } }] })
+    await router.push('/tasks/task-packages')
+    await router.isReady()
+    const wrapper = mount(TaskDetailView, {
+      global: {
+        plugins: [router, ElementPlus],
+        stubs: {
+          Icon: true, PageHeader: { template: '<header><slot name="actions" /></header><slot />' },
+          StatusBadge: true, StageRail: true, AttemptTimeline: true, LayeredErrorPanel: true,
+          SessionMonitorPanel: true, JudgeReviewCard: true, TaskAuditEvidencePanel: true,
+          TaskPublicationActions: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.get('#package-progress-heading').text()).toBe('工作包与独立尝试池')
+    expect(wrapper.get('.package-progress-grid').text()).toContain('WP-1')
+    expect(wrapper.get('.package-progress-grid').text()).toContain('2 / 4')
+    expect(wrapper.get('.package-progress-grid').text()).toContain('WP-2')
+    expect(wrapper.get('.package-progress-grid').text()).toContain('1 / 3')
+    expect(wrapper.text()).toContain('全部包完成后仅运行一组 Requirement / Risk Judge')
+  })
+
   it('offers an explicit fresh double review for a deterministically accepted waiting task', async () => {
     const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/tasks/:id', component: { template: '<div />' } }] })
     await router.push('/tasks/task-review')

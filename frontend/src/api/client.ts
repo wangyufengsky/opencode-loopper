@@ -285,7 +285,7 @@ function normalizeStage(value: unknown, attempts: Attempt[]): Stage {
   const state = asString(raw.status || raw.state)
   const status = state === 'SUCCEEDED' ? 'SUCCEEDED' : state === 'RUNNING' ? 'RUNNING' : state === 'VERIFYING' ? 'VERIFYING' : state === 'PAUSED' ? 'PAUSED' : state === 'FAILED' ? 'BLOCKED' : 'PENDING'
   const id = asString(raw.id)
-  return { id, ordinal: asNumber(raw.ordinal) + 1, objective: asString(raw.objective), status, attempts: attempts.filter((attempt) => attempt.stageId === id) }
+  return { id, ordinal: asNumber(raw.ordinal) + 1, workPackageId: asString(raw.workPackageId) || undefined, objective: asString(raw.objective), status, attempts: attempts.filter((attempt) => attempt.stageId === id) }
 }
 
 function normalizeJudge(value: unknown): JudgeRun {
@@ -336,7 +336,8 @@ function normalizeTask(value: unknown): Task {
   const attempts = asArray(raw.attempts).map(normalizeAttempt)
   const stages = asArray(raw.stages).map((stage) => normalizeStage(stage, attempts))
   const taskId = asString(raw.id)
-  return { id: taskId, projectId: asString(raw.projectId), projectName: asString(raw.projectName, 'Unknown project'), title: asString(raw.title), goal: asString(raw.goal), branch: asString(raw.branch) || '等待选择执行模式', worktreePath: asString(raw.worktreePath) || '等待准备执行目录', status: asString(raw.status) as Task['status'], waitingReasonCode: asString(raw.waitingReasonCode) || undefined, loopRetryAvailable: raw.loopRetryAvailable === true, hasDesignHistory: raw.hasDesignHistory === true, archived: raw.archived === true, activeStage: stages.find((stage) => stage.status === 'RUNNING')?.ordinal, attemptCount: asNumber(raw.attemptCount, attempts.length), maxAttempts: asNumber(raw.maxAttempts, 12), createdAt: asString(raw.createdAt), updatedAt: asString(raw.updatedAt), stages, attempts, errors: asArray(raw.errors).map(normalizeError), judges: asArray(raw.judges).map(normalizeJudge), artifacts: asArray(raw.artifacts).map((artifact) => normalizeArtifact(artifact, taskId)) }
+  const workPackages = asArray(raw.workPackages).map((value) => { const item = asRecord(value); return { id: asString(item.id), ordinal: asNumber(item.ordinal), status: asString(item.status) as NonNullable<Task['workPackages']>[number]['status'], stageCount: asNumber(item.stageCount), completedStages: asNumber(item.completedStages), attemptCount: asNumber(item.attemptCount), attemptLimit: asNumber(item.attemptLimit) } })
+  return { id: taskId, projectId: asString(raw.projectId), projectName: asString(raw.projectName, 'Unknown project'), title: asString(raw.title), goal: asString(raw.goal), branch: asString(raw.branch) || '等待选择执行模式', worktreePath: asString(raw.worktreePath) || '等待准备执行目录', status: asString(raw.status) as Task['status'], waitingReasonCode: asString(raw.waitingReasonCode) || undefined, loopRetryAvailable: raw.loopRetryAvailable === true, hasDesignHistory: raw.hasDesignHistory === true, archived: raw.archived === true, activeStage: stages.find((stage) => stage.status === 'RUNNING')?.ordinal, attemptCount: asNumber(raw.attemptCount, attempts.length), maxAttempts: asNumber(raw.maxAttempts, 12), createdAt: asString(raw.createdAt), updatedAt: asString(raw.updatedAt), stages, workPackages, attempts, errors: asArray(raw.errors).map(normalizeError), judges: asArray(raw.judges).map(normalizeJudge), artifacts: asArray(raw.artifacts).map((artifact) => normalizeArtifact(artifact, taskId)) }
 }
 
 function normalizeTaskDesignHistory(value: unknown): TaskDesignHistory {
@@ -355,6 +356,9 @@ function normalizeTaskDesignHistory(value: unknown): TaskDesignHistory {
       updatedAt: asString(session.updatedAt),
       messages: asArray(session.messages).map(normalizeDesignerMessage),
     } : undefined,
+    requirement: raw.requirement ? (() => { const item = asRecord(raw.requirement); return { revision: asNumber(item.revision), state: asString(item.state), requirementText: asString(item.requirementText), modelCallsUsed: asNumber(item.modelCallsUsed), maxModelCalls: asNumber(item.maxModelCalls) } })() : undefined,
+    decomposition: raw.decomposition ? (() => { const item = asRecord(raw.decomposition); return { state: asString(item.state), resultType: asString(item.resultType) || undefined, planJson: asString(item.planJson) } })() : undefined,
+    workPackages: asArray(raw.workPackages).map((value) => { const item = asRecord(value); return { id: asString(item.id), ordinal: asNumber(item.ordinal), title: asString(item.title), objective: asString(item.objective), state: asString(item.state), compilerSummary: asString(item.compilerSummary) || undefined, handoffSummary: asString(item.handoffSummary) || undefined } }),
   }
 }
 
@@ -511,30 +515,32 @@ function normalizeDesignerMessage(value: unknown): DesignerMessage {
   return {
     id: asString(raw.id),
     role: role === 'USER' || role === 'ASSISTANT' || role === 'SYSTEM' ? role : 'SYSTEM',
-    actor: ['USER', 'DESIGNER', 'COMPILER', 'VALIDATOR', 'SYSTEM'].includes(actor) ? actor as DesignerMessage['actor'] : role === 'USER' ? 'USER' : role === 'ASSISTANT' ? 'DESIGNER' : 'SYSTEM',
+    actor: ['USER', 'DECOMPOSER', 'DESIGNER', 'COMPILER', 'VALIDATOR', 'SYSTEM'].includes(actor) ? actor as DesignerMessage['actor'] : role === 'USER' ? 'USER' : role === 'ASSISTANT' ? 'DESIGNER' : 'SYSTEM',
     content: asString(raw.content),
     deliveryState: ['PERSISTED', 'PENDING_HANDOFF', 'COMPILED', 'DESIGN_INCOMPLETE', 'PASS', 'RETRYABLE_ERROR', 'TERMINAL_ERROR', 'SESSION_ERROR'].includes(asString(raw.deliveryState))
       ? asString(raw.deliveryState) as DesignerMessage['deliveryState']
       : undefined,
+    requirementRevision: typeof raw.requirementRevision === 'number' ? raw.requirementRevision : undefined,
+    workPackageId: asString(raw.workPackageId) || undefined,
     createdAt: asString(raw.createdAt),
   }
 }
 
 function normalizeWorkflowPhase(value: unknown): DesignerSession['workflowPhase'] {
   const phase = asString(value)
-  return ['DESIGNING', 'COMPILING', 'VALIDATING', 'REDESIGNING', 'COMPLETED', 'FAILED'].includes(phase)
+  return ['DECOMPOSING', 'VALIDATING_DECOMPOSITION', 'DESIGNING', 'COMPILING', 'VALIDATING', 'REDESIGNING', 'AGGREGATING', 'COMPLETED', 'FAILED'].includes(phase)
     ? phase as DesignerSession['workflowPhase'] : 'DESIGNING'
 }
 
 function normalizeDesignerActor(value: unknown): DesignerSession['activeActor'] {
   const actor = asString(value)
-  return ['USER', 'DESIGNER', 'COMPILER', 'VALIDATOR', 'SYSTEM'].includes(actor)
+  return ['USER', 'DECOMPOSER', 'DESIGNER', 'COMPILER', 'VALIDATOR', 'SYSTEM'].includes(actor)
     ? actor as DesignerSession['activeActor'] : 'SYSTEM'
 }
 
 function normalizeDesignerState(value: unknown): DesignerSessionState {
   const state = asString(value)
-  return state === 'RUNNING' || state === 'COMPLETED' || state === 'SESSION_ERROR' ? state : 'PENDING_HANDOFF'
+  return state === 'RUNNING' || state === 'WAITING_INPUT' || state === 'COMPLETED' || state === 'SESSION_ERROR' ? state : 'PENDING_HANDOFF'
 }
 
 function normalizeDesignerSession(value: unknown): DesignerSession {
@@ -563,8 +569,14 @@ function normalizeDesignerSession(value: unknown): DesignerSession {
         designRevision: asNumber(compiler.designRevision),
         lastErrorCode: asString(compiler.lastErrorCode) || undefined,
         lastErrorDetail: asString(compiler.lastErrorDetail) || undefined,
+        workPackageId: asString(compiler.workPackageId) || undefined,
       }
     })() : undefined,
+    requirement: raw.requirement ? (() => { const item = asRecord(raw.requirement); return { revision: asNumber(item.revision), state: asString(item.state), modelCallsUsed: asNumber(item.modelCallsUsed), maxModelCalls: asNumber(item.maxModelCalls), sourceDraftVersion: asNumber(item.sourceDraftVersion) } })() : undefined,
+    decomposition: raw.decomposition ? (() => { const item = asRecord(raw.decomposition); const resultType = asString(item.resultType); return { id: asString(item.id), state: asString(item.state), resultType: ['DIRECT_DESIGN', 'DECOMPOSED', 'NEEDS_INPUT', 'MULTI_TASK_REQUIRED'].includes(resultType) ? resultType as NonNullable<DesignerSession['decomposition']>['resultType'] : undefined, repairCount: asNumber(item.repairCount), transportRetryCount: asNumber(item.transportRetryCount), lastErrorCode: asString(item.lastErrorCode) || undefined, lastErrorDetail: asString(item.lastErrorDetail) || undefined } })() : undefined,
+    workPackages: asArray(raw.workPackages).map((value) => { const item = asRecord(value); return { id: asString(item.id), ordinal: asNumber(item.ordinal), title: asString(item.title), objective: asString(item.objective), state: asString(item.state), dependencies: asArray(item.dependencies).map(String), redesignCount: asNumber(item.redesignCount), compilerRepairCount: asNumber(item.compilerRepairCount), compilerSummary: asString(item.compilerSummary) || undefined, handoffSummary: asString(item.handoffSummary) || undefined, lastErrorCode: asString(item.lastErrorCode) || undefined, lastErrorDetail: asString(item.lastErrorDetail) || undefined } }),
+    requirementRevision: typeof raw.requirementRevision === 'number' ? raw.requirementRevision : undefined,
+    activeWorkPackageId: asString(raw.activeWorkPackageId) || undefined,
   }
 }
 
@@ -583,6 +595,10 @@ function normalizeDesignerStreamEvent(value: unknown): DesignerStreamEvent {
     content: asString(raw.content),
     detail: asString(raw.detail),
     at: asString(raw.at) || new Date().toISOString(),
+    requirementRevision: typeof raw.requirementRevision === 'number' ? raw.requirementRevision : undefined,
+    activeWorkPackageId: asString(raw.activeWorkPackageId) || undefined,
+    modelCallsUsed: asNumber(raw.modelCallsUsed),
+    maxModelCalls: asNumber(raw.maxModelCalls, 24),
   }
 }
 
@@ -599,6 +615,7 @@ function backendLoopSpec(spec: LoopSpec): JsonRecord {
     goal: spec.goal,
     context: spec.context,
     stages: spec.stages.map((stage) => ({
+      ...(stage.workPackageId ? { workPackageId: stage.workPackageId } : {}),
       objective: stage.objective,
       allowedPaths: stage.allowedPaths,
       forbiddenPaths: stage.forbiddenPaths,
@@ -1063,6 +1080,9 @@ export const api = {
   rejectDesignerQuestion: async (id: string, questionId: string) => request<void>(`/designer-sessions/${encodeURIComponent(id)}/questions/${encodeURIComponent(questionId)}/reject`, { method: 'POST' }),
   retryDesignerCompiler: async (id: string) => request<void>(`/designer-sessions/${encodeURIComponent(id)}/compiler/retry`, { method: 'POST' }),
   requestDesignerRedesign: async (id: string) => request<void>(`/designer-sessions/${encodeURIComponent(id)}/redesign`, { method: 'POST' }),
+  retryDesignerDecomposition: async (id: string) => request<void>(`/designer-sessions/${encodeURIComponent(id)}/decomposition/retry`, { method: 'POST' }),
+  retryWorkPackageCompiler: async (id: string, packageId: string) => request<void>(`/designer-sessions/${encodeURIComponent(id)}/work-packages/${encodeURIComponent(packageId)}/compiler/retry`, { method: 'POST' }),
+  redesignWorkPackage: async (id: string, packageId: string) => request<void>(`/designer-sessions/${encodeURIComponent(id)}/work-packages/${encodeURIComponent(packageId)}/redesign`, { method: 'POST' }),
   sendDesignerMessage: async (id: string, content: string): Promise<DesignerAppendResult> => {
     const raw = asRecord(await request<unknown>(`/designer-sessions/${encodeURIComponent(id)}/messages`, { method: 'POST', body: JSON.stringify({ content }) }))
     return {

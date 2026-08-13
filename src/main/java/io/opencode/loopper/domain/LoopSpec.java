@@ -46,17 +46,25 @@ public record LoopSpec(
             @Size(max = 32) List<@Valid VerifierSpec> verifiers,
             @Size(max = 64) List<@Valid AcceptanceCriterion> acceptanceCriteria,
             @Valid VerificationRuntime verificationRuntime,
-            ImplementationKind implementationKind) {
+            ImplementationKind implementationKind,
+            @Size(max = 64) String workPackageId) {
         public StageSpec(String objective, List<String> allowedPaths, List<String> forbiddenPaths,
                          List<String> deliverables, List<VerifierSpec> verifiers) {
-            this(objective, allowedPaths, forbiddenPaths, deliverables, verifiers, null, null, null);
+            this(objective, allowedPaths, forbiddenPaths, deliverables, verifiers, null, null, null, null);
         }
         public StageSpec(String objective, List<String> allowedPaths, List<String> forbiddenPaths,
                          List<String> deliverables, List<VerifierSpec> verifiers,
                          List<AcceptanceCriterion> acceptanceCriteria,
                          VerificationRuntime verificationRuntime) {
             this(objective, allowedPaths, forbiddenPaths, deliverables, verifiers,
-                    acceptanceCriteria, verificationRuntime, null);
+                    acceptanceCriteria, verificationRuntime, null, null);
+        }
+        public StageSpec(String objective, List<String> allowedPaths, List<String> forbiddenPaths,
+                         List<String> deliverables, List<VerifierSpec> verifiers,
+                         List<AcceptanceCriterion> acceptanceCriteria,
+                         VerificationRuntime verificationRuntime, ImplementationKind implementationKind) {
+            this(objective, allowedPaths, forbiddenPaths, deliverables, verifiers,
+                    acceptanceCriteria, verificationRuntime, implementationKind, null);
         }
         public StageSpec {
             allowedPaths = immutable(allowedPaths);
@@ -64,6 +72,7 @@ public record LoopSpec(
             deliverables = immutable(deliverables);
             verifiers = immutable(verifiers);
             acceptanceCriteria = immutable(acceptanceCriteria);
+            workPackageId = blankToNull(workPackageId);
         }
     }
 

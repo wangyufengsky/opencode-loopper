@@ -99,31 +99,62 @@ enable that action. The browser does not infer progress or reset the streak
 locally; the server records the override and returns the authoritative Task
 state.
 
-The overall Designer handoff states remain `PENDING_HANDOFF`, `RUNNING`,
-`COMPLETED`, and `SESSION_ERROR`, while the persisted workflow phase is
-`DESIGNING`, `COMPILING`, `VALIDATING`, `REDESIGNING`, `COMPLETED`, or `FAILED`.
-Designer and LoopSpec Compiler use separate read-only OpenCode Sessions with the
-same configured model. Designer emits a complete Markdown design only; Compiler
-receives the frozen design version and emits marked structured output. The
-overall Session stays `RUNNING` until deterministic validation and optimistic
-draft synchronization finish. Compiler format, field, verifier, traceability,
-or coverage errors return to a new Compiler Session for at most two repairs.
-Closed semantic design gaps return to the original Designer Session for at most
-one automatic full replacement design. Exhaustion and draft concurrency leave
-the draft unsynchronized and expose **重新编译当前设计** and **让 Designer 重新设计**.
+The overall design handoff states are `PENDING_HANDOFF`, `RUNNING`,
+`WAITING_INPUT`, `COMPLETED`, and legacy-compatible `SESSION_ERROR`. Persisted
+workflow phases add `DECOMPOSING`, `VALIDATING_DECOMPOSITION`, and `AGGREGATING`
+to package-scoped `DESIGNING`, `COMPILING`, `VALIDATING`, and `REDESIGNING`.
+`activeWorkPackageId` identifies the package being processed.
 
-Message origin comes from the persisted `actor` (`USER`, `DESIGNER`, `COMPILER`,
-`VALIDATOR`, or `SYSTEM`), never from role text inference. The console renders
-user cards blue, Designer Markdown purple, Compiler summaries/gaps cyan,
+Each complete requirement revision first uses an independent read-only Task
+Decomposer Session. It selects exactly one `DIRECT_DESIGN` package or 2–6
+vertical business packages, with 1–3 Stages per package and at most 18 total.
+Every source requirement segment must be assigned to a global constraint or at
+least one package. Multiple project roots, more than six packages, or independent
+release boundaries produce `MULTI_TASK_REQUIRED`; the product waits for the user
+and does not create child Tasks. `NEEDS_INPUT` likewise displays an explicit new
+requirement input path.
+
+Packages then run strictly serially. Each uses a fresh read-only Designer and a
+fresh read-only LoopSpec Compiler with the configured model. Designer receives
+the original requirement, frozen decomposition, current package, global
+constraints, and bounded prerequisite handoffs, then emits at most 24 KiB UTF-8
+of complete Markdown. Compiler emits a 1–3 Stage package fragment plus criterion
+sources and a handoff summary of at most 4 KiB. Format, field, verifier,
+traceability, or coverage errors receive at most two Compiler repairs; semantic
+gaps receive one full redesign of that package only. The complete requirement
+revision has a shared hard ceiling of 24 model calls, but package content retry
+counters remain independent. Draft concurrency, exhausted budgets, and
+unassignable aggregation conflicts enter `WAITING_INPUT` without synchronizing
+the draft or creating a Task.
+
+After every package passes, the server deterministically concatenates Stage
+fragments, raises only the minimum attempt/time limits, validates the complete
+LoopSpec, and atomically updates Review Gate at the frozen draft version. Review
+Gate cannot be confirmed earlier. Human recovery actions target decomposition or
+the current package; the old generic compiler/redesign endpoints remain a
+compatibility alias.
+
+Message origin comes from the persisted `actor` (`USER`, `DECOMPOSER`,
+`DESIGNER`, `COMPILER`, `VALIDATOR`, or `SYSTEM`), never from role text
+inference. The console renders user cards blue, Decomposer summaries indigo,
+Designer Markdown purple, Compiler summaries/gaps cyan,
 Validator success green, repairable failures yellow, terminal failures red, and
 system notices as grey dashed cards. The top bar and thinking animation follow
-the authoritative `workflowPhase` and `activeActor`. Compiler raw JSON is shown
+the authoritative `workflowPhase`, `activeActor`, requirement revision, active
+package, package retry counters, and shared model-call count. A package rail
+shows dependency order and per-package state. Compiler and Decomposer raw JSON is shown
 only through the right-hand Review Gate; it is neither persisted as chat content
 nor copied from SSE into the conversation. Page refresh restores cards and
 workflow state from the server snapshot. A transient browser GET failure keeps
 the page in bounded-backoff reconnect without fabricating model output or a
 validation result. The structured editor round-trips every LoopSpec limit,
 model selection, Session policy, and next-Attempt prompt template.
+
+Task detail groups Stage progress by `workPackageId` and displays the independent
+attempt pool. Historical design restores the frozen requirement, Decomposer
+summary, every package design/compilation summary, and the final Stage mapping.
+The interface states explicitly that only one final Requirement/Risk Judge batch
+runs after all packages pass.
 
 New drafts use LoopSpec v2. Each Stage declares `implementationKind` and
 observable `acceptanceCriteria`. Each criterion selects `verificationMode` as `MACHINE`,

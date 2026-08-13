@@ -82,6 +82,7 @@ const dirty = computed(() => draft.value !== undefined && editorValue.value !== 
 const designerBadgeStatus = computed(() => {
   if (designerSession.value?.state === 'RUNNING') return 'RUNNING' as const
   if (designerSession.value?.state === 'COMPLETED') return 'SUCCEEDED' as const
+  if (designerSession.value?.state === 'WAITING_INPUT') return 'WAITING_INPUT' as const
   if (designerSession.value?.state === 'SESSION_ERROR') return 'RETRY_WAIT' as const
   return 'PENDING' as const
 })
@@ -92,16 +93,21 @@ const designerIsThinking = computed(() => designerSession.value?.state === 'RUNN
   && (designerSession.value.pendingQuestions?.length ?? 0) === 0)
 const actorMeta = {
   USER: { label: '你', subtitle: '需求与补充', icon: 'lucide:user-round' },
+  DECOMPOSER: { label: 'Task Decomposer / 任务拆解器', subtitle: '需求覆盖与纵向工作包', icon: 'lucide:split' },
   DESIGNER: { label: 'Designer / 设计师', subtitle: 'Markdown 设计文档', icon: 'lucide:sparkles' },
   COMPILER: { label: 'LoopSpec Compiler / 规范编译器', subtitle: '编译摘要与设计缺口', icon: 'lucide:braces' },
   VALIDATOR: { label: 'Deterministic Validator / 确定性校验器', subtitle: '服务端硬校验结果', icon: 'lucide:badge-check' },
   SYSTEM: { label: '系统', subtitle: '工作流通知', icon: 'lucide:info' },
 } as const
 const workflowLabels = {
-  DESIGNING: '设计中', COMPILING: '编译中', VALIDATING: '确定性校验中', REDESIGNING: '重新设计中', COMPLETED: '已完成', FAILED: '已停止',
+  DECOMPOSING: '拆解中', VALIDATING_DECOMPOSITION: '校验拆解中', DESIGNING: '设计中', COMPILING: '编译中', VALIDATING: '确定性校验中', REDESIGNING: '重新设计中', AGGREGATING: '聚合中', COMPLETED: '已完成', FAILED: '已停止',
 } as const
 const activeActorMeta = computed(() => actorMeta[designerSession.value?.activeActor ?? 'SYSTEM'])
 const activeWorkflowLabel = computed(() => workflowLabels[designerSession.value?.workflowPhase ?? 'DESIGNING'])
+const confirmationReady = computed(() => store.usingDemo || (designerSession.value?.state === 'COMPLETED' && designerSession.value?.workflowPhase === 'COMPLETED'))
+const blockedWorkflowMessage = computed(() => designerSession.value?.state === 'WAITING_INPUT'
+  ? [...messages.value].reverse().find((message) => ['TERMINAL_ERROR', 'DESIGN_INCOMPLETE', 'RETRYABLE_ERROR'].includes(message.deliveryState ?? ''))
+  : designerSessionError.value)
 const designerTransportLabel = computed(() => {
   if (designerStreamState.value === 'connected') return '实时通道已连接'
   if (designerStreamState.value === 'reconnecting') return '实时通道重连中'
@@ -265,7 +271,7 @@ function startDesignerStream(sessionId: string) {
     else if (event.content && (event.type === 'PARTIAL' || event.type === 'COMPLETED')) designerLiveResponse.value = event.content
     if (event.type === 'ERROR') designerLiveError.value = event.detail || 'OpenCode Designer 返回错误'
     if (designerSession.value) {
-      designerSession.value = { ...designerSession.value, state: event.state, workflowPhase: event.workflowPhase, activeActor: event.activeActor, updatedAt: event.at }
+      designerSession.value = { ...designerSession.value, state: event.state, workflowPhase: event.workflowPhase, activeActor: event.activeActor, updatedAt: event.at, requirementRevision: event.requirementRevision, activeWorkPackageId: event.activeWorkPackageId, requirement: designerSession.value.requirement ? { ...designerSession.value.requirement, modelCallsUsed: event.modelCallsUsed, maxModelCalls: event.maxModelCalls } : designerSession.value.requirement }
     }
     if (event.type === 'COMPLETED' || event.type === 'ERROR') refreshDesignerAfterTerminalEvent()
   }, (state) => {
@@ -555,11 +561,47 @@ async function requestRedesign() {
   } catch (error) { ElMessage.error(error instanceof Error ? error.message : '重新设计失败') }
   finally { busy.value = false }
 }
+
+async function retryDecomposition() {
+  if (!designerSession.value || store.usingDemo) return
+  busy.value = true
+  try {
+    await api.retryDesignerDecomposition(designerSession.value.id)
+    await refreshDesignerSession()
+    startDesignerPolling()
+    ElMessage.success('已启动新的只读任务拆解器 Session')
+  } catch (error) { ElMessage.error(error instanceof Error ? error.message : '重新拆解失败') }
+  finally { busy.value = false }
+}
+
+async function retryPackageCompiler(packageId: string) {
+  if (!designerSession.value || store.usingDemo) return
+  busy.value = true
+  try {
+    await api.retryWorkPackageCompiler(designerSession.value.id, packageId)
+    await refreshDesignerSession()
+    startDesignerPolling()
+    ElMessage.success(`${packageId} 已启动新的规范编译器 Session`)
+  } catch (error) { ElMessage.error(error instanceof Error ? error.message : '工作包重新编译失败') }
+  finally { busy.value = false }
+}
+
+async function redesignPackage(packageId: string) {
+  if (!designerSession.value || store.usingDemo) return
+  busy.value = true
+  try {
+    await api.redesignWorkPackage(designerSession.value.id, packageId)
+    await refreshDesignerSession()
+    startDesignerPolling()
+    ElMessage.success(`${packageId} 已交给新的只读 Designer Session 重新设计`)
+  } catch (error) { ElMessage.error(error instanceof Error ? error.message : '工作包重新设计失败') }
+  finally { busy.value = false }
+}
 </script>
 
 <template>
   <PageHeader :eyebrow="draft ? 'Designer / Plan' : 'Designer'" :title="draft ? 'Designer 与 LoopSpec' : '设计工作台'">
-    <template v-if="draft" #actions><StatusBadge :status="draft.status === 'CONFIRMED' ? 'SUCCEEDED' : 'PENDING'" :label="draft.status" /><el-button class="restart-designer-button" plain :disabled="busy" @click="restartDesigner"><Icon icon="lucide:rotate-ccw" />重新开始</el-button><el-button type="primary" :loading="busy" @click="confirm"><Icon icon="lucide:circle-check-big" />确认并交接</el-button></template>
+    <template v-if="draft" #actions><StatusBadge :status="draft.status === 'CONFIRMED' ? 'SUCCEEDED' : 'PENDING'" :label="draft.status" /><el-button class="restart-designer-button" plain :disabled="busy" @click="restartDesigner"><Icon icon="lucide:rotate-ccw" />重新开始</el-button><el-button type="primary" :loading="busy" :disabled="!confirmationReady" @click="confirm"><Icon icon="lucide:circle-check-big" />确认并交接</el-button></template>
   </PageHeader>
   <main id="main-content" class="content" tabindex="-1">
     <section v-if="!draft && !store.usingDemo && !store.loading && !store.projects.length" class="card designer-onboarding" aria-labelledby="designer-onboarding-title">
@@ -665,19 +707,28 @@ async function requestRedesign() {
           <span><i :class="['connection-dot', designerStreamState]" />{{ designerTransportLabel }}</span>
           <span><i :class="['connection-dot', { connected: designerRuntimeConnected, error: designerLiveError }]" />{{ designerRuntimeLabel }}</span>
           <span class="active-role"><Icon :icon="activeActorMeta.icon" />{{ activeActorMeta.label }} · {{ activeWorkflowLabel }}</span>
+          <span v-if="designerSession?.activeWorkPackageId" class="mono">{{ designerSession.activeWorkPackageId }}/{{ designerSession.workPackages?.length ?? 0 }}</span>
+          <span v-if="designerSession?.requirement" class="mono">模型调用 {{ designerSession.requirement.modelCallsUsed }}/{{ designerSession.requirement.maxModelCalls }}</span>
           <span v-if="designerSession?.compiler" class="mono">Compiler 修复 {{ designerSession.compiler.repairCount }}/2</span>
           <span class="mono">远端 {{ designerRemoteState || 'WAITING' }}</span>
           <time :datetime="designerObservedAt">{{ formatObservedAt(designerObservedAt) }}</time>
         </div>
-        <section v-if="designerSessionError" class="designer-session-alert" role="status" aria-live="polite"><Icon icon="lucide:refresh-cw" /><div><strong>设计工作流已停止</strong><p>{{ designerSessionError.content }}</p><span class="tiny muted">草稿保持未同步，且没有创建或修改 Task。可选择重新编译当前设计，或让设计师输出完整替代稿。</span><div class="recovery-actions"><el-button plain size="small" :loading="busy" @click="retryCompiler"><Icon icon="lucide:braces" />重新编译当前设计</el-button><el-button plain size="small" :loading="busy" @click="requestRedesign"><Icon icon="lucide:sparkles" />让 Designer 重新设计</el-button><el-button plain size="small" @click="restartDesigner"><Icon icon="lucide:rotate-ccw" />清理工作区</el-button></div></div></section>
+        <section v-if="blockedWorkflowMessage" class="designer-session-alert" role="status" aria-live="polite"><Icon icon="lucide:refresh-cw" /><div><strong>{{ designerSession?.state === 'WAITING_INPUT' ? '设计工作流等待人工输入' : '设计工作流已停止' }}</strong><p>{{ blockedWorkflowMessage.content }}</p><span class="tiny muted">草稿保持未同步，且没有创建或修改 Task。补充需求会冻结一个新的完整需求版本并重新拆解。</span><div class="recovery-actions"><el-button v-if="designerSession?.decomposition && !designerSession.activeWorkPackageId" plain size="small" :loading="busy" @click="retryDecomposition"><Icon icon="lucide:split" />重新拆解</el-button><el-button v-if="designerSession?.activeWorkPackageId" plain size="small" :loading="busy" @click="retryPackageCompiler(designerSession.activeWorkPackageId)"><Icon icon="lucide:braces" />重新编译当前包</el-button><el-button v-if="designerSession?.activeWorkPackageId" plain size="small" :loading="busy" @click="redesignPackage(designerSession.activeWorkPackageId)"><Icon icon="lucide:sparkles" />重新设计当前包</el-button><template v-if="!designerSession?.decomposition"><el-button plain size="small" :loading="busy" @click="retryCompiler"><Icon icon="lucide:braces" />重新编译当前设计</el-button><el-button plain size="small" :loading="busy" @click="requestRedesign"><Icon icon="lucide:sparkles" />让 Designer 重新设计</el-button></template><el-button plain size="small" @click="restartDesigner"><Icon icon="lucide:rotate-ccw" />清理工作区</el-button></div></div></section>
         <section v-else-if="designerLiveError" class="designer-session-alert live-error" role="alert" aria-live="assertive"><Icon icon="lucide:triangle-alert" /><div><strong>OpenCode 实时错误</strong><p>{{ designerLiveError }}</p><span class="tiny muted">错误已从实时通道收到，正在同步持久化会话状态。</span></div></section>
         <div class="designer-conversation">
+          <section v-if="designerSession?.workPackages?.length" class="work-package-rail" aria-label="工作包设计轨道">
+            <article v-for="item in designerSession.workPackages ?? []" :key="item.id" :class="['work-package-chip', `package-${item.state.toLowerCase()}`, { active: item.id === designerSession.activeWorkPackageId }]">
+              <header><b>{{ item.id }}</b><span>{{ item.state }}</span></header>
+              <strong>{{ item.title }}</strong>
+              <small>依赖 {{ item.dependencies.join('、') || '无' }} · 重设计 {{ item.redesignCount }}/1 · 编译修复 {{ item.compilerRepairCount }}/2</small>
+            </article>
+          </section>
           <div class="chat-history">
           <article v-for="message in visibleMessages" :key="message.id" :class="['chat-message', `chat-${message.actor.toLowerCase()}`, message.actor === 'VALIDATOR' ? `validator-${message.deliveryState?.toLowerCase() ?? 'status'}` : '']">
             <header class="chat-message-header">
               <span class="chat-author">
                 <span class="chat-avatar"><Icon :icon="actorMeta[message.actor].icon" /></span>
-                <span><strong class="chat-role">{{ actorMeta[message.actor].label }}</strong><small>{{ actorMeta[message.actor].subtitle }}</small></span>
+                <span><strong class="chat-role">{{ actorMeta[message.actor].label }}</strong><small>{{ actorMeta[message.actor].subtitle }}<template v-if="message.workPackageId"> · {{ message.workPackageId }}</template></small></span>
               </span>
               <time class="chat-message-time" :datetime="message.createdAt">{{ message.deliveryState ? `${statusLabel(message.deliveryState)} · ` : '' }}{{ formatDateTime(message.createdAt) }}</time>
             </header>
@@ -721,12 +772,12 @@ async function requestRedesign() {
               autocomplete="off"
               resize="vertical"
               :disabled="designerSession?.state === 'RUNNING'"
-              :placeholder="designerSession?.state === 'RUNNING' ? 'Designer 正在处理上一条消息…' : '继续描述目标、约束、边界条件或验收标准…'"
+              :placeholder="designerSession?.state === 'RUNNING' ? '当前角色正在处理上一条消息…' : designerSession?.state === 'WAITING_INPUT' ? '补充缺失信息；发送后将冻结新需求版本并重新拆解…' : '继续描述目标、约束、边界条件或验收标准…'"
               aria-label="发送给只读 OpenCode Designer 的消息"
               @keydown.meta.enter.prevent="sendMessage"
               @keydown.ctrl.enter.prevent="sendMessage"
             />
-            <div class="compose-actions"><span class="tiny muted">{{ designerSession?.state === 'RUNNING' ? '正在接收实时回复；断流后自动轮询恢复' : '⌘ / Ctrl + Enter 发送；发送失败会保留原文' }}</span><el-button type="primary" :loading="busy" :disabled="designerSession?.state === 'RUNNING' || !userMessage.trim()" @click="sendMessage"><Icon icon="lucide:send" />发送</el-button></div>
+            <div class="compose-actions"><span class="tiny muted">{{ designerSession?.state === 'RUNNING' ? '正在接收实时回复；断流后自动轮询恢复' : '⌘ / Ctrl + Enter 发送；每次补充都会形成新需求版本' }}</span><el-button type="primary" :loading="busy" :disabled="designerSession?.state === 'RUNNING' || !userMessage.trim()" @click="sendMessage"><Icon icon="lucide:send" />发送</el-button></div>
           </div>
         </div>
       </article>
@@ -736,7 +787,7 @@ async function requestRedesign() {
         <section v-if="acceptanceAssessment && !acceptanceAssessment.legacy" class="acceptance-matrix" aria-label="双重验收计划矩阵">
           <header><strong>双重验收计划</strong><span :class="acceptanceAssessment.valid ? 'matrix-pass' : 'matrix-fail'">{{ acceptanceAssessment.valid ? '计划有效' : `${acceptanceAssessment.errors.length} 项阻断` }}</span></header>
           <div v-for="stage in acceptanceAssessment.stageAssessments" :key="stage.stageIndex" class="matrix-stage">
-            <span>阶段 {{ stage.stageIndex + 1 }}</span>
+            <span>{{ draft.spec.stages[stage.stageIndex]?.workPackageId ? `${draft.spec.stages[stage.stageIndex]?.workPackageId} · ` : '' }}阶段 {{ stage.stageIndex + 1 }}</span>
             <div v-for="criterion in stage.criteria" :key="criterion.id">
               <code>{{ criterion.id }}</code><span>{{ criterion.description }}</span><em>{{ criterion.verificationMode }}</em>
               <b :class="criterion.machineCovered ? 'matrix-pass' : 'matrix-muted'">{{ criterion.machineCovered ? `机器：验收器 ${criterion.verifierIndexes.map(index => index + 1).join(', ')}` : '机器：不适用' }}</b>
@@ -847,6 +898,14 @@ async function requestRedesign() {
 .connection-dot.connected { background: var(--color-success); box-shadow: 0 0 9px rgb(34 197 94 / 60%); }
 .connection-dot.reconnecting, .connection-dot.error { background: var(--color-session-warning); box-shadow: 0 0 9px rgb(245 158 11 / 45%); }
 .designer-conversation { display: flex; flex-direction: column; min-height: 0; }
+.work-package-rail { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 0 20px 8px; padding: 10px; border: 1px solid rgb(99 102 241 / 25%); border-radius: 10px; background: rgb(49 46 129 / 7%); }
+.work-package-chip { min-width: 0; padding: 9px 10px; border: 1px solid rgb(71 85 105 / 45%); border-radius: 8px; background: rgb(2 6 23 / 35%); }
+.work-package-chip.active { border-color: rgb(99 102 241 / 70%); box-shadow: inset 2px 0 #818cf8, 0 0 16px rgb(99 102 241 / 13%); }
+.work-package-chip header { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #a5b4fc; font: 8px/1.3 var(--font-code); }
+.work-package-chip > strong { display: block; margin-top: 5px; overflow: hidden; color: var(--color-text-primary); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.work-package-chip > small { display: block; margin-top: 5px; color: var(--color-text-muted); font: 8px/1.5 var(--font-code); }
+.work-package-chip.package-completed, .work-package-chip.package-succeeded { border-color: rgb(34 197 94 / 35%); }
+.work-package-chip.package-failed { border-color: rgb(239 68 68 / 42%); }
 .chat-history { min-height: 0; padding: 0 20px 22px; }
 .chat-message { margin: 14px 0; padding: 13px 14px; border: 1px solid var(--color-border-default); border-radius: 12px; background: rgb(7 11 20 / 45%); }
 .chat-message-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 10px; }
@@ -860,6 +919,8 @@ async function requestRedesign() {
 .chat-user { margin-left: clamp(24px, 7%, 54px); border-color: rgb(59 130 246 / 26%); background: rgb(59 130 246 / 7%); }
 .chat-user .chat-avatar { border-color: rgb(34 211 238 / 27%); color: var(--color-accent-cyan); background: rgb(34 211 238 / 8%); }
 .chat-user .chat-role { color: var(--color-accent-cyan); }
+.chat-decomposer { border-color: rgb(99 102 241 / 40%); background: rgb(99 102 241 / 8%); box-shadow: inset 2px 0 rgb(99 102 241 / 72%); }
+.chat-decomposer .chat-role, .chat-decomposer .chat-avatar { color: #a5b4fc; }
 .chat-designer { padding: clamp(16px, 2.2vw, 24px); border-color: rgb(139 92 246 / 28%); background: radial-gradient(circle at 8% 0, rgb(139 92 246 / 10%), transparent 32%), rgb(7 11 20 / 68%); box-shadow: inset 2px 0 rgb(139 92 246 / 55%), 0 14px 38px rgb(0 0 0 / 13%); }
 .chat-designer .chat-message-header { margin-bottom: 18px; padding-bottom: 12px; border-bottom: 1px solid rgb(139 92 246 / 16%); }
 .chat-designer .chat-role, .chat-designer .chat-avatar { color: #c4b5fd; }
@@ -883,6 +944,7 @@ async function requestRedesign() {
 .thinking-orbit { position: relative; display: grid; flex: 0 0 auto; place-items: center; width: 38px; height: 38px; border: 2px solid rgb(139 92 246 / 18%); border-top-color: #a78bfa; border-right-color: var(--color-accent-cyan); border-radius: 50%; box-shadow: 0 0 18px rgb(139 92 246 / 18%); animation: thinking-spin 1s linear infinite; }
 .thinking-orbit span { width: 8px; height: 8px; border-radius: 50%; background: linear-gradient(135deg, #a78bfa, var(--color-accent-cyan)); box-shadow: 0 0 12px rgb(34 211 238 / 55%); }
 .thinking-compiler { border-color: rgb(34 211 238 / 38%); background: linear-gradient(100deg, rgb(34 211 238 / 10%), rgb(8 47 73 / 5%), rgb(34 211 238 / 10%)); }
+.thinking-decomposer { border-color: rgb(99 102 241 / 42%); background: linear-gradient(100deg, rgb(99 102 241 / 11%), rgb(49 46 129 / 5%), rgb(99 102 241 / 11%)); }
 .thinking-validator { border-color: rgb(34 197 94 / 36%); background: linear-gradient(100deg, rgb(34 197 94 / 9%), rgb(20 83 45 / 5%), rgb(34 197 94 / 9%)); }
 .thinking-copy { min-width: 0; }
 .thinking-copy strong { display: flex; align-items: baseline; color: #f5f3ff; font-size: 13px; font-weight: 720; letter-spacing: -.01em; }

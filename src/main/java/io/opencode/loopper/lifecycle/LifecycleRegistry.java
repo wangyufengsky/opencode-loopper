@@ -23,6 +23,9 @@ public final class LifecycleRegistry {
         register(LifecycleMachineType.LOOP_DRAFT, LoopDraftStatus.class, draft());
         register(LifecycleMachineType.DESIGNER_SESSION, DesignerSessionState.class, designer());
         register(LifecycleMachineType.LOOPSPEC_COMPILATION, LoopSpecCompilationState.class, compilation());
+        register(LifecycleMachineType.DESIGN_REQUIREMENT_REVISION, DesignRequirementRevisionState.class, requirementRevision());
+        register(LifecycleMachineType.TASK_DECOMPOSITION, TaskDecompositionState.class, decomposition());
+        register(LifecycleMachineType.DESIGN_WORK_PACKAGE, DesignWorkPackageState.class, workPackage());
         register(LifecycleMachineType.PROJECT_CONVENTION, ProjectConventionState.class, convention());
         register(LifecycleMachineType.INTERACTION, InteractionState.class, interaction());
         register(LifecycleMachineType.WORKSPACE_LEASE, WorkspaceLeaseState.class, lease());
@@ -178,10 +181,55 @@ public final class LifecycleRegistry {
                 .transition(DesignerSessionState.SESSION_ERROR, DISPATCH, DesignerSessionState.RUNNING)
                 .transition(DesignerSessionState.COMPLETED, DEFER, DesignerSessionState.PENDING_HANDOFF)
                 .transition(DesignerSessionState.SESSION_ERROR, DEFER, DesignerSessionState.PENDING_HANDOFF)
+                .transition(DesignerSessionState.WAITING_INPUT, DISPATCH, DesignerSessionState.RUNNING)
+                .transition(DesignerSessionState.WAITING_INPUT, DEFER, DesignerSessionState.PENDING_HANDOFF)
                 .transition(DesignerSessionState.PENDING_HANDOFF, DEFER, DesignerSessionState.PENDING_HANDOFF)
+                .transition(DesignerSessionState.RUNNING, DEFER, DesignerSessionState.PENDING_HANDOFF)
                 .transition(DesignerSessionState.PENDING_HANDOFF, SESSION_FAIL, DesignerSessionState.SESSION_ERROR)
+                .transition(DesignerSessionState.RUNNING, REQUIRE_INPUT, DesignerSessionState.WAITING_INPUT)
                 .transition(DesignerSessionState.RUNNING, COMPLETE, DesignerSessionState.COMPLETED)
                 .transition(DesignerSessionState.RUNNING, SESSION_FAIL, DesignerSessionState.SESSION_ERROR).build();
+    }
+
+    private static FiniteStateMachine<DesignRequirementRevisionState, LifecycleEvent> requirementRevision() {
+        return machine(LifecycleMachineType.DESIGN_REQUIREMENT_REVISION, DesignRequirementRevisionState.class)
+                .transition(DesignRequirementRevisionState.ACTIVE, COMPLETE, DesignRequirementRevisionState.COMPLETED)
+                .transition(DesignRequirementRevisionState.ACTIVE, REQUIRE_INPUT, DesignRequirementRevisionState.WAITING_INPUT)
+                .transition(DesignRequirementRevisionState.WAITING_INPUT, RETRY, DesignRequirementRevisionState.ACTIVE)
+                .transition(DesignRequirementRevisionState.ACTIVE, SUPERSEDE, DesignRequirementRevisionState.SUPERSEDED)
+                .transition(DesignRequirementRevisionState.WAITING_INPUT, SUPERSEDE, DesignRequirementRevisionState.SUPERSEDED)
+                .transition(DesignRequirementRevisionState.COMPLETED, SUPERSEDE, DesignRequirementRevisionState.SUPERSEDED)
+                .build();
+    }
+
+    private static FiniteStateMachine<TaskDecompositionState, LifecycleEvent> decomposition() {
+        return machine(LifecycleMachineType.TASK_DECOMPOSITION, TaskDecompositionState.class)
+                .transition(TaskDecompositionState.PENDING_HANDOFF, DISPATCH, TaskDecompositionState.RUNNING)
+                .transition(TaskDecompositionState.RUNNING, BEGIN_VERIFICATION, TaskDecompositionState.VALIDATING)
+                .transition(TaskDecompositionState.VALIDATING, RETRY, TaskDecompositionState.RUNNING)
+                .transition(TaskDecompositionState.VALIDATING, COMPLETE, TaskDecompositionState.COMPLETED)
+                .transition(TaskDecompositionState.VALIDATING, REQUIRE_INPUT, TaskDecompositionState.NEEDS_INPUT)
+                .transition(TaskDecompositionState.VALIDATING, REQUIRE_REVIEW, TaskDecompositionState.MULTI_TASK_REQUIRED)
+                .transition(TaskDecompositionState.PENDING_HANDOFF, SESSION_FAIL, TaskDecompositionState.SESSION_ERROR)
+                .transition(TaskDecompositionState.RUNNING, SESSION_FAIL, TaskDecompositionState.SESSION_ERROR)
+                .build();
+    }
+
+    private static FiniteStateMachine<DesignWorkPackageState, LifecycleEvent> workPackage() {
+        return machine(LifecycleMachineType.DESIGN_WORK_PACKAGE, DesignWorkPackageState.class)
+                .transition(DesignWorkPackageState.PENDING, DISPATCH, DesignWorkPackageState.DESIGNING)
+                .transition(DesignWorkPackageState.DESIGNING, ADVANCE_STAGE, DesignWorkPackageState.COMPILING)
+                .transition(DesignWorkPackageState.COMPILING, BEGIN_VERIFICATION, DesignWorkPackageState.VALIDATING)
+                .transition(DesignWorkPackageState.VALIDATING, COMPLETE, DesignWorkPackageState.COMPLETED)
+                .transition(DesignWorkPackageState.DESIGNING, REQUIRE_INPUT, DesignWorkPackageState.WAITING_INPUT)
+                .transition(DesignWorkPackageState.COMPILING, REQUIRE_INPUT, DesignWorkPackageState.WAITING_INPUT)
+                .transition(DesignWorkPackageState.VALIDATING, REQUIRE_INPUT, DesignWorkPackageState.WAITING_INPUT)
+                .transition(DesignWorkPackageState.WAITING_INPUT, DISPATCH, DesignWorkPackageState.DESIGNING)
+                .transition(DesignWorkPackageState.WAITING_INPUT, RETRY, DesignWorkPackageState.COMPILING)
+                .transition(DesignWorkPackageState.DESIGNING, FAIL, DesignWorkPackageState.FAILED)
+                .transition(DesignWorkPackageState.COMPILING, FAIL, DesignWorkPackageState.FAILED)
+                .transition(DesignWorkPackageState.VALIDATING, FAIL, DesignWorkPackageState.FAILED)
+                .build();
     }
 
     private static FiniteStateMachine<LoopSpecCompilationState, LifecycleEvent> compilation() {

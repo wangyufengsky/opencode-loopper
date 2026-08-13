@@ -3,6 +3,8 @@ package io.opencode.loopper.api;
 import io.opencode.loopper.persistence.AttemptRow;
 import io.opencode.loopper.persistence.DesignerMessageRow;
 import io.opencode.loopper.persistence.DesignerSessionRow;
+import io.opencode.loopper.persistence.DesignRequirementRevisionRow;
+import io.opencode.loopper.persistence.DesignWorkPackageRow;
 import io.opencode.loopper.persistence.ErrorEventRow;
 import io.opencode.loopper.persistence.JudgeRunRow;
 import io.opencode.loopper.persistence.LoopDraftRow;
@@ -11,6 +13,7 @@ import io.opencode.loopper.persistence.StageRow;
 import io.opencode.loopper.persistence.TaskEventRow;
 import io.opencode.loopper.persistence.TaskArtifactRow;
 import io.opencode.loopper.persistence.TaskRow;
+import io.opencode.loopper.persistence.TaskDecompositionRow;
 import io.opencode.loopper.persistence.VerificationResultRow;
 import io.opencode.loopper.domain.LoopSpec;
 import io.opencode.loopper.runtime.GitWorktreeManager;
@@ -77,10 +80,23 @@ public class TaskController {
         List<DesignerHistoryMessageDto> messages = session == null ? List.of() : mapper.listDesignerMessages(session.id()).stream()
                 .map(this::designerHistoryMessage).toList();
         String projectName = mapper.findProject(task.projectId()).map(p -> p.name()).orElse("Unknown project");
+        DesignRequirementRevisionRow requirement = session == null ? null
+                : mapper.findCurrentDesignRequirementRevision(session.id()).orElse(null);
+        TaskDecompositionRow decomposition = requirement == null ? null
+                : mapper.findTaskDecompositionByRevision(requirement.id()).orElse(null);
+        List<DesignWorkPackageRow> packages = requirement == null ? List.of()
+                : mapper.listDesignWorkPackages(requirement.id());
         return new TaskDesignHistoryDto(task.id(), task.title(), projectName,
                 new TaskLoopDraftDto(draft.id(), draft.status(), draft.updatedAt(), drafts.spec(draft)),
                 session == null ? null : new DesignerHistorySessionDto(session.id(), session.state(), session.accessMode(),
-                        session.createdAt(), session.updatedAt(), messages));
+                        session.createdAt(), session.updatedAt(), messages),
+                requirement == null ? null : new DesignRequirementHistoryDto(requirement.revision(),
+                        requirement.state(), requirement.requirementText(), requirement.modelCallsUsed(),
+                        requirement.maxModelCalls()),
+                decomposition == null ? null : new DecompositionHistoryDto(decomposition.state(),
+                        decomposition.resultType(), decomposition.planJson()),
+                packages.stream().map(row -> new WorkPackageHistoryDto(row.packageId(), row.ordinal(), row.title(),
+                        row.objective(), row.state(), row.compilerSummary(), row.handoffSummary())).toList());
     }
     @PostMapping("/{id}/start") public TaskDto start(@PathVariable String id) { return dto(service.start(id)); }
     @PostMapping("/{id}/verify") public TaskDto verify(@PathVariable String id) { return dto(service.verify(id)); }
@@ -271,28 +287,43 @@ public class TaskController {
         LoopSpec spec = draft == null ? null : drafts.spec(draft);
         List<AttemptRow> attempts = service.attempts(task.id());
         TaskService.LoopRetryStatus loopRetry = service.loopRetryStatus(task.id());
+        List<StageRow> stageRows = service.stages(task.id());
         return new TaskDto(task.id(), task.projectId(), projectName, task.title(), spec == null ? "" : spec.goal(), task.branchName(), task.worktreePath(), task.state(),
                 loopRetry.waitingReasonCode(), loopRetry.loopRetryAvailable(),
                 draft != null, service.archived(task.id()),
                 attempts.size(), spec == null ? 0 : spec.limits().maxTaskAttempts(), task.createdAt(), task.updatedAt(),
-                service.stages(task.id()).stream().map(this::stage).toList(), attempts.stream().map(this::attempt).toList(), service.errors(task.id()).stream().map(this::error).toList(),
+                stageRows.stream().map(this::stage).toList(), workPackageProgress(stageRows, attempts, spec),
+                attempts.stream().map(this::attempt).toList(), service.errors(task.id()).stream().map(this::error).toList(),
                 service.judges(task.id()).stream().map(this::judge).toList(), service.artifacts(task.id()).stream().map(this::artifact).toList());
     }
     public record SseData(String type, String at, JsonNode data) { }
     public record TaskDto(String id, String projectId, String projectName, String title, String goal, String branch,
                           String worktreePath, String status, String waitingReasonCode, boolean loopRetryAvailable,
                           boolean hasDesignHistory, boolean archived, int attemptCount, int maxAttempts, String createdAt,
-                          String updatedAt, List<StageDto> stages, List<AttemptDto> attempts, List<ErrorDto> errors,
+                          String updatedAt, List<StageDto> stages, List<WorkPackageProgressDto> workPackages,
+                          List<AttemptDto> attempts, List<ErrorDto> errors,
                           List<JudgeDto> judges, List<ArtifactDto> artifacts) { }
     public record TaskDesignHistoryDto(String taskId, String taskTitle, String projectName, TaskLoopDraftDto draft,
-                                       DesignerHistorySessionDto designerSession) { }
+                                       DesignerHistorySessionDto designerSession,
+                                       DesignRequirementHistoryDto requirement,
+                                       DecompositionHistoryDto decomposition,
+                                       List<WorkPackageHistoryDto> workPackages) { }
     public record TaskLoopDraftDto(String id, String status, String updatedAt, LoopSpec spec) { }
     public record DesignerHistorySessionDto(String id, String state, String accessMode, String createdAt,
                                              String updatedAt, List<DesignerHistoryMessageDto> messages) { }
     public record DesignerHistoryMessageDto(String id, int ordinal, String role, String actor, String content,
-                                             String deliveryState, String createdAt) { }
+                                             String deliveryState, String createdAt,
+                                             Integer requirementRevision, String workPackageId) { }
+    public record DesignRequirementHistoryDto(int revision, String state, String requirementText,
+                                              int modelCallsUsed, int maxModelCalls) { }
+    public record DecompositionHistoryDto(String state, String resultType, String planJson) { }
+    public record WorkPackageHistoryDto(String id, int ordinal, String title, String objective, String state,
+                                        String compilerSummary, String handoffSummary) { }
     public record StageDto(String id, int ordinal, String objective, String status, JsonNode allowedPaths, JsonNode forbiddenPaths,
-                           JsonNode deliverables, JsonNode verifiers, String startedAt, String updatedAt) { }
+                           JsonNode deliverables, JsonNode verifiers, String startedAt, String updatedAt,
+                           String workPackageId) { }
+    public record WorkPackageProgressDto(String id, int ordinal, String status, int stageCount,
+                                         int completedStages, int attemptCount, int attemptLimit) { }
     public record AttemptDto(String id, String stageId, int ordinal, String sessionId, String status, String failureKind, String summary,
                              String startedAt, String endedAt, List<VerificationDto> verifications) { }
     public record VerificationDto(String id, int verifierIndex, String type, String status, String summary, JsonNode evidence, String at) { }
@@ -301,7 +332,7 @@ public class TaskController {
                            String externalSessionId, String rawOutput, String createdAt, String endedAt) { }
     public record ArtifactDto(String id, String kind, String name, String contentType, String content, JsonNode metadata,
                               String attemptId, String judgeRunId, String createdAt) { }
-    private StageDto stage(StageRow row) { return new StageDto(row.id(), row.ordinal(), row.objective(), row.state(), node(row.allowedPathsJson()), node(row.forbiddenPathsJson()), node(row.deliverablesJson()), node(row.verifiersJson()), row.createdAt(), row.updatedAt()); }
+    private StageDto stage(StageRow row) { return new StageDto(row.id(), row.ordinal(), row.objective(), row.state(), node(row.allowedPathsJson()), node(row.forbiddenPathsJson()), node(row.deliverablesJson()), node(row.verifiersJson()), row.createdAt(), row.updatedAt(), row.workPackageId()); }
     private AttemptDto attempt(AttemptRow row) {
         String sessionId = mapper.latestSessionForAttempt(row.id())
                 .map(io.opencode.loopper.persistence.ExecutionSessionRow::id)
@@ -313,7 +344,30 @@ public class TaskController {
     private ErrorDto error(ErrorEventRow row) { return new ErrorDto(row.id(), row.layer(), row.code(), row.message(), row.retryable(), row.stageId(), row.attemptId(), row.sessionId(), row.occurredAt(), node(row.evidenceJson())); }
     private DesignerHistoryMessageDto designerHistoryMessage(DesignerMessageRow row) {
         return new DesignerHistoryMessageDto(row.id(), row.ordinal(), row.role(), row.actor(), row.content(),
-                row.deliveryState(), row.createdAt());
+                row.deliveryState(), row.createdAt(), row.requirementRevision(), row.workPackageId());
+    }
+
+    private List<WorkPackageProgressDto> workPackageProgress(List<StageRow> stages, List<AttemptRow> attempts,
+                                                             LoopSpec spec) {
+        if (spec == null) return List.of();
+        Map<String, List<StageRow>> grouped = new java.util.LinkedHashMap<>();
+        for (StageRow stage : stages) if (stage.workPackageId() != null && !stage.workPackageId().isBlank()) {
+            grouped.computeIfAbsent(stage.workPackageId(), ignored -> new java.util.ArrayList<>()).add(stage);
+        }
+        int[] ordinal = {0};
+        return grouped.entrySet().stream().map(entry -> {
+            List<StageRow> packageStages = entry.getValue();
+            java.util.Set<String> ids = packageStages.stream().map(StageRow::id).collect(java.util.stream.Collectors.toSet());
+            int complete = (int) packageStages.stream().filter(stage -> "SUCCEEDED".equals(stage.state())).count();
+            String state = packageStages.stream().anyMatch(stage -> "FAILED".equals(stage.state())) ? "FAILED"
+                    : complete == packageStages.size() ? "SUCCEEDED"
+                    : packageStages.stream().anyMatch(stage -> List.of("RUNNING", "PAUSED").contains(stage.state()))
+                    ? "RUNNING" : "PENDING";
+            int used = (int) attempts.stream().filter(attempt -> ids.contains(attempt.stageId())).count();
+            int limit = Math.min(packageStages.size() * spec.limits().maxStageAttempts(), packageStages.size() + 2);
+            return new WorkPackageProgressDto(entry.getKey(), ordinal[0]++, state, packageStages.size(),
+                    complete, used, limit);
+        }).toList();
     }
     private JudgeDto judge(JudgeRunRow row) { return new JudgeDto(row.id(), row.role(), row.ordinal(), row.state(), row.verdict(), row.reason(), row.externalSessionId(), row.rawOutput(), row.createdAt(), row.endedAt()); }
     private ArtifactDto artifact(TaskArtifactRow row) { return new ArtifactDto(row.id(), row.kind(), row.name(), row.contentType(), row.content(), node(row.metadataJson()), row.attemptId(), row.judgeRunId(), row.createdAt()); }

@@ -19,8 +19,8 @@ const visibleMessages = computed(() => (record.value?.designerSession?.messages 
   && message.deliveryState === 'PENDING_HANDOFF'
   && !message.content.startsWith('SYSTEM_ERROR')
 )))
-const actorLabels = { USER: '你', DESIGNER: 'Designer / 设计师', COMPILER: 'LoopSpec Compiler / 规范编译器', VALIDATOR: 'Deterministic Validator / 确定性校验器', SYSTEM: '系统' } as const
-const actorIcons = { USER: 'lucide:user-round', DESIGNER: 'lucide:sparkles', COMPILER: 'lucide:braces', VALIDATOR: 'lucide:badge-check', SYSTEM: 'lucide:info' } as const
+const actorLabels = { USER: '你', DECOMPOSER: 'Task Decomposer / 任务拆解器', DESIGNER: 'Designer / 设计师', COMPILER: 'LoopSpec Compiler / 规范编译器', VALIDATOR: 'Deterministic Validator / 确定性校验器', SYSTEM: '系统' } as const
+const actorIcons = { USER: 'lucide:user-round', DECOMPOSER: 'lucide:split', DESIGNER: 'lucide:sparkles', COMPILER: 'lucide:braces', VALIDATOR: 'lucide:badge-check', SYSTEM: 'lucide:info' } as const
 const rawSpec = computed(() => record.value ? JSON.stringify(record.value.draft.spec, null, 2) : '')
 
 async function load() {
@@ -67,12 +67,25 @@ watch(id, load, { immediate: true })
         </div>
       </section>
 
+      <section v-if="record.requirement || record.decomposition || record.workPackages?.length" class="card package-history card-pad">
+        <div class="card-header"><div><p class="eyebrow">FROZEN DESIGN INPUTS</p><h2 class="card-title">需求版本与工作包快照</h2></div><span v-if="record.requirement" class="mono tiny">REV {{ record.requirement.revision }} · 模型调用 {{ record.requirement.modelCallsUsed }}/{{ record.requirement.maxModelCalls }}</span></div>
+        <p v-if="record.requirement" class="frozen-requirement">{{ record.requirement.requirementText }}</p>
+        <div v-if="record.workPackages?.length" class="package-history-grid">
+          <article v-for="item in record.workPackages ?? []" :key="item.id">
+            <header><b>{{ item.id }}</b><span>{{ item.state }}</span></header>
+            <h3>{{ item.title }}</h3><p>{{ item.objective }}</p>
+            <small v-if="item.compilerSummary">编译摘要：{{ item.compilerSummary }}</small>
+            <small v-if="item.handoffSummary">交接摘要：{{ item.handoffSummary }}</small>
+          </article>
+        </div>
+      </section>
+
       <section class="history-grid">
         <article class="card history-conversation">
           <header class="history-card-header"><div><p class="eyebrow">DESIGN CONVERSATION</p><h2>历史设计对话</h2><p>共 {{ visibleMessages.length }} 条已持久化记录</p></div><Icon icon="lucide:messages-square" width="22" /></header>
           <div v-if="visibleMessages.length" class="message-list">
             <article v-for="message in visibleMessages" :key="message.id" :class="['history-message', `message-${message.actor.toLowerCase()}`]">
-              <header><span><Icon :icon="actorIcons[message.actor]" />{{ actorLabels[message.actor] }}</span><time>{{ formatDate(message.createdAt) }}</time></header>
+              <header><span><Icon :icon="actorIcons[message.actor]" />{{ actorLabels[message.actor] }}<template v-if="message.workPackageId"> · {{ message.workPackageId }}</template></span><time>{{ formatDate(message.createdAt) }}</time></header>
               <MarkdownDocument v-if="message.actor === 'DESIGNER'" :content="message.content" collapsible />
               <p v-else>{{ message.content }}</p>
             </article>
@@ -87,7 +100,7 @@ watch(id, load, { immediate: true })
             <section class="spec-section"><span>执行上下文</span><p>{{ record.draft.spec.context || '未补充执行上下文' }}</p></section>
             <section class="spec-stages">
               <article v-for="(stage, stageIndex) in record.draft.spec.stages" :key="stageIndex" class="history-stage">
-                <header><i>{{ stageIndex + 1 }}</i><div><span>阶段 {{ stageIndex + 1 }}</span><h3>{{ stage.objective }}</h3></div></header>
+                <header><i>{{ stageIndex + 1 }}</i><div><span>{{ stage.workPackageId ? `${stage.workPackageId} · ` : '' }}阶段 {{ stageIndex + 1 }}</span><h3>{{ stage.objective }}</h3></div></header>
                 <div class="stage-facts">
                   <div><b>建议修改</b><p>{{ stage.allowedPaths.join('、') || '未限定' }}</p></div>
                   <div><b>建议避让</b><p>{{ stage.forbiddenPaths.join('、') || '无' }}</p></div>
@@ -113,6 +126,14 @@ watch(id, load, { immediate: true })
 .history-meta span { min-width: 120px; padding: 9px 11px; border: 1px solid var(--color-border-default); border-radius: 9px; color: var(--color-text-primary); background: rgb(2 6 23 / 28%); font: 10px/1.4 var(--font-code); }
 .history-meta b { display: block; margin-bottom: 3px; color: var(--color-text-muted); font-size: 8px; letter-spacing: .08em; text-transform: uppercase; }
 .history-grid { display: grid; align-items: start; grid-template-columns: minmax(420px, .92fr) minmax(500px, 1.08fr); gap: 16px; margin-top: 16px; }
+.package-history { margin-top: 16px; }
+.frozen-requirement { max-height: 150px; margin: 12px 0 0; padding: 12px; overflow: auto; border: 1px solid var(--color-border-default); border-radius: 9px; color: var(--color-text-secondary); background: rgb(2 6 23 / 30%); font-size: 10px; line-height: 1.65; white-space: pre-wrap; }
+.package-history-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin-top: 12px; }
+.package-history-grid article { padding: 12px; border: 1px solid rgb(99 102 241 / 26%); border-radius: 10px; background: rgb(49 46 129 / 7%); }
+.package-history-grid header { display: flex; justify-content: space-between; color: #a5b4fc; font: 8px/1.3 var(--font-code); }
+.package-history-grid h3 { margin: 8px 0 5px; font-size: 11px; }
+.package-history-grid p, .package-history-grid small { display: block; margin: 0; color: var(--color-text-secondary); font-size: 9px; line-height: 1.55; }
+.package-history-grid small { margin-top: 6px; color: var(--color-text-muted); }
 .history-conversation, .history-spec { min-width: 0; overflow: hidden; }
 .history-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 20px; border-bottom: 1px solid var(--color-border-default); }
 .history-card-header h2 { margin: 4px 0; font-size: 15px; }
@@ -124,6 +145,10 @@ watch(id, load, { immediate: true })
 .history-message > header span { display: inline-flex; align-items: center; gap: 7px; color: var(--color-text-primary); font-weight: 700; }
 .history-message > p { margin: 0; color: var(--color-text-primary); font-size: 12px; line-height: 1.65; white-space: pre-wrap; }
 .message-user { margin-left: 28px; border-color: rgb(34 211 238 / 24%); background: rgb(34 211 238 / 5%); }
+.message-decomposer { border-color: rgb(99 102 241 / 38%); background: rgb(99 102 241 / 7%); }
+.message-designer { border-color: rgb(139 92 246 / 28%); background: rgb(139 92 246 / 6%); }
+.message-compiler { border-color: rgb(34 211 238 / 28%); background: rgb(34 211 238 / 5%); }
+.message-validator { border-color: rgb(34 197 94 / 28%); background: rgb(34 197 94 / 5%); }
 .message-assistant { border-color: rgb(139 92 246 / 24%); background: rgb(139 92 246 / 5%); }
 .history-empty { display: grid; place-items: center; min-height: 240px; padding: 28px; color: var(--color-text-muted); text-align: center; }
 .spec-section { margin-top: 14px; padding: 14px; border: 1px solid var(--color-border-default); border-radius: 11px; background: rgb(2 6 23 / 24%); }

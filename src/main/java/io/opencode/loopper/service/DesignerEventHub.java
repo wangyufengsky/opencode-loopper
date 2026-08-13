@@ -13,12 +13,23 @@ public class DesignerEventHub {
     private final ConcurrentHashMap<String, AtomicLong> sequences = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, DesignerEvent> latest = new ConcurrentHashMap<>();
 
+    /** Compatibility entry point for legacy callers without decomposition projections. */
     public DesignerEvent publish(String sessionId, String type, String state, String workflowPhase,
                                  String activeActor, String remoteState,
                                  boolean runtimeConnected, String content, String detail) {
+        return publish(sessionId, type, state, workflowPhase, activeActor, remoteState,
+                runtimeConnected, content, detail, null, null, 0, 24);
+    }
+
+    public DesignerEvent publish(String sessionId, String type, String state, String workflowPhase,
+                                 String activeActor, String remoteState,
+                                 boolean runtimeConnected, String content, String detail,
+                                 Integer requirementRevision, String activeWorkPackageId,
+                                 int modelCallsUsed, int maxModelCalls) {
         long sequence = sequences.computeIfAbsent(sessionId, ignored -> new AtomicLong()).incrementAndGet();
         DesignerEvent event = new DesignerEvent(sequence, sessionId, type, state, workflowPhase, activeActor, remoteState,
-                runtimeConnected, content == null ? "" : content, detail == null ? "" : detail, Instant.now().toString());
+                runtimeConnected, content == null ? "" : content, detail == null ? "" : detail, Instant.now().toString(),
+                requirementRevision, activeWorkPackageId, modelCallsUsed, maxModelCalls);
         latest.put(sessionId, event);
         subscribers.publish(sessionId, event);
         return event;
@@ -32,5 +43,7 @@ public class DesignerEventHub {
 
     public record DesignerEvent(long sequence, String sessionId, String type, String state,
                                 String workflowPhase, String activeActor, String remoteState,
-                                boolean runtimeConnected, String content, String detail, String at) { }
+                                boolean runtimeConnected, String content, String detail, String at,
+                                Integer requirementRevision, String activeWorkPackageId,
+                                int modelCallsUsed, int maxModelCalls) { }
 }

@@ -15,15 +15,15 @@ class FeatureMigrationTest {
     @TempDir Path temporaryDirectory;
 
     @Test
-    void migratesBothEmptyAndV19DatabasesToLatestWithoutInventingAuditHistory() throws Exception {
+    void migratesBothEmptyAndV21DatabasesToLatestWithoutInventingAuditHistory() throws Exception {
         assertMigratesToLatest(temporaryDirectory.resolve("empty.db"), false);
         assertMigratesToLatest(temporaryDirectory.resolve("upgrade.db"), true);
     }
 
-    private void assertMigratesToLatest(Path database, boolean stopAtV19) throws Exception {
+    private void assertMigratesToLatest(Path database, boolean stopAtV21) throws Exception {
         String url = "jdbc:sqlite:" + database;
-        if (stopAtV19) {
-            Flyway.configure().dataSource(url, null, null).target(MigrationVersion.fromVersion("19")).load().migrate();
+        if (stopAtV21) {
+            Flyway.configure().dataSource(url, null, null).target(MigrationVersion.fromVersion("21")).load().migrate();
             try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
                 statement.executeUpdate("INSERT INTO project(id,name,root_path,created_at,updated_at) VALUES('legacy-project','Legacy','/tmp/legacy','now','now')");
                 statement.executeUpdate("INSERT INTO task(id,project_id,title,state,branch_name,created_at,updated_at) VALUES('legacy-task','legacy-project','Legacy merged elsewhere','SUCCEEDED','loopper/legacy','now','now')");
@@ -32,7 +32,7 @@ class FeatureMigrationTest {
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
 
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("21");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("22");
         try (var connection = DriverManager.getConnection(url);
              var statement = connection.prepareStatement("SELECT name FROM sqlite_master WHERE type='table'")) {
             try (var result = statement.executeQuery()) {
@@ -43,11 +43,12 @@ class FeatureMigrationTest {
                         "session_checkpoint", "session_usage", "binary_artifact",
                         "loopspec_template", "loopspec_template_version", "automation_rule", "automation_run",
                         "state_transition_event", "local_sync_conflict_session", "local_sync_conflict_file",
-                        "verifier_runtime", "task_publication", "loop_spec_compilation", "stage_java_baseline"));
+                        "verifier_runtime", "task_publication", "loop_spec_compilation", "stage_java_baseline",
+                        "design_requirement_revision", "task_decomposition", "design_work_package"));
             }
         }
         try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
-            if (stopAtV19) {
+            if (stopAtV21) {
                 try (var result = statement.executeQuery("SELECT COUNT(*) FROM task_publication WHERE task_id='legacy-task'")) {
                     assertThat(result.next()).isTrue();
                     assertThat(result.getInt(1)).isZero();
@@ -70,12 +71,18 @@ class FeatureMigrationTest {
             try (var result = statement.executeQuery("PRAGMA table_info(designer_session)")) {
                 var columns = new java.util.ArrayList<String>();
                 while (result.next()) columns.add(result.getString("name"));
-                assertThat(columns).contains("workflow_phase", "design_revision", "redesign_count");
+                assertThat(columns).contains("workflow_phase", "design_revision", "redesign_count",
+                        "current_requirement_revision", "active_work_package_id");
             }
             try (var result = statement.executeQuery("PRAGMA table_info(designer_message)")) {
                 var columns = new java.util.ArrayList<String>();
                 while (result.next()) columns.add(result.getString("name"));
-                assertThat(columns).contains("actor");
+                assertThat(columns).contains("actor", "requirement_revision", "work_package_id");
+            }
+            try (var result = statement.executeQuery("PRAGMA table_info(stage)")) {
+                var columns = new java.util.ArrayList<String>();
+                while (result.next()) columns.add(result.getString("name"));
+                assertThat(columns).contains("work_package_id");
             }
         }
         assertAutomationApprovalAndImmutabilityGuards(url);

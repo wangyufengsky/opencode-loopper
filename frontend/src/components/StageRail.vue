@@ -55,7 +55,7 @@ function statusDescription(status: Stage['status']) {
         <article v-for="stage in stages" :key="stage.id" :class="['phase-card', `is-${stage.status.toLowerCase()}`]">
           <header>
             <div>
-              <span class="phase-index">PHASE {{ String(stage.ordinal).padStart(2, '0') }}</span>
+              <span class="phase-index">{{ stage.workPackageId ? `${stage.workPackageId} · ` : '' }}PHASE {{ String(stage.ordinal).padStart(2, '0') }}</span>
               <strong>阶段 {{ stage.ordinal }}</strong>
             </div>
             <span class="phase-status"><Icon :icon="stageIcon(stage.status)" width="13" />{{ statusLabel(stage.status) }}</span>

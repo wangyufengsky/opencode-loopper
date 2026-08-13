@@ -163,6 +163,36 @@ under existing scope/risk rules. Actual Java changes in `JAVA_TEST_ONLY` or
 `NON_JAVA` fail classification. File traversal and hashing stay outside SQLite
 transactions for both Git and Direct workspaces.
 
+V22 adds a lifecycle before Designer. Every user submission freezes a complete
+`design_requirement_revision` and starts an independent read-only Task
+Decomposer Session. The Decomposer may return one `DIRECT_DESIGN` work package,
+2–6 dependency-ordered vertical packages, `NEEDS_INPUT`, or
+`MULTI_TASK_REQUIRED`; the server numbers and verifies requirement-segment
+coverage, package identity, backward-only dependencies, and the single-Task
+boundary. A newer user submission supersedes the old decomposition and package
+results without deleting their audit history. Each requirement revision has a
+hard 24-call model budget including Decomposer, Designer, Compiler, content
+repair, and the single transport retry available to each read-only role.
+
+Package work is strictly serial. Every package uses a fresh Designer Session and
+a fresh Compiler Session, produces 1–3 Stages carrying `workPackageId`, and is
+validated before the next package starts. Compiler output is a package fragment,
+not a complete LoopSpec. After all packages complete, the server concatenates
+Stages in package order and atomically synchronizes one aggregate LoopSpec at
+the original draft version; no model performs a second merge. Confirmation
+freezes `REQUIREMENT_CONTEXT`, `DECOMPOSITION_CONTEXT`, per-package
+`WORK_PACKAGE_DESIGN` and `WORK_PACKAGE_COMPILATION_SUMMARY` artifacts, plus a
+composite compatibility `DESIGN_CONTEXT`. A draft version conflict stops before
+the next model call and never creates a Task.
+
+The confirmed aggregate still creates exactly one Task, one task branch, and
+one publication. Stage execution remains serial, while each package owns an
+attempt pool of `min(stageCount * maxStageAttempts, stageCount + 2)` and earlier
+Stages cannot consume the reserved first Attempt of an unstarted Stage. Package
+reserves do not transfer. `maxTaskAttempts` and safe duration are raised to the
+deterministic minimum during aggregation, but token and cost budgets are never
+raised. All Stages must pass before the one final Requirement/Risk Judge batch.
+
 A v2 Stage may own one temporary verification runtime. Loopper allocates a
 dynamic loopback port and private temp directory outside SQLite transactions,
 replaces only `{{LOOPPER_PORT}}` and `{{LOOPPER_TEMP}}`, starts a direct argv

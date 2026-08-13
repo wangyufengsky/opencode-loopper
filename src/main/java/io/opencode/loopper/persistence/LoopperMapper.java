@@ -209,6 +209,12 @@ public interface LoopperMapper {
 
     @Delete("DELETE FROM loop_spec_compilation WHERE designer_session_id IN (SELECT id FROM designer_session WHERE loop_draft_id=#{draftId})")
     int deleteLoopSpecCompilationsByDraft(String draftId);
+    @Delete("DELETE FROM design_work_package WHERE designer_session_id IN (SELECT id FROM designer_session WHERE loop_draft_id=#{draftId})")
+    int deleteDesignWorkPackagesByDraft(String draftId);
+    @Delete("DELETE FROM task_decomposition WHERE designer_session_id IN (SELECT id FROM designer_session WHERE loop_draft_id=#{draftId})")
+    int deleteTaskDecompositionsByDraft(String draftId);
+    @Delete("DELETE FROM design_requirement_revision WHERE designer_session_id IN (SELECT id FROM designer_session WHERE loop_draft_id=#{draftId})")
+    int deleteDesignRequirementRevisionsByDraft(String draftId);
     @Delete("DELETE FROM designer_message WHERE designer_session_id IN (SELECT id FROM designer_session WHERE loop_draft_id=#{draftId})")
     int deleteDesignerMessagesByDraft(String draftId);
     @Delete("DELETE FROM interaction WHERE designer_session_id IN (SELECT id FROM designer_session WHERE loop_draft_id=#{draftId})")
@@ -216,22 +222,22 @@ public interface LoopperMapper {
     @Update("UPDATE automation_run SET draft_id=NULL WHERE draft_id=#{draftId}")
     int detachAutomationRunsFromDraft(String draftId);
 
-    @Insert("INSERT INTO designer_session(id,project_id,state,access_mode,external_session_id,external_session_state,loop_draft_id,workflow_phase,design_revision,redesign_count,created_at,updated_at,version) VALUES(#{id},#{projectId},#{state},#{accessMode},#{externalSessionId},#{externalSessionState},#{loopDraftId},#{workflowPhase},#{designRevision},#{redesignCount},#{createdAt},#{updatedAt},#{version})")
+    @Insert("INSERT INTO designer_session(id,project_id,state,access_mode,external_session_id,external_session_state,loop_draft_id,workflow_phase,design_revision,redesign_count,current_requirement_revision,active_work_package_id,created_at,updated_at,version) VALUES(#{id},#{projectId},#{state},#{accessMode},#{externalSessionId},#{externalSessionState},#{loopDraftId},#{workflowPhase},#{designRevision},#{redesignCount},#{currentRequirementRevision},#{activeWorkPackageId},#{createdAt},#{updatedAt},#{version})")
     int insertDesignerSession(DesignerSessionRow row);
     @Select("SELECT * FROM designer_session WHERE id=#{id}") Optional<DesignerSessionRow> findDesignerSession(String id);
     @Select("SELECT * FROM designer_session WHERE loop_draft_id=#{draftId} ORDER BY created_at DESC LIMIT 1")
     Optional<DesignerSessionRow> findLatestDesignerSessionByDraft(String draftId);
     @Select("SELECT * FROM designer_session WHERE state='RUNNING' AND workflow_phase IN ('DESIGNING','REDESIGNING') AND external_session_id IS NOT NULL ORDER BY updated_at")
     List<DesignerSessionRow> activeDesignerHandoffs();
-    @Update("UPDATE designer_session SET state=#{state}, access_mode=#{accessMode}, external_session_id=#{externalSessionId}, external_session_state=#{externalSessionState}, loop_draft_id=#{loopDraftId}, workflow_phase=#{workflowPhase}, design_revision=#{designRevision}, redesign_count=#{redesignCount}, updated_at=#{updatedAt}, version=version+1 WHERE id=#{id} AND version=#{version}")
+    @Update("UPDATE designer_session SET state=#{state}, access_mode=#{accessMode}, external_session_id=#{externalSessionId}, external_session_state=#{externalSessionState}, loop_draft_id=#{loopDraftId}, workflow_phase=#{workflowPhase}, design_revision=#{designRevision}, redesign_count=#{redesignCount}, current_requirement_revision=#{currentRequirementRevision}, active_work_package_id=#{activeWorkPackageId}, updated_at=#{updatedAt}, version=version+1 WHERE id=#{id} AND version=#{version}")
     int updateDesignerSession(DesignerSessionRow row);
-    @Update("UPDATE designer_session SET access_mode=#{accessMode}, external_session_id=#{externalSessionId}, external_session_state=#{externalSessionState}, loop_draft_id=#{loopDraftId}, workflow_phase=#{workflowPhase}, design_revision=#{designRevision}, redesign_count=#{redesignCount}, updated_at=#{updatedAt}, version=version+1 WHERE id=#{id} AND version=#{version}")
+    @Update("UPDATE designer_session SET access_mode=#{accessMode}, external_session_id=#{externalSessionId}, external_session_state=#{externalSessionState}, loop_draft_id=#{loopDraftId}, workflow_phase=#{workflowPhase}, design_revision=#{designRevision}, redesign_count=#{redesignCount}, current_requirement_revision=#{currentRequirementRevision}, active_work_package_id=#{activeWorkPackageId}, updated_at=#{updatedAt}, version=version+1 WHERE id=#{id} AND version=#{version}")
     int updateDesignerSessionProjection(DesignerSessionRow row);
     @Delete("DELETE FROM designer_session WHERE loop_draft_id=#{draftId}")
     int deleteDesignerSessionsByDraft(String draftId);
     @Select("SELECT COALESCE(MAX(ordinal), 0) + 1 FROM designer_message WHERE designer_session_id=#{sessionId}")
     int nextDesignerMessageOrdinal(String sessionId);
-    @Insert("INSERT INTO designer_message(id,designer_session_id,ordinal,role,content,delivery_state,created_at,actor) VALUES(#{id},#{designerSessionId},#{ordinal},#{role},#{content},#{deliveryState},#{createdAt},#{actor})")
+    @Insert("INSERT INTO designer_message(id,designer_session_id,ordinal,role,content,delivery_state,created_at,actor,requirement_revision,work_package_id) VALUES(#{id},#{designerSessionId},#{ordinal},#{role},#{content},#{deliveryState},#{createdAt},#{actor},#{requirementRevision},#{workPackageId})")
     int insertDesignerMessage(DesignerMessageRow row);
     @Select("SELECT * FROM designer_message WHERE designer_session_id=#{sessionId} ORDER BY ordinal")
     List<DesignerMessageRow> listDesignerMessages(String sessionId);
@@ -248,23 +254,111 @@ public interface LoopperMapper {
     Optional<DesignerMessageRow> findLatestPersistedDesignerMessageByDraft(String draftId);
 
     @Insert("""
+            INSERT INTO design_requirement_revision(id,designer_session_id,revision,source_message_id,
+              requirement_text,requirement_segments_json,source_draft_version,state,model_calls_used,max_model_calls,
+              created_at,updated_at,version)
+            VALUES(#{id},#{designerSessionId},#{revision},#{sourceMessageId},#{requirementText},
+              #{requirementSegmentsJson},#{sourceDraftVersion},#{state},#{modelCallsUsed},#{maxModelCalls},
+              #{createdAt},#{updatedAt},#{version})
+            """)
+    int insertDesignRequirementRevision(DesignRequirementRevisionRow row);
+    @Select("SELECT * FROM design_requirement_revision WHERE id=#{id}")
+    Optional<DesignRequirementRevisionRow> findDesignRequirementRevision(String id);
+    @Select("SELECT * FROM design_requirement_revision WHERE designer_session_id=#{sessionId} ORDER BY revision DESC")
+    List<DesignRequirementRevisionRow> listDesignRequirementRevisions(String sessionId);
+    @Select("SELECT * FROM design_requirement_revision WHERE designer_session_id=#{sessionId} ORDER BY revision DESC LIMIT 1")
+    Optional<DesignRequirementRevisionRow> findCurrentDesignRequirementRevision(String sessionId);
+    @Update("UPDATE design_requirement_revision SET state=#{state},model_calls_used=#{modelCallsUsed},updated_at=#{updatedAt},version=version+1 WHERE id=#{id} AND version=#{version}")
+    int updateDesignRequirementRevision(DesignRequirementRevisionRow row);
+
+    @Insert("""
+            INSERT INTO task_decomposition(id,designer_session_id,requirement_revision_id,state,result_type,
+              normalized_goal,global_constraints_json,plan_json,external_session_id,external_session_state,
+              repair_count,transport_retry_count,source_draft_version,last_error_code,last_error_detail,
+              created_at,updated_at,version)
+            VALUES(#{id},#{designerSessionId},#{requirementRevisionId},#{state},#{resultType},#{normalizedGoal},
+              #{globalConstraintsJson},#{planJson},#{externalSessionId},#{externalSessionState},#{repairCount},
+              #{transportRetryCount},#{sourceDraftVersion},#{lastErrorCode},#{lastErrorDetail},
+              #{createdAt},#{updatedAt},#{version})
+            """)
+    int insertTaskDecomposition(TaskDecompositionRow row);
+    @Select("SELECT * FROM task_decomposition WHERE id=#{id}")
+    Optional<TaskDecompositionRow> findTaskDecomposition(String id);
+    @Select("SELECT * FROM task_decomposition WHERE designer_session_id=#{sessionId} ORDER BY created_at DESC LIMIT 1")
+    Optional<TaskDecompositionRow> findLatestTaskDecomposition(String sessionId);
+    @Select("SELECT * FROM task_decomposition WHERE requirement_revision_id=#{revisionId} ORDER BY created_at DESC LIMIT 1")
+    Optional<TaskDecompositionRow> findTaskDecompositionByRevision(String revisionId);
+    @Select("SELECT * FROM task_decomposition WHERE state='RUNNING' AND external_session_id IS NOT NULL ORDER BY updated_at")
+    List<TaskDecompositionRow> activeTaskDecompositions();
+    @Update("""
+            UPDATE task_decomposition SET state=#{state},result_type=#{resultType},normalized_goal=#{normalizedGoal},
+              global_constraints_json=#{globalConstraintsJson},plan_json=#{planJson},
+              external_session_id=#{externalSessionId},external_session_state=#{externalSessionState},
+              repair_count=#{repairCount},transport_retry_count=#{transportRetryCount},
+              last_error_code=#{lastErrorCode},last_error_detail=#{lastErrorDetail},
+              updated_at=#{updatedAt},version=version+1 WHERE id=#{id} AND version=#{version}
+            """)
+    int updateTaskDecomposition(TaskDecompositionRow row);
+
+    @Insert("""
+            INSERT INTO design_work_package(id,designer_session_id,requirement_revision_id,decomposition_id,
+              package_id,ordinal,title,objective,scope_in_json,scope_out_json,dependencies_json,deliverables_json,
+              acceptance_intent_json,requirement_refs_json,state,designer_external_session_id,
+              designer_external_session_state,design_message_id,design_revision,redesign_count,
+              designer_transport_retry_count,compiler_summary,handoff_summary,last_error_code,last_error_detail,
+              created_at,updated_at,version)
+            VALUES(#{id},#{designerSessionId},#{requirementRevisionId},#{decompositionId},#{packageId},#{ordinal},
+              #{title},#{objective},#{scopeInJson},#{scopeOutJson},#{dependenciesJson},#{deliverablesJson},
+              #{acceptanceIntentJson},#{requirementRefsJson},#{state},#{designerExternalSessionId},
+              #{designerExternalSessionState},#{designMessageId},#{designRevision},#{redesignCount},
+              #{designerTransportRetryCount},#{compilerSummary},#{handoffSummary},#{lastErrorCode},#{lastErrorDetail},
+              #{createdAt},#{updatedAt},#{version})
+            """)
+    int insertDesignWorkPackage(DesignWorkPackageRow row);
+    @Select("SELECT * FROM design_work_package WHERE id=#{id}")
+    Optional<DesignWorkPackageRow> findDesignWorkPackage(String id);
+    @Select("SELECT * FROM design_work_package WHERE requirement_revision_id=#{revisionId} ORDER BY ordinal")
+    List<DesignWorkPackageRow> listDesignWorkPackages(String revisionId);
+    @Select("SELECT * FROM design_work_package WHERE designer_session_id=#{sessionId} AND package_id=#{packageId} ORDER BY created_at DESC LIMIT 1")
+    Optional<DesignWorkPackageRow> findLatestDesignWorkPackage(@Param("sessionId") String sessionId,
+                                                               @Param("packageId") String packageId);
+    @Select("SELECT * FROM design_work_package WHERE state='DESIGNING' AND designer_external_session_id IS NOT NULL ORDER BY updated_at")
+    List<DesignWorkPackageRow> activeDesignWorkPackages();
+    @Update("""
+            UPDATE design_work_package SET state=#{state},designer_external_session_id=#{designerExternalSessionId},
+              designer_external_session_state=#{designerExternalSessionState},design_message_id=#{designMessageId},
+              design_revision=#{designRevision},redesign_count=#{redesignCount},
+              designer_transport_retry_count=#{designerTransportRetryCount},compiler_summary=#{compilerSummary},
+              handoff_summary=#{handoffSummary},last_error_code=#{lastErrorCode},last_error_detail=#{lastErrorDetail},
+              updated_at=#{updatedAt},version=version+1 WHERE id=#{id} AND version=#{version}
+            """)
+    int updateDesignWorkPackage(DesignWorkPackageRow row);
+
+    @Insert("""
             INSERT INTO loop_spec_compilation(id,designer_session_id,design_revision,state,
               external_session_id,external_session_state,repair_count,source_design_message_id,
-              source_draft_version,last_error_code,last_error_detail,created_at,updated_at,version)
+              source_draft_version,last_error_code,last_error_detail,created_at,updated_at,version,
+              work_package_id,transport_retry_count,compiled_package_json)
             VALUES(#{id},#{designerSessionId},#{designRevision},#{state},#{externalSessionId},
               #{externalSessionState},#{repairCount},#{sourceDesignMessageId},#{sourceDraftVersion},
-              #{lastErrorCode},#{lastErrorDetail},#{createdAt},#{updatedAt},#{version})
+              #{lastErrorCode},#{lastErrorDetail},#{createdAt},#{updatedAt},#{version},
+              #{workPackageId},#{transportRetryCount},#{compiledPackageJson})
             """)
     int insertLoopSpecCompilation(LoopSpecCompilationRow row);
     @Select("SELECT * FROM loop_spec_compilation WHERE id=#{id}")
     Optional<LoopSpecCompilationRow> findLoopSpecCompilation(String id);
     @Select("SELECT * FROM loop_spec_compilation WHERE designer_session_id=#{sessionId} ORDER BY created_at DESC LIMIT 1")
     Optional<LoopSpecCompilationRow> findLatestLoopSpecCompilation(String sessionId);
+    @Select("SELECT * FROM loop_spec_compilation WHERE designer_session_id=#{sessionId} AND work_package_id=#{packageId} ORDER BY created_at DESC LIMIT 1")
+    Optional<LoopSpecCompilationRow> findLatestLoopSpecCompilationForPackage(@Param("sessionId") String sessionId,
+                                                                             @Param("packageId") String packageId);
     @Select("SELECT * FROM loop_spec_compilation WHERE state='RUNNING' AND external_session_id IS NOT NULL ORDER BY updated_at")
     List<LoopSpecCompilationRow> activeLoopSpecCompilations();
     @Update("""
             UPDATE loop_spec_compilation SET state=#{state},external_session_id=#{externalSessionId},
               external_session_state=#{externalSessionState},repair_count=#{repairCount},
+              transport_retry_count=#{transportRetryCount},
+              compiled_package_json=#{compiledPackageJson},
               last_error_code=#{lastErrorCode},last_error_detail=#{lastErrorDetail},
               updated_at=#{updatedAt},version=version+1
             WHERE id=#{id} AND version=#{version}
@@ -314,7 +408,7 @@ public interface LoopperMapper {
     int updateTaskPublication(TaskPublicationRow row);
     @Delete("DELETE FROM task_publication WHERE task_id=#{taskId}") int deleteTaskPublicationForTask(String taskId);
 
-    @Insert("INSERT INTO stage(id,task_id,ordinal,objective,allowed_paths_json,forbidden_paths_json,deliverables_json,verifiers_json,state,created_at,updated_at,version) VALUES(#{id},#{taskId},#{ordinal},#{objective},#{allowedPathsJson},#{forbiddenPathsJson},#{deliverablesJson},#{verifiersJson},#{state},#{createdAt},#{updatedAt},#{version})")
+    @Insert("INSERT INTO stage(id,task_id,ordinal,objective,allowed_paths_json,forbidden_paths_json,deliverables_json,verifiers_json,state,created_at,updated_at,version,work_package_id) VALUES(#{id},#{taskId},#{ordinal},#{objective},#{allowedPathsJson},#{forbiddenPathsJson},#{deliverablesJson},#{verifiersJson},#{state},#{createdAt},#{updatedAt},#{version},#{workPackageId})")
     int insertStage(StageRow row);
     @Select("SELECT * FROM stage WHERE id=#{id}") Optional<StageRow> findStage(String id);
     @Select("SELECT * FROM stage WHERE task_id=#{taskId} ORDER BY ordinal") List<StageRow> listStages(String taskId);
@@ -333,6 +427,8 @@ public interface LoopperMapper {
     @Select("SELECT * FROM attempt WHERE stage_id=#{stageId} ORDER BY ordinal DESC LIMIT 1") Optional<AttemptRow> latestAttempt(String stageId);
     @Select("SELECT COUNT(*) FROM attempt WHERE stage_id=#{stageId}") int countAttemptsForStage(String stageId);
     @Select("SELECT COUNT(*) FROM attempt WHERE task_id=#{taskId}") int countAttemptsForTask(String taskId);
+    @Select("SELECT COUNT(*) FROM attempt a JOIN stage s ON s.id=a.stage_id WHERE a.task_id=#{taskId} AND s.work_package_id=#{packageId}")
+    int countAttemptsForWorkPackage(@Param("taskId") String taskId, @Param("packageId") String packageId);
     @Select("SELECT COUNT(*) FROM attempt WHERE stage_id=#{stageId} AND state='SESSION_ERROR'") int countSessionErrorsForStage(String stageId);
     @Update("UPDATE attempt SET state=#{state}, failure_kind=#{failureKind}, summary=#{summary}, ended_at=#{endedAt}, version=version+1 WHERE id=#{id} AND version=#{version}")
     int finishAttempt(AttemptRow row);

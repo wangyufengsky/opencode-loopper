@@ -1222,6 +1222,27 @@ class TaskServiceIntegrationTest {
         assertThat(tasks.errors(task.id())).anyMatch(error -> error.code().equals("LOOP_FRESH_SESSION_REQUIRED"));
     }
 
+    @Test
+    void workPackageAttemptPoolReservesTheUnstartedStagesFirstAttempt() throws Exception {
+        ProjectRow project = projects.create("package-attempt-pool", gitProject());
+        TaskRow task = drafts.confirm(drafts.create(packageAttemptSpec(project.id())).id(),
+                "reserve later stage attempt");
+        tasks.start(task.id());
+
+        assertThat(tasks.verify(task.id()).state()).isEqualTo("RUNNING");
+        assertThat(tasks.verify(task.id()).state()).isEqualTo("RUNNING");
+        TaskRow failed = tasks.verify(task.id());
+
+        assertThat(failed.state()).isEqualTo("FAILED");
+        assertThat(tasks.attempts(task.id())).hasSize(3);
+        assertThat(tasks.stages(task.id())).extracting(stage -> stage.state())
+                .containsExactly("FAILED", "PENDING");
+        assertThat(tasks.errors(task.id())).anySatisfy(error -> {
+            assertThat(error.code()).isEqualTo("WORK_PACKAGE_ATTEMPT_LIMIT_EXHAUSTED");
+            assertThat(error.message()).contains("independent attempt pool of 4", "reserving one first attempt");
+        });
+    }
+
     private LoopSpec spec(String projectId) {
         return new LoopSpec("v1", projectId, "Verify README", null, List.of(new LoopSpec.StageSpec("Check README", null, null, null,
                 List.of(new LoopSpec.VerifierSpec("FILE_EXISTS", null, "README.md", null, null, null, null)))), null, null, null, null);
@@ -1268,6 +1289,20 @@ class TaskServiceIntegrationTest {
                         List.of("README contains the marker"), List.of(verifier))),
                 new LoopSpec.Limits(4, 6, 3, stagnationLimit, 7200L, 1800L, 600L),
                 null, sessionPolicy, retryTemplate);
+    }
+    private LoopSpec packageAttemptSpec(String projectId) {
+        LoopSpec.VerifierSpec failing = new LoopSpec.VerifierSpec(
+                "FILE_CONTENT", null, "README.md", null, null, null, null, null,
+                null, null, null, null, null, "CONTAINS", "package-marker-not-present",
+                null, null, null, null);
+        return new LoopSpec("v1", projectId, "Respect independent work-package attempt pools", null,
+                List.of(
+                        new LoopSpec.StageSpec("Retry-prone first stage", List.of("README.md"), List.of(),
+                                List.of("first result"), List.of(failing), List.of(), null, null, "WP-1"),
+                        new LoopSpec.StageSpec("Reserved later stage", List.of("README.md"), List.of(),
+                                List.of("second result"), List.of(failing), List.of(), null, null, "WP-1")),
+                new LoopSpec.Limits(5, 8, 3, 20, 7200L, 1800L, 600L), null,
+                new LoopSpec.SessionPolicy(true, true), null);
     }
     private String gitProject() throws Exception {
         Path root = Files.createDirectory(temp.resolve("git-" + System.nanoTime()));

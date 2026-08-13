@@ -11,9 +11,12 @@ manufactures queue, progress, usage or cost data.
 - V13: task recovery lineage, Session todo/checkpoint/usage, and filesystem-backed
   binary artifact metadata.
 - V14: immutable LoopSpec template versions, automation rules, and run history.
+- V21: Designer/Compiler source tracking and immutable Stage Java baselines.
+- V22: frozen requirement revisions, Task Decomposer results, serial design work
+  packages, package-scoped compiler fragments, and Stage `work_package_id`.
 
-Historical migrations remain immutable. Empty databases and V11 databases must
-both migrate to V14.
+Historical migrations remain immutable. Empty databases and supported V21
+databases must both migrate to V22.
 
 ## Interactions
 
@@ -60,6 +63,10 @@ counts actual bytes and rejects files whose size, modification time, or file key
 changes during the read. The Task projection exposes the current wait reason and
 whether this action is available; historical wait errors do not enable it.
 Snapshot I/O and Session creation remain outside SQLite transactions.
+Derived Recovery tasks copy the parent's requirement, decomposition, every
+package design/compilation summary, and composite design artifacts. They retain
+each Stage's `workPackageId`; Recovery must not collapse a decomposed parent to
+only its last Designer message.
 
 ## Verifiers and artifacts
 
@@ -114,6 +121,14 @@ business criteria. At runtime an immutable Stage-start Java baseline detects
 added, modified, and rename-target production `.java` paths in both Git and
 Direct workspaces. Classification mismatches and missing successful focused
 tests are blocking verifier results that enter the ordinary Attempt retry loop.
+
+For decomposed Tasks, Stage order is also package order. A package owns
+`min(stageCount * maxStageAttempts, stageCount + 2)` Attempts and reserves one
+for each unstarted Stage; unused capacity cannot be borrowed by another package.
+Aggregate admission raises `maxTaskAttempts` and maximum duration only to the
+safe calculated floor and never raises token/cost budgets. The final ordered
+verification summary still launches exactly one Requirement/Risk Judge batch
+after all packages pass.
 
 Network behavior coverage requires a Stage-managed runtime with dynamic
 `{{LOOPPER_PORT}}`, bounded readiness, and direct argv startup. V19 records its

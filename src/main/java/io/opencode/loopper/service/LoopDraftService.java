@@ -135,6 +135,13 @@ public class LoopDraftService {
                                                              String isolatedBaseline) {
         LoopDraftRow draft = get(id);
         if (LoopDraftStatus.CONFIRMED.name().equals(draft.status())) return mapper.findTaskByDraft(id).orElseThrow(() -> new ConflictException("DRAFT_TASK_MISSING", "Confirmed draft has no associated task"));
+        mapper.findLatestDesignerSessionByDraft(id).ifPresent(session -> {
+            if (session.currentRequirementRevision() != null
+                    && !io.opencode.loopper.domain.DesignWorkflowPhase.COMPLETED.name().equals(session.workflowPhase())) {
+                throw new ConflictException("DESIGN_WORKFLOW_NOT_COMPLETED",
+                        "Review Gate cannot be confirmed until decomposition and every work package complete");
+            }
+        });
         validateExecutionContract(spec(draft));
         io.opencode.loopper.persistence.TaskRow task = tasks.createFromDraft(draft, title, admissionSource, isolatedBaseline);
         LoopDraftRow confirmed = new LoopDraftRow(draft.id(), draft.projectId(), draft.goal(), draft.specJson(), LoopDraftStatus.CONFIRMED.name(), draft.createdAt(), Instant.now().toString(), draft.version());
@@ -277,7 +284,7 @@ public class LoopDraftService {
             if (stageChanged) {
                 stages.add(new LoopSpec.StageSpec(stage.objective(), stage.allowedPaths(), stage.forbiddenPaths(),
                         stage.deliverables(), verifiers, stage.acceptanceCriteria(), stage.verificationRuntime(),
-                        stage.implementationKind()));
+                        stage.implementationKind(), stage.workPackageId()));
                 changed = true;
             } else {
                 stages.add(stage);

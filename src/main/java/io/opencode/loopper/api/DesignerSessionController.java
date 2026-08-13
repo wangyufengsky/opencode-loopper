@@ -58,9 +58,14 @@ public class DesignerSessionController {
         emitter.onError(ignored -> lifecycle.close());
         DesignerEventHub.DesignerEvent latest = events.latest(id);
         if (latest != null) sendIfNew(emitter, sent, lifecycle, latest);
-        else sendIfNew(emitter, sent, lifecycle, new DesignerEventHub.DesignerEvent(0L, id, "SNAPSHOT", current.state(),
-                current.workflowPhase(), service.activeActor(current), current.externalSessionState(), false, "",
-                "等待 OpenCode 状态探测", current.updatedAt()));
+        else {
+            DesignerSessionService.RequirementRevisionStatus requirement = service.requirementStatus(id);
+            sendIfNew(emitter, sent, lifecycle, new DesignerEventHub.DesignerEvent(0L, id, "SNAPSHOT", current.state(),
+                    current.workflowPhase(), service.activeActor(current), current.externalSessionState(), false, "",
+                    "等待 OpenCode 状态探测", current.updatedAt(), current.currentRequirementRevision(),
+                    current.activeWorkPackageId(), requirement == null ? 0 : requirement.modelCallsUsed(),
+                    requirement == null ? 24 : requirement.maxModelCalls()));
+        }
         return emitter;
     }
 
@@ -108,6 +113,24 @@ public class DesignerSessionController {
         return ResponseEntity.accepted().build();
     }
 
+    @PostMapping("/{id}/decomposition/retry")
+    public ResponseEntity<Void> retryDecomposition(@PathVariable String id) {
+        service.retryDecomposition(id);
+        return ResponseEntity.accepted().build();
+    }
+
+    @PostMapping("/{id}/work-packages/{packageId}/compiler/retry")
+    public ResponseEntity<Void> retryPackageCompiler(@PathVariable String id, @PathVariable String packageId) {
+        service.retryPackageCompilation(id, packageId);
+        return ResponseEntity.accepted().build();
+    }
+
+    @PostMapping("/{id}/work-packages/{packageId}/redesign")
+    public ResponseEntity<Void> redesignPackage(@PathVariable String id, @PathVariable String packageId) {
+        service.requestPackageRedesign(id, packageId);
+        return ResponseEntity.accepted().build();
+    }
+
     @PostMapping("/{id}/redesign")
     public ResponseEntity<Void> redesign(@PathVariable String id) {
         service.requestRedesign(id);
@@ -119,16 +142,18 @@ public class DesignerSessionController {
         LoopDraftRow draft = service.draft(row.id());
         return new DesignerSessionDto(row.id(), row.projectId(), project.name(), row.state(), row.workflowPhase(),
                 service.activeActor(row), row.accessMode(), true,
-                "Designer and LoopSpec Compiler use separate read-only Sessions. Only the deterministic server validator may synchronize the bound draft.",
+                "Task Decomposer and each package's Designer/LoopSpec Compiler use separate read-only Sessions. Only the deterministic server validator may aggregate and synchronize the bound draft.",
                 row.createdAt(), row.updatedAt(), draft == null ? null : new DesignerDraftDto(
                         draft.id(), draft.status(), draft.updatedAt(), drafts.spec(draft)),
                 service.messages(row.id()).stream().map(this::message).toList(), service.pendingQuestions(row.id()),
-                service.compilerStatus(row.id()));
+                service.compilerStatus(row.id()), service.requirementStatus(row.id()),
+                service.decompositionStatus(row.id()), service.workPackageStatuses(row.id()),
+                row.currentRequirementRevision(), row.activeWorkPackageId());
     }
 
     private DesignerMessageDto message(DesignerMessageRow row) {
         return new DesignerMessageDto(row.id(), row.ordinal(), row.role(), row.actor(), row.content(),
-                row.deliveryState(), row.createdAt());
+                row.deliveryState(), row.createdAt(), row.requirementRevision(), row.workPackageId());
     }
 
     public record CreateDesignerSessionRequest(@NotBlank String projectId, @NotBlank String draftId,
@@ -139,11 +164,16 @@ public class DesignerSessionController {
                                      boolean readOnly, String permissionSummary, String createdAt, String updatedAt,
                                      DesignerDraftDto draft, List<DesignerMessageDto> messages,
                                      List<DesignerSessionService.PendingQuestion> pendingQuestions,
-                                     DesignerSessionService.CompilerStatus compiler) { }
+                                     DesignerSessionService.CompilerStatus compiler,
+                                     DesignerSessionService.RequirementRevisionStatus requirement,
+                                     DesignerSessionService.DecompositionStatus decomposition,
+                                     List<DesignerSessionService.WorkPackageStatus> workPackages,
+                                     Integer requirementRevision, String activeWorkPackageId) { }
     public record DesignerDraftDto(String id, String status, String updatedAt,
                                    io.opencode.loopper.domain.LoopSpec spec) { }
     public record DesignerMessageDto(String id, int ordinal, String role, String actor, String content,
-                                     String deliveryState, String createdAt) { }
+                                     String deliveryState, String createdAt,
+                                     Integer requirementRevision, String workPackageId) { }
     public record AppendMessageResult(String sessionId, String state, List<DesignerMessageDto> persistedMessages, String notice) { }
     public record QuestionReplyRequest(List<List<String>> answers) { }
 }

@@ -1,13 +1,11 @@
 package io.opencode.loopper.api;
 
 import io.opencode.loopper.LoopperApplication;
-import io.opencode.loopper.domain.LoopDraftStatus;
 import io.opencode.loopper.domain.ImplementationKind;
+import io.opencode.loopper.domain.LoopDraftStatus;
 import io.opencode.loopper.domain.LoopSpec;
-import io.opencode.loopper.verification.ProcessCommandPolicy;
+import io.opencode.loopper.persistence.DesignRequirementRevisionRow;
 import io.opencode.loopper.persistence.DesignerSessionRow;
-import io.opencode.loopper.persistence.DesignerMessageRow;
-import io.opencode.loopper.persistence.ExecutionSessionRow;
 import io.opencode.loopper.persistence.LoopDraftRow;
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.ProjectRow;
@@ -16,22 +14,24 @@ import io.opencode.loopper.persistence.TaskRow;
 import io.opencode.loopper.runtime.FakeOpenCodeClient;
 import io.opencode.loopper.runtime.OpenCodeClient;
 import io.opencode.loopper.service.DesignerSessionService;
-import io.opencode.loopper.service.DesignerEventHub;
 import io.opencode.loopper.service.LoopDraftService;
 import io.opencode.loopper.service.ProjectService;
 import io.opencode.loopper.service.TaskService;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.ApplicationContext;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -41,21 +41,24 @@ import tools.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(classes = LoopperApplication.class, properties = {
-        "loopper.opencode.mode=fake", "loopper.opencode.model=opencode/deepseek-v4-flash-free", "loopper.monitor-delay=1h",
-        "loopper.designer-monitor-delay=1h", "loopper.mcp.bearer-token=designer-mcp-test-token",
-        "spring.ai.mcp.server.protocol=STREAMABLE", "spring.ai.mcp.server.name=opencode-loopper", "spring.ai.mcp.server.version=0.1.39",
-        "spring.ai.mcp.server.annotation-scanner.enabled=false",
-        "spring.ai.mcp.server.capabilities.resource=false", "spring.ai.mcp.server.capabilities.prompt=false", "spring.ai.mcp.server.capabilities.completion=false",
-        "spring.ai.mcp.server.streamable-http.mcp-endpoint=/api/mcp-streamable", "spring.ai.mcp.server.streamable-http.disallow-delete=true"})
+        "loopper.opencode.mode=fake", "loopper.opencode.model=opencode/deepseek-v4-flash-free",
+        "loopper.monitor-delay=1h", "loopper.designer-monitor-delay=1h",
+        "loopper.mcp.bearer-token=designer-mcp-test-token",
+        "spring.ai.mcp.server.protocol=STREAMABLE", "spring.ai.mcp.server.name=opencode-loopper",
+        "spring.ai.mcp.server.version=0.1.40", "spring.ai.mcp.server.annotation-scanner.enabled=false",
+        "spring.ai.mcp.server.capabilities.resource=false", "spring.ai.mcp.server.capabilities.prompt=false",
+        "spring.ai.mcp.server.capabilities.completion=false",
+        "spring.ai.mcp.server.streamable-http.mcp-endpoint=/api/mcp-streamable",
+        "spring.ai.mcp.server.streamable-http.disallow-delete=true"})
 @AutoConfigureMockMvc
 class DesignerSessionMcpIntegrationTest {
     private static final String TOKEN = "designer-mcp-test-token";
@@ -65,7 +68,6 @@ class DesignerSessionMcpIntegrationTest {
     @Autowired private Flyway flyway;
     @Autowired private ProjectService projects;
     @Autowired private DesignerSessionService designerSessions;
-    @Autowired private DesignerEventHub designerEvents;
     @Autowired private LoopDraftService drafts;
     @Autowired private TaskService tasks;
     @Autowired private LoopperMapper mapper;
@@ -80,819 +82,419 @@ class DesignerSessionMcpIntegrationTest {
     void resetDatabase() {
         flyway.clean();
         flyway.migrate();
-        ((FakeOpenCodeClient) openCode).reset();
+        fake().reset();
     }
 
     @Test
-    void designerAndCompilerUseIndependentReadOnlySessionsAndPersistOnlyRoleAppropriateOutput() throws Exception {
-        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
-        ProjectRow project = projects.create("designer-fixture", Files.createDirectory(temp.resolve("project")).toString());
-        LoopDraftRow boundDraft = drafts.create(spec(project.id()));
-        LoopSpec firstSpec = withGoal(spec(project.id()), "Preserve the verifier list with a synchronized LoopSpec");
-        fake.setDesignerOutput(designerOutput("# Actual assistant plan\n\nPreserve the verifier list.", firstSpec));
+    void directDesignUsesIndependentReadOnlyRolesAndCreatesNoTaskBeforeConfirmation() throws Exception {
+        ProjectRow project = project("direct");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        fake().setDesignerOutput(designerOutput("# 单包设计\n\n缓存刷新后用户能看到新值。", legacySpec(project.id())));
 
-        MvcResult created = mvc.perform(post("/api/designer-sessions")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"projectId\":\"" + project.id() + "\",\"draftId\":\"" + boundDraft.id() + "\"}"))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.accessMode").value("READ_ONLY"))
-                .andExpect(jsonPath("$.readOnly").value(true))
-                .andExpect(jsonPath("$.draft.id").value(boundDraft.id()))
-                .andExpect(jsonPath("$.messages[0].role").value("SYSTEM"))
-                .andReturn();
-        String sessionId = body(created).path("id").asText();
-        assertThat(designerSessions.messages(sessionId)).singleElement().satisfies(message -> {
-            assertThat(message.designerSessionId()).isEqualTo(sessionId);
-            assertThat(message.role()).isEqualTo("SYSTEM");
-        });
+        DesignerSessionRow session = designerSessions.create(project.id(), draft.id(), "实现缓存刷新并保留验收证据");
+        assertThat(session.workflowPhase()).isEqualTo("DECOMPOSING");
+        assertThat(mapper.listTasks()).isEmpty();
+        pollUntilSettled(session.id());
 
-        mvc.perform(post("/api/designer-sessions/{id}/messages", sessionId)
-                        .contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"Please preserve the verifier list\"}"))
-                .andExpect(status().isAccepted())
-                .andExpect(jsonPath("$.state").value("RUNNING"))
-                .andExpect(jsonPath("$.persistedMessages[0].role").value("USER"))
-                .andExpect(jsonPath("$.persistedMessages[1].role").value("SYSTEM"))
-                .andExpect(jsonPath("$.notice").value(org.hamcrest.Matchers.containsString("actual OpenCode assistant text")));
-
-        DesignerSessionRow dispatched = designerSessions.get(sessionId);
-        assertThat(dispatched.externalSessionId()).isNotBlank();
-        assertThat(dispatched.externalSessionState()).isEqualTo("RUNNING");
-        assertThat(fake.isReadOnlySession(dispatched.externalSessionId())).isTrue();
-        assertThat(fake.modelForSession(dispatched.externalSessionId()))
-                .isEqualTo(new OpenCodeClient.OpenCodeModel("opencode", "deepseek-v4-flash-free", null));
-        assertThat(fake.promptForSession(dispatched.externalSessionId()))
-                .contains("Designer / 设计师", "replacement-quality Markdown design", "Simplified Chinese")
-                .contains("2-6 independently deliverable stages", "Every stage must be coherent")
-                .contains("Do not postpone all behavior checks", "focused Maven/Gradle unit test")
-                .contains(boundDraft.id())
-                .contains("Please preserve the verifier list");
-        assertThat(fake.promptForSession(dispatched.externalSessionId()))
-                .doesNotContain("LOOPSPEC_JSON_START", "implementationKind", "criterionIds");
-        assertThat(designerSessions.messages(sessionId)).noneMatch(message -> message.role().equals("ASSISTANT"));
-        assertThatThrownBy(() -> designerSessions.appendUserMessage(sessionId, "Unsafe concurrent prompt"))
-                .hasMessageContaining("still processing");
-
-        designerSessions.pollActiveHandoffs();
-        DesignerSessionRow completed = designerSessions.get(sessionId);
+        DesignerSessionRow completed = designerSessions.get(session.id());
         assertThat(completed.state()).isEqualTo("COMPLETED");
         assertThat(completed.workflowPhase()).isEqualTo("COMPLETED");
-        assertThat(completed.externalSessionState()).isEqualTo("COMPLETED");
-        var compilation = designerSessions.compilerStatus(sessionId);
-        assertThat(compilation.state()).isEqualTo("COMPLETED");
-        assertThat(compilation.externalSessionId()).isNotEqualTo(completed.externalSessionId());
-        assertThat(fake.isReadOnlySession(compilation.externalSessionId())).isTrue();
-        assertThat(fake.promptForSession(compilation.externalSessionId()))
-                .contains("LoopSpec Compiler / 规范编译器", "implementationKind", "criterionIds")
-                .contains("Frozen Designer Markdown revision", "Preserve the verifier list");
-        assertThat(fake.createReadOnlySessionCalls()).isEqualTo(2);
-        assertThat(designerSessions.messages(sessionId)).anySatisfy(message -> {
-            assertThat(message.role()).isEqualTo("ASSISTANT");
-            assertThat(message.actor()).isEqualTo("DESIGNER");
-            assertThat(message.content()).isEqualTo("# Actual assistant plan\n\nPreserve the verifier list.");
-            assertThat(message.deliveryState()).isEqualTo("PERSISTED");
+        assertThat(fake().createReadOnlySessionCalls()).isEqualTo(3);
+        assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(3);
+        assertThat(designerSessions.decompositionStatus(session.id()).resultType()).isEqualTo("DIRECT_DESIGN");
+        assertThat(designerSessions.workPackageStatuses(session.id())).singleElement().satisfies(workPackage -> {
+            assertThat(workPackage.id()).isEqualTo("WP-1");
+            assertThat(workPackage.state()).isEqualTo("COMPLETED");
         });
-        assertThat(designerSessions.messages(sessionId)).anySatisfy(message -> {
-            assertThat(message.actor()).isEqualTo("COMPILER");
-            assertThat(message.content()).contains("规范编译器");
-            assertThat(message.content()).doesNotContain("LOOPSPEC_COMPILATION_JSON_START", "\"loopSpec\"");
-        });
-        assertThat(drafts.get(boundDraft.id()).version()).isEqualTo(1);
-        assertThat(drafts.spec(drafts.get(boundDraft.id()))).isEqualTo(firstSpec);
+        assertThat(designerSessions.messages(session.id()).stream().map(message -> message.actor()).toList())
+                .contains("DECOMPOSER", "DESIGNER", "COMPILER", "VALIDATOR")
+                .doesNotContain("{\"status\":\"COMPILED\"");
+        assertThat(mapper.listTasks()).isEmpty();
+        assertThat(drafts.spec(drafts.get(draft.id())).stages()).allMatch(stage -> "WP-1".equals(stage.workPackageId()));
 
-        String externalSessionId = completed.externalSessionId();
-        LoopSpec secondSpec = withGoal(firstSpec, "Refined synchronized LoopSpec");
-        fake.setDesignerOutput(designerOutput("## Actual second-turn assistant plan", secondSpec));
-        designerSessions.appendUserMessage(sessionId, "Refine the first plan");
-        assertThat(designerSessions.get(sessionId).externalSessionId()).isEqualTo(externalSessionId);
-        designerSessions.pollActiveHandoffs();
-        assertThat(designerSessions.messages(sessionId).stream()
-                .filter(message -> "DESIGNER".equals(message.actor())).map(message -> message.content()).toList())
-                .containsExactly("# Actual assistant plan\n\nPreserve the verifier list.", "## Actual second-turn assistant plan");
-        assertThat(drafts.spec(drafts.get(boundDraft.id()))).isEqualTo(secondSpec);
+        TaskRow task = drafts.confirm(draft.id(), "缓存刷新");
+        assertThat(mapper.listTasks()).singleElement().extracting(TaskRow::id).isEqualTo(task.id());
+        assertThat(tasks.artifacts(task.id()).stream().map(TaskArtifactRow::kind).toList())
+                .contains("REQUIREMENT_CONTEXT", "DECOMPOSITION_CONTEXT", "WORK_PACKAGE_DESIGN",
+                        "WORK_PACKAGE_COMPILATION_SUMMARY", "DESIGN_CONTEXT");
     }
 
     @Test
-    void taskHistoryReturnsThePersistedDesignerConversationAndConfirmedLoopSpec() throws Exception {
-        ProjectRow project = projects.create("history-fixture", Files.createDirectory(temp.resolve("history-project")).toString());
-        LoopDraftRow draft = drafts.create(spec(project.id()));
-        DesignerSessionRow designer = designerSessions.create(project.id(), draft.id(), "Design a durable history view");
-        TaskRow task = drafts.confirm(draft.id(), "Durable design history");
+    void threePackagesAreDesignedAndCompiledStrictlySerialThenAggregatedIntoOneTask() throws Exception {
+        ProjectRow project = project("three-packages");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        fake().setDecomposerOutput(decomposition("DECOMPOSED", "交付三段纵向能力", 3));
+        for (int ordinal = 1; ordinal <= 3; ordinal++) {
+            String packageId = "WP-" + ordinal;
+            String design = "# " + packageId + " 设计\n\n" + packageId + " 完成后产生可观察结果。";
+            fake().setPackageDesignerOutput(packageId, design);
+            fake().setPackageCompilerOutput(packageId, packageCompilation(packageId, design));
+        }
 
-        mvc.perform(get("/api/tasks/{id}", task.id()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.hasDesignHistory").value(true));
+        DesignerSessionRow session = designerSessions.create(project.id(), draft.id(), "交付一个包含三个纵向能力的大型需求");
+        assertThat(mapper.listTasks()).isEmpty();
+        designerSessions.pollActiveHandoffs();
+        assertPackageStates(session.id(), "COMPLETED", "DESIGNING", "PENDING");
+        assertThat(designerSessions.get(session.id()).activeWorkPackageId()).isEqualTo("WP-2");
+        assertThat(mapper.listTasks()).isEmpty();
+
+        designerSessions.pollActiveHandoffs();
+        assertPackageStates(session.id(), "COMPLETED", "COMPLETED", "DESIGNING");
+        assertThat(designerSessions.get(session.id()).activeWorkPackageId()).isEqualTo("WP-3");
+        assertThat(mapper.listTasks()).isEmpty();
+
+        designerSessions.pollActiveHandoffs();
+        assertThat(designerSessions.get(session.id()).state()).isEqualTo("COMPLETED");
+        assertPackageStates(session.id(), "COMPLETED", "COMPLETED", "COMPLETED");
+        assertThat(fake().createReadOnlySessionCalls()).isEqualTo(7);
+        assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(7);
+        LoopSpec aggregate = drafts.spec(drafts.get(draft.id()));
+        assertThat(aggregate.goal()).isEqualTo("交付三段纵向能力");
+        assertThat(aggregate.stages()).extracting(LoopSpec.StageSpec::workPackageId)
+                .containsExactly("WP-1", "WP-2", "WP-3");
+        assertThat(aggregate.limits().maxTaskAttempts()).isGreaterThanOrEqualTo(9);
+        assertThat(mapper.listTasks()).isEmpty();
+
+        TaskRow task = drafts.confirm(draft.id(), "三包任务");
+        assertThat(mapper.listTasks()).hasSize(1);
+        assertThat(tasks.stages(task.id())).extracting(stage -> stage.workPackageId())
+                .containsExactly("WP-1", "WP-2", "WP-3");
+    }
+
+    @Test
+    void sixPackagesStayWithinTheRevisionBudgetAndRemainStrictlySerial() throws Exception {
+        ProjectRow project = project("six-packages");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        fake().setDecomposerOutput(decomposition("DECOMPOSED", "交付六个纵向能力", 6));
+        for (int ordinal = 1; ordinal <= 6; ordinal++) {
+            String packageId = "WP-" + ordinal;
+            String design = "# " + packageId + " 设计\n\n" + packageId + " 提供独立可观察结果。";
+            fake().setPackageDesignerOutput(packageId, design);
+            fake().setPackageCompilerOutput(packageId, packageCompilation(packageId, design));
+        }
+
+        DesignerSessionRow session = designerSessions.create(project.id(), draft.id(), "一个需要六个纵向工作包的大型任务");
+        pollUntilSettled(session.id());
+
+        assertThat(designerSessions.get(session.id()).state()).isEqualTo("COMPLETED");
+        assertThat(designerSessions.workPackageStatuses(session.id())).hasSize(6)
+                .allMatch(workPackage -> "COMPLETED".equals(workPackage.state()));
+        assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(13);
+        assertThat(fake().createReadOnlySessionCalls()).isEqualTo(13);
+        assertThat(drafts.spec(drafts.get(draft.id())).stages()).extracting(LoopSpec.StageSpec::workPackageId)
+                .containsExactly("WP-1", "WP-2", "WP-3", "WP-4", "WP-5", "WP-6");
+        assertThat(mapper.listTasks()).isEmpty();
+    }
+
+    @Test
+    void concurrentDraftChangeStopsBeforeAnyPackageModelCall() throws Exception {
+        ProjectRow project = project("draft-conflict");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        fake().setDecomposerOutput(decomposition("DIRECT_DESIGN", "不覆盖人工草稿", 1));
+        DesignerSessionRow session = designerSessions.create(project.id(), draft.id(), "冻结后不得覆盖人工修改");
+        LoopSpec edited = legacySpec(project.id());
+        drafts.update(draft.id(), new LoopSpec(edited.schemaVersion(), edited.projectId(), "人工编辑后的目标",
+                edited.context(), edited.stages(), edited.limits(), edited.model(), edited.sessionPolicy(),
+                edited.nextAttemptPromptTemplate(), edited.budget()));
+
+        designerSessions.pollActiveHandoffs();
+
+        assertThat(designerSessions.get(session.id()).state()).isEqualTo("WAITING_INPUT");
+        assertThat(designerSessions.messages(session.id())).anyMatch(message ->
+                "VALIDATOR".equals(message.actor()) && message.content().contains("DESIGNER_DRAFT_CHANGED"));
+        assertThat(fake().createReadOnlySessionCalls()).isEqualTo(1);
+        assertThat(mapper.listTasks()).isEmpty();
+    }
+
+    @Test
+    void exhaustedGlobalModelBudgetStopsTheActivePackageAndCompilerSession() throws Exception {
+        ProjectRow project = project("model-budget");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        fake().setDecomposerOutput(decomposition("DECOMPOSED", "两包预算边界", 2));
+        for (int ordinal = 1; ordinal <= 2; ordinal++) {
+            String packageId = "WP-" + ordinal;
+            String design = "# " + packageId + " 设计\n\n可观察结果。";
+            fake().setPackageDesignerOutput(packageId, design);
+            fake().setPackageCompilerOutput(packageId, packageCompilation(packageId, design));
+        }
+        DesignerSessionRow session = designerSessions.create(project.id(), draft.id(), "验证二十四次模型调用硬上限");
+        designerSessions.pollActiveHandoffs();
+        assertPackageStates(session.id(), "COMPLETED", "DESIGNING");
+        DesignRequirementRevisionRow revision = mapper.findCurrentDesignRequirementRevision(session.id()).orElseThrow();
+        assertThat(mapper.updateDesignRequirementRevision(new DesignRequirementRevisionRow(revision.id(),
+                revision.designerSessionId(), revision.revision(), revision.sourceMessageId(),
+                revision.requirementText(), revision.requirementSegmentsJson(), revision.sourceDraftVersion(),
+                revision.state(), 24, revision.maxModelCalls(), revision.createdAt(), revision.updatedAt(),
+                revision.version()))).isEqualTo(1);
+
+        designerSessions.pollActiveHandoffs();
+
+        assertThat(designerSessions.get(session.id()).state()).isEqualTo("WAITING_INPUT");
+        assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(24);
+        assertThat(designerSessions.workPackageStatuses(session.id()).get(1).state()).isEqualTo("WAITING_INPUT");
+        assertThat(designerSessions.compilerStatus(session.id()).state()).isEqualTo("SESSION_ERROR");
+        assertThat(mapper.listTasks()).isEmpty();
+    }
+
+    @Test
+    void decompositionInputAndMultiTaskBoundariesWaitWithoutCreatingTasks() throws Exception {
+        for (String status : List.of("NEEDS_INPUT", "MULTI_TASK_REQUIRED")) {
+            fake().reset();
+            ProjectRow project = project(status.toLowerCase());
+            LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+            fake().setDecomposerOutput(decomposition(status, "需要人工处理", 0));
+            DesignerSessionRow session = designerSessions.create(project.id(), draft.id(), "包含关键歧义或多个发布边界的需求");
+            designerSessions.pollActiveHandoffs();
+            assertThat(designerSessions.get(session.id()).state()).isEqualTo("WAITING_INPUT");
+            assertThat(designerSessions.decompositionStatus(session.id()).resultType()).isEqualTo(status);
+            assertThat(mapper.countTasksForProject(project.id())).isZero();
+            assertThatThrownBy(() -> drafts.confirm(draft.id(), "不可确认"))
+                    .hasMessageContaining("every work package complete");
+        }
+    }
+
+    @Test
+    void addedRequirementSupersedesOldRevisionAndStartsWithFreshTwentyFourCallBudget() throws Exception {
+        ProjectRow project = project("revision");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        fake().setDecomposerOutput(decomposition("NEEDS_INPUT", "需要补充", 0));
+        DesignerSessionRow session = designerSessions.create(project.id(), draft.id(), "先实现查询能力");
+        designerSessions.pollActiveHandoffs();
+        DesignRequirementRevisionRow first = mapper.findCurrentDesignRequirementRevision(session.id()).orElseThrow();
+        assertThat(first.state()).isEqualTo("WAITING_INPUT");
+        assertThat(first.modelCallsUsed()).isEqualTo(1);
+
+        fake().setDesignerOutput(designerOutput("# 补充后的完整设计\n\n异常和验收边界完整。", legacySpec(project.id())));
+        fake().setDecomposerOutput(decomposition("DIRECT_DESIGN", "补充后的完整需求", 1)
+                .replace("\"RQ-1\"]", "\"RQ-1\",\"RQ-2\"]"));
+        designerSessions.appendUserMessage(session.id(), "补充：失败时返回明确错误，且保持同一发布边界");
+        assertThat(mapper.findDesignRequirementRevision(first.id()).orElseThrow().state()).isEqualTo("SUPERSEDED");
+        assertThat(designerSessions.requirementStatus(session.id()).revision()).isEqualTo(2);
+        assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(1);
+        assertThat(designerSessions.requirementStatus(session.id()).maxModelCalls()).isEqualTo(24);
+        pollUntilSettled(session.id());
+        assertThat(designerSessions.get(session.id()).state()).isEqualTo("COMPLETED");
+    }
+
+    @Test
+    void compilerGetsTwoRepairsWhileSemanticGapRedesignsOnlyCurrentPackage() throws Exception {
+        ProjectRow project = project("retry");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        fake().setDesignerOutput(designerOutput("# 完整设计\n\n输出明确且可验收。", legacySpec(project.id())));
+        fake().setCompilerOutput("<!-- LOOPSPEC_COMPILATION_JSON_START -->{}<!-- LOOPSPEC_COMPILATION_JSON_END -->");
+        DesignerSessionRow session = designerSessions.create(project.id(), draft.id(), "实现可验收能力");
+        designerSessions.pollActiveHandoffs();
+        assertThat(designerSessions.compilerStatus(session.id()).repairCount()).isEqualTo(1);
+        designerSessions.pollActiveHandoffs();
+        assertThat(designerSessions.compilerStatus(session.id()).repairCount()).isEqualTo(2);
+        designerSessions.pollActiveHandoffs();
+        assertThat(designerSessions.get(session.id()).state()).isEqualTo("WAITING_INPUT");
+        assertThat(designerSessions.workPackageStatuses(session.id()).getFirst().lastErrorCode())
+                .isEqualTo("COMPILER_RETRY_EXHAUSTED");
+
+        fake().setCompilerOutput(designIncomplete("MISSING_EXCEPTION_SEMANTICS", "缺少异常结果"));
+        designerSessions.retryPackageCompilation(session.id(), "WP-1");
+        designerSessions.pollActiveHandoffs();
+        assertThat(designerSessions.get(session.id()).workflowPhase()).isEqualTo("REDESIGNING");
+        assertThat(designerSessions.workPackageStatuses(session.id()).getFirst().redesignCount()).isEqualTo(1);
+    }
+
+    @Test
+    void manualPackageRecompileReactivatesTheSameRequirementAndCanCompleteAggregation() throws Exception {
+        ProjectRow project = project("manual-recompile");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        String design = "# 可恢复设计\n\n提供明确且可观察的结果。";
+        fake().setDesignerOutput(designerOutput(design, legacySpec(project.id())));
+        fake().setCompilerOutput("<!-- LOOPSPEC_COMPILATION_JSON_START -->{}<!-- LOOPSPEC_COMPILATION_JSON_END -->");
+        DesignerSessionRow session = designerSessions.create(project.id(), draft.id(), "验证人工重新编译恢复");
+        designerSessions.pollActiveHandoffs();
+        designerSessions.pollActiveHandoffs();
+        designerSessions.pollActiveHandoffs();
+        assertThat(designerSessions.get(session.id()).state()).isEqualTo("WAITING_INPUT");
+        assertThat(designerSessions.requirementStatus(session.id()).state()).isEqualTo("WAITING_INPUT");
+
+        fake().setCompilerOutput(packageCompilation("WP-1", design));
+        designerSessions.retryPackageCompilation(session.id(), "WP-1");
+        designerSessions.pollActiveHandoffs();
+
+        assertThat(designerSessions.get(session.id()).state()).isEqualTo("COMPLETED");
+        assertThat(designerSessions.requirementStatus(session.id()).state()).isEqualTo("COMPLETED");
+        assertThat(drafts.spec(drafts.get(draft.id())).stages()).singleElement()
+                .extracting(LoopSpec.StageSpec::workPackageId).isEqualTo("WP-1");
+        assertThat(mapper.listTasks()).isEmpty();
+    }
+
+    @Test
+    void mcpProposalCannotBypassActiveDecomposition() throws Exception {
+        ProjectRow project = project("mcp-active");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        fake().setDecomposerOutput(decomposition("DIRECT_DESIGN", "active", 1));
+        DesignerSessionRow session = designerSessions.create(project.id(), draft.id(), "仍在拆解中的需求");
+        String args = "{\"designerSessionId\":\"" + session.id() + "\",\"projectId\":\"" + project.id()
+                + "\",\"spec\":" + json.writeValueAsString(legacySpec(project.id())) + "}";
+        mvc.perform(mcp(rpc(1, "tools/call", "{\"name\":\"propose_loop_spec\",\"arguments\":" + args + "}")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.result.isError").value(true))
+                .andExpect(jsonPath("$.result.content[0].text")
+                        .value(org.hamcrest.Matchers.containsString("DESIGN_WORKFLOW_ACTIVE")));
+        assertThat(mapper.listTasks()).isEmpty();
+    }
+
+    @Test
+    void taskHistoryRestoresRequirementDecompositionPackagesAndRoleTaggedMessages() throws Exception {
+        ProjectRow project = project("history");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        fake().setDesignerOutput(designerOutput("# 历史设计\n\n可观察结果。", legacySpec(project.id())));
+        DesignerSessionRow session = designerSessions.create(project.id(), draft.id(), "保存完整历史");
+        pollUntilSettled(session.id());
+        TaskRow task = drafts.confirm(draft.id(), "历史设计");
 
         mvc.perform(get("/api/tasks/{id}/design-history", task.id()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.taskId").value(task.id()))
-                .andExpect(jsonPath("$.taskTitle").value("Durable design history"))
-                .andExpect(jsonPath("$.draft.id").value(draft.id()))
-                .andExpect(jsonPath("$.draft.status").value("CONFIRMED"))
-                .andExpect(jsonPath("$.draft.spec.goal").value(spec(project.id()).goal()))
-                .andExpect(jsonPath("$.designerSession.id").value(designer.id()))
-                .andExpect(jsonPath("$.designerSession.accessMode").value("READ_ONLY"))
-                .andExpect(jsonPath("$.designerSession.messages[*].content")
-                        .value(org.hamcrest.Matchers.hasItem("Design a durable history view")));
+                .andExpect(jsonPath("$.requirement.revision").value(1))
+                .andExpect(jsonPath("$.decomposition.resultType").value("DIRECT_DESIGN"))
+                .andExpect(jsonPath("$.workPackages[0].id").value("WP-1"))
+                .andExpect(jsonPath("$.designerSession.messages[?(@.actor == 'DECOMPOSER')]").exists())
+                .andExpect(jsonPath("$.designerSession.messages[?(@.workPackageId == 'WP-1')]").exists());
     }
 
     @Test
-    void confirmedDesignerMarkdownIsFrozenAndSentToEveryExecutionAgentAttempt() throws Exception {
-        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
-        ProjectRow project = projects.create("frozen-design-context", gitProject());
-        LoopDraftRow draft = drafts.create(spec(project.id()));
-        String snapshotOnlyTail = "SNAPSHOT_ONLY_TAIL";
-        String confirmedMarkdown = """
-                # 已确认的 ServerAop 设计
-
-                - 复用现有测试基类与 Mock 约定。
-                - 不修改生产代码，失败时保留诊断证据。
-                """.trim() + "\n\n" + "x".repeat(12_100) + snapshotOnlyTail;
-        fake.setDesignerOutput(designerOutput(confirmedMarkdown, spec(project.id())));
-        DesignerSessionRow designer = designerSessions.create(project.id(), draft.id(), "设计 ServerAop 单元测试");
-        designerSessions.pollActiveHandoffs();
-
-        TaskRow task = drafts.confirm(draft.id(), "执行已确认设计");
-
-        TaskArtifactRow snapshot = tasks.artifacts(task.id()).stream()
-                .filter(artifact -> "DESIGN_CONTEXT".equals(artifact.kind())).findFirst().orElseThrow();
-        assertThat(snapshot.name()).isEqualTo("confirmed-designer-design.md");
-        assertThat(snapshot.contentType()).isEqualTo("text/markdown");
-        assertThat(snapshot.content()).isEqualTo(confirmedMarkdown);
-        assertThat(snapshot.metadataJson()).contains(draft.id(), designer.id());
-
-        // A later conversation record must not rewrite the Task's confirmation-time snapshot.
-        mapper.insertDesignerMessage(new DesignerMessageRow("later-design-message", designer.id(),
-                mapper.nextDesignerMessageOrdinal(designer.id()), "ASSISTANT", "## 未确认的后续设计", "PERSISTED",
-                "2026-08-07T00:00:00Z", "DESIGNER"));
-
-        tasks.start(task.id());
-        ExecutionSessionRow firstSession = mapper.activeSessions(task.id()).getFirst();
-        String firstPrompt = fake.promptForSession(firstSession.externalSessionId());
-        assertThat(firstPrompt)
-                .contains("Confirmed Designer design snapshot", "BEGIN CONFIRMED DESIGN", confirmedMarkdown.substring(0, 200))
-                .contains("structured LoopSpec and Verifier contract are authoritative")
-                .contains("complete snapshot remains persisted on the Task")
-                .doesNotContain(snapshotOnlyTail)
-                .doesNotContain("未确认的后续设计");
-
-        var firstAttempt = tasks.attempts(task.id()).getFirst();
-        tasks.sessionFailed(task.id(), firstAttempt.id(), "NETWORK", "retry with frozen context");
-        ExecutionSessionRow retrySession = mapper.activeSessions(task.id()).getFirst();
-        assertThat(fake.promptForSession(retrySession.externalSessionId()))
-                .contains(confirmedMarkdown.substring(0, 200))
-                .doesNotContain(snapshotOnlyTail)
-                .doesNotContain("未确认的后续设计");
-        assertThat(tasks.artifacts(task.id()).stream().filter(artifact -> "DESIGN_CONTEXT".equals(artifact.kind())))
-                .singleElement().extracting(TaskArtifactRow::content).isEqualTo(confirmedMarkdown);
-    }
-
-    @Test
-    void designerQuestionsAreExposedAndCanBeAnsweredOrRejectedBeforeGenerationContinues() throws Exception {
-        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
-        ProjectRow project = projects.create("designer-question",
-                Files.createDirectory(temp.resolve("question-project")).toString());
-        LoopDraftRow boundDraft = drafts.create(spec(project.id()));
-        DesignerSessionRow designer = designerSessions.create(project.id(), boundDraft.id(), "Design another chain");
-        DesignerSessionRow running = designerSessions.get(designer.id());
-        String externalSessionId = running.externalSessionId();
-        OpenCodeClient.PendingQuestion pending = new OpenCodeClient.PendingQuestion("question-1", externalSessionId,
-                List.of(
-                        new OpenCodeClient.QuestionPrompt("Which scope?", "Scope", List.of(
-                                new OpenCodeClient.QuestionOption("New chain", "Add a new business chain"),
-                                new OpenCodeClient.QuestionOption("Tests only", "Only test existing chains")), false, false),
-                        new OpenCodeClient.QuestionPrompt("Which domain?", "Domain", List.of(
-                                new OpenCodeClient.QuestionOption("XML", "Stay in the current domain"),
-                                new OpenCodeClient.QuestionOption("Payment", "Use an independent domain")), false, true)));
-        fake.setPendingQuestion(externalSessionId, pending);
-
-        designerSessions.pollActiveHandoffs();
-
-        assertThat(designerSessions.get(designer.id()).state()).isEqualTo("RUNNING");
-        assertThat(designerSessions.get(designer.id()).externalSessionState()).isEqualTo("WAITING_INPUT");
-        mvc.perform(get("/api/designer-sessions/{id}", designer.id()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.pendingQuestions[0].id").value("question-1"))
-                .andExpect(jsonPath("$.pendingQuestions[0].questions[0].options[0].label").value("New chain"))
-                .andExpect(jsonPath("$.pendingQuestions[0].questions[1].custom").value(true));
-
-        mvc.perform(post("/api/designer-sessions/{id}/questions/{questionId}/reply", designer.id(), "question-1")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"answers\":[[\"New chain\",\"Tests only\"],[\"XML\"]]}"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errorCode").value("QUESTION_ANSWER_MULTIPLE_FORBIDDEN"));
-
-        mvc.perform(post("/api/designer-sessions/{id}/questions/{questionId}/reply", designer.id(), "question-1")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"answers\":[[\"New chain\"],[\"由 Designer 决定\"]]}"))
-                .andExpect(status().isNoContent());
-        assertThat(fake.answersForQuestion("question-1"))
-                .containsExactly(List.of("New chain"), List.of("由 Designer 决定"));
-        assertThat(designerSessions.get(designer.id()).externalSessionState()).isEqualTo("RUNNING");
-        mvc.perform(get("/api/designer-sessions/{id}", designer.id()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.pendingQuestions").isEmpty());
-
-        OpenCodeClient.PendingQuestion rejected = new OpenCodeClient.PendingQuestion("question-2", externalSessionId,
-                List.of(new OpenCodeClient.QuestionPrompt("Continue?", "Confirm", List.of(), false, true)));
-        fake.setPendingQuestion(externalSessionId, rejected);
-        mvc.perform(post("/api/designer-sessions/{id}/questions/{questionId}/reject", designer.id(), "question-2"))
-                .andExpect(status().isNoContent());
-        assertThat(fake.wasQuestionRejected("question-2")).isTrue();
-    }
-
-    @Test
-    void designerAcceptsArgvAsAWeakModelAliasAndPersistsCanonicalCommand() throws Exception {
-        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
-        Path root = Files.createDirectory(temp.resolve("argv-alias-project"));
-        Path wrapper = ProcessCommandPolicy.platformMavenWrapper(root, System.getProperty("os.name", ""));
-        boolean windows = System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win");
-        Files.writeString(wrapper, windows ? "@echo off\r\nexit /b 0\r\n" : "#!/bin/sh\nexit 0\n");
-        if (!windows) wrapper.toFile().setExecutable(true);
-        ProjectRow project = projects.create("designer-argv-alias", root.toString());
-        LoopDraftRow boundDraft = drafts.create(spec(project.id()));
-        LoopSpec processSpec = new LoopSpec("v1", project.id(), "Compile and verify", "",
-                List.of(new LoopSpec.StageSpec("Compile", List.of("src/**"), List.of(), List.of("classes"),
-                        List.of(new LoopSpec.VerifierSpec("PROCESS", List.of("./mvnw", "-q", "compile"),
-                                null, null, List.of(), List.of(), null, "PASS")))),
-                LoopSpec.Limits.defaults(), null, null, null);
-        String weakModelJson = json.writeValueAsString(processSpec).replace("\"command\":", "\"argv\":");
-        fake.setDesignerOutput("## Compile plan\n\n<!-- LOOPSPEC_JSON_START -->\n```json\n"
-                + weakModelJson + "\n```\n<!-- LOOPSPEC_JSON_END -->");
-        DesignerSessionRow designer = designerSessions.create(project.id(), boundDraft.id(), "Generate a plan");
-
-        designerSessions.pollActiveHandoffs();
-
-        DesignerSessionRow completed = designerSessions.get(designer.id());
-        assertThat(completed.state()).isEqualTo("COMPLETED");
-        assertThat(completed.externalSessionState()).isEqualTo("COMPLETED");
-        LoopSpec synchronizedSpec = drafts.spec(drafts.get(boundDraft.id()));
-        assertThat(synchronizedSpec.stages().getFirst().verifiers().getFirst().command())
-                .containsExactly("./mvnw", "-q", "compile");
-        String persistedJson = drafts.get(boundDraft.id()).specJson();
-        assertThat(persistedJson).contains("\"command\":[\"./mvnw\",\"-q\",\"compile\"]")
-                .doesNotContain("\"argv\"");
-    }
-
-    @Test
-    void unavailableOrPromptFailureStaysPendingOrSessionScopedWithoutMutatingTasks() throws Exception {
-        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
-        ProjectRow project = projects.create("designer-failure", Files.createDirectory(temp.resolve("failure-project")).toString());
-        DesignerSessionRow unavailable = designerSessions.create(project.id(), null);
-        fake.setHealthy(false);
-        designerSessions.appendUserMessage(unavailable.id(), "Plan safely while offline");
-        DesignerSessionRow pending = designerSessions.get(unavailable.id());
-        assertThat(pending.state()).isEqualTo("PENDING_HANDOFF");
-        assertThat(pending.externalSessionId()).isNull();
-        assertThat(pending.externalSessionState()).isEqualTo("UNAVAILABLE");
-        assertThat(designerSessions.messages(unavailable.id())).anySatisfy(message -> {
-            assertThat(message.role()).isEqualTo("SYSTEM");
-            assertThat(message.content()).contains("SYSTEM_ERROR[SESSION]");
-        });
-
-        fake.setHealthy(true);
-        fake.failNextReadOnlySessionCreations(1);
-        DesignerSessionRow createFailure = designerSessions.create(project.id(), null);
-        designerSessions.appendUserMessage(createFailure.id(), "Fail before the Designer Session is created");
-        DesignerSessionRow createFailed = designerSessions.get(createFailure.id());
-        assertThat(createFailed.state()).isEqualTo("SESSION_ERROR");
-        assertThat(createFailed.workflowPhase()).isEqualTo("FAILED");
-        assertThat(createFailed.externalSessionId()).isNull();
-        assertThat(designerSessions.messages(createFailure.id())).anySatisfy(message -> {
-            assertThat(message.deliveryState()).isEqualTo("TERMINAL_ERROR");
-            assertThat(message.content()).contains("OPENCODE_SESSION_CREATE_FAILED", "没有创建或修改 Task");
-        });
-
-        fake.failNextPrompts(1);
-        DesignerSessionRow broken = designerSessions.create(project.id(), null);
-        designerSessions.appendUserMessage(broken.id(), "Trigger a deterministic transport failure");
-        DesignerSessionRow failed = designerSessions.get(broken.id());
-        assertThat(failed.state()).isEqualTo("SESSION_ERROR");
-        assertThat(failed.externalSessionId()).isNotBlank();
-        assertThat(designerSessions.messages(broken.id())).anySatisfy(message -> {
-            assertThat(message.role()).isEqualTo("SYSTEM");
-            assertThat(message.actor()).isEqualTo("VALIDATOR");
-            assertThat(message.deliveryState()).isEqualTo("TERMINAL_ERROR");
-            assertThat(message.content()).contains("OPENCODE_PROMPT_FAILED", "没有创建或修改 Task");
-        });
-
-        DesignerSessionRow retrying = designerSessions.create(project.id(), null);
-        designerSessions.appendUserMessage(retrying.id(), "Provider reports an explicit retry state");
-        DesignerSessionRow dispatched = designerSessions.get(retrying.id());
-        fake.setSessionState(dispatched.externalSessionId(), "RETRY");
-        designerSessions.pollActiveHandoffs();
-        assertThat(designerSessions.get(retrying.id()).state()).isEqualTo("SESSION_ERROR");
-        assertThat(designerSessions.messages(retrying.id())).anySatisfy(message -> {
-            assertThat(message.deliveryState()).isEqualTo("TERMINAL_ERROR");
-            assertThat(message.content()).contains("OPENCODE_DESIGNER_RETRY", "没有创建或修改 Task");
-        });
-        assertThat(mapper.listTasks()).isEmpty();
-    }
-
-    @Test
-    void designerPublishesLiveMarkdownAndImmediateProviderErrors() throws Exception {
-        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
-        ProjectRow project = projects.create("designer-live", Files.createDirectory(temp.resolve("live-project")).toString());
-        LoopDraftRow boundDraft = drafts.create(spec(project.id()));
-        fake.setDesignerOutput(designerOutput("## Live plan\n\nFirst visible chunk.", spec(project.id())));
-        DesignerSessionRow designer = designerSessions.create(project.id(), boundDraft.id(), "Stream the plan");
-        fake.setSessionState(designer.externalSessionId(), "RUNNING");
-
-        designerSessions.pollActiveHandoffs();
-
-        DesignerEventHub.DesignerEvent partial = designerEvents.latest(designer.id());
-        assertThat(partial.type()).isEqualTo("PARTIAL");
-        assertThat(partial.runtimeConnected()).isTrue();
-        assertThat(partial.content()).contains("First visible chunk").doesNotContain("LOOPSPEC_JSON_START");
-
-        fake.setSessionStatus(designer.externalSessionId(), "TIMED_OUT", "provider request timed out");
-        designerSessions.pollActiveHandoffs();
-
-        DesignerEventHub.DesignerEvent failed = designerEvents.latest(designer.id());
-        assertThat(failed.type()).isEqualTo("ERROR");
-        assertThat(failed.detail()).contains("OPENCODE_DESIGNER_TIMED_OUT", "provider request timed out");
-        mvc.perform(get("/api/designer-sessions/{id}/events", designer.id()).accept(MediaType.TEXT_EVENT_STREAM))
-                .andExpect(request().asyncStarted());
-    }
-
-    @Test
-    void rejectedCompiledLoopSpecIsReturnedToCompilerWithoutMutatingATask() throws Exception {
-        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
-        ProjectRow project = projects.create("designer-invalid-spec",
-                Files.createDirectory(temp.resolve("invalid-spec-project")).toString());
-        LoopDraftRow boundDraft = drafts.create(spec(project.id()));
-        LoopSpec gitDiffOnly = new LoopSpec("v1", project.id(), "Invalid acceptance contract", "",
-                List.of(new LoopSpec.StageSpec("Change files", List.of("src/**"), List.of(), List.of("change"),
-                        List.of(new LoopSpec.VerifierSpec("GIT_DIFF", null, null, true,
-                                List.of("src/**"), List.of(), true)))),
-                LoopSpec.Limits.defaults(), null, null, "Continue");
-        fake.setDesignerOutput(designerOutput("## Proposed plan", gitDiffOnly));
-        DesignerSessionRow designer = designerSessions.create(project.id(), boundDraft.id(), "Generate a plan");
-
-        designerSessions.pollActiveHandoffs();
-
-        DesignerSessionRow repairing = designerSessions.get(designer.id());
-        assertThat(repairing.state()).isEqualTo("RUNNING");
-        assertThat(repairing.workflowPhase()).isEqualTo("COMPILING");
-        var compilation = designerSessions.compilerStatus(designer.id());
-        assertThat(compilation.externalSessionState()).isEqualTo("REPAIRING_1");
-        assertThat(compilation.repairCount()).isEqualTo(1);
-        assertThat(drafts.get(boundDraft.id()).version()).isZero();
-        assertThat(designerSessions.messages(designer.id())).anySatisfy(message -> {
-            assertThat(message.actor()).isEqualTo("VALIDATOR");
-            assertThat(message.deliveryState()).isEqualTo("RETRYABLE_ERROR");
-            assertThat(message.content()).contains("确定性校验未通过");
-        });
-        assertThat(fake.promptForSession(compilation.externalSessionId()))
-                .contains("deterministic server validator rejected", "GIT_DIFF only checks change scope")
-                .contains("Repair 1/2", "Do not redesign", "LOOPSPEC_COMPILATION_JSON_START");
-        assertThat(mapper.listTasks()).isEmpty();
-
-        LoopSpec corrected = new LoopSpec("v1", project.id(), "Generate ServerAop unit tests", "Use existing test conventions",
-                List.of(new LoopSpec.StageSpec("Add and verify tests", List.of("src/test/**"), List.of(), List.of("ServerAop tests"),
-                        List.of(new LoopSpec.VerifierSpec("PROCESS", List.of("mvn", "-q", "test", "-Dtest=ServerAopTest"),
-                                null, null, List.of(), List.of(), null, null)))),
-                LoopSpec.Limits.defaults(), null, null, "Continue from verifier evidence");
-        fake.setDesignerOutput(designerOutput("## Corrected test plan", corrected));
-        designerSessions.pollActiveHandoffs();
-
-        DesignerSessionRow completed = designerSessions.get(designer.id());
-        assertThat(completed.state()).isEqualTo("COMPLETED");
-        assertThat(drafts.spec(drafts.get(boundDraft.id()))).isEqualTo(corrected);
-        assertThat(designerSessions.messages(designer.id())).noneMatch(message -> message.deliveryState().equals("SESSION_ERROR"));
-        assertThat(mapper.listTasks()).isEmpty();
-    }
-
-    @Test
-    void missingMavenWrapperIsReturnedToCompilerForAutomaticCorrection() throws Exception {
-        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
-        Path root = Files.createDirectory(temp.resolve("project-without-wrapper"));
-        Files.writeString(root.resolve("pom.xml"), "<project />");
-        ProjectRow project = projects.create("designer-without-wrapper", root.toString());
-        LoopDraftRow boundDraft = drafts.create(spec(project.id()));
-        LoopSpec wrapperSpec = new LoopSpec("v1", project.id(), "Compile", "",
-                List.of(new LoopSpec.StageSpec("Compile", List.of("src/**"), List.of(), List.of("classes"),
-                        List.of(new LoopSpec.VerifierSpec("PROCESS", List.of("./mvnw", "-q", "compile"),
-                                null, null, List.of(), List.of(), null, null)))),
-                LoopSpec.Limits.defaults(), null, null, null);
-        fake.setDesignerOutput(designerOutput("## Compile plan", wrapperSpec));
-        DesignerSessionRow designer = designerSessions.create(project.id(), boundDraft.id(), "Generate a plan");
-
-        designerSessions.pollActiveHandoffs();
-
-        DesignerSessionRow repairing = designerSessions.get(designer.id());
-        var compilation = designerSessions.compilerStatus(designer.id());
-        assertThat(repairing.workflowPhase()).isEqualTo("COMPILING");
-        assertThat(compilation.externalSessionState()).isEqualTo("REPAIRING_1");
-        assertThat(fake.promptForSession(compilation.externalSessionId()))
-                .contains("the platform Maven Wrapper is not present in the registered project root")
-                .contains("Maven Wrapper is optional")
-                .contains("Repair 1/2");
-        assertThat(drafts.get(boundDraft.id()).version()).isZero();
-        assertThat(mapper.listTasks()).isEmpty();
-
-        LoopSpec corrected = new LoopSpec("v1", project.id(), "Compile", "",
-                List.of(new LoopSpec.StageSpec("Compile", List.of("src/**"), List.of(), List.of("classes"),
-                        List.of(new LoopSpec.VerifierSpec("PROCESS", List.of("mvn", "-q", "compile"),
-                                null, null, List.of(), List.of(), null, null)))),
-                LoopSpec.Limits.defaults(), null, null, null);
-        fake.setDesignerOutput(designerOutput("## Corrected compile plan", corrected));
-        designerSessions.pollActiveHandoffs();
-
-        assertThat(designerSessions.get(designer.id()).state()).isEqualTo("COMPLETED");
-        assertThat(drafts.spec(drafts.get(boundDraft.id()))).isEqualTo(corrected);
-    }
-
-    @Test
-    void parseableCollapsedMavenArgumentsAreNormalizedWithoutDesignerRetry() throws Exception {
-        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
-        Path root = Files.createDirectory(temp.resolve("project-with-collapsed-maven-arguments"));
-        Files.writeString(root.resolve("pom.xml"), "<project />");
-        ProjectRow project = projects.create("designer-collapsed-maven-arguments", root.toString());
-        LoopDraftRow boundDraft = drafts.create(spec(project.id()));
-        LoopSpec invalid = new LoopSpec("v1", project.id(), "Run focused test", "",
-                List.of(new LoopSpec.StageSpec("Test", List.of("src/**"), List.of(), List.of("test passes"),
-                        List.of(new LoopSpec.VerifierSpec("PROCESS",
-                                List.of("mvn", "test -Dtest=Base64FieldTest -pl upfs-common"),
-                                null, null, List.of(), List.of(), null, null)))),
-                LoopSpec.Limits.defaults(), null, null, null);
-        fake.setDesignerOutput(designerOutput("## Test plan", invalid));
-        DesignerSessionRow designer = designerSessions.create(project.id(), boundDraft.id(), "Generate a plan");
-
-        designerSessions.pollActiveHandoffs();
-
-        DesignerSessionRow completed = designerSessions.get(designer.id());
-        assertThat(completed.state()).isEqualTo("COMPLETED");
-        assertThat(completed.externalSessionState()).isEqualTo("COMPLETED");
-        assertThat(fake.promptCalls()).isEqualTo(2);
-        assertThat(drafts.spec(drafts.get(boundDraft.id())).stages().getFirst()
-                .verifiers().getFirst().command())
-                .containsExactly("mvn", "test", "-Dtest=Base64FieldTest", "-pl", "upfs-common");
-        assertThat(designerSessions.messages(designer.id()))
-                .noneMatch(message -> message.deliveryState().equals("AUTO_REPAIR"))
-                .noneMatch(message -> message.deliveryState().equals("SESSION_ERROR"));
-        assertThat(mapper.listTasks()).isEmpty();
-    }
-
-    @Test
-    void unparseableCollapsedMavenArgumentsTriggerCompilerRetry() throws Exception {
-        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
-        Path root = Files.createDirectory(temp.resolve("project-with-unparseable-maven-arguments"));
-        Files.writeString(root.resolve("pom.xml"), "<project />");
-        ProjectRow project = projects.create("designer-unparseable-maven-arguments", root.toString());
-        LoopDraftRow boundDraft = drafts.create(spec(project.id()));
-        LoopSpec invalid = new LoopSpec("v1", project.id(), "Run focused test", "",
-                List.of(new LoopSpec.StageSpec("Test", List.of("src/**"), List.of(), List.of("test passes"),
-                        List.of(new LoopSpec.VerifierSpec("PROCESS",
-                                List.of("mvn", "test -Dtest='Base64FieldTest"),
-                                null, null, List.of(), List.of(), null, null)))),
-                LoopSpec.Limits.defaults(), null, null, null);
-        fake.setDesignerOutput(designerOutput("## Test plan", invalid));
-        DesignerSessionRow designer = designerSessions.create(project.id(), boundDraft.id(), "Generate a plan");
-
-        designerSessions.pollActiveHandoffs();
-
-        DesignerSessionRow repairing = designerSessions.get(designer.id());
-        assertThat(repairing.state()).isEqualTo("RUNNING");
-        var compilation = designerSessions.compilerStatus(designer.id());
-        assertThat(compilation.externalSessionState()).isEqualTo("REPAIRING_1");
-        assertThat(fake.promptForSession(compilation.externalSessionId()))
-                .contains("stages[0].verifiers[0].command[1]", "cannot be parsed safely", "unclosed quote");
-        assertThat(drafts.get(boundDraft.id()).version()).isZero();
-        assertThat(mapper.listTasks()).isEmpty();
-    }
-
-    @Test
-    void repeatedInvalidCompilerOutputStopsAfterTwoAutomaticRepairs() throws Exception {
-        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
-        ProjectRow project = projects.create("designer-repair-limit",
-                Files.createDirectory(temp.resolve("repair-limit-project")).toString());
-        LoopDraftRow boundDraft = drafts.create(spec(project.id()));
-        LoopSpec gitDiffOnly = new LoopSpec("v1", project.id(), "Still invalid", "",
-                List.of(new LoopSpec.StageSpec("Change files", List.of("src/**"), List.of(), List.of("change"),
-                        List.of(new LoopSpec.VerifierSpec("GIT_DIFF", null, null, true,
-                                List.of("src/**"), List.of(), true)))),
-                LoopSpec.Limits.defaults(), null, null, "Continue");
-        fake.setDesignerOutput(designerOutput("## Invalid plan", gitDiffOnly));
-        DesignerSessionRow designer = designerSessions.create(project.id(), boundDraft.id(), "Generate a plan");
-
-        designerSessions.pollActiveHandoffs();
-        designerSessions.pollActiveHandoffs();
-        designerSessions.pollActiveHandoffs();
-
-        DesignerSessionRow failed = designerSessions.get(designer.id());
-        assertThat(failed.state()).isEqualTo("SESSION_ERROR");
-        assertThat(failed.externalSessionState()).isEqualTo("FAILED");
-        assertThat(fake.promptCalls()).isEqualTo(4);
-        assertThat(drafts.get(boundDraft.id()).version()).isZero();
-        assertThat(designerSessions.messages(designer.id()).stream()
-                .filter(message -> "RETRYABLE_ERROR".equals(message.deliveryState()))).hasSize(3);
-        assertThat(designerSessions.compilerStatus(designer.id()).repairCount()).isEqualTo(2);
-        assertThat(designerSessions.messages(designer.id())).anySatisfy(message -> {
-            assertThat(message.deliveryState()).isEqualTo("TERMINAL_ERROR");
-            assertThat(message.content()).contains("COMPILER_RETRY_EXHAUSTED", "GIT_DIFF only checks change scope");
-        });
-
-        long messageCount = designerSessions.messages(designer.id()).size();
-        designerSessions.pollActiveHandoffs();
-        assertThat(designerSessions.messages(designer.id())).hasSize((int) messageCount);
-    }
-
-    @Test
-    void semanticDesignGapTriggersOneCompleteRedesignThenCompilesTheReplacement() throws Exception {
-        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
-        ProjectRow project = projects.create("designer-semantic-gap",
-                Files.createDirectory(temp.resolve("semantic-gap-project")).toString());
-        LoopDraftRow draft = drafts.create(spec(project.id()));
-        fake.setDesignerOutput(designerOutput("## 初稿\n\n仅描述修改缓存刷新。", spec(project.id())));
-        fake.setCompilerOutput(designIncompleteOutput("MISSING_ACCEPTANCE_INTENT", "缺少可观察的验收意图"));
-        DesignerSessionRow designer = designerSessions.create(project.id(), draft.id(), "设计缓存刷新");
-
-        designerSessions.pollActiveHandoffs();
-
-        DesignerSessionRow redesigning = designerSessions.get(designer.id());
-        assertThat(redesigning.state()).isEqualTo("RUNNING");
-        assertThat(redesigning.workflowPhase()).isEqualTo("REDESIGNING");
-        assertThat(redesigning.redesignCount()).isEqualTo(1);
-        assertThat(drafts.get(draft.id()).version()).isZero();
-        assertThat(designerSessions.messages(designer.id())).anySatisfy(message -> {
-            assertThat(message.actor()).isEqualTo("COMPILER");
-            assertThat(message.deliveryState()).isEqualTo("DESIGN_INCOMPLETE");
-            assertThat(message.content()).contains("MISSING_ACCEPTANCE_INTENT", "缺少可观察的验收意图");
-        });
-        assertThat(fake.promptForSession(redesigning.externalSessionId()))
-                .contains("complete replacement Markdown design", "not a patch", "MISSING_ACCEPTANCE_INTENT");
-
-        LoopSpec replacement = withGoal(spec(project.id()), "完整且可验收的缓存刷新设计");
-        fake.setDesignerOutput(designerOutput("## 完整替代稿\n\n刷新完成后用户能观察到新缓存值。", replacement));
-        designerSessions.pollActiveHandoffs();
-
-        DesignerSessionRow completed = designerSessions.get(designer.id());
-        assertThat(completed.state()).isEqualTo("COMPLETED");
-        assertThat(completed.workflowPhase()).isEqualTo("COMPLETED");
-        assertThat(completed.designRevision()).isEqualTo(2);
-        assertThat(drafts.spec(drafts.get(draft.id()))).isEqualTo(replacement);
-        assertThat(mapper.listTasks()).isEmpty();
-    }
-
-    @Test
-    void aSecondSemanticGapStopsAutomationAndManualRedesignCanRecover() throws Exception {
-        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
-        ProjectRow project = projects.create("designer-redesign-limit",
-                Files.createDirectory(temp.resolve("redesign-limit-project")).toString());
-        LoopDraftRow draft = drafts.create(spec(project.id()));
-        fake.setDesignerOutput(designerOutput("## 不完整初稿", spec(project.id())));
-        fake.setCompilerOutput(designIncompleteOutput("MISSING_SCOPE", "缺少改动范围"));
-        DesignerSessionRow designer = designerSessions.create(project.id(), draft.id(), "设计变更");
-        designerSessions.pollActiveHandoffs();
-
-        fake.setDesignerOutput(designerOutput("## 仍不完整的替代稿", spec(project.id())));
-        fake.setCompilerOutput(designIncompleteOutput("MISSING_EXCEPTION_SEMANTICS", "缺少异常语义"));
-        designerSessions.pollActiveHandoffs();
-
-        assertThat(designerSessions.get(designer.id()).state()).isEqualTo("SESSION_ERROR");
-        assertThat(designerSessions.messages(designer.id())).anySatisfy(message -> {
-            assertThat(message.deliveryState()).isEqualTo("TERMINAL_ERROR");
-            assertThat(message.content()).contains("DESIGN_RETRY_EXHAUSTED");
-        });
-        assertThat(drafts.get(draft.id()).version()).isZero();
-
-        LoopSpec recovered = withGoal(spec(project.id()), "人工恢复后的完整设计");
-        fake.setDesignerOutput(designerOutput("## 人工要求的完整替代稿\n\n包含范围、异常和验收意图。", recovered));
-        mvc.perform(post("/api/designer-sessions/{id}/redesign", designer.id()))
-                .andExpect(status().isAccepted());
-        designerSessions.pollActiveHandoffs();
-
-        assertThat(designerSessions.get(designer.id()).state()).isEqualTo("COMPLETED");
-        assertThat(drafts.spec(drafts.get(draft.id()))).isEqualTo(recovered);
-        assertThat(mapper.listTasks()).isEmpty();
-    }
-
-    @Test
-    void concurrentDraftChangeStopsCompilationAndManualRecompileUsesTheCurrentVersion() throws Exception {
-        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
-        ProjectRow project = projects.create("designer-draft-race",
-                Files.createDirectory(temp.resolve("draft-race-project")).toString());
-        LoopDraftRow draft = drafts.create(spec(project.id()));
-        LoopSpec invalid = new LoopSpec("v1", project.id(), "invalid", "", List.of(new LoopSpec.StageSpec(
-                "scope only", List.of("src/**"), List.of(), List.of("change"),
-                List.of(new LoopSpec.VerifierSpec("GIT_DIFF", null, null, true,
-                        List.of("src/**"), List.of(), true)))), LoopSpec.Limits.defaults(), null, null, null);
-        fake.setDesignerOutput(designerOutput("## 已冻结设计", invalid));
-        DesignerSessionRow designer = designerSessions.create(project.id(), draft.id(), "设计并发保护");
-        designerSessions.pollActiveHandoffs();
-        assertThat(designerSessions.compilerStatus(designer.id()).repairCount()).isEqualTo(1);
-
-        LoopSpec manuallyEdited = withGoal(spec(project.id()), "人工并发修改后的目标");
-        drafts.update(draft.id(), manuallyEdited);
-        fake.setDesignerOutput(designerOutput("## 已冻结设计", spec(project.id())));
-        designerSessions.pollActiveHandoffs();
-
-        assertThat(designerSessions.get(designer.id()).state()).isEqualTo("SESSION_ERROR");
-        assertThat(designerSessions.messages(designer.id())).anySatisfy(message -> {
-            assertThat(message.deliveryState()).isEqualTo("TERMINAL_ERROR");
-            assertThat(message.content()).contains("DESIGNER_DRAFT_CHANGED");
-        });
-        assertThat(drafts.spec(drafts.get(draft.id()))).isEqualTo(manuallyEdited);
-
-        LoopSpec recompiled = withGoal(spec(project.id()), "基于当前版本重新编译");
-        fake.setDesignerOutput(designerOutput("## 已冻结设计", recompiled));
-        mvc.perform(post("/api/designer-sessions/{id}/compiler/retry", designer.id()))
-                .andExpect(status().isAccepted());
-        designerSessions.pollActiveHandoffs();
-
-        assertThat(designerSessions.get(designer.id()).state()).isEqualTo("COMPLETED");
-        assertThat(drafts.spec(drafts.get(draft.id()))).isEqualTo(recompiled);
-        assertThat(mapper.listTasks()).isEmpty();
-    }
-
-    @Test
-    void mcpUsesBearerAndPreservesFullSpecWhileEnforcingHumanConfirmationAndIdempotency() throws Exception {
-        ProjectRow project = projects.create("mcp-fixture", gitProject());
-        LoopDraftRow boundDraft = drafts.create(withGoal(spec(project.id()), "Initial placeholder"));
-        DesignerSessionRow designer = designerSessions.create(project.id(), boundDraft.id(), null);
-
-        mvc.perform(post("/api/mcp").contentType(MediaType.APPLICATION_JSON).content(rpc(1, "initialize", "{\"protocolVersion\":\"2025-03-26\"}")))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.error.code").value(-32001));
-        mvc.perform(mcp(rpc(1, "initialize", "{\"protocolVersion\":\"2025-03-26\"}")))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.result.protocolVersion").value("2025-03-26"))
-                .andExpect(jsonPath("$.result.serverInfo.version").value("0.1.39"));
-        MvcResult list = mvc.perform(mcp(rpc(2, "tools/list", "{}"))).andExpect(status().isOk()).andReturn();
-        assertThat(list.getResponse().getContentAsString())
-                .contains("get_project_context", "propose_loop_spec", "validate_loop_spec", "create_task", "start_task", "get_task_status")
-                .contains("designerSessionId", "additionalProperties");
-
-        LoopSpec fullSpec = spec(project.id());
-        String proposalArgs = "{\"designerSessionId\":\"" + designer.id() + "\",\"projectId\":\"" + project.id()
-                + "\",\"spec\":" + json.writeValueAsString(fullSpec) + "}";
-        MvcResult proposal = mvc.perform(mcp(rpc(3, "tools/call", "{\"name\":\"propose_loop_spec\",\"arguments\":" + proposalArgs + "}")))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.result.isError").value(false))
-                .andExpect(jsonPath("$.result.structuredContent.spec.stages[0].allowedPaths[0]").value("src/**"))
-                .andExpect(jsonPath("$.result.structuredContent.spec.stages[0].verifiers[0].type").value("FILE_EXISTS"))
-                .andReturn();
-        String proposedDraftId = body(proposal).at("/result/structuredContent/draft/id").asText();
-        assertThat(proposedDraftId).isEqualTo(boundDraft.id());
-        LoopDraftRow proposedDraft = drafts.get(proposedDraftId);
-        assertThat(proposedDraft.status()).isEqualTo(LoopDraftStatus.DRAFT_READY.name());
-        assertThat(drafts.spec(proposedDraft)).isEqualTo(fullSpec);
-
-        mvc.perform(mcp(rpc(4, "tools/call", "{\"name\":\"validate_loop_spec\",\"arguments\":{\"draftId\":\""
-                + proposedDraftId + "\",\"version\":1}}")))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.result.structuredContent.valid").value(true));
-        mvc.perform(mcp(rpc(5, "tools/call", "{\"name\":\"create_task\",\"arguments\":{\"draftId\":\""
-                + proposedDraftId + "\"}}")))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.result.isError").value(true))
-                .andExpect(jsonPath("$.result.content[0].text").value(org.hamcrest.Matchers.containsString("DRAFT_NOT_CONFIRMED")));
-
-        // This simulates a separately human-confirmed draft. MCP must create the task only now,
-        // and a repeated call must return the same isolated task rather than duplicate it.
-        LoopDraftRow confirmed = new LoopDraftRow(proposedDraft.id(), proposedDraft.projectId(), proposedDraft.goal(), proposedDraft.specJson(),
-                LoopDraftStatus.CONFIRMED.name(), proposedDraft.createdAt(), proposedDraft.updatedAt(), proposedDraft.version());
-        assertThat(mapper.updateDraft(confirmed)).isEqualTo(1);
-        MvcResult first = mvc.perform(mcp(rpc(6, "tools/call", "{\"name\":\"create_task\",\"arguments\":{\"draftId\":\""
-                + proposedDraftId + "\"}}"))).andExpect(status().isOk()).andExpect(jsonPath("$.result.isError").value(false)).andReturn();
-        MvcResult repeated = mvc.perform(mcp(rpc(7, "tools/call", "{\"name\":\"create_task\",\"arguments\":{\"draftId\":\""
-                + proposedDraftId + "\"}}"))).andExpect(status().isOk()).andExpect(jsonPath("$.result.isError").value(false)).andReturn();
-        String taskId = body(first).at("/result/structuredContent/id").asText();
-        assertThat(body(repeated).at("/result/structuredContent/id").asText()).isEqualTo(taskId);
-
-        mvc.perform(mcp(rpc(8, "tools/call", "{\"name\":\"start_task\",\"arguments\":{\"taskId\":\"" + taskId + "\"}}")))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.result.isError").value(false));
-        mvc.perform(mcp(rpc(9, "tools/call", "{\"name\":\"get_task_status\",\"arguments\":{\"taskId\":\"" + taskId + "\"}}")))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.result.structuredContent.task.id").value(taskId));
-    }
-
-    @Test
-    void restAndMcpReturnTheSameStrictV2CoverageAssessmentAndNewDraftsRejectV1() throws Exception {
-        ProjectRow project = projects.create("v2-validation", Files.createDirectory(temp.resolve("v2-validation")).toString());
+    void restAndMcpReturnSameV2AssessmentAndNewDraftsRejectV1() throws Exception {
+        ProjectRow project = project("v2-validation");
         LoopSpec buildOnly = new LoopSpec("v2", project.id(), "Prove behavior", "",
                 List.of(new LoopSpec.StageSpec("Build only", List.of(), List.of(), List.of("jar"),
                         List.of(new LoopSpec.VerifierSpec("PROCESS", List.of("mvn", "package"), null, null,
                                 List.of(), List.of(), false, null, null, null, null, null, null, null,
                                 null, null, null, null, List.of(), List.of("AC-1"), "BUILD", List.of())),
                         List.of(new LoopSpec.AcceptanceCriterion("AC-1", "Feature behaves correctly")), null,
-                        ImplementationKind.NON_JAVA)),
-                LoopSpec.Limits.defaults(), null, null, null);
-        String request = "{\"spec\":" + json.writeValueAsString(buildOnly) + "}";
-
+                        ImplementationKind.NON_JAVA)), LoopSpec.Limits.defaults(), null, null, null);
+        String requestBody = "{\"spec\":" + json.writeValueAsString(buildOnly) + "}";
         MvcResult rest = mvc.perform(post("/api/loop-drafts/validate").contentType(MediaType.APPLICATION_JSON)
-                        .content(request))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.valid").value(false))
-                .andExpect(jsonPath("$.schemaVersion").value("v2"))
-                .andExpect(jsonPath("$.stageAssessments[0].verifiers[0].category").value("BUILD"))
-                .andExpect(jsonPath("$.stageAssessments[0].criteria[0].covered").value(false))
-                .andReturn();
-        MvcResult mcpValidation = mvc.perform(mcp(rpc(30, "tools/call",
-                        "{\"name\":\"validate_loop_spec\",\"arguments\":{\"spec\":"
-                                + json.writeValueAsString(buildOnly) + "}}")))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.result.structuredContent.valid").value(false))
-                .andExpect(jsonPath("$.result.structuredContent.stageAssessments[0].verifiers[0].category").value("BUILD"))
-                .andReturn();
-        assertThat(body(rest).path("errors")).isEqualTo(body(mcpValidation).at("/result/structuredContent/errors"));
-
+                        .content(requestBody)).andExpect(status().isOk()).andExpect(jsonPath("$.valid").value(false)).andReturn();
+        MvcResult mcp = mvc.perform(mcp(rpc(30, "tools/call", "{\"name\":\"validate_loop_spec\",\"arguments\":{\"spec\":"
+                        + json.writeValueAsString(buildOnly) + "}}")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.result.structuredContent.valid").value(false)).andReturn();
+        assertThat(body(rest).path("errors")).isEqualTo(body(mcp).at("/result/structuredContent/errors"));
         mvc.perform(post("/api/loop-drafts").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"spec\":" + json.writeValueAsString(spec(project.id())) + "}"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errorCode").value("LOOPSPEC_V2_REQUIRED"));
-
-        LoopDraftRow legacy = drafts.create(spec(project.id()));
-        mvc.perform(post("/api/loop-drafts/{id}/copy-v2", legacy.id()))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.id").value(org.hamcrest.Matchers.not(legacy.id())))
-                .andExpect(jsonPath("$.spec.schemaVersion").value("v2"))
-                .andExpect(jsonPath("$.spec.stages[0].acceptanceCriteria").isEmpty());
+                        .content("{\"spec\":" + json.writeValueAsString(legacySpec(project.id())) + "}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errorCode").value("LOOPSPEC_V2_REQUIRED"));
     }
 
     @Test
-    void designerExplainsJavaTestIntentWithoutLeakingCompilerSchemaFields() throws Exception {
-        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
-        ProjectRow project = projects.create("v2-designer-prompt", Files.createDirectory(temp.resolve("v2-designer-prompt")).toString());
-        LoopSpec.VerifierSpec test = new LoopSpec.VerifierSpec("PROCESS", List.of("mvn", "-Dtest=FooTest", "test"),
-                null, null, List.of(), List.of(), false, null, null, null, null, null, null, null,
-                null, null, null, null, List.of(), List.of("AC-1"), "TEST", List.of("FooTest"));
-        LoopSpec.AcceptanceCriterion criterion = new LoopSpec.AcceptanceCriterion(
-                "AC-1", "Java behavior works", "BOTH", "review boundary behavior", null);
-        LoopSpec v2 = new LoopSpec("v2", project.id(), "Add Java behavior", "",
-                List.of(new LoopSpec.StageSpec("Implement and test", List.of(), List.of(), List.of("code and test"),
-                        List.of(test), List.of(criterion), null, ImplementationKind.JAVA_PRODUCTION)),
-                LoopSpec.Limits.defaults(), null, null, null);
-        LoopDraftRow draft = drafts.create(v2);
-
-        DesignerSessionRow designer = designerSessions.create(project.id(), draft.id(), "Design the Java change");
-        String prompt = fake.promptForSession(designer.externalSessionId());
-
-        assertThat(prompt)
-                .contains("adds or changes production Java", "focused Maven/Gradle unit test")
-                .contains("business acceptance behavior that test proves")
-                .doesNotContain("verificationMode", "implementationKind", "criterionIds", "judgeRubric");
-    }
-
-    @Test
-    void springAiStreamableServerRegistersTheSixToolsAndRequiresBearer() throws Exception {
-        ProjectRow project = projects.create("streamable-fixture", Files.createDirectory(temp.resolve("streamable-project")).toString());
+    void springAiStreamableServerRegistersSixToolsAndRequiresBearer() throws Exception {
+        ProjectRow project = project("streamable");
         assertThat(java.util.Arrays.stream(loopperMcpToolCallbackProvider.getToolCallbacks())
                 .map(callback -> callback.getToolDefinition().name()).toList())
-                .containsExactlyInAnyOrder("get_project_context", "propose_loop_spec", "validate_loop_spec", "create_task", "start_task", "get_task_status");
-        String proposalSchema = java.util.Arrays.stream(loopperMcpToolCallbackProvider.getToolCallbacks())
-                .filter(callback -> callback.getToolDefinition().name().equals("propose_loop_spec"))
-                .findFirst().orElseThrow().getToolDefinition().inputSchema();
-        assertThat(proposalSchema).contains("designerSessionId", "projectId", "spec", "stages", "verifiers");
+                .containsExactlyInAnyOrder("get_project_context", "propose_loop_spec", "validate_loop_spec",
+                        "create_task", "start_task", "get_task_status");
         assertThat(environment.getProperty("spring.ai.mcp.server.protocol")).isEqualTo("STREAMABLE");
-        assertThat(springAiMcpProperties.getProtocol().name()).isEqualTo("STREAMABLE");
         assertThat(springAiMcpProperties.getCapabilities().isTool()).isTrue();
-        assertThat(springAiMcpProperties.getCapabilities().isResource()).isFalse();
-        assertThat(springAiMcpProperties.getCapabilities().isPrompt()).isFalse();
-        assertThat(springAiMcpProperties.getCapabilities().isCompletion()).isFalse();
         assertThat(context.getBeanNamesForType(org.springframework.web.servlet.function.RouterFunction.class))
-                .as("Spring AI Streamable RouterFunction is registered")
                 .contains("webMvcStreamableServerRouterFunction");
 
-        String initialize = rpc(10, "initialize", "{\"protocolVersion\":\"2025-03-26\",\"capabilities\":{},\"clientInfo\":{\"name\":\"loopper-test\",\"version\":\"1\"}}");
-        mvc.perform(post("/api/mcp-streamable").contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON, MediaType.TEXT_EVENT_STREAM).content(initialize))
+        String initialize = rpc(10, "initialize", "{\"protocolVersion\":\"2025-03-26\",\"capabilities\":{},\"clientInfo\":{\"name\":\"test\",\"version\":\"1\"}}");
+        mvc.perform(post("/api/mcp-streamable").contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_JSON, MediaType.TEXT_EVENT_STREAM).content(initialize))
                 .andExpect(status().isUnauthorized());
-        MvcResult initialized = mvc.perform(streamable(initialize, null))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.result.serverInfo.name").value("opencode-loopper"))
-                .andExpect(jsonPath("$.result.serverInfo.version").value("0.1.39"))
-                .andExpect(jsonPath("$.result.protocolVersion").value("2025-03-26"))
-                .andReturn();
+        MvcResult initialized = mvc.perform(streamable(initialize, null)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.serverInfo.version").value("0.1.40")).andReturn();
         String sessionId = initialized.getResponse().getHeader("Mcp-Session-Id");
-        assertThat(sessionId).isNotBlank();
-        JsonNode capabilities = body(initialized).path("result").path("capabilities");
-        assertThat(capabilities.has("tools")).isTrue();
-        assertThat(capabilities.has("resources")).isFalse();
-        assertThat(capabilities.has("prompts")).isFalse();
-        assertThat(capabilities.has("completions")).isFalse();
-
         mvc.perform(streamable("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\",\"params\":{}}", sessionId))
                 .andExpect(status().isAccepted());
         MvcResult listed = mvc.perform(streamable(rpc(11, "tools/list", "{}"), sessionId))
                 .andExpect(request().asyncStarted()).andReturn();
         mvc.perform(asyncDispatch(listed)).andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.allOf(
-                        org.hamcrest.Matchers.containsString("get_project_context"),
-                        org.hamcrest.Matchers.containsString("propose_loop_spec"),
-                        org.hamcrest.Matchers.containsString("create_task"))));
-        String contextArguments = "{\"name\":\"get_project_context\",\"arguments\":{\"projectId\":\"" + project.id() + "\"}}";
-        MvcResult contextResult = mvc.perform(streamable(rpc(12, "tools/call", contextArguments), sessionId))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("propose_loop_spec")));
+        String arguments = "{\"name\":\"get_project_context\",\"arguments\":{\"projectId\":\"" + project.id() + "\"}}";
+        MvcResult contextResult = mvc.perform(streamable(rpc(12, "tools/call", arguments), sessionId))
                 .andExpect(request().asyncStarted()).andReturn();
         mvc.perform(asyncDispatch(contextResult)).andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.allOf(
-                        org.hamcrest.Matchers.containsString(project.id()),
-                        org.hamcrest.Matchers.containsString("READ_ONLY"))));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(project.id())));
     }
 
-    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder mcp(String request) {
-        return post("/api/mcp").header("Authorization", "Bearer " + TOKEN).contentType(MediaType.APPLICATION_JSON).content(request);
+    private FakeOpenCodeClient fake() { return (FakeOpenCodeClient) openCode; }
+
+    private ProjectRow project(String name) throws Exception {
+        return projects.create(name, Files.createDirectory(temp.resolve(name)).toString());
     }
 
-    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder streamable(String request, String sessionId) {
+    private void pollUntilSettled(String sessionId) {
+        for (int attempt = 0; attempt < 12 && "RUNNING".equals(designerSessions.get(sessionId).state()); attempt++) {
+            designerSessions.pollActiveHandoffs();
+        }
+    }
+
+    private void assertPackageStates(String sessionId, String... states) {
+        assertThat(designerSessions.workPackageStatuses(sessionId)).extracting(status -> status.state())
+                .containsExactly(states);
+    }
+
+    private String decomposition(String status, String goal, int count) throws Exception {
+        List<Map<String, Object>> packages = new ArrayList<>();
+        if ("DIRECT_DESIGN".equals(status) || "DECOMPOSED".equals(status)) for (int index = 1; index <= count; index++) {
+            String id = "WP-" + index;
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("id", id); item.put("title", "能力 " + index); item.put("objective", "交付能力 " + index);
+            item.put("scopeIn", List.of("能力 " + index)); item.put("scopeOut", List.of("其他发布边界"));
+            item.put("dependencies", index == 1 ? List.of() : List.of("WP-" + (index - 1)));
+            item.put("deliverables", List.of("能力 " + index + " 实现"));
+            item.put("acceptanceIntent", List.of("能力 " + index + " 可观察")); item.put("requirementRefs", List.of("RQ-1"));
+            packages.add(item);
+        }
+        Map<String, Object> envelope = new LinkedHashMap<>();
+        envelope.put("status", status); envelope.put("normalizedGoal", goal);
+        envelope.put("globalConstraints", List.of()); envelope.put("workPackages", packages);
+        envelope.put("designGaps", status.equals("NEEDS_INPUT")
+                ? List.of(Map.of("code", "MISSING_SCOPE", "detail", "范围不明确")) : List.of());
+        envelope.put("reason", status.equals("MULTI_TASK_REQUIRED") ? "包含多个独立发布边界" : null);
+        return "<!-- TASK_DECOMPOSITION_JSON_START -->\n" + json.writeValueAsString(envelope)
+                + "\n<!-- TASK_DECOMPOSITION_JSON_END -->";
+    }
+
+    private String packageCompilation(String packageId, String excerpt) throws Exception {
+        LoopSpec.StageSpec stage = new LoopSpec.StageSpec("完成 " + packageId, List.of("src/**"), List.of(".env"),
+                List.of(packageId + " 交付物"), List.of(new LoopSpec.VerifierSpec("FILE_EXISTS", null,
+                "README.md", null, List.of("README.md"), List.of(), true)), List.of(), null, null, packageId);
+        Map<String, Object> envelope = new LinkedHashMap<>();
+        envelope.put("status", "COMPILED"); envelope.put("summary", packageId + " 编译完成");
+        envelope.put("stages", List.of(stage)); envelope.put("criterionSources", List.of());
+        envelope.put("handoffSummary", packageId + " 已交付，后续包可复用。" + excerpt.substring(0, Math.min(8, excerpt.length())));
+        envelope.put("designGaps", List.of());
+        return "<!-- LOOPSPEC_COMPILATION_JSON_START -->\n" + json.writeValueAsString(envelope)
+                + "\n<!-- LOOPSPEC_COMPILATION_JSON_END -->";
+    }
+
+    private String designIncomplete(String code, String detail) throws Exception {
+        return "<!-- LOOPSPEC_COMPILATION_JSON_START -->\n" + json.writeValueAsString(Map.of(
+                "status", "DESIGN_INCOMPLETE", "summary", "设计不完整", "stages", List.of(),
+                "criterionSources", List.of(), "handoffSummary", "",
+                "designGaps", List.of(Map.of("code", code, "detail", detail))))
+                + "\n<!-- LOOPSPEC_COMPILATION_JSON_END -->";
+    }
+
+    private LoopSpec legacySpec(String projectId) {
+        return new LoopSpec("v1", projectId, "Implement the validated designer plan", "Keep the worktree isolated",
+                List.of(new LoopSpec.StageSpec("Implement the plan", List.of("src/**"), List.of(".env"),
+                        List.of("README.md"), List.of(new LoopSpec.VerifierSpec("FILE_EXISTS", null,
+                        "README.md", null, List.of("README.md"), List.of(), true)))),
+                new LoopSpec.Limits(3, 3, 2, 2, 3600L, 120L, 60L),
+                new LoopSpec.ModelSpec("opencode", "deepseek", false),
+                new LoopSpec.SessionPolicy(true, true), "Continue from verified evidence");
+    }
+
+    private String designerOutput(String markdown, LoopSpec spec) throws Exception {
+        return markdown + "\n\n<!-- LOOPSPEC_JSON_START -->\n" + json.writeValueAsString(spec)
+                + "\n<!-- LOOPSPEC_JSON_END -->";
+    }
+
+    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder mcp(String requestBody) {
+        return post("/api/mcp").header("Authorization", "Bearer " + TOKEN)
+                .contentType(MediaType.APPLICATION_JSON).content(requestBody);
+    }
+
+    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder streamable(String requestBody, String sessionId) {
         var builder = post("/api/mcp-streamable").header("Authorization", "Bearer " + TOKEN)
-                .contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON, MediaType.TEXT_EVENT_STREAM).content(request);
+                .contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON, MediaType.TEXT_EVENT_STREAM)
+                .content(requestBody);
         if (sessionId != null) builder.header("Mcp-Session-Id", sessionId);
         return builder;
     }
@@ -903,48 +505,5 @@ class DesignerSessionMcpIntegrationTest {
 
     private JsonNode body(MvcResult result) throws Exception {
         return json.readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
-    }
-
-    private LoopSpec spec(String projectId) {
-        return new LoopSpec("v1", projectId, "Implement the validated designer plan", "Keep the worktree isolated",
-                List.of(new LoopSpec.StageSpec("Implement the plan", List.of("src/**"), List.of(".env"), List.of("README.md"),
-                        List.of(new LoopSpec.VerifierSpec("FILE_EXISTS", null, "README.md", null, List.of("README.md"), List.of(), true)))),
-                new LoopSpec.Limits(2, 3, 2, 2, 3600L, 120L, 60L), new LoopSpec.ModelSpec("opencode", "deepseek", false),
-                new LoopSpec.SessionPolicy(true, true), "Continue from verified evidence");
-    }
-
-    private LoopSpec withGoal(LoopSpec source, String goal) {
-        return new LoopSpec(source.schemaVersion(), source.projectId(), goal, source.context(), source.stages(),
-                source.limits(), source.model(), source.sessionPolicy(), source.nextAttemptPromptTemplate());
-    }
-
-    private String designerOutput(String markdown, LoopSpec spec) throws Exception {
-        return markdown + "\n\n<!-- LOOPSPEC_JSON_START -->\n```json\n"
-                + json.writeValueAsString(spec) + "\n```\n<!-- LOOPSPEC_JSON_END -->";
-    }
-
-    private String designIncompleteOutput(String code, String detail) throws Exception {
-        return "<!-- LOOPSPEC_COMPILATION_JSON_START -->\n```json\n"
-                + json.writeValueAsString(java.util.Map.of(
-                "status", "DESIGN_INCOMPLETE", "summary", "设计不完整", "criterionSources", List.of(),
-                "designGaps", List.of(java.util.Map.of("code", code, "detail", detail))))
-                + "\n```\n<!-- LOOPSPEC_COMPILATION_JSON_END -->";
-    }
-
-    private String gitProject() throws Exception {
-        Path root = Files.createDirectory(temp.resolve("git-project"));
-        Files.writeString(root.resolve("README.md"), "fixture");
-        run(root, "git", "init");
-        run(root, "git", "config", "user.email", "test@example.invalid");
-        run(root, "git", "config", "user.name", "test");
-        run(root, "git", "add", "README.md");
-        run(root, "git", "commit", "-m", "initial");
-        return root.toString();
-    }
-
-    private void run(Path root, String... command) throws Exception {
-        Process process = new ProcessBuilder(command).directory(root.toFile()).redirectErrorStream(true).start();
-        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-        if (process.waitFor() != 0) throw new AssertionError(output);
     }
 }

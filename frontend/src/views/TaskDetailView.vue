@@ -179,6 +179,16 @@ async function confirmRework() {
           <div><dt>评审通过</dt><dd>{{ passedJudges }} / 2</dd></div>
         </dl>
       </section>
+      <section v-if="task.workPackages?.length" class="card card-pad package-progress" aria-labelledby="package-progress-heading">
+        <div class="card-header"><div><p class="eyebrow">WORK PACKAGE EXECUTION</p><h2 id="package-progress-heading" class="card-title">工作包与独立尝试池</h2></div><span class="tiny muted">全部包完成后仅运行一组 Requirement / Risk Judge</span></div>
+        <div class="package-progress-grid">
+          <article v-for="item in task.workPackages" :key="item.id" :class="['package-progress-card', `is-${item.status.toLowerCase()}`]">
+            <header><strong>{{ item.id }}</strong><StatusBadge :status="item.status" /></header>
+            <p>{{ item.completedStages }} / {{ item.stageCount }} 个阶段完成</p>
+            <footer><span>尝试池</span><b>{{ item.attemptCount }} / {{ item.attemptLimit }}</b></footer>
+          </article>
+        </div>
+      </section>
       <section v-if="task.stages?.length" class="card card-pad" style="margin-top: 16px"><div class="card-header"><div><h2 class="card-title">阶段进度</h2></div></div><StageRail :stages="task.stages" /></section>
       <section v-for="error in verifierErrors" :key="error.id" style="margin-top: 16px"><LayeredErrorPanel :error="error" :judges="currentJudges" /></section>
       <section v-for="error in sessionErrors" :key="error.id" style="margin-top: 16px"><LayeredErrorPanel :error="error" /></section>
@@ -205,6 +215,17 @@ async function confirmRework() {
 .result-summary { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(360px, .8fr); align-items: center; gap: 22px; margin-top: 16px; border-color: rgb(34 211 238 / 19%); background: linear-gradient(125deg, rgb(34 211 238 / 6%), rgb(139 92 246 / 4%)); }.result-copy p:last-child { max-width: 720px; margin: 8px 0 0; color: var(--color-text-secondary); font-size: 12px; line-height: 1.65; }.result-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; }.result-metrics div { padding: 12px; border: 1px solid var(--color-border-default); border-radius: 9px; background: rgb(7 12 22 / 50%); }.result-metrics dt { color: var(--color-text-tertiary); font-size: 9px; }.result-metrics dd { margin: 6px 0 0; color: var(--color-text-primary); font: 700 14px/1 var(--font-code); font-variant-numeric: tabular-nums; }
 .judge-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }@media (max-width: 960px) { .judge-grid { grid-template-columns: 1fr; } }
 .judge-empty { margin: 0 0 12px; color: var(--color-text-secondary); font-size: 12px; line-height: 1.6; }
+.package-progress { margin-top: 16px; border-color: rgb(99 102 241 / 22%); }
+.package-progress-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-top: 12px; }
+.package-progress-card { padding: 12px; border: 1px solid var(--color-border-default); border-radius: 10px; background: rgb(2 6 23 / 30%); }
+.package-progress-card header, .package-progress-card footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.package-progress-card header > strong { color: #a5b4fc; font: 750 10px/1 var(--font-code); }
+.package-progress-card p { margin: 11px 0; color: var(--color-text-secondary); font-size: 10px; }
+.package-progress-card footer { padding-top: 9px; border-top: 1px solid var(--color-border-default); color: var(--color-text-muted); font: 9px/1 var(--font-code); }
+.package-progress-card footer b { color: var(--color-text-primary); }
+.package-progress-card.is-running { border-color: rgb(34 211 238 / 38%); }
+.package-progress-card.is-succeeded { border-color: rgb(34 197 94 / 32%); }
+.package-progress-card.is-failed { border-color: rgb(239 68 68 / 38%); }
 @media (max-width: 640px) { .task-overview { align-items: flex-start; flex-direction: column; }.overview-meta { width: 100%; justify-content: space-between; } }
 @media (max-width: 900px) { .result-summary { grid-template-columns: 1fr; }.result-metrics { max-width: 520px; } }
 @media (max-width: 520px) { .result-metrics { grid-template-columns: 1fr; } }

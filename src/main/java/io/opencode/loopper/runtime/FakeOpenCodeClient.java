@@ -48,9 +48,13 @@ public class FakeOpenCodeClient implements OpenCodeClient {
         }
         String id = "fake-judge-" + UUID.randomUUID();
         readOnly.put(id, Boolean.TRUE);
-        String role = title != null && title.toUpperCase().contains("COMMIT MESSAGE") ? "COMMIT"
-                : title != null && title.toUpperCase().contains("LOOPSPEC COMPILER") ? "COMPILER"
-                : title != null && title.toUpperCase().contains("DESIGNER") ? "DESIGNER"
+        String normalizedTitle = title == null ? "" : title.toUpperCase();
+        String packageId = java.util.regex.Pattern.compile("\\bWP-\\d+\\b").matcher(normalizedTitle).results()
+                .map(java.util.regex.MatchResult::group).findFirst().orElse(null);
+        String role = normalizedTitle.contains("TASK DECOMPOSER") ? "DECOMPOSER"
+                : title != null && title.toUpperCase().contains("COMMIT MESSAGE") ? "COMMIT"
+                : normalizedTitle.contains("LOOPSPEC COMPILER") ? "COMPILER" + (packageId == null ? "" : ":" + packageId)
+                : normalizedTitle.contains("DESIGNER") ? "DESIGNER" + (packageId == null ? "" : ":" + packageId)
                 : title != null && title.toUpperCase().contains("RISK") ? "RISK" : "REQUIREMENT";
         judgeRoleBySession.put(id, role);
         // Null means "let the runtime choose its default model". ConcurrentHashMap
@@ -73,7 +77,13 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     @Override public SessionStatus sessionStatus(OpenCodeSession session) {
         return new SessionStatus(states.getOrDefault(session.id(), "FAILED"), detailBySession.get(session.id()));
     }
-    @Override public String sessionOutput(OpenCodeSession session) { return judgeOutputByRole.getOrDefault(judgeRoleBySession.get(session.id()), judgeOutput); }
+    @Override public String sessionOutput(OpenCodeSession session) {
+        String role = judgeRoleBySession.get(session.id());
+        String exact = judgeOutputByRole.get(role);
+        if (exact != null) return exact;
+        int separator = role == null ? -1 : role.indexOf(':');
+        return judgeOutputByRole.getOrDefault(separator > 0 ? role.substring(0, separator) : role, judgeOutput);
+    }
     @Override public String sessionLiveOutput(OpenCodeSession session) { return sessionOutput(session); }
     @Override public SessionTranscript sessionTranscript(OpenCodeSession session) {
         String output = sessionOutput(session);
@@ -141,9 +151,15 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     public void setDesignerOutput(String output) {
         setJudgeOutput("DESIGNER", designerMarkdown(output));
         String compatibilityCompilation = compatibilityCompilation(output);
-        if (compatibilityCompilation != null) setCompilerOutput(compatibilityCompilation);
+        if (compatibilityCompilation != null) {
+            setCompilerOutput(compatibilityCompilation);
+            setDecomposerOutput(directDecomposition(output));
+        }
     }
+    public void setDecomposerOutput(String output) { setJudgeOutput("DECOMPOSER", output); }
     public void setCompilerOutput(String output) { setJudgeOutput("COMPILER", output); }
+    public void setPackageDesignerOutput(String packageId, String output) { setJudgeOutput("DESIGNER:" + packageId, output); }
+    public void setPackageCompilerOutput(String packageId, String output) { setJudgeOutput("COMPILER:" + packageId, output); }
     public void setHealthy(boolean value) { healthy = value; }
     public OpenCodeModel modelForSession(String id) { return modelBySession.get(id); }
     public String promptForSession(String id) { return promptBySession.get(id); }
@@ -196,27 +212,82 @@ public class FakeOpenCodeClient implements OpenCodeClient {
         if (start < 0 || end <= start) return null;
         try {
             ObjectMapper mapper = new ObjectMapper();
-            LoopSpec spec = mapper.readValue(payload.substring(start, end + 1), LoopSpec.class);
+            String specPayload = payload.substring(start, end + 1);
+            LoopSpec spec = mapper.readValue(specPayload, LoopSpec.class);
+            tools.jackson.databind.node.ObjectNode specNode = (tools.jackson.databind.node.ObjectNode) mapper.readTree(specPayload);
             String excerpt = designerMarkdown(output);
             if (excerpt == null || excerpt.isBlank()) excerpt = "设计稿";
             java.util.List<java.util.Map<String, Object>> sources = new java.util.ArrayList<>();
-            for (int stageIndex = 0; stageIndex < spec.stages().size(); stageIndex++) {
-                for (LoopSpec.AcceptanceCriterion criterion : spec.stages().get(stageIndex).acceptanceCriteria()) {
-                    sources.add(java.util.Map.of("stageIndex", stageIndex, "criterionId", criterion.id(),
-                            "excerpt", excerpt));
+            tools.jackson.databind.node.ArrayNode stageNodes = (tools.jackson.databind.node.ArrayNode) specNode.get("stages");
+            for (int stageIndex = 0; stageIndex < stageNodes.size(); stageIndex++) {
+                tools.jackson.databind.node.ObjectNode stage = (tools.jackson.databind.node.ObjectNode) stageNodes.get(stageIndex);
+                stage.put("workPackageId", "WP-1");
+                tools.jackson.databind.JsonNode criteria = stage.get("acceptanceCriteria");
+                if (criteria != null && criteria.isArray()) for (tools.jackson.databind.JsonNode value : criteria) {
+                    tools.jackson.databind.node.ObjectNode criterion = (tools.jackson.databind.node.ObjectNode) value;
+                    String original = criterion.path("id").asText();
+                    String mapped = original.startsWith("WP-1-") ? original : "WP-1-" + original;
+                    criterion.put("id", mapped);
+                    sources.add(java.util.Map.of("stageIndex", stageIndex, "criterionId", mapped, "excerpt", excerpt));
+                }
+                tools.jackson.databind.JsonNode verifiers = stage.get("verifiers");
+                if (verifiers != null && verifiers.isArray()) for (tools.jackson.databind.JsonNode value : verifiers) {
+                    tools.jackson.databind.node.ObjectNode verifier = (tools.jackson.databind.node.ObjectNode) value;
+                    tools.jackson.databind.JsonNode ids = verifier.get("criterionIds");
+                    if (ids != null && ids.isArray()) {
+                        tools.jackson.databind.node.ArrayNode mapped = mapper.createArrayNode();
+                        for (tools.jackson.databind.JsonNode id : ids) {
+                            String original = id.asText();
+                            mapped.add(original.startsWith("WP-1-") ? original : "WP-1-" + original);
+                        }
+                        verifier.set("criterionIds", mapped);
+                    }
                 }
             }
             java.util.Map<String, Object> envelope = new java.util.LinkedHashMap<>();
             envelope.put("status", "COMPILED");
             envelope.put("summary", "LoopSpec 已由测试用只读规范编译器生成。");
-            envelope.put("loopSpec", spec);
+            envelope.put("stages", stageNodes);
             envelope.put("criterionSources", sources);
+            envelope.put("handoffSummary", "WP-1 已完成，可执行聚合后的后续阶段。");
             envelope.put("designGaps", java.util.List.of());
             return "<!-- LOOPSPEC_COMPILATION_JSON_START -->\n```json\n"
                     + mapper.writeValueAsString(envelope)
                     + "\n```\n<!-- LOOPSPEC_COMPILATION_JSON_END -->";
         } catch (Exception invalid) {
             return null;
+        }
+    }
+    private String directDecomposition(String output) {
+        String goal = "设计并交付当前需求";
+        try {
+            java.util.regex.Matcher marker = java.util.regex.Pattern.compile(
+                    "(?is)<!--\\s*LOOPSPEC_JSON_START\\s*-->(.*?)<!--\\s*LOOPSPEC_JSON_END\\s*-->").matcher(output);
+            if (marker.find()) {
+                LoopSpec spec = new ObjectMapper().readValue(marker.group(1).replace("```json", "").replace("```", "").trim(), LoopSpec.class);
+                goal = spec.goal();
+            }
+            java.util.Map<String, Object> workPackage = new java.util.LinkedHashMap<>();
+            workPackage.put("id", "WP-1");
+            workPackage.put("title", "完整需求交付");
+            workPackage.put("objective", goal);
+            workPackage.put("scopeIn", java.util.List.of("当前需求涉及的业务能力"));
+            workPackage.put("scopeOut", java.util.List.of("独立项目根和独立发布边界"));
+            workPackage.put("dependencies", java.util.List.of());
+            workPackage.put("deliverables", java.util.List.of("可验证实现"));
+            workPackage.put("acceptanceIntent", java.util.List.of("需求中的可观察结果通过确定性验证"));
+            workPackage.put("requirementRefs", java.util.List.of("RQ-1"));
+            java.util.Map<String, Object> envelope = new java.util.LinkedHashMap<>();
+            envelope.put("status", "DIRECT_DESIGN");
+            envelope.put("normalizedGoal", goal);
+            envelope.put("globalConstraints", java.util.List.of());
+            envelope.put("workPackages", java.util.List.of(workPackage));
+            envelope.put("designGaps", java.util.List.of());
+            envelope.put("reason", null);
+            return "<!-- TASK_DECOMPOSITION_JSON_START -->\n" + new ObjectMapper().writeValueAsString(envelope)
+                    + "\n<!-- TASK_DECOMPOSITION_JSON_END -->";
+        } catch (Exception invalid) {
+            return "<!-- TASK_DECOMPOSITION_JSON_START -->\n{}\n<!-- TASK_DECOMPOSITION_JSON_END -->";
         }
     }
     public record PermissionReplyCall(String sessionId, String requestId, PermissionReply reply, String message) { }
