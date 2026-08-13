@@ -54,7 +54,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "loopper.monitor-delay=1h", "loopper.designer-monitor-delay=1h",
         "loopper.mcp.bearer-token=designer-mcp-test-token",
         "spring.ai.mcp.server.protocol=STREAMABLE", "spring.ai.mcp.server.name=opencode-loopper",
-        "spring.ai.mcp.server.version=0.1.45", "spring.ai.mcp.server.annotation-scanner.enabled=false",
+        "spring.ai.mcp.server.version=0.1.46", "spring.ai.mcp.server.annotation-scanner.enabled=false",
         "spring.ai.mcp.server.capabilities.resource=false", "spring.ai.mcp.server.capabilities.prompt=false",
         "spring.ai.mcp.server.capabilities.completion=false",
         "spring.ai.mcp.server.streamable-http.mcp-endpoint=/api/mcp-streamable",
@@ -306,6 +306,51 @@ class DesignerSessionMcpIntegrationTest {
                 .hasSize(5);
         assertThat(designerSessions.messages(session.id())).noneMatch(message ->
                 message.content().contains("TASK_DECOMPOSITION_PLAN_JSON_START"));
+        assertThat(mapper.listTasks()).isEmpty();
+    }
+
+    @Test
+    void decomposerAcceptsOneStandaloneJsonObjectWhenWeakModelDropsMarkers() throws Exception {
+        ProjectRow project = project("decomposer-marker-fallback");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        fake().setDecomposerPlanningOutput(unwrapped(decompositionPlan("NEEDS_INPUT", "需要补充事件边界"),
+                "<!-- TASK_DECOMPOSITION_PLAN_JSON_START -->",
+                "<!-- TASK_DECOMPOSITION_PLAN_JSON_END -->"));
+        String finalJson = unwrapped(decomposition("NEEDS_INPUT", "需要补充事件边界", 0),
+                "<!-- TASK_DECOMPOSITION_JSON_START -->", "<!-- TASK_DECOMPOSITION_JSON_END -->");
+        fake().setDecomposerOutput("```json\n" + finalJson + "\n```");
+
+        DesignerSessionRow session = designerSessions.create(project.id(), draft.id(), "明确事件系统边界");
+        designerSessions.pollActiveHandoffs();
+        designerSessions.pollActiveHandoffs();
+
+        DesignerSessionService.DecompositionStatus status = designerSessions.decompositionStatus(session.id());
+        assertThat(designerSessions.get(session.id()).state()).isEqualTo("WAITING_INPUT");
+        assertThat(status.resultType()).isEqualTo("NEEDS_INPUT");
+        assertThat(status.planningRepairCount()).isZero();
+        assertThat(status.repairCount()).isZero();
+        assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(2);
+        assertThat(designerSessions.messages(session.id())).noneMatch(message ->
+                message.content().contains("OUTPUT_MARKERS_MISSING"));
+        assertThat(mapper.listTasks()).isEmpty();
+    }
+
+    @Test
+    void decomposerStillRejectsUnmarkedJsonWithSurroundingProse() throws Exception {
+        ProjectRow project = project("decomposer-marker-fallback-rejects-prose");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        String planningJson = unwrapped(decompositionPlan("NEEDS_INPUT", "需要补充事件边界"),
+                "<!-- TASK_DECOMPOSITION_PLAN_JSON_START -->",
+                "<!-- TASK_DECOMPOSITION_PLAN_JSON_END -->");
+        fake().setDecomposerPlanningOutput("planning result:\n" + planningJson);
+
+        DesignerSessionRow session = designerSessions.create(project.id(), draft.id(), "明确事件系统边界");
+        designerSessions.pollActiveHandoffs();
+
+        DesignerSessionService.DecompositionStatus status = designerSessions.decompositionStatus(session.id());
+        assertThat(status.workflowStep()).isEqualTo("PLANNING");
+        assertThat(status.planningRepairCount()).isEqualTo(1);
+        assertThat(status.lastErrorCode()).isEqualTo("DECOMPOSER_PLAN_OUTPUT_MARKERS_MISSING");
         assertThat(mapper.listTasks()).isEmpty();
     }
 
@@ -570,7 +615,7 @@ class DesignerSessionMcpIntegrationTest {
                         .accept(MediaType.APPLICATION_JSON, MediaType.TEXT_EVENT_STREAM).content(initialize))
                 .andExpect(status().isUnauthorized());
         MvcResult initialized = mvc.perform(streamable(initialize, null)).andExpect(status().isOk())
-                .andExpect(jsonPath("$.result.serverInfo.version").value("0.1.45")).andReturn();
+                .andExpect(jsonPath("$.result.serverInfo.version").value("0.1.46")).andReturn();
         String sessionId = initialized.getResponse().getHeader("Mcp-Session-Id");
         mvc.perform(streamable("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\",\"params\":{}}", sessionId))
                 .andExpect(status().isAccepted());
@@ -743,6 +788,10 @@ class DesignerSessionMcpIntegrationTest {
         envelope.put("reason", null);
         return "<!-- TASK_DECOMPOSITION_PLAN_JSON_START -->\n" + json.writeValueAsString(envelope)
                 + "\n<!-- TASK_DECOMPOSITION_PLAN_JSON_END -->";
+    }
+
+    private String unwrapped(String output, String startMarker, String endMarker) {
+        return output.replace(startMarker, "").replace(endMarker, "").trim();
     }
 
     private String designIncomplete(String code, String detail) throws Exception {

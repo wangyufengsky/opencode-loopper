@@ -19,6 +19,11 @@ manufactures queue, progress, usage or cost data.
 - V24: independent persisted planning and final-JSON repair budgets for
   Decomposer/Compiler, plus a valid terminal path from decomposition validation.
 
+Decomposer exact markers remain preferred. Markerless compatibility accepts
+only one complete top-level JSON object or one standalone `json` fence and then
+runs the unchanged deterministic contracts; prose, multiple objects, arrays and
+incomplete JSON remain invalid.
+
 Compiler planning contract v2 stores complete verifier/runtime blueprints inside
 the existing V23 `planning_json`; no schema migration is needed. The server
 validates those blueprints using the normal LoopSpec v2 execution contract before

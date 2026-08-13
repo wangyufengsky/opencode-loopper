@@ -469,6 +469,7 @@ function normalizeRuntime(value: unknown): RuntimeInfo {
       ? backendStatus
       : 'OFFLINE'
   return {
+    loopperVersion: asString(raw.loopperVersion) || undefined,
     status,
     version: asString(raw.version) || undefined,
     managed: Boolean(raw.managed),

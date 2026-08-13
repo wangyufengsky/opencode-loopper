@@ -4,6 +4,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -16,8 +17,20 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 class RuntimeControllerTest {
     private final OpenCodeRuntimeManager runtime = mock(OpenCodeRuntimeManager.class);
-    private final MockMvc mvc = MockMvcBuilders.standaloneSetup(new RuntimeController(runtime))
+    private final MockMvc mvc = MockMvcBuilders.standaloneSetup(new RuntimeController(runtime, "0.1.46"))
             .setControllerAdvice(new ApiExceptionHandler()).build();
+
+    @Test
+    void runtimeSnapshotIncludesTheServerAuthoritativeLoopperVersion() throws Exception {
+        when(runtime.status()).thenReturn(new OpenCodeRuntimeManager.RuntimeSnapshot(
+                "AVAILABLE", "1.18.16", false, null, "http://127.0.0.1:4096", "deepseek/test",
+                Instant.parse("2026-08-13T08:00:00Z"), null));
+
+        mvc.perform(get("/api/runtime/opencode"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.loopperVersion").value("0.1.46"))
+                .andExpect(jsonPath("$.version").value("1.18.16"));
+    }
 
     @Test
     void explicitStartRequiresLocalUiAndReturnsOnlyTheCheckedRuntimeSnapshot() throws Exception {
@@ -32,6 +45,7 @@ class RuntimeControllerTest {
 
         mvc.perform(post("/api/runtime/opencode/start").header("X-Loopper-Local-UI", "1"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.loopperVersion").value("0.1.46"))
                 .andExpect(jsonPath("$.status").value("AVAILABLE"))
                 .andExpect(jsonPath("$.managed").value(true))
                 .andExpect(jsonPath("$.pid").value(6400))

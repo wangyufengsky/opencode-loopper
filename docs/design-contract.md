@@ -96,6 +96,9 @@ or a frontend timer must never be presented as a successful connection.
 Both explicit start and restart POSTs require the local-UI marker before the
 server inspects or mutates Runtime ownership; the SPA sends that marker for both
 actions.
+The process card also displays the server snapshot's `loopperVersion`. The SPA
+must not infer it from the frontend package or confuse it with the separately
+reported OpenCode CLI `version`.
 
 Task responses expose the current `waitingReasonCode` and authoritative
 `loopRetryAvailable` projection. When the current wait reason is
@@ -150,6 +153,11 @@ intent, source excerpts, verifier/runtime objects, test evidence and handoff sum
 drift. V23 persists the current step and planning JSON for restart recovery;
 V24 persists the independent planning-repair counters. A successful planning
 freeze always starts final JSON with its own unused repair budget.
+Decomposer markers remain preferred, but a weak provider that removes them may
+return exactly one complete bare top-level JSON object or one standalone `json`
+fence. Surrounding prose, multiple objects, arrays, and incomplete JSON remain
+invalid and consume the same per-step repair budget; this fallback never bypasses
+planning, coverage, dependency, or final-envelope checks.
 Neither planning nor final raw JSON is displayed as a chat message; the status
 strip exposes only `规划与证据映射`, `JSON 生成`, or `JSON 修复`.
 

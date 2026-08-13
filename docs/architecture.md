@@ -187,6 +187,12 @@ remaining hidden from chat/SSE content. Six packages now need 20 no-repair model
 per-requirement ceiling is 32 calls; confirmed transport retries and all content
 repairs still count against it.
 
+Decomposer output markers are preferred but not the sole compatibility boundary.
+The parser may accept exactly one complete bare JSON object or one standalone
+`json` fence when a weak provider removes comment markers. Surrounding prose,
+multiple objects, a non-object root, or incomplete JSON is rejected before the
+same deterministic planning or final validation runs.
+
 The package Compiler's current planning contract is version 2. Each planned
 Stage already carries exact `VerifierSpec` blueprints and an optional managed
 runtime. Before freezing, the server builds a temporary v2 execution contract

@@ -53,6 +53,7 @@ export interface ProjectConventionSnapshot {
 }
 
 export interface RuntimeInfo {
+  loopperVersion?: string
   status: 'ONLINE' | 'OFFLINE' | 'STARTING' | 'INCOMPATIBLE'
   version?: string
   managed: boolean

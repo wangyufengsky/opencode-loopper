@@ -41,10 +41,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.1.45.jar
-   jar tf target/opencode-loopper-0.1.45.jar \
+   test -s target/opencode-loopper-0.1.46.jar
+   jar tf target/opencode-loopper-0.1.46.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.1.45.jar
+   shasum -a 256 target/opencode-loopper-0.1.46.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -93,8 +93,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.1.45`。
-- 正式产物：`target/opencode-loopper-0.1.45.jar`。
+- Maven 项目版本：`0.1.46`。
+- 正式产物：`target/opencode-loopper-0.1.46.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -213,6 +213,7 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 - 工作包严格串行执行，每包使用全新的只读 Designer Session 和 Compiler Session，并使用当前配置的同一模型。Designer 只输出不超过 24 KiB UTF-8 的完整 Markdown；Compiler 只输出当前包 1–3 个 Stage、来源映射及不超过 4 KiB 的交接摘要。Stage/验收 ID 使用稳定 `workPackageId` 与 `<workPackageId>-AC-n`。
 - Decomposer 和分包 Compiler 都必须使用同一只读 Session 的持久化两轮智能编译：第一轮按“规划 → 证据映射”顺序生成有界中间合同，服务端校验并冻结；第二轮只把冻结规划编码为最终 JSON，不得更改包边界、Stage、验收来源、测试证据或交接摘要。规划与最终原始 JSON 都不得进入聊天消息，SSE 只投影权威步骤和摘要。
 - Decomposer 和每包 Compiler 的“规划/证据映射”与“最终 JSON”各有独立的最多两次格式修复预算；规划修复耗尽后如成功冻结，不得挤占最终 JSON 的修复机会。闭集语义缺口最多只让当前包完整重设计一次。每个只读角色已确认的传输失败允许一个全新 Session 重试。整个需求版本最多 32 次模型调用；六包无重试链路固定消耗 20 次，各包内容次数互不挤占但受全局上限约束。
+- Decomposer 规划与最终输出优先解析精确 marker；弱模型移除 marker 时，只允许完整输出为一个顶层 JSON object，或仅用一个 `json` 代码块包裹该 object。夹带说明文字、多个对象、数组根或残缺 JSON 必须拒绝，并继续执行原步骤修复与全部确定性语义校验。
 - Compiler 的规划、最终生成与格式修复提示必须注入当前步骤的完整 JSON 类型合同和规范信封，明确集合、验证器、直接 argv、验收映射、测试目标、托管运行时及设计缺口的对象/数组/null 边界；不得要求模型从 Java 反序列化错误反推 DTO 结构。v2 分包规划必须使用 `contractVersion=2` 并携带完整 `VerifierSpec` 蓝图和可选 `verificationRuntime`；服务端必须在冻结规划前使用权威 LoopSpec v2 执行合同校验直接命令、行为覆盖、Java 聚焦测试及运行时绑定，最终 JSON 只能逐字段复制该蓝图。丰富提示不能替代服务端确定性校验。
 - 全部包完成后只能由服务端按包顺序确定性聚合，不允许模型二次合并；聚合保留草稿模型、Session 策略、预算和重试模板，并只在最初冻结的 draft version 上原子同步。草稿并发变化必须在启动下一包前停止，不再消耗模型调用。
 - 只有完成、项目匹配、版本匹配且经服务端确定性验证通过的聚合 LoopSpec 才能同步到绑定草稿；模型不得自报校验成功。人工确认前仍不得写业务源码、创建 Task 或制造执行状态。
@@ -312,6 +313,7 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 - 冲突、代码、JSON 等编辑器优先复用 CodeMirror 组件和现有语言映射。
 - 交互写操作要有 loading、错误、幂等/版本冲突处理；破坏性操作必须明确确认。
 - Runtime 显式启动和重启都必须携带本地 UI 标识，服务端须在检查进程所有权或执行副作用前验证；LoopSpec 编辑器的数值上限必须与领域 Bean Validation 一致（启动 300 秒、停止 60 秒、单阶段尝试 20 次）。
+- 运行环境页的 OpenCode Loopper 版本必须来自服务端 Runtime DTO，不能使用前端 package 版本硬编码，也不能与 OpenCode CLI 版本混为一个字段。
 - 每个行为变化都在相邻 `.spec.ts` 中增加回归测试；路由级关键流程再考虑 `frontend/e2e/`。
 - UI 图标必须使用项目已打包的 Iconify/Lucide 资源，不依赖外网 CDN。
 - Spring SPA fallback 必须接住无扩展名的深层前端 history 路由；`/api`、`/actuator`、`/assets` 和带文件扩展名的静态资源路径不得被改写为 `index.html`。
@@ -355,7 +357,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.1.45.jar
+JAR=target/opencode-loopper-0.1.46.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -453,6 +455,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-08-13 | 加固 Decomposer marker 丢失兼容并发布 0.1.46 | Decomposer 规划与最终 JSON 在精确 marker 外只接受一个完整裸 JSON object 或单独 `json` 代码块，继续执行全部确定性校验；运行环境页展示服务端 Runtime DTO 返回的 Loopper 版本，区别于 OpenCode CLI 版本；同步 README、架构、设计、OpenCode、七特性合同与本公约正文 | 聚焦 Runtime/Designer Java 22/22、Vitest 144/144 与前端构建通过；`./scripts/verify.sh`：Java 338 项中 337 通过、Windows 条件用例 1 项跳过，Vitest 144/144，BUILD SUCCESS；JAR 262892861 bytes，SHA-256 `cdf52a8f2b5b075fb5bafd5b06a99c17dcfdb07ac39908c29fa5f02080539bed`；发布目标：`v0.1.46`；按用户要求不替换或重启当前本机 0.1.45 实例 |
 | 2026-08-10 | 初始化根目录 Agent 公约 | 新增强制预读、结束更新、完整验证、单 JAR 打包和项目契约地图 | `./scripts/verify.sh`：Java 222/222、Vitest 114/114，BUILD SUCCESS；JAR 262557087 bytes，SHA-256 `84e40ee48a61a985877ec2d06cd49144e043327f9f4db805adc55065f0986dcf` |
 | 2026-08-10 | Maven PROCESS 参数容错规范化 | 明确可解析的合并 Maven 参数直接规范化，只有无法安全解析时才触发 Designer 自动纠正；同步 README、Designer/OpenCode 合同 | `./scripts/verify.sh`：Java 225/225、Vitest 114/114，BUILD SUCCESS；JAR 262561953 bytes，SHA-256 `761515a69dc8792433e157ca15b04b05e26a2d359d55c4650a601db61372694c` |
 | 2026-08-10 | 发布稳定版 0.1.1 | 规定每次形成新交付 JAR 必须递增版本号；新增 `v<version>` 标签校验、完整验证和 GitHub Release 自动发布合同 | `./scripts/verify.sh`：Java 225/225、Vitest 114/114，BUILD SUCCESS；JAR 262561925 bytes，SHA-256 `f3fc9611be5f4afaec48ccc5a035695c27f3c910c1dabd84ae16ca99963be10e`；发布目标：`v0.1.1` |

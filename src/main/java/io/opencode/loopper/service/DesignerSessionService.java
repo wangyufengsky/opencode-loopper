@@ -42,7 +42,9 @@ import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.core.JacksonException;
+import tools.jackson.core.JsonParser;
 import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 /**
@@ -71,6 +73,9 @@ public class DesignerSessionService {
             Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
     private static final Pattern DECOMPOSITION_PLAN_PAYLOAD = Pattern.compile(
             "<!--\\s*TASK_DECOMPOSITION_PLAN_JSON_START\\s*-->(.*?)<!--\\s*TASK_DECOMPOSITION_PLAN_JSON_END\\s*-->",
+            Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+    private static final Pattern STANDALONE_JSON_FENCE = Pattern.compile(
+            "\\A\\s*```(?:json)?\\s*(\\{.*})\\s*```\\s*\\z",
             Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
     private static final Pattern COMPILATION_PLAN_PAYLOAD = Pattern.compile(
             "<!--\\s*LOOPSPEC_COMPILATION_PLAN_JSON_START\\s*-->(.*?)<!--\\s*LOOPSPEC_COMPILATION_PLAN_JSON_END\\s*-->",
@@ -1615,7 +1620,7 @@ public class DesignerSessionService {
     }
 
     private DecompositionEnvelope parseDecomposition(String output) {
-        String payload = markedPayload(output, DECOMPOSITION_PAYLOAD, "DECOMPOSER_OUTPUT");
+        String payload = decompositionPayload(output, DECOMPOSITION_PAYLOAD, "DECOMPOSER_OUTPUT");
         try {
             DecompositionEnvelope envelope = json.readValue(payload, DecompositionEnvelope.class);
             if (envelope == null || blank(envelope.status())) {
@@ -1634,7 +1639,7 @@ public class DesignerSessionService {
     }
 
     private DecompositionPlanEnvelope parseDecompositionPlan(String output) {
-        String payload = markedPayload(output, DECOMPOSITION_PLAN_PAYLOAD, "DECOMPOSER_PLAN_OUTPUT");
+        String payload = decompositionPayload(output, DECOMPOSITION_PLAN_PAYLOAD, "DECOMPOSER_PLAN_OUTPUT");
         try {
             DecompositionPlanEnvelope envelope = json.readValue(payload, DecompositionPlanEnvelope.class);
             if (envelope == null || blank(envelope.status())) {
@@ -1723,6 +1728,37 @@ public class DesignerSessionService {
         if (start < 0 || end <= start) throw new BadRequestException(prefix + "_INVALID",
                 "Marked payload is not one JSON object");
         return body.substring(start, end + 1);
+    }
+
+    private String decompositionPayload(String output, Pattern pattern, String prefix) {
+        if (blank(output)) throw new BadRequestException(prefix + "_MISSING", "Read-only model completed without output");
+        Matcher matcher = pattern.matcher(output);
+        if (matcher.find()) {
+            String body = matcher.group(1);
+            int start = body.indexOf('{');
+            int end = body.lastIndexOf('}');
+            if (start < 0 || end <= start) throw new BadRequestException(prefix + "_INVALID",
+                    "Marked payload is not one JSON object");
+            return body.substring(start, end + 1);
+        }
+        String standalone = standaloneJsonObject(output);
+        if (standalone != null) return standalone;
+        throw new BadRequestException(prefix + "_MARKERS_MISSING",
+                "Output did not contain the required structured markers or one standalone JSON object");
+    }
+
+    private String standaloneJsonObject(String output) {
+        String candidate = output.trim();
+        Matcher fence = STANDALONE_JSON_FENCE.matcher(candidate);
+        if (fence.matches()) candidate = fence.group(1).trim();
+        if (!candidate.startsWith("{") || !candidate.endsWith("}")) return null;
+        try (JsonParser parser = json.createParser(candidate)) {
+            JsonNode root = json.readTree(parser);
+            if (root == null || !root.isObject() || parser.nextToken() != null) return null;
+            return candidate;
+        } catch (JacksonException failure) {
+            return null;
+        }
     }
 
     private void validateDecomposition(DecompositionEnvelope envelope, DesignRequirementRevisionRow revision) {
@@ -2116,6 +2152,10 @@ public class DesignerSessionService {
                 <!-- TASK_DECOMPOSITION_PLAN_JSON_START -->
                 Put exactly one complete planning object matching the contract above here.
                 <!-- TASK_DECOMPOSITION_PLAN_JSON_END -->
+
+                The markers above are preferred. If your provider cannot preserve HTML comment markers, return
+                exactly one bare top-level JSON object, optionally inside one ```json fence, with no prose before
+                or after it. Never return multiple JSON objects.
                 """.formatted(project.rootPath(), session.id(), revision.revision(),
                 retry ? " explicit retry" : "",
                 readSegments(revision.requirementSegmentsJson()).stream()
@@ -2160,6 +2200,10 @@ public class DesignerSessionService {
                 <!-- TASK_DECOMPOSITION_JSON_START -->
                 Put exactly one final decomposition object matching the frozen planning here.
                 <!-- TASK_DECOMPOSITION_JSON_END -->
+
+                The markers above are preferred. If your provider cannot preserve HTML comment markers, return
+                exactly one bare top-level JSON object, optionally inside one ```json fence, with no prose before
+                or after it. Never return multiple JSON objects.
                 """.formatted(write(plan), decompositionMachineContract());
     }
 
@@ -2201,7 +2245,9 @@ public class DesignerSessionService {
                 Complete immutable requirement:
                 %s
 
-                Return one JSON object between exact markers and no raw JSON elsewhere:
+                Return one JSON object between exact markers and no raw JSON elsewhere. If your provider cannot
+                preserve HTML comment markers, return exactly one bare top-level JSON object, optionally inside one
+                ```json fence, with no prose before or after it:
                 <!-- TASK_DECOMPOSITION_JSON_START -->
                 {"status":"DIRECT_DESIGN|DECOMPOSED|NEEDS_INPUT|MULTI_TASK_REQUIRED","normalizedGoal":"...","globalConstraints":[{"text":"...","requirementRefs":["RQ-1"]}],"workPackages":[{"id":"WP-1","title":"...","objective":"...","scopeIn":[],"scopeOut":[],"dependencies":[],"deliverables":[],"acceptanceIntent":[],"requirementRefs":["RQ-1"]}],"designGaps":[],"reason":null}
                 <!-- TASK_DECOMPOSITION_JSON_END -->
@@ -2221,7 +2267,9 @@ public class DesignerSessionService {
 
                     %s
 
-                    Return one complete replacement object between TASK_DECOMPOSITION_JSON_START/END markers.
+                    Prefer one complete replacement object between TASK_DECOMPOSITION_JSON_START/END markers. If
+                    markers cannot be preserved, return exactly one bare top-level JSON object or one ```json fence
+                    with no surrounding prose.
                     """.formatted(row.repairCount(), MAX_DECOMPOSER_REPAIRS, code, safeMessage(detail),
                     decompositionMachineContract());
         }
@@ -2237,7 +2285,9 @@ public class DesignerSessionService {
 
                 %s
 
-                Return one complete replacement object between TASK_DECOMPOSITION_JSON_START/END markers.
+                Prefer one complete replacement object between TASK_DECOMPOSITION_JSON_START/END markers. If
+                markers cannot be preserved, return exactly one bare top-level JSON object or one ```json fence
+                with no surrounding prose.
                 """.formatted(row.repairCount(), MAX_DECOMPOSER_REPAIRS, code, safeMessage(detail),
                 write(plan), decompositionMachineContract());
     }
@@ -2256,8 +2306,9 @@ public class DesignerSessionService {
 
                 %s
 
-                Return one complete replacement object between
-                TASK_DECOMPOSITION_PLAN_JSON_START/END markers.
+                Prefer one complete replacement object between TASK_DECOMPOSITION_PLAN_JSON_START/END markers. If
+                markers cannot be preserved, return exactly one bare top-level JSON object or one ```json fence
+                with no surrounding prose.
                 """.formatted(row.planningRepairCount(), MAX_DECOMPOSER_REPAIRS, code, safeMessage(detail),
                 readSegments(revision.requirementSegmentsJson()).stream()
                         .map(segment -> segment.id() + ": " + segment.text())

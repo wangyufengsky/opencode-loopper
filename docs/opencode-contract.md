@@ -108,6 +108,13 @@ passes, Loopper—not a model—concatenates fragments in package order and runs
 complete validation before an optimistic draft update. No branch, Task, or
 writable Session is created beforehand.
 
+Decomposer planning and final output prefer their exact HTML comment markers.
+If a provider removes those comments, Loopper accepts only one complete top-level
+JSON object occupying the whole output, or that object inside one standalone
+`json` fence. Surrounding prose, multiple objects, arrays, and incomplete JSON
+are rejected before the unchanged typed, coverage, dependency, package-boundary,
+and frozen-plan validation.
+
 The MCP `propose_loop_spec` tool uses the same session-bound update path, but is
 rejected while an active decomposed design workflow has not completed. It no
 longer creates an unrelated draft, so an external MCP client and the built-in
@@ -202,7 +209,9 @@ an unrelated listener as OpenCode and never stops an externally owned process.
 Each managed launch records its newly allocated endpoint before the process is
 created. If process creation, early exit, or the bounded health wait fails, the
 Runtime API returns `OFFLINE`, `managed=false`, the actual attempted endpoint,
-and a sanitized `startupFailure`. It must not present the configured default
+the running service's `loopperVersion`, and a sanitized `startupFailure`.
+`loopperVersion` is distinct from the OpenCode CLI `version` and must be rendered
+from the server response rather than a frontend constant. The API must not present the configured default
 probe endpoint (commonly `127.0.0.1:4096`) as a listener. Internal requests fail
 closed against an unused loopback endpoint until an explicit local-UI retry
 succeeds. Ordinary Runtime reads and internal client lookups must not repeatedly
