@@ -16,9 +16,11 @@ manufactures queue, progress, usage or cost data.
   packages, package-scoped compiler fragments, and Stage `work_package_id`.
 - V23: persisted Decomposer/Compiler semantic planning, evidence mappings, and
   restart-recoverable structured workflow steps before final JSON generation.
+- V24: independent persisted planning and final-JSON repair budgets for
+  Decomposer/Compiler, plus a valid terminal path from decomposition validation.
 
 Historical migrations remain immutable. Empty databases and supported V21
-databases must both migrate to V23.
+databases must both migrate to V24.
 
 ## Interactions
 

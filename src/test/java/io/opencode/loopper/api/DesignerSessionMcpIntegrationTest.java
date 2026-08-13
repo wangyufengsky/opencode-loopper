@@ -54,7 +54,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "loopper.monitor-delay=1h", "loopper.designer-monitor-delay=1h",
         "loopper.mcp.bearer-token=designer-mcp-test-token",
         "spring.ai.mcp.server.protocol=STREAMABLE", "spring.ai.mcp.server.name=opencode-loopper",
-        "spring.ai.mcp.server.version=0.1.43", "spring.ai.mcp.server.annotation-scanner.enabled=false",
+        "spring.ai.mcp.server.version=0.1.44", "spring.ai.mcp.server.annotation-scanner.enabled=false",
         "spring.ai.mcp.server.capabilities.resource=false", "spring.ai.mcp.server.capabilities.prompt=false",
         "spring.ai.mcp.server.capabilities.completion=false",
         "spring.ai.mcp.server.streamable-http.mcp-endpoint=/api/mcp-streamable",
@@ -255,7 +255,7 @@ class DesignerSessionMcpIntegrationTest {
     }
 
     @Test
-    void decompositionPlanningRejectsStringGapsThenGeneratesJsonFromTheFrozenPlan() throws Exception {
+    void decompositionPlanningAndFinalJsonHaveIndependentRepairBudgets() throws Exception {
         ProjectRow project = project("decomposer-planning");
         LoopDraftRow draft = drafts.create(legacySpec(project.id()));
         fake().setDecomposerOutput(decomposition("NEEDS_INPUT", "需要补充异步边界", 0));
@@ -274,24 +274,36 @@ class DesignerSessionMcpIntegrationTest {
         designerSessions.pollActiveHandoffs();
 
         DesignerSessionService.DecompositionStatus repairing = designerSessions.decompositionStatus(session.id());
-        assertThat(repairing.repairCount()).isEqualTo(1);
+        assertThat(repairing.planningRepairCount()).isEqualTo(1);
+        assertThat(repairing.repairCount()).isZero();
         assertThat(repairing.workflowStep()).isEqualTo("PLANNING");
         assertThat(repairing.lastErrorCode()).isEqualTo("DECOMPOSER_PLAN_OUTPUT_INVALID");
+        designerSessions.pollActiveHandoffs();
+        assertThat(designerSessions.decompositionStatus(session.id()).planningRepairCount()).isEqualTo(2);
         fake().setDecomposerPlanningOutput(decompositionPlan("NEEDS_INPUT", "需要补充异步边界"));
 
         designerSessions.pollActiveHandoffs();
         DesignerSessionService.DecompositionStatus generating = designerSessions.decompositionStatus(session.id());
         assertThat(generating.workflowStep()).isEqualTo("GENERATING_JSON");
+        assertThat(generating.planningRepairCount()).isEqualTo(2);
+        assertThat(generating.repairCount()).isZero();
         assertThat(mapper.findTaskDecompositionByRevision(
                 mapper.findCurrentDesignRequirementRevision(session.id()).orElseThrow().id()).orElseThrow().planningJson())
                 .contains("coverageMappings", "designGaps");
 
+        fake().setDecomposerOutput("final envelope without required markers");
+        designerSessions.pollActiveHandoffs();
+        DesignerSessionService.DecompositionStatus finalRepair = designerSessions.decompositionStatus(session.id());
+        assertThat(finalRepair.planningRepairCount()).isEqualTo(2);
+        assertThat(finalRepair.repairCount()).isEqualTo(1);
+        assertThat(finalRepair.workflowStep()).isEqualTo("REPAIRING_JSON");
+        fake().setDecomposerOutput(decomposition("NEEDS_INPUT", "需要补充异步边界", 0));
         designerSessions.pollActiveHandoffs();
         assertThat(designerSessions.get(session.id()).state()).isEqualTo("WAITING_INPUT");
         assertThat(designerSessions.decompositionStatus(session.id()).workflowStep()).isEqualTo("FINAL_JSON");
         assertThat(fake().createReadOnlySessionCalls()).isEqualTo(1);
         assertThat(fake().promptHistory().stream().filter(call -> decompositionSessionId.equals(call.sessionId())))
-                .hasSize(3);
+                .hasSize(5);
         assertThat(designerSessions.messages(session.id())).noneMatch(message ->
                 message.content().contains("TASK_DECOMPOSITION_PLAN_JSON_START"));
         assertThat(mapper.listTasks()).isEmpty();
@@ -326,6 +338,7 @@ class DesignerSessionMcpIntegrationTest {
         ProjectRow project = project("retry");
         LoopDraftRow draft = drafts.create(legacySpec(project.id()));
         fake().setDesignerOutput(designerOutput("# 完整设计\n\n输出明确且可验收。", legacySpec(project.id())));
+        fake().setPackageCompilerPlanningOutput("WP-1", packageCompilationPlan("WP-1"));
         fake().setCompilerOutput("<!-- LOOPSPEC_COMPILATION_JSON_START -->{}<!-- LOOPSPEC_COMPILATION_JSON_END -->");
         DesignerSessionRow session = designerSessions.create(project.id(), draft.id(), "实现可验收能力");
         pollUntilCompilerState(session.id(), "RUNNING", 1);
@@ -338,9 +351,11 @@ class DesignerSessionMcpIntegrationTest {
                 .isEqualTo("COMPILER_RETRY_EXHAUSTED");
 
         fake().setCompilerOutput(designIncomplete("MISSING_EXCEPTION_SEMANTICS", "缺少异常结果"));
+        fake().setPackageCompilerPlanningOutput("WP-1", null);
         designerSessions.retryPackageCompilation(session.id(), "WP-1");
-        designerSessions.pollActiveHandoffs();
-        designerSessions.pollActiveHandoffs();
+        for (int i = 0; i < 8 && !"REDESIGNING".equals(designerSessions.get(session.id()).workflowPhase()); i++) {
+            designerSessions.pollActiveHandoffs();
+        }
         assertThat(designerSessions.get(session.id()).workflowPhase()).isEqualTo("REDESIGNING");
         assertThat(designerSessions.workPackageStatuses(session.id()).getFirst().redesignCount()).isEqualTo(1);
     }
@@ -379,6 +394,41 @@ class DesignerSessionMcpIntegrationTest {
                 .contains("Put exactly one complete replacement object matching the frozen plan and machine contract here.");
         assertThat(compilerPrompts.get(2)).contains("Repair 1/2")
                 .contains("do not replace an object or array with a descriptive string");
+    }
+
+    @Test
+    void packageCompilerPlanningAndFinalJsonHaveIndependentRepairBudgets() throws Exception {
+        ProjectRow project = project("compiler-independent-repairs");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        fake().setDesignerOutput(designerOutput("# 可编译设计\n\n文档行为和确定性自检均完整。",
+                legacySpec(project.id())));
+        fake().setPackageCompilerPlanningOutput("WP-1", "planning without required markers");
+        fake().setCompilerOutput("<!-- LOOPSPEC_COMPILATION_JSON_START -->{}<!-- LOOPSPEC_COMPILATION_JSON_END -->");
+
+        DesignerSessionRow session = designerSessions.create(project.id(), draft.id(), "验证编译器分步修复隔离");
+        for (int i = 0; i < 24; i++) {
+            designerSessions.pollActiveHandoffs();
+            DesignerSessionService.CompilerStatus status = designerSessions.compilerStatus(session.id());
+            if (status != null && status.planningRepairCount() == 1) break;
+        }
+        DesignerSessionService.CompilerStatus firstPlanningRepair = designerSessions.compilerStatus(session.id());
+        assertThat(firstPlanningRepair.planningRepairCount()).isEqualTo(1);
+        assertThat(firstPlanningRepair.repairCount()).isZero();
+
+        designerSessions.pollActiveHandoffs();
+        assertThat(designerSessions.compilerStatus(session.id()).planningRepairCount()).isEqualTo(2);
+        fake().setPackageCompilerPlanningOutput("WP-1", packageCompilationPlan("WP-1"));
+        designerSessions.pollActiveHandoffs();
+        assertThat(designerSessions.compilerStatus(session.id()).workflowStep()).isEqualTo("GENERATING_JSON");
+        assertThat(designerSessions.compilerStatus(session.id()).planningRepairCount()).isEqualTo(2);
+
+        designerSessions.pollActiveHandoffs();
+        DesignerSessionService.CompilerStatus finalRepair = designerSessions.compilerStatus(session.id());
+        assertThat(finalRepair.workflowStep()).isEqualTo("REPAIRING_JSON");
+        assertThat(finalRepair.planningRepairCount()).isEqualTo(2);
+        assertThat(finalRepair.repairCount()).isEqualTo(1);
+        assertThat(designerSessions.get(session.id()).state()).isEqualTo("RUNNING");
+        assertThat(mapper.listTasks()).isEmpty();
     }
 
     @Test
@@ -478,7 +528,7 @@ class DesignerSessionMcpIntegrationTest {
                         .accept(MediaType.APPLICATION_JSON, MediaType.TEXT_EVENT_STREAM).content(initialize))
                 .andExpect(status().isUnauthorized());
         MvcResult initialized = mvc.perform(streamable(initialize, null)).andExpect(status().isOk())
-                .andExpect(jsonPath("$.result.serverInfo.version").value("0.1.43")).andReturn();
+                .andExpect(jsonPath("$.result.serverInfo.version").value("0.1.44")).andReturn();
         String sessionId = initialized.getResponse().getHeader("Mcp-Session-Id");
         mvc.perform(streamable("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\",\"params\":{}}", sessionId))
                 .andExpect(status().isAccepted());

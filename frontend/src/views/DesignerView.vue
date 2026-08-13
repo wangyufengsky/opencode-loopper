@@ -720,7 +720,8 @@ async function redesignPackage(packageId: string) {
           <span class="active-role"><Icon :icon="activeActorMeta.icon" />{{ activeActorMeta.label }} · {{ activeDetailedWorkflowLabel }}</span>
           <span v-if="designerSession?.activeWorkPackageId" class="mono">{{ designerSession.activeWorkPackageId }}/{{ designerSession.workPackages?.length ?? 0 }}</span>
           <span v-if="designerSession?.requirement" class="mono">模型调用 {{ designerSession.requirement.modelCallsUsed }}/{{ designerSession.requirement.maxModelCalls }}</span>
-          <span v-if="designerSession?.compiler" class="mono">Compiler 修复 {{ designerSession.compiler.repairCount }}/2</span>
+          <span v-if="designerSession?.compiler" class="mono">Compiler 规划修复 {{ designerSession.compiler.planningRepairCount }}/2 · JSON 修复 {{ designerSession.compiler.repairCount }}/2</span>
+          <span v-else-if="designerSession?.decomposition" class="mono">Decomposer 规划修复 {{ designerSession.decomposition.planningRepairCount }}/2 · JSON 修复 {{ designerSession.decomposition.repairCount }}/2</span>
           <span class="mono">远端 {{ designerRemoteState || 'WAITING' }}</span>
           <time :datetime="designerObservedAt">{{ formatObservedAt(designerObservedAt) }}</time>
         </div>
@@ -731,7 +732,7 @@ async function redesignPackage(packageId: string) {
             <article v-for="item in designerSession.workPackages ?? []" :key="item.id" :class="['work-package-chip', `package-${item.state.toLowerCase()}`, { active: item.id === designerSession.activeWorkPackageId }]">
               <header><b>{{ item.id }}</b><span>{{ item.state }}</span></header>
               <strong>{{ item.title }}</strong>
-              <small>依赖 {{ item.dependencies.join('、') || '无' }} · 重设计 {{ item.redesignCount }}/1 · 编译修复 {{ item.compilerRepairCount }}/2</small>
+              <small>依赖 {{ item.dependencies.join('、') || '无' }} · 重设计 {{ item.redesignCount }}/1 · 编译规划修复 {{ item.compilerPlanningRepairCount }}/2 · JSON 修复 {{ item.compilerRepairCount }}/2</small>
             </article>
           </section>
           <div class="chat-history">

@@ -21,7 +21,7 @@ class FeatureMigrationTest {
     }
 
     @Test
-    void v22ActiveStructuredRowsRemainReadableAsFinalJsonAfterV23Upgrade() throws Exception {
+    void v22ActiveStructuredRowsRemainReadableWithIndependentRepairBudgetsAfterV24Upgrade() throws Exception {
         Path database = temporaryDirectory.resolve("v22-active.db");
         String url = "jdbc:sqlite:" + database;
         Flyway.configure().dataSource(url, null, null).target(MigrationVersion.fromVersion("22")).load().migrate();
@@ -38,12 +38,13 @@ class FeatureMigrationTest {
         Flyway.configure().dataSource(url, null, null).load().migrate();
         try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
             for (String query : List.of(
-                    "SELECT workflow_step,planning_json FROM task_decomposition WHERE id='dec'",
-                    "SELECT workflow_step,planning_json FROM loop_spec_compilation WHERE id='cmp'")) {
+                    "SELECT workflow_step,planning_json,planning_repair_count FROM task_decomposition WHERE id='dec'",
+                    "SELECT workflow_step,planning_json,planning_repair_count FROM loop_spec_compilation WHERE id='cmp'")) {
                 try (var result = statement.executeQuery(query)) {
                     assertThat(result.next()).isTrue();
                     assertThat(result.getString("workflow_step")).isEqualTo("FINAL_JSON");
                     assertThat(result.getString("planning_json")).isNull();
+                    assertThat(result.getInt("planning_repair_count")).isZero();
                 }
             }
         }
@@ -61,7 +62,7 @@ class FeatureMigrationTest {
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
 
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("23");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("24");
         try (var connection = DriverManager.getConnection(url);
              var statement = connection.prepareStatement("SELECT name FROM sqlite_master WHERE type='table'")) {
             try (var result = statement.executeQuery()) {
@@ -117,7 +118,7 @@ class FeatureMigrationTest {
                 try (var result = statement.executeQuery("PRAGMA table_info(" + table + ")")) {
                     var columns = new java.util.ArrayList<String>();
                     while (result.next()) columns.add(result.getString("name"));
-                    assertThat(columns).contains("workflow_step", "planning_json");
+                    assertThat(columns).contains("workflow_step", "planning_json", "planning_repair_count");
                 }
             }
         }

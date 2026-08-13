@@ -80,7 +80,9 @@ fragment, bounded summary/handoff, and an exact Designer excerpt for every crite
 checks each excerpt against the frozen design and then runs the same field,
 verifier, coverage, project, and draft-version validation used by other entry
 points. JSON/schema/verifier/coverage failures create another bounded repair
-turn in the same Compiler Session, at most twice after the initial compile. Missing observable outcome,
+turn in the same Compiler Session, at most twice after the initial final-JSON
+generation. Planning/证据映射 has a separate maximum of two repairs; successful
+planning cannot consume the final-JSON repair allowance. Missing observable outcome,
 exception semantics, scope, or acceptance intent requests at most one automatic
 full replacement from a fresh Designer Session for the current package. Format errors cannot be
 relabelled as design gaps. Retry exhaustion or optimistic draft conflict leaves

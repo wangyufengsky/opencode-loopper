@@ -7,4 +7,4 @@ public record TaskDecompositionRow(
         String externalSessionId, String externalSessionState, int repairCount, int transportRetryCount,
         long sourceDraftVersion, String lastErrorCode, String lastErrorDetail,
         String createdAt, String updatedAt, long version,
-        String workflowStep, String planningJson) { }
+        String workflowStep, String planningJson, int planningRepairCount) { }

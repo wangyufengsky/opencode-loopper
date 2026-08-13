@@ -126,7 +126,8 @@ the original requirement, frozen decomposition, current package, global
 constraints, and bounded prerequisite handoffs, then emits at most 24 KiB UTF-8
 of complete Markdown. Compiler emits a 1–3 Stage package fragment plus criterion
 sources and a handoff summary of at most 4 KiB. Format, field, verifier,
-traceability, or coverage errors receive at most two Compiler repairs; semantic
+traceability, or coverage errors receive at most two final-JSON Compiler repairs;
+planning/证据映射格式错误有独立的最多两次修复预算；semantic
 gaps receive one full redesign of that package only. The complete requirement
 revision has a shared hard ceiling of 32 model calls, but package content retry
 counters remain independent. Draft concurrency, exhausted budgets, and
@@ -142,7 +143,9 @@ and test targets for production Java. The server validates and freezes this
 bounded planning envelope before asking for final JSON. The second turn may only
 encode the frozen plan, so work-package boundaries, Stage fields, acceptance
 intent, source excerpts, test evidence and handoff summaries cannot silently
-drift. V23 persists the current step and planning JSON for restart recovery.
+drift. V23 persists the current step and planning JSON for restart recovery;
+V24 persists the independent planning-repair counters. A successful planning
+freeze always starts final JSON with its own unused repair budget.
 Neither planning nor final raw JSON is displayed as a chat message; the status
 strip exposes only `规划与证据映射`, `JSON 生成`, or `JSON 修复`.
 

@@ -212,6 +212,7 @@ public final class LifecycleRegistry {
                 .transition(TaskDecompositionState.VALIDATING, REQUIRE_REVIEW, TaskDecompositionState.MULTI_TASK_REQUIRED)
                 .transition(TaskDecompositionState.PENDING_HANDOFF, SESSION_FAIL, TaskDecompositionState.SESSION_ERROR)
                 .transition(TaskDecompositionState.RUNNING, SESSION_FAIL, TaskDecompositionState.SESSION_ERROR)
+                .transition(TaskDecompositionState.VALIDATING, SESSION_FAIL, TaskDecompositionState.SESSION_ERROR)
                 .build();
     }
 

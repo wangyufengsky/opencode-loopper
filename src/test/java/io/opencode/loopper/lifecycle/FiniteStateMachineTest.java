@@ -52,6 +52,15 @@ class FiniteStateMachineTest {
     }
 
     @Test
+    void validatingDecompositionCanFailWhenItsJsonRepairBudgetIsExhausted() {
+        LifecycleRegistry registry = new LifecycleRegistry();
+
+        assertThat(registry.resolve(LifecycleMachineType.TASK_DECOMPOSITION, "decomposition-1",
+                TaskDecompositionState.VALIDATING.name(), TaskDecompositionState.SESSION_ERROR.name(), null).event())
+                .isEqualTo(LifecycleEvent.SESSION_FAIL);
+    }
+
+    @Test
     void duplicateStateAndEventDefinitionFailsFast() {
         var builder = FiniteStateMachine.builder(LifecycleMachineType.STAGE, StageState.class, LifecycleEvent.class)
                 .transition(StageState.PENDING, LifecycleEvent.START, StageState.RUNNING);

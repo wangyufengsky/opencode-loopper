@@ -10,7 +10,7 @@ public record LoopSpecCompilationRow(
         String lastErrorCode, String lastErrorDetail,
         String createdAt, String updatedAt, long version,
         String workPackageId, int transportRetryCount, String compiledPackageJson,
-        String workflowStep, String planningJson) {
+        String workflowStep, String planningJson, int planningRepairCount) {
     @AutomapConstructor
     public LoopSpecCompilationRow { }
 
@@ -21,6 +21,6 @@ public record LoopSpecCompilationRow(
                                   String createdAt, String updatedAt, long version) {
         this(id, designerSessionId, designRevision, state, externalSessionId, externalSessionState, repairCount,
                 sourceDesignMessageId, sourceDraftVersion, lastErrorCode, lastErrorDetail,
-                createdAt, updatedAt, version, null, 0, null, "FINAL_JSON", null);
+                createdAt, updatedAt, version, null, 0, null, "FINAL_JSON", null, 0);
     }
 }

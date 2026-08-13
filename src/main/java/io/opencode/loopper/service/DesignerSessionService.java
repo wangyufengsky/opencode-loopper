@@ -149,7 +149,8 @@ public class DesignerSessionService {
         return mapper.findLatestLoopSpecCompilation(sessionId)
                 .map(row -> new CompilerStatus(row.id(), row.state(), row.externalSessionId(),
                         row.externalSessionState(), row.repairCount(), row.designRevision(),
-                        row.lastErrorCode(), row.lastErrorDetail(), row.workPackageId(), row.workflowStep()))
+                        row.lastErrorCode(), row.lastErrorDetail(), row.workPackageId(), row.workflowStep(),
+                        row.planningRepairCount()))
                 .orElse(null);
     }
 
@@ -165,7 +166,8 @@ public class DesignerSessionService {
         get(sessionId);
         return mapper.findLatestTaskDecomposition(sessionId)
                 .map(row -> new DecompositionStatus(row.id(), row.state(), row.resultType(), row.repairCount(),
-                        row.transportRetryCount(), row.lastErrorCode(), row.lastErrorDetail(), row.workflowStep()))
+                        row.transportRetryCount(), row.lastErrorCode(), row.lastErrorDetail(), row.workflowStep(),
+                        row.planningRepairCount()))
                 .orElse(null);
     }
 
@@ -177,6 +179,7 @@ public class DesignerSessionService {
                     .orElse(null);
             return new WorkPackageStatus(row.packageId(), row.ordinal(), row.title(), row.objective(), row.state(),
                     strings(row.dependenciesJson()), row.redesignCount(), compiler == null ? 0 : compiler.repairCount(),
+                    compiler == null ? 0 : compiler.planningRepairCount(),
                     row.compilerSummary(), row.handoffSummary(), row.lastErrorCode(), row.lastErrorDetail());
         }).toList();
     }
@@ -435,7 +438,7 @@ public class DesignerSessionService {
         TaskDecompositionRow pending = new TaskDecompositionRow(UUID.randomUUID().toString(), input.id(),
                 revision.id(), TaskDecompositionState.PENDING_HANDOFF.name(), null, null, "[]", "{}",
                 null, "PENDING", 0, 0, revision.sourceDraftVersion(), null, null, now, now, 0,
-                StructuredModelStep.PLANNING.name(), null);
+                StructuredModelStep.PLANNING.name(), null, 0);
         lifecycle.create(decompositionSubject(pending, input.projectId()), pending.state(), Map.of(),
                 () -> mapper.insertTaskDecomposition(pending),
                 () -> new ConflictException("TASK_DECOMPOSITION_CREATE_CONFLICT",
@@ -613,7 +616,9 @@ public class DesignerSessionService {
         appendMessage(session.id(), DesignerActor.VALIDATOR,
                 "拆解计划校验未通过（" + code + "）：" + safeMessage(detail), "RETRYABLE_ERROR",
                 session.currentRequirementRevision(), null);
-        if (decomposition.repairCount() >= MAX_DECOMPOSER_REPAIRS) {
+        boolean planning = StructuredModelStep.PLANNING.name().equals(decomposition.workflowStep());
+        int repairsUsed = planning ? decomposition.planningRepairCount() : decomposition.repairCount();
+        if (repairsUsed >= MAX_DECOMPOSER_REPAIRS) {
             updateDecomposition(decomposition, TaskDecompositionState.SESSION_ERROR,
                     decomposition.resultType(), decomposition.normalizedGoal(), decomposition.globalConstraintsJson(),
                     decomposition.planJson(), remote.id(), "FAILED", decomposition.repairCount(),
@@ -622,14 +627,14 @@ public class DesignerSessionService {
                     "DECOMPOSER_RETRY_EXHAUSTED", detail);
             return;
         }
-        int repair = decomposition.repairCount() + 1;
-        boolean planning = StructuredModelStep.PLANNING.name().equals(decomposition.workflowStep());
+        int repair = repairsUsed + 1;
         TaskDecompositionRow repairing = updateDecomposition(decomposition, TaskDecompositionState.RUNNING,
                 decomposition.resultType(), decomposition.normalizedGoal(), decomposition.globalConstraintsJson(),
-                decomposition.planJson(), remote.id(), "REPAIRING_" + repair, repair,
+                decomposition.planJson(), remote.id(), "REPAIRING_" + repair,
+                planning ? decomposition.repairCount() : repair,
                 decomposition.transportRetryCount(), code, safeMessage(detail),
                 planning ? StructuredModelStep.PLANNING : StructuredModelStep.REPAIRING_JSON,
-                decomposition.planningJson());
+                decomposition.planningJson(), planning ? repair : decomposition.planningRepairCount());
         DesignRequirementRevisionRow revision = getRequirement(decomposition.requirementRevisionId());
         if (!consumeModelCall(session, revision, "DECOMPOSER_MODEL_CALL_LIMIT")) return;
         try {
@@ -801,7 +806,7 @@ public class DesignerSessionService {
         LoopSpecCompilationRow pending = new LoopSpecCompilationRow(UUID.randomUUID().toString(), session.id(),
                 workPackage.designRevision(), LoopSpecCompilationState.PENDING_HANDOFF.name(), null, "PENDING", 0,
                 source.id(), revision.sourceDraftVersion(), null, null, now, now, 0,
-                workPackage.packageId(), 0, null, StructuredModelStep.PLANNING.name(), null);
+                workPackage.packageId(), 0, null, StructuredModelStep.PLANNING.name(), null, 0);
         lifecycle.create(compilationSubject(pending, session.projectId()), pending.state(),
                 Map.of("workPackageId", workPackage.packageId()), () -> mapper.insertLoopSpecCompilation(pending),
                 () -> new ConflictException("LOOPSPEC_COMPILATION_CREATE_CONFLICT",
@@ -1228,7 +1233,9 @@ public class DesignerSessionService {
         appendMessage(session.id(), DesignerActor.VALIDATOR,
                 workPackage.packageId() + " 确定性校验未通过（" + code + "）：" + safeMessage(detail),
                 "RETRYABLE_ERROR", session.currentRequirementRevision(), workPackage.packageId());
-        if (compilation.repairCount() >= MAX_COMPILER_REPAIRS) {
+        boolean planning = StructuredModelStep.PLANNING.name().equals(compilation.workflowStep());
+        int repairsUsed = planning ? compilation.planningRepairCount() : compilation.repairCount();
+        if (repairsUsed >= MAX_COMPILER_REPAIRS) {
             updateCompilation(compilation, LoopSpecCompilationState.SESSION_ERROR, remote.id(), "FAILED",
                     compilation.repairCount(), "COMPILER_RETRY_EXHAUSTED", safeMessage(detail),
                     session.projectId(), compilation.compiledPackageJson());
@@ -1241,13 +1248,13 @@ public class DesignerSessionService {
                     "COMPILER_RETRY_EXHAUSTED", detail);
             return;
         }
-        int repair = compilation.repairCount() + 1;
-        boolean planning = StructuredModelStep.PLANNING.name().equals(compilation.workflowStep());
+        int repair = repairsUsed + 1;
         LoopSpecCompilationRow repairing = updateCompilation(compilation, LoopSpecCompilationState.RUNNING,
-                remote.id(), "REPAIRING_" + repair, repair, code, safeMessage(detail), session.projectId(),
+                remote.id(), "REPAIRING_" + repair, planning ? compilation.repairCount() : repair,
+                code, safeMessage(detail), session.projectId(),
                 compilation.compiledPackageJson(),
                 planning ? StructuredModelStep.PLANNING : StructuredModelStep.REPAIRING_JSON,
-                compilation.planningJson());
+                compilation.planningJson(), planning ? repair : compilation.planningRepairCount());
         DesignRequirementRevisionRow revision = currentRequirement(session.id());
         if (!consumeModelCall(session, revision, "WORK_PACKAGE_MODEL_CALL_LIMIT")) return;
         try {
@@ -1472,7 +1479,7 @@ public class DesignerSessionService {
                         compilation.lastErrorCode(), compilation.lastErrorDetail(), compilation.createdAt(),
                         compilation.updatedAt(), compilation.version(), compilation.workPackageId(),
                         compilation.transportRetryCount() + 1, compilation.compiledPackageJson(),
-                        compilation.workflowStep(), compilation.planningJson());
+                        compilation.workflowStep(), compilation.planningJson(), compilation.planningRepairCount());
                 LoopSpecCompilationRow running = updateCompilation(retryBase, LoopSpecCompilationState.RUNNING,
                         remote.id(), "TRANSPORT_RETRY", compilation.repairCount(), code, safeMessage(detail),
                         session.projectId(), compilation.compiledPackageJson());
@@ -2216,7 +2223,7 @@ public class DesignerSessionService {
 
                 Return one complete replacement object between
                 TASK_DECOMPOSITION_PLAN_JSON_START/END markers.
-                """.formatted(row.repairCount(), MAX_DECOMPOSER_REPAIRS, code, safeMessage(detail),
+                """.formatted(row.planningRepairCount(), MAX_DECOMPOSER_REPAIRS, code, safeMessage(detail),
                 readSegments(revision.requirementSegmentsJson()).stream()
                         .map(segment -> segment.id() + ": " + segment.text())
                         .collect(java.util.stream.Collectors.joining("\n")),
@@ -2437,7 +2444,7 @@ public class DesignerSessionService {
 
                 Frozen work-package design:
                 %s
-                """.formatted(compilation.repairCount(), MAX_COMPILER_REPAIRS, code, safeMessage(detail),
+                """.formatted(compilation.planningRepairCount(), MAX_COMPILER_REPAIRS, code, safeMessage(detail),
                 packageCompilerPlanningMachineContract(workPackage.packageId()), design);
     }
 
@@ -2830,7 +2837,7 @@ public class DesignerSessionService {
                                                      String errorCode, String errorDetail) {
         return updateDecomposition(row, state, resultType, normalizedGoal, globalConstraintsJson, planJson,
                 externalSessionId, externalSessionState, repairCount, transportRetryCount, errorCode, errorDetail,
-                StructuredModelStep.valueOf(row.workflowStep()), row.planningJson());
+                StructuredModelStep.valueOf(row.workflowStep()), row.planningJson(), row.planningRepairCount());
     }
 
     private TaskDecompositionRow updateDecomposition(TaskDecompositionRow row, TaskDecompositionState state,
@@ -2840,12 +2847,25 @@ public class DesignerSessionService {
                                                      int repairCount, int transportRetryCount,
                                                      String errorCode, String errorDetail,
                                                      StructuredModelStep workflowStep, String planningJson) {
+        return updateDecomposition(row, state, resultType, normalizedGoal, globalConstraintsJson, planJson,
+                externalSessionId, externalSessionState, repairCount, transportRetryCount, errorCode, errorDetail,
+                workflowStep, planningJson, row.planningRepairCount());
+    }
+
+    private TaskDecompositionRow updateDecomposition(TaskDecompositionRow row, TaskDecompositionState state,
+                                                     String resultType, String normalizedGoal,
+                                                     String globalConstraintsJson, String planJson,
+                                                     String externalSessionId, String externalSessionState,
+                                                     int repairCount, int transportRetryCount,
+                                                     String errorCode, String errorDetail,
+                                                     StructuredModelStep workflowStep, String planningJson,
+                                                     int planningRepairCount) {
         TaskDecompositionRow updated = new TaskDecompositionRow(row.id(), row.designerSessionId(),
                 row.requirementRevisionId(), state.name(), resultType, normalizedGoal,
                 globalConstraintsJson == null ? "[]" : globalConstraintsJson,
                 planJson == null ? "{}" : planJson, externalSessionId, externalSessionState,
                 repairCount, transportRetryCount, row.sourceDraftVersion(), errorCode, errorDetail,
-                row.createdAt(), now(), row.version(), workflowStep.name(), planningJson);
+                row.createdAt(), now(), row.version(), workflowStep.name(), planningJson, planningRepairCount);
         DesignerSessionRow session = get(row.designerSessionId());
         if (row.state().equals(updated.state())) {
             lifecycle.mutateWithoutTransition(() -> mapper.updateTaskDecomposition(updated),
@@ -3011,7 +3031,7 @@ public class DesignerSessionService {
                                                      String projectId, String compiledPackageJson) {
         return updateCompilation(row, state, externalSessionId, externalSessionState, repairCount, errorCode,
                 errorDetail, projectId, compiledPackageJson, StructuredModelStep.valueOf(row.workflowStep()),
-                row.planningJson());
+                row.planningJson(), row.planningRepairCount());
     }
 
     private LoopSpecCompilationRow updateCompilation(LoopSpecCompilationRow row,
@@ -3020,11 +3040,23 @@ public class DesignerSessionService {
                                                      int repairCount, String errorCode, String errorDetail,
                                                      String projectId, String compiledPackageJson,
                                                      StructuredModelStep workflowStep, String planningJson) {
+        return updateCompilation(row, state, externalSessionId, externalSessionState, repairCount, errorCode,
+                errorDetail, projectId, compiledPackageJson, workflowStep, planningJson,
+                row.planningRepairCount());
+    }
+
+    private LoopSpecCompilationRow updateCompilation(LoopSpecCompilationRow row,
+                                                     LoopSpecCompilationState state,
+                                                     String externalSessionId, String externalSessionState,
+                                                     int repairCount, String errorCode, String errorDetail,
+                                                     String projectId, String compiledPackageJson,
+                                                     StructuredModelStep workflowStep, String planningJson,
+                                                     int planningRepairCount) {
         LoopSpecCompilationRow updated = new LoopSpecCompilationRow(row.id(), row.designerSessionId(),
                 row.designRevision(), state.name(), externalSessionId, externalSessionState, repairCount,
                 row.sourceDesignMessageId(), row.sourceDraftVersion(), errorCode, errorDetail,
                 row.createdAt(), now(), row.version(), row.workPackageId(), row.transportRetryCount(),
-                compiledPackageJson, workflowStep.name(), planningJson);
+                compiledPackageJson, workflowStep.name(), planningJson, planningRepairCount);
         if (row.state().equals(updated.state())) {
             lifecycle.mutateWithoutTransition(() -> mapper.updateLoopSpecCompilation(updated),
                     () -> new ConflictException("LOOPSPEC_COMPILATION_VERSION_CONFLICT",
@@ -3168,14 +3200,15 @@ public class DesignerSessionService {
     public record CompilerStatus(String id, String state, String externalSessionId,
                                  String externalSessionState, int repairCount,
                                  int designRevision, String lastErrorCode, String lastErrorDetail,
-                                 String workPackageId, String workflowStep) { }
+                                 String workPackageId, String workflowStep, int planningRepairCount) { }
     public record RequirementRevisionStatus(int revision, String state, int modelCallsUsed,
                                             int maxModelCalls, long sourceDraftVersion) { }
     public record DecompositionStatus(String id, String state, String resultType, int repairCount,
                                       int transportRetryCount, String lastErrorCode, String lastErrorDetail,
-                                      String workflowStep) { }
+                                      String workflowStep, int planningRepairCount) { }
     public record WorkPackageStatus(String id, int ordinal, String title, String objective, String state,
                                     List<String> dependencies, int redesignCount, int compilerRepairCount,
+                                    int compilerPlanningRepairCount,
                                     String compilerSummary, String handoffSummary,
                                     String lastErrorCode, String lastErrorDetail) { }
     public record RequirementSegment(String id, String text) { }

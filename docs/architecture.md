@@ -179,9 +179,11 @@ envelope. The server validates and freezes requirement coverage/dependencies or
 Stage/acceptance/test evidence before the same read-only Session receives a
 second prompt to generate final JSON. Final envelopes must be exact projections
 of the frozen plan; drift, JSON/type, field, verifier, traceability, and coverage
-errors consume only that role's existing repair allowance. `workflow_step` and
-`planning_json` make both turns restart-recoverable while remaining hidden from
-chat/SSE content. Six packages now need 20 no-repair model calls, so the shared
+errors consume the bounded allowance for their own step. V24 separates the
+planning repair counter from the final-JSON repair counter, allowing at most two
+repairs in each step without one step exhausting the other. `workflow_step`,
+`planning_json`, and both counters make the turns restart-recoverable while
+remaining hidden from chat/SSE content. Six packages now need 20 no-repair model calls, so the shared
 per-requirement ceiling is 32 calls; confirmed transport retries and all content
 repairs still count against it.
 

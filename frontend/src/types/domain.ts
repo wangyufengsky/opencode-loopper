@@ -750,6 +750,7 @@ export interface TaskDecompositionStatus {
   lastErrorCode?: string
   lastErrorDetail?: string
   workflowStep: StructuredModelStep
+  planningRepairCount: number
 }
 
 export interface DesignWorkPackageStatus {
@@ -761,6 +762,7 @@ export interface DesignWorkPackageStatus {
   dependencies: string[]
   redesignCount: number
   compilerRepairCount: number
+  compilerPlanningRepairCount: number
   compilerSummary?: string
   handoffSummary?: string
   lastErrorCode?: string
@@ -791,6 +793,7 @@ export interface DesignerSession {
     lastErrorDetail?: string
     workPackageId?: string
     workflowStep: StructuredModelStep
+    planningRepairCount: number
   }
   requirement?: DesignRequirementRevisionStatus
   decomposition?: TaskDecompositionStatus

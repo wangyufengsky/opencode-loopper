@@ -339,7 +339,7 @@ describe('Designer draft composer', () => {
     const failedSession: DesignerSession = {
       ...session,
       state: 'SESSION_ERROR', workflowPhase: 'FAILED', activeActor: 'SYSTEM',
-      compiler: { id: 'compiler-1', state: 'SESSION_ERROR', externalSessionState: 'FAILED', repairCount: 2, designRevision: 1, workflowStep: 'FINAL_JSON' },
+      compiler: { id: 'compiler-1', state: 'SESSION_ERROR', externalSessionState: 'FAILED', repairCount: 2, planningRepairCount: 0, designRevision: 1, workflowStep: 'FINAL_JSON' },
       messages: [
         { id: 'user', role: 'USER', actor: 'USER', content: '请设计缓存刷新任务', deliveryState: 'PERSISTED', createdAt: 'now' },
         { id: 'designer', role: 'ASSISTANT', actor: 'DESIGNER', content: '# 完整设计稿', deliveryState: 'PERSISTED', createdAt: 'now' },
@@ -368,7 +368,7 @@ describe('Designer draft composer', () => {
     expect(wrapper.get('.validator-retryable_error').text()).toContain('Deterministic Validator / 确定性校验器')
     expect(wrapper.get('.validator-terminal_error').text()).toContain('工作流已停止')
     expect(wrapper.text()).not.toContain('"loopSpec":"secret"')
-    expect(wrapper.get('.designer-connection-strip').text()).toContain('Compiler 修复 2/2')
+    expect(wrapper.get('.designer-connection-strip').text()).toContain('Compiler 规划修复 0/2 · JSON 修复 2/2')
 
     await wrapper.findAll('button').find((button) => button.text().includes('重新编译当前设计'))!.trigger('click')
     await flushPromises()
@@ -384,11 +384,11 @@ describe('Designer draft composer', () => {
       state: 'WAITING_INPUT', workflowPhase: 'FAILED', activeActor: 'VALIDATOR',
       requirementRevision: 3, activeWorkPackageId: 'WP-2',
       requirement: { revision: 3, state: 'WAITING_INPUT', modelCallsUsed: 9, maxModelCalls: 32, sourceDraftVersion: 4 },
-      decomposition: { id: 'decomposition-3', state: 'COMPLETED', resultType: 'DECOMPOSED', repairCount: 1, transportRetryCount: 0, workflowStep: 'FINAL_JSON' },
-      compiler: { id: 'compiler-wp2', state: 'SESSION_ERROR', externalSessionState: 'FAILED', repairCount: 2, designRevision: 1, workPackageId: 'WP-2', workflowStep: 'FINAL_JSON' },
+      decomposition: { id: 'decomposition-3', state: 'COMPLETED', resultType: 'DECOMPOSED', repairCount: 1, planningRepairCount: 1, transportRetryCount: 0, workflowStep: 'FINAL_JSON' },
+      compiler: { id: 'compiler-wp2', state: 'SESSION_ERROR', externalSessionState: 'FAILED', repairCount: 2, planningRepairCount: 2, designRevision: 1, workPackageId: 'WP-2', workflowStep: 'FINAL_JSON' },
       workPackages: [
-        { id: 'WP-1', ordinal: 0, title: '查询能力', objective: '可查询结果', dependencies: [], state: 'COMPLETED', redesignCount: 0, compilerRepairCount: 0 },
-        { id: 'WP-2', ordinal: 1, title: '变更能力', objective: '可变更结果', dependencies: ['WP-1'], state: 'WAITING_INPUT', redesignCount: 1, compilerRepairCount: 2, lastErrorCode: 'COMPILER_RETRY_EXHAUSTED' },
+        { id: 'WP-1', ordinal: 0, title: '查询能力', objective: '可查询结果', dependencies: [], state: 'COMPLETED', redesignCount: 0, compilerRepairCount: 0, compilerPlanningRepairCount: 0 },
+        { id: 'WP-2', ordinal: 1, title: '变更能力', objective: '可变更结果', dependencies: ['WP-1'], state: 'WAITING_INPUT', redesignCount: 1, compilerRepairCount: 2, compilerPlanningRepairCount: 2, lastErrorCode: 'COMPILER_RETRY_EXHAUSTED' },
       ],
       messages: [
         { id: 'decomposer', role: 'ASSISTANT', actor: 'DECOMPOSER', content: '拆解校验通过：形成 2 个工作包。', deliveryState: 'COMPILED', requirementRevision: 3, createdAt: 'now' },
@@ -409,7 +409,7 @@ describe('Designer draft composer', () => {
 
     expect(wrapper.get('.chat-decomposer').text()).toContain('Task Decomposer / 任务拆解器')
     expect(wrapper.get('[aria-label="工作包设计轨道"]').text()).toContain('WP-1')
-    expect(wrapper.get('[aria-label="工作包设计轨道"]').text()).toContain('依赖 WP-1 · 重设计 1/1 · 编译修复 2/2')
+    expect(wrapper.get('[aria-label="工作包设计轨道"]').text()).toContain('依赖 WP-1 · 重设计 1/1 · 编译规划修复 2/2 · JSON 修复 2/2')
     expect(wrapper.get('.designer-connection-strip').text()).toContain('模型调用 9/32')
     expect(wrapper.text()).not.toContain('"stages":["secret"]')
     const confirmButton = wrapper.findAll('button').find((button) => button.text().includes('确认并交接'))!
