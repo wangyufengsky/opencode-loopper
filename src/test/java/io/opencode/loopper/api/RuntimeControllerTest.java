@@ -17,7 +17,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 class RuntimeControllerTest {
     private final OpenCodeRuntimeManager runtime = mock(OpenCodeRuntimeManager.class);
-    private final MockMvc mvc = MockMvcBuilders.standaloneSetup(new RuntimeController(runtime, "0.1.46"))
+    private final MockMvc mvc = MockMvcBuilders.standaloneSetup(new RuntimeController(runtime, "0.1.47"))
             .setControllerAdvice(new ApiExceptionHandler()).build();
 
     @Test
@@ -28,7 +28,7 @@ class RuntimeControllerTest {
 
         mvc.perform(get("/api/runtime/opencode"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.loopperVersion").value("0.1.46"))
+                .andExpect(jsonPath("$.loopperVersion").value("0.1.47"))
                 .andExpect(jsonPath("$.version").value("1.18.16"));
     }
 
@@ -45,7 +45,7 @@ class RuntimeControllerTest {
 
         mvc.perform(post("/api/runtime/opencode/start").header("X-Loopper-Local-UI", "1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.loopperVersion").value("0.1.46"))
+                .andExpect(jsonPath("$.loopperVersion").value("0.1.47"))
                 .andExpect(jsonPath("$.status").value("AVAILABLE"))
                 .andExpect(jsonPath("$.managed").value(true))
                 .andExpect(jsonPath("$.pid").value(6400))

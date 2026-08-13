@@ -213,6 +213,17 @@ freezes `REQUIREMENT_CONTEXT`, `DECOMPOSITION_CONTEXT`, per-package
 composite compatibility `DESIGN_CONTEXT`. A draft version conflict stops before
 the next model call and never creates a Task.
 
+All package design Sessions read the same immutable pre-execution repository
+baseline. A `COMPLETED` predecessor means its frozen design/compilation contract
+is valid and its Stages are ordered before the current package; it does not mean
+the design-time repository already contains its files. The server injects the
+predecessor summary/handoff as an available-at-execution contract, and Compiler
+must not turn baseline absence into `MISSING_SCOPE`. During Compiler planning,
+the model owns Stage and evidence semantics while the server owns mechanical
+criterion numbering, uniquely recoverable exact Designer slices, and propagation
+of evidence-mapping TEST targets/criterion IDs to the matching verifier. The
+normal v2 assessment still runs after canonicalization and remains authoritative.
+
 The confirmed aggregate still creates exactly one Task, one task branch, and
 one publication. Stage execution remains serial, while each package owns an
 attempt pool of `min(stageCount * maxStageAttempts, stageCount + 2)` and earlier

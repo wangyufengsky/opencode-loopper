@@ -64,6 +64,15 @@ then creates a brand-new read-only Compiler Session with the same configured
 model. Compiler has the same `read`/`glob`/`grep`-only boundary and cannot ask
 questions or create a Task.
 
+Those tools see the pre-execution repository baseline, not a simulated checkout
+after earlier packages. For a package dependency already marked `COMPLETED`,
+Loopper supplies the predecessor's frozen objective, Compiler summary, and
+handoff contract. Strict Task execution guarantees that predecessor's Stages run
+first, so a currently absent predecessor-owned class or file is an
+available-at-execution dependency rather than `MISSING_SCOPE`. Compiler may only
+report a dependency-related semantic gap when neither the current design nor the
+frozen predecessor contract defines the required behavior/API.
+
 Decomposer and Compiler do not jump directly from prose to the final envelope.
 In the same read-only Session, the first model turn follows the fixed semantic
 order `planning -> evidence mapping` and returns a role-specific planning marker:
@@ -102,6 +111,12 @@ assessment before freezing it; direct argv, BEHAVIOR coverage, focused Java
 tests and managed-runtime bindings therefore fail in the planning repair pool,
 not after final JSON generation. The final turn must copy these frozen objects
 exactly and any drift is rejected as `COMPILER_PLAN_VERIFIER_DRIFT`.
+Stable criterion numbering, exact-source slicing, and duplicated TEST verifier
+`criterionIds`/`testTargets` are server-owned encoding work: Loopper canonicalizes
+them from the semantic evidence mappings before running that unchanged v2
+assessment. Exact-source recovery is allowed only for one unique normalized
+match; ambiguity, missing business evidence, unsafe commands, or missing focused
+test commands/targets still consume the normal planning repair path.
 Each requirement revision permits at most 32 model calls across all roles and
 one fresh-Session transport retry per role invocation. After every package
 passes, Loopper—not a model—concatenates fragments in package order and runs the

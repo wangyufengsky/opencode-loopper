@@ -11,7 +11,7 @@ describe('RuntimeView managed startup diagnostics', () => {
     setActivePinia(pinia)
     const store = useTaskStore()
     store.runtime = {
-      loopperVersion: '0.1.46', status: 'OFFLINE', managed: false, endpoint: 'http://127.0.0.1:51234', model: '', checkedAt: '2026-08-12T06:00:00Z',
+      loopperVersion: '0.1.47', status: 'OFFLINE', managed: false, endpoint: 'http://127.0.0.1:51234', model: '', checkedAt: '2026-08-12T06:00:00Z',
       startupFailure: 'Managed OpenCode exited with code 1 before it became healthy',
     }
 
@@ -32,7 +32,7 @@ describe('RuntimeView managed startup diagnostics', () => {
     expect(wrapper.text()).toContain('http://127.0.0.1:51234')
     expect(wrapper.text()).toContain('未建立受管进程')
     expect(wrapper.get('.loopper-version').text()).toContain('OpenCode Loopper 版本')
-    expect(wrapper.get('.loopper-version').text()).toContain('0.1.46')
+    expect(wrapper.get('.loopper-version').text()).toContain('0.1.47')
     expect(wrapper.text()).not.toContain('外部复用服务')
     expect(wrapper.get('.start-runtime-button').text()).toContain('启动 OpenCode 并检查连接')
   })
@@ -42,11 +42,11 @@ describe('RuntimeView managed startup diagnostics', () => {
     setActivePinia(pinia)
     const store = useTaskStore()
     store.runtime = {
-      loopperVersion: '0.1.46', status: 'OFFLINE', managed: false, endpoint: 'http://127.0.0.1:51234', model: '', checkedAt: '2026-08-12T06:00:00Z',
+      loopperVersion: '0.1.47', status: 'OFFLINE', managed: false, endpoint: 'http://127.0.0.1:51234', model: '', checkedAt: '2026-08-12T06:00:00Z',
       startupFailure: 'Managed OpenCode did not become healthy before startup-timeout',
     }
     const started = {
-      loopperVersion: '0.1.46', status: 'ONLINE' as const, managed: true, pid: 6400, endpoint: 'http://127.0.0.1:34020',
+      loopperVersion: '0.1.47', status: 'ONLINE' as const, managed: true, pid: 6400, endpoint: 'http://127.0.0.1:34020',
       version: '1.18.16', model: '', checkedAt: '2026-08-12T06:30:00Z',
     }
     const start = vi.spyOn(store, 'startRuntime').mockImplementation(async () => {

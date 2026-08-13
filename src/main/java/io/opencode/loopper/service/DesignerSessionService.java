@@ -1013,6 +1013,7 @@ public class DesignerSessionService {
         PackageCompilationPlanEnvelope plan;
         try {
             plan = parsePackageCompilationPlan(output);
+            plan = canonicalizePackageCompilationPlan(workPackage, design, plan);
             validatePackageCompilationPlan(workPackage, design, plan,
                     "v2".equalsIgnoreCase(drafts.spec(drafts.get(session.loopDraftId())).schemaVersion()));
         } catch (BadRequestException invalid) {
@@ -2014,6 +2015,130 @@ public class DesignerSessionService {
         boundedUtf8(plan.handoffSummary(), MAX_HANDOFF_SUMMARY_LENGTH);
     }
 
+    /**
+     * The model owns semantic Stage/evidence planning, while stable ids, exact source slices, and duplicated
+     * verifier metadata are mechanical compiler output. Canonicalize those fields before applying the unchanged
+     * authoritative LoopSpec v2 validation so a weak model does not spend content retries on bookkeeping drift.
+     */
+    private PackageCompilationPlanEnvelope canonicalizePackageCompilationPlan(DesignWorkPackageRow workPackage,
+                                                                               String design,
+                                                                               PackageCompilationPlanEnvelope plan) {
+        if (plan.contractVersion() < 2 || !"COMPILED".equals(plan.status())) return plan;
+
+        List<CanonicalEvidenceMapping> canonical = new ArrayList<>();
+        for (int index = 0; index < plan.evidenceMappings().size(); index++) {
+            AcceptanceEvidenceMapping mapping = plan.evidenceMappings().get(index);
+            if (mapping == null) continue;
+            String criterionId = workPackage.packageId() + "-AC-" + (index + 1);
+            String excerpt = canonicalDesignerExcerpt(design, mapping.designerExcerpt());
+            AcceptanceEvidenceMapping normalized = new AcceptanceEvidenceMapping(mapping.stageIndex(), criterionId,
+                    mapping.description(), excerpt, mapping.verificationMode(), mapping.judgeRubric(),
+                    mapping.judgeOnlyReason(), mapping.verifierStrategy(), mapping.testCommand(),
+                    mapping.testTargets());
+            canonical.add(new CanonicalEvidenceMapping(mapping.criterionId(), normalized));
+        }
+
+        List<PlannedStage> stages = new ArrayList<>();
+        for (int stageIndex = 0; stageIndex < plan.stages().size(); stageIndex++) {
+            PlannedStage stage = plan.stages().get(stageIndex);
+            if (stage == null) {
+                stages.add(null);
+                continue;
+            }
+            List<LoopSpec.VerifierSpec> verifiers = new ArrayList<>();
+            for (LoopSpec.VerifierSpec verifier : stage.verifiers()) {
+                verifiers.add(canonicalizePlannedVerifier(stageIndex, verifier, canonical));
+            }
+            stages.add(new PlannedStage(stage.objective(), stage.allowedPaths(), stage.forbiddenPaths(),
+                    stage.deliverables(), verifiers, stage.verificationRuntime(), stage.implementationKind(),
+                    stage.workPackageId()));
+        }
+        return new PackageCompilationPlanEnvelope(plan.contractVersion(), plan.status(), plan.summary(), stages,
+                canonical.stream().map(CanonicalEvidenceMapping::mapping).toList(), plan.handoffSummary(),
+                plan.designGaps());
+    }
+
+    private LoopSpec.VerifierSpec canonicalizePlannedVerifier(int stageIndex, LoopSpec.VerifierSpec verifier,
+                                                               List<CanonicalEvidenceMapping> canonical) {
+        if (verifier == null) return null;
+        LinkedHashSet<String> criterionIds = new LinkedHashSet<>();
+        LinkedHashSet<String> testTargets = new LinkedHashSet<>(verifier.testTargets());
+        for (CanonicalEvidenceMapping item : canonical) {
+            AcceptanceEvidenceMapping mapping = item.mapping();
+            if (mapping.stageIndex() != stageIndex) continue;
+            if (!blank(item.originalCriterionId()) && verifier.criterionIds().contains(item.originalCriterionId())) {
+                criterionIds.add(mapping.criterionId());
+            }
+            if ("PROCESS".equals(verifier.type()) && "TEST".equals(verifier.processPurpose())
+                    && !mapping.testCommand().isEmpty() && verifier.command().equals(mapping.testCommand())) {
+                criterionIds.add(mapping.criterionId());
+                testTargets.addAll(mapping.testTargets());
+            }
+        }
+        if (criterionIds.isEmpty()) {
+            for (String originalId : verifier.criterionIds()) {
+                canonical.stream().filter(item -> same(item.originalCriterionId(), originalId))
+                        .map(CanonicalEvidenceMapping::mapping)
+                        .filter(mapping -> mapping.stageIndex() == stageIndex)
+                        .map(AcceptanceEvidenceMapping::criterionId)
+                        .forEach(criterionIds::add);
+            }
+        }
+        return new LoopSpec.VerifierSpec(verifier.type(), verifier.command(), verifier.path(),
+                verifier.requireChanges(), verifier.allowedPaths(), verifier.forbiddenPaths(),
+                verifier.forbidDeletes(), verifier.outputContains(), verifier.url(), verifier.httpMethod(),
+                verifier.expectedStatus(), verifier.jsonPath(), verifier.expectedValue(), verifier.matchMode(),
+                verifier.expectedContent(), verifier.expectedSha256(), verifier.sql(), verifier.expectedRowCount(),
+                verifier.assertions(), List.copyOf(criterionIds), verifier.processPurpose(), List.copyOf(testTargets));
+    }
+
+    private String canonicalDesignerExcerpt(String design, String candidate) {
+        if (blank(candidate) || blank(design)) return candidate;
+        if (design.contains(candidate)) return candidate;
+        String trimmed = candidate.trim();
+        if (design.contains(trimmed)) return trimmed;
+        NormalizedEvidenceText source = normalizeEvidenceText(design, true);
+        String expected = normalizeEvidenceText(trimmed, false).text();
+        if (expected.length() < 8) return candidate;
+        int start = source.text().indexOf(expected);
+        if (start < 0 || start != source.text().lastIndexOf(expected)) return candidate;
+        int end = start + expected.length() - 1;
+        return design.substring(source.starts().get(start), source.ends().get(end));
+    }
+
+    private NormalizedEvidenceText normalizeEvidenceText(String value, boolean retainOffsets) {
+        StringBuilder text = new StringBuilder();
+        List<Integer> starts = new ArrayList<>();
+        List<Integer> ends = new ArrayList<>();
+        boolean pendingSpace = false;
+        int pendingStart = 0;
+        for (int index = 0; index < value.length(); index++) {
+            char current = value.charAt(index);
+            if (current == '*' || current == '_' || current == '`') continue;
+            if (Character.isWhitespace(current)) {
+                if (!text.isEmpty() && text.charAt(text.length() - 1) != ' ') {
+                    pendingSpace = true;
+                    pendingStart = index;
+                }
+                continue;
+            }
+            if (pendingSpace) {
+                text.append(' ');
+                if (retainOffsets) {
+                    starts.add(pendingStart);
+                    ends.add(index);
+                }
+                pendingSpace = false;
+            }
+            text.append(current);
+            if (retainOffsets) {
+                starts.add(index);
+                ends.add(index + 1);
+            }
+        }
+        return new NormalizedEvidenceText(text.toString().trim(), List.copyOf(starts), List.copyOf(ends));
+    }
+
     private void validatePackageCompilationAgainstPlan(PackageCompilationPlanEnvelope plan,
                                                        PackageCompilationEnvelope envelope) {
         if (!plan.status().equals(envelope.status())) throw new BadRequestException("COMPILER_PLAN_STATUS_DRIFT",
@@ -2330,10 +2455,7 @@ public class DesignerSessionService {
                                          DesignRequirementRevisionRow revision,
                                          DesignWorkPackageRow workPackage) {
         TaskDecompositionRow decomposition = mapper.findTaskDecompositionByRevision(revision.id()).orElseThrow();
-        String prerequisites = mapper.listDesignWorkPackages(revision.id()).stream()
-                .filter(item -> strings(workPackage.dependenciesJson()).contains(item.packageId()))
-                .map(item -> item.packageId() + ": " + (blank(item.handoffSummary()) ? "无交接摘要" : item.handoffSummary()))
-                .collect(java.util.stream.Collectors.joining("\n"));
+        String prerequisites = prerequisitePackageContracts(revision.id(), workPackage);
         return """
                 You are OpenCode Loopper Designer / 设计师 for exactly one work package in a new strictly read-only Session.
                 You may use read, glob, and grep. Do not edit/write files, execute commands, ask implementation agents,
@@ -2349,8 +2471,14 @@ public class DesignerSessionService {
                 Current package %s (only scope to design):
                 %s
 
-                Bounded prerequisite handoff summaries:
+                Frozen prerequisite package contracts and handoff summaries:
                 %s
+
+                The repository is the immutable pre-execution baseline. A prerequisite with state COMPLETED has
+                completed Designer/Compiler/Validator processing, but its production files are intentionally absent
+                until the single Task executes packages in dependency order. Treat its frozen contract as available
+                at execution time. Do not redesign the current package merely because read/glob/grep cannot find a
+                prerequisite deliverable in the baseline repository.
 
                 Produce one complete Simplified-Chinese Markdown design no larger than 24 KiB UTF-8. Cover scope and
                 non-scope, observable results, exception semantics, affected files/modules, 1-3 dependency-ordered
@@ -2363,11 +2491,12 @@ public class DesignerSessionService {
                         "deliverables", strings(workPackage.deliverablesJson()),
                         "acceptanceIntent", strings(workPackage.acceptanceIntentJson()),
                         "requirementRefs", strings(workPackage.requirementRefsJson()))),
-                prerequisites.isBlank() ? "无" : prerequisites);
+                prerequisites);
     }
 
     private String packageCompilerPlanningPrompt(ProjectRow project, DesignRequirementRevisionRow revision,
                                                  DesignWorkPackageRow workPackage, String design) {
+        String prerequisites = prerequisitePackageContracts(revision.id(), workPackage);
         return """
                 You are OpenCode Loopper LoopSpec Compiler / 规范编译器 in the semantic planning turn for exactly one
                 frozen work-package design. This is a strictly read-only Session: use only read, glob, and grep;
@@ -2387,6 +2516,17 @@ public class DesignerSessionService {
                 Required workPackageId: %s
                 Required criterion id prefix: %s-AC-
 
+                Frozen prerequisite package contracts:
+                %s
+
+                Repository timing rule: this read-only repository is the immutable pre-execution baseline. A listed
+                prerequisite with state COMPLETED is guaranteed to execute successfully before this package's Stages
+                can start in the single dependency-ordered Task. Its files may therefore be absent now. Use read/glob/
+                grep only for baseline conventions and files not owned by completed prerequisites. You must not return
+                DESIGN_INCOMPLETE or MISSING_SCOPE merely because a completed prerequisite deliverable is absent from
+                the current repository. Report a semantic gap only when the required contract is absent from both the
+                frozen current design and the frozen prerequisite contract/handoff.
+
                 %s
 
                 <!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->
@@ -2396,8 +2536,28 @@ public class DesignerSessionService {
                 Frozen work-package design revision %d:
                 %s
                 """.formatted(project.rootPath(), revision.revision(), workPackage.packageId(),
-                workPackage.packageId(), packageCompilerPlanningMachineContract(workPackage.packageId()),
+                workPackage.packageId(), prerequisites,
+                packageCompilerPlanningMachineContract(workPackage.packageId()),
                 workPackage.designRevision(), design);
+    }
+
+    private String prerequisitePackageContracts(String requirementRevisionId,
+                                                DesignWorkPackageRow workPackage) {
+        Set<String> dependencyIds = new LinkedHashSet<>(strings(workPackage.dependenciesJson()));
+        if (dependencyIds.isEmpty()) return "[]";
+        List<Map<String, Object>> contracts = mapper.listDesignWorkPackages(requirementRevisionId).stream()
+                .filter(item -> dependencyIds.contains(item.packageId()))
+                .map(item -> {
+                    Map<String, Object> contract = new LinkedHashMap<>();
+                    contract.put("workPackageId", item.packageId());
+                    contract.put("state", item.state());
+                    contract.put("objective", item.objective());
+                    contract.put("compilerSummary", blank(item.compilerSummary()) ? "" : item.compilerSummary());
+                    contract.put("handoffSummary", blank(item.handoffSummary()) ? "" : item.handoffSummary());
+                    return contract;
+                })
+                .toList();
+        return write(contracts);
     }
 
     private String packageCompilerPlanningMachineContract(String packageId) {
@@ -2420,6 +2580,10 @@ public class DesignerSessionService {
                   Every MACHINE/BOTH criterion in that Stage repeats the focused direct-argv testCommand and concrete
                   testTargets it expects the final verifier to implement. Non-test evidence uses empty testCommand/
                   testTargets but still names verifierStrategy. Tests are evidence, never a 'tests pass' criterion.
+                - The server deterministically canonicalizes criterion numbering, uniquely recoverable exact Designer
+                  source slices, and duplicated PROCESS TEST criterionIds/testTargets before authoritative validation.
+                  Preserve the semantic Stage, behavior, evidence strategy, focused test argv, and concrete target;
+                  do not spend a design-gap response on mechanical identifier or duplicated-field bookkeeping.
                 - COMPILED has 1-3 stages, at least one evidence mapping per Stage, handoffSummary <=4 KiB UTF-8,
                   and designGaps:[]. DESIGN_INCOMPLETE has stages:[], evidenceMappings:[], and gap objects such as
                   {"code":"MISSING_EXCEPTION_SEMANTICS","detail":"concrete missing design fact"}. Allowed gap codes
@@ -2460,6 +2624,7 @@ public class DesignerSessionService {
     private String packageCompilerPrompt(DesignerSessionRow session, ProjectRow project, LoopDraftRow draft,
                                          DesignRequirementRevisionRow revision, DesignWorkPackageRow workPackage,
                                          String design) {
+        String prerequisites = prerequisitePackageContracts(revision.id(), workPackage);
         return """
                 You are OpenCode Loopper LoopSpec Compiler / 规范编译器 for one frozen work-package design in a new
                 strictly read-only Session. You may use read, glob, and grep to verify build/test conventions. Never
@@ -2470,6 +2635,11 @@ public class DesignerSessionService {
                 Required workPackageId: %s
                 Required criterion id prefix: %s-AC-
                 Read-only draft defaults to preserve during later server aggregation: %s
+                Frozen prerequisite package contracts: %s
+
+                This repository is the pre-execution baseline. A prerequisite with state COMPLETED will execute
+                before this package, so its currently absent deliverables are available-at-execution dependencies,
+                not MISSING_SCOPE. Do not reject the package solely because read/glob/grep cannot find those files.
 
                 COMPILED returns 1-3 complete StageSpec objects only (not a LoopSpec), a short summary, an exact
                 Designer excerpt for every criterion, and a dependency handoffSummary <=4 KiB UTF-8. Every StageSpec
@@ -2487,7 +2657,7 @@ public class DesignerSessionService {
                 Frozen package design revision %d for requirement R%d:
                 %s
                 """.formatted(project.rootPath(), workPackage.packageId(), workPackage.packageId(), draft.specJson(),
-                workPackage.packageId(), packageCompilerMachineContract(workPackage.packageId()),
+                prerequisites, workPackage.packageId(), packageCompilerMachineContract(workPackage.packageId()),
                 workPackage.designRevision(), revision.revision(), design);
     }
 
@@ -2527,11 +2697,17 @@ public class DesignerSessionService {
     private String packageCompilerPlanningRepairPrompt(LoopSpecCompilationRow compilation,
                                                        DesignWorkPackageRow workPackage,
                                                        String design, String code, String detail) {
+        String prerequisites = prerequisitePackageContracts(workPackage.requirementRevisionId(), workPackage);
         return """
                 The deterministic server rejected the previous Stage/evidence planning envelope. Repair the entire
                 planning result without emitting final StageSpec/verifier JSON. Do not redesign, inspect another
                 package, or use DESIGN_INCOMPLETE to escape format, mapping, or field errors.
                 Repair %d/%d. Error code: %s. Error detail: %s.
+
+                Frozen prerequisite package contracts:
+                %s
+                The repository is the pre-execution baseline. A prerequisite with state COMPLETED executes before
+                this package; its current file absence is not a design gap and must not be returned as MISSING_SCOPE.
 
                 %s
 
@@ -2540,7 +2716,7 @@ public class DesignerSessionService {
                 Frozen work-package design:
                 %s
                 """.formatted(compilation.planningRepairCount(), MAX_COMPILER_REPAIRS, code, safeMessage(detail),
-                packageCompilerPlanningMachineContract(workPackage.packageId()), design);
+                prerequisites, packageCompilerPlanningMachineContract(workPackage.packageId()), design);
     }
 
     private String packageCompilerTransportRetryPrompt(LoopSpecCompilationRow row, DesignerSessionRow session,
@@ -3406,6 +3582,10 @@ public class DesignerSessionService {
             testTargets = testTargets == null ? List.of() : List.copyOf(testTargets);
         }
     }
+    private record CanonicalEvidenceMapping(String originalCriterionId,
+                                            AcceptanceEvidenceMapping mapping) { }
+    private record NormalizedEvidenceText(String text, List<Integer> starts,
+                                          List<Integer> ends) { }
     public record PackageCompilationPlanEnvelope(Integer contractVersion, String status, String summary,
                                                  List<PlannedStage> stages,
                                                  List<AcceptanceEvidenceMapping> evidenceMappings,

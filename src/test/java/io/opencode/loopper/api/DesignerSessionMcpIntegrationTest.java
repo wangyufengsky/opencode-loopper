@@ -54,7 +54,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "loopper.monitor-delay=1h", "loopper.designer-monitor-delay=1h",
         "loopper.mcp.bearer-token=designer-mcp-test-token",
         "spring.ai.mcp.server.protocol=STREAMABLE", "spring.ai.mcp.server.name=opencode-loopper",
-        "spring.ai.mcp.server.version=0.1.46", "spring.ai.mcp.server.annotation-scanner.enabled=false",
+        "spring.ai.mcp.server.version=0.1.47", "spring.ai.mcp.server.annotation-scanner.enabled=false",
         "spring.ai.mcp.server.capabilities.resource=false", "spring.ai.mcp.server.capabilities.prompt=false",
         "spring.ai.mcp.server.capabilities.completion=false",
         "spring.ai.mcp.server.streamable-http.mcp-endpoint=/api/mcp-streamable",
@@ -519,6 +519,52 @@ class DesignerSessionMcpIntegrationTest {
     }
 
     @Test
+    void dependentPackageTrustsCompletedPredecessorAndCanonicalizesMechanicalCompilerFields() throws Exception {
+        ProjectRow project = project("dependent-package-compiler");
+        LoopDraftRow draft = drafts.create(v2DocumentationSpec(project.id()));
+        fake().setDecomposerOutput(decomposition("DECOMPOSED", "先交付事件核心，再融合状态机", 2));
+
+        String firstDesign = "# WP-1 设计\n\nREADME 事件说明可执行自检";
+        fake().setPackageDesignerOutput("WP-1", firstDesign);
+        fake().setPackageCompilerPlanningOutput("WP-1", packageCompilationPlanV2("WP-1",
+                "README 事件说明可执行自检", false));
+        fake().setPackageCompilerOutput("WP-1", packageCompilationV2("WP-1",
+                "README 事件说明可执行自检"));
+
+        String dependentExcerpt = "依赖前置包提供的 `EventPublisher`，发布事件后状态机推进到 PAID。";
+        String secondDesign = "# WP-2 设计\n\n" + dependentExcerpt;
+        fake().setPackageDesignerOutput("WP-2", secondDesign);
+        fake().setPackageCompilerPlanningOutput("WP-2", mechanicallyInconsistentJavaPlan(
+                "依赖前置包提供的 EventPublisher，发布事件后状态机推进到 PAID。"));
+        fake().setPackageCompilerOutput("WP-2", canonicalJavaCompilation(dependentExcerpt));
+
+        DesignerSessionRow session = designerSessions.create(project.id(), draft.id(),
+                "先新增事件发布能力，再让监听器驱动状态机推进");
+        pollUntilSettled(session.id());
+
+        assertThat(designerSessions.get(session.id()).state()).isEqualTo("COMPLETED");
+        assertThat(designerSessions.workPackageStatuses(session.id())).extracting(status -> status.state())
+                .containsExactly("COMPLETED", "COMPLETED");
+        assertThat(designerSessions.workPackageStatuses(session.id()).get(1).compilerPlanningRepairCount()).isZero();
+        assertThat(drafts.spec(drafts.get(draft.id())).stages().get(1)).satisfies(stage -> {
+            assertThat(stage.workPackageId()).isEqualTo("WP-2");
+            assertThat(stage.acceptanceCriteria()).singleElement()
+                    .extracting(LoopSpec.AcceptanceCriterion::id).isEqualTo("WP-2-AC-1");
+            assertThat(stage.verifiers().getFirst().criterionIds()).containsExactly("WP-2-AC-1");
+            assertThat(stage.verifiers().getFirst().testTargets()).containsExactly("EventStateBridgeTest");
+        });
+        assertThat(fake().promptHistory().stream().map(FakeOpenCodeClient.PromptCall::prompt)
+                .filter(prompt -> prompt.contains("Required workPackageId: WP-2")
+                        && prompt.contains("LOOPSPEC_COMPILATION_PLAN_JSON_START")))
+                .singleElement().satisfies(prompt -> assertThat(prompt)
+                        .contains("immutable pre-execution baseline")
+                        .contains("\"workPackageId\":\"WP-1\"")
+                        .contains("\"state\":\"COMPLETED\"")
+                        .contains("must not return", "MISSING_SCOPE"));
+        assertThat(mapper.listTasks()).isEmpty();
+    }
+
+    @Test
     void manualPackageRecompileReactivatesTheSameRequirementAndCanCompleteAggregation() throws Exception {
         ProjectRow project = project("manual-recompile");
         LoopDraftRow draft = drafts.create(legacySpec(project.id()));
@@ -615,7 +661,7 @@ class DesignerSessionMcpIntegrationTest {
                         .accept(MediaType.APPLICATION_JSON, MediaType.TEXT_EVENT_STREAM).content(initialize))
                 .andExpect(status().isUnauthorized());
         MvcResult initialized = mvc.perform(streamable(initialize, null)).andExpect(status().isOk())
-                .andExpect(jsonPath("$.result.serverInfo.version").value("0.1.46")).andReturn();
+                .andExpect(jsonPath("$.result.serverInfo.version").value("0.1.47")).andReturn();
         String sessionId = initialized.getResponse().getHeader("Mcp-Session-Id");
         mvc.perform(streamable("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\",\"params\":{}}", sessionId))
                 .andExpect(status().isAccepted());
@@ -771,6 +817,71 @@ class DesignerSessionMcpIntegrationTest {
         envelope.put("criterionSources", List.of(Map.of("stageIndex", 0, "criterionId", criterionId,
                 "excerpt", excerpt)));
         envelope.put("handoffSummary", packageId + " 已交付，后续包可复用。");
+        envelope.put("designGaps", List.of());
+        return "<!-- LOOPSPEC_COMPILATION_JSON_START -->\n" + json.writeValueAsString(envelope)
+                + "\n<!-- LOOPSPEC_COMPILATION_JSON_END -->";
+    }
+
+    private String mechanicallyInconsistentJavaPlan(String approximateExcerpt) throws Exception {
+        List<String> testCommand = List.of("mvn", "-q", "-Dtest=EventStateBridgeTest", "test");
+        LoopSpec.VerifierSpec behavior = new LoopSpec.VerifierSpec("PROCESS", testCommand,
+                null, null, List.of(), List.of(), null, null, null, null, null, null,
+                null, null, null, null, null, null, List.of(), List.of("temporary-id"), "TEST", List.of());
+        LoopSpec.VerifierSpec scope = new LoopSpec.VerifierSpec("GIT_DIFF", List.of(), null, true,
+                List.of("src/main/java/**", "src/test/java/**"), List.of(".env"), true);
+        Map<String, Object> stage = new LinkedHashMap<>();
+        stage.put("objective", "事件发布驱动状态机推进");
+        stage.put("allowedPaths", List.of("src/main/java/**", "src/test/java/**"));
+        stage.put("forbiddenPaths", List.of(".env"));
+        stage.put("deliverables", List.of("事件状态桥接实现和聚焦单元测试"));
+        stage.put("verifiers", List.of(behavior, scope));
+        stage.put("verificationRuntime", null);
+        stage.put("implementationKind", "JAVA_PRODUCTION");
+        stage.put("workPackageId", "WP-2");
+        Map<String, Object> mapping = new LinkedHashMap<>();
+        mapping.put("stageIndex", 0);
+        mapping.put("criterionId", "temporary-id");
+        mapping.put("description", "发布事件后状态机推进到 PAID");
+        mapping.put("designerExcerpt", approximateExcerpt);
+        mapping.put("verificationMode", "MACHINE");
+        mapping.put("judgeRubric", null);
+        mapping.put("judgeOnlyReason", null);
+        mapping.put("verifierStrategy", "EventStateBridgeTest 聚焦 Maven 单元测试");
+        mapping.put("testCommand", testCommand);
+        mapping.put("testTargets", List.of("EventStateBridgeTest"));
+        Map<String, Object> envelope = new LinkedHashMap<>();
+        envelope.put("contractVersion", 2);
+        envelope.put("status", "COMPILED");
+        envelope.put("summary", "WP-2 语义规划完成，机械字段待服务端规范化");
+        envelope.put("stages", List.of(stage));
+        envelope.put("evidenceMappings", List.of(mapping));
+        envelope.put("handoffSummary", "事件驱动状态推进能力可供后续包复用。");
+        envelope.put("designGaps", List.of());
+        return "<!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->\n" + json.writeValueAsString(envelope)
+                + "\n<!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->";
+    }
+
+    private String canonicalJavaCompilation(String exactExcerpt) throws Exception {
+        String criterionId = "WP-2-AC-1";
+        LoopSpec.VerifierSpec behavior = new LoopSpec.VerifierSpec("PROCESS",
+                List.of("mvn", "-q", "-Dtest=EventStateBridgeTest", "test"), null, null,
+                List.of(), List.of(), null, null, null, null, null, null, null, null,
+                null, null, null, null, List.of(), List.of(criterionId), "TEST",
+                List.of("EventStateBridgeTest"));
+        LoopSpec.VerifierSpec scope = new LoopSpec.VerifierSpec("GIT_DIFF", List.of(), null, true,
+                List.of("src/main/java/**", "src/test/java/**"), List.of(".env"), true);
+        LoopSpec.StageSpec stage = new LoopSpec.StageSpec("事件发布驱动状态机推进",
+                List.of("src/main/java/**", "src/test/java/**"), List.of(".env"),
+                List.of("事件状态桥接实现和聚焦单元测试"), List.of(behavior, scope),
+                List.of(new LoopSpec.AcceptanceCriterion(criterionId, "发布事件后状态机推进到 PAID",
+                        "MACHINE", null, null)), null, ImplementationKind.JAVA_PRODUCTION, "WP-2");
+        Map<String, Object> envelope = new LinkedHashMap<>();
+        envelope.put("status", "COMPILED");
+        envelope.put("summary", "WP-2 编译完成");
+        envelope.put("stages", List.of(stage));
+        envelope.put("criterionSources", List.of(Map.of("stageIndex", 0, "criterionId", criterionId,
+                "excerpt", exactExcerpt)));
+        envelope.put("handoffSummary", "事件驱动状态推进能力可供后续包复用。");
         envelope.put("designGaps", List.of());
         return "<!-- LOOPSPEC_COMPILATION_JSON_START -->\n" + json.writeValueAsString(envelope)
                 + "\n<!-- LOOPSPEC_COMPILATION_JSON_END -->";

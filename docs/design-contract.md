@@ -137,6 +137,16 @@ counters remain independent. Draft concurrency, exhausted budgets, and
 unassignable aggregation conflicts enter `WAITING_INPUT` without synchronizing
 the draft or creating a Task.
 
+Designer and Compiler inspect an immutable pre-execution repository baseline.
+For a later package, a predecessor whose package state is `COMPLETED` has passed
+its Designer/Compiler/Validator workflow but has intentionally not written its
+production files yet. Loopper injects that predecessor's frozen objective,
+Compiler summary, and bounded handoff contract into both prompts. Because the
+single confirmed Task executes package Stages in dependency order, current
+absence of such a deliverable is not `MISSING_SCOPE` and must not trigger a
+redesign. A semantic gap remains valid only when the required contract is absent
+from both the current frozen design and the predecessor contract/handoff.
+
 Decomposer and package Compiler each use a persisted two-turn intelligent
 compilation protocol in the same role Session. The first turn follows the fixed
 order `规划 -> 证据映射`: Decomposer maps every numbered requirement and dependency;
@@ -146,7 +156,13 @@ and test targets for production Java. Compiler planning contract v2 also embeds
 the complete `VerifierSpec` objects and optional `verificationRuntime`; the server
 runs the normal LoopSpec v2 execution assessment before freezing, so shell
 launchers, non-behavior mappings and invalid Java/runtime evidence are repaired
-in the evidence-mapping turn. The server freezes this bounded planning envelope
+in the evidence-mapping turn. Before that assessment, the server deterministically
+numbers criteria as `<workPackageId>-AC-n`, restores an exact source slice when
+the model's excerpt has one unique whitespace/Markdown-format-insensitive match,
+and copies focused TEST `criterionIds`/`testTargets` from the corresponding
+evidence mapping into the matching verifier command. Ambiguous or absent source
+matches and semantically incomplete test evidence still fail the authoritative
+validation. The server freezes this bounded planning envelope
 before asking for final JSON. The second turn may only
 encode the frozen plan, so work-package boundaries, Stage fields, acceptance
 intent, source excerpts, verifier/runtime objects, test evidence and handoff summaries cannot silently
