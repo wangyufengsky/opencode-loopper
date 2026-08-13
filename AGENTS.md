@@ -41,10 +41,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.1.40.jar
-   jar tf target/opencode-loopper-0.1.40.jar \
+   test -s target/opencode-loopper-0.1.41.jar
+   jar tf target/opencode-loopper-0.1.41.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.1.40.jar
+   shasum -a 256 target/opencode-loopper-0.1.41.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -93,8 +93,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.1.40`。
-- 正式产物：`target/opencode-loopper-0.1.40.jar`。
+- Maven 项目版本：`0.1.41`。
+- 正式产物：`target/opencode-loopper-0.1.41.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -202,7 +202,7 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级由编排器负责。终止 Task 不能伪造远端 Session 已停止：无法确认的写入者保留为 `DISCONNECTED`，并阻止重叠写入。
 
-`WAITING_INPUT` 任务必须在本地任务详情中保留直接取消入口；取消需二次确认并保留执行目录、分支和证据，不得伪装成回滚。
+`QUEUED` 与 `WAITING_INPUT` 任务必须在本地任务详情中保留直接取消入口；取消需二次确认并保留执行目录、分支和证据，不得伪装成回滚。取消排队任务只能取消自身队列项并进入 `CANCELLED`，不得释放或转移当前 holder 的写租约；进入终态后再按既有规则归档或删除。
 
 验证失败后的 Attempt 必须固化有界 `ATTEMPT_HANDOFF`，下一轮只能使用新 Attempt 和新可写 Session；不得复用旧实施对话。只有可靠且相同的失败签名与工作区内容指纹才累计停滞次数，达到 `stagnationLimit` 后必须进入 `WAITING_INPUT`，由本地 UI 明确确认继续。
 
@@ -353,7 +353,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.1.40.jar
+JAR=target/opencode-loopper-0.1.41.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -487,3 +487,4 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 | 2026-08-13 | 修复真实环境三项缺陷并发布 0.1.37 | OpenCode 目录查询编码保留 `+`；FILE_CONTENT 保留尾随换行；深层无扩展名路由进入 SPA 且后端/静态 404 不变；同步 README、架构、设计、OpenCode 与验证器合同 | 聚焦缺陷回归 Java 41/41、Vitest 140/140；首次 0.1.36 运行时复测发现 catch-all 抢占静态资源，补全真实 Spring MVC 集成覆盖后，`./scripts/verify.sh` 在 JDK 21 下 Java 325 项通过 324、跳过 1，Vitest 140/140，BUILD SUCCESS；`target/opencode-loopper-0.1.37.jar` 262734548 bytes，SHA-256 `19cf7f18aa6ba203bd835218cba6e27f7f68150685ad28b87fc2fc50685af25f`；真实 JAR 回归：含 `+` 项目路径的 AGENTS 只读生成进入 READY，15-byte 尾随 LF 的 FILE_CONTENT EXACT 任务 SUCCEEDED/PASS，SPA 根路由/深链/打包资产为 200 且 API、Actuator、缺失资产与文件式路径为 404；临时 JVM/OpenCode 已停止且端口释放；发布目标：`v0.1.37` |
 | 2026-08-13 | Designer / LoopSpec Compiler 双角色与 Java 单元测试硬门禁并发布 0.1.39 | V21 持久化冻结设计、独立只读 Compiler、确定性 Validator、角色消息和阶段 Java 基线；Compiler 两次修复、Designer 一次自动完整重设计及人工恢复；v2 `implementationKind` 与 Git/Direct 运行期单元测试门禁；前端多角色卡片；Session 创建失败保留原始错误并进入可恢复终态；同步 README、架构、设计、OpenCode、验证器合同与本公约正文 | 0.1.38 候选完整构建后，隔离链路发现 Session 创建失败会被二次状态转换错误覆盖，修复并按公约递增；0.1.39 聚焦 Designer/MCP Java 19/19、前端 141/141；`./scripts/verify.sh`：Java 333 项中 332 通过、Windows 条件用例 1 项跳过，Vitest 141/141，BUILD SUCCESS；真实 JAR PID 34565 监听 `127.0.0.1:61629`，经两个独立只读 Session 完成 Designer → Compiler → Validator → Review Gate，角色卡与聚焦 Java 测试合同正确、原始 Compiler JSON 未进入消息、Task 数为 0，退出后端口释放；JAR 262777458 bytes，SHA-256 `a10e854f2dba4f353808c39e414a9018e994974ac89599697c8a947993b4bb4b`；发布目标：`v0.1.39` |
 | 2026-08-13 | Task Decomposer、分包设计/执行与 0.1.40 | V22 冻结完整需求版本、独立只读 Decomposer、2–6 个纵向工作包、分包 Designer/Compiler/Validator 严格串行及确定性聚合；24 次全局模型调用预算、包内重试隔离、草稿并发停止；确认后单 Task/分支/发布、包级尝试池与当前包执行上下文；Recovery/MCP/模板兼容；前端角色卡、包轨道、Review Gate/历史/任务执行分组；同步 README、架构、设计、OpenCode、七特性合同与本公约正文 | 聚焦 Designer/MCP、包级尝试池、V22 迁移及前端角色/包视图通过；`./scripts/verify.sh`：Java 328 项中 327 通过、Windows 条件用例 1 项跳过，Vitest 143/143，BUILD SUCCESS；真实 JAR PID 54117 监听 `127.0.0.1:18140`，health `UP` 且返回打包 SPA；DIRECT 使用 3 个独立只读 Session，三包链路使用 7 个独立只读 Session 严格串行，聚合前项目 Task 数为 0、确认后为 1，三个包各 1 次 Attempt 后成功且最终仅 Requirement/Risk 两个 Judge PASS，执行提示只含当前包完整设计和前置包交接摘要；进程已停止；JAR 262857840 bytes，SHA-256 `5014e25588b833a5e222e17b0dab433fea4fecfe96151aa6b0514c22b8f4330d`；发布目标：`v0.1.40` |
+| 2026-08-13 | 修复排队任务无法取消并准备 0.1.41 | `QUEUED` 任务详情新增二次确认取消入口；只取消自身队列项且不释放当前 holder 写租约，进入 `CANCELLED` 后可归档和删除；同步 README、架构、设计合同与本公约正文 | 聚焦 TaskDetail Vitest 10/10、TaskService 49/49；`./scripts/verify.sh`：Java 329 项中 328 通过、Windows 条件用例 1 项跳过，Vitest 144/144，BUILD SUCCESS；JAR 262857697 bytes，SHA-256 `f07c952d3221c67fab8a28a58878c0f36611267f7c9e2b99caa15e7c8c008047`；未启动运行时；发布目标：`v0.1.41` |

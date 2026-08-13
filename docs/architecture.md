@@ -301,6 +301,10 @@ Fetch/auth failure or diverged histories fail closed. Git cleanup and checkout
 I/O runs with the caller's SQLite transaction suspended. A persistent FIFO writer
 lease permits only one Task to own a registered checkout, so IDEA-bound AgentBridge,
 OpenCode and every verifier observe the same canonical directory and current branch.
+Any Task still in `QUEUED` may be explicitly cancelled before admission. Cancellation
+transitions only that Task and its queue row to `CANCELLED`; it never releases or
+transfers the current holder's lease. The cancelled terminal Task may then follow the
+ordinary archive and protected history-deletion flow.
 The local Task branch is not pushed until the post-success human publication action.
 Branch checkout has its own bounded
 10-minute timeout rather than the short Git-inspection timeout, suppresses

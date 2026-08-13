@@ -674,6 +674,30 @@ class TaskServiceIntegrationTest {
     }
 
     @Test
+    void queuedTaskCanBeCancelledArchivedAndDeletedWithoutReleasingTheCurrentHolder() throws Exception {
+        Path root = Files.createDirectory(temp.resolve("cancel-queued-direct-root"));
+        Files.writeString(root.resolve("README.md"), "fixture");
+        ProjectRow project = projects.create("cancel-queued-direct", root.toString());
+        TaskRow holder = drafts.confirm(drafts.create(spec(project.id())).id(), "active direct writer");
+        TaskRow queued = drafts.confirm(drafts.create(spec(project.id())).id(), "queued direct writer");
+
+        TaskRow cancelled = tasks.cancel(queued.id());
+
+        assertThat(cancelled.state()).isEqualTo("CANCELLED");
+        assertThat(tasks.queueStatus(queued.id()).state()).isEqualTo("CANCELLED");
+        assertThat(tasks.get(holder.id()).state()).isEqualTo("READY");
+        assertThat(mapper.findWorkspaceLease(root.toRealPath().toString()).orElseThrow().holderTaskId())
+                .isEqualTo(holder.id());
+
+        tasks.archive(queued.id());
+        assertThat(tasks.archived(queued.id())).isTrue();
+        tasks.deleteArchived(queued.id());
+
+        assertThat(mapper.findTask(queued.id())).isEmpty();
+        assertThat(tasks.get(holder.id()).state()).isEqualTo("READY");
+    }
+
+    @Test
     void unconfirmedDirectWriterKeepsNextTaskQueuedUntilCleanupObservesTerminalState() throws Exception {
         Path root = Files.createDirectory(temp.resolve("blocked-direct-root"));
         Files.writeString(root.resolve("README.md"), "fixture");

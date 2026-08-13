@@ -77,6 +77,49 @@ describe('TaskDetailView judge action', () => {
     expect(store.updateTask).toHaveBeenCalledWith('task-review', 'cancel')
   })
 
+  it('cancels a queued task so it can become eligible for archive and deletion', async () => {
+    store.tasks = [{
+      ...reviewTask,
+      id: 'task-queued', title: '排队任务', status: 'QUEUED', worktreePath: '', stages: [], judges: [],
+    }]
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/tasks/:id', component: { template: '<div />' } }] })
+    await router.push('/tasks/task-queued')
+    await router.isReady()
+    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue(undefined as never)
+
+    const wrapper = mount(TaskDetailView, {
+      global: {
+        plugins: [router, ElementPlus],
+        stubs: {
+          Icon: true,
+          PageHeader: { template: '<header><slot name="actions" /></header><slot />' },
+          StatusBadge: true,
+          StageRail: true,
+          AttemptTimeline: true,
+          LayeredErrorPanel: true,
+          SessionMonitorPanel: true,
+          JudgeReviewCard: true,
+          TaskAuditEvidencePanel: true,
+          TaskPublicationActions: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('随后从任务列表归档或删除')
+    const action = wrapper.findAll('button').find((button) => button.text().includes('取消任务'))
+    expect(action).toBeDefined()
+    await action!.trigger('click')
+    await flushPromises()
+
+    expect(ElMessageBox.confirm).toHaveBeenCalledWith(
+      expect.stringContaining('当前正在执行的任务和项目写租约不会受影响'),
+      '取消排队任务？',
+      expect.objectContaining({ cancelButtonText: '继续排队' }),
+    )
+    expect(store.updateTask).toHaveBeenCalledWith('task-queued', 'cancel')
+  })
+
   it('groups execution progress by work package and shows each independent attempt pool', async () => {
     store.tasks = [{
       ...reviewTask,

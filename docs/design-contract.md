@@ -70,6 +70,12 @@ A Task in `WAITING_INPUT` must keep its context-specific recovery action when on
 is available and also expose a destructive, confirmed cancel action. Cancellation
 retains the execution directory, branch, and evidence instead of implying rollback.
 
+A Task in `QUEUED` must likewise expose a confirmed **取消任务** action on Task
+detail. The confirmation explains that only the waiting queue row is cancelled:
+the current writer and its workspace lease remain untouched. The server-authoritative
+result is `CANCELLED`, after which the existing Task-list archive and permanent-delete
+flow becomes available.
+
 When `waitingReasonCode` is `SOURCE_BRANCH_WORKSPACE_DIRTY`, Task detail opens a
 non-dismissible **发现未提交文件** dialog backed by the server's current Git
 snapshot. It lists every path and requires one explicit `提交 / stash / 移除`
