@@ -54,7 +54,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "loopper.monitor-delay=1h", "loopper.designer-monitor-delay=1h",
         "loopper.mcp.bearer-token=designer-mcp-test-token",
         "spring.ai.mcp.server.protocol=STREAMABLE", "spring.ai.mcp.server.name=opencode-loopper",
-        "spring.ai.mcp.server.version=0.1.44", "spring.ai.mcp.server.annotation-scanner.enabled=false",
+        "spring.ai.mcp.server.version=0.1.45", "spring.ai.mcp.server.annotation-scanner.enabled=false",
         "spring.ai.mcp.server.capabilities.resource=false", "spring.ai.mcp.server.capabilities.prompt=false",
         "spring.ai.mcp.server.capabilities.completion=false",
         "spring.ai.mcp.server.streamable-http.mcp-endpoint=/api/mcp-streamable",
@@ -432,6 +432,48 @@ class DesignerSessionMcpIntegrationTest {
     }
 
     @Test
+    void v2CompilerRejectsShellEvidenceDuringPlanningAndFreezesExecutableVerifierBlueprints() throws Exception {
+        ProjectRow project = project("compiler-planned-verifiers");
+        LoopSpec draftSpec = v2DocumentationSpec(project.id());
+        LoopDraftRow draft = drafts.create(draftSpec);
+        String design = "# 文档设计\n\nREADME 事件说明可执行自检";
+        fake().setDesignerOutput(designerOutput(design, draftSpec));
+        fake().setPackageCompilerOutput("WP-1", packageCompilationV2("WP-1",
+                "README 事件说明可执行自检"));
+        fake().setPackageCompilerPlanningOutput("WP-1", packageCompilationPlanV2("WP-1",
+                "README 事件说明可执行自检", true));
+
+        DesignerSessionRow session = designerSessions.create(project.id(), draft.id(), "增加 README 事件说明");
+        for (int attempt = 0; attempt < 20; attempt++) {
+            designerSessions.pollActiveHandoffs();
+            DesignerSessionService.CompilerStatus compiler = designerSessions.compilerStatus(session.id());
+            if (compiler != null && compiler.planningRepairCount() == 1) break;
+        }
+        DesignerSessionService.CompilerStatus repairing = designerSessions.compilerStatus(session.id());
+        assertThat(repairing.planningRepairCount()).isEqualTo(1);
+        assertThat(repairing.repairCount()).isZero();
+        assertThat(designerSessions.messages(session.id()).stream().map(message -> message.content()).toList())
+                .anyMatch(message -> message.contains("COMPILER_PLAN_VERIFIER_INVALID")
+                        && message.contains("shell launchers are forbidden"));
+
+        fake().setPackageCompilerPlanningOutput("WP-1", packageCompilationPlanV2("WP-1",
+                "README 事件说明可执行自检", false));
+        pollUntilSettled(session.id());
+
+        assertThat(designerSessions.get(session.id()).state()).isEqualTo("COMPLETED");
+        DesignerSessionService.CompilerStatus completed = designerSessions.compilerStatus(session.id());
+        assertThat(completed.planningRepairCount()).isEqualTo(1);
+        assertThat(completed.repairCount()).isZero();
+        assertThat(drafts.spec(drafts.get(draft.id())).stages()).singleElement().satisfies(stage -> {
+            assertThat(stage.verifiers()).extracting(LoopSpec.VerifierSpec::type)
+                    .containsExactly("PROCESS", "GIT_DIFF");
+            assertThat(stage.verifiers().getFirst().command()).startsWith("python3", "-c");
+            assertThat(stage.verifiers().getFirst().criterionIds()).containsExactly("WP-1-AC-1");
+        });
+        assertThat(mapper.listTasks()).isEmpty();
+    }
+
+    @Test
     void manualPackageRecompileReactivatesTheSameRequirementAndCanCompleteAggregation() throws Exception {
         ProjectRow project = project("manual-recompile");
         LoopDraftRow draft = drafts.create(legacySpec(project.id()));
@@ -528,7 +570,7 @@ class DesignerSessionMcpIntegrationTest {
                         .accept(MediaType.APPLICATION_JSON, MediaType.TEXT_EVENT_STREAM).content(initialize))
                 .andExpect(status().isUnauthorized());
         MvcResult initialized = mvc.perform(streamable(initialize, null)).andExpect(status().isOk())
-                .andExpect(jsonPath("$.result.serverInfo.version").value("0.1.44")).andReturn();
+                .andExpect(jsonPath("$.result.serverInfo.version").value("0.1.45")).andReturn();
         String sessionId = initialized.getResponse().getHeader("Mcp-Session-Id");
         mvc.perform(streamable("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\",\"params\":{}}", sessionId))
                 .andExpect(status().isAccepted());
@@ -630,6 +672,65 @@ class DesignerSessionMcpIntegrationTest {
                 + "\n<!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->";
     }
 
+    private String packageCompilationPlanV2(String packageId, String excerpt, boolean shell) throws Exception {
+        String criterionId = packageId + "-AC-1";
+        LoopSpec.VerifierSpec behavior = new LoopSpec.VerifierSpec("PROCESS",
+                shell ? List.of("bash", "-lc", "grep -Fq event README.md")
+                        : List.of("python3", "-c", "from pathlib import Path; assert 'event' in Path('README.md').read_text(); print('DOC_CHECK_OK')"),
+                null, null, List.of(), List.of(), null, shell ? null : "DOC_CHECK_OK",
+                null, null, null, null, null, null, null, null, null, null, List.of(),
+                List.of(criterionId), "SELF_CHECK", List.of());
+        LoopSpec.VerifierSpec scope = new LoopSpec.VerifierSpec("GIT_DIFF", List.of(), null, true,
+                List.of("README.md"), List.of(".env"), true);
+        Map<String, Object> stage = new LinkedHashMap<>();
+        stage.put("objective", "完成 " + packageId);
+        stage.put("allowedPaths", List.of("README.md"));
+        stage.put("forbiddenPaths", List.of(".env"));
+        stage.put("deliverables", List.of("README.md"));
+        stage.put("verifiers", List.of(behavior, scope));
+        stage.put("verificationRuntime", null);
+        stage.put("implementationKind", "NON_JAVA");
+        stage.put("workPackageId", packageId);
+        Map<String, Object> mapping = new LinkedHashMap<>();
+        mapping.put("stageIndex", 0); mapping.put("criterionId", criterionId);
+        mapping.put("description", "README 包含可执行验证的事件说明");
+        mapping.put("designerExcerpt", excerpt); mapping.put("verificationMode", "MACHINE");
+        mapping.put("judgeRubric", null); mapping.put("judgeOnlyReason", null);
+        mapping.put("verifierStrategy", "direct Python content self-check");
+        mapping.put("testCommand", List.of()); mapping.put("testTargets", List.of());
+        Map<String, Object> envelope = new LinkedHashMap<>();
+        envelope.put("contractVersion", 2); envelope.put("status", "COMPILED");
+        envelope.put("summary", packageId + " 已冻结可执行验证器蓝图");
+        envelope.put("stages", List.of(stage)); envelope.put("evidenceMappings", List.of(mapping));
+        envelope.put("handoffSummary", packageId + " 已交付，后续包可复用。");
+        envelope.put("designGaps", List.of());
+        return "<!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->\n" + json.writeValueAsString(envelope)
+                + "\n<!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->";
+    }
+
+    private String packageCompilationV2(String packageId, String excerpt) throws Exception {
+        String criterionId = packageId + "-AC-1";
+        LoopSpec.VerifierSpec behavior = new LoopSpec.VerifierSpec("PROCESS",
+                List.of("python3", "-c", "from pathlib import Path; assert 'event' in Path('README.md').read_text(); print('DOC_CHECK_OK')"),
+                null, null, List.of(), List.of(), null, "DOC_CHECK_OK", null, null, null, null,
+                null, null, null, null, null, null, List.of(), List.of(criterionId), "SELF_CHECK", List.of());
+        LoopSpec.VerifierSpec scope = new LoopSpec.VerifierSpec("GIT_DIFF", List.of(), null, true,
+                List.of("README.md"), List.of(".env"), true);
+        LoopSpec.StageSpec stage = new LoopSpec.StageSpec("完成 " + packageId, List.of("README.md"),
+                List.of(".env"), List.of("README.md"), List.of(behavior, scope),
+                List.of(new LoopSpec.AcceptanceCriterion(criterionId, "README 包含可执行验证的事件说明",
+                        "MACHINE", null, null)), null, ImplementationKind.NON_JAVA, packageId);
+        Map<String, Object> envelope = new LinkedHashMap<>();
+        envelope.put("status", "COMPILED"); envelope.put("summary", packageId + " 编译完成");
+        envelope.put("stages", List.of(stage));
+        envelope.put("criterionSources", List.of(Map.of("stageIndex", 0, "criterionId", criterionId,
+                "excerpt", excerpt)));
+        envelope.put("handoffSummary", packageId + " 已交付，后续包可复用。");
+        envelope.put("designGaps", List.of());
+        return "<!-- LOOPSPEC_COMPILATION_JSON_START -->\n" + json.writeValueAsString(envelope)
+                + "\n<!-- LOOPSPEC_COMPILATION_JSON_END -->";
+    }
+
     private String decompositionPlan(String status, String goal) throws Exception {
         Map<String, Object> envelope = new LinkedHashMap<>();
         envelope.put("status", status);
@@ -660,6 +761,19 @@ class DesignerSessionMcpIntegrationTest {
                 new LoopSpec.Limits(3, 3, 2, 2, 3600L, 120L, 60L),
                 new LoopSpec.ModelSpec("opencode", "deepseek", false),
                 new LoopSpec.SessionPolicy(true, true), "Continue from verified evidence");
+    }
+
+    private LoopSpec v2DocumentationSpec(String projectId) {
+        String script = "print('DRAFT_CHECK_OK')";
+        LoopSpec.VerifierSpec verifier = new LoopSpec.VerifierSpec("PROCESS", List.of("python3", "-c", script),
+                null, null, List.of(), List.of(), null, "DRAFT_CHECK_OK", null, null, null, null,
+                null, null, null, null, null, null, List.of(), List.of("AC-1"), "SELF_CHECK", List.of());
+        LoopSpec.StageSpec stage = new LoopSpec.StageSpec("设计 README 文档", List.of("README.md"),
+                List.of(".env"), List.of("README.md"), List.of(verifier),
+                List.of(new LoopSpec.AcceptanceCriterion("AC-1", "README 文档设计可执行验证", "MACHINE",
+                        null, null)), null, ImplementationKind.NON_JAVA);
+        return new LoopSpec("v2", projectId, "设计 README 文档", "", List.of(stage),
+                LoopSpec.Limits.defaults(), null, null, null);
     }
 
     private String designerOutput(String markdown, LoopSpec spec) throws Exception {

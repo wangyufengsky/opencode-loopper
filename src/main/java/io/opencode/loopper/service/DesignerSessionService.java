@@ -1878,6 +1878,10 @@ public class DesignerSessionService {
     private void validatePackageCompilationPlan(DesignWorkPackageRow workPackage, String design,
                                                 PackageCompilationPlanEnvelope plan,
                                                 boolean requireAcceptanceEvidence) {
+        if (requireAcceptanceEvidence && plan.contractVersion() != 2) {
+            throw new BadRequestException("COMPILER_PLAN_CONTRACT_VERSION_REQUIRED",
+                    "v2 package planning must use contractVersion=2 with executable verifier blueprints");
+        }
         if ("DESIGN_INCOMPLETE".equals(plan.status())) {
             validateDesignGaps(plan.designGaps());
             if (!plan.stages().isEmpty() || !plan.evidenceMappings().isEmpty()) {
@@ -1947,6 +1951,30 @@ public class DesignerSessionService {
             if (requireAcceptanceEvidence && !coveredStages.contains(index)) throw new BadRequestException("COMPILER_PLAN_STAGE_UNCOVERED",
                     "Every planned stage needs at least one acceptance evidence mapping: " + index);
         }
+        if (plan.contractVersion() >= 2) {
+            List<LoopSpec.StageSpec> plannedStages = new ArrayList<>();
+            for (int index = 0; index < plan.stages().size(); index++) {
+                int stageIndex = index;
+                PlannedStage stage = plan.stages().get(index);
+                List<LoopSpec.AcceptanceCriterion> criteria = plan.evidenceMappings().stream()
+                        .filter(mapping -> mapping.stageIndex() == stageIndex)
+                        .map(mapping -> new LoopSpec.AcceptanceCriterion(mapping.criterionId(),
+                                mapping.description(), mapping.verificationMode(), mapping.judgeRubric(),
+                                mapping.judgeOnlyReason()))
+                        .toList();
+                plannedStages.add(new LoopSpec.StageSpec(stage.objective(), stage.allowedPaths(),
+                        stage.forbiddenPaths(), stage.deliverables(), stage.verifiers(), criteria,
+                        stage.verificationRuntime(), stage.implementationKind(), stage.workPackageId()));
+            }
+            DesignerSessionRow session = get(workPackage.designerSessionId());
+            LoopSpec plannedContract = new LoopSpec("v2", session.projectId(), workPackage.objective(), "",
+                    plannedStages, LoopSpec.Limits.defaults(), null, null, null, null);
+            List<String> errors = drafts.assessment(plannedContract, true, false).errors();
+            if (!errors.isEmpty()) {
+                throw new BadRequestException("COMPILER_PLAN_VERIFIER_INVALID",
+                        "Planned verifier blueprint is not executable: " + bounded(String.join("; ", errors), 4_000));
+            }
+        }
         boundedUtf8(plan.handoffSummary(), MAX_HANDOFF_SUMMARY_LENGTH);
     }
 
@@ -1977,6 +2005,13 @@ public class DesignerSessionService {
                     || !planned.workPackageId().equals(actual.workPackageId())) {
                 throw new BadRequestException("COMPILER_PLAN_STAGE_DRIFT",
                         "Final stage " + index + " differs from the frozen planning");
+            }
+            if (plan.contractVersion() >= 2
+                    && (!planned.verifiers().equals(actual.verifiers())
+                    || !java.util.Objects.equals(planned.verificationRuntime(), actual.verificationRuntime()))) {
+                throw new BadRequestException("COMPILER_PLAN_VERIFIER_DRIFT",
+                        "Final verifier/runtime contract differs from the executable frozen blueprint for stage "
+                                + index);
             }
             List<AcceptanceEvidenceMapping> mappings = plan.evidenceMappings().stream()
                     .filter(item -> item.stageIndex() == stageIndex).toList();
@@ -2318,11 +2353,18 @@ public class DesignerSessionService {
         String criterionId = packageId + "-AC-1";
         return """
                 Strict package compilation planning JSON contract:
-                - stages, allowedPaths, forbiddenPaths, deliverables, evidenceMappings, testCommand, testTargets,
+                - contractVersion must be the number 2. stages, allowedPaths, forbiddenPaths, deliverables,
+                  verifiers, evidenceMappings, testCommand, testTargets,
                   and designGaps are JSON arrays even when empty or single-item. Entries are objects, never
                   descriptive command/verifier strings.
-                - A planned stage is {"objective":"observable stage result","allowedPaths":["src/main/java/**","src/test/java/**"],"forbiddenPaths":[".env"],"deliverables":["implementation and focused test"],"implementationKind":"JAVA_PRODUCTION|JAVA_TEST_ONLY|NON_JAVA","workPackageId":"%s"}.
+                - A planned stage already contains the exact executable verifier blueprints that final JSON must
+                  copy: {"objective":"observable stage result","allowedPaths":["src/main/java/**","src/test/java/**"],"forbiddenPaths":[".env"],"deliverables":["implementation and focused test"],"verifiers":[{"type":"PROCESS","command":["mvn","-q","-Dtest=ExampleFocusedTest","test"],"processPurpose":"TEST","testTargets":["ExampleFocusedTest"],"criterionIds":["%s"]}],"verificationRuntime":null,"implementationKind":"JAVA_PRODUCTION|JAVA_TEST_ONLY|NON_JAVA","workPackageId":"%s"}.
                 - An evidence mapping is {"stageIndex":0,"criterionId":"%s","description":"observable business result","designerExcerpt":"exact non-empty Designer substring","verificationMode":"MACHINE|JUDGE|BOTH","judgeRubric":"required for JUDGE/BOTH or null","judgeOnlyReason":"required only for JUDGE or null","verifierStrategy":"concrete deterministic proof","testCommand":["mvn","-q","-Dtest=ExampleFocusedTest","test"],"testTargets":["ExampleFocusedTest"]}.
+                - Every MACHINE/BOTH mapping must be covered by criterionIds on a BEHAVIOR verifier blueprint in
+                  the same planned Stage. Every Stage needs at least one blocking deterministic verifier. PROCESS
+                  always uses direct argv: shell launchers (sh/bash/zsh/cmd/powershell), pipes, redirects, && and
+                  command strings are forbidden. For a NON_JAVA content self-check, use direct argv such as
+                  {"type":"PROCESS","command":["python3","-c","from pathlib import Path; text=Path('README.md').read_text(); assert 'required phrase' in text; print('DOC_CHECK_OK')"],"processPurpose":"SELF_CHECK","outputContains":"DOC_CHECK_OK","criterionIds":["%s"]}; use GIT_DIFF separately for scope and never map criterionIds to GIT_DIFF.
                 - JAVA_PRODUCTION puts production code and its focused Maven/Gradle test in the same planned Stage.
                   Every MACHINE/BOTH criterion in that Stage repeats the focused direct-argv testCommand and concrete
                   testTargets it expects the final verifier to implement. Non-test evidence uses empty testCommand/
@@ -2334,8 +2376,9 @@ public class DesignerSessionService {
                   MISSING_ACCEPTANCE_INTENT. designGaps entries are never strings.
 
                 Canonical planning envelope:
-                {"status":"COMPILED","summary":"planned package summary","stages":[{"objective":"observable stage result","allowedPaths":["src/main/java/**","src/test/java/**"],"forbiddenPaths":[".env"],"deliverables":["production implementation and focused test"],"implementationKind":"JAVA_PRODUCTION","workPackageId":"%s"}],"evidenceMappings":[{"stageIndex":0,"criterionId":"%s","description":"observable business result","designerExcerpt":"exact non-empty Designer substring","verificationMode":"BOTH","judgeRubric":"Confirm behavior matches the frozen design and deterministic evidence.","judgeOnlyReason":null,"verifierStrategy":"focused Maven unit test","testCommand":["mvn","-q","-Dtest=ExampleFocusedTest","test"],"testTargets":["ExampleFocusedTest"]}],"handoffSummary":"bounded dependency handoff summary","designGaps":[]}
-                """.formatted(packageId, criterionId, packageId, criterionId);
+                {"contractVersion":2,"status":"COMPILED","summary":"planned package summary","stages":[{"objective":"observable stage result","allowedPaths":["src/main/java/**","src/test/java/**"],"forbiddenPaths":[".env"],"deliverables":["production implementation and focused test"],"verifiers":[{"type":"PROCESS","command":["mvn","-q","-Dtest=ExampleFocusedTest","test"],"processPurpose":"TEST","testTargets":["ExampleFocusedTest"],"criterionIds":["%s"]},{"type":"GIT_DIFF","requireChanges":true,"allowedPaths":["src/main/java/**","src/test/java/**"],"forbiddenPaths":[".env"],"forbidDeletes":true}],"verificationRuntime":null,"implementationKind":"JAVA_PRODUCTION","workPackageId":"%s"}],"evidenceMappings":[{"stageIndex":0,"criterionId":"%s","description":"observable business result","designerExcerpt":"exact non-empty Designer substring","verificationMode":"BOTH","judgeRubric":"Confirm behavior matches the frozen design and deterministic evidence.","judgeOnlyReason":null,"verifierStrategy":"focused Maven unit test","testCommand":["mvn","-q","-Dtest=ExampleFocusedTest","test"],"testTargets":["ExampleFocusedTest"]}],"handoffSummary":"bounded dependency handoff summary","designGaps":[]}
+                """.formatted(criterionId, packageId, criterionId, criterionId, criterionId,
+                packageId, criterionId);
     }
 
     private String packageCompilerJsonPrompt(DesignerSessionRow session, LoopDraftRow draft,
@@ -2344,8 +2387,9 @@ public class DesignerSessionService {
         return """
                 The Stage planning and acceptance evidence mapping below passed deterministic validation and is now
                 frozen. Compile it into the final CompiledPackage JSON. Preserve every Stage field, acceptance field,
-                exact Designer excerpt, test argv/target, handoff, ordering, and status. Do not redesign, add, remove,
-                or paraphrase planning decisions.
+                exact Designer excerpt, verifier object, verificationRuntime, test argv/target, handoff, ordering,
+                and status. The verifier/runtime blueprints are already executable and must be copied byte-for-field;
+                do not redesign, add, remove, or paraphrase planning decisions.
 
                 Required workPackageId: %s
                 Read-only draft defaults preserved later by server aggregation: %s
@@ -3290,12 +3334,14 @@ public class DesignerSessionService {
         }
     }
     public record PlannedStage(String objective, List<String> allowedPaths, List<String> forbiddenPaths,
-                               List<String> deliverables, ImplementationKind implementationKind,
-                               String workPackageId) {
+                               List<String> deliverables, List<LoopSpec.VerifierSpec> verifiers,
+                               LoopSpec.VerificationRuntime verificationRuntime,
+                               ImplementationKind implementationKind, String workPackageId) {
         public PlannedStage {
             allowedPaths = allowedPaths == null ? List.of() : List.copyOf(allowedPaths);
             forbiddenPaths = forbiddenPaths == null ? List.of() : List.copyOf(forbiddenPaths);
             deliverables = deliverables == null ? List.of() : List.copyOf(deliverables);
+            verifiers = verifiers == null ? List.of() : List.copyOf(verifiers);
         }
     }
     public record AcceptanceEvidenceMapping(int stageIndex, String criterionId, String description,
@@ -3309,12 +3355,13 @@ public class DesignerSessionService {
             testTargets = testTargets == null ? List.of() : List.copyOf(testTargets);
         }
     }
-    public record PackageCompilationPlanEnvelope(String status, String summary,
+    public record PackageCompilationPlanEnvelope(Integer contractVersion, String status, String summary,
                                                  List<PlannedStage> stages,
                                                  List<AcceptanceEvidenceMapping> evidenceMappings,
                                                  String handoffSummary, List<DesignGap> designGaps) {
         PackageCompilationPlanEnvelope normalized() {
-            return new PackageCompilationPlanEnvelope(status == null ? null : status.trim().toUpperCase(), summary,
+            return new PackageCompilationPlanEnvelope(contractVersion == null ? 0 : contractVersion,
+                    status == null ? null : status.trim().toUpperCase(), summary,
                     stages == null ? List.of() : List.copyOf(stages),
                     evidenceMappings == null ? List.of() : List.copyOf(evidenceMappings), handoffSummary,
                     designGaps == null ? List.of() : List.copyOf(designGaps));

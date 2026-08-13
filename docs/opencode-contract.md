@@ -95,6 +95,13 @@ object rather than a command string, `PROCESS.command` is direct argv,
 A canonical `JAVA_PRODUCTION` envelope includes the focused Maven/Gradle test,
 criterion mapping, source excerpt, handoff, and empty `designGaps`, so a weaker
 model does not have to infer Java record nesting from a Jackson error message.
+For current v2 package work, the planning envelope uses `contractVersion: 2` and
+already contains complete verifier objects plus optional `verificationRuntime`.
+Loopper validates that temporary Stage contract with the authoritative v2
+assessment before freezing it; direct argv, BEHAVIOR coverage, focused Java
+tests and managed-runtime bindings therefore fail in the planning repair pool,
+not after final JSON generation. The final turn must copy these frozen objects
+exactly and any drift is rejected as `COMPILER_PLAN_VERIFIER_DRIFT`.
 Each requirement revision permits at most 32 model calls across all roles and
 one fresh-Session transport retry per role invocation. After every package
 passes, Loopper—not a model—concatenates fragments in package order and runs the

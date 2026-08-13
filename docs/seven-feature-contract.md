@@ -19,6 +19,11 @@ manufactures queue, progress, usage or cost data.
 - V24: independent persisted planning and final-JSON repair budgets for
   Decomposer/Compiler, plus a valid terminal path from decomposition validation.
 
+Compiler planning contract v2 stores complete verifier/runtime blueprints inside
+the existing V23 `planning_json`; no schema migration is needed. The server
+validates those blueprints using the normal LoopSpec v2 execution contract before
+freezing, and final JSON must preserve them exactly.
+
 Historical migrations remain immutable. Empty databases and supported V21
 databases must both migrate to V24.
 

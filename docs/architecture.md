@@ -187,6 +187,15 @@ remaining hidden from chat/SSE content. Six packages now need 20 no-repair model
 per-requirement ceiling is 32 calls; confirmed transport retries and all content
 repairs still count against it.
 
+The package Compiler's current planning contract is version 2. Each planned
+Stage already carries exact `VerifierSpec` blueprints and an optional managed
+runtime. Before freezing, the server builds a temporary v2 execution contract
+and runs the same direct-command, behavior-coverage, Java-test and runtime
+assessment used by Review Gate. Shell strategies or unmapped MACHINE/BOTH
+criteria are repaired while still planning. Final JSON must copy those verified
+objects exactly, so generation cannot turn a valid evidence design into a
+different verifier contract.
+
 Package work is strictly serial. Every package uses a fresh Designer Session and
 a fresh Compiler Session, produces 1–3 Stages carrying `workPackageId`, and is
 validated before the next package starts. Compiler output is a package fragment,

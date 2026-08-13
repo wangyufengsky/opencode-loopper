@@ -139,10 +139,14 @@ compilation protocol in the same role Session. The first turn follows the fixed
 order `规划 -> 证据映射`: Decomposer maps every numbered requirement and dependency;
 Compiler plans 1–3 Stages and maps each observable criterion to an exact Designer
 excerpt plus deterministic/Judge evidence, including focused Maven/Gradle argv
-and test targets for production Java. The server validates and freezes this
-bounded planning envelope before asking for final JSON. The second turn may only
+and test targets for production Java. Compiler planning contract v2 also embeds
+the complete `VerifierSpec` objects and optional `verificationRuntime`; the server
+runs the normal LoopSpec v2 execution assessment before freezing, so shell
+launchers, non-behavior mappings and invalid Java/runtime evidence are repaired
+in the evidence-mapping turn. The server freezes this bounded planning envelope
+before asking for final JSON. The second turn may only
 encode the frozen plan, so work-package boundaries, Stage fields, acceptance
-intent, source excerpts, test evidence and handoff summaries cannot silently
+intent, source excerpts, verifier/runtime objects, test evidence and handoff summaries cannot silently
 drift. V23 persists the current step and planning JSON for restart recovery;
 V24 persists the independent planning-repair counters. A successful planning
 freeze always starts final JSON with its own unused repair budget.
