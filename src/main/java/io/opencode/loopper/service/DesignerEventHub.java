@@ -13,10 +13,11 @@ public class DesignerEventHub {
     private final ConcurrentHashMap<String, AtomicLong> sequences = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, DesignerEvent> latest = new ConcurrentHashMap<>();
 
-    public DesignerEvent publish(String sessionId, String type, String state, String remoteState,
+    public DesignerEvent publish(String sessionId, String type, String state, String workflowPhase,
+                                 String activeActor, String remoteState,
                                  boolean runtimeConnected, String content, String detail) {
         long sequence = sequences.computeIfAbsent(sessionId, ignored -> new AtomicLong()).incrementAndGet();
-        DesignerEvent event = new DesignerEvent(sequence, sessionId, type, state, remoteState,
+        DesignerEvent event = new DesignerEvent(sequence, sessionId, type, state, workflowPhase, activeActor, remoteState,
                 runtimeConnected, content == null ? "" : content, detail == null ? "" : detail, Instant.now().toString());
         latest.put(sessionId, event);
         subscribers.publish(sessionId, event);
@@ -29,6 +30,7 @@ public class DesignerEventHub {
         return subscribers.subscribe(sessionId, consumer);
     }
 
-    public record DesignerEvent(long sequence, String sessionId, String type, String state, String remoteState,
+    public record DesignerEvent(long sequence, String sessionId, String type, String state,
+                                String workflowPhase, String activeActor, String remoteState,
                                 boolean runtimeConnected, String content, String detail, String at) { }
 }

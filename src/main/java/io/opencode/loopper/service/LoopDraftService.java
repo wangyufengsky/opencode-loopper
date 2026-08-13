@@ -79,13 +79,23 @@ public class LoopDraftService {
         }
         List<LoopSpec.StageSpec> stages = source.stages().stream().map(stage -> new LoopSpec.StageSpec(
                 stage.objective(), stage.allowedPaths(), stage.forbiddenPaths(), stage.deliverables(),
-                stage.verifiers(), List.of(), null)).toList();
+                stage.verifiers(), List.of(), null, null)).toList();
         return insert(new LoopSpec("v2", source.projectId(), source.goal(), source.context(), stages,
                 source.limits(), source.model(), source.sessionPolicy(), source.nextAttemptPromptTemplate()));
     }
     @Transactional
     public LoopDraftRow update(String id, LoopSpec spec) {
+        return updateAtVersion(id, spec, null);
+    }
+
+    /** Compiler boundary: refuse to overwrite a draft edited after the design was frozen. */
+    @Transactional
+    public LoopDraftRow updateAtVersion(String id, LoopSpec spec, Long expectedVersion) {
         LoopDraftRow old = get(id);
+        if (expectedVersion != null && old.version() != expectedVersion) {
+            throw new ConflictException("DESIGNER_DRAFT_CHANGED",
+                    "The bound LoopSpec draft changed after this design revision was frozen");
+        }
         LoopSpec oldSpec = spec(old);
         if (!oldSpec.schemaVersion().equals(spec.schemaVersion())) {
             throw new BadRequestException("LOOPSPEC_SCHEMA_IMMUTABLE",
@@ -266,7 +276,8 @@ public class LoopDraftService {
             }
             if (stageChanged) {
                 stages.add(new LoopSpec.StageSpec(stage.objective(), stage.allowedPaths(), stage.forbiddenPaths(),
-                        stage.deliverables(), verifiers, stage.acceptanceCriteria(), stage.verificationRuntime()));
+                        stage.deliverables(), verifiers, stage.acceptanceCriteria(), stage.verificationRuntime(),
+                        stage.implementationKind()));
                 changed = true;
             } else {
                 stages.add(stage);

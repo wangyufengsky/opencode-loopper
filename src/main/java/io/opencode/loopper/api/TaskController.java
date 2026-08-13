@@ -289,7 +289,7 @@ public class TaskController {
     public record TaskLoopDraftDto(String id, String status, String updatedAt, LoopSpec spec) { }
     public record DesignerHistorySessionDto(String id, String state, String accessMode, String createdAt,
                                              String updatedAt, List<DesignerHistoryMessageDto> messages) { }
-    public record DesignerHistoryMessageDto(String id, int ordinal, String role, String content,
+    public record DesignerHistoryMessageDto(String id, int ordinal, String role, String actor, String content,
                                              String deliveryState, String createdAt) { }
     public record StageDto(String id, int ordinal, String objective, String status, JsonNode allowedPaths, JsonNode forbiddenPaths,
                            JsonNode deliverables, JsonNode verifiers, String startedAt, String updatedAt) { }
@@ -312,7 +312,8 @@ public class TaskController {
     private VerificationDto verification(VerificationResultRow row) { return new VerificationDto(row.id(), row.verifierIndex(), row.type(), row.state(), row.summary(), node(row.evidenceJson()), row.createdAt()); }
     private ErrorDto error(ErrorEventRow row) { return new ErrorDto(row.id(), row.layer(), row.code(), row.message(), row.retryable(), row.stageId(), row.attemptId(), row.sessionId(), row.occurredAt(), node(row.evidenceJson())); }
     private DesignerHistoryMessageDto designerHistoryMessage(DesignerMessageRow row) {
-        return new DesignerHistoryMessageDto(row.id(), row.ordinal(), row.role(), row.content(), row.deliveryState(), row.createdAt());
+        return new DesignerHistoryMessageDto(row.id(), row.ordinal(), row.role(), row.actor(), row.content(),
+                row.deliveryState(), row.createdAt());
     }
     private JudgeDto judge(JudgeRunRow row) { return new JudgeDto(row.id(), row.role(), row.ordinal(), row.state(), row.verdict(), row.reason(), row.externalSessionId(), row.rawOutput(), row.createdAt(), row.endedAt()); }
     private ArtifactDto artifact(TaskArtifactRow row) { return new ArtifactDto(row.id(), row.kind(), row.name(), row.contentType(), row.content(), node(row.metadataJson()), row.attemptId(), row.judgeRunId(), row.createdAt()); }

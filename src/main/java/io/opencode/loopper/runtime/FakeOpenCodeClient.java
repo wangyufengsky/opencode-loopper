@@ -7,6 +7,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import io.opencode.loopper.domain.SessionFailure;
+import io.opencode.loopper.domain.LoopSpec;
+import tools.jackson.databind.ObjectMapper;
 
 /** Deterministic local implementation used in tests and development without a provider. */
 public class FakeOpenCodeClient implements OpenCodeClient {
@@ -29,6 +31,7 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     private final CopyOnWriteArrayList<SummarizeCall> summarizeCalls = new CopyOnWriteArrayList<>();
     private final ConcurrentHashMap<String, AtomicInteger> failedReadOnlySessionsByRole = new ConcurrentHashMap<>();
     private final AtomicInteger failedReadOnlySessions = new AtomicInteger();
+    private final AtomicInteger failedReadOnlySessionCreations = new AtomicInteger();
     private final AtomicInteger failedPrompts = new AtomicInteger();
     private final AtomicInteger failedAborts = new AtomicInteger();
     private final AtomicInteger createSessionCalls = new AtomicInteger();
@@ -40,9 +43,13 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     @Override public OpenCodeSession createSession(Path worktree, String title, OpenCodeModel model) { createSessionCalls.incrementAndGet(); String id = "fake-" + UUID.randomUUID(); states.put(id, "RUNNING"); return new OpenCodeSession(id, worktree); }
     @Override public OpenCodeSession createReadOnlySession(Path worktree, String title, OpenCodeModel model) {
         createReadOnlySessionCalls.incrementAndGet();
+        if (failedReadOnlySessionCreations.getAndUpdate(value -> Math.max(0, value - 1)) > 0) {
+            throw new SessionFailure("OPENCODE_SESSION_CREATE_FAILED", "Deterministic read-only Session creation failure");
+        }
         String id = "fake-judge-" + UUID.randomUUID();
         readOnly.put(id, Boolean.TRUE);
         String role = title != null && title.toUpperCase().contains("COMMIT MESSAGE") ? "COMMIT"
+                : title != null && title.toUpperCase().contains("LOOPSPEC COMPILER") ? "COMPILER"
                 : title != null && title.toUpperCase().contains("DESIGNER") ? "DESIGNER"
                 : title != null && title.toUpperCase().contains("RISK") ? "RISK" : "REQUIREMENT";
         judgeRoleBySession.put(id, role);
@@ -131,7 +138,12 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     public int promptCalls() { return promptCalls.get(); }
     public void setJudgeOutput(String output) { judgeOutput = output; }
     public void setJudgeOutput(String role, String output) { judgeOutputByRole.put(role.toUpperCase(), output); }
-    public void setDesignerOutput(String output) { setJudgeOutput("DESIGNER", output); }
+    public void setDesignerOutput(String output) {
+        setJudgeOutput("DESIGNER", designerMarkdown(output));
+        String compatibilityCompilation = compatibilityCompilation(output);
+        if (compatibilityCompilation != null) setCompilerOutput(compatibilityCompilation);
+    }
+    public void setCompilerOutput(String output) { setJudgeOutput("COMPILER", output); }
     public void setHealthy(boolean value) { healthy = value; }
     public OpenCodeModel modelForSession(String id) { return modelBySession.get(id); }
     public String promptForSession(String id) { return promptBySession.get(id); }
@@ -166,8 +178,47 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     public List<RevertCall> revertCalls() { return List.copyOf(revertCalls); }
     public List<SummarizeCall> summarizeCalls() { return List.copyOf(summarizeCalls); }
     public void failNextReadOnlySessions(int count) { failedReadOnlySessions.set(Math.max(0, count)); }
+    public void failNextReadOnlySessionCreations(int count) { failedReadOnlySessionCreations.set(Math.max(0, count)); }
     public void failNextReadOnlySessions(String role, int count) { failedReadOnlySessionsByRole.put(role.toUpperCase(), new AtomicInteger(Math.max(0, count))); }
-    public void reset() { states.clear(); readOnly.clear(); judgeRoleBySession.clear(); judgeOutputByRole.clear(); promptBySession.clear(); modelBySession.clear(); detailBySession.clear(); pendingQuestionBySession.clear(); answersByQuestion.clear(); rejectedQuestions.clear(); pendingPermissionsBySession.clear(); permissionRepliesByRequest.clear(); todosBySession.clear(); usageBySession.clear(); forkCalls.clear(); revertCalls.clear(); summarizeCalls.clear(); failedReadOnlySessionsByRole.clear(); failedReadOnlySessions.set(0); failedPrompts.set(0); failedAborts.set(0); createSessionCalls.set(0); createReadOnlySessionCalls.set(0); promptCalls.set(0); judgeOutput = "{\"verdict\":\"PASS\",\"reason\":\"确定性证据满足评审要求。\"}"; healthy = true; }
+    public void reset() { states.clear(); readOnly.clear(); judgeRoleBySession.clear(); judgeOutputByRole.clear(); promptBySession.clear(); modelBySession.clear(); detailBySession.clear(); pendingQuestionBySession.clear(); answersByQuestion.clear(); rejectedQuestions.clear(); pendingPermissionsBySession.clear(); permissionRepliesByRequest.clear(); todosBySession.clear(); usageBySession.clear(); forkCalls.clear(); revertCalls.clear(); summarizeCalls.clear(); failedReadOnlySessionsByRole.clear(); failedReadOnlySessions.set(0); failedReadOnlySessionCreations.set(0); failedPrompts.set(0); failedAborts.set(0); createSessionCalls.set(0); createReadOnlySessionCalls.set(0); promptCalls.set(0); judgeOutput = "{\"verdict\":\"PASS\",\"reason\":\"确定性证据满足评审要求。\"}"; healthy = true; }
+    private String designerMarkdown(String output) {
+        if (output == null) return null;
+        return output.replaceAll("(?is)<!--\\s*LOOPSPEC_JSON_START\\s*-->.*?<!--\\s*LOOPSPEC_JSON_END\\s*-->", "").trim();
+    }
+    private String compatibilityCompilation(String output) {
+        if (output == null) return null;
+        java.util.regex.Matcher marker = java.util.regex.Pattern.compile(
+                "(?is)<!--\\s*LOOPSPEC_JSON_START\\s*-->(.*?)<!--\\s*LOOPSPEC_JSON_END\\s*-->").matcher(output);
+        if (!marker.find()) return null;
+        String payload = marker.group(1);
+        int start = payload.indexOf('{');
+        int end = payload.lastIndexOf('}');
+        if (start < 0 || end <= start) return null;
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            LoopSpec spec = mapper.readValue(payload.substring(start, end + 1), LoopSpec.class);
+            String excerpt = designerMarkdown(output);
+            if (excerpt == null || excerpt.isBlank()) excerpt = "设计稿";
+            java.util.List<java.util.Map<String, Object>> sources = new java.util.ArrayList<>();
+            for (int stageIndex = 0; stageIndex < spec.stages().size(); stageIndex++) {
+                for (LoopSpec.AcceptanceCriterion criterion : spec.stages().get(stageIndex).acceptanceCriteria()) {
+                    sources.add(java.util.Map.of("stageIndex", stageIndex, "criterionId", criterion.id(),
+                            "excerpt", excerpt));
+                }
+            }
+            java.util.Map<String, Object> envelope = new java.util.LinkedHashMap<>();
+            envelope.put("status", "COMPILED");
+            envelope.put("summary", "LoopSpec 已由测试用只读规范编译器生成。");
+            envelope.put("loopSpec", spec);
+            envelope.put("criterionSources", sources);
+            envelope.put("designGaps", java.util.List.of());
+            return "<!-- LOOPSPEC_COMPILATION_JSON_START -->\n```json\n"
+                    + mapper.writeValueAsString(envelope)
+                    + "\n```\n<!-- LOOPSPEC_COMPILATION_JSON_END -->";
+        } catch (Exception invalid) {
+            return null;
+        }
+    }
     public record PermissionReplyCall(String sessionId, String requestId, PermissionReply reply, String message) { }
     public record ForkCall(String parentSessionId, String childSessionId, String messageId) { }
     public record RevertCall(String sessionId, String messageId, String partId) { }

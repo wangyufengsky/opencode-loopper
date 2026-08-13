@@ -87,6 +87,7 @@ function addStage() {
     allowedPaths: [],
     forbiddenPaths: [],
     deliverables: ['可验证实现'],
+    implementationKind: 'NON_JAVA',
     acceptanceCriteria: [],
     verifiers: [],
   })
@@ -207,6 +208,15 @@ function configureVerifier(verifier: LoopVerifierSpec) {
               <span class="field-title">阶段目标 <em>必填</em></span>
               <span class="field-help">描述本阶段结束时可观察、可验证的结果。</span>
               <el-input v-model="stage.objective" type="textarea" :autosize="textAutosize" resize="none" :aria-label="`阶段 ${stageIndex + 1} 目标`" />
+            </label>
+            <label v-if="spec.schemaVersion === 'v2'" class="field-block implementation-kind-field">
+              <span class="field-title">实现类型 <em>必填</em></span>
+              <span class="field-help">生产 Java 变化会在运行期复核；JAVA_PRODUCTION 必须由同阶段聚焦 Maven/Gradle 单元测试覆盖业务验收项。</span>
+              <el-select v-model="stage.implementationKind" placeholder="请选择实现类型" :aria-label="`阶段 ${stageIndex + 1} 实现类型`">
+                <el-option label="生产 Java（必须有聚焦单元测试）" value="JAVA_PRODUCTION" />
+                <el-option label="仅 Java 测试" value="JAVA_TEST_ONLY" />
+                <el-option label="不涉及生产 Java" value="NON_JAVA" />
+              </el-select>
             </label>
 
             <div class="boundary-grid">

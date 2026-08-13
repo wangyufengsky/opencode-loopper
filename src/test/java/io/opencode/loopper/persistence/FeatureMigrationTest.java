@@ -32,7 +32,7 @@ class FeatureMigrationTest {
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
 
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("20");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("21");
         try (var connection = DriverManager.getConnection(url);
              var statement = connection.prepareStatement("SELECT name FROM sqlite_master WHERE type='table'")) {
             try (var result = statement.executeQuery()) {
@@ -43,7 +43,7 @@ class FeatureMigrationTest {
                         "session_checkpoint", "session_usage", "binary_artifact",
                         "loopspec_template", "loopspec_template_version", "automation_rule", "automation_run",
                         "state_transition_event", "local_sync_conflict_session", "local_sync_conflict_file",
-                        "verifier_runtime", "task_publication"));
+                        "verifier_runtime", "task_publication", "loop_spec_compilation", "stage_java_baseline"));
             }
         }
         try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
@@ -66,6 +66,16 @@ class FeatureMigrationTest {
                 var columns = new java.util.ArrayList<String>();
                 while (result.next()) columns.add(result.getString("name"));
                 assertThat(columns).contains("source_branch");
+            }
+            try (var result = statement.executeQuery("PRAGMA table_info(designer_session)")) {
+                var columns = new java.util.ArrayList<String>();
+                while (result.next()) columns.add(result.getString("name"));
+                assertThat(columns).contains("workflow_phase", "design_revision", "redesign_count");
+            }
+            try (var result = statement.executeQuery("PRAGMA table_info(designer_message)")) {
+                var columns = new java.util.ArrayList<String>();
+                while (result.next()) columns.add(result.getString("name"));
+                assertThat(columns).contains("actor");
             }
         }
         assertAutomationApprovalAndImmutabilityGuards(url);

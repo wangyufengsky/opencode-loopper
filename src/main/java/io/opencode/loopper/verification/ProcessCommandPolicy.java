@@ -205,6 +205,27 @@ public final class ProcessCommandPolicy {
                 skipped ? "test command disables tests" : "targeted test command");
     }
 
+    /** True only for a focused Java test command, never npm or an unfiltered full suite. */
+    public static boolean isFocusedJavaTestCommand(List<String> command) {
+        TestCommandAssessment assessment = assessTestCommand(command);
+        if (!assessment.recognized() || assessment.skipped() || command == null || command.isEmpty()) return false;
+        String executable = baseName(command.getFirst());
+        List<String> args = command.stream().skip(1)
+                .map(value -> value == null ? "" : value.toLowerCase(Locale.ROOT).replace(" ", ""))
+                .toList();
+        if (MAVEN_EXECUTABLES.contains(executable)) {
+            return args.stream().anyMatch(value -> value.startsWith("-dtest=") || value.startsWith("-dit.test="));
+        }
+        if (GRADLE_EXECUTABLES.contains(executable)) {
+            for (int index = 0; index < args.size(); index++) {
+                String value = args.get(index);
+                if (value.startsWith("--tests=") && value.length() > "--tests=".length()) return true;
+                if (value.equals("--tests") && index + 1 < args.size() && !args.get(index + 1).isBlank()) return true;
+            }
+        }
+        return false;
+    }
+
     public static Path platformMavenWrapper(Path projectRoot, String osName) {
         boolean windows = osName != null && osName.toLowerCase(Locale.ROOT).contains("win");
         return projectRoot.resolve(windows ? "mvnw.cmd" : "mvnw");

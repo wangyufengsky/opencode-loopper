@@ -1,15 +1,19 @@
 package io.opencode.loopper.service;
 
 import io.opencode.loopper.config.LoopperProperties;
-import io.opencode.loopper.domain.SessionFailure;
-import io.opencode.loopper.domain.LoopSpec;
+import io.opencode.loopper.domain.DesignWorkflowPhase;
+import io.opencode.loopper.domain.DesignerActor;
 import io.opencode.loopper.domain.DesignerSessionState;
 import io.opencode.loopper.domain.LifecycleMachineType;
 import io.opencode.loopper.domain.LifecycleScopeType;
+import io.opencode.loopper.domain.LoopSpec;
+import io.opencode.loopper.domain.LoopSpecCompilationState;
+import io.opencode.loopper.domain.SessionFailure;
 import io.opencode.loopper.lifecycle.LifecycleTransitionService;
 import io.opencode.loopper.persistence.DesignerMessageRow;
 import io.opencode.loopper.persistence.DesignerSessionRow;
 import io.opencode.loopper.persistence.LoopDraftRow;
+import io.opencode.loopper.persistence.LoopSpecCompilationRow;
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.ProjectRow;
 import io.opencode.loopper.runtime.OpenCodeClient;
@@ -17,7 +21,10 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -27,21 +34,25 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * Read-only Designer handoff.  It deliberately has no TaskService dependency:
- * an OpenCode failure is persisted only on this DesignerSession and cannot stop
- * or mutate an execution task.
+ * Coordinates three strictly separated read-only roles. Designer produces only
+ * Markdown, Compiler produces only a marked machine envelope, and the server
+ * validator is the sole authority allowed to synchronize the bound draft.
  */
 @Service
 public class DesignerSessionService {
     public static final String READ_ONLY = "READ_ONLY";
     private static final int MAX_MESSAGE_LENGTH = 12_000;
-    private static final int MAX_LOOP_SPEC_REPAIR_ATTEMPTS = 2;
-    private static final String LOOP_SPEC_REPAIR_MARKER = "SYSTEM_RECOVERY[LOOPSPEC_AUTO_REPAIR";
-    private static final Pattern LOOP_SPEC_PAYLOAD = Pattern.compile(
-            "<!--\\s*LOOPSPEC_JSON_START\\s*-->(.*?)<!--\\s*LOOPSPEC_JSON_END\\s*-->",
+    private static final int MAX_FROZEN_DESIGN_LENGTH = 48_000;
+    private static final int MAX_COMPILER_REPAIRS = 2;
+    private static final int MAX_AUTOMATIC_REDESIGNS = 1;
+    private static final Pattern COMPILATION_PAYLOAD = Pattern.compile(
+            "<!--\\s*LOOPSPEC_COMPILATION_JSON_START\\s*-->(.*?)<!--\\s*LOOPSPEC_COMPILATION_JSON_END\\s*-->",
             Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
-    private static final Pattern LOOP_SPEC_START = Pattern.compile(
-            "<!--\\s*LOOPSPEC_JSON_START\\s*-->", Pattern.CASE_INSENSITIVE);
+    /** Compatibility sanitization only: a Designer payload is never consumed as LoopSpec. */
+    private static final Pattern LEGACY_DESIGNER_PAYLOAD = Pattern.compile(
+            "<!--\\s*LOOPSPEC_JSON_START\\s*-->.*?<!--\\s*LOOPSPEC_JSON_END\\s*-->",
+            Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+    private static final Set<DesignGapCode> ALLOWED_DESIGN_GAPS = EnumSet.allOf(DesignGapCode.class);
 
     private final LoopperMapper mapper;
     private final LifecycleTransitionService lifecycle;
@@ -66,28 +77,29 @@ public class DesignerSessionService {
         this.events = events;
     }
 
-    @Transactional
     public DesignerSessionRow create(String projectId, String initialMessage) {
         return create(projectId, null, initialMessage);
     }
 
-    @Transactional
     public DesignerSessionRow create(String projectId, String loopDraftId, String initialMessage) {
         projects.get(projectId);
         if (loopDraftId != null) {
             LoopDraftRow draft = drafts.get(loopDraftId);
             if (!projectId.equals(draft.projectId())) {
-                throw new BadRequestException("DESIGNER_DRAFT_PROJECT_MISMATCH", "Designer session and LoopSpec draft must belong to the same project");
+                throw new BadRequestException("DESIGNER_DRAFT_PROJECT_MISMATCH",
+                        "Designer session and LoopSpec draft must belong to the same project");
             }
         }
         String now = now();
         DesignerSessionRow session = new DesignerSessionRow(UUID.randomUUID().toString(), projectId,
-                DesignerSessionState.PENDING_HANDOFF.name(),
-                READ_ONLY, now, now, 0, null, "PENDING", loopDraftId);
-        lifecycle.create(subject(session), session.state(), java.util.Map.of(),
+                DesignerSessionState.PENDING_HANDOFF.name(), READ_ONLY, now, now, 0,
+                null, "PENDING", loopDraftId, DesignWorkflowPhase.DESIGNING.name(), 0, 0);
+        lifecycle.create(designerSubject(session), session.state(), java.util.Map.of(),
                 () -> mapper.insertDesignerSession(session),
-                () -> new ConflictException("DESIGNER_SESSION_CREATE_CONFLICT", "Designer session could not be created"));
-        appendSystem(session, "Designer session created in read-only mode. OpenCode Designer handoff is pending; no model response has been generated.",
+                () -> new ConflictException("DESIGNER_SESSION_CREATE_CONFLICT",
+                        "Designer session could not be created"));
+        appendMessage(session.id(), DesignerActor.SYSTEM,
+                "设计会话已创建。设计师只生成 Markdown 设计稿，规范编译器将在独立只读会话中生成 LoopSpec。",
                 DesignerSessionState.PENDING_HANDOFF.name());
         if (initialMessage != null && !initialMessage.isBlank()) appendUserMessage(session.id(), initialMessage);
         return get(session.id());
@@ -98,415 +110,626 @@ public class DesignerSessionService {
                 .orElseThrow(() -> new NotFoundException("Designer session not found: " + sessionId));
     }
 
-    public ProjectRow project(String sessionId) {
-        return projects.get(get(sessionId).projectId());
-    }
+    public ProjectRow project(String sessionId) { return projects.get(get(sessionId).projectId()); }
 
     public List<DesignerMessageRow> messages(String sessionId) {
         get(sessionId);
         return mapper.listDesignerMessages(sessionId);
     }
 
+    public CompilerStatus compilerStatus(String sessionId) {
+        get(sessionId);
+        return mapper.findLatestLoopSpecCompilation(sessionId)
+                .map(row -> new CompilerStatus(row.id(), row.state(), row.externalSessionId(),
+                        row.externalSessionState(), row.repairCount(), row.designRevision(),
+                        row.lastErrorCode(), row.lastErrorDetail()))
+                .orElse(null);
+    }
+
+    public String activeActor(DesignerSessionRow session) {
+        return switch (DesignWorkflowPhase.valueOf(session.workflowPhase())) {
+            case DESIGNING, REDESIGNING -> DesignerActor.DESIGNER.name();
+            case COMPILING -> DesignerActor.COMPILER.name();
+            case VALIDATING -> DesignerActor.VALIDATOR.name();
+            case COMPLETED, FAILED -> DesignerActor.SYSTEM.name();
+        };
+    }
+
     public List<PendingQuestion> pendingQuestions(String sessionId) {
         DesignerSessionRow session = get(sessionId);
         if (!DesignerSessionState.RUNNING.name().equals(session.state())
-                || session.externalSessionId() == null || session.externalSessionId().isBlank()) {
-            return List.of();
-        }
-        OpenCodeClient.OpenCodeSession remote = remote(session);
+                || !Set.of(DesignWorkflowPhase.DESIGNING.name(), DesignWorkflowPhase.REDESIGNING.name())
+                .contains(session.workflowPhase())
+                || blank(session.externalSessionId())) return List.of();
         try {
-            return openCode.pendingQuestions(remote).stream().map(this::question).toList();
+            return openCode.pendingQuestions(designerRemote(session)).stream().map(this::question).toList();
         } catch (SessionFailure failure) {
             throw new ServiceUnavailableException(failure.code(), safeMessage(failure.getMessage()));
         }
     }
 
     public void replyQuestion(String sessionId, String questionId, List<List<String>> answers) {
-        DesignerSessionRow session = requireRunningRemote(sessionId);
-        OpenCodeClient.OpenCodeSession remote = remote(session);
+        DesignerSessionRow session = requireRunningDesigner(sessionId);
+        OpenCodeClient.OpenCodeSession remote = designerRemote(session);
         OpenCodeClient.PendingQuestion pending = pending(remote, questionId);
-        List<List<String>> normalized = validateAnswers(pending, answers);
         try {
-            openCode.replyQuestion(remote, pending.id(), normalized);
+            openCode.replyQuestion(remote, pending.id(), validateAnswers(pending, answers));
         } catch (SessionFailure failure) {
             throw new ServiceUnavailableException(failure.code(), safeMessage(failure.getMessage()));
         }
-        questionResolved(sessionId, "问题回答已提交，OpenCode Designer 继续生成设计稿");
+        updateDesignerProjection(get(sessionId), DesignerSessionState.RUNNING,
+                DesignWorkflowPhase.valueOf(get(sessionId).workflowPhase()), remote.id(), "RUNNING",
+                get(sessionId).designRevision(), get(sessionId).redesignCount());
     }
 
     public void rejectQuestion(String sessionId, String questionId) {
-        DesignerSessionRow session = requireRunningRemote(sessionId);
-        OpenCodeClient.OpenCodeSession remote = remote(session);
+        DesignerSessionRow session = requireRunningDesigner(sessionId);
+        OpenCodeClient.OpenCodeSession remote = designerRemote(session);
         OpenCodeClient.PendingQuestion pending = pending(remote, questionId);
-        try {
-            openCode.rejectQuestion(remote, pending.id());
-        } catch (SessionFailure failure) {
+        try { openCode.rejectQuestion(remote, pending.id()); }
+        catch (SessionFailure failure) {
             throw new ServiceUnavailableException(failure.code(), safeMessage(failure.getMessage()));
         }
-        questionResolved(sessionId, "问题已拒绝，OpenCode Designer 将自行处理");
+        updateDesignerProjection(get(sessionId), DesignerSessionState.RUNNING,
+                DesignWorkflowPhase.valueOf(get(sessionId).workflowPhase()), remote.id(), "RUNNING",
+                get(sessionId).designRevision(), get(sessionId).redesignCount());
     }
 
     public LoopDraftRow draft(String sessionId) {
         DesignerSessionRow session = get(sessionId);
-        return session.loopDraftId() == null ? null : drafts.get(session.loopDraftId());
+        return blank(session.loopDraftId()) ? null : drafts.get(session.loopDraftId());
     }
 
+    /** MCP/manual compatibility boundary; the same deterministic contract still applies. */
     @Transactional
     public LoopDraftRow syncLoopSpec(String sessionId, LoopSpec spec) {
         DesignerSessionRow session = get(sessionId);
-        if (session.loopDraftId() == null || session.loopDraftId().isBlank()) {
-            throw new ConflictException("DESIGNER_DRAFT_NOT_BOUND", "Designer session is not bound to a LoopSpec draft");
-        }
-        if (spec == null || !session.projectId().equals(spec.projectId())) {
-            throw new BadRequestException("LOOPSPEC_PROJECT_MISMATCH", "LoopSpec projectId must match the Designer session projectId");
-        }
+        requireBoundDraft(session);
+        requireProject(session, spec);
         return drafts.update(session.loopDraftId(), spec);
     }
 
-    /**
-     * Records the human message before dispatching it.  A queue/error notice is
-     * a SYSTEM record only; an ASSISTANT record is inserted exclusively by
-     * {@link #pollActiveHandoffs()} after sessionOutput returns real text.
-     */
-    @Transactional
     public List<DesignerMessageRow> appendUserMessage(String sessionId, String content) {
         DesignerSessionRow session = get(sessionId);
         if (DesignerSessionState.RUNNING.name().equals(session.state())) {
             throw new ConflictException("DESIGNER_SESSION_BUSY",
-                    "OpenCode Designer is still processing the previous message; wait for its actual assistant response before sending another prompt");
+                    "The Designer, Compiler, or Validator is still processing the previous request");
         }
-        String normalized = normalizeMessage(content);
-        DesignerMessageRow user = appendMessage(session.id(), "USER", normalized, "PERSISTED");
-        DesignerMessageRow notice = dispatch(session, normalized);
+        DesignerMessageRow user = appendMessage(session.id(), DesignerActor.USER,
+                normalizeMessage(content), "PERSISTED");
+        DesignerMessageRow notice = dispatchDesigner(session, user.content(), DesignWorkflowPhase.DESIGNING,
+                session.redesignCount());
         return List.of(user, notice);
     }
 
-    /**
-     * Polls only Designer sessions. This has no reference to TaskService or task tables.
-     *
-     * Do not wrap the batch in a transaction. A completed response can be rejected by
-     * {@link LoopDraftService#update(String, LoopSpec)}; that service correctly rolls
-     * back its own update, while this method must still persist the session-scoped error.
-     * Joining both operations to one transaction would leave it rollback-only and make
-     * the scheduler throw {@code UnexpectedRollbackException} on every poll.
-     */
+    /** Explicit recovery: compile the latest frozen design in a brand-new read-only Session. */
+    public void retryCompilation(String sessionId) {
+        DesignerSessionRow session = get(sessionId);
+        if (DesignerSessionState.RUNNING.name().equals(session.state())) {
+            throw new ConflictException("DESIGN_WORKFLOW_BUSY", "The design workflow is still running");
+        }
+        DesignerMessageRow source = latestDesign(session.id());
+        DesignerSessionRow running = updateDesignerProjection(session, DesignerSessionState.RUNNING,
+                DesignWorkflowPhase.COMPILING, session.externalSessionId(), session.externalSessionState(),
+                session.designRevision(), session.redesignCount());
+        startCompilation(running, source);
+    }
+
+    /** Explicit recovery: ask Designer for a complete replacement, not a patch. */
+    public void requestRedesign(String sessionId) {
+        DesignerSessionRow session = get(sessionId);
+        if (DesignerSessionState.RUNNING.name().equals(session.state())) {
+            throw new ConflictException("DESIGN_WORKFLOW_BUSY", "The design workflow is still running");
+        }
+        dispatchDesigner(session, redesignPrompt("人工要求重新设计当前完整方案"),
+                DesignWorkflowPhase.REDESIGNING, session.redesignCount() + 1);
+    }
+
+    /** External model calls are deliberately outside a surrounding database transaction. */
     public void pollActiveHandoffs() {
         for (DesignerSessionRow session : mapper.activeDesignerHandoffs()) {
-            try {
-                poll(session);
-            } catch (RuntimeException ignoredConcurrentTransition) {
-                // An operator message or retry can legitimately update this independent session first.
-            }
+            try { pollDesigner(session); }
+            catch (RuntimeException ignoredConcurrentTransition) { }
+        }
+        for (LoopSpecCompilationRow compilation : mapper.activeLoopSpecCompilations()) {
+            try { pollCompiler(compilation); }
+            catch (RuntimeException ignoredConcurrentTransition) { }
         }
     }
 
-    private DesignerMessageRow dispatch(DesignerSessionRow session, String userMessage) {
+    private DesignerMessageRow dispatchDesigner(DesignerSessionRow input, String request,
+                                                  DesignWorkflowPhase phase, int redesignCount) {
         if (!openCode.healthy()) {
-            DesignerSessionRow pending = transition(session, DesignerSessionState.PENDING_HANDOFF, null, "UNAVAILABLE");
-            DesignerMessageRow notice = appendSystem(pending,
-                    "SYSTEM_ERROR[SESSION]: OpenCode Designer runtime is unavailable. Message remains pending handoff; no assistant reply was fabricated.",
-                    DesignerSessionState.PENDING_HANDOFF.name());
-            events.publish(pending.id(), "ERROR", pending.state(), pending.externalSessionState(), false, "", notice.content());
-            return notice;
+            DesignerSessionRow pending = updateDesignerProjection(input, DesignerSessionState.PENDING_HANDOFF,
+                    phase, null, "UNAVAILABLE", input.designRevision(), redesignCount);
+            DesignerMessageRow message = appendMessage(pending.id(), DesignerActor.SYSTEM,
+                    "SYSTEM_ERROR[SESSION] OPENCODE_DESIGNER_UNAVAILABLE: OpenCode Designer runtime is unavailable; "
+                            + "the request remains pending and no task was changed.", "PENDING_HANDOFF");
+            publish(pending, "ERROR", DesignerActor.SYSTEM, false, "", message.content());
+            return message;
         }
-        ProjectRow project = projects.get(session.projectId());
-        DesignerSessionRow current = session;
+        ProjectRow project = projects.get(input.projectId());
+        DesignerSessionRow current = input;
         try {
-            OpenCodeClient.OpenCodeSession remote = reusable(session)
-                    ? new OpenCodeClient.OpenCodeSession(session.externalSessionId(), Path.of(project.rootPath()))
-                    : openCode.createReadOnlySession(Path.of(project.rootPath()), "OpenCode Loopper Designer (READ_ONLY)", configuredModel());
-            current = transition(session, DesignerSessionState.RUNNING, remote.id(), "CREATED");
-            events.publish(current.id(), "STATUS", current.state(), current.externalSessionState(), true, "",
-                    "OpenCode 已连接，只读 Designer Session 已创建");
-            openCode.promptAsync(remote, designerPrompt(current, project, userMessage));
-            current = transition(current, DesignerSessionState.RUNNING, remote.id(), "RUNNING");
-            DesignerMessageRow notice = appendSystem(current,
-                    "Message was handed to the read-only OpenCode Designer. Waiting to persist the actual assistant response.",
-                    DesignerSessionState.PENDING_HANDOFF.name());
-            events.publish(current.id(), "STATUS", current.state(), current.externalSessionState(), true, "",
-                    "提示词已送达模型，等待首段回复");
-            return notice;
+            OpenCodeClient.OpenCodeSession remote = reusableDesigner(input)
+                    ? designerRemote(input)
+                    : openCode.createReadOnlySession(Path.of(project.rootPath()),
+                    "OpenCode Loopper Designer (READ_ONLY)", configuredModel());
+            current = updateDesignerProjection(input, DesignerSessionState.RUNNING, phase,
+                    remote.id(), "CREATED", input.designRevision(), redesignCount);
+            publish(current, "STATUS", DesignerActor.DESIGNER, true, "",
+                    phase == DesignWorkflowPhase.REDESIGNING ? "设计师正在生成完整替代稿" : "设计师正在生成 Markdown 设计稿");
+            openCode.promptAsync(remote, phase == DesignWorkflowPhase.REDESIGNING
+                    ? request : designerPrompt(current, project, request));
+            current = updateDesignerProjection(current, DesignerSessionState.RUNNING, phase,
+                    remote.id(), "RUNNING", current.designRevision(), redesignCount);
+            return appendMessage(current.id(), DesignerActor.SYSTEM,
+                    "请求已交给只读设计师；只有模型的实际 Markdown 输出会作为设计稿保存。",
+                    "PENDING_HANDOFF");
         } catch (SessionFailure failure) {
-            return sessionError(get(session.id()), failure.code(), failure.getMessage());
+            return failWorkflow(current, failure.code(), failure.getMessage());
         } catch (RuntimeException failure) {
-            return sessionError(get(session.id()), "OPENCODE_DESIGNER_HANDOFF_FAILED", failure.getMessage());
+            return failWorkflow(current, "OPENCODE_DESIGNER_HANDOFF_FAILED", failure.getMessage());
         }
     }
 
-    private void poll(DesignerSessionRow session) {
-        ProjectRow project = projects.get(session.projectId());
-        OpenCodeClient.OpenCodeSession remote = new OpenCodeClient.OpenCodeSession(session.externalSessionId(), Path.of(project.rootPath()));
+    private void pollDesigner(DesignerSessionRow session) {
+        OpenCodeClient.OpenCodeSession remote = designerRemote(session);
         try {
             List<OpenCodeClient.PendingQuestion> pending = openCode.pendingQuestions(remote);
             if (!pending.isEmpty()) {
-                DesignerSessionRow current = !same(session.externalSessionState(), "WAITING_INPUT")
-                        ? transition(session, DesignerSessionState.RUNNING, session.externalSessionId(), "WAITING_INPUT") : session;
-                String liveOutput = visibleDesignerOutput(openCode.sessionLiveOutput(remote));
-                events.publish(current.id(), liveOutput.isBlank() ? "STATUS" : "PARTIAL", current.state(), "WAITING_INPUT", true,
-                        liveOutput, "OpenCode Designer 正在等待你的回答");
+                DesignerSessionRow current = same(session.externalSessionState(), "WAITING_INPUT") ? session
+                        : updateDesignerProjection(session, DesignerSessionState.RUNNING,
+                        DesignWorkflowPhase.valueOf(session.workflowPhase()), remote.id(), "WAITING_INPUT",
+                        session.designRevision(), session.redesignCount());
+                publish(current, "STATUS", DesignerActor.DESIGNER, true,
+                        openCode.sessionLiveOutput(remote), "设计师正在等待你的回答");
                 return;
             }
-            if (designerTimedOut(session)) {
-                try { openCode.abort(remote); } catch (RuntimeException ignoredAbortFailure) { }
-                sessionError(session, "OPENCODE_DESIGNER_TIMEOUT",
-                        "OpenCode Designer exceeded the configured timeout of " + defaults.getDesignerTimeout());
+            if (timedOut(session.updatedAt())) {
+                try { openCode.abort(remote); } catch (RuntimeException ignored) { }
+                failWorkflow(session, "OPENCODE_DESIGNER_TIMEOUT", "Designer exceeded " + defaults.getDesignerTimeout());
                 return;
             }
             OpenCodeClient.SessionStatus status = openCode.sessionStatus(remote);
             if (status.failed()) {
-                sessionError(session, "OPENCODE_DESIGNER_" + safeState(status.state()), statusDetail(status, "OpenCode Designer session ended in " + status.state()));
+                failWorkflow(session, "OPENCODE_DESIGNER_" + safeState(status.state()), statusDetail(status));
             } else if (status.completed()) {
                 String output = openCode.sessionOutput(remote);
-                if (output == null || output.isBlank()) {
-                    sessionError(session, "OPENCODE_OUTPUT_MISSING", "OpenCode Designer completed without assistant text");
+                String markdown = designerMarkdown(output);
+                if (markdown.isBlank()) {
+                    failWorkflow(session, "DESIGN_OUTPUT_MISSING", "Designer completed without a Markdown design");
                     return;
                 }
-                ParsedDesignerOutput parsed;
-                try {
-                    parsed = parseDesignerOutput(output);
-                    syncLoopSpec(session.id(), parsed.spec());
-                } catch (BadRequestException | ConflictException failure) {
-                    String visibleOutput = visibleDesignerOutput(output);
-                    if (!visibleOutput.isBlank()) {
-                        appendMessage(session.id(), "ASSISTANT", visibleOutput, "REJECTED");
-                    }
-                    DesignerSessionRow current = get(session.id());
-                    if (!requestLoopSpecRepair(current, remote, failure.getMessage())) {
-                        sessionError(current, "LOOPSPEC_SYNC_FAILED", failure.getMessage());
-                    }
-                    return;
-                }
-                appendMessage(session.id(), "ASSISTANT", parsed.markdown(), "PERSISTED");
-                DesignerSessionRow completed = transition(session, DesignerSessionState.COMPLETED,
-                        session.externalSessionId(), "COMPLETED");
-                events.publish(completed.id(), "COMPLETED", completed.state(), completed.externalSessionState(), true,
-                        parsed.markdown(), "Designer 回复完成，LoopSpec 已同步");
+                DesignerMessageRow source = appendMessage(session.id(), DesignerActor.DESIGNER, markdown, "PERSISTED");
+                DesignerSessionRow compiling = updateDesignerProjection(get(session.id()), DesignerSessionState.RUNNING,
+                        DesignWorkflowPhase.COMPILING, remote.id(), "COMPLETED",
+                        session.designRevision() + 1, session.redesignCount());
+                publish(compiling, "STATUS", DesignerActor.COMPILER, true, "",
+                        "设计稿已冻结，正在启动独立规范编译器");
+                startCompilation(compiling, source);
             } else {
-                DesignerSessionRow current = !same(session.externalSessionState(), status.state())
-                        ? transition(session, DesignerSessionState.RUNNING, session.externalSessionId(), status.state()) : session;
-                String liveOutput = visibleDesignerOutput(openCode.sessionLiveOutput(remote));
-                events.publish(current.id(), liveOutput.isBlank() ? "STATUS" : "PARTIAL", current.state(), status.state(), true,
-                        liveOutput, liveOutput.isBlank() ? "OpenCode 已连接，等待首段模型回复" : "正在接收模型回复");
+                DesignerSessionRow current = same(session.externalSessionState(), status.state()) ? session
+                        : updateDesignerProjection(session, DesignerSessionState.RUNNING,
+                        DesignWorkflowPhase.valueOf(session.workflowPhase()), remote.id(), status.state(),
+                        session.designRevision(), session.redesignCount());
+                publish(current, "PARTIAL", DesignerActor.DESIGNER, true,
+                        designerMarkdown(openCode.sessionLiveOutput(remote)), "正在接收设计师 Markdown");
             }
         } catch (SessionFailure failure) {
-            sessionError(session, failure.code(), failure.getMessage());
+            failWorkflow(session, failure.code(), failure.getMessage());
         } catch (RuntimeException failure) {
-            sessionError(session, "OPENCODE_DESIGNER_STATUS_FAILED", failure.getMessage());
+            failWorkflow(session, "OPENCODE_DESIGNER_STATUS_FAILED", failure.getMessage());
         }
     }
 
-    private boolean requestLoopSpecRepair(DesignerSessionRow session, OpenCodeClient.OpenCodeSession remote,
-                                          String validationError) {
-        if (session.loopDraftId() == null || session.loopDraftId().isBlank()) return false;
-        int attempt = loopSpecRepairAttempts(session.id()) + 1;
-        if (attempt > MAX_LOOP_SPEC_REPAIR_ATTEMPTS) return false;
-        DesignerSessionRow repairing = transition(session, DesignerSessionState.RUNNING, session.externalSessionId(),
-                "REPAIRING_LOOPSPEC_" + attempt);
-        DesignerMessageRow notice = appendSystem(repairing,
-                LOOP_SPEC_REPAIR_MARKER + " " + attempt + "/" + MAX_LOOP_SPEC_REPAIR_ATTEMPTS + "]: 上一次回复未通过 LoopSpec 校验，"
-                        + "系统正把具体错误回送给只读 Designer 自动纠正；不会生成代码、修改项目或创建 Task。",
-                "AUTO_REPAIR");
-        events.publish(repairing.id(), "STATUS", repairing.state(), repairing.externalSessionState(), true, "", notice.content());
-        try {
-            openCode.promptAsync(remote, loopSpecRepairPrompt(repairing, validationError));
-        } catch (SessionFailure failure) {
-            sessionError(get(session.id()), failure.code(), failure.getMessage());
-        } catch (RuntimeException failure) {
-            sessionError(get(session.id()), "OPENCODE_LOOPSPEC_REPAIR_FAILED", failure.getMessage());
-        }
-        return true;
-    }
-
-    private int loopSpecRepairAttempts(String sessionId) {
-        return (int) mapper.listDesignerMessages(sessionId).stream()
-                .filter(message -> "SYSTEM".equals(message.role()))
-                .filter(message -> message.content().startsWith(LOOP_SPEC_REPAIR_MARKER))
-                .count();
-    }
-
-    private String loopSpecRepairPrompt(DesignerSessionRow session, String validationError) {
+    private void startCompilation(DesignerSessionRow session, DesignerMessageRow source) {
+        requireBoundDraft(session);
         LoopDraftRow draft = drafts.get(session.loopDraftId());
-        boolean legacy = "v1".equals(drafts.spec(draft).schemaVersion());
-        String acceptanceContract = legacy
-                ? "Address every validation error below. Preserve this persisted v1 draft without changing schemaVersion. Every stage must contain at least one functional verifier in addition to any GIT_DIFF scope verifier. GIT_DIFF only checks change scope. Normally use a PROCESS verifier with a direct `command` argv array and a command already supported by the inspected repository. Never assume Maven Wrapper is present: use the portable `./mvnw` alias only when the current platform wrapper (`mvnw` on Linux/macOS or `mvnw.cmd` on Windows) is checked in. Loopper resolves platform executable suffixes without accepting shell snippets. Every Maven lifecycle, goal, option, and value must be a separate array item."
-                : "Address every validation error below. This v2 draft separates deterministic machine evidence from final read-only AI Judge review. Every criterion declares verificationMode MACHINE, JUDGE, or BOTH. MACHINE requires a valid mapped BEHAVIOR verifier. BOTH requires that machine coverage plus an explicit judgeRubric. JUDGE is only for behavior that cannot be proved reliably by a deterministic verifier: it requires judgeRubric and judgeOnlyReason, and must not map machine evidence (use BOTH when both apply). Every stage still needs at least one blocking deterministic verifier. Build/package/typecheck/lint, GIT_DIFF, FILE_NOT_EXISTS, JUNIT_XML, and FILE_EXISTS do not provide BEHAVIOR coverage. PROCESS must declare processPurpose. TEST must run a recognized focused Maven/Gradle/npm test, list concrete testTargets, and must not skip tests or make a missing target pass. A planned test target may be created by this stage and need not exist during design. For Java code changes, default to BOTH with the production code and focused unit test in the same stage. Use SELF_CHECK only when a normal test framework cannot express the behavior, with an exact outputContains marker. HTTP_STATUS, JSON_PATH, and BROWSER behavior evidence must use `http://127.0.0.1:{{LOOPPER_PORT}}/...` and a stage verificationRuntime whose direct startCommand consumes `{{LOOPPER_PORT}}` and has a readiness probe. Never use shell launchers, shell fragments, source-text searches as behavior proof, or `java -e`.";
-        String payloadExample = legacy
-                ? "{ \"schemaVersion\": \"v1\", \"projectId\": \"" + session.projectId() + "\", \"goal\": \"...\", \"context\": \"...\", \"stages\": [], \"limits\": {} }"
-                : "{ \"schemaVersion\": \"v2\", \"projectId\": \"" + session.projectId() + "\", \"goal\": \"...\", \"context\": \"...\", \"stages\": [{ \"objective\": \"...\", \"acceptanceCriteria\": [{\"id\":\"AC-1\",\"description\":\"...\",\"verificationMode\":\"BOTH\",\"judgeRubric\":\"根据实现差异与测试证据评审边界行为和需求一致性\"}], \"verifiers\": [{\"type\":\"PROCESS\",\"processPurpose\":\"TEST\",\"command\":[\"mvn\",\"-Dtest=FooTest\",\"test\"],\"testTargets\":[\"FooTest\"],\"criterionIds\":[\"AC-1\"]}] }], \"limits\": {} }";
-        return """
-                Your previous response was rejected by the Loopper LoopSpec validator.
-                This is a protocol-repair turn only. Do not inspect more files, call repository tools, generate implementation code, edit files, run commands, create tasks, or discuss starting implementation.
-
-                Correct the complete Markdown design and the complete machine LoopSpec using only the project evidence already collected in this read-only session.
-                %s
-                Re-evaluate stage boundaries while repairing: prefer 2 to 6 dependency-ordered stages for non-trivial work, keep a single stage only for an atomic change, and split by independently deliverable behavior rather than by generic activities such as analysis, coding, and testing.
-                Every stage must own functional acceptance that can run immediately after that stage and prove its stated deliverables. Do not defer all functional validation to the final stage. A final full-regression verifier may supplement, but never replace, the focused verifier of each earlier stage.
-                The visible Markdown acceptance criteria and machine verifiers must describe the same checks.
-
-                Validation errors:
-                %s
-
-                Current bound LoopSpec JSON (unchanged because the rejected response was never synchronized):
-                %s
-
-                Return the complete corrected Markdown design followed by exactly one complete JSON object between these markers:
-                <!-- LOOPSPEC_JSON_START -->
-                ```json
-                %s
-                ```
-                <!-- LOOPSPEC_JSON_END -->
-                """.formatted(acceptanceContract, safeMessage(validationError), draft.specJson(), payloadExample);
+        if (source == null || source.actor() == null || !DesignerActor.DESIGNER.name().equals(source.actor())) {
+            failWorkflow(session, "DESIGN_SOURCE_MISSING", "No frozen Designer message is available for compilation");
+            return;
+        }
+        String now = now();
+        LoopSpecCompilationRow pending = new LoopSpecCompilationRow(UUID.randomUUID().toString(), session.id(),
+                session.designRevision(), LoopSpecCompilationState.PENDING_HANDOFF.name(), null, "PENDING", 0,
+                source.id(), draft.version(), null, null, now, now, 0);
+        lifecycle.create(compilationSubject(pending, session.projectId()), pending.state(), java.util.Map.of(),
+                () -> mapper.insertLoopSpecCompilation(pending),
+                () -> new ConflictException("LOOPSPEC_COMPILATION_CREATE_CONFLICT",
+                        "LoopSpec compilation could not be created"));
+        try {
+            ProjectRow project = projects.get(session.projectId());
+            OpenCodeClient.OpenCodeSession remote = openCode.createReadOnlySession(Path.of(project.rootPath()),
+                    "OpenCode Loopper LoopSpec Compiler (READ_ONLY)", configuredModel());
+            LoopSpecCompilationRow running = updateCompilation(pending, LoopSpecCompilationState.RUNNING,
+                    remote.id(), "RUNNING", 0, null, null, session.projectId());
+            openCode.promptAsync(remote, compilerPrompt(session, project, draft, source.content()));
+            publish(session, "STATUS", DesignerActor.COMPILER, true, "",
+                    "规范编译器已连接；原始 JSON 只会进入 Review Gate");
+        } catch (SessionFailure failure) {
+            failCompilation(pending, session, failure.code(), failure.getMessage());
+        } catch (RuntimeException failure) {
+            failCompilation(pending, session, "OPENCODE_COMPILER_HANDOFF_FAILED", failure.getMessage());
+        }
     }
 
-    private DesignerMessageRow sessionError(DesignerSessionRow session, String code, String detail) {
-        DesignerSessionRow failed = transition(session, DesignerSessionState.SESSION_ERROR,
-                session.externalSessionId(), "FAILED");
-        DesignerMessageRow message = appendSystem(failed, "SYSTEM_ERROR[SESSION:" + code + "]: " + safeMessage(detail)
-                + ". This affected only the read-only Designer handoff; no task was changed.",
-                DesignerSessionState.SESSION_ERROR.name());
-        events.publish(failed.id(), "ERROR", failed.state(), failed.externalSessionState(), false, "", message.content());
+    private void pollCompiler(LoopSpecCompilationRow compilation) {
+        DesignerSessionRow session = get(compilation.designerSessionId());
+        ProjectRow project = projects.get(session.projectId());
+        OpenCodeClient.OpenCodeSession remote = new OpenCodeClient.OpenCodeSession(
+                compilation.externalSessionId(), Path.of(project.rootPath()));
+        try {
+            List<OpenCodeClient.PendingQuestion> questions = openCode.pendingQuestions(remote);
+            if (!questions.isEmpty()) {
+                for (OpenCodeClient.PendingQuestion question : questions) {
+                    try { openCode.rejectQuestion(remote, question.id()); } catch (RuntimeException ignored) { }
+                }
+                compilerRejected(compilation, session, remote, "COMPILER_INTERACTION_FORBIDDEN",
+                        "LoopSpec Compiler must resolve the frozen design without asking questions");
+                return;
+            }
+            if (timedOut(compilation.updatedAt())) {
+                try { openCode.abort(remote); } catch (RuntimeException ignored) { }
+                failCompilation(compilation, session, "OPENCODE_COMPILER_TIMEOUT",
+                        "LoopSpec Compiler exceeded " + defaults.getDesignerTimeout());
+                return;
+            }
+            OpenCodeClient.SessionStatus status = openCode.sessionStatus(remote);
+            if (status.failed()) {
+                failCompilation(compilation, session, "OPENCODE_COMPILER_" + safeState(status.state()), statusDetail(status));
+            } else if (status.completed()) {
+                handleCompilerOutput(compilation, session, remote, openCode.sessionOutput(remote));
+            } else if (!same(compilation.externalSessionState(), status.state())) {
+                updateCompilation(compilation, LoopSpecCompilationState.RUNNING, remote.id(), status.state(),
+                        compilation.repairCount(), compilation.lastErrorCode(), compilation.lastErrorDetail(),
+                        session.projectId());
+                publish(session, "STATUS", DesignerActor.COMPILER, true, "", "规范编译器正在生成结构化结果");
+            }
+        } catch (SessionFailure failure) {
+            failCompilation(compilation, session, failure.code(), failure.getMessage());
+        } catch (RuntimeException failure) {
+            failCompilation(compilation, session, "OPENCODE_COMPILER_STATUS_FAILED", failure.getMessage());
+        }
+    }
+
+    private void handleCompilerOutput(LoopSpecCompilationRow compilation, DesignerSessionRow session,
+                                      OpenCodeClient.OpenCodeSession remote, String output) {
+        CompilationEnvelope envelope;
+        try {
+            envelope = parseCompilation(output);
+        } catch (BadRequestException invalid) {
+            compilerRejected(compilation, session, remote, invalid.code(), invalid.getMessage());
+            return;
+        }
+        if ("DESIGN_INCOMPLETE".equals(envelope.status())) {
+            List<DesignGap> gaps;
+            try { gaps = validateDesignGaps(envelope.designGaps()); }
+            catch (BadRequestException invalid) {
+                compilerRejected(compilation, session, remote, invalid.code(), invalid.getMessage());
+                return;
+            }
+            LoopSpecCompilationRow incomplete = updateCompilation(compilation,
+                    LoopSpecCompilationState.DESIGN_INCOMPLETE, remote.id(), "COMPLETED",
+                    compilation.repairCount(), "DESIGN_INCOMPLETE", summarizeGaps(gaps), session.projectId());
+            appendMessage(session.id(), DesignerActor.COMPILER,
+                    "设计稿暂不可编译：\n" + summarizeGaps(gaps), "DESIGN_INCOMPLETE");
+            if (session.redesignCount() < MAX_AUTOMATIC_REDESIGNS) {
+                dispatchDesigner(get(session.id()), redesignPrompt(summarizeGaps(gaps)),
+                        DesignWorkflowPhase.REDESIGNING, session.redesignCount() + 1);
+            } else {
+                failWorkflow(get(session.id()), "DESIGN_RETRY_EXHAUSTED",
+                        "Designer automatic redesign limit was reached: " + incomplete.lastErrorDetail());
+            }
+            return;
+        }
+        if (!"COMPILED".equals(envelope.status())) {
+            compilerRejected(compilation, session, remote, "COMPILER_STATUS_INVALID",
+                    "Compiler status must be COMPILED or DESIGN_INCOMPLETE");
+            return;
+        }
+        try {
+            DesignerSessionRow validating = updateDesignerProjection(get(session.id()), DesignerSessionState.RUNNING,
+                    DesignWorkflowPhase.VALIDATING, session.externalSessionId(), session.externalSessionState(),
+                    session.designRevision(), session.redesignCount());
+            DesignerMessageRow source = mapper.listDesignerMessages(session.id()).stream()
+                    .filter(message -> message.id().equals(compilation.sourceDesignMessageId())).findFirst()
+                    .orElseThrow(() -> new ConflictException("DESIGN_SOURCE_MISSING",
+                            "The frozen Designer source message no longer exists"));
+            requireProject(validating, envelope.loopSpec());
+            validateTraceability(source.content(), envelope.loopSpec(), envelope.criterionSources());
+            drafts.updateAtVersion(validating.loopDraftId(), envelope.loopSpec(), compilation.sourceDraftVersion());
+            String summary = blank(envelope.summary()) ? "LoopSpec 已从当前冻结设计编译完成。"
+                    : bounded(envelope.summary(), 1_000);
+            appendMessage(session.id(), DesignerActor.COMPILER, summary, "COMPILED");
+            appendMessage(session.id(), DesignerActor.VALIDATOR,
+                    "确定性校验通过：字段、验证器、验收覆盖、来源追踪及 Java 单元测试规则均满足。",
+                    "PASS");
+            updateCompilation(getCompilation(compilation.id()), LoopSpecCompilationState.COMPLETED,
+                    remote.id(), "COMPLETED", compilation.repairCount(), null, null, session.projectId());
+            DesignerSessionRow completed = updateDesignerProjection(get(session.id()), DesignerSessionState.COMPLETED,
+                    DesignWorkflowPhase.COMPLETED, session.externalSessionId(), session.externalSessionState(),
+                    session.designRevision(), session.redesignCount());
+            publish(completed, "COMPLETED", DesignerActor.VALIDATOR, true, "",
+                    "LoopSpec 已通过确定性校验并同步到 Review Gate");
+        } catch (BadRequestException invalid) {
+            compilerRejected(getCompilation(compilation.id()), get(session.id()), remote, invalid.code(), invalid.getMessage());
+        } catch (ConflictException stale) {
+            failCompilation(getCompilation(compilation.id()), get(session.id()), stale.code(), stale.getMessage());
+        }
+    }
+
+    private void compilerRejected(LoopSpecCompilationRow input, DesignerSessionRow session,
+                                  OpenCodeClient.OpenCodeSession remote, String code, String detail) {
+        LoopSpecCompilationRow compilation = getCompilation(input.id());
+        appendMessage(session.id(), DesignerActor.VALIDATOR,
+                "确定性校验未通过（" + code + "）：" + safeMessage(detail), "RETRYABLE_ERROR");
+        if (compilation.repairCount() >= MAX_COMPILER_REPAIRS) {
+            failCompilation(compilation, session, "COMPILER_RETRY_EXHAUSTED", detail);
+            return;
+        }
+        int repair = compilation.repairCount() + 1;
+        LoopSpecCompilationRow repairing = updateCompilation(compilation, LoopSpecCompilationState.RUNNING,
+                remote.id(), "REPAIRING_" + repair, repair, code, safeMessage(detail), session.projectId());
+        DesignerSessionRow compiling = updateDesignerProjection(get(session.id()), DesignerSessionState.RUNNING,
+                DesignWorkflowPhase.COMPILING, session.externalSessionId(), session.externalSessionState(),
+                session.designRevision(), session.redesignCount());
+        try {
+            openCode.promptAsync(remote, compilerRepairPrompt(repairing, code, detail));
+            publish(compiling, "STATUS", DesignerActor.COMPILER, true, "",
+                    "规范编译器正在进行第 " + repair + "/" + MAX_COMPILER_REPAIRS + " 次修复");
+        } catch (RuntimeException failure) {
+            failCompilation(repairing, compiling, "OPENCODE_COMPILER_REPAIR_FAILED", failure.getMessage());
+        }
+    }
+
+    private void failCompilation(LoopSpecCompilationRow input, DesignerSessionRow session,
+                                 String code, String detail) {
+        LoopSpecCompilationRow current = mapper.findLoopSpecCompilation(input.id()).orElse(input);
+        if (!LoopSpecCompilationState.SESSION_ERROR.name().equals(current.state())
+                && !LoopSpecCompilationState.COMPLETED.name().equals(current.state())
+                && !LoopSpecCompilationState.DESIGN_INCOMPLETE.name().equals(current.state())) {
+            updateCompilation(current, LoopSpecCompilationState.SESSION_ERROR,
+                    current.externalSessionId(), "FAILED", current.repairCount(), code,
+                    safeMessage(detail), session.projectId());
+        }
+        failWorkflow(get(session.id()), code, detail);
+    }
+
+    private DesignerMessageRow failWorkflow(DesignerSessionRow input, String code, String detail) {
+        DesignerSessionRow current = get(input.id());
+        DesignerSessionRow failed = current;
+        if (!DesignerSessionState.SESSION_ERROR.name().equals(current.state())) {
+            failed = updateDesignerProjection(current, DesignerSessionState.SESSION_ERROR,
+                    DesignWorkflowPhase.FAILED, current.externalSessionId(), "FAILED",
+                    current.designRevision(), current.redesignCount());
+        }
+        DesignerMessageRow message = appendMessage(failed.id(), DesignerActor.VALIDATOR,
+                "工作流已停止（" + code + "）：" + safeMessage(detail)
+                        + "。设计稿未同步，也没有创建或修改 Task。",
+                "TERMINAL_ERROR");
+        publish(failed, "ERROR", DesignerActor.VALIDATOR, false, "", message.content());
         return message;
     }
 
-    private boolean reusable(DesignerSessionRow session) {
-        return session.externalSessionId() != null && !session.externalSessionId().isBlank()
-                && !DesignerSessionState.SESSION_ERROR.name().equals(session.state());
-    }
-
-    /** A parseable provider/model is passed through; absent or malformed configuration lets OpenCode choose its runtime default. */
-    private OpenCodeClient.OpenCodeModel configuredModel() {
-        String configured = defaults.getOpenCode().getModel();
-        if (configured == null) return null;
-        String value = configured.trim();
-        int separator = value.indexOf('/');
-        if (separator <= 0 || separator >= value.length() - 1) return null;
-        String provider = value.substring(0, separator).trim();
-        String model = value.substring(separator + 1).trim();
-        return provider.isEmpty() || model.isEmpty() ? null : new OpenCodeClient.OpenCodeModel(provider, model, null);
-    }
-
-    private String designerPrompt(DesignerSessionRow session, ProjectRow project, String message) {
-        LoopDraftRow draft = session.loopDraftId() == null ? null : drafts.get(session.loopDraftId());
-        String currentSpec = draft == null ? "{}" : draft.specJson();
-        boolean legacy = draft != null && "v1".equals(drafts.spec(draft).schemaVersion());
-        String acceptanceContract = legacy
-                ? "- This is a persisted v1 draft. Keep schemaVersion v1 and preserve its legacy verifier behavior. The Markdown acceptance criteria and machine LoopSpec MUST describe the same checks. Every validation command shown in Markdown must appear in the corresponding stage.verifiers as a PROCESS verifier whose JSON field is exactly `command`. Never leave a stage with GIT_DIFF as its only verifier: GIT_DIFF checks scope, not functional correctness.\n- PROCESS uses the schema { \"type\": \"PROCESS\", \"command\": [\"program\", \"arg\"] }. The `command` value is a direct argv array, never a shell snippet. Select `program` from commands actually supported by the inspected repository. Never assume Maven Wrapper is present: use the portable `./mvnw` alias only when the current platform wrapper (`mvnw` on Linux/macOS or `mvnw.cmd` on Windows) is checked in. Loopper resolves Windows executable suffixes without accepting shell snippets. Never rename this JSON field to `argv`, `args`, or `cmd`. Every Maven lifecycle, goal, option, and value must be a separate array item. Do not add v2-only fields unless the user first copies this design into a new v2 draft."
-                : "- The Markdown criteria and machine stage.acceptanceCriteria MUST describe the same observable behaviors. Assign stable IDs such as AC-1. Each criterion declares verificationMode MACHINE, JUDGE, or BOTH. MACHINE requires mapped deterministic BEHAVIOR evidence. BOTH requires that machine evidence plus judgeRubric. JUDGE is exceptional: use it only when deterministic proof is unreliable, provide judgeRubric and judgeOnlyReason, and do not map machine evidence; use BOTH if both forms apply. Every stage must still contain at least one blocking deterministic verifier.\n- For Java production-code changes, default each behavior criterion to BOTH and place the production change plus its focused Maven/Gradle unit test in the same stage. A planned test target is a stage deliverable and does not need to exist during design. Keep one stage for an atomic Java change; split only when service, database, API, runtime, or UI boundaries are independently deliverable. Never defer all tests to a later testing stage.\n- Classify evidence correctly: compile/package/build/typecheck/lint/install PROCESS commands are BUILD only; GIT_DIFF is SCOPE; FILE_NOT_EXISTS is SAFETY; JUNIT_XML is REPORT; FILE_EXISTS is ADVISORY. None provides BEHAVIOR coverage. PROCESS requires processPurpose BUILD, TEST, or SELF_CHECK. TEST must invoke an evidenced focused Maven/Gradle/npm test, list concrete testTargets, and must not skip tests or make a missing target pass. SELF_CHECK is a fallback only when a normal test cannot express the behavior; it must exit non-zero on failure and require an exact outputContains marker.\n- For REST behavior use HTTP_STATUS/JSON_PATH; for UI interaction use BROWSER; for SQLite behavior use DATABASE_QUERY; for deterministic files use FILE_CONTENT/FILE_HASH. HTTP_STATUS, JSON_PATH, and BROWSER mapped to a criterion must target `http://127.0.0.1:{{LOOPPER_PORT}}/...` and the same stage must define verificationRuntime.startCommand as direct argv containing `{{LOOPPER_PORT}}`, plus a bounded readiness path. A fixed loopback check may remain supplemental but cannot cover a criterion. `{{LOOPPER_TEMP}}` is the only other placeholder. Shell launchers, shell fragments, source-text searches as behavior proof, and `java -e` are forbidden.";
-        String preserveFields = legacy
-                ? "- Keep schemaVersion v1 and projectId unchanged. Return every legacy field, including stages, verifiers, limits, model, sessionPolicy, and nextAttemptPromptTemplate. Use numeric *Seconds fields exactly as in the current JSON."
-                : "- Keep schemaVersion v2 and projectId unchanged. Return every field, including acceptanceCriteria and their verificationMode, judgeRubric, judgeOnlyReason, plus verificationRuntime, criterionIds, processPurpose, testTargets, limits, model, sessionPolicy, and nextAttemptPromptTemplate. Use numeric *Seconds fields exactly as in the current JSON.";
-        String payloadExample = legacy
-                ? "{ \"schemaVersion\": \"v1\", \"projectId\": \"" + project.id() + "\", \"goal\": \"...\", \"context\": \"...\", \"stages\": [], \"limits\": {} }"
-                : "{ \"schemaVersion\": \"v2\", \"projectId\": \"" + project.id() + "\", \"goal\": \"...\", \"context\": \"...\", \"stages\": [{ \"objective\": \"...\", \"acceptanceCriteria\": [{\"id\":\"AC-1\",\"description\":\"...\",\"verificationMode\":\"BOTH\",\"judgeRubric\":\"根据实现差异与测试证据评审边界行为和需求一致性\"}], \"verifiers\": [{\"type\":\"PROCESS\",\"processPurpose\":\"TEST\",\"command\":[\"mvn\",\"-Dtest=FooTest\",\"test\"],\"testTargets\":[\"FooTest\"],\"criterionIds\":[\"AC-1\"]}] }], \"limits\": {} }";
-        return """
-                You are the OpenCode Loopper Designer. Work in read-only advisory mode only.
-                You may inspect the registered project but must not edit files, run shell commands, create tasks, or claim an action completed without evidence.
-                Registered project root: %s
-                Designer session id: %s
-                Bound LoopSpec draft id: %s
-
-                Respond to the user's design request with an implementation-ready LoopSpec proposal or review. A human must still confirm any draft before task creation.
-
-                Output contract:
-                - Write the complete response as a well-structured Markdown document. Do not wrap the whole response in a code fence and do not emit raw HTML.
-                - Use meaningful headings, short paragraphs, lists, tables, and fenced code blocks where they make the proposal easier to review.
-                - Include concrete implementation boundaries, affected files or modules, validation commands, acceptance criteria, risks, and unresolved decisions when they are relevant.
-                - Prefer 2 to 6 dependency-ordered stages for non-trivial work. Keep a single stage only when the requested change is genuinely atomic, and state the single-stage reason in the Markdown. Split by independently deliverable, independently verifiable behavior; do not split mechanically into analysis, coding, and testing phases.
-                - Include a Markdown stage plan whose rows map one-to-one and in the same order to machine `stages`. For every stage show its observable result, affected scope, deliverables, dependency on earlier stages, and acceptance command or check.
-                - Every stage must leave the project in a coherent, safe-to-stop state and must own functional acceptance that can run immediately after that stage. Use the narrowest reliable stage-specific verifier first. Do not defer all tests or functional validation to the final stage; a final full-regression verifier may supplement but never replace each earlier stage's focused acceptance.
-                %s
-                - Do not add FILE_EXISTS verifiers: generated artifacts and build output directories are not fixed-path hard gates. Prove required output with a PROCESS self-check that exits non-zero on failure and optionally requires an exact PASS marker. FILE_NOT_EXISTS remains available only for explicit safety invariants. Do not add GIT_DIFF merely because stage.allowedPaths or stage.forbiddenPaths is populated: those stage fields are advisory Agent guidance. Add a GIT_DIFF verifier only when you explicitly propose a path/delete acceptance check in the visible Markdown, and choose limits.verifierTimeoutSeconds large enough for the slowest validation command.
-                - Whenever you describe a workflow, state transition, component interaction, dependency flow, or multi-step execution path, include a fenced `mermaid` diagram. Never draw flows with ASCII art.
-                - Explanatory prose, conclusions, reviews, risks, acceptance criteria, and unresolved decisions default to Simplified Chinese unless the user explicitly requests another language.
-                - Keep identifiers, commands, file paths, code, JSON field names, protocol enum values, and exact literal markers in their original form.
-                - Your response MUST end with the complete updated LoopSpec JSON between the exact markers shown below. The JSON is machine-consumed and will be removed from the visible Markdown after validation.
-                - Do not repeat or display the raw LoopSpec JSON anywhere else in the visible Markdown document; summarize its important decisions in prose, tables, and Mermaid diagrams instead.
-                %s
-
-                Current bound LoopSpec JSON:
-                %s
-
-                Required machine payload format:
-                <!-- LOOPSPEC_JSON_START -->
-                ```json
-                %s
-                ```
-                <!-- LOOPSPEC_JSON_END -->
-
-                User message:
-                %s
-                """.formatted(project.rootPath(), session.id(), session.loopDraftId(), acceptanceContract,
-                        preserveFields, currentSpec, payloadExample, message);
-    }
-
-    private ParsedDesignerOutput parseDesignerOutput(String output) {
-        Matcher matcher = LOOP_SPEC_PAYLOAD.matcher(output);
-        if (!matcher.find()) {
-            throw new BadRequestException("LOOPSPEC_OUTPUT_MISSING", "Designer response did not contain the required LoopSpec JSON payload");
-        }
+    private CompilationEnvelope parseCompilation(String output) {
+        if (blank(output)) throw new BadRequestException("COMPILER_OUTPUT_MISSING",
+                "LoopSpec Compiler completed without output");
+        Matcher matcher = COMPILATION_PAYLOAD.matcher(output);
+        if (!matcher.find()) throw new BadRequestException("COMPILER_OUTPUT_MARKERS_MISSING",
+                "Compiler output did not contain the required compilation markers");
         String payload = matcher.group(1);
         int start = payload.indexOf('{');
         int end = payload.lastIndexOf('}');
-        if (start < 0 || end <= start) {
-            throw new BadRequestException("LOOPSPEC_OUTPUT_INVALID", "Designer LoopSpec payload is not a JSON object");
-        }
+        if (start < 0 || end <= start) throw new BadRequestException("COMPILER_OUTPUT_INVALID",
+                "Compiler payload is not one JSON object");
         try {
-            LoopSpec spec = json.readValue(payload.substring(start, end + 1), LoopSpec.class);
-            String markdown = (output.substring(0, matcher.start()) + output.substring(matcher.end())).trim();
-            if (markdown.isBlank()) markdown = "## LoopSpec 已生成\n\n结构化设计已同步到右侧 Review Gate。";
-            return new ParsedDesignerOutput(markdown, spec);
+            CompilationEnvelope envelope = json.readValue(payload.substring(start, end + 1), CompilationEnvelope.class);
+            if (envelope == null || blank(envelope.status())) {
+                throw new BadRequestException("COMPILER_STATUS_MISSING", "Compiler status is required");
+            }
+            return envelope.normalized();
+        } catch (BadRequestException failure) {
+            throw failure;
         } catch (JacksonException failure) {
-            throw new BadRequestException("LOOPSPEC_OUTPUT_INVALID", "Designer LoopSpec JSON cannot be read: " + failure.getMessage());
+            throw new BadRequestException("COMPILER_OUTPUT_INVALID",
+                    "Compiler JSON cannot be read: " + failure.getMessage());
         }
     }
 
-    private String visibleDesignerOutput(String output) {
-        if (output == null || output.isBlank()) return "";
-        Matcher matcher = LOOP_SPEC_PAYLOAD.matcher(output);
-        if (matcher.find()) return (output.substring(0, matcher.start()) + output.substring(matcher.end())).trim();
-        Matcher start = LOOP_SPEC_START.matcher(output);
-        return start.find() ? output.substring(0, start.start()).trim() : output;
+    private List<DesignGap> validateDesignGaps(List<DesignGap> input) {
+        if (input == null || input.isEmpty()) throw new BadRequestException("DESIGN_GAPS_REQUIRED",
+                "DESIGN_INCOMPLETE requires at least one concrete design gap");
+        List<DesignGap> result = new ArrayList<>();
+        for (DesignGap gap : input) {
+            if (gap == null || gap.code() == null || !ALLOWED_DESIGN_GAPS.contains(gap.code()) || blank(gap.detail())) {
+                throw new BadRequestException("DESIGN_GAP_INVALID",
+                        "Design gaps must use a closed semantic gap code and a concrete detail");
+            }
+            result.add(new DesignGap(gap.code(), bounded(gap.detail().trim(), 1_000)));
+        }
+        return List.copyOf(result);
     }
 
-    private boolean designerTimedOut(DesignerSessionRow session) {
-        Duration timeout = defaults.getDesignerTimeout();
-        if (timeout == null || timeout.isZero() || timeout.isNegative()) return false;
-        String latestUserMessageAt = mapper.listDesignerMessages(session.id()).stream()
-                .filter(message -> "USER".equals(message.role()))
+    private void validateTraceability(String design, LoopSpec spec, List<CriterionSource> sources) {
+        if (spec == null) throw new BadRequestException("COMPILED_LOOPSPEC_MISSING", "COMPILED requires loopSpec");
+        List<CriterionSource> trace = sources == null ? List.of() : sources;
+        Set<String> seen = new HashSet<>();
+        for (int stageIndex = 0; stageIndex < spec.stages().size(); stageIndex++) {
+            int currentStageIndex = stageIndex;
+            for (LoopSpec.AcceptanceCriterion criterion : spec.stages().get(stageIndex).acceptanceCriteria()) {
+                if (criterion == null || blank(criterion.id())) {
+                    throw new BadRequestException("CRITERION_SOURCE_INVALID",
+                            "Every compiled acceptance criterion must have a non-blank id before source mapping");
+                }
+                String key = stageIndex + ":" + criterion.id();
+                CriterionSource source = trace.stream()
+                        .filter(item -> item != null && item.stageIndex() == currentStageIndex
+                                && criterion.id().equals(item.criterionId())).findFirst()
+                        .orElseThrow(() -> new BadRequestException("CRITERION_SOURCE_MISSING",
+                                "No Designer source excerpt was supplied for " + key));
+                if (blank(source.excerpt()) || !design.contains(source.excerpt())) {
+                    throw new BadRequestException("CRITERION_SOURCE_NOT_IN_DESIGN",
+                            "Criterion source excerpt is not an exact substring of the frozen design: " + key);
+                }
+                if (!seen.add(key)) throw new BadRequestException("CRITERION_SOURCE_DUPLICATE",
+                        "Criterion source was duplicated: " + key);
+            }
+        }
+        if (trace.size() != seen.size()) throw new BadRequestException("CRITERION_SOURCE_EXTRA",
+                "Compiler supplied criterion source entries that do not belong to the compiled LoopSpec");
+    }
+
+    private String designerPrompt(DesignerSessionRow session, ProjectRow project, String message) {
+        return """
+                You are OpenCode Loopper Designer / 设计师 in strictly read-only advisory mode.
+                You may use read, glob, and grep to inspect the registered project. Do not edit or write files,
+                run commands, create tasks, or claim implementation has happened.
+
+                Registered project root: %s
+                Designer session id: %s
+                Bound draft id: %s
+
+                Produce one complete, replacement-quality Markdown design in Simplified Chinese. Do not emit
+                LoopSpec JSON, schema fields, hidden markers, or a machine payload. Include implementation scope,
+                observable business results, exception semantics, affected modules/files, dependency-ordered stages,
+                acceptance intent and exact validation commands when evidenced. Non-trivial work should normally use
+                2-6 independently deliverable stages; an atomic change may use one stage with a stated reason.
+                Every stage must be coherent and immediately verifiable. Do not postpone all behavior checks to a
+                final test stage. If a stage adds or changes production Java, put its focused Maven/Gradle unit test
+                in the same stage and describe which business acceptance behavior that test proves. A statement such
+                as 'all tests pass' is evidence, not a standalone business acceptance item. Include Mermaid for
+                multi-step workflows. Preserve identifiers, commands, paths, and enum literals exactly.
+
+                User request:
+                %s
+                """.formatted(project.rootPath(), session.id(), session.loopDraftId(), message);
+    }
+
+    private String compilerPrompt(DesignerSessionRow session, ProjectRow project, LoopDraftRow draft, String design) {
+        return """
+                You are OpenCode Loopper LoopSpec Compiler / 规范编译器 in a new strictly read-only Session.
+                You compile a frozen Designer Markdown document into machine LoopSpec; you do not redesign it.
+                You may use read, glob, and grep to verify build files and test conventions. Do not edit/write files,
+                execute commands, ask questions, create tasks, or add business requirements absent from the design.
+
+                Project root: %s
+                Required projectId: %s
+                Draft schema/version context (read-only):
+                %s
+
+                Return exactly one JSON object between the exact markers below and no raw LoopSpec elsewhere.
+                Status COMPILED requires loopSpec, a short summary, and one criterionSources entry for every
+                stage acceptance criterion. Each entry has stageIndex, criterionId, and excerpt; excerpt must be an
+                exact non-empty substring of the frozen design. Status DESIGN_INCOMPLETE is allowed only when the
+                design lacks business semantics and requires designGaps using only these codes:
+                MISSING_OBSERVABLE_OUTCOME, MISSING_EXCEPTION_SEMANTICS, MISSING_SCOPE, MISSING_ACCEPTANCE_INTENT.
+                Never use DESIGN_INCOMPLETE for malformed JSON, schema uncertainty, invalid validators, or coverage errors.
+
+                For v2 every stage must set implementationKind to JAVA_PRODUCTION, JAVA_TEST_ONLY, or NON_JAVA.
+                JAVA_PRODUCTION requires a non-skipped focused Maven/Gradle PROCESS TEST with concrete testTargets,
+                and every MACHINE/BOTH business criterion must be mapped to that focused test through criterionIds.
+                Tests are evidence for business criteria, never a separate 'tests pass' criterion. PROCESS is direct
+                argv, never shell. Every v2 PROCESS declares processPurpose. Every stage has at least one blocking
+                deterministic verifier. GIT_DIFF is scope only; FILE_EXISTS is advisory; build/lint/typecheck are not
+                behavior. Use JUDGE only when deterministic proof is genuinely unreliable and explain why.
+
+                Required envelope shape:
+                <!-- LOOPSPEC_COMPILATION_JSON_START -->
+                ```json
+                {"status":"COMPILED","summary":"...","loopSpec":{"schemaVersion":"v2","projectId":"%s","goal":"...","context":"...","stages":[{"objective":"...","allowedPaths":[],"forbiddenPaths":[],"deliverables":[],"implementationKind":"NON_JAVA","acceptanceCriteria":[{"id":"AC-1","description":"...","verificationMode":"MACHINE"}],"verifiers":[]}],"limits":{}},"criterionSources":[{"stageIndex":0,"criterionId":"AC-1","excerpt":"exact Designer text"}],"designGaps":[]}
+                ```
+                <!-- LOOPSPEC_COMPILATION_JSON_END -->
+
+                Frozen Designer Markdown revision %d:
+                %s
+                """.formatted(project.rootPath(), session.projectId(), draft.specJson(),
+                session.projectId(), session.designRevision(), design);
+    }
+
+    private String compilerRepairPrompt(LoopSpecCompilationRow compilation, String code, String detail) {
+        return """
+                The deterministic server validator rejected the previous compiler envelope.
+                Repair the complete compilation envelope using only the same frozen Designer document and prior
+                read-only evidence. Do not redesign, ask questions, inspect additional scope, execute commands, or
+                return DESIGN_INCOMPLETE to escape JSON/schema/verifier/coverage errors.
+
+                Repair %d/%d
+                Error code: %s
+                Error detail: %s
+
+                Return one complete replacement JSON object between
+                <!-- LOOPSPEC_COMPILATION_JSON_START --> and <!-- LOOPSPEC_COMPILATION_JSON_END -->.
+                """.formatted(compilation.repairCount(), MAX_COMPILER_REPAIRS, code, safeMessage(detail));
+    }
+
+    private String redesignPrompt(String gaps) {
+        return """
+                The independent LoopSpec Compiler could not compile the previous frozen design because required
+                business semantics were missing. Produce a complete replacement Markdown design, not a patch or
+                commentary about the old design. Do not emit LoopSpec JSON or hidden machine markers. Preserve the
+                original user goal, but explicitly fill every listed gap with observable results, exception semantics,
+                scope, and acceptance intent. Production Java changes must include focused Maven/Gradle unit-test
+                evidence mapped to the business behavior in the same stage.
+
+                Design gaps:
+                %s
+                """.formatted(gaps);
+    }
+
+    private String designerMarkdown(String output) {
+        if (blank(output)) return "";
+        return LEGACY_DESIGNER_PAYLOAD.matcher(output).replaceAll("").trim();
+    }
+
+    private DesignerMessageRow latestDesign(String sessionId) {
+        return mapper.listDesignerMessages(sessionId).stream()
+                .filter(message -> DesignerActor.DESIGNER.name().equals(message.actor()))
+                .filter(message -> "PERSISTED".equals(message.deliveryState()))
                 .reduce((first, second) -> second)
-                .map(DesignerMessageRow::createdAt)
-                .orElse(session.updatedAt());
-        try {
-            Instant messageAt = Instant.parse(latestUserMessageAt);
-            Instant stateChangedAt = Instant.parse(session.updatedAt());
-            return Duration.between(messageAt.isAfter(stateChangedAt) ? messageAt : stateChangedAt, Instant.now()).compareTo(timeout) > 0;
-        }
-        catch (RuntimeException invalidTimestamp) { return false; }
+                .orElseThrow(() -> new ConflictException("DESIGN_SOURCE_MISSING",
+                        "No frozen Designer Markdown is available"));
     }
 
-    private DesignerSessionRow requireRunningRemote(String sessionId) {
+    private void requireBoundDraft(DesignerSessionRow session) {
+        if (blank(session.loopDraftId())) throw new ConflictException("DESIGNER_DRAFT_NOT_BOUND",
+                "Designer session is not bound to a LoopSpec draft");
+    }
+
+    private void requireProject(DesignerSessionRow session, LoopSpec spec) {
+        if (spec == null || !session.projectId().equals(spec.projectId())) {
+            throw new BadRequestException("LOOPSPEC_PROJECT_MISMATCH",
+                    "LoopSpec projectId must match the Designer session projectId");
+        }
+    }
+
+    private DesignerSessionRow requireRunningDesigner(String sessionId) {
         DesignerSessionRow session = get(sessionId);
         if (!DesignerSessionState.RUNNING.name().equals(session.state())
-                || session.externalSessionId() == null || session.externalSessionId().isBlank()) {
-            throw new ConflictException("DESIGNER_QUESTION_UNAVAILABLE", "Designer session has no running OpenCode question to answer");
+                || !Set.of(DesignWorkflowPhase.DESIGNING.name(), DesignWorkflowPhase.REDESIGNING.name())
+                .contains(session.workflowPhase()) || blank(session.externalSessionId())) {
+            throw new ConflictException("DESIGNER_QUESTION_UNAVAILABLE",
+                    "Designer session has no running Designer question to answer");
         }
         return session;
     }
 
-    private OpenCodeClient.OpenCodeSession remote(DesignerSessionRow session) {
-        ProjectRow project = projects.get(session.projectId());
-        return new OpenCodeClient.OpenCodeSession(session.externalSessionId(), Path.of(project.rootPath()));
+    private OpenCodeClient.OpenCodeSession designerRemote(DesignerSessionRow session) {
+        return new OpenCodeClient.OpenCodeSession(session.externalSessionId(),
+                Path.of(projects.get(session.projectId()).rootPath()));
+    }
+
+    private boolean reusableDesigner(DesignerSessionRow session) {
+        return !blank(session.externalSessionId())
+                && !DesignerSessionState.SESSION_ERROR.name().equals(session.state());
     }
 
     private OpenCodeClient.PendingQuestion pending(OpenCodeClient.OpenCodeSession remote, String questionId) {
-        if (questionId == null || questionId.isBlank()) {
-            throw new BadRequestException("QUESTION_ID_REQUIRED", "Question id is required");
-        }
+        if (blank(questionId)) throw new BadRequestException("QUESTION_ID_REQUIRED", "Question id is required");
         try {
-            return openCode.pendingQuestions(remote).stream()
-                    .filter(question -> questionId.equals(question.id()))
-                    .findFirst()
-                    .orElseThrow(() -> new NotFoundException("Pending question not found for this Designer Session: " + questionId));
+            return openCode.pendingQuestions(remote).stream().filter(question -> questionId.equals(question.id()))
+                    .findFirst().orElseThrow(() -> new NotFoundException(
+                            "Pending question not found for this Designer Session: " + questionId));
         } catch (SessionFailure failure) {
             throw new ServiceUnavailableException(failure.code(), safeMessage(failure.getMessage()));
         }
@@ -521,99 +744,179 @@ public class DesignerSessionService {
 
     private List<List<String>> validateAnswers(OpenCodeClient.PendingQuestion pending, List<List<String>> answers) {
         if (answers == null || answers.size() != pending.questions().size()) {
-            throw new BadRequestException("QUESTION_ANSWERS_INVALID", "Answers must contain one entry for every question");
+            throw new BadRequestException("QUESTION_ANSWERS_INVALID",
+                    "Answers must contain one entry for every question");
         }
         List<List<String>> result = new ArrayList<>();
         for (int index = 0; index < pending.questions().size(); index++) {
             OpenCodeClient.QuestionPrompt prompt = pending.questions().get(index);
-            List<String> answer = answers.get(index);
-            if (answer == null) answer = List.of();
+            List<String> answer = answers.get(index) == null ? List.of() : answers.get(index);
             List<String> normalized = answer.stream().filter(value -> value != null && !value.isBlank())
                     .map(String::trim).distinct().toList();
-            if (normalized.isEmpty()) {
-                throw new BadRequestException("QUESTION_ANSWER_REQUIRED", "Every question requires an answer");
-            }
+            if (normalized.isEmpty()) throw new BadRequestException("QUESTION_ANSWER_REQUIRED",
+                    "Every question requires an answer");
             if (!prompt.multiple() && normalized.size() > 1) {
-                throw new BadRequestException("QUESTION_ANSWER_MULTIPLE_FORBIDDEN", "This question accepts only one answer");
+                throw new BadRequestException("QUESTION_ANSWER_MULTIPLE_FORBIDDEN",
+                        "This question accepts only one answer");
             }
             if (!prompt.custom()) {
                 List<String> labels = prompt.options().stream().map(OpenCodeClient.QuestionOption::label).toList();
-                if (!labels.containsAll(normalized)) {
-                    throw new BadRequestException("QUESTION_CUSTOM_ANSWER_FORBIDDEN", "This question only accepts listed options");
-                }
+                if (!labels.containsAll(normalized)) throw new BadRequestException("QUESTION_CUSTOM_ANSWER_FORBIDDEN",
+                        "This question only accepts listed options");
             }
             result.add(normalized);
         }
         return List.copyOf(result);
     }
 
-    private void questionResolved(String sessionId, String detail) {
-        DesignerSessionRow current = get(sessionId);
-        try {
-            current = transition(current, DesignerSessionState.RUNNING, current.externalSessionId(), "RUNNING");
-        } catch (ConflictException concurrentPoll) {
-            current = get(sessionId);
-        }
-        events.publish(current.id(), "STATUS", current.state(), current.externalSessionState(), true, "", detail);
-    }
-
-    public record PendingQuestion(String id, List<QuestionPrompt> questions) { }
-    public record QuestionPrompt(String question, String header, List<QuestionOption> options, boolean multiple, boolean custom) { }
-    public record QuestionOption(String label, String description) { }
-
-    private record ParsedDesignerOutput(String markdown, LoopSpec spec) { }
-
-    private DesignerMessageRow appendSystem(DesignerSessionRow session, String content, String deliveryState) {
-        return appendMessage(session.id(), "SYSTEM", content, deliveryState);
-    }
-
-    private DesignerMessageRow appendMessage(String sessionId, String role, String content, String deliveryState) {
-        DesignerMessageRow message = new DesignerMessageRow(UUID.randomUUID().toString(), sessionId,
-                mapper.nextDesignerMessageOrdinal(sessionId), role, content, deliveryState, now());
-        mapper.insertDesignerMessage(message);
-        return message;
-    }
-
-    private DesignerSessionRow transition(DesignerSessionRow session, DesignerSessionState state,
-                                          String externalSessionId, String externalSessionState) {
-        DesignerSessionRow updated = new DesignerSessionRow(session.id(), session.projectId(), state.name(), session.accessMode(),
-                session.createdAt(), now(), session.version(), externalSessionId, externalSessionState, session.loopDraftId());
+    private DesignerSessionRow updateDesignerProjection(DesignerSessionRow session, DesignerSessionState state,
+                                                         DesignWorkflowPhase phase, String externalSessionId,
+                                                         String externalSessionState, int revision, int redesignCount) {
+        DesignerSessionRow updated = new DesignerSessionRow(session.id(), session.projectId(), state.name(),
+                session.accessMode(), session.createdAt(), now(), session.version(), externalSessionId,
+                externalSessionState, session.loopDraftId(), phase.name(), revision, redesignCount);
         if (session.state().equals(updated.state())) {
             lifecycle.mutateWithoutTransition(() -> mapper.updateDesignerSessionProjection(updated),
-                    () -> new ConflictException("DESIGNER_SESSION_VERSION_CONFLICT", "Designer session was updated concurrently"));
+                    () -> new ConflictException("DESIGNER_SESSION_VERSION_CONFLICT",
+                            "Designer session was updated concurrently"));
         } else {
-            lifecycle.transition(subject(updated), session.state(), updated.state(), null, java.util.Map.of(),
+            lifecycle.transition(designerSubject(updated), session.state(), updated.state(), null, java.util.Map.of(),
                     () -> mapper.updateDesignerSession(updated),
-                    () -> new ConflictException("DESIGNER_SESSION_VERSION_CONFLICT", "Designer session was updated concurrently"));
+                    () -> new ConflictException("DESIGNER_SESSION_VERSION_CONFLICT",
+                            "Designer session was updated concurrently"));
         }
         return get(session.id());
     }
 
-    private LifecycleTransitionService.Subject subject(DesignerSessionRow row) {
+    private LoopSpecCompilationRow updateCompilation(LoopSpecCompilationRow row,
+                                                     LoopSpecCompilationState state,
+                                                     String externalSessionId, String externalSessionState,
+                                                     int repairCount, String errorCode, String errorDetail,
+                                                     String projectId) {
+        LoopSpecCompilationRow updated = new LoopSpecCompilationRow(row.id(), row.designerSessionId(),
+                row.designRevision(), state.name(), externalSessionId, externalSessionState, repairCount,
+                row.sourceDesignMessageId(), row.sourceDraftVersion(), errorCode, errorDetail,
+                row.createdAt(), now(), row.version());
+        if (row.state().equals(updated.state())) {
+            lifecycle.mutateWithoutTransition(() -> mapper.updateLoopSpecCompilation(updated),
+                    () -> new ConflictException("LOOPSPEC_COMPILATION_VERSION_CONFLICT",
+                            "LoopSpec compilation was updated concurrently"));
+        } else {
+            lifecycle.transition(compilationSubject(updated, projectId), row.state(), updated.state(), null,
+                    java.util.Map.of(), () -> mapper.updateLoopSpecCompilation(updated),
+                    () -> new ConflictException("LOOPSPEC_COMPILATION_VERSION_CONFLICT",
+                            "LoopSpec compilation was updated concurrently"));
+        }
+        return getCompilation(row.id());
+    }
+
+    private LoopSpecCompilationRow getCompilation(String id) {
+        return mapper.findLoopSpecCompilation(id)
+                .orElseThrow(() -> new NotFoundException("LoopSpec compilation not found: " + id));
+    }
+
+    private LifecycleTransitionService.Subject designerSubject(DesignerSessionRow row) {
         return new LifecycleTransitionService.Subject(LifecycleMachineType.DESIGNER_SESSION, row.id(),
                 LifecycleScopeType.PROJECT, row.projectId());
     }
 
+    private LifecycleTransitionService.Subject compilationSubject(LoopSpecCompilationRow row, String projectId) {
+        return new LifecycleTransitionService.Subject(LifecycleMachineType.LOOPSPEC_COMPILATION, row.id(),
+                LifecycleScopeType.PROJECT, projectId);
+    }
+
+    private DesignerMessageRow appendMessage(String sessionId, DesignerActor actor,
+                                             String content, String deliveryState) {
+        String role = actor == DesignerActor.USER ? "USER"
+                : Set.of(DesignerActor.DESIGNER, DesignerActor.COMPILER).contains(actor) ? "ASSISTANT" : "SYSTEM";
+        int contentLimit = actor == DesignerActor.DESIGNER ? MAX_FROZEN_DESIGN_LENGTH : MAX_MESSAGE_LENGTH;
+        DesignerMessageRow message = new DesignerMessageRow(UUID.randomUUID().toString(), sessionId,
+                mapper.nextDesignerMessageOrdinal(sessionId), role, bounded(content, contentLimit),
+                deliveryState, now(), actor.name());
+        mapper.insertDesignerMessage(message);
+        return message;
+    }
+
+    private void publish(DesignerSessionRow session, String type, DesignerActor actor,
+                         boolean connected, String content, String detail) {
+        CompilerStatus compiler = compilerStatus(session.id());
+        String remoteState = actor == DesignerActor.COMPILER && compiler != null
+                ? compiler.externalSessionState() : session.externalSessionState();
+        events.publish(session.id(), type, session.state(), session.workflowPhase(), actor.name(),
+                remoteState, connected, actor == DesignerActor.COMPILER ? "" : designerMarkdown(content), detail);
+    }
+
+    private OpenCodeClient.OpenCodeModel configuredModel() {
+        String configured = defaults.getOpenCode().getModel();
+        if (configured == null) return null;
+        String value = configured.trim();
+        int separator = value.indexOf('/');
+        if (separator <= 0 || separator >= value.length() - 1) return null;
+        String provider = value.substring(0, separator).trim();
+        String model = value.substring(separator + 1).trim();
+        return provider.isEmpty() || model.isEmpty() ? null
+                : new OpenCodeClient.OpenCodeModel(provider, model, null);
+    }
+
+    private boolean timedOut(String updatedAt) {
+        Duration timeout = defaults.getDesignerTimeout();
+        if (timeout == null || timeout.isZero() || timeout.isNegative()) return false;
+        try { return Duration.between(Instant.parse(updatedAt), Instant.now()).compareTo(timeout) > 0; }
+        catch (RuntimeException invalidTimestamp) { return false; }
+    }
+
     private String normalizeMessage(String content) {
-        if (content == null || content.isBlank()) {
-            throw new BadRequestException("DESIGNER_MESSAGE_REQUIRED", "Designer message content is required");
-        }
+        if (blank(content)) throw new BadRequestException("DESIGNER_MESSAGE_REQUIRED",
+                "Designer message content is required");
         String normalized = content.trim();
-        if (normalized.length() > MAX_MESSAGE_LENGTH) {
-            throw new BadRequestException("DESIGNER_MESSAGE_TOO_LONG", "Designer message must be at most " + MAX_MESSAGE_LENGTH + " characters");
-        }
+        if (normalized.length() > MAX_MESSAGE_LENGTH) throw new BadRequestException("DESIGNER_MESSAGE_TOO_LONG",
+                "Designer message must be at most " + MAX_MESSAGE_LENGTH + " characters");
         return normalized;
     }
 
-    private static boolean same(String left, String right) { return left == null ? right == null : left.equalsIgnoreCase(right); }
-    private static String statusDetail(OpenCodeClient.SessionStatus status, String fallback) {
-        return status.detail() == null || status.detail().isBlank() ? fallback : status.detail();
+    private String summarizeGaps(List<DesignGap> gaps) {
+        return gaps.stream().map(gap -> "- " + gap.code().name() + "：" + gap.detail())
+                .reduce((left, right) -> left + "\n" + right).orElse("");
     }
-    private static String safeState(String state) { return state == null || state.isBlank() ? "UNKNOWN" : state.replaceAll("[^A-Za-z0-9_-]", "_"); }
+
+    private static boolean blank(String value) { return value == null || value.isBlank(); }
+    private static boolean same(String left, String right) {
+        return left == null ? right == null : left.equalsIgnoreCase(right);
+    }
+    private static String statusDetail(OpenCodeClient.SessionStatus status) {
+        return blank(status.detail()) ? "OpenCode session ended in " + status.state() : status.detail();
+    }
+    private static String safeState(String state) {
+        return blank(state) ? "UNKNOWN" : state.replaceAll("[^A-Za-z0-9_-]", "_");
+    }
     private static String safeMessage(String message) {
-        if (message == null || message.isBlank()) return "OpenCode Designer handoff failed";
-        String normalized = message.replaceAll("[\\r\\n]+", " ").trim();
-        return normalized.length() > 500 ? normalized.substring(0, 500) : normalized;
+        if (blank(message)) return "OpenCode read-only workflow failed";
+        return bounded(message.replaceAll("[\\r\\n]+", " ").trim(), 500);
+    }
+    private static String bounded(String value, int max) {
+        if (value == null) return "";
+        return value.length() <= max ? value : value.substring(0, max);
     }
     private String now() { return Instant.now().toString(); }
+
+    public record PendingQuestion(String id, List<QuestionPrompt> questions) { }
+    public record QuestionPrompt(String question, String header, List<QuestionOption> options,
+                                 boolean multiple, boolean custom) { }
+    public record QuestionOption(String label, String description) { }
+    public record CompilerStatus(String id, String state, String externalSessionId,
+                                 String externalSessionState, int repairCount,
+                                 int designRevision, String lastErrorCode, String lastErrorDetail) { }
+    public record CriterionSource(int stageIndex, String criterionId, String excerpt) { }
+    public record DesignGap(DesignGapCode code, String detail) { }
+    public enum DesignGapCode {
+        MISSING_OBSERVABLE_OUTCOME, MISSING_EXCEPTION_SEMANTICS, MISSING_SCOPE, MISSING_ACCEPTANCE_INTENT
+    }
+    public record CompilationEnvelope(String status, String summary, LoopSpec loopSpec,
+                                      List<CriterionSource> criterionSources, List<DesignGap> designGaps) {
+        CompilationEnvelope normalized() {
+            return new CompilationEnvelope(status == null ? null : status.trim().toUpperCase(), summary,
+                    loopSpec, criterionSources == null ? List.of() : List.copyOf(criterionSources),
+                    designGaps == null ? List.of() : List.copyOf(designGaps));
+        }
+    }
 }

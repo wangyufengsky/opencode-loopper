@@ -19,6 +19,8 @@ const visibleMessages = computed(() => (record.value?.designerSession?.messages 
   && message.deliveryState === 'PENDING_HANDOFF'
   && !message.content.startsWith('SYSTEM_ERROR')
 )))
+const actorLabels = { USER: '你', DESIGNER: 'Designer / 设计师', COMPILER: 'LoopSpec Compiler / 规范编译器', VALIDATOR: 'Deterministic Validator / 确定性校验器', SYSTEM: '系统' } as const
+const actorIcons = { USER: 'lucide:user-round', DESIGNER: 'lucide:sparkles', COMPILER: 'lucide:braces', VALIDATOR: 'lucide:badge-check', SYSTEM: 'lucide:info' } as const
 const rawSpec = computed(() => record.value ? JSON.stringify(record.value.draft.spec, null, 2) : '')
 
 async function load() {
@@ -69,9 +71,9 @@ watch(id, load, { immediate: true })
         <article class="card history-conversation">
           <header class="history-card-header"><div><p class="eyebrow">DESIGN CONVERSATION</p><h2>历史设计对话</h2><p>共 {{ visibleMessages.length }} 条已持久化记录</p></div><Icon icon="lucide:messages-square" width="22" /></header>
           <div v-if="visibleMessages.length" class="message-list">
-            <article v-for="message in visibleMessages" :key="message.id" :class="['history-message', `message-${message.role.toLowerCase()}`]">
-              <header><span><Icon :icon="message.role === 'ASSISTANT' ? 'lucide:sparkles' : message.role === 'USER' ? 'lucide:user-round' : 'lucide:info'" />{{ message.role === 'ASSISTANT' ? 'Designer' : message.role === 'USER' ? '你' : '系统' }}</span><time>{{ formatDate(message.createdAt) }}</time></header>
-              <MarkdownDocument v-if="message.role === 'ASSISTANT'" :content="message.content" collapsible />
+            <article v-for="message in visibleMessages" :key="message.id" :class="['history-message', `message-${message.actor.toLowerCase()}`]">
+              <header><span><Icon :icon="actorIcons[message.actor]" />{{ actorLabels[message.actor] }}</span><time>{{ formatDate(message.createdAt) }}</time></header>
+              <MarkdownDocument v-if="message.actor === 'DESIGNER'" :content="message.content" collapsible />
               <p v-else>{{ message.content }}</p>
             </article>
           </div>

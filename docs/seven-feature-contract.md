@@ -107,6 +107,14 @@ Judge row, read-only Session, or model call in that batch. `POST
 /api/loop-drafts/validate` and MCP return the same classification and planning
 result.
 
+Every v2 Stage also declares `implementationKind`. A `JAVA_PRODUCTION` plan is
+invalid unless it includes an unskipped focused Maven/Gradle `PROCESS TEST`,
+concrete `testTargets`, and mappings from that test to all `MACHINE`/`BOTH`
+business criteria. At runtime an immutable Stage-start Java baseline detects
+added, modified, and rename-target production `.java` paths in both Git and
+Direct workspaces. Classification mismatches and missing successful focused
+tests are blocking verifier results that enter the ordinary Attempt retry loop.
+
 Network behavior coverage requires a Stage-managed runtime with dynamic
 `{{LOOPPER_PORT}}`, bounded readiness, and direct argv startup. V19 records its
 PID/start identity, port and argv hash. Cleanup covers completion, failure,

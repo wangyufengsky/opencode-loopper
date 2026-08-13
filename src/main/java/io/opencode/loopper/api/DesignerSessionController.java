@@ -59,7 +59,8 @@ public class DesignerSessionController {
         DesignerEventHub.DesignerEvent latest = events.latest(id);
         if (latest != null) sendIfNew(emitter, sent, lifecycle, latest);
         else sendIfNew(emitter, sent, lifecycle, new DesignerEventHub.DesignerEvent(0L, id, "SNAPSHOT", current.state(),
-                current.externalSessionState(), false, "", "等待 OpenCode 状态探测", current.updatedAt()));
+                current.workflowPhase(), service.activeActor(current), current.externalSessionState(), false, "",
+                "等待 OpenCode 状态探测", current.updatedAt()));
         return emitter;
     }
 
@@ -101,30 +102,48 @@ public class DesignerSessionController {
         return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/{id}/compiler/retry")
+    public ResponseEntity<Void> retryCompiler(@PathVariable String id) {
+        service.retryCompilation(id);
+        return ResponseEntity.accepted().build();
+    }
+
+    @PostMapping("/{id}/redesign")
+    public ResponseEntity<Void> redesign(@PathVariable String id) {
+        service.requestRedesign(id);
+        return ResponseEntity.accepted().build();
+    }
+
     private DesignerSessionDto dto(DesignerSessionRow row) {
         ProjectRow project = service.project(row.id());
         LoopDraftRow draft = service.draft(row.id());
-        return new DesignerSessionDto(row.id(), row.projectId(), project.name(), row.state(), row.accessMode(), true,
-                "Designer may read registered project context and propose LoopSpecs only. It cannot change files or start tasks.",
+        return new DesignerSessionDto(row.id(), row.projectId(), project.name(), row.state(), row.workflowPhase(),
+                service.activeActor(row), row.accessMode(), true,
+                "Designer and LoopSpec Compiler use separate read-only Sessions. Only the deterministic server validator may synchronize the bound draft.",
                 row.createdAt(), row.updatedAt(), draft == null ? null : new DesignerDraftDto(
                         draft.id(), draft.status(), draft.updatedAt(), drafts.spec(draft)),
-                service.messages(row.id()).stream().map(this::message).toList(), service.pendingQuestions(row.id()));
+                service.messages(row.id()).stream().map(this::message).toList(), service.pendingQuestions(row.id()),
+                service.compilerStatus(row.id()));
     }
 
     private DesignerMessageDto message(DesignerMessageRow row) {
-        return new DesignerMessageDto(row.id(), row.ordinal(), row.role(), row.content(), row.deliveryState(), row.createdAt());
+        return new DesignerMessageDto(row.id(), row.ordinal(), row.role(), row.actor(), row.content(),
+                row.deliveryState(), row.createdAt());
     }
 
     public record CreateDesignerSessionRequest(@NotBlank String projectId, @NotBlank String draftId,
                                                @Size(max = 12_000) String initialMessage) { }
     public record AppendDesignerMessageRequest(@NotBlank @Size(max = 12_000) String content) { }
-    public record DesignerSessionDto(String id, String projectId, String projectName, String state, String accessMode,
+    public record DesignerSessionDto(String id, String projectId, String projectName, String state,
+                                     String workflowPhase, String activeActor, String accessMode,
                                      boolean readOnly, String permissionSummary, String createdAt, String updatedAt,
                                      DesignerDraftDto draft, List<DesignerMessageDto> messages,
-                                     List<DesignerSessionService.PendingQuestion> pendingQuestions) { }
+                                     List<DesignerSessionService.PendingQuestion> pendingQuestions,
+                                     DesignerSessionService.CompilerStatus compiler) { }
     public record DesignerDraftDto(String id, String status, String updatedAt,
                                    io.opencode.loopper.domain.LoopSpec spec) { }
-    public record DesignerMessageDto(String id, int ordinal, String role, String content, String deliveryState, String createdAt) { }
+    public record DesignerMessageDto(String id, int ordinal, String role, String actor, String content,
+                                     String deliveryState, String createdAt) { }
     public record AppendMessageResult(String sessionId, String state, List<DesignerMessageDto> persistedMessages, String notice) { }
     public record QuestionReplyRequest(List<List<String>> answers) { }
 }

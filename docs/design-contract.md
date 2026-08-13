@@ -99,22 +99,34 @@ enable that action. The browser does not infer progress or reset the streak
 locally; the server records the override and returns the authoritative Task
 state.
 
-Designer handoff states are also explicit: `PENDING_HANDOFF`, `RUNNING`,
-`COMPLETED`, and `SESSION_ERROR`. The console polls an active read-only Session
-and persists/displays an ASSISTANT message only after real OpenCode output is
-available; it never renders a queue notice as model output. A transient browser
-GET failure keeps the Session in a bounded-backoff reconnect loop, and the
-current Designer Session/draft pair is restored after a same-tab page refresh.
-The Session API returns its bound draft on every poll. A validated Designer
-reply therefore replaces the right-hand LoopSpec editor automatically while
-preserving any locally dirty editor text for explicit human resolution. The
-structured editor round-trips every LoopSpec limit, model selection, Session
-policy, and next-Attempt prompt template before confirmation. Model
-responses render as sanitized Markdown; fenced `mermaid` blocks render as SVG,
-and the machine-only LoopSpec payload is not shown in the conversation.
+The overall Designer handoff states remain `PENDING_HANDOFF`, `RUNNING`,
+`COMPLETED`, and `SESSION_ERROR`, while the persisted workflow phase is
+`DESIGNING`, `COMPILING`, `VALIDATING`, `REDESIGNING`, `COMPLETED`, or `FAILED`.
+Designer and LoopSpec Compiler use separate read-only OpenCode Sessions with the
+same configured model. Designer emits a complete Markdown design only; Compiler
+receives the frozen design version and emits marked structured output. The
+overall Session stays `RUNNING` until deterministic validation and optimistic
+draft synchronization finish. Compiler format, field, verifier, traceability,
+or coverage errors return to a new Compiler Session for at most two repairs.
+Closed semantic design gaps return to the original Designer Session for at most
+one automatic full replacement design. Exhaustion and draft concurrency leave
+the draft unsynchronized and expose **重新编译当前设计** and **让 Designer 重新设计**.
 
-New drafts use LoopSpec v2. Each Stage declares observable
-`acceptanceCriteria`. Each criterion selects `verificationMode` as `MACHINE`,
+Message origin comes from the persisted `actor` (`USER`, `DESIGNER`, `COMPILER`,
+`VALIDATOR`, or `SYSTEM`), never from role text inference. The console renders
+user cards blue, Designer Markdown purple, Compiler summaries/gaps cyan,
+Validator success green, repairable failures yellow, terminal failures red, and
+system notices as grey dashed cards. The top bar and thinking animation follow
+the authoritative `workflowPhase` and `activeActor`. Compiler raw JSON is shown
+only through the right-hand Review Gate; it is neither persisted as chat content
+nor copied from SSE into the conversation. Page refresh restores cards and
+workflow state from the server snapshot. A transient browser GET failure keeps
+the page in bounded-backoff reconnect without fabricating model output or a
+validation result. The structured editor round-trips every LoopSpec limit,
+model selection, Session policy, and next-Attempt prompt template.
+
+New drafts use LoopSpec v2. Each Stage declares `implementationKind` and
+observable `acceptanceCriteria`. Each criterion selects `verificationMode` as `MACHINE`,
 `JUDGE`, or `BOTH`: machine modes require at least one server-classified
 `BEHAVIOR` verifier mapped through `criterionIds`; Judge modes require an
 explicit `judgeRubric`, and Judge-only criteria also require `judgeOnlyReason`
@@ -122,7 +134,7 @@ and cannot carry machine behavior coverage. Every Stage retains at least one
 blocking deterministic verifier even when all of its criteria are Judge-only.
 Review Gate renders machine coverage and planned final Judge review separately;
 planned review is never labelled as executed or passed. Invalid planning
-blocks Designer synchronization, manual save, template publication, MCP
+blocks Compiler synchronization, manual save, template publication, MCP
 proposal and confirmation without an ignore action. Persisted v1 drafts show
 **旧合同（兼容）** and keep their old behavior. Their schema version is immutable;
 the operator can copy one to a new v2 draft and then complete its criteria.
@@ -196,13 +208,19 @@ contract (`startupTimeoutSeconds=300`, `shutdownTimeoutSeconds=60`, and
 `maxStageAttempts=20`). Verifier types come from a closed selection rather than
 arbitrary input.
 
-For Java production changes, Designer defaults behavior criteria to `BOTH` and
-keeps the production code and focused Maven/Gradle unit test in the same Stage.
-The planned test target is a deliverable and need not exist while Designer is
-still read-only. Missing-target bypass flags are forbidden. `SELF_CHECK` is a
-fallback only when a normal test framework cannot express the behavior; shell
-launchers/fragments, source-text searches as behavior proof, and `java -e` are
-rejected or repaired before confirmation.
+Each v2 Stage explicitly selects `JAVA_PRODUCTION`, `JAVA_TEST_ONLY`, or
+`NON_JAVA`. `JAVA_PRODUCTION` keeps production code and an unskipped focused
+Maven/Gradle unit test in the same Stage, declares concrete `testTargets`, and
+maps that test to every `MACHINE`/`BOTH` business criterion. A separate
+"tests pass" meta-criterion is not generated. The planned test target may be a
+Stage deliverable and need not exist while Designer is read-only. Old v2 drafts
+without the field remain viewable but cannot be saved, published as a template,
+or confirmed until completed; v1 remains compatible. At runtime the server
+compares an immutable Stage-start production-Java path/hash baseline in Git or
+Direct mode. Added, modified, and rename-target `.java` files outside test and
+generated directories trigger the gate. A declaration mismatch or absence of a
+successful focused Stage test fails with `JAVA_CHANGE_CLASSIFICATION_MISMATCH`
+or `JAVA_UNIT_TEST_ACCEPTANCE_REQUIRED` through the normal Attempt loop.
 
 Maven verifier input is tolerant only where the argv boundary is deterministic.
 For example, `["mvn", "test -Dtest=FooTest -pl module"]` is normalized and stored

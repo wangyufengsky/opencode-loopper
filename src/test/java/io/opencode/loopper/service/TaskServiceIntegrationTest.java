@@ -2,6 +2,7 @@ package io.opencode.loopper.service;
 
 import io.opencode.loopper.LoopperApplication;
 import io.opencode.loopper.domain.ErrorLayer;
+import io.opencode.loopper.domain.ImplementationKind;
 import io.opencode.loopper.domain.LoopSpec;
 import io.opencode.loopper.domain.TaskFailure;
 import io.opencode.loopper.persistence.AttemptRow;
@@ -1234,7 +1235,8 @@ class TaskServiceIntegrationTest {
                 "AC-1", "README 行为满足已确认要求", "BOTH", "检查边界行为与需求一致性", null);
         return new LoopSpec("v2", projectId, "Verify README", null,
                 List.of(new LoopSpec.StageSpec("Check README", List.of("README.md"), List.of(),
-                        List.of("verified README"), List.of(verifier), List.of(criterion), null)),
+                        List.of("verified README"), List.of(verifier), List.of(criterion), null,
+                        ImplementationKind.NON_JAVA)),
                 null, null, null, null);
     }
     private LoopSpec multiStageJudgeContractSpec(String projectId) {
@@ -1249,10 +1251,10 @@ class TaskServiceIntegrationTest {
         return new LoopSpec("v2", projectId, "Verify README through two stages", null, List.of(
                 new LoopSpec.StageSpec("Stage one", List.of("README.md"), List.of(), List.of("first evidence"),
                         List.of(first), List.of(new LoopSpec.AcceptanceCriterion("AC-1", "first observable result",
-                        "BOTH", "review the first-stage result", null)), null),
+                        "BOTH", "review the first-stage result", null)), null, ImplementationKind.NON_JAVA),
                 new LoopSpec.StageSpec("Stage two", List.of("README.md"), List.of(), List.of("second evidence"),
                         List.of(second), List.of(new LoopSpec.AcceptanceCriterion("AC-2", "second observable result",
-                        "BOTH", "review the second-stage result", null)), null)),
+                        "BOTH", "review the second-stage result", null)), null, ImplementationKind.NON_JAVA)),
                 null, null, null, null);
     }
     private LoopSpec failingContentSpec(String projectId, int stagnationLimit, String retryTemplate,

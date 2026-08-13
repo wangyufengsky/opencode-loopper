@@ -1,6 +1,7 @@
 package io.opencode.loopper.service;
 
 import io.opencode.loopper.domain.LoopSpec;
+import io.opencode.loopper.domain.ImplementationKind;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -47,7 +48,8 @@ class LoopSpecAcceptanceServiceTest {
         LoopSpec.StageSpec stage = new LoopSpec.StageSpec("Java behavior", List.of(), List.of(), List.of("implementation and test"),
                 List.of(focusedTest, safetyGate), List.of(
                         criterion("AC-BOTH", "reload delegates to cache manager", "BOTH", "review scheduling semantics", null),
-                        criterion("AC-JUDGE", "implementation remains maintainable", "JUDGE", "review design cohesion", "maintainability has no reliable binary assertion")), null);
+                        criterion("AC-JUDGE", "implementation remains maintainable", "JUDGE", "review design cohesion", "maintainability has no reliable binary assertion")), null,
+                ImplementationKind.JAVA_PRODUCTION);
 
         var result = service.assess(new LoopSpec("v2", "project", "goal", "", List.of(stage), null, null, null, null), List.of(), false);
 
@@ -68,7 +70,8 @@ class LoopSpecAcceptanceServiceTest {
         LoopSpec.StageSpec stage = new LoopSpec.StageSpec("behavior", List.of(), List.of(), List.of("evidence"),
                 List.of(focusedTest), List.of(
                         criterion("AC-1", "observable", "JUDGE", "review it", null),
-                        criterion("AC-2", "another result", "BOTH", null, null)), null);
+                        criterion("AC-2", "another result", "BOTH", null, null)), null,
+                ImplementationKind.NON_JAVA);
 
         var result = service.assess(new LoopSpec("v2", "project", "goal", "", List.of(stage), null, null, null, null), List.of(), false);
 
@@ -162,7 +165,8 @@ class LoopSpecAcceptanceServiceTest {
                 List.of(), List.of(), false, null, "http://127.0.0.1:8080/health", "GET", 200,
                 null, null, null, null, null, null, null, List.of(), List.of(), null, List.of());
         LoopSpec.StageSpec stage = new LoopSpec.StageSpec("behavior", List.of(), List.of(), List.of("evidence"),
-                List.of(focusedTest, fixedHttp), List.of(new LoopSpec.AcceptanceCriterion("AC-1", "observable")), null);
+                List.of(focusedTest, fixedHttp), List.of(new LoopSpec.AcceptanceCriterion("AC-1", "observable")), null,
+                ImplementationKind.NON_JAVA);
         LoopSpec spec = new LoopSpec("v2", "project", "goal", "", List.of(stage), null, null, null, null);
 
         var result = service.assess(spec, List.of(), false);
@@ -201,7 +205,7 @@ class LoopSpecAcceptanceServiceTest {
                     "评".repeat(4_000), "没有可靠的确定性断言"));
         }
         LoopSpec.StageSpec stage = new LoopSpec.StageSpec("bounded review", List.of(), List.of(), List.of("evidence"),
-                List.of(verifier("FILE_NOT_EXISTS", List.of())), criteria, null);
+                List.of(verifier("FILE_NOT_EXISTS", List.of())), criteria, null, ImplementationKind.NON_JAVA);
 
         var result = service.assess(new LoopSpec("v2", "project", "goal", "", List.of(stage),
                 null, null, null, null), List.of(), false);
@@ -213,8 +217,33 @@ class LoopSpecAcceptanceServiceTest {
 
     private LoopSpec spec(LoopSpec.VerifierSpec verifier, LoopSpec.VerificationRuntime runtime) {
         LoopSpec.StageSpec stage = new LoopSpec.StageSpec("behavior", List.of(), List.of(), List.of("evidence"),
-                List.of(verifier), List.of(new LoopSpec.AcceptanceCriterion("AC-1", "observable result")), runtime);
+                List.of(verifier), List.of(new LoopSpec.AcceptanceCriterion("AC-1", "observable result")), runtime,
+                ImplementationKind.NON_JAVA);
         return new LoopSpec("v2", "project", "goal", "", List.of(stage), null, null, null, null);
+    }
+
+    @Test
+    void javaProductionRequiresFocusedUnitTestsMappedToEveryMachineCriterion() {
+        LoopSpec.VerifierSpec unfocused = process("TEST", List.of("mvn", "test"),
+                List.of("AC-1"), List.of("all"));
+        LoopSpec.StageSpec stage = new LoopSpec.StageSpec("Java behavior", List.of(), List.of(), List.of("code"),
+                List.of(unfocused), List.of(
+                criterion("AC-1", "first behavior", "MACHINE", null, null),
+                criterion("AC-2", "second behavior", "BOTH", "review edge cases", null)), null,
+                ImplementationKind.JAVA_PRODUCTION);
+
+        var rejected = service.assess(new LoopSpec("v2", "project", "goal", "", List.of(stage),
+                null, null, null, null), List.of(), false);
+
+        assertThat(rejected.errors()).anyMatch(error -> error.contains("focused Maven/Gradle PROCESS TEST"));
+        assertThat(rejected.errors()).anyMatch(error -> error.contains("AC-2") && error.contains("focused Maven/Gradle unit test"));
+
+        LoopSpec.VerifierSpec focused = process("TEST", List.of("mvn", "-Dtest=FooTest", "test"),
+                List.of("AC-1", "AC-2"), List.of("FooTest"));
+        LoopSpec.StageSpec corrected = new LoopSpec.StageSpec("Java behavior", List.of(), List.of(), List.of("code"),
+                List.of(focused), stage.acceptanceCriteria(), null, ImplementationKind.JAVA_PRODUCTION);
+        assertThat(service.assess(new LoopSpec("v2", "project", "goal", "", List.of(corrected),
+                null, null, null, null), List.of(), false).valid()).isTrue();
     }
 
     private LoopSpec.VerifierSpec process(String purpose, List<String> command, List<String> criterionIds,

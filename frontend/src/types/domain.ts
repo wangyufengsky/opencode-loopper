@@ -539,6 +539,7 @@ export interface LoopSpec {
     allowedPaths: string[]
     forbiddenPaths: string[]
     deliverables: string[]
+    implementationKind?: 'JAVA_PRODUCTION' | 'JAVA_TEST_ONLY' | 'NON_JAVA'
     verifiers: LoopVerifierSpec[]
     acceptanceCriteria?: Array<{
       id: string
@@ -706,18 +707,23 @@ export interface LoopDraft {
 export interface DesignerMessage {
   id: string
   role: 'USER' | 'ASSISTANT' | 'SYSTEM'
+  actor: 'USER' | 'DESIGNER' | 'COMPILER' | 'VALIDATOR' | 'SYSTEM'
   content: string
-  deliveryState?: 'PERSISTED' | 'PENDING_HANDOFF' | 'SESSION_ERROR'
+  deliveryState?: 'PERSISTED' | 'PENDING_HANDOFF' | 'COMPILED' | 'DESIGN_INCOMPLETE' | 'PASS' | 'RETRYABLE_ERROR' | 'TERMINAL_ERROR' | 'SESSION_ERROR'
   createdAt: string
 }
 
 export type DesignerSessionState = 'PENDING_HANDOFF' | 'RUNNING' | 'COMPLETED' | 'SESSION_ERROR'
+export type DesignWorkflowPhase = 'DESIGNING' | 'COMPILING' | 'VALIDATING' | 'REDESIGNING' | 'COMPLETED' | 'FAILED'
+export type DesignerActor = DesignerMessage['actor']
 
 export interface DesignerSession {
   id: string
   projectId: string
   projectName?: string
   state: DesignerSessionState
+  workflowPhase: DesignWorkflowPhase
+  activeActor: DesignerActor
   accessMode: 'READ_ONLY'
   readOnly: boolean
   permissionSummary?: string
@@ -725,6 +731,15 @@ export interface DesignerSession {
   draft?: LoopDraft
   messages: DesignerMessage[]
   pendingQuestions?: TaskSessionPendingQuestion[]
+  compiler?: {
+    id: string
+    state: 'PENDING_HANDOFF' | 'RUNNING' | 'DESIGN_INCOMPLETE' | 'COMPLETED' | 'SESSION_ERROR'
+    externalSessionState?: string
+    repairCount: number
+    designRevision: number
+    lastErrorCode?: string
+    lastErrorDetail?: string
+  }
 }
 
 export interface TaskDesignHistory {
@@ -754,6 +769,8 @@ export interface DesignerStreamEvent {
   sessionId: string
   type: 'SNAPSHOT' | 'STATUS' | 'PARTIAL' | 'COMPLETED' | 'ERROR'
   state: DesignerSessionState
+  workflowPhase: DesignWorkflowPhase
+  activeActor: DesignerActor
   remoteState?: string
   runtimeConnected: boolean
   content: string

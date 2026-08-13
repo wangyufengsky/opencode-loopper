@@ -45,10 +45,18 @@ public record LoopSpec(
             @Size(max = 64) List<@Size(max = 2_000) String> deliverables,
             @Size(max = 32) List<@Valid VerifierSpec> verifiers,
             @Size(max = 64) List<@Valid AcceptanceCriterion> acceptanceCriteria,
-            @Valid VerificationRuntime verificationRuntime) {
+            @Valid VerificationRuntime verificationRuntime,
+            ImplementationKind implementationKind) {
         public StageSpec(String objective, List<String> allowedPaths, List<String> forbiddenPaths,
                          List<String> deliverables, List<VerifierSpec> verifiers) {
-            this(objective, allowedPaths, forbiddenPaths, deliverables, verifiers, null, null);
+            this(objective, allowedPaths, forbiddenPaths, deliverables, verifiers, null, null, null);
+        }
+        public StageSpec(String objective, List<String> allowedPaths, List<String> forbiddenPaths,
+                         List<String> deliverables, List<VerifierSpec> verifiers,
+                         List<AcceptanceCriterion> acceptanceCriteria,
+                         VerificationRuntime verificationRuntime) {
+            this(objective, allowedPaths, forbiddenPaths, deliverables, verifiers,
+                    acceptanceCriteria, verificationRuntime, null);
         }
         public StageSpec {
             allowedPaths = immutable(allowedPaths);

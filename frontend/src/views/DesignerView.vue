@@ -86,11 +86,22 @@ const designerBadgeStatus = computed(() => {
   return 'PENDING' as const
 })
 const designerSessionError = computed(() => designerSession.value?.state === 'SESSION_ERROR'
-  ? [...messages.value].reverse().find((message) => message.deliveryState === 'SESSION_ERROR')
+  ? [...messages.value].reverse().find((message) => ['SESSION_ERROR', 'TERMINAL_ERROR'].includes(message.deliveryState ?? ''))
   : undefined)
 const designerIsThinking = computed(() => designerSession.value?.state === 'RUNNING' && !designerLiveResponse.value
   && (designerSession.value.pendingQuestions?.length ?? 0) === 0)
-const designerRepairingLoopSpec = computed(() => designerRemoteState.value.startsWith('REPAIRING_LOOPSPEC_'))
+const actorMeta = {
+  USER: { label: '你', subtitle: '需求与补充', icon: 'lucide:user-round' },
+  DESIGNER: { label: 'Designer / 设计师', subtitle: 'Markdown 设计文档', icon: 'lucide:sparkles' },
+  COMPILER: { label: 'LoopSpec Compiler / 规范编译器', subtitle: '编译摘要与设计缺口', icon: 'lucide:braces' },
+  VALIDATOR: { label: 'Deterministic Validator / 确定性校验器', subtitle: '服务端硬校验结果', icon: 'lucide:badge-check' },
+  SYSTEM: { label: '系统', subtitle: '工作流通知', icon: 'lucide:info' },
+} as const
+const workflowLabels = {
+  DESIGNING: '设计中', COMPILING: '编译中', VALIDATING: '确定性校验中', REDESIGNING: '重新设计中', COMPLETED: '已完成', FAILED: '已停止',
+} as const
+const activeActorMeta = computed(() => actorMeta[designerSession.value?.activeActor ?? 'SYSTEM'])
+const activeWorkflowLabel = computed(() => workflowLabels[designerSession.value?.workflowPhase ?? 'DESIGNING'])
 const designerTransportLabel = computed(() => {
   if (designerStreamState.value === 'connected') return '实时通道已连接'
   if (designerStreamState.value === 'reconnecting') return '实时通道重连中'
@@ -101,7 +112,7 @@ const designerRuntimeLabel = computed(() => {
   if (designerLiveError.value) return 'OpenCode 异常'
   return 'OpenCode 状态探测中'
 })
-const visibleMessages = computed(() => messages.value.filter((message) => !(
+const visibleMessages = computed(() => messages.value.filter((message) => !message.content.includes('LOOPSPEC_COMPILATION_JSON_START')).filter((message) => !(
   message.role === 'SYSTEM'
   && message.deliveryState === 'PENDING_HANDOFF'
   && !message.content.startsWith('SYSTEM_ERROR')
@@ -250,11 +261,11 @@ function startDesignerStream(sessionId: string) {
     designerRemoteState.value = event.remoteState ?? event.state
     designerObservedAt.value = event.at
     designerLiveDetail.value = event.detail
-    if (event.type === 'STATUS' && event.remoteState?.startsWith('REPAIRING_LOOPSPEC_')) designerLiveResponse.value = ''
-    if (event.content && (event.type === 'PARTIAL' || event.type === 'COMPLETED')) designerLiveResponse.value = event.content
+    if (event.activeActor !== 'DESIGNER') designerLiveResponse.value = ''
+    else if (event.content && (event.type === 'PARTIAL' || event.type === 'COMPLETED')) designerLiveResponse.value = event.content
     if (event.type === 'ERROR') designerLiveError.value = event.detail || 'OpenCode Designer 返回错误'
-    if (designerSession.value && designerSession.value.state !== event.state) {
-      designerSession.value = { ...designerSession.value, state: event.state, updatedAt: event.at }
+    if (designerSession.value) {
+      designerSession.value = { ...designerSession.value, state: event.state, workflowPhase: event.workflowPhase, activeActor: event.activeActor, updatedAt: event.at }
     }
     if (event.type === 'COMPLETED' || event.type === 'ERROR') refreshDesignerAfterTerminalEvent()
   }, (state) => {
@@ -312,7 +323,7 @@ async function applyBriefTemplate(prompt: string) {
 }
 
 function blankSpec(projectId: string, goal: string, settings: AppSettings): LoopDraft['spec'] {
-  return { schemaVersion: 'v2', projectId, goal, context: 'Execution 只允许在该 Task 的执行目录中修改；有 Git HEAD 时把登记项目目录切换到任务分支，否则直接使用登记的项目目录。', stages: [{ objective: '分析目标并实现最小可验证改动', allowedPaths: [], forbiddenPaths: [], deliverables: ['可验证实现'], acceptanceCriteria: [], verifiers: [] }], limits: { maxStageAttempts: 3, maxTaskAttempts: settings.maxTaskAttempts, maxDuration: 'PT2H', attemptTimeout: `PT${settings.timeoutMinutes}M` } }
+  return { schemaVersion: 'v2', projectId, goal, context: 'Execution 只允许在该 Task 的执行目录中修改；有 Git HEAD 时把登记项目目录切换到任务分支，否则直接使用登记的项目目录。', stages: [{ objective: '分析目标并实现最小可验证改动', allowedPaths: [], forbiddenPaths: [], deliverables: ['可验证实现'], implementationKind: 'NON_JAVA', acceptanceCriteria: [], verifiers: [] }], limits: { maxStageAttempts: 3, maxTaskAttempts: settings.maxTaskAttempts, maxDuration: 'PT2H', attemptTimeout: `PT${settings.timeoutMinutes}M` } }
 }
 
 async function startDraft() {
@@ -424,6 +435,7 @@ function parsedSpec() {
     const spec = JSON.parse(editorValue.value) as LoopDraft['spec']
     if (!spec.goal?.trim()) throw new Error('goal 不能为空')
     if (!Array.isArray(spec.stages) || spec.stages.length === 0) throw new Error('至少需要一个 stage')
+    if (spec.schemaVersion === 'v2' && spec.stages.some((stage) => !stage.implementationKind)) throw new Error('每个 v2 stage 都必须选择 implementationKind')
     return spec
   } catch (error) {
     fieldError.value = { id: 'field-json', layer: 'FIELD', code: 'LOOPSPEC_INVALID', message: error instanceof Error ? `LoopSpec 校验失败：${error.message}` : 'LoopSpec 不是有效 JSON', retryable: true, occurredAt: '刚刚' }
@@ -498,7 +510,7 @@ async function sendMessage() {
   const content = userMessage.value.trim()
   if (!content) return
   if (store.usingDemo) {
-    messages.value.push({ id: `local-${Date.now()}`, role: 'USER', content, deliveryState: 'PERSISTED', createdAt: '刚刚' })
+    messages.value.push({ id: `local-${Date.now()}`, role: 'USER', actor: 'USER', content, deliveryState: 'PERSISTED', createdAt: '刚刚' })
     userMessage.value = ''
     return
   }
@@ -518,6 +530,30 @@ async function sendMessage() {
   } finally {
     busy.value = false
   }
+}
+
+async function retryCompiler() {
+  if (!designerSession.value || store.usingDemo) return
+  busy.value = true
+  try {
+    await api.retryDesignerCompiler(designerSession.value.id)
+    await refreshDesignerSession()
+    startDesignerPolling()
+    ElMessage.success('已启动新的只读规范编译器 Session')
+  } catch (error) { ElMessage.error(error instanceof Error ? error.message : '重新编译失败') }
+  finally { busy.value = false }
+}
+
+async function requestRedesign() {
+  if (!designerSession.value || store.usingDemo) return
+  busy.value = true
+  try {
+    await api.requestDesignerRedesign(designerSession.value.id)
+    await refreshDesignerSession()
+    startDesignerPolling()
+    ElMessage.success('已要求设计师生成完整替代稿')
+  } catch (error) { ElMessage.error(error instanceof Error ? error.message : '重新设计失败') }
+  finally { busy.value = false }
 }
 </script>
 
@@ -628,25 +664,27 @@ async function sendMessage() {
         <div class="designer-connection-strip" role="status" aria-live="polite">
           <span><i :class="['connection-dot', designerStreamState]" />{{ designerTransportLabel }}</span>
           <span><i :class="['connection-dot', { connected: designerRuntimeConnected, error: designerLiveError }]" />{{ designerRuntimeLabel }}</span>
+          <span class="active-role"><Icon :icon="activeActorMeta.icon" />{{ activeActorMeta.label }} · {{ activeWorkflowLabel }}</span>
+          <span v-if="designerSession?.compiler" class="mono">Compiler 修复 {{ designerSession.compiler.repairCount }}/2</span>
           <span class="mono">远端 {{ designerRemoteState || 'WAITING' }}</span>
           <time :datetime="designerObservedAt">{{ formatObservedAt(designerObservedAt) }}</time>
         </div>
-        <section v-if="designerSessionError" class="designer-session-alert" role="status" aria-live="polite"><Icon icon="lucide:refresh-cw" /><div><strong>Designer Session 已结束</strong><p>{{ designerSessionError.content }}</p><span class="tiny muted">只读设计会话受影响；Task 状态未改变。可重新发送，也可清理当前工作区后重新开始。</span><el-button class="restart-designer-inline" plain size="small" @click="restartDesigner"><Icon icon="lucide:rotate-ccw" />清理并重新开始</el-button></div></section>
+        <section v-if="designerSessionError" class="designer-session-alert" role="status" aria-live="polite"><Icon icon="lucide:refresh-cw" /><div><strong>设计工作流已停止</strong><p>{{ designerSessionError.content }}</p><span class="tiny muted">草稿保持未同步，且没有创建或修改 Task。可选择重新编译当前设计，或让设计师输出完整替代稿。</span><div class="recovery-actions"><el-button plain size="small" :loading="busy" @click="retryCompiler"><Icon icon="lucide:braces" />重新编译当前设计</el-button><el-button plain size="small" :loading="busy" @click="requestRedesign"><Icon icon="lucide:sparkles" />让 Designer 重新设计</el-button><el-button plain size="small" @click="restartDesigner"><Icon icon="lucide:rotate-ccw" />清理工作区</el-button></div></div></section>
         <section v-else-if="designerLiveError" class="designer-session-alert live-error" role="alert" aria-live="assertive"><Icon icon="lucide:triangle-alert" /><div><strong>OpenCode 实时错误</strong><p>{{ designerLiveError }}</p><span class="tiny muted">错误已从实时通道收到，正在同步持久化会话状态。</span></div></section>
         <div class="designer-conversation">
           <div class="chat-history">
-          <article v-for="message in visibleMessages" :key="message.id" :class="['chat-message', `chat-${message.role.toLowerCase()}`]">
+          <article v-for="message in visibleMessages" :key="message.id" :class="['chat-message', `chat-${message.actor.toLowerCase()}`, message.actor === 'VALIDATOR' ? `validator-${message.deliveryState?.toLowerCase() ?? 'status'}` : '']">
             <header class="chat-message-header">
               <span class="chat-author">
-                <span class="chat-avatar"><Icon :icon="message.role === 'ASSISTANT' ? 'lucide:sparkles' : message.role === 'USER' ? 'lucide:user-round' : 'lucide:info'" /></span>
-                <span><strong class="chat-role">{{ message.role === 'USER' ? '你' : message.role === 'ASSISTANT' ? 'Designer' : '系统' }}</strong><small v-if="message.role === 'ASSISTANT'">Markdown 设计文档</small></span>
+                <span class="chat-avatar"><Icon :icon="actorMeta[message.actor].icon" /></span>
+                <span><strong class="chat-role">{{ actorMeta[message.actor].label }}</strong><small>{{ actorMeta[message.actor].subtitle }}</small></span>
               </span>
               <time class="chat-message-time" :datetime="message.createdAt">{{ message.deliveryState ? `${statusLabel(message.deliveryState)} · ` : '' }}{{ formatDateTime(message.createdAt) }}</time>
             </header>
-            <MarkdownDocument v-if="message.role === 'ASSISTANT'" :content="message.content" collapsible />
+            <MarkdownDocument v-if="message.actor === 'DESIGNER'" :content="message.content" collapsible />
             <p v-else class="plain-message-content">{{ message.content }}</p>
           </article>
-          <article v-if="designerLiveResponse" class="chat-message chat-assistant chat-live" aria-label="Designer 正在流式回复" aria-live="polite">
+          <article v-if="designerLiveResponse" class="chat-message chat-designer chat-live" aria-label="Designer 正在流式回复" aria-live="polite">
             <header class="chat-message-header">
               <span class="chat-author"><span class="chat-avatar"><Icon icon="lucide:sparkles" /></span><span><strong class="chat-role">Designer</strong><small>LIVE · Markdown 设计文档</small></span></span>
               <span class="chat-message-time">{{ formatObservedAt(designerObservedAt) }}</span>
@@ -662,10 +700,10 @@ async function sendMessage() {
             @submit="(answers: string[][]) => answerDesignerQuestion(pending, answers)"
             @reject="rejectDesignerQuestion(pending)"
           />
-          <article v-if="designerIsThinking" class="thinking-message" role="status" aria-live="polite" :aria-label="designerRepairingLoopSpec ? '正在自动纠正 LoopSpec' : 'Agent 正在思考，等待 AI 回复'">
+          <article v-if="designerIsThinking" :class="['thinking-message', `thinking-${designerSession?.activeActor?.toLowerCase() ?? 'system'}`]" role="status" aria-live="polite" :aria-label="`${activeActorMeta.label}正在处理`">
             <span class="thinking-orbit" aria-hidden="true"><span /></span>
             <div class="thinking-copy">
-              <strong>{{ designerRepairingLoopSpec ? '正在自动纠正 LoopSpec' : 'Agent 正在思考' }}<span class="thinking-dots" aria-hidden="true"><i /><i /><i /></span></strong>
+              <strong>{{ activeActorMeta.label }}正在{{ activeWorkflowLabel }}<span class="thinking-dots" aria-hidden="true"><i /><i /><i /></span></strong>
               <p>{{ designerReconnecting || designerStreamState === 'reconnecting' ? '连接暂时中断，正在恢复并继续等待真实回复。' : designerLiveDetail || 'OpenCode 已收到请求，等待首段模型回复。' }}</p>
             </div>
           </article>
@@ -822,18 +860,30 @@ async function sendMessage() {
 .chat-user { margin-left: clamp(24px, 7%, 54px); border-color: rgb(59 130 246 / 26%); background: rgb(59 130 246 / 7%); }
 .chat-user .chat-avatar { border-color: rgb(34 211 238 / 27%); color: var(--color-accent-cyan); background: rgb(34 211 238 / 8%); }
 .chat-user .chat-role { color: var(--color-accent-cyan); }
-.chat-assistant { padding: clamp(16px, 2.2vw, 24px); border-color: rgb(139 92 246 / 22%); background: radial-gradient(circle at 8% 0, rgb(139 92 246 / 8%), transparent 32%), rgb(7 11 20 / 68%); box-shadow: 0 14px 38px rgb(0 0 0 / 13%); }
-.chat-assistant .chat-message-header { margin-bottom: 18px; padding-bottom: 12px; border-bottom: 1px solid rgb(139 92 246 / 14%); }
+.chat-designer { padding: clamp(16px, 2.2vw, 24px); border-color: rgb(139 92 246 / 28%); background: radial-gradient(circle at 8% 0, rgb(139 92 246 / 10%), transparent 32%), rgb(7 11 20 / 68%); box-shadow: inset 2px 0 rgb(139 92 246 / 55%), 0 14px 38px rgb(0 0 0 / 13%); }
+.chat-designer .chat-message-header { margin-bottom: 18px; padding-bottom: 12px; border-bottom: 1px solid rgb(139 92 246 / 16%); }
+.chat-designer .chat-role, .chat-designer .chat-avatar { color: #c4b5fd; }
+.chat-compiler { border-color: rgb(34 211 238 / 34%); background: rgb(34 211 238 / 7%); box-shadow: inset 2px 0 rgb(34 211 238 / 62%); }
+.chat-compiler .chat-role, .chat-compiler .chat-avatar { color: var(--color-accent-cyan); }
+.chat-validator { border-color: rgb(34 197 94 / 30%); background: rgb(34 197 94 / 7%); box-shadow: inset 2px 0 rgb(34 197 94 / 58%); }
+.chat-validator .chat-role, .chat-validator .chat-avatar { color: #86efac; }
+.chat-validator.validator-retryable_error { border-color: rgb(245 158 11 / 38%); background: rgb(245 158 11 / 8%); box-shadow: inset 2px 0 rgb(245 158 11 / 65%); }
+.chat-validator.validator-retryable_error .chat-role, .chat-validator.validator-retryable_error .chat-avatar { color: #fbbf24; }
+.chat-validator.validator-terminal_error { border-color: rgb(239 68 68 / 42%); background: rgb(239 68 68 / 9%); box-shadow: inset 2px 0 rgb(239 68 68 / 68%); }
+.chat-validator.validator-terminal_error .chat-role, .chat-validator.validator-terminal_error .chat-avatar { color: #fca5a5; }
 .chat-live { position: relative; border-color: rgb(34 211 238 / 30%); box-shadow: 0 14px 38px rgb(0 0 0 / 13%), inset 2px 0 rgb(34 211 238 / 55%); }
 .stream-caret { display: inline-block; width: 7px; height: 14px; margin: 4px 0 -2px 3px; background: var(--color-accent-cyan); animation: stream-blink .85s steps(1) infinite; box-shadow: 0 0 8px rgb(34 211 238 / 55%); }
 .chat-system { padding-block: 10px; border-style: dashed; background: rgb(7 11 20 / 25%); }
 .chat-system .chat-avatar { border-color: var(--color-border-default); color: var(--color-text-muted); background: transparent; }
 .chat-system .chat-role { color: var(--color-text-secondary); }
+.chat-compiler .plain-message-content, .chat-validator .plain-message-content { margin-top: 2px; }
 .plain-message-content { margin: 7px 0 0; color: var(--color-text-primary); font-size: 12px; line-height: 1.65; white-space: pre-wrap; }
 .thinking-message { position: relative; display: flex; align-items: center; gap: 14px; margin: 14px 0; padding: 17px 18px; overflow: hidden; border: 1px solid rgb(139 92 246 / 28%); border-radius: 12px; background: linear-gradient(100deg, rgb(139 92 246 / 9%), rgb(34 211 238 / 5%), rgb(139 92 246 / 9%)); background-size: 220% 100%; box-shadow: 0 12px 36px rgb(0 0 0 / 12%); animation: thinking-sheen 3s ease-in-out infinite; }
 .thinking-message::after { position: absolute; inset: auto 16px 0; height: 1px; background: linear-gradient(90deg, transparent, rgb(34 211 238 / 55%), transparent); content: ""; animation: thinking-scan 2.2s ease-in-out infinite; }
 .thinking-orbit { position: relative; display: grid; flex: 0 0 auto; place-items: center; width: 38px; height: 38px; border: 2px solid rgb(139 92 246 / 18%); border-top-color: #a78bfa; border-right-color: var(--color-accent-cyan); border-radius: 50%; box-shadow: 0 0 18px rgb(139 92 246 / 18%); animation: thinking-spin 1s linear infinite; }
 .thinking-orbit span { width: 8px; height: 8px; border-radius: 50%; background: linear-gradient(135deg, #a78bfa, var(--color-accent-cyan)); box-shadow: 0 0 12px rgb(34 211 238 / 55%); }
+.thinking-compiler { border-color: rgb(34 211 238 / 38%); background: linear-gradient(100deg, rgb(34 211 238 / 10%), rgb(8 47 73 / 5%), rgb(34 211 238 / 10%)); }
+.thinking-validator { border-color: rgb(34 197 94 / 36%); background: linear-gradient(100deg, rgb(34 197 94 / 9%), rgb(20 83 45 / 5%), rgb(34 197 94 / 9%)); }
 .thinking-copy { min-width: 0; }
 .thinking-copy strong { display: flex; align-items: baseline; color: #f5f3ff; font-size: 13px; font-weight: 720; letter-spacing: -.01em; }
 .thinking-copy p { margin: 5px 0 0; color: var(--color-text-secondary); font-size: 11px; line-height: 1.55; }
@@ -859,6 +909,9 @@ async function sendMessage() {
 .designer-session-alert svg { flex: 0 0 auto; margin-top: 2px; }
 .designer-session-alert p { margin: 5px 0; color: var(--color-text-primary); font-size: 11px; line-height: 1.5; }
 .restart-designer-inline { display: flex; margin-top: 10px; }
+.recovery-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.active-role { color: var(--color-text-secondary); }
+.active-role svg { color: var(--color-accent-cyan); }
 .designer-state-actions { display: flex; align-items: center; gap: 8px; }
 
 @media (max-width: 1180px) {

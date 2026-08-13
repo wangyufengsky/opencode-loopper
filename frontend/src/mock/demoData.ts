@@ -39,8 +39,8 @@ export const demoDraft: LoopDraft = {
 }
 
 export const demoMessages: DesignerMessage[] = [
-  { id: 'm-1', role: 'USER', content: '为错误恢复能力生成一个可验证的 LoopSpec。', createdAt: '10:02' },
-  { id: 'm-2', role: 'ASSISTANT', content: `# 错误恢复 LoopSpec 提案
+  { id: 'm-1', role: 'USER', actor: 'USER', content: '为错误恢复能力生成一个可验证的 LoopSpec。', createdAt: '10:02' },
+  { id: 'm-2', role: 'ASSISTANT', actor: 'DESIGNER', content: `# 错误恢复 LoopSpec 提案
 
 ## 目标
 

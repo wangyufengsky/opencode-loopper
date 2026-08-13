@@ -47,22 +47,32 @@ not invent one: a Designer uses an OpenCode `createReadOnlySession` against the
 registered project root, while Loopper's bearer-protected Spring AI MCP server
 is independently exposed at `/api/mcp-streamable`.
 
-The Designer REST workflow closes that transport gap deterministically. Each
-new Designer Session is persisted with the exact `loop_draft_id` shown in the
-Review Gate. The prompt includes that binding and the current full LoopSpec and
-requires a final JSON payload between `LOOPSPEC_JSON_START` and
-`LOOPSPEC_JSON_END`. After `sessionOutput`, Loopper parses and validates the
-payload, updates the bound draft using optimistic locking, strips the machine
-payload from the visible Markdown, and only then transitions the Session to
-`COMPLETED`. Missing, invalid, mismatched, or concurrently changed payloads are
-returned to the same read-only Designer for at most two document-correction
-turns. Exhausted correction attempts produce `SESSION_ERROR`; rejected output
-is never treated as a completed design and never creates a Task.
+The REST workflow uses two model roles. Each persisted Designer Session is bound
+to the exact `loop_draft_id` shown in Review Gate. Designer receives the user
+request and read-only project context and returns one complete Markdown design;
+it is never asked to populate LoopSpec fields. Loopper freezes that message and
+design revision, then creates a brand-new read-only LoopSpec Compiler Session
+using the same configured model. Compiler may use `read`, `glob`, and `grep`, but
+may not write, execute commands, ask questions, or create a Task.
+
+Compiler returns one marked envelope with either `COMPILED` (complete LoopSpec,
+bounded summary, and an exact Designer excerpt for every criterion) or
+`DESIGN_INCOMPLETE` (a closed semantic gap code plus concrete gaps). Loopper
+checks each excerpt against the frozen design and then runs the same field,
+verifier, coverage, project, and draft-version validation used by other entry
+points. JSON/schema/verifier/coverage failures create a new Compiler repair
+Session, at most twice after the initial compile. Missing observable outcome,
+exception semantics, scope, or acceptance intent requests at most one automatic
+full replacement from the original Designer Session. Format errors cannot be
+relabelled as design gaps. Retry exhaustion or optimistic draft conflict leaves
+the draft unchanged and exposes explicit manual recompile/redesign actions.
+Only successful deterministic validation synchronizes the draft and completes
+the overall Session; no branch, Task, or writable Session is created beforehand.
 
 The MCP `propose_loop_spec` tool uses the same session-bound update path. It no
 longer creates an unrelated draft, so an external MCP client and the built-in
 Designer workflow converge on the same Review Gate state. Failed or unavailable
-Designer handoffs remain on the Designer Session and never transition a Task.
+Designer/Compiler handoffs remain on the Designer Session and never transition a Task.
 For v2 drafts, `propose_loop_spec` and `validate_loop_spec` expose the same
 server-computed criterion coverage and evidence categories as
 `POST /api/loop-drafts/validate`. The model cannot self-declare a verifier as
@@ -99,16 +109,22 @@ private model reasoning.
 
 ## Designer acceptance handoff
 
-The Markdown plan and executable LoopSpec share one acceptance contract. New
-v2 drafts first define observable criterion IDs, then map them to server-valid
+The frozen Markdown design and executable LoopSpec remain separate artifacts.
+New v2 drafts first declare each Stage's `implementationKind` and observable
+criterion IDs, then map them to server-valid
 behavior verifiers. `PROCESS` commands remain argv arrays: `TEST` requires a
 recognized non-skipping test command and concrete targets; `SELF_CHECK` requires
 an explicit bounded-output marker; build commands cannot cover criteria.
 `GIT_DIFF` remains an opt-in scope verifier and cannot establish functional
 correctness. Network criteria additionally require the same Stage's managed
 dynamic-port runtime; an already-running fixed-port service cannot make the new
-code pass. Designer synchronization, manual save, MCP validation, template
-publication and human confirmation all call the same analyzer.
+code pass. Compiler synchronization, manual save, MCP validation, template
+publication and human confirmation all call the same analyzer. A
+`JAVA_PRODUCTION` Stage additionally requires an unskipped focused Maven/Gradle
+test with `testTargets` mapped to every `MACHINE`/`BOTH` criterion. Runtime
+verification independently compares the Stage-start production-Java baseline;
+classification mismatch and missing successful focused tests are blocking
+Attempt failures rather than model judgments.
 High-confidence Maven arguments accidentally combined into one array item are
 tokenized without a shell and persisted as canonical argv. Only a Maven command
 whose token boundary cannot be parsed safely is rejected for Designer repair.

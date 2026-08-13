@@ -4,4 +4,5 @@ package io.opencode.loopper.persistence;
 public record DesignerSessionRow(String id, String projectId, String state, String accessMode,
                                  String createdAt, String updatedAt, long version,
                                  String externalSessionId, String externalSessionState,
-                                 String loopDraftId) { }
+                                 String loopDraftId, String workflowPhase,
+                                 int designRevision, int redesignCount) { }

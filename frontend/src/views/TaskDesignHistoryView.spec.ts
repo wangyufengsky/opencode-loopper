@@ -22,9 +22,9 @@ describe('TaskDesignHistoryView', () => {
       designerSession: {
         id: 'designer-1', state: 'COMPLETED', accessMode: 'READ_ONLY', createdAt: '2026-08-05T08:00:00Z', updatedAt: '2026-08-05T09:00:00Z',
         messages: [
-          { id: 'notice', role: 'SYSTEM', content: 'Designer session created in read-only mode.', deliveryState: 'PENDING_HANDOFF', createdAt: '2026-08-05T08:00:00Z' },
-          { id: 'user', role: 'USER', content: '请保留设计历史', deliveryState: 'PERSISTED', createdAt: '2026-08-05T08:01:00Z' },
-          { id: 'assistant', role: 'ASSISTANT', content: '## 历史设计方案', deliveryState: 'PERSISTED', createdAt: '2026-08-05T08:02:00Z' },
+          { id: 'notice', role: 'SYSTEM', actor: 'SYSTEM', content: 'Designer session created in read-only mode.', deliveryState: 'PENDING_HANDOFF', createdAt: '2026-08-05T08:00:00Z' },
+          { id: 'user', role: 'USER', actor: 'USER', content: '请保留设计历史', deliveryState: 'PERSISTED', createdAt: '2026-08-05T08:01:00Z' },
+          { id: 'assistant', role: 'ASSISTANT', actor: 'DESIGNER', content: '## 历史设计方案', deliveryState: 'PERSISTED', createdAt: '2026-08-05T08:02:00Z' },
         ],
       },
     })

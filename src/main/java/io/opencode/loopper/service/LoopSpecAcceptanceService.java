@@ -1,6 +1,7 @@
 package io.opencode.loopper.service;
 
 import io.opencode.loopper.domain.LoopSpec;
+import io.opencode.loopper.domain.ImplementationKind;
 import io.opencode.loopper.verification.ProcessCommandPolicy;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -37,6 +38,9 @@ public class LoopSpecAcceptanceService {
         for (int stageIndex = 0; stageIndex < spec.stages().size(); stageIndex++) {
             LoopSpec.StageSpec stage = spec.stages().get(stageIndex);
             String stagePath = "stages[" + stageIndex + "]";
+            if (stage.implementationKind() == null) {
+                errors.add(stagePath + ".implementationKind: v2 requires JAVA_PRODUCTION, JAVA_TEST_ONLY, or NON_JAVA");
+            }
             Map<String, LoopSpec.AcceptanceCriterion> criteria = new LinkedHashMap<>();
             for (int criterionIndex = 0; criterionIndex < stage.acceptanceCriteria().size(); criterionIndex++) {
                 LoopSpec.AcceptanceCriterion criterion = stage.acceptanceCriteria().get(criterionIndex);
@@ -54,6 +58,7 @@ public class LoopSpecAcceptanceService {
             Map<String, List<Integer>> machineCoverage = new LinkedHashMap<>();
             criteria.keySet().forEach(id -> machineCoverage.put(id, new ArrayList<>()));
             List<VerifierAssessment> verifierAssessments = new ArrayList<>();
+            List<Integer> focusedJavaTestVerifierIndexes = new ArrayList<>();
             boolean hasBlockingDeterministicVerifier = false;
             for (int verifierIndex = 0; verifierIndex < stage.verifiers().size(); verifierIndex++) {
                 LoopSpec.VerifierSpec verifier = stage.verifiers().get(verifierIndex);
@@ -72,6 +77,11 @@ public class LoopSpecAcceptanceService {
                         && runtimeReady;
                 if (blocking) {
                     hasBlockingDeterministicVerifier = true;
+                }
+                if ("PROCESS".equals(verifierType) && "TEST".equals(text(verifier.processPurpose()))
+                        && !verifier.testTargets().isEmpty()
+                        && ProcessCommandPolicy.isFocusedJavaTestCommand(verifier.command())) {
+                    focusedJavaTestVerifierIndexes.add(verifierIndex);
                 }
                 if (behavior && verifier.criterionIds().isEmpty()) {
                     errors.add(path + ".criterionIds: behavior verifier must cover at least one acceptance criterion");
@@ -94,6 +104,10 @@ public class LoopSpecAcceptanceService {
             if (!hasBlockingDeterministicVerifier) {
                 errors.add(stagePath + ".verifiers: v2 requires at least one blocking deterministic verifier even when criteria use JUDGE review");
             }
+            if (stage.implementationKind() == ImplementationKind.JAVA_PRODUCTION
+                    && focusedJavaTestVerifierIndexes.isEmpty()) {
+                errors.add(stagePath + ".verifiers: JAVA_PRODUCTION requires at least one non-skipped focused Maven/Gradle PROCESS TEST with explicit testTargets");
+            }
 
             List<CriterionAssessment> criterionAssessments = new ArrayList<>();
             for (LoopSpec.AcceptanceCriterion criterion : stage.acceptanceCriteria()) {
@@ -114,6 +128,15 @@ public class LoopSpecAcceptanceService {
                 }
                 if (Set.of("MACHINE", "BOTH").contains(mode) && !machineCovered && !blank(criterion.id())) {
                     errors.add(stagePath + ".acceptanceCriteria[" + criterion.id() + "]: no valid BEHAVIOR verifier provides required machine coverage");
+                }
+                if (stage.implementationKind() == ImplementationKind.JAVA_PRODUCTION
+                        && Set.of("MACHINE", "BOTH").contains(mode) && !blank(criterion.id())) {
+                    boolean mappedToFocusedJavaTest = focusedJavaTestVerifierIndexes.stream().anyMatch(index ->
+                            stage.verifiers().get(index).criterionIds().contains(criterion.id()));
+                    if (!mappedToFocusedJavaTest) {
+                        errors.add(stagePath + ".acceptanceCriteria[" + criterion.id()
+                                + "]: JAVA_PRODUCTION MACHINE/BOTH behavior must map to a focused Maven/Gradle unit test");
+                    }
                 }
                 boolean overallPlanned = modeValid && switch (mode) {
                     case "MACHINE" -> machineCovered;

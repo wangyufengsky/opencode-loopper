@@ -38,6 +38,7 @@ import io.opencode.loopper.runtime.GitWorktreeManager;
 import io.opencode.loopper.runtime.OpenCodeClient;
 import io.opencode.loopper.verification.VerifierEngine;
 import io.opencode.loopper.verification.VerifierOutcome;
+import io.opencode.loopper.verification.JavaUnitTestGatePolicy;
 import io.opencode.loopper.verification.BinaryArtifactPersistenceService;
 import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
@@ -78,6 +79,7 @@ public class TaskService {
     private final AttemptHandoffService attemptHandoffs;
     private final BinaryArtifactPersistenceService binaryArtifacts;
     private final ManagedVerificationRuntimeService managedVerifierRuntimes;
+    private final JavaChangeGateService javaChangeGate;
     private final UsageInsightsService usageInsights;
     private final TaskEventService events;
     private final LoopperProperties defaults;
@@ -89,6 +91,7 @@ public class TaskService {
                        AttemptHandoffService attemptHandoffs,
                        BinaryArtifactPersistenceService binaryArtifacts,
                        ManagedVerificationRuntimeService managedVerifierRuntimes,
+                       JavaChangeGateService javaChangeGate,
                        UsageInsightsService usageInsights,
                        TaskEventService events, LoopperProperties defaults,
                        PlatformTransactionManager transactionManager) {
@@ -96,6 +99,7 @@ public class TaskService {
         this.worktrees = worktrees; this.directLeases = directLeases; this.openCode = openCode;
         this.verifiers = verifiers; this.attemptHandoffs = attemptHandoffs; this.binaryArtifacts = binaryArtifacts;
         this.managedVerifierRuntimes = managedVerifierRuntimes;
+        this.javaChangeGate = javaChangeGate;
         this.usageInsights = usageInsights; this.events = events; this.defaults = defaults;
         this.transactions = new TransactionTemplate(transactionManager);
     }
@@ -223,6 +227,7 @@ public class TaskService {
             throw new NotFoundException("Task not found: " + id);
         }
         if (draftId != null && !draftId.isBlank()) {
+            mapper.deleteLoopSpecCompilationsByDraft(draftId);
             mapper.deleteDesignerMessagesByDraft(draftId);
             mapper.deleteDesignerInteractionsByDraft(draftId);
             mapper.deleteDesignerSessionsByDraft(draftId);
@@ -362,7 +367,6 @@ public class TaskService {
         }
     }
 
-    @Transactional
     public TaskRow start(String taskId) {
         TaskRow task = get(taskId);
         boolean verificationOnly = isVerificationOnlyRecovery(taskId);
@@ -494,6 +498,11 @@ public class TaskService {
                     }
                 }
             }
+            if ("v2".equals(spec.schemaVersion())) {
+                PendingVerification javaGateResult = javaGateVerification(initial, stage, stageContract,
+                        verifierSpecs, pending);
+                if (javaGateResult != null) pending.add(javaGateResult);
+            }
             AttemptHandoffService.Capture handoff = null;
             PendingVerification failedPreview = pending.stream()
                     .filter(result -> result.outcome().state() != VerificationState.PASS)
@@ -514,6 +523,43 @@ public class TaskService {
             failTask(get(taskId), failure.code(), failure.getMessage(), null, null, null);
         }
         return get(taskId);
+    }
+
+    private PendingVerification javaGateVerification(TaskRow task, StageRow stage,
+                                                      LoopSpec.StageSpec stageContract,
+                                                      List<LoopSpec.VerifierSpec> verifierSpecs,
+                                                      List<PendingVerification> completed) {
+        JavaChangeGateService.ChangeSet changes = javaChangeGate.changesSinceStageStart(task, stage);
+        if (!changes.changed()) return null;
+        Map<String, Object> evidence = new LinkedHashMap<>();
+        evidence.put("changedProductionJavaPaths", changes.changedPaths());
+        evidence.put("stageBaselineSha256", changes.beforeSha256());
+        evidence.put("currentSnapshotSha256", changes.afterSha256());
+        evidence.put("declaredImplementationKind",
+                stageContract.implementationKind() == null ? "MISSING" : stageContract.implementationKind().name());
+        Map<Integer, VerificationState> completedStates = completed.stream()
+                .collect(java.util.stream.Collectors.toMap(PendingVerification::index,
+                        result -> result.outcome().state(), (first, second) -> second));
+        JavaUnitTestGatePolicy.Decision decision = JavaUnitTestGatePolicy.evaluate(
+                stageContract.implementationKind(), verifierSpecs, completedStates);
+        evidence.put("focusedJavaTestVerifierIndexes", decision.focusedVerifierIndexes());
+        evidence.put("passedFocusedJavaTestVerifierIndexes", decision.passedVerifierIndexes());
+        evidence.put("code", decision.code());
+        if ("JAVA_CHANGE_CLASSIFICATION_MISMATCH".equals(decision.code())) {
+            return new PendingVerification(UUID.randomUUID().toString(), -2,
+                    new VerifierOutcome("JAVA_UNIT_TEST_GATE", VerificationState.FAIL,
+                            "JAVA_CHANGE_CLASSIFICATION_MISMATCH: production Java changed in a "
+                                    + evidence.get("declaredImplementationKind") + " stage", evidence));
+        }
+        if (!decision.passed()) {
+            return new PendingVerification(UUID.randomUUID().toString(), -2,
+                    new VerifierOutcome("JAVA_UNIT_TEST_GATE", VerificationState.FAIL,
+                            "JAVA_UNIT_TEST_ACCEPTANCE_REQUIRED: changed production Java has no passing focused Maven/Gradle unit test",
+                            evidence));
+        }
+        return new PendingVerification(UUID.randomUUID().toString(), -2,
+                new VerifierOutcome("JAVA_UNIT_TEST_GATE", VerificationState.PASS,
+                        "Changed production Java is covered by a passing focused Maven/Gradle unit test", evidence));
     }
 
     private void enterVerification(TaskRow initial, ExecutionSessionRow implementationSession) {
@@ -561,16 +607,17 @@ public class TaskService {
                 .filter(result -> result.outcome().state() != VerificationState.PASS).reduce((left, right) -> right).orElse(null);
         if (failed == null) return completeStageState(task, stage, attempt);
         String failure = failed.outcome().summary();
+        String failureCode = String.valueOf(failed.outcome().evidence().getOrDefault("code", "VERIFICATION_FAILED"));
         if (verificationOnly) {
-            updateAttempt(finish(attempt, AttemptState.VERIFICATION_FAILED, "VERIFICATION_FAILED", failure));
+            updateAttempt(finish(attempt, AttemptState.VERIFICATION_FAILED, failureCode, failure));
             recordError(task, stage, attempt, null, ErrorLayer.VERIFICATION,
-                    "VERIFICATION_FAILED", failure, true, Map.of("verifyOnly", true));
+                    failureCode, failure, true, Map.of("verifyOnly", true));
             failTask(get(taskId), "VERIFY_ONLY_VERIFICATION_FAILED",
                     "VERIFY_ONLY 恢复任务的原生验证失败；不会创建可写 OpenCode 修复会话", stage, attempt, null);
             return VerificationContinuation.none(taskId);
         }
         int stagnationCount = persistAttemptHandoff(task, stage, attempt, handoff);
-        return retryAfterVerificationFailureState(task, stage, attempt, failure, spec, handoff, stagnationCount);
+        return retryAfterVerificationFailureState(task, stage, attempt, failureCode, failure, spec, handoff, stagnationCount);
     }
 
     private void continueAfterVerification(VerificationContinuation continuation) {
@@ -640,7 +687,6 @@ public class TaskService {
         return get(taskId);
     }
 
-    @Transactional
     public TaskRow resume(String taskId) {
         TaskRow task = get(taskId);
         if (!TaskState.PAUSED.name().equals(task.state()) && !TaskState.WAITING_INPUT.name().equals(task.state())) throw new ConflictException("TASK_NOT_PAUSED", "Task is not paused");
@@ -824,6 +870,7 @@ public class TaskService {
         TaskRow freshTask = get(task.id());
         LoopSpec spec = spec(freshTask);
         StageRow stage = mapper.findStage(inputStage.id()).orElseThrow(() -> new TaskFailure("STAGE_MISSING", "Stage disappeared"));
+        javaChangeGate.captureIfAbsent(freshTask, stage);
         if (mapper.countAttemptsForTask(freshTask.id()) >= spec.limits().maxTaskAttempts() || mapper.countAttemptsForStage(stage.id()) >= spec.limits().maxStageAttempts()) {
             failTask(freshTask, "ATTEMPT_LIMIT_EXHAUSTED", "The configured attempt limit was reached", stage, null, null);
             return;
@@ -869,6 +916,7 @@ public class TaskService {
         TaskRow freshTask = get(task.id());
         LoopSpec spec = spec(freshTask);
         StageRow stage = mapper.findStage(inputStage.id()).orElseThrow(() -> new TaskFailure("STAGE_MISSING", "Stage disappeared"));
+        javaChangeGate.captureIfAbsent(freshTask, stage);
         if (mapper.countAttemptsForTask(freshTask.id()) >= spec.limits().maxTaskAttempts()
                 || mapper.countAttemptsForStage(stage.id()) >= spec.limits().maxStageAttempts()) {
             failTask(freshTask, "ATTEMPT_LIMIT_EXHAUSTED", "The configured verification attempt limit was reached", stage, null, null);
@@ -1022,13 +1070,14 @@ public class TaskService {
     }
 
     private VerificationContinuation retryAfterVerificationFailureState(TaskRow task, StageRow stage,
-                                                                          AttemptRow attempt, String message,
+                                                                          AttemptRow attempt, String failureCode,
+                                                                          String message,
                                                                           LoopSpec spec,
                                                                           AttemptHandoffService.Capture handoff,
                                                                           int stagnationCount) {
-        updateAttempt(finish(attempt, AttemptState.VERIFICATION_FAILED, "VERIFICATION_FAILED", message));
+        updateAttempt(finish(attempt, AttemptState.VERIFICATION_FAILED, failureCode, message));
         recordError(task, stage, attempt, mapper.latestSessionForAttempt(attempt.id()).orElse(null), ErrorLayer.VERIFICATION,
-                "VERIFICATION_FAILED", message, true, Map.of());
+                failureCode, message, true, Map.of());
         if (mapper.countAttemptsForTask(task.id()) >= spec.limits().maxTaskAttempts() || mapper.countAttemptsForStage(stage.id()) >= spec.limits().maxStageAttempts()) {
             failTask(get(task.id()), "ATTEMPT_LIMIT_EXHAUSTED", "Verifier failures exhausted configured attempts", stage, attempt, null);
             return VerificationContinuation.none(task.id());

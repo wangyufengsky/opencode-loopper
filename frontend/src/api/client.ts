@@ -132,6 +132,7 @@ function parseLoopSpec(value: unknown): LoopSpec {
       const readiness = asRecord(runtime.readiness)
       return {
         objective: asString(item.objective), allowedPaths: asArray(item.allowedPaths).map(String), forbiddenPaths: asArray(item.forbiddenPaths).map(String), deliverables: asArray(item.deliverables).map(String), verifiers: asArray(item.verifiers).map(parseVerifier),
+        ...(['JAVA_PRODUCTION', 'JAVA_TEST_ONLY', 'NON_JAVA'].includes(asString(item.implementationKind)) ? { implementationKind: asString(item.implementationKind) as 'JAVA_PRODUCTION' | 'JAVA_TEST_ONLY' | 'NON_JAVA' } : {}),
         acceptanceCriteria: asArray(item.acceptanceCriteria).map((criterion) => {
           const rawCriterion = asRecord(criterion)
           const mode = asString(rawCriterion.verificationMode, 'MACHINE')
@@ -506,15 +507,29 @@ function normalizeDraft(value: unknown): LoopDraft {
 function normalizeDesignerMessage(value: unknown): DesignerMessage {
   const raw = asRecord(value)
   const role = asString(raw.role)
+  const actor = asString(raw.actor)
   return {
     id: asString(raw.id),
     role: role === 'USER' || role === 'ASSISTANT' || role === 'SYSTEM' ? role : 'SYSTEM',
+    actor: ['USER', 'DESIGNER', 'COMPILER', 'VALIDATOR', 'SYSTEM'].includes(actor) ? actor as DesignerMessage['actor'] : role === 'USER' ? 'USER' : role === 'ASSISTANT' ? 'DESIGNER' : 'SYSTEM',
     content: asString(raw.content),
-    deliveryState: ['PERSISTED', 'PENDING_HANDOFF', 'SESSION_ERROR'].includes(asString(raw.deliveryState))
+    deliveryState: ['PERSISTED', 'PENDING_HANDOFF', 'COMPILED', 'DESIGN_INCOMPLETE', 'PASS', 'RETRYABLE_ERROR', 'TERMINAL_ERROR', 'SESSION_ERROR'].includes(asString(raw.deliveryState))
       ? asString(raw.deliveryState) as DesignerMessage['deliveryState']
       : undefined,
     createdAt: asString(raw.createdAt),
   }
+}
+
+function normalizeWorkflowPhase(value: unknown): DesignerSession['workflowPhase'] {
+  const phase = asString(value)
+  return ['DESIGNING', 'COMPILING', 'VALIDATING', 'REDESIGNING', 'COMPLETED', 'FAILED'].includes(phase)
+    ? phase as DesignerSession['workflowPhase'] : 'DESIGNING'
+}
+
+function normalizeDesignerActor(value: unknown): DesignerSession['activeActor'] {
+  const actor = asString(value)
+  return ['USER', 'DESIGNER', 'COMPILER', 'VALIDATOR', 'SYSTEM'].includes(actor)
+    ? actor as DesignerSession['activeActor'] : 'SYSTEM'
 }
 
 function normalizeDesignerState(value: unknown): DesignerSessionState {
@@ -529,6 +544,8 @@ function normalizeDesignerSession(value: unknown): DesignerSession {
     projectId: asString(raw.projectId),
     projectName: asString(raw.projectName) || undefined,
     state: normalizeDesignerState(raw.state),
+    workflowPhase: normalizeWorkflowPhase(raw.workflowPhase),
+    activeActor: normalizeDesignerActor(raw.activeActor),
     accessMode: 'READ_ONLY',
     readOnly: raw.readOnly !== false,
     permissionSummary: asString(raw.permissionSummary) || undefined,
@@ -536,6 +553,18 @@ function normalizeDesignerSession(value: unknown): DesignerSession {
     draft: raw.draft ? normalizeDraft(raw.draft) : undefined,
     messages: asArray(raw.messages).map(normalizeDesignerMessage),
     pendingQuestions: asArray(raw.pendingQuestions).map(normalizeTaskSessionQuestion),
+    compiler: raw.compiler ? (() => {
+      const compiler = asRecord(raw.compiler)
+      return {
+        id: asString(compiler.id),
+        state: asString(compiler.state) as NonNullable<DesignerSession['compiler']>['state'],
+        externalSessionState: asString(compiler.externalSessionState) || undefined,
+        repairCount: asNumber(compiler.repairCount),
+        designRevision: asNumber(compiler.designRevision),
+        lastErrorCode: asString(compiler.lastErrorCode) || undefined,
+        lastErrorDetail: asString(compiler.lastErrorDetail) || undefined,
+      }
+    })() : undefined,
   }
 }
 
@@ -547,6 +576,8 @@ function normalizeDesignerStreamEvent(value: unknown): DesignerStreamEvent {
     sessionId: asString(raw.sessionId),
     type: ['SNAPSHOT', 'STATUS', 'PARTIAL', 'COMPLETED', 'ERROR'].includes(type) ? type as DesignerStreamEvent['type'] : 'STATUS',
     state: normalizeDesignerState(raw.state),
+    workflowPhase: normalizeWorkflowPhase(raw.workflowPhase),
+    activeActor: normalizeDesignerActor(raw.activeActor),
     remoteState: asString(raw.remoteState) || undefined,
     runtimeConnected: raw.runtimeConnected === true,
     content: asString(raw.content),
@@ -572,6 +603,7 @@ function backendLoopSpec(spec: LoopSpec): JsonRecord {
       allowedPaths: stage.allowedPaths,
       forbiddenPaths: stage.forbiddenPaths,
       deliverables: stage.deliverables,
+      ...(stage.implementationKind ? { implementationKind: stage.implementationKind } : {}),
       acceptanceCriteria: stage.acceptanceCriteria ?? [],
       ...(stage.verificationRuntime ? { verificationRuntime: stage.verificationRuntime } : {}),
       // Preserve verifier type and policy fields exactly. Converting every
@@ -1029,6 +1061,8 @@ export const api = {
   getDesignerMessages: async (id: string) => (await request<unknown[]>(`/designer-sessions/${encodeURIComponent(id)}/messages`)).map(normalizeDesignerMessage),
   replyDesignerQuestion: async (id: string, questionId: string, answers: string[][]) => request<void>(`/designer-sessions/${encodeURIComponent(id)}/questions/${encodeURIComponent(questionId)}/reply`, { method: 'POST', body: JSON.stringify({ answers }) }),
   rejectDesignerQuestion: async (id: string, questionId: string) => request<void>(`/designer-sessions/${encodeURIComponent(id)}/questions/${encodeURIComponent(questionId)}/reject`, { method: 'POST' }),
+  retryDesignerCompiler: async (id: string) => request<void>(`/designer-sessions/${encodeURIComponent(id)}/compiler/retry`, { method: 'POST' }),
+  requestDesignerRedesign: async (id: string) => request<void>(`/designer-sessions/${encodeURIComponent(id)}/redesign`, { method: 'POST' }),
   sendDesignerMessage: async (id: string, content: string): Promise<DesignerAppendResult> => {
     const raw = asRecord(await request<unknown>(`/designer-sessions/${encodeURIComponent(id)}/messages`, { method: 'POST', body: JSON.stringify({ content }) }))
     return {

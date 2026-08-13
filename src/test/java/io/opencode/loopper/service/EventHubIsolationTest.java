@@ -38,8 +38,8 @@ class EventHubIsolationTest {
         hub.subscribe("designer-1", event -> received.incrementAndGet());
 
         assertThatNoException().isThrownBy(() -> hub.publish(
-                "designer-1", "STATUS", "RUNNING", "RUNNING", true, "", "working"));
-        hub.publish("designer-1", "STATUS", "RUNNING", "RUNNING", true, "", "still working");
+                "designer-1", "STATUS", "RUNNING", "DESIGNING", "DESIGNER", "RUNNING", true, "", "working"));
+        hub.publish("designer-1", "STATUS", "RUNNING", "COMPILING", "COMPILER", "RUNNING", true, "", "still working");
 
         assertThat(failedCalls).hasValue(1);
         assertThat(received).hasValue(2);

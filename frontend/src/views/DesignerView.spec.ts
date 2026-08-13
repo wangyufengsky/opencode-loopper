@@ -26,6 +26,8 @@ const session: DesignerSession = {
   projectId: project.id,
   projectName: project.name,
   state: 'COMPLETED',
+  workflowPhase: 'COMPLETED',
+  activeActor: 'SYSTEM',
   accessMode: 'READ_ONLY',
   readOnly: true,
   messages: [],
@@ -163,7 +165,7 @@ describe('Designer draft composer', () => {
   it('keeps the reply composer immediately after the naturally growing message history', async () => {
     vi.spyOn(api, 'createDesignerSession').mockResolvedValue({
       ...session,
-      messages: [{ id: 'assistant-1', role: 'ASSISTANT', content: '# 很长的设计回复\n\n正文', deliveryState: 'PERSISTED', createdAt: 'now' }],
+      messages: [{ id: 'assistant-1', role: 'ASSISTANT', actor: 'DESIGNER', content: '# 很长的设计回复\n\n正文', deliveryState: 'PERSISTED', createdAt: 'now' }],
     })
     vi.spyOn(api, 'createDraft').mockImplementation(async (spec) => draftFrom(spec))
     const wrapper = mountDesigner()
@@ -181,7 +183,7 @@ describe('Designer draft composer', () => {
   })
 
   it('shows an animated thinking state only while the Designer request is running', async () => {
-    const runningSession: DesignerSession = { ...session, state: 'RUNNING' }
+    const runningSession: DesignerSession = { ...session, state: 'RUNNING', workflowPhase: 'DESIGNING', activeActor: 'DESIGNER' }
     vi.spyOn(api, 'createDesignerSession').mockResolvedValue(runningSession)
     vi.spyOn(api, 'createDraft').mockImplementation(async (spec) => draftFrom(spec))
     vi.spyOn(api, 'getDesignerSession').mockImplementation(() => new Promise(() => {}))
@@ -192,8 +194,8 @@ describe('Designer draft composer', () => {
     await wrapper.get('.create-draft-button').trigger('click')
     await flushPromises()
 
-    const thinking = wrapper.get('[aria-label="Agent 正在思考，等待 AI 回复"]')
-    expect(thinking.text()).toContain('Agent 正在思考')
+    const thinking = wrapper.get('[aria-label="Designer / 设计师正在处理"]')
+    expect(thinking.text()).toContain('Designer / 设计师正在设计中')
     expect(thinking.text()).toContain('连接暂时中断，正在恢复并继续等待真实回复')
 
     wrapper.unmount()
@@ -209,7 +211,7 @@ describe('Designer draft composer', () => {
       close = vi.fn()
     }
     vi.stubGlobal('EventSource', FakeEventSource)
-    const runningSession: DesignerSession = { ...session, state: 'RUNNING' }
+    const runningSession: DesignerSession = { ...session, state: 'RUNNING', workflowPhase: 'DESIGNING', activeActor: 'DESIGNER' }
     vi.spyOn(api, 'createDesignerSession').mockResolvedValue(runningSession)
     vi.spyOn(api, 'createDraft').mockImplementation(async (spec) => draftFrom(spec))
     vi.spyOn(api, 'getDesignerSession').mockImplementation(() => new Promise(() => {}))
@@ -221,7 +223,7 @@ describe('Designer draft composer', () => {
     await flushPromises()
     FakeEventSource.latest?.onopen?.()
     FakeEventSource.latest?.onmessage?.({ data: JSON.stringify({
-      sequence: 2, sessionId: runningSession.id, type: 'PARTIAL', state: 'RUNNING', remoteState: 'busy',
+      sequence: 2, sessionId: runningSession.id, type: 'PARTIAL', state: 'RUNNING', workflowPhase: 'DESIGNING', activeActor: 'DESIGNER', remoteState: 'busy',
       runtimeConnected: true, content: '## 第一段回复\n\n正在分析项目。', detail: '正在接收模型回复', at: '2026-08-05T01:00:00Z',
     }) } as MessageEvent<string>)
     await flushPromises()
@@ -229,16 +231,17 @@ describe('Designer draft composer', () => {
     expect(wrapper.get('.designer-connection-strip').text()).toContain('实时通道已连接')
     expect(wrapper.get('.designer-connection-strip').text()).toContain('OpenCode 已连接')
     expect(wrapper.get('.chat-live').text()).toContain('第一段回复')
-    expect(wrapper.find('[aria-label="Agent 正在思考，等待 AI 回复"]').exists()).toBe(false)
+    expect(wrapper.find('[aria-label="Designer / 设计师正在处理"]').exists()).toBe(false)
 
     FakeEventSource.latest?.onmessage?.({ data: JSON.stringify({
-      sequence: 3, sessionId: runningSession.id, type: 'STATUS', state: 'RUNNING', remoteState: 'REPAIRING_LOOPSPEC_1',
-      runtimeConnected: true, content: '', detail: 'LoopSpec 校验失败，正在自动纠正；不会生成代码或创建 Task。', at: '2026-08-05T01:00:01Z',
+      sequence: 3, sessionId: runningSession.id, type: 'STATUS', state: 'RUNNING', workflowPhase: 'COMPILING', activeActor: 'COMPILER', remoteState: 'REPAIRING_1',
+      runtimeConnected: true, content: '<!-- LOOPSPEC_COMPILATION_JSON_START -->raw-json', detail: '规范编译器正在进行第 1/2 次修复', at: '2026-08-05T01:00:01Z',
     }) } as MessageEvent<string>)
     await flushPromises()
 
     expect(wrapper.find('.chat-live').exists()).toBe(false)
-    expect(wrapper.get('[aria-label="正在自动纠正 LoopSpec"]').text()).toContain('不会生成代码或创建 Task')
+    expect(wrapper.get('[aria-label="LoopSpec Compiler / 规范编译器正在处理"]').text()).toContain('规范编译器正在进行第 1/2 次修复')
+    expect(wrapper.text()).not.toContain('raw-json')
     wrapper.unmount()
   })
 
@@ -250,7 +253,7 @@ describe('Designer draft composer', () => {
         options: [{ label: '新增链路', description: '创建新的业务责任链' }],
       }],
     }
-    const runningSession: DesignerSession = { ...session, state: 'RUNNING', pendingQuestions: [pendingQuestion] }
+    const runningSession: DesignerSession = { ...session, state: 'RUNNING', workflowPhase: 'DESIGNING', activeActor: 'DESIGNER', pendingQuestions: [pendingQuestion] }
     vi.spyOn(api, 'createDesignerSession').mockResolvedValue(runningSession)
     vi.spyOn(api, 'createDraft').mockImplementation(async (spec) => draftFrom(spec))
     vi.spyOn(api, 'getDesignerSession').mockImplementation(async () => ({
@@ -266,7 +269,7 @@ describe('Designer draft composer', () => {
 
     const question = wrapper.getComponent(PendingQuestionCard)
     expect(question.text()).toContain('选择实现范围')
-    expect(wrapper.find('[aria-label="Agent 正在思考，等待 AI 回复"]').exists()).toBe(false)
+    expect(wrapper.find('[aria-label="Designer / 设计师正在处理"]').exists()).toBe(false)
     question.vm.$emit('submit', [['新增链路']])
     await flushPromises()
 
@@ -283,7 +286,7 @@ describe('Designer draft composer', () => {
         schemaVersion: 'v2', projectId: project.id,
         goal: '帮我实现一个可以精确算出圆周率小数点后10万位的java代码',
         context: '使用 BigDecimal 与可验证的高精度算法。',
-        stages: [{ objective: '实现并验证 100000 位圆周率计算', allowedPaths: ['src/**'], forbiddenPaths: ['data/**'], deliverables: ['Java 实现'], acceptanceCriteria: [{ id: 'AC-1', description: '测试验证 100000 位输出' }], verifiers: [{ type: 'PROCESS', command: ['mvn', 'test', '-Dtest=PiTest'], processPurpose: 'TEST', testTargets: ['PiTest'], criterionIds: ['AC-1'] }] }],
+        stages: [{ objective: '实现并验证 100000 位圆周率计算', implementationKind: 'JAVA_PRODUCTION', allowedPaths: ['src/**'], forbiddenPaths: ['data/**'], deliverables: ['Java 实现'], acceptanceCriteria: [{ id: 'AC-1', description: '测试验证 100000 位输出' }], verifiers: [{ type: 'PROCESS', command: ['mvn', 'test', '-Dtest=PiTest'], processPurpose: 'TEST', testTargets: ['PiTest'], criterionIds: ['AC-1'] }] }],
         limits: { maxStageAttempts: 3, maxTaskAttempts: 12, maxDuration: '7200', attemptTimeout: '1800' },
       }
       const synchronizedDraft = { ...draftFrom(generatedSpec), updatedAt: 'later' }
@@ -312,9 +315,9 @@ describe('Designer draft composer', () => {
     const sessionWithNotices: DesignerSession = {
       ...session,
       messages: [
-        { id: 'system-created', role: 'SYSTEM', content: 'Designer session created in read-only mode.', deliveryState: 'PENDING_HANDOFF', createdAt: 'now' },
-        { id: 'system-waiting', role: 'SYSTEM', content: 'Message was handed to the read-only OpenCode Designer. Waiting to persist the actual assistant response.', deliveryState: 'PENDING_HANDOFF', createdAt: 'now' },
-        { id: 'system-error', role: 'SYSTEM', content: 'SYSTEM_ERROR[SESSION]: Runtime is unavailable.', deliveryState: 'PENDING_HANDOFF', createdAt: 'now' },
+        { id: 'system-created', role: 'SYSTEM', actor: 'SYSTEM', content: 'Designer session created in read-only mode.', deliveryState: 'PENDING_HANDOFF', createdAt: 'now' },
+        { id: 'system-waiting', role: 'SYSTEM', actor: 'SYSTEM', content: 'Message was handed to the read-only OpenCode Designer. Waiting to persist the actual assistant response.', deliveryState: 'PENDING_HANDOFF', createdAt: 'now' },
+        { id: 'system-error', role: 'SYSTEM', actor: 'SYSTEM', content: 'SYSTEM_ERROR[SESSION]: Runtime is unavailable.', deliveryState: 'PENDING_HANDOFF', createdAt: 'now' },
       ],
     }
     vi.spyOn(api, 'createDesignerSession').mockResolvedValue(sessionWithNotices)
@@ -329,6 +332,49 @@ describe('Designer draft composer', () => {
     expect(wrapper.text()).not.toContain('Designer session created in read-only mode.')
     expect(wrapper.text()).not.toContain('Message was handed to the read-only OpenCode Designer.')
     expect(wrapper.text()).toContain('SYSTEM_ERROR[SESSION]: Runtime is unavailable.')
+  })
+
+  it('restores distinct role cards, hides compiler JSON, and exposes both recovery actions', async () => {
+    const failedSession: DesignerSession = {
+      ...session,
+      state: 'SESSION_ERROR', workflowPhase: 'FAILED', activeActor: 'SYSTEM',
+      compiler: { id: 'compiler-1', state: 'SESSION_ERROR', externalSessionState: 'FAILED', repairCount: 2, designRevision: 1 },
+      messages: [
+        { id: 'user', role: 'USER', actor: 'USER', content: '请设计缓存刷新任务', deliveryState: 'PERSISTED', createdAt: 'now' },
+        { id: 'designer', role: 'ASSISTANT', actor: 'DESIGNER', content: '# 完整设计稿', deliveryState: 'PERSISTED', createdAt: 'now' },
+        { id: 'compiler', role: 'ASSISTANT', actor: 'COMPILER', content: '已编译 1 个阶段和 2 个验收项', deliveryState: 'COMPILED', createdAt: 'now' },
+        { id: 'raw', role: 'ASSISTANT', actor: 'COMPILER', content: '<!-- LOOPSPEC_COMPILATION_JSON_START -->{"loopSpec":"secret"}', deliveryState: 'COMPILED', createdAt: 'now' },
+        { id: 'retry', role: 'SYSTEM', actor: 'VALIDATOR', content: '字段校验失败，可修复', deliveryState: 'RETRYABLE_ERROR', createdAt: 'now' },
+        { id: 'terminal', role: 'SYSTEM', actor: 'VALIDATOR', content: '工作流已停止', deliveryState: 'TERMINAL_ERROR', createdAt: 'now' },
+        { id: 'system', role: 'SYSTEM', actor: 'SYSTEM', content: '服务端状态通知', deliveryState: 'PERSISTED', createdAt: 'now' },
+      ],
+    }
+    vi.spyOn(api, 'createDraft').mockImplementation(async (spec) => draftFrom(spec))
+    vi.spyOn(api, 'createDesignerSession').mockResolvedValue(failedSession)
+    vi.spyOn(api, 'getDesignerSession').mockResolvedValue(failedSession)
+    const retry = vi.spyOn(api, 'retryDesignerCompiler').mockResolvedValue(undefined)
+    const redesign = vi.spyOn(api, 'requestDesignerRedesign').mockResolvedValue(undefined)
+    const wrapper = mountDesigner()
+    await flushPromises()
+    await wrapper.get('textarea[aria-label="草案设计目标"]').setValue('设计缓存刷新任务')
+    await wrapper.get('.create-draft-button').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('.chat-user').text()).toContain('你')
+    expect(wrapper.get('.chat-designer').text()).toContain('Designer / 设计师')
+    expect(wrapper.get('.chat-compiler').text()).toContain('LoopSpec Compiler / 规范编译器')
+    expect(wrapper.get('.chat-system').text()).toContain('系统')
+    expect(wrapper.get('.validator-retryable_error').text()).toContain('Deterministic Validator / 确定性校验器')
+    expect(wrapper.get('.validator-terminal_error').text()).toContain('工作流已停止')
+    expect(wrapper.text()).not.toContain('"loopSpec":"secret"')
+    expect(wrapper.get('.designer-connection-strip').text()).toContain('Compiler 修复 2/2')
+
+    await wrapper.findAll('button').find((button) => button.text().includes('重新编译当前设计'))!.trigger('click')
+    await flushPromises()
+    await wrapper.findAll('button').find((button) => button.text().includes('让 Designer 重新设计'))!.trigger('click')
+    await flushPromises()
+    expect(retry).toHaveBeenCalledWith(failedSession.id)
+    expect(redesign).toHaveBeenCalledWith(failedSession.id)
   })
 
   it('clears the restored workspace and local message drafts when starting over', async () => {
@@ -360,7 +406,7 @@ describe('Designer draft composer', () => {
   it('loads the confirmed Task into the store and opens its detail even when worktree preparation failed', async () => {
     const loopSpec: LoopSpec = {
       schemaVersion: 'v2', projectId: project.id, goal: '交接到任务控制台', context: '只在登记项目目录的任务分支修改。',
-      stages: [{ objective: '实现功能', allowedPaths: ['src/**'], forbiddenPaths: [], deliverables: ['实现'], acceptanceCriteria: [{ id: 'AC-1', description: '聚焦测试通过' }], verifiers: [{ type: 'PROCESS', command: ['mvn', 'test', '-Dtest=FeatureTest'], processPurpose: 'TEST', testTargets: ['FeatureTest'], criterionIds: ['AC-1'] }] }],
+      stages: [{ objective: '实现功能', implementationKind: 'JAVA_PRODUCTION', allowedPaths: ['src/**'], forbiddenPaths: [], deliverables: ['实现'], acceptanceCriteria: [{ id: 'AC-1', description: '业务行为通过聚焦测试验证' }], verifiers: [{ type: 'PROCESS', command: ['mvn', 'test', '-Dtest=FeatureTest'], processPurpose: 'TEST', testTargets: ['FeatureTest'], criterionIds: ['AC-1'] }] }],
       limits: { maxStageAttempts: 3, maxTaskAttempts: 12, sessionErrorLimit: 4, stagnationLimit: 5, maxDuration: '7200', attemptTimeout: '1800', verifierTimeout: '420' },
       model: { providerId: 'provider-1', modelId: 'model-1', thinking: false },
       sessionPolicy: { reuseHealthySession: false, createFreshOnVerifierFailure: false },
@@ -404,7 +450,7 @@ describe('Designer draft composer', () => {
   it('renders the coverage matrix and blocks save when a v2 criterion is uncovered', async () => {
     const invalidSpec: LoopSpec = {
       schemaVersion: 'v2', projectId: project.id, goal: '严格验收', context: '',
-      stages: [{ objective: '实现', allowedPaths: [], forbiddenPaths: [], deliverables: ['实现'],
+      stages: [{ objective: '实现', implementationKind: 'NON_JAVA', allowedPaths: [], forbiddenPaths: [], deliverables: ['实现'],
         acceptanceCriteria: [{ id: 'AC-1', description: '用户能观察到结果' }],
         verifiers: [{ type: 'PROCESS', command: ['mvn', 'package'], processPurpose: 'BUILD', criterionIds: ['AC-1'] }] }],
       limits: { maxStageAttempts: 3, maxTaskAttempts: 12, maxDuration: '7200', attemptTimeout: '1800' },

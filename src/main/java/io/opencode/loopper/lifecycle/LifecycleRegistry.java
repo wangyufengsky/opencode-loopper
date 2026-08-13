@@ -22,6 +22,7 @@ public final class LifecycleRegistry {
         register(LifecycleMachineType.JUDGE_RUN, JudgeRunState.class, judge());
         register(LifecycleMachineType.LOOP_DRAFT, LoopDraftStatus.class, draft());
         register(LifecycleMachineType.DESIGNER_SESSION, DesignerSessionState.class, designer());
+        register(LifecycleMachineType.LOOPSPEC_COMPILATION, LoopSpecCompilationState.class, compilation());
         register(LifecycleMachineType.PROJECT_CONVENTION, ProjectConventionState.class, convention());
         register(LifecycleMachineType.INTERACTION, InteractionState.class, interaction());
         register(LifecycleMachineType.WORKSPACE_LEASE, WorkspaceLeaseState.class, lease());
@@ -178,8 +179,19 @@ public final class LifecycleRegistry {
                 .transition(DesignerSessionState.COMPLETED, DEFER, DesignerSessionState.PENDING_HANDOFF)
                 .transition(DesignerSessionState.SESSION_ERROR, DEFER, DesignerSessionState.PENDING_HANDOFF)
                 .transition(DesignerSessionState.PENDING_HANDOFF, DEFER, DesignerSessionState.PENDING_HANDOFF)
+                .transition(DesignerSessionState.PENDING_HANDOFF, SESSION_FAIL, DesignerSessionState.SESSION_ERROR)
                 .transition(DesignerSessionState.RUNNING, COMPLETE, DesignerSessionState.COMPLETED)
                 .transition(DesignerSessionState.RUNNING, SESSION_FAIL, DesignerSessionState.SESSION_ERROR).build();
+    }
+
+    private static FiniteStateMachine<LoopSpecCompilationState, LifecycleEvent> compilation() {
+        return machine(LifecycleMachineType.LOOPSPEC_COMPILATION, LoopSpecCompilationState.class)
+                .transition(LoopSpecCompilationState.PENDING_HANDOFF, DISPATCH, LoopSpecCompilationState.RUNNING)
+                .transition(LoopSpecCompilationState.RUNNING, COMPLETE, LoopSpecCompilationState.COMPLETED)
+                .transition(LoopSpecCompilationState.RUNNING, REQUIRE_INPUT, LoopSpecCompilationState.DESIGN_INCOMPLETE)
+                .transition(LoopSpecCompilationState.RUNNING, SESSION_FAIL, LoopSpecCompilationState.SESSION_ERROR)
+                .transition(LoopSpecCompilationState.PENDING_HANDOFF, SESSION_FAIL, LoopSpecCompilationState.SESSION_ERROR)
+                .build();
     }
 
     private static FiniteStateMachine<ProjectConventionState, LifecycleEvent> convention() {

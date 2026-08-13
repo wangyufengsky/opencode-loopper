@@ -41,10 +41,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.1.37.jar
-   jar tf target/opencode-loopper-0.1.37.jar \
+   test -s target/opencode-loopper-0.1.39.jar
+   jar tf target/opencode-loopper-0.1.39.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.1.37.jar
+   shasum -a 256 target/opencode-loopper-0.1.39.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -93,8 +93,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.1.37`。
-- 正式产物：`target/opencode-loopper-0.1.37.jar`。
+- Maven 项目版本：`0.1.39`。
+- 正式产物：`target/opencode-loopper-0.1.39.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -208,15 +208,15 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 
 ### 5.3 Designer 和 LoopSpec
 
-- Designer 只能创建只读 OpenCode Session。
-- 可见 Markdown 与机器 LoopSpec 是不同内容：只显示清理后的 Markdown；只解析 `LOOPSPEC_JSON_START/END` 包裹的完整 JSON。
-- 只有完成、项目匹配、版本匹配且验证通过的 LoopSpec 才能同步到绑定草稿。
-- 无效 LoopSpec 最多进行项目规定次数的只读自动纠正；仍无效时保持未同步，不得创建 Task 或写源码。
+- Designer 和 LoopSpec Compiler 只能创建彼此独立的只读 OpenCode Session，并使用当前配置的同一模型；Designer 只输出完整 Markdown，Compiler 只把当前冻结设计编译为 LoopSpec。
+- Compiler 只解析专用标记包裹的 `COMPILED` 或 `DESIGN_INCOMPLETE` 结构；聊天区不显示或持久化原始 JSON。`COMPILED` 的每个验收项必须带 Designer 原文片段，且片段必须是当前冻结设计的精确子串。
+- JSON、字段、验证器、来源或覆盖错误最多回送 Compiler 修复两次；闭集语义缺口最多让原 Designer Session 自动完整重设计一次。格式错误不得伪装为设计缺口，重试耗尽、草稿并发或项目不匹配必须停止自动循环并提供人工恢复。
+- 只有完成、项目匹配、版本匹配且经服务端确定性验证通过的 LoopSpec 才能同步到绑定草稿；模型不得自报校验成功。
 - Designer 合并在单个数组项中的 Maven 参数若能无歧义解析，应在同步时直接规范化并保存为独立 argv，不消耗自动纠正次数；只有引号未闭合等无法安全解析的输入才按无效 LoopSpec 回送纠正。
 - 人工确认必须是幂等边界；确认后创建唯一 Task，再由用户显式启动 `READY` Task。
 - 确认时冻结完整 Designer 设计为只读 `DESIGN_CONTEXT`；结构化 LoopSpec/verifier 合同优先级更高。
 - 非简单任务优先拆为 2–6 个依赖有序阶段；每阶段必须有聚焦、可立即执行的功能验收，不能把所有证明推迟到最后阶段。
-- 新建、导入和模板新版本使用 LoopSpec v2：每阶段至少一个可观察 `acceptanceCriteria`。条件通过 `verificationMode` 选择 `MACHINE`、`JUDGE` 或 `BOTH`；机器模式必须由服务端分类为 `BEHAVIOR` 的验证器通过 `criterionIds` 覆盖，Judge 模式必须提供 `judgeRubric`，仅 Judge 还必须提供 `judgeOnlyReason` 且不能已有机器行为映射。每阶段无论模式都至少有一个阻断性确定性验证器。已持久化且未写模式的 v2 条件默认 `MACHINE`；v1 继续兼容且不得原地改版，只能复制为新 v2 草稿后补齐计划。
+- 新建、导入和模板新版本使用 LoopSpec v2：每阶段必须显式声明 `implementationKind`，并至少有一个可观察 `acceptanceCriteria`。条件通过 `verificationMode` 选择 `MACHINE`、`JUDGE` 或 `BOTH`；机器模式必须由服务端分类为 `BEHAVIOR` 的验证器通过 `criterionIds` 覆盖，Judge 模式必须提供 `judgeRubric`，仅 Judge 还必须提供 `judgeOnlyReason` 且不能已有机器行为映射。每阶段无论模式都至少有一个阻断性确定性验证器。旧 v2 缺少 `implementationKind` 时只允许查看，再次保存、发布模板或确认前必须补齐；已持久化且未写模式的 v2 条件默认 `MACHINE`；v1 继续兼容且不得原地改版，只能复制为新 v2 草稿后补齐计划。
 
 ### 5.4 验证器与 Judge
 
@@ -231,7 +231,8 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 - `FILE_NOT_EXISTS` 只用于明确的安全不变量。
 - `FILE_CONTENT` 的 `expectedContent` 是精确文本合同；除纯空白输入仍按缺失拒绝外，不得裁剪首尾空白或尾随换行，`EXACT` 必须比较原始持久化文本。
 - v2 `PROCESS` 必须声明 `processPurpose`。compile/package/build/typecheck/lint/install 属于 `BUILD`；`TEST` 必须是未跳过测试的 Maven/Gradle/npm 测试命令并列出 `testTargets`；`SELF_CHECK` 必须有明确 `outputContains`。`GIT_DIFF`、`FILE_NOT_EXISTS`、`JUNIT_XML` 和 `FILE_EXISTS` 分别只属于范围、安全、报告和提示证据，不能覆盖行为条件。
-- Java 生产代码行为默认使用 `BOTH`，生产实现和聚焦 Maven/Gradle 单元测试放在同一阶段；计划测试目标可由该阶段新增，设计时不要求已存在，但不得使用缺失目标忽略参数制造成功。普通测试无法可靠表达时才使用 `SELF_CHECK`。草稿与运行时共用直接命令策略，拒绝 shell launcher/fragment、命令行塞入单个 executable、`java -e` 和 source-text search 伪行为证明。
+- `implementationKind` 为 `JAVA_PRODUCTION` 时，生产实现和未跳过的聚焦 Maven/Gradle 单元测试必须放在同一阶段，测试必须填写 `testTargets` 并通过 `criterionIds` 覆盖全部 `MACHINE`/`BOTH` 业务条件；不得创建“测试全部通过”元验收项。计划测试目标可由该阶段新增，设计时不要求已存在，但不得使用缺失目标忽略参数制造成功。
+- 每个 v2 Stage 首次启动前必须持久化相对任务基线的生产 Java 路径和内容哈希。验证时新增、修改或重命名目标 `.java` 触发门禁；标准测试目录和 `target/`、`build/` 不属于生产 Java，删除单独由原有范围和风险规则处理。真实生产 Java 变化与声明不一致时返回 `JAVA_CHANGE_CLASSIFICATION_MISMATCH`，缺少该阶段成功的聚焦 Maven/Gradle 测试时返回 `JAVA_UNIT_TEST_ACCEPTANCE_REQUIRED`，并进入正常 Attempt 重试。
 - v2 HTTP/JSON/BROWSER 条件只有绑定本阶段 `verificationRuntime` 和 `http://127.0.0.1:{{LOOPPER_PORT}}` 时才算行为覆盖。启动命令仍是无 shell argv，只允许 `{{LOOPPER_PORT}}`、`{{LOOPPER_TEMP}}`；固定 loopback 可作补充但不能证明本次代码已启动。
 - 托管验证运行时的分配、启动、readiness、停止、工作区扫描和重启恢复都在 SQLite transaction 外。V19 用 PID 加启动身份防止误杀；终止不确定必须保留租约并以 `VERIFIER_RUNTIME_TERMINATION_UNCONFIRMED` 阻断重叠写入。
 - HTTP/JSON/BROWSER 只访问 loopback；BROWSER 不允许任意 JavaScript，必须保留截图和 trace 证据。
@@ -350,7 +351,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.1.37.jar
+JAR=target/opencode-loopper-0.1.39.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -482,3 +483,4 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 | 2026-08-12 | 修复验收边界并发布 0.1.34 | PROCESS TEST 精确识别并在执行前复核；Judge 汇总全部阶段证据并增加双层 UTF-8 预算；LoopSpec 空字段分析返回错误而非异常；Runtime 重启要求本地 UI；前端数值上限与后端一致；同步 README、架构、设计与验证器合同 | 聚焦 Java 91/91、Vitest 37/37；`0.1.33` 首次完整验证因 2 处旧版本断言失败后按规则递增；最终 `./scripts/verify.sh`：Java 322 项中 321 通过、Windows 条件用例 1 项跳过，Vitest 140/140，BUILD SUCCESS；隔离 JAR PID 33181 监听 `127.0.0.1:62813`，health `UP`、返回打包 SPA、Runtime 重启本地 UI 边界生效，退出后端口释放；JAR 262733264 bytes，SHA-256 `7530f5d87293e871f4ad76cdd33b83117e52d6fdce1093d96dd3b1945b1fd9a9`；发布目标：`v0.1.34` |
 | 2026-08-12 | 修复双 Judge 提示预算原子预检并发布 0.1.35 | 每轮先构造并校验全部待启动角色提示；任一角色超过 128 KiB 时，整批不创建 Judge 记录、只读 Session 或模型调用；显式双评审重试遵循同一边界；同步 README、架构、设计与七特性合同 | 聚焦 Java 71/71；`./scripts/verify.sh`：Java 323 项中 322 通过、Windows 条件用例 1 项跳过，Vitest 140/140，BUILD SUCCESS；JAR 262733719 bytes，SHA-256 `75c3e9759921c234324ab94954bacf378b3e39ffa56dde515c6eef027e22dee3`；未启动运行时；发布目标：`v0.1.35` |
 | 2026-08-13 | 修复真实环境三项缺陷并发布 0.1.37 | OpenCode 目录查询编码保留 `+`；FILE_CONTENT 保留尾随换行；深层无扩展名路由进入 SPA 且后端/静态 404 不变；同步 README、架构、设计、OpenCode 与验证器合同 | 聚焦缺陷回归 Java 41/41、Vitest 140/140；首次 0.1.36 运行时复测发现 catch-all 抢占静态资源，补全真实 Spring MVC 集成覆盖后，`./scripts/verify.sh` 在 JDK 21 下 Java 325 项通过 324、跳过 1，Vitest 140/140，BUILD SUCCESS；`target/opencode-loopper-0.1.37.jar` 262734548 bytes，SHA-256 `19cf7f18aa6ba203bd835218cba6e27f7f68150685ad28b87fc2fc50685af25f`；真实 JAR 回归：含 `+` 项目路径的 AGENTS 只读生成进入 READY，15-byte 尾随 LF 的 FILE_CONTENT EXACT 任务 SUCCEEDED/PASS，SPA 根路由/深链/打包资产为 200 且 API、Actuator、缺失资产与文件式路径为 404；临时 JVM/OpenCode 已停止且端口释放；发布目标：`v0.1.37` |
+| 2026-08-13 | Designer / LoopSpec Compiler 双角色与 Java 单元测试硬门禁并发布 0.1.39 | V21 持久化冻结设计、独立只读 Compiler、确定性 Validator、角色消息和阶段 Java 基线；Compiler 两次修复、Designer 一次自动完整重设计及人工恢复；v2 `implementationKind` 与 Git/Direct 运行期单元测试门禁；前端多角色卡片；Session 创建失败保留原始错误并进入可恢复终态；同步 README、架构、设计、OpenCode、验证器合同与本公约正文 | 0.1.38 候选完整构建后，隔离链路发现 Session 创建失败会被二次状态转换错误覆盖，修复并按公约递增；0.1.39 聚焦 Designer/MCP Java 19/19、前端 141/141；`./scripts/verify.sh`：Java 333 项中 332 通过、Windows 条件用例 1 项跳过，Vitest 141/141，BUILD SUCCESS；真实 JAR PID 34565 监听 `127.0.0.1:61629`，经两个独立只读 Session 完成 Designer → Compiler → Validator → Review Gate，角色卡与聚焦 Java 测试合同正确、原始 Compiler JSON 未进入消息、Task 数为 0，退出后端口释放；JAR 262777458 bytes，SHA-256 `a10e854f2dba4f353808c39e414a9018e994974ac89599697c8a947993b4bb4b`；发布目标：`v0.1.39` |

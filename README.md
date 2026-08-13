@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.1.37`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.1.39`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -30,7 +30,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 ## 核心能力
 
 - **本地项目登记**：登记绝对路径，识别 Git 任务分支模式或无可用 Git HEAD 时的直接模式。
-- **只读 Designer**：先读取代码库与项目约定，再通过对话生成、纠正和确认 LoopSpec；设计阶段不写业务源码。
+- **只读双角色设计**：Designer 只生成完整 Markdown 设计，独立 LoopSpec Compiler 再把冻结设计编译为结构化合同；服务端确定性校验通过前不写业务源码、不创建任务。
 - **项目公约**：只读分析项目并生成或更新根目录 `AGENTS.md`，展示完整预览后才写入；Loopper 管理区块以外的人工内容会被保留。
 - **分阶段执行循环**：按依赖顺序执行 Stage，每个阶段都携带目标、交付物、路径约束和可立即运行的验收规则。
 - **循环降噪**：验证失败后固化 Attempt 交接包，并用失败签名和可靠工作区指纹识别无进展重试；连续停滞时转入人工确认，不继续烧预算。
@@ -47,9 +47,11 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 ```mermaid
 flowchart LR
-    A["登记本地项目"] --> B["只读 Designer"]
-    B --> C["人工检查并确认 LoopSpec"]
-    C --> D["创建并启动任务"]
+    A["登记本地项目"] --> B["只读 Designer 生成设计稿"]
+    B --> C["独立 Compiler 编译 LoopSpec"]
+    C --> V["服务端确定性校验"]
+    V --> R["人工检查并确认 LoopSpec"]
+    R --> D["创建并启动任务"]
     D --> E["OpenCode 分阶段实施"]
     E --> F["确定性验证"]
     F -->|未通过且仍有预算| K["固化 Attempt 交接包并检查进展"]
@@ -111,7 +113,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.1.37.jar
+java -jar target/opencode-loopper-0.1.39.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -125,7 +127,7 @@ java -jar target/opencode-loopper-0.1.37.jar
 3. 打开 **项目**，登记项目名称和绝对根路径。登记本身不会启动 AI，也不会写入项目文件。
 4. 可选：在项目卡片中打开 **AGENTS.md 项目公约**，让只读 Session 生成建议，检查完整预览后再确认写入。
 5. 打开 **设计器 / 循环规范**，选择项目并描述目标。推荐让非简单任务拆成 2–6 个依赖有序的阶段，每阶段配置可直接执行的功能验收。
-6. 检查 Designer 对话和右侧 LoopSpec，必要时继续追问或手工修订。保存并确认后，Loopper 才会创建任务。
+6. 检查紫色 Designer 设计卡、青色 Compiler 摘要、Validator 结果和右侧 LoopSpec；必要时显式重新编译或要求完整重设计。保存并确认后，Loopper 才会创建任务。
 7. 进入任务详情并点击 **开始执行**。执行期间可查看阶段进度、尝试、真实模型输出、待处理问题、验证证据和双 Judge 评审。
 8. 任务成功后检查实际差异，再由人工提交任务分支；最终 Attempt 会无条件保存任务基线差异文件清单，不要求 LoopSpec 配置 `GIT_DIFF`。Loopper 随后恢复任务开始前的源分支，有排队任务时继续切到下一任务分支；差异预览、远端推送和合并请求继续显式引用已提交的任务分支。
 
@@ -134,7 +136,7 @@ java -jar target/opencode-loopper-0.1.37.jar
 | 页面 | 主要用途 |
 | --- | --- |
 | 项目 | 登记本地目录、查看执行模式、生成/更新 `AGENTS.md`、取消项目管理 |
-| 设计器 / 循环规范 | 与只读 OpenCode Designer 对话，编辑、验证并确认 LoopSpec |
+| 设计器 / 循环规范 | 评审只读 Designer 设计、Compiler 编译摘要和 Validator 结果，编辑并确认 LoopSpec |
 | 任务 | 查看当前和历史任务、状态与归档；符合保护条件时可二次确认删除历史记录 |
 | 任务详情 | 启停任务（包括直接取消等待输入的任务）、查看 Stage/Attempt/Session、验证证据、双评审、设计历史与发布入口 |
 | 待处理中心 | 回答 Question，按一次/Session 范围处理 Permission，或拒绝请求 |
@@ -154,11 +156,11 @@ LoopSpec 是执行前必须人工确认的结构化合同。核心字段包括�
 
 - `projectId`、`goal` 和补充 `context`；
 - 一个或多个 `stages`；
-- 每个阶段的 `objective`、`deliverables`、可观察 `acceptanceCriteria`、允许/禁止路径和 `verifiers`；
+- 每个阶段的 `objective`、`implementationKind`、`deliverables`、可观察 `acceptanceCriteria`、允许/禁止路径和 `verifiers`；
 - 尝试次数、停滞阈值、总时长、单次尝试、验证超时和可选 Token/成本预算；
 - 可选模型、Session 重试策略和下一次 Attempt 的服务端提示模板。
 
-下面是一个最小示例。实际使用时通常由 Designer 生成，再在 Review Gate 中可视化检查和修改。Review Gate 会无损保存模型、全部限制、Session 策略和下一轮提示模板，不会在确认前恢复成默认值：
+下面是一个最小示例。实际使用时由 Designer 生成 Markdown 设计，再由独立 LoopSpec Compiler 编译，最后在 Review Gate 中可视化检查和修改。Review Gate 会无损保存模型、全部限制、Session 策略和下一轮提示模板，不会在确认前恢复成默认值：
 
 ```json
 {
@@ -169,6 +171,7 @@ LoopSpec 是执行前必须人工确认的结构化合同。核心字段包括�
   "stages": [
     {
       "objective": "实现健康检查并验证行为",
+      "implementationKind": "JAVA_PRODUCTION",
       "allowedPaths": ["src/**", "README.md"],
       "forbiddenPaths": ["data/**"],
       "deliverables": ["健康检查端点", "自动化测试", "使用说明"],
@@ -202,7 +205,9 @@ LoopSpec 是执行前必须人工确认的结构化合同。核心字段包括�
 
 新建草稿、导入和模板新版本必须使用 `schemaVersion: "v2"`。每个条件通过 `verificationMode` 选择 `MACHINE`、`JUDGE` 或 `BOTH`：`MACHINE`/`BOTH` 必须由至少一个 `BEHAVIOR` 验证器通过 `criterionIds` 提供机器覆盖；`JUDGE`/`BOTH` 必须填写 `judgeRubric`；仅 `JUDGE` 还要填写 `judgeOnlyReason`，说明为何无法可靠地确定性验证。每个 Stage 无论采用哪种模式，都至少保留一个阻断性的确定性验证器。Review Gate 会分别显示机器覆盖与“AI 计划评审”，不会把尚未执行的 Judge 计划标成已通过。已持久化但未写模式的 v2 条件默认 `MACHINE`；v1 草稿、模板、Automation、任务和 Recovery 保持旧合同。
 
-新增 Java 代码时，Designer 默认推荐 `BOTH`，并把生产代码和聚焦的 Maven/Gradle 单元测试放在同一阶段；计划中的测试类可以是本阶段将新增的交付物，设计时不要求已经存在。禁止通过 `surefire.failIfNoSpecifiedTests=false` 等参数让不存在的测试目标假通过。普通单元测试无法可靠表达时才使用带明确成功标记的 `SELF_CHECK`。
+每个 v2 Stage 必须显式声明 `implementationKind`：`JAVA_PRODUCTION` 表示新增或修改生产 Java，`JAVA_TEST_ONLY` 表示需求本身只改测试，`NON_JAVA` 表示不涉及生产 Java。`JAVA_PRODUCTION` 必须在同一 Stage 配置未跳过的聚焦 Maven/Gradle `PROCESS TEST`、明确 `testTargets`，并让该测试通过 `criterionIds` 覆盖每个 `MACHINE`/`BOTH` 业务条件；测试命令是业务条件的证据，不应另建“测试全部通过”这种元验收项。计划中的测试类可以由本阶段新增，设计时不要求已经存在。禁止通过 `surefire.failIfNoSpecifiedTests=false` 等参数让不存在的目标假通过。
+
+执行时，Loopper 会在 Stage 首次启动前冻结生产 Java 路径和内容哈希，并在验证阶段复核 Git 或 Direct 工作区中的新增、修改和重命名。实际生产 Java 变化与声明不符时以 `JAVA_CHANGE_CLASSIFICATION_MISMATCH` 阻断；缺少本阶段已通过的聚焦 Maven/Gradle 测试时以 `JAVA_UNIT_TEST_ACCEPTANCE_REQUIRED` 阻断。测试目录、`target/`、`build/` 和仅删除 Java 文件不触发这项新增代码门禁，仍受原有范围与风险规则约束。旧 v1 保持兼容；旧 v2 缺少该字段仍可查看，但再次保存、发布模板或确认前必须补齐。
 
 `PROCESS.command` 是参数数组，不是 shell 字符串；请写 `['./mvnw', 'test']` 这一类直接命令，不要写 `sh -c`、`cmd /c`、管道、重定向或 `java -e`。这些限制在草稿保存和实际运行时共用同一策略。v2 `PROCESS` 还要声明 `processPurpose`：`BUILD` 不形成行为覆盖，`TEST` 必须是未跳过测试的 Maven/Gradle/npm 测试命令并列出 `testTargets`，`SELF_CHECK` 必须配置明确的 `outputContains` 成功标记。Linux/macOS 保持操作系统原生 argv 解析；Windows 解析包装器和 `PATH`/`PATHEXT`。能够无歧义拆分的 Maven 合并参数仍会被规范化，歧义输入进入只读纠正。`GIT_DIFF` 只证明改动范围。
 
@@ -323,7 +328,7 @@ Git 任务分支达到 `SUCCEEDED` 后：
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.1.37.jar`
+- `target/opencode-loopper-0.1.39.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -354,7 +359,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:51234
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.1.37.jar`
+- `opencode-loopper-0.1.39.jar`
 - `start-windows.bat`
 
 确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
@@ -392,7 +397,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.1.37.jar \
+jar tf target/opencode-loopper-0.1.39.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -471,7 +476,7 @@ Windows PowerShell：
 例如发布下一版本：
 
 ```bash
-VERSION=0.1.37
+VERSION=0.1.39
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -511,7 +516,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.1.37.jar
+java -jar target/opencode-loopper-0.1.39.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。
@@ -566,13 +571,15 @@ echo %PATHEXT%
 
 `0.1.37` 修复真实环境发现的三个兼容性问题：OpenCode 的 canonical `directory` 查询值使用 URI 模板变量百分号编码，包含 `+` 的合法项目路径不再被解释为空格；`FILE_CONTENT EXACT` 保存并比较未裁剪的期望文本，包括尾随换行；扩展名为空的深层未知前端路由返回打包 SPA 并由 Vue Router 处理，同时 `/api`、`/actuator` 和静态资源缺失仍保持 404。
 
+`0.1.39` 将设计流程拆为 Designer、LoopSpec Compiler 和服务端 Validator：模型设计稿与结构化编译分别运行在独立只读 Session，编译错误最多修复两次，语义缺口最多自动完整重设计一次，并保留显式人工恢复入口。页面按稳定 `actor` 使用不同角色卡片。v2 Stage 新增 `implementationKind`，设计期与运行期共同强制生产 Java 变更必须由同阶段聚焦 Maven/Gradle 单元测试覆盖；只读 Session 在创建阶段失败时也会保留原始 Session 错误并进入可恢复终态，不再被二次状态转换错误覆盖。
+
 ### 一直显示 remote busy / Agent 正在思考
 
 先区分三个层面：Loopper 健康、OpenCode 健康、模型 Provider 响应。项目列表和任务 API 很快但模型输出很慢，通常应检查 Provider、网关、模型配置和配额；Designer 的轮询状态本身不代表失败。查看 **运行环境** 与 Session 的真实状态和输出，不要仅凭浏览器动画判断。
 
 ### Designer 没有创建任务
 
-Designer 只有在模型返回可解析、项目匹配且通过验证的 LoopSpec 后才会同步草稿。自动纠正仍失败时，Session 会保留错误，且不会写源码或创建任务。修复 Review Gate 中指出的字段或验证器后重新保存、确认。
+Designer 只负责输出完整 Markdown，不直接创建 LoopSpec。独立 Compiler 返回的结构化结果只有在来源片段、项目、草稿版本、字段、验证器和覆盖关系全部通过服务端校验后才同步草稿。编译错误会回送 Compiler；设计缺口会要求 Designer 输出完整替代稿。自动重试耗尽后可使用“重新编译当前设计”或“让 Designer 重新设计”，整个过程不会写源码或创建任务。
 
 ### 验证通过但任务仍未成功
 

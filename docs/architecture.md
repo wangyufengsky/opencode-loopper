@@ -135,7 +135,7 @@ argv normalization, so an older persisted contract cannot bypass the current
 test-evidence boundary.
 
 LoopSpec v2 acceptance analysis is a single server service shared by REST,
-MCP, Designer synchronization, draft save/confirm, templates and Automation.
+MCP, Compiler synchronization, draft save/confirm, templates and Automation.
 Each criterion declares `MACHINE`, `JUDGE`, or `BOTH`. `MACHINE` and `BOTH`
 require a valid mapped `BEHAVIOR` verifier; `JUDGE` and `BOTH` require an
 explicit rubric, while Judge-only criteria also explain why deterministic proof
@@ -144,6 +144,24 @@ is unreliable. Every Stage still has a blocking deterministic gate. Evidence cat
 forms machine coverage. Persisted v2 criteria without an explicit mode default
 to `MACHINE`; persisted v1 contracts retain their historical behavior and are
 never upgraded in place. New drafts, imports, and template versions are v2.
+
+V21 persists the Designer-to-Compiler workflow without merging lifecycle axes.
+`designer_session` records workflow phase, frozen design revision, and redesign
+count; messages persist their stable actor; `loop_spec_compilation` binds each
+Compiler Session to one source design message and draft version. Designer and
+Compiler are independent read-only Sessions. Compiler repair is bounded to two
+turns after initial compilation; semantic gaps allow one automatic complete
+redesign. Trace excerpts must be exact substrings of the frozen design. The
+server, not either model, determines validity and performs optimistic draft
+synchronization outside model calls.
+
+V21 also stores an immutable Stage-start production-Java path/hash baseline.
+For v2 `JAVA_PRODUCTION`, added, modified, or rename-target production `.java`
+files require a successful focused Maven/Gradle test from the same Stage. Test
+trees and generated `target`/`build` trees are excluded; deletion alone remains
+under existing scope/risk rules. Actual Java changes in `JAVA_TEST_ONLY` or
+`NON_JAVA` fail classification. File traversal and hashing stay outside SQLite
+transactions for both Git and Direct workspaces.
 
 A v2 Stage may own one temporary verification runtime. Loopper allocates a
 dynamic loopback port and private temp directory outside SQLite transactions,

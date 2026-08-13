@@ -3,6 +3,7 @@ package io.opencode.loopper.service;
 import io.opencode.loopper.LoopperApplication;
 import io.opencode.loopper.domain.AutomationApprovalMode;
 import io.opencode.loopper.domain.AutomationTriggerType;
+import io.opencode.loopper.domain.ImplementationKind;
 import io.opencode.loopper.domain.LoopSpec;
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.LoopSpecTemplateVersionRow;
@@ -265,7 +266,8 @@ class AutomationServiceIntegrationTest {
                 List.of(new LoopSpec.VerifierSpec("PROCESS", List.of("mvn", "test"), null, null,
                         null, null, null, null, null, null, null, null, null, null, null, null,
                         null, null, List.of(), List.of("AC-1"), "TEST", List.of("automation scenario"))),
-                List.of(new LoopSpec.AcceptanceCriterion("AC-1", "automation scenario passes")), null)),
+                List.of(new LoopSpec.AcceptanceCriterion("AC-1", "automation scenario passes")), null,
+                ImplementationKind.NON_JAVA)),
                 null, null, null, null);
     }
     private String gitProject(String suffix) throws Exception {
