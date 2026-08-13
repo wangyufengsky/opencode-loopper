@@ -81,6 +81,19 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     }
     @Override public String sessionOutput(OpenCodeSession session) {
         String role = judgeRoleBySession.get(session.id());
+        String prompt = promptBySession.getOrDefault(session.id(), "");
+        if (prompt.contains("TASK_DECOMPOSITION_PLAN_JSON_START")) {
+            String explicitPlan = judgeOutputByRole.get("DECOMPOSER_PLAN");
+            return explicitPlan == null ? decompositionPlanningOutput(outputForRole(role)) : explicitPlan;
+        }
+        if (prompt.contains("LOOPSPEC_COMPILATION_PLAN_JSON_START")) {
+            String planRole = role == null ? "COMPILER_PLAN" : role.replaceFirst("^COMPILER", "COMPILER_PLAN");
+            String explicitPlan = judgeOutputByRole.get(planRole);
+            return explicitPlan == null ? packageCompilationPlanningOutput(outputForRole(role)) : explicitPlan;
+        }
+        return outputForRole(role);
+    }
+    private String outputForRole(String role) {
         String exact = judgeOutputByRole.get(role);
         if (exact != null) return exact;
         int separator = role == null ? -1 : role.indexOf(':');
@@ -149,7 +162,10 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     public int createReadOnlySessionCalls() { return createReadOnlySessionCalls.get(); }
     public int promptCalls() { return promptCalls.get(); }
     public void setJudgeOutput(String output) { judgeOutput = output; }
-    public void setJudgeOutput(String role, String output) { judgeOutputByRole.put(role.toUpperCase(), output); }
+    public void setJudgeOutput(String role, String output) {
+        if (output == null) judgeOutputByRole.remove(role.toUpperCase());
+        else judgeOutputByRole.put(role.toUpperCase(), output);
+    }
     public void setDesignerOutput(String output) {
         setJudgeOutput("DESIGNER", designerMarkdown(output));
         String compatibilityCompilation = compatibilityCompilation(output);
@@ -159,9 +175,13 @@ public class FakeOpenCodeClient implements OpenCodeClient {
         }
     }
     public void setDecomposerOutput(String output) { setJudgeOutput("DECOMPOSER", output); }
+    public void setDecomposerPlanningOutput(String output) { setJudgeOutput("DECOMPOSER_PLAN", output); }
     public void setCompilerOutput(String output) { setJudgeOutput("COMPILER", output); }
     public void setPackageDesignerOutput(String packageId, String output) { setJudgeOutput("DESIGNER:" + packageId, output); }
     public void setPackageCompilerOutput(String packageId, String output) { setJudgeOutput("COMPILER:" + packageId, output); }
+    public void setPackageCompilerPlanningOutput(String packageId, String output) {
+        setJudgeOutput("COMPILER_PLAN:" + packageId, output);
+    }
     public void setHealthy(boolean value) { healthy = value; }
     public OpenCodeModel modelForSession(String id) { return modelBySession.get(id); }
     public String promptForSession(String id) { return promptBySession.get(id); }
@@ -292,6 +312,144 @@ public class FakeOpenCodeClient implements OpenCodeClient {
         } catch (Exception invalid) {
             return "<!-- TASK_DECOMPOSITION_JSON_START -->\n{}\n<!-- TASK_DECOMPOSITION_JSON_END -->";
         }
+    }
+    private String decompositionPlanningOutput(String finalOutput) {
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            tools.jackson.databind.node.ObjectNode source = markedObject(finalOutput,
+                    "TASK_DECOMPOSITION_JSON_START", "TASK_DECOMPOSITION_JSON_END", mapper);
+            tools.jackson.databind.node.ObjectNode plan = mapper.createObjectNode();
+            plan.set("status", source.path("status"));
+            plan.set("normalizedGoal", source.path("normalizedGoal"));
+            tools.jackson.databind.node.ArrayNode constraints = source.path("globalConstraints").isArray()
+                    ? (tools.jackson.databind.node.ArrayNode) source.path("globalConstraints") : mapper.createArrayNode();
+            tools.jackson.databind.node.ArrayNode packages = source.path("workPackages").isArray()
+                    ? (tools.jackson.databind.node.ArrayNode) source.path("workPackages") : mapper.createArrayNode();
+            plan.set("globalConstraints", constraints);
+            plan.set("workPackages", packages);
+            tools.jackson.databind.node.ArrayNode coverage = mapper.createArrayNode();
+            for (int index = 0; index < constraints.size(); index++) {
+                tools.jackson.databind.JsonNode constraint = constraints.get(index);
+                for (tools.jackson.databind.JsonNode ref : constraint.path("requirementRefs")) {
+                    tools.jackson.databind.node.ObjectNode mapping = coverage.addObject();
+                    mapping.put("requirementRef", ref.asText());
+                    mapping.put("targetType", "GLOBAL_CONSTRAINT");
+                    mapping.put("targetId", "GC-" + (index + 1));
+                    mapping.put("rationale", "测试规划将该需求段归入对应全局约束。");
+                }
+            }
+            tools.jackson.databind.node.ArrayNode dependencies = mapper.createArrayNode();
+            for (tools.jackson.databind.JsonNode workPackage : packages) {
+                for (tools.jackson.databind.JsonNode ref : workPackage.path("requirementRefs")) {
+                    tools.jackson.databind.node.ObjectNode mapping = coverage.addObject();
+                    mapping.put("requirementRef", ref.asText());
+                    mapping.put("targetType", "WORK_PACKAGE");
+                    mapping.put("targetId", workPackage.path("id").asText());
+                    mapping.put("rationale", "测试规划将该需求段归入当前纵向能力包。");
+                }
+                for (tools.jackson.databind.JsonNode dependency : workPackage.path("dependencies")) {
+                    tools.jackson.databind.node.ObjectNode evidence = dependencies.addObject();
+                    evidence.put("workPackageId", workPackage.path("id").asText());
+                    evidence.put("dependsOn", dependency.asText());
+                    evidence.put("rationale", "当前包使用前置包的已交付能力。");
+                }
+            }
+            plan.set("coverageMappings", coverage);
+            plan.set("dependencyEvidence", dependencies);
+            plan.set("designGaps", source.path("designGaps").isArray()
+                    ? source.path("designGaps") : mapper.createArrayNode());
+            plan.set("reason", source.path("reason"));
+            return "<!-- TASK_DECOMPOSITION_PLAN_JSON_START -->\n" + mapper.writeValueAsString(plan)
+                    + "\n<!-- TASK_DECOMPOSITION_PLAN_JSON_END -->";
+        } catch (Exception invalid) {
+            return "<!-- TASK_DECOMPOSITION_PLAN_JSON_START -->\n{}\n<!-- TASK_DECOMPOSITION_PLAN_JSON_END -->";
+        }
+    }
+
+    private String packageCompilationPlanningOutput(String finalOutput) {
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            tools.jackson.databind.node.ObjectNode source = markedObject(finalOutput,
+                    "LOOPSPEC_COMPILATION_JSON_START", "LOOPSPEC_COMPILATION_JSON_END", mapper);
+            tools.jackson.databind.node.ObjectNode plan = mapper.createObjectNode();
+            plan.set("status", source.path("status"));
+            plan.set("summary", source.path("summary"));
+            tools.jackson.databind.node.ArrayNode stagePlans = mapper.createArrayNode();
+            tools.jackson.databind.node.ArrayNode evidenceMappings = mapper.createArrayNode();
+            tools.jackson.databind.JsonNode stages = source.path("stages");
+            for (int stageIndex = 0; stages.isArray() && stageIndex < stages.size(); stageIndex++) {
+                tools.jackson.databind.JsonNode stage = stages.get(stageIndex);
+                tools.jackson.databind.node.ObjectNode stagePlan = stagePlans.addObject();
+                stagePlan.set("objective", stage.path("objective"));
+                stagePlan.set("allowedPaths", stage.path("allowedPaths"));
+                stagePlan.set("forbiddenPaths", stage.path("forbiddenPaths"));
+                stagePlan.set("deliverables", stage.path("deliverables"));
+                stagePlan.set("implementationKind", stage.path("implementationKind"));
+                stagePlan.set("workPackageId", stage.path("workPackageId"));
+                tools.jackson.databind.JsonNode criteria = stage.path("acceptanceCriteria");
+                for (tools.jackson.databind.JsonNode criterion : criteria) {
+                    String criterionId = criterion.path("id").asText();
+                    tools.jackson.databind.node.ObjectNode mapping = evidenceMappings.addObject();
+                    mapping.put("stageIndex", stageIndex);
+                    mapping.set("criterionId", criterion.path("id"));
+                    mapping.set("description", criterion.path("description"));
+                    String excerpt = "设计稿";
+                    for (tools.jackson.databind.JsonNode sourceEntry : source.path("criterionSources")) {
+                        if (sourceEntry.path("stageIndex").asInt() == stageIndex
+                                && criterionId.equals(sourceEntry.path("criterionId").asText())) {
+                            excerpt = sourceEntry.path("excerpt").asText();
+                            break;
+                        }
+                    }
+                    mapping.put("designerExcerpt", excerpt);
+                    mapping.put("verificationMode", criterion.path("verificationMode").asText("MACHINE"));
+                    mapping.set("judgeRubric", criterion.path("judgeRubric"));
+                    mapping.set("judgeOnlyReason", criterion.path("judgeOnlyReason"));
+                    tools.jackson.databind.node.ArrayNode testCommand = mapper.createArrayNode();
+                    tools.jackson.databind.node.ArrayNode testTargets = mapper.createArrayNode();
+                    String strategy = "deterministic verifier";
+                    for (tools.jackson.databind.JsonNode verifier : stage.path("verifiers")) {
+                        boolean mapped = false;
+                        for (tools.jackson.databind.JsonNode id : verifier.path("criterionIds")) {
+                            if (criterionId.equals(id.asText())) mapped = true;
+                        }
+                        if (!mapped) continue;
+                        strategy = verifier.path("type").asText("deterministic verifier");
+                        if ("PROCESS".equals(verifier.path("type").asText())
+                                && "TEST".equals(verifier.path("processPurpose").asText())) {
+                            for (tools.jackson.databind.JsonNode value : verifier.path("command")) testCommand.add(value.asText());
+                            for (tools.jackson.databind.JsonNode value : verifier.path("testTargets")) testTargets.add(value.asText());
+                        }
+                        break;
+                    }
+                    mapping.put("verifierStrategy", strategy);
+                    mapping.set("testCommand", testCommand);
+                    mapping.set("testTargets", testTargets);
+                }
+            }
+            plan.set("stages", stagePlans);
+            plan.set("evidenceMappings", evidenceMappings);
+            plan.set("handoffSummary", source.path("handoffSummary"));
+            plan.set("designGaps", source.path("designGaps").isArray()
+                    ? source.path("designGaps") : mapper.createArrayNode());
+            return "<!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->\n" + mapper.writeValueAsString(plan)
+                    + "\n<!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->";
+        } catch (Exception invalid) {
+            return "<!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->\n{}\n<!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->";
+        }
+    }
+
+    private tools.jackson.databind.node.ObjectNode markedObject(String output, String startMarker,
+                                                                String endMarker, ObjectMapper mapper) throws Exception {
+        if (output == null) throw new IllegalArgumentException("missing output");
+        int markerStart = output.indexOf(startMarker);
+        int markerEnd = output.indexOf(endMarker);
+        if (markerStart < 0 || markerEnd <= markerStart) throw new IllegalArgumentException("missing markers");
+        String body = output.substring(markerStart + startMarker.length(), markerEnd);
+        int start = body.indexOf('{');
+        int end = body.lastIndexOf('}');
+        if (start < 0 || end <= start) throw new IllegalArgumentException("missing object");
+        return (tools.jackson.databind.node.ObjectNode) mapper.readTree(body.substring(start, end + 1));
     }
     public record PermissionReplyCall(String sessionId, String requestId, PermissionReply reply, String message) { }
     public record PromptCall(String sessionId, String prompt) { }

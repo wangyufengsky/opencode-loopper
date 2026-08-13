@@ -13,7 +13,7 @@ import PendingQuestionCard from '@/components/PendingQuestionCard.vue'
 import { api, subscribeDesignerEvents, type DesignerEventStream } from '@/api/client'
 import { demoDraft, demoMessages } from '@/mock/demoData'
 import { useTaskStore } from '@/stores/taskStore'
-import type { AppSettings, DesignerMessage, DesignerSession, ErrorEvent, LoopDraft, LoopSpecAssessment, TaskSessionPendingQuestion } from '@/types/domain'
+import type { AppSettings, DesignerMessage, DesignerSession, ErrorEvent, LoopDraft, LoopSpecAssessment, StructuredModelStep, TaskSessionPendingQuestion } from '@/types/domain'
 import { formatDateTime } from '@/utils/dateTime'
 import { statusLabel } from '@/utils/displayLabels'
 
@@ -34,6 +34,7 @@ const designerLiveResponse = ref('')
 const designerLiveError = ref('')
 const designerLiveDetail = ref('')
 const designerObservedAt = ref('')
+const designerStructuredStep = ref<StructuredModelStep>()
 const submittingDesignerQuestion = ref('')
 const selectedProjectId = ref('')
 const designerWorkspaceKey = 'opencode-loopper.designer-workspace'
@@ -104,6 +105,14 @@ const workflowLabels = {
 } as const
 const activeActorMeta = computed(() => actorMeta[designerSession.value?.activeActor ?? 'SYSTEM'])
 const activeWorkflowLabel = computed(() => workflowLabels[designerSession.value?.workflowPhase ?? 'DESIGNING'])
+const structuredStepLabels: Record<StructuredModelStep, string> = {
+  PLANNING: '规划与证据映射', GENERATING_JSON: 'JSON 生成', REPAIRING_JSON: 'JSON 修复', FINAL_JSON: 'JSON 已校验',
+}
+const activeStructuredStep = computed(() => designerStructuredStep.value
+  ?? (designerSession.value?.activeActor === 'DECOMPOSER' ? designerSession.value.decomposition?.workflowStep : undefined)
+  ?? (designerSession.value?.activeActor === 'COMPILER' ? designerSession.value.compiler?.workflowStep : undefined))
+const activeDetailedWorkflowLabel = computed(() => activeStructuredStep.value
+  ? `${activeWorkflowLabel.value} · ${structuredStepLabels[activeStructuredStep.value]}` : activeWorkflowLabel.value)
 const confirmationReady = computed(() => store.usingDemo || (designerSession.value?.state === 'COMPLETED' && designerSession.value?.workflowPhase === 'COMPLETED'))
 const blockedWorkflowMessage = computed(() => designerSession.value?.state === 'WAITING_INPUT'
   ? [...messages.value].reverse().find((message) => ['TERMINAL_ERROR', 'DESIGN_INCOMPLETE', 'RETRYABLE_ERROR'].includes(message.deliveryState ?? ''))
@@ -267,6 +276,7 @@ function startDesignerStream(sessionId: string) {
     designerRemoteState.value = event.remoteState ?? event.state
     designerObservedAt.value = event.at
     designerLiveDetail.value = event.detail
+    designerStructuredStep.value = event.structuredStep
     if (event.activeActor !== 'DESIGNER') designerLiveResponse.value = ''
     else if (event.content && (event.type === 'PARTIAL' || event.type === 'COMPLETED')) designerLiveResponse.value = event.content
     if (event.type === 'ERROR') designerLiveError.value = event.detail || 'OpenCode Designer 返回错误'
@@ -368,6 +378,7 @@ function clearDesignerWorkspace() {
   designerLiveError.value = ''
   designerLiveDetail.value = ''
   designerObservedAt.value = ''
+  designerStructuredStep.value = undefined
   designerSession.value = undefined
   messages.value = []
   draft.value = undefined
@@ -706,7 +717,7 @@ async function redesignPackage(packageId: string) {
         <div class="designer-connection-strip" role="status" aria-live="polite">
           <span><i :class="['connection-dot', designerStreamState]" />{{ designerTransportLabel }}</span>
           <span><i :class="['connection-dot', { connected: designerRuntimeConnected, error: designerLiveError }]" />{{ designerRuntimeLabel }}</span>
-          <span class="active-role"><Icon :icon="activeActorMeta.icon" />{{ activeActorMeta.label }} · {{ activeWorkflowLabel }}</span>
+          <span class="active-role"><Icon :icon="activeActorMeta.icon" />{{ activeActorMeta.label }} · {{ activeDetailedWorkflowLabel }}</span>
           <span v-if="designerSession?.activeWorkPackageId" class="mono">{{ designerSession.activeWorkPackageId }}/{{ designerSession.workPackages?.length ?? 0 }}</span>
           <span v-if="designerSession?.requirement" class="mono">模型调用 {{ designerSession.requirement.modelCallsUsed }}/{{ designerSession.requirement.maxModelCalls }}</span>
           <span v-if="designerSession?.compiler" class="mono">Compiler 修复 {{ designerSession.compiler.repairCount }}/2</span>
@@ -754,7 +765,7 @@ async function redesignPackage(packageId: string) {
           <article v-if="designerIsThinking" :class="['thinking-message', `thinking-${designerSession?.activeActor?.toLowerCase() ?? 'system'}`]" role="status" aria-live="polite" :aria-label="`${activeActorMeta.label}正在处理`">
             <span class="thinking-orbit" aria-hidden="true"><span /></span>
             <div class="thinking-copy">
-              <strong>{{ activeActorMeta.label }}正在{{ activeWorkflowLabel }}<span class="thinking-dots" aria-hidden="true"><i /><i /><i /></span></strong>
+              <strong>{{ activeActorMeta.label }}正在{{ activeDetailedWorkflowLabel }}<span class="thinking-dots" aria-hidden="true"><i /><i /><i /></span></strong>
               <p>{{ designerReconnecting || designerStreamState === 'reconnecting' ? '连接暂时中断，正在恢复并继续等待真实回复。' : designerLiveDetail || 'OpenCode 已收到请求，等待首段模型回复。' }}</p>
             </div>
           </article>

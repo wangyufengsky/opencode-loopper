@@ -64,7 +64,17 @@ then creates a brand-new read-only Compiler Session with the same configured
 model. Compiler has the same `read`/`glob`/`grep`-only boundary and cannot ask
 questions or create a Task.
 
-Compiler returns one marked envelope with either `COMPILED` (a 1–3 Stage package
+Decomposer and Compiler do not jump directly from prose to the final envelope.
+In the same read-only Session, the first model turn follows the fixed semantic
+order `planning -> evidence mapping` and returns a role-specific planning marker:
+Decomposer maps every numbered requirement/dependency; Compiler maps 1–3 planned
+Stages and every acceptance criterion to an exact Designer excerpt and concrete
+machine/Judge proof. Loopper validates and persists that bounded plan before a
+second prompt requests final JSON. Planning output is never a chat/SSE model
+message, and the second turn may not add, remove, reorder, or paraphrase frozen
+decisions.
+
+Compiler's final marked envelope contains either `COMPILED` (a 1–3 Stage package
 fragment, bounded summary/handoff, and an exact Designer excerpt for every criterion) or
 `DESIGN_INCOMPLETE` (a closed semantic gap code plus concrete gaps). Loopper
 checks each excerpt against the frozen design and then runs the same field,
@@ -83,7 +93,7 @@ object rather than a command string, `PROCESS.command` is direct argv,
 A canonical `JAVA_PRODUCTION` envelope includes the focused Maven/Gradle test,
 criterion mapping, source excerpt, handoff, and empty `designGaps`, so a weaker
 model does not have to infer Java record nesting from a Jackson error message.
-Each requirement revision permits at most 24 model calls across all roles and
+Each requirement revision permits at most 32 model calls across all roles and
 one fresh-Session transport retry per role invocation. After every package
 passes, Loopper—not a model—concatenates fragments in package order and runs the
 complete validation before an optimistic draft update. No branch, Task, or

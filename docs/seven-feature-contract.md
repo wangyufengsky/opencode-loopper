@@ -14,9 +14,11 @@ manufactures queue, progress, usage or cost data.
 - V21: Designer/Compiler source tracking and immutable Stage Java baselines.
 - V22: frozen requirement revisions, Task Decomposer results, serial design work
   packages, package-scoped compiler fragments, and Stage `work_package_id`.
+- V23: persisted Decomposer/Compiler semantic planning, evidence mappings, and
+  restart-recoverable structured workflow steps before final JSON generation.
 
 Historical migrations remain immutable. Empty databases and supported V21
-databases must both migrate to V22.
+databases must both migrate to V23.
 
 ## Interactions
 

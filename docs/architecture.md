@@ -170,9 +170,20 @@ Decomposer Session. The Decomposer may return one `DIRECT_DESIGN` work package,
 `MULTI_TASK_REQUIRED`; the server numbers and verifies requirement-segment
 coverage, package identity, backward-only dependencies, and the single-Task
 boundary. A newer user submission supersedes the old decomposition and package
-results without deleting their audit history. Each requirement revision has a
-hard 24-call model budget including Decomposer, Designer, Compiler, content
-repair, and the single transport retry available to each read-only role.
+results without deleting their audit history.
+
+V23 changes Decomposer and package Compiler from one-shot envelopes to a
+persisted two-turn protocol. In the first turn each role follows the fixed
+semantic order `planning -> evidence mapping` and returns a bounded planning
+envelope. The server validates and freezes requirement coverage/dependencies or
+Stage/acceptance/test evidence before the same read-only Session receives a
+second prompt to generate final JSON. Final envelopes must be exact projections
+of the frozen plan; drift, JSON/type, field, verifier, traceability, and coverage
+errors consume only that role's existing repair allowance. `workflow_step` and
+`planning_json` make both turns restart-recoverable while remaining hidden from
+chat/SSE content. Six packages now need 20 no-repair model calls, so the shared
+per-requirement ceiling is 32 calls; confirmed transport retries and all content
+repairs still count against it.
 
 Package work is strictly serial. Every package uses a fresh Designer Session and
 a fresh Compiler Session, produces 1–3 Stages carrying `workPackageId`, and is

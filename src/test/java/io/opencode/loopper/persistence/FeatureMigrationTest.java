@@ -20,6 +20,35 @@ class FeatureMigrationTest {
         assertMigratesToLatest(temporaryDirectory.resolve("upgrade.db"), true);
     }
 
+    @Test
+    void v22ActiveStructuredRowsRemainReadableAsFinalJsonAfterV23Upgrade() throws Exception {
+        Path database = temporaryDirectory.resolve("v22-active.db");
+        String url = "jdbc:sqlite:" + database;
+        Flyway.configure().dataSource(url, null, null).target(MigrationVersion.fromVersion("22")).load().migrate();
+        try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
+            statement.executeUpdate("INSERT INTO project(id,name,root_path,created_at,updated_at) VALUES('p','P','/tmp/p','now','now')");
+            statement.executeUpdate("INSERT INTO loop_draft(id,project_id,goal,spec_json,status,created_at,updated_at) VALUES('d','p','G','{}','DRAFT_READY','now','now')");
+            statement.executeUpdate("INSERT INTO designer_session(id,project_id,state,access_mode,loop_draft_id,created_at,updated_at) VALUES('s','p','RUNNING','READ_ONLY','d','now','now')");
+            statement.executeUpdate("INSERT INTO designer_message(id,designer_session_id,ordinal,role,content,delivery_state,created_at) VALUES('m','s',1,'ASSISTANT','design','PERSISTED','now')");
+            statement.executeUpdate("INSERT INTO design_requirement_revision(id,designer_session_id,revision,source_message_id,requirement_text,requirement_segments_json,source_draft_version,state,created_at,updated_at) VALUES('r','s',1,'m','requirement','[]',0,'ACTIVE','now','now')");
+            statement.executeUpdate("INSERT INTO task_decomposition(id,designer_session_id,requirement_revision_id,state,source_draft_version,created_at,updated_at) VALUES('dec','s','r','RUNNING',0,'now','now')");
+            statement.executeUpdate("INSERT INTO loop_spec_compilation(id,designer_session_id,design_revision,state,source_design_message_id,source_draft_version,created_at,updated_at) VALUES('cmp','s',1,'RUNNING','m',0,'now','now')");
+        }
+
+        Flyway.configure().dataSource(url, null, null).load().migrate();
+        try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
+            for (String query : List.of(
+                    "SELECT workflow_step,planning_json FROM task_decomposition WHERE id='dec'",
+                    "SELECT workflow_step,planning_json FROM loop_spec_compilation WHERE id='cmp'")) {
+                try (var result = statement.executeQuery(query)) {
+                    assertThat(result.next()).isTrue();
+                    assertThat(result.getString("workflow_step")).isEqualTo("FINAL_JSON");
+                    assertThat(result.getString("planning_json")).isNull();
+                }
+            }
+        }
+    }
+
     private void assertMigratesToLatest(Path database, boolean stopAtV21) throws Exception {
         String url = "jdbc:sqlite:" + database;
         if (stopAtV21) {
@@ -32,7 +61,7 @@ class FeatureMigrationTest {
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
 
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("22");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("23");
         try (var connection = DriverManager.getConnection(url);
              var statement = connection.prepareStatement("SELECT name FROM sqlite_master WHERE type='table'")) {
             try (var result = statement.executeQuery()) {
@@ -83,6 +112,13 @@ class FeatureMigrationTest {
                 var columns = new java.util.ArrayList<String>();
                 while (result.next()) columns.add(result.getString("name"));
                 assertThat(columns).contains("work_package_id");
+            }
+            for (String table : List.of("task_decomposition", "loop_spec_compilation")) {
+                try (var result = statement.executeQuery("PRAGMA table_info(" + table + ")")) {
+                    var columns = new java.util.ArrayList<String>();
+                    while (result.next()) columns.add(result.getString("name"));
+                    assertThat(columns).contains("workflow_step", "planning_json");
+                }
             }
         }
         assertAutomationApprovalAndImmutabilityGuards(url);

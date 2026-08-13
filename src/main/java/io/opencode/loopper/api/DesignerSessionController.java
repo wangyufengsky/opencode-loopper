@@ -64,7 +64,7 @@ public class DesignerSessionController {
                     current.workflowPhase(), service.activeActor(current), current.externalSessionState(), false, "",
                     "等待 OpenCode 状态探测", current.updatedAt(), current.currentRequirementRevision(),
                     current.activeWorkPackageId(), requirement == null ? 0 : requirement.modelCallsUsed(),
-                    requirement == null ? 24 : requirement.maxModelCalls()));
+                    requirement == null ? 32 : requirement.maxModelCalls(), service.structuredModelStep(id)));
         }
         return emitter;
     }

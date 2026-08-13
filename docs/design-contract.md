@@ -128,14 +128,27 @@ of complete Markdown. Compiler emits a 1–3 Stage package fragment plus criteri
 sources and a handoff summary of at most 4 KiB. Format, field, verifier,
 traceability, or coverage errors receive at most two Compiler repairs; semantic
 gaps receive one full redesign of that package only. The complete requirement
-revision has a shared hard ceiling of 24 model calls, but package content retry
+revision has a shared hard ceiling of 32 model calls, but package content retry
 counters remain independent. Draft concurrency, exhausted budgets, and
 unassignable aggregation conflicts enter `WAITING_INPUT` without synchronizing
 the draft or creating a Task.
 
+Decomposer and package Compiler each use a persisted two-turn intelligent
+compilation protocol in the same role Session. The first turn follows the fixed
+order `规划 -> 证据映射`: Decomposer maps every numbered requirement and dependency;
+Compiler plans 1–3 Stages and maps each observable criterion to an exact Designer
+excerpt plus deterministic/Judge evidence, including focused Maven/Gradle argv
+and test targets for production Java. The server validates and freezes this
+bounded planning envelope before asking for final JSON. The second turn may only
+encode the frozen plan, so work-package boundaries, Stage fields, acceptance
+intent, source excerpts, test evidence and handoff summaries cannot silently
+drift. V23 persists the current step and planning JSON for restart recovery.
+Neither planning nor final raw JSON is displayed as a chat message; the status
+strip exposes only `规划与证据映射`, `JSON 生成`, or `JSON 修复`.
+
 Compiler is not expected to reverse-engineer backend DTOs from validation text.
-Its first prompt and both bounded repair prompts contain the same complete JSON
-type contract and canonical production-Java envelope. In particular, verifier,
+Its planning, final-generation and bounded repair prompts contain the complete
+contract appropriate to that step plus canonical envelopes. In particular, verifier,
 command, criterion mapping, test target, runtime and design-gap fields retain
 their object/array/null types. The deterministic validator still rejects any
 unsupported or semantically invalid value; the richer prompt does not weaken or

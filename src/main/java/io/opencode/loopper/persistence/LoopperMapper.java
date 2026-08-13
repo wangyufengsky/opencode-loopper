@@ -275,11 +275,11 @@ public interface LoopperMapper {
             INSERT INTO task_decomposition(id,designer_session_id,requirement_revision_id,state,result_type,
               normalized_goal,global_constraints_json,plan_json,external_session_id,external_session_state,
               repair_count,transport_retry_count,source_draft_version,last_error_code,last_error_detail,
-              created_at,updated_at,version)
+              created_at,updated_at,version,workflow_step,planning_json)
             VALUES(#{id},#{designerSessionId},#{requirementRevisionId},#{state},#{resultType},#{normalizedGoal},
               #{globalConstraintsJson},#{planJson},#{externalSessionId},#{externalSessionState},#{repairCount},
               #{transportRetryCount},#{sourceDraftVersion},#{lastErrorCode},#{lastErrorDetail},
-              #{createdAt},#{updatedAt},#{version})
+              #{createdAt},#{updatedAt},#{version},#{workflowStep},#{planningJson})
             """)
     int insertTaskDecomposition(TaskDecompositionRow row);
     @Select("SELECT * FROM task_decomposition WHERE id=#{id}")
@@ -295,6 +295,7 @@ public interface LoopperMapper {
               global_constraints_json=#{globalConstraintsJson},plan_json=#{planJson},
               external_session_id=#{externalSessionId},external_session_state=#{externalSessionState},
               repair_count=#{repairCount},transport_retry_count=#{transportRetryCount},
+              workflow_step=#{workflowStep},planning_json=#{planningJson},
               last_error_code=#{lastErrorCode},last_error_detail=#{lastErrorDetail},
               updated_at=#{updatedAt},version=version+1 WHERE id=#{id} AND version=#{version}
             """)
@@ -338,11 +339,11 @@ public interface LoopperMapper {
             INSERT INTO loop_spec_compilation(id,designer_session_id,design_revision,state,
               external_session_id,external_session_state,repair_count,source_design_message_id,
               source_draft_version,last_error_code,last_error_detail,created_at,updated_at,version,
-              work_package_id,transport_retry_count,compiled_package_json)
+              work_package_id,transport_retry_count,compiled_package_json,workflow_step,planning_json)
             VALUES(#{id},#{designerSessionId},#{designRevision},#{state},#{externalSessionId},
               #{externalSessionState},#{repairCount},#{sourceDesignMessageId},#{sourceDraftVersion},
               #{lastErrorCode},#{lastErrorDetail},#{createdAt},#{updatedAt},#{version},
-              #{workPackageId},#{transportRetryCount},#{compiledPackageJson})
+              #{workPackageId},#{transportRetryCount},#{compiledPackageJson},#{workflowStep},#{planningJson})
             """)
     int insertLoopSpecCompilation(LoopSpecCompilationRow row);
     @Select("SELECT * FROM loop_spec_compilation WHERE id=#{id}")
@@ -359,6 +360,7 @@ public interface LoopperMapper {
               external_session_state=#{externalSessionState},repair_count=#{repairCount},
               transport_retry_count=#{transportRetryCount},
               compiled_package_json=#{compiledPackageJson},
+              workflow_step=#{workflowStep},planning_json=#{planningJson},
               last_error_code=#{lastErrorCode},last_error_detail=#{lastErrorDetail},
               updated_at=#{updatedAt},version=version+1
             WHERE id=#{id} AND version=#{version}

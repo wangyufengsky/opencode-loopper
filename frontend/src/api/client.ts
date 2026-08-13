@@ -538,6 +538,12 @@ function normalizeDesignerActor(value: unknown): DesignerSession['activeActor'] 
     ? actor as DesignerSession['activeActor'] : 'SYSTEM'
 }
 
+function normalizeStructuredStep(value: unknown): DesignerStreamEvent['structuredStep'] {
+  const step = asString(value)
+  return ['PLANNING', 'GENERATING_JSON', 'REPAIRING_JSON', 'FINAL_JSON'].includes(step)
+    ? step as DesignerStreamEvent['structuredStep'] : undefined
+}
+
 function normalizeDesignerState(value: unknown): DesignerSessionState {
   const state = asString(value)
   return state === 'RUNNING' || state === 'WAITING_INPUT' || state === 'COMPLETED' || state === 'SESSION_ERROR' ? state : 'PENDING_HANDOFF'
@@ -570,10 +576,11 @@ function normalizeDesignerSession(value: unknown): DesignerSession {
         lastErrorCode: asString(compiler.lastErrorCode) || undefined,
         lastErrorDetail: asString(compiler.lastErrorDetail) || undefined,
         workPackageId: asString(compiler.workPackageId) || undefined,
+        workflowStep: normalizeStructuredStep(compiler.workflowStep) ?? 'FINAL_JSON',
       }
     })() : undefined,
     requirement: raw.requirement ? (() => { const item = asRecord(raw.requirement); return { revision: asNumber(item.revision), state: asString(item.state), modelCallsUsed: asNumber(item.modelCallsUsed), maxModelCalls: asNumber(item.maxModelCalls), sourceDraftVersion: asNumber(item.sourceDraftVersion) } })() : undefined,
-    decomposition: raw.decomposition ? (() => { const item = asRecord(raw.decomposition); const resultType = asString(item.resultType); return { id: asString(item.id), state: asString(item.state), resultType: ['DIRECT_DESIGN', 'DECOMPOSED', 'NEEDS_INPUT', 'MULTI_TASK_REQUIRED'].includes(resultType) ? resultType as NonNullable<DesignerSession['decomposition']>['resultType'] : undefined, repairCount: asNumber(item.repairCount), transportRetryCount: asNumber(item.transportRetryCount), lastErrorCode: asString(item.lastErrorCode) || undefined, lastErrorDetail: asString(item.lastErrorDetail) || undefined } })() : undefined,
+    decomposition: raw.decomposition ? (() => { const item = asRecord(raw.decomposition); const resultType = asString(item.resultType); return { id: asString(item.id), state: asString(item.state), resultType: ['DIRECT_DESIGN', 'DECOMPOSED', 'NEEDS_INPUT', 'MULTI_TASK_REQUIRED'].includes(resultType) ? resultType as NonNullable<DesignerSession['decomposition']>['resultType'] : undefined, repairCount: asNumber(item.repairCount), transportRetryCount: asNumber(item.transportRetryCount), lastErrorCode: asString(item.lastErrorCode) || undefined, lastErrorDetail: asString(item.lastErrorDetail) || undefined, workflowStep: normalizeStructuredStep(item.workflowStep) ?? 'FINAL_JSON' } })() : undefined,
     workPackages: asArray(raw.workPackages).map((value) => { const item = asRecord(value); return { id: asString(item.id), ordinal: asNumber(item.ordinal), title: asString(item.title), objective: asString(item.objective), state: asString(item.state), dependencies: asArray(item.dependencies).map(String), redesignCount: asNumber(item.redesignCount), compilerRepairCount: asNumber(item.compilerRepairCount), compilerSummary: asString(item.compilerSummary) || undefined, handoffSummary: asString(item.handoffSummary) || undefined, lastErrorCode: asString(item.lastErrorCode) || undefined, lastErrorDetail: asString(item.lastErrorDetail) || undefined } }),
     requirementRevision: typeof raw.requirementRevision === 'number' ? raw.requirementRevision : undefined,
     activeWorkPackageId: asString(raw.activeWorkPackageId) || undefined,
@@ -598,7 +605,8 @@ function normalizeDesignerStreamEvent(value: unknown): DesignerStreamEvent {
     requirementRevision: typeof raw.requirementRevision === 'number' ? raw.requirementRevision : undefined,
     activeWorkPackageId: asString(raw.activeWorkPackageId) || undefined,
     modelCallsUsed: asNumber(raw.modelCallsUsed),
-    maxModelCalls: asNumber(raw.maxModelCalls, 24),
+    maxModelCalls: asNumber(raw.maxModelCalls, 32),
+    structuredStep: normalizeStructuredStep(raw.structuredStep),
   }
 }
 

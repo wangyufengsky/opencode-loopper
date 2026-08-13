@@ -18,18 +18,18 @@ public class DesignerEventHub {
                                  String activeActor, String remoteState,
                                  boolean runtimeConnected, String content, String detail) {
         return publish(sessionId, type, state, workflowPhase, activeActor, remoteState,
-                runtimeConnected, content, detail, null, null, 0, 24);
+                runtimeConnected, content, detail, null, null, 0, 32, null);
     }
 
     public DesignerEvent publish(String sessionId, String type, String state, String workflowPhase,
                                  String activeActor, String remoteState,
                                  boolean runtimeConnected, String content, String detail,
                                  Integer requirementRevision, String activeWorkPackageId,
-                                 int modelCallsUsed, int maxModelCalls) {
+                                 int modelCallsUsed, int maxModelCalls, String structuredStep) {
         long sequence = sequences.computeIfAbsent(sessionId, ignored -> new AtomicLong()).incrementAndGet();
         DesignerEvent event = new DesignerEvent(sequence, sessionId, type, state, workflowPhase, activeActor, remoteState,
                 runtimeConnected, content == null ? "" : content, detail == null ? "" : detail, Instant.now().toString(),
-                requirementRevision, activeWorkPackageId, modelCallsUsed, maxModelCalls);
+                requirementRevision, activeWorkPackageId, modelCallsUsed, maxModelCalls, structuredStep);
         latest.put(sessionId, event);
         subscribers.publish(sessionId, event);
         return event;
@@ -45,5 +45,5 @@ public class DesignerEventHub {
                                 String workflowPhase, String activeActor, String remoteState,
                                 boolean runtimeConnected, String content, String detail, String at,
                                 Integer requirementRevision, String activeWorkPackageId,
-                                int modelCallsUsed, int maxModelCalls) { }
+                                int modelCallsUsed, int maxModelCalls, String structuredStep) { }
 }

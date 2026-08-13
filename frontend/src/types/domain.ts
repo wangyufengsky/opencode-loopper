@@ -731,6 +731,7 @@ export interface DesignerMessage {
 export type DesignerSessionState = 'PENDING_HANDOFF' | 'RUNNING' | 'WAITING_INPUT' | 'COMPLETED' | 'SESSION_ERROR'
 export type DesignWorkflowPhase = 'DECOMPOSING' | 'VALIDATING_DECOMPOSITION' | 'DESIGNING' | 'COMPILING' | 'VALIDATING' | 'REDESIGNING' | 'AGGREGATING' | 'COMPLETED' | 'FAILED'
 export type DesignerActor = DesignerMessage['actor']
+export type StructuredModelStep = 'PLANNING' | 'GENERATING_JSON' | 'REPAIRING_JSON' | 'FINAL_JSON'
 
 export interface DesignRequirementRevisionStatus {
   revision: number
@@ -748,6 +749,7 @@ export interface TaskDecompositionStatus {
   transportRetryCount: number
   lastErrorCode?: string
   lastErrorDetail?: string
+  workflowStep: StructuredModelStep
 }
 
 export interface DesignWorkPackageStatus {
@@ -788,6 +790,7 @@ export interface DesignerSession {
     lastErrorCode?: string
     lastErrorDetail?: string
     workPackageId?: string
+    workflowStep: StructuredModelStep
   }
   requirement?: DesignRequirementRevisionStatus
   decomposition?: TaskDecompositionStatus
@@ -855,4 +858,5 @@ export interface DesignerStreamEvent {
   activeWorkPackageId?: string
   modelCallsUsed: number
   maxModelCalls: number
+  structuredStep?: StructuredModelStep
 }
