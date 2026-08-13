@@ -15,9 +15,10 @@ class FeatureMigrationTest {
     @TempDir Path temporaryDirectory;
 
     @Test
-    void migratesBothEmptyAndV21DatabasesToLatestWithoutInventingAuditHistory() throws Exception {
-        assertMigratesToLatest(temporaryDirectory.resolve("empty.db"), false);
-        assertMigratesToLatest(temporaryDirectory.resolve("upgrade.db"), true);
+    void migratesEmptyV21AndV24DatabasesToLatestWithoutInventingAuditHistory() throws Exception {
+        assertMigratesToLatest(temporaryDirectory.resolve("empty.db"), null);
+        assertMigratesToLatest(temporaryDirectory.resolve("upgrade-v21.db"), "21");
+        assertMigratesToLatest(temporaryDirectory.resolve("upgrade-v24.db"), "24");
     }
 
     @Test
@@ -50,10 +51,10 @@ class FeatureMigrationTest {
         }
     }
 
-    private void assertMigratesToLatest(Path database, boolean stopAtV21) throws Exception {
+    private void assertMigratesToLatest(Path database, String startingVersion) throws Exception {
         String url = "jdbc:sqlite:" + database;
-        if (stopAtV21) {
-            Flyway.configure().dataSource(url, null, null).target(MigrationVersion.fromVersion("21")).load().migrate();
+        if (startingVersion != null) {
+            Flyway.configure().dataSource(url, null, null).target(MigrationVersion.fromVersion(startingVersion)).load().migrate();
             try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
                 statement.executeUpdate("INSERT INTO project(id,name,root_path,created_at,updated_at) VALUES('legacy-project','Legacy','/tmp/legacy','now','now')");
                 statement.executeUpdate("INSERT INTO task(id,project_id,title,state,branch_name,created_at,updated_at) VALUES('legacy-task','legacy-project','Legacy merged elsewhere','SUCCEEDED','loopper/legacy','now','now')");
@@ -62,7 +63,7 @@ class FeatureMigrationTest {
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
 
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("24");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("25");
         try (var connection = DriverManager.getConnection(url);
              var statement = connection.prepareStatement("SELECT name FROM sqlite_master WHERE type='table'")) {
             try (var result = statement.executeQuery()) {
@@ -74,11 +75,12 @@ class FeatureMigrationTest {
                         "loopspec_template", "loopspec_template_version", "automation_rule", "automation_run",
                         "state_transition_event", "local_sync_conflict_session", "local_sync_conflict_file",
                         "verifier_runtime", "task_publication", "loop_spec_compilation", "stage_java_baseline",
+                        "stage_workspace_baseline",
                         "design_requirement_revision", "task_decomposition", "design_work_package"));
             }
         }
         try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
-            if (stopAtV21) {
+            if (startingVersion != null) {
                 try (var result = statement.executeQuery("SELECT COUNT(*) FROM task_publication WHERE task_id='legacy-task'")) {
                     assertThat(result.next()).isTrue();
                     assertThat(result.getInt(1)).isZero();
@@ -120,6 +122,16 @@ class FeatureMigrationTest {
                     while (result.next()) columns.add(result.getString("name"));
                     assertThat(columns).contains("workflow_step", "planning_json", "planning_repair_count");
                 }
+            }
+            statement.execute("PRAGMA foreign_keys=ON");
+            statement.executeUpdate("INSERT INTO project(id,name,root_path,created_at,updated_at) VALUES('baseline-project','Baseline','/tmp/baseline','now','now')");
+            statement.executeUpdate("INSERT INTO task(id,project_id,title,state,created_at,updated_at) VALUES('baseline-task','baseline-project','Baseline','READY','now','now')");
+            statement.executeUpdate("INSERT INTO stage(id,task_id,ordinal,objective,allowed_paths_json,forbidden_paths_json,deliverables_json,verifiers_json,state,created_at,updated_at) VALUES('baseline-stage','baseline-task',0,'baseline','[]','[]','[]','[]','PENDING','now','now')");
+            statement.executeUpdate("INSERT INTO stage_workspace_baseline(stage_id,task_id,baseline_ref,created_at) VALUES('baseline-stage','baseline-task','stage:baseline-task:baseline-stage:0123456789012345678901234567890123456789','now')");
+            statement.executeUpdate("DELETE FROM stage WHERE id='baseline-stage'");
+            try (var result = statement.executeQuery("SELECT COUNT(*) FROM stage_workspace_baseline WHERE stage_id='baseline-stage'")) {
+                assertThat(result.next()).isTrue();
+                assertThat(result.getInt(1)).isZero();
             }
         }
         assertAutomationApprovalAndImmutabilityGuards(url);

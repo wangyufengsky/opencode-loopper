@@ -86,6 +86,7 @@ public class TaskService {
     private final AttemptHandoffService attemptHandoffs;
     private final BinaryArtifactPersistenceService binaryArtifacts;
     private final ManagedVerificationRuntimeService managedVerifierRuntimes;
+    private final StageWorkspaceBaselineService stageWorkspaceBaselines;
     private final JavaChangeGateService javaChangeGate;
     private final UsageInsightsService usageInsights;
     private final TaskEventService events;
@@ -98,6 +99,7 @@ public class TaskService {
                        AttemptHandoffService attemptHandoffs,
                        BinaryArtifactPersistenceService binaryArtifacts,
                        ManagedVerificationRuntimeService managedVerifierRuntimes,
+                       StageWorkspaceBaselineService stageWorkspaceBaselines,
                        JavaChangeGateService javaChangeGate,
                        UsageInsightsService usageInsights,
                        TaskEventService events, LoopperProperties defaults,
@@ -106,6 +108,7 @@ public class TaskService {
         this.worktrees = worktrees; this.directLeases = directLeases; this.openCode = openCode;
         this.verifiers = verifiers; this.attemptHandoffs = attemptHandoffs; this.binaryArtifacts = binaryArtifacts;
         this.managedVerifierRuntimes = managedVerifierRuntimes;
+        this.stageWorkspaceBaselines = stageWorkspaceBaselines;
         this.javaChangeGate = javaChangeGate;
         this.usageInsights = usageInsights; this.events = events; this.defaults = defaults;
         this.transactions = new TransactionTemplate(transactionManager);
@@ -466,6 +469,9 @@ public class TaskService {
             ProjectRow project = projects.get(initial.projectId());
             worktrees.requireExecutionWorkspace(Path.of(requireWorktree(initial)), Path.of(project.rootPath()),
                     initial.branchName(), initial.baselineCommit());
+            String verificationBaseline = verificationOnly
+                    ? initial.baselineCommit()
+                    : stageWorkspaceBaselines.requireBaseline(initial, stage);
             transactions.executeWithoutResult(status -> enterVerification(initial, implementationSession));
             LoopSpec spec = spec(initial);
             List<LoopSpec.VerifierSpec> verifierSpecs = read(stage.verifiersJson(), new TypeReference<>() {});
@@ -492,7 +498,7 @@ public class TaskService {
                         VerifierOutcome outcome;
                         try {
                             LoopSpec.VerifierSpec bound = managedVerifierRuntimes.bind(verifierSpecs.get(i), managedRuntime);
-                            outcome = verifiers.verify(Path.of(requireWorktree(initial)), initial.baselineCommit(), bound, timeout);
+                            outcome = verifiers.verify(Path.of(requireWorktree(initial)), verificationBaseline, bound, timeout);
                         } catch (TaskFailure knownFailure) {
                             throw knownFailure;
                         } catch (RuntimeException unexpectedFailure) {
@@ -522,7 +528,7 @@ public class TaskService {
                     .filter(result -> result.outcome().state() != VerificationState.PASS)
                     .reduce((left, right) -> right).orElse(null);
             if (!verificationOnly && failedPreview != null) {
-                handoff = attemptHandoffs.capture(Path.of(requireWorktree(initial)), initial.baselineCommit(),
+                handoff = attemptHandoffs.capture(Path.of(requireWorktree(initial)), verificationBaseline,
                         stage.id(), attempt.id(), attempt.ordinal(), pending.stream()
                                 .map(result -> new AttemptHandoffService.VerificationFact(result.outcome().type(),
                                         result.outcome().state().name(), result.outcome().summary())).toList(),
@@ -884,7 +890,13 @@ public class TaskService {
         TaskRow freshTask = get(task.id());
         LoopSpec spec = spec(freshTask);
         StageRow stage = mapper.findStage(inputStage.id()).orElseThrow(() -> new TaskFailure("STAGE_MISSING", "Stage disappeared"));
-        javaChangeGate.captureIfAbsent(freshTask, stage);
+        try {
+            stageWorkspaceBaselines.captureIfAbsent(freshTask, stage);
+            javaChangeGate.captureIfAbsent(freshTask, stage);
+        } catch (TaskFailure failure) {
+            failTask(freshTask, failure.code(), failure.getMessage(), stage, null, null);
+            return;
+        }
         AttemptCapacity capacity = attemptCapacity(freshTask, stage, spec);
         if (!capacity.available()) {
             failTask(freshTask, capacity.code(), capacity.message(), stage, null, null);

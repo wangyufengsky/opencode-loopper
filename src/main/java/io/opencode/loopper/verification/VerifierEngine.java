@@ -7,6 +7,7 @@ import io.opencode.loopper.runtime.ProcessResult;
 import io.opencode.loopper.runtime.DirectWorkspaceBaselineManager;
 import io.opencode.loopper.runtime.ExecutableResolver;
 import io.opencode.loopper.runtime.SafeProcessRunner;
+import io.opencode.loopper.runtime.StageWorkspaceBaselineManager;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -25,16 +26,24 @@ public class VerifierEngine {
     private static final Duration MAX_VERIFIER_TIMEOUT = Duration.ofHours(1);
     private final SafeProcessRunner runner;
     private final DirectWorkspaceBaselineManager directBaselines;
+    private final StageWorkspaceBaselineManager stageBaselines;
     private final BinaryArtifactStore artifacts;
     private final NativeVerifierRegistry nativeVerifiers;
-    public VerifierEngine(SafeProcessRunner runner) { this(runner, null, new BinaryArtifactStore(Path.of("./data"))); }
+    public VerifierEngine(SafeProcessRunner runner) {
+        this(runner, null, null, new BinaryArtifactStore(Path.of("./data")));
+    }
     public VerifierEngine(SafeProcessRunner runner, DirectWorkspaceBaselineManager directBaselines) {
-        this(runner, directBaselines, new BinaryArtifactStore(Path.of("./data")));
+        this(runner, directBaselines, null, new BinaryArtifactStore(Path.of("./data")));
+    }
+    public VerifierEngine(SafeProcessRunner runner, DirectWorkspaceBaselineManager directBaselines, BinaryArtifactStore artifacts) {
+        this(runner, directBaselines, null, artifacts);
     }
     @Autowired
-    public VerifierEngine(SafeProcessRunner runner, DirectWorkspaceBaselineManager directBaselines, BinaryArtifactStore artifacts) {
+    public VerifierEngine(SafeProcessRunner runner, DirectWorkspaceBaselineManager directBaselines,
+                          StageWorkspaceBaselineManager stageBaselines, BinaryArtifactStore artifacts) {
         this.runner = runner;
         this.directBaselines = directBaselines;
+        this.stageBaselines = stageBaselines;
         this.artifacts = artifacts;
         this.nativeVerifiers = new NativeVerifierRegistry();
     }
@@ -64,7 +73,8 @@ public class VerifierEngine {
         managedRelative(worktree, path);
         ProcessResult result;
         boolean direct = baseline.startsWith(DirectWorkspaceBaselineManager.PREFIX);
-        boolean taskBranchCheckedOut = direct || taskBranch == null || taskBranch.isBlank()
+        boolean stage = baseline.startsWith(StageWorkspaceBaselineManager.PREFIX);
+        boolean taskBranchCheckedOut = direct || stage || taskBranch == null || taskBranch.isBlank()
                 || taskBranch.equals(currentGitBranch(worktree, boundedTimeout));
         if (untracked && taskBranchCheckedOut) {
             result = runner.run(worktree, List.of("git", "--literal-pathspecs", "diff", "--no-index", "--no-ext-diff",
@@ -74,6 +84,12 @@ public class VerifierEngine {
                 throw new TaskFailure("DIRECT_BASELINE_UNAVAILABLE", "Direct-execution diff support is unavailable");
             }
             result = directBaselines.patch(worktree, baseline, path, boundedTimeout);
+        } else if (stage) {
+            if (stageBaselines == null) {
+                throw new TaskFailure("STAGE_WORKSPACE_BASELINE_UNAVAILABLE",
+                        "Stage workspace diff support is unavailable");
+            }
+            result = stageBaselines.patch(worktree, baseline, path, boundedTimeout);
         } else if (!taskBranchCheckedOut) {
             result = runner.run(worktree, List.of("git", "--literal-pathspecs", "diff", "--no-ext-diff", "--no-textconv",
                     "--no-color", "--unified=80", baseline, "refs/heads/" + taskBranch, "--", path), boundedTimeout);
@@ -296,10 +312,24 @@ public class VerifierEngine {
     }
 
     private VerifierOutcome gitDiff(Path worktree, String baseline, VerifierSpec spec, Duration timeout) {
-        if (baseline == null || baseline.isBlank()) throw new TaskFailure("GIT_BASELINE_MISSING", "GIT_DIFF verifier requires a task baseline commit");
+        if (baseline == null || baseline.isBlank()) {
+            throw new TaskFailure("GIT_BASELINE_MISSING", "GIT_DIFF verifier requires a workspace baseline");
+        }
         ProcessResult result;
         ProcessResult untrackedResult;
-        if (baseline.startsWith(DirectWorkspaceBaselineManager.PREFIX)) {
+        String baselineScope = "TASK";
+        String stageId = null;
+        if (baseline.startsWith(StageWorkspaceBaselineManager.PREFIX)) {
+            if (stageBaselines == null) {
+                throw new TaskFailure("STAGE_WORKSPACE_BASELINE_UNAVAILABLE",
+                        "Stage workspace diff support is unavailable");
+            }
+            StageWorkspaceBaselineManager.DiffResult diff = stageBaselines.diff(worktree, baseline, timeout);
+            result = diff.tracked();
+            untrackedResult = diff.untracked();
+            baselineScope = "STAGE";
+            stageId = stageBaselines.stageId(baseline);
+        } else if (baseline.startsWith(DirectWorkspaceBaselineManager.PREFIX)) {
             if (directBaselines == null) throw new TaskFailure("DIRECT_BASELINE_UNAVAILABLE", "Direct-execution diff support is unavailable");
             DirectWorkspaceBaselineManager.DiffResult diff = directBaselines.diff(worktree, baseline, timeout);
             result = diff.tracked();
@@ -346,7 +376,12 @@ public class VerifierEngine {
         if (requiresChanges && changed.isEmpty()) violations.add("expected a Git diff, but no files changed");
         boolean passed = violations.isEmpty();
         Map<String, Object> evidence = new LinkedHashMap<>();
-        evidence.put("baseline", baseline); evidence.put("changedPaths", changed); evidence.put("untrackedPaths", untracked); evidence.put("violations", violations);
+        evidence.put("baseline", baseline);
+        evidence.put("baselineScope", baselineScope);
+        if (stageId != null) evidence.put("stageId", stageId);
+        evidence.put("changedPaths", changed);
+        evidence.put("untrackedPaths", untracked);
+        evidence.put("violations", violations);
         return new VerifierOutcome("GIT_DIFF", passed ? VerificationState.PASS : VerificationState.FAIL,
                 passed ? "Git diff satisfies policy" : String.join("; ", violations), evidence);
     }

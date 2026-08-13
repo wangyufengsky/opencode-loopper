@@ -424,6 +424,11 @@ public interface LoopperMapper {
     @Select("SELECT * FROM stage_java_baseline WHERE stage_id=#{stageId}")
     Optional<StageJavaBaselineRow> findStageJavaBaseline(String stageId);
 
+    @Insert("INSERT INTO stage_workspace_baseline(stage_id,task_id,baseline_ref,created_at) VALUES(#{stageId},#{taskId},#{baselineRef},#{createdAt}) ON CONFLICT(stage_id) DO NOTHING")
+    int insertStageWorkspaceBaseline(StageWorkspaceBaselineRow row);
+    @Select("SELECT * FROM stage_workspace_baseline WHERE stage_id=#{stageId}")
+    Optional<StageWorkspaceBaselineRow> findStageWorkspaceBaseline(String stageId);
+
     @Insert("INSERT INTO attempt(id,task_id,stage_id,ordinal,state,failure_kind,summary,created_at,ended_at,version) VALUES(#{id},#{taskId},#{stageId},#{ordinal},#{state},#{failureKind},#{summary},#{createdAt},#{endedAt},#{version})")
     int insertAttempt(AttemptRow row);
     @Select("SELECT * FROM attempt WHERE id=#{id}") Optional<AttemptRow> findAttempt(String id);

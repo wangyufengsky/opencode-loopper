@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.1.49`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.1.50`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -113,7 +113,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.1.49.jar
+java -jar target/opencode-loopper-0.1.50.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -228,8 +228,9 @@ REST/JSON/浏览器条件使用阶段 `verificationRuntime` 启动本次代码�
 | `BROWSER` | CSS 选择器存在、可见、文本、数量或属性 | 仅 loopback；不允许任意 JavaScript；保存截图和 trace |
 | `DATABASE_QUERY` | 本地 SQLite 查询结果 | 仅只读 `SELECT` / `WITH` |
 
-路径允许/禁止规则会作为 Agent 指导；只有显式 `GIT_DIFF` 验证器才构成强制的差异验收门槛。
-最终 Attempt 自动保存的任务基线差异快照只回答“改了什么”，不属于 LoopSpec 验证器，也不会参与 v2 条件覆盖计算。`POST /api/loop-drafts/validate` 与 MCP `validate_loop_spec` 返回同一份分类、错误和条件覆盖矩阵。
+路径允许/禁止规则会作为 Agent 指导；只有显式 `GIT_DIFF` 验证器才构成强制的差异验收门槛。普通可写任务会在每个 Stage 首次 Attempt/Session 前冻结独立工作区基线，因此 `allowedPaths`、`forbiddenPaths`、`forbidDeletes` 和 `requireChanges` 只评估该 Stage 之后的变化：前置包已经交付的文件不会被下一包误判为越界或“已有修改”，但下一包再次修改、删除或重命名这些文件仍会被发现。Stage 重试与服务重启复用同一基线；证据中的 `baselineScope`/`stageId` 可区分 Stage 与 Task 范围。
+
+最终 Attempt 自动保存的任务基线差异快照仍覆盖整个任务，只回答“总共改了什么”，不属于 LoopSpec 验证器，也不会参与 v2 条件覆盖计算。`VERIFY_ONLY` Recovery 同样保留任务级基线。旧活动 Stage 如果已经产生 Attempt 却没有 Stage 基线，会以 `STAGE_WORKSPACE_BASELINE_MISSING` 关闭并提示从失败阶段创建 Recovery，不会在当前工作区补建基线或启动新 Session。`POST /api/loop-drafts/validate` 与 MCP `validate_loop_spec` 返回同一份分类、错误和条件覆盖矩阵。
 
 ## 任务、恢复与发布
 
@@ -330,7 +331,7 @@ Git 任务分支达到 `SUCCEEDED` 后：
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.1.49.jar`
+- `target/opencode-loopper-0.1.50.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -361,7 +362,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:51234
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.1.49.jar`
+- `opencode-loopper-0.1.50.jar`
 - `start-windows.bat`
 
 确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
@@ -399,7 +400,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.1.49.jar \
+jar tf target/opencode-loopper-0.1.50.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -412,6 +413,7 @@ jar tf target/opencode-loopper-0.1.49.jar \
 - `loopper.db` 及 SQLite WAL 相关文件；
 - `worktrees/`：旧版本或历史任务的 Git worktree 兼容目录；新任务直接切换登记目录的任务分支；
 - `direct-baselines/`：Direct 任务的私有比较基线；
+- `stage-baselines/`：每个任务共享对象库、每个 Stage 独立索引的私有验收基线；
 - `artifacts/`：浏览器截图、trace 等二进制证据；
 - `publication-patches/`、`local-sync-conflicts/`：发布与同步冲突材料。
 
@@ -478,7 +480,7 @@ Windows PowerShell：
 例如发布下一版本：
 
 ```bash
-VERSION=0.1.49
+VERSION=0.1.50
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -518,7 +520,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.1.49.jar
+java -jar target/opencode-loopper-0.1.50.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。
@@ -590,6 +592,8 @@ echo %PATHEXT%
 `0.1.47` 修正分包 Compiler 对严格串行依赖的误判：Designer/Compiler 看到的是执行前仓库基线，前置包 `COMPLETED` 后会把冻结目标、编译摘要和交接合同注入后续包；后续 Compiler 不再因当前基线尚无前置交付物而返回 `MISSING_SCOPE`。服务端同时接管验收 ID 连续编号、唯一可恢复的 Designer 精确原文片段，以及证据映射到同命令 TEST 验证器的 `criterionIds`/`testTargets` 传播；Stage、业务验收、测试命令与证据语义仍由 AI Compiler 规划，规范化后仍执行原有 LoopSpec v2 硬校验。
 
 `0.1.49` 修复分包 LoopSpec 在 Review Gate 往返时被扁平化的问题：前端读取、编辑、保存和确认完整保留每个 Stage 的 `workPackageId`；服务端禁止删除、改写或重排已经聚合的包映射，并在确认前校验所有已完成工作包仍按依赖顺序映射到 Stage。任务详情因此能稳定展示包级进度与独立尝试池，执行器也会继续使用包级尝试预算和冻结设计上下文，而不会静默退回旧的全局 Stage 语义。
+
+`0.1.50` 将普通可写 Stage 的显式 `GIT_DIFF` 与 Attempt handoff 改为 Stage 首次执行前的私有工作区基线。后续包不再把前置包文件误判为 `outside allowed paths`，前置包改动也不能错误满足 `requireChanges=true`；当前 Stage 再次触碰前置文件仍会被准确拦截。重试和重启复用同一 V25 基线，旧活动 Stage 缺失基线时 fail closed；`VERIFY_ONLY` 与最终任务差异继续使用任务基线，保留完整累计审计。
 
 `0.1.48` 强化 Compiler 的 Java 单测证据合同：Designer 已明确写出的聚焦 Maven/Gradle 命令和测试类会作为强制证据清单进入首次规划与修复提示；服务端从安全的 `-Dtest`、`-Dit.test`、`--tests` 参数提取测试目标，并在同一 Java Stage 只有一个无歧义匹配时补齐遗漏的 `testCommand`、`testTargets`、`criterionIds` 或等价 TEST 验证器。服务端不从普通描述或全量测试命令猜测测试，也不在多个候选间擅自选择；真正缺失或存在歧义时仍由权威校验阻断并消耗原修复预算。
 

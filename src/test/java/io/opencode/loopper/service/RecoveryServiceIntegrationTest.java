@@ -99,6 +99,35 @@ class RecoveryServiceIntegrationTest {
     }
 
     @Test
+    void verifyOnlyGitDiffKeepsTheTaskBaselineAndDoesNotCaptureAStageBaseline() throws Exception {
+        Path root = Path.of(gitProject()).toRealPath();
+        ProjectRow project = projects.create("verify-only-task-diff", root.toString());
+        LoopSpec.VerifierSpec diff = new LoopSpec.VerifierSpec(
+                "GIT_DIFF", null, null, true, List.of("proof.txt"), List.of(), true);
+        LoopSpec.VerifierSpec content = new LoopSpec.VerifierSpec(
+                "FILE_CONTENT", null, "proof.txt", null, List.of(), List.of(), false, null,
+                null, null, null, null, null, "EXACT", "proof", null, null, null, List.of());
+        LoopSpec parentSpec = new LoopSpec("v1", project.id(), "验证父任务基线差异", null,
+                List.of(new LoopSpec.StageSpec("验证 proof.txt", List.of("proof.txt"), List.of(),
+                        List.of("proof.txt"), List.of(diff, content))), null, null, null, null);
+        TaskRow parent = drafts.confirm(drafts.create(parentSpec).id(), "verify-only task baseline parent");
+        tasks.cancel(parent.id());
+
+        FeatureContracts.RecoveryDto created = recoveries.create(parent.id(), RecoveryMode.VERIFY_ONLY);
+        Files.writeString(root.resolve("proof.txt"), "proof");
+        TaskRow afterStart = tasks.start(created.taskId());
+        StageRow childStage = tasks.stages(created.taskId()).getFirst();
+
+        assertThat(afterStart.state()).isEqualTo("JUDGING");
+        assertThat(mapper.findStageWorkspaceBaseline(childStage.id())).isEmpty();
+        assertThat(mapper.listSessions(created.taskId())).isEmpty();
+        assertThat(mapper.listVerifications(tasks.attempts(created.taskId()).getFirst().id()))
+                .filteredOn(result -> result.type().equals("GIT_DIFF"))
+                .singleElement().satisfies(result -> assertThat(result.evidenceJson())
+                        .contains("\"baselineScope\":\"TASK\"", "proof.txt"));
+    }
+
+    @Test
     void directWorkspaceReplacementFailsBeforeCreatingAnyRecoveryRows() throws Exception {
         Path directRoot = Files.createDirectory(temp.resolve("direct-root"));
         Files.writeString(directRoot.resolve("README.md"), "original identity");

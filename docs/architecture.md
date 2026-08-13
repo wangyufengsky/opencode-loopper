@@ -299,7 +299,30 @@ path rules are advisory prompt context and never add an implicit acceptance
 gate. When the confirmed LoopSpec explicitly contains a `GIT_DIFF` verifier,
 its glob rules are normalized to `/`, matched by a bounded dynamic-programming
 engine with identical behavior on all supported operating systems, and rejected
-at the LoopSpec boundary when path policy size limits are exceeded. Before entering `VERIFYING`, the
+at the LoopSpec boundary when path policy size limits are exceeded. Before the
+first writable Attempt and OpenCode Session for a Stage, Loopper captures a
+private Git tree under `$LOOPPER_DATA_DIR/stage-baselines/<taskId>`. Stages share
+one object repository per Task and use separate indexes; the project `.git`,
+index and branch are never changed. The persisted
+`stage:<taskId>:<stageId>:<treeSha>` marker is reused by every retry and after a
+service restart. Capture runs outside SQLite transactions, verifies workspace
+stability, retries once, and fails with
+`STAGE_WORKSPACE_BASELINE_UNSTABLE` if the workspace keeps changing.
+
+Normal writable Stage `GIT_DIFF` checks and Attempt handoff snapshots compare
+against that Stage baseline. Files delivered by predecessors therefore do not
+satisfy `requireChanges` or violate a later Stage's narrow paths merely because
+they already exist, while a later modification, deletion, or rename of those
+files remains visible. Evidence identifies `baselineScope: STAGE` and the
+`stageId`. `VERIFY_ONLY` Recovery deliberately keeps the Task baseline and
+reports `baselineScope: TASK`; the final automatic Task diff is also Task-wide.
+An older active Stage with existing Attempts but no persisted Stage baseline
+fails closed with `STAGE_WORKSPACE_BASELINE_MISSING` before another Session is
+created. V25 persists the marker by Stage, cascades it with Task/Stage deletion,
+and startup recovery removes only private baseline directories whose Task no
+longer exists after containment checks.
+
+Before entering `VERIFYING`, the
 orchestrator performs a second authoritative status read and requires the
 implementation Session to be terminal-completed, so the public API cannot race
 a still-mutating Session. Only after all deterministic gates

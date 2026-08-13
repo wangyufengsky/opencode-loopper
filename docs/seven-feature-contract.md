@@ -18,6 +18,8 @@ manufactures queue, progress, usage or cost data.
   restart-recoverable structured workflow steps before final JSON generation.
 - V24: independent persisted planning and final-JSON repair budgets for
   Decomposer/Compiler, plus a valid terminal path from decomposition validation.
+- V25: persisted Stage workspace baselines for Stage-local `GIT_DIFF` and
+  Attempt handoff isolation.
 
 Decomposer exact markers remain preferred. Markerless compatibility accepts
 only one complete top-level JSON object or one standalone `json` fence and then
@@ -29,8 +31,8 @@ the existing V23 `planning_json`; no schema migration is needed. The server
 validates those blueprints using the normal LoopSpec v2 execution contract before
 freezing, and final JSON must preserve them exactly.
 
-Historical migrations remain immutable. Empty databases and supported V21
-databases must both migrate to V24.
+Historical migrations remain immutable. Empty databases and supported V21/V24
+databases must all migrate to V25.
 
 ## Interactions
 
@@ -109,6 +111,24 @@ later disable the tests it claimed to run.
 `DATABASE_QUERY` accepts one read-only local SQLite `SELECT`/`WITH` statement.
 Screenshots and traces live below the configured data directory; SQLite stores
 only relative path, SHA-256, size and metadata.
+
+Before the first writable Attempt/Session, Loopper captures a stable private Git
+tree for that Stage under `stage-baselines/<taskId>` and persists its
+`stage:<taskId>:<stageId>:<treeSha>` marker in V25. One Task object repository
+is shared by per-Stage indexes without modifying the project `.git`, index, or
+branch. Capture and validation I/O run outside SQLite transactions; instability
+after one retry returns `STAGE_WORKSPACE_BASELINE_UNSTABLE`. Retries and restarts
+must reuse the marker. An active historical Stage that already has an Attempt
+but lacks the row fails with `STAGE_WORKSPACE_BASELINE_MISSING` before a new
+writable Session or model call. Startup recovery removes only contained private
+directories for Tasks that no longer exist.
+
+Explicit `GIT_DIFF` and Attempt handoff for normal writable Stages compare with
+this Stage baseline, so predecessor files neither violate later path scopes nor
+satisfy later `requireChanges`; a later edit/delete/rename of a predecessor file
+is still observed. Their evidence records `baselineScope: STAGE` and `stageId`.
+`VERIFY_ONLY` Recovery and the final automatic Task diff retain the Task baseline
+and record `baselineScope: TASK`, preserving cumulative task audit evidence.
 
 For new LoopSpec v2 contracts, the server classifies verifier evidence rather
 than trusting a Designer label. Each observable criterion chooses deterministic

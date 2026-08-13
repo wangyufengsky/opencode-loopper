@@ -9,6 +9,7 @@ import io.opencode.loopper.runtime.DirectWorkspaceBaselineManager;
 import io.opencode.loopper.runtime.ExecutableResolver;
 import io.opencode.loopper.runtime.ProcessResult;
 import io.opencode.loopper.runtime.SafeProcessRunner;
+import io.opencode.loopper.runtime.StageWorkspaceBaselineManager;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -135,6 +136,54 @@ class VerifierEngineTest {
         VerifierEngine.DiffPreview preview = new VerifierEngine(new SafeProcessRunner(), baselines)
                 .previewDiff(project, baseline, "README.md", false, Duration.ofSeconds(5));
         assertThat(preview.patch()).contains("-base", "+changed");
+    }
+
+    @Test
+    void stageBaselineScopesDiffAndRequireChangesToWorkAfterThatStageStarted() throws Exception {
+        Path project = Files.createDirectory(directory.resolve("stage-project"));
+        Files.writeString(project.resolve("README.md"), "base");
+        LoopperProperties properties = new LoopperProperties();
+        properties.setDataDir(project.resolve(".loopper-data"));
+        StageWorkspaceBaselineManager baselines = new StageWorkspaceBaselineManager(
+                new SafeProcessRunner(), properties);
+        VerifierEngine stageEngine = new VerifierEngine(new SafeProcessRunner(), null, baselines,
+                new BinaryArtifactStore(project.resolve(".loopper-data")));
+
+        String first = baselines.capture(project, "task-stage", "stage-one");
+        Files.writeString(project.resolve("first.txt"), "first");
+        VerifierOutcome firstResult = stageEngine.verify(project, first,
+                new VerifierSpec("GIT_DIFF", null, null, true,
+                        List.of("first.txt"), List.of(), true), Duration.ofSeconds(5));
+        assertThat(firstResult.state()).isEqualTo(VerificationState.PASS);
+        assertThat(firstResult.evidence())
+                .containsEntry("baselineScope", "STAGE")
+                .containsEntry("stageId", "stage-one")
+                .containsEntry("changedPaths", List.of("first.txt"));
+
+        String second = baselines.capture(project, "task-stage", "stage-two");
+        VerifierOutcome noStageTwoChanges = stageEngine.verify(project, second,
+                new VerifierSpec("GIT_DIFF", null, null, true,
+                        List.of("second.txt"), List.of(), true), Duration.ofSeconds(5));
+        assertThat(noStageTwoChanges.state()).isEqualTo(VerificationState.FAIL);
+        assertThat(noStageTwoChanges.summary()).contains("no files changed");
+
+        Files.writeString(project.resolve("second.txt"), "second");
+        VerifierOutcome isolated = stageEngine.verify(project, second,
+                new VerifierSpec("GIT_DIFF", null, null, true,
+                        List.of("second.txt"), List.of(), true), Duration.ofSeconds(5));
+        assertThat(isolated.state()).isEqualTo(VerificationState.PASS);
+        assertThat(isolated.evidence().get("changedPaths")).isEqualTo(List.of("second.txt"));
+
+        Files.writeString(project.resolve("first.txt"), "changed by stage two");
+        VerifierOutcome predecessorViolation = stageEngine.verify(project, second,
+                new VerifierSpec("GIT_DIFF", null, null, true,
+                        List.of("second.txt"), List.of(), true), Duration.ofSeconds(5));
+        assertThat(predecessorViolation.state()).isEqualTo(VerificationState.FAIL);
+        assertThat(predecessorViolation.summary()).contains("outside allowed paths: first.txt");
+        assertThat(project.resolve(".loopper-data/stage-baselines/task-stage/objects")).isDirectory();
+        assertThat(project.resolve(".loopper-data/stage-baselines/task-stage/indexes/stage-one.index")).isRegularFile();
+        assertThat(project.resolve(".loopper-data/stage-baselines/task-stage/indexes/stage-two.index")).isRegularFile();
+        assertThat(project.resolve(".git")).doesNotExist();
     }
 
     @Test

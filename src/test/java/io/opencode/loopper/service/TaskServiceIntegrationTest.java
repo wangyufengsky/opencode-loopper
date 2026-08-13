@@ -1,6 +1,7 @@
 package io.opencode.loopper.service;
 
 import io.opencode.loopper.LoopperApplication;
+import io.opencode.loopper.config.LoopperProperties;
 import io.opencode.loopper.domain.ErrorLayer;
 import io.opencode.loopper.domain.ImplementationKind;
 import io.opencode.loopper.domain.LoopSpec;
@@ -48,7 +49,9 @@ class TaskServiceIntegrationTest {
     @Autowired private OpenCodeClient openCode;
     @Autowired private LoopperMapper mapper;
     @Autowired private UsageInsightsService usageInsights;
+    @Autowired private StageWorkspaceBaselineService stageWorkspaceBaselines;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private LoopperProperties properties;
     @Autowired private TaskEventHub taskEvents;
     @MockitoSpyBean private VerifierEngine verifierEngine;
     @TempDir Path temp;
@@ -248,6 +251,7 @@ class TaskServiceIntegrationTest {
                 null, null, null, null, new LoopSpec.BudgetSpec(10L, null, null));
         TaskRow task = drafts.confirm(drafts.create(limited).id(), "implementation budget gate");
         var stage = tasks.stages(task.id()).getFirst();
+        stageWorkspaceBaselines.captureIfAbsent(task, stage);
         String now = Instant.now().toString();
         AttemptRow completed = new AttemptRow("budget-attempt", task.id(), stage.id(), 1, "SUCCEEDED", null, "prior work", now, now, 0);
         mapper.insertAttempt(completed);
@@ -615,9 +619,9 @@ class TaskServiceIntegrationTest {
         assertThat(task.worktreePath()).isEqualTo(plainDirectory.toRealPath().toString());
         assertThat(task.baselineCommit()).startsWith("direct:" + task.id() + ":");
 
+        tasks.start(task.id());
         Files.createDirectories(plainDirectory.resolve("src"));
         Files.writeString(plainDirectory.resolve("src/App.java"), "class App {}");
-        tasks.start(task.id());
         tasks.verify(task.id());
 
         assertThat(tasks.get(task.id()).state()).isEqualTo("JUDGING");
@@ -630,6 +634,156 @@ class TaskServiceIntegrationTest {
         assertThatThrownBy(() -> tasks.diffPreview(task.id(), "README.md"))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("not present in persisted GIT_DIFF evidence");
+    }
+
+    @Test
+    void multiPackageGitDiffUsesEachStageStartAndKeepsFinalTaskDiffCumulative() throws Exception {
+        Path root = Path.of(gitProject()).toRealPath();
+        ProjectRow project = projects.create("stage-scoped-git-diff", root.toString());
+        TaskRow task = drafts.confirm(drafts.create(stageScopedGitDiffSpec(project.id())).id(),
+                "stage scoped package diff");
+
+        tasks.start(task.id());
+        Files.writeString(root.resolve("first.txt"), "first");
+        assertThat(tasks.verify(task.id()).state()).isEqualTo("RUNNING");
+
+        var stages = tasks.stages(task.id());
+        assertThat(stages).extracting(stage -> stage.workPackageId()).containsExactly("WP-1", "WP-2");
+        assertThat(mapper.findStageWorkspaceBaseline(stages.get(1).id())).isPresent();
+        Files.writeString(root.resolve("second.txt"), "second");
+
+        assertThat(tasks.verify(task.id()).state()).isEqualTo("JUDGING");
+        AttemptRow firstAttempt = mapper.latestAttempt(stages.get(0).id()).orElseThrow();
+        AttemptRow secondAttempt = mapper.latestAttempt(stages.get(1).id()).orElseThrow();
+        assertThat(mapper.listVerifications(firstAttempt.id())).filteredOn(result -> result.type().equals("GIT_DIFF"))
+                .singleElement().satisfies(result -> assertThat(result.evidenceJson())
+                        .contains("\"baselineScope\":\"STAGE\"", "\"changedPaths\":[\"first.txt\"]")
+                        .doesNotContain("second.txt"));
+        assertThat(mapper.listVerifications(secondAttempt.id())).filteredOn(result -> result.type().equals("GIT_DIFF"))
+                .singleElement().satisfies(result -> assertThat(result.evidenceJson())
+                        .contains("\"baselineScope\":\"STAGE\"", "\"changedPaths\":[\"second.txt\"]")
+                        .doesNotContain("first.txt"));
+        assertThat(tasks.artifacts(task.id())).filteredOn(artifact -> artifact.kind().equals("GIT_DIFF"))
+                .singleElement().satisfies(artifact -> assertThat(artifact.content())
+                        .contains("\"baselineScope\":\"TASK\"", "first.txt", "second.txt"));
+    }
+
+    @Test
+    void multiPackageDirectWorkspaceUsesTheSameStageScopedDiffContract() throws Exception {
+        Path root = Files.createDirectory(temp.resolve("stage-scoped-direct"));
+        Files.writeString(root.resolve("README.md"), "fixture");
+        ProjectRow project = projects.create("stage-scoped-direct", root.toString());
+        TaskRow task = drafts.confirm(drafts.create(stageScopedGitDiffSpec(project.id())).id(),
+                "direct stage scoped package diff");
+        assertThat(task.baselineCommit()).startsWith("direct:" + task.id() + ":");
+
+        tasks.start(task.id());
+        Files.writeString(root.resolve("first.txt"), "first");
+        assertThat(tasks.verify(task.id()).state()).isEqualTo("RUNNING");
+        Files.writeString(root.resolve("second.txt"), "second");
+        assertThat(tasks.verify(task.id()).state()).isEqualTo("JUDGING");
+
+        var stages = tasks.stages(task.id());
+        AttemptRow secondAttempt = mapper.latestAttempt(stages.get(1).id()).orElseThrow();
+        assertThat(mapper.listVerifications(secondAttempt.id())).filteredOn(result -> result.type().equals("GIT_DIFF"))
+                .singleElement().satisfies(result -> assertThat(result.evidenceJson())
+                        .contains("\"baselineScope\":\"STAGE\"", "\"changedPaths\":[\"second.txt\"]")
+                        .doesNotContain("first.txt"));
+        assertThat(tasks.artifacts(task.id())).filteredOn(artifact -> artifact.kind().equals("GIT_DIFF"))
+                .singleElement().satisfies(artifact -> assertThat(artifact.content())
+                        .contains("\"baselineScope\":\"TASK\"", "first.txt", "second.txt"));
+    }
+
+    @Test
+    void laterStageNoOpAndPredecessorEditUseTheSameImmutableStageBaseline() throws Exception {
+        Path root = Path.of(gitProject()).toRealPath();
+        ProjectRow project = projects.create("stage-no-op-and-violation", root.toString());
+        TaskRow task = drafts.confirm(drafts.create(stageScopedGitDiffSpec(project.id())).id(),
+                "stage baseline retry");
+        tasks.start(task.id());
+        Files.writeString(root.resolve("first.txt"), "first");
+        assertThat(tasks.verify(task.id()).state()).isEqualTo("RUNNING");
+        var secondStage = tasks.stages(task.id()).get(1);
+        String baseline = mapper.findStageWorkspaceBaseline(secondStage.id()).orElseThrow().baselineRef();
+
+        TaskRow afterNoOp = tasks.verify(task.id());
+        assertThat(afterNoOp.state()).as(tasks.errors(task.id()).toString()).isEqualTo("RUNNING");
+        AttemptRow firstStageTwoAttempt = tasks.attempts(task.id()).stream()
+                .filter(attempt -> attempt.stageId().equals(secondStage.id()) && attempt.ordinal() == 1)
+                .findFirst().orElseThrow();
+        assertThat(mapper.listVerifications(firstStageTwoAttempt.id())).filteredOn(result -> result.type().equals("GIT_DIFF"))
+                .singleElement().satisfies(result -> {
+                    assertThat(result.state()).isEqualTo("FAIL");
+                    assertThat(result.summary()).contains("no files changed");
+                });
+        assertThat(tasks.artifacts(task.id())).filteredOn(artifact ->
+                        artifact.kind().equals("ATTEMPT_HANDOFF")
+                                && firstStageTwoAttempt.id().equals(artifact.attemptId()))
+                .singleElement().satisfies(artifact -> assertThat(artifact.content())
+                        .contains("\"changedPaths\":[]"));
+        assertThat(mapper.findStageWorkspaceBaseline(secondStage.id()).orElseThrow().baselineRef()).isEqualTo(baseline);
+
+        Files.writeString(root.resolve("first.txt"), "changed by the later stage");
+        assertThat(tasks.verify(task.id()).state()).isEqualTo("RUNNING");
+        AttemptRow secondStageTwoAttempt = tasks.attempts(task.id()).stream()
+                .filter(attempt -> attempt.stageId().equals(secondStage.id()) && attempt.ordinal() == 2)
+                .findFirst().orElseThrow();
+        assertThat(mapper.listVerifications(secondStageTwoAttempt.id())).filteredOn(result -> result.type().equals("GIT_DIFF"))
+                .singleElement().satisfies(result -> {
+                    assertThat(result.state()).isEqualTo("FAIL");
+                    assertThat(result.summary()).contains("outside allowed paths: first.txt");
+                });
+        assertThat(tasks.artifacts(task.id())).filteredOn(artifact ->
+                        artifact.kind().equals("ATTEMPT_HANDOFF")
+                                && secondStageTwoAttempt.id().equals(artifact.attemptId()))
+                .singleElement().satisfies(artifact -> assertThat(artifact.content())
+                        .contains("\"changedPaths\":[\"first.txt\"]"));
+        assertThat(mapper.findStageWorkspaceBaseline(secondStage.id()).orElseThrow().baselineRef()).isEqualTo(baseline);
+    }
+
+    @Test
+    void legacyAttemptWithoutStageWorkspaceBaselineFailsBeforeOpeningAnotherSession() throws Exception {
+        ProjectRow project = projects.create("legacy-stage-baseline", gitProject());
+        TaskRow task = drafts.confirm(drafts.create(spec(project.id())).id(), "legacy missing stage baseline");
+        tasks.start(task.id());
+        var stage = tasks.stages(task.id()).getFirst();
+        AttemptRow attempt = tasks.attempts(task.id()).getFirst();
+        int promptCalls = ((FakeOpenCodeClient) openCode).promptCalls();
+        assertThat(jdbc.update("DELETE FROM stage_workspace_baseline WHERE stage_id=?", stage.id())).isEqualTo(1);
+
+        TaskRow failed = tasks.sessionFailed(task.id(), attempt.id(), "NETWORK", "retry legacy stage");
+
+        assertThat(failed.state()).isEqualTo("FAILED");
+        assertThat(tasks.attempts(task.id())).hasSize(1);
+        assertThat(mapper.listSessions(task.id())).hasSize(1);
+        assertThat(((FakeOpenCodeClient) openCode).promptCalls()).isEqualTo(promptCalls);
+        assertThat(tasks.errors(task.id())).anyMatch(error ->
+                error.code().equals("STAGE_WORKSPACE_BASELINE_MISSING")
+                        && error.layer().equals(ErrorLayer.TASK.name()));
+    }
+
+    @Test
+    void unavailablePersistedStageBaselineFailsBeforeOpeningRetrySession() throws Exception {
+        ProjectRow project = projects.create("unavailable-stage-baseline", gitProject());
+        TaskRow task = drafts.confirm(drafts.create(spec(project.id())).id(), "unavailable stage baseline");
+        tasks.start(task.id());
+        var stage = tasks.stages(task.id()).getFirst();
+        AttemptRow attempt = tasks.attempts(task.id()).getFirst();
+        int promptCalls = ((FakeOpenCodeClient) openCode).promptCalls();
+        Path index = properties.getDataDir().resolve("stage-baselines").resolve(task.id())
+                .resolve("indexes").resolve(stage.id() + ".index");
+        assertThat(index).isRegularFile();
+        Files.delete(index);
+
+        TaskRow failed = tasks.sessionFailed(task.id(), attempt.id(), "NETWORK", "retry without baseline storage");
+
+        assertThat(failed.state()).isEqualTo("FAILED");
+        assertThat(tasks.attempts(task.id())).hasSize(1);
+        assertThat(mapper.listSessions(task.id())).hasSize(1);
+        assertThat(((FakeOpenCodeClient) openCode).promptCalls()).isEqualTo(promptCalls);
+        assertThat(tasks.errors(task.id())).anyMatch(error ->
+                error.code().equals("STAGE_WORKSPACE_BASELINE_UNAVAILABLE")
+                        && error.layer().equals(ErrorLayer.TASK.name()));
     }
 
     @Test
@@ -1327,6 +1481,22 @@ class TaskServiceIntegrationTest {
                                 List.of("second result"), List.of(failing), List.of(), null, null, "WP-1")),
                 new LoopSpec.Limits(5, 8, 3, 20, 7200L, 1800L, 600L), null,
                 new LoopSpec.SessionPolicy(true, true), null);
+    }
+    private LoopSpec stageScopedGitDiffSpec(String projectId) {
+        LoopSpec.VerifierSpec firstDiff = new LoopSpec.VerifierSpec(
+                "GIT_DIFF", null, null, true, List.of("first.txt"), List.of(), true);
+        LoopSpec.VerifierSpec secondDiff = new LoopSpec.VerifierSpec(
+                "GIT_DIFF", null, null, true, List.of("second.txt"), List.of(), true);
+        LoopSpec.VerifierSpec firstContent = new LoopSpec.VerifierSpec(
+                "FILE_EXISTS", null, "first.txt", null, List.of(), List.of(), false);
+        LoopSpec.VerifierSpec secondContent = new LoopSpec.VerifierSpec(
+                "FILE_EXISTS", null, "second.txt", null, List.of(), List.of(), false);
+        return new LoopSpec("v1", projectId, "Verify package-local workspace changes", null, List.of(
+                new LoopSpec.StageSpec("Package one", List.of("first.txt"), List.of(), List.of("first.txt"),
+                        List.of(firstDiff, firstContent), List.of(), null, null, "WP-1"),
+                new LoopSpec.StageSpec("Package two", List.of("second.txt"), List.of(), List.of("second.txt"),
+                        List.of(secondDiff, secondContent), List.of(), null, null, "WP-2")),
+                null, null, null, null);
     }
     private String gitProject() throws Exception {
         Path root = Files.createDirectory(temp.resolve("git-" + System.nanoTime()));
