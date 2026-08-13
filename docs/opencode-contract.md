@@ -75,6 +75,14 @@ exception semantics, scope, or acceptance intent requests at most one automatic
 full replacement from a fresh Designer Session for the current package. Format errors cannot be
 relabelled as design gaps. Retry exhaustion or optimistic draft conflict leaves
 the draft unchanged and exposes explicit manual decomposition/package recovery.
+The initial Compiler prompt and every format-repair turn repeat the same complete
+machine contract: collection properties remain JSON arrays, each verifier is an
+object rather than a command string, `PROCESS.command` is direct argv,
+`criterionIds`/`testTargets` are arrays, and `verificationRuntime` is either
+`null` or the documented managed-runtime object—never a test-framework label.
+A canonical `JAVA_PRODUCTION` envelope includes the focused Maven/Gradle test,
+criterion mapping, source excerpt, handoff, and empty `designGaps`, so a weaker
+model does not have to infer Java record nesting from a Jackson error message.
 Each requirement revision permits at most 24 model calls across all roles and
 one fresh-Session transport retry per role invocation. After every package
 passes, Loopper—not a model—concatenates fragments in package order and runs the

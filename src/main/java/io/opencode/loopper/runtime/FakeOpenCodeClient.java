@@ -17,6 +17,7 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     private final ConcurrentHashMap<String, String> judgeRoleBySession = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> judgeOutputByRole = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> promptBySession = new ConcurrentHashMap<>();
+    private final CopyOnWriteArrayList<PromptCall> promptHistory = new CopyOnWriteArrayList<>();
     private final ConcurrentHashMap<String, OpenCodeModel> modelBySession = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> detailBySession = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, PendingQuestion> pendingQuestionBySession = new ConcurrentHashMap<>();
@@ -69,6 +70,7 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     @Override public void promptAsync(OpenCodeSession session, String prompt) {
         promptCalls.incrementAndGet();
         promptBySession.put(session.id(), prompt);
+        promptHistory.add(new PromptCall(session.id(), prompt));
         if (failedPrompts.getAndUpdate(value -> Math.max(0, value - 1)) > 0) {
             throw new SessionFailure("OPENCODE_PROMPT_FAILED", "Deterministic Designer prompt transport failure");
         }
@@ -163,6 +165,7 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     public void setHealthy(boolean value) { healthy = value; }
     public OpenCodeModel modelForSession(String id) { return modelBySession.get(id); }
     public String promptForSession(String id) { return promptBySession.get(id); }
+    public List<PromptCall> promptHistory() { return List.copyOf(promptHistory); }
     public void failNextPrompts(int count) { failedPrompts.set(Math.max(0, count)); }
     public void failNextAborts(int count) { failedAborts.set(Math.max(0, count)); }
     public void setSessionState(String id, String state) { states.put(id, state); detailBySession.remove(id); }
@@ -196,7 +199,7 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     public void failNextReadOnlySessions(int count) { failedReadOnlySessions.set(Math.max(0, count)); }
     public void failNextReadOnlySessionCreations(int count) { failedReadOnlySessionCreations.set(Math.max(0, count)); }
     public void failNextReadOnlySessions(String role, int count) { failedReadOnlySessionsByRole.put(role.toUpperCase(), new AtomicInteger(Math.max(0, count))); }
-    public void reset() { states.clear(); readOnly.clear(); judgeRoleBySession.clear(); judgeOutputByRole.clear(); promptBySession.clear(); modelBySession.clear(); detailBySession.clear(); pendingQuestionBySession.clear(); answersByQuestion.clear(); rejectedQuestions.clear(); pendingPermissionsBySession.clear(); permissionRepliesByRequest.clear(); todosBySession.clear(); usageBySession.clear(); forkCalls.clear(); revertCalls.clear(); summarizeCalls.clear(); failedReadOnlySessionsByRole.clear(); failedReadOnlySessions.set(0); failedReadOnlySessionCreations.set(0); failedPrompts.set(0); failedAborts.set(0); createSessionCalls.set(0); createReadOnlySessionCalls.set(0); promptCalls.set(0); judgeOutput = "{\"verdict\":\"PASS\",\"reason\":\"确定性证据满足评审要求。\"}"; healthy = true; }
+    public void reset() { states.clear(); readOnly.clear(); judgeRoleBySession.clear(); judgeOutputByRole.clear(); promptBySession.clear(); promptHistory.clear(); modelBySession.clear(); detailBySession.clear(); pendingQuestionBySession.clear(); answersByQuestion.clear(); rejectedQuestions.clear(); pendingPermissionsBySession.clear(); permissionRepliesByRequest.clear(); todosBySession.clear(); usageBySession.clear(); forkCalls.clear(); revertCalls.clear(); summarizeCalls.clear(); failedReadOnlySessionsByRole.clear(); failedReadOnlySessions.set(0); failedReadOnlySessionCreations.set(0); failedPrompts.set(0); failedAborts.set(0); createSessionCalls.set(0); createReadOnlySessionCalls.set(0); promptCalls.set(0); judgeOutput = "{\"verdict\":\"PASS\",\"reason\":\"确定性证据满足评审要求。\"}"; healthy = true; }
     private String designerMarkdown(String output) {
         if (output == null) return null;
         return output.replaceAll("(?is)<!--\\s*LOOPSPEC_JSON_START\\s*-->.*?<!--\\s*LOOPSPEC_JSON_END\\s*-->", "").trim();
@@ -291,6 +294,7 @@ public class FakeOpenCodeClient implements OpenCodeClient {
         }
     }
     public record PermissionReplyCall(String sessionId, String requestId, PermissionReply reply, String message) { }
+    public record PromptCall(String sessionId, String prompt) { }
     public record ForkCall(String parentSessionId, String childSessionId, String messageId) { }
     public record RevertCall(String sessionId, String messageId, String partId) { }
     public record SummarizeCall(String sessionId, OpenCodeModel model, boolean automatic) { }

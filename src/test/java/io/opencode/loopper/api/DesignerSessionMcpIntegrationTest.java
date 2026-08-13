@@ -54,7 +54,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "loopper.monitor-delay=1h", "loopper.designer-monitor-delay=1h",
         "loopper.mcp.bearer-token=designer-mcp-test-token",
         "spring.ai.mcp.server.protocol=STREAMABLE", "spring.ai.mcp.server.name=opencode-loopper",
-        "spring.ai.mcp.server.version=0.1.41", "spring.ai.mcp.server.annotation-scanner.enabled=false",
+        "spring.ai.mcp.server.version=0.1.42", "spring.ai.mcp.server.annotation-scanner.enabled=false",
         "spring.ai.mcp.server.capabilities.resource=false", "spring.ai.mcp.server.capabilities.prompt=false",
         "spring.ai.mcp.server.capabilities.completion=false",
         "spring.ai.mcp.server.streamable-http.mcp-endpoint=/api/mcp-streamable",
@@ -300,6 +300,37 @@ class DesignerSessionMcpIntegrationTest {
     }
 
     @Test
+    void packageCompilerInitialAndRepairPromptsRepeatCompleteJsonTypeContract() throws Exception {
+        ProjectRow project = project("compiler-contract");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        fake().setDesignerOutput(designerOutput("# 完整 Java 设计\n\n新增生产代码并由聚焦单元测试证明行为。",
+                legacySpec(project.id())));
+        fake().setCompilerOutput("<!-- LOOPSPEC_COMPILATION_JSON_START -->{}<!-- LOOPSPEC_COMPILATION_JSON_END -->");
+
+        DesignerSessionRow session = designerSessions.create(project.id(), draft.id(), "新增 Java 行为并提供聚焦单元测试");
+        designerSessions.pollActiveHandoffs();
+
+        String compilerSessionId = designerSessions.compilerStatus(session.id()).externalSessionId();
+        List<String> compilerPrompts = fake().promptHistory().stream()
+                .filter(call -> compilerSessionId.equals(call.sessionId()))
+                .map(io.opencode.loopper.runtime.FakeOpenCodeClient.PromptCall::prompt)
+                .toList();
+        assertThat(compilerPrompts).hasSize(2);
+        assertThat(compilerPrompts).allSatisfy(prompt -> assertThat(prompt)
+                .contains("stages[*].verifiers[*] is a VerifierSpec JSON object")
+                .contains("\"command\":[\"mvn\",\"-q\",\"-Dtest=ExampleFocusedTest\",\"test\"]")
+                .contains("\"criterionIds\":[\"WP-1-AC-1\"]")
+                .contains("\"testTargets\":[\"ExampleFocusedTest\"]")
+                .contains("verificationRuntime is null for PROCESS-only stages")
+                .contains("It is never a test framework name such as", "MAVEN_JUNIT5")
+                .contains("designGaps entries are never strings"));
+        assertThat(compilerPrompts.getFirst()).contains("Canonical COMPILED envelope for a JAVA_PRODUCTION stage")
+                .contains("Put exactly one complete replacement object matching the canonical envelope above here.");
+        assertThat(compilerPrompts.get(1)).contains("Repair 1/2")
+                .contains("do not replace an object or array with a descriptive string");
+    }
+
+    @Test
     void manualPackageRecompileReactivatesTheSameRequirementAndCanCompleteAggregation() throws Exception {
         ProjectRow project = project("manual-recompile");
         LoopDraftRow draft = drafts.create(legacySpec(project.id()));
@@ -396,7 +427,7 @@ class DesignerSessionMcpIntegrationTest {
                         .accept(MediaType.APPLICATION_JSON, MediaType.TEXT_EVENT_STREAM).content(initialize))
                 .andExpect(status().isUnauthorized());
         MvcResult initialized = mvc.perform(streamable(initialize, null)).andExpect(status().isOk())
-                .andExpect(jsonPath("$.result.serverInfo.version").value("0.1.41")).andReturn();
+                .andExpect(jsonPath("$.result.serverInfo.version").value("0.1.42")).andReturn();
         String sessionId = initialized.getResponse().getHeader("Mcp-Session-Id");
         mvc.perform(streamable("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\",\"params\":{}}", sessionId))
                 .andExpect(status().isAccepted());

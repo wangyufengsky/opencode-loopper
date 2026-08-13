@@ -133,6 +133,14 @@ counters remain independent. Draft concurrency, exhausted budgets, and
 unassignable aggregation conflicts enter `WAITING_INPUT` without synchronizing
 the draft or creating a Task.
 
+Compiler is not expected to reverse-engineer backend DTOs from validation text.
+Its first prompt and both bounded repair prompts contain the same complete JSON
+type contract and canonical production-Java envelope. In particular, verifier,
+command, criterion mapping, test target, runtime and design-gap fields retain
+their object/array/null types. The deterministic validator still rejects any
+unsupported or semantically invalid value; the richer prompt does not weaken or
+bypass Review Gate.
+
 After every package passes, the server deterministically concatenates Stage
 fragments, raises only the minimum attempt/time limits, validates the complete
 LoopSpec, and atomically updates Review Gate at the frozen draft version. Review

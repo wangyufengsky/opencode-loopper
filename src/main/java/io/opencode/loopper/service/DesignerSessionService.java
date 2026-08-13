@@ -1747,15 +1747,17 @@ public class DesignerSessionService {
                 Existing implementationKind, direct PROCESS, behavior coverage, Java focused-unit-test, runtime, and
                 blocking deterministic verifier rules all apply.
 
+                %s
+
                 <!-- LOOPSPEC_COMPILATION_JSON_START -->
-                {"status":"COMPILED","summary":"...","stages":[{"objective":"...","allowedPaths":[],"forbiddenPaths":[],"deliverables":[],"verifiers":[],"acceptanceCriteria":[],"verificationRuntime":null,"implementationKind":"NON_JAVA","workPackageId":"%s"}],"criterionSources":[{"stageIndex":0,"criterionId":"%s-AC-1","excerpt":"exact design text"}],"handoffSummary":"...","designGaps":[]}
+                Put exactly one complete replacement object matching the canonical envelope above here.
                 <!-- LOOPSPEC_COMPILATION_JSON_END -->
 
                 Frozen package design revision %d for requirement R%d:
                 %s
                 """.formatted(project.rootPath(), workPackage.packageId(), workPackage.packageId(), draft.specJson(),
-                workPackage.packageId(), workPackage.packageId(), workPackage.packageId(), workPackage.designRevision(),
-                revision.revision(), design);
+                workPackage.packageId(), packageCompilerMachineContract(workPackage.packageId()),
+                workPackage.designRevision(), revision.revision(), design);
     }
 
     private String packageCompilerRepairPrompt(LoopSpecCompilationRow compilation, String code, String detail) {
@@ -1764,8 +1766,55 @@ public class DesignerSessionService {
                 envelope using the same frozen work-package design. Do not return a full LoopSpec, redesign, ask
                 questions, inspect another package, or use DESIGN_INCOMPLETE to escape format/validation errors.
                 Repair %d/%d. Error code: %s. Error detail: %s.
+                The replacement must follow this complete machine contract; do not infer Java record shapes from
+                the error text and do not replace an object or array with a descriptive string:
+
+                %s
+
                 Return one replacement object between LOOPSPEC_COMPILATION_JSON_START/END markers.
-                """.formatted(compilation.repairCount(), MAX_COMPILER_REPAIRS, code, safeMessage(detail));
+                """.formatted(compilation.repairCount(), MAX_COMPILER_REPAIRS, code, safeMessage(detail),
+                packageCompilerMachineContract(compilation.workPackageId()));
+    }
+
+    private String packageCompilerMachineContract(String packageId) {
+        String criterionId = packageId + "-AC-1";
+        return """
+                Strict JSON type contract (property names and JSON types are exact):
+                - stages, allowedPaths, forbiddenPaths, deliverables, verifiers, acceptanceCriteria,
+                  criterionSources, designGaps, command, criterionIds, testTargets, assertions, and startCommand are
+                  JSON arrays even when they contain only one item. Never emit a command or verifier as a string.
+                - stages[*].verifiers[*] is a VerifierSpec JSON object. A PROCESS verifier uses
+                  {"type":"PROCESS","command":["mvn","-q","-Dtest=ExampleFocusedTest","test"],"processPurpose":"TEST","testTargets":["ExampleFocusedTest"],"criterionIds":["%s"]}.
+                  processPurpose is BUILD, TEST, or SELF_CHECK. TEST has non-empty testTargets; SELF_CHECK has
+                  outputContains. command is direct argv and never one shell command string.
+                - stages[*].acceptanceCriteria[*] is
+                  {"id":"%s","description":"observable business result","verificationMode":"MACHINE|JUDGE|BOTH","judgeRubric":"required for JUDGE/BOTH or null","judgeOnlyReason":"required only for JUDGE or null"}.
+                - verificationRuntime is null for PROCESS-only stages. It is never a test framework name such as
+                  MAVEN_JUNIT5. Only an HTTP_STATUS, JSON_PATH, or BROWSER stage that starts its own service uses
+                  {"startCommand":["java","-jar","app.jar","--server.port={{LOOPPER_PORT}}"],"readiness":{"path":"/actuator/health","expectedStatus":200,"jsonPath":"$.status","expectedValue":"UP","matchMode":"EXACT"},"startupTimeoutSeconds":60,"shutdownTimeoutSeconds":10}.
+                - Other supported verifier object shapes are:
+                  GIT_DIFF {"type":"GIT_DIFF","requireChanges":true,"allowedPaths":["src/**"],"forbiddenPaths":[".env"],"forbidDeletes":true};
+                  HTTP_STATUS {"type":"HTTP_STATUS","url":"http://127.0.0.1:{{LOOPPER_PORT}}/path","httpMethod":"GET","expectedStatus":200,"criterionIds":["%s"]};
+                  JSON_PATH adds jsonPath, expectedValue, and matchMode; FILE_CONTENT uses path, expectedContent,
+                  matchMode, and criterionIds; FILE_HASH uses path, expectedSha256, and criterionIds;
+                  DATABASE_QUERY uses path, sql, expectedRowCount, and criterionIds; BROWSER uses url,
+                  criterionIds, and assertion objects {"type":"EXISTS|VISIBLE|TEXT_CONTAINS|COUNT|ATTRIBUTE_EQUALS","selector":"...","value":"... or null","attribute":"... or null","expectedCount":1}.
+                  FILE_NOT_EXISTS, JUNIT_XML, and legacy advisory FILE_EXISTS use a path and cannot cover behavior.
+                - implementationKind is exactly JAVA_PRODUCTION, JAVA_TEST_ONLY, or NON_JAVA. JAVA_PRODUCTION puts
+                  production Java and its focused Maven/Gradle PROCESS TEST in the same stage, and that TEST's
+                  criterionIds covers every MACHINE/BOTH criterion in the stage.
+                - Every stage sets workPackageId to "%s". Criterion ids are unique and use %s-AC-n. Every criterion
+                  has one criterionSources object {"stageIndex":0,"criterionId":"%s","excerpt":"exact non-empty Designer substring"}.
+                - COMPILED uses designGaps:[]. DESIGN_INCOMPLETE uses stages:[], criterionSources:[], and one or more
+                  objects such as {"code":"MISSING_OBSERVABLE_OUTCOME","detail":"concrete missing design fact"};
+                  allowed codes are MISSING_OBSERVABLE_OUTCOME, MISSING_EXCEPTION_SEMANTICS, MISSING_SCOPE, and
+                  MISSING_ACCEPTANCE_INTENT. designGaps entries are never strings.
+
+                Canonical COMPILED envelope for a JAVA_PRODUCTION stage (copy its JSON types and complete nesting;
+                replace example values with facts from the frozen design, and add up to three stages when needed):
+                {"status":"COMPILED","summary":"compiled package summary","stages":[{"objective":"observable stage result","allowedPaths":["src/main/java/**","src/test/java/**"],"forbiddenPaths":[".env"],"deliverables":["production implementation and focused test"],"verifiers":[{"type":"PROCESS","command":["mvn","-q","-Dtest=ExampleFocusedTest","test"],"processPurpose":"TEST","testTargets":["ExampleFocusedTest"],"criterionIds":["%s"]},{"type":"GIT_DIFF","requireChanges":true,"allowedPaths":["src/main/java/**","src/test/java/**"],"forbiddenPaths":[".env"],"forbidDeletes":true}],"acceptanceCriteria":[{"id":"%s","description":"observable business result","verificationMode":"BOTH","judgeRubric":"Confirm the implemented behavior matches the frozen design and deterministic test evidence.","judgeOnlyReason":null}],"verificationRuntime":null,"implementationKind":"JAVA_PRODUCTION","workPackageId":"%s"}],"criterionSources":[{"stageIndex":0,"criterionId":"%s","excerpt":"exact non-empty Designer substring"}],"handoffSummary":"bounded dependency handoff summary","designGaps":[]}
+                """.formatted(criterionId, criterionId, criterionId, packageId, packageId, criterionId,
+                criterionId, criterionId, packageId, criterionId);
     }
 
     private String designerPrompt(DesignerSessionRow session, ProjectRow project, String message) {

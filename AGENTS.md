@@ -41,10 +41,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.1.41.jar
-   jar tf target/opencode-loopper-0.1.41.jar \
+   test -s target/opencode-loopper-0.1.42.jar
+   jar tf target/opencode-loopper-0.1.42.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.1.41.jar
+   shasum -a 256 target/opencode-loopper-0.1.42.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -93,8 +93,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.1.41`。
-- 正式产物：`target/opencode-loopper-0.1.41.jar`。
+- Maven 项目版本：`0.1.42`。
+- 正式产物：`target/opencode-loopper-0.1.42.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -212,6 +212,7 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 - `DIRECT_DESIGN` 恰好一个包；大型任务拆成 2–6 个依赖有序的纵向业务包，每包 1–3 个 Stage、总计不超过 18 个。禁止把数据库、后端、前端、测试机械分层拆包。多项目根、超过六包或多个独立发布边界必须返回 `MULTI_TASK_REQUIRED` 并等待人工，不自动创建子 Task。
 - 工作包严格串行执行，每包使用全新的只读 Designer Session 和 Compiler Session，并使用当前配置的同一模型。Designer 只输出不超过 24 KiB UTF-8 的完整 Markdown；Compiler 只输出当前包 1–3 个 Stage、来源映射及不超过 4 KiB 的交接摘要。Stage/验收 ID 使用稳定 `workPackageId` 与 `<workPackageId>-AC-n`。
 - Decomposer JSON/结构错误最多修复两次；每包 Compiler 格式、字段、验证器、来源或覆盖错误最多修复两次；闭集语义缺口最多只让当前包完整重设计一次。每个只读角色已确认的传输失败允许一个全新 Session 重试。整个需求版本最多 24 次模型调用；各包内容次数互不挤占，但受全局上限约束。
+- Compiler 首次编译与每次格式修复必须注入同一份完整 JSON 类型合同和规范信封，明确集合、验证器、直接 argv、验收映射、测试目标、托管运行时及设计缺口的对象/数组/null 边界；不得要求模型从 Java 反序列化错误反推 DTO 结构，且丰富提示不能替代服务端确定性校验。
 - 全部包完成后只能由服务端按包顺序确定性聚合，不允许模型二次合并；聚合保留草稿模型、Session 策略、预算和重试模板，并只在最初冻结的 draft version 上原子同步。草稿并发变化必须在启动下一包前停止，不再消耗模型调用。
 - 只有完成、项目匹配、版本匹配且经服务端确定性验证通过的聚合 LoopSpec 才能同步到绑定草稿；模型不得自报校验成功。人工确认前仍不得写业务源码、创建 Task 或制造执行状态。
 - 确认时冻结完整 `REQUIREMENT_CONTEXT`、`DECOMPOSITION_CONTEXT`、每包 `WORK_PACKAGE_DESIGN`/`WORK_PACKAGE_COMPILATION_SUMMARY`，并保留组合 `DESIGN_CONTEXT` 兼容历史。执行提示按当前 Stage 的包只注入当前包设计、全局约束和前置包交接。
@@ -353,7 +354,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.1.41.jar
+JAR=target/opencode-loopper-0.1.42.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -488,3 +489,4 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 | 2026-08-13 | Designer / LoopSpec Compiler 双角色与 Java 单元测试硬门禁并发布 0.1.39 | V21 持久化冻结设计、独立只读 Compiler、确定性 Validator、角色消息和阶段 Java 基线；Compiler 两次修复、Designer 一次自动完整重设计及人工恢复；v2 `implementationKind` 与 Git/Direct 运行期单元测试门禁；前端多角色卡片；Session 创建失败保留原始错误并进入可恢复终态；同步 README、架构、设计、OpenCode、验证器合同与本公约正文 | 0.1.38 候选完整构建后，隔离链路发现 Session 创建失败会被二次状态转换错误覆盖，修复并按公约递增；0.1.39 聚焦 Designer/MCP Java 19/19、前端 141/141；`./scripts/verify.sh`：Java 333 项中 332 通过、Windows 条件用例 1 项跳过，Vitest 141/141，BUILD SUCCESS；真实 JAR PID 34565 监听 `127.0.0.1:61629`，经两个独立只读 Session 完成 Designer → Compiler → Validator → Review Gate，角色卡与聚焦 Java 测试合同正确、原始 Compiler JSON 未进入消息、Task 数为 0，退出后端口释放；JAR 262777458 bytes，SHA-256 `a10e854f2dba4f353808c39e414a9018e994974ac89599697c8a947993b4bb4b`；发布目标：`v0.1.39` |
 | 2026-08-13 | Task Decomposer、分包设计/执行与 0.1.40 | V22 冻结完整需求版本、独立只读 Decomposer、2–6 个纵向工作包、分包 Designer/Compiler/Validator 严格串行及确定性聚合；24 次全局模型调用预算、包内重试隔离、草稿并发停止；确认后单 Task/分支/发布、包级尝试池与当前包执行上下文；Recovery/MCP/模板兼容；前端角色卡、包轨道、Review Gate/历史/任务执行分组；同步 README、架构、设计、OpenCode、七特性合同与本公约正文 | 聚焦 Designer/MCP、包级尝试池、V22 迁移及前端角色/包视图通过；`./scripts/verify.sh`：Java 328 项中 327 通过、Windows 条件用例 1 项跳过，Vitest 143/143，BUILD SUCCESS；真实 JAR PID 54117 监听 `127.0.0.1:18140`，health `UP` 且返回打包 SPA；DIRECT 使用 3 个独立只读 Session，三包链路使用 7 个独立只读 Session 严格串行，聚合前项目 Task 数为 0、确认后为 1，三个包各 1 次 Attempt 后成功且最终仅 Requirement/Risk 两个 Judge PASS，执行提示只含当前包完整设计和前置包交接摘要；进程已停止；JAR 262857840 bytes，SHA-256 `5014e25588b833a5e222e17b0dab433fea4fecfe96151aa6b0514c22b8f4330d`；发布目标：`v0.1.40` |
 | 2026-08-13 | 修复排队任务无法取消并准备 0.1.41 | `QUEUED` 任务详情新增二次确认取消入口；只取消自身队列项且不释放当前 holder 写租约，进入 `CANCELLED` 后可归档和删除；同步 README、架构、设计合同与本公约正文 | 聚焦 TaskDetail Vitest 10/10、TaskService 49/49；`./scripts/verify.sh`：Java 329 项中 328 通过、Windows 条件用例 1 项跳过，Vitest 144/144，BUILD SUCCESS；JAR 262857697 bytes，SHA-256 `f07c952d3221c67fab8a28a58878c0f36611267f7c9e2b99caa15e7c8c008047`；未启动运行时；发布目标：`v0.1.41` |
+| 2026-08-13 | 修复弱模型 Compiler 连续输出错误 JSON 类型并发布 0.1.42 | 首次编译与两次修复共享完整 JSON 类型合同和规范生产 Java 信封；明确验证器对象、直接 argv、验收/测试数组、托管运行时 object/null 与设计缺口对象边界；去除输出标记旁会诱导空验证器的旧模板；同步 README、Designer/OpenCode 合同与本公约正文 | 聚焦 Designer/MCP 14/14、发布契约 7/7；`./scripts/verify.sh`：Java 330 项中 329 通过、Windows 条件用例 1 项跳过，Vitest 144/144，BUILD SUCCESS；真实 0.1.42 JAR PID 75683 监听 `127.0.0.1:8080`、health `UP`、受管 OpenCode 1.18.12 `AVAILABLE`；对原失败会话重编译后 JSON 首次即完成反序列化，仅一次验收映射修复即令 WP-1 的 12 条验收通过确定性校验并自动进入 WP-2；JAR 262861120 bytes，SHA-256 `e79d56eae92b68601e2e79d39d546bf666494b2448de4ef72a4fa75289b77f5c`；发布目标：`v0.1.42` |
