@@ -1,6 +1,7 @@
 package io.opencode.loopper.verification;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -224,6 +225,51 @@ public final class ProcessCommandPolicy {
             }
         }
         return false;
+    }
+
+    /**
+     * Extracts only test targets explicitly present in a recognized focused Maven/Gradle argv.
+     * The result is safe for mechanical LoopSpec canonicalization: it never guesses a test from
+     * source text, a full-suite command, or an exclusion-only selector.
+     */
+    public static List<String> explicitFocusedJavaTestTargets(List<String> command) {
+        if (command == null || command.isEmpty()) return List.of();
+        Normalization normalization = normalizeMavenCommand(command);
+        List<String> normalized = normalization.failure() == null ? normalization.command() : List.copyOf(command);
+        if (!isFocusedJavaTestCommand(normalized)) return List.of();
+
+        String executable = baseName(normalized.getFirst());
+        LinkedHashSet<String> targets = new LinkedHashSet<>();
+        if (MAVEN_EXECUTABLES.contains(executable)) {
+            for (String argument : normalized.stream().skip(1).toList()) {
+                if (argument == null) continue;
+                String compact = argument.replace(" ", "");
+                String lower = compact.toLowerCase(Locale.ROOT);
+                String value = null;
+                if (lower.startsWith("-dtest=")) value = compact.substring("-Dtest=".length());
+                else if (lower.startsWith("-dit.test=")) value = compact.substring("-Dit.test=".length());
+                if (value == null) continue;
+                for (String target : value.split(",")) {
+                    String explicit = target.trim();
+                    if (!explicit.isEmpty() && !explicit.startsWith("!")) targets.add(explicit);
+                }
+            }
+        } else if (GRADLE_EXECUTABLES.contains(executable)) {
+            for (int index = 1; index < normalized.size(); index++) {
+                String argument = normalized.get(index);
+                if (argument == null) continue;
+                if (argument.regionMatches(true, 0, "--tests=", 0, "--tests=".length())) {
+                    String target = argument.substring("--tests=".length()).trim();
+                    if (!target.isEmpty() && !target.startsWith("!")) targets.add(target);
+                } else if (argument.equalsIgnoreCase("--tests") && index + 1 < normalized.size()) {
+                    String target = normalized.get(++index);
+                    if (target != null && !target.isBlank() && !target.trim().startsWith("!")) {
+                        targets.add(target.trim());
+                    }
+                }
+            }
+        }
+        return List.copyOf(targets);
     }
 
     public static Path platformMavenWrapper(Path projectRoot, String osName) {

@@ -54,7 +54,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "loopper.monitor-delay=1h", "loopper.designer-monitor-delay=1h",
         "loopper.mcp.bearer-token=designer-mcp-test-token",
         "spring.ai.mcp.server.protocol=STREAMABLE", "spring.ai.mcp.server.name=opencode-loopper",
-        "spring.ai.mcp.server.version=0.1.47", "spring.ai.mcp.server.annotation-scanner.enabled=false",
+        "spring.ai.mcp.server.version=0.1.48", "spring.ai.mcp.server.annotation-scanner.enabled=false",
         "spring.ai.mcp.server.capabilities.resource=false", "spring.ai.mcp.server.capabilities.prompt=false",
         "spring.ai.mcp.server.capabilities.completion=false",
         "spring.ai.mcp.server.streamable-http.mcp-endpoint=/api/mcp-streamable",
@@ -532,7 +532,8 @@ class DesignerSessionMcpIntegrationTest {
                 "README 事件说明可执行自检"));
 
         String dependentExcerpt = "依赖前置包提供的 `EventPublisher`，发布事件后状态机推进到 PAID。";
-        String secondDesign = "# WP-2 设计\n\n" + dependentExcerpt;
+        String secondDesign = "# WP-2 设计\n\n" + dependentExcerpt
+                + "\n\n聚焦单元测试：`mvn -q -Dtest=EventStateBridgeTest test`。";
         fake().setPackageDesignerOutput("WP-2", secondDesign);
         fake().setPackageCompilerPlanningOutput("WP-2", mechanicallyInconsistentJavaPlan(
                 "依赖前置包提供的 EventPublisher，发布事件后状态机推进到 PAID。"));
@@ -560,6 +561,8 @@ class DesignerSessionMcpIntegrationTest {
                         .contains("immutable pre-execution baseline")
                         .contains("\"workPackageId\":\"WP-1\"")
                         .contains("\"state\":\"COMPLETED\"")
+                        .contains("Designer-declared focused test evidence")
+                        .contains("mvn -q -Dtest=EventStateBridgeTest test")
                         .contains("must not return", "MISSING_SCOPE"));
         assertThat(mapper.listTasks()).isEmpty();
     }
@@ -661,7 +664,7 @@ class DesignerSessionMcpIntegrationTest {
                         .accept(MediaType.APPLICATION_JSON, MediaType.TEXT_EVENT_STREAM).content(initialize))
                 .andExpect(status().isUnauthorized());
         MvcResult initialized = mvc.perform(streamable(initialize, null)).andExpect(status().isOk())
-                .andExpect(jsonPath("$.result.serverInfo.version").value("0.1.47")).andReturn();
+                .andExpect(jsonPath("$.result.serverInfo.version").value("0.1.48")).andReturn();
         String sessionId = initialized.getResponse().getHeader("Mcp-Session-Id");
         mvc.perform(streamable("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\",\"params\":{}}", sessionId))
                 .andExpect(status().isAccepted());
@@ -847,8 +850,8 @@ class DesignerSessionMcpIntegrationTest {
         mapping.put("judgeRubric", null);
         mapping.put("judgeOnlyReason", null);
         mapping.put("verifierStrategy", "EventStateBridgeTest 聚焦 Maven 单元测试");
-        mapping.put("testCommand", testCommand);
-        mapping.put("testTargets", List.of("EventStateBridgeTest"));
+        mapping.put("testCommand", List.of());
+        mapping.put("testTargets", List.of());
         Map<String, Object> envelope = new LinkedHashMap<>();
         envelope.put("contractVersion", 2);
         envelope.put("status", "COMPILED");

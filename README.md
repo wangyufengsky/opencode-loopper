@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.1.47`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.1.48`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -113,7 +113,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.1.47.jar
+java -jar target/opencode-loopper-0.1.48.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -330,7 +330,7 @@ Git 任务分支达到 `SUCCEEDED` 后：
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.1.47.jar`
+- `target/opencode-loopper-0.1.48.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -361,7 +361,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:51234
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.1.47.jar`
+- `opencode-loopper-0.1.48.jar`
 - `start-windows.bat`
 
 确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
@@ -399,7 +399,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.1.47.jar \
+jar tf target/opencode-loopper-0.1.48.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -478,7 +478,7 @@ Windows PowerShell：
 例如发布下一版本：
 
 ```bash
-VERSION=0.1.47
+VERSION=0.1.48
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -518,7 +518,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.1.47.jar
+java -jar target/opencode-loopper-0.1.48.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。
@@ -588,6 +588,8 @@ echo %PATHEXT%
 `0.1.46` 加固弱模型的 Decomposer 输出接入：规划与最终拆解仍优先使用显式 marker，但 marker 丢失时允许一个完整裸 JSON 对象或一个独立 `json` 代码块继续进入同一套确定性字段、覆盖、依赖和边界校验；夹带说明文字、多个对象及残缺 JSON 仍拒绝并计入原步骤修复预算。运行环境页同时展示由服务端 Runtime API 返回的 OpenCode Loopper 版本，避免把前端包版本或 OpenCode CLI 版本误当成当前服务版本。
 
 `0.1.47` 修正分包 Compiler 对严格串行依赖的误判：Designer/Compiler 看到的是执行前仓库基线，前置包 `COMPLETED` 后会把冻结目标、编译摘要和交接合同注入后续包；后续 Compiler 不再因当前基线尚无前置交付物而返回 `MISSING_SCOPE`。服务端同时接管验收 ID 连续编号、唯一可恢复的 Designer 精确原文片段，以及证据映射到同命令 TEST 验证器的 `criterionIds`/`testTargets` 传播；Stage、业务验收、测试命令与证据语义仍由 AI Compiler 规划，规范化后仍执行原有 LoopSpec v2 硬校验。
+
+`0.1.48` 强化 Compiler 的 Java 单测证据合同：Designer 已明确写出的聚焦 Maven/Gradle 命令和测试类会作为强制证据清单进入首次规划与修复提示；服务端从安全的 `-Dtest`、`-Dit.test`、`--tests` 参数提取测试目标，并在同一 Java Stage 只有一个无歧义匹配时补齐遗漏的 `testCommand`、`testTargets`、`criterionIds` 或等价 TEST 验证器。服务端不从普通描述或全量测试命令猜测测试，也不在多个候选间擅自选择；真正缺失或存在歧义时仍由权威校验阻断并消耗原修复预算。
 
 生产 Java 单元测试硬门禁继续逐 Stage 生效：`JAVA_PRODUCTION` 必须配置未跳过的聚焦 Maven/Gradle `PROCESS TEST`、明确 `testTargets`，并覆盖该 Stage 的全部机器业务验收项；真实生产 Java 变化与声明不一致或缺少聚焦测试时均阻断当前 Attempt。
 

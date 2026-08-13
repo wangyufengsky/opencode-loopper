@@ -41,10 +41,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.1.47.jar
-   jar tf target/opencode-loopper-0.1.47.jar \
+   test -s target/opencode-loopper-0.1.48.jar
+   jar tf target/opencode-loopper-0.1.48.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.1.47.jar
+   shasum -a 256 target/opencode-loopper-0.1.48.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -93,8 +93,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.1.47`。
-- 正式产物：`target/opencode-loopper-0.1.47.jar`。
+- Maven 项目版本：`0.1.48`。
+- 正式产物：`target/opencode-loopper-0.1.48.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -215,7 +215,7 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 - Decomposer 和每包 Compiler 的“规划/证据映射”与“最终 JSON”各有独立的最多两次格式修复预算；规划修复耗尽后如成功冻结，不得挤占最终 JSON 的修复机会。闭集语义缺口最多只让当前包完整重设计一次。每个只读角色已确认的传输失败允许一个全新 Session 重试。整个需求版本最多 32 次模型调用；六包无重试链路固定消耗 20 次，各包内容次数互不挤占但受全局上限约束。
 - Decomposer 规划与最终输出优先解析精确 marker；弱模型移除 marker 时，只允许完整输出为一个顶层 JSON object，或仅用一个 `json` 代码块包裹该 object。夹带说明文字、多个对象、数组根或残缺 JSON 必须拒绝，并继续执行原步骤修复与全部确定性语义校验。
 - Compiler 的规划、最终生成与格式修复提示必须注入当前步骤的完整 JSON 类型合同和规范信封，明确集合、验证器、直接 argv、验收映射、测试目标、托管运行时及设计缺口的对象/数组/null 边界；不得要求模型从 Java 反序列化错误反推 DTO 结构。v2 分包规划必须使用 `contractVersion=2` 并携带完整 `VerifierSpec` 蓝图和可选 `verificationRuntime`；服务端必须在冻结规划前使用权威 LoopSpec v2 执行合同校验直接命令、行为覆盖、Java 聚焦测试及运行时绑定，最终 JSON 只能逐字段复制该蓝图。丰富提示不能替代服务端确定性校验。
-- 分包 Designer/Compiler 读取的仓库是不可变的执行前基线；前置包 `COMPLETED` 表示其设计、编译和校验合同已通过，不表示生产文件已写入基线仓库。服务端必须注入前置包的冻结目标、Compiler 摘要和交接合同；严格串行执行保证前置 Stage 先落地，因此当前 `read/glob/grep` 找不到前置交付物不得返回 `MISSING_SCOPE`。Compiler 负责 Stage/业务验收/证据语义；服务端在权威 v2 校验前确定性生成 `<workPackageId>-AC-n`、仅在唯一归一化匹配时恢复 Designer 精确原文、并把证据映射的聚焦 TEST `criterionIds`/`testTargets` 传播到命令一致的验证器；歧义匹配或缺少语义证据仍必须阻断。
+- 分包 Designer/Compiler 读取的仓库是不可变的执行前基线；前置包 `COMPLETED` 表示其设计、编译和校验合同已通过，不表示生产文件已写入基线仓库。服务端必须注入前置包的冻结目标、Compiler 摘要和交接合同；严格串行执行保证前置 Stage 先落地，因此当前 `read/glob/grep` 找不到前置交付物不得返回 `MISSING_SCOPE`。Compiler 负责 Stage/业务验收/证据语义；服务端在权威 v2 校验前确定性生成 `<workPackageId>-AC-n`、仅在唯一归一化匹配时恢复 Designer 精确原文，并把 Designer 明确列出的聚焦单测行作为强制证据注入规划/修复提示。服务端只允许从安全的 Maven/Gradle `-Dtest`、`-Dit.test`、`--tests` 显式选择器提取目标；同一 Java Stage 唯一匹配时可补齐重复的 `testCommand`/`testTargets`/`criterionIds` 或等价 TEST 验证器，不得从普通描述、全量测试或多个候选中猜测。歧义匹配或缺少语义证据仍必须阻断。
 - 全部包完成后只能由服务端按包顺序确定性聚合，不允许模型二次合并；聚合保留草稿模型、Session 策略、预算和重试模板，并只在最初冻结的 draft version 上原子同步。草稿并发变化必须在启动下一包前停止，不再消耗模型调用。
 - 只有完成、项目匹配、版本匹配且经服务端确定性验证通过的聚合 LoopSpec 才能同步到绑定草稿；模型不得自报校验成功。人工确认前仍不得写业务源码、创建 Task 或制造执行状态。
 - 确认时冻结完整 `REQUIREMENT_CONTEXT`、`DECOMPOSITION_CONTEXT`、每包 `WORK_PACKAGE_DESIGN`/`WORK_PACKAGE_COMPILATION_SUMMARY`，并保留组合 `DESIGN_CONTEXT` 兼容历史。执行提示按当前 Stage 的包只注入当前包设计、全局约束和前置包交接。
@@ -358,7 +358,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.1.47.jar
+JAR=target/opencode-loopper-0.1.48.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -456,6 +456,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-08-13 | 强化 Compiler 聚焦 Java 单测强合同并交付 0.1.48 | Designer 明确列出的单测命令/测试类作为强制证据清单进入 Compiler 首次规划与修复提示；服务端只从安全的 `-Dtest`/`-Dit.test`/`--tests` 显式选择器提取目标，并在同 Stage 唯一匹配时补齐 `testCommand`、`testTargets`、`criterionIds` 或等价 TEST 验证器；歧义与真实缺失继续由权威校验阻断；同步 README、架构、Designer/OpenCode 合同与本公约正文 | 聚焦 Compiler/命令策略/版本/打包 Java 33/33；首次完整验证被系统 Chrome 151 卡在 Playwright `newContext`，终止后显式使用本机 Playwright Chromium 重跑；最终 `./scripts/verify.sh`：Java 342 项中 341 通过、Windows 条件用例 1 项跳过，Vitest 144/144，BUILD SUCCESS；JAR `target/opencode-loopper-0.1.48.jar`，262904191 bytes，SHA-256 `ae5f677af1d3b959298f65fde1e2eeac585acfd41dd00e02cc7e98075f3795c9`，含版本 0.1.48 与前端静态资源；按用户当前要求未替换或重启 8080 本机实例 |
 | 2026-08-13 | 修正分包 Compiler 的前置包语义与机械字段失败，交付 0.1.47 | 后续包 Designer/Compiler 显式接收已完成前置包的冻结摘要/交接合同，不得把执行前基线缺少未落地交付物误判为 `MISSING_SCOPE`；服务端确定性规范验收 ID、唯一可恢复的原文片段和同命令 TEST 的重复映射字段，语义规划及权威 v2 校验不变；同步 README、架构、Designer/OpenCode 合同与本公约正文 | 聚焦 Designer/MCP Java 20/20、版本/运行环境/打包契约 Java 30/30 与 Vitest 144/144 已通过；完整 `./scripts/verify.sh` 通过（Java 339，失败 0、错误 0、按平台跳过 1；Vitest 144/144）；JAR `target/opencode-loopper-0.1.47.jar`，262898928 bytes，SHA-256 `f7fe92c1906304d24beef1565fda23ae55b76ab1fe3d760bdb0c0a848bce2e19`，含版本 0.1.47 与前端静态资源；GitHub Release 待标签触发；按用户要求不替换或重启当前本机实例 |
 | 2026-08-13 | 加固 Decomposer marker 丢失兼容并发布 0.1.46 | Decomposer 规划与最终 JSON 在精确 marker 外只接受一个完整裸 JSON object 或单独 `json` 代码块，继续执行全部确定性校验；运行环境页展示服务端 Runtime DTO 返回的 Loopper 版本，区别于 OpenCode CLI 版本；同步 README、架构、设计、OpenCode、七特性合同与本公约正文 | 聚焦 Runtime/Designer Java 22/22、Vitest 144/144 与前端构建通过；`./scripts/verify.sh`：Java 338 项中 337 通过、Windows 条件用例 1 项跳过，Vitest 144/144，BUILD SUCCESS；JAR 262892861 bytes，SHA-256 `cdf52a8f2b5b075fb5bafd5b06a99c17dcfdb07ac39908c29fa5f02080539bed`；发布目标：`v0.1.46`；按用户要求不替换或重启当前本机 0.1.45 实例 |
 | 2026-08-10 | 初始化根目录 Agent 公约 | 新增强制预读、结束更新、完整验证、单 JAR 打包和项目契约地图 | `./scripts/verify.sh`：Java 222/222、Vitest 114/114，BUILD SUCCESS；JAR 262557087 bytes，SHA-256 `84e40ee48a61a985877ec2d06cd49144e043327f9f4db805adc55065f0986dcf` |

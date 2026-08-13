@@ -221,8 +221,12 @@ predecessor summary/handoff as an available-at-execution contract, and Compiler
 must not turn baseline absence into `MISSING_SCOPE`. During Compiler planning,
 the model owns Stage and evidence semantics while the server owns mechanical
 criterion numbering, uniquely recoverable exact Designer slices, and propagation
-of evidence-mapping TEST targets/criterion IDs to the matching verifier. The
-normal v2 assessment still runs after canonicalization and remains authoritative.
+of evidence-mapping TEST targets/criterion IDs to the matching verifier. Explicit
+focused Maven/Gradle selectors in the frozen design or planned verifier are carried
+into the Compiler prompt and deterministically parsed; a unique Stage-level match
+may fill omitted duplicate commands/targets or the equivalent TEST verifier. Broad
+test suites and ambiguous candidates are never guessed. The normal v2 assessment
+still runs after canonicalization and remains authoritative.
 
 The confirmed aggregate still creates exactly one Task, one task branch, and
 one publication. Stage execution remains serial, while each package owns an

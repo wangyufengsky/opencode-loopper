@@ -114,9 +114,14 @@ exactly and any drift is rejected as `COMPILER_PLAN_VERIFIER_DRIFT`.
 Stable criterion numbering, exact-source slicing, and duplicated TEST verifier
 `criterionIds`/`testTargets` are server-owned encoding work: Loopper canonicalizes
 them from the semantic evidence mappings before running that unchanged v2
-assessment. Exact-source recovery is allowed only for one unique normalized
-match; ambiguity, missing business evidence, unsafe commands, or missing focused
-test commands/targets still consume the normal planning repair path.
+assessment. The planning prompt separately lists bounded Designer lines containing
+explicit focused Java tests, and marks every applicable named test as mandatory
+evidence. Loopper may extract `testTargets` only from explicit safe Maven/Gradle
+selectors and may copy or materialize the same focused verifier when the Stage
+mapping is unique. It does not invent targets, infer tests from source prose, or
+pick between multiple candidates. Exact-source recovery is allowed only for one
+unique normalized match; ambiguity, missing business evidence, unsafe commands,
+or genuinely missing focused tests still consume the normal planning repair path.
 Each requirement revision permits at most 32 model calls across all roles and
 one fresh-Session transport retry per role invocation. After every package
 passes, Loopper—not a model—concatenates fragments in package order and runs the

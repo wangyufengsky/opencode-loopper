@@ -25,6 +25,7 @@ import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.ProjectRow;
 import io.opencode.loopper.persistence.TaskDecompositionRow;
 import io.opencode.loopper.runtime.OpenCodeClient;
+import io.opencode.loopper.verification.ProcessCommandPolicy;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
@@ -80,6 +81,8 @@ public class DesignerSessionService {
     private static final Pattern COMPILATION_PLAN_PAYLOAD = Pattern.compile(
             "<!--\\s*LOOPSPEC_COMPILATION_PLAN_JSON_START\\s*-->(.*?)<!--\\s*LOOPSPEC_COMPILATION_PLAN_JSON_END\\s*-->",
             Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+    private static final Pattern DESIGNER_TEST_EVIDENCE = Pattern.compile(
+            "(?i)(?:-D(?:it\\.)?test\\s*=|--tests(?:\\s|=)|[A-Za-z_$][A-Za-z0-9_.$]*(?:Test|Tests)(?:\\.java)?)");
     /** Compatibility sanitization only: a Designer payload is never consumed as LoopSpec. */
     private static final Pattern LEGACY_DESIGNER_PAYLOAD = Pattern.compile(
             "<!--\\s*LOOPSPEC_JSON_START\\s*-->.*?<!--\\s*LOOPSPEC_JSON_END\\s*-->",
@@ -2025,28 +2028,56 @@ public class DesignerSessionService {
                                                                                PackageCompilationPlanEnvelope plan) {
         if (plan.contractVersion() < 2 || !"COMPILED".equals(plan.status())) return plan;
 
+        List<PlannedStage> stagesWithExplicitTestTargets = new ArrayList<>();
+        List<List<FocusedJavaTestEvidence>> focusedTestsByStage = new ArrayList<>();
+        for (PlannedStage stage : plan.stages()) {
+            if (stage == null) {
+                stagesWithExplicitTestTargets.add(null);
+                focusedTestsByStage.add(List.of());
+                continue;
+            }
+            List<LoopSpec.VerifierSpec> verifiers = stage.verifiers().stream()
+                    .map(this::canonicalizeExplicitTestTargets)
+                    .toList();
+            stagesWithExplicitTestTargets.add(new PlannedStage(stage.objective(), stage.allowedPaths(),
+                    stage.forbiddenPaths(), stage.deliverables(), verifiers, stage.verificationRuntime(),
+                    stage.implementationKind(), stage.workPackageId()));
+            LinkedHashMap<List<String>, FocusedJavaTestEvidence> focused = new LinkedHashMap<>();
+            for (LoopSpec.VerifierSpec verifier : verifiers) {
+                FocusedJavaTestEvidence evidence = focusedJavaTestEvidence(verifier);
+                if (evidence != null) focused.putIfAbsent(evidence.command(), evidence);
+            }
+            focusedTestsByStage.add(List.copyOf(focused.values()));
+        }
+
         List<CanonicalEvidenceMapping> canonical = new ArrayList<>();
         for (int index = 0; index < plan.evidenceMappings().size(); index++) {
             AcceptanceEvidenceMapping mapping = plan.evidenceMappings().get(index);
             if (mapping == null) continue;
             String criterionId = workPackage.packageId() + "-AC-" + (index + 1);
             String excerpt = canonicalDesignerExcerpt(design, mapping.designerExcerpt());
+            FocusedJavaTestEvidence evidence = canonicalizeMappingTestEvidence(mapping,
+                    stagesWithExplicitTestTargets, focusedTestsByStage);
             AcceptanceEvidenceMapping normalized = new AcceptanceEvidenceMapping(mapping.stageIndex(), criterionId,
                     mapping.description(), excerpt, mapping.verificationMode(), mapping.judgeRubric(),
-                    mapping.judgeOnlyReason(), mapping.verifierStrategy(), mapping.testCommand(),
-                    mapping.testTargets());
+                    mapping.judgeOnlyReason(), mapping.verifierStrategy(), evidence.command(),
+                    evidence.testTargets());
             canonical.add(new CanonicalEvidenceMapping(mapping.criterionId(), normalized));
         }
 
         List<PlannedStage> stages = new ArrayList<>();
-        for (int stageIndex = 0; stageIndex < plan.stages().size(); stageIndex++) {
-            PlannedStage stage = plan.stages().get(stageIndex);
+        for (int stageIndex = 0; stageIndex < stagesWithExplicitTestTargets.size(); stageIndex++) {
+            PlannedStage stage = stagesWithExplicitTestTargets.get(stageIndex);
             if (stage == null) {
                 stages.add(null);
                 continue;
             }
+            List<LoopSpec.VerifierSpec> plannedVerifiers = new ArrayList<>(stage.verifiers());
+            if (stage.implementationKind() == ImplementationKind.JAVA_PRODUCTION) {
+                appendMissingFocusedTestVerifiers(stageIndex, plannedVerifiers, canonical);
+            }
             List<LoopSpec.VerifierSpec> verifiers = new ArrayList<>();
-            for (LoopSpec.VerifierSpec verifier : stage.verifiers()) {
+            for (LoopSpec.VerifierSpec verifier : plannedVerifiers) {
                 verifiers.add(canonicalizePlannedVerifier(stageIndex, verifier, canonical));
             }
             stages.add(new PlannedStage(stage.objective(), stage.allowedPaths(), stage.forbiddenPaths(),
@@ -2058,11 +2089,92 @@ public class DesignerSessionService {
                 plan.designGaps());
     }
 
+    private FocusedJavaTestEvidence canonicalizeMappingTestEvidence(AcceptanceEvidenceMapping mapping,
+                                                                     List<PlannedStage> stages,
+                                                                     List<List<FocusedJavaTestEvidence>> focusedByStage) {
+        List<String> command = canonicalTestCommand(mapping.testCommand());
+        LinkedHashSet<String> targets = new LinkedHashSet<>(mapping.testTargets());
+        targets.addAll(ProcessCommandPolicy.explicitFocusedJavaTestTargets(command));
+        if (mapping.stageIndex() < 0 || mapping.stageIndex() >= stages.size()) {
+            return new FocusedJavaTestEvidence(command, List.copyOf(targets));
+        }
+        PlannedStage stage = stages.get(mapping.stageIndex());
+        boolean javaMachine = stage != null && stage.implementationKind() == ImplementationKind.JAVA_PRODUCTION
+                && Set.of("MACHINE", "BOTH").contains(mapping.verificationMode());
+        if (!javaMachine || (!command.isEmpty() && !targets.isEmpty())) {
+            return new FocusedJavaTestEvidence(command, List.copyOf(targets));
+        }
+
+        List<FocusedJavaTestEvidence> candidates = focusedByStage.get(mapping.stageIndex());
+        if (!command.isEmpty()) {
+            List<String> declaredCommand = command;
+            candidates = candidates.stream().filter(candidate -> candidate.command().equals(declaredCommand)).toList();
+        } else if (!targets.isEmpty()) {
+            candidates = candidates.stream().filter(candidate -> candidate.testTargets().containsAll(targets)).toList();
+        }
+        if (candidates.size() == 1) {
+            FocusedJavaTestEvidence candidate = candidates.getFirst();
+            if (command.isEmpty()) command = candidate.command();
+            targets.addAll(candidate.testTargets());
+        }
+        return new FocusedJavaTestEvidence(command, List.copyOf(targets));
+    }
+
+    private LoopSpec.VerifierSpec canonicalizeExplicitTestTargets(LoopSpec.VerifierSpec verifier) {
+        if (verifier == null) return null;
+        List<String> command = canonicalTestCommand(verifier.command());
+        LinkedHashSet<String> targets = new LinkedHashSet<>(verifier.testTargets());
+        if ("PROCESS".equals(verifier.type()) && "TEST".equals(verifier.processPurpose())) {
+            targets.addAll(ProcessCommandPolicy.explicitFocusedJavaTestTargets(command));
+        }
+        return copyVerifier(verifier, command, verifier.criterionIds(), List.copyOf(targets));
+    }
+
+    private FocusedJavaTestEvidence focusedJavaTestEvidence(LoopSpec.VerifierSpec verifier) {
+        if (verifier == null || !"PROCESS".equals(verifier.type()) || !"TEST".equals(verifier.processPurpose())
+                || !ProcessCommandPolicy.isFocusedJavaTestCommand(verifier.command())) return null;
+        LinkedHashSet<String> targets = new LinkedHashSet<>(verifier.testTargets());
+        targets.addAll(ProcessCommandPolicy.explicitFocusedJavaTestTargets(verifier.command()));
+        if (targets.isEmpty()) return null;
+        return new FocusedJavaTestEvidence(canonicalTestCommand(verifier.command()), List.copyOf(targets));
+    }
+
+    private List<String> canonicalTestCommand(List<String> command) {
+        if (command == null || command.isEmpty()) return List.of();
+        ProcessCommandPolicy.Normalization normalization = ProcessCommandPolicy.normalizeMavenCommand(command);
+        return normalization.failure() == null ? normalization.command() : List.copyOf(command);
+    }
+
+    private void appendMissingFocusedTestVerifiers(int stageIndex, List<LoopSpec.VerifierSpec> verifiers,
+                                                   List<CanonicalEvidenceMapping> canonical) {
+        for (CanonicalEvidenceMapping item : canonical) {
+            AcceptanceEvidenceMapping mapping = item.mapping();
+            if (mapping.stageIndex() != stageIndex
+                    || !Set.of("MACHINE", "BOTH").contains(mapping.verificationMode())
+                    || mapping.testCommand().isEmpty() || mapping.testTargets().isEmpty()
+                    || !ProcessCommandPolicy.isFocusedJavaTestCommand(mapping.testCommand())) continue;
+            boolean exists = verifiers.stream().filter(verifier -> verifier != null)
+                    .anyMatch(verifier -> "PROCESS".equals(verifier.type())
+                            && "TEST".equals(verifier.processPurpose())
+                            && canonicalTestCommand(verifier.command()).equals(mapping.testCommand()));
+            if (!exists) {
+                verifiers.add(new LoopSpec.VerifierSpec("PROCESS", mapping.testCommand(), null, null,
+                        List.of(), List.of(), null, null, null, null, null, null, null, null,
+                        null, null, null, null, List.of(), List.of(mapping.criterionId()), "TEST",
+                        mapping.testTargets()));
+            }
+        }
+    }
+
     private LoopSpec.VerifierSpec canonicalizePlannedVerifier(int stageIndex, LoopSpec.VerifierSpec verifier,
                                                                List<CanonicalEvidenceMapping> canonical) {
         if (verifier == null) return null;
         LinkedHashSet<String> criterionIds = new LinkedHashSet<>();
         LinkedHashSet<String> testTargets = new LinkedHashSet<>(verifier.testTargets());
+        List<String> command = canonicalTestCommand(verifier.command());
+        if ("PROCESS".equals(verifier.type()) && "TEST".equals(verifier.processPurpose())) {
+            testTargets.addAll(ProcessCommandPolicy.explicitFocusedJavaTestTargets(command));
+        }
         for (CanonicalEvidenceMapping item : canonical) {
             AcceptanceEvidenceMapping mapping = item.mapping();
             if (mapping.stageIndex() != stageIndex) continue;
@@ -2070,7 +2182,7 @@ public class DesignerSessionService {
                 criterionIds.add(mapping.criterionId());
             }
             if ("PROCESS".equals(verifier.type()) && "TEST".equals(verifier.processPurpose())
-                    && !mapping.testCommand().isEmpty() && verifier.command().equals(mapping.testCommand())) {
+                    && !mapping.testCommand().isEmpty() && command.equals(mapping.testCommand())) {
                 criterionIds.add(mapping.criterionId());
                 testTargets.addAll(mapping.testTargets());
             }
@@ -2084,12 +2196,24 @@ public class DesignerSessionService {
                         .forEach(criterionIds::add);
             }
         }
-        return new LoopSpec.VerifierSpec(verifier.type(), verifier.command(), verifier.path(),
+        return copyVerifier(verifier, command, List.copyOf(criterionIds), List.copyOf(testTargets));
+    }
+
+    private LoopSpec.VerifierSpec copyVerifier(LoopSpec.VerifierSpec verifier, List<String> command,
+                                               List<String> criterionIds, List<String> testTargets) {
+        return new LoopSpec.VerifierSpec(verifier.type(), command, verifier.path(),
                 verifier.requireChanges(), verifier.allowedPaths(), verifier.forbiddenPaths(),
                 verifier.forbidDeletes(), verifier.outputContains(), verifier.url(), verifier.httpMethod(),
                 verifier.expectedStatus(), verifier.jsonPath(), verifier.expectedValue(), verifier.matchMode(),
                 verifier.expectedContent(), verifier.expectedSha256(), verifier.sql(), verifier.expectedRowCount(),
-                verifier.assertions(), List.copyOf(criterionIds), verifier.processPurpose(), List.copyOf(testTargets));
+                verifier.assertions(), criterionIds, verifier.processPurpose(), testTargets);
+    }
+
+    private String designerDeclaredTestEvidence(String design) {
+        if (blank(design)) return "[]";
+        return write(design.lines().map(String::trim).filter(line -> !line.isEmpty())
+                .filter(line -> DESIGNER_TEST_EVIDENCE.matcher(line).find())
+                .map(line -> bounded(line, 512)).distinct().limit(24).toList());
     }
 
     private String canonicalDesignerExcerpt(String design, String candidate) {
@@ -2527,6 +2651,10 @@ public class DesignerSessionService {
                 the current repository. Report a semantic gap only when the required contract is absent from both the
                 frozen current design and the frozen prerequisite contract/handoff.
 
+                Designer-declared focused test evidence (exact frozen design lines; reuse these named tests and
+                commands instead of inventing replacements):
+                %s
+
                 %s
 
                 <!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->
@@ -2537,6 +2665,7 @@ public class DesignerSessionService {
                 %s
                 """.formatted(project.rootPath(), revision.revision(), workPackage.packageId(),
                 workPackage.packageId(), prerequisites,
+                designerDeclaredTestEvidence(design),
                 packageCompilerPlanningMachineContract(workPackage.packageId()),
                 workPackage.designRevision(), design);
     }
@@ -2577,11 +2706,16 @@ public class DesignerSessionService {
                   command strings are forbidden. For a NON_JAVA content self-check, use direct argv such as
                   {"type":"PROCESS","command":["python3","-c","from pathlib import Path; text=Path('README.md').read_text(); assert 'required phrase' in text; print('DOC_CHECK_OK')"],"processPurpose":"SELF_CHECK","outputContains":"DOC_CHECK_OK","criterionIds":["%s"]}; use GIT_DIFF separately for scope and never map criterionIds to GIT_DIFF.
                 - JAVA_PRODUCTION puts production code and its focused Maven/Gradle test in the same planned Stage.
-                  Every MACHINE/BOTH criterion in that Stage repeats the focused direct-argv testCommand and concrete
-                  testTargets it expects the final verifier to implement. Non-test evidence uses empty testCommand/
+                  This is a mandatory pre-submission invariant: every MACHINE/BOTH criterion in that Stage repeats
+                  the focused direct-argv testCommand and concrete non-empty testTargets it expects the final PROCESS
+                  TEST verifier to implement; that verifier must repeat the same testTargets and criterionIds. Reuse
+                  every applicable focused unit test explicitly named by the Designer. A full mvn/gradle test suite
+                  does not replace the required focused command. Non-test evidence uses empty testCommand/
                   testTargets but still names verifierStrategy. Tests are evidence, never a 'tests pass' criterion.
                 - The server deterministically canonicalizes criterion numbering, uniquely recoverable exact Designer
-                  source slices, and duplicated PROCESS TEST criterionIds/testTargets before authoritative validation.
+                  source slices, explicit test targets present in focused Maven/Gradle argv, and duplicated PROCESS
+                  TEST/evidence-mapping command, criterionIds, and testTargets before authoritative validation when
+                  the mapping is unique. Ambiguous or semantically missing tests still fail validation.
                   Preserve the semantic Stage, behavior, evidence strategy, focused test argv, and concrete target;
                   do not spend a design-gap response on mechanical identifier or duplicated-field bookkeeping.
                 - COMPILED has 1-3 stages, at least one evidence mapping per Stage, handoffSummary <=4 KiB UTF-8,
@@ -2709,6 +2843,10 @@ public class DesignerSessionService {
                 The repository is the pre-execution baseline. A prerequisite with state COMPLETED executes before
                 this package; its current file absence is not a design gap and must not be returned as MISSING_SCOPE.
 
+                Designer-declared focused test evidence (exact frozen design lines; all applicable named tests are
+                mandatory evidence and must be copied into testCommand/testTargets and PROCESS TEST verifiers):
+                %s
+
                 %s
 
                 Return one replacement object between LOOPSPEC_COMPILATION_PLAN_JSON_START/END markers.
@@ -2716,7 +2854,8 @@ public class DesignerSessionService {
                 Frozen work-package design:
                 %s
                 """.formatted(compilation.planningRepairCount(), MAX_COMPILER_REPAIRS, code, safeMessage(detail),
-                prerequisites, packageCompilerPlanningMachineContract(workPackage.packageId()), design);
+                prerequisites, designerDeclaredTestEvidence(design),
+                packageCompilerPlanningMachineContract(workPackage.packageId()), design);
     }
 
     private String packageCompilerTransportRetryPrompt(LoopSpecCompilationRow row, DesignerSessionRow session,
@@ -3584,6 +3723,12 @@ public class DesignerSessionService {
     }
     private record CanonicalEvidenceMapping(String originalCriterionId,
                                             AcceptanceEvidenceMapping mapping) { }
+    private record FocusedJavaTestEvidence(List<String> command, List<String> testTargets) {
+        private FocusedJavaTestEvidence {
+            command = command == null ? List.of() : List.copyOf(command);
+            testTargets = testTargets == null ? List.of() : List.copyOf(testTargets);
+        }
+    }
     private record NormalizedEvidenceText(String text, List<Integer> starts,
                                           List<Integer> ends) { }
     public record PackageCompilationPlanEnvelope(Integer contractVersion, String status, String summary,

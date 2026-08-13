@@ -160,9 +160,16 @@ in the evidence-mapping turn. Before that assessment, the server deterministical
 numbers criteria as `<workPackageId>-AC-n`, restores an exact source slice when
 the model's excerpt has one unique whitespace/Markdown-format-insensitive match,
 and copies focused TEST `criterionIds`/`testTargets` from the corresponding
-evidence mapping into the matching verifier command. Ambiguous or absent source
-matches and semantically incomplete test evidence still fail the authoritative
-validation. The server freezes this bounded planning envelope
+evidence mapping into the matching verifier command. Designer lines that explicitly
+name focused Maven/Gradle commands or unit-test targets are also injected as a
+bounded mandatory-evidence list in the initial and repair prompts. When a focused
+command contains an explicit `-Dtest`, `-Dit.test`, or `--tests` selector, Loopper
+extracts those targets without executing a shell; if a Java Stage has exactly one
+matching focused TEST, the server fills omitted duplicate `testCommand`/`testTargets`
+fields and can materialize the equivalent verifier blueprint before validation.
+Loopper never invents a test from prose, a broad full-suite command, or an ambiguous
+set of focused tests. Ambiguous or absent source matches and semantically incomplete
+test evidence still fail the authoritative validation. The server freezes this bounded planning envelope
 before asking for final JSON. The second turn may only
 encode the frozen plan, so work-package boundaries, Stage fields, acceptance
 intent, source excerpts, verifier/runtime objects, test evidence and handoff summaries cannot silently
