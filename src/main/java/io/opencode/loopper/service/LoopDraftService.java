@@ -14,7 +14,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import jakarta.validation.Validator;
@@ -101,6 +104,7 @@ public class LoopDraftService {
             throw new BadRequestException("LOOPSPEC_SCHEMA_IMMUTABLE",
                     "Persisted drafts cannot change schemaVersion; copy the draft to upgrade it");
         }
+        preserveAggregatedWorkPackageMapping(oldSpec, spec);
         reject(assessment(spec, true, true).errors());
         if (LoopDraftStatus.CONFIRMED.name().equals(old.status())) throw new ConflictException("DRAFT_CONFIRMED", "Confirmed LoopSpec is immutable; create a new draft");
         if (!old.projectId().equals(spec.projectId())) throw new BadRequestException("DRAFT_PROJECT_MISMATCH", "LoopSpec projectId cannot be changed");
@@ -141,6 +145,7 @@ public class LoopDraftService {
                 throw new ConflictException("DESIGN_WORKFLOW_NOT_COMPLETED",
                         "Review Gate cannot be confirmed until decomposition and every work package complete");
             }
+            validateCompletedWorkPackageMapping(session.id(), spec(draft));
         });
         validateExecutionContract(spec(draft));
         io.opencode.loopper.persistence.TaskRow task = tasks.createFromDraft(draft, title, admissionSource, isolatedBaseline);
@@ -302,6 +307,42 @@ public class LoopDraftService {
                 verifier.expectedValue(), verifier.matchMode(), verifier.expectedContent(), verifier.expectedSha256(),
                 verifier.sql(), verifier.expectedRowCount(), verifier.assertions(), verifier.criterionIds(),
                 verifier.processPurpose(), verifier.testTargets());
+    }
+
+    private void preserveAggregatedWorkPackageMapping(LoopSpec oldSpec, LoopSpec updatedSpec) {
+        List<String> oldMapping = oldSpec.stages().stream().map(LoopSpec.StageSpec::workPackageId).toList();
+        if (oldMapping.stream().noneMatch(id -> !blank(id))) return;
+        List<String> updatedMapping = updatedSpec.stages().stream().map(LoopSpec.StageSpec::workPackageId).toList();
+        if (!oldMapping.equals(updatedMapping)) {
+            throw new BadRequestException("WORK_PACKAGE_MAPPING_IMMUTABLE",
+                    "Aggregated Stage workPackageId mapping cannot be removed or changed; restart package design to change package boundaries");
+        }
+    }
+
+    private void validateCompletedWorkPackageMapping(String designerSessionId, LoopSpec spec) {
+        mapper.findCurrentDesignRequirementRevision(designerSessionId).ifPresent(revision -> {
+            List<String> expected = mapper.listDesignWorkPackages(revision.id()).stream()
+                    .map(io.opencode.loopper.persistence.DesignWorkPackageRow::packageId).toList();
+            if (expected.isEmpty()) return;
+            Map<String, Integer> order = new LinkedHashMap<>();
+            for (int index = 0; index < expected.size(); index++) order.put(expected.get(index), index);
+            Set<String> represented = new LinkedHashSet<>();
+            int previous = -1;
+            for (LoopSpec.StageSpec stage : spec.stages()) {
+                Integer current = order.get(stage.workPackageId());
+                if (current == null || current < previous) {
+                    throw invalidWorkPackageMapping();
+                }
+                previous = current;
+                represented.add(stage.workPackageId());
+            }
+            if (!represented.equals(new LinkedHashSet<>(expected))) throw invalidWorkPackageMapping();
+        });
+    }
+
+    private BadRequestException invalidWorkPackageMapping() {
+        return new BadRequestException("WORK_PACKAGE_STAGE_MAPPING_INVALID",
+                "Completed package design requires every Stage to retain its dependency-ordered workPackageId before confirmation");
     }
 
     private void reject(List<String> errors) {

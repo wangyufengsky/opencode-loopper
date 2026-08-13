@@ -131,6 +131,7 @@ function parseLoopSpec(value: unknown): LoopSpec {
       const runtime = asRecord(item.verificationRuntime)
       const readiness = asRecord(runtime.readiness)
       return {
+        ...(asString(item.workPackageId) ? { workPackageId: asString(item.workPackageId) } : {}),
         objective: asString(item.objective), allowedPaths: asArray(item.allowedPaths).map(String), forbiddenPaths: asArray(item.forbiddenPaths).map(String), deliverables: asArray(item.deliverables).map(String), verifiers: asArray(item.verifiers).map(parseVerifier),
         ...(['JAVA_PRODUCTION', 'JAVA_TEST_ONLY', 'NON_JAVA'].includes(asString(item.implementationKind)) ? { implementationKind: asString(item.implementationKind) as 'JAVA_PRODUCTION' | 'JAVA_TEST_ONLY' | 'NON_JAVA' } : {}),
         acceptanceCriteria: asArray(item.acceptanceCriteria).map((criterion) => {

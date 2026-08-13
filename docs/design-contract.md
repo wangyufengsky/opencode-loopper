@@ -212,8 +212,12 @@ only through the right-hand Review Gate; it is neither persisted as chat content
 nor copied from SSE into the conversation. Page refresh restores cards and
 workflow state from the server snapshot. A transient browser GET failure keeps
 the page in bounded-backoff reconnect without fabricating model output or a
-validation result. The structured editor round-trips every LoopSpec limit,
-model selection, Session policy, and next-Attempt prompt template.
+validation result. The structured editor round-trips every Stage
+`workPackageId`, LoopSpec limit, model selection, Session policy, and
+next-Attempt prompt template. Saving or confirming an aggregated package draft
+must not flatten its Stage mapping; the server rejects removal, reordering, or
+reassignment of an existing package mapping, and confirmation also verifies
+that every completed package remains represented in dependency order.
 
 Task detail groups Stage progress by `workPackageId` and displays the independent
 attempt pool. Historical design restores the frozen requirement, Decomposer

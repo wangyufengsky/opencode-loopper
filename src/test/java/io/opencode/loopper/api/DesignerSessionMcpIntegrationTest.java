@@ -13,6 +13,7 @@ import io.opencode.loopper.persistence.TaskArtifactRow;
 import io.opencode.loopper.persistence.TaskRow;
 import io.opencode.loopper.runtime.FakeOpenCodeClient;
 import io.opencode.loopper.runtime.OpenCodeClient;
+import io.opencode.loopper.service.BadRequestException;
 import io.opencode.loopper.service.DesignerSessionService;
 import io.opencode.loopper.service.LoopDraftService;
 import io.opencode.loopper.service.ProjectService;
@@ -54,7 +55,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "loopper.monitor-delay=1h", "loopper.designer-monitor-delay=1h",
         "loopper.mcp.bearer-token=designer-mcp-test-token",
         "spring.ai.mcp.server.protocol=STREAMABLE", "spring.ai.mcp.server.name=opencode-loopper",
-        "spring.ai.mcp.server.version=0.1.48", "spring.ai.mcp.server.annotation-scanner.enabled=false",
+        "spring.ai.mcp.server.version=0.1.49", "spring.ai.mcp.server.annotation-scanner.enabled=false",
         "spring.ai.mcp.server.capabilities.resource=false", "spring.ai.mcp.server.capabilities.prompt=false",
         "spring.ai.mcp.server.capabilities.completion=false",
         "spring.ai.mcp.server.streamable-http.mcp-endpoint=/api/mcp-streamable",
@@ -154,6 +155,9 @@ class DesignerSessionMcpIntegrationTest {
                 .containsExactly("WP-1", "WP-2", "WP-3");
         assertThat(aggregate.limits().maxTaskAttempts()).isGreaterThanOrEqualTo(9);
         assertThat(mapper.listTasks()).isEmpty();
+        assertThatThrownBy(() -> drafts.update(draft.id(), withoutWorkPackageIds(aggregate)))
+                .isInstanceOfSatisfying(BadRequestException.class, error ->
+                        assertThat(error.code()).isEqualTo("WORK_PACKAGE_MAPPING_IMMUTABLE"));
 
         TaskRow task = drafts.confirm(draft.id(), "三包任务");
         assertThat(mapper.listTasks()).hasSize(1);
@@ -183,6 +187,16 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(fake().createReadOnlySessionCalls()).isEqualTo(13);
         assertThat(drafts.spec(drafts.get(draft.id())).stages()).extracting(LoopSpec.StageSpec::workPackageId)
                 .containsExactly("WP-1", "WP-2", "WP-3", "WP-4", "WP-5", "WP-6");
+        assertThat(mapper.listTasks()).isEmpty();
+
+        LoopDraftRow stored = drafts.get(draft.id());
+        LoopSpec flattened = withoutWorkPackageIds(drafts.spec(stored));
+        LoopDraftRow corrupted = new LoopDraftRow(stored.id(), stored.projectId(), stored.goal(),
+                json.writeValueAsString(flattened), stored.status(), stored.createdAt(), stored.updatedAt(), stored.version());
+        assertThat(mapper.updateDraftContent(corrupted)).isOne();
+        assertThatThrownBy(() -> drafts.confirm(draft.id(), "不得扁平化的六包任务"))
+                .isInstanceOfSatisfying(BadRequestException.class, error ->
+                        assertThat(error.code()).isEqualTo("WORK_PACKAGE_STAGE_MAPPING_INVALID"));
         assertThat(mapper.listTasks()).isEmpty();
     }
 
@@ -664,7 +678,7 @@ class DesignerSessionMcpIntegrationTest {
                         .accept(MediaType.APPLICATION_JSON, MediaType.TEXT_EVENT_STREAM).content(initialize))
                 .andExpect(status().isUnauthorized());
         MvcResult initialized = mvc.perform(streamable(initialize, null)).andExpect(status().isOk())
-                .andExpect(jsonPath("$.result.serverInfo.version").value("0.1.48")).andReturn();
+                .andExpect(jsonPath("$.result.serverInfo.version").value("0.1.49")).andReturn();
         String sessionId = initialized.getResponse().getHeader("Mcp-Session-Id");
         mvc.perform(streamable("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\",\"params\":{}}", sessionId))
                 .andExpect(status().isAccepted());
@@ -924,6 +938,15 @@ class DesignerSessionMcpIntegrationTest {
                 new LoopSpec.Limits(3, 3, 2, 2, 3600L, 120L, 60L),
                 new LoopSpec.ModelSpec("opencode", "deepseek", false),
                 new LoopSpec.SessionPolicy(true, true), "Continue from verified evidence");
+    }
+
+    private LoopSpec withoutWorkPackageIds(LoopSpec spec) {
+        List<LoopSpec.StageSpec> stages = spec.stages().stream().map(stage -> new LoopSpec.StageSpec(
+                stage.objective(), stage.allowedPaths(), stage.forbiddenPaths(), stage.deliverables(),
+                stage.verifiers(), stage.acceptanceCriteria(), stage.verificationRuntime(),
+                stage.implementationKind(), null)).toList();
+        return new LoopSpec(spec.schemaVersion(), spec.projectId(), spec.goal(), spec.context(), stages,
+                spec.limits(), spec.model(), spec.sessionPolicy(), spec.nextAttemptPromptTemplate(), spec.budget());
     }
 
     private LoopSpec v2DocumentationSpec(String projectId) {

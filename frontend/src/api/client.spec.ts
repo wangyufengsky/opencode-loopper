@@ -76,7 +76,7 @@ describe('Loopper REST contract adapter', () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(json({ id: 'draft-1', status: 'DRAFT_READY', updatedAt: 'now', spec }, 201))
       .mockResolvedValueOnce(json({ taskId: 'task-1' }))
-      .mockResolvedValueOnce(json({ loopperVersion: '0.1.48', status: 'OFFLINE', managed: false, endpoint: 'http://127.0.0.1:51234', checkedAt: 'now', startupFailure: 'Managed OpenCode exited with code 1 before it became healthy' }))
+      .mockResolvedValueOnce(json({ loopperVersion: '0.1.49', status: 'OFFLINE', managed: false, endpoint: 'http://127.0.0.1:51234', checkedAt: 'now', startupFailure: 'Managed OpenCode exited with code 1 before it became healthy' }))
     vi.stubGlobal('fetch', fetchMock)
 
     await api.createDraft(spec)
@@ -86,7 +86,7 @@ describe('Loopper REST contract adapter', () => {
 
     await expect(api.confirmDraft('draft-1')).resolves.toEqual({ taskId: 'task-1' })
     await expect(api.getRuntime()).resolves.toMatchObject({
-      loopperVersion: '0.1.48', status: 'OFFLINE', managed: false, endpoint: 'http://127.0.0.1:51234',
+      loopperVersion: '0.1.49', status: 'OFFLINE', managed: false, endpoint: 'http://127.0.0.1:51234',
       startupFailure: 'Managed OpenCode exited with code 1 before it became healthy',
     })
   })
@@ -198,6 +198,28 @@ describe('Loopper REST contract adapter', () => {
       sessionPolicy: { reuseHealthySession: false, createFreshOnVerifierFailure: false },
       nextAttemptPromptTemplate: '修复 ${failureSummary}',
     })
+  })
+
+  it('round-trips aggregate Stage workPackageId values without flattening the Task', async () => {
+    const aggregate: LoopSpec = {
+      ...spec,
+      stages: [
+        { ...spec.stages[0]!, workPackageId: 'WP-1' },
+        { ...spec.stages[0]!, objective: 'Integrate', workPackageId: 'WP-2' },
+      ],
+    }
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json({ id: 'draft-packages', status: 'DRAFT_READY', updatedAt: 'now', spec: aggregate }))
+      .mockResolvedValueOnce(json({ id: 'draft-packages', status: 'DRAFT_READY', updatedAt: 'later', spec: aggregate }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const draft = await api.getDraft('draft-packages')
+    expect(draft.spec.stages.map((stage) => stage.workPackageId)).toEqual(['WP-1', 'WP-2'])
+
+    await api.updateDraft(draft.id, draft.spec)
+
+    const persisted = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body)).spec
+    expect(persisted.stages.map((stage: { workPackageId?: string }) => stage.workPackageId)).toEqual(['WP-1', 'WP-2'])
   })
 
   it('round-trips v2 acceptance coverage and managed-runtime fields and calls the shared validator', async () => {

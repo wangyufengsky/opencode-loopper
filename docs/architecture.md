@@ -235,6 +235,12 @@ Stages cannot consume the reserved first Attempt of an unstarted Stage. Package
 reserves do not transfer. `maxTaskAttempts` and safe duration are raised to the
 deterministic minimum during aggregation, but token and cost budgets are never
 raised. All Stages must pass before the one final Requirement/Risk Judge batch.
+The aggregate Stage-to-package mapping is immutable once synchronized into the
+Review Gate. Frontend normalization must preserve every `workPackageId`; the
+draft update boundary rejects a removed or changed mapping, and confirmation
+fails closed if completed packages are missing, unknown, or out of dependency
+order. A package Task must never silently degrade into legacy flat Stage
+execution.
 
 A v2 Stage may own one temporary verification runtime. Loopper allocates a
 dynamic loopback port and private temp directory outside SQLite transactions,

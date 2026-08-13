@@ -452,7 +452,7 @@ describe('Designer draft composer', () => {
   it('loads the confirmed Task into the store and opens its detail even when worktree preparation failed', async () => {
     const loopSpec: LoopSpec = {
       schemaVersion: 'v2', projectId: project.id, goal: '交接到任务控制台', context: '只在登记项目目录的任务分支修改。',
-      stages: [{ objective: '实现功能', implementationKind: 'JAVA_PRODUCTION', allowedPaths: ['src/**'], forbiddenPaths: [], deliverables: ['实现'], acceptanceCriteria: [{ id: 'AC-1', description: '业务行为通过聚焦测试验证' }], verifiers: [{ type: 'PROCESS', command: ['mvn', 'test', '-Dtest=FeatureTest'], processPurpose: 'TEST', testTargets: ['FeatureTest'], criterionIds: ['AC-1'] }] }],
+      stages: [{ workPackageId: 'WP-1', objective: '实现功能', implementationKind: 'JAVA_PRODUCTION', allowedPaths: ['src/**'], forbiddenPaths: [], deliverables: ['实现'], acceptanceCriteria: [{ id: 'WP-1-AC-1', description: '业务行为通过聚焦测试验证' }], verifiers: [{ type: 'PROCESS', command: ['mvn', 'test', '-Dtest=FeatureTest'], processPurpose: 'TEST', testTargets: ['FeatureTest'], criterionIds: ['WP-1-AC-1'] }] }],
       limits: { maxStageAttempts: 3, maxTaskAttempts: 12, sessionErrorLimit: 4, stagnationLimit: 5, maxDuration: '7200', attemptTimeout: '1800', verifierTimeout: '420' },
       model: { providerId: 'provider-1', modelId: 'model-1', thinking: false },
       sessionPolicy: { reuseHealthySession: false, createFreshOnVerifierFailure: false },
@@ -484,6 +484,7 @@ describe('Designer draft composer', () => {
 
     expect(api.confirmDraft).toHaveBeenCalledWith(readyDraft.id)
     expect(api.updateDraft).toHaveBeenCalledWith(readyDraft.id, expect.objectContaining({
+      stages: [expect.objectContaining({ workPackageId: 'WP-1' })],
       limits: expect.objectContaining({ sessionErrorLimit: 4, stagnationLimit: 5, verifierTimeout: '420' }),
       model: { providerId: 'provider-1', modelId: 'model-1', thinking: false },
       sessionPolicy: { reuseHealthySession: false, createFreshOnVerifierFailure: false },
