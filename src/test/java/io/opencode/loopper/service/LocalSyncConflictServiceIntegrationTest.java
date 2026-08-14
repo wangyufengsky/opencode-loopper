@@ -603,6 +603,7 @@ class LocalSyncConflictServiceIntegrationTest {
         run(root, "git", "config", "user.email", "test@example.invalid");
         run(root, "git", "config", "user.name", "Loopper Test");
         run(root, "git", "config", "core.autocrlf", "false");
+        Files.writeString(root.resolve(".gitattributes"), "README.md text eol=lf\n", StandardCharsets.UTF_8);
         Files.writeString(root.resolve("README.md"), readme, StandardCharsets.UTF_8);
         run(root, "git", "add", ".");
         run(root, "git", "commit", "-m", "initial");

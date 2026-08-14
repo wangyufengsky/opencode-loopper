@@ -41,10 +41,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.1.54.jar
-   jar tf target/opencode-loopper-0.1.54.jar \
+   test -s target/opencode-loopper-0.1.55.jar
+   jar tf target/opencode-loopper-0.1.55.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.1.54.jar
+   shasum -a 256 target/opencode-loopper-0.1.55.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -93,8 +93,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.1.54`。
-- 正式产物：`target/opencode-loopper-0.1.54.jar`。
+- Maven 项目版本：`0.1.55`。
+- 正式产物：`target/opencode-loopper-0.1.55.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -366,7 +366,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.1.54.jar
+JAR=target/opencode-loopper-0.1.55.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -464,6 +464,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-08-14 | 修正 Windows 首次 clone 与精确文本夹具并交付 0.1.55 | 远端夹具在 clone 命令生效前固定 `core.autocrlf=false`；测试仓库以 `.gitattributes` 固定 Markdown/TXT 或 README LF，避免后置配置制造脏工作树/伪冲突；同步 README、架构与本公约正文 | 注入 `core.autocrlf=true`/`core.safecrlf=warn` 的聚焦 Java 56/56、Vitest 149/149；`./scripts/verify.sh` 通过：Java 366 个（0 失败、0 错误、1 个 Windows 专属用例在 macOS 跳过），Vitest 149/149；JAR `target/opencode-loopper-0.1.55.jar`（262946382 bytes）内含 100 个前端静态资源，SHA-256 `66c03a394cf90aa6d586cf4a6c94f29c77bd3c6408d676bdc0b655af21ce860c`；发布目标：`v0.1.55` |
 | 2026-08-14 | 完成首批审查交付的 Windows CI 夹具隔离并交付 0.1.54 | 临时 Git 仓库固定 `core.autocrlf=false`，避免 runner 全局配置改变精确文本；裸 `ProcessBuilder("mvn")` 的合并夹具限定 POSIX，Windows 产品解析由专门契约测试覆盖；同步 README、架构与本公约正文 | 聚焦 Java 56/56、Vitest 149/149；`./scripts/verify.sh` 通过：Java 366 个（0 失败、0 错误、1 个 Windows 专属用例在 macOS 跳过），Vitest 149/149；JAR `target/opencode-loopper-0.1.54.jar`（262946382 bytes）内含 100 个前端静态资源，SHA-256 `c5a14e54e635b05e21caf5c7b9651db01482b746b71bb90c61b440055f609c06`；发布目标：`v0.1.54` |
 | 2026-08-14 | 修复首批审查交付的 Windows CI 可移植性并交付 0.1.53 | Git NUL 输出局部关闭 CRLF 安全警告；Stage 基线清理兼容 Windows 只读对象；artifact 路径稳定使用 `/`；平台专属测试与 Git fixture 明确操作系统和换行边界；同步 README、架构与本公约正文 | 聚焦 Java 80/80、Vitest 149/149；`./scripts/verify.sh` 通过：Java 366 个（0 失败、0 错误、1 个 Windows 专属用例在 macOS 跳过），Vitest 149/149；JAR `target/opencode-loopper-0.1.53.jar`（262946383 bytes）内含 100 个前端静态资源，SHA-256 `a03d502982a17358ce7eccd9847a9ef7e02387af6bbfa55b5b38d202ea83b0b0`；发布目标：`v0.1.53` |
 | 2026-08-14 | 修复首批代码审查问题并交付 0.1.52 | 外部 Git/Provider/验证器/模型发现 I/O 与 SQLite 短事务分离；Task/Stage/队列/草稿确认原子持久化；项目公约增加可恢复 `APPLYING`；发布与本地同步使用固定条带锁；恢复 main/PR 三平台 CI 并固定 Actions SHA；`VERIFYING` 受 Task 总时限约束，损坏分包上下文在写 Session 前失败关闭；同步 README、架构与本公约正文 | 聚焦 Java 96/96、Vitest 149/149；`./scripts/verify.sh` 通过：Java 364 个（0 失败、0 错误、1 个 Windows 条件用例在 macOS 跳过），Vitest 149/149；JAR `target/opencode-loopper-0.1.52.jar`（262946017 bytes）内含 101 个前端静态资源，SHA-256 `0e4535be74efaf9b70e8771165bc1bb5639a17b5fa4b7aefee4a5cd4fef89128`；发布目标：`v0.1.52` |

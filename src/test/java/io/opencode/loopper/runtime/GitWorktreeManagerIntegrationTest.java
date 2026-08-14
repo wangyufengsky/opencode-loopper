@@ -121,15 +121,16 @@ class GitWorktreeManagerIntegrationTest {
         Path seed = temp.resolve("source-branch-seed");
         run(temp, "git", "init", "--initial-branch=main", seed.toString());
         configureIdentity(seed);
+        writeTextAttributes(seed);
         Files.writeString(seed.resolve("README.md"), "initial\n");
-        run(seed, "git", "add", "README.md");
+        run(seed, "git", "add", ".");
         run(seed, "git", "commit", "-m", "initial");
         run(seed, "git", "remote", "add", "origin", remote.toString());
         run(seed, "git", "push", "-u", "origin", "main");
         Path project = temp.resolve("source-branch-project");
         Path updater = temp.resolve("source-branch-updater");
-        run(temp, "git", "clone", remote.toString(), project.toString());
-        run(temp, "git", "clone", remote.toString(), updater.toString());
+        run(temp, "git", "-c", "core.autocrlf=false", "clone", remote.toString(), project.toString());
+        run(temp, "git", "-c", "core.autocrlf=false", "clone", remote.toString(), updater.toString());
         configureIdentity(project);
         configureIdentity(updater);
         Files.writeString(updater.resolve("README.md"), "remote advance\n");
@@ -159,16 +160,17 @@ class GitWorktreeManagerIntegrationTest {
         Path seed = temp.resolve("seed");
         run(temp, "git", "init", "--initial-branch=main", seed.toString());
         configureIdentity(seed);
+        writeTextAttributes(seed);
         Files.writeString(seed.resolve("README.md"), "initial\n");
-        run(seed, "git", "add", "README.md");
+        run(seed, "git", "add", ".");
         run(seed, "git", "commit", "-m", "initial");
         run(seed, "git", "remote", "add", "origin", remote.toString());
         run(seed, "git", "push", "-u", "origin", "main");
 
         Path project = temp.resolve("project");
         Path updater = temp.resolve("updater");
-        run(temp, "git", "clone", remote.toString(), project.toString());
-        run(temp, "git", "clone", remote.toString(), updater.toString());
+        run(temp, "git", "-c", "core.autocrlf=false", "clone", remote.toString(), project.toString());
+        run(temp, "git", "-c", "core.autocrlf=false", "clone", remote.toString(), updater.toString());
         configureIdentity(project);
         configureIdentity(updater);
         Files.writeString(updater.resolve("README.md"), "remote advance\n");
@@ -202,8 +204,9 @@ class GitWorktreeManagerIntegrationTest {
         Path project = temp.resolve("overlap-project");
         run(temp, "git", "init", "--initial-branch=main", project.toString());
         configureIdentity(project);
+        writeTextAttributes(project);
         Files.writeString(project.resolve("README.md"), "initial\n");
-        run(project, "git", "add", "README.md");
+        run(project, "git", "add", ".");
         run(project, "git", "commit", "-m", "initial");
         LoopperProperties properties = new LoopperProperties();
         properties.setDataDir(project.resolve("data"));
@@ -252,8 +255,9 @@ class GitWorktreeManagerIntegrationTest {
         Path project = temp.resolve(name);
         run(temp, "git", "init", "--initial-branch=main", project.toString());
         configureIdentity(project);
+        writeTextAttributes(project);
         Files.writeString(project.resolve("README.md"), "initial\n");
-        run(project, "git", "add", "README.md");
+        run(project, "git", "add", ".");
         run(project, "git", "commit", "-m", "initial");
         return project;
     }
@@ -282,6 +286,11 @@ class GitWorktreeManagerIntegrationTest {
         run(repository, "git", "config", "user.email", "test@example.invalid");
         run(repository, "git", "config", "user.name", "test");
         run(repository, "git", "config", "core.autocrlf", "false");
+    }
+
+    private void writeTextAttributes(Path repository) throws Exception {
+        Files.writeString(repository.resolve(".gitattributes"),
+                "*.md text eol=lf\n*.txt text eol=lf\n");
     }
 
     private String run(Path directory, String... argv) throws Exception {
