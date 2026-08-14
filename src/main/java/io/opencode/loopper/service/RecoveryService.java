@@ -10,7 +10,6 @@ import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.ProjectRow;
 import io.opencode.loopper.persistence.StageRow;
 import io.opencode.loopper.persistence.TaskLineageRow;
-import io.opencode.loopper.persistence.TaskArtifactRow;
 import io.opencode.loopper.persistence.TaskQueueRow;
 import io.opencode.loopper.persistence.TaskRow;
 import io.opencode.loopper.runtime.DirectWorkspaceLeaseCoordinator;
@@ -18,10 +17,7 @@ import io.opencode.loopper.runtime.GitWorktreeManager;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
-import java.util.Set;
-import java.util.UUID;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 /** Creates a new, traceable recovery task; it never mutates a terminal parent in place. */
 @Service
@@ -29,14 +25,16 @@ public class RecoveryService {
     private final LoopperMapper mapper;
     private final LoopDraftService drafts;
     private final ProjectService projects;
+    private final RecoveryPersistence persistence;
 
-    public RecoveryService(LoopperMapper mapper, LoopDraftService drafts, ProjectService projects) {
+    public RecoveryService(LoopperMapper mapper, LoopDraftService drafts, ProjectService projects,
+                           RecoveryPersistence persistence) {
         this.mapper = mapper;
         this.drafts = drafts;
         this.projects = projects;
+        this.persistence = persistence;
     }
 
-    @Transactional
     public FeatureContracts.RecoveryDto create(String parentTaskId, RecoveryMode requestedMode) {
         RecoveryMode mode = requestedMode == null ? RecoveryMode.FROM_FAILED_STAGE : requestedMode;
         TaskRow parent = mapper.findTask(parentTaskId)
@@ -61,22 +59,10 @@ public class RecoveryService {
         TaskRow child = mode == RecoveryMode.REWORK_ALL_STAGES
                 ? drafts.confirmAtBaseline(childDraft.id(), recoveryTitle(parent.title(), mode), "RECOVERY", parent.baselineCommit())
                 : drafts.confirm(childDraft.id(), recoveryTitle(parent.title(), mode), "RECOVERY");
-        mapper.insertTaskLineage(new TaskLineageRow(child.id(), parent.id(), mode.name(),
+        persistence.link(new TaskLineageRow(child.id(), parent.id(), mode.name(),
                 recoveryPoint == null ? null : recoveryPoint.id(), fingerprint, Instant.now().toString()));
-        copyDesignArtifacts(parent.id(), child.id());
         return new FeatureContracts.RecoveryDto(child.id(), parent.id(), mode,
                 recoveryPoint == null ? null : recoveryPoint.id(), fingerprint, mode != RecoveryMode.VERIFY_ONLY);
-    }
-
-    private void copyDesignArtifacts(String parentTaskId, String childTaskId) {
-        Set<String> kinds = Set.of("REQUIREMENT_CONTEXT", "DECOMPOSITION_CONTEXT", "WORK_PACKAGE_DESIGN",
-                "WORK_PACKAGE_COMPILATION_SUMMARY", "DESIGN_CONTEXT");
-        for (TaskArtifactRow source : mapper.listTaskArtifacts(parentTaskId)) {
-            if (!kinds.contains(source.kind())) continue;
-            mapper.insertTaskArtifact(new TaskArtifactRow(UUID.randomUUID().toString(), childTaskId, null, null,
-                    source.kind(), source.name(), source.contentType(), source.content(), source.metadataJson(),
-                    Instant.now().toString()));
-        }
     }
 
     public List<FeatureContracts.RecoveryDto> list(String parentTaskId) {

@@ -119,15 +119,12 @@ public class LoopDraftService {
         }
         return get(id);
     }
-    @Transactional
     public io.opencode.loopper.persistence.TaskRow confirm(String id, String title) {
         return confirm(id, title, "MANUAL");
     }
-    @Transactional
     public io.opencode.loopper.persistence.TaskRow confirm(String id, String title, String admissionSource) {
         return confirm(id, title, admissionSource, null);
     }
-    @Transactional
     public io.opencode.loopper.persistence.TaskRow confirmAtBaseline(String id, String title, String admissionSource,
                                                                      String isolatedBaseline) {
         if (isolatedBaseline == null || isolatedBaseline.isBlank()) {
@@ -148,12 +145,7 @@ public class LoopDraftService {
             validateCompletedWorkPackageMapping(session.id(), spec(draft));
         });
         validateExecutionContract(spec(draft));
-        io.opencode.loopper.persistence.TaskRow task = tasks.createFromDraft(draft, title, admissionSource, isolatedBaseline);
-        LoopDraftRow confirmed = new LoopDraftRow(draft.id(), draft.projectId(), draft.goal(), draft.specJson(), LoopDraftStatus.CONFIRMED.name(), draft.createdAt(), Instant.now().toString(), draft.version());
-        lifecycle.transition(subject(confirmed), draft.status(), confirmed.status(), null, java.util.Map.of(),
-                () -> mapper.updateDraft(confirmed),
-                () -> new ConflictException("DRAFT_VERSION_CONFLICT", "Loop draft was updated concurrently"));
-        return task;
+        return tasks.createAndConfirmFromDraft(draft, title, admissionSource, isolatedBaseline);
     }
     private LifecycleTransitionService.Subject subject(LoopDraftRow row) {
         return new LifecycleTransitionService.Subject(LifecycleMachineType.LOOP_DRAFT, row.id(),

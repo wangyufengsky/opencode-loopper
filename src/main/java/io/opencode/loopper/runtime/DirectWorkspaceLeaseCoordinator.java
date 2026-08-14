@@ -57,7 +57,18 @@ public class DirectWorkspaceLeaseCoordinator {
      * make a concurrent contender fail closed rather than create two writers.
      */
     public Admission acquireOrEnqueue(Path root, String taskId, String source, String writerSessionId) {
-        WorkspaceIdentity workspace = identify(root);
+        return acquireOrEnqueue(identify(root), taskId, source, writerSessionId);
+    }
+
+    /**
+     * Admits a task using an identity resolved before the caller opens its short
+     * persistence transaction. This overload must not perform filesystem I/O.
+     */
+    public Admission acquireOrEnqueue(WorkspaceIdentity workspace, String taskId, String source,
+                                      String writerSessionId) {
+        if (workspace == null) {
+            throw new TaskFailure("DIRECT_WORKSPACE_REQUIRED", "Direct workspace identity is required");
+        }
         String normalizedSource = source(source);
         RuntimeException lastConflict = null;
         for (int attempt = 0; attempt < CONCURRENCY_RETRIES; attempt++) {
@@ -78,6 +89,18 @@ public class DirectWorkspaceLeaseCoordinator {
             }
         }
         throw new TaskFailure("DIRECT_LEASE_CONCURRENT_CONFLICT", safeMessage(lastConflict));
+    }
+
+    /**
+     * Joins the caller's existing short transaction. The workspace identity must
+     * already have been resolved outside that transaction.
+     */
+    public Admission acquireOrEnqueueInTransaction(WorkspaceIdentity workspace, String taskId, String source,
+                                                   String writerSessionId) {
+        if (workspace == null) {
+            throw new TaskFailure("DIRECT_WORKSPACE_REQUIRED", "Direct workspace identity is required");
+        }
+        return acquire(workspace, taskId, source(source), writerSessionId);
     }
 
     /** Records the remote writer id without changing queue ownership. */

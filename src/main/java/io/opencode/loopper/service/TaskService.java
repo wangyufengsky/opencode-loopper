@@ -8,6 +8,7 @@ import io.opencode.loopper.config.LoopperProperties;
 import io.opencode.loopper.domain.AttemptState;
 import io.opencode.loopper.domain.ErrorLayer;
 import io.opencode.loopper.domain.LoopSpec;
+import io.opencode.loopper.domain.LoopDraftStatus;
 import io.opencode.loopper.domain.SessionFailure;
 import io.opencode.loopper.domain.SessionState;
 import io.opencode.loopper.domain.StageState;
@@ -118,18 +119,23 @@ public class TaskService {
         this.transactions = new TransactionTemplate(transactionManager);
     }
 
-    @Transactional
     public TaskRow createFromDraft(LoopDraftRow draft, String title) {
         return createFromDraft(draft, title, "MANUAL");
     }
-    @Transactional
     public TaskRow createFromDraft(LoopDraftRow draft, String title, String admissionSource) {
         return createFromDraft(draft, title, admissionSource, null);
     }
-    @Transactional
     public TaskRow createFromDraft(LoopDraftRow draft, String title, String admissionSource, String isolatedBaseline) {
-        var existing = mapper.findTaskByDraft(draft.id());
-        if (existing.isPresent()) return existing.get();
+        return createFromDraft(draft, title, admissionSource, isolatedBaseline, false);
+    }
+
+    public TaskRow createAndConfirmFromDraft(LoopDraftRow draft, String title, String admissionSource,
+                                             String isolatedBaseline) {
+        return createFromDraft(draft, title, admissionSource, isolatedBaseline, true);
+    }
+
+    private TaskRow createFromDraft(LoopDraftRow draft, String title, String admissionSource,
+                                    String isolatedBaseline, boolean confirmDraft) {
         LoopSpec spec = readSpec(draft);
         ProjectRow project = projects.get(draft.projectId());
         Path projectRoot = Path.of(project.rootPath());
@@ -137,42 +143,76 @@ public class TaskService {
         if (isolatedBaseline != null && !gitSourceBranch) {
             throw new BadRequestException("REWORK_REPOSITORY_REQUIRED", "新分支重做需要可用的 Git 仓库根目录");
         }
-        String now = now();
+        DirectWorkspaceLeaseCoordinator.WorkspaceIdentity workspace = DirectWorkspaceLeaseCoordinator.identify(projectRoot);
+        String source = normalizedAdmissionSource(admissionSource);
+        TaskCreation creation = transactions.execute(status -> persistTaskCreation(
+                draft, spec, project, title, source, isolatedBaseline, workspace, confirmDraft));
+        if (creation == null) {
+            throw new ConflictException("TASK_CREATE_TRANSACTION_FAILED", "Task creation transaction did not complete");
+        }
+        if (creation.existing()) return get(creation.taskId());
+        try {
+            if (TaskQueueState.QUEUED.name().equals(creation.admission().state())) {
+                events.emit(creation.taskId(), "task.queued", Map.of("state", TaskState.QUEUED.name(),
+                        "queuePosition", queuePosition(creation.taskId()), "leaseState", creation.admission().leaseState()));
+                return get(creation.taskId());
+            }
+            return prepareAdmittedInPlaceTask(creation.taskId());
+        } catch (TaskFailure failure) {
+            if ("SOURCE_BRANCH_WORKSPACE_DIRTY".equals(failure.code())) {
+                return waitForDirtyWorkspace(get(creation.taskId()), failure.getMessage());
+            }
+            failTask(get(creation.taskId()), failure.code(), failure.getMessage(), null, null, null);
+            return get(creation.taskId());
+        }
+    }
+
+    private TaskCreation persistTaskCreation(LoopDraftRow inputDraft, LoopSpec spec, ProjectRow project,
+                                             String title, String admissionSource, String isolatedBaseline,
+                                             DirectWorkspaceLeaseCoordinator.WorkspaceIdentity workspace,
+                                             boolean confirmDraft) {
+        LoopDraftRow draft = mapper.findDraft(inputDraft.id())
+                .orElseThrow(() -> new NotFoundException("Loop draft not found: " + inputDraft.id()));
+        if (draft.version() != inputDraft.version()) {
+            throw new ConflictException("DRAFT_VERSION_CONFLICT", "Loop draft was updated concurrently");
+        }
+        TaskRow existing = mapper.findTaskByDraft(draft.id()).orElse(null);
+        if (existing != null) {
+            if (confirmDraft) confirmDraft(draft);
+            return new TaskCreation(existing.id(), null, true);
+        }
+        String timestamp = now();
         String taskId = UUID.randomUUID().toString();
         TaskRow task = new TaskRow(taskId, project.id(), draft.id(), normalizedTitle(title, draft.goal()),
-                TaskState.QUEUED.name(), null, null, null, isolatedBaseline, now, now, 0);
+                TaskState.QUEUED.name(), null, null, null, isolatedBaseline, timestamp, timestamp, 0);
         lifecycle.create(subject(LifecycleMachineType.TASK, task.id(), task.id()), task.state(),
-                Map.of("source", normalizedAdmissionSource(admissionSource)), () -> mapper.insertTask(task),
+                Map.of("source", admissionSource), () -> mapper.insertTask(task),
                 () -> new ConflictException("TASK_CREATE_CONFLICT", "Task could not be created"));
         persistConfirmedDesignContext(task, draft);
         int ordinal = 0;
         for (LoopSpec.StageSpec stage : spec.stages()) {
             StageRow stageRow = new StageRow(UUID.randomUUID().toString(), taskId, ordinal++, stage.objective(),
                     write(stage.allowedPaths()), write(stage.forbiddenPaths()), write(stage.deliverables()), write(stage.verifiers()),
-                    StageState.PENDING.name(), now, now, 0, stage.workPackageId());
+                    StageState.PENDING.name(), timestamp, timestamp, 0, stage.workPackageId());
             lifecycle.create(subject(LifecycleMachineType.STAGE, stageRow.id(), taskId), stageRow.state(), Map.of(),
                     () -> mapper.insertStage(stageRow),
                     () -> new ConflictException("STAGE_CREATE_CONFLICT", "Stage could not be created"));
         }
-        try {
-            DirectWorkspaceLeaseCoordinator.Admission admission = directLeases.acquireOrEnqueue(
-                    projectRoot, taskId, normalizedAdmissionSource(admissionSource), null);
-            if (TaskQueueState.QUEUED.name().equals(admission.state())) {
-                events.emit(taskId, "task.queued", Map.of("state", TaskState.QUEUED.name(),
-                        "queuePosition", queuePosition(taskId), "leaseState", admission.leaseState()));
-                return get(taskId);
-            }
-            return prepareAdmittedInPlaceTask(taskId);
-        } catch (TaskFailure failure) {
-            if ("SOURCE_BRANCH_WORKSPACE_DIRTY".equals(failure.code())) {
-                return waitForDirtyWorkspace(get(taskId), failure.getMessage());
-            }
-            if (isolatedBaseline != null) {
-                throw new ConflictException(failure.code(), failure.getMessage());
-            }
-            failTask(task, failure.code(), failure.getMessage(), null, null, null);
-            return get(taskId);
-        }
+        DirectWorkspaceLeaseCoordinator.Admission admission = directLeases.acquireOrEnqueueInTransaction(
+                workspace, taskId, admissionSource, null);
+        if (confirmDraft) confirmDraft(draft);
+        return new TaskCreation(taskId, admission, false);
+    }
+
+    private void confirmDraft(LoopDraftRow draft) {
+        if (LoopDraftStatus.CONFIRMED.name().equals(draft.status())) return;
+        LoopDraftRow confirmed = new LoopDraftRow(draft.id(), draft.projectId(), draft.goal(), draft.specJson(),
+                LoopDraftStatus.CONFIRMED.name(), draft.createdAt(), now(), draft.version());
+        LifecycleTransitionService.Subject draftSubject = new LifecycleTransitionService.Subject(
+                LifecycleMachineType.LOOP_DRAFT, confirmed.id(), LifecycleScopeType.PROJECT, confirmed.projectId());
+        lifecycle.transition(draftSubject, draft.status(), confirmed.status(), null, Map.of(),
+                () -> mapper.updateDraft(confirmed),
+                () -> new ConflictException("DRAFT_VERSION_CONFLICT", "Loop draft was updated concurrently"));
     }
 
     private String normalizedAdmissionSource(String admissionSource) {
@@ -446,13 +486,21 @@ public class TaskService {
     }
 
     /** Applies time budgets before a monitor interprets an OpenCode status transition. */
-    @Transactional
     public void enforceTimeouts(String taskId) {
         TaskRow task = get(taskId);
-        if (!TaskState.RUNNING.name().equals(task.state()) && !TaskState.JUDGING.name().equals(task.state())) return;
+        if (!TaskState.RUNNING.name().equals(task.state())
+                && !TaskState.VERIFYING.name().equals(task.state())
+                && !TaskState.JUDGING.name().equals(task.state())) return;
         LoopSpec spec = spec(task);
         Instant now = Instant.now();
         if (Instant.parse(task.createdAt()).plusSeconds(spec.limits().maxDurationSeconds()).isBefore(now)) {
+            if (TaskState.VERIFYING.name().equals(task.state())) {
+                VerifierOutcome runtimeStop = managedVerifierRuntimes.stopTask(taskId, "task-duration-exhausted");
+                if (runtimeStop != null && runtimeStop.state() == VerificationState.ERROR) {
+                    failTaskForManagedRuntime(taskId, runtimeStop);
+                    return;
+                }
+            }
             failTask(task, "TASK_DURATION_EXHAUSTED", "Task exceeded its maximum duration", null, null, null);
             return;
         }
@@ -501,7 +549,6 @@ public class TaskService {
     }
 
     /** Invoked by an OpenCode transport callback or a test harness. It never sets the task FAILED directly. */
-    @Transactional
     public TaskRow sessionFailed(String taskId, String attemptId, String code, String message) {
         TaskRow task = get(taskId);
         AttemptRow attempt = mapper.findAttempt(attemptId).orElseThrow(() -> new NotFoundException("Attempt not found: " + attemptId));
@@ -527,6 +574,7 @@ public class TaskService {
             throw new ConflictException("TASK_NOT_RUNNING", "Only a running task can be verified");
         }
         try {
+            remainingTaskDuration(initial, spec(initial));
             StageRow stage = mapper.listStages(taskId).stream().filter(s -> StageState.RUNNING.name().equals(s.state())).findFirst()
                     .orElseThrow(() -> new TaskFailure("STAGE_NOT_RUNNING", "No running stage is available for verification"));
             AttemptRow attempt = mapper.latestAttempt(stage.id()).orElseThrow(() -> new TaskFailure("ATTEMPT_MISSING", "No attempt is available for verification"));
@@ -559,11 +607,11 @@ public class TaskService {
             LoopSpec spec = spec(initial);
             List<LoopSpec.VerifierSpec> verifierSpecs = read(stage.verifiersJson(), new TypeReference<>() {});
             List<PendingVerification> pending = new ArrayList<>();
-            Duration timeout = Duration.ofSeconds(spec.limits().verifierTimeoutSeconds());
             LoopSpec.StageSpec stageContract = spec.stages().get(stage.ordinal());
             ManagedVerificationRuntimeService.Lease managedRuntime = null;
             try {
                 if ("v2".equals(spec.schemaVersion()) && stageContract.verificationRuntime() != null) {
+                    remainingTaskDuration(initial, spec);
                     ManagedVerificationRuntimeService.StartResult start = managedVerifierRuntimes.start(
                             initial.id(), stage.id(), attempt.id(), Path.of(requireWorktree(initial)),
                             stageContract.verificationRuntime());
@@ -581,7 +629,8 @@ public class TaskService {
                         VerifierOutcome outcome;
                         try {
                             LoopSpec.VerifierSpec bound = managedVerifierRuntimes.bind(verifierSpecs.get(i), managedRuntime);
-                            outcome = verifiers.verify(Path.of(requireWorktree(initial)), verificationBaseline, bound, timeout);
+                            outcome = verifiers.verify(Path.of(requireWorktree(initial)), verificationBaseline, bound,
+                                    boundedVerifierTimeout(initial, spec));
                         } catch (TaskFailure knownFailure) {
                             throw knownFailure;
                         } catch (RuntimeException unexpectedFailure) {
@@ -615,8 +664,9 @@ public class TaskService {
                         stage.id(), attempt.id(), attempt.ordinal(), pending.stream()
                                 .map(result -> new AttemptHandoffService.VerificationFact(result.outcome().type(),
                                         result.outcome().state().name(), result.outcome().summary())).toList(),
-                        failedPreview.outcome().summary(), timeout);
+                        failedPreview.outcome().summary(), boundedVerifierTimeout(initial, spec));
             }
+            remainingTaskDuration(initial, spec);
             AttemptHandoffService.Capture capturedHandoff = handoff;
             VerificationContinuation continuation = transactions.execute(status -> finishVerification(
                     initial.id(), stage.id(), attempt.id(), implementationSession == null ? null : implementationSession.id(),
@@ -744,7 +794,7 @@ public class TaskService {
             failTaskForManagedRuntime(taskId, runtimeStop);
             return get(taskId);
         }
-        return transactions.execute(status -> pauseState(taskId));
+        return pauseState(taskId);
     }
 
     private TaskRow pauseState(String taskId) {
@@ -815,7 +865,7 @@ public class TaskService {
             failTaskForManagedRuntime(taskId, runtimeStop);
             return get(taskId);
         }
-        return transactions.execute(status -> cancelState(taskId));
+        return cancelState(taskId);
     }
 
     private TaskRow cancelState(String taskId) {
@@ -988,6 +1038,21 @@ public class TaskService {
         if (!TaskState.RUNNING.name().equals(get(freshTask.id()).state())) return;
         if (!StageState.RUNNING.name().equals(stage.state())) updateStage(stageState(stage, StageState.RUNNING));
         if (blockModelCallForBudget(freshTask, stage, null)) return;
+        Path worktree;
+        String boundedPrompt;
+        try {
+            worktree = Path.of(requireWorktree(freshTask));
+            ProjectRow project = projects.get(freshTask.projectId());
+            worktrees.requireExecutionWorkspace(worktree, Path.of(project.rootPath()),
+                    freshTask.branchName(), freshTask.baselineCommit());
+            boundedPrompt = promptWithBoundaries(freshTask, spec, stage, worktree, prompt);
+        } catch (TaskFailure failure) {
+            failTask(freshTask, failure.code(), failure.getMessage(), stage, null, null);
+            return;
+        } catch (RuntimeException failure) {
+            failTask(freshTask, "SESSION_PREPARATION_FAILED", safeMessage(failure), stage, null, null);
+            return;
+        }
         int ordinal = mapper.countAttemptsForStage(stage.id()) + 1;
         AttemptRow attempt = new AttemptRow(UUID.randomUUID().toString(), freshTask.id(), stage.id(), ordinal, AttemptState.RUNNING.name(), null, null, now(), null, 0);
         createAttempt(attempt);
@@ -996,10 +1061,6 @@ public class TaskService {
         createSession(session);
         OpenCodeClient.OpenCodeSession remote;
         try {
-            Path worktree = Path.of(requireWorktree(freshTask));
-            ProjectRow project = projects.get(freshTask.projectId());
-            worktrees.requireExecutionWorkspace(worktree, Path.of(project.rootPath()),
-                    freshTask.branchName(), freshTask.baselineCommit());
             remote = openCode.createSession(worktree, freshTask.title(), model(spec));
             ExecutionSessionRow running = new ExecutionSessionRow(session.id(), session.taskId(), session.stageId(), session.attemptId(), remote.id(),
                     SessionState.RUNNING.name(), session.createdAt(), null, session.version());
@@ -1009,7 +1070,7 @@ public class TaskService {
                 // row. Provider ids remain on that row and may change across retry.
                 directLeases.heartbeat(inPlaceRoot(freshTask), freshTask.id(), running.id());
             }
-            openCode.promptAsync(remote, promptWithBoundaries(freshTask, spec, stage, worktree, prompt));
+            openCode.promptAsync(remote, boundedPrompt);
         } catch (SessionFailure failure) {
             handleSessionFailure(freshTask, stage, attempt, session, failure);
             return;
@@ -1135,7 +1196,6 @@ public class TaskService {
      * The error log is the persistent retry counter and survives application
      * restarts; the monitor stops after the configured bound.
      */
-    @Transactional
     public void retrySessionCleanup(String sessionId) {
         ExecutionSessionRow session = mapper.findSession(sessionId)
                 .orElseThrow(() -> new NotFoundException("Session not found: " + sessionId));
@@ -1513,7 +1573,6 @@ public class TaskService {
      * SESSION error and retried with a fresh judge row; it never enters the normal execution
      * attempt recovery path and never turns the task FAILED by itself.
      */
-    @Transactional
     public void pollJudges(String taskId) {
         TaskRow task = get(taskId);
         if (!TaskState.JUDGING.name().equals(task.state())) return;
@@ -1541,7 +1600,6 @@ public class TaskService {
      * retry-exhausted Judge runs. It authorizes exactly one fresh pair of read-only sessions;
      * later transport failures still return to WAITING_INPUT instead of looping forever.
      */
-    @Transactional
     public TaskRow retryJudges(String taskId) {
         TaskRow task = get(taskId);
         if (mapper.findTaskPublication(taskId).map(io.opencode.loopper.persistence.TaskPublicationRow::state)
@@ -1753,7 +1811,6 @@ public class TaskService {
     }
 
     /** Commits the soft-budget decision before an auxiliary provider model call such as Session summarize. */
-    @Transactional
     public UsageInsightsService.BudgetDecision guardNextModelCall(String taskId, String operation) {
         TaskRow task = get(taskId);
         if (task.loopDraftId() == null) {
@@ -1985,6 +2042,8 @@ public class TaskService {
                 () -> new ConflictException("JUDGE_VERSION_CONFLICT", "Judge run was updated concurrently"));
     }
     private String safeNullable(String value) { return value == null ? null : safeMessage(value); }
+    private record TaskCreation(String taskId, DirectWorkspaceLeaseCoordinator.Admission admission,
+                                boolean existing) { }
     private record PendingVerification(String id, int index, VerifierOutcome outcome) { }
     private enum VerificationAction { NONE, RETRY_STAGE, NEXT_STAGE, FINAL_REVIEW }
     private record VerificationContinuation(VerificationAction action, String taskId, String stageId,
@@ -2332,12 +2391,43 @@ public class TaskService {
         if (decomposition != null) {
             try {
                 JsonNode root = json.readTree(decomposition.content());
-                globalConstraints = root.path("globalConstraints").toString();
-                for (JsonNode item : root.path("workPackages")) {
-                    if (!workPackageId.equals(item.path("id").asText())) continue;
-                    for (JsonNode dependency : item.path("dependencies")) dependencies.add(dependency.asText());
+                if (root == null || !root.isObject()
+                        || !root.path("globalConstraints").isArray()
+                        || !root.path("workPackages").isArray()) {
+                    throw new TaskFailure("DECOMPOSITION_CONTEXT_INVALID",
+                            "Persisted decomposition context has an invalid object shape");
                 }
-            } catch (Exception ignored) { }
+                globalConstraints = root.path("globalConstraints").toString();
+                boolean packageFound = false;
+                for (JsonNode item : root.path("workPackages")) {
+                    if (!item.isObject() || !item.path("id").isTextual()) {
+                        throw new TaskFailure("DECOMPOSITION_CONTEXT_INVALID",
+                                "Persisted decomposition context contains an invalid work package");
+                    }
+                    if (!workPackageId.equals(item.path("id").asText())) continue;
+                    packageFound = true;
+                    if (!item.path("dependencies").isArray()) {
+                        throw new TaskFailure("DECOMPOSITION_CONTEXT_INVALID",
+                                "Persisted decomposition context contains invalid dependencies");
+                    }
+                    for (JsonNode dependency : item.path("dependencies")) {
+                        if (!dependency.isTextual() || dependency.asText().isBlank()) {
+                            throw new TaskFailure("DECOMPOSITION_CONTEXT_INVALID",
+                                    "Persisted decomposition context contains an invalid dependency id");
+                        }
+                        dependencies.add(dependency.asText());
+                    }
+                }
+                if (!packageFound) {
+                    throw new TaskFailure("DECOMPOSITION_CONTEXT_INVALID",
+                            "Persisted decomposition context does not contain the current work package");
+                }
+            } catch (TaskFailure failure) {
+                throw failure;
+            } catch (Exception invalid) {
+                throw new TaskFailure("DECOMPOSITION_CONTEXT_INVALID",
+                        "Persisted decomposition context cannot be read safely");
+            }
         }
         String prerequisiteHandoffs = artifacts.stream()
                 .filter(artifact -> WORK_PACKAGE_COMPILATION_SUMMARY_ARTIFACT_KIND.equals(artifact.kind()))
@@ -2362,6 +2452,24 @@ public class TaskService {
         return new OpenCodeClient.OpenCodeModel(configured.substring(0, separator), configured.substring(separator + 1), null);
     }
     private String now() { return Instant.now().toString(); }
+    private Duration remainingTaskDuration(TaskRow task, LoopSpec spec) {
+        Instant deadline;
+        try {
+            deadline = Instant.parse(task.createdAt()).plusSeconds(spec.limits().maxDurationSeconds());
+        } catch (RuntimeException invalid) {
+            throw new TaskFailure("TASK_DURATION_INVALID", "Task duration deadline cannot be evaluated safely");
+        }
+        Duration remaining = Duration.between(Instant.now(), deadline);
+        if (remaining.isZero() || remaining.isNegative()) {
+            throw new TaskFailure("TASK_DURATION_EXHAUSTED", "Task exceeded its maximum duration");
+        }
+        return remaining;
+    }
+    private Duration boundedVerifierTimeout(TaskRow task, LoopSpec spec) {
+        Duration configured = Duration.ofSeconds(spec.limits().verifierTimeoutSeconds());
+        Duration remaining = remainingTaskDuration(task, spec);
+        return configured.compareTo(remaining) <= 0 ? configured : remaining;
+    }
     private boolean blank(String value) { return value == null || value.isBlank(); }
     private String safeMessage(Throwable t) { return safeMessage(t.getMessage()); }
     private String safeMessage(String value) { return value == null ? "Unknown error" : value.substring(0, Math.min(value.length(), 4000)); }

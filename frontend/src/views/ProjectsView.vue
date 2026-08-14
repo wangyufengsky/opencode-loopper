@@ -239,6 +239,9 @@ onBeforeUnmount(clearConventionPoll)
     <div v-else-if="conventionDraft?.state === 'RUNNING'" class="convention-progress">
       <Icon icon="lucide:loader-circle" class="spin" /><div><strong>AI 正在分析项目</strong><p class="muted tiny">只读生成；完成后将在这里显示完整预览。</p></div>
     </div>
+    <div v-else-if="conventionDraft?.state === 'APPLYING'" class="convention-progress">
+      <Icon icon="lucide:loader-circle" class="spin" /><div><strong>正在确认 AGENTS.md 写入结果</strong><p class="muted tiny">应用状态已持久化；重启后会按文件哈希安全恢复。</p></div>
+    </div>
     <div v-if="conventionError || conventionDraft?.error" class="inline-field-error convention-error">
       <Icon icon="lucide:circle-alert" />{{ conventionError || conventionDraft?.error }}
     </div>

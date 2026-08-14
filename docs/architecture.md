@@ -12,7 +12,10 @@ when Git HEAD is unavailable, directly inside that same registered root.
 - `designer`: real read-only OpenCode planning Session and versioned Loop drafts
 - `project conventions`: read-only OpenCode project analysis plus a persisted
   `AGENTS.md` preview; an explicit local-UI apply and matching source hash are
-  required before the project file is created or its Looper block is updated
+  required before the project file is created or its Looper block is updated;
+  apply first commits `APPLYING`, writes the file outside SQLite, then commits
+  `APPLIED`, and restart recovery compares the original/proposed hashes before
+  completing or failing the interrupted write
 - `task`: Task, Stage and Attempt aggregate
 - `orchestrator`: state transitions, retry policy and recovery
 - `opencode`: HTTP/SSE adapter and managed process lifecycle
@@ -61,12 +64,16 @@ field update: it is rejected unless the machine declares an explicit business
 self-transition event. Projection/content/heartbeat updates use the audit-free
 `mutateWithoutTransition` path and mapper statements that do not write state.
 
-Deterministic verifier I/O never runs while a SQLite transaction is active.
-The Task first enters `VERIFYING` in a short transaction, process/HTTP/browser
-checks run outside the database lock, and their results plus the next lifecycle
-decision are committed in a second short transaction. Restart recovery handles
-the deliberate post-commit gaps before the next Stage Session or Judge Session
-is created, and final evidence capture is idempotent.
+External process, Git/filesystem, OpenCode HTTP, model-usage and verifier I/O
+never runs while a SQLite transaction is active. Task confirmation resolves the
+workspace identity first, atomically commits the Task, Stage, queue/lease and
+draft-confirmation rows in a short transaction, then performs checkout and
+preparation. Session/Judge cleanup, polling and retries likewise persist each
+state boundary separately from provider calls. Deterministic verification first
+enters `VERIFYING` in a short transaction, runs process/HTTP/browser checks
+outside the database lock, and commits their results plus the next lifecycle
+decision in a second short transaction. Restart recovery handles the deliberate
+post-commit gaps, and final evidence capture is idempotent.
 
 The transition history is forward-only from Flyway V15: existing rows are not
 given fabricated creation events. `GET /api/state-transitions` can page either
@@ -89,7 +96,7 @@ business state transition.
   Session and continue the current Stage while limits remain.
 - `TASK`: safe continuation is impossible; abort children and enter `FAILED`.
 
-A Session adapter must never write `TaskStatus.FAILED`. It emits a typed
+A Session adapter must never write `TaskState.FAILED`. It emits a typed
 `SessionFailure`; the orchestrator owns retry/promotion. Exhausted Session
 retries are promoted to `TASK/SESSION_RETRY_EXHAUSTED` with the complete chain
 of evidence.
@@ -123,9 +130,13 @@ Task directory and other bare executables against the Loopper process
 absolute executable and forces the JDK's strict Windows command quoting mode;
 the LoopSpec still cannot supply `cmd`, PowerShell, shell syntax, expansion,
 pipes, or redirects. Linux/macOS retain native direct-argv lookup and executable
-permission semantics. The runner is not an OS sandbox. A deliberately
-daemonizing hostile executable must be isolated by an external Job Object,
-cgroup or container rather than trusted as a LoopSpec verifier.
+permission semantics. The Task `maxDurationSeconds` deadline remains
+authoritative after entering `VERIFYING`: every verifier and failed-attempt
+handoff receives the smaller of its configured timeout and the remaining Task
+budget, while the monitor can fail an already-running verification and late
+results lose the optimistic state check. The runner is not an OS sandbox. A
+deliberately daemonizing hostile executable must be isolated by an external
+Job Object, cgroup or container rather than trusted as a LoopSpec verifier.
 
 For v2 `PROCESS` entries with `processPurpose=TEST`, executable recognition is
 an exact basename allowlist for Maven, Gradle, and npm rather than a prefix

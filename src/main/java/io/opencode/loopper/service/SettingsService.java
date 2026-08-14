@@ -8,18 +8,20 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class SettingsService {
     private final LoopperMapper mapper;
     private final LoopperProperties properties;
     private final OpenCodeModelCatalogService models;
+    private final SettingsPersistence persistence;
 
-    public SettingsService(LoopperMapper mapper, LoopperProperties properties, OpenCodeModelCatalogService models) {
+    public SettingsService(LoopperMapper mapper, LoopperProperties properties, OpenCodeModelCatalogService models,
+                           SettingsPersistence persistence) {
         this.mapper = mapper;
         this.properties = properties;
         this.models = models;
+        this.persistence = persistence;
         mapper.findAppSettings().ifPresent(this::apply);
     }
 
@@ -35,7 +37,6 @@ public class SettingsService {
         return models.discover(cliPath == null || cliPath.isBlank() ? get().cliPath() : cliPath);
     }
 
-    @Transactional
     public AppSettings save(AppSettings requested) {
         AppSettings validated = validate(requested);
         List<OpenCodeModelCatalogService.AvailableModel> available = models.discover(validated.cliPath());
@@ -45,9 +46,9 @@ public class SettingsService {
         }
         AppSettingsRow row = new AppSettingsRow(1, validated.cliPath(), validated.allowedRoot(), validated.provider(), validated.model(),
                 validated.maxTaskAttempts(), validated.timeoutMinutes(), 0, Instant.now().toString());
-        mapper.upsertAppSettings(row);
-        apply(row);
-        return view(row);
+        AppSettingsRow saved = persistence.save(row);
+        apply(saved);
+        return view(saved);
     }
 
     private AppSettings validate(AppSettings value) {

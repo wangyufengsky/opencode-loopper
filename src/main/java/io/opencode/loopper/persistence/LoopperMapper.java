@@ -174,11 +174,15 @@ public interface LoopperMapper {
     Optional<ProjectConventionDraftRow> findProjectConventionDraft(String id);
     @Select("""
             SELECT * FROM project_convention_draft
-            WHERE project_id=#{projectId} AND state='RUNNING'
+            WHERE project_id=#{projectId} AND state IN ('RUNNING','APPLYING')
             ORDER BY created_at DESC LIMIT 1
             """)
     Optional<ProjectConventionDraftRow> activeProjectConventionDraft(String projectId);
-    @Select("SELECT * FROM project_convention_draft WHERE state='RUNNING' AND external_session_id IS NOT NULL ORDER BY updated_at")
+    @Select("""
+            SELECT * FROM project_convention_draft
+            WHERE (state='RUNNING' AND external_session_id IS NOT NULL) OR state='APPLYING'
+            ORDER BY updated_at
+            """)
     List<ProjectConventionDraftRow> activeProjectConventionDrafts();
     @Update("""
             UPDATE project_convention_draft SET

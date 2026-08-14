@@ -192,7 +192,7 @@ function normalizeProjectConvention(value: unknown): ProjectConventionDraft {
   return {
     id: asString(raw.id),
     projectId: asString(raw.projectId),
-    state: state === 'READY' || state === 'APPLIED' || state === 'FAILED' ? state : 'RUNNING',
+    state: state === 'READY' || state === 'APPLYING' || state === 'APPLIED' || state === 'FAILED' ? state : 'RUNNING',
     operation: asString(raw.operation) === 'UPDATE' ? 'UPDATE' : 'CREATE',
     readOnlyGeneration: raw.readOnlyGeneration === true,
     content: asString(raw.content) || undefined,

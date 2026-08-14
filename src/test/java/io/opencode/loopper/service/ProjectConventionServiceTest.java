@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 @SpringBootTest(classes = LoopperApplication.class, properties = {
         "loopper.opencode.mode=fake",
@@ -28,6 +29,7 @@ class ProjectConventionServiceTest {
     @Autowired private ProjectService projects;
     @Autowired private ProjectConventionService conventions;
     @Autowired private OpenCodeClient openCode;
+    @Autowired private JdbcTemplate jdbc;
     @TempDir Path temp;
 
     @BeforeEach
@@ -76,6 +78,38 @@ class ProjectConventionServiceTest {
         ProjectConventionDraftRow applied = conventions.apply(project.id(), ready.id());
         assertThat(applied.state()).isEqualTo(ProjectConventionState.APPLIED.name());
         assertThat(Files.readString(root.resolve("AGENTS.md"))).isEqualTo(ready.proposedContent());
+    }
+
+    @Test
+    void restartCompletesADurableApplyingProposalAfterTheFileWasWritten() throws Exception {
+        Path root = Files.createDirectory(temp.resolve("recover-apply"));
+        ProjectRow project = projects.create("recover-apply", root.toString());
+        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
+        fake.setDesignerOutput(aiContext("""
+                ## 技术栈与目录
+                - Java 项目。
+                ## 常用命令
+                - `./mvnw test`
+                ## 现有约定与边界
+                - 不编辑 `target/`。
+                """));
+        ProjectConventionDraftRow running = conventions.generate(project.id());
+        conventions.pollActiveGenerations();
+        ProjectConventionDraftRow ready = conventions.get(project.id(), running.id());
+
+        assertThat(jdbc.update("""
+                UPDATE project_convention_draft
+                SET state='APPLYING', external_session_state='APPLYING', version=version+1
+                WHERE id=? AND state='READY'
+                """, ready.id())).isEqualTo(1);
+        Files.writeString(root.resolve("AGENTS.md"), ready.proposedContent());
+
+        conventions.pollActiveGenerations();
+
+        ProjectConventionDraftRow recovered = conventions.get(project.id(), ready.id());
+        assertThat(recovered.state()).isEqualTo(ProjectConventionState.APPLIED.name());
+        assertThat(Files.readString(root.resolve("AGENTS.md"))).isEqualTo(ready.proposedContent());
+        assertThat(fake.createReadOnlySessionCalls()).isEqualTo(1);
     }
 
     @Test

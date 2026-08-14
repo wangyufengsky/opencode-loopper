@@ -27,7 +27,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Matcher;
@@ -43,6 +42,7 @@ public class TaskPublicationService {
     private static final Pattern COMMIT_MESSAGE = Pattern.compile("^#[0-9]{4}_[^\\r\\n]{1,120}$");
     private static final Pattern PREFIX = Pattern.compile("^#[0-9]{4}_");
     private static final Pattern SCP_REMOTE = Pattern.compile("^(?:[^@/]+@)?([^:/]+):(.+)$");
+    private static final int PUBLICATION_LOCK_STRIPES = 64;
 
     private final TaskService tasks;
     private final ProjectService projects;
@@ -54,7 +54,7 @@ public class TaskPublicationService {
     private final LoopperMapper mapper;
     private final LifecycleTransitionService lifecycle;
     private final GitLabMergeRequestClient gitlab;
-    private final ConcurrentHashMap<String, ReentrantLock> taskLocks = new ConcurrentHashMap<>();
+    private final ReentrantLock[] taskLocks = lockStripes(PUBLICATION_LOCK_STRIPES);
 
     public TaskPublicationService(TaskService tasks, ProjectService projects, GitWorktreeManager worktrees,
                                   SafeProcessRunner runner, OpenCodeClient openCode, LoopperProperties properties,
@@ -142,7 +142,7 @@ public class TaskPublicationService {
     public PublicationStatus commitAndPush(String taskId, String requestedMessage) {
         TaskRow task = requirePublishableTask(taskId);
         requireNotMerged(task.id());
-        ReentrantLock lock = taskLocks.computeIfAbsent(task.id(), ignored -> new ReentrantLock());
+        ReentrantLock lock = taskLocks[Math.floorMod(task.id().hashCode(), taskLocks.length)];
         if (!lock.tryLock()) {
             throw new ConflictException("TASK_PUBLICATION_ACTIVE", "当前任务正在提交或推送，请等待本次操作完成");
         }
@@ -205,8 +205,13 @@ public class TaskPublicationService {
             return status(task.id());
         } finally {
             lock.unlock();
-            if (!lock.hasQueuedThreads()) taskLocks.remove(task.id(), lock);
         }
+    }
+
+    private static ReentrantLock[] lockStripes(int size) {
+        ReentrantLock[] locks = new ReentrantLock[size];
+        java.util.Arrays.setAll(locks, ignored -> new ReentrantLock());
+        return locks;
     }
 
     public MergeRequestDraft mergeRequestDraft(String taskId, String targetBranch, String title, String description) {

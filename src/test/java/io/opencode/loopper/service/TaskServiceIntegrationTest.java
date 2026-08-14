@@ -52,7 +52,7 @@ class TaskServiceIntegrationTest {
     @Autowired private TaskService tasks;
     @Autowired private TaskPublicationService publication;
     @Autowired private TaskMonitor monitor;
-    @Autowired private OpenCodeClient openCode;
+    @MockitoSpyBean private OpenCodeClient openCode;
     @Autowired private LoopperMapper mapper;
     @Autowired private UsageInsightsService usageInsights;
     @Autowired private StageWorkspaceBaselineService stageWorkspaceBaselines;
@@ -505,6 +505,28 @@ class TaskServiceIntegrationTest {
     }
 
     @Test
+    void failedSessionCleanupCallsTheProviderOutsideTheSQLiteTransaction() throws Exception {
+        ProjectRow project = projects.create("session-transaction-boundary", gitProject());
+        TaskRow task = drafts.confirm(drafts.create(spec(project.id())).id(), "short session failure transaction");
+        tasks.start(task.id());
+        AttemptRow attempt = tasks.attempts(task.id()).getFirst();
+        ExecutionSessionRow session = mapper.latestSessionForAttempt(attempt.id()).orElseThrow();
+        ((FakeOpenCodeClient) openCode).setSessionState(session.externalSessionId(), "RUNNING");
+        java.util.concurrent.atomic.AtomicBoolean abortInvoked = new java.util.concurrent.atomic.AtomicBoolean();
+        org.mockito.Mockito.doAnswer(invocation -> {
+            abortInvoked.set(true);
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+            return invocation.callRealMethod();
+        }).when(openCode).abort(org.mockito.ArgumentMatchers.any());
+
+        tasks.sessionFailed(task.id(), attempt.id(), "SESSION_TRANSPORT_FAILED", "test transport failure");
+
+        assertThat(abortInvoked).isTrue();
+        assertThat(tasks.get(task.id()).state()).isEqualTo("RUNNING");
+        assertThat(tasks.attempts(task.id())).hasSize(2);
+    }
+
+    @Test
     void pauseCanWinWhileVerificationIsOutsideSQLiteWithoutLeavingARunningAttempt() throws Exception {
         ProjectRow project = projects.create("pause-during-verification", gitProject());
         TaskRow task = drafts.confirm(drafts.create(spec(project.id())).id(), "pause verification safely");
@@ -535,6 +557,58 @@ class TaskServiceIntegrationTest {
         }
         assertThatThrownBy(verification::join).hasCauseInstanceOf(ConflictException.class);
         assertThat(tasks.verifications(tasks.attempts(task.id()).getFirst().id())).isEmpty();
+    }
+
+    @Test
+    void taskDeadlineCanFailAWorkerAlreadyRunningDeterministicVerification() throws Exception {
+        ProjectRow project = projects.create("deadline-during-verification", gitProject());
+        TaskRow task = drafts.confirm(drafts.create(spec(project.id())).id(), "enforce total verification deadline");
+        tasks.start(task.id());
+        var verifierEntered = new CountDownLatch(1);
+        var releaseVerifier = new CountDownLatch(1);
+        org.mockito.Mockito.doAnswer(invocation -> {
+            verifierEntered.countDown();
+            if (!releaseVerifier.await(5, TimeUnit.SECONDS)) {
+                throw new AssertionError("Timed out waiting to release deadline verifier");
+            }
+            return invocation.callRealMethod();
+        }).when(verifierEngine).verify(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+        var verification = java.util.concurrent.CompletableFuture.supplyAsync(() -> tasks.verify(task.id()));
+
+        try {
+            assertThat(verifierEntered.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(tasks.get(task.id()).state()).isEqualTo("VERIFYING");
+            assertThat(jdbc.update("UPDATE task SET created_at=? WHERE id=?",
+                    Instant.now().minusSeconds(7_201).toString(), task.id())).isEqualTo(1);
+
+            tasks.enforceTimeouts(task.id());
+
+            assertThat(tasks.get(task.id()).state()).isEqualTo("FAILED");
+            assertThat(tasks.errors(task.id())).anyMatch(error -> error.code().equals("TASK_DURATION_EXHAUSTED"));
+        } finally {
+            releaseVerifier.countDown();
+        }
+        assertThatThrownBy(verification::join).hasCauseInstanceOf(ConflictException.class);
+        assertThat(tasks.verifications(tasks.attempts(task.id()).getFirst().id())).isEmpty();
+    }
+
+    @Test
+    void malformedDecompositionContextFailsClosedBeforeCreatingAWriterSession() throws Exception {
+        ProjectRow project = projects.create("malformed-decomposition-context", gitProject());
+        TaskRow task = drafts.confirm(drafts.create(packageAttemptSpec(project.id())).id(),
+                "reject malformed decomposition context");
+        mapper.insertTaskArtifact(new TaskArtifactRow(UUID.randomUUID().toString(), task.id(), null, null,
+                "DECOMPOSITION_CONTEXT", "corrupt-decomposition.json", "application/json", "{",
+                "{}", Instant.now().toString()));
+        int sessionCallsBefore = ((FakeOpenCodeClient) openCode).createSessionCalls();
+
+        TaskRow failed = tasks.start(task.id());
+
+        assertThat(failed.state()).isEqualTo("FAILED");
+        assertThat(tasks.attempts(task.id())).isEmpty();
+        assertThat(((FakeOpenCodeClient) openCode).createSessionCalls()).isEqualTo(sessionCallsBefore);
+        assertThat(tasks.errors(task.id())).anyMatch(error -> error.code().equals("DECOMPOSITION_CONTEXT_INVALID"));
     }
 
     @Test

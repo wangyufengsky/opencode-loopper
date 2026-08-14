@@ -27,7 +27,6 @@ import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Generates only a project-specific context section with a read-only model.
@@ -126,7 +125,10 @@ public class ProjectConventionService {
     }
 
     private ProjectConventionDraftRow reconcileActiveGeneration(ProjectConventionDraftRow row) {
-        try { poll(row); }
+        try {
+            if (ProjectConventionState.APPLYING.name().equals(row.state())) return recoverApplying(row);
+            poll(row);
+        }
         catch (RuntimeException failure) {
             try {
                 ProjectConventionDraftRow current = get(row.projectId(), row.id());
@@ -139,7 +141,6 @@ public class ProjectConventionService {
         return get(row.projectId(), row.id());
     }
 
-    @Transactional
     public ProjectConventionDraftRow apply(String projectId, String draftId) {
         ProjectConventionDraftRow row = get(projectId, draftId);
         if (!ProjectConventionState.READY.name().equals(row.state()) || row.proposedContent() == null) {
@@ -152,8 +153,55 @@ public class ProjectConventionService {
             throw new ConflictException("AGENTS_MD_CHANGED",
                     "AGENTS.md changed after generation started; generate a fresh proposal before applying");
         }
-        writeAtomically(project, row.proposedContent());
-        return transition(row, ProjectConventionState.APPLIED, row.externalSessionState(), row.proposedContent(), null);
+        ProjectConventionDraftRow applying = transition(row, ProjectConventionState.APPLYING,
+                "APPLYING", row.proposedContent(), null);
+        try {
+            writeAtomically(project, applying.proposedContent());
+        } catch (RuntimeException failure) {
+            ProjectConventionDraftRow latest = get(projectId, draftId);
+            if (ProjectConventionState.APPLYING.name().equals(latest.state())) {
+                transition(latest, ProjectConventionState.FAILED, "APPLY_FAILED", latest.proposedContent(),
+                        safeMessage(failure));
+            }
+            throw failure;
+        }
+        return completeApplying(applying);
+    }
+
+    private ProjectConventionDraftRow recoverApplying(ProjectConventionDraftRow input) {
+        ProjectConventionDraftRow row = get(input.projectId(), input.id());
+        if (!ProjectConventionState.APPLYING.name().equals(row.state())) return row;
+        if (row.proposedContent() == null) {
+            return transition(row, ProjectConventionState.FAILED, "APPLY_RECOVERY_INVALID", null,
+                    "Persisted APPLYING proposal has no AGENTS.md content");
+        }
+        ProjectRow project = projects.get(row.projectId());
+        SourceSnapshot current = readSource(project);
+        String proposedSha = sha256(row.proposedContent().getBytes(StandardCharsets.UTF_8));
+        if (current.sha256().equals(proposedSha)) return completeApplying(row);
+        if (current.exists() != (row.sourceExists() == 1) || !current.sha256().equals(row.sourceSha256())) {
+            return transition(row, ProjectConventionState.FAILED, "AGENTS_MD_APPLY_RECOVERY_CONFLICT",
+                    row.proposedContent(), "AGENTS.md changed while an interrupted apply was being recovered");
+        }
+        try {
+            writeAtomically(project, row.proposedContent());
+            return completeApplying(row);
+        } catch (RuntimeException failure) {
+            ProjectConventionDraftRow latest = get(row.projectId(), row.id());
+            if (!ProjectConventionState.APPLYING.name().equals(latest.state())) return latest;
+            return transition(latest, ProjectConventionState.FAILED, "AGENTS_MD_APPLY_RECOVERY_FAILED",
+                    latest.proposedContent(), safeMessage(failure));
+        }
+    }
+
+    private ProjectConventionDraftRow completeApplying(ProjectConventionDraftRow input) {
+        ProjectConventionDraftRow current = get(input.projectId(), input.id());
+        if (ProjectConventionState.APPLIED.name().equals(current.state())) return current;
+        if (!ProjectConventionState.APPLYING.name().equals(current.state())) {
+            throw new ConflictException("PROJECT_CONVENTION_APPLY_INTERRUPTED",
+                    "AGENTS.md apply state changed before completion could be recorded");
+        }
+        return transition(current, ProjectConventionState.APPLIED, "APPLIED", current.proposedContent(), null);
     }
 
     private void poll(ProjectConventionDraftRow row) {

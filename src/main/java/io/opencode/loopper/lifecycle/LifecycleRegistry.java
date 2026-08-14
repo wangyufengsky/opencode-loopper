@@ -247,7 +247,9 @@ public final class LifecycleRegistry {
         return machine(LifecycleMachineType.PROJECT_CONVENTION, ProjectConventionState.class)
                 .transition(ProjectConventionState.RUNNING, COMPLETE, ProjectConventionState.READY)
                 .transition(ProjectConventionState.RUNNING, FAIL, ProjectConventionState.FAILED)
-                .transition(ProjectConventionState.READY, APPLY, ProjectConventionState.APPLIED).build();
+                .transition(ProjectConventionState.READY, APPLY, ProjectConventionState.APPLYING)
+                .transition(ProjectConventionState.APPLYING, COMPLETE, ProjectConventionState.APPLIED)
+                .transition(ProjectConventionState.APPLYING, FAIL, ProjectConventionState.FAILED).build();
     }
 
     private static FiniteStateMachine<InteractionState, LifecycleEvent> interaction() {

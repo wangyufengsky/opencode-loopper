@@ -42,7 +42,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import org.springframework.stereotype.Service;
@@ -51,6 +50,7 @@ import tools.jackson.databind.ObjectMapper;
 /** Persisted, user-confirmed three-way merge workflow for repositories without a remote. */
 @Service
 public class LocalSyncConflictService {
+    private static final int SOURCE_LOCK_STRIPES = 64;
     static final int MAX_TASK_PATHS = 200;
     static final long MAX_TEXT_BYTES = 1024L * 1024L;
     static final long MAX_AI_BYTES = 200L * 1024L;
@@ -71,7 +71,7 @@ public class LocalSyncConflictService {
     private final VerifierEngine verifiers;
     private final TaskEventService events;
     private final ObjectMapper json;
-    private final ConcurrentHashMap<String, ReentrantLock> sourceLocks = new ConcurrentHashMap<>();
+    private final ReentrantLock[] sourceLocks = lockStripes(SOURCE_LOCK_STRIPES);
 
     public LocalSyncConflictService(LoopperMapper mapper, TaskService tasks, ProjectService projects,
                                     GitWorktreeManager worktrees, SafeProcessRunner runner,
@@ -259,7 +259,7 @@ public class LocalSyncConflictService {
         String lockKey;
         try { lockKey = Path.of(initial.sourceRoot()).toRealPath().toString(); }
         catch (IOException failure) { throw new ConflictException("SOURCE_ROOT_UNAVAILABLE", "源项目目录不可用"); }
-        ReentrantLock lock = sourceLocks.computeIfAbsent(lockKey, ignored -> new ReentrantLock());
+        ReentrantLock lock = sourceLocks[Math.floorMod(lockKey.hashCode(), sourceLocks.length)];
         if (!lock.tryLock()) {
             throw new ConflictException("LOCAL_SYNC_SOURCE_ACTIVE", "另一个任务正在同步同一源项目，请稍后重试");
         }
@@ -267,8 +267,13 @@ public class LocalSyncConflictService {
             return applyLocked(taskId, sessionId, request.expectedVersion());
         } finally {
             lock.unlock();
-            if (!lock.hasQueuedThreads()) sourceLocks.remove(lockKey, lock);
         }
+    }
+
+    private static ReentrantLock[] lockStripes(int size) {
+        ReentrantLock[] locks = new ReentrantLock[size];
+        java.util.Arrays.setAll(locks, ignored -> new ReentrantLock());
+        return locks;
     }
 
     private SessionView applyLocked(String taskId, String sessionId, long expectedVersion) {

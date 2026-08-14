@@ -41,10 +41,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.1.51.jar
-   jar tf target/opencode-loopper-0.1.51.jar \
+   test -s target/opencode-loopper-0.1.52.jar
+   jar tf target/opencode-loopper-0.1.52.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.1.51.jar
+   shasum -a 256 target/opencode-loopper-0.1.52.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -93,8 +93,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.1.51`。
-- 正式产物：`target/opencode-loopper-0.1.51.jar`。
+- Maven 项目版本：`0.1.52`。
+- 正式产物：`target/opencode-loopper-0.1.52.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -220,6 +220,7 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 - 聚合 Stage 的 `workPackageId` 映射进入 Review Gate 后不可删除、改写或重排；前端读取、结构化编辑、保存和确认必须无损往返。草稿更新边界拒绝映射漂移，确认边界还要校验每个已完成工作包均存在且保持依赖顺序，禁止静默降级成无包 Stage 任务。
 - 只有完成、项目匹配、版本匹配且经服务端确定性验证通过的聚合 LoopSpec 才能同步到绑定草稿；模型不得自报校验成功。人工确认前仍不得写业务源码、创建 Task 或制造执行状态。
 - 确认时冻结完整 `REQUIREMENT_CONTEXT`、`DECOMPOSITION_CONTEXT`、每包 `WORK_PACKAGE_DESIGN`/`WORK_PACKAGE_COMPILATION_SUMMARY`，并保留组合 `DESIGN_CONTEXT` 兼容历史。执行提示按当前 Stage 的包只注入当前包设计、全局约束和前置包交接。
+- 执行期若已冻结的 `DECOMPOSITION_CONTEXT` 无法解析、字段形状错误、缺少当前包或依赖 ID 无效，必须在创建可写 OpenCode Session 前以 `DECOMPOSITION_CONTEXT_INVALID` 失败关闭；不得静默丢弃全局约束或前置包交接。
 - Designer 合并在单个数组项中的 Maven 参数若能无歧义解析，应在同步时直接规范化并保存为独立 argv，不消耗自动纠正次数；只有引号未闭合等无法安全解析的输入才按无效 LoopSpec 回送纠正。
 - 人工确认必须是幂等边界；确认后创建唯一 Task，再由用户显式启动 `READY` Task。
 - 聚合后仍只创建一个 Task、一个任务分支和一次发布；Stage/包严格串行。每包尝试池为 `min(stageCount × maxStageAttempts, stageCount + 2)`，必须为未启动 Stage 保留首次尝试，剩余额度不跨包转移；全部 Stage 通过后只运行一次 Requirement/Risk 双 Judge。
@@ -248,6 +249,7 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 - BROWSER 可执行文件发现顺序固定为显式 `LOOPPER_CHROME_EXECUTABLE`、进程 `PATH`、操作系统标准位置；显式路径无效时必须 fail closed。
 - `DATABASE_QUERY` 只接受本地 SQLite 的只读单条 `SELECT`/`WITH`。
 - 外部进程、HTTP、浏览器和模型调用不能在 SQLite transaction 内执行。
+- Task 总 `maxDurationSeconds` 在 `VERIFYING` 期间继续生效；每个验证器和失败交接使用“验证器配置超时与剩余 Task 时限中的较小值”，Monitor 可让已在事务外运行的验证工作失败，迟到结果不得覆盖终态。
 - 确定性验证成功与 Judge 成功是两套证据。Requirement 和 Risk Judge 都是独立只读 Session，必须明确 `PASS`。
 - 两个最终 Judge 都接收所有阶段的 `JUDGE`/`BOTH` 条件与 rubric，以及已持久化的确定性摘要和差异；不为每个 Stage 额外启动 Judge，也不得把尚未执行的 Judge 计划显示成覆盖或通过。
 - 最终 `VERIFICATION_SUMMARY` 必须按阶段顺序聚合每个成功 Stage 的最终成功 Attempt 与全部验证结果；单项证据摘录限制为 4 KiB UTF-8 并保留完整证据 SHA-256。确认目标、上下文和全部 Judge 合同总计不得超过 96 KiB UTF-8，完整 Judge 提示不得超过 128 KiB；每轮必须先批量构造并校验全部待启动角色的提示，任一超限时整批都不得创建 Judge row、只读 Session 或模型调用，直接进入 `WAITING_INPUT`，错误码为 `JUDGE_PROMPT_BUDGET_EXCEEDED`。
@@ -291,6 +293,7 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 - 新 API 必须考虑：输入校验、local UI/MCP 授权、幂等、乐观锁、Problem Detail/明确错误码、终态重入。
 - MyBatis Mapper 方法应明确行数预期。状态更新和普通字段 mutation 分开，不能用同一 SQL 偷改状态。
 - 不得在持有数据库事务时等待模型、进程、网络、浏览器或长时间文件操作。
+- 需要同时持久化多个聚合行时，先在事务外解析工作区身份或完成只读外部预检，再用短事务原子写入状态/审计，提交后才执行 Git、文件写入或 Provider 调用；可恢复的跨边界文件写入必须先持久化中间状态并按内容哈希恢复。
 - 所有外部命令使用参数数组；不要拼接未验证路径或用户内容到 shell。
 - Git fetch/分支检查和 checkout 必须暂停调用方 SQLite transaction；远端 fetch 设置 `GIT_TERMINAL_PROMPT=0`，不得因凭据提示无限等待。
 - 时间、超时、重试和最大输出必须有界，重启恢复必须能处理提交后的中间空档。
@@ -362,7 +365,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.1.51.jar
+JAR=target/opencode-loopper-0.1.52.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -460,6 +463,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-08-14 | 修复首批代码审查问题并交付 0.1.52 | 外部 Git/Provider/验证器/模型发现 I/O 与 SQLite 短事务分离；Task/Stage/队列/草稿确认原子持久化；项目公约增加可恢复 `APPLYING`；发布与本地同步使用固定条带锁；恢复 main/PR 三平台 CI 并固定 Actions SHA；`VERIFYING` 受 Task 总时限约束，损坏分包上下文在写 Session 前失败关闭；同步 README、架构与本公约正文 | 聚焦 Java 96/96、Vitest 149/149；`./scripts/verify.sh` 通过：Java 364 个（0 失败、0 错误、1 个 Windows 条件用例在 macOS 跳过），Vitest 149/149；JAR `target/opencode-loopper-0.1.52.jar`（262946017 bytes）内含 101 个前端静态资源，SHA-256 `0e4535be74efaf9b70e8771165bc1bb5639a17b5fa4b7aefee4a5cd4fef89128`；发布目标：`v0.1.52` |
 | 2026-08-14 | 修复终态 holder 阻塞 FIFO 队列并交付 0.1.51 | 新增统一租约协调服务，复用于取消/Session 清理、启动恢复、10 秒后台检查、手动检查和归档前置；新增 holder 阻塞投影与本地 UI 重新检查入口；活动 holder 禁止归档/删除；同步 README、架构、设计、七特性合同与本公约正文 | 聚焦队列/租约并发测试通过；`./scripts/verify.sh`：Java 360 项中 359 通过、Windows 条件用例 1 项跳过，Vitest 149/149，BUILD SUCCESS；JAR `target/opencode-loopper-0.1.51.jar` 262939806 bytes，SHA-256 `5575c8ff79fae533493ef54ef07c4ebaeb4f56e3dbdc5a0fc1753bc582e138f8`，含 100 项前端静态资源；发布目标：`v0.1.51` |
 | 2026-08-13 | 隔离多包 Stage 差异验收并交付 0.1.50 | V25 持久化 Stage 私有工作区基线；普通可写 Stage 的显式 `GIT_DIFF` 与 Attempt handoff 改按 Stage 首次执行前基线比较，重试/重启复用，旧活动 Stage 缺失时 fail closed；`VERIFY_ONLY` 与最终 Task 差异保留任务基线；同步 README、架构、七特性合同与本公约正文 | 聚焦 Stage 基线、Git/Direct、多包范围、重试、Recovery 与迁移 Java 17/17；`./scripts/verify.sh`：Java 353 项中 352 通过、Windows 条件用例 1 项跳过，Vitest 145/145，BUILD SUCCESS；JAR `target/opencode-loopper-0.1.50.jar` 262923926 bytes，SHA-256 `c3f7040cc9c1a9f3438f5f3126eae75b5021f25b13cfe1b4fe808a95042fd324`，含 101 项前端静态资源；隔离 PID 87990 在 18081 以 V25 完成两阶段验收，Stage 差异分别仅含 `first.txt`/`second.txt`，最终 Task 差异同时含二者，临时实例已停止且原 8080 PID 55908 未变；发布目标：`v0.1.50` |
 | 2026-08-13 | 修复 Designer 分包映射往返并交付 0.1.49 | 前端 LoopSpec 解析、保存和确认无损保留每个 Stage 的 `workPackageId`；服务端冻结已聚合草稿的包映射，并在确认时校验所有完成包均按依赖顺序被 Stage 表示，阻止分包 Task 静默退化为扁平 Stage；同步 README、架构、Designer 合同与本公约正文 | 聚焦 Java 30/30、Vitest 145/145；`./scripts/verify.sh`：Java 342 项中 341 通过、Windows 条件用例 1 项跳过，Vitest 145/145，BUILD SUCCESS；JAR `target/opencode-loopper-0.1.49.jar`，262905553 bytes，SHA-256 `bcd177195f069d71e180e4e73bcb459a4926e1d6a0dcea4c61def622961f2689`，含版本 0.1.49 与 99 项前端静态资源；按用户要求未替换或重启当前 8080 本机实例 |

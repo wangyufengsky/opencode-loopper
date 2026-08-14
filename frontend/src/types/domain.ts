@@ -37,7 +37,7 @@ export interface DirectorySelection {
 export interface ProjectConventionDraft {
   id: string
   projectId: string
-  state: 'RUNNING' | 'READY' | 'APPLIED' | 'FAILED'
+  state: 'RUNNING' | 'READY' | 'APPLYING' | 'APPLIED' | 'FAILED'
   operation: 'CREATE' | 'UPDATE'
   readOnlyGeneration: boolean
   content?: string
