@@ -128,6 +128,14 @@ class DirectWorkspaceLeaseCoordinatorIntegrationTest {
         Files.createDirectory(root);
 
         DirectWorkspaceLeaseCoordinator.WorkspaceIdentity after = DirectWorkspaceLeaseCoordinator.identify(root);
+        if (after.rootFingerprint().equals(before.rootFingerprint())) {
+            // NTFS can tunnel a recently deleted directory's creation time and immediately
+            // reuse the file key for the same name. Force distinct replacement metadata so
+            // this test verifies Loopper's documented metadata fingerprint, not NTFS timing.
+            Files.getFileAttributeView(root, java.nio.file.attribute.BasicFileAttributeView.class)
+                    .setTimes(null, null, java.nio.file.attribute.FileTime.from(Instant.now().plusSeconds(1)));
+            after = DirectWorkspaceLeaseCoordinator.identify(root);
+        }
 
         assertThat(after.canonicalRoot()).isEqualTo(before.canonicalRoot());
         assertThat(after.rootFingerprint()).isNotEqualTo(before.rootFingerprint());

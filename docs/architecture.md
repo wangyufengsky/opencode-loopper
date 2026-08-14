@@ -450,6 +450,12 @@ hunk boundary; adjacent edits remain a legitimate manual-conflict case. On Windo
 tracked source-file modes come from the source repository index and untracked regular
 files default to `100644`; NTFS ACL executability is not a Unix executable bit. POSIX
 source files continue to use the actual filesystem executable bit.
+Direct-root identity remains the hash of canonical path, filesystem file key, and
+creation time without writing an identity marker into the user's project. NTFS can
+tunnel creation time and reuse an immediately deleted same-name directory's exposed
+file key; the cross-platform test forces distinct replacement metadata when that OS
+collision occurs, while runtime decisions remain limited to metadata actually exposed
+by the filesystem and fail closed on an observed mismatch.
 The single-action “创建合并请求” button opens its confirmation dialog directly,
 then opens a prefilled GitLab/GitHub creation page; the hosting
 service still owns the final merge-request confirmation and merge. HTTP/HTTPS
