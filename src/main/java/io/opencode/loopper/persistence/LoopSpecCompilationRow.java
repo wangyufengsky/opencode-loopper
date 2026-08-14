@@ -10,9 +10,24 @@ public record LoopSpecCompilationRow(
         String lastErrorCode, String lastErrorDetail,
         String createdAt, String updatedAt, long version,
         String workPackageId, int transportRetryCount, String compiledPackageJson,
-        String workflowStep, String planningJson, int planningRepairCount) {
+        String workflowStep, String planningJson, int planningRepairCount,
+        String planningResponseMode, String planningResponseSchemaId, boolean planningFormatFallbackUsed,
+        String finalResponseMode, String finalResponseSchemaId, boolean finalFormatFallbackUsed) {
     @AutomapConstructor
     public LoopSpecCompilationRow { }
+
+    public LoopSpecCompilationRow(String id, String designerSessionId, int designRevision, String state,
+                                  String externalSessionId, String externalSessionState, int repairCount,
+                                  String sourceDesignMessageId, long sourceDraftVersion,
+                                  String lastErrorCode, String lastErrorDetail,
+                                  String createdAt, String updatedAt, long version,
+                                  String workPackageId, int transportRetryCount, String compiledPackageJson,
+                                  String workflowStep, String planningJson, int planningRepairCount) {
+        this(id, designerSessionId, designRevision, state, externalSessionId, externalSessionState, repairCount,
+                sourceDesignMessageId, sourceDraftVersion, lastErrorCode, lastErrorDetail, createdAt, updatedAt,
+                version, workPackageId, transportRetryCount, compiledPackageJson, workflowStep, planningJson,
+                planningRepairCount, "TEXT_MARKER", null, false, "TEXT_MARKER", null, false);
+    }
 
     public LoopSpecCompilationRow(String id, String designerSessionId, int designRevision, String state,
                                   String externalSessionId, String externalSessionState, int repairCount,
@@ -21,6 +36,7 @@ public record LoopSpecCompilationRow(
                                   String createdAt, String updatedAt, long version) {
         this(id, designerSessionId, designRevision, state, externalSessionId, externalSessionState, repairCount,
                 sourceDesignMessageId, sourceDraftVersion, lastErrorCode, lastErrorDetail,
-                createdAt, updatedAt, version, null, 0, null, "FINAL_JSON", null, 0);
+                createdAt, updatedAt, version, null, 0, null, "FINAL_JSON", null, 0,
+                "TEXT_MARKER", null, false, "TEXT_MARKER", null, false);
     }
 }

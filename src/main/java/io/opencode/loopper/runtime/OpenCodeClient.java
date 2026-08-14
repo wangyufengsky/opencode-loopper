@@ -10,10 +10,24 @@ public interface OpenCodeClient {
     OpenCodeSession createSession(Path worktree, String title, OpenCodeModel model);
     /** Creates a session whose permission rules deny all mutation and shell/task execution. */
     OpenCodeSession createReadOnlySession(Path worktree, String title, OpenCodeModel model);
+    /** Creates a role-scoped session. Older adapters safely degrade every read-only role to the legacy read-only profile. */
+    default OpenCodeSession createSession(Path worktree, String title, OpenCodeModel model, SessionProfile profile) {
+        return profile == null || profile == SessionProfile.IMPLEMENTATION
+                ? createSession(worktree, title, model)
+                : createReadOnlySession(worktree, title, model);
+    }
     void promptAsync(OpenCodeSession session, String prompt);
+    /** Typed prompt transport. No caller-controlled tool list is accepted at this boundary. */
+    default void promptAsync(OpenCodeSession session, PromptRequest prompt) {
+        promptAsync(session, prompt == null ? "" : prompt.text());
+    }
     SessionStatus sessionStatus(OpenCodeSession session);
     /** Returns the latest assistant text after a completed session, preserving the original model response. */
     String sessionOutput(OpenCodeSession session);
+    /** Returns text, structured output, or the provider's typed assistant error for the latest turn. */
+    default SessionResult sessionResult(OpenCodeSession session) {
+        return new SessionResult(sessionOutput(session), Map.of(), null, null, 0);
+    }
     /** Returns the latest assistant turn even while OpenCode is still appending text parts. */
     String sessionLiveOutput(OpenCodeSession session);
     /** Returns provider-exposed incremental assistant parts for the live local monitoring UI. */
@@ -32,7 +46,19 @@ public interface OpenCodeClient {
     default void replyPermission(OpenCodeSession session, String requestId, PermissionReply reply, String message) {
         throw new UnsupportedOperationException("OpenCode permission replies are not supported by this adapter");
     }
-    default List<SessionTodo> sessionTodos(OpenCodeSession session) { return List.of(); }
+    default List<SessionTodo> sessionTodos(OpenCodeSession session) { return sessionTodoSnapshot(session).todos(); }
+    default SessionTodoSnapshot sessionTodoSnapshot(OpenCodeSession session) {
+        return new SessionTodoSnapshot(List.of(), false, null);
+    }
+    /** Discovers the bounded built-in tool ids for one canonical workspace. Failures are projected, not thrown. */
+    default ToolCapabilityProbe toolCapabilities(Path worktree) {
+        return new ToolCapabilityProbe(CapabilityState.UNKNOWN, List.of(), "Tool discovery is not supported by this adapter");
+    }
+    /** Discovers native OpenCode agents without selecting one for Loopper's first implementation phase. */
+    default List<AgentInfo> agents() { return List.of(); }
+    default StructuredOutputCapability structuredOutputCapability(OpenCodeModel model) {
+        return new StructuredOutputCapability(CapabilityState.UNKNOWN, CapabilityState.UNKNOWN, null);
+    }
     default OpenCodeSession forkSession(OpenCodeSession session, String messageId) {
         throw new UnsupportedOperationException("OpenCode session fork is not supported by this adapter");
     }
@@ -48,6 +74,59 @@ public interface OpenCodeClient {
     void abort(OpenCodeSession session);
     record OpenCodeSession(String id, Path worktree) { }
     record OpenCodeModel(String providerId, String modelId, Boolean thinking) { }
+    enum SessionProfile {
+        DECOMPOSER_READ_ONLY,
+        DESIGNER_INTERACTIVE_READ_ONLY,
+        COMPILER_READ_ONLY,
+        JUDGE_READ_ONLY,
+        GENERAL_READ_ONLY,
+        IMPLEMENTATION
+    }
+    sealed interface ResponseFormat permits ResponseFormat.Text, ResponseFormat.JsonSchema {
+        record Text() implements ResponseFormat { }
+        record JsonSchema(String schemaId, Map<String, Object> schema, int retryCount) implements ResponseFormat {
+            public JsonSchema {
+                schema = schema == null ? Map.of() : Map.copyOf(schema);
+                retryCount = Math.max(0, retryCount);
+            }
+        }
+    }
+    record PromptRequest(String text, String system, String agent, ResponseFormat responseFormat) {
+        public PromptRequest {
+            text = text == null ? "" : text;
+            responseFormat = responseFormat == null ? new ResponseFormat.Text() : responseFormat;
+        }
+        public static PromptRequest text(String text) {
+            return new PromptRequest(text, null, null, new ResponseFormat.Text());
+        }
+    }
+    record SessionResult(String text, Map<String, Object> structured, String errorType,
+                         String errorDetail, int structuredRetryCount) {
+        public SessionResult {
+            text = text == null ? "" : text;
+            // JSON objects may legitimately contain top-level null values (for example reason:null).
+            // Map.copyOf rejects those values, so retain them in an unmodifiable insertion-ordered copy.
+            structured = structured == null ? Map.of()
+                    : java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(structured));
+            structuredRetryCount = Math.max(0, structuredRetryCount);
+        }
+        public boolean hasStructured() { return !structured.isEmpty(); }
+    }
+    enum CapabilityState { AVAILABLE, UNAVAILABLE, UNKNOWN }
+    record StructuredOutputCapability(CapabilityState transport, CapabilityState selectedModel, String detail) {
+        public StructuredOutputCapability {
+            transport = transport == null ? CapabilityState.UNKNOWN : transport;
+            selectedModel = selectedModel == null ? CapabilityState.UNKNOWN : selectedModel;
+        }
+    }
+    record AgentInfo(String name, String mode, String description) { }
+    record ToolCapabilityProbe(CapabilityState state, List<String> toolIds, String detail) {
+        public ToolCapabilityProbe {
+            state = state == null ? CapabilityState.UNKNOWN : state;
+            toolIds = toolIds == null ? List.of() : List.copyOf(toolIds);
+        }
+        public boolean contains(String toolId) { return toolId != null && toolIds.stream().anyMatch(toolId::equals); }
+    }
     record SessionTranscript(List<SessionPart> parts) {
         public SessionTranscript { parts = parts == null ? List.of() : List.copyOf(parts); }
     }
@@ -68,13 +147,20 @@ public interface OpenCodeClient {
                              Map<String, Object> metadata, String title) {
         public PendingPermission {
             patterns = patterns == null ? List.of() : List.copyOf(patterns);
-            metadata = metadata == null ? Map.of() : Map.copyOf(metadata);
+            metadata = metadata == null ? Map.of()
+                    : java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(metadata));
         }
     }
     enum PermissionReply { ONCE, SESSION, REJECT }
     record SessionTodo(String id, String content, String status, String priority, int ordinal,
                        Map<String, Object> metadata) {
-        public SessionTodo { metadata = metadata == null ? Map.of() : Map.copyOf(metadata); }
+        public SessionTodo {
+            metadata = metadata == null ? Map.of()
+                    : java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(metadata));
+        }
+    }
+    record SessionTodoSnapshot(List<SessionTodo> todos, boolean truncated, String detail) {
+        public SessionTodoSnapshot { todos = todos == null ? List.of() : List.copyOf(todos); }
     }
     record UsageRecord(String messageId, String providerId, String modelId, Long inputTokens,
                        Long outputTokens, Long totalTokens, BigDecimal costAmount,

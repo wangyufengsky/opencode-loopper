@@ -62,6 +62,17 @@ export interface RuntimeInfo {
   model?: string
   checkedAt: string
   startupFailure?: string
+  capabilities?: {
+    agentDiscovery: 'AVAILABLE' | 'UNAVAILABLE' | 'UNKNOWN'
+    agents: Array<{ name: string; mode?: string; description?: string }>
+    nativePlanAgent: boolean
+    structuredOutputTransport: 'AVAILABLE' | 'UNAVAILABLE' | 'UNKNOWN'
+    selectedModelStructuredOutput: 'AVAILABLE' | 'UNAVAILABLE' | 'UNKNOWN'
+    defaultResponseMode: 'JSON_SCHEMA' | 'TEXT_MARKER'
+    extensionPolicy: 'TRUSTED_ALLOWED'
+    checkedAt: string
+    detail?: string
+  }
 }
 
 export interface AppSettings {
@@ -363,6 +374,14 @@ export interface TaskSessionPendingQuestion {
   questions: TaskSessionQuestionPrompt[]
 }
 
+export interface TaskSessionTodo {
+  id: string
+  content: string
+  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'UNKNOWN'
+  priority?: 'HIGH' | 'MEDIUM' | 'LOW'
+  ordinal: number
+}
+
 export interface TaskSessionActivity {
   session: TaskSessionSummary
   remoteState: string
@@ -371,6 +390,10 @@ export interface TaskSessionActivity {
   parts: TaskSessionActivityPart[]
   pendingQuestions: TaskSessionPendingQuestion[]
   detail?: string
+  todoCapability: 'AVAILABLE' | 'UNAVAILABLE' | 'UNKNOWN'
+  todos: TaskSessionTodo[]
+  todoTruncated: boolean
+  todoDetail?: string
 }
 
 export type InteractionAction = 'REPLY' | 'ONCE' | 'SESSION' | 'REJECT'

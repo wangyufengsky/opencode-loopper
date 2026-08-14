@@ -73,13 +73,15 @@ class SessionLifecycleServiceIntegrationTest {
 
         assertThat(lifecycle.refreshTodos(fixture.taskId(), fixture.sessionId())).hasSize(1);
         assertThat(lifecycle.refreshTodos(fixture.taskId(), fixture.sessionId())).hasSize(1);
-        assertThat(mapper.listSessionTodos(fixture.sessionId())).hasSize(1);
+        assertThat(mapper.listSessionTodos(fixture.sessionId())).singleElement()
+                .satisfies(todo -> assertThat(todo.version()).isZero());
         var one = lifecycle.checkpoint(fixture.taskId(), fixture.sessionId(), "fake-message");
         var two = lifecycle.checkpoint(fixture.taskId(), fixture.sessionId(), "fake-message");
         assertThat(one.contentSha256()).isEqualTo(two.contentSha256()).hasSize(64);
         var persisted = mapper.findSessionCheckpoint(one.id()).orElseThrow();
         assertThat(persisted.messageRefsJson()).contains("fake-message", "fake-output");
-        assertThat(persisted.todoRefsJson()).contains("todo-1");
+        assertThat(persisted.todoRefsJson()).contains("todo-1", "检查真实状态", "IN_PROGRESS", "HIGH",
+                "\"ordinal\":1", "\"truncated\":false");
         assertThat(persisted.diffRefJson()).contains("sha256");
         assertThat(persisted.contentSha256()).isEqualTo(sha256(persisted.messageRefsJson() + "\n" + persisted.todoRefsJson() + "\n" + persisted.diffRefJson()));
         assertThatThrownBy(() -> lifecycle.checkpoint(fixture.taskId(), fixture.sessionId(), "fake-output"))

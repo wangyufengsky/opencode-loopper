@@ -37,31 +37,31 @@ public class SessionLifecycleService {
     private final TaskService tasks;
     private final TaskEventService events;
     private final SessionLifecyclePersistence persistence;
+    private final ImplementationTodoSynchronizer todoSynchronizer;
     private final ObjectMapper json;
 
     public SessionLifecycleService(LoopperMapper mapper, OpenCodeClient openCode, LoopDraftService drafts, TaskService tasks,
-                                   TaskEventService events, SessionLifecyclePersistence persistence, ObjectMapper json) {
+                                   TaskEventService events, SessionLifecyclePersistence persistence,
+                                   ImplementationTodoSynchronizer todoSynchronizer, ObjectMapper json) {
         this.mapper = mapper;
         this.openCode = openCode;
         this.drafts = drafts;
         this.tasks = tasks;
         this.events = events;
         this.persistence = persistence;
+        this.todoSynchronizer = todoSynchronizer;
         this.json = json;
     }
 
     /** Reads provider todos, upserts them, and returns the persisted projection (not the provider payload). */
     public List<TodoDto> refreshTodos(String taskId, String sessionId) {
         Resolved resolved = resolve(taskId, sessionId);
-        OpenCodeClient.OpenCodeSession remote = remote(resolved.task(), resolved.session());
-        List<OpenCodeClient.SessionTodo> observed;
         try {
-            observed = openCode.sessionTodos(remote);
+            return todoSynchronizer.synchronize(resolved.task(), resolved.session()).todos().stream()
+                    .map(this::todo).toList();
         } catch (RuntimeException failure) {
             throw unavailable("SESSION_TODOS_UNAVAILABLE", failure);
         }
-        String observedAt = Instant.now().toString();
-        return persistence.replaceTodos(taskId, resolved.session().id(), observed, observedAt).stream().map(this::todo).toList();
     }
 
     public List<TodoDto> todos(String taskId, String sessionId) {
@@ -72,9 +72,11 @@ public class SessionLifecycleService {
     public CheckpointDto checkpoint(String taskId, String sessionId, String externalMessageId) {
         Resolved resolved = resolve(taskId, sessionId);
         OpenCodeClient.OpenCodeSession remote = remote(resolved.task(), resolved.session());
-        // A checkpoint always first synchronizes actual provider todos. The rows
-        // are the authoritative refs captured below.
-        refreshTodos(taskId, sessionId);
+        // A checkpoint always first synchronizes actual provider todos. The bounded rows
+        // and truncation flag are the non-authoritative progress refs captured below.
+        ImplementationTodoSynchronizer.SyncResult todoSnapshot;
+        try { todoSnapshot = todoSynchronizer.synchronize(resolved.task(), resolved.session()); }
+        catch (RuntimeException failure) { throw unavailable("SESSION_TODOS_UNAVAILABLE", failure); }
         List<Map<String, Object>> messages;
         List<Map<String, Object>> parts;
         String diff;
@@ -96,8 +98,16 @@ public class SessionLifecycleService {
         }
         // DB optimistic-lock versions are implementation churn, not provider refs;
         // excluding them keeps an identical provider snapshot hash-stable.
-        List<Map<String, Object>> todoRefs = mapper.listSessionTodos(sessionId).stream().map(row -> Map.<String, Object>of(
-                "id", row.externalTodoId(), "status", row.status())).toList();
+        List<Map<String, Object>> todoRefs = todoSnapshot.todos().stream().map(row -> {
+            Map<String, Object> ref = new java.util.LinkedHashMap<>();
+            ref.put("id", row.externalTodoId());
+            ref.put("content", row.content());
+            ref.put("status", row.status());
+            ref.put("priority", row.priority());
+            ref.put("ordinal", row.ordinal());
+            ref.put("truncated", todoSnapshot.truncated());
+            return java.util.Collections.unmodifiableMap(ref);
+        }).toList();
         String messageRefsJson = write(Map.of("messages", messages, "parts", parts));
         String todoRefsJson = write(todoRefs);
         String diffRefJson = write(Map.of("sha256", sha256(blank(diff)), "content", blank(diff)));

@@ -9,11 +9,13 @@ import io.opencode.loopper.domain.AttemptState;
 import io.opencode.loopper.domain.ErrorLayer;
 import io.opencode.loopper.domain.LoopSpec;
 import io.opencode.loopper.domain.LoopDraftStatus;
+import io.opencode.loopper.domain.ModelResponseMode;
 import io.opencode.loopper.domain.SessionFailure;
 import io.opencode.loopper.domain.SessionState;
 import io.opencode.loopper.domain.StageState;
 import io.opencode.loopper.domain.TaskFailure;
 import io.opencode.loopper.domain.TaskState;
+import io.opencode.loopper.domain.TodoCapability;
 import io.opencode.loopper.domain.VerificationState;
 import io.opencode.loopper.domain.LifecycleEvent;
 import io.opencode.loopper.domain.LifecycleMachineType;
@@ -40,6 +42,7 @@ import io.opencode.loopper.api.FeatureContracts;
 import io.opencode.loopper.runtime.DirectWorkspaceLeaseCoordinator;
 import io.opencode.loopper.runtime.GitWorktreeManager;
 import io.opencode.loopper.runtime.OpenCodeClient;
+import io.opencode.loopper.runtime.OpenCodeStructuredSchemas;
 import io.opencode.loopper.verification.VerifierEngine;
 import io.opencode.loopper.verification.VerifierOutcome;
 import io.opencode.loopper.verification.JavaUnitTestGatePolicy;
@@ -1040,12 +1043,23 @@ public class TaskService {
         if (blockModelCallForBudget(freshTask, stage, null)) return;
         Path worktree;
         String boundedPrompt;
+        TodoCapability todoCapability;
         try {
             worktree = Path.of(requireWorktree(freshTask));
             ProjectRow project = projects.get(freshTask.projectId());
             worktrees.requireExecutionWorkspace(worktree, Path.of(project.rootPath()),
                     freshTask.branchName(), freshTask.baselineCommit());
             boundedPrompt = promptWithBoundaries(freshTask, spec, stage, worktree, prompt);
+            OpenCodeClient.ToolCapabilityProbe todoProbe;
+            try { todoProbe = openCode.toolCapabilities(worktree); }
+            catch (RuntimeException ignoredProbeFailure) {
+                todoProbe = new OpenCodeClient.ToolCapabilityProbe(OpenCodeClient.CapabilityState.UNKNOWN,
+                        List.of(), "Tool discovery failed");
+            }
+            todoCapability = todoProbe.state() == OpenCodeClient.CapabilityState.AVAILABLE
+                    ? todoProbe.contains("todowrite") ? TodoCapability.AVAILABLE : TodoCapability.UNAVAILABLE
+                    : TodoCapability.UNKNOWN;
+            if (todoCapability == TodoCapability.AVAILABLE) boundedPrompt += implementationTodoInstructions();
         } catch (TaskFailure failure) {
             failTask(freshTask, failure.code(), failure.getMessage(), stage, null, null);
             return;
@@ -1057,13 +1071,13 @@ public class TaskService {
         AttemptRow attempt = new AttemptRow(UUID.randomUUID().toString(), freshTask.id(), stage.id(), ordinal, AttemptState.RUNNING.name(), null, null, now(), null, 0);
         createAttempt(attempt);
         ExecutionSessionRow session = new ExecutionSessionRow(UUID.randomUUID().toString(), freshTask.id(), stage.id(), attempt.id(), null,
-                SessionState.CREATING.name(), now(), null, 0);
+                SessionState.CREATING.name(), now(), null, 0, todoCapability.name());
         createSession(session);
         OpenCodeClient.OpenCodeSession remote;
         try {
             remote = openCode.createSession(worktree, freshTask.title(), model(spec));
             ExecutionSessionRow running = new ExecutionSessionRow(session.id(), session.taskId(), session.stageId(), session.attemptId(), remote.id(),
-                    SessionState.RUNNING.name(), session.createdAt(), null, session.version());
+                    SessionState.RUNNING.name(), session.createdAt(), null, session.version(), session.todoCapability());
             updateSession(running);
             if (isAdmittedInPlace(freshTask)) {
                 // V12 deliberately references the durable local execution_session
@@ -1672,8 +1686,11 @@ public class TaskService {
         if (!TaskState.JUDGING.name().equals(task.state())) return;
         LoopSpec spec = spec(task);
         if (!explicitLocalRetry && blockModelCallForBudget(task, null, finalAttempt)) return;
+        ModelResponseMode responseMode = judgeResponseMode(task, role, spec);
         JudgeRunRow judge = new JudgeRunRow(UUID.randomUUID().toString(), task.id(), finalAttempt.id(), role,
-                mapper.nextJudgeOrdinal(task.id(), role), null, JudgeRunState.CREATING.name(), null, null, null, now(), null, 0);
+                mapper.nextJudgeOrdinal(task.id(), role), null, JudgeRunState.CREATING.name(), null, null, null,
+                now(), null, 0, responseMode.name(), responseMode == ModelResponseMode.JSON_SCHEMA
+                ? OpenCodeStructuredSchemas.JUDGE_DECISION_V1 : null);
         lifecycle.create(subject(LifecycleMachineType.JUDGE_RUN, judge.id(), judge.taskId()), judge.state(),
                 Map.of("role", judge.role()), () -> mapper.insertJudgeRun(judge),
                 () -> new ConflictException("JUDGE_CREATE_CONFLICT", "Judge run could not be created"));
@@ -1683,10 +1700,16 @@ public class TaskService {
         OpenCodeClient.OpenCodeSession remote;
         try {
             Path worktree = Path.of(requireWorktree(task));
-            remote = openCode.createReadOnlySession(worktree, roleTitle(role), model(spec));
+            remote = openCode.createSession(worktree, roleTitle(role), model(spec),
+                    OpenCodeClient.SessionProfile.JUDGE_READ_ONLY);
             JudgeRunRow running = judgeState(judge, remote.id(), JudgeRunState.RUNNING, null, null, null, null);
             updateJudge(running);
-            openCode.promptAsync(remote, prompt);
+            if (responseMode == ModelResponseMode.JSON_SCHEMA) {
+                openCode.promptAsync(remote, new OpenCodeClient.PromptRequest(prompt, null, null,
+                        OpenCodeStructuredSchemas.format(OpenCodeStructuredSchemas.JUDGE_DECISION_V1)));
+            } else {
+                openCode.promptAsync(remote, OpenCodeClient.PromptRequest.text(prompt));
+            }
         } catch (SessionFailure failure) {
             handleJudgeSessionFailure(task, judge, failure);
             return;
@@ -1714,7 +1737,7 @@ public class TaskService {
                 handleJudgeSessionFailure(inputTask, judge, new SessionFailure("JUDGE_SESSION_" + status.state(), message));
                 return;
             }
-            if (status.completed()) completeJudge(inputTask, judge, openCode.sessionOutput(remote));
+            if (status.completed()) completeJudge(inputTask, judge, judgeOutput(judge, remote));
         } catch (SessionFailure failure) {
             handleJudgeSessionFailure(inputTask, judge, failure);
         } catch (RuntimeException exception) {
@@ -1753,7 +1776,7 @@ public class TaskService {
         if (!JudgeRunState.CREATING.name().equals(judge.state())
                 && !JudgeRunState.RUNNING.name().equals(judge.state())) return;
         JudgeRunRow failed = judgeState(judge, judge.externalSessionId(), JudgeRunState.SESSION_ERROR,
-                null, safeMessage(failure.getMessage()), null, now());
+                null, failure.code() + ": " + safeMessage(failure.getMessage()), null, now());
         updateJudge(failed);
         usageInsights.collectTerminalJudgeUsage(task.id(), failed.id());
         persistArtifact(task, judge.attemptId(), judge.id(), "JUDGE_LOG_METADATA", judge.role().toLowerCase() + "-judge-session-error.json",
@@ -1933,6 +1956,35 @@ public class TaskService {
         }
     }
 
+    private ModelResponseMode judgeResponseMode(TaskRow task, String role, LoopSpec spec) {
+        JudgeRunRow previous = mapper.latestJudgeRun(task.id(), role).orElse(null);
+        if (previous != null && ModelResponseMode.JSON_SCHEMA.name().equals(previous.responseMode())
+                && JudgeRunState.SESSION_ERROR.name().equals(previous.state())
+                && previous.reason() != null
+                && (previous.reason().startsWith("OPENCODE_STRUCTURED_FORMAT_UNSUPPORTED:")
+                || previous.reason().startsWith("OPENCODE_STRUCTURED_OUTPUT_FAILED:"))) {
+            return ModelResponseMode.TEXT_MARKER;
+        }
+        OpenCodeClient.StructuredOutputCapability capability = openCode.structuredOutputCapability(model(spec));
+        return capability.transport() == OpenCodeClient.CapabilityState.UNAVAILABLE
+                || capability.selectedModel() == OpenCodeClient.CapabilityState.UNAVAILABLE
+                ? ModelResponseMode.TEXT_MARKER : ModelResponseMode.JSON_SCHEMA;
+    }
+
+    private String judgeOutput(JudgeRunRow judge, OpenCodeClient.OpenCodeSession remote) {
+        if (!ModelResponseMode.JSON_SCHEMA.name().equals(judge.responseMode())) return openCode.sessionOutput(remote);
+        OpenCodeClient.SessionResult result = openCode.sessionResult(remote);
+        if (result.structuredRetryCount() != 0) {
+            throw new SessionFailure("OPENCODE_STRUCTURED_RETRY_UNEXPECTED",
+                    "OpenCode performed an unbudgeted structured-output retry");
+        }
+        if (result.hasStructured()) return write(result.structured());
+        String detail = result.errorDetail() != null && !result.errorDetail().isBlank() ? result.errorDetail()
+                : result.errorType() != null && !result.errorType().isBlank() ? result.errorType()
+                : "OpenCode completed without the requested structured Judge object";
+        throw new SessionFailure("OPENCODE_STRUCTURED_OUTPUT_FAILED", detail);
+    }
+
     private void persistArtifact(TaskRow task, String attemptId, String judgeRunId, String kind, String name, String contentType,
                                  String content, Map<String, ?> metadata) {
         mapper.insertTaskArtifact(new TaskArtifactRow(UUID.randomUUID().toString(), task.id(), attemptId, judgeRunId, kind, name,
@@ -2033,7 +2085,8 @@ public class TaskService {
     private JudgeRunRow judgeState(JudgeRunRow row, String externalSessionId, JudgeRunState state, String verdict, String reason,
                                    String rawOutput, String endedAt) {
         return new JudgeRunRow(row.id(), row.taskId(), row.attemptId(), row.role(), row.ordinal(), externalSessionId, state.name(),
-                verdict, safeNullable(reason), rawOutput, row.createdAt(), endedAt, row.version());
+                verdict, safeNullable(reason), rawOutput, row.createdAt(), endedAt, row.version(),
+                row.responseMode(), row.responseSchemaId());
     }
     private void updateJudge(JudgeRunRow row) {
         JudgeRunRow current = mapper.findJudgeRun(row.id()).orElseThrow(() -> new NotFoundException("Judge run not found: " + row.id()));
@@ -2309,7 +2362,7 @@ public class TaskService {
     private TaskRow state(TaskRow row, TaskState state) { return new TaskRow(row.id(), row.projectId(), row.loopDraftId(), row.title(), state.name(), row.worktreePath(), row.branchName(), row.sourceBranch(), row.baselineCommit(), row.createdAt(), now(), row.version()); }
     private StageRow stageState(StageRow row, StageState state) { return new StageRow(row.id(), row.taskId(), row.ordinal(), row.objective(), row.allowedPathsJson(), row.forbiddenPathsJson(), row.deliverablesJson(), row.verifiersJson(), state.name(), row.createdAt(), now(), row.version(), row.workPackageId()); }
     private AttemptRow finish(AttemptRow row, AttemptState state, String failureKind, String summary) { return new AttemptRow(row.id(), row.taskId(), row.stageId(), row.ordinal(), state.name(), failureKind, safeMessage(summary), row.createdAt(), now(), row.version()); }
-    private ExecutionSessionRow sessionState(ExecutionSessionRow row, SessionState state) { return new ExecutionSessionRow(row.id(), row.taskId(), row.stageId(), row.attemptId(), row.externalSessionId(), state.name(), row.createdAt(), now(), row.version()); }
+    private ExecutionSessionRow sessionState(ExecutionSessionRow row, SessionState state) { return new ExecutionSessionRow(row.id(), row.taskId(), row.stageId(), row.attemptId(), row.externalSessionId(), state.name(), row.createdAt(), now(), row.version(), row.todoCapability()); }
     private void updateTask(TaskRow row) { updateTask(row, null); }
     private void updateTask(TaskRow row, LifecycleEvent event) {
         TaskRow current = mapper.findTask(row.id()).orElseThrow(() -> new NotFoundException("Task not found: " + row.id()));
@@ -2366,6 +2419,17 @@ public class TaskService {
                 + "\nLanguage requirement: 使用简体中文撰写面向用户的进度说明、结论、评审和最终总结。"
                 + "代码、命令、路径、标识符、JSON 字段名、协议枚举值以及要求精确匹配的字面量保持原样；"
                 + "仅当用户目标明确要求其他语言时才切换语言。\n" + recovery;
+    }
+
+    private String implementationTodoInstructions() {
+        return """
+
+                OpenCode Todo is available for this implementation Session. It is a non-authoritative progress
+                projection only: Task/Stage/Attempt/Verifier/Judge state remains controlled by Loopper. When the
+                work has three or more meaningful steps, use todowrite to keep a concise plan with exactly one
+                IN_PROGRESS item, include focused tests and verification, mark an item COMPLETED only after both
+                work and its verification finish, and leave blockers visible instead of claiming completion.
+                """;
     }
 
     private String executionDesignContext(String taskId, StageRow stage) {

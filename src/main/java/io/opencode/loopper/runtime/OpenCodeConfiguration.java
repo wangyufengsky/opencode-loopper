@@ -13,8 +13,14 @@ class OpenCodeConfiguration {
     }
 
     @Bean
-    OpenCodeClient openCodeClient(LoopperProperties properties, OpenCodeRuntimeManager runtimeManager) {
+    OpenCodeCapabilityRegistry openCodeCapabilityRegistry() {
+        return new OpenCodeCapabilityRegistry();
+    }
+
+    @Bean
+    OpenCodeClient openCodeClient(LoopperProperties properties, OpenCodeRuntimeManager runtimeManager,
+                                  OpenCodeCapabilityRegistry capabilities) {
         if ("fake".equalsIgnoreCase(properties.getOpenCode().getMode())) return new FakeOpenCodeClient();
-        return new HttpOpenCodeClient(RestClient.builder(), runtimeManager::connectionForClient, properties);
+        return new HttpOpenCodeClient(RestClient.builder(), runtimeManager::connectionForClient, properties, capabilities);
     }
 }

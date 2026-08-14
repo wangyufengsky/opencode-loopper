@@ -11,6 +11,7 @@ import io.opencode.loopper.domain.LifecycleScopeType;
 import io.opencode.loopper.domain.ImplementationKind;
 import io.opencode.loopper.domain.LoopSpec;
 import io.opencode.loopper.domain.LoopSpecCompilationState;
+import io.opencode.loopper.domain.ModelResponseMode;
 import io.opencode.loopper.domain.TaskDecompositionState;
 import io.opencode.loopper.domain.SessionFailure;
 import io.opencode.loopper.domain.StructuredModelStep;
@@ -25,6 +26,7 @@ import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.ProjectRow;
 import io.opencode.loopper.persistence.TaskDecompositionRow;
 import io.opencode.loopper.runtime.OpenCodeClient;
+import io.opencode.loopper.runtime.OpenCodeStructuredSchemas;
 import io.opencode.loopper.verification.ProcessCommandPolicy;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -443,18 +445,22 @@ public class DesignerSessionService {
             return message;
         }
         String now = now();
+        ModelResponseMode responseMode = preferredResponseMode();
         TaskDecompositionRow pending = new TaskDecompositionRow(UUID.randomUUID().toString(), input.id(),
                 revision.id(), TaskDecompositionState.PENDING_HANDOFF.name(), null, null, "[]", "{}",
                 null, "PENDING", 0, 0, revision.sourceDraftVersion(), null, null, now, now, 0,
-                StructuredModelStep.PLANNING.name(), null, 0);
+                StructuredModelStep.PLANNING.name(), null, 0,
+                responseMode.name(), schemaId(responseMode, OpenCodeStructuredSchemas.DECOMPOSITION_PLAN_V1), false,
+                responseMode.name(), schemaId(responseMode, OpenCodeStructuredSchemas.DECOMPOSITION_FINAL_V1), false);
         lifecycle.create(decompositionSubject(pending, input.projectId()), pending.state(), Map.of(),
                 () -> mapper.insertTaskDecomposition(pending),
                 () -> new ConflictException("TASK_DECOMPOSITION_CREATE_CONFLICT",
                         "Task decomposition could not be created"));
         ProjectRow project = projects.get(input.projectId());
         try {
-            OpenCodeClient.OpenCodeSession remote = openCode.createReadOnlySession(Path.of(project.rootPath()),
-                    "OpenCode Loopper Task Decomposer (READ_ONLY)", configuredModel());
+            OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
+                    "OpenCode Loopper Task Decomposer (READ_ONLY)", configuredModel(),
+                    OpenCodeClient.SessionProfile.DECOMPOSER_READ_ONLY);
             TaskDecompositionRow running = updateDecomposition(pending, TaskDecompositionState.RUNNING,
                     null, null, "[]", "{}", remote.id(), "RUNNING", 0, 0, null, null);
             DesignerSessionRow session = updateDesignerProjection(get(input.id()), DesignerSessionState.RUNNING,
@@ -466,8 +472,9 @@ public class DesignerSessionService {
                         "需求版本的 " + MAX_MODEL_CALLS + " 次自动模型调用预算已耗尽，任务拆解已停止。", "TERMINAL_ERROR",
                         revision.revision(), null);
             }
-            openCode.promptAsync(remote, decomposerPlanningPrompt(session, project,
-                    getRequirement(revision.id()), explicitRetry));
+            submitModelPrompt(remote, decomposerPlanningPrompt(session, project,
+                    getRequirement(revision.id()), explicitRetry), running.planningResponseMode(),
+                    running.planningResponseSchemaId());
             publish(session, "STATUS", DesignerActor.DECOMPOSER, true, "",
                     "任务拆解器正在规划包边界、依赖并建立需求段覆盖映射");
             return appendMessage(session.id(), DesignerActor.SYSTEM,
@@ -512,9 +519,10 @@ public class DesignerSessionService {
             } else if (status.completed()) {
                 if (StructuredModelStep.PLANNING.name().equals(decomposition.workflowStep())) {
                     handleDecompositionPlanningOutput(decomposition, session, remote,
-                            openCode.sessionOutput(remote));
+                            responseOutput(remote, decomposition.planningResponseMode()));
                 } else {
-                    handleDecompositionOutput(decomposition, session, remote, openCode.sessionOutput(remote));
+                    handleDecompositionOutput(decomposition, session, remote,
+                            responseOutput(remote, decomposition.finalResponseMode()));
                 }
             } else if (!same(decomposition.externalSessionState(), status.state())) {
                 updateDecomposition(decomposition, TaskDecompositionState.RUNNING, decomposition.resultType(),
@@ -549,7 +557,8 @@ public class DesignerSessionService {
         DesignRequirementRevisionRow revision = getRequirement(input.requirementRevisionId());
         if (!consumeModelCall(session, revision, "DECOMPOSER_MODEL_CALL_LIMIT")) return;
         try {
-            openCode.promptAsync(remote, decomposerJsonPrompt(plan));
+            submitModelPrompt(remote, decomposerJsonPrompt(plan), planned.finalResponseMode(),
+                    planned.finalResponseSchemaId());
             updateDesignerProjection(get(session.id()), DesignerSessionState.RUNNING,
                     DesignWorkflowPhase.DECOMPOSING, remote.id(), "GENERATING_JSON",
                     session.designRevision(), session.redesignCount(), revision.revision(), null);
@@ -646,9 +655,11 @@ public class DesignerSessionService {
         DesignRequirementRevisionRow revision = getRequirement(decomposition.requirementRevisionId());
         if (!consumeModelCall(session, revision, "DECOMPOSER_MODEL_CALL_LIMIT")) return;
         try {
-            openCode.promptAsync(remote, planning
-                    ? decompositionPlanningRepairPrompt(repairing, revision, code, detail)
-                    : decompositionRepairPrompt(repairing, code, detail));
+            submitModelPrompt(remote, planning
+                            ? decompositionPlanningRepairPrompt(repairing, revision, code, detail)
+                            : decompositionRepairPrompt(repairing, code, detail),
+                    planning ? repairing.planningResponseMode() : repairing.finalResponseMode(),
+                    planning ? repairing.planningResponseSchemaId() : repairing.finalResponseSchemaId());
             updateDesignerProjection(get(session.id()), DesignerSessionState.RUNNING,
                     DesignWorkflowPhase.DECOMPOSING, remote.id(), "REPAIRING_" + repair,
                     session.designRevision(), 0, session.currentRequirementRevision(), null);
@@ -699,8 +710,9 @@ public class DesignerSessionService {
         }
         ProjectRow project = projects.get(session.projectId());
         try {
-            OpenCodeClient.OpenCodeSession remote = openCode.createReadOnlySession(Path.of(project.rootPath()),
-                    "OpenCode Loopper Designer " + input.packageId() + " (READ_ONLY)", configuredModel());
+            OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
+                    "OpenCode Loopper Designer " + input.packageId() + " (READ_ONLY)", configuredModel(),
+                    OpenCodeClient.SessionProfile.DESIGNER_INTERACTIVE_READ_ONLY);
             int redesignCount = redesign ? input.redesignCount() + 1 : input.redesignCount();
             DesignWorkPackageRow designing = updateWorkPackage(input, DesignWorkPackageState.DESIGNING,
                     remote.id(), "RUNNING", input.designMessageId(), input.designRevision(), redesignCount,
@@ -811,26 +823,30 @@ public class DesignerSessionService {
         DesignRequirementRevisionRow revision = getRequirement(workPackage.requirementRevisionId());
         requireDraftUnchanged(session, revision.sourceDraftVersion());
         String now = now();
+        ModelResponseMode responseMode = preferredResponseMode();
         LoopSpecCompilationRow pending = new LoopSpecCompilationRow(UUID.randomUUID().toString(), session.id(),
                 workPackage.designRevision(), LoopSpecCompilationState.PENDING_HANDOFF.name(), null, "PENDING", 0,
                 source.id(), revision.sourceDraftVersion(), null, null, now, now, 0,
-                workPackage.packageId(), 0, null, StructuredModelStep.PLANNING.name(), null, 0);
+                workPackage.packageId(), 0, null, StructuredModelStep.PLANNING.name(), null, 0,
+                responseMode.name(), schemaId(responseMode, OpenCodeStructuredSchemas.PACKAGE_COMPILATION_PLAN_V2), false,
+                responseMode.name(), schemaId(responseMode, OpenCodeStructuredSchemas.PACKAGE_COMPILATION_FINAL_V2), false);
         lifecycle.create(compilationSubject(pending, session.projectId()), pending.state(),
                 Map.of("workPackageId", workPackage.packageId()), () -> mapper.insertLoopSpecCompilation(pending),
                 () -> new ConflictException("LOOPSPEC_COMPILATION_CREATE_CONFLICT",
                         "Work-package compilation could not be created"));
         ProjectRow project = projects.get(session.projectId());
         try {
-            OpenCodeClient.OpenCodeSession remote = openCode.createReadOnlySession(Path.of(project.rootPath()),
-                    "OpenCode Loopper LoopSpec Compiler " + workPackage.packageId() + " (READ_ONLY)", configuredModel());
+            OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
+                    "OpenCode Loopper LoopSpec Compiler " + workPackage.packageId() + " (READ_ONLY)", configuredModel(),
+                    OpenCodeClient.SessionProfile.COMPILER_READ_ONLY);
             LoopSpecCompilationRow running = updateCompilation(pending, LoopSpecCompilationState.RUNNING,
                     remote.id(), "RUNNING", 0, null, null, session.projectId(), null);
             if (!consumeModelCall(session, revision, "WORK_PACKAGE_MODEL_CALL_LIMIT")) {
                 abortQuietly(remote.id(), session.projectId());
                 return;
             }
-            openCode.promptAsync(remote, packageCompilerPlanningPrompt(project, revision, workPackage,
-                    source.content()));
+            submitModelPrompt(remote, packageCompilerPlanningPrompt(project, revision, workPackage,
+                    source.content()), running.planningResponseMode(), running.planningResponseSchemaId());
             publish(session, "STATUS", DesignerActor.COMPILER, true, "",
                     workPackage.packageId() + " 规范编译器正在规划 Stage 与验收证据映射");
         } catch (SessionFailure failure) {
@@ -856,8 +872,9 @@ public class DesignerSessionService {
         try {
             OpenCodeClient.OpenCodeSession remote = reusableDesigner(input)
                     ? designerRemote(input)
-                    : openCode.createReadOnlySession(Path.of(project.rootPath()),
-                    "OpenCode Loopper Designer (READ_ONLY)", configuredModel());
+                    : openCode.createSession(Path.of(project.rootPath()),
+                    "OpenCode Loopper Designer (READ_ONLY)", configuredModel(),
+                    OpenCodeClient.SessionProfile.DESIGNER_INTERACTIVE_READ_ONLY);
             current = updateDesignerProjection(input, DesignerSessionState.RUNNING, phase,
                     remote.id(), "CREATED", input.designRevision(), redesignCount);
             publish(current, "STATUS", DesignerActor.DESIGNER, true, "",
@@ -936,18 +953,23 @@ public class DesignerSessionService {
         String now = now();
         LoopSpecCompilationRow pending = new LoopSpecCompilationRow(UUID.randomUUID().toString(), session.id(),
                 session.designRevision(), LoopSpecCompilationState.PENDING_HANDOFF.name(), null, "PENDING", 0,
-                source.id(), draft.version(), null, null, now, now, 0);
+                source.id(), draft.version(), null, null, now, now, 0,
+                null, 0, null, StructuredModelStep.FINAL_JSON.name(), null, 0,
+                ModelResponseMode.TEXT_MARKER.name(), null, false,
+                ModelResponseMode.TEXT_MARKER.name(), null, false);
         lifecycle.create(compilationSubject(pending, session.projectId()), pending.state(), java.util.Map.of(),
                 () -> mapper.insertLoopSpecCompilation(pending),
                 () -> new ConflictException("LOOPSPEC_COMPILATION_CREATE_CONFLICT",
                         "LoopSpec compilation could not be created"));
         try {
             ProjectRow project = projects.get(session.projectId());
-            OpenCodeClient.OpenCodeSession remote = openCode.createReadOnlySession(Path.of(project.rootPath()),
-                    "OpenCode Loopper LoopSpec Compiler (READ_ONLY)", configuredModel());
+            OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
+                    "OpenCode Loopper LoopSpec Compiler (READ_ONLY)", configuredModel(),
+                    OpenCodeClient.SessionProfile.COMPILER_READ_ONLY);
             LoopSpecCompilationRow running = updateCompilation(pending, LoopSpecCompilationState.RUNNING,
                     remote.id(), "RUNNING", 0, null, null, session.projectId());
-            openCode.promptAsync(remote, compilerPrompt(session, project, draft, source.content()));
+            submitModelPrompt(remote, compilerPrompt(session, project, draft, source.content()),
+                    running.finalResponseMode(), running.finalResponseSchemaId());
             publish(session, "STATUS", DesignerActor.COMPILER, true, "",
                     "规范编译器已连接；原始 JSON 只会进入 Review Gate");
         } catch (SessionFailure failure) {
@@ -988,9 +1010,10 @@ public class DesignerSessionService {
                 if (!blank(compilation.workPackageId())
                         && StructuredModelStep.PLANNING.name().equals(compilation.workflowStep())) {
                     handlePackageCompilationPlanningOutput(compilation, session, remote,
-                            openCode.sessionOutput(remote));
+                            responseOutput(remote, compilation.planningResponseMode()));
                 } else {
-                    handleCompilerOutput(compilation, session, remote, openCode.sessionOutput(remote));
+                    handleCompilerOutput(compilation, session, remote,
+                            responseOutput(remote, compilation.finalResponseMode()));
                 }
             } else if (!same(compilation.externalSessionState(), status.state())) {
                 updateCompilation(compilation, LoopSpecCompilationState.RUNNING, remote.id(), status.state(),
@@ -1029,8 +1052,8 @@ public class DesignerSessionService {
         DesignRequirementRevisionRow revision = currentRequirement(session.id());
         if (!consumeModelCall(session, revision, "WORK_PACKAGE_MODEL_CALL_LIMIT")) return;
         try {
-            openCode.promptAsync(remote, packageCompilerJsonPrompt(session, drafts.get(session.loopDraftId()),
-                    workPackage, plan));
+            submitModelPrompt(remote, packageCompilerJsonPrompt(session, drafts.get(session.loopDraftId()),
+                            workPackage, plan), planned.finalResponseMode(), planned.finalResponseSchemaId());
             updateDesignerProjection(get(session.id()), DesignerSessionState.RUNNING, DesignWorkflowPhase.COMPILING,
                     session.externalSessionId(), "GENERATING_JSON", session.designRevision(),
                     session.redesignCount(), revision.revision(), workPackage.packageId());
@@ -1267,10 +1290,12 @@ public class DesignerSessionService {
         DesignRequirementRevisionRow revision = currentRequirement(session.id());
         if (!consumeModelCall(session, revision, "WORK_PACKAGE_MODEL_CALL_LIMIT")) return;
         try {
-            openCode.promptAsync(remote, planning
-                    ? packageCompilerPlanningRepairPrompt(repairing, workPackage,
-                    designMessage(workPackage).content(), code, detail)
-                    : packageCompilerRepairPrompt(repairing, code, detail));
+            submitModelPrompt(remote, planning
+                            ? packageCompilerPlanningRepairPrompt(repairing, workPackage,
+                            designMessage(workPackage).content(), code, detail)
+                            : packageCompilerRepairPrompt(repairing, code, detail),
+                    planning ? repairing.planningResponseMode() : repairing.finalResponseMode(),
+                    planning ? repairing.planningResponseSchemaId() : repairing.finalResponseSchemaId());
             updateDesignerProjection(get(session.id()), DesignerSessionState.RUNNING, DesignWorkflowPhase.COMPILING,
                     session.externalSessionId(), session.externalSessionState(), session.designRevision(),
                     session.redesignCount(), session.currentRequirementRevision(), workPackage.packageId());
@@ -1383,11 +1408,105 @@ public class DesignerSessionService {
                 DesignWorkflowPhase.COMPILING, session.externalSessionId(), session.externalSessionState(),
                 session.designRevision(), session.redesignCount());
         try {
-            openCode.promptAsync(remote, compilerRepairPrompt(repairing, code, detail));
+            submitModelPrompt(remote, compilerRepairPrompt(repairing, code, detail),
+                    repairing.finalResponseMode(), repairing.finalResponseSchemaId());
             publish(compiling, "STATUS", DesignerActor.COMPILER, true, "",
                     "规范编译器正在进行第 " + repair + "/" + MAX_COMPILER_REPAIRS + " 次修复");
         } catch (RuntimeException failure) {
             failCompilation(repairing, compiling, "OPENCODE_COMPILER_REPAIR_FAILED", failure.getMessage());
+        }
+    }
+
+    private boolean structuredFormatFailure(String code) {
+        return Set.of("OPENCODE_STRUCTURED_FORMAT_UNSUPPORTED", "OPENCODE_STRUCTURED_OUTPUT_FAILED")
+                .contains(code);
+    }
+
+    private boolean fallbackDecomposition(TaskDecompositionRow row, DesignerSessionRow session,
+                                          DesignRequirementRevisionRow revision, String code, String detail) {
+        boolean planning = StructuredModelStep.PLANNING.name().equals(row.workflowStep());
+        boolean alreadyUsed = planning ? row.planningFormatFallbackUsed() : row.finalFormatFallbackUsed();
+        boolean schemaMode = ModelResponseMode.JSON_SCHEMA.name().equals(
+                planning ? row.planningResponseMode() : row.finalResponseMode());
+        int repairs = planning ? row.planningRepairCount() : row.repairCount();
+        if (!schemaMode || alreadyUsed || repairs >= MAX_DECOMPOSER_REPAIRS || !isCurrent(session, revision)) {
+            return false;
+        }
+        if (!consumeModelCall(session, revision, "DECOMPOSER_MODEL_CALL_LIMIT")) return true;
+        abortQuietly(row.externalSessionId(), session.projectId());
+        try {
+            ProjectRow project = projects.get(session.projectId());
+            OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
+                    "OpenCode Loopper Task Decomposer format fallback (READ_ONLY)", configuredModel(),
+                    OpenCodeClient.SessionProfile.DECOMPOSER_READ_ONLY);
+            TaskDecompositionRow transport = decompositionTransport(row, planning,
+                    ModelResponseMode.TEXT_MARKER, null, true);
+            int repair = repairs + 1;
+            TaskDecompositionRow running = updateDecomposition(transport, TaskDecompositionState.RUNNING,
+                    transport.resultType(), transport.normalizedGoal(), transport.globalConstraintsJson(),
+                    transport.planJson(), remote.id(), "FORMAT_FALLBACK", planning ? transport.repairCount() : repair,
+                    transport.transportRetryCount(), code, safeMessage(detail),
+                    planning ? StructuredModelStep.PLANNING : StructuredModelStep.REPAIRING_JSON,
+                    transport.planningJson(), planning ? repair : transport.planningRepairCount());
+            DesignerSessionRow current = updateDesignerProjection(get(session.id()), DesignerSessionState.RUNNING,
+                    DesignWorkflowPhase.DECOMPOSING, remote.id(), "FORMAT_FALLBACK", session.designRevision(),
+                    session.redesignCount(), revision.revision(), null);
+            String prompt = planning
+                    ? decompositionPlanningRepairPrompt(running, revision, code, detail)
+                    : decompositionRepairPrompt(running, code, detail);
+            submitModelPrompt(remote, prompt, ModelResponseMode.TEXT_MARKER.name(), null);
+            publish(current, "STATUS", DesignerActor.DECOMPOSER, true, "",
+                    "OpenCode 结构化输出不可用，正在全新只读 Session 中执行唯一一次 marker 回退");
+            return true;
+        } catch (RuntimeException failure) {
+            return false;
+        }
+    }
+
+    private boolean fallbackCompilation(LoopSpecCompilationRow row, DesignerSessionRow session,
+                                        String code, String detail) {
+        boolean planning = StructuredModelStep.PLANNING.name().equals(row.workflowStep());
+        boolean alreadyUsed = planning ? row.planningFormatFallbackUsed() : row.finalFormatFallbackUsed();
+        boolean schemaMode = ModelResponseMode.JSON_SCHEMA.name().equals(
+                planning ? row.planningResponseMode() : row.finalResponseMode());
+        int repairs = planning ? row.planningRepairCount() : row.repairCount();
+        if (!schemaMode || alreadyUsed || repairs >= MAX_COMPILER_REPAIRS) return false;
+        DesignWorkPackageRow workPackage = blank(row.workPackageId()) ? null
+                : requireCurrentPackage(session, row.workPackageId());
+        DesignRequirementRevisionRow revision = workPackage == null ? null : currentRequirement(session.id());
+        if (revision != null && !consumeModelCall(session, revision, "WORK_PACKAGE_MODEL_CALL_LIMIT")) return true;
+        abortQuietly(row.externalSessionId(), session.projectId());
+        try {
+            ProjectRow project = projects.get(session.projectId());
+            OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
+                    "OpenCode Loopper LoopSpec Compiler format fallback (READ_ONLY)", configuredModel(),
+                    OpenCodeClient.SessionProfile.COMPILER_READ_ONLY);
+            LoopSpecCompilationRow transport = compilationTransport(row, planning,
+                    ModelResponseMode.TEXT_MARKER, null, true);
+            int repair = repairs + 1;
+            LoopSpecCompilationRow running = updateCompilation(transport, LoopSpecCompilationState.RUNNING,
+                    remote.id(), "FORMAT_FALLBACK", planning ? transport.repairCount() : repair,
+                    code, safeMessage(detail), session.projectId(), transport.compiledPackageJson(),
+                    planning ? StructuredModelStep.PLANNING : StructuredModelStep.REPAIRING_JSON,
+                    transport.planningJson(), planning ? repair : transport.planningRepairCount());
+            String prompt;
+            if (workPackage == null) {
+                prompt = compilerRepairPrompt(running, code, detail);
+            } else if (planning) {
+                prompt = packageCompilerPlanningRepairPrompt(running, workPackage,
+                        designMessage(workPackage).content(), code, detail);
+            } else {
+                prompt = packageCompilerRepairPrompt(running, code, detail);
+            }
+            submitModelPrompt(remote, prompt, ModelResponseMode.TEXT_MARKER.name(), null);
+            updateDesignerProjection(get(session.id()), DesignerSessionState.RUNNING,
+                    DesignWorkflowPhase.COMPILING, remote.id(), "FORMAT_FALLBACK", session.designRevision(),
+                    session.redesignCount(), session.currentRequirementRevision(), row.workPackageId());
+            publish(session, "STATUS", DesignerActor.COMPILER, true, "",
+                    "OpenCode 结构化输出不可用，正在全新只读 Session 中执行唯一一次 marker 回退");
+            return true;
+        } catch (RuntimeException failure) {
+            return false;
         }
     }
 
@@ -1398,6 +1517,7 @@ public class DesignerSessionService {
             return;
         }
         LoopSpecCompilationRow current = mapper.findLoopSpecCompilation(input.id()).orElse(input);
+        if (structuredFormatFailure(code) && fallbackCompilation(current, session, code, detail)) return;
         if (!LoopSpecCompilationState.SESSION_ERROR.name().equals(current.state())
                 && !LoopSpecCompilationState.COMPLETED.name().equals(current.state())
                 && !LoopSpecCompilationState.DESIGN_INCOMPLETE.name().equals(current.state())) {
@@ -1412,12 +1532,15 @@ public class DesignerSessionService {
                                    String code, String detail, boolean transportFailure) {
         TaskDecompositionRow decomposition = mapper.findTaskDecomposition(input.id()).orElse(input);
         DesignRequirementRevisionRow revision = getRequirement(decomposition.requirementRevisionId());
+        if (structuredFormatFailure(code)
+                && fallbackDecomposition(decomposition, session, revision, code, detail)) return;
         if (transportFailure && decomposition.transportRetryCount() < 1 && isCurrent(session, revision)) {
             abortQuietly(decomposition.externalSessionId(), session.projectId());
             ProjectRow project = projects.get(session.projectId());
             try {
-                OpenCodeClient.OpenCodeSession remote = openCode.createReadOnlySession(Path.of(project.rootPath()),
-                        "OpenCode Loopper Task Decomposer retry (READ_ONLY)", configuredModel());
+                OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
+                        "OpenCode Loopper Task Decomposer retry (READ_ONLY)", configuredModel(),
+                        OpenCodeClient.SessionProfile.DECOMPOSER_READ_ONLY);
                 TaskDecompositionRow retried = updateDecomposition(decomposition, TaskDecompositionState.RUNNING,
                         decomposition.resultType(), decomposition.normalizedGoal(), decomposition.globalConstraintsJson(),
                         decomposition.planJson(), remote.id(), "TRANSPORT_RETRY", decomposition.repairCount(),
@@ -1426,7 +1549,11 @@ public class DesignerSessionService {
                         DesignWorkflowPhase.DECOMPOSING, remote.id(), "TRANSPORT_RETRY", session.designRevision(),
                         session.redesignCount(), revision.revision(), null);
                 if (!consumeModelCall(running, revision, "DECOMPOSER_MODEL_CALL_LIMIT")) return;
-                openCode.promptAsync(remote, decomposerTransportRetryPrompt(retried, project, revision));
+                submitModelPrompt(remote, decomposerTransportRetryPrompt(retried, project, revision),
+                        StructuredModelStep.PLANNING.name().equals(retried.workflowStep())
+                                ? retried.planningResponseMode() : retried.finalResponseMode(),
+                        StructuredModelStep.PLANNING.name().equals(retried.workflowStep())
+                                ? retried.planningResponseSchemaId() : retried.finalResponseSchemaId());
                 publish(running, "STATUS", DesignerActor.DECOMPOSER, true, "",
                         "任务拆解器传输失败后正在使用唯一一次全新 Session 重试");
                 return;
@@ -1474,13 +1601,14 @@ public class DesignerSessionService {
         LoopSpecCompilationRow compilation = mapper.findLoopSpecCompilation(input.id()).orElse(input);
         DesignWorkPackageRow workPackage = requireCurrentPackage(session, compilation.workPackageId());
         DesignRequirementRevisionRow revision = currentRequirement(session.id());
+        if (structuredFormatFailure(code) && fallbackCompilation(compilation, session, code, detail)) return;
         abortQuietly(compilation.externalSessionId(), session.projectId());
         if (transportFailure && compilation.transportRetryCount() < 1 && isCurrent(session, revision)) {
             ProjectRow project = projects.get(session.projectId());
             try {
-                OpenCodeClient.OpenCodeSession remote = openCode.createReadOnlySession(Path.of(project.rootPath()),
+                OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
                         "OpenCode Loopper LoopSpec Compiler " + workPackage.packageId() + " retry (READ_ONLY)",
-                        configuredModel());
+                        configuredModel(), OpenCodeClient.SessionProfile.COMPILER_READ_ONLY);
                 LoopSpecCompilationRow retryBase = new LoopSpecCompilationRow(compilation.id(),
                         compilation.designerSessionId(), compilation.designRevision(), compilation.state(),
                         compilation.externalSessionId(), compilation.externalSessionState(), compilation.repairCount(),
@@ -1488,13 +1616,20 @@ public class DesignerSessionService {
                         compilation.lastErrorCode(), compilation.lastErrorDetail(), compilation.createdAt(),
                         compilation.updatedAt(), compilation.version(), compilation.workPackageId(),
                         compilation.transportRetryCount() + 1, compilation.compiledPackageJson(),
-                        compilation.workflowStep(), compilation.planningJson(), compilation.planningRepairCount());
+                        compilation.workflowStep(), compilation.planningJson(), compilation.planningRepairCount(),
+                        compilation.planningResponseMode(), compilation.planningResponseSchemaId(),
+                        compilation.planningFormatFallbackUsed(), compilation.finalResponseMode(),
+                        compilation.finalResponseSchemaId(), compilation.finalFormatFallbackUsed());
                 LoopSpecCompilationRow running = updateCompilation(retryBase, LoopSpecCompilationState.RUNNING,
                         remote.id(), "TRANSPORT_RETRY", compilation.repairCount(), code, safeMessage(detail),
                         session.projectId(), compilation.compiledPackageJson());
                 if (!consumeModelCall(session, revision, "WORK_PACKAGE_MODEL_CALL_LIMIT")) return;
-                openCode.promptAsync(remote, packageCompilerTransportRetryPrompt(running, session, project,
-                        revision, workPackage, designMessage(workPackage).content()));
+                submitModelPrompt(remote, packageCompilerTransportRetryPrompt(running, session, project,
+                                revision, workPackage, designMessage(workPackage).content()),
+                        StructuredModelStep.PLANNING.name().equals(running.workflowStep())
+                                ? running.planningResponseMode() : running.finalResponseMode(),
+                        StructuredModelStep.PLANNING.name().equals(running.workflowStep())
+                                ? running.planningResponseSchemaId() : running.finalResponseSchemaId());
                 publish(session, "STATUS", DesignerActor.COMPILER, true, "",
                         workPackage.packageId() + " 编译器传输失败后正在使用唯一一次全新 Session 重试");
                 return;
@@ -1724,14 +1859,18 @@ public class DesignerSessionService {
     private String markedPayload(String output, Pattern pattern, String prefix) {
         if (blank(output)) throw new BadRequestException(prefix + "_MISSING", "Read-only model completed without output");
         Matcher matcher = pattern.matcher(output);
-        if (!matcher.find()) throw new BadRequestException(prefix + "_MARKERS_MISSING",
-                "Output did not contain the required structured markers");
-        String body = matcher.group(1);
-        int start = body.indexOf('{');
-        int end = body.lastIndexOf('}');
-        if (start < 0 || end <= start) throw new BadRequestException(prefix + "_INVALID",
-                "Marked payload is not one JSON object");
-        return body.substring(start, end + 1);
+        if (matcher.find()) {
+            String body = matcher.group(1);
+            int start = body.indexOf('{');
+            int end = body.lastIndexOf('}');
+            if (start < 0 || end <= start) throw new BadRequestException(prefix + "_INVALID",
+                    "Marked payload is not one JSON object");
+            return body.substring(start, end + 1);
+        }
+        String standalone = standaloneJsonObject(output);
+        if (standalone != null) return standalone;
+        throw new BadRequestException(prefix + "_MARKERS_MISSING",
+                "Output did not contain the required structured markers or one standalone JSON object");
     }
 
     private String decompositionPayload(String output, Pattern pattern, String prefix) {
@@ -3275,7 +3414,9 @@ public class DesignerSessionService {
                 globalConstraintsJson == null ? "[]" : globalConstraintsJson,
                 planJson == null ? "{}" : planJson, externalSessionId, externalSessionState,
                 repairCount, transportRetryCount, row.sourceDraftVersion(), errorCode, errorDetail,
-                row.createdAt(), now(), row.version(), workflowStep.name(), planningJson, planningRepairCount);
+                row.createdAt(), now(), row.version(), workflowStep.name(), planningJson, planningRepairCount,
+                row.planningResponseMode(), row.planningResponseSchemaId(), row.planningFormatFallbackUsed(),
+                row.finalResponseMode(), row.finalResponseSchemaId(), row.finalFormatFallbackUsed());
         DesignerSessionRow session = get(row.designerSessionId());
         if (row.state().equals(updated.state())) {
             lifecycle.mutateWithoutTransition(() -> mapper.updateTaskDecomposition(updated),
@@ -3288,6 +3429,22 @@ public class DesignerSessionService {
                             "Task decomposition was updated concurrently"));
         }
         return getDecomposition(row.id());
+    }
+
+    private TaskDecompositionRow decompositionTransport(TaskDecompositionRow row, boolean planning,
+                                                        ModelResponseMode mode, String schemaId,
+                                                        boolean fallbackUsed) {
+        return new TaskDecompositionRow(row.id(), row.designerSessionId(), row.requirementRevisionId(), row.state(),
+                row.resultType(), row.normalizedGoal(), row.globalConstraintsJson(), row.planJson(),
+                row.externalSessionId(), row.externalSessionState(), row.repairCount(), row.transportRetryCount(),
+                row.sourceDraftVersion(), row.lastErrorCode(), row.lastErrorDetail(), row.createdAt(), row.updatedAt(),
+                row.version(), row.workflowStep(), row.planningJson(), row.planningRepairCount(),
+                planning ? mode.name() : row.planningResponseMode(),
+                planning ? schemaId : row.planningResponseSchemaId(),
+                planning ? fallbackUsed : row.planningFormatFallbackUsed(),
+                planning ? row.finalResponseMode() : mode.name(),
+                planning ? row.finalResponseSchemaId() : schemaId,
+                planning ? row.finalFormatFallbackUsed() : fallbackUsed);
     }
 
     private DesignWorkPackageRow updateWorkPackage(DesignWorkPackageRow row, DesignWorkPackageState state,
@@ -3397,6 +3554,41 @@ public class DesignerSessionService {
         catch (JacksonException failure) { throw new IllegalStateException("Unable to serialize design workflow", failure); }
     }
 
+    private ModelResponseMode preferredResponseMode() {
+        OpenCodeClient.StructuredOutputCapability capability = openCode.structuredOutputCapability(configuredModel());
+        return capability.transport() == OpenCodeClient.CapabilityState.UNAVAILABLE
+                || capability.selectedModel() == OpenCodeClient.CapabilityState.UNAVAILABLE
+                ? ModelResponseMode.TEXT_MARKER : ModelResponseMode.JSON_SCHEMA;
+    }
+
+    private String schemaId(ModelResponseMode mode, String schemaId) {
+        return mode == ModelResponseMode.JSON_SCHEMA ? schemaId : null;
+    }
+
+    private void submitModelPrompt(OpenCodeClient.OpenCodeSession remote, String prompt,
+                                   String responseMode, String schemaId) {
+        if (ModelResponseMode.JSON_SCHEMA.name().equals(responseMode) && !blank(schemaId)) {
+            openCode.promptAsync(remote, new OpenCodeClient.PromptRequest(prompt, null, null,
+                    OpenCodeStructuredSchemas.format(schemaId)));
+            return;
+        }
+        openCode.promptAsync(remote, OpenCodeClient.PromptRequest.text(prompt));
+    }
+
+    private String responseOutput(OpenCodeClient.OpenCodeSession remote, String responseMode) {
+        if (!ModelResponseMode.JSON_SCHEMA.name().equals(responseMode)) return openCode.sessionOutput(remote);
+        OpenCodeClient.SessionResult result = openCode.sessionResult(remote);
+        if (result.structuredRetryCount() != 0) {
+            throw new SessionFailure("OPENCODE_STRUCTURED_RETRY_UNEXPECTED",
+                    "OpenCode performed an unbudgeted structured-output retry");
+        }
+        if (result.hasStructured()) return write(result.structured());
+        String detail = !blank(result.errorDetail()) ? result.errorDetail()
+                : !blank(result.errorType()) ? result.errorType()
+                : "OpenCode completed without the requested structured object";
+        throw new SessionFailure("OPENCODE_STRUCTURED_OUTPUT_FAILED", detail);
+    }
+
     private DesignerSessionRow updateDesignerProjection(DesignerSessionRow session, DesignerSessionState state,
                                                          DesignWorkflowPhase phase, String externalSessionId,
                                                          String externalSessionState, int revision, int redesignCount) {
@@ -3466,7 +3658,9 @@ public class DesignerSessionService {
                 row.designRevision(), state.name(), externalSessionId, externalSessionState, repairCount,
                 row.sourceDesignMessageId(), row.sourceDraftVersion(), errorCode, errorDetail,
                 row.createdAt(), now(), row.version(), row.workPackageId(), row.transportRetryCount(),
-                compiledPackageJson, workflowStep.name(), planningJson, planningRepairCount);
+                compiledPackageJson, workflowStep.name(), planningJson, planningRepairCount,
+                row.planningResponseMode(), row.planningResponseSchemaId(), row.planningFormatFallbackUsed(),
+                row.finalResponseMode(), row.finalResponseSchemaId(), row.finalFormatFallbackUsed());
         if (row.state().equals(updated.state())) {
             lifecycle.mutateWithoutTransition(() -> mapper.updateLoopSpecCompilation(updated),
                     () -> new ConflictException("LOOPSPEC_COMPILATION_VERSION_CONFLICT",
@@ -3478,6 +3672,22 @@ public class DesignerSessionService {
                             "LoopSpec compilation was updated concurrently"));
         }
         return getCompilation(row.id());
+    }
+
+    private LoopSpecCompilationRow compilationTransport(LoopSpecCompilationRow row, boolean planning,
+                                                        ModelResponseMode mode, String schemaId,
+                                                        boolean fallbackUsed) {
+        return new LoopSpecCompilationRow(row.id(), row.designerSessionId(), row.designRevision(), row.state(),
+                row.externalSessionId(), row.externalSessionState(), row.repairCount(), row.sourceDesignMessageId(),
+                row.sourceDraftVersion(), row.lastErrorCode(), row.lastErrorDetail(), row.createdAt(), row.updatedAt(),
+                row.version(), row.workPackageId(), row.transportRetryCount(), row.compiledPackageJson(),
+                row.workflowStep(), row.planningJson(), row.planningRepairCount(),
+                planning ? mode.name() : row.planningResponseMode(),
+                planning ? schemaId : row.planningResponseSchemaId(),
+                planning ? fallbackUsed : row.planningFormatFallbackUsed(),
+                planning ? row.finalResponseMode() : mode.name(),
+                planning ? row.finalResponseSchemaId() : schemaId,
+                planning ? row.finalFormatFallbackUsed() : fallbackUsed);
     }
 
     private LoopSpecCompilationRow getCompilation(String id) {

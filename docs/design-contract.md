@@ -146,6 +146,14 @@ counters remain independent. Draft concurrency, exhausted budgets, and
 unassignable aggregation conflicts enter `WAITING_INPUT` without synchronizing
 the draft or creating a Task.
 
+OpenCode native agents are capability-discovered and the Runtime page may show
+that `plan` is available, but the Designer does not delegate to the native plan
+agent in this release. Designer remains the human-readable Markdown role;
+Decomposer and Compiler remain the machine-contract roles; the Validator remains
+server-owned and deterministic. This preserves Review Gate labels, persistence,
+repair budgets, source mapping, and the rule that raw machine JSON is not a chat
+message.
+
 Designer and Compiler inspect an immutable pre-execution repository baseline.
 For a later package, a predecessor whose package state is `COMPLETED` has passed
 its Designer/Compiler/Validator workflow but has intentionally not written its
@@ -192,6 +200,16 @@ invalid and consume the same per-step repair budget; this fallback never bypasse
 planning, coverage, dependency, or final-envelope checks.
 Neither planning nor final raw JSON is displayed as a chat message; the status
 strip exposes only `规划与证据映射`, `JSON 生成`, or `JSON 修复`.
+
+The four Decomposer/Compiler machine steps prefer stable OpenCode JSON Schemas;
+the final Judge contract has a fifth schema. Capability-unknown starts
+optimistically in schema mode. Only explicit format rejection, typed
+structured-output failure, or a completed response without structured data may
+switch that exact step to the legacy marker contract, in one fresh read-only
+role Session and within the same persisted repair/model-call budgets. Existing
+active rows stay marker-compatible. Structured output remains hidden behind the
+same deterministic validation and Review Gate; schema acceptance is not semantic
+success.
 
 Compiler is not expected to reverse-engineer backend DTOs from validation text.
 Its planning, final-generation and bounded repair prompts contain the complete
@@ -299,6 +317,13 @@ the newest provider-exposed `THINKING`, `OUTPUT`, and `TOOL` parts; terminal
 Sessions remain selectable as history and refresh at a slower interval. Before
 the first model text arrives, an animated thinking indicator makes the active
 handoff distinguishable from an error or empty state.
+
+For implementation Sessions only, the same panel may show an **OpenCode Todo**
+list with status and priority. It is rendered only when tool capability was
+available or a legacy/manual refresh produced a snapshot. Truncation and read
+failure are shown as projection details; Todo states never become completion
+badges for Stage, Task, verifier, or Judge. Designer and Judge Sessions do not
+receive Todo instructions or Todo UI.
 
 Designer acceptance criteria are not advisory prose. `PROCESS` is classified by
 the server: compile/package/build/typecheck/lint/install are `BUILD`; a

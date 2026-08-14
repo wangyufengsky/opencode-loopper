@@ -195,9 +195,12 @@ class TaskServiceIntegrationTest {
         TaskRow running = tasks.start(task.id());
         AttemptRow first = tasks.attempts(task.id()).getFirst();
         ExecutionSessionRow startedSession = mapper.activeSessions(task.id()).getFirst();
+        assertThat(startedSession.todoCapability()).isEqualTo("AVAILABLE");
         assertThat(((FakeOpenCodeClient) openCode).promptForSession(startedSession.externalSessionId()))
                 .contains("使用简体中文撰写面向用户的进度说明、结论、评审和最终总结")
-                .contains("JSON 字段名、协议枚举值");
+                .contains("JSON 字段名、协议枚举值")
+                .contains("todowrite", "non-authoritative progress")
+                .contains("Task/Stage/Attempt/Verifier/Judge state remains controlled by Loopper");
         TaskRow recovered = tasks.sessionFailed(task.id(), first.id(), "NETWORK", "temporary transport failure");
         assertThat(recovered.state()).isEqualTo("RUNNING");
         assertThat(tasks.attempts(task.id())).hasSize(2);
@@ -1242,7 +1245,11 @@ class TaskServiceIntegrationTest {
         assertThat(judging.state()).isEqualTo("JUDGING");
         assertThat(tasks.judges(task.id())).hasSize(2).allSatisfy(judge -> {
             assertThat(judge.state()).isEqualTo("RUNNING");
+            assertThat(judge.responseMode()).isEqualTo("JSON_SCHEMA");
+            assertThat(judge.responseSchemaId()).isEqualTo("JUDGE_DECISION_V1");
             assertThat(((FakeOpenCodeClient) openCode).isReadOnlySession(judge.externalSessionId())).isTrue();
+            assertThat(((FakeOpenCodeClient) openCode).profileForSession(judge.externalSessionId()))
+                    .isEqualTo(OpenCodeClient.SessionProfile.JUDGE_READ_ONLY);
             assertThat(((FakeOpenCodeClient) openCode).promptForSession(judge.externalSessionId()))
                     .contains("基于证据的中文 Markdown", "## 证据", "`reason` 必须使用简体中文", "每个换行正确转义")
                     .contains("跨阶段 AI 验收合同", "AC-1 [BOTH]", "评审准则：检查边界行为与需求一致性")
@@ -1458,6 +1465,9 @@ class TaskServiceIntegrationTest {
         assertThat(tasks.get(revise.id()).state()).isEqualTo("WAITING_INPUT");
         assertThat(tasks.judges(revise.id())).allSatisfy(judge -> assertThat(judge.verdict()).isEqualTo("REVISE"));
 
+        ((FakeOpenCodeClient) openCode).setStructuredCapability(new OpenCodeClient.StructuredOutputCapability(
+                OpenCodeClient.CapabilityState.UNAVAILABLE, OpenCodeClient.CapabilityState.UNKNOWN,
+                "legacy marker fixture"));
         ((FakeOpenCodeClient) openCode).setJudgeOutput("not a JSON decision");
         ProjectRow malformedProject = projects.create("malformed", gitProject());
         TaskRow malformed = drafts.confirm(drafts.create(spec(malformedProject.id())).id(), "unparseable judge");

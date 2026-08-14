@@ -11,6 +11,9 @@ Verified locally on 2026-08-04 with `opencode serve --hostname 127.0.0.1
 | Session status | `GET /session/status` | JSON map |
 | Session messages | `GET /session/{id}/message` | user/assistant messages with completion metadata |
 | Session diff | `GET /session/{id}/diff` | JSON array |
+| Session Todo | `GET /session/{id}/todo?directory=...` | bounded implementation progress projection |
+| built-in tool ids | `GET /experimental/tool/ids?directory=...` | workspace-scoped tool capability list |
+| native agents | `GET /agent` | native agent metadata, including optional `plan` |
 | abort | `POST /session/{id}/abort` | boolean |
 | delete | `DELETE /session/{id}` | boolean |
 | events | `GET /event` | SSE stream per published API |
@@ -64,6 +67,20 @@ then creates a brand-new read-only Compiler Session with the same configured
 model. Compiler has the same `read`/`glob`/`grep`-only boundary and cannot ask
 questions or create a Task.
 
+Session creation is role-scoped. Decomposer, Compiler, Judge, and general
+read-only roles start from a wildcard deny and allow only `read`, `glob`, and
+`grep`; Designer additionally allows `question`. All read-only roles deny
+`.env`/`.env.*`, re-allow only `.env.example`, and deny external directories.
+Implementation retains the existing mutation and command boundary and explicitly
+allows `todowrite`. These permission profiles are sent when the Session is
+created; prompts cannot supply an ad-hoc tool list that weakens them.
+
+The Runtime capability projection discovers `/agent` with a 30-second cache and
+records structured-output observations by endpoint, OpenCode version, provider,
+and model. It may show that native `plan` exists, but this release does not
+select that agent for Designer: Designer Markdown, Compiler JSON, and the
+deterministic Validator remain separate artifacts and authority boundaries.
+
 Those tools see the pre-execution repository baseline, not a simulated checkout
 after earlier packages. For a package dependency already marked `COMPLETED`,
 Loopper supplies the predecessor's frozen objective, Compiler summary, and
@@ -82,6 +99,28 @@ machine/Judge proof. Loopper validates and persists that bounded plan before a
 second prompt requests final JSON. Planning output is never a chat/SSE model
 message, and the second turn may not add, remove, reorder, or paraphrase frozen
 decisions.
+
+Five machine-response contracts have stable server-owned JSON Schemas:
+Decomposer planning, Decomposer final output, Compiler planning, Compiler final
+output, and final Judge output. A typed prompt may choose text or one of those
+schemas and may set system/agent fields, but it never accepts caller-owned tools.
+Schema mode uses OpenCode `format.type=json_schema` with provider retry count
+zero so Loopper's persisted planning/final repair budgets remain authoritative.
+The adapter reads `info.structured` without dropping legal JSON nulls and records
+transport/model support from successful responses or typed structured-output
+errors.
+
+New Decomposer/Compiler records prefer JSON Schema unless capability is known
+unavailable. A rejected format, typed structured-output error, or completed turn
+without structured data consumes one ordinary model call and the matching
+planning/final format-repair allowance, then creates one fresh read-only role
+Session and retries that step with the legacy marker contract. It never retries
+in the failed transcript, never adds a provider-owned hidden retry pool, and
+never bypasses the same deterministic semantic validation. Legacy active rows
+default to marker mode. Judge records likewise persist response mode/schema;
+their next explicitly scheduled ordinal uses marker mode after a structured
+Session error, while the existing atomic Requirement/Risk prompt preflight is
+unchanged.
 
 Compiler's final marked envelope contains either `COMPILED` (a 1–3 Stage package
 fragment, bounded summary/handoff, and an exact Designer excerpt for every criterion) or
@@ -166,13 +205,19 @@ Task detail exposes a read-only projection of its OpenCode Sessions:
 
 - `GET /api/tasks/{taskId}/sessions` lists implementation and judge Sessions;
 - `GET /api/tasks/{taskId}/sessions/{sessionKey}` returns current status plus
-  bounded provider-exposed `THINKING`, `OUTPUT`, and `TOOL` parts.
+  bounded provider-exposed `THINKING`, `OUTPUT`, and `TOOL` parts, and for an
+  implementation Session its Todo capability and current bounded Todo list.
 
 The UI polls active Sessions every 1.2 seconds and terminal history every three
-seconds. Monitoring never resumes, aborts, or otherwise mutates a Session, and
-transport errors shown by the panel do not alter Task state. Loopper displays
-only content returned by the OpenCode API; it does not fabricate or expose
-private model reasoning.
+seconds; the background lifecycle monitor refreshes an available implementation
+Todo projection at most every two seconds. Todo reads happen outside SQLite and
+persist only changed snapshots. At most 64 items, 1 KiB per item, and 64 KiB
+total content are retained, with stable content/occurrence-derived ids and an
+explicit truncation marker. Todo failure or completion never changes Task,
+Stage, Attempt, verifier, or Judge state. Monitoring never resumes, aborts, or
+otherwise mutates a Session, and transport errors shown by the panel do not alter
+Task state. Loopper displays only content returned by the OpenCode API; it does
+not fabricate or expose private model reasoning.
 
 ## Designer acceptance handoff
 

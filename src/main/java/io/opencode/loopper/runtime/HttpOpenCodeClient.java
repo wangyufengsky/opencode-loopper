@@ -5,64 +5,91 @@ import io.opencode.loopper.config.LoopperProperties;
 import io.opencode.loopper.domain.SessionFailure;
 import java.math.BigDecimal;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.Map;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 /** Thin adapter for the local OpenCode server; all transport faults become SessionFailure. */
 public class HttpOpenCodeClient implements OpenCodeClient {
+    private static final int MAX_TODOS = 64;
+    private static final int MAX_TODO_CONTENT_UTF8 = 1_024;
+    private static final int MAX_TODO_TOTAL_UTF8 = 64 * 1_024;
     private final RestClient.Builder baseBuilder;
     private final Supplier<ConnectionDetails> connectionSupplier;
     private final Duration connectTimeout;
     private final Duration requestTimeout;
+    private final OpenCodeCapabilityRegistry capabilities;
+    private final Map<String, OpenCodeModel> sessionModels = new ConcurrentHashMap<>();
+    private final ObjectMapper json = new ObjectMapper();
     public HttpOpenCodeClient(RestClient.Builder builder, LoopperProperties properties) {
         this(builder, () -> new ConnectionDetails(properties.getOpenCode().getBaseUrl(), properties.getOpenCode().getUsername(), properties.getOpenCode().getPassword()),
-                new Timeouts(properties.getOpenCode().getConnectTimeout(), properties.getOpenCode().getRequestTimeout()));
+                new Timeouts(properties.getOpenCode().getConnectTimeout(), properties.getOpenCode().getRequestTimeout()),
+                new OpenCodeCapabilityRegistry());
     }
     /** Runtime manager supplies an ephemeral connection without exposing its password in API DTOs. */
     public HttpOpenCodeClient(RestClient.Builder builder, URI baseUrl, String username, String password) {
-        this(builder, () -> new ConnectionDetails(baseUrl, username, password), new Timeouts(Duration.ofSeconds(5), Duration.ofSeconds(30)));
+        this(builder, () -> new ConnectionDetails(baseUrl, username, password),
+                new Timeouts(Duration.ofSeconds(5), Duration.ofSeconds(30)), new OpenCodeCapabilityRegistry());
     }
     /** Resolves credentials and endpoint for every request so managed restart can rotate both safely. */
     public HttpOpenCodeClient(RestClient.Builder builder, Supplier<OpenCodeRuntimeManager.Connection> connectionSupplier) {
-        this(builder, connectionSupplier, Duration.ofSeconds(5), Duration.ofSeconds(30));
+        this(builder, connectionSupplier, Duration.ofSeconds(5), Duration.ofSeconds(30),
+                new OpenCodeCapabilityRegistry());
     }
     /** Dynamic managed connections still use the configured bounded transport. */
     public HttpOpenCodeClient(RestClient.Builder builder, Supplier<OpenCodeRuntimeManager.Connection> connectionSupplier,
                               LoopperProperties properties) {
-        this(builder, connectionSupplier, properties.getOpenCode().getConnectTimeout(), properties.getOpenCode().getRequestTimeout());
+        this(builder, connectionSupplier, properties.getOpenCode().getConnectTimeout(),
+                properties.getOpenCode().getRequestTimeout(), new OpenCodeCapabilityRegistry());
+    }
+    public HttpOpenCodeClient(RestClient.Builder builder, Supplier<OpenCodeRuntimeManager.Connection> connectionSupplier,
+                              LoopperProperties properties, OpenCodeCapabilityRegistry capabilities) {
+        this(builder, connectionSupplier, properties.getOpenCode().getConnectTimeout(),
+                properties.getOpenCode().getRequestTimeout(), capabilities);
     }
     private HttpOpenCodeClient(RestClient.Builder builder, Supplier<OpenCodeRuntimeManager.Connection> connectionSupplier,
-                               Duration connectTimeout, Duration requestTimeout) {
+                               Duration connectTimeout, Duration requestTimeout,
+                               OpenCodeCapabilityRegistry capabilities) {
         this(builder, () -> {
             OpenCodeRuntimeManager.Connection connection = connectionSupplier.get();
             return new ConnectionDetails(connection.endpoint(), connection.username(), connection.password());
-        }, new Timeouts(connectTimeout, requestTimeout));
+        }, new Timeouts(connectTimeout, requestTimeout), capabilities);
     }
     private HttpOpenCodeClient(RestClient.Builder builder, Supplier<ConnectionDetails> connectionSupplier,
-                               Timeouts timeouts) {
+                               Timeouts timeouts, OpenCodeCapabilityRegistry capabilities) {
         this.baseBuilder = builder;
         this.connectionSupplier = connectionSupplier;
         this.connectTimeout = timeouts.connectTimeout();
         this.requestTimeout = timeouts.requestTimeout();
+        this.capabilities = capabilities;
     }
     @Override public boolean healthy() {
         try { client().get().uri("/global/health").retrieve().toBodilessEntity(); return true; }
         catch (RuntimeException ignored) { return false; }
     }
     @Override public OpenCodeSession createSession(Path worktree, String title, OpenCodeModel model) {
-        return createSession(worktree, title, model, false);
+        return createSession(worktree, title, model, SessionProfile.IMPLEMENTATION);
     }
     @Override public OpenCodeSession createReadOnlySession(Path worktree, String title, OpenCodeModel model) {
-        return createSession(worktree, title, model, true);
+        return createSession(worktree, title, model, SessionProfile.GENERAL_READ_ONLY);
     }
-    private OpenCodeSession createSession(Path worktree, String title, OpenCodeModel model, boolean readOnly) {
+    @Override public OpenCodeSession createSession(Path worktree, String title, OpenCodeModel model,
+                                                    SessionProfile profile) {
         try {
             Path canonical = worktree.toRealPath();
             Map<String, Object> request = new LinkedHashMap<>();
@@ -70,44 +97,8 @@ public class HttpOpenCodeClient implements OpenCodeClient {
             if (model != null && model.providerId() != null && !model.providerId().isBlank() && model.modelId() != null && !model.modelId().isBlank()) {
                 request.put("model", Map.of("id", model.modelId(), "providerID", model.providerId()));
             }
-            // Session rules apply even when Loopper safely reuses an operator-owned server.
-            // Deliberately leave ordinary in-worktree edit/bash at the server default; this
-            // is a narrow deny-list, not an implicit blanket permission grant.
-            List<Map<String, String>> permissions = new java.util.ArrayList<>(List.of(
-                    permissionRule("external_directory", "*", "deny"),
-                    permissionRule("bash", "*git*commit*", "deny"),
-                    permissionRule("bash", "*git*commit-tree*", "deny"),
-                    permissionRule("bash", "*git*update-ref*", "deny"),
-                    permissionRule("bash", "*git*symbolic-ref*", "deny"),
-                    permissionRule("bash", "*git*push*", "deny"),
-                    permissionRule("bash", "*git*branch*", "deny"),
-                    permissionRule("bash", "*git*checkout*", "deny"),
-                    permissionRule("bash", "*git*switch*", "deny"),
-                    permissionRule("bash", "*git*merge*", "deny"),
-                    permissionRule("bash", "*git*rebase*", "deny"),
-                    permissionRule("bash", "*git*cherry-pick*", "deny"),
-                    permissionRule("bash", "*git*tag*", "deny"),
-                    permissionRule("bash", "*git*stash*", "deny"),
-                    permissionRule("bash", "*git*worktree*", "deny"),
-                    permissionRule("bash", "*git*fetch*", "deny"),
-                    permissionRule("bash", "*git*pull*", "deny"),
-                    permissionRule("bash", "git reset --hard*", "deny"),
-                    permissionRule("bash", "rm -rf*", "deny")
-            ));
-            if (readOnly) {
-                // A judge can inspect the worktree through OpenCode's read facilities, but cannot
-                // change files, execute a shell, or delegate a potentially mutating sub-task.
-                // Explicitly allow the bounded read tools because an operator-owned OpenCode
-                // server may default them to "ask"; judge sessions are internal and are not
-                // exposed as actionable Inbox writers, so leaving them at "ask" deadlocks review.
-                permissions.add(permissionRule("read", "*", "allow"));
-                permissions.add(permissionRule("glob", "*", "allow"));
-                permissions.add(permissionRule("grep", "*", "allow"));
-                permissions.add(permissionRule("edit", "*", "deny"));
-                permissions.add(permissionRule("write", "*", "deny"));
-                permissions.add(permissionRule("bash", "*", "deny"));
-                permissions.add(permissionRule("task", "*", "deny"));
-            }
+            List<Map<String, String>> permissions = permissions(profile == null
+                    ? SessionProfile.IMPLEMENTATION : profile);
             request.put("permission", permissions);
             JsonNode body = client().post().uri(uri -> directoryUri(uri, "/session", canonical))
                     .contentType(MediaType.APPLICATION_JSON).body(request)
@@ -128,17 +119,79 @@ public class HttpOpenCodeClient implements OpenCodeClient {
                 throw new SessionFailure("OPENCODE_DIRECTORY_MISMATCH",
                         "OpenCode created the session outside the requested execution workspace");
             }
-            return new OpenCodeSession(id, canonical);
+            OpenCodeSession session = new OpenCodeSession(id, canonical);
+            if (model != null) sessionModels.put(id, model);
+            return session;
         } catch (SessionFailure e) { throw e; }
         catch (Exception e) { throw new SessionFailure("OPENCODE_SESSION_CREATE_FAILED", e.getMessage()); }
     }
     private static Map<String, String> permissionRule(String permission, String pattern, String action) {
         return Map.of("permission", permission, "pattern", pattern, "action", action);
     }
+    private static List<Map<String, String>> permissions(SessionProfile profile) {
+        if (profile != SessionProfile.IMPLEMENTATION) {
+            List<Map<String, String>> rules = new ArrayList<>();
+            rules.add(permissionRule("*", "*", "deny"));
+            rules.add(permissionRule("read", "*", "allow"));
+            rules.add(permissionRule("glob", "*", "allow"));
+            rules.add(permissionRule("grep", "*", "allow"));
+            if (profile == SessionProfile.DESIGNER_INTERACTIVE_READ_ONLY) {
+                rules.add(permissionRule("question", "*", "allow"));
+            }
+            rules.add(permissionRule("read", ".env", "deny"));
+            rules.add(permissionRule("read", ".env.*", "deny"));
+            rules.add(permissionRule("read", ".env.example", "allow"));
+            rules.add(permissionRule("external_directory", "*", "deny"));
+            return List.copyOf(rules);
+        }
+        List<Map<String, String>> rules = new ArrayList<>(List.of(
+                permissionRule("external_directory", "*", "deny"),
+                permissionRule("bash", "*git*commit*", "deny"),
+                permissionRule("bash", "*git*commit-tree*", "deny"),
+                permissionRule("bash", "*git*update-ref*", "deny"),
+                permissionRule("bash", "*git*symbolic-ref*", "deny"),
+                permissionRule("bash", "*git*push*", "deny"),
+                permissionRule("bash", "*git*branch*", "deny"),
+                permissionRule("bash", "*git*checkout*", "deny"),
+                permissionRule("bash", "*git*switch*", "deny"),
+                permissionRule("bash", "*git*merge*", "deny"),
+                permissionRule("bash", "*git*rebase*", "deny"),
+                permissionRule("bash", "*git*cherry-pick*", "deny"),
+                permissionRule("bash", "*git*tag*", "deny"),
+                permissionRule("bash", "*git*stash*", "deny"),
+                permissionRule("bash", "*git*worktree*", "deny"),
+                permissionRule("bash", "*git*fetch*", "deny"),
+                permissionRule("bash", "*git*pull*", "deny"),
+                permissionRule("bash", "git reset --hard*", "deny"),
+                permissionRule("bash", "rm -rf*", "deny"),
+                permissionRule("todowrite", "*", "allow")
+        ));
+        return List.copyOf(rules);
+    }
     @Override public void promptAsync(OpenCodeSession session, String prompt) {
+        promptAsync(session, PromptRequest.text(prompt));
+    }
+    @Override public void promptAsync(OpenCodeSession session, PromptRequest prompt) {
+        boolean structured = prompt != null && prompt.responseFormat() instanceof ResponseFormat.JsonSchema;
         try {
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("parts", List.of(Map.of("type", "text", "text", prompt == null ? "" : prompt.text())));
+            if (prompt != null && prompt.system() != null && !prompt.system().isBlank()) body.put("system", prompt.system());
+            if (prompt != null && prompt.agent() != null && !prompt.agent().isBlank()) body.put("agent", prompt.agent());
+            if (structured) {
+                ResponseFormat.JsonSchema format = (ResponseFormat.JsonSchema) prompt.responseFormat();
+                body.put("format", Map.of("type", "json_schema", "schema", format.schema(),
+                        "retryCount", format.retryCount()));
+            }
             client().post().uri(uri -> sessionUri(uri, "/session/{id}/prompt_async", session)).contentType(MediaType.APPLICATION_JSON)
-                    .body(Map.of("parts", java.util.List.of(Map.of("type", "text", "text", prompt)))).retrieve().toBodilessEntity();
+                    .body(body).retrieve().toBodilessEntity();
+            if (structured) capabilities.accepted(connectionSupplier.get().baseUrl(), sessionModels.get(session.id()));
+        } catch (RestClientResponseException failure) {
+            if (structured && formatRejected(failure)) {
+                capabilities.transportUnsupported(connectionSupplier.get().baseUrl(), sessionModels.get(session.id()), failure.getMessage());
+                throw new SessionFailure("OPENCODE_STRUCTURED_FORMAT_UNSUPPORTED", failure.getMessage());
+            }
+            throw new SessionFailure("OPENCODE_PROMPT_FAILED", failure.getMessage());
         } catch (RuntimeException e) { throw new SessionFailure("OPENCODE_PROMPT_FAILED", e.getMessage()); }
     }
     @Override public SessionStatus sessionStatus(OpenCodeSession session) {
@@ -161,20 +214,61 @@ public class HttpOpenCodeClient implements OpenCodeClient {
         catch (RuntimeException e) { throw new SessionFailure("OPENCODE_STATUS_FAILED", e.getMessage()); }
     }
     @Override public String sessionOutput(OpenCodeSession session) {
+        SessionResult result = sessionResult(session);
+        if (!result.text().isBlank()) return result.text();
+        if (result.hasStructured()) {
+            try { return json.writeValueAsString(result.structured()); }
+            catch (JacksonException failure) { throw new SessionFailure("OPENCODE_OUTPUT_FAILED", failure.getMessage()); }
+        }
+        throw new SessionFailure("OPENCODE_OUTPUT_MISSING", "OpenCode completed without assistant text or structured output");
+    }
+
+    @Override public SessionResult sessionResult(OpenCodeSession session) {
         try {
             JsonNode messages = sessionMessages(session);
-            String latest = null;
-            for (JsonNode message : messages) {
-                JsonNode info = message.path("info");
-                String role = info.path("role").asText(message.path("role").asText(""));
-                if (!"assistant".equalsIgnoreCase(role)) continue;
-                String output = assistantText(message);
-                if (!output.isBlank()) latest = output;
+            JsonNode latest = latestAssistantAfterUser(messages);
+            if (latest == null) throw new SessionFailure("OPENCODE_OUTPUT_MISSING", "OpenCode did not return an assistant turn");
+            JsonNode info = latest.path("info");
+            JsonNode error = info.path("error");
+            String errorType = null;
+            String errorDetail = null;
+            if (!error.isMissingNode() && !error.isNull()) {
+                errorType = firstText(error.path("name"), error.path("code"), error.path("type"));
+                errorDetail = errorDetail(error);
             }
-            if (latest == null) throw new SessionFailure("OPENCODE_OUTPUT_MISSING", "OpenCode completed without assistant text");
-            return latest;
+            JsonNode structured = info.path("structured");
+            if ((structured.isMissingNode() || structured.isNull()) && latest.has("structured")) {
+                structured = latest.path("structured");
+            }
+            Map<String, Object> structuredValue = structured.isObject() ? object(structured) : Map.of();
+            String text = assistantText(latest);
+            int retryCount = info.path("structuredRetryCount").asInt(
+                    info.path("structured_retry_count").asInt(0));
+            URI endpoint = connectionSupplier.get().baseUrl();
+            OpenCodeModel model = sessionModels.get(session.id());
+            if (!structuredValue.isEmpty()) capabilities.structured(endpoint, model);
+            if (structuredError(errorType, errorDetail)) capabilities.modelUnsupported(endpoint, model, errorDetail);
+            return new SessionResult(text, structuredValue, blankToNull(errorType), blankToNull(errorDetail), retryCount);
         } catch (SessionFailure e) { throw e; }
         catch (RuntimeException e) { throw new SessionFailure("OPENCODE_OUTPUT_FAILED", e.getMessage()); }
+    }
+
+    private JsonNode latestAssistantAfterUser(JsonNode messages) {
+        int latestUserIndex = -1;
+        JsonNode latest = null;
+        int index = 0;
+        for (JsonNode message : messages) {
+                JsonNode info = message.path("info");
+                String role = info.path("role").asText(message.path("role").asText(""));
+            if ("user".equalsIgnoreCase(role)) {
+                latestUserIndex = index;
+                latest = null;
+            } else if ("assistant".equalsIgnoreCase(role) && index > latestUserIndex) {
+                latest = message;
+            }
+            index++;
+        }
+        return latest;
     }
 
     @Override public String sessionLiveOutput(OpenCodeSession session) {
@@ -341,23 +435,93 @@ public class HttpOpenCodeClient implements OpenCodeClient {
         catch (RuntimeException e) { throw new SessionFailure("OPENCODE_PERMISSION_REPLY_FAILED", e.getMessage()); }
     }
 
-    @Override public List<SessionTodo> sessionTodos(OpenCodeSession session) {
+    @Override public SessionTodoSnapshot sessionTodoSnapshot(OpenCodeSession session) {
         try {
             JsonNode body = client().get().uri(uri -> sessionUri(uri, "/session/{id}/todo", session))
                     .retrieve().body(JsonNode.class);
             JsonNode todos = listBody(body);
             if (todos == null) throw new SessionFailure("OPENCODE_TODO_INVALID_RESPONSE", "OpenCode did not return a todo list");
             List<SessionTodo> result = new ArrayList<>();
+            Map<String, Integer> occurrences = new HashMap<>();
             int ordinal = 0;
+            int totalBytes = 0;
+            boolean truncated = false;
             for (JsonNode todo : todos) {
-                String id = todo.path("id").asText("");
-                if (id.isBlank()) id = session.id() + ":todo:" + ordinal;
-                result.add(new SessionTodo(id, todo.path("content").asText(""), todo.path("status").asText(""),
-                        todo.path("priority").asText(""), ordinal++, object(todo.path("metadata"))));
+                if (result.size() >= MAX_TODOS) { truncated = true; break; }
+                String rawContent = todo.path("content").asText("");
+                String content = truncateUtf8(rawContent, MAX_TODO_CONTENT_UTF8);
+                if (!content.equals(rawContent)) truncated = true;
+                int bytes = content.getBytes(StandardCharsets.UTF_8).length;
+                if (totalBytes + bytes > MAX_TODO_TOTAL_UTF8) { truncated = true; break; }
+                totalBytes += bytes;
+                String normalized = normalizeTodoContent(content);
+                int occurrence = occurrences.merge(normalized, 1, Integer::sum);
+                String rawStatus = todo.path("status").asText("");
+                String rawPriority = todo.path("priority").asText("");
+                Map<String, Object> metadata = new LinkedHashMap<>(object(todo.path("metadata")));
+                metadata.put("rawStatus", rawStatus);
+                metadata.put("rawPriority", rawPriority);
+                String id = "todo-v2:" + sha256(normalized) + ":" + occurrence;
+                result.add(new SessionTodo(id, content, todoStatus(rawStatus), todoPriority(rawPriority),
+                        ordinal++, metadata));
             }
-            return List.copyOf(result);
+            if (truncated && !result.isEmpty()) {
+                SessionTodo last = result.getLast();
+                Map<String, Object> metadata = new LinkedHashMap<>(last.metadata());
+                metadata.put("projectionTruncated", true);
+                result.set(result.size() - 1, new SessionTodo(last.id(), last.content(), last.status(),
+                        last.priority(), last.ordinal(), metadata));
+            }
+            return new SessionTodoSnapshot(result, truncated,
+                    truncated ? "OpenCode Todo projection was truncated to Loopper safety bounds" : null);
         } catch (SessionFailure e) { throw e; }
         catch (RuntimeException e) { throw new SessionFailure("OPENCODE_TODO_LIST_FAILED", e.getMessage()); }
+    }
+
+    @Override public ToolCapabilityProbe toolCapabilities(Path worktree) {
+        try {
+            Path canonical = worktree.toRealPath();
+            JsonNode body = client().get().uri(uri -> directoryUri(uri, "/experimental/tool/ids", canonical))
+                    .retrieve().body(JsonNode.class);
+            JsonNode ids = listBody(body);
+            if (ids == null) return new ToolCapabilityProbe(CapabilityState.UNKNOWN, List.of(),
+                    "OpenCode returned an invalid tool-id response");
+            List<String> result = new ArrayList<>();
+            for (JsonNode id : ids) if (id.isTextual() && !id.asText().isBlank()) result.add(id.asText());
+            return new ToolCapabilityProbe(CapabilityState.AVAILABLE, result, null);
+        } catch (RestClientResponseException failure) {
+            if (failure.getStatusCode().value() == 404) {
+                return new ToolCapabilityProbe(CapabilityState.UNAVAILABLE, List.of(),
+                        "OpenCode does not expose /experimental/tool/ids");
+            }
+            return new ToolCapabilityProbe(CapabilityState.UNKNOWN, List.of(), bounded(failure.getMessage()));
+        } catch (RuntimeException | java.io.IOException failure) {
+            return new ToolCapabilityProbe(CapabilityState.UNKNOWN, List.of(), bounded(failure.getMessage()));
+        }
+    }
+
+    @Override public List<AgentInfo> agents() {
+        try {
+            JsonNode body = client().get().uri("/agent").retrieve().body(JsonNode.class);
+            JsonNode values = listBody(body);
+            if (values == null) throw new SessionFailure("OPENCODE_AGENT_INVALID_RESPONSE",
+                    "OpenCode did not return an agent list");
+            List<AgentInfo> result = new ArrayList<>();
+            for (JsonNode value : values) {
+                String name = firstText(value.path("name"), value.path("id"));
+                if (name.isBlank()) continue;
+                result.add(new AgentInfo(name, blankToNull(value.path("mode").asText("")),
+                        blankToNull(firstText(value.path("description"), value.path("prompt")))));
+            }
+            return List.copyOf(result);
+        } catch (SessionFailure failure) { throw failure; }
+        catch (RuntimeException failure) {
+            throw new SessionFailure("OPENCODE_AGENT_LIST_FAILED", failure.getMessage());
+        }
+    }
+
+    @Override public StructuredOutputCapability structuredOutputCapability(OpenCodeModel model) {
+        return capabilities.capability(connectionSupplier.get().baseUrl(), model);
     }
 
     @Override public OpenCodeSession forkSession(OpenCodeSession session, String messageId) {
@@ -490,10 +654,9 @@ public class HttpOpenCodeClient implements OpenCodeClient {
         if (value == null || !value.isObject()) return Map.of();
         Map<String, Object> result = new LinkedHashMap<>();
         for (Map.Entry<String, JsonNode> entry : value.properties()) {
-            Object mapped = jsonValue(entry.getValue());
-            if (mapped != null) result.put(entry.getKey(), mapped);
+            result.put(entry.getKey(), jsonValue(entry.getValue()));
         }
-        return Map.copyOf(result);
+        return java.util.Collections.unmodifiableMap(result);
     }
 
     private Object jsonValue(JsonNode value) {
@@ -502,10 +665,9 @@ public class HttpOpenCodeClient implements OpenCodeClient {
         if (value.isArray()) {
             List<Object> result = new ArrayList<>();
             for (JsonNode item : value) {
-                Object mapped = jsonValue(item);
-                if (mapped != null) result.add(mapped);
+                result.add(jsonValue(item));
             }
-            return List.copyOf(result);
+            return java.util.Collections.unmodifiableList(result);
         }
         if (value.isBoolean()) return value.booleanValue();
         if (value.isIntegralNumber()) return value.longValue();
@@ -581,6 +743,57 @@ public class HttpOpenCodeClient implements OpenCodeClient {
                 error.path("name"), error.path("code"));
         return detail.isBlank() ? error.toString() : detail;
     }
+    private boolean formatRejected(RestClientResponseException failure) {
+        int status = failure.getStatusCode().value();
+        if (status != 400 && status != 404 && status != 415 && status != 422) return false;
+        String body = failure.getResponseBodyAsString();
+        String detail = (failure.getMessage() + " " + (body == null ? "" : body)).toLowerCase(Locale.ROOT);
+        return detail.contains("format") || detail.contains("json_schema") || detail.contains("schema");
+    }
+    private boolean structuredError(String type, String detail) {
+        String value = ((type == null ? "" : type) + " " + (detail == null ? "" : detail))
+                .toLowerCase(Locale.ROOT);
+        return value.contains("structuredoutput") || value.contains("structured_output")
+                || value.contains("json schema") || value.contains("json_schema");
+    }
+    private String todoStatus(String value) {
+        return switch (value == null ? "" : value.trim().toLowerCase(Locale.ROOT).replace('-', '_')) {
+            case "pending", "open", "todo" -> "PENDING";
+            case "in_progress", "inprogress", "doing" -> "IN_PROGRESS";
+            case "completed", "complete", "done" -> "COMPLETED";
+            case "cancelled", "canceled" -> "CANCELLED";
+            default -> "UNKNOWN";
+        };
+    }
+    private String todoPriority(String value) {
+        return switch (value == null ? "" : value.trim().toLowerCase(Locale.ROOT)) {
+            case "high" -> "HIGH";
+            case "medium", "normal" -> "MEDIUM";
+            case "low" -> "LOW";
+            default -> null;
+        };
+    }
+    private String normalizeTodoContent(String value) {
+        return (value == null ? "" : value).replace("\r\n", "\n").replace('\r', '\n')
+                .trim().replaceAll("\\s+", " ");
+    }
+    private String truncateUtf8(String value, int maxBytes) {
+        if (value == null || value.isEmpty()) return "";
+        byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
+        if (bytes.length <= maxBytes) return value;
+        int end = value.length();
+        while (end > 0 && value.substring(0, end).getBytes(StandardCharsets.UTF_8).length > maxBytes) end--;
+        return value.substring(0, end);
+    }
+    private String sha256(String value) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest((value == null ? "" : value).getBytes(StandardCharsets.UTF_8)));
+        } catch (Exception impossible) {
+            throw new IllegalStateException("SHA-256 unavailable", impossible);
+        }
+    }
+    private String blankToNull(String value) { return value == null || value.isBlank() ? null : value; }
     @Override public String diff(OpenCodeSession session) {
         try {
             return client().get().uri(uri -> sessionUri(uri, "/session/{id}/diff", session))

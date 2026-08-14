@@ -436,6 +436,7 @@ function normalizeTaskSessionQuestion(value: unknown): TaskSessionPendingQuestio
 
 function normalizeTaskSessionActivity(value: unknown): TaskSessionActivity {
   const raw = asRecord(value)
+  const todoCapability = asString(raw.todoCapability).toUpperCase()
   return {
     session: normalizeTaskSession(raw.session),
     remoteState: asString(raw.remoteState, 'UNKNOWN'),
@@ -444,6 +445,21 @@ function normalizeTaskSessionActivity(value: unknown): TaskSessionActivity {
     parts: asArray(raw.parts).map(normalizeTaskSessionPart),
     pendingQuestions: asArray(raw.pendingQuestions).map(normalizeTaskSessionQuestion),
     detail: asString(raw.detail) || undefined,
+    todoCapability: todoCapability === 'AVAILABLE' || todoCapability === 'UNAVAILABLE' ? todoCapability : 'UNKNOWN',
+    todos: asArray(raw.todos).map((value) => {
+      const todo = asRecord(value)
+      const status = asString(todo.status).toUpperCase()
+      const priority = asString(todo.priority).toUpperCase()
+      return {
+        id: asString(todo.id),
+        content: asString(todo.content),
+        status: ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'].includes(status) ? status as 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' : 'UNKNOWN',
+        priority: ['HIGH', 'MEDIUM', 'LOW'].includes(priority) ? priority as 'HIGH' | 'MEDIUM' | 'LOW' : undefined,
+        ordinal: asNumber(todo.ordinal),
+      }
+    }),
+    todoTruncated: raw.todoTruncated === true,
+    todoDetail: asString(raw.todoDetail) || undefined,
   }
 }
 
@@ -483,6 +499,7 @@ function normalizeInteraction(value: unknown): Interaction {
 
 function normalizeRuntime(value: unknown): RuntimeInfo {
   const raw = asRecord(value)
+  const capability = asRecord(raw.capabilities)
   const backendStatus = asString(raw.status)
   const status = backendStatus === 'AVAILABLE' || backendStatus === 'ONLINE'
     ? 'ONLINE'
@@ -499,6 +516,17 @@ function normalizeRuntime(value: unknown): RuntimeInfo {
     model: asString(raw.model) || undefined,
     checkedAt: asString(raw.checkedAt) || new Date().toISOString(),
     startupFailure: asString(raw.startupFailure) || undefined,
+    capabilities: Object.keys(capability).length ? {
+      agentDiscovery: ['AVAILABLE', 'UNAVAILABLE'].includes(asString(capability.agentDiscovery)) ? asString(capability.agentDiscovery) as 'AVAILABLE' | 'UNAVAILABLE' : 'UNKNOWN',
+      agents: asArray(capability.agents).map((value) => { const agent = asRecord(value); return { name: asString(agent.name), mode: asString(agent.mode) || undefined, description: asString(agent.description) || undefined } }),
+      nativePlanAgent: capability.nativePlanAgent === true,
+      structuredOutputTransport: ['AVAILABLE', 'UNAVAILABLE'].includes(asString(capability.structuredOutputTransport)) ? asString(capability.structuredOutputTransport) as 'AVAILABLE' | 'UNAVAILABLE' : 'UNKNOWN',
+      selectedModelStructuredOutput: ['AVAILABLE', 'UNAVAILABLE'].includes(asString(capability.selectedModelStructuredOutput)) ? asString(capability.selectedModelStructuredOutput) as 'AVAILABLE' | 'UNAVAILABLE' : 'UNKNOWN',
+      defaultResponseMode: asString(capability.defaultResponseMode) === 'TEXT_MARKER' ? 'TEXT_MARKER' : 'JSON_SCHEMA',
+      extensionPolicy: 'TRUSTED_ALLOWED',
+      checkedAt: asString(capability.checkedAt) || asString(raw.checkedAt),
+      detail: asString(capability.detail) || undefined,
+    } : undefined,
   }
 }
 

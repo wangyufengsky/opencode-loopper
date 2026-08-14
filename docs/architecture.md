@@ -84,7 +84,10 @@ the entity had no prior transitions.
 OpenCode `external_session_state`, Designer message delivery state, provider
 Todo snapshots, and immutable verifier outcomes are projections or results,
 not Loopper-owned lifecycle state. Refreshing those values never creates a
-business state transition.
+business state transition. Implementation Todo snapshots are replaced only
+when their bounded contents change; provider reads run outside SQLite and a
+Todo transport failure cannot fail or complete a Session, Attempt, Stage, Task,
+verifier, or Judge.
 
 ## Error layers
 
@@ -197,6 +200,26 @@ repairs in each step without one step exhausting the other. `workflow_step`,
 remaining hidden from chat/SSE content. Six packages now need 20 no-repair model calls, so the shared
 per-requirement ceiling is 32 calls; confirmed transport retries and all content
 repairs still count against it.
+
+V26 adds orthogonal OpenCode capability and response-contract metadata without
+merging lifecycle axes. Decomposition and compilation rows persist
+`response_mode`/`schema_id`; Judge rows persist the same contract; implementation
+Session rows persist `todo_capability`. New Decomposer/Compiler/Judge machine
+responses prefer one of five stable server-owned JSON Schemas with OpenCode's
+provider retry count fixed at zero. Explicit format rejection, typed
+structured-output failure, or missing structured data uses a fresh read-only
+role Session and the same persisted Loopper repair/model-call budget to fall back
+to the legacy marker parser. V26 defaults existing rows to marker mode and Todo
+capability unknown, preserving restart behavior.
+
+The OpenCode adapter owns typed prompts and role profiles: read-only roles deny
+all before allowing only repository reads, Designer alone may ask a question,
+and implementation explicitly allows discovered `todowrite` while retaining
+the existing Git/destructive-command restrictions. Runtime capability discovery
+may expose native agents and a `plan` agent, but no lifecycle or role selects it;
+Designer Markdown, Compiler JSON, and deterministic validation remain separate.
+Capabilities are observational, keyed by runtime/version/provider/model, and
+their availability never substitutes for a validated model result.
 
 Decomposer output markers are preferred but not the sole compatibility boundary.
 The parser may accept exactly one complete bare JSON object or one standalone

@@ -46,25 +46,38 @@ public class SessionLifecyclePersistence {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public List<SessionTodoRow> replaceTodos(String taskId, String sessionId,
-                                             List<OpenCodeClient.SessionTodo> observed,
-                                             String observedAt) {
+    public TodoPersistenceResult replaceTodos(String taskId, String sessionId,
+                                              List<OpenCodeClient.SessionTodo> observed,
+                                              String observedAt) {
         Map<String, SessionTodoRow> persisted = new LinkedHashMap<>();
         for (SessionTodoRow row : mapper.listSessionTodos(sessionId)) persisted.put(row.externalTodoId(), row);
+        boolean changed = persisted.size() != observed.size();
         List<String> activeTodoIds = new ArrayList<>();
         for (OpenCodeClient.SessionTodo todo : observed) {
             if (todo.id() == null || todo.id().isBlank()) continue;
             activeTodoIds.add(todo.id());
             SessionTodoRow old = persisted.get(todo.id());
-            mapper.upsertSessionTodo(new SessionTodoRow(old == null ? UUID.randomUUID().toString() : old.id(), sessionId,
-                    todo.id(), blank(todo.content()), blank(todo.status()), nullable(todo.priority()), todo.ordinal(),
-                    write(todo.metadata()), observedAt, old == null ? 0 : old.version()));
+            String content = blank(todo.content());
+            String status = blank(todo.status());
+            String priority = nullable(todo.priority());
+            String payload = write(todo.metadata());
+            boolean itemChanged = old == null || !content.equals(old.content()) || !status.equals(old.status())
+                    || !java.util.Objects.equals(priority, old.priority()) || todo.ordinal() != old.ordinal()
+                    || !payload.equals(old.payloadJson());
+            if (itemChanged) {
+                changed = true;
+                mapper.upsertSessionTodo(new SessionTodoRow(old == null ? UUID.randomUUID().toString() : old.id(), sessionId,
+                        todo.id(), content, status, priority, todo.ordinal(), payload, observedAt,
+                        old == null ? 0 : old.version()));
+            }
         }
-        mapper.deleteMissingSessionTodos(sessionId, write(activeTodoIds));
+        if (changed) mapper.deleteMissingSessionTodos(sessionId, write(activeTodoIds));
         List<SessionTodoRow> snapshot = mapper.listSessionTodos(sessionId);
-        events.emit(taskId, "session.todos_refreshed", Map.of("sessionId", sessionId, "count", snapshot.size()));
-        return snapshot;
+        if (changed) events.emit(taskId, "session.todos_refreshed", Map.of("sessionId", sessionId, "count", snapshot.size()));
+        return new TodoPersistenceResult(snapshot, changed);
     }
+
+    public List<SessionTodoRow> todos(String sessionId) { return mapper.listSessionTodos(sessionId); }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public SessionCheckpointRow insertCheckpoint(SessionCheckpointRow row) {
@@ -115,6 +128,9 @@ public class SessionLifecyclePersistence {
     private static String nullable(String value) { return value == null || value.isBlank() ? null : value.trim(); }
 
     public record ForkSnapshot(ExecutionSessionRow session, AttemptRow attempt) { }
+    public record TodoPersistenceResult(List<SessionTodoRow> todos, boolean changed) {
+        public TodoPersistenceResult { todos = todos == null ? List.of() : List.copyOf(todos); }
+    }
 
     private LifecycleTransitionService.Subject subject(LifecycleMachineType machine, String entityId, String taskId) {
         return new LifecycleTransitionService.Subject(machine, entityId, LifecycleScopeType.TASK, taskId);

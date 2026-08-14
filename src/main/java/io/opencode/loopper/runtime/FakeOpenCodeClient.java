@@ -2,6 +2,7 @@ package io.opencode.loopper.runtime;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -17,6 +18,8 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     private final ConcurrentHashMap<String, String> judgeRoleBySession = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> judgeOutputByRole = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> promptBySession = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, PromptRequest> promptRequestBySession = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, SessionProfile> profileBySession = new ConcurrentHashMap<>();
     private final CopyOnWriteArrayList<PromptCall> promptHistory = new CopyOnWriteArrayList<>();
     private final ConcurrentHashMap<String, OpenCodeModel> modelBySession = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> detailBySession = new ConcurrentHashMap<>();
@@ -34,14 +37,26 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     private final AtomicInteger failedReadOnlySessions = new AtomicInteger();
     private final AtomicInteger failedReadOnlySessionCreations = new AtomicInteger();
     private final AtomicInteger failedPrompts = new AtomicInteger();
+    private final AtomicInteger failedStructuredPrompts = new AtomicInteger();
     private final AtomicInteger failedAborts = new AtomicInteger();
     private final AtomicInteger createSessionCalls = new AtomicInteger();
     private final AtomicInteger createReadOnlySessionCalls = new AtomicInteger();
     private final AtomicInteger promptCalls = new AtomicInteger();
     private volatile String judgeOutput = "{\"verdict\":\"PASS\",\"reason\":\"确定性证据满足评审要求。\"}";
     private volatile boolean healthy = true;
+    private volatile ToolCapabilityProbe toolCapability = new ToolCapabilityProbe(CapabilityState.AVAILABLE,
+            List.of("read", "glob", "grep", "todowrite"), null);
+    private volatile StructuredOutputCapability structuredCapability = new StructuredOutputCapability(
+            CapabilityState.AVAILABLE, CapabilityState.AVAILABLE, null);
     @Override public boolean healthy() { return healthy; }
-    @Override public OpenCodeSession createSession(Path worktree, String title, OpenCodeModel model) { createSessionCalls.incrementAndGet(); String id = "fake-" + UUID.randomUUID(); states.put(id, "RUNNING"); return new OpenCodeSession(id, worktree); }
+    @Override public OpenCodeSession createSession(Path worktree, String title, OpenCodeModel model) {
+        createSessionCalls.incrementAndGet();
+        String id = "fake-" + UUID.randomUUID();
+        states.put(id, "RUNNING");
+        profileBySession.put(id, SessionProfile.IMPLEMENTATION);
+        if (model != null) modelBySession.put(id, model);
+        return new OpenCodeSession(id, worktree);
+    }
     @Override public OpenCodeSession createReadOnlySession(Path worktree, String title, OpenCodeModel model) {
         createReadOnlySessionCalls.incrementAndGet();
         if (failedReadOnlySessionCreations.getAndUpdate(value -> Math.max(0, value - 1)) > 0) {
@@ -49,6 +64,7 @@ public class FakeOpenCodeClient implements OpenCodeClient {
         }
         String id = "fake-judge-" + UUID.randomUUID();
         readOnly.put(id, Boolean.TRUE);
+        profileBySession.put(id, SessionProfile.GENERAL_READ_ONLY);
         String normalizedTitle = title == null ? "" : title.toUpperCase();
         String packageId = java.util.regex.Pattern.compile("\\bWP-\\d+\\b").matcher(normalizedTitle).results()
                 .map(java.util.regex.MatchResult::group).findFirst().orElse(null);
@@ -67,10 +83,29 @@ public class FakeOpenCodeClient implements OpenCodeClient {
         states.put(id, shouldFail ? "FAILED" : "RUNNING");
         return new OpenCodeSession(id, worktree);
     }
+    @Override public OpenCodeSession createSession(Path worktree, String title, OpenCodeModel model,
+                                                    SessionProfile profile) {
+        OpenCodeSession session = profile == null || profile == SessionProfile.IMPLEMENTATION
+                ? createSession(worktree, title, model) : createReadOnlySession(worktree, title, model);
+        profileBySession.put(session.id(), profile == null ? SessionProfile.IMPLEMENTATION : profile);
+        return session;
+    }
     @Override public void promptAsync(OpenCodeSession session, String prompt) {
+        submitPrompt(session, PromptRequest.text(prompt));
+    }
+    @Override public void promptAsync(OpenCodeSession session, PromptRequest prompt) {
+        if (prompt != null && prompt.responseFormat() instanceof ResponseFormat.JsonSchema
+                && failedStructuredPrompts.getAndUpdate(value -> Math.max(0, value - 1)) > 0) {
+            throw new SessionFailure("OPENCODE_STRUCTURED_FORMAT_UNSUPPORTED",
+                    "Deterministic structured format rejection");
+        }
+        submitPrompt(session, prompt == null ? PromptRequest.text("") : prompt);
+    }
+    private void submitPrompt(OpenCodeSession session, PromptRequest prompt) {
         promptCalls.incrementAndGet();
-        promptBySession.put(session.id(), prompt);
-        promptHistory.add(new PromptCall(session.id(), prompt));
+        promptBySession.put(session.id(), prompt.text());
+        promptRequestBySession.put(session.id(), prompt);
+        promptHistory.add(new PromptCall(session.id(), prompt.text()));
         if (failedPrompts.getAndUpdate(value -> Math.max(0, value - 1)) > 0) {
             throw new SessionFailure("OPENCODE_PROMPT_FAILED", "Deterministic Designer prompt transport failure");
         }
@@ -92,6 +127,24 @@ public class FakeOpenCodeClient implements OpenCodeClient {
             return explicitPlan == null ? packageCompilationPlanningOutput(outputForRole(role)) : explicitPlan;
         }
         return outputForRole(role);
+    }
+    @Override public SessionResult sessionResult(OpenCodeSession session) {
+        String output = sessionOutput(session);
+        PromptRequest request = promptRequestBySession.get(session.id());
+        if (request == null || !(request.responseFormat() instanceof ResponseFormat.JsonSchema)) {
+            return new SessionResult(output, Map.of(), null, null, 0);
+        }
+        try {
+            String candidate = output == null ? "" : output.trim();
+            int start = candidate.indexOf('{');
+            int end = candidate.lastIndexOf('}');
+            if (start < 0 || end < start) return new SessionResult(output, Map.of(), null, null, 0);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> structured = new ObjectMapper().readValue(candidate.substring(start, end + 1), Map.class);
+            return new SessionResult(output, structured, null, null, 0);
+        } catch (Exception failure) {
+            return new SessionResult(output, Map.of(), "StructuredOutputError", failure.getMessage(), 0);
+        }
     }
     private String outputForRole(String role) {
         String exact = judgeOutputByRole.get(role);
@@ -134,6 +187,19 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     @Override public List<SessionTodo> sessionTodos(OpenCodeSession session) {
         return List.copyOf(todosBySession.getOrDefault(session.id(), List.of()));
     }
+    @Override public SessionTodoSnapshot sessionTodoSnapshot(OpenCodeSession session) {
+        List<SessionTodo> todos = sessionTodos(session);
+        boolean truncated = todos.stream().anyMatch(todo -> Boolean.TRUE.equals(todo.metadata().get("projectionTruncated")));
+        return new SessionTodoSnapshot(todos, truncated, truncated ? "Deterministic Todo projection truncated" : null);
+    }
+    @Override public ToolCapabilityProbe toolCapabilities(Path worktree) { return toolCapability; }
+    @Override public List<AgentInfo> agents() {
+        return List.of(new AgentInfo("build", "primary", "Implementation agent"),
+                new AgentInfo("plan", "primary", "Planning agent"));
+    }
+    @Override public StructuredOutputCapability structuredOutputCapability(OpenCodeModel model) {
+        return structuredCapability;
+    }
     @Override public OpenCodeSession forkSession(OpenCodeSession session, String messageId) {
         String childId = "fake-fork-" + UUID.randomUUID();
         states.put(childId, "IDLE");
@@ -158,6 +224,7 @@ public class FakeOpenCodeClient implements OpenCodeClient {
         states.put(session.id(), "ABORTED");
     }
     public boolean isReadOnlySession(String id) { return Boolean.TRUE.equals(readOnly.get(id)); }
+    public SessionProfile profileForSession(String id) { return profileBySession.get(id); }
     public int createSessionCalls() { return createSessionCalls.get(); }
     public int createReadOnlySessionCalls() { return createReadOnlySessionCalls.get(); }
     public int promptCalls() { return promptCalls.get(); }
@@ -187,6 +254,7 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     public String promptForSession(String id) { return promptBySession.get(id); }
     public List<PromptCall> promptHistory() { return List.copyOf(promptHistory); }
     public void failNextPrompts(int count) { failedPrompts.set(Math.max(0, count)); }
+    public void failNextStructuredPrompts(int count) { failedStructuredPrompts.set(Math.max(0, count)); }
     public void failNextAborts(int count) { failedAborts.set(Math.max(0, count)); }
     public void setSessionState(String id, String state) { states.put(id, state); detailBySession.remove(id); }
     public void setSessionStatus(String id, String state, String detail) {
@@ -210,6 +278,14 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     public void setSessionTodos(String sessionId, List<SessionTodo> todos) {
         todosBySession.put(sessionId, todos == null ? List.of() : List.copyOf(todos));
     }
+    public void setToolCapability(ToolCapabilityProbe capability) {
+        toolCapability = capability == null
+                ? new ToolCapabilityProbe(CapabilityState.UNKNOWN, List.of(), null) : capability;
+    }
+    public void setStructuredCapability(StructuredOutputCapability capability) {
+        structuredCapability = capability == null
+                ? new StructuredOutputCapability(CapabilityState.UNKNOWN, CapabilityState.UNKNOWN, null) : capability;
+    }
     public void setSessionUsage(String sessionId, List<UsageRecord> usage) {
         usageBySession.put(sessionId, usage == null ? List.of() : List.copyOf(usage));
     }
@@ -219,7 +295,7 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     public void failNextReadOnlySessions(int count) { failedReadOnlySessions.set(Math.max(0, count)); }
     public void failNextReadOnlySessionCreations(int count) { failedReadOnlySessionCreations.set(Math.max(0, count)); }
     public void failNextReadOnlySessions(String role, int count) { failedReadOnlySessionsByRole.put(role.toUpperCase(), new AtomicInteger(Math.max(0, count))); }
-    public void reset() { states.clear(); readOnly.clear(); judgeRoleBySession.clear(); judgeOutputByRole.clear(); promptBySession.clear(); promptHistory.clear(); modelBySession.clear(); detailBySession.clear(); pendingQuestionBySession.clear(); answersByQuestion.clear(); rejectedQuestions.clear(); pendingPermissionsBySession.clear(); permissionRepliesByRequest.clear(); todosBySession.clear(); usageBySession.clear(); forkCalls.clear(); revertCalls.clear(); summarizeCalls.clear(); failedReadOnlySessionsByRole.clear(); failedReadOnlySessions.set(0); failedReadOnlySessionCreations.set(0); failedPrompts.set(0); failedAborts.set(0); createSessionCalls.set(0); createReadOnlySessionCalls.set(0); promptCalls.set(0); judgeOutput = "{\"verdict\":\"PASS\",\"reason\":\"确定性证据满足评审要求。\"}"; healthy = true; }
+    public void reset() { states.clear(); readOnly.clear(); judgeRoleBySession.clear(); judgeOutputByRole.clear(); promptBySession.clear(); promptRequestBySession.clear(); profileBySession.clear(); promptHistory.clear(); modelBySession.clear(); detailBySession.clear(); pendingQuestionBySession.clear(); answersByQuestion.clear(); rejectedQuestions.clear(); pendingPermissionsBySession.clear(); permissionRepliesByRequest.clear(); todosBySession.clear(); usageBySession.clear(); forkCalls.clear(); revertCalls.clear(); summarizeCalls.clear(); failedReadOnlySessionsByRole.clear(); failedReadOnlySessions.set(0); failedReadOnlySessionCreations.set(0); failedPrompts.set(0); failedStructuredPrompts.set(0); failedAborts.set(0); createSessionCalls.set(0); createReadOnlySessionCalls.set(0); promptCalls.set(0); judgeOutput = "{\"verdict\":\"PASS\",\"reason\":\"确定性证据满足评审要求。\"}"; healthy = true; toolCapability = new ToolCapabilityProbe(CapabilityState.AVAILABLE, List.of("read", "glob", "grep", "todowrite"), null); structuredCapability = new StructuredOutputCapability(CapabilityState.AVAILABLE, CapabilityState.AVAILABLE, null); }
     private String designerMarkdown(String output) {
         if (output == null) return null;
         return output.replaceAll("(?is)<!--\\s*LOOPSPEC_JSON_START\\s*-->.*?<!--\\s*LOOPSPEC_JSON_END\\s*-->", "").trim();
@@ -372,6 +448,11 @@ public class FakeOpenCodeClient implements OpenCodeClient {
             tools.jackson.databind.node.ObjectNode source = markedObject(finalOutput,
                     "LOOPSPEC_COMPILATION_JSON_START", "LOOPSPEC_COMPILATION_JSON_END", mapper);
             tools.jackson.databind.node.ObjectNode plan = mapper.createObjectNode();
+            boolean v2 = source.path("stages").isArray()
+                    && java.util.stream.StreamSupport.stream(source.path("stages").spliterator(), false)
+                    .anyMatch(stage -> !stage.path("implementationKind").isMissingNode()
+                            && !stage.path("implementationKind").isNull());
+            plan.put("contractVersion", v2 ? 2 : 1);
             plan.set("status", source.path("status"));
             plan.set("summary", source.path("summary"));
             tools.jackson.databind.node.ArrayNode stagePlans = mapper.createArrayNode();
@@ -384,6 +465,8 @@ public class FakeOpenCodeClient implements OpenCodeClient {
                 stagePlan.set("allowedPaths", stage.path("allowedPaths"));
                 stagePlan.set("forbiddenPaths", stage.path("forbiddenPaths"));
                 stagePlan.set("deliverables", stage.path("deliverables"));
+                stagePlan.set("verifiers", stage.path("verifiers"));
+                stagePlan.set("verificationRuntime", stage.path("verificationRuntime"));
                 stagePlan.set("implementationKind", stage.path("implementationKind"));
                 stagePlan.set("workPackageId", stage.path("workPackageId"));
                 tools.jackson.databind.JsonNode criteria = stage.path("acceptanceCriteria");

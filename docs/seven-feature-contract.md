@@ -20,6 +20,8 @@ manufactures queue, progress, usage or cost data.
   Decomposer/Compiler, plus a valid terminal path from decomposition validation.
 - V25: persisted Stage workspace baselines for Stage-local `GIT_DIFF` and
   Attempt handoff isolation.
+- V26: persisted Decomposer/Compiler/Judge response mode and schema identity,
+  plus implementation Session Todo capability.
 
 Decomposer exact markers remain preferred. Markerless compatibility accepts
 only one complete top-level JSON object or one standalone `json` fence and then
@@ -32,7 +34,8 @@ validates those blueprints using the normal LoopSpec v2 execution contract befor
 freezing, and final JSON must preserve them exactly.
 
 Historical migrations remain immutable. Empty databases and supported V21/V24
-databases must all migrate to V25.
+databases must all migrate to V26. Legacy AI rows default to `TEXT_MARKER`; old
+implementation Sessions default Todo capability to `UNKNOWN`.
 
 ## Interactions
 
@@ -80,6 +83,15 @@ never creates a writable Session and returns HTTP 409 on workspace fingerprint
 mismatch. Direct in-place revert is forbidden; operators create a derived
 Recovery instead. Fork/revert require a paused Task and confirmed old-writer
 termination. A checkpoint hashes message, todo and diff references.
+
+OpenCode Todo is an implementation-only, non-authoritative projection. Loopper
+first discovers workspace tool ids; only `todowrite` availability adds Todo
+guidance to a new implementation prompt. The monitor reads at most once per two
+seconds outside SQLite, stores only changed bounded snapshots, and retains at
+most 64 items, 1 KiB per item, and 64 KiB total content. Stable ids derive from
+normalized content plus duplicate occurrence. Checkpoints preserve exact id,
+content, normalized status/priority, ordinal, and truncation detail. Todo errors,
+empty lists, and completed items never advance or fail any lifecycle.
 
 Normal verifier-loop continuation is distinct from Recovery. Every failed
 Attempt stores a bounded immutable `ATTEMPT_HANDOFF`; only reliable equal

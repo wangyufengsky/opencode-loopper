@@ -1,0 +1,134 @@
+package io.opencode.loopper.runtime;
+
+import java.util.Map;
+import tools.jackson.databind.ObjectMapper;
+
+/** Closed JSON Schemas used by OpenCode format=json_schema. Semantic validation remains server-authoritative. */
+public final class OpenCodeStructuredSchemas {
+    public static final String DECOMPOSITION_PLAN_V1 = "DECOMPOSITION_PLAN_V1";
+    public static final String DECOMPOSITION_FINAL_V1 = "DECOMPOSITION_FINAL_V1";
+    public static final String PACKAGE_COMPILATION_PLAN_V2 = "PACKAGE_COMPILATION_PLAN_V2";
+    public static final String PACKAGE_COMPILATION_FINAL_V2 = "PACKAGE_COMPILATION_FINAL_V2";
+    public static final String JUDGE_DECISION_V1 = "JUDGE_DECISION_V1";
+    private static final ObjectMapper JSON = new ObjectMapper();
+
+    private OpenCodeStructuredSchemas() { }
+
+    public static OpenCodeClient.ResponseFormat.JsonSchema format(String schemaId) {
+        return new OpenCodeClient.ResponseFormat.JsonSchema(schemaId, schema(schemaId), 0);
+    }
+
+    public static Map<String, Object> schema(String schemaId) {
+        return switch (schemaId) {
+            case DECOMPOSITION_PLAN_V1 -> read(DECOMPOSITION_PLAN);
+            case DECOMPOSITION_FINAL_V1 -> read(DECOMPOSITION_FINAL);
+            case PACKAGE_COMPILATION_PLAN_V2 -> read(PACKAGE_COMPILATION_PLAN);
+            case PACKAGE_COMPILATION_FINAL_V2 -> read(PACKAGE_COMPILATION_FINAL);
+            case JUDGE_DECISION_V1 -> read(JUDGE_DECISION);
+            default -> throw new IllegalArgumentException("Unknown OpenCode response schema: " + schemaId);
+        };
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> read(String value) {
+        try { return JSON.readValue(value, Map.class); }
+        catch (Exception failure) { throw new ExceptionInInitializerError(failure); }
+    }
+
+    private static final String DECOMPOSITION_DEFS = """
+        "$defs": {
+          "constraint": {"type":"object","additionalProperties":false,"required":["text","requirementRefs"],"properties":{"text":{"type":"string","minLength":1,"maxLength":2000},"requirementRefs":{"type":"array","maxItems":128,"items":{"type":"string","minLength":1,"maxLength":64}}}},
+          "workPackage": {"type":"object","additionalProperties":false,"required":["id","title","objective","scopeIn","scopeOut","dependencies","deliverables","acceptanceIntent","requirementRefs"],"properties":{"id":{"type":"string","pattern":"^WP-[1-6]$"},"title":{"type":"string","minLength":1,"maxLength":200},"objective":{"type":"string","minLength":1,"maxLength":2000},"scopeIn":{"type":"array","maxItems":64,"items":{"type":"string","minLength":1,"maxLength":1000}},"scopeOut":{"type":"array","maxItems":64,"items":{"type":"string","minLength":1,"maxLength":1000}},"dependencies":{"type":"array","maxItems":5,"items":{"type":"string","pattern":"^WP-[1-6]$"}},"deliverables":{"type":"array","maxItems":64,"items":{"type":"string","minLength":1,"maxLength":2000}},"acceptanceIntent":{"type":"array","maxItems":64,"items":{"type":"string","minLength":1,"maxLength":2000}},"requirementRefs":{"type":"array","maxItems":128,"items":{"type":"string","minLength":1,"maxLength":64}}}},
+          "gap": {"type":"object","additionalProperties":false,"required":["code","detail"],"properties":{"code":{"type":"string","enum":["MISSING_OBSERVABLE_OUTCOME","MISSING_EXCEPTION_SEMANTICS","MISSING_SCOPE","MISSING_ACCEPTANCE_INTENT"]},"detail":{"type":"string","minLength":1,"maxLength":2000}}}
+        }
+        """;
+
+    private static final String DECOMPOSITION_PLAN = """
+        {
+          "$schema":"https://json-schema.org/draft/2020-12/schema",
+          "type":"object","additionalProperties":false,
+          "required":["status","normalizedGoal","globalConstraints","workPackages","coverageMappings","dependencyEvidence","designGaps","reason"],
+          "properties":{
+            "status":{"type":"string","enum":["DIRECT_DESIGN","DECOMPOSED","NEEDS_INPUT","MULTI_TASK_REQUIRED"]},
+            "normalizedGoal":{"type":"string","minLength":1,"maxLength":12000},
+            "globalConstraints":{"type":"array","maxItems":64,"items":{"$ref":"#/$defs/constraint"}},
+            "workPackages":{"type":"array","maxItems":6,"items":{"$ref":"#/$defs/workPackage"}},
+            "coverageMappings":{"type":"array","maxItems":256,"items":{"type":"object","additionalProperties":false,"required":["requirementRef","targetType","targetId","rationale"],"properties":{"requirementRef":{"type":"string","minLength":1,"maxLength":64},"targetType":{"type":"string","enum":["GLOBAL_CONSTRAINT","WORK_PACKAGE"]},"targetId":{"type":"string","minLength":1,"maxLength":64},"rationale":{"type":"string","minLength":1,"maxLength":2000}}}},
+            "dependencyEvidence":{"type":"array","maxItems":64,"items":{"type":"object","additionalProperties":false,"required":["workPackageId","dependsOn","rationale"],"properties":{"workPackageId":{"type":"string","pattern":"^WP-[1-6]$"},"dependsOn":{"type":"string","pattern":"^WP-[1-6]$"},"rationale":{"type":"string","minLength":1,"maxLength":2000}}}},
+            "designGaps":{"type":"array","maxItems":32,"items":{"$ref":"#/$defs/gap"}},
+            "reason":{"type":["string","null"],"maxLength":4000}
+          },
+          %s
+        }
+        """.formatted(DECOMPOSITION_DEFS);
+
+    private static final String DECOMPOSITION_FINAL = """
+        {
+          "$schema":"https://json-schema.org/draft/2020-12/schema",
+          "type":"object","additionalProperties":false,
+          "required":["status","normalizedGoal","globalConstraints","workPackages","designGaps","reason"],
+          "properties":{
+            "status":{"type":"string","enum":["DIRECT_DESIGN","DECOMPOSED","NEEDS_INPUT","MULTI_TASK_REQUIRED"]},
+            "normalizedGoal":{"type":"string","minLength":1,"maxLength":12000},
+            "globalConstraints":{"type":"array","maxItems":64,"items":{"$ref":"#/$defs/constraint"}},
+            "workPackages":{"type":"array","maxItems":6,"items":{"$ref":"#/$defs/workPackage"}},
+            "designGaps":{"type":"array","maxItems":32,"items":{"$ref":"#/$defs/gap"}},
+            "reason":{"type":["string","null"],"maxLength":4000}
+          },
+          %s
+        }
+        """.formatted(DECOMPOSITION_DEFS);
+
+    private static final String COMPILER_DEFS = """
+        "$defs": {
+          "stringList":{"type":"array","maxItems":64,"items":{"type":"string","minLength":1,"maxLength":2048}},
+          "gap":{"type":"object","additionalProperties":false,"required":["code","detail"],"properties":{"code":{"type":"string","enum":["MISSING_OBSERVABLE_OUTCOME","MISSING_EXCEPTION_SEMANTICS","MISSING_SCOPE","MISSING_ACCEPTANCE_INTENT"]},"detail":{"type":"string","minLength":1,"maxLength":2000}}},
+          "assertion":{"type":"object","additionalProperties":false,"required":["type","selector","value","attribute","expectedCount"],"properties":{"type":{"type":"string","minLength":1,"maxLength":64},"selector":{"type":"string","minLength":1,"maxLength":1024},"value":{"type":["string","null"],"maxLength":4000},"attribute":{"type":["string","null"],"maxLength":256},"expectedCount":{"type":["integer","null"],"minimum":0}}},
+          "verifier":{"type":"object","additionalProperties":false,"required":["type"],"properties":{"type":{"type":"string","enum":["PROCESS","FILE_EXISTS","FILE_NOT_EXISTS","GIT_DIFF","HTTP_STATUS","JSON_PATH","FILE_CONTENT","FILE_HASH","JUNIT_XML","BROWSER","DATABASE_QUERY"]},"command":{"$ref":"#/$defs/stringList"},"path":{"type":["string","null"],"maxLength":2048},"requireChanges":{"type":["boolean","null"]},"allowedPaths":{"$ref":"#/$defs/stringList"},"forbiddenPaths":{"$ref":"#/$defs/stringList"},"forbidDeletes":{"type":["boolean","null"]},"outputContains":{"type":["string","null"],"maxLength":4000},"url":{"type":["string","null"],"maxLength":2048},"httpMethod":{"type":["string","null"],"enum":["GET","POST","PUT","PATCH","DELETE",null]},"expectedStatus":{"type":["integer","null"],"minimum":100,"maximum":599},"jsonPath":{"type":["string","null"],"maxLength":1024},"expectedValue":{"type":["string","null"],"maxLength":4000},"matchMode":{"type":["string","null"],"maxLength":32},"expectedContent":{"type":["string","null"],"maxLength":4000},"expectedSha256":{"type":["string","null"],"pattern":"^[0-9a-fA-F]{64}$"},"sql":{"type":["string","null"],"maxLength":16000},"expectedRowCount":{"type":["integer","null"],"minimum":0},"assertions":{"type":"array","maxItems":64,"items":{"$ref":"#/$defs/assertion"}},"criterionIds":{"$ref":"#/$defs/stringList"},"processPurpose":{"type":["string","null"],"enum":["BUILD","TEST","SELF_CHECK",null]},"testTargets":{"$ref":"#/$defs/stringList"}}},
+          "readiness":{"type":"object","additionalProperties":false,"required":["path","expectedStatus","jsonPath","expectedValue","matchMode"],"properties":{"path":{"type":"string","minLength":1,"maxLength":1024},"expectedStatus":{"type":"integer","minimum":100,"maximum":599},"jsonPath":{"type":["string","null"],"maxLength":1024},"expectedValue":{"type":["string","null"],"maxLength":4000},"matchMode":{"type":["string","null"],"maxLength":32}}},
+          "runtime":{"type":"object","additionalProperties":false,"required":["startCommand","readiness","startupTimeoutSeconds","shutdownTimeoutSeconds"],"properties":{"startCommand":{"$ref":"#/$defs/stringList"},"readiness":{"$ref":"#/$defs/readiness"},"startupTimeoutSeconds":{"type":"integer","minimum":1,"maximum":300},"shutdownTimeoutSeconds":{"type":"integer","minimum":1,"maximum":60}}},
+          "criterion":{"type":"object","additionalProperties":false,"required":["id","description","verificationMode","judgeRubric","judgeOnlyReason"],"properties":{"id":{"type":"string","minLength":1,"maxLength":64},"description":{"type":"string","minLength":1,"maxLength":2000},"verificationMode":{"type":"string","enum":["MACHINE","JUDGE","BOTH"]},"judgeRubric":{"type":["string","null"],"maxLength":4000},"judgeOnlyReason":{"type":["string","null"],"maxLength":2000}}}
+        }
+        """;
+
+    private static final String PACKAGE_COMPILATION_PLAN = """
+        {
+          "$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","additionalProperties":false,
+          "required":["contractVersion","status","summary","stages","evidenceMappings","handoffSummary","designGaps"],
+          "properties":{
+            "contractVersion":{"type":"integer","const":2},
+            "status":{"type":"string","enum":["COMPILED","DESIGN_INCOMPLETE"]},
+            "summary":{"type":["string","null"],"maxLength":1000},
+            "stages":{"type":"array","maxItems":3,"items":{"type":"object","additionalProperties":false,"required":["objective","allowedPaths","forbiddenPaths","deliverables","verifiers","verificationRuntime","implementationKind","workPackageId"],"properties":{"objective":{"type":"string","minLength":1,"maxLength":4000},"allowedPaths":{"$ref":"#/$defs/stringList"},"forbiddenPaths":{"$ref":"#/$defs/stringList"},"deliverables":{"$ref":"#/$defs/stringList"},"verifiers":{"type":"array","maxItems":32,"items":{"$ref":"#/$defs/verifier"}},"verificationRuntime":{"anyOf":[{"$ref":"#/$defs/runtime"},{"type":"null"}]},"implementationKind":{"type":"string","enum":["JAVA_PRODUCTION","JAVA_TEST_ONLY","NON_JAVA"]},"workPackageId":{"type":"string","pattern":"^WP-[1-6]$"}}}},
+            "evidenceMappings":{"type":"array","maxItems":64,"items":{"type":"object","additionalProperties":false,"required":["stageIndex","criterionId","description","designerExcerpt","verificationMode","judgeRubric","judgeOnlyReason","verifierStrategy","testCommand","testTargets"],"properties":{"stageIndex":{"type":"integer","minimum":0,"maximum":2},"criterionId":{"type":"string","minLength":1,"maxLength":64},"description":{"type":"string","minLength":1,"maxLength":2000},"designerExcerpt":{"type":"string","minLength":1,"maxLength":4000},"verificationMode":{"type":"string","enum":["MACHINE","JUDGE","BOTH"]},"judgeRubric":{"type":["string","null"],"maxLength":4000},"judgeOnlyReason":{"type":["string","null"],"maxLength":2000},"verifierStrategy":{"type":"string","minLength":1,"maxLength":2000},"testCommand":{"$ref":"#/$defs/stringList"},"testTargets":{"$ref":"#/$defs/stringList"}}}},
+            "handoffSummary":{"type":["string","null"],"maxLength":4096},
+            "designGaps":{"type":"array","maxItems":32,"items":{"$ref":"#/$defs/gap"}}
+          },
+          %s
+        }
+        """.formatted(COMPILER_DEFS);
+
+    private static final String PACKAGE_COMPILATION_FINAL = """
+        {
+          "$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","additionalProperties":false,
+          "required":["status","summary","stages","criterionSources","handoffSummary","designGaps"],
+          "properties":{
+            "status":{"type":"string","enum":["COMPILED","DESIGN_INCOMPLETE"]},
+            "summary":{"type":["string","null"],"maxLength":1000},
+            "stages":{"type":"array","maxItems":3,"items":{"type":"object","additionalProperties":false,"required":["objective","allowedPaths","forbiddenPaths","deliverables","verifiers","acceptanceCriteria","verificationRuntime","implementationKind","workPackageId"],"properties":{"objective":{"type":"string","minLength":1,"maxLength":4000},"allowedPaths":{"$ref":"#/$defs/stringList"},"forbiddenPaths":{"$ref":"#/$defs/stringList"},"deliverables":{"$ref":"#/$defs/stringList"},"verifiers":{"type":"array","maxItems":32,"items":{"$ref":"#/$defs/verifier"}},"acceptanceCriteria":{"type":"array","maxItems":64,"items":{"$ref":"#/$defs/criterion"}},"verificationRuntime":{"anyOf":[{"$ref":"#/$defs/runtime"},{"type":"null"}]},"implementationKind":{"type":"string","enum":["JAVA_PRODUCTION","JAVA_TEST_ONLY","NON_JAVA"]},"workPackageId":{"type":"string","pattern":"^WP-[1-6]$"}}}},
+            "criterionSources":{"type":"array","maxItems":64,"items":{"type":"object","additionalProperties":false,"required":["stageIndex","criterionId","excerpt"],"properties":{"stageIndex":{"type":"integer","minimum":0,"maximum":2},"criterionId":{"type":"string","minLength":1,"maxLength":64},"excerpt":{"type":"string","minLength":1,"maxLength":4000}}}},
+            "handoffSummary":{"type":["string","null"],"maxLength":4096},
+            "designGaps":{"type":"array","maxItems":32,"items":{"$ref":"#/$defs/gap"}}
+          },
+          %s
+        }
+        """.formatted(COMPILER_DEFS);
+
+    private static final String JUDGE_DECISION = """
+        {
+          "$schema":"https://json-schema.org/draft/2020-12/schema",
+          "type":"object","additionalProperties":false,"required":["verdict","reason"],
+          "properties":{"verdict":{"type":"string","enum":["PASS","REVISE","BLOCKED"]},"reason":{"type":"string","minLength":1,"maxLength":12000}}
+        }
+        """;
+}

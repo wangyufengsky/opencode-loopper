@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.1.58`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.1.59`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -30,10 +30,11 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 ## 核心能力
 
 - **本地项目登记**：登记绝对路径，识别 Git 任务分支模式或无可用 Git HEAD 时的直接模式。
-- **只读多角色设计**：Task Decomposer 与分包 LoopSpec Compiler 都先完成“规划 → 证据映射”，经服务端冻结后再生成最终 JSON；Designer 只生成完整 Markdown。确定性校验通过前不写业务源码、不创建任务。
+- **只读多角色设计**：Task Decomposer 与分包 LoopSpec Compiler 都先完成“规划 → 证据映射”，经服务端冻结后优先使用 OpenCode JSON Schema 结构化输出；不支持时在新 Session 内回退到原有 marker 合同。Designer 始终只生成完整 Markdown，当前不接管 OpenCode 原生 plan agent。确定性校验通过前不写业务源码、不创建任务。
 - **项目公约**：只读分析项目并生成或更新根目录 `AGENTS.md`，展示完整预览后才写入；Loopper 管理区块以外的人工内容会被保留。
 - **分阶段执行循环**：按依赖顺序执行 Stage，每个阶段都携带目标、交付物、路径约束和可立即运行的验收规则。
 - **循环降噪**：验证失败后固化 Attempt 交接包，并用失败签名和可靠工作区指纹识别无进展重试；连续停滞时转入人工确认，不继续烧预算。
+- **实施 Todo 投影**：OpenCode 暴露 `todowrite` 时，实施 Session 可维护非权威 Todo；Loopper 有界同步并在任务详情展示，真实完成状态仍只由 Task、Stage、验证器和 Judge 决定。
 - **原项目任务分支执行**：有 Git HEAD 的项目先检查登记目录；若存在未提交/未跟踪文件，任务进入人工处理弹窗，逐文件选择提交、stash 或移除，重新检查干净后再非交互 fetch 并切换到 `loopper/<任务名>` 分支。IDE 内 AgentBridge、OpenCode 和验证器因此共享同一目录与分支。其他项目在登记目录中直接执行，并保留私有基线用于差异检查。
 - **确定性验收**：支持进程、文件、Git 差异、HTTP、JSON、JUnit、浏览器和 SQLite 查询等验证器。
 - **独立双评审**：确定性验证通过后，由只读 Requirement Judge 和 Risk Judge 独立评审；两者都明确 `PASS` 才能成功。
@@ -113,7 +114,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.1.58.jar
+java -jar target/opencode-loopper-0.1.59.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -138,12 +139,12 @@ java -jar target/opencode-loopper-0.1.58.jar
 | 项目 | 登记本地目录、查看执行模式、生成/更新 `AGENTS.md`、取消项目管理 |
 | 设计器 / 循环规范 | 评审只读 Designer 设计、Compiler 编译摘要和 Validator 结果，编辑并确认 LoopSpec |
 | 任务 | 查看当前和历史任务、状态与归档；符合保护条件时可二次确认删除历史记录 |
-| 任务详情 | 启停任务（包括直接取消等待输入的任务）、查看 Stage/Attempt/Session、验证证据、双评审、设计历史与发布入口 |
+| 任务详情 | 启停任务（包括直接取消等待输入的任务）、查看 Stage/Attempt/Session、实施 Todo 投影、验证证据、双评审、设计历史与发布入口 |
 | 待处理中心 | 回答 Question，按一次/Session 范围处理 Permission，或拒绝请求 |
 | 质量与用量 | 查看最终有效尝试的质量、历史失败证据、Token/成本与预算信息 |
 | 模板与自动化 | 管理不可变模板版本、自动化规则、导入导出与运行记录 |
 | Recovery Studio | 从失败或取消任务派生恢复任务，保留父子关系和工作区指纹 |
-| 运行环境 | 查看当前 Loopper 版本与 OpenCode Runtime 状态；可重启 Loopper 管理的 Runtime，外部 Runtime 只重新检测 |
+| 运行环境 | 查看当前 Loopper/OpenCode 版本、原生 agent 与 JSON Schema 能力；可重启 Loopper 管理的 Runtime，外部 Runtime 只重新检测 |
 | 设置 | 配置 CLI、允许项目根、默认模型、任务尝试上限和单次超时；可启用演示数据，并随时退出以重新加载真实 API 数据 |
 
 取消项目管理只会移除登记关系；不会删除项目目录、历史任务、Designer 对话、LoopSpec 或执行证据。
@@ -331,7 +332,7 @@ Git 任务分支达到 `SUCCEEDED` 后：
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.1.58.jar`
+- `target/opencode-loopper-0.1.59.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -362,7 +363,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:51234
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.1.58.jar`
+- `opencode-loopper-0.1.59.jar`
 - `start-windows.bat`
 
 确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
@@ -400,7 +401,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.1.58.jar \
+jar tf target/opencode-loopper-0.1.59.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -480,7 +481,7 @@ Windows PowerShell：
 例如发布下一版本：
 
 ```bash
-VERSION=0.1.58
+VERSION=0.1.59
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -520,7 +521,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.1.58.jar
+java -jar target/opencode-loopper-0.1.59.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。
@@ -608,6 +609,8 @@ echo %PATHEXT%
 `0.1.56` 扩大了本地同步自动合并夹具中两处独立修改的间距，用于排除 Git/xdiff hunk 边界差异；Windows CI 随后证明剩余失败来自源文件模式识别，而不是文本合并算法。
 
 `0.1.57` 修正 Windows 源文件模式识别：NTFS ACL 的“可执行”结果不再被误当成 Git `100755` 位；已跟踪文件从源仓库 Git index 读取模式，未跟踪普通文件默认 `100644`，POSIX 仍读取真实执行位。这样源侧未改、任务侧删除的文件可确定性自动接受删除，同时保留真实模式冲突与文本冲突的人工处理边界。
+
+`0.1.59` 复用 OpenCode 的角色权限、JSON Schema 结构化输出、agent/tool 能力发现和实施 Todo。Decomposer、Designer、Compiler、Judge 与 Implementation 使用独立权限模板；五类机器 JSON 合同优先走结构化输出，并只在明确不支持或返回缺失/格式错误时使用全新只读 Session 回退到原 marker 修复路径。Runtime 页展示原生 agent、plan 可用性和结构化输出观测，但 Designer 暂不接管原生 plan agent。只有实施 Session 探测到 `todowrite` 才注入 Todo 提示并每两秒有界同步；Todo 是非权威进度投影，不改变 Task/Stage/Attempt/Verifier/Judge 生命周期。
 
 `0.1.58` 稳定 Direct 根目录身份的跨平台验收：NTFS 会在短时间同名重建时隧道化 creation time，并可能让 Java 暴露相同 file key；测试检测到这种元数据碰撞时显式设置不同的临时目录创建时间，再验证 Loopper 的 `canonical path + file key + creation time` 指纹合同。产品仍以操作系统实际返回的稳定元数据为边界，不向用户目录写身份标记。
 

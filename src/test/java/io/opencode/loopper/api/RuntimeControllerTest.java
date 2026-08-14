@@ -10,14 +10,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.opencode.loopper.runtime.OpenCodeRuntimeManager;
+import io.opencode.loopper.runtime.OpenCodeCapabilityService;
 import java.time.Instant;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 class RuntimeControllerTest {
     private final OpenCodeRuntimeManager runtime = mock(OpenCodeRuntimeManager.class);
-    private final MockMvc mvc = MockMvcBuilders.standaloneSetup(new RuntimeController(runtime, "0.1.58"))
+    private final OpenCodeCapabilityService capabilities = mock(OpenCodeCapabilityService.class);
+    private final MockMvc mvc = MockMvcBuilders.standaloneSetup(new RuntimeController(runtime, capabilities, "0.1.59"))
             .setControllerAdvice(new ApiExceptionHandler()).build();
 
     @Test
@@ -25,11 +28,17 @@ class RuntimeControllerTest {
         when(runtime.status()).thenReturn(new OpenCodeRuntimeManager.RuntimeSnapshot(
                 "AVAILABLE", "1.18.16", false, null, "http://127.0.0.1:4096", "deepseek/test",
                 Instant.parse("2026-08-13T08:00:00Z"), null));
+        when(capabilities.capabilities(org.mockito.ArgumentMatchers.any())).thenReturn(
+                new OpenCodeCapabilityService.RuntimeCapabilities("AVAILABLE", List.of(), true,
+                        "AVAILABLE", "AVAILABLE", "JSON_SCHEMA", "TRUSTED_ALLOWED",
+                        "2026-08-13T08:00:00Z", null));
 
         mvc.perform(get("/api/runtime/opencode"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.loopperVersion").value("0.1.58"))
-                .andExpect(jsonPath("$.version").value("1.18.16"));
+                .andExpect(jsonPath("$.loopperVersion").value("0.1.59"))
+                .andExpect(jsonPath("$.version").value("1.18.16"))
+                .andExpect(jsonPath("$.capabilities.nativePlanAgent").value(true))
+                .andExpect(jsonPath("$.capabilities.defaultResponseMode").value("JSON_SCHEMA"));
     }
 
     @Test
@@ -45,7 +54,7 @@ class RuntimeControllerTest {
 
         mvc.perform(post("/api/runtime/opencode/start").header("X-Loopper-Local-UI", "1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.loopperVersion").value("0.1.58"))
+                .andExpect(jsonPath("$.loopperVersion").value("0.1.59"))
                 .andExpect(jsonPath("$.status").value("AVAILABLE"))
                 .andExpect(jsonPath("$.managed").value(true))
                 .andExpect(jsonPath("$.pid").value(6400))

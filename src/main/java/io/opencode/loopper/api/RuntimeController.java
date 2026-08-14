@@ -2,6 +2,7 @@ package io.opencode.loopper.api;
 
 import io.opencode.loopper.LoopperApplication;
 import io.opencode.loopper.runtime.OpenCodeRuntimeManager;
+import io.opencode.loopper.runtime.OpenCodeCapabilityService;
 import io.opencode.loopper.service.BadRequestException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -16,10 +17,12 @@ import org.springframework.web.server.ResponseStatusException;
 @RequestMapping("/api/runtime/opencode")
 public class RuntimeController {
     private final OpenCodeRuntimeManager runtimeManager;
+    private final OpenCodeCapabilityService capabilityService;
     private final String loopperVersion;
-    public RuntimeController(OpenCodeRuntimeManager runtimeManager,
+    public RuntimeController(OpenCodeRuntimeManager runtimeManager, OpenCodeCapabilityService capabilityService,
                              @Value("${spring.ai.mcp.server.version:unknown}") String loopperVersion) {
         this.runtimeManager = runtimeManager;
+        this.capabilityService = capabilityService;
         String packagedVersion = LoopperApplication.class.getPackage().getImplementationVersion();
         this.loopperVersion = packagedVersion == null || packagedVersion.isBlank()
                 ? loopperVersion : packagedVersion;
@@ -43,10 +46,12 @@ public class RuntimeController {
     }
     private RuntimeDto dto(OpenCodeRuntimeManager.RuntimeSnapshot snapshot) {
         return new RuntimeDto(loopperVersion, snapshot.status(), snapshot.version(), snapshot.managed(), snapshot.pid(),
-                snapshot.endpoint(), snapshot.model(), snapshot.checkedAt().toString(), snapshot.startupFailure());
+                snapshot.endpoint(), snapshot.model(), snapshot.checkedAt().toString(), snapshot.startupFailure(),
+                capabilityService.capabilities(snapshot));
     }
     public record RuntimeDto(String loopperVersion, String status, String version, boolean managed, Long pid, String endpoint,
-                             String model, String checkedAt, String startupFailure) { }
+                             String model, String checkedAt, String startupFailure,
+                             OpenCodeCapabilityService.RuntimeCapabilities capabilities) { }
 
     private static void requireLocalUi(String localUi) {
         if (!"1".equals(localUi)) {

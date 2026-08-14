@@ -32,6 +32,7 @@ class HttpOpenCodeClientTest {
     private final AtomicReference<String> permissionActionBody = new AtomicReference<>();
     private final AtomicReference<String> todoBody = new AtomicReference<>("[]");
     private final AtomicReference<String> sessionActionBody = new AtomicReference<>();
+    private final AtomicReference<String> promptBody = new AtomicReference<>();
     private final AtomicReference<String> createResponseDirectory = new AtomicReference<>();
     private final AtomicLong responseDelayMillis = new AtomicLong();
     @TempDir Path worktree;
@@ -43,6 +44,9 @@ class HttpOpenCodeClientTest {
         server.createContext("/session/status", exchange -> reply(exchange, statusBody.get()));
         server.createContext("/question", this::question);
         server.createContext("/permission", this::permission);
+        server.createContext("/experimental/tool/ids", exchange -> reply(exchange, "[\"read\",\"todowrite\"]"));
+        server.createContext("/agent", exchange -> reply(exchange,
+                "[{\"name\":\"build\",\"mode\":\"primary\"},{\"name\":\"plan\",\"mode\":\"primary\"}]"));
         server.start();
     }
     @AfterEach void stop() { server.stop(0); }
@@ -62,8 +66,8 @@ class HttpOpenCodeClientTest {
         assertThat(createBody.get()).contains("\"permission\":\"read\"")
                 .contains("\"permission\":\"glob\"").contains("\"permission\":\"grep\"")
                 .contains("\"action\":\"allow\"")
-                .contains("\"permission\":\"edit\"").contains("\"permission\":\"write\"")
-                .contains("\"permission\":\"bash\"").contains("\"permission\":\"task\"").contains("\"pattern\":\"*\"");
+                .contains("\"permission\":\"*\"").contains("\"action\":\"deny\"")
+                .contains("\"pattern\":\".env\"").contains("\"pattern\":\".env.example\"");
         client.promptAsync(session, "hello");
         assertThat(lastPathAndQuery.get()).contains("/session/s1/prompt_async").contains("directory=");
         assertThat(client.sessionStatus(session).state()).isEqualTo("RUNNING");
@@ -209,7 +213,8 @@ class HttpOpenCodeClientTest {
         permissionBody.set("["
                 + "{\"id\":\"perm-other\",\"sessionID\":\"other\",\"permission\":\"bash\",\"patterns\":[]},"
                 + "{\"id\":\"perm-1\",\"sessionID\":\"s1\",\"permission\":\"bash\",\"patterns\":[\"git push\"],\"metadata\":{\"title\":\"Publish\",\"nested\":{\"safe\":true}}}]");
-        todoBody.set("[{\"content\":\"Read docs\",\"status\":\"in_progress\",\"priority\":\"high\"}]");
+        todoBody.set("[{\"content\":\"Read docs\",\"status\":\"in_progress\",\"priority\":\"high\","
+                + "\"metadata\":{\"note\":null}}]");
 
         assertThat(client.pendingPermissions(session)).singleElement().satisfies(permission -> {
             assertThat(permission.id()).isEqualTo("perm-1");
@@ -223,9 +228,12 @@ class HttpOpenCodeClientTest {
         assertThat(permissionActionBody.get()).isEqualTo("{\"reply\":\"always\",\"message\":\"approved for this session\"}");
 
         assertThat(client.sessionTodos(session)).singleElement().satisfies(todo -> {
-            assertThat(todo.id()).isEqualTo("s1:todo:0");
+            assertThat(todo.id()).matches("todo-v2:[0-9a-f]{64}:1");
             assertThat(todo.content()).isEqualTo("Read docs");
+            assertThat(todo.status()).isEqualTo("IN_PROGRESS");
+            assertThat(todo.priority()).isEqualTo("HIGH");
             assertThat(todo.ordinal()).isZero();
+            assertThat(todo.metadata()).containsEntry("note", null);
         });
         assertThat(lastPathAndQuery.get()).contains("/session/s1/todo").contains("directory=");
         OpenCodeClient.OpenCodeSession fork = client.forkSession(session, "msg-1");
@@ -281,6 +289,26 @@ class HttpOpenCodeClientTest {
         assertThat(OpenCodeHttpTransport.boundedTimeoutMillis(Duration.ZERO, Duration.ofSeconds(5))).isEqualTo(5_000);
     }
 
+    @Test
+    void sendsTypedJsonSchemaPromptsAndDiscoversNativeAgentsAndTools() throws Exception {
+        LoopperProperties properties = new LoopperProperties();
+        properties.getOpenCode().setBaseUrl(new java.net.URI("http://127.0.0.1:" + server.getAddress().getPort()));
+        HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(), properties);
+        OpenCodeClient.OpenCodeSession session = client.createSession(worktree, "structured", null,
+                OpenCodeClient.SessionProfile.COMPILER_READ_ONLY);
+
+        client.promptAsync(session, new OpenCodeClient.PromptRequest("compile", "system", "build",
+                OpenCodeStructuredSchemas.format(OpenCodeStructuredSchemas.JUDGE_DECISION_V1)));
+
+        assertThat(promptBody.get()).contains("\"system\":\"system\"", "\"agent\":\"build\"",
+                "\"type\":\"json_schema\"", "\"retryCount\":0", "\"verdict\"")
+                .doesNotContain("\"tools\"");
+        messageBody.set("[{\"info\":{\"role\":\"user\"}},{\"info\":{\"role\":\"assistant\",\"structured\":{\"verdict\":\"PASS\",\"reason\":\"ok\"}}}]");
+        assertThat(client.sessionResult(session).structured()).containsEntry("verdict", "PASS");
+        assertThat(client.toolCapabilities(worktree).contains("todowrite")).isTrue();
+        assertThat(client.agents()).extracting(OpenCodeClient.AgentInfo::name).containsExactly("build", "plan");
+    }
+
     private void session(HttpExchange exchange) throws IOException {
         lastPathAndQuery.set(exchange.getRequestURI().getPath() + "?" + exchange.getRequestURI().getRawQuery());
         sleep(responseDelayMillis.get());
@@ -293,6 +321,7 @@ class HttpOpenCodeClientTest {
             else reply(exchange, "{\"id\":\"s1\",\"directory\":\"" + json(directory) + "\"}");
         }
         else if (path.endsWith("/message")) reply(exchange, messageBody.get());
+        else if (path.endsWith("/prompt_async")) { promptBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)); reply(exchange, "true"); }
         else if (path.endsWith("/todo")) reply(exchange, todoBody.get());
         else if (path.endsWith("/fork")) { sessionActionBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)); reply(exchange, "{\"id\":\"fork-1\"}"); }
         else if (path.endsWith("/revert") || path.endsWith("/summarize")) { sessionActionBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)); reply(exchange, "true"); }

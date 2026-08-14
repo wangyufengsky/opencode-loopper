@@ -41,10 +41,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.1.58.jar
-   jar tf target/opencode-loopper-0.1.58.jar \
+   test -s target/opencode-loopper-0.1.59.jar
+   jar tf target/opencode-loopper-0.1.59.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.1.58.jar
+   shasum -a 256 target/opencode-loopper-0.1.59.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -93,8 +93,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.1.58`。
-- 正式产物：`target/opencode-loopper-0.1.58.jar`。
+- Maven 项目版本：`0.1.59`。
+- 正式产物：`target/opencode-loopper-0.1.59.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -190,6 +190,7 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 - 仅更新投影、内容、心跳或外部 Session 状态时使用无状态转换的 mutation 路径，不得伪造业务转换事件。
 - 使用现有 optimistic locking/version 规则；冲突应返回明确 409，不要最后写入覆盖并发变化。
 - Flyway V15 之前的数据没有伪造的创建事件；缺少早期 transition 不能被解释为实体从未变化。
+- OpenCode Todo 只允许作为实施 Session 的非权威进度投影：先探测 `todowrite`，可用时才注入提示；外部读取在 SQLite transaction 外，每两秒至多一次，只在内容变化时持久化。最多 64 项、单项 1 KiB、总计 64 KiB，稳定 ID 基于规范内容和重复序号；Todo 的成功、失败或完成状态都不得改变 Task/Stage/Attempt/Verifier/Judge 生命周期，Designer/Judge 不展示 Todo。
 
 ### 5.2 错误层级
 
@@ -213,6 +214,8 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 - 工作包严格串行执行，每包使用全新的只读 Designer Session 和 Compiler Session，并使用当前配置的同一模型。Designer 只输出不超过 24 KiB UTF-8 的完整 Markdown；Compiler 只输出当前包 1–3 个 Stage、来源映射及不超过 4 KiB 的交接摘要。Stage/验收 ID 使用稳定 `workPackageId` 与 `<workPackageId>-AC-n`。
 - Decomposer 和分包 Compiler 都必须使用同一只读 Session 的持久化两轮智能编译：第一轮按“规划 → 证据映射”顺序生成有界中间合同，服务端校验并冻结；第二轮只把冻结规划编码为最终 JSON，不得更改包边界、Stage、验收来源、测试证据或交接摘要。规划与最终原始 JSON 都不得进入聊天消息，SSE 只投影权威步骤和摘要。
 - Decomposer 和每包 Compiler 的“规划/证据映射”与“最终 JSON”各有独立的最多两次格式修复预算；规划修复耗尽后如成功冻结，不得挤占最终 JSON 的修复机会。闭集语义缺口最多只让当前包完整重设计一次。每个只读角色已确认的传输失败允许一个全新 Session 重试。整个需求版本最多 32 次模型调用；六包无重试链路固定消耗 20 次，各包内容次数互不挤占但受全局上限约束。
+- Decomposer 规划/最终、Compiler 规划/最终和 Judge 必须优先使用服务端固定 ID 的 OpenCode JSON Schema；provider 内建 schema 重试固定为 0。只有格式接口拒绝、明确 `StructuredOutputError` 或完成后缺失 structured payload 才能在全新只读角色 Session 中回退到 marker，并计入当前步骤原有模型调用与修复预算；不得在失败 Session 内继续、增加隐藏重试池或绕过确定性语义校验。历史活动记录按 `TEXT_MARKER` 兼容。
+- OpenCode Session 使用角色权限模板：Decomposer/Compiler/Judge/通用只读只开放 `read`/`glob`/`grep`，Designer 额外开放 `question`；只读角色仍拒绝 `.env`/`.env.*`、外部目录和全部其他工具。Runtime 可展示 agent、原生 `plan` 与 structured-output 能力，但当前不得让 Designer 接管原生 plan；Designer Markdown、Compiler JSON 和 Validator 权威边界保持不变。
 - Decomposer 规划与最终输出优先解析精确 marker；弱模型移除 marker 时，只允许完整输出为一个顶层 JSON object，或仅用一个 `json` 代码块包裹该 object。夹带说明文字、多个对象、数组根或残缺 JSON 必须拒绝，并继续执行原步骤修复与全部确定性语义校验。
 - Compiler 的规划、最终生成与格式修复提示必须注入当前步骤的完整 JSON 类型合同和规范信封，明确集合、验证器、直接 argv、验收映射、测试目标、托管运行时及设计缺口的对象/数组/null 边界；不得要求模型从 Java 反序列化错误反推 DTO 结构。v2 分包规划必须使用 `contractVersion=2` 并携带完整 `VerifierSpec` 蓝图和可选 `verificationRuntime`；服务端必须在冻结规划前使用权威 LoopSpec v2 执行合同校验直接命令、行为覆盖、Java 聚焦测试及运行时绑定，最终 JSON 只能逐字段复制该蓝图。丰富提示不能替代服务端确定性校验。
 - 分包 Designer/Compiler 读取的仓库是不可变的执行前基线；前置包 `COMPLETED` 表示其设计、编译和校验合同已通过，不表示生产文件已写入基线仓库。服务端必须注入前置包的冻结目标、Compiler 摘要和交接合同；严格串行执行保证前置 Stage 先落地，因此当前 `read/glob/grep` 找不到前置交付物不得返回 `MISSING_SCOPE`。Compiler 负责 Stage/业务验收/证据语义；服务端在权威 v2 校验前确定性生成 `<workPackageId>-AC-n`、仅在唯一归一化匹配时恢复 Designer 精确原文，并把 Designer 明确列出的聚焦单测行作为强制证据注入规划/修复提示。服务端只允许从安全的 Maven/Gradle `-Dtest`、`-Dit.test`、`--tests` 显式选择器提取目标；同一 Java Stage 唯一匹配时可补齐重复的 `testCommand`/`testTargets`/`criterionIds` 或等价 TEST 验证器，不得从普通描述、全量测试或多个候选中猜测。歧义匹配或缺少语义证据仍必须阻断。
@@ -366,7 +369,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.1.58.jar
+JAR=target/opencode-loopper-0.1.59.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -464,6 +467,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-08-14 | 复用 OpenCode 角色权限、结构化输出、能力发现和实施 Todo，交付 0.1.59 | V26 持久化机器响应模式/schema 与实施 Todo 能力；五类 JSON Schema 在原预算内安全回退 marker；Runtime 展示 agent/plan/structured 能力但 Designer 不接管原生 plan；实施 Todo 有界同步且保持非权威；同步 README、架构、设计、OpenCode、七特性合同与本公约正文 | 聚焦 Designer/Compiler/Judge/Runtime/Todo/迁移后端测试和 SessionMonitorPanel 4/4 通过；`./scripts/verify.sh` 通过：Java 370 个（0 失败、0 错误、1 个 Windows 专属用例在 macOS 跳过），Vitest 150/150；JAR `target/opencode-loopper-0.1.59.jar`（263011804 bytes）内含 100 个前端静态资源，SHA-256 `d92b1849703deb7fbabb99656fe88107a54aab117744aa9922b9ca0217b82191`；发布目标：`v0.1.59` |
 | 2026-08-14 | 稳定 NTFS Direct 根身份验收并交付 0.1.58 | Direct 指纹合同仍为 canonical path、file key 与 creation time 且不写用户目录标记；测试在 NTFS 同名重建发生元数据隧道碰撞时显式推进临时目录 creation time；同步 README、架构与本公约正文 | 注入 `core.autocrlf=true`/`core.safecrlf=warn` 的聚焦 Java 63/63、Vitest 149/149；`./scripts/verify.sh` 通过：Java 367 个（0 失败、0 错误、1 个 Windows 专属用例在 macOS 跳过），Vitest 149/149；JAR `target/opencode-loopper-0.1.58.jar`（262947774 bytes）内含 100 个前端静态资源，SHA-256 `40b7dcc029240065219119d110b90e389bd1e20f39d0bd313bd5c74493033863`；发布目标：`v0.1.58` |
 | 2026-08-14 | 修正 Windows 源文件 Git 模式识别并交付 0.1.57 | Windows 已跟踪文件模式从源仓库 Git index 读取，未跟踪普通文件固定为 `100644`，不再把 NTFS ACL 可执行性误判为 Git `100755`；POSIX 保留真实执行位；同步 README、架构与本公约正文 | 注入 `core.autocrlf=true`/`core.safecrlf=warn` 的聚焦 Java 57/57、Vitest 149/149；`./scripts/verify.sh` 通过：Java 367 个（0 失败、0 错误、1 个 Windows 专属用例在 macOS 跳过），Vitest 149/149；JAR `target/opencode-loopper-0.1.57.jar`（262947774 bytes）内含 100 个前端静态资源，SHA-256 `f5bd0005dd6e8ae0ae4b94e1cb65a48e96d80d316c518f1f023e878ea7f38ee1`；CI 中本地同步 Windows 回归通过，Ubuntu/macOS 全套通过，但 Windows 因 NTFS 同名重建测试的元数据隧道碰撞失败；Release 同步失败；标签 `v0.1.57` |
 | 2026-08-14 | 扩大跨 Git 版本的独立文本合并夹具并交付 0.1.56 | 自动合并测试的源/任务修改之间保留充足未改动行以排除 xdiff hunk 边界差异；Windows CI 随后定位到独立的源文件模式误判，真实修复进入 0.1.57 | 注入 `core.autocrlf=true`/`core.safecrlf=warn` 的聚焦 Java 56/56、Vitest 149/149；`./scripts/verify.sh` 通过：Java 366 个（0 失败、0 错误、1 个 Windows 专属用例在 macOS 跳过），Vitest 149/149；JAR `target/opencode-loopper-0.1.56.jar`（262946385 bytes）内含 100 个前端静态资源，SHA-256 `fd370d2031ca10167f1bb9371f5aa9a58fe1340f355b66b8cd04249b09575cf0`；CI Ubuntu/macOS 通过，Windows 因 NTFS ACL 模式误判失败；Release 工作流成功；标签 `v0.1.56` |

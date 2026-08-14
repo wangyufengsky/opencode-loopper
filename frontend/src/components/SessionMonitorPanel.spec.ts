@@ -12,7 +12,8 @@ const session: TaskSessionSummary = {
 }
 
 function activity(parts: TaskSessionActivity['parts'], pendingQuestions: TaskSessionActivity['pendingQuestions'] = []): TaskSessionActivity {
-  return { session, remoteState: 'busy', live: true, observedAt: '2026-08-04T08:00:00Z', parts, pendingQuestions }
+  return { session, remoteState: 'busy', live: true, observedAt: '2026-08-04T08:00:00Z', parts, pendingQuestions,
+    todoCapability: 'AVAILABLE', todos: [], todoTruncated: false }
 }
 
 afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers() })
@@ -76,6 +77,28 @@ describe('SessionMonitorPanel', () => {
     expect(wrapper.get('.activity-part pre').classes()).not.toContain('is-collapsed')
     expect(toggle.text()).toContain('收起输出')
     expect(toggle.attributes('aria-expanded')).toBe('true')
+    wrapper.unmount()
+  })
+
+  it('renders bounded OpenCode Todo as a non-authoritative implementation projection', async () => {
+    vi.spyOn(api, 'getTaskSessions').mockResolvedValue([session])
+    vi.spyOn(api, 'getTaskSessionActivity').mockResolvedValue({
+      ...activity([]),
+      todos: [
+        { id: 'todo-v2:a:1', content: '实现 Todo 同步', status: 'IN_PROGRESS', priority: 'HIGH', ordinal: 0 },
+        { id: 'todo-v2:b:1', content: '运行聚焦测试', status: 'PENDING', ordinal: 1 },
+      ],
+      todoTruncated: true,
+    })
+
+    const wrapper = mount(SessionMonitorPanel, { props: { taskId: 'task-1' }, global: { plugins: [ElementPlus], stubs: { Icon: true } } })
+    await flushPromises()
+
+    const panel = wrapper.get('[aria-label="OpenCode 实施计划"]')
+    expect(panel.text()).toContain('OpenCode 进度投影')
+    expect(panel.text()).toContain('实现 Todo 同步')
+    expect(panel.text()).toContain('IN_PROGRESS · HIGH')
+    expect(panel.text()).toContain('仅显示安全截断后的投影')
     wrapper.unmount()
   })
 

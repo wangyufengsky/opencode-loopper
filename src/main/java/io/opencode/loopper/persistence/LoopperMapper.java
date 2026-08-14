@@ -277,11 +277,15 @@ public interface LoopperMapper {
             INSERT INTO task_decomposition(id,designer_session_id,requirement_revision_id,state,result_type,
               normalized_goal,global_constraints_json,plan_json,external_session_id,external_session_state,
               repair_count,transport_retry_count,source_draft_version,last_error_code,last_error_detail,
-              created_at,updated_at,version,workflow_step,planning_json,planning_repair_count)
+              created_at,updated_at,version,workflow_step,planning_json,planning_repair_count,
+              planning_response_mode,planning_response_schema_id,planning_format_fallback_used,
+              final_response_mode,final_response_schema_id,final_format_fallback_used)
             VALUES(#{id},#{designerSessionId},#{requirementRevisionId},#{state},#{resultType},#{normalizedGoal},
               #{globalConstraintsJson},#{planJson},#{externalSessionId},#{externalSessionState},#{repairCount},
               #{transportRetryCount},#{sourceDraftVersion},#{lastErrorCode},#{lastErrorDetail},
-              #{createdAt},#{updatedAt},#{version},#{workflowStep},#{planningJson},#{planningRepairCount})
+              #{createdAt},#{updatedAt},#{version},#{workflowStep},#{planningJson},#{planningRepairCount},
+              #{planningResponseMode},#{planningResponseSchemaId},#{planningFormatFallbackUsed},
+              #{finalResponseMode},#{finalResponseSchemaId},#{finalFormatFallbackUsed})
             """)
     int insertTaskDecomposition(TaskDecompositionRow row);
     @Select("SELECT * FROM task_decomposition WHERE id=#{id}")
@@ -298,6 +302,10 @@ public interface LoopperMapper {
               external_session_id=#{externalSessionId},external_session_state=#{externalSessionState},
               repair_count=#{repairCount},transport_retry_count=#{transportRetryCount},
               workflow_step=#{workflowStep},planning_json=#{planningJson},planning_repair_count=#{planningRepairCount},
+              planning_response_mode=#{planningResponseMode},planning_response_schema_id=#{planningResponseSchemaId},
+              planning_format_fallback_used=#{planningFormatFallbackUsed},
+              final_response_mode=#{finalResponseMode},final_response_schema_id=#{finalResponseSchemaId},
+              final_format_fallback_used=#{finalFormatFallbackUsed},
               last_error_code=#{lastErrorCode},last_error_detail=#{lastErrorDetail},
               updated_at=#{updatedAt},version=version+1 WHERE id=#{id} AND version=#{version}
             """)
@@ -342,12 +350,16 @@ public interface LoopperMapper {
               external_session_id,external_session_state,repair_count,source_design_message_id,
               source_draft_version,last_error_code,last_error_detail,created_at,updated_at,version,
               work_package_id,transport_retry_count,compiled_package_json,workflow_step,planning_json,
-              planning_repair_count)
+              planning_repair_count,planning_response_mode,planning_response_schema_id,
+              planning_format_fallback_used,final_response_mode,final_response_schema_id,
+              final_format_fallback_used)
             VALUES(#{id},#{designerSessionId},#{designRevision},#{state},#{externalSessionId},
               #{externalSessionState},#{repairCount},#{sourceDesignMessageId},#{sourceDraftVersion},
               #{lastErrorCode},#{lastErrorDetail},#{createdAt},#{updatedAt},#{version},
               #{workPackageId},#{transportRetryCount},#{compiledPackageJson},#{workflowStep},#{planningJson},
-              #{planningRepairCount})
+              #{planningRepairCount},#{planningResponseMode},#{planningResponseSchemaId},
+              #{planningFormatFallbackUsed},#{finalResponseMode},#{finalResponseSchemaId},
+              #{finalFormatFallbackUsed})
             """)
     int insertLoopSpecCompilation(LoopSpecCompilationRow row);
     @Select("SELECT * FROM loop_spec_compilation WHERE id=#{id}")
@@ -365,6 +377,10 @@ public interface LoopperMapper {
               transport_retry_count=#{transportRetryCount},
               compiled_package_json=#{compiledPackageJson},
               workflow_step=#{workflowStep},planning_json=#{planningJson},planning_repair_count=#{planningRepairCount},
+              planning_response_mode=#{planningResponseMode},planning_response_schema_id=#{planningResponseSchemaId},
+              planning_format_fallback_used=#{planningFormatFallbackUsed},
+              final_response_mode=#{finalResponseMode},final_response_schema_id=#{finalResponseSchemaId},
+              final_format_fallback_used=#{finalFormatFallbackUsed},
               last_error_code=#{lastErrorCode},last_error_detail=#{lastErrorDetail},
               updated_at=#{updatedAt},version=version+1
             WHERE id=#{id} AND version=#{version}
@@ -444,7 +460,7 @@ public interface LoopperMapper {
     @Update("UPDATE attempt SET state=#{state}, failure_kind=#{failureKind}, summary=#{summary}, ended_at=#{endedAt}, version=version+1 WHERE id=#{id} AND version=#{version}")
     int finishAttempt(AttemptRow row);
 
-    @Insert("INSERT INTO execution_session(id,task_id,stage_id,attempt_id,external_session_id,state,created_at,ended_at,version) VALUES(#{id},#{taskId},#{stageId},#{attemptId},#{externalSessionId},#{state},#{createdAt},#{endedAt},#{version})")
+    @Insert("INSERT INTO execution_session(id,task_id,stage_id,attempt_id,external_session_id,state,created_at,ended_at,version,todo_capability) VALUES(#{id},#{taskId},#{stageId},#{attemptId},#{externalSessionId},#{state},#{createdAt},#{endedAt},#{version},#{todoCapability})")
     int insertSession(ExecutionSessionRow row);
     @Select("SELECT * FROM execution_session WHERE id=#{id}") Optional<ExecutionSessionRow> findSession(String id);
     @Select("SELECT * FROM execution_session WHERE attempt_id=#{attemptId} ORDER BY created_at DESC LIMIT 1") Optional<ExecutionSessionRow> latestSessionForAttempt(String attemptId);
@@ -472,7 +488,7 @@ public interface LoopperMapper {
               AND code IN ('SESSION_ABORT_CLEANUP_RETRY','SESSION_ABORT_CLEANUP_EXHAUSTED')
             """)
     int countAbortCleanupAttempts(String sessionId);
-    @Update("UPDATE execution_session SET external_session_id=#{externalSessionId}, state=#{state}, ended_at=#{endedAt}, version=version+1 WHERE id=#{id} AND version=#{version}")
+    @Update("UPDATE execution_session SET external_session_id=#{externalSessionId}, state=#{state}, ended_at=#{endedAt}, todo_capability=#{todoCapability}, version=version+1 WHERE id=#{id} AND version=#{version}")
     int updateSessionState(ExecutionSessionRow row);
 
     @Insert("INSERT INTO verification_result(id,attempt_id,verifier_index,type,state,summary,evidence_json,created_at) VALUES(#{id},#{attemptId},#{verifierIndex},#{type},#{state},#{summary},#{evidenceJson},#{createdAt})")
@@ -500,7 +516,7 @@ public interface LoopperMapper {
             """)
     int updateVerifierRuntime(VerifierRuntimeRow row);
 
-    @Insert("INSERT INTO judge_run(id,task_id,attempt_id,role,ordinal,external_session_id,state,verdict,reason,raw_output,created_at,ended_at,version) VALUES(#{id},#{taskId},#{attemptId},#{role},#{ordinal},#{externalSessionId},#{state},#{verdict},#{reason},#{rawOutput},#{createdAt},#{endedAt},#{version})")
+    @Insert("INSERT INTO judge_run(id,task_id,attempt_id,role,ordinal,external_session_id,state,verdict,reason,raw_output,created_at,ended_at,version,response_mode,response_schema_id) VALUES(#{id},#{taskId},#{attemptId},#{role},#{ordinal},#{externalSessionId},#{state},#{verdict},#{reason},#{rawOutput},#{createdAt},#{endedAt},#{version},#{responseMode},#{responseSchemaId})")
     int insertJudgeRun(JudgeRunRow row);
     @Select("SELECT * FROM judge_run WHERE id=#{id}") Optional<JudgeRunRow> findJudgeRun(String id);
     @Select("SELECT * FROM judge_run WHERE task_id=#{taskId} ORDER BY created_at, role, ordinal") List<JudgeRunRow> listJudgeRuns(String taskId);
@@ -508,7 +524,7 @@ public interface LoopperMapper {
     @Select("SELECT * FROM judge_run WHERE task_id=#{taskId} AND role=#{role} ORDER BY ordinal DESC LIMIT 1") Optional<JudgeRunRow> latestJudgeRun(@Param("taskId") String taskId, @Param("role") String role);
     @Select("SELECT COALESCE(MAX(ordinal), 0) + 1 FROM judge_run WHERE task_id=#{taskId} AND role=#{role}") int nextJudgeOrdinal(@Param("taskId") String taskId, @Param("role") String role);
     @Select("SELECT COUNT(*) FROM judge_run WHERE task_id=#{taskId} AND role=#{role} AND state='SESSION_ERROR'") int countJudgeSessionErrors(@Param("taskId") String taskId, @Param("role") String role);
-    @Update("UPDATE judge_run SET external_session_id=#{externalSessionId}, state=#{state}, verdict=#{verdict}, reason=#{reason}, raw_output=#{rawOutput}, ended_at=#{endedAt}, version=version+1 WHERE id=#{id} AND version=#{version}")
+    @Update("UPDATE judge_run SET external_session_id=#{externalSessionId}, state=#{state}, verdict=#{verdict}, reason=#{reason}, raw_output=#{rawOutput}, ended_at=#{endedAt}, response_mode=#{responseMode}, response_schema_id=#{responseSchemaId}, version=version+1 WHERE id=#{id} AND version=#{version}")
     int updateJudgeRun(JudgeRunRow row);
 
     @Insert("INSERT INTO task_artifact(id,task_id,attempt_id,judge_run_id,kind,name,content_type,content,metadata_json,created_at) VALUES(#{id},#{taskId},#{attemptId},#{judgeRunId},#{kind},#{name},#{contentType},#{content},#{metadataJson},#{createdAt})")

@@ -55,7 +55,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "loopper.monitor-delay=1h", "loopper.designer-monitor-delay=1h",
         "loopper.mcp.bearer-token=designer-mcp-test-token",
         "spring.ai.mcp.server.protocol=STREAMABLE", "spring.ai.mcp.server.name=opencode-loopper",
-        "spring.ai.mcp.server.version=0.1.58", "spring.ai.mcp.server.annotation-scanner.enabled=false",
+        "spring.ai.mcp.server.version=0.1.59", "spring.ai.mcp.server.annotation-scanner.enabled=false",
         "spring.ai.mcp.server.capabilities.resource=false", "spring.ai.mcp.server.capabilities.prompt=false",
         "spring.ai.mcp.server.capabilities.completion=false",
         "spring.ai.mcp.server.streamable-http.mcp-endpoint=/api/mcp-streamable",
@@ -84,6 +84,9 @@ class DesignerSessionMcpIntegrationTest {
         flyway.clean();
         flyway.migrate();
         fake().reset();
+        fake().setStructuredCapability(new OpenCodeClient.StructuredOutputCapability(
+                OpenCodeClient.CapabilityState.UNAVAILABLE, OpenCodeClient.CapabilityState.UNKNOWN,
+                "marker compatibility fixture"));
     }
 
     @Test
@@ -118,6 +121,42 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(tasks.artifacts(task.id()).stream().map(TaskArtifactRow::kind).toList())
                 .contains("REQUIREMENT_CONTEXT", "DECOMPOSITION_CONTEXT", "WORK_PACKAGE_DESIGN",
                         "WORK_PACKAGE_COMPILATION_SUMMARY", "DESIGN_CONTEXT");
+    }
+
+    @Test
+    void structuredDesignUsesRoleProfilesAndFallsBackOnceInAFreshSession() throws Exception {
+        fake().setStructuredCapability(new OpenCodeClient.StructuredOutputCapability(
+                OpenCodeClient.CapabilityState.AVAILABLE, OpenCodeClient.CapabilityState.AVAILABLE, null));
+        fake().failNextStructuredPrompts(1);
+        ProjectRow project = project("structured-fallback");
+        LoopSpec structuredSpec = v2DocumentationSpec(project.id());
+        LoopDraftRow draft = drafts.create(structuredSpec);
+        fake().setDesignerOutput(designerOutput(
+                "# 结构化设计\n\nREADME 文档设计可执行验证。", structuredSpec));
+
+        DesignerSessionRow session = designerSessions.create(project.id(), draft.id(), "结构化输出失败时安全回退");
+        pollUntilSettled(session.id());
+
+        var decomposition = mapper.findTaskDecompositionByRevision(
+                mapper.findCurrentDesignRequirementRevision(session.id()).orElseThrow().id()).orElseThrow();
+        assertThat(decomposition.planningResponseMode()).isEqualTo("TEXT_MARKER");
+        assertThat(decomposition.planningResponseSchemaId()).isNull();
+        assertThat(decomposition.planningFormatFallbackUsed()).isTrue();
+        assertThat(decomposition.finalResponseMode()).isEqualTo("JSON_SCHEMA");
+        assertThat(decomposition.finalResponseSchemaId()).isEqualTo("DECOMPOSITION_FINAL_V1");
+        assertThat(decomposition.planningRepairCount()).isEqualTo(1);
+        var compilation = mapper.findLatestLoopSpecCompilationForPackage(session.id(), "WP-1").orElseThrow();
+        assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(6);
+        assertThat(fake().profileForSession(decomposition.externalSessionId()))
+                .isEqualTo(OpenCodeClient.SessionProfile.DECOMPOSER_READ_ONLY);
+
+        assertThat(compilation.planningResponseMode()).isEqualTo("JSON_SCHEMA");
+        assertThat(compilation.planningResponseSchemaId()).isEqualTo("PACKAGE_COMPILATION_PLAN_V2");
+        assertThat(compilation.finalResponseSchemaId()).isEqualTo("PACKAGE_COMPILATION_FINAL_V2");
+        assertThat(compilation.state()).as("compilation=%s", compilation).isEqualTo("COMPLETED");
+        assertThat(fake().profileForSession(compilation.externalSessionId()))
+                .isEqualTo(OpenCodeClient.SessionProfile.COMPILER_READ_ONLY);
+        assertThat(designerSessions.get(session.id()).state()).isEqualTo("COMPLETED");
     }
 
     @Test
@@ -254,6 +293,9 @@ class DesignerSessionMcpIntegrationTest {
     void decompositionInputAndMultiTaskBoundariesWaitWithoutCreatingTasks() throws Exception {
         for (String status : List.of("NEEDS_INPUT", "MULTI_TASK_REQUIRED")) {
             fake().reset();
+            fake().setStructuredCapability(new OpenCodeClient.StructuredOutputCapability(
+                    OpenCodeClient.CapabilityState.UNAVAILABLE, OpenCodeClient.CapabilityState.UNKNOWN,
+                    "marker compatibility fixture"));
             ProjectRow project = project(status.toLowerCase());
             LoopDraftRow draft = drafts.create(legacySpec(project.id()));
             fake().setDecomposerOutput(decomposition(status, "需要人工处理", 0));
@@ -678,7 +720,7 @@ class DesignerSessionMcpIntegrationTest {
                         .accept(MediaType.APPLICATION_JSON, MediaType.TEXT_EVENT_STREAM).content(initialize))
                 .andExpect(status().isUnauthorized());
         MvcResult initialized = mvc.perform(streamable(initialize, null)).andExpect(status().isOk())
-                .andExpect(jsonPath("$.result.serverInfo.version").value("0.1.58")).andReturn();
+                .andExpect(jsonPath("$.result.serverInfo.version").value("0.1.59")).andReturn();
         String sessionId = initialized.getResponse().getHeader("Mcp-Session-Id");
         mvc.perform(streamable("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\",\"params\":{}}", sessionId))
                 .andExpect(status().isAccepted());

@@ -63,7 +63,7 @@ class FeatureMigrationTest {
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
 
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("25");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("26");
         try (var connection = DriverManager.getConnection(url);
              var statement = connection.prepareStatement("SELECT name FROM sqlite_master WHERE type='table'")) {
             try (var result = statement.executeQuery()) {

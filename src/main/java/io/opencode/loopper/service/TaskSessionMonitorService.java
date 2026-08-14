@@ -3,10 +3,12 @@ package io.opencode.loopper.service;
 import io.opencode.loopper.domain.SessionFailure;
 import io.opencode.loopper.domain.SessionState;
 import io.opencode.loopper.domain.TaskState;
+import io.opencode.loopper.domain.TodoCapability;
 import io.opencode.loopper.persistence.ExecutionSessionRow;
 import io.opencode.loopper.persistence.JudgeRunRow;
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.StageRow;
+import io.opencode.loopper.persistence.SessionTodoRow;
 import io.opencode.loopper.persistence.TaskRow;
 import io.opencode.loopper.runtime.OpenCodeClient;
 import java.nio.file.Path;
@@ -44,7 +46,8 @@ public class TaskSessionMonitorService {
         SessionSummary summary = resolved.summary();
         if (summary.externalSessionId() == null || summary.externalSessionId().isBlank() || task.worktreePath() == null || task.worktreePath().isBlank()) {
             return new SessionActivity(summary, summary.state(), false, Instant.now().toString(), List.of(), List.of(),
-                    "Session 尚未获得可读取的 OpenCode 远端标识或 worktree");
+                    "Session 尚未获得可读取的 OpenCode 远端标识或 worktree",
+                    resolved.todo().capability(), resolved.todo().todos(), resolved.todo().truncated(), resolved.todo().detail());
         }
         try {
             OpenCodeClient.OpenCodeSession remote = new OpenCodeClient.OpenCodeSession(summary.externalSessionId(), Path.of(task.worktreePath()));
@@ -55,12 +58,19 @@ public class TaskSessionMonitorService {
             List<PendingQuestion> questions = interactive(task, summary)
                     ? openCode.pendingQuestions(remote).stream().map(this::question).toList()
                     : List.of();
-            return new SessionActivity(summary, status.state(), true, Instant.now().toString(), parts, questions, status.detail());
+            return new SessionActivity(summary, status.state(), true, Instant.now().toString(), parts, questions,
+                    status.detail(), resolved.todo().capability(), resolved.todo().todos(),
+                    resolved.todo().truncated(), resolved.todo().detail());
         } catch (SessionFailure failure) {
             List<ActivityPart> persisted = persistedOutput(summary, resolved.persistedOutput());
-            return new SessionActivity(summary, summary.state(), false, Instant.now().toString(), persisted, List.of(), safe(failure.getMessage()));
+            return new SessionActivity(summary, summary.state(), false, Instant.now().toString(), persisted, List.of(),
+                    safe(failure.getMessage()), resolved.todo().capability(), resolved.todo().todos(),
+                    resolved.todo().truncated(), resolved.todo().detail());
         } catch (RuntimeException failure) {
-            return new SessionActivity(summary, summary.state(), false, Instant.now().toString(), persistedOutput(summary, resolved.persistedOutput()), List.of(), safe(failure.getMessage()));
+            return new SessionActivity(summary, summary.state(), false, Instant.now().toString(),
+                    persistedOutput(summary, resolved.persistedOutput()), List.of(), safe(failure.getMessage()),
+                    resolved.todo().capability(), resolved.todo().todos(), resolved.todo().truncated(),
+                    resolved.todo().detail());
         }
     }
 
@@ -153,13 +163,13 @@ public class TaskSessionMonitorService {
             String id = key.substring("execution:".length());
             ExecutionSessionRow row = mapper.findSession(id).orElseThrow(() -> new NotFoundException("Task Session not found: " + id));
             if (!taskId.equals(row.taskId())) throw new BadRequestException("SESSION_TASK_MISMATCH", "Session does not belong to Task " + taskId);
-            return new ResolvedSession(summary(row), null);
+            return new ResolvedSession(summary(row), null, todoProjection(row));
         }
         if (key != null && key.startsWith("judge:")) {
             String id = key.substring("judge:".length());
             JudgeRunRow row = mapper.findJudgeRun(id).orElseThrow(() -> new NotFoundException("Judge Session not found: " + id));
             if (!taskId.equals(row.taskId())) throw new BadRequestException("SESSION_TASK_MISMATCH", "Judge Session does not belong to Task " + taskId);
-            return new ResolvedSession(summary(row), row.rawOutput());
+            return new ResolvedSession(summary(row), row.rawOutput(), TodoProjection.none());
         }
         throw new BadRequestException("SESSION_KEY_INVALID", "Session key must start with execution: or judge:");
     }
@@ -182,6 +192,19 @@ public class TaskSessionMonitorService {
                         summary.endedAt() == null ? summary.createdAt() : summary.endedAt()));
     }
 
+    private TodoProjection todoProjection(ExecutionSessionRow session) {
+        List<SessionTodoRow> rows = mapper.listSessionTodos(session.id());
+        boolean truncated = rows.stream().anyMatch(row -> row.payloadJson() != null
+                && row.payloadJson().contains("\"projectionTruncated\":true"));
+        String capability = session.todoCapability() == null ? TodoCapability.UNKNOWN.name() : session.todoCapability();
+        String detail = truncated ? "OpenCode Todo 投影已按安全上限截断"
+                : TodoCapability.UNAVAILABLE.name().equals(capability) ? "当前工作区未暴露 todowrite"
+                : TodoCapability.UNKNOWN.name().equals(capability) ? "无法确认当前工作区的 todowrite 能力" : null;
+        List<TodoActivity> todos = rows.stream().map(row -> new TodoActivity(row.externalTodoId(), row.content(),
+                row.status(), row.priority(), row.ordinal())).toList();
+        return new TodoProjection(capability, todos, truncated, detail);
+    }
+
     private String safe(String value) {
         if (value == null || value.isBlank()) return "OpenCode Session 暂时不可读取";
         return value.length() <= 2_000 ? value : value.substring(0, 2_000);
@@ -195,7 +218,13 @@ public class TaskSessionMonitorService {
     public record QuestionPrompt(String question, String header, List<QuestionOption> options, boolean multiple, boolean custom) { }
     public record QuestionOption(String label, String description) { }
     public record SessionActivity(SessionSummary session, String remoteState, boolean live, String observedAt,
-                                  List<ActivityPart> parts, List<PendingQuestion> pendingQuestions, String detail) { }
-    private record ResolvedSession(SessionSummary summary, String persistedOutput) { }
+                                  List<ActivityPart> parts, List<PendingQuestion> pendingQuestions, String detail,
+                                  String todoCapability, List<TodoActivity> todos, boolean todoTruncated,
+                                  String todoDetail) { }
+    public record TodoActivity(String id, String content, String status, String priority, int ordinal) { }
+    private record TodoProjection(String capability, List<TodoActivity> todos, boolean truncated, String detail) {
+        private static TodoProjection none() { return new TodoProjection(TodoCapability.UNKNOWN.name(), List.of(), false, null); }
+    }
+    private record ResolvedSession(SessionSummary summary, String persistedOutput, TodoProjection todo) { }
     private record ResolvedRemote(OpenCodeClient.OpenCodeSession remote) { }
 }

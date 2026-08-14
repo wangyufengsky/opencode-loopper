@@ -17,8 +17,11 @@ class TaskMonitor {
     private final OpenCodeClient openCode;
     private final TaskService tasks;
     private final TaskVerificationDispatcher verification;
-    TaskMonitor(LoopperMapper mapper, OpenCodeClient openCode, TaskService tasks, TaskVerificationDispatcher verification) {
+    private final ImplementationTodoSynchronizer todoSynchronizer;
+    TaskMonitor(LoopperMapper mapper, OpenCodeClient openCode, TaskService tasks,
+                TaskVerificationDispatcher verification, ImplementationTodoSynchronizer todoSynchronizer) {
         this.mapper = mapper; this.openCode = openCode; this.tasks = tasks; this.verification = verification;
+        this.todoSynchronizer = todoSynchronizer;
     }
     @Scheduled(fixedDelayString = "${loopper.monitor-delay:2s}")
     void poll() {
@@ -45,6 +48,10 @@ class TaskMonitor {
             for (ExecutionSessionRow session : mapper.activeSessions(task.id())) {
                 if (session.externalSessionId() == null) continue;
                 try {
+                    try { todoSynchronizer.synchronizeIfAvailable(task, session); }
+                    catch (RuntimeException ignoredTodoProjectionFailure) {
+                        // Todo is a non-authoritative projection and cannot alter execution lifecycle.
+                    }
                     OpenCodeClient.SessionStatus status = openCode.sessionStatus(new OpenCodeClient.OpenCodeSession(session.externalSessionId(), Path.of(task.worktreePath())));
                     if (status.failed()) tasks.sessionFailed(task.id(), session.attemptId(), "OPENCODE_SESSION_" + status.state(),
                             status.detail() == null || status.detail().isBlank() ? "OpenCode session ended in " + status.state() : status.detail());
