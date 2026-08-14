@@ -441,7 +441,9 @@ the restored source branch is not fast-forwarded or overlaid. Direct-execution T
 Local-sync conflict inspection parses NUL-delimited Git path output. Those Git
 commands disable `core.safecrlf` warnings only for the child command so CRLF
 diagnostics cannot be mistaken for path records, while the user's repository and
-global Git configuration remain unchanged.
+global Git configuration remain unchanged. Cross-platform Git integration fixtures
+explicitly fix `core.autocrlf=false`; POSIX-only bare `mvn` fixture execution is
+kept separate from Windows executable-resolution coverage.
 The single-action “创建合并请求” button opens its confirmation dialog directly,
 then opens a prefilled GitLab/GitHub creation page; the hosting
 service still owns the final merge-request confirmation and merge. HTTP/HTTPS

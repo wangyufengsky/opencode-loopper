@@ -130,6 +130,7 @@ class GitWorktreeManagerIntegrationTest {
         Path updater = temp.resolve("source-branch-updater");
         run(temp, "git", "clone", remote.toString(), project.toString());
         run(temp, "git", "clone", remote.toString(), updater.toString());
+        configureIdentity(project);
         configureIdentity(updater);
         Files.writeString(updater.resolve("README.md"), "remote advance\n");
         run(updater, "git", "add", "README.md");
@@ -168,6 +169,7 @@ class GitWorktreeManagerIntegrationTest {
         Path updater = temp.resolve("updater");
         run(temp, "git", "clone", remote.toString(), project.toString());
         run(temp, "git", "clone", remote.toString(), updater.toString());
+        configureIdentity(project);
         configureIdentity(updater);
         Files.writeString(updater.resolve("README.md"), "remote advance\n");
         run(updater, "git", "add", "README.md");

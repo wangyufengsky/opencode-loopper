@@ -482,6 +482,7 @@ class LocalSyncConflictServiceIntegrationTest {
     }
 
     @Test
+    @EnabledOnOs({OS.LINUX, OS.MAC})
     void cupXml2JavaStyleMergeKeepsBothDependenciesSyncsStateMachineAndPassesMaven() throws Exception {
         Path source = repository("fixture\n");
         Files.delete(source.resolve("README.md"));
@@ -601,6 +602,7 @@ class LocalSyncConflictServiceIntegrationTest {
         run(root, "git", "init", "-b", "main");
         run(root, "git", "config", "user.email", "test@example.invalid");
         run(root, "git", "config", "user.name", "Loopper Test");
+        run(root, "git", "config", "core.autocrlf", "false");
         Files.writeString(root.resolve("README.md"), readme, StandardCharsets.UTF_8);
         run(root, "git", "add", ".");
         run(root, "git", "commit", "-m", "initial");
