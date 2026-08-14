@@ -84,6 +84,14 @@ class LocalSyncConflictServiceIntegrationTest {
     }
 
     @Test
+    void windowsSourceModesUseTheGitIndexInsteadOfAclExecutability() {
+        assertThat(LocalSyncConflictService.effectiveSourceMode(true, true, "100644")).isEqualTo("100644");
+        assertThat(LocalSyncConflictService.effectiveSourceMode(true, false, "100755")).isEqualTo("100755");
+        assertThat(LocalSyncConflictService.effectiveSourceMode(true, true, null)).isEqualTo("100644");
+        assertThat(LocalSyncConflictService.effectiveSourceMode(false, true, "100644")).isEqualTo("100755");
+    }
+
+    @Test
     void multipleTextConflictRegionsRemainEditableInsteadOfBeingTreatedAsMergeToolFailure() throws Exception {
         String base = java.util.stream.IntStream.rangeClosed(1, 24)
                 .mapToObj(index -> "line-" + index).collect(java.util.stream.Collectors.joining("\n", "", "\n"));

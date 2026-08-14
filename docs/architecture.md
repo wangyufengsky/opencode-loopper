@@ -446,7 +446,10 @@ fix `core.autocrlf=false` at initial clone time and use repository attributes fo
 exact-LF merge contracts; POSIX-only bare `mvn` fixture execution is kept separate
 from Windows executable-resolution coverage. Automatic-merge fixtures keep their
 independent edits far enough apart that supported Git/xdiff versions agree on the
-hunk boundary; adjacent edits remain a legitimate manual-conflict case.
+hunk boundary; adjacent edits remain a legitimate manual-conflict case. On Windows,
+tracked source-file modes come from the source repository index and untracked regular
+files default to `100644`; NTFS ACL executability is not a Unix executable bit. POSIX
+source files continue to use the actual filesystem executable bit.
 The single-action “创建合并请求” button opens its confirmation dialog directly,
 then opens a prefilled GitLab/GitHub creation page; the hosting
 service still owns the final merge-request confirmation and merge. HTTP/HTTPS

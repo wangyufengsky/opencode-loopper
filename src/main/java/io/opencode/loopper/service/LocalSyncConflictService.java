@@ -107,6 +107,7 @@ public class LocalSyncConflictService {
         if (changes.size() > MAX_TASK_PATHS) {
             throw new ConflictException("LOCAL_SYNC_PATH_LIMIT", "任务涉及超过 200 个路径，不能创建本地同步会话");
         }
+        Map<String, String> sourceIndexModes = sourceIndexModes(source, changes);
 
         String sessionId = UUID.randomUUID().toString();
         Path sessionDir = managedSessionDir(sessionId);
@@ -115,7 +116,7 @@ public class LocalSyncConflictService {
         try {
             Files.createDirectories(sessionDir.resolve("files"));
             for (RawChange change : changes) {
-                BuiltFile built = buildFile(sessionId, sessionDir, workspace, source, change);
+                BuiltFile built = buildFile(sessionId, sessionDir, workspace, source, change, sourceIndexModes);
                 storedBytes += built.storedBytes();
                 if (storedBytes > MAX_SESSION_BYTES) {
                     throw new ConflictException("LOCAL_SYNC_SESSION_SIZE_LIMIT",
@@ -373,8 +374,8 @@ public class LocalSyncConflictService {
         }
     }
 
-    private BuiltFile buildFile(String sessionId, Path sessionDir, Path workspace, Path source, RawChange change)
-            throws IOException {
+    private BuiltFile buildFile(String sessionId, Path sessionDir, Path workspace, Path source, RawChange change,
+                                Map<String, String> sourceIndexModes) throws IOException {
         validateRelative(change.oldPath());
         validateRelative(change.newPath());
         if (unsafeMode(change.oldMode()) || unsafeMode(change.newMode())) {
@@ -383,7 +384,7 @@ public class LocalSyncConflictService {
         }
         byte[] base = missingSha(change.oldSha()) ? null : readGitBlob(workspace, change.oldSha());
         byte[] task = missingSha(change.newSha()) ? null : readGitBlob(workspace, change.newSha());
-        SourceSnapshot sourceSnapshot = sourceSnapshot(source, change);
+        SourceSnapshot sourceSnapshot = sourceSnapshot(source, change, sourceIndexModes);
         if (sourceSnapshot.unsafe()) {
             throw new ConflictException("LOCAL_SYNC_UNSUPPORTED_FILE_TYPE",
                     "第一版不支持 symlink、submodule、目录或特殊文件：" + change.displayPath());
@@ -463,11 +464,13 @@ public class LocalSyncConflictService {
         }
     }
 
-    private SourceSnapshot sourceSnapshot(Path root, RawChange change) throws IOException {
+    private SourceSnapshot sourceSnapshot(Path root, RawChange change, Map<String, String> sourceIndexModes)
+            throws IOException {
         Path old = safeResolve(root, change.oldPath());
         Path target = safeResolve(root, change.newPath());
-        FileSnapshot oldState = fileSnapshot(old);
-        FileSnapshot targetState = change.oldPath().equals(change.newPath()) ? oldState : fileSnapshot(target);
+        FileSnapshot oldState = fileSnapshot(root, old, sourceIndexModes);
+        FileSnapshot targetState = change.oldPath().equals(change.newPath())
+                ? oldState : fileSnapshot(root, target, sourceIndexModes);
         boolean renameAlreadyApplied = !change.oldPath().equals(change.newPath()) && !oldState.exists() && targetState.exists();
         FileSnapshot primary = renameAlreadyApplied ? targetState : oldState;
         String combinedHash = change.oldPath().equals(change.newPath()) ? primary.hash()
@@ -478,7 +481,7 @@ public class LocalSyncConflictService {
                 oldState.unsafe() || targetState.unsafe(), targetState.exists());
     }
 
-    private FileSnapshot fileSnapshot(Path path) throws IOException {
+    private FileSnapshot fileSnapshot(Path root, Path path, Map<String, String> sourceIndexModes) throws IOException {
         if (!Files.exists(path, LinkOption.NOFOLLOW_LINKS)) return new FileSnapshot(false, null, MISSING, MISSING, false);
         if (Files.isSymbolicLink(path) || !Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) {
             return new FileSnapshot(true, null, "UNSAFE", "UNSAFE", true);
@@ -486,7 +489,7 @@ public class LocalSyncConflictService {
         long size = Files.size(path);
         if (size > MAX_SESSION_BYTES) throw new ConflictException("LOCAL_SYNC_SESSION_SIZE_LIMIT", "单个文件超过 100 MiB 安全上限");
         byte[] content = Files.readAllBytes(path);
-        return new FileSnapshot(true, content, sha256(content), sourceMode(path), false);
+        return new FileSnapshot(true, content, sha256(content), sourceMode(root, path, sourceIndexModes), false);
     }
 
     private void ensureFresh(LocalSyncConflictSessionRow session, List<LocalSyncConflictFileRow> files, Path source) {
@@ -507,11 +510,12 @@ public class LocalSyncConflictService {
         if (staged.stream().anyMatch(affected::contains)) {
             markStale(session, "任务涉及路径已暂存，请取消暂存或提交后刷新会话");
         }
+        Map<String, String> sourceIndexModes = sourceIndexModes(source, affected);
         for (LocalSyncConflictFileRow file : files) {
             try {
                 RawChange synthetic = new RawChange(file.baseMode(), file.taskMode(), "", "", "M",
                         file.sourcePath(), file.taskPath());
-                SourceSnapshot current = sourceSnapshot(source, synthetic);
+                SourceSnapshot current = sourceSnapshot(source, synthetic, sourceIndexModes);
                 if (!file.sourceHash().equals(current.combinedHash()) || !file.sourceMode().equals(current.combinedMode())) {
                     markStale(session, "源项目文件已变化，请刷新冲突会话：" + file.path());
                 }
@@ -538,11 +542,12 @@ public class LocalSyncConflictService {
 
     private RecoveryLog snapshot(Path source, Set<String> affected, Path backupDir) throws IOException {
         Files.createDirectories(backupDir);
+        Map<String, String> sourceIndexModes = sourceIndexModes(source, affected);
         List<BackupEntry> entries = new ArrayList<>();
         int index = 0;
         for (String relative : affected.stream().sorted().toList()) {
             Path target = safeResolve(source, relative);
-            FileSnapshot state = fileSnapshot(target);
+            FileSnapshot state = fileSnapshot(source, target, sourceIndexModes);
             String backup = null;
             if (state.exists()) {
                 backup = String.format("%03d.bin", index++);
@@ -720,7 +725,7 @@ public class LocalSyncConflictService {
             if (affected.contains(path)) continue;
             try {
                 Path target = safeResolve(source, path);
-                snapshot.put(token.substring(0, 2) + ":" + path, fileSnapshot(target).hash());
+                snapshot.put(token.substring(0, 2) + ":" + path, fileSnapshot(source, target, Map.of()).hash());
             } catch (Exception failure) {
                 snapshot.put(token.substring(0, 2) + ":" + path, "UNREADABLE");
             }
@@ -890,6 +895,49 @@ public class LocalSyncConflictService {
         return changes;
     }
 
+    private Map<String, String> sourceIndexModes(Path source, List<RawChange> changes) {
+        LinkedHashSet<String> paths = new LinkedHashSet<>();
+        for (RawChange change : changes) {
+            paths.add(change.oldPath());
+            paths.add(change.newPath());
+        }
+        return sourceIndexModes(source, paths);
+    }
+
+    private Map<String, String> sourceIndexModes(Path source, Set<String> paths) {
+        if (!isWindows()) return Map.of();
+        paths.forEach(this::validateRelative);
+        Map<String, String> modes = new LinkedHashMap<>();
+        List<String> batch = new ArrayList<>();
+        int commandCharacters = 0;
+        for (String path : paths) {
+            if (!batch.isEmpty() && commandCharacters + path.length() + 1 > 12_000) {
+                appendSourceIndexModes(source, batch, modes);
+                batch.clear();
+                commandCharacters = 0;
+            }
+            batch.add(path);
+            commandCharacters += path.length() + 1;
+        }
+        if (!batch.isEmpty()) appendSourceIndexModes(source, batch, modes);
+        return Map.copyOf(modes);
+    }
+
+    private void appendSourceIndexModes(Path source, List<String> paths, Map<String, String> modes) {
+        List<String> command = new ArrayList<>(List.of("git", "ls-files", "--stage", "-z", "--"));
+        command.addAll(paths);
+        String output = gitAllowEmpty(source, command, "SOURCE_INDEX_MODE_UNAVAILABLE");
+        for (String record : output.split("\u0000", -1)) {
+            if (record.isBlank()) continue;
+            int separator = record.indexOf('\t');
+            String[] fields = separator < 0 ? new String[0] : record.substring(0, separator).split(" ");
+            if (fields.length != 3 || !"0".equals(fields[2])) {
+                throw new ConflictException("SOURCE_INDEX_MODE_INVALID", "无法解析源项目 Git index 文件模式");
+            }
+            modes.put(record.substring(separator + 1), fields[0]);
+        }
+    }
+
     private byte[] readGitBlob(Path workspace, String objectId) throws IOException {
         Process process = new ProcessBuilder("git", "cat-file", "blob", objectId).directory(workspace.toFile())
                 .redirectErrorStream(true).start();
@@ -1041,8 +1089,18 @@ public class LocalSyncConflictService {
         return paths;
     }
 
-    private String sourceMode(Path path) throws IOException {
-        return Files.isExecutable(path) ? "100755" : "100644";
+    private String sourceMode(Path root, Path path, Map<String, String> sourceIndexModes) {
+        String relative = root.relativize(path).toString().replace('\\', '/');
+        return effectiveSourceMode(isWindows(), Files.isExecutable(path), sourceIndexModes.get(relative));
+    }
+
+    static String effectiveSourceMode(boolean windows, boolean filesystemExecutable, String indexMode) {
+        if (!windows) return filesystemExecutable ? "100755" : "100644";
+        return "100755".equals(indexMode) ? "100755" : "100644";
+    }
+
+    private static boolean isWindows() {
+        return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
     }
 
     private boolean unsafeMode(String mode) { return mode != null && (mode.equals("120000") || mode.equals("160000")); }
