@@ -20,8 +20,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 @Component
 public class VerifierEngine {
-    private static final int MAX_PATH_RULE_LENGTH = 512;
-    private static final int MAX_GIT_PATH_LENGTH = 32_768;
     private static final long PATH_POLICY_WORK_BUDGET = 10_000_000L;
     private static final Duration MAX_VERIFIER_TIMEOUT = Duration.ofHours(1);
     private final SafeProcessRunner runner;
@@ -454,31 +452,15 @@ public class VerifierEngine {
      * semantics on Linux, macOS and Windows.
      */
     private boolean matchesPathRule(String path, String inputRule, SlashGlobMatcher.WorkBudget budget) {
-        if (inputRule == null || inputRule.isBlank()) {
-            budget.consume(1);
-            return false;
-        }
-        String rule = inputRule.replace('\\', '/').replaceAll("^\\./+", "");
-        String candidate = path.replace('\\', '/').replaceAll("^\\./+", "");
-        if (rule.length() > MAX_PATH_RULE_LENGTH || candidate.length() > MAX_GIT_PATH_LENGTH) {
-            throw new TaskFailure("VERIFIER_PATH_POLICY_INVALID", "Verifier path policy exceeds its safety limit");
-        }
-        if (!containsGlob(rule)) {
-            budget.consume(rule.length() + candidate.length() + 1L);
-            String prefix = rule.endsWith("/") ? rule : rule + "/";
-            return candidate.equals(rule) || candidate.startsWith(prefix);
-        }
         try {
-            return SlashGlobMatcher.matches(rule, candidate, budget);
+            return VerifierPathPolicy.matches(path, inputRule, budget);
         } catch (SlashGlobMatcher.WorkLimitExceeded exhausted) {
             throw new TaskFailure("VERIFIER_PATH_POLICY_LIMIT_EXCEEDED", "Verifier path policy exceeded its bounded matching budget");
-        } catch (RuntimeException invalidPattern) {
+        } catch (VerifierPathPolicy.InvalidRule invalidRule) {
+            throw new TaskFailure("VERIFIER_PATH_POLICY_INVALID", "Verifier path policy exceeds its safety limit");
+        } catch (VerifierPathPolicy.InvalidPattern invalidPattern) {
             throw new TaskFailure("VERIFIER_PATH_PATTERN_INVALID", "Invalid verifier path pattern: " + inputRule);
         }
-    }
-
-    private boolean containsGlob(String value) {
-        return value.indexOf('*') >= 0 || value.indexOf('?') >= 0 || value.indexOf('[') >= 0 || value.indexOf('{') >= 0;
     }
     private String truncate(String value) { return value == null ? "" : value.substring(0, Math.min(value.length(), 10_000)); }
 

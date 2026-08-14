@@ -80,6 +80,11 @@ records structured-output observations by endpoint, OpenCode version, provider,
 and model. It may show that native `plan` exists, but this release does not
 select that agent for Designer: Designer Markdown, Compiler JSON, and the
 deterministic Validator remain separate artifacts and authority boundaries.
+Loopper-managed runtimes additionally define a private `loopper-structured`
+agent with at most 24 agentic steps. Only Decomposer, Compiler, and Judge select
+it; interactive Markdown Designer and writable Implementation remain on their
+normal agent behavior. The step bound limits repository exploration without
+changing the per-Session permission profile or making agent output authoritative.
 
 Those tools see the pre-execution repository baseline, not a simulated checkout
 after earlier packages. For a package dependency already marked `COMPLETED`,
@@ -106,12 +111,30 @@ output, and final Judge output. A typed prompt may choose text or one of those
 schemas and may set system/agent fields, but it never accepts caller-owned tools.
 Schema mode uses OpenCode `format.type=json_schema` with provider retry count
 zero so Loopper's persisted planning/final repair budgets remain authoritative.
-The adapter reads `info.structured` without dropping legal JSON nulls and records
-transport/model support from successful responses or typed structured-output
-errors.
+An asynchronous HTTP 2xx proves only queue admission and never marks structured
+output available. The adapter records support only after reading a real
+`info.structured` object; it preserves legal JSON nulls and records explicit
+transport/model failures separately.
+
+Decomposer, Compiler, and final Judge Sessions explicitly select the configured
+provider/model with `thinking=false`; interactive Markdown Designer and writable
+Implementation Sessions retain their configured LoopSpec thinking choice. For a
+Loopper-managed DeepSeek runtime, startup injects a private
+`loopper-no-thinking` model variant whose provider option is
+`thinking.type=disabled`, and prompts for those three machine-response roles
+select that variant. This avoids DeepSeek's incompatibility between Thinking and
+OpenCode's required structured-output tool choice without weakening any role
+permission or deterministic validation boundary. A reused external OpenCode
+runtime remains operator-owned and must expose the same variant for its selected
+DeepSeek model to get the direct schema path; otherwise the existing fresh-Session
+marker fallback remains the safe compatibility path.
 
 New Decomposer/Compiler records prefer JSON Schema unless capability is known
-unavailable. A rejected format, typed structured-output error, or completed turn
+unavailable. OpenCode 1.18.12 through 1.18.18 are deterministically quarantined
+to marker mode because both endpoints of that patch range were verified to
+accept `prompt_async` and then reject their own stored Schema during message
+decoding. Later versions return to normal capability probing. A rejected format,
+typed structured-output error, or completed turn
 without structured data consumes one ordinary model call and the matching
 planning/final format-repair allowance, then creates one fresh read-only role
 Session and retries that step with the legacy marker contract. It never retries
@@ -121,6 +144,25 @@ default to marker mode. Judge records likewise persist response mode/schema;
 their next explicitly scheduled ordinal uses marker mode after a structured
 Session error, while the existing atomic Requirement/Risk prompt preflight is
 unchanged.
+
+OpenCode may accept `prompt_async` with `format.type=json_schema` but later reject
+`GET /session/{id}/message` while decoding the stored format. Machine-response
+polling therefore reads messages even while `/session/status` remains `busy`.
+A 400/404/415/422
+whose response identifies format or Schema incompatibility is the same explicit
+transport-capability rejection and therefore enters the fresh marker Session
+path above; it is not wrapped as a generic message failure. For Decomposer and
+Compiler, OpenCode status `RETRY` is transient provider self-recovery, so the
+design pipeline keeps polling the same Session and does not consume its single
+transport retry. A failed `StructuredOutput` tool part is the same explicit
+structured-output failure. Loopper also counts assistant/step-start records after
+the latest user turn and enforces its own 24-step hard limit even if OpenCode's
+agent setting is ignored. The managed agent uses temperature zero and a fixed
+instruction to stop repository exploration once evidence is sufficient and never
+repeat or invent tool calls. Implementation and Judge retain their existing
+failure-escalation contract. Actual terminal failure, retry exhaustion, timeout, or transition to
+human input always makes a best-effort abort call before Loopper reports the
+structured role as stopped.
 
 Compiler's final marked envelope contains either `COMPILED` (a 1–3 Stage package
 fragment, bounded summary/handoff, and an exact Designer excerpt for every criterion) or
@@ -182,7 +224,11 @@ Decomposer/Designer/Compiler handoffs remain on the Designer Session and never t
 For v2 drafts, `propose_loop_spec` and `validate_loop_spec` expose the same
 server-computed criterion coverage and evidence categories as
 `POST /api/loop-drafts/validate`. The model cannot self-declare a verifier as
-behavior evidence. A persisted v1 binding may continue to propose v1 updates,
+behavior evidence. Compiler planning is also assessed with the runtime path
+policy: malformed globs and an allowed rule entirely shadowed by a forbidden
+rule enter the bounded planning-repair turn before any plan is frozen. The
+server repeats this check on draft persistence and confirmation, while keeping
+broad allow rules with narrower exclusions valid. A persisted v1 binding may continue to propose v1 updates,
 but an unbound/new proposal cannot use v1 to bypass strict validation.
 
 All OpenCode adapter requests and runtime health probes use the configured

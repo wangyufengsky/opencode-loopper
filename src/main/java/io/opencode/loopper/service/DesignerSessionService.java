@@ -459,7 +459,7 @@ public class DesignerSessionService {
         ProjectRow project = projects.get(input.projectId());
         try {
             OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
-                    "OpenCode Loopper Task Decomposer (READ_ONLY)", configuredModel(),
+                    "OpenCode Loopper Task Decomposer (READ_ONLY)", structuredModel(),
                     OpenCodeClient.SessionProfile.DECOMPOSER_READ_ONLY);
             TaskDecompositionRow running = updateDecomposition(pending, TaskDecompositionState.RUNNING,
                     null, null, "[]", "{}", remote.id(), "RUNNING", 0, 0, null, null);
@@ -513,7 +513,16 @@ public class DesignerSessionService {
                 return;
             }
             OpenCodeClient.SessionStatus status = openCode.sessionStatus(remote);
-            if (status.failed()) {
+            if (status.retrying()) {
+                if (!same(decomposition.externalSessionState(), status.state())) {
+                    updateDecomposition(decomposition, TaskDecompositionState.RUNNING, decomposition.resultType(),
+                            decomposition.normalizedGoal(), decomposition.globalConstraintsJson(), decomposition.planJson(),
+                            remote.id(), status.state(), decomposition.repairCount(), decomposition.transportRetryCount(),
+                            decomposition.lastErrorCode(), decomposition.lastErrorDetail());
+                    publish(session, "STATUS", DesignerActor.DECOMPOSER, true, "",
+                            "任务拆解器正在等待 Provider 瞬态重试恢复");
+                }
+            } else if (status.failed()) {
                 failDecomposition(decomposition, session, "OPENCODE_DECOMPOSER_" + safeState(status.state()),
                         statusDetail(status), true);
             } else if (status.completed()) {
@@ -837,7 +846,7 @@ public class DesignerSessionService {
         ProjectRow project = projects.get(session.projectId());
         try {
             OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
-                    "OpenCode Loopper LoopSpec Compiler " + workPackage.packageId() + " (READ_ONLY)", configuredModel(),
+                    "OpenCode Loopper LoopSpec Compiler " + workPackage.packageId() + " (READ_ONLY)", structuredModel(),
                     OpenCodeClient.SessionProfile.COMPILER_READ_ONLY);
             LoopSpecCompilationRow running = updateCompilation(pending, LoopSpecCompilationState.RUNNING,
                     remote.id(), "RUNNING", 0, null, null, session.projectId(), null);
@@ -964,7 +973,7 @@ public class DesignerSessionService {
         try {
             ProjectRow project = projects.get(session.projectId());
             OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
-                    "OpenCode Loopper LoopSpec Compiler (READ_ONLY)", configuredModel(),
+                    "OpenCode Loopper LoopSpec Compiler (READ_ONLY)", structuredModel(),
                     OpenCodeClient.SessionProfile.COMPILER_READ_ONLY);
             LoopSpecCompilationRow running = updateCompilation(pending, LoopSpecCompilationState.RUNNING,
                     remote.id(), "RUNNING", 0, null, null, session.projectId());
@@ -1004,7 +1013,15 @@ public class DesignerSessionService {
                 return;
             }
             OpenCodeClient.SessionStatus status = openCode.sessionStatus(remote);
-            if (status.failed()) {
+            if (status.retrying()) {
+                if (!same(compilation.externalSessionState(), status.state())) {
+                    updateCompilation(compilation, LoopSpecCompilationState.RUNNING, remote.id(), status.state(),
+                            compilation.repairCount(), compilation.lastErrorCode(), compilation.lastErrorDetail(),
+                            session.projectId());
+                    publish(session, "STATUS", DesignerActor.COMPILER, true, "",
+                            "规范编译器正在等待 Provider 瞬态重试恢复");
+                }
+            } else if (status.failed()) {
                 failCompilation(compilation, session, "OPENCODE_COMPILER_" + safeState(status.state()), statusDetail(status));
             } else if (status.completed()) {
                 if (!blank(compilation.workPackageId())
@@ -1432,12 +1449,15 @@ public class DesignerSessionService {
         if (!schemaMode || alreadyUsed || repairs >= MAX_DECOMPOSER_REPAIRS || !isCurrent(session, revision)) {
             return false;
         }
-        if (!consumeModelCall(session, revision, "DECOMPOSER_MODEL_CALL_LIMIT")) return true;
+        if (!consumeModelCall(session, revision, "DECOMPOSER_MODEL_CALL_LIMIT")) {
+            abortQuietly(row.externalSessionId(), session.projectId());
+            return true;
+        }
         abortQuietly(row.externalSessionId(), session.projectId());
         try {
             ProjectRow project = projects.get(session.projectId());
             OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
-                    "OpenCode Loopper Task Decomposer format fallback (READ_ONLY)", configuredModel(),
+                    "OpenCode Loopper Task Decomposer format fallback (READ_ONLY)", structuredModel(),
                     OpenCodeClient.SessionProfile.DECOMPOSER_READ_ONLY);
             TaskDecompositionRow transport = decompositionTransport(row, planning,
                     ModelResponseMode.TEXT_MARKER, null, true);
@@ -1474,12 +1494,15 @@ public class DesignerSessionService {
         DesignWorkPackageRow workPackage = blank(row.workPackageId()) ? null
                 : requireCurrentPackage(session, row.workPackageId());
         DesignRequirementRevisionRow revision = workPackage == null ? null : currentRequirement(session.id());
-        if (revision != null && !consumeModelCall(session, revision, "WORK_PACKAGE_MODEL_CALL_LIMIT")) return true;
+        if (revision != null && !consumeModelCall(session, revision, "WORK_PACKAGE_MODEL_CALL_LIMIT")) {
+            abortQuietly(row.externalSessionId(), session.projectId());
+            return true;
+        }
         abortQuietly(row.externalSessionId(), session.projectId());
         try {
             ProjectRow project = projects.get(session.projectId());
             OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
-                    "OpenCode Loopper LoopSpec Compiler format fallback (READ_ONLY)", configuredModel(),
+                    "OpenCode Loopper LoopSpec Compiler format fallback (READ_ONLY)", structuredModel(),
                     OpenCodeClient.SessionProfile.COMPILER_READ_ONLY);
             LoopSpecCompilationRow transport = compilationTransport(row, planning,
                     ModelResponseMode.TEXT_MARKER, null, true);
@@ -1518,6 +1541,8 @@ public class DesignerSessionService {
         }
         LoopSpecCompilationRow current = mapper.findLoopSpecCompilation(input.id()).orElse(input);
         if (structuredFormatFailure(code) && fallbackCompilation(current, session, code, detail)) return;
+        current = mapper.findLoopSpecCompilation(input.id()).orElse(current);
+        abortQuietly(current.externalSessionId(), session.projectId());
         if (!LoopSpecCompilationState.SESSION_ERROR.name().equals(current.state())
                 && !LoopSpecCompilationState.COMPLETED.name().equals(current.state())
                 && !LoopSpecCompilationState.DESIGN_INCOMPLETE.name().equals(current.state())) {
@@ -1534,12 +1559,13 @@ public class DesignerSessionService {
         DesignRequirementRevisionRow revision = getRequirement(decomposition.requirementRevisionId());
         if (structuredFormatFailure(code)
                 && fallbackDecomposition(decomposition, session, revision, code, detail)) return;
+        decomposition = mapper.findTaskDecomposition(input.id()).orElse(decomposition);
         if (transportFailure && decomposition.transportRetryCount() < 1 && isCurrent(session, revision)) {
             abortQuietly(decomposition.externalSessionId(), session.projectId());
             ProjectRow project = projects.get(session.projectId());
             try {
                 OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
-                        "OpenCode Loopper Task Decomposer retry (READ_ONLY)", configuredModel(),
+                        "OpenCode Loopper Task Decomposer retry (READ_ONLY)", structuredModel(),
                         OpenCodeClient.SessionProfile.DECOMPOSER_READ_ONLY);
                 TaskDecompositionRow retried = updateDecomposition(decomposition, TaskDecompositionState.RUNNING,
                         decomposition.resultType(), decomposition.normalizedGoal(), decomposition.globalConstraintsJson(),
@@ -1548,7 +1574,10 @@ public class DesignerSessionService {
                 DesignerSessionRow running = updateDesignerProjection(get(session.id()), DesignerSessionState.RUNNING,
                         DesignWorkflowPhase.DECOMPOSING, remote.id(), "TRANSPORT_RETRY", session.designRevision(),
                         session.redesignCount(), revision.revision(), null);
-                if (!consumeModelCall(running, revision, "DECOMPOSER_MODEL_CALL_LIMIT")) return;
+                if (!consumeModelCall(running, revision, "DECOMPOSER_MODEL_CALL_LIMIT")) {
+                    abortQuietly(remote.id(), session.projectId());
+                    return;
+                }
                 submitModelPrompt(remote, decomposerTransportRetryPrompt(retried, project, revision),
                         StructuredModelStep.PLANNING.name().equals(retried.workflowStep())
                                 ? retried.planningResponseMode() : retried.finalResponseMode(),
@@ -1561,6 +1590,8 @@ public class DesignerSessionService {
                 detail = safeMessage(detail) + "; transport retry failed: " + safeMessage(retryFailure.getMessage());
             }
         }
+        decomposition = mapper.findTaskDecomposition(input.id()).orElse(decomposition);
+        abortQuietly(decomposition.externalSessionId(), session.projectId());
         if (Set.of(TaskDecompositionState.PENDING_HANDOFF.name(), TaskDecompositionState.RUNNING.name(),
                 TaskDecompositionState.VALIDATING.name()).contains(decomposition.state())) {
             updateDecomposition(decomposition, TaskDecompositionState.SESSION_ERROR,
@@ -1602,13 +1633,14 @@ public class DesignerSessionService {
         DesignWorkPackageRow workPackage = requireCurrentPackage(session, compilation.workPackageId());
         DesignRequirementRevisionRow revision = currentRequirement(session.id());
         if (structuredFormatFailure(code) && fallbackCompilation(compilation, session, code, detail)) return;
+        compilation = mapper.findLoopSpecCompilation(input.id()).orElse(compilation);
         abortQuietly(compilation.externalSessionId(), session.projectId());
         if (transportFailure && compilation.transportRetryCount() < 1 && isCurrent(session, revision)) {
             ProjectRow project = projects.get(session.projectId());
             try {
                 OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
                         "OpenCode Loopper LoopSpec Compiler " + workPackage.packageId() + " retry (READ_ONLY)",
-                        configuredModel(), OpenCodeClient.SessionProfile.COMPILER_READ_ONLY);
+                        structuredModel(), OpenCodeClient.SessionProfile.COMPILER_READ_ONLY);
                 LoopSpecCompilationRow retryBase = new LoopSpecCompilationRow(compilation.id(),
                         compilation.designerSessionId(), compilation.designRevision(), compilation.state(),
                         compilation.externalSessionId(), compilation.externalSessionState(), compilation.repairCount(),
@@ -1623,7 +1655,10 @@ public class DesignerSessionService {
                 LoopSpecCompilationRow running = updateCompilation(retryBase, LoopSpecCompilationState.RUNNING,
                         remote.id(), "TRANSPORT_RETRY", compilation.repairCount(), code, safeMessage(detail),
                         session.projectId(), compilation.compiledPackageJson());
-                if (!consumeModelCall(session, revision, "WORK_PACKAGE_MODEL_CALL_LIMIT")) return;
+                if (!consumeModelCall(session, revision, "WORK_PACKAGE_MODEL_CALL_LIMIT")) {
+                    abortQuietly(remote.id(), session.projectId());
+                    return;
+                }
                 submitModelPrompt(remote, packageCompilerTransportRetryPrompt(running, session, project,
                                 revision, workPackage, designMessage(workPackage).content()),
                         StructuredModelStep.PLANNING.name().equals(running.workflowStep())
@@ -1637,6 +1672,8 @@ public class DesignerSessionService {
                 detail = safeMessage(detail) + "; transport retry failed: " + safeMessage(retryFailure.getMessage());
             }
         }
+        compilation = mapper.findLoopSpecCompilation(input.id()).orElse(compilation);
+        abortQuietly(compilation.externalSessionId(), session.projectId());
         if (Set.of(LoopSpecCompilationState.PENDING_HANDOFF.name(), LoopSpecCompilationState.RUNNING.name())
                 .contains(compilation.state())) {
             updateCompilation(compilation, LoopSpecCompilationState.SESSION_ERROR,
@@ -2844,6 +2881,9 @@ public class DesignerSessionService {
                   always uses direct argv: shell launchers (sh/bash/zsh/cmd/powershell), pipes, redirects, && and
                   command strings are forbidden. For a NON_JAVA content self-check, use direct argv such as
                   {"type":"PROCESS","command":["python3","-c","from pathlib import Path; text=Path('README.md').read_text(); assert 'required phrase' in text; print('DOC_CHECK_OK')"],"processPurpose":"SELF_CHECK","outputContains":"DOC_CHECK_OK","criterionIds":["%s"]}; use GIT_DIFF separately for scope and never map criterionIds to GIT_DIFF.
+                - Path policies must be satisfiable. No stage or GIT_DIFF allowedPaths rule may be entirely covered
+                  by a forbiddenPaths rule (for example, event/bridge/** cannot be allowed while event/** is
+                  forbidden). Narrow exclusions inside a broader allow rule remain valid.
                 - JAVA_PRODUCTION puts production code and its focused Maven/Gradle test in the same planned Stage.
                   This is a mandatory pre-submission invariant: every MACHINE/BOTH criterion in that Stage repeats
                   the focused direct-argv testCommand and concrete non-empty testTargets it expects the final PROCESS
@@ -3021,6 +3061,9 @@ public class DesignerSessionService {
                   {"type":"PROCESS","command":["mvn","-q","-Dtest=ExampleFocusedTest","test"],"processPurpose":"TEST","testTargets":["ExampleFocusedTest"],"criterionIds":["%s"]}.
                   processPurpose is BUILD, TEST, or SELF_CHECK. TEST has non-empty testTargets; SELF_CHECK has
                   outputContains. command is direct argv and never one shell command string.
+                - Path policies must be satisfiable. No stage or GIT_DIFF allowedPaths rule may be entirely covered
+                  by a forbiddenPaths rule (for example, event/bridge/** cannot be allowed while event/** is
+                  forbidden). Narrow exclusions inside a broader allow rule remain valid.
                 - stages[*].acceptanceCriteria[*] is
                   {"id":"%s","description":"observable business result","verificationMode":"MACHINE|JUDGE|BOTH","judgeRubric":"required for JUDGE/BOTH or null","judgeOnlyReason":"required only for JUDGE or null"}.
                 - verificationRuntime is null for PROCESS-only stages. It is never a test framework name such as
@@ -3555,7 +3598,7 @@ public class DesignerSessionService {
     }
 
     private ModelResponseMode preferredResponseMode() {
-        OpenCodeClient.StructuredOutputCapability capability = openCode.structuredOutputCapability(configuredModel());
+        OpenCodeClient.StructuredOutputCapability capability = openCode.structuredOutputCapability(structuredModel());
         return capability.transport() == OpenCodeClient.CapabilityState.UNAVAILABLE
                 || capability.selectedModel() == OpenCodeClient.CapabilityState.UNAVAILABLE
                 ? ModelResponseMode.TEXT_MARKER : ModelResponseMode.JSON_SCHEMA;
@@ -3765,6 +3808,12 @@ public class DesignerSessionService {
         String model = value.substring(separator + 1).trim();
         return provider.isEmpty() || model.isEmpty() ? null
                 : new OpenCodeClient.OpenCodeModel(provider, model, null);
+    }
+
+    private OpenCodeClient.OpenCodeModel structuredModel() {
+        OpenCodeClient.OpenCodeModel configured = configuredModel();
+        return configured == null ? null
+                : new OpenCodeClient.OpenCodeModel(configured.providerId(), configured.modelId(), false);
     }
 
     private boolean timedOut(String updatedAt) {

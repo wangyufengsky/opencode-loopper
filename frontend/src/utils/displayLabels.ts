@@ -1,7 +1,7 @@
 import type { TaskSessionActivityPart, TaskSessionSummary } from '@/types/domain'
 
 const statusLabels: Record<string, string> = {
-  QUEUED: '排队中', PREPARING: '准备中', READY: '待执行', RUNNING: '运行中', VERIFYING: '验证中',
+  PENDING_START: '待开始', QUEUED: '排队中', PREPARING: '准备中', READY: '待执行', RUNNING: '运行中', VERIFYING: '验证中',
   RETRY_WAIT: '等待重试', RETRY: '重试中', PAUSED: '已暂停', WAITING_INPUT: '等待输入', JUDGING: '评审中',
   SUCCEEDED: '已成功', FAILED: '已失败', CANCELLED: '已取消', ONLINE: '在线', OFFLINE: '离线',
   STARTING: '启动中', INCOMPATIBLE: '不兼容', PASS: '通过', FAIL: '未通过', PENDING: '待处理',

@@ -99,7 +99,7 @@ class RecoveryServiceIntegrationTest {
     }
 
     @Test
-    void verifyOnlyGitDiffKeepsTheTaskBaselineAndDoesNotCaptureAStageBaseline() throws Exception {
+    void verifyOnlyGitDiffWaitsWhenTheRegisteredCheckoutChangesBeforeExecution() throws Exception {
         Path root = Path.of(gitProject()).toRealPath();
         ProjectRow project = projects.create("verify-only-task-diff", root.toString());
         LoopSpec.VerifierSpec diff = new LoopSpec.VerifierSpec(
@@ -118,13 +118,12 @@ class RecoveryServiceIntegrationTest {
         TaskRow afterStart = tasks.start(created.taskId());
         StageRow childStage = tasks.stages(created.taskId()).getFirst();
 
-        assertThat(afterStart.state()).isEqualTo("JUDGING");
+        assertThat(afterStart.state()).isEqualTo("WAITING_INPUT");
         assertThat(mapper.findStageWorkspaceBaseline(childStage.id())).isEmpty();
         assertThat(mapper.listSessions(created.taskId())).isEmpty();
-        assertThat(mapper.listVerifications(tasks.attempts(created.taskId()).getFirst().id()))
-                .filteredOn(result -> result.type().equals("GIT_DIFF"))
-                .singleElement().satisfies(result -> assertThat(result.evidenceJson())
-                        .contains("\"baselineScope\":\"TASK\"", "proof.txt"));
+        assertThat(tasks.attempts(created.taskId())).isEmpty();
+        assertThat(tasks.errors(created.taskId())).anyMatch(error ->
+                "SOURCE_BRANCH_WORKSPACE_DIRTY".equals(error.code()));
     }
 
     @Test
@@ -133,6 +132,7 @@ class RecoveryServiceIntegrationTest {
         Files.writeString(directRoot.resolve("README.md"), "original identity");
         ProjectRow project = projects.create("direct-fingerprint", directRoot.toString());
         TaskRow parent = drafts.confirm(drafts.create(singleStageSpec(project.id(), "README.md")).id(), "direct parent");
+        tasks.start(parent.id());
         tasks.cancel(parent.id());
         long draftsBefore = countRows("loop_draft");
         long tasksBefore = countRows("task");
@@ -154,38 +154,48 @@ class RecoveryServiceIntegrationTest {
         Path root = Path.of(gitProject());
         ProjectRow project = projects.create("rework-parent", root.toString());
         TaskRow ready = drafts.confirm(drafts.create(twoStageSpec(project.id())).id(), "parent implementation");
-        TaskRow succeeded = new TaskRow(ready.id(), ready.projectId(), ready.loopDraftId(), ready.title(), "SUCCEEDED",
-                ready.worktreePath(), ready.branchName(), ready.baselineCommit(), ready.createdAt(), Instant.now().toString(), ready.version());
+        TaskRow running = tasks.start(ready.id());
+        var session = mapper.activeSessions(running.id()).getFirst();
+        assertThat(mapper.updateSessionState(new io.opencode.loopper.persistence.ExecutionSessionRow(
+                session.id(), session.taskId(), session.stageId(), session.attemptId(), session.externalSessionId(),
+                "COMPLETED", session.createdAt(), Instant.now().toString(), session.version(), session.todoCapability())))
+                .isEqualTo(1);
+        TaskRow succeeded = new TaskRow(running.id(), running.projectId(), running.loopDraftId(), running.title(), "SUCCEEDED",
+                running.worktreePath(), running.branchName(), running.sourceBranch(), running.baselineCommit(),
+                running.createdAt(), Instant.now().toString(), running.version());
         assertThat(mapper.updateTaskState(succeeded)).isEqualTo(1);
-        String parentBaseline = ready.baselineCommit();
+        String parentBaseline = running.baselineCommit();
         Files.writeString(root.resolve("later.txt"), "source advanced after parent\n");
         run(root, "git", "add", "later.txt");
         run(root, "git", "commit", "-m", "advance source branch");
         String currentSourceHead = run(root, "git", "rev-parse", "HEAD").strip();
         assertThat(currentSourceHead).isNotEqualTo(parentBaseline);
 
-        FeatureContracts.RecoveryDto created = recoveries.create(ready.id(), RecoveryMode.REWORK_ALL_STAGES);
-        TaskRow queuedChild = tasks.get(created.taskId());
+        FeatureContracts.RecoveryDto created = recoveries.create(running.id(), RecoveryMode.REWORK_ALL_STAGES);
+        TaskRow pendingChild = tasks.get(created.taskId());
 
         assertThat(created.mode()).isEqualTo(RecoveryMode.REWORK_ALL_STAGES);
         assertThat(created.parentStageId()).isNull();
         assertThat(created.workspaceFingerprint()).isEqualTo(parentBaseline);
-        assertThat(queuedChild.state()).isEqualTo("QUEUED");
-        assertThat(queuedChild.branchName()).isNull();
+        assertThat(pendingChild.state()).isEqualTo("PENDING_START");
+        assertThat(pendingChild.branchName()).isNull();
+        assertThat(mapper.findTaskQueue(pendingChild.id())).isEmpty();
 
         // A terminal task keeps the registered-checkout writer lease until its
         // clean branch has reached a durable publication/cleanup boundary.
-        tasks.releaseWorkspaceAfterTaskCommit(ready.id());
-        TaskRow child = tasks.get(created.taskId());
+        tasks.releaseWorkspaceAfterTaskCommit(running.id());
+        assertThat(tasks.get(created.taskId()).state()).isEqualTo("PENDING_START");
+        TaskRow child = tasks.start(created.taskId());
 
-        assertThat(child.branchName()).startsWith("loopper/").isNotEqualTo(ready.branchName());
+        assertThat(child.state()).isEqualTo("RUNNING");
+        assertThat(child.branchName()).startsWith("loopper/").isNotEqualTo(running.branchName());
         assertThat(child.baselineCommit()).isEqualTo(parentBaseline);
         assertThat(run(Path.of(child.worktreePath()), "git", "rev-parse", "HEAD").strip()).isEqualTo(parentBaseline);
         assertThat(Files.exists(Path.of(child.worktreePath()).resolve("later.txt"))).isFalse();
         assertThat(tasks.stages(child.id())).extracting(StageRow::objective)
                 .containsExactly("验证第一阶段", "验证第二阶段");
-        assertThat(tasks.get(ready.id()).state()).isEqualTo("SUCCEEDED");
-        assertThat(recoveries.list(ready.id())).containsExactly(created);
+        assertThat(tasks.get(running.id()).state()).isEqualTo("SUCCEEDED");
+        assertThat(recoveries.list(running.id())).containsExactly(created);
     }
 
     private LoopSpec twoStageSpec(String projectId) {

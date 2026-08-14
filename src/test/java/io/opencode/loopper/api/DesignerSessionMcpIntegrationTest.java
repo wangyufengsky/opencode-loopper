@@ -55,7 +55,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "loopper.monitor-delay=1h", "loopper.designer-monitor-delay=1h",
         "loopper.mcp.bearer-token=designer-mcp-test-token",
         "spring.ai.mcp.server.protocol=STREAMABLE", "spring.ai.mcp.server.name=opencode-loopper",
-        "spring.ai.mcp.server.version=0.1.59", "spring.ai.mcp.server.annotation-scanner.enabled=false",
+        "spring.ai.mcp.server.version=0.1.66", "spring.ai.mcp.server.annotation-scanner.enabled=false",
         "spring.ai.mcp.server.capabilities.resource=false", "spring.ai.mcp.server.capabilities.prompt=false",
         "spring.ai.mcp.server.capabilities.completion=false",
         "spring.ai.mcp.server.streamable-http.mcp-endpoint=/api/mcp-streamable",
@@ -149,6 +149,7 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(6);
         assertThat(fake().profileForSession(decomposition.externalSessionId()))
                 .isEqualTo(OpenCodeClient.SessionProfile.DECOMPOSER_READ_ONLY);
+        assertThat(fake().modelForSession(decomposition.externalSessionId()).thinking()).isFalse();
 
         assertThat(compilation.planningResponseMode()).isEqualTo("JSON_SCHEMA");
         assertThat(compilation.planningResponseSchemaId()).isEqualTo("PACKAGE_COMPILATION_PLAN_V2");
@@ -156,7 +157,56 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(compilation.state()).as("compilation=%s", compilation).isEqualTo("COMPLETED");
         assertThat(fake().profileForSession(compilation.externalSessionId()))
                 .isEqualTo(OpenCodeClient.SessionProfile.COMPILER_READ_ONLY);
+        assertThat(fake().modelForSession(compilation.externalSessionId()).thinking()).isFalse();
         assertThat(designerSessions.get(session.id()).state()).isEqualTo("COMPLETED");
+    }
+
+    @Test
+    void decomposerRetryStatusRemainsTransientWithoutCreatingAnotherSession() throws Exception {
+        ProjectRow project = project("decomposer-retry-status");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        fake().setDesignerOutput(designerOutput("# 瞬态重试\n\n模型恢复后继续拆解。", legacySpec(project.id())));
+        DesignerSessionRow session = designerSessions.create(project.id(), draft.id(), "验证 OpenCode 瞬态重试");
+        var before = mapper.findTaskDecompositionByRevision(
+                mapper.findCurrentDesignRequirementRevision(session.id()).orElseThrow().id()).orElseThrow();
+        int sessionsBefore = fake().createReadOnlySessionCalls();
+        int callsBefore = designerSessions.requirementStatus(session.id()).modelCallsUsed();
+        fake().setSessionStatus(before.externalSessionId(), "RETRY", "provider socket reconnecting");
+
+        designerSessions.pollActiveHandoffs();
+
+        var after = mapper.findTaskDecomposition(before.id()).orElseThrow();
+        assertThat(after.state()).isEqualTo("RUNNING");
+        assertThat(after.externalSessionId()).isEqualTo(before.externalSessionId());
+        assertThat(after.externalSessionState()).isEqualTo("RETRY");
+        assertThat(after.transportRetryCount()).isZero();
+        assertThat(fake().createReadOnlySessionCalls()).isEqualTo(sessionsBefore);
+        assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(callsBefore);
+    }
+
+    @Test
+    void exhaustedDecomposerTransportRetryAbortsTheLastRemoteSession() throws Exception {
+        ProjectRow project = project("decomposer-terminal-abort");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        fake().setDesignerOutput(designerOutput("# 终态清理\n\n传输失败后停止远端执行。", legacySpec(project.id())));
+        DesignerSessionRow session = designerSessions.create(project.id(), draft.id(), "验证终态清理");
+        var first = mapper.findTaskDecompositionByRevision(
+                mapper.findCurrentDesignRequirementRevision(session.id()).orElseThrow().id()).orElseThrow();
+        fake().setSessionStatus(first.externalSessionId(), "FAILED", "first transport failure");
+
+        designerSessions.pollActiveHandoffs();
+        var retry = mapper.findTaskDecomposition(first.id()).orElseThrow();
+        assertThat(retry.externalSessionId()).isNotEqualTo(first.externalSessionId());
+        assertThat(retry.transportRetryCount()).isEqualTo(1);
+        fake().setSessionStatus(retry.externalSessionId(), "FAILED", "second transport failure");
+
+        designerSessions.pollActiveHandoffs();
+
+        assertThat(designerSessions.get(session.id()).state()).isEqualTo("WAITING_INPUT");
+        assertThat(mapper.findTaskDecomposition(first.id()).orElseThrow().state()).isEqualTo("SESSION_ERROR");
+        assertThat(fake().sessionStatus(new OpenCodeClient.OpenCodeSession(
+                retry.externalSessionId(), Path.of(project.rootPath()))).state()).isEqualTo("ABORTED");
+        assertThat(mapper.listTasks()).isEmpty();
     }
 
     @Test
@@ -482,7 +532,8 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(compilerPrompts.getFirst())
                 .contains("Strict package compilation planning JSON contract")
                 .contains("evidenceMappings")
-                .contains("focused Maven/Gradle test argv", "testCommand", "testTargets");
+                .contains("focused Maven/Gradle test argv", "testCommand", "testTargets")
+                .contains("No stage or GIT_DIFF allowedPaths rule may be entirely covered");
         assertThat(compilerPrompts.subList(1, 3)).allSatisfy(prompt -> assertThat(prompt)
                 .contains("stages[*].verifiers[*] is a VerifierSpec JSON object")
                 .contains("\"command\":[\"mvn\",\"-q\",\"-Dtest=ExampleFocusedTest\",\"test\"]")
@@ -490,6 +541,7 @@ class DesignerSessionMcpIntegrationTest {
                 .contains("\"testTargets\":[\"ExampleFocusedTest\"]")
                 .contains("verificationRuntime is null for PROCESS-only stages")
                 .contains("It is never a test framework name such as", "MAVEN_JUNIT5")
+                .contains("No stage or GIT_DIFF allowedPaths rule may be entirely covered")
                 .contains("designGaps entries are never strings"));
         assertThat(compilerPrompts.get(1)).contains("Canonical COMPILED envelope for a JAVA_PRODUCTION stage")
                 .contains("Put exactly one complete replacement object matching the frozen plan and machine contract here.");
@@ -571,6 +623,45 @@ class DesignerSessionMcpIntegrationTest {
             assertThat(stage.verifiers().getFirst().command()).startsWith("python3", "-c");
             assertThat(stage.verifiers().getFirst().criterionIds()).containsExactly("WP-1-AC-1");
         });
+        assertThat(mapper.listTasks()).isEmpty();
+    }
+
+    @Test
+    void v2CompilerRepairsShadowedPathPolicyBeforeDraftSynchronizationOrTaskCreation() throws Exception {
+        ProjectRow project = project("compiler-path-policy");
+        LoopSpec draftSpec = v2DocumentationSpec(project.id());
+        LoopDraftRow draft = drafts.create(draftSpec);
+        String design = "# 文档设计\n\nREADME 事件说明可执行自检";
+        fake().setDesignerOutput(designerOutput(design, draftSpec));
+        fake().setPackageCompilerOutput("WP-1", packageCompilationV2("WP-1",
+                "README 事件说明可执行自检"));
+        fake().setPackageCompilerPlanningOutput("WP-1", packageCompilationPlanV2("WP-1",
+                "README 事件说明可执行自检", false, true));
+
+        DesignerSessionRow session = designerSessions.create(project.id(), draft.id(),
+                "阻止相互冲突的路径规则进入执行阶段");
+        for (int attempt = 0; attempt < 20; attempt++) {
+            designerSessions.pollActiveHandoffs();
+            DesignerSessionService.CompilerStatus compiler = designerSessions.compilerStatus(session.id());
+            if (compiler != null && compiler.planningRepairCount() == 1) break;
+        }
+
+        DesignerSessionService.CompilerStatus repairing = designerSessions.compilerStatus(session.id());
+        assertThat(repairing.planningRepairCount()).isEqualTo(1);
+        assertThat(repairing.repairCount()).isZero();
+        assertThat(designerSessions.messages(session.id()).stream().map(message -> message.content()).toList())
+                .anyMatch(message -> message.contains("COMPILER_PLAN_VERIFIER_INVALID")
+                        && message.contains("entirely shadowed")
+                        && message.contains("event/bridge/**")
+                        && message.contains("event/**"));
+        assertThat(mapper.listTasks()).isEmpty();
+
+        fake().setPackageCompilerPlanningOutput("WP-1", packageCompilationPlanV2("WP-1",
+                "README 事件说明可执行自检", false));
+        pollUntilSettled(session.id());
+
+        assertThat(designerSessions.get(session.id()).state()).isEqualTo("COMPLETED");
+        assertThat(designerSessions.compilerStatus(session.id()).planningRepairCount()).isEqualTo(1);
         assertThat(mapper.listTasks()).isEmpty();
     }
 
@@ -720,7 +811,7 @@ class DesignerSessionMcpIntegrationTest {
                         .accept(MediaType.APPLICATION_JSON, MediaType.TEXT_EVENT_STREAM).content(initialize))
                 .andExpect(status().isUnauthorized());
         MvcResult initialized = mvc.perform(streamable(initialize, null)).andExpect(status().isOk())
-                .andExpect(jsonPath("$.result.serverInfo.version").value("0.1.59")).andReturn();
+                .andExpect(jsonPath("$.result.serverInfo.version").value("0.1.66")).andReturn();
         String sessionId = initialized.getResponse().getHeader("Mcp-Session-Id");
         mvc.perform(streamable("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\",\"params\":{}}", sessionId))
                 .andExpect(status().isAccepted());
@@ -823,6 +914,11 @@ class DesignerSessionMcpIntegrationTest {
     }
 
     private String packageCompilationPlanV2(String packageId, String excerpt, boolean shell) throws Exception {
+        return packageCompilationPlanV2(packageId, excerpt, shell, false);
+    }
+
+    private String packageCompilationPlanV2(String packageId, String excerpt, boolean shell,
+                                            boolean shadowedPathPolicy) throws Exception {
         String criterionId = packageId + "-AC-1";
         LoopSpec.VerifierSpec behavior = new LoopSpec.VerifierSpec("PROCESS",
                 shell ? List.of("bash", "-lc", "grep -Fq event README.md")
@@ -831,11 +927,14 @@ class DesignerSessionMcpIntegrationTest {
                 null, null, null, null, null, null, null, null, null, null, List.of(),
                 List.of(criterionId), "SELF_CHECK", List.of());
         LoopSpec.VerifierSpec scope = new LoopSpec.VerifierSpec("GIT_DIFF", List.of(), null, true,
-                List.of("README.md"), List.of(".env"), true);
+                shadowedPathPolicy ? List.of("src/main/java/com/spdb/upfs/event/bridge/**") : List.of("README.md"),
+                shadowedPathPolicy ? List.of("src/main/java/com/spdb/upfs/event/**") : List.of(".env"), true);
         Map<String, Object> stage = new LinkedHashMap<>();
         stage.put("objective", "完成 " + packageId);
-        stage.put("allowedPaths", List.of("README.md"));
-        stage.put("forbiddenPaths", List.of(".env"));
+        stage.put("allowedPaths", shadowedPathPolicy
+                ? List.of("src/main/java/com/spdb/upfs/event/bridge/**") : List.of("README.md"));
+        stage.put("forbiddenPaths", shadowedPathPolicy
+                ? List.of("src/main/java/com/spdb/upfs/event/**") : List.of(".env"));
         stage.put("deliverables", List.of("README.md"));
         stage.put("verifiers", List.of(behavior, scope));
         stage.put("verificationRuntime", null);

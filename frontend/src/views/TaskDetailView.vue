@@ -65,7 +65,9 @@ const canRetryJudges = computed(() => deterministicAccepted.value
   && (task.value?.status === 'WAITING_INPUT' || (task.value?.status === 'SUCCEEDED' && !doubleReviewApproved.value)))
 const canRetryLoop = computed(() => task.value?.status === 'WAITING_INPUT'
   && !deterministicAccepted.value && task.value.loopRetryAvailable === true)
-const canCancelDirectly = computed(() => task.value?.status === 'QUEUED'
+const canCancelDirectly = computed(() => task.value?.status === 'PENDING_START'
+  || task.value?.status === 'QUEUED'
+  || task.value?.status === 'READY'
   || (task.value?.status === 'WAITING_INPUT' && !waitingForWorkspaceCleanup.value))
 const judgeActionLabel = computed(() => judges.value.length ? '重新发起双评审' : '启动双评审')
 const canRework = computed(() => !isDirectExecution.value
@@ -76,13 +78,14 @@ const nextAction = computed(() => {
   if (task.value.status === 'SUCCEEDED') return publicationState.value === 'MERGED' ? '代码已推送并由 GitLab 确认合并，原任务交付状态不可再改变。' : isDirectExecution.value ? '检查原项目目录中的变更并决定后续发布方式。' : '检查变更摘要，然后提交并发布当前分支。'
   if (task.value.status === 'FAILED') return '先查看最上方错误与失败验证，再根据证据重新设计或新建任务。'
   if (task.value.status === 'CANCELLED') return '任务已取消；执行目录和证据仍保留，可据此新建设计。'
+  if (task.value.status === 'PENDING_START') return '计划已经确认，但尚未申请项目写租约或创建任务分支。点击“开始执行”后才会进入队列并准备执行环境。'
   if (task.value.status === 'QUEUED') return '任务正在等待项目写租约；Loopper 会自动检查终态持有者，也可在下方手动重新检查。取消只会移除此任务自己的队列项。'
   if (waitingForWorkspaceCleanup.value) return '逐项处理源分支中的未提交文件；重新检查确认干净后，Loopper 才会创建任务分支。'
   if (task.value.status === 'WAITING_INPUT' && canRetryJudges.value) return '查看未通过或异常的评审证据；补齐条件后可重新发起需求 / 风险双评审。'
   if (task.value.status === 'WAITING_INPUT' && canRetryLoop.value) return '循环已因重复失败或重试策略暂停。检查结构化交接后，可明确确认再执行一轮全新 Session。'
   if (task.value.status === 'WAITING_INPUT') return '回答页面中的待处理问题，任务将从当前阶段继续。'
   if (task.value.status === 'PAUSED') return '确认当前状态后点击“继续”，任务会从原阶段恢复。'
-  if (task.value.status === 'READY') return '执行目录已准备完成，可以开始任务。'
+  if (task.value.status === 'READY') return '执行目录已准备完成，Loopper 正在自动启动任务；若不再执行，也可直接取消并保留任务证据。'
   return '任务正在推进；实时会话和阶段状态会自动更新。'
 })
 
@@ -152,14 +155,20 @@ async function reconcileQueue() {
 
 async function confirmCancel() {
   if (!task.value) return
+  const pending = task.value.status === 'PENDING_START'
   const queued = task.value.status === 'QUEUED'
+  const ready = task.value.status === 'READY'
   try {
     await ElMessageBox.confirm(
-      queued
+      pending
+        ? '任务尚未请求执行，也没有申请项目写租约、创建任务分支或切换工作区。取消只会终止这条待开始任务。'
+        : queued
         ? '将从等待队列中移除此任务并标记为已取消；当前正在执行的任务和项目写租约不会受影响。取消后可从任务列表归档或删除。'
+        : ready
+          ? '任务尚未开始执行。取消后会保留任务分支、执行目录和已有证据，并按现有安全规则释放项目写租约。'
         : '将中止当前会话、停止验证器，并保留执行目录和证据。此操作无法自动恢复。',
-      queued ? '取消排队任务？' : '取消当前任务？',
-      { type: 'warning', confirmButtonText: '取消任务', cancelButtonText: queued ? '继续排队' : '继续执行' },
+      pending ? '取消待开始任务？' : queued ? '取消排队任务？' : ready ? '取消待执行任务？' : '取消当前任务？',
+      { type: 'warning', confirmButtonText: '取消任务', cancelButtonText: pending ? '保留待开始' : queued ? '继续排队' : ready ? '保留待执行' : '继续执行' },
     )
     await store.updateTask(id.value, 'cancel')
   } catch {
@@ -225,7 +234,7 @@ async function confirmRework() {
       <el-button v-if="task?.status === 'FAILED' || task?.status === 'CANCELLED'" type="primary" @click="router.push(`/tasks/${id}/recovery`)"><Icon icon="lucide:git-fork" />恢复</el-button>
       <el-button v-if="canRework" type="warning" plain :loading="reworking" @click="confirmRework"><Icon icon="lucide:git-branch-plus" />新分支重做</el-button>
       <el-button plain @click="router.push('/tasks')"><Icon icon="lucide:list" />全部任务</el-button>
-      <el-button v-if="task?.status === 'READY'" type="primary" @click="store.updateTask(id, 'start')"><Icon icon="lucide:play" />开始执行</el-button>
+      <el-button v-if="task?.status === 'PENDING_START'" type="primary" @click="store.updateTask(id, 'start')"><Icon icon="lucide:play" />开始执行</el-button>
       <template v-else-if="task?.status === 'RUNNING' || task?.status === 'VERIFYING'"><el-button plain @click="store.updateTask(id, 'pause')"><Icon icon="lucide:pause" />暂停</el-button><el-button plain type="danger" @click="confirmCancel"><Icon icon="lucide:square" />取消</el-button></template>
       <el-button v-else-if="task?.status === 'PAUSED'" type="primary" @click="store.updateTask(id, 'resume')"><Icon icon="lucide:play" />继续</el-button>
       <el-button v-if="canCancelDirectly" plain type="danger" @click="confirmCancel"><Icon icon="lucide:square" />取消任务</el-button>
@@ -238,7 +247,8 @@ async function confirmRework() {
     <section v-if="!task" class="card empty-state"><div><Icon icon="lucide:search-x" width="30" /><strong>未找到此任务</strong><p>它可能已被清理，或当前接口尚未返回该条记录。</p></div></section>
     <template v-else>
       <section class="task-overview card card-pad">
-        <div><p class="eyebrow">{{ isDirectExecution ? '直接执行' : '原项目任务分支' }}</p><span class="mono tiny muted">{{ isDirectExecution ? '原项目目录' : task.branch }} · {{ task.worktreePath }}</span></div>
+        <div v-if="task.status === 'PENDING_START'"><p class="eyebrow">执行环境尚未申请</p><span class="mono tiny muted">确认计划不会占用写租约或切换项目分支</span></div>
+        <div v-else><p class="eyebrow">{{ isDirectExecution ? '直接执行' : '原项目任务分支' }}</p><span class="mono tiny muted">{{ isDirectExecution ? '原项目目录' : task.branch }} · {{ task.worktreePath }}</span></div>
         <div class="overview-meta"><span><b>{{ task.attemptCount }}</b> / {{ task.maxAttempts }} 次尝试</span><span v-if="store.streamState !== 'idle'" :class="['stream-state', store.streamState]">{{ store.streamState === 'connected' ? 'SSE 已连接' : 'SSE 重连中' }}</span></div>
       </section>
       <section class="result-summary card card-pad" aria-labelledby="result-summary-heading">

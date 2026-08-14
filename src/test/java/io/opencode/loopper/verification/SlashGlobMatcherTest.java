@@ -12,6 +12,8 @@ class SlashGlobMatcherTest {
         assertThat(SlashGlobMatcher.matches("src/**/App.java", "src/App.java")).isTrue();
         assertThat(SlashGlobMatcher.matches("src/**/App.java", "src/main/java/App.java")).isTrue();
         assertThat(SlashGlobMatcher.matches("**/README.md", "README.md")).isTrue();
+        assertThat(SlashGlobMatcher.matches("**", "README.md")).isTrue();
+        assertThat(SlashGlobMatcher.matches("**/*", "README.md")).isTrue();
     }
 
     @Test

@@ -146,33 +146,22 @@ public class TaskService {
         if (isolatedBaseline != null && !gitSourceBranch) {
             throw new BadRequestException("REWORK_REPOSITORY_REQUIRED", "新分支重做需要可用的 Git 仓库根目录");
         }
-        DirectWorkspaceLeaseCoordinator.WorkspaceIdentity workspace = DirectWorkspaceLeaseCoordinator.identify(projectRoot);
         String source = normalizedAdmissionSource(admissionSource);
         TaskCreation creation = transactions.execute(status -> persistTaskCreation(
-                draft, spec, project, title, source, isolatedBaseline, workspace, confirmDraft));
+                draft, spec, project, title, source, isolatedBaseline, confirmDraft));
         if (creation == null) {
             throw new ConflictException("TASK_CREATE_TRANSACTION_FAILED", "Task creation transaction did not complete");
         }
-        if (creation.existing()) return get(creation.taskId());
-        try {
-            if (TaskQueueState.QUEUED.name().equals(creation.admission().state())) {
-                events.emit(creation.taskId(), "task.queued", Map.of("state", TaskState.QUEUED.name(),
-                        "queuePosition", queuePosition(creation.taskId()), "leaseState", creation.admission().leaseState()));
-                return get(creation.taskId());
-            }
-            return prepareAdmittedInPlaceTask(creation.taskId());
-        } catch (TaskFailure failure) {
-            if ("SOURCE_BRANCH_WORKSPACE_DIRTY".equals(failure.code())) {
-                return waitForDirtyWorkspace(get(creation.taskId()), failure.getMessage());
-            }
-            failTask(get(creation.taskId()), failure.code(), failure.getMessage(), null, null, null);
-            return get(creation.taskId());
+        TaskRow pending = get(creation.taskId());
+        if (!creation.existing()) {
+            events.emit(creation.taskId(), "task.pending_start",
+                    Map.of("state", TaskState.PENDING_START.name()));
         }
+        return pending;
     }
 
     private TaskCreation persistTaskCreation(LoopDraftRow inputDraft, LoopSpec spec, ProjectRow project,
                                              String title, String admissionSource, String isolatedBaseline,
-                                             DirectWorkspaceLeaseCoordinator.WorkspaceIdentity workspace,
                                              boolean confirmDraft) {
         LoopDraftRow draft = mapper.findDraft(inputDraft.id())
                 .orElseThrow(() -> new NotFoundException("Loop draft not found: " + inputDraft.id()));
@@ -182,12 +171,12 @@ public class TaskService {
         TaskRow existing = mapper.findTaskByDraft(draft.id()).orElse(null);
         if (existing != null) {
             if (confirmDraft) confirmDraft(draft);
-            return new TaskCreation(existing.id(), null, true);
+            return new TaskCreation(existing.id(), true);
         }
         String timestamp = now();
         String taskId = UUID.randomUUID().toString();
         TaskRow task = new TaskRow(taskId, project.id(), draft.id(), normalizedTitle(title, draft.goal()),
-                TaskState.QUEUED.name(), null, null, null, isolatedBaseline, timestamp, timestamp, 0);
+                TaskState.PENDING_START.name(), null, null, null, isolatedBaseline, timestamp, timestamp, 0);
         lifecycle.create(subject(LifecycleMachineType.TASK, task.id(), task.id()), task.state(),
                 Map.of("source", admissionSource), () -> mapper.insertTask(task),
                 () -> new ConflictException("TASK_CREATE_CONFLICT", "Task could not be created"));
@@ -201,10 +190,8 @@ public class TaskService {
                     () -> mapper.insertStage(stageRow),
                     () -> new ConflictException("STAGE_CREATE_CONFLICT", "Stage could not be created"));
         }
-        DirectWorkspaceLeaseCoordinator.Admission admission = directLeases.acquireOrEnqueueInTransaction(
-                workspace, taskId, admissionSource, null);
         if (confirmDraft) confirmDraft(draft);
-        return new TaskCreation(taskId, admission, false);
+        return new TaskCreation(taskId, false);
     }
 
     private void confirmDraft(LoopDraftRow draft) {
@@ -515,13 +502,70 @@ public class TaskService {
     }
 
     public TaskRow start(String taskId) {
+        return start(taskId, "MANUAL");
+    }
+
+    TaskRow start(String taskId, String admissionSource) {
         TaskRow task = get(taskId);
-        boolean verificationOnly = isVerificationOnlyRecovery(taskId);
         if (TaskState.FAILED.name().equals(task.state()) || TaskState.CANCELLED.name().equals(task.state()) || TaskState.SUCCEEDED.name().equals(task.state())) {
             throw new ConflictException("TASK_TERMINAL", "Cannot start a terminal task");
         }
         if (TaskState.PAUSED.name().equals(task.state())) return resume(taskId);
-        if (!TaskState.READY.name().equals(task.state())) throw new ConflictException("TASK_ALREADY_ACTIVE", "Task is already active");
+        if (TaskState.PENDING_START.name().equals(task.state())) {
+            return requestTaskStart(task, admissionSource);
+        }
+        if (TaskState.READY.name().equals(task.state())) {
+            return startPreparedTask(taskId);
+        }
+        if (List.of(TaskState.QUEUED.name(), TaskState.PREPARING.name(), TaskState.RUNNING.name(),
+                TaskState.VERIFYING.name(), TaskState.RETRY_WAIT.name(), TaskState.JUDGING.name())
+                .contains(task.state())) {
+            return task;
+        }
+        throw new ConflictException("TASK_ALREADY_ACTIVE", "Task is already active");
+    }
+
+    private TaskRow requestTaskStart(TaskRow task, String admissionSource) {
+        try {
+            ProjectRow project = projects.get(task.projectId());
+            Path projectRoot = Path.of(project.rootPath());
+            if (task.baselineCommit() != null && !worktrees.inspect(projectRoot).isolatedWorktree()) {
+                throw new TaskFailure("REWORK_REPOSITORY_REQUIRED", "Rework requires a Git source branch");
+            }
+            DirectWorkspaceLeaseCoordinator.WorkspaceIdentity workspace =
+                    DirectWorkspaceLeaseCoordinator.identify(projectRoot);
+            String source = normalizedAdmissionSource(admissionSource);
+            DirectWorkspaceLeaseCoordinator.Admission admission = transactions.execute(status -> {
+                TaskRow current = get(task.id());
+                if (!TaskState.PENDING_START.name().equals(current.state())) {
+                    throw new ConflictException("TASK_START_REQUEST_CONFLICT",
+                            "Task no longer waits for an execution request");
+                }
+                DirectWorkspaceLeaseCoordinator.Admission acquired = directLeases.acquireOrEnqueueInTransaction(
+                        workspace, current.id(), source, null);
+                updateTask(state(current, TaskState.QUEUED), LifecycleEvent.REQUEST_START);
+                return acquired;
+            });
+            if (admission == null) {
+                throw new TaskFailure("TASK_START_ADMISSION_FAILED", "Task start admission did not complete");
+            }
+            events.emit(task.id(), "task.start_requested", Map.of("state", TaskState.QUEUED.name(),
+                    "source", source));
+            if (TaskQueueState.QUEUED.name().equals(admission.state())) {
+                events.emit(task.id(), "task.queued", Map.of("state", TaskState.QUEUED.name(),
+                        "queuePosition", queuePosition(task.id()), "leaseState", admission.leaseState()));
+                return get(task.id());
+            }
+            return prepareAdmittedTaskAndContinue(task.id());
+        } catch (TaskFailure failure) {
+            failTask(get(task.id()), failure.code(), failure.getMessage(), null, null, null);
+            return get(task.id());
+        }
+    }
+
+    private TaskRow startPreparedTask(String taskId) {
+        TaskRow task = get(taskId);
+        boolean verificationOnly = isVerificationOnlyRecovery(taskId);
         try {
             ProjectRow project = projects.get(task.projectId());
             worktrees.requireExecutionWorkspace(Path.of(requireWorktree(task)), Path.of(project.rootPath()),
@@ -874,6 +918,12 @@ public class TaskService {
     private TaskRow cancelState(String taskId) {
         TaskRow task = get(taskId);
         if (TaskState.valueOf(task.state()).terminal()) return task;
+        if (TaskState.PENDING_START.name().equals(task.state())) {
+            updateTask(state(task, TaskState.CANCELLED));
+            events.emit(taskId, "task.cancelled", Map.of("state", TaskState.CANCELLED.name(),
+                    "executionRequested", false));
+            return get(taskId);
+        }
         if (TaskState.QUEUED.name().equals(task.state())) {
             if (mapper.findTaskQueue(task.id()).isPresent()) directLeases.cancelQueued(task.id());
             updateTask(state(task, TaskState.CANCELLED));
@@ -893,11 +943,16 @@ public class TaskService {
 
     public void recoverAfterRestart() {
         ManagedVerificationRuntimeService.RecoveryResult runtimeRecovery = managedVerifierRuntimes.recoverActive();
+        Map<String, String> interruptedStates = mapper.listRecoverableTasks().stream()
+                .collect(java.util.stream.Collectors.toMap(TaskRow::id, TaskRow::state,
+                        (left, right) -> left, LinkedHashMap::new));
         // Reconcile verifier writers before any terminal lease can be released.
         // A PID-identity mismatch is persisted as DISCONNECTED and therefore
         // participates in hasUnconfirmedWriter during lease rehydration.
         rehydrateDirectLeases();
-        for (TaskRow task : mapper.listRecoverableTasks()) {
+        for (Map.Entry<String, String> interrupted : interruptedStates.entrySet()) {
+            TaskRow task = mapper.findTask(interrupted.getKey()).orElse(null);
+            if (task == null || !interrupted.getValue().equals(task.state())) continue;
             if (runtimeRecovery.blockedTaskIds().contains(task.id())) {
                 failTask(task, "VERIFIER_RUNTIME_TERMINATION_UNCONFIRMED",
                         "Application restart could not prove that the previous managed verifier runtime stopped; refusing overlapping writes",
@@ -1476,17 +1531,8 @@ public class TaskService {
         updateTask(state(get(taskId), TaskState.PREPARING), LifecycleEvent.RETRY_PREPARATION);
         events.emit(taskId, "workspace.cleanup_confirmed",
                 Map.of("state", TaskState.PREPARING.name(), "source", "LOCAL_UI"));
-        try {
-            TaskRow prepared = prepareAdmittedInPlaceTask(taskId);
-            return new WorkspaceDirtyResolution(prepared, worktrees.inspectDirtyWorkspace(root));
-        } catch (TaskFailure failure) {
-            if ("SOURCE_BRANCH_WORKSPACE_DIRTY".equals(failure.code())) {
-                TaskRow paused = waitForDirtyWorkspace(get(taskId), failure.getMessage());
-                return new WorkspaceDirtyResolution(paused, worktrees.inspectDirtyWorkspace(root));
-            }
-            failTask(get(taskId), failure.code(), failure.getMessage(), null, null, null);
-            return new WorkspaceDirtyResolution(get(taskId), worktrees.inspectDirtyWorkspace(root));
-        }
+        TaskRow continued = prepareAdmittedTaskAndContinue(taskId);
+        return new WorkspaceDirtyResolution(continued, worktrees.inspectDirtyWorkspace(root));
     }
 
     /** Explicit dialog cancellation is a preparation failure, not a rollback or ordinary task cancellation. */
@@ -1700,7 +1746,7 @@ public class TaskService {
         OpenCodeClient.OpenCodeSession remote;
         try {
             Path worktree = Path.of(requireWorktree(task));
-            remote = openCode.createSession(worktree, roleTitle(role), model(spec),
+            remote = openCode.createSession(worktree, roleTitle(role), structuredJudgeModel(spec),
                     OpenCodeClient.SessionProfile.JUDGE_READ_ONLY);
             JudgeRunRow running = judgeState(judge, remote.id(), JudgeRunState.RUNNING, null, null, null, null);
             updateJudge(running);
@@ -1965,7 +2011,7 @@ public class TaskService {
                 || previous.reason().startsWith("OPENCODE_STRUCTURED_OUTPUT_FAILED:"))) {
             return ModelResponseMode.TEXT_MARKER;
         }
-        OpenCodeClient.StructuredOutputCapability capability = openCode.structuredOutputCapability(model(spec));
+        OpenCodeClient.StructuredOutputCapability capability = openCode.structuredOutputCapability(structuredJudgeModel(spec));
         return capability.transport() == OpenCodeClient.CapabilityState.UNAVAILABLE
                 || capability.selectedModel() == OpenCodeClient.CapabilityState.UNAVAILABLE
                 ? ModelResponseMode.TEXT_MARKER : ModelResponseMode.JSON_SCHEMA;
@@ -2095,8 +2141,7 @@ public class TaskService {
                 () -> new ConflictException("JUDGE_VERSION_CONFLICT", "Judge run was updated concurrently"));
     }
     private String safeNullable(String value) { return value == null ? null : safeMessage(value); }
-    private record TaskCreation(String taskId, DirectWorkspaceLeaseCoordinator.Admission admission,
-                                boolean existing) { }
+    private record TaskCreation(String taskId, boolean existing) { }
     private record PendingVerification(String id, int index, VerifierOutcome outcome) { }
     private enum VerificationAction { NONE, RETRY_STAGE, NEXT_STAGE, FINAL_REVIEW }
     private record VerificationContinuation(VerificationAction action, String taskId, String stageId,
@@ -2206,6 +2251,19 @@ public class TaskService {
         return persistPreparedTask(task.id(), worktree);
     }
 
+    private TaskRow prepareAdmittedTaskAndContinue(String taskId) {
+        try {
+            TaskRow prepared = prepareAdmittedInPlaceTask(taskId);
+            return startPreparedTask(prepared.id());
+        } catch (TaskFailure failure) {
+            if ("SOURCE_BRANCH_WORKSPACE_DIRTY".equals(failure.code())) {
+                return waitForDirtyWorkspace(get(taskId), failure.getMessage());
+            }
+            failTask(get(taskId), failure.code(), failure.getMessage(), null, null, null);
+            return get(taskId);
+        }
+    }
+
     private TaskRow persistPreparedTask(String taskId, GitWorktreeManager.Worktree worktree) {
         TaskRow task = get(taskId);
         TaskRow prepared = new TaskRow(task.id(), task.projectId(), task.loopDraftId(), task.title(), TaskState.READY.name(),
@@ -2249,15 +2307,7 @@ public class TaskService {
         String nextTaskId = result.admittedNext().taskId();
         events.emit(nextTaskId, "task.admitted", Map.of("state", TaskState.QUEUED.name(),
                 "queuePosition", result.admittedNext().position()));
-        try {
-            prepareAdmittedInPlaceTask(nextTaskId);
-        } catch (TaskFailure failure) {
-            if ("SOURCE_BRANCH_WORKSPACE_DIRTY".equals(failure.code())) {
-                waitForDirtyWorkspace(get(nextTaskId), failure.getMessage());
-            } else {
-                failTask(get(nextTaskId), failure.code(), failure.getMessage(), null, null, null);
-            }
-        }
+        prepareAdmittedTaskAndContinue(nextTaskId);
     }
 
     private void rehydrateDirectLeases() {
@@ -2271,8 +2321,9 @@ public class TaskService {
             }
             if (!lease.rootAvailable() || !lease.fingerprintMatches()) continue;
             if (TaskState.QUEUED.name().equals(task.state()) || TaskState.PREPARING.name().equals(task.state())) {
-                try { prepareAdmittedInPlaceTask(task.id()); }
-                catch (TaskFailure failure) { failTask(task, failure.code(), failure.getMessage(), null, null, null); }
+                prepareAdmittedTaskAndContinue(task.id());
+            } else if (TaskState.READY.name().equals(task.state())) {
+                startPreparedTask(task.id());
             }
         }
     }
@@ -2514,6 +2565,11 @@ public class TaskService {
         int separator = configured.indexOf('/');
         if (separator <= 0 || separator >= configured.length() - 1) return null;
         return new OpenCodeClient.OpenCodeModel(configured.substring(0, separator), configured.substring(separator + 1), null);
+    }
+    private OpenCodeClient.OpenCodeModel structuredJudgeModel(LoopSpec spec) {
+        OpenCodeClient.OpenCodeModel selected = model(spec);
+        return selected == null ? null
+                : new OpenCodeClient.OpenCodeModel(selected.providerId(), selected.modelId(), false);
     }
     private String now() { return Instant.now().toString(); }
     private Duration remainingTaskDuration(TaskRow task, LoopSpec spec) {

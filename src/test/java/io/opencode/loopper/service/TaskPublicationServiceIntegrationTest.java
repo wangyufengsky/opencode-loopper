@@ -75,7 +75,7 @@ class TaskPublicationServiceIntegrationTest {
         assertThat(pushed.commitMessage()).isEqualTo("#3032_完善任务提交与合并请求流程");
         assertThat(run(fixture.remote(), "git", "rev-parse", "refs/heads/" + task.branchName()).strip())
                 .isEqualTo(pushed.commitSha());
-        assertThat(tasks.get(waiting.id()).state()).isEqualTo("READY");
+        assertThat(tasks.get(waiting.id()).state()).isEqualTo("RUNNING");
         assertThat(run(fixture.project(), "git", "branch", "--show-current").strip())
                 .isEqualTo(tasks.get(waiting.id()).branchName());
         assertThat(run(fixture.project(), "git", "rev-parse", "refs/heads/" + task.branchName()).strip())
@@ -254,7 +254,7 @@ class TaskPublicationServiceIntegrationTest {
         assertThat(tasks.artifacts(task.id())).anyMatch(artifact -> "LOCAL_SOURCE_SYNC".equals(artifact.kind())
                 && synced.commitSha().equals(artifact.content()));
         assertThat(tasks.queueStatus(task.id()).state()).isEqualTo("FINISHED");
-        assertThat(tasks.get(waiting.id()).state()).isEqualTo("READY");
+        assertThat(tasks.get(waiting.id()).state()).isEqualTo("RUNNING");
         assertThat(tasks.get(waiting.id()).worktreePath()).isEqualTo(projectRoot.toRealPath().toString());
         assertThat(run(projectRoot, "git", "branch", "--show-current").strip())
                 .isEqualTo(tasks.get(waiting.id()).branchName());
@@ -303,6 +303,11 @@ class TaskPublicationServiceIntegrationTest {
 
     private TaskRow succeededTask(ProjectRow project) {
         TaskRow ready = readyTask(project);
+        var session = mapper.activeSessions(ready.id()).getFirst();
+        assertThat(mapper.updateSessionState(new io.opencode.loopper.persistence.ExecutionSessionRow(
+                session.id(), session.taskId(), session.stageId(), session.attemptId(), session.externalSessionId(),
+                "COMPLETED", session.createdAt(), Instant.now().toString(), session.version(), session.todoCapability())))
+                .isEqualTo(1);
         TaskRow succeeded = new TaskRow(ready.id(), ready.projectId(), ready.loopDraftId(), ready.title(), "SUCCEEDED",
                 ready.worktreePath(), ready.branchName(), ready.sourceBranch(), ready.baselineCommit(),
                 ready.createdAt(), Instant.now().toString(), ready.version());
@@ -318,7 +323,8 @@ class TaskPublicationServiceIntegrationTest {
                         List.of(new io.opencode.loopper.domain.LoopSpec.VerifierSpec(
                                 "PROCESS", List.of("git", "status", "--short"), null, null, null, null, null)))),
                 null, null, null, null));
-        return drafts.confirm(draft.id(), "任务发布流程");
+        TaskRow pending = drafts.confirm(draft.id(), "任务发布流程");
+        return tasks.start(pending.id());
     }
 
     private Repository repositoryWithRemote() throws Exception {

@@ -14,13 +14,16 @@ public final class OpenCodeCapabilityRegistry {
         String endpointKey = endpoint.toString();
         String normalized = blank(version);
         String previous = versions.put(endpointKey, normalized);
-        if (previous != null && !previous.equals(normalized)) {
+        if (previous == null && !normalized.isEmpty()) {
+            observations.forEach((key, observation) -> {
+                if (key.endpoint().equals(endpointKey) && key.version().isEmpty()
+                        && observations.remove(key, observation)) {
+                    observations.putIfAbsent(new Key(key.endpoint(), normalized, key.provider(), key.model()), observation);
+                }
+            });
+        } else if (previous != null && !previous.equals(normalized)) {
             observations.keySet().removeIf(key -> key.endpoint().equals(endpointKey));
         }
-    }
-
-    public void accepted(URI endpoint, OpenCodeClient.OpenCodeModel model) {
-        update(endpoint, model, OpenCodeClient.CapabilityState.AVAILABLE, null, null);
     }
 
     public void structured(URI endpoint, OpenCodeClient.OpenCodeModel model) {
@@ -39,6 +42,13 @@ public final class OpenCodeCapabilityRegistry {
     }
 
     public OpenCodeClient.StructuredOutputCapability capability(URI endpoint, OpenCodeClient.OpenCodeModel model) {
+        String endpointKey = endpoint == null ? "" : endpoint.toString();
+        String version = versions.getOrDefault(endpointKey, "");
+        if (knownStoredSchemaDecodeFailure(version)) {
+            return new OpenCodeClient.StructuredOutputCapability(OpenCodeClient.CapabilityState.UNAVAILABLE,
+                    OpenCodeClient.CapabilityState.UNKNOWN,
+                    "OpenCode " + version + " cannot decode messages that persist format=json_schema; using marker compatibility mode");
+        }
         Observation value = observations.get(key(endpoint, model));
         return value == null
                 ? new OpenCodeClient.StructuredOutputCapability(OpenCodeClient.CapabilityState.UNKNOWN,
@@ -63,6 +73,19 @@ public final class OpenCodeCapabilityRegistry {
     }
 
     private static String blank(String value) { return value == null ? "" : value.trim(); }
+    private static boolean knownStoredSchemaDecodeFailure(String version) {
+        if (version == null) return false;
+        String[] parts = version.trim().split("[.-]", 4);
+        if (parts.length < 3) return false;
+        try {
+            int major = Integer.parseInt(parts[0]);
+            int minor = Integer.parseInt(parts[1]);
+            int patch = Integer.parseInt(parts[2]);
+            return major == 1 && minor == 18 && patch >= 12 && patch <= 18;
+        } catch (NumberFormatException ignored) {
+            return false;
+        }
+    }
     private static String bounded(String value) {
         if (value == null) return null;
         return value.length() <= 1_000 ? value : value.substring(0, 1_000);

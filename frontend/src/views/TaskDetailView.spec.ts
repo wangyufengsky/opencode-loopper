@@ -135,6 +135,51 @@ describe('TaskDetailView judge action', () => {
     expect(store.updateTask).toHaveBeenCalledWith('task-queued', 'cancel')
   })
 
+  it('starts or cancels a confirmed task before any workspace resource is allocated', async () => {
+    store.tasks = [{
+      ...reviewTask,
+      id: 'task-pending', title: '待开始任务', status: 'PENDING_START', branch: '', worktreePath: '', stages: [], judges: [],
+    }]
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/tasks/:id', component: { template: '<div />' } }] })
+    await router.push('/tasks/task-pending')
+    await router.isReady()
+    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue(undefined as never)
+
+    const wrapper = mount(TaskDetailView, {
+      global: {
+        plugins: [router, ElementPlus],
+        stubs: {
+          Icon: true,
+          PageHeader: { template: '<header><slot name="actions" /></header><slot />' },
+          StatusBadge: true,
+          StageRail: true,
+          AttemptTimeline: true,
+          LayeredErrorPanel: true,
+          SessionMonitorPanel: true,
+          JudgeReviewCard: true,
+          TaskAuditEvidencePanel: true,
+          TaskPublicationActions: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('开始执行')
+    expect(wrapper.text()).toContain('尚未申请项目写租约或创建任务分支')
+    expect(wrapper.text()).toContain('确认计划不会占用写租约或切换项目分支')
+    const action = wrapper.findAll('button').find((button) => button.text().includes('取消任务'))
+    expect(action).toBeDefined()
+    await action!.trigger('click')
+    await flushPromises()
+
+    expect(ElMessageBox.confirm).toHaveBeenCalledWith(
+      expect.stringContaining('没有申请项目写租约、创建任务分支或切换工作区'),
+      '取消待开始任务？',
+      expect.objectContaining({ cancelButtonText: '保留待开始' }),
+    )
+    expect(store.updateTask).toHaveBeenCalledWith('task-pending', 'cancel')
+  })
+
   it('manually reconciles a terminal holder and refreshes task and queue state', async () => {
     store.tasks = [{
       ...reviewTask,

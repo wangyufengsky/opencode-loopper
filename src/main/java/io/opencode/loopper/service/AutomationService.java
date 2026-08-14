@@ -179,7 +179,8 @@ public class AutomationService {
         try {
             TaskRow task = drafts.confirm(run.draftId(), title, "AUTOMATION");
             taskId = task.id();
-            TaskRow started = TaskState.READY.name().equals(task.state()) ? tasks.start(task.id()) : task;
+            TaskRow started = List.of(TaskState.PENDING_START.name(), TaskState.READY.name()).contains(task.state())
+                    ? tasks.start(task.id(), "AUTOMATION") : task;
             Map<String, Object> evidence = evidence(run);
             AutomationRunState state = stateFor(started);
             if (state == AutomationRunState.FAILED) evidence = taskFailureEvidence(evidence, started);
@@ -282,7 +283,8 @@ public class AutomationService {
             requireAutoStartApproved(rule.templateVersionId());
             TaskRow task = drafts.confirm(draft.id(), "自动化 · " + rule.name(), "AUTOMATION");
             taskId = task.id();
-            TaskRow started = TaskState.READY.name().equals(task.state()) ? tasks.start(task.id()) : task;
+            TaskRow started = List.of(TaskState.PENDING_START.name(), TaskState.READY.name()).contains(task.state())
+                    ? tasks.start(task.id(), "AUTOMATION") : task;
             AutomationRunState state = stateFor(started);
             Map<String, Object> finalEvidence = state == AutomationRunState.FAILED
                     ? taskFailureEvidence(evidence, started) : evidence;

@@ -65,10 +65,14 @@ self-transition event. Projection/content/heartbeat updates use the audit-free
 `mutateWithoutTransition` path and mapper statements that do not write state.
 
 External process, Git/filesystem, OpenCode HTTP, model-usage and verifier I/O
-never runs while a SQLite transaction is active. Task confirmation resolves the
-workspace identity first, atomically commits the Task, Stage, queue/lease and
-draft-confirmation rows in a short transaction, then performs checkout and
-preparation. Session/Judge cleanup, polling and retries likewise persist each
+never runs while a SQLite transaction is active. Task confirmation performs only
+read-only project/rework validation, then atomically commits the Task, Stages,
+frozen design context and draft confirmation in `PENDING_START`; it does not create
+a queue row, acquire a lease, fetch Git refs, create a branch, or switch the
+registered checkout. An explicit execution request resolves the current workspace
+identity outside SQLite, atomically records `PENDING_START -> QUEUED` together with
+queue admission/lease acquisition, then performs checkout and preparation outside
+the transaction. Session/Judge cleanup, polling and retries likewise persist each
 state boundary separately from provider calls. Deterministic verification first
 enters `VERIFYING` in a short transaction, runs process/HTTP/browser checks
 outside the database lock, and commits their results plus the next lifecycle
@@ -212,6 +216,25 @@ role Session and the same persisted Loopper repair/model-call budget to fall bac
 to the legacy marker parser. V26 defaults existing rows to marker mode and Todo
 capability unknown, preserving restart behavior.
 
+Machine-response roles also carry an explicit non-thinking model selection.
+Managed DeepSeek starts with a private `loopper-no-thinking` variant and
+Decomposer/Compiler/Judge prompts select it; Markdown Designer and Implementation
+keep their configured thinking behavior. This is a transport compatibility rule,
+not a new lifecycle state or evidence source.
+
+Managed runtimes also define a private `loopper-structured` machine-response
+agent capped at 24 agentic steps. Decomposer, Compiler, and Judge select it to
+bound read-only exploration; it does not replace Loopper model-call, repair,
+timeout, validation, or lifecycle authority. For Decomposer and Compiler,
+OpenCode `RETRY` remains a transient external Session projection and never
+triggers the design pipeline's fresh-Session retry; Implementation and Judge
+retain their existing failure-escalation behavior.
+When a terminal structured-role path is persisted, Loopper first makes a
+best-effort abort of the active remote Session so a local `WAITING_INPUT` or
+`SESSION_ERROR` projection cannot intentionally leave an invisible writer/reader
+running. Schema rejection from the message-read endpoint is classified like
+prompt-time format rejection and uses the same one-time fresh marker fallback.
+
 The OpenCode adapter owns typed prompts and role profiles: read-only roles deny
 all before allowing only repository reads, Designer alone may ask a question,
 and implementation explicitly allows discovered `todowrite` while retaining
@@ -335,8 +358,13 @@ File paths are execution-root-relative and symlink-safe. Stage allowed/forbidden
 path rules are advisory prompt context and never add an implicit acceptance
 gate. When the confirmed LoopSpec explicitly contains a `GIT_DIFF` verifier,
 its glob rules are normalized to `/`, matched by a bounded dynamic-programming
-engine with identical behavior on all supported operating systems, and rejected
-at the LoopSpec boundary when path policy size limits are exceeded. Before the
+engine with identical behavior on all supported operating systems. Compiler
+planning, draft persistence, and confirmation reuse that runtime policy to
+reject malformed globs and any allowed rule entirely shadowed by one forbidden
+rule before creating a Task, Attempt, or writable Session. A broad allow rule
+with a narrower sensitive-path exclusion remains valid. Policies are also
+rejected at the LoopSpec boundary when size or validation-work limits are
+exceeded. Before the
 first writable Attempt and OpenCode Session for a Stage, Loopper captures a
 private Git tree under `$LOOPPER_DATA_DIR/stage-baselines/<taskId>`. Stages share
 one object repository per Task and use separate indexes; the project `.git`,
@@ -389,8 +417,15 @@ an old Task's diff from whichever branch happens to be checked out later.
 
 ## Workspace safety
 
-Planning may inspect a registered root read-only. When a project has a valid
-Git HEAD, execution first snapshots the registered checkout. A dirty checkout
+Planning and confirmation may inspect a registered root read-only. A newly confirmed
+Task remains `PENDING_START` with no queue row, write lease, execution directory or
+task branch. Cancelling it changes only the Task to `CANCELLED`. The first explicit
+start request is the sole boundary that can enqueue the Task, acquire the workspace
+lease, fetch refs, capture a baseline and switch the registered checkout. Once the
+request is accepted, admission and dirty-workspace resolution continue automatically
+through the transient `READY` state into `RUNNING`; users do not click Start twice.
+
+When a project has a valid Git HEAD, execution first snapshots the registered checkout. A dirty checkout
 moves the admitted Task to `WAITING_INPUT` while retaining its writer lease and
 exposes every porcelain-status path to the local UI. The user must choose
 `COMMIT`, `STASH`, or `REMOVE` per path, or cancel and fail the Task without
@@ -417,6 +452,11 @@ transitions only that Task and its queue row to `CANCELLED`; it never releases o
 transfers the current holder's lease. The cancelled terminal Task may then follow the
 ordinary archive and protected history-deletion flow only after it no longer owns an
 active lease.
+A Task in the short-lived prepared `READY` state may likewise be explicitly cancelled
+before its first writable OpenCode Session starts. The ordinary Task cancellation transition
+preserves its branch, execution directory, and evidence, then reuses terminal-holder
+reconciliation to restore the recorded source branch and release the workspace lease
+only when the existing safety checks pass.
 Task, Queue, and Lease remain separate lifecycle machines. Their cross-machine
 invariant is coordinated by `WorkspaceLeaseReconciliationService`: an `ADMITTED`
 queue row must name the same Task as the non-`RELEASED` lease holder, and a terminal

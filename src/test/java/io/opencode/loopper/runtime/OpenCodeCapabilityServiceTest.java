@@ -33,4 +33,25 @@ class OpenCodeCapabilityServiceTest {
         assertThat(fallback.structuredOutputTransport()).isEqualTo("UNAVAILABLE");
         assertThat(fallback.defaultResponseMode()).isEqualTo("TEXT_MARKER");
     }
+
+    @Test
+    void defaultsKnownStoredSchemaDecoderVersionsToMarkerWithoutProviderProbe() {
+        OpenCodeClient client = mock(OpenCodeClient.class);
+        OpenCodeCapabilityRegistry registry = new OpenCodeCapabilityRegistry();
+        OpenCodeClient.OpenCodeModel model = new OpenCodeClient.OpenCodeModel(
+                "deepseek", "deepseek-v4-flash", null);
+        URI endpoint = URI.create("http://127.0.0.1:4096");
+        when(client.agents()).thenReturn(List.of());
+        when(client.structuredOutputCapability(model)).thenAnswer(ignored -> registry.capability(endpoint, model));
+        OpenCodeCapabilityService service = new OpenCodeCapabilityService(client, registry);
+        OpenCodeRuntimeManager.RuntimeSnapshot runtime = new OpenCodeRuntimeManager.RuntimeSnapshot(
+                "AVAILABLE", "1.18.18", false, null, endpoint.toString(),
+                "deepseek/deepseek-v4-flash", Instant.now(), null);
+
+        var capabilities = service.capabilities(runtime);
+
+        assertThat(capabilities.structuredOutputTransport()).isEqualTo("UNAVAILABLE");
+        assertThat(capabilities.defaultResponseMode()).isEqualTo("TEXT_MARKER");
+        assertThat(capabilities.detail()).contains("1.18.18", "marker compatibility mode");
+    }
 }

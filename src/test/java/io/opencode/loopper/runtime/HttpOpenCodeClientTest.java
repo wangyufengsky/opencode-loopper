@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,7 +24,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class HttpOpenCodeClientTest {
     private HttpServer server;
     private final AtomicReference<String> statusBody = new AtomicReference<>("{}");
+    private final AtomicReference<String> healthBody = new AtomicReference<>("{\"healthy\":true,\"version\":\"1.18.19\"}");
     private final AtomicReference<String> messageBody = new AtomicReference<>("[{\"info\":{\"role\":\"user\"}}]");
+    private final AtomicInteger messageStatusCode = new AtomicInteger(200);
     private final AtomicReference<String> lastPathAndQuery = new AtomicReference<>();
     private final AtomicReference<String> createBody = new AtomicReference<>();
     private final AtomicReference<String> questionBody = new AtomicReference<>("[]");
@@ -42,6 +45,7 @@ class HttpOpenCodeClientTest {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/session", this::session);
         server.createContext("/session/status", exchange -> reply(exchange, statusBody.get()));
+        server.createContext("/global/health", exchange -> reply(exchange, healthBody.get()));
         server.createContext("/question", this::question);
         server.createContext("/permission", this::permission);
         server.createContext("/experimental/tool/ids", exchange -> reply(exchange, "[\"read\",\"todowrite\"]"));
@@ -70,6 +74,7 @@ class HttpOpenCodeClientTest {
                 .contains("\"pattern\":\".env\"").contains("\"pattern\":\".env.example\"");
         client.promptAsync(session, "hello");
         assertThat(lastPathAndQuery.get()).contains("/session/s1/prompt_async").contains("directory=");
+        assertThat(promptBody.get()).doesNotContain("\"variant\"");
         assertThat(client.sessionStatus(session).state()).isEqualTo("RUNNING");
         statusBody.set("{\"s1\":{\"status\":\"busy\"}}");
         assertThat(client.sessionStatus(session).state()).isEqualTo("busy");
@@ -83,11 +88,108 @@ class HttpOpenCodeClientTest {
         statusBody.set("{\"s1\":{\"type\":\"retry\",\"message\":\"Free usage exceeded\",\"action\":{\"reason\":\"free_tier_limit\"}}}");
         OpenCodeClient.SessionStatus retry = client.sessionStatus(session);
         assertThat(retry.failed()).isTrue();
+        assertThat(retry.retrying()).isTrue();
         assertThat(retry.detail()).isEqualTo("Free usage exceeded");
         assertThat(client.diff(session)).isEqualTo("[]");
         assertThat(lastPathAndQuery.get()).contains("/session/s1/diff").contains("directory=");
         client.abort(session);
         assertThat(lastPathAndQuery.get()).contains("/session/s1/abort").contains("directory=");
+    }
+
+    @Test
+    void mapsSchemaRejectionWhileReadingStructuredMessagesToFormatFallbackSignal() throws Exception {
+        LoopperProperties properties = new LoopperProperties();
+        properties.getOpenCode().setBaseUrl(new java.net.URI("http://127.0.0.1:" + server.getAddress().getPort()));
+        HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(), properties);
+        OpenCodeClient.OpenCodeModel model = new OpenCodeClient.OpenCodeModel("deepseek", "deepseek-v4-flash", false);
+        OpenCodeClient.OpenCodeSession session = client.createSession(worktree, "structured", model,
+                OpenCodeClient.SessionProfile.DECOMPOSER_READ_ONLY);
+        client.promptAsync(session, new OpenCodeClient.PromptRequest("decompose", null, null,
+                OpenCodeStructuredSchemas.format(OpenCodeStructuredSchemas.DECOMPOSITION_FINAL_V1)));
+        assertThat(client.structuredOutputCapability(model).transport()).isEqualTo(OpenCodeClient.CapabilityState.UNKNOWN);
+        statusBody.set("{\"s1\":{\"type\":\"busy\"}}");
+        messageStatusCode.set(400);
+        messageBody.set("{\"name\":\"BadRequest\",\"data\":{\"message\":\"Expected OutputFormatJsonSchema, got json_schema\"}}");
+
+        assertThatThrownBy(() -> client.sessionStatus(session))
+                .isInstanceOf(SessionFailure.class)
+                .extracting(failure -> ((SessionFailure) failure).code())
+                .isEqualTo("OPENCODE_STRUCTURED_FORMAT_UNSUPPORTED");
+        assertThat(client.structuredOutputCapability(model).transport()).isEqualTo(OpenCodeClient.CapabilityState.UNAVAILABLE);
+    }
+
+    @Test
+    void quarantinesKnownOpenCodeStoredSchemaDecoderVersionsBeforePrompting() throws Exception {
+        LoopperProperties properties = new LoopperProperties();
+        properties.getOpenCode().setBaseUrl(new java.net.URI("http://127.0.0.1:" + server.getAddress().getPort()));
+        HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(), properties);
+        OpenCodeClient.OpenCodeModel model = new OpenCodeClient.OpenCodeModel(
+                "deepseek", "deepseek-v4-flash", false);
+        healthBody.set("{\"healthy\":true,\"version\":\"1.18.18\"}");
+
+        OpenCodeClient.StructuredOutputCapability capability = client.structuredOutputCapability(model);
+
+        assertThat(capability.transport()).isEqualTo(OpenCodeClient.CapabilityState.UNAVAILABLE);
+        assertThat(capability.detail()).contains("1.18.18", "marker compatibility mode");
+        assertThat(promptBody.get()).isNull();
+    }
+
+    @Test
+    void mapsBusyStructuredToolFailureToFreshMarkerFallbackSignal() throws Exception {
+        LoopperProperties properties = new LoopperProperties();
+        properties.getOpenCode().setBaseUrl(new java.net.URI("http://127.0.0.1:" + server.getAddress().getPort()));
+        HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(), properties);
+        OpenCodeClient.OpenCodeSession session = client.createSession(worktree, "structured",
+                new OpenCodeClient.OpenCodeModel("deepseek", "deepseek-v4-flash", false),
+                OpenCodeClient.SessionProfile.DECOMPOSER_READ_ONLY);
+        client.promptAsync(session, new OpenCodeClient.PromptRequest("decompose", null, null,
+                OpenCodeStructuredSchemas.format(OpenCodeStructuredSchemas.DECOMPOSITION_FINAL_V1)));
+        statusBody.set("{\"s1\":{\"type\":\"busy\"}}");
+        messageBody.set("[{\"info\":{\"role\":\"user\"}},"
+                + "{\"info\":{\"role\":\"assistant\"},\"parts\":[{\"type\":\"tool\","
+                + "\"tool\":\"structured_output\",\"state\":{\"status\":\"error\","
+                + "\"error\":\"DeepSeek did not produce the required object\"}}]}]");
+
+        assertThatThrownBy(() -> client.sessionStatus(session))
+                .isInstanceOf(SessionFailure.class)
+                .extracting(failure -> ((SessionFailure) failure).code())
+                .isEqualTo("OPENCODE_STRUCTURED_OUTPUT_FAILED");
+    }
+
+    @Test
+    void enforcesMachineResponseStepLimitEvenWhenOpenCodeStillReportsBusy() throws Exception {
+        LoopperProperties properties = new LoopperProperties();
+        properties.getOpenCode().setBaseUrl(new java.net.URI("http://127.0.0.1:" + server.getAddress().getPort()));
+        HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(), properties);
+        OpenCodeClient.OpenCodeSession session = client.createSession(worktree, "marker",
+                new OpenCodeClient.OpenCodeModel("deepseek", "deepseek-v4-flash", false),
+                OpenCodeClient.SessionProfile.DECOMPOSER_READ_ONLY);
+        client.promptAsync(session, OpenCodeClient.PromptRequest.text("decompose"));
+        statusBody.set("{\"s1\":{\"type\":\"busy\"}}");
+        StringBuilder messages = new StringBuilder("[{\"info\":{\"role\":\"user\"}}");
+        for (int step = 0; step <= OpenCodeClient.STRUCTURED_AGENT_STEPS; step++) {
+            messages.append(",{").append("\"info\":{\"role\":\"assistant\"},")
+                    .append("\"parts\":[{\"type\":\"step-start\"}]}");
+        }
+        messageBody.set(messages.append(']').toString());
+
+        assertThatThrownBy(() -> client.sessionStatus(session))
+                .isInstanceOf(SessionFailure.class)
+                .extracting(failure -> ((SessionFailure) failure).code())
+                .isEqualTo("OPENCODE_MACHINE_STEP_LIMIT_EXCEEDED");
+    }
+
+    @Test
+    void selectsBoundedStructuredAgentOnlyForManagedMachineResponseSessions() throws Exception {
+        java.net.URI endpoint = new java.net.URI("http://127.0.0.1:" + server.getAddress().getPort());
+        HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(),
+                () -> new OpenCodeRuntimeManager.Connection(endpoint, "", "", true));
+        OpenCodeClient.OpenCodeSession session = client.createSession(worktree, "decomposer", null,
+                OpenCodeClient.SessionProfile.DECOMPOSER_READ_ONLY);
+
+        client.promptAsync(session, OpenCodeClient.PromptRequest.text("decompose"));
+
+        assertThat(promptBody.get()).contains("\"agent\":\"loopper-structured\"");
     }
 
     @Test
@@ -294,17 +396,22 @@ class HttpOpenCodeClientTest {
         LoopperProperties properties = new LoopperProperties();
         properties.getOpenCode().setBaseUrl(new java.net.URI("http://127.0.0.1:" + server.getAddress().getPort()));
         HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(), properties);
-        OpenCodeClient.OpenCodeSession session = client.createSession(worktree, "structured", null,
+        OpenCodeClient.OpenCodeSession session = client.createSession(worktree, "structured",
+                new OpenCodeClient.OpenCodeModel("deepseek", "deepseek-v4-flash", false),
                 OpenCodeClient.SessionProfile.COMPILER_READ_ONLY);
 
         client.promptAsync(session, new OpenCodeClient.PromptRequest("compile", "system", "build",
                 OpenCodeStructuredSchemas.format(OpenCodeStructuredSchemas.JUDGE_DECISION_V1)));
 
         assertThat(promptBody.get()).contains("\"system\":\"system\"", "\"agent\":\"build\"",
-                "\"type\":\"json_schema\"", "\"retryCount\":0", "\"verdict\"")
+                "\"type\":\"json_schema\"", "\"retryCount\":0", "\"verdict\"",
+                "\"variant\":\"loopper-no-thinking\"")
                 .doesNotContain("\"tools\"");
         messageBody.set("[{\"info\":{\"role\":\"user\"}},{\"info\":{\"role\":\"assistant\",\"structured\":{\"verdict\":\"PASS\",\"reason\":\"ok\"}}}]");
         assertThat(client.sessionResult(session).structured()).containsEntry("verdict", "PASS");
+        assertThat(client.structuredOutputCapability(new OpenCodeClient.OpenCodeModel(
+                "deepseek", "deepseek-v4-flash", false)).selectedModel())
+                .isEqualTo(OpenCodeClient.CapabilityState.AVAILABLE);
         assertThat(client.toolCapabilities(worktree).contains("todowrite")).isTrue();
         assertThat(client.agents()).extracting(OpenCodeClient.AgentInfo::name).containsExactly("build", "plan");
     }
@@ -320,7 +427,7 @@ class HttpOpenCodeClientTest {
             if (directory.isEmpty()) reply(exchange, "{\"id\":\"s1\"}");
             else reply(exchange, "{\"id\":\"s1\",\"directory\":\"" + json(directory) + "\"}");
         }
-        else if (path.endsWith("/message")) reply(exchange, messageBody.get());
+        else if (path.endsWith("/message")) reply(exchange, messageStatusCode.get(), messageBody.get());
         else if (path.endsWith("/prompt_async")) { promptBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)); reply(exchange, "true"); }
         else if (path.endsWith("/todo")) reply(exchange, todoBody.get());
         else if (path.endsWith("/fork")) { sessionActionBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)); reply(exchange, "{\"id\":\"fork-1\"}"); }
@@ -345,10 +452,13 @@ class HttpOpenCodeClientTest {
         }
     }
     private void reply(HttpExchange exchange, String body) throws IOException {
+        reply(exchange, 200, body);
+    }
+    private void reply(HttpExchange exchange, int status, String body) throws IOException {
         lastPathAndQuery.set(exchange.getRequestURI().getPath() + "?" + exchange.getRequestURI().getRawQuery());
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().add("Content-Type", "application/json");
-        exchange.sendResponseHeaders(200, bytes.length);
+        exchange.sendResponseHeaders(status, bytes.length);
         exchange.getResponseBody().write(bytes); exchange.close();
     }
     private String json(String value) {

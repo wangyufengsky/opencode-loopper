@@ -6,6 +6,18 @@ import java.util.List;
 import java.util.Map;
 
 public interface OpenCodeClient {
+    /** Private managed-runtime variant used to keep DeepSeek structured output out of Thinking mode. */
+    String STRUCTURED_NO_THINKING_VARIANT = "loopper-no-thinking";
+    /** Private managed-runtime agent that bounds read-only machine-response loops. */
+    String STRUCTURED_AGENT = "loopper-structured";
+    int STRUCTURED_AGENT_STEPS = 24;
+    double STRUCTURED_AGENT_TEMPERATURE = 0.0d;
+    String STRUCTURED_AGENT_PROMPT = """
+            Work only on the requested machine-response task. Use read, glob, and grep only when evidence is still missing.
+            Never retry the same tool call or invent another tool name. Once enough evidence is available, stop exploring and
+            immediately return exactly the response format requested by the user prompt, without commentary.
+            """.strip();
+
     boolean healthy();
     OpenCodeSession createSession(Path worktree, String title, OpenCodeModel model);
     /** Creates a session whose permission rules deny all mutation and shell/task execution. */
@@ -169,6 +181,7 @@ public interface OpenCodeClient {
         public SessionStatus(String state) { this(state, null); }
         public boolean completed() { return "COMPLETED".equalsIgnoreCase(state) || "IDLE".equalsIgnoreCase(state) || "DONE".equalsIgnoreCase(state); }
         public boolean failed() { return "FAILED".equalsIgnoreCase(state) || "ERROR".equalsIgnoreCase(state) || "ABORTED".equalsIgnoreCase(state)
-                || "TIMED_OUT".equalsIgnoreCase(state) || "RETRY".equalsIgnoreCase(state); }
+                || "TIMED_OUT".equalsIgnoreCase(state) || retrying(); }
+        public boolean retrying() { return "RETRY".equalsIgnoreCase(state); }
     }
 }

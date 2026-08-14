@@ -75,13 +75,23 @@ detail. The confirmation explains that only the waiting queue row is cancelled:
 the current writer and its workspace lease remain untouched. The server-authoritative
 result is `CANCELLED`, after which the existing Task-list archive and permanent-delete
 flow becomes available only when the Task no longer owns an active workspace lease.
+A newly confirmed Task is `PENDING_START`. It must show **开始执行** and a separate
+confirmed **取消任务** action, and its summary must say that confirmation has not
+created a queue row, acquired a write lease, allocated an execution directory, or
+switched a Git branch. Cancelling this state changes only the Task to `CANCELLED`.
+Clicking **开始执行** is the single execution request: the server may move through
+`QUEUED`, `PREPARING`, and the transient `READY` state into `RUNNING` without a
+second click. If `READY` is observed during that continuation, the UI shows that
+automatic startup is in progress and may retain the confirmed cancel action, but
+does not render another Start button.
 While a Task remains `QUEUED`, detail renders a server-backed **当前在排谁** card with
 the holder title/link, Task state, archive flag, lease state, queue position, and stable
 release blocker. **重新检查并释放** posts only the waiter ID to the local-UI endpoint;
 the server locates the holder and returns the latest queue projection. A 409 keeps the
 card visible and renders its concrete dirty-workspace, unconfirmed-writer, fingerprint,
 unavailable-root, or unsafe-branch reason. A successful action refreshes Task and queue
-state but never starts model execution. Archive failures caused by an active lease keep
+state and may continue the already-requested Task through preparation into model
+execution; it never creates a second execution request. Archive failures caused by an active lease keep
 the terminal Task in the active list and surface `TASK_ARCHIVE_WORKSPACE_LEASE_ACTIVE`
 instead of hiding it.
 
@@ -173,7 +183,13 @@ and test targets for production Java. Compiler planning contract v2 also embeds
 the complete `VerifierSpec` objects and optional `verificationRuntime`; the server
 runs the normal LoopSpec v2 execution assessment before freezing, so shell
 launchers, non-behavior mappings and invalid Java/runtime evidence are repaired
-in the evidence-mapping turn. Before that assessment, the server deterministically
+in the evidence-mapping turn. That assessment reuses runtime path-policy
+semantics: malformed globs and an `allowedPaths` rule entirely shadowed by one
+`forbiddenPaths` rule must consume the bounded planning-repair path instead of
+being frozen. Broad allow rules with narrower exclusions remain valid. Draft
+persistence and confirmation repeat the check so imported or historical input
+cannot create a Task, Attempt, or writable Session with an unsatisfiable path
+contract. Before that assessment, the server deterministically
 numbers criteria as `<workPackageId>-AC-n`, restores an exact source slice when
 the model's excerpt has one unique whitespace/Markdown-format-insensitive match,
 and copies focused TEST `criterionIds`/`testTargets` from the corresponding
@@ -203,13 +219,37 @@ strip exposes only `规划与证据映射`, `JSON 生成`, or `JSON 修复`.
 
 The four Decomposer/Compiler machine steps prefer stable OpenCode JSON Schemas;
 the final Judge contract has a fifth schema. Capability-unknown starts
-optimistically in schema mode. Only explicit format rejection, typed
+optimistically in schema mode except for the verified OpenCode 1.18.12–1.18.18
+stored-Schema decoder defect, which starts directly in marker compatibility
+mode. Only explicit format rejection, typed
 structured-output failure, or a completed response without structured data may
 switch that exact step to the legacy marker contract, in one fresh read-only
 role Session and within the same persisted repair/model-call budgets. Existing
 active rows stay marker-compatible. Structured output remains hidden behind the
 same deterministic validation and Review Gate; schema acceptance is not semantic
 success.
+
+The Decomposer, Compiler, and final Judge machine-response roles run with
+Thinking disabled. On the managed DeepSeek runtime they select Loopper's private
+`loopper-no-thinking` variant, because OpenCode's schema transport requires a
+tool choice that DeepSeek Thinking rejects. The Markdown Designer remains on the
+configured model behavior, so disabling reasoning for machine JSON does not
+silently change interactive design or implementation quality.
+
+On a Loopper-managed runtime those same three machine-response roles select the
+private zero-temperature `loopper-structured` agent, capped at 24 agentic steps
+and instructed to stop exploring after collecting sufficient evidence. Loopper
+also enforces the same bound from message records rather than trusting the
+OpenCode agent setting alone. For Decomposer
+and Compiler, OpenCode status `RETRY` is displayed as an in-progress remote state
+and keeps the same Session; it must not increment the design transport-retry
+counter. Implementation and Judge retain their existing failure-escalation
+behavior. Even while OpenCode reports `busy`, Loopper reads the bounded machine
+response transcript. If OpenCode rejects the stored Schema or reports a failed
+`StructuredOutput` tool part, the workflow shows the existing format fallback
+rather than a generic connection failure. A card may say the
+role is stopped or waiting for input only after Loopper has attempted to abort
+the corresponding remote Session.
 
 Compiler is not expected to reverse-engineer backend DTOs from validation text.
 Its planning, final-generation and bounded repair prompts contain the complete

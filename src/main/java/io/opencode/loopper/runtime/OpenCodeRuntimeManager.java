@@ -23,6 +23,8 @@ import java.util.Map;
 import java.util.Objects;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * Owns only the OpenCode process it starts.  In auto mode a healthy loopback
@@ -32,9 +34,7 @@ import org.springframework.web.client.RestClient;
 public final class OpenCodeRuntimeManager implements AutoCloseable {
     private static final Duration POLL_INTERVAL = Duration.ofMillis(150);
     private static final Duration STARTUP_PROBE_TIMEOUT = Duration.ofSeconds(1);
-    private static final String MANAGED_PERMISSION_CONFIG = """
-            {"permission":{"external_directory":"deny","bash":{"git commit":"deny","git commit *":"deny","git push":"deny","git push *":"deny","git reset --hard*":"deny","rm -rf*":"deny"}}}
-            """.strip();
+    private static final ObjectMapper JSON = new ObjectMapper();
 
     private final Object monitor = new Object();
     private final LoopperProperties properties;
@@ -173,7 +173,7 @@ public final class OpenCodeRuntimeManager implements AutoCloseable {
         Map<String, String> environment = new LinkedHashMap<>();
         environment.put("OPENCODE_SERVER_USERNAME", username);
         environment.put("OPENCODE_SERVER_PASSWORD", password);
-        environment.put("OPENCODE_CONFIG_CONTENT", MANAGED_PERMISSION_CONFIG);
+        environment.put("OPENCODE_CONFIG_CONTENT", managedConfig());
         Process process;
         try {
             process = processStarter.start(command, environment);
@@ -197,6 +197,43 @@ public final class OpenCodeRuntimeManager implements AutoCloseable {
             throw new IllegalStateException("Managed OpenCode did not become healthy before startup-timeout");
         } finally {
             if (owned != started) terminate(process);
+        }
+    }
+
+    private String managedConfig() {
+        Map<String, Object> config = new LinkedHashMap<>();
+        config.put("permission", Map.of(
+                "external_directory", "deny",
+                "bash", Map.of(
+                        "git commit", "deny",
+                        "git commit *", "deny",
+                        "git push", "deny",
+                        "git push *", "deny",
+                        "git reset --hard*", "deny",
+                        "rm -rf*", "deny")));
+        config.put("agent", Map.of(OpenCodeClient.STRUCTURED_AGENT, Map.of(
+                "description", "Bounded read-only Loopper role for machine-response workflows",
+                "mode", "primary",
+                "steps", OpenCodeClient.STRUCTURED_AGENT_STEPS,
+                "temperature", OpenCodeClient.STRUCTURED_AGENT_TEMPERATURE,
+                "prompt", OpenCodeClient.STRUCTURED_AGENT_PROMPT)));
+        String configured = properties.getOpenCode().getModel();
+        if (!blank(configured)) {
+            int separator = configured.indexOf('/');
+            if (separator > 0 && separator < configured.length() - 1) {
+                String provider = configured.substring(0, separator).trim();
+                String model = configured.substring(separator + 1).trim();
+                if ("deepseek".equalsIgnoreCase(provider) && !model.isEmpty()) {
+                    config.put("provider", Map.of(provider, Map.of("models", Map.of(model,
+                            Map.of("variants", Map.of(OpenCodeClient.STRUCTURED_NO_THINKING_VARIANT,
+                                    Map.of("thinking", Map.of("type", "disabled"))))))));
+                }
+            }
+        }
+        try {
+            return JSON.writeValueAsString(config);
+        } catch (JacksonException failure) {
+            throw new IllegalStateException("Unable to build managed OpenCode configuration", failure);
         }
     }
 

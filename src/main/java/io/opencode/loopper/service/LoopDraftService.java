@@ -10,6 +10,7 @@ import io.opencode.loopper.lifecycle.LifecycleTransitionService;
 import io.opencode.loopper.persistence.LoopDraftRow;
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.verification.ProcessCommandPolicy;
+import io.opencode.loopper.verification.VerifierPathPolicy;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -183,12 +184,21 @@ public class LoopDraftService {
         }
         for (int stageIndex = 0; stageIndex < spec.stages().size(); stageIndex++) {
             LoopSpec.StageSpec stage = spec.stages().get(stageIndex);
+            String stagePath = "stages[" + stageIndex + "]";
+            if ("v2".equals(spec.schemaVersion())) {
+                errors.addAll(VerifierPathPolicy.validationErrors(stagePath,
+                        stage.allowedPaths(), stage.forbiddenPaths()));
+            }
             boolean hasAcceptanceVerifier = false;
             for (int verifierIndex = 0; verifierIndex < stage.verifiers().size(); verifierIndex++) {
                 LoopSpec.VerifierSpec verifier = stage.verifiers().get(verifierIndex);
-                String path = "stages[" + stageIndex + "].verifiers[" + verifierIndex + "]";
+                String path = stagePath + ".verifiers[" + verifierIndex + "]";
                 String type = verifier.type() == null ? "" : verifier.type();
                 if (!SUPPORTED_VERIFIERS.contains(type)) errors.add(path + ".type: unsupported verifier " + type);
+                if ("v2".equals(spec.schemaVersion()) && "GIT_DIFF".equals(type)) {
+                    errors.addAll(VerifierPathPolicy.validationErrors(path,
+                            verifier.allowedPaths(), verifier.forbiddenPaths()));
+                }
                 if ("v1".equals(spec.schemaVersion()) && !"GIT_DIFF".equals(type)) hasAcceptanceVerifier = true;
                 if ("PROCESS".equals(type) && verifier.command().isEmpty()) {
                     errors.add(path + ".command: PROCESS requires a direct argv command");

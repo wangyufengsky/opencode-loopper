@@ -37,7 +37,7 @@ const statusOptions: Array<{ value: StatusFilter; label: string }> = [
 ]
 const validStatuses = new Set(statusOptions.map((item) => item.value))
 validStatuses.add('TERMINATED')
-const activeStatuses: TaskStatus[] = ['QUEUED', 'PREPARING', 'READY', 'RUNNING', 'VERIFYING', 'RETRY_WAIT', 'JUDGING']
+const activeStatuses: TaskStatus[] = ['PENDING_START', 'QUEUED', 'PREPARING', 'READY', 'RUNNING', 'VERIFYING', 'RETRY_WAIT', 'JUDGING']
 const terminalStatuses: TaskStatus[] = ['SUCCEEDED', 'FAILED', 'CANCELLED']
 
 const projectOptions = computed(() => Array.from(new Map(store.tasks.map((task) => [task.projectId, task.projectName])).entries())

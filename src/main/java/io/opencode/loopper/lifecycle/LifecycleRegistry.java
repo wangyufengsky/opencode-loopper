@@ -67,7 +67,8 @@ public final class LifecycleRegistry {
 
     private static FiniteStateMachine<TaskState, LifecycleEvent> task() {
         var b = machine(LifecycleMachineType.TASK, TaskState.class);
-        b.transition(TaskState.QUEUED, PREPARE, TaskState.PREPARING)
+        b.transition(TaskState.PENDING_START, REQUEST_START, TaskState.QUEUED)
+                .transition(TaskState.QUEUED, PREPARE, TaskState.PREPARING)
                 .transition(TaskState.PREPARING, PREPARATION_SUCCEEDED, TaskState.READY)
                 .transition(TaskState.READY, START, TaskState.RUNNING)
                 .transition(TaskState.RUNNING, BEGIN_VERIFICATION, TaskState.VERIFYING)

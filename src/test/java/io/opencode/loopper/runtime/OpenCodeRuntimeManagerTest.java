@@ -54,6 +54,7 @@ class OpenCodeRuntimeManagerTest {
         Path executable = executable();
         LoopperProperties properties = properties("auto", URI.create("http://127.0.0.1:1"));
         properties.getOpenCode().setExecutable(executable.toString());
+        properties.getOpenCode().setModel("deepseek/deepseek-v4-flash");
         AtomicReference<Map<String, String>> capturedEnvironment = new AtomicReference<>();
         AtomicReference<List<String>> capturedCommand = new AtomicReference<>();
         List<FakeProcess> processes = new ArrayList<>();
@@ -76,7 +77,11 @@ class OpenCodeRuntimeManagerTest {
         assertThat(started.pid()).isEqualTo(6200L);
         assertThat(capturedCommand.get()).containsExactly(executable.toString(), "serve", "--hostname", "127.0.0.1", "--port", capturedCommand.get().get(5));
         assertThat(capturedEnvironment.get()).containsKeys("OPENCODE_SERVER_USERNAME", "OPENCODE_SERVER_PASSWORD", "OPENCODE_CONFIG_CONTENT");
-        assertThat(capturedEnvironment.get().get("OPENCODE_CONFIG_CONTENT")).contains("external_directory").contains("git push *");
+        assertThat(capturedEnvironment.get().get("OPENCODE_CONFIG_CONTENT"))
+                .contains("external_directory", "git push *", "deepseek-v4-flash",
+                        "loopper-no-thinking", "\"thinking\":{\"type\":\"disabled\"}",
+                        "loopper-structured", "\"steps\":24", "\"temperature\":0.0",
+                        "Never retry the same tool call");
         assertThat(capturedCommand.get().toString()).doesNotContain(capturedEnvironment.get().get("OPENCODE_SERVER_PASSWORD"));
 
         HttpOpenCodeClient client = new HttpOpenCodeClient(org.springframework.web.client.RestClient.builder(), manager::connectionForClient);

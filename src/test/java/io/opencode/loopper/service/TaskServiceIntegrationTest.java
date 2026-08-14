@@ -7,6 +7,7 @@ import io.opencode.loopper.domain.ErrorLayer;
 import io.opencode.loopper.domain.ImplementationKind;
 import io.opencode.loopper.domain.LoopSpec;
 import io.opencode.loopper.domain.TaskFailure;
+import io.opencode.loopper.domain.TaskState;
 import io.opencode.loopper.persistence.AttemptRow;
 import io.opencode.loopper.persistence.ExecutionSessionRow;
 import io.opencode.loopper.persistence.ErrorEventRow;
@@ -71,17 +72,23 @@ class TaskServiceIntegrationTest {
     @Test
     void taskAggregatePersistsOrderedLifecycleAuditAlongsideStateChanges() throws Exception {
         ProjectRow project = projects.create("lifecycle-audit", gitProject());
-        TaskRow ready = drafts.confirm(drafts.create(spec(project.id())).id(), "audit transitions");
+        TaskRow pending = drafts.confirm(drafts.create(spec(project.id())).id(), "audit transitions");
 
-        tasks.start(ready.id());
+        tasks.start(pending.id());
 
-        var events = mapper.listStateTransitionsForScope("TASK", ready.id(), 0, 100);
+        var events = mapper.listStateTransitionsForScope("TASK", pending.id(), 0, 100);
         assertThat(events).extracting(io.opencode.loopper.persistence.StateTransitionEventRow::machineType)
                 .contains("TASK", "STAGE", "ATTEMPT", "EXECUTION_SESSION");
         assertThat(events).anySatisfy(event -> {
             assertThat(event.machineType()).isEqualTo("TASK");
             assertThat(event.event()).isEqualTo("CREATED");
             assertThat(event.fromState()).isNull();
+            assertThat(event.toState()).isEqualTo("PENDING_START");
+        });
+        assertThat(events).anySatisfy(event -> {
+            assertThat(event.machineType()).isEqualTo("TASK");
+            assertThat(event.event()).isEqualTo("REQUEST_START");
+            assertThat(event.fromState()).isEqualTo("PENDING_START");
             assertThat(event.toState()).isEqualTo("QUEUED");
         });
         assertThat(events).anySatisfy(event -> {
@@ -104,6 +111,7 @@ class TaskServiceIntegrationTest {
     void serializedSourceBranchesUseTaskTitleAndNumberRepeatedNames() throws Exception {
         Path root = Path.of(gitProject());
         ProjectRow project = projects.create("named-branches", root.toString());
+        String sourceBranch = runOutput(root, "git", "branch", "--show-current").trim();
 
         TaskRow first = drafts.confirm(drafts.create(spec(project.id())).id(), "隔离分支命名");
         TaskRow second = drafts.confirm(drafts.create(spec(project.id())).id(), "隔离分支命名");
@@ -112,6 +120,17 @@ class TaskServiceIntegrationTest {
         run(root, "git", "update-ref", "refs/remotes/origin/loopper/远端同名任务", "HEAD");
         TaskRow remoteCollision = drafts.confirm(drafts.create(spec(project.id())).id(), "远端同名任务");
 
+        assertThat(List.of(first, second, third, normalized, remoteCollision))
+                .allMatch(task -> TaskState.PENDING_START.name().equals(task.state()))
+                .allMatch(task -> task.branchName() == null && task.worktreePath() == null)
+                .allMatch(task -> mapper.findTaskQueue(task.id()).isEmpty());
+        assertThat(runOutput(root, "git", "branch", "--show-current").trim()).isEqualTo(sourceBranch);
+
+        first = tasks.start(first.id());
+        second = tasks.start(second.id());
+        third = tasks.start(third.id());
+        normalized = tasks.start(normalized.id());
+        remoteCollision = tasks.start(remoteCollision.id());
         assertThat(first.branchName()).isEqualTo("loopper/隔离分支命名");
         assertThat(first.worktreePath()).isEqualTo(root.toRealPath().toString());
         assertThat(second.state()).isEqualTo("QUEUED");
@@ -134,13 +153,35 @@ class TaskServiceIntegrationTest {
     }
 
     @Test
+    void pendingStartTaskCanBeCancelledWithoutTouchingExecutionResources() throws Exception {
+        Path root = Path.of(gitProject());
+        ProjectRow project = projects.create("cancel-pending-start", root.toString());
+        String sourceBranch = runOutput(root, "git", "branch", "--show-current").trim();
+        TaskRow pending = drafts.confirm(drafts.create(spec(project.id())).id(), "取消待开始任务");
+
+        TaskRow cancelled = tasks.cancel(pending.id());
+
+        assertThat(cancelled.state()).isEqualTo("CANCELLED");
+        assertThat(cancelled.branchName()).isNull();
+        assertThat(cancelled.worktreePath()).isNull();
+        assertThat(mapper.findTaskQueue(cancelled.id())).isEmpty();
+        assertThat(mapper.findWorkspaceLease(root.toRealPath().toString())).isEmpty();
+        assertThat(mapper.listSessions(cancelled.id())).isEmpty();
+        assertThat(runOutput(root, "git", "branch", "--show-current").trim()).isEqualTo(sourceBranch);
+    }
+
+    @Test
     void dirtySourceCheckoutWaitsForPerFileResolutionThenPreparesTheTaskBranch() throws Exception {
         Path root = Path.of(gitProject());
         Files.writeString(root.resolve("README.md"), "local source change\n");
         Files.writeString(root.resolve("stash-only.txt"), "preserve in stash\n");
         ProjectRow project = projects.create("dirty-source-resolution", root.toString());
 
-        TaskRow waiting = drafts.confirm(drafts.create(spec(project.id())).id(), "处理未提交文件");
+        TaskRow pending = drafts.confirm(drafts.create(spec(project.id())).id(), "处理未提交文件");
+
+        assertThat(pending.state()).isEqualTo("PENDING_START");
+        assertThat(mapper.findTaskQueue(pending.id())).isEmpty();
+        TaskRow waiting = tasks.start(pending.id());
 
         assertThat(waiting.state()).isEqualTo("WAITING_INPUT");
         assertThat(waiting.branchName()).isNull();
@@ -159,7 +200,7 @@ class TaskServiceIntegrationTest {
                         "stash-only.txt", io.opencode.loopper.runtime.GitWorktreeManager.DirtyFileAction.STASH)
         ), "chore: preserve pre-task source changes");
 
-        assertThat(resolution.task().state()).isEqualTo("READY");
+        assertThat(resolution.task().state()).isEqualTo("RUNNING");
         assertThat(resolution.task().branchName()).startsWith("loopper/处理未提交文件");
         assertThat(resolution.task().worktreePath()).isEqualTo(root.toRealPath().toString());
         assertThat(resolution.workspace().clean()).isTrue();
@@ -175,7 +216,8 @@ class TaskServiceIntegrationTest {
         Path root = Path.of(gitProject());
         Files.writeString(root.resolve("local-only.txt"), "keep me\n");
         ProjectRow project = projects.create("dirty-source-cancel", root.toString());
-        TaskRow waiting = drafts.confirm(drafts.create(spec(project.id())).id(), "取消工作区处理");
+        TaskRow pending = drafts.confirm(drafts.create(spec(project.id())).id(), "取消工作区处理");
+        TaskRow waiting = tasks.start(pending.id());
 
         TaskRow failed = tasks.failDirtyWorkspace(waiting.id());
 
@@ -191,7 +233,7 @@ class TaskServiceIntegrationTest {
         ProjectRow project = projects.create("fixture", gitProject());
         LoopDraftRow draft = drafts.create(spec(project.id()));
         TaskRow task = drafts.confirm(draft.id(), "session recovery");
-        assertThat(task.state()).isEqualTo("READY");
+        assertThat(task.state()).isEqualTo("PENDING_START");
         TaskRow running = tasks.start(task.id());
         AttemptRow first = tasks.attempts(task.id()).getFirst();
         ExecutionSessionRow startedSession = mapper.activeSessions(task.id()).getFirst();
@@ -238,12 +280,12 @@ class TaskServiceIntegrationTest {
                                 null, null, null, null)))), null, null, null, null);
         TaskRow task = drafts.confirm(drafts.create(contract).id(), "complete prompt contract");
 
-        tasks.start(task.id());
+        TaskRow running = tasks.start(task.id());
 
         ExecutionSessionRow session = mapper.activeSessions(task.id()).getFirst();
         assertThat(((FakeOpenCodeClient) openCode).promptForSession(session.externalSessionId()))
                 .contains("Authoritative execution workspace: " + projectRoot)
-                .contains("Workspace branch: " + task.branchName())
+                .contains("Workspace branch: " + running.branchName())
                 .contains("All reads, writes, AgentBridge tool calls")
                 .contains("Context: 先调用 question，确认后仅创建 automation.txt。")
                 .contains("Deliverables: [\"automation.txt\"]")
@@ -260,7 +302,9 @@ class TaskServiceIntegrationTest {
                 null, null, null, null, new LoopSpec.BudgetSpec(10L, null, null));
         TaskRow task = drafts.confirm(drafts.create(limited).id(), "implementation budget gate");
         var stage = tasks.stages(task.id()).getFirst();
-        stageWorkspaceBaselines.captureIfAbsent(task, stage);
+        TaskRow baselineSource = new TaskRow(task.id(), task.projectId(), task.loopDraftId(), task.title(), task.state(),
+                project.rootPath(), null, null, task.createdAt(), task.updatedAt(), task.version());
+        stageWorkspaceBaselines.captureIfAbsent(baselineSource, stage);
         String now = Instant.now().toString();
         AttemptRow completed = new AttemptRow("budget-attempt", task.id(), stage.id(), 1, "SUCCEEDED", null, "prior work", now, now, 0);
         mapper.insertAttempt(completed);
@@ -274,7 +318,7 @@ class TaskServiceIntegrationTest {
 
         TaskRow waiting = tasks.start(task.id());
 
-        assertThat(waiting.state()).isEqualTo("WAITING_INPUT");
+        assertThat(waiting.state()).as(tasks.errors(task.id()).toString()).isEqualTo("WAITING_INPUT");
         assertThat(tasks.attempts(task.id())).hasSize(1);
         assertThat(mapper.listSessions(task.id())).hasSize(1);
         assertThat(fake.createSessionCalls()).isZero();
@@ -447,7 +491,7 @@ class TaskServiceIntegrationTest {
     void terminalTaskAbortCleanupIsBoundedAndNeverClaimsAnUnconfirmedWriterWasAborted() throws Exception {
         ProjectRow project = projects.create("bounded-abort-cleanup", gitProject());
         TaskRow task = drafts.confirm(drafts.create(spec(project.id())).id(), "bounded abort cleanup");
-        tasks.start(task.id());
+        task = tasks.start(task.id());
         ExecutionSessionRow active = mapper.activeSessions(task.id()).getFirst();
         FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
         fake.setSessionState(active.externalSessionId(), "RUNNING");
@@ -476,7 +520,7 @@ class TaskServiceIntegrationTest {
                         List.of(new LoopSpec.VerifierSpec("FILE_EXISTS", null, "README.md", null, null, null, null)))),
                 null, null, null, null);
         TaskRow task = drafts.confirm(drafts.create(restricted).id(), "path policy");
-        tasks.start(task.id());
+        task = tasks.start(task.id());
         Files.writeString(Path.of(task.worktreePath()).resolve("outside.txt"), "out of scope");
 
         TaskRow judging = tasks.verify(task.id());
@@ -697,12 +741,17 @@ class TaskServiceIntegrationTest {
                 null, null, null, null);
         TaskRow task = drafts.confirm(drafts.create(directSpec).id(), "run directly");
 
-        assertThat(task.state()).isEqualTo("READY");
-        assertThat(task.branchName()).isEqualTo("DIRECT");
-        assertThat(task.worktreePath()).isEqualTo(plainDirectory.toRealPath().toString());
-        assertThat(task.baselineCommit()).startsWith("direct:" + task.id() + ":");
+        assertThat(task.state()).isEqualTo("PENDING_START");
+        assertThat(task.branchName()).isNull();
+        assertThat(task.worktreePath()).isNull();
+        assertThat(task.baselineCommit()).isNull();
+        assertThat(mapper.findTaskQueue(task.id())).isEmpty();
 
-        tasks.start(task.id());
+        TaskRow running = tasks.start(task.id());
+        assertThat(running.state()).isEqualTo("RUNNING");
+        assertThat(running.branchName()).isEqualTo("DIRECT");
+        assertThat(running.worktreePath()).isEqualTo(plainDirectory.toRealPath().toString());
+        assertThat(running.baselineCommit()).startsWith("direct:" + task.id() + ":");
         Files.createDirectories(plainDirectory.resolve("src"));
         Files.writeString(plainDirectory.resolve("src/App.java"), "class App {}");
         tasks.verify(task.id());
@@ -758,9 +807,10 @@ class TaskServiceIntegrationTest {
         ProjectRow project = projects.create("stage-scoped-direct", root.toString());
         TaskRow task = drafts.confirm(drafts.create(stageScopedGitDiffSpec(project.id())).id(),
                 "direct stage scoped package diff");
-        assertThat(task.baselineCommit()).startsWith("direct:" + task.id() + ":");
+        assertThat(task.baselineCommit()).isNull();
 
-        tasks.start(task.id());
+        task = tasks.start(task.id());
+        assertThat(task.baselineCommit()).startsWith("direct:" + task.id() + ":");
         Files.writeString(root.resolve("first.txt"), "first");
         assertThat(tasks.verify(task.id()).state()).isEqualTo("RUNNING");
         Files.writeString(root.resolve("second.txt"), "second");
@@ -879,7 +929,14 @@ class TaskServiceIntegrationTest {
 
         TaskRow task = drafts.confirm(drafts.create(spec(project.id())).id(), "no head yet");
 
-        assertThat(task.state()).isEqualTo("READY");
+        assertThat(task.state()).isEqualTo("PENDING_START");
+        assertThat(task.branchName()).isNull();
+        assertThat(task.worktreePath()).isNull();
+        assertThat(mapper.findTaskQueue(task.id())).isEmpty();
+
+        task = tasks.start(task.id());
+
+        assertThat(task.state()).isEqualTo("RUNNING");
         assertThat(task.branchName()).isEqualTo("DIRECT");
         assertThat(task.worktreePath()).isEqualTo(projectRoot.toRealPath().toString());
     }
@@ -892,7 +949,15 @@ class TaskServiceIntegrationTest {
         TaskRow first = drafts.confirm(drafts.create(spec(project.id())).id(), "first direct writer");
         TaskRow second = drafts.confirm(drafts.create(spec(project.id())).id(), "second direct writer");
 
-        assertThat(first.state()).isEqualTo("READY");
+        assertThat(first.state()).isEqualTo("PENDING_START");
+        assertThat(second.state()).isEqualTo("PENDING_START");
+        assertThat(mapper.findTaskQueue(first.id())).isEmpty();
+        assertThat(mapper.findTaskQueue(second.id())).isEmpty();
+
+        first = tasks.start(first.id());
+        second = tasks.start(second.id());
+
+        assertThat(first.state()).isEqualTo("RUNNING");
         assertThat(second.state()).isEqualTo("QUEUED");
         assertThat(second.worktreePath()).isNull();
         assertThat(second.baselineCommit()).isNull();
@@ -905,7 +970,7 @@ class TaskServiceIntegrationTest {
         tasks.cancel(first.id());
 
         assertThat(tasks.get(first.id()).state()).isEqualTo("CANCELLED");
-        assertThat(tasks.get(second.id()).state()).isEqualTo("READY");
+        assertThat(tasks.get(second.id()).state()).isEqualTo("RUNNING");
         assertThat(tasks.get(second.id()).baselineCommit()).startsWith("direct:" + second.id() + ":");
         assertThat(tasks.queueStatus(second.id()).state()).isEqualTo("ADMITTED");
     }
@@ -918,11 +983,14 @@ class TaskServiceIntegrationTest {
         TaskRow holder = drafts.confirm(drafts.create(spec(project.id())).id(), "active direct writer");
         TaskRow queued = drafts.confirm(drafts.create(spec(project.id())).id(), "queued direct writer");
 
+        tasks.start(holder.id());
+        queued = tasks.start(queued.id());
+
         TaskRow cancelled = tasks.cancel(queued.id());
 
         assertThat(cancelled.state()).isEqualTo("CANCELLED");
         assertThat(tasks.queueStatus(queued.id()).state()).isEqualTo("CANCELLED");
-        assertThat(tasks.get(holder.id()).state()).isEqualTo("READY");
+        assertThat(tasks.get(holder.id()).state()).isEqualTo("RUNNING");
         assertThat(mapper.findWorkspaceLease(root.toRealPath().toString()).orElseThrow().holderTaskId())
                 .isEqualTo(holder.id());
 
@@ -931,7 +999,7 @@ class TaskServiceIntegrationTest {
         tasks.deleteArchived(queued.id());
 
         assertThat(mapper.findTask(queued.id())).isEmpty();
-        assertThat(tasks.get(holder.id()).state()).isEqualTo("READY");
+        assertThat(tasks.get(holder.id()).state()).isEqualTo("RUNNING");
     }
 
     @Test
@@ -940,6 +1008,8 @@ class TaskServiceIntegrationTest {
         ProjectRow project = projects.create("manual-terminal-reconcile", root.toString());
         TaskRow holder = drafts.confirm(drafts.create(spec(project.id())).id(), "dirty cancelled holder");
         TaskRow waiter = drafts.confirm(drafts.create(spec(project.id())).id(), "waiting after cleanup");
+        tasks.start(holder.id());
+        tasks.start(waiter.id());
         Files.writeString(root.resolve("unfinished.txt"), "retain the lease\n");
 
         tasks.cancel(holder.id());
@@ -967,7 +1037,7 @@ class TaskServiceIntegrationTest {
         FeatureContracts.QueueStatusDto reconciled = tasks.reconcileQueue(waiter.id());
 
         assertThat(reconciled.state()).isEqualTo("ADMITTED");
-        assertThat(tasks.get(waiter.id()).state()).isEqualTo("READY");
+        assertThat(tasks.get(waiter.id()).state()).isEqualTo("RUNNING");
         assertThat(mapper.findTaskQueue(holder.id()).orElseThrow().state()).isEqualTo("FINISHED");
         assertThat(mapper.findWorkspaceLease(root.toRealPath().toString()).orElseThrow().holderTaskId())
                 .isEqualTo(waiter.id());
@@ -980,6 +1050,8 @@ class TaskServiceIntegrationTest {
         ProjectRow project = projects.create("archive-lease-guard", root.toString());
         TaskRow holder = drafts.confirm(drafts.create(spec(project.id())).id(), "archivable holder");
         TaskRow waiter = drafts.confirm(drafts.create(spec(project.id())).id(), "archive waiter");
+        tasks.start(holder.id());
+        tasks.start(waiter.id());
         Files.writeString(root.resolve("unpublished.txt"), "block archive\n");
         tasks.cancel(holder.id());
 
@@ -999,7 +1071,7 @@ class TaskServiceIntegrationTest {
         tasks.archive(holder.id());
 
         assertThat(tasks.archived(holder.id())).isTrue();
-        assertThat(tasks.get(waiter.id()).state()).isEqualTo("READY");
+        assertThat(tasks.get(waiter.id()).state()).isEqualTo("RUNNING");
         assertThat(mapper.findTaskQueue(holder.id()).orElseThrow().state()).isEqualTo("FINISHED");
     }
 
@@ -1009,6 +1081,8 @@ class TaskServiceIntegrationTest {
         ProjectRow project = projects.create("fingerprint-reconcile", root.toString());
         TaskRow holder = drafts.confirm(drafts.create(spec(project.id())).id(), "fingerprint holder");
         TaskRow waiter = drafts.confirm(drafts.create(spec(project.id())).id(), "fingerprint waiter");
+        tasks.start(holder.id());
+        tasks.start(waiter.id());
         Files.writeString(root.resolve("temporary.txt"), "block initial release\n");
         tasks.cancel(holder.id());
         Files.delete(root.resolve("temporary.txt"));
@@ -1034,6 +1108,8 @@ class TaskServiceIntegrationTest {
         ProjectRow unavailableProject = projects.create("unavailable-reconcile", unavailableRoot.toString());
         TaskRow unavailableHolder = drafts.confirm(drafts.create(spec(unavailableProject.id())).id(), "unavailable holder");
         TaskRow unavailableWaiter = drafts.confirm(drafts.create(spec(unavailableProject.id())).id(), "unavailable waiter");
+        tasks.start(unavailableHolder.id());
+        tasks.start(unavailableWaiter.id());
         Files.writeString(unavailableRoot.resolve("temporary.txt"), "block initial release\n");
         tasks.cancel(unavailableHolder.id());
         Files.delete(unavailableRoot.resolve("temporary.txt"));
@@ -1048,6 +1124,8 @@ class TaskServiceIntegrationTest {
         ProjectRow branchProject = projects.create("branch-reconcile", branchRoot.toString());
         TaskRow branchHolder = drafts.confirm(drafts.create(spec(branchProject.id())).id(), "branch holder");
         TaskRow branchWaiter = drafts.confirm(drafts.create(spec(branchProject.id())).id(), "branch waiter");
+        tasks.start(branchHolder.id());
+        tasks.start(branchWaiter.id());
         Files.writeString(branchRoot.resolve("temporary.txt"), "block initial release\n");
         tasks.cancel(branchHolder.id());
         Files.delete(branchRoot.resolve("temporary.txt"));
@@ -1067,6 +1145,9 @@ class TaskServiceIntegrationTest {
         TaskRow holder = drafts.confirm(drafts.create(spec(project.id())).id(), "concurrent holder");
         TaskRow firstWaiter = drafts.confirm(drafts.create(spec(project.id())).id(), "first waiter");
         TaskRow secondWaiter = drafts.confirm(drafts.create(spec(project.id())).id(), "second waiter");
+        holder = tasks.start(holder.id());
+        tasks.start(firstWaiter.id());
+        tasks.start(secondWaiter.id());
         Files.writeString(root.resolve("temporary.txt"), "block initial release\n");
         tasks.cancel(holder.id());
         Files.delete(root.resolve("temporary.txt"));
@@ -1096,7 +1177,7 @@ class TaskServiceIntegrationTest {
         assertThat(mapper.findTaskQueue(holder.id()).orElseThrow().state()).isEqualTo("FINISHED");
         assertThat(mapper.findTaskQueue(firstWaiter.id()).orElseThrow().state()).isEqualTo("ADMITTED");
         assertThat(mapper.findTaskQueue(secondWaiter.id()).orElseThrow().state()).isEqualTo("QUEUED");
-        assertThat(tasks.get(firstWaiter.id()).state()).isEqualTo("READY");
+        assertThat(tasks.get(firstWaiter.id()).state()).isEqualTo("RUNNING");
         assertThat(tasks.get(secondWaiter.id()).state()).isEqualTo("QUEUED");
         assertThat(mapper.eventsAfter(holder.id(), 0).stream()
                 .filter(event -> "workspace.lease_released".equals(event.type()))).hasSize(1);
@@ -1110,6 +1191,7 @@ class TaskServiceIntegrationTest {
         TaskRow first = drafts.confirm(drafts.create(spec(project.id())).id(), "blocking direct writer");
         TaskRow second = drafts.confirm(drafts.create(spec(project.id())).id(), "waiting direct writer");
         tasks.start(first.id());
+        tasks.start(second.id());
         ExecutionSessionRow writer = mapper.activeSessions(first.id()).getFirst();
         FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
         fake.setSessionState(writer.externalSessionId(), "RUNNING");
@@ -1123,7 +1205,7 @@ class TaskServiceIntegrationTest {
 
         tasks.retrySessionCleanup(writer.id());
 
-        assertThat(tasks.get(second.id()).state()).isEqualTo("READY");
+        assertThat(tasks.get(second.id()).state()).isEqualTo("RUNNING");
         assertThat(tasks.queueStatus(second.id()).state()).isEqualTo("ADMITTED");
     }
 
@@ -1134,6 +1216,8 @@ class TaskServiceIntegrationTest {
         ProjectRow project = projects.create("restart-direct", root.toString());
         TaskRow first = drafts.confirm(drafts.create(spec(project.id())).id(), "crashed terminal holder");
         TaskRow second = drafts.confirm(drafts.create(spec(project.id())).id(), "persisted restart waiter");
+        first = tasks.start(first.id());
+        tasks.start(second.id());
         mapper.updateTaskState(new TaskRow(first.id(), first.projectId(), first.loopDraftId(), first.title(), "CANCELLED",
                 first.worktreePath(), first.branchName(), first.baselineCommit(), first.createdAt(), Instant.now().toString(), first.version()));
         mapper.archiveTask(first.id(), Instant.now().toString());
@@ -1143,7 +1227,7 @@ class TaskServiceIntegrationTest {
         assertThat(tasks.get(first.id()).state()).isEqualTo("CANCELLED");
         assertThat(tasks.archived(first.id())).isTrue();
         assertThat(mapper.findTaskQueue(first.id()).orElseThrow().state()).isEqualTo("FINISHED");
-        assertThat(tasks.get(second.id()).state()).isEqualTo("READY");
+        assertThat(tasks.get(second.id()).state()).isEqualTo("RUNNING");
         assertThat(tasks.queueStatus(second.id()).state()).isEqualTo("ADMITTED");
     }
 
@@ -1152,6 +1236,7 @@ class TaskServiceIntegrationTest {
         Path root = Path.of(gitProject());
         ProjectRow project = projects.create("no-waiter-reconcile", root.toString());
         TaskRow holder = drafts.confirm(drafts.create(spec(project.id())).id(), "terminal without waiter");
+        tasks.start(holder.id());
         Files.writeString(root.resolve("temporary.txt"), "dirty\n");
         tasks.cancel(holder.id());
         Files.delete(root.resolve("temporary.txt"));
@@ -1205,7 +1290,7 @@ class TaskServiceIntegrationTest {
     void restartRecoveryAbortsOldSessionAndContinuesWithFreshSession() throws Exception {
         ProjectRow project = projects.create("fixture", gitProject());
         TaskRow task = drafts.confirm(drafts.create(spec(project.id())).id(), "restart");
-        tasks.start(task.id());
+        task = tasks.start(task.id());
         String externalSessionId = mapper.activeSessions(task.id()).getFirst().externalSessionId();
         tasks.recoverAfterRestart();
         assertThat(tasks.get(task.id()).state()).isEqualTo("RUNNING");
@@ -1240,6 +1325,8 @@ class TaskServiceIntegrationTest {
         ProjectRow project = projects.create("fixture", gitProject());
         TaskRow task = drafts.confirm(drafts.create(judgeContractSpec(project.id())).id(), "two judges");
         tasks.start(task.id());
+        String implementationSessionId = mapper.activeSessions(task.id()).getFirst().externalSessionId();
+        assertThat(((FakeOpenCodeClient) openCode).modelForSession(implementationSessionId).thinking()).isTrue();
 
         TaskRow judging = tasks.verify(task.id());
         assertThat(judging.state()).isEqualTo("JUDGING");
@@ -1250,6 +1337,8 @@ class TaskServiceIntegrationTest {
             assertThat(((FakeOpenCodeClient) openCode).isReadOnlySession(judge.externalSessionId())).isTrue();
             assertThat(((FakeOpenCodeClient) openCode).profileForSession(judge.externalSessionId()))
                     .isEqualTo(OpenCodeClient.SessionProfile.JUDGE_READ_ONLY);
+            assertThat(((FakeOpenCodeClient) openCode).modelForSession(judge.externalSessionId()).thinking())
+                    .isFalse();
             assertThat(((FakeOpenCodeClient) openCode).promptForSession(judge.externalSessionId()))
                     .contains("基于证据的中文 Markdown", "## 证据", "`reason` 必须使用简体中文", "每个换行正确转义")
                     .contains("跨阶段 AI 验收合同", "AC-1 [BOTH]", "评审准则：检查边界行为与需求一致性")
@@ -1388,9 +1477,9 @@ class TaskServiceIntegrationTest {
     void finalEvidenceCapturesBaselineDiffWithoutGitDiffVerifierAndPreviewSurvivesBranchRestore() throws Exception {
         ProjectRow project = projects.create("stable-task-diff", gitProject());
         TaskRow task = drafts.confirm(drafts.create(spec(project.id())).id(), "stable task diff");
+        task = tasks.start(task.id());
         Path workspace = Path.of(task.worktreePath());
         Files.writeString(workspace.resolve("feature.txt"), "verified change\n");
-        tasks.start(task.id());
 
         tasks.verify(task.id());
         tasks.pollJudges(task.id());
@@ -1649,7 +1738,7 @@ class TaskServiceIntegrationTest {
         ProjectRow project = projects.create("stagnation-progress", gitProject());
         LoopSpec progressing = failingContentSpec(project.id(), 2, null, new LoopSpec.SessionPolicy(true, true));
         TaskRow task = drafts.confirm(drafts.create(progressing).id(), "recognize workspace progress");
-        tasks.start(task.id());
+        task = tasks.start(task.id());
 
         tasks.verify(task.id());
         Files.writeString(Path.of(task.worktreePath()).resolve("README.md"), "different work without the required marker");
@@ -1713,7 +1802,7 @@ class TaskServiceIntegrationTest {
                 List.of(new LoopSpec.StageSpec("Check README", List.of("README.md"), List.of(),
                         List.of("verified README"), List.of(verifier), List.of(criterion), null,
                         ImplementationKind.NON_JAVA)),
-                null, null, null, null);
+                null, new LoopSpec.ModelSpec("deepseek", "deepseek-v4-flash", true), null, null);
     }
     private LoopSpec multiStageJudgeContractSpec(String projectId) {
         LoopSpec.VerifierSpec first = new LoopSpec.VerifierSpec(

@@ -54,6 +54,11 @@ and Direct mode, and remains safe on Linux filesystems that reuse an
 inode immediately after deletion. A released lease may refresh that fingerprint
 before admitting a new writer; active and release-pending leases still fail closed.
 Only one non-released lease exists for a root. FIFO queue admission is persisted.
+LoopSpec confirmation creates a `PENDING_START` Task only: no queue row or lease exists
+and Git is untouched. The explicit Start action records `REQUEST_START`, queue
+admission and lease acquisition; an admitted Task then prepares its workspace and
+continues automatically into execution, while a waiter remains `QUEUED` with the same
+execution request already recorded.
 An abort response alone never releases a lease: the old writer must be observed
 terminal. Unknown writer state keeps the lease and blocks Recovery and Automation.
 `ADMITTED` must always correspond to the same Task as the non-released lease holder.
@@ -105,7 +110,10 @@ Snapshot I/O and Session creation remain outside SQLite transactions.
 Derived Recovery tasks copy the parent's requirement, decomposition, every
 package design/compilation summary, and composite design artifacts. They retain
 each Stage's `workPackageId`; Recovery must not collapse a decomposed parent to
-only its last Designer message.
+only its last Designer message. Creating a derived Recovery also stops at
+`PENDING_START`; it does not reserve the parent project or create/switch a branch.
+The operator's explicit Start action applies the same queue/lease boundary as a
+normal confirmed Task.
 
 ## Verifiers and artifacts
 
@@ -152,6 +160,13 @@ satisfy later `requireChanges`; a later edit/delete/rename of a predecessor file
 is still observed. Their evidence records `baselineScope: STAGE` and `stageId`.
 `VERIFY_ONLY` Recovery and the final automatic Task diff retain the Task baseline
 and record `baselineScope: TASK`, preserving cumulative task audit evidence.
+
+Compiler planning, draft persistence, and confirmation use the same normalized,
+bounded path-policy semantics as runtime `GIT_DIFF`. Malformed globs and any
+allowed rule entirely shadowed by a forbidden rule are rejected before Task,
+Attempt, or writable Session creation; the Compiler can spend its bounded
+planning-repair turn to correct generated conflicts. A broad allow rule with a
+narrower forbidden subtree remains a valid policy.
 
 For new LoopSpec v2 contracts, the server classifies verifier evidence rather
 than trusting a Designer label. Each observable criterion chooses deterministic
@@ -204,4 +219,6 @@ a soft budget and move a Task to `WAITING_INPUT`.
 Automation triggers are `MANUAL`, `CRON`, `GIT_HEAD_CHANGED`, and loopback
 `WEBHOOK`. New rules are `DISABLED` and `REVIEW_REQUIRED`. `AUTO_START` requires
 an explicitly approved immutable template version and still passes through the
-queue, permissions, verifiers and both Judges.
+same `PENDING_START -> REQUEST_START -> QUEUED` boundary, permissions, verifiers
+and both Judges. A review-required detection creates only a draft; its explicit
+approval confirms the Task and immediately invokes that same Start boundary.

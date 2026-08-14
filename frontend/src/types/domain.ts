@@ -1,6 +1,7 @@
 export type ErrorLayer = 'FIELD' | 'VERIFICATION' | 'SESSION' | 'TASK'
 
 export type TaskStatus =
+  | 'PENDING_START'
   | 'QUEUED'
   | 'PREPARING'
   | 'READY'
