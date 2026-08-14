@@ -55,13 +55,15 @@ class LocalSyncConflictServiceIntegrationTest {
 
     @Test
     void deterministicMergeCombinesIndependentSourceAndTaskEdits() throws Exception {
-        Path source = repository("alpha\nmiddle\nomega\n");
+        String base = "alpha\nmiddle-1\nmiddle-2\nmiddle-3\nmiddle-4\nmiddle-5\nmiddle-6\nomega\n";
+        Path source = repository(base);
         Files.writeString(source.resolve("delete-me.txt"), "obsolete\n");
         run(source, "git", "add", ".");
         run(source, "git", "commit", "-m", "deletion fixture");
         TaskRow task = task(source, verifier("git", "status", "--short"));
-        Files.writeString(source.resolve("README.md"), "source-alpha\nmiddle\nomega\n");
-        Files.writeString(Path.of(task.worktreePath()).resolve("README.md"), "alpha\nmiddle\ntask-omega\n");
+        Files.writeString(source.resolve("README.md"), base.replaceFirst("alpha", "source-alpha"));
+        Files.writeString(Path.of(task.worktreePath()).resolve("README.md"),
+                base.replaceFirst("omega", "task-omega"));
         Files.delete(Path.of(task.worktreePath()).resolve("delete-me.txt"));
         commitTask(task);
 
@@ -77,7 +79,7 @@ class LocalSyncConflictServiceIntegrationTest {
         assertThat(conflicts.apply(task.id(), session.id(),
                 new LocalSyncConflictService.ApplyRequest(true, session.version())).state()).isEqualTo("APPLIED");
         assertThat(Files.readString(source.resolve("README.md")))
-                .isEqualTo("source-alpha\nmiddle\ntask-omega\n");
+                .isEqualTo("source-alpha\nmiddle-1\nmiddle-2\nmiddle-3\nmiddle-4\nmiddle-5\nmiddle-6\ntask-omega\n");
         assertThat(source.resolve("delete-me.txt")).doesNotExist();
     }
 

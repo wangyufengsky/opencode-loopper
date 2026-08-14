@@ -444,7 +444,9 @@ diagnostics cannot be mistaken for path records, while the user's repository and
 global Git configuration remain unchanged. Cross-platform Git integration fixtures
 fix `core.autocrlf=false` at initial clone time and use repository attributes for
 exact-LF merge contracts; POSIX-only bare `mvn` fixture execution is kept separate
-from Windows executable-resolution coverage.
+from Windows executable-resolution coverage. Automatic-merge fixtures keep their
+independent edits far enough apart that supported Git/xdiff versions agree on the
+hunk boundary; adjacent edits remain a legitimate manual-conflict case.
 The single-action “创建合并请求” button opens its confirmation dialog directly,
 then opens a prefilled GitLab/GitHub creation page; the hosting
 service still owns the final merge-request confirmation and merge. HTTP/HTTPS
