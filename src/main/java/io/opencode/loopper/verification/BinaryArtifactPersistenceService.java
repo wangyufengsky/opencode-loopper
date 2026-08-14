@@ -91,7 +91,7 @@ public class BinaryArtifactPersistenceService {
             if (path.isAbsolute() || path.startsWith("..") || path.getNameCount() < 2 || !"artifacts".equals(path.getName(0).toString())) {
                 throw new TaskFailure("BROWSER_ARTIFACT_INVALID", "BROWSER artifact path must stay below artifacts/");
             }
-            return path.toString();
+            return path.toString().replace('\\', '/');
         } catch (RuntimeException invalid) {
             if (invalid instanceof TaskFailure failure) throw failure;
             throw new TaskFailure("BROWSER_ARTIFACT_INVALID", "BROWSER artifact path is invalid");

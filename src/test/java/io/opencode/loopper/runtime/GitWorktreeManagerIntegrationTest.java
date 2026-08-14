@@ -279,6 +279,7 @@ class GitWorktreeManagerIntegrationTest {
     private void configureIdentity(Path repository) throws Exception {
         run(repository, "git", "config", "user.email", "test@example.invalid");
         run(repository, "git", "config", "user.name", "test");
+        run(repository, "git", "config", "core.autocrlf", "false");
     }
 
     private String run(Path directory, String... argv) throws Exception {

@@ -76,7 +76,7 @@ describe('Loopper REST contract adapter', () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(json({ id: 'draft-1', status: 'DRAFT_READY', updatedAt: 'now', spec }, 201))
       .mockResolvedValueOnce(json({ taskId: 'task-1' }))
-      .mockResolvedValueOnce(json({ loopperVersion: '0.1.52', status: 'OFFLINE', managed: false, endpoint: 'http://127.0.0.1:51234', checkedAt: 'now', startupFailure: 'Managed OpenCode exited with code 1 before it became healthy' }))
+      .mockResolvedValueOnce(json({ loopperVersion: '0.1.53', status: 'OFFLINE', managed: false, endpoint: 'http://127.0.0.1:51234', checkedAt: 'now', startupFailure: 'Managed OpenCode exited with code 1 before it became healthy' }))
     vi.stubGlobal('fetch', fetchMock)
 
     await api.createDraft(spec)
@@ -86,7 +86,7 @@ describe('Loopper REST contract adapter', () => {
 
     await expect(api.confirmDraft('draft-1')).resolves.toEqual({ taskId: 'task-1' })
     await expect(api.getRuntime()).resolves.toMatchObject({
-      loopperVersion: '0.1.52', status: 'OFFLINE', managed: false, endpoint: 'http://127.0.0.1:51234',
+      loopperVersion: '0.1.53', status: 'OFFLINE', managed: false, endpoint: 'http://127.0.0.1:51234',
       startupFailure: 'Managed OpenCode exited with code 1 before it became healthy',
     })
   })

@@ -259,6 +259,9 @@ replaces only `{{LOOPPER_PORT}}` and `{{LOOPPER_TEMP}}`, starts a direct argv
 root process, and polls bounded readiness before running bound HTTP/JSON/BROWSER
 checks. Every exit path stops the observed process tree and records resolved
 argv, PID/start identity, port, readiness attempts, bounded output, and cleanup.
+Persisted screenshot and trace references always use `/`-separated paths below
+`artifacts/`, including when the verifier runs on Windows, so database evidence
+remains portable across hosts.
 Git-visible changes made by the verifier fail with
 `VERIFIER_WORKSPACE_MUTATED`. Unconfirmed termination becomes
 `VERIFIER_RUNTIME_TERMINATION_UNCONFIRMED`, leaves the runtime `DISCONNECTED`,
@@ -331,7 +334,9 @@ An older active Stage with existing Attempts but no persisted Stage baseline
 fails closed with `STAGE_WORKSPACE_BASELINE_MISSING` before another Session is
 created. V25 persists the marker by Stage, cascades it with Task/Stage deletion,
 and startup recovery removes only private baseline directories whose Task no
-longer exists after containment checks.
+longer exists after containment checks. The contained cleanup clears the
+read-only attribute from regular Git object files before deletion, which is
+required by Windows without widening the managed-directory boundary.
 
 Before entering `VERIFYING`, the
 orchestrator performs a second authoritative status read and requires the
@@ -433,6 +438,10 @@ explicit `refs/heads/<taskBranch>` ref, so neither push nor merge-request creati
 requires the old Task branch to be checked out. A remote publication is a normal
 non-force push. Without a remote, the commit remains only on the local Task branch;
 the restored source branch is not fast-forwarded or overlaid. Direct-execution Tasks remain excluded.
+Local-sync conflict inspection parses NUL-delimited Git path output. Those Git
+commands disable `core.safecrlf` warnings only for the child command so CRLF
+diagnostics cannot be mistaken for path records, while the user's repository and
+global Git configuration remain unchanged.
 The single-action “创建合并请求” button opens its confirmation dialog directly,
 then opens a prefilled GitLab/GitHub creation page; the hosting
 service still owns the final merge-request confirmation and merge. HTTP/HTTPS

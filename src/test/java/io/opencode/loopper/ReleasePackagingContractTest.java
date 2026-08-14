@@ -8,6 +8,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.io.TempDir;
 
 class ReleasePackagingContractTest {
@@ -37,7 +39,7 @@ class ReleasePackagingContractTest {
         String linux = Files.readString(PROJECT_ROOT.resolve("scripts/start-linux.sh"));
 
         assertThat(windows)
-                .contains("opencode-loopper-0.1.52.jar")
+                .contains("opencode-loopper-0.1.53.jar")
                 .contains("LOOPPER_PUBLICATION_HTTP_WEB_HOSTS=gitlab.spdb.com")
                 .contains("LOOPPER_GITLAB_HOST=gitlab.spdb.com")
                 .contains("LOOPPER_GITLAB_API_BASE_URL=http://gitlab.spdb.com/api/v4")
@@ -56,7 +58,7 @@ class ReleasePackagingContractTest {
                 .doesNotContain("serve --hostname 127.0.0.1 --port 4096");
 
         assertThat(linux)
-                .contains("opencode-loopper-0.1.52.jar")
+                .contains("opencode-loopper-0.1.53.jar")
                 .contains("LOOPPER_PUBLICATION_HTTP_WEB_HOSTS=\"gitlab.spdb.com")
                 .contains("LOOPPER_GITLAB_HOST=\"${LOOPPER_GITLAB_HOST:-gitlab.spdb.com}\"")
                 .contains("LOOPPER_GITLAB_API_BASE_URL=\"${LOOPPER_GITLAB_API_BASE_URL:-http://gitlab.spdb.com/api/v4}\"")
@@ -75,16 +77,19 @@ class ReleasePackagingContractTest {
     }
 
     @Test
+    @EnabledOnOs({OS.LINUX, OS.MAC})
     void linuxStartupDiscoversTuiServerFromItsListeningPort() throws Exception {
         assertLinuxTuiDiscovery("lsof");
     }
 
     @Test
+    @EnabledOnOs({OS.LINUX, OS.MAC})
     void linuxStartupFallsBackToSsForTuiServerDiscovery() throws Exception {
         assertLinuxTuiDiscovery("ss");
     }
 
     @Test
+    @EnabledOnOs({OS.LINUX, OS.MAC})
     void linuxStartupHealthChecksListenersWhenSocketOwnershipIsHidden() throws Exception {
         Path bin = Files.createDirectories(tempDir.resolve("bin"));
         Path javaHome = fakeJavaHome();
@@ -106,6 +111,7 @@ class ReleasePackagingContractTest {
     }
 
     @Test
+    @EnabledOnOs({OS.LINUX, OS.MAC})
     void linuxStartupNormalizesWildcardAddressAndUsesOfficialServerCredentials() throws Exception {
         Path bin = Files.createDirectories(tempDir.resolve("bin"));
         Path javaHome = fakeJavaHome();
@@ -124,6 +130,7 @@ class ReleasePackagingContractTest {
     }
 
     @Test
+    @EnabledOnOs({OS.LINUX, OS.MAC})
     void linuxStartupPinsTheResolvedCliBeforeManagedAutoStartup() throws Exception {
         Path bin = Files.createDirectories(tempDir.resolve("bin"));
         Path javaHome = fakeJavaHome();

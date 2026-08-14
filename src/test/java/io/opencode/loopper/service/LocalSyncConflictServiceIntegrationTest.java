@@ -26,6 +26,8 @@ import java.security.MessageDigest;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -178,11 +180,40 @@ class LocalSyncConflictServiceIntegrationTest {
                 .isInstanceOf(BadRequestException.class).hasMessageContaining("二进制");
         assertThatThrownBy(() -> conflicts.content(task.id(), session.id(), "../.git/config"))
                 .isInstanceOf(BadRequestException.class);
+    }
+
+    @Test
+    @EnabledOnOs({OS.LINUX, OS.MAC})
+    void rejectsSourceSymlinkEscapesOnPlatformsWithUnprivilegedSymlinkSupport() throws Exception {
+        Path source = repository("base\n");
+        TaskRow task = task(source, verifier("git", "status", "--short"));
+        Files.writeString(source.resolve("README.md"), "source\n");
+        Files.writeString(Path.of(task.worktreePath()).resolve("README.md"), "task\n");
+        commitTask(task);
+        var session = conflicts.createOrRefresh(task.id());
         Path outside = temp.resolve("outside");
         Files.createDirectories(outside);
         Files.createSymbolicLink(source.resolve("escape-link"), outside);
         assertThatThrownBy(() -> conflicts.content(task.id(), session.id(), "escape-link/file.txt"))
                 .isInstanceOf(BadRequestException.class).hasMessageContaining("符号链接");
+    }
+
+    @Test
+    void crlfSafetyWarningsNeverPolluteNulDelimitedGitPaths() throws Exception {
+        Path source = repository("base\n");
+        run(source, "git", "config", "core.autocrlf", "true");
+        run(source, "git", "config", "core.safecrlf", "warn");
+        TaskRow task = task(source, verifier("git", "status", "--short"));
+        Files.writeString(source.resolve("README.md"), "source\n");
+        Files.writeString(Path.of(task.worktreePath()).resolve("README.md"), "task\n");
+        commitTask(task);
+
+        var session = conflicts.createOrRefresh(task.id());
+
+        assertThat(session.state()).isEqualTo("OPEN");
+        assertThat(conflicts.files(task.id(), session.id()))
+                .extracting(LocalSyncConflictService.FileSummary::path)
+                .containsExactly("README.md");
     }
 
     @Test
@@ -301,6 +332,7 @@ class LocalSyncConflictServiceIntegrationTest {
     }
 
     @Test
+    @EnabledOnOs({OS.LINUX, OS.MAC})
     void writeFailureRestoresEarlierWritesWithoutTouchingUnrelatedFiles() throws Exception {
         Path source = repository("base\n");
         Files.writeString(source.resolve("a.txt"), "base a\n");
@@ -335,6 +367,7 @@ class LocalSyncConflictServiceIntegrationTest {
     }
 
     @Test
+    @EnabledOnOs({OS.LINUX, OS.MAC})
     void missingRecoveryBackupEndsInRollbackFailedWithManualRecoveryLocation() throws Exception {
         Path source = repository("base\n");
         TaskRow task = task(source, verifier("./break-rollback.sh"));
@@ -362,6 +395,7 @@ class LocalSyncConflictServiceIntegrationTest {
     }
 
     @Test
+    @EnabledOnOs({OS.LINUX, OS.MAC})
     void sourceRootLockRejectsConcurrentApplyForTheSameProject() throws Exception {
         Path source = repository("base\n");
         Path sleeper = source.resolve("slow-verify.sh");

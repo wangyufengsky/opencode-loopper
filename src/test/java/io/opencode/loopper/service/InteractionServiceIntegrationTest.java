@@ -24,6 +24,8 @@ import java.util.Map;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -152,6 +154,7 @@ class InteractionServiceIntegrationTest {
     }
 
     @Test
+    @EnabledOnOs({OS.LINUX, OS.MAC})
     void allowsWorkspacePathsAndAbsoluteSystemExecutables() throws Exception {
         String workspace = Path.of(mapper.findTask("task-1").orElseThrow().worktreePath()).toRealPath().toString();
         fake.setPendingPermission("remote-1", new OpenCodeClient.PendingPermission(
@@ -169,6 +172,7 @@ class InteractionServiceIntegrationTest {
     }
 
     @Test
+    @EnabledOnOs({OS.LINUX, OS.MAC})
     void onlyExemptsTrustedAbsoluteExecutablesAtTheStartOfEachCommandSegment() {
         fake.setPendingPermissions("remote-1", List.of(
                 new OpenCodeClient.PendingPermission("system-command", "remote-1", "bash",

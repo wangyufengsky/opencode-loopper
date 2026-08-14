@@ -1010,7 +1010,16 @@ public class LocalSyncConflictService {
     }
 
     private String gitAllowEmpty(Path directory, List<String> command, String code) {
-        ProcessResult result = runner.run(directory, command, GIT_TIMEOUT);
+        List<String> normalizedCommand = command;
+        if (!command.isEmpty() && "git".equals(command.getFirst())) {
+            ArrayList<String> withoutSafeCrlfWarnings = new ArrayList<>(command.size() + 2);
+            withoutSafeCrlfWarnings.add("git");
+            withoutSafeCrlfWarnings.add("-c");
+            withoutSafeCrlfWarnings.add("core.safecrlf=false");
+            withoutSafeCrlfWarnings.addAll(command.subList(1, command.size()));
+            normalizedCommand = List.copyOf(withoutSafeCrlfWarnings);
+        }
+        ProcessResult result = runner.run(directory, normalizedCommand, GIT_TIMEOUT);
         if (result.timedOut()) throw new ConflictException(code, "Git 检查超时");
         if (result.outputTruncated()) throw new ConflictException(code, "Git 检查输出超过安全上限");
         if (result.exitCode() != 0) throw new ConflictException(code, result.output() == null ? "Git 检查失败" : result.output().strip());

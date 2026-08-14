@@ -299,7 +299,12 @@ public class StageWorkspaceBaselineManager {
 
     private void deleteManagedTree(Path repository) throws IOException {
         try (var paths = Files.walk(repository)) {
-            for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) Files.deleteIfExists(path);
+            for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) {
+                if (Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) {
+                    path.toFile().setWritable(true);
+                }
+                Files.deleteIfExists(path);
+            }
         }
     }
 

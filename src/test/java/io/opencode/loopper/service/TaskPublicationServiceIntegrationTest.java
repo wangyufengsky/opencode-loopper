@@ -330,6 +330,7 @@ class TaskPublicationServiceIntegrationTest {
         run(project, "git", "init", "-b", "main");
         run(project, "git", "config", "user.email", "test@example.invalid");
         run(project, "git", "config", "user.name", "Loopper Test");
+        run(project, "git", "config", "core.autocrlf", "false");
         Files.writeString(project.resolve("README.md"), "fixture\n");
         run(project, "git", "add", "README.md");
         run(project, "git", "commit", "-m", "initial");
@@ -344,6 +345,7 @@ class TaskPublicationServiceIntegrationTest {
         run(project, "git", "init", "-b", "main");
         run(project, "git", "config", "user.email", "test@example.invalid");
         run(project, "git", "config", "user.name", "Loopper Test");
+        run(project, "git", "config", "core.autocrlf", "false");
         Files.writeString(project.resolve("README.md"), "fixture\n");
         run(project, "git", "add", "README.md");
         run(project, "git", "commit", "-m", "initial");
