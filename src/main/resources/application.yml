@@ -10,7 +10,7 @@ spring:
           enabled: false
         protocol: STREAMABLE
         name: opencode-loopper
-        version: 0.1.50
+        version: 0.1.51
         type: SYNC
         instructions: >-
           Use the six Loopper tools only. Designer access is READ_ONLY; proposals synchronize
@@ -73,6 +73,7 @@ loopper:
   attempt-timeout: 30m
   verifier-timeout: 10m
   monitor-delay: 2s
+  workspace-lease-reconcile-delay: 10s
   designer-monitor-delay: 750ms
   designer-timeout: 15m
   # A Task may be terminal while its last remote writer still needs best-effort

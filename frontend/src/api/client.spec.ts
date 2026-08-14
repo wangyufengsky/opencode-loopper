@@ -76,7 +76,7 @@ describe('Loopper REST contract adapter', () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(json({ id: 'draft-1', status: 'DRAFT_READY', updatedAt: 'now', spec }, 201))
       .mockResolvedValueOnce(json({ taskId: 'task-1' }))
-      .mockResolvedValueOnce(json({ loopperVersion: '0.1.50', status: 'OFFLINE', managed: false, endpoint: 'http://127.0.0.1:51234', checkedAt: 'now', startupFailure: 'Managed OpenCode exited with code 1 before it became healthy' }))
+      .mockResolvedValueOnce(json({ loopperVersion: '0.1.51', status: 'OFFLINE', managed: false, endpoint: 'http://127.0.0.1:51234', checkedAt: 'now', startupFailure: 'Managed OpenCode exited with code 1 before it became healthy' }))
     vi.stubGlobal('fetch', fetchMock)
 
     await api.createDraft(spec)
@@ -86,7 +86,7 @@ describe('Loopper REST contract adapter', () => {
 
     await expect(api.confirmDraft('draft-1')).resolves.toEqual({ taskId: 'task-1' })
     await expect(api.getRuntime()).resolves.toMatchObject({
-      loopperVersion: '0.1.50', status: 'OFFLINE', managed: false, endpoint: 'http://127.0.0.1:51234',
+      loopperVersion: '0.1.51', status: 'OFFLINE', managed: false, endpoint: 'http://127.0.0.1:51234',
       startupFailure: 'Managed OpenCode exited with code 1 before it became healthy',
     })
   })
@@ -430,6 +430,29 @@ describe('Loopper REST contract adapter', () => {
     expect(fetchMock.mock.calls[0]).toEqual(['/api/tasks/task%201/archive', expect.objectContaining({ method: 'PUT', headers: expect.objectContaining({ 'X-Loopper-Local-UI': '1' }) })])
     expect(fetchMock.mock.calls[1]).toEqual(['/api/tasks/task%201/archive', expect.objectContaining({ method: 'DELETE', headers: expect.objectContaining({ 'X-Loopper-Local-UI': '1' }) })])
     expect(fetchMock.mock.calls[2]).toEqual(['/api/tasks/task%201', expect.objectContaining({ method: 'DELETE', headers: expect.objectContaining({ 'X-Loopper-Local-UI': '1' }) })])
+  })
+
+  it('loads queue holder diagnostics and reconciles only through the local UI contract', async () => {
+    const queue = {
+      taskId: 'task 1', state: 'QUEUED', queuePosition: 1, leaseState: 'RELEASE_PENDING',
+      holderTaskId: 'holder-1', holderTaskTitle: '旧任务', holderTaskState: 'CANCELLED', holderArchived: true,
+      releaseReason: 'SOURCE_BRANCH_WORKSPACE_DIRTY', reconcileAvailable: true,
+    }
+    const fetchMock = vi.fn().mockResolvedValueOnce(json(queue)).mockResolvedValueOnce(json({
+      ...queue, state: 'ADMITTED', queuePosition: null, leaseState: 'HELD', holderTaskId: 'task 1',
+      holderTaskTitle: '等待任务', holderTaskState: 'QUEUED', holderArchived: false, releaseReason: 'MANUAL_QUEUE_RECONCILIATION', reconcileAvailable: false,
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(api.getTaskQueue('task 1')).resolves.toMatchObject({
+      holderTaskId: 'holder-1', holderArchived: true, releaseReason: 'SOURCE_BRANCH_WORKSPACE_DIRTY', reconcileAvailable: true,
+    })
+    await expect(api.reconcileTaskQueue('task 1')).resolves.toMatchObject({ state: 'ADMITTED', reconcileAvailable: false })
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/tasks/task%201/queue')
+    expect(fetchMock.mock.calls[1]).toEqual(['/api/tasks/task%201/queue/reconcile', expect.objectContaining({
+      method: 'POST', headers: expect.objectContaining({ 'X-Loopper-Local-UI': '1' }),
+    })])
   })
 
   it('loads an encoded task file diff preview', async () => {

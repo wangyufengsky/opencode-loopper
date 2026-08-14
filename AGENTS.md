@@ -41,10 +41,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.1.50.jar
-   jar tf target/opencode-loopper-0.1.50.jar \
+   test -s target/opencode-loopper-0.1.51.jar
+   jar tf target/opencode-loopper-0.1.51.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.1.50.jar
+   shasum -a 256 target/opencode-loopper-0.1.51.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -93,8 +93,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.1.50`。
-- 正式产物：`target/opencode-loopper-0.1.50.jar`。
+- Maven 项目版本：`0.1.51`。
+- 正式产物：`target/opencode-loopper-0.1.51.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -263,6 +263,7 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 - 无可用 Git HEAD：直接使用登记根目录，并在 `direct-baselines/<taskId>` 保存私有 Git-compatible 基线；不得在用户项目中隐式初始化或提交 Git。
 - 所有路径 canonicalize 后进行 containment 和符号链接检查。
 - 同一登记 root（Git 或 Direct）同时只能有一个未释放写租约；旧写入者状态未知时保持租约并阻断 Recovery/Automation。Git 任务仍有未提交文件改动时保留租约；用户确认提交后恢复任务开始前的源分支并释放租约，有排队任务时再切换到下一任务分支。
+- Task、Queue 与 Lease 必须保持独立状态机，并由统一协调器维护跨状态不变量：`ADMITTED` 必须与非 `RELEASED` 租约的 holder 一致。终态 holder 只有在写入 Session/验证运行时已确认停止、项目指纹一致、工作区干净且源分支可安全恢复时，才允许完成队列项并严格按 FIFO 原子转移租约；Git/指纹检查在 SQLite 事务外，真正的完成/转移在短事务内复核。启动恢复、取消/Session 清理、归档前置、手动检查和仅扫描“终态 holder + QUEUED waiter”的 10 秒后台协调必须复用同一逻辑，且并发幂等。活动 holder 或 `ADMITTED` 任务不得归档/永久删除，删除路径不得清空 holder 绕过状态机；任何阻塞均 fail closed，不得自动 stash、提交、删除或强制切分支。
 - Recovery 仅从 `FAILED`/`CANCELLED` 派生，模式为 `FROM_FAILED_STAGE`、`ALL_STAGES` 或 `VERIFY_ONLY`。
 - `VERIFY_ONLY` 不创建可写 Session；Direct 模式不提供原地回滚。
 - fingerprint、baseline 或旧 writer 不匹配时必须 fail closed。
@@ -361,7 +362,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.1.50.jar
+JAR=target/opencode-loopper-0.1.51.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -459,6 +460,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-08-14 | 修复终态 holder 阻塞 FIFO 队列并交付 0.1.51 | 新增统一租约协调服务，复用于取消/Session 清理、启动恢复、10 秒后台检查、手动检查和归档前置；新增 holder 阻塞投影与本地 UI 重新检查入口；活动 holder 禁止归档/删除；同步 README、架构、设计、七特性合同与本公约正文 | 聚焦队列/租约并发测试通过；`./scripts/verify.sh`：Java 360 项中 359 通过、Windows 条件用例 1 项跳过，Vitest 149/149，BUILD SUCCESS；JAR `target/opencode-loopper-0.1.51.jar` 262939806 bytes，SHA-256 `5575c8ff79fae533493ef54ef07c4ebaeb4f56e3dbdc5a0fc1753bc582e138f8`，含 100 项前端静态资源；发布目标：`v0.1.51` |
 | 2026-08-13 | 隔离多包 Stage 差异验收并交付 0.1.50 | V25 持久化 Stage 私有工作区基线；普通可写 Stage 的显式 `GIT_DIFF` 与 Attempt handoff 改按 Stage 首次执行前基线比较，重试/重启复用，旧活动 Stage 缺失时 fail closed；`VERIFY_ONLY` 与最终 Task 差异保留任务基线；同步 README、架构、七特性合同与本公约正文 | 聚焦 Stage 基线、Git/Direct、多包范围、重试、Recovery 与迁移 Java 17/17；`./scripts/verify.sh`：Java 353 项中 352 通过、Windows 条件用例 1 项跳过，Vitest 145/145，BUILD SUCCESS；JAR `target/opencode-loopper-0.1.50.jar` 262923926 bytes，SHA-256 `c3f7040cc9c1a9f3438f5f3126eae75b5021f25b13cfe1b4fe808a95042fd324`，含 101 项前端静态资源；隔离 PID 87990 在 18081 以 V25 完成两阶段验收，Stage 差异分别仅含 `first.txt`/`second.txt`，最终 Task 差异同时含二者，临时实例已停止且原 8080 PID 55908 未变；发布目标：`v0.1.50` |
 | 2026-08-13 | 修复 Designer 分包映射往返并交付 0.1.49 | 前端 LoopSpec 解析、保存和确认无损保留每个 Stage 的 `workPackageId`；服务端冻结已聚合草稿的包映射，并在确认时校验所有完成包均按依赖顺序被 Stage 表示，阻止分包 Task 静默退化为扁平 Stage；同步 README、架构、Designer 合同与本公约正文 | 聚焦 Java 30/30、Vitest 145/145；`./scripts/verify.sh`：Java 342 项中 341 通过、Windows 条件用例 1 项跳过，Vitest 145/145，BUILD SUCCESS；JAR `target/opencode-loopper-0.1.49.jar`，262905553 bytes，SHA-256 `bcd177195f069d71e180e4e73bcb459a4926e1d6a0dcea4c61def622961f2689`，含版本 0.1.49 与 99 项前端静态资源；按用户要求未替换或重启当前 8080 本机实例 |
 | 2026-08-13 | 强化 Compiler 聚焦 Java 单测强合同并交付 0.1.48 | Designer 明确列出的单测命令/测试类作为强制证据清单进入 Compiler 首次规划与修复提示；服务端只从安全的 `-Dtest`/`-Dit.test`/`--tests` 显式选择器提取目标，并在同 Stage 唯一匹配时补齐 `testCommand`、`testTargets`、`criterionIds` 或等价 TEST 验证器；歧义与真实缺失继续由权威校验阻断；同步 README、架构、Designer/OpenCode 合同与本公约正文 | 聚焦 Compiler/命令策略/版本/打包 Java 33/33；首次完整验证被系统 Chrome 151 卡在 Playwright `newContext`，终止后显式使用本机 Playwright Chromium 重跑；最终 `./scripts/verify.sh`：Java 342 项中 341 通过、Windows 条件用例 1 项跳过，Vitest 144/144，BUILD SUCCESS；JAR `target/opencode-loopper-0.1.48.jar`，262904191 bytes，SHA-256 `ae5f677af1d3b959298f65fde1e2eeac585acfd41dd00e02cc7e98075f3795c9`，含版本 0.1.48 与前端静态资源；按用户当前要求未替换或重启 8080 本机实例 |

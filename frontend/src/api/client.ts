@@ -1,4 +1,4 @@
-import type { AppSettings, Artifact, Attempt, AutomationImportPreview, AutomationImportResult, AutomationRule, AutomationRuleMutation, AutomationRun, AutomationRunFeed, AvailableModel, BrowserAssertion, CommitMessageSuggestion, CreateAutomationRuleInput, DesignerAppendResult, DesignerMessage, DesignerSession, DesignerSessionState, DesignerStreamEvent, DirectorySelection, DirtyWorkspaceAction, DirtyWorkspaceResolution, DirtyWorkspaceState, ErrorEvent, InsightsSnapshot, Interaction, InteractionAction, JudgeRun, LocalSyncConflictContent, LocalSyncConflictFile, LocalSyncConflictSession, LocalSyncResolution, LoopDraft, LoopSpec, LoopSpecAssessment, LoopSpecTemplate, LoopSpecTemplateVersion, LoopVerifierSpec, MergeRequestDraft, Project, ProjectConventionDraft, ProjectConventionSnapshot, RecoveryDraft, RecoveryMode, RuntimeInfo, SessionCheckpoint, SessionForkResult, SessionRevertResult, SessionSummaryResult, SessionTodo, Stage, Task, TaskDesignHistory, TaskDiffPreview, TaskEvent, TaskInsight, TaskPublicationStatus, TaskSessionActivity, TaskSessionActivityPart, TaskSessionPendingQuestion, TaskSessionSummary, UsageAggregate } from '@/types/domain'
+import type { AppSettings, Artifact, Attempt, AutomationImportPreview, AutomationImportResult, AutomationRule, AutomationRuleMutation, AutomationRun, AutomationRunFeed, AvailableModel, BrowserAssertion, CommitMessageSuggestion, CreateAutomationRuleInput, DesignerAppendResult, DesignerMessage, DesignerSession, DesignerSessionState, DesignerStreamEvent, DirectorySelection, DirtyWorkspaceAction, DirtyWorkspaceResolution, DirtyWorkspaceState, ErrorEvent, InsightsSnapshot, Interaction, InteractionAction, JudgeRun, LocalSyncConflictContent, LocalSyncConflictFile, LocalSyncConflictSession, LocalSyncResolution, LoopDraft, LoopSpec, LoopSpecAssessment, LoopSpecTemplate, LoopSpecTemplateVersion, LoopVerifierSpec, MergeRequestDraft, Project, ProjectConventionDraft, ProjectConventionSnapshot, RecoveryDraft, RecoveryMode, RuntimeInfo, SessionCheckpoint, SessionForkResult, SessionRevertResult, SessionSummaryResult, SessionTodo, Stage, Task, TaskDesignHistory, TaskDiffPreview, TaskEvent, TaskInsight, TaskPublicationStatus, TaskQueueStatus, TaskSessionActivity, TaskSessionActivityPart, TaskSessionPendingQuestion, TaskSessionSummary, UsageAggregate } from '@/types/domain'
 
 const apiBase = import.meta.env.VITE_API_BASE ?? '/api'
 
@@ -339,6 +339,26 @@ function normalizeTask(value: unknown): Task {
   const taskId = asString(raw.id)
   const workPackages = asArray(raw.workPackages).map((value) => { const item = asRecord(value); return { id: asString(item.id), ordinal: asNumber(item.ordinal), status: asString(item.status) as NonNullable<Task['workPackages']>[number]['status'], stageCount: asNumber(item.stageCount), completedStages: asNumber(item.completedStages), attemptCount: asNumber(item.attemptCount), attemptLimit: asNumber(item.attemptLimit) } })
   return { id: taskId, projectId: asString(raw.projectId), projectName: asString(raw.projectName, 'Unknown project'), title: asString(raw.title), goal: asString(raw.goal), branch: asString(raw.branch) || '等待选择执行模式', worktreePath: asString(raw.worktreePath) || '等待准备执行目录', status: asString(raw.status) as Task['status'], waitingReasonCode: asString(raw.waitingReasonCode) || undefined, loopRetryAvailable: raw.loopRetryAvailable === true, hasDesignHistory: raw.hasDesignHistory === true, archived: raw.archived === true, activeStage: stages.find((stage) => stage.status === 'RUNNING')?.ordinal, attemptCount: asNumber(raw.attemptCount, attempts.length), maxAttempts: asNumber(raw.maxAttempts, 12), createdAt: asString(raw.createdAt), updatedAt: asString(raw.updatedAt), stages, workPackages, attempts, errors: asArray(raw.errors).map(normalizeError), judges: asArray(raw.judges).map(normalizeJudge), artifacts: asArray(raw.artifacts).map((artifact) => normalizeArtifact(artifact, taskId)) }
+}
+
+function normalizeTaskQueueStatus(value: unknown): TaskQueueStatus {
+  const raw = asRecord(value)
+  const state = asString(raw.state)
+  const leaseState = asString(raw.leaseState)
+  const holderTaskState = asString(raw.holderTaskState)
+  return {
+    taskId: requiredString(raw, 'taskId', 'TaskQueueStatus'),
+    state: (['QUEUED', 'ADMITTED', 'CANCELLED', 'FINISHED'].includes(state) ? state : 'QUEUED') as TaskQueueStatus['state'],
+    ...(typeof raw.queuePosition === 'number' ? { queuePosition: raw.queuePosition } : {}),
+    leaseState: (['HELD', 'RELEASE_PENDING', 'RELEASED', 'NOT_REQUIRED'].includes(leaseState) ? leaseState : 'NOT_REQUIRED') as TaskQueueStatus['leaseState'],
+    ...(asString(raw.rootFingerprint) ? { rootFingerprint: asString(raw.rootFingerprint) } : {}),
+    ...(asString(raw.holderTaskId) ? { holderTaskId: asString(raw.holderTaskId) } : {}),
+    ...(asString(raw.holderTaskTitle) ? { holderTaskTitle: asString(raw.holderTaskTitle) } : {}),
+    ...(holderTaskState ? { holderTaskState: holderTaskState as TaskQueueStatus['holderTaskState'] } : {}),
+    ...(typeof raw.holderArchived === 'boolean' ? { holderArchived: raw.holderArchived } : {}),
+    ...(asString(raw.releaseReason) ? { releaseReason: asString(raw.releaseReason) } : {}),
+    reconcileAvailable: raw.reconcileAvailable === true,
+  }
 }
 
 function normalizeTaskDesignHistory(value: unknown): TaskDesignHistory {
@@ -1007,6 +1027,8 @@ export const api = {
   applyProjectConvention: async (projectId: string, draftId: string) => normalizeProjectConvention(await request<unknown>(`/projects/${encodeURIComponent(projectId)}/agents-md/${encodeURIComponent(draftId)}`, { method: 'PUT', headers: { 'X-Loopper-Local-UI': '1' } })),
   getTasks: async () => (await request<unknown[]>('/tasks')).map(normalizeTask),
   getTask: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}`)),
+  getTaskQueue: async (id: string) => normalizeTaskQueueStatus(await request<unknown>(`/tasks/${encodeURIComponent(id)}/queue`)),
+  reconcileTaskQueue: async (id: string) => normalizeTaskQueueStatus(await request<unknown>(`/tasks/${encodeURIComponent(id)}/queue/reconcile`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } })),
   getDirtyWorkspace: async (id: string) => normalizeDirtyWorkspace(await request<unknown>(`/tasks/${encodeURIComponent(id)}/workspace-dirty`)),
   resolveDirtyWorkspace: async (id: string, input: { snapshotId: string; resolutions: Array<{ path: string; action: DirtyWorkspaceAction }>; commitMessage?: string }) => normalizeDirtyWorkspaceResolution(await request<unknown>(`/tasks/${encodeURIComponent(id)}/workspace-dirty/resolve`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(input) })),
   cancelDirtyWorkspace: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}/workspace-dirty/cancel`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } })),

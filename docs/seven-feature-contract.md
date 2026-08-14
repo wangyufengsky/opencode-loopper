@@ -53,6 +53,17 @@ before admitting a new writer; active and release-pending leases still fail clos
 Only one non-released lease exists for a root. FIFO queue admission is persisted.
 An abort response alone never releases a lease: the old writer must be observed
 terminal. Unknown writer state keeps the lease and blocks Recovery and Automation.
+`ADMITTED` must always correspond to the same Task as the non-released lease holder.
+A shared reconciliation service completes a terminal holder and transfers exactly one
+FIFO waiter only after writer/runtime termination, root fingerprint, clean checkout,
+and safe source-branch restoration have all been checked. Filesystem and Git checks
+run outside SQLite; queue completion and lease transfer are revalidated atomically in
+a short transaction. Startup recovery, cancellation/Session cleanup, archive preflight,
+the local-only `POST /api/tasks/{waiterId}/queue/reconcile`, and a 10-second monitor
+reuse this service. The monitor scans only terminal holders with a real queued waiter.
+An unchanged blocker is not re-audited, and no path may detach the holder, stash,
+commit, delete, or force-switch files to manufacture safety. Active holders cannot be
+archived or permanently deleted.
 For a valid Git HEAD, a dirty admitted checkout holds the lease and moves the Task
 to `WAITING_INPUT`. The local UI displays the exact status paths and requires a
 snapshot-bound `COMMIT | STASH | REMOVE` choice for every path. A clean recheck

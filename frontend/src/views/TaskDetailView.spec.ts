@@ -4,6 +4,11 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import TaskDetailView from '@/views/TaskDetailView.vue'
 
+const apiMocks = vi.hoisted(() => ({
+  getTaskQueue: vi.fn(),
+  reconcileTaskQueue: vi.fn(),
+}))
+
 const store = vi.hoisted(() => ({
   tasks: [] as Array<Record<string, unknown>>,
   artifacts: [] as Array<Record<string, unknown>>,
@@ -19,6 +24,7 @@ const store = vi.hoisted(() => ({
 }))
 
 vi.mock('@/stores/taskStore', () => ({ useTaskStore: () => store }))
+vi.mock('@/api/client', () => ({ api: apiMocks }))
 
 const reviewTask = {
   id: 'task-review', projectId: 'project-1', title: '待评审任务', goal: '验证显式评审入口',
@@ -41,6 +47,13 @@ describe('TaskDetailView judge action', () => {
     store.retryJudges.mockClear()
     store.retryWaitingLoop.mockClear()
     store.reworkTask.mockClear()
+    apiMocks.getTaskQueue.mockReset()
+    apiMocks.reconcileTaskQueue.mockReset()
+    apiMocks.getTaskQueue.mockResolvedValue({
+      taskId: 'task-queued', state: 'QUEUED', queuePosition: 1, leaseState: 'RELEASE_PENDING',
+      holderTaskId: 'holder-1', holderTaskTitle: '已取消的旧任务', holderTaskState: 'CANCELLED', holderArchived: true,
+      releaseReason: 'SOURCE_BRANCH_WORKSPACE_DIRTY', reconcileAvailable: true,
+    })
   })
 
   it('offers a confirmed cancel action while the task is waiting for input', async () => {
@@ -106,7 +119,9 @@ describe('TaskDetailView judge action', () => {
     })
     await flushPromises()
 
-    expect(wrapper.text()).toContain('随后从任务列表归档或删除')
+    expect(wrapper.text()).toContain('当前在排谁')
+    expect(wrapper.text()).toContain('已取消的旧任务')
+    expect(wrapper.text()).toContain('工作区有未提交或未跟踪文件')
     const action = wrapper.findAll('button').find((button) => button.text().includes('取消任务'))
     expect(action).toBeDefined()
     await action!.trigger('click')
@@ -118,6 +133,71 @@ describe('TaskDetailView judge action', () => {
       expect.objectContaining({ cancelButtonText: '继续排队' }),
     )
     expect(store.updateTask).toHaveBeenCalledWith('task-queued', 'cancel')
+  })
+
+  it('manually reconciles a terminal holder and refreshes task and queue state', async () => {
+    store.tasks = [{
+      ...reviewTask,
+      id: 'task-queued', title: '排队任务', status: 'QUEUED', worktreePath: '', stages: [], judges: [],
+    }]
+    apiMocks.reconcileTaskQueue.mockResolvedValue({
+      taskId: 'task-queued', state: 'ADMITTED', leaseState: 'HELD', holderTaskId: 'task-queued', reconcileAvailable: false,
+    })
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/tasks/:id', component: { template: '<div />' } }] })
+    await router.push('/tasks/task-queued')
+    await router.isReady()
+
+    const wrapper = mount(TaskDetailView, {
+      global: {
+        plugins: [router, ElementPlus],
+        stubs: {
+          Icon: true, PageHeader: { template: '<header><slot name="actions" /></header><slot />' },
+          StatusBadge: true, StageRail: true, AttemptTimeline: true, LayeredErrorPanel: true,
+          SessionMonitorPanel: true, JudgeReviewCard: true, TaskAuditEvidencePanel: true,
+          TaskPublicationActions: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    const action = wrapper.findAll('button').find((button) => button.text().includes('重新检查并释放'))
+    expect(action).toBeDefined()
+    await action!.trigger('click')
+    await flushPromises()
+
+    expect(apiMocks.reconcileTaskQueue).toHaveBeenCalledWith('task-queued')
+    expect(store.loadTask).toHaveBeenCalledWith('task-queued')
+    expect(apiMocks.getTaskQueue).toHaveBeenCalled()
+  })
+
+  it('keeps the blocker visible when manual reconciliation returns a 409 reason', async () => {
+    store.tasks = [{
+      ...reviewTask,
+      id: 'task-queued', title: '排队任务', status: 'QUEUED', worktreePath: '', stages: [], judges: [],
+    }]
+    apiMocks.reconcileTaskQueue.mockRejectedValue(new Error('当前写入 Session 尚未确认停止'))
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/tasks/:id', component: { template: '<div />' } }] })
+    await router.push('/tasks/task-queued')
+    await router.isReady()
+    const wrapper = mount(TaskDetailView, {
+      global: {
+        plugins: [router, ElementPlus],
+        stubs: {
+          Icon: true, PageHeader: { template: '<header><slot name="actions" /></header><slot />' },
+          StatusBadge: true, StageRail: true, AttemptTimeline: true, LayeredErrorPanel: true,
+          SessionMonitorPanel: true, JudgeReviewCard: true, TaskAuditEvidencePanel: true,
+          TaskPublicationActions: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    await wrapper.findAll('button').find((button) => button.text().includes('重新检查并释放'))!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('当前写入 Session 尚未确认停止')
+    expect(wrapper.text()).toContain('已取消的旧任务')
+    expect(store.loadTask).toHaveBeenCalledTimes(2)
   })
 
   it('groups execution progress by work package and shows each independent attempt pool', async () => {

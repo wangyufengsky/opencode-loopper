@@ -66,6 +66,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 @Service
 public class TaskService {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(TaskService.class);
     private static final String DESIGN_CONTEXT_ARTIFACT_KIND = "DESIGN_CONTEXT";
     private static final String REQUIREMENT_CONTEXT_ARTIFACT_KIND = "REQUIREMENT_CONTEXT";
     private static final String DECOMPOSITION_CONTEXT_ARTIFACT_KIND = "DECOMPOSITION_CONTEXT";
@@ -81,6 +82,7 @@ public class TaskService {
     private final ProjectService projects;
     private final GitWorktreeManager worktrees;
     private final DirectWorkspaceLeaseCoordinator directLeases;
+    private final WorkspaceLeaseReconciliationService leaseReconciliation;
     private final OpenCodeClient openCode;
     private final VerifierEngine verifiers;
     private final AttemptHandoffService attemptHandoffs;
@@ -95,6 +97,7 @@ public class TaskService {
 
     public TaskService(LoopperMapper mapper, LifecycleTransitionService lifecycle, ObjectMapper json, ProjectService projects,
                        GitWorktreeManager worktrees, DirectWorkspaceLeaseCoordinator directLeases,
+                       WorkspaceLeaseReconciliationService leaseReconciliation,
                        OpenCodeClient openCode, VerifierEngine verifiers,
                        AttemptHandoffService attemptHandoffs,
                        BinaryArtifactPersistenceService binaryArtifacts,
@@ -106,6 +109,7 @@ public class TaskService {
                        PlatformTransactionManager transactionManager) {
         this.mapper = mapper; this.lifecycle = lifecycle; this.json = json; this.projects = projects;
         this.worktrees = worktrees; this.directLeases = directLeases; this.openCode = openCode;
+        this.leaseReconciliation = leaseReconciliation;
         this.verifiers = verifiers; this.attemptHandoffs = attemptHandoffs; this.binaryArtifacts = binaryArtifacts;
         this.managedVerifierRuntimes = managedVerifierRuntimes;
         this.stageWorkspaceBaselines = stageWorkspaceBaselines;
@@ -181,14 +185,35 @@ public class TaskService {
     public TaskRow get(String id) { return mapper.findTask(id).orElseThrow(() -> new NotFoundException("Task not found: " + id)); }
     public List<TaskRow> list() { return mapper.listTasks(); }
     public boolean archived(String id) { get(id); return mapper.isTaskArchived(id); }
-    @Transactional
     public TaskRow archive(String id) {
         TaskRow task = get(id);
         if (!List.of(TaskState.SUCCEEDED.name(), TaskState.FAILED.name(), TaskState.CANCELLED.name()).contains(task.state())) {
             throw new BadRequestException("TASK_NOT_ARCHIVABLE", "只有已成功、已失败或已取消的任务可以归档");
         }
-        mapper.archiveTask(id, now());
-        return task;
+        WorkspaceLeaseReconciliationService.Result result = reconcileTerminalLease(task,
+                WorkspaceLeaseReconciliationService.TRIGGER_ARCHIVE, "TASK_ARCHIVE");
+        continueAfterLeaseReconciliation(result);
+        if (result.blocked() || leaseReconciliation.ownsActiveLease(id)) {
+            String detail = result.blocked()
+                    ? result.blockerCode() + "：" + result.blockerMessage()
+                    : "任务仍是 ADMITTED 队列项或活动项目写租约 holder";
+            throw new ConflictException("TASK_ARCHIVE_WORKSPACE_LEASE_ACTIVE",
+                    "任务仍占用项目写租约，释放完成前不能归档。" + detail);
+        }
+        TaskRow archived = transactions.execute(status -> {
+            TaskRow current = get(id);
+            if (!TaskState.valueOf(current.state()).terminal()) {
+                throw new BadRequestException("TASK_NOT_ARCHIVABLE", "只有已成功、已失败或已取消的任务可以归档");
+            }
+            if (leaseReconciliation.ownsActiveLease(id)) {
+                throw new ConflictException("TASK_ARCHIVE_WORKSPACE_LEASE_ACTIVE",
+                        "任务在归档提交前重新获得了活动项目写租约，已停止归档");
+            }
+            mapper.archiveTask(id, now());
+            return current;
+        });
+        if (archived == null) throw new ConflictException("TASK_ARCHIVE_FAILED", "任务归档事务未完成");
+        return archived;
     }
     @Transactional
     public TaskRow restoreArchive(String id) {
@@ -196,7 +221,6 @@ public class TaskService {
         mapper.restoreTask(id);
         return task;
     }
-    @Transactional
     public void deleteArchived(String id) {
         TaskRow task = get(id);
         if (!List.of(TaskState.SUCCEEDED.name(), TaskState.FAILED.name(), TaskState.CANCELLED.name()).contains(task.state())) {
@@ -207,6 +231,22 @@ public class TaskService {
         }
         if (!mapper.childTasks(id).isEmpty()) {
             throw new BadRequestException("TASK_HAS_RECOVERY_CHILDREN", "该任务仍有重做或恢复子任务，请先删除子任务");
+        }
+        if (leaseReconciliation.ownsActiveLease(id)) {
+            throw new ConflictException("TASK_DELETE_WORKSPACE_LEASE_ACTIVE",
+                    "任务仍是 ADMITTED 队列项或活动项目写租约 holder，释放完成前不能永久删除");
+        }
+        transactions.executeWithoutResult(status -> deleteArchivedState(id));
+    }
+
+    private void deleteArchivedState(String id) {
+        TaskRow task = get(id);
+        if (!TaskState.valueOf(task.state()).terminal() || !mapper.isTaskArchived(id)) {
+            throw new ConflictException("TASK_DELETE_STATE_CHANGED", "任务状态或归档状态已变化，请刷新后重试");
+        }
+        if (leaseReconciliation.ownsActiveLease(id)) {
+            throw new ConflictException("TASK_DELETE_WORKSPACE_LEASE_ACTIVE",
+                    "任务在删除提交前重新成为活动项目写租约 holder，已停止删除");
         }
         String draftId = task.loopDraftId();
         mapper.deleteLocalSyncConflictFilesForTask(id);
@@ -223,7 +263,6 @@ public class TaskService {
         mapper.deleteErrorsForTask(id);
         mapper.deleteEventsForTask(id);
         mapper.deleteJudgeRunsForTask(id);
-        mapper.detachWorkspaceLeaseHolder(id);
         mapper.detachWorkspaceLeaseWriterSessions(id);
         mapper.deleteExecutionSessionsForTask(id);
         mapper.deleteAttemptsForTask(id);
@@ -289,12 +328,56 @@ public class TaskService {
         TaskRow task = get(taskId);
         TaskQueueRow queue = mapper.findTaskQueue(taskId).orElse(null);
         if (queue == null) {
-            return new FeatureContracts.QueueStatusDto(task.id(), TaskQueueState.FINISHED.name(), null, "NOT_REQUIRED", null);
+            return new FeatureContracts.QueueStatusDto(task.id(), TaskQueueState.FINISHED.name(), null,
+                    "NOT_REQUIRED", null, null, null, null, null, null, false);
         }
-        String leaseState = mapper.findWorkspaceLease(queue.canonicalRoot()).map(row -> row.state())
-                .orElse(WorkspaceLeaseState.RELEASED.name());
+        var lease = mapper.findWorkspaceLease(queue.canonicalRoot()).orElse(null);
+        String leaseState = lease == null ? WorkspaceLeaseState.RELEASED.name() : lease.state();
         Long position = TaskQueueState.QUEUED.name().equals(queue.state()) ? queuePosition(taskId) : null;
-        return new FeatureContracts.QueueStatusDto(task.id(), queue.state(), position, leaseState, queue.rootFingerprint());
+        TaskRow holder = lease == null || lease.holderTaskId() == null ? null
+                : mapper.findTask(lease.holderTaskId()).orElse(null);
+        Boolean holderArchived = holder == null ? null : mapper.isTaskArchived(holder.id());
+        boolean reconcileAvailable = TaskQueueState.QUEUED.name().equals(queue.state()) && holder != null
+                && TaskState.valueOf(holder.state()).terminal();
+        return new FeatureContracts.QueueStatusDto(task.id(), queue.state(), position, leaseState,
+                queue.rootFingerprint(), holder == null ? null : holder.id(), holder == null ? null : holder.title(),
+                holder == null ? null : holder.state(), holderArchived, lease == null ? null : lease.releaseReason(),
+                reconcileAvailable);
+    }
+
+    /** Local-UI action: locate the holder from the waiter's root and retry the same safe reconciliation. */
+    public FeatureContracts.QueueStatusDto reconcileQueue(String taskId) {
+        get(taskId);
+        TaskQueueRow queue = mapper.findTaskQueue(taskId)
+                .orElseThrow(() -> new ConflictException("TASK_QUEUE_RECONCILIATION_NOT_AVAILABLE",
+                        "任务没有持久化队列记录，不能重新检查写租约"));
+        if (!TaskQueueState.QUEUED.name().equals(queue.state())) return queueStatus(taskId);
+        var lease = mapper.findWorkspaceLease(queue.canonicalRoot())
+                .orElseThrow(() -> new ConflictException("TASK_QUEUE_LEASE_INVARIANT_VIOLATION",
+                        "排队任务对应的项目写租约不存在"));
+        if (lease.holderTaskId() == null) {
+            throw new ConflictException("TASK_QUEUE_LEASE_INVARIANT_VIOLATION",
+                    "活动项目写租约缺少 holder，拒绝猜测或强制转移");
+        }
+        WorkspaceLeaseReconciliationService.Result result = leaseReconciliation.reconcileHolder(
+                lease.holderTaskId(), WorkspaceLeaseReconciliationService.TRIGGER_MANUAL, "MANUAL_QUEUE_RECONCILIATION");
+        continueAfterLeaseReconciliation(result);
+        if (result.blocked()) throw new ConflictException(result.blockerCode(), result.blockerMessage());
+        return queueStatus(taskId);
+    }
+
+    /** Scheduled liveness repair for terminal holders which are actually blocking a waiter. */
+    public void reconcileTerminalWorkspaceLeasesWithWaiters() {
+        for (String holderTaskId : leaseReconciliation.terminalHolderIdsWithQueuedWaiters()) {
+            try {
+                continueAfterLeaseReconciliation(leaseReconciliation.reconcileHolder(holderTaskId,
+                        WorkspaceLeaseReconciliationService.TRIGGER_AUTO, "TERMINAL_HOLDER_WITH_WAITER"));
+            } catch (RuntimeException reconciliationFailure) {
+                // Manual reconciliation, restart recovery, cancellation or archive may win the same idempotent race.
+                log.warn("Workspace lease reconciliation for terminal holder {} did not complete: {}",
+                        holderTaskId, reconciliationFailure.getMessage());
+            }
+        }
     }
 
     /** User-facing goal retained with the confirmed LoopSpec for publication metadata. */
@@ -2027,42 +2110,33 @@ public class TaskService {
 
     private void settleTerminalInPlaceLease(TaskRow task, boolean writerTerminationConfirmed, String reason) {
         if (!isAdmittedInPlace(task)) return;
-        DirectWorkspaceLeaseCoordinator.Release release;
-        try {
-            if (!writerTerminationConfirmed || hasUnconfirmedWriter(task.id())) {
-                mapper.listSessions(task.id()).stream().filter(session -> session.externalSessionId() != null)
-                        .findFirst().ifPresent(session -> directLeases.markWriterUnconfirmed(
-                                inPlaceRoot(task), task.id(), session.id(), reason));
-                return;
-            }
-            if (task.branchName() == null) {
-                release = directLeases.releaseAfterWriterStopped(inPlaceRoot(task), task.id(), reason);
-            } else if (!GitWorktreeManager.DIRECT_BRANCH.equals(task.branchName())) {
-                if (worktrees.sourceCheckoutHasChanges(inPlaceRoot(task))) {
-                    directLeases.retainAfterWriterStopped(inPlaceRoot(task), task.id(), reason);
-                    events.emit(task.id(), "workspace.lease_retained",
-                            Map.of("state", WorkspaceLeaseState.HELD.name(), "reason", reason,
-                                    "waitingFor", "TASK_BRANCH_PUBLICATION_OR_CLEANUP"));
-                    return;
-                }
-                // Centralize the clean-checkout restoration so restart recovery and non-publication
-                // terminal paths cannot admit the next Task while the old Task branch is still checked out.
-                worktrees.restoreSourceBranch(inPlaceRoot(task), task.branchName(), task.sourceBranch());
-                release = directLeases.releaseAfterWriterStopped(inPlaceRoot(task), task.id(), reason);
-            } else {
-                release = directLeases.releaseAfterWriterStopped(inPlaceRoot(task), task.id(), reason);
-            }
-        } catch (TaskFailure leaseFailure) {
-            recordError(task, null, null, null, ErrorLayer.TASK, leaseFailure.code(), leaseFailure.getMessage(), false,
-                    Map.of("leaseRetained", true));
-            return;
+        // The persisted Session/runtime evidence remains authoritative. The boolean is retained
+        // at this call boundary so cancellation and cleanup cannot accidentally discard their
+        // immediate termination result before that evidence has been written.
+        if (!writerTerminationConfirmed && !hasUnconfirmedWriter(task.id())) {
+            mapper.listSessions(task.id()).stream().filter(session -> session.externalSessionId() != null)
+                    .findFirst().ifPresent(session -> directLeases.retainBlocked(
+                            mapper.findTaskQueue(task.id()).orElseThrow().canonicalRoot(), task.id(), true, session.id(),
+                            "SESSION_WRITER_UNCONFIRMED"));
         }
-        events.emit(task.id(), "workspace.lease_released",
-                Map.of("state", WorkspaceLeaseState.RELEASED.name(), "reason", reason));
-        if (release.admittedNext() == null) return;
-        String nextTaskId = release.admittedNext().taskId();
+        continueAfterLeaseReconciliation(reconcileTerminalLease(task,
+                WorkspaceLeaseReconciliationService.TRIGGER_AUTO, reason));
+    }
+
+    private WorkspaceLeaseReconciliationService.Result reconcileTerminalLease(
+            TaskRow task, String trigger, String reason) {
+        if (!isAdmittedInPlace(task)) {
+            return new WorkspaceLeaseReconciliationService.Result(task.id(), false, true,
+                    null, null, null);
+        }
+        return leaseReconciliation.reconcileHolder(task.id(), trigger, reason);
+    }
+
+    private void continueAfterLeaseReconciliation(WorkspaceLeaseReconciliationService.Result result) {
+        if (result == null || !result.released() || result.admittedNext() == null) return;
+        String nextTaskId = result.admittedNext().taskId();
         events.emit(nextTaskId, "task.admitted", Map.of("state", TaskState.QUEUED.name(),
-                "queuePosition", release.admittedNext().position()));
+                "queuePosition", result.admittedNext().position()));
         try {
             prepareAdmittedInPlaceTask(nextTaskId);
         } catch (TaskFailure failure) {
@@ -2076,40 +2150,49 @@ public class TaskService {
 
     private void rehydrateDirectLeases() {
         for (DirectWorkspaceLeaseCoordinator.BlockingLease lease : directLeases.blockingLeases()) {
-            if (!lease.rootAvailable() || !lease.fingerprintMatches() || lease.holderTaskId() == null) continue;
+            if (lease.holderTaskId() == null) continue;
             TaskRow task = mapper.findTask(lease.holderTaskId()).orElse(null);
             if (task == null || !isAdmittedInPlace(task)) continue;
+            if (TaskState.valueOf(task.state()).terminal()) {
+                rehydrateTerminalLease(task, lease);
+                continue;
+            }
+            if (!lease.rootAvailable() || !lease.fingerprintMatches()) continue;
             if (TaskState.QUEUED.name().equals(task.state()) || TaskState.PREPARING.name().equals(task.state())) {
                 try { prepareAdmittedInPlaceTask(task.id()); }
                 catch (TaskFailure failure) { failTask(task, failure.code(), failure.getMessage(), null, null, null); }
-                continue;
             }
-            if (!TaskState.valueOf(task.state()).terminal()) continue;
-            if (lease.writerSessionId() == null) {
-                settleTerminalInPlaceLease(task, !hasUnconfirmedWriter(task.id()), "RESTART_TERMINAL_TASK");
-                continue;
-            }
-            ExecutionSessionRow writer = mapper.listSessions(task.id()).stream()
-                    .filter(session -> lease.writerSessionId().equals(session.id())).findFirst().orElse(null);
-            if (writer == null || SessionState.DISCONNECTED.name().equals(writer.state())) continue;
-            if (List.of(SessionState.COMPLETED.name(), SessionState.FAILED.name(), SessionState.TIMED_OUT.name(),
-                    SessionState.ABORTED.name()).contains(writer.state())) {
-                settleTerminalInPlaceLease(task, !hasUnconfirmedWriter(task.id()), "RESTART_WRITER_ALREADY_TERMINAL");
-                continue;
-            }
-            Map<String, Object> evidence = new LinkedHashMap<>();
-            evidence.put("recovery", "lease_rehydrate");
-            boolean stopped = confirmStoppedBeforeRetry(task, writer, evidence);
-            if (stopped) {
-                updateSession(sessionState(writer, SessionState.ABORTED));
-                settleTerminalInPlaceLease(task, true, "RESTART_WRITER_TERMINAL_CONFIRMED");
-            } else {
-                updateSession(sessionState(writer, SessionState.DISCONNECTED));
-                AttemptRow attempt = mapper.findAttempt(writer.attemptId()).orElse(null);
-                StageRow stage = attempt == null ? null : mapper.findStage(attempt.stageId()).orElse(null);
-                recordAbortUnconfirmed(task, stage, attempt, writer,
-                        "Restart could not confirm the terminal task's Direct writer stopped", evidence);
-            }
+        }
+    }
+
+    private void rehydrateTerminalLease(TaskRow task, DirectWorkspaceLeaseCoordinator.BlockingLease lease) {
+        if (lease.writerSessionId() == null) {
+            continueAfterLeaseReconciliation(reconcileTerminalLease(task,
+                    WorkspaceLeaseReconciliationService.TRIGGER_RESTART, "RESTART_TERMINAL_TASK"));
+            return;
+        }
+        ExecutionSessionRow writer = mapper.listSessions(task.id()).stream()
+                .filter(session -> lease.writerSessionId().equals(session.id())).findFirst().orElse(null);
+        if (writer == null || SessionState.DISCONNECTED.name().equals(writer.state())) return;
+        if (List.of(SessionState.COMPLETED.name(), SessionState.FAILED.name(), SessionState.TIMED_OUT.name(),
+                SessionState.ABORTED.name()).contains(writer.state())) {
+            continueAfterLeaseReconciliation(reconcileTerminalLease(task,
+                    WorkspaceLeaseReconciliationService.TRIGGER_RESTART, "RESTART_WRITER_ALREADY_TERMINAL"));
+            return;
+        }
+        Map<String, Object> evidence = new LinkedHashMap<>();
+        evidence.put("recovery", "lease_rehydrate");
+        boolean stopped = confirmStoppedBeforeRetry(task, writer, evidence);
+        if (stopped) {
+            updateSession(sessionState(writer, SessionState.ABORTED));
+            continueAfterLeaseReconciliation(reconcileTerminalLease(task,
+                    WorkspaceLeaseReconciliationService.TRIGGER_RESTART, "RESTART_WRITER_TERMINAL_CONFIRMED"));
+        } else {
+            updateSession(sessionState(writer, SessionState.DISCONNECTED));
+            AttemptRow attempt = mapper.findAttempt(writer.attemptId()).orElse(null);
+            StageRow stage = attempt == null ? null : mapper.findStage(attempt.stageId()).orElse(null);
+            recordAbortUnconfirmed(task, stage, attempt, writer,
+                    "Restart could not confirm the terminal task's Direct writer stopped", evidence);
         }
     }
 

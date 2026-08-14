@@ -13,8 +13,9 @@ import JudgeReviewCard from '@/components/JudgeReviewCard.vue'
 import TaskAuditEvidencePanel from '@/components/TaskAuditEvidencePanel.vue'
 import TaskPublicationActions from '@/components/TaskPublicationActions.vue'
 import DirtyWorkspaceDialog from '@/components/DirtyWorkspaceDialog.vue'
+import { api } from '@/api/client'
 import { useTaskStore } from '@/stores/taskStore'
-import type { Attempt, ErrorEvent, TaskPublicationStatus } from '@/types/domain'
+import type { Attempt, ErrorEvent, TaskPublicationStatus, TaskQueueStatus } from '@/types/domain'
 
 const route = useRoute()
 const router = useRouter()
@@ -41,6 +42,10 @@ const judgeRetrying = ref(false)
 const loopRetrying = ref(false)
 const reworking = ref(false)
 const dirtyWorkspaceDialogOpen = ref(false)
+const queueStatus = ref<TaskQueueStatus>()
+const queueLoading = ref(false)
+const queueReconciling = ref(false)
+const queueError = ref('')
 const publicationState = ref<TaskPublicationStatus['deliveryState']>('NOT_STARTED')
 watch(id, () => { publicationState.value = 'NOT_STARTED' })
 const deterministicAccepted = computed(() => Boolean(task.value?.stages?.length) && task.value!.stages!.every((stage) => stage.status === 'SUCCEEDED'))
@@ -71,7 +76,7 @@ const nextAction = computed(() => {
   if (task.value.status === 'SUCCEEDED') return publicationState.value === 'MERGED' ? '代码已推送并由 GitLab 确认合并，原任务交付状态不可再改变。' : isDirectExecution.value ? '检查原项目目录中的变更并决定后续发布方式。' : '检查变更摘要，然后提交并发布当前分支。'
   if (task.value.status === 'FAILED') return '先查看最上方错误与失败验证，再根据证据重新设计或新建任务。'
   if (task.value.status === 'CANCELLED') return '任务已取消；执行目录和证据仍保留，可据此新建设计。'
-  if (task.value.status === 'QUEUED') return '任务正在等待项目写租约；如无需继续，可直接取消，随后从任务列表归档或删除。'
+  if (task.value.status === 'QUEUED') return '任务正在等待项目写租约；Loopper 会自动检查终态持有者，也可在下方手动重新检查。取消只会移除此任务自己的队列项。'
   if (waitingForWorkspaceCleanup.value) return '逐项处理源分支中的未提交文件；重新检查确认干净后，Loopper 才会创建任务分支。'
   if (task.value.status === 'WAITING_INPUT' && canRetryJudges.value) return '查看未通过或异常的评审证据；补齐条件后可重新发起需求 / 风险双评审。'
   if (task.value.status === 'WAITING_INPUT' && canRetryLoop.value) return '循环已因重复失败或重试策略暂停。检查结构化交接后，可明确确认再执行一轮全新 Session。'
@@ -83,12 +88,67 @@ const nextAction = computed(() => {
 
 async function load() {
   await store.loadTask(id.value)
+  await loadQueue()
   if (!store.usingDemo) store.watchTask(id.value)
 }
 onMounted(load)
 watch(id, load)
+watch(() => task.value?.status, () => { void loadQueue() })
 watch(waitingForWorkspaceCleanup, (waiting) => { dirtyWorkspaceDialogOpen.value = waiting }, { immediate: true })
 onBeforeUnmount(() => store.stopWatching())
+
+const queueReleaseDetail = computed(() => {
+  const reason = queueStatus.value?.releaseReason
+  if (!reason) return '等待当前持有者完成安全释放检查。'
+  const reasons: Record<string, string> = {
+    SOURCE_BRANCH_WORKSPACE_DIRTY: '当前持有者的工作区有未提交或未跟踪文件。',
+    SESSION_WRITER_UNCONFIRMED: '当前写入 Session 尚未确认停止。',
+    DIRECT_ROOT_FINGERPRINT_MISMATCH: '项目目录指纹已变化，系统拒绝自动转移。',
+    DIRECT_WORKSPACE_UNAVAILABLE: '项目工作区当前不可访问。',
+    TASK_SOURCE_BRANCH_UNAVAILABLE: '任务开始前的源分支已不可用。',
+    TASK_SOURCE_BRANCH_RESTORE_MISMATCH: '登记目录当前不在该任务的任务分支上。',
+    TASK_SOURCE_BRANCH_RESTORE_DIRTY: '任务分支仍有未提交文件。',
+    TASK_SOURCE_BRANCH_RESTORE_FAILED: '当前分支无法安全恢复到任务开始前的源分支。',
+    TASK_SOURCE_BRANCH_RESTORE_UNCONFIRMED: '分支切换结果无法确认。',
+  }
+  return reasons[reason] ?? reason
+})
+
+async function loadQueue() {
+  queueError.value = ''
+  if (store.usingDemo || task.value?.status !== 'QUEUED') {
+    queueStatus.value = undefined
+    return
+  }
+  queueLoading.value = true
+  try {
+    queueStatus.value = await api.getTaskQueue(id.value)
+  } catch (error) {
+    queueError.value = error instanceof Error ? error.message : '队列状态加载失败'
+  } finally {
+    queueLoading.value = false
+  }
+}
+
+async function reconcileQueue() {
+  if (!queueStatus.value?.reconcileAvailable || queueReconciling.value) return
+  queueReconciling.value = true
+  queueError.value = ''
+  try {
+    queueStatus.value = await api.reconcileTaskQueue(id.value)
+    await store.loadTask(id.value)
+    await loadQueue()
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '安全释放检查失败'
+    try { await store.loadTask(id.value) } catch { /* Keep the last known Task projection. */ }
+    if (task.value?.status === 'QUEUED') {
+      try { queueStatus.value = await api.getTaskQueue(id.value) } catch { /* Keep the last known queue projection. */ }
+    }
+    queueError.value = message
+  } finally {
+    queueReconciling.value = false
+  }
+}
 
 async function confirmCancel() {
   if (!task.value) return
@@ -189,6 +249,34 @@ async function confirmRework() {
           <div><dt>评审通过</dt><dd>{{ passedJudges }} / 2</dd></div>
         </dl>
       </section>
+      <section v-if="task.status === 'QUEUED'" class="queue-blocker card card-pad" aria-labelledby="queue-blocker-heading">
+        <div class="card-header">
+          <div><p class="eyebrow">WORKSPACE LEASE</p><h2 id="queue-blocker-heading" class="card-title">当前在排谁</h2></div>
+          <span v-if="queueStatus?.queuePosition" class="mono tiny muted">队列第 {{ queueStatus.queuePosition }} 位</span>
+        </div>
+        <p v-if="queueLoading" class="queue-copy muted">正在读取权威队列与租约状态…</p>
+        <template v-else-if="queueStatus">
+          <div class="queue-holder">
+            <div>
+              <span class="tiny muted">当前写租约持有者</span>
+              <button v-if="queueStatus.holderTaskId" class="queue-holder-link" type="button" @click="router.push(`/tasks/${queueStatus.holderTaskId}`)">
+                {{ queueStatus.holderTaskTitle || queueStatus.holderTaskId }}
+              </button>
+              <strong v-else>未找到持有者</strong>
+            </div>
+            <dl>
+              <div><dt>任务状态</dt><dd>{{ queueStatus.holderTaskState || '未知' }}</dd></div>
+              <div><dt>是否归档</dt><dd>{{ queueStatus.holderArchived ? '是' : '否' }}</dd></div>
+              <div><dt>租约状态</dt><dd>{{ queueStatus.leaseState }}</dd></div>
+            </dl>
+          </div>
+          <p class="queue-copy">{{ queueReleaseDetail }}</p>
+          <el-button v-if="queueStatus.reconcileAvailable" type="primary" plain :loading="queueReconciling" @click="reconcileQueue">
+            <Icon icon="lucide:refresh-cw" />重新检查并释放
+          </el-button>
+        </template>
+        <p v-if="queueError" class="queue-error" role="alert">{{ queueError }}</p>
+      </section>
       <section v-if="task.workPackages?.length" class="card card-pad package-progress" aria-labelledby="package-progress-heading">
         <div class="card-header"><div><p class="eyebrow">WORK PACKAGE EXECUTION</p><h2 id="package-progress-heading" class="card-title">工作包与独立尝试池</h2></div><span class="tiny muted">全部包完成后仅运行一组 Requirement / Risk Judge</span></div>
         <div class="package-progress-grid">
@@ -223,6 +311,7 @@ async function confirmRework() {
 <style scoped>
 .task-overview { display: flex; align-items: center; justify-content: space-between; gap: 18px; min-width: 0; }.task-overview > div:first-child { min-width: 0; }.task-overview > div:first-child > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.overview-meta { display: flex; flex: 0 0 auto; align-items: center; gap: 15px; color: var(--color-text-secondary); font-family: var(--font-code); font-size: 11px; }.overview-meta b { color: var(--color-text-primary); }.stream-state { display: inline-flex; align-items: center; gap: 6px; }.stream-state::before { width: 7px; height: 7px; border-radius: 50%; background: currentColor; content: ""; }.stream-state.connected { color: var(--color-success); }.stream-state.reconnecting { color: var(--color-session-warning); }.task-detail-grid { display: grid; grid-template-columns: minmax(300px, .77fr) minmax(500px, 1.23fr); gap: 16px; }@media (max-width: 1320px) { .task-detail-grid { grid-template-columns: minmax(290px, .7fr) minmax(470px, 1.3fr); } }@media (max-width: 1050px) { .task-detail-grid { grid-template-columns: 1fr; } }
 .result-summary { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(360px, .8fr); align-items: center; gap: 22px; margin-top: 16px; border-color: rgb(34 211 238 / 19%); background: linear-gradient(125deg, rgb(34 211 238 / 6%), rgb(139 92 246 / 4%)); }.result-copy p:last-child { max-width: 720px; margin: 8px 0 0; color: var(--color-text-secondary); font-size: 12px; line-height: 1.65; }.result-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; }.result-metrics div { padding: 12px; border: 1px solid var(--color-border-default); border-radius: 9px; background: rgb(7 12 22 / 50%); }.result-metrics dt { color: var(--color-text-tertiary); font-size: 9px; }.result-metrics dd { margin: 6px 0 0; color: var(--color-text-primary); font: 700 14px/1 var(--font-code); font-variant-numeric: tabular-nums; }
+.queue-blocker { margin-top: 16px; border-color: rgb(245 158 11 / 30%); background: linear-gradient(120deg, rgb(245 158 11 / 7%), rgb(15 23 42 / 25%)); }.queue-holder { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 20px; margin-top: 12px; }.queue-holder > div:first-child { display: grid; align-content: start; gap: 7px; min-width: 0; }.queue-holder-link { width: fit-content; max-width: 100%; padding: 0; overflow: hidden; border: 0; background: transparent; color: var(--color-accent); font: inherit; font-weight: 700; text-align: left; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }.queue-holder dl { display: grid; grid-template-columns: repeat(3, minmax(82px, 1fr)); gap: 8px; margin: 0; }.queue-holder dl div { padding: 9px 11px; border: 1px solid var(--color-border-default); border-radius: 8px; background: rgb(2 6 23 / 35%); }.queue-holder dt { color: var(--color-text-tertiary); font-size: 9px; }.queue-holder dd { margin: 5px 0 0; color: var(--color-text-primary); font: 650 10px/1.2 var(--font-code); }.queue-copy { margin: 12px 0; color: var(--color-text-secondary); font-size: 12px; line-height: 1.6; }.queue-error { margin: 12px 0 0; color: var(--color-danger); font-size: 12px; }
 .judge-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }@media (max-width: 960px) { .judge-grid { grid-template-columns: 1fr; } }
 .judge-empty { margin: 0 0 12px; color: var(--color-text-secondary); font-size: 12px; line-height: 1.6; }
 .package-progress { margin-top: 16px; border-color: rgb(99 102 241 / 22%); }
@@ -237,6 +326,7 @@ async function confirmRework() {
 .package-progress-card.is-succeeded { border-color: rgb(34 197 94 / 32%); }
 .package-progress-card.is-failed { border-color: rgb(239 68 68 / 38%); }
 @media (max-width: 640px) { .task-overview { align-items: flex-start; flex-direction: column; }.overview-meta { width: 100%; justify-content: space-between; } }
+@media (max-width: 720px) { .queue-holder { grid-template-columns: 1fr; }.queue-holder dl { grid-template-columns: 1fr; } }
 @media (max-width: 900px) { .result-summary { grid-template-columns: 1fr; }.result-metrics { max-width: 520px; } }
 @media (max-width: 520px) { .result-metrics { grid-template-columns: 1fr; } }
 </style>

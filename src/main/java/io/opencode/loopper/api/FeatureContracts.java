@@ -32,7 +32,10 @@ public final class FeatureContracts {
     }
 
     public record QueueStatusDto(String taskId, String state, Long queuePosition,
-                                 String leaseState, String rootFingerprint) { }
+                                 String leaseState, String rootFingerprint,
+                                 String holderTaskId, String holderTaskTitle, String holderTaskState,
+                                 Boolean holderArchived, String releaseReason,
+                                 boolean reconcileAvailable) { }
 
     public record RecoveryRequest(RecoveryMode mode) {
         public RecoveryRequest { mode = mode == null ? RecoveryMode.FROM_FAILED_STAGE : mode; }

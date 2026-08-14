@@ -408,6 +408,12 @@ export interface TaskQueueStatus {
   queuePosition?: number
   leaseState: 'HELD' | 'RELEASE_PENDING' | 'RELEASED' | 'NOT_REQUIRED'
   rootFingerprint?: string
+  holderTaskId?: string
+  holderTaskTitle?: string
+  holderTaskState?: TaskStatus
+  holderArchived?: boolean
+  releaseReason?: string
+  reconcileAvailable: boolean
 }
 
 export type RecoveryMode = 'FROM_FAILED_STAGE' | 'ALL_STAGES' | 'VERIFY_ONLY' | 'REWORK_ALL_STAGES'

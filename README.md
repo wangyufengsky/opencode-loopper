@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.1.50`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.1.51`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -113,7 +113,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.1.50.jar
+java -jar target/opencode-loopper-0.1.51.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -241,9 +241,9 @@ REST/JSON/浏览器条件使用阶段 `verificationRuntime` 启动本次代码�
 | Git 任务分支 | 项目有可用 Git HEAD | 已登记的原项目目录；脏文件先进入人工处理弹窗，清理后非交互 fetch 当前远端分支并切换到 `loopper/<任务名>`，同名时追加 `(第N次)` | 成功后人工提交；有远端则正常推送，无远端则保留本地提交 |
 | Direct | 没有可用 Git HEAD | 已登记的原项目目录 | 不提供自动发布或原地回滚；使用私有基线做差异和删除检查 |
 
-Loopper 不会因为任务成功就自动提交、推送或合并。每个登记目录通过持久化 FIFO 写租约串行执行；前一个任务仍有未提交改动时，后一个任务不会切换分支。用户确认提交后，Loopper 把改动提交到任务分支并恢复任务开始前的源分支；有排队任务时再从源分支进入下一任务分支。任务创建时的 fetch 只更新 remote-tracking refs；任务分支在人工发布前仍是本地分支，不会提前出现在 GitLab/GitHub。
+Loopper 不会因为任务成功就自动提交、推送或合并。每个登记目录通过持久化 FIFO 写租约串行执行；前一个任务仍有未提交改动时，后一个任务不会切换分支。Task、Queue 和 Lease 保持独立状态域，由统一协调器在写入者已确认停止、目录指纹一致、工作区干净且分支可安全恢复时，原子完成旧队列项并按 FIFO 转移租约。终态 holder 实际阻塞等待者时每 10 秒自动检查一次，任务详情也可手动触发；任何安全条件不满足都保留 holder，不会自动 stash、提交、删除或强制切分支。用户确认提交后，Loopper 把改动提交到任务分支并恢复任务开始前的源分支；有排队任务时再从源分支进入下一任务分支。任务创建时的 fetch 只更新 remote-tracking refs；任务分支在人工发布前仍是本地分支，不会提前出现在 GitLab/GitHub。
 
-处于 `QUEUED` 的任务可在详情页二次确认后直接取消。取消只移除该任务的排队资格并将其转为 `CANCELLED`，不会释放或切换当前执行任务持有的项目写租约；随后可在任务列表中归档，并按现有保护规则永久删除历史记录。
+处于 `QUEUED` 的任务可在详情页二次确认后直接取消。取消只移除该任务的排队资格并将其转为 `CANCELLED`，不会释放或切换当前执行任务持有的项目写租约。排队详情同时显示 holder 标题、状态、归档状态、租约状态和最近阻塞原因；“重新检查并释放”只让服务端重新执行安全检查，不接收客户端指定的 holder。持有活动租约或仍为 `ADMITTED` 的终态任务必须先完成安全释放，才能归档或永久删除。
 
 任务开始前发现脏工作区时，任务会停在 `WAITING_INPUT`，详情页自动弹出具体文件列表。每个文件必须明确选择“提交到当前源分支”“暂存到 Git stash”或“移除/丢弃改动”，再点击“重新检查并继续”。处理请求绑定当前 Git 状态快照；期间文件、索引、HEAD 或分支有变化时会拒绝旧决定并刷新列表，避免把过期选择用于新内容。提交只生成本地提交，不自动推送；stash 只包含选择的路径；移除未跟踪文件或丢弃跟踪文件改动前还会二次确认。外部 Git 操作不是数据库事务，若中途某一步失败，已成功的 Git 操作不会伪装回滚，弹窗会按最新状态重新列出剩余文件。处理完成后，历史错误仍作为审计证据保留，但详情页进入 `READY` 或执行状态时不再显示“检测到未提交文件”的活动红色告警。点击“取消并标记任务失败”会保留全部现有文件并直接终止任务。远端认证失败或本地/远端历史分叉仍会失败关闭。分支切换使用 10 分钟有界超时，并为 Windows 命令局部启用 Git 长路径支持。
 
@@ -286,9 +286,9 @@ Git 任务分支达到 `SUCCEEDED` 后：
 
 ### 归档与删除
 
-- 归档只改变任务在列表中的可见状态，不删除证据或源码。
+- 归档只改变任务在列表中的可见状态，不删除证据或源码；归档前会先做一次安全协调，活动租约未释放时返回 `TASK_ARCHIVE_WORKSPACE_LEASE_ACTIVE` 并保持任务可见。
 - 历史删除是终止操作，需要二次确认。
-- 正在运行、未归档或仍有派生子任务的记录受保护，不能删除。
+- 正在运行、未归档、仍有派生子任务、仍为 `ADMITTED` 或持有活动租约的记录受保护，不能删除；删除路径不会直接清空 lease holder。
 - 删除历史记录不会删除源文件、Git 分支或旧版本遗留的 worktree。
 
 ## 配置
@@ -331,7 +331,7 @@ Git 任务分支达到 `SUCCEEDED` 后：
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.1.50.jar`
+- `target/opencode-loopper-0.1.51.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -362,7 +362,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:51234
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.1.50.jar`
+- `opencode-loopper-0.1.51.jar`
 - `start-windows.bat`
 
 确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
@@ -400,7 +400,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.1.50.jar \
+jar tf target/opencode-loopper-0.1.51.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -480,7 +480,7 @@ Windows PowerShell：
 例如发布下一版本：
 
 ```bash
-VERSION=0.1.50
+VERSION=0.1.51
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -520,7 +520,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.1.50.jar
+java -jar target/opencode-loopper-0.1.51.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。
@@ -594,6 +594,8 @@ echo %PATHEXT%
 `0.1.49` 修复分包 LoopSpec 在 Review Gate 往返时被扁平化的问题：前端读取、编辑、保存和确认完整保留每个 Stage 的 `workPackageId`；服务端禁止删除、改写或重排已经聚合的包映射，并在确认前校验所有已完成工作包仍按依赖顺序映射到 Stage。任务详情因此能稳定展示包级进度与独立尝试池，执行器也会继续使用包级尝试预算和冻结设计上下文，而不会静默退回旧的全局 Stage 语义。
 
 `0.1.50` 将普通可写 Stage 的显式 `GIT_DIFF` 与 Attempt handoff 改为 Stage 首次执行前的私有工作区基线。后续包不再把前置包文件误判为 `outside allowed paths`，前置包改动也不能错误满足 `requireChanges=true`；当前 Stage 再次触碰前置文件仍会被准确拦截。重试和重启复用同一 V25 基线，旧活动 Stage 缺失基线时 fail closed；`VERIFY_ONLY` 与最终任务差异继续使用任务基线，保留完整累计审计。
+
+`0.1.51` 修复终态任务仍占用登记目录写租约时，后续任务永久停留在 `QUEUED` 的活性问题。统一协调器复用在取消清理、Session 清理、启动恢复、10 秒后台检查、手动检查和归档前置检查中；只有写入者确认停止、指纹一致、工作区干净且分支安全时，才完成旧 `ADMITTED` 队列项并严格按 FIFO 转移租约。任务详情显示“当前在排谁”及稳定阻塞原因；活动 holder 不能归档或永久删除。
 
 `0.1.48` 强化 Compiler 的 Java 单测证据合同：Designer 已明确写出的聚焦 Maven/Gradle 命令和测试类会作为强制证据清单进入首次规划与修复提示；服务端从安全的 `-Dtest`、`-Dit.test`、`--tests` 参数提取测试目标，并在同一 Java Stage 只有一个无歧义匹配时补齐遗漏的 `testCommand`、`testTargets`、`criterionIds` 或等价 TEST 验证器。服务端不从普通描述或全量测试命令猜测测试，也不在多个候选间擅自选择；真正缺失或存在歧义时仍由权威校验阻断并消耗原修复预算。
 

@@ -115,8 +115,6 @@ public interface LoopperMapper {
     int deleteEventsForTask(String taskId);
     @Delete("DELETE FROM judge_run WHERE task_id=#{taskId}")
     int deleteJudgeRunsForTask(String taskId);
-    @Update("UPDATE workspace_lease SET holder_task_id=NULL WHERE holder_task_id=#{taskId}")
-    int detachWorkspaceLeaseHolder(String taskId);
     @Update("UPDATE workspace_lease SET writer_session_id=NULL WHERE writer_session_id IN (SELECT id FROM execution_session WHERE task_id=#{taskId})")
     int detachWorkspaceLeaseWriterSessions(String taskId);
     @Delete("DELETE FROM execution_session WHERE task_id=#{taskId}")
@@ -529,6 +527,18 @@ public interface LoopperMapper {
     Optional<WorkspaceLeaseRow> findWorkspaceLease(String canonicalRoot);
     @Select("SELECT * FROM workspace_lease WHERE state IN ('HELD','RELEASE_PENDING') ORDER BY heartbeat_at")
     List<WorkspaceLeaseRow> blockingWorkspaceLeases();
+    @Select("SELECT * FROM workspace_lease WHERE holder_task_id=#{taskId} AND state IN ('HELD','RELEASE_PENDING') LIMIT 1")
+    Optional<WorkspaceLeaseRow> findActiveWorkspaceLeaseByHolder(String taskId);
+    @Select("""
+            SELECT lease.* FROM workspace_lease lease
+            WHERE lease.state IN ('HELD','RELEASE_PENDING')
+              AND EXISTS (
+                SELECT 1 FROM task_queue queued
+                WHERE queued.canonical_root=lease.canonical_root AND queued.state='QUEUED'
+              )
+            ORDER BY lease.heartbeat_at
+            """)
+    List<WorkspaceLeaseRow> blockingWorkspaceLeasesWithQueuedWaiter();
     @Insert("""
             INSERT INTO workspace_lease(canonical_root,root_fingerprint,mode,holder_task_id,writer_session_id,state,
               acquired_at,heartbeat_at,released_at,release_reason,version)

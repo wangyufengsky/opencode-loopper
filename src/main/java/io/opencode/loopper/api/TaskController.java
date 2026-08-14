@@ -63,6 +63,12 @@ public class TaskController {
     @GetMapping("/{id}/queue") public FeatureContracts.QueueStatusDto queue(@PathVariable String id) {
         return service.queueStatus(id);
     }
+    @PostMapping("/{id}/queue/reconcile")
+    public FeatureContracts.QueueStatusDto reconcileQueue(
+            @PathVariable String id, @RequestHeader("X-Loopper-Local-UI") String localUi) {
+        requireLocalUi(localUi);
+        return service.reconcileQueue(id);
+    }
     @GetMapping("/{id}/diff-preview")
     public DiffPreviewDto diffPreview(@PathVariable String id, @RequestParam String path) {
         var preview = service.diffPreview(id, path);

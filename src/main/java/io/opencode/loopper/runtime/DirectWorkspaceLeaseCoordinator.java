@@ -124,6 +124,32 @@ public class DirectWorkspaceLeaseCoordinator {
         }));
     }
 
+    /**
+     * Persists a fail-closed blocker without resolving or trusting the workspace path.
+     * This method can only retain the existing holder; it cannot release or transfer ownership.
+     *
+     * @return whether the persisted blocker changed
+     */
+    public boolean retainBlocked(String canonicalRoot, String taskId, boolean writerUnconfirmed,
+                                 String writerSessionId, String reason) {
+        Boolean changed = transactions.execute(status -> {
+            WorkspaceLeaseRow lease = mapper.findWorkspaceLease(canonicalRoot)
+                    .orElseThrow(() -> new TaskFailure("DIRECT_LEASE_MISSING", "No direct workspace lease exists for this root"));
+            if (!taskId.equals(lease.holderTaskId()) || WorkspaceLeaseState.RELEASED.name().equals(lease.state())) {
+                throw new TaskFailure("DIRECT_LEASE_NOT_HOLDER", "Task does not hold this direct workspace lease");
+            }
+            String nextState = writerUnconfirmed ? WorkspaceLeaseState.RELEASE_PENDING.name() : WorkspaceLeaseState.HELD.name();
+            String nextWriter = writerUnconfirmed ? writerSessionId : null;
+            String detail = reason == null || reason.isBlank() ? "WORKSPACE_LEASE_RECONCILIATION_BLOCKED" : bounded(reason);
+            if (nextState.equals(lease.state()) && java.util.Objects.equals(nextWriter, lease.writerSessionId())
+                    && detail.equals(lease.releaseReason())) return false;
+            updateLease(lease(lease, nextState, nextWriter, now(), null, detail));
+            return true;
+        });
+        if (changed == null) throw new TaskFailure("DIRECT_LEASE_TRANSACTION_FAILED", "Direct workspace blocker was not persisted");
+        return changed;
+    }
+
     /** A new writer may start only for the current HELD owner, never for RELEASE_PENDING. */
     public LeaseSnapshot requireWritableLease(Path root, String taskId) {
         WorkspaceIdentity workspace = identify(root);

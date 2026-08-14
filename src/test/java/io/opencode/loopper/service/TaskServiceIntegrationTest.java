@@ -1,6 +1,7 @@
 package io.opencode.loopper.service;
 
 import io.opencode.loopper.LoopperApplication;
+import io.opencode.loopper.api.FeatureContracts;
 import io.opencode.loopper.config.LoopperProperties;
 import io.opencode.loopper.domain.ErrorLayer;
 import io.opencode.loopper.domain.ImplementationKind;
@@ -15,6 +16,7 @@ import io.opencode.loopper.persistence.ProjectRow;
 import io.opencode.loopper.persistence.SessionUsageRow;
 import io.opencode.loopper.persistence.TaskArtifactRow;
 import io.opencode.loopper.persistence.TaskRow;
+import io.opencode.loopper.persistence.WorkspaceLeaseRow;
 import io.opencode.loopper.runtime.FakeOpenCodeClient;
 import io.opencode.loopper.runtime.OpenCodeClient;
 import io.opencode.loopper.verification.VerifierEngine;
@@ -25,6 +27,10 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
@@ -852,6 +858,174 @@ class TaskServiceIntegrationTest {
     }
 
     @Test
+    void dirtyTerminalHolderStaysVisibleAndManualReconciliationAdmitsTheWaiterAfterCleanup() throws Exception {
+        Path root = Path.of(gitProject());
+        ProjectRow project = projects.create("manual-terminal-reconcile", root.toString());
+        TaskRow holder = drafts.confirm(drafts.create(spec(project.id())).id(), "dirty cancelled holder");
+        TaskRow waiter = drafts.confirm(drafts.create(spec(project.id())).id(), "waiting after cleanup");
+        Files.writeString(root.resolve("unfinished.txt"), "retain the lease\n");
+
+        tasks.cancel(holder.id());
+
+        assertThat(tasks.get(holder.id()).state()).isEqualTo("CANCELLED");
+        assertThat(tasks.get(waiter.id()).state()).isEqualTo("QUEUED");
+        assertThat(tasks.queueStatus(waiter.id())).satisfies(queue -> {
+            assertThat(queue.holderTaskId()).isEqualTo(holder.id());
+            assertThat(queue.holderTaskTitle()).isEqualTo("dirty cancelled holder");
+            assertThat(queue.holderTaskState()).isEqualTo("CANCELLED");
+            assertThat(queue.holderArchived()).isFalse();
+            assertThat(queue.releaseReason()).isEqualTo("SOURCE_BRANCH_WORKSPACE_DIRTY");
+            assertThat(queue.reconcileAvailable()).isTrue();
+        });
+        assertThatThrownBy(() -> tasks.reconcileQueue(waiter.id()))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("未提交或未跟踪文件");
+        assertThatThrownBy(() -> tasks.reconcileQueue(waiter.id()))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("未提交或未跟踪文件");
+        assertThat(mapper.eventsAfter(holder.id(), 0).stream()
+                .filter(event -> "workspace.lease_reconcile_blocked".equals(event.type()))).hasSize(1);
+
+        Files.delete(root.resolve("unfinished.txt"));
+        FeatureContracts.QueueStatusDto reconciled = tasks.reconcileQueue(waiter.id());
+
+        assertThat(reconciled.state()).isEqualTo("ADMITTED");
+        assertThat(tasks.get(waiter.id()).state()).isEqualTo("READY");
+        assertThat(mapper.findTaskQueue(holder.id()).orElseThrow().state()).isEqualTo("FINISHED");
+        assertThat(mapper.findWorkspaceLease(root.toRealPath().toString()).orElseThrow().holderTaskId())
+                .isEqualTo(waiter.id());
+        assertThat(tasks.reconcileQueue(waiter.id()).state()).isEqualTo("ADMITTED");
+    }
+
+    @Test
+    void archiveAndPermanentDeleteRejectAnActiveHolderUntilSafeReconciliationCompletes() throws Exception {
+        Path root = Path.of(gitProject());
+        ProjectRow project = projects.create("archive-lease-guard", root.toString());
+        TaskRow holder = drafts.confirm(drafts.create(spec(project.id())).id(), "archivable holder");
+        TaskRow waiter = drafts.confirm(drafts.create(spec(project.id())).id(), "archive waiter");
+        Files.writeString(root.resolve("unpublished.txt"), "block archive\n");
+        tasks.cancel(holder.id());
+
+        assertThatThrownBy(() -> tasks.archive(holder.id()))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("释放完成前不能归档", "SOURCE_BRANCH_WORKSPACE_DIRTY");
+        assertThat(tasks.archived(holder.id())).isFalse();
+
+        mapper.archiveTask(holder.id(), Instant.now().toString());
+        assertThatThrownBy(() -> tasks.deleteArchived(holder.id()))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("活动项目写租约 holder");
+        assertThat(mapper.findWorkspaceLease(root.toRealPath().toString()).orElseThrow().holderTaskId())
+                .isEqualTo(holder.id());
+
+        Files.delete(root.resolve("unpublished.txt"));
+        tasks.archive(holder.id());
+
+        assertThat(tasks.archived(holder.id())).isTrue();
+        assertThat(tasks.get(waiter.id()).state()).isEqualTo("READY");
+        assertThat(mapper.findTaskQueue(holder.id()).orElseThrow().state()).isEqualTo("FINISHED");
+    }
+
+    @Test
+    void fingerprintMismatchFailsClosedBeforeTheTaskBranchCanBeRestored() throws Exception {
+        Path root = Path.of(gitProject());
+        ProjectRow project = projects.create("fingerprint-reconcile", root.toString());
+        TaskRow holder = drafts.confirm(drafts.create(spec(project.id())).id(), "fingerprint holder");
+        TaskRow waiter = drafts.confirm(drafts.create(spec(project.id())).id(), "fingerprint waiter");
+        Files.writeString(root.resolve("temporary.txt"), "block initial release\n");
+        tasks.cancel(holder.id());
+        Files.delete(root.resolve("temporary.txt"));
+        String holderBranch = runOutput(root, "git", "branch", "--show-current").trim();
+        WorkspaceLeaseRow lease = mapper.findWorkspaceLease(root.toRealPath().toString()).orElseThrow();
+        assertThat(mapper.updateWorkspaceLease(new WorkspaceLeaseRow(
+                lease.canonicalRoot(), "changed-fingerprint", lease.mode(), lease.holderTaskId(),
+                lease.writerSessionId(), lease.state(), lease.acquiredAt(), lease.heartbeatAt(),
+                lease.releasedAt(), lease.releaseReason(), lease.version()))).isEqualTo(1);
+
+        assertThatThrownBy(() -> tasks.reconcileQueue(waiter.id()))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("稳定指纹已变化");
+
+        assertThat(runOutput(root, "git", "branch", "--show-current").trim()).isEqualTo(holderBranch);
+        assertThat(mapper.findTaskQueue(holder.id()).orElseThrow().state()).isEqualTo("ADMITTED");
+        assertThat(mapper.findTaskQueue(waiter.id()).orElseThrow().state()).isEqualTo("QUEUED");
+    }
+
+    @Test
+    void unavailableWorkspaceAndUnexpectedBranchBothFailClosed() throws Exception {
+        Path unavailableRoot = Path.of(gitProject());
+        ProjectRow unavailableProject = projects.create("unavailable-reconcile", unavailableRoot.toString());
+        TaskRow unavailableHolder = drafts.confirm(drafts.create(spec(unavailableProject.id())).id(), "unavailable holder");
+        TaskRow unavailableWaiter = drafts.confirm(drafts.create(spec(unavailableProject.id())).id(), "unavailable waiter");
+        Files.writeString(unavailableRoot.resolve("temporary.txt"), "block initial release\n");
+        tasks.cancel(unavailableHolder.id());
+        Files.delete(unavailableRoot.resolve("temporary.txt"));
+        Files.move(unavailableRoot, unavailableRoot.resolveSibling(unavailableRoot.getFileName() + "-moved"));
+
+        assertThatThrownBy(() -> tasks.reconcileQueue(unavailableWaiter.id()))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("cannot be resolved");
+        assertThat(mapper.findTaskQueue(unavailableWaiter.id()).orElseThrow().state()).isEqualTo("QUEUED");
+
+        Path branchRoot = Path.of(gitProject());
+        ProjectRow branchProject = projects.create("branch-reconcile", branchRoot.toString());
+        TaskRow branchHolder = drafts.confirm(drafts.create(spec(branchProject.id())).id(), "branch holder");
+        TaskRow branchWaiter = drafts.confirm(drafts.create(spec(branchProject.id())).id(), "branch waiter");
+        Files.writeString(branchRoot.resolve("temporary.txt"), "block initial release\n");
+        tasks.cancel(branchHolder.id());
+        Files.delete(branchRoot.resolve("temporary.txt"));
+        run(branchRoot, "git", "switch", "-c", "unexpected-branch");
+
+        assertThatThrownBy(() -> tasks.reconcileQueue(branchWaiter.id()))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("instead of Task branch");
+        assertThat(runOutput(branchRoot, "git", "branch", "--show-current").trim()).isEqualTo("unexpected-branch");
+        assertThat(mapper.findTaskQueue(branchWaiter.id()).orElseThrow().state()).isEqualTo("QUEUED");
+    }
+
+    @Test
+    void concurrentManualAndAutomaticReconciliationTransferExactlyOneFifoWaiter() throws Exception {
+        Path root = Path.of(gitProject());
+        ProjectRow project = projects.create("concurrent-reconcile", root.toString());
+        TaskRow holder = drafts.confirm(drafts.create(spec(project.id())).id(), "concurrent holder");
+        TaskRow firstWaiter = drafts.confirm(drafts.create(spec(project.id())).id(), "first waiter");
+        TaskRow secondWaiter = drafts.confirm(drafts.create(spec(project.id())).id(), "second waiter");
+        Files.writeString(root.resolve("temporary.txt"), "block initial release\n");
+        tasks.cancel(holder.id());
+        Files.delete(root.resolve("temporary.txt"));
+        run(root, "git", "switch", holder.sourceBranch());
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+
+        try (var pool = Executors.newFixedThreadPool(2)) {
+            Future<?> manual = pool.submit(() -> {
+                ready.countDown();
+                start.await(5, TimeUnit.SECONDS);
+                tasks.reconcileQueue(firstWaiter.id());
+                return null;
+            });
+            Future<?> automatic = pool.submit(() -> {
+                ready.countDown();
+                start.await(5, TimeUnit.SECONDS);
+                tasks.reconcileTerminalWorkspaceLeasesWithWaiters();
+                return null;
+            });
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            manual.get(20, TimeUnit.SECONDS);
+            automatic.get(20, TimeUnit.SECONDS);
+        }
+
+        assertThat(mapper.findTaskQueue(holder.id()).orElseThrow().state()).isEqualTo("FINISHED");
+        assertThat(mapper.findTaskQueue(firstWaiter.id()).orElseThrow().state()).isEqualTo("ADMITTED");
+        assertThat(mapper.findTaskQueue(secondWaiter.id()).orElseThrow().state()).isEqualTo("QUEUED");
+        assertThat(tasks.get(firstWaiter.id()).state()).isEqualTo("READY");
+        assertThat(tasks.get(secondWaiter.id()).state()).isEqualTo("QUEUED");
+        assertThat(mapper.eventsAfter(holder.id(), 0).stream()
+                .filter(event -> "workspace.lease_released".equals(event.type()))).hasSize(1);
+    }
+
+    @Test
     void unconfirmedDirectWriterKeepsNextTaskQueuedUntilCleanupObservesTerminalState() throws Exception {
         Path root = Files.createDirectory(temp.resolve("blocked-direct-root"));
         Files.writeString(root.resolve("README.md"), "fixture");
@@ -885,12 +1059,31 @@ class TaskServiceIntegrationTest {
         TaskRow second = drafts.confirm(drafts.create(spec(project.id())).id(), "persisted restart waiter");
         mapper.updateTaskState(new TaskRow(first.id(), first.projectId(), first.loopDraftId(), first.title(), "CANCELLED",
                 first.worktreePath(), first.branchName(), first.baselineCommit(), first.createdAt(), Instant.now().toString(), first.version()));
+        mapper.archiveTask(first.id(), Instant.now().toString());
 
         tasks.recoverAfterRestart();
 
         assertThat(tasks.get(first.id()).state()).isEqualTo("CANCELLED");
+        assertThat(tasks.archived(first.id())).isTrue();
+        assertThat(mapper.findTaskQueue(first.id()).orElseThrow().state()).isEqualTo("FINISHED");
         assertThat(tasks.get(second.id()).state()).isEqualTo("READY");
         assertThat(tasks.queueStatus(second.id()).state()).isEqualTo("ADMITTED");
+    }
+
+    @Test
+    void scheduledReconciliationSkipsTerminalHoldersWithoutQueuedWaiters() throws Exception {
+        Path root = Path.of(gitProject());
+        ProjectRow project = projects.create("no-waiter-reconcile", root.toString());
+        TaskRow holder = drafts.confirm(drafts.create(spec(project.id())).id(), "terminal without waiter");
+        Files.writeString(root.resolve("temporary.txt"), "dirty\n");
+        tasks.cancel(holder.id());
+        Files.delete(root.resolve("temporary.txt"));
+
+        tasks.reconcileTerminalWorkspaceLeasesWithWaiters();
+
+        assertThat(mapper.findTaskQueue(holder.id()).orElseThrow().state()).isEqualTo("ADMITTED");
+        assertThat(mapper.findWorkspaceLease(root.toRealPath().toString()).orElseThrow().holderTaskId())
+                .isEqualTo(holder.id());
     }
 
     @Test

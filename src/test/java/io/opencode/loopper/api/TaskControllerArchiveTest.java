@@ -124,7 +124,9 @@ class TaskControllerArchiveTest {
     @Test
     void returnsPersistedQueueAndLeaseStatus() throws Exception {
         when(tasks.queueStatus("task-queued")).thenReturn(
-                new FeatureContracts.QueueStatusDto("task-queued", "QUEUED", 2L, "RELEASE_PENDING", "abc123"));
+                new FeatureContracts.QueueStatusDto("task-queued", "QUEUED", 2L, "RELEASE_PENDING", "abc123",
+                        "task-holder", "已取消的持有任务", "CANCELLED", true,
+                        "SESSION_WRITER_UNCONFIRMED", true));
 
         mvc.perform(get("/api/tasks/task-queued/queue"))
                 .andExpect(status().isOk())
@@ -132,7 +134,30 @@ class TaskControllerArchiveTest {
                 .andExpect(jsonPath("$.state").value("QUEUED"))
                 .andExpect(jsonPath("$.queuePosition").value(2))
                 .andExpect(jsonPath("$.leaseState").value("RELEASE_PENDING"))
-                .andExpect(jsonPath("$.rootFingerprint").value("abc123"));
+                .andExpect(jsonPath("$.rootFingerprint").value("abc123"))
+                .andExpect(jsonPath("$.holderTaskId").value("task-holder"))
+                .andExpect(jsonPath("$.holderTaskTitle").value("已取消的持有任务"))
+                .andExpect(jsonPath("$.holderTaskState").value("CANCELLED"))
+                .andExpect(jsonPath("$.holderArchived").value(true))
+                .andExpect(jsonPath("$.releaseReason").value("SESSION_WRITER_UNCONFIRMED"))
+                .andExpect(jsonPath("$.reconcileAvailable").value(true));
+    }
+
+    @Test
+    void reconcilesAQueuedWorkspaceOnlyThroughTheLocalUiContract() throws Exception {
+        FeatureContracts.QueueStatusDto status = new FeatureContracts.QueueStatusDto(
+                "task-queued", "ADMITTED", null, "HELD", "abc123",
+                "task-queued", "排队任务", "QUEUED", false, null, false);
+        when(tasks.reconcileQueue("task-queued")).thenReturn(status);
+
+        mvc.perform(post("/api/tasks/task-queued/queue/reconcile")
+                        .header("X-Loopper-Local-UI", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.state").value("ADMITTED"));
+        verify(tasks).reconcileQueue("task-queued");
+
+        mvc.perform(post("/api/tasks/task-queued/queue/reconcile"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

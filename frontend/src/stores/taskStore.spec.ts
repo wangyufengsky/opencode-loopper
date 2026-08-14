@@ -6,6 +6,7 @@ import { reduceTaskEvent, requiresTaskSnapshot, useTaskStore } from '@/stores/ta
 const apiMocks = vi.hoisted(() => ({
   createTaskRecovery: vi.fn(),
   startTask: vi.fn(),
+  archiveTask: vi.fn(),
   deleteArchivedTask: vi.fn(),
   getProjects: vi.fn(),
   getTasks: vi.fn(),
@@ -88,6 +89,19 @@ describe('task SSE reducer', () => {
     expect(apiMocks.deleteArchivedTask).toHaveBeenCalledWith(archived.id)
     expect(store.tasks).toEqual([])
     expect(store.artifacts).toEqual([])
+  })
+
+  it('keeps an active lease holder visible when the backend rejects archive', async () => {
+    const holder = { ...demoTasks[0]!, id: 'active-holder', status: 'CANCELLED' as const, archived: false }
+    const store = useTaskStore()
+    store.usingDemo = false
+    store.tasks = [holder]
+    apiMocks.archiveTask.mockRejectedValue(new Error('工作区有未提交文件，释放完成前不能归档'))
+
+    await expect(store.setTaskArchived(holder.id, true)).rejects.toThrow('释放完成前不能归档')
+
+    expect(store.tasks).toEqual([holder])
+    expect(store.error).toContain('工作区有未提交文件')
   })
 
   it('exits demo mode and reloads authoritative backend data', async () => {

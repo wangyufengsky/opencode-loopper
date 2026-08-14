@@ -8,7 +8,7 @@ export const demoProjects: Project[] = [
 ]
 
 export const demoRuntime: RuntimeInfo = {
-  loopperVersion: '0.1.50', status: 'ONLINE', version: '1.18.12', managed: true, pid: 44892, endpoint: '127.0.0.1:40971', model: 'opencode/deepseek-v4-flash-free', checkedAt: now,
+  loopperVersion: '0.1.51', status: 'ONLINE', version: '1.18.12', managed: true, pid: 44892, endpoint: '127.0.0.1:40971', model: 'opencode/deepseek-v4-flash-free', checkedAt: now,
 }
 
 export const demoTasks: Task[] = [

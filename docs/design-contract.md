@@ -74,7 +74,16 @@ A Task in `QUEUED` must likewise expose a confirmed **取消任务** action on T
 detail. The confirmation explains that only the waiting queue row is cancelled:
 the current writer and its workspace lease remain untouched. The server-authoritative
 result is `CANCELLED`, after which the existing Task-list archive and permanent-delete
-flow becomes available.
+flow becomes available only when the Task no longer owns an active workspace lease.
+While a Task remains `QUEUED`, detail renders a server-backed **当前在排谁** card with
+the holder title/link, Task state, archive flag, lease state, queue position, and stable
+release blocker. **重新检查并释放** posts only the waiter ID to the local-UI endpoint;
+the server locates the holder and returns the latest queue projection. A 409 keeps the
+card visible and renders its concrete dirty-workspace, unconfirmed-writer, fingerprint,
+unavailable-root, or unsafe-branch reason. A successful action refreshes Task and queue
+state but never starts model execution. Archive failures caused by an active lease keep
+the terminal Task in the active list and surface `TASK_ARCHIVE_WORKSPACE_LEASE_ACTIVE`
+instead of hiding it.
 
 When `waitingReasonCode` is `SOURCE_BRANCH_WORKSPACE_DIRTY`, Task detail opens a
 non-dismissible **发现未提交文件** dialog backed by the server's current Git

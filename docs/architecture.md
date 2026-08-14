@@ -376,7 +376,25 @@ OpenCode and every verifier observe the same canonical directory and current bra
 Any Task still in `QUEUED` may be explicitly cancelled before admission. Cancellation
 transitions only that Task and its queue row to `CANCELLED`; it never releases or
 transfers the current holder's lease. The cancelled terminal Task may then follow the
-ordinary archive and protected history-deletion flow.
+ordinary archive and protected history-deletion flow only after it no longer owns an
+active lease.
+Task, Queue, and Lease remain separate lifecycle machines. Their cross-machine
+invariant is coordinated by `WorkspaceLeaseReconciliationService`: an `ADMITTED`
+queue row must name the same Task as the non-`RELEASED` lease holder, and a terminal
+holder may complete `ADMITTED -> FINISHED` only after every writable Session and
+managed verifier runtime is confirmed terminal, the canonical root fingerprint still
+matches, the checkout is clean, and the recorded source branch can be restored safely.
+Path identity, Git status, and branch restoration run outside SQLite transactions;
+the coordinator then rechecks queue/lease ownership and performs completion plus one
+FIFO transfer in a short transaction. Concurrent cancellation, restart, manual, and
+background calls are idempotent. A fixed-delay 10-second monitor scans only terminal
+holders which actually have a `QUEUED` waiter, while startup recovery and
+`POST /api/tasks/{waiterId}/queue/reconcile` reuse the same logic. Blocked checks retain
+the lease and audit `AUTO | MANUAL | ARCHIVE | RESTART` without repeating an unchanged
+reason. No reconciliation path stashes, commits, deletes, force-switches, or detaches
+an active holder. Archive first reconciles and otherwise returns
+`TASK_ARCHIVE_WORKSPACE_LEASE_ACTIVE`; permanent deletion independently rejects both
+active lease ownership and an `ADMITTED` row.
 The local Task branch is not pushed until the post-success human publication action.
 Branch checkout has its own bounded
 10-minute timeout rather than the short Git-inspection timeout, suppresses
