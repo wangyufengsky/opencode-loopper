@@ -75,7 +75,6 @@ beforeEach(() => {
   store.usingDemo = false
   store.projects = [project]
   vi.spyOn(api, 'getSettings').mockResolvedValue(settings)
-  vi.spyOn(api, 'listOpenDesignerSessions').mockResolvedValue([])
   vi.spyOn(api, 'validateDraft').mockImplementation(async (spec) => ({
     valid: true, schemaVersion: spec.schemaVersion, legacy: spec.schemaVersion === 'v1', errors: [], stageAssessments: [],
   }))
@@ -88,25 +87,17 @@ afterEach(() => {
 })
 
 describe('Designer draft composer', () => {
-  it('lists unconfirmed server sessions and restores one without a browser pointer', async () => {
+  it('keeps the new-design page focused and restores a history session from an explicit route', async () => {
     const recoverableDraft = draftFrom({
       schemaVersion: 'v2', projectId: project.id, goal: '恢复重启前的设计', context: '', stages: [],
       limits: { maxStageAttempts: 3, maxTaskAttempts: 7, maxDuration: '7200', attemptTimeout: '1800' },
     })
-    vi.mocked(api.listOpenDesignerSessions).mockResolvedValue([{
-      id: 'designer-recover', projectId: project.id, state: 'WAITING_INPUT', workflowPhase: 'FAILED',
-      updatedAt: '2026-08-17T01:00:00Z', draftId: recoverableDraft.id, draftStatus: 'DRAFT_READY',
-      goal: recoverableDraft.spec.goal, requirementRevision: 1, activeWorkPackageId: 'WP-2',
-    }])
+    routeQuery.sessionId = 'designer-recover'
+    routeQuery.projectId = project.id
     vi.spyOn(api, 'getDesignerSession').mockResolvedValue({
       ...session, id: 'designer-recover', state: 'WAITING_INPUT', workflowPhase: 'FAILED', draft: recoverableDraft,
     })
     const wrapper = mountDesigner()
-    await flushPromises()
-
-    expect(wrapper.get('[aria-label="待继续设计"]').text()).toContain('恢复重启前的设计')
-    expect(wrapper.get('[aria-label="待继续设计"]').text()).toContain('等待输入 · WP-2')
-    await wrapper.get('[aria-label="待继续设计"] button').trigger('click')
     await flushPromises()
 
     expect(sessionStorage.getItem('opencode-loopper.designer-workspace')).toContain('designer-recover')
@@ -127,6 +118,23 @@ describe('Designer draft composer', () => {
     expect(sessionStorage.getItem('opencode-loopper.designer-workspace')).toContain('designer-recover')
     expect(wrapper.text()).toContain('上次设计暂时无法恢复：服务正在重启')
     expect(wrapper.text()).toContain('服务端记录不会因短暂断线被删除')
+  })
+
+  it('does not auto-open an archived design from a stale browser recovery pointer', async () => {
+    const recoverableDraft = draftFrom({
+      schemaVersion: 'v2', projectId: project.id, goal: '已经归档的设计', context: '', stages: [],
+      limits: { maxStageAttempts: 3, maxTaskAttempts: 7, maxDuration: '7200', attemptTimeout: '1800' },
+    })
+    sessionStorage.setItem('opencode-loopper.designer-workspace', JSON.stringify({ sessionId: 'designer-archived', draftId: 'draft-1' }))
+    vi.spyOn(api, 'getDesignerSession').mockResolvedValue({ ...session, id: 'designer-archived', archived: true, draft: recoverableDraft })
+    vi.spyOn(api, 'getDraft').mockResolvedValue(recoverableDraft)
+
+    const wrapper = mountDesigner()
+    await flushPromises()
+
+    expect(sessionStorage.getItem('opencode-loopper.designer-workspace')).toBeNull()
+    expect(wrapper.find('textarea[aria-label="发送给只读 OpenCode Designer 的消息"]').exists()).toBe(false)
+    expect(wrapper.find('textarea[aria-label="草案设计目标"]').exists()).toBe(true)
   })
 
   it('starts a structured brief from a quick template and persists it locally', async () => {

@@ -41,10 +41,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.1.70.jar
-   jar tf target/opencode-loopper-0.1.70.jar \
+   test -s target/opencode-loopper-0.1.71.jar
+   jar tf target/opencode-loopper-0.1.71.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.1.70.jar
+   shasum -a 256 target/opencode-loopper-0.1.71.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -93,8 +93,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.1.70`。
-- 正式产物：`target/opencode-loopper-0.1.70.jar`。
+- Maven 项目版本：`0.1.71`。
+- 正式产物：`target/opencode-loopper-0.1.71.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -234,7 +234,8 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 - 执行期若已冻结的 `DECOMPOSITION_CONTEXT` 无法解析、字段形状错误、缺少当前包或依赖 ID 无效，必须在创建可写 OpenCode Session 前以 `DECOMPOSITION_CONTEXT_INVALID` 失败关闭；不得静默丢弃全局约束或前置包交接。
 - Designer 合并在单个数组项中的 Maven 参数若能无歧义解析，应在同步时直接规范化并保存为独立 argv，不消耗自动纠正次数；只有引号未闭合等无法安全解析的输入才按无效 LoopSpec 回送纠正。
 - 人工确认必须是幂等边界；确认后创建唯一 `PENDING_START` Task，且不申请执行资源，再由用户显式请求开始。
-- 项目 `taskCount` 只统计已创建的 Task，不得把确认前 Designer 会话伪装成任务；服务端必须按项目另行投影每个未确认草稿的最新 Designer Session 和 `openDesignerSessionCount`。浏览器工作区 ID 只是恢复提示，服务重启或短暂 API 失败不得清除；Designer 起始页必须能脱离浏览器本地状态从服务端选择并恢复权威 Session/草稿。
+- 项目 `taskCount` 只统计已创建的 Task，不得把确认前 Designer 会话伪装成任务；服务端必须按项目另行投影每个未确认草稿的最新 Designer Session 和 `openDesignerSessionCount`。浏览器工作区 ID 只是恢复提示，服务重启或短暂 API 失败不得清除。Designer 起始页只负责新建，不得平铺历史会话；独立“历史设计”页负责项目/状态/归档筛选、时间排序、继续、修改、归档和恢复。V29 归档只增加可恢复投影，不删除草稿、消息、问题、候选或批准，且归档项不计入 `openDesignerSessionCount`。
+- Designer 双栏和 PageHeader 操作区必须以 `min-width: 0`、换行和响应式单列保持在视口边界内；总体确认按钮除页头外还必须在 Review Gate 内提供同一权威动作，不能因窄视口变得不可点击。
 - 聚合后仍只创建一个 Task、一个任务分支和一次发布；Stage/包严格串行。每包尝试池为 `min(stageCount × maxStageAttempts, stageCount + 2)`，必须为未启动 Stage 保留首次尝试，剩余额度不跨包转移；全部 Stage 通过后只运行一次 Requirement/Risk 双 Judge。
 - 新建、导入和模板新版本使用 LoopSpec v2：每阶段必须显式声明 `implementationKind`，并至少有一个可观察 `acceptanceCriteria`。条件通过 `verificationMode` 选择 `MACHINE`、`JUDGE` 或 `BOTH`；机器模式必须由服务端分类为 `BEHAVIOR` 的验证器通过 `criterionIds` 覆盖，Judge 模式必须提供 `judgeRubric`，仅 Judge 还必须提供 `judgeOnlyReason` 且不能已有机器行为映射。每阶段无论模式都至少有一个阻断性确定性验证器。旧 v2 缺少 `implementationKind` 时只允许查看，再次保存、发布模板或确认前必须补齐；已持久化且未写模式的 v2 条件默认 `MACHINE`；v1 继续兼容且不得原地改版，只能复制为新 v2 草稿后补齐计划。
 
@@ -381,7 +382,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.1.70.jar
+JAR=target/opencode-loopper-0.1.71.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -479,6 +480,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-08-17 | 拆分历史设计页并修复 Designer 操作边界，交付 0.1.71 | 新建设计页移除历史列表；新增 `/designs` 项目/状态/归档筛选、时间排序、继续/修改/归档/恢复；V29 持久化可恢复归档且不删除快照，旧浏览器指针不得自动重开已归档设计；项目入口改到历史页；页头动作换行、双栏宽度归零并在 Review Gate 补充最终确认入口；同步 README、架构、设计合同与本公约正文 | 聚焦发布/迁移/Designer Java 41/41、前端相关 64/64；`./scripts/verify.sh` 通过：Java 403 项（0 失败、0 错误、1 项平台条件跳过）、Vitest 163/163；JAR `target/opencode-loopper-0.1.71.jar` 为 263101602 bytes，含 102 个静态入口/assets、V29 迁移、历史 DTO 和历史页资源，SHA-256 `8b6ac104ac1979318f26fe77ac046066779ae4dd9f8ad44c8a8be6dbe3c10713`；复制 V28 数据后用该 JAR 在隔离 18083 升级到 V29，health `UP`、`/designs` 200、历史接口返回 29 条且 Runtime 版本为 0.1.71，实例随后关闭且未替换 8080；历史页另在 1440×1000 与 1024×768 视觉检查无横向越界；标签与 Release 结果在发布完成后回填 |
 | 2026-08-17 | AI 输出包容性解析、工具循环恢复与 0.1.70 交付 | Decomposer/Compiler/Judge 共用严格 JSON object 提取与可审计确定性规范化，项目公约兼容 marker/唯一 fence/整段 Markdown；V28 持久化纠正类别与每步骤一次 finalizer 资格；连续 3 次同工具同参数提前 abort 并无工具收口；纯验证元描述不生成业务验收项，全量测试仅可作补充报告；前端以普通信息样式展示规范化与恢复提示；同步 README、架构、设计、OpenCode、七特性合同与本公约正文 | 0.1.68 首次完整验证因发布脚本契约仍固定旧 JAR 名失败，0.1.69 再发现迁移测试仍断言 V27；均修正并按版本规则递增。聚焦验证：`mvn -Dtest=AiOutputExtractorTest,HttpOpenCodeClientTest,ProjectConventionServiceTest test` 后端 33/33、前端 159/159；`mvn -Dtest=DesignerSessionMcpIntegrationTest,TaskServiceIntegrationTest test` 后端 95/95、前端 159/159；`mvn -Dtest=FeatureMigrationTest,ReleasePackagingContractTest test` 后端 10/10、前端 159/159。完整 `./scripts/verify.sh` 通过：Java 402 项（跳过 1）、前端 159 项；JAR `target/opencode-loopper-0.1.70.jar` 为 263090915 bytes，SHA-256 `6fade8fe70745872ce7e4b4dcf1523337cbf41979ba94f0fd1802e7cd3d29484`，含 `BOOT-INF/classes/static/index.html` 与静态 assets。隔离实例在 18080 使用真实 DeepSeek/OpenCode 1.18.18 `TEXT_MARKER` 模式完成需求讨论、DIRECT_DESIGN 拆解、WP-1 设计/编译/批准与确定性聚合并进入 `FINAL_REVIEW`：模型调用 7/96，Decomposer 格式修复 0、最终修复 0、规划语义修复 1，Compiler 规划/最终修复均为 0、格式回退 0、工具循环 finalizer 0，`OUTPUT_MARKERS_MISSING` 消息 0，持久化 3 条 `NORMALIZED` 审计；未创建 Task，验证后已关闭隔离 Loopper/OpenCode，现有 8080 仍为 0.1.67/PID 38300。标签 `v0.1.70` 指向 `e13df26376b8565cf8ceb10a483bba09e1a3ca00`；GitHub Actions `31997058481` 的 Windows 脚本校验与 Release 两项 Job 均成功；Release `https://github.com/wangyufengsky/opencode-loopper/releases/tag/v0.1.70` 已发布 JAR、两平台启动脚本与 `SHA256SUMS`。独立下载后全量校验通过，远端 JAR 为 263090915 bytes、SHA-256 `cdf9913c821a41abd028647524e81b6928eee842f561d1792ec9c0956d8a28b6`，可读取且包含 `BOOT-INF/classes/static/index.html` 与 99 个静态 assets |
 | 2026-08-17 | 修复 Designer 成功操作误报 JSON 截断 | 前端公共 API transport 兼容任意 2xx 空响应；需求确认/重开与工作包接受回归测试改用后端真实的空 `202`；同步设计合同与本公约正文 | 聚焦 API client 34/34、完整 Vitest 158/158、前端类型检查通过；按用户要求不打包、不推送、不发布，版本保持 0.1.67 |
 | 2026-08-17 | 项目任务/设计恢复、Designer 多轮讨论与逐包确认，交付 0.1.67 | 项目页分别投影历史任务和待继续设计；V27 持久化需求/工作包完整讨论快照、问题答案、候选和批准修订；Designer 强制先提问，需求确认后才拆包，每包讨论、Compiler/Validator 同步、明确批准后才推进，重开只失效传递依赖；新增四步进度、作用域、工作包导航、推荐答案、同步状态和最终确认；同步 README、架构、设计、OpenCode 合同与本公约正文 | 聚焦 Java 41/41、Vitest 62/62、Playwright 完整两包路径 1/1；`./scripts/verify.sh` 通过：Java 390 项（0 失败、0 错误、1 项 Windows 条件用例在 macOS 跳过），Vitest 158/158；JAR `target/opencode-loopper-0.1.67.jar`（263057730 bytes）内含 100 个前端静态条目、V27 和讨论快照类，SHA-256 `2645200dec65d6e3815de000ebf6adc37ed4814f76180286c28a34fc60552928`；Java 21 隔离端口 18097 首次启动和同数据目录重启均 health `UP`/Flyway v27，未确认 Designer 会话重启后仍由服务端找回，项目投影保持 Task 0/待继续设计 1，端口随后释放且未替换 8080；发布目标：`v0.1.67` |

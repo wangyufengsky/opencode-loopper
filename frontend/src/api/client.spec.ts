@@ -620,6 +620,32 @@ describe('Loopper REST contract adapter', () => {
     expect(fetchMock).toHaveBeenCalledWith('/api/designer-sessions?projectId=project%20one', expect.any(Object))
   })
 
+  it('lists and archives Designer history through local-UI guarded endpoints', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json([{
+        id: 'designer-1', projectId: 'project one', projectName: 'Example', state: 'WAITING_INPUT', workflowPhase: 'FAILED',
+        createdAt: 'created', updatedAt: 'updated', draftId: 'draft-1', draftStatus: 'DRAFT_READY', goal: 'Resume me',
+        requirementRevision: 2, activeWorkPackageId: 'WP-2', archived: false,
+      }]))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(api.listDesignerHistory('project one')).resolves.toEqual([expect.objectContaining({
+      id: 'designer-1', projectName: 'Example', archived: false, createdAt: 'created',
+    })])
+    await expect(api.archiveDesignerSession('designer-1')).resolves.toBeUndefined()
+    await expect(api.restoreDesignerSession('designer-1')).resolves.toBeUndefined()
+
+    expect(fetchMock).toHaveBeenNthCalledWith(1, '/api/designer-sessions/history?projectId=project%20one', expect.any(Object))
+    expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/designer-sessions/designer-1/archive', expect.objectContaining({
+      method: 'PUT', headers: expect.objectContaining({ 'X-Loopper-Local-UI': '1' }),
+    }))
+    expect(fetchMock).toHaveBeenNthCalledWith(3, '/api/designer-sessions/designer-1/archive', expect.objectContaining({
+      method: 'DELETE', headers: expect.objectContaining({ 'X-Loopper-Local-UI': '1' }),
+    }))
+  })
+
   it('uses explicit optimistic-revision endpoints for requirement and work-package discussion', async () => {
     const accepted = { sessionId: 'designer-1', state: 'RUNNING', persistedMessages: [], notice: 'accepted' }
     const fetchMock = vi.fn()

@@ -69,7 +69,7 @@ class FeatureMigrationTest {
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
 
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("28");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("29");
         try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
             try (var result = statement.executeQuery("SELECT state,workflow_phase,discussion_scope FROM designer_session WHERE id='s27'")) {
                 assertThat(result.next()).isTrue();
@@ -101,7 +101,7 @@ class FeatureMigrationTest {
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
 
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("28");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("29");
         try (var connection = DriverManager.getConnection(url);
              var statement = connection.prepareStatement("SELECT name FROM sqlite_master WHERE type='table'")) {
             try (var result = statement.executeQuery()) {
@@ -115,7 +115,7 @@ class FeatureMigrationTest {
                         "verifier_runtime", "task_publication", "loop_spec_compilation", "stage_java_baseline",
                         "stage_workspace_baseline",
                         "design_requirement_revision", "task_decomposition", "design_work_package",
-                        "design_discussion_revision", "ai_output_handling_event"));
+                        "design_discussion_revision", "ai_output_handling_event", "designer_session_archive"));
             }
         }
         try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {

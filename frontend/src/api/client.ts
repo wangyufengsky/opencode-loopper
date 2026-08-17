@@ -1,4 +1,4 @@
-import type { AppSettings, Artifact, Attempt, AutomationImportPreview, AutomationImportResult, AutomationRule, AutomationRuleMutation, AutomationRun, AutomationRunFeed, AvailableModel, BrowserAssertion, CommitMessageSuggestion, CreateAutomationRuleInput, DesignerAppendResult, DesignerMessage, DesignerSession, DesignerSessionState, DesignerSessionSummary, DesignerStreamEvent, DirectorySelection, DirtyWorkspaceAction, DirtyWorkspaceResolution, DirtyWorkspaceState, ErrorEvent, InsightsSnapshot, Interaction, InteractionAction, JudgeRun, LocalSyncConflictContent, LocalSyncConflictFile, LocalSyncConflictSession, LocalSyncResolution, LoopDraft, LoopSpec, LoopSpecAssessment, LoopSpecTemplate, LoopSpecTemplateVersion, LoopVerifierSpec, MergeRequestDraft, Project, ProjectConventionDraft, ProjectConventionSnapshot, RecoveryDraft, RecoveryMode, RuntimeInfo, SessionCheckpoint, SessionForkResult, SessionRevertResult, SessionSummaryResult, SessionTodo, Stage, Task, TaskDesignHistory, TaskDiffPreview, TaskEvent, TaskInsight, TaskPublicationStatus, TaskQueueStatus, TaskSessionActivity, TaskSessionActivityPart, TaskSessionPendingQuestion, TaskSessionSummary, UsageAggregate } from '@/types/domain'
+import type { AppSettings, Artifact, Attempt, AutomationImportPreview, AutomationImportResult, AutomationRule, AutomationRuleMutation, AutomationRun, AutomationRunFeed, AvailableModel, BrowserAssertion, CommitMessageSuggestion, CreateAutomationRuleInput, DesignerAppendResult, DesignerHistoryItem, DesignerMessage, DesignerSession, DesignerSessionState, DesignerSessionSummary, DesignerStreamEvent, DirectorySelection, DirtyWorkspaceAction, DirtyWorkspaceResolution, DirtyWorkspaceState, ErrorEvent, InsightsSnapshot, Interaction, InteractionAction, JudgeRun, LocalSyncConflictContent, LocalSyncConflictFile, LocalSyncConflictSession, LocalSyncResolution, LoopDraft, LoopSpec, LoopSpecAssessment, LoopSpecTemplate, LoopSpecTemplateVersion, LoopVerifierSpec, MergeRequestDraft, Project, ProjectConventionDraft, ProjectConventionSnapshot, RecoveryDraft, RecoveryMode, RuntimeInfo, SessionCheckpoint, SessionForkResult, SessionRevertResult, SessionSummaryResult, SessionTodo, Stage, Task, TaskDesignHistory, TaskDiffPreview, TaskEvent, TaskInsight, TaskPublicationStatus, TaskQueueStatus, TaskSessionActivity, TaskSessionActivityPart, TaskSessionPendingQuestion, TaskSessionSummary, UsageAggregate } from '@/types/domain'
 
 const apiBase = import.meta.env.VITE_API_BASE ?? '/api'
 
@@ -610,6 +610,7 @@ function normalizeDesignerSession(value: unknown): DesignerSession {
     id: asString(raw.id),
     projectId: asString(raw.projectId),
     projectName: asString(raw.projectName) || undefined,
+    archived: raw.archived === true,
     state: normalizeDesignerState(raw.state),
     workflowPhase: normalizeWorkflowPhase(raw.workflowPhase),
     activeActor: normalizeDesignerActor(raw.activeActor),
@@ -660,6 +661,17 @@ function normalizeDesignerSessionSummary(value: unknown): DesignerSessionSummary
     goal: asString(raw.goal),
     requirementRevision: typeof raw.requirementRevision === 'number' ? raw.requirementRevision : undefined,
     activeWorkPackageId: asString(raw.activeWorkPackageId) || undefined,
+  }
+}
+
+function normalizeDesignerHistoryItem(value: unknown): DesignerHistoryItem {
+  const raw = asRecord(value)
+  return {
+    ...normalizeDesignerSessionSummary(raw),
+    projectName: asString(raw.projectName),
+    createdAt: asString(raw.createdAt),
+    archived: raw.archived === true,
+    archivedAt: asString(raw.archivedAt) || undefined,
   }
 }
 
@@ -1161,6 +1173,9 @@ export const api = {
   confirmDraft: async (id: string) => { const task = asRecord(await request<unknown>(`/loop-drafts/${encodeURIComponent(id)}/confirm`, { method: 'POST' })); return { taskId: asString(task.taskId) } },
   createDesignerSession: async (projectId: string, draftId: string, initialMessage?: string) => normalizeDesignerSession(await request<unknown>('/designer-sessions', { method: 'POST', body: JSON.stringify({ projectId, draftId, ...(initialMessage ? { initialMessage } : {}) }) })),
   listOpenDesignerSessions: async (projectId: string) => (await request<unknown[]>(`/designer-sessions?projectId=${encodeURIComponent(projectId)}`)).map(normalizeDesignerSessionSummary),
+  listDesignerHistory: async (projectId?: string) => (await request<unknown[]>(`/designer-sessions/history${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`)).map(normalizeDesignerHistoryItem),
+  archiveDesignerSession: async (id: string) => request<void>(`/designer-sessions/${encodeURIComponent(id)}/archive`, { method: 'PUT', headers: { 'X-Loopper-Local-UI': '1' } }),
+  restoreDesignerSession: async (id: string) => request<void>(`/designer-sessions/${encodeURIComponent(id)}/archive`, { method: 'DELETE', headers: { 'X-Loopper-Local-UI': '1' } }),
   getDesignerSession: async (id: string) => normalizeDesignerSession(await request<unknown>(`/designer-sessions/${encodeURIComponent(id)}`)),
   getDesignerMessages: async (id: string) => (await request<unknown[]>(`/designer-sessions/${encodeURIComponent(id)}/messages`)).map(normalizeDesignerMessage),
   replyDesignerQuestion: async (id: string, questionId: string, answers: string[][]) => request<void>(`/designer-sessions/${encodeURIComponent(id)}/questions/${encodeURIComponent(questionId)}/reply`, { method: 'POST', body: JSON.stringify({ answers }) }),

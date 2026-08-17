@@ -250,6 +250,13 @@ finalizer across process restart, and operators can distinguish wrapper/field
 normalization from real format or semantic repairs without storing raw model
 output in the audit row.
 
+V29 adds recoverable `designer_session_archive` projection rows. Archiving is a
+local-UI presentation boundary: it does not delete the draft, discussion
+snapshots, questions, candidates, approvals, or messages, and it does not claim
+that an external model Session stopped. Archived entries remain available from
+the history endpoint but are excluded from project `openDesignerSessionCount`
+and the active recovery query; restoring removes only the archive projection.
+
 Machine-response roles also carry an explicit non-thinking model selection.
 Managed DeepSeek starts with a private `loopper-no-thinking` variant and
 Decomposer/Compiler/Judge prompts select it; Markdown Designer and Implementation

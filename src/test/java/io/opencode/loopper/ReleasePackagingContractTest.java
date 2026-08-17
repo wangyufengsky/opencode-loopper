@@ -39,7 +39,7 @@ class ReleasePackagingContractTest {
         String linux = Files.readString(PROJECT_ROOT.resolve("scripts/start-linux.sh"));
 
         assertThat(windows)
-                .contains("opencode-loopper-0.1.70.jar")
+                .contains("opencode-loopper-0.1.71.jar")
                 .contains("LOOPPER_PUBLICATION_HTTP_WEB_HOSTS=gitlab.spdb.com")
                 .contains("LOOPPER_GITLAB_HOST=gitlab.spdb.com")
                 .contains("LOOPPER_GITLAB_API_BASE_URL=http://gitlab.spdb.com/api/v4")
@@ -58,7 +58,7 @@ class ReleasePackagingContractTest {
                 .doesNotContain("serve --hostname 127.0.0.1 --port 4096");
 
         assertThat(linux)
-                .contains("opencode-loopper-0.1.70.jar")
+                .contains("opencode-loopper-0.1.71.jar")
                 .contains("LOOPPER_PUBLICATION_HTTP_WEB_HOSTS=\"gitlab.spdb.com")
                 .contains("LOOPPER_GITLAB_HOST=\"${LOOPPER_GITLAB_HOST:-gitlab.spdb.com}\"")
                 .contains("LOOPPER_GITLAB_API_BASE_URL=\"${LOOPPER_GITLAB_API_BASE_URL:-http://gitlab.spdb.com/api/v4}\"")

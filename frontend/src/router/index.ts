@@ -7,6 +7,7 @@ export const router = createRouter({
     { path: '/', redirect: '/tasks' },
     { path: '/projects', component: () => import('@/views/ProjectsView.vue') },
     { path: '/designer', component: () => import('@/views/DesignerView.vue') },
+    { path: '/designs', component: () => import('@/views/DesignerHistoryView.vue') },
     { path: '/tasks', component: () => import('@/views/TasksView.vue') },
     { path: '/inbox', component: () => import('@/views/InboxView.vue') },
     { path: '/insights', component: () => import('@/views/InsightsDashboardView.vue') },

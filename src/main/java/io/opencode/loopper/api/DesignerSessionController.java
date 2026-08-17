@@ -1,6 +1,7 @@
 package io.opencode.loopper.api;
 
 import io.opencode.loopper.persistence.DesignerMessageRow;
+import io.opencode.loopper.persistence.DesignerSessionHistoryRow;
 import io.opencode.loopper.persistence.DesignerSessionRow;
 import io.opencode.loopper.persistence.ProjectRow;
 import io.opencode.loopper.persistence.LoopDraftRow;
@@ -16,9 +17,12 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -50,6 +54,28 @@ public class DesignerSessionController {
     @GetMapping
     public List<DesignerSessionSummaryDto> listOpen(@RequestParam String projectId) {
         return service.listOpen(projectId).stream().map(this::summary).toList();
+    }
+
+    @GetMapping("/history")
+    public List<DesignerSessionHistoryDto> history(
+            @RequestParam(required = false) String projectId) {
+        return service.history(projectId).stream().map(this::history).toList();
+    }
+
+    @PutMapping("/{id}/archive")
+    public ResponseEntity<Void> archive(@PathVariable String id,
+                                        @RequestHeader("X-Loopper-Local-UI") String localUi) {
+        requireLocalUi(localUi);
+        service.archive(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/{id}/archive")
+    public ResponseEntity<Void> restoreArchive(@PathVariable String id,
+                                               @RequestHeader("X-Loopper-Local-UI") String localUi) {
+        requireLocalUi(localUi);
+        service.restoreArchive(id);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping(value = "/{id}/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -207,7 +233,7 @@ public class DesignerSessionController {
                 service.decompositionStatus(row.id()), service.workPackageStatuses(row.id()),
                 row.currentRequirementRevision(), row.activeWorkPackageId(), row.discussionScope(),
                 row.discussionRevision(), service.candidateStatus(row.id()),
-                service.finalConfirmationEligible(row.id()));
+                service.finalConfirmationEligible(row.id()), service.archived(row.id()));
     }
 
     private DesignerSessionSummaryDto summary(DesignerSessionRow row) {
@@ -215,6 +241,12 @@ public class DesignerSessionController {
         return new DesignerSessionSummaryDto(row.id(), row.projectId(), row.state(), row.workflowPhase(),
                 row.updatedAt(), draft == null ? null : draft.id(), draft == null ? null : draft.status(),
                 draft == null ? null : draft.goal(), row.currentRequirementRevision(), row.activeWorkPackageId());
+    }
+
+    private DesignerSessionHistoryDto history(DesignerSessionHistoryRow row) {
+        return new DesignerSessionHistoryDto(row.id(), row.projectId(), row.projectName(), row.state(),
+                row.workflowPhase(), row.createdAt(), row.updatedAt(), row.draftId(), row.draftStatus(), row.goal(),
+                row.requirementRevision(), row.activeWorkPackageId(), row.archived() == 1, row.archivedAt());
     }
 
     private DesignerMessageDto message(DesignerMessageRow row) {
@@ -243,10 +275,16 @@ public class DesignerSessionController {
                                      Integer requirementRevision, String activeWorkPackageId,
                                      String discussionScope, int discussionRevision,
                                      DesignerSessionService.CandidateStatus candidate,
-                                     boolean finalConfirmationEligible) { }
+                                     boolean finalConfirmationEligible, boolean archived) { }
     public record DesignerSessionSummaryDto(String id, String projectId, String state, String workflowPhase,
                                             String updatedAt, String draftId, String draftStatus, String goal,
                                             Integer requirementRevision, String activeWorkPackageId) { }
+    public record DesignerSessionHistoryDto(String id, String projectId, String projectName,
+                                            String state, String workflowPhase,
+                                            String createdAt, String updatedAt,
+                                            String draftId, String draftStatus, String goal,
+                                            Integer requirementRevision, String activeWorkPackageId,
+                                            boolean archived, String archivedAt) { }
     public record DesignerDraftDto(String id, String status, String updatedAt,
                                    io.opencode.loopper.domain.LoopSpec spec) { }
     public record DesignerMessageDto(String id, int ordinal, String role, String actor, String content,
@@ -255,4 +293,11 @@ public class DesignerSessionController {
     public record AppendMessageResult(String sessionId, String state, List<DesignerMessageDto> persistedMessages, String notice) { }
     public record QuestionReplyRequest(List<List<String>> answers) { }
     public record ReopenPackageResult(List<String> invalidatedPackageIds) { }
+
+    private void requireLocalUi(String localUi) {
+        if (!"1".equals(localUi)) {
+            throw new io.opencode.loopper.service.BadRequestException(
+                    "LOCAL_UI_HEADER_REQUIRED", "This operation is available only to the local Loopper UI");
+        }
+    }
 }

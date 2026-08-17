@@ -160,6 +160,10 @@ public interface LoopperMapper {
             JOIN loop_draft d ON d.id=s.loop_draft_id
             WHERE s.project_id=#{projectId}
               AND d.status<>'CONFIRMED'
+              AND NOT EXISTS (
+                SELECT 1 FROM designer_session_archive archive
+                WHERE archive.designer_session_id=s.id
+              )
               AND s.id=(
                 SELECT latest.id FROM designer_session latest
                 WHERE latest.loop_draft_id=s.loop_draft_id
@@ -251,6 +255,10 @@ public interface LoopperMapper {
             JOIN loop_draft d ON d.id=s.loop_draft_id
             WHERE s.project_id=#{projectId}
               AND d.status<>'CONFIRMED'
+              AND NOT EXISTS (
+                SELECT 1 FROM designer_session_archive archive
+                WHERE archive.designer_session_id=s.id
+              )
               AND s.id=(
                 SELECT latest.id FROM designer_session latest
                 WHERE latest.loop_draft_id=s.loop_draft_id
@@ -260,6 +268,33 @@ public interface LoopperMapper {
             ORDER BY s.updated_at DESC, s.id DESC
             """)
     List<DesignerSessionRow> listOpenDesignerSessionsForProject(String projectId);
+    @Select("""
+            SELECT s.id,s.project_id,p.name AS project_name,s.state,s.workflow_phase,
+              s.created_at,s.updated_at,d.id AS draft_id,d.status AS draft_status,d.goal,
+              s.current_requirement_revision AS requirement_revision,s.active_work_package_id,
+              CASE WHEN archive.designer_session_id IS NULL THEN 0 ELSE 1 END AS archived,
+              archive.archived_at
+            FROM designer_session s
+            JOIN loop_draft d ON d.id=s.loop_draft_id
+            JOIN project p ON p.id=s.project_id
+            LEFT JOIN designer_session_archive archive ON archive.designer_session_id=s.id
+            WHERE d.status<>'CONFIRMED'
+              AND (#{projectId} IS NULL OR s.project_id=#{projectId})
+              AND s.id=(
+                SELECT latest.id FROM designer_session latest
+                WHERE latest.loop_draft_id=s.loop_draft_id
+                ORDER BY latest.created_at DESC, latest.id DESC
+                LIMIT 1
+              )
+            ORDER BY s.updated_at DESC,s.id DESC
+            """)
+    List<DesignerSessionHistoryRow> listDesignerSessionHistory(@Param("projectId") String projectId);
+    @Select("SELECT COUNT(*) > 0 FROM designer_session_archive WHERE designer_session_id=#{sessionId}")
+    boolean isDesignerSessionArchived(String sessionId);
+    @Insert("INSERT INTO designer_session_archive(designer_session_id,archived_at) VALUES(#{sessionId},#{archivedAt}) ON CONFLICT(designer_session_id) DO UPDATE SET archived_at=excluded.archived_at")
+    int archiveDesignerSession(@Param("sessionId") String sessionId, @Param("archivedAt") String archivedAt);
+    @Delete("DELETE FROM designer_session_archive WHERE designer_session_id=#{sessionId}")
+    int restoreDesignerSession(String sessionId);
     @Select("SELECT * FROM designer_session WHERE state='RUNNING' AND workflow_phase IN ('DISCUSSING_REQUIREMENT','DESIGNING','REDESIGNING','QUESTIONING_PACKAGE') AND external_session_id IS NOT NULL ORDER BY updated_at")
     List<DesignerSessionRow> activeDesignerHandoffs();
     @Update("UPDATE designer_session SET state=#{state}, access_mode=#{accessMode}, external_session_id=#{externalSessionId}, external_session_state=#{externalSessionState}, loop_draft_id=#{loopDraftId}, workflow_phase=#{workflowPhase}, design_revision=#{designRevision}, redesign_count=#{redesignCount}, current_requirement_revision=#{currentRequirementRevision}, active_work_package_id=#{activeWorkPackageId}, discussion_scope=#{discussionScope}, discussion_revision=#{discussionRevision}, candidate_sync_state=#{candidateSyncState}, updated_at=#{updatedAt}, version=version+1 WHERE id=#{id} AND version=#{version}")

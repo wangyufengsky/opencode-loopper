@@ -153,7 +153,7 @@ describe('Projects management', () => {
     expect(wrapper.text()).toContain('0 个任务 · 1 个待继续设计')
     await wrapper.get('button[aria-label="继续项目设计"]').trigger('click')
 
-    expect(routerPush).toHaveBeenCalledWith({ path: '/designer', query: { projectId: 'project-1' } })
+    expect(routerPush).toHaveBeenCalledWith({ path: '/designs', query: { projectId: 'project-1' } })
   })
 
   it('shows the real Git task-branch or direct execution mode', () => {

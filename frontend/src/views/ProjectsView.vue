@@ -34,7 +34,7 @@ function openDialog() {
 }
 
 function continueDesign(project: Project) {
-  void router.push({ path: '/designer', query: { projectId: project.id } })
+  void router.push({ path: '/designs', query: { projectId: project.id } })
 }
 
 async function pickDirectory() {

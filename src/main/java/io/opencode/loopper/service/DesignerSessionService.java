@@ -17,6 +17,7 @@ import io.opencode.loopper.domain.SessionFailure;
 import io.opencode.loopper.domain.StructuredModelStep;
 import io.opencode.loopper.lifecycle.LifecycleTransitionService;
 import io.opencode.loopper.persistence.DesignerMessageRow;
+import io.opencode.loopper.persistence.DesignerSessionHistoryRow;
 import io.opencode.loopper.persistence.DesignerSessionRow;
 import io.opencode.loopper.persistence.DesignDiscussionRevisionRow;
 import io.opencode.loopper.persistence.DesignRequirementRevisionRow;
@@ -154,6 +155,40 @@ public class DesignerSessionService {
     public List<DesignerSessionRow> listOpen(String projectId) {
         projects.get(projectId);
         return mapper.listOpenDesignerSessionsForProject(projectId);
+    }
+
+    public List<DesignerSessionHistoryRow> history(String projectId) {
+        String scopedProjectId = projectId == null || projectId.isBlank() ? null : projectId;
+        if (scopedProjectId != null) projects.get(scopedProjectId);
+        return mapper.listDesignerSessionHistory(scopedProjectId);
+    }
+
+    public boolean archived(String sessionId) {
+        get(sessionId);
+        return mapper.isDesignerSessionArchived(sessionId);
+    }
+
+    @Transactional
+    public void archive(String sessionId) {
+        DesignerSessionRow session = get(sessionId);
+        if (session.loopDraftId() == null) {
+            throw new BadRequestException("DESIGNER_ARCHIVE_DRAFT_REQUIRED", "只有绑定草稿的设计会话可以归档");
+        }
+        LoopDraftRow draft = drafts.get(session.loopDraftId());
+        if ("CONFIRMED".equals(draft.status())) {
+            throw new BadRequestException("DESIGNER_ARCHIVE_CONFIRMED", "已确认设计请在任务设计历史中查看");
+        }
+        DesignerSessionRow latest = mapper.findLatestDesignerSessionByDraft(draft.id()).orElse(session);
+        if (!latest.id().equals(session.id())) {
+            throw new ConflictException("DESIGNER_SESSION_SUPERSEDED", "该设计会话已有更新版本，请刷新历史设计列表");
+        }
+        mapper.archiveDesignerSession(session.id(), now());
+    }
+
+    @Transactional
+    public void restoreArchive(String sessionId) {
+        get(sessionId);
+        mapper.restoreDesignerSession(sessionId);
     }
 
     public ProjectRow project(String sessionId) { return projects.get(get(sessionId).projectId()); }

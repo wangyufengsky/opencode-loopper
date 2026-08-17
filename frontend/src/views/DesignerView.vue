@@ -13,7 +13,7 @@ import PendingQuestionCard from '@/components/PendingQuestionCard.vue'
 import { ApiError, api, subscribeDesignerEvents, type DesignerEventStream } from '@/api/client'
 import { demoDraft, demoMessages } from '@/mock/demoData'
 import { useTaskStore } from '@/stores/taskStore'
-import type { AppSettings, DesignerMessage, DesignerSession, DesignerSessionSummary, ErrorEvent, LoopDraft, LoopSpecAssessment, StructuredModelStep, TaskSessionPendingQuestion } from '@/types/domain'
+import type { AppSettings, DesignerMessage, DesignerSession, ErrorEvent, LoopDraft, LoopSpecAssessment, StructuredModelStep, TaskSessionPendingQuestion } from '@/types/domain'
 import { formatDateTime } from '@/utils/dateTime'
 import { statusLabel } from '@/utils/displayLabels'
 
@@ -39,9 +39,6 @@ const designerStructuredStep = ref<StructuredModelStep>()
 const submittingDesignerQuestion = ref('')
 const selectedWorkPackageId = ref('')
 const selectedProjectId = ref('')
-const openDesignerSessions = ref<DesignerSessionSummary[]>([])
-const loadingOpenDesignerSessions = ref(false)
-const resumingDesignerSessionId = ref('')
 const designerRecoveryError = ref('')
 const designerWorkspaceKey = 'opencode-loopper.designer-workspace'
 const draftPromptKey = 'opencode-loopper.designer-draft-prompt'
@@ -355,11 +352,6 @@ watch(() => store.projects, (projects) => {
   if (!selectedProjectId.value && onlyProject) selectedProjectId.value = onlyProject.id
 }, { immediate: true, deep: true })
 
-watch(selectedProjectId, (projectId) => {
-  if (!store.usingDemo && !draft.value && projectId) void loadOpenDesignerSessions(projectId)
-  else if (!projectId) openDesignerSessions.value = []
-}, { immediate: true })
-
 watch(draftPrompt, (value) => persistSessionText(draftPromptKey, value))
 watch(userMessage, (value) => persistSessionText(messageDraftKey, value))
 
@@ -400,26 +392,9 @@ async function startDraft() {
     draft.value = designerSession.value.draft ?? createdDraft
     editorValue.value = JSON.stringify(draft.value.spec, null, 2)
     sessionStorage.setItem(designerWorkspaceKey, JSON.stringify({ sessionId: designerSession.value.id, draftId: draft.value.id }))
-    openDesignerSessions.value = []
     designerRecoveryError.value = ''
     draftPrompt.value = ''
   } catch (error) { ElMessage.error(error instanceof Error ? error.message : '无法创建 LoopSpec 草案') } finally { busy.value = false }
-}
-
-async function loadOpenDesignerSessions(projectId: string) {
-  loadingOpenDesignerSessions.value = true
-  designerRecoveryError.value = ''
-  try {
-    const sessions = await api.listOpenDesignerSessions(projectId)
-    if (selectedProjectId.value === projectId && !draft.value) openDesignerSessions.value = sessions
-  } catch (error) {
-    if (selectedProjectId.value === projectId && !draft.value) {
-      openDesignerSessions.value = []
-      designerRecoveryError.value = error instanceof Error ? error.message : '无法读取待继续设计'
-    }
-  } finally {
-    if (selectedProjectId.value === projectId) loadingOpenDesignerSessions.value = false
-  }
 }
 
 function activateDesignerWorkspace(restoredSession: DesignerSession, restoredDraft: LoopDraft) {
@@ -429,21 +404,38 @@ function activateDesignerWorkspace(restoredSession: DesignerSession, restoredDra
   selectedProjectId.value = draft.value.spec.projectId
   editorValue.value = JSON.stringify(draft.value.spec, null, 2)
   sessionStorage.setItem(designerWorkspaceKey, JSON.stringify({ sessionId: restoredSession.id, draftId: draft.value.id }))
-  openDesignerSessions.value = []
   designerRecoveryError.value = ''
 }
 
-async function resumeDesignerSession(session: DesignerSessionSummary) {
-  resumingDesignerSessionId.value = session.id
+async function restoreDesignerSessionById(sessionId: string) {
   try {
-    const restoredSession = await api.getDesignerSession(session.id)
-    const restoredDraft = restoredSession.draft ?? await api.getDraft(session.draftId)
+    const restoredSession = await api.getDesignerSession(sessionId)
+    if (restoredSession.archived) throw new Error('该设计已归档，请先在历史设计页恢复')
+    if (!restoredSession.draft) throw new Error('设计会话缺少可恢复草稿')
+    const restoredDraft = restoredSession.draft
     activateDesignerWorkspace(restoredSession, restoredDraft)
+    return true
   } catch (error) {
     designerRecoveryError.value = error instanceof Error ? error.message : '无法恢复该设计会话'
-  } finally {
-    resumingDesignerSessionId.value = ''
+    return false
   }
+}
+
+function focusDesignerComposer() {
+  const focus = () => document.querySelector<HTMLTextAreaElement>('#designer-message')?.focus()
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(focus)
+  else focus()
+}
+
+async function prepareHistoryEdit() {
+  if (!designerSession.value) return
+  if (designerSession.value.workflowPhase === 'DISCUSSING_REQUIREMENT') {
+    ElMessage.info('已打开整体需求，可继续补充或修改')
+    focusDesignerComposer()
+    return
+  }
+  await reopenRequirement()
+  focusDesignerComposer()
 }
 
 function clearDesignerWorkspace() {
@@ -500,6 +492,10 @@ async function restoreDesignerWorkspace() {
       api.getDesignerSession(ids.sessionId),
       api.getDraft(ids.draftId),
     ])
+    if (restoredSession.archived) {
+      sessionStorage.removeItem(designerWorkspaceKey)
+      return
+    }
     activateDesignerWorkspace(restoredSession, restoredDraft)
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) sessionStorage.removeItem(designerWorkspaceKey)
@@ -513,7 +509,13 @@ onMounted(async () => {
   if (queryProjectId && store.projects.some((project) => project.id === queryProjectId)) {
     selectedProjectId.value = queryProjectId
   }
-  if (!store.usingDemo) await restoreDesignerWorkspace()
+  if (!store.usingDemo) {
+    const querySessionId = typeof route.query.sessionId === 'string' ? route.query.sessionId : ''
+    if (querySessionId) {
+      const restored = await restoreDesignerSessionById(querySessionId)
+      if (restored && route.query.mode === 'edit') await prepareHistoryEdit()
+    } else await restoreDesignerWorkspace()
+  }
 })
 
 onBeforeUnmount(() => {
@@ -812,24 +814,6 @@ async function redesignPackage(packageId: string) {
         <div><strong>设计恢复暂时不可用</strong><p>{{ designerRecoveryError }}。本地恢复指针和服务端记录不会因短暂断线被删除，可刷新后重试。</p></div>
       </section>
 
-      <section v-if="loadingOpenDesignerSessions || openDesignerSessions.length" class="card resumable-designs" aria-label="待继续设计">
-        <header>
-          <div><p class="eyebrow">RESUMABLE DESIGNS</p><h3>待继续设计</h3></div>
-          <span class="tiny muted">这些是尚未确认成任务的持久化设计会话</span>
-        </header>
-        <div v-if="loadingOpenDesignerSessions" class="resumable-design-loading"><Icon icon="lucide:loader-circle" class="spin" />正在读取服务端记录…</div>
-        <div v-else class="resumable-design-list">
-          <article v-for="item in openDesignerSessions" :key="item.id" class="resumable-design-item">
-            <div>
-              <strong>{{ item.goal || '未命名设计' }}</strong>
-              <p>{{ workflowLabels[item.workflowPhase] }} · {{ item.state === 'WAITING_INPUT' ? '等待输入' : item.state === 'SESSION_ERROR' ? '会话异常' : item.state === 'COMPLETED' ? '待确认' : '处理中' }}<template v-if="item.activeWorkPackageId"> · {{ item.activeWorkPackageId }}</template></p>
-              <time :datetime="item.updatedAt">更新于 {{ formatDateTime(item.updatedAt) }}</time>
-            </div>
-            <el-button size="small" type="primary" plain :loading="resumingDesignerSessionId === item.id" @click="resumeDesignerSession(item)">继续</el-button>
-          </article>
-        </div>
-      </section>
-
       <div class="designer-start-layout">
         <article class="card brief-composer">
           <div v-if="!store.usingDemo" class="composer-project-row">
@@ -1023,6 +1007,10 @@ async function redesignPackage(packageId: string) {
           <template #after-stages><ExecutionAcceptancePanel :source="editorValue" /></template>
         </LoopSpecEditor>
         <LayeredErrorPanel v-if="fieldError" :error="fieldError" style="margin-top: 12px" />
+        <div v-if="isFinalReview && draft.status !== 'CONFIRMED'" class="final-review-action">
+          <div><strong>设计已进入总体确认</strong><span>确认后只创建一个待开始任务，仍需在任务页单独点击开始执行。</span></div>
+          <el-button type="primary" size="large" :loading="busy" :disabled="!confirmationReady" @click="confirm"><Icon icon="lucide:circle-check-big" />确认设计并创建任务</el-button>
+        </div>
         <div class="spec-footer"><span class="tiny muted"><Icon icon="lucide:git-branch" /> Git 项目切换原目录任务分支；无 HEAD 项目直接执行</span><time class="mono tiny" :datetime="draft.updatedAt">{{ formatDateTime(draft.updatedAt) }}</time></div>
       </article>
     </section>
@@ -1038,7 +1026,6 @@ async function redesignPackage(packageId: string) {
 .designer-start-heading h2 { margin: 0; color: var(--color-text-primary); font-size: 26px; font-weight: 720; letter-spacing: -.035em; }
 .designer-start-heading > div > p:last-child { margin: 5px 0 0; color: var(--color-text-secondary); font-size: 12px; }
 .designer-recovery-notice { display: flex; gap: 10px; margin-bottom: 14px; padding: 12px 14px; border: 1px solid rgb(245 158 11 / 36%); border-radius: 10px; color: #fbbf24; background: rgb(245 158 11 / 8%); }.designer-recovery-notice svg { flex: 0 0 auto; margin-top: 2px; }.designer-recovery-notice p { margin: 4px 0 0; color: var(--color-text-secondary); font-size: 11px; line-height: 1.55; }
-.resumable-designs { margin-bottom: 16px; padding: 16px; border-color: rgb(34 211 238 / 24%); }.resumable-designs > header { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 11px; }.resumable-designs h3 { margin: 3px 0 0; font-size: 15px; }.resumable-design-list { display: grid; gap: 8px; }.resumable-design-item { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 11px 12px; border: 1px solid var(--color-border-default); border-radius: 9px; background: rgb(7 11 20 / 38%); }.resumable-design-item > div { min-width: 0; }.resumable-design-item strong { display: block; overflow: hidden; color: var(--color-text-primary); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }.resumable-design-item p, .resumable-design-item time { margin: 4px 0 0; color: var(--color-text-muted); font: 9px/1.45 var(--font-code); }.resumable-design-loading { display: flex; align-items: center; gap: 8px; padding: 14px 2px; color: var(--color-text-secondary); font-size: 11px; }
 .designer-start-layout { display: grid; align-items: start; grid-template-columns: minmax(0, 1fr) 276px; gap: 16px; }
 .brief-composer { overflow: hidden; border-color: rgb(57 78 113 / 78%); background: linear-gradient(155deg, rgb(17 27 46 / 98%), rgb(10 16 29 / 98%)); box-shadow: 0 24px 70px rgb(0 0 0 / 25%); }
 .composer-project-row { display: flex; align-items: center; justify-content: space-between; gap: 18px; min-height: 66px; padding: 11px 18px; border-bottom: 1px solid var(--color-border-default); background: rgb(7 11 20 / 32%); }
@@ -1111,7 +1098,7 @@ async function redesignPackage(packageId: string) {
 .context-empty > svg { width: 22px; height: 22px; margin-bottom: 12px; }
 .context-empty strong { color: var(--color-text-secondary); font-size: 11px; }
 .context-empty p { margin: 7px 0 0; font-size: 10px; line-height: 1.6; }
-.designer-layout { display: grid; align-items: start; grid-template-columns: minmax(460px, 1.12fr) minmax(500px, .88fr); gap: 18px; }
+.designer-layout { display: grid; align-items: start; grid-template-columns: minmax(0, 1.12fr) minmax(0, .88fr); gap: 18px; max-width: 100%; }
 .designer-chat, .spec-panel { min-width: 0; }
 .designer-chat { display: flex; align-self: start; flex-direction: column; min-height: 0; }
 .spec-panel { min-height: 820px; }
@@ -1199,7 +1186,7 @@ async function redesignPackage(packageId: string) {
 @keyframes stream-blink { 0%, 48% { opacity: 1; } 49%, 100% { opacity: 0; } }
 .chat-compose { padding: 18px; border-top: 1px solid var(--color-border-default); background: rgb(7 12 23 / 72%); }
 .compose-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
-.scope-primary-action { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--color-border-default); }
+.scope-primary-action { display: flex; min-width: 0; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 12px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--color-border-default); }
 .scope-primary-action span { margin-right: auto; color: var(--color-text-muted); font-size: 9px; }
 .candidate-sync { padding: 5px 8px; border: 1px solid var(--color-border-default); border-radius: 999px; color: var(--color-text-muted); font: 8px/1 var(--font-code); }
 .candidate-sync.sync-syncing { color: var(--color-accent-cyan); }.candidate-sync.sync-synced { color: var(--color-success); }.candidate-sync.sync-failed { color: var(--color-session-warning); }
@@ -1214,6 +1201,8 @@ async function redesignPackage(packageId: string) {
 .spec-editor :deep(.acceptance-panel) { margin: 0; }
 .spec-footer { justify-content: space-between; padding-top: 14px; border-top: 1px solid var(--color-border-default); }
 .spec-footer span { display: inline-flex; align-items: center; gap: 5px; }
+.final-review-action { display: flex; min-width: 0; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin: 16px 20px; padding: 14px; border: 1px solid rgb(34 197 94 / 35%); border-radius: 10px; background: rgb(34 197 94 / 7%); }
+.final-review-action > div { display: grid; min-width: 0; flex: 1; gap: 4px; }.final-review-action strong { color: var(--color-text-primary); font-size: 11px; }.final-review-action span { color: var(--color-text-secondary); font-size: 9px; line-height: 1.5; }
 .designer-session-alert { display: flex; gap: 10px; margin: 0 20px 8px; padding: 12px; border: 1px solid rgb(245 158 11 / 35%); border-radius: 10px; background: rgb(245 158 11 / 9%); color: var(--color-status-session); }
 .designer-session-alert svg { flex: 0 0 auto; margin-top: 2px; }
 .designer-session-alert p { margin: 5px 0; color: var(--color-text-primary); font-size: 11px; line-height: 1.5; }
@@ -1243,6 +1232,7 @@ async function redesignPackage(packageId: string) {
   .composer-submit { justify-content: space-between; width: 100%; }
   .create-draft-button, .compose-actions :deep(.el-button) { width: 100%; }
   .designer-message-input :deep(.el-textarea__inner) { min-height: 260px !important; }
+  .final-review-action :deep(.el-button) { width: 100%; margin-left: 0; }
   .designer-connection-strip { align-items: flex-start; flex-direction: column; }
   .designer-connection-strip time { margin-left: 0; }
 }

@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.1.70`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.1.71`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -117,7 +117,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.1.70.jar
+java -jar target/opencode-loopper-0.1.71.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -128,9 +128,9 @@ java -jar target/opencode-loopper-0.1.70.jar
 
 1. 打开 **设置**，确认 OpenCode CLI 路径；刷新模型列表并选择默认 Provider / Model。可选地设置“允许项目根”，限制可登记目录。
 2. 打开 **运行环境**，确认服务端报告的 OpenCode Loopper 版本，并检查 OpenCode 状态、端点、版本、模型与进程所有权。
-3. 打开 **项目**，登记项目名称和绝对根路径。登记本身不会启动 AI，也不会写入项目文件。项目卡片分别显示已确认的任务数和尚未确认的“待继续设计”数；后者可直接回到对应 Designer 会话。
+3. 打开 **项目**，登记项目名称和绝对根路径。登记本身不会启动 AI，也不会写入项目文件。项目卡片分别显示已确认的任务数和尚未确认的“待继续设计”数；后者会打开独立的 **历史设计** 页面。
 4. 可选：在项目卡片中打开 **AGENTS.md 项目公约**，让只读 Session 生成建议，检查完整预览后再确认写入。
-5. 打开 **设计器 / 循环规范**，选择项目并描述目标。先用问题卡回答整体设计选择，可一键采用全部推荐项；继续补充不会触发拆包，只有点击 **需求已明确，开始拆包** 才会冻结需求。若已有未确认设计，可从服务端“待继续设计”列表恢复，服务重启或浏览器恢复指针失效也不会丢失权威记录。
+5. 打开 **设计器 / 循环规范**，选择项目并描述目标。该页只负责新建设计，不再平铺历史会话。先用问题卡回答整体设计选择，可一键采用全部推荐项；继续补充不会触发拆包，只有点击 **需求已明确，开始拆包** 才会冻结需求。已有未确认设计统一从 **历史设计** 页面继续、修改或归档，服务重启或浏览器恢复指针失效也不会丢失权威记录。
 6. 沿工作包轨道逐包回答问题、讨论完整设计稿，并查看右侧只读候选的同步状态。候选通过 Compiler 和 Validator 后点击 **接受 WP-N 并继续**；重开已接受包会先列出所有将失效的传递依赖包。全部包接受后进入总体确认，此时才可编辑最终聚合 LoopSpec，并点击 **确认设计并创建任务**。Loopper 只创建 `PENDING_START` 任务，不进入队列、不占用写租约，也不创建或切换 Git 分支。
 7. 进入任务详情并点击一次 **开始执行**。此时才会申请队列/写租约、检查工作区、获取远端更新并准备任务分支；一旦准入会自动继续执行，不需要在 `READY` 状态再次点击。执行期间可查看阶段进度、尝试、真实模型输出、待处理问题、验证证据和双 Judge 评审。
 8. 任务成功后检查实际差异，再由人工提交任务分支；最终 Attempt 会无条件保存任务基线差异文件清单，不要求 LoopSpec 配置 `GIT_DIFF`。Loopper 随后恢复任务开始前的源分支，有排队任务时继续切到下一任务分支；差异预览、远端推送和合并请求继续显式引用已提交的任务分支。
@@ -139,8 +139,9 @@ java -jar target/opencode-loopper-0.1.70.jar
 
 | 页面 | 主要用途 |
 | --- | --- |
-| 项目 | 登记本地目录、分别查看任务数与待继续设计数、恢复未确认设计、查看执行模式、生成/更新 `AGENTS.md`、取消项目管理 |
-| 设计器 / 循环规范 | 从服务端恢复未确认设计，完成需求提问、逐包讨论/接受、候选同步和总体确认；只有最终聚合阶段可编辑 LoopSpec |
+| 项目 | 登记本地目录、分别查看任务数与待继续设计数、进入历史设计、查看执行模式、生成/更新 `AGENTS.md`、取消项目管理 |
+| 设计器 / 循环规范 | 新建设计，或从明确的历史设计链接恢复会话；完成需求提问、逐包讨论/接受、候选同步和总体确认；只有最终聚合阶段可编辑 LoopSpec |
+| 历史设计 | 按项目、状态、归档范围筛选未确认设计，按更新时间排序，并执行继续、修改、归档或恢复 |
 | 任务 | 查看当前和历史任务、状态与归档；符合保护条件时可二次确认删除历史记录 |
 | 任务详情 | 启动或取消尚未申请工作区的任务、取消排队/等待输入任务、查看 Stage/Attempt/Session、实施 Todo 投影、验证证据、双评审、设计历史与发布入口 |
 | 待处理中心 | 回答 Question，按一次/Session 范围处理 Permission，或拒绝请求 |
@@ -335,7 +336,7 @@ Git 任务分支达到 `SUCCEEDED` 后：
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.1.70.jar`
+- `target/opencode-loopper-0.1.71.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -366,7 +367,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:51234
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.1.70.jar`
+- `opencode-loopper-0.1.71.jar`
 - `start-windows.bat`
 
 确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
@@ -404,7 +405,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.1.70.jar \
+jar tf target/opencode-loopper-0.1.71.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -484,7 +485,7 @@ Windows PowerShell：
 例如发布下一版本：
 
 ```bash
-VERSION=0.1.70
+VERSION=0.1.71
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -524,7 +525,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.1.70.jar
+java -jar target/opencode-loopper-0.1.71.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。

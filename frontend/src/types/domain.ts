@@ -781,6 +781,13 @@ export interface DesignerSessionSummary {
   activeWorkPackageId?: string
 }
 
+export interface DesignerHistoryItem extends DesignerSessionSummary {
+  projectName: string
+  createdAt: string
+  archived: boolean
+  archivedAt?: string
+}
+
 export interface DesignRequirementRevisionStatus {
   revision: number
   state: string
@@ -834,6 +841,7 @@ export interface DesignerSession {
   id: string
   projectId: string
   projectName?: string
+  archived?: boolean
   state: DesignerSessionState
   workflowPhase: DesignWorkflowPhase
   activeActor: DesignerActor

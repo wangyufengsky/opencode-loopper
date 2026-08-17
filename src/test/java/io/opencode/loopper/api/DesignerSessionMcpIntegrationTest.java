@@ -47,6 +47,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
@@ -161,6 +163,41 @@ class DesignerSessionMcpIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].taskCount").value(0))
                 .andExpect(jsonPath("$[0].openDesignerSessionCount").value(1));
+    }
+
+    @Test
+    void listsFiltersArchivesAndRestoresDesignerHistoryWithoutDeletingSnapshots() throws Exception {
+        ProjectRow project = project("designer-history");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        mapper.insertDesignerSession(designerRow("designer-history-session", project.id(), draft.id(),
+                "WAITING_INPUT", "FAILED", "2026-08-17T04:00:00Z"));
+
+        mvc.perform(get("/api/designer-sessions/history").queryParam("projectId", project.id()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value("designer-history-session"))
+                .andExpect(jsonPath("$[0].projectName").value(project.name()))
+                .andExpect(jsonPath("$[0].archived").value(false));
+
+        mvc.perform(put("/api/designer-sessions/designer-history-session/archive"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(put("/api/designer-sessions/designer-history-session/archive")
+                        .header("X-Loopper-Local-UI", "1"))
+                .andExpect(status().isNoContent());
+
+        assertThat(designerSessions.listOpen(project.id())).isEmpty();
+        assertThat(projects.openDesignerSessionCount(project.id())).isZero();
+        assertThat(designerSessions.messages("designer-history-session")).isNotNull();
+        mvc.perform(get("/api/designer-sessions/history").queryParam("projectId", project.id()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].archived").value(true))
+                .andExpect(jsonPath("$[0].archivedAt").isNotEmpty());
+
+        mvc.perform(delete("/api/designer-sessions/designer-history-session/archive")
+                        .header("X-Loopper-Local-UI", "1"))
+                .andExpect(status().isNoContent());
+        assertThat(designerSessions.listOpen(project.id())).extracting(DesignerSessionRow::id)
+                .containsExactly("designer-history-session");
+        assertThat(projects.openDesignerSessionCount(project.id())).isEqualTo(1);
     }
 
     @Test

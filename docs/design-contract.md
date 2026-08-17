@@ -356,12 +356,18 @@ latest persisted snapshot. These transport failures must never surface as
 
 Unconfirmed Designer work is also discoverable without browser-local state.
 The project projection reports confirmed `taskCount` and
-`openDesignerSessionCount` separately, and the Designer start page lists the
-latest persisted Session for each non-confirmed draft. A browser workspace
-pointer is only a resume hint: transient network or server-restart failures
-must retain it, while malformed pointers and confirmed/missing records may be
-discarded. Selecting a persisted entry reloads the authoritative Session and
-draft before reconnecting live transport; it never manufactures a Task.
+`openDesignerSessionCount` separately. The Designer start page is reserved for
+creating a new design and never renders the recoverable-session collection.
+The dedicated **历史设计** page lists the latest persisted Session for each
+non-confirmed draft, with project/status/archive filters, newest/oldest sorting,
+and bounded cards whose action row never leaves the viewport. **继续** reloads
+the exact scope, **修改** opens the overall-requirement edit boundary (including
+the existing downstream-invalidation confirmation), and recoverable archive
+only removes an item from active counts without deleting snapshots. A browser
+workspace pointer is only a resume hint: transient network or server-restart
+failures must retain it, while malformed, archived, confirmed, or missing records
+may be discarded. Selecting a persisted entry reloads the authoritative Session
+and draft before reconnecting live transport; it never manufactures a Task.
 
 V27 stores every requirement/package turn as a complete Markdown snapshot with
 its decision log, mandatory-question state, candidate compilation reference,
@@ -370,6 +376,11 @@ the exact question, scope, package rail, last valid candidate, and available
 confirmation action. Historical unconfirmed packages that were previously
 `COMPLETED` migrate to `REVIEWING`; already confirmed drafts and created Tasks
 are unchanged.
+
+The page header and Designer two-column workspace must remain width-bounded and
+wrap actions instead of clipping them. Final review exposes the same authoritative
+**确认设计并创建任务** action both in the header and beside the Review Gate, so a
+narrow viewport cannot make confirmation unreachable.
 
 Confirming a draft is an idempotent handoff. After the server returns the
 persisted Task id, the client loads that Task into the live store and navigates
