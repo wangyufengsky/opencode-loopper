@@ -218,7 +218,18 @@ matching focused TEST, the server fills omitted duplicate `testCommand`/`testTar
 fields and can materialize the equivalent verifier blueprint before validation.
 Loopper never invents a test from prose, a broad full-suite command, or an ambiguous
 set of focused tests. Ambiguous or absent source matches and semantically incomplete
-test evidence still fail the authoritative validation. A valid semantic plan is
+test evidence still fail the authoritative validation.
+
+Only observable business outcomes become acceptance criteria. If a weak Compiler
+duplicates code style, source/annotation/assembly shape, build/test success, or
+delivery hygiene as criteria without an explicit focused-test mapping, Loopper
+keeps those facts in the frozen design but deterministically removes the redundant
+criteria and remaps evidence. A single focused Java test may cover otherwise
+unmapped business criteria in the same Stage; multiple candidates remain ambiguous.
+Before any semantic repair, Loopper reports all deterministic failures together
+with exact JSON Pointers so one bounded patch can fix the complete set. Source-text
+search commands remain invalid behavior `SELF_CHECK` evidence.
+A valid semantic plan is
 compiled directly by the server into the historical final Decomposition or
 CompiledPackage shape; no final-JSON model prompt is sent. V30 persists the
 semantic snapshot, independent format/semantic repair counters and server-compiled

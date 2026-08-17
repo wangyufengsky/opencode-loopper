@@ -12,7 +12,7 @@ class MachineRoleContractCatalogTest {
         assertThat(MachineRoleContractCatalog.card("DECOMPOSER"))
                 .contains(MachineRoleContractCatalog.CONTRACT_VERSION, "Do not assign ids");
         assertThat(MachineRoleContractCatalog.card("COMPILER"))
-                .contains("DS-L", "testTargets");
+                .contains("DS-L", "testTargets", "engineering metadata");
         assertThat(OpenCodeStructuredSchemas.schema(OpenCodeStructuredSchemas.DECOMPOSITION_SEMANTIC_V2))
                 .containsEntry("type", "object");
         assertThat(OpenCodeStructuredSchemas.schema(OpenCodeStructuredSchemas.PACKAGE_COMPILATION_SEMANTIC_V3))

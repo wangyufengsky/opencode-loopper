@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.1.72`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.1.73`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -117,7 +117,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.1.72.jar
+java -jar target/opencode-loopper-0.1.73.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -336,7 +336,7 @@ Git 任务分支达到 `SUCCEEDED` 后：
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.1.72.jar`
+- `target/opencode-loopper-0.1.73.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -367,7 +367,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:51234
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.1.72.jar`
+- `opencode-loopper-0.1.73.jar`
 - `start-windows.bat`
 
 确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
@@ -405,7 +405,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.1.72.jar \
+jar tf target/opencode-loopper-0.1.73.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -485,7 +485,7 @@ Windows PowerShell：
 例如发布下一版本：
 
 ```bash
-VERSION=0.1.72
+VERSION=0.1.73
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -525,7 +525,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.1.72.jar
+java -jar target/opencode-loopper-0.1.73.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。
@@ -615,6 +615,8 @@ echo %PATHEXT%
 `0.1.57` 修正 Windows 源文件模式识别：NTFS ACL 的“可执行”结果不再被误当成 Git `100755` 位；已跟踪文件从源仓库 Git index 读取模式，未跟踪普通文件默认 `100644`，POSIX 仍读取真实执行位。这样源侧未改、任务侧删除的文件可确定性自动接受删除，同时保留真实模式冲突与文本冲突的人工处理边界。
 
 `0.1.70` 为 Decomposer、Compiler、Judge 和项目公约引入共享的包容性输出提取。原生 structured payload 与角色 marker 仍优先，同时可接受代码块、说明文字或整段响应中的唯一标准 JSON object；等价候选去重，冲突候选、非标准/残缺 JSON、数组根和歧义补齐仍拒绝。确定性字段、集合、枚举、Maven/Gradle argv 与唯一聚焦测试证据规范化不消耗格式修复次数，V28 只记录短纠正类别而不保存原文。连续 3 次相同工具调用会提前 abort，并且每个角色步骤最多使用一次持久化、无工具 finalizer；安全命令、路径、业务覆盖、Java 聚焦测试和运行时门禁保持严格。纯“全量测试通过/构建成功”不再生成业务验收项，安全全量测试只可作为补充报告。前端以普通信息样式显示规范化和恢复提示。0.1.68/0.1.69 候选分别因发布脚本 JAR 名和最新迁移断言未同步而未交付，修正后按版本规则递增。
+
+`0.1.73` 修复弱模型把代码风格、源码/注解/装配形态和交付卫生误写成业务验收条件后，逐项耗尽 Compiler 语义修复预算的问题。服务端现在确定性降级未被聚焦测试显式覆盖的工程元条件，重排证据映射；同一 Java Stage 只有一个聚焦测试候选时，可补齐剩余业务条件的测试关联。一次预检会汇总全部合同缺口并返回精确 JSON Pointer，要求同一补丁修完；`grep`/`rg` 等源码搜索继续不能充当行为 `SELF_CHECK`。真实业务覆盖、明确测试选择器、危险命令、路径和运行时门禁保持严格。
 
 `0.1.72` 将 Decomposer/Compiler 改为轻量语义合同：AI 只决定目标、纵向工作包、Stage、业务条件和证据意图，服务端推导 `DIRECT_DESIGN/DECOMPOSED`、GC/WP/AC ID、需求引用、依赖、Designer 精确来源、测试目标和验证器关联，并直接编译最终对象，不再发起 final JSON 抄写调用。单包固定减少 2 次、六包固定减少 7 次模型调用。V30 分开持久化格式/语义修复计数和服务端编译标识；语义失败只允许有界补丁，补丁后仍执行完整安全、路径、业务覆盖、Java 聚焦测试和运行时校验。Judge 同时接受唯一明确的中英文判定/理由标签。运行时权威合同见 `docs/ai-role-contracts.md`。
 

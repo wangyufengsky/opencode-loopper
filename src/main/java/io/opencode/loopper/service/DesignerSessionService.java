@@ -2659,13 +2659,15 @@ public class DesignerSessionService {
                                             "Compiler semantic outcome is required");
                                 }
                             });
+            CompactPlanNormalization normalized = normalizeCompactPackagePlan(compact.value());
             PackageCompilationPlanEnvelope compiled = compileCompactPackagePlan(workPackage, design,
-                    compact.value());
+                    normalized.plan());
             validatePackageCompilationPlan(workPackage, design, compiled, requireEvidence);
             List<String> notes = new ArrayList<>(compact.normalizations());
             notes.add("AC_IDS_DERIVED");
             notes.add("SOURCE_REFS_RESOLVED");
             notes.add("VERIFIER_METADATA_DERIVED");
+            notes.addAll(normalized.normalizations());
             return new AiOutputExtractor.ExtractionResult<>(compiled, compact.source(), List.copyOf(notes),
                     write(compiled));
         }
@@ -2697,6 +2699,7 @@ public class DesignerSessionService {
                     "Compiler semantic planning must contain 1-3 stages");
         }
         DesignerEvidenceIndexer.Index sourceIndex = evidenceIndexer.index(design);
+        validateCompactPackageSemantics(compact, sourceIndex);
         List<PlannedStage> plannedStages = new ArrayList<>();
         List<AcceptanceEvidenceMapping> mappings = new ArrayList<>();
         int criterionOrdinal = 0;
@@ -2752,6 +2755,229 @@ public class DesignerSessionService {
                 compact.handoffSummary(), List.of()).normalized();
     }
 
+    private CompactPlanNormalization normalizeCompactPackagePlan(CompactPackageCompilationPlan input) {
+        CompactPackageCompilationPlan compact = input.normalized();
+        LinkedHashSet<String> notes = new LinkedHashSet<>();
+        List<CompactStage> stages = new ArrayList<>();
+        for (CompactStage stage : compact.stages()) {
+            if (stage == null) {
+                stages.add(null);
+                continue;
+            }
+            Set<Integer> focusedIndexes = new LinkedHashSet<>();
+            for (CompactEvidence evidence : stage.evidence()) {
+                if (evidence != null && "FOCUSED_TEST".equals(evidence.kind())) {
+                    focusedIndexes.addAll(evidence.covers());
+                }
+            }
+            int[] remap = new int[stage.criteria().size()];
+            java.util.Arrays.fill(remap, -1);
+            List<CompactCriterion> criteria = new ArrayList<>();
+            for (int index = 0; index < stage.criteria().size(); index++) {
+                CompactCriterion criterion = stage.criteria().get(index);
+                boolean explicitFocused = focusedIndexes.contains(index);
+                if (!explicitFocused && criterion != null
+                        && AiSemanticContractCompiler.isEngineeringMetaCriterion(criterion.description())) {
+                    notes.add("ENGINEERING_META_CRITERIA_SUPPLEMENTALIZED");
+                    continue;
+                }
+                remap[index] = criteria.size();
+                criteria.add(criterion);
+            }
+
+            List<CompactEvidence> evidenceItems = new ArrayList<>();
+            for (CompactEvidence evidence : stage.evidence()) {
+                if (evidence == null) {
+                    evidenceItems.add(null);
+                    continue;
+                }
+                List<Integer> remappedCovers = new ArrayList<>();
+                boolean removedCover = false;
+                for (Integer original : evidence.covers()) {
+                    if (original != null && original >= 0 && original < remap.length && remap[original] >= 0) {
+                        if (!remappedCovers.contains(remap[original])) remappedCovers.add(remap[original]);
+                    } else if (original != null && original >= 0 && original < remap.length) {
+                        removedCover = true;
+                    } else {
+                        remappedCovers.add(original);
+                    }
+                }
+                if (removedCover) notes.add("META_EVIDENCE_COVERAGE_REMOVED");
+                if (removedCover && remappedCovers.isEmpty() && "SELF_CHECK".equals(evidence.kind())
+                        && ProcessCommandPolicy.isSourceTextSearch(evidence.command())) {
+                    notes.add("UNEXECUTABLE_META_SELF_CHECK_DROPPED");
+                    continue;
+                }
+                evidenceItems.add(evidence.withCovers(remappedCovers));
+            }
+
+            if (stage.implementationKind() == ImplementationKind.JAVA_PRODUCTION) {
+                List<Integer> focusedEvidence = new ArrayList<>();
+                for (int index = 0; index < evidenceItems.size(); index++) {
+                    CompactEvidence evidence = evidenceItems.get(index);
+                    if (evidence != null && "FOCUSED_TEST".equals(evidence.kind())) focusedEvidence.add(index);
+                }
+                if (focusedEvidence.size() == 1) {
+                    int focusedIndex = focusedEvidence.getFirst();
+                    CompactEvidence focused = evidenceItems.get(focusedIndex);
+                    List<Integer> covers = new ArrayList<>(focused.covers());
+                    boolean changed = false;
+                    for (int criterionIndex = 0; criterionIndex < criteria.size(); criterionIndex++) {
+                        if (covers.contains(criterionIndex)) continue;
+                        int currentCriterionIndex = criterionIndex;
+                        CompactCriterion criterion = criteria.get(criterionIndex);
+                        boolean hasOtherMachineEvidence = evidenceItems.stream()
+                                .filter(java.util.Objects::nonNull)
+                                .filter(item -> !"FOCUSED_TEST".equals(item.kind()))
+                                .anyMatch(item -> item.covers().contains(currentCriterionIndex));
+                        boolean explicitJudgeOnly = criterion != null && !blank(criterion.judgeRubric())
+                                && !blank(criterion.judgeOnlyReason()) && !hasOtherMachineEvidence;
+                        if (!explicitJudgeOnly) {
+                            covers.add(criterionIndex);
+                            changed = true;
+                        }
+                    }
+                    if (changed) {
+                        evidenceItems.set(focusedIndex, focused.withCovers(covers));
+                        notes.add("UNIQUE_FOCUSED_TEST_COVERAGE_DERIVED");
+                    }
+                }
+            }
+            stages.add(new CompactStage(stage.objective(), stage.implementationKind(), stage.allowedPaths(),
+                    stage.forbiddenPaths(), stage.deliverables(), criteria, evidenceItems,
+                    stage.verificationRuntime()));
+        }
+        return new CompactPlanNormalization(new CompactPackageCompilationPlan(compact.outcome(), compact.summary(),
+                stages, compact.handoffSummary(), compact.designGaps()).normalized(), List.copyOf(notes));
+    }
+
+    private void validateCompactPackageSemantics(CompactPackageCompilationPlan compact,
+                                                 DesignerEvidenceIndexer.Index sourceIndex) {
+        List<CompilerSemanticIssue> issues = new ArrayList<>();
+        Set<String> coverable = Set.of("FOCUSED_TEST", "SELF_CHECK", "HTTP_STATUS", "JSON_PATH", "BROWSER",
+                "DATABASE_QUERY", "FILE_CONTENT", "FILE_HASH");
+        Set<String> supplemental = Set.of("FULL_TEST", "BUILD", "GIT_DIFF", "FILE_NOT_EXISTS", "JUNIT_XML");
+        for (int stageIndex = 0; stageIndex < compact.stages().size(); stageIndex++) {
+            CompactStage stage = compact.stages().get(stageIndex);
+            String stagePath = "/stages/" + stageIndex;
+            if (stage == null) {
+                issues.add(new CompilerSemanticIssue("COMPILER_PLAN_STAGE_INVALID", stagePath,
+                        "stage must be an object"));
+                continue;
+            }
+            for (int evidenceIndex = 0; evidenceIndex < stage.evidence().size(); evidenceIndex++) {
+                CompactEvidence evidence = stage.evidence().get(evidenceIndex);
+                String evidencePath = stagePath + "/evidence/" + evidenceIndex;
+                if (evidence == null || blank(evidence.kind())) {
+                    issues.add(new CompilerSemanticIssue("COMPILER_PLAN_EVIDENCE_KIND_REQUIRED", evidencePath,
+                            "evidence kind is required"));
+                    continue;
+                }
+                if (!coverable.contains(evidence.kind()) && !supplemental.contains(evidence.kind())) {
+                    issues.add(new CompilerSemanticIssue("COMPILER_PLAN_EVIDENCE_KIND_INVALID",
+                            evidencePath + "/kind", "unsupported evidence kind: " + evidence.kind()));
+                }
+                if (supplemental.contains(evidence.kind()) && !evidence.covers().isEmpty()) {
+                    issues.add(new CompilerSemanticIssue("COMPILER_PLAN_EVIDENCE_COVERAGE_INVALID",
+                            evidencePath + "/covers", evidence.kind() + " is supplemental and cannot cover criteria"));
+                }
+                for (Integer criterionIndex : evidence.covers()) {
+                    if (criterionIndex == null || criterionIndex < 0 || criterionIndex >= stage.criteria().size()) {
+                        issues.add(new CompilerSemanticIssue("COMPILER_PLAN_EVIDENCE_COVERAGE_INVALID",
+                                evidencePath + "/covers", "unknown criterion index: " + criterionIndex));
+                    }
+                }
+                if ("SELF_CHECK".equals(evidence.kind())) {
+                    if (blank(evidence.successMarker())) {
+                        issues.add(new CompilerSemanticIssue("COMPILER_PLAN_SELF_CHECK_MARKER_REQUIRED",
+                                evidencePath + "/successMarker", "SELF_CHECK requires an explicit success marker"));
+                    }
+                    String commandError = ProcessCommandPolicy.directCommandError(evidence.command());
+                    if (commandError != null) {
+                        issues.add(new CompilerSemanticIssue("COMPILER_PLAN_SELF_CHECK_COMMAND_INVALID",
+                                evidencePath + "/command", commandError));
+                    } else if (ProcessCommandPolicy.isSourceTextSearch(evidence.command())) {
+                        issues.add(new CompilerSemanticIssue("COMPILER_PLAN_SELF_CHECK_COMMAND_INVALID",
+                                evidencePath + "/command",
+                                "source-text search cannot emit trustworthy positive runtime evidence"));
+                    }
+                }
+            }
+            for (int criterionIndex = 0; criterionIndex < stage.criteria().size(); criterionIndex++) {
+                CompactCriterion criterion = stage.criteria().get(criterionIndex);
+                String criterionPath = stagePath + "/criteria/" + criterionIndex;
+                if (criterion == null || blank(criterion.description())) {
+                    issues.add(new CompilerSemanticIssue("COMPILER_PLAN_CRITERION_INVALID", criterionPath,
+                            "criterion needs an observable description"));
+                    continue;
+                }
+                try {
+                    sourceIndex.resolve(criterion.sourceRefs());
+                } catch (BadRequestException invalid) {
+                    issues.add(new CompilerSemanticIssue(invalid.code(), criterionPath + "/sourceRefs",
+                            safeMessage(invalid.getMessage())));
+                }
+                List<Integer> coveringIndexes = new ArrayList<>();
+                List<Integer> focusedIndexes = new ArrayList<>();
+                for (int evidenceIndex = 0; evidenceIndex < stage.evidence().size(); evidenceIndex++) {
+                    CompactEvidence evidence = stage.evidence().get(evidenceIndex);
+                    if (evidence == null || !coverable.contains(evidence.kind())
+                            || !evidence.covers().contains(criterionIndex)) continue;
+                    coveringIndexes.add(evidenceIndex);
+                    if ("FOCUSED_TEST".equals(evidence.kind())) focusedIndexes.add(evidenceIndex);
+                }
+                boolean machine = !coveringIndexes.isEmpty();
+                boolean judge = !blank(criterion.judgeRubric());
+                if (!machine && !judge) {
+                    issues.add(new CompilerSemanticIssue("COMPILER_PLAN_CRITERION_UNCOVERED", criterionPath,
+                            "criterion needs focused/native machine evidence or a judgeRubric"));
+                } else if (!machine && blank(criterion.judgeOnlyReason())) {
+                    issues.add(new CompilerSemanticIssue("COMPILER_PLAN_JUDGE_REASON_REQUIRED",
+                            criterionPath + "/judgeOnlyReason", "Judge-only criterion needs judgeOnlyReason"));
+                }
+                if (focusedIndexes.size() > 1) {
+                    issues.add(new CompilerSemanticIssue("COMPILER_PLAN_TEST_EVIDENCE_AMBIGUOUS", criterionPath,
+                            "criterion is covered by multiple focused tests"));
+                }
+                if (stage.implementationKind() == ImplementationKind.JAVA_PRODUCTION && machine
+                        && focusedIndexes.isEmpty()) {
+                    issues.add(new CompilerSemanticIssue("COMPILER_PLAN_JAVA_TEST_EVIDENCE_REQUIRED", criterionPath,
+                            "JAVA_PRODUCTION machine criterion needs one focused Maven/Gradle test"));
+                }
+                if (focusedIndexes.size() == 1) {
+                    int evidenceIndex = focusedIndexes.getFirst();
+                    CompactEvidence focused = stage.evidence().get(evidenceIndex);
+                    try {
+                        List<String> command = canonicalTestCommand(focused.command());
+                        if (ProcessCommandPolicy.explicitFocusedJavaTestTargets(command).isEmpty()) {
+                            issues.add(new CompilerSemanticIssue("COMPILER_PLAN_JAVA_TEST_EVIDENCE_REQUIRED",
+                                    stagePath + "/evidence/" + evidenceIndex + "/command",
+                                    "focused test command needs an explicit Maven/Gradle test selector"));
+                        }
+                    } catch (BadRequestException invalid) {
+                        issues.add(new CompilerSemanticIssue(invalid.code(),
+                                stagePath + "/evidence/" + evidenceIndex + "/command",
+                                safeMessage(invalid.getMessage())));
+                    }
+                }
+            }
+        }
+        if (issues.isEmpty()) return;
+        LinkedHashMap<String, CompilerSemanticIssue> unique = new LinkedHashMap<>();
+        for (CompilerSemanticIssue issue : issues) {
+            unique.putIfAbsent(issue.code() + "|" + issue.path() + "|" + issue.detail(), issue);
+        }
+        List<CompilerSemanticIssue> result = List.copyOf(unique.values());
+        if (result.size() == 1) {
+            CompilerSemanticIssue issue = result.getFirst();
+            throw new BadRequestException(issue.code(), issue.path() + ": " + issue.detail());
+        }
+        String detail = result.stream().map(issue -> "[" + issue.code() + "] " + issue.path() + ": "
+                + issue.detail()).collect(java.util.stream.Collectors.joining("; "));
+        throw new BadRequestException("COMPILER_PLAN_SEMANTIC_INVALID",
+                result.size() + " semantic issues: " + bounded(detail, 8_000));
+    }
+
     private LoopSpec.VerifierSpec compileEvidence(int stageIndex, CompactStage stage,
                                                   CompactEvidence evidence, List<String> criterionIds) {
         if (evidence == null || blank(evidence.kind())) {
@@ -2787,6 +3013,18 @@ public class DesignerSessionService {
             case "SELF_CHECK" -> "SELF_CHECK";
             default -> null;
         };
+        if ("SELF_CHECK".equals(evidence.kind())) {
+            String commandError = ProcessCommandPolicy.directCommandError(evidence.command());
+            if (commandError != null || ProcessCommandPolicy.isSourceTextSearch(evidence.command())) {
+                throw new BadRequestException("COMPILER_PLAN_SELF_CHECK_COMMAND_INVALID",
+                        commandError == null
+                                ? "SELF_CHECK source-text search cannot prove runtime behavior" : commandError);
+            }
+            if (blank(evidence.successMarker())) {
+                throw new BadRequestException("COMPILER_PLAN_SELF_CHECK_MARKER_REQUIRED",
+                        "SELF_CHECK requires an explicit success marker");
+            }
+        }
         List<String> command = "PROCESS".equals(type) ? canonicalTestCommand(evidence.command())
                 : evidence.command();
         List<String> targets = "FOCUSED_TEST".equals(evidence.kind())
@@ -4008,8 +4246,11 @@ public class DesignerSessionService {
                 BROWSER, DATABASE_QUERY, FILE_CONTENT, FILE_HASH, FILE_NOT_EXISTS, and JUNIT_XML. covers contains
                 zero-based criterion indexes. FULL_TEST/BUILD/GIT_DIFF/FILE_NOT_EXISTS/JUNIT_XML are supplemental
                 and must use covers:[]. FOCUSED_TEST uses safe direct Maven/Gradle argv; SELF_CHECK includes
-                successMarker. Shells, pipes, redirects, unsafe paths, fake tests, and missing Java focused tests are
-                still rejected by the unchanged server validator.
+                successMarker and must emit that marker on success; source-text searches such as grep/rg are not
+                behavior SELF_CHECK commands. Criteria contain only observable business outcomes. Code style,
+                source shape, annotations, assembly shape, build success, and test success stay in deliverables or
+                supplemental evidence instead of becoming criteria. Shells, pipes, redirects, unsafe paths, fake
+                tests, and missing Java focused tests are still rejected by the unchanged server validator.
                 {"outcome":"COMPILED","summary":"package plan","stages":[{"objective":"observable stage result","implementationKind":"JAVA_PRODUCTION","allowedPaths":["src/main/java/**","src/test/java/**"],"forbiddenPaths":[".env"],"deliverables":["implementation and focused test"],"criteria":[{"description":"observable business result","sourceRefs":["DS-L001"],"judgeRubric":null,"judgeOnlyReason":null}],"evidence":[{"kind":"FOCUSED_TEST","command":["mvn","-q","-Dtest=ExampleFocusedTest","test"],"covers":[0]},{"kind":"GIT_DIFF","covers":[],"requireChanges":true,"forbidDeletes":true}],"verificationRuntime":null}],"handoffSummary":"bounded handoff","designGaps":[]}
                 """.formatted(MachineRoleContractCatalog.card("COMPILER"), packageId);
     }
@@ -4151,6 +4392,9 @@ public class DesignerSessionService {
                 summary, stages, handoffSummary, and designGaps. Server-derived ids, excerpts, criterionIds,
                 testTargets, verification modes, and final verifier objects are outside patch space.
                 Work package: %s. Error code: %s. Error detail: %s.
+                Error detail may contain several [CODE] /json/pointer entries. Repair every listed entry in this
+                single patch response; do not spend one response per error. Do not turn engineering metadata into
+                business criteria or use source-text search as a behavior SELF_CHECK.
 
                 Frozen semantic object:
                 %s
@@ -5355,6 +5599,9 @@ public class DesignerSessionService {
     }
     private record NormalizedEvidenceText(String text, List<Integer> starts,
                                           List<Integer> ends) { }
+    private record CompactPlanNormalization(CompactPackageCompilationPlan plan,
+                                            List<String> normalizations) { }
+    private record CompilerSemanticIssue(String code, String path, String detail) { }
     public record CompactCriterion(String description, List<String> sourceRefs,
                                    String judgeRubric, String judgeOnlyReason) {
         public CompactCriterion { sourceRefs = sourceRefs == null ? List.of() : List.copyOf(sourceRefs); }
@@ -5373,6 +5620,11 @@ public class DesignerSessionService {
             allowedPaths = allowedPaths == null ? List.of() : List.copyOf(allowedPaths);
             forbiddenPaths = forbiddenPaths == null ? List.of() : List.copyOf(forbiddenPaths);
             assertions = assertions == null ? List.of() : List.copyOf(assertions);
+        }
+        CompactEvidence withCovers(List<Integer> value) {
+            return new CompactEvidence(kind, command, value, successMarker, path, requireChanges, allowedPaths,
+                    forbiddenPaths, forbidDeletes, url, httpMethod, expectedStatus, jsonPath, expectedValue,
+                    matchMode, expectedContent, expectedSha256, sql, expectedRowCount, assertions);
         }
     }
     public record CompactStage(String objective, ImplementationKind implementationKind,

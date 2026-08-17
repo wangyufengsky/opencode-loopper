@@ -62,6 +62,13 @@ public final class ProcessCommandPolicy {
         return null;
     }
 
+    /** Source-text search is useful as supplemental diagnostics, but cannot prove runtime behavior. */
+    public static boolean isSourceTextSearch(List<String> command) {
+        if (command == null || command.isEmpty() || command.getFirst() == null) return false;
+        return Set.of("rg", "rg.exe", "grep", "grep.exe", "egrep", "fgrep", "findstr", "findstr.exe")
+                .contains(baseName(command.getFirst()));
+    }
+
     public static Normalization normalizeMavenCommand(List<String> command) {
         if (command == null || command.isEmpty() || command.getFirst() == null) {
             return new Normalization(command == null ? List.of() : List.copyOf(command), null, false);

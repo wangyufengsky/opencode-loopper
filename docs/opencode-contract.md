@@ -109,6 +109,15 @@ snapshot, derives all mechanical fields, and directly compiles the final legacy
 envelope. It does not send a second final-JSON prompt, and raw semantic output is
 never a chat/SSE model message.
 
+The compact Compiler contract asks only for observable business criteria. Loopper
+deterministically treats untested code-style, source/annotation/assembly-shape,
+build/test-result, and delivery-hygiene entries as frozen engineering metadata,
+remaps remaining evidence, and can associate one unambiguous focused Java test with
+otherwise unmapped business criteria in that Stage. It never invents test names or
+chooses among multiple candidates. Semantic preflight returns all errors with JSON
+Pointers in one repair prompt; source-text search is never executable behavior
+evidence.
+
 New work uses three stable server-owned response Schemas: compact Decomposer,
 compact Compiler, and final Judge. Legacy Decomposer/Compiler final Schemas remain
 registered only for historical rows without a semantic snapshot. A typed prompt may choose text or one of those

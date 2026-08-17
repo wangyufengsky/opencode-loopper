@@ -6,6 +6,7 @@ import io.opencode.loopper.domain.LoopDraftStatus;
 import io.opencode.loopper.domain.LoopSpec;
 import io.opencode.loopper.persistence.DesignDiscussionRevisionRow;
 import io.opencode.loopper.persistence.DesignRequirementRevisionRow;
+import io.opencode.loopper.persistence.DesignerMessageRow;
 import io.opencode.loopper.persistence.DesignerSessionRow;
 import io.opencode.loopper.persistence.LoopDraftRow;
 import io.opencode.loopper.persistence.LoopperMapper;
@@ -249,6 +250,143 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(drafts.spec(drafts.get(draft.id())).stages().getFirst().verifiers())
                 .filteredOn(verifier -> "SELF_CHECK".equals(verifier.processPurpose()))
                 .hasSize(2);
+    }
+
+    @Test
+    void compilerSupplementalizesEngineeringMetadataWithoutSpendingSemanticRepair() throws Exception {
+        ProjectRow project = project("compact-meta-normalization");
+        LoopDraftRow draft = drafts.create(v2DocumentationSpec(project.id()));
+        fake().setDecomposerPlanningOutput("""
+                <!-- TASK_DECOMPOSITION_PLAN_JSON_START -->
+                {"outcome":"READY","normalizedGoal":"事件总线行为可验证","globalConstraints":[],
+                 "workPackages":[{"title":"事件总线","objective":"交付事件模型和同步总线",
+                 "scopeIn":["event"],"scopeOut":[],"deliverables":["生产代码与聚焦测试"],
+                 "acceptanceIntent":["发布、注册和异常行为可验证"],"dependsOn":[]}],
+                 "coverage":[{"requirementRef":"RQ-1","targetType":"WORK_PACKAGE","targetIndex":0}],
+                 "designGaps":[],"reason":null}
+                <!-- TASK_DECOMPOSITION_PLAN_JSON_END -->
+                """);
+        String design = """
+                # WP-1 事件总线
+
+                BaseEvent 对空事件编码抛 IllegalArgumentException。
+
+                EventTypeCodes 为 final 类、私有构造并使用静态字符串常量。
+
+                新增代码遵循 Java 8 语法（无 var、无钻石语法省略）和中文注释。
+
+                EventRegistry 拒绝同一事件类型的重复监听器。
+
+                EventListener 为 @FunctionalInterface 且声明唯一 onEvent 方法。
+
+                EventBus 按注册顺序同步执行，异常原样上抛并中止后续监听器。
+
+                阶段一装配形态为显式 registry.register，注解装配留给下游包。
+                """;
+        fake().setPackageDesignerOutput("WP-1", design);
+        fake().setPackageCompilerPlanningOutput("WP-1", """
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->
+                {"outcome":"COMPILED","summary":"事件总线阶段","stages":[{"objective":"交付事件总线",
+                 "implementationKind":"JAVA_PRODUCTION","allowedPaths":["src/main/java/**","src/test/java/**"],
+                 "forbiddenPaths":[".env"],"deliverables":["事件模型、注册表、总线与聚焦测试"],
+                 "criteria":[
+                  {"description":"BaseEvent 对空事件编码抛 IllegalArgumentException","sourceRefs":["DS-L002"]},
+                  {"description":"EventTypeCodes 为 final 类、私有构造并使用静态字符串常量","sourceRefs":["DS-L003"]},
+                  {"description":"新增代码遵循 Java 8 语法、无 var 并使用中文注释","sourceRefs":["DS-L004"]},
+                  {"description":"EventRegistry 拒绝同一事件类型的重复监听器","sourceRefs":["DS-L005"]},
+                  {"description":"EventListener 为 @FunctionalInterface 且声明唯一 onEvent 方法","sourceRefs":["DS-L006"]},
+                  {"description":"EventBus 按注册顺序同步执行，异常原样上抛并中止后续监听器","sourceRefs":["DS-L007"]},
+                  {"description":"阶段一装配形态为显式 registry.register","sourceRefs":["DS-L008"]}],
+                 "evidence":[
+                  {"kind":"FOCUSED_TEST","command":["mvn","-Dtest=BaseEventTest","test"],"covers":[0]},
+                  {"kind":"SELF_CHECK","command":["grep","-rn","var","src/main/java"],"successMarker":"no matches","covers":[2]},
+                  {"kind":"FOCUSED_TEST","command":["mvn","-Dtest=EventRegistryTest","test"],"covers":[3]},
+                  {"kind":"FOCUSED_TEST","command":["mvn","-Dtest=EventBusTest","test"],"covers":[5]},
+                  {"kind":"GIT_DIFF","covers":[],"requireChanges":true,"forbidDeletes":true}],
+                 "verificationRuntime":null}],"handoffSummary":"事件总线可供下游复用","designGaps":[]}
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->
+                """);
+
+        DesignerSessionRow session = createConfirmedSession(project.id(), draft.id(), "交付同步事件总线");
+        pollUntilSettled(session.id());
+
+        assertThat(designerSessions.get(session.id()).workflowPhase()).isEqualTo("FINAL_REVIEW");
+        assertThat(designerSessions.compilerStatus(session.id())).satisfies(status -> {
+            assertThat(status.semanticRepairCount()).isZero();
+            assertThat(status.serverCompiled()).isTrue();
+        });
+        assertThat(drafts.spec(drafts.get(draft.id())).stages().getFirst()).satisfies(stage -> {
+            assertThat(stage.acceptanceCriteria()).extracting(LoopSpec.AcceptanceCriterion::description)
+                    .containsExactly(
+                            "BaseEvent 对空事件编码抛 IllegalArgumentException",
+                            "EventRegistry 拒绝同一事件类型的重复监听器",
+                            "EventBus 按注册顺序同步执行，异常原样上抛并中止后续监听器");
+            assertThat(stage.verifiers()).noneMatch(verifier -> "SELF_CHECK".equals(verifier.processPurpose()));
+            assertThat(stage.verifiers()).filteredOn(verifier -> "TEST".equals(verifier.processPurpose()))
+                    .allSatisfy(verifier -> assertThat(verifier.criterionIds()).hasSize(1));
+        });
+        assertThat(designerSessions.messages(session.id())).extracting(DesignerMessageRow::content)
+                .anyMatch(content -> content.contains("ENGINEERING_META_CRITERIA_SUPPLEMENTALIZED")
+                        && content.contains("UNEXECUTABLE_META_SELF_CHECK_DROPPED"));
+    }
+
+    @Test
+    void compilerDerivesUniqueFocusedTestCoverageForRemainingBusinessCriteria() throws Exception {
+        ProjectRow project = project("compact-unique-test");
+        LoopDraftRow draft = drafts.create(v2DocumentationSpec(project.id()));
+        fake().setDecomposerPlanningOutput(directDecompositionPlan("事件总线", "交付事件总线行为"));
+        String design = "# 事件行为\n\n未注册事件静默返回。\n\n监听器异常中止后续处理并原样上抛。";
+        fake().setPackageDesignerOutput("WP-1", design);
+        fake().setPackageCompilerPlanningOutput("WP-1", """
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->
+                {"outcome":"COMPILED","summary":"唯一聚焦测试","stages":[{"objective":"交付总线行为",
+                 "implementationKind":"JAVA_PRODUCTION","allowedPaths":["src/main/java/**","src/test/java/**"],
+                 "forbiddenPaths":[".env"],"deliverables":["总线与 EventBusTest"],
+                 "criteria":[{"description":"未注册事件静默返回","sourceRefs":["DS-L002"]},
+                 {"description":"监听器异常中止后续处理并原样上抛","sourceRefs":["DS-L003"]}],
+                 "evidence":[{"kind":"FOCUSED_TEST","command":["mvn","-Dtest=EventBusTest","test"],"covers":[0]}],
+                 "verificationRuntime":null}],"handoffSummary":"总线行为已冻结","designGaps":[]}
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->
+                """);
+
+        DesignerSessionRow session = createConfirmedSession(project.id(), draft.id(), "事件总线两项行为");
+        pollUntilSettled(session.id());
+
+        assertThat(designerSessions.compilerStatus(session.id()).semanticRepairCount()).isZero();
+        assertThat(drafts.spec(drafts.get(draft.id())).stages().getFirst().verifiers().getFirst().criterionIds())
+                .containsExactly("WP-1-AC-1", "WP-1-AC-2");
+        assertThat(designerSessions.messages(session.id())).extracting(DesignerMessageRow::content)
+                .anyMatch(content -> content.contains("UNIQUE_FOCUSED_TEST_COVERAGE_DERIVED"));
+    }
+
+    @Test
+    void compilerReturnsAllSemanticProblemsWithExactJsonPathsInOneRepair() throws Exception {
+        ProjectRow project = project("compact-batched-errors");
+        LoopDraftRow draft = drafts.create(v2DocumentationSpec(project.id()));
+        fake().setDecomposerPlanningOutput(directDecompositionPlan("文档能力", "交付两项文档行为"));
+        String design = "# 两项行为\n\n事件说明必须可观察。\n\n异常说明必须可观察。";
+        fake().setPackageDesignerOutput("WP-1", design);
+        fake().setPackageCompilerPlanningOutput("WP-1", """
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->
+                {"outcome":"COMPILED","summary":"两项缺口","stages":[{"objective":"更新文档",
+                 "implementationKind":"NON_JAVA","allowedPaths":["README.md"],"forbiddenPaths":[".env"],
+                 "deliverables":["README"],"criteria":[
+                  {"description":"事件说明必须可观察","sourceRefs":["DS-L002"]},
+                  {"description":"异常说明必须可观察","sourceRefs":["DS-L003"],"judgeRubric":"检查说明"}],
+                 "evidence":[],"verificationRuntime":null}],"handoffSummary":"待修复","designGaps":[]}
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->
+                """);
+
+        DesignerSessionRow session = createConfirmedSession(project.id(), draft.id(), "两项文档行为");
+        pollUntilCompilerState(session.id(), "RUNNING", 1);
+
+        assertThat(designerSessions.compilerStatus(session.id())).satisfies(status -> {
+            assertThat(status.lastErrorCode()).isEqualTo("COMPILER_PLAN_SEMANTIC_INVALID");
+            assertThat(status.lastErrorDetail()).contains(
+                    "[COMPILER_PLAN_CRITERION_UNCOVERED] /stages/0/criteria/0",
+                    "[COMPILER_PLAN_JUDGE_REASON_REQUIRED] /stages/0/criteria/1/judgeOnlyReason");
+            assertThat(status.semanticRepairCount()).isEqualTo(1);
+        });
     }
 
     @Test
@@ -897,9 +1035,9 @@ class DesignerSessionMcpIntegrationTest {
                 .toList();
         assertThat(compilerPrompts).hasSize(1);
         assertThat(compilerPrompts.getFirst())
-                .contains("Machine role contract 2026-08-semantic-v1")
+                .contains("Machine role contract 2026-08-semantic-v2")
                 .contains("DS-L001", "FOCUSED_TEST", "covers")
-                .contains("Do not assign acceptance ids", "testTargets");
+                .contains("Do not assign acceptance ids", "testTargets", "engineering metadata");
     }
 
     @Test
@@ -1504,6 +1642,31 @@ class DesignerSessionMcpIntegrationTest {
         envelope.put("coverageMappings", List.of());
         envelope.put("dependencyEvidence", List.of());
         envelope.put("designGaps", List.of(Map.of("code", "MISSING_SCOPE", "detail", "范围不明确")));
+        envelope.put("reason", null);
+        return "<!-- TASK_DECOMPOSITION_PLAN_JSON_START -->\n" + json.writeValueAsString(envelope)
+                + "\n<!-- TASK_DECOMPOSITION_PLAN_JSON_END -->";
+    }
+
+    private String directDecompositionPlan(String title, String goal) throws Exception {
+        Map<String, Object> workPackage = new LinkedHashMap<>();
+        workPackage.put("title", title);
+        workPackage.put("objective", goal);
+        workPackage.put("scopeIn", List.of(title));
+        workPackage.put("scopeOut", List.of());
+        workPackage.put("deliverables", List.of(goal));
+        workPackage.put("acceptanceIntent", List.of("业务行为可验证"));
+        workPackage.put("dependsOn", List.of());
+
+        Map<String, Object> envelope = new LinkedHashMap<>();
+        envelope.put("outcome", "READY");
+        envelope.put("normalizedGoal", goal);
+        envelope.put("globalConstraints", List.of());
+        envelope.put("workPackages", List.of(workPackage));
+        envelope.put("coverage", List.of(Map.of(
+                "requirementRef", "RQ-1",
+                "targetType", "WORK_PACKAGE",
+                "targetIndex", 0)));
+        envelope.put("designGaps", List.of());
         envelope.put("reason", null);
         return "<!-- TASK_DECOMPOSITION_PLAN_JSON_START -->\n" + json.writeValueAsString(envelope)
                 + "\n<!-- TASK_DECOMPOSITION_PLAN_JSON_END -->";

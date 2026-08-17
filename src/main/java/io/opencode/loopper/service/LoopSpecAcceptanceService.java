@@ -228,7 +228,7 @@ public class LoopSpecAcceptanceService {
             errors.add(path + ".outputContains: SELF_CHECK requires an explicit success marker");
             valid = false;
         }
-        if ("SELF_CHECK".equals(purpose) && sourceTextSearch(verifier.command())) {
+        if ("SELF_CHECK".equals(purpose) && ProcessCommandPolicy.isSourceTextSearch(verifier.command())) {
             errors.add(path + ".command: source-text search cannot prove runtime behavior; use a focused test or native behavior verifier");
             valid = false;
         }
@@ -290,12 +290,6 @@ public class LoopSpecAcceptanceService {
             reasons.add("not bound to this stage managed runtime");
         }
         return valid;
-    }
-
-    private boolean sourceTextSearch(List<String> command) {
-        if (command == null || command.isEmpty()) return false;
-        return Set.of("rg", "rg.exe", "grep", "grep.exe", "egrep", "fgrep", "findstr", "findstr.exe")
-                .contains(baseName(command.getFirst()));
     }
 
     private List<StageAssessment> legacyStages(LoopSpec spec) {

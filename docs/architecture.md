@@ -216,6 +216,16 @@ instead of 20. V27 retains the 96-call ceiling so
 interactive requirement/package revisions use the same explicit budget.
 Confirmed transport retries and all content repairs still count against it.
 
+The semantic Compiler separates observable business criteria from engineering
+metadata. Untested code-style, source/annotation/assembly-shape, build/test-result,
+and delivery-hygiene entries remain available through the frozen design but do not
+create artificial acceptance conditions. Evidence indexes are remapped, and a
+single focused Java test can deterministically cover otherwise unmapped business
+criteria in the same Stage; multiple candidates or missing real tests still fail.
+Preflight batches all deterministic semantic errors with JSON Pointers into one
+repair response, while the authoritative verifier continues to reject source-text
+search as behavior evidence.
+
 V26 adds orthogonal OpenCode capability and response-contract metadata without
 merging lifecycle axes. Decomposition and compilation rows persist
 `response_mode`/`schema_id`; Judge rows persist the same contract; implementation

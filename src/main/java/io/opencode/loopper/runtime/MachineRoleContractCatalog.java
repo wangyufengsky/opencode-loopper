@@ -7,11 +7,11 @@ import java.util.Map;
  * prompts use these short cards so the model only has to decide business semantics.
  */
 public final class MachineRoleContractCatalog {
-    public static final String CONTRACT_VERSION = "2026-08-semantic-v1";
+    public static final String CONTRACT_VERSION = "2026-08-semantic-v2";
 
     private static final Map<String, String> CARDS = Map.of(
             "DECOMPOSER", "Return business goal, constraints, 1-6 vertical work packages, index dependencies, and RQ coverage. Do not assign ids or status.",
-            "COMPILER", "Return semantic stages, observable criteria with DS-L source refs, and evidence intentions. Do not assign acceptance ids, workPackageId, criterionIds, or testTargets.",
+            "COMPILER", "Return semantic stages, observable business criteria with DS-L source refs, and evidence intentions. Keep code style, source shape, build success, and test success as engineering metadata rather than criteria. Do not assign acceptance ids, workPackageId, criterionIds, or testTargets.",
             "JUDGE", "Return one verdict and one non-empty reason. JSON is preferred; explicit VERDICT/REASON labels are accepted.",
             "DESIGNER", "Describe business outcomes, scope, exceptions, and observable acceptance. Do not write LoopSpec JSON or internal verifier ids.");
 
