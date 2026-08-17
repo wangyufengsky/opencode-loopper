@@ -180,6 +180,37 @@ class HttpOpenCodeClientTest {
     }
 
     @Test
+    void stopsOnThirdConsecutiveEquivalentToolCallButAllowsDifferentArguments() throws Exception {
+        LoopperProperties properties = new LoopperProperties();
+        properties.getOpenCode().setBaseUrl(new java.net.URI("http://127.0.0.1:" + server.getAddress().getPort()));
+        HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(), properties);
+        OpenCodeClient.OpenCodeSession session = client.createSession(worktree, "marker", null,
+                OpenCodeClient.SessionProfile.COMPILER_READ_ONLY);
+        client.promptAsync(session, OpenCodeClient.PromptRequest.text("compile"));
+        statusBody.set("{\"s1\":{\"type\":\"busy\"}}");
+        messageBody.set("[{\"info\":{\"role\":\"user\"}},"
+                + toolMessage("Read", "{\"path\":\"pom.xml\",\"line\":1}") + ","
+                + toolMessage("read", "{\"line\":1,\"path\":\"pom.xml\"}") + ","
+                + toolMessage("READ", "{\"path\":\"pom.xml\",\"line\":1}") + "]");
+
+        assertThatThrownBy(() -> client.sessionStatus(session))
+                .isInstanceOf(SessionFailure.class)
+                .extracting(failure -> ((SessionFailure) failure).code())
+                .isEqualTo("OPENCODE_MACHINE_TOOL_LOOP");
+
+        messageBody.set("[{\"info\":{\"role\":\"user\"}},"
+                + toolMessage("read", "{\"path\":\"pom.xml\"}") + ","
+                + toolMessage("read", "{\"path\":\"README.md\"}") + ","
+                + toolMessage("read", "{\"path\":\"pom.xml\"}") + "]");
+        assertThat(client.sessionStatus(session).state()).isEqualTo("busy");
+    }
+
+    private static String toolMessage(String tool, String input) {
+        return "{\"info\":{\"role\":\"assistant\"},\"parts\":[{\"type\":\"tool\",\"tool\":\""
+                + tool + "\",\"state\":{\"status\":\"completed\",\"input\":" + input + "}}]}";
+    }
+
+    @Test
     void selectsBoundedStructuredAgentOnlyForManagedMachineResponseSessions() throws Exception {
         java.net.URI endpoint = new java.net.URI("http://127.0.0.1:" + server.getAddress().getPort());
         HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(),

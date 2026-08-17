@@ -1322,6 +1322,8 @@ class TaskServiceIntegrationTest {
 
     @Test
     void finalDeterministicPassRequiresTwoReadOnlyJudgesAndRetainsEvidence() throws Exception {
+        ((FakeOpenCodeClient) openCode).setJudgeOutput("判定如下：\n```json\n"
+                + "{\"verdict\":\"PASS\",\"reason\":\"当前证据充分\"}\n```\n以上为最终判定。");
         ProjectRow project = projects.create("fixture", gitProject());
         TaskRow task = drafts.confirm(drafts.create(judgeContractSpec(project.id())).id(), "two judges");
         tasks.start(task.id());
@@ -1363,6 +1365,10 @@ class TaskServiceIntegrationTest {
             assertThat(judge.rawOutput()).contains("PASS");
         });
         assertThat(tasks.artifacts(task.id())).extracting(artifact -> artifact.kind()).contains("JUDGE_RESULT");
+        assertThat(mapper.eventsAfter(task.id(), 0)).anySatisfy(event -> {
+            assertThat(event.type()).isEqualTo("AI_OUTPUT_NORMALIZED");
+            assertThat(event.payloadJson()).contains("WRAPPER_TOLERATED");
+        });
         assertThat(mapper.listTaskUsage(task.id())).filteredOn(row -> row.judgeRunId() != null)
                 .hasSize(2)
                 .allSatisfy(row -> {

@@ -624,18 +624,18 @@ describe('Loopper REST contract adapter', () => {
     const accepted = { sessionId: 'designer-1', state: 'RUNNING', persistedMessages: [], notice: 'accepted' }
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(json(accepted, 202))
-      .mockResolvedValueOnce(new Response(null, { status: 204 }))
-      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(new Response(null, { status: 202 }))
+      .mockResolvedValueOnce(new Response(null, { status: 202 }))
       .mockResolvedValueOnce(json(accepted, 202))
-      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(new Response(null, { status: 202 }))
       .mockResolvedValueOnce(json({ invalidatedPackageIds: ['WP-3'] }))
     vi.stubGlobal('fetch', fetchMock)
 
     await api.sendRequirementMessage('designer-1', '补充整体边界', 2)
-    await api.confirmDesignerRequirement('designer-1', 3)
-    await api.reopenDesignerRequirement('designer-1', 4)
+    await expect(api.confirmDesignerRequirement('designer-1', 3)).resolves.toBeUndefined()
+    await expect(api.reopenDesignerRequirement('designer-1', 4)).resolves.toBeUndefined()
     await api.sendWorkPackageMessage('designer-1', 'WP-2', '只修改这个包', 5, 7)
-    await api.approveWorkPackage('designer-1', 'WP-2', 6, 8)
+    await expect(api.approveWorkPackage('designer-1', 'WP-2', 6, 8)).resolves.toBeUndefined()
     await expect(api.reopenWorkPackage('designer-1', 'WP-2', 7, 8)).resolves.toEqual(['WP-3'])
 
     expect(fetchMock.mock.calls.map((call) => call[0])).toEqual([

@@ -122,6 +122,7 @@ class ProjectControllerTest {
     private static ProjectConventionDraftRow convention(String id, String projectId, String state,
                                                           int sourceExists, String content) {
         return new ProjectConventionDraftRow(id, projectId, state, "remote", "COMPLETED", sourceExists,
-                "hash", "", content, null, "2026-08-05T00:00:00Z", "2026-08-05T00:00:01Z", 1);
+                "hash", "", content, null, null,
+                "2026-08-05T00:00:00Z", "2026-08-05T00:00:01Z", 1);
     }
 }

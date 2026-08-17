@@ -165,7 +165,12 @@ structured-output failure. Loopper also counts assistant/step-start records afte
 the latest user turn and enforces its own 24-step hard limit even if OpenCode's
 agent setting is ignored. The managed agent uses temperature zero and a fixed
 instruction to stop repository exploration once evidence is sufficient and never
-repeat or invent tool calls. Implementation and Judge retain their existing
+repeat or invent tool calls. Three consecutive calls with the same normalized
+tool name and canonical arguments terminate that loop early. Loopper aborts the
+original Session and, once per persisted role step, may start a no-tools
+finalizer with bounded deduplicated evidence. That call counts against the
+global model-call budget but not the planning/final format-repair budget; V28
+prevents a restart from granting another finalizer. Implementation retains its existing
 failure-escalation contract. Actual terminal failure, retry exhaustion, timeout, or transition to
 human input always makes a best-effort abort call before Loopper reports the
 structured role as stopped.
@@ -227,12 +232,16 @@ destructive boundary. Machine planning/final JSON remains out of the chat
 transcript; only persisted role summaries and the validated candidate projection
 are returned to the browser.
 
-Decomposer planning and final output prefer their exact HTML comment markers.
-If a provider removes those comments, Loopper accepts only one complete top-level
-JSON object occupying the whole output, or that object inside one standalone
-`json` fence. Surrounding prose, multiple objects, arrays, and incomplete JSON
-are rejected before the unchanged typed, coverage, dependency, package-boundary,
-and frozen-plan validation.
+Decomposer/Compiler/Judge output shares a bounded compatibility extractor.
+Native structured payload and exact role markers are preferred; otherwise one
+valid object may be taken from a `json`/untyped fence, short explanatory prose,
+or the complete response. Equivalent candidates collapse to one answer;
+conflicting valid objects, arrays, incomplete or non-standard JSON, oversize
+content, and ambiguous field normalization remain errors. Safe deterministic
+normalization does not consume a format repair and never bypasses the unchanged
+typed, coverage, dependency, package-boundary, verifier, runtime, or frozen-plan
+validation. Project Convention Markdown follows the analogous marker, unique
+fence, then complete-response policy while retaining reserved-marker and size checks.
 
 The MCP `propose_loop_spec` tool uses the same session-bound update path, but is
 rejected while an active decomposed design workflow has not completed. It no
@@ -288,8 +297,10 @@ not fabricate or expose private model reasoning.
 The frozen Markdown design and executable LoopSpec remain separate artifacts.
 New v2 drafts first declare each Stage's `implementationKind` and observable
 criterion IDs, then map them to server-valid
-behavior verifiers. `PROCESS` commands remain argv arrays: `TEST` requires a
-recognized non-skipping test command and concrete targets; `SELF_CHECK` requires
+behavior verifiers. `PROCESS` commands remain argv arrays: a `TEST` mapped to a
+business criterion requires a recognized non-skipping test command and concrete
+targets; a safe unmapped full-suite test can remain only as blocking supplemental
+report evidence and cannot provide behavior coverage; `SELF_CHECK` requires
 an explicit bounded-output marker; build commands cannot cover criteria.
 `GIT_DIFF` remains an opt-in scope verifier and cannot establish functional
 correctness. Network criteria additionally require the same Stage's managed

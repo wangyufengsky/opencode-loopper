@@ -41,10 +41,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.1.67.jar
-   jar tf target/opencode-loopper-0.1.67.jar \
+   test -s target/opencode-loopper-0.1.70.jar
+   jar tf target/opencode-loopper-0.1.70.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.1.67.jar
+   shasum -a 256 target/opencode-loopper-0.1.70.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -93,8 +93,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.1.67`。
-- 正式产物：`target/opencode-loopper-0.1.67.jar`。
+- Maven 项目版本：`0.1.70`。
+- 正式产物：`target/opencode-loopper-0.1.70.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -212,16 +212,17 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 
 - Designer 新建会话先进入 `DISCUSSING_REQUIREMENT`：整体需求和每个工作包的初稿/人工修订都必须先调用一次 `question` 提出 1–3 个选择题，回答后在同一模型调用中返回不超过 24 KiB UTF-8 的完整 Markdown 替代快照。服务端持久化完整快照、决策、问题状态和讨论修订；遗漏问题时只允许在全新 Session 补问一次，再次遗漏以 `DESIGN_QUESTION_REQUIRED` 进入 `WAITING_INPUT`。正常讨论/评审使用 Designer Session `REVIEWING`，不得滥用 `WAITING_INPUT`。
 - 拆包前的需求消息只更新需求讨论，不调用 Decomposer；只有显式确认需求才冻结下一编号需求版本并拆包。拆包后旧 `/messages` 缺少作用域时必须返回 `DISCUSSION_SCOPE_REQUIRED`；修改整体需求要显式重开并废弃当前拆包/批准，包级消息只能修改当前包且不得创建新需求版本或重跑 Decomposer。全部作用域写请求和批准都携带期望讨论/设计修订，过期操作返回 409。
+- Designer 写接口允许用空响应体返回成功的 `202 Accepted` 或 `204 No Content`；前端公共 API transport 必须把任意成功空响应解释为已完成的 void 操作，再刷新服务端权威快照，不得对空内容调用 JSON 解析器并误报失败。
 - 每条完整用户需求先冻结不可变需求版本并交给独立只读 Task Decomposer；只允许 `read/glob/grep`，不得写文件、执行命令、提问或创建 Task。服务端按非空段落/列表编号并校验每段被全局约束或至少一个工作包引用。
 - `DIRECT_DESIGN` 恰好一个包；大型任务拆成 2–6 个依赖有序的纵向业务包，每包 1–3 个 Stage、总计不超过 18 个。禁止把数据库、后端、前端、测试机械分层拆包。多项目根、超过六包或多个独立发布边界必须返回 `MULTI_TASK_REQUIRED` 并等待人工，不自动创建子 Task。
 - 工作包严格串行执行，每包在健康时复用自己的只读交互 Designer Session，每个候选使用全新的只读 Compiler Session，并使用当前配置的同一模型。Designer 只输出不超过 24 KiB UTF-8 的完整 Markdown；Compiler 只输出当前包 1–3 个 Stage、来源映射及不超过 4 KiB 的交接摘要。Stage/验收 ID 使用稳定 `workPackageId` 与 `<workPackageId>-AC-n`。
 - Decomposer 和分包 Compiler 都必须使用同一只读 Session 的持久化两轮智能编译：第一轮按“规划 → 证据映射”顺序生成有界中间合同，服务端校验并冻结；第二轮只把冻结规划编码为最终 JSON，不得更改包边界、Stage、验收来源、测试证据或交接摘要。规划与最终原始 JSON 都不得进入聊天消息，SSE 只投影权威步骤和摘要。
 - Decomposer 和每包 Compiler 的“规划/证据映射”与“最终 JSON”各有独立的最多两次格式修复预算；规划修复耗尽后如成功冻结，不得挤占最终 JSON 的修复机会。闭集语义缺口最多只让当前包完整重设计一次。每个只读角色已确认的传输失败允许一个全新 Session 重试。整个需求版本最多 96 次模型调用，需求/包级问题回答继续已经计数的同一次调用，不得制造隐藏预算；六包无重试机器链路固定消耗 20 次，各包内容次数互不挤占但受全局上限约束。
 - Decomposer 规划/最终、Compiler 规划/最终和 Judge 必须优先使用服务端固定 ID 的 OpenCode JSON Schema；provider 内建 schema 重试固定为 0。只有格式接口拒绝、明确 `StructuredOutputError` 或完成后缺失 structured payload 才能在全新只读角色 Session 中回退到 marker，并计入当前步骤原有模型调用与修复预算；不得在失败 Session 内继续、增加隐藏重试池或绕过确定性语义校验。历史活动记录按 `TEXT_MARKER` 兼容。
-- 对 Decomposer/Compiler，OpenCode `RETRY` 是 Provider 自恢复中的瞬态 Session 状态，不得当作设计流水线传输失败或消耗全新 Session 重试；Implementation 与 Judge 保留既有失败升级合同。Loopper 管理的 Decomposer、Compiler 和 Judge 必须选择最多 24 个 agentic steps 的私有 `loopper-structured` agent。若 structured prompt 已接受但消息读取接口随后以格式/Schema 400 拒绝，必须按结构化格式不支持进入既有全新 marker Session 回退。结构化角色最终进入 `WAITING_INPUT` 或 `SESSION_ERROR` 前必须尽力 abort 当前远端 Session，UI 的“已停止”不得与仍在读仓库的远端执行并存。
+- 对 Decomposer/Compiler，OpenCode `RETRY` 是 Provider 自恢复中的瞬态 Session 状态，不得当作设计流水线传输失败或消耗全新 Session 重试；Implementation 与 Judge 保留既有失败升级合同。Loopper 管理的 Decomposer、Compiler 和 Judge 必须选择最多 24 个 agentic steps 的私有 `loopper-structured` agent。若最近一次用户提示后的同一规范化工具名和参数连续出现 3 次，必须立即尽力 abort，并且每个角色步骤最多启动一次禁用全部工具的 finalizer Session；恢复资格和纠正类别持久化在 V28，finalizer 计入全局模型调用预算但不占格式修复次数，24 步仍是最终保险。若 structured prompt 已接受但消息读取接口随后以格式/Schema 400 拒绝，必须按结构化格式不支持进入既有全新 marker Session 回退。结构化角色最终进入 `WAITING_INPUT` 或 `SESSION_ERROR` 前必须尽力 abort 当前远端 Session，UI 的“已停止”不得与仍在读仓库的远端执行并存。
 - Decomposer、Compiler 和最终 Judge 的机器响应 Session 必须显式使用 `thinking=false`；Loopper 管理的 DeepSeek Runtime 为当前配置模型注入 `loopper-no-thinking` variant（`thinking.type=disabled`）并在提示时选择它，避免 Thinking 与 JSON Schema 强制工具选择冲突。机器角色同时使用零温度和禁止重复/虚构工具调用的固定指令。OpenCode 1.18.12–1.18.18 已确认会在读取自身持久化 Schema 时返回 400，必须直接使用 marker 兼容模式；后续版本恢复能力探测。交互式 Markdown Designer 和可写 Implementation 继续保留配置/LoopSpec 的 thinking 选择；复用外部 DeepSeek Runtime 时由操作者提供同名 variant，缺失时不得绕过既有全新 Session marker 回退。
 - OpenCode Session 使用角色权限模板：Decomposer/Compiler/Judge/通用只读只开放 `read`/`glob`/`grep`，Designer 额外开放 `question`；只读角色仍拒绝 `.env`/`.env.*`、外部目录和全部其他工具。Runtime 可展示 agent、原生 `plan` 与 structured-output 能力，但当前不得让 Designer 接管原生 plan；Designer Markdown、Compiler JSON 和 Validator 权威边界保持不变。
-- Decomposer 规划与最终输出优先解析精确 marker；弱模型移除 marker 时，只允许完整输出为一个顶层 JSON object，或仅用一个 `json` 代码块包裹该 object。夹带说明文字、多个对象、数组根或残缺 JSON 必须拒绝，并继续执行原步骤修复与全部确定性语义校验。
+- Decomposer、Compiler、Judge 与项目公约共用有界包容性提取器：原生 structured payload、角色 marker、`json`/无语言代码块、说明文字中括号完整的 object 和整段 object 按优先级提取。仅接受标准 JSON object；字符串花括号、转义、BOM 和空白必须正确处理；等价候选去重，不等价且都合格的候选按歧义拒绝。字段名、可选集合、枚举和安全命令分词只做唯一可逆的确定性规范化，成功提取/规范化直接进入同一权威业务合同校验并记录 `AI_OUTPUT_NORMALIZED`，不得消耗格式修复次数；数组根、残缺/非标准 JSON、不可唯一推导的缺口以及安全或执行合同违规则继续阻断。
 - Compiler 的规划、最终生成与格式修复提示必须注入当前步骤的完整 JSON 类型合同和规范信封，明确集合、验证器、直接 argv、验收映射、测试目标、托管运行时及设计缺口的对象/数组/null 边界；不得要求模型从 Java 反序列化错误反推 DTO 结构。v2 分包规划必须使用 `contractVersion=2` 并携带完整 `VerifierSpec` 蓝图和可选 `verificationRuntime`；服务端必须在冻结规划前使用权威 LoopSpec v2 执行合同校验直接命令、行为覆盖、Java 聚焦测试及运行时绑定，最终 JSON 只能逐字段复制该蓝图。丰富提示不能替代服务端确定性校验。
 - 分包 Designer/Compiler 读取的仓库是不可变的执行前基线；前置包 `APPROVED` 表示其设计、编译和校验合同已通过且已经人工接受，不表示生产文件已写入基线仓库。服务端必须注入前置包的冻结目标、Compiler 摘要和交接合同；严格串行执行保证前置 Stage 先落地，因此当前 `read/glob/grep` 找不到前置交付物不得返回 `MISSING_SCOPE`。Compiler 负责 Stage/业务验收/证据语义；服务端在权威 v2 校验前确定性生成 `<workPackageId>-AC-n`、仅在唯一归一化匹配时恢复 Designer 精确原文，并把 Designer 明确列出的聚焦单测行作为强制证据注入规划/修复提示。服务端只允许从安全的 Maven/Gradle `-Dtest`、`-Dit.test`、`--tests` 显式选择器提取目标；同一 Java Stage 唯一匹配时可补齐重复的 `testCommand`/`testTargets`/`criterionIds` 或等价 TEST 验证器，不得从普通描述、全量测试或多个候选中猜测。歧义匹配或缺少语义证据仍必须阻断。
 - 全部包完成后只能由服务端按包顺序确定性聚合，不允许模型二次合并；聚合保留草稿模型、Session 策略、预算和重试模板，并只在最初冻结的 draft version 上原子同步。草稿并发变化必须在启动下一包前停止，不再消耗模型调用。
@@ -252,7 +253,7 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 - `FILE_EXISTS` 是兼容旧草稿的非阻断审计提示；不要为 Designer 新生成它。需要证明产物时，用会在缺失时非零退出的 `PROCESS` 自检，并可要求明确的 `outputContains` 标记。
 - `FILE_NOT_EXISTS` 只用于明确的安全不变量。
 - `FILE_CONTENT` 的 `expectedContent` 是精确文本合同；除纯空白输入仍按缺失拒绝外，不得裁剪首尾空白或尾随换行，`EXACT` 必须比较原始持久化文本。
-- v2 `PROCESS` 必须声明 `processPurpose`。compile/package/build/typecheck/lint/install 属于 `BUILD`；`TEST` 必须是未跳过测试的 Maven/Gradle/npm 测试命令并列出 `testTargets`；`SELF_CHECK` 必须有明确 `outputContains`。`GIT_DIFF`、`FILE_NOT_EXISTS`、`JUNIT_XML` 和 `FILE_EXISTS` 分别只属于范围、安全、报告和提示证据，不能覆盖行为条件。
+- v2 `PROCESS` 必须声明 `processPurpose`。compile/package/build/typecheck/lint/install 属于 `BUILD`；映射业务条件的 `TEST` 必须是未跳过测试的 Maven/Gradle/npm 测试命令并列出 `testTargets`；未映射任何条件且不声明目标的安全全量测试可作为阻断性 `REPORT` 补充证据，但不能覆盖行为条件；`SELF_CHECK` 必须有明确 `outputContains`。`GIT_DIFF`、`FILE_NOT_EXISTS`、`JUNIT_XML` 和 `FILE_EXISTS` 分别只属于范围、安全、报告和提示证据，不能覆盖行为条件。
 - `implementationKind` 为 `JAVA_PRODUCTION` 时，生产实现和未跳过的聚焦 Maven/Gradle 单元测试必须放在同一阶段，测试必须填写 `testTargets` 并通过 `criterionIds` 覆盖全部 `MACHINE`/`BOTH` 业务条件；不得创建“测试全部通过”元验收项。计划测试目标可由该阶段新增，设计时不要求已存在，但不得使用缺失目标忽略参数制造成功。
 - 每个 v2 Stage 首次启动前必须持久化相对任务基线的生产 Java 路径和内容哈希。验证时新增、修改或重命名目标 `.java` 触发门禁；标准测试目录和 `target/`、`build/` 不属于生产 Java，删除单独由原有范围和风险规则处理。真实生产 Java 变化与声明不一致时返回 `JAVA_CHANGE_CLASSIFICATION_MISMATCH`，缺少该阶段成功的聚焦 Maven/Gradle 测试时返回 `JAVA_UNIT_TEST_ACCEPTANCE_REQUIRED`，并进入正常 Attempt 重试。
 - v2 HTTP/JSON/BROWSER 条件只有绑定本阶段 `verificationRuntime` 和 `http://127.0.0.1:{{LOOPPER_PORT}}` 时才算行为覆盖。启动命令仍是无 shell argv，只允许 `{{LOOPPER_PORT}}`、`{{LOOPPER_TEMP}}`；固定 loopback 可作补充但不能证明本次代码已启动。
@@ -317,7 +318,7 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 ### 数据库迁移
 
 - 已存在的 `V1`–`V19` 迁移视为不可变历史，禁止修改。
-- 已有 V1–V25 Flyway 迁移不可修改；Schema 变化新增下一序号迁移，并同时验证全新数据库和至少一个受支持旧版本升级路径。
+- 已有 V1–V28 Flyway 迁移不可修改；Schema 变化新增下一序号迁移，并同时验证全新数据库和至少一个受支持旧版本升级路径。
 - SQLite 外键级联不能只靠假设；活动连接必须明确启用，终止删除路径仍要按依赖顺序显式清理并验证事务回滚。
 - 数据库枚举码、artifact kind、错误码和 audit event 是兼容性契约；修改前先搜索所有 Java、SQL、前端 type/label 和测试消费者。
 
@@ -380,7 +381,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.1.67.jar
+JAR=target/opencode-loopper-0.1.70.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -478,6 +479,8 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-08-17 | AI 输出包容性解析、工具循环恢复与 0.1.70 交付 | Decomposer/Compiler/Judge 共用严格 JSON object 提取与可审计确定性规范化，项目公约兼容 marker/唯一 fence/整段 Markdown；V28 持久化纠正类别与每步骤一次 finalizer 资格；连续 3 次同工具同参数提前 abort 并无工具收口；纯验证元描述不生成业务验收项，全量测试仅可作补充报告；前端以普通信息样式展示规范化与恢复提示；同步 README、架构、设计、OpenCode、七特性合同与本公约正文 | 0.1.68 首次完整验证因发布脚本契约仍固定旧 JAR 名失败，0.1.69 再发现迁移测试仍断言 V27；均修正并按版本规则递增。聚焦验证：`mvn -Dtest=AiOutputExtractorTest,HttpOpenCodeClientTest,ProjectConventionServiceTest test` 后端 33/33、前端 159/159；`mvn -Dtest=DesignerSessionMcpIntegrationTest,TaskServiceIntegrationTest test` 后端 95/95、前端 159/159；`mvn -Dtest=FeatureMigrationTest,ReleasePackagingContractTest test` 后端 10/10、前端 159/159。完整 `./scripts/verify.sh` 通过：Java 402 项（跳过 1）、前端 159 项；JAR `target/opencode-loopper-0.1.70.jar` 为 263090915 bytes，SHA-256 `6fade8fe70745872ce7e4b4dcf1523337cbf41979ba94f0fd1802e7cd3d29484`，含 `BOOT-INF/classes/static/index.html` 与静态 assets。隔离实例在 18080 使用真实 DeepSeek/OpenCode 1.18.18 `TEXT_MARKER` 模式完成需求讨论、DIRECT_DESIGN 拆解、WP-1 设计/编译/批准与确定性聚合并进入 `FINAL_REVIEW`：模型调用 7/96，Decomposer 格式修复 0、最终修复 0、规划语义修复 1，Compiler 规划/最终修复均为 0、格式回退 0、工具循环 finalizer 0，`OUTPUT_MARKERS_MISSING` 消息 0，持久化 3 条 `NORMALIZED` 审计；未创建 Task，验证后已关闭隔离 Loopper/OpenCode，现有 8080 仍为 0.1.67/PID 38300。Release 证据待标签工作流完成后回填 |
+| 2026-08-17 | 修复 Designer 成功操作误报 JSON 截断 | 前端公共 API transport 兼容任意 2xx 空响应；需求确认/重开与工作包接受回归测试改用后端真实的空 `202`；同步设计合同与本公约正文 | 聚焦 API client 34/34、完整 Vitest 158/158、前端类型检查通过；按用户要求不打包、不推送、不发布，版本保持 0.1.67 |
 | 2026-08-17 | 项目任务/设计恢复、Designer 多轮讨论与逐包确认，交付 0.1.67 | 项目页分别投影历史任务和待继续设计；V27 持久化需求/工作包完整讨论快照、问题答案、候选和批准修订；Designer 强制先提问，需求确认后才拆包，每包讨论、Compiler/Validator 同步、明确批准后才推进，重开只失效传递依赖；新增四步进度、作用域、工作包导航、推荐答案、同步状态和最终确认；同步 README、架构、设计、OpenCode 合同与本公约正文 | 聚焦 Java 41/41、Vitest 62/62、Playwright 完整两包路径 1/1；`./scripts/verify.sh` 通过：Java 390 项（0 失败、0 错误、1 项 Windows 条件用例在 macOS 跳过），Vitest 158/158；JAR `target/opencode-loopper-0.1.67.jar`（263057730 bytes）内含 100 个前端静态条目、V27 和讨论快照类，SHA-256 `2645200dec65d6e3815de000ebf6adc37ed4814f76180286c28a34fc60552928`；Java 21 隔离端口 18097 首次启动和同数据目录重启均 health `UP`/Flyway v27，未确认 Designer 会话重启后仍由服务端找回，项目投影保持 Task 0/待继续设计 1，端口随后释放且未替换 8080；发布目标：`v0.1.67` |
 | 2026-08-14 | 修复异步 Schema busy 盲区并稳定 DeepSeek 机器输出，准备本地测试 0.1.66 | 异步 2xx 不再标记结构化能力成功；机器角色在 busy 期间读取消息并识别 Schema 400、StructuredOutput 工具错误及超过 24 步；OpenCode 1.18.12–1.18.18 直接 marker，后续版本恢复探测；受管 agent 使用零温度和禁止重复工具指令；同步 README、Designer/OpenCode 合同与本公约正文 | 聚焦 Http adapter、Runtime 能力与 Designer 回退 48/48、Vitest 151/151；`./scripts/verify.sh` 通过：Java 383 个（0 失败、0 错误、1 个 Windows 专属用例在 macOS 跳过），Vitest 151/151；JAR `target/opencode-loopper-0.1.66.jar`（263023144 bytes）内含 101 个前端静态条目及新 Runtime 类，SHA-256 `f7289cf67486e7dc47484b9e735d0d0b244aa31f6f3c78deab43dd6e03aa1a27`；OpenCode 1.18.18 + DeepSeek 最小 Schema 实测在消息读取时返回 `Expected OutputFormatJsonSchema` 400；替换前 SQLite `quick_check=ok` 并备份至 `data/backups/loopper-before-0.1.66-20260814T180000.db`；本机 Loopper PID 94044 监听 8080、health `UP`，Runtime 报告 0.1.66/OpenCode 1.18.18 `AVAILABLE`（受管 PID 94058）并默认 `TEXT_MARKER`，实际首页哈希与 JAR 一致；保留既有未提交工作，未提交、未推送、未打标签、未发布 |
 | 2026-08-14 | 阻止 Compiler 冻结 allowed/forbidden 自相矛盾的路径合同，准备本地测试 0.1.65 | Stage 与显式 `GIT_DIFF` 共用运行期路径匹配语义；非法 glob 和被单条禁止规则完整覆盖的允许规则进入 Compiler 规划修复，并在草稿保存/确认时再次 fail closed；合法宽允许+窄排除保持兼容；同步 README、架构、设计、OpenCode、七特性合同与本公约正文 | 聚焦路径/验证器 45/45、Compiler 集成 10/10；`./scripts/verify.sh` 通过：Java 379 个（0 失败、0 错误、1 个 Windows 专属用例在 macOS 跳过），Vitest 151/151；JAR `target/opencode-loopper-0.1.65.jar`（263020636 bytes）内含 100 个前端静态资源及 `VerifierPathPolicy.class`，SHA-256 `4b9c3ac9aa2d626055ef55fd0aa6a2a4b044aaa2161d0f936b593383520f6da2`；本机 PID 60918 监听 8080、health `UP`，Runtime 报告 0.1.65/OpenCode 1.18.12 `AVAILABLE`（受管 PID 60972）；真实 validate API 拒绝原 event/bridge 冲突并接受宽 allow+窄 exclusion；保留既有未提交工作，未提交、未推送、未打标签、未发布 |

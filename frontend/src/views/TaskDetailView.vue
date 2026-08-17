@@ -22,6 +22,7 @@ const router = useRouter()
 const store = useTaskStore()
 const id = computed(() => route.params.id as string)
 const task = computed(() => store.tasks.find((item) => item.id === id.value))
+const aiNotices = computed(() => store.taskNotices?.[id.value] ?? [])
 const isDirectExecution = computed(() => task.value?.branch === 'DIRECT')
 const attempts = computed<Attempt[]>(() => task.value?.attempts ?? task.value?.stages?.flatMap((stage) => stage.attempts) ?? [])
 const waitingForWorkspaceCleanup = computed(() => task.value?.status === 'WAITING_INPUT'
@@ -259,6 +260,9 @@ async function confirmRework() {
           <div><dt>评审通过</dt><dd>{{ passedJudges }} / 2</dd></div>
         </dl>
       </section>
+      <div v-for="notice in aiNotices" :key="notice" class="ai-output-notice" role="status">
+        <Icon icon="lucide:info" />{{ notice }}
+      </div>
       <section v-if="task.status === 'QUEUED'" class="queue-blocker card card-pad" aria-labelledby="queue-blocker-heading">
         <div class="card-header">
           <div><p class="eyebrow">WORKSPACE LEASE</p><h2 id="queue-blocker-heading" class="card-title">当前在排谁</h2></div>
@@ -321,6 +325,7 @@ async function confirmRework() {
 <style scoped>
 .task-overview { display: flex; align-items: center; justify-content: space-between; gap: 18px; min-width: 0; }.task-overview > div:first-child { min-width: 0; }.task-overview > div:first-child > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.overview-meta { display: flex; flex: 0 0 auto; align-items: center; gap: 15px; color: var(--color-text-secondary); font-family: var(--font-code); font-size: 11px; }.overview-meta b { color: var(--color-text-primary); }.stream-state { display: inline-flex; align-items: center; gap: 6px; }.stream-state::before { width: 7px; height: 7px; border-radius: 50%; background: currentColor; content: ""; }.stream-state.connected { color: var(--color-success); }.stream-state.reconnecting { color: var(--color-session-warning); }.task-detail-grid { display: grid; grid-template-columns: minmax(300px, .77fr) minmax(500px, 1.23fr); gap: 16px; }@media (max-width: 1320px) { .task-detail-grid { grid-template-columns: minmax(290px, .7fr) minmax(470px, 1.3fr); } }@media (max-width: 1050px) { .task-detail-grid { grid-template-columns: 1fr; } }
 .result-summary { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(360px, .8fr); align-items: center; gap: 22px; margin-top: 16px; border-color: rgb(34 211 238 / 19%); background: linear-gradient(125deg, rgb(34 211 238 / 6%), rgb(139 92 246 / 4%)); }.result-copy p:last-child { max-width: 720px; margin: 8px 0 0; color: var(--color-text-secondary); font-size: 12px; line-height: 1.65; }.result-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; }.result-metrics div { padding: 12px; border: 1px solid var(--color-border-default); border-radius: 9px; background: rgb(7 12 22 / 50%); }.result-metrics dt { color: var(--color-text-tertiary); font-size: 9px; }.result-metrics dd { margin: 6px 0 0; color: var(--color-text-primary); font: 700 14px/1 var(--font-code); font-variant-numeric: tabular-nums; }
+.ai-output-notice { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 9px 12px; border: 1px solid rgb(34 211 238 / 28%); border-radius: 8px; color: #a5f3fc; background: rgb(8 145 178 / 8%); font-size: 11px; }
 .queue-blocker { margin-top: 16px; border-color: rgb(245 158 11 / 30%); background: linear-gradient(120deg, rgb(245 158 11 / 7%), rgb(15 23 42 / 25%)); }.queue-holder { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 20px; margin-top: 12px; }.queue-holder > div:first-child { display: grid; align-content: start; gap: 7px; min-width: 0; }.queue-holder-link { width: fit-content; max-width: 100%; padding: 0; overflow: hidden; border: 0; background: transparent; color: var(--color-accent); font: inherit; font-weight: 700; text-align: left; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }.queue-holder dl { display: grid; grid-template-columns: repeat(3, minmax(82px, 1fr)); gap: 8px; margin: 0; }.queue-holder dl div { padding: 9px 11px; border: 1px solid var(--color-border-default); border-radius: 8px; background: rgb(2 6 23 / 35%); }.queue-holder dt { color: var(--color-text-tertiary); font-size: 9px; }.queue-holder dd { margin: 5px 0 0; color: var(--color-text-primary); font: 650 10px/1.2 var(--font-code); }.queue-copy { margin: 12px 0; color: var(--color-text-secondary); font-size: 12px; line-height: 1.6; }.queue-error { margin: 12px 0 0; color: var(--color-danger); font-size: 12px; }
 .judge-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }@media (max-width: 960px) { .judge-grid { grid-template-columns: 1fr; } }
 .judge-empty { margin: 0 0 12px; color: var(--color-text-secondary); font-size: 12px; line-height: 1.6; }

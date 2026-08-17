@@ -1,7 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { demoProjects, demoRuntime, demoTasks } from '@/mock/demoData'
-import { reduceTaskEvent, requiresTaskSnapshot, useTaskStore } from '@/stores/taskStore'
+import { aiOutputNotice, reduceTaskEvent, requiresTaskSnapshot, useTaskStore } from '@/stores/taskStore'
 
 const apiMocks = vi.hoisted(() => ({
   createTaskRecovery: vi.fn(),
@@ -56,6 +56,15 @@ describe('task SSE reducer', () => {
     expect(requiresTaskSnapshot('verification.failed')).toBe(true)
     expect(requiresTaskSnapshot('task.status')).toBe(true)
     expect(requiresTaskSnapshot('log.appended')).toBe(false)
+  })
+
+  it('renders normalization and finalizer events as ordinary informational notices', () => {
+    expect(aiOutputNotice({ id: 'normalized', type: 'AI_OUTPUT_NORMALIZED', at: 'now',
+      data: { role: 'RISK', corrections: ['WRAPPER_TOLERATED'] } }))
+      .toBe('RISK 输出已自动规范化：WRAPPER_TOLERATED')
+    expect(aiOutputNotice({ id: 'finalizer', type: 'AI_TOOL_LOOP_FINALIZER_STARTED', at: 'now',
+      data: { role: 'REQUIREMENT' } }))
+      .toContain('无工具 Finalizer')
   })
 
   it('creates the rework child before starting that new task', async () => {

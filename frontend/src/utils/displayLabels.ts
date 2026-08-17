@@ -10,6 +10,7 @@ const statusLabels: Record<string, string> = {
   VERIFIER_FAILED: '验证未通过', BLOCKED: '已阻塞', UNKNOWN: '未知',
   REVISE: '需修改', UNPARSEABLE: '无法解析', IDLE: '空闲', DONE: '已完成', CHECKING: '检查中',
   PERSISTED: '已保存', PENDING_HANDOFF: '等待交接', DELIVERED: '已送达', RECONNECTING: '重连中',
+  NORMALIZED: '已自动规范化',
 }
 
 const toolLabels: Record<string, string> = {

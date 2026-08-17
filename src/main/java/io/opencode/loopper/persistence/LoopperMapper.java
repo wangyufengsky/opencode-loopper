@@ -176,10 +176,10 @@ public interface LoopperMapper {
     @Insert("""
             INSERT INTO project_convention_draft(
               id,project_id,state,external_session_id,external_session_state,
-              source_exists,source_sha256,source_content,proposed_content,error_message,
+              source_exists,source_sha256,source_content,proposed_content,normalization_notice,error_message,
               created_at,updated_at,version)
             VALUES(#{id},#{projectId},#{state},#{externalSessionId},#{externalSessionState},
-              #{sourceExists},#{sourceSha256},#{sourceContent},#{proposedContent},#{errorMessage},
+              #{sourceExists},#{sourceSha256},#{sourceContent},#{proposedContent},#{normalizationNotice},#{errorMessage},
               #{createdAt},#{updatedAt},#{version})
             """)
     int insertProjectConventionDraft(ProjectConventionDraftRow row);
@@ -200,14 +200,16 @@ public interface LoopperMapper {
     @Update("""
             UPDATE project_convention_draft SET
               state=#{state}, external_session_id=#{externalSessionId}, external_session_state=#{externalSessionState},
-              proposed_content=#{proposedContent}, error_message=#{errorMessage}, updated_at=#{updatedAt}, version=version+1
+              proposed_content=#{proposedContent}, normalization_notice=#{normalizationNotice},
+              error_message=#{errorMessage}, updated_at=#{updatedAt}, version=version+1
             WHERE id=#{id} AND version=#{version}
             """)
     int updateProjectConventionDraft(ProjectConventionDraftRow row);
     @Update("""
             UPDATE project_convention_draft SET
               external_session_id=#{externalSessionId}, external_session_state=#{externalSessionState},
-              proposed_content=#{proposedContent}, error_message=#{errorMessage}, updated_at=#{updatedAt}, version=version+1
+              proposed_content=#{proposedContent}, normalization_notice=#{normalizationNotice},
+              error_message=#{errorMessage}, updated_at=#{updatedAt}, version=version+1
             WHERE id=#{id} AND version=#{version}
             """)
     int updateProjectConventionProjection(ProjectConventionDraftRow row);
@@ -621,6 +623,12 @@ public interface LoopperMapper {
     int insertTaskEvent(TaskEventRow row);
     @Select("SELECT * FROM task_event WHERE task_id=#{taskId} AND sequence > #{sequence} ORDER BY sequence")
     List<TaskEventRow> eventsAfter(@Param("taskId") String taskId, @Param("sequence") long sequence);
+
+    @Insert("INSERT OR IGNORE INTO ai_output_handling_event(id,scope_type,scope_id,role,workflow_step,event_type,correction_categories_json,response_fingerprint,created_at) VALUES(#{id},#{scopeType},#{scopeId},#{role},#{workflowStep},#{eventType},#{correctionCategoriesJson},#{responseFingerprint},#{createdAt})")
+    int insertAiOutputHandlingEvent(AiOutputHandlingEventRow row);
+    @Select("SELECT * FROM ai_output_handling_event WHERE scope_type=#{scopeType} AND scope_id=#{scopeId} ORDER BY created_at,id")
+    List<AiOutputHandlingEventRow> listAiOutputHandlingEvents(@Param("scopeType") String scopeType,
+                                                              @Param("scopeId") String scopeId);
 
     @Select("SELECT * FROM workspace_lease WHERE canonical_root=#{canonicalRoot}")
     Optional<WorkspaceLeaseRow> findWorkspaceLease(String canonicalRoot);

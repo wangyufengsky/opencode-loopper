@@ -254,6 +254,9 @@ onBeforeUnmount(clearConventionPoll)
     <div v-if="conventionError || conventionDraft?.error" class="inline-field-error convention-error">
       <Icon icon="lucide:circle-alert" />{{ conventionError || conventionDraft?.error }}
     </div>
+    <div v-if="conventionDraft?.normalizationNotice" class="convention-notice" role="status">
+      <Icon icon="lucide:info" />{{ conventionDraft.normalizationNotice }}
+    </div>
     <template v-if="!conventionDraft && conventionSnapshot?.exists">
       <div class="convention-meta">
         <span class="eyebrow">CURRENT AGENTS.MD</span>
@@ -288,6 +291,7 @@ onBeforeUnmount(clearConventionPoll)
 .convention-action { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; gap: 6px; min-height: 30px; padding: 0 10px; border: 1px solid rgb(139 92 246 / 34%); border-radius: 7px; color: #c4b5fd; background: rgb(139 92 246 / 8%); font-size: 10px; font-weight: 680; line-height: 1; cursor: pointer; transition: color .16s ease, background-color .16s ease, border-color .16s ease, box-shadow .16s ease, transform .08s ease; touch-action: manipulation; }.convention-action svg { width: 13px; height: 13px; }.convention-action:hover:not(:disabled) { border-color: rgb(139 92 246 / 62%); color: #ede9fe; background: rgb(139 92 246 / 17%); box-shadow: 0 0 18px rgb(139 92 246 / 13%); }.convention-action:active:not(:disabled) { transform: translateY(1px); }.convention-action:focus-visible { outline: 2px solid var(--color-accent-cyan); outline-offset: 3px; }.convention-action:disabled { opacity: .5; cursor: wait; }
 .resume-design-action { border-color: rgb(34 211 238 / 36%); color: #67e8f9; background: rgb(8 145 178 / 10%); }
 .danger-action { border-color: rgb(248 113 113 / 28%); color: #fca5a5; background: rgb(127 29 29 / 8%); }.danger-action:hover:not(:disabled) { border-color: rgb(248 113 113 / 55%); color: #fecaca; background: rgb(127 29 29 / 20%); box-shadow: 0 0 18px rgb(248 113 113 / 10%); }
+.convention-notice { display: flex; align-items: flex-start; gap: 8px; margin-top: 12px; padding: 10px 12px; border: 1px solid rgb(34 211 238 / 28%); border-radius: 8px; color: #a5f3fc; background: rgb(8 145 178 / 10%); font-size: 12px; }
 .convention-progress { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 180px; }.convention-progress p { margin: 4px 0 0; }.convention-empty { display: grid; place-items: center; gap: 9px; min-height: 210px; margin-top: 16px; border: 1px dashed var(--color-border); border-radius: 10px; color: var(--color-text-secondary); background: rgb(15 23 42 / 30%); text-align: center; }.convention-empty svg { color: var(--color-accent-ai); }.convention-empty p { margin: 0; color: var(--color-text-muted); font-size: 12px; }.convention-error { margin: 16px 0; }.convention-meta { display: flex; justify-content: space-between; gap: 12px; margin: 18px 0 9px; }.convention-preview :deep(textarea) { line-height: 1.55; }.spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .path-picker-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; width: 100%; }.path-input { min-width: 0; }.folder-picker-button { min-width: 126px; }.path-picker-help { display: inline-flex; align-items: center; gap: 6px; margin: 8px 0 0; color: var(--color-text-muted); font-size: 10px; }.path-picker-help svg { color: var(--color-accent-cyan); }

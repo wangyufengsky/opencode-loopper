@@ -211,7 +211,7 @@ class ProjectConventionServiceTest {
         Path root = Files.createDirectory(temp.resolve("malformed-project"));
         ProjectRow project = projects.create("malformed-project", root.toString());
         FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
-        fake.setDesignerOutput("Here is an unbounded answer without markers");
+        fake.setDesignerOutput(ProjectConventionService.START_MARKER + "\nunsafe nested block");
 
         ProjectConventionDraftRow running = conventions.generate(project.id());
         conventions.pollActiveGenerations();
@@ -219,7 +219,7 @@ class ProjectConventionServiceTest {
         assertThat(repairingOnce.state()).isEqualTo(ProjectConventionState.RUNNING.name());
         assertThat(repairingOnce.externalSessionState()).isEqualTo("REPAIRING_PROJECT_CONTEXT_1");
         assertThat(fake.promptForSession(running.externalSessionId()))
-                .contains("protocol-repair turn only", "required project-context payload");
+                .contains("protocol-repair turn only", "reserved markers");
 
         conventions.pollActiveGenerations();
         ProjectConventionDraftRow repairingTwice = conventions.get(project.id(), running.id());
@@ -230,9 +230,56 @@ class ProjectConventionServiceTest {
 
         ProjectConventionDraftRow failed = conventions.get(project.id(), running.id());
         assertThat(failed.state()).isEqualTo(ProjectConventionState.FAILED.name());
-        assertThat(failed.errorMessage()).contains("required project-context payload");
+        assertThat(failed.errorMessage()).contains("reserved markers");
         assertThat(fake.promptCalls()).isEqualTo(3);
         assertThat(root.resolve("AGENTS.md")).doesNotExist();
+    }
+
+    @Test
+    void acceptsAUniqueFencedOrPlainMarkdownProposalWithoutRepair() throws Exception {
+        Path root = Files.createDirectory(temp.resolve("wrapped-project"));
+        ProjectRow project = projects.create("wrapped-project", root.toString());
+        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
+        fake.setDesignerOutput("说明如下：\n```markdown\n## 技术栈与目录\n- Java 21。\n```\n请人工复核。");
+
+        ProjectConventionDraftRow running = conventions.generate(project.id());
+        conventions.pollActiveGenerations();
+
+        ProjectConventionDraftRow ready = conventions.get(project.id(), running.id());
+        assertThat(ready.state()).isEqualTo(ProjectConventionState.READY.name());
+        assertThat(ready.proposedContent()).contains("Java 21").doesNotContain("说明如下", "请人工复核");
+        assertThat(ready.normalizationNotice()).contains("WRAPPER_TOLERATED");
+        assertThat(fake.promptCalls()).isEqualTo(1);
+    }
+
+    @Test
+    void repeatedToolLoopAbortsAndUsesOnlyOnePersistedNoToolFinalizer() throws Exception {
+        Path root = Files.createDirectory(temp.resolve("tool-loop-project"));
+        ProjectRow project = projects.create("tool-loop-project", root.toString());
+        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
+        fake.setDesignerOutput(aiContext("## 技术栈与目录\n- Java 21。"));
+        fake.failNextStatusesWithToolLoop(1);
+
+        ProjectConventionDraftRow running = conventions.generate(project.id());
+        String failedSessionId = running.externalSessionId();
+        conventions.pollActiveGenerations();
+
+        ProjectConventionDraftRow finalizing = conventions.get(project.id(), running.id());
+        assertThat(finalizing.state()).isEqualTo(ProjectConventionState.RUNNING.name());
+        assertThat(finalizing.externalSessionId()).isNotEqualTo(failedSessionId);
+        assertThat(finalizing.normalizationNotice()).contains("无工具 Finalizer");
+        assertThat(fake.abortedSessionIds()).contains(failedSessionId);
+        assertThat(fake.profileForSession(finalizing.externalSessionId()))
+                .isEqualTo(OpenCodeClient.SessionProfile.MACHINE_FINALIZER_NO_TOOLS);
+        assertThat(fake.promptForSession(finalizing.externalSessionId()))
+                .contains("FINALIZER RECOVERY", "Do not call any tool");
+
+        conventions.pollActiveGenerations();
+        assertThat(conventions.get(project.id(), running.id()).state())
+                .isEqualTo(ProjectConventionState.READY.name());
+        assertThat(fake.createReadOnlySessionCalls()).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ai_output_handling_event WHERE scope_id=? AND event_type='TOOL_LOOP_FINALIZER'",
+                Integer.class, running.id())).isEqualTo(1);
     }
 
     @Test
@@ -240,7 +287,7 @@ class ProjectConventionServiceTest {
         Path root = Files.createDirectory(temp.resolve("repaired-project"));
         ProjectRow project = projects.create("repaired-project", root.toString());
         FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
-        fake.setDesignerOutput("Project facts without the required markers");
+        fake.setDesignerOutput(ProjectConventionService.START_MARKER + "\nreserved nested marker");
 
         ProjectConventionDraftRow running = conventions.generate(project.id());
         conventions.pollActiveGenerations();

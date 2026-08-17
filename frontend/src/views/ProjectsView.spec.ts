@@ -78,7 +78,7 @@ describe('Projects AGENTS.md convention flow', () => {
     vi.spyOn(api, 'getCurrentProjectConvention').mockResolvedValue({ projectId: 'project-1', exists: false, loopperManaged: false, content: '' })
     vi.spyOn(api, 'generateProjectConvention').mockResolvedValue({
       id: 'draft-1', projectId: 'project-1', state: 'READY', operation: 'CREATE', readOnlyGeneration: true,
-      content: '<!-- LOOPPER:START -->\n# Project rules\n<!-- LOOPPER:END -->\n', updatedAt: '2026-08-05T00:00:01Z',
+      content: '<!-- LOOPPER:START -->\n# Project rules\n<!-- LOOPPER:END -->\n', normalizationNotice: 'AI 输出已自动规范化：WRAPPER_TOLERATED', updatedAt: '2026-08-05T00:00:01Z',
     })
     const apply = vi.spyOn(api, 'applyProjectConvention').mockResolvedValue({
       id: 'draft-1', projectId: 'project-1', state: 'APPLIED', operation: 'CREATE', readOnlyGeneration: true,
@@ -111,6 +111,7 @@ describe('Projects AGENTS.md convention flow', () => {
 
     expect(api.generateProjectConvention).toHaveBeenCalledWith('project-1')
     expect((wrapper.get('textarea[aria-label="AGENTS.md 完整预览"]').element as HTMLTextAreaElement).value).toContain('# Project rules')
+    expect(wrapper.text()).toContain('AI 输出已自动规范化：WRAPPER_TOLERATED')
     const confirm = wrapper.findAll('button').find((button) => button.text().includes('确认写入 AGENTS.md'))
     expect(confirm).toBeDefined()
     expect(apply).not.toHaveBeenCalled()

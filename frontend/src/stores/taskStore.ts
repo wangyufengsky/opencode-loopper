@@ -39,6 +39,16 @@ export function requiresTaskSnapshot(type: string): boolean {
   return /^(task|stage|attempt|session|verification)\./.test(type)
 }
 
+export function aiOutputNotice(event: TaskEvent): string | undefined {
+  if (event.type !== 'AI_OUTPUT_NORMALIZED' && event.type !== 'AI_TOOL_LOOP_FINALIZER_STARTED') return undefined
+  const role = typeof event.data.role === 'string' ? event.data.role : 'AI'
+  const corrections = Array.isArray(event.data.corrections)
+    ? event.data.corrections.filter((item): item is string => typeof item === 'string').join('、') : ''
+  return event.type === 'AI_OUTPUT_NORMALIZED'
+    ? `${role} 输出已自动规范化${corrections ? `：${corrections}` : ''}`
+    : `${role} 重复工具调用已停止，正在使用一次无工具 Finalizer`
+}
+
 export const useTaskStore = defineStore('task', () => {
   const projects = ref<Project[]>([])
   const tasks = ref<Task[]>([])
@@ -48,6 +58,7 @@ export const useTaskStore = defineStore('task', () => {
   const error = ref<string>()
   const usingDemo = ref(import.meta.env.VITE_DEMO === 'true')
   const stream = ref<TaskEventStream>()
+  const taskNotices = ref<Record<string, string[]>>({})
   const streamState = ref<'connected' | 'reconnecting' | 'idle'>('idle')
   // This is a browser SPA timer; keep it as a numeric DOM handle even though
   // Node's ambient types are available to Vitest and Maven's typecheck.
@@ -256,6 +267,10 @@ export const useTaskStore = defineStore('task', () => {
     streamState.value = 'reconnecting'
     stream.value = subscribeTaskEvents(id, (event) => {
       tasks.value = tasks.value.map((task) => task.id === id ? reduceTaskEvent(task, event) : task)
+      const notice = aiOutputNotice(event)
+      if (notice) {
+        taskNotices.value[id] = [...(taskNotices.value[id] ?? []), notice].slice(-4)
+      }
       if (requiresTaskSnapshot(event.type) && !snapshotTimer) {
         // Events can arrive in short bursts (session + attempt + verification).
         // Coalesce them into one REST read after the persistence transaction ends.
@@ -309,5 +324,5 @@ export const useTaskStore = defineStore('task', () => {
     }
   }
 
-  return { projects, tasks, runtime, artifacts, loading, error, usingDemo, streamState, activeTasks, selectedTask, activateDemo, deactivateDemo, loadOverview, loadTask, updateTask, retryJudges, retryWaitingLoop, resolveDirtyWorkspace, failDirtyWorkspace, reworkTask, setTaskArchived, deleteArchivedTask, watchTask, stopWatching, refreshRuntime, restartRuntime, startRuntime }
+  return { projects, tasks, runtime, artifacts, taskNotices, loading, error, usingDemo, streamState, activeTasks, selectedTask, activateDemo, deactivateDemo, loadOverview, loadTask, updateTask, retryJudges, retryWaitingLoop, resolveDirtyWorkspace, failDirtyWorkspace, reworkTask, setTaskArchived, deleteArchivedTask, watchTask, stopWatching, refreshRuntime, restartRuntime, startRuntime }
 })

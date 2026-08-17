@@ -609,21 +609,31 @@ class DesignerSessionMcpIntegrationTest {
     }
 
     @Test
-    void decomposerStillRejectsUnmarkedJsonWithSurroundingProse() throws Exception {
-        ProjectRow project = project("decomposer-marker-fallback-rejects-prose");
+    void decomposerAcceptsUnmarkedJsonWithSurroundingProseWithoutRepair() throws Exception {
+        ProjectRow project = project("decomposer-marker-fallback-accepts-prose");
         LoopDraftRow draft = drafts.create(legacySpec(project.id()));
         String planningJson = unwrapped(decompositionPlan("NEEDS_INPUT", "需要补充事件边界"),
                 "<!-- TASK_DECOMPOSITION_PLAN_JSON_START -->",
                 "<!-- TASK_DECOMPOSITION_PLAN_JSON_END -->");
         fake().setDecomposerPlanningOutput("planning result:\n" + planningJson);
+        fake().setDecomposerOutput("final result:\n" + unwrapped(
+                decomposition("NEEDS_INPUT", "需要补充事件边界", 0),
+                "<!-- TASK_DECOMPOSITION_JSON_START -->", "<!-- TASK_DECOMPOSITION_JSON_END -->"));
 
         DesignerSessionRow session = createConfirmedSession(project.id(), draft.id(), "明确事件系统边界");
         designerSessions.pollActiveHandoffs();
+        DesignerSessionService.DecompositionStatus generating = designerSessions.decompositionStatus(session.id());
+        assertThat(generating.workflowStep()).isEqualTo("GENERATING_JSON");
+        assertThat(generating.planningRepairCount()).isZero();
+        designerSessions.pollActiveHandoffs();
 
         DesignerSessionService.DecompositionStatus status = designerSessions.decompositionStatus(session.id());
-        assertThat(status.workflowStep()).isEqualTo("PLANNING");
-        assertThat(status.planningRepairCount()).isEqualTo(1);
-        assertThat(status.lastErrorCode()).isEqualTo("DECOMPOSER_PLAN_OUTPUT_MARKERS_MISSING");
+        assertThat(designerSessions.get(session.id()).state()).isEqualTo("WAITING_INPUT");
+        assertThat(status.planningRepairCount()).isZero();
+        assertThat(status.repairCount()).isZero();
+        assertThat(designerSessions.messages(session.id())).anyMatch(message ->
+                "NORMALIZED".equals(message.deliveryState())
+                        && message.content().contains("WRAPPER_TOLERATED"));
         assertThat(mapper.listTasks()).isEmpty();
     }
 
@@ -912,6 +922,9 @@ class DesignerSessionMcpIntegrationTest {
                     .extracting(LoopSpec.AcceptanceCriterion::id).isEqualTo("WP-2-AC-1");
             assertThat(stage.verifiers().getFirst().criterionIds()).containsExactly("WP-2-AC-1");
             assertThat(stage.verifiers().getFirst().testTargets()).containsExactly("EventStateBridgeTest");
+            assertThat(stage.verifiers().get(1).command()).containsExactly("mvn", "test");
+            assertThat(stage.verifiers().get(1).criterionIds()).isEmpty();
+            assertThat(stage.verifiers().get(1).testTargets()).isEmpty();
         });
         assertThat(fake().promptHistory().stream().map(FakeOpenCodeClient.PromptCall::prompt)
                 .filter(prompt -> prompt.contains("Required workPackageId: WP-2")
@@ -1277,6 +1290,9 @@ class DesignerSessionMcpIntegrationTest {
         LoopSpec.VerifierSpec behavior = new LoopSpec.VerifierSpec("PROCESS", testCommand,
                 null, null, List.of(), List.of(), null, null, null, null, null, null,
                 null, null, null, null, null, null, List.of(), List.of("temporary-id"), "TEST", List.of());
+        LoopSpec.VerifierSpec fullSuite = new LoopSpec.VerifierSpec("PROCESS", List.of("mvn", "test"),
+                null, null, List.of(), List.of(), null, null, null, null, null, null,
+                null, null, null, null, null, null, List.of(), List.of("temporary-meta"), "TEST", List.of());
         LoopSpec.VerifierSpec scope = new LoopSpec.VerifierSpec("GIT_DIFF", List.of(), null, true,
                 List.of("src/main/java/**", "src/test/java/**"), List.of(".env"), true);
         Map<String, Object> stage = new LinkedHashMap<>();
@@ -1284,7 +1300,7 @@ class DesignerSessionMcpIntegrationTest {
         stage.put("allowedPaths", List.of("src/main/java/**", "src/test/java/**"));
         stage.put("forbiddenPaths", List.of(".env"));
         stage.put("deliverables", List.of("事件状态桥接实现和聚焦单元测试"));
-        stage.put("verifiers", List.of(behavior, scope));
+        stage.put("verifiers", List.of(behavior, fullSuite, scope));
         stage.put("verificationRuntime", null);
         stage.put("implementationKind", "JAVA_PRODUCTION");
         stage.put("workPackageId", "WP-2");
@@ -1299,12 +1315,23 @@ class DesignerSessionMcpIntegrationTest {
         mapping.put("verifierStrategy", "EventStateBridgeTest 聚焦 Maven 单元测试");
         mapping.put("testCommand", List.of());
         mapping.put("testTargets", List.of());
+        Map<String, Object> metaMapping = new LinkedHashMap<>();
+        metaMapping.put("stageIndex", 0);
+        metaMapping.put("criterionId", "temporary-meta");
+        metaMapping.put("description", "全量测试通过");
+        metaMapping.put("designerExcerpt", approximateExcerpt);
+        metaMapping.put("verificationMode", "MACHINE");
+        metaMapping.put("judgeRubric", null);
+        metaMapping.put("judgeOnlyReason", null);
+        metaMapping.put("verifierStrategy", "Maven 全量回归测试");
+        metaMapping.put("testCommand", List.of("mvn", "test"));
+        metaMapping.put("testTargets", List.of());
         Map<String, Object> envelope = new LinkedHashMap<>();
         envelope.put("contractVersion", 2);
         envelope.put("status", "COMPILED");
         envelope.put("summary", "WP-2 语义规划完成，机械字段待服务端规范化");
         envelope.put("stages", List.of(stage));
-        envelope.put("evidenceMappings", List.of(mapping));
+        envelope.put("evidenceMappings", List.of(mapping, metaMapping));
         envelope.put("handoffSummary", "事件驱动状态推进能力可供后续包复用。");
         envelope.put("designGaps", List.of());
         return "<!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->\n" + json.writeValueAsString(envelope)
@@ -1318,11 +1345,14 @@ class DesignerSessionMcpIntegrationTest {
                 List.of(), List.of(), null, null, null, null, null, null, null, null,
                 null, null, null, null, List.of(), List.of(criterionId), "TEST",
                 List.of("EventStateBridgeTest"));
+        LoopSpec.VerifierSpec fullSuite = new LoopSpec.VerifierSpec("PROCESS", List.of("mvn", "test"),
+                null, null, List.of(), List.of(), null, null, null, null, null, null, null, null,
+                null, null, null, null, List.of(), List.of(), "TEST", List.of());
         LoopSpec.VerifierSpec scope = new LoopSpec.VerifierSpec("GIT_DIFF", List.of(), null, true,
                 List.of("src/main/java/**", "src/test/java/**"), List.of(".env"), true);
         LoopSpec.StageSpec stage = new LoopSpec.StageSpec("事件发布驱动状态机推进",
                 List.of("src/main/java/**", "src/test/java/**"), List.of(".env"),
-                List.of("事件状态桥接实现和聚焦单元测试"), List.of(behavior, scope),
+                List.of("事件状态桥接实现和聚焦单元测试"), List.of(behavior, fullSuite, scope),
                 List.of(new LoopSpec.AcceptanceCriterion(criterionId, "发布事件后状态机推进到 PAID",
                         "MACHINE", null, null)), null, ImplementationKind.JAVA_PRODUCTION, "WP-2");
         Map<String, Object> envelope = new LinkedHashMap<>();

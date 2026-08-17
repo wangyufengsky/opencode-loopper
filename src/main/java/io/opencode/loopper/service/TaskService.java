@@ -59,6 +59,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
@@ -79,6 +80,8 @@ public class TaskService {
     private static final String LOCAL_SOURCE_SYNC_ARTIFACT_KIND = "LOCAL_SOURCE_SYNC";
     private static final String ATTEMPT_HANDOFF_ARTIFACT_KIND = "ATTEMPT_HANDOFF";
     private static final String LOOP_STAGNATION_OVERRIDE_ARTIFACT_KIND = "LOOP_STAGNATION_OVERRIDE";
+    private static final Pattern JUDGE_JSON_MARKER = Pattern.compile(
+            "(?s)<LOOPPER_JUDGE_JSON>\\s*(.*?)\\s*</LOOPPER_JUDGE_JSON>");
     private static final int MAX_EXECUTION_DESIGN_CONTEXT_CHARS = 12_000;
     private final LoopperMapper mapper;
     private final LifecycleTransitionService lifecycle;
@@ -96,6 +99,8 @@ public class TaskService {
     private final JavaChangeGateService javaChangeGate;
     private final UsageInsightsService usageInsights;
     private final TaskEventService events;
+    private final AiOutputExtractor aiOutputExtractor;
+    private final AiOutputAuditService aiOutputAudit;
     private final LoopperProperties defaults;
     private final TransactionTemplate transactions;
 
@@ -109,7 +114,9 @@ public class TaskService {
                        StageWorkspaceBaselineService stageWorkspaceBaselines,
                        JavaChangeGateService javaChangeGate,
                        UsageInsightsService usageInsights,
-                       TaskEventService events, LoopperProperties defaults,
+                       TaskEventService events, AiOutputExtractor aiOutputExtractor,
+                       AiOutputAuditService aiOutputAudit,
+                       LoopperProperties defaults,
                        PlatformTransactionManager transactionManager) {
         this.mapper = mapper; this.lifecycle = lifecycle; this.json = json; this.projects = projects;
         this.worktrees = worktrees; this.directLeases = directLeases; this.openCode = openCode;
@@ -118,7 +125,9 @@ public class TaskService {
         this.managedVerifierRuntimes = managedVerifierRuntimes;
         this.stageWorkspaceBaselines = stageWorkspaceBaselines;
         this.javaChangeGate = javaChangeGate;
-        this.usageInsights = usageInsights; this.events = events; this.defaults = defaults;
+        this.usageInsights = usageInsights; this.events = events;
+        this.aiOutputExtractor = aiOutputExtractor; this.aiOutputAudit = aiOutputAudit;
+        this.defaults = defaults;
         this.transactions = new TransactionTemplate(transactionManager);
     }
 
@@ -1786,6 +1795,9 @@ public class TaskService {
             }
             if (status.completed()) completeJudge(inputTask, judge, judgeOutput(judge, remote));
         } catch (SessionFailure failure) {
+            if (recoverJudgeToolLoop(inputTask, judge,
+                    new OpenCodeClient.OpenCodeSession(judge.externalSessionId(), Path.of(requireWorktree(inputTask))),
+                    failure)) return;
             handleJudgeSessionFailure(inputTask, judge, failure);
         } catch (RuntimeException exception) {
             // Optimistic-lock races with cancel/pause are not reclassified as an execution fault.
@@ -1793,6 +1805,56 @@ public class TaskService {
                 handleJudgeSessionFailure(inputTask, judge, new SessionFailure("JUDGE_STATUS_RUNTIME_ERROR", safeMessage(exception)));
             }
         }
+    }
+
+    private boolean recoverJudgeToolLoop(TaskRow inputTask, JudgeRunRow judge,
+                                         OpenCodeClient.OpenCodeSession failedRemote,
+                                         SessionFailure failure) {
+        if (!"OPENCODE_MACHINE_TOOL_LOOP".equals(failure.code())
+                || !aiOutputAudit.claimToolLoopRecovery("JUDGE_RUN", judge.id(), judge.role(),
+                "JUDGE", failure.getMessage())) return false;
+        TaskRow task = get(inputTask.id());
+        AttemptRow attempt = mapper.findAttempt(judge.attemptId()).orElse(null);
+        if (attempt == null || blockModelCallForBudget(task, null, attempt)) return true;
+        String evidence = boundedJudgeToolEvidence(failedRemote);
+        try {
+            try { openCode.abort(failedRemote); } catch (RuntimeException ignored) { }
+            OpenCodeClient.OpenCodeSession finalizer = openCode.createSession(Path.of(requireWorktree(task)),
+                    roleTitle(judge.role()) + " Finalizer (NO_TOOLS)", structuredJudgeModel(spec(task)),
+                    OpenCodeClient.SessionProfile.MACHINE_FINALIZER_NO_TOOLS);
+            JudgeRunRow recovered = judgeState(judge, finalizer.id(), JudgeRunState.RUNNING,
+                    null, null, null, null);
+            updateJudge(recovered);
+            String prompt = judgePrompt(task, attempt, judge.role())
+                    + "\n\nFINALIZER RECOVERY: Do not call any tool. Return the requested Judge object now."
+                    + evidence;
+            if (ModelResponseMode.JSON_SCHEMA.name().equals(judge.responseMode())) {
+                openCode.promptAsync(finalizer, new OpenCodeClient.PromptRequest(prompt, null, null,
+                        OpenCodeStructuredSchemas.format(OpenCodeStructuredSchemas.JUDGE_DECISION_V1)));
+            } else {
+                openCode.promptAsync(finalizer, OpenCodeClient.PromptRequest.text(prompt));
+            }
+            events.emit(task.id(), "AI_TOOL_LOOP_FINALIZER_STARTED", Map.of(
+                    "judgeRunId", judge.id(), "role", judge.role(), "externalSessionId", finalizer.id()));
+            return true;
+        } catch (RuntimeException recoveryFailure) {
+            return false;
+        }
+    }
+
+    private String boundedJudgeToolEvidence(OpenCodeClient.OpenCodeSession remote) {
+        java.util.LinkedHashSet<String> evidence = new java.util.LinkedHashSet<>();
+        try {
+            for (OpenCodeClient.SessionPart part : openCode.sessionTranscript(remote).parts()) {
+                if (!"TOOL".equals(part.type())) continue;
+                String content = part.content() == null ? "completed" : part.content();
+                evidence.add("- " + (part.label() == null ? "tool" : part.label()) + ": "
+                        + content.substring(0, Math.min(content.length(), 800)));
+                if (evidence.size() >= 12) break;
+            }
+        } catch (RuntimeException ignored) { }
+        return "\nBounded prior tool evidence:\n" + (evidence.isEmpty()
+                ? "- No reusable tool evidence was available." : String.join("\n", evidence));
     }
 
     private void completeJudge(TaskRow inputTask, JudgeRunRow inputJudge, String rawOutput) {
@@ -1808,6 +1870,13 @@ public class TaskService {
         JudgeRunRow completed = judgeState(judge, judge.externalSessionId(), JudgeRunState.COMPLETED,
                 verdict, reason, rawOutput, now());
         updateJudge(completed);
+        if (!decision.normalizations().isEmpty()) {
+            aiOutputAudit.recordNormalization("TASK", inputTask.id(), judge.role(),
+                    "JUDGE_" + judge.ordinal(), decision.normalizations(), rawOutput);
+            events.emit(inputTask.id(), "AI_OUTPUT_NORMALIZED", Map.of(
+                    "role", judge.role(), "judgeRunId", judge.id(),
+                    "corrections", decision.normalizations()));
+        }
         usageInsights.collectTerminalJudgeUsage(inputTask.id(), completed.id());
         persistArtifact(inputTask, judge.attemptId(), judge.id(), "JUDGE_RESULT", judge.role().toLowerCase() + "-judge-result.txt",
                 "text/plain", rawOutput == null ? "" : rawOutput,
@@ -1984,22 +2053,25 @@ public class TaskService {
     }
 
     private JudgeDecision parseJudgeDecision(String rawOutput) {
-        if (rawOutput == null || rawOutput.isBlank()) return new JudgeDecision(null, null, "Judge returned no assistant text");
         try {
-            String candidate = rawOutput.trim();
-            int first = candidate.indexOf('{');
-            int last = candidate.lastIndexOf('}');
-            if (first >= 0 && last >= first) candidate = candidate.substring(first, last + 1);
-            var node = json.readTree(candidate);
-            String verdict = node.path("verdict").asText("").trim().toUpperCase();
-            String reason = node.path("reason").asText("").trim();
-            if (!("PASS".equals(verdict) || "REVISE".equals(verdict) || "BLOCKED".equals(verdict))) {
-                return new JudgeDecision(null, null, "Judge verdict must be exactly PASS, REVISE, or BLOCKED");
-            }
-            if (reason.isBlank()) return new JudgeDecision(null, null, "Judge response requires a non-empty reason");
-            return new JudgeDecision(verdict, reason, null);
-        } catch (JacksonException exception) {
-            return new JudgeDecision(null, null, "Judge result is not parseable JSON: " + safeMessage(exception.getOriginalMessage()));
+            AiOutputExtractor.ExtractionResult<JudgePayload> extracted = aiOutputExtractor.extractJson(
+                    rawOutput, JUDGE_JSON_MARKER, "JUDGE_OUTPUT", JudgePayload.class, payload -> payload,
+                    payload -> {
+                        if (payload.verdict() == null || !Set.of("PASS", "REVISE", "BLOCKED")
+                                .contains(payload.verdict().trim().toUpperCase())) {
+                            throw new BadRequestException("JUDGE_OUTPUT_VERDICT_INVALID",
+                                    "Judge verdict must be exactly PASS, REVISE, or BLOCKED");
+                        }
+                        if (payload.reason() == null || payload.reason().isBlank()) {
+                            throw new BadRequestException("JUDGE_OUTPUT_REASON_REQUIRED",
+                                    "Judge response requires a non-empty reason");
+                        }
+                    });
+            return new JudgeDecision(extracted.value().verdict().trim().toUpperCase(),
+                    extracted.value().reason().trim(), null, extracted.normalizations());
+        } catch (BadRequestException exception) {
+            return new JudgeDecision(null, null,
+                    exception.code() + ": " + safeMessage(exception.getMessage()), List.of());
         }
     }
 
@@ -2137,9 +2209,14 @@ public class TaskService {
     }
     private void updateJudge(JudgeRunRow row) {
         JudgeRunRow current = mapper.findJudgeRun(row.id()).orElseThrow(() -> new NotFoundException("Judge run not found: " + row.id()));
-        lifecycle.transition(subject(LifecycleMachineType.JUDGE_RUN, row.id(), row.taskId()), current.state(), row.state(),
-                null, Map.of("role", row.role()), () -> mapper.updateJudgeRun(row),
-                () -> new ConflictException("JUDGE_VERSION_CONFLICT", "Judge run was updated concurrently"));
+        if (current.state().equals(row.state())) {
+            lifecycle.mutateWithoutTransition(() -> mapper.updateJudgeRun(row),
+                    () -> new ConflictException("JUDGE_VERSION_CONFLICT", "Judge run was updated concurrently"));
+        } else {
+            lifecycle.transition(subject(LifecycleMachineType.JUDGE_RUN, row.id(), row.taskId()), current.state(), row.state(),
+                    null, Map.of("role", row.role()), () -> mapper.updateJudgeRun(row),
+                    () -> new ConflictException("JUDGE_VERSION_CONFLICT", "Judge run was updated concurrently"));
+        }
     }
     private String safeNullable(String value) { return value == null ? null : safeMessage(value); }
     private record TaskCreation(String taskId, boolean existing) { }
@@ -2160,7 +2237,13 @@ public class TaskService {
             return new VerificationContinuation(VerificationAction.FINAL_REVIEW, taskId, stageId, attemptId, null);
         }
     }
-    private record JudgeDecision(String verdict, String reason, String parseError) { }
+    private record JudgePayload(String verdict, String reason) { }
+    private record JudgeDecision(String verdict, String reason, String parseError,
+                                 List<String> normalizations) {
+        private JudgeDecision {
+            normalizations = normalizations == null ? List.of() : List.copyOf(normalizations);
+        }
+    }
 
     private void failTask(TaskRow task, String code, String message, StageRow stage, AttemptRow attempt, ExecutionSessionRow session) {
         TaskRow current = mapper.findTask(task.id()).orElse(task);

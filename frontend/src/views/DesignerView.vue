@@ -1166,6 +1166,8 @@ async function redesignPackage(packageId: string) {
 .chat-validator .chat-role, .chat-validator .chat-avatar { color: #86efac; }
 .chat-validator.validator-retryable_error { border-color: rgb(245 158 11 / 38%); background: rgb(245 158 11 / 8%); box-shadow: inset 2px 0 rgb(245 158 11 / 65%); }
 .chat-validator.validator-retryable_error .chat-role, .chat-validator.validator-retryable_error .chat-avatar { color: #fbbf24; }
+.chat-validator.validator-normalized { border-color: rgb(34 211 238 / 34%); background: rgb(8 145 178 / 8%); box-shadow: inset 2px 0 rgb(34 211 238 / 62%); }
+.chat-validator.validator-normalized .chat-role, .chat-validator.validator-normalized .chat-avatar { color: #67e8f9; }
 .chat-validator.validator-terminal_error { border-color: rgb(239 68 68 / 42%); background: rgb(239 68 68 / 9%); box-shadow: inset 2px 0 rgb(239 68 68 / 68%); }
 .chat-validator.validator-terminal_error .chat-role, .chat-validator.validator-terminal_error .chat-avatar { color: #fca5a5; }
 .chat-live { position: relative; border-color: rgb(34 211 238 / 30%); box-shadow: 0 14px 38px rgb(0 0 0 / 13%), inset 2px 0 rgb(34 211 238 / 55%); }

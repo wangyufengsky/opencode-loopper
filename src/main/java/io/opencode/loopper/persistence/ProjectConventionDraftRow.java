@@ -11,6 +11,7 @@ public record ProjectConventionDraftRow(
         String sourceSha256,
         String sourceContent,
         String proposedContent,
+        String normalizationNotice,
         String errorMessage,
         String createdAt,
         String updatedAt,

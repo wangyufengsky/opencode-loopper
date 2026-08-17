@@ -82,7 +82,8 @@ public class ProjectController {
     public record RenameProjectRequest(@NotBlank String name) { }
     public record DirectorySelectionDto(boolean selected, String path, String name) { }
     public record ProjectConventionDto(String id, String projectId, String state, String operation,
-                                       boolean readOnlyGeneration, String content, String error, String updatedAt) { }
+                                       boolean readOnlyGeneration, String content, String normalizationNotice,
+                                       String error, String updatedAt) { }
     public record CurrentProjectConventionDto(String projectId, boolean exists, boolean loopperManaged, String content) { }
     private String directoryName(String path) { Path fileName = Path.of(path).getFileName(); return fileName == null ? path : fileName.toString(); }
     private ProjectDto dto(ProjectRow row) {
@@ -94,7 +95,7 @@ public class ProjectController {
     }
     private ProjectConventionDto conventionDto(ProjectConventionDraftRow row) {
         return new ProjectConventionDto(row.id(), row.projectId(), row.state(), row.sourceExists() == 1 ? "UPDATE" : "CREATE",
-                true, row.proposedContent(), row.errorMessage(), row.updatedAt());
+                true, row.proposedContent(), row.normalizationNotice(), row.errorMessage(), row.updatedAt());
     }
     private void requireLocalUi(String localUi) {
         if (!"1".equals(localUi)) {

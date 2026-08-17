@@ -39,6 +39,8 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     private final AtomicInteger failedPrompts = new AtomicInteger();
     private final AtomicInteger failedStructuredPrompts = new AtomicInteger();
     private final AtomicInteger failedAborts = new AtomicInteger();
+    private final AtomicInteger toolLoopStatusFailures = new AtomicInteger();
+    private final CopyOnWriteArrayList<String> abortedSessionIds = new CopyOnWriteArrayList<>();
     private final AtomicInteger createSessionCalls = new AtomicInteger();
     private final AtomicInteger createReadOnlySessionCalls = new AtomicInteger();
     private final AtomicInteger promptCalls = new AtomicInteger();
@@ -112,6 +114,10 @@ public class FakeOpenCodeClient implements OpenCodeClient {
         states.computeIfPresent(session.id(), (id, state) -> "FAILED".equals(state) ? state : "COMPLETED");
     }
     @Override public SessionStatus sessionStatus(OpenCodeSession session) {
+        if (toolLoopStatusFailures.getAndUpdate(value -> Math.max(0, value - 1)) > 0) {
+            throw new SessionFailure("OPENCODE_MACHINE_TOOL_LOOP",
+                    "Detected 3 consecutive identical read tool calls (signature deterministic)");
+        }
         return new SessionStatus(states.getOrDefault(session.id(), "FAILED"), detailBySession.get(session.id()));
     }
     @Override public String sessionOutput(OpenCodeSession session) {
@@ -221,6 +227,7 @@ public class FakeOpenCodeClient implements OpenCodeClient {
         if (failedAborts.getAndUpdate(value -> Math.max(0, value - 1)) > 0) {
             throw new SessionFailure("OPENCODE_ABORT_FAILED", "Deterministic abort transport failure");
         }
+        abortedSessionIds.add(session.id());
         states.put(session.id(), "ABORTED");
     }
     public boolean isReadOnlySession(String id) { return Boolean.TRUE.equals(readOnly.get(id)); }
@@ -256,6 +263,8 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     public void failNextPrompts(int count) { failedPrompts.set(Math.max(0, count)); }
     public void failNextStructuredPrompts(int count) { failedStructuredPrompts.set(Math.max(0, count)); }
     public void failNextAborts(int count) { failedAborts.set(Math.max(0, count)); }
+    public void failNextStatusesWithToolLoop(int count) { toolLoopStatusFailures.set(Math.max(0, count)); }
+    public List<String> abortedSessionIds() { return List.copyOf(abortedSessionIds); }
     public void setSessionState(String id, String state) { states.put(id, state); detailBySession.remove(id); }
     public void setSessionStatus(String id, String state, String detail) {
         states.put(id, state);
@@ -295,7 +304,7 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     public void failNextReadOnlySessions(int count) { failedReadOnlySessions.set(Math.max(0, count)); }
     public void failNextReadOnlySessionCreations(int count) { failedReadOnlySessionCreations.set(Math.max(0, count)); }
     public void failNextReadOnlySessions(String role, int count) { failedReadOnlySessionsByRole.put(role.toUpperCase(), new AtomicInteger(Math.max(0, count))); }
-    public void reset() { states.clear(); readOnly.clear(); judgeRoleBySession.clear(); judgeOutputByRole.clear(); promptBySession.clear(); promptRequestBySession.clear(); profileBySession.clear(); promptHistory.clear(); modelBySession.clear(); detailBySession.clear(); pendingQuestionBySession.clear(); answersByQuestion.clear(); rejectedQuestions.clear(); pendingPermissionsBySession.clear(); permissionRepliesByRequest.clear(); todosBySession.clear(); usageBySession.clear(); forkCalls.clear(); revertCalls.clear(); summarizeCalls.clear(); failedReadOnlySessionsByRole.clear(); failedReadOnlySessions.set(0); failedReadOnlySessionCreations.set(0); failedPrompts.set(0); failedStructuredPrompts.set(0); failedAborts.set(0); createSessionCalls.set(0); createReadOnlySessionCalls.set(0); promptCalls.set(0); judgeOutput = "{\"verdict\":\"PASS\",\"reason\":\"确定性证据满足评审要求。\"}"; healthy = true; toolCapability = new ToolCapabilityProbe(CapabilityState.AVAILABLE, List.of("read", "glob", "grep", "todowrite"), null); structuredCapability = new StructuredOutputCapability(CapabilityState.AVAILABLE, CapabilityState.AVAILABLE, null); }
+    public void reset() { states.clear(); readOnly.clear(); judgeRoleBySession.clear(); judgeOutputByRole.clear(); promptBySession.clear(); promptRequestBySession.clear(); profileBySession.clear(); promptHistory.clear(); modelBySession.clear(); detailBySession.clear(); pendingQuestionBySession.clear(); answersByQuestion.clear(); rejectedQuestions.clear(); pendingPermissionsBySession.clear(); permissionRepliesByRequest.clear(); todosBySession.clear(); usageBySession.clear(); forkCalls.clear(); revertCalls.clear(); summarizeCalls.clear(); abortedSessionIds.clear(); failedReadOnlySessionsByRole.clear(); failedReadOnlySessions.set(0); failedReadOnlySessionCreations.set(0); failedPrompts.set(0); failedStructuredPrompts.set(0); failedAborts.set(0); toolLoopStatusFailures.set(0); createSessionCalls.set(0); createReadOnlySessionCalls.set(0); promptCalls.set(0); judgeOutput = "{\"verdict\":\"PASS\",\"reason\":\"确定性证据满足评审要求。\"}"; healthy = true; toolCapability = new ToolCapabilityProbe(CapabilityState.AVAILABLE, List.of("read", "glob", "grep", "todowrite"), null); structuredCapability = new StructuredOutputCapability(CapabilityState.AVAILABLE, CapabilityState.AVAILABLE, null); }
     private String designerMarkdown(String output) {
         if (output == null) return null;
         return output.replaceAll("(?is)<!--\\s*LOOPSPEC_JSON_START\\s*-->.*?<!--\\s*LOOPSPEC_JSON_END\\s*-->", "").trim();

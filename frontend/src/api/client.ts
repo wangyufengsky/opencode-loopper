@@ -27,8 +27,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const problem = await response.json().catch(() => ({})) as { detail?: string; title?: string; errorCode?: string; errorLayer?: string }
     throw new ApiError(problem.detail ?? problem.title ?? `请求失败 (${response.status})`, response.status, { code: problem.errorCode, layer: problem.errorLayer })
   }
-  if (response.status === 204) return undefined as T
-  return response.json() as Promise<T>
+  if (typeof response.text !== 'function') return response.json() as Promise<T>
+  const body = await response.text()
+  if (!body) return undefined as T
+  return JSON.parse(body) as T
 }
 
 type JsonRecord = Record<string, unknown>
@@ -196,6 +198,7 @@ function normalizeProjectConvention(value: unknown): ProjectConventionDraft {
     operation: asString(raw.operation) === 'UPDATE' ? 'UPDATE' : 'CREATE',
     readOnlyGeneration: raw.readOnlyGeneration === true,
     content: asString(raw.content) || undefined,
+    normalizationNotice: asString(raw.normalizationNotice) || undefined,
     error: asString(raw.error) || undefined,
     updatedAt: asString(raw.updatedAt),
   }

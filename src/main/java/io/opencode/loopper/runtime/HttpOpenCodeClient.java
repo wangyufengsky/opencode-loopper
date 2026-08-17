@@ -138,9 +138,11 @@ public class HttpOpenCodeClient implements OpenCodeClient {
         if (profile != SessionProfile.IMPLEMENTATION) {
             List<Map<String, String>> rules = new ArrayList<>();
             rules.add(permissionRule("*", "*", "deny"));
-            rules.add(permissionRule("read", "*", "allow"));
-            rules.add(permissionRule("glob", "*", "allow"));
-            rules.add(permissionRule("grep", "*", "allow"));
+            if (profile != SessionProfile.MACHINE_FINALIZER_NO_TOOLS) {
+                rules.add(permissionRule("read", "*", "allow"));
+                rules.add(permissionRule("glob", "*", "allow"));
+                rules.add(permissionRule("grep", "*", "allow"));
+            }
             if (profile == SessionProfile.DESIGNER_INTERACTIVE_READ_ONLY) {
                 rules.add(permissionRule("question", "*", "allow"));
             }
@@ -216,7 +218,9 @@ public class HttpOpenCodeClient implements OpenCodeClient {
     private static boolean machineResponseProfile(SessionProfile profile) {
         return profile == SessionProfile.DECOMPOSER_READ_ONLY
                 || profile == SessionProfile.COMPILER_READ_ONLY
-                || profile == SessionProfile.JUDGE_READ_ONLY;
+                || profile == SessionProfile.JUDGE_READ_ONLY
+                || profile == SessionProfile.PROJECT_CONVENTION_READ_ONLY
+                || profile == SessionProfile.MACHINE_FINALIZER_NO_TOOLS;
     }
     @Override public SessionStatus sessionStatus(OpenCodeSession session) {
         try {
@@ -752,6 +756,9 @@ public class HttpOpenCodeClient implements OpenCodeClient {
         boolean structuredPrompt = Boolean.TRUE.equals(structuredPrompts.get(session.id()));
         int assistantTurns = 0;
         int stepStarts = 0;
+        String previousToolSignature = null;
+        String previousToolName = null;
+        int repeatedToolCalls = 0;
         index = 0;
         for (JsonNode message : messages) {
             if (index++ <= latestUserIndex) continue;
@@ -775,6 +782,19 @@ public class HttpOpenCodeClient implements OpenCodeClient {
             if (!parts.isArray()) continue;
             for (JsonNode part : parts) {
                 if ("step-start".equalsIgnoreCase(part.path("type").asText())) stepStarts++;
+                if ("tool".equalsIgnoreCase(part.path("type").asText())) {
+                    String toolName = normalizedToolName(part.path("tool").asText());
+                    String signature = toolCallSignature(toolName, part);
+                    if (signature.equals(previousToolSignature)) repeatedToolCalls++;
+                    else repeatedToolCalls = 1;
+                    previousToolSignature = signature;
+                    previousToolName = toolName;
+                    if (repeatedToolCalls >= 3) {
+                        throw new SessionFailure("OPENCODE_MACHINE_TOOL_LOOP",
+                                "Detected 3 consecutive identical " + previousToolName
+                                        + " tool calls (signature " + sha256(signature).substring(0, 12) + ")");
+                    }
+                }
                 if (!structuredPrompt || !"tool".equalsIgnoreCase(part.path("type").asText())
                         || !structuredTool(part.path("tool").asText())) continue;
                 JsonNode state = part.path("state");
@@ -801,6 +821,44 @@ public class HttpOpenCodeClient implements OpenCodeClient {
     private boolean structuredTool(String tool) {
         if (tool == null) return false;
         return "structuredoutput".equals(tool.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", ""));
+    }
+    private String normalizedToolName(String tool) {
+        String normalized = tool == null ? "" : tool.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
+        return normalized.isBlank() ? "unknown" : normalized;
+    }
+    private String toolCallSignature(String toolName, JsonNode part) {
+        JsonNode state = part.path("state");
+        JsonNode arguments = firstPresent(state.path("input"), state.path("arguments"),
+                part.path("input"), part.path("arguments"));
+        return toolName + ":" + canonicalJson(arguments);
+    }
+    private JsonNode firstPresent(JsonNode... candidates) {
+        for (JsonNode candidate : candidates) {
+            if (candidate != null && !candidate.isMissingNode() && !candidate.isNull()) return candidate;
+        }
+        return json.getNodeFactory().nullNode();
+    }
+    private String canonicalJson(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) return "null";
+        if (node.isArray()) {
+            StringBuilder result = new StringBuilder("[");
+            for (JsonNode item : node) {
+                if (result.length() > 1) result.append(',');
+                result.append(canonicalJson(item));
+            }
+            return result.append(']').toString();
+        }
+        if (node.isObject()) {
+            StringBuilder result = new StringBuilder("{");
+            node.propertyStream().sorted(Map.Entry.comparingByKey()).forEach(entry -> {
+                if (result.length() > 1) result.append(',');
+                try { result.append(json.writeValueAsString(entry.getKey())); }
+                catch (JacksonException impossible) { throw new IllegalStateException(impossible); }
+                result.append(':').append(canonicalJson(entry.getValue()));
+            });
+            return result.append('}').toString();
+        }
+        return node.toString();
     }
     private String assistantText(JsonNode message) {
         StringBuilder text = new StringBuilder();

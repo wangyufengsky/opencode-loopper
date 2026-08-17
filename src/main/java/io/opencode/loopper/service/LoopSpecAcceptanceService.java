@@ -178,6 +178,11 @@ public class LoopSpecAcceptanceService {
         String purpose = text(verifier.processPurpose());
         if ("TEST".equals(purpose)) {
             ProcessCommandPolicy.TestCommandAssessment test = ProcessCommandPolicy.assessTestCommand(verifier.command());
+            if (test.recognized() && !test.skipped() && verifier.testTargets().isEmpty()
+                    && verifier.criterionIds().isEmpty()) {
+                return new Classification(Category.REPORT, true,
+                        List.of("supplemental full-suite test evidence without business criterion coverage"));
+            }
             return new Classification(test.recognized() && !test.skipped() ? Category.BEHAVIOR : Category.BUILD,
                     test.recognized() && !test.skipped(), List.of(test.reason()));
         }
@@ -205,8 +210,8 @@ public class LoopSpecAcceptanceService {
             valid = false;
         }
         if ("TEST".equals(purpose)) {
-            if (verifier.testTargets().isEmpty()) {
-                errors.add(path + ".testTargets: TEST requires explicit test targets; planned tests may be new deliverables in this stage");
+            if (verifier.testTargets().isEmpty() && !verifier.criterionIds().isEmpty()) {
+                errors.add(path + ".testTargets: TEST mapped to business criteria requires explicit test targets; planned tests may be new deliverables in this stage");
                 valid = false;
             }
             ProcessCommandPolicy.TestCommandAssessment test = ProcessCommandPolicy.assessTestCommand(verifier.command());

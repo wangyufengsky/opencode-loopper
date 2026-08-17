@@ -438,6 +438,7 @@ describe('Designer draft composer', () => {
         { id: 'compiler', role: 'ASSISTANT', actor: 'COMPILER', content: '已编译 1 个阶段和 2 个验收项', deliveryState: 'COMPILED', createdAt: 'now' },
         { id: 'raw', role: 'ASSISTANT', actor: 'COMPILER', content: '<!-- LOOPSPEC_COMPILATION_JSON_START -->{"loopSpec":"secret"}', deliveryState: 'COMPILED', createdAt: 'now' },
         { id: 'retry', role: 'SYSTEM', actor: 'VALIDATOR', content: '字段校验失败，可修复', deliveryState: 'RETRYABLE_ERROR', createdAt: 'now' },
+        { id: 'normalized', role: 'SYSTEM', actor: 'VALIDATOR', content: '输出包装已自动规范化', deliveryState: 'NORMALIZED', createdAt: 'now' },
         { id: 'terminal', role: 'SYSTEM', actor: 'VALIDATOR', content: '工作流已停止', deliveryState: 'TERMINAL_ERROR', createdAt: 'now' },
         { id: 'system', role: 'SYSTEM', actor: 'SYSTEM', content: '服务端状态通知', deliveryState: 'PERSISTED', createdAt: 'now' },
       ],
@@ -458,6 +459,7 @@ describe('Designer draft composer', () => {
     expect(wrapper.get('.chat-compiler').text()).toContain('LoopSpec Compiler / 规范编译器')
     expect(wrapper.get('.chat-system').text()).toContain('系统')
     expect(wrapper.get('.validator-retryable_error').text()).toContain('Deterministic Validator / 确定性校验器')
+    expect(wrapper.get('.validator-normalized').text()).toContain('输出包装已自动规范化')
     expect(wrapper.get('.validator-terminal_error').text()).toContain('工作流已停止')
     expect(wrapper.text()).not.toContain('"loopSpec":"secret"')
     expect(wrapper.get('.designer-connection-strip').text()).toContain('Compiler 规划修复 0/2 · JSON 修复 2/2')

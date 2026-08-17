@@ -158,7 +158,10 @@ an exact basename allowlist for Maven, Gradle, and npm rather than a prefix
 match. Split and joined Maven/Gradle/npm skip flags are rejected. The same
 policy runs again immediately before process launch, after deterministic Maven
 argv normalization, so an older persisted contract cannot bypass the current
-test-evidence boundary.
+test-evidence boundary. A TEST mapped to a business criterion still needs
+explicit targets. A safe full-suite command with no targets and no criterion
+mapping may be a blocking supplemental `REPORT`, but it cannot provide
+`BEHAVIOR` coverage or satisfy the focused Java-test gate.
 
 LoopSpec v2 acceptance analysis is a single server service shared by REST,
 MCP, Compiler synchronization, draft save/confirm, templates and Automation.
@@ -241,6 +244,12 @@ requirement revision permits 96 model calls across discussion, decomposition,
 design, compilation, format recovery, and repairs. Question answers resume the
 already counted model turn and never create a hidden call.
 
+V28 persists bounded AI-output handling events and Project Convention
+normalization notices. Each role step can therefore claim at most one tool-loop
+finalizer across process restart, and operators can distinguish wrapper/field
+normalization from real format or semantic repairs without storing raw model
+output in the audit row.
+
 Machine-response roles also carry an explicit non-thinking model selection.
 Managed DeepSeek starts with a private `loopper-no-thinking` variant and
 Decomposer/Compiler/Judge prompts select it; Markdown Designer and Implementation
@@ -254,6 +263,12 @@ timeout, validation, or lifecycle authority. For Decomposer and Compiler,
 OpenCode `RETRY` remains a transient external Session projection and never
 triggers the design pipeline's fresh-Session retry; Implementation and Judge
 retain their existing failure-escalation behavior.
+The adapter signs tool calls after the latest user turn using normalized tool
+name and canonical arguments. Three identical consecutive signatures trigger
+an immediate best-effort abort and, once per persisted role step, one no-tools
+finalizer using bounded deduplicated evidence. The finalizer consumes the global
+model-call budget but not a format-repair allowance; the 24-step cap remains a
+last-resort bound for other loop shapes.
 When a terminal structured-role path is persisted, Loopper first makes a
 best-effort abort of the active remote Session so a local `WAITING_INPUT` or
 `SESSION_ERROR` projection cannot intentionally leave an invisible writer/reader
@@ -269,11 +284,16 @@ Designer Markdown, Compiler JSON, and deterministic validation remain separate.
 Capabilities are observational, keyed by runtime/version/provider/model, and
 their availability never substitutes for a validated model result.
 
-Decomposer output markers are preferred but not the sole compatibility boundary.
-The parser may accept exactly one complete bare JSON object or one standalone
-`json` fence when a weak provider removes comment markers. Surrounding prose,
-multiple objects, a non-object root, or incomplete JSON is rejected before the
-same deterministic planning or final validation runs.
+Machine JSON roles share one bounded compatibility boundary. Native structured
+payload and exact role markers are preferred, followed by `json`/untyped fences,
+complete objects embedded in short prose, and the complete response. Only
+standard object-root JSON is accepted; equivalent candidates collapse, while
+conflicting valid candidates, arrays, incomplete/non-standard JSON, oversize
+content, and ambiguous normalization are rejected. Unique deterministic
+field/collection/enum/argv normalization is audited and enters the same
+authoritative semantic validation without consuming a format repair. Project
+Convention Markdown uses the analogous marker, unique fence, then full-response
+policy and still enforces its reserved-marker and length boundaries.
 
 The package Compiler's current planning contract is version 2. Each planned
 Stage already carries exact `VerifierSpec` blueprints and an optional managed

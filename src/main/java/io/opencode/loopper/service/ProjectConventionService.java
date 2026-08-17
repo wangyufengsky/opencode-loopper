@@ -52,15 +52,20 @@ public class ProjectConventionService {
     private final ProjectService projects;
     private final OpenCodeClient openCode;
     private final LoopperProperties properties;
+    private final AiOutputExtractor aiOutputExtractor;
+    private final AiOutputAuditService aiOutputAudit;
 
     public ProjectConventionService(LoopperMapper mapper, LifecycleTransitionService lifecycle,
                                     ProjectService projects, OpenCodeClient openCode,
-                                    LoopperProperties properties) {
+                                    LoopperProperties properties, AiOutputExtractor aiOutputExtractor,
+                                    AiOutputAuditService aiOutputAudit) {
         this.mapper = mapper;
         this.lifecycle = lifecycle;
         this.projects = projects;
         this.openCode = openCode;
         this.properties = properties;
+        this.aiOutputExtractor = aiOutputExtractor;
+        this.aiOutputAudit = aiOutputAudit;
     }
 
     public synchronized ProjectConventionDraftRow generate(String projectId) {
@@ -77,8 +82,9 @@ public class ProjectConventionService {
         SourceSnapshot source = readSource(project);
         OpenCodeClient.OpenCodeSession remote;
         try {
-            remote = openCode.createReadOnlySession(Path.of(project.rootPath()),
-                    "OpenCode Loopper AGENTS.md Designer (READ_ONLY)", configuredModel());
+            remote = openCode.createSession(Path.of(project.rootPath()),
+                    "OpenCode Loopper AGENTS.md Designer (READ_ONLY)", configuredModel(),
+                    OpenCodeClient.SessionProfile.PROJECT_CONVENTION_READ_ONLY);
         } catch (RuntimeException failure) {
             throw new ServiceUnavailableException("PROJECT_CONVENTION_SESSION_FAILED", safeMessage(failure));
         }
@@ -86,7 +92,7 @@ public class ProjectConventionService {
         ProjectConventionDraftRow created = new ProjectConventionDraftRow(UUID.randomUUID().toString(), project.id(),
                 ProjectConventionState.RUNNING.name(),
                 remote.id(), "CREATED", source.exists() ? 1 : 0, source.sha256(), source.content(), null, null,
-                now, now, 0);
+                null, now, now, 0);
         lifecycle.create(subject(created), created.state(), java.util.Map.of(),
                 () -> mapper.insertProjectConventionDraft(created),
                 () -> new ConflictException("PROJECT_CONVENTION_CREATE_CONFLICT", "AGENTS.md proposal could not be created"));
@@ -211,7 +217,13 @@ public class ProjectConventionService {
             transition(row, ProjectConventionState.FAILED, "TIMED_OUT", null, "OpenCode AGENTS.md generation timed out");
             return;
         }
-        OpenCodeClient.SessionStatus status = openCode.sessionStatus(session(row));
+        OpenCodeClient.SessionStatus status;
+        try {
+            status = openCode.sessionStatus(session(row));
+        } catch (SessionFailure failure) {
+            if (recoverToolLoop(row, failure)) return;
+            throw failure;
+        }
         if (status.failed()) {
             transition(row, ProjectConventionState.FAILED, safeState(status.state()), null,
                     status.detail() == null || status.detail().isBlank()
@@ -221,15 +233,76 @@ public class ProjectConventionService {
         }
         if (!status.completed()) return;
         String output = openCode.sessionOutput(session(row));
-        String projectContext;
+        AiOutputExtractor.TextExtractionResult extracted;
         try {
-            projectContext = parseAiContext(output);
+            extracted = parseAiContext(output);
         } catch (BadRequestException failure) {
             if (requestProjectContextRepair(row, failure.getMessage())) return;
             throw failure;
         }
-        String proposed = mergeManagedBlock(row.sourceContent(), managedBlock(projectContext));
-        transition(row, ProjectConventionState.READY, safeState(status.state()), proposed, null);
+        String proposed = mergeManagedBlock(row.sourceContent(), managedBlock(extracted.value()));
+        String notice = extracted.normalized()
+                ? "AI 输出已自动规范化：" + String.join("、", extracted.normalizations())
+                : row.normalizationNotice();
+        if (extracted.normalized() && row.normalizationNotice() != null) {
+            notice = row.normalizationNotice() + "；" + notice;
+        }
+        if (extracted.normalized()) {
+            aiOutputAudit.recordNormalization("PROJECT_CONVENTION", row.id(), "PROJECT_CONVENTION",
+                    "GENERATE", extracted.normalizations(), extracted.value());
+        }
+        transition(row, ProjectConventionState.READY, safeState(status.state()), proposed, null, notice);
+    }
+
+    private boolean recoverToolLoop(ProjectConventionDraftRow row, SessionFailure failure) {
+        if (!"OPENCODE_MACHINE_TOOL_LOOP".equals(failure.code())
+                || !aiOutputAudit.claimToolLoopRecovery("PROJECT_CONVENTION", row.id(),
+                "PROJECT_CONVENTION", "GENERATE", failure.getMessage())) return false;
+        ProjectRow project = projects.get(row.projectId());
+        OpenCodeClient.OpenCodeSession failed = session(row);
+        String evidence = boundedToolEvidence(failed);
+        try {
+            try { openCode.abort(failed); } catch (RuntimeException ignored) { }
+            OpenCodeClient.OpenCodeSession finalizer = openCode.createSession(Path.of(project.rootPath()),
+                    "OpenCode Loopper AGENTS.md Designer Finalizer (NO_TOOLS)", configuredModel(),
+                    OpenCodeClient.SessionProfile.MACHINE_FINALIZER_NO_TOOLS);
+            ProjectConventionDraftRow updated = replaceRemote(row, finalizer.id(), "FINALIZER_RUNNING",
+                    "检测到重复工具调用，已启动一次无工具 Finalizer");
+            SourceSnapshot source = new SourceSnapshot(updated.sourceExists() == 1, updated.sourceContent(),
+                    updated.sourceSha256());
+            openCode.promptAsync(finalizer, prompt(project, source)
+                    + "\n\nFINALIZER RECOVERY: Do not call any tool. Return the requested Markdown now."
+                    + evidence);
+            return true;
+        } catch (RuntimeException recoveryFailure) {
+            return false;
+        }
+    }
+
+    private ProjectConventionDraftRow replaceRemote(ProjectConventionDraftRow row, String externalSessionId,
+                                                     String externalState, String notice) {
+        ProjectConventionDraftRow updated = new ProjectConventionDraftRow(row.id(), row.projectId(), row.state(),
+                externalSessionId, externalState, row.sourceExists(), row.sourceSha256(), row.sourceContent(),
+                row.proposedContent(), notice, row.errorMessage(), row.createdAt(), now(), row.version());
+        lifecycle.mutateWithoutTransition(() -> mapper.updateProjectConventionProjection(updated),
+                () -> new ConflictException("PROJECT_CONVENTION_VERSION_CONFLICT",
+                        "AGENTS.md proposal was updated concurrently"));
+        return get(row.projectId(), row.id());
+    }
+
+    private String boundedToolEvidence(OpenCodeClient.OpenCodeSession remote) {
+        java.util.LinkedHashSet<String> evidence = new java.util.LinkedHashSet<>();
+        try {
+            for (OpenCodeClient.SessionPart part : openCode.sessionTranscript(remote).parts()) {
+                if (!"TOOL".equals(part.type())) continue;
+                String content = part.content() == null ? "completed" : part.content();
+                evidence.add("- " + (part.label() == null ? "tool" : part.label()) + ": "
+                        + content.substring(0, Math.min(content.length(), 800)));
+                if (evidence.size() >= 12) break;
+            }
+        } catch (RuntimeException ignored) { }
+        return "\nBounded prior tool evidence:\n" + (evidence.isEmpty()
+                ? "- No reusable tool evidence was available." : String.join("\n", evidence));
     }
 
     private boolean requestProjectContextRepair(ProjectConventionDraftRow row, String validationError) {
@@ -256,7 +329,7 @@ public class ProjectConventionService {
                 Validation error:
                 %s
 
-                Return only concise Chinese Markdown between exactly one pair of these markers. Do not wrap the markers in a code fence or add text outside them:
+                Prefer concise Chinese Markdown between exactly one pair of these markers. A single Markdown fence or a non-empty plain Markdown response is also accepted:
                 <!-- LOOPPER_PROJECT_CONTEXT_START -->
                 ## 技术栈与目录
                 ...
@@ -340,24 +413,15 @@ public class ProjectConventionService {
         catch (UnsupportedOperationException | IOException ignored) { }
     }
 
-    private String parseAiContext(String output) {
-        Matcher matcher = AI_PAYLOAD.matcher(output == null ? "" : output);
-        if (!matcher.find()) {
-            throw new BadRequestException("PROJECT_CONTEXT_OUTPUT_MISSING",
-                    "AI response did not contain the required project-context payload");
-        }
-        String content = matcher.group(1).trim();
-        if (matcher.find()) {
-            throw new BadRequestException("PROJECT_CONTEXT_OUTPUT_INVALID", "AI response contains more than one project-context payload");
-        }
-        if (content.isBlank() || content.length() > MAX_AI_CONTENT) {
-            throw new BadRequestException("PROJECT_CONTEXT_OUTPUT_INVALID", "AI project context is empty or too large");
-        }
+    private AiOutputExtractor.TextExtractionResult parseAiContext(String output) {
+        AiOutputExtractor.TextExtractionResult extracted = aiOutputExtractor.extractMarkdown(
+                output, AI_PAYLOAD, "PROJECT_CONTEXT_OUTPUT", MAX_AI_CONTENT);
+        String content = extracted.value();
         if (content.contains(START_MARKER) || content.contains(END_MARKER)
                 || AI_PAYLOAD.matcher(content).find()) {
             throw new BadRequestException("PROJECT_CONTEXT_OUTPUT_INVALID", "AI project context contains reserved markers");
         }
-        return content;
+        return extracted;
     }
 
     private String mergeManagedBlock(String source, String block) {
@@ -428,7 +492,7 @@ public class ProjectConventionService {
                 Registered project root: %s
                 Existing root AGENTS.md: %s
 
-                Return only Markdown between these exact markers:
+                Prefer Markdown between these exact markers. The parser also accepts one Markdown fence or a plain non-empty Markdown response, so do not spend another turn on harmless wrapping:
                 <!-- LOOPPER_PROJECT_CONTEXT_START -->
                 ## 技术栈与目录
                 ...
@@ -442,9 +506,15 @@ public class ProjectConventionService {
 
     private ProjectConventionDraftRow transition(ProjectConventionDraftRow row, ProjectConventionState state, String externalState,
                                                  String proposedContent, String errorMessage) {
+        return transition(row, state, externalState, proposedContent, errorMessage, row.normalizationNotice());
+    }
+
+    private ProjectConventionDraftRow transition(ProjectConventionDraftRow row, ProjectConventionState state,
+                                                  String externalState, String proposedContent, String errorMessage,
+                                                  String normalizationNotice) {
         ProjectConventionDraftRow updated = new ProjectConventionDraftRow(row.id(), row.projectId(), state.name(),
                 row.externalSessionId(), externalState, row.sourceExists(), row.sourceSha256(), row.sourceContent(),
-                proposedContent, errorMessage, row.createdAt(), now(), row.version());
+                proposedContent, normalizationNotice, errorMessage, row.createdAt(), now(), row.version());
         if (row.state().equals(updated.state())) {
             lifecycle.mutateWithoutTransition(() -> mapper.updateProjectConventionProjection(updated),
                     () -> new ConflictException("PROJECT_CONVENTION_VERSION_CONFLICT", "AGENTS.md proposal was updated concurrently"));

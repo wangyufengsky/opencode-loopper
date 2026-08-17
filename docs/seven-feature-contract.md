@@ -22,11 +22,23 @@ manufactures queue, progress, usage or cost data.
   Attempt handoff isolation.
 - V26: persisted Decomposer/Compiler/Judge response mode and schema identity,
   plus implementation Session Todo capability.
+- V27: recoverable requirement/package discussion and explicit approval state.
+- V28: bounded AI-output normalization/tool-loop audit and Project Convention
+  normalization notice.
 
-Decomposer exact markers remain preferred. Markerless compatibility accepts
-only one complete top-level JSON object or one standalone `json` fence and then
-runs the unchanged deterministic contracts; prose, multiple objects, arrays and
-incomplete JSON remain invalid.
+Machine-role exact markers remain preferred. The shared bounded extractor also
+accepts a unique standard JSON object in a `json`/untyped fence, explanatory
+prose, or the whole response. Equivalent candidates collapse; conflicting valid
+objects, arrays, incomplete/non-standard JSON, oversize content, or ambiguous
+normalization remain invalid. Safe deterministic normalization is audited and
+runs the unchanged business and safety contracts without consuming a format
+repair.
+
+After the latest user turn, three consecutive calls with the same normalized
+tool name and canonical arguments trigger an early best-effort abort. Each
+persisted role step may use one no-tools finalizer with bounded deduplicated
+evidence; it counts against the global model-call budget, not the format-repair
+budget. The 24-step hard cap remains the fallback for other loop shapes.
 
 Compiler planning contract v2 stores complete verifier/runtime blueprints inside
 the existing V23 `planning_json`; no schema migration is needed. The server
@@ -34,7 +46,7 @@ validates those blueprints using the normal LoopSpec v2 execution contract befor
 freezing, and final JSON must preserve them exactly.
 
 Historical migrations remain immutable. Empty databases and supported V21/V24
-databases must all migrate to V26. Legacy AI rows default to `TEXT_MARKER`; old
+databases must all migrate to V28. Legacy AI rows default to `TEXT_MARKER`; old
 implementation Sessions default Todo capability to `UNKNOWN`.
 
 ## Interactions
@@ -138,7 +150,10 @@ V2 `PROCESS TEST` recognition uses exact Maven/Gradle/npm executable basenames,
 detects split exclusion arguments and npm optional-script bypasses, and is
 rechecked at the execution boundary after Maven argv normalization. A saved
 contract therefore cannot gain behavior coverage from a lookalike executable or
-later disable the tests it claimed to run.
+later disable the tests it claimed to run. Business-mapped TEST evidence requires
+explicit targets; a safe unmapped full-suite command may remain a blocking
+supplemental report but never covers a criterion or satisfies the focused
+Java-production gate.
 `DATABASE_QUERY` accepts one read-only local SQLite `SELECT`/`WITH` statement.
 Screenshots and traces live below the configured data directory; SQLite stores
 only relative path, SHA-256, size and metadata.

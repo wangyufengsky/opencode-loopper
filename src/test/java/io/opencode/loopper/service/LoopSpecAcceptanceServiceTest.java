@@ -41,6 +41,24 @@ class LoopSpecAcceptanceServiceTest {
     }
 
     @Test
+    void acceptsUnmappedFullSuiteAsBlockingSupplementalEvidence() {
+        LoopSpec.VerifierSpec focused = process("TEST", List.of("mvn", "-Dtest=FooTest", "test"),
+                List.of("AC-1"), List.of("FooTest"));
+        LoopSpec.VerifierSpec fullSuite = process("TEST", List.of("mvn", "test"), List.of(), List.of());
+        LoopSpec.StageSpec stage = new LoopSpec.StageSpec("behavior", List.of(), List.of(), List.of("evidence"),
+                List.of(focused, fullSuite), List.of(new LoopSpec.AcceptanceCriterion("AC-1", "observable")),
+                null, ImplementationKind.JAVA_PRODUCTION);
+
+        var result = service.assess(new LoopSpec("v2", "project", "goal", "", List.of(stage),
+                null, null, null, null), List.of(), false);
+
+        assertThat(result.valid()).isTrue();
+        assertThat(result.stageAssessments().getFirst().verifiers().get(1).category())
+                .isEqualTo(LoopSpecAcceptanceService.Category.REPORT);
+        assertThat(result.stageAssessments().getFirst().verifiers().get(1).blocking()).isTrue();
+    }
+
+    @Test
     void separatesMachineJudgeAndBothAcceptancePlanning() {
         LoopSpec.VerifierSpec focusedTest = process("TEST", List.of("mvn", "-Dtest=CacheReloadTaskTest", "test"),
                 List.of("AC-BOTH"), List.of("CacheReloadTaskTest"));

@@ -224,11 +224,15 @@ intent, source excerpts, verifier/runtime objects, test evidence and handoff sum
 drift. V23 persists the current step and planning JSON for restart recovery;
 V24 persists the independent planning-repair counters. A successful planning
 freeze always starts final JSON with its own unused repair budget.
-Decomposer markers remain preferred, but a weak provider that removes them may
-return exactly one complete bare top-level JSON object or one standalone `json`
-fence. Surrounding prose, multiple objects, arrays, and incomplete JSON remain
-invalid and consume the same per-step repair budget; this fallback never bypasses
-planning, coverage, dependency, or final-envelope checks.
+All machine roles share one bounded extractor. Native structured data and exact
+role markers remain preferred, followed by `json`/untyped fences, a complete
+object embedded in short prose, and the whole response. It accepts only standard
+JSON objects, deduplicates equivalent candidates, and rejects conflicting valid
+candidates, arrays, incomplete JSON, comments, trailing commas, or ambiguous
+normalization. Deterministic field/collection/enum/argv normalization proceeds
+directly to the unchanged planning, coverage, dependency, execution, and final
+envelope checks without consuming a planning/final repair. The UI shows one
+ordinary `NORMALIZED` information item rather than an error or raw model dump.
 Neither planning nor final raw JSON is displayed as a chat message; the status
 strip exposes only `规划与证据映射`, `JSON 生成`, or `JSON 修复`.
 
@@ -255,7 +259,12 @@ On a Loopper-managed runtime those same three machine-response roles select the
 private zero-temperature `loopper-structured` agent, capped at 24 agentic steps
 and instructed to stop exploring after collecting sufficient evidence. Loopper
 also enforces the same bound from message records rather than trusting the
-OpenCode agent setting alone. For Decomposer
+OpenCode agent setting alone. Three consecutive calls with the same normalized
+tool name and arguments trigger an immediate best-effort abort and at most one
+persisted, no-tools finalizer Session for that role step. The finalizer uses
+bounded deduplicated evidence, counts against the global model-call budget, and
+does not consume format-repair budget; the 24-step cap remains the final safety
+net. For Decomposer
 and Compiler, OpenCode status `RETRY` is displayed as an in-progress remote state
 and keeps the same Session; it must not increment the design transport-retry
 counter. Implementation and Judge retain their existing failure-escalation
@@ -300,7 +309,10 @@ only through the right-hand Review Gate; it is neither persisted as chat content
 nor copied from SSE into the conversation. Page refresh restores cards and
 workflow state from the server snapshot. A transient browser GET failure keeps
 the page in bounded-backoff reconnect without fabricating model output or a
-validation result. During package review, the right panel is read-only and shows
+validation result. The shared browser API transport treats every successful
+empty response, including `202 Accepted` and `204 No Content`, as a completed
+void operation and refreshes the authoritative snapshot instead of attempting
+to parse an absent JSON body. During package review, the right panel is read-only and shows
 `同步中`, `已同步 Rn`, or `同步失败，保留上一版`; the structured editor is enabled
 only after deterministic aggregation and round-trips every Stage
 `workPackageId`, LoopSpec limit, model selection, Session policy, and
@@ -407,7 +419,9 @@ receive Todo instructions or Todo UI.
 
 Designer acceptance criteria are not advisory prose. `PROCESS` is classified by
 the server: compile/package/build/typecheck/lint/install are `BUILD`; a
-recognized non-skipping Maven/Gradle/npm test with `testTargets` is `BEHAVIOR`;
+recognized non-skipping Maven/Gradle/npm test mapped to a criterion and carrying
+`testTargets` is `BEHAVIOR`; a safe unmapped full-suite test may remain a
+blocking supplemental `REPORT` but cannot cover a business criterion;
 `SELF_CHECK` becomes `BEHAVIOR` only with an explicit `outputContains` marker.
 `GIT_DIFF`, `FILE_NOT_EXISTS`, `JUNIT_XML`, and `FILE_EXISTS` are respectively
 scope, safety, report, and advisory evidence and cannot cover behavior. The
