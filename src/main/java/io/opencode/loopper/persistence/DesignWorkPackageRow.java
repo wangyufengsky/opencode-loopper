@@ -9,4 +9,5 @@ public record DesignWorkPackageRow(
         String designerExternalSessionId, String designerExternalSessionState,
         String designMessageId, int designRevision, int redesignCount, int designerTransportRetryCount,
         String compilerSummary, String handoffSummary, String lastErrorCode, String lastErrorDetail,
+        Integer approvedDesignRevision, int discussionRoundCount, String invalidatedByPackageId, String approvedAt,
         String createdAt, String updatedAt, long version) { }

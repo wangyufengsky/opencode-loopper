@@ -8,7 +8,8 @@ public record DesignerSessionRow(String id, String projectId, String state, Stri
                                  String externalSessionId, String externalSessionState,
                                  String loopDraftId, String workflowPhase,
                                  int designRevision, int redesignCount,
-                                 Integer currentRequirementRevision, String activeWorkPackageId) {
+                                 Integer currentRequirementRevision, String activeWorkPackageId,
+                                 String discussionScope, int discussionRevision, String candidateSyncState) {
     @AutomapConstructor
     public DesignerSessionRow { }
 
@@ -18,6 +19,19 @@ public record DesignerSessionRow(String id, String projectId, String state, Stri
                               String loopDraftId, String workflowPhase,
                               int designRevision, int redesignCount) {
         this(id, projectId, state, accessMode, createdAt, updatedAt, version, externalSessionId,
-                externalSessionState, loopDraftId, workflowPhase, designRevision, redesignCount, null, null);
+                externalSessionState, loopDraftId, workflowPhase, designRevision, redesignCount, null, null,
+                "REQUIREMENT", 0, "NONE");
+    }
+
+    public DesignerSessionRow(String id, String projectId, String state, String accessMode,
+                              String createdAt, String updatedAt, long version,
+                              String externalSessionId, String externalSessionState,
+                              String loopDraftId, String workflowPhase,
+                              int designRevision, int redesignCount,
+                              Integer currentRequirementRevision, String activeWorkPackageId) {
+        this(id, projectId, state, accessMode, createdAt, updatedAt, version, externalSessionId,
+                externalSessionState, loopDraftId, workflowPhase, designRevision, redesignCount,
+                currentRequirementRevision, activeWorkPackageId,
+                activeWorkPackageId == null ? "REQUIREMENT" : activeWorkPackageId, 0, "NONE");
     }
 }

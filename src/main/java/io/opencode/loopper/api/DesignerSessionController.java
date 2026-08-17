@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -45,6 +46,11 @@ public class DesignerSessionController {
 
     @GetMapping("/{id}")
     public DesignerSessionDto get(@PathVariable String id) { return dto(service.get(id)); }
+
+    @GetMapping
+    public List<DesignerSessionSummaryDto> listOpen(@RequestParam String projectId) {
+        return service.listOpen(projectId).stream().map(this::summary).toList();
+    }
 
     @GetMapping(value = "/{id}/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter stream(@PathVariable String id) {
@@ -92,6 +98,57 @@ public class DesignerSessionController {
         DesignerSessionRow current = service.get(id);
         return ResponseEntity.accepted().body(new AppendMessageResult(id, current.state(), persisted,
                 "Only actual OpenCode assistant text is persisted as an ASSISTANT message; inspect this session for delivery state."));
+    }
+
+    @PostMapping("/{id}/requirement/messages")
+    public ResponseEntity<AppendMessageResult> appendRequirement(
+            @PathVariable String id, @Valid @RequestBody ScopedDesignerMessageRequest request) {
+        List<DesignerMessageDto> persisted = service.appendRequirementMessage(
+                id, request.content(), request.expectedDiscussionRevision()).stream().map(this::message).toList();
+        DesignerSessionRow current = service.get(id);
+        return ResponseEntity.accepted().body(new AppendMessageResult(id, current.state(), persisted,
+                "Requirement feedback was persisted without invoking the Task Decomposer."));
+    }
+
+    @PostMapping("/{id}/requirement/confirm")
+    public ResponseEntity<Void> confirmRequirement(@PathVariable String id,
+                                                   @Valid @RequestBody DiscussionRevisionRequest request) {
+        service.confirmRequirement(id, request.expectedDiscussionRevision());
+        return ResponseEntity.accepted().build();
+    }
+
+    @PostMapping("/{id}/requirement/reopen")
+    public ResponseEntity<Void> reopenRequirement(@PathVariable String id,
+                                                  @Valid @RequestBody DiscussionRevisionRequest request) {
+        service.reopenRequirement(id, request.expectedDiscussionRevision());
+        return ResponseEntity.accepted().build();
+    }
+
+    @PostMapping("/{id}/work-packages/{packageId}/messages")
+    public ResponseEntity<AppendMessageResult> appendPackage(
+            @PathVariable String id, @PathVariable String packageId,
+            @Valid @RequestBody PackageMessageRequest request) {
+        List<DesignerMessageDto> persisted = service.appendPackageMessage(id, packageId, request.content(),
+                request.expectedDiscussionRevision(), request.expectedDesignRevision())
+                .stream().map(this::message).toList();
+        return ResponseEntity.accepted().body(new AppendMessageResult(id, service.get(id).state(), persisted,
+                "Package feedback was persisted without creating a new requirement revision."));
+    }
+
+    @PostMapping("/{id}/work-packages/{packageId}/approve")
+    public ResponseEntity<Void> approvePackage(
+            @PathVariable String id, @PathVariable String packageId,
+            @Valid @RequestBody PackageRevisionRequest request) {
+        service.approvePackage(id, packageId, request.expectedDiscussionRevision(), request.expectedDesignRevision());
+        return ResponseEntity.accepted().build();
+    }
+
+    @PostMapping("/{id}/work-packages/{packageId}/reopen")
+    public ResponseEntity<ReopenPackageResult> reopenPackage(
+            @PathVariable String id, @PathVariable String packageId,
+            @Valid @RequestBody PackageRevisionRequest request) {
+        return ResponseEntity.ok(new ReopenPackageResult(service.reopenPackage(id, packageId,
+                request.expectedDiscussionRevision(), request.expectedDesignRevision())));
     }
 
     @PostMapping("/{id}/questions/{questionId}/reply")
@@ -148,7 +205,16 @@ public class DesignerSessionController {
                 service.messages(row.id()).stream().map(this::message).toList(), service.pendingQuestions(row.id()),
                 service.compilerStatus(row.id()), service.requirementStatus(row.id()),
                 service.decompositionStatus(row.id()), service.workPackageStatuses(row.id()),
-                row.currentRequirementRevision(), row.activeWorkPackageId());
+                row.currentRequirementRevision(), row.activeWorkPackageId(), row.discussionScope(),
+                row.discussionRevision(), service.candidateStatus(row.id()),
+                service.finalConfirmationEligible(row.id()));
+    }
+
+    private DesignerSessionSummaryDto summary(DesignerSessionRow row) {
+        LoopDraftRow draft = service.draft(row.id());
+        return new DesignerSessionSummaryDto(row.id(), row.projectId(), row.state(), row.workflowPhase(),
+                row.updatedAt(), draft == null ? null : draft.id(), draft == null ? null : draft.status(),
+                draft == null ? null : draft.goal(), row.currentRequirementRevision(), row.activeWorkPackageId());
     }
 
     private DesignerMessageDto message(DesignerMessageRow row) {
@@ -159,6 +225,12 @@ public class DesignerSessionController {
     public record CreateDesignerSessionRequest(@NotBlank String projectId, @NotBlank String draftId,
                                                @Size(max = 12_000) String initialMessage) { }
     public record AppendDesignerMessageRequest(@NotBlank @Size(max = 12_000) String content) { }
+    public record ScopedDesignerMessageRequest(@NotBlank @Size(max = 12_000) String content,
+                                               int expectedDiscussionRevision) { }
+    public record DiscussionRevisionRequest(int expectedDiscussionRevision) { }
+    public record PackageMessageRequest(@NotBlank @Size(max = 12_000) String content,
+                                        int expectedDiscussionRevision, int expectedDesignRevision) { }
+    public record PackageRevisionRequest(int expectedDiscussionRevision, int expectedDesignRevision) { }
     public record DesignerSessionDto(String id, String projectId, String projectName, String state,
                                      String workflowPhase, String activeActor, String accessMode,
                                      boolean readOnly, String permissionSummary, String createdAt, String updatedAt,
@@ -168,7 +240,13 @@ public class DesignerSessionController {
                                      DesignerSessionService.RequirementRevisionStatus requirement,
                                      DesignerSessionService.DecompositionStatus decomposition,
                                      List<DesignerSessionService.WorkPackageStatus> workPackages,
-                                     Integer requirementRevision, String activeWorkPackageId) { }
+                                     Integer requirementRevision, String activeWorkPackageId,
+                                     String discussionScope, int discussionRevision,
+                                     DesignerSessionService.CandidateStatus candidate,
+                                     boolean finalConfirmationEligible) { }
+    public record DesignerSessionSummaryDto(String id, String projectId, String state, String workflowPhase,
+                                            String updatedAt, String draftId, String draftStatus, String goal,
+                                            Integer requirementRevision, String activeWorkPackageId) { }
     public record DesignerDraftDto(String id, String status, String updatedAt,
                                    io.opencode.loopper.domain.LoopSpec spec) { }
     public record DesignerMessageDto(String id, int ordinal, String role, String actor, String content,
@@ -176,4 +254,5 @@ public class DesignerSessionController {
                                      Integer requirementRevision, String workPackageId) { }
     public record AppendMessageResult(String sessionId, String state, List<DesignerMessageDto> persistedMessages, String notice) { }
     public record QuestionReplyRequest(List<List<String>> answers) { }
+    public record ReopenPackageResult(List<String> invalidatedPackageIds) { }
 }

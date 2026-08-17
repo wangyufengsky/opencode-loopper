@@ -51,6 +51,44 @@ class FeatureMigrationTest {
         }
     }
 
+    @Test
+    void v26UnconfirmedCompletedPackageBecomesRecoverableHumanReviewAfterV27Upgrade() throws Exception {
+        Path database = temporaryDirectory.resolve("v26-designer-review.db");
+        String url = "jdbc:sqlite:" + database;
+        Flyway.configure().dataSource(url, null, null).target(MigrationVersion.fromVersion("26")).load().migrate();
+        try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
+            statement.executeUpdate("INSERT INTO project(id,name,root_path,created_at,updated_at) VALUES('p27','P','/tmp/p27','now','now')");
+            statement.executeUpdate("INSERT INTO loop_draft(id,project_id,goal,spec_json,status,created_at,updated_at) VALUES('d27','p27','G','{}','DRAFT_READY','now','now')");
+            statement.executeUpdate("INSERT INTO designer_session(id,project_id,state,access_mode,loop_draft_id,workflow_phase,current_requirement_revision,active_work_package_id,created_at,updated_at) VALUES('s27','p27','COMPLETED','READ_ONLY','d27','COMPLETED',1,'WP-1','now','now')");
+            statement.executeUpdate("INSERT INTO designer_message(id,designer_session_id,ordinal,role,content,delivery_state,actor,created_at) VALUES('m27','s27',1,'ASSISTANT','design','PERSISTED','DESIGNER','now')");
+            statement.executeUpdate("INSERT INTO design_requirement_revision(id,designer_session_id,revision,source_message_id,requirement_text,requirement_segments_json,source_draft_version,state,max_model_calls,created_at,updated_at) VALUES('r27','s27',1,'m27','requirement','[]',0,'ACTIVE',32,'now','now')");
+            statement.executeUpdate("INSERT INTO task_decomposition(id,designer_session_id,requirement_revision_id,state,result_type,source_draft_version,created_at,updated_at) VALUES('dec27','s27','r27','COMPLETED','DIRECT_DESIGN',0,'now','now')");
+            statement.executeUpdate("INSERT INTO design_work_package(id,designer_session_id,requirement_revision_id,decomposition_id,package_id,ordinal,title,objective,scope_in_json,scope_out_json,dependencies_json,deliverables_json,acceptance_intent_json,requirement_refs_json,state,design_message_id,design_revision,created_at,updated_at) VALUES('wp27','s27','r27','dec27','WP-1',0,'WP-1','deliver','[]','[]','[]','[]','[]','[\"RQ-1\"]','COMPLETED','m27',1,'now','now')");
+        }
+
+        Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
+        flyway.migrate();
+
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("27");
+        try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
+            try (var result = statement.executeQuery("SELECT state,workflow_phase,discussion_scope FROM designer_session WHERE id='s27'")) {
+                assertThat(result.next()).isTrue();
+                assertThat(result.getString("state")).isEqualTo("REVIEWING");
+                assertThat(result.getString("workflow_phase")).isEqualTo("REVIEWING_PACKAGE");
+                assertThat(result.getString("discussion_scope")).isEqualTo("WP-1");
+            }
+            try (var result = statement.executeQuery("SELECT state,discussion_round_count FROM design_work_package WHERE id='wp27'")) {
+                assertThat(result.next()).isTrue();
+                assertThat(result.getString("state")).isEqualTo("REVIEWING");
+                assertThat(result.getInt("discussion_round_count")).isZero();
+            }
+            try (var result = statement.executeQuery("SELECT max_model_calls FROM design_requirement_revision WHERE id='r27'")) {
+                assertThat(result.next()).isTrue();
+                assertThat(result.getInt(1)).isEqualTo(96);
+            }
+        }
+    }
+
     private void assertMigratesToLatest(Path database, String startingVersion) throws Exception {
         String url = "jdbc:sqlite:" + database;
         if (startingVersion != null) {
@@ -63,7 +101,7 @@ class FeatureMigrationTest {
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
 
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("26");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("27");
         try (var connection = DriverManager.getConnection(url);
              var statement = connection.prepareStatement("SELECT name FROM sqlite_master WHERE type='table'")) {
             try (var result = statement.executeQuery()) {
@@ -76,7 +114,8 @@ class FeatureMigrationTest {
                         "state_transition_event", "local_sync_conflict_session", "local_sync_conflict_file",
                         "verifier_runtime", "task_publication", "loop_spec_compilation", "stage_java_baseline",
                         "stage_workspace_baseline",
-                        "design_requirement_revision", "task_decomposition", "design_work_package"));
+                        "design_requirement_revision", "task_decomposition", "design_work_package",
+                        "design_discussion_revision"));
             }
         }
         try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
@@ -104,7 +143,8 @@ class FeatureMigrationTest {
                 var columns = new java.util.ArrayList<String>();
                 while (result.next()) columns.add(result.getString("name"));
                 assertThat(columns).contains("workflow_phase", "design_revision", "redesign_count",
-                        "current_requirement_revision", "active_work_package_id");
+                        "current_requirement_revision", "active_work_package_id", "discussion_scope",
+                        "discussion_revision", "candidate_sync_state");
             }
             try (var result = statement.executeQuery("PRAGMA table_info(designer_message)")) {
                 var columns = new java.util.ArrayList<String>();

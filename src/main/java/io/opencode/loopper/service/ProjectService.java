@@ -53,6 +53,9 @@ public class ProjectService {
     }
     public List<ProjectRow> list() { return mapper.listProjects(); }
     public int taskCount(String projectId) { return mapper.countTasksForProject(projectId); }
+    public int openDesignerSessionCount(String projectId) {
+        return mapper.countOpenDesignerSessionsForProject(projectId);
+    }
     public ProjectRow get(String id) { return mapper.findProject(id).orElseThrow(() -> new NotFoundException("Project not found: " + id)); }
     public GitWorktreeManager.RepositoryInspection inspect(ProjectRow project) {
         return worktrees.inspect(Path.of(project.rootPath()));

@@ -1,4 +1,4 @@
-import type { AppSettings, Artifact, Attempt, AutomationImportPreview, AutomationImportResult, AutomationRule, AutomationRuleMutation, AutomationRun, AutomationRunFeed, AvailableModel, BrowserAssertion, CommitMessageSuggestion, CreateAutomationRuleInput, DesignerAppendResult, DesignerMessage, DesignerSession, DesignerSessionState, DesignerStreamEvent, DirectorySelection, DirtyWorkspaceAction, DirtyWorkspaceResolution, DirtyWorkspaceState, ErrorEvent, InsightsSnapshot, Interaction, InteractionAction, JudgeRun, LocalSyncConflictContent, LocalSyncConflictFile, LocalSyncConflictSession, LocalSyncResolution, LoopDraft, LoopSpec, LoopSpecAssessment, LoopSpecTemplate, LoopSpecTemplateVersion, LoopVerifierSpec, MergeRequestDraft, Project, ProjectConventionDraft, ProjectConventionSnapshot, RecoveryDraft, RecoveryMode, RuntimeInfo, SessionCheckpoint, SessionForkResult, SessionRevertResult, SessionSummaryResult, SessionTodo, Stage, Task, TaskDesignHistory, TaskDiffPreview, TaskEvent, TaskInsight, TaskPublicationStatus, TaskQueueStatus, TaskSessionActivity, TaskSessionActivityPart, TaskSessionPendingQuestion, TaskSessionSummary, UsageAggregate } from '@/types/domain'
+import type { AppSettings, Artifact, Attempt, AutomationImportPreview, AutomationImportResult, AutomationRule, AutomationRuleMutation, AutomationRun, AutomationRunFeed, AvailableModel, BrowserAssertion, CommitMessageSuggestion, CreateAutomationRuleInput, DesignerAppendResult, DesignerMessage, DesignerSession, DesignerSessionState, DesignerSessionSummary, DesignerStreamEvent, DirectorySelection, DirtyWorkspaceAction, DirtyWorkspaceResolution, DirtyWorkspaceState, ErrorEvent, InsightsSnapshot, Interaction, InteractionAction, JudgeRun, LocalSyncConflictContent, LocalSyncConflictFile, LocalSyncConflictSession, LocalSyncResolution, LoopDraft, LoopSpec, LoopSpecAssessment, LoopSpecTemplate, LoopSpecTemplateVersion, LoopVerifierSpec, MergeRequestDraft, Project, ProjectConventionDraft, ProjectConventionSnapshot, RecoveryDraft, RecoveryMode, RuntimeInfo, SessionCheckpoint, SessionForkResult, SessionRevertResult, SessionSummaryResult, SessionTodo, Stage, Task, TaskDesignHistory, TaskDiffPreview, TaskEvent, TaskInsight, TaskPublicationStatus, TaskQueueStatus, TaskSessionActivity, TaskSessionActivityPart, TaskSessionPendingQuestion, TaskSessionSummary, UsageAggregate } from '@/types/domain'
 
 const apiBase = import.meta.env.VITE_API_BASE ?? '/api'
 
@@ -183,7 +183,7 @@ function normalizeProject(value: unknown): Project {
   const raw = asRecord(value)
   const status = asString(raw.status)
   const executionMode = asString(raw.executionMode)
-  return { id: asString(raw.id), name: asString(raw.name), rootPath: asString(raw.rootPath), branch: asString(raw.branch) || undefined, description: asString(raw.description) || undefined, status: status === 'INVALID' || status === 'NEEDS_GIT' ? status : 'READY', executionMode: executionMode === 'WORKTREE' || executionMode === 'DIRECT' || executionMode === 'UNAVAILABLE' ? executionMode : undefined, updatedAt: asString(raw.updatedAt), taskCount: asNumber(raw.taskCount) }
+  return { id: asString(raw.id), name: asString(raw.name), rootPath: asString(raw.rootPath), branch: asString(raw.branch) || undefined, description: asString(raw.description) || undefined, status: status === 'INVALID' || status === 'NEEDS_GIT' ? status : 'READY', executionMode: executionMode === 'WORKTREE' || executionMode === 'DIRECT' || executionMode === 'UNAVAILABLE' ? executionMode : undefined, updatedAt: asString(raw.updatedAt), taskCount: asNumber(raw.taskCount), openDesignerSessionCount: asNumber(raw.openDesignerSessionCount) }
 }
 
 function normalizeProjectConvention(value: unknown): ProjectConventionDraft {
@@ -418,6 +418,8 @@ function normalizeTaskSessionQuestion(value: unknown): TaskSessionPendingQuestio
   const raw = asRecord(value)
   return {
     id: asString(raw.id),
+    scope: asString(raw.scope) || undefined,
+    discussionRevision: typeof raw.discussionRevision === 'number' ? raw.discussionRevision : undefined,
     questions: asArray(raw.questions).map((value) => {
       const question = asRecord(value)
       return {
@@ -578,7 +580,7 @@ function normalizeDesignerMessage(value: unknown): DesignerMessage {
 
 function normalizeWorkflowPhase(value: unknown): DesignerSession['workflowPhase'] {
   const phase = asString(value)
-  return ['DECOMPOSING', 'VALIDATING_DECOMPOSITION', 'DESIGNING', 'COMPILING', 'VALIDATING', 'REDESIGNING', 'AGGREGATING', 'COMPLETED', 'FAILED'].includes(phase)
+  return ['DISCUSSING_REQUIREMENT', 'DECOMPOSING', 'VALIDATING_DECOMPOSITION', 'DESIGNING', 'COMPILING', 'VALIDATING', 'REDESIGNING', 'QUESTIONING_PACKAGE', 'REVIEWING_PACKAGE', 'AGGREGATING', 'FINAL_REVIEW', 'COMPLETED', 'FAILED'].includes(phase)
     ? phase as DesignerSession['workflowPhase'] : 'DESIGNING'
 }
 
@@ -596,7 +598,7 @@ function normalizeStructuredStep(value: unknown): DesignerStreamEvent['structure
 
 function normalizeDesignerState(value: unknown): DesignerSessionState {
   const state = asString(value)
-  return state === 'RUNNING' || state === 'WAITING_INPUT' || state === 'COMPLETED' || state === 'SESSION_ERROR' ? state : 'PENDING_HANDOFF'
+  return state === 'RUNNING' || state === 'REVIEWING' || state === 'WAITING_INPUT' || state === 'COMPLETED' || state === 'SESSION_ERROR' ? state : 'PENDING_HANDOFF'
 }
 
 function normalizeDesignerSession(value: unknown): DesignerSession {
@@ -632,7 +634,27 @@ function normalizeDesignerSession(value: unknown): DesignerSession {
     })() : undefined,
     requirement: raw.requirement ? (() => { const item = asRecord(raw.requirement); return { revision: asNumber(item.revision), state: asString(item.state), modelCallsUsed: asNumber(item.modelCallsUsed), maxModelCalls: asNumber(item.maxModelCalls), sourceDraftVersion: asNumber(item.sourceDraftVersion) } })() : undefined,
     decomposition: raw.decomposition ? (() => { const item = asRecord(raw.decomposition); const resultType = asString(item.resultType); return { id: asString(item.id), state: asString(item.state), resultType: ['DIRECT_DESIGN', 'DECOMPOSED', 'NEEDS_INPUT', 'MULTI_TASK_REQUIRED'].includes(resultType) ? resultType as NonNullable<DesignerSession['decomposition']>['resultType'] : undefined, repairCount: asNumber(item.repairCount), transportRetryCount: asNumber(item.transportRetryCount), lastErrorCode: asString(item.lastErrorCode) || undefined, lastErrorDetail: asString(item.lastErrorDetail) || undefined, workflowStep: normalizeStructuredStep(item.workflowStep) ?? 'FINAL_JSON', planningRepairCount: asNumber(item.planningRepairCount) } })() : undefined,
-    workPackages: asArray(raw.workPackages).map((value) => { const item = asRecord(value); return { id: asString(item.id), ordinal: asNumber(item.ordinal), title: asString(item.title), objective: asString(item.objective), state: asString(item.state), dependencies: asArray(item.dependencies).map(String), redesignCount: asNumber(item.redesignCount), compilerRepairCount: asNumber(item.compilerRepairCount), compilerPlanningRepairCount: asNumber(item.compilerPlanningRepairCount), compilerSummary: asString(item.compilerSummary) || undefined, handoffSummary: asString(item.handoffSummary) || undefined, lastErrorCode: asString(item.lastErrorCode) || undefined, lastErrorDetail: asString(item.lastErrorDetail) || undefined } }),
+    workPackages: asArray(raw.workPackages).map((value) => { const item = asRecord(value); return { id: asString(item.id), ordinal: asNumber(item.ordinal), title: asString(item.title), objective: asString(item.objective), state: asString(item.state), dependencies: asArray(item.dependencies).map(String), redesignCount: asNumber(item.redesignCount), compilerRepairCount: asNumber(item.compilerRepairCount), compilerPlanningRepairCount: asNumber(item.compilerPlanningRepairCount), compilerSummary: asString(item.compilerSummary) || undefined, handoffSummary: asString(item.handoffSummary) || undefined, lastErrorCode: asString(item.lastErrorCode) || undefined, lastErrorDetail: asString(item.lastErrorDetail) || undefined, designRevision: asNumber(item.designRevision), approvedDesignRevision: typeof item.approvedDesignRevision === 'number' ? item.approvedDesignRevision : undefined, discussionRoundCount: asNumber(item.discussionRoundCount), invalidatedByPackageId: asString(item.invalidatedByPackageId) || undefined, approvedAt: asString(item.approvedAt) || undefined } }),
+    requirementRevision: typeof raw.requirementRevision === 'number' ? raw.requirementRevision : undefined,
+    activeWorkPackageId: asString(raw.activeWorkPackageId) || undefined,
+    discussionScope: asString(raw.discussionScope, 'REQUIREMENT'),
+    discussionRevision: asNumber(raw.discussionRevision),
+    candidate: raw.candidate ? (() => { const item = asRecord(raw.candidate); const state = asString(item.syncState); return { syncState: (['NONE', 'SYNCING', 'SYNCED', 'FAILED'].includes(state) ? state : 'NONE') as NonNullable<DesignerSession['candidate']>['syncState'], discussionRevision: asNumber(item.discussionRevision), workPackageId: asString(item.workPackageId) || undefined, spec: item.spec ? parseLoopSpec(item.spec) : undefined, detail: asString(item.detail) || undefined } })() : undefined,
+    finalConfirmationEligible: raw.finalConfirmationEligible === true,
+  }
+}
+
+function normalizeDesignerSessionSummary(value: unknown): DesignerSessionSummary {
+  const raw = asRecord(value)
+  return {
+    id: asString(raw.id),
+    projectId: asString(raw.projectId),
+    state: normalizeDesignerState(raw.state),
+    workflowPhase: normalizeWorkflowPhase(raw.workflowPhase),
+    updatedAt: asString(raw.updatedAt),
+    draftId: asString(raw.draftId),
+    draftStatus: asString(raw.draftStatus),
+    goal: asString(raw.goal),
     requirementRevision: typeof raw.requirementRevision === 'number' ? raw.requirementRevision : undefined,
     activeWorkPackageId: asString(raw.activeWorkPackageId) || undefined,
   }
@@ -656,7 +678,7 @@ function normalizeDesignerStreamEvent(value: unknown): DesignerStreamEvent {
     requirementRevision: typeof raw.requirementRevision === 'number' ? raw.requirementRevision : undefined,
     activeWorkPackageId: asString(raw.activeWorkPackageId) || undefined,
     modelCallsUsed: asNumber(raw.modelCallsUsed),
-    maxModelCalls: asNumber(raw.maxModelCalls, 32),
+    maxModelCalls: asNumber(raw.maxModelCalls, 96),
     structuredStep: normalizeStructuredStep(raw.structuredStep),
   }
 }
@@ -1135,6 +1157,7 @@ export const api = {
   updateDraft: async (id: string, spec: LoopDraft['spec']) => normalizeDraft(await request<unknown>(`/loop-drafts/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify({ spec: backendLoopSpec(spec) }) })),
   confirmDraft: async (id: string) => { const task = asRecord(await request<unknown>(`/loop-drafts/${encodeURIComponent(id)}/confirm`, { method: 'POST' })); return { taskId: asString(task.taskId) } },
   createDesignerSession: async (projectId: string, draftId: string, initialMessage?: string) => normalizeDesignerSession(await request<unknown>('/designer-sessions', { method: 'POST', body: JSON.stringify({ projectId, draftId, ...(initialMessage ? { initialMessage } : {}) }) })),
+  listOpenDesignerSessions: async (projectId: string) => (await request<unknown[]>(`/designer-sessions?projectId=${encodeURIComponent(projectId)}`)).map(normalizeDesignerSessionSummary),
   getDesignerSession: async (id: string) => normalizeDesignerSession(await request<unknown>(`/designer-sessions/${encodeURIComponent(id)}`)),
   getDesignerMessages: async (id: string) => (await request<unknown[]>(`/designer-sessions/${encodeURIComponent(id)}/messages`)).map(normalizeDesignerMessage),
   replyDesignerQuestion: async (id: string, questionId: string, answers: string[][]) => request<void>(`/designer-sessions/${encodeURIComponent(id)}/questions/${encodeURIComponent(questionId)}/reply`, { method: 'POST', body: JSON.stringify({ answers }) }),
@@ -1144,6 +1167,21 @@ export const api = {
   retryDesignerDecomposition: async (id: string) => request<void>(`/designer-sessions/${encodeURIComponent(id)}/decomposition/retry`, { method: 'POST' }),
   retryWorkPackageCompiler: async (id: string, packageId: string) => request<void>(`/designer-sessions/${encodeURIComponent(id)}/work-packages/${encodeURIComponent(packageId)}/compiler/retry`, { method: 'POST' }),
   redesignWorkPackage: async (id: string, packageId: string) => request<void>(`/designer-sessions/${encodeURIComponent(id)}/work-packages/${encodeURIComponent(packageId)}/redesign`, { method: 'POST' }),
+  sendRequirementMessage: async (id: string, content: string, expectedDiscussionRevision: number): Promise<DesignerAppendResult> => {
+    const raw = asRecord(await request<unknown>(`/designer-sessions/${encodeURIComponent(id)}/requirement/messages`, { method: 'POST', body: JSON.stringify({ content, expectedDiscussionRevision }) }))
+    return { sessionId: asString(raw.sessionId), state: normalizeDesignerState(raw.state), persistedMessages: asArray(raw.persistedMessages).map(normalizeDesignerMessage), notice: asString(raw.notice) }
+  },
+  confirmDesignerRequirement: async (id: string, expectedDiscussionRevision: number) => request<void>(`/designer-sessions/${encodeURIComponent(id)}/requirement/confirm`, { method: 'POST', body: JSON.stringify({ expectedDiscussionRevision }) }),
+  reopenDesignerRequirement: async (id: string, expectedDiscussionRevision: number) => request<void>(`/designer-sessions/${encodeURIComponent(id)}/requirement/reopen`, { method: 'POST', body: JSON.stringify({ expectedDiscussionRevision }) }),
+  sendWorkPackageMessage: async (id: string, packageId: string, content: string, expectedDiscussionRevision: number, expectedDesignRevision: number): Promise<DesignerAppendResult> => {
+    const raw = asRecord(await request<unknown>(`/designer-sessions/${encodeURIComponent(id)}/work-packages/${encodeURIComponent(packageId)}/messages`, { method: 'POST', body: JSON.stringify({ content, expectedDiscussionRevision, expectedDesignRevision }) }))
+    return { sessionId: asString(raw.sessionId), state: normalizeDesignerState(raw.state), persistedMessages: asArray(raw.persistedMessages).map(normalizeDesignerMessage), notice: asString(raw.notice) }
+  },
+  approveWorkPackage: async (id: string, packageId: string, expectedDiscussionRevision: number, expectedDesignRevision: number) => request<void>(`/designer-sessions/${encodeURIComponent(id)}/work-packages/${encodeURIComponent(packageId)}/approve`, { method: 'POST', body: JSON.stringify({ expectedDiscussionRevision, expectedDesignRevision }) }),
+  reopenWorkPackage: async (id: string, packageId: string, expectedDiscussionRevision: number, expectedDesignRevision: number) => {
+    const raw = asRecord(await request<unknown>(`/designer-sessions/${encodeURIComponent(id)}/work-packages/${encodeURIComponent(packageId)}/reopen`, { method: 'POST', body: JSON.stringify({ expectedDiscussionRevision, expectedDesignRevision }) }))
+    return asArray(raw.invalidatedPackageIds).map(String)
+  },
   sendDesignerMessage: async (id: string, content: string): Promise<DesignerAppendResult> => {
     const raw = asRecord(await request<unknown>(`/designer-sessions/${encodeURIComponent(id)}/messages`, { method: 'POST', body: JSON.stringify({ content }) }))
     return {

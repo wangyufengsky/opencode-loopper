@@ -3,7 +3,10 @@ import { ref } from 'vue'
 import { Icon } from '@iconify/vue'
 import type { TaskSessionPendingQuestion } from '@/types/domain'
 
-const props = defineProps<{ pending: TaskSessionPendingQuestion, submitting?: boolean }>()
+const props = withDefaults(defineProps<{ pending: TaskSessionPendingQuestion, submitting?: boolean, mandatory?: boolean }>(), {
+  submitting: false,
+  mandatory: false,
+})
 const emit = defineEmits<{
   submit: [answers: string[][]]
   reject: []
@@ -38,6 +41,17 @@ function submit() {
   const value = answers()
   if (value.every((answer) => answer.length > 0)) emit('submit', value)
 }
+
+function adoptRecommendations() {
+  answerDrafts.value = props.pending.questions.map((prompt) => {
+    const recommended = prompt.options.find((option) => /\(Recommended\)|（推荐）|推荐/.test(option.label))
+      ?? prompt.options[0]
+    return recommended ? [recommended.label] : []
+  })
+  customDrafts.value = props.pending.questions.map(() => '')
+  const value = answers()
+  if (value.every((answer) => answer.length > 0)) emit('submit', value)
+}
 </script>
 
 <template>
@@ -62,7 +76,8 @@ function submit() {
       <el-input v-if="prompt.custom" :model-value="customDrafts[index]" class="designer-custom-answer" type="textarea" :rows="2" :placeholder="prompt.multiple ? '可补充自定义回答（会与已选项一起提交）' : '或输入自定义回答（会替代已选项）'" @update:model-value="(value: unknown) => setCustomDraft(index, value)" />
     </div>
     <footer>
-      <el-button plain :disabled="submitting" @click="emit('reject')">拒绝</el-button>
+      <el-button plain :disabled="submitting" @click="adoptRecommendations"><Icon icon="lucide:sparkles" />采用全部推荐项</el-button>
+      <el-button v-if="!mandatory" plain :disabled="submitting" @click="emit('reject')">拒绝</el-button>
       <el-button type="primary" :loading="submitting" :disabled="submitting || !answers().every((answer) => answer.length > 0)" @click="submit">提交回答并继续</el-button>
     </footer>
   </section>

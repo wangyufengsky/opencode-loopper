@@ -42,6 +42,14 @@ OpenCode Session, Attempt, or Task failure. Task streams recover with persisted
 event replay from `Last-Event-ID`; Designer streams recover from the latest
 persisted snapshot.
 
+Designer discovery is server-authoritative across process restarts. For each
+project, the API exposes the latest Designer Session per draft whose draft is
+not `CONFIRMED`; the Project projection exposes that collection's count on a
+separate axis from persisted Task rows. Browser storage can accelerate reopening
+one Session but cannot be the only index, and a temporary API failure must not
+erase that pointer. Confirmation removes the draft from this recovery list at
+the same boundary where the persisted Task becomes discoverable.
+
 ## Authoritative lifecycle state machines
 
 Persisted business lifecycles use the project-local `FiniteStateMachine` rather
@@ -181,14 +189,17 @@ under existing scope/risk rules. Actual Java changes in `JAVA_TEST_ONLY` or
 `NON_JAVA` fail classification. File traversal and hashing stay outside SQLite
 transactions for both Git and Direct workspaces.
 
-V22 adds a lifecycle before Designer. Every user submission freezes a complete
-`design_requirement_revision` and starts an independent read-only Task
-Decomposer Session. The Decomposer may return one `DIRECT_DESIGN` work package,
+V22 adds a lifecycle before package Designer. V27 places an explicit requirement
+discussion gate in front of it: user messages create complete, recoverable
+requirement snapshots but do not invoke Decomposer. Only the scoped requirement
+confirmation freezes the next numbered `design_requirement_revision` and starts
+an independent read-only Task Decomposer Session. The Decomposer may return one `DIRECT_DESIGN` work package,
 2–6 dependency-ordered vertical packages, `NEEDS_INPUT`, or
 `MULTI_TASK_REQUIRED`; the server numbers and verifies requirement-segment
 coverage, package identity, backward-only dependencies, and the single-Task
-boundary. A newer user submission supersedes the old decomposition and package
-results without deleting their audit history.
+boundary. After decomposition, an unscoped user message is rejected; only an
+explicitly confirmed requirement reopen supersedes the old decomposition and
+package results without deleting their audit history.
 
 V23 changes Decomposer and package Compiler from one-shot envelopes to a
 persisted two-turn protocol. In the first turn each role follows the fixed
@@ -201,9 +212,10 @@ errors consume the bounded allowance for their own step. V24 separates the
 planning repair counter from the final-JSON repair counter, allowing at most two
 repairs in each step without one step exhausting the other. `workflow_step`,
 `planning_json`, and both counters make the turns restart-recoverable while
-remaining hidden from chat/SSE content. Six packages now need 20 no-repair model calls, so the shared
-per-requirement ceiling is 32 calls; confirmed transport retries and all content
-repairs still count against it.
+remaining hidden from chat/SSE content. Six packages need 20 no-repair machine-role
+calls. V23 originally set the shared ceiling to 32; V27 raises it to 96 so
+interactive requirement/package revisions use the same explicit budget.
+Confirmed transport retries and all content repairs still count against it.
 
 V26 adds orthogonal OpenCode capability and response-contract metadata without
 merging lifecycle axes. Decomposition and compilation rows persist
@@ -215,6 +227,19 @@ structured-output failure, or missing structured data uses a fresh read-only
 role Session and the same persisted Loopper repair/model-call budget to fall back
 to the legacy marker parser. V26 defaults existing rows to marker mode and Todo
 capability unknown, preserving restart behavior.
+
+V27 makes human discussion and approval first-class persisted state. The
+`design_discussion_revision` table stores complete Markdown snapshots, question
+decisions, scope/revision concurrency tokens, candidate compilation references,
+and errors for the overall requirement or one package. `designer_session`
+projects `DISCUSSING_REQUIREMENT`, `QUESTIONING_PACKAGE`, `REVIEWING_PACKAGE`,
+and `FINAL_REVIEW`; packages project `QUESTIONING`, `REVIEWING`, `APPROVED`, and
+`STALE`. Normal review uses `REVIEWING`, while `WAITING_INPUT` is reserved for
+budget exhaustion or a failed model/validation path that needs recovery. Each
+package permits five human revisions after its initial design, and one current
+requirement revision permits 96 model calls across discussion, decomposition,
+design, compilation, format recovery, and repairs. Question answers resume the
+already counted model turn and never create a hidden call.
 
 Machine-response roles also carry an explicit non-thinking model selection.
 Managed DeepSeek starts with a private `loopper-no-thinking` variant and
@@ -259,19 +284,25 @@ criteria are repaired while still planning. Final JSON must copy those verified
 objects exactly, so generation cannot turn a valid evidence design into a
 different verifier contract.
 
-Package work is strictly serial. Every package uses a fresh Designer Session and
-a fresh Compiler Session, produces 1–3 Stages carrying `workPackageId`, and is
-validated before the next package starts. Compiler output is a package fragment,
-not a complete LoopSpec. After all packages complete, the server concatenates
-Stages in package order and atomically synchronizes one aggregate LoopSpec at
-the original draft version; no model performs a second merge. Confirmation
+Package work is strictly serial. A package keeps one healthy interactive
+Designer Session across its discussion turns and reconstructs a replacement
+Session from persisted snapshots/decisions after transport loss. Every candidate
+uses an independent read-only Compiler Session, produces 1–3 Stages carrying
+`workPackageId`, and is deterministically validated into `REVIEWING`; the next
+package cannot start until the user accepts that exact design revision. A failed
+candidate keeps the previous valid candidate visible. Reopening an accepted
+package marks only its transitive dependents `STALE`; unrelated accepted packages
+remain valid. Compiler output is a package fragment, not a complete LoopSpec.
+After all packages are `APPROVED`, the server concatenates Stages in package
+order and atomically synchronizes one aggregate LoopSpec at the original draft
+version; no model performs a second merge. Confirmation
 freezes `REQUIREMENT_CONTEXT`, `DECOMPOSITION_CONTEXT`, per-package
 `WORK_PACKAGE_DESIGN` and `WORK_PACKAGE_COMPILATION_SUMMARY` artifacts, plus a
 composite compatibility `DESIGN_CONTEXT`. A draft version conflict stops before
 the next model call and never creates a Task.
 
 All package design Sessions read the same immutable pre-execution repository
-baseline. A `COMPLETED` predecessor means its frozen design/compilation contract
+baseline. An `APPROVED` predecessor means its frozen design/compilation contract
 is valid and its Stages are ordered before the current package; it does not mean
 the design-time repository already contains its files. The server injects the
 predecessor summary/handoff as an available-at-execution contract, and Compiler
@@ -295,7 +326,7 @@ raised. All Stages must pass before the one final Requirement/Risk Judge batch.
 The aggregate Stage-to-package mapping is immutable once synchronized into the
 Review Gate. Frontend normalization must preserve every `workPackageId`; the
 draft update boundary rejects a removed or changed mapping, and confirmation
-fails closed if completed packages are missing, unknown, or out of dependency
+fails closed if approved packages are missing, unknown, or out of dependency
 order. A package Task must never silently degrade into legacy flat Stage
 execution.
 

@@ -18,6 +18,7 @@ import io.opencode.loopper.domain.StructuredModelStep;
 import io.opencode.loopper.lifecycle.LifecycleTransitionService;
 import io.opencode.loopper.persistence.DesignerMessageRow;
 import io.opencode.loopper.persistence.DesignerSessionRow;
+import io.opencode.loopper.persistence.DesignDiscussionRevisionRow;
 import io.opencode.loopper.persistence.DesignRequirementRevisionRow;
 import io.opencode.loopper.persistence.DesignWorkPackageRow;
 import io.opencode.loopper.persistence.LoopDraftRow;
@@ -62,12 +63,13 @@ public class DesignerSessionService {
     private static final int MAX_FROZEN_DESIGN_LENGTH = 24 * 1024;
     private static final int MAX_HANDOFF_SUMMARY_LENGTH = 4 * 1024;
     private static final int MAX_DECOMPOSER_REPAIRS = 2;
-    private static final int MAX_MODEL_CALLS = 32;
+    private static final int MAX_MODEL_CALLS = 96;
     private static final int MAX_WORK_PACKAGES = 6;
     private static final int MAX_PACKAGE_STAGES = 3;
     private static final int MAX_TOTAL_STAGES = 18;
     private static final int MAX_COMPILER_REPAIRS = 2;
     private static final int MAX_AUTOMATIC_REDESIGNS = 1;
+    private static final int MAX_HUMAN_PACKAGE_REVISIONS = 5;
     private static final Pattern COMPILATION_PAYLOAD = Pattern.compile(
             "<!--\\s*LOOPSPEC_COMPILATION_JSON_START\\s*-->(.*?)<!--\\s*LOOPSPEC_COMPILATION_JSON_END\\s*-->",
             Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
@@ -130,13 +132,14 @@ public class DesignerSessionService {
         String now = now();
         DesignerSessionRow session = new DesignerSessionRow(UUID.randomUUID().toString(), projectId,
                 DesignerSessionState.PENDING_HANDOFF.name(), READ_ONLY, now, now, 0,
-                null, "PENDING", loopDraftId, DesignWorkflowPhase.DECOMPOSING.name(), 0, 0, null, null);
+                null, "PENDING", loopDraftId, DesignWorkflowPhase.DISCUSSING_REQUIREMENT.name(), 0, 0,
+                null, null, "REQUIREMENT", 0, "NONE");
         lifecycle.create(designerSubject(session), session.state(), java.util.Map.of(),
                 () -> mapper.insertDesignerSession(session),
                 () -> new ConflictException("DESIGNER_SESSION_CREATE_CONFLICT",
                         "Designer session could not be created"));
         appendMessage(session.id(), DesignerActor.SYSTEM,
-                "设计会话已创建。任务拆解器将先冻结完整需求并决定一个或多个纵向工作包；每个工作包再由独立设计师和规范编译器严格串行处理。",
+                "设计会话已创建。请先与设计师澄清整体需求；只有点击“需求已明确，开始拆包”才会冻结需求并启动任务拆解器。",
                 DesignerSessionState.PENDING_HANDOFF.name(), null, null);
         if (initialMessage != null && !initialMessage.isBlank()) appendUserMessage(session.id(), initialMessage);
         return get(session.id());
@@ -145,6 +148,11 @@ public class DesignerSessionService {
     public DesignerSessionRow get(String sessionId) {
         return mapper.findDesignerSession(sessionId)
                 .orElseThrow(() -> new NotFoundException("Designer session not found: " + sessionId));
+    }
+
+    public List<DesignerSessionRow> listOpen(String projectId) {
+        projects.get(projectId);
+        return mapper.listOpenDesignerSessionsForProject(projectId);
     }
 
     public ProjectRow project(String sessionId) { return projects.get(get(sessionId).projectId()); }
@@ -182,6 +190,7 @@ public class DesignerSessionService {
     }
 
     public List<WorkPackageStatus> workPackageStatuses(String sessionId) {
+        if (get(sessionId).currentRequirementRevision() == null) return List.of();
         DesignRequirementRevisionRow revision = mapper.findCurrentDesignRequirementRevision(sessionId).orElse(null);
         if (revision == null) return List.of();
         return mapper.listDesignWorkPackages(revision.id()).stream().map(row -> {
@@ -190,18 +199,70 @@ public class DesignerSessionService {
             return new WorkPackageStatus(row.packageId(), row.ordinal(), row.title(), row.objective(), row.state(),
                     strings(row.dependenciesJson()), row.redesignCount(), compiler == null ? 0 : compiler.repairCount(),
                     compiler == null ? 0 : compiler.planningRepairCount(),
-                    row.compilerSummary(), row.handoffSummary(), row.lastErrorCode(), row.lastErrorDetail());
+                    row.compilerSummary(), row.handoffSummary(), row.lastErrorCode(), row.lastErrorDetail(),
+                    row.designRevision(), row.approvedDesignRevision(), row.discussionRoundCount(),
+                    row.invalidatedByPackageId(), row.approvedAt());
         }).toList();
+    }
+
+    public CandidateStatus candidateStatus(String sessionId) {
+        DesignerSessionRow session = get(sessionId);
+        if (session.currentRequirementRevision() == null) {
+            return new CandidateStatus(session.candidateSyncState(), session.discussionRevision(),
+                    null, null, "整体需求确认并拆包后才生成候选 LoopSpec");
+        }
+        DesignRequirementRevisionRow revision = currentRequirement(sessionId);
+        List<LoopSpec.StageSpec> stages = new ArrayList<>();
+        for (DesignWorkPackageRow row : mapper.listDesignWorkPackages(revision.id())) {
+            Integer targetRevision = DesignWorkPackageState.APPROVED.name().equals(row.state())
+                    ? row.approvedDesignRevision() : row.designRevision() > 0 ? row.designRevision() : null;
+            if (targetRevision == null) continue;
+            LoopSpecCompilationRow compilation = mapper.findLoopSpecCompilationForPackageRevision(
+                    sessionId, row.packageId(), targetRevision).orElse(null);
+            if (compilation == null || !LoopSpecCompilationState.COMPLETED.name().equals(compilation.state())
+                    || blank(compilation.compiledPackageJson())) {
+                compilation = mapper.findLatestCompletedLoopSpecCompilationForPackage(
+                        sessionId, row.packageId()).orElse(null);
+            }
+            if (compilation == null || !LoopSpecCompilationState.COMPLETED.name().equals(compilation.state())
+                    || blank(compilation.compiledPackageJson())) continue;
+            try {
+                stages.addAll(json.readValue(compilation.compiledPackageJson(), PackageCompilationEnvelope.class)
+                        .normalized().stages());
+            } catch (JacksonException ignored) { }
+        }
+        if (stages.isEmpty()) {
+            return new CandidateStatus(session.candidateSyncState(), session.discussionRevision(),
+                    session.activeWorkPackageId(), null, "尚无通过确定性校验的候选");
+        }
+        LoopSpec base = drafts.spec(drafts.get(session.loopDraftId()));
+        LoopSpec candidate = new LoopSpec(base.schemaVersion(), base.projectId(), base.goal(), base.context(),
+                stages, base.limits(), base.model(), base.sessionPolicy(), base.nextAttemptPromptTemplate(), base.budget());
+        return new CandidateStatus(session.candidateSyncState(), session.discussionRevision(),
+                session.activeWorkPackageId(), candidate,
+                "展示已接受工作包与当前最后有效候选；失败修订不会覆盖它");
+    }
+
+    public boolean finalConfirmationEligible(String sessionId) {
+        DesignerSessionRow session = get(sessionId);
+        if (!DesignWorkflowPhase.FINAL_REVIEW.name().equals(session.workflowPhase())
+                || session.currentRequirementRevision() == null) return false;
+        DesignRequirementRevisionRow revision = currentRequirement(sessionId);
+        List<DesignWorkPackageRow> packages = mapper.listDesignWorkPackages(revision.id());
+        return !packages.isEmpty() && packages.stream()
+                .allMatch(row -> DesignWorkPackageState.APPROVED.name().equals(row.state())
+                        && row.approvedDesignRevision() != null);
     }
 
     public String activeActor(DesignerSessionRow session) {
         return switch (DesignWorkflowPhase.valueOf(session.workflowPhase())) {
+            case DISCUSSING_REQUIREMENT, QUESTIONING_PACKAGE -> DesignerActor.DESIGNER.name();
             case DECOMPOSING -> DesignerActor.DECOMPOSER.name();
             case VALIDATING_DECOMPOSITION, AGGREGATING -> DesignerActor.VALIDATOR.name();
             case DESIGNING, REDESIGNING -> DesignerActor.DESIGNER.name();
             case COMPILING -> DesignerActor.COMPILER.name();
             case VALIDATING -> DesignerActor.VALIDATOR.name();
-            case COMPLETED, FAILED -> DesignerActor.SYSTEM.name();
+            case REVIEWING_PACKAGE, FINAL_REVIEW, COMPLETED, FAILED -> DesignerActor.SYSTEM.name();
         };
     }
 
@@ -221,11 +282,14 @@ public class DesignerSessionService {
     public List<PendingQuestion> pendingQuestions(String sessionId) {
         DesignerSessionRow session = get(sessionId);
         if (!DesignerSessionState.RUNNING.name().equals(session.state())
-                || !Set.of(DesignWorkflowPhase.DESIGNING.name(), DesignWorkflowPhase.REDESIGNING.name())
+                || !Set.of(DesignWorkflowPhase.DISCUSSING_REQUIREMENT.name(),
+                DesignWorkflowPhase.QUESTIONING_PACKAGE.name(), DesignWorkflowPhase.DESIGNING.name(),
+                DesignWorkflowPhase.REDESIGNING.name())
                 .contains(session.workflowPhase())
                 || blank(session.externalSessionId())) return List.of();
         try {
-            return openCode.pendingQuestions(designerRemote(session)).stream().map(this::question).toList();
+            return openCode.pendingQuestions(designerRemote(session)).stream()
+                    .map(question -> question(question, session.discussionScope(), session.discussionRevision())).toList();
         } catch (SessionFailure failure) {
             throw new ServiceUnavailableException(failure.code(), safeMessage(failure.getMessage()));
         }
@@ -240,13 +304,36 @@ public class DesignerSessionService {
         } catch (SessionFailure failure) {
             throw new ServiceUnavailableException(failure.code(), safeMessage(failure.getMessage()));
         }
-        updateDesignerProjection(get(sessionId), DesignerSessionState.RUNNING,
-                DesignWorkflowPhase.valueOf(get(sessionId).workflowPhase()), remote.id(), "RUNNING",
-                get(sessionId).designRevision(), get(sessionId).redesignCount());
+        DesignDiscussionRevisionRow discussion = currentDiscussion(session);
+        updateDiscussion(discussion, discussion.state(), discussion.sourceMessageId(), discussion.designMessageId(),
+                discussion.snapshotMarkdown(), appendDecision(discussion.decisionLogJson(), pending, answers), true,
+                discussion.questionRetryCount(), discussion.candidateCompilationId(), null, null);
+        DesignerSessionRow current = get(sessionId);
+        if (!blank(current.activeWorkPackageId())) {
+            DesignWorkPackageRow workPackage = requireCurrentPackage(current, current.activeWorkPackageId());
+            if (DesignWorkPackageState.QUESTIONING.name().equals(workPackage.state())) {
+                updateWorkPackage(workPackage, DesignWorkPackageState.DESIGNING,
+                        workPackage.designerExternalSessionId(), "RUNNING", workPackage.designMessageId(),
+                        workPackage.designRevision(), workPackage.redesignCount(),
+                        workPackage.designerTransportRetryCount(), workPackage.compilerSummary(),
+                        workPackage.handoffSummary(), null, null);
+            }
+            current = updateDesignerProjection(get(sessionId), DesignerSessionState.RUNNING,
+                    DesignWorkflowPhase.DESIGNING, remote.id(), "RUNNING", current.designRevision(),
+                    current.redesignCount(), current.currentRequirementRevision(), current.activeWorkPackageId());
+        } else {
+            current = updateDesignerProjection(current, DesignerSessionState.RUNNING,
+                    DesignWorkflowPhase.DISCUSSING_REQUIREMENT, remote.id(), "RUNNING",
+                    current.designRevision(), current.redesignCount());
+        }
+        publish(current, "STATUS", DesignerActor.DESIGNER, true, "", "问题回答已保存，设计师正在生成完整替代稿");
     }
 
     public void rejectQuestion(String sessionId, String questionId) {
         DesignerSessionRow session = requireRunningDesigner(sessionId);
+        if (currentDiscussion(session).questionRequired()) {
+            throw new ConflictException("DESIGN_QUESTION_REQUIRED", "当前设计问题必须回答，不能跳过");
+        }
         OpenCodeClient.OpenCodeSession remote = designerRemote(session);
         OpenCodeClient.PendingQuestion pending = pending(remote, questionId);
         try { openCode.rejectQuestion(remote, pending.id()); }
@@ -268,7 +355,8 @@ public class DesignerSessionService {
     public LoopDraftRow syncLoopSpec(String sessionId, LoopSpec spec) {
         DesignerSessionRow session = get(sessionId);
         if (session.currentRequirementRevision() != null
-                && !DesignWorkflowPhase.COMPLETED.name().equals(session.workflowPhase())) {
+                && !Set.of(DesignWorkflowPhase.FINAL_REVIEW.name(), DesignWorkflowPhase.COMPLETED.name())
+                .contains(session.workflowPhase())) {
             throw new ConflictException("DECOMPOSED_DESIGN_WORKFLOW_ACTIVE",
                     "MCP LoopSpec proposals are blocked until the active decomposed design workflow completes");
         }
@@ -279,14 +367,310 @@ public class DesignerSessionService {
 
     public List<DesignerMessageRow> appendUserMessage(String sessionId, String content) {
         DesignerSessionRow session = get(sessionId);
-        int nextRevision = mapper.findCurrentDesignRequirementRevision(sessionId)
-                .map(row -> row.revision() + 1).orElse(1);
+        if (session.currentRequirementRevision() != null) {
+            throw new ConflictException("DISCUSSION_SCOPE_REQUIRED",
+                    "需求已拆包；请明确选择整体需求重开或具体工作包后再发送消息");
+        }
+        return appendRequirementMessage(sessionId, content, session.discussionRevision());
+    }
+
+    public List<DesignerMessageRow> appendRequirementMessage(String sessionId, String content,
+                                                              int expectedDiscussionRevision) {
+        DesignerSessionRow session = get(sessionId);
+        if (session.currentRequirementRevision() != null) {
+            throw new ConflictException("REQUIREMENT_REOPEN_REQUIRED", "需求已拆包，修改整体需求前必须先确认重开");
+        }
+        requireDiscussionRevision(session, expectedDiscussionRevision);
+        if (openRequirementDiscussionModelCalls(session.id()) >= MAX_MODEL_CALLS) {
+            DesignDiscussionRevisionRow discussion = currentDiscussion(session);
+            waitForRequirementDiscussion(session, discussion, "DESIGN_MODEL_CALL_LIMIT",
+                    "当前需求版本的 " + MAX_MODEL_CALLS + " 次模型调用预算已耗尽");
+            List<DesignerMessageRow> persisted = mapper.listDesignerMessages(session.id());
+            return persisted.isEmpty() ? List.of() : List.of(persisted.getLast());
+        }
         DesignerMessageRow user = appendMessage(session.id(), DesignerActor.USER,
-                normalizeMessage(content), "PERSISTED", nextRevision, null);
-        supersedeCurrentRequirement(session);
-        DesignRequirementRevisionRow revision = freezeRequirementRevision(get(sessionId), user);
-        DesignerMessageRow notice = dispatchDecomposer(get(sessionId), revision, false);
+                normalizeMessage(content), "PERSISTED", null, null);
+        DesignDiscussionRevisionRow discussion = createDiscussion(session, "REQUIREMENT", null,
+                expectedDiscussionRevision + 1, user.id(), 0);
+        DesignerMessageRow notice = dispatchRequirementDesigner(get(sessionId), discussion, user.content(), false);
         return List.of(user, notice);
+    }
+
+    public void confirmRequirement(String sessionId, int expectedDiscussionRevision) {
+        DesignerSessionRow session = get(sessionId);
+        requireDiscussionRevision(session, expectedDiscussionRevision);
+        if (session.currentRequirementRevision() != null) {
+            throw new ConflictException("REQUIREMENT_ALREADY_CONFIRMED", "当前整体需求已经冻结并拆包");
+        }
+        DesignDiscussionRevisionRow discussion = currentDiscussion(session);
+        if (!"REVIEWING".equals(discussion.state()) || blank(discussion.snapshotMarkdown())) {
+            throw new ConflictException("REQUIREMENT_DISCUSSION_INCOMPLETE", "请先完成问题回答并等待完整需求稿");
+        }
+        DesignerMessageRow source = mapper.listDesignerMessages(sessionId).stream()
+                .filter(message -> message.id().equals(discussion.designMessageId())).findFirst()
+                .orElseThrow(() -> new ConflictException("REQUIREMENT_SNAPSHOT_MISSING", "完整需求稿不存在"));
+        DesignRequirementRevisionRow revision = freezeRequirementRevision(session, source);
+        dispatchDecomposer(get(sessionId), revision, false);
+    }
+
+    public void reopenRequirement(String sessionId, int expectedDiscussionRevision) {
+        DesignerSessionRow session = get(sessionId);
+        requireDiscussionRevision(session, expectedDiscussionRevision);
+        if (session.currentRequirementRevision() == null) {
+            throw new ConflictException("REQUIREMENT_NOT_CONFIRMED", "整体需求仍处于讨论阶段");
+        }
+        abortQuietly(session.externalSessionId(), session.projectId());
+        supersedeCurrentRequirement(session);
+        int requirementDiscussionRevision = mapper.findLatestDesignDiscussionRevision(session.id(), "REQUIREMENT")
+                .map(DesignDiscussionRevisionRow::revision).orElse(0);
+        DesignerSessionRow reopened = new DesignerSessionRow(session.id(), session.projectId(),
+                DesignerSessionState.REVIEWING.name(), session.accessMode(), session.createdAt(), now(),
+                session.version(), null, "PENDING", session.loopDraftId(),
+                DesignWorkflowPhase.DISCUSSING_REQUIREMENT.name(), session.designRevision(),
+                session.redesignCount(), null, null, "REQUIREMENT", requirementDiscussionRevision, "NONE");
+        lifecycle.mutateWithoutTransition(() -> mapper.updateDesignerSessionProjection(reopened),
+                () -> new ConflictException("DESIGNER_SESSION_VERSION_CONFLICT", "设计会话被并发更新"));
+        appendMessage(session.id(), DesignerActor.SYSTEM,
+                "整体需求已重新打开。原拆包与批准记录保留为历史但不再生效；发送补充后不会自动拆包。",
+                "PERSISTED", null, null);
+        publish(get(session.id()), "STATUS", DesignerActor.SYSTEM, true, "", "整体需求等待继续讨论");
+    }
+
+    public List<DesignerMessageRow> appendPackageMessage(String sessionId, String packageId, String content,
+                                                         int expectedDiscussionRevision,
+                                                         int expectedDesignRevision) {
+        DesignerSessionRow session = get(sessionId);
+        requireDiscussionRevision(session, expectedDiscussionRevision);
+        if (!packageId.equals(session.discussionScope()) || !packageId.equals(session.activeWorkPackageId())) {
+            throw new ConflictException("DISCUSSION_SCOPE_CONFLICT", "当前讨论作用域不是 " + packageId);
+        }
+        DesignWorkPackageRow workPackage = requireCurrentPackage(session, packageId);
+        if (!DesignWorkPackageState.REVIEWING.name().equals(workPackage.state())) {
+            throw new ConflictException("WORK_PACKAGE_NOT_REVIEWING", "只有待确认工作包可以继续讨论");
+        }
+        if (workPackage.designRevision() != expectedDesignRevision) {
+            throw new ConflictException("WORK_PACKAGE_DESIGN_REVISION_CONFLICT", "工作包设计已更新，请刷新后重试");
+        }
+        if (workPackage.discussionRoundCount() >= MAX_HUMAN_PACKAGE_REVISIONS) {
+            throw new ConflictException("WORK_PACKAGE_DISCUSSION_LIMIT_REACHED",
+                    "每个工作包初稿后最多允许 5 轮人工修改");
+        }
+        DesignerMessageRow user = appendMessage(session.id(), DesignerActor.USER, normalizeMessage(content),
+                "PERSISTED", session.currentRequirementRevision(), packageId);
+        int discussionRevision = nextDiscussionRevision(session.id(), packageId);
+        createDiscussion(session, packageId, packageId, discussionRevision, user.id(), 0);
+        DesignWorkPackageRow revised = updateWorkPackage(workPackage, DesignWorkPackageState.REVIEWING,
+                workPackage.designerExternalSessionId(), workPackage.designerExternalSessionState(),
+                workPackage.designMessageId(), workPackage.designRevision(), workPackage.redesignCount(),
+                workPackage.designerTransportRetryCount(), workPackage.compilerSummary(), workPackage.handoffSummary(),
+                null, null, null, workPackage.discussionRoundCount() + 1, null, null);
+        dispatchPackageDesigner(get(session.id()), revised,
+                "User feedback for this package:\n" + user.content()
+                        + "\nProduce a complete replacement design after the mandatory questions.", false);
+        return List.of(user);
+    }
+
+    public void approvePackage(String sessionId, String packageId, int expectedDiscussionRevision,
+                               int expectedDesignRevision) {
+        DesignerSessionRow session = get(sessionId);
+        requireDiscussionRevision(session, expectedDiscussionRevision);
+        DesignWorkPackageRow workPackage = requireCurrentPackage(session, packageId);
+        if (!DesignWorkPackageState.REVIEWING.name().equals(workPackage.state())
+                || workPackage.designRevision() != expectedDesignRevision) {
+            throw new ConflictException("WORK_PACKAGE_APPROVAL_STALE",
+                    "只能接受当前已验证的设计修订，请刷新后重试");
+        }
+        LoopSpecCompilationRow compilation = mapper.findLoopSpecCompilationForPackageRevision(
+                session.id(), packageId, expectedDesignRevision).orElseThrow(() -> new ConflictException(
+                "WORK_PACKAGE_CANDIDATE_MISSING", "当前设计修订没有可接受的候选 LoopSpec"));
+        if (!LoopSpecCompilationState.COMPLETED.name().equals(compilation.state())) {
+            throw new ConflictException("WORK_PACKAGE_CANDIDATE_INVALID", "当前候选尚未通过确定性校验");
+        }
+        DesignWorkPackageRow approved = updateWorkPackage(workPackage, DesignWorkPackageState.APPROVED,
+                workPackage.designerExternalSessionId(), workPackage.designerExternalSessionState(),
+                workPackage.designMessageId(), workPackage.designRevision(), workPackage.redesignCount(),
+                workPackage.designerTransportRetryCount(), workPackage.compilerSummary(), workPackage.handoffSummary(),
+                null, null, expectedDesignRevision, workPackage.discussionRoundCount(), null, now());
+        mapper.findLatestDesignDiscussionRevision(session.id(), packageId).ifPresent(discussion ->
+                updateDiscussion(discussion, "APPROVED", discussion.sourceMessageId(), discussion.designMessageId(),
+                        discussion.snapshotMarkdown(), discussion.decisionLogJson(), discussion.questionAnswered(),
+                        discussion.questionRetryCount(), compilation.id(), null, null));
+        appendMessage(session.id(), DesignerActor.SYSTEM, packageId + " 已接受。", "APPROVED",
+                session.currentRequirementRevision(), packageId);
+        advancePackageOrAggregate(get(session.id()), approved);
+    }
+
+    public List<String> reopenPackage(String sessionId, String packageId, int expectedDiscussionRevision,
+                                      int expectedApprovedDesignRevision) {
+        DesignerSessionRow session = get(sessionId);
+        requireDiscussionRevision(session, expectedDiscussionRevision);
+        DesignWorkPackageRow selected = requireCurrentPackage(session, packageId);
+        if (!DesignWorkPackageState.APPROVED.name().equals(selected.state())
+                || selected.approvedDesignRevision() == null
+                || selected.approvedDesignRevision() != expectedApprovedDesignRevision) {
+            throw new ConflictException("WORK_PACKAGE_REOPEN_STALE", "工作包批准版本已变化，请刷新后重试");
+        }
+        List<DesignWorkPackageRow> packages = mapper.listDesignWorkPackages(selected.requirementRevisionId());
+        Set<String> staleIds = transitiveDependents(packages, packageId);
+        for (DesignWorkPackageRow row : packages) {
+            if (row.packageId().equals(packageId)) {
+                updateWorkPackage(row, DesignWorkPackageState.REVIEWING, row.designerExternalSessionId(),
+                        row.designerExternalSessionState(), row.designMessageId(), row.designRevision(),
+                        row.redesignCount(), row.designerTransportRetryCount(), row.compilerSummary(),
+                        row.handoffSummary(), null, null, null, row.discussionRoundCount(), null, null);
+            } else if (staleIds.contains(row.packageId())
+                    && Set.of(DesignWorkPackageState.APPROVED.name(), DesignWorkPackageState.REVIEWING.name(),
+                    DesignWorkPackageState.PENDING.name())
+                    .contains(row.state())) {
+                updateWorkPackage(row, DesignWorkPackageState.STALE, row.designerExternalSessionId(),
+                        row.designerExternalSessionState(), row.designMessageId(), row.designRevision(),
+                        row.redesignCount(), row.designerTransportRetryCount(), row.compilerSummary(),
+                        row.handoffSummary(), null, null, null, row.discussionRoundCount(), packageId, null);
+            }
+        }
+        int scopeRevision = mapper.findLatestDesignDiscussionRevision(session.id(), packageId)
+                .map(DesignDiscussionRevisionRow::revision).orElse(0);
+        DesignerSessionRow reviewing = updateDesignerDiscussionProjection(get(session.id()),
+                DesignerSessionState.REVIEWING, DesignWorkflowPhase.REVIEWING_PACKAGE,
+                selected.designerExternalSessionId(), selected.designerExternalSessionState(), packageId,
+                scopeRevision, "SYNCED", packageId);
+        appendMessage(session.id(), DesignerActor.SYSTEM,
+                packageId + " 已重新打开；传递依赖包已标记失效：" + staleIds, "PERSISTED",
+                session.currentRequirementRevision(), packageId);
+        publish(reviewing, "STATUS", DesignerActor.SYSTEM, true, "", packageId + " 等待继续讨论");
+        return List.copyOf(staleIds);
+    }
+
+    private DesignDiscussionRevisionRow createDiscussion(DesignerSessionRow session, String scopeKey,
+                                                         String packageId, int revision,
+                                                         String sourceMessageId, int questionRetryCount) {
+        String now = now();
+        DesignDiscussionRevisionRow row = new DesignDiscussionRevisionRow(UUID.randomUUID().toString(),
+                session.id(), session.currentRequirementRevision(), scopeKey, packageId, revision, "QUESTIONING",
+                sourceMessageId, null, "", "[]", true, false, questionRetryCount, null,
+                null, null, now, now, 0);
+        if (mapper.insertDesignDiscussionRevision(row) != 1) {
+            throw new ConflictException("DESIGN_DISCUSSION_CREATE_CONFLICT", "设计讨论修订无法保存");
+        }
+        return mapper.findDesignDiscussionRevision(row.id()).orElseThrow();
+    }
+
+    private DesignerMessageRow dispatchRequirementDesigner(DesignerSessionRow input,
+                                                            DesignDiscussionRevisionRow discussion,
+                                                            String feedback, boolean questionRepair) {
+        if (!openCode.healthy()) {
+            waitForRequirementDiscussion(input, discussion, "OPENCODE_DESIGNER_UNAVAILABLE",
+                    "OpenCode Designer runtime is unavailable");
+            return appendMessage(input.id(), DesignerActor.SYSTEM,
+                    "SYSTEM_ERROR[SESSION] OPENCODE_DESIGNER_UNAVAILABLE: 整体需求讨论已保存，可在运行时恢复后继续。",
+                    "PENDING_HANDOFF");
+        }
+        ProjectRow project = projects.get(input.projectId());
+        try {
+            OpenCodeClient.OpenCodeSession remote = !questionRepair && reusableDesigner(input)
+                    ? designerRemote(input)
+                    : openCode.createSession(Path.of(project.rootPath()),
+                    "OpenCode Loopper Requirement Designer (READ_ONLY)", configuredModel(),
+                    OpenCodeClient.SessionProfile.DESIGNER_INTERACTIVE_READ_ONLY);
+            DesignerSessionRow running = updateDesignerDiscussionProjection(input, DesignerSessionState.RUNNING,
+                    DesignWorkflowPhase.DISCUSSING_REQUIREMENT, remote.id(), "RUNNING", "REQUIREMENT",
+                    discussion.revision(), "SYNCING", null);
+            String previous = mapper.listDesignDiscussionRevisions(input.id()).stream()
+                    .filter(row -> "REQUIREMENT".equals(row.scopeKey()) && row.revision() < discussion.revision())
+                    .filter(row -> !blank(row.snapshotMarkdown())).reduce((first, second) -> second)
+                    .map(DesignDiscussionRevisionRow::snapshotMarkdown).orElse("（首次讨论，暂无上一版）");
+            openCode.promptAsync(remote, requirementDiscussionPrompt(running, project, previous, feedback, questionRepair));
+            publish(running, "STATUS", DesignerActor.DESIGNER, true, "",
+                    questionRepair ? "设计师正在补做必需的设计问题" : "设计师将先询问 1–3 个设计问题");
+            return appendMessage(input.id(), DesignerActor.SYSTEM,
+                    questionRepair ? "设计师遗漏了必需问题，已在全新只读 Session 中补问。"
+                            : "本轮整体需求讨论已交给只读设计师；回答问题后会保存完整替代需求稿。",
+                    "PENDING_HANDOFF", null, null);
+        } catch (RuntimeException failure) {
+            waitForRequirementDiscussion(input, discussion, "OPENCODE_DESIGNER_HANDOFF_FAILED",
+                    failure.getMessage());
+            return appendMessage(input.id(), DesignerActor.SYSTEM,
+                    "SYSTEM_ERROR[SESSION] OPENCODE_DESIGNER_HANDOFF_FAILED: " + safeMessage(failure.getMessage()),
+                    "TERMINAL_ERROR", null, null);
+        }
+    }
+
+    private void pollRequirementDesigner(DesignerSessionRow input) {
+        DesignerSessionRow session = get(input.id());
+        DesignDiscussionRevisionRow discussion = currentDiscussion(session);
+        OpenCodeClient.OpenCodeSession remote = designerRemote(session);
+        try {
+            List<OpenCodeClient.PendingQuestion> pending = openCode.pendingQuestions(remote);
+            if (!pending.isEmpty()) {
+                if (!same(session.externalSessionState(), "WAITING_INPUT")) {
+                    session = updateDesignerDiscussionProjection(session, DesignerSessionState.RUNNING,
+                            DesignWorkflowPhase.DISCUSSING_REQUIREMENT, remote.id(), "WAITING_INPUT",
+                            "REQUIREMENT", discussion.revision(), "SYNCING", null);
+                }
+                publish(session, "STATUS", DesignerActor.DESIGNER, true, openCode.sessionLiveOutput(remote),
+                        "设计师正在等待整体需求问题的回答");
+                return;
+            }
+            OpenCodeClient.SessionStatus status = openCode.sessionStatus(remote);
+            if (status.failed()) {
+                waitForRequirementDiscussion(session, discussion,
+                        "OPENCODE_DESIGNER_" + safeState(status.state()), statusDetail(status));
+            } else if (status.completed()) {
+                if (discussion.questionRequired() && !discussion.questionAnswered()) {
+                    abortQuietly(remote.id(), session.projectId());
+                    if (discussion.questionRetryCount() < 1) {
+                        DesignDiscussionRevisionRow repaired = updateDiscussion(discussion, "QUESTIONING",
+                                discussion.sourceMessageId(), discussion.designMessageId(), discussion.snapshotMarkdown(),
+                                discussion.decisionLogJson(), false, discussion.questionRetryCount() + 1,
+                                discussion.candidateCompilationId(), "DESIGN_QUESTION_REQUIRED",
+                                "Designer completed before asking the required question");
+                        dispatchRequirementDesigner(get(session.id()), repaired,
+                                messageContent(repaired.sourceMessageId()), true);
+                    } else {
+                        waitForRequirementDiscussion(session, discussion, "DESIGN_QUESTION_REQUIRED",
+                                "Designer twice completed without asking the required design question");
+                    }
+                    return;
+                }
+                String markdown = designerMarkdown(openCode.sessionOutput(remote));
+                if (blank(markdown) || markdown.getBytes(java.nio.charset.StandardCharsets.UTF_8).length
+                        > MAX_FROZEN_DESIGN_LENGTH) {
+                    waitForRequirementDiscussion(session, discussion, blank(markdown)
+                                    ? "DESIGN_OUTPUT_MISSING" : "DESIGN_OUTPUT_TOO_LARGE",
+                            "Designer must return one complete Markdown requirement snapshot no larger than 24 KiB");
+                    return;
+                }
+                DesignerMessageRow design = appendMessage(session.id(), DesignerActor.DESIGNER, markdown,
+                        "PERSISTED", null, null);
+                updateDiscussion(discussion, "REVIEWING", discussion.sourceMessageId(), design.id(), markdown,
+                        discussion.decisionLogJson(), true, discussion.questionRetryCount(), null, null, null);
+                DesignerSessionRow reviewing = updateDesignerDiscussionProjection(get(session.id()),
+                        DesignerSessionState.REVIEWING, DesignWorkflowPhase.DISCUSSING_REQUIREMENT,
+                        remote.id(), "COMPLETED", "REQUIREMENT", discussion.revision(), "SYNCED", null);
+                publish(reviewing, "COMPLETED", DesignerActor.DESIGNER, true, "",
+                        "完整需求稿已保存；继续讨论或确认后开始拆包");
+            } else if (!same(session.externalSessionState(), status.state())) {
+                updateDesignerDiscussionProjection(session, DesignerSessionState.RUNNING,
+                        DesignWorkflowPhase.DISCUSSING_REQUIREMENT, remote.id(), status.state(),
+                        "REQUIREMENT", discussion.revision(), "SYNCING", null);
+            }
+        } catch (RuntimeException failure) {
+            waitForRequirementDiscussion(session, discussion, "OPENCODE_DESIGNER_STATUS_FAILED",
+                    failure.getMessage());
+        }
+    }
+
+    private void waitForRequirementDiscussion(DesignerSessionRow session, DesignDiscussionRevisionRow discussion,
+                                              String code, String detail) {
+        updateDiscussion(discussion, "WAITING_INPUT", discussion.sourceMessageId(), discussion.designMessageId(),
+                discussion.snapshotMarkdown(), discussion.decisionLogJson(), discussion.questionAnswered(),
+                discussion.questionRetryCount(), discussion.candidateCompilationId(), code, safeMessage(detail));
+        DesignerSessionRow waiting = updateDesignerDiscussionProjection(get(session.id()),
+                DesignerSessionState.WAITING_INPUT, DesignWorkflowPhase.DISCUSSING_REQUIREMENT,
+                session.externalSessionId(), "FAILED", "REQUIREMENT", discussion.revision(), "FAILED", null);
+        appendMessage(session.id(), DesignerActor.SYSTEM,
+                "SYSTEM_ERROR[SESSION] " + code + ": " + safeMessage(detail), "TERMINAL_ERROR", null, null);
+        publish(waiting, "ERROR", DesignerActor.SYSTEM, false, "", code + ": " + safeMessage(detail));
     }
 
     /** Explicit recovery: compile the latest frozen design in a brand-new read-only Session. */
@@ -358,7 +742,11 @@ public class DesignerSessionService {
             catch (RuntimeException ignoredConcurrentTransition) { }
         }
         for (DesignerSessionRow session : mapper.activeDesignerHandoffs()) {
-            if (session.currentRequirementRevision() == null) try { pollDesigner(session); }
+            if (session.currentRequirementRevision() == null
+                    && DesignWorkflowPhase.DISCUSSING_REQUIREMENT.name().equals(session.workflowPhase())) {
+                try { pollRequirementDesigner(session); }
+                catch (RuntimeException ignoredConcurrentTransition) { }
+            } else if (session.currentRequirementRevision() == null) try { pollDesigner(session); }
             catch (RuntimeException ignoredConcurrentTransition) { }
         }
         for (LoopSpecCompilationRow compilation : mapper.activeLoopSpecCompilations()) {
@@ -408,22 +796,24 @@ public class DesignerSessionService {
     private DesignRequirementRevisionRow freezeRequirementRevision(DesignerSessionRow session,
                                                                     DesignerMessageRow sourceMessage) {
         requireBoundDraft(session);
-        int revision = sourceMessage.requirementRevision() == null ? 1 : sourceMessage.requirementRevision();
-        String requirement = mapper.listDesignerMessages(session.id()).stream()
-                .filter(message -> DesignerActor.USER.name().equals(message.actor()))
-                .filter(message -> message.ordinal() <= sourceMessage.ordinal())
-                .map(DesignerMessageRow::content).filter(value -> !blank(value))
-                .reduce((left, right) -> left + "\n\n" + right).orElse(sourceMessage.content());
+        int revision = mapper.listDesignRequirementRevisions(session.id()).stream()
+                .mapToInt(DesignRequirementRevisionRow::revision).max().orElse(0) + 1;
+        // Every discussion turn stores a complete replacement snapshot. Freezing the historical
+        // user messages again would duplicate requirements and manufacture uncovered RQ segments.
+        // The conversation and decision log remain persisted separately for audit and recovery.
+        String requirement = sourceMessage.content();
         List<RequirementSegment> segments = segmentRequirements(requirement);
         LoopDraftRow draft = drafts.get(session.loopDraftId());
         String now = now();
         DesignRequirementRevisionRow row = new DesignRequirementRevisionRow(UUID.randomUUID().toString(),
                 session.id(), revision, sourceMessage.id(), requirement, write(segments), draft.version(),
-                DesignRequirementRevisionState.ACTIVE.name(), 0, MAX_MODEL_CALLS, now, now, 0);
+                DesignRequirementRevisionState.ACTIVE.name(), openRequirementDiscussionModelCalls(session.id()),
+                MAX_MODEL_CALLS, now, now, 0);
         lifecycle.create(requirementSubject(row, session.projectId()), row.state(), Map.of("revision", revision),
                 () -> mapper.insertDesignRequirementRevision(row),
                 () -> new ConflictException("DESIGN_REQUIREMENT_REVISION_CREATE_CONFLICT",
                         "The complete requirement revision could not be frozen"));
+        mapper.bindOpenRequirementDiscussions(session.id(), revision);
         updateDesignerProjection(get(session.id()), DesignerSessionState.PENDING_HANDOFF,
                 DesignWorkflowPhase.DECOMPOSING, null, "PENDING", session.designRevision(), 0,
                 revision, null);
@@ -691,7 +1081,8 @@ public class DesignerSessionService {
                     item.title(), item.objective(), write(item.scopeIn()), write(item.scopeOut()),
                     write(item.dependencies()), write(item.deliverables()), write(item.acceptanceIntent()),
                     write(item.requirementRefs()), DesignWorkPackageState.PENDING.name(), null, "PENDING",
-                    null, 0, 0, 0, null, null, null, null, now, now, 0);
+                    null, 0, 0, 0, null, null, null, null,
+                    null, 0, null, null, now, now, 0);
             lifecycle.create(workPackageSubject(row, session.projectId()), row.state(), Map.of("packageId", item.id()),
                     () -> mapper.insertDesignWorkPackage(row),
                     () -> new ConflictException("DESIGN_WORK_PACKAGE_CREATE_CONFLICT",
@@ -719,28 +1110,37 @@ public class DesignerSessionService {
         }
         ProjectRow project = projects.get(session.projectId());
         try {
-            OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
+            boolean questionRepair = replacementPrompt != null && replacementPrompt.startsWith("QUESTION_REPAIR:");
+            OpenCodeClient.OpenCodeSession remote = !questionRepair && !blank(input.designerExternalSessionId())
+                    && !same(input.designerExternalSessionState(), "FAILED")
+                    ? new OpenCodeClient.OpenCodeSession(input.designerExternalSessionId(), Path.of(project.rootPath()))
+                    : openCode.createSession(Path.of(project.rootPath()),
                     "OpenCode Loopper Designer " + input.packageId() + " (READ_ONLY)", configuredModel(),
                     OpenCodeClient.SessionProfile.DESIGNER_INTERACTIVE_READ_ONLY);
             int redesignCount = redesign ? input.redesignCount() + 1 : input.redesignCount();
-            DesignWorkPackageRow designing = updateWorkPackage(input, DesignWorkPackageState.DESIGNING,
+            DesignDiscussionRevisionRow discussion = mapper.findLatestDesignDiscussionRevision(
+                    session.id(), input.packageId()).filter(row -> "QUESTIONING".equals(row.state()))
+                    .orElseGet(() -> createDiscussion(session, input.packageId(), input.packageId(),
+                            nextDiscussionRevision(session.id(), input.packageId()), null, 0));
+            DesignWorkPackageRow designing = updateWorkPackage(input, DesignWorkPackageState.QUESTIONING,
                     remote.id(), "RUNNING", input.designMessageId(), input.designRevision(), redesignCount,
                     input.designerTransportRetryCount(), input.compilerSummary(), input.handoffSummary(), null, null);
-            DesignWorkflowPhase phase = redesign ? DesignWorkflowPhase.REDESIGNING : DesignWorkflowPhase.DESIGNING;
-            DesignerSessionRow running = updateDesignerProjection(get(session.id()), DesignerSessionState.RUNNING,
-                    phase, remote.id(), "RUNNING", session.designRevision(), redesignCount,
-                    revision.revision(), input.packageId());
+            DesignerSessionRow running = updateDesignerDiscussionProjection(get(session.id()),
+                    DesignerSessionState.RUNNING, DesignWorkflowPhase.QUESTIONING_PACKAGE,
+                    remote.id(), "RUNNING", input.packageId(), discussion.revision(), "SYNCING", input.packageId());
             if (!consumeModelCall(running, revision, "WORK_PACKAGE_MODEL_CALL_LIMIT")) {
                 abortQuietly(remote.id(), session.projectId());
                 return;
             }
-            openCode.promptAsync(remote, replacementPrompt == null
+            String prefix = questionRepair ? replacementPrompt.substring("QUESTION_REPAIR:".length()) : replacementPrompt;
+            openCode.promptAsync(remote, prefix == null
                     ? packageDesignerPrompt(running, project, revision, designing)
-                    : replacementPrompt + "\n\n" + packageDesignerPrompt(running, project, revision, designing));
+                    : prefix + "\n\n" + packageDesignerPrompt(running, project, revision, designing));
             publish(running, "STATUS", DesignerActor.DESIGNER, true, "",
-                    input.packageId() + " " + (redesign ? "正在生成完整替代稿" : "正在生成独立 Markdown 设计稿"));
+                    input.packageId() + " 正在先询问 1–3 个设计问题");
             appendMessage(session.id(), DesignerActor.SYSTEM,
-                    input.packageId() + " 已交给全新的只读设计师 Session。", "PENDING_HANDOFF",
+                    input.packageId() + (questionRepair ? " 已在全新只读 Session 中补做必需问题。"
+                            : " 已交给只读设计师；回答问题后生成完整替代设计稿。"), "PENDING_HANDOFF",
                     revision.revision(), input.packageId());
         } catch (SessionFailure failure) {
             failPackageDesigner(input, session, failure.code(), failure.getMessage(), true);
@@ -758,18 +1158,21 @@ public class DesignerSessionService {
         ProjectRow project = projects.get(session.projectId());
         OpenCodeClient.OpenCodeSession remote = new OpenCodeClient.OpenCodeSession(
                 workPackage.designerExternalSessionId(), Path.of(project.rootPath()));
+        DesignDiscussionRevisionRow discussion = mapper.findLatestDesignDiscussionRevision(
+                session.id(), workPackage.packageId()).orElseThrow(() -> new ConflictException(
+                "DESIGN_DISCUSSION_MISSING", "工作包讨论快照不存在"));
         try {
             requireDraftUnchanged(session, revision.sourceDraftVersion());
             List<OpenCodeClient.PendingQuestion> pending = openCode.pendingQuestions(remote);
             if (!pending.isEmpty()) {
                 // Designer is the only model role allowed to request user input.
-                DesignWorkPackageRow waiting = updateWorkPackage(workPackage, DesignWorkPackageState.DESIGNING,
+                DesignWorkPackageRow waiting = updateWorkPackage(workPackage, DesignWorkPackageState.QUESTIONING,
                         remote.id(), "WAITING_INPUT", workPackage.designMessageId(), workPackage.designRevision(),
                         workPackage.redesignCount(), workPackage.designerTransportRetryCount(),
                         workPackage.compilerSummary(), workPackage.handoffSummary(), null, null);
-                updateDesignerProjection(session, DesignerSessionState.RUNNING,
-                        DesignWorkflowPhase.valueOf(session.workflowPhase()), remote.id(), "WAITING_INPUT",
-                        session.designRevision(), session.redesignCount(), revision.revision(), waiting.packageId());
+                updateDesignerDiscussionProjection(session, DesignerSessionState.RUNNING,
+                        DesignWorkflowPhase.QUESTIONING_PACKAGE, remote.id(), "WAITING_INPUT",
+                        waiting.packageId(), discussion.revision(), "SYNCING", waiting.packageId());
                 publish(session, "STATUS", DesignerActor.DESIGNER, true, openCode.sessionLiveOutput(remote),
                         workPackage.packageId() + " 的设计师正在等待你的回答");
                 return;
@@ -785,6 +1188,28 @@ public class DesignerSessionService {
                 failPackageDesigner(workPackage, session,
                         "OPENCODE_PACKAGE_DESIGNER_" + safeState(status.state()), statusDetail(status), true);
             } else if (status.completed()) {
+                if (discussion.questionRequired() && !discussion.questionAnswered()) {
+                    abortQuietly(remote.id(), session.projectId());
+                    if (discussion.questionRetryCount() < 1) {
+                        DesignDiscussionRevisionRow repaired = updateDiscussion(discussion, "QUESTIONING",
+                                discussion.sourceMessageId(), discussion.designMessageId(),
+                                discussion.snapshotMarkdown(), discussion.decisionLogJson(), false,
+                                discussion.questionRetryCount() + 1, discussion.candidateCompilationId(),
+                                "DESIGN_QUESTION_REQUIRED", "Designer completed before asking the required question");
+                        DesignWorkPackageRow retrying = updateWorkPackage(workPackage,
+                                DesignWorkPackageState.WAITING_INPUT, remote.id(), "FAILED",
+                                workPackage.designMessageId(), workPackage.designRevision(),
+                                workPackage.redesignCount(), workPackage.designerTransportRetryCount(),
+                                workPackage.compilerSummary(), workPackage.handoffSummary(),
+                                "DESIGN_QUESTION_REQUIRED", "Designer completed before asking the required question");
+                        dispatchPackageDesigner(get(session.id()), retrying,
+                                "QUESTION_REPAIR:You omitted the mandatory design question. Ask it before producing Markdown.", false);
+                    } else {
+                        waitForDesignInput(session, revision, workPackage, "DESIGN_QUESTION_REQUIRED",
+                                "Designer twice completed without asking the required work-package design question");
+                    }
+                    return;
+                }
                 String markdown = designerMarkdown(openCode.sessionOutput(remote));
                 if (markdown.isBlank()) {
                     failPackageDesigner(workPackage, session, "DESIGN_OUTPUT_MISSING",
@@ -798,6 +1223,8 @@ public class DesignerSessionService {
                 }
                 DesignerMessageRow source = appendMessage(session.id(), DesignerActor.DESIGNER, markdown,
                         "PERSISTED", revision.revision(), workPackage.packageId());
+                updateDiscussion(discussion, "COMPILING", discussion.sourceMessageId(), source.id(), markdown,
+                        discussion.decisionLogJson(), true, discussion.questionRetryCount(), null, null, null);
                 DesignWorkPackageRow compiling = updateWorkPackage(workPackage, DesignWorkPackageState.COMPILING,
                         remote.id(), "COMPLETED", source.id(), workPackage.designRevision() + 1,
                         workPackage.redesignCount(), workPackage.designerTransportRetryCount(), null, null, null, null);
@@ -809,7 +1236,7 @@ public class DesignerSessionService {
                         workPackage.packageId() + " 设计稿已冻结，正在启动全新的只读规范编译器");
                 startCompilation(compilerSession, compiling, source);
             } else if (!same(workPackage.designerExternalSessionState(), status.state())) {
-                updateWorkPackage(workPackage, DesignWorkPackageState.DESIGNING, remote.id(), status.state(),
+                updateWorkPackage(workPackage, DesignWorkPackageState.valueOf(workPackage.state()), remote.id(), status.state(),
                         workPackage.designMessageId(), workPackage.designRevision(), workPackage.redesignCount(),
                         workPackage.designerTransportRetryCount(), workPackage.compilerSummary(),
                         workPackage.handoffSummary(), workPackage.lastErrorCode(), workPackage.lastErrorDetail());
@@ -1213,11 +1640,12 @@ public class DesignerSessionService {
             String summary = blank(envelope.summary()) ? workPackage.packageId() + " 已完成结构化编译。"
                     : bounded(envelope.summary(), 1_000);
             String handoff = boundedUtf8(envelope.handoffSummary(), MAX_HANDOFF_SUMMARY_LENGTH);
-            updateCompilation(compilation, LoopSpecCompilationState.COMPLETED, remote.id(), "COMPLETED",
+            LoopSpecCompilationRow completedCompilation = updateCompilation(compilation,
+                    LoopSpecCompilationState.COMPLETED, remote.id(), "COMPLETED",
                     compilation.repairCount(), null, null, session.projectId(), write(envelope),
                     StructuredModelStep.FINAL_JSON, compilation.planningJson());
             DesignWorkPackageRow completed = updateWorkPackage(getWorkPackage(workPackage.id()),
-                    DesignWorkPackageState.COMPLETED, workPackage.designerExternalSessionId(),
+                    DesignWorkPackageState.REVIEWING, workPackage.designerExternalSessionId(),
                     workPackage.designerExternalSessionState(), workPackage.designMessageId(),
                     workPackage.designRevision(), workPackage.redesignCount(),
                     workPackage.designerTransportRetryCount(), summary, handoff, null, null);
@@ -1226,7 +1654,17 @@ public class DesignerSessionService {
             appendMessage(session.id(), DesignerActor.VALIDATOR,
                     workPackage.packageId() + " 确定性校验通过：1–3 个 Stage、验收来源、验证器覆盖及 Java 单测门禁均满足。",
                     "PASS", session.currentRequirementRevision(), workPackage.packageId());
-            advancePackageOrAggregate(validating, completed);
+            DesignDiscussionRevisionRow discussion = mapper.findLatestDesignDiscussionRevision(
+                    session.id(), workPackage.packageId()).orElseThrow();
+            updateDiscussion(discussion, "REVIEWING", discussion.sourceMessageId(),
+                    workPackage.designMessageId(), discussion.snapshotMarkdown(), discussion.decisionLogJson(),
+                    discussion.questionAnswered(), discussion.questionRetryCount(), completedCompilation.id(), null, null);
+            DesignerSessionRow reviewing = updateDesignerDiscussionProjection(get(session.id()),
+                    DesignerSessionState.REVIEWING, DesignWorkflowPhase.REVIEWING_PACKAGE,
+                    session.externalSessionId(), "COMPLETED", workPackage.packageId(), discussion.revision(),
+                    "SYNCED", workPackage.packageId());
+            publish(reviewing, "COMPLETED", DesignerActor.VALIDATOR, true, "",
+                    workPackage.packageId() + " 候选 LoopSpec 已同步，等待人工接受");
         } catch (BadRequestException invalid) {
             packageCompilerRejected(getCompilation(compilation.id()), get(session.id()),
                     getWorkPackage(workPackage.id()), remote, invalid.code(), invalid.getMessage());
@@ -1329,15 +1767,29 @@ public class DesignerSessionService {
         DesignRequirementRevisionRow revision = currentRequirement(session.id());
         requireDraftUnchanged(session, revision.sourceDraftVersion());
         List<DesignWorkPackageRow> packages = mapper.listDesignWorkPackages(revision.id());
+        DesignWorkPackageRow awaitingReview = packages.stream()
+                .filter(row -> row.ordinal() > completed.ordinal())
+                .filter(row -> DesignWorkPackageState.REVIEWING.name().equals(row.state()))
+                .findFirst().orElse(null);
+        if (awaitingReview != null) {
+            int discussionRevision = mapper.findLatestDesignDiscussionRevision(session.id(), awaitingReview.packageId())
+                    .map(DesignDiscussionRevisionRow::revision).orElse(0);
+            updateDesignerDiscussionProjection(get(session.id()), DesignerSessionState.REVIEWING,
+                    DesignWorkflowPhase.REVIEWING_PACKAGE, awaitingReview.designerExternalSessionId(),
+                    awaitingReview.designerExternalSessionState(), awaitingReview.packageId(), discussionRevision,
+                    "SYNCED", awaitingReview.packageId());
+            return;
+        }
         DesignWorkPackageRow next = packages.stream()
                 .filter(row -> row.ordinal() > completed.ordinal())
-                .filter(row -> DesignWorkPackageState.PENDING.name().equals(row.state()))
+                .filter(row -> Set.of(DesignWorkPackageState.PENDING.name(), DesignWorkPackageState.STALE.name())
+                        .contains(row.state()))
                 .findFirst().orElse(null);
         if (next != null) {
             dispatchPackageDesigner(get(session.id()), next, null, false);
             return;
         }
-        if (packages.stream().anyMatch(row -> !DesignWorkPackageState.COMPLETED.name().equals(row.state()))) {
+        if (packages.stream().anyMatch(row -> !DesignWorkPackageState.APPROVED.name().equals(row.state()))) {
             waitForDesignInput(session, revision, completed, "WORK_PACKAGE_SEQUENCE_INCOMPLETE",
                     "Not every work package has completed successfully");
             return;
@@ -1353,8 +1805,13 @@ public class DesignerSessionService {
         List<LoopSpec.StageSpec> stages = new ArrayList<>();
         List<PackageCompilationEnvelope> compiled = new ArrayList<>();
         for (DesignWorkPackageRow workPackage : packages) {
-            LoopSpecCompilationRow compilation = mapper.findLatestLoopSpecCompilationForPackage(
-                    session.id(), workPackage.packageId()).orElseThrow(() -> new ConflictException(
+            if (workPackage.approvedDesignRevision() == null) {
+                throw new ConflictException("WORK_PACKAGE_APPROVAL_MISSING",
+                        "Missing approved revision for " + workPackage.packageId());
+            }
+            LoopSpecCompilationRow compilation = mapper.findLoopSpecCompilationForPackageRevision(
+                    session.id(), workPackage.packageId(), workPackage.approvedDesignRevision())
+                    .orElseThrow(() -> new ConflictException(
                     "WORK_PACKAGE_COMPILATION_MISSING", "Missing compilation for " + workPackage.packageId()));
             if (!LoopSpecCompilationState.COMPLETED.name().equals(compilation.state())
                     || blank(compilation.compiledPackageJson())) {
@@ -1391,12 +1848,12 @@ public class DesignerSessionService {
                     "最终聚合校验通过：" + packages.size() + " 个工作包、" + stages.size()
                             + " 个 Stage 已按包顺序写入 Review Gate；确认前仍未创建 Task。",
                     "PASS", revision.revision(), null);
-            DesignerSessionRow completed = updateDesignerProjection(get(session.id()),
-                    DesignerSessionState.COMPLETED, DesignWorkflowPhase.COMPLETED,
-                    session.externalSessionId(), session.externalSessionState(), session.designRevision(),
-                    session.redesignCount(), revision.revision(), null);
+            DesignerSessionRow completed = updateDesignerDiscussionProjection(get(session.id()),
+                    DesignerSessionState.REVIEWING, DesignWorkflowPhase.FINAL_REVIEW,
+                    session.externalSessionId(), session.externalSessionState(), "FINAL",
+                    session.discussionRevision(), "SYNCED", null);
             publish(completed, "COMPLETED", DesignerActor.VALIDATOR, true, "",
-                    "全部工作包已聚合并通过确定性校验");
+                    "全部工作包已接受并聚合，等待总体确认");
         } catch (BadRequestException invalid) {
             waitForDesignInput(aggregating, revision, null, invalid.code(), invalid.getMessage());
         } catch (ConflictException stale) {
@@ -1616,7 +2073,7 @@ public class DesignerSessionService {
             dispatchPackageDesigner(get(session.id()), waiting, null, false);
             return;
         }
-        DesignWorkPackageRow waiting = Set.of(DesignWorkPackageState.DESIGNING.name(),
+        DesignWorkPackageRow waiting = Set.of(DesignWorkPackageState.QUESTIONING.name(), DesignWorkPackageState.DESIGNING.name(),
                 DesignWorkPackageState.COMPILING.name(), DesignWorkPackageState.VALIDATING.name())
                 .contains(workPackage.state())
                 ? updateWorkPackage(workPackage, DesignWorkPackageState.WAITING_INPUT,
@@ -1699,10 +2156,14 @@ public class DesignerSessionService {
         }
         DesignerSessionRow session = get(input.id());
         DesignerSessionRow waiting = DesignerSessionState.WAITING_INPUT.name().equals(session.state()) ? session
-                : updateDesignerProjection(session, DesignerSessionState.WAITING_INPUT,
+                : workPackage == null
+                ? updateDesignerProjection(session, DesignerSessionState.WAITING_INPUT,
                 DesignWorkflowPhase.FAILED, session.externalSessionId(), "WAITING_INPUT",
                 session.designRevision(), session.redesignCount(), currentRevision.revision(),
-                workPackage == null ? session.activeWorkPackageId() : workPackage.packageId());
+                session.activeWorkPackageId())
+                : updateDesignerDiscussionProjection(session, DesignerSessionState.WAITING_INPUT,
+                DesignWorkflowPhase.FAILED, session.externalSessionId(), "WAITING_INPUT",
+                workPackage.packageId(), session.discussionRevision(), "FAILED", workPackage.packageId());
         DesignerMessageRow message = appendMessage(waiting.id(), DesignerActor.VALIDATOR,
                 "工作流等待人工处理（" + code + "）：" + safeMessage(detail)
                         + "。当前需求版本未同步草稿，也没有创建或修改 Task。",
@@ -2756,8 +3217,15 @@ public class DesignerSessionService {
                                          DesignWorkPackageRow workPackage) {
         TaskDecompositionRow decomposition = mapper.findTaskDecompositionByRevision(revision.id()).orElseThrow();
         String prerequisites = prerequisitePackageContracts(revision.id(), workPackage);
+        DesignDiscussionRevisionRow discussion = mapper.findLatestDesignDiscussionRevision(
+                session.id(), workPackage.packageId()).orElse(null);
+        String previousDesign = blank(workPackage.designMessageId()) ? "（首次设计）"
+                : messageContent(workPackage.designMessageId());
+        String decisions = discussion == null ? "[]" : discussion.decisionLogJson();
         return """
-                You are OpenCode Loopper Designer / 设计师 for exactly one work package in a new strictly read-only Session.
+                You are OpenCode Loopper Designer / 设计师 for exactly one work package in its persistent strictly
+                read-only conversation. A healthy package Session is reused across human revisions; after transport
+                loss, this prompt reconstructs the conversation from the persisted snapshots and decisions below.
                 You may use read, glob, and grep. Do not edit/write files, execute commands, ask implementation agents,
                 create tasks, emit LoopSpec fields/JSON, or redesign other packages.
 
@@ -2774,13 +3242,23 @@ public class DesignerSessionService {
                 Frozen prerequisite package contracts and handoff summaries:
                 %s
 
-                The repository is the immutable pre-execution baseline. A prerequisite with state COMPLETED has
+                Previous complete package design snapshot (preserve all still-valid information):
+                %s
+
+                Persisted decisions for the current discussion round:
+                %s
+
+                The repository is the immutable pre-execution baseline. A prerequisite with state APPROVED has
                 completed Designer/Compiler/Validator processing, but its production files are intentionally absent
                 until the single Task executes packages in dependency order. Treat its frozen contract as available
                 at execution time. Do not redesign the current package merely because read/glob/grep cannot find a
                 prerequisite deliverable in the baseline repository.
 
-                Produce one complete Simplified-Chinese Markdown design no larger than 24 KiB UTF-8. Cover scope and
+                MANDATORY TURN ORDER: before writing any design Markdown, call the question tool exactly once with
+                1-3 concise design questions. Each question has 2-3 mutually exclusive choices; put the recommended
+                choice first and suffix its label with “(Recommended)”. Wait for the answers in this same model call.
+                Only then produce one complete replacement Simplified-Chinese Markdown design no larger than 24 KiB
+                UTF-8. Never return a patch and never discard prior accepted facts or this round's answers. Cover scope and
                 non-scope, observable results, exception semantics, affected files/modules, 1-3 dependency-ordered
                 stages, delivery details, and acceptance intent. Production Java and its focused Maven/Gradle unit
                 test belong in the same stage. Tests are evidence for business behavior, not a meta acceptance item.
@@ -2791,7 +3269,7 @@ public class DesignerSessionService {
                         "deliverables", strings(workPackage.deliverablesJson()),
                         "acceptanceIntent", strings(workPackage.acceptanceIntentJson()),
                         "requirementRefs", strings(workPackage.requirementRefsJson()))),
-                prerequisites);
+                prerequisites, previousDesign, decisions);
     }
 
     private String packageCompilerPlanningPrompt(ProjectRow project, DesignRequirementRevisionRow revision,
@@ -2820,7 +3298,7 @@ public class DesignerSessionService {
                 %s
 
                 Repository timing rule: this read-only repository is the immutable pre-execution baseline. A listed
-                prerequisite with state COMPLETED is guaranteed to execute successfully before this package's Stages
+                prerequisite with state APPROVED is guaranteed to execute successfully before this package's Stages
                 can start in the single dependency-ordered Task. Its files may therefore be absent now. Use read/glob/
                 grep only for baseline conventions and files not owned by completed prerequisites. You must not return
                 DESIGN_INCOMPLETE or MISSING_SCOPE merely because a completed prerequisite deliverable is absent from
@@ -2950,7 +3428,7 @@ public class DesignerSessionService {
                 Read-only draft defaults to preserve during later server aggregation: %s
                 Frozen prerequisite package contracts: %s
 
-                This repository is the pre-execution baseline. A prerequisite with state COMPLETED will execute
+                This repository is the pre-execution baseline. A prerequisite with state APPROVED will execute
                 before this package, so its currently absent deliverables are available-at-execution dependencies,
                 not MISSING_SCOPE. Do not reject the package solely because read/glob/grep cannot find those files.
 
@@ -3019,7 +3497,7 @@ public class DesignerSessionService {
 
                 Frozen prerequisite package contracts:
                 %s
-                The repository is the pre-execution baseline. A prerequisite with state COMPLETED executes before
+                The repository is the pre-execution baseline. A prerequisite with state APPROVED executes before
                 this package; its current file absence is not a design gap and must not be returned as MISSING_SCOPE.
 
                 Designer-declared focused test evidence (exact frozen design lines; all applicable named tests are
@@ -3118,6 +3596,37 @@ public class DesignerSessionService {
                 User request:
                 %s
                 """.formatted(project.rootPath(), session.id(), session.loopDraftId(), message);
+    }
+
+    private String requirementDiscussionPrompt(DesignerSessionRow session, ProjectRow project,
+                                               String previousSnapshot, String feedback,
+                                               boolean questionRepair) {
+        return """
+                You are OpenCode Loopper Requirement Designer / 需求设计师 in a persistent strictly read-only
+                conversation. You may use read, glob, grep, and the question tool. Never edit files, run commands,
+                create a Task, invoke the Task Decomposer, or emit LoopSpec JSON.
+
+                Project root: %s
+                Designer session: %s
+                Previous complete requirement snapshot:
+                %s
+
+                New user input:
+                %s
+
+                MANDATORY TURN ORDER:
+                1. Before producing any design Markdown, call the question tool exactly once with 1-3 concise
+                   product/design questions. Each question must offer 2-3 mutually exclusive options; put the
+                   recommended option first and suffix its label with “(Recommended)”. Custom input may be allowed.
+                2. Wait for the user's answers in this same model call/session.
+                3. Then return one complete replacement Simplified-Chinese Markdown requirement snapshot, no larger
+                   than 24 KiB UTF-8. Preserve all still-valid prior facts and decisions; never return a patch.
+
+                The snapshot must cover goal, scope/non-scope, user-visible flow, edge/error behavior, affected
+                modules, acceptance intent, and all decisions made in the question answers. Do not include machine
+                JSON or claim decomposition/implementation has occurred.%s
+                """.formatted(project.rootPath(), session.id(), previousSnapshot, feedback,
+                questionRepair ? " This is the single repair Session because the previous Session omitted its mandatory question." : "");
     }
 
     private String compilerPrompt(DesignerSessionRow session, ProjectRow project, LoopDraftRow draft, String design) {
@@ -3220,12 +3729,95 @@ public class DesignerSessionService {
     private DesignerSessionRow requireRunningDesigner(String sessionId) {
         DesignerSessionRow session = get(sessionId);
         if (!DesignerSessionState.RUNNING.name().equals(session.state())
-                || !Set.of(DesignWorkflowPhase.DESIGNING.name(), DesignWorkflowPhase.REDESIGNING.name())
+                || !Set.of(DesignWorkflowPhase.DISCUSSING_REQUIREMENT.name(),
+                DesignWorkflowPhase.QUESTIONING_PACKAGE.name(), DesignWorkflowPhase.DESIGNING.name(),
+                DesignWorkflowPhase.REDESIGNING.name())
                 .contains(session.workflowPhase()) || blank(session.externalSessionId())) {
             throw new ConflictException("DESIGNER_QUESTION_UNAVAILABLE",
                     "Designer session has no running Designer question to answer");
         }
         return session;
+    }
+
+    private DesignDiscussionRevisionRow currentDiscussion(DesignerSessionRow session) {
+        String scope = blank(session.discussionScope()) ? "REQUIREMENT" : session.discussionScope();
+        return mapper.findLatestDesignDiscussionRevision(session.id(), scope)
+                .orElseThrow(() -> new ConflictException("DESIGN_DISCUSSION_MISSING",
+                        "当前设计讨论快照不存在"));
+    }
+
+    private void requireDiscussionRevision(DesignerSessionRow session, int expectedRevision) {
+        if (expectedRevision != session.discussionRevision()) {
+            throw new ConflictException("DESIGN_DISCUSSION_REVISION_CONFLICT",
+                    "设计讨论已更新，请刷新后基于 R" + session.discussionRevision() + " 继续");
+        }
+    }
+
+    private DesignDiscussionRevisionRow updateDiscussion(
+            DesignDiscussionRevisionRow row, String state, String sourceMessageId, String designMessageId,
+            String snapshotMarkdown, String decisionLogJson, boolean questionAnswered, int questionRetryCount,
+            String candidateCompilationId, String errorCode, String errorDetail) {
+        DesignDiscussionRevisionRow updated = new DesignDiscussionRevisionRow(row.id(), row.designerSessionId(),
+                row.requirementRevision(), row.scopeKey(), row.workPackageId(), row.revision(), state,
+                sourceMessageId, designMessageId, snapshotMarkdown == null ? "" : snapshotMarkdown,
+                decisionLogJson == null ? "[]" : decisionLogJson, row.questionRequired(), questionAnswered,
+                questionRetryCount, candidateCompilationId, errorCode, errorDetail,
+                row.createdAt(), now(), row.version());
+        if (mapper.updateDesignDiscussionRevision(updated) != 1) {
+            throw new ConflictException("DESIGN_DISCUSSION_REVISION_CONFLICT",
+                    "设计讨论被并发更新，请刷新后重试");
+        }
+        return mapper.findDesignDiscussionRevision(row.id()).orElseThrow();
+    }
+
+    private String appendDecision(String existingJson, OpenCodeClient.PendingQuestion pending,
+                                  List<List<String>> answers) {
+        List<Map<String, Object>> decisions = new ArrayList<>();
+        if (!blank(existingJson)) {
+            try { decisions.addAll(json.readValue(existingJson, new TypeReference<List<Map<String, Object>>>() { })); }
+            catch (JacksonException ignored) { }
+        }
+        Map<String, Object> decision = new LinkedHashMap<>();
+        decision.put("questionId", pending.id());
+        decision.put("questions", pending.questions().stream().map(OpenCodeClient.QuestionPrompt::question).toList());
+        decision.put("answers", answers == null ? List.of() : answers);
+        decision.put("answeredAt", now());
+        decisions.add(decision);
+        return write(decisions);
+    }
+
+    private String messageContent(String messageId) {
+        if (blank(messageId)) return "请基于已经持久化的上下文继续本轮讨论。";
+        return mapper.findDesignerMessage(messageId).map(DesignerMessageRow::content)
+                .orElse("请基于已经持久化的上下文继续本轮讨论。");
+    }
+
+    private int openRequirementDiscussionModelCalls(String sessionId) {
+        return mapper.listDesignDiscussionRevisions(sessionId).stream()
+                .filter(row -> "REQUIREMENT".equals(row.scopeKey()) && row.requirementRevision() == null)
+                .mapToInt(row -> 1 + row.questionRetryCount()).sum();
+    }
+
+    private int nextDiscussionRevision(String sessionId, String scopeKey) {
+        return mapper.findLatestDesignDiscussionRevision(sessionId, scopeKey)
+                .map(row -> row.revision() + 1).orElse(1);
+    }
+
+    private Set<String> transitiveDependents(List<DesignWorkPackageRow> packages, String rootPackageId) {
+        Set<String> stale = new LinkedHashSet<>();
+        boolean changed;
+        do {
+            changed = false;
+            for (DesignWorkPackageRow row : packages) {
+                if (!stale.contains(row.packageId())
+                        && strings(row.dependenciesJson()).stream()
+                        .anyMatch(dependency -> dependency.equals(rootPackageId) || stale.contains(dependency))) {
+                    stale.add(row.packageId());
+                    changed = true;
+                }
+            }
+        } while (changed);
+        return stale;
     }
 
     private OpenCodeClient.OpenCodeSession designerRemote(DesignerSessionRow session) {
@@ -3249,8 +3841,9 @@ public class DesignerSessionService {
         }
     }
 
-    private PendingQuestion question(OpenCodeClient.PendingQuestion pending) {
-        return new PendingQuestion(pending.id(), pending.questions().stream().map(prompt -> new QuestionPrompt(
+    private PendingQuestion question(OpenCodeClient.PendingQuestion pending, String scope, int revision) {
+        return new PendingQuestion(pending.id(), scope, revision,
+                pending.questions().stream().map(prompt -> new QuestionPrompt(
                 prompt.question(), prompt.header(), prompt.options().stream()
                 .map(option -> new QuestionOption(option.label(), option.description())).toList(),
                 prompt.multiple(), prompt.custom())).toList());
@@ -3495,12 +4088,27 @@ public class DesignerSessionService {
                                                     String designMessageId, int designRevision, int redesignCount,
                                                     int transportRetryCount, String compilerSummary,
                                                     String handoffSummary, String errorCode, String errorDetail) {
+        return updateWorkPackage(row, state, externalSessionId, externalSessionState, designMessageId,
+                designRevision, redesignCount, transportRetryCount, compilerSummary, handoffSummary,
+                errorCode, errorDetail, row.approvedDesignRevision(), row.discussionRoundCount(),
+                row.invalidatedByPackageId(), row.approvedAt());
+    }
+
+    private DesignWorkPackageRow updateWorkPackage(DesignWorkPackageRow row, DesignWorkPackageState state,
+                                                    String externalSessionId, String externalSessionState,
+                                                    String designMessageId, int designRevision, int redesignCount,
+                                                    int transportRetryCount, String compilerSummary,
+                                                    String handoffSummary, String errorCode, String errorDetail,
+                                                    Integer approvedDesignRevision, int discussionRoundCount,
+                                                    String invalidatedByPackageId, String approvedAt) {
         DesignWorkPackageRow updated = new DesignWorkPackageRow(row.id(), row.designerSessionId(),
                 row.requirementRevisionId(), row.decompositionId(), row.packageId(), row.ordinal(), row.title(),
                 row.objective(), row.scopeInJson(), row.scopeOutJson(), row.dependenciesJson(), row.deliverablesJson(),
                 row.acceptanceIntentJson(), row.requirementRefsJson(), state.name(), externalSessionId,
                 externalSessionState, designMessageId, designRevision, redesignCount, transportRetryCount,
-                compilerSummary, handoffSummary, errorCode, errorDetail, row.createdAt(), now(), row.version());
+                compilerSummary, handoffSummary, errorCode, errorDetail, approvedDesignRevision,
+                discussionRoundCount, invalidatedByPackageId, approvedAt,
+                row.createdAt(), now(), row.version());
         DesignerSessionRow session = get(row.designerSessionId());
         if (row.state().equals(updated.state())) {
             lifecycle.mutateWithoutTransition(() -> mapper.updateDesignWorkPackage(updated),
@@ -3646,13 +4254,36 @@ public class DesignerSessionService {
         DesignerSessionRow updated = new DesignerSessionRow(session.id(), session.projectId(), state.name(),
                 session.accessMode(), session.createdAt(), now(), session.version(), externalSessionId,
                 externalSessionState, session.loopDraftId(), phase.name(), revision, redesignCount,
-                requirementRevision, activeWorkPackageId);
+                requirementRevision, activeWorkPackageId, session.discussionScope(),
+                session.discussionRevision(), session.candidateSyncState());
         if (session.state().equals(updated.state())) {
             lifecycle.mutateWithoutTransition(() -> mapper.updateDesignerSessionProjection(updated),
                     () -> new ConflictException("DESIGNER_SESSION_VERSION_CONFLICT",
                             "Designer session was updated concurrently"));
         } else {
             lifecycle.transition(designerSubject(updated), session.state(), updated.state(), null, java.util.Map.of(),
+                    () -> mapper.updateDesignerSession(updated),
+                    () -> new ConflictException("DESIGNER_SESSION_VERSION_CONFLICT",
+                            "Designer session was updated concurrently"));
+        }
+        return get(session.id());
+    }
+
+    private DesignerSessionRow updateDesignerDiscussionProjection(
+            DesignerSessionRow session, DesignerSessionState state, DesignWorkflowPhase phase,
+            String externalSessionId, String externalSessionState, String discussionScope,
+            int discussionRevision, String candidateSyncState, String activeWorkPackageId) {
+        DesignerSessionRow updated = new DesignerSessionRow(session.id(), session.projectId(), state.name(),
+                session.accessMode(), session.createdAt(), now(), session.version(), externalSessionId,
+                externalSessionState, session.loopDraftId(), phase.name(), session.designRevision(),
+                session.redesignCount(), session.currentRequirementRevision(), activeWorkPackageId,
+                discussionScope, discussionRevision, candidateSyncState);
+        if (session.state().equals(updated.state())) {
+            lifecycle.mutateWithoutTransition(() -> mapper.updateDesignerSessionProjection(updated),
+                    () -> new ConflictException("DESIGNER_SESSION_VERSION_CONFLICT",
+                            "Designer session was updated concurrently"));
+        } else {
+            lifecycle.transition(designerSubject(updated), session.state(), updated.state(), null, Map.of(),
                     () -> mapper.updateDesignerSession(updated),
                     () -> new ConflictException("DESIGNER_SESSION_VERSION_CONFLICT",
                             "Designer session was updated concurrently"));
@@ -3862,7 +4493,8 @@ public class DesignerSessionService {
     }
     private String now() { return Instant.now().toString(); }
 
-    public record PendingQuestion(String id, List<QuestionPrompt> questions) { }
+    public record PendingQuestion(String id, String scope, int discussionRevision,
+                                  List<QuestionPrompt> questions) { }
     public record QuestionPrompt(String question, String header, List<QuestionOption> options,
                                  boolean multiple, boolean custom) { }
     public record QuestionOption(String label, String description) { }
@@ -3879,7 +4511,12 @@ public class DesignerSessionService {
                                     List<String> dependencies, int redesignCount, int compilerRepairCount,
                                     int compilerPlanningRepairCount,
                                     String compilerSummary, String handoffSummary,
-                                    String lastErrorCode, String lastErrorDetail) { }
+                                    String lastErrorCode, String lastErrorDetail,
+                                    int designRevision, Integer approvedDesignRevision,
+                                    int discussionRoundCount, String invalidatedByPackageId,
+                                    String approvedAt) { }
+    public record CandidateStatus(String syncState, int discussionRevision, String workPackageId,
+                                  LoopSpec spec, String detail) { }
     public record RequirementSegment(String id, String text) { }
     public record GlobalConstraint(String text, List<String> requirementRefs) {
         public GlobalConstraint { requirementRefs = requirementRefs == null ? List.of() : List.copyOf(requirementRefs); }

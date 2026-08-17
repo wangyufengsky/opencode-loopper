@@ -36,13 +36,16 @@ class ProjectControllerTest {
         when(projects.list()).thenReturn(List.of(project));
         when(projects.inspect(project)).thenReturn(new RepositoryInspection(true, true, "main"));
         when(projects.taskCount("project-1")).thenReturn(2);
+        when(projects.openDesignerSessionCount("project-1")).thenReturn(1);
 
         mvc.perform(get("/api/projects"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].description").value("Useful context"))
                 .andExpect(jsonPath("$[0].status").value("READY"))
                 .andExpect(jsonPath("$[0].executionMode").value("WORKTREE"))
-                .andExpect(jsonPath("$[0].branch").value("main"));
+                .andExpect(jsonPath("$[0].branch").value("main"))
+                .andExpect(jsonPath("$[0].taskCount").value(2))
+                .andExpect(jsonPath("$[0].openDesignerSessionCount").value(1));
     }
 
     @Test

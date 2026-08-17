@@ -127,14 +127,23 @@ enable that action. The browser does not infer progress or reset the streak
 locally; the server records the override and returns the authoritative Task
 state.
 
-The overall design handoff states are `PENDING_HANDOFF`, `RUNNING`,
+The overall design handoff states are `PENDING_HANDOFF`, `RUNNING`, `REVIEWING`,
 `WAITING_INPUT`, `COMPLETED`, and legacy-compatible `SESSION_ERROR`. Persisted
-workflow phases add `DECOMPOSING`, `VALIDATING_DECOMPOSITION`, and `AGGREGATING`
-to package-scoped `DESIGNING`, `COMPILING`, `VALIDATING`, and `REDESIGNING`.
-`activeWorkPackageId` identifies the package being processed.
+workflow phases include `DISCUSSING_REQUIREMENT`, `DECOMPOSING`,
+`VALIDATING_DECOMPOSITION`, `QUESTIONING_PACKAGE`, `REVIEWING_PACKAGE`,
+`AGGREGATING`, and `FINAL_REVIEW` alongside the machine-processing phases.
+Normal human discussion/approval is `REVIEWING`, never `WAITING_INPUT`;
+`WAITING_INPUT` means a real budget/model/validation recovery boundary.
+`activeWorkPackageId`, `discussionScope`, and `discussionRevision` identify the
+only scope/version that can accept a message or approval.
 
-Each complete requirement revision first uses an independent read-only Task
-Decomposer Session. It selects exactly one `DIRECT_DESIGN` package or 2–6
+Before a requirement revision exists, Designer must call `question` once with
+1–3 choice questions and then return a complete replacement Markdown snapshot.
+The question card blocks ordinary chat until answered and offers one-click
+selection of all recommended choices. Follow-up messages repeat that process but
+do not invoke Decomposer. Only **需求已明确，开始拆包** freezes the latest complete
+snapshot and starts an independent read-only Task Decomposer Session. It selects
+exactly one `DIRECT_DESIGN` package or 2–6
 vertical business packages, with 1–3 Stages per package and at most 18 total.
 Every source requirement segment must be assigned to a global constraint or at
 least one package. Multiple project roots, more than six packages, or independent
@@ -142,17 +151,23 @@ release boundaries produce `MULTI_TASK_REQUIRED`; the product waits for the user
 and does not create child Tasks. `NEEDS_INPUT` likewise displays an explicit new
 requirement input path.
 
-Packages then run strictly serially. Each uses a fresh read-only Designer and a
-fresh read-only LoopSpec Compiler with the configured model. Designer receives
+Packages then run strictly serially. Each package reuses its healthy interactive
+read-only Designer conversation across revisions and reconstructs a fresh one
+from persisted snapshots/decisions after remote loss; each candidate uses a fresh
+read-only LoopSpec Compiler with the configured model. Designer receives
 the original requirement, frozen decomposition, current package, global
 constraints, and bounded prerequisite handoffs, then emits at most 24 KiB UTF-8
 of complete Markdown. Compiler emits a 1–3 Stage package fragment plus criterion
 sources and a handoff summary of at most 4 KiB. Format, field, verifier,
 traceability, or coverage errors receive at most two final-JSON Compiler repairs;
 planning/证据映射格式错误有独立的最多两次修复预算；semantic
-gaps receive one full redesign of that package only. The complete requirement
-revision has a shared hard ceiling of 32 model calls, but package content retry
-counters remain independent. Draft concurrency, exhausted budgets, and
+gaps receive one full redesign of that package only. Initial design and every
+human revision must ask questions first and return a complete snapshot. A valid
+candidate enters `REVIEWING` and the next package stays locked until the user
+accepts that exact revision; a failed replacement retains the last valid
+candidate. Each package allows at most five human revisions. The complete
+requirement revision has a shared hard ceiling of 96 model calls, but package
+content retry counters remain independent. Draft concurrency, exhausted budgets, and
 unassignable aggregation conflicts enter `WAITING_INPUT` without synchronizing
 the draft or creating a Task.
 
@@ -165,7 +180,7 @@ repair budgets, source mapping, and the rule that raw machine JSON is not a chat
 message.
 
 Designer and Compiler inspect an immutable pre-execution repository baseline.
-For a later package, a predecessor whose package state is `COMPLETED` has passed
+For a later package, a predecessor whose package state is `APPROVED` has passed
 its Designer/Compiler/Validator workflow but has intentionally not written its
 production files yet. Loopper injects that predecessor's frozen objective,
 Compiler summary, and bounded handoff contract into both prompts. Because the
@@ -259,32 +274,40 @@ their object/array/null types. The deterministic validator still rejects any
 unsupported or semantically invalid value; the richer prompt does not weaken or
 bypass Review Gate.
 
-After every package passes, the server deterministically concatenates Stage
-fragments, raises only the minimum attempt/time limits, validates the complete
-LoopSpec, and atomically updates Review Gate at the frozen draft version. Review
-Gate cannot be confirmed earlier. Human recovery actions target decomposition or
-the current package; the old generic compiler/redesign endpoints remain a
-compatibility alias.
+After every package is explicitly accepted, the server deterministically
+concatenates Stage fragments, raises only the minimum attempt/time limits,
+validates the complete LoopSpec, and atomically updates Review Gate at the frozen
+draft version. Reopening an accepted package first lists and then marks only its
+transitive dependents `STALE`; unrelated accepted packages remain valid. Review
+Gate cannot be edited as a complete LoopSpec before `FINAL_REVIEW`. Human recovery
+actions target decomposition or the current package; the old generic
+compiler/redesign endpoints remain a compatibility alias.
 
 Message origin comes from the persisted `actor` (`USER`, `DECOMPOSER`,
 `DESIGNER`, `COMPILER`, `VALIDATOR`, or `SYSTEM`), never from role text
 inference. The console renders user cards blue, Decomposer summaries indigo,
 Designer Markdown purple, Compiler summaries/gaps cyan,
 Validator success green, repairable failures yellow, terminal failures red, and
-system notices as grey dashed cards. The top bar and thinking animation follow
-the authoritative `workflowPhase`, `activeActor`, requirement revision, active
-package, package retry counters, and shared model-call count. A package rail
-shows dependency order and per-package state. Compiler and Decomposer raw JSON is shown
+system notices as grey dashed cards. A four-step bar shows requirement discussion,
+package design, final confirmation, and task creation. The selectable package
+rail exposes question/discussion/accept for the current package, **重新讨论** for
+accepted packages, dependency reasons for locked packages, and the invalidating
+upstream id for stale packages. The composer always names its overall-requirement
+or `WP-N` scope. The top bar and thinking animation follow the authoritative
+`workflowPhase`, `activeActor`, requirement revision, active package, package
+retry counters, and shared model-call count. Compiler and Decomposer raw JSON is shown
 only through the right-hand Review Gate; it is neither persisted as chat content
 nor copied from SSE into the conversation. Page refresh restores cards and
 workflow state from the server snapshot. A transient browser GET failure keeps
 the page in bounded-backoff reconnect without fabricating model output or a
-validation result. The structured editor round-trips every Stage
+validation result. During package review, the right panel is read-only and shows
+`同步中`, `已同步 Rn`, or `同步失败，保留上一版`; the structured editor is enabled
+only after deterministic aggregation and round-trips every Stage
 `workPackageId`, LoopSpec limit, model selection, Session policy, and
 next-Attempt prompt template. Saving or confirming an aggregated package draft
 must not flatten its Stage mapping; the server rejects removal, reordering, or
 reassignment of an existing package mapping, and confirmation also verifies
-that every completed package remains represented in dependency order.
+that every approved package remains represented in dependency order.
 
 Task detail groups Stage progress by `workPackageId` and displays the independent
 attempt pool. Historical design restores the frozen requirement, Decomposer
@@ -318,6 +341,23 @@ subscription and leaves the Designer/Task/OpenCode lifecycle unchanged. Task
 pages reconnect with `Last-Event-ID` replay, while Designer pages reload the
 latest persisted snapshot. These transport failures must never surface as
 `SESSION_RUNTIME_ERROR` or trigger remote Session cleanup.
+
+Unconfirmed Designer work is also discoverable without browser-local state.
+The project projection reports confirmed `taskCount` and
+`openDesignerSessionCount` separately, and the Designer start page lists the
+latest persisted Session for each non-confirmed draft. A browser workspace
+pointer is only a resume hint: transient network or server-restart failures
+must retain it, while malformed pointers and confirmed/missing records may be
+discarded. Selecting a persisted entry reloads the authoritative Session and
+draft before reconnecting live transport; it never manufactures a Task.
+
+V27 stores every requirement/package turn as a complete Markdown snapshot with
+its decision log, mandatory-question state, candidate compilation reference,
+approval revision, and invalidation reason. Refresh and process restart restore
+the exact question, scope, package rail, last valid candidate, and available
+confirmation action. Historical unconfirmed packages that were previously
+`COMPLETED` migrate to `REVIEWING`; already confirmed drafts and created Tasks
+are unchanged.
 
 Confirming a draft is an idempotent handoff. After the server returns the
 persisted Task id, the client loads that Task into the live store and navigates

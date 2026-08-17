@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.1.66`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.1.67`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -30,7 +30,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 ## 核心能力
 
 - **本地项目登记**：登记绝对路径，识别 Git 任务分支模式或无可用 Git HEAD 时的直接模式。
-- **只读多角色设计**：Task Decomposer 与分包 LoopSpec Compiler 都先完成“规划 → 证据映射”，经服务端冻结后优先使用 OpenCode JSON Schema 结构化输出；结构化 Decomposer、Compiler 与最终 Judge 会关闭 Thinking，受管 DeepSeek 通过私有 variant 避免 Thinking 与强制工具选择冲突；不支持时仍在新 Session 内回退到原有 marker 合同。Designer 始终只生成完整 Markdown并保留配置的推理行为，当前不接管 OpenCode 原生 plan agent。确定性校验通过前不写业务源码、不创建任务。
+- **可讨论的只读多角色设计**：整体需求和每个工作包都先由 Designer 用 1–3 个选择题澄清，之后每轮保存完整 Markdown 替代稿；用户逐包讨论、查看 Compiler/Validator 候选并明确接受，最后再总体确认。Task Decomposer 与分包 LoopSpec Compiler 的机器输出继续先完成“规划 → 证据映射”，优先使用 OpenCode JSON Schema；原始 JSON 不进入聊天。确定性校验和人工确认完成前不写业务源码、不创建任务。
 - **项目公约**：只读分析项目并生成或更新根目录 `AGENTS.md`，展示完整预览后才写入；Loopper 管理区块以外的人工内容会被保留。
 - **分阶段执行循环**：按依赖顺序执行 Stage，每个阶段都携带目标、交付物、路径约束和可立即运行的验收规则。
 - **循环降噪**：验证失败后固化 Attempt 交接包，并用失败签名和可靠工作区指纹识别无进展重试；连续停滞时转入人工确认，不继续烧预算。
@@ -48,12 +48,15 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 ```mermaid
 flowchart LR
-    A["登记本地项目"] --> B["只读 Designer 生成设计稿"]
-    B --> C["独立 Compiler 编译 LoopSpec"]
-    C --> V["服务端确定性校验"]
-    V --> R["人工检查并确认 LoopSpec"]
-    R --> D["创建并启动任务"]
-    D --> E["OpenCode 分阶段实施"]
+    A["登记本地项目"] --> B["需求提问与讨论"]
+    B --> C["确认需求并拆包"]
+    C --> P["逐包提问、讨论与候选校验"]
+    P --> Q["接受当前包"]
+    Q -->|还有工作包| P
+    Q -->|全部接受| R["总体确认"]
+    R --> D["创建 PENDING_START 任务"]
+    D --> S["显式开始执行"]
+    S --> E["OpenCode 分阶段实施"]
     E --> F["确定性验证"]
     F -->|未通过且仍有预算| K["固化 Attempt 交接包并检查进展"]
     K -->|工作区有进展| E
@@ -114,7 +117,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.1.66.jar
+java -jar target/opencode-loopper-0.1.67.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -125,10 +128,10 @@ java -jar target/opencode-loopper-0.1.66.jar
 
 1. 打开 **设置**，确认 OpenCode CLI 路径；刷新模型列表并选择默认 Provider / Model。可选地设置“允许项目根”，限制可登记目录。
 2. 打开 **运行环境**，确认服务端报告的 OpenCode Loopper 版本，并检查 OpenCode 状态、端点、版本、模型与进程所有权。
-3. 打开 **项目**，登记项目名称和绝对根路径。登记本身不会启动 AI，也不会写入项目文件。
+3. 打开 **项目**，登记项目名称和绝对根路径。登记本身不会启动 AI，也不会写入项目文件。项目卡片分别显示已确认的任务数和尚未确认的“待继续设计”数；后者可直接回到对应 Designer 会话。
 4. 可选：在项目卡片中打开 **AGENTS.md 项目公约**，让只读 Session 生成建议，检查完整预览后再确认写入。
-5. 打开 **设计器 / 循环规范**，选择项目并描述目标。推荐让非简单任务拆成 2–6 个依赖有序的阶段，每阶段配置可直接执行的功能验收。
-6. 检查紫色 Designer 设计卡、青色 Compiler 摘要、Validator 结果和右侧 LoopSpec；必要时显式重新编译或要求完整重设计。保存并确认后，Loopper 只创建 `PENDING_START` 任务，不进入队列、不占用写租约，也不创建或切换 Git 分支。
+5. 打开 **设计器 / 循环规范**，选择项目并描述目标。先用问题卡回答整体设计选择，可一键采用全部推荐项；继续补充不会触发拆包，只有点击 **需求已明确，开始拆包** 才会冻结需求。若已有未确认设计，可从服务端“待继续设计”列表恢复，服务重启或浏览器恢复指针失效也不会丢失权威记录。
+6. 沿工作包轨道逐包回答问题、讨论完整设计稿，并查看右侧只读候选的同步状态。候选通过 Compiler 和 Validator 后点击 **接受 WP-N 并继续**；重开已接受包会先列出所有将失效的传递依赖包。全部包接受后进入总体确认，此时才可编辑最终聚合 LoopSpec，并点击 **确认设计并创建任务**。Loopper 只创建 `PENDING_START` 任务，不进入队列、不占用写租约，也不创建或切换 Git 分支。
 7. 进入任务详情并点击一次 **开始执行**。此时才会申请队列/写租约、检查工作区、获取远端更新并准备任务分支；一旦准入会自动继续执行，不需要在 `READY` 状态再次点击。执行期间可查看阶段进度、尝试、真实模型输出、待处理问题、验证证据和双 Judge 评审。
 8. 任务成功后检查实际差异，再由人工提交任务分支；最终 Attempt 会无条件保存任务基线差异文件清单，不要求 LoopSpec 配置 `GIT_DIFF`。Loopper 随后恢复任务开始前的源分支，有排队任务时继续切到下一任务分支；差异预览、远端推送和合并请求继续显式引用已提交的任务分支。
 
@@ -136,8 +139,8 @@ java -jar target/opencode-loopper-0.1.66.jar
 
 | 页面 | 主要用途 |
 | --- | --- |
-| 项目 | 登记本地目录、查看执行模式、生成/更新 `AGENTS.md`、取消项目管理 |
-| 设计器 / 循环规范 | 评审只读 Designer 设计、Compiler 编译摘要和 Validator 结果，编辑并确认 LoopSpec |
+| 项目 | 登记本地目录、分别查看任务数与待继续设计数、恢复未确认设计、查看执行模式、生成/更新 `AGENTS.md`、取消项目管理 |
+| 设计器 / 循环规范 | 从服务端恢复未确认设计，完成需求提问、逐包讨论/接受、候选同步和总体确认；只有最终聚合阶段可编辑 LoopSpec |
 | 任务 | 查看当前和历史任务、状态与归档；符合保护条件时可二次确认删除历史记录 |
 | 任务详情 | 启动或取消尚未申请工作区的任务、取消排队/等待输入任务、查看 Stage/Attempt/Session、实施 Todo 投影、验证证据、双评审、设计历史与发布入口 |
 | 待处理中心 | 回答 Question，按一次/Session 范围处理 Permission，或拒绝请求 |
@@ -332,7 +335,7 @@ Git 任务分支达到 `SUCCEEDED` 后：
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.1.66.jar`
+- `target/opencode-loopper-0.1.67.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -363,7 +366,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:51234
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.1.66.jar`
+- `opencode-loopper-0.1.67.jar`
 - `start-windows.bat`
 
 确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
@@ -401,7 +404,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.1.66.jar \
+jar tf target/opencode-loopper-0.1.67.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -481,7 +484,7 @@ Windows PowerShell：
 例如发布下一版本：
 
 ```bash
-VERSION=0.1.66
+VERSION=0.1.67
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -521,7 +524,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.1.66.jar
+java -jar target/opencode-loopper-0.1.67.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。
@@ -609,6 +612,8 @@ echo %PATHEXT%
 `0.1.56` 扩大了本地同步自动合并夹具中两处独立修改的间距，用于排除 Git/xdiff hunk 边界差异；Windows CI 随后证明剩余失败来自源文件模式识别，而不是文本合并算法。
 
 `0.1.57` 修正 Windows 源文件模式识别：NTFS ACL 的“可执行”结果不再被误当成 Git `100755` 位；已跟踪文件从源仓库 Git index 读取模式，未跟踪普通文件默认 `100644`，POSIX 仍读取真实执行位。这样源侧未改、任务侧删除的文件可确定性自动接受删除，同时保留真实模式冲突与文本冲突的人工处理边界。
+
+`0.1.67` 将 Designer 改为可恢复的多轮评审流程。整体需求在明确确认前只讨论、不拆包；需求与每个工作包的初稿/人工修订都强制先回答 1–3 个设计问题，每轮持久化完整 Markdown、决策和最后有效候选。工作包经 Compiler/Validator 后进入 `REVIEWING`，只有人工接受才处理下一包；重开上游包只使传递依赖包失效。全部包接受后才确定性聚合并开放最终编辑，确认只创建 `PENDING_START`。每包人工修改最多 5 轮，每个需求版本总模型调用上限为 96；正常评审使用 `REVIEWING`/讨论阶段，不再伪装成 `WAITING_INPUT`。V27 同时保证应用重启后可从项目或 Designer 页找回未确认设计，并把历史未确认 `COMPLETED` 包迁移为待人工确认。
 
 `0.1.66` 修复 OpenCode 异步 Schema 已受理后仍在后台失控循环的问题。异步 2xx 只表示请求进入队列，不再记为结构化能力成功；机器角色在 OpenCode 仍报告 `busy` 时同步检查消息，发现 Schema 解码 400、`StructuredOutput` 工具错误或超过 24 步就立即停止当前路径。已实测存在消息解码缺陷的 OpenCode 1.18.12–1.18.18 会直接使用 marker 兼容模式，后续版本恢复 Schema 探测；DeepSeek 机器角色同时使用关闭 Thinking、零温度和禁止重复工具调用的有界 agent。marker 输出仍执行同一套确定性 JSON、语义和 Review Gate 校验。
 

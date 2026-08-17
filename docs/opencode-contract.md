@@ -52,20 +52,26 @@ is independently exposed at `/api/mcp-streamable`.
 
 The REST workflow uses three model roles plus a deterministic server validator.
 Each overall Designer Session is bound to the exact `loop_draft_id` shown in
-Review Gate. Task Decomposer first receives a frozen, numbered requirement
-revision and read-only project context. It may use only `read`, `glob`, and
+Review Gate. Before Task Decomposer runs, the interactive requirement Designer
+must call `question` with 1–3 design choices and then return a complete Markdown
+replacement in the same model turn. Follow-up requirement messages repeat that
+contract without starting Decomposer. Only the explicit requirement-confirm API
+freezes a numbered requirement revision and supplies it with read-only project
+context to Task Decomposer. It may use only `read`, `glob`, and
 `grep`, and returns a marked `DIRECT_DESIGN`, `DECOMPOSED`, `NEEDS_INPUT`, or
 `MULTI_TASK_REQUIRED` envelope. It cannot write, execute commands, ask a
 model-side question, or create a Task. The server verifies complete requirement
 coverage and dependency order before persisting packages.
 
-For each package in order, Loopper creates a brand-new read-only Designer
-Session. Designer receives the original requirement, frozen package plan,
-global constraints, and bounded prerequisite handoffs and returns one complete
-Markdown package design; it is never asked to populate LoopSpec fields. Loopper
-then creates a brand-new read-only Compiler Session with the same configured
-model. Compiler has the same `read`/`glob`/`grep`-only boundary and cannot ask
-questions or create a Task.
+For each package in order, Loopper creates a scoped read-only Designer
+conversation. A healthy remote Session is reused for that package's human
+revisions; after remote loss, a new Session receives the persisted requirement,
+decisions, previous full snapshot, and package-scoped message. Initial design and
+each human revision must call `question` before returning one complete Markdown
+replacement; Designer is never asked to populate LoopSpec fields. Loopper then
+creates a brand-new read-only Compiler Session for each candidate with the same
+configured model. Compiler has the same `read`/`glob`/`grep`-only boundary and
+cannot ask questions or create a Task.
 
 Session creation is role-scoped. Decomposer, Compiler, Judge, and general
 read-only roles start from a wildcard deny and allow only `read`, `glob`, and
@@ -87,7 +93,7 @@ normal agent behavior. The step bound limits repository exploration without
 changing the per-Session permission profile or making agent output authoritative.
 
 Those tools see the pre-execution repository baseline, not a simulated checkout
-after earlier packages. For a package dependency already marked `COMPLETED`,
+after earlier packages. For a package dependency already marked `APPROVED`,
 Loopper supplies the predecessor's frozen objective, Compiler summary, and
 handoff contract. Strict Task execution guarantees that predecessor's Stages run
 first, so a currently absent predecessor-owned class or file is an
@@ -174,7 +180,7 @@ turn in the same Compiler Session, at most twice after the initial final-JSON
 generation. Planning/证据映射 has a separate maximum of two repairs; successful
 planning cannot consume the final-JSON repair allowance. Missing observable outcome,
 exception semantics, scope, or acceptance intent requests at most one automatic
-full replacement from a fresh Designer Session for the current package. Format errors cannot be
+full replacement from the scoped Designer conversation for the current package. Format errors cannot be
 relabelled as design gaps. Retry exhaustion or optimistic draft conflict leaves
 the draft unchanged and exposes explicit manual decomposition/package recovery.
 The initial Compiler prompt and every format-repair turn repeat the same complete
@@ -203,11 +209,23 @@ mapping is unique. It does not invent targets, infer tests from source prose, or
 pick between multiple candidates. Exact-source recovery is allowed only for one
 unique normalized match; ambiguity, missing business evidence, unsafe commands,
 or genuinely missing focused tests still consume the normal planning repair path.
-Each requirement revision permits at most 32 model calls across all roles and
-one fresh-Session transport retry per role invocation. After every package
-passes, Loopper—not a model—concatenates fragments in package order and runs the
-complete validation before an optimistic draft update. No branch, Task, or
-writable Session is created beforehand.
+Each requirement revision permits at most 96 model calls across requirement
+discussion, package discussion, and all machine roles, plus one fresh-Session
+transport retry per role invocation. Question answers continue the already
+counted model turn. After a package candidate passes, it remains in `REVIEWING`
+until the exact revision is accepted. Only after all packages are `APPROVED`
+does Loopper—not a model—concatenate fragments in package order and run complete
+validation before an optimistic draft update. No branch, Task, or writable
+Session is created beforehand.
+
+Scoped REST mutations carry the expected discussion/design revision. Requirement
+messages/confirm/reopen and package messages/approve/reopen reject stale clients
+with 409; the legacy `/messages` path is accepted only before decomposition.
+Reopening an approved package invalidates only its transitive dependents, while
+reopening the requirement supersedes the current decomposition as an explicit
+destructive boundary. Machine planning/final JSON remains out of the chat
+transcript; only persisted role summaries and the validated candidate projection
+are returned to the browser.
 
 Decomposer planning and final output prefer their exact HTML comment markers.
 If a provider removes those comments, Loopper accepts only one complete top-level

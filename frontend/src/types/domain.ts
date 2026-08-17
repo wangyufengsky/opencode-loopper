@@ -27,6 +27,7 @@ export interface Project {
   executionMode?: 'WORKTREE' | 'DIRECT' | 'UNAVAILABLE'
   updatedAt: string
   taskCount: number
+  openDesignerSessionCount: number
 }
 
 export interface DirectorySelection {
@@ -372,6 +373,8 @@ export interface TaskSessionQuestionPrompt {
 
 export interface TaskSessionPendingQuestion {
   id: string
+  scope?: string
+  discussionRevision?: number
   questions: TaskSessionQuestionPrompt[]
 }
 
@@ -759,10 +762,23 @@ export interface DesignerMessage {
   createdAt: string
 }
 
-export type DesignerSessionState = 'PENDING_HANDOFF' | 'RUNNING' | 'WAITING_INPUT' | 'COMPLETED' | 'SESSION_ERROR'
-export type DesignWorkflowPhase = 'DECOMPOSING' | 'VALIDATING_DECOMPOSITION' | 'DESIGNING' | 'COMPILING' | 'VALIDATING' | 'REDESIGNING' | 'AGGREGATING' | 'COMPLETED' | 'FAILED'
+export type DesignerSessionState = 'PENDING_HANDOFF' | 'RUNNING' | 'REVIEWING' | 'WAITING_INPUT' | 'COMPLETED' | 'SESSION_ERROR'
+export type DesignWorkflowPhase = 'DISCUSSING_REQUIREMENT' | 'DECOMPOSING' | 'VALIDATING_DECOMPOSITION' | 'DESIGNING' | 'COMPILING' | 'VALIDATING' | 'REDESIGNING' | 'QUESTIONING_PACKAGE' | 'REVIEWING_PACKAGE' | 'AGGREGATING' | 'FINAL_REVIEW' | 'COMPLETED' | 'FAILED'
 export type DesignerActor = DesignerMessage['actor']
 export type StructuredModelStep = 'PLANNING' | 'GENERATING_JSON' | 'REPAIRING_JSON' | 'FINAL_JSON'
+
+export interface DesignerSessionSummary {
+  id: string
+  projectId: string
+  state: DesignerSessionState
+  workflowPhase: DesignWorkflowPhase
+  updatedAt: string
+  draftId: string
+  draftStatus: string
+  goal: string
+  requirementRevision?: number
+  activeWorkPackageId?: string
+}
 
 export interface DesignRequirementRevisionStatus {
   revision: number
@@ -798,6 +814,19 @@ export interface DesignWorkPackageStatus {
   handoffSummary?: string
   lastErrorCode?: string
   lastErrorDetail?: string
+  designRevision: number
+  approvedDesignRevision?: number
+  discussionRoundCount: number
+  invalidatedByPackageId?: string
+  approvedAt?: string
+}
+
+export interface DesignerCandidateStatus {
+  syncState: 'NONE' | 'SYNCING' | 'SYNCED' | 'FAILED'
+  discussionRevision: number
+  workPackageId?: string
+  spec?: LoopSpec
+  detail?: string
 }
 
 export interface DesignerSession {
@@ -831,6 +860,10 @@ export interface DesignerSession {
   workPackages?: DesignWorkPackageStatus[]
   requirementRevision?: number
   activeWorkPackageId?: string
+  discussionScope: string
+  discussionRevision: number
+  candidate?: DesignerCandidateStatus
+  finalConfirmationEligible: boolean
 }
 
 export interface TaskDesignHistory {

@@ -9,8 +9,12 @@ import { api } from '@/api/client'
 import { useTaskStore } from '@/stores/taskStore'
 import type { AppSettings, DesignerSession, LoopDraft, LoopSpec, Project, Task } from '@/types/domain'
 
-const { routerPush } = vi.hoisted(() => ({ routerPush: vi.fn() }))
-vi.mock('vue-router', () => ({ onBeforeRouteLeave: vi.fn(), useRouter: () => ({ push: routerPush }) }))
+const { routerPush, routeQuery } = vi.hoisted(() => ({ routerPush: vi.fn(), routeQuery: {} as Record<string, string> }))
+vi.mock('vue-router', () => ({
+  onBeforeRouteLeave: vi.fn(),
+  useRoute: () => ({ query: routeQuery }),
+  useRouter: () => ({ push: routerPush }),
+}))
 
 const project: Project = {
   id: 'project-1',
@@ -19,6 +23,7 @@ const project: Project = {
   status: 'READY',
   updatedAt: 'now',
   taskCount: 0,
+  openDesignerSessionCount: 0,
 }
 
 const session: DesignerSession = {
@@ -30,6 +35,9 @@ const session: DesignerSession = {
   activeActor: 'SYSTEM',
   accessMode: 'READ_ONLY',
   readOnly: true,
+  discussionScope: 'FINAL',
+  discussionRevision: 1,
+  finalConfirmationEligible: true,
   messages: [],
 }
 
@@ -59,6 +67,7 @@ function mountDesigner(): VueWrapper {
 
 beforeEach(() => {
   routerPush.mockReset()
+  for (const key of Object.keys(routeQuery)) delete routeQuery[key]
   sessionStorage.clear()
   const pinia = createPinia()
   setActivePinia(pinia)
@@ -66,6 +75,7 @@ beforeEach(() => {
   store.usingDemo = false
   store.projects = [project]
   vi.spyOn(api, 'getSettings').mockResolvedValue(settings)
+  vi.spyOn(api, 'listOpenDesignerSessions').mockResolvedValue([])
   vi.spyOn(api, 'validateDraft').mockImplementation(async (spec) => ({
     valid: true, schemaVersion: spec.schemaVersion, legacy: spec.schemaVersion === 'v1', errors: [], stageAssessments: [],
   }))
@@ -78,6 +88,47 @@ afterEach(() => {
 })
 
 describe('Designer draft composer', () => {
+  it('lists unconfirmed server sessions and restores one without a browser pointer', async () => {
+    const recoverableDraft = draftFrom({
+      schemaVersion: 'v2', projectId: project.id, goal: '恢复重启前的设计', context: '', stages: [],
+      limits: { maxStageAttempts: 3, maxTaskAttempts: 7, maxDuration: '7200', attemptTimeout: '1800' },
+    })
+    vi.mocked(api.listOpenDesignerSessions).mockResolvedValue([{
+      id: 'designer-recover', projectId: project.id, state: 'WAITING_INPUT', workflowPhase: 'FAILED',
+      updatedAt: '2026-08-17T01:00:00Z', draftId: recoverableDraft.id, draftStatus: 'DRAFT_READY',
+      goal: recoverableDraft.spec.goal, requirementRevision: 1, activeWorkPackageId: 'WP-2',
+    }])
+    vi.spyOn(api, 'getDesignerSession').mockResolvedValue({
+      ...session, id: 'designer-recover', state: 'WAITING_INPUT', workflowPhase: 'FAILED', draft: recoverableDraft,
+    })
+    const wrapper = mountDesigner()
+    await flushPromises()
+
+    expect(wrapper.get('[aria-label="待继续设计"]').text()).toContain('恢复重启前的设计')
+    expect(wrapper.get('[aria-label="待继续设计"]').text()).toContain('等待输入 · WP-2')
+    await wrapper.get('[aria-label="待继续设计"] button').trigger('click')
+    await flushPromises()
+
+    expect(sessionStorage.getItem('opencode-loopper.designer-workspace')).toContain('designer-recover')
+    expect(wrapper.find('[aria-label="待继续设计"]').exists()).toBe(false)
+    expect(wrapper.find('textarea[aria-label="发送给只读 OpenCode Designer 的消息"]').exists()).toBe(true)
+  })
+
+  it('keeps the recovery pointer when the backend is temporarily unavailable after restart', async () => {
+    sessionStorage.setItem('opencode-loopper.designer-workspace', JSON.stringify({ sessionId: 'designer-recover', draftId: 'draft-1' }))
+    vi.spyOn(api, 'getDesignerSession').mockRejectedValue(new Error('服务正在重启'))
+    vi.spyOn(api, 'getDraft').mockResolvedValue(draftFrom({
+      schemaVersion: 'v2', projectId: project.id, goal: '不会被清除', context: '', stages: [],
+      limits: { maxStageAttempts: 3, maxTaskAttempts: 7, maxDuration: '7200', attemptTimeout: '1800' },
+    }))
+    const wrapper = mountDesigner()
+    await flushPromises()
+
+    expect(sessionStorage.getItem('opencode-loopper.designer-workspace')).toContain('designer-recover')
+    expect(wrapper.text()).toContain('上次设计暂时无法恢复：服务正在重启')
+    expect(wrapper.text()).toContain('服务端记录不会因短暂断线被删除')
+  })
+
   it('starts a structured brief from a quick template and persists it locally', async () => {
     const wrapper = mountDesigner()
     await flushPromises()
@@ -135,9 +186,13 @@ describe('Designer draft composer', () => {
   })
 
   it('keeps an unsent follow-up after a request failure and clears it only after persistence succeeds', async () => {
-    vi.spyOn(api, 'createDesignerSession').mockResolvedValue(session)
+    const discussionSession: DesignerSession = {
+      ...session, state: 'REVIEWING', workflowPhase: 'DISCUSSING_REQUIREMENT',
+      discussionScope: 'REQUIREMENT', finalConfirmationEligible: false,
+    }
+    vi.spyOn(api, 'createDesignerSession').mockResolvedValue(discussionSession)
     vi.spyOn(api, 'createDraft').mockImplementation(async (spec) => draftFrom(spec))
-    const sendMessage = vi.spyOn(api, 'sendDesignerMessage').mockRejectedValueOnce(new Error('network unavailable'))
+    const sendMessage = vi.spyOn(api, 'sendRequirementMessage').mockRejectedValueOnce(new Error('network unavailable'))
     const wrapper = mountDesigner()
     await flushPromises()
 
@@ -279,6 +334,43 @@ describe('Designer draft composer', () => {
     wrapper.unmount()
   })
 
+  it('keeps package feedback scoped and requires explicit acceptance before continuing', async () => {
+    const packageSession: DesignerSession = {
+      ...session, state: 'REVIEWING', workflowPhase: 'REVIEWING_PACKAGE', activeActor: 'VALIDATOR',
+      requirementRevision: 1, activeWorkPackageId: 'WP-1', discussionScope: 'WP-1', discussionRevision: 2,
+      finalConfirmationEligible: false,
+      workPackages: [{ id: 'WP-1', ordinal: 0, title: '查询能力', objective: '交付查询结果',
+        dependencies: [], state: 'REVIEWING', redesignCount: 0, compilerRepairCount: 0,
+        compilerPlanningRepairCount: 0, designRevision: 3, discussionRoundCount: 1 }],
+      candidate: { syncState: 'SYNCED', discussionRevision: 2, workPackageId: 'WP-1', detail: '当前候选有效' },
+    }
+    vi.spyOn(api, 'createDraft').mockImplementation(async (spec) => draftFrom(spec))
+    vi.spyOn(api, 'createDesignerSession').mockResolvedValue(packageSession)
+    vi.spyOn(api, 'getDesignerSession').mockResolvedValue(packageSession)
+    const sendPackage = vi.spyOn(api, 'sendWorkPackageMessage').mockResolvedValue({
+      sessionId: packageSession.id, state: 'RUNNING', persistedMessages: [], notice: 'saved',
+    })
+    const approve = vi.spyOn(api, 'approveWorkPackage').mockResolvedValue(undefined)
+    const wrapper = mountDesigner()
+    await flushPromises()
+
+    await wrapper.get('textarea[aria-label="草案设计目标"]').setValue('逐包优化查询设计')
+    await wrapper.get('.create-draft-button').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('当前作用域：WP-1')
+    expect(wrapper.text()).toContain('已同步 R2')
+
+    await wrapper.get('textarea[aria-label="发送给只读 OpenCode Designer 的消息"]').setValue('只补充 WP-1 的异常边界')
+    await wrapper.get('.compose-actions button').trigger('click')
+    await flushPromises()
+    expect(sendPackage).toHaveBeenCalledWith(packageSession.id, 'WP-1', '只补充 WP-1 的异常边界', 2, 3)
+
+    await wrapper.findAll('button').find((button) => button.text().includes('接受 WP-1 并继续'))!.trigger('click')
+    await flushPromises()
+    expect(approve).toHaveBeenCalledWith(packageSession.id, 'WP-1', 2, 3)
+    wrapper.unmount()
+  })
+
   it('replaces the right-side LoopSpec when the completed Designer session returns its bound draft', async () => {
     vi.useFakeTimers()
     try {
@@ -382,13 +474,14 @@ describe('Designer draft composer', () => {
     const decomposedSession: DesignerSession = {
       ...session,
       state: 'WAITING_INPUT', workflowPhase: 'FAILED', activeActor: 'VALIDATOR',
+      finalConfirmationEligible: false,
       requirementRevision: 3, activeWorkPackageId: 'WP-2',
       requirement: { revision: 3, state: 'WAITING_INPUT', modelCallsUsed: 9, maxModelCalls: 32, sourceDraftVersion: 4 },
       decomposition: { id: 'decomposition-3', state: 'COMPLETED', resultType: 'DECOMPOSED', repairCount: 1, planningRepairCount: 1, transportRetryCount: 0, workflowStep: 'FINAL_JSON' },
       compiler: { id: 'compiler-wp2', state: 'SESSION_ERROR', externalSessionState: 'FAILED', repairCount: 2, planningRepairCount: 2, designRevision: 1, workPackageId: 'WP-2', workflowStep: 'FINAL_JSON' },
       workPackages: [
-        { id: 'WP-1', ordinal: 0, title: '查询能力', objective: '可查询结果', dependencies: [], state: 'COMPLETED', redesignCount: 0, compilerRepairCount: 0, compilerPlanningRepairCount: 0 },
-        { id: 'WP-2', ordinal: 1, title: '变更能力', objective: '可变更结果', dependencies: ['WP-1'], state: 'WAITING_INPUT', redesignCount: 1, compilerRepairCount: 2, compilerPlanningRepairCount: 2, lastErrorCode: 'COMPILER_RETRY_EXHAUSTED' },
+        { id: 'WP-1', ordinal: 0, title: '查询能力', objective: '可查询结果', dependencies: [], state: 'COMPLETED', redesignCount: 0, compilerRepairCount: 0, compilerPlanningRepairCount: 0, designRevision: 1, discussionRoundCount: 0 },
+        { id: 'WP-2', ordinal: 1, title: '变更能力', objective: '可变更结果', dependencies: ['WP-1'], state: 'WAITING_INPUT', redesignCount: 1, compilerRepairCount: 2, compilerPlanningRepairCount: 2, designRevision: 1, discussionRoundCount: 0, lastErrorCode: 'COMPILER_RETRY_EXHAUSTED' },
       ],
       messages: [
         { id: 'decomposer', role: 'ASSISTANT', actor: 'DECOMPOSER', content: '拆解校验通过：形成 2 个工作包。', deliveryState: 'COMPILED', requirementRevision: 3, createdAt: 'now' },
@@ -409,22 +502,25 @@ describe('Designer draft composer', () => {
 
     expect(wrapper.get('.chat-decomposer').text()).toContain('Task Decomposer / 任务拆解器')
     expect(wrapper.get('[aria-label="工作包设计轨道"]').text()).toContain('WP-1')
-    expect(wrapper.get('[aria-label="工作包设计轨道"]').text()).toContain('依赖 WP-1 · 重设计 1/1 · 编译规划修复 2/2 · JSON 修复 2/2')
+    expect(wrapper.get('[aria-label="工作包设计轨道"]').text()).toContain('讨论 0/5 · 设计 R1')
     expect(wrapper.get('.designer-connection-strip').text()).toContain('模型调用 9/32')
     expect(wrapper.text()).not.toContain('"stages":["secret"]')
-    const confirmButton = wrapper.findAll('button').find((button) => button.text().includes('确认并交接'))!
+    const confirmButton = wrapper.findAll('button').find((button) => button.text().includes('确认设计并创建任务'))!
     expect(confirmButton.attributes('disabled')).toBeDefined()
 
     await wrapper.findAll('button').find((button) => button.text().includes('重新编译当前包'))!.trigger('click')
     await flushPromises()
-    await wrapper.findAll('button').find((button) => button.text().includes('重新设计当前包'))!.trigger('click')
+    await wrapper.findAll('button').find((button) => button.text().includes('恢复当前包设计'))!.trigger('click')
     await flushPromises()
     expect(retry).toHaveBeenCalledWith(decomposedSession.id, 'WP-2')
     expect(redesign).toHaveBeenCalledWith(decomposedSession.id, 'WP-2')
   })
 
   it('clears the restored workspace and local message drafts when starting over', async () => {
-    vi.spyOn(api, 'createDesignerSession').mockResolvedValue(session)
+    vi.spyOn(api, 'createDesignerSession').mockResolvedValue({
+      ...session, state: 'REVIEWING', workflowPhase: 'DISCUSSING_REQUIREMENT',
+      discussionScope: 'REQUIREMENT', finalConfirmationEligible: false,
+    })
     vi.spyOn(api, 'createDraft').mockImplementation(async (spec) => draftFrom(spec))
     const confirmation = vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
     const wrapper = mountDesigner()
@@ -477,7 +573,7 @@ describe('Designer draft composer', () => {
     await wrapper.get('textarea[aria-label="草案设计目标"]').setValue(loopSpec.goal)
     await wrapper.get('.create-draft-button').trigger('click')
     await flushPromises()
-    const confirmButton = wrapper.findAll('button').find((button) => button.text().includes('确认并交接'))
+    const confirmButton = wrapper.findAll('button').find((button) => button.text().includes('确认设计并创建任务'))
     expect(confirmButton).toBeDefined()
     await confirmButton!.trigger('click')
     await flushPromises()
@@ -555,7 +651,7 @@ describe('Designer draft composer', () => {
     await wrapper.get('textarea[aria-label="草案设计目标"]').setValue(loopSpec.goal)
     await wrapper.get('.create-draft-button').trigger('click')
     await flushPromises()
-    const confirmButton = wrapper.findAll('button').find((button) => button.text().includes('确认并交接'))
+    const confirmButton = wrapper.findAll('button').find((button) => button.text().includes('确认设计并创建任务'))
     await confirmButton!.trigger('click')
     await flushPromises()
 

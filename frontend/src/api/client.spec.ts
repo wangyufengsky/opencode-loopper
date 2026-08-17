@@ -61,12 +61,12 @@ describe('Loopper REST contract adapter', () => {
   it('persists project descriptions and repository execution metadata', async () => {
     const fetchMock = vi.fn().mockResolvedValue(json({
       id: 'project-1', name: 'Example', rootPath: '/tmp/example', description: 'Useful context',
-      status: 'READY', executionMode: 'WORKTREE', branch: 'main', updatedAt: 'now', taskCount: 0,
+      status: 'READY', executionMode: 'WORKTREE', branch: 'main', updatedAt: 'now', taskCount: 0, openDesignerSessionCount: 2,
     }))
     vi.stubGlobal('fetch', fetchMock)
 
     await expect(api.createProject({ name: 'Example', rootPath: '/tmp/example', description: '  Useful context  ' }))
-      .resolves.toMatchObject({ description: 'Useful context', executionMode: 'WORKTREE', branch: 'main' })
+      .resolves.toMatchObject({ description: 'Useful context', executionMode: 'WORKTREE', branch: 'main', openDesignerSessionCount: 2 })
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
       name: 'Example', rootPath: '/tmp/example', description: 'Useful context',
     })
@@ -604,5 +604,50 @@ describe('Loopper REST contract adapter', () => {
       method: 'POST', body: JSON.stringify({ answers: [['New chain']] }),
     }))
     expect(fetchMock).toHaveBeenNthCalledWith(4, '/api/designer-sessions/designer-1/questions/question-2/reject', expect.objectContaining({ method: 'POST' }))
+  })
+
+  it('lists persistent unconfirmed Designer sessions by project', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(json([{
+      id: 'designer-1', projectId: 'project one', state: 'WAITING_INPUT', workflowPhase: 'FAILED',
+      updatedAt: 'now', draftId: 'draft-1', draftStatus: 'DRAFT_READY', goal: 'Resume me',
+      requirementRevision: 2, activeWorkPackageId: 'WP-2',
+    }]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(api.listOpenDesignerSessions('project one')).resolves.toEqual([expect.objectContaining({
+      id: 'designer-1', state: 'WAITING_INPUT', workflowPhase: 'FAILED', goal: 'Resume me', activeWorkPackageId: 'WP-2',
+    })])
+    expect(fetchMock).toHaveBeenCalledWith('/api/designer-sessions?projectId=project%20one', expect.any(Object))
+  })
+
+  it('uses explicit optimistic-revision endpoints for requirement and work-package discussion', async () => {
+    const accepted = { sessionId: 'designer-1', state: 'RUNNING', persistedMessages: [], notice: 'accepted' }
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json(accepted, 202))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(json(accepted, 202))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(json({ invalidatedPackageIds: ['WP-3'] }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await api.sendRequirementMessage('designer-1', '补充整体边界', 2)
+    await api.confirmDesignerRequirement('designer-1', 3)
+    await api.reopenDesignerRequirement('designer-1', 4)
+    await api.sendWorkPackageMessage('designer-1', 'WP-2', '只修改这个包', 5, 7)
+    await api.approveWorkPackage('designer-1', 'WP-2', 6, 8)
+    await expect(api.reopenWorkPackage('designer-1', 'WP-2', 7, 8)).resolves.toEqual(['WP-3'])
+
+    expect(fetchMock.mock.calls.map((call) => call[0])).toEqual([
+      '/api/designer-sessions/designer-1/requirement/messages',
+      '/api/designer-sessions/designer-1/requirement/confirm',
+      '/api/designer-sessions/designer-1/requirement/reopen',
+      '/api/designer-sessions/designer-1/work-packages/WP-2/messages',
+      '/api/designer-sessions/designer-1/work-packages/WP-2/approve',
+      '/api/designer-sessions/designer-1/work-packages/WP-2/reopen',
+    ])
+    expect(fetchMock.mock.calls[3]?.[1]).toEqual(expect.objectContaining({
+      method: 'POST', body: JSON.stringify({ content: '只修改这个包', expectedDiscussionRevision: 5, expectedDesignRevision: 7 }),
+    }))
   })
 })

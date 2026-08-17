@@ -90,7 +90,7 @@ public class ProjectController {
         String status = !inspection.pathAvailable() ? "INVALID" : inspection.isolatedWorktree() ? "READY" : "NEEDS_GIT";
         String executionMode = inspection.isolatedWorktree() ? "WORKTREE" : inspection.pathAvailable() ? "DIRECT" : "UNAVAILABLE";
         return new ProjectDto(row.id(), row.name(), row.rootPath(), status, row.description(), inspection.branch(),
-                executionMode, row.updatedAt(), service.taskCount(row.id()));
+                executionMode, row.updatedAt(), service.taskCount(row.id()), service.openDesignerSessionCount(row.id()));
     }
     private ProjectConventionDto conventionDto(ProjectConventionDraftRow row) {
         return new ProjectConventionDto(row.id(), row.projectId(), row.state(), row.sourceExists() == 1 ? "UPDATE" : "CREATE",
@@ -102,5 +102,6 @@ public class ProjectController {
         }
     }
     public record ProjectDto(String id, String name, String rootPath, String status, String description, String branch,
-                             String executionMode, String updatedAt, int taskCount) { }
+                             String executionMode, String updatedAt, int taskCount,
+                             int openDesignerSessionCount) { }
 }

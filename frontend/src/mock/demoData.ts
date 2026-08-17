@@ -3,8 +3,8 @@ import type { Artifact, DesignerMessage, LoopDraft, Project, RuntimeInfo, Task }
 const now = '2026-08-04T10:12:00+08:00'
 
 export const demoProjects: Project[] = [
-  { id: 'prj-loopper', name: 'OpenCode Loopper', rootPath: '/Users/wangyufeng/IdeaProjects/opencode-loopper', branch: 'main', description: '本地 OpenCode Loop 管理台', status: 'READY', updatedAt: now, taskCount: 3 },
-  { id: 'prj-sandbox', name: 'E2E Sandbox', rootPath: '/Users/wangyufeng/IdeaProjects/loopper-sandbox', branch: 'main', description: '确定性验证沙盒', status: 'READY', updatedAt: '2026-08-04T09:36:00+08:00', taskCount: 1 },
+  { id: 'prj-loopper', name: 'OpenCode Loopper', rootPath: '/Users/wangyufeng/IdeaProjects/opencode-loopper', branch: 'main', description: '本地 OpenCode Loop 管理台', status: 'READY', updatedAt: now, taskCount: 3, openDesignerSessionCount: 1 },
+  { id: 'prj-sandbox', name: 'E2E Sandbox', rootPath: '/Users/wangyufeng/IdeaProjects/loopper-sandbox', branch: 'main', description: '确定性验证沙盒', status: 'READY', updatedAt: '2026-08-04T09:36:00+08:00', taskCount: 1, openDesignerSessionCount: 0 },
 ]
 
 export const demoRuntime: RuntimeInfo = {

@@ -375,7 +375,13 @@ public class FakeOpenCodeClient implements OpenCodeClient {
             workPackage.put("dependencies", java.util.List.of());
             workPackage.put("deliverables", java.util.List.of("可验证实现"));
             workPackage.put("acceptanceIntent", java.util.List.of("需求中的可观察结果通过确定性验证"));
-            workPackage.put("requirementRefs", java.util.List.of("RQ-1"));
+            String markdown = designerMarkdown(output);
+            int segmentCount = markdown == null ? 1 : Math.max(1, (int) java.util.Arrays.stream(
+                            markdown.replace("\r\n", "\n").replace('\r', '\n').split("\\n\\s*\\n"))
+                    .map(String::trim).filter(value -> !value.isBlank()).count());
+            java.util.List<String> requirementRefs = java.util.stream.IntStream.rangeClosed(1, segmentCount)
+                    .mapToObj(index -> "RQ-" + index).toList();
+            workPackage.put("requirementRefs", requirementRefs);
             java.util.Map<String, Object> envelope = new java.util.LinkedHashMap<>();
             envelope.put("status", "DIRECT_DESIGN");
             envelope.put("normalizedGoal", goal);

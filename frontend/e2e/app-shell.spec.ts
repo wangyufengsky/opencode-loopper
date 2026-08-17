@@ -4,7 +4,7 @@ test.beforeEach(async ({ page }) => {
   await page.route('http://127.0.0.1:41773/api/**', async (route) => {
     const path = new URL(route.request().url()).pathname
     const payload = path === '/api/projects'
-      ? [{ id: 'e2e-project', name: 'E2E 隔离项目', rootPath: '/tmp/loopper-e2e', status: 'READY', updatedAt: '2026-08-05T00:00:00Z', taskCount: 0 }]
+      ? [{ id: 'e2e-project', name: 'E2E 隔离项目', rootPath: '/tmp/loopper-e2e', status: 'READY', updatedAt: '2026-08-05T00:00:00Z', taskCount: 0, openDesignerSessionCount: 0 }]
       : path === '/api/tasks'
         ? []
         : path === '/api/automations/templates' || path === '/api/automations/rules'

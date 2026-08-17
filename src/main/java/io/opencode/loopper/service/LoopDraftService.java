@@ -139,9 +139,11 @@ public class LoopDraftService {
         if (LoopDraftStatus.CONFIRMED.name().equals(draft.status())) return mapper.findTaskByDraft(id).orElseThrow(() -> new ConflictException("DRAFT_TASK_MISSING", "Confirmed draft has no associated task"));
         mapper.findLatestDesignerSessionByDraft(id).ifPresent(session -> {
             if (session.currentRequirementRevision() != null
-                    && !io.opencode.loopper.domain.DesignWorkflowPhase.COMPLETED.name().equals(session.workflowPhase())) {
+                    && !java.util.Set.of(io.opencode.loopper.domain.DesignWorkflowPhase.FINAL_REVIEW.name(),
+                    io.opencode.loopper.domain.DesignWorkflowPhase.COMPLETED.name())
+                    .contains(session.workflowPhase())) {
                 throw new ConflictException("DESIGN_WORKFLOW_NOT_COMPLETED",
-                        "Review Gate cannot be confirmed until decomposition and every work package complete");
+                        "Review Gate cannot be confirmed until every work package is approved and aggregation is stable");
             }
             validateCompletedWorkPackageMapping(session.id(), spec(draft));
         });
@@ -323,7 +325,15 @@ public class LoopDraftService {
 
     private void validateCompletedWorkPackageMapping(String designerSessionId, LoopSpec spec) {
         mapper.findCurrentDesignRequirementRevision(designerSessionId).ifPresent(revision -> {
-            List<String> expected = mapper.listDesignWorkPackages(revision.id()).stream()
+            List<io.opencode.loopper.persistence.DesignWorkPackageRow> packages =
+                    mapper.listDesignWorkPackages(revision.id());
+            if (packages.stream().anyMatch(packageRow ->
+                    !io.opencode.loopper.domain.DesignWorkPackageState.APPROVED.name().equals(packageRow.state())
+                            || packageRow.approvedDesignRevision() == null)) {
+                throw new ConflictException("WORK_PACKAGE_APPROVAL_REQUIRED",
+                        "Every work package must be explicitly approved before final confirmation");
+            }
+            List<String> expected = packages.stream()
                     .map(io.opencode.loopper.persistence.DesignWorkPackageRow::packageId).toList();
             if (expected.isEmpty()) return;
             Map<String, Integer> order = new LinkedHashMap<>();

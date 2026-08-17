@@ -2,6 +2,7 @@
 import { onBeforeUnmount, ref } from 'vue'
 import { Icon } from '@iconify/vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useRouter } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import { api } from '@/api/client'
@@ -9,6 +10,7 @@ import { useTaskStore } from '@/stores/taskStore'
 import type { Project, ProjectConventionDraft, ProjectConventionSnapshot } from '@/types/domain'
 
 const store = useTaskStore()
+const router = useRouter()
 const dialogVisible = ref(false)
 const saving = ref(false)
 const pickingDirectory = ref(false)
@@ -29,6 +31,10 @@ function openDialog() {
   form.value = { name: '', rootPath: '', description: '' }
   fieldError.value = ''
   dialogVisible.value = true
+}
+
+function continueDesign(project: Project) {
+  void router.push({ path: '/designer', query: { projectId: project.id } })
 }
 
 async function pickDirectory() {
@@ -56,7 +62,7 @@ async function submit() {
   saving.value = true
   try {
     if (store.usingDemo) {
-      store.projects.push({ id: `demo-${Date.now()}`, ...form.value, status: 'NEEDS_GIT', executionMode: 'DIRECT', updatedAt: new Date().toISOString(), taskCount: 0 })
+      store.projects.push({ id: `demo-${Date.now()}`, ...form.value, status: 'NEEDS_GIT', executionMode: 'DIRECT', updatedAt: new Date().toISOString(), taskCount: 0, openDesignerSessionCount: 0 })
     } else {
       store.projects.push(await api.createProject(form.value))
     }
@@ -197,8 +203,11 @@ onBeforeUnmount(clearConventionPoll)
         <p class="card-description">{{ project.description || '尚未添加说明' }}</p>
         <div class="divider" /><p class="mono tiny muted project-path">{{ project.rootPath }}</p>
         <div class="project-footer">
-          <div class="project-stats"><span class="execution-mode"><Icon :icon="project.executionMode === 'WORKTREE' ? 'lucide:git-branch' : 'lucide:folder-cog'" /><span class="mono tiny">{{ project.executionMode === 'WORKTREE' ? project.branch : project.executionMode === 'UNAVAILABLE' ? '目录不可访问' : '原项目目录' }}</span></span><span class="tiny muted">{{ project.taskCount }} 个任务</span></div>
+          <div class="project-stats"><span class="execution-mode"><Icon :icon="project.executionMode === 'WORKTREE' ? 'lucide:git-branch' : 'lucide:folder-cog'" /><span class="mono tiny">{{ project.executionMode === 'WORKTREE' ? project.branch : project.executionMode === 'UNAVAILABLE' ? '目录不可访问' : '原项目目录' }}</span></span><span class="tiny muted">{{ project.taskCount }} 个任务 · {{ project.openDesignerSessionCount }} 个待继续设计</span></div>
           <div class="project-actions">
+            <button v-if="project.openDesignerSessionCount" type="button" class="convention-action resume-design-action" aria-label="继续项目设计" title="查看并继续未确认的设计" @click="continueDesign(project)">
+              <Icon icon="lucide:sparkles" aria-hidden="true" /><span>继续设计</span>
+            </button>
             <button type="button" class="convention-action" aria-label="查看 AGENTS.md 项目公约" title="查看 AGENTS.md 项目公约" @click="openConvention(project)">
               <Icon icon="lucide:file-text" aria-hidden="true" /><span>项目公约</span>
             </button>
@@ -277,6 +286,7 @@ onBeforeUnmount(clearConventionPoll)
 .project-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 .project-card { min-height: 224px; }.project-icon { display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid rgb(139 92 246 / 42%); border-radius: 9px; color: var(--color-accent-ai); background: rgb(139 92 246 / 10%); }.project-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.project-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 13px; color: var(--color-text-secondary); }.project-stats { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; flex: 1; }.execution-mode { display: inline-flex; min-width: 0; align-items: center; gap: 6px; }.execution-mode svg { flex: 0 0 auto; color: var(--color-accent-cyan); }.execution-mode span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.project-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
 .convention-action { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; gap: 6px; min-height: 30px; padding: 0 10px; border: 1px solid rgb(139 92 246 / 34%); border-radius: 7px; color: #c4b5fd; background: rgb(139 92 246 / 8%); font-size: 10px; font-weight: 680; line-height: 1; cursor: pointer; transition: color .16s ease, background-color .16s ease, border-color .16s ease, box-shadow .16s ease, transform .08s ease; touch-action: manipulation; }.convention-action svg { width: 13px; height: 13px; }.convention-action:hover:not(:disabled) { border-color: rgb(139 92 246 / 62%); color: #ede9fe; background: rgb(139 92 246 / 17%); box-shadow: 0 0 18px rgb(139 92 246 / 13%); }.convention-action:active:not(:disabled) { transform: translateY(1px); }.convention-action:focus-visible { outline: 2px solid var(--color-accent-cyan); outline-offset: 3px; }.convention-action:disabled { opacity: .5; cursor: wait; }
+.resume-design-action { border-color: rgb(34 211 238 / 36%); color: #67e8f9; background: rgb(8 145 178 / 10%); }
 .danger-action { border-color: rgb(248 113 113 / 28%); color: #fca5a5; background: rgb(127 29 29 / 8%); }.danger-action:hover:not(:disabled) { border-color: rgb(248 113 113 / 55%); color: #fecaca; background: rgb(127 29 29 / 20%); box-shadow: 0 0 18px rgb(248 113 113 / 10%); }
 .convention-progress { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 180px; }.convention-progress p { margin: 4px 0 0; }.convention-empty { display: grid; place-items: center; gap: 9px; min-height: 210px; margin-top: 16px; border: 1px dashed var(--color-border); border-radius: 10px; color: var(--color-text-secondary); background: rgb(15 23 42 / 30%); text-align: center; }.convention-empty svg { color: var(--color-accent-ai); }.convention-empty p { margin: 0; color: var(--color-text-muted); font-size: 12px; }.convention-error { margin: 16px 0; }.convention-meta { display: flex; justify-content: space-between; gap: 12px; margin: 18px 0 9px; }.convention-preview :deep(textarea) { line-height: 1.55; }.spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }

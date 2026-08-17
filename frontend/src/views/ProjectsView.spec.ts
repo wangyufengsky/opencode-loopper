@@ -7,12 +7,16 @@ import { api } from '@/api/client'
 import { useTaskStore } from '@/stores/taskStore'
 import ProjectsView from '@/views/ProjectsView.vue'
 
+const { routerPush } = vi.hoisted(() => ({ routerPush: vi.fn() }))
+vi.mock('vue-router', () => ({ useRouter: () => ({ push: routerPush }) }))
+
 beforeEach(() => {
   const pinia = createPinia()
   setActivePinia(pinia)
   const store = useTaskStore()
   store.usingDemo = false
   store.projects = []
+  routerPush.mockReset()
 })
 
 afterEach(() => vi.restoreAllMocks())
@@ -70,7 +74,7 @@ describe('Projects folder picker', () => {
 describe('Projects AGENTS.md convention flow', () => {
   it('shows an empty current convention before starting AI design and applies only after confirmation', async () => {
     const store = useTaskStore()
-    store.projects = [{ id: 'project-1', name: 'Example', rootPath: '/tmp/example', status: 'READY', updatedAt: '2026-08-05T00:00:00Z', taskCount: 0 }]
+    store.projects = [{ id: 'project-1', name: 'Example', rootPath: '/tmp/example', status: 'READY', updatedAt: '2026-08-05T00:00:00Z', taskCount: 0, openDesignerSessionCount: 0 }]
     vi.spyOn(api, 'getCurrentProjectConvention').mockResolvedValue({ projectId: 'project-1', exists: false, loopperManaged: false, content: '' })
     vi.spyOn(api, 'generateProjectConvention').mockResolvedValue({
       id: 'draft-1', projectId: 'project-1', state: 'READY', operation: 'CREATE', readOnlyGeneration: true,
@@ -118,7 +122,7 @@ describe('Projects AGENTS.md convention flow', () => {
 
   it('shows the existing AGENTS.md without starting AI', async () => {
     const store = useTaskStore()
-    store.projects = [{ id: 'project-1', name: 'Example', rootPath: '/tmp/example', status: 'READY', updatedAt: '2026-08-05T00:00:00Z', taskCount: 2 }]
+    store.projects = [{ id: 'project-1', name: 'Example', rootPath: '/tmp/example', status: 'READY', updatedAt: '2026-08-05T00:00:00Z', taskCount: 2, openDesignerSessionCount: 0 }]
     vi.spyOn(api, 'getCurrentProjectConvention').mockResolvedValue({ projectId: 'project-1', exists: true, loopperManaged: true, content: '# Existing rules\n' })
     const generate = vi.spyOn(api, 'generateProjectConvention')
     const wrapper = mount(ProjectsView, {
@@ -135,11 +139,27 @@ describe('Projects AGENTS.md convention flow', () => {
 })
 
 describe('Projects management', () => {
+  it('keeps Task count separate and opens the persistent Designer recovery list', async () => {
+    const store = useTaskStore()
+    store.projects = [{
+      id: 'project-1', name: 'Example', rootPath: '/tmp/example', status: 'READY', updatedAt: 'now',
+      taskCount: 0, openDesignerSessionCount: 1,
+    }]
+    const wrapper = mount(ProjectsView, {
+      global: { plugins: [ElementPlus], stubs: { teleport: true, PageHeader: { template: '<header><slot /><slot name="actions" /></header>' }, StatusBadge: true, Icon: true } },
+    })
+
+    expect(wrapper.text()).toContain('0 个任务 · 1 个待继续设计')
+    await wrapper.get('button[aria-label="继续项目设计"]').trigger('click')
+
+    expect(routerPush).toHaveBeenCalledWith({ path: '/designer', query: { projectId: 'project-1' } })
+  })
+
   it('shows the real Git task-branch or direct execution mode', () => {
     const store = useTaskStore()
     store.projects = [
-      { id: 'git-project', name: 'Git project', rootPath: '/tmp/git', description: 'Isolated changes', status: 'READY', executionMode: 'WORKTREE', branch: 'main', updatedAt: 'now', taskCount: 2 },
-      { id: 'plain-project', name: 'Plain project', rootPath: '/tmp/plain', status: 'NEEDS_GIT', executionMode: 'DIRECT', updatedAt: 'now', taskCount: 1 },
+      { id: 'git-project', name: 'Git project', rootPath: '/tmp/git', description: 'Isolated changes', status: 'READY', executionMode: 'WORKTREE', branch: 'main', updatedAt: 'now', taskCount: 2, openDesignerSessionCount: 0 },
+      { id: 'plain-project', name: 'Plain project', rootPath: '/tmp/plain', status: 'NEEDS_GIT', executionMode: 'DIRECT', updatedAt: 'now', taskCount: 1, openDesignerSessionCount: 0 },
     ]
 
     const wrapper = mount(ProjectsView, {
@@ -156,7 +176,7 @@ describe('Projects management', () => {
 
   it('cancels management without deleting the project history from the UI contract', async () => {
     const store = useTaskStore()
-    store.projects = [{ id: 'project-1', name: 'Example', rootPath: '/tmp/example', status: 'READY', updatedAt: '2026-08-05T00:00:00Z', taskCount: 4 }]
+    store.projects = [{ id: 'project-1', name: 'Example', rootPath: '/tmp/example', status: 'READY', updatedAt: '2026-08-05T00:00:00Z', taskCount: 4, openDesignerSessionCount: 0 }]
     vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
     const cancel = vi.spyOn(api, 'cancelProjectManagement').mockResolvedValue(undefined)
     const wrapper = mount(ProjectsView, {

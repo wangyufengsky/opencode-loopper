@@ -306,6 +306,7 @@ public class TaskService {
             throw new NotFoundException("Task not found: " + id);
         }
         if (draftId != null && !draftId.isBlank()) {
+            mapper.deleteDesignDiscussionRevisionsByDraft(draftId);
             mapper.deleteLoopSpecCompilationsByDraft(draftId);
             mapper.deleteDesignWorkPackagesByDraft(draftId);
             mapper.deleteTaskDecompositionsByDraft(draftId);
