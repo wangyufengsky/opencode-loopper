@@ -12,7 +12,8 @@ public record LoopSpecCompilationRow(
         String workPackageId, int transportRetryCount, String compiledPackageJson,
         String workflowStep, String planningJson, int planningRepairCount,
         String planningResponseMode, String planningResponseSchemaId, boolean planningFormatFallbackUsed,
-        String finalResponseMode, String finalResponseSchemaId, boolean finalFormatFallbackUsed) {
+        String finalResponseMode, String finalResponseSchemaId, boolean finalFormatFallbackUsed,
+        String semanticPlanJson, int formatRepairCount, int semanticRepairCount, boolean serverCompiled) {
     @AutomapConstructor
     public LoopSpecCompilationRow { }
 
@@ -26,7 +27,8 @@ public record LoopSpecCompilationRow(
         this(id, designerSessionId, designRevision, state, externalSessionId, externalSessionState, repairCount,
                 sourceDesignMessageId, sourceDraftVersion, lastErrorCode, lastErrorDetail, createdAt, updatedAt,
                 version, workPackageId, transportRetryCount, compiledPackageJson, workflowStep, planningJson,
-                planningRepairCount, "TEXT_MARKER", null, false, "TEXT_MARKER", null, false);
+                planningRepairCount, "TEXT_MARKER", null, false, "TEXT_MARKER", null, false,
+                planningJson, planningRepairCount, 0, false);
     }
 
     public LoopSpecCompilationRow(String id, String designerSessionId, int designRevision, String state,
@@ -37,6 +39,7 @@ public record LoopSpecCompilationRow(
         this(id, designerSessionId, designRevision, state, externalSessionId, externalSessionState, repairCount,
                 sourceDesignMessageId, sourceDraftVersion, lastErrorCode, lastErrorDetail,
                 createdAt, updatedAt, version, null, 0, null, "FINAL_JSON", null, 0,
-                "TEXT_MARKER", null, false, "TEXT_MARKER", null, false);
+                "TEXT_MARKER", null, false, "TEXT_MARKER", null, false,
+                null, 0, 0, false);
     }
 }

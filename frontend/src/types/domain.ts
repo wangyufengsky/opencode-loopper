@@ -766,7 +766,7 @@ export interface DesignerMessage {
 export type DesignerSessionState = 'PENDING_HANDOFF' | 'RUNNING' | 'REVIEWING' | 'WAITING_INPUT' | 'COMPLETED' | 'SESSION_ERROR'
 export type DesignWorkflowPhase = 'DISCUSSING_REQUIREMENT' | 'DECOMPOSING' | 'VALIDATING_DECOMPOSITION' | 'DESIGNING' | 'COMPILING' | 'VALIDATING' | 'REDESIGNING' | 'QUESTIONING_PACKAGE' | 'REVIEWING_PACKAGE' | 'AGGREGATING' | 'FINAL_REVIEW' | 'COMPLETED' | 'FAILED'
 export type DesignerActor = DesignerMessage['actor']
-export type StructuredModelStep = 'PLANNING' | 'GENERATING_JSON' | 'REPAIRING_JSON' | 'FINAL_JSON'
+export type StructuredModelStep = 'PLANNING' | 'SERVER_COMPILING' | 'GENERATING_JSON' | 'REPAIRING_JSON' | 'FINAL_JSON'
 
 export interface DesignerSessionSummary {
   id: string
@@ -806,6 +806,9 @@ export interface TaskDecompositionStatus {
   lastErrorDetail?: string
   workflowStep: StructuredModelStep
   planningRepairCount: number
+  formatRepairCount?: number
+  semanticRepairCount?: number
+  serverCompiled?: boolean
 }
 
 export interface DesignWorkPackageStatus {
@@ -818,6 +821,9 @@ export interface DesignWorkPackageStatus {
   redesignCount: number
   compilerRepairCount: number
   compilerPlanningRepairCount: number
+  compilerFormatRepairCount?: number
+  compilerSemanticRepairCount?: number
+  compilerServerCompiled?: boolean
   compilerSummary?: string
   handoffSummary?: string
   lastErrorCode?: string
@@ -863,6 +869,9 @@ export interface DesignerSession {
     workPackageId?: string
     workflowStep: StructuredModelStep
     planningRepairCount: number
+    formatRepairCount?: number
+    semanticRepairCount?: number
+    serverCompiled?: boolean
   }
   requirement?: DesignRequirementRevisionStatus
   decomposition?: TaskDecompositionStatus

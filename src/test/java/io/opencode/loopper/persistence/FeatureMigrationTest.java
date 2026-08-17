@@ -69,7 +69,7 @@ class FeatureMigrationTest {
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
 
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("29");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("30");
         try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
             try (var result = statement.executeQuery("SELECT state,workflow_phase,discussion_scope FROM designer_session WHERE id='s27'")) {
                 assertThat(result.next()).isTrue();
@@ -101,7 +101,7 @@ class FeatureMigrationTest {
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
 
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("29");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("30");
         try (var connection = DriverManager.getConnection(url);
              var statement = connection.prepareStatement("SELECT name FROM sqlite_master WHERE type='table'")) {
             try (var result = statement.executeQuery()) {
@@ -160,7 +160,8 @@ class FeatureMigrationTest {
                 try (var result = statement.executeQuery("PRAGMA table_info(" + table + ")")) {
                     var columns = new java.util.ArrayList<String>();
                     while (result.next()) columns.add(result.getString("name"));
-                    assertThat(columns).contains("workflow_step", "planning_json", "planning_repair_count");
+                    assertThat(columns).contains("workflow_step", "planning_json", "planning_repair_count",
+                            "semantic_plan_json", "format_repair_count", "semantic_repair_count", "server_compiled");
                 }
             }
             statement.execute("PRAGMA foreign_keys=ON");

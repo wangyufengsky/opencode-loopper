@@ -6,8 +6,10 @@ import tools.jackson.databind.ObjectMapper;
 /** Closed JSON Schemas used by OpenCode format=json_schema. Semantic validation remains server-authoritative. */
 public final class OpenCodeStructuredSchemas {
     public static final String DECOMPOSITION_PLAN_V1 = "DECOMPOSITION_PLAN_V1";
+    public static final String DECOMPOSITION_SEMANTIC_V2 = "DECOMPOSITION_SEMANTIC_V2";
     public static final String DECOMPOSITION_FINAL_V1 = "DECOMPOSITION_FINAL_V1";
     public static final String PACKAGE_COMPILATION_PLAN_V2 = "PACKAGE_COMPILATION_PLAN_V2";
+    public static final String PACKAGE_COMPILATION_SEMANTIC_V3 = "PACKAGE_COMPILATION_SEMANTIC_V3";
     public static final String PACKAGE_COMPILATION_FINAL_V2 = "PACKAGE_COMPILATION_FINAL_V2";
     public static final String JUDGE_DECISION_V1 = "JUDGE_DECISION_V1";
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -21,8 +23,10 @@ public final class OpenCodeStructuredSchemas {
     public static Map<String, Object> schema(String schemaId) {
         return switch (schemaId) {
             case DECOMPOSITION_PLAN_V1 -> read(DECOMPOSITION_PLAN);
+            case DECOMPOSITION_SEMANTIC_V2 -> read(DECOMPOSITION_SEMANTIC);
             case DECOMPOSITION_FINAL_V1 -> read(DECOMPOSITION_FINAL);
             case PACKAGE_COMPILATION_PLAN_V2 -> read(PACKAGE_COMPILATION_PLAN);
+            case PACKAGE_COMPILATION_SEMANTIC_V3 -> read(PACKAGE_COMPILATION_SEMANTIC);
             case PACKAGE_COMPILATION_FINAL_V2 -> read(PACKAGE_COMPILATION_FINAL);
             case JUDGE_DECISION_V1 -> read(JUDGE_DECISION);
             default -> throw new IllegalArgumentException("Unknown OpenCode response schema: " + schemaId);
@@ -79,6 +83,21 @@ public final class OpenCodeStructuredSchemas {
         }
         """.formatted(DECOMPOSITION_DEFS);
 
+    private static final String DECOMPOSITION_SEMANTIC = """
+        {
+          "$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","additionalProperties":true,
+          "required":["outcome","normalizedGoal","globalConstraints","workPackages","coverage"],
+          "properties":{
+            "outcome":{"type":"string","enum":["READY","NEEDS_INPUT","MULTI_TASK_REQUIRED"]},
+            "normalizedGoal":{"type":"string","minLength":1,"maxLength":12000},
+            "globalConstraints":{"type":"array","maxItems":64,"items":{"type":"object","required":["text"],"properties":{"text":{"type":"string","minLength":1,"maxLength":2000}}}},
+            "workPackages":{"type":"array","maxItems":6,"items":{"type":"object","required":["title","objective","scopeIn","scopeOut","deliverables","acceptanceIntent","dependsOn"],"properties":{"title":{"type":"string","minLength":1,"maxLength":200},"objective":{"type":"string","minLength":1,"maxLength":2000},"scopeIn":{"type":"array","items":{"type":"string"}},"scopeOut":{"type":"array","items":{"type":"string"}},"deliverables":{"type":"array","items":{"type":"string"}},"acceptanceIntent":{"type":"array","items":{"type":"string"}},"dependsOn":{"type":"array","items":{"anyOf":[{"type":"integer"},{"type":"object"}]}}}}},
+            "coverage":{"type":"array","maxItems":256,"items":{"type":"object","required":["requirementRef","targetType","targetIndex"],"properties":{"requirementRef":{"type":"string"},"targetType":{"type":"string","enum":["GLOBAL_CONSTRAINT","WORK_PACKAGE"]},"targetIndex":{"type":"integer","minimum":0},"rationale":{"type":["string","null"]}}}},
+            "designGaps":{"type":"array"},"reason":{"type":["string","null"]}
+          }
+        }
+        """;
+
     private static final String COMPILER_DEFS = """
         "$defs": {
           "stringList":{"type":"array","maxItems":64,"items":{"type":"string","minLength":1,"maxLength":2048}},
@@ -123,6 +142,19 @@ public final class OpenCodeStructuredSchemas {
           %s
         }
         """.formatted(COMPILER_DEFS);
+
+    private static final String PACKAGE_COMPILATION_SEMANTIC = """
+        {
+          "$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","additionalProperties":true,
+          "required":["outcome","stages","handoffSummary"],
+          "properties":{
+            "outcome":{"type":"string","enum":["COMPILED","DESIGN_INCOMPLETE"]},
+            "summary":{"type":["string","null"],"maxLength":1000},
+            "stages":{"type":"array","maxItems":3,"items":{"type":"object","required":["objective","implementationKind","allowedPaths","forbiddenPaths","deliverables","criteria","evidence"],"properties":{"objective":{"type":"string"},"implementationKind":{"type":"string","enum":["JAVA_PRODUCTION","JAVA_TEST_ONLY","NON_JAVA"]},"allowedPaths":{"type":"array","items":{"type":"string"}},"forbiddenPaths":{"type":"array","items":{"type":"string"}},"deliverables":{"type":"array","items":{"type":"string"}},"criteria":{"type":"array","items":{"type":"object","required":["description","sourceRefs"],"properties":{"description":{"type":"string"},"sourceRefs":{"type":"array","items":{"type":"string","pattern":"^DS-L[0-9]{3,}$"}},"judgeRubric":{"type":["string","null"]},"judgeOnlyReason":{"type":["string","null"]}}}},"evidence":{"type":"array","items":{"type":"object","required":["kind","covers"],"additionalProperties":true,"properties":{"kind":{"type":"string"},"command":{"type":"array","items":{"type":"string"}},"covers":{"type":"array","items":{"type":"integer","minimum":0}},"successMarker":{"type":["string","null"]}}}}}}},
+            "handoffSummary":{"type":["string","null"],"maxLength":4096},"designGaps":{"type":"array"}
+          }
+        }
+        """;
 
     private static final String JUDGE_DECISION = """
         {

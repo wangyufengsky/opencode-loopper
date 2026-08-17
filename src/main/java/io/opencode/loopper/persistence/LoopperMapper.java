@@ -384,13 +384,15 @@ public interface LoopperMapper {
               repair_count,transport_retry_count,source_draft_version,last_error_code,last_error_detail,
               created_at,updated_at,version,workflow_step,planning_json,planning_repair_count,
               planning_response_mode,planning_response_schema_id,planning_format_fallback_used,
-              final_response_mode,final_response_schema_id,final_format_fallback_used)
+              final_response_mode,final_response_schema_id,final_format_fallback_used,
+              semantic_plan_json,format_repair_count,semantic_repair_count,server_compiled)
             VALUES(#{id},#{designerSessionId},#{requirementRevisionId},#{state},#{resultType},#{normalizedGoal},
               #{globalConstraintsJson},#{planJson},#{externalSessionId},#{externalSessionState},#{repairCount},
               #{transportRetryCount},#{sourceDraftVersion},#{lastErrorCode},#{lastErrorDetail},
               #{createdAt},#{updatedAt},#{version},#{workflowStep},#{planningJson},#{planningRepairCount},
               #{planningResponseMode},#{planningResponseSchemaId},#{planningFormatFallbackUsed},
-              #{finalResponseMode},#{finalResponseSchemaId},#{finalFormatFallbackUsed})
+              #{finalResponseMode},#{finalResponseSchemaId},#{finalFormatFallbackUsed},
+              #{semanticPlanJson},#{formatRepairCount},#{semanticRepairCount},#{serverCompiled})
             """)
     int insertTaskDecomposition(TaskDecompositionRow row);
     @Select("SELECT * FROM task_decomposition WHERE id=#{id}")
@@ -411,6 +413,8 @@ public interface LoopperMapper {
               planning_format_fallback_used=#{planningFormatFallbackUsed},
               final_response_mode=#{finalResponseMode},final_response_schema_id=#{finalResponseSchemaId},
               final_format_fallback_used=#{finalFormatFallbackUsed},
+              semantic_plan_json=#{semanticPlanJson},format_repair_count=#{formatRepairCount},
+              semantic_repair_count=#{semanticRepairCount},server_compiled=#{serverCompiled},
               last_error_code=#{lastErrorCode},last_error_detail=#{lastErrorDetail},
               updated_at=#{updatedAt},version=version+1 WHERE id=#{id} AND version=#{version}
             """)
@@ -461,14 +465,16 @@ public interface LoopperMapper {
               work_package_id,transport_retry_count,compiled_package_json,workflow_step,planning_json,
               planning_repair_count,planning_response_mode,planning_response_schema_id,
               planning_format_fallback_used,final_response_mode,final_response_schema_id,
-              final_format_fallback_used)
+              final_format_fallback_used,semantic_plan_json,format_repair_count,
+              semantic_repair_count,server_compiled)
             VALUES(#{id},#{designerSessionId},#{designRevision},#{state},#{externalSessionId},
               #{externalSessionState},#{repairCount},#{sourceDesignMessageId},#{sourceDraftVersion},
               #{lastErrorCode},#{lastErrorDetail},#{createdAt},#{updatedAt},#{version},
               #{workPackageId},#{transportRetryCount},#{compiledPackageJson},#{workflowStep},#{planningJson},
               #{planningRepairCount},#{planningResponseMode},#{planningResponseSchemaId},
               #{planningFormatFallbackUsed},#{finalResponseMode},#{finalResponseSchemaId},
-              #{finalFormatFallbackUsed})
+              #{finalFormatFallbackUsed},#{semanticPlanJson},#{formatRepairCount},
+              #{semanticRepairCount},#{serverCompiled})
             """)
     int insertLoopSpecCompilation(LoopSpecCompilationRow row);
     @Select("SELECT * FROM loop_spec_compilation WHERE id=#{id}")
@@ -497,6 +503,8 @@ public interface LoopperMapper {
               planning_format_fallback_used=#{planningFormatFallbackUsed},
               final_response_mode=#{finalResponseMode},final_response_schema_id=#{finalResponseSchemaId},
               final_format_fallback_used=#{finalFormatFallbackUsed},
+              semantic_plan_json=#{semanticPlanJson},format_repair_count=#{formatRepairCount},
+              semantic_repair_count=#{semanticRepairCount},server_compiled=#{serverCompiled},
               last_error_code=#{lastErrorCode},last_error_detail=#{lastErrorDetail},
               updated_at=#{updatedAt},version=version+1
             WHERE id=#{id} AND version=#{version}

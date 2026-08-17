@@ -11,7 +11,8 @@ public record TaskDecompositionRow(
         String createdAt, String updatedAt, long version,
         String workflowStep, String planningJson, int planningRepairCount,
         String planningResponseMode, String planningResponseSchemaId, boolean planningFormatFallbackUsed,
-        String finalResponseMode, String finalResponseSchemaId, boolean finalFormatFallbackUsed) {
+        String finalResponseMode, String finalResponseSchemaId, boolean finalFormatFallbackUsed,
+        String semanticPlanJson, int formatRepairCount, int semanticRepairCount, boolean serverCompiled) {
     @AutomapConstructor public TaskDecompositionRow { }
 
     public TaskDecompositionRow(String id, String designerSessionId, String requirementRevisionId, String state,
@@ -24,6 +25,7 @@ public record TaskDecompositionRow(
                 globalConstraintsJson, planJson, externalSessionId, externalSessionState, repairCount,
                 transportRetryCount, sourceDraftVersion, lastErrorCode, lastErrorDetail, createdAt, updatedAt,
                 version, workflowStep, planningJson, planningRepairCount,
-                "TEXT_MARKER", null, false, "TEXT_MARKER", null, false);
+                "TEXT_MARKER", null, false, "TEXT_MARKER", null, false,
+                planningJson, planningRepairCount, 0, false);
     }
 }

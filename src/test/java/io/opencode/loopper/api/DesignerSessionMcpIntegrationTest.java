@@ -110,7 +110,7 @@ class DesignerSessionMcpIntegrationTest {
                 .isEqualTo("REVIEWING");
         assertThat(completed.workflowPhase()).isEqualTo("FINAL_REVIEW");
         assertThat(fake().createReadOnlySessionCalls()).isEqualTo(5);
-        assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(7);
+        assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(5);
         assertThat(designerSessions.decompositionStatus(session.id()).resultType()).isEqualTo("DIRECT_DESIGN");
         assertThat(designerSessions.workPackageStatuses(session.id())).singleElement().satisfies(workPackage -> {
             assertThat(workPackage.id()).isEqualTo("WP-1");
@@ -132,6 +132,123 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(tasks.artifacts(task.id()).stream().map(TaskArtifactRow::kind).toList())
                 .contains("REQUIREMENT_CONTEXT", "DECOMPOSITION_CONTEXT", "WORK_PACKAGE_DESIGN",
                         "WORK_PACKAGE_COMPILATION_SUMMARY", "DESIGN_CONTEXT");
+    }
+
+    @Test
+    void compactSemanticRolesAreServerCompiledWithoutFinalModelPrompts() throws Exception {
+        ProjectRow project = project("compact-semantic");
+        LoopDraftRow draft = drafts.create(v2DocumentationSpec(project.id()));
+        fake().setDecomposerPlanningOutput("""
+                <!-- TASK_DECOMPOSITION_PLAN_JSON_START -->
+                {"outcome":"READY","normalizedGoal":"文档行为可验证",
+                 "globalConstraints":["不新增依赖"],
+                 "workPackages":[{"title":"文档能力","objective":"README 行为说明可自检","scopeIn":["README"],
+                 "scopeOut":[],"deliverables":["文档"],"acceptanceIntent":["可执行自检"],"dependsOn":[]}],
+                 "coverage":[{"requirementRef":"RQ-1","targetType":"WORK_PACKAGE","targetIndex":0}],
+                 "designGaps":["实施阶段再确定内部类名"],"reason":null}
+                <!-- TASK_DECOMPOSITION_PLAN_JSON_END -->
+                """);
+        String design = "# 紧凑设计\n\nREADME 事件说明可执行自检";
+        fake().setPackageDesignerOutput("WP-1", design);
+        fake().setPackageCompilerPlanningOutput("WP-1", """
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->
+                {"outcome":"COMPILED","summary":"文档阶段","stages":[{"objective":"更新 README 事件说明",
+                 "implementationKind":"NON_JAVA","allowedPaths":["README.md"],"forbiddenPaths":[".env"],
+                 "deliverables":["README 事件说明"],
+                 "criteria":[{"description":"README 事件说明可执行自检","sourceRefs":["DS-L002"]}],
+                 "evidence":[{"kind":"SELF_CHECK","command":["python3","-c","print('DOC_OK')"],
+                 "successMarker":"DOC_OK","covers":[0]},{"kind":"GIT_DIFF","covers":[],
+                 "requireChanges":true,"forbidDeletes":true}],"verificationRuntime":null}],
+                 "handoffSummary":"文档能力可复用","designGaps":[]}
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->
+                """);
+
+        DesignerSessionRow session = createConfirmedSession(project.id(), draft.id(), "补充 README 事件说明并可验证");
+        pollUntilSettled(session.id());
+
+        assertThat(designerSessions.get(session.id()).workflowPhase()).isEqualTo("FINAL_REVIEW");
+        assertThat(designerSessions.decompositionStatus(session.id())).satisfies(status -> {
+            assertThat(status.resultType()).isEqualTo("DIRECT_DESIGN");
+            assertThat(status.serverCompiled()).isTrue();
+            assertThat(status.formatRepairCount()).isZero();
+            assertThat(status.semanticRepairCount()).isZero();
+        });
+        assertThat(designerSessions.compilerStatus(session.id())).satisfies(status -> {
+            assertThat(status.serverCompiled()).isTrue();
+            assertThat(status.formatRepairCount()).isZero();
+            assertThat(status.semanticRepairCount()).isZero();
+        });
+        assertThat(drafts.spec(drafts.get(draft.id())).stages().getFirst()).satisfies(stage -> {
+            assertThat(stage.workPackageId()).isEqualTo("WP-1");
+            assertThat(stage.acceptanceCriteria()).singleElement()
+                    .extracting(LoopSpec.AcceptanceCriterion::id).isEqualTo("WP-1-AC-1");
+            assertThat(stage.verifiers().getFirst().criterionIds()).containsExactly("WP-1-AC-1");
+        });
+        assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(5);
+        assertThat(fake().promptHistory()).noneMatch(call -> call.prompt().contains("Frozen planning:")
+                && call.prompt().contains("final CompiledPackage JSON"));
+    }
+
+    @Test
+    void compilerSemanticRepairAppliesPatchToFrozenCompactPlan() throws Exception {
+        ProjectRow project = project("compact-semantic-patch");
+        LoopDraftRow draft = drafts.create(v2DocumentationSpec(project.id()));
+        fake().setDecomposerPlanningOutput("""
+                <!-- TASK_DECOMPOSITION_PLAN_JSON_START -->
+                {"outcome":"READY","normalizedGoal":"README 行为可验证","globalConstraints":[],
+                 "workPackages":[{"title":"文档能力","objective":"README 两项行为均可自检",
+                 "scopeIn":["README"],"scopeOut":[],"deliverables":["文档"],
+                 "acceptanceIntent":["两项行为可执行自检"],"dependsOn":[]}],
+                 "coverage":[{"requirementRef":"RQ-1","targetType":"WORK_PACKAGE","targetIndex":0}],
+                 "designGaps":[],"reason":null}
+                <!-- TASK_DECOMPOSITION_PLAN_JSON_END -->
+                """);
+        String design = "# 紧凑设计\n\nREADME 提供事件说明。\n\nREADME 提供异常说明。";
+        fake().setPackageDesignerOutput("WP-1", design);
+        fake().setPackageCompilerPlanningOutput("WP-1", """
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->
+                {"outcome":"COMPILED","summary":"文档阶段","stages":[{"objective":"更新 README",
+                 "implementationKind":"NON_JAVA","allowedPaths":["README.md"],"forbiddenPaths":[".env"],
+                 "deliverables":["README 事件与异常说明"],
+                 "criteria":[{"description":"事件说明可自检","sourceRefs":["DS-L002"]},
+                 {"description":"异常说明可自检","sourceRefs":["DS-L003"]}],
+                 "evidence":[{"kind":"SELF_CHECK","command":["python3","-c","print('EVENT_OK')"],
+                 "successMarker":"EVENT_OK","covers":[0]},{"kind":"GIT_DIFF","covers":[],
+                 "requireChanges":true,"forbidDeletes":true}],"verificationRuntime":null}],
+                 "handoffSummary":"README 合同可复用","designGaps":[]}
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->
+                """);
+
+        DesignerSessionRow session = createConfirmedSession(project.id(), draft.id(), "补充 README 两项可验证说明");
+        pollUntilCompilerState(session.id(), "RUNNING", 1);
+
+        assertThat(designerSessions.compilerStatus(session.id())).satisfies(status -> {
+            assertThat(status.formatRepairCount()).isZero();
+            assertThat(status.semanticRepairCount()).isEqualTo(1);
+            assertThat(status.serverCompiled()).isFalse();
+        });
+        assertThat(mapper.findLatestLoopSpecCompilation(session.id()).orElseThrow().semanticPlanJson())
+                .contains("\"outcome\":\"COMPILED\"");
+
+        fake().setPackageCompilerPlanningOutput("WP-1", """
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->
+                {"patches":[{"op":"add","path":"/stages/0/evidence/-",
+                 "value":{"kind":"SELF_CHECK","command":["python3","-c","print('ERROR_OK')"],
+                 "successMarker":"ERROR_OK","covers":[1]}}]}
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->
+                """);
+        pollUntilSettled(session.id());
+
+        assertThat(designerSessions.get(session.id()).workflowPhase()).isEqualTo("FINAL_REVIEW");
+        assertThat(designerSessions.compilerStatus(session.id())).satisfies(status -> {
+            assertThat(status.formatRepairCount()).isZero();
+            assertThat(status.semanticRepairCount()).isEqualTo(1);
+            assertThat(status.serverCompiled()).isTrue();
+            assertThat(status.lastErrorCode()).isNull();
+        });
+        assertThat(drafts.spec(drafts.get(draft.id())).stages().getFirst().verifiers())
+                .filteredOn(verifier -> "SELF_CHECK".equals(verifier.processPurpose()))
+                .hasSize(2);
     }
 
     @Test
@@ -347,13 +464,13 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(decomposition.finalResponseSchemaId()).isEqualTo("DECOMPOSITION_FINAL_V1");
         assertThat(decomposition.planningRepairCount()).isEqualTo(1);
         var compilation = mapper.findLatestLoopSpecCompilationForPackage(session.id(), "WP-1").orElseThrow();
-        assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(8);
+        assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(6);
         assertThat(fake().profileForSession(decomposition.externalSessionId()))
                 .isEqualTo(OpenCodeClient.SessionProfile.DECOMPOSER_READ_ONLY);
         assertThat(fake().modelForSession(decomposition.externalSessionId()).thinking()).isFalse();
 
         assertThat(compilation.planningResponseMode()).isEqualTo("JSON_SCHEMA");
-        assertThat(compilation.planningResponseSchemaId()).isEqualTo("PACKAGE_COMPILATION_PLAN_V2");
+        assertThat(compilation.planningResponseSchemaId()).isEqualTo("PACKAGE_COMPILATION_SEMANTIC_V3");
         assertThat(compilation.finalResponseSchemaId()).isEqualTo("PACKAGE_COMPILATION_FINAL_V2");
         assertThat(compilation.state()).as("compilation=%s", compilation).isEqualTo("COMPLETED");
         assertThat(fake().profileForSession(compilation.externalSessionId()))
@@ -441,7 +558,7 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(designerSessions.get(session.id()).workflowPhase()).isEqualTo("FINAL_REVIEW");
         assertPackageStates(session.id(), "COMPLETED", "COMPLETED", "COMPLETED");
         assertThat(fake().createReadOnlySessionCalls()).isEqualTo(9);
-        assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(13);
+        assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(9);
         LoopSpec aggregate = drafts.spec(drafts.get(draft.id()));
         assertThat(aggregate.goal()).isEqualTo("交付三段纵向能力");
         assertThat(aggregate.stages()).extracting(LoopSpec.StageSpec::workPackageId)
@@ -476,7 +593,7 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(designerSessions.get(session.id()).workflowPhase()).isEqualTo("FINAL_REVIEW");
         assertThat(designerSessions.workPackageStatuses(session.id())).hasSize(6)
                 .allMatch(workPackage -> "APPROVED".equals(workPackage.state()));
-        assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(22);
+        assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(15);
         assertThat(fake().createReadOnlySessionCalls()).isEqualTo(15);
         assertThat(drafts.spec(drafts.get(draft.id())).stages()).extracting(LoopSpec.StageSpec::workPackageId)
                 .containsExactly("WP-1", "WP-2", "WP-3", "WP-4", "WP-5", "WP-6");
@@ -594,26 +711,19 @@ class DesignerSessionMcpIntegrationTest {
 
         designerSessions.pollActiveHandoffs();
         DesignerSessionService.DecompositionStatus generating = designerSessions.decompositionStatus(session.id());
-        assertThat(generating.workflowStep()).isEqualTo("GENERATING_JSON");
-        assertThat(generating.planningRepairCount()).isEqualTo(2);
-        assertThat(generating.repairCount()).isZero();
+        assertThat(generating.workflowStep()).isEqualTo("FINAL_JSON");
+        assertThat(generating.formatRepairCount()).isEqualTo(2);
+        assertThat(generating.semanticRepairCount()).isZero();
+        assertThat(generating.serverCompiled()).isTrue();
         assertThat(mapper.findTaskDecompositionByRevision(
                 mapper.findCurrentDesignRequirementRevision(session.id()).orElseThrow().id()).orElseThrow().planningJson())
                 .contains("coverageMappings", "designGaps");
 
-        fake().setDecomposerOutput("final envelope without required markers");
-        designerSessions.pollActiveHandoffs();
-        DesignerSessionService.DecompositionStatus finalRepair = designerSessions.decompositionStatus(session.id());
-        assertThat(finalRepair.planningRepairCount()).isEqualTo(2);
-        assertThat(finalRepair.repairCount()).isEqualTo(1);
-        assertThat(finalRepair.workflowStep()).isEqualTo("REPAIRING_JSON");
-        fake().setDecomposerOutput(decomposition("NEEDS_INPUT", "需要补充异步边界", 0));
-        designerSessions.pollActiveHandoffs();
         assertThat(designerSessions.get(session.id()).state()).isEqualTo("WAITING_INPUT");
         assertThat(designerSessions.decompositionStatus(session.id()).workflowStep()).isEqualTo("FINAL_JSON");
         assertThat(fake().createReadOnlySessionCalls()).isEqualTo(2);
         assertThat(fake().promptHistory().stream().filter(call -> decompositionSessionId.equals(call.sessionId())))
-                .hasSize(5);
+                .hasSize(3);
         assertThat(designerSessions.messages(session.id())).noneMatch(message ->
                 message.content().contains("TASK_DECOMPOSITION_PLAN_JSON_START"));
         assertThat(mapper.listTasks()).isEmpty();
@@ -639,7 +749,7 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(status.resultType()).isEqualTo("NEEDS_INPUT");
         assertThat(status.planningRepairCount()).isZero();
         assertThat(status.repairCount()).isZero();
-        assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(3);
+        assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(2);
         assertThat(designerSessions.messages(session.id())).noneMatch(message ->
                 message.content().contains("OUTPUT_MARKERS_MISSING"));
         assertThat(mapper.listTasks()).isEmpty();
@@ -660,9 +770,8 @@ class DesignerSessionMcpIntegrationTest {
         DesignerSessionRow session = createConfirmedSession(project.id(), draft.id(), "明确事件系统边界");
         designerSessions.pollActiveHandoffs();
         DesignerSessionService.DecompositionStatus generating = designerSessions.decompositionStatus(session.id());
-        assertThat(generating.workflowStep()).isEqualTo("GENERATING_JSON");
-        assertThat(generating.planningRepairCount()).isZero();
-        designerSessions.pollActiveHandoffs();
+        assertThat(generating.workflowStep()).isEqualTo("FINAL_JSON");
+        assertThat(generating.serverCompiled()).isTrue();
 
         DesignerSessionService.DecompositionStatus status = designerSessions.decompositionStatus(session.id());
         assertThat(designerSessions.get(session.id()).state()).isEqualTo("WAITING_INPUT");
@@ -748,13 +857,12 @@ class DesignerSessionMcpIntegrationTest {
         ProjectRow project = project("retry");
         LoopDraftRow draft = drafts.create(legacySpec(project.id()));
         fake().setDesignerOutput(designerOutput("# 完整设计\n\n输出明确且可验收。", legacySpec(project.id())));
-        fake().setPackageCompilerPlanningOutput("WP-1", packageCompilationPlan("WP-1"));
-        fake().setCompilerOutput("<!-- LOOPSPEC_COMPILATION_JSON_START -->{}<!-- LOOPSPEC_COMPILATION_JSON_END -->");
+        fake().setPackageCompilerPlanningOutput("WP-1", "planning without required JSON");
         DesignerSessionRow session = createConfirmedSession(project.id(), draft.id(), "实现可验收能力");
         pollUntilCompilerState(session.id(), "RUNNING", 1);
-        assertThat(designerSessions.compilerStatus(session.id()).repairCount()).isEqualTo(1);
+        assertThat(designerSessions.compilerStatus(session.id()).formatRepairCount()).isEqualTo(1);
         designerSessions.pollActiveHandoffs();
-        assertThat(designerSessions.compilerStatus(session.id()).repairCount()).isEqualTo(2);
+        assertThat(designerSessions.compilerStatus(session.id()).formatRepairCount()).isEqualTo(2);
         designerSessions.pollActiveHandoffs();
         assertThat(designerSessions.get(session.id()).state()).isEqualTo("WAITING_INPUT");
         assertThat(designerSessions.workPackageStatuses(session.id()).getFirst().lastErrorCode())
@@ -787,25 +895,11 @@ class DesignerSessionMcpIntegrationTest {
                 .filter(call -> compilerSessionId.equals(call.sessionId()))
                 .map(io.opencode.loopper.runtime.FakeOpenCodeClient.PromptCall::prompt)
                 .toList();
-        assertThat(compilerPrompts).hasSize(3);
+        assertThat(compilerPrompts).hasSize(1);
         assertThat(compilerPrompts.getFirst())
-                .contains("Strict package compilation planning JSON contract")
-                .contains("evidenceMappings")
-                .contains("focused Maven/Gradle test argv", "testCommand", "testTargets")
-                .contains("No stage or GIT_DIFF allowedPaths rule may be entirely covered");
-        assertThat(compilerPrompts.subList(1, 3)).allSatisfy(prompt -> assertThat(prompt)
-                .contains("stages[*].verifiers[*] is a VerifierSpec JSON object")
-                .contains("\"command\":[\"mvn\",\"-q\",\"-Dtest=ExampleFocusedTest\",\"test\"]")
-                .contains("\"criterionIds\":[\"WP-1-AC-1\"]")
-                .contains("\"testTargets\":[\"ExampleFocusedTest\"]")
-                .contains("verificationRuntime is null for PROCESS-only stages")
-                .contains("It is never a test framework name such as", "MAVEN_JUNIT5")
-                .contains("No stage or GIT_DIFF allowedPaths rule may be entirely covered")
-                .contains("designGaps entries are never strings"));
-        assertThat(compilerPrompts.get(1)).contains("Canonical COMPILED envelope for a JAVA_PRODUCTION stage")
-                .contains("Put exactly one complete replacement object matching the frozen plan and machine contract here.");
-        assertThat(compilerPrompts.get(2)).contains("Repair 1/2")
-                .contains("do not replace an object or array with a descriptive string");
+                .contains("Machine role contract 2026-08-semantic-v1")
+                .contains("DS-L001", "FOCUSED_TEST", "covers")
+                .contains("Do not assign acceptance ids", "testTargets");
     }
 
     @Test
@@ -831,15 +925,10 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(designerSessions.compilerStatus(session.id()).planningRepairCount()).isEqualTo(2);
         fake().setPackageCompilerPlanningOutput("WP-1", packageCompilationPlan("WP-1"));
         designerSessions.pollActiveHandoffs();
-        assertThat(designerSessions.compilerStatus(session.id()).workflowStep()).isEqualTo("GENERATING_JSON");
+        assertThat(designerSessions.compilerStatus(session.id()).workflowStep()).isEqualTo("FINAL_JSON");
         assertThat(designerSessions.compilerStatus(session.id()).planningRepairCount()).isEqualTo(2);
-
-        designerSessions.pollActiveHandoffs();
-        DesignerSessionService.CompilerStatus finalRepair = designerSessions.compilerStatus(session.id());
-        assertThat(finalRepair.workflowStep()).isEqualTo("REPAIRING_JSON");
-        assertThat(finalRepair.planningRepairCount()).isEqualTo(2);
-        assertThat(finalRepair.repairCount()).isEqualTo(1);
-        assertThat(designerSessions.get(session.id()).state()).isEqualTo("RUNNING");
+        assertThat(designerSessions.compilerStatus(session.id()).formatRepairCount()).isEqualTo(2);
+        assertThat(designerSessions.compilerStatus(session.id()).serverCompiled()).isTrue();
         assertThat(mapper.listTasks()).isEmpty();
     }
 
@@ -1191,7 +1280,9 @@ class DesignerSessionMcpIntegrationTest {
     private void pollUntilCompilerState(String sessionId, String state, int repairCount) {
         for (int attempt = 0; attempt < 40; attempt++) {
             DesignerSessionService.CompilerStatus compiler = designerSessions.compilerStatus(sessionId);
-            if (compiler != null && state.equals(compiler.state()) && compiler.repairCount() == repairCount) return;
+            if (compiler != null && state.equals(compiler.state())
+                    && (compiler.repairCount() == repairCount
+                    || compiler.formatRepairCount() + compiler.semanticRepairCount() == repairCount)) return;
             completeMandatoryDesignerQuestion(sessionId);
             designerSessions.pollActiveHandoffs();
         }

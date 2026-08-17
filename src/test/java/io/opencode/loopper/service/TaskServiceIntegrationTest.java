@@ -1533,7 +1533,7 @@ class TaskServiceIntegrationTest {
         assertThat(tasks.get(task.id()).state()).isEqualTo("WAITING_INPUT");
         assertThat(tasks.judges(task.id())).hasSize(2);
 
-        fake.setJudgeOutput("{\"verdict\":\"PASS\",\"reason\":\"Current evidence is sufficient\"}");
+        fake.setJudgeOutput("判定：PASS\n理由：当前证据充分");
         TaskRow judging = tasks.retryJudges(task.id());
 
         assertThat(judging.state()).isEqualTo("JUDGING");
@@ -1549,6 +1549,10 @@ class TaskServiceIntegrationTest {
         assertThat(tasks.get(task.id()).state()).isEqualTo("SUCCEEDED");
         assertThat(mapper.latestJudgeRun(task.id(), "REQUIREMENT")).hasValueSatisfying(judge -> assertThat(judge.verdict()).isEqualTo("PASS"));
         assertThat(mapper.latestJudgeRun(task.id(), "RISK")).hasValueSatisfying(judge -> assertThat(judge.verdict()).isEqualTo("PASS"));
+        assertThat(mapper.eventsAfter(task.id(), 0)).anySatisfy(event -> {
+            assertThat(event.type()).isEqualTo("AI_OUTPUT_NORMALIZED");
+            assertThat(event.payloadJson()).contains("LABELED_JUDGE_OUTPUT_NORMALIZED");
+        });
     }
 
     @Test
@@ -1563,7 +1567,8 @@ class TaskServiceIntegrationTest {
         ((FakeOpenCodeClient) openCode).setStructuredCapability(new OpenCodeClient.StructuredOutputCapability(
                 OpenCodeClient.CapabilityState.UNAVAILABLE, OpenCodeClient.CapabilityState.UNKNOWN,
                 "legacy marker fixture"));
-        ((FakeOpenCodeClient) openCode).setJudgeOutput("not a JSON decision");
+        ((FakeOpenCodeClient) openCode).setJudgeOutput(
+                "判定：PASS\nVERDICT: BLOCKED\n理由：互相冲突的判定不能被猜测");
         ProjectRow malformedProject = projects.create("malformed", gitProject());
         TaskRow malformed = drafts.confirm(drafts.create(spec(malformedProject.id())).id(), "unparseable judge");
         tasks.start(malformed.id()); tasks.verify(malformed.id()); tasks.pollJudges(malformed.id());

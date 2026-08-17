@@ -82,6 +82,10 @@ public class TaskService {
     private static final String LOOP_STAGNATION_OVERRIDE_ARTIFACT_KIND = "LOOP_STAGNATION_OVERRIDE";
     private static final Pattern JUDGE_JSON_MARKER = Pattern.compile(
             "(?s)<LOOPPER_JUDGE_JSON>\\s*(.*?)\\s*</LOOPPER_JUDGE_JSON>");
+    private static final Pattern JUDGE_VERDICT_LABEL = Pattern.compile(
+            "(?im)^\\s*(?:VERDICT|判定)\\s*[:：]\\s*(PASS|REVISE|BLOCKED)\\s*$");
+    private static final Pattern JUDGE_REASON_LABEL = Pattern.compile(
+            "(?ims)^\\s*(?:REASON|理由)\\s*[:：]\\s*(.+?)\\s*$");
     private static final int MAX_EXECUTION_DESIGN_CONTEXT_CHARS = 12_000;
     private final LoopperMapper mapper;
     private final LifecycleTransitionService lifecycle;
@@ -2070,9 +2074,25 @@ public class TaskService {
             return new JudgeDecision(extracted.value().verdict().trim().toUpperCase(),
                     extracted.value().reason().trim(), null, extracted.normalizations());
         } catch (BadRequestException exception) {
+            JudgeDecision labeled = parseLabeledJudgeDecision(rawOutput);
+            if (labeled != null) return labeled;
             return new JudgeDecision(null, null,
                     exception.code() + ": " + safeMessage(exception.getMessage()), List.of());
         }
+    }
+
+    private JudgeDecision parseLabeledJudgeDecision(String rawOutput) {
+        if (rawOutput == null || rawOutput.isBlank()) return null;
+        java.util.regex.Matcher verdictMatcher = JUDGE_VERDICT_LABEL.matcher(rawOutput);
+        LinkedHashMap<String, Boolean> verdicts = new LinkedHashMap<>();
+        while (verdictMatcher.find()) verdicts.put(verdictMatcher.group(1).toUpperCase(), Boolean.TRUE);
+        if (verdicts.size() != 1) return null;
+        java.util.regex.Matcher reasonMatcher = JUDGE_REASON_LABEL.matcher(rawOutput);
+        if (!reasonMatcher.find()) return null;
+        String reason = reasonMatcher.group(1).trim();
+        if (reason.isBlank()) return null;
+        return new JudgeDecision(verdicts.keySet().iterator().next(), reason, null,
+                List.of("LABELED_JUDGE_OUTPUT_NORMALIZED"));
     }
 
     private ModelResponseMode judgeResponseMode(TaskRow task, String role, LoopSpec spec) {
@@ -2098,6 +2118,8 @@ public class TaskService {
                     "OpenCode performed an unbudgeted structured-output retry");
         }
         if (result.hasStructured()) return write(result.structured());
+        String rawOutput = openCode.sessionOutput(remote);
+        if (parseLabeledJudgeDecision(rawOutput) != null) return rawOutput;
         String detail = result.errorDetail() != null && !result.errorDetail().isBlank() ? result.errorDetail()
                 : result.errorType() != null && !result.errorType().isBlank() ? result.errorType()
                 : "OpenCode completed without the requested structured Judge object";

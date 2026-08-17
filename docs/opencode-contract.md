@@ -101,19 +101,17 @@ available-at-execution dependency rather than `MISSING_SCOPE`. Compiler may only
 report a dependency-related semantic gap when neither the current design nor the
 frozen predecessor contract defines the required behavior/API.
 
-Decomposer and Compiler do not jump directly from prose to the final envelope.
-In the same read-only Session, the first model turn follows the fixed semantic
-order `planning -> evidence mapping` and returns a role-specific planning marker:
-Decomposer maps every numbered requirement/dependency; Compiler maps 1–3 planned
-Stages and every acceptance criterion to an exact Designer excerpt and concrete
-machine/Judge proof. Loopper validates and persists that bounded plan before a
-second prompt requests final JSON. Planning output is never a chat/SSE model
-message, and the second turn may not add, remove, reorder, or paraphrase frozen
-decisions.
+Decomposer and Compiler each return one compact semantic object from a read-only
+Session. Decomposer maps numbered requirements to package/constraint indices;
+Compiler maps 1–3 Stages and acceptance criteria to stable `DS-Lxxx` source refs
+and closed evidence intentions. Loopper validates and persists the semantic
+snapshot, derives all mechanical fields, and directly compiles the final legacy
+envelope. It does not send a second final-JSON prompt, and raw semantic output is
+never a chat/SSE model message.
 
-Five machine-response contracts have stable server-owned JSON Schemas:
-Decomposer planning, Decomposer final output, Compiler planning, Compiler final
-output, and final Judge output. A typed prompt may choose text or one of those
+New work uses three stable server-owned response Schemas: compact Decomposer,
+compact Compiler, and final Judge. Legacy Decomposer/Compiler final Schemas remain
+registered only for historical rows without a semantic snapshot. A typed prompt may choose text or one of those
 schemas and may set system/agent fields, but it never accepts caller-owned tools.
 Schema mode uses OpenCode `format.type=json_schema` with provider retry count
 zero so Loopper's persisted planning/final repair budgets remain authoritative.
@@ -142,7 +140,7 @@ accept `prompt_async` and then reject their own stored Schema during message
 decoding. Later versions return to normal capability probing. A rejected format,
 typed structured-output error, or completed turn
 without structured data consumes one ordinary model call and the matching
-planning/final format-repair allowance, then creates one fresh read-only role
+format-repair allowance, then creates one fresh read-only role
 Session and retries that step with the legacy marker contract. It never retries
 in the failed transcript, never adds a provider-owned hidden retry pool, and
 never bypasses the same deterministic semantic validation. Legacy active rows
@@ -169,40 +167,32 @@ repeat or invent tool calls. Three consecutive calls with the same normalized
 tool name and canonical arguments terminate that loop early. Loopper aborts the
 original Session and, once per persisted role step, may start a no-tools
 finalizer with bounded deduplicated evidence. That call counts against the
-global model-call budget but not the planning/final format-repair budget; V28
+global model-call budget but not the format/semantic repair budgets; V28
 prevents a restart from granting another finalizer. Implementation retains its existing
 failure-escalation contract. Actual terminal failure, retry exhaustion, timeout, or transition to
 human input always makes a best-effort abort call before Loopper reports the
 structured role as stopped.
 
-Compiler's final marked envelope contains either `COMPILED` (a 1–3 Stage package
-fragment, bounded summary/handoff, and an exact Designer excerpt for every criterion) or
-`DESIGN_INCOMPLETE` (a closed semantic gap code plus concrete gaps). Loopper
-checks each excerpt against the frozen design and then runs the same field,
-verifier, coverage, project, and draft-version validation used by other entry
-points. JSON/schema/verifier/coverage failures create another bounded repair
-turn in the same Compiler Session, at most twice after the initial final-JSON
-generation. Planning/证据映射 has a separate maximum of two repairs; successful
-planning cannot consume the final-JSON repair allowance. Missing observable outcome,
+Compiler's compact object contains either `COMPILED` semantic Stages or
+`DESIGN_INCOMPLETE` with closed gap codes. Loopper resolves every `DS-Lxxx`
+reference to exact frozen text, derives the complete package fragment, and runs
+the same field, verifier, coverage, project, and draft-version validation used
+by other entry points. Extraction failures receive at most two full-object format
+repairs; semantic/safety failures receive at most two restricted JSON Patch turns.
+The counters are independent. Missing observable outcome,
 exception semantics, scope, or acceptance intent requests at most one automatic
 full replacement from the scoped Designer conversation for the current package. Format errors cannot be
 relabelled as design gaps. Retry exhaustion or optimistic draft conflict leaves
 the draft unchanged and exposes explicit manual decomposition/package recovery.
-The initial Compiler prompt and every format-repair turn repeat the same complete
-machine contract: collection properties remain JSON arrays, each verifier is an
-object rather than a command string, `PROCESS.command` is direct argv,
-`criterionIds`/`testTargets` are arrays, and `verificationRuntime` is either
-`null` or the documented managed-runtime object—never a test-framework label.
-A canonical `JAVA_PRODUCTION` envelope includes the focused Maven/Gradle test,
-criterion mapping, source excerpt, handoff, and empty `designGaps`, so a weaker
-model does not have to infer Java record nesting from a Jackson error message.
-For current v2 package work, the planning envelope uses `contractVersion: 2` and
-already contains complete verifier objects plus optional `verificationRuntime`.
-Loopper validates that temporary Stage contract with the authoritative v2
+The initial Compiler prompt and format repair repeat the compact semantic Schema;
+the model never has to emit `criterionIds`, `testTargets`, exact excerpts, stable
+IDs or duplicated verifier mappings. Semantic repair returns at most 16
+`add/replace/remove` operations against AI-owned fields, after which Loopper
+re-runs complete normalization and authoritative validation. Loopper compiles the
+temporary Stage contract and validates it with the authoritative v2
 assessment before freezing it; direct argv, BEHAVIOR coverage, focused Java
-tests and managed-runtime bindings therefore fail in the planning repair pool,
-not after final JSON generation. The final turn must copy these frozen objects
-exactly and any drift is rejected as `COMPILER_PLAN_VERIFIER_DRIFT`.
+tests and managed-runtime bindings therefore fail in the semantic repair pool
+before accepting the server-compiled result.
 Stable criterion numbering, exact-source slicing, and duplicated TEST verifier
 `criterionIds`/`testTargets` are server-owned encoding work: Loopper canonicalizes
 them from the semantic evidence mappings before running that unchanged v2
@@ -228,7 +218,7 @@ messages/confirm/reopen and package messages/approve/reopen reject stale clients
 with 409; the legacy `/messages` path is accepted only before decomposition.
 Reopening an approved package invalidates only its transitive dependents, while
 reopening the requirement supersedes the current decomposition as an explicit
-destructive boundary. Machine planning/final JSON remains out of the chat
+destructive boundary. Machine semantic/final JSON remains out of the chat
 transcript; only persisted role summaries and the validated candidate projection
 are returned to the browser.
 

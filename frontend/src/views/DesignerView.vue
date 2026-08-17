@@ -109,7 +109,7 @@ const workflowLabels = {
 const activeActorMeta = computed(() => actorMeta[designerSession.value?.activeActor ?? 'SYSTEM'])
 const activeWorkflowLabel = computed(() => workflowLabels[designerSession.value?.workflowPhase ?? 'DESIGNING'])
 const structuredStepLabels: Record<StructuredModelStep, string> = {
-  PLANNING: '规划与证据映射', GENERATING_JSON: 'JSON 生成', REPAIRING_JSON: 'JSON 修复', FINAL_JSON: 'JSON 已校验',
+  PLANNING: '语义规划', SERVER_COMPILING: '程序编译', GENERATING_JSON: 'JSON 生成', REPAIRING_JSON: 'JSON 修复', FINAL_JSON: 'JSON 已校验',
 }
 const activeStructuredStep = computed(() => designerStructuredStep.value
   ?? (designerSession.value?.activeActor === 'DECOMPOSER' ? designerSession.value.decomposition?.workflowStep : undefined)
@@ -908,8 +908,8 @@ async function redesignPackage(packageId: string) {
           <span class="active-role"><Icon :icon="activeActorMeta.icon" />{{ activeActorMeta.label }} · {{ activeDetailedWorkflowLabel }}</span>
           <span v-if="designerSession?.activeWorkPackageId" class="mono">{{ designerSession.activeWorkPackageId }}/{{ designerSession.workPackages?.length ?? 0 }}</span>
           <span v-if="designerSession?.requirement" class="mono">模型调用 {{ designerSession.requirement.modelCallsUsed }}/{{ designerSession.requirement.maxModelCalls }}</span>
-          <span v-if="designerSession?.compiler" class="mono">Compiler 规划修复 {{ designerSession.compiler.planningRepairCount }}/2 · JSON 修复 {{ designerSession.compiler.repairCount }}/2</span>
-          <span v-else-if="designerSession?.decomposition" class="mono">Decomposer 规划修复 {{ designerSession.decomposition.planningRepairCount }}/2 · JSON 修复 {{ designerSession.decomposition.repairCount }}/2</span>
+          <span v-if="designerSession?.compiler" class="mono">Compiler 格式修复 {{ designerSession.compiler.formatRepairCount ?? 0 }}/2 · 语义修复 {{ designerSession.compiler.semanticRepairCount ?? 0 }}/2<span v-if="designerSession.compiler.serverCompiled"> · 程序已编译</span></span>
+          <span v-else-if="designerSession?.decomposition" class="mono">Decomposer 格式修复 {{ designerSession.decomposition.formatRepairCount ?? 0 }}/2 · 语义修复 {{ designerSession.decomposition.semanticRepairCount ?? 0 }}/2<span v-if="designerSession.decomposition.serverCompiled"> · 程序已编译</span></span>
           <span class="mono">远端 {{ designerRemoteState || 'WAITING' }}</span>
           <time :datetime="designerObservedAt">{{ formatObservedAt(designerObservedAt) }}</time>
         </div>

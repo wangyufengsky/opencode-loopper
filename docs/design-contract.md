@@ -157,10 +157,10 @@ from persisted snapshots/decisions after remote loss; each candidate uses a fres
 read-only LoopSpec Compiler with the configured model. Designer receives
 the original requirement, frozen decomposition, current package, global
 constraints, and bounded prerequisite handoffs, then emits at most 24 KiB UTF-8
-of complete Markdown. Compiler emits a 1–3 Stage package fragment plus criterion
-sources and a handoff summary of at most 4 KiB. Format, field, verifier,
-traceability, or coverage errors receive at most two final-JSON Compiler repairs;
-planning/证据映射格式错误有独立的最多两次修复预算；semantic
+of complete Markdown. Compiler emits a compact 1–3 Stage semantic plan plus
+`DS-Lxxx` sources and a handoff summary of at most 4 KiB; the server compiles the
+package fragment. Extraction failures receive at most two format repairs and
+field/verifier/traceability/coverage failures receive at most two semantic patch repairs;
 gaps receive one full redesign of that package only. Initial design and every
 human revision must ask questions first and return a complete snapshot. A valid
 candidate enters `REVIEWING` and the next package stays locked until the user
@@ -189,14 +189,15 @@ absence of such a deliverable is not `MISSING_SCOPE` and must not trigger a
 redesign. A semantic gap remains valid only when the required contract is absent
 from both the current frozen design and the predecessor contract/handoff.
 
-Decomposer and package Compiler each use a persisted two-turn intelligent
-compilation protocol in the same role Session. The first turn follows the fixed
-order `规划 -> 证据映射`: Decomposer maps every numbered requirement and dependency;
-Compiler plans 1–3 Stages and maps each observable criterion to an exact Designer
-excerpt plus deterministic/Judge evidence, including focused Maven/Gradle argv
-and test targets for production Java. Compiler planning contract v2 also embeds
-the complete `VerifierSpec` objects and optional `verificationRuntime`; the server
-runs the normal LoopSpec v2 execution assessment before freezing, so shell
+Decomposer and package Compiler use one persisted compact semantic turn per
+candidate. Decomposer returns business packages and RQ coverage by index;
+structured Markdown requirements are grouped by level-two business section so
+presentation-only headings and metadata do not become separate coverage work;
+Compiler plans 1–3 Stages and maps each observable criterion to stable `DS-Lxxx`
+Designer source references plus deterministic/Judge evidence intentions. The
+server derives statuses, stable IDs, reverse references, exact excerpts,
+`criterionIds`, safe test targets and complete `VerifierSpec` objects, then runs
+the normal LoopSpec v2 execution assessment before freezing, so shell
 launchers, non-behavior mappings and invalid Java/runtime evidence are repaired
 in the evidence-mapping turn. That assessment reuses runtime path-policy
 semantics: malformed globs and an `allowedPaths` rule entirely shadowed by one
@@ -217,13 +218,12 @@ matching focused TEST, the server fills omitted duplicate `testCommand`/`testTar
 fields and can materialize the equivalent verifier blueprint before validation.
 Loopper never invents a test from prose, a broad full-suite command, or an ambiguous
 set of focused tests. Ambiguous or absent source matches and semantically incomplete
-test evidence still fail the authoritative validation. The server freezes this bounded planning envelope
-before asking for final JSON. The second turn may only
-encode the frozen plan, so work-package boundaries, Stage fields, acceptance
-intent, source excerpts, verifier/runtime objects, test evidence and handoff summaries cannot silently
-drift. V23 persists the current step and planning JSON for restart recovery;
-V24 persists the independent planning-repair counters. A successful planning
-freeze always starts final JSON with its own unused repair budget.
+test evidence still fail the authoritative validation. A valid semantic plan is
+compiled directly by the server into the historical final Decomposition or
+CompiledPackage shape; no final-JSON model prompt is sent. V30 persists the
+semantic snapshot, independent format/semantic repair counters and server-compiled
+flag. Historical active final-generation rows with a planning snapshot are
+server-compiled during recovery; only rows without one retain the old final path.
 All machine roles share one bounded extractor. Native structured data and exact
 role markers remain preferred, followed by `json`/untyped fences, a complete
 object embedded in short prose, and the whole response. It accepts only standard
@@ -233,11 +233,12 @@ normalization. Deterministic field/collection/enum/argv normalization proceeds
 directly to the unchanged planning, coverage, dependency, execution, and final
 envelope checks without consuming a planning/final repair. The UI shows one
 ordinary `NORMALIZED` information item rather than an error or raw model dump.
-Neither planning nor final raw JSON is displayed as a chat message; the status
-strip exposes only `规划与证据映射`, `JSON 生成`, or `JSON 修复`.
+No raw machine JSON is displayed as a chat message; the status strip exposes
+planning, bounded format/semantic repair, and ordinary server-compilation notices.
 
-The four Decomposer/Compiler machine steps prefer stable OpenCode JSON Schemas;
-the final Judge contract has a fifth schema. Capability-unknown starts
+The compact Decomposer/Compiler steps prefer stable OpenCode JSON Schemas;
+the final Judge contract has its own schema. Legacy final schemas remain for
+historical recovery only. Capability-unknown starts
 optimistically in schema mode except for the verified OpenCode 1.18.12–1.18.18
 stored-Schema decoder defect, which starts directly in marker compatibility
 mode. Only explicit format rejection, typed

@@ -470,7 +470,7 @@ describe('Designer draft composer', () => {
     expect(wrapper.get('.validator-normalized').text()).toContain('输出包装已自动规范化')
     expect(wrapper.get('.validator-terminal_error').text()).toContain('工作流已停止')
     expect(wrapper.text()).not.toContain('"loopSpec":"secret"')
-    expect(wrapper.get('.designer-connection-strip').text()).toContain('Compiler 规划修复 0/2 · JSON 修复 2/2')
+    expect(wrapper.get('.designer-connection-strip').text()).toContain('Compiler 格式修复 0/2 · 语义修复 0/2')
 
     await wrapper.findAll('button').find((button) => button.text().includes('重新编译当前设计'))!.trigger('click')
     await flushPromises()

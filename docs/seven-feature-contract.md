@@ -25,6 +25,8 @@ manufactures queue, progress, usage or cost data.
 - V27: recoverable requirement/package discussion and explicit approval state.
 - V28: bounded AI-output normalization/tool-loop audit and Project Convention
   normalization notice.
+- V30: compact Decomposer/Compiler semantic snapshots, independent format and
+  semantic repair counts, and restart-safe server compilation of final objects.
 
 Machine-role exact markers remain preferred. The shared bounded extractor also
 accepts a unique standard JSON object in a `json`/untyped fence, explanatory
@@ -40,13 +42,13 @@ persisted role step may use one no-tools finalizer with bounded deduplicated
 evidence; it counts against the global model-call budget, not the format-repair
 budget. The 24-step hard cap remains the fallback for other loop shapes.
 
-Compiler planning contract v2 stores complete verifier/runtime blueprints inside
-the existing V23 `planning_json`; no schema migration is needed. The server
-validates those blueprints using the normal LoopSpec v2 execution contract before
-freezing, and final JSON must preserve them exactly.
+New Compiler plans store semantic Stages, `DS-Lxxx` source refs and closed evidence
+intentions in V30. The server generates complete verifier/runtime blueprints and
+validates them with the normal LoopSpec v2 execution contract before compiling the
+final object. Legacy V23 complete plans remain readable.
 
 Historical migrations remain immutable. Empty databases and supported V21/V24
-databases must all migrate to V28. Legacy AI rows default to `TEXT_MARKER`; old
+databases must all migrate to V30. Legacy AI rows default to `TEXT_MARKER`; old
 implementation Sessions default Todo capability to `UNKNOWN`.
 
 ## Interactions

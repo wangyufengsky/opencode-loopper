@@ -29,6 +29,7 @@ import io.opencode.loopper.persistence.ProjectRow;
 import io.opencode.loopper.persistence.TaskDecompositionRow;
 import io.opencode.loopper.runtime.OpenCodeClient;
 import io.opencode.loopper.runtime.OpenCodeStructuredSchemas;
+import io.opencode.loopper.runtime.MachineRoleContractCatalog;
 import io.opencode.loopper.verification.ProcessCommandPolicy;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -99,12 +100,15 @@ public class DesignerSessionService {
     private final ObjectMapper json;
     private final AiOutputExtractor aiOutputExtractor;
     private final AiOutputAuditService aiOutputAudit;
+    private final DesignerEvidenceIndexer evidenceIndexer;
+    private final AiRepairPatchService repairPatchService;
     private final DesignerEventHub events;
 
     public DesignerSessionService(LoopperMapper mapper, LifecycleTransitionService lifecycle,
                                   ProjectService projects, OpenCodeClient openCode,
                                   LoopperProperties defaults, LoopDraftService drafts, ObjectMapper json,
                                   AiOutputExtractor aiOutputExtractor, AiOutputAuditService aiOutputAudit,
+                                  DesignerEvidenceIndexer evidenceIndexer, AiRepairPatchService repairPatchService,
                                   DesignerEventHub events) {
         this.mapper = mapper;
         this.lifecycle = lifecycle;
@@ -115,6 +119,8 @@ public class DesignerSessionService {
         this.json = json;
         this.aiOutputExtractor = aiOutputExtractor;
         this.aiOutputAudit = aiOutputAudit;
+        this.evidenceIndexer = evidenceIndexer;
+        this.repairPatchService = repairPatchService;
         this.events = events;
     }
 
@@ -204,7 +210,8 @@ public class DesignerSessionService {
                 .map(row -> new CompilerStatus(row.id(), row.state(), row.externalSessionId(),
                         row.externalSessionState(), row.repairCount(), row.designRevision(),
                         row.lastErrorCode(), row.lastErrorDetail(), row.workPackageId(), row.workflowStep(),
-                        row.planningRepairCount()))
+                        row.planningRepairCount(), row.formatRepairCount(), row.semanticRepairCount(),
+                        row.serverCompiled()))
                 .orElse(null);
     }
 
@@ -221,7 +228,8 @@ public class DesignerSessionService {
         return mapper.findLatestTaskDecomposition(sessionId)
                 .map(row -> new DecompositionStatus(row.id(), row.state(), row.resultType(), row.repairCount(),
                         row.transportRetryCount(), row.lastErrorCode(), row.lastErrorDetail(), row.workflowStep(),
-                        row.planningRepairCount()))
+                        row.planningRepairCount(), row.formatRepairCount(), row.semanticRepairCount(),
+                        row.serverCompiled()))
                 .orElse(null);
     }
 
@@ -235,6 +243,9 @@ public class DesignerSessionService {
             return new WorkPackageStatus(row.packageId(), row.ordinal(), row.title(), row.objective(), row.state(),
                     strings(row.dependenciesJson()), row.redesignCount(), compiler == null ? 0 : compiler.repairCount(),
                     compiler == null ? 0 : compiler.planningRepairCount(),
+                    compiler == null ? 0 : compiler.formatRepairCount(),
+                    compiler == null ? 0 : compiler.semanticRepairCount(),
+                    compiler != null && compiler.serverCompiled(),
                     row.compilerSummary(), row.handoffSummary(), row.lastErrorCode(), row.lastErrorDetail(),
                     row.designRevision(), row.approvedDesignRevision(), row.discussionRoundCount(),
                     row.invalidatedByPackageId(), row.approvedAt());
@@ -876,8 +887,9 @@ public class DesignerSessionService {
                 revision.id(), TaskDecompositionState.PENDING_HANDOFF.name(), null, null, "[]", "{}",
                 null, "PENDING", 0, 0, revision.sourceDraftVersion(), null, null, now, now, 0,
                 StructuredModelStep.PLANNING.name(), null, 0,
-                responseMode.name(), schemaId(responseMode, OpenCodeStructuredSchemas.DECOMPOSITION_PLAN_V1), false,
-                responseMode.name(), schemaId(responseMode, OpenCodeStructuredSchemas.DECOMPOSITION_FINAL_V1), false);
+                responseMode.name(), schemaId(responseMode, OpenCodeStructuredSchemas.DECOMPOSITION_SEMANTIC_V2), false,
+                responseMode.name(), schemaId(responseMode, OpenCodeStructuredSchemas.DECOMPOSITION_FINAL_V1), false,
+                null, 0, 0, false);
         lifecycle.create(decompositionSubject(pending, input.projectId()), pending.state(), Map.of(),
                 () -> mapper.insertTaskDecomposition(pending),
                 () -> new ConflictException("TASK_DECOMPOSITION_CREATE_CONFLICT",
@@ -925,6 +937,19 @@ public class DesignerSessionService {
                 decomposition.externalSessionId(), Path.of(project.rootPath()));
         try {
             requireDraftUnchanged(session, revision.sourceDraftVersion());
+            if (!blank(decomposition.planningJson()) && Set.of(StructuredModelStep.GENERATING_JSON.name(),
+                    StructuredModelStep.REPAIRING_JSON.name(), StructuredModelStep.SERVER_COMPILING.name())
+                    .contains(decomposition.workflowStep())) {
+                abortQuietly(remote.id(), session.projectId());
+                DecompositionPlanEnvelope plan = readDecompositionPlan(decomposition.planningJson());
+                TaskDecompositionRow recovered = markDecompositionServerCompiled(decomposition,
+                        decomposition.planningJson());
+                appendMessage(session.id(), DesignerActor.VALIDATOR,
+                        "检测到升级前已冻结拆解规划，已停止旧 final Session 并由服务端直接编译。",
+                        "NORMALIZED", revision.revision(), null);
+                handleDecompositionOutput(recovered, session, remote, write(plan.toEnvelope()));
+                return;
+            }
             List<OpenCodeClient.PendingQuestion> questions = openCode.pendingQuestions(remote);
             if (!questions.isEmpty()) {
                 questions.forEach(question -> { try { openCode.rejectQuestion(remote, question.id()); } catch (RuntimeException ignored) { } });
@@ -980,6 +1005,12 @@ public class DesignerSessionService {
                                                    OpenCodeClient.OpenCodeSession remote, String output) {
         DecompositionPlanEnvelope plan;
         try {
+            if (input.semanticRepairCount() > 0 && output != null && output.contains("\"patches\"")
+                    && !blank(input.semanticPlanJson())) {
+                output = repairPatchService.apply(input.semanticPlanJson(), output, DECOMPOSITION_PLAN_PAYLOAD,
+                        "DECOMPOSER_SEMANTIC_PATCH", Set.of("outcome", "normalizedGoal", "globalConstraints",
+                                "workPackages", "coverage", "designGaps", "reason")).json();
+            }
             DesignRequirementRevisionRow revision = getRequirement(input.requirementRevisionId());
             AiOutputExtractor.ExtractionResult<DecompositionPlanEnvelope> extracted =
                     parseDecompositionPlan(output, revision);
@@ -987,27 +1018,21 @@ public class DesignerSessionService {
             recordNormalization(session, DesignerActor.DECOMPOSER, extracted,
                     revision.revision(), null);
         } catch (BadRequestException invalid) {
+            if (!formatOutputFailure(invalid.code())) input = captureDecompositionSemantic(input, output);
             decompositionRejected(input, session, remote, invalid.code(), invalid.getMessage());
             return;
         }
         TaskDecompositionRow planned = updateDecomposition(input, TaskDecompositionState.RUNNING,
                 null, plan.normalizedGoal(), write(plan.globalConstraints()), input.planJson(), remote.id(),
                 "PLANNING_COMPLETED", input.repairCount(), input.transportRetryCount(), null, null,
-                StructuredModelStep.GENERATING_JSON, write(plan));
-        DesignRequirementRevisionRow revision = getRequirement(input.requirementRevisionId());
-        if (!consumeModelCall(session, revision, "DECOMPOSER_MODEL_CALL_LIMIT")) return;
-        try {
-            submitModelPrompt(remote, decomposerJsonPrompt(plan), planned.finalResponseMode(),
-                    planned.finalResponseSchemaId());
-            updateDesignerProjection(get(session.id()), DesignerSessionState.RUNNING,
-                    DesignWorkflowPhase.DECOMPOSING, remote.id(), "GENERATING_JSON",
-                    session.designRevision(), session.redesignCount(), revision.revision(), null);
-            publish(session, "STATUS", DesignerActor.DECOMPOSER, true, "",
-                    "拆解规划与需求覆盖映射已冻结，正在生成最终拆解 JSON");
-        } catch (RuntimeException failure) {
-            failDecomposition(planned, session, "OPENCODE_DECOMPOSER_JSON_HANDOFF_FAILED",
-                    failure.getMessage(), true);
-        }
+                StructuredModelStep.SERVER_COMPILING, write(plan));
+        planned = markDecompositionServerCompiled(planned, write(plan));
+        appendMessage(session.id(), DesignerActor.VALIDATOR,
+                "拆解语义规划已由程序规范化并编译；状态、编号、需求引用和依赖均由服务端生成。",
+                "NORMALIZED", session.currentRequirementRevision(), null);
+        publish(session, "STATUS", DesignerActor.DECOMPOSER, true, "",
+                "拆解规划已冻结，服务端正在生成最终拆解对象");
+        handleDecompositionOutput(planned, session, remote, write(plan.toEnvelope()));
     }
 
     private void handleDecompositionOutput(TaskDecompositionRow input, DesignerSessionRow session,
@@ -1075,7 +1100,10 @@ public class DesignerSessionService {
                 "拆解计划校验未通过（" + code + "）：" + safeMessage(detail), "RETRYABLE_ERROR",
                 session.currentRequirementRevision(), null);
         boolean planning = StructuredModelStep.PLANNING.name().equals(decomposition.workflowStep());
-        int repairsUsed = planning ? decomposition.planningRepairCount() : decomposition.repairCount();
+        boolean formatRepair = planning && formatOutputFailure(code);
+        int repairsUsed = planning
+                ? (formatRepair ? decomposition.formatRepairCount() : decomposition.semanticRepairCount())
+                : decomposition.repairCount();
         if (repairsUsed >= MAX_DECOMPOSER_REPAIRS) {
             updateDecomposition(decomposition, TaskDecompositionState.SESSION_ERROR,
                     decomposition.resultType(), decomposition.normalizedGoal(), decomposition.globalConstraintsJson(),
@@ -1092,12 +1120,17 @@ public class DesignerSessionService {
                 planning ? decomposition.repairCount() : repair,
                 decomposition.transportRetryCount(), code, safeMessage(detail),
                 planning ? StructuredModelStep.PLANNING : StructuredModelStep.REPAIRING_JSON,
-                decomposition.planningJson(), planning ? repair : decomposition.planningRepairCount());
+                decomposition.planningJson(), decomposition.planningRepairCount());
+        if (planning) repairing = updateDecompositionRepairCounts(repairing,
+                decomposition.formatRepairCount() + (formatRepair ? 1 : 0),
+                decomposition.semanticRepairCount() + (formatRepair ? 0 : 1));
         DesignRequirementRevisionRow revision = getRequirement(decomposition.requirementRevisionId());
         if (!consumeModelCall(session, revision, "DECOMPOSER_MODEL_CALL_LIMIT")) return;
         try {
             submitModelPrompt(remote, planning
-                            ? decompositionPlanningRepairPrompt(repairing, revision, code, detail)
+                            ? (formatRepair
+                                ? decompositionPlanningRepairPrompt(repairing, revision, code, detail)
+                                : decompositionSemanticPatchPrompt(repairing, code, detail))
                             : decompositionRepairPrompt(repairing, code, detail),
                     planning ? repairing.planningResponseMode() : repairing.finalResponseMode(),
                     planning ? repairing.planningResponseSchemaId() : repairing.finalResponseSchemaId());
@@ -1105,7 +1138,8 @@ public class DesignerSessionService {
                     DesignWorkflowPhase.DECOMPOSING, remote.id(), "REPAIRING_" + repair,
                     session.designRevision(), 0, session.currentRequirementRevision(), null);
             publish(session, "STATUS", DesignerActor.DECOMPOSER, true, "",
-                    "任务拆解器正在进行第 " + repair + "/" + MAX_DECOMPOSER_REPAIRS + " 次结构修复");
+                    "任务拆解器正在进行第 " + repair + "/" + MAX_DECOMPOSER_REPAIRS
+                            + (formatRepair ? " 次格式修复" : " 次语义补丁修复"));
         } catch (RuntimeException failure) {
             failDecomposition(repairing, session, "OPENCODE_DECOMPOSER_REPAIR_FAILED", failure.getMessage(), true);
         }
@@ -1306,8 +1340,9 @@ public class DesignerSessionService {
                 workPackage.designRevision(), LoopSpecCompilationState.PENDING_HANDOFF.name(), null, "PENDING", 0,
                 source.id(), revision.sourceDraftVersion(), null, null, now, now, 0,
                 workPackage.packageId(), 0, null, StructuredModelStep.PLANNING.name(), null, 0,
-                responseMode.name(), schemaId(responseMode, OpenCodeStructuredSchemas.PACKAGE_COMPILATION_PLAN_V2), false,
-                responseMode.name(), schemaId(responseMode, OpenCodeStructuredSchemas.PACKAGE_COMPILATION_FINAL_V2), false);
+                responseMode.name(), schemaId(responseMode, OpenCodeStructuredSchemas.PACKAGE_COMPILATION_SEMANTIC_V3), false,
+                responseMode.name(), schemaId(responseMode, OpenCodeStructuredSchemas.PACKAGE_COMPILATION_FINAL_V2), false,
+                null, 0, 0, false);
         lifecycle.create(compilationSubject(pending, session.projectId()), pending.state(),
                 Map.of("workPackageId", workPackage.packageId()), () -> mapper.insertLoopSpecCompilation(pending),
                 () -> new ConflictException("LOOPSPEC_COMPILATION_CREATE_CONFLICT",
@@ -1434,7 +1469,8 @@ public class DesignerSessionService {
                 source.id(), draft.version(), null, null, now, now, 0,
                 null, 0, null, StructuredModelStep.FINAL_JSON.name(), null, 0,
                 ModelResponseMode.TEXT_MARKER.name(), null, false,
-                ModelResponseMode.TEXT_MARKER.name(), null, false);
+                ModelResponseMode.TEXT_MARKER.name(), null, false,
+                null, 0, 0, false);
         lifecycle.create(compilationSubject(pending, session.projectId()), pending.state(), java.util.Map.of(),
                 () -> mapper.insertLoopSpecCompilation(pending),
                 () -> new ConflictException("LOOPSPEC_COMPILATION_CREATE_CONFLICT",
@@ -1465,6 +1501,19 @@ public class DesignerSessionService {
         try {
             if (!blank(compilation.workPackageId())) {
                 requireDraftUnchanged(session, currentRequirement(session.id()).sourceDraftVersion());
+            }
+            if (!blank(compilation.workPackageId()) && !blank(compilation.planningJson())
+                    && Set.of(StructuredModelStep.GENERATING_JSON.name(), StructuredModelStep.REPAIRING_JSON.name(),
+                            StructuredModelStep.SERVER_COMPILING.name()).contains(compilation.workflowStep())) {
+                abortQuietly(remote.id(), session.projectId());
+                PackageCompilationPlanEnvelope plan = readPackageCompilationPlan(compilation.planningJson());
+                LoopSpecCompilationRow recovered = markCompilationServerCompiled(compilation,
+                        compilation.planningJson());
+                appendMessage(session.id(), DesignerActor.VALIDATOR,
+                        compilation.workPackageId() + " 检测到升级前已冻结规划，已停止旧 final Session 并由服务端直接编译。",
+                        "NORMALIZED", session.currentRequirementRevision(), compilation.workPackageId());
+                handlePackageCompilerOutput(recovered, session, remote, write(compilePackagePlan(plan)));
+                return;
             }
             List<OpenCodeClient.PendingQuestion> questions = openCode.pendingQuestions(remote);
             if (!questions.isEmpty()) {
@@ -1623,6 +1672,12 @@ public class DesignerSessionService {
         String design = designMessage(workPackage).content();
         PackageCompilationPlanEnvelope plan;
         try {
+            if (input.semanticRepairCount() > 0 && output != null && output.contains("\"patches\"")
+                    && !blank(input.semanticPlanJson())) {
+                output = repairPatchService.apply(input.semanticPlanJson(), output, COMPILATION_PLAN_PAYLOAD,
+                        "COMPILER_SEMANTIC_PATCH", Set.of("outcome", "summary", "stages", "handoffSummary",
+                                "designGaps")).json();
+            }
             boolean requireEvidence = "v2".equalsIgnoreCase(
                     drafts.spec(drafts.get(session.loopDraftId())).schemaVersion());
             AiOutputExtractor.ExtractionResult<PackageCompilationPlanEnvelope> extracted =
@@ -1631,26 +1686,21 @@ public class DesignerSessionService {
             recordNormalization(session, DesignerActor.COMPILER, extracted,
                     session.currentRequirementRevision(), workPackage.packageId());
         } catch (BadRequestException invalid) {
+            if (!formatOutputFailure(invalid.code())) input = captureCompilationSemantic(input, output);
             packageCompilerRejected(input, session, workPackage, remote, invalid.code(), invalid.getMessage());
             return;
         }
         LoopSpecCompilationRow planned = updateCompilation(input, LoopSpecCompilationState.RUNNING,
                 remote.id(), "PLANNING_COMPLETED", input.repairCount(), null, null, session.projectId(),
-                input.compiledPackageJson(), StructuredModelStep.GENERATING_JSON, write(plan));
-        DesignRequirementRevisionRow revision = currentRequirement(session.id());
-        if (!consumeModelCall(session, revision, "WORK_PACKAGE_MODEL_CALL_LIMIT")) return;
-        try {
-            submitModelPrompt(remote, packageCompilerJsonPrompt(session, drafts.get(session.loopDraftId()),
-                            workPackage, plan), planned.finalResponseMode(), planned.finalResponseSchemaId());
-            updateDesignerProjection(get(session.id()), DesignerSessionState.RUNNING, DesignWorkflowPhase.COMPILING,
-                    session.externalSessionId(), "GENERATING_JSON", session.designRevision(),
-                    session.redesignCount(), revision.revision(), workPackage.packageId());
-            publish(session, "STATUS", DesignerActor.COMPILER, true, "",
-                    workPackage.packageId() + " Stage规划与验收证据映射已冻结，正在生成 CompiledPackage JSON");
-        } catch (RuntimeException failure) {
-            failPackageCompilation(planned, session, "OPENCODE_COMPILER_JSON_HANDOFF_FAILED",
-                    failure.getMessage(), true);
-        }
+                input.compiledPackageJson(), StructuredModelStep.SERVER_COMPILING, write(plan));
+        planned = markCompilationServerCompiled(planned, write(plan));
+        PackageCompilationEnvelope envelope = compilePackagePlan(plan);
+        appendMessage(session.id(), DesignerActor.VALIDATOR,
+                workPackage.packageId() + " 语义规划已由程序编译；验收编号、精确来源、测试目标和验证器关联均由服务端生成。",
+                "NORMALIZED", session.currentRequirementRevision(), workPackage.packageId());
+        publish(session, "STATUS", DesignerActor.COMPILER, true, "",
+                workPackage.packageId() + " 规划已冻结，服务端正在生成 CompiledPackage");
+        handlePackageCompilerOutput(planned, session, remote, write(envelope));
     }
 
     private void handleCompilerOutput(LoopSpecCompilationRow compilation, DesignerSessionRow session,
@@ -1869,7 +1919,10 @@ public class DesignerSessionService {
                 workPackage.packageId() + " 确定性校验未通过（" + code + "）：" + safeMessage(detail),
                 "RETRYABLE_ERROR", session.currentRequirementRevision(), workPackage.packageId());
         boolean planning = StructuredModelStep.PLANNING.name().equals(compilation.workflowStep());
-        int repairsUsed = planning ? compilation.planningRepairCount() : compilation.repairCount();
+        boolean formatRepair = planning && formatOutputFailure(code);
+        int repairsUsed = planning
+                ? (formatRepair ? compilation.formatRepairCount() : compilation.semanticRepairCount())
+                : compilation.repairCount();
         if (repairsUsed >= MAX_COMPILER_REPAIRS) {
             updateCompilation(compilation, LoopSpecCompilationState.SESSION_ERROR, remote.id(), "FAILED",
                     compilation.repairCount(), "COMPILER_RETRY_EXHAUSTED", safeMessage(detail),
@@ -1889,13 +1942,18 @@ public class DesignerSessionService {
                 code, safeMessage(detail), session.projectId(),
                 compilation.compiledPackageJson(),
                 planning ? StructuredModelStep.PLANNING : StructuredModelStep.REPAIRING_JSON,
-                compilation.planningJson(), planning ? repair : compilation.planningRepairCount());
+                compilation.planningJson(), compilation.planningRepairCount());
+        if (planning) repairing = updateCompilationRepairCounts(repairing,
+                compilation.formatRepairCount() + (formatRepair ? 1 : 0),
+                compilation.semanticRepairCount() + (formatRepair ? 0 : 1));
         DesignRequirementRevisionRow revision = currentRequirement(session.id());
         if (!consumeModelCall(session, revision, "WORK_PACKAGE_MODEL_CALL_LIMIT")) return;
         try {
             submitModelPrompt(remote, planning
-                            ? packageCompilerPlanningRepairPrompt(repairing, workPackage,
-                            designMessage(workPackage).content(), code, detail)
+                            ? (formatRepair
+                                ? packageCompilerPlanningRepairPrompt(repairing, workPackage,
+                                    designMessage(workPackage).content(), code, detail)
+                                : packageCompilerSemanticPatchPrompt(repairing, workPackage, code, detail))
                             : packageCompilerRepairPrompt(repairing, code, detail),
                     planning ? repairing.planningResponseMode() : repairing.finalResponseMode(),
                     planning ? repairing.planningResponseSchemaId() : repairing.finalResponseSchemaId());
@@ -1904,7 +1962,7 @@ public class DesignerSessionService {
                     session.redesignCount(), session.currentRequirementRevision(), workPackage.packageId());
             publish(session, "STATUS", DesignerActor.COMPILER, true, "",
                     workPackage.packageId() + " 规范编译器正在进行第 " + repair + "/"
-                            + MAX_COMPILER_REPAIRS + " 次修复");
+                            + MAX_COMPILER_REPAIRS + (formatRepair ? " 次格式修复" : " 次语义补丁修复"));
         } catch (RuntimeException failure) {
             failPackageCompilation(repairing, session, "OPENCODE_COMPILER_REPAIR_FAILED",
                     failure.getMessage(), true);
@@ -2256,7 +2314,9 @@ public class DesignerSessionService {
                         compilation.workflowStep(), compilation.planningJson(), compilation.planningRepairCount(),
                         compilation.planningResponseMode(), compilation.planningResponseSchemaId(),
                         compilation.planningFormatFallbackUsed(), compilation.finalResponseMode(),
-                        compilation.finalResponseSchemaId(), compilation.finalFormatFallbackUsed());
+                        compilation.finalResponseSchemaId(), compilation.finalFormatFallbackUsed(),
+                        compilation.semanticPlanJson(), compilation.formatRepairCount(),
+                        compilation.semanticRepairCount(), compilation.serverCompiled());
                 LoopSpecCompilationRow running = updateCompilation(retryBase, LoopSpecCompilationState.RUNNING,
                         remote.id(), "TRANSPORT_RETRY", compilation.repairCount(), code, safeMessage(detail),
                         session.projectId(), compilation.compiledPackageJson());
@@ -2376,7 +2436,8 @@ public class DesignerSessionService {
                                 && criterion.id().equals(item.criterionId())).findFirst()
                         .orElseThrow(() -> new BadRequestException("CRITERION_SOURCE_MISSING",
                                 "No Designer source excerpt was supplied for " + key));
-                if (blank(source.excerpt()) || !design.contains(source.excerpt())) {
+                if (source.excerpts().isEmpty() || source.excerpts().stream()
+                        .anyMatch(excerpt -> blank(excerpt) || !design.contains(excerpt))) {
                     throw new BadRequestException("CRITERION_SOURCE_NOT_IN_DESIGN",
                             "Criterion source excerpt is not an exact substring of the frozen design: " + key);
                 }
@@ -2404,6 +2465,27 @@ public class DesignerSessionService {
 
     private AiOutputExtractor.ExtractionResult<DecompositionPlanEnvelope> parseDecompositionPlan(
             String output, DesignRequirementRevisionRow revision) {
+        if (output != null && Pattern.compile("\\\"outcome\\\"\\s*:", Pattern.CASE_INSENSITIVE)
+                .matcher(output).find()) {
+            AiOutputExtractor.ExtractionResult<CompactDecompositionPlan> compact = aiOutputExtractor.extractJson(
+                    output, DECOMPOSITION_PLAN_PAYLOAD, "DECOMPOSER_PLAN_OUTPUT",
+                    CompactDecompositionPlan.class, CompactDecompositionPlan::normalized, value -> {
+                        if (value == null || blank(value.outcome())) {
+                            throw new BadRequestException("DECOMPOSER_PLAN_OUTCOME_MISSING",
+                                    "Decomposer semantic outcome is required");
+                        }
+                    });
+            DecompositionPlanEnvelope compiled = compileCompactDecomposition(compact.value(), revision);
+            validateDecompositionPlan(compiled, revision);
+            List<String> notes = new ArrayList<>(compact.normalizations());
+            notes.add("STATUS_DERIVED");
+            notes.add("IDS_AND_REFERENCES_DERIVED");
+            if ("READY".equals(compact.value().outcome()) && !compact.value().designGaps().isEmpty()) {
+                notes.add("ADVISORY_GAPS_IGNORED");
+            }
+            return new AiOutputExtractor.ExtractionResult<>(compiled, compact.source(), List.copyOf(notes),
+                    write(compiled));
+        }
         return aiOutputExtractor.extractJson(output, DECOMPOSITION_PLAN_PAYLOAD, "DECOMPOSER_PLAN_OUTPUT",
                 DecompositionPlanEnvelope.class,
                 envelope -> canonicalizeDecompositionPlan(envelope.normalized(), revision), envelope -> {
@@ -2413,6 +2495,132 @@ public class DesignerSessionService {
                     }
                     validateDecompositionPlan(envelope, revision);
                 });
+    }
+
+    private DecompositionPlanEnvelope compileCompactDecomposition(CompactDecompositionPlan compact,
+                                                                  DesignRequirementRevisionRow revision) {
+        String outcome = compact.outcome();
+        if (!Set.of("READY", "NEEDS_INPUT", "MULTI_TASK_REQUIRED").contains(outcome))
+            AiSemanticContractCompiler.decompositionStatus(outcome, compact.workPackages().size());
+        if (!"READY".equals(outcome)) {
+            String status = "NEEDS_INPUT".equals(outcome) ? "NEEDS_INPUT" : "MULTI_TASK_REQUIRED";
+            DecompositionPlanEnvelope result = new DecompositionPlanEnvelope(status, compact.normalizedGoal(),
+                    List.of(), List.of(), List.of(), List.of(), compactDesignGaps(compact.designGaps()),
+                    compact.reason()).normalized();
+            validateDecompositionPlan(result, revision);
+            return result;
+        }
+        int packageCount = compact.workPackages().size();
+        String status = AiSemanticContractCompiler.decompositionStatus(outcome, packageCount);
+        List<GlobalConstraint> constraints = compact.globalConstraints().stream()
+                .map(item -> new GlobalConstraint(compactConstraintText(item), List.of())).toList();
+        List<DecomposedWorkPackage> packages = new ArrayList<>();
+        List<DependencyEvidence> dependencies = new ArrayList<>();
+        for (int index = 0; index < packageCount; index++) {
+            CompactWorkPackage item = compact.workPackages().get(index);
+            String packageId = AiSemanticContractCompiler.workPackageId(index);
+            List<String> dependsOn = new ArrayList<>();
+            for (JsonNode dependency : item.dependsOn()) {
+                int dependencyIndex;
+                String rationale = null;
+                if (dependency != null && dependency.isIntegralNumber()) {
+                    dependencyIndex = dependency.asInt();
+                } else if (dependency != null && dependency.isTextual()) {
+                    String reference = dependency.asText().trim();
+                    if (reference.matches("(?i)WP-[1-9][0-9]*")) {
+                        dependencyIndex = Integer.parseInt(reference.substring(3)) - 1;
+                    } else if (reference.matches("[0-9]+")) {
+                        dependencyIndex = Integer.parseInt(reference);
+                    } else {
+                        List<Integer> matches = new ArrayList<>();
+                        for (int previous = 0; previous < index; previous++) {
+                            if (reference.equals(compact.workPackages().get(previous).title())) matches.add(previous);
+                        }
+                        if (matches.size() != 1) {
+                            throw new BadRequestException("WORK_PACKAGE_DEPENDENCY_INVALID",
+                                    packageId + " dependency must uniquely identify an earlier package");
+                        }
+                        dependencyIndex = matches.getFirst();
+                    }
+                } else if (dependency != null && dependency.isObject()) {
+                    JsonNode indexNode = dependency.get("packageIndex");
+                    if (indexNode == null) indexNode = dependency.get("targetIndex");
+                    if (indexNode == null || !indexNode.isIntegralNumber()) {
+                        throw new BadRequestException("WORK_PACKAGE_DEPENDENCY_INVALID",
+                                packageId + " dependency must identify packageIndex");
+                    }
+                    dependencyIndex = indexNode.asInt();
+                    JsonNode reason = dependency.get("rationale");
+                    if (reason != null && reason.isTextual()) rationale = reason.asText();
+                } else {
+                    throw new BadRequestException("WORK_PACKAGE_DEPENDENCY_INVALID",
+                            packageId + " dependency must be an earlier package index");
+                }
+                if (dependencyIndex < 0 || dependencyIndex >= index) {
+                    throw new BadRequestException("WORK_PACKAGE_DEPENDENCY_INVALID",
+                            packageId + " may depend only on an earlier package index");
+                }
+                String dependencyId = AiSemanticContractCompiler.workPackageId(dependencyIndex);
+                if (!dependsOn.contains(dependencyId)) dependsOn.add(dependencyId);
+                dependencies.add(new DependencyEvidence(packageId, dependencyId,
+                        blank(rationale) ? packageId + " consumes the prerequisite delivered by " + dependencyId
+                                : rationale));
+            }
+            packages.add(new DecomposedWorkPackage(packageId, item.title(), item.objective(), item.scopeIn(),
+                    item.scopeOut(), dependsOn, item.deliverables(), item.acceptanceIntent(), List.of()));
+        }
+        List<RequirementCoverageMapping> mappings = new ArrayList<>();
+        for (CompactCoverage item : compact.coverage()) {
+            String type = item.targetType();
+            int limit = "GLOBAL_CONSTRAINT".equals(type) ? constraints.size() : packages.size();
+            if (!Set.of("GLOBAL_CONSTRAINT", "WORK_PACKAGE").contains(type)
+                    || item.targetIndex() < 0 || item.targetIndex() >= limit) {
+                throw new BadRequestException("DECOMPOSITION_PLAN_COVERAGE_TARGET_INVALID",
+                        "Coverage target is unknown: " + type + "[" + item.targetIndex() + "]");
+            }
+            String targetId = "GLOBAL_CONSTRAINT".equals(type)
+                    ? AiSemanticContractCompiler.globalConstraintId(item.targetIndex())
+                    : AiSemanticContractCompiler.workPackageId(item.targetIndex());
+            mappings.add(new RequirementCoverageMapping(item.requirementRef(), type, targetId,
+                    blank(item.rationale()) ? "Requirement is owned by " + targetId : item.rationale()));
+        }
+        return canonicalizeDecompositionPlan(new DecompositionPlanEnvelope(status, compact.normalizedGoal(),
+                constraints, packages, mappings, dependencies, List.of(), null).normalized(), revision);
+    }
+
+    private String compactConstraintText(JsonNode item) {
+        if (item == null || item.isNull()) return null;
+        if (item.isTextual()) return item.asText();
+        if (item.isObject()) {
+            JsonNode text = item.get("text");
+            return text == null || !text.isTextual() ? null : text.asText();
+        }
+        return null;
+    }
+
+    private List<DesignGap> compactDesignGaps(List<JsonNode> items) {
+        List<DesignGap> result = new ArrayList<>();
+        for (JsonNode item : items) {
+            if (item == null || item.isNull()) continue;
+            if (item.isTextual()) {
+                result.add(new DesignGap(DesignGapCode.MISSING_SCOPE, item.asText()));
+                continue;
+            }
+            if (!item.isObject()) {
+                throw new BadRequestException("DECOMPOSITION_GAP_INVALID",
+                        "Design gaps must be strings or objects with code and detail");
+            }
+            JsonNode code = item.get("code");
+            JsonNode detail = item.get("detail");
+            try {
+                result.add(new DesignGap(DesignGapCode.valueOf(code == null ? "" : code.asText()),
+                        detail == null ? null : detail.asText()));
+            } catch (IllegalArgumentException invalid) {
+                throw new BadRequestException("DECOMPOSITION_GAP_INVALID",
+                        "Design gap code is outside the closed set");
+            }
+        }
+        return List.copyOf(result);
     }
 
     private DecompositionPlanEnvelope readDecompositionPlan(String payload) {
@@ -2440,6 +2648,27 @@ public class DesignerSessionService {
 
     private AiOutputExtractor.ExtractionResult<PackageCompilationPlanEnvelope> parsePackageCompilationPlan(
             String output, DesignWorkPackageRow workPackage, String design, boolean requireEvidence) {
+        if (output != null && Pattern.compile("\\\"outcome\\\"\\s*:", Pattern.CASE_INSENSITIVE)
+                .matcher(output).find()) {
+            AiOutputExtractor.ExtractionResult<CompactPackageCompilationPlan> compact =
+                    aiOutputExtractor.extractJson(output, COMPILATION_PLAN_PAYLOAD, "COMPILER_PLAN_OUTPUT",
+                            CompactPackageCompilationPlan.class, CompactPackageCompilationPlan::normalized,
+                            value -> {
+                                if (value == null || blank(value.outcome())) {
+                                    throw new BadRequestException("COMPILER_PLAN_OUTCOME_MISSING",
+                                            "Compiler semantic outcome is required");
+                                }
+                            });
+            PackageCompilationPlanEnvelope compiled = compileCompactPackagePlan(workPackage, design,
+                    compact.value());
+            validatePackageCompilationPlan(workPackage, design, compiled, requireEvidence);
+            List<String> notes = new ArrayList<>(compact.normalizations());
+            notes.add("AC_IDS_DERIVED");
+            notes.add("SOURCE_REFS_RESOLVED");
+            notes.add("VERIFIER_METADATA_DERIVED");
+            return new AiOutputExtractor.ExtractionResult<>(compiled, compact.source(), List.copyOf(notes),
+                    write(compiled));
+        }
         return aiOutputExtractor.extractJson(output, COMPILATION_PLAN_PAYLOAD, "COMPILER_PLAN_OUTPUT",
                 PackageCompilationPlanEnvelope.class,
                 envelope -> canonicalizePackageCompilationPlan(workPackage, design, envelope.normalized()),
@@ -2450,6 +2679,128 @@ public class DesignerSessionService {
                     }
                     validatePackageCompilationPlan(workPackage, design, envelope, requireEvidence);
                 });
+    }
+
+    private PackageCompilationPlanEnvelope compileCompactPackagePlan(DesignWorkPackageRow workPackage,
+                                                                     String design,
+                                                                     CompactPackageCompilationPlan compact) {
+        if ("DESIGN_INCOMPLETE".equals(compact.outcome())) {
+            return new PackageCompilationPlanEnvelope(2, "DESIGN_INCOMPLETE", compact.summary(), List.of(),
+                    List.of(), compact.handoffSummary(), validateDesignGaps(compact.designGaps())).normalized();
+        }
+        if (!"COMPILED".equals(compact.outcome())) {
+            throw new BadRequestException("COMPILER_PLAN_OUTCOME_INVALID",
+                    "Compiler semantic outcome must be COMPILED or DESIGN_INCOMPLETE");
+        }
+        if (compact.stages().isEmpty() || compact.stages().size() > MAX_PACKAGE_STAGES) {
+            throw new BadRequestException("COMPILER_PLAN_STAGE_COUNT_INVALID",
+                    "Compiler semantic planning must contain 1-3 stages");
+        }
+        DesignerEvidenceIndexer.Index sourceIndex = evidenceIndexer.index(design);
+        List<PlannedStage> plannedStages = new ArrayList<>();
+        List<AcceptanceEvidenceMapping> mappings = new ArrayList<>();
+        int criterionOrdinal = 0;
+        for (int stageIndex = 0; stageIndex < compact.stages().size(); stageIndex++) {
+            CompactStage stage = compact.stages().get(stageIndex);
+            if (stage == null || blank(stage.objective()) || stage.implementationKind() == null
+                    || stage.deliverables().isEmpty() || stage.criteria().isEmpty()) {
+                throw new BadRequestException("COMPILER_PLAN_STAGE_INVALID",
+                        "Every semantic stage needs objective, implementationKind, deliverables, and criteria");
+            }
+            List<String> criterionIds = new ArrayList<>();
+            for (int criterionIndex = 0; criterionIndex < stage.criteria().size(); criterionIndex++) {
+                int currentCriterion = criterionIndex;
+                CompactCriterion criterion = stage.criteria().get(criterionIndex);
+                if (criterion == null || blank(criterion.description())) {
+                    throw new BadRequestException("COMPILER_PLAN_CRITERION_INVALID",
+                            "Every semantic criterion needs an observable description");
+                }
+                List<String> excerpts = sourceIndex.resolve(criterion.sourceRefs());
+                String criterionId = AiSemanticContractCompiler.acceptanceId(workPackage.packageId(),
+                        ++criterionOrdinal);
+                criterionIds.add(criterionId);
+                List<CompactEvidence> covering = stage.evidence().stream()
+                        .filter(item -> item != null && item.covers().contains(currentCriterion)).toList();
+                boolean machine = !covering.isEmpty();
+                String mode = AiSemanticContractCompiler.verificationMode(machine, criterion.judgeRubric(),
+                        criterion.judgeOnlyReason());
+                List<CompactEvidence> focused = covering.stream()
+                        .filter(item -> "FOCUSED_TEST".equals(item.kind())).toList();
+                if (focused.size() > 1) {
+                    throw new BadRequestException("COMPILER_PLAN_TEST_EVIDENCE_AMBIGUOUS",
+                            "One criterion cannot derive a unique focused test from multiple candidates");
+                }
+                List<String> testCommand = focused.isEmpty() ? List.of()
+                        : canonicalTestCommand(focused.getFirst().command());
+                List<String> testTargets = focused.isEmpty() ? List.of()
+                        : ProcessCommandPolicy.explicitFocusedJavaTestTargets(testCommand);
+                String strategy = covering.stream().map(CompactEvidence::kind).distinct()
+                        .collect(java.util.stream.Collectors.joining(", "));
+                mappings.add(new AcceptanceEvidenceMapping(stageIndex, criterionId, criterion.description(),
+                        excerpts.getFirst(), mode, criterion.judgeRubric(), criterion.judgeOnlyReason(), strategy,
+                        testCommand, testTargets, excerpts));
+            }
+            List<LoopSpec.VerifierSpec> verifiers = new ArrayList<>();
+            for (CompactEvidence evidence : stage.evidence()) {
+                verifiers.add(compileEvidence(stageIndex, stage, evidence, criterionIds));
+            }
+            plannedStages.add(new PlannedStage(stage.objective(), stage.allowedPaths(), stage.forbiddenPaths(),
+                    stage.deliverables(), verifiers, stage.verificationRuntime(), stage.implementationKind(),
+                    workPackage.packageId()));
+        }
+        return new PackageCompilationPlanEnvelope(2, "COMPILED", compact.summary(), plannedStages, mappings,
+                compact.handoffSummary(), List.of()).normalized();
+    }
+
+    private LoopSpec.VerifierSpec compileEvidence(int stageIndex, CompactStage stage,
+                                                  CompactEvidence evidence, List<String> criterionIds) {
+        if (evidence == null || blank(evidence.kind())) {
+            throw new BadRequestException("COMPILER_PLAN_EVIDENCE_KIND_REQUIRED",
+                    "Evidence kind is required at stage " + stageIndex);
+        }
+        Set<String> coverable = Set.of("FOCUSED_TEST", "SELF_CHECK", "HTTP_STATUS", "JSON_PATH", "BROWSER",
+                "DATABASE_QUERY", "FILE_CONTENT", "FILE_HASH");
+        Set<String> supplemental = Set.of("FULL_TEST", "BUILD", "GIT_DIFF", "FILE_NOT_EXISTS", "JUNIT_XML");
+        if (!coverable.contains(evidence.kind()) && !supplemental.contains(evidence.kind())) {
+            throw new BadRequestException("COMPILER_PLAN_EVIDENCE_KIND_INVALID",
+                    "Unsupported evidence kind: " + evidence.kind());
+        }
+        if (supplemental.contains(evidence.kind()) && !evidence.covers().isEmpty()) {
+            throw new BadRequestException("COMPILER_PLAN_EVIDENCE_COVERAGE_INVALID",
+                    evidence.kind() + " is supplemental and cannot cover business criteria");
+        }
+        LinkedHashSet<String> covers = new LinkedHashSet<>();
+        for (Integer index : evidence.covers()) {
+            if (index == null || index < 0 || index >= criterionIds.size()) {
+                throw new BadRequestException("COMPILER_PLAN_EVIDENCE_COVERAGE_INVALID",
+                        "Evidence covers an unknown criterion index at stage " + stageIndex);
+            }
+            covers.add(criterionIds.get(index));
+        }
+        String type = switch (evidence.kind()) {
+            case "FOCUSED_TEST", "FULL_TEST", "BUILD", "SELF_CHECK" -> "PROCESS";
+            default -> evidence.kind();
+        };
+        String purpose = switch (evidence.kind()) {
+            case "FOCUSED_TEST", "FULL_TEST" -> "TEST";
+            case "BUILD" -> "BUILD";
+            case "SELF_CHECK" -> "SELF_CHECK";
+            default -> null;
+        };
+        List<String> command = "PROCESS".equals(type) ? canonicalTestCommand(evidence.command())
+                : evidence.command();
+        List<String> targets = "FOCUSED_TEST".equals(evidence.kind())
+                ? ProcessCommandPolicy.explicitFocusedJavaTestTargets(command) : List.of();
+        String output = "SELF_CHECK".equals(evidence.kind()) ? evidence.successMarker() : null;
+        List<String> allowed = evidence.allowedPaths().isEmpty() && "GIT_DIFF".equals(type)
+                ? stage.allowedPaths() : evidence.allowedPaths();
+        List<String> forbidden = evidence.forbiddenPaths().isEmpty() && "GIT_DIFF".equals(type)
+                ? stage.forbiddenPaths() : evidence.forbiddenPaths();
+        return new LoopSpec.VerifierSpec(type, command, evidence.path(), evidence.requireChanges(), allowed,
+                forbidden, evidence.forbidDeletes(), output, evidence.url(), evidence.httpMethod(),
+                evidence.expectedStatus(), evidence.jsonPath(), evidence.expectedValue(), evidence.matchMode(),
+                evidence.expectedContent(), evidence.expectedSha256(), evidence.sql(), evidence.expectedRowCount(),
+                evidence.assertions(), List.copyOf(covers), purpose, targets);
     }
 
     private PackageCompilationPlanEnvelope readPackageCompilationPlan(String payload) {
@@ -2495,9 +2846,9 @@ public class DesignerSessionService {
                 .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
         Set<String> covered = new LinkedHashSet<>();
         for (GlobalConstraint constraint : envelope.globalConstraints()) {
-            if (constraint == null || blank(constraint.text()) || constraint.requirementRefs().isEmpty()) {
+            if (constraint == null || blank(constraint.text())) {
                 throw new BadRequestException("GLOBAL_CONSTRAINT_INVALID",
-                        "Each global constraint needs text and requirement references");
+                        "Each global constraint needs non-empty text");
             }
             validateRequirementRefs(constraint.requirementRefs(), validRefs, covered);
         }
@@ -2511,10 +2862,9 @@ public class DesignerSessionService {
                         "Work package ids must be stable and ordered as WP-1..WP-n");
             }
             if (!ids.add(workPackage.id()) || blank(workPackage.title()) || blank(workPackage.objective())
-                    || workPackage.deliverables().isEmpty() || workPackage.acceptanceIntent().isEmpty()
-                    || workPackage.requirementRefs().isEmpty()) {
+                    || workPackage.deliverables().isEmpty() || workPackage.acceptanceIntent().isEmpty()) {
                 throw new BadRequestException("WORK_PACKAGE_INCOMPLETE",
-                        expectedId + " requires title, objective, deliverables, acceptance intent, and requirement refs");
+                        expectedId + " requires title, objective, deliverables, and acceptance intent");
             }
             if (mechanicalTitles.contains(workPackage.title().trim().toLowerCase())) {
                 throw new BadRequestException("MECHANICAL_LAYER_SPLIT_FORBIDDEN",
@@ -2813,12 +3163,15 @@ public class DesignerSessionService {
             }
             String criterionId = workPackage.packageId() + "-AC-" + (canonical.size() + 1);
             String excerpt = canonicalDesignerExcerpt(design, mapping.designerExcerpt());
+            List<String> excerpts = mapping.designerExcerpts().isEmpty() ? List.of(excerpt)
+                    : mapping.designerExcerpts().stream()
+                    .map(item -> canonicalDesignerExcerpt(design, item)).distinct().toList();
             FocusedJavaTestEvidence evidence = canonicalizeMappingTestEvidence(mapping,
                     stagesWithExplicitTestTargets, focusedTestsByStage);
             AcceptanceEvidenceMapping normalized = new AcceptanceEvidenceMapping(mapping.stageIndex(), criterionId,
                     mapping.description(), excerpt, mapping.verificationMode(), mapping.judgeRubric(),
                     mapping.judgeOnlyReason(), mapping.verifierStrategy(), evidence.command(),
-                    evidence.testTargets());
+                    evidence.testTargets(), excerpts);
             canonical.add(new CanonicalEvidenceMapping(mapping.criterionId(), normalized));
         }
 
@@ -3083,7 +3436,8 @@ public class DesignerSessionService {
             }
         }
         List<CriterionSource> expectedSources = plan.evidenceMappings().stream().map(item ->
-                new CriterionSource(item.stageIndex(), item.criterionId(), item.designerExcerpt())).toList();
+                new CriterionSource(item.stageIndex(), item.criterionId(), item.designerExcerpt(),
+                        item.designerExcerpts())).toList();
         if (!expectedSources.equals(envelope.criterionSources())) {
             throw new BadRequestException("COMPILER_PLAN_SOURCE_DRIFT",
                     "Final criterion sources differ from the frozen evidence mapping");
@@ -3094,6 +3448,150 @@ public class DesignerSessionService {
         }
     }
 
+    /** Compile the frozen semantic package plan without asking the model to copy mechanical JSON fields. */
+    private PackageCompilationEnvelope compilePackagePlan(PackageCompilationPlanEnvelope plan) {
+        if ("DESIGN_INCOMPLETE".equals(plan.status())) {
+            return new PackageCompilationEnvelope(plan.status(), plan.summary(), List.of(), List.of(),
+                    plan.handoffSummary(), plan.designGaps()).normalized();
+        }
+        List<LoopSpec.StageSpec> stages = new ArrayList<>();
+        for (int stageIndex = 0; stageIndex < plan.stages().size(); stageIndex++) {
+            int currentStage = stageIndex;
+            PlannedStage stage = plan.stages().get(stageIndex);
+            List<LoopSpec.AcceptanceCriterion> criteria = plan.evidenceMappings().stream()
+                    .filter(mapping -> mapping.stageIndex() == currentStage)
+                    .map(mapping -> new LoopSpec.AcceptanceCriterion(mapping.criterionId(), mapping.description(),
+                            mapping.verificationMode(), mapping.judgeRubric(), mapping.judgeOnlyReason()))
+                    .toList();
+            stages.add(new LoopSpec.StageSpec(stage.objective(), stage.allowedPaths(), stage.forbiddenPaths(),
+                    stage.deliverables(), stage.verifiers(), criteria, stage.verificationRuntime(),
+                    stage.implementationKind(), stage.workPackageId()));
+        }
+        List<CriterionSource> sources = plan.evidenceMappings().stream()
+                .map(mapping -> new CriterionSource(mapping.stageIndex(), mapping.criterionId(),
+                        mapping.designerExcerpt(), mapping.designerExcerpts()))
+                .toList();
+        return new PackageCompilationEnvelope(plan.status(), plan.summary(), stages, sources,
+                plan.handoffSummary(), plan.designGaps()).normalized();
+    }
+
+    private TaskDecompositionRow markDecompositionServerCompiled(TaskDecompositionRow row, String semanticPlan) {
+        TaskDecompositionRow updated = new TaskDecompositionRow(row.id(), row.designerSessionId(),
+                row.requirementRevisionId(), row.state(), row.resultType(), row.normalizedGoal(),
+                row.globalConstraintsJson(), row.planJson(), row.externalSessionId(), row.externalSessionState(),
+                row.repairCount(), row.transportRetryCount(), row.sourceDraftVersion(), row.lastErrorCode(),
+                row.lastErrorDetail(), row.createdAt(), now(), row.version(), row.workflowStep(), row.planningJson(),
+                row.planningRepairCount(), row.planningResponseMode(), row.planningResponseSchemaId(),
+                row.planningFormatFallbackUsed(), row.finalResponseMode(), row.finalResponseSchemaId(),
+                row.finalFormatFallbackUsed(), semanticPlan, row.formatRepairCount(), row.semanticRepairCount(), true);
+        lifecycle.mutateWithoutTransition(() -> mapper.updateTaskDecomposition(updated),
+                () -> new ConflictException("TASK_DECOMPOSITION_VERSION_CONFLICT",
+                        "Task decomposition was updated concurrently"));
+        return getDecomposition(row.id());
+    }
+
+    private LoopSpecCompilationRow markCompilationServerCompiled(LoopSpecCompilationRow row, String semanticPlan) {
+        LoopSpecCompilationRow updated = new LoopSpecCompilationRow(row.id(), row.designerSessionId(),
+                row.designRevision(), row.state(), row.externalSessionId(), row.externalSessionState(),
+                row.repairCount(), row.sourceDesignMessageId(), row.sourceDraftVersion(), row.lastErrorCode(),
+                row.lastErrorDetail(), row.createdAt(), now(), row.version(), row.workPackageId(),
+                row.transportRetryCount(), row.compiledPackageJson(), row.workflowStep(), row.planningJson(),
+                row.planningRepairCount(), row.planningResponseMode(), row.planningResponseSchemaId(),
+                row.planningFormatFallbackUsed(), row.finalResponseMode(), row.finalResponseSchemaId(),
+                row.finalFormatFallbackUsed(), semanticPlan, row.formatRepairCount(), row.semanticRepairCount(), true);
+        lifecycle.mutateWithoutTransition(() -> mapper.updateLoopSpecCompilation(updated),
+                () -> new ConflictException("LOOPSPEC_COMPILATION_VERSION_CONFLICT",
+                        "LoopSpec compilation was updated concurrently"));
+        return getCompilation(row.id());
+    }
+
+    private boolean formatOutputFailure(String code) {
+        if (code == null) return false;
+        boolean extraction = code.contains("_OUTPUT_") || code.contains("_PATCH_");
+        return extraction && (code.endsWith("_MISSING") || code.endsWith("_UNPARSEABLE")
+                || code.endsWith("_AMBIGUOUS") || code.endsWith("_INVALID") || code.endsWith("_TOO_LARGE"));
+    }
+
+    private TaskDecompositionRow captureDecompositionSemantic(TaskDecompositionRow row, String output) {
+        try {
+            AiOutputExtractor.ExtractionResult<CompactDecompositionPlan> extracted = aiOutputExtractor.extractJson(
+                    output, DECOMPOSITION_PLAN_PAYLOAD, "DECOMPOSER_PLAN_OUTPUT", CompactDecompositionPlan.class,
+                    CompactDecompositionPlan::normalized, null);
+            TaskDecompositionRow updated = new TaskDecompositionRow(row.id(), row.designerSessionId(),
+                    row.requirementRevisionId(), row.state(), row.resultType(), row.normalizedGoal(),
+                    row.globalConstraintsJson(), row.planJson(), row.externalSessionId(), row.externalSessionState(),
+                    row.repairCount(), row.transportRetryCount(), row.sourceDraftVersion(), row.lastErrorCode(),
+                    row.lastErrorDetail(), row.createdAt(), now(), row.version(), row.workflowStep(), row.planningJson(),
+                    row.planningRepairCount(), row.planningResponseMode(), row.planningResponseSchemaId(),
+                    row.planningFormatFallbackUsed(), row.finalResponseMode(), row.finalResponseSchemaId(),
+                    row.finalFormatFallbackUsed(), extracted.canonicalJson(), row.formatRepairCount(),
+                    row.semanticRepairCount(), row.serverCompiled());
+            lifecycle.mutateWithoutTransition(() -> mapper.updateTaskDecomposition(updated),
+                    () -> new ConflictException("TASK_DECOMPOSITION_VERSION_CONFLICT",
+                            "Task decomposition was updated concurrently"));
+            return getDecomposition(row.id());
+        } catch (RuntimeException ignored) {
+            return mapper.findTaskDecomposition(row.id()).orElse(row);
+        }
+    }
+
+    private LoopSpecCompilationRow captureCompilationSemantic(LoopSpecCompilationRow row, String output) {
+        try {
+            AiOutputExtractor.ExtractionResult<CompactPackageCompilationPlan> extracted =
+                    aiOutputExtractor.extractJson(output, COMPILATION_PLAN_PAYLOAD, "COMPILER_PLAN_OUTPUT",
+                            CompactPackageCompilationPlan.class, CompactPackageCompilationPlan::normalized, null);
+            LoopSpecCompilationRow updated = new LoopSpecCompilationRow(row.id(), row.designerSessionId(),
+                    row.designRevision(), row.state(), row.externalSessionId(), row.externalSessionState(),
+                    row.repairCount(), row.sourceDesignMessageId(), row.sourceDraftVersion(), row.lastErrorCode(),
+                    row.lastErrorDetail(), row.createdAt(), now(), row.version(), row.workPackageId(),
+                    row.transportRetryCount(), row.compiledPackageJson(), row.workflowStep(), row.planningJson(),
+                    row.planningRepairCount(), row.planningResponseMode(), row.planningResponseSchemaId(),
+                    row.planningFormatFallbackUsed(), row.finalResponseMode(), row.finalResponseSchemaId(),
+                    row.finalFormatFallbackUsed(), extracted.canonicalJson(), row.formatRepairCount(),
+                    row.semanticRepairCount(), row.serverCompiled());
+            lifecycle.mutateWithoutTransition(() -> mapper.updateLoopSpecCompilation(updated),
+                    () -> new ConflictException("LOOPSPEC_COMPILATION_VERSION_CONFLICT",
+                            "LoopSpec compilation was updated concurrently"));
+            return getCompilation(row.id());
+        } catch (RuntimeException ignored) {
+            return mapper.findLoopSpecCompilation(row.id()).orElse(row);
+        }
+    }
+
+    private TaskDecompositionRow updateDecompositionRepairCounts(TaskDecompositionRow row,
+                                                                 int formatRepairs, int semanticRepairs) {
+        TaskDecompositionRow updated = new TaskDecompositionRow(row.id(), row.designerSessionId(),
+                row.requirementRevisionId(), row.state(), row.resultType(), row.normalizedGoal(),
+                row.globalConstraintsJson(), row.planJson(), row.externalSessionId(), row.externalSessionState(),
+                row.repairCount(), row.transportRetryCount(), row.sourceDraftVersion(), row.lastErrorCode(),
+                row.lastErrorDetail(), row.createdAt(), now(), row.version(), row.workflowStep(), row.planningJson(),
+                formatRepairs + semanticRepairs, row.planningResponseMode(), row.planningResponseSchemaId(),
+                row.planningFormatFallbackUsed(), row.finalResponseMode(), row.finalResponseSchemaId(),
+                row.finalFormatFallbackUsed(), row.semanticPlanJson(), formatRepairs, semanticRepairs,
+                row.serverCompiled());
+        lifecycle.mutateWithoutTransition(() -> mapper.updateTaskDecomposition(updated),
+                () -> new ConflictException("TASK_DECOMPOSITION_VERSION_CONFLICT",
+                        "Task decomposition was updated concurrently"));
+        return getDecomposition(row.id());
+    }
+
+    private LoopSpecCompilationRow updateCompilationRepairCounts(LoopSpecCompilationRow row,
+                                                                 int formatRepairs, int semanticRepairs) {
+        LoopSpecCompilationRow updated = new LoopSpecCompilationRow(row.id(), row.designerSessionId(),
+                row.designRevision(), row.state(), row.externalSessionId(), row.externalSessionState(),
+                row.repairCount(), row.sourceDesignMessageId(), row.sourceDraftVersion(), row.lastErrorCode(),
+                row.lastErrorDetail(), row.createdAt(), now(), row.version(), row.workPackageId(),
+                row.transportRetryCount(), row.compiledPackageJson(), row.workflowStep(), row.planningJson(),
+                formatRepairs + semanticRepairs, row.planningResponseMode(), row.planningResponseSchemaId(),
+                row.planningFormatFallbackUsed(), row.finalResponseMode(), row.finalResponseSchemaId(),
+                row.finalFormatFallbackUsed(), row.semanticPlanJson(), formatRepairs, semanticRepairs,
+                row.serverCompiled());
+        lifecycle.mutateWithoutTransition(() -> mapper.updateLoopSpecCompilation(updated),
+                () -> new ConflictException("LOOPSPEC_COMPILATION_VERSION_CONFLICT",
+                        "LoopSpec compilation was updated concurrently"));
+        return getCompilation(row.id());
+    }
+
     private void validateRequirementRefs(List<String> refs, Set<String> valid, Set<String> covered) {
         for (String ref : refs) {
             if (!valid.contains(ref)) throw new BadRequestException("REQUIREMENT_REFERENCE_INVALID",
@@ -3102,9 +3600,18 @@ public class DesignerSessionService {
         }
     }
 
-    private List<RequirementSegment> segmentRequirements(String requirement) {
+    static List<RequirementSegment> segmentRequirements(String requirement) {
+        String normalized = requirement.replace("\r\n", "\n");
+        List<String> sections = markdownRequirementSections(normalized);
+        if (!sections.isEmpty()) {
+            List<RequirementSegment> grouped = new ArrayList<>();
+            for (String section : sections) {
+                grouped.add(new RequirementSegment("RQ-" + (grouped.size() + 1), section));
+            }
+            return List.copyOf(grouped);
+        }
         List<RequirementSegment> result = new ArrayList<>();
-        String[] paragraphs = requirement.replace("\r\n", "\n").split("\\n\\s*\\n");
+        String[] paragraphs = normalized.split("\\n\\s*\\n");
         for (String paragraph : paragraphs) {
             String trimmed = paragraph.trim();
             if (trimmed.isEmpty()) continue;
@@ -3127,6 +3634,22 @@ public class DesignerSessionService {
         }
         if (result.isEmpty()) throw new BadRequestException("DESIGNER_MESSAGE_REQUIRED", "Requirement text is empty");
         return List.copyOf(result);
+    }
+
+    private static List<String> markdownRequirementSections(String requirement) {
+        List<String> sections = new ArrayList<>();
+        StringBuilder current = null;
+        for (String rawLine : requirement.split("\\n", -1)) {
+            String line = rawLine.trim();
+            if (line.matches("^##\\s+.+")) {
+                if (current != null && !current.toString().isBlank()) sections.add(current.toString().trim());
+                current = new StringBuilder(line.replaceFirst("^##\\s+", ""));
+            } else if (current != null && !line.matches("^-{3,}$")) {
+                current.append('\n').append(rawLine);
+            }
+        }
+        if (current != null && !current.toString().isBlank()) sections.add(current.toString().trim());
+        return sections;
     }
 
     private String decomposerPlanningPrompt(DesignerSessionRow session, ProjectRow project,
@@ -3172,24 +3695,14 @@ public class DesignerSessionService {
 
     private String decompositionPlanningMachineContract() {
         return """
-                Strict decomposition planning JSON contract:
-                - globalConstraints, workPackages, scopeIn, scopeOut, dependencies, deliverables,
-                  acceptanceIntent, requirementRefs, coverageMappings, dependencyEvidence, and designGaps are JSON
-                  arrays even when empty or single-item. Entries are objects, never descriptive strings.
-                - A global constraint is {"text":"...","requirementRefs":["RQ-1"]}.
-                - A work package is {"id":"WP-1","title":"vertical capability","objective":"observable package result","scopeIn":["..."],"scopeOut":["..."],"dependencies":[],"deliverables":["..."],"acceptanceIntent":["..."],"requirementRefs":["RQ-1"]}.
-                - A coverage mapping is {"requirementRef":"RQ-1","targetType":"GLOBAL_CONSTRAINT|WORK_PACKAGE","targetId":"GC-1 or WP-1","rationale":"why this target owns the requirement"}. GC-n is the 1-based globalConstraints index.
-                - A dependency evidence entry is {"workPackageId":"WP-2","dependsOn":"WP-1","rationale":"concrete prerequisite produced by WP-1"}; emit exactly one for every dependencies entry and none for absent dependencies.
-                - DIRECT_DESIGN has exactly one package; DECOMPOSED has 2-6 ordered packages. Both use
-                  designGaps:[] and reason:null. NEEDS_INPUT uses no packages and designGaps objects such as
-                  {"code":"MISSING_SCOPE","detail":"concrete missing fact"}. Allowed gap codes are
-                  MISSING_OBSERVABLE_OUTCOME, MISSING_EXCEPTION_SEMANTICS, MISSING_SCOPE, and
-                  MISSING_ACCEPTANCE_INTENT. MULTI_TASK_REQUIRED uses workPackages:[], designGaps:[], and a concrete
-                  reason. designGaps entries are never strings, assumptions, or recommendations.
-
-                Canonical two-package planning shape (replace values and requirement refs with frozen facts):
-                {"status":"DECOMPOSED","normalizedGoal":"overall observable goal","globalConstraints":[],"workPackages":[{"id":"WP-1","title":"first vertical capability","objective":"first observable result","scopeIn":["first capability"],"scopeOut":["second capability"],"dependencies":[],"deliverables":["first result"],"acceptanceIntent":["first behavior is observable"],"requirementRefs":["RQ-1"]},{"id":"WP-2","title":"second vertical capability","objective":"second observable result","scopeIn":["second capability"],"scopeOut":[],"dependencies":["WP-1"],"deliverables":["integrated result"],"acceptanceIntent":["end-to-end behavior is observable"],"requirementRefs":["RQ-1"]}],"coverageMappings":[{"requirementRef":"RQ-1","targetType":"WORK_PACKAGE","targetId":"WP-1","rationale":"the first package establishes the requested capability"},{"requirementRef":"RQ-1","targetType":"WORK_PACKAGE","targetId":"WP-2","rationale":"the second package completes its integrated behavior"}],"dependencyEvidence":[{"workPackageId":"WP-2","dependsOn":"WP-1","rationale":"WP-2 consumes the first package deliverable"}],"designGaps":[],"reason":null}
-                """;
+                %s
+                Return only the compact semantic object. The server derives DIRECT_DESIGN/DECOMPOSED, GC/WP ids,
+                requirementRefs, dependency ids, and dependency evidence; do not spend effort emitting those fields.
+                READY uses 1-6 vertical work packages. targetIndex and packageIndex are zero-based.
+                {"outcome":"READY","normalizedGoal":"observable overall goal","globalConstraints":[{"text":"constraint"}],"workPackages":[{"title":"vertical capability","objective":"observable result","scopeIn":["..."],"scopeOut":[],"deliverables":["..."],"acceptanceIntent":["..."],"dependsOn":[]}],"coverage":[{"requirementRef":"RQ-1","targetType":"WORK_PACKAGE","targetIndex":0,"rationale":"optional"}],"designGaps":[],"reason":null}
+                NEEDS_INPUT and MULTI_TASK_REQUIRED keep workPackages/coverage empty and provide the existing closed
+                designGaps or a concrete reason. All arrays remain arrays.
+                """.formatted(MachineRoleContractCatalog.card("DECOMPOSER"));
     }
 
     private String decomposerJsonPrompt(DecompositionPlanEnvelope plan) {
@@ -3322,10 +3835,28 @@ public class DesignerSessionService {
                 decompositionPlanningMachineContract());
     }
 
+    private String decompositionSemanticPatchPrompt(TaskDecompositionRow row, String code, String detail) {
+        return """
+                The server parsed the compact decomposition object but rejected a semantic or safety contract.
+                Return only a bounded patch object; do not repeat the full plan. Allowed operations are add,
+                replace, and remove. Allowed roots are outcome, normalizedGoal, globalConstraints, workPackages,
+                coverage, designGaps, and reason. Never patch ids, status, requirementRefs, or dependencies because
+                the server derives them. Error code: %s. Error detail: %s.
+
+                Frozen semantic object:
+                %s
+
+                <!-- TASK_DECOMPOSITION_PLAN_JSON_START -->
+                {"patches":[{"op":"replace","path":"/coverage/0/targetIndex","value":0}]}
+                <!-- TASK_DECOMPOSITION_PLAN_JSON_END -->
+                """.formatted(code, safeMessage(detail), row.semanticPlanJson());
+    }
+
     private String decomposerTransportRetryPrompt(TaskDecompositionRow row, ProjectRow project,
                                                   DesignRequirementRevisionRow revision) {
         return switch (StructuredModelStep.valueOf(row.workflowStep())) {
             case PLANNING -> decomposerPlanningPrompt(get(row.designerSessionId()), project, revision, true);
+            case SERVER_COMPILING -> decomposerPlanningPrompt(get(row.designerSessionId()), project, revision, true);
             case GENERATING_JSON -> decomposerJsonPrompt(readDecompositionPlan(row.planningJson()));
             case REPAIRING_JSON -> decompositionRepairPrompt(row, row.lastErrorCode(), row.lastErrorDetail());
             case FINAL_JSON -> decomposerPrompt(get(row.designerSessionId()), project, revision, true);
@@ -3348,6 +3879,8 @@ public class DesignerSessionService {
                 loss, this prompt reconstructs the conversation from the persisted snapshots and decisions below.
                 You may use read, glob, and grep. Do not edit/write files, execute commands, ask implementation agents,
                 create tasks, emit LoopSpec fields/JSON, or redesign other packages.
+
+                %s
 
                 Project root: %s
                 Complete original requirement R%d:
@@ -3382,7 +3915,8 @@ public class DesignerSessionService {
                 non-scope, observable results, exception semantics, affected files/modules, 1-3 dependency-ordered
                 stages, delivery details, and acceptance intent. Production Java and its focused Maven/Gradle unit
                 test belong in the same stage. Tests are evidence for business behavior, not a meta acceptance item.
-                """.formatted(project.rootPath(), revision.revision(), revision.requirementText(),
+                """.formatted(MachineRoleContractCatalog.card("DESIGNER"), project.rootPath(),
+                revision.revision(), revision.requirementText(),
                 decomposition.planJson(), workPackage.packageId(), write(Map.of(
                         "title", workPackage.title(), "objective", workPackage.objective(),
                         "scopeIn", strings(workPackage.scopeInJson()), "scopeOut", strings(workPackage.scopeOutJson()),
@@ -3398,14 +3932,12 @@ public class DesignerSessionService {
         return """
                 You are OpenCode Loopper LoopSpec Compiler / 规范编译器 in the semantic planning turn for exactly one
                 frozen work-package design. This is a strictly read-only Session: use only read, glob, and grep;
-                never write files, execute commands, ask questions, create tasks, or emit final StageSpec/verifier
-                JSON in this turn.
+                never write files, execute commands, ask questions, create tasks, or emit final StageSpec JSON.
 
                 Think in this fixed order and expose only the bounded planning result, not private chain-of-thought:
                 1. Plan 1-3 coherent, dependency-ordered Stages inside the current package.
-                2. Map each observable acceptance criterion to an exact Designer excerpt and a concrete machine/
-                   Judge evidence strategy; production Java criteria must name the focused Maven/Gradle test argv
-                   and test targets that will prove them in the same Stage.
+                2. Map each observable acceptance criterion to one or more DS-L source refs and a concrete machine/
+                   Judge evidence strategy; production Java criteria name only the focused Maven/Gradle test argv.
                 3. Return the structured planning envelope below. Do not redesign another package or invent a
                    requirement absent from the frozen design.
 
@@ -3429,6 +3961,9 @@ public class DesignerSessionService {
                 commands instead of inventing replacements):
                 %s
 
+                Frozen Designer source index (use only these DS-L refs; the server resolves exact text):
+                %s
+
                 %s
 
                 <!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->
@@ -3440,6 +3975,7 @@ public class DesignerSessionService {
                 """.formatted(project.rootPath(), revision.revision(), workPackage.packageId(),
                 workPackage.packageId(), prerequisites,
                 designerDeclaredTestEvidence(design),
+                evidenceIndexer.index(design).promptText(),
                 packageCompilerPlanningMachineContract(workPackage.packageId()),
                 workPackage.designRevision(), design);
     }
@@ -3464,50 +4000,18 @@ public class DesignerSessionService {
     }
 
     private String packageCompilerPlanningMachineContract(String packageId) {
-        String criterionId = packageId + "-AC-1";
         return """
-                Strict package compilation planning JSON contract:
-                - contractVersion must be the number 2. stages, allowedPaths, forbiddenPaths, deliverables,
-                  verifiers, evidenceMappings, testCommand, testTargets,
-                  and designGaps are JSON arrays even when empty or single-item. Entries are objects, never
-                  descriptive command/verifier strings.
-                - A planned stage already contains the exact executable verifier blueprints that final JSON must
-                  copy: {"objective":"observable stage result","allowedPaths":["src/main/java/**","src/test/java/**"],"forbiddenPaths":[".env"],"deliverables":["implementation and focused test"],"verifiers":[{"type":"PROCESS","command":["mvn","-q","-Dtest=ExampleFocusedTest","test"],"processPurpose":"TEST","testTargets":["ExampleFocusedTest"],"criterionIds":["%s"]}],"verificationRuntime":null,"implementationKind":"JAVA_PRODUCTION|JAVA_TEST_ONLY|NON_JAVA","workPackageId":"%s"}.
-                - An evidence mapping is {"stageIndex":0,"criterionId":"%s","description":"observable business result","designerExcerpt":"exact non-empty Designer substring","verificationMode":"MACHINE|JUDGE|BOTH","judgeRubric":"required for JUDGE/BOTH or null","judgeOnlyReason":"required only for JUDGE or null","verifierStrategy":"concrete deterministic proof","testCommand":["mvn","-q","-Dtest=ExampleFocusedTest","test"],"testTargets":["ExampleFocusedTest"]}.
-                - Every MACHINE/BOTH mapping must be covered by criterionIds on a BEHAVIOR verifier blueprint in
-                  the same planned Stage. A full-suite test/build success statement is supplemental evidence, not a
-                  business acceptance mapping; keep its blocking PROCESS TEST verifier with empty
-                  criterionIds/testTargets, but do not create an evidenceMapping for it. Every Stage needs at least
-                  one blocking deterministic verifier. PROCESS
-                  always uses direct argv: shell launchers (sh/bash/zsh/cmd/powershell), pipes, redirects, && and
-                  command strings are forbidden. For a NON_JAVA content self-check, use direct argv such as
-                  {"type":"PROCESS","command":["python3","-c","from pathlib import Path; text=Path('README.md').read_text(); assert 'required phrase' in text; print('DOC_CHECK_OK')"],"processPurpose":"SELF_CHECK","outputContains":"DOC_CHECK_OK","criterionIds":["%s"]}; use GIT_DIFF separately for scope and never map criterionIds to GIT_DIFF.
-                - Path policies must be satisfiable. No stage or GIT_DIFF allowedPaths rule may be entirely covered
-                  by a forbiddenPaths rule (for example, event/bridge/** cannot be allowed while event/** is
-                  forbidden). Narrow exclusions inside a broader allow rule remain valid.
-                - JAVA_PRODUCTION puts production code and its focused Maven/Gradle test in the same planned Stage.
-                  This is a mandatory pre-submission invariant: every MACHINE/BOTH criterion in that Stage repeats
-                  the focused direct-argv testCommand and concrete non-empty testTargets it expects the final PROCESS
-                  TEST verifier to implement; that verifier must repeat the same testTargets and criterionIds. Reuse
-                  every applicable focused unit test explicitly named by the Designer. A full mvn/gradle test suite
-                  does not replace the required focused command. Non-test evidence uses empty testCommand/
-                  testTargets but still names verifierStrategy. Tests are evidence, never a 'tests pass' criterion.
-                - The server deterministically canonicalizes criterion numbering, uniquely recoverable exact Designer
-                  source slices, explicit test targets present in focused Maven/Gradle argv, and duplicated PROCESS
-                  TEST/evidence-mapping command, criterionIds, and testTargets before authoritative validation when
-                  the mapping is unique. Ambiguous or semantically missing tests still fail validation.
-                  Preserve the semantic Stage, behavior, evidence strategy, focused test argv, and concrete target;
-                  do not spend a design-gap response on mechanical identifier or duplicated-field bookkeeping.
-                - COMPILED has 1-3 stages, at least one evidence mapping per Stage, handoffSummary <=4 KiB UTF-8,
-                  and designGaps:[]. DESIGN_INCOMPLETE has stages:[], evidenceMappings:[], and gap objects such as
-                  {"code":"MISSING_EXCEPTION_SEMANTICS","detail":"concrete missing design fact"}. Allowed gap codes
-                  are MISSING_OBSERVABLE_OUTCOME, MISSING_EXCEPTION_SEMANTICS, MISSING_SCOPE, and
-                  MISSING_ACCEPTANCE_INTENT. designGaps entries are never strings.
-
-                Canonical planning envelope:
-                {"contractVersion":2,"status":"COMPILED","summary":"planned package summary","stages":[{"objective":"observable stage result","allowedPaths":["src/main/java/**","src/test/java/**"],"forbiddenPaths":[".env"],"deliverables":["production implementation and focused test"],"verifiers":[{"type":"PROCESS","command":["mvn","-q","-Dtest=ExampleFocusedTest","test"],"processPurpose":"TEST","testTargets":["ExampleFocusedTest"],"criterionIds":["%s"]},{"type":"GIT_DIFF","requireChanges":true,"allowedPaths":["src/main/java/**","src/test/java/**"],"forbiddenPaths":[".env"],"forbidDeletes":true}],"verificationRuntime":null,"implementationKind":"JAVA_PRODUCTION","workPackageId":"%s"}],"evidenceMappings":[{"stageIndex":0,"criterionId":"%s","description":"observable business result","designerExcerpt":"exact non-empty Designer substring","verificationMode":"BOTH","judgeRubric":"Confirm behavior matches the frozen design and deterministic evidence.","judgeOnlyReason":null,"verifierStrategy":"focused Maven unit test","testCommand":["mvn","-q","-Dtest=ExampleFocusedTest","test"],"testTargets":["ExampleFocusedTest"]}],"handoffSummary":"bounded dependency handoff summary","designGaps":[]}
-                """.formatted(criterionId, packageId, criterionId, criterionId, criterionId,
-                packageId, criterionId);
+                %s
+                Return only semantic stages, criteria, sourceRefs, and evidence intentions. The server generates
+                %s-AC-n, workPackageId, exact Designer excerpts, criterionIds, testTargets, and final StageSpec JSON.
+                Evidence kinds are FOCUSED_TEST, FULL_TEST, BUILD, SELF_CHECK, GIT_DIFF, HTTP_STATUS, JSON_PATH,
+                BROWSER, DATABASE_QUERY, FILE_CONTENT, FILE_HASH, FILE_NOT_EXISTS, and JUNIT_XML. covers contains
+                zero-based criterion indexes. FULL_TEST/BUILD/GIT_DIFF/FILE_NOT_EXISTS/JUNIT_XML are supplemental
+                and must use covers:[]. FOCUSED_TEST uses safe direct Maven/Gradle argv; SELF_CHECK includes
+                successMarker. Shells, pipes, redirects, unsafe paths, fake tests, and missing Java focused tests are
+                still rejected by the unchanged server validator.
+                {"outcome":"COMPILED","summary":"package plan","stages":[{"objective":"observable stage result","implementationKind":"JAVA_PRODUCTION","allowedPaths":["src/main/java/**","src/test/java/**"],"forbiddenPaths":[".env"],"deliverables":["implementation and focused test"],"criteria":[{"description":"observable business result","sourceRefs":["DS-L001"],"judgeRubric":null,"judgeOnlyReason":null}],"evidence":[{"kind":"FOCUSED_TEST","command":["mvn","-q","-Dtest=ExampleFocusedTest","test"],"covers":[0]},{"kind":"GIT_DIFF","covers":[],"requireChanges":true,"forbidDeletes":true}],"verificationRuntime":null}],"handoffSummary":"bounded handoff","designGaps":[]}
+                """.formatted(MachineRoleContractCatalog.card("COMPILER"), packageId);
     }
 
     private String packageCompilerJsonPrompt(DesignerSessionRow session, LoopDraftRow draft,
@@ -3638,11 +4142,31 @@ public class DesignerSessionService {
                 packageCompilerPlanningMachineContract(workPackage.packageId()), design);
     }
 
+    private String packageCompilerSemanticPatchPrompt(LoopSpecCompilationRow compilation,
+                                                      DesignWorkPackageRow workPackage,
+                                                      String code, String detail) {
+        return """
+                The server parsed the compact Compiler object but rejected a semantic or safety contract. Return
+                only a bounded patch object with add, replace, or remove operations. Allowed roots are outcome,
+                summary, stages, handoffSummary, and designGaps. Server-derived ids, excerpts, criterionIds,
+                testTargets, verification modes, and final verifier objects are outside patch space.
+                Work package: %s. Error code: %s. Error detail: %s.
+
+                Frozen semantic object:
+                %s
+
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->
+                {"patches":[{"op":"replace","path":"/stages/0/evidence/0/command","value":["mvn","-q","-Dtest=FocusedTest","test"]}]}
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->
+                """.formatted(workPackage.packageId(), code, safeMessage(detail), compilation.semanticPlanJson());
+    }
+
     private String packageCompilerTransportRetryPrompt(LoopSpecCompilationRow row, DesignerSessionRow session,
                                                        ProjectRow project, DesignRequirementRevisionRow revision,
                                                        DesignWorkPackageRow workPackage, String design) {
         return switch (StructuredModelStep.valueOf(row.workflowStep())) {
             case PLANNING -> packageCompilerPlanningPrompt(project, revision, workPackage, design);
+            case SERVER_COMPILING -> packageCompilerPlanningPrompt(project, revision, workPackage, design);
             case GENERATING_JSON -> packageCompilerJsonPrompt(session, drafts.get(session.loopDraftId()),
                     workPackage, readPackageCompilationPlan(row.planningJson()));
             case REPAIRING_JSON -> packageCompilerRepairPrompt(row, row.lastErrorCode(), row.lastErrorDetail());
@@ -3702,6 +4226,8 @@ public class DesignerSessionService {
                 You may use read, glob, and grep to inspect the registered project. Do not edit or write files,
                 run commands, create tasks, or claim implementation has happened.
 
+                %s
+
                 Registered project root: %s
                 Designer session id: %s
                 Bound draft id: %s
@@ -3719,7 +4245,8 @@ public class DesignerSessionService {
 
                 User request:
                 %s
-                """.formatted(project.rootPath(), session.id(), session.loopDraftId(), message);
+                """.formatted(MachineRoleContractCatalog.card("DESIGNER"), project.rootPath(), session.id(),
+                session.loopDraftId(), message);
     }
 
     private String requirementDiscussionPrompt(DesignerSessionRow session, ProjectRow project,
@@ -3729,6 +4256,8 @@ public class DesignerSessionService {
                 You are OpenCode Loopper Requirement Designer / 需求设计师 in a persistent strictly read-only
                 conversation. You may use read, glob, grep, and the question tool. Never edit files, run commands,
                 create a Task, invoke the Task Decomposer, or emit LoopSpec JSON.
+
+                %s
 
                 Project root: %s
                 Designer session: %s
@@ -3749,7 +4278,8 @@ public class DesignerSessionService {
                 The snapshot must cover goal, scope/non-scope, user-visible flow, edge/error behavior, affected
                 modules, acceptance intent, and all decisions made in the question answers. Do not include machine
                 JSON or claim decomposition/implementation has occurred.%s
-                """.formatted(project.rootPath(), session.id(), previousSnapshot, feedback,
+                """.formatted(MachineRoleContractCatalog.card("DESIGNER"), project.rootPath(), session.id(),
+                previousSnapshot, feedback,
                 questionRepair ? " This is the single repair Session because the previous Session omitted its mandatory question." : "");
     }
 
@@ -4177,7 +4707,8 @@ public class DesignerSessionService {
                 repairCount, transportRetryCount, row.sourceDraftVersion(), errorCode, errorDetail,
                 row.createdAt(), now(), row.version(), workflowStep.name(), planningJson, planningRepairCount,
                 row.planningResponseMode(), row.planningResponseSchemaId(), row.planningFormatFallbackUsed(),
-                row.finalResponseMode(), row.finalResponseSchemaId(), row.finalFormatFallbackUsed());
+                row.finalResponseMode(), row.finalResponseSchemaId(), row.finalFormatFallbackUsed(),
+                row.semanticPlanJson(), row.formatRepairCount(), row.semanticRepairCount(), row.serverCompiled());
         DesignerSessionRow session = get(row.designerSessionId());
         if (row.state().equals(updated.state())) {
             lifecycle.mutateWithoutTransition(() -> mapper.updateTaskDecomposition(updated),
@@ -4205,7 +4736,8 @@ public class DesignerSessionService {
                 planning ? fallbackUsed : row.planningFormatFallbackUsed(),
                 planning ? row.finalResponseMode() : mode.name(),
                 planning ? row.finalResponseSchemaId() : schemaId,
-                planning ? row.finalFormatFallbackUsed() : fallbackUsed);
+                planning ? row.finalFormatFallbackUsed() : fallbackUsed,
+                row.semanticPlanJson(), row.formatRepairCount(), row.semanticRepairCount(), row.serverCompiled());
     }
 
     private DesignWorkPackageRow updateWorkPackage(DesignWorkPackageRow row, DesignWorkPackageState state,
@@ -4459,7 +4991,8 @@ public class DesignerSessionService {
                 row.createdAt(), now(), row.version(), row.workPackageId(), row.transportRetryCount(),
                 compiledPackageJson, workflowStep.name(), planningJson, planningRepairCount,
                 row.planningResponseMode(), row.planningResponseSchemaId(), row.planningFormatFallbackUsed(),
-                row.finalResponseMode(), row.finalResponseSchemaId(), row.finalFormatFallbackUsed());
+                row.finalResponseMode(), row.finalResponseSchemaId(), row.finalFormatFallbackUsed(),
+                row.semanticPlanJson(), row.formatRepairCount(), row.semanticRepairCount(), row.serverCompiled());
         if (row.state().equals(updated.state())) {
             lifecycle.mutateWithoutTransition(() -> mapper.updateLoopSpecCompilation(updated),
                     () -> new ConflictException("LOOPSPEC_COMPILATION_VERSION_CONFLICT",
@@ -4486,7 +5019,8 @@ public class DesignerSessionService {
                 planning ? fallbackUsed : row.planningFormatFallbackUsed(),
                 planning ? row.finalResponseMode() : mode.name(),
                 planning ? row.finalResponseSchemaId() : schemaId,
-                planning ? row.finalFormatFallbackUsed() : fallbackUsed);
+                planning ? row.finalFormatFallbackUsed() : fallbackUsed,
+                row.semanticPlanJson(), row.formatRepairCount(), row.semanticRepairCount(), row.serverCompiled());
     }
 
     private LoopSpecCompilationRow getCompilation(String id) {
@@ -4640,15 +5174,18 @@ public class DesignerSessionService {
     public record CompilerStatus(String id, String state, String externalSessionId,
                                  String externalSessionState, int repairCount,
                                  int designRevision, String lastErrorCode, String lastErrorDetail,
-                                 String workPackageId, String workflowStep, int planningRepairCount) { }
+                                 String workPackageId, String workflowStep, int planningRepairCount,
+                                 int formatRepairCount, int semanticRepairCount, boolean serverCompiled) { }
     public record RequirementRevisionStatus(int revision, String state, int modelCallsUsed,
                                             int maxModelCalls, long sourceDraftVersion) { }
     public record DecompositionStatus(String id, String state, String resultType, int repairCount,
                                       int transportRetryCount, String lastErrorCode, String lastErrorDetail,
-                                      String workflowStep, int planningRepairCount) { }
+                                      String workflowStep, int planningRepairCount,
+                                      int formatRepairCount, int semanticRepairCount, boolean serverCompiled) { }
     public record WorkPackageStatus(String id, int ordinal, String title, String objective, String state,
                                     List<String> dependencies, int redesignCount, int compilerRepairCount,
-                                    int compilerPlanningRepairCount,
+                                    int compilerPlanningRepairCount, int compilerFormatRepairCount,
+                                    int compilerSemanticRepairCount, boolean compilerServerCompiled,
                                     String compilerSummary, String handoffSummary,
                                     String lastErrorCode, String lastErrorDetail,
                                     int designRevision, Integer approvedDesignRevision,
@@ -4680,6 +5217,35 @@ public class DesignerSessionService {
         }
     }
     public record DependencyEvidence(String workPackageId, String dependsOn, String rationale) { }
+    public record CompactWorkPackage(String title, String objective, List<String> scopeIn, List<String> scopeOut,
+                                     List<String> deliverables, List<String> acceptanceIntent,
+                                     List<JsonNode> dependsOn) {
+        public CompactWorkPackage {
+            scopeIn = scopeIn == null ? List.of() : List.copyOf(scopeIn);
+            scopeOut = scopeOut == null ? List.of() : List.copyOf(scopeOut);
+            deliverables = deliverables == null ? List.of() : List.copyOf(deliverables);
+            acceptanceIntent = acceptanceIntent == null ? List.of() : List.copyOf(acceptanceIntent);
+            dependsOn = dependsOn == null ? List.of() : List.copyOf(dependsOn);
+        }
+    }
+    public record CompactCoverage(String requirementRef, String targetType, int targetIndex, String rationale) {
+        public CompactCoverage {
+            targetType = targetType == null ? null : targetType.trim().toUpperCase();
+        }
+    }
+    public record CompactDecompositionPlan(String outcome, String normalizedGoal,
+                                           List<JsonNode> globalConstraints,
+                                           List<CompactWorkPackage> workPackages,
+                                           List<CompactCoverage> coverage,
+                                           List<JsonNode> designGaps, String reason) {
+        CompactDecompositionPlan normalized() {
+            return new CompactDecompositionPlan(outcome == null ? null : outcome.trim().toUpperCase(),
+                    normalizedGoal, globalConstraints == null ? List.of() : List.copyOf(globalConstraints),
+                    workPackages == null ? List.of() : List.copyOf(workPackages),
+                    coverage == null ? List.of() : List.copyOf(coverage),
+                    designGaps == null ? List.of() : List.copyOf(designGaps), reason);
+        }
+    }
     public record DecompositionPlanEnvelope(String status, String normalizedGoal,
                                             List<GlobalConstraint> globalConstraints,
                                             List<DecomposedWorkPackage> workPackages,
@@ -4710,7 +5276,16 @@ public class DesignerSessionService {
                     designGaps == null ? List.of() : List.copyOf(designGaps), reason);
         }
     }
-    public record CriterionSource(int stageIndex, String criterionId, String excerpt) { }
+    public record CriterionSource(int stageIndex, String criterionId, String excerpt, List<String> excerpts) {
+        public CriterionSource(int stageIndex, String criterionId, String excerpt) {
+            this(stageIndex, criterionId, excerpt, blank(excerpt) ? List.of() : List.of(excerpt));
+        }
+        public CriterionSource {
+            excerpts = excerpts == null || excerpts.isEmpty()
+                    ? (blank(excerpt) ? List.of() : List.of(excerpt)) : List.copyOf(excerpts);
+            excerpt = blank(excerpt) && !excerpts.isEmpty() ? excerpts.getFirst() : excerpt;
+        }
+    }
     public record DesignGap(DesignGapCode code, String detail) { }
     public enum DesignGapCode {
         MISSING_OBSERVABLE_OUTCOME, MISSING_EXCEPTION_SEMANTICS, MISSING_SCOPE, MISSING_ACCEPTANCE_INTENT
@@ -4749,11 +5324,25 @@ public class DesignerSessionService {
                                             String designerExcerpt, String verificationMode,
                                             String judgeRubric, String judgeOnlyReason,
                                             String verifierStrategy, List<String> testCommand,
-                                            List<String> testTargets) {
+                                            List<String> testTargets, List<String> designerExcerpts) {
+        public AcceptanceEvidenceMapping(int stageIndex, String criterionId, String description,
+                                         String designerExcerpt, String verificationMode,
+                                         String judgeRubric, String judgeOnlyReason,
+                                         String verifierStrategy, List<String> testCommand,
+                                         List<String> testTargets) {
+            this(stageIndex, criterionId, description, designerExcerpt, verificationMode, judgeRubric,
+                    judgeOnlyReason, verifierStrategy, testCommand, testTargets,
+                    blank(designerExcerpt) ? List.of() : List.of(designerExcerpt));
+        }
         public AcceptanceEvidenceMapping {
             verificationMode = blank(verificationMode) ? "MACHINE" : verificationMode.trim().toUpperCase();
             testCommand = testCommand == null ? List.of() : List.copyOf(testCommand);
             testTargets = testTargets == null ? List.of() : List.copyOf(testTargets);
+            designerExcerpts = designerExcerpts == null || designerExcerpts.isEmpty()
+                    ? (blank(designerExcerpt) ? List.of() : List.of(designerExcerpt))
+                    : List.copyOf(designerExcerpts);
+            designerExcerpt = blank(designerExcerpt) && !designerExcerpts.isEmpty()
+                    ? designerExcerpts.getFirst() : designerExcerpt;
         }
     }
     private record CanonicalEvidenceMapping(String originalCriterionId,
@@ -4766,6 +5355,47 @@ public class DesignerSessionService {
     }
     private record NormalizedEvidenceText(String text, List<Integer> starts,
                                           List<Integer> ends) { }
+    public record CompactCriterion(String description, List<String> sourceRefs,
+                                   String judgeRubric, String judgeOnlyReason) {
+        public CompactCriterion { sourceRefs = sourceRefs == null ? List.of() : List.copyOf(sourceRefs); }
+    }
+    public record CompactEvidence(String kind, List<String> command, List<Integer> covers,
+                                  String successMarker, String path, Boolean requireChanges,
+                                  List<String> allowedPaths, List<String> forbiddenPaths, Boolean forbidDeletes,
+                                  String url, String httpMethod, Integer expectedStatus, String jsonPath,
+                                  String expectedValue, String matchMode, String expectedContent,
+                                  String expectedSha256, String sql, Integer expectedRowCount,
+                                  List<LoopSpec.BrowserAssertion> assertions) {
+        public CompactEvidence {
+            kind = kind == null ? null : kind.trim().toUpperCase();
+            command = command == null ? List.of() : List.copyOf(command);
+            covers = covers == null ? List.of() : List.copyOf(covers);
+            allowedPaths = allowedPaths == null ? List.of() : List.copyOf(allowedPaths);
+            forbiddenPaths = forbiddenPaths == null ? List.of() : List.copyOf(forbiddenPaths);
+            assertions = assertions == null ? List.of() : List.copyOf(assertions);
+        }
+    }
+    public record CompactStage(String objective, ImplementationKind implementationKind,
+                               List<String> allowedPaths, List<String> forbiddenPaths,
+                               List<String> deliverables, List<CompactCriterion> criteria,
+                               List<CompactEvidence> evidence,
+                               LoopSpec.VerificationRuntime verificationRuntime) {
+        public CompactStage {
+            allowedPaths = allowedPaths == null ? List.of() : List.copyOf(allowedPaths);
+            forbiddenPaths = forbiddenPaths == null ? List.of() : List.copyOf(forbiddenPaths);
+            deliverables = deliverables == null ? List.of() : List.copyOf(deliverables);
+            criteria = criteria == null ? List.of() : List.copyOf(criteria);
+            evidence = evidence == null ? List.of() : List.copyOf(evidence);
+        }
+    }
+    public record CompactPackageCompilationPlan(String outcome, String summary, List<CompactStage> stages,
+                                                String handoffSummary, List<DesignGap> designGaps) {
+        CompactPackageCompilationPlan normalized() {
+            return new CompactPackageCompilationPlan(outcome == null ? null : outcome.trim().toUpperCase(), summary,
+                    stages == null ? List.of() : List.copyOf(stages), handoffSummary,
+                    designGaps == null ? List.of() : List.copyOf(designGaps));
+        }
+    }
     public record PackageCompilationPlanEnvelope(Integer contractVersion, String status, String summary,
                                                  List<PlannedStage> stages,
                                                  List<AcceptanceEvidenceMapping> evidenceMappings,

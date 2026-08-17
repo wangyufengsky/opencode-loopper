@@ -204,27 +204,24 @@ boundary. After decomposition, an unscoped user message is rejected; only an
 explicitly confirmed requirement reopen supersedes the old decomposition and
 package results without deleting their audit history.
 
-V23 changes Decomposer and package Compiler from one-shot envelopes to a
-persisted two-turn protocol. In the first turn each role follows the fixed
-semantic order `planning -> evidence mapping` and returns a bounded planning
-envelope. The server validates and freezes requirement coverage/dependencies or
-Stage/acceptance/test evidence before the same read-only Session receives a
-second prompt to generate final JSON. Final envelopes must be exact projections
-of the frozen plan; drift, JSON/type, field, verifier, traceability, and coverage
-errors consume the bounded allowance for their own step. V24 separates the
-planning repair counter from the final-JSON repair counter, allowing at most two
-repairs in each step without one step exhausting the other. `workflow_step`,
-`planning_json`, and both counters make the turns restart-recoverable while
-remaining hidden from chat/SSE content. Six packages need 20 no-repair machine-role
-calls. V23 originally set the shared ceiling to 32; V27 raises it to 96 so
+V30 evolves the historical V23/V24 two-turn protocol into one compact semantic
+turn per Decomposer/Compiler candidate. The server derives status, IDs, reverse
+references, exact Designer sources, test targets and verifier mappings, validates
+the normal LoopSpec v2 contract, and compiles the final envelope without another
+model call. `semantic_plan_json`, independent format/semantic repair counters and
+`server_compiled` make this restart-recoverable; old active final-generation rows
+with planning JSON are completed server-side. A one-package flow saves two calls
+and a six-package flow saves seven, so the latter needs 13 machine-role calls
+instead of 20. V27 retains the 96-call ceiling so
 interactive requirement/package revisions use the same explicit budget.
 Confirmed transport retries and all content repairs still count against it.
 
 V26 adds orthogonal OpenCode capability and response-contract metadata without
 merging lifecycle axes. Decomposition and compilation rows persist
 `response_mode`/`schema_id`; Judge rows persist the same contract; implementation
-Session rows persist `todo_capability`. New Decomposer/Compiler/Judge machine
-responses prefer one of five stable server-owned JSON Schemas with OpenCode's
+Session rows persist `todo_capability`. V26 originally registered five stable
+server-owned JSON Schemas; V30 new work selects compact Decomposer/Compiler plus
+Judge schemas and retains the two legacy final schemas only for historical recovery. OpenCode's
 provider retry count fixed at zero. Explicit format rejection, typed
 structured-output failure, or missing structured data uses a fresh read-only
 role Session and the same persisted Loopper repair/model-call budget to fall back
