@@ -10,6 +10,7 @@ import LoopSpecEditor from '@/components/LoopSpecEditor.vue'
 import MarkdownDocument from '@/components/MarkdownDocument.vue'
 import ExecutionAcceptancePanel from '@/components/ExecutionAcceptancePanel.vue'
 import PendingQuestionCard from '@/components/PendingQuestionCard.vue'
+import DesignerDiscussionHistory from '@/components/DesignerDiscussionHistory.vue'
 import { ApiError, api, subscribeDesignerEvents, type DesignerEventStream } from '@/api/client'
 import { demoDraft, demoMessages } from '@/mock/demoData'
 import { useTaskStore } from '@/stores/taskStore'
@@ -955,6 +956,7 @@ async function redesignPackage(packageId: string) {
             @submit="(answers: string[][]) => answerDesignerQuestion(pending, answers)"
             @reject="rejectDesignerQuestion(pending)"
           />
+          <DesignerDiscussionHistory :entries="designerSession?.answeredQuestions ?? []" />
           <article v-if="designerIsThinking" :class="['thinking-message', `thinking-${designerSession?.activeActor?.toLowerCase() ?? 'system'}`]" role="status" aria-live="polite" :aria-label="`${activeActorMeta.label}正在处理`">
             <span class="thinking-orbit" aria-hidden="true"><span /></span>
             <div class="thinking-copy">

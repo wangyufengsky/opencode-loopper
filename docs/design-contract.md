@@ -397,6 +397,15 @@ confirmation action. Historical unconfirmed packages that were previously
 `COMPLETED` migrate to `REVIEWING`; already confirmed drafts and created Tasks
 are unchanged.
 
+After a mandatory Designer question is answered, it remains part of the
+authoritative discussion projection instead of disappearing. Designer shows a
+collapsed **需求讨论** disclosure by default; expanding it reveals the original
+question, every offered option and description, and the user's final answer.
+New decisions persist the full question structure in the revision decision log;
+historical logs that only contain question text and answers remain readable.
+This projection is restored from the server after refresh or process restart and
+must not depend on browser-local state.
+
 The page header and Designer two-column workspace must remain width-bounded and
 wrap actions instead of clipping them. Final review exposes the same authoritative
 **确认设计并创建任务** action both in the header and beside the Review Gate, so a

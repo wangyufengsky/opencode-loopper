@@ -590,6 +590,7 @@ describe('Loopper REST contract adapter', () => {
         id: 'designer-1', projectId: 'project-1', state: 'RUNNING', accessMode: 'READ_ONLY', readOnly: true,
         updatedAt: 'now', messages: [{ id: 'user-1', role: 'USER', content: 'plan', deliveryState: 'PERSISTED', createdAt: 'now' }],
         pendingQuestions: [{ id: 'question-1', questions: [{ question: 'Which scope?', header: 'Scope', options: [{ label: 'New chain', description: 'Add it' }], multiple: false, custom: false }] }],
+        answeredQuestions: [{ id: 'question-0', scope: 'REQUIREMENT', discussionRevision: 1, answeredAt: 'earlier', questions: [{ question: 'Keep scope?', header: 'Scope', options: [{ label: 'Keep', description: 'No expansion' }], multiple: false, custom: false, answers: ['Keep'] }] }],
       }))
       .mockResolvedValueOnce(json({
         sessionId: 'designer-1', state: 'SESSION_ERROR', notice: 'retry with a fresh session',
@@ -601,6 +602,7 @@ describe('Loopper REST contract adapter', () => {
 
     await expect(api.getDesignerSession('designer-1')).resolves.toMatchObject({
       state: 'RUNNING', updatedAt: 'now', pendingQuestions: [{ id: 'question-1', questions: [{ custom: false }] }],
+      answeredQuestions: [{ id: 'question-0', questions: [{ answers: ['Keep'], options: [{ label: 'Keep', description: 'No expansion' }] }] }],
     })
     await expect(api.sendDesignerMessage('designer-1', 'continue')).resolves.toMatchObject({
       state: 'SESSION_ERROR', persistedMessages: [{ deliveryState: 'SESSION_ERROR' }],

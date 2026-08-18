@@ -11,7 +11,7 @@ describe('RuntimeView managed startup diagnostics', () => {
     setActivePinia(pinia)
     const store = useTaskStore()
     store.runtime = {
-      loopperVersion: '0.1.74', status: 'ONLINE', version: '1.18.18', managed: true, pid: 71386,
+      loopperVersion: '0.1.75', status: 'ONLINE', version: '1.18.18', managed: true, pid: 71386,
       endpoint: 'http://127.0.0.1:55389', model: 'opencode-go/deepseek-v4-flash', checkedAt: '2026-08-18T04:03:00Z',
       capabilities: {
         agentDiscovery: 'AVAILABLE', agents: [{ name: 'plan' }], nativePlanAgent: true,

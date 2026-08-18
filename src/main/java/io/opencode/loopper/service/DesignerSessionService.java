@@ -342,18 +342,43 @@ public class DesignerSessionService {
         }
     }
 
+    public List<AnsweredQuestion> answeredQuestions(String sessionId) {
+        get(sessionId);
+        List<AnsweredQuestion> answered = new ArrayList<>();
+        for (DesignDiscussionRevisionRow revision : mapper.listDesignDiscussionRevisions(sessionId)) {
+            if (blank(revision.decisionLogJson())) continue;
+            try {
+                List<Map<String, Object>> decisions = json.readValue(revision.decisionLogJson(),
+                        new TypeReference<List<Map<String, Object>>>() { });
+                for (Map<String, Object> decision : decisions) {
+                    String questionId = text(decision.get("questionId"));
+                    List<List<String>> answers = answerLists(decision.get("answers"));
+                    List<AnsweredQuestionPrompt> questions = answeredPrompts(decision.get("questions"), answers);
+                    if (!questionId.isBlank() && !questions.isEmpty()) {
+                        answered.add(new AnsweredQuestion(questionId, revision.scopeKey(), revision.revision(),
+                                text(decision.get("answeredAt")), questions));
+                    }
+                }
+            } catch (JacksonException ignored) {
+                // A malformed historical decision must not hide the rest of the recoverable discussion.
+            }
+        }
+        return List.copyOf(answered);
+    }
+
     public void replyQuestion(String sessionId, String questionId, List<List<String>> answers) {
         DesignerSessionRow session = requireRunningDesigner(sessionId);
         OpenCodeClient.OpenCodeSession remote = designerRemote(session);
         OpenCodeClient.PendingQuestion pending = pending(remote, questionId);
+        List<List<String>> validatedAnswers = validateAnswers(pending, answers);
         try {
-            openCode.replyQuestion(remote, pending.id(), validateAnswers(pending, answers));
+            openCode.replyQuestion(remote, pending.id(), validatedAnswers);
         } catch (SessionFailure failure) {
             throw new ServiceUnavailableException(failure.code(), safeMessage(failure.getMessage()));
         }
         DesignDiscussionRevisionRow discussion = currentDiscussion(session);
         updateDiscussion(discussion, discussion.state(), discussion.sourceMessageId(), discussion.designMessageId(),
-                discussion.snapshotMarkdown(), appendDecision(discussion.decisionLogJson(), pending, answers), true,
+                discussion.snapshotMarkdown(), appendDecision(discussion.decisionLogJson(), pending, validatedAnswers), true,
                 discussion.questionRetryCount(), discussion.candidateCompilationId(), null, null);
         DesignerSessionRow current = get(sessionId);
         if (!blank(current.activeWorkPackageId())) {
@@ -4688,12 +4713,71 @@ public class DesignerSessionService {
             catch (JacksonException ignored) { }
         }
         Map<String, Object> decision = new LinkedHashMap<>();
+        decision.put("schemaVersion", 2);
         decision.put("questionId", pending.id());
-        decision.put("questions", pending.questions().stream().map(OpenCodeClient.QuestionPrompt::question).toList());
+        decision.put("questions", pending.questions().stream().map(prompt -> {
+            Map<String, Object> question = new LinkedHashMap<>();
+            question.put("question", prompt.question());
+            question.put("header", prompt.header());
+            question.put("options", prompt.options().stream().map(option -> {
+                Map<String, Object> item = new LinkedHashMap<>();
+                item.put("label", option.label());
+                item.put("description", option.description());
+                return item;
+            }).toList());
+            question.put("multiple", prompt.multiple());
+            question.put("custom", prompt.custom());
+            return question;
+        }).toList());
         decision.put("answers", answers == null ? List.of() : answers);
         decision.put("answeredAt", now());
         decisions.add(decision);
         return write(decisions);
+    }
+
+    private List<AnsweredQuestionPrompt> answeredPrompts(Object rawQuestions, List<List<String>> answers) {
+        if (!(rawQuestions instanceof List<?> questions)) return List.of();
+        List<AnsweredQuestionPrompt> result = new ArrayList<>();
+        for (int index = 0; index < questions.size(); index++) {
+            Object rawQuestion = questions.get(index);
+            List<String> selected = index < answers.size() ? answers.get(index) : List.of();
+            if (rawQuestion instanceof String question) {
+                result.add(new AnsweredQuestionPrompt(question, "", List.of(), false, true, selected));
+                continue;
+            }
+            if (!(rawQuestion instanceof Map<?, ?> prompt)) continue;
+            List<QuestionOption> options = new ArrayList<>();
+            if (prompt.get("options") instanceof List<?> rawOptions) {
+                for (Object rawOption : rawOptions) {
+                    if (rawOption instanceof Map<?, ?> option) {
+                        options.add(new QuestionOption(text(option.get("label")),
+                                text(option.get("description"))));
+                    }
+                }
+            }
+            result.add(new AnsweredQuestionPrompt(text(prompt.get("question")), text(prompt.get("header")),
+                    List.copyOf(options), Boolean.TRUE.equals(prompt.get("multiple")),
+                    !Boolean.FALSE.equals(prompt.get("custom")), selected));
+        }
+        return List.copyOf(result);
+    }
+
+    private List<List<String>> answerLists(Object rawAnswers) {
+        if (!(rawAnswers instanceof List<?> answers)) return List.of();
+        List<List<String>> result = new ArrayList<>();
+        for (Object rawAnswer : answers) {
+            if (!(rawAnswer instanceof List<?> values)) {
+                result.add(List.of());
+                continue;
+            }
+            result.add(values.stream().map(DesignerSessionService::text)
+                    .filter(value -> !value.isBlank()).toList());
+        }
+        return List.copyOf(result);
+    }
+
+    private static String text(Object value) {
+        return value instanceof String text ? text : "";
     }
 
     private String messageContent(String messageId) {
@@ -5431,6 +5515,10 @@ public class DesignerSessionService {
 
     public record PendingQuestion(String id, String scope, int discussionRevision,
                                   List<QuestionPrompt> questions) { }
+    public record AnsweredQuestion(String id, String scope, int discussionRevision, String answeredAt,
+                                   List<AnsweredQuestionPrompt> questions) { }
+    public record AnsweredQuestionPrompt(String question, String header, List<QuestionOption> options,
+                                         boolean multiple, boolean custom, List<String> answers) { }
     public record QuestionPrompt(String question, String header, List<QuestionOption> options,
                                  boolean multiple, boolean custom) { }
     public record QuestionOption(String label, String description) { }

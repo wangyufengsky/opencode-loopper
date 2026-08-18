@@ -229,6 +229,7 @@ public class DesignerSessionController {
                 row.createdAt(), row.updatedAt(), draft == null ? null : new DesignerDraftDto(
                         draft.id(), draft.status(), draft.updatedAt(), drafts.spec(draft)),
                 service.messages(row.id()).stream().map(this::message).toList(), service.pendingQuestions(row.id()),
+                service.answeredQuestions(row.id()),
                 service.compilerStatus(row.id()), service.requirementStatus(row.id()),
                 service.decompositionStatus(row.id()), service.workPackageStatuses(row.id()),
                 row.currentRequirementRevision(), row.activeWorkPackageId(), row.discussionScope(),
@@ -268,6 +269,7 @@ public class DesignerSessionController {
                                      boolean readOnly, String permissionSummary, String createdAt, String updatedAt,
                                      DesignerDraftDto draft, List<DesignerMessageDto> messages,
                                      List<DesignerSessionService.PendingQuestion> pendingQuestions,
+                                     List<DesignerSessionService.AnsweredQuestion> answeredQuestions,
                                      DesignerSessionService.CompilerStatus compiler,
                                      DesignerSessionService.RequirementRevisionStatus requirement,
                                      DesignerSessionService.DecompositionStatus decomposition,

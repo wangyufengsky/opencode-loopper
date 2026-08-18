@@ -937,6 +937,47 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(firstReview.workflowPhase()).isEqualTo("DISCUSSING_REQUIREMENT");
         assertThat(mapper.findCurrentDesignRequirementRevision(session.id())).isEmpty();
         assertThat(mapper.findLatestTaskDecomposition(session.id())).isEmpty();
+        assertThat(designerSessions.answeredQuestions(session.id())).singleElement().satisfies(answered -> {
+            assertThat(answered.scope()).isEqualTo("REQUIREMENT");
+            assertThat(answered.questions()).singleElement().satisfies(question -> {
+                assertThat(question.question()).isEqualTo("采用推荐设计边界吗？");
+                assertThat(question.options()).singleElement().satisfies(option -> {
+                    assertThat(option.label()).isEqualTo("采用推荐项 (Recommended)");
+                    assertThat(option.description()).isEqualTo("保持最小且可验收的范围");
+                });
+                assertThat(question.answers()).containsExactly("采用推荐项 (Recommended)");
+            });
+        });
+        mvc.perform(get("/api/designer-sessions/{id}", session.id()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pendingQuestions").isEmpty())
+                .andExpect(jsonPath("$.answeredQuestions[0].scope").value("REQUIREMENT"))
+                .andExpect(jsonPath("$.answeredQuestions[0].questions[0].question")
+                        .value("采用推荐设计边界吗？"))
+                .andExpect(jsonPath("$.answeredQuestions[0].questions[0].options[0].label")
+                        .value("采用推荐项 (Recommended)"))
+                .andExpect(jsonPath("$.answeredQuestions[0].questions[0].answers[0]")
+                        .value("采用推荐项 (Recommended)"));
+        DesignDiscussionRevisionRow firstDecision = mapper.listDesignDiscussionRevisions(session.id()).getFirst();
+        String legacyDecision = """
+                [{"questionId":"legacy-question","questions":["历史问题仍然可见吗？"],
+                  "answers":[["可以"]],"answeredAt":"2026-08-18T04:00:00Z"}]
+                """;
+        assertThat(mapper.updateDesignDiscussionRevision(new DesignDiscussionRevisionRow(
+                firstDecision.id(), firstDecision.designerSessionId(), firstDecision.requirementRevision(),
+                firstDecision.scopeKey(), firstDecision.workPackageId(), firstDecision.revision(),
+                firstDecision.state(), firstDecision.sourceMessageId(), firstDecision.designMessageId(),
+                firstDecision.snapshotMarkdown(), legacyDecision, firstDecision.questionRequired(),
+                firstDecision.questionAnswered(), firstDecision.questionRetryCount(),
+                firstDecision.candidateCompilationId(), firstDecision.lastErrorCode(),
+                firstDecision.lastErrorDetail(), firstDecision.createdAt(), firstDecision.updatedAt(),
+                firstDecision.version()))).isEqualTo(1);
+        assertThat(designerSessions.answeredQuestions(session.id())).singleElement().satisfies(answered ->
+                assertThat(answered.questions()).singleElement().satisfies(question -> {
+                    assertThat(question.question()).isEqualTo("历史问题仍然可见吗？");
+                    assertThat(question.options()).isEmpty();
+                    assertThat(question.answers()).containsExactly("可以");
+                }));
 
         designerSessions.appendRequirementMessage(session.id(),
                 "补充：失败时返回明确错误，且保持同一发布边界", firstReview.discussionRevision());

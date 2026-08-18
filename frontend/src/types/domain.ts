@@ -410,6 +410,18 @@ export interface TaskSessionPendingQuestion {
   questions: TaskSessionQuestionPrompt[]
 }
 
+export interface DesignerAnsweredQuestionPrompt extends TaskSessionQuestionPrompt {
+  answers: string[]
+}
+
+export interface DesignerAnsweredQuestion {
+  id: string
+  scope?: string
+  discussionRevision?: number
+  answeredAt?: string
+  questions: DesignerAnsweredQuestionPrompt[]
+}
+
 export interface TaskSessionTodo {
   id: string
   content: string
@@ -931,6 +943,7 @@ export interface DesignerSession {
   draft?: LoopDraft
   messages: DesignerMessage[]
   pendingQuestions?: TaskSessionPendingQuestion[]
+  answeredQuestions?: DesignerAnsweredQuestion[]
   compiler?: {
     id: string
     state: 'PENDING_HANDOFF' | 'RUNNING' | 'DESIGN_INCOMPLETE' | 'COMPLETED' | 'SESSION_ERROR'

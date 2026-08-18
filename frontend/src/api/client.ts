@@ -1,4 +1,4 @@
-import type { AppSettings, Artifact, Attempt, AutomationImportPreview, AutomationImportResult, AutomationRule, AutomationRuleMutation, AutomationRun, AutomationRunFeed, AvailableModel, BrowserAssertion, CommitMessageSuggestion, CreateAutomationRuleInput, DesignerAppendResult, DesignerHistoryItem, DesignerMessage, DesignerSession, DesignerSessionState, DesignerSessionSummary, DesignerStreamEvent, DirectorySelection, DirtyWorkspaceAction, DirtyWorkspaceResolution, DirtyWorkspaceState, ErrorEvent, InsightsSnapshot, Interaction, InteractionAction, JudgeRun, LocalSyncConflictContent, LocalSyncConflictFile, LocalSyncConflictSession, LocalSyncResolution, LoopDraft, LoopSpec, LoopSpecAssessment, LoopSpecTemplate, LoopSpecTemplateVersion, LoopVerifierSpec, MergeRequestDraft, Project, ProjectConventionDraft, ProjectConventionSnapshot, RecoveryDraft, RecoveryMode, RuntimeInfo, SessionCheckpoint, SessionForkResult, SessionRevertResult, SessionSummaryResult, SessionTodo, Stage, Task, TaskDecision, TaskDesignHistory, TaskDiffPreview, TaskEvent, TaskInsight, TaskPublicationStatus, TaskQueueStatus, TaskSessionActivity, TaskSessionActivityPart, TaskSessionPendingQuestion, TaskSessionSummary, UsageAggregate } from '@/types/domain'
+import type { AppSettings, Artifact, Attempt, AutomationImportPreview, AutomationImportResult, AutomationRule, AutomationRuleMutation, AutomationRun, AutomationRunFeed, AvailableModel, BrowserAssertion, CommitMessageSuggestion, CreateAutomationRuleInput, DesignerAnsweredQuestion, DesignerAppendResult, DesignerHistoryItem, DesignerMessage, DesignerSession, DesignerSessionState, DesignerSessionSummary, DesignerStreamEvent, DirectorySelection, DirtyWorkspaceAction, DirtyWorkspaceResolution, DirtyWorkspaceState, ErrorEvent, InsightsSnapshot, Interaction, InteractionAction, JudgeRun, LocalSyncConflictContent, LocalSyncConflictFile, LocalSyncConflictSession, LocalSyncResolution, LoopDraft, LoopSpec, LoopSpecAssessment, LoopSpecTemplate, LoopSpecTemplateVersion, LoopVerifierSpec, MergeRequestDraft, Project, ProjectConventionDraft, ProjectConventionSnapshot, RecoveryDraft, RecoveryMode, RuntimeInfo, SessionCheckpoint, SessionForkResult, SessionRevertResult, SessionSummaryResult, SessionTodo, Stage, Task, TaskDecision, TaskDesignHistory, TaskDiffPreview, TaskEvent, TaskInsight, TaskPublicationStatus, TaskQueueStatus, TaskSessionActivity, TaskSessionActivityPart, TaskSessionPendingQuestion, TaskSessionSummary, UsageAggregate } from '@/types/domain'
 
 const apiBase = import.meta.env.VITE_API_BASE ?? '/api'
 
@@ -439,6 +439,21 @@ function normalizeTaskSessionQuestion(value: unknown): TaskSessionPendingQuestio
   }
 }
 
+function normalizeDesignerAnsweredQuestion(value: unknown): DesignerAnsweredQuestion {
+  const raw = asRecord(value)
+  const pending = normalizeTaskSessionQuestion(value)
+  return {
+    id: pending.id,
+    scope: pending.scope,
+    discussionRevision: pending.discussionRevision,
+    answeredAt: asString(raw.answeredAt) || undefined,
+    questions: pending.questions.map((question, index) => ({
+      ...question,
+      answers: asArray(asRecord(asArray(raw.questions)[index]).answers).map((answer) => asString(answer)).filter(Boolean),
+    })),
+  }
+}
+
 function normalizeTaskSessionActivity(value: unknown): TaskSessionActivity {
   const raw = asRecord(value)
   const todoCapability = asString(raw.todoCapability).toUpperCase()
@@ -627,6 +642,7 @@ function normalizeDesignerSession(value: unknown): DesignerSession {
     draft: raw.draft ? normalizeDraft(raw.draft) : undefined,
     messages: asArray(raw.messages).map(normalizeDesignerMessage),
     pendingQuestions: asArray(raw.pendingQuestions).map(normalizeTaskSessionQuestion),
+    answeredQuestions: asArray(raw.answeredQuestions).map(normalizeDesignerAnsweredQuestion),
     compiler: raw.compiler ? (() => {
       const compiler = asRecord(raw.compiler)
       return {

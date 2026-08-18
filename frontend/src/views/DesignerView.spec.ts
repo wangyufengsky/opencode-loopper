@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import DesignerView from '@/views/DesignerView.vue'
 import LoopSpecEditor from '@/components/LoopSpecEditor.vue'
 import PendingQuestionCard from '@/components/PendingQuestionCard.vue'
+import DesignerDiscussionHistory from '@/components/DesignerDiscussionHistory.vue'
 import { api } from '@/api/client'
 import { useTaskStore } from '@/stores/taskStore'
 import type { AppSettings, DesignerSession, LoopDraft, LoopSpec, Project, Task } from '@/types/domain'
@@ -325,7 +326,12 @@ describe('Designer draft composer', () => {
     vi.spyOn(api, 'createDesignerSession').mockResolvedValue(runningSession)
     vi.spyOn(api, 'createDraft').mockImplementation(async (spec) => draftFrom(spec))
     vi.spyOn(api, 'getDesignerSession').mockImplementation(async () => ({
-      ...runningSession, pendingQuestions: answered ? [] : [pendingQuestion],
+      ...runningSession,
+      pendingQuestions: answered ? [] : [pendingQuestion],
+      answeredQuestions: answered ? [{
+        id: pendingQuestion.id, scope: 'REQUIREMENT', discussionRevision: 1, answeredAt: '2026-08-18T04:00:00Z',
+        questions: pendingQuestion.questions.map((prompt) => ({ ...prompt, answers: ['新增链路'] })),
+      }] : [],
     }))
     const reply = vi.spyOn(api, 'replyDesignerQuestion').mockImplementation(async () => { answered = true })
     const wrapper = mountDesigner()
@@ -343,6 +349,13 @@ describe('Designer draft composer', () => {
 
     expect(reply).toHaveBeenCalledWith(runningSession.id, pendingQuestion.id, [['新增链路']])
     expect(wrapper.findComponent(PendingQuestionCard).exists()).toBe(false)
+    const history = wrapper.getComponent(DesignerDiscussionHistory)
+    expect(history.get('details').attributes('open')).toBeUndefined()
+    expect(history.get('summary').text()).toBe('需求讨论')
+    expect(history.text()).toContain('选择实现范围')
+    expect(history.text()).toContain('创建新的业务责任链')
+    expect(history.text()).toContain('用户最终回答')
+    expect(history.text()).toContain('新增链路')
     wrapper.unmount()
   })
 
