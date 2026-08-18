@@ -123,6 +123,8 @@ public interface LoopperMapper {
     int deleteAttemptsForTask(String taskId);
     @Delete("DELETE FROM task_lineage WHERE child_task_id=#{taskId}")
     int deleteTaskLineageForChild(String taskId);
+    @Delete("DELETE FROM task_retry_schedule WHERE task_id=#{taskId}")
+    int deleteTaskRetrySchedulesForTask(String taskId);
     @Delete("DELETE FROM stage WHERE task_id=#{taskId}")
     int deleteStagesForTask(String taskId);
     @Delete("DELETE FROM task_queue WHERE task_id=#{taskId}")
@@ -135,8 +137,8 @@ public interface LoopperMapper {
     @Select("SELECT * FROM app_settings WHERE id=1")
     Optional<AppSettingsRow> findAppSettings();
     @Insert("""
-            INSERT INTO app_settings(id,cli_path,allowed_root,provider_id,model_id,max_task_attempts,attempt_timeout_minutes,auto_approve,updated_at)
-            VALUES(1,#{cliPath},#{allowedRoot},#{providerId},#{modelId},#{maxTaskAttempts},#{attemptTimeoutMinutes},#{autoApprove},#{updatedAt})
+            INSERT INTO app_settings(id,cli_path,allowed_root,provider_id,model_id,max_task_attempts,attempt_timeout_minutes,auto_approve,settings_json,updated_at)
+            VALUES(1,#{cliPath},#{allowedRoot},#{providerId},#{modelId},#{maxTaskAttempts},#{attemptTimeoutMinutes},#{autoApprove},#{settingsJson},#{updatedAt})
             ON CONFLICT(id) DO UPDATE SET
               cli_path=excluded.cli_path,
               allowed_root=excluded.allowed_root,
@@ -145,9 +147,44 @@ public interface LoopperMapper {
               max_task_attempts=excluded.max_task_attempts,
               attempt_timeout_minutes=excluded.attempt_timeout_minutes,
               auto_approve=excluded.auto_approve,
+              settings_json=excluded.settings_json,
               updated_at=excluded.updated_at
             """)
     int upsertAppSettings(AppSettingsRow row);
+
+    @Insert("""
+            INSERT INTO task_retry_schedule(id,task_id,stage_id,cause,ordinal,delay_seconds,due_at,
+              remaining_seconds,prompt,state,created_at,updated_at,version)
+            VALUES(#{id},#{taskId},#{stageId},#{cause},#{ordinal},#{delaySeconds},#{dueAt},
+              #{remainingSeconds},#{prompt},#{state},#{createdAt},#{updatedAt},#{version})
+            """)
+    int insertTaskRetrySchedule(TaskRetryScheduleRow row);
+    @Select("SELECT * FROM task_retry_schedule WHERE id=#{id}")
+    Optional<TaskRetryScheduleRow> findTaskRetrySchedule(String id);
+    @Select("""
+            SELECT * FROM task_retry_schedule
+            WHERE task_id=#{taskId} AND state IN ('SCHEDULED','PAUSED')
+            ORDER BY created_at DESC LIMIT 1
+            """)
+    Optional<TaskRetryScheduleRow> findActiveTaskRetrySchedule(String taskId);
+    @Select("""
+            SELECT * FROM task_retry_schedule
+            WHERE state='SCHEDULED' AND due_at<=#{dueAt}
+            ORDER BY due_at,id LIMIT #{limit}
+            """)
+    List<TaskRetryScheduleRow> listDueTaskRetrySchedules(@Param("dueAt") String dueAt, @Param("limit") int limit);
+    @Select("""
+            SELECT COUNT(*) FROM task_retry_schedule
+            WHERE task_id=#{taskId} AND stage_id=#{stageId} AND cause=#{cause}
+            """)
+    int countTaskRetrySchedules(@Param("taskId") String taskId, @Param("stageId") String stageId,
+                                @Param("cause") String cause);
+    @Update("""
+            UPDATE task_retry_schedule SET state=#{state},due_at=#{dueAt},remaining_seconds=#{remainingSeconds},
+              updated_at=#{updatedAt},version=version+1
+            WHERE id=#{id} AND version=#{version}
+            """)
+    int updateTaskRetrySchedule(TaskRetryScheduleRow row);
 
     @Insert("INSERT INTO project(id,name,root_path,description,created_at,updated_at,managed,version) VALUES(#{id},#{name},#{rootPath},#{description},#{createdAt},#{updatedAt},#{managed},#{version})")
     int insertProject(ProjectRow row);

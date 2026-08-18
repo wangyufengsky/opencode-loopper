@@ -9,4 +9,5 @@ public record AppSettingsRow(
         int maxTaskAttempts,
         int attemptTimeoutMinutes,
         int autoApprove,
+        String settingsJson,
         String updatedAt) { }

@@ -92,14 +92,21 @@ describe('Loopper REST contract adapter', () => {
   })
 
   it('loads and persists settings with a dynamic model catalog', async () => {
-    const settings = { cliPath: 'opencode', allowedRoot: '', provider: 'deepseek', model: 'deepseek-chat', maxTaskAttempts: 12, timeoutMinutes: 30, autoApprove: false }
+    const settings = {
+      runtime: { serverPort: 8080, openBrowser: true, allowedRoot: '', monitorDelaySeconds: 2, designerMonitorDelayMillis: 750, abortCleanupAttempts: 3 },
+      openCode: { cliPath: 'opencode', mode: 'auto' as const, baseUrl: 'http://127.0.0.1:4096', provider: 'deepseek', model: 'deepseek-chat', connectTimeoutSeconds: 5, requestTimeoutSeconds: 30, startupTimeoutSeconds: 15 },
+      limits: { maxStageAttempts: 3, maxTaskAttempts: 12, sessionErrorLimit: 3, maxDurationMinutes: 120, attemptTimeoutMinutes: 30, verifierTimeoutMinutes: 10, designerTimeoutMinutes: 30 },
+      retryWait: { rateLimitBaseSeconds: 60, rateLimitMaxSeconds: 300, sessionBaseSeconds: 10, sessionMaxSeconds: 60, verificationBaseSeconds: 5, verificationMaxSeconds: 30 },
+      publication: { httpWebHosts: ['gitlab.spdb.com'], gitlabHost: 'gitlab.spdb.com', gitlabApiBaseUrl: 'http://gitlab.spdb.com/api/v4', connectTimeoutSeconds: 3, requestTimeoutSeconds: 10 },
+      appliedLiveFields: [], restartRequiredFields: [],
+    }
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(json(settings))
       .mockResolvedValueOnce(json([{ id: 'deepseek/deepseek-chat', provider: 'deepseek', model: 'deepseek-chat', label: 'deepseek / deepseek-chat' }]))
       .mockResolvedValueOnce(json(settings))
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(api.getSettings()).resolves.toMatchObject({ provider: 'deepseek', model: 'deepseek-chat' })
+    await expect(api.getSettings()).resolves.toMatchObject({ openCode: { provider: 'deepseek', model: 'deepseek-chat' } })
     await expect(api.getSettingsModels('opencode')).resolves.toMatchObject([{ id: 'deepseek/deepseek-chat' }])
     await api.updateSettings(settings)
 

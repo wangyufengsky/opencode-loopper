@@ -1,17 +1,29 @@
 import { flushPromises, mount } from '@vue/test-utils'
-import ElementPlus, { ElSelect } from 'element-plus'
+import ElementPlus, { ElMessage, ElSelect } from 'element-plus'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import SettingsView from '@/views/SettingsView.vue'
 import { api } from '@/api/client'
 import { demoRuntime } from '@/mock/demoData'
 import { useTaskStore } from '@/stores/taskStore'
+import type { AppSettings } from '@/types/domain'
 
 afterEach(() => vi.restoreAllMocks())
 
+function currentSettings(): AppSettings {
+  return {
+    runtime: { serverPort: 8080, openBrowser: true, allowedRoot: '', monitorDelaySeconds: 2, designerMonitorDelayMillis: 750, abortCleanupAttempts: 3 },
+    openCode: { cliPath: 'opencode', mode: 'auto', baseUrl: 'http://127.0.0.1:4096', provider: 'opencode', model: 'model-a', connectTimeoutSeconds: 5, requestTimeoutSeconds: 30, startupTimeoutSeconds: 15 },
+    limits: { maxStageAttempts: 3, maxTaskAttempts: 12, sessionErrorLimit: 3, maxDurationMinutes: 120, attemptTimeoutMinutes: 30, verifierTimeoutMinutes: 10, designerTimeoutMinutes: 30 },
+    retryWait: { rateLimitBaseSeconds: 60, rateLimitMaxSeconds: 300, sessionBaseSeconds: 10, sessionMaxSeconds: 60, verificationBaseSeconds: 5, verificationMaxSeconds: 30 },
+    publication: { httpWebHosts: ['gitlab.spdb.com'], gitlabHost: 'gitlab.spdb.com', gitlabApiBaseUrl: 'http://gitlab.spdb.com/api/v4', connectTimeoutSeconds: 3, requestTimeoutSeconds: 10 },
+    startupConfigPath: '/tmp/startup-overrides.properties', appliedLiveFields: ['retryWait'], restartRequiredFields: ['runtime.serverPort'],
+  }
+}
+
 describe('Settings model selection', () => {
   it('loads CLI models into dropdowns and persists the selected model', async () => {
-    const current = { cliPath: 'opencode', allowedRoot: '', provider: 'opencode', model: 'model-a', maxTaskAttempts: 12, timeoutMinutes: 30, autoApprove: false }
+    const current = currentSettings()
     vi.spyOn(api, 'getSettings').mockResolvedValue(current)
     vi.spyOn(api, 'getSettingsModels').mockResolvedValue([
       { id: 'opencode/big-pickle', provider: 'opencode', model: 'big-pickle', label: 'opencode / big-pickle' },
@@ -31,17 +43,17 @@ describe('Settings model selection', () => {
 
     await flushPromises()
 
-    expect(wrapper.findAllComponents(ElSelect)).toHaveLength(2)
+    expect(wrapper.findAllComponents(ElSelect)).toHaveLength(3)
     expect(wrapper.text()).toContain('model-a')
     await wrapper.get('.settings-save').trigger('click')
     await flushPromises()
-    expect(update).toHaveBeenCalledWith(expect.objectContaining({ provider: 'opencode', model: 'model-a' }))
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({ openCode: expect.objectContaining({ provider: 'opencode', model: 'model-a' }) }))
   })
 
   it('toggles demo data off and reloads the real overview', async () => {
     const pinia = createPinia()
     setActivePinia(pinia)
-    vi.spyOn(api, 'getSettings').mockResolvedValue({ cliPath: 'opencode', allowedRoot: '', provider: 'opencode', model: 'model-a', maxTaskAttempts: 12, timeoutMinutes: 30, autoApprove: false })
+    vi.spyOn(api, 'getSettings').mockResolvedValue(currentSettings())
     vi.spyOn(api, 'getSettingsModels').mockResolvedValue([{ id: 'opencode/model-a', provider: 'opencode', model: 'model-a', label: 'opencode / model-a' }])
     vi.spyOn(api, 'getProjects').mockResolvedValue([])
     vi.spyOn(api, 'getTasks').mockResolvedValue([])
@@ -69,5 +81,27 @@ describe('Settings model selection', () => {
     expect(store.usingDemo).toBe(false)
     expect(store.runtime?.pid).toBe(9001)
     expect(wrapper.get('.settings-demo button').text()).toContain('启用演示数据')
+  })
+
+  it('keeps the form available and reports a settings save failure', async () => {
+    vi.spyOn(api, 'getSettings').mockResolvedValue(currentSettings())
+    vi.spyOn(api, 'getSettingsModels').mockResolvedValue([
+      { id: 'opencode/model-a', provider: 'opencode', model: 'model-a', label: 'opencode / model-a' },
+    ])
+    vi.spyOn(api, 'updateSettings').mockRejectedValue(new Error('配置文件写入失败'))
+    const error = vi.spyOn(ElMessage, 'error').mockImplementation(() => undefined as never)
+    const wrapper = mount(SettingsView, {
+      global: {
+        plugins: [createPinia(), ElementPlus],
+        stubs: { PageHeader: { template: '<header><slot name="actions" /></header>' }, Icon: true },
+      },
+    })
+    await flushPromises()
+
+    await wrapper.get('.settings-save').trigger('click')
+    await flushPromises()
+
+    expect(error).toHaveBeenCalledWith('配置文件写入失败')
+    expect(wrapper.get('.settings-save').attributes('disabled')).toBeUndefined()
   })
 })

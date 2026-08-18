@@ -27,6 +27,8 @@ manufactures queue, progress, usage or cost data.
   normalization notice.
 - V30: compact Decomposer/Compiler semantic snapshots, independent format and
   semantic repair counts, and restart-safe server compilation of final objects.
+- V31: grouped application settings plus one active persistent retry schedule per
+  Task, including cause, ordinal, frozen delay/due time, pause remainder and version.
 
 Machine-role exact markers remain preferred. The shared bounded extractor also
 accepts a unique standard JSON object in a `json`/untyped fence, explanatory

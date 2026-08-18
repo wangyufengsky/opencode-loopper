@@ -48,6 +48,11 @@ const queueLoading = ref(false)
 const queueReconciling = ref(false)
 const queueError = ref('')
 const publicationState = ref<TaskPublicationStatus['deliveryState']>('NOT_STARTED')
+const clock = ref(Date.now())
+let clockTimer: ReturnType<typeof setInterval> | undefined
+const retryRemainingSeconds = computed(() => task.value?.retryDueAt
+  ? Math.max(0, Math.ceil((Date.parse(task.value.retryDueAt) - clock.value) / 1000)) : 0)
+const retryCauseLabel = computed(() => ({ RATE_LIMIT: '请求限流', SESSION: 'Session 错误', VERIFICATION: '验证失败' }[task.value?.retryCause ?? 'SESSION']))
 watch(id, () => { publicationState.value = 'NOT_STARTED' })
 const deterministicAccepted = computed(() => Boolean(task.value?.stages?.length) && task.value!.stages!.every((stage) => stage.status === 'SUCCEEDED'))
 const latestJudge = (role: 'REQUIREMENT' | 'RISK') => judges.value
@@ -81,6 +86,7 @@ const nextAction = computed(() => {
   if (task.value.status === 'CANCELLED') return '任务已取消；执行目录和证据仍保留，可据此新建设计。'
   if (task.value.status === 'PENDING_START') return '计划已经确认，但尚未申请项目写租约或创建任务分支。点击“开始执行”后才会进入队列并准备执行环境。'
   if (task.value.status === 'QUEUED') return '任务正在等待项目写租约；Loopper 会自动检查终态持有者，也可在下方手动重新检查。取消只会移除此任务自己的队列项。'
+  if (task.value.status === 'RETRY_WAIT') return `${retryCauseLabel.value}，将在约 ${retryRemainingSeconds.value} 秒后自动创建全新 Session。`
   if (waitingForWorkspaceCleanup.value) return '逐项处理源分支中的未提交文件；重新检查确认干净后，Loopper 才会创建任务分支。'
   if (task.value.status === 'WAITING_INPUT' && canRetryJudges.value) return '查看未通过或异常的评审证据；补齐条件后可重新发起需求 / 风险双评审。'
   if (task.value.status === 'WAITING_INPUT' && canRetryLoop.value) return '循环已因重复失败或重试策略暂停。检查结构化交接后，可明确确认再执行一轮全新 Session。'
@@ -95,11 +101,11 @@ async function load() {
   await loadQueue()
   if (!store.usingDemo) store.watchTask(id.value)
 }
-onMounted(load)
+onMounted(() => { clockTimer = setInterval(() => { clock.value = Date.now() }, 1000); void load() })
 watch(id, load)
 watch(() => task.value?.status, () => { void loadQueue() })
 watch(waitingForWorkspaceCleanup, (waiting) => { dirtyWorkspaceDialogOpen.value = waiting }, { immediate: true })
-onBeforeUnmount(() => store.stopWatching())
+onBeforeUnmount(() => { if (clockTimer) clearInterval(clockTimer); store.stopWatching() })
 
 const queueReleaseDetail = computed(() => {
   const reason = queueStatus.value?.releaseReason
@@ -236,7 +242,7 @@ async function confirmRework() {
       <el-button v-if="canRework" type="warning" plain :loading="reworking" @click="confirmRework"><Icon icon="lucide:git-branch-plus" />新分支重做</el-button>
       <el-button plain @click="router.push('/tasks')"><Icon icon="lucide:list" />全部任务</el-button>
       <el-button v-if="task?.status === 'PENDING_START'" type="primary" @click="store.updateTask(id, 'start')"><Icon icon="lucide:play" />开始执行</el-button>
-      <template v-else-if="task?.status === 'RUNNING' || task?.status === 'VERIFYING'"><el-button plain @click="store.updateTask(id, 'pause')"><Icon icon="lucide:pause" />暂停</el-button><el-button plain type="danger" @click="confirmCancel"><Icon icon="lucide:square" />取消</el-button></template>
+      <template v-else-if="task?.status === 'RUNNING' || task?.status === 'VERIFYING' || task?.status === 'RETRY_WAIT'"><el-button plain @click="store.updateTask(id, 'pause')"><Icon icon="lucide:pause" />暂停</el-button><el-button plain type="danger" @click="confirmCancel"><Icon icon="lucide:square" />取消</el-button></template>
       <el-button v-else-if="task?.status === 'PAUSED'" type="primary" @click="store.updateTask(id, 'resume')"><Icon icon="lucide:play" />继续</el-button>
       <el-button v-if="canCancelDirectly" plain type="danger" @click="confirmCancel"><Icon icon="lucide:square" />取消任务</el-button>
       <el-button v-if="canRetryLoop" type="warning" :loading="loopRetrying" @click="confirmRetryLoop"><Icon icon="lucide:rotate-ccw" />继续一轮</el-button>
@@ -251,6 +257,10 @@ async function confirmRework() {
         <div v-if="task.status === 'PENDING_START'"><p class="eyebrow">执行环境尚未申请</p><span class="mono tiny muted">确认计划不会占用写租约或切换项目分支</span></div>
         <div v-else><p class="eyebrow">{{ isDirectExecution ? '直接执行' : '原项目任务分支' }}</p><span class="mono tiny muted">{{ isDirectExecution ? '原项目目录' : task.branch }} · {{ task.worktreePath }}</span></div>
         <div class="overview-meta"><span><b>{{ task.attemptCount }}</b> / {{ task.maxAttempts }} 次尝试</span><span v-if="store.streamState !== 'idle'" :class="['stream-state', store.streamState]">{{ store.streamState === 'connected' ? 'SSE 已连接' : 'SSE 重连中' }}</span></div>
+      </section>
+      <section v-if="task.status === 'RETRY_WAIT'" class="retry-wait-card card card-pad" role="status">
+        <div><p class="eyebrow">RETRY_WAIT</p><h2 class="card-title">{{ retryCauseLabel }}</h2><p>第 {{ task.retryOrdinal || 1 }} 次退避，计划等待 {{ task.retryDelaySeconds || 0 }} 秒。</p></div>
+        <strong class="retry-countdown mono">{{ retryRemainingSeconds }}s</strong>
       </section>
       <section class="result-summary card card-pad" aria-labelledby="result-summary-heading">
         <div class="result-copy"><p class="eyebrow">RESULT / NEXT STEP</p><h2 id="result-summary-heading" class="card-title">结果与下一步</h2><p>{{ nextAction }}</p></div>
@@ -326,6 +336,7 @@ async function confirmRework() {
 .task-overview { display: flex; align-items: center; justify-content: space-between; gap: 18px; min-width: 0; }.task-overview > div:first-child { min-width: 0; }.task-overview > div:first-child > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.overview-meta { display: flex; flex: 0 0 auto; align-items: center; gap: 15px; color: var(--color-text-secondary); font-family: var(--font-code); font-size: 11px; }.overview-meta b { color: var(--color-text-primary); }.stream-state { display: inline-flex; align-items: center; gap: 6px; }.stream-state::before { width: 7px; height: 7px; border-radius: 50%; background: currentColor; content: ""; }.stream-state.connected { color: var(--color-success); }.stream-state.reconnecting { color: var(--color-session-warning); }.task-detail-grid { display: grid; grid-template-columns: minmax(300px, .77fr) minmax(500px, 1.23fr); gap: 16px; }@media (max-width: 1320px) { .task-detail-grid { grid-template-columns: minmax(290px, .7fr) minmax(470px, 1.3fr); } }@media (max-width: 1050px) { .task-detail-grid { grid-template-columns: 1fr; } }
 .result-summary { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(360px, .8fr); align-items: center; gap: 22px; margin-top: 16px; border-color: rgb(34 211 238 / 19%); background: linear-gradient(125deg, rgb(34 211 238 / 6%), rgb(139 92 246 / 4%)); }.result-copy p:last-child { max-width: 720px; margin: 8px 0 0; color: var(--color-text-secondary); font-size: 12px; line-height: 1.65; }.result-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; }.result-metrics div { padding: 12px; border: 1px solid var(--color-border-default); border-radius: 9px; background: rgb(7 12 22 / 50%); }.result-metrics dt { color: var(--color-text-tertiary); font-size: 9px; }.result-metrics dd { margin: 6px 0 0; color: var(--color-text-primary); font: 700 14px/1 var(--font-code); font-variant-numeric: tabular-nums; }
 .ai-output-notice { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 9px 12px; border: 1px solid rgb(34 211 238 / 28%); border-radius: 8px; color: #a5f3fc; background: rgb(8 145 178 / 8%); font-size: 11px; }
+.retry-wait-card { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-top: 16px; border-color: rgb(245 158 11 / 36%); background: linear-gradient(120deg, rgb(245 158 11 / 8%), rgb(15 23 42 / 25%)); }.retry-wait-card p:last-child { margin: 8px 0 0; color: var(--color-text-secondary); font-size: 11px; }.retry-countdown { color: var(--color-session-warning); font-size: 24px; font-variant-numeric: tabular-nums; }
 .queue-blocker { margin-top: 16px; border-color: rgb(245 158 11 / 30%); background: linear-gradient(120deg, rgb(245 158 11 / 7%), rgb(15 23 42 / 25%)); }.queue-holder { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 20px; margin-top: 12px; }.queue-holder > div:first-child { display: grid; align-content: start; gap: 7px; min-width: 0; }.queue-holder-link { width: fit-content; max-width: 100%; padding: 0; overflow: hidden; border: 0; background: transparent; color: var(--color-accent); font: inherit; font-weight: 700; text-align: left; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }.queue-holder dl { display: grid; grid-template-columns: repeat(3, minmax(82px, 1fr)); gap: 8px; margin: 0; }.queue-holder dl div { padding: 9px 11px; border: 1px solid var(--color-border-default); border-radius: 8px; background: rgb(2 6 23 / 35%); }.queue-holder dt { color: var(--color-text-tertiary); font-size: 9px; }.queue-holder dd { margin: 5px 0 0; color: var(--color-text-primary); font: 650 10px/1.2 var(--font-code); }.queue-copy { margin: 12px 0; color: var(--color-text-secondary); font-size: 12px; line-height: 1.6; }.queue-error { margin: 12px 0 0; color: var(--color-danger); font-size: 12px; }
 .judge-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }@media (max-width: 960px) { .judge-grid { grid-template-columns: 1fr; } }
 .judge-empty { margin: 0 0 12px; color: var(--color-text-secondary); font-size: 12px; line-height: 1.6; }

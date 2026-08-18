@@ -79,13 +79,30 @@ export interface RuntimeInfo {
 }
 
 export interface AppSettings {
-  cliPath: string
-  allowedRoot: string
-  provider: string
-  model: string
-  maxTaskAttempts: number
-  timeoutMinutes: number
-  autoApprove: boolean
+  runtime: {
+    serverPort: number; openBrowser: boolean; allowedRoot: string
+    monitorDelaySeconds: number; designerMonitorDelayMillis: number; abortCleanupAttempts: number
+  }
+  openCode: {
+    cliPath: string; mode: 'auto' | 'http'; baseUrl: string; provider: string; model: string
+    connectTimeoutSeconds: number; requestTimeoutSeconds: number; startupTimeoutSeconds: number
+  }
+  limits: {
+    maxStageAttempts: number; maxTaskAttempts: number; sessionErrorLimit: number
+    maxDurationMinutes: number; attemptTimeoutMinutes: number; verifierTimeoutMinutes: number; designerTimeoutMinutes: number
+  }
+  retryWait: {
+    rateLimitBaseSeconds: number; rateLimitMaxSeconds: number
+    sessionBaseSeconds: number; sessionMaxSeconds: number
+    verificationBaseSeconds: number; verificationMaxSeconds: number
+  }
+  publication: {
+    httpWebHosts: string[]; gitlabHost: string; gitlabApiBaseUrl: string
+    connectTimeoutSeconds: number; requestTimeoutSeconds: number
+  }
+  startupConfigPath?: string
+  appliedLiveFields: string[]
+  restartRequiredFields: string[]
   updatedAt?: string
 }
 
@@ -182,6 +199,11 @@ export interface Task {
   branch: string
   worktreePath: string
   status: TaskStatus
+  retryCause?: 'RATE_LIMIT' | 'SESSION' | 'VERIFICATION'
+  retryOrdinal?: number
+  retryScheduledAt?: string
+  retryDueAt?: string
+  retryDelaySeconds?: number
   waitingReasonCode?: string
   loopRetryAvailable?: boolean
   hasDesignHistory?: boolean

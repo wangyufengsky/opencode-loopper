@@ -66,19 +66,27 @@ loopper:
     enabled: true
   startup-recovery:
     enabled: true
-  max-stage-attempts: 3
-  max-task-attempts: 12
-  session-error-limit: 3
-  max-duration: 2h
-  attempt-timeout: 30m
-  verifier-timeout: 10m
-  monitor-delay: 2s
+  max-stage-attempts: ${LOOPPER_MAX_STAGE_ATTEMPTS:3}
+  max-task-attempts: ${LOOPPER_MAX_TASK_ATTEMPTS:12}
+  session-error-limit: ${LOOPPER_SESSION_ERROR_LIMIT:3}
+  max-duration: ${LOOPPER_MAX_DURATION:2h}
+  allowed-root: ${LOOPPER_ALLOWED_ROOT:}
+  attempt-timeout: ${LOOPPER_ATTEMPT_TIMEOUT:30m}
+  verifier-timeout: ${LOOPPER_VERIFIER_TIMEOUT:10m}
+  monitor-delay: ${LOOPPER_MONITOR_DELAY:2s}
   workspace-lease-reconcile-delay: 10s
-  designer-monitor-delay: 750ms
-  designer-timeout: 15m
+  designer-monitor-delay: ${LOOPPER_DESIGNER_MONITOR_DELAY:750ms}
+  designer-timeout: ${LOOPPER_DESIGNER_TIMEOUT:30m}
   # A Task may be terminal while its last remote writer still needs best-effort
   # cleanup. These bounded, persisted retries never start another Session.
-  abort-cleanup-attempts: 3
+  abort-cleanup-attempts: ${LOOPPER_ABORT_CLEANUP_ATTEMPTS:3}
+  retry-wait:
+    rate-limit-base: ${LOOPPER_RETRY_RATE_LIMIT_BASE:60s}
+    rate-limit-max: ${LOOPPER_RETRY_RATE_LIMIT_MAX:300s}
+    session-base: ${LOOPPER_RETRY_SESSION_BASE:10s}
+    session-max: ${LOOPPER_RETRY_SESSION_MAX:60s}
+    verification-base: ${LOOPPER_RETRY_VERIFICATION_BASE:5s}
+    verification-max: ${LOOPPER_RETRY_VERIFICATION_MAX:30s}
   mcp:
     bearer-token: ${LOOPPER_MCP_BEARER_TOKEN:}
   publication:
@@ -89,8 +97,8 @@ loopper:
       host: ${LOOPPER_GITLAB_HOST:}
       api-base-url: ${LOOPPER_GITLAB_API_BASE_URL:}
       private-token: ${LOOPPER_GITLAB_PRIVATE_TOKEN:}
-      connect-timeout: 3s
-      request-timeout: 10s
+      connect-timeout: ${LOOPPER_GITLAB_CONNECT_TIMEOUT:3s}
+      request-timeout: ${LOOPPER_GITLAB_REQUEST_TIMEOUT:10s}
   opencode:
     # auto first reuses a local healthy endpoint, then owns a new localhost process.
     # http never starts or terminates an external OpenCode process; fake is for tests.
@@ -100,6 +108,6 @@ loopper:
     password: ${OPENCODE_PASSWORD:${OPENCODE_SERVER_PASSWORD:}}
     executable: ${OPENCODE_EXECUTABLE:}
     model: ${OPENCODE_MODEL:}
-    connect-timeout: 5s
-    request-timeout: 30s
-    startup-timeout: 15s
+    connect-timeout: ${LOOPPER_OPENCODE_CONNECT_TIMEOUT:5s}
+    request-timeout: ${LOOPPER_OPENCODE_REQUEST_TIMEOUT:30s}
+    startup-timeout: ${LOOPPER_OPENCODE_STARTUP_TIMEOUT:15s}

@@ -244,9 +244,79 @@ class TaskServiceIntegrationTest {
                 .contains("todowrite", "non-authoritative progress")
                 .contains("Task/Stage/Attempt/Verifier/Judge state remains controlled by Loopper");
         TaskRow recovered = tasks.sessionFailed(task.id(), first.id(), "NETWORK", "temporary transport failure");
-        assertThat(recovered.state()).isEqualTo("RUNNING");
+        assertThat(recovered.state()).isEqualTo("RETRY_WAIT");
+        assertThat(tasks.retrySchedule(task.id()).cause()).isEqualTo("SESSION");
+        assertThat(tasks.retrySchedule(task.id()).delaySeconds()).isEqualTo(10);
+        assertThat(mapper.listStateTransitionsForScope("TASK", task.id(), 0, 100)).anySatisfy(event -> {
+            assertThat(event.event()).isEqualTo("SCHEDULE_RETRY");
+            assertThat(event.metadataJson()).contains("\"retryCause\":\"SESSION\"",
+                    "\"retryOrdinal\":1", "\"retryDelaySeconds\":10", "\"retryDueAt\"");
+        });
+        jdbc.update("UPDATE task_retry_schedule SET due_at=? WHERE task_id=? AND state='SCHEDULED'",
+                Instant.EPOCH.toString(), task.id());
+        tasks.startDueRetries();
+        assertThat(tasks.get(task.id()).state()).isEqualTo("RUNNING");
         assertThat(tasks.attempts(task.id())).hasSize(2);
         assertThat(tasks.errors(task.id())).anyMatch(error -> error.layer().equals(ErrorLayer.SESSION.name()));
+    }
+
+    @Test
+    void retryWaitBackoffIncreasesAndOnlyStartsWhenDue() throws Exception {
+        ProjectRow project = projects.create("retry-backoff", gitProject());
+        TaskRow task = drafts.confirm(drafts.create(spec(project.id())).id(), "retry backoff");
+        tasks.start(task.id());
+        AttemptRow first = tasks.attempts(task.id()).getFirst();
+
+        tasks.sessionFailed(task.id(), first.id(), "NETWORK", "temporary transport failure");
+        tasks.startDueRetries();
+        assertThat(tasks.attempts(task.id())).hasSize(1);
+
+        jdbc.update("UPDATE task_retry_schedule SET due_at=? WHERE task_id=? AND state='SCHEDULED'",
+                Instant.EPOCH.toString(), task.id());
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        try (var pool = Executors.newFixedThreadPool(2)) {
+            Future<?> firstMonitor = pool.submit(() -> {
+                ready.countDown();
+                start.await(5, TimeUnit.SECONDS);
+                tasks.startDueRetries();
+                return null;
+            });
+            Future<?> secondMonitor = pool.submit(() -> {
+                ready.countDown();
+                start.await(5, TimeUnit.SECONDS);
+                tasks.startDueRetries();
+                return null;
+            });
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            firstMonitor.get(20, TimeUnit.SECONDS);
+            secondMonitor.get(20, TimeUnit.SECONDS);
+        }
+        AttemptRow second = tasks.attempts(task.id()).getFirst();
+        assertThat(tasks.attempts(task.id())).hasSize(2);
+        tasks.sessionFailed(task.id(), second.id(), "NETWORK", "temporary transport failure again");
+
+        assertThat(tasks.retrySchedule(task.id()).ordinal()).isEqualTo(2);
+        assertThat(tasks.retrySchedule(task.id()).delaySeconds()).isEqualTo(20);
+    }
+
+    @Test
+    void pauseFreezesRetryWaitAndCancelClosesTheSchedule() throws Exception {
+        ProjectRow project = projects.create("retry-pause", gitProject());
+        TaskRow task = drafts.confirm(drafts.create(spec(project.id())).id(), "retry pause");
+        tasks.start(task.id());
+        tasks.sessionFailed(task.id(), tasks.attempts(task.id()).getFirst().id(), "NETWORK", "temporary failure");
+
+        assertThat(tasks.pause(task.id()).state()).isEqualTo("PAUSED");
+        assertThat(tasks.retrySchedule(task.id()).state()).isEqualTo("PAUSED");
+        assertThat(tasks.resume(task.id()).state()).isEqualTo("RETRY_WAIT");
+        assertThat(tasks.retrySchedule(task.id()).state()).isEqualTo("SCHEDULED");
+
+        assertThat(tasks.cancel(task.id()).state()).isEqualTo("CANCELLED");
+        assertThat(tasks.retrySchedule(task.id())).isNull();
+        assertThat(jdbc.queryForObject("SELECT state FROM task_retry_schedule WHERE task_id=?", String.class, task.id()))
+                .isEqualTo("CANCELLED");
     }
 
     @Test
@@ -424,17 +494,18 @@ class TaskServiceIntegrationTest {
         tasks.start(task.id());
         AttemptRow first = tasks.attempts(task.id()).getFirst();
         ExecutionSessionRow active = mapper.activeSessions(task.id()).getFirst();
-        ((FakeOpenCodeClient) openCode).setSessionStatus(active.externalSessionId(), "RETRY", "Free usage exceeded");
+        ((FakeOpenCodeClient) openCode).setSessionStatus(active.externalSessionId(), "RETRY", "Requests are too frequent");
 
         monitor.poll();
 
-        assertThat(tasks.get(task.id()).state()).isEqualTo("RUNNING");
-        assertThat(tasks.attempts(task.id())).hasSize(2);
+        assertThat(tasks.get(task.id()).state()).isEqualTo("RETRY_WAIT");
+        assertThat(tasks.retrySchedule(task.id()).cause()).isEqualTo("RATE_LIMIT");
+        assertThat(tasks.retrySchedule(task.id()).delaySeconds()).isEqualTo(60);
+        assertThat(tasks.attempts(task.id())).hasSize(1);
         assertThat(tasks.attempts(task.id()).stream().filter(attempt -> attempt.id().equals(first.id())).findFirst().orElseThrow().state())
                 .isEqualTo("SESSION_ERROR");
-        assertThat(tasks.attempts(task.id())).anyMatch(attempt -> attempt.state().equals("RUNNING"));
         assertThat(tasks.errors(task.id())).anyMatch(error -> error.layer().equals(ErrorLayer.SESSION.name())
-                && error.code().equals("OPENCODE_SESSION_RETRY") && error.message().contains("Free usage exceeded"));
+                && error.code().equals("OPENCODE_SESSION_RETRY") && error.message().contains("too frequent"));
     }
 
     @Test
@@ -569,6 +640,8 @@ class TaskServiceIntegrationTest {
         tasks.sessionFailed(task.id(), attempt.id(), "SESSION_TRANSPORT_FAILED", "test transport failure");
 
         assertThat(abortInvoked).isTrue();
+        assertThat(tasks.get(task.id()).state()).isEqualTo("RETRY_WAIT");
+        startScheduledRetryNow(task.id());
         assertThat(tasks.get(task.id()).state()).isEqualTo("RUNNING");
         assertThat(tasks.attempts(task.id())).hasSize(2);
     }
@@ -840,7 +913,7 @@ class TaskServiceIntegrationTest {
         String baseline = mapper.findStageWorkspaceBaseline(secondStage.id()).orElseThrow().baselineRef();
 
         TaskRow afterNoOp = tasks.verify(task.id());
-        assertThat(afterNoOp.state()).as(tasks.errors(task.id()).toString()).isEqualTo("RUNNING");
+        assertThat(afterNoOp.state()).as(tasks.errors(task.id()).toString()).isEqualTo("RETRY_WAIT");
         AttemptRow firstStageTwoAttempt = tasks.attempts(task.id()).stream()
                 .filter(attempt -> attempt.stageId().equals(secondStage.id()) && attempt.ordinal() == 1)
                 .findFirst().orElseThrow();
@@ -856,8 +929,9 @@ class TaskServiceIntegrationTest {
                         .contains("\"changedPaths\":[]"));
         assertThat(mapper.findStageWorkspaceBaseline(secondStage.id()).orElseThrow().baselineRef()).isEqualTo(baseline);
 
+        startScheduledRetryNow(task.id());
         Files.writeString(root.resolve("first.txt"), "changed by the later stage");
-        assertThat(tasks.verify(task.id()).state()).isEqualTo("RUNNING");
+        assertThat(tasks.verify(task.id()).state()).isEqualTo("RETRY_WAIT");
         AttemptRow secondStageTwoAttempt = tasks.attempts(task.id()).stream()
                 .filter(attempt -> attempt.stageId().equals(secondStage.id()) && attempt.ordinal() == 2)
                 .findFirst().orElseThrow();
@@ -872,6 +946,7 @@ class TaskServiceIntegrationTest {
                 .singleElement().satisfies(artifact -> assertThat(artifact.content())
                         .contains("\"changedPaths\":[\"first.txt\"]"));
         assertThat(mapper.findStageWorkspaceBaseline(secondStage.id()).orElseThrow().baselineRef()).isEqualTo(baseline);
+        startScheduledRetryNow(task.id());
     }
 
     @Test
@@ -884,7 +959,10 @@ class TaskServiceIntegrationTest {
         int promptCalls = ((FakeOpenCodeClient) openCode).promptCalls();
         assertThat(jdbc.update("DELETE FROM stage_workspace_baseline WHERE stage_id=?", stage.id())).isEqualTo(1);
 
-        TaskRow failed = tasks.sessionFailed(task.id(), attempt.id(), "NETWORK", "retry legacy stage");
+        TaskRow waiting = tasks.sessionFailed(task.id(), attempt.id(), "NETWORK", "retry legacy stage");
+        assertThat(waiting.state()).isEqualTo("RETRY_WAIT");
+        startScheduledRetryNow(task.id());
+        TaskRow failed = tasks.get(task.id());
 
         assertThat(failed.state()).isEqualTo("FAILED");
         assertThat(tasks.attempts(task.id())).hasSize(1);
@@ -908,7 +986,10 @@ class TaskServiceIntegrationTest {
         assertThat(index).isRegularFile();
         Files.delete(index);
 
-        TaskRow failed = tasks.sessionFailed(task.id(), attempt.id(), "NETWORK", "retry without baseline storage");
+        TaskRow waiting = tasks.sessionFailed(task.id(), attempt.id(), "NETWORK", "retry without baseline storage");
+        assertThat(waiting.state()).isEqualTo("RETRY_WAIT");
+        startScheduledRetryNow(task.id());
+        TaskRow failed = tasks.get(task.id());
 
         assertThat(failed.state()).isEqualTo("FAILED");
         assertThat(tasks.attempts(task.id())).hasSize(1);
@@ -1293,12 +1374,17 @@ class TaskServiceIntegrationTest {
         task = tasks.start(task.id());
         String externalSessionId = mapper.activeSessions(task.id()).getFirst().externalSessionId();
         tasks.recoverAfterRestart();
-        assertThat(tasks.get(task.id()).state()).isEqualTo("RUNNING");
+        assertThat(tasks.get(task.id()).state()).isEqualTo("RETRY_WAIT");
         assertThat(openCode.sessionStatus(new OpenCodeClient.OpenCodeSession(externalSessionId, Path.of(task.worktreePath()))).state())
                 .isEqualTo("ABORTED");
-        assertThat(tasks.attempts(task.id())).hasSize(2);
+        assertThat(tasks.attempts(task.id())).hasSize(1);
         assertThat(tasks.attempts(task.id())).anySatisfy(attempt -> assertThat(attempt.state()).isEqualTo("SESSION_ERROR"));
-        assertThat(tasks.attempts(task.id())).anySatisfy(attempt -> assertThat(attempt.state()).isEqualTo("RUNNING"));
+        assertThat(tasks.retrySchedule(task.id()).cause()).isEqualTo("SESSION");
+        jdbc.update("UPDATE task_retry_schedule SET due_at=? WHERE task_id=? AND state='SCHEDULED'",
+                Instant.EPOCH.toString(), task.id());
+        tasks.startDueRetries();
+        assertThat(tasks.get(task.id()).state()).isEqualTo("RUNNING");
+        assertThat(tasks.attempts(task.id())).hasSize(2).anyMatch(attempt -> attempt.state().equals("RUNNING"));
         assertThat(tasks.errors(task.id())).anyMatch(error -> error.code().equals("RUNTIME_RESTART"));
     }
 
@@ -1653,13 +1739,15 @@ class TaskServiceIntegrationTest {
 
         TaskRow retrying = tasks.verify(task.id());
 
-        assertThat(retrying.state()).isEqualTo("RUNNING");
-        assertThat(tasks.attempts(task.id())).hasSize(2);
+        assertThat(retrying.state()).isEqualTo("RETRY_WAIT");
+        assertThat(tasks.attempts(task.id())).hasSize(1);
         assertThat(tasks.artifacts(task.id())).filteredOn(artifact -> artifact.kind().equals("ATTEMPT_HANDOFF"))
                 .singleElement().satisfies(artifact -> {
                     assertThat(artifact.content()).contains("\"workspaceReliable\":true", "\"consecutiveStagnationCount\":1");
                     assertThat(artifact.content().length()).isLessThan(40_000);
         });
+        startScheduledRetryNow(task.id());
+        assertThat(tasks.attempts(task.id())).hasSize(2);
         ExecutionSessionRow retrySession = mapper.activeSessions(task.id()).getFirst();
         String retryPrompt = ((FakeOpenCodeClient) openCode).promptForSession(retrySession.externalSessionId());
         assertThat(retryPrompt.length()).isLessThan(20_000);
@@ -1679,6 +1767,7 @@ class TaskServiceIntegrationTest {
         tasks.start(task.id());
 
         tasks.verify(task.id());
+        startScheduledRetryNow(task.id());
         TaskRow waiting = tasks.verify(task.id());
 
         assertThat(waiting.state()).isEqualTo("WAITING_INPUT");
@@ -1712,6 +1801,7 @@ class TaskServiceIntegrationTest {
         TaskRow task = drafts.confirm(drafts.create(stagnant).id(), "reject corrupt handoff");
         tasks.start(task.id());
         tasks.verify(task.id());
+        startScheduledRetryNow(task.id());
         tasks.verify(task.id());
         int attemptsBefore = tasks.attempts(task.id()).size();
         jdbc.update("UPDATE task_artifact SET content=? WHERE task_id=? AND kind='ATTEMPT_HANDOFF'", "{", task.id());
@@ -1732,6 +1822,7 @@ class TaskServiceIntegrationTest {
         TaskRow task = drafts.confirm(drafts.create(stagnant).id(), "project current waiting reason");
         tasks.start(task.id());
         tasks.verify(task.id());
+        startScheduledRetryNow(task.id());
         tasks.verify(task.id());
 
         assertThat(tasks.loopRetryStatus(task.id())).isEqualTo(
@@ -1752,10 +1843,13 @@ class TaskServiceIntegrationTest {
         task = tasks.start(task.id());
 
         tasks.verify(task.id());
+        startScheduledRetryNow(task.id());
         Files.writeString(Path.of(task.worktreePath()).resolve("README.md"), "different work without the required marker");
         TaskRow retrying = tasks.verify(task.id());
 
-        assertThat(retrying.state()).isEqualTo("RUNNING");
+        assertThat(retrying.state()).isEqualTo("RETRY_WAIT");
+        assertThat(tasks.attempts(task.id())).hasSize(2);
+        startScheduledRetryNow(task.id());
         assertThat(tasks.attempts(task.id())).hasSize(3);
         assertThat(tasks.errors(task.id())).noneMatch(error -> error.code().equals("LOOP_STAGNATION_DETECTED"));
         assertThat(tasks.artifacts(task.id())).filteredOn(artifact -> artifact.kind().equals("ATTEMPT_HANDOFF"))
@@ -1779,14 +1873,19 @@ class TaskServiceIntegrationTest {
 
     @Test
     void workPackageAttemptPoolReservesTheUnstartedStagesFirstAttempt() throws Exception {
+        int originalStageLimit = properties.getMaxStageAttempts();
+        properties.setMaxStageAttempts(5);
         ProjectRow project = projects.create("package-attempt-pool", gitProject());
         TaskRow task = drafts.confirm(drafts.create(packageAttemptSpec(project.id())).id(),
                 "reserve later stage attempt");
         tasks.start(task.id());
 
-        assertThat(tasks.verify(task.id()).state()).isEqualTo("RUNNING");
-        assertThat(tasks.verify(task.id()).state()).isEqualTo("RUNNING");
+        assertThat(tasks.verify(task.id()).state()).isEqualTo("RETRY_WAIT");
+        startScheduledRetryNow(task.id());
+        assertThat(tasks.verify(task.id()).state()).isEqualTo("RETRY_WAIT");
+        startScheduledRetryNow(task.id());
         TaskRow failed = tasks.verify(task.id());
+        properties.setMaxStageAttempts(originalStageLimit);
 
         assertThat(failed.state()).isEqualTo("FAILED");
         assertThat(tasks.attempts(task.id())).hasSize(3);
@@ -1796,6 +1895,12 @@ class TaskServiceIntegrationTest {
             assertThat(error.code()).isEqualTo("WORK_PACKAGE_ATTEMPT_LIMIT_EXHAUSTED");
             assertThat(error.message()).contains("independent attempt pool of 4", "reserving one first attempt");
         });
+    }
+
+    private void startScheduledRetryNow(String taskId) {
+        assertThat(jdbc.update("UPDATE task_retry_schedule SET due_at=? WHERE task_id=? AND state='SCHEDULED'",
+                Instant.EPOCH.toString(), taskId)).isEqualTo(1);
+        tasks.startDueRetries();
     }
 
     private LoopSpec spec(String projectId) {

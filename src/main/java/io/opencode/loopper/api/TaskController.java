@@ -13,6 +13,7 @@ import io.opencode.loopper.persistence.StageRow;
 import io.opencode.loopper.persistence.TaskEventRow;
 import io.opencode.loopper.persistence.TaskArtifactRow;
 import io.opencode.loopper.persistence.TaskRow;
+import io.opencode.loopper.persistence.TaskRetryScheduleRow;
 import io.opencode.loopper.persistence.TaskDecompositionRow;
 import io.opencode.loopper.persistence.VerificationResultRow;
 import io.opencode.loopper.domain.LoopSpec;
@@ -293,8 +294,12 @@ public class TaskController {
         LoopSpec spec = draft == null ? null : drafts.spec(draft);
         List<AttemptRow> attempts = service.attempts(task.id());
         TaskService.LoopRetryStatus loopRetry = service.loopRetryStatus(task.id());
+        TaskRetryScheduleRow retry = service.retrySchedule(task.id());
         List<StageRow> stageRows = service.stages(task.id());
         return new TaskDto(task.id(), task.projectId(), projectName, task.title(), spec == null ? "" : spec.goal(), task.branchName(), task.worktreePath(), task.state(),
+                retry == null ? null : retry.cause(), retry == null ? null : retry.ordinal(),
+                retry == null ? null : retry.createdAt(), retry == null ? null : retry.dueAt(),
+                retry == null ? null : retry.delaySeconds(),
                 loopRetry.waitingReasonCode(), loopRetry.loopRetryAvailable(),
                 draft != null, service.archived(task.id()),
                 attempts.size(), spec == null ? 0 : spec.limits().maxTaskAttempts(), task.createdAt(), task.updatedAt(),
@@ -304,7 +309,9 @@ public class TaskController {
     }
     public record SseData(String type, String at, JsonNode data) { }
     public record TaskDto(String id, String projectId, String projectName, String title, String goal, String branch,
-                          String worktreePath, String status, String waitingReasonCode, boolean loopRetryAvailable,
+                          String worktreePath, String status, String retryCause, Integer retryOrdinal,
+                          String retryScheduledAt, String retryDueAt, Integer retryDelaySeconds,
+                          String waitingReasonCode, boolean loopRetryAvailable,
                           boolean hasDesignHistory, boolean archived, int attemptCount, int maxAttempts, String createdAt,
                           String updatedAt, List<StageDto> stages, List<WorkPackageProgressDto> workPackages,
                           List<AttemptDto> attempts, List<ErrorDto> errors,

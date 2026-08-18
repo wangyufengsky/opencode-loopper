@@ -22,6 +22,7 @@ public class LoopperProperties {
     private String allowedRoot = "";
     /** Follow-up abort attempts after a mutating Session could not be confirmed stopped. */
     private int abortCleanupAttempts = 3;
+    private RetryWait retryWait = new RetryWait();
     private Mcp mcp = new Mcp();
     private OpenCode openCode = new OpenCode();
     private Publication publication = new Publication();
@@ -49,6 +50,28 @@ public class LoopperProperties {
     public void setAllowedRoot(String value) { this.allowedRoot = value; }
     public int getAbortCleanupAttempts() { return abortCleanupAttempts; }
     public void setAbortCleanupAttempts(int value) { this.abortCleanupAttempts = value; }
+    public RetryWait getRetryWait() { return retryWait; }
+    public void setRetryWait(RetryWait value) { this.retryWait = value == null ? new RetryWait() : value; }
+    public static class RetryWait {
+        private Duration rateLimitBase = Duration.ofSeconds(60);
+        private Duration rateLimitMax = Duration.ofSeconds(300);
+        private Duration sessionBase = Duration.ofSeconds(10);
+        private Duration sessionMax = Duration.ofSeconds(60);
+        private Duration verificationBase = Duration.ofSeconds(5);
+        private Duration verificationMax = Duration.ofSeconds(30);
+        public Duration getRateLimitBase() { return rateLimitBase; }
+        public void setRateLimitBase(Duration value) { this.rateLimitBase = value; }
+        public Duration getRateLimitMax() { return rateLimitMax; }
+        public void setRateLimitMax(Duration value) { this.rateLimitMax = value; }
+        public Duration getSessionBase() { return sessionBase; }
+        public void setSessionBase(Duration value) { this.sessionBase = value; }
+        public Duration getSessionMax() { return sessionMax; }
+        public void setSessionMax(Duration value) { this.sessionMax = value; }
+        public Duration getVerificationBase() { return verificationBase; }
+        public void setVerificationBase(Duration value) { this.verificationBase = value; }
+        public Duration getVerificationMax() { return verificationMax; }
+        public void setVerificationMax(Duration value) { this.verificationMax = value; }
+    }
     public Mcp getMcp() { return mcp; }
     public void setMcp(Mcp value) { this.mcp = value; }
     public static class Mcp {

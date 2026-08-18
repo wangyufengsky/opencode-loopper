@@ -40,6 +40,9 @@ class ReleasePackagingContractTest {
 
         assertThat(windows)
                 .contains("opencode-loopper-0.1.73.jar")
+                .contains("STARTUP_OVERRIDES=%LOOPPER_DATA_DIR%\\config\\startup-overrides.properties")
+                .contains("$line.Split('=',2)")
+                .contains("if not defined SERVER_PORT set \"SERVER_PORT=%%L\"")
                 .contains("LOOPPER_PUBLICATION_HTTP_WEB_HOSTS=gitlab.spdb.com")
                 .contains("LOOPPER_GITLAB_HOST=gitlab.spdb.com")
                 .contains("LOOPPER_GITLAB_API_BASE_URL=http://gitlab.spdb.com/api/v4")
@@ -54,12 +57,15 @@ class ReleasePackagingContractTest {
                 .contains("call :start_background \"Loopper Start Validation\"")
                 .contains("%WAIT_URL%/actuator/health")
                 .contains("-jar \"%JAR_PATH%\"")
+                .doesNotContain("call \"%STARTUP_OVERRIDES%\"")
                 .doesNotContain("127.0.0.1:4096")
                 .doesNotContain("serve --hostname 127.0.0.1 --port 4096");
 
         assertThat(linux)
                 .contains("opencode-loopper-0.1.73.jar")
-                .contains("LOOPPER_PUBLICATION_HTTP_WEB_HOSTS=\"gitlab.spdb.com")
+                .contains("STARTUP_OVERRIDES=\"${LOOPPER_DATA_DIR}/config/startup-overrides.properties\"")
+                .contains("printf -v \"${key}\" '%s' \"${value}\"")
+                .contains("LOOPPER_PUBLICATION_HTTP_WEB_HOSTS=\"${LOOPPER_PUBLICATION_HTTP_WEB_HOSTS:-gitlab.spdb.com}\"")
                 .contains("LOOPPER_GITLAB_HOST=\"${LOOPPER_GITLAB_HOST:-gitlab.spdb.com}\"")
                 .contains("LOOPPER_GITLAB_API_BASE_URL=\"${LOOPPER_GITLAB_API_BASE_URL:-http://gitlab.spdb.com/api/v4}\"")
                 .contains("discover_opencode_base_url()")
@@ -73,6 +79,8 @@ class ReleasePackagingContractTest {
                 .contains("running opencode process")
                 .contains("LOOPPER_OPENCODE_MODE=\"auto\"")
                 .contains("动态 loopback 端口")
+                .doesNotContain("source \"${STARTUP_OVERRIDES}\"")
+                .doesNotContain("eval ")
                 .doesNotContain("127.0.0.1:4096");
     }
 
@@ -151,6 +159,52 @@ class ReleasePackagingContractTest {
                 .contains("JAVA_OPENCODE_MODE=auto");
     }
 
+    @Test
+    @EnabledOnOs({OS.LINUX, OS.MAC})
+    void linuxStartupUsesEnvironmentThenSettingsFileThenScriptDefaults() throws Exception {
+        Path bin = Files.createDirectories(tempDir.resolve("settings-bin"));
+        Path javaHome = fakeJavaHome();
+        Path jar = Files.writeString(tempDir.resolve("settings-loopper.jar"), "test");
+        executable(bin.resolve("ps"), "#!/usr/bin/env bash\nprintf '999 unrelated-service\\n'\n");
+        executable(bin.resolve("lsof"), "#!/usr/bin/env bash\nexit 0\n");
+        executable(bin.resolve("ss"), "#!/usr/bin/env bash\nexit 0\n");
+        executable(bin.resolve("curl"), "#!/usr/bin/env bash\nexit 22\n");
+        executable(bin.resolve("opencode"), "#!/usr/bin/env bash\nexit 0\n");
+        Path config = Files.createDirectories(tempDir.resolve("data/config")).resolve("startup-overrides.properties");
+        Files.writeString(config, """
+                SERVER_PORT=9090
+                LOOPPER_RETRY_SESSION_BASE=20s
+                LOOPPER_ALLOWED_ROOT=/tmp/project dir & more
+                UNKNOWN_STARTUP_KEY=ignored
+                """);
+
+        String output = runLinuxStartup(bin, javaHome, jar, Map.of("SERVER_PORT", "7070"));
+
+        assertThat(output)
+                .contains("JAVA_SERVER_PORT=7070")
+                .contains("JAVA_RETRY_SESSION_BASE=20s")
+                .contains("JAVA_RETRY_SESSION_MAX=")
+                .contains("JAVA_ALLOWED_ROOT=/tmp/project dir & more")
+                .contains("忽略启动配置中的未知键：UNKNOWN_STARTUP_KEY");
+    }
+
+    @Test
+    @EnabledOnOs({OS.LINUX, OS.MAC})
+    void linuxStartupRejectsAnInvalidKnownSettingsFileValue() throws Exception {
+        Path config = Files.createDirectories(tempDir.resolve("data/config")).resolve("startup-overrides.properties");
+        Files.writeString(config, "SERVER_PORT=not-a-port\n");
+        ProcessBuilder builder = new ProcessBuilder("bash", PROJECT_ROOT.resolve("scripts/start-linux.sh").toString());
+        builder.environment().put("LOOPPER_DATA_DIR", tempDir.resolve("data").toString());
+        builder.environment().remove("SERVER_PORT");
+        builder.redirectErrorStream(true);
+
+        Process process = builder.start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+
+        assertThat(process.waitFor()).isEqualTo(1);
+        assertThat(output).contains("启动配置 SERVER_PORT 的值无效");
+    }
+
     private void assertLinuxTuiDiscovery(String listenerTool) throws Exception {
         Path bin = Files.createDirectories(tempDir.resolve("bin"));
         Path javaHome = fakeJavaHome();
@@ -185,10 +239,11 @@ class ReleasePackagingContractTest {
                   echo 'openjdk version "21.0.2"' >&2
                   exit 0
                 fi
-                printf 'JAVA_OPENCODE_BASE_URL=%s\nJAVA_OPENCODE_MODE=%s\nJAVA_OPENCODE_USERNAME=%s\nJAVA_OPENCODE_PASSWORD_SET=%s\nJAVA_OPENCODE_EXECUTABLE=%s\nJAVA_HTTP_WEB_HOSTS=%s\n' \
+                printf 'JAVA_OPENCODE_BASE_URL=%s\nJAVA_OPENCODE_MODE=%s\nJAVA_OPENCODE_USERNAME=%s\nJAVA_OPENCODE_PASSWORD_SET=%s\nJAVA_OPENCODE_EXECUTABLE=%s\nJAVA_HTTP_WEB_HOSTS=%s\nJAVA_SERVER_PORT=%s\nJAVA_RETRY_SESSION_BASE=%s\nJAVA_RETRY_SESSION_MAX=%s\nJAVA_ALLOWED_ROOT=%s\n' \
                   "${OPENCODE_BASE_URL:-}" "${LOOPPER_OPENCODE_MODE:-}" "${OPENCODE_USERNAME:-}" \
                   "$([[ -n "${OPENCODE_PASSWORD:-}" ]] && printf true || printf false)" "${OPENCODE_EXECUTABLE:-}" \
-                  "${LOOPPER_PUBLICATION_HTTP_WEB_HOSTS:-}"
+                  "${LOOPPER_PUBLICATION_HTTP_WEB_HOSTS:-}" "${SERVER_PORT:-}" \
+                  "${LOOPPER_RETRY_SESSION_BASE:-}" "${LOOPPER_RETRY_SESSION_MAX:-}" "${LOOPPER_ALLOWED_ROOT:-}"
                 """);
         return javaHome;
     }

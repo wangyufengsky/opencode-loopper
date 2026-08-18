@@ -42,8 +42,12 @@ const session: DesignerSession = {
 }
 
 const settings: AppSettings = {
-  cliPath: 'opencode', allowedRoot: '/tmp', provider: 'openai', model: 'gpt-5',
-  maxTaskAttempts: 7, timeoutMinutes: 45, autoApprove: false,
+  runtime: { serverPort: 8080, openBrowser: true, allowedRoot: '/tmp', monitorDelaySeconds: 2, designerMonitorDelayMillis: 750, abortCleanupAttempts: 3 },
+  openCode: { cliPath: 'opencode', mode: 'auto', baseUrl: 'http://127.0.0.1:4096', provider: 'openai', model: 'gpt-5', connectTimeoutSeconds: 5, requestTimeoutSeconds: 30, startupTimeoutSeconds: 15 },
+  limits: { maxStageAttempts: 3, maxTaskAttempts: 7, sessionErrorLimit: 3, maxDurationMinutes: 120, attemptTimeoutMinutes: 45, verifierTimeoutMinutes: 10, designerTimeoutMinutes: 30 },
+  retryWait: { rateLimitBaseSeconds: 60, rateLimitMaxSeconds: 300, sessionBaseSeconds: 10, sessionMaxSeconds: 60, verificationBaseSeconds: 5, verificationMaxSeconds: 30 },
+  publication: { httpWebHosts: ['gitlab.spdb.com'], gitlabHost: 'gitlab.spdb.com', gitlabApiBaseUrl: 'http://gitlab.spdb.com/api/v4', connectTimeoutSeconds: 3, requestTimeoutSeconds: 10 },
+  appliedLiveFields: [], restartRequiredFields: [],
 }
 
 function draftFrom(spec: LoopSpec): LoopDraft {

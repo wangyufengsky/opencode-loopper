@@ -158,4 +158,21 @@ describe('Tasks filters and design history', () => {
 
     expect(router.currentRoute.value.path).toBe('/tasks/new-a/design')
   })
+
+  it('shows the persisted RETRY_WAIT countdown in the task list', async () => {
+    useTaskStore().tasks.unshift({
+      id: 'retry-a', projectId: 'project-a', projectName: '项目 A', title: '等待重试任务', goal: 'retry',
+      branch: 'DIRECT', worktreePath: '/a', status: 'RETRY_WAIT', hasDesignHistory: true,
+      attemptCount: 1, maxAttempts: 3, retryCause: 'RATE_LIMIT', retryOrdinal: 1,
+      retryDelaySeconds: 60, retryScheduledAt: new Date().toISOString(),
+      retryDueAt: new Date(Date.now() + 30_000).toISOString(),
+      createdAt: '2026-08-18T08:00:00Z', updatedAt: '2026-08-18T09:00:00Z',
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+    const row = wrapper.findAll('.table-row').find((candidate) => candidate.text().includes('等待重试任务'))
+
+    expect(row?.text()).toMatch(/(?:29|30)s/)
+  })
 })

@@ -25,6 +25,7 @@ class TaskMonitor {
     }
     @Scheduled(fixedDelayString = "${loopper.monitor-delay:2s}")
     void poll() {
+        tasks.startDueRetries();
         // Task terminality and remote writer terminality are separate facts. A
         // failed/cancelled Task never starts another Attempt, but an unconfirmed
         // abort keeps a persisted, bounded cleanup obligation across restarts.

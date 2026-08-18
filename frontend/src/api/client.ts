@@ -341,7 +341,7 @@ function normalizeTask(value: unknown): Task {
   const stages = asArray(raw.stages).map((stage) => normalizeStage(stage, attempts))
   const taskId = asString(raw.id)
   const workPackages = asArray(raw.workPackages).map((value) => { const item = asRecord(value); return { id: asString(item.id), ordinal: asNumber(item.ordinal), status: asString(item.status) as NonNullable<Task['workPackages']>[number]['status'], stageCount: asNumber(item.stageCount), completedStages: asNumber(item.completedStages), attemptCount: asNumber(item.attemptCount), attemptLimit: asNumber(item.attemptLimit) } })
-  return { id: taskId, projectId: asString(raw.projectId), projectName: asString(raw.projectName, 'Unknown project'), title: asString(raw.title), goal: asString(raw.goal), branch: asString(raw.branch) || '等待选择执行模式', worktreePath: asString(raw.worktreePath) || '等待准备执行目录', status: asString(raw.status) as Task['status'], waitingReasonCode: asString(raw.waitingReasonCode) || undefined, loopRetryAvailable: raw.loopRetryAvailable === true, hasDesignHistory: raw.hasDesignHistory === true, archived: raw.archived === true, activeStage: stages.find((stage) => stage.status === 'RUNNING')?.ordinal, attemptCount: asNumber(raw.attemptCount, attempts.length), maxAttempts: asNumber(raw.maxAttempts, 12), createdAt: asString(raw.createdAt), updatedAt: asString(raw.updatedAt), stages, workPackages, attempts, errors: asArray(raw.errors).map(normalizeError), judges: asArray(raw.judges).map(normalizeJudge), artifacts: asArray(raw.artifacts).map((artifact) => normalizeArtifact(artifact, taskId)) }
+  return { id: taskId, projectId: asString(raw.projectId), projectName: asString(raw.projectName, 'Unknown project'), title: asString(raw.title), goal: asString(raw.goal), branch: asString(raw.branch) || '等待选择执行模式', worktreePath: asString(raw.worktreePath) || '等待准备执行目录', status: asString(raw.status) as Task['status'], retryCause: ['RATE_LIMIT', 'SESSION', 'VERIFICATION'].includes(asString(raw.retryCause)) ? asString(raw.retryCause) as Task['retryCause'] : undefined, retryOrdinal: typeof raw.retryOrdinal === 'number' ? raw.retryOrdinal : undefined, retryScheduledAt: asString(raw.retryScheduledAt) || undefined, retryDueAt: asString(raw.retryDueAt) || undefined, retryDelaySeconds: typeof raw.retryDelaySeconds === 'number' ? raw.retryDelaySeconds : undefined, waitingReasonCode: asString(raw.waitingReasonCode) || undefined, loopRetryAvailable: raw.loopRetryAvailable === true, hasDesignHistory: raw.hasDesignHistory === true, archived: raw.archived === true, activeStage: stages.find((stage) => stage.status === 'RUNNING')?.ordinal, attemptCount: asNumber(raw.attemptCount, attempts.length), maxAttempts: asNumber(raw.maxAttempts, 12), createdAt: asString(raw.createdAt), updatedAt: asString(raw.updatedAt), stages, workPackages, attempts, errors: asArray(raw.errors).map(normalizeError), judges: asArray(raw.judges).map(normalizeJudge), artifacts: asArray(raw.artifacts).map((artifact) => normalizeArtifact(artifact, taskId)) }
 }
 
 function normalizeTaskQueueStatus(value: unknown): TaskQueueStatus {
@@ -537,14 +537,20 @@ function normalizeRuntime(value: unknown): RuntimeInfo {
 
 function normalizeSettings(value: unknown): AppSettings {
   const raw = asRecord(value)
+  const runtime = asRecord(raw.runtime)
+  const openCode = asRecord(raw.openCode)
+  const limits = asRecord(raw.limits)
+  const retryWait = asRecord(raw.retryWait)
+  const publication = asRecord(raw.publication)
   return {
-    cliPath: asString(raw.cliPath, 'opencode'),
-    allowedRoot: asString(raw.allowedRoot),
-    provider: asString(raw.provider),
-    model: asString(raw.model),
-    maxTaskAttempts: asNumber(raw.maxTaskAttempts, 12),
-    timeoutMinutes: asNumber(raw.timeoutMinutes, 30),
-    autoApprove: raw.autoApprove === true,
+    runtime: { serverPort: asNumber(runtime.serverPort, 8080), openBrowser: runtime.openBrowser !== false, allowedRoot: asString(runtime.allowedRoot), monitorDelaySeconds: asNumber(runtime.monitorDelaySeconds, 2), designerMonitorDelayMillis: asNumber(runtime.designerMonitorDelayMillis, 750), abortCleanupAttempts: asNumber(runtime.abortCleanupAttempts, 3) },
+    openCode: { cliPath: asString(openCode.cliPath, 'opencode'), mode: asString(openCode.mode) === 'http' ? 'http' : 'auto', baseUrl: asString(openCode.baseUrl, 'http://127.0.0.1:4096'), provider: asString(openCode.provider), model: asString(openCode.model), connectTimeoutSeconds: asNumber(openCode.connectTimeoutSeconds, 5), requestTimeoutSeconds: asNumber(openCode.requestTimeoutSeconds, 30), startupTimeoutSeconds: asNumber(openCode.startupTimeoutSeconds, 15) },
+    limits: { maxStageAttempts: asNumber(limits.maxStageAttempts, 3), maxTaskAttempts: asNumber(limits.maxTaskAttempts, 12), sessionErrorLimit: asNumber(limits.sessionErrorLimit, 3), maxDurationMinutes: asNumber(limits.maxDurationMinutes, 120), attemptTimeoutMinutes: asNumber(limits.attemptTimeoutMinutes, 30), verifierTimeoutMinutes: asNumber(limits.verifierTimeoutMinutes, 10), designerTimeoutMinutes: asNumber(limits.designerTimeoutMinutes, 30) },
+    retryWait: { rateLimitBaseSeconds: asNumber(retryWait.rateLimitBaseSeconds, 60), rateLimitMaxSeconds: asNumber(retryWait.rateLimitMaxSeconds, 300), sessionBaseSeconds: asNumber(retryWait.sessionBaseSeconds, 10), sessionMaxSeconds: asNumber(retryWait.sessionMaxSeconds, 60), verificationBaseSeconds: asNumber(retryWait.verificationBaseSeconds, 5), verificationMaxSeconds: asNumber(retryWait.verificationMaxSeconds, 30) },
+    publication: { httpWebHosts: asArray(publication.httpWebHosts).map(String), gitlabHost: asString(publication.gitlabHost, 'gitlab.spdb.com'), gitlabApiBaseUrl: asString(publication.gitlabApiBaseUrl, 'http://gitlab.spdb.com/api/v4'), connectTimeoutSeconds: asNumber(publication.connectTimeoutSeconds, 3), requestTimeoutSeconds: asNumber(publication.requestTimeoutSeconds, 10) },
+    startupConfigPath: asString(raw.startupConfigPath) || undefined,
+    appliedLiveFields: asArray(raw.appliedLiveFields).map(String),
+    restartRequiredFields: asArray(raw.restartRequiredFields).map(String),
     updatedAt: asString(raw.updatedAt) || undefined,
   }
 }

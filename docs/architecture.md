@@ -118,8 +118,8 @@ of evidence.
 
 An application restart follows the same Session boundary. Loopper best-effort
 aborts the old external Session, persists it and its Attempt as disconnected /
-`SESSION_ERROR`, and starts a fresh Attempt/Session automatically while limits
-remain. A Task-level failure closes every active Attempt and child Session; no
+`SESSION_ERROR`, and preserves or creates a persistent `RETRY_WAIT` schedule
+while limits remain. A Task-level failure closes every active Attempt and child Session; no
 child is allowed to remain `RUNNING` under a terminal Task.
 
 Task terminality does not fabricate remote terminality. If an abort and its
@@ -133,6 +133,26 @@ Before every Session retry, Loopper aborts the old mutating Session. If abort
 fails and that Session cannot be independently observed in a terminal state,
 safe continuation is impossible. Recovery then promotes the condition to
 `TASK/SESSION_ABORT_UNCONFIRMED` and does not start an overlapping writer.
+
+V31 persists one active retry schedule per Task. `RATE_LIMIT`, `SESSION`, and
+`VERIFICATION` use deterministic capped exponential delays of 60/300, 10/60,
+and 5/30 seconds by default. Provider 429, `too frequent`, and `rate limit`
+signals enter the first class. Only a confirmed-stopped old writer may create a
+schedule; the monitor atomically claims a due row before creating one fresh
+Attempt/Session. Restart keeps the recorded due time, and a historical
+`RETRY_WAIT` row without a schedule receives a normal Session delay rather than
+an immediate retry. Pause freezes the remaining seconds, resume re-arms that
+duration, and terminal Task states cancel the active row. Settings changes only
+affect schedules created afterward, so visible countdowns never move retroactively.
+
+The grouped settings document is stored in SQLite and mirrored to
+`${LOOPPER_DATA_DIR}/config/startup-overrides.properties` for the next process
+start. The file contains only a fixed non-secret whitelist. Its atomic replacement
+participates in the settings transaction through compensating restoration of the
+previous bytes on failure. Startup scripts parse keys and values as data without
+`source`, `eval`, or batch `call`; explicit process environment values win over
+the mirror, which wins over script defaults. Runtime safety limits are applied as
+the smaller of the global setting and the explicit LoopSpec value.
 
 ## Verification and final approval
 

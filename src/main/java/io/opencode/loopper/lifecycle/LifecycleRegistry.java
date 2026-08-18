@@ -87,6 +87,7 @@ public final class LifecycleRegistry {
                 .transition(TaskState.VERIFYING, PAUSE, TaskState.PAUSED)
                 .transition(TaskState.RETRY_WAIT, PAUSE, TaskState.PAUSED)
                 .transition(TaskState.PAUSED, RESUME, TaskState.RUNNING)
+                .transition(TaskState.PAUSED, RESUME_RETRY, TaskState.RETRY_WAIT)
                 .transition(TaskState.RUNNING, REQUIRE_INPUT, TaskState.WAITING_INPUT)
                 .transition(TaskState.VERIFYING, REQUIRE_INPUT, TaskState.WAITING_INPUT)
                 .transition(TaskState.QUEUED, REQUIRE_INPUT, TaskState.WAITING_INPUT)

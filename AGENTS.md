@@ -205,6 +205,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级由编排器负责。终止 Task 不能伪造远端 Session 已停止：无法确认的写入者保留为 `DISCONNECTED`，并阻止重叠写入。
 
+`RETRY_WAIT` 必须由 V31 持久化计划驱动，同一 Task 只允许一个 `SCHEDULED`/`PAUSED` 活动计划。限流、普通 Session、验证失败默认分别按 `60→120→240→300`、`10→20→40→60`、`5→10→20→30` 秒退避并保持上限，不加随机抖动；计划创建后到期时间不可被后续设置追溯修改。只有确认旧 writer 已停止后才能建计划，到期由 Monitor 原子领取并创建唯一新 Attempt/Session；重启保留计划，历史无计划等待按普通 Session 默认值补建。暂停冻结剩余时间，恢复继续等待，Task 成功/失败/取消关闭活动计划。
+
 `PENDING_START`、`QUEUED`、`READY` 与 `WAITING_INPUT` 任务必须在本地任务详情中保留直接取消入口；取消需二次确认并保留已有执行目录、分支和证据，不得伪装成回滚。`PENDING_START` 取消只改变自身 Task，必须保持无 Queue/Lease/分支/执行目录；`READY` 取消不得伪称正在停止尚未创建的 Session/验证器，并按既有终态安全检查恢复源分支与释放自身租约。取消排队任务只能取消自身队列项并进入 `CANCELLED`，不得释放或转移当前 holder 的写租约；进入终态后再按既有规则归档或删除。
 
 验证失败后的 Attempt 必须固化有界 `ATTEMPT_HANDOFF`，下一轮只能使用新 Attempt 和新可写 Session；不得复用旧实施对话。只有可靠且相同的失败签名与工作区内容指纹才累计停滞次数，达到 `stagnationLimit` 后必须进入 `WAITING_INPUT`，由本地 UI 明确确认继续。
@@ -429,6 +431,8 @@ Loopper 在动态 loopback 端口启动受管进程；不得把任意监听端�
 Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且必须在受认证的
 `/global/health` 返回 `healthy=true` 后才能显示连接成功。
 
+设置页保存的非敏感启动配置镜像固定为 `${LOOPPER_DATA_DIR}/config/startup-overrides.properties`。两平台脚本只能逐项解析白名单，禁止 `source`、`eval`、`call` 或执行文件内容；优先级固定为显式环境变量、页面文件、脚本默认值。未知键告警忽略，已知键格式非法必须终止。数据目录、Java Home、JAR 路径、MCP Token、OpenCode 密码和 GitLab Token 不得进入页面、数据库设置 JSON 或启动镜像，服务监听继续固定 loopback。
+
 ## 9. 文档同步规则
 
 | 变化 | 必须同步 |
@@ -482,6 +486,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-08-18 | 设置页、启动覆盖与持久化 RETRY_WAIT（本地提交，待与终态脏 holder 合并交付） | `/settings` 分为运行环境、OpenCode、执行上限、分类退避和发布配置；V31 持久化完整设置与单 Task 活动重试计划；双平台启动器按环境变量、页面文件、脚本默认值读取非敏感白名单；Session/验证失败经确认旧 writer 停止后按分类指数退避，支持重启、暂停/恢复和终态取消；同步 README、架构、七特性合同与本公约正文 | `bash -n` 通过；聚焦 Java 86/86、前端类型检查和 Vitest 77/77 通过；Windows 分支由静态契约覆盖，未在 macOS 实机执行。按用户明确要求不改 0.1.73 版本、不运行 `./scripts/verify.sh`、不生成新正式 JAR、不推送、不打标签、不发布 |
 | 2026-08-17 | Compiler 工程元条件容错、批量语义诊断与 0.1.73 交付 | Compiler 合同升级为 `2026-08-semantic-v2`：未被聚焦测试显式覆盖的代码风格、源码/注解/装配形态、构建/测试结果和交付卫生确定性降为冻结设计中的工程元数据并重排证据；单一 Java 聚焦测试可补齐同 Stage 剩余业务条件映射；语义预检一次返回全部错误码与 JSON Pointer；源码搜索仍不得作为行为 `SELF_CHECK`；同步 README、AI 角色、架构、Designer、OpenCode 合同与本公约正文 | 聚焦 Java 64/64；`./scripts/verify.sh` 通过：Java 418 项（0 失败、0 错误、1 项平台条件跳过）、Vitest 163/163；JAR `target/opencode-loopper-0.1.73.jar` 为 263152436 bytes，含 102 个静态入口/assets，SHA-256 `0a9d6dedc1752f4c24869995f6f19450815c0cc6d7b57a1278c2e02b0a728c29`。复制现有 V30 数据后在隔离 18073 对真实失败会话 `7caeb31c-8497-4b84-a190-92ddb9bd424c` 的 WP-1 重编译：一次模型调用直接进入 `REVIEWING`，格式/语义修复均为 0、`server_compiled=1`，3 个 Java Stage 的 7 条业务条件分别由 `BaseEventTest`、`EventRegistryTest`、`EventBusTest` 聚焦覆盖；隔离 Loopper/OpenCode 均已关闭，18073 已释放，8080 保持 0.1.72/PID 64781、health `UP`；GitHub Release 结果待标签触发后回填 |
 | 2026-08-17 | AI 角色轻量语义合同、服务端容错编译与 0.1.72 交付 | Decomposer 和 Compiler 只返回业务语义与证据意图，服务端派生状态、GC/WP/AC ID、需求引用、依赖、Designer 精确来源、测试目标和验证器关联并直接编译最终对象，不再请求 AI 抄写 final JSON；V30 分开持久化格式/语义修复计数和服务端编译标识，语义失败仅接受受限 JSON Patch 且补丁后重跑全合同；Judge 兼容唯一中英文判定/理由标签；新增 `docs/ai-role-contracts.md` 并同步 README、架构、Designer、OpenCode、验证器合同和本公约正文 | 聚焦修复及服务端编译测试通过；`./scripts/verify.sh` 通过：Java 414 项（0 失败、0 错误、1 项平台条件跳过）、Vitest 163/163；JAR `target/opencode-loopper-0.1.72.jar` 为 263143983 bytes，包含 Vue 静态资源，SHA-256 `b60f24271efb3a652d721ace6781a890218519accf08b9b5d95e2cf1c901bf5e`。隔离 18072 使用真实 DeepSeek/OpenCode 1.18.18 marker 模式完成两工作包到 `FINAL_REVIEW`：总模型调用 7 次，Decomposer 和 WP-2 Compiler 格式/语义修复均为 0，WP-1 的真实证据缺口经 1 次局部语义补丁后通过，三者均 `server_compiled=1`；指定的两个机械性错误码为 0，未创建 Task；隔离实例已关闭，8080 仍为 PID 93512 且 health `UP` |
 | 2026-08-17 | 拆分历史设计页并修复 Designer 操作边界，交付 0.1.71 | 新建设计页移除历史列表；新增 `/designs` 项目/状态/归档筛选、时间排序、继续/修改/归档/恢复；V29 持久化可恢复归档且不删除快照，旧浏览器指针不得自动重开已归档设计；项目入口改到历史页；页头动作换行、双栏宽度归零并在 Review Gate 补充最终确认入口；同步 README、架构、设计合同与本公约正文 | 聚焦发布/迁移/Designer Java 41/41、前端相关 64/64；`./scripts/verify.sh` 通过：Java 403 项（0 失败、0 错误、1 项平台条件跳过）、Vitest 163/163；JAR `target/opencode-loopper-0.1.71.jar` 为 263101602 bytes，含 102 个静态入口/assets、V29 迁移、历史 DTO 和历史页资源，SHA-256 `8b6ac104ac1979318f26fe77ac046066779ae4dd9f8ad44c8a8be6dbe3c10713`；复制 V28 数据后用该 JAR 在隔离 18083 升级到 V29，health `UP`、`/designs` 200、历史接口返回 29 条且 Runtime 版本为 0.1.71，实例随后关闭且未替换 8080；历史页另在 1440×1000 与 1024×768 视觉检查无横向越界；`v0.1.71` 指向 `94582da1aaa82fc68c1618ffa87ef7320e94b100`，Actions `32001229598` 的 Windows 脚本与 Release Job 均成功；Release 已发布 JAR、两平台启动脚本及 `SHA256SUMS`，独立下载三项校验均为 `OK`，远端 JAR SHA-256 `f96710e379507facdc9f286efa2010c1703d2b51f7b34d72851ab8f5c30c42bb` |

@@ -10,6 +10,7 @@ import io.opencode.loopper.domain.ErrorLayer;
 import io.opencode.loopper.domain.LoopSpec;
 import io.opencode.loopper.domain.LoopDraftStatus;
 import io.opencode.loopper.domain.ModelResponseMode;
+import io.opencode.loopper.domain.RetryCause;
 import io.opencode.loopper.domain.SessionFailure;
 import io.opencode.loopper.domain.SessionState;
 import io.opencode.loopper.domain.StageState;
@@ -36,6 +37,7 @@ import io.opencode.loopper.persistence.ProjectRow;
 import io.opencode.loopper.persistence.StageRow;
 import io.opencode.loopper.persistence.TaskArtifactRow;
 import io.opencode.loopper.persistence.TaskQueueRow;
+import io.opencode.loopper.persistence.TaskRetryScheduleRow;
 import io.opencode.loopper.persistence.TaskRow;
 import io.opencode.loopper.persistence.VerificationResultRow;
 import io.opencode.loopper.api.FeatureContracts;
@@ -87,6 +89,10 @@ public class TaskService {
     private static final Pattern JUDGE_REASON_LABEL = Pattern.compile(
             "(?ims)^\\s*(?:REASON|理由)\\s*[:：]\\s*(.+?)\\s*$");
     private static final int MAX_EXECUTION_DESIGN_CONTEXT_CHARS = 12_000;
+    private static final String RETRY_SCHEDULED = "SCHEDULED";
+    private static final String RETRY_PAUSED = "PAUSED";
+    private static final String RETRY_CLAIMED = "CLAIMED";
+    private static final String RETRY_CANCELLED = "CANCELLED";
     private final LoopperMapper mapper;
     private final LifecycleTransitionService lifecycle;
     private final ObjectMapper json;
@@ -227,6 +233,49 @@ public class TaskService {
 
     public TaskRow get(String id) { return mapper.findTask(id).orElseThrow(() -> new NotFoundException("Task not found: " + id)); }
     public List<TaskRow> list() { return mapper.listTasks(); }
+    public TaskRetryScheduleRow retrySchedule(String taskId) {
+        get(taskId);
+        return mapper.findActiveTaskRetrySchedule(taskId).orElse(null);
+    }
+    public void startDueRetries() {
+        for (TaskRetryScheduleRow candidate : mapper.listDueTaskRetrySchedules(now(), 32)) {
+            try {
+                startDueRetry(candidate.id());
+            } catch (RuntimeException ignoredConcurrentTransition) {
+                // Another monitor tick or an operator action may have claimed/cancelled the same schedule.
+            }
+        }
+    }
+
+    private void startDueRetry(String retryId) {
+        TaskRetryScheduleRow candidate = mapper.findTaskRetrySchedule(retryId).orElse(null);
+        if (candidate == null || !RETRY_SCHEDULED.equals(candidate.state())) return;
+        TaskRow task = get(candidate.taskId());
+        if (!TaskState.RETRY_WAIT.name().equals(task.state())) {
+            updateRetrySchedule(retryState(candidate, RETRY_CANCELLED, candidate.dueAt(), null));
+            return;
+        }
+        TaskRetryScheduleRow claimed = retryState(candidate, RETRY_CLAIMED, candidate.dueAt(), null);
+        transactions.executeWithoutResult(status -> {
+            if (mapper.updateTaskRetrySchedule(claimed) != 1) {
+                throw new ConflictException("RETRY_SCHEDULE_CONFLICT", "Retry schedule was claimed concurrently");
+            }
+            updateTask(state(get(task.id()), TaskState.RUNNING), LifecycleEvent.RETRY, retryAudit(candidate));
+        });
+        StageRow stage = mapper.findStage(candidate.stageId())
+                .orElseThrow(() -> new TaskFailure("STAGE_MISSING", "Retry stage disappeared"));
+        if (StageState.PAUSED.name().equals(stage.state())) {
+            updateStage(stageState(stage, StageState.RUNNING));
+            stage = mapper.findStage(stage.id()).orElse(stage);
+        }
+        events.emit(task.id(), "task.retry_started", Map.of("retryCause", candidate.cause(),
+                "retryOrdinal", candidate.ordinal(), "retryDelaySeconds", candidate.delaySeconds()));
+        try {
+            startNewAttempt(get(task.id()), stage, candidate.prompt());
+        } catch (RuntimeException failure) {
+            failTask(get(task.id()), "RETRY_START_FAILED", safeMessage(failure), stage, null, null);
+        }
+    }
     public boolean archived(String id) { get(id); return mapper.isTaskArchived(id); }
     public TaskRow archive(String id) {
         TaskRow task = get(id);
@@ -310,6 +359,7 @@ public class TaskService {
         mapper.deleteExecutionSessionsForTask(id);
         mapper.deleteAttemptsForTask(id);
         mapper.deleteTaskLineageForChild(id);
+        mapper.deleteTaskRetrySchedulesForTask(id);
         mapper.deleteStagesForTask(id);
         mapper.deleteTaskQueueEntry(id);
         mapper.deleteTaskArchiveEntry(id);
@@ -497,7 +547,7 @@ public class TaskService {
                 && !TaskState.JUDGING.name().equals(task.state())) return;
         LoopSpec spec = spec(task);
         Instant now = Instant.now();
-        if (Instant.parse(task.createdAt()).plusSeconds(spec.limits().maxDurationSeconds()).isBefore(now)) {
+        if (Instant.parse(task.createdAt()).plusSeconds(effectiveMaxDurationSeconds(spec)).isBefore(now)) {
             if (TaskState.VERIFYING.name().equals(task.state())) {
                 VerifierOutcome runtimeStop = managedVerifierRuntimes.stopTask(taskId, "task-duration-exhausted");
                 if (runtimeStop != null && runtimeStop.state() == VerificationState.ERROR) {
@@ -509,7 +559,8 @@ public class TaskService {
             return;
         }
         for (AttemptRow attempt : mapper.listAttempts(taskId)) {
-            if (AttemptState.RUNNING.name().equals(attempt.state()) && Instant.parse(attempt.createdAt()).plusSeconds(spec.limits().attemptTimeoutSeconds()).isBefore(now)) {
+            if (AttemptState.RUNNING.name().equals(attempt.state())
+                    && Instant.parse(attempt.createdAt()).plusSeconds(effectiveAttemptTimeoutSeconds(spec)).isBefore(now)) {
                 sessionFailed(taskId, attempt.id(), "SESSION_TIMEOUT", "Attempt exceeded its session timeout");
             }
         }
@@ -861,6 +912,7 @@ public class TaskService {
     private TaskRow pauseState(String taskId) {
         TaskRow task = get(taskId);
         if (TaskState.RUNNING.name().equals(task.state()) || TaskState.VERIFYING.name().equals(task.state()) || TaskState.RETRY_WAIT.name().equals(task.state())) {
+            boolean retryWaiting = TaskState.RETRY_WAIT.name().equals(task.state());
             boolean allWritersStopped = true;
             for (ExecutionSessionRow session : mapper.activeSessions(task.id())) {
                 Map<String, Object> evidence = new LinkedHashMap<>();
@@ -891,6 +943,14 @@ public class TaskService {
             for (StageRow stage : mapper.listStages(taskId)) {
                 if (StageState.RUNNING.name().equals(stage.state())) updateStage(stageState(stage, StageState.PAUSED));
             }
+            if (retryWaiting) {
+                mapper.findActiveTaskRetrySchedule(taskId).ifPresent(retry -> {
+                    long remainingMillis = Math.max(0,
+                            Duration.between(Instant.now(), Instant.parse(retry.dueAt())).toMillis());
+                    long remaining = (remainingMillis + 999) / 1_000;
+                    updateRetrySchedule(retryState(retry, RETRY_PAUSED, retry.dueAt(), Math.toIntExact(remaining)));
+                });
+            }
             updateTask(state(task, TaskState.PAUSED));
             if (isAdmittedInPlace(task) && allWritersStopped) {
                 directLeases.retainAfterWriterStopped(inPlaceRoot(task), task.id(), "TASK_PAUSED_WRITER_STOPPED");
@@ -910,6 +970,26 @@ public class TaskService {
         if (isAdmittedInPlace(task)) {
             try { directLeases.requireWritableLease(inPlaceRoot(task), task.id()); }
             catch (TaskFailure failure) { throw new ConflictException(failure.code(), failure.getMessage()); }
+        }
+        TaskRetryScheduleRow pausedRetry = mapper.findActiveTaskRetrySchedule(taskId)
+                .filter(retry -> RETRY_PAUSED.equals(retry.state())).orElse(null);
+        if (pausedRetry != null) {
+            int remaining = Math.max(0, pausedRetry.remainingSeconds() == null ? 0 : pausedRetry.remainingSeconds());
+            String dueAt = Instant.now().plusSeconds(remaining).toString();
+            TaskRetryScheduleRow resumed = retryState(pausedRetry, RETRY_SCHEDULED, dueAt, null);
+            transactions.executeWithoutResult(status -> {
+                if (mapper.updateTaskRetrySchedule(resumed) != 1) {
+                    throw new ConflictException("RETRY_SCHEDULE_CONFLICT", "Paused retry changed concurrently");
+                }
+                updateTask(state(get(taskId), TaskState.RETRY_WAIT), LifecycleEvent.RESUME_RETRY,
+                        retryAudit(resumed));
+                StageRow currentStage = mapper.findStage(stage.id()).orElse(stage);
+                updateStage(stageState(currentStage, StageState.RUNNING));
+            });
+            events.emit(taskId, "task.retry_resumed", Map.of("state", TaskState.RETRY_WAIT.name(),
+                    "retryCause", resumed.cause(), "retryDueAt", resumed.dueAt(),
+                    "retryDelaySeconds", remaining));
+            return get(taskId);
         }
         updateTask(state(task, TaskState.RUNNING));
         updateStage(stageState(stage, StageState.RUNNING));
@@ -932,6 +1012,7 @@ public class TaskService {
     private TaskRow cancelState(String taskId) {
         TaskRow task = get(taskId);
         if (TaskState.valueOf(task.state()).terminal()) return task;
+        cancelRetrySchedule(taskId);
         if (TaskState.PENDING_START.name().equals(task.state())) {
             updateTask(state(task, TaskState.CANCELLED));
             events.emit(taskId, "task.cancelled", Map.of("state", TaskState.CANCELLED.name(),
@@ -1071,23 +1152,23 @@ public class TaskService {
                 continue;
             }
             LoopSpec spec = spec(get(task.id()));
-            if (mapper.countSessionErrorsForStage(stage.id()) >= spec.limits().sessionErrorLimit()) {
+            if (mapper.countSessionErrorsForStage(stage.id()) >= effectiveSessionErrorLimit(spec)) {
                 failTask(get(task.id()), "SESSION_RETRY_EXHAUSTED",
                         "Application restart exhausted the configured session retry limit", stage, null, null);
                 continue;
             }
 
-            // A restart-disconnected Session is the same retryable boundary as any
-            // transport loss: preserve its evidence, then continue the loop with a
-            // fresh Attempt/Session while budgets remain.
-            if (!TaskState.RUNNING.name().equals(get(task.id()).state())) {
-                updateTask(state(get(task.id()), TaskState.RUNNING), LifecycleEvent.RECOVER);
+            String recoveryPrompt = "Application restart disconnected the previous session. "
+                    + "Continue the same stage in a fresh session.";
+            TaskRetryScheduleRow retry;
+            if (TaskState.RETRY_WAIT.name().equals(interrupted.getValue())) {
+                retry = ensureLegacyRetrySchedule(get(task.id()), stage, recoveryPrompt);
+            } else {
+                retry = scheduleRetry(get(task.id()), stage, RetryCause.SESSION, recoveryPrompt);
             }
-            startNewAttempt(get(task.id()), stage,
-                    "Application restart disconnected the previous session. Continue the same stage in a fresh session.");
-            TaskRow recovered = get(task.id());
-            events.emit(task.id(), "task.recovered", Map.of("state", recovered.state(), "reason", "restart",
-                    "recovery", "fresh_session"));
+            events.emit(task.id(), "task.recovered", Map.of("state", TaskState.RETRY_WAIT.name(),
+                    "reason", "restart", "recovery", "scheduled_fresh_session",
+                    "retryDueAt", retry.dueAt(), "retryDelaySeconds", retry.delaySeconds()));
         }
     }
 
@@ -1213,7 +1294,7 @@ public class TaskService {
             directLeases.retainAfterWriterStopped(inPlaceRoot(currentTask), currentTask.id(), "SESSION_RETRY_WRITER_STOPPED");
         }
         LoopSpec spec = spec(currentTask);
-        if (mapper.countSessionErrorsForStage(stage.id()) >= spec.limits().sessionErrorLimit()) {
+        if (mapper.countSessionErrorsForStage(stage.id()) >= effectiveSessionErrorLimit(spec)) {
             failTask(get(task.id()), "SESSION_RETRY_EXHAUSTED", "Session error retry limit reached: " + failure.getMessage(), stage, attempt, session);
             return;
         }
@@ -1222,10 +1303,80 @@ public class TaskService {
             failTask(get(task.id()), capacity.code(), capacity.message(), stage, attempt, session);
             return;
         }
-        updateTask(state(get(task.id()), TaskState.RETRY_WAIT));
-        events.emit(task.id(), "session.failed", Map.of("attemptId", attempt.id(), "code", failure.code(), "recovery", "new_session"));
-        updateTask(state(get(task.id()), TaskState.RUNNING));
-        startNewAttempt(get(task.id()), stage, "Previous session failed: " + failure.getMessage() + ". Continue the same stage.");
+        RetryCause retryCause = rateLimited(failure.code(), failure.getMessage())
+                ? RetryCause.RATE_LIMIT : RetryCause.SESSION;
+        String prompt = "Previous session failed: " + failure.getMessage() + ". Continue the same stage.";
+        TaskRetryScheduleRow retry = scheduleRetry(get(task.id()), stage, retryCause, prompt);
+        events.emit(task.id(), "session.failed", Map.of("attemptId", attempt.id(), "code", failure.code(),
+                "recovery", "scheduled_new_session", "retryCause", retry.cause(),
+                "retryOrdinal", retry.ordinal(), "retryDueAt", retry.dueAt(),
+                "retryDelaySeconds", retry.delaySeconds()));
+    }
+
+    private TaskRetryScheduleRow scheduleRetry(TaskRow task, StageRow stage, RetryCause cause, String prompt) {
+        TaskRetryScheduleRow retry = newRetrySchedule(task, stage, cause, prompt);
+        transactions.executeWithoutResult(status -> {
+            if (mapper.insertTaskRetrySchedule(retry) != 1) {
+                throw new ConflictException("RETRY_SCHEDULE_CONFLICT", "Retry schedule could not be persisted");
+            }
+            updateTask(state(get(task.id()), TaskState.RETRY_WAIT), LifecycleEvent.SCHEDULE_RETRY,
+                    retryAudit(retry));
+        });
+        events.emit(task.id(), "task.retry_scheduled", Map.of("retryCause", retry.cause(),
+                "retryOrdinal", retry.ordinal(), "retryDueAt", retry.dueAt(),
+                "retryDelaySeconds", retry.delaySeconds()));
+        return retry;
+    }
+
+    private TaskRetryScheduleRow ensureLegacyRetrySchedule(TaskRow task, StageRow stage, String prompt) {
+        TaskRetryScheduleRow existing = mapper.findActiveTaskRetrySchedule(task.id()).orElse(null);
+        if (existing != null) return existing;
+        TaskRetryScheduleRow retry = newRetrySchedule(task, stage, RetryCause.SESSION, prompt);
+        if (mapper.insertTaskRetrySchedule(retry) != 1) {
+            throw new ConflictException("RETRY_SCHEDULE_CONFLICT", "Legacy retry schedule could not be persisted");
+        }
+        events.emit(task.id(), "task.retry_schedule_recovered", Map.of("retryCause", retry.cause(),
+                "retryOrdinal", retry.ordinal(), "retryDueAt", retry.dueAt(),
+                "retryDelaySeconds", retry.delaySeconds()));
+        return retry;
+    }
+
+    private TaskRetryScheduleRow newRetrySchedule(TaskRow task, StageRow stage, RetryCause cause, String prompt) {
+        int ordinal = mapper.countTaskRetrySchedules(task.id(), stage.id(), cause.name()) + 1;
+        int delaySeconds = retryDelaySeconds(cause, ordinal);
+        Instant created = Instant.now();
+        return new TaskRetryScheduleRow(UUID.randomUUID().toString(), task.id(), stage.id(), cause.name(), ordinal,
+                delaySeconds, created.plusSeconds(delaySeconds).toString(), null, safeMessage(prompt),
+                RETRY_SCHEDULED, created.toString(), created.toString(), 0);
+    }
+
+    private int retryDelaySeconds(RetryCause cause, int ordinal) {
+        LoopperProperties.RetryWait policy = defaults.getRetryWait();
+        Duration base = switch (cause) {
+            case RATE_LIMIT -> policy.getRateLimitBase();
+            case SESSION -> policy.getSessionBase();
+            case VERIFICATION -> policy.getVerificationBase();
+        };
+        Duration maximum = switch (cause) {
+            case RATE_LIMIT -> policy.getRateLimitMax();
+            case SESSION -> policy.getSessionMax();
+            case VERIFICATION -> policy.getVerificationMax();
+        };
+        long delay = Math.max(0, base.toSeconds());
+        long cap = Math.max(delay, maximum.toSeconds());
+        for (int index = 1; index < ordinal && delay < cap; index++) delay = Math.min(cap, delay * 2);
+        return Math.toIntExact(delay);
+    }
+
+    private boolean rateLimited(String code, String message) {
+        String combined = ((code == null ? "" : code) + " " + (message == null ? "" : message))
+                .toLowerCase(java.util.Locale.ROOT);
+        return combined.contains("429") || combined.contains("too frequent")
+                || combined.contains("rate limit") || combined.contains("rate_limit");
+    }
+
+    private int effectiveSessionErrorLimit(LoopSpec spec) {
+        return Math.min(spec.limits().sessionErrorLimit(), defaults.getSessionErrorLimit());
     }
 
     /**
@@ -1349,13 +1500,15 @@ public class TaskService {
                             + stagnationCount + " consecutive Attempts. Loopper stopped before starting another model Session.",
                     stagnationCount, handoff);
         }
-        updateTask(state(get(task.id()), TaskState.RETRY_WAIT));
-        events.emit(task.id(), "verification.failed", Map.of("attemptId", attempt.id(), "recovery", "next_attempt", "summary", message));
-        updateTask(state(get(task.id()), TaskState.RUNNING));
-        return VerificationContinuation.retry(task.id(), stage.id(),
-                handoff == null
-                        ? "Verification failed: " + message + ". Fix the evidence and retry the current stage."
-                        : attemptHandoffs.retryPrompt(handoff, spec.nextAttemptPromptTemplate()));
+        String prompt = handoff == null
+                ? "Verification failed: " + message + ". Fix the evidence and retry the current stage."
+                : attemptHandoffs.retryPrompt(handoff, spec.nextAttemptPromptTemplate());
+        TaskRetryScheduleRow retry = scheduleRetry(get(task.id()), stage, RetryCause.VERIFICATION, prompt);
+        events.emit(task.id(), "verification.failed", Map.of("attemptId", attempt.id(),
+                "recovery", "scheduled_next_attempt", "summary", message, "retryCause", retry.cause(),
+                "retryOrdinal", retry.ordinal(), "retryDueAt", retry.dueAt(),
+                "retryDelaySeconds", retry.delaySeconds()));
+        return VerificationContinuation.none(task.id());
     }
 
     private VerificationContinuation waitForLoopInput(TaskRow task, StageRow stage, AttemptRow attempt,
@@ -1617,18 +1770,20 @@ public class TaskService {
     }
 
     private AttemptCapacity attemptCapacity(TaskRow task, StageRow stage, LoopSpec spec) {
-        if (mapper.countAttemptsForStage(stage.id()) >= spec.limits().maxStageAttempts()) {
+        int stageLimit = Math.min(spec.limits().maxStageAttempts(), defaults.getMaxStageAttempts());
+        int taskLimit = Math.min(spec.limits().maxTaskAttempts(), defaults.getMaxTaskAttempts());
+        if (mapper.countAttemptsForStage(stage.id()) >= stageLimit) {
             return new AttemptCapacity(false, "ATTEMPT_LIMIT_EXHAUSTED",
                     "The configured Stage attempt limit was reached");
         }
-        if (mapper.countAttemptsForTask(task.id()) >= spec.limits().maxTaskAttempts()) {
+        if (mapper.countAttemptsForTask(task.id()) >= taskLimit) {
             return new AttemptCapacity(false, "ATTEMPT_LIMIT_EXHAUSTED",
                     "The configured Task attempt limit was reached");
         }
         if (blank(stage.workPackageId())) return AttemptCapacity.allowed();
         List<StageRow> packageStages = mapper.listStages(task.id()).stream()
                 .filter(candidate -> stage.workPackageId().equals(candidate.workPackageId())).toList();
-        int packageLimit = Math.min(packageStages.size() * spec.limits().maxStageAttempts(),
+        int packageLimit = Math.min(packageStages.size() * stageLimit,
                 packageStages.size() + 2);
         int used = mapper.countAttemptsForWorkPackage(task.id(), stage.workPackageId());
         int otherUnstarted = (int) packageStages.stream()
@@ -1721,7 +1876,7 @@ public class TaskService {
         LoopSpec spec = spec(task);
         Map<String, String> prompts = new LinkedHashMap<>();
         for (String role : roles) {
-            if (!explicitLocalRetry && mapper.countJudgeSessionErrors(task.id(), role) >= spec.limits().sessionErrorLimit()) {
+            if (!explicitLocalRetry && mapper.countJudgeSessionErrors(task.id(), role) >= effectiveSessionErrorLimit(spec)) {
                 waitForJudgeInput(task, finalAttempt, null, "JUDGE_SESSION_RETRY_EXHAUSTED",
                         role + " Judge exhausted its configured session retry limit");
                 return;
@@ -1907,7 +2062,7 @@ public class TaskService {
         recordError(task, null, attempt, null, ErrorLayer.SESSION, failure.code(), failure.getMessage(), true,
                 Map.of("judgeRunId", judge.id(), "judgeRole", judge.role(), "judgeSession", true));
         LoopSpec spec = spec(task);
-        if (mapper.countJudgeSessionErrors(task.id(), judge.role()) >= spec.limits().sessionErrorLimit()) {
+        if (mapper.countJudgeSessionErrors(task.id(), judge.role()) >= effectiveSessionErrorLimit(spec)) {
             waitForJudgeInput(task, attempt, judge, "JUDGE_SESSION_RETRY_EXHAUSTED",
                     judge.role() + " Judge exhausted its configured session retry limit: " + safeMessage(failure.getMessage()));
             return;
@@ -2270,6 +2425,7 @@ public class TaskService {
     private void failTask(TaskRow task, String code, String message, StageRow stage, AttemptRow attempt, ExecutionSessionRow session) {
         TaskRow current = mapper.findTask(task.id()).orElse(task);
         if (TaskState.valueOf(current.state()).terminal()) return;
+        cancelRetrySchedule(current.id());
         boolean writersStopped = abortSessions(current);
         abortJudgeSessions(current);
         // The task-fatal boundary closes every active attempt. Some failures are
@@ -2520,11 +2676,36 @@ public class TaskService {
     private StageRow stageState(StageRow row, StageState state) { return new StageRow(row.id(), row.taskId(), row.ordinal(), row.objective(), row.allowedPathsJson(), row.forbiddenPathsJson(), row.deliverablesJson(), row.verifiersJson(), state.name(), row.createdAt(), now(), row.version(), row.workPackageId()); }
     private AttemptRow finish(AttemptRow row, AttemptState state, String failureKind, String summary) { return new AttemptRow(row.id(), row.taskId(), row.stageId(), row.ordinal(), state.name(), failureKind, safeMessage(summary), row.createdAt(), now(), row.version()); }
     private ExecutionSessionRow sessionState(ExecutionSessionRow row, SessionState state) { return new ExecutionSessionRow(row.id(), row.taskId(), row.stageId(), row.attemptId(), row.externalSessionId(), state.name(), row.createdAt(), now(), row.version(), row.todoCapability()); }
+    private TaskRetryScheduleRow retryState(TaskRetryScheduleRow row, String state, String dueAt, Integer remainingSeconds) {
+        return new TaskRetryScheduleRow(row.id(), row.taskId(), row.stageId(), row.cause(), row.ordinal(),
+                row.delaySeconds(), dueAt, remainingSeconds, row.prompt(), state, row.createdAt(), now(), row.version());
+    }
+    private void updateRetrySchedule(TaskRetryScheduleRow row) {
+        if (mapper.updateTaskRetrySchedule(row) != 1) {
+            throw new ConflictException("RETRY_SCHEDULE_CONFLICT", "Retry schedule was updated concurrently");
+        }
+    }
+    private void cancelRetrySchedule(String taskId) {
+        mapper.findActiveTaskRetrySchedule(taskId).ifPresent(row ->
+                updateRetrySchedule(retryState(row, RETRY_CANCELLED, row.dueAt(), null)));
+    }
+    private Map<String, Object> retryAudit(TaskRetryScheduleRow row) {
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("retryCause", row.cause());
+        details.put("retryOrdinal", row.ordinal());
+        details.put("retryDelaySeconds", row.delaySeconds());
+        details.put("retryDueAt", row.dueAt());
+        if (row.remainingSeconds() != null) details.put("retryRemainingSeconds", row.remainingSeconds());
+        return details;
+    }
     private void updateTask(TaskRow row) { updateTask(row, null); }
     private void updateTask(TaskRow row, LifecycleEvent event) {
+        updateTask(row, event, Map.of());
+    }
+    private void updateTask(TaskRow row, LifecycleEvent event, Map<String, ?> metadata) {
         TaskRow current = mapper.findTask(row.id()).orElseThrow(() -> new NotFoundException("Task not found: " + row.id()));
         lifecycle.transition(subject(LifecycleMachineType.TASK, row.id(), row.id()), current.state(), row.state(), event,
-                null, Map.of(), () -> mapper.updateTaskState(row),
+                null, metadata, () -> mapper.updateTaskState(row),
                 () -> new ConflictException("TASK_VERSION_CONFLICT", "Task was updated concurrently"));
     }
     private void updateStage(StageRow row) {
@@ -2681,7 +2862,7 @@ public class TaskService {
     private Duration remainingTaskDuration(TaskRow task, LoopSpec spec) {
         Instant deadline;
         try {
-            deadline = Instant.parse(task.createdAt()).plusSeconds(spec.limits().maxDurationSeconds());
+            deadline = Instant.parse(task.createdAt()).plusSeconds(effectiveMaxDurationSeconds(spec));
         } catch (RuntimeException invalid) {
             throw new TaskFailure("TASK_DURATION_INVALID", "Task duration deadline cannot be evaluated safely");
         }
@@ -2692,9 +2873,16 @@ public class TaskService {
         return remaining;
     }
     private Duration boundedVerifierTimeout(TaskRow task, LoopSpec spec) {
-        Duration configured = Duration.ofSeconds(spec.limits().verifierTimeoutSeconds());
+        Duration configured = Duration.ofSeconds(Math.min(spec.limits().verifierTimeoutSeconds(),
+                defaults.getVerifierTimeout().toSeconds()));
         Duration remaining = remainingTaskDuration(task, spec);
         return configured.compareTo(remaining) <= 0 ? configured : remaining;
+    }
+    private long effectiveMaxDurationSeconds(LoopSpec spec) {
+        return Math.min(spec.limits().maxDurationSeconds(), defaults.getMaxDuration().toSeconds());
+    }
+    private long effectiveAttemptTimeoutSeconds(LoopSpec spec) {
+        return Math.min(spec.limits().attemptTimeoutSeconds(), defaults.getAttemptTimeout().toSeconds());
     }
     private boolean blank(String value) { return value == null || value.isBlank(); }
     private String safeMessage(Throwable t) { return safeMessage(t.getMessage()); }
