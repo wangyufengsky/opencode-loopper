@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.1.80`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.1.81`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -120,7 +120,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.1.80.jar
+java -jar target/opencode-loopper-0.1.81.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -346,7 +346,7 @@ Git 任务的最新 Execution Cycle 成功并处于 `AWAITING_DECISION` 或用�
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.1.80.jar`
+- `target/opencode-loopper-0.1.81.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -377,7 +377,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:51234
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.1.80.jar`
+- `opencode-loopper-0.1.81.jar`
 - `start-windows.bat`
 
 确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
@@ -415,7 +415,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.1.80.jar \
+jar tf target/opencode-loopper-0.1.81.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -495,7 +495,7 @@ Windows PowerShell：
 例如发布下一版本：
 
 ```bash
-VERSION=0.1.80
+VERSION=0.1.81
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -535,7 +535,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.1.80.jar
+java -jar target/opencode-loopper-0.1.81.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。
@@ -629,6 +629,8 @@ echo %PATHEXT%
 `0.1.75` 让 Designer 已回答的问题继续作为服务端权威讨论记录展示。页面默认只显示折叠的“需求讨论”，展开后可查看原问题、完整选项及说明和用户最终回答；新决策日志保存完整问题结构，旧版只保存问题文本与答案的记录仍可恢复，刷新或进程重启后不依赖浏览器状态。
 
 `0.1.80` 增加按 Designer 会话持久化、默认关闭的全自动模式。每次开启需确认风险，服务端以独立 V34 状态机和乐观锁每轮最多推进一个动作：推荐答案、整体需求确认、逐包批准、最终确认、唯一任务创建和正式 Task Start；重启可继续，异常进入 `BLOCKED` 且不会高频重试。授权在请求启动 Task 后结束，执行期问题、危险权限、异常恢复、结果确认、提交、推送与发布继续人工处理。
+
+`0.1.81` 修正 Designer 对 OpenCode Provider 瞬态 `RETRY` 的终态误判。整体需求、工作包及兼容 Designer 轮询现在都会保持原远端 Session 和 `RUNNING` 状态继续等待；`system cpu overloaded` 等 Provider 自恢复状态只作为可见进度，不再写入 `WAITING_INPUT` 或阻断全自动模式。Provider 恢复为 `COMPLETED` 后沿原设计上下文继续推进，真正的失败、超时和中止仍按既有人工边界处理。
 
 `0.1.78` 调整 Designer 时间线：每个作用域和讨论修订使用独立、默认收起的“需求讨论”卡，并固定显示在对应设计稿之前；不同设计稿的讨论不再合并。所有确定性校验记录合并为一个默认收起的卡片，展开后仍按顺序展示每条状态、时间和内容。
 

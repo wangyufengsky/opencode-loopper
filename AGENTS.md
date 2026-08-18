@@ -41,10 +41,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.1.80.jar
-   jar tf target/opencode-loopper-0.1.80.jar \
+   test -s target/opencode-loopper-0.1.81.jar
+   jar tf target/opencode-loopper-0.1.81.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.1.80.jar
+   shasum -a 256 target/opencode-loopper-0.1.81.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -93,8 +93,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.1.80`。
-- 正式产物：`target/opencode-loopper-0.1.80.jar`。
+- Maven 项目版本：`0.1.81`。
+- 正式产物：`target/opencode-loopper-0.1.81.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -225,7 +225,7 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 - Decomposer 和分包 Compiler 每个候选只调用一次紧凑语义合同：AI 负责业务目标、纵向包/Stage、条件、依赖和证据意图；服务端负责状态、GC/WP/AC ID、引用、精确来源、测试目标、验证器关联和最终 DTO 编码。结构化 Markdown 需求按二级业务章节形成 RQ，展示标题、日期、分隔线不单独增加覆盖负担；约束文本兼容对象或纯字符串，依赖兼容零基索引、`WP-n` 或唯一前置包标题。紧凑规划通过权威校验后必须直接服务端编译最终对象，不再发送 final JSON 抄写提示。规划原始 JSON 不得进入聊天消息，SSE 只投影权威步骤、摘要和普通编译审计。
 - Decomposer 和每包 Compiler 的格式修复与语义修复各有独立的最多两次预算：无法提取唯一标准 object 时返回完整紧凑对象；合同失败时只允许最多 16 个 `add/replace/remove` 补丁且只能触碰 AI 语义字段。补丁后必须重新执行完整规范化和权威校验。闭集设计缺口最多只让当前包完整重设计一次。每个只读角色已确认的传输失败允许一个全新 Session 重试。整个需求版本最多 96 次模型调用；单包相对旧两轮链路减少 2 次，六包减少 7 次，各包内容次数互不挤占但受全局上限约束。
 - 新 Decomposer 紧凑规划、Compiler 紧凑规划和 Judge 必须优先使用服务端固定 ID 的 OpenCode JSON Schema；旧 final Schema 只保留给缺少语义快照的历史活动记录。provider 内建 schema 重试固定为 0。只有格式接口拒绝、明确 `StructuredOutputError` 或完成后缺失 structured payload 才能在全新只读角色 Session 中回退到 marker，并计入当前步骤原有模型调用与格式修复预算；不得在失败 Session 内继续、增加隐藏重试池或绕过确定性语义校验。历史活动记录按 `TEXT_MARKER` 兼容。
-- 对 Decomposer/Compiler，OpenCode `RETRY` 是 Provider 自恢复中的瞬态 Session 状态，不得当作设计流水线传输失败或消耗全新 Session 重试；Implementation 与 Judge 保留既有失败升级合同。Loopper 管理的 Decomposer、Compiler 和 Judge 必须选择最多 24 个 agentic steps 的私有 `loopper-structured` agent。若最近一次用户提示后的同一规范化工具名和参数连续出现 3 次，必须立即尽力 abort，并且每个角色步骤最多启动一次禁用全部工具的 finalizer Session；恢复资格和纠正类别持久化在 V28，finalizer 计入全局模型调用预算但不占格式修复次数，24 步仍是最终保险。若 structured prompt 已接受但消息读取接口随后以格式/Schema 400 拒绝，必须按结构化格式不支持进入既有全新 marker Session 回退。结构化角色最终进入 `WAITING_INPUT` 或 `SESSION_ERROR` 前必须尽力 abort 当前远端 Session，UI 的“已停止”不得与仍在读仓库的远端执行并存。
+- 对交互式 Designer、Decomposer/Compiler，OpenCode `RETRY` 是 Provider 自恢复中的瞬态 Session 状态：必须保留原远端 Session 继续轮询，Designer 流程保持 `RUNNING`，不得当作设计流水线传输失败、消耗全新 Session 重试或阻断已授权的全自动模式；Implementation 与 Judge 保留既有失败升级合同。Loopper 管理的 Decomposer、Compiler 和 Judge 必须选择最多 24 个 agentic steps 的私有 `loopper-structured` agent。若最近一次用户提示后的同一规范化工具名和参数连续出现 3 次，必须立即尽力 abort，并且每个角色步骤最多启动一次禁用全部工具的 finalizer Session；恢复资格和纠正类别持久化在 V28，finalizer 计入全局模型调用预算但不占格式修复次数，24 步仍是最终保险。若 structured prompt 已接受但消息读取接口随后以格式/Schema 400 拒绝，必须按结构化格式不支持进入既有全新 marker Session 回退。结构化角色最终进入 `WAITING_INPUT` 或 `SESSION_ERROR` 前必须尽力 abort 当前远端 Session，UI 的“已停止”不得与仍在读仓库的远端执行并存。
 - Decomposer、Compiler 和最终 Judge 只有在当前持久化步骤实际使用 `JSON_SCHEMA` 时才显式使用 `thinking=false`；Loopper 管理的 DeepSeek Runtime 为当前配置模型注入 `loopper-no-thinking` variant（`thinking.type=disabled`），且 HTTP 适配器只允许 Schema Prompt 选择它，避免 Thinking 与 JSON Schema 强制工具选择冲突。`TEXT_MARKER` 初始、重试、Schema 回退和 finalizer Session 必须保留配置的 thinking 或 Provider 默认值，并继续通过同一 JSON 提取、确定性校验和修复预算。机器角色仍使用零温度和禁止重复/虚构工具调用的固定指令。OpenCode 1.18.12–1.18.18 已确认会在读取自身持久化 Schema 时返回 400，必须直接使用 marker 兼容模式；后续版本恢复能力探测。交互式 Markdown Designer 和可写 Implementation 继续保留配置/LoopSpec 的 thinking 选择；复用外部 DeepSeek Runtime 时由操作者提供同名 variant，缺失时不得绕过既有全新 Session marker 回退。
 - OpenCode Session 使用角色权限模板：Decomposer/Compiler/Judge/通用只读只开放 `read`/`glob`/`grep`，Designer 额外开放 `question`；只读角色仍拒绝 `.env`/`.env.*`、外部目录和全部其他工具。Runtime 可展示 agent、原生 `plan` 与 structured-output 能力，但当前不得让 Designer 接管原生 plan；Designer Markdown、Compiler JSON 和 Validator 权威边界保持不变。
 - Decomposer、Compiler、Judge 与项目公约共用有界包容性提取器：原生 structured payload、角色 marker、`json`/无语言代码块、说明文字中括号完整的 object 和整段 object 按优先级提取。仅接受标准 JSON object；字符串花括号、转义、BOM 和空白必须正确处理；等价候选去重，不等价且都合格的候选按歧义拒绝。字段名、可选集合、枚举和安全命令分词只做唯一可逆的确定性规范化，成功提取/规范化直接进入同一权威业务合同校验并记录 `AI_OUTPUT_NORMALIZED`，不得消耗格式修复次数；数组根、残缺/非标准 JSON、不可唯一推导的缺口以及安全或执行合同违规则继续阻断。
@@ -398,7 +398,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.1.80.jar
+JAR=target/opencode-loopper-0.1.81.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -498,6 +498,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-08-18 | Designer Provider 瞬态过载恢复与 0.1.81 交付 | 整体需求、工作包和兼容 Designer 轮询不再把 OpenCode `RETRY` 当作终态；保留原远端 Session、流程 `RUNNING` 与全自动 `ACTIVE`，Provider 恢复后沿原上下文继续，真实失败合同不变；同步 README、架构、设计、OpenCode 合同与本公约正文 | 新增整体需求全自动推荐回答、工作包设计两条 `system cpu overloaded` 注入及恢复回归；聚焦 Designer/HTTP/发布契约 64/64 及新增工作包用例通过；首次 `./scripts/verify.sh` 的既有 FIFO 并发时序用例瞬时失败，单独复跑通过，源码不变的第二次完整验证使用 JDK 21.0.12 通过：Java 444 项（0 失败、0 错误、1 平台条件跳过），Vitest 176/176，BUILD SUCCESS；本地 JAR `target/opencode-loopper-0.1.81.jar` 大小 263371897 字节、含 108 个 SPA 静态条目，SHA-256 `2a7e111653d93194e48f1f297a948a010f5746d8f932a2437121fa8de38597f8`；发布目标为 `v0.1.81`，不替换当前运行实例 |
 | 2026-08-18 | Designer 全自动模式与 0.1.80 累积交付 | V34 按会话持久化全自动状态；新建页和进行中页默认关闭并在每次启用时确认风险；Monitor 单步复用推荐回答、需求确认、逐包批准、最终确认和 Task Start 权威边界，阻断后停止重试，执行期及发布动作保持人工；同步 README、架构、设计合同与本公约正文 | 0.1.79 首次完整构建在新增 `AUTO_MODE` SSE 类型未同步时失败，修复后按版本规则顺延；聚焦迁移、Designer 自动全链路、前端类型/API/视图及 Playwright 2/2 通过；`./scripts/verify.sh` 使用 JDK 21.0.12 完整通过：Java 442 项（0 失败、0 错误、1 平台条件跳过），Vitest 176/176，BUILD SUCCESS；本地 JAR `target/opencode-loopper-0.1.80.jar` 大小 263371593 字节，SHA-256 `51103ed9e5287d50477e7a1344f0f452821c4cc42d75fd5f1446572997c211a3`，含 108 个 SPA 静态条目；发布目标为 `v0.1.80`，不替换当前运行实例 |
 | 2026-08-18 | Designer 讨论与确定性校验卡片收束，准备 0.1.78（暂不发布） | 需求讨论按作用域和讨论修订独立分卡，通过持久化 `designMessageId` 固定在对应 Designer 设计稿之前且默认收起，历史无关联数据按同作用域修订顺序兼容回退；全部可见 Validator 记录合并为一个默认收起的确定性校验卡；同步 README、设计合同与本公约正文 | 前端类型检查通过，API/Designer 聚焦 56/56、后端 Designer/API 与发布契约聚焦测试通过；`./scripts/verify.sh` 使用 JDK 21.0.12 完整通过：Java 440 项（0 失败、0 错误、1 平台条件跳过），Vitest 173/173，BUILD SUCCESS；本地 JAR `target/opencode-loopper-0.1.78.jar` 大小 263353413 字节，SHA-256 `5f9fea2d655cef67787ece3ac9ad8d96453e28ccda655d465462d22bca3df27d`，含 107 个 SPA 静态条目；按用户要求不提交、不推送、不打标签、不发布，也未替换运行实例 |
 | 2026-08-18 | 修复已确认完成任务仍无合并请求入口，准备 0.1.77（暂不发布） | 任务详情页与发布组件统一接受 `COMPLETED + executionResult=SUCCEEDED`，不再由外层条件提前卸载发布动作；GitLab 远端核对在乐观锁快照未变化且最新执行结果成功时继续接受 `COMPLETED`，保持执行终态与交付状态轴独立；同步 README 与本公约正文 | TaskDetail/Publication 前端聚焦 26/26、TaskPublication 后端集成通过；`./scripts/verify.sh`：Java 440 项中 439 通过、Windows 条件用例 1 项跳过，Vitest 172/172，BUILD SUCCESS；JAR 263352245 bytes、静态资源 107 项，SHA-256 `d5553bd77f288ce47eb59ea715b5c670a159866380d6159ff12e334f04c8476f`；按用户要求未提交、未推送、未打标签、未发布 |

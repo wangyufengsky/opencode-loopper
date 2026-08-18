@@ -745,7 +745,15 @@ public class DesignerSessionService {
                 return;
             }
             OpenCodeClient.SessionStatus status = openCode.sessionStatus(remote);
-            if (status.failed()) {
+            if (status.retrying()) {
+                if (!same(session.externalSessionState(), status.state())) {
+                    DesignerSessionRow retrying = updateDesignerDiscussionProjection(session,
+                            DesignerSessionState.RUNNING, DesignWorkflowPhase.DISCUSSING_REQUIREMENT,
+                            remote.id(), status.state(), "REQUIREMENT", discussion.revision(), "SYNCING", null);
+                    publish(retrying, "STATUS", DesignerActor.DESIGNER, true, "",
+                            "需求设计师正在等待 Provider 瞬态重试恢复");
+                }
+            } else if (status.failed()) {
                 waitForRequirementDiscussion(session, discussion,
                         "OPENCODE_DESIGNER_" + safeState(status.state()), statusDetail(status));
             } else if (status.completed()) {
@@ -1346,7 +1354,23 @@ public class DesignerSessionService {
                 return;
             }
             OpenCodeClient.SessionStatus status = openCode.sessionStatus(remote);
-            if (status.failed()) {
+            if (status.retrying()) {
+                boolean changed = !same(workPackage.designerExternalSessionState(), status.state())
+                        || !same(session.externalSessionState(), status.state());
+                if (changed) {
+                    updateWorkPackage(workPackage, DesignWorkPackageState.valueOf(workPackage.state()),
+                            remote.id(), status.state(), workPackage.designMessageId(), workPackage.designRevision(),
+                            workPackage.redesignCount(), workPackage.designerTransportRetryCount(),
+                            workPackage.compilerSummary(), workPackage.handoffSummary(),
+                            workPackage.lastErrorCode(), workPackage.lastErrorDetail());
+                    DesignerSessionRow retrying = updateDesignerProjection(get(session.id()),
+                            DesignerSessionState.RUNNING, DesignWorkflowPhase.valueOf(session.workflowPhase()),
+                            remote.id(), status.state(), session.designRevision(), session.redesignCount(),
+                            session.currentRequirementRevision(), workPackage.packageId());
+                    publish(retrying, "STATUS", DesignerActor.DESIGNER, true, "",
+                            workPackage.packageId() + " 的设计师正在等待 Provider 瞬态重试恢复");
+                }
+            } else if (status.failed()) {
                 failPackageDesigner(workPackage, session,
                         "OPENCODE_PACKAGE_DESIGNER_" + safeState(status.state()), statusDetail(status), true);
             } else if (status.completed()) {
@@ -1397,12 +1421,17 @@ public class DesignerSessionService {
                 publish(compilerSession, "STATUS", DesignerActor.COMPILER, true, "",
                         workPackage.packageId() + " 设计稿已冻结，正在启动全新的只读规范编译器");
                 startCompilation(compilerSession, compiling, source);
-            } else if (!same(workPackage.designerExternalSessionState(), status.state())) {
+            } else if (!same(workPackage.designerExternalSessionState(), status.state())
+                    || !same(session.externalSessionState(), status.state())) {
                 updateWorkPackage(workPackage, DesignWorkPackageState.valueOf(workPackage.state()), remote.id(), status.state(),
                         workPackage.designMessageId(), workPackage.designRevision(), workPackage.redesignCount(),
                         workPackage.designerTransportRetryCount(), workPackage.compilerSummary(),
                         workPackage.handoffSummary(), workPackage.lastErrorCode(), workPackage.lastErrorDetail());
-                publish(session, "PARTIAL", DesignerActor.DESIGNER, true,
+                DesignerSessionRow current = updateDesignerProjection(get(session.id()),
+                        DesignerSessionState.RUNNING, DesignWorkflowPhase.valueOf(session.workflowPhase()),
+                        remote.id(), status.state(), session.designRevision(), session.redesignCount(),
+                        session.currentRequirementRevision(), workPackage.packageId());
+                publish(current, "PARTIAL", DesignerActor.DESIGNER, true,
                         designerMarkdown(openCode.sessionLiveOutput(remote)),
                         workPackage.packageId() + " 正在接收设计师 Markdown");
             }
@@ -1512,7 +1541,15 @@ public class DesignerSessionService {
                 return;
             }
             OpenCodeClient.SessionStatus status = openCode.sessionStatus(remote);
-            if (status.failed()) {
+            if (status.retrying()) {
+                if (!same(session.externalSessionState(), status.state())) {
+                    DesignerSessionRow retrying = updateDesignerProjection(session, DesignerSessionState.RUNNING,
+                            DesignWorkflowPhase.valueOf(session.workflowPhase()), remote.id(), status.state(),
+                            session.designRevision(), session.redesignCount());
+                    publish(retrying, "STATUS", DesignerActor.DESIGNER, true, "",
+                            "设计师正在等待 Provider 瞬态重试恢复");
+                }
+            } else if (status.failed()) {
                 failWorkflow(session, "OPENCODE_DESIGNER_" + safeState(status.state()), statusDetail(status));
             } else if (status.completed()) {
                 String output = openCode.sessionOutput(remote);

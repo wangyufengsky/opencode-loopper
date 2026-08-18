@@ -191,6 +191,60 @@ class DesignerSessionMcpIntegrationTest {
     }
 
     @Test
+    void autoModeKeepsRequirementDesignerActiveDuringProviderRetryAndResumesSameSession() throws Exception {
+        ProjectRow project = project("designer-auto-provider-retry");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        fake().setDesignerOutput(designerOutput("# 过载恢复后的设计\n\n保持原会话并继续形成可验收结果。",
+                legacySpec(project.id())));
+        DesignerSessionRow session = designerSessions.create(project.id(), draft.id(), "验证全自动瞬态过载恢复");
+        designerAutoMode.initialize(session.id(), true);
+
+        DesignerSessionRow questioning = designerSessions.get(session.id());
+        String remoteId = questioning.externalSessionId();
+        String questionId = "auto-provider-retry-question";
+        fake().setPendingQuestion(remoteId, new OpenCodeClient.PendingQuestion(
+                questionId, remoteId, List.of(new OpenCodeClient.QuestionPrompt(
+                "采用哪个恢复边界？", "恢复边界", List.of(
+                new OpenCodeClient.QuestionOption("推荐方案（推荐）", "在同一会话等待 Provider 恢复"),
+                new OpenCodeClient.QuestionOption("人工处理", "立即停止自动设计")),
+                false, false))));
+
+        designerAutoMode.pollActive();
+        assertThat(fake().answersForQuestion(questionId)).containsExactly(List.of("推荐方案（推荐）"));
+        fake().setSessionStatus(remoteId, "RETRY", "system cpu overloaded");
+
+        designerSessions.pollActiveHandoffs();
+        designerAutoMode.pollActive();
+
+        assertThat(designerSessions.get(session.id())).satisfies(retrying -> {
+            assertThat(retrying.state()).isEqualTo("RUNNING");
+            assertThat(retrying.workflowPhase()).isEqualTo("DISCUSSING_REQUIREMENT");
+            assertThat(retrying.externalSessionId()).isEqualTo(remoteId);
+            assertThat(retrying.externalSessionState()).isEqualTo("RETRY");
+        });
+        assertThat(designerAutoMode.get(session.id())).satisfies(mode -> {
+            assertThat(mode.state()).isEqualTo("ACTIVE");
+            assertThat(mode.errorCode()).isNull();
+            assertThat(mode.errorDetail()).isNull();
+        });
+        assertThat(designerSessions.messages(session.id()))
+                .noneMatch(message -> message.content().contains("OPENCODE_DESIGNER_retry")
+                        || message.content().contains("全自动模式已阻断"));
+
+        fake().setSessionState(remoteId, "COMPLETED");
+        designerSessions.pollActiveHandoffs();
+        designerAutoMode.pollActive();
+
+        DesignerSessionRow resumed = designerSessions.get(session.id());
+        assertThat(resumed.currentRequirementRevision()).isNotNull();
+        assertThat(resumed.workflowPhase()).isEqualTo("DECOMPOSING");
+        assertThat(designerAutoMode.get(session.id()).state()).isEqualTo("ACTIVE");
+        assertThat(mapper.listDesignDiscussionRevisions(session.id()))
+                .anyMatch(row -> row.decisionLogJson().contains("AUTO_RECOMMENDED")
+                        && row.decisionLogJson().contains("推荐方案（推荐）"));
+    }
+
+    @Test
     void autoModeDefaultsOffAndUsesOptimisticLockForDisableAndReauthorization() throws Exception {
         ProjectRow project = project("designer-auto-toggle");
         LoopDraftRow draft = drafts.create(legacySpec(project.id()));
@@ -727,6 +781,57 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(after.transportRetryCount()).isZero();
         assertThat(fake().createReadOnlySessionCalls()).isEqualTo(sessionsBefore);
         assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(callsBefore);
+    }
+
+    @Test
+    void workPackageDesignerRetryStatusRemainsTransientAndResumesSameSession() throws Exception {
+        ProjectRow project = project("package-designer-retry-status");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        String design = "# 工作包瞬态恢复\n\nProvider 恢复后继续生成同一份完整设计。";
+        fake().setDesignerOutput(designerOutput(design, legacySpec(project.id())));
+        fake().setPackageDesignerOutput("WP-1", design);
+        DesignerSessionRow session = createConfirmedSession(project.id(), draft.id(), "验证工作包 Designer 瞬态重试");
+
+        designerSessions.pollActiveHandoffs();
+        DesignerSessionRow questioning = designerSessions.get(session.id());
+        assertThat(questioning.workflowPhase()).isEqualTo("QUESTIONING_PACKAGE");
+        String remoteId = questioning.externalSessionId();
+        String questionId = "package-provider-retry-question";
+        fake().setPendingQuestion(remoteId, new OpenCodeClient.PendingQuestion(
+                questionId, remoteId, List.of(new OpenCodeClient.QuestionPrompt(
+                "是否保持当前工作包边界？", "工作包边界", List.of(
+                new OpenCodeClient.QuestionOption("保持（推荐）", "沿同一 Session 继续")), false, false))));
+        designerSessions.replyQuestion(session.id(), questionId, List.of(List.of("保持（推荐）")));
+        fake().setSessionStatus(remoteId, "RETRY", "system cpu overloaded");
+
+        designerSessions.pollActiveHandoffs();
+
+        DesignerSessionRow retrying = designerSessions.get(session.id());
+        assertThat(retrying.state()).isEqualTo("RUNNING");
+        assertThat(retrying.workflowPhase()).isEqualTo("DESIGNING");
+        assertThat(retrying.externalSessionId()).isEqualTo(remoteId);
+        assertThat(retrying.externalSessionState()).isEqualTo("RETRY");
+        var requirement = mapper.findCurrentDesignRequirementRevision(session.id()).orElseThrow();
+        assertThat(mapper.listDesignWorkPackages(requirement.id())).singleElement().satisfies(workPackage -> {
+            assertThat(workPackage.state()).isEqualTo("DESIGNING");
+            assertThat(workPackage.designerExternalSessionId()).isEqualTo(remoteId);
+            assertThat(workPackage.designerExternalSessionState()).isEqualTo("RETRY");
+            assertThat(workPackage.designerTransportRetryCount()).isZero();
+            assertThat(workPackage.lastErrorCode()).isNull();
+        });
+
+        fake().setSessionState(remoteId, "COMPLETED");
+        designerSessions.pollActiveHandoffs();
+
+        assertThat(designerSessions.get(session.id())).satisfies(resumed -> {
+            assertThat(resumed.state()).isNotIn("WAITING_INPUT", "SESSION_ERROR");
+            assertThat(resumed.workflowPhase()).isIn("COMPILING", "VALIDATING", "REVIEWING_PACKAGE");
+        });
+        assertThat(mapper.listDesignWorkPackages(requirement.id())).singleElement().satisfies(workPackage -> {
+            assertThat(workPackage.state()).isIn("COMPILING", "VALIDATING", "REVIEWING");
+            assertThat(workPackage.designerExternalSessionId()).isEqualTo(remoteId);
+            assertThat(workPackage.designRevision()).isEqualTo(1);
+        });
     }
 
     @Test

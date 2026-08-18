@@ -167,10 +167,12 @@ polling therefore reads messages even while `/session/status` remains `busy`.
 A 400/404/415/422
 whose response identifies format or Schema incompatibility is the same explicit
 transport-capability rejection and therefore enters the fresh marker Session
-path above; it is not wrapped as a generic message failure. For Decomposer and
-Compiler, OpenCode status `RETRY` is transient provider self-recovery, so the
-design pipeline keeps polling the same Session and does not consume its single
-transport retry. A failed `StructuredOutput` tool part is the same explicit
+path above; it is not wrapped as a generic message failure. For interactive
+Designer, Decomposer, and Compiler, OpenCode status `RETRY` is transient provider
+self-recovery, so the design pipeline keeps polling the same Session and does
+not consume its single transport retry. Designer keeps its workflow `RUNNING`,
+and an authorized auto mode is not blocked by that transient projection. A
+failed `StructuredOutput` tool part is the same explicit
 structured-output failure. Loopper also counts assistant/step-start records after
 the latest user turn and enforces its own 24-step hard limit even if OpenCode's
 agent setting is ignored. The managed agent uses temperature zero and a fixed

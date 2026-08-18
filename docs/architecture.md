@@ -332,9 +332,11 @@ a new lifecycle state or evidence source.
 Managed runtimes also define a private `loopper-structured` machine-response
 agent capped at 24 agentic steps. Decomposer, Compiler, and Judge select it to
 bound read-only exploration; it does not replace Loopper model-call, repair,
-timeout, validation, or lifecycle authority. For Decomposer and Compiler,
-OpenCode `RETRY` remains a transient external Session projection and never
-triggers the design pipeline's fresh-Session retry; Implementation and Judge
+timeout, validation, or lifecycle authority. For interactive Designer,
+Decomposer, and Compiler, OpenCode `RETRY` remains a transient external Session
+projection: Loopper keeps the same remote Session and the Designer workflow in
+`RUNNING`, so provider self-recovery such as capacity overload neither consumes
+a fresh-Session retry nor blocks Designer auto mode. Implementation and Judge
 retain their existing failure-escalation behavior.
 The adapter signs tool calls after the latest user turn using normalized tool
 name and canonical arguments. Three identical consecutive signatures trigger
