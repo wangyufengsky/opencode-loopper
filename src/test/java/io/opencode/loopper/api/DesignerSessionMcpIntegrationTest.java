@@ -103,6 +103,10 @@ class DesignerSessionMcpIntegrationTest {
         DesignerSessionRow session = createConfirmedSession(project.id(), draft.id(), "实现缓存刷新并保留验收证据");
         assertThat(session.workflowPhase()).isEqualTo("DECOMPOSING");
         assertThat(mapper.listTasks()).isEmpty();
+        var markerDecomposition = mapper.findTaskDecompositionByRevision(
+                mapper.findCurrentDesignRequirementRevision(session.id()).orElseThrow().id()).orElseThrow();
+        assertThat(markerDecomposition.planningResponseMode()).isEqualTo("TEXT_MARKER");
+        assertThat(fake().modelForSession(markerDecomposition.externalSessionId()).thinking()).isNull();
         pollUntilSettled(session.id());
 
         DesignerSessionRow completed = designerSessions.get(session.id());
@@ -605,7 +609,7 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(6);
         assertThat(fake().profileForSession(decomposition.externalSessionId()))
                 .isEqualTo(OpenCodeClient.SessionProfile.DECOMPOSER_READ_ONLY);
-        assertThat(fake().modelForSession(decomposition.externalSessionId()).thinking()).isFalse();
+        assertThat(fake().modelForSession(decomposition.externalSessionId()).thinking()).isNull();
 
         assertThat(compilation.planningResponseMode()).isEqualTo("JSON_SCHEMA");
         assertThat(compilation.planningResponseSchemaId()).isEqualTo("PACKAGE_COMPILATION_SEMANTIC_V3");

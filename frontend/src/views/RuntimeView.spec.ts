@@ -6,6 +6,38 @@ import RuntimeView from '@/views/RuntimeView.vue'
 import { useTaskStore } from '@/stores/taskStore'
 
 describe('RuntimeView managed startup diagnostics', () => {
+  it('keeps capability and authorization details out of the compact runtime overview', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const store = useTaskStore()
+    store.runtime = {
+      loopperVersion: '0.1.74', status: 'ONLINE', version: '1.18.18', managed: true, pid: 71386,
+      endpoint: 'http://127.0.0.1:55389', model: 'opencode-go/deepseek-v4-flash', checkedAt: '2026-08-18T04:03:00Z',
+      capabilities: {
+        agentDiscovery: 'AVAILABLE', agents: [{ name: 'plan' }], nativePlanAgent: true,
+        structuredOutputTransport: 'UNAVAILABLE', selectedModelStructuredOutput: 'UNKNOWN',
+        defaultResponseMode: 'TEXT_MARKER', extensionPolicy: 'TRUSTED_ALLOWED', checkedAt: '2026-08-18T04:03:00Z',
+      },
+    }
+
+    const wrapper = mount(RuntimeView, {
+      global: {
+        plugins: [pinia, ElementPlus],
+        stubs: {
+          PageHeader: { template: '<header><slot name="actions" /></header>' },
+          Icon: true,
+          StatusBadge: { props: ['status'], template: '<span>{{ status }}</span>' },
+        },
+      },
+    })
+
+    expect(wrapper.text()).toContain('受管进程')
+    expect(wrapper.text()).not.toContain('OpenCode 可复用能力')
+    expect(wrapper.text()).not.toContain('执行授权边界')
+    expect(wrapper.text()).not.toContain('NATIVE CAPABILITY DISCOVERY')
+    expect(wrapper.text()).not.toContain('SAFETY GUARDRAILS')
+  })
+
   it('shows the launch failure and labels the random port as an attempted address', () => {
     const pinia = createPinia()
     setActivePinia(pinia)

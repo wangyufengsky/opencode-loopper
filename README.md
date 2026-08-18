@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.1.73`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.1.74`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -119,7 +119,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.1.73.jar
+java -jar target/opencode-loopper-0.1.74.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -150,7 +150,7 @@ java -jar target/opencode-loopper-0.1.73.jar
 | 质量与用量 | 查看最终有效尝试的质量、历史失败证据、Token/成本与预算信息 |
 | 模板与自动化 | 管理不可变模板版本、自动化规则、导入导出与运行记录 |
 | Recovery Studio | 从失败或取消任务派生恢复任务，保留父子关系和工作区指纹 |
-| 运行环境 | 查看当前 Loopper/OpenCode 版本、原生 agent 与 JSON Schema 能力；可重启 Loopper 管理的 Runtime，外部 Runtime 只重新检测 |
+| 运行环境 | 查看当前 Loopper/OpenCode 版本、监听地址、进程所有权和模型；可重启 Loopper 管理的 Runtime，外部 Runtime 只重新检测 |
 | 设置 | 配置 CLI、允许项目根、默认模型、任务尝试上限和单次超时；可启用演示数据，并随时退出以重新加载真实 API 数据 |
 
 取消项目管理只会移除登记关系；不会删除项目目录、历史任务、Designer 对话、LoopSpec 或执行证据。
@@ -345,7 +345,7 @@ Git 任务的最新 Execution Cycle 成功并处于 `AWAITING_DECISION` 后（�
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.1.73.jar`
+- `target/opencode-loopper-0.1.74.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -376,7 +376,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:51234
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.1.73.jar`
+- `opencode-loopper-0.1.74.jar`
 - `start-windows.bat`
 
 确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
@@ -414,7 +414,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.1.73.jar \
+jar tf target/opencode-loopper-0.1.74.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -494,7 +494,7 @@ Windows PowerShell：
 例如发布下一版本：
 
 ```bash
-VERSION=0.1.73
+VERSION=0.1.74
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -534,7 +534,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.1.73.jar
+java -jar target/opencode-loopper-0.1.74.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。
@@ -625,6 +625,8 @@ echo %PATHEXT%
 
 `0.1.70` 为 Decomposer、Compiler、Judge 和项目公约引入共享的包容性输出提取。原生 structured payload 与角色 marker 仍优先，同时可接受代码块、说明文字或整段响应中的唯一标准 JSON object；等价候选去重，冲突候选、非标准/残缺 JSON、数组根和歧义补齐仍拒绝。确定性字段、集合、枚举、Maven/Gradle argv 与唯一聚焦测试证据规范化不消耗格式修复次数，V28 只记录短纠正类别而不保存原文。连续 3 次相同工具调用会提前 abort，并且每个角色步骤最多使用一次持久化、无工具 finalizer；安全命令、路径、业务覆盖、Java 聚焦测试和运行时门禁保持严格。纯“全量测试通过/构建成功”不再生成业务验收项，安全全量测试只可作为补充报告。前端以普通信息样式显示规范化和恢复提示。0.1.68/0.1.69 候选分别因发布脚本 JAR 名和最新迁移断言未同步而未交付，修正后按版本规则递增。
 
+`0.1.74` 增加持久化设置与分类 `RETRY_WAIT`，将成功或失败后的用户决策从执行轮次结果中分离，并为失败任务提供继续当前任务、继承修改派生、从原始基线重做、只读审计和取消等恢复路径。设置页可管理启动覆盖、运行上限、OpenCode 与发布网络配置，重试等待在重启及暂停恢复后仍保持原到期时间。Runtime 页精简为服务和受管进程信息，设置页超时控件统一对齐。机器角色只在实际使用 `JSON_SCHEMA` 时关闭 Thinking；`TEXT_MARKER` 的初始、重试、Schema 回退和 finalizer Session 保留模型配置或 Provider 默认 Thinking，同时继续执行同一套确定性提取、校验与审计。
+
 `0.1.73` 修复弱模型把代码风格、源码/注解/装配形态和交付卫生误写成业务验收条件后，逐项耗尽 Compiler 语义修复预算的问题。服务端现在确定性降级未被聚焦测试显式覆盖的工程元条件，重排证据映射；同一 Java Stage 只有一个聚焦测试候选时，可补齐剩余业务条件的测试关联。一次预检会汇总全部合同缺口并返回精确 JSON Pointer，要求同一补丁修完；`grep`/`rg` 等源码搜索继续不能充当行为 `SELF_CHECK`。真实业务覆盖、明确测试选择器、危险命令、路径和运行时门禁保持严格。
 
 `0.1.72` 将 Decomposer/Compiler 改为轻量语义合同：AI 只决定目标、纵向工作包、Stage、业务条件和证据意图，服务端推导 `DIRECT_DESIGN/DECOMPOSED`、GC/WP/AC ID、需求引用、依赖、Designer 精确来源、测试目标和验证器关联，并直接编译最终对象，不再发起 final JSON 抄写调用。单包固定减少 2 次、六包固定减少 7 次模型调用。V30 分开持久化格式/语义修复计数和服务端编译标识；语义失败只允许有界补丁，补丁后仍执行完整安全、路径、业务覆盖、Java 聚焦测试和运行时校验。Judge 同时接受唯一明确的中英文判定/理由标签。运行时权威合同见 `docs/ai-role-contracts.md`。
@@ -637,13 +639,13 @@ echo %PATHEXT%
 
 `0.1.64` 修复 Designer 结构化角色在 OpenCode 瞬态重连和消息读取失败下的生命周期错判。Decomposer/Compiler 遇到 OpenCode `RETRY` 时保持原 Session 运行，不再消耗唯一一次全新 Session 重试；Implementation 与 Judge 保留既有失败升级行为。读取 structured messages 时若 OpenCode 以 Schema 兼容性 400 拒绝，会进入既有全新 marker Session 回退。所有结构化终态失败都会尽力 abort 远端 Session；Loopper 托管的 Decomposer、Compiler 和 Judge 还使用最多 24 个 agentic steps 的私有只读 agent，避免 UI 已停止后仍无限读取仓库。
 
-`0.1.62` 修复 DeepSeek Thinking 与 OpenCode JSON Schema 强制工具选择冲突。Decomposer、Compiler 和最终 Requirement/Risk Judge 显式关闭 Thinking；Loopper 管理的 DeepSeek Runtime 为当前配置模型注入并选择 `loopper-no-thinking` 私有 variant。Markdown Designer 与实施 Session 不受影响，外部 OpenCode 仍由操作者负责配置同名 variant，并保留现有 marker 回退。
+`0.1.62` 修复 DeepSeek Thinking 与 OpenCode JSON Schema 强制工具选择冲突。当前 Decomposer、Compiler 和最终 Requirement/Risk Judge 只在实际使用 `JSON_SCHEMA` 的步骤显式关闭 Thinking；Loopper 管理的 DeepSeek Runtime 为当前配置模型注入 `loopper-no-thinking` 私有 variant，但纯 `TEXT_MARKER` 请求不会选择它。Marker 初始、重试、Schema 回退和 finalizer Session 保留配置的 Thinking 或 Provider 默认值，同时继续经过同一套 JSON 提取、确定性校验与修复预算。Markdown Designer 与实施 Session 不受影响，外部 OpenCode 仍由操作者负责为 Schema 路径配置同名 variant。
 
 `0.1.61` 将计划确认与执行资源申请彻底分离。确认只创建无队列、无租约、无执行目录、无任务分支的 `PENDING_START` 任务；点击一次“开始执行”后才记录 `REQUEST_START`、进入 FIFO 队列并准备 Git/Direct 工作区，准入后自动经过短暂的 `READY` 继续到 `RUNNING`。待开始任务可直接取消且不会触碰工作区，排队准入、脏文件处理、重启恢复和自动化也沿用同一份已请求执行语义。
 
 `0.1.60` 为 `READY` 待执行任务补充详情页确认取消入口。任务无需先启动 OpenCode Session 即可取消；确认文案明确尚未开始执行，并保留任务分支、执行目录与已有证据，随后复用既有终态安全检查恢复源分支和释放自身写租约。
 
-`0.1.59` 复用 OpenCode 的角色权限、JSON Schema 结构化输出、agent/tool 能力发现和实施 Todo。Decomposer、Designer、Compiler、Judge 与 Implementation 使用独立权限模板；五类机器 JSON 合同优先走结构化输出，并只在明确不支持或返回缺失/格式错误时使用全新只读 Session 回退到原 marker 修复路径。Runtime 页展示原生 agent、plan 可用性和结构化输出观测，但 Designer 暂不接管原生 plan agent。只有实施 Session 探测到 `todowrite` 才注入 Todo 提示并每两秒有界同步；Todo 是非权威进度投影，不改变 Task/Stage/Attempt/Verifier/Judge 生命周期。
+`0.1.59` 复用 OpenCode 的角色权限、JSON Schema 结构化输出、agent/tool 能力发现和实施 Todo。Decomposer、Designer、Compiler、Judge 与 Implementation 使用独立权限模板；五类机器 JSON 合同优先走结构化输出，并只在明确不支持或返回缺失/格式错误时使用全新只读 Session 回退到原 marker 修复路径。服务端继续使用原生 agent、plan 可用性和结构化输出观测，但 Runtime 页只展示操作所需的服务与进程信息，Designer 仍不接管原生 plan agent。只有实施 Session 探测到 `todowrite` 才注入 Todo 提示并每两秒有界同步；Todo 是非权威进度投影，不改变 Task/Stage/Attempt/Verifier/Judge 生命周期。
 
 `0.1.58` 稳定 Direct 根目录身份的跨平台验收：NTFS 会在短时间同名重建时隧道化 creation time，并可能让 Java 暴露相同 file key；测试检测到这种元数据碰撞时显式设置不同的临时目录创建时间，再验证 Loopper 的 `canonical path + file key + creation time` 指纹合同。产品仍以操作系统实际返回的稳定元数据为边界，不向用户目录写身份标记。
 

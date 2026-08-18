@@ -2107,7 +2107,7 @@ public class TaskService {
         OpenCodeClient.OpenCodeSession remote;
         try {
             Path worktree = Path.of(requireWorktree(task));
-            remote = openCode.createSession(worktree, roleTitle(role), structuredJudgeModel(spec),
+            remote = openCode.createSession(worktree, roleTitle(role), judgeModel(spec, responseMode),
                     OpenCodeClient.SessionProfile.JUDGE_READ_ONLY);
             JudgeRunRow running = judgeState(judge, remote.id(), JudgeRunState.RUNNING, null, null, null, null);
             updateJudge(running);
@@ -2171,7 +2171,8 @@ public class TaskService {
         try {
             try { openCode.abort(failedRemote); } catch (RuntimeException ignored) { }
             OpenCodeClient.OpenCodeSession finalizer = openCode.createSession(Path.of(requireWorktree(task)),
-                    roleTitle(judge.role()) + " Finalizer (NO_TOOLS)", structuredJudgeModel(spec(task)),
+                    roleTitle(judge.role()) + " Finalizer (NO_TOOLS)",
+                    judgeModel(spec(task), judge.responseMode()),
                     OpenCodeClient.SessionProfile.MACHINE_FINALIZER_NO_TOOLS);
             JudgeRunRow recovered = judgeState(judge, finalizer.id(), JudgeRunState.RUNNING,
                     null, null, null, null);
@@ -2450,7 +2451,8 @@ public class TaskService {
                 || previous.reason().startsWith("OPENCODE_STRUCTURED_OUTPUT_FAILED:"))) {
             return ModelResponseMode.TEXT_MARKER;
         }
-        OpenCodeClient.StructuredOutputCapability capability = openCode.structuredOutputCapability(structuredJudgeModel(spec));
+        OpenCodeClient.StructuredOutputCapability capability = openCode.structuredOutputCapability(
+                judgeModel(spec, ModelResponseMode.JSON_SCHEMA));
         return capability.transport() == OpenCodeClient.CapabilityState.UNAVAILABLE
                 || capability.selectedModel() == OpenCodeClient.CapabilityState.UNAVAILABLE
                 ? ModelResponseMode.TEXT_MARKER : ModelResponseMode.JSON_SCHEMA;
@@ -3120,10 +3122,15 @@ public class TaskService {
         if (separator <= 0 || separator >= configured.length() - 1) return null;
         return new OpenCodeClient.OpenCodeModel(configured.substring(0, separator), configured.substring(separator + 1), null);
     }
-    private OpenCodeClient.OpenCodeModel structuredJudgeModel(LoopSpec spec) {
+    private OpenCodeClient.OpenCodeModel judgeModel(LoopSpec spec, ModelResponseMode mode) {
         OpenCodeClient.OpenCodeModel selected = model(spec);
         return selected == null ? null
-                : new OpenCodeClient.OpenCodeModel(selected.providerId(), selected.modelId(), false);
+                : new OpenCodeClient.OpenCodeModel(selected.providerId(), selected.modelId(),
+                mode == ModelResponseMode.JSON_SCHEMA ? Boolean.FALSE : selected.thinking());
+    }
+    private OpenCodeClient.OpenCodeModel judgeModel(LoopSpec spec, String persistedMode) {
+        return judgeModel(spec, ModelResponseMode.JSON_SCHEMA.name().equals(persistedMode)
+                ? ModelResponseMode.JSON_SCHEMA : ModelResponseMode.TEXT_MARKER);
     }
     private String now() { return Instant.now().toString(); }
     private Duration remainingTaskDuration(TaskRow task, LoopSpec spec) {

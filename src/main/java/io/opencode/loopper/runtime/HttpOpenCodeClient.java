@@ -192,7 +192,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
                 body.put("agent", STRUCTURED_AGENT);
             }
             OpenCodeModel selectedModel = sessionModels.get(session.id());
-            if (usesStructuredNoThinkingVariant(selectedModel)) {
+            if (structured && usesStructuredNoThinkingVariant(selectedModel)) {
                 body.put("variant", STRUCTURED_NO_THINKING_VARIANT);
             }
             if (structured) {

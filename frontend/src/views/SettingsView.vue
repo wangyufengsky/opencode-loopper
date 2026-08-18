@@ -170,7 +170,7 @@ onMounted(load)
 .settings-layout { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .retry-settings, .publication-settings { grid-column: 1 / -1; }
 .form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-.limits-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.limits-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: end; }
 .retry-grid { display: grid; grid-template-columns: minmax(100px, .5fr) repeat(2, minmax(0, 1fr)); gap: 8px 16px; align-items: center; }
 .retry-grid strong { color: var(--color-text-secondary); }
 .activation { border: 1px solid; border-radius: 999px; padding: 3px 8px; font-size: 11px; }

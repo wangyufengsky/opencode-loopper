@@ -22,6 +22,27 @@ function currentSettings(): AppSettings {
 }
 
 describe('Settings model selection', () => {
+  it('keeps all execution limit controls in the bottom-aligned limits grid', async () => {
+    vi.spyOn(api, 'getSettings').mockResolvedValue(currentSettings())
+    vi.spyOn(api, 'getSettingsModels').mockResolvedValue([
+      { id: 'opencode/model-a', provider: 'opencode', model: 'model-a', label: 'opencode / model-a' },
+    ])
+    const wrapper = mount(SettingsView, {
+      global: {
+        plugins: [createPinia(), ElementPlus],
+        stubs: { PageHeader: { template: '<header><slot name="actions" /></header>' }, Icon: true },
+      },
+    })
+
+    await flushPromises()
+
+    const limits = wrapper.get('.limits-grid')
+    expect(limits.findAll('.el-form-item')).toHaveLength(7)
+    expect(limits.text()).toContain('Attempt 超时（分钟）')
+    expect(limits.text()).toContain('验证超时（分钟）')
+    expect(limits.text()).toContain('Designer 超时（分钟）')
+  })
+
   it('loads CLI models into dropdowns and persists the selected model', async () => {
     const current = currentSettings()
     vi.spyOn(api, 'getSettings').mockResolvedValue(current)

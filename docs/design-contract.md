@@ -118,6 +118,10 @@ actions.
 The process card also displays the server snapshot's `loopperVersion`. The SPA
 must not infer it from the frontend package or confuse it with the separately
 reported OpenCode CLI `version`.
+The Runtime page intentionally stays focused on the service summary, process
+ownership, endpoint, model, and recovery actions. It does not render separate
+native-capability or authorization-boundary cards; hiding those projections does
+not weaken the server-owned capability selection or permission enforcement.
 
 Task responses expose the current `waitingReasonCode` and authoritative
 `loopRetryAvailable` projection. When the current wait reason is
@@ -171,9 +175,10 @@ content retry counters remain independent. Draft concurrency, exhausted budgets,
 unassignable aggregation conflicts enter `WAITING_INPUT` without synchronizing
 the draft or creating a Task.
 
-OpenCode native agents are capability-discovered and the Runtime page may show
-that `plan` is available, but the Designer does not delegate to the native plan
-agent in this release. Designer remains the human-readable Markdown role;
+OpenCode native agents are capability-discovered for server-side role selection,
+but the compact Runtime page does not expose that diagnostic projection and the
+Designer does not delegate to the native plan agent in this release. Designer
+remains the human-readable Markdown role;
 Decomposer and Compiler remain the machine-contract roles; the Validator remains
 server-owned and deterministic. This preserves Review Gate labels, persistence,
 repair budgets, source mapping, and the rule that raw machine JSON is not a chat
@@ -260,12 +265,15 @@ active rows stay marker-compatible. Structured output remains hidden behind the
 same deterministic validation and Review Gate; schema acceptance is not semantic
 success.
 
-The Decomposer, Compiler, and final Judge machine-response roles run with
-Thinking disabled. On the managed DeepSeek runtime they select Loopper's private
-`loopper-no-thinking` variant, because OpenCode's schema transport requires a
-tool choice that DeepSeek Thinking rejects. The Markdown Designer remains on the
-configured model behavior, so disabling reasoning for machine JSON does not
-silently change interactive design or implementation quality.
+The Decomposer, Compiler, and final Judge machine-response roles disable Thinking
+only for a step using `JSON_SCHEMA`. On the managed DeepSeek runtime those Schema
+prompts select Loopper's private `loopper-no-thinking` variant, because OpenCode's
+schema transport requires a tool choice that DeepSeek Thinking rejects. A
+`TEXT_MARKER` step, including its fresh fallback Session, retains configured
+Thinking or the provider default while still passing through the same extraction
+and deterministic validation. The Markdown Designer remains on the configured
+model behavior, so the transport workaround does not silently reduce interactive
+design or implementation quality.
 
 On a Loopper-managed runtime those same three machine-response roles select the
 private zero-temperature `loopper-structured` agent, capped at 24 agentic steps

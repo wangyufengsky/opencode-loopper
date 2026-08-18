@@ -897,7 +897,7 @@ public class DesignerSessionService {
         ProjectRow project = projects.get(input.projectId());
         try {
             OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
-                    "OpenCode Loopper Task Decomposer (READ_ONLY)", structuredModel(),
+                    "OpenCode Loopper Task Decomposer (READ_ONLY)", responseModel(responseMode),
                     OpenCodeClient.SessionProfile.DECOMPOSER_READ_ONLY);
             TaskDecompositionRow running = updateDecomposition(pending, TaskDecompositionState.RUNNING,
                     null, null, "[]", "{}", remote.id(), "RUNNING", 0, 0, null, null);
@@ -1350,7 +1350,8 @@ public class DesignerSessionService {
         ProjectRow project = projects.get(session.projectId());
         try {
             OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
-                    "OpenCode Loopper LoopSpec Compiler " + workPackage.packageId() + " (READ_ONLY)", structuredModel(),
+                    "OpenCode Loopper LoopSpec Compiler " + workPackage.packageId() + " (READ_ONLY)",
+                    responseModel(responseMode),
                     OpenCodeClient.SessionProfile.COMPILER_READ_ONLY);
             LoopSpecCompilationRow running = updateCompilation(pending, LoopSpecCompilationState.RUNNING,
                     remote.id(), "RUNNING", 0, null, null, session.projectId(), null);
@@ -1478,7 +1479,7 @@ public class DesignerSessionService {
         try {
             ProjectRow project = projects.get(session.projectId());
             OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
-                    "OpenCode Loopper LoopSpec Compiler (READ_ONLY)", structuredModel(),
+                    "OpenCode Loopper LoopSpec Compiler (READ_ONLY)", responseModel(ModelResponseMode.TEXT_MARKER),
                     OpenCodeClient.SessionProfile.COMPILER_READ_ONLY);
             LoopSpecCompilationRow running = updateCompilation(pending, LoopSpecCompilationState.RUNNING,
                     remote.id(), "RUNNING", 0, null, null, session.projectId());
@@ -1580,7 +1581,9 @@ public class DesignerSessionService {
         try {
             try { openCode.abort(failedRemote); } catch (RuntimeException ignored) { }
             OpenCodeClient.OpenCodeSession finalizer = openCode.createSession(Path.of(project.rootPath()),
-                    "OpenCode Loopper Task Decomposer Finalizer (NO_TOOLS)", structuredModel(),
+                    "OpenCode Loopper Task Decomposer Finalizer (NO_TOOLS)",
+                    responseModel(currentResponseMode(row.workflowStep(), row.planningResponseMode(),
+                            row.finalResponseMode())),
                     OpenCodeClient.SessionProfile.MACHINE_FINALIZER_NO_TOOLS);
             updateDecomposition(row, TaskDecompositionState.RUNNING, row.resultType(), row.normalizedGoal(),
                     row.globalConstraintsJson(), row.planJson(), finalizer.id(), "FINALIZER_RUNNING",
@@ -1626,7 +1629,9 @@ public class DesignerSessionService {
         try {
             try { openCode.abort(failedRemote); } catch (RuntimeException ignored) { }
             OpenCodeClient.OpenCodeSession finalizer = openCode.createSession(Path.of(project.rootPath()),
-                    "OpenCode Loopper Compiler Finalizer (NO_TOOLS)", structuredModel(),
+                    "OpenCode Loopper Compiler Finalizer (NO_TOOLS)",
+                    responseModel(currentResponseMode(row.workflowStep(), row.planningResponseMode(),
+                            row.finalResponseMode())),
                     OpenCodeClient.SessionProfile.MACHINE_FINALIZER_NO_TOOLS);
             updateCompilation(row, LoopSpecCompilationState.RUNNING, finalizer.id(), "FINALIZER_RUNNING",
                     row.repairCount(), null, null, session.projectId(), row.compiledPackageJson());
@@ -2120,7 +2125,8 @@ public class DesignerSessionService {
         try {
             ProjectRow project = projects.get(session.projectId());
             OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
-                    "OpenCode Loopper Task Decomposer format fallback (READ_ONLY)", structuredModel(),
+                    "OpenCode Loopper Task Decomposer format fallback (READ_ONLY)",
+                    responseModel(ModelResponseMode.TEXT_MARKER),
                     OpenCodeClient.SessionProfile.DECOMPOSER_READ_ONLY);
             TaskDecompositionRow transport = decompositionTransport(row, planning,
                     ModelResponseMode.TEXT_MARKER, null, true);
@@ -2165,7 +2171,8 @@ public class DesignerSessionService {
         try {
             ProjectRow project = projects.get(session.projectId());
             OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
-                    "OpenCode Loopper LoopSpec Compiler format fallback (READ_ONLY)", structuredModel(),
+                    "OpenCode Loopper LoopSpec Compiler format fallback (READ_ONLY)",
+                    responseModel(ModelResponseMode.TEXT_MARKER),
                     OpenCodeClient.SessionProfile.COMPILER_READ_ONLY);
             LoopSpecCompilationRow transport = compilationTransport(row, planning,
                     ModelResponseMode.TEXT_MARKER, null, true);
@@ -2228,7 +2235,9 @@ public class DesignerSessionService {
             ProjectRow project = projects.get(session.projectId());
             try {
                 OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
-                        "OpenCode Loopper Task Decomposer retry (READ_ONLY)", structuredModel(),
+                        "OpenCode Loopper Task Decomposer retry (READ_ONLY)",
+                        responseModel(currentResponseMode(decomposition.workflowStep(),
+                                decomposition.planningResponseMode(), decomposition.finalResponseMode())),
                         OpenCodeClient.SessionProfile.DECOMPOSER_READ_ONLY);
                 TaskDecompositionRow retried = updateDecomposition(decomposition, TaskDecompositionState.RUNNING,
                         decomposition.resultType(), decomposition.normalizedGoal(), decomposition.globalConstraintsJson(),
@@ -2303,7 +2312,9 @@ public class DesignerSessionService {
             try {
                 OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
                         "OpenCode Loopper LoopSpec Compiler " + workPackage.packageId() + " retry (READ_ONLY)",
-                        structuredModel(), OpenCodeClient.SessionProfile.COMPILER_READ_ONLY);
+                        responseModel(currentResponseMode(compilation.workflowStep(),
+                                compilation.planningResponseMode(), compilation.finalResponseMode())),
+                        OpenCodeClient.SessionProfile.COMPILER_READ_ONLY);
                 LoopSpecCompilationRow retryBase = new LoopSpecCompilationRow(compilation.id(),
                         compilation.designerSessionId(), compilation.designRevision(), compilation.state(),
                         compilation.externalSessionId(), compilation.externalSessionState(), compilation.repairCount(),
@@ -5107,7 +5118,8 @@ public class DesignerSessionService {
     }
 
     private ModelResponseMode preferredResponseMode() {
-        OpenCodeClient.StructuredOutputCapability capability = openCode.structuredOutputCapability(structuredModel());
+        OpenCodeClient.StructuredOutputCapability capability = openCode.structuredOutputCapability(
+                responseModel(ModelResponseMode.JSON_SCHEMA));
         return capability.transport() == OpenCodeClient.CapabilityState.UNAVAILABLE
                 || capability.selectedModel() == OpenCodeClient.CapabilityState.UNAVAILABLE
                 ? ModelResponseMode.TEXT_MARKER : ModelResponseMode.JSON_SCHEMA;
@@ -5358,10 +5370,17 @@ public class DesignerSessionService {
                 : new OpenCodeClient.OpenCodeModel(provider, model, null);
     }
 
-    private OpenCodeClient.OpenCodeModel structuredModel() {
+    private OpenCodeClient.OpenCodeModel responseModel(ModelResponseMode mode) {
         OpenCodeClient.OpenCodeModel configured = configuredModel();
         return configured == null ? null
-                : new OpenCodeClient.OpenCodeModel(configured.providerId(), configured.modelId(), false);
+                : new OpenCodeClient.OpenCodeModel(configured.providerId(), configured.modelId(),
+                mode == ModelResponseMode.JSON_SCHEMA ? Boolean.FALSE : configured.thinking());
+    }
+
+    private ModelResponseMode currentResponseMode(String workflowStep, String planningMode, String finalMode) {
+        String persisted = StructuredModelStep.PLANNING.name().equals(workflowStep) ? planningMode : finalMode;
+        return ModelResponseMode.JSON_SCHEMA.name().equals(persisted)
+                ? ModelResponseMode.JSON_SCHEMA : ModelResponseMode.TEXT_MARKER;
     }
 
     private boolean timedOut(String updatedAt) {

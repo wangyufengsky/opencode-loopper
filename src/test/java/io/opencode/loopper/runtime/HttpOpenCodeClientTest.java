@@ -438,6 +438,8 @@ class HttpOpenCodeClientTest {
                 "\"type\":\"json_schema\"", "\"retryCount\":0", "\"verdict\"",
                 "\"variant\":\"loopper-no-thinking\"")
                 .doesNotContain("\"tools\"");
+        client.promptAsync(session, OpenCodeClient.PromptRequest.text("marker"));
+        assertThat(promptBody.get()).doesNotContain("\"format\"", "\"variant\":\"loopper-no-thinking\"");
         messageBody.set("[{\"info\":{\"role\":\"user\"}},{\"info\":{\"role\":\"assistant\",\"structured\":{\"verdict\":\"PASS\",\"reason\":\"ok\"}}}]");
         assertThat(client.sessionResult(session).structured()).containsEntry("verdict", "PASS");
         assertThat(client.structuredOutputCapability(new OpenCodeClient.OpenCodeModel(

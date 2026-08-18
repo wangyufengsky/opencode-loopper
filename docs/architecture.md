@@ -285,11 +285,13 @@ that an external model Session stopped. Archived entries remain available from
 the history endpoint but are excluded from project `openDesignerSessionCount`
 and the active recovery query; restoring removes only the archive projection.
 
-Machine-response roles also carry an explicit non-thinking model selection.
-Managed DeepSeek starts with a private `loopper-no-thinking` variant and
-Decomposer/Compiler/Judge prompts select it; Markdown Designer and Implementation
-keep their configured thinking behavior. This is a transport compatibility rule,
-not a new lifecycle state or evidence source.
+Machine-response roles carry an explicit non-thinking model selection only for
+steps whose persisted response mode is `JSON_SCHEMA`. Managed DeepSeek starts
+with a private `loopper-no-thinking` variant and those Schema prompts select it;
+`TEXT_MARKER` initial, retry, fallback, and finalizer Sessions retain the configured
+thinking choice or provider default. Markdown Designer and Implementation keep
+their configured thinking behavior. This is a transport compatibility rule, not
+a new lifecycle state or evidence source.
 
 Managed runtimes also define a private `loopper-structured` machine-response
 agent capped at 24 agentic steps. Decomposer, Compiler, and Judge select it to

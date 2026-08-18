@@ -1679,8 +1679,14 @@ class TaskServiceIntegrationTest {
         ((FakeOpenCodeClient) openCode).setJudgeOutput(
                 "判定：PASS\nVERDICT: BLOCKED\n理由：互相冲突的判定不能被猜测");
         ProjectRow malformedProject = projects.create("malformed", gitProject());
-        TaskRow malformed = drafts.confirm(drafts.create(spec(malformedProject.id())).id(), "unparseable judge");
-        tasks.start(malformed.id()); tasks.verify(malformed.id()); tasks.pollJudges(malformed.id());
+        TaskRow malformed = drafts.confirm(drafts.create(judgeContractSpec(malformedProject.id())).id(), "unparseable judge");
+        tasks.start(malformed.id());
+        tasks.verify(malformed.id());
+        assertThat(tasks.judges(malformed.id())).allSatisfy(judge -> {
+            assertThat(judge.responseMode()).isEqualTo("TEXT_MARKER");
+            assertThat(((FakeOpenCodeClient) openCode).modelForSession(judge.externalSessionId()).thinking()).isTrue();
+        });
+        tasks.pollJudges(malformed.id());
         assertThat(tasks.get(malformed.id()).state()).isEqualTo("WAITING_INPUT");
         assertThat(tasks.judges(malformed.id())).allSatisfy(judge -> assertThat(judge.verdict()).isEqualTo("UNPARSEABLE"));
     }

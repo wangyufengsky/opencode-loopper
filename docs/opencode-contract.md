@@ -129,13 +129,16 @@ output available. The adapter records support only after reading a real
 `info.structured` object; it preserves legal JSON nulls and records explicit
 transport/model failures separately.
 
-Decomposer, Compiler, and final Judge Sessions explicitly select the configured
-provider/model with `thinking=false`; interactive Markdown Designer and writable
-Implementation Sessions retain their configured LoopSpec thinking choice. For a
-Loopper-managed DeepSeek runtime, startup injects a private
+Decomposer, Compiler, and final Judge steps select the configured provider/model
+with `thinking=false` only while their persisted response mode is `JSON_SCHEMA`.
+`TEXT_MARKER` steps, including a fresh Session created after Schema fallback,
+retain the configured thinking choice or the provider default when it is absent.
+Interactive Markdown Designer and writable Implementation Sessions keep their
+existing configured behavior. For a Loopper-managed DeepSeek runtime, startup injects a private
 `loopper-no-thinking` model variant whose provider option is
-`thinking.type=disabled`, and prompts for those three machine-response roles
-select that variant. This avoids DeepSeek's incompatibility between Thinking and
+`thinking.type=disabled`, and only JSON Schema prompts for those three
+machine-response roles select that variant. Plain marker prompts never attach it.
+This avoids DeepSeek's incompatibility between Thinking and
 OpenCode's required structured-output tool choice without weakening any role
 permission or deterministic validation boundary. A reused external OpenCode
 runtime remains operator-owned and must expose the same variant for its selected
