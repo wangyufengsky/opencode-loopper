@@ -99,7 +99,8 @@ function containsUnresolvedMergeMarkers(content: string) {
 }
 
 async function loadPublication() {
-  if (props.task.status !== 'SUCCEEDED') return
+  if (props.task.status !== 'SUCCEEDED'
+    && !(props.task.status === 'AWAITING_DECISION' && props.task.executionResult === 'SUCCEEDED')) return
   if (props.demo) {
     publication.value = { state: 'READY', available: true, branch: props.task.branch, remoteName: 'origin', targetBranch: 'main', targetBranches: ['main'], provider: 'GITLAB', hasChanges: true, conflictCount: 0, resolvedCount: 0, deliveryState: 'NOT_STARTED', deliveryFinal: false, reconciliationAvailable: false }
     return
@@ -440,7 +441,7 @@ async function createMergeRequest() {
 </script>
 
 <template>
-  <template v-if="task.status === 'SUCCEEDED'">
+  <template v-if="task.status === 'SUCCEEDED' || (task.status === 'AWAITING_DECISION' && task.executionResult === 'SUCCEEDED')">
     <el-tag v-if="publication" :type="publication.deliveryState === 'MERGED' || publication.deliveryState === 'LOCAL_COMPLETED' ? 'success' : publication.deliveryState === 'MERGE_REQUEST_CLOSED' ? 'danger' : 'info'">交付：{{ deliveryLabel }}</el-tag>
     <el-button v-if="loading || !publication" plain disabled :loading="loading">读取提交状态</el-button>
     <el-button v-else-if="publication.state === 'READY'" type="success" :loading="operationLoading" @click="openCommitDialog"><Icon icon="lucide:git-commit-horizontal" />{{ localPublication ? '提交本地任务分支' : '提交' }}</el-button>

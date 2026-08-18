@@ -74,7 +74,7 @@ public class TaskPublicationService {
 
     public PublicationStatus status(String taskId) {
         TaskRow task = tasks.get(taskId);
-        if (!TaskState.SUCCEEDED.name().equals(task.state())) {
+        if (!hasSuccessfulResult(task)) {
             return unavailable(task, "任务通过全部验收后才能提交");
         }
         if (GitWorktreeManager.DIRECT_BRANCH.equals(task.branchName())) {
@@ -82,7 +82,7 @@ public class TaskPublicationService {
                     null, TaskPublicationState.NOT_APPLICABLE);
         }
         try {
-            PublicationStatus inspected = inspect(task);
+            PublicationStatus inspected = withFrozenWorkspace(task, inspect(task));
             TaskPublicationRow row = observe(task, inspected);
             return withDelivery(inspected, row, null);
         } catch (RuntimeException failure) {
@@ -94,14 +94,14 @@ public class TaskPublicationService {
     public CommitSuggestion generateCommitMessage(String taskId) {
         TaskRow task = requirePublishableTask(taskId);
         requireNotMerged(task.id());
-        PublicationStatus current = inspect(task);
+        PublicationStatus current = withFrozenWorkspace(task, inspect(task));
         if (!"READY".equals(current.state())) {
             throw new ConflictException("TASK_PUBLICATION_NOT_READY", "当前任务没有等待提交的文件变更");
         }
         if (!openCode.healthy()) {
             throw new ServiceUnavailableException("OPENCODE_UNAVAILABLE", "OpenCode 不可用，无法生成默认提交信息");
         }
-        Path workspace = workspace(task);
+        Path workspace = repository(task);
         OpenCodeClient.OpenCodeSession session;
         try {
             session = openCode.createReadOnlySession(workspace,
@@ -147,10 +147,14 @@ public class TaskPublicationService {
             throw new ConflictException("TASK_PUBLICATION_ACTIVE", "当前任务正在提交或推送，请等待本次操作完成");
         }
         try {
+            if (TaskState.AWAITING_DECISION.name().equals(task.state())) {
+                task = tasks.preparePublicationWorkspace(task.id());
+            }
             PublicationStatus before = inspect(task);
             if ("PUSHED".equals(before.state()) || "SYNCED_LOCAL".equals(before.state())
                     || "LOCAL_SYNC_CONFLICT".equals(before.state())) {
                 if ("PUSHED".equals(before.state()) || "SYNCED_LOCAL".equals(before.state())) {
+                    confirmAwaitingDecision(task, "PUBLICATION_ALREADY_CONFIRMED", before.commitSha());
                     tasks.releaseWorkspaceAfterTaskCommit(task.id());
                 }
                 return status(task.id());
@@ -183,16 +187,16 @@ public class TaskPublicationService {
                 } else {
                     syncLocalSource(task, workspace, committed.commitSha());
                 }
-                tasks.releaseWorkspaceAfterTaskCommit(task.id());
                 PublicationStatus synced = inspect(task);
                 if ("LOCAL_SYNC_CONFLICT".equals(synced.state())) return synced;
                 if (!"SYNCED_LOCAL".equals(synced.state())) {
                     throw new ConflictException("LOCAL_SOURCE_SYNC_UNCONFIRMED", "源代码同步完成，但同步证据未能确认");
                 }
                 observe(task, synced);
+                confirmAwaitingDecision(task, "LOCAL_COMMIT", committed.commitSha());
+                tasks.releaseWorkspaceAfterTaskCommit(task.id());
                 return status(task.id());
             }
-            tasks.releaseWorkspaceAfterTaskCommit(task.id());
             runRequired(workspace,
                     List.of("git", "push", "--set-upstream", committed.remoteName(),
                             "refs/heads/" + committed.branch() + ":refs/heads/" + committed.branch()),
@@ -202,6 +206,8 @@ public class TaskPublicationService {
                 throw new ConflictException("GIT_PUSH_STATE_UNCONFIRMED", "Git push 返回成功，但远端跟踪分支尚未与本地提交一致");
             }
             observe(task, pushed);
+            confirmAwaitingDecision(task, "REMOTE_PUSH", pushed.commitSha());
+            tasks.releaseWorkspaceAfterTaskCommit(task.id());
             return status(task.id());
         } finally {
             lock.unlock();
@@ -530,13 +536,43 @@ public class TaskPublicationService {
 
     private TaskRow requirePublishableTask(String taskId) {
         TaskRow task = tasks.get(taskId);
-        if (!TaskState.SUCCEEDED.name().equals(task.state())) {
+        if (!hasSuccessfulResult(task)) {
             throw new ConflictException("TASK_NOT_SUCCEEDED", "任务通过全部验收后才能提交并发布");
         }
         if (GitWorktreeManager.DIRECT_BRANCH.equals(task.branchName())) {
             throw new ConflictException("DIRECT_TASK_PUBLICATION_UNSUPPORTED", "直接执行任务没有隔离分支，请在项目仓库中手工处理提交");
         }
         return task;
+    }
+
+    private boolean hasSuccessfulResult(TaskRow task) {
+        if (TaskState.SUCCEEDED.name().equals(task.state())) return true;
+        if (!TaskState.AWAITING_DECISION.name().equals(task.state())
+                && !TaskState.COMPLETED.name().equals(task.state())) return false;
+        var cycle = tasks.latestExecutionCycle(task.id());
+        return cycle != null && "SUCCEEDED".equals(cycle.state());
+    }
+
+    private void confirmAwaitingDecision(TaskRow task, String confirmation, String commitSha) {
+        if (TaskState.AWAITING_DECISION.name().equals(task.state())) {
+            tasks.confirmPublishedResult(task.id(), confirmation, commitSha);
+        }
+    }
+
+    private PublicationStatus withFrozenWorkspace(TaskRow task, PublicationStatus inspected) {
+        if (!TaskState.AWAITING_DECISION.name().equals(task.state()) || !"UNAVAILABLE".equals(inspected.state())) {
+            return inspected;
+        }
+        var checkpoint = tasks.latestWorkspaceCheckpoint(task.id());
+        if (checkpoint == null || !"READY".equals(checkpoint.state())) return inspected;
+        if (checkpoint.manifestJson() == null || "[]".equals(checkpoint.manifestJson().strip())) return inspected;
+        return new PublicationStatus("READY", true, "任务改动已安全冻结，提交时会按 FIFO 恢复任务分支",
+                inspected.branch(), inspected.remoteName(), inspected.remoteUrl(), inspected.commitSha(),
+                inspected.commitMessage(), inspected.targetBranch(), inspected.targetBranches(), inspected.provider(),
+                inspected.upstream(), true, inspected.conflictSessionId(), inspected.conflictCount(),
+                inspected.resolvedCount(), inspected.deliveryState(), inspected.deliveryFinal(),
+                inspected.creationRequestedAt(), inspected.mergeRequest(), inspected.reconciliationAvailable(),
+                inspected.lastCheckError(), inspected.lastCheckedAt());
     }
 
     private void syncLocalSource(TaskRow task, Path workspace, String commitSha) {
@@ -769,6 +805,20 @@ public class TaskPublicationService {
     }
 
     private String publicationEvidence(TaskRow task, Path workspace) {
+        var checkpoint = tasks.latestWorkspaceCheckpoint(task.id());
+        if (TaskState.AWAITING_DECISION.name().equals(task.state())
+                && checkpoint != null && "READY".equals(checkpoint.state())) {
+            String stat = requiredOutputAllowEmpty(workspace,
+                    List.of("git", "diff", "--stat", "--no-ext-diff", checkpoint.baselineCommit(),
+                            checkpoint.checkpointTree(), "--"),
+                    "GIT_DIFF_SUMMARY_FAILED");
+            String status = requiredOutputAllowEmpty(workspace,
+                    List.of("git", "diff", "--name-status", "--no-ext-diff", checkpoint.baselineCommit(),
+                            checkpoint.checkpointTree(), "--"),
+                    "GIT_STATUS_FAILED");
+            String evidence = (stat.isBlank() ? "无文件统计" : stat) + "\n" + status;
+            return evidence.substring(0, Math.min(evidence.length(), 5000));
+        }
         String stat = requiredOutputAllowEmpty(workspace,
                 List.of("git", "diff", "--stat", "--no-ext-diff", task.baselineCommit(), "--"),
                 "GIT_DIFF_SUMMARY_FAILED");

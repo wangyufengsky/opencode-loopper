@@ -11,6 +11,9 @@ export type TaskStatus =
   | 'PAUSED'
   | 'WAITING_INPUT'
   | 'JUDGING'
+  | 'AWAITING_DECISION'
+  | 'COMPLETED'
+  | 'SUPERSEDED'
   | 'SUCCEEDED'
   | 'FAILED'
   | 'CANCELLED'
@@ -162,6 +165,7 @@ export interface Attempt {
   id: string
   ordinal: number
   stageId: string
+  executionCycleId?: string
   sessionId?: string
   status: 'RUNNING' | 'VERIFIED' | 'VERIFIER_FAILED' | 'SESSION_ERROR' | 'TASK_ERROR' | 'CANCELLED'
   startedAt: string
@@ -208,6 +212,11 @@ export interface Task {
   loopRetryAvailable?: boolean
   hasDesignHistory?: boolean
   archived?: boolean
+  executionResult?: 'SUCCEEDED' | 'FAILED' | 'INTERRUPTED' | 'AUDIT_COMPLETED'
+  executionCycleOrdinal?: number
+  checkpointState?: 'CAPTURING' | 'READY' | 'RESTORING' | 'RESTORED' | 'BLOCKED'
+  parentTaskId?: string
+  successorTaskId?: string
   activeStage?: number
   attemptCount: number
   maxAttempts: number
@@ -466,7 +475,7 @@ export interface TaskQueueStatus {
   reconcileAvailable: boolean
 }
 
-export type RecoveryMode = 'FROM_FAILED_STAGE' | 'ALL_STAGES' | 'VERIFY_ONLY' | 'REWORK_ALL_STAGES'
+export type RecoveryMode = 'FROM_FAILED_STAGE' | 'ALL_STAGES' | 'VERIFY_ONLY' | 'REWORK_ALL_STAGES' | 'INHERIT_CHANGES'
 
 export interface RecoveryDraft {
   taskId: string
@@ -475,6 +484,48 @@ export interface RecoveryDraft {
   parentStageId?: string
   workspaceFingerprint: string
   writableSession: boolean
+}
+
+export type TaskDecisionAction =
+  | 'CONTINUE_CURRENT_TASK'
+  | 'DERIVE_INHERIT_CHANGES'
+  | 'DERIVE_REWORK_ALL'
+  | 'READ_ONLY_AUDIT'
+  | 'PUBLISH'
+  | 'ACCEPT_RESULT'
+  | 'CANCEL'
+
+export interface TaskDecision {
+  taskId: string
+  taskState: TaskStatus
+  taskVersion: number
+  cycle?: {
+    id: string
+    ordinal: number
+    kind: 'INITIAL' | 'CONTINUE_FAILED' | 'CONTINUE_SUCCESS' | 'READ_ONLY_AUDIT'
+    result: 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'INTERRUPTED' | 'AUDIT_COMPLETED'
+    startStageId?: string
+    startStageOrdinal?: number
+    failureCode?: string
+    failureMessage?: string
+    authorizedAt: string
+    startedAt: string
+    endedAt?: string
+    version: number
+  }
+  checkpoint?: {
+    id: string
+    state: 'CAPTURING' | 'READY' | 'RESTORING' | 'RESTORED' | 'BLOCKED'
+    snapshotId?: string
+    checkpointTree?: string
+    changedFileCount: number
+    blockerCode?: string
+    blockerMessage?: string
+    updatedAt: string
+    version: number
+  }
+  availableActions: TaskDecisionAction[]
+  stages: Array<{ id: string; ordinal: number; objective: string; state: string }>
 }
 
 export interface SessionTodo {

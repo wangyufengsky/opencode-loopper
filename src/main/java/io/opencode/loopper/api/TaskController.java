@@ -296,12 +296,20 @@ public class TaskController {
         TaskService.LoopRetryStatus loopRetry = service.loopRetryStatus(task.id());
         TaskRetryScheduleRow retry = service.retrySchedule(task.id());
         List<StageRow> stageRows = service.stages(task.id());
+        var cycle = service.latestExecutionCycle(task.id());
+        var checkpoint = service.latestWorkspaceCheckpoint(task.id());
+        String parentTaskId = mapper.findTaskLineage(task.id()).map(row -> row.parentTaskId()).orElse(null);
+        String successorTaskId = mapper.childTasks(task.id()).stream()
+                .filter(row -> "INHERIT_CHANGES".equals(row.recoveryMode()) || "REWORK_ALL_STAGES".equals(row.recoveryMode()))
+                .findFirst().map(row -> row.childTaskId()).orElse(null);
         return new TaskDto(task.id(), task.projectId(), projectName, task.title(), spec == null ? "" : spec.goal(), task.branchName(), task.worktreePath(), task.state(),
                 retry == null ? null : retry.cause(), retry == null ? null : retry.ordinal(),
                 retry == null ? null : retry.createdAt(), retry == null ? null : retry.dueAt(),
                 retry == null ? null : retry.delaySeconds(),
                 loopRetry.waitingReasonCode(), loopRetry.loopRetryAvailable(),
                 draft != null, service.archived(task.id()),
+                cycle == null ? null : cycle.state(), cycle == null ? null : cycle.ordinal(),
+                checkpoint == null ? null : checkpoint.state(), parentTaskId, successorTaskId,
                 attempts.size(), spec == null ? 0 : spec.limits().maxTaskAttempts(), task.createdAt(), task.updatedAt(),
                 stageRows.stream().map(this::stage).toList(), workPackageProgress(stageRows, attempts, spec),
                 attempts.stream().map(this::attempt).toList(), service.errors(task.id()).stream().map(this::error).toList(),
@@ -312,7 +320,10 @@ public class TaskController {
                           String worktreePath, String status, String retryCause, Integer retryOrdinal,
                           String retryScheduledAt, String retryDueAt, Integer retryDelaySeconds,
                           String waitingReasonCode, boolean loopRetryAvailable,
-                          boolean hasDesignHistory, boolean archived, int attemptCount, int maxAttempts, String createdAt,
+                          boolean hasDesignHistory, boolean archived,
+                          String executionResult, Integer executionCycleOrdinal, String checkpointState,
+                          String parentTaskId, String successorTaskId,
+                          int attemptCount, int maxAttempts, String createdAt,
                           String updatedAt, List<StageDto> stages, List<WorkPackageProgressDto> workPackages,
                           List<AttemptDto> attempts, List<ErrorDto> errors,
                           List<JudgeDto> judges, List<ArtifactDto> artifacts) { }
@@ -337,7 +348,7 @@ public class TaskController {
                            String workPackageId) { }
     public record WorkPackageProgressDto(String id, int ordinal, String status, int stageCount,
                                          int completedStages, int attemptCount, int attemptLimit) { }
-    public record AttemptDto(String id, String stageId, int ordinal, String sessionId, String status, String failureKind, String summary,
+    public record AttemptDto(String id, String stageId, int ordinal, String executionCycleId, String sessionId, String status, String failureKind, String summary,
                              String startedAt, String endedAt, List<VerificationDto> verifications) { }
     public record VerificationDto(String id, int verifierIndex, String type, String status, String summary, JsonNode evidence, String at) { }
     public record ErrorDto(String id, String layer, String code, String message, boolean retryable, String stageId, String attemptId, String sessionId, String at, JsonNode evidence) { }
@@ -350,7 +361,7 @@ public class TaskController {
         String sessionId = mapper.latestSessionForAttempt(row.id())
                 .map(io.opencode.loopper.persistence.ExecutionSessionRow::id)
                 .orElse(null);
-        return new AttemptDto(row.id(), row.stageId(), row.ordinal(), sessionId, row.state(), row.failureKind(), row.summary(),
+        return new AttemptDto(row.id(), row.stageId(), row.ordinal(), row.executionCycleId(), sessionId, row.state(), row.failureKind(), row.summary(),
                 row.createdAt(), row.endedAt(), service.verifications(row.id()).stream().map(this::verification).toList());
     }
     private VerificationDto verification(VerificationResultRow row) { return new VerificationDto(row.id(), row.verifierIndex(), row.type(), row.state(), row.summary(), node(row.evidenceJson()), row.createdAt()); }

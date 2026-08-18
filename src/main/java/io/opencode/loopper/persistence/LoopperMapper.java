@@ -608,18 +608,70 @@ public interface LoopperMapper {
     @Select("SELECT * FROM stage_workspace_baseline WHERE stage_id=#{stageId}")
     Optional<StageWorkspaceBaselineRow> findStageWorkspaceBaseline(String stageId);
 
-    @Insert("INSERT INTO attempt(id,task_id,stage_id,ordinal,state,failure_kind,summary,created_at,ended_at,version) VALUES(#{id},#{taskId},#{stageId},#{ordinal},#{state},#{failureKind},#{summary},#{createdAt},#{endedAt},#{version})")
+    @Insert("INSERT INTO attempt(id,task_id,stage_id,execution_cycle_id,ordinal,state,failure_kind,summary,created_at,ended_at,version) VALUES(#{id},#{taskId},#{stageId},#{executionCycleId},#{ordinal},#{state},#{failureKind},#{summary},#{createdAt},#{endedAt},#{version})")
     int insertAttempt(AttemptRow row);
     @Select("SELECT * FROM attempt WHERE id=#{id}") Optional<AttemptRow> findAttempt(String id);
     @Select("SELECT * FROM attempt WHERE task_id=#{taskId} ORDER BY created_at DESC") List<AttemptRow> listAttempts(String taskId);
     @Select("SELECT * FROM attempt WHERE stage_id=#{stageId} ORDER BY ordinal DESC LIMIT 1") Optional<AttemptRow> latestAttempt(String stageId);
     @Select("SELECT COUNT(*) FROM attempt WHERE stage_id=#{stageId}") int countAttemptsForStage(String stageId);
     @Select("SELECT COUNT(*) FROM attempt WHERE task_id=#{taskId}") int countAttemptsForTask(String taskId);
+    @Select("SELECT COUNT(*) FROM attempt WHERE execution_cycle_id=#{cycleId} AND stage_id=#{stageId}")
+    int countAttemptsForCycleStage(@Param("cycleId") String cycleId, @Param("stageId") String stageId);
+    @Select("SELECT COUNT(*) FROM attempt WHERE execution_cycle_id=#{cycleId}")
+    int countAttemptsForCycle(String cycleId);
+    @Select("SELECT COUNT(*) FROM attempt a JOIN stage s ON s.id=a.stage_id WHERE a.execution_cycle_id=#{cycleId} AND s.work_package_id=#{packageId}")
+    int countAttemptsForCycleWorkPackage(@Param("cycleId") String cycleId, @Param("packageId") String packageId);
     @Select("SELECT COUNT(*) FROM attempt a JOIN stage s ON s.id=a.stage_id WHERE a.task_id=#{taskId} AND s.work_package_id=#{packageId}")
     int countAttemptsForWorkPackage(@Param("taskId") String taskId, @Param("packageId") String packageId);
     @Select("SELECT COUNT(*) FROM attempt WHERE stage_id=#{stageId} AND state='SESSION_ERROR'") int countSessionErrorsForStage(String stageId);
     @Update("UPDATE attempt SET state=#{state}, failure_kind=#{failureKind}, summary=#{summary}, ended_at=#{endedAt}, version=version+1 WHERE id=#{id} AND version=#{version}")
     int finishAttempt(AttemptRow row);
+
+    @Insert("""
+            INSERT INTO task_execution_cycle(id,task_id,ordinal,kind,state,start_stage_id,start_stage_ordinal,
+              supplemental_prompt,budget_json,failure_code,failure_message,authorized_at,started_at,ended_at,version)
+            VALUES(#{id},#{taskId},#{ordinal},#{kind},#{state},#{startStageId},#{startStageOrdinal},
+              #{supplementalPrompt},#{budgetJson},#{failureCode},#{failureMessage},#{authorizedAt},#{startedAt},#{endedAt},#{version})
+            """)
+    int insertTaskExecutionCycle(TaskExecutionCycleRow row);
+    @Select("SELECT * FROM task_execution_cycle WHERE id=#{id}") Optional<TaskExecutionCycleRow> findTaskExecutionCycle(String id);
+    @Select("SELECT * FROM task_execution_cycle WHERE task_id=#{taskId} ORDER BY ordinal DESC")
+    List<TaskExecutionCycleRow> listTaskExecutionCycles(String taskId);
+    @Select("SELECT * FROM task_execution_cycle WHERE task_id=#{taskId} ORDER BY ordinal DESC LIMIT 1")
+    Optional<TaskExecutionCycleRow> latestTaskExecutionCycle(String taskId);
+    @Select("SELECT * FROM task_execution_cycle WHERE task_id=#{taskId} AND state='RUNNING' LIMIT 1")
+    Optional<TaskExecutionCycleRow> activeTaskExecutionCycle(String taskId);
+    @Select("SELECT COALESCE(MAX(ordinal),0) FROM task_execution_cycle WHERE task_id=#{taskId}")
+    int maxTaskExecutionCycleOrdinal(String taskId);
+    @Update("""
+            UPDATE task_execution_cycle SET state=#{state},failure_code=#{failureCode},failure_message=#{failureMessage},
+              ended_at=#{endedAt},version=version+1 WHERE id=#{id} AND version=#{version}
+            """)
+    int updateTaskExecutionCycle(TaskExecutionCycleRow row);
+
+    @Insert("""
+            INSERT INTO task_workspace_checkpoint(id,task_id,cycle_id,state,snapshot_id,canonical_root,root_fingerprint,
+              branch_name,source_branch,baseline_commit,checkpoint_ref,checkpoint_commit,checkpoint_tree,
+              manifest_json,manifest_sha256,stash_commit,blocker_code,blocker_message,created_at,updated_at,version)
+            VALUES(#{id},#{taskId},#{cycleId},#{state},#{snapshotId},#{canonicalRoot},#{rootFingerprint},
+              #{branchName},#{sourceBranch},#{baselineCommit},#{checkpointRef},#{checkpointCommit},#{checkpointTree},
+              #{manifestJson},#{manifestSha256},#{stashCommit},#{blockerCode},#{blockerMessage},#{createdAt},#{updatedAt},#{version})
+            """)
+    int insertTaskWorkspaceCheckpoint(TaskWorkspaceCheckpointRow row);
+    @Select("SELECT * FROM task_workspace_checkpoint WHERE id=#{id}") Optional<TaskWorkspaceCheckpointRow> findTaskWorkspaceCheckpoint(String id);
+    @Select("SELECT * FROM task_workspace_checkpoint WHERE cycle_id=#{cycleId}") Optional<TaskWorkspaceCheckpointRow> findTaskWorkspaceCheckpointForCycle(String cycleId);
+    @Select("SELECT * FROM task_workspace_checkpoint WHERE task_id=#{taskId} ORDER BY created_at DESC LIMIT 1")
+    Optional<TaskWorkspaceCheckpointRow> latestTaskWorkspaceCheckpoint(String taskId);
+    @Select("SELECT * FROM task_workspace_checkpoint WHERE state IN ('CAPTURING','RESTORING') ORDER BY created_at")
+    List<TaskWorkspaceCheckpointRow> listIncompleteTaskWorkspaceCheckpoints();
+    @Update("""
+            UPDATE task_workspace_checkpoint SET state=#{state},snapshot_id=#{snapshotId},checkpoint_ref=#{checkpointRef},
+              checkpoint_commit=#{checkpointCommit},checkpoint_tree=#{checkpointTree},manifest_json=#{manifestJson},
+              manifest_sha256=#{manifestSha256},stash_commit=#{stashCommit},blocker_code=#{blockerCode},
+              blocker_message=#{blockerMessage},updated_at=#{updatedAt},version=version+1
+            WHERE id=#{id} AND version=#{version}
+            """)
+    int updateTaskWorkspaceCheckpoint(TaskWorkspaceCheckpointRow row);
 
     @Insert("INSERT INTO execution_session(id,task_id,stage_id,attempt_id,external_session_id,state,created_at,ended_at,version,todo_capability) VALUES(#{id},#{taskId},#{stageId},#{attemptId},#{externalSessionId},#{state},#{createdAt},#{endedAt},#{version},#{todoCapability})")
     int insertSession(ExecutionSessionRow row);
@@ -767,6 +819,12 @@ public interface LoopperMapper {
             WHERE task_id=#{taskId} AND version=#{version}
             """)
     int updateTaskQueue(TaskQueueRow row);
+    @Update("""
+            UPDATE task_queue SET root_fingerprint=#{rootFingerprint},position=#{position},source=#{source},state=#{state},
+              enqueued_at=#{enqueuedAt},admitted_at=#{admittedAt},finished_at=#{finishedAt},version=version+1
+            WHERE task_id=#{taskId} AND version=#{version}
+            """)
+    int requeueTask(TaskQueueRow row);
 
     @Insert("""
             INSERT INTO interaction(id,scope_type,scope_id,task_id,designer_session_id,local_session_id,

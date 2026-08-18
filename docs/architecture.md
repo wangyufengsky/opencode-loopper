@@ -109,20 +109,21 @@ verifier, or Judge.
 - `VERIFICATION`: an Attempt did not satisfy evidence; continue the Loop.
 - `SESSION`: the OpenCode Session failed; finish the Attempt, create a fresh
   Session and continue the current Stage while limits remain.
-- `TASK`: safe continuation is impossible; abort children and enter `FAILED`.
+- `TASK`: the current execution cycle cannot continue safely; abort children,
+  record a failed cycle, freeze the workspace, and enter `AWAITING_DECISION`.
 
-A Session adapter must never write `TaskState.FAILED`. It emits a typed
+A Session adapter must never finalize a Task. It emits a typed
 `SessionFailure`; the orchestrator owns retry/promotion. Exhausted Session
-retries are promoted to `TASK/SESSION_RETRY_EXHAUSTED` with the complete chain
-of evidence.
+retries are promoted to a failed execution-cycle result with
+`TASK/SESSION_RETRY_EXHAUSTED` and the complete chain of evidence.
 
 An application restart follows the same Session boundary. Loopper best-effort
 aborts the old external Session, persists it and its Attempt as disconnected /
 `SESSION_ERROR`, and preserves or creates a persistent `RETRY_WAIT` schedule
 while limits remain. A Task-level failure closes every active Attempt and child Session; no
-child is allowed to remain `RUNNING` under a terminal Task.
+child is allowed to remain `RUNNING` while its parent waits for disposition.
 
-Task terminality does not fabricate remote terminality. If an abort and its
+An execution-cycle result does not fabricate remote terminality. If an abort and its
 independent status read both fail to prove that a writer stopped, its local
 Session becomes `DISCONNECTED` with `SESSION_ABORT_UNCONFIRMED`. The monitor
 persists up to `loopper.abort-cleanup-attempts` abort retries across restarts;
@@ -574,11 +575,28 @@ without explicit path-level local-UI decisions. A `REMOVE` decision is destructi
 and requires a second confirmation. Because external Git operations cannot be one
 SQLite transaction, a later action failure preserves completed Git actions and
 returns a refreshed snapshot rather than claiming rollback.
-If a terminal Git Task still has file changes, its writer lease remains held until
-the branch is published or manually cleaned; the next queued Task cannot switch
-the checkout underneath it. After a Task reaches `SUCCEEDED`, the local UI may
-explicitly publish its task branch: a human enters the four-digit work item,
-confirms the AI-suggested `#dddd_subject`, then Loopper commits the Task branch.
+After either Judge success or an unrecoverable execution failure, V32 records an
+immutable execution-cycle result and moves the Task to `AWAITING_DECISION` rather
+than finalizing it. Only after all mutating writers are confirmed stopped does
+Loopper freeze tracked, deleted, and untracked changes into
+`refs/loopper/checkpoints/<taskId>/<cycleId>`, clean the registered checkout, restore
+the source branch, and release the FIFO lease. A missing or invalid checkpoint
+keeps continuation/inheritance/audit disabled and retains the lease.
+
+From a failed result, the user may continue the same Task in a fresh cycle,
+derive a new Task seeded from the frozen changes, derive a full rework from the
+original baseline, create a read-only audit Task, or cancel. From a successful
+result the user may publish, continue an explicitly selected Stage with a
+supplemental requirement, derive/audit, accept an empty result, or cancel. Same-Task
+continuation reopens only the chosen/failed Stage and later Stages, creates fresh
+Attempts/Sessions, resets limits for the new cycle, and reruns final verification
+and both Judges; historical evidence remains immutable.
+
+The local UI publishes a successful waiting Task only after a human enters the four-digit work item
+and confirms the AI-suggested `#dddd_subject`. Generating that suggestion reads the immutable
+baseline-to-checkpoint-tree diff without restoring the checkout, acquiring a lease, or switching branches.
+Only the confirmed commit action makes Loopper reacquire the FIFO lease with the auditable
+`PUBLICATION` queue source, restore the verified checkpoint, and commit the Task branch.
 The Task's recorded start branch is restored before any remote push; if another
 Task is queued, lease transfer immediately switches the same registered checkout
 from that source branch to the next Task branch. Push status and retry use the
@@ -612,9 +630,19 @@ the default unless the exact host appears in `loopper.publication.http-web-hosts
 the release startup scripts add `gitlab.spdb.com` so its MR page uses HTTP without
 changing the SSH transport used for push.
 
-Execution and delivery are separate state axes. `TaskState.SUCCEEDED` remains the
-execution terminal state, while V20 stores `TaskPublicationState` and its evidence
-in `task_publication`. Remote milestones advance through `COMMITTED`, `PUSHED`,
+Execution-cycle result, user-confirmed Task finality, and delivery are separate
+state axes. V32 stores cycle results and immutable workspace checkpoints.
+`AWAITING_DECISION` is not terminal; durable local commit or confirmed push advances
+the Task to `COMPLETED`, an inherited/rework successor advances the parent to
+`SUPERSEDED`, and explicit cancellation advances it to `CANCELLED`. Historical
+`SUCCEEDED`/`FAILED` rows remain readable legacy terminals and are never silently
+reopened. V20 independently stores `TaskPublicationState` and its evidence in
+`task_publication`. Startup resumes `CAPTURING` and `RESTORING` checkpoint sagas
+idempotently. A private ref written before a crash is reused rather than replaced
+by a clean tree; an already materialized workspace is accepted only when its
+recomputed tree exactly matches the persisted checkpoint. A terminal cycle whose
+Task projection was interrupted is restored to `AWAITING_DECISION` without creating
+a retry cycle. Remote milestones advance through `COMMITTED`, `PUSHED`,
 `MERGE_REQUEST_OPENED` or `MERGE_REQUEST_CLOSED`, and finally `MERGED`;
 `MERGED` has no outgoing transition. `PUSHED` is historical evidence and does not
 regress when a remote ref is deleted or pruned. No-remote Git Tasks terminate at

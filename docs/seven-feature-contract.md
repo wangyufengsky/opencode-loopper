@@ -92,18 +92,44 @@ For a valid Git HEAD, a dirty admitted checkout holds the lease and moves the Ta
 to `WAITING_INPUT`. The local UI displays the exact status paths and requires a
 snapshot-bound `COMMIT | STASH | REMOVE` choice for every path. A clean recheck
 resumes preparation and switches that same registered directory to its `loopper/*`
-branch; cancelling this dialog fails the Task and leaves files untouched. Unpublished file changes keep
-the lease after Task success; publication makes the checkout clean and releases it
-before the next queued Task may switch branches.
+branch; cancelling this dialog closes the current execution cycle and leaves files untouched.
+Waiting-decision changes are held by an immutable private checkpoint rather than an
+active writer lease. Commit-message suggestion reads the frozen baseline-to-tree diff
+without restoring the checkout. Only a confirmed publication reacquires FIFO ownership
+with source `PUBLICATION`, restores the checkpoint, commits it, and releases the checkout again.
 
 ## Recovery and Session lifecycle
 
-Recovery is allowed from `FAILED` or `CANCELLED` with modes
-`FROM_FAILED_STAGE` (default), `ALL_STAGES`, or `VERIFY_ONLY`. `VERIFY_ONLY`
-never creates a writable Session and returns HTTP 409 on workspace fingerprint
-mismatch. Direct in-place revert is forbidden; operators create a derived
-Recovery instead. Fork/revert require a paused Task and confirmed old-writer
-termination. A checkpoint hashes message, todo and diff references.
+New Tasks separate an execution-cycle result from user-confirmed finality.
+Success and failure both enter `AWAITING_DECISION`; legacy `SUCCEEDED`/`FAILED`
+rows remain terminal compatibility records. The decision API is local-UI-only,
+requires optimistic Task and cycle versions, and exposes only actions whose Git
+checkpoint and writer/lease preconditions are currently safe.
+
+Failure disposition supports: continue the same Task, derive a new Task with
+`INHERIT_CHANGES`, derive `REWORK_ALL_STAGES` from the original baseline, create a
+`VERIFY_ONLY` audit, or cancel. Success additionally supports publication,
+Stage-scoped continued improvement with a supplemental requirement, and explicit
+acceptance when the frozen manifest is empty. Inheritance/rework makes the parent
+`SUPERSEDED`; the child remains `PENDING_START`. Audit never creates a writable
+Session. Direct mode cannot inherit a private Git checkpoint or rework a Git
+baseline and therefore fails closed.
+
+Each authorized continuation creates a persisted execution cycle with a fresh
+budget window and associates new Attempts with that cycle. Prior successful
+Stages remain successful; the failed/selected Stage and all later Stages reopen.
+Final deterministic verification and both Judges run again, while all older
+Attempts, evidence, cycle results, and audit transitions remain immutable.
+
+Before offering mutable Recovery actions, Loopper confirms old writers stopped,
+captures all tracked/deleted/untracked changes through a temporary Git index,
+stores an immutable private ref, creates a named local stash to clean the checkout,
+restores the source branch, and releases the FIFO lease. Private checkpoint refs
+and stashes are never pushed. Snapshot, branch, root, ref, commit, and tree mismatch
+block restoration before a new writer starts.
+Startup resumes incomplete `CAPTURING`/`RESTORING` rows. It reuses an already durable
+private ref, accepts an already restored worktree only after exact tree verification,
+and projects an already terminal cycle to `AWAITING_DECISION` without inventing a retry.
 
 OpenCode Todo is an implementation-only, non-authoritative projection. Loopper
 first discovers workspace tool ids; only `todowrite` availability adds Todo

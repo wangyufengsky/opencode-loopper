@@ -80,7 +80,8 @@ class RecoveryServiceIntegrationTest {
         assertThat(tasks.judges(created.taskId())).allSatisfy(judge -> assertThat(judge.externalSessionId()).isNotBlank());
 
         tasks.pollJudges(created.taskId());
-        assertThat(tasks.get(created.taskId()).state()).isEqualTo("SUCCEEDED");
+        assertThat(tasks.get(created.taskId()).state()).isEqualTo("AWAITING_DECISION");
+        assertThat(tasks.latestExecutionCycle(created.taskId()).state()).isEqualTo("SUCCEEDED");
         assertThat(mapper.listSessions(created.taskId())).isEmpty();
     }
 
@@ -93,9 +94,31 @@ class RecoveryServiceIntegrationTest {
 
         TaskRow failed = tasks.start(created.taskId());
 
-        assertThat(failed.state()).isEqualTo("FAILED");
+        assertThat(failed.state()).isEqualTo("AWAITING_DECISION");
+        assertThat(tasks.latestExecutionCycle(created.taskId()).state()).isEqualTo("FAILED");
         assertThat(mapper.listSessions(created.taskId())).isEmpty();
         assertThat(tasks.errors(created.taskId())).anyMatch(error -> "VERIFY_ONLY_VERIFICATION_FAILED".equals(error.code()));
+    }
+
+    @Test
+    void failedResultCanContinueTheSameTaskWithANewCycleAndFreshAttempt() throws Exception {
+        ProjectRow project = projects.create("continue-failed-cycle", gitProject());
+        TaskRow parent = drafts.confirm(drafts.create(failingVerifyOnlySpec(project.id())).id(), "cancelled parent");
+        tasks.cancel(parent.id());
+        FeatureContracts.RecoveryDto created = recoveries.create(parent.id(), RecoveryMode.VERIFY_ONLY);
+        tasks.start(created.taskId());
+        String firstCycleId = tasks.latestExecutionCycle(created.taskId()).id();
+
+        TaskRow afterContinue = tasks.continueExecution(created.taskId(), null, null);
+
+        assertThat(afterContinue.id()).isEqualTo(created.taskId());
+        assertThat(afterContinue.state()).isEqualTo("AWAITING_DECISION");
+        assertThat(tasks.executionCycles(created.taskId())).extracting(row -> row.ordinal())
+                .containsExactly(2, 1);
+        assertThat(tasks.latestExecutionCycle(created.taskId()).id()).isNotEqualTo(firstCycleId);
+        assertThat(tasks.attempts(created.taskId())).hasSize(2)
+                .extracting(attempt -> attempt.executionCycleId()).doesNotHaveDuplicates();
+        assertThat(mapper.listSessions(created.taskId())).isEmpty();
     }
 
     @Test

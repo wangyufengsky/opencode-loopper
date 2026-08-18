@@ -221,7 +221,7 @@ class TaskServiceIntegrationTest {
 
         TaskRow failed = tasks.failDirtyWorkspace(waiting.id());
 
-        assertThat(failed.state()).isEqualTo("FAILED");
+        assertThat(failed.state()).isEqualTo("AWAITING_DECISION");
         assertThat(failed.branchName()).isNull();
         assertThat(Files.readString(root.resolve("local-only.txt"))).isEqualTo("keep me\n");
         assertThat(tasks.errors(failed.id())).anyMatch(error ->
@@ -439,7 +439,7 @@ class TaskServiceIntegrationTest {
 
         assertThatThrownBy(() -> tasks.archive(ready.id()))
                 .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("只有已成功、已失败或已取消");
+                .hasMessageContaining("只有已经用户确认终结");
 
         TaskRow cancelled = tasks.cancel(ready.id());
         tasks.archive(cancelled.id());
@@ -521,7 +521,7 @@ class TaskServiceIntegrationTest {
 
         TaskRow failed = tasks.sessionFailed(task.id(), first.id(), "NETWORK", "transport state is unknown");
 
-        assertThat(failed.state()).isEqualTo("FAILED");
+        assertThat(failed.state()).isEqualTo("AWAITING_DECISION");
         assertThat(tasks.attempts(task.id())).hasSize(1).noneMatch(attempt -> attempt.state().equals("RUNNING"));
         assertThat(tasks.errors(task.id())).anyMatch(error -> error.layer().equals(ErrorLayer.TASK.name())
                 && error.code().equals("SESSION_ABORT_UNCONFIRMED"));
@@ -545,7 +545,7 @@ class TaskServiceIntegrationTest {
         if (waitMillis > 0) Thread.sleep(waitMillis);
         tasks.enforceTimeouts(task.id());
 
-        assertThat(tasks.get(task.id()).state()).isEqualTo("FAILED");
+        assertThat(tasks.get(task.id()).state()).isEqualTo("AWAITING_DECISION");
         assertThat(mapper.findSession(active.id()).orElseThrow().state()).isEqualTo("DISCONNECTED");
         assertThat(tasks.attempts(task.id())).noneMatch(attempt -> attempt.state().equals("RUNNING"));
         assertThat(tasks.errors(task.id())).anyMatch(error -> error.layer().equals(ErrorLayer.SESSION.name())
@@ -553,7 +553,7 @@ class TaskServiceIntegrationTest {
 
         tasks.retrySessionCleanup(active.id());
 
-        assertThat(tasks.get(task.id()).state()).isEqualTo("FAILED");
+        assertThat(tasks.get(task.id()).state()).isEqualTo("AWAITING_DECISION");
         assertThat(mapper.findSession(active.id()).orElseThrow().state()).isEqualTo("ABORTED");
         assertThat(tasks.errors(task.id())).anyMatch(error -> error.code().equals("SESSION_ABORT_CLEANUP_CONFIRMED"));
     }
@@ -699,12 +699,12 @@ class TaskServiceIntegrationTest {
         try {
             assertThat(verifierEntered.await(5, TimeUnit.SECONDS)).isTrue();
             assertThat(tasks.get(task.id()).state()).isEqualTo("VERIFYING");
-            assertThat(jdbc.update("UPDATE task SET created_at=? WHERE id=?",
+            assertThat(jdbc.update("UPDATE task_execution_cycle SET started_at=? WHERE task_id=? AND state='RUNNING'",
                     Instant.now().minusSeconds(7_201).toString(), task.id())).isEqualTo(1);
 
             tasks.enforceTimeouts(task.id());
 
-            assertThat(tasks.get(task.id()).state()).isEqualTo("FAILED");
+            assertThat(tasks.get(task.id()).state()).isEqualTo("AWAITING_DECISION");
             assertThat(tasks.errors(task.id())).anyMatch(error -> error.code().equals("TASK_DURATION_EXHAUSTED"));
         } finally {
             releaseVerifier.countDown();
@@ -725,7 +725,7 @@ class TaskServiceIntegrationTest {
 
         TaskRow failed = tasks.start(task.id());
 
-        assertThat(failed.state()).isEqualTo("FAILED");
+        assertThat(failed.state()).isEqualTo("AWAITING_DECISION");
         assertThat(tasks.attempts(task.id())).isEmpty();
         assertThat(((FakeOpenCodeClient) openCode).createSessionCalls()).isEqualTo(sessionCallsBefore);
         assertThat(tasks.errors(task.id())).anyMatch(error -> error.code().equals("DECOMPOSITION_CONTEXT_INVALID"));
@@ -766,7 +766,7 @@ class TaskServiceIntegrationTest {
 
         TaskRow failed = tasks.verify(task.id());
 
-        assertThat(failed.state()).isEqualTo("FAILED");
+        assertThat(failed.state()).isEqualTo("AWAITING_DECISION");
         assertThat(tasks.attempts(task.id())).singleElement().satisfies(attempt -> {
             assertThat(attempt.state()).isEqualTo("TASK_ERROR");
             assertThat(attempt.failureKind()).isEqualTo("VERIFIER_PATH_INVALID");
@@ -964,7 +964,7 @@ class TaskServiceIntegrationTest {
         startScheduledRetryNow(task.id());
         TaskRow failed = tasks.get(task.id());
 
-        assertThat(failed.state()).isEqualTo("FAILED");
+        assertThat(failed.state()).isEqualTo("AWAITING_DECISION");
         assertThat(tasks.attempts(task.id())).hasSize(1);
         assertThat(mapper.listSessions(task.id())).hasSize(1);
         assertThat(((FakeOpenCodeClient) openCode).promptCalls()).isEqualTo(promptCalls);
@@ -991,7 +991,7 @@ class TaskServiceIntegrationTest {
         startScheduledRetryNow(task.id());
         TaskRow failed = tasks.get(task.id());
 
-        assertThat(failed.state()).isEqualTo("FAILED");
+        assertThat(failed.state()).isEqualTo("AWAITING_DECISION");
         assertThat(tasks.attempts(task.id())).hasSize(1);
         assertThat(mapper.listSessions(task.id())).hasSize(1);
         assertThat(((FakeOpenCodeClient) openCode).promptCalls()).isEqualTo(promptCalls);
@@ -1389,6 +1389,29 @@ class TaskServiceIntegrationTest {
     }
 
     @Test
+    void restartProjectsATerminalExecutionCycleToUserDecisionWithoutInventingARetry() throws Exception {
+        ProjectRow project = projects.create("cycle-handoff-restart", gitProject());
+        TaskRow task = drafts.confirm(drafts.create(spec(project.id())).id(), "cycle result committed before task projection");
+        tasks.start(task.id());
+        assertThat(jdbc.update("""
+                UPDATE task_execution_cycle
+                SET state='FAILED', failure_code='SIMULATED_CRASH', failure_message='cycle ended', ended_at=?, version=version+1
+                WHERE task_id=? AND state='RUNNING'
+                """, Instant.now().toString(), task.id())).isEqualTo(1);
+
+        tasks.recoverAfterRestart();
+
+        assertThat(tasks.get(task.id()).state()).isEqualTo("AWAITING_DECISION");
+        assertThat(tasks.executionCycles(task.id())).hasSize(1).first().satisfies(cycle -> {
+            assertThat(cycle.state()).isEqualTo("FAILED");
+            assertThat(cycle.failureCode()).isEqualTo("SIMULATED_CRASH");
+        });
+        assertThat(tasks.retrySchedule(task.id())).isNull();
+        assertThat(mapper.eventsAfter(task.id(), 0)).anyMatch(event ->
+                "task.awaiting_decision".equals(event.type()) && event.payloadJson().contains("recoveredAfterRestart"));
+    }
+
+    @Test
     void restartRecoveryFailsTaskWhenOldMutatingSessionCannotBeConfirmedStopped() throws Exception {
         ProjectRow project = projects.create("unsafe-restart", gitProject());
         TaskRow task = drafts.confirm(drafts.create(spec(project.id())).id(), "unsafe restart");
@@ -1400,7 +1423,7 @@ class TaskServiceIntegrationTest {
 
         tasks.recoverAfterRestart();
 
-        assertThat(tasks.get(task.id()).state()).isEqualTo("FAILED");
+        assertThat(tasks.get(task.id()).state()).isEqualTo("AWAITING_DECISION");
         assertThat(tasks.attempts(task.id())).hasSize(1).noneMatch(attempt -> attempt.state().equals("RUNNING"));
         assertThat(tasks.errors(task.id())).anyMatch(error -> error.layer().equals(ErrorLayer.TASK.name())
                 && error.code().equals("SESSION_ABORT_UNCONFIRMED"));
@@ -1445,7 +1468,7 @@ class TaskServiceIntegrationTest {
                 "risk-message", "provider", "model", 7L, 11L, null, null, null, true)));
 
         tasks.pollJudges(task.id());
-        assertThat(tasks.get(task.id()).state()).isEqualTo("SUCCEEDED");
+        assertThat(tasks.get(task.id()).state()).isEqualTo("AWAITING_DECISION");
         assertThat(tasks.judges(task.id())).allSatisfy(judge -> {
             assertThat(judge.verdict()).isEqualTo("PASS");
             assertThat(judge.rawOutput()).contains("PASS");
@@ -1470,7 +1493,7 @@ class TaskServiceIntegrationTest {
         String historicalAttemptId = tasks.attempts(task.id()).getFirst().id();
         assertThatThrownBy(() -> tasks.sessionFailed(task.id(), historicalAttemptId, "LATE_CALLBACK", "stale transport callback"))
                 .isInstanceOf(ConflictException.class);
-        assertThat(tasks.get(task.id()).state()).isEqualTo("SUCCEEDED");
+        assertThat(tasks.get(task.id()).state()).isEqualTo("AWAITING_DECISION");
         assertThat(tasks.attempts(task.id())).hasSize(attemptsAfterSuccess);
         assertThat(tasks.errors(task.id())).hasSize(errorsAfterSuccess);
     }
@@ -1576,7 +1599,7 @@ class TaskServiceIntegrationTest {
         tasks.verify(task.id());
         tasks.pollJudges(task.id());
 
-        assertThat(tasks.get(task.id()).state()).isEqualTo("SUCCEEDED");
+        assertThat(tasks.get(task.id()).state()).isEqualTo("AWAITING_DECISION");
         assertThat(tasks.verifications(tasks.attempts(task.id()).getFirst().id()))
                 .noneMatch(result -> result.type().equals("GIT_DIFF"));
         assertThat(tasks.artifacts(task.id())).filteredOn(artifact -> artifact.kind().equals("GIT_DIFF"))
@@ -1632,7 +1655,7 @@ class TaskServiceIntegrationTest {
         assertThat(mapper.latestJudgeRun(task.id(), "RISK")).hasValueSatisfying(judge -> assertThat(judge.ordinal()).isEqualTo(2));
 
         tasks.pollJudges(task.id());
-        assertThat(tasks.get(task.id()).state()).isEqualTo("SUCCEEDED");
+        assertThat(tasks.get(task.id()).state()).isEqualTo("AWAITING_DECISION");
         assertThat(mapper.latestJudgeRun(task.id(), "REQUIREMENT")).hasValueSatisfying(judge -> assertThat(judge.verdict()).isEqualTo("PASS"));
         assertThat(mapper.latestJudgeRun(task.id(), "RISK")).hasValueSatisfying(judge -> assertThat(judge.verdict()).isEqualTo("PASS"));
         assertThat(mapper.eventsAfter(task.id(), 0)).anySatisfy(event -> {
@@ -1699,7 +1722,7 @@ class TaskServiceIntegrationTest {
         });
 
         tasks.pollJudges(task.id());
-        assertThat(tasks.get(task.id()).state()).isEqualTo("SUCCEEDED");
+        assertThat(tasks.get(task.id()).state()).isEqualTo("AWAITING_DECISION");
     }
 
     @Test
@@ -1725,7 +1748,7 @@ class TaskServiceIntegrationTest {
             assertThat(judge.state()).isEqualTo("RUNNING");
         });
         tasks.pollJudges(task.id());
-        assertThat(tasks.get(task.id()).state()).isEqualTo("SUCCEEDED");
+        assertThat(tasks.get(task.id()).state()).isEqualTo("AWAITING_DECISION");
     }
 
     @Test
@@ -1887,7 +1910,7 @@ class TaskServiceIntegrationTest {
         TaskRow failed = tasks.verify(task.id());
         properties.setMaxStageAttempts(originalStageLimit);
 
-        assertThat(failed.state()).isEqualTo("FAILED");
+        assertThat(failed.state()).isEqualTo("AWAITING_DECISION");
         assertThat(tasks.attempts(task.id())).hasSize(3);
         assertThat(tasks.stages(task.id())).extracting(stage -> stage.state())
                 .containsExactly("FAILED", "PENDING");

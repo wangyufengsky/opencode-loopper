@@ -105,6 +105,24 @@ public class VerifierEngine {
         return new DiffPreview(path, untracked ? "NEW" : "MODIFIED", result.output(), result.outputTruncated());
     }
 
+    /** Previews a persisted immutable checkpoint even when its Task branch is not checked out. */
+    public DiffPreview previewDiffAtRef(Path repository, String baseline, String targetRef, String path,
+                                        boolean untracked, Duration timeout) {
+        Duration boundedTimeout = requireBoundedTimeout(timeout);
+        if (baseline == null || baseline.isBlank() || targetRef == null || targetRef.isBlank()) {
+            throw new TaskFailure("GIT_BASELINE_MISSING", "Checkpoint diff preview requires baseline and target refs");
+        }
+        managedRelative(repository, path);
+        ProcessResult result = runner.run(repository,
+                List.of("git", "--literal-pathspecs", "diff", "--no-ext-diff", "--no-textconv",
+                        "--no-color", "--unified=80", baseline, targetRef, "--", path), boundedTimeout);
+        if (result.timedOut()) throw new TaskFailure("DIFF_PREVIEW_TIMEOUT", "Diff preview timed out");
+        if (result.exitCode() != 0) {
+            throw new TaskFailure("DIFF_PREVIEW_FAILED", "Unable to generate checkpoint diff preview: " + truncate(result.output()));
+        }
+        return new DiffPreview(path, untracked ? "NEW" : "MODIFIED", result.output(), result.outputTruncated());
+    }
+
     private String currentGitBranch(Path worktree, Duration timeout) {
         ProcessResult result = runner.run(worktree, List.of("git", "branch", "--show-current"), timeout);
         if (result.timedOut() || result.outputTruncated() || result.exitCode() != 0) {

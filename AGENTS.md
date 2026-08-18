@@ -201,7 +201,7 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 - `FIELD`：输入或草稿校验，不改变运行状态。
 - `VERIFICATION`：当前 Attempt 验收失败，保留证据并在预算内继续循环。
 - `SESSION`：OpenCode Session 失败，关闭当前 Session/Attempt，安全确认后创建新 Session。
-- `TASK`：无法安全继续或预算耗尽，关闭所有子运行并进入 `FAILED`。
+- `TASK`：当前执行轮次无法安全继续或预算耗尽，关闭所有子运行，记录失败轮次并进入 `AWAITING_DECISION`；不得未经用户处置直接形成新任务终态。
 
 Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级由编排器负责。终止 Task 不能伪造远端 Session 已停止：无法确认的写入者保留为 `DISCONNECTED`，并阻止重叠写入。
 
@@ -210,6 +210,8 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 `PENDING_START`、`QUEUED`、`READY` 与 `WAITING_INPUT` 任务必须在本地任务详情中保留直接取消入口；取消需二次确认并保留已有执行目录、分支和证据，不得伪装成回滚。`PENDING_START` 取消只改变自身 Task，必须保持无 Queue/Lease/分支/执行目录；`READY` 取消不得伪称正在停止尚未创建的 Session/验证器，并按既有终态安全检查恢复源分支与释放自身租约。取消排队任务只能取消自身队列项并进入 `CANCELLED`，不得释放或转移当前 holder 的写租约；进入终态后再按既有规则归档或删除。
 
 验证失败后的 Attempt 必须固化有界 `ATTEMPT_HANDOFF`，下一轮只能使用新 Attempt 和新可写 Session；不得复用旧实施对话。只有可靠且相同的失败签名与工作区内容指纹才累计停滞次数，达到 `stagnationLimit` 后必须进入 `WAITING_INPUT`，由本地 UI 明确确认继续。
+
+新任务的执行结果与用户确认终态必须分离：每次开始/继续对应独立持久化 Execution Cycle；确定性验证和双 Judge 成功或 Task 级失败均进入 `AWAITING_DECISION`。继续当前任务必须创建新 Cycle、Attempt 和 Session，并从失败/用户选择的 Stage 起重跑后续阶段与最终双 Judge；轮次预算重新计算，历史用量和证据不得改写。成功结果经本地提交或确认推送进入 `COMPLETED`，继承/重做派生后父任务进入 `SUPERSEDED`，取消进入 `CANCELLED`；旧 `SUCCEEDED`/`FAILED` 只作历史终态兼容，不得静默重开。
 
 ### 5.3 Designer 和 LoopSpec
 
@@ -283,20 +285,21 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 - OpenCode 的 canonical `directory` 查询值必须作为 URI 模板变量百分号编码，禁止让合法路径中的 `+` 被表单语义解码为空格；创建 Session 后必须回报与登记项目根一致的规范执行目录，缺失或不一致时不得发送实施提示；实施提示明确 AgentBridge、搜索、命令和验证器都使用该目录及当前任务分支。
 - 无可用 Git HEAD：直接使用登记根目录，并在 `direct-baselines/<taskId>` 保存私有 Git-compatible 基线；不得在用户项目中隐式初始化或提交 Git。
 - 所有路径 canonicalize 后进行 containment 和符号链接检查。
-- 同一登记 root（Git 或 Direct）同时只能有一个未释放写租约；旧写入者状态未知时保持租约并阻断 Recovery/Automation。Git 任务仍有未提交文件改动时保留租约；用户确认提交后恢复任务开始前的源分支并释放租约，有排队任务时再切换到下一任务分支。
+- 同一登记 root（Git 或 Direct）同时只能有一个未释放写租约；旧写入者状态未知时保持租约并阻断 Recovery/Automation。执行轮次结束后只有在旧 writer 已确认停止、全部 tracked/deleted/untracked 修改已通过临时 index 冻结到 `refs/loopper/checkpoints/<taskId>/<cycleId>`、工作区已清理且源分支可恢复时，才释放租约；私有 checkpoint ref 与 stash 永不推送。继续或派生写入前必须复核 root、分支、HEAD、ref、commit、tree 和清单，任一不一致都 fail closed。
+- Checkpoint `CAPTURING`/`RESTORING` 必须可在应用重启后幂等续接：已落盘的私有 ref 不得被干净工作区覆盖，已恢复工作区必须重算 tree 精确匹配后才能推进；已终止 Execution Cycle 但尚未写入 Task 投影时只能恢复到 `AWAITING_DECISION`，不得凭空创建重试。成功等待任务发布时以 `PUBLICATION` 来源重新参与同一 FIFO 准入并恢复冻结点。
 - Task、Queue 与 Lease 必须保持独立状态机，并由统一协调器维护跨状态不变量：`ADMITTED` 必须与非 `RELEASED` 租约的 holder 一致。终态 holder 只有在写入 Session/验证运行时已确认停止、项目指纹一致、工作区干净且源分支可安全恢复时，才允许完成队列项并严格按 FIFO 原子转移租约；Git/指纹检查在 SQLite 事务外，真正的完成/转移在短事务内复核。启动恢复、取消/Session 清理、归档前置、手动检查和仅扫描“终态 holder + QUEUED waiter”的 10 秒后台协调必须复用同一逻辑，且并发幂等。活动 holder 或 `ADMITTED` 任务不得归档/永久删除，删除路径不得清空 holder 绕过状态机；任何阻塞均 fail closed，不得自动 stash、提交、删除或强制切分支。
-- Recovery 仅从 `FAILED`/`CANCELLED` 派生，模式为 `FROM_FAILED_STAGE`、`ALL_STAGES` 或 `VERIFY_ONLY`。
+- `AWAITING_DECISION` 的失败轮次支持继续当前 Task、`INHERIT_CHANGES` 派生、`REWORK_ALL_STAGES`、`VERIFY_ONLY` 审计和取消；成功轮次还支持发布、选择 Stage 继续优化及空变更显式接受。派生子任务保持 `PENDING_START`，继承修改只把冻结 tree 作为未提交工作区种子，Task baseline 仍为父任务开始前 baseline；历史 `FAILED`/`CANCELLED` Recovery 保持只读兼容。
 - `VERIFY_ONLY` 不创建可写 Session；Direct 模式不提供原地回滚。
 - fingerprint、baseline 或旧 writer 不匹配时必须 fail closed。
 - Direct root fingerprint 必须同时包含 canonical path、目录 file key 和创建时间，避免 Linux inode 立即复用；只有 `RELEASED` 且无写入者的租约可在新任务准入时刷新指纹。
 
 ### 5.6 发布与历史删除
 
-- 自动发布只面向 `SUCCEEDED` 的 Git 任务分支；Direct 任务由用户在源仓库手工处理。
+- 自动发布面向执行结果为成功且处于 `AWAITING_DECISION` 的 Git 任务，也兼容历史 `SUCCEEDED`；Direct 任务由用户在源仓库手工处理。耐久本地提交或确认推送是 Task 进入 `COMPLETED` 的用户确认边界。AI 提交说明只能从冻结 checkpoint 的 baseline-to-tree 差异只读生成，不得为了打开发布对话框提前恢复工作区、占用租约或切换任务分支；只有实际提交动作才以 `PUBLICATION` 来源重新准入并恢复 checkpoint。
 - 用户必须提供四位数字工单号；提交格式为 `#dddd_subject`。AI 只能建议 subject，不能生成或替代工单号。
 - 推送必须是普通非 force push；PR/MR 只打开预填创建页，最终创建和合并仍由平台/用户确认。
 - HTTP/HTTPS remote 的 MR/PR Web 地址保留显式协议；SSH remote 默认使用 HTTPS，但 `loopper.publication.http-web-hosts` 中精确列出的主机使用 HTTP。成品启动脚本必须默认加入 `gitlab.spdb.com`，且不得改变 SSH 推送协议。
-- `TaskState.SUCCEEDED` 只表示执行验收成功；远端交付使用独立 `TaskPublicationState`。`COMMITTED`、`PUSHED`、MR 打开/关闭和 `MERGED` 均为持久化事实，其中 `MERGED` 无出向转换，且原任务的提交、推送、创建 MR 和重新评审入口必须拒绝；新分支重做不改变原记录。
+- Execution Cycle 结果、Task 用户终态与远端交付是三条独立状态轴；`AWAITING_DECISION` 不得伪装终态，`COMPLETED`/`SUPERSEDED`/`CANCELLED` 才是新任务终态。`COMMITTED`、`PUSHED`、MR 打开/关闭和 `MERGED` 均为持久化交付事实，其中 `MERGED` 无出向转换，且原任务的提交、推送、创建 MR 和重新评审入口必须拒绝。
 - 只有配置主机完全匹配、并由 GitLab API 按源分支、目标分支和任务提交 SHA 唯一确认的 `merged` MR 才能推进 `MERGED`。删除源分支或引用、打开创建页、人工点击和本地 Git 推断都不能单独证明合并。Token 只从 `LOOPPER_GITLAB_PRIVATE_TOKEN` 注入，不写入持久化、日志、DTO 或 artifact；外部查询位于 SQLite transaction 外并在返回后复核 Task 与 Publication 版本。
 - 新任务必须持久化任务开始前的源分支。提交任务分支后先恢复该源分支；有排队任务时再进入下一任务分支。推送、推送重试和 PR/MR 状态只使用明确的任务分支引用，不得为了发布旧任务而切换当前项目分支。
 - 没有远端时在登记目录任务分支创建本地提交并记录证据，恢复后的源分支不快进、不覆盖；新任务不存在源目录与隐藏 worktree 的二次同步。
@@ -486,6 +489,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-08-18 | Execution Cycle 与用户确认终态、冻结代码 Recovery（本地提交，待统一交付） | V32 分离执行轮次结果、Task 用户终态与 Publication；成功/失败均先进入 `AWAITING_DECISION`，支持同任务新轮次继续、继承修改派生、原始基线重做、只读审计、取消及成功发布/继续优化/空变更接受；全部修改冻结到私有 Git ref 并可在重启后幂等恢复，提交说明只读冻结差异，实际发布以 `PUBLICATION` 来源重新参与 FIFO；同步 README、架构、七特性合同与本公约正文 | 受影响后端聚焦回归最终 113/113 通过；首次整组运行有 1 次既有 FIFO 并发时序波动，单项复跑 1/1 且整组复跑 113/113 通过；checkpoint ref/commit/tree 完整性加固回归 12/12；Flyway V1/V21/V22/V24/V26 到 V32 升级通过；前端类型检查、生产构建及完整 Vitest 167/167 通过。按用户明确要求不改 0.1.73 版本、不运行 `./scripts/verify.sh`、不生成新正式 JAR、不推送、不打标签、不发布 |
 | 2026-08-18 | 设置页、启动覆盖与持久化 RETRY_WAIT（本地提交，待与终态脏 holder 合并交付） | `/settings` 分为运行环境、OpenCode、执行上限、分类退避和发布配置；V31 持久化完整设置与单 Task 活动重试计划；双平台启动器按环境变量、页面文件、脚本默认值读取非敏感白名单；Session/验证失败经确认旧 writer 停止后按分类指数退避，支持重启、暂停/恢复和终态取消；同步 README、架构、七特性合同与本公约正文 | `bash -n` 通过；聚焦 Java 86/86、前端类型检查和 Vitest 77/77 通过；Windows 分支由静态契约覆盖，未在 macOS 实机执行。按用户明确要求不改 0.1.73 版本、不运行 `./scripts/verify.sh`、不生成新正式 JAR、不推送、不打标签、不发布 |
 | 2026-08-17 | Compiler 工程元条件容错、批量语义诊断与 0.1.73 交付 | Compiler 合同升级为 `2026-08-semantic-v2`：未被聚焦测试显式覆盖的代码风格、源码/注解/装配形态、构建/测试结果和交付卫生确定性降为冻结设计中的工程元数据并重排证据；单一 Java 聚焦测试可补齐同 Stage 剩余业务条件映射；语义预检一次返回全部错误码与 JSON Pointer；源码搜索仍不得作为行为 `SELF_CHECK`；同步 README、AI 角色、架构、Designer、OpenCode 合同与本公约正文 | 聚焦 Java 64/64；`./scripts/verify.sh` 通过：Java 418 项（0 失败、0 错误、1 项平台条件跳过）、Vitest 163/163；JAR `target/opencode-loopper-0.1.73.jar` 为 263152436 bytes，含 102 个静态入口/assets，SHA-256 `0a9d6dedc1752f4c24869995f6f19450815c0cc6d7b57a1278c2e02b0a728c29`。复制现有 V30 数据后在隔离 18073 对真实失败会话 `7caeb31c-8497-4b84-a190-92ddb9bd424c` 的 WP-1 重编译：一次模型调用直接进入 `REVIEWING`，格式/语义修复均为 0、`server_compiled=1`，3 个 Java Stage 的 7 条业务条件分别由 `BaseEventTest`、`EventRegistryTest`、`EventBusTest` 聚焦覆盖；隔离 Loopper/OpenCode 均已关闭，18073 已释放，8080 保持 0.1.72/PID 64781、health `UP`；GitHub Release 结果待标签触发后回填 |
 | 2026-08-17 | AI 角色轻量语义合同、服务端容错编译与 0.1.72 交付 | Decomposer 和 Compiler 只返回业务语义与证据意图，服务端派生状态、GC/WP/AC ID、需求引用、依赖、Designer 精确来源、测试目标和验证器关联并直接编译最终对象，不再请求 AI 抄写 final JSON；V30 分开持久化格式/语义修复计数和服务端编译标识，语义失败仅接受受限 JSON Patch 且补丁后重跑全合同；Judge 兼容唯一中英文判定/理由标签；新增 `docs/ai-role-contracts.md` 并同步 README、架构、Designer、OpenCode、验证器合同和本公约正文 | 聚焦修复及服务端编译测试通过；`./scripts/verify.sh` 通过：Java 414 项（0 失败、0 错误、1 项平台条件跳过）、Vitest 163/163；JAR `target/opencode-loopper-0.1.72.jar` 为 263143983 bytes，包含 Vue 静态资源，SHA-256 `b60f24271efb3a652d721ace6781a890218519accf08b9b5d95e2cf1c901bf5e`。隔离 18072 使用真实 DeepSeek/OpenCode 1.18.18 marker 模式完成两工作包到 `FINAL_REVIEW`：总模型调用 7 次，Decomposer 和 WP-2 Compiler 格式/语义修复均为 0，WP-1 的真实证据缺口经 1 次局部语义补丁后通过，三者均 `server_compiled=1`；指定的两个机械性错误码为 0，未创建 Task；隔离实例已关闭，8080 仍为 PID 93512 且 health `UP` |

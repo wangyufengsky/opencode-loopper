@@ -7,6 +7,9 @@ import tools.jackson.databind.JsonNode;
 import io.opencode.loopper.config.LoopperProperties;
 import io.opencode.loopper.domain.AttemptState;
 import io.opencode.loopper.domain.ErrorLayer;
+import io.opencode.loopper.domain.ExecutionCycleState;
+import io.opencode.loopper.domain.ExecutionCycleKind;
+import io.opencode.loopper.domain.WorkspaceCheckpointState;
 import io.opencode.loopper.domain.LoopSpec;
 import io.opencode.loopper.domain.LoopDraftStatus;
 import io.opencode.loopper.domain.ModelResponseMode;
@@ -38,6 +41,7 @@ import io.opencode.loopper.persistence.StageRow;
 import io.opencode.loopper.persistence.TaskArtifactRow;
 import io.opencode.loopper.persistence.TaskQueueRow;
 import io.opencode.loopper.persistence.TaskRetryScheduleRow;
+import io.opencode.loopper.persistence.TaskExecutionCycleRow;
 import io.opencode.loopper.persistence.TaskRow;
 import io.opencode.loopper.persistence.VerificationResultRow;
 import io.opencode.loopper.api.FeatureContracts;
@@ -109,6 +113,8 @@ public class TaskService {
     private final JavaChangeGateService javaChangeGate;
     private final UsageInsightsService usageInsights;
     private final TaskEventService events;
+    private final TaskExecutionCycleService executionCycles;
+    private final TaskWorkspaceCheckpointService workspaceCheckpoints;
     private final AiOutputExtractor aiOutputExtractor;
     private final AiOutputAuditService aiOutputAudit;
     private final LoopperProperties defaults;
@@ -126,6 +132,8 @@ public class TaskService {
                        UsageInsightsService usageInsights,
                        TaskEventService events, AiOutputExtractor aiOutputExtractor,
                        AiOutputAuditService aiOutputAudit,
+                       TaskExecutionCycleService executionCycles,
+                       TaskWorkspaceCheckpointService workspaceCheckpoints,
                        LoopperProperties defaults,
                        PlatformTransactionManager transactionManager) {
         this.mapper = mapper; this.lifecycle = lifecycle; this.json = json; this.projects = projects;
@@ -136,6 +144,7 @@ public class TaskService {
         this.stageWorkspaceBaselines = stageWorkspaceBaselines;
         this.javaChangeGate = javaChangeGate;
         this.usageInsights = usageInsights; this.events = events;
+        this.executionCycles = executionCycles; this.workspaceCheckpoints = workspaceCheckpoints;
         this.aiOutputExtractor = aiOutputExtractor; this.aiOutputAudit = aiOutputAudit;
         this.defaults = defaults;
         this.transactions = new TransactionTemplate(transactionManager);
@@ -237,6 +246,112 @@ public class TaskService {
         get(taskId);
         return mapper.findActiveTaskRetrySchedule(taskId).orElse(null);
     }
+
+    /** User-authorized continuation of the same Task with a fresh cycle and fresh budgets. */
+    public TaskRow continueExecution(String taskId, String requestedStageId, String supplementalPrompt) {
+        TaskRow task = get(taskId);
+        if (!TaskState.AWAITING_DECISION.name().equals(task.state())) {
+            throw new ConflictException("TASK_DECISION_NOT_AVAILABLE", "Task is not waiting for a user decision");
+        }
+        TaskExecutionCycleRow previous = executionCycles.latest(taskId);
+        if (previous == null || ExecutionCycleState.RUNNING.name().equals(previous.state())) {
+            throw new ConflictException("TASK_EXECUTION_CYCLE_RESULT_MISSING", "Task has no completed execution cycle to continue");
+        }
+        io.opencode.loopper.persistence.TaskWorkspaceCheckpointRow checkpoint = workspaceCheckpoints.latest(taskId);
+        if (checkpoint == null || !WorkspaceCheckpointState.READY.name().equals(checkpoint.state())) {
+            throw new ConflictException("TASK_CONTINUATION_CHECKPOINT_UNSAFE",
+                    checkpoint == null ? "Task changes were not frozen safely"
+                            : safeMessage(checkpoint.blockerCode() + ": " + checkpoint.blockerMessage()));
+        }
+        List<StageRow> stages = mapper.listStages(taskId);
+        StageRow startStage;
+        ExecutionCycleKind kind;
+        String prompt;
+        if (ExecutionCycleState.SUCCEEDED.name().equals(previous.state())) {
+            if (requestedStageId == null || requestedStageId.isBlank()) {
+                throw new BadRequestException("TASK_CONTINUATION_STAGE_REQUIRED", "成功后继续优化必须选择一个已有 Stage");
+            }
+            if (supplementalPrompt == null || supplementalPrompt.isBlank()) {
+                throw new BadRequestException("TASK_CONTINUATION_PROMPT_REQUIRED", "成功后继续优化必须填写补充需求");
+            }
+            startStage = stages.stream().filter(row -> requestedStageId.equals(row.id())).findFirst()
+                    .orElseThrow(() -> new BadRequestException("TASK_CONTINUATION_STAGE_INVALID", "Selected Stage does not belong to the Task"));
+            kind = ExecutionCycleKind.CONTINUE_SUCCESS;
+            prompt = supplementalPrompt.strip();
+        } else {
+            startStage = stages.stream().filter(row -> StageState.FAILED.name().equals(row.state())).findFirst()
+                    .or(() -> stages.stream().filter(row -> !StageState.SUCCEEDED.name().equals(row.state())).findFirst())
+                    .orElseThrow(() -> new ConflictException("TASK_FAILED_STAGE_MISSING", "No failed or interrupted Stage is available"));
+            kind = ExecutionCycleKind.CONTINUE_FAILED;
+            prompt = supplementalPrompt == null || supplementalPrompt.isBlank()
+                    ? "Continue the failed Stage from the frozen workspace checkpoint." : supplementalPrompt.strip();
+        }
+        for (StageRow row : stages) {
+            if (row.ordinal() < startStage.ordinal() || StageState.PENDING.name().equals(row.state())) continue;
+            updateStage(stageState(row, StageState.PENDING), LifecycleEvent.RECOVER);
+        }
+        executionCycles.create(task, kind, startStage, prompt, cycleBudgetSnapshot(spec(task)));
+        events.emit(taskId, "task.execution_cycle_authorized", Map.of("kind", kind.name(),
+                "startStageId", startStage.id(), "startStageOrdinal", startStage.ordinal(),
+                "previousCycleId", previous.id(), "previousResult", previous.state()));
+        return requestTaskStart(get(taskId), "MANUAL");
+    }
+
+    /** Explicit no-change acceptance is the success confirmation boundary. */
+    public TaskRow acceptResult(String taskId) {
+        TaskRow task = requireSuccessfulDecision(taskId);
+        io.opencode.loopper.persistence.TaskWorkspaceCheckpointRow checkpoint = workspaceCheckpoints.latest(taskId);
+        if (checkpoint == null || !WorkspaceCheckpointState.READY.name().equals(checkpoint.state())) {
+            throw new ConflictException("TASK_ACCEPT_CHECKPOINT_UNSAFE", "Task workspace checkpoint is not ready");
+        }
+        try {
+            if (json.readTree(checkpoint.manifestJson()).size() != 0) {
+                throw new ConflictException("TASK_ACCEPT_HAS_CHANGES", "Task produced file changes; publish or continue instead of accepting a no-change result");
+            }
+        } catch (ConflictException conflict) {
+            throw conflict;
+        } catch (Exception unreadable) {
+            throw new ConflictException("TASK_ACCEPT_MANIFEST_INVALID", "Task checkpoint manifest cannot be verified");
+        }
+        updateTask(state(task, TaskState.COMPLETED), LifecycleEvent.ACCEPT_RESULT,
+                Map.of("cycleId", executionCycles.latest(taskId).id(), "confirmation", "NO_CHANGES_ACCEPTED"));
+        events.emit(taskId, "task.completed", Map.of("confirmation", "NO_CHANGES_ACCEPTED"));
+        return get(taskId);
+    }
+
+    /** Publication calls this only after a durable local commit or confirmed push. */
+    public TaskRow confirmPublishedResult(String taskId, String confirmation, String commitSha) {
+        TaskRow task = get(taskId);
+        if (TaskState.COMPLETED.name().equals(task.state())) return task;
+        requireSuccessfulDecision(taskId);
+        updateTask(state(task, TaskState.COMPLETED), LifecycleEvent.COMPLETE,
+                Map.of("cycleId", executionCycles.latest(taskId).id(), "confirmation", confirmation,
+                        "commitSha", commitSha == null ? "" : commitSha));
+        events.emit(taskId, "task.completed", Map.of("confirmation", confirmation,
+                "commitSha", commitSha == null ? "" : commitSha));
+        return get(taskId);
+    }
+
+    public TaskRow supersede(String taskId, String childTaskId, String mode) {
+        TaskRow task = get(taskId);
+        if (!TaskState.AWAITING_DECISION.name().equals(task.state())) {
+            throw new ConflictException("TASK_DECISION_NOT_AVAILABLE", "Only a Task awaiting disposition can be superseded");
+        }
+        updateTask(state(task, TaskState.SUPERSEDED), LifecycleEvent.SUPERSEDE,
+                Map.of("successorTaskId", childTaskId, "mode", mode));
+        events.emit(taskId, "task.superseded", Map.of("successorTaskId", childTaskId, "mode", mode));
+        return get(taskId);
+    }
+
+    private TaskRow requireSuccessfulDecision(String taskId) {
+        TaskRow task = get(taskId);
+        TaskExecutionCycleRow cycle = executionCycles.latest(taskId);
+        if (!TaskState.AWAITING_DECISION.name().equals(task.state()) || cycle == null
+                || !ExecutionCycleState.SUCCEEDED.name().equals(cycle.state())) {
+            throw new ConflictException("TASK_SUCCESS_DECISION_REQUIRED", "Task does not have a successful cycle awaiting confirmation");
+        }
+        return task;
+    }
     public void startDueRetries() {
         for (TaskRetryScheduleRow candidate : mapper.listDueTaskRetrySchedules(now(), 32)) {
             try {
@@ -279,8 +394,8 @@ public class TaskService {
     public boolean archived(String id) { get(id); return mapper.isTaskArchived(id); }
     public TaskRow archive(String id) {
         TaskRow task = get(id);
-        if (!List.of(TaskState.SUCCEEDED.name(), TaskState.FAILED.name(), TaskState.CANCELLED.name()).contains(task.state())) {
-            throw new BadRequestException("TASK_NOT_ARCHIVABLE", "只有已成功、已失败或已取消的任务可以归档");
+        if (!TaskState.valueOf(task.state()).terminal()) {
+            throw new BadRequestException("TASK_NOT_ARCHIVABLE", "只有已经用户确认终结的任务可以归档");
         }
         WorkspaceLeaseReconciliationService.Result result = reconcileTerminalLease(task,
                 WorkspaceLeaseReconciliationService.TRIGGER_ARCHIVE, "TASK_ARCHIVE");
@@ -295,7 +410,7 @@ public class TaskService {
         TaskRow archived = transactions.execute(status -> {
             TaskRow current = get(id);
             if (!TaskState.valueOf(current.state()).terminal()) {
-                throw new BadRequestException("TASK_NOT_ARCHIVABLE", "只有已成功、已失败或已取消的任务可以归档");
+                throw new BadRequestException("TASK_NOT_ARCHIVABLE", "只有已经用户确认终结的任务可以归档");
             }
             if (leaseReconciliation.ownsActiveLease(id)) {
                 throw new ConflictException("TASK_ARCHIVE_WORKSPACE_LEASE_ACTIVE",
@@ -315,8 +430,8 @@ public class TaskService {
     }
     public void deleteArchived(String id) {
         TaskRow task = get(id);
-        if (!List.of(TaskState.SUCCEEDED.name(), TaskState.FAILED.name(), TaskState.CANCELLED.name()).contains(task.state())) {
-            throw new BadRequestException("TASK_NOT_DELETABLE", "只有已成功、已失败或已取消的任务可以删除");
+        if (!TaskState.valueOf(task.state()).terminal()) {
+            throw new BadRequestException("TASK_NOT_DELETABLE", "只有已经用户确认终结的任务可以删除");
         }
         if (!mapper.isTaskArchived(id)) {
             throw new BadRequestException("TASK_NOT_ARCHIVED", "请先归档任务，再从已归档列表永久删除");
@@ -407,15 +522,40 @@ public class TaskService {
     /** Restores the Task start branch and releases the registered checkout after the Task commit is durable. */
     public void releaseWorkspaceAfterTaskCommit(String taskId) {
         TaskRow task = get(taskId);
-        if (!TaskState.SUCCEEDED.name().equals(task.state())) {
+        if (!TaskState.SUCCEEDED.name().equals(task.state()) && !TaskState.COMPLETED.name().equals(task.state())) {
             throw new ConflictException("TASK_PUBLICATION_LEASE_NOT_RELEASABLE",
-                    "Only a succeeded Task can release its workspace after publication");
+                    "Only a confirmed completed Task can release its workspace after publication");
         }
         if (!isAdmittedInPlace(task)) return;
         if (!GitWorktreeManager.DIRECT_BRANCH.equals(task.branchName())) {
             worktrees.restoreSourceBranch(inPlaceRoot(task), task.branchName(), task.sourceBranch());
         }
         settleTerminalInPlaceLease(task, !hasUnconfirmedWriter(task.id()), "TASK_COMMITTED");
+    }
+
+    /** Reacquires the FIFO lease and restores a frozen successful cycle before a publication write. */
+    public TaskRow preparePublicationWorkspace(String taskId) {
+        TaskRow task = requireSuccessfulDecision(taskId);
+        io.opencode.loopper.persistence.TaskWorkspaceCheckpointRow checkpoint = workspaceCheckpoints.latest(taskId);
+        if (checkpoint == null) {
+            throw new ConflictException("TASK_PUBLICATION_CHECKPOINT_MISSING", "Successful Task has no frozen workspace checkpoint");
+        }
+        Path root = inPlaceRoot(task);
+        if (WorkspaceCheckpointState.RESTORED.name().equals(checkpoint.state())) {
+            directLeases.requireWritableLease(root, task.id());
+            return task;
+        }
+        if (!WorkspaceCheckpointState.READY.name().equals(checkpoint.state())) {
+            throw new ConflictException("TASK_PUBLICATION_CHECKPOINT_UNSAFE",
+                    safeMessage(checkpoint.blockerCode() + ": " + checkpoint.blockerMessage()));
+        }
+        DirectWorkspaceLeaseCoordinator.Admission admission = directLeases.acquireOrEnqueue(
+                DirectWorkspaceLeaseCoordinator.identify(root), task.id(), "PUBLICATION", null);
+        if (TaskQueueState.QUEUED.name().equals(admission.state())) {
+            throw new ConflictException("TASK_PUBLICATION_QUEUED", "项目工作区正被其他任务使用，发布已按 FIFO 排队，请稍后重试");
+        }
+        workspaceCheckpoints.restore(task, checkpoint);
+        return get(taskId);
     }
 
     public FeatureContracts.QueueStatusDto queueStatus(String taskId) {
@@ -532,6 +672,11 @@ public class TaskService {
             throw new BadRequestException("WORKTREE_UNAVAILABLE", "Task worktree is unavailable");
         }
         try {
+            io.opencode.loopper.persistence.TaskWorkspaceCheckpointRow checkpoint = workspaceCheckpoints.latest(taskId);
+            if (checkpoint != null && checkpoint.checkpointTree() != null && !checkpoint.checkpointTree().isBlank()) {
+                return verifiers.previewDiffAtRef(Path.of(task.worktreePath()), task.baselineCommit(),
+                        checkpoint.checkpointTree(), path, untracked, Duration.ofSeconds(10));
+            }
             return verifiers.previewDiff(Path.of(task.worktreePath()), task.baselineCommit(), task.branchName(),
                     path, untracked, Duration.ofSeconds(10));
         } catch (TaskFailure failure) {
@@ -547,7 +692,9 @@ public class TaskService {
                 && !TaskState.JUDGING.name().equals(task.state())) return;
         LoopSpec spec = spec(task);
         Instant now = Instant.now();
-        if (Instant.parse(task.createdAt()).plusSeconds(effectiveMaxDurationSeconds(spec)).isBefore(now)) {
+        TaskExecutionCycleRow activeCycle = executionCycles.active(task.id());
+        Instant cycleStarted = activeCycle == null ? Instant.parse(task.createdAt()) : Instant.parse(activeCycle.startedAt());
+        if (cycleStarted.plusSeconds(effectiveMaxDurationSeconds(spec)).isBefore(now)) {
             if (TaskState.VERIFYING.name().equals(task.state())) {
                 VerifierOutcome runtimeStop = managedVerifierRuntimes.stopTask(taskId, "task-duration-exhausted");
                 if (runtimeStop != null && runtimeStop.state() == VerificationState.ERROR) {
@@ -572,7 +719,7 @@ public class TaskService {
 
     TaskRow start(String taskId, String admissionSource) {
         TaskRow task = get(taskId);
-        if (TaskState.FAILED.name().equals(task.state()) || TaskState.CANCELLED.name().equals(task.state()) || TaskState.SUCCEEDED.name().equals(task.state())) {
+        if (TaskState.valueOf(task.state()).terminal() || TaskState.AWAITING_DECISION.name().equals(task.state())) {
             throw new ConflictException("TASK_TERMINAL", "Cannot start a terminal task");
         }
         if (TaskState.PAUSED.name().equals(task.state())) return resume(taskId);
@@ -592,6 +739,7 @@ public class TaskService {
 
     private TaskRow requestTaskStart(TaskRow task, String admissionSource) {
         try {
+            executionCycles.ensureInitial(task, cycleBudgetSnapshot(spec(task)));
             ProjectRow project = projects.get(task.projectId());
             Path projectRoot = Path.of(project.rootPath());
             if (task.baselineCommit() != null && !worktrees.inspect(projectRoot).isolatedWorktree()) {
@@ -602,7 +750,8 @@ public class TaskService {
             String source = normalizedAdmissionSource(admissionSource);
             DirectWorkspaceLeaseCoordinator.Admission admission = transactions.execute(status -> {
                 TaskRow current = get(task.id());
-                if (!TaskState.PENDING_START.name().equals(current.state())) {
+                if (!TaskState.PENDING_START.name().equals(current.state())
+                        && !TaskState.AWAITING_DECISION.name().equals(current.state())) {
                     throw new ConflictException("TASK_START_REQUEST_CONFLICT",
                             "Task no longer waits for an execution request");
                 }
@@ -653,7 +802,10 @@ public class TaskService {
                 events.emit(task.id(), "work_package.started", Map.of("workPackageId", stage.workPackageId(),
                         "state", "RUNNING"));
             }
-            startNewAttempt(get(task.id()), stage, "Start stage: " + stage.objective());
+            TaskExecutionCycleRow cycle = requireActiveCycle(get(task.id()));
+            String cyclePrompt = cycle.supplementalPrompt() == null || cycle.supplementalPrompt().isBlank()
+                    ? "Start stage: " + stage.objective() : cycle.supplementalPrompt();
+            startNewAttempt(get(task.id()), stage, cyclePrompt);
         } catch (TaskFailure failure) {
             failTask(get(taskId), failure.code(), failure.getMessage(), null, null, null);
         }
@@ -1038,6 +1190,8 @@ public class TaskService {
 
     public void recoverAfterRestart() {
         ManagedVerificationRuntimeService.RecoveryResult runtimeRecovery = managedVerifierRuntimes.recoverActive();
+        workspaceCheckpoints.recoverIncomplete();
+        recoverCompletedCycleHandoffs();
         Map<String, String> interruptedStates = mapper.listRecoverableTasks().stream()
                 .collect(java.util.stream.Collectors.toMap(TaskRow::id, TaskRow::state,
                         (left, right) -> left, LinkedHashMap::new));
@@ -1172,6 +1326,40 @@ public class TaskService {
         }
     }
 
+    /**
+     * Closes the small crash window between ending an execution cycle and projecting the Task as
+     * AWAITING_DECISION. A terminal cycle is immutable evidence; restart must not invent another
+     * retry cycle or reopen a writer merely because the final Task projection was not committed.
+     */
+    private void recoverCompletedCycleHandoffs() {
+        for (TaskRow candidate : mapper.listRecoverableTasks()) {
+            TaskExecutionCycleRow cycle = executionCycles.latest(candidate.id());
+            if (cycle == null || !ExecutionCycleState.valueOf(cycle.state()).terminal()) continue;
+            TaskRow task = mapper.findTask(candidate.id()).orElse(candidate);
+            try {
+                LifecycleEvent event = ExecutionCycleState.SUCCEEDED.name().equals(cycle.state())
+                        ? LifecycleEvent.APPROVE : LifecycleEvent.FAIL;
+                updateTask(state(task, TaskState.AWAITING_DECISION), event,
+                        Map.of("cycleId", cycle.id(), "cycleOrdinal", cycle.ordinal(),
+                                "cycleResult", cycle.state(), "recoveredAfterRestart", true));
+                io.opencode.loopper.persistence.TaskWorkspaceCheckpointRow checkpoint = workspaceCheckpoints.latest(task.id());
+                events.emit(task.id(), "task.awaiting_decision", Map.of(
+                        "state", TaskState.AWAITING_DECISION.name(), "cycleId", cycle.id(),
+                        "cycleOrdinal", cycle.ordinal(), "cycleResult", cycle.state(),
+                        "checkpointState", checkpoint == null ? "NOT_CAPTURED" : checkpoint.state(),
+                        "recoveredAfterRestart", true));
+                if (checkpoint != null && WorkspaceCheckpointState.READY.name().equals(checkpoint.state())) {
+                    settleTerminalInPlaceLease(get(task.id()), true,
+                            "TASK_AWAITING_DECISION_CHECKPOINTED_AFTER_RESTART");
+                }
+            } catch (RuntimeException projectionFailure) {
+                events.emit(task.id(), "task.recovery_blocked", Map.of(
+                        "code", "TASK_DECISION_PROJECTION_RECOVERY_FAILED",
+                        "message", safeMessage(projectionFailure), "cycleId", cycle.id()));
+            }
+        }
+    }
+
     private void startNewAttempt(TaskRow task, StageRow inputStage, String prompt) {
         TaskRow freshTask = get(task.id());
         LoopSpec spec = spec(freshTask);
@@ -1218,7 +1406,9 @@ public class TaskService {
             return;
         }
         int ordinal = mapper.countAttemptsForStage(stage.id()) + 1;
-        AttemptRow attempt = new AttemptRow(UUID.randomUUID().toString(), freshTask.id(), stage.id(), ordinal, AttemptState.RUNNING.name(), null, null, now(), null, 0);
+        TaskExecutionCycleRow cycle = requireActiveCycle(freshTask);
+        AttemptRow attempt = new AttemptRow(UUID.randomUUID().toString(), freshTask.id(), stage.id(), cycle.id(),
+                ordinal, AttemptState.RUNNING.name(), null, null, now(), null, 0);
         createAttempt(attempt);
         ExecutionSessionRow session = new ExecutionSessionRow(UUID.randomUUID().toString(), freshTask.id(), stage.id(), attempt.id(), null,
                 SessionState.CREATING.name(), now(), null, 0, todoCapability.name());
@@ -1259,7 +1449,8 @@ public class TaskService {
         }
         if (!TaskState.RUNNING.name().equals(get(freshTask.id()).state())) return;
         if (!StageState.RUNNING.name().equals(stage.state())) updateStage(stageState(stage, StageState.RUNNING));
-        AttemptRow attempt = new AttemptRow(UUID.randomUUID().toString(), freshTask.id(), stage.id(),
+        TaskExecutionCycleRow cycle = requireActiveCycle(freshTask);
+        AttemptRow attempt = new AttemptRow(UUID.randomUUID().toString(), freshTask.id(), stage.id(), cycle.id(),
                 mapper.countAttemptsForStage(stage.id()) + 1, AttemptState.RUNNING.name(), null,
                 "VERIFY_ONLY native verification; no writable OpenCode Session", now(), null, 0);
         createAttempt(attempt);
@@ -1770,13 +1961,14 @@ public class TaskService {
     }
 
     private AttemptCapacity attemptCapacity(TaskRow task, StageRow stage, LoopSpec spec) {
+        TaskExecutionCycleRow cycle = requireActiveCycle(task);
         int stageLimit = Math.min(spec.limits().maxStageAttempts(), defaults.getMaxStageAttempts());
         int taskLimit = Math.min(spec.limits().maxTaskAttempts(), defaults.getMaxTaskAttempts());
-        if (mapper.countAttemptsForStage(stage.id()) >= stageLimit) {
+        if (mapper.countAttemptsForCycleStage(cycle.id(), stage.id()) >= stageLimit) {
             return new AttemptCapacity(false, "ATTEMPT_LIMIT_EXHAUSTED",
                     "The configured Stage attempt limit was reached");
         }
-        if (mapper.countAttemptsForTask(task.id()) >= taskLimit) {
+        if (mapper.countAttemptsForCycle(cycle.id()) >= taskLimit) {
             return new AttemptCapacity(false, "ATTEMPT_LIMIT_EXHAUSTED",
                     "The configured Task attempt limit was reached");
         }
@@ -1785,10 +1977,10 @@ public class TaskService {
                 .filter(candidate -> stage.workPackageId().equals(candidate.workPackageId())).toList();
         int packageLimit = Math.min(packageStages.size() * stageLimit,
                 packageStages.size() + 2);
-        int used = mapper.countAttemptsForWorkPackage(task.id(), stage.workPackageId());
+        int used = mapper.countAttemptsForCycleWorkPackage(cycle.id(), stage.workPackageId());
         int otherUnstarted = (int) packageStages.stream()
                 .filter(candidate -> !candidate.id().equals(stage.id()))
-                .filter(candidate -> mapper.countAttemptsForStage(candidate.id()) == 0).count();
+                .filter(candidate -> mapper.countAttemptsForCycleStage(cycle.id(), candidate.id()) == 0).count();
         if (used >= packageLimit || used >= packageLimit - otherUnstarted) {
             return new AttemptCapacity(false, "WORK_PACKAGE_ATTEMPT_LIMIT_EXHAUSTED",
                     "Work package " + stage.workPackageId() + " exhausted its independent attempt pool of "
@@ -2089,9 +2281,8 @@ public class TaskService {
         // repairs a prior terminal Judge row after a restart or an optimistic-lock retry;
         // session_usage uses the judge-run/message idempotency key, so repeated polling is safe.
         usageInsights.collectTaskUsage(task.id());
-        updateTask(state(get(task.id()), TaskState.SUCCEEDED));
-        events.emit(task.id(), "task.succeeded", Map.of("state", TaskState.SUCCEEDED.name(), "judges", List.of("REQUIREMENT", "RISK")));
-        settleTerminalInPlaceLease(get(task.id()), !hasUnconfirmedWriter(task.id()), "TASK_SUCCEEDED");
+        finishCycleAndAwaitDecision(get(task.id()), ExecutionCycleState.SUCCEEDED, null,
+                "Requirement and Risk judges passed", !hasUnconfirmedWriter(task.id()));
     }
 
     private void waitForJudgeInput(TaskRow inputTask, AttemptRow attempt, JudgeRunRow judge, String code, String message) {
@@ -2443,9 +2634,61 @@ public class TaskService {
             }
         }
         recordError(current, stage, attempt, session, ErrorLayer.TASK, code, message, false, Map.of());
-        updateTask(state(get(current.id()), TaskState.FAILED));
-        events.emit(current.id(), "task.failed", Map.of("state", TaskState.FAILED.name(), "code", code, "message", message));
-        settleTerminalInPlaceLease(get(current.id()), writersStopped && !hasUnconfirmedWriter(current.id()), code);
+        finishCycleAndAwaitDecision(get(current.id()), ExecutionCycleState.FAILED, code, message,
+                writersStopped && !hasUnconfirmedWriter(current.id()));
+    }
+
+    private void finishCycleAndAwaitDecision(TaskRow task, ExecutionCycleState result, String code,
+                                             String message, boolean writersStopped) {
+        TaskExecutionCycleRow active = executionCycles.active(task.id());
+        if (active == null) active = executionCycles.ensureInitial(task, cycleBudgetSnapshot(spec(task)));
+        TaskExecutionCycleRow ended = executionCycles.finish(task.id(), result, code, message);
+        io.opencode.loopper.persistence.TaskWorkspaceCheckpointRow checkpoint = null;
+        if (writersStopped) checkpoint = workspaceCheckpoints.freeze(get(task.id()), ended);
+        LifecycleEvent event = result == ExecutionCycleState.SUCCEEDED ? LifecycleEvent.APPROVE : LifecycleEvent.FAIL;
+        updateTask(state(get(task.id()), TaskState.AWAITING_DECISION), event,
+                Map.of("cycleId", ended.id(), "cycleOrdinal", ended.ordinal(), "cycleResult", result.name()));
+        Map<String, Object> evidence = new LinkedHashMap<>();
+        evidence.put("state", TaskState.AWAITING_DECISION.name());
+        evidence.put("cycleId", ended.id());
+        evidence.put("cycleOrdinal", ended.ordinal());
+        evidence.put("cycleResult", result.name());
+        evidence.put("checkpointState", checkpoint == null ? "NOT_CAPTURED" : checkpoint.state());
+        if (code != null) evidence.put("code", code);
+        events.emit(task.id(), "task.awaiting_decision", evidence);
+        if (checkpoint != null && io.opencode.loopper.domain.WorkspaceCheckpointState.READY.name().equals(checkpoint.state())) {
+            settleTerminalInPlaceLease(get(task.id()), true, "TASK_AWAITING_DECISION_CHECKPOINTED");
+        }
+    }
+
+    public TaskExecutionCycleRow latestExecutionCycle(String taskId) {
+        get(taskId);
+        return executionCycles.latest(taskId);
+    }
+
+    public List<TaskExecutionCycleRow> executionCycles(String taskId) {
+        get(taskId);
+        return executionCycles.list(taskId);
+    }
+
+    public io.opencode.loopper.persistence.TaskWorkspaceCheckpointRow latestWorkspaceCheckpoint(String taskId) {
+        get(taskId);
+        return workspaceCheckpoints.latest(taskId);
+    }
+
+    private TaskExecutionCycleRow requireActiveCycle(TaskRow task) {
+        TaskExecutionCycleRow cycle = executionCycles.active(task.id());
+        if (cycle == null) cycle = executionCycles.ensureInitial(task, cycleBudgetSnapshot(spec(task)));
+        return cycle;
+    }
+
+    private String cycleBudgetSnapshot(LoopSpec spec) {
+        return write(Map.of(
+                "limits", spec.limits(),
+                "budget", spec.budget() == null ? Map.of() : spec.budget(),
+                "effectiveMaxStageAttempts", Math.min(spec.limits().maxStageAttempts(), defaults.getMaxStageAttempts()),
+                "effectiveMaxTaskAttempts", Math.min(spec.limits().maxTaskAttempts(), defaults.getMaxTaskAttempts()),
+                "effectiveMaxDurationSeconds", effectiveMaxDurationSeconds(spec)));
     }
 
     private void failTaskForManagedRuntime(String taskId, VerifierOutcome outcome) {
@@ -2503,10 +2746,32 @@ public class TaskService {
             updateTask(state(task, TaskState.PREPARING));
             task = get(taskId);
         }
-        boolean gitSourceBranch = worktrees.inspect(root).isolatedWorktree();
-        GitWorktreeManager.Worktree worktree = gitSourceBranch
-                ? worktrees.checkoutSourceBranch(root, task.id(), task.title(), task.baselineCommit())
-                : worktrees.create(root, task.id());
+        io.opencode.loopper.persistence.TaskWorkspaceCheckpointRow checkpoint = workspaceCheckpoints.latest(task.id());
+        GitWorktreeManager.Worktree worktree;
+        if (checkpoint != null && WorkspaceCheckpointState.READY.name().equals(checkpoint.state())) {
+            workspaceCheckpoints.restore(task, checkpoint);
+            worktree = new GitWorktreeManager.Worktree(root, task.branchName(), task.baselineCommit(), task.sourceBranch());
+        } else {
+            boolean gitSourceBranch = worktrees.inspect(root).isolatedWorktree();
+            worktree = gitSourceBranch
+                    ? worktrees.checkoutSourceBranch(root, task.id(), task.title(), task.baselineCommit())
+                    : worktrees.create(root, task.id());
+            var lineage = mapper.findTaskLineage(task.id()).orElse(null);
+            if (lineage != null && ("INHERIT_CHANGES".equals(lineage.recoveryMode())
+                    || "VERIFY_ONLY".equals(lineage.recoveryMode()))) {
+                var parentCheckpoint = mapper.latestTaskWorkspaceCheckpoint(lineage.parentTaskId())
+                        .filter(row -> WorkspaceCheckpointState.READY.name().equals(row.state())).orElse(null);
+                if (parentCheckpoint == null && "INHERIT_CHANGES".equals(lineage.recoveryMode())) {
+                    throw new TaskFailure("RECOVERY_CHECKPOINT_MISSING",
+                            "Parent Task checkpoint is not available for the derived Task");
+                }
+                if (parentCheckpoint != null) {
+                    worktrees.materializeCheckpointTree(root, worktree.branch(), parentCheckpoint.checkpointTree());
+                    events.emit(task.id(), "recovery.checkpoint_seeded", Map.of("parentTaskId", lineage.parentTaskId(),
+                            "checkpointTree", parentCheckpoint.checkpointTree()));
+                }
+            }
+        }
         if (task.baselineCommit() != null && GitWorktreeManager.DIRECT_BRANCH.equals(worktree.branch())) {
             throw new TaskFailure("REWORK_REPOSITORY_REQUIRED", "Rework requires a Git source branch");
         }
@@ -2577,7 +2842,8 @@ public class TaskService {
             if (lease.holderTaskId() == null) continue;
             TaskRow task = mapper.findTask(lease.holderTaskId()).orElse(null);
             if (task == null || !isAdmittedInPlace(task)) continue;
-            if (TaskState.valueOf(task.state()).terminal()) {
+            if (TaskState.valueOf(task.state()).terminal()
+                    || TaskState.AWAITING_DECISION.name().equals(task.state())) {
                 rehydrateTerminalLease(task, lease);
                 continue;
             }
@@ -2674,7 +2940,7 @@ public class TaskService {
     }
     private TaskRow state(TaskRow row, TaskState state) { return new TaskRow(row.id(), row.projectId(), row.loopDraftId(), row.title(), state.name(), row.worktreePath(), row.branchName(), row.sourceBranch(), row.baselineCommit(), row.createdAt(), now(), row.version()); }
     private StageRow stageState(StageRow row, StageState state) { return new StageRow(row.id(), row.taskId(), row.ordinal(), row.objective(), row.allowedPathsJson(), row.forbiddenPathsJson(), row.deliverablesJson(), row.verifiersJson(), state.name(), row.createdAt(), now(), row.version(), row.workPackageId()); }
-    private AttemptRow finish(AttemptRow row, AttemptState state, String failureKind, String summary) { return new AttemptRow(row.id(), row.taskId(), row.stageId(), row.ordinal(), state.name(), failureKind, safeMessage(summary), row.createdAt(), now(), row.version()); }
+    private AttemptRow finish(AttemptRow row, AttemptState state, String failureKind, String summary) { return new AttemptRow(row.id(), row.taskId(), row.stageId(), row.executionCycleId(), row.ordinal(), state.name(), failureKind, safeMessage(summary), row.createdAt(), now(), row.version()); }
     private ExecutionSessionRow sessionState(ExecutionSessionRow row, SessionState state) { return new ExecutionSessionRow(row.id(), row.taskId(), row.stageId(), row.attemptId(), row.externalSessionId(), state.name(), row.createdAt(), now(), row.version(), row.todoCapability()); }
     private TaskRetryScheduleRow retryState(TaskRetryScheduleRow row, String state, String dueAt, Integer remainingSeconds) {
         return new TaskRetryScheduleRow(row.id(), row.taskId(), row.stageId(), row.cause(), row.ordinal(),
@@ -2708,10 +2974,11 @@ public class TaskService {
                 null, metadata, () -> mapper.updateTaskState(row),
                 () -> new ConflictException("TASK_VERSION_CONFLICT", "Task was updated concurrently"));
     }
-    private void updateStage(StageRow row) {
+    private void updateStage(StageRow row) { updateStage(row, null); }
+    private void updateStage(StageRow row, LifecycleEvent event) {
         StageRow current = mapper.findStage(row.id()).orElseThrow(() -> new NotFoundException("Stage not found: " + row.id()));
         lifecycle.transition(subject(LifecycleMachineType.STAGE, row.id(), row.taskId()), current.state(), row.state(),
-                null, Map.of(), () -> mapper.updateStageState(row),
+                event, null, Map.of(), () -> mapper.updateStageState(row),
                 () -> new ConflictException("STAGE_VERSION_CONFLICT", "Stage was updated concurrently"));
     }
     private void updateAttempt(AttemptRow row) {
@@ -2862,7 +3129,9 @@ public class TaskService {
     private Duration remainingTaskDuration(TaskRow task, LoopSpec spec) {
         Instant deadline;
         try {
-            deadline = Instant.parse(task.createdAt()).plusSeconds(effectiveMaxDurationSeconds(spec));
+            TaskExecutionCycleRow cycle = executionCycles.active(task.id());
+            deadline = Instant.parse(cycle == null ? task.createdAt() : cycle.startedAt())
+                    .plusSeconds(effectiveMaxDurationSeconds(spec));
         } catch (RuntimeException invalid) {
             throw new TaskFailure("TASK_DURATION_INVALID", "Task duration deadline cannot be evaluated safely");
         }

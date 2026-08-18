@@ -118,6 +118,32 @@ class TaskPublicationServiceIntegrationTest {
     }
 
     @Test
+    void commitSuggestionReadsTheFrozenCheckpointWithoutRestoringTheTaskBranch() throws Exception {
+        Repository fixture = repositoryWithRemote();
+        ProjectRow project = projects.create("frozen-commit-message", fixture.project().toString());
+        TaskRow task = readyTask(project);
+        Files.writeString(Path.of(task.worktreePath()).resolve("feature.txt"), "verified frozen change\n");
+
+        assertThat(tasks.verify(task.id()).state()).isEqualTo("JUDGING");
+        tasks.pollJudges(task.id());
+        TaskRow waiting = tasks.get(task.id());
+        assertThat(waiting.state()).isEqualTo("AWAITING_DECISION");
+        assertThat(tasks.latestWorkspaceCheckpoint(task.id()).state()).isEqualTo("READY");
+        assertThat(run(fixture.project(), "git", "branch", "--show-current").strip()).isEqualTo("main");
+        assertThat(run(fixture.project(), "git", "status", "--short")).isBlank();
+        ((FakeOpenCodeClient) openCode).setJudgeOutput("COMMIT", "提交冻结快照中的功能变更");
+
+        assertThat(publication.generateCommitMessage(task.id()))
+                .isEqualTo(new TaskPublicationService.CommitSuggestion("提交冻结快照中的功能变更", true));
+
+        assertThat(run(fixture.project(), "git", "branch", "--show-current").strip()).isEqualTo("main");
+        assertThat(run(fixture.project(), "git", "status", "--short")).isBlank();
+        assertThat(tasks.latestWorkspaceCheckpoint(task.id()).state()).isEqualTo("READY");
+        assertThat(((FakeOpenCodeClient) openCode).promptHistory()).last().satisfies(prompt ->
+                assertThat(prompt.prompt()).contains("feature.txt", "实际 Git 变更摘要"));
+    }
+
+    @Test
     void lazilyBackfillsAHistoricalPushedTaskWithoutGuessingDuringMigration() throws Exception {
         Repository fixture = repositoryWithRemote();
         ProjectRow project = projects.create("historical-pushed", fixture.project().toString());

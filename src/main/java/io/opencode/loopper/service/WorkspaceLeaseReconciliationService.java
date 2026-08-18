@@ -100,9 +100,14 @@ public class WorkspaceLeaseReconciliationService {
             return Result.blocked(holderTaskId, "TASK_QUEUE_LEASE_INVARIANT_VIOLATION",
                     "ADMITTED 队列记录与活动项目写租约 holder 不一致");
         }
-        if (!TaskState.valueOf(task.state()).terminal()) {
+        boolean decisionCheckpointReady = TaskState.AWAITING_DECISION.name().equals(task.state())
+                && mapper.latestTaskWorkspaceCheckpoint(task.id())
+                .map(checkpoint -> "READY".equals(checkpoint.state())).orElse(false);
+        if (!TaskState.valueOf(task.state()).terminal() && !decisionCheckpointReady) {
             return Result.blocked(holderTaskId, "TASK_QUEUE_HOLDER_ACTIVE",
-                    "当前项目写租约 holder 尚未进入终态");
+                    TaskState.AWAITING_DECISION.name().equals(task.state())
+                            ? "任务正在等待用户处置，但工作区尚未安全冻结"
+                            : "当前项目写租约 holder 尚未进入终态");
         }
 
         WriterSafety writer = writerSafety(task.id(), lease);
@@ -153,7 +158,8 @@ public class WorkspaceLeaseReconciliationService {
                 .map(WorkspaceLeaseRow::holderTaskId)
                 .filter(id -> id != null && !id.isBlank())
                 .distinct()
-                .filter(id -> mapper.findTask(id).map(row -> TaskState.valueOf(row.state()).terminal()).orElse(false))
+                .filter(id -> mapper.findTask(id).map(row -> TaskState.valueOf(row.state()).terminal()
+                        || TaskState.AWAITING_DECISION.name().equals(row.state())).orElse(false))
                 .toList();
     }
 

@@ -63,8 +63,10 @@ flowchart LR
     K -->|连续无进展| H
     F -->|通过| G["需求与风险双评审"]
     G -->|需修改或输出无效| H["等待人工处理或重新评审"]
-    G -->|双 PASS| I["成功任务"]
-    I --> J["人工提交任务分支并恢复源分支"]
+    G -->|双 PASS| I["执行成功，等待用户处置"]
+    F -->|预算耗尽或无法安全继续| L["执行失败，等待用户处置"]
+    I --> J["发布 / 继续优化 / 派生 / 审计 / 取消"]
+    L --> M["继续当前任务 / 继承修改 / 全部重做 / 审计 / 取消"]
 ```
 
 Loopper 把四类事实分开保存和展示：
@@ -259,7 +261,7 @@ Loopper 不会因为任务成功就自动提交、推送或合并。确认计划
 | `FIELD` | 请求或 LoopSpec 字段无效 | 原地提示，不改变运行状态 |
 | `VERIFICATION` | 当前 Attempt 没有满足验收 | 保留证据，在预算内进入下一次尝试 |
 | `SESSION` | OpenCode Session 失败或断开 | 关闭当前 Attempt，在安全确认后创建新 Session |
-| `TASK` | 已无法安全继续或预算耗尽 | 终止子工作并进入 `FAILED` |
+| `TASK` | 当前执行轮次已无法安全继续或预算耗尽 | 终止子工作、冻结现场并进入 `AWAITING_DECISION`，等待用户处置 |
 
 当旧的可写 Session 无法确认终止时，Loopper 会失败关闭，拒绝创建第二个并发写入者。远端终止状态未知会显示为 `DISCONNECTED`，不会伪装成 `ABORTED`。
 
@@ -269,24 +271,26 @@ Loopper 不会因为任务成功就自动提交、推送或合并。确认计划
 
 ### Recovery
 
-只有 `FAILED` 或 `CANCELLED` 任务可以创建派生 Recovery：
+新任务的执行成功或失败都先进入 `AWAITING_DECISION`，执行结果本身不是用户确认终态。失败后可选择继续当前 Task、新任务继承当前修改、新任务从原始基线全部重做、创建只读审计任务或取消；成功后还可发布、选择已有 Stage 继续优化，或在确实没有文件变化时显式接受结果。继续当前 Task 会创建新的 Execution Cycle、Attempt 和 Session，并重新计算本轮预算；旧轮次、旧证据和旧用量保持不变。继承/重做后父任务进入 `SUPERSEDED`，子任务保持 `PENDING_START`，不会提前申请资源。
+
+历史 `FAILED` 或 `CANCELLED` 任务仍兼容原有派生 Recovery：
 
 - `FROM_FAILED_STAGE`：从失败阶段继续；
 - `ALL_STAGES`：重新执行全部阶段；
 - `VERIFY_ONLY`：只重新验证，不创建可写 Session。
 
-Recovery 会保留父任务、来源阶段和工作区指纹。Direct 指纹同时使用规范路径、目录文件键和创建时间，避免 Linux 立即复用 inode 时把重建目录误认成原工作区；指纹不一致或旧写入者状态不明时会返回冲突并停止。已释放且没有写入者的租约会在下一次准入时安全刷新指纹。
+执行轮次结束时，Loopper 只有在旧 writer 已确认停止后，才会通过临时 Git index 把 tracked、deleted、untracked 修改冻结到私有 `refs/loopper/checkpoints/<taskId>/<cycleId>`，清理工作区、恢复源分支并释放 FIFO 租约。继续、继承或审计前会复核 root、分支、HEAD、ref、commit、tree 与文件清单；应用重启会幂等续接未完成的冻结/恢复步骤，现场不一致时安全阻断。私有 ref 与配套 stash 永不推送。Direct 指纹同时使用规范路径、目录文件键和创建时间，避免 Linux 立即复用 inode 时把重建目录误认成原工作区；Direct 模式不能安全冻结为 Git checkpoint，因此不提供继承修改或 Git 基线重做。
 
 ### 成功任务发布
 
-Git 任务分支达到 `SUCCEEDED` 后：
+Git 任务的最新 Execution Cycle 成功并处于 `AWAITING_DECISION` 后（历史 `SUCCEEDED` 仍兼容）：
 
 1. Loopper 根据任务和实际差异建议提交说明；用户必须输入四位数字工单号，最终格式为 `#1234_subject`。
-2. 用户检查并确认后，Loopper 使用普通 Git 提交，并在工作区干净后恢复任务开始前记录的源分支。
+2. 发布先以 `PUBLICATION` 来源按 FIFO 重新取得写租约，复核并恢复冻结代码；用户检查并确认后，Loopper 使用普通 Git 提交，并在工作区干净后恢复任务开始前记录的源分支。
 3. 如果存在排队任务，写租约随即转交并切换到下一任务分支；否则项目停留在恢复后的源分支。
 4. 存在远端时，Loopper 使用明确的本地任务分支引用执行非强制推送；推送和重试都不会切换当前项目分支。
 5. 推送成功后，点击普通的 **创建合并请求** 按钮会直接打开参数确认对话框；确认后打开预填的 GitHub Pull Request 或 GitLab Merge Request 创建页。它只引用任务分支，最终创建与合并仍由托管平台确认。SSH remote 默认生成 HTTPS Web 地址；`LOOPPER_PUBLICATION_HTTP_WEB_HOSTS` 中精确列出的主机改用 HTTP。成品启动脚本默认加入 `gitlab.spdb.com`，不改变 SSH 推送协议。
-6. 任务执行状态和远端交付状态彼此独立：`已成功` 之后依次记录 `已提交 → 已推送 → 合并请求已创建/已关闭 → 已合并`。进入详情页或从 GitLab 返回时会在 30 秒冷却下自动核对，也可以手工检查。只有 GitLab API 精确匹配任务提交后才能写入不可逆的“已合并”；删除源分支不会被误判为合并。
+6. Execution Cycle 结果、用户确认的 Task 终态和远端交付彼此独立：耐久本地提交或确认推送后 Task 进入 `COMPLETED`，交付轴继续记录 `已提交 → 已推送 → 合并请求已创建/已关闭 → 已合并`。进入详情页或从 GitLab 返回时会在 30 秒冷却下自动核对，也可以手工检查。只有 GitLab API 精确匹配任务提交后才能写入不可逆的“已合并”；删除源分支不会被误判为合并。
 7. 如果仓库没有远端，本地提交只保留在任务分支并记录证据，不会把提交快进或覆盖到恢复后的源分支。
 
 ### 归档与删除

@@ -38,14 +38,17 @@ const statusOptions: Array<{ value: StatusFilter; label: string }> = [
   { value: 'WAITING_INPUT', label: '等待输入' },
   { value: 'PAUSED', label: '已暂停' },
   { value: 'JUDGING', label: '评审中' },
+  { value: 'AWAITING_DECISION', label: '等待处置' },
+  { value: 'COMPLETED', label: '已确认完成' },
+  { value: 'SUPERSEDED', label: '已由新任务接续' },
   { value: 'SUCCEEDED', label: '已成功' },
   { value: 'FAILED', label: '已失败' },
   { value: 'CANCELLED', label: '已取消' },
 ]
 const validStatuses = new Set(statusOptions.map((item) => item.value))
 validStatuses.add('TERMINATED')
-const activeStatuses: TaskStatus[] = ['PENDING_START', 'QUEUED', 'PREPARING', 'READY', 'RUNNING', 'VERIFYING', 'RETRY_WAIT', 'JUDGING']
-const terminalStatuses: TaskStatus[] = ['SUCCEEDED', 'FAILED', 'CANCELLED']
+const activeStatuses: TaskStatus[] = ['PENDING_START', 'QUEUED', 'PREPARING', 'READY', 'RUNNING', 'VERIFYING', 'RETRY_WAIT', 'JUDGING', 'AWAITING_DECISION']
+const terminalStatuses: TaskStatus[] = ['COMPLETED', 'SUPERSEDED', 'SUCCEEDED', 'FAILED', 'CANCELLED']
 
 const projectOptions = computed(() => Array.from(new Map(store.tasks.map((task) => [task.projectId, task.projectName])).entries())
   .map(([id, name]) => ({ id, name })).sort((left, right) => left.name.localeCompare(right.name, 'zh-CN')))

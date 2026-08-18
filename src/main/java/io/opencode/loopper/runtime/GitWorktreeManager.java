@@ -285,6 +285,270 @@ public class GitWorktreeManager {
         }
     }
 
+    /**
+     * Freezes every tracked, deleted and untracked change into an immutable private ref, then
+     * creates a named stash so the registered checkout can safely return to its source branch.
+     * The Task branch itself is never moved and the private ref is outside normal push refspecs.
+     */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public synchronized WorkspaceCheckpoint freezeWorkspace(Path projectRoot, String taskId, String cycleId,
+                                                             String expectedBranch) {
+        Path index = null;
+        try {
+            Path root = requireRepositoryRoot(projectRoot);
+            DirtyWorkspace before = inspectDirtyWorkspace(root);
+            if (!expectedBranch.equals(before.branch())) {
+                throw new TaskFailure("RECOVERY_CHECKPOINT_BRANCH_MISMATCH",
+                        "Registered checkout is not on the expected Task branch");
+            }
+            String checkpointRef = "refs/loopper/checkpoints/" + taskId + "/" + cycleId;
+            WorkspaceCheckpoint recovered = recoverCleanCheckpoint(root, before, checkpointRef, taskId, cycleId);
+            if (recovered != null) return recovered;
+            Path indexes = properties.getDataDir().toAbsolutePath().normalize().resolve("recovery-indexes");
+            Files.createDirectories(indexes);
+            index = Files.createTempFile(indexes, "checkpoint-", ".index");
+            Files.deleteIfExists(index);
+            Map<String, String> environment = new LinkedHashMap<>();
+            environment.put("GIT_INDEX_FILE", index.toString());
+            environment.put("GIT_AUTHOR_NAME", "OpenCode Loopper");
+            environment.put("GIT_AUTHOR_EMAIL", "loopper@localhost.invalid");
+            environment.put("GIT_COMMITTER_NAME", "OpenCode Loopper");
+            environment.put("GIT_COMMITTER_EMAIL", "loopper@localhost.invalid");
+            requireSuccess(runner.run(root, List.of("git", "read-tree", "HEAD"), GIT_TIMEOUT, environment),
+                    "RECOVERY_CHECKPOINT_CREATE_FAILED", "Unable to initialize the checkpoint index");
+            requireSuccess(runner.run(root, List.of("git", "add", "-A", "--", "."), GIT_MUTATION_TIMEOUT, environment),
+                    "RECOVERY_CHECKPOINT_CREATE_FAILED", "Unable to index the Task workspace");
+            String tree = requiredOutput(root, List.of("git", "write-tree"), environment,
+                    "RECOVERY_CHECKPOINT_CREATE_FAILED", "Unable to write the checkpoint tree");
+            String head = requiredOutput(root, List.of("git", "rev-parse", "HEAD"),
+                    "RECOVERY_CHECKPOINT_CREATE_FAILED", "Unable to resolve the Task branch HEAD");
+            String commit = requiredOutput(root,
+                    List.of("git", "commit-tree", tree, "-p", head, "-m", "Loopper private recovery checkpoint"),
+                    environment, "RECOVERY_CHECKPOINT_CREATE_FAILED", "Unable to create the checkpoint commit");
+            runRequired(root, List.of("git", "update-ref", checkpointRef, commit),
+                    "RECOVERY_CHECKPOINT_CREATE_FAILED", "Unable to persist the private checkpoint ref");
+
+            String stashCommit = null;
+            if (!before.clean()) {
+                runRequired(root, List.of("git", "stash", "push", "--include-untracked", "--message",
+                                "loopper-recovery:" + taskId + ":" + cycleId),
+                        "RECOVERY_CHECKPOINT_CLEAN_FAILED", "Unable to clean the Task workspace after checkpointing");
+                stashCommit = requiredOutput(root, List.of("git", "rev-parse", "refs/stash"),
+                        "RECOVERY_CHECKPOINT_CLEAN_FAILED", "Unable to record the recovery stash");
+            }
+            DirtyWorkspace after = inspectDirtyWorkspace(root);
+            if (!after.clean()) {
+                throw new TaskFailure("RECOVERY_CHECKPOINT_CLEAN_UNCONFIRMED",
+                        "The Task workspace is still dirty after checkpointing");
+            }
+            return new WorkspaceCheckpoint(before, checkpointRef, commit, tree, stashCommit);
+        } catch (TaskFailure failure) {
+            throw failure;
+        } catch (Exception failure) {
+            throw new TaskFailure("RECOVERY_CHECKPOINT_CREATE_FAILED",
+                    "Unable to freeze the Task workspace: " + failure.getMessage());
+        } finally {
+            if (index != null) {
+                try { Files.deleteIfExists(index); } catch (Exception ignored) { }
+                try { Files.deleteIfExists(index.resolveSibling(index.getFileName() + ".lock")); } catch (Exception ignored) { }
+            }
+        }
+    }
+
+    /** Completes the database side of a freeze that crashed after its ref and stash were durable. */
+    private WorkspaceCheckpoint recoverCleanCheckpoint(Path root, DirtyWorkspace current, String checkpointRef,
+                                                        String taskId, String cycleId) {
+        if (!current.clean()) return null;
+        String commit = optionalOutput(root, List.of("git", "rev-parse", "--verify", checkpointRef + "^{commit}"));
+        if (commit == null) return null;
+        String tree = requiredOutput(root, List.of("git", "rev-parse", checkpointRef + "^{tree}"),
+                "RECOVERY_CHECKPOINT_MISSING", "Recovery checkpoint tree is unavailable");
+        String parent = requiredOutput(root, List.of("git", "rev-parse", commit + "^"),
+                "RECOVERY_CHECKPOINT_INTEGRITY_MISMATCH", "Recovery checkpoint parent is unavailable");
+        if (!current.head().equals(parent)) {
+            throw new TaskFailure("RECOVERY_CHECKPOINT_INTEGRITY_MISMATCH",
+                    "Existing recovery checkpoint was created from a different Task branch HEAD");
+        }
+        List<DirtyFile> files = checkpointFiles(root, parent, commit);
+        DirtyWorkspace frozen = new DirtyWorkspace(current.branch(), current.head(),
+                sha256(checkpointRef + '\0' + commit + '\0' + tree), files);
+        String stash = recoveryStash(root, taskId, cycleId);
+        return new WorkspaceCheckpoint(frozen, checkpointRef, commit, tree, stash);
+    }
+
+    private List<DirtyFile> checkpointFiles(Path root, String baseline, String checkpointCommit) {
+        ProcessResult result = runner.run(root,
+                List.of("git", "diff", "--name-status", "-z", "--find-renames", baseline, checkpointCommit, "--"),
+                GIT_TIMEOUT);
+        requireSuccess(result, "RECOVERY_CHECKPOINT_INTEGRITY_MISMATCH",
+                "Unable to reconstruct the recovery checkpoint manifest");
+        String[] tokens = result.output().split(String.valueOf('\0'), -1);
+        List<DirtyFile> files = new ArrayList<>();
+        for (int index = 0; index < tokens.length && !tokens[index].isEmpty();) {
+            String status = tokens[index++];
+            char kind = status.charAt(0);
+            if ((kind == 'R' || kind == 'C') && index + 1 < tokens.length) {
+                String original = tokens[index++];
+                String path = tokens[index++];
+                files.add(new DirtyFile(path, original, String.valueOf(kind), " ", false));
+            } else if (index < tokens.length) {
+                files.add(new DirtyFile(tokens[index++], null, String.valueOf(kind), " ", false));
+            }
+        }
+        return List.copyOf(files);
+    }
+
+    private String recoveryStash(Path root, String taskId, String cycleId) {
+        String output = optionalOutput(root, List.of("git", "stash", "list", "--format=%H%x09%gs"));
+        if (output == null) return null;
+        String marker = "loopper-recovery:" + taskId + ":" + cycleId;
+        return output.lines().map(String::strip).filter(line -> line.endsWith(marker))
+                .map(line -> line.split("\\t", 2)[0]).findFirst().orElse(null);
+    }
+
+    /** Restores a verified private checkpoint as uncommitted changes on the unchanged Task branch. */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public synchronized DirtyWorkspace restoreWorkspaceCheckpoint(Path projectRoot, String taskBranch,
+                                                                  String sourceBranch, String baselineCommit,
+                                                                  String checkpointRef, String checkpointCommit,
+                                                                  String checkpointTree) {
+        Path index = null;
+        try {
+            Path root = requireRepositoryRoot(projectRoot);
+            DirtyWorkspace source = inspectDirtyWorkspace(root);
+            if (!source.clean()) {
+                throw new TaskFailure("RECOVERY_RESTORE_WORKSPACE_DIRTY",
+                        "Registered checkout changed while the Task was waiting for a decision");
+            }
+            String current = source.branch();
+            if (!taskBranch.equals(current)) {
+                if (sourceBranch != null && !sourceBranch.isBlank() && !sourceBranch.equals(current)) {
+                    throw new TaskFailure("RECOVERY_RESTORE_SOURCE_BRANCH_MISMATCH",
+                            "Registered checkout is no longer on the recorded source branch");
+                }
+                String taskHead = requiredOutput(root, List.of("git", "rev-parse", "refs/heads/" + taskBranch),
+                        "RECOVERY_RESTORE_TASK_BRANCH_MISSING", "Task branch is unavailable");
+                if (!baselineCommit.equals(taskHead)) {
+                    throw new TaskFailure("RECOVERY_RESTORE_TASK_BRANCH_MOVED",
+                            "Task branch moved after the workspace checkpoint was frozen");
+                }
+                runRequired(root, List.of("git", "-c", "core.longpaths=true", "switch", taskBranch),
+                        "RECOVERY_RESTORE_SWITCH_FAILED", "Unable to switch back to the Task branch");
+            }
+            String actualCommit = requiredOutput(root, List.of("git", "rev-parse", checkpointRef + "^{commit}"),
+                    "RECOVERY_CHECKPOINT_MISSING", "Recovery checkpoint ref is unavailable");
+            String actualTree = requiredOutput(root, List.of("git", "rev-parse", checkpointRef + "^{tree}"),
+                    "RECOVERY_CHECKPOINT_MISSING", "Recovery checkpoint tree is unavailable");
+            if (!checkpointCommit.equals(actualCommit) || !checkpointTree.equals(actualTree)) {
+                throw new TaskFailure("RECOVERY_CHECKPOINT_INTEGRITY_MISMATCH",
+                        "Recovery checkpoint ref no longer matches its persisted commit and tree");
+            }
+            runRequired(root, List.of("git", "read-tree", "--reset", "-u", checkpointTree),
+                    "RECOVERY_CHECKPOINT_RESTORE_FAILED", "Unable to materialize the recovery checkpoint");
+            runRequired(root, List.of("git", "reset", "--mixed", "HEAD"),
+                    "RECOVERY_CHECKPOINT_RESTORE_FAILED", "Unable to restore checkpoint changes as uncommitted files");
+
+            Path indexes = properties.getDataDir().toAbsolutePath().normalize().resolve("recovery-indexes");
+            Files.createDirectories(indexes);
+            index = Files.createTempFile(indexes, "verify-", ".index");
+            Files.deleteIfExists(index);
+            Map<String, String> environment = Map.of("GIT_INDEX_FILE", index.toString());
+            requireSuccess(runner.run(root, List.of("git", "read-tree", "HEAD"), GIT_TIMEOUT, environment),
+                    "RECOVERY_CHECKPOINT_RESTORE_FAILED", "Unable to initialize checkpoint verification");
+            requireSuccess(runner.run(root, List.of("git", "add", "-A", "--", "."), GIT_MUTATION_TIMEOUT, environment),
+                    "RECOVERY_CHECKPOINT_RESTORE_FAILED", "Unable to verify restored checkpoint files");
+            String restoredTree = requiredOutput(root, List.of("git", "write-tree"), environment,
+                    "RECOVERY_CHECKPOINT_RESTORE_FAILED", "Unable to verify restored checkpoint tree");
+            if (!checkpointTree.equals(restoredTree)) {
+                throw new TaskFailure("RECOVERY_CHECKPOINT_RESTORE_MISMATCH",
+                        "Restored workspace does not match the immutable checkpoint tree");
+            }
+            return inspectDirtyWorkspace(root);
+        } catch (TaskFailure failure) {
+            throw failure;
+        } catch (Exception failure) {
+            throw new TaskFailure("RECOVERY_CHECKPOINT_RESTORE_FAILED",
+                    "Unable to restore the Task checkpoint: " + failure.getMessage());
+        } finally {
+            if (index != null) {
+                try { Files.deleteIfExists(index); } catch (Exception ignored) { }
+                try { Files.deleteIfExists(index.resolveSibling(index.getFileName() + ".lock")); } catch (Exception ignored) { }
+            }
+        }
+    }
+
+    /**
+     * Proves that the current named-branch workspace materializes exactly the persisted checkpoint tree.
+     * This is used only to finish a RESTORING saga after a process crash; it performs no workspace write.
+     */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public synchronized boolean workspaceMatchesCheckpointTree(Path projectRoot, String expectedBranch,
+                                                               String checkpointRef, String checkpointCommit,
+                                                               String checkpointTree) {
+        Path index = null;
+        try {
+            Path root = requireRepositoryRoot(projectRoot);
+            DirtyWorkspace current = inspectDirtyWorkspace(root);
+            if (!expectedBranch.equals(current.branch())) return false;
+            String actualCommit = requiredOutput(root, List.of("git", "rev-parse", checkpointRef + "^{commit}"),
+                    "RECOVERY_CHECKPOINT_MISSING", "Recovery checkpoint ref is unavailable");
+            String actualTree = requiredOutput(root, List.of("git", "rev-parse", checkpointRef + "^{tree}"),
+                    "RECOVERY_CHECKPOINT_MISSING", "Recovery checkpoint tree is unavailable");
+            if (!checkpointCommit.equals(actualCommit) || !checkpointTree.equals(actualTree)) {
+                throw new TaskFailure("RECOVERY_CHECKPOINT_INTEGRITY_MISMATCH",
+                        "Recovery checkpoint ref no longer matches its persisted commit and tree");
+            }
+            Path indexes = properties.getDataDir().toAbsolutePath().normalize().resolve("recovery-indexes");
+            Files.createDirectories(indexes);
+            index = Files.createTempFile(indexes, "match-", ".index");
+            Files.deleteIfExists(index);
+            Map<String, String> environment = Map.of("GIT_INDEX_FILE", index.toString());
+            requireSuccess(runner.run(root, List.of("git", "read-tree", "HEAD"), GIT_TIMEOUT, environment),
+                    "RECOVERY_CHECKPOINT_RESTORE_FAILED", "Unable to initialize checkpoint recovery verification");
+            requireSuccess(runner.run(root, List.of("git", "add", "-A", "--", "."), GIT_MUTATION_TIMEOUT, environment),
+                    "RECOVERY_CHECKPOINT_RESTORE_FAILED", "Unable to verify checkpoint recovery files");
+            String workspaceTree = requiredOutput(root, List.of("git", "write-tree"), environment,
+                    "RECOVERY_CHECKPOINT_RESTORE_FAILED", "Unable to verify checkpoint recovery tree");
+            return checkpointTree.equals(workspaceTree);
+        } catch (TaskFailure failure) {
+            throw failure;
+        } catch (Exception failure) {
+            throw new TaskFailure("RECOVERY_CHECKPOINT_RESTORE_FAILED",
+                    "Unable to verify the restored Task checkpoint: " + failure.getMessage());
+        } finally {
+            if (index != null) {
+                try { Files.deleteIfExists(index); } catch (Exception ignored) { }
+                try { Files.deleteIfExists(index.resolveSibling(index.getFileName() + ".lock")); } catch (Exception ignored) { }
+            }
+        }
+    }
+
+    /** Applies an already verified parent checkpoint tree to a newly created child Task branch. */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public synchronized DirtyWorkspace materializeCheckpointTree(Path projectRoot, String expectedBranch,
+                                                                 String checkpointTree) {
+        try {
+            Path root = requireRepositoryRoot(projectRoot);
+            DirtyWorkspace before = inspectDirtyWorkspace(root);
+            if (!before.clean() || !expectedBranch.equals(before.branch())) {
+                throw new TaskFailure("RECOVERY_SEED_WORKSPACE_MISMATCH",
+                        "Derived Task branch is not clean or is not currently checked out");
+            }
+            requireSuccess(runner.run(root, List.of("git", "cat-file", "-e", checkpointTree + "^{tree}"), GIT_TIMEOUT),
+                    "RECOVERY_CHECKPOINT_MISSING", "Inherited checkpoint tree is unavailable");
+            runRequired(root, List.of("git", "read-tree", "--reset", "-u", checkpointTree),
+                    "RECOVERY_SEED_APPLY_FAILED", "Unable to materialize inherited Task changes");
+            runRequired(root, List.of("git", "reset", "--mixed", "HEAD"),
+                    "RECOVERY_SEED_APPLY_FAILED", "Unable to expose inherited changes as uncommitted files");
+            return inspectDirtyWorkspace(root);
+        } catch (TaskFailure failure) {
+            throw failure;
+        } catch (Exception failure) {
+            throw new TaskFailure("RECOVERY_SEED_APPLY_FAILED",
+                    "Unable to materialize inherited Task changes: " + failure.getMessage());
+        }
+    }
+
     /** Returns a path-safe, NUL-delimited snapshot of every tracked or untracked source-checkout change. */
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public DirtyWorkspace inspectDirtyWorkspace(Path projectRoot) {
@@ -500,6 +764,14 @@ public class GitWorktreeManager {
 
     private String requiredOutput(Path root, List<String> command, String code, String message) {
         ProcessResult result = runner.run(root, command, GIT_TIMEOUT);
+        requireSuccess(result, code, message);
+        if (result.output().isBlank()) throw new TaskFailure(code, message);
+        return result.output().strip();
+    }
+
+    private String requiredOutput(Path root, List<String> command, Map<String, String> environment,
+                                  String code, String message) {
+        ProcessResult result = runner.run(root, command, GIT_TIMEOUT, environment);
         requireSuccess(result, code, message);
         if (result.output().isBlank()) throw new TaskFailure(code, message);
         return result.output().strip();
@@ -749,6 +1021,8 @@ public class GitWorktreeManager {
         return value.substring(start).strip();
     }
     public record Worktree(Path path, String branch, String baselineCommit, String sourceBranch) { }
+    public record WorkspaceCheckpoint(DirtyWorkspace workspace, String checkpointRef, String checkpointCommit,
+                                      String checkpointTree, String stashCommit) { }
     public enum DirtyFileAction { COMMIT, STASH, REMOVE }
     public record DirtyFile(String path, String originalPath, String indexStatus, String workTreeStatus,
                             boolean untracked) { }

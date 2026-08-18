@@ -69,7 +69,7 @@ class FeatureMigrationTest {
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
 
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("31");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("32");
         try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
             try (var result = statement.executeQuery("SELECT state,workflow_phase,discussion_scope FROM designer_session WHERE id='s27'")) {
                 assertThat(result.next()).isTrue();
@@ -101,7 +101,7 @@ class FeatureMigrationTest {
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
 
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("31");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("32");
         try (var connection = DriverManager.getConnection(url);
              var statement = connection.prepareStatement("SELECT name FROM sqlite_master WHERE type='table'")) {
             try (var result = statement.executeQuery()) {
@@ -116,7 +116,8 @@ class FeatureMigrationTest {
                         "stage_workspace_baseline",
                         "design_requirement_revision", "task_decomposition", "design_work_package",
                         "design_discussion_revision", "ai_output_handling_event", "designer_session_archive",
-                        "app_settings", "task_retry_schedule"));
+                        "app_settings", "task_retry_schedule", "task_execution_cycle",
+                        "task_workspace_checkpoint"));
             }
         }
         try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
@@ -150,6 +151,10 @@ class FeatureMigrationTest {
                 while (result.next()) columns.add(result.getString("name"));
                 assertThat(columns).contains("task_id", "stage_id", "cause", "ordinal", "delay_seconds",
                         "due_at", "remaining_seconds", "prompt", "state", "version");
+            }
+            try (var result = statement.executeQuery("SELECT sql FROM sqlite_master WHERE type='table' AND name='task_queue'")) {
+                assertThat(result.next()).isTrue();
+                assertThat(result.getString(1)).contains("'PUBLICATION'");
             }
             try (var result = statement.executeQuery("PRAGMA table_info(designer_session)")) {
                 var columns = new java.util.ArrayList<String>();

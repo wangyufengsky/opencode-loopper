@@ -34,6 +34,8 @@ public final class LifecycleRegistry {
         register(LifecycleMachineType.AUTOMATION_RULE, AutomationRuleState.class, rule());
         register(LifecycleMachineType.AUTOMATION_RUN, AutomationRunState.class, automationRun());
         register(LifecycleMachineType.TASK_PUBLICATION, TaskPublicationState.class, taskPublication());
+        register(LifecycleMachineType.TASK_EXECUTION_CYCLE, ExecutionCycleState.class, executionCycle());
+        register(LifecycleMachineType.WORKSPACE_CHECKPOINT, WorkspaceCheckpointState.class, workspaceCheckpoint());
         if (machines.size() != LifecycleMachineType.values().length) {
             throw new IllegalStateException("Every lifecycle machine type must be registered");
         }
@@ -77,7 +79,7 @@ public final class LifecycleRegistry {
                 .transition(TaskState.RETRY_WAIT, RETRY, TaskState.RUNNING)
                 .transition(TaskState.VERIFYING, ADVANCE_STAGE, TaskState.RUNNING)
                 .transition(TaskState.VERIFYING, BEGIN_FINAL_REVIEW, TaskState.JUDGING)
-                .transition(TaskState.JUDGING, APPROVE, TaskState.SUCCEEDED)
+                .transition(TaskState.JUDGING, APPROVE, TaskState.AWAITING_DECISION)
                 .transition(TaskState.JUDGING, REQUIRE_INPUT, TaskState.WAITING_INPUT)
                 .transition(TaskState.WAITING_INPUT, RETRY_FINAL_REVIEW, TaskState.JUDGING)
                 .transition(TaskState.WAITING_INPUT, RECOVER, TaskState.RUNNING)
@@ -98,9 +100,14 @@ public final class LifecycleRegistry {
                 .transition(TaskState.RUNNING, RECOVER, TaskState.RUNNING)
                 .transition(TaskState.VERIFYING, RECOVER, TaskState.RUNNING)
                 .transition(TaskState.RETRY_WAIT, RECOVER, TaskState.RUNNING);
+        b.transition(TaskState.AWAITING_DECISION, REQUEST_START, TaskState.QUEUED)
+                .transition(TaskState.AWAITING_DECISION, ACCEPT_RESULT, TaskState.COMPLETED)
+                .transition(TaskState.AWAITING_DECISION, COMPLETE, TaskState.COMPLETED)
+                .transition(TaskState.AWAITING_DECISION, SUPERSEDE, TaskState.SUPERSEDED)
+                .transition(TaskState.AWAITING_DECISION, CANCEL, TaskState.CANCELLED);
         for (TaskState state : TaskState.values()) {
-            if (!state.terminal()) {
-                b.transition(state, CANCEL, TaskState.CANCELLED).transition(state, FAIL, TaskState.FAILED);
+            if (!state.terminal() && state != TaskState.AWAITING_DECISION) {
+                b.transition(state, CANCEL, TaskState.CANCELLED).transition(state, FAIL, TaskState.AWAITING_DECISION);
             }
         }
         return b.build();
@@ -126,6 +133,25 @@ public final class LifecycleRegistry {
         return b.build();
     }
 
+    private static FiniteStateMachine<ExecutionCycleState, LifecycleEvent> executionCycle() {
+        return machine(LifecycleMachineType.TASK_EXECUTION_CYCLE, ExecutionCycleState.class)
+                .transition(ExecutionCycleState.RUNNING, CYCLE_SUCCEED, ExecutionCycleState.SUCCEEDED)
+                .transition(ExecutionCycleState.RUNNING, CYCLE_FAIL, ExecutionCycleState.FAILED)
+                .transition(ExecutionCycleState.RUNNING, CYCLE_INTERRUPT, ExecutionCycleState.INTERRUPTED)
+                .transition(ExecutionCycleState.RUNNING, CYCLE_AUDIT_COMPLETE, ExecutionCycleState.AUDIT_COMPLETED)
+                .build();
+    }
+
+    private static FiniteStateMachine<WorkspaceCheckpointState, LifecycleEvent> workspaceCheckpoint() {
+        return machine(LifecycleMachineType.WORKSPACE_CHECKPOINT, WorkspaceCheckpointState.class)
+                .transition(WorkspaceCheckpointState.CAPTURING, COMPLETE, WorkspaceCheckpointState.READY)
+                .transition(WorkspaceCheckpointState.CAPTURING, FAIL, WorkspaceCheckpointState.BLOCKED)
+                .transition(WorkspaceCheckpointState.READY, RESTORE, WorkspaceCheckpointState.RESTORING)
+                .transition(WorkspaceCheckpointState.RESTORING, COMPLETE, WorkspaceCheckpointState.RESTORED)
+                .transition(WorkspaceCheckpointState.RESTORING, FAIL, WorkspaceCheckpointState.BLOCKED)
+                .build();
+    }
+
     private static FiniteStateMachine<StageState, LifecycleEvent> stage() {
         return machine(LifecycleMachineType.STAGE, StageState.class)
                 .transition(StageState.PENDING, START, StageState.RUNNING)
@@ -133,6 +159,8 @@ public final class LifecycleRegistry {
                 .transition(StageState.RUNNING, PAUSE, StageState.PAUSED)
                 .transition(StageState.RUNNING, FAIL, StageState.FAILED)
                 .transition(StageState.PAUSED, FAIL, StageState.FAILED)
+                .transition(StageState.FAILED, RECOVER, StageState.PENDING)
+                .transition(StageState.SUCCEEDED, RECOVER, StageState.PENDING)
                 .transition(StageState.RUNNING, COMPLETE, StageState.SUCCEEDED).build();
     }
 
@@ -299,7 +327,9 @@ public final class LifecycleRegistry {
         return machine(LifecycleMachineType.TASK_QUEUE, TaskQueueState.class)
                 .transition(TaskQueueState.QUEUED, ADMIT, TaskQueueState.ADMITTED)
                 .transition(TaskQueueState.QUEUED, CANCEL, TaskQueueState.CANCELLED)
-                .transition(TaskQueueState.ADMITTED, FINISH, TaskQueueState.FINISHED).build();
+                .transition(TaskQueueState.ADMITTED, FINISH, TaskQueueState.FINISHED)
+                .transition(TaskQueueState.FINISHED, REQUEUE, TaskQueueState.QUEUED)
+                .transition(TaskQueueState.FINISHED, ADMIT, TaskQueueState.ADMITTED).build();
     }
 
     private static FiniteStateMachine<LoopSpecTemplateState, LifecycleEvent> template() {

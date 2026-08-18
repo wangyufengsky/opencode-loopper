@@ -19,20 +19,22 @@ import java.time.Instant;
 import java.util.List;
 import org.springframework.stereotype.Service;
 
-/** Creates a new, traceable recovery task; it never mutates a terminal parent in place. */
+/** Creates a new, traceable recovery task while preserving the parent's execution history. */
 @Service
 public class RecoveryService {
     private final LoopperMapper mapper;
     private final LoopDraftService drafts;
     private final ProjectService projects;
     private final RecoveryPersistence persistence;
+    private final TaskService tasks;
 
     public RecoveryService(LoopperMapper mapper, LoopDraftService drafts, ProjectService projects,
-                           RecoveryPersistence persistence) {
+                           RecoveryPersistence persistence, TaskService tasks) {
         this.mapper = mapper;
         this.drafts = drafts;
         this.projects = projects;
         this.persistence = persistence;
+        this.tasks = tasks;
     }
 
     public FeatureContracts.RecoveryDto create(String parentTaskId, RecoveryMode requestedMode) {
@@ -40,11 +42,18 @@ public class RecoveryService {
         TaskRow parent = mapper.findTask(parentTaskId)
                 .orElseThrow(() -> new NotFoundException("Task not found: " + parentTaskId));
         if (mode == RecoveryMode.REWORK_ALL_STAGES) requireReworkableParent(parent);
+        else if (mode == RecoveryMode.INHERIT_CHANGES
+                || (mode == RecoveryMode.VERIFY_ONLY && TaskState.AWAITING_DECISION.name().equals(parent.state()))) {
+            requireInheritableParent(parent);
+        }
         else requireRecoverableParent(parent);
         LoopDraftRow parentDraft = mapper.findDraft(parent.loopDraftId())
                 .orElseThrow(() -> new ConflictException("RECOVERY_CONTRACT_MISSING", "Recovery requires the parent LoopSpec draft"));
         ProjectRow project = projects.get(parent.projectId());
-        String fingerprint = workspaceFingerprint(parent, project);
+        boolean checkpointSeeded = mode == RecoveryMode.INHERIT_CHANGES
+                || (mode == RecoveryMode.VERIFY_ONLY && TaskState.AWAITING_DECISION.name().equals(parent.state()));
+        String fingerprint = checkpointSeeded
+                ? inheritedCheckpointFingerprint(parent) : workspaceFingerprint(parent, project);
         List<StageRow> parentStages = mapper.listStages(parent.id());
         StageRow recoveryPoint = mode == RecoveryMode.REWORK_ALL_STAGES ? null : recoveryPoint(parentStages);
         LoopSpec parentSpec = drafts.spec(parentDraft);
@@ -56,11 +65,15 @@ public class RecoveryService {
                 parentSpec.nextAttemptPromptTemplate(), parentSpec.budget());
 
         LoopDraftRow childDraft = drafts.create(childSpec);
-        TaskRow child = mode == RecoveryMode.REWORK_ALL_STAGES
+        TaskRow child = mode == RecoveryMode.REWORK_ALL_STAGES || checkpointSeeded
                 ? drafts.confirmAtBaseline(childDraft.id(), recoveryTitle(parent.title(), mode), "RECOVERY", parent.baselineCommit())
                 : drafts.confirm(childDraft.id(), recoveryTitle(parent.title(), mode), "RECOVERY");
         persistence.link(new TaskLineageRow(child.id(), parent.id(), mode.name(),
                 recoveryPoint == null ? null : recoveryPoint.id(), fingerprint, Instant.now().toString()));
+        if (TaskState.AWAITING_DECISION.name().equals(parent.state())
+                && (mode == RecoveryMode.INHERIT_CHANGES || mode == RecoveryMode.REWORK_ALL_STAGES)) {
+            tasks.supersede(parent.id(), child.id(), mode.name());
+        }
         return new FeatureContracts.RecoveryDto(child.id(), parent.id(), mode,
                 recoveryPoint == null ? null : recoveryPoint.id(), fingerprint, mode != RecoveryMode.VERIFY_ONLY);
     }
@@ -92,8 +105,33 @@ public class RecoveryService {
         }
     }
 
+    private void requireInheritableParent(TaskRow parent) {
+        if (!TaskState.AWAITING_DECISION.name().equals(parent.state())) {
+            throw new ConflictException("RECOVERY_PARENT_NOT_AWAITING_DECISION",
+                    "只有等待用户处置的任务可以把当前修改继承给新任务");
+        }
+        if (GitWorktreeManager.DIRECT_BRANCH.equals(parent.branchName())) {
+            throw new ConflictException("RECOVERY_INHERIT_GIT_REQUIRED", "继承当前修改需要 Git 任务分支");
+        }
+        if (parent.loopDraftId() == null || parent.loopDraftId().isBlank()) {
+            throw new ConflictException("RECOVERY_CONTRACT_MISSING", "Recovery requires a parent LoopSpec");
+        }
+    }
+
+    private String inheritedCheckpointFingerprint(TaskRow parent) {
+        var checkpoint = mapper.latestTaskWorkspaceCheckpoint(parent.id())
+                .filter(row -> "READY".equals(row.state()))
+                .orElseThrow(() -> new ConflictException("RECOVERY_CHECKPOINT_UNSAFE",
+                        "父任务当前修改没有可验证的冻结点，不能派生继承任务"));
+        if (checkpoint.checkpointTree() == null || checkpoint.checkpointTree().isBlank()) {
+            throw new ConflictException("RECOVERY_CHECKPOINT_UNSAFE", "父任务冻结点缺少不可变 tree");
+        }
+        return checkpoint.checkpointTree();
+    }
+
     private void requireReworkableParent(TaskRow parent) {
-        if (!List.of(TaskState.WAITING_INPUT.name(), TaskState.SUCCEEDED.name(), TaskState.FAILED.name(),
+        if (!List.of(TaskState.WAITING_INPUT.name(), TaskState.AWAITING_DECISION.name(),
+                TaskState.SUCCEEDED.name(), TaskState.FAILED.name(),
                 TaskState.CANCELLED.name()).contains(parent.state())) {
             throw new ConflictException("REWORK_PARENT_ACTIVE", "只有等待输入或已结束的任务可以新分支重做");
         }
@@ -160,7 +198,8 @@ public class RecoveryService {
 
     private String recoveryTitle(String title, RecoveryMode mode) {
         String base = title == null || title.isBlank() ? "任务" : title.trim();
-        String candidate = mode == RecoveryMode.REWORK_ALL_STAGES ? base + " · 重做" : base + " · 恢复 " + mode.name();
+        String candidate = mode == RecoveryMode.REWORK_ALL_STAGES ? base + " · 重做"
+                : mode == RecoveryMode.INHERIT_CHANGES ? base + " · 接续当前修改" : base + " · 恢复 " + mode.name();
         return candidate.substring(0, Math.min(candidate.length(), 180));
     }
 }

@@ -9,7 +9,7 @@ function copy<T>(value: T): T {
 }
 
 function taskStatus(value: unknown): TaskStatus | undefined {
-  const valid = ['PENDING_START', 'QUEUED', 'PREPARING', 'READY', 'RUNNING', 'VERIFYING', 'RETRY_WAIT', 'PAUSED', 'WAITING_INPUT', 'JUDGING', 'SUCCEEDED', 'FAILED', 'CANCELLED']
+  const valid = ['PENDING_START', 'QUEUED', 'PREPARING', 'READY', 'RUNNING', 'VERIFYING', 'RETRY_WAIT', 'PAUSED', 'WAITING_INPUT', 'JUDGING', 'AWAITING_DECISION', 'COMPLETED', 'SUPERSEDED', 'SUCCEEDED', 'FAILED', 'CANCELLED']
   return typeof value === 'string' && valid.includes(value) ? value as TaskStatus : undefined
 }
 

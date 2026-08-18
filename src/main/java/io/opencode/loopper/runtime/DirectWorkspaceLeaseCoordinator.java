@@ -250,6 +250,31 @@ public class DirectWorkspaceLeaseCoordinator {
             if (TaskQueueState.QUEUED.name().equals(existingQueue.state())) {
                 return admission(TaskQueueState.QUEUED.name(), existingLease, existingQueue, workspace);
             }
+            if (TaskQueueState.FINISHED.name().equals(existingQueue.state())) {
+                String timestamp = now();
+                long position = mapper.nextQueuePosition(workspace.canonicalRoot());
+                boolean admit = existingLease == null || WorkspaceLeaseState.RELEASED.name().equals(existingLease.state());
+                TaskQueueRow reopened = new TaskQueueRow(taskId, workspace.canonicalRoot(), workspace.rootFingerprint(),
+                        position, source, admit ? TaskQueueState.ADMITTED.name() : TaskQueueState.QUEUED.name(),
+                        timestamp, admit ? timestamp : null, null, existingQueue.version());
+                lifecycle.transition(queueSubject(reopened), existingQueue.state(), reopened.state(),
+                        admit ? LifecycleEvent.ADMIT : LifecycleEvent.REQUEUE,
+                        null, java.util.Map.of("source", source), () -> mapper.requeueTask(reopened),
+                        () -> new TaskFailure("DIRECT_QUEUE_CONCURRENT_CONFLICT", "Task queue was reopened concurrently"));
+                TaskQueueRow persisted = mapper.findTaskQueue(taskId).orElseThrow();
+                if (!admit) return admission(TaskQueueState.QUEUED.name(), existingLease, persisted, workspace);
+                if (existingLease == null) {
+                    WorkspaceLeaseRow held = new WorkspaceLeaseRow(workspace.canonicalRoot(), workspace.rootFingerprint(), MODE_DIRECT,
+                            taskId, writerSessionId, WorkspaceLeaseState.HELD.name(), timestamp, timestamp, null, null, 0);
+                    createLease(held);
+                } else {
+                    updateLease(new WorkspaceLeaseRow(existingLease.canonicalRoot(), workspace.rootFingerprint(), MODE_DIRECT,
+                            taskId, writerSessionId, WorkspaceLeaseState.HELD.name(), timestamp, timestamp, null, null,
+                            existingLease.version()));
+                }
+                return admission(TaskQueueState.ADMITTED.name(),
+                        mapper.findWorkspaceLease(workspace.canonicalRoot()).orElseThrow(), persisted, workspace);
+            }
             throw new TaskFailure("DIRECT_QUEUE_NOT_ADMITTABLE", "Task already has a " + existingQueue.state() + " direct queue record");
         }
 
@@ -430,8 +455,9 @@ public class DirectWorkspaceLeaseCoordinator {
 
     private static String source(String source) {
         String normalized = source == null ? "" : source.trim().toUpperCase(Locale.ROOT);
-        if (!List.of("MANUAL", "RECOVERY", "AUTOMATION").contains(normalized)) {
-            throw new TaskFailure("DIRECT_QUEUE_SOURCE_INVALID", "Direct queue source must be MANUAL, RECOVERY, or AUTOMATION");
+        if (!List.of("MANUAL", "RECOVERY", "AUTOMATION", "PUBLICATION").contains(normalized)) {
+            throw new TaskFailure("DIRECT_QUEUE_SOURCE_INVALID",
+                    "Direct queue source must be MANUAL, RECOVERY, AUTOMATION, or PUBLICATION");
         }
         return normalized;
     }

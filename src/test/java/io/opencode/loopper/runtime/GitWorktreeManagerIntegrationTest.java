@@ -17,6 +17,60 @@ class GitWorktreeManagerIntegrationTest {
     @TempDir Path temp;
 
     @Test
+    void freezesAndRestoresModifiedDeletedAndUntrackedFilesWithoutMovingTaskBranch() throws Exception {
+        Path project = initializedProject("recovery-checkpoint-project");
+        Files.writeString(project.resolve("deleted.txt"), "delete me\n");
+        run(project, "git", "add", "deleted.txt");
+        run(project, "git", "commit", "-m", "tracked delete fixture");
+        String baseline = run(project, "git", "rev-parse", "HEAD").strip();
+        String branch = run(project, "git", "branch", "--show-current").strip();
+        LoopperProperties properties = new LoopperProperties();
+        properties.setDataDir(temp.resolve("recovery-checkpoint-data"));
+        GitWorktreeManager manager = new GitWorktreeManager(new SafeProcessRunner(), properties, null);
+        Files.writeString(project.resolve("README.md"), "modified\n");
+        Files.delete(project.resolve("deleted.txt"));
+        Files.createDirectories(project.resolve("special dir"));
+        Files.writeString(project.resolve("special dir/未跟踪.txt"), "untracked\n");
+
+        GitWorktreeManager.WorkspaceCheckpoint checkpoint =
+                manager.freezeWorkspace(project, "task-1", "cycle-1", branch);
+
+        assertThat(run(project, "git", "branch", "--show-current").strip()).isEqualTo(branch);
+        assertThat(run(project, "git", "rev-parse", "HEAD").strip()).isEqualTo(baseline);
+        assertThat(run(project, "git", "status", "--porcelain")).isBlank();
+        assertThat(run(project, "git", "rev-parse", checkpoint.checkpointRef() + "^{tree}").strip())
+                .isEqualTo(checkpoint.checkpointTree());
+
+        GitWorktreeManager.WorkspaceCheckpoint resumed =
+                manager.freezeWorkspace(project, "task-1", "cycle-1", branch);
+        assertThat(resumed.checkpointCommit()).isEqualTo(checkpoint.checkpointCommit());
+        assertThat(resumed.checkpointTree()).isEqualTo(checkpoint.checkpointTree());
+        assertThat(resumed.workspace().files()).extracting(GitWorktreeManager.DirtyFile::path)
+                .containsExactly("README.md", "deleted.txt", "special dir/未跟踪.txt");
+        assertThat(manager.workspaceMatchesCheckpointTree(project, branch, checkpoint.checkpointRef(),
+                checkpoint.checkpointCommit(), checkpoint.checkpointTree())).isFalse();
+
+        GitWorktreeManager.DirtyWorkspace restored = manager.restoreWorkspaceCheckpoint(project, branch, branch,
+                baseline, checkpoint.checkpointRef(), checkpoint.checkpointCommit(), checkpoint.checkpointTree());
+
+        assertThat(manager.workspaceMatchesCheckpointTree(project, branch, checkpoint.checkpointRef(),
+                checkpoint.checkpointCommit(), checkpoint.checkpointTree())).isTrue();
+        assertThat(restored.files()).extracting(GitWorktreeManager.DirtyFile::path)
+                .containsExactly("README.md", "deleted.txt", "special dir/未跟踪.txt");
+        assertThat(Files.readString(project.resolve("README.md"))).isEqualTo("modified\n");
+        assertThat(Files.exists(project.resolve("deleted.txt"))).isFalse();
+        assertThat(Files.readString(project.resolve("special dir/未跟踪.txt"))).isEqualTo("untracked\n");
+        assertThat(run(project, "git", "branch", "--show-current").strip()).isEqualTo(branch);
+        assertThat(run(project, "git", "rev-parse", "HEAD").strip()).isEqualTo(baseline);
+
+        run(project, "git", "update-ref", checkpoint.checkpointRef(), baseline);
+        assertThatThrownBy(() -> manager.workspaceMatchesCheckpointTree(project, branch, checkpoint.checkpointRef(),
+                checkpoint.checkpointCommit(), checkpoint.checkpointTree()))
+                .isInstanceOfSatisfying(TaskFailure.class, failure ->
+                        assertThat(failure.code()).isEqualTo("RECOVERY_CHECKPOINT_INTEGRITY_MISMATCH"));
+    }
+
+    @Test
     void switchesRegisteredCheckoutToTaskBranchWithoutRemote() throws Exception {
         Path project = initializedProject("local-source-branch-project");
         String baseline = run(project, "git", "rev-parse", "HEAD").strip();
