@@ -409,7 +409,8 @@ public class TaskPublicationService {
     private TaskPublicationRow requireUnchangedSnapshot(TaskRow taskSnapshot, TaskPublicationRow snapshot) {
         TaskRow latestTask = tasks.get(taskSnapshot.id());
         if (latestTask.version() != taskSnapshot.version()
-                || !TaskState.SUCCEEDED.name().equals(latestTask.state())
+                || !java.util.Objects.equals(latestTask.state(), taskSnapshot.state())
+                || !hasSuccessfulResult(latestTask)
                 || !java.util.Objects.equals(latestTask.branchName(), taskSnapshot.branchName())) {
             throw new ConflictException("TASK_PUBLICATION_CONFLICT", "查询期间任务状态已变化，请重试");
         }
@@ -932,9 +933,8 @@ public class TaskPublicationService {
         String configuredGitLabHost = properties.getPublication().getGitlab().getHost();
         String provider = configuredGitLabHost != null && lowerHost.equalsIgnoreCase(configuredGitLabHost.strip())
                 ? "GITLAB" : lowerHost.contains("github") ? "GITHUB" : lowerHost.contains("gitlab") ? "GITLAB" : "UNKNOWN";
-        if (scheme == null) {
-            scheme = configuredHttpWebHost(lowerHost) ? "http" : "https";
-        }
+        if (configuredHttpWebHost(lowerHost)) scheme = "http";
+        else if (scheme == null) scheme = "https";
         return new RemoteRepository(provider, scheme + "://" + host + "/" + path, lowerHost, path);
     }
 

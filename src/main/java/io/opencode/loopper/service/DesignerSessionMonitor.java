@@ -7,9 +7,16 @@ import org.springframework.stereotype.Component;
 @Component
 class DesignerSessionMonitor {
     private final DesignerSessionService designerSessions;
+    private final DesignerAutoModeService autoMode;
 
-    DesignerSessionMonitor(DesignerSessionService designerSessions) { this.designerSessions = designerSessions; }
+    DesignerSessionMonitor(DesignerSessionService designerSessions, DesignerAutoModeService autoMode) {
+        this.designerSessions = designerSessions;
+        this.autoMode = autoMode;
+    }
 
     @Scheduled(fixedDelayString = "${loopper.designer-monitor-delay:750ms}")
-    void poll() { designerSessions.pollActiveHandoffs(); }
+    void poll() {
+        designerSessions.pollActiveHandoffs();
+        autoMode.pollActive();
+    }
 }

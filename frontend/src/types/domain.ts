@@ -418,6 +418,7 @@ export interface DesignerAnsweredQuestion {
   id: string
   scope?: string
   discussionRevision?: number
+  designMessageId?: string
   answeredAt?: string
   questions: DesignerAnsweredQuestionPrompt[]
 }
@@ -871,6 +872,8 @@ export interface DesignerHistoryItem extends DesignerSessionSummary {
   createdAt: string
   archived: boolean
   archivedAt?: string
+  taskId?: string
+  taskState?: string
 }
 
 export interface DesignRequirementRevisionStatus {
@@ -928,6 +931,17 @@ export interface DesignerCandidateStatus {
   detail?: string
 }
 
+export interface DesignerAutoMode {
+  enabled: boolean
+  state: 'DISABLED' | 'ACTIVE' | 'BLOCKED' | 'COMPLETED'
+  version: number
+  lastAction?: string
+  errorCode?: string
+  errorDetail?: string
+  taskId?: string
+  updatedAt?: string
+}
+
 export interface DesignerSession {
   id: string
   projectId: string
@@ -968,6 +982,7 @@ export interface DesignerSession {
   discussionRevision: number
   candidate?: DesignerCandidateStatus
   finalConfirmationEligible: boolean
+  autoMode: DesignerAutoMode
 }
 
 export interface TaskDesignHistory {
@@ -1016,7 +1031,7 @@ export interface DesignerAppendResult {
 export interface DesignerStreamEvent {
   sequence: number
   sessionId: string
-  type: 'SNAPSHOT' | 'STATUS' | 'PARTIAL' | 'COMPLETED' | 'ERROR'
+  type: 'SNAPSHOT' | 'STATUS' | 'PARTIAL' | 'COMPLETED' | 'ERROR' | 'AUTO_MODE'
   state: DesignerSessionState
   workflowPhase: DesignWorkflowPhase
   activeActor: DesignerActor

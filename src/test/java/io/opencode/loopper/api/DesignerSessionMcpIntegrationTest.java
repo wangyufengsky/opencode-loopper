@@ -18,6 +18,7 @@ import io.opencode.loopper.runtime.OpenCodeClient;
 import io.opencode.loopper.service.BadRequestException;
 import io.opencode.loopper.service.ConflictException;
 import io.opencode.loopper.service.DesignerSessionService;
+import io.opencode.loopper.service.DesignerAutoModeService;
 import io.opencode.loopper.service.LoopDraftService;
 import io.opencode.loopper.service.ProjectService;
 import io.opencode.loopper.service.TaskService;
@@ -74,6 +75,7 @@ class DesignerSessionMcpIntegrationTest {
     @Autowired private Flyway flyway;
     @Autowired private ProjectService projects;
     @Autowired private DesignerSessionService designerSessions;
+    @Autowired private DesignerAutoModeService designerAutoMode;
     @Autowired private LoopDraftService drafts;
     @Autowired private TaskService tasks;
     @Autowired private LoopperMapper mapper;
@@ -137,6 +139,86 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(tasks.artifacts(task.id()).stream().map(TaskArtifactRow::kind).toList())
                 .contains("REQUIREMENT_CONTEXT", "DECOMPOSITION_CONTEXT", "WORK_PACKAGE_DESIGN",
                         "WORK_PACKAGE_COMPILATION_SUMMARY", "DESIGN_CONTEXT");
+    }
+
+    @Test
+    void autoModeRequiresLocalAuthorizationAndCompletesRecommendedDesignThroughTaskStart() throws Exception {
+        ProjectRow project = project("designer-auto-mode");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        fake().setDesignerOutput(designerOutput("# 全自动设计\n\n按推荐边界形成可验收结果。",
+                legacySpec(project.id())));
+
+        mvc.perform(post("/api/designer-sessions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of("projectId", project.id(), "draftId", draft.id(),
+                                "initialMessage", "全自动完成设计", "autoModeEnabled", true))))
+                .andExpect(status().isBadRequest());
+
+        DesignerSessionRow session = designerSessions.create(project.id(), draft.id(), "全自动完成设计");
+        DesignerAutoModeService.View enabled = designerAutoMode.initialize(session.id(), true);
+        assertThat(enabled.state()).isEqualTo("ACTIVE");
+
+        for (int attempt = 0; attempt < 200 && mapper.findTaskByDraft(draft.id()).isEmpty(); attempt++) {
+            DesignerSessionRow current = designerSessions.get(session.id());
+            if ("RUNNING".equals(current.state())
+                    && ("DISCUSSING_REQUIREMENT".equals(current.workflowPhase())
+                    || "QUESTIONING_PACKAGE".equals(current.workflowPhase()))) {
+                String questionId = "auto-question-" + current.discussionScope() + "-" + current.discussionRevision();
+                fake().setPendingQuestion(current.externalSessionId(), new OpenCodeClient.PendingQuestion(
+                        questionId, current.externalSessionId(), List.of(new OpenCodeClient.QuestionPrompt(
+                        "采用哪个设计边界？", "设计边界", List.of(
+                        new OpenCodeClient.QuestionOption("保守方案", "只保留基础行为"),
+                        new OpenCodeClient.QuestionOption("推荐方案（推荐）", "保持最小且可验收的范围")),
+                        false, false))));
+                designerAutoMode.pollActive();
+                if (designerSessions.pendingQuestions(session.id()).isEmpty()) {
+                    fake().setSessionState(current.externalSessionId(), "COMPLETED");
+                }
+            }
+            designerSessions.pollActiveHandoffs();
+            designerAutoMode.pollActive();
+        }
+
+        TaskRow task = mapper.findTaskByDraft(draft.id()).orElseThrow();
+        assertThat(task.state()).isNotEqualTo("PENDING_START");
+        assertThat(designerAutoMode.get(session.id())).satisfies(mode -> {
+            assertThat(mode.state()).isEqualTo("COMPLETED");
+            assertThat(mode.taskId()).isEqualTo(task.id());
+        });
+        assertThat(mapper.listDesignDiscussionRevisions(session.id()))
+                .anyMatch(row -> row.decisionLogJson().contains("AUTO_RECOMMENDED")
+                        && row.decisionLogJson().contains("推荐方案（推荐）"));
+    }
+
+    @Test
+    void autoModeDefaultsOffAndUsesOptimisticLockForDisableAndReauthorization() throws Exception {
+        ProjectRow project = project("designer-auto-toggle");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        DesignerSessionRow session = designerSessions.create(project.id(), draft.id(), null);
+
+        assertThat(designerAutoMode.initialize(session.id(), false)).satisfies(mode -> {
+            assertThat(mode.enabled()).isFalse();
+            assertThat(mode.state()).isEqualTo("DISABLED");
+            assertThat(mode.version()).isZero();
+        });
+        assertThat(designerAutoMode.setEnabled(session.id(), true, 0)).satisfies(mode -> {
+            assertThat(mode.enabled()).isTrue();
+            assertThat(mode.state()).isEqualTo("ACTIVE");
+            assertThat(mode.version()).isEqualTo(1);
+        });
+        assertThatThrownBy(() -> designerAutoMode.setEnabled(session.id(), false, 0))
+                .isInstanceOfSatisfying(ConflictException.class, error ->
+                        assertThat(error.code()).isEqualTo("DESIGNER_AUTO_MODE_VERSION_CONFLICT"));
+        assertThat(designerAutoMode.setEnabled(session.id(), false, 1)).satisfies(mode -> {
+            assertThat(mode.enabled()).isFalse();
+            assertThat(mode.state()).isEqualTo("DISABLED");
+            assertThat(mode.version()).isEqualTo(2);
+        });
+        assertThat(designerAutoMode.setEnabled(session.id(), true, 2)).satisfies(mode -> {
+            assertThat(mode.enabled()).isTrue();
+            assertThat(mode.state()).isEqualTo("ACTIVE");
+            assertThat(mode.version()).isEqualTo(3);
+        });
     }
 
     @Test
@@ -939,6 +1021,7 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(mapper.findLatestTaskDecomposition(session.id())).isEmpty();
         assertThat(designerSessions.answeredQuestions(session.id())).singleElement().satisfies(answered -> {
             assertThat(answered.scope()).isEqualTo("REQUIREMENT");
+            assertThat(answered.designMessageId()).isNotBlank();
             assertThat(answered.questions()).singleElement().satisfies(question -> {
                 assertThat(question.question()).isEqualTo("采用推荐设计边界吗？");
                 assertThat(question.options()).singleElement().satisfies(option -> {
@@ -952,6 +1035,7 @@ class DesignerSessionMcpIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.pendingQuestions").isEmpty())
                 .andExpect(jsonPath("$.answeredQuestions[0].scope").value("REQUIREMENT"))
+                .andExpect(jsonPath("$.answeredQuestions[0].designMessageId").isNotEmpty())
                 .andExpect(jsonPath("$.answeredQuestions[0].questions[0].question")
                         .value("采用推荐设计边界吗？"))
                 .andExpect(jsonPath("$.answeredQuestions[0].questions[0].options[0].label")
@@ -1300,6 +1384,13 @@ class DesignerSessionMcpIntegrationTest {
         DesignerSessionRow session = createConfirmedSession(project.id(), draft.id(), "保存完整历史");
         pollUntilSettled(session.id());
         TaskRow task = drafts.confirm(draft.id(), "历史设计");
+
+        mvc.perform(get("/api/designer-sessions/history").queryParam("projectId", project.id()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(session.id()))
+                .andExpect(jsonPath("$[0].draftStatus").value("CONFIRMED"))
+                .andExpect(jsonPath("$[0].taskId").value(task.id()))
+                .andExpect(jsonPath("$[0].taskState").value("PENDING_START"));
 
         mvc.perform(get("/api/tasks/{id}/design-history", task.id()))
                 .andExpect(status().isOk())

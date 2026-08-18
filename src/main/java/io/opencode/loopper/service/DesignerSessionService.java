@@ -301,6 +301,13 @@ public class DesignerSessionService {
                         && row.approvedDesignRevision() != null);
     }
 
+    public void recordAutoModeNotice(String sessionId, String content, String deliveryState) {
+        DesignerSessionRow session = get(sessionId);
+        DesignerMessageRow message = appendMessage(session.id(), DesignerActor.SYSTEM, content, deliveryState,
+                session.currentRequirementRevision(), session.activeWorkPackageId());
+        publish(get(session.id()), "AUTO_MODE", DesignerActor.SYSTEM, true, message.content(), content);
+    }
+
     public String activeActor(DesignerSessionRow session) {
         return switch (DesignWorkflowPhase.valueOf(session.workflowPhase())) {
             case DISCUSSING_REQUIREMENT, QUESTIONING_PACKAGE -> DesignerActor.DESIGNER.name();
@@ -356,7 +363,7 @@ public class DesignerSessionService {
                     List<AnsweredQuestionPrompt> questions = answeredPrompts(decision.get("questions"), answers);
                     if (!questionId.isBlank() && !questions.isEmpty()) {
                         answered.add(new AnsweredQuestion(questionId, revision.scopeKey(), revision.revision(),
-                                text(decision.get("answeredAt")), questions));
+                                revision.designMessageId(), text(decision.get("answeredAt")), questions));
                     }
                 }
             } catch (JacksonException ignored) {
@@ -367,6 +374,28 @@ public class DesignerSessionService {
     }
 
     public void replyQuestion(String sessionId, String questionId, List<List<String>> answers) {
+        replyQuestion(sessionId, questionId, answers, "MANUAL");
+    }
+
+    public void replyRecommendedQuestion(String sessionId, String questionId) {
+        PendingQuestion pending = pendingQuestions(sessionId).stream()
+                .filter(question -> question.id().equals(questionId))
+                .findFirst()
+                .orElseThrow(() -> new ConflictException("DESIGN_QUESTION_NOT_PENDING", "待回答问题已变化，请刷新后重试"));
+        List<List<String>> answers = pending.questions().stream().map(prompt -> {
+            List<String> recommended = prompt.options().stream()
+                    .filter(option -> isRecommended(option.label()) || isRecommended(option.description()))
+                    .map(QuestionOption::label).toList();
+            if (!recommended.isEmpty()) return prompt.multiple() ? recommended : List.of(recommended.getFirst());
+            if (!prompt.options().isEmpty()) return List.of(prompt.options().getFirst().label());
+            throw new ConflictException("AUTO_RECOMMENDATION_MISSING",
+                    "问题缺少推荐选项和可用的首选项，已停止全自动模式");
+        }).toList();
+        replyQuestion(sessionId, questionId, answers, "AUTO_RECOMMENDED");
+    }
+
+    private void replyQuestion(String sessionId, String questionId, List<List<String>> answers,
+                               String answerSource) {
         DesignerSessionRow session = requireRunningDesigner(sessionId);
         OpenCodeClient.OpenCodeSession remote = designerRemote(session);
         OpenCodeClient.PendingQuestion pending = pending(remote, questionId);
@@ -378,8 +407,13 @@ public class DesignerSessionService {
         }
         DesignDiscussionRevisionRow discussion = currentDiscussion(session);
         updateDiscussion(discussion, discussion.state(), discussion.sourceMessageId(), discussion.designMessageId(),
-                discussion.snapshotMarkdown(), appendDecision(discussion.decisionLogJson(), pending, validatedAnswers), true,
+                discussion.snapshotMarkdown(), appendDecision(discussion.decisionLogJson(), pending, validatedAnswers,
+                        answerSource), true,
                 discussion.questionRetryCount(), discussion.candidateCompilationId(), null, null);
+        if ("AUTO_RECOMMENDED".equals(answerSource)) {
+            appendMessage(session.id(), DesignerActor.SYSTEM, "全自动模式已按推荐答案回答当前设计问题。",
+                    "AUTO_RECOMMENDED", session.currentRequirementRevision(), session.activeWorkPackageId());
+        }
         DesignerSessionRow current = get(sessionId);
         if (!blank(current.activeWorkPackageId())) {
             DesignWorkPackageRow workPackage = requireCurrentPackage(current, current.activeWorkPackageId());
@@ -469,6 +503,14 @@ public class DesignerSessionService {
     }
 
     public void confirmRequirement(String sessionId, int expectedDiscussionRevision) {
+        confirmRequirement(sessionId, expectedDiscussionRevision, "MANUAL");
+    }
+
+    public void confirmRequirementAutomatically(String sessionId, int expectedDiscussionRevision) {
+        confirmRequirement(sessionId, expectedDiscussionRevision, "AUTO_RECOMMENDED");
+    }
+
+    private void confirmRequirement(String sessionId, int expectedDiscussionRevision, String actionSource) {
         DesignerSessionRow session = get(sessionId);
         requireDiscussionRevision(session, expectedDiscussionRevision);
         if (session.currentRequirementRevision() != null) {
@@ -478,10 +520,14 @@ public class DesignerSessionService {
         if (!"REVIEWING".equals(discussion.state()) || blank(discussion.snapshotMarkdown())) {
             throw new ConflictException("REQUIREMENT_DISCUSSION_INCOMPLETE", "请先完成问题回答并等待完整需求稿");
         }
-        DesignerMessageRow source = mapper.listDesignerMessages(sessionId).stream()
+        DesignerMessageRow sourceMessage = mapper.listDesignerMessages(sessionId).stream()
                 .filter(message -> message.id().equals(discussion.designMessageId())).findFirst()
                 .orElseThrow(() -> new ConflictException("REQUIREMENT_SNAPSHOT_MISSING", "完整需求稿不存在"));
-        DesignRequirementRevisionRow revision = freezeRequirementRevision(session, source);
+        DesignRequirementRevisionRow revision = freezeRequirementRevision(session, sourceMessage);
+        if ("AUTO_RECOMMENDED".equals(actionSource)) {
+            appendMessage(session.id(), DesignerActor.SYSTEM, "全自动模式已确认整体需求并开始拆包。",
+                    "AUTO_APPROVED", revision.revision(), null);
+        }
         dispatchDecomposer(get(sessionId), revision, false);
     }
 
@@ -544,6 +590,17 @@ public class DesignerSessionService {
 
     public void approvePackage(String sessionId, String packageId, int expectedDiscussionRevision,
                                int expectedDesignRevision) {
+        approvePackage(sessionId, packageId, expectedDiscussionRevision, expectedDesignRevision, "MANUAL");
+    }
+
+    public void approvePackageAutomatically(String sessionId, String packageId, int expectedDiscussionRevision,
+                                            int expectedDesignRevision) {
+        approvePackage(sessionId, packageId, expectedDiscussionRevision, expectedDesignRevision,
+                "AUTO_RECOMMENDED");
+    }
+
+    private void approvePackage(String sessionId, String packageId, int expectedDiscussionRevision,
+                                int expectedDesignRevision, String source) {
         DesignerSessionRow session = get(sessionId);
         requireDiscussionRevision(session, expectedDiscussionRevision);
         DesignWorkPackageRow workPackage = requireCurrentPackage(session, packageId);
@@ -567,7 +624,11 @@ public class DesignerSessionService {
                 updateDiscussion(discussion, "APPROVED", discussion.sourceMessageId(), discussion.designMessageId(),
                         discussion.snapshotMarkdown(), discussion.decisionLogJson(), discussion.questionAnswered(),
                         discussion.questionRetryCount(), compilation.id(), null, null));
-        appendMessage(session.id(), DesignerActor.SYSTEM, packageId + " 已接受。", "APPROVED",
+        String detail = "AUTO_RECOMMENDED".equals(source)
+                ? "全自动模式已接受 " + packageId + " 的当前已验证设计修订。"
+                : packageId + " 已接受。";
+        appendMessage(session.id(), DesignerActor.SYSTEM, detail,
+                "AUTO_RECOMMENDED".equals(source) ? "AUTO_APPROVED" : "APPROVED",
                 session.currentRequirementRevision(), packageId);
         advancePackageOrAggregate(get(session.id()), approved);
     }
@@ -4706,7 +4767,7 @@ public class DesignerSessionService {
     }
 
     private String appendDecision(String existingJson, OpenCodeClient.PendingQuestion pending,
-                                  List<List<String>> answers) {
+                                  List<List<String>> answers, String answerSource) {
         List<Map<String, Object>> decisions = new ArrayList<>();
         if (!blank(existingJson)) {
             try { decisions.addAll(json.readValue(existingJson, new TypeReference<List<Map<String, Object>>>() { })); }
@@ -4730,6 +4791,7 @@ public class DesignerSessionService {
             return question;
         }).toList());
         decision.put("answers", answers == null ? List.of() : answers);
+        decision.put("answerSource", answerSource == null ? "MANUAL" : answerSource);
         decision.put("answeredAt", now());
         decisions.add(decision);
         return write(decisions);
@@ -5494,6 +5556,10 @@ public class DesignerSessionService {
     }
 
     private static boolean blank(String value) { return value == null || value.isBlank(); }
+    private static boolean isRecommended(String value) {
+        return value != null && (value.toLowerCase(java.util.Locale.ROOT).contains("(recommended)")
+                || value.contains("（推荐）") || value.contains("推荐"));
+    }
     private static boolean same(String left, String right) {
         return left == null ? right == null : left.equalsIgnoreCase(right);
     }
@@ -5515,7 +5581,8 @@ public class DesignerSessionService {
 
     public record PendingQuestion(String id, String scope, int discussionRevision,
                                   List<QuestionPrompt> questions) { }
-    public record AnsweredQuestion(String id, String scope, int discussionRevision, String answeredAt,
+    public record AnsweredQuestion(String id, String scope, int discussionRevision, String designMessageId,
+                                   String answeredAt,
                                    List<AnsweredQuestionPrompt> questions) { }
     public record AnsweredQuestionPrompt(String question, String header, List<QuestionOption> options,
                                          boolean multiple, boolean custom, List<String> answers) { }

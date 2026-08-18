@@ -11,6 +11,7 @@ import MarkdownDocument from '@/components/MarkdownDocument.vue'
 import ExecutionAcceptancePanel from '@/components/ExecutionAcceptancePanel.vue'
 import PendingQuestionCard from '@/components/PendingQuestionCard.vue'
 import DesignerDiscussionHistory from '@/components/DesignerDiscussionHistory.vue'
+import DesignerValidatorHistory from '@/components/DesignerValidatorHistory.vue'
 import { ApiError, api, subscribeDesignerEvents, type DesignerEventStream } from '@/api/client'
 import { demoDraft, demoMessages } from '@/mock/demoData'
 import { useTaskStore } from '@/stores/taskStore'
@@ -28,6 +29,8 @@ const editorValue = ref('')
 const fieldError = ref<ErrorEvent>()
 const acceptanceAssessment = ref<LoopSpecAssessment>()
 const busy = ref(false)
+const autoModeBusy = ref(false)
+const newAutoModeEnabled = ref(false)
 const designerReconnecting = ref(false)
 const designerStreamState = ref<'idle' | 'connecting' | 'connected' | 'reconnecting'>('idle')
 const designerRuntimeConnected = ref(false)
@@ -133,8 +136,10 @@ const currentPackage = computed(() => designerSession.value?.workPackages?.find(
 const discussionScopeLabel = computed(() => designerSession.value?.discussionScope && designerSession.value.discussionScope !== 'REQUIREMENT'
   ? designerSession.value.discussionScope : '整体需求')
 const hasPendingDesignerQuestion = computed(() => (designerSession.value?.pendingQuestions?.length ?? 0) > 0)
+const autoModeActive = computed(() => designerSession.value?.autoMode.state === 'ACTIVE')
+const autoModeBlocked = computed(() => designerSession.value?.autoMode.state === 'BLOCKED')
 const composerEnabled = computed(() => {
-  if (!designerSession.value || designerSession.value.state === 'RUNNING' || hasPendingDesignerQuestion.value) return false
+  if (!designerSession.value || autoModeActive.value || designerSession.value.state === 'RUNNING' || hasPendingDesignerQuestion.value) return false
   if (designerSession.value.workflowPhase === 'DISCUSSING_REQUIREMENT') return true
   return designerSession.value.workflowPhase === 'REVIEWING_PACKAGE' && currentPackage.value?.state === 'REVIEWING'
 })
@@ -160,6 +165,65 @@ const visibleMessages = computed(() => messages.value.filter((message) => !selec
   && message.deliveryState === 'PENDING_HANDOFF'
   && !message.content.startsWith('SYSTEM_ERROR')
 )))
+type DesignerTimelineItem =
+  | { key: string; kind: 'message'; message: DesignerMessage }
+  | { key: string; kind: 'discussion'; entries: NonNullable<DesignerSession['answeredQuestions']> }
+  | { key: 'validators'; kind: 'validators'; entries: DesignerMessage[] }
+const timelineItems = computed<DesignerTimelineItem[]>(() => {
+  const items: DesignerTimelineItem[] = []
+  const validatorEntries = visibleMessages.value.filter((message) => message.actor === 'VALIDATOR')
+  const discussionGroups = new Map<string, NonNullable<DesignerSession['answeredQuestions']>>()
+  for (const entry of designerSession.value?.answeredQuestions ?? []) {
+    const scope = !entry.scope || entry.scope === 'REQUIREMENT' ? 'REQUIREMENT' : entry.scope
+    if (selectedWorkPackageId.value && scope !== 'REQUIREMENT' && scope !== selectedWorkPackageId.value) continue
+    const key = `${scope}:${entry.discussionRevision ?? 0}`
+    const group = discussionGroups.get(key) ?? []
+    group.push(entry)
+    discussionGroups.set(key, group)
+  }
+  const groupsByScope = new Map<string, Array<{ key: string; entries: NonNullable<DesignerSession['answeredQuestions']> }>>()
+  for (const [key, entries] of discussionGroups) {
+    const scope = key.slice(0, key.lastIndexOf(':'))
+    const groups = groupsByScope.get(scope) ?? []
+    groups.push({ key, entries })
+    groupsByScope.set(scope, groups)
+  }
+  const discussionsBeforeMessage = new Map<string, Array<{ key: string; entries: NonNullable<DesignerSession['answeredQuestions']> }>>()
+  const trailingDiscussions: Array<{ key: string; entries: NonNullable<DesignerSession['answeredQuestions']> }> = []
+  for (const [scope, groups] of groupsByScope) {
+    const designs = visibleMessages.value.filter((message) => message.actor === 'DESIGNER'
+      && (message.workPackageId ?? 'REQUIREMENT') === scope)
+    const assignedDesignIds = new Set<string>()
+    groups.forEach((group) => {
+      const linkedDesignId = group.entries.find((entry) => entry.designMessageId)?.designMessageId
+      const target = (linkedDesignId ? designs.find((message) => message.id === linkedDesignId) : undefined)
+        ?? designs.find((message) => !assignedDesignIds.has(message.id))
+      if (!target) trailingDiscussions.push(group)
+      else {
+        assignedDesignIds.add(target.id)
+        discussionsBeforeMessage.set(target.id, [...(discussionsBeforeMessage.get(target.id) ?? []), group])
+      }
+    })
+  }
+  let validatorsInserted = false
+  for (const message of visibleMessages.value) {
+    for (const group of discussionsBeforeMessage.get(message.id) ?? []) {
+      items.push({ key: `discussion:${group.key}`, kind: 'discussion', entries: group.entries })
+    }
+    if (message.actor === 'VALIDATOR') {
+      if (!validatorsInserted) {
+        items.push({ key: 'validators', kind: 'validators', entries: validatorEntries })
+        validatorsInserted = true
+      }
+      continue
+    }
+    items.push({ key: message.id, kind: 'message', message })
+  }
+  for (const group of trailingDiscussions) {
+    items.push({ key: `discussion:${group.key}`, kind: 'discussion', entries: group.entries })
+  }
+  return items
+})
 
 function loadDemo(goal?: string) {
   draft.value = structuredClone(demoDraft)
@@ -311,7 +375,9 @@ function startDesignerStream(sessionId: string) {
     if (designerSession.value) {
       designerSession.value = { ...designerSession.value, state: event.state, workflowPhase: event.workflowPhase, activeActor: event.activeActor, updatedAt: event.at, requirementRevision: event.requirementRevision, activeWorkPackageId: event.activeWorkPackageId, requirement: designerSession.value.requirement ? { ...designerSession.value.requirement, modelCallsUsed: event.modelCallsUsed, maxModelCalls: event.maxModelCalls } : designerSession.value.requirement }
     }
-    if (event.type === 'COMPLETED' || event.type === 'ERROR') refreshDesignerAfterTerminalEvent()
+    if (event.type === 'COMPLETED' || event.type === 'ERROR' || event.type === 'AUTO_MODE') {
+      refreshDesignerAfterTerminalEvent()
+    }
   }, (state) => {
     if (generation === designerStreamGeneration) designerStreamState.value = state
   })
@@ -343,6 +409,19 @@ watch(() => designerSession.value?.id, (sessionId) => {
 
 watch(() => designerSession.value?.activeWorkPackageId, (packageId) => {
   if (packageId) selectedWorkPackageId.value = packageId
+})
+
+let redirectedAutoTaskId = ''
+watch(() => designerSession.value?.autoMode.taskId, async (taskId) => {
+  if (!taskId || taskId === redirectedAutoTaskId || store.usingDemo) return
+  redirectedAutoTaskId = taskId
+  try {
+    await store.loadTask(taskId)
+    await router.push(`/tasks/${taskId}`)
+  } catch (error) {
+    redirectedAutoTaskId = ''
+    ElMessage.error(error instanceof Error ? error.message : '自动任务已创建，但无法打开任务详情')
+  }
 })
 
 watch(() => store.projects, (projects) => {
@@ -388,14 +467,48 @@ async function startDraft() {
   try {
     const settings = await api.getSettings()
     const createdDraft = await api.createDraft(blankSpec(project.id, goal, settings))
-    designerSession.value = await api.createDesignerSession(project.id, createdDraft.id, goal)
+    designerSession.value = await api.createDesignerSession(project.id, createdDraft.id, goal, newAutoModeEnabled.value)
     messages.value = designerSession.value.messages
     draft.value = designerSession.value.draft ?? createdDraft
     editorValue.value = JSON.stringify(draft.value.spec, null, 2)
     sessionStorage.setItem(designerWorkspaceKey, JSON.stringify({ sessionId: designerSession.value.id, draftId: draft.value.id }))
     designerRecoveryError.value = ''
     draftPrompt.value = ''
+    newAutoModeEnabled.value = false
   } catch (error) { ElMessage.error(error instanceof Error ? error.message : '无法创建 LoopSpec 草案') } finally { busy.value = false }
+}
+
+async function confirmAutoModeRisk() {
+  try {
+    await ElMessageBox.confirm(
+      '开启后会自动采用推荐答案、确认需求和工作包、确认最终设计，并创建及启动任务。执行期权限、异常恢复、结果确认、提交、推送和发布仍需人工处理。',
+      '授权全自动设计？',
+      { type: 'warning', confirmButtonText: '确认开启', cancelButtonText: '保持关闭' },
+    )
+    return true
+  } catch { return false }
+}
+
+async function changeNewAutoMode(value: string | number | boolean) {
+  if (value !== true) return
+  if (!await confirmAutoModeRisk()) newAutoModeEnabled.value = false
+}
+
+async function changeAutoMode(value: string | number | boolean) {
+  if (!designerSession.value || store.usingDemo) return
+  const enabled = value === true
+  if (enabled && !await confirmAutoModeRisk()) return
+  autoModeBusy.value = true
+  try {
+    const updated = await api.updateDesignerAutoMode(designerSession.value.id, enabled,
+      designerSession.value.autoMode.version)
+    designerSession.value = { ...designerSession.value, autoMode: updated }
+    ElMessage.success(enabled ? '全自动模式已开启' : '全自动模式已关闭')
+    await refreshDesignerSession()
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '全自动模式切换失败')
+    await refreshDesignerSession()
+  } finally { autoModeBusy.value = false }
 }
 
 function activateDesignerWorkspace(restoredSession: DesignerSession, restoredDraft: LoopDraft) {
@@ -506,6 +619,7 @@ async function restoreDesignerWorkspace() {
 
 onMounted(async () => {
   window.addEventListener('beforeunload', warnBeforeUnload)
+  if (!store.projects.length) await store.loadProjects()
   const queryProjectId = typeof route.query.projectId === 'string' ? route.query.projectId : ''
   if (queryProjectId && store.projects.some((project) => project.id === queryProjectId)) {
     selectedProjectId.value = queryProjectId
@@ -594,6 +708,7 @@ async function copyLegacyDraftAsV2() {
 
 async function confirm() {
   if (!draft.value) return
+  if (autoModeActive.value) return
   if (draft.value.status !== 'CONFIRMED' && !await saveDraft()) return
   busy.value = true
   try {
@@ -649,7 +764,7 @@ async function sendMessage() {
 }
 
 async function confirmRequirement() {
-  if (!designerSession.value || store.usingDemo) return
+  if (!designerSession.value || store.usingDemo || autoModeActive.value) return
   busy.value = true
   try {
     await api.confirmDesignerRequirement(designerSession.value.id, designerSession.value.discussionRevision)
@@ -678,7 +793,7 @@ async function reopenRequirement() {
 }
 
 async function approvePackage() {
-  if (!designerSession.value || !currentPackage.value || store.usingDemo) return
+  if (!designerSession.value || !currentPackage.value || store.usingDemo || autoModeActive.value) return
   const approvedPackageId = currentPackage.value.id
   busy.value = true
   try {
@@ -857,7 +972,10 @@ async function redesignPackage(packageId: string) {
           </div>
 
           <footer class="draft-create-actions">
-            <span class="composer-boundary"><Icon icon="lucide:shield-check" />只读分析项目</span>
+            <div class="designer-auto-create">
+              <span class="composer-boundary"><Icon icon="lucide:shield-check" />只读分析项目</span>
+              <label><el-switch v-model="newAutoModeEnabled" :disabled="store.usingDemo" @change="changeNewAutoMode" /><span><strong>全自动模式</strong><small>默认关闭；自动完成设计并启动任务</small></span></label>
+            </div>
             <div class="composer-submit">
               <span class="composer-shortcut">⌘ / Ctrl + Enter</span>
               <el-button class="create-draft-button" type="primary" size="large" :loading="busy" :disabled="!draftPrompt.trim() || (!store.usingDemo && !selectedProjectId)" @click="startDraft">
@@ -902,7 +1020,7 @@ async function redesignPackage(packageId: string) {
         <nav class="designer-steps" aria-label="Designer 流程">
           <span v-for="(label, index) in designerSteps" :key="label" :class="{ active: index === workflowStep, completed: index < workflowStep }"><i>{{ index + 1 }}</i>{{ label }}</span>
         </nav>
-        <div class="card-pad card-header"><div><p class="eyebrow">READ-ONLY DESIGNER</p><h2 class="card-title">{{ designerSession?.projectName ?? activeProjectName }}</h2></div><div class="designer-state-actions"><el-button v-if="designerReconnecting || designerStreamState === 'reconnecting'" plain size="small" @click="reconnectDesigner"><Icon icon="lucide:refresh-cw" />立即重连</el-button><StatusBadge :status="designerBadgeStatus" :label="designerReconnecting || designerStreamState === 'reconnecting' ? 'RECONNECTING' : designerSession?.state ?? '等待 session'" /></div></div>
+        <div class="card-pad card-header"><div><p class="eyebrow">READ-ONLY DESIGNER</p><h2 class="card-title">{{ designerSession?.projectName ?? activeProjectName }}</h2></div><div class="designer-state-actions"><label class="designer-auto-switch"><span><strong>全自动</strong><small>{{ designerSession?.autoMode.state ?? 'DISABLED' }}</small></span><el-switch :model-value="designerSession?.autoMode.enabled === true" :loading="autoModeBusy" :disabled="store.usingDemo || designerSession?.autoMode.state === 'COMPLETED'" @change="changeAutoMode" /></label><el-button v-if="designerReconnecting || designerStreamState === 'reconnecting'" plain size="small" @click="reconnectDesigner"><Icon icon="lucide:refresh-cw" />立即重连</el-button><StatusBadge :status="designerBadgeStatus" :label="designerReconnecting || designerStreamState === 'reconnecting' ? 'RECONNECTING' : designerSession?.state ?? '等待 session'" /></div></div>
         <div class="designer-connection-strip" role="status" aria-live="polite">
           <span><i :class="['connection-dot', designerStreamState]" />{{ designerTransportLabel }}</span>
           <span><i :class="['connection-dot', { connected: designerRuntimeConnected, error: designerLiveError }]" />{{ designerRuntimeLabel }}</span>
@@ -914,6 +1032,10 @@ async function redesignPackage(packageId: string) {
           <span class="mono">远端 {{ designerRemoteState || 'WAITING' }}</span>
           <time :datetime="designerObservedAt">{{ formatObservedAt(designerObservedAt) }}</time>
         </div>
+        <section v-if="designerSession?.autoMode.state !== 'DISABLED'" :class="['designer-auto-status', { blocked: autoModeBlocked, completed: designerSession?.autoMode.state === 'COMPLETED' }]" role="status" aria-live="polite">
+          <Icon :icon="autoModeBlocked ? 'lucide:octagon-alert' : designerSession?.autoMode.state === 'COMPLETED' ? 'lucide:circle-check-big' : 'lucide:bot'" />
+          <div><strong>{{ autoModeBlocked ? '全自动模式已阻断' : designerSession?.autoMode.state === 'COMPLETED' ? '全自动设计已完成' : '全自动模式正在推进' }}</strong><p v-if="autoModeBlocked">{{ designerSession?.autoMode.errorDetail }}；请先关闭后人工处理，完成后可重新授权。</p><p v-else-if="designerSession?.autoMode.state === 'COMPLETED'">任务已请求启动，正在打开任务详情；执行期决策保持人工处理。</p><p v-else>每轮只推进一个权威动作；关闭不会撤销已完成动作或终止正在执行的模型调用。</p></div>
+        </section>
         <section v-if="blockedWorkflowMessage" class="designer-session-alert" role="status" aria-live="polite"><Icon icon="lucide:refresh-cw" /><div><strong>{{ designerSession?.state === 'WAITING_INPUT' ? '设计工作流需要人工恢复' : '设计工作流已停止' }}</strong><p>{{ blockedWorkflowMessage.content }}</p><span class="tiny muted">最后有效需求快照、问题回答和候选 LoopSpec 均已保留；恢复不会重新执行已完成的拆包。</span><div class="recovery-actions"><el-button v-if="designerSession?.decomposition && !designerSession.activeWorkPackageId" plain size="small" :loading="busy" @click="retryDecomposition"><Icon icon="lucide:split" />重新拆解</el-button><el-button v-if="designerSession?.activeWorkPackageId" plain size="small" :loading="busy" @click="retryPackageCompiler(designerSession.activeWorkPackageId)"><Icon icon="lucide:braces" />重新编译当前包</el-button><el-button v-if="designerSession?.activeWorkPackageId" plain size="small" :loading="busy" @click="redesignPackage(designerSession.activeWorkPackageId)"><Icon icon="lucide:sparkles" />恢复当前包设计</el-button><template v-if="!designerSession?.decomposition"><el-button plain size="small" :loading="busy" @click="retryCompiler"><Icon icon="lucide:braces" />重新编译当前设计</el-button><el-button plain size="small" :loading="busy" @click="requestRedesign"><Icon icon="lucide:sparkles" />让 Designer 重新设计</el-button></template><el-button plain size="small" @click="restartDesigner"><Icon icon="lucide:rotate-ccw" />清理工作区</el-button></div></div></section>
         <section v-else-if="designerLiveError" class="designer-session-alert live-error" role="alert" aria-live="assertive"><Icon icon="lucide:triangle-alert" /><div><strong>OpenCode 实时错误</strong><p>{{ designerLiveError }}</p><span class="tiny muted">错误已从实时通道收到，正在同步持久化会话状态。</span></div></section>
         <div class="designer-conversation">
@@ -928,17 +1050,21 @@ async function redesignPackage(packageId: string) {
             </article>
           </section>
           <div class="chat-history">
-          <article v-for="message in visibleMessages" :key="message.id" :class="['chat-message', `chat-${message.actor.toLowerCase()}`, message.actor === 'VALIDATOR' ? `validator-${message.deliveryState?.toLowerCase() ?? 'status'}` : '']">
+          <template v-for="item in timelineItems" :key="item.key">
+          <DesignerDiscussionHistory v-if="item.kind === 'discussion'" :entries="item.entries" />
+          <DesignerValidatorHistory v-else-if="item.kind === 'validators'" :entries="item.entries" />
+          <article v-else :class="['chat-message', `chat-${item.message.actor.toLowerCase()}`]">
             <header class="chat-message-header">
               <span class="chat-author">
-                <span class="chat-avatar"><Icon :icon="actorMeta[message.actor].icon" /></span>
-                <span><strong class="chat-role">{{ actorMeta[message.actor].label }}</strong><small>{{ actorMeta[message.actor].subtitle }}<template v-if="message.workPackageId"> · {{ message.workPackageId }}</template></small></span>
+                <span class="chat-avatar"><Icon :icon="actorMeta[item.message.actor].icon" /></span>
+                <span><strong class="chat-role">{{ actorMeta[item.message.actor].label }}</strong><small>{{ actorMeta[item.message.actor].subtitle }}<template v-if="item.message.workPackageId"> · {{ item.message.workPackageId }}</template></small></span>
               </span>
-              <time class="chat-message-time" :datetime="message.createdAt">{{ message.deliveryState ? `${statusLabel(message.deliveryState)} · ` : '' }}{{ formatDateTime(message.createdAt) }}</time>
+              <time class="chat-message-time" :datetime="item.message.createdAt">{{ item.message.deliveryState ? `${statusLabel(item.message.deliveryState)} · ` : '' }}{{ formatDateTime(item.message.createdAt) }}</time>
             </header>
-            <MarkdownDocument v-if="message.actor === 'DESIGNER'" :content="message.content" collapsible />
-            <p v-else class="plain-message-content">{{ message.content }}</p>
+            <MarkdownDocument v-if="item.message.actor === 'DESIGNER'" :content="item.message.content" collapsible />
+            <p v-else class="plain-message-content">{{ item.message.content }}</p>
           </article>
+          </template>
           <article v-if="designerLiveResponse" class="chat-message chat-designer chat-live" aria-label="Designer 正在流式回复" aria-live="polite">
             <header class="chat-message-header">
               <span class="chat-author"><span class="chat-avatar"><Icon icon="lucide:sparkles" /></span><span><strong class="chat-role">Designer</strong><small>LIVE · Markdown 设计文档</small></span></span>
@@ -953,10 +1079,10 @@ async function redesignPackage(packageId: string) {
             :pending="pending"
             mandatory
             :submitting="submittingDesignerQuestion === pending.id"
+            :disabled="autoModeActive"
             @submit="(answers: string[][]) => answerDesignerQuestion(pending, answers)"
             @reject="rejectDesignerQuestion(pending)"
           />
-          <DesignerDiscussionHistory :entries="designerSession?.answeredQuestions ?? []" />
           <article v-if="designerIsThinking" :class="['thinking-message', `thinking-${designerSession?.activeActor?.toLowerCase() ?? 'system'}`]" role="status" aria-live="polite" :aria-label="`${activeActorMeta.label}正在处理`">
             <span class="thinking-orbit" aria-hidden="true"><span /></span>
             <div class="thinking-copy">
@@ -984,8 +1110,8 @@ async function redesignPackage(packageId: string) {
               @keydown.ctrl.enter.prevent="sendMessage"
             />
             <div class="compose-actions"><span class="tiny muted">{{ hasPendingDesignerQuestion ? '问题回答与普通输入不能同时提交' : '⌘ / Ctrl + Enter 发送；只修改当前作用域' }}</span><el-button type="primary" :loading="busy" :disabled="!composerEnabled || !userMessage.trim()" @click="sendMessage"><Icon icon="lucide:send" />发送</el-button></div>
-            <div v-if="designerSession?.workflowPhase === 'DISCUSSING_REQUIREMENT' && designerSession.state === 'REVIEWING'" class="scope-primary-action"><el-button type="primary" :loading="busy" @click="confirmRequirement"><Icon icon="lucide:split" />需求已明确，开始拆包</el-button></div>
-            <div v-else-if="designerSession?.workflowPhase === 'REVIEWING_PACKAGE' && currentPackage?.state === 'REVIEWING'" class="scope-primary-action"><span>候选已通过确定性校验，接受后才会进入下一个工作包。</span><el-button type="primary" :loading="busy" @click="approvePackage"><Icon icon="lucide:check-check" />接受 {{ currentPackage.id }} 并继续</el-button></div>
+            <div v-if="designerSession?.workflowPhase === 'DISCUSSING_REQUIREMENT' && designerSession.state === 'REVIEWING'" class="scope-primary-action"><el-button type="primary" :loading="busy" :disabled="autoModeActive" @click="confirmRequirement"><Icon icon="lucide:split" />{{ autoModeActive ? '全自动模式将确认需求' : '需求已明确，开始拆包' }}</el-button></div>
+            <div v-else-if="designerSession?.workflowPhase === 'REVIEWING_PACKAGE' && currentPackage?.state === 'REVIEWING'" class="scope-primary-action"><span>候选已通过确定性校验，接受后才会进入下一个工作包。</span><el-button type="primary" :loading="busy" :disabled="autoModeActive" @click="approvePackage"><Icon icon="lucide:check-check" />{{ autoModeActive ? `全自动模式将接受 ${currentPackage.id}` : `接受 ${currentPackage.id} 并继续` }}</el-button></div>
           </div>
         </div>
       </article>
@@ -1010,8 +1136,8 @@ async function redesignPackage(packageId: string) {
         </LoopSpecEditor>
         <LayeredErrorPanel v-if="fieldError" :error="fieldError" style="margin-top: 12px" />
         <div v-if="isFinalReview && draft.status !== 'CONFIRMED'" class="final-review-action">
-          <div><strong>设计已进入总体确认</strong><span>确认后只创建一个待开始任务，仍需在任务页单独点击开始执行。</span></div>
-          <el-button type="primary" size="large" :loading="busy" :disabled="!confirmationReady" @click="confirm"><Icon icon="lucide:circle-check-big" />确认设计并创建任务</el-button>
+          <div><strong>设计已进入总体确认</strong><span>{{ autoModeActive ? '全自动模式将确认设计、创建任务并请求开始执行。' : '确认后只创建一个待开始任务，仍需在任务页单独点击开始执行。' }}</span></div>
+          <el-button type="primary" size="large" :loading="busy" :disabled="!confirmationReady || autoModeActive" @click="confirm"><Icon icon="lucide:circle-check-big" />{{ autoModeActive ? '等待全自动确认并启动' : '确认设计并创建任务' }}</el-button>
         </div>
         <div class="spec-footer"><span class="tiny muted"><Icon icon="lucide:git-branch" /> Git 项目切换原目录任务分支；无 HEAD 项目直接执行</span><time class="mono tiny" :datetime="draft.updatedAt">{{ formatDateTime(draft.updatedAt) }}</time></div>
       </article>
@@ -1068,6 +1194,7 @@ async function redesignPackage(packageId: string) {
 .brief-template-row button:hover { border-color: rgb(34 211 238 / 32%); color: var(--color-text-primary); background: rgb(34 211 238 / 7%); }
 .brief-template-row button svg { color: var(--color-accent-cyan); }
 .draft-create-actions { position: relative; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 66px; padding: 10px 18px; border-top: 1px solid var(--color-border-default); background: rgb(7 11 20 / 32%); }
+.designer-auto-create { display: flex; min-width: 0; align-items: center; gap: 18px; }.designer-auto-create > label { display: flex; min-width: 0; align-items: center; gap: 9px; color: var(--color-text-secondary); }.designer-auto-create > label > span { display: grid; gap: 2px; }.designer-auto-create strong { color: var(--color-text-primary); font-size: 10px; }.designer-auto-create small { color: var(--color-text-muted); font-size: 8px; }
 .draft-save-state { display: inline-flex; align-items: center; gap: 6px; color: var(--color-text-muted); font-size: 10px; }
 .draft-save-state svg { color: var(--color-success); }
 .composer-boundary { display: inline-flex; align-items: center; gap: 7px; color: var(--color-text-secondary); font-size: 10px; }
@@ -1114,6 +1241,7 @@ async function redesignPackage(packageId: string) {
 .designer-connection-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; margin: -4px 20px 10px; padding: 9px 11px; border: 1px solid rgb(71 85 105 / 42%); border-radius: 9px; color: var(--color-text-muted); background: rgb(2 6 23 / 30%); font: 9px/1.3 var(--font-code); }
 .designer-connection-strip span { display: inline-flex; align-items: center; gap: 6px; }
 .designer-connection-strip time { margin-left: auto; color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
+.designer-auto-status { display: flex; gap: 10px; margin: 0 20px 10px; padding: 10px 12px; border: 1px solid rgb(34 211 238 / 34%); border-radius: 9px; color: var(--color-accent-cyan); background: rgb(34 211 238 / 7%); }.designer-auto-status.blocked { border-color: rgb(245 158 11 / 42%); color: #fbbf24; background: rgb(245 158 11 / 8%); }.designer-auto-status.completed { border-color: rgb(34 197 94 / 38%); color: #4ade80; background: rgb(34 197 94 / 7%); }.designer-auto-status svg { flex: 0 0 auto; margin-top: 1px; }.designer-auto-status strong { font-size: 10px; }.designer-auto-status p { margin: 3px 0 0; color: var(--color-text-secondary); font-size: 9px; line-height: 1.5; }
 .connection-dot { display: inline-block; flex: 0 0 auto; width: 6px; height: 6px; border-radius: 50%; background: var(--color-text-muted); }
 .connection-dot.connecting { animation: live-pulse 1.2s ease-in-out infinite; }
 .connection-dot.connected { background: var(--color-success); box-shadow: 0 0 9px rgb(34 197 94 / 60%); }
@@ -1213,6 +1341,7 @@ async function redesignPackage(packageId: string) {
 .active-role { color: var(--color-text-secondary); }
 .active-role svg { color: var(--color-accent-cyan); }
 .designer-state-actions { display: flex; align-items: center; gap: 8px; }
+.designer-auto-switch { display: flex; align-items: center; gap: 8px; padding-right: 8px; border-right: 1px solid var(--color-border-default); }.designer-auto-switch > span { display: grid; text-align: right; }.designer-auto-switch strong { color: var(--color-text-primary); font-size: 9px; }.designer-auto-switch small { color: var(--color-text-muted); font: 7px/1.2 var(--font-code); }
 
 @media (max-width: 1180px) {
   .designer-start-layout { grid-template-columns: 1fr; }
@@ -1231,6 +1360,7 @@ async function redesignPackage(packageId: string) {
   .brief-template-row { padding-inline: 16px; }
   .draft-goal-input :deep(.el-textarea__inner) { min-height: 330px !important; }
   .draft-create-actions, .compose-actions { align-items: stretch; flex-direction: column; }
+  .designer-auto-create { align-items: flex-start; flex-direction: column; gap: 8px; }
   .composer-submit { justify-content: space-between; width: 100%; }
   .create-draft-button, .compose-actions :deep(.el-button) { width: 100%; }
   .designer-message-input :deep(.el-textarea__inner) { min-height: 260px !important; }

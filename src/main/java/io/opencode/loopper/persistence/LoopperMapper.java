@@ -310,13 +310,13 @@ public interface LoopperMapper {
               s.created_at,s.updated_at,d.id AS draft_id,d.status AS draft_status,d.goal,
               s.current_requirement_revision AS requirement_revision,s.active_work_package_id,
               CASE WHEN archive.designer_session_id IS NULL THEN 0 ELSE 1 END AS archived,
-              archive.archived_at
+              archive.archived_at,t.id AS task_id,t.state AS task_state
             FROM designer_session s
             JOIN loop_draft d ON d.id=s.loop_draft_id
             JOIN project p ON p.id=s.project_id
             LEFT JOIN designer_session_archive archive ON archive.designer_session_id=s.id
-            WHERE d.status<>'CONFIRMED'
-              AND (#{projectId} IS NULL OR s.project_id=#{projectId})
+            LEFT JOIN task t ON t.loop_draft_id=d.id
+            WHERE (#{projectId} IS NULL OR s.project_id=#{projectId})
               AND s.id=(
                 SELECT latest.id FROM designer_session latest
                 WHERE latest.loop_draft_id=s.loop_draft_id
@@ -963,4 +963,23 @@ public interface LoopperMapper {
     @Select("SELECT * FROM automation_run WHERE rule_id=#{ruleId} ORDER BY detected_at DESC") List<AutomationRunRow> listAutomationRuns(String ruleId);
     @Update("UPDATE automation_run SET state=#{state},draft_id=#{draftId},task_id=#{taskId},evidence_json=#{evidenceJson},started_at=#{startedAt},ended_at=#{endedAt},version=version+1 WHERE id=#{id} AND version=#{version}")
     int updateAutomationRun(AutomationRunRow row);
+
+    @Insert("""
+            INSERT INTO designer_auto_mode(designer_session_id,state,last_action,error_code,error_detail,task_id,
+              authorized_at,disabled_at,updated_at,version)
+            VALUES(#{designerSessionId},#{state},#{lastAction},#{errorCode},#{errorDetail},#{taskId},
+              #{authorizedAt},#{disabledAt},#{updatedAt},#{version})
+            """)
+    int insertDesignerAutoMode(DesignerAutoModeRow row);
+    @Select("SELECT * FROM designer_auto_mode WHERE designer_session_id=#{sessionId}")
+    Optional<DesignerAutoModeRow> findDesignerAutoMode(String sessionId);
+    @Select("SELECT * FROM designer_auto_mode WHERE state='ACTIVE' ORDER BY updated_at,designer_session_id")
+    List<DesignerAutoModeRow> listActiveDesignerAutoModes();
+    @Update("""
+            UPDATE designer_auto_mode SET state=#{state},last_action=#{lastAction},error_code=#{errorCode},
+              error_detail=#{errorDetail},task_id=#{taskId},authorized_at=#{authorizedAt},
+              disabled_at=#{disabledAt},updated_at=#{updatedAt},version=version+1
+            WHERE designer_session_id=#{designerSessionId} AND version=#{version}
+            """)
+    int updateDesignerAutoMode(DesignerAutoModeRow row);
 }

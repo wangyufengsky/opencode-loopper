@@ -114,8 +114,8 @@ async function installDesignerApi(page: Page) {
     const fulfill = (body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: status === 204 ? '' : JSON.stringify(body) })
 
     if (path.endsWith('/events')) return route.fulfill({ status: 204 })
-    if (path === '/api/projects') return fulfill([project])
-    if (path === '/api/tasks') return fulfill([])
+    if (path === '/api/projects' || path === '/api/projects/summaries') return fulfill([project])
+    if (path === '/api/tasks' || path === '/api/tasks/summaries') return fulfill(path.endsWith('summaries') ? { items: [], facets: {} } : [])
     if (path === '/api/runtime/opencode') return fulfill({ status: 'OFFLINE', managed: false, checkedAt: now })
     if (path === '/api/settings') return fulfill(settings)
     if (path === '/api/designer-sessions' && method === 'GET') return fulfill([])
@@ -132,11 +132,12 @@ async function installDesignerApi(page: Page) {
     if (path === '/api/designer-sessions/designer-e2e/work-packages/WP-1/approve' && method === 'POST') { phase = 'wp2-question'; return fulfill(undefined, 204) }
     if (path === '/api/designer-sessions/designer-e2e/questions/q-wp2/reply' && method === 'POST') { phase = 'wp2-review'; return fulfill(undefined, 204) }
     if (path === '/api/designer-sessions/designer-e2e/work-packages/WP-2/approve' && method === 'POST') { phase = 'final-review'; return fulfill(undefined, 204) }
-    if (path === '/api/tasks/task-e2e') return fulfill({
+    if (path === '/api/tasks/task-e2e' || path === '/api/tasks/task-e2e/overview') return fulfill({
       id: 'task-e2e', projectId: project.id, projectName: project.name, title: '两包设计任务', goal: finalSpec.goal,
       status: 'PENDING_START', attemptCount: 0, maxAttempts: 7, hasDesignHistory: true, archived: false,
       createdAt: now, updatedAt: now, stages: [], attempts: [], errors: [], judges: [], artifacts: [], workPackages: [],
     })
+    if (path === '/api/tasks/task-e2e/audit') return fulfill({ attempts: [], errors: [], judges: [], artifacts: [] })
     return fulfill({})
   })
 }
@@ -164,9 +165,61 @@ test('需求提问后逐包讨论并确认为 PENDING_START 任务', async ({ pa
   await page.getByRole('button', { name: '接受 WP-2 并继续' }).click()
 
   await expect(page.getByRole('navigation', { name: 'Designer 流程' })).toContainText('总体确认')
-  await page.getByRole('button', { name: '确认设计并创建任务' }).click()
+  await page.getByRole('button', { name: '确认设计并创建任务' }).last().click()
 
   await expect(page).toHaveURL(/\/tasks\/task-e2e$/)
   await expect(page.getByText('执行环境尚未申请')).toBeVisible()
   await expect(page.getByRole('button', { name: '开始执行' })).toBeVisible()
+})
+
+test('只开启全自动后无需人工审批即可进入已启动任务', async ({ page }) => {
+  let poll = 0
+  await page.route('http://127.0.0.1:41773/api/**', async (route) => {
+    const request = route.request()
+    const url = new URL(request.url())
+    const path = url.pathname
+    const method = request.method()
+    const fulfill = (body: unknown, status = 200) => route.fulfill({
+      status, contentType: 'application/json', body: status === 204 ? '' : JSON.stringify(body),
+    })
+    if (path.endsWith('/events')) return route.fulfill({ status: 204 })
+    if (path === '/api/projects' || path === '/api/projects/summaries') return fulfill([project])
+    if (path === '/api/tasks' || path === '/api/tasks/summaries') return fulfill(path.endsWith('summaries') ? { items: [], facets: {} } : [])
+    if (path === '/api/settings') return fulfill(settings)
+    if (path === '/api/loop-drafts' && method === 'POST') return fulfill(draft())
+    if (path === '/api/loop-drafts/validate' && method === 'POST') return fulfill({ valid: true, schemaVersion: 'v2', legacy: false, errors: [], stageAssessments: [] })
+    if (path === '/api/designer-sessions' && method === 'GET') return fulfill([])
+    const autoSession = (completed: boolean) => ({
+      ...session(completed ? 'final-review' : 'requirement-question'),
+      state: completed ? 'REVIEWING' : 'RUNNING',
+      autoMode: completed
+        ? { enabled: false, state: 'COMPLETED', version: 7, lastAction: 'TASK_START_REQUESTED', taskId: 'task-auto-e2e' }
+        : { enabled: true, state: 'ACTIVE', version: poll, lastAction: poll ? 'QUESTION_AUTO_REPLIED' : 'MODE_ENABLED' },
+    })
+    if (path === '/api/designer-sessions' && method === 'POST') {
+      expect(request.headers()['x-loopper-local-ui']).toBe('1')
+      expect(request.postDataJSON()).toMatchObject({ autoModeEnabled: true })
+      return fulfill(autoSession(false), 201)
+    }
+    if (path === '/api/designer-sessions/designer-e2e' && method === 'GET') {
+      poll += 1
+      return fulfill(autoSession(poll >= 3))
+    }
+    if (path === '/api/tasks/task-auto-e2e/overview' || path === '/api/tasks/task-auto-e2e') return fulfill({
+      id: 'task-auto-e2e', projectId: project.id, projectName: project.name, title: '全自动设计任务', goal: finalSpec.goal,
+      status: 'QUEUED', attemptCount: 0, maxAttempts: 7, hasDesignHistory: true, archived: false,
+      createdAt: now, updatedAt: now, stages: [], attempts: [], errors: [], judges: [], artifacts: [], workPackages: [],
+    })
+    if (path === '/api/tasks/task-auto-e2e/audit') return fulfill({ attempts: [], errors: [], judges: [], artifacts: [] })
+    return fulfill({})
+  })
+
+  await page.goto('/designer')
+  await page.locator('.designer-auto-create .el-switch').click()
+  await page.getByRole('button', { name: '确认开启' }).click()
+  await page.getByLabel('草案设计目标').fill('自动完成设计并启动任务')
+  await page.getByRole('button', { name: '开始设计' }).click()
+
+  await expect(page).toHaveURL(/\/tasks\/task-auto-e2e$/, { timeout: 10_000 })
+  await expect(page.getByText('全自动设计任务')).toBeVisible()
 })

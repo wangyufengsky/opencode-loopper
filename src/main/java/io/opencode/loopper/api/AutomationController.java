@@ -24,6 +24,10 @@ public class AutomationController {
     public AutomationController(LoopSpecTemplateService templates, AutomationService automation) { this.templates = templates; this.automation = automation; }
 
     @GetMapping("/templates") public List<LoopSpecTemplateService.TemplateView> templates() { return templates.list(); }
+    @GetMapping("/workspace") public AutomationWorkspace workspace() {
+        AutomationService.RunFeed runs = automation.allRuns();
+        return new AutomationWorkspace(templates.list(), automation.rules(), runs.runs(), runs.serverTime());
+    }
     @PostMapping("/templates") public LoopSpecTemplateService.TemplateView createTemplate(@RequestHeader(value = "X-Loopper-Local-UI", required = false) String localUi, @RequestBody FeatureContracts.CreateTemplateRequest request) { requireLocalUi(localUi);
         return templates.create(request.name(), request.description());
     }
@@ -71,4 +75,7 @@ public class AutomationController {
                 request.triggerConfig(), request.state(), request.approvalMode());
     }
     private void requireLocalUi(String localUi) { if (!"1".equals(localUi)) throw new io.opencode.loopper.service.BadRequestException("LOCAL_UI_HEADER_REQUIRED", "This operation is available only to the local Loopper UI"); }
+    public record AutomationWorkspace(List<LoopSpecTemplateService.TemplateView> templates,
+                                      List<AutomationService.RuleView> rules,
+                                      List<AutomationService.RunView> runs, String serverTime) { }
 }

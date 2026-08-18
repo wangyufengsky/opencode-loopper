@@ -3,7 +3,7 @@ import ElementPlus from 'element-plus'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AutomationsView from '@/views/AutomationsView.vue'
 
-const mocks = vi.hoisted(() => ({ getProjects: vi.fn(), getLoopSpecTemplates: vi.fn(), createLoopSpecTemplate: vi.fn(), createLoopSpecTemplateVersion: vi.fn(), previewLoopSpecTemplateImport: vi.fn(), confirmLoopSpecTemplateImport: vi.fn(), exportLoopSpecTemplate: vi.fn(), getAutomationRules: vi.fn(), createAutomationRule: vi.fn(), updateAutomationRule: vi.fn(), triggerAutomationRule: vi.fn(), getAutomationRuns: vi.fn(), confirmAutomationRun: vi.fn() }))
+const mocks = vi.hoisted(() => ({ getProjects: vi.fn(), getAutomationWorkspace: vi.fn(), getLoopSpecTemplates: vi.fn(), createLoopSpecTemplate: vi.fn(), createLoopSpecTemplateVersion: vi.fn(), previewLoopSpecTemplateImport: vi.fn(), confirmLoopSpecTemplateImport: vi.fn(), exportLoopSpecTemplate: vi.fn(), getAutomationRules: vi.fn(), createAutomationRule: vi.fn(), updateAutomationRule: vi.fn(), triggerAutomationRule: vi.fn(), getAutomationRuns: vi.fn(), confirmAutomationRun: vi.fn() }))
 vi.mock('@/api/client', () => ({ api: mocks }))
 
 const projects = [{ id: 'p1', name: 'Loopper' }]
@@ -18,6 +18,7 @@ function mountView() { return mount(AutomationsView, { global: { plugins: [Eleme
 beforeEach(() => {
   Object.values(mocks).forEach(mock => mock.mockReset())
   mocks.getProjects.mockResolvedValue(structuredClone(projects))
+  mocks.getAutomationWorkspace.mockResolvedValue(structuredClone(workspace))
   mocks.getLoopSpecTemplates.mockResolvedValue(structuredClone(workspace.templates))
   mocks.getAutomationRules.mockResolvedValue(structuredClone(workspace.rules))
   mocks.getAutomationRuns.mockResolvedValue({ runs: structuredClone(workspace.runs), serverTime: workspace.serverTime })
@@ -35,7 +36,7 @@ afterEach(() => vi.restoreAllMocks())
 
 describe('AutomationsView expected public API contract', () => {
   it('renders loading before the server responds', () => {
-    mocks.getLoopSpecTemplates.mockReturnValue(new Promise(() => {}))
+    mocks.getAutomationWorkspace.mockReturnValue(new Promise(() => {}))
     const wrapper = mountView()
     expect(wrapper.text()).toContain('正在读取服务端自动化记录')
   })

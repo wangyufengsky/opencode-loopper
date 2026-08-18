@@ -3,9 +3,10 @@ import { ref } from 'vue'
 import { Icon } from '@iconify/vue'
 import type { TaskSessionPendingQuestion } from '@/types/domain'
 
-const props = withDefaults(defineProps<{ pending: TaskSessionPendingQuestion, submitting?: boolean, mandatory?: boolean }>(), {
+const props = withDefaults(defineProps<{ pending: TaskSessionPendingQuestion, submitting?: boolean, mandatory?: boolean, disabled?: boolean }>(), {
   submitting: false,
   mandatory: false,
+  disabled: false,
 })
 const emit = defineEmits<{
   submit: [answers: string[][]]
@@ -63,22 +64,22 @@ function adoptRecommendations() {
     <div v-for="(prompt, index) in pending.questions" :key="`${pending.id}-${index}`" class="designer-question-prompt">
       <p>{{ prompt.header || `问题 ${index + 1}` }}</p>
       <h3>{{ prompt.question }}</h3>
-      <el-checkbox-group v-if="prompt.multiple" :model-value="answerDrafts[index]" class="designer-question-options" @update:model-value="(value: unknown) => setMultipleAnswers(index, value)">
+      <el-checkbox-group v-if="prompt.multiple" :model-value="answerDrafts[index]" :disabled="disabled" class="designer-question-options" @update:model-value="(value: unknown) => setMultipleAnswers(index, value)">
         <el-checkbox v-for="option in prompt.options" :key="option.label" :value="option.label" border>
           <span><b>{{ option.label }}</b><small>{{ option.description }}</small></span>
         </el-checkbox>
       </el-checkbox-group>
-      <el-radio-group v-else :model-value="answerDrafts[index]?.[0] ?? ''" class="designer-question-options" @update:model-value="(value: string | number | boolean | undefined) => setSingleAnswer(index, value)">
+      <el-radio-group v-else :model-value="answerDrafts[index]?.[0] ?? ''" :disabled="disabled" class="designer-question-options" @update:model-value="(value: string | number | boolean | undefined) => setSingleAnswer(index, value)">
         <el-radio v-for="option in prompt.options" :key="option.label" :value="option.label" border>
           <span><b>{{ option.label }}</b><small>{{ option.description }}</small></span>
         </el-radio>
       </el-radio-group>
-      <el-input v-if="prompt.custom" :model-value="customDrafts[index]" class="designer-custom-answer" type="textarea" :rows="2" :placeholder="prompt.multiple ? '可补充自定义回答（会与已选项一起提交）' : '或输入自定义回答（会替代已选项）'" @update:model-value="(value: unknown) => setCustomDraft(index, value)" />
+      <el-input v-if="prompt.custom" :model-value="customDrafts[index]" :disabled="disabled" class="designer-custom-answer" type="textarea" :rows="2" :placeholder="prompt.multiple ? '可补充自定义回答（会与已选项一起提交）' : '或输入自定义回答（会替代已选项）'" @update:model-value="(value: unknown) => setCustomDraft(index, value)" />
     </div>
     <footer>
-      <el-button plain :disabled="submitting" @click="adoptRecommendations"><Icon icon="lucide:sparkles" />采用全部推荐项</el-button>
-      <el-button v-if="!mandatory" plain :disabled="submitting" @click="emit('reject')">拒绝</el-button>
-      <el-button type="primary" :loading="submitting" :disabled="submitting || !answers().every((answer) => answer.length > 0)" @click="submit">提交回答并继续</el-button>
+      <el-button plain :disabled="submitting || disabled" @click="adoptRecommendations"><Icon icon="lucide:sparkles" />采用全部推荐项</el-button>
+      <el-button v-if="!mandatory" plain :disabled="submitting || disabled" @click="emit('reject')">拒绝</el-button>
+      <el-button type="primary" :loading="submitting" :disabled="submitting || disabled || !answers().every((answer) => answer.length > 0)" @click="submit">提交回答并继续</el-button>
     </footer>
   </section>
 </template>

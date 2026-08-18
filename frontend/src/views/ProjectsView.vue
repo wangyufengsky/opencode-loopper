@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { Icon } from '@iconify/vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
@@ -26,6 +26,7 @@ const generatingProjectId = ref('')
 const applyingConvention = ref(false)
 const cancellingProjectId = ref('')
 let conventionPollTimer: number | undefined
+onMounted(() => { void store.loadProjects() })
 
 function openDialog() {
   form.value = { name: '', rootPath: '', description: '' }
@@ -195,7 +196,7 @@ onBeforeUnmount(clearConventionPoll)
     <section v-if="store.error && !store.usingDemo" class="card card-pad" style="margin-bottom: 16px">
       <div class="error-panel error-panel-verification"><Icon class="error-panel-icon" icon="lucide:plug-zap" /><div><h3>本地 API 不可用</h3><p>{{ store.error }}。你可以启动 Spring 服务，或者查看不发送请求的演示数据。</p><el-button size="small" plain type="primary" style="margin-top: 10px" @click="store.activateDemo()">查看演示数据</el-button></div></div>
     </section>
-    <section class="toolbar"><div><p class="eyebrow">{{ store.usingDemo ? 'DEMO DATA' : 'REGISTERED ROOTS' }}</p><span class="muted tiny">{{ store.projects.length }} 个项目 · 路径在后端 canonicalize 后保存</span></div><el-button text :icon="Icon" @click="store.loadOverview"><Icon icon="lucide:refresh-cw" />刷新</el-button></section>
+    <section class="toolbar"><div><p class="eyebrow">{{ store.usingDemo ? 'DEMO DATA' : 'REGISTERED ROOTS' }}</p><span class="muted tiny">{{ store.projects.length }} 个项目 · 路径在后端 canonicalize 后保存</span></div><el-button text :icon="Icon" @click="store.loadProjects(true)"><Icon icon="lucide:refresh-cw" />刷新</el-button></section>
     <section v-if="store.loading" class="metric-grid"><div v-for="n in 4" :key="n" class="skeleton-block" style="height: 150px" /></section>
     <section v-else-if="store.projects.length" class="project-grid">
       <article v-for="project in store.projects" :key="project.id" class="card card-pad project-card">

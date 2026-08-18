@@ -10,11 +10,14 @@ import io.opencode.loopper.lifecycle.LifecycleTransitionService;
 import io.opencode.loopper.persistence.LoopSpecTemplateRow;
 import io.opencode.loopper.persistence.LoopSpecTemplateVersionRow;
 import io.opencode.loopper.persistence.LoopperMapper;
+import io.opencode.loopper.persistence.ReadModelMapper;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,10 +29,11 @@ public class LoopSpecTemplateService {
     private final LifecycleTransitionService lifecycle;
     private final ObjectMapper json;
     private final LoopDraftService drafts;
+    private final ReadModelMapper reads;
 
     public LoopSpecTemplateService(LoopperMapper mapper, LifecycleTransitionService lifecycle,
-                                   ObjectMapper json, LoopDraftService drafts) {
-        this.mapper = mapper; this.lifecycle = lifecycle; this.json = json; this.drafts = drafts;
+                                   ObjectMapper json, LoopDraftService drafts, ReadModelMapper reads) {
+        this.mapper = mapper; this.lifecycle = lifecycle; this.json = json; this.drafts = drafts; this.reads = reads;
     }
 
     @Transactional
@@ -44,7 +48,13 @@ public class LoopSpecTemplateService {
     }
 
     public TemplateView get(String id) { return view(getTemplate(id)); }
-    public List<TemplateView> list() { return mapper.listLoopSpecTemplates().stream().map(this::view).toList(); }
+    public List<TemplateView> list() {
+        Map<String, List<VersionView>> versions = reads.allTemplateVersions().stream().map(this::versionView)
+                .collect(Collectors.groupingBy(VersionView::templateId));
+        return mapper.listLoopSpecTemplates().stream().map(row -> new TemplateView(row.id(), row.name(),
+                row.description(), row.state(), row.createdAt(), row.updatedAt(), row.version(),
+                versions.getOrDefault(row.id(), List.of()))).toList();
+    }
     public List<VersionView> versions(String templateId) { getTemplate(templateId); return mapper.listLoopSpecTemplateVersions(templateId).stream().map(this::versionView).toList(); }
 
     @Transactional

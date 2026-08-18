@@ -36,6 +36,9 @@ const resultEditor = ref<InstanceType<typeof CodeMergeEditor>>()
 const lastAutomaticReconcileAt = ref(0)
 const RECONCILE_COOLDOWN_MS = 30_000
 
+const publicationEligible = computed(() => props.task.status === 'SUCCEEDED'
+  || (['AWAITING_DECISION', 'COMPLETED'].includes(props.task.status)
+    && props.task.executionResult === 'SUCCEEDED'))
 const commitPreview = computed(() => `#${ticketNumber.value || '0000'}_${commitSubject.value.trim() || 'AI 生成提交信息'}`)
 const commitValid = computed(() => /^\d{4}$/.test(ticketNumber.value) && commitSubject.value.trim().length > 0 && commitPreview.value.length <= 126)
 const providerLabel = computed(() => publication.value?.provider === 'GITHUB' ? 'GitHub Pull Request' : 'GitLab Merge Request')
@@ -99,8 +102,7 @@ function containsUnresolvedMergeMarkers(content: string) {
 }
 
 async function loadPublication() {
-  if (props.task.status !== 'SUCCEEDED'
-    && !(props.task.status === 'AWAITING_DECISION' && props.task.executionResult === 'SUCCEEDED')) return
+  if (!publicationEligible.value) return
   if (props.demo) {
     publication.value = { state: 'READY', available: true, branch: props.task.branch, remoteName: 'origin', targetBranch: 'main', targetBranches: ['main'], provider: 'GITLAB', hasChanges: true, conflictCount: 0, resolvedCount: 0, deliveryState: 'NOT_STARTED', deliveryFinal: false, reconciliationAvailable: false }
     return
@@ -116,7 +118,7 @@ async function loadPublication() {
   }
 }
 
-watch(() => [props.task.id, props.task.status] as const, ([taskId], previous) => {
+watch(() => [props.task.id, props.task.status, props.task.executionResult] as const, ([taskId], previous) => {
   if (!previous || taskId !== previous[0]) {
     publication.value = undefined
     lastAutomaticReconcileAt.value = 0
@@ -441,7 +443,7 @@ async function createMergeRequest() {
 </script>
 
 <template>
-  <template v-if="task.status === 'SUCCEEDED' || (task.status === 'AWAITING_DECISION' && task.executionResult === 'SUCCEEDED')">
+  <template v-if="publicationEligible">
     <el-tag v-if="publication" :type="publication.deliveryState === 'MERGED' || publication.deliveryState === 'LOCAL_COMPLETED' ? 'success' : publication.deliveryState === 'MERGE_REQUEST_CLOSED' ? 'danger' : 'info'">交付：{{ deliveryLabel }}</el-tag>
     <el-button v-if="loading || !publication" plain disabled :loading="loading">读取提交状态</el-button>
     <el-button v-else-if="publication.state === 'READY'" type="success" :loading="operationLoading" @click="openCommitDialog"><Icon icon="lucide:git-commit-horizontal" />{{ localPublication ? '提交本地任务分支' : '提交' }}</el-button>

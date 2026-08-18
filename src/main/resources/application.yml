@@ -10,7 +10,7 @@ spring:
           enabled: false
         protocol: STREAMABLE
         name: opencode-loopper
-        version: 0.1.75
+        version: 0.1.80
         type: SYNC
         instructions: >-
           Use the six Loopper tools only. Designer access is READ_ONLY; proposals synchronize
@@ -44,6 +44,10 @@ spring:
 server:
   address: 127.0.0.1
   port: ${SERVER_PORT:8080}
+  compression:
+    enabled: true
+    min-response-size: 2KB
+    mime-types: application/json,application/problem+json,text/plain,text/html,text/css,application/javascript
 
 management:
   endpoints:

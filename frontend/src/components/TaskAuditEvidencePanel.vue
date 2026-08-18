@@ -14,7 +14,7 @@ const props = defineProps<{
 const activeTab = ref<'logs' | 'diff' | 'evidence'>('evidence')
 const orderedAttempts = computed(() => [...props.attempts].sort((left, right) => right.ordinal - left.ordinal))
 const verificationRows = computed(() => orderedAttempts.value.flatMap((attempt) => attempt.verifiers.map((verifier, index) => ({ attempt, verifier, index }))))
-const logRows = computed(() => verificationRows.value.filter(({ verifier }) => Boolean(output(verifier))))
+const logRows = computed(() => verificationRows.value)
 const handoffArtifacts = computed(() => props.artifacts.filter((artifact) => artifact.title.startsWith('attempt-handoff-')))
 const diffArtifact = computed(() => props.artifacts.find((artifact) => artifact.kind === 'DIFF'))
 const gitDiffRows = computed(() => verificationRows.value.filter(({ verifier }) => verifier.name.toUpperCase() === 'GIT_DIFF'))
@@ -34,6 +34,9 @@ const previewError = ref('')
 const previewPath = ref('')
 const preview = ref<TaskDiffPreview>()
 let previewRequest = 0
+const bodyCache = ref<Record<string, string>>({})
+const bodyLoading = ref<Record<string, boolean>>({})
+const bodyErrors = ref<Record<string, string>>({})
 
 const previewLines = computed(() => (preview.value?.patch ?? '').split('\n').map((content, index) => ({
   content,
@@ -50,7 +53,38 @@ function unique(values: string[]) {
 }
 
 function output(verifier: VerifierResult) {
-  return verifier.output ?? (typeof verifier.evidence?.output === 'string' ? verifier.evidence.output : '')
+  return bodyCache.value[`verification:${verifier.id}`]
+    ?? verifier.output ?? (typeof verifier.evidence?.output === 'string' ? verifier.evidence.output : '')
+}
+
+function artifactBody(artifact: Artifact) {
+  return bodyCache.value[`artifact:${artifact.id}`] ?? artifact.content
+}
+
+async function loadBody(kind: 'verification' | 'artifact', id: string) {
+  const key = `${kind}:${id}`
+  if (key in bodyCache.value || bodyLoading.value[key]) return
+  bodyLoading.value[key] = true
+  delete bodyErrors.value[key]
+  try {
+    const result = kind === 'verification'
+      ? await api.getVerificationEvidence(props.taskId, id)
+      : await api.getArtifactContent(props.taskId, id)
+    if (kind === 'verification') {
+      try {
+        const evidence = JSON.parse(result.content) as Record<string, unknown>
+        bodyCache.value[key] = typeof evidence.output === 'string' ? evidence.output : result.content
+      } catch { bodyCache.value[key] = result.content }
+    } else bodyCache.value[key] = result.content
+  } catch (cause) {
+    bodyErrors.value[key] = cause instanceof Error ? cause.message : '正文加载失败'
+  } finally {
+    bodyLoading.value[key] = false
+  }
+}
+
+function loadWhenOpened(event: Event, kind: 'verification' | 'artifact', id: string) {
+  if ((event.currentTarget as HTMLDetailsElement).open) void loadBody(kind, id)
 }
 
 function argv(verifier: VerifierResult) {
@@ -121,13 +155,13 @@ async function showDiff(path: string) {
       <template v-if="activeTab === 'logs'">
         <div class="source-note"><Icon icon="lucide:terminal-square" /><span><strong>确定性验证日志与 Attempt 交接</strong>均来自服务端持久化事实；模型会话实时输出保留在上方会话面板。</span><b>{{ logRows.length + handoffArtifacts.length }} 份</b></div>
         <div v-if="logRows.length || handoffArtifacts.length" class="audit-stack">
-          <details v-for="artifact in handoffArtifacts" :key="artifact.id" class="audit-disclosure handoff">
+          <details v-for="artifact in handoffArtifacts" :key="artifact.id" class="audit-disclosure handoff" @toggle="loadWhenOpened($event, 'artifact', artifact.id)">
             <summary><span class="state-dot handoff" /><span class="summary-main"><strong>{{ artifact.title }}</strong><small>结构化重试交接 · {{ artifact.attemptId || '任务级证据' }}</small></span><Icon icon="lucide:chevron-down" /></summary>
-            <pre class="audit-log">{{ artifact.content }}</pre>
+            <pre class="audit-log">{{ bodyLoading[`artifact:${artifact.id}`] ? '正在加载正文…' : bodyErrors[`artifact:${artifact.id}`] || artifactBody(artifact) }}</pre>
           </details>
-          <details v-for="({ attempt, verifier }) in logRows" :key="verifier.id" class="audit-disclosure">
+          <details v-for="({ attempt, verifier }) in logRows" :key="verifier.id" class="audit-disclosure" @toggle="loadWhenOpened($event, 'verification', verifier.id)">
             <summary><span :class="['state-dot', verifier.status.toLowerCase()]" /><span class="summary-main"><strong>{{ argv(verifier) }}</strong><small>尝试 {{ attempt.ordinal }} · {{ verifier.summary }}<template v-if="detail(verifier)"> · {{ detail(verifier) }}</template></small></span><Icon icon="lucide:chevron-down" /></summary>
-            <pre class="audit-log">{{ output(verifier) }}</pre>
+            <pre class="audit-log">{{ bodyLoading[`verification:${verifier.id}`] ? '正在加载正文…' : bodyErrors[`verification:${verifier.id}`] || output(verifier) || '该验证没有原始输出' }}</pre>
           </details>
         </div>
         <div v-else class="audit-empty"><Icon icon="lucide:clock-3" /><strong>验证日志尚未产生</strong><p>验证器开始执行后，这里会显示命令的真实 stdout / stderr；不会生成模拟日志。</p></div>
@@ -140,7 +174,7 @@ async function showDiff(path: string) {
         </div>
         <div v-else class="audit-empty"><Icon icon="lucide:file-diff" /><strong>没有检测到文件变更</strong><p>任务基线差异快照与显式 GIT_DIFF 验证器均未报告变更。</p></div>
         <div v-if="violations.length" class="violation-box"><strong><Icon icon="lucide:triangle-alert" />范围违规</strong><ul><li v-for="item in violations" :key="item">{{ item }}</li></ul></div>
-        <details v-if="diffArtifact?.content" class="audit-disclosure secondary"><summary><span class="summary-main"><strong>任务基线差异快照</strong><small>{{ diffArtifact.title }} · 持久化证据</small></span><Icon icon="lucide:chevron-down" /></summary><pre class="audit-log">{{ diffArtifact.content }}</pre></details>
+        <details v-if="diffArtifact" class="audit-disclosure secondary" @toggle="loadWhenOpened($event, 'artifact', diffArtifact.id)"><summary><span class="summary-main"><strong>任务基线差异快照</strong><small>{{ diffArtifact.title }} · 按需读取持久化正文</small></span><Icon icon="lucide:chevron-down" /></summary><pre class="audit-log">{{ bodyLoading[`artifact:${diffArtifact.id}`] ? '正在加载正文…' : bodyErrors[`artifact:${diffArtifact.id}`] || artifactBody(diffArtifact) }}</pre></details>
       </template>
 
       <template v-else>
@@ -152,7 +186,7 @@ async function showDiff(path: string) {
             <div v-if="workingDirectory(verifier)" class="verification-meta">执行目录 <code>{{ workingDirectory(verifier) }}</code></div>
             <code v-if="verifier.evidence?.argv">{{ argv(verifier) }}</code>
             <div v-if="detail(verifier)" class="verification-meta">{{ detail(verifier) }}</div>
-            <details v-if="output(verifier)" class="inline-output"><summary>查看完整输出</summary><pre class="audit-log">{{ output(verifier) }}</pre></details>
+            <details class="inline-output" @toggle="loadWhenOpened($event, 'verification', verifier.id)"><summary>按需查看完整输出</summary><pre class="audit-log">{{ bodyLoading[`verification:${verifier.id}`] ? '正在加载正文…' : bodyErrors[`verification:${verifier.id}`] || output(verifier) || '该验证没有原始输出' }}</pre></details>
             <div v-if="verifier.name.toUpperCase() === 'GIT_DIFF' && strings(verifier.evidence?.changedPaths).length" class="verification-meta">已检查 {{ strings(verifier.evidence?.changedPaths).length }} 个变更文件</div>
           </article>
         </div>

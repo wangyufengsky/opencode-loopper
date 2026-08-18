@@ -3,11 +3,11 @@
 [![CI](https://github.com/wangyufengsky/opencode-loopper/actions/workflows/ci.yml/badge.svg)](https://github.com/wangyufengsky/opencode-loopper/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然语言需求转换为经过人工确认的分阶段 `LoopSpec`，让 OpenCode 在受控工作区中实施变更，并用确定性验证、独立双评审和可追溯证据闭合整个循环。
+OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然语言需求转换为经过逐步人工确认或明确会话授权确认的分阶段 `LoopSpec`，让 OpenCode 在受控工作区中实施变更，并用确定性验证、独立双评审和可追溯证据闭合整个循环。
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.1.75`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.1.80`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -31,6 +31,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 - **本地项目登记**：登记绝对路径，识别 Git 任务分支模式或无可用 Git HEAD 时的直接模式。
 - **可讨论的只读多角色设计**：整体需求和每个工作包都先由 Designer 用 1–3 个选择题澄清，之后每轮保存完整 Markdown 替代稿；用户逐包讨论、查看 Compiler/Validator 候选并明确接受，最后再总体确认。Task Decomposer 与分包 LoopSpec Compiler 只输出紧凑的业务规划与证据意图，服务端生成状态、ID、引用、精确摘录、测试元数据和最终 LoopSpec 对象；原始机器 JSON 不进入聊天。确定性校验和人工确认完成前不写业务源码、不创建任务。
+- **可选的 Designer 全自动模式**：新建设计和进行中会话均可单独授权，默认关闭。开启后自动选择推荐答案、确认整体需求、接受已通过确定性校验的工作包、确认最终设计并请求启动任务；执行期问题、危险权限、异常恢复、结果确认、提交、推送和发布仍保持人工边界。每次开启或阻断后重新授权都会再次确认风险，状态按会话持久化并可在重启后继续。
 - **项目公约**：只读分析项目并生成或更新根目录 `AGENTS.md`，展示完整预览后才写入；Loopper 管理区块以外的人工内容会被保留。
 - **分阶段执行循环**：按依赖顺序执行 Stage，每个阶段都携带目标、交付物、路径约束和可立即运行的验收规则。
 - **循环降噪**：验证失败后固化 Attempt 交接包，并用失败签名和可靠工作区指纹识别无进展重试；连续停滞时转入人工确认，不继续烧预算。
@@ -71,7 +72,7 @@ flowchart LR
 
 Loopper 把四类事实分开保存和展示：
 
-1. **设计合同**：人工确认的 LoopSpec 和冻结的 Designer 设计上下文。
+1. **设计合同**：逐步人工确认或按会话明确授权确认的 LoopSpec，以及冻结的 Designer 设计上下文。
 2. **执行过程**：Task、Stage、Attempt 和 OpenCode Session 的真实状态。
 3. **验收证据**：命令输出、文件/差异结果、浏览器截图与 Judge 结论。
 4. **发布结果**：本地提交、远端推送、合并请求入口或源项目同步记录。
@@ -119,7 +120,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.1.75.jar
+java -jar target/opencode-loopper-0.1.80.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -130,9 +131,9 @@ java -jar target/opencode-loopper-0.1.75.jar
 
 1. 打开 **设置**，确认 OpenCode CLI 路径；刷新模型列表并选择默认 Provider / Model。可选地设置“允许项目根”，限制可登记目录。
 2. 打开 **运行环境**，确认服务端报告的 OpenCode Loopper 版本，并检查 OpenCode 状态、端点、版本、模型与进程所有权。
-3. 打开 **项目**，登记项目名称和绝对根路径。登记本身不会启动 AI，也不会写入项目文件。项目卡片分别显示已确认的任务数和尚未确认的“待继续设计”数；后者会打开独立的 **历史设计** 页面。
+3. 打开 **项目**，登记项目名称和绝对根路径。登记本身不会启动 AI，也不会写入项目文件。项目卡片分别显示已确认的任务数和尚未确认的“待继续设计”数；历史设计入口同时包含可继续设计与已确认成任务的只读设计记录。
 4. 可选：在项目卡片中打开 **AGENTS.md 项目公约**，让只读 Session 生成建议，检查完整预览后再确认写入。
-5. 打开 **设计器 / 循环规范**，选择项目并描述目标。该页只负责新建设计，不再平铺历史会话。先用问题卡回答整体设计选择，可一键采用全部推荐项；继续补充不会触发拆包，只有点击 **需求已明确，开始拆包** 才会冻结需求。已有未确认设计统一从 **历史设计** 页面继续、修改或归档，服务重启或浏览器恢复指针失效也不会丢失权威记录。
+5. 打开 **设计器 / 循环规范**，选择项目并描述目标。该页只负责新建设计，不再平铺历史会话。先用问题卡回答整体设计选择，可一键采用全部推荐项；继续补充不会触发拆包，只有点击 **需求已明确，开始拆包** 才会冻结需求。已有未确认设计统一从 **历史设计** 页面继续、修改或归档；已确认成任务的设计也保留在该页，但只允许查看，不提供继续、修改或归档。服务重启或浏览器恢复指针失效不会丢失权威记录。
 6. 沿工作包轨道逐包回答问题、讨论完整设计稿，并查看右侧只读候选的同步状态。候选通过 Compiler 和 Validator 后点击 **接受 WP-N 并继续**；重开已接受包会先列出所有将失效的传递依赖包。全部包接受后进入总体确认，此时才可编辑最终聚合 LoopSpec，并点击 **确认设计并创建任务**。Loopper 只创建 `PENDING_START` 任务，不进入队列、不占用写租约，也不创建或切换 Git 分支。
 7. 进入任务详情并点击一次 **开始执行**。此时才会申请队列/写租约、检查工作区、获取远端更新并准备任务分支；一旦准入会自动继续执行，不需要在 `READY` 状态再次点击。执行期间可查看阶段进度、尝试、真实模型输出、待处理问题、验证证据和双 Judge 评审。
 8. 任务成功后检查实际差异，再由人工提交任务分支；最终 Attempt 会无条件保存任务基线差异文件清单，不要求 LoopSpec 配置 `GIT_DIFF`。Loopper 随后恢复任务开始前的源分支，有排队任务时继续切到下一任务分支；差异预览、远端推送和合并请求继续显式引用已提交的任务分支。
@@ -143,7 +144,7 @@ java -jar target/opencode-loopper-0.1.75.jar
 | --- | --- |
 | 项目 | 登记本地目录、分别查看任务数与待继续设计数、进入历史设计、查看执行模式、生成/更新 `AGENTS.md`、取消项目管理 |
 | 设计器 / 循环规范 | 新建设计，或从明确的历史设计链接恢复会话；完成需求提问、逐包讨论/接受、候选同步和总体确认；只有最终聚合阶段可编辑 LoopSpec |
-| 历史设计 | 按项目、状态、归档范围筛选未确认设计，按更新时间排序，并执行继续、修改、归档或恢复 |
+| 历史设计 | 按项目、状态、归档范围筛选全部设计并按更新时间排序；未确认设计可继续、修改、归档或恢复，已确认设计只读查看 |
 | 任务 | 查看当前和历史任务、状态与归档；符合保护条件时可二次确认删除历史记录 |
 | 任务详情 | 启动或取消尚未申请工作区的任务、取消排队/等待输入任务、查看 Stage/Attempt/Session、实施 Todo 投影、验证证据、双评审、设计历史与发布入口 |
 | 待处理中心 | 回答 Question，按一次/Session 范围处理 Permission，或拒绝请求 |
@@ -159,7 +160,7 @@ java -jar target/opencode-loopper-0.1.75.jar
 
 ## LoopSpec 与验证器
 
-LoopSpec 是执行前必须人工确认的结构化合同。核心字段包括：
+LoopSpec 是执行前必须逐步人工确认或按 Designer 会话明确授权确认的结构化合同。核心字段包括：
 
 - `projectId`、`goal` 和补充 `context`；
 - 一个或多个 `stages`；
@@ -283,13 +284,13 @@ Loopper 不会因为任务成功就自动提交、推送或合并。确认计划
 
 ### 成功任务发布
 
-Git 任务的最新 Execution Cycle 成功并处于 `AWAITING_DECISION` 后（历史 `SUCCEEDED` 仍兼容）：
+Git 任务的最新 Execution Cycle 成功并处于 `AWAITING_DECISION` 或用户确认后的 `COMPLETED` 时（历史 `SUCCEEDED` 仍兼容）：
 
 1. Loopper 根据任务和实际差异建议提交说明；用户必须输入四位数字工单号，最终格式为 `#1234_subject`。
 2. 发布先以 `PUBLICATION` 来源按 FIFO 重新取得写租约，复核并恢复冻结代码；用户检查并确认后，Loopper 使用普通 Git 提交，并在工作区干净后恢复任务开始前记录的源分支。
 3. 如果存在排队任务，写租约随即转交并切换到下一任务分支；否则项目停留在恢复后的源分支。
 4. 存在远端时，Loopper 使用明确的本地任务分支引用执行非强制推送；推送和重试都不会切换当前项目分支。
-5. 推送成功后，点击普通的 **创建合并请求** 按钮会直接打开参数确认对话框；确认后打开预填的 GitHub Pull Request 或 GitLab Merge Request 创建页。它只引用任务分支，最终创建与合并仍由托管平台确认。SSH remote 默认生成 HTTPS Web 地址；`LOOPPER_PUBLICATION_HTTP_WEB_HOSTS` 中精确列出的主机改用 HTTP。成品启动脚本默认加入 `gitlab.spdb.com`，不改变 SSH 推送协议。
+5. 推送成功后，点击普通的 **创建合并请求** 按钮会直接打开参数确认对话框；确认后打开预填的 GitHub Pull Request 或 GitLab Merge Request 创建页。它只引用任务分支，最终创建与合并仍由托管平台确认。Web 地址默认沿用 HTTP/HTTPS remote 的显式协议，SSH remote 默认生成 HTTPS；但 `LOOPPER_PUBLICATION_HTTP_WEB_HOSTS` 中精确列出的主机始终改用 HTTP，即使 remote 写成显式 HTTPS。成品启动脚本默认加入 `gitlab.spdb.com`，且不会改写 remote 或改变推送协议。
 6. Execution Cycle 结果、用户确认的 Task 终态和远端交付彼此独立：耐久本地提交或确认推送后 Task 进入 `COMPLETED`，交付轴继续记录 `已提交 → 已推送 → 合并请求已创建/已关闭 → 已合并`。进入详情页或从 GitLab 返回时会在 30 秒冷却下自动核对，也可以手工检查。只有 GitLab API 精确匹配任务提交后才能写入不可逆的“已合并”；删除源分支不会被误判为合并。
 7. 如果仓库没有远端，本地提交只保留在任务分支并记录证据，不会把提交快进或覆盖到恢复后的源分支。
 
@@ -318,7 +319,7 @@ Git 任务的最新 Execution Cycle 成功并处于 `AWAITING_DECISION` 后（�
 | `LOOPPER_MCP_BEARER_TOKEN` | 每次启动随机生成 | `/api/mcp-streamable` 和 `/api/mcp` 的 Bearer Token |
 | `LOOPPER_JAVA_HOME` | Linux 脚本默认 `/opt/jdk-21`；Windows 依次回退到 `JAVA_HOME`、`PATH` | 启动脚本使用的 JDK 目录 |
 | `LOOPPER_JAR_PATH` | 自动查找当前版本 JAR | Linux/Windows 启动脚本使用的成品 JAR 路径 |
-| `LOOPPER_PUBLICATION_HTTP_WEB_HOSTS` | 成品启动脚本包含 `gitlab.spdb.com`；直接运行 JAR 时为空 | 逗号分隔的精确 Git 主机白名单；仅让没有显式 Web 协议的 SSH remote 生成 HTTP MR 地址 |
+| `LOOPPER_PUBLICATION_HTTP_WEB_HOSTS` | 成品启动脚本包含 `gitlab.spdb.com`；直接运行 JAR 时为空 | 逗号分隔的精确 Git 主机白名单；命中后强制使用 HTTP MR/PR 网页地址，包括显式 HTTPS remote，但不改写 remote 或推送协议 |
 | `LOOPPER_GITLAB_HOST` | 成品启动脚本为 `gitlab.spdb.com` | 允许自动核对合并状态的精确 GitLab 主机 |
 | `LOOPPER_GITLAB_API_BASE_URL` | 成品启动脚本为 `http://gitlab.spdb.com/api/v4` | GitLab API v4 基础地址；主机必须与 `LOOPPER_GITLAB_HOST` 完全一致 |
 | `LOOPPER_GITLAB_PRIVATE_TOKEN` | 空 | GitLab 只读 API Token；仅通过环境变量提供，不写入数据库、日志或前端响应 |
@@ -345,7 +346,7 @@ Git 任务的最新 Execution Cycle 成功并处于 `AWAITING_DECISION` 后（�
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.1.75.jar`
+- `target/opencode-loopper-0.1.80.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -376,7 +377,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:51234
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.1.75.jar`
+- `opencode-loopper-0.1.80.jar`
 - `start-windows.bat`
 
 确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
@@ -414,7 +415,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.1.75.jar \
+jar tf target/opencode-loopper-0.1.80.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -494,7 +495,7 @@ Windows PowerShell：
 例如发布下一版本：
 
 ```bash
-VERSION=0.1.75
+VERSION=0.1.80
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -534,7 +535,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.1.75.jar
+java -jar target/opencode-loopper-0.1.80.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。
@@ -577,7 +578,7 @@ echo %PATHEXT%
 
 `0.1.11` 起，Loopper 不再用 30 秒短检查超时限制大仓库检出，并会隐藏 Git checkout 进度噪音、保留尾部真正的 `fatal` 诊断，同时命令局部启用 `core.longpaths=true`。旧版本失败可能留下 `$LOOPPER_DATA_DIR/worktrees/<taskId>` 和对应 `loopper/*` 分支；先用 `git worktree list` 精确确认残留，确认它确实属于失败任务后再手工清理。`0.1.12` 起可使用 Release 附带的 `start-windows.bat`；`0.1.13` 修复了 OpenCode 已成功监听但脚本因遗留 `%ERRORLEVEL%` 误报启动失败的问题；`0.1.14` 起新任务不再创建隐藏 worktree，而是把登记的原项目目录直接切到任务分支，使 IDEA AgentBridge、OpenCode 和验证器使用同一目录；`0.1.15` 起等待输入的任务可在详情页直接确认取消；`0.1.16` 起任务提交后恢复开始前的源分支，推送和合并请求仅按任务分支引用操作；`0.1.18` 起 Linux/Windows 启动器自动发现当前健康 OpenCode 的真实端口，找不到时使用动态端口自启；`0.1.19` 起 Linux 还会按 OpenCode PID 解析实际监听端口，覆盖 TUI 与 `opencode web` 未在命令行暴露端口的情形；`0.1.20` 起即使 Linux 对非特权进程隐藏 socket 归属，也会对本机监听端口执行严格健康验真，并兼容 OpenCode 官方 Basic Auth 环境变量；`0.1.21` 起 Linux auto 模式会锁定真实 CLI 路径，并在受管启动失败时显示实际尝试端口和失败原因，不再误显示默认探测端口 4096；`0.1.22` 起启动健康探测使用短请求循环，单次请求不再耗尽整个启动预算；`0.1.23` 起 Auto 启动失败后可从 Runtime 页明确启动并检查连接；`0.1.27` 起最终 Attempt 无条件保存任务基线差异快照，切回源分支后仍按任务分支预览，创建合并请求入口改为单击普通按钮；`0.1.28` 起新草稿使用 LoopSpec v2 的条件覆盖合同，并支持动态端口托管 HTTP/JSON/BROWSER 验收。PowerShell 中请使用 `.\start-windows.bat`。
 
-`0.1.29` 起，成品启动脚本默认把 `gitlab.spdb.com` 加入 HTTP Web 主机白名单；它只影响 SSH remote 推导出的 MR 网页协议，不改变 Git 的 SSH 推送协议。直接运行 JAR 时可通过 `LOOPPER_PUBLICATION_HTTP_WEB_HOSTS` 配置逗号分隔的精确主机列表。
+`0.1.29` 起，成品启动脚本默认把 `gitlab.spdb.com` 加入 HTTP Web 主机白名单；当前实现对命中白名单的主机强制生成 HTTP MR/PR 网页地址，即使 remote 显式写为 HTTPS，也不改写 remote 或改变 Git 推送协议。直接运行 JAR 时可通过 `LOOPPER_PUBLICATION_HTTP_WEB_HOSTS` 配置逗号分隔的精确主机列表。
 
 `0.1.30` 起，GitLab 任务拥有独立持久化的交付状态。启动脚本只设置主机和 API 地址；如需自动确认合并，请另外设置 `LOOPPER_GITLAB_PRIVATE_TOKEN`。Token 缺失、认证失败、超时或候选不唯一时保留原状态并显示诊断；GitHub 暂时只保留 Pull Request 创建入口。
 
@@ -626,6 +627,14 @@ echo %PATHEXT%
 `0.1.70` 为 Decomposer、Compiler、Judge 和项目公约引入共享的包容性输出提取。原生 structured payload 与角色 marker 仍优先，同时可接受代码块、说明文字或整段响应中的唯一标准 JSON object；等价候选去重，冲突候选、非标准/残缺 JSON、数组根和歧义补齐仍拒绝。确定性字段、集合、枚举、Maven/Gradle argv 与唯一聚焦测试证据规范化不消耗格式修复次数，V28 只记录短纠正类别而不保存原文。连续 3 次相同工具调用会提前 abort，并且每个角色步骤最多使用一次持久化、无工具 finalizer；安全命令、路径、业务覆盖、Java 聚焦测试和运行时门禁保持严格。纯“全量测试通过/构建成功”不再生成业务验收项，安全全量测试只可作为补充报告。前端以普通信息样式显示规范化和恢复提示。0.1.68/0.1.69 候选分别因发布脚本 JAR 名和最新迁移断言未同步而未交付，修正后按版本规则递增。
 
 `0.1.75` 让 Designer 已回答的问题继续作为服务端权威讨论记录展示。页面默认只显示折叠的“需求讨论”，展开后可查看原问题、完整选项及说明和用户最终回答；新决策日志保存完整问题结构，旧版只保存问题文本与答案的记录仍可恢复，刷新或进程重启后不依赖浏览器状态。
+
+`0.1.80` 增加按 Designer 会话持久化、默认关闭的全自动模式。每次开启需确认风险，服务端以独立 V34 状态机和乐观锁每轮最多推进一个动作：推荐答案、整体需求确认、逐包批准、最终确认、唯一任务创建和正式 Task Start；重启可继续，异常进入 `BLOCKED` 且不会高频重试。授权在请求启动 Task 后结束，执行期问题、危险权限、异常恢复、结果确认、提交、推送与发布继续人工处理。
+
+`0.1.78` 调整 Designer 时间线：每个作用域和讨论修订使用独立、默认收起的“需求讨论”卡，并固定显示在对应设计稿之前；不同设计稿的讨论不再合并。所有确定性校验记录合并为一个默认收起的卡片，展开后仍按顺序展示每条状态、时间和内容。
+
+`0.1.77` 修正已确认完成任务的发布入口：任务详情页对 `COMPLETED + SUCCEEDED` 结果实际挂载发布组件，GitLab 合并状态核对也接受状态未变化的成功 `COMPLETED` 任务，因此已推送但尚未合并的任务继续显示“创建合并请求”。
+
+`0.1.76` 继续使用 SQLite + WAL，并将控制台读取改为有界读模型：任务与历史设计默认按 50 条稳定游标分页，任务详情先显示轻量 overview，再后台读取 audit 元数据，证据、错误、Judge 原始输出和制品正文只在展开时按 Task 归属加载。项目计数、历史最新会话、洞察、模板版本和自动化运行记录改为批量聚合；V33 增加热点索引，项目 Git 检测使用 5 秒缓存与最多 4 路并发。页面不再在应用启动时全局读取任务和 Runtime，SSE 分区合并刷新，2 KiB 以上 JSON/文本启用压缩，Inbox 支持 ETag。本版本同时包含内网 HTTP Web 主机白名单和已确认设计只读历史修复。
 
 `0.1.74` 增加持久化设置与分类 `RETRY_WAIT`，将成功或失败后的用户决策从执行轮次结果中分离，并为失败任务提供继续当前任务、继承修改派生、从原始基线重做、只读审计和取消等恢复路径。设置页可管理启动覆盖、运行上限、OpenCode 与发布网络配置，重试等待在重启及暂停恢复后仍保持原到期时间。Runtime 页精简为服务和受管进程信息，设置页超时控件统一对齐。机器角色只在实际使用 `JSON_SCHEMA` 时关闭 Thinking；`TEXT_MARKER` 的初始、重试、Schema 回退和 finalizer Session 保留模型配置或 Provider 默认 Thinking，同时继续执行同一套确定性提取、校验与审计。
 

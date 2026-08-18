@@ -26,8 +26,22 @@ const archivingTaskId = ref('')
 const deletingTaskId = ref('')
 const clock = ref(Date.now())
 let clockTimer: ReturnType<typeof setInterval> | undefined
-onMounted(() => { clockTimer = setInterval(() => { clock.value = Date.now() }, 1000) })
-onBeforeUnmount(() => { if (clockTimer) clearInterval(clockTimer) })
+let reloadTimer: number | undefined
+const ready = ref(false)
+onMounted(async () => {
+  clockTimer = setInterval(() => { clock.value = Date.now() }, 1000)
+  if (store.usingDemo) {
+    ready.value = true
+    return
+  }
+  await store.loadProjects()
+  ready.value = true
+  await reloadTasks()
+})
+onBeforeUnmount(() => {
+  if (clockTimer) clearInterval(clockTimer)
+  if (reloadTimer) window.clearTimeout(reloadTimer)
+})
 function retryRemaining(task: Task) {
   return task.retryDueAt ? Math.max(0, Math.ceil((Date.parse(task.retryDueAt) - clock.value) / 1000)) : 0
 }
@@ -50,25 +64,24 @@ validStatuses.add('TERMINATED')
 const activeStatuses: TaskStatus[] = ['PENDING_START', 'QUEUED', 'PREPARING', 'READY', 'RUNNING', 'VERIFYING', 'RETRY_WAIT', 'JUDGING', 'AWAITING_DECISION']
 const terminalStatuses: TaskStatus[] = ['COMPLETED', 'SUPERSEDED', 'SUCCEEDED', 'FAILED', 'CANCELLED']
 
-const projectOptions = computed(() => Array.from(new Map(store.tasks.map((task) => [task.projectId, task.projectName])).entries())
-  .map(([id, name]) => ({ id, name })).sort((left, right) => left.name.localeCompare(right.name, 'zh-CN')))
-const archiveScopedTasks = computed(() => store.tasks.filter((task) => archiveFilter.value === 'ALL'
-  || (archiveFilter.value === 'ARCHIVED' ? task.archived : !task.archived)))
-const visibleTasks = computed(() => archiveScopedTasks.value
-  .filter((task) => filter.value === 'ALL'
-    || (filter.value === 'ACTIVE' ? activeStatuses.includes(task.status)
-      : filter.value === 'TERMINATED' ? ['FAILED', 'CANCELLED'].includes(task.status)
-        : task.status === filter.value))
-  .filter((task) => projectFilter.value === 'ALL' || task.projectId === projectFilter.value)
-  .filter((task) => {
-    const query = search.value.trim().toLocaleLowerCase('zh-CN')
-    return !query || [task.title, task.goal, task.projectName, task.branch].some((value) => value.toLocaleLowerCase('zh-CN').includes(query))
-  })
-  .slice()
-  .sort((left, right) => {
-    const difference = new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()
-    return timeOrder.value === 'NEWEST' ? difference : -difference
-  }))
+const projectOptions = computed(() => (store.usingDemo
+  ? Array.from(new Map(store.tasks.map((task) => [task.projectId, task.projectName])).entries())
+    .map(([id, name]) => ({ id, name }))
+  : store.projects).slice().sort((left, right) => left.name.localeCompare(right.name, 'zh-CN')))
+const visibleTasks = computed(() => {
+  if (!store.usingDemo) return store.tasks
+  return store.tasks
+    .filter((task) => archiveFilter.value === 'ALL'
+      || (archiveFilter.value === 'ARCHIVED' ? task.archived : !task.archived))
+    .filter((task) => filter.value === 'ALL'
+      || (filter.value === 'ACTIVE' ? activeStatuses.includes(task.status)
+        : filter.value === 'TERMINATED' ? ['FAILED', 'CANCELLED'].includes(task.status) : task.status === filter.value))
+    .filter((task) => projectFilter.value === 'ALL' || task.projectId === projectFilter.value)
+    .filter((task) => !search.value.trim() || [task.title, task.goal, task.projectName, task.branch]
+      .some((value) => value.toLocaleLowerCase('zh-CN').includes(search.value.trim().toLocaleLowerCase('zh-CN'))))
+    .slice().sort((left, right) => (timeOrder.value === 'NEWEST' ? -1 : 1)
+      * (new Date(left.updatedAt).getTime() - new Date(right.updatedAt).getTime()))
+})
 const taskGroups = computed(() => {
   if (!groupByProject.value) return [{ id: 'all', name: '', tasks: visibleTasks.value }]
   const groups = new Map<string, { id: string; name: string; tasks: Task[] }>()
@@ -79,10 +92,10 @@ const taskGroups = computed(() => {
   }
   return [...groups.values()].sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'))
 })
-const metricTasks = computed(() => store.tasks.filter((task) => !task.archived))
-const finished = computed(() => metricTasks.value.filter((task) => task.status === 'SUCCEEDED').length)
-const terminated = computed(() => metricTasks.value.filter((task) => ['FAILED', 'CANCELLED'].includes(task.status)).length)
-const waitingInput = computed(() => metricTasks.value.filter((task) => task.status === 'WAITING_INPUT').length)
+const finished = computed(() => store.taskFacets.SUCCEEDED ?? 0)
+const terminated = computed(() => (store.taskFacets.FAILED ?? 0) + (store.taskFacets.CANCELLED ?? 0))
+const waitingInput = computed(() => store.taskFacets.WAITING_INPUT ?? 0)
+const activeCount = computed(() => activeStatuses.reduce((total, status) => total + (store.taskFacets[status] ?? 0), 0))
 const archivedCount = computed(() => store.tasks.filter((task) => task.archived).length)
 const noRegisteredProject = computed(() => !store.usingDemo && store.projects.length === 0)
 
@@ -114,6 +127,32 @@ watch([filter, projectFilter, timeOrder, archiveFilter, search, groupByProject],
   const current = Object.fromEntries(Object.entries(route.query).map(([key, value]) => [key, queryValue(value)]).filter(([, value]) => value))
   if (JSON.stringify(current) !== JSON.stringify(query)) void router.replace({ query })
 })
+watch([filter, projectFilter, timeOrder, archiveFilter, search], () => {
+  if (!ready.value || store.usingDemo) return
+  if (reloadTimer) window.clearTimeout(reloadTimer)
+  reloadTimer = window.setTimeout(() => { void reloadTasks() }, 180)
+})
+
+function selectedStatuses(): string[] | undefined {
+  if (filter.value === 'ALL') return undefined
+  if (filter.value === 'ACTIVE') return activeStatuses
+  if (filter.value === 'TERMINATED') return ['FAILED', 'CANCELLED']
+  return [filter.value]
+}
+
+async function reloadTasks(append = false) {
+  await store.loadTaskSummaries({
+    projectId: projectFilter.value === 'ALL' ? undefined : projectFilter.value,
+    status: selectedStatuses(),
+    archive: archiveFilter.value,
+    q: search.value.trim() || undefined,
+    order: timeOrder.value === 'OLDEST' ? 'oldest' : 'newest',
+  }, append)
+}
+
+async function refreshAll() {
+  await Promise.all([store.loadProjects(true), reloadTasks()])
+}
 
 function selectMetric(status: StatusFilter) {
   filter.value = filter.value === status ? 'ALL' : status
@@ -138,6 +177,7 @@ async function toggleArchive(task: Task) {
   archivingTaskId.value = task.id
   try {
     await store.setTaskArchived(task.id, !task.archived)
+    if (!store.usingDemo) await reloadTasks()
     ElMessage.success(task.archived ? '任务已恢复到活动列表' : '任务已归档，可随时恢复')
   } catch (cause) {
     ElMessage.error(cause instanceof Error ? cause.message : '任务归档状态更新失败')
@@ -156,6 +196,7 @@ async function confirmDelete(task: Task) {
     )
     deletingTaskId.value = task.id
     await store.deleteArchivedTask(task.id)
+    if (!store.usingDemo) await reloadTasks()
     ElMessage.success('历史任务已永久删除')
   } catch (cause) {
     if (cause !== 'cancel' && cause !== 'close') {
@@ -170,7 +211,7 @@ async function confirmDelete(task: Task) {
 <template>
   <PageHeader eyebrow="Control Plane / Tasks" title="任务控制台">
     <template #actions>
-      <el-button plain @click="store.loadOverview"><Icon icon="lucide:refresh-cw" aria-hidden="true" />刷新状态</el-button>
+      <el-button plain @click="refreshAll"><Icon icon="lucide:refresh-cw" aria-hidden="true" />刷新状态</el-button>
       <el-button v-if="noRegisteredProject" type="primary" @click="router.push('/projects')"><Icon icon="lucide:folder-plus" aria-hidden="true" />登记项目</el-button>
       <el-button v-else type="primary" @click="router.push('/designer')"><Icon icon="lucide:sparkles" aria-hidden="true" />新建设计</el-button>
     </template>
@@ -186,7 +227,7 @@ async function confirmDelete(task: Task) {
 
     <template v-if="!noRegisteredProject || store.tasks.length">
       <section class="metric-grid" aria-label="任务概览与快速筛选">
-        <MetricCard label="处理中" :value="store.activeTasks.filter((task) => !task.archived).length" detail="运行、验证、重试与评审" icon="lucide:orbit" accent="var(--color-accent-cyan)" interactive :active="filter === 'ACTIVE'" @select="selectMetric('ACTIVE')" />
+        <MetricCard label="处理中" :value="activeCount" detail="运行、验证、重试与评审" icon="lucide:orbit" accent="var(--color-accent-cyan)" interactive :active="filter === 'ACTIVE'" @select="selectMetric('ACTIVE')" />
         <MetricCard label="已成功" :value="finished" detail="验证与双评审均通过" icon="lucide:badge-check" accent="var(--color-success)" interactive :active="filter === 'SUCCEEDED'" @select="selectMetric('SUCCEEDED')" />
         <MetricCard label="需要输入" :value="waitingInput" detail="等待你的决定后继续" icon="lucide:message-square-warning" accent="var(--color-accent-ai)" interactive :active="filter === 'WAITING_INPUT'" @select="selectMetric('WAITING_INPUT')" />
         <MetricCard label="已终止" :value="terminated" detail="失败或取消，证据仍保留" icon="lucide:shield-x" accent="var(--color-task-danger)" interactive :active="filter === 'TERMINATED'" @select="selectMetric('TERMINATED')" />
@@ -225,7 +266,8 @@ async function confirmDelete(task: Task) {
           <div class="task-table"><el-table :data="group.tasks" row-key="id" :height="groupByProject ? undefined : 430"><el-table-column label="任务" min-width="285"><template #default="{ row }"><RouterLink class="task-link" :title="row.goal || row.title" :to="`/tasks/${row.id}`">{{ row.title }}</RouterLink><p class="mono tiny muted task-branch" translate="no">{{ row.branch }}</p></template></el-table-column><el-table-column label="状态" width="132"><template #default="{ row }"><StatusBadge :status="row.status" /><p v-if="row.status === 'RETRY_WAIT'" class="mono tiny muted">{{ retryRemaining(row) }}s</p></template></el-table-column><el-table-column label="进度" width="90"><template #default="{ row }"><span class="mono numeric">{{ row.attemptCount }}/{{ row.maxAttempts }}</span></template></el-table-column><el-table-column v-if="!groupByProject" label="项目" min-width="140" prop="projectName" /><el-table-column label="更新于" width="120"><template #default="{ row }"><time class="muted tiny" :datetime="row.updatedAt">{{ formatCompactDateTime(row.updatedAt) }}</time></template></el-table-column><el-table-column label="设计" width="96"><template #default="{ row }"><RouterLink v-if="row.hasDesignHistory" class="design-history-link" :to="`/tasks/${row.id}/design`"><Icon icon="lucide:messages-square" aria-hidden="true" />查看</RouterLink><span v-else class="tiny muted">无</span></template></el-table-column><el-table-column width="132"><template #default="{ row }"><div class="row-actions"><button v-if="row.archived" type="button" class="icon-action danger" :disabled="Boolean(archivingTaskId || deletingTaskId)" :aria-label="`永久删除任务 ${row.title}`" title="永久删除" @click="confirmDelete(row)"><Icon :icon="deletingTaskId === row.id ? 'lucide:loader-circle' : 'lucide:trash-2'" :class="{ spin: deletingTaskId === row.id }" aria-hidden="true" /></button><button v-if="row.archived || canArchive(row)" type="button" class="icon-action" :disabled="Boolean(archivingTaskId || deletingTaskId)" :aria-label="row.archived ? `恢复任务 ${row.title}` : `归档任务 ${row.title}`" :title="row.archived ? '恢复任务' : '归档任务'" @click="toggleArchive(row)"><Icon :icon="archivingTaskId === row.id ? 'lucide:loader-circle' : row.archived ? 'lucide:archive-restore' : 'lucide:archive'" :class="{ spin: archivingTaskId === row.id }" aria-hidden="true" /></button><RouterLink class="icon-action" :to="`/tasks/${row.id}`" :aria-label="`打开任务 ${row.title}`" title="打开任务"><Icon icon="lucide:arrow-up-right" aria-hidden="true" /></RouterLink></div></template></el-table-column></el-table></div>
         </section>
       </div>
-      <section v-else class="card empty-state"><div><Icon icon="lucide:search-x" width="30" aria-hidden="true" /><strong>{{ store.tasks.length ? '没有匹配的任务' : '还没有任务' }}</strong><p>{{ store.tasks.length ? '调整搜索或筛选条件，归档任务可从“已归档”中恢复。' : '项目已就绪，可以让 Designer 生成第一份 LoopSpec。' }}</p><el-button v-if="store.tasks.length" plain @click="resetFilters">清除筛选</el-button><el-button v-else type="primary" @click="router.push('/designer')">开始设计</el-button></div></section>
+      <div v-if="store.taskNextCursor" class="load-more-row"><el-button plain :loading="store.loading" @click="reloadTasks(true)">加载更多</el-button></div>
+      <section v-if="!store.loading && !visibleTasks.length" class="card empty-state"><div><Icon icon="lucide:search-x" width="30" aria-hidden="true" /><strong>{{ store.tasks.length ? '没有匹配的任务' : '还没有任务' }}</strong><p>{{ store.tasks.length ? '调整搜索或筛选条件，归档任务可从“已归档”中恢复。' : '项目已就绪，可以让 Designer 生成第一份 LoopSpec。' }}</p><el-button v-if="store.tasks.length" plain @click="resetFilters">清除筛选</el-button><el-button v-else type="primary" @click="router.push('/designer')">开始设计</el-button></div></section>
     </template>
   </main>
 </template>
@@ -235,6 +277,7 @@ async function confirmDelete(task: Task) {
 .onboarding-icon { display: grid; width: 52px; height: 52px; place-items: center; border: 1px solid rgb(34 211 238 / 28%); border-radius: 14px; color: var(--color-accent-cyan); background: rgb(34 211 238 / 8%); }.onboarding-icon svg { width: 24px; height: 24px; }.onboarding-card h2 { margin: 3px 0 7px; font-size: 19px; text-wrap: balance; }.onboarding-card p:last-child { max-width: 680px; margin: 0; color: var(--color-text-secondary); font-size: 12px; line-height: 1.65; }
 .task-filter-stack { display: grid; min-width: 0; flex: 1; gap: 10px; }.task-filters { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }.task-query-row { display: flex; min-width: 0; align-items: center; flex-wrap: wrap; gap: 9px; }.task-search { width: min(320px, 100%); }.project-filter { width: 175px; }.archive-filter { width: 150px; }.time-sort { width: 155px; }
 .task-groups { display: grid; gap: 16px; }.task-group { min-width: 0; }.task-group-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 2px 8px; }.task-group-header > div { display: flex; min-width: 0; align-items: center; gap: 8px; }.task-group-header svg { color: var(--color-accent-cyan); }.task-group-header h2 { margin: 0; overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }.task-group-header span { color: var(--color-text-tertiary); font-size: 10px; }
+.load-more-row { display: flex; justify-content: center; padding: 16px 0 2px; }
 .task-link { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.task-branch { margin: 5px 0 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.numeric { font-variant-numeric: tabular-nums; }.design-history-link { display: inline-flex; align-items: center; gap: 5px; padding: 5px 8px; border: 1px solid var(--color-border-default); border-radius: 6px; color: var(--color-text-secondary); font-size: 10px; text-decoration: none; }.design-history-link:hover, .design-history-link:focus-visible { border-color: var(--color-accent-cyan); color: var(--color-accent-cyan); outline: none; }.row-actions { display: flex; justify-content: flex-end; gap: 4px; }.icon-action { display: inline-grid; width: 30px; height: 30px; padding: 0; place-items: center; border: 0; border-radius: 7px; background: transparent; color: var(--color-text-secondary); cursor: pointer; text-decoration: none; }.icon-action:hover, .icon-action:focus-visible { background: rgb(34 211 238 / 9%); color: var(--color-accent-cyan); outline: 2px solid transparent; }.icon-action.danger:hover, .icon-action.danger:focus-visible { background: rgb(239 68 68 / 10%); color: var(--color-task-danger); }.icon-action:focus-visible { outline-color: var(--color-accent-cyan); outline-offset: 1px; }.icon-action.danger:focus-visible { outline-color: var(--color-task-danger); }.icon-action:disabled { cursor: wait; opacity: .55; }.spin { animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 980px) { .task-toolbar { align-items: flex-start; flex-direction: column; }.onboarding-card { grid-template-columns: auto minmax(0, 1fr); }.onboarding-card > :last-child { grid-column: 2; justify-self: start; } }

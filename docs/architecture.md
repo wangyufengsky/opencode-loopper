@@ -50,6 +50,41 @@ one Session but cannot be the only index, and a temporary API failure must not
 erase that pointer. Confirmation removes the draft from this recovery list at
 the same boundary where the persisted Task becomes discoverable.
 
+## Read models and bounded responses
+
+SQLite remains the authoritative store and runs in WAL mode. Query-facing APIs
+use dedicated read-only services and mappers instead of rebuilding list and
+detail responses through lifecycle services. `CursorPage<T>` uses an opaque
+timestamp-and-ID keyset cursor; list endpoints default to 50 rows and reject
+limits above 100, so equal timestamps do not create duplicates or gaps.
+
+`GET /api/tasks/summaries` contains only list columns and facets. Task detail
+loads `/overview` first, then `/audit`; verification evidence, error evidence,
+Judge raw output, and artifact content are task-scoped lazy endpoints. The audit
+projection joins Attempts to Sessions and unions error/Judge/artifact metadata,
+so its three database queries are independent of the number of Attempts. Large
+`spec_json`, `evidence_json.output`, `raw_output`, and artifact `content` columns
+never enter summary, overview, or audit responses.
+
+Designer history uses a window function to select the latest Session per draft,
+and project counters use grouped CTEs instead of per-project lookups. Projects,
+insights, templates and automation runs are assembled in bounded batch queries.
+V33 adds keyset and child-lookup indexes for Tasks, Designer Sessions, Attempts,
+execution Sessions and automation runs. Project Git inspection is outside
+SQLite, cached for five seconds, and refreshed through at most four workers.
+Runtime data is requested only on its own route; SSE invalidates overview and
+audit independently with a short coalescing window. JSON/text responses above
+2 KiB are compressed, Inbox responses use shallow ETags, and read-model metrics
+use only fixed projection names as tags.
+
+V34 persists one optional `designer_auto_mode` row per Designer Session. Missing
+historical rows project as `DISABLED`. The independent lifecycle uses optimistic
+locking and records enable, disable, block, and completion transitions. The
+750 ms Designer monitor invokes the auto coordinator only after polling current
+read-only handoffs; each Session is process-deduplicated and advances at most one
+existing authority boundary per tick. Confirmed drafts and already-started Tasks
+are reused so restart recovery cannot duplicate a Task or execution request.
+
 ## Authoritative lifecycle state machines
 
 Persisted business lifecycles use the project-local `FiniteStateMachine` rather
@@ -62,7 +97,8 @@ mapper mutation.
 `LifecycleTransitionService` commits the optimistic state mutation and its
 `state_transition_event` audit row in the same SQLite transaction. Task child
 machines share the Task scope, Designer/Draft/ProjectConvention share the
-Project scope, and workspace/automation records use their stable fingerprints
+Project scope, Designer auto mode uses its Designer Session scope, and
+workspace/automation records use their stable fingerprints
 or rule ids. Audit metadata is bounded and must not contain prompts, tokens,
 permission payloads, content, or filesystem paths.
 
@@ -627,10 +663,11 @@ by the filesystem and fail closed on an observed mismatch.
 The single-action “创建合并请求” button opens its confirmation dialog directly,
 then opens a prefilled GitLab/GitHub creation page; the hosting
 service still owns the final merge-request confirmation and merge. HTTP/HTTPS
-Git remotes retain their explicit Web scheme. For SSH remotes, HTTPS remains
-the default unless the exact host appears in `loopper.publication.http-web-hosts`;
-the release startup scripts add `gitlab.spdb.com` so its MR page uses HTTP without
-changing the SSH transport used for push.
+Git remotes retain their explicit Web scheme unless their exact host appears in
+`loopper.publication.http-web-hosts`; a matched host always uses HTTP even when
+the remote explicitly says HTTPS. SSH remotes otherwise default to HTTPS. The
+release startup scripts add `gitlab.spdb.com`; this changes only the generated
+MR/PR Web address and never rewrites the remote or push transport.
 
 Execution-cycle result, user-confirmed Task finality, and delivery are separate
 state axes. V32 stores cycle results and immutable workspace checkpoints.
@@ -638,7 +675,10 @@ state axes. V32 stores cycle results and immutable workspace checkpoints.
 the Task to `COMPLETED`, an inherited/rework successor advances the parent to
 `SUPERSEDED`, and explicit cancellation advances it to `CANCELLED`. Historical
 `SUCCEEDED`/`FAILED` rows remain readable legacy terminals and are never silently
-reopened. V20 independently stores `TaskPublicationState` and its evidence in
+reopened. A successful `COMPLETED` Task keeps any still-applicable publication
+actions, including creating an MR/PR after push, until the independent delivery
+axis reaches its immutable merged result. V20 independently stores
+`TaskPublicationState` and its evidence in
 `task_publication`. Startup resumes `CAPTURING` and `RESTORING` checkpoint sagas
 idempotently. A private ref written before a crash is reused rather than replaced
 by a clean tree; an already materialized workspace is accepted only when its

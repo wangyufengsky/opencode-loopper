@@ -20,6 +20,32 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 afterEach(() => vi.unstubAllGlobals())
 
 describe('Loopper REST contract adapter', () => {
+  it('authorizes Designer auto mode only through the local UI header and normalizes its state', async () => {
+    const session = {
+      id: 'designer-1', projectId: 'project-1', state: 'RUNNING', workflowPhase: 'DISCUSSING_REQUIREMENT',
+      activeActor: 'DESIGNER', discussionScope: 'REQUIREMENT', discussionRevision: 0,
+      finalConfirmationEligible: false, messages: [],
+      autoMode: { enabled: true, state: 'ACTIVE', version: 2, lastAction: 'MODE_ENABLED' },
+    }
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json(session, 201))
+      .mockResolvedValueOnce(json({ enabled: false, state: 'DISABLED', version: 3, lastAction: 'MODE_DISABLED' }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(api.createDesignerSession('project-1', 'draft-1', 'goal', true))
+      .resolves.toMatchObject({ autoMode: { enabled: true, state: 'ACTIVE', version: 2 } })
+    await expect(api.updateDesignerAutoMode('designer-1', false, 2))
+      .resolves.toMatchObject({ enabled: false, state: 'DISABLED', version: 3 })
+
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
+      method: 'POST', headers: expect.objectContaining({ 'X-Loopper-Local-UI': '1' }),
+    })
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({ autoModeEnabled: true })
+    expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({
+      method: 'PUT', headers: expect.objectContaining({ 'X-Loopper-Local-UI': '1' }),
+    })
+  })
+
   it('streams normalized Designer partial output and connection state', () => {
     class FakeEventSource {
       static latest?: FakeEventSource
@@ -590,7 +616,7 @@ describe('Loopper REST contract adapter', () => {
         id: 'designer-1', projectId: 'project-1', state: 'RUNNING', accessMode: 'READ_ONLY', readOnly: true,
         updatedAt: 'now', messages: [{ id: 'user-1', role: 'USER', content: 'plan', deliveryState: 'PERSISTED', createdAt: 'now' }],
         pendingQuestions: [{ id: 'question-1', questions: [{ question: 'Which scope?', header: 'Scope', options: [{ label: 'New chain', description: 'Add it' }], multiple: false, custom: false }] }],
-        answeredQuestions: [{ id: 'question-0', scope: 'REQUIREMENT', discussionRevision: 1, answeredAt: 'earlier', questions: [{ question: 'Keep scope?', header: 'Scope', options: [{ label: 'Keep', description: 'No expansion' }], multiple: false, custom: false, answers: ['Keep'] }] }],
+        answeredQuestions: [{ id: 'question-0', scope: 'REQUIREMENT', discussionRevision: 1, designMessageId: 'design-1', answeredAt: 'earlier', questions: [{ question: 'Keep scope?', header: 'Scope', options: [{ label: 'Keep', description: 'No expansion' }], multiple: false, custom: false, answers: ['Keep'] }] }],
       }))
       .mockResolvedValueOnce(json({
         sessionId: 'designer-1', state: 'SESSION_ERROR', notice: 'retry with a fresh session',
@@ -602,7 +628,7 @@ describe('Loopper REST contract adapter', () => {
 
     await expect(api.getDesignerSession('designer-1')).resolves.toMatchObject({
       state: 'RUNNING', updatedAt: 'now', pendingQuestions: [{ id: 'question-1', questions: [{ custom: false }] }],
-      answeredQuestions: [{ id: 'question-0', questions: [{ answers: ['Keep'], options: [{ label: 'Keep', description: 'No expansion' }] }] }],
+      answeredQuestions: [{ id: 'question-0', designMessageId: 'design-1', questions: [{ answers: ['Keep'], options: [{ label: 'Keep', description: 'No expansion' }] }] }],
     })
     await expect(api.sendDesignerMessage('designer-1', 'continue')).resolves.toMatchObject({
       state: 'SESSION_ERROR', persistedMessages: [{ deliveryState: 'SESSION_ERROR' }],
@@ -634,14 +660,14 @@ describe('Loopper REST contract adapter', () => {
       .mockResolvedValueOnce(json([{
         id: 'designer-1', projectId: 'project one', projectName: 'Example', state: 'WAITING_INPUT', workflowPhase: 'FAILED',
         createdAt: 'created', updatedAt: 'updated', draftId: 'draft-1', draftStatus: 'DRAFT_READY', goal: 'Resume me',
-        requirementRevision: 2, activeWorkPackageId: 'WP-2', archived: false,
+        requirementRevision: 2, activeWorkPackageId: 'WP-2', archived: false, taskId: 'task-1', taskState: 'COMPLETED',
       }]))
       .mockResolvedValueOnce(new Response(null, { status: 204 }))
       .mockResolvedValueOnce(new Response(null, { status: 204 }))
     vi.stubGlobal('fetch', fetchMock)
 
     await expect(api.listDesignerHistory('project one')).resolves.toEqual([expect.objectContaining({
-      id: 'designer-1', projectName: 'Example', archived: false, createdAt: 'created',
+      id: 'designer-1', projectName: 'Example', archived: false, createdAt: 'created', taskId: 'task-1', taskState: 'COMPLETED',
     })])
     await expect(api.archiveDesignerSession('designer-1')).resolves.toBeUndefined()
     await expect(api.restoreDesignerSession('designer-1')).resolves.toBeUndefined()

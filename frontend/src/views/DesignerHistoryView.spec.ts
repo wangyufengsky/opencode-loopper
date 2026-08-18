@@ -58,12 +58,10 @@ describe('DesignerHistoryView', () => {
     routeQuery.projectId = 'project-1'
     routeQuery.status = 'WAITING_INPUT'
     routeQuery.order = 'oldest'
-    vi.spyOn(api, 'listDesignerHistory').mockResolvedValue([
-      design({ id: 'newer', goal: '较新的等待设计', updatedAt: '2026-08-17T03:00:00Z' }),
+    const page = vi.spyOn(api, 'listDesignerHistoryPage').mockResolvedValue({ items: [
       design({ id: 'older', goal: '较早的等待设计', updatedAt: '2026-08-17T01:00:00Z' }),
-      design({ id: 'review', goal: '待确认设计', state: 'REVIEWING', workflowPhase: 'REVIEWING_PACKAGE' }),
-      design({ id: 'other-project', projectId: 'project-2', projectName: 'Beta', goal: '其他项目' }),
-    ])
+      design({ id: 'newer', goal: '较新的等待设计', updatedAt: '2026-08-17T03:00:00Z' }),
+    ], facets: {} })
 
     const wrapper = mountHistory()
     await flushPromises()
@@ -73,11 +71,12 @@ describe('DesignerHistoryView', () => {
     expect(wrapper.find('[aria-label="按项目筛选设计"]').exists()).toBe(true)
     expect(wrapper.find('[aria-label="按状态筛选设计"]').exists()).toBe(true)
     expect(wrapper.find('[aria-label="按更新时间排序设计"]').exists()).toBe(true)
+    expect(page).toHaveBeenCalledWith(expect.objectContaining({ projectId: 'project-1', status: 'WAITING_INPUT', order: 'oldest' }))
   })
 
   it('opens continue and edit modes and archives without losing the server record', async () => {
     const item = design({ id: 'designer-actions', goal: '可操作设计' })
-    vi.spyOn(api, 'listDesignerHistory').mockResolvedValue([item])
+    vi.spyOn(api, 'listDesignerHistoryPage').mockResolvedValue({ items: [item], facets: {} })
     const archive = vi.spyOn(api, 'archiveDesignerSession').mockResolvedValue()
     sessionStorage.setItem('opencode-loopper.designer-workspace', JSON.stringify({ sessionId: item.id, draftId: item.draftId }))
 
@@ -95,5 +94,27 @@ describe('DesignerHistoryView', () => {
     expect(archive).toHaveBeenCalledWith(item.id)
     expect(sessionStorage.getItem('opencode-loopper.designer-workspace')).toBeNull()
     expect(wrapper.find('.history-card:not(.skeleton-block)').exists()).toBe(false)
+  })
+
+  it('shows confirmed task designs as read-only history without continue, edit, or archive actions', async () => {
+    vi.spyOn(api, 'listDesignerHistoryPage').mockResolvedValue({ items: [
+      design({
+        id: 'designer-confirmed', goal: '已完成任务的设计', state: 'COMPLETED', workflowPhase: 'COMPLETED',
+        draftStatus: 'CONFIRMED', taskId: 'task-completed', taskState: 'COMPLETED',
+      }),
+    ], facets: {} })
+
+    const wrapper = mountHistory()
+    await flushPromises()
+
+    const card = wrapper.get('.history-card:not(.skeleton-block)')
+    expect(card.text()).toContain('已确认成任务')
+    expect(card.text()).toContain('任务：已确认完成')
+    expect(card.text()).not.toContain('继续')
+    expect(card.text()).not.toContain('修改')
+    expect(card.text()).not.toContain('归档')
+
+    await card.get('button').trigger('click')
+    expect(routerPush).toHaveBeenCalledWith('/tasks/task-completed/design')
   })
 })

@@ -110,7 +110,13 @@ class TaskPublicationServiceIntegrationTest {
         TaskPublicationService.MergeRequestDraft explicitHttpsMergeRequest = publication.mergeRequestDraft(
                 task.id(), "main", pushed.commitMessage(), "任务已通过 Loopper 验收");
         assertThat(explicitHttpsMergeRequest.creationUrl())
-                .startsWith("https://gitlab.spdb.com/group/project/-/merge_requests/new?");
+                .startsWith("http://gitlab.spdb.com/group/project/-/merge_requests/new?");
+
+        run(Path.of(task.worktreePath()), "git", "remote", "set-url", "origin", "https://gitlab.example/group/project.git");
+        TaskPublicationService.MergeRequestDraft externalHttpsMergeRequest = publication.mergeRequestDraft(
+                task.id(), "main", pushed.commitMessage(), "任务已通过 Loopper 验收");
+        assertThat(externalHttpsMergeRequest.creationUrl())
+                .startsWith("https://gitlab.example/group/project/-/merge_requests/new?");
 
         var publicationVersion = mapper.findTaskPublication(task.id()).orElseThrow();
         assertThat(mapper.updateTaskPublication(publicationVersion)).isEqualTo(1);
@@ -167,9 +173,13 @@ class TaskPublicationServiceIntegrationTest {
     void reconcilesOpenedThenMergedAndNeverRegressesAfterTheRemoteBranchDisappears() throws Exception {
         Repository fixture = repositoryWithRemote();
         ProjectRow project = projects.create("merge-reconciliation", fixture.project().toString());
-        TaskRow task = succeededTask(project);
+        TaskRow task = readyTask(project);
         Files.writeString(Path.of(task.worktreePath()).resolve("feature.txt"), "merged change\n");
+        assertThat(tasks.verify(task.id()).state()).isEqualTo("JUDGING");
+        tasks.pollJudges(task.id());
+        assertThat(tasks.get(task.id()).state()).isEqualTo("AWAITING_DECISION");
         TaskPublicationService.PublicationStatus pushed = publication.commitAndPush(task.id(), "#3032_验证合并状态核对");
+        assertThat(tasks.get(task.id()).state()).isEqualTo("COMPLETED");
 
         AtomicReference<String> mrState = new AtomicReference<>("opened");
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);

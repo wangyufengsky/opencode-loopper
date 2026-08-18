@@ -4,6 +4,7 @@ public enum LifecycleMachineType implements DescribedEnum {
     TASK("任务状态机"), STAGE("阶段状态机"), ATTEMPT("执行尝试状态机"),
     EXECUTION_SESSION("执行会话状态机"), JUDGE_RUN("评审运行状态机"),
     LOOP_DRAFT("流程草稿状态机"), DESIGNER_SESSION("设计会话状态机"),
+    DESIGNER_AUTO_MODE("设计全自动模式状态机"),
     LOOPSPEC_COMPILATION("LoopSpec 编译状态机"),
     DESIGN_REQUIREMENT_REVISION("设计需求版本状态机"), TASK_DECOMPOSITION("任务拆解状态机"),
     DESIGN_WORK_PACKAGE("设计工作包状态机"),

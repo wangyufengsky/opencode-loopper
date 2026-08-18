@@ -270,7 +270,7 @@ function normalizeAttempt(value: unknown): Attempt {
     // UI domain calls the rendered list `verifiers`.
     verifiers: verifications.map((verifier) => {
       const item = asRecord(verifier)
-      const evidence = item.evidence
+      const evidence = item.evidence ?? item.evidenceSummary
       const evidenceRecord = asRecord(evidence)
       return {
         id: asString(item.id), name: asString(item.name) || asString(item.type),
@@ -331,8 +331,87 @@ function normalizeArtifact(value: unknown, taskId: string): Artifact {
     contentType: asString(raw.contentType) || undefined,
     attemptId: asString(raw.attemptId) || undefined,
     judgeRunId: asString(raw.judgeRunId) || undefined,
-    metadata: asRecord(raw.metadata),
+    metadata: asRecord(raw.metadata ?? raw.metadataSummary),
   }
+}
+
+export interface CursorPage<T> {
+  items: T[]
+  nextCursor?: string
+  facets: Record<string, number>
+}
+
+export interface TaskSummaryQuery {
+  projectId?: string
+  status?: string[]
+  archive?: 'ACTIVE' | 'ARCHIVED' | 'ALL'
+  q?: string
+  order?: 'newest' | 'oldest'
+  cursor?: string
+  limit?: number
+}
+
+export interface DesignerHistoryQuery {
+  projectId?: string
+  status?: string
+  archive?: 'ACTIVE' | 'ARCHIVED' | 'ALL'
+  q?: string
+  order?: 'newest' | 'oldest'
+  cursor?: string
+  limit?: number
+}
+
+function pageQuery(input: TaskSummaryQuery): string {
+  const query = new URLSearchParams()
+  if (input.projectId) query.set('projectId', input.projectId)
+  input.status?.forEach((status) => query.append('status', status))
+  if (input.archive) query.set('archive', input.archive)
+  if (input.q) query.set('q', input.q)
+  if (input.order) query.set('order', input.order)
+  if (input.cursor) query.set('cursor', input.cursor)
+  if (input.limit) query.set('limit', String(input.limit))
+  const encoded = query.toString()
+  return encoded ? `?${encoded}` : ''
+}
+
+function normalizeTaskPage(value: unknown): CursorPage<Task> {
+  const raw = asRecord(value)
+  const facets = asRecord(raw.facets)
+  return {
+    items: asArray(raw.items).map(normalizeTask),
+    nextCursor: asString(raw.nextCursor) || undefined,
+    facets: Object.fromEntries(Object.entries(facets).map(([key, count]) => [key, asNumber(count)])),
+  }
+}
+
+function normalizeDesignerHistoryPage(value: unknown): CursorPage<DesignerHistoryItem> {
+  const raw = asRecord(value)
+  return { items: asArray(raw.items).map(normalizeDesignerHistoryItem),
+    nextCursor: asString(raw.nextCursor) || undefined, facets: {} }
+}
+
+function normalizeTaskAudit(value: unknown, taskId: string): Pick<Task, 'attempts' | 'errors' | 'judges' | 'artifacts'> {
+  const raw = asRecord(value)
+  return {
+    attempts: asArray(raw.attempts).map(normalizeAttempt),
+    errors: asArray(raw.errors).map(normalizeError),
+    judges: asArray(raw.judges).map(normalizeJudge),
+    artifacts: asArray(raw.artifacts).map((artifact) => normalizeArtifact(artifact, taskId)),
+  }
+}
+
+export interface ReadContent {
+  id: string
+  kind: string
+  contentType?: string
+  content: string
+  metadata: Record<string, unknown>
+}
+
+function normalizeReadContent(value: unknown): ReadContent {
+  const raw = asRecord(value)
+  return { id: asString(raw.id), kind: asString(raw.kind), contentType: asString(raw.contentType) || undefined,
+    content: asString(raw.content), metadata: asRecord(raw.metadata) }
 }
 
 function normalizeTask(value: unknown): Task {
@@ -446,6 +525,7 @@ function normalizeDesignerAnsweredQuestion(value: unknown): DesignerAnsweredQues
     id: pending.id,
     scope: pending.scope,
     discussionRevision: pending.discussionRevision,
+    designMessageId: asString(raw.designMessageId) || undefined,
     answeredAt: asString(raw.answeredAt) || undefined,
     questions: pending.questions.map((question, index) => ({
       ...question,
@@ -627,6 +707,8 @@ function normalizeDesignerState(value: unknown): DesignerSessionState {
 
 function normalizeDesignerSession(value: unknown): DesignerSession {
   const raw = asRecord(value)
+  const autoMode = asRecord(raw.autoMode)
+  const autoModeState = asString(autoMode.state)
   return {
     id: asString(raw.id),
     projectId: asString(raw.projectId),
@@ -670,6 +752,17 @@ function normalizeDesignerSession(value: unknown): DesignerSession {
     discussionRevision: asNumber(raw.discussionRevision),
     candidate: raw.candidate ? (() => { const item = asRecord(raw.candidate); const state = asString(item.syncState); return { syncState: (['NONE', 'SYNCING', 'SYNCED', 'FAILED'].includes(state) ? state : 'NONE') as NonNullable<DesignerSession['candidate']>['syncState'], discussionRevision: asNumber(item.discussionRevision), workPackageId: asString(item.workPackageId) || undefined, spec: item.spec ? parseLoopSpec(item.spec) : undefined, detail: asString(item.detail) || undefined } })() : undefined,
     finalConfirmationEligible: raw.finalConfirmationEligible === true,
+    autoMode: {
+      enabled: autoMode.enabled === true,
+      state: (['DISABLED', 'ACTIVE', 'BLOCKED', 'COMPLETED'].includes(autoModeState)
+        ? autoModeState : 'DISABLED') as DesignerSession['autoMode']['state'],
+      version: asNumber(autoMode.version),
+      lastAction: asString(autoMode.lastAction) || undefined,
+      errorCode: asString(autoMode.errorCode) || undefined,
+      errorDetail: asString(autoMode.errorDetail) || undefined,
+      taskId: asString(autoMode.taskId) || undefined,
+      updatedAt: asString(autoMode.updatedAt) || undefined,
+    },
   }
 }
 
@@ -697,6 +790,8 @@ function normalizeDesignerHistoryItem(value: unknown): DesignerHistoryItem {
     createdAt: asString(raw.createdAt),
     archived: raw.archived === true,
     archivedAt: asString(raw.archivedAt) || undefined,
+    taskId: asString(raw.taskId) || undefined,
+    taskState: asString(raw.taskState) || undefined,
   }
 }
 
@@ -706,7 +801,7 @@ function normalizeDesignerStreamEvent(value: unknown): DesignerStreamEvent {
   return {
     sequence: asNumber(raw.sequence),
     sessionId: asString(raw.sessionId),
-    type: ['SNAPSHOT', 'STATUS', 'PARTIAL', 'COMPLETED', 'ERROR'].includes(type) ? type as DesignerStreamEvent['type'] : 'STATUS',
+    type: ['SNAPSHOT', 'STATUS', 'PARTIAL', 'COMPLETED', 'ERROR', 'AUTO_MODE'].includes(type) ? type as DesignerStreamEvent['type'] : 'STATUS',
     state: normalizeDesignerState(raw.state),
     workflowPhase: normalizeWorkflowPhase(raw.workflowPhase),
     activeActor: normalizeDesignerActor(raw.activeActor),
@@ -1137,7 +1232,7 @@ function normalizeInsights(value: unknown): InsightsSnapshot {
 }
 
 export const api = {
-  getProjects: async () => (await request<unknown[]>('/projects')).map(normalizeProject),
+  getProjects: async (refresh = false) => (await request<unknown[]>(`/projects/summaries${refresh ? '?refresh=true' : ''}`)).map(normalizeProject),
   pickProjectDirectory: async (): Promise<DirectorySelection> => {
     const raw = asRecord(await request<unknown>('/projects/pick-directory', { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } }))
     return { selected: raw.selected === true, path: asString(raw.path) || undefined, name: asString(raw.name) || undefined }
@@ -1150,6 +1245,13 @@ export const api = {
   applyProjectConvention: async (projectId: string, draftId: string) => normalizeProjectConvention(await request<unknown>(`/projects/${encodeURIComponent(projectId)}/agents-md/${encodeURIComponent(draftId)}`, { method: 'PUT', headers: { 'X-Loopper-Local-UI': '1' } })),
   getTasks: async () => (await request<unknown[]>('/tasks')).map(normalizeTask),
   getTask: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}`)),
+  getTaskSummaries: async (input: TaskSummaryQuery = {}) => normalizeTaskPage(await request<unknown>(`/tasks/summaries${pageQuery(input)}`)),
+  getTaskOverview: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}/overview`)),
+  getTaskAudit: async (id: string) => normalizeTaskAudit(await request<unknown>(`/tasks/${encodeURIComponent(id)}/audit`), id),
+  getVerificationEvidence: async (taskId: string, id: string) => normalizeReadContent(await request<unknown>(`/tasks/${encodeURIComponent(taskId)}/verifications/${encodeURIComponent(id)}/evidence`)),
+  getErrorEvidence: async (taskId: string, id: string) => normalizeReadContent(await request<unknown>(`/tasks/${encodeURIComponent(taskId)}/errors/${encodeURIComponent(id)}/evidence`)),
+  getJudgeOutput: async (taskId: string, id: string) => normalizeReadContent(await request<unknown>(`/tasks/${encodeURIComponent(taskId)}/judges/${encodeURIComponent(id)}/output`)),
+  getArtifactContent: async (taskId: string, id: string) => normalizeReadContent(await request<unknown>(`/tasks/${encodeURIComponent(taskId)}/artifacts/${encodeURIComponent(id)}/content`)),
   getTaskQueue: async (id: string) => normalizeTaskQueueStatus(await request<unknown>(`/tasks/${encodeURIComponent(id)}/queue`)),
   reconcileTaskQueue: async (id: string) => normalizeTaskQueueStatus(await request<unknown>(`/tasks/${encodeURIComponent(id)}/queue/reconcile`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } })),
   getDirtyWorkspace: async (id: string) => normalizeDirtyWorkspace(await request<unknown>(`/tasks/${encodeURIComponent(id)}/workspace-dirty`)),
@@ -1175,6 +1277,11 @@ export const api = {
   revertTaskSession: async (taskId: string, sessionId: string, messageId: string, partId: string) => request<SessionRevertResult>(`/tasks/${encodeURIComponent(taskId)}/sessions/${encodeURIComponent(sessionId)}/revert`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify({ messageId, partId }) }),
   summarizeTaskSession: async (taskId: string, sessionId: string, automatic = false) => request<SessionSummaryResult>(`/tasks/${encodeURIComponent(taskId)}/sessions/${encodeURIComponent(sessionId)}/summarize`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify({ automatic }) }),
   getInsights: async () => normalizeInsights(await request<unknown>('/insights')),
+  getInsightsPage: async (cursor?: string) => {
+    const raw = asRecord(await request<unknown>(`/insights/page${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`))
+    return { tasks: asArray(raw.items).length ? asArray(raw.items).map(normalizeTaskInsight) : asArray(raw.tasks).map(normalizeTaskInsight), usage: normalizeUsageAggregate(raw.usage),
+      generatedAt: asString(raw.generatedAt), nextCursor: asString(raw.nextCursor) || undefined }
+  },
   getInteractions: async () => (await request<unknown[]>('/interactions')).map(normalizeInteraction),
   resolveInteraction: async (id: string, input: { action: InteractionAction; version: number; answers?: string[][]; message?: string }) => normalizeInteraction(await request<unknown>(`/interactions/${encodeURIComponent(id)}/resolve`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(input) })),
   getLoopSpecTemplates: async () => (await request<unknown[]>('/automations/templates')).map(normalizeTemplate),
@@ -1192,6 +1299,12 @@ export const api = {
   },
   exportLoopSpecTemplate: async () => JSON.stringify(await request<unknown>('/automations/templates/export'), null, 2),
   getAutomationRules: async () => (await request<unknown[]>('/automations/rules')).map(normalizeAutomationRule),
+  getAutomationWorkspace: async () => {
+    const raw = asRecord(await request<unknown>('/automations/workspace'))
+    return { templates: asArray(raw.templates).map(normalizeTemplate),
+      rules: asArray(raw.rules).map(normalizeAutomationRule), runs: asArray(raw.runs).map(normalizeAutomationRun),
+      serverTime: requiredString(raw, 'serverTime', 'AutomationWorkspace') }
+  },
   createAutomationRule: async (input: CreateAutomationRuleInput) => normalizeAutomationRuleMutation(await request<unknown>('/automations/rules', { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(backendCreateAutomationRule(input)) })),
   updateAutomationRule: async (input: AutomationRule) => normalizeAutomationRule(await request<unknown>(`/automations/rules/${encodeURIComponent(input.id)}`, { method: 'PUT', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(backendAutomationRule(input)) })),
   triggerAutomationRule: async (ruleId: string) => normalizeAutomationRun(await request<unknown>(`/automations/rules/${encodeURIComponent(ruleId)}/trigger`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } })),
@@ -1235,12 +1348,35 @@ export const api = {
   getDraft: async (id: string) => normalizeDraft(await request<unknown>(`/loop-drafts/${encodeURIComponent(id)}`)),
   updateDraft: async (id: string, spec: LoopDraft['spec']) => normalizeDraft(await request<unknown>(`/loop-drafts/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify({ spec: backendLoopSpec(spec) }) })),
   confirmDraft: async (id: string) => { const task = asRecord(await request<unknown>(`/loop-drafts/${encodeURIComponent(id)}/confirm`, { method: 'POST' })); return { taskId: asString(task.taskId) } },
-  createDesignerSession: async (projectId: string, draftId: string, initialMessage?: string) => normalizeDesignerSession(await request<unknown>('/designer-sessions', { method: 'POST', body: JSON.stringify({ projectId, draftId, ...(initialMessage ? { initialMessage } : {}) }) })),
+  createDesignerSession: async (projectId: string, draftId: string, initialMessage?: string, autoModeEnabled = false) => normalizeDesignerSession(await request<unknown>('/designer-sessions', { method: 'POST', headers: autoModeEnabled ? { 'X-Loopper-Local-UI': '1' } : undefined, body: JSON.stringify({ projectId, draftId, ...(initialMessage ? { initialMessage } : {}), autoModeEnabled }) })),
   listOpenDesignerSessions: async (projectId: string) => (await request<unknown[]>(`/designer-sessions?projectId=${encodeURIComponent(projectId)}`)).map(normalizeDesignerSessionSummary),
   listDesignerHistory: async (projectId?: string) => (await request<unknown[]>(`/designer-sessions/history${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`)).map(normalizeDesignerHistoryItem),
+  listDesignerHistoryPage: async (input: DesignerHistoryQuery = {}) => {
+    const query = new URLSearchParams()
+    if (input.projectId) query.set('projectId', input.projectId)
+    if (input.status) query.set('status', input.status)
+    if (input.archive) query.set('archive', input.archive)
+    if (input.q) query.set('q', input.q)
+    if (input.order) query.set('order', input.order)
+    if (input.cursor) query.set('cursor', input.cursor)
+    if (input.limit) query.set('limit', String(input.limit))
+    const encoded = query.toString()
+    return normalizeDesignerHistoryPage(await request<unknown>(`/designer-sessions/history-page${encoded ? `?${encoded}` : ''}`))
+  },
   archiveDesignerSession: async (id: string) => request<void>(`/designer-sessions/${encodeURIComponent(id)}/archive`, { method: 'PUT', headers: { 'X-Loopper-Local-UI': '1' } }),
   restoreDesignerSession: async (id: string) => request<void>(`/designer-sessions/${encodeURIComponent(id)}/archive`, { method: 'DELETE', headers: { 'X-Loopper-Local-UI': '1' } }),
   getDesignerSession: async (id: string) => normalizeDesignerSession(await request<unknown>(`/designer-sessions/${encodeURIComponent(id)}`)),
+  updateDesignerAutoMode: async (id: string, enabled: boolean, expectedVersion: number) => {
+    const updated = asRecord(await request<unknown>(`/designer-sessions/${encodeURIComponent(id)}/auto-mode`, { method: 'PUT', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify({ enabled, expectedVersion }) }))
+    const state = asString(updated.state)
+    return {
+      enabled: updated.enabled === true,
+      state: (['DISABLED', 'ACTIVE', 'BLOCKED', 'COMPLETED'].includes(state) ? state : 'DISABLED') as DesignerSession['autoMode']['state'],
+      version: asNumber(updated.version), lastAction: asString(updated.lastAction) || undefined,
+      errorCode: asString(updated.errorCode) || undefined, errorDetail: asString(updated.errorDetail) || undefined,
+      taskId: asString(updated.taskId) || undefined, updatedAt: asString(updated.updatedAt) || undefined,
+    }
+  },
   getDesignerMessages: async (id: string) => (await request<unknown[]>(`/designer-sessions/${encodeURIComponent(id)}/messages`)).map(normalizeDesignerMessage),
   replyDesignerQuestion: async (id: string, questionId: string, answers: string[][]) => request<void>(`/designer-sessions/${encodeURIComponent(id)}/questions/${encodeURIComponent(questionId)}/reply`, { method: 'POST', body: JSON.stringify({ answers }) }),
   rejectDesignerQuestion: async (id: string, questionId: string) => request<void>(`/designer-sessions/${encodeURIComponent(id)}/questions/${encodeURIComponent(questionId)}/reject`, { method: 'POST' }),

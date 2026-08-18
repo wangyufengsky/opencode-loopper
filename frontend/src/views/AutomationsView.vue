@@ -36,6 +36,7 @@ type AutomationApi = {
   confirmLoopSpecTemplateImport: (previewId: string) => Promise<AutomationImportResult>
   exportLoopSpecTemplate: () => Promise<string>
   getAutomationRules: () => Promise<Rule[]>
+  getAutomationWorkspace: () => Promise<Workspace>
   createAutomationRule: (body: CreateAutomationRuleInput) => Promise<RuleMutation>
   updateAutomationRule: (rule: Rule) => Promise<Rule>
   triggerAutomationRule: (ruleId: string) => Promise<Run>
@@ -59,7 +60,7 @@ function createRuleInput(config: Record<string, unknown>): CreateAutomationRuleI
   }
   return { ...base, triggerType: 'GIT_HEAD_CHANGED', triggerConfig: typeof config.branch === 'string' ? { branch: config.branch } : {} }
 }
-async function load() { loading.value = true; error.value = ''; try { const [projectRows, templates, rules, runFeed] = await Promise.all([automation.getProjects(), automation.getLoopSpecTemplates(), automation.getAutomationRules(), automation.getAutomationRuns()]); projects.value = projectRows; workspace.value = { templates, rules, runs: runFeed.runs, serverTime: runFeed.serverTime } } catch (cause) { error.value = cause instanceof Error ? cause.message : '无法读取自动化工作台' } finally { loading.value = false } }
+async function load() { loading.value = true; error.value = ''; try { const [projectRows, snapshot] = await Promise.all([automation.getProjects(), automation.getAutomationWorkspace()]); projects.value = projectRows; workspace.value = snapshot } catch (cause) { error.value = cause instanceof Error ? cause.message : '无法读取自动化工作台' } finally { loading.value = false } }
 async function createTemplate() { if (!templateName.value.trim()) return; try { await automation.createLoopSpecTemplate({ name: templateName.value.trim(), description: templateDescription.value.trim() }); templateName.value = ''; templateDescription.value = ''; message.value = '模板已创建；版本发布后不可变。'; await load() } catch (cause) { error.value = cause instanceof Error ? cause.message : '模板创建失败' } }
 async function createVersion() { if (!versionTemplateId.value) return; try { JSON.parse(specJson.value); await automation.createLoopSpecTemplateVersion(versionTemplateId.value, { specJson: specJson.value, autoStartApproved: autoStartApproved.value }); message.value = autoStartApproved.value ? '已发布批准的不可变版本，可用于 AUTO_START。' : '已发布不可变版本，默认仍需人工审核。'; await load() } catch (cause) { error.value = cause instanceof Error ? cause.message : '版本 JSON 无法创建' } }
 async function createRule() { if (!ruleName.value.trim() || !ruleProjectId.value || !ruleVersion.value) return; try { const config = JSON.parse(triggerConfig.value) as Record<string, unknown>; const mutation = await automation.createAutomationRule(createRuleInput(config)); if (mutation.webhookToken) revealedTokens.value = { ...revealedTokens.value, [mutation.rule.id]: mutation.webhookToken }; workspace.value = workspace.value ? { ...workspace.value, rules: [mutation.rule, ...workspace.value.rules] } : workspace.value; message.value = mutation.webhookToken ? 'Webhook token 仅此一次显示，请立即保存。' : '规则已创建：服务端已强制默认停用和人工审核。' } catch (cause) { error.value = cause instanceof Error ? cause.message : '规则 JSON 无法创建' } }

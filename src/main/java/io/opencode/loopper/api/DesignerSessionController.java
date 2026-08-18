@@ -6,6 +6,7 @@ import io.opencode.loopper.persistence.DesignerSessionRow;
 import io.opencode.loopper.persistence.ProjectRow;
 import io.opencode.loopper.persistence.LoopDraftRow;
 import io.opencode.loopper.service.DesignerSessionService;
+import io.opencode.loopper.service.DesignerAutoModeService;
 import io.opencode.loopper.service.DesignerEventHub;
 import io.opencode.loopper.service.LoopDraftService;
 import jakarta.validation.Valid;
@@ -35,16 +36,23 @@ public class DesignerSessionController {
     private final DesignerSessionService service;
     private final LoopDraftService drafts;
     private final DesignerEventHub events;
+    private final DesignerAutoModeService autoMode;
 
-    public DesignerSessionController(DesignerSessionService service, LoopDraftService drafts, DesignerEventHub events) {
+    public DesignerSessionController(DesignerSessionService service, LoopDraftService drafts, DesignerEventHub events,
+                                     DesignerAutoModeService autoMode) {
         this.service = service;
         this.drafts = drafts;
         this.events = events;
+        this.autoMode = autoMode;
     }
 
     @PostMapping
-    public ResponseEntity<DesignerSessionDto> create(@Valid @RequestBody CreateDesignerSessionRequest request) {
+    public ResponseEntity<DesignerSessionDto> create(
+            @Valid @RequestBody CreateDesignerSessionRequest request,
+            @RequestHeader(value = "X-Loopper-Local-UI", required = false) String localUi) {
+        if (request.autoModeEnabled()) requireLocalUi(localUi);
         DesignerSessionRow row = service.create(request.projectId(), request.draftId(), request.initialMessage());
+        autoMode.initialize(row.id(), request.autoModeEnabled());
         return ResponseEntity.created(URI.create("/api/designer-sessions/" + row.id())).body(dto(row));
     }
 
@@ -76,6 +84,14 @@ public class DesignerSessionController {
         requireLocalUi(localUi);
         service.restoreArchive(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{id}/auto-mode")
+    public DesignerAutoModeService.View updateAutoMode(
+            @PathVariable String id, @Valid @RequestBody UpdateAutoModeRequest request,
+            @RequestHeader("X-Loopper-Local-UI") String localUi) {
+        requireLocalUi(localUi);
+        return autoMode.setEnabled(id, request.enabled(), request.expectedVersion());
     }
 
     @GetMapping(value = "/{id}/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -234,7 +250,7 @@ public class DesignerSessionController {
                 service.decompositionStatus(row.id()), service.workPackageStatuses(row.id()),
                 row.currentRequirementRevision(), row.activeWorkPackageId(), row.discussionScope(),
                 row.discussionRevision(), service.candidateStatus(row.id()),
-                service.finalConfirmationEligible(row.id()), service.archived(row.id()));
+                service.finalConfirmationEligible(row.id()), service.archived(row.id()), autoMode.get(row.id()));
     }
 
     private DesignerSessionSummaryDto summary(DesignerSessionRow row) {
@@ -247,7 +263,8 @@ public class DesignerSessionController {
     private DesignerSessionHistoryDto history(DesignerSessionHistoryRow row) {
         return new DesignerSessionHistoryDto(row.id(), row.projectId(), row.projectName(), row.state(),
                 row.workflowPhase(), row.createdAt(), row.updatedAt(), row.draftId(), row.draftStatus(), row.goal(),
-                row.requirementRevision(), row.activeWorkPackageId(), row.archived() == 1, row.archivedAt());
+                row.requirementRevision(), row.activeWorkPackageId(), row.archived() == 1, row.archivedAt(),
+                row.taskId(), row.taskState());
     }
 
     private DesignerMessageDto message(DesignerMessageRow row) {
@@ -256,7 +273,9 @@ public class DesignerSessionController {
     }
 
     public record CreateDesignerSessionRequest(@NotBlank String projectId, @NotBlank String draftId,
-                                               @Size(max = 12_000) String initialMessage) { }
+                                               @Size(max = 12_000) String initialMessage,
+                                               boolean autoModeEnabled) { }
+    public record UpdateAutoModeRequest(boolean enabled, long expectedVersion) { }
     public record AppendDesignerMessageRequest(@NotBlank @Size(max = 12_000) String content) { }
     public record ScopedDesignerMessageRequest(@NotBlank @Size(max = 12_000) String content,
                                                int expectedDiscussionRevision) { }
@@ -277,7 +296,8 @@ public class DesignerSessionController {
                                      Integer requirementRevision, String activeWorkPackageId,
                                      String discussionScope, int discussionRevision,
                                      DesignerSessionService.CandidateStatus candidate,
-                                     boolean finalConfirmationEligible, boolean archived) { }
+                                     boolean finalConfirmationEligible, boolean archived,
+                                     DesignerAutoModeService.View autoMode) { }
     public record DesignerSessionSummaryDto(String id, String projectId, String state, String workflowPhase,
                                             String updatedAt, String draftId, String draftStatus, String goal,
                                             Integer requirementRevision, String activeWorkPackageId) { }
@@ -286,7 +306,8 @@ public class DesignerSessionController {
                                             String createdAt, String updatedAt,
                                             String draftId, String draftStatus, String goal,
                                             Integer requirementRevision, String activeWorkPackageId,
-                                            boolean archived, String archivedAt) { }
+                                            boolean archived, String archivedAt,
+                                            String taskId, String taskState) { }
     public record DesignerDraftDto(String id, String status, String updatedAt,
                                    io.opencode.loopper.domain.LoopSpec spec) { }
     public record DesignerMessageDto(String id, int ordinal, String role, String actor, String content,

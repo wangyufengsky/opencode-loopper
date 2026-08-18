@@ -111,6 +111,16 @@ describe('TaskPublicationActions', () => {
     expect(document.body.textContent).toContain('develop')
   })
 
+  it('keeps the merge request action available after a successful task is confirmed completed', async () => {
+    getTaskPublication.mockResolvedValue(pushed)
+    const completed = { ...task, status: 'COMPLETED' as const, executionResult: 'SUCCEEDED' as const }
+    const wrapper = mount(TaskPublicationActions, { props: { task: completed }, global: { plugins: [ElementPlus] }, attachTo: document.body })
+    await flushPromises()
+
+    expect(getTaskPublication).toHaveBeenCalledWith('task-1')
+    expect(wrapper.text()).toContain('创建合并请求')
+  })
+
   it('shows an immutable merged result without another create action', async () => {
     getTaskPublication.mockResolvedValue({ ...pushed, state: 'MERGED', deliveryState: 'MERGED', deliveryFinal: true,
       mergeRequest: { provider: 'GITLAB', iid: 1686, url: 'http://gitlab.example/group/project/-/merge_requests/1686', state: 'merged' } })

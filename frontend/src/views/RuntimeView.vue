@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { Icon } from '@iconify/vue'
 import { ElMessage } from 'element-plus'
 import PageHeader from '@/components/PageHeader.vue'
@@ -10,6 +10,7 @@ import { formatDateTime } from '@/utils/dateTime'
 const store = useTaskStore()
 const runtime = computed(() => store.runtime)
 const startingRuntime = ref(false)
+onMounted(() => { void store.refreshRuntime() })
 
 async function startRuntime() {
   startingRuntime.value = true

@@ -147,13 +147,31 @@ The question card blocks ordinary chat until answered and offers one-click
 selection of all recommended choices. Follow-up messages repeat that process but
 do not invoke Decomposer. Only **需求已明确，开始拆包** freezes the latest complete
 snapshot and starts an independent read-only Task Decomposer Session. It selects
-exactly one `DIRECT_DESIGN` package or 2–6
-vertical business packages, with 1–3 Stages per package and at most 18 total.
-Every source requirement segment must be assigned to a global constraint or at
-least one package. Multiple project roots, more than six packages, or independent
-release boundaries produce `MULTI_TASK_REQUIRED`; the product waits for the user
-and does not create child Tasks. `NEEDS_INPUT` likewise displays an explicit new
-requirement input path.
+exactly one `DIRECT_DESIGN` package or 2–6 vertical business packages, with 1–3
+Stages per package and at most 18 total. Every source requirement segment must
+be assigned to a global constraint or at least one package. Multiple project
+roots, more than six packages, or independent release boundaries produce
+`MULTI_TASK_REQUIRED`; the product waits for the user and does not create child
+Tasks. `NEEDS_INPUT` likewise displays an explicit new requirement input path.
+
+Designer may optionally authorize a per-Session full-auto mode. It is disabled
+by default and every enable or re-enable requires a local-UI risk confirmation.
+The persisted `DISABLED / ACTIVE / BLOCKED / COMPLETED` state advances at most
+one authoritative action per monitor tick and survives process restarts. It may
+answer pending design questions from explicitly recommended options (falling
+back to the first option), confirm the requirement, accept only the current
+deterministically validated package revision, confirm the final draft, and call
+the ordinary Task Start boundary. These actions remain visible as System
+messages and question decisions use `AUTO_RECOMMENDED`; manual decisions use
+`MANUAL`.
+
+Full-auto authorization ends once Task Start has been requested. It must never
+answer execution-time questions, grant dangerous permissions, choose recovery,
+accept execution results, commit, push, merge, or publish. Disabling stops only
+future automatic actions. Budget exhaustion, multi-task requirements, design or
+validation failures, missing option data, optimistic conflicts, and Task Start
+errors move the mode to `BLOCKED` without hot retry; the operator must disable
+it or explicitly authorize it again after handling the cause.
 
 Packages then run strictly serially. Each package reuses its healthy interactive
 read-only Designer conversation across revisions and reconstructs a fresh one
@@ -316,8 +334,10 @@ Message origin comes from the persisted `actor` (`USER`, `DECOMPOSER`,
 `DESIGNER`, `COMPILER`, `VALIDATOR`, or `SYSTEM`), never from role text
 inference. The console renders user cards blue, Decomposer summaries indigo,
 Designer Markdown purple, Compiler summaries/gaps cyan,
-Validator success green, repairable failures yellow, terminal failures red, and
-system notices as grey dashed cards. A four-step bar shows requirement discussion,
+Validator results retain green/yellow/red item states inside one collapsed
+**确定性校验** disclosure instead of producing an unbounded run of cards; expanding
+it reveals each persisted result in order. System notices remain grey dashed cards.
+A four-step bar shows requirement discussion,
 package design, final confirmation, and task creation. The selectable package
 rail exposes question/discussion/accept for the current package, **重新讨论** for
 accepted packages, dependency reasons for locked packages, and the invalidating
@@ -374,16 +394,19 @@ pages reconnect with `Last-Event-ID` replay, while Designer pages reload the
 latest persisted snapshot. These transport failures must never surface as
 `SESSION_RUNTIME_ERROR` or trigger remote Session cleanup.
 
-Unconfirmed Designer work is also discoverable without browser-local state.
+Designer work is also discoverable without browser-local state.
 The project projection reports confirmed `taskCount` and
 `openDesignerSessionCount` separately. The Designer start page is reserved for
 creating a new design and never renders the recoverable-session collection.
-The dedicated **历史设计** page lists the latest persisted Session for each
-non-confirmed draft, with project/status/archive filters, newest/oldest sorting,
-and bounded cards whose action row never leaves the viewport. **继续** reloads
-the exact scope, **修改** opens the overall-requirement edit boundary (including
-the existing downstream-invalidation confirmation), and recoverable archive
-only removes an item from active counts without deleting snapshots. A browser
+The dedicated **历史设计** page lists the latest persisted Session for every
+draft, with project/status/archive filters, newest/oldest sorting, and bounded
+cards whose action row never leaves the viewport. For non-confirmed drafts,
+**继续** reloads the exact scope, **修改** opens the overall-requirement edit
+boundary (including the existing downstream-invalidation confirmation), and
+recoverable archive only removes an item from active counts without deleting
+snapshots. A confirmed draft is joined to its Task, remains visible as read-only
+history, and offers only the complete Task design-history view—never continue,
+modify, or archive. A browser
 workspace pointer is only a resume hint: transient network or server-restart
 failures must retain it, while malformed, archived, confirmed, or missing records
 may be discarded. Selecting a persisted entry reloads the authoritative Session
@@ -398,9 +421,14 @@ confirmation action. Historical unconfirmed packages that were previously
 are unchanged.
 
 After a mandatory Designer question is answered, it remains part of the
-authoritative discussion projection instead of disappearing. Designer shows a
-collapsed **需求讨论** disclosure by default; expanding it reveals the original
-question, every offered option and description, and the user's final answer.
+authoritative discussion projection instead of disappearing. Each scope and
+discussion revision forms its own collapsed **需求讨论** disclosure immediately
+before the corresponding Designer Markdown snapshot; later messages must not
+push that disclosure to the bottom or combine it with another design revision.
+The server projects the persisted `designMessageId` link for exact placement;
+only historical rows without that link fall back to same-scope revision order.
+Expanding it reveals the original question, every offered option and description,
+and the user's final answer.
 New decisions persist the full question structure in the revision decision log;
 historical logs that only contain question text and answers remain readable.
 This projection is restored from the server after refresh or process restart and
@@ -441,6 +469,19 @@ with a 30-second cooldown and no background polling. Missing GitLab credentials
 show **无法自动确认合并状态**. GitHub displays that automatic merge confirmation
 is not yet integrated. The browser never infers a merge from a missing branch;
 all labels and actions project the server's persisted Publication state.
+
+Route entry is demand-driven. The application shell does not preload Projects,
+Tasks, or Runtime. Task lists and Designer history use server filters plus a
+50-row keyset page and append through **加载更多**; changing any filter discards
+the old cursor. Task detail renders the lightweight overview as soon as it
+arrives, then loads audit metadata independently. An audit failure must leave
+the overview usable. Evidence, error details, Judge raw output, and artifact
+content load only when the matching row is expanded and are cached by record ID
+for that page lifetime. Task/Stage SSE events invalidate overview, while
+Attempt/Session/Verification/Judge/Error/Artifact events invalidate audit; each
+partition coalesces refreshes for 180 ms and never refetches already cached
+content. The audit panel, Session monitor, publication editor, and CodeMirror
+are asynchronous chunks rather than prerequisites for first content paint.
 
 Each Task detail page also exposes a read-only **Model output / Thinking**
 monitor. The operator can select any implementation or judge Session belonging

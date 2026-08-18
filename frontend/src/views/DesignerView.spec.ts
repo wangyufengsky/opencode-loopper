@@ -6,6 +6,7 @@ import DesignerView from '@/views/DesignerView.vue'
 import LoopSpecEditor from '@/components/LoopSpecEditor.vue'
 import PendingQuestionCard from '@/components/PendingQuestionCard.vue'
 import DesignerDiscussionHistory from '@/components/DesignerDiscussionHistory.vue'
+import DesignerValidatorHistory from '@/components/DesignerValidatorHistory.vue'
 import { api } from '@/api/client'
 import { useTaskStore } from '@/stores/taskStore'
 import type { AppSettings, DesignerSession, LoopDraft, LoopSpec, Project, Task } from '@/types/domain'
@@ -39,6 +40,7 @@ const session: DesignerSession = {
   discussionScope: 'FINAL',
   discussionRevision: 1,
   finalConfirmationEligible: true,
+  autoMode: { enabled: false, state: 'DISABLED', version: 0 },
   messages: [],
 }
 
@@ -189,13 +191,45 @@ describe('Designer draft composer', () => {
     await wrapper.get('.create-draft-button').trigger('click')
     await flushPromises()
 
-    expect(createSession).toHaveBeenCalledWith(project.id, 'draft-1', initialGoal)
+    expect(createSession).toHaveBeenCalledWith(project.id, 'draft-1', initialGoal, false)
     expect(createDraft.mock.calls[0]?.[0].goal).toBe(initialGoal)
     expect(createDraft.mock.calls[0]?.[0].schemaVersion).toBe('v2')
     expect(createDraft.mock.calls[0]?.[0].stages[0]).toMatchObject({ allowedPaths: [], forbiddenPaths: [], verifiers: [] })
     expect(createDraft.mock.calls[0]?.[0].limits).toMatchObject({ maxTaskAttempts: 7, attemptTimeout: 'PT45M' })
     expect(sessionStorage.getItem('opencode-loopper.designer-draft-prompt')).toBeNull()
     expect(wrapper.find('textarea[aria-label="发送给只读 OpenCode Designer 的消息"]').exists()).toBe(true)
+  })
+
+  it('requires risk confirmation before creating an auto-mode design', async () => {
+    const confirmation = vi.spyOn(ElMessageBox, 'confirm').mockImplementation(() => Promise.resolve(undefined as never))
+    const createSession = vi.spyOn(api, 'createDesignerSession').mockResolvedValue({
+      ...session, autoMode: { enabled: true, state: 'ACTIVE', version: 0 },
+    })
+    vi.spyOn(api, 'createDraft').mockImplementation(async (spec) => draftFrom(spec))
+    const wrapper = mountDesigner()
+    await flushPromises()
+
+    await wrapper.get('.designer-auto-create .el-switch').trigger('click')
+    await flushPromises()
+    expect(confirmation).toHaveBeenCalledWith(expect.stringContaining('自动采用推荐答案'), '授权全自动设计？', expect.any(Object))
+
+    await wrapper.get('textarea[aria-label="草案设计目标"]').setValue('自动完成设计并启动任务')
+    await wrapper.get('.create-draft-button').trigger('click')
+    await flushPromises()
+
+    expect(createSession).toHaveBeenCalledWith(project.id, 'draft-1', '自动完成设计并启动任务', true)
+    expect(wrapper.text()).toContain('全自动模式正在推进')
+  })
+
+  it('keeps auto mode off when the creation warning is cancelled', async () => {
+    vi.spyOn(ElMessageBox, 'confirm').mockRejectedValue('cancel')
+    const wrapper = mountDesigner()
+    await flushPromises()
+
+    await wrapper.get('.designer-auto-create .el-switch').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('.designer-auto-create .el-switch').classes()).not.toContain('is-checked')
   })
 
   it('keeps an unsent follow-up after a request failure and clears it only after persistence succeeds', async () => {
@@ -359,6 +393,53 @@ describe('Designer draft composer', () => {
     wrapper.unmount()
   })
 
+  it('places each discussion round immediately before its matching design snapshot', async () => {
+    const discussionSession: DesignerSession = {
+      ...session,
+      answeredQuestions: [
+        {
+          id: 'question-r2', scope: 'WP-1', discussionRevision: 2, designMessageId: 'design-r2', answeredAt: '2026-08-18T05:00:00Z',
+          questions: [{ question: '第二稿如何补充？', header: '第二稿', multiple: false, custom: false,
+            options: [{ label: '补充边界', description: '增加异常路径' }], answers: ['补充边界'] }],
+        },
+        {
+          id: 'question-r1', scope: 'WP-1', discussionRevision: 1, designMessageId: 'design-r1', answeredAt: '2026-08-18T04:00:00Z',
+          questions: [{ question: '第一稿采用哪种范围？', header: '第一稿', multiple: false, custom: false,
+            options: [{ label: '最小范围', description: '先覆盖核心路径' }], answers: ['最小范围'] }],
+        },
+      ],
+      messages: [
+        { id: 'user', role: 'USER', actor: 'USER', content: '设计缓存刷新任务', deliveryState: 'PERSISTED', createdAt: '2026-08-18T03:00:00Z' },
+        { id: 'design-r1', role: 'ASSISTANT', actor: 'DESIGNER', content: '# 第一份设计稿', deliveryState: 'PERSISTED', workPackageId: 'WP-1', createdAt: '2026-08-18T04:01:00Z' },
+        { id: 'design-r2', role: 'ASSISTANT', actor: 'DESIGNER', content: '# 第二份设计稿', deliveryState: 'PERSISTED', workPackageId: 'WP-1', createdAt: '2026-08-18T05:01:00Z' },
+      ],
+    }
+    vi.spyOn(api, 'createDraft').mockImplementation(async (spec) => draftFrom(spec))
+    vi.spyOn(api, 'createDesignerSession').mockResolvedValue(discussionSession)
+    vi.spyOn(api, 'getDesignerSession').mockResolvedValue(discussionSession)
+    const wrapper = mountDesigner()
+    await flushPromises()
+    await wrapper.get('textarea[aria-label="草案设计目标"]').setValue('设计缓存刷新任务')
+    await wrapper.get('.create-draft-button').trigger('click')
+    await flushPromises()
+
+    const histories = wrapper.findAllComponents(DesignerDiscussionHistory)
+    const designs = wrapper.findAll('.chat-designer')
+    const children = Array.from(wrapper.get('.chat-history').element.children)
+    expect(histories).toHaveLength(2)
+    expect(designs).toHaveLength(2)
+    const firstHistory = histories.at(0)!
+    const secondHistory = histories.at(1)!
+    const firstDesign = designs.at(0)!
+    const secondDesign = designs.at(1)!
+    expect(firstHistory.get('details').attributes('open')).toBeUndefined()
+    expect(firstHistory.text()).toContain('第一稿采用哪种范围？')
+    expect(secondHistory.text()).toContain('第二稿如何补充？')
+    expect(children.indexOf(firstHistory.element)).toBeLessThan(children.indexOf(firstDesign.element))
+    expect(children.indexOf(firstDesign.element)).toBeLessThan(children.indexOf(secondHistory.element))
+    expect(children.indexOf(secondHistory.element)).toBeLessThan(children.indexOf(secondDesign.element))
+  })
+
   it('keeps package feedback scoped and requires explicit acceptance before continuing', async () => {
     const packageSession: DesignerSession = {
       ...session, state: 'REVIEWING', workflowPhase: 'REVIEWING_PACKAGE', activeActor: 'VALIDATOR',
@@ -457,6 +538,13 @@ describe('Designer draft composer', () => {
       ...session,
       state: 'SESSION_ERROR', workflowPhase: 'FAILED', activeActor: 'SYSTEM',
       compiler: { id: 'compiler-1', state: 'SESSION_ERROR', externalSessionState: 'FAILED', repairCount: 2, planningRepairCount: 0, designRevision: 1, workflowStep: 'FINAL_JSON' },
+      answeredQuestions: [{
+        id: 'question-1', scope: 'REQUIREMENT', discussionRevision: 1, answeredAt: '2026-08-18T04:00:00Z',
+        questions: [{
+          question: '选择缓存刷新范围', header: '范围', multiple: false, custom: false,
+          options: [{ label: '完整刷新', description: '覆盖全部缓存条目' }], answers: ['完整刷新'],
+        }],
+      }],
       messages: [
         { id: 'user', role: 'USER', actor: 'USER', content: '请设计缓存刷新任务', deliveryState: 'PERSISTED', createdAt: 'now' },
         { id: 'designer', role: 'ASSISTANT', actor: 'DESIGNER', content: '# 完整设计稿', deliveryState: 'PERSISTED', createdAt: 'now' },
@@ -483,7 +571,16 @@ describe('Designer draft composer', () => {
     expect(wrapper.get('.chat-designer').text()).toContain('Designer / 设计师')
     expect(wrapper.get('.chat-compiler').text()).toContain('LoopSpec Compiler / 规范编译器')
     expect(wrapper.get('.chat-system').text()).toContain('系统')
-    expect(wrapper.get('.validator-retryable_error').text()).toContain('Deterministic Validator / 确定性校验器')
+    const discussion = wrapper.getComponent(DesignerDiscussionHistory)
+    const historyChildren = Array.from(wrapper.get('.chat-history').element.children)
+    expect(historyChildren.indexOf(discussion.element)).toBeLessThan(historyChildren.indexOf(wrapper.get('.chat-designer').element))
+    const validatorHistory = wrapper.getComponent(DesignerValidatorHistory)
+    expect(wrapper.findAllComponents(DesignerValidatorHistory)).toHaveLength(1)
+    expect(validatorHistory.get('details').attributes('open')).toBeUndefined()
+    expect(validatorHistory.get('summary').text()).toContain('确定性校验')
+    expect(validatorHistory.get('summary').text()).toContain('3 条')
+    expect(wrapper.find('.chat-validator').exists()).toBe(false)
+    expect(wrapper.get('.validator-retryable_error').text()).toContain('字段校验失败，可修复')
     expect(wrapper.get('.validator-normalized').text()).toContain('输出包装已自动规范化')
     expect(wrapper.get('.validator-terminal_error').text()).toContain('工作流已停止')
     expect(wrapper.text()).not.toContain('"loopSpec":"secret"')

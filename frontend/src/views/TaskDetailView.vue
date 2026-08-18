@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { ElMessageBox } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
@@ -8,15 +8,16 @@ import StatusBadge from '@/components/StatusBadge.vue'
 import StageRail from '@/components/StageRail.vue'
 import AttemptTimeline from '@/components/AttemptTimeline.vue'
 import LayeredErrorPanel from '@/components/LayeredErrorPanel.vue'
-import SessionMonitorPanel from '@/components/SessionMonitorPanel.vue'
 import JudgeReviewCard from '@/components/JudgeReviewCard.vue'
-import TaskAuditEvidencePanel from '@/components/TaskAuditEvidencePanel.vue'
-import TaskPublicationActions from '@/components/TaskPublicationActions.vue'
 import DirtyWorkspaceDialog from '@/components/DirtyWorkspaceDialog.vue'
 import TaskDecisionPanel from '@/components/TaskDecisionPanel.vue'
 import { api } from '@/api/client'
 import { useTaskStore } from '@/stores/taskStore'
 import type { Attempt, ErrorEvent, TaskPublicationStatus, TaskQueueStatus } from '@/types/domain'
+
+const SessionMonitorPanel = defineAsyncComponent(() => import('@/components/SessionMonitorPanel.vue'))
+const TaskAuditEvidencePanel = defineAsyncComponent(() => import('@/components/TaskAuditEvidencePanel.vue'))
+const TaskPublicationActions = defineAsyncComponent(() => import('@/components/TaskPublicationActions.vue'))
 
 const route = useRoute()
 const router = useRouter()
@@ -49,6 +50,9 @@ const queueLoading = ref(false)
 const queueReconciling = ref(false)
 const queueError = ref('')
 const publicationState = ref<TaskPublicationStatus['deliveryState']>('NOT_STARTED')
+const publicationEligible = computed(() => task.value?.status === 'SUCCEEDED'
+  || (['AWAITING_DECISION', 'COMPLETED'].includes(task.value?.status ?? '')
+    && task.value?.executionResult === 'SUCCEEDED'))
 const clock = ref(Date.now())
 let clockTimer: ReturnType<typeof setInterval> | undefined
 const retryRemainingSeconds = computed(() => task.value?.retryDueAt
@@ -253,7 +257,7 @@ async function confirmRework() {
       <el-button v-if="canCancelDirectly" plain type="danger" @click="confirmCancel"><Icon icon="lucide:square" />取消任务</el-button>
       <el-button v-if="canRetryLoop" type="warning" :loading="loopRetrying" @click="confirmRetryLoop"><Icon icon="lucide:rotate-ccw" />继续一轮</el-button>
       <el-button v-if="canRetryJudges" type="warning" :loading="judgeRetrying" @click="confirmRetryJudges"><Icon icon="lucide:scan-eye" />{{ judgeActionLabel }}</el-button>
-      <TaskPublicationActions v-if="task?.status === 'SUCCEEDED' || (task?.status === 'AWAITING_DECISION' && task.executionResult === 'SUCCEEDED')" :task="task" :demo="store.usingDemo" @delivery-state="publicationState = $event" />
+      <TaskPublicationActions v-if="publicationEligible && task" :task="task" :demo="store.usingDemo" @delivery-state="publicationState = $event" />
     </template>
   </PageHeader>
   <main id="main-content" class="content" tabindex="-1">
@@ -327,6 +331,9 @@ async function confirmRework() {
       <section v-for="error in sessionErrors" :key="error.id" style="margin-top: 16px"><LayeredErrorPanel :error="error" /></section>
       <section v-for="error in taskErrors" :key="error.id" style="margin-top: 16px"><LayeredErrorPanel :error="error" /></section>
       <SessionMonitorPanel :task-id="task.id" />
+      <section v-if="store.auditErrors?.[id]" class="error-panel error-panel-verification" role="status">
+        <Icon class="error-panel-icon" icon="lucide:database-zap" /><div><h3>审计信息暂未加载</h3><p>{{ store.auditErrors?.[id] }}。任务核心状态仍可正常查看。</p><el-button size="small" plain @click="store.loadTaskAudit?.(id)">重试审计加载</el-button></div>
+      </section>
       <section v-if="judges.length || task.status === 'JUDGING' || task.status === 'WAITING_INPUT' || canRetryJudges" id="judge-review" class="card card-pad judge-section" style="margin-top: 16px" aria-labelledby="judge-heading">
         <div class="card-header"><div><p class="eyebrow">独立只读评审</p><h2 id="judge-heading" class="card-title">需求 / 风险双评审</h2></div><StatusBadge :status="task.status" /></div>
         <p v-if="!judges.length" class="judge-empty">确定性验收已通过，但尚无需求 / 风险评审记录。可从页面顶部启动双评审。</p>

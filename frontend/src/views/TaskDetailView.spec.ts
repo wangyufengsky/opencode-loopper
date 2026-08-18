@@ -555,4 +555,36 @@ describe('TaskDetailView judge action', () => {
     expect(store.reworkTask).toHaveBeenCalledWith('task-success')
     expect(router.currentRoute.value.path).toBe('/tasks/task-rework')
   })
+
+  it('mounts publication actions after a successful result is confirmed completed', async () => {
+    store.tasks = [{
+      ...reviewTask,
+      id: 'task-completed', title: '已确认完成任务', status: 'COMPLETED',
+      executionResult: 'SUCCEEDED', branch: 'loopper/task-completed',
+    }]
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/tasks/:id', component: { template: '<div />' } }] })
+    await router.push('/tasks/task-completed')
+    await router.isReady()
+
+    const wrapper = mount(TaskDetailView, {
+      global: {
+        plugins: [router, ElementPlus],
+        stubs: {
+          Icon: true,
+          PageHeader: { template: '<header><slot name="actions" /></header><slot />' },
+          StatusBadge: true,
+          StageRail: true,
+          AttemptTimeline: true,
+          LayeredErrorPanel: true,
+          SessionMonitorPanel: true,
+          JudgeReviewCard: true,
+          TaskAuditEvidencePanel: true,
+          TaskPublicationActions: { template: '<button data-test="publication-actions">创建合并请求</button>' },
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.get('[data-test="publication-actions"]').text()).toBe('创建合并请求')
+  })
 })

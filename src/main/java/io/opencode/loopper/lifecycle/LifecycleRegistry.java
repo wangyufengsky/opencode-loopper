@@ -22,6 +22,7 @@ public final class LifecycleRegistry {
         register(LifecycleMachineType.JUDGE_RUN, JudgeRunState.class, judge());
         register(LifecycleMachineType.LOOP_DRAFT, LoopDraftStatus.class, draft());
         register(LifecycleMachineType.DESIGNER_SESSION, DesignerSessionState.class, designer());
+        register(LifecycleMachineType.DESIGNER_AUTO_MODE, DesignerAutoModeState.class, designerAutoMode());
         register(LifecycleMachineType.LOOPSPEC_COMPILATION, LoopSpecCompilationState.class, compilation());
         register(LifecycleMachineType.DESIGN_REQUIREMENT_REVISION, DesignRequirementRevisionState.class, requirementRevision());
         register(LifecycleMachineType.TASK_DECOMPOSITION, TaskDecompositionState.class, decomposition());
@@ -225,6 +226,17 @@ public final class LifecycleRegistry {
                 .transition(DesignerSessionState.REVIEWING, COMPLETE, DesignerSessionState.COMPLETED)
                 .transition(DesignerSessionState.RUNNING, COMPLETE, DesignerSessionState.COMPLETED)
                 .transition(DesignerSessionState.RUNNING, SESSION_FAIL, DesignerSessionState.SESSION_ERROR).build();
+    }
+
+    private static FiniteStateMachine<DesignerAutoModeState, LifecycleEvent> designerAutoMode() {
+        return machine(LifecycleMachineType.DESIGNER_AUTO_MODE, DesignerAutoModeState.class)
+                .transition(DesignerAutoModeState.DISABLED, ENABLE, DesignerAutoModeState.ACTIVE)
+                .transition(DesignerAutoModeState.ACTIVE, DISABLE, DesignerAutoModeState.DISABLED)
+                .transition(DesignerAutoModeState.ACTIVE, REQUIRE_INPUT, DesignerAutoModeState.BLOCKED)
+                .transition(DesignerAutoModeState.BLOCKED, DISABLE, DesignerAutoModeState.DISABLED)
+                .transition(DesignerAutoModeState.BLOCKED, ENABLE, DesignerAutoModeState.ACTIVE)
+                .transition(DesignerAutoModeState.ACTIVE, COMPLETE, DesignerAutoModeState.COMPLETED)
+                .build();
     }
 
     private static FiniteStateMachine<DesignRequirementRevisionState, LifecycleEvent> requirementRevision() {

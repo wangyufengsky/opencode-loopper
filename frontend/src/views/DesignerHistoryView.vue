@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
@@ -8,8 +8,9 @@ import { api } from '@/api/client'
 import { useTaskStore } from '@/stores/taskStore'
 import type { DesignerHistoryItem } from '@/types/domain'
 import { formatDateTime } from '@/utils/dateTime'
+import { statusLabel } from '@/utils/displayLabels'
 
-type StatusFilter = 'ALL' | 'PROCESSING' | 'REVIEWING' | 'WAITING_INPUT' | 'SESSION_ERROR'
+type StatusFilter = 'ALL' | 'CONFIRMED' | 'PROCESSING' | 'REVIEWING' | 'WAITING_INPUT' | 'SESSION_ERROR'
 type ArchiveFilter = 'ACTIVE' | 'ARCHIVED' | 'ALL'
 
 const store = useTaskStore()
@@ -24,9 +25,13 @@ const archiveFilter = ref<ArchiveFilter>('ACTIVE')
 const timeOrder = ref<'NEWEST' | 'OLDEST'>('NEWEST')
 const search = ref('')
 const archivingId = ref('')
+const nextCursor = ref<string>()
+let reloadTimer: number | undefined
+const ready = ref(false)
 
 const statusOptions: Array<{ value: StatusFilter; label: string }> = [
   { value: 'ALL', label: '全部状态' },
+  { value: 'CONFIRMED', label: '已确认成任务' },
   { value: 'PROCESSING', label: '处理中' },
   { value: 'REVIEWING', label: '待确认' },
   { value: 'WAITING_INPUT', label: '等待输入' },
@@ -36,8 +41,15 @@ const statusOptions: Array<{ value: StatusFilter; label: string }> = [
 const projectOptions = computed(() => store.projects.slice()
   .sort((left, right) => left.name.localeCompare(right.name, 'zh-CN')))
 const archivedCount = computed(() => designs.value.filter((item) => item.archived).length)
+const confirmedCount = computed(() => designs.value.filter(isConfirmed).length)
+const resumableCount = computed(() => designs.value.filter((item) => !item.archived && !isConfirmed(item)).length)
+
+function isConfirmed(item: DesignerHistoryItem) {
+  return item.draftStatus === 'CONFIRMED' || Boolean(item.taskId)
+}
 
 function statusKind(item: DesignerHistoryItem): Exclude<StatusFilter, 'ALL'> {
+  if (isConfirmed(item)) return 'CONFIRMED'
   if (item.state === 'WAITING_INPUT') return 'WAITING_INPUT'
   if (item.state === 'SESSION_ERROR' || item.workflowPhase === 'FAILED') return 'SESSION_ERROR'
   if (item.state === 'REVIEWING' || item.state === 'COMPLETED'
@@ -48,6 +60,7 @@ function statusKind(item: DesignerHistoryItem): Exclude<StatusFilter, 'ALL'> {
 function statusText(item: DesignerHistoryItem) {
   if (item.archived) return '已归档'
   return {
+    CONFIRMED: '已确认成任务',
     PROCESSING: '处理中',
     REVIEWING: item.workflowPhase === 'FINAL_REVIEW' || item.workflowPhase === 'COMPLETED' ? '总体待确认' : '工作包待确认',
     WAITING_INPUT: '等待输入',
@@ -55,21 +68,7 @@ function statusText(item: DesignerHistoryItem) {
   }[statusKind(item)]
 }
 
-const visibleDesigns = computed(() => designs.value
-  .filter((item) => projectFilter.value === 'ALL' || item.projectId === projectFilter.value)
-  .filter((item) => statusFilter.value === 'ALL' || statusKind(item) === statusFilter.value)
-  .filter((item) => archiveFilter.value === 'ALL'
-    || (archiveFilter.value === 'ARCHIVED' ? item.archived : !item.archived))
-  .filter((item) => {
-    const query = search.value.trim().toLocaleLowerCase('zh-CN')
-    return !query || [item.goal, item.projectName, item.activeWorkPackageId ?? '']
-      .some((value) => value.toLocaleLowerCase('zh-CN').includes(query))
-  })
-  .slice()
-  .sort((left, right) => {
-    const difference = new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()
-    return timeOrder.value === 'NEWEST' ? difference : -difference
-  }))
+const visibleDesigns = computed(() => designs.value)
 
 function queryValue(value: unknown) {
   return Array.isArray(value) ? value[0] : typeof value === 'string' ? value : ''
@@ -97,13 +96,26 @@ watch([projectFilter, statusFilter, archiveFilter, timeOrder, search], () => {
   const current = Object.fromEntries(Object.entries(route.query)
     .map(([key, value]) => [key, queryValue(value)]).filter(([, value]) => value))
   if (JSON.stringify(current) !== JSON.stringify(query)) void router.replace({ query })
+  if (ready.value) {
+    if (reloadTimer) window.clearTimeout(reloadTimer)
+    reloadTimer = window.setTimeout(() => { void loadHistory() }, 180)
+  }
 })
 
-async function loadHistory() {
+async function loadHistory(append = false) {
   loading.value = true
   error.value = ''
   try {
-    designs.value = await api.listDesignerHistory()
+    const page = await api.listDesignerHistoryPage({
+      projectId: projectFilter.value === 'ALL' ? undefined : projectFilter.value,
+      status: statusFilter.value === 'ALL' ? undefined : statusFilter.value === 'SESSION_ERROR' ? 'FAILED' : statusFilter.value,
+      archive: archiveFilter.value,
+      order: timeOrder.value === 'OLDEST' ? 'oldest' : 'newest',
+      q: search.value.trim() || undefined,
+      ...(append ? { cursor: nextCursor.value } : {}),
+    })
+    designs.value = append ? [...designs.value, ...page.items] : page.items
+    nextCursor.value = page.nextCursor
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : '无法读取历史设计'
   } finally {
@@ -112,7 +124,7 @@ async function loadHistory() {
 }
 
 function openDesign(item: DesignerHistoryItem, mode: 'continue' | 'edit') {
-  if (item.archived) return
+  if (item.archived || isConfirmed(item)) return
   void router.push({
     path: '/designer',
     query: { sessionId: item.id, projectId: item.projectId, ...(mode === 'edit' ? { mode: 'edit' } : {}) },
@@ -129,7 +141,7 @@ function clearWorkspacePointer(item: DesignerHistoryItem) {
 }
 
 async function toggleArchive(item: DesignerHistoryItem) {
-  if (archivingId.value) return
+  if (archivingId.value || isConfirmed(item)) return
   archivingId.value = item.id
   try {
     if (item.archived) {
@@ -144,7 +156,9 @@ async function toggleArchive(item: DesignerHistoryItem) {
       clearWorkspacePointer(item)
       ElMessage.success('设计已归档，完整记录仍然保留')
     }
-    await store.loadOverview()
+    if ((item.archived && archiveFilter.value === 'ACTIVE') || (!item.archived && archiveFilter.value === 'ARCHIVED')) {
+      designs.value = designs.value.filter((design) => design.id !== item.id)
+    }
   } catch (cause) {
     ElMessage.error(cause instanceof Error ? cause.message : '归档状态更新失败')
   } finally {
@@ -152,28 +166,25 @@ async function toggleArchive(item: DesignerHistoryItem) {
   }
 }
 
-function resetFilters() {
-  projectFilter.value = 'ALL'
-  statusFilter.value = 'ALL'
-  archiveFilter.value = 'ACTIVE'
-  timeOrder.value = 'NEWEST'
-  search.value = ''
-}
-
-onMounted(loadHistory)
+onMounted(async () => {
+  if (!store.projects.length) await store.loadProjects()
+  ready.value = true
+  await loadHistory()
+})
+onBeforeUnmount(() => { if (reloadTimer) window.clearTimeout(reloadTimer) })
 </script>
 
 <template>
   <PageHeader eyebrow="Designer / History" title="历史设计">
     <template #actions>
-      <el-button plain :loading="loading" @click="loadHistory"><Icon icon="lucide:refresh-cw" />刷新</el-button>
+      <el-button plain :loading="loading" @click="loadHistory()"><Icon icon="lucide:refresh-cw" />刷新</el-button>
       <el-button type="primary" @click="router.push('/designer')"><Icon icon="lucide:plus" />新建设计</el-button>
     </template>
   </PageHeader>
   <main id="main-content" class="content design-history-page" tabindex="-1">
     <section class="history-intro">
-      <div><p class="eyebrow">PERSISTED DESIGN SESSIONS</p><h2>管理尚未确认成任务的设计</h2><p>继续会回到原讨论位置；修改会打开整体需求编辑入口；归档只收起记录，不删除设计快照。</p></div>
-      <div class="history-counts"><span><b>{{ designs.filter(item => !item.archived).length }}</b>可继续</span><span><b>{{ archivedCount }}</b>已归档</span></div>
+      <div><p class="eyebrow">PERSISTED DESIGN SESSIONS</p><h2>查看和管理历史设计</h2><p>未确认设计可以继续、修改或归档；已确认成任务的设计只读保留，可直接查看完整设计记录。</p></div>
+      <div class="history-counts"><span><b>{{ resumableCount }}</b>可继续</span><span><b>{{ confirmedCount }}</b>已确认</span><span><b>{{ archivedCount }}</b>已归档</span></div>
     </section>
 
     <section class="toolbar history-toolbar" aria-label="历史设计筛选">
@@ -197,7 +208,7 @@ onMounted(loadHistory)
       <span class="mono tiny muted">{{ visibleDesigns.length }} 条</span>
     </section>
 
-    <section v-if="error" class="card history-error" role="status"><Icon icon="lucide:server-off" /><div><strong>历史设计加载失败</strong><p>{{ error }}</p></div><el-button plain size="small" @click="loadHistory">重试</el-button></section>
+    <section v-if="error" class="card history-error" role="status"><Icon icon="lucide:server-off" /><div><strong>历史设计加载失败</strong><p>{{ error }}</p></div><el-button plain size="small" @click="loadHistory()">重试</el-button></section>
     <section v-else-if="loading" class="history-list" aria-label="正在加载历史设计">
       <article v-for="index in 5" :key="index" class="card history-card skeleton-block" />
     </section>
@@ -209,18 +220,24 @@ onMounted(loadHistory)
             <span v-if="item.activeWorkPackageId" class="package-tag">{{ item.activeWorkPackageId }}</span>
           </div>
           <h3 :title="item.goal || '未命名设计'">{{ item.goal || '未命名设计' }}</h3>
-          <div class="history-meta"><span><Icon icon="lucide:folder" />{{ item.projectName }}</span><span><Icon icon="lucide:clock-3" />更新于 {{ formatDateTime(item.updatedAt) }}</span><span v-if="item.archivedAt"><Icon icon="lucide:archive" />归档于 {{ formatDateTime(item.archivedAt) }}</span></div>
+          <div class="history-meta"><span><Icon icon="lucide:folder" />{{ item.projectName }}</span><span><Icon icon="lucide:clock-3" />更新于 {{ formatDateTime(item.updatedAt) }}</span><span v-if="item.taskState"><Icon icon="lucide:list-checks" />任务：{{ statusLabel(item.taskState) }}</span><span v-if="item.archivedAt"><Icon icon="lucide:archive" />归档于 {{ formatDateTime(item.archivedAt) }}</span></div>
         </div>
         <div class="history-actions">
-          <template v-if="!item.archived">
-            <el-button size="small" type="primary" @click="openDesign(item, 'continue')"><Icon icon="lucide:play" />继续</el-button>
-            <el-button size="small" plain @click="openDesign(item, 'edit')"><Icon icon="lucide:pencil" />修改</el-button>
+          <template v-if="isConfirmed(item)">
+            <el-button v-if="item.taskId" size="small" plain @click="router.push(`/tasks/${item.taskId}/design`)"><Icon icon="lucide:messages-square" />查看设计</el-button>
           </template>
-          <el-button size="small" plain :loading="archivingId === item.id" :disabled="Boolean(archivingId)" @click="toggleArchive(item)"><Icon :icon="item.archived ? 'lucide:archive-restore' : 'lucide:archive'" />{{ item.archived ? '恢复' : '归档' }}</el-button>
+          <template v-else>
+            <template v-if="!item.archived">
+              <el-button size="small" type="primary" @click="openDesign(item, 'continue')"><Icon icon="lucide:play" />继续</el-button>
+              <el-button size="small" plain @click="openDesign(item, 'edit')"><Icon icon="lucide:pencil" />修改</el-button>
+            </template>
+            <el-button size="small" plain :loading="archivingId === item.id" :disabled="Boolean(archivingId)" @click="toggleArchive(item)"><Icon :icon="item.archived ? 'lucide:archive-restore' : 'lucide:archive'" />{{ item.archived ? '恢复' : '归档' }}</el-button>
+          </template>
         </div>
       </article>
     </section>
-    <section v-else class="card empty-state"><div><Icon icon="lucide:history" width="30" /><strong>{{ designs.length ? '没有匹配的历史设计' : '还没有历史设计' }}</strong><p>{{ designs.length ? '调整项目、状态、归档范围或时间排序后重试。' : '新建设计后，未确认成任务的会话会集中显示在这里。' }}</p><el-button v-if="designs.length" plain @click="resetFilters">清除筛选</el-button><el-button v-else type="primary" @click="router.push('/designer')">新建设计</el-button></div></section>
+    <div v-if="nextCursor" class="history-load-more"><el-button plain :loading="loading" @click="loadHistory(true)">加载更多历史设计</el-button></div>
+    <section v-if="!loading && !error && !visibleDesigns.length" class="card empty-state"><div><Icon icon="lucide:history" width="30" /><strong>还没有历史设计</strong><p>新建设计及已确认成任务的设计会集中显示在这里。</p><el-button type="primary" @click="router.push('/designer')">新建设计</el-button></div></section>
   </main>
 </template>
 
@@ -236,12 +253,13 @@ onMounted(loadHistory)
 .history-toolbar :deep(.el-select) { width: 100%; }
 .history-search { min-width: 0; }
 .history-list { display: grid; gap: 10px; min-width: 0; }
+.history-load-more { display: flex; justify-content: center; padding: 16px 0 2px; }
 .history-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 20px; min-width: 0; min-height: 104px; padding: 16px 18px; overflow: hidden; }
 .history-card.archived { opacity: .72; }
 .history-card-main { min-width: 0; }
 .history-card-heading { display: flex; align-items: center; gap: 7px; }
 .history-status, .package-tag { display: inline-flex; align-items: center; min-height: 22px; padding: 0 8px; border: 1px solid currentcolor; border-radius: 999px; font: 8px/1 var(--font-code); }
-.status-processing { color: var(--color-accent-cyan); }.status-reviewing { color: var(--color-success); }.status-waiting_input { color: var(--color-session-warning); }.status-session_error { color: var(--color-task-danger); }.status-archived { color: var(--color-text-muted); }
+.status-confirmed { color: var(--color-accent-ai); }.status-processing { color: var(--color-accent-cyan); }.status-reviewing { color: var(--color-success); }.status-waiting_input { color: var(--color-session-warning); }.status-session_error { color: var(--color-task-danger); }.status-archived { color: var(--color-text-muted); }
 .package-tag { color: #a5b4fc; }
 .history-card h3 { display: -webkit-box; margin: 9px 0 8px; overflow: hidden; color: var(--color-text-primary); font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .history-meta { display: flex; min-width: 0; flex-wrap: wrap; gap: 7px 15px; color: var(--color-text-muted); font: 9px/1.4 var(--font-code); }

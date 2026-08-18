@@ -16,6 +16,7 @@ import io.opencode.loopper.persistence.AutomationRuleRow;
 import io.opencode.loopper.persistence.AutomationRunRow;
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.ProjectRow;
+import io.opencode.loopper.persistence.ReadModelMapper;
 import io.opencode.loopper.persistence.TaskRow;
 import io.opencode.loopper.runtime.ProcessResult;
 import io.opencode.loopper.runtime.SafeProcessRunner;
@@ -50,14 +51,15 @@ public class AutomationService {
     private final TaskService tasks;
     private final SafeProcessRunner runner;
     private final AutomationRunPersistence runPersistence;
+    private final ReadModelMapper reads;
     private final Map<String, WorkspacePreview> importPreviews = new ConcurrentHashMap<>();
 
     public AutomationService(LoopperMapper mapper, LifecycleTransitionService lifecycle,
                              ObjectMapper json, LoopSpecTemplateService templates, ProjectService projects,
                              LoopDraftService drafts, TaskService tasks, SafeProcessRunner runner,
-                             AutomationRunPersistence runPersistence) {
+                             AutomationRunPersistence runPersistence, ReadModelMapper reads) {
         this.mapper = mapper; this.lifecycle = lifecycle; this.json = json; this.templates = templates; this.projects = projects;
-        this.drafts = drafts; this.tasks = tasks; this.runner = runner; this.runPersistence = runPersistence;
+        this.drafts = drafts; this.tasks = tasks; this.runner = runner; this.runPersistence = runPersistence; this.reads = reads;
     }
 
     /** Creation is deliberately inert even if a caller submits ENABLED or AUTO_START. */
@@ -102,7 +104,7 @@ public class AutomationService {
     public List<RuleView> rules() { return mapper.listAutomationRules().stream().map(this::rule).toList(); }
     public RuleView ruleById(String id) { return rule(getRule(id)); }
     public List<RunView> runs(String ruleId) { getRule(ruleId); return mapper.listAutomationRuns(ruleId).stream().map(this::run).toList(); }
-    public RunFeed allRuns() { return new RunFeed(mapper.listAutomationRules().stream().flatMap(rule -> mapper.listAutomationRuns(rule.id()).stream()).map(this::run).sorted(java.util.Comparator.comparing(RunView::detectedAt).reversed()).toList(), now()); }
+    public RunFeed allRuns() { return new RunFeed(reads.allAutomationRuns().stream().map(this::run).toList(), now()); }
 
     /** Exports no webhook secret or hash; importing can only issue a fresh token on a new rule. */
     public WorkspaceExport exportWorkspace() {
