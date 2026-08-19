@@ -12,7 +12,7 @@
 
     <groupId>io.opencode</groupId>
     <artifactId>opencode-loopper</artifactId>
-    <version>0.1.82</version>
+    <version>0.1.85</version>
     <name>OpenCode Loopper</name>
     <description>Local, task-branch-isolated OpenCode orchestration</description>
 
@@ -24,6 +24,9 @@
         <sqlite.version>3.47.1.0</sqlite.version>
         <spring-ai.version>2.0.0</spring-ai.version>
         <playwright.version>1.62.0</playwright.version>
+        <poi.version>5.5.1</poi.version>
+        <commonmark.version>0.28.0</commonmark.version>
+        <commons-csv.version>1.14.1</commons-csv.version>
         <frontend-maven-plugin.version>1.15.4</frontend-maven-plugin.version>
         <node.version>v22.14.0</node.version>
         <npm.version>10.9.2</npm.version>
@@ -71,6 +74,21 @@
             <groupId>com.microsoft.playwright</groupId>
             <artifactId>playwright</artifactId>
             <version>${playwright.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
+            <version>${poi.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.commonmark</groupId>
+            <artifactId>commonmark</artifactId>
+            <version>${commonmark.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-csv</artifactId>
+            <version>${commons-csv.version}</version>
         </dependency>
         <!-- Official Spring AI 2.0 Streamable HTTP MCP Server (WebMVC). -->
         <dependency>

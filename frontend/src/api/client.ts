@@ -117,6 +117,16 @@ function parseVerifier(value: unknown): LoopVerifierSpec {
       return { ...common, type, url: requiredString(raw, 'url', type), assertions: assertions.map(parseBrowserAssertion) }
     }
     case 'DATABASE_QUERY': return { ...common, type, path: requiredString(raw, 'path', type), sql: requiredString(raw, 'sql', type) }
+    case 'DOCUMENT_STRUCTURE': {
+      const documentAssertions = asArray(raw.documentAssertions).map((value) => asRecord(value))
+      if (!documentAssertions.length) throw new TypeError('DOCUMENT_STRUCTURE.documentAssertions requires at least one assertion')
+      return { ...common, type, path: requiredString(raw, 'path', type), documentAssertions: documentAssertions as unknown as Extract<LoopVerifierSpec, { type: 'DOCUMENT_STRUCTURE' }>['documentAssertions'] }
+    }
+    case 'TABULAR_DATA': {
+      const tabularAssertions = asArray(raw.tabularAssertions).map((value) => asRecord(value))
+      if (!tabularAssertions.length) throw new TypeError('TABULAR_DATA.tabularAssertions requires at least one assertion')
+      return { ...common, type, path: requiredString(raw, 'path', type), tabularAssertions: tabularAssertions as unknown as Extract<LoopVerifierSpec, { type: 'TABULAR_DATA' }>['tabularAssertions'] }
+    }
     default: throw new TypeError(`Unsupported verifier type: ${type || '<missing>'}`)
   }
 }
@@ -134,6 +144,9 @@ function parseLoopSpec(value: unknown): LoopSpec {
       const readiness = asRecord(runtime.readiness)
       return {
         ...(asString(item.workPackageId) ? { workPackageId: asString(item.workPackageId) } : {}),
+        ...(['SOFTWARE_IMPLEMENTATION', 'DOCUMENT_MATERIALIZATION', 'TABULAR_CONVERSION', 'READ_ONLY_ANALYSIS', 'LOCAL_MAINTENANCE', 'LEGACY_SOFTWARE'].includes(asString(item.stageKind)) ? { stageKind: asString(item.stageKind) as NonNullable<LoopSpec['stages'][number]['stageKind']> } : {}),
+        ...(['OPEN_CODE_IMPLEMENTATION', 'SERVER_DOCUMENT_MATERIALIZATION', 'SERVER_TABULAR_CONVERSION', 'READ_ONLY_REPORT'].includes(asString(item.executionStrategy)) ? { executionStrategy: asString(item.executionStrategy) as NonNullable<LoopSpec['stages'][number]['executionStrategy']> } : {}),
+        ...(asString(item.artifactPlanId) ? { artifactPlanId: asString(item.artifactPlanId) } : {}),
         objective: asString(item.objective), allowedPaths: asArray(item.allowedPaths).map(String), forbiddenPaths: asArray(item.forbiddenPaths).map(String), deliverables: asArray(item.deliverables).map(String), verifiers: asArray(item.verifiers).map(parseVerifier),
         ...(['JAVA_PRODUCTION', 'JAVA_TEST_ONLY', 'NON_JAVA'].includes(asString(item.implementationKind)) ? { implementationKind: asString(item.implementationKind) as 'JAVA_PRODUCTION' | 'JAVA_TEST_ONLY' | 'NON_JAVA' } : {}),
         acceptanceCriteria: asArray(item.acceptanceCriteria).map((criterion) => {
@@ -671,7 +684,7 @@ function normalizeDesignerMessage(value: unknown): DesignerMessage {
   return {
     id: asString(raw.id),
     role: role === 'USER' || role === 'ASSISTANT' || role === 'SYSTEM' ? role : 'SYSTEM',
-    actor: ['USER', 'DECOMPOSER', 'DESIGNER', 'COMPILER', 'VALIDATOR', 'SYSTEM'].includes(actor) ? actor as DesignerMessage['actor'] : role === 'USER' ? 'USER' : role === 'ASSISTANT' ? 'DESIGNER' : 'SYSTEM',
+    actor: ['USER', 'ROUTER', 'DECOMPOSER', 'DESIGNER', 'COMPILER', 'REVIEWER', 'VALIDATOR', 'SYSTEM'].includes(actor) ? actor as DesignerMessage['actor'] : role === 'USER' ? 'USER' : role === 'ASSISTANT' ? 'DESIGNER' : 'SYSTEM',
     content: asString(raw.content),
     deliveryState: ['PERSISTED', 'PENDING_HANDOFF', 'COMPILED', 'DESIGN_INCOMPLETE', 'PASS', 'RETRYABLE_ERROR', 'TERMINAL_ERROR', 'SESSION_ERROR'].includes(asString(raw.deliveryState))
       ? asString(raw.deliveryState) as DesignerMessage['deliveryState']
@@ -684,13 +697,13 @@ function normalizeDesignerMessage(value: unknown): DesignerMessage {
 
 function normalizeWorkflowPhase(value: unknown): DesignerSession['workflowPhase'] {
   const phase = asString(value)
-  return ['DISCUSSING_REQUIREMENT', 'DECOMPOSING', 'VALIDATING_DECOMPOSITION', 'DESIGNING', 'COMPILING', 'VALIDATING', 'REDESIGNING', 'QUESTIONING_PACKAGE', 'REVIEWING_PACKAGE', 'AGGREGATING', 'FINAL_REVIEW', 'COMPLETED', 'FAILED'].includes(phase)
+  return ['ROUTING', 'DISCUSSING_REQUIREMENT', 'DECOMPOSING', 'VALIDATING_DECOMPOSITION', 'DESIGNING', 'COMPILING', 'VALIDATING', 'REDESIGNING', 'QUESTIONING_PACKAGE', 'REVIEWING_PACKAGE', 'AGGREGATING', 'FINAL_REVIEW', 'GENERATING_REPORT', 'VALIDATING_REPORT', 'REPORT_READY', 'COMPLETED', 'FAILED'].includes(phase)
     ? phase as DesignerSession['workflowPhase'] : 'DESIGNING'
 }
 
 function normalizeDesignerActor(value: unknown): DesignerSession['activeActor'] {
   const actor = asString(value)
-  return ['USER', 'DECOMPOSER', 'DESIGNER', 'COMPILER', 'VALIDATOR', 'SYSTEM'].includes(actor)
+  return ['USER', 'ROUTER', 'DECOMPOSER', 'DESIGNER', 'COMPILER', 'REVIEWER', 'VALIDATOR', 'SYSTEM'].includes(actor)
     ? actor as DesignerSession['activeActor'] : 'SYSTEM'
 }
 
@@ -752,6 +765,16 @@ function normalizeDesignerSession(value: unknown): DesignerSession {
     discussionRevision: asNumber(raw.discussionRevision),
     candidate: raw.candidate ? (() => { const item = asRecord(raw.candidate); const state = asString(item.syncState); return { syncState: (['NONE', 'SYNCING', 'SYNCED', 'FAILED'].includes(state) ? state : 'NONE') as NonNullable<DesignerSession['candidate']>['syncState'], discussionRevision: asNumber(item.discussionRevision), workPackageId: asString(item.workPackageId) || undefined, spec: item.spec ? parseLoopSpec(item.spec) : undefined, detail: asString(item.detail) || undefined } })() : undefined,
     finalConfirmationEligible: raw.finalConfirmationEligible === true,
+    taskProfile: (() => { const item = asRecord(raw.taskProfile); return {
+      id: asString(item.id) || undefined, state: asString(item.state), intent: asString(item.intent, 'LEGACY_SOFTWARE') as DesignerSession['taskProfile']['intent'],
+      workflowTemplate: asString(item.workflowTemplate, 'FULL_PACKAGE_DESIGN') as DesignerSession['taskProfile']['workflowTemplate'], mutationMode: asString(item.mutationMode, 'WRITE_CODE') as DesignerSession['taskProfile']['mutationMode'],
+      artifactKinds: asArray(item.artifactKinds).map(String) as DesignerSession['taskProfile']['artifactKinds'], technologies: asArray(item.technologies).map(String),
+      testPolicy: asString(item.testPolicy, 'REQUIRED') as DesignerSession['taskProfile']['testPolicy'], executionStrategy: asString(item.executionStrategy, 'OPEN_CODE_IMPLEMENTATION') as DesignerSession['taskProfile']['executionStrategy'],
+      rolePackId: asString(item.rolePackId, 'software-java'), rolePackVersion: asString(item.rolePackVersion, 'legacy'), confidence: asNumber(item.confidence), evidence: asArray(item.evidence).map(String), resolutionSource: asString(item.resolutionSource), decisionRequired: item.decisionRequired === true, version: asNumber(item.version),
+    } })(),
+    availableProfileOverrides: asArray(raw.availableProfileOverrides).map(String) as DesignerSession['availableProfileOverrides'],
+    availableArtifactOverrides: asArray(raw.availableArtifactOverrides).map(String) as DesignerSession['availableArtifactOverrides'],
+    reports: asArray(raw.reports).map((value) => { const item = asRecord(value); return { id: asString(item.id), state: asString(item.state), title: asString(item.title), contentSha256: asString(item.contentSha256), stale: item.stale === true, updatedAt: asString(item.updatedAt) } }),
     autoMode: {
       enabled: autoMode.enabled === true,
       state: (['DISABLED', 'ACTIVE', 'BLOCKED', 'COMPLETED'].includes(autoModeState)
@@ -1390,6 +1413,7 @@ export const api = {
     return { sessionId: asString(raw.sessionId), state: normalizeDesignerState(raw.state), persistedMessages: asArray(raw.persistedMessages).map(normalizeDesignerMessage), notice: asString(raw.notice) }
   },
   confirmDesignerRequirement: async (id: string, expectedDiscussionRevision: number) => request<void>(`/designer-sessions/${encodeURIComponent(id)}/requirement/confirm`, { method: 'POST', body: JSON.stringify({ expectedDiscussionRevision }) }),
+  updateDesignerTaskProfile: async (id: string, intent: DesignerSession['taskProfile']['intent'], primaryArtifactKind: DesignerSession['taskProfile']['artifactKinds'][number], expectedVersion: number) => request<DesignerSession['taskProfile']>(`/designer-sessions/${encodeURIComponent(id)}/task-profile`, { method: 'PUT', body: JSON.stringify({ intent, primaryArtifactKind, expectedVersion }) }),
   reopenDesignerRequirement: async (id: string, expectedDiscussionRevision: number) => request<void>(`/designer-sessions/${encodeURIComponent(id)}/requirement/reopen`, { method: 'POST', body: JSON.stringify({ expectedDiscussionRevision }) }),
   sendWorkPackageMessage: async (id: string, packageId: string, content: string, expectedDiscussionRevision: number, expectedDesignRevision: number): Promise<DesignerAppendResult> => {
     const raw = asRecord(await request<unknown>(`/designer-sessions/${encodeURIComponent(id)}/work-packages/${encodeURIComponent(packageId)}/messages`, { method: 'POST', body: JSON.stringify({ content, expectedDiscussionRevision, expectedDesignRevision }) }))

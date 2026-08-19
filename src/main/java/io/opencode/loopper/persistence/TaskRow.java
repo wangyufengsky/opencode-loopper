@@ -3,7 +3,8 @@ import org.apache.ibatis.annotations.AutomapConstructor;
 
 public record TaskRow(String id, String projectId, String loopDraftId, String title, String state,
                       String worktreePath, String branchName, String sourceBranch, String baselineCommit,
-                      String createdAt, String updatedAt, long version) {
+                      String createdAt, String updatedAt, long version,
+                      String taskProfileId, String rolePackId, String rolePackVersion) {
     @AutomapConstructor
     public TaskRow { }
 
@@ -12,6 +13,13 @@ public record TaskRow(String id, String projectId, String loopDraftId, String ti
                    String worktreePath, String branchName, String baselineCommit,
                    String createdAt, String updatedAt, long version) {
         this(id, projectId, loopDraftId, title, state, worktreePath, branchName, null, baselineCommit,
-                createdAt, updatedAt, version);
+                createdAt, updatedAt, version, null, null, null);
+    }
+
+    public TaskRow(String id, String projectId, String loopDraftId, String title, String state,
+                   String worktreePath, String branchName, String sourceBranch, String baselineCommit,
+                   String createdAt, String updatedAt, long version) {
+        this(id, projectId, loopDraftId, title, state, worktreePath, branchName, sourceBranch, baselineCommit,
+                createdAt, updatedAt, version, null, null, null);
     }
 }

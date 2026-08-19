@@ -2,6 +2,7 @@ package io.opencode.loopper.domain;
 
 /** Visible phase of the read-only Designer -> Compiler -> Validator workflow. */
 public enum DesignWorkflowPhase implements DescribedEnum {
+    ROUTING("正在识别任务画像与流程"),
     DISCUSSING_REQUIREMENT("正在讨论和澄清整体需求"),
     DECOMPOSING("任务拆解器正在分析需求"),
     VALIDATING_DECOMPOSITION("服务端正在校验拆解计划"),
@@ -13,6 +14,9 @@ public enum DesignWorkflowPhase implements DescribedEnum {
     REVIEWING_PACKAGE("当前工作包等待人工确认"),
     AGGREGATING("服务端正在聚合完整 LoopSpec"),
     FINAL_REVIEW("完整设计等待总体确认"),
+    GENERATING_REPORT("只读评审器正在生成报告"),
+    VALIDATING_REPORT("服务端正在校验报告证据"),
+    REPORT_READY("只读报告已就绪"),
     COMPLETED("设计与 LoopSpec 已完成"),
     FAILED("自动设计工作流已停止");
 

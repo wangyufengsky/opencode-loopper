@@ -85,6 +85,23 @@ read-only handoffs; each Session is process-deduplicated and advances at most on
 existing authority boundary per tick. Confirmed drafts and already-started Tasks
 are reused so restart recovery cannot duplicate a Task or execution request.
 
+V35 adds a frozen task profile before workflow construction. `designer_task_profile`
+stores intent, workflow template, mutation mode, artifact kinds, technologies, test
+policy, execution strategy, Role Pack version, confidence and bounded evidence;
+historical rows without it project as `LEGACY_SOFTWARE` and keep the previous software
+path. The router scans only bounded, non-symlink manifest/file facts and never owns
+permissions or commands. Confidence below 80 or conflicting facts require a user
+decision. Profile references are copied to requirement/decomposition/package/Task and
+Recovery reuses the frozen values.
+
+The server owns five workflow templates. Software and complex maintenance use the full
+package lifecycle. Simple documents and tabular conversions compile an implicit `WP-1`
+and frozen `artifact_plan` without Decomposer or package Designer repetition. A normal
+Attempt is created only after Start; `SERVER_DOCUMENT_MATERIALIZATION` and
+`SERVER_TABULAR_CONVERSION` write atomically and proceed directly to native verification
+without an OpenCode Session. Read-only review/research persists `analysis_report` with
+source locations and hashes and never creates a Task, lease, branch, or writable Session.
+
 ## Authoritative lifecycle state machines
 
 Persisted business lifecycles use the project-local `FiniteStateMachine` rather
@@ -251,6 +268,8 @@ server, not either model, determines validity and performs optimistic draft
 synchronization outside model calls.
 
 V21 also stores an immutable Stage-start production-Java path/hash baseline.
+That baseline and its focused-test gate apply only to OpenCode software implementation stages;
+server-owned document and tabular stages proceed directly from materialization to their native verifier.
 For v2 `JAVA_PRODUCTION`, added, modified, or rename-target production `.java`
 files require a successful focused Maven/Gradle test from the same Stage. Test
 trees and generated `target`/`build` trees are excluded; deletion alone remains

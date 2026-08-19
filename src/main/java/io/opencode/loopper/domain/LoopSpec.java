@@ -47,24 +47,36 @@ public record LoopSpec(
             @Size(max = 64) List<@Valid AcceptanceCriterion> acceptanceCriteria,
             @Valid VerificationRuntime verificationRuntime,
             ImplementationKind implementationKind,
-            @Size(max = 64) String workPackageId) {
+            @Size(max = 64) String workPackageId,
+            StageKind stageKind,
+            ExecutionStrategy executionStrategy,
+            @Size(max = 64) String artifactPlanId) {
         public StageSpec(String objective, List<String> allowedPaths, List<String> forbiddenPaths,
                          List<String> deliverables, List<VerifierSpec> verifiers) {
-            this(objective, allowedPaths, forbiddenPaths, deliverables, verifiers, null, null, null, null);
+            this(objective, allowedPaths, forbiddenPaths, deliverables, verifiers, null, null, null, null,
+                    null, null, null);
         }
         public StageSpec(String objective, List<String> allowedPaths, List<String> forbiddenPaths,
                          List<String> deliverables, List<VerifierSpec> verifiers,
                          List<AcceptanceCriterion> acceptanceCriteria,
                          VerificationRuntime verificationRuntime) {
             this(objective, allowedPaths, forbiddenPaths, deliverables, verifiers,
-                    acceptanceCriteria, verificationRuntime, null, null);
+                    acceptanceCriteria, verificationRuntime, null, null, null, null, null);
         }
         public StageSpec(String objective, List<String> allowedPaths, List<String> forbiddenPaths,
                          List<String> deliverables, List<VerifierSpec> verifiers,
                          List<AcceptanceCriterion> acceptanceCriteria,
                          VerificationRuntime verificationRuntime, ImplementationKind implementationKind) {
             this(objective, allowedPaths, forbiddenPaths, deliverables, verifiers,
-                    acceptanceCriteria, verificationRuntime, implementationKind, null);
+                    acceptanceCriteria, verificationRuntime, implementationKind, null, null, null, null);
+        }
+        public StageSpec(String objective, List<String> allowedPaths, List<String> forbiddenPaths,
+                         List<String> deliverables, List<VerifierSpec> verifiers,
+                         List<AcceptanceCriterion> acceptanceCriteria,
+                         VerificationRuntime verificationRuntime, ImplementationKind implementationKind,
+                         String workPackageId) {
+            this(objective, allowedPaths, forbiddenPaths, deliverables, verifiers, acceptanceCriteria,
+                    verificationRuntime, implementationKind, workPackageId, null, null, null);
         }
         public StageSpec {
             allowedPaths = immutable(allowedPaths);
@@ -73,6 +85,15 @@ public record LoopSpec(
             verifiers = immutable(verifiers);
             acceptanceCriteria = immutable(acceptanceCriteria);
             workPackageId = blankToNull(workPackageId);
+            artifactPlanId = blankToNull(artifactPlanId);
+            if (stageKind == null && executionStrategy != null) {
+                stageKind = switch (executionStrategy) {
+                    case SERVER_DOCUMENT_MATERIALIZATION -> StageKind.DOCUMENT_MATERIALIZATION;
+                    case SERVER_TABULAR_CONVERSION -> StageKind.TABULAR_CONVERSION;
+                    case READ_ONLY_REPORT -> StageKind.READ_ONLY_ANALYSIS;
+                    default -> StageKind.SOFTWARE_IMPLEMENTATION;
+                };
+            }
         }
     }
 
@@ -144,7 +165,21 @@ public record LoopSpec(
                                @Size(max = 64) List<@Valid BrowserAssertion> assertions,
                                @Size(max = 64) List<@NotBlank @Size(max = 64) String> criterionIds,
                                @Size(max = 32) String processPurpose,
-                               @Size(max = 64) List<@NotBlank @Size(max = 512) String> testTargets) {
+                               @Size(max = 64) List<@NotBlank @Size(max = 512) String> testTargets,
+                               @Size(max = 64) List<@Valid DocumentAssertion> documentAssertions,
+                               @Size(max = 64) List<@Valid TabularAssertion> tabularAssertions) {
+        public VerifierSpec(String type, List<String> command, String path, Boolean requireChanges,
+                            List<String> allowedPaths, List<String> forbiddenPaths, Boolean forbidDeletes,
+                            String outputContains, String url, String httpMethod, Integer expectedStatus,
+                            String jsonPath, String expectedValue, String matchMode, String expectedContent,
+                            String expectedSha256, String sql, Integer expectedRowCount,
+                            List<BrowserAssertion> assertions, List<String> criterionIds,
+                            String processPurpose, List<String> testTargets) {
+            this(type, command, path, requireChanges, allowedPaths, forbiddenPaths, forbidDeletes,
+                    outputContains, url, httpMethod, expectedStatus, jsonPath, expectedValue, matchMode,
+                    expectedContent, expectedSha256, sql, expectedRowCount, assertions, criterionIds,
+                    processPurpose, testTargets, null, null);
+        }
         public VerifierSpec(String type, List<String> command, String path, Boolean requireChanges,
                             List<String> allowedPaths, List<String> forbiddenPaths, Boolean forbidDeletes,
                             String outputContains, String url, String httpMethod, Integer expectedStatus,
@@ -153,7 +188,8 @@ public record LoopSpec(
                             List<BrowserAssertion> assertions) {
             this(type, command, path, requireChanges, allowedPaths, forbiddenPaths, forbidDeletes,
                     outputContains, url, httpMethod, expectedStatus, jsonPath, expectedValue, matchMode,
-                    expectedContent, expectedSha256, sql, expectedRowCount, assertions, null, null, null);
+                    expectedContent, expectedSha256, sql, expectedRowCount, assertions, null, null, null,
+                    null, null);
         }
 
         public VerifierSpec(String type, List<String> command, String path, Boolean requireChanges,
@@ -161,14 +197,14 @@ public record LoopSpec(
                             String outputContains) {
             this(type, command, path, requireChanges, allowedPaths, forbiddenPaths, forbidDeletes,
                     outputContains, null, null, null, null, null, null, null, null, null, null, null,
-                    null, null, null);
+                    null, null, null, null, null);
         }
 
         public VerifierSpec(String type, List<String> command, String path, Boolean requireChanges,
                             List<String> allowedPaths, List<String> forbiddenPaths, Boolean forbidDeletes) {
             this(type, command, path, requireChanges, allowedPaths, forbiddenPaths, forbidDeletes, null,
                     null, null, null, null, null, null, null, null, null, null, null,
-                    null, null, null);
+                    null, null, null, null, null);
         }
 
         public VerifierSpec {
@@ -193,6 +229,33 @@ public record LoopSpec(
             processPurpose = blankToNull(processPurpose);
             processPurpose = processPurpose == null ? null : processPurpose.toUpperCase();
             testTargets = immutable(testTargets);
+            documentAssertions = immutable(documentAssertions);
+            tabularAssertions = immutable(tabularAssertions);
+        }
+    }
+
+    public record DocumentAssertion(@NotBlank @Size(max = 32) String type,
+                                    @Size(max = 2_000) String value,
+                                    @Min(0) @Max(10_000) Integer expectedCount,
+                                    @Min(1) @Max(4) Integer headingLevel) {
+        public DocumentAssertion {
+            type = type == null ? null : type.trim().toUpperCase(Locale.ROOT);
+            value = blankPreservingToNull(value);
+        }
+    }
+
+    public record TabularAssertion(@NotBlank @Size(max = 32) String type,
+                                   @Size(max = 128) String sheet,
+                                   @Min(0) @Max(100_000) Integer row,
+                                   @Min(0) @Max(1_000) Integer column,
+                                   @Size(max = 4_000) String expectedValue,
+                                   @Min(0) @Max(100_000) Integer expectedCount,
+                                   @Size(max = 512) String sourcePath) {
+        public TabularAssertion {
+            type = type == null ? null : type.trim().toUpperCase(Locale.ROOT);
+            sheet = blankToNull(sheet);
+            expectedValue = blankPreservingToNull(expectedValue);
+            sourcePath = blankToNull(sourcePath);
         }
     }
 

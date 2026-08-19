@@ -27,16 +27,23 @@ public class DesignerAutoModeService {
     private final DesignerSessionService designerSessions;
     private final LoopDraftService drafts;
     private final TaskService tasks;
+    private final TaskProfileService profiles;
+    private final AnalysisReportService reports;
+    private final DirectArtifactDesignService directArtifacts;
     private final Set<String> inFlight = ConcurrentHashMap.newKeySet();
 
     public DesignerAutoModeService(LoopperMapper mapper, LifecycleTransitionService lifecycle,
                                    DesignerSessionService designerSessions, LoopDraftService drafts,
-                                   TaskService tasks) {
+                                   TaskService tasks, TaskProfileService profiles,
+                                   AnalysisReportService reports, DirectArtifactDesignService directArtifacts) {
         this.mapper = mapper;
         this.lifecycle = lifecycle;
         this.designerSessions = designerSessions;
         this.drafts = drafts;
         this.tasks = tasks;
+        this.profiles = profiles;
+        this.reports = reports;
+        this.directArtifacts = directArtifacts;
     }
 
     public View initialize(String sessionId, boolean enabled) {
@@ -135,7 +142,16 @@ public class DesignerAutoModeService {
             if (DesignerSessionState.REVIEWING.name().equals(session.state())
                     && DesignWorkflowPhase.DISCUSSING_REQUIREMENT.name().equals(session.workflowPhase())
                     && session.currentRequirementRevision() == null) {
-                designerSessions.confirmRequirementAutomatically(sessionId, session.discussionRevision());
+                TaskProfileService.View profile = profiles.freeze(sessionId);
+                if (profile.executionStrategy() == io.opencode.loopper.domain.ExecutionStrategy.READ_ONLY_REPORT) {
+                    reports.generateFromDesignerSnapshot(sessionId);
+                    designerSessions.completeReadOnlyReport(sessionId);
+                } else if (profile.workflowTemplate() == io.opencode.loopper.domain.WorkflowTemplate.DIRECT_ARTIFACT) {
+                    directArtifacts.compile(sessionId, profile);
+                    designerSessions.completeDirectArtifactDesign(sessionId);
+                } else {
+                    designerSessions.confirmRequirementAutomatically(sessionId, session.discussionRevision());
+                }
                 recordAction(mode, "REQUIREMENT_AUTO_CONFIRMED");
                 return;
             }

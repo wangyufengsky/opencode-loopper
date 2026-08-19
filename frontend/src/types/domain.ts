@@ -621,6 +621,8 @@ export interface BrowserAssertion {
   expectedCount?: number
   attribute?: string
 }
+export interface DocumentAssertion { type: 'HEADING_EXISTS' | 'TEXT_EXISTS' | 'TABLE_COUNT' | 'LOCAL_LINKS_VALID'; value?: string; expectedCount?: number; headingLevel?: number }
+export interface TabularAssertion { type: 'SHEET_EXISTS' | 'ROW_COUNT' | 'COLUMN_COUNT' | 'HEADER_EQUALS' | 'CELL_EQUALS' | 'EQUIVALENT_TO'; sheet?: string; row?: number; column?: number; expectedValue?: string; expectedCount?: number; sourcePath?: string }
 
 interface LoopVerifierFields {
   command?: string[]
@@ -644,6 +646,8 @@ interface LoopVerifierFields {
   criterionIds?: string[]
   processPurpose?: 'BUILD' | 'TEST' | 'SELF_CHECK'
   testTargets?: string[]
+  documentAssertions?: DocumentAssertion[]
+  tabularAssertions?: TabularAssertion[]
 }
 
 /**
@@ -661,6 +665,8 @@ export type LoopVerifierSpec =
   | (LoopVerifierFields & { type: 'JUNIT_XML'; path: string })
   | (LoopVerifierFields & { type: 'BROWSER'; url: string; assertions: BrowserAssertion[] })
   | (LoopVerifierFields & { type: 'DATABASE_QUERY'; path: string; sql: string })
+  | (LoopVerifierFields & { type: 'DOCUMENT_STRUCTURE'; path: string; documentAssertions: DocumentAssertion[] })
+  | (LoopVerifierFields & { type: 'TABULAR_DATA'; path: string; tabularAssertions: TabularAssertion[] })
 
 export interface LoopSpec {
   schemaVersion: string
@@ -669,6 +675,9 @@ export interface LoopSpec {
   context: string
   stages: Array<{
     workPackageId?: string
+    stageKind?: 'SOFTWARE_IMPLEMENTATION' | 'DOCUMENT_MATERIALIZATION' | 'TABULAR_CONVERSION' | 'READ_ONLY_ANALYSIS' | 'LOCAL_MAINTENANCE' | 'LEGACY_SOFTWARE'
+    executionStrategy?: 'OPEN_CODE_IMPLEMENTATION' | 'SERVER_DOCUMENT_MATERIALIZATION' | 'SERVER_TABULAR_CONVERSION' | 'READ_ONLY_REPORT'
+    artifactPlanId?: string
     objective: string
     allowedPaths: string[]
     forbiddenPaths: string[]
@@ -841,7 +850,7 @@ export interface LoopDraft {
 export interface DesignerMessage {
   id: string
   role: 'USER' | 'ASSISTANT' | 'SYSTEM'
-  actor: 'USER' | 'DECOMPOSER' | 'DESIGNER' | 'COMPILER' | 'VALIDATOR' | 'SYSTEM'
+  actor: 'USER' | 'ROUTER' | 'DECOMPOSER' | 'DESIGNER' | 'COMPILER' | 'REVIEWER' | 'VALIDATOR' | 'SYSTEM'
   content: string
   deliveryState?: 'PERSISTED' | 'PENDING_HANDOFF' | 'COMPILED' | 'DESIGN_INCOMPLETE' | 'PASS' | 'NORMALIZED' | 'RETRYABLE_ERROR' | 'TERMINAL_ERROR' | 'SESSION_ERROR'
   requirementRevision?: number
@@ -850,7 +859,7 @@ export interface DesignerMessage {
 }
 
 export type DesignerSessionState = 'PENDING_HANDOFF' | 'RUNNING' | 'REVIEWING' | 'WAITING_INPUT' | 'COMPLETED' | 'SESSION_ERROR'
-export type DesignWorkflowPhase = 'DISCUSSING_REQUIREMENT' | 'DECOMPOSING' | 'VALIDATING_DECOMPOSITION' | 'DESIGNING' | 'COMPILING' | 'VALIDATING' | 'REDESIGNING' | 'QUESTIONING_PACKAGE' | 'REVIEWING_PACKAGE' | 'AGGREGATING' | 'FINAL_REVIEW' | 'COMPLETED' | 'FAILED'
+export type DesignWorkflowPhase = 'ROUTING' | 'DISCUSSING_REQUIREMENT' | 'DECOMPOSING' | 'VALIDATING_DECOMPOSITION' | 'DESIGNING' | 'COMPILING' | 'VALIDATING' | 'REDESIGNING' | 'QUESTIONING_PACKAGE' | 'REVIEWING_PACKAGE' | 'AGGREGATING' | 'FINAL_REVIEW' | 'GENERATING_REPORT' | 'VALIDATING_REPORT' | 'REPORT_READY' | 'COMPLETED' | 'FAILED'
 export type DesignerActor = DesignerMessage['actor']
 export type StructuredModelStep = 'PLANNING' | 'SERVER_COMPILING' | 'GENERATING_JSON' | 'REPAIRING_JSON' | 'FINAL_JSON'
 
@@ -942,6 +951,28 @@ export interface DesignerAutoMode {
   updatedAt?: string
 }
 
+export type TaskIntent = 'SOFTWARE_CHANGE' | 'DOCUMENT_AUTHORING' | 'DATA_CONVERSION' | 'READ_ONLY_REVIEW' | 'RESEARCH' | 'CONFIGURATION' | 'LOCAL_MAINTENANCE' | 'LEGACY_SOFTWARE'
+export type ArtifactKind = 'SOURCE_CODE' | 'PYTHON_SCRIPT' | 'MARKDOWN' | 'DOCX' | 'XLSX' | 'CSV' | 'TSV' | 'CONFIGURATION' | 'ANALYSIS_REPORT' | 'OTHER'
+export interface DesignerTaskProfile {
+  id?: string
+  state: string
+  intent: TaskIntent
+  workflowTemplate: 'FULL_PACKAGE_DESIGN' | 'DIRECT_ARTIFACT' | 'PACKAGED_ARTIFACT' | 'READ_ONLY_REPORT' | 'LOCAL_MAINTENANCE'
+  mutationMode: 'READ_ONLY' | 'WRITE_FILES' | 'WRITE_CODE' | 'SAFE_LOCAL_MAINTENANCE'
+  artifactKinds: ArtifactKind[]
+  technologies: string[]
+  testPolicy: 'REQUIRED' | 'OPTIONAL' | 'NOT_APPLICABLE'
+  executionStrategy: 'OPEN_CODE_IMPLEMENTATION' | 'SERVER_DOCUMENT_MATERIALIZATION' | 'SERVER_TABULAR_CONVERSION' | 'READ_ONLY_REPORT'
+  rolePackId: string
+  rolePackVersion: string
+  confidence: number
+  evidence: string[]
+  resolutionSource: string
+  decisionRequired: boolean
+  version: number
+}
+export interface AnalysisReportSummary { id: string; state: string; title: string; contentSha256: string; stale: boolean; updatedAt: string }
+
 export interface DesignerSession {
   id: string
   projectId: string
@@ -983,6 +1014,10 @@ export interface DesignerSession {
   candidate?: DesignerCandidateStatus
   finalConfirmationEligible: boolean
   autoMode: DesignerAutoMode
+  taskProfile: DesignerTaskProfile
+  availableProfileOverrides: TaskIntent[]
+  availableArtifactOverrides: ArtifactKind[]
+  reports: AnalysisReportSummary[]
 }
 
 export interface TaskDesignHistory {

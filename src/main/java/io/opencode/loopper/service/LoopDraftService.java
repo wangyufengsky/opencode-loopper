@@ -30,7 +30,7 @@ public class LoopDraftService {
     private static final Set<String> SUPPORTED_VERIFIERS = Set.of(
             "PROCESS", "FILE_EXISTS", "FILE_NOT_EXISTS", "GIT_DIFF",
             "HTTP_STATUS", "JSON_PATH", "FILE_CONTENT", "FILE_HASH",
-            "JUNIT_XML", "BROWSER", "DATABASE_QUERY");
+            "JUNIT_XML", "BROWSER", "DATABASE_QUERY", "DOCUMENT_STRUCTURE", "TABULAR_DATA");
     private static final Set<String> BROWSER_ASSERTIONS = Set.of(
             "EXISTS", "VISIBLE", "TEXT_CONTAINS", "COUNT", "ATTRIBUTE_EQUALS");
     private final LoopperMapper mapper;
@@ -231,6 +231,7 @@ public class LoopDraftService {
                     errors.add(path + ".path: file verifier requires a relative path");
                 }
                 if (("FILE_CONTENT".equals(type) || "FILE_HASH".equals(type) || "JUNIT_XML".equals(type)
+                        || "DOCUMENT_STRUCTURE".equals(type) || "TABULAR_DATA".equals(type)
                         || "DATABASE_QUERY".equals(type)) && blank(verifier.path())) {
                     errors.add(path + ".path: " + type + " requires a relative path");
                 }
@@ -261,6 +262,12 @@ public class LoopDraftService {
                             errors.add(path + ".assertions[" + assertionIndex + "].type: unsupported browser assertion " + assertion.type());
                         }
                     }
+                }
+                if ("DOCUMENT_STRUCTURE".equals(type) && verifier.documentAssertions().isEmpty()) {
+                    errors.add(path + ".documentAssertions: DOCUMENT_STRUCTURE requires bounded assertions");
+                }
+                if ("TABULAR_DATA".equals(type) && verifier.tabularAssertions().isEmpty()) {
+                    errors.add(path + ".tabularAssertions: TABULAR_DATA requires bounded assertions");
                 }
                 if (verifier.outputContains() != null && !"PROCESS".equals(type)) {
                     errors.add(path + ".outputContains: only PROCESS can assert command output");
@@ -310,7 +317,8 @@ public class LoopDraftService {
                 verifier.url(), verifier.httpMethod(), verifier.expectedStatus(), verifier.jsonPath(),
                 verifier.expectedValue(), verifier.matchMode(), verifier.expectedContent(), verifier.expectedSha256(),
                 verifier.sql(), verifier.expectedRowCount(), verifier.assertions(), verifier.criterionIds(),
-                verifier.processPurpose(), verifier.testTargets());
+                verifier.processPurpose(), verifier.testTargets(), verifier.documentAssertions(),
+                verifier.tabularAssertions());
     }
 
     private void preserveAggregatedWorkPackageMapping(LoopSpec oldSpec, LoopSpec updatedSpec) {

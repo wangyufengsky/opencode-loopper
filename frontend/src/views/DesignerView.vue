@@ -44,6 +44,8 @@ const submittingDesignerQuestion = ref('')
 const selectedWorkPackageId = ref('')
 const selectedProjectId = ref('')
 const designerRecoveryError = ref('')
+const profileIntent = ref<DesignerSession['taskProfile']['intent']>('SOFTWARE_CHANGE')
+const profileArtifact = ref<DesignerSession['taskProfile']['artifactKinds'][number]>('SOURCE_CODE')
 const designerWorkspaceKey = 'opencode-loopper.designer-workspace'
 const draftPromptKey = 'opencode-loopper.designer-draft-prompt'
 const messageDraftKey = 'opencode-loopper.designer-message-draft'
@@ -101,14 +103,16 @@ const designerIsThinking = computed(() => designerSession.value?.state === 'RUNN
   && (designerSession.value.pendingQuestions?.length ?? 0) === 0)
 const actorMeta = {
   USER: { label: '你', subtitle: '需求与补充', icon: 'lucide:user-round' },
+  ROUTER: { label: 'Task Router / 任务画像路由器', subtitle: '受控仓库事实与流程选择', icon: 'lucide:route' },
   DECOMPOSER: { label: 'Task Decomposer / 任务拆解器', subtitle: '需求覆盖与纵向工作包', icon: 'lucide:split' },
   DESIGNER: { label: 'Designer / 设计师', subtitle: 'Markdown 设计文档', icon: 'lucide:sparkles' },
   COMPILER: { label: 'LoopSpec Compiler / 规范编译器', subtitle: '编译摘要与设计缺口', icon: 'lucide:braces' },
+  REVIEWER: { label: 'Reviewer / 只读评审器', subtitle: '报告与证据快照', icon: 'lucide:file-search' },
   VALIDATOR: { label: 'Deterministic Validator / 确定性校验器', subtitle: '服务端硬校验结果', icon: 'lucide:badge-check' },
   SYSTEM: { label: '系统', subtitle: '工作流通知', icon: 'lucide:info' },
 } as const
 const workflowLabels = {
-  DISCUSSING_REQUIREMENT: '需求讨论', DECOMPOSING: '拆解中', VALIDATING_DECOMPOSITION: '校验拆解中', DESIGNING: '设计中', COMPILING: '编译中', VALIDATING: '确定性校验中', REDESIGNING: '重新设计中', QUESTIONING_PACKAGE: '设计提问', REVIEWING_PACKAGE: '工作包待确认', AGGREGATING: '聚合中', FINAL_REVIEW: '总体确认', COMPLETED: '已完成', FAILED: '已停止',
+  ROUTING: '画像识别中', DISCUSSING_REQUIREMENT: '需求讨论', DECOMPOSING: '拆解中', VALIDATING_DECOMPOSITION: '校验拆解中', DESIGNING: '设计中', COMPILING: '编译中', VALIDATING: '确定性校验中', REDESIGNING: '重新设计中', QUESTIONING_PACKAGE: '设计提问', REVIEWING_PACKAGE: '工作包待确认', AGGREGATING: '聚合中', FINAL_REVIEW: '总体确认', GENERATING_REPORT: '报告生成中', VALIDATING_REPORT: '报告校验中', REPORT_READY: '报告已就绪', COMPLETED: '已完成', FAILED: '已停止',
 } as const
 const activeActorMeta = computed(() => actorMeta[designerSession.value?.activeActor ?? 'SYSTEM'])
 const activeWorkflowLabel = computed(() => workflowLabels[designerSession.value?.workflowPhase ?? 'DESIGNING'])
@@ -131,8 +135,20 @@ const workflowStep = computed(() => {
   if (designerSession.value?.requirementRevision !== undefined) return 1
   return 0
 })
-const designerSteps = ['需求讨论', '工作包设计', '总体确认', '创建任务']
+const designerSteps = computed(() => {
+  const template = designerSession.value?.taskProfile.workflowTemplate
+  if (template === 'READ_ONLY_REPORT') return ['需求讨论', '只读报告']
+  if (template === 'DIRECT_ARTIFACT') return ['需求讨论', '制品规划', '总体确认', '创建任务']
+  if (template === 'LOCAL_MAINTENANCE') return ['需求讨论', '维护设计', '总体确认', '创建任务']
+  return ['需求讨论', '工作包设计', '总体确认', '创建任务']
+})
 const currentPackage = computed(() => designerSession.value?.workPackages?.find((item) => item.id === designerSession.value?.activeWorkPackageId))
+const currentReport = computed(() => designerSession.value?.reports?.[0])
+const artifactStage = computed(() => draft.value?.spec.stages.find((stage) => stage.executionStrategy?.startsWith('SERVER_')))
+const artifactTarget = computed(() => artifactStage.value?.deliverables?.[0] ?? '')
+const artifactSource = computed(() => artifactStage.value?.verifiers?.flatMap((item) => item.tabularAssertions ?? [])
+  .find((item) => item.type === 'EQUIVALENT_TO')?.sourcePath ?? '')
+const documentHeadingCount = computed(() => (draft.value?.spec.context.match(/^#{1,4}\s+/gm) ?? []).length)
 const discussionScopeLabel = computed(() => designerSession.value?.discussionScope && designerSession.value.discussionScope !== 'REQUIREMENT'
   ? designerSession.value.discussionScope : '整体需求')
 const hasPendingDesignerQuestion = computed(() => (designerSession.value?.pendingQuestions?.length ?? 0) > 0)
@@ -158,6 +174,23 @@ const designerRuntimeLabel = computed(() => {
   if (designerLiveError.value) return 'OpenCode 异常'
   return 'OpenCode 状态探测中'
 })
+watch(() => designerSession.value?.taskProfile, (profile) => {
+  if (!profile) return
+  profileIntent.value = profile.intent
+  profileArtifact.value = profile.artifactKinds[0] ?? 'OTHER'
+}, { immediate: true })
+
+async function updateTaskProfile() {
+  const session = designerSession.value
+  if (!session?.taskProfile.id) return
+  busy.value = true
+  try {
+    await api.updateDesignerTaskProfile(session.id, profileIntent.value, profileArtifact.value, session.taskProfile.version)
+    await refreshDesignerSession()
+    ElMessage.success('任务画像和专属流程已更新')
+  } catch (error) { ElMessage.error(error instanceof Error ? error.message : '任务画像更新失败') }
+  finally { busy.value = false }
+}
 const visibleMessages = computed(() => messages.value.filter((message) => !selectedWorkPackageId.value
   || !message.workPackageId || message.workPackageId === selectedWorkPackageId.value)
   .filter((message) => !message.content.includes('LOOPSPEC_COMPILATION_JSON_START')).filter((message) => !(
@@ -770,7 +803,8 @@ async function confirmRequirement() {
     await api.confirmDesignerRequirement(designerSession.value.id, designerSession.value.discussionRevision)
     await refreshDesignerSession()
     startDesignerPolling()
-    ElMessage.success('整体需求已冻结，开始拆包')
+    ElMessage.success(designerSession.value?.taskProfile.workflowTemplate === 'READ_ONLY_REPORT'
+      ? '只读报告已持久化；未创建任务或写入资源' : '整体需求已冻结，专属流程已启动')
   } catch (error) { ElMessage.error(error instanceof Error ? error.message : '需求确认失败') }
   finally { busy.value = false }
 }
@@ -1032,6 +1066,17 @@ async function redesignPackage(packageId: string) {
           <span class="mono">远端 {{ designerRemoteState || 'WAITING' }}</span>
           <time :datetime="designerObservedAt">{{ formatObservedAt(designerObservedAt) }}</time>
         </div>
+        <section v-if="designerSession?.taskProfile" class="task-profile-card" aria-label="任务画像与动态流程">
+          <header><div><strong>任务画像 · {{ designerSession.taskProfile.intent }}</strong><span>{{ designerSession.taskProfile.confidence }}% · {{ designerSession.taskProfile.rolePackId }}@{{ designerSession.taskProfile.rolePackVersion }}</span></div><b :class="{ warning: designerSession.taskProfile.decisionRequired }">{{ designerSession.taskProfile.decisionRequired ? '需要确认' : designerSession.taskProfile.resolutionSource }}</b></header>
+          <p>流程 {{ designerSession.taskProfile.workflowTemplate }} · 执行 {{ designerSession.taskProfile.executionStrategy }} · 测试 {{ designerSession.taskProfile.testPolicy }}</p>
+          <div class="profile-evidence"><span v-for="item in designerSession.taskProfile.evidence" :key="item">{{ item }}</span></div>
+          <div v-if="designerSession.taskProfile.state === 'PROVISIONAL'" class="profile-override">
+            <el-select v-model="profileIntent" aria-label="覆盖任务类型"><el-option v-for="item in designerSession.availableProfileOverrides" :key="item" :label="item" :value="item" /></el-select>
+            <el-select v-model="profileArtifact" aria-label="覆盖主要制品"><el-option v-for="item in designerSession.availableArtifactOverrides" :key="item" :label="item" :value="item" /></el-select>
+            <el-button plain :loading="busy" @click="updateTaskProfile">应用覆盖</el-button>
+          </div>
+        </section>
+        <section v-if="currentReport" class="task-profile-card report-card"><header><div><strong>只读报告</strong><span>{{ currentReport.title }}</span></div><b :class="{ warning: currentReport.stale }">{{ currentReport.stale ? '证据已过期' : '证据有效' }}</b></header><p class="mono">SHA-256 {{ currentReport.contentSha256 }}</p></section>
         <section v-if="designerSession?.autoMode.state !== 'DISABLED'" :class="['designer-auto-status', { blocked: autoModeBlocked, completed: designerSession?.autoMode.state === 'COMPLETED' }]" role="status" aria-live="polite">
           <Icon :icon="autoModeBlocked ? 'lucide:octagon-alert' : designerSession?.autoMode.state === 'COMPLETED' ? 'lucide:circle-check-big' : 'lucide:bot'" />
           <div><strong>{{ autoModeBlocked ? '全自动模式已阻断' : designerSession?.autoMode.state === 'COMPLETED' ? '全自动设计已完成' : '全自动模式正在推进' }}</strong><p v-if="autoModeBlocked">{{ designerSession?.autoMode.errorDetail }}；请先关闭后人工处理，完成后可重新授权。</p><p v-else-if="designerSession?.autoMode.state === 'COMPLETED'">任务已请求启动，正在打开任务详情；执行期决策保持人工处理。</p><p v-else>每轮只推进一个权威动作；关闭不会撤销已完成动作或终止正在执行的模型调用。</p></div>
@@ -1110,7 +1155,7 @@ async function redesignPackage(packageId: string) {
               @keydown.ctrl.enter.prevent="sendMessage"
             />
             <div class="compose-actions"><span class="tiny muted">{{ hasPendingDesignerQuestion ? '问题回答与普通输入不能同时提交' : '⌘ / Ctrl + Enter 发送；只修改当前作用域' }}</span><el-button type="primary" :loading="busy" :disabled="!composerEnabled || !userMessage.trim()" @click="sendMessage"><Icon icon="lucide:send" />发送</el-button></div>
-            <div v-if="designerSession?.workflowPhase === 'DISCUSSING_REQUIREMENT' && designerSession.state === 'REVIEWING'" class="scope-primary-action"><el-button type="primary" :loading="busy" :disabled="autoModeActive" @click="confirmRequirement"><Icon icon="lucide:split" />{{ autoModeActive ? '全自动模式将确认需求' : '需求已明确，开始拆包' }}</el-button></div>
+            <div v-if="designerSession?.workflowPhase === 'DISCUSSING_REQUIREMENT' && designerSession.state === 'REVIEWING'" class="scope-primary-action"><el-button type="primary" :loading="busy" :disabled="autoModeActive || designerSession.taskProfile.decisionRequired" @click="confirmRequirement"><Icon :icon="designerSession.taskProfile.workflowTemplate === 'READ_ONLY_REPORT' ? 'lucide:file-search' : 'lucide:split'" />{{ autoModeActive ? '全自动模式将确认需求' : designerSession.taskProfile.workflowTemplate === 'READ_ONLY_REPORT' ? '需求已明确，生成只读报告' : designerSession.taskProfile.workflowTemplate === 'DIRECT_ARTIFACT' ? '需求已明确，规划制品' : '需求已明确，开始拆包' }}</el-button></div>
             <div v-else-if="designerSession?.workflowPhase === 'REVIEWING_PACKAGE' && currentPackage?.state === 'REVIEWING'" class="scope-primary-action"><span>候选已通过确定性校验，接受后才会进入下一个工作包。</span><el-button type="primary" :loading="busy" :disabled="autoModeActive" @click="approvePackage"><Icon icon="lucide:check-check" />{{ autoModeActive ? `全自动模式将接受 ${currentPackage.id}` : `接受 ${currentPackage.id} 并继续` }}</el-button></div>
           </div>
         </div>
@@ -1118,6 +1163,12 @@ async function redesignPackage(packageId: string) {
       <article class="card spec-panel">
         <div class="card-pad card-header"><div><p class="eyebrow">REVIEW GATE</p><h2 class="card-title">{{ isFinalReview ? '最终 LoopSpec' : '候选 LoopSpec' }}</h2></div><div class="review-actions"><span :class="['candidate-sync', `sync-${(designerSession?.candidate?.syncState ?? 'NONE').toLowerCase()}`]">{{ designerSession?.candidate?.syncState === 'SYNCING' ? '同步中' : designerSession?.candidate?.syncState === 'FAILED' ? '同步失败，保留上一版' : designerSession?.candidate?.syncState === 'SYNCED' ? `已同步 R${designerSession.candidate.discussionRevision}` : '等待候选' }}</span><template v-if="isFinalReview"><el-button v-if="draft.spec.schemaVersion === 'v1' && !store.usingDemo" plain size="small" :loading="busy" @click="copyLegacyDraftAsV2">复制为 v2</el-button><el-button plain size="small" :loading="busy" @click="saveDraft"><Icon icon="lucide:save" />保存</el-button></template></div></div>
         <div class="spec-meta"><span><Icon icon="lucide:folder-git-2" />{{ draft.spec.projectId }}</span><span><Icon icon="lucide:flag" />{{ designerSession?.candidate?.spec?.stages.length ?? draft.spec.stages.length }} 个阶段</span><span><Icon icon="lucide:timer" />{{ draft.spec.limits.maxDuration }}</span><span v-if="draft.spec.schemaVersion === 'v1'" class="legacy-contract">旧合同（兼容）</span></div>
+        <section v-if="isFinalReview && artifactStage" class="artifact-preview" aria-label="服务端制品预览">
+          <header><strong>{{ artifactStage.stageKind === 'TABULAR_CONVERSION' ? '表格转换预览' : artifactTarget.endsWith('.docx') ? 'DOCX 结构摘要' : 'Markdown 预览' }}</strong><span>{{ artifactTarget }}</span></header>
+          <template v-if="artifactStage.stageKind === 'TABULAR_CONVERSION'"><p>输入 {{ artifactSource }} → 输出 {{ artifactTarget }}</p><small>公式使用缓存显示值；合并区域仅保留左上角；仅移除尾部全空行列。</small></template>
+          <template v-else-if="artifactTarget.endsWith('.docx')"><p>{{ draft.spec.goal }} · {{ documentHeadingCount }} 个 1–4 级标题 · 服务端生成后执行 DOCUMENT_STRUCTURE 验收</p></template>
+          <MarkdownDocument v-else :content="draft.spec.context" collapsible />
+        </section>
         <section v-if="acceptanceAssessment && !acceptanceAssessment.legacy" class="acceptance-matrix" aria-label="双重验收计划矩阵">
           <header><strong>双重验收计划</strong><span :class="acceptanceAssessment.valid ? 'matrix-pass' : 'matrix-fail'">{{ acceptanceAssessment.valid ? '计划有效' : `${acceptanceAssessment.errors.length} 项阻断` }}</span></header>
           <div v-for="stage in acceptanceAssessment.stageAssessments" :key="stage.stageIndex" class="matrix-stage">
@@ -1325,6 +1376,9 @@ async function redesignPackage(packageId: string) {
 .candidate-readonly pre { max-height: 660px; margin: 0; padding: 14px; overflow: auto; color: var(--color-text-secondary); font: 9px/1.65 var(--font-code); white-space: pre-wrap; }
 .candidate-empty { display: grid; place-items: center; gap: 10px; min-height: 260px; padding: 30px; color: var(--color-text-muted); font-size: 10px; text-align: center; }
 .candidate-empty svg { width: 24px; height: 24px; }
+.artifact-preview { margin: 0 20px 16px; padding: 14px; border: 1px solid rgb(34 211 238 / 28%); border-radius: 10px; background: rgb(8 47 73 / 20%); }
+.artifact-preview header { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 10px; color: var(--color-accent-cyan); }
+.artifact-preview p, .artifact-preview small { color: var(--color-text-secondary); }
 .spec-meta, .spec-footer { display: flex; align-items: center; gap: 12px; padding: 0 20px 14px; color: var(--color-text-secondary); font-family: var(--font-code); font-size: 10px; }
 .spec-meta span { display: inline-flex; align-items: center; gap: 5px; }
 .spec-editor { display: block; }
@@ -1342,6 +1396,9 @@ async function redesignPackage(packageId: string) {
 .active-role svg { color: var(--color-accent-cyan); }
 .designer-state-actions { display: flex; align-items: center; gap: 8px; }
 .designer-auto-switch { display: flex; align-items: center; gap: 8px; padding-right: 8px; border-right: 1px solid var(--color-border-default); }.designer-auto-switch > span { display: grid; text-align: right; }.designer-auto-switch strong { color: var(--color-text-primary); font-size: 9px; }.designer-auto-switch small { color: var(--color-text-muted); font: 7px/1.2 var(--font-code); }
+.task-profile-card { display: grid; gap: 8px; margin: 0 20px 10px; padding: 12px; border: 1px solid rgb(34 211 238 / 24%); border-radius: 10px; background: rgb(34 211 238 / 5%); }
+.task-profile-card header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }.task-profile-card header > div { display: grid; gap: 3px; }.task-profile-card strong { color: var(--color-text-primary); font-size: 11px; }.task-profile-card header span, .task-profile-card p { margin: 0; color: var(--color-text-secondary); font: 8px/1.5 var(--font-code); }.task-profile-card b { color: var(--color-success); font: 8px/1 var(--font-code); }.task-profile-card b.warning { color: var(--color-session-warning); }
+.profile-evidence { display: flex; flex-wrap: wrap; gap: 5px; }.profile-evidence span { padding: 3px 6px; border: 1px solid var(--color-border-default); border-radius: 999px; color: var(--color-text-muted); font: 7px/1 var(--font-code); }.profile-override { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; }.report-card { border-color: rgb(34 197 94 / 28%); background: rgb(34 197 94 / 5%); }
 
 @media (max-width: 1180px) {
   .designer-start-layout { grid-template-columns: 1fr; }
@@ -1367,5 +1424,6 @@ async function redesignPackage(packageId: string) {
   .final-review-action :deep(.el-button) { width: 100%; margin-left: 0; }
   .designer-connection-strip { align-items: flex-start; flex-direction: column; }
   .designer-connection-strip time { margin-left: 0; }
+  .profile-override { grid-template-columns: 1fr; }
 }
 </style>

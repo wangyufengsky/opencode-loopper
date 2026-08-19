@@ -332,6 +332,79 @@ public interface LoopperMapper {
     int archiveDesignerSession(@Param("sessionId") String sessionId, @Param("archivedAt") String archivedAt);
     @Delete("DELETE FROM designer_session_archive WHERE designer_session_id=#{sessionId}")
     int restoreDesignerSession(String sessionId);
+    @Insert("""
+            INSERT INTO designer_task_profile(id,designer_session_id,requirement_revision_id,state,intent,
+              workflow_template,mutation_mode,artifact_kinds_json,technologies_json,test_policy,
+              execution_strategy,role_pack_id,role_pack_version,confidence,evidence_json,resolution_source,
+              decision_required,created_at,updated_at,version)
+            VALUES(#{id},#{designerSessionId},#{requirementRevisionId},#{state},#{intent},
+              #{workflowTemplate},#{mutationMode},#{artifactKindsJson},#{technologiesJson},#{testPolicy},
+              #{executionStrategy},#{rolePackId},#{rolePackVersion},#{confidence},#{evidenceJson},#{resolutionSource},
+              #{decisionRequired},#{createdAt},#{updatedAt},#{version})
+            """)
+    int insertDesignerTaskProfile(DesignerTaskProfileRow row);
+    @Select("SELECT * FROM designer_task_profile WHERE id=#{id}")
+    Optional<DesignerTaskProfileRow> findDesignerTaskProfile(String id);
+    @Select("""
+            SELECT * FROM designer_task_profile WHERE designer_session_id=#{sessionId}
+            AND state IN ('PROVISIONAL','FROZEN') ORDER BY created_at DESC LIMIT 1
+            """)
+    Optional<DesignerTaskProfileRow> findCurrentDesignerTaskProfile(String sessionId);
+    @Select("""
+            SELECT profile.* FROM designer_task_profile profile
+            JOIN designer_session session ON session.id=profile.designer_session_id
+            WHERE session.loop_draft_id=#{draftId} AND profile.state='FROZEN'
+            ORDER BY profile.created_at DESC LIMIT 1
+            """)
+    Optional<DesignerTaskProfileRow> findFrozenTaskProfileByDraft(String draftId);
+    @Select("SELECT * FROM designer_task_profile WHERE designer_session_id=#{sessionId} ORDER BY created_at DESC")
+    List<DesignerTaskProfileRow> listDesignerTaskProfiles(String sessionId);
+    @Update("""
+            UPDATE designer_task_profile SET requirement_revision_id=#{requirementRevisionId},state=#{state},
+              intent=#{intent},workflow_template=#{workflowTemplate},mutation_mode=#{mutationMode},
+              artifact_kinds_json=#{artifactKindsJson},technologies_json=#{technologiesJson},test_policy=#{testPolicy},
+              execution_strategy=#{executionStrategy},role_pack_id=#{rolePackId},role_pack_version=#{rolePackVersion},
+              confidence=#{confidence},evidence_json=#{evidenceJson},resolution_source=#{resolutionSource},
+              decision_required=#{decisionRequired},updated_at=#{updatedAt},version=version+1
+            WHERE id=#{id} AND version=#{version}
+            """)
+    int updateDesignerTaskProfile(DesignerTaskProfileRow row);
+    @Update("UPDATE designer_task_profile SET requirement_revision_id=#{requirementRevisionId},updated_at=#{updatedAt},version=version+1 WHERE id=#{profileId} AND state='FROZEN'")
+    int bindTaskProfileRequirement(@Param("profileId") String profileId,
+                                   @Param("requirementRevisionId") String requirementRevisionId,
+                                   @Param("updatedAt") String updatedAt);
+    @Update("UPDATE designer_task_profile SET state='SUPERSEDED',updated_at=#{updatedAt},version=version+1 WHERE designer_session_id=#{sessionId} AND state='PROVISIONAL'")
+    int supersedeProvisionalTaskProfiles(@Param("sessionId") String sessionId, @Param("updatedAt") String updatedAt);
+
+    @Insert("""
+            INSERT INTO analysis_report(id,designer_session_id,task_profile_id,state,title,markdown,evidence_json,
+              content_sha256,source_snapshot_sha256,error_code,error_detail,created_at,updated_at,version)
+            VALUES(#{id},#{designerSessionId},#{taskProfileId},#{state},#{title},#{markdown},#{evidenceJson},
+              #{contentSha256},#{sourceSnapshotSha256},#{errorCode},#{errorDetail},#{createdAt},#{updatedAt},#{version})
+            """)
+    int insertAnalysisReport(AnalysisReportRow row);
+    @Select("SELECT * FROM analysis_report WHERE id=#{id} AND designer_session_id=#{sessionId}")
+    Optional<AnalysisReportRow> findAnalysisReport(@Param("sessionId") String sessionId, @Param("id") String id);
+    @Select("SELECT * FROM analysis_report WHERE designer_session_id=#{sessionId} ORDER BY created_at DESC")
+    List<AnalysisReportRow> listAnalysisReports(String sessionId);
+    @Update("""
+            UPDATE analysis_report SET state=#{state},title=#{title},markdown=#{markdown},evidence_json=#{evidenceJson},
+              content_sha256=#{contentSha256},source_snapshot_sha256=#{sourceSnapshotSha256},error_code=#{errorCode},
+              error_detail=#{errorDetail},updated_at=#{updatedAt},version=version+1 WHERE id=#{id} AND version=#{version}
+            """)
+    int updateAnalysisReport(AnalysisReportRow row);
+    @Insert("""
+            INSERT INTO artifact_plan(id,designer_session_id,task_profile_id,kind,state,plan_json,plan_sha256,
+              created_at,updated_at,version)
+            VALUES(#{id},#{designerSessionId},#{taskProfileId},#{kind},#{state},#{planJson},#{planSha256},
+              #{createdAt},#{updatedAt},#{version})
+            """)
+    int insertArtifactPlan(ArtifactPlanRow row);
+    @Select("SELECT * FROM artifact_plan WHERE id=#{id}") Optional<ArtifactPlanRow> findArtifactPlan(String id);
+    @Select("SELECT * FROM artifact_plan WHERE designer_session_id=#{sessionId} AND state IN ('PROVISIONAL','FROZEN') ORDER BY created_at DESC")
+    List<ArtifactPlanRow> listCurrentArtifactPlans(String sessionId);
+    @Update("UPDATE artifact_plan SET state=#{state},plan_json=#{planJson},plan_sha256=#{planSha256},updated_at=#{updatedAt},version=version+1 WHERE id=#{id} AND version=#{version}")
+    int updateArtifactPlan(ArtifactPlanRow row);
     @Select("SELECT * FROM designer_session WHERE state='RUNNING' AND workflow_phase IN ('DISCUSSING_REQUIREMENT','DESIGNING','REDESIGNING','QUESTIONING_PACKAGE') AND external_session_id IS NOT NULL ORDER BY updated_at")
     List<DesignerSessionRow> activeDesignerHandoffs();
     @Update("UPDATE designer_session SET state=#{state}, access_mode=#{accessMode}, external_session_id=#{externalSessionId}, external_session_state=#{externalSessionState}, loop_draft_id=#{loopDraftId}, workflow_phase=#{workflowPhase}, design_revision=#{designRevision}, redesign_count=#{redesignCount}, current_requirement_revision=#{currentRequirementRevision}, active_work_package_id=#{activeWorkPackageId}, discussion_scope=#{discussionScope}, discussion_revision=#{discussionRevision}, candidate_sync_state=#{candidateSyncState}, updated_at=#{updatedAt}, version=version+1 WHERE id=#{id} AND version=#{version}")
@@ -400,10 +473,11 @@ public interface LoopperMapper {
     @Insert("""
             INSERT INTO design_requirement_revision(id,designer_session_id,revision,source_message_id,
               requirement_text,requirement_segments_json,source_draft_version,state,model_calls_used,max_model_calls,
-              created_at,updated_at,version)
+              created_at,updated_at,version,task_profile_id)
             VALUES(#{id},#{designerSessionId},#{revision},#{sourceMessageId},#{requirementText},
               #{requirementSegmentsJson},#{sourceDraftVersion},#{state},#{modelCallsUsed},#{maxModelCalls},
-              #{createdAt},#{updatedAt},#{version})
+              #{createdAt},#{updatedAt},#{version},
+              (SELECT id FROM designer_task_profile WHERE designer_session_id=#{designerSessionId} AND state='FROZEN' ORDER BY created_at DESC LIMIT 1))
             """)
     int insertDesignRequirementRevision(DesignRequirementRevisionRow row);
     @Select("SELECT * FROM design_requirement_revision WHERE id=#{id}")
@@ -422,14 +496,15 @@ public interface LoopperMapper {
               created_at,updated_at,version,workflow_step,planning_json,planning_repair_count,
               planning_response_mode,planning_response_schema_id,planning_format_fallback_used,
               final_response_mode,final_response_schema_id,final_format_fallback_used,
-              semantic_plan_json,format_repair_count,semantic_repair_count,server_compiled)
+              semantic_plan_json,format_repair_count,semantic_repair_count,server_compiled,task_profile_id)
             VALUES(#{id},#{designerSessionId},#{requirementRevisionId},#{state},#{resultType},#{normalizedGoal},
               #{globalConstraintsJson},#{planJson},#{externalSessionId},#{externalSessionState},#{repairCount},
               #{transportRetryCount},#{sourceDraftVersion},#{lastErrorCode},#{lastErrorDetail},
               #{createdAt},#{updatedAt},#{version},#{workflowStep},#{planningJson},#{planningRepairCount},
               #{planningResponseMode},#{planningResponseSchemaId},#{planningFormatFallbackUsed},
               #{finalResponseMode},#{finalResponseSchemaId},#{finalFormatFallbackUsed},
-              #{semanticPlanJson},#{formatRepairCount},#{semanticRepairCount},#{serverCompiled})
+              #{semanticPlanJson},#{formatRepairCount},#{semanticRepairCount},#{serverCompiled},
+              (SELECT id FROM designer_task_profile WHERE designer_session_id=#{designerSessionId} AND state='FROZEN' ORDER BY created_at DESC LIMIT 1))
             """)
     int insertTaskDecomposition(TaskDecompositionRow row);
     @Select("SELECT * FROM task_decomposition WHERE id=#{id}")
@@ -464,14 +539,17 @@ public interface LoopperMapper {
               designer_external_session_state,design_message_id,design_revision,redesign_count,
               designer_transport_retry_count,compiler_summary,handoff_summary,last_error_code,last_error_detail,
               approved_design_revision,discussion_round_count,invalidated_by_package_id,approved_at,
-              created_at,updated_at,version)
+              created_at,updated_at,version,task_profile_id,role_pack_id,role_pack_version)
             VALUES(#{id},#{designerSessionId},#{requirementRevisionId},#{decompositionId},#{packageId},#{ordinal},
               #{title},#{objective},#{scopeInJson},#{scopeOutJson},#{dependenciesJson},#{deliverablesJson},
               #{acceptanceIntentJson},#{requirementRefsJson},#{state},#{designerExternalSessionId},
               #{designerExternalSessionState},#{designMessageId},#{designRevision},#{redesignCount},
               #{designerTransportRetryCount},#{compilerSummary},#{handoffSummary},#{lastErrorCode},#{lastErrorDetail},
               #{approvedDesignRevision},#{discussionRoundCount},#{invalidatedByPackageId},#{approvedAt},
-              #{createdAt},#{updatedAt},#{version})
+              #{createdAt},#{updatedAt},#{version},
+              (SELECT id FROM designer_task_profile WHERE designer_session_id=#{designerSessionId} AND state='FROZEN' ORDER BY created_at DESC LIMIT 1),
+              (SELECT role_pack_id FROM designer_task_profile WHERE designer_session_id=#{designerSessionId} AND state='FROZEN' ORDER BY created_at DESC LIMIT 1),
+              (SELECT role_pack_version FROM designer_task_profile WHERE designer_session_id=#{designerSessionId} AND state='FROZEN' ORDER BY created_at DESC LIMIT 1))
             """)
     int insertDesignWorkPackage(DesignWorkPackageRow row);
     @Select("SELECT * FROM design_work_package WHERE id=#{id}")
@@ -548,7 +626,7 @@ public interface LoopperMapper {
             """)
     int updateLoopSpecCompilation(LoopSpecCompilationRow row);
 
-    @Insert("INSERT INTO task(id,project_id,loop_draft_id,title,state,worktree_path,branch_name,source_branch,baseline_commit,created_at,updated_at,version) VALUES(#{id},#{projectId},#{loopDraftId},#{title},#{state},#{worktreePath},#{branchName},#{sourceBranch},#{baselineCommit},#{createdAt},#{updatedAt},#{version})")
+    @Insert("INSERT INTO task(id,project_id,loop_draft_id,title,state,worktree_path,branch_name,source_branch,baseline_commit,created_at,updated_at,version,task_profile_id,role_pack_id,role_pack_version) VALUES(#{id},#{projectId},#{loopDraftId},#{title},#{state},#{worktreePath},#{branchName},#{sourceBranch},#{baselineCommit},#{createdAt},#{updatedAt},#{version},#{taskProfileId},#{rolePackId},#{rolePackVersion})")
     int insertTask(TaskRow row);
     @Select("SELECT * FROM task WHERE id=#{id}") Optional<TaskRow> findTask(String id);
     @Select("SELECT * FROM task WHERE loop_draft_id=#{draftId} ORDER BY created_at DESC LIMIT 1") Optional<TaskRow> findTaskByDraft(String draftId);
@@ -591,7 +669,7 @@ public interface LoopperMapper {
     int updateTaskPublication(TaskPublicationRow row);
     @Delete("DELETE FROM task_publication WHERE task_id=#{taskId}") int deleteTaskPublicationForTask(String taskId);
 
-    @Insert("INSERT INTO stage(id,task_id,ordinal,objective,allowed_paths_json,forbidden_paths_json,deliverables_json,verifiers_json,state,created_at,updated_at,version,work_package_id) VALUES(#{id},#{taskId},#{ordinal},#{objective},#{allowedPathsJson},#{forbiddenPathsJson},#{deliverablesJson},#{verifiersJson},#{state},#{createdAt},#{updatedAt},#{version},#{workPackageId})")
+    @Insert("INSERT INTO stage(id,task_id,ordinal,objective,allowed_paths_json,forbidden_paths_json,deliverables_json,verifiers_json,state,created_at,updated_at,version,work_package_id,stage_kind,execution_strategy,artifact_plan_id) VALUES(#{id},#{taskId},#{ordinal},#{objective},#{allowedPathsJson},#{forbiddenPathsJson},#{deliverablesJson},#{verifiersJson},#{state},#{createdAt},#{updatedAt},#{version},#{workPackageId},#{stageKind},#{executionStrategy},#{artifactPlanId})")
     int insertStage(StageRow row);
     @Select("SELECT * FROM stage WHERE id=#{id}") Optional<StageRow> findStage(String id);
     @Select("SELECT * FROM stage WHERE task_id=#{taskId} ORDER BY ordinal") List<StageRow> listStages(String taskId);

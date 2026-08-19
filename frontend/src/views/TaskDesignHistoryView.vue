@@ -19,8 +19,8 @@ const visibleMessages = computed(() => (record.value?.designerSession?.messages 
   && message.deliveryState === 'PENDING_HANDOFF'
   && !message.content.startsWith('SYSTEM_ERROR')
 )))
-const actorLabels = { USER: '你', DECOMPOSER: 'Task Decomposer / 任务拆解器', DESIGNER: 'Designer / 设计师', COMPILER: 'LoopSpec Compiler / 规范编译器', VALIDATOR: 'Deterministic Validator / 确定性校验器', SYSTEM: '系统' } as const
-const actorIcons = { USER: 'lucide:user-round', DECOMPOSER: 'lucide:split', DESIGNER: 'lucide:sparkles', COMPILER: 'lucide:braces', VALIDATOR: 'lucide:badge-check', SYSTEM: 'lucide:info' } as const
+const actorLabels = { USER: '你', ROUTER: 'Task Router / 任务路由器', DECOMPOSER: 'Task Decomposer / 任务拆解器', DESIGNER: 'Designer / 设计师', COMPILER: 'LoopSpec Compiler / 规范编译器', REVIEWER: 'Reviewer / 只读评审者', VALIDATOR: 'Deterministic Validator / 确定性校验器', SYSTEM: '系统' } as const
+const actorIcons = { USER: 'lucide:user-round', ROUTER: 'lucide:route', DECOMPOSER: 'lucide:split', DESIGNER: 'lucide:sparkles', COMPILER: 'lucide:braces', REVIEWER: 'lucide:file-search', VALIDATOR: 'lucide:badge-check', SYSTEM: 'lucide:info' } as const
 const rawSpec = computed(() => record.value ? JSON.stringify(record.value.draft.spec, null, 2) : '')
 
 async function load() {

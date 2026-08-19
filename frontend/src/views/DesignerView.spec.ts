@@ -41,6 +41,16 @@ const session: DesignerSession = {
   discussionRevision: 1,
   finalConfirmationEligible: true,
   autoMode: { enabled: false, state: 'DISABLED', version: 0 },
+  taskProfile: {
+    state: 'FROZEN', intent: 'SOFTWARE_CHANGE', workflowTemplate: 'FULL_PACKAGE_DESIGN',
+    mutationMode: 'WRITE_CODE', artifactKinds: ['SOURCE_CODE'], technologies: ['java'],
+    testPolicy: 'REQUIRED', executionStrategy: 'OPEN_CODE_IMPLEMENTATION',
+    rolePackId: 'software-java', rolePackVersion: 'test', confidence: 100,
+    evidence: [], resolutionSource: 'TEST', decisionRequired: false, version: 0,
+  },
+  availableProfileOverrides: [],
+  availableArtifactOverrides: [],
+  reports: [],
   messages: [],
 }
 

@@ -161,7 +161,7 @@ normal confirmed Task.
 
 Existing `PROCESS`, `FILE_EXISTS`, `FILE_NOT_EXISTS`, and `GIT_DIFF` remain.
 Native types are `HTTP_STATUS`, `JSON_PATH`, `FILE_CONTENT`, `FILE_HASH`,
-`JUNIT_XML`, `BROWSER`, and `DATABASE_QUERY`. HTTP/browser access is loopback
+`JUNIT_XML`, `BROWSER`, `DATABASE_QUERY`, `DOCUMENT_STRUCTURE`, and `TABULAR_DATA`. HTTP/browser access is loopback
 only. Browser assertions are bounded and contain no arbitrary JavaScript. Browser
 executable discovery is explicit override, then process `PATH`, then standard OS
 locations; an invalid explicit override fails closed without fallback.
@@ -184,6 +184,24 @@ later disable the tests it claimed to run. Business-mapped TEST evidence require
 explicit targets; a safe unmapped full-suite command may remain a blocking
 supplemental report but never covers a criterion or satisfies the focused
 Java-production gate.
+
+`DOCUMENT_STRUCTURE` parses only bounded Markdown or DOCX and supports heading,
+text, table-count, and local-link assertions. `TABULAR_DATA` parses bounded XLSX,
+CSV, TSV, or Markdown tables and supports Sheet, row/column, header, cell, and
+source-equivalence assertions. Assertion DTOs contain no scripts, expressions, or
+formula evaluators. OOXML rejects macro formats, encryption, external relationships,
+symbolic links, zip bombs, and configured size/count overflows. XLSX formulas use
+stored display values without recalculation; merged cells retain only the top-left
+value; only trailing completely empty rows/columns are removed.
+
+`PROCESS TEST` is selected by frozen task policy, not inserted into every Stage.
+Java production remains REQUIRED; existing framework evidence or an explicit user
+test requirement makes other software REQUIRED. A standalone Python script without
+a repository test system may use `SELF_CHECK` plus native output verification.
+Documents, one-shot conversions, and read-only reports are `NOT_APPLICABLE`.
+Server-owned document/tabular stages therefore never capture or evaluate the
+production-Java baseline; their blocking behavior evidence remains
+`DOCUMENT_STRUCTURE` or `TABULAR_DATA`.
 `DATABASE_QUERY` accepts one read-only local SQLite `SELECT`/`WITH` statement.
 Screenshots and traces live below the configured data directory; SQLite stores
 only relative path, SHA-256, size and metadata.

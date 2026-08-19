@@ -13,7 +13,8 @@ final class NativeVerifierRegistry {
     NativeVerifierRegistry() {
         handlers = java.util.List.<NativeVerifierHandler>of(
                 new HttpStatusVerifier(), new JsonPathVerifier(), new FileContentVerifier(), new FileHashVerifier(),
-                new JunitXmlVerifier(), new BrowserVerifier(), new DatabaseQueryVerifier()).stream()
+                new JunitXmlVerifier(), new BrowserVerifier(), new DatabaseQueryVerifier(),
+                new DocumentStructureVerifier(), new TabularDataVerifier()).stream()
                 .collect(Collectors.toUnmodifiableMap(NativeVerifierHandler::type, Function.identity()));
     }
 

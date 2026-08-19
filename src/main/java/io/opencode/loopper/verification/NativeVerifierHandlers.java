@@ -341,6 +341,10 @@ final class NativeVerifierHandlers {
         if (result.length > max) throw new TaskFailure("VERIFIER_EVIDENCE_LIMIT", type + " exceeded its safe size limit");
         return result;
     }
+    static String relative(Path worktree, Path file) {
+        try { return worktree.toRealPath().relativize(file.toRealPath()).toString().replace('\\', '/'); }
+        catch (IOException failure) { throw new TaskFailure("VERIFIER_PATH_INVALID", "Verifier path could not be canonicalized"); }
+    }
     static Map<String, Object> fileEvidence(Path file, Path worktree, byte[] bytes) {
         Map<String, Object> evidence = new LinkedHashMap<>();
         evidence.put("path", worktree.relativize(file).toString()); evidence.put("sizeBytes", bytes.length);

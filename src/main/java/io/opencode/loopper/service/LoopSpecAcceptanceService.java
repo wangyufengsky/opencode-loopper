@@ -164,7 +164,8 @@ public class LoopSpecAcceptanceService {
         String type = verifier.type() == null ? "" : verifier.type();
         return switch (type) {
             case "PROCESS" -> classifyProcess(verifier);
-            case "HTTP_STATUS", "JSON_PATH", "BROWSER", "DATABASE_QUERY", "FILE_CONTENT", "FILE_HASH" ->
+            case "HTTP_STATUS", "JSON_PATH", "BROWSER", "DATABASE_QUERY", "FILE_CONTENT", "FILE_HASH",
+                    "DOCUMENT_STRUCTURE", "TABULAR_DATA" ->
                     new Classification(Category.BEHAVIOR, true, List.of("direct observable behavior evidence"));
             case "GIT_DIFF" -> new Classification(Category.SCOPE, true, List.of("change scope only"));
             case "FILE_NOT_EXISTS" -> new Classification(Category.SAFETY, true, List.of("safety invariant only"));
@@ -216,7 +217,7 @@ public class LoopSpecAcceptanceService {
             }
             ProcessCommandPolicy.TestCommandAssessment test = ProcessCommandPolicy.assessTestCommand(verifier.command());
             if (!test.recognized()) {
-                errors.add(path + ".command: TEST requires a recognized Maven, Gradle, or npm test invocation");
+                errors.add(path + ".command: TEST requires a recognized Maven, Gradle, npm, pytest, or unittest invocation");
                 valid = false;
             }
             if (test.skipped()) {

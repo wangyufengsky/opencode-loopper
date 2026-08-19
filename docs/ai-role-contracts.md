@@ -17,6 +17,20 @@ Decomposer 和 Compiler 新会话各只需一次机器规划调用。规划通�
 生成最终 `Decomposition` 或 `CompiledPackage`，不再要求模型进行第二次逐字段抄写。
 旧 final Schema 和字段仅用于历史读取与缺少规划快照的旧活动记录兼容。
 
+## Task Router 与 Role Pack
+
+需求首先形成任务画像。Router 只提供软件、文档、数据转换、只读评审、调研、配置或
+本地维护等语义标签；服务端把标签与有界仓库事实合并，决定置信度、流程、权限、测试
+策略和最终执行方式。格式不可用或结果冲突时退回通用画像并提问，不能让首次路由失败
+终止 Designer。内置 Role Pack 以 `2026-08-dynamic-v1` 版本冻结：Java、Python、Node、
+Markdown/DOCX、表格转换、只读报告和本地维护各自组合提示，不能把 Java/Maven 示例
+注入 Python、文档或表格任务。
+
+文档 Compiler 的权威输出是受限 `DocumentPlan`；表格 Compiler 的权威输出是受限
+`TabularConversionPlan`。服务端生成路径、隐式 `WP-1`、验收 ID 与最终 DTO，并在最终
+确认前只冻结计划。报告 Reviewer 仅可读取仓库并输出带证据定位的 Markdown；报告文字
+是数据而不是后续设计会话的系统指令。
+
 ## Decomposer
 
 Decomposer 返回 `READY | NEEDS_INPUT | MULTI_TASK_REQUIRED`、规范目标、约束文本、
@@ -43,12 +57,18 @@ Decomposer 返回 `READY | NEEDS_INPUT | MULTI_TASK_REQUIRED`、规范目标、�
 Maven/Gradle 显式选择器提取测试目标，并把 `covers` 编译成验证器关联。支持的意图为：
 
 - 可覆盖业务条件：`FOCUSED_TEST`、`SELF_CHECK`、`HTTP_STATUS`、`JSON_PATH`、
-  `BROWSER`、`DATABASE_QUERY`、`FILE_CONTENT`、`FILE_HASH`；
+  `BROWSER`、`DATABASE_QUERY`、`FILE_CONTENT`、`FILE_HASH`、`DOCUMENT_STRUCTURE`、
+  `TABULAR_DATA`；
 - 补充或范围证据：`FULL_TEST`、`BUILD`、`GIT_DIFF`、`FILE_NOT_EXISTS`、`JUNIT_XML`。
 
 `FULL_TEST`、`BUILD`、`GIT_DIFF` 等不能伪装成业务行为覆盖。Java 生产变更仍必须在
 同一 Stage 提供带明确选择器的聚焦 Maven/Gradle 测试。危险 shell、非法路径、伪测试、
 运行时绑定缺失和真实业务覆盖缺口均由既有权威校验拒绝。
+
+Python TEST 可识别 `pytest`、`python -m pytest`、`unittest` 和
+`python -m unittest`，仍要求显式目标且拒绝跳过/忽略缺失测试。仓库没有测试体系的独立
+Python 脚本可使用带成功标记的 `SELF_CHECK`；文档与一次性表格转换的测试策略是
+`NOT_APPLICABLE`，不得制造 `PROCESS TEST`。
 
 `criteria` 只承载可观察业务结果。弱模型把代码风格、源码/注解/装配形态、构建成功、
 测试通过或交付卫生重复写成条件时，服务端在它们没有显式聚焦测试映射的前提下，将其

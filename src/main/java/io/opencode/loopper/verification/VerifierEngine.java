@@ -144,7 +144,7 @@ public class VerifierEngine {
             ProcessCommandPolicy.TestCommandAssessment test = ProcessCommandPolicy.assessTestCommand(declaredCommand);
             if (!test.recognized()) {
                 throw new TaskFailure("VERIFIER_TEST_COMMAND_INVALID",
-                        "PROCESS TEST requires a recognized Maven, Gradle, or npm test invocation");
+                        "PROCESS TEST requires a recognized Maven, Gradle, npm, pytest, or unittest invocation");
             }
             if (test.skipped()) {
                 throw new TaskFailure("VERIFIER_TESTS_SKIPPED",

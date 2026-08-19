@@ -9,6 +9,7 @@ import io.opencode.loopper.domain.AttemptState;
 import io.opencode.loopper.domain.ErrorLayer;
 import io.opencode.loopper.domain.ExecutionCycleState;
 import io.opencode.loopper.domain.ExecutionCycleKind;
+import io.opencode.loopper.domain.ExecutionStrategy;
 import io.opencode.loopper.domain.WorkspaceCheckpointState;
 import io.opencode.loopper.domain.LoopSpec;
 import io.opencode.loopper.domain.LoopDraftStatus;
@@ -50,6 +51,7 @@ import io.opencode.loopper.runtime.GitWorktreeManager;
 import io.opencode.loopper.runtime.OpenCodeClient;
 import io.opencode.loopper.runtime.OpenCodeStructuredSchemas;
 import io.opencode.loopper.verification.VerifierEngine;
+import io.opencode.loopper.verification.ArtifactMaterializationService;
 import io.opencode.loopper.verification.VerifierOutcome;
 import io.opencode.loopper.verification.JavaUnitTestGatePolicy;
 import io.opencode.loopper.verification.BinaryArtifactPersistenceService;
@@ -106,6 +108,7 @@ public class TaskService {
     private final WorkspaceLeaseReconciliationService leaseReconciliation;
     private final OpenCodeClient openCode;
     private final VerifierEngine verifiers;
+    private final ArtifactMaterializationService artifactMaterializer;
     private final AttemptHandoffService attemptHandoffs;
     private final BinaryArtifactPersistenceService binaryArtifacts;
     private final ManagedVerificationRuntimeService managedVerifierRuntimes;
@@ -124,6 +127,7 @@ public class TaskService {
                        GitWorktreeManager worktrees, DirectWorkspaceLeaseCoordinator directLeases,
                        WorkspaceLeaseReconciliationService leaseReconciliation,
                        OpenCodeClient openCode, VerifierEngine verifiers,
+                       ArtifactMaterializationService artifactMaterializer,
                        AttemptHandoffService attemptHandoffs,
                        BinaryArtifactPersistenceService binaryArtifacts,
                        ManagedVerificationRuntimeService managedVerifierRuntimes,
@@ -139,7 +143,8 @@ public class TaskService {
         this.mapper = mapper; this.lifecycle = lifecycle; this.json = json; this.projects = projects;
         this.worktrees = worktrees; this.directLeases = directLeases; this.openCode = openCode;
         this.leaseReconciliation = leaseReconciliation;
-        this.verifiers = verifiers; this.attemptHandoffs = attemptHandoffs; this.binaryArtifacts = binaryArtifacts;
+        this.verifiers = verifiers; this.artifactMaterializer = artifactMaterializer;
+        this.attemptHandoffs = attemptHandoffs; this.binaryArtifacts = binaryArtifacts;
         this.managedVerifierRuntimes = managedVerifierRuntimes;
         this.stageWorkspaceBaselines = stageWorkspaceBaselines;
         this.javaChangeGate = javaChangeGate;
@@ -203,8 +208,11 @@ public class TaskService {
         }
         String timestamp = now();
         String taskId = UUID.randomUUID().toString();
+        io.opencode.loopper.persistence.DesignerTaskProfileRow profile = mapper.findFrozenTaskProfileByDraft(draft.id()).orElse(null);
         TaskRow task = new TaskRow(taskId, project.id(), draft.id(), normalizedTitle(title, draft.goal()),
-                TaskState.PENDING_START.name(), null, null, null, isolatedBaseline, timestamp, timestamp, 0);
+                TaskState.PENDING_START.name(), null, null, null, isolatedBaseline, timestamp, timestamp, 0,
+                profile == null ? null : profile.id(), profile == null ? null : profile.rolePackId(),
+                profile == null ? null : profile.rolePackVersion());
         lifecycle.create(subject(LifecycleMachineType.TASK, task.id(), task.id()), task.state(),
                 Map.of("source", admissionSource), () -> mapper.insertTask(task),
                 () -> new ConflictException("TASK_CREATE_CONFLICT", "Task could not be created"));
@@ -213,7 +221,11 @@ public class TaskService {
         for (LoopSpec.StageSpec stage : spec.stages()) {
             StageRow stageRow = new StageRow(UUID.randomUUID().toString(), taskId, ordinal++, stage.objective(),
                     write(stage.allowedPaths()), write(stage.forbiddenPaths()), write(stage.deliverables()), write(stage.verifiers()),
-                    StageState.PENDING.name(), timestamp, timestamp, 0, stage.workPackageId());
+                    StageState.PENDING.name(), timestamp, timestamp, 0, stage.workPackageId(),
+                    (stage.stageKind() == null ? io.opencode.loopper.domain.StageKind.LEGACY_SOFTWARE : stage.stageKind()).name(),
+                    (stage.executionStrategy() == null
+                            ? ExecutionStrategy.OPEN_CODE_IMPLEMENTATION : stage.executionStrategy()).name(),
+                    stage.artifactPlanId());
             lifecycle.create(subject(LifecycleMachineType.STAGE, stageRow.id(), taskId), stageRow.state(), Map.of(),
                     () -> mapper.insertStage(stageRow),
                     () -> new ConflictException("STAGE_CREATE_CONFLICT", "Stage could not be created"));
@@ -352,7 +364,7 @@ public class TaskService {
         }
         return task;
     }
-    public void startDueRetries() {
+    public synchronized void startDueRetries() {
         for (TaskRetryScheduleRow candidate : mapper.listDueTaskRetrySchedules(now(), 32)) {
             try {
                 startDueRetry(candidate.id());
@@ -793,7 +805,6 @@ public class TaskService {
                 startVerificationOnlyAttempt(get(task.id()), stage);
                 return verify(taskId);
             }
-            if (!openCode.healthy()) throw new TaskFailure("OPENCODE_UNAVAILABLE", "No compatible OpenCode runtime is available");
             updateTask(state(task, TaskState.RUNNING));
             StageRow stage = mapper.listStages(task.id()).stream()
                     .filter(s -> StageState.PENDING.name().equals(s.state()) || StageState.PAUSED.name().equals(s.state()))
@@ -805,6 +816,11 @@ public class TaskService {
             TaskExecutionCycleRow cycle = requireActiveCycle(get(task.id()));
             String cyclePrompt = cycle.supplementalPrompt() == null || cycle.supplementalPrompt().isBlank()
                     ? "Start stage: " + stage.objective() : cycle.supplementalPrompt();
+            if (serverExecuted(stage)) {
+                startServerArtifactAttempt(get(task.id()), stage);
+                return verify(taskId);
+            }
+            if (!openCode.healthy()) throw new TaskFailure("OPENCODE_UNAVAILABLE", "No compatible OpenCode runtime is available");
             startNewAttempt(get(task.id()), stage, cyclePrompt);
         } catch (TaskFailure failure) {
             failTask(get(taskId), failure.code(), failure.getMessage(), null, null, null);
@@ -843,7 +859,8 @@ public class TaskService {
                     .orElseThrow(() -> new TaskFailure("STAGE_NOT_RUNNING", "No running stage is available for verification"));
             AttemptRow attempt = mapper.latestAttempt(stage.id()).orElseThrow(() -> new TaskFailure("ATTEMPT_MISSING", "No attempt is available for verification"));
             ExecutionSessionRow implementationSession = mapper.latestSessionForAttempt(attempt.id()).orElse(null);
-            if (!verificationOnly) {
+            boolean serverExecution = serverExecuted(stage);
+            if (!verificationOnly && !serverExecution) {
                 if (implementationSession == null) throw new TaskFailure("SESSION_MISSING", "No implementation Session is available for verification");
                 if (implementationSession.externalSessionId() == null) {
                     throw new ConflictException("SESSION_NOT_COMPLETED", "Verification requires a completed external Session");
@@ -914,7 +931,7 @@ public class TaskService {
                     }
                 }
             }
-            if ("v2".equals(spec.schemaVersion())) {
+            if ("v2".equals(spec.schemaVersion()) && !serverExecution) {
                 PendingVerification javaGateResult = javaGateVerification(initial, stage, stageContract,
                         verifierSpecs, pending);
                 if (javaGateResult != null) pending.add(javaGateResult);
@@ -923,7 +940,7 @@ public class TaskService {
             PendingVerification failedPreview = pending.stream()
                     .filter(result -> result.outcome().state() != VerificationState.PASS)
                     .reduce((left, right) -> right).orElse(null);
-            if (!verificationOnly && failedPreview != null) {
+            if (!verificationOnly && !serverExecution && failedPreview != null) {
                 handoff = attemptHandoffs.capture(Path.of(requireWorktree(initial)), verificationBaseline,
                         stage.id(), attempt.id(), attempt.ordinal(), pending.stream()
                                 .map(result -> new AttemptHandoffService.VerificationFact(result.outcome().type(),
@@ -934,7 +951,7 @@ public class TaskService {
             AttemptHandoffService.Capture capturedHandoff = handoff;
             VerificationContinuation continuation = transactions.execute(status -> finishVerification(
                     initial.id(), stage.id(), attempt.id(), implementationSession == null ? null : implementationSession.id(),
-                    pending, capturedHandoff, verificationOnly, spec));
+                    pending, capturedHandoff, verificationOnly, serverExecution, spec));
             continueAfterVerification(continuation);
         } catch (TaskFailure failure) {
             failTask(get(taskId), failure.code(), failure.getMessage(), null, null, null);
@@ -1000,7 +1017,8 @@ public class TaskService {
                                                           String implementationSessionId,
                                                           List<PendingVerification> pending,
                                                           AttemptHandoffService.Capture handoff,
-                                                          boolean verificationOnly, LoopSpec spec) {
+                                                          boolean verificationOnly, boolean serverExecution,
+                                                          LoopSpec spec) {
         TaskRow task = get(taskId);
         if (!TaskState.VERIFYING.name().equals(task.state())) {
             throw new ConflictException("TASK_VERIFICATION_INTERRUPTED",
@@ -1025,12 +1043,15 @@ public class TaskService {
         if (failed == null) return completeStageState(task, stage, attempt);
         String failure = failed.outcome().summary();
         String failureCode = String.valueOf(failed.outcome().evidence().getOrDefault("code", "VERIFICATION_FAILED"));
-        if (verificationOnly) {
+        if (verificationOnly || serverExecution) {
             updateAttempt(finish(attempt, AttemptState.VERIFICATION_FAILED, failureCode, failure));
             recordError(task, stage, attempt, null, ErrorLayer.VERIFICATION,
-                    failureCode, failure, true, Map.of("verifyOnly", true));
-            failTask(get(taskId), "VERIFY_ONLY_VERIFICATION_FAILED",
-                    "VERIFY_ONLY 恢复任务的原生验证失败；不会创建可写 OpenCode 修复会话", stage, attempt, null);
+                    failureCode, failure, true, Map.of("verifyOnly", verificationOnly, "serverExecution", serverExecution));
+            String code = serverExecution ? "SERVER_ARTIFACT_VERIFICATION_FAILED" : "VERIFY_ONLY_VERIFICATION_FAILED";
+            String detail = serverExecution
+                    ? "服务端制品生成后的原生验证失败；不会创建可写 OpenCode 修复会话"
+                    : "VERIFY_ONLY 恢复任务的原生验证失败；不会创建可写 OpenCode 修复会话";
+            failTask(get(taskId), code, detail, stage, attempt, null);
             return VerificationContinuation.none(taskId);
         }
         int stagnationCount = persistAttemptHandoff(task, stage, attempt, handoff);
@@ -1456,6 +1477,34 @@ public class TaskService {
         createAttempt(attempt);
         events.emit(freshTask.id(), "recovery.verify_only.started", Map.of("attemptId", attempt.id(),
                 "stageId", stage.id(), "writableSession", false));
+    }
+
+    private void startServerArtifactAttempt(TaskRow task, StageRow inputStage) {
+        TaskRow freshTask = get(task.id());
+        StageRow stage = mapper.findStage(inputStage.id())
+                .orElseThrow(() -> new TaskFailure("STAGE_MISSING", "Stage disappeared"));
+        if (stage.artifactPlanId() == null || stage.artifactPlanId().isBlank())
+            throw new TaskFailure("ARTIFACT_PLAN_MISSING", "Server-executed stage requires a frozen artifactPlanId");
+        stageWorkspaceBaselines.captureIfAbsent(freshTask, stage);
+        if (!StageState.RUNNING.name().equals(stage.state())) updateStage(stageState(stage, StageState.RUNNING));
+        TaskExecutionCycleRow cycle = requireActiveCycle(freshTask);
+        AttemptRow attempt = new AttemptRow(UUID.randomUUID().toString(), freshTask.id(), stage.id(), cycle.id(),
+                mapper.countAttemptsForStage(stage.id()) + 1, AttemptState.RUNNING.name(), null,
+                "Server-owned artifact materialization; no writable OpenCode Session", now(), null, 0);
+        createAttempt(attempt);
+        ArtifactMaterializationService.Result result = artifactMaterializer.materialize(
+                Path.of(requireWorktree(freshTask)), stage.artifactPlanId());
+        persistArtifact(freshTask, attempt.id(), null, "SERVER_MATERIALIZATION", result.path(),
+                "application/json", write(result), Map.of("executionStrategy", stage.executionStrategy(),
+                        "artifactPlanId", stage.artifactPlanId(), "sha256", result.sha256()));
+        events.emit(freshTask.id(), "artifact.materialized", Map.of("attemptId", attempt.id(),
+                "stageId", stage.id(), "path", result.path(), "sha256", result.sha256(),
+                "writableSession", false));
+    }
+
+    private boolean serverExecuted(StageRow stage) {
+        return Set.of("SERVER_DOCUMENT_MATERIALIZATION", "SERVER_TABULAR_CONVERSION")
+                .contains(stage.executionStrategy());
     }
 
     private void handleSessionFailure(TaskRow task, StageRow stage, AttemptRow inputAttempt, ExecutionSessionRow inputSession, SessionFailure failure) {
@@ -2798,7 +2847,7 @@ public class TaskService {
         TaskRow task = get(taskId);
         TaskRow prepared = new TaskRow(task.id(), task.projectId(), task.loopDraftId(), task.title(), TaskState.READY.name(),
                 worktree.path().toString(), worktree.branch(), worktree.sourceBranch(), worktree.baselineCommit(),
-                task.createdAt(), now(), task.version());
+                task.createdAt(), now(), task.version(), task.taskProfileId(), task.rolePackId(), task.rolePackVersion());
         lifecycle.transition(subject(LifecycleMachineType.TASK, prepared.id(), prepared.id()), task.state(), prepared.state(),
                 null, Map.of("workspaceMode", worktree.branch()), () -> mapper.prepareTask(prepared),
                 () -> new ConflictException("TASK_VERSION_CONFLICT", "Task was updated concurrently"));
@@ -2941,8 +2990,8 @@ public class TaskService {
                 attempt == null ? null : attempt.id(), session == null ? null : session.id(), layer.name(), code,
                 safeMessage(message), retryable, write(evidence), now()));
     }
-    private TaskRow state(TaskRow row, TaskState state) { return new TaskRow(row.id(), row.projectId(), row.loopDraftId(), row.title(), state.name(), row.worktreePath(), row.branchName(), row.sourceBranch(), row.baselineCommit(), row.createdAt(), now(), row.version()); }
-    private StageRow stageState(StageRow row, StageState state) { return new StageRow(row.id(), row.taskId(), row.ordinal(), row.objective(), row.allowedPathsJson(), row.forbiddenPathsJson(), row.deliverablesJson(), row.verifiersJson(), state.name(), row.createdAt(), now(), row.version(), row.workPackageId()); }
+    private TaskRow state(TaskRow row, TaskState state) { return new TaskRow(row.id(), row.projectId(), row.loopDraftId(), row.title(), state.name(), row.worktreePath(), row.branchName(), row.sourceBranch(), row.baselineCommit(), row.createdAt(), now(), row.version(), row.taskProfileId(), row.rolePackId(), row.rolePackVersion()); }
+    private StageRow stageState(StageRow row, StageState state) { return new StageRow(row.id(), row.taskId(), row.ordinal(), row.objective(), row.allowedPathsJson(), row.forbiddenPathsJson(), row.deliverablesJson(), row.verifiersJson(), state.name(), row.createdAt(), now(), row.version(), row.workPackageId(), row.stageKind(), row.executionStrategy(), row.artifactPlanId()); }
     private AttemptRow finish(AttemptRow row, AttemptState state, String failureKind, String summary) { return new AttemptRow(row.id(), row.taskId(), row.stageId(), row.executionCycleId(), row.ordinal(), state.name(), failureKind, safeMessage(summary), row.createdAt(), now(), row.version()); }
     private ExecutionSessionRow sessionState(ExecutionSessionRow row, SessionState state) { return new ExecutionSessionRow(row.id(), row.taskId(), row.stageId(), row.attemptId(), row.externalSessionId(), state.name(), row.createdAt(), now(), row.version(), row.todoCapability()); }
     private TaskRetryScheduleRow retryState(TaskRetryScheduleRow row, String state, String dueAt, Integer remainingSeconds) {

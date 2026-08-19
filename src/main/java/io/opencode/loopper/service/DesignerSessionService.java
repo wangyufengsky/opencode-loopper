@@ -31,6 +31,7 @@ import io.opencode.loopper.runtime.OpenCodeClient;
 import io.opencode.loopper.runtime.OpenCodeStructuredSchemas;
 import io.opencode.loopper.runtime.MachineRoleContractCatalog;
 import io.opencode.loopper.verification.ProcessCommandPolicy;
+import io.opencode.loopper.verification.TestFrameworkPolicy;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
@@ -103,13 +104,16 @@ public class DesignerSessionService {
     private final DesignerEvidenceIndexer evidenceIndexer;
     private final AiRepairPatchService repairPatchService;
     private final DesignerEventHub events;
+    private final TaskProfileService taskProfiles;
+    private final RolePromptComposer rolePrompts;
 
     public DesignerSessionService(LoopperMapper mapper, LifecycleTransitionService lifecycle,
                                   ProjectService projects, OpenCodeClient openCode,
                                   LoopperProperties defaults, LoopDraftService drafts, ObjectMapper json,
                                   AiOutputExtractor aiOutputExtractor, AiOutputAuditService aiOutputAudit,
                                   DesignerEvidenceIndexer evidenceIndexer, AiRepairPatchService repairPatchService,
-                                  DesignerEventHub events) {
+                                  DesignerEventHub events, TaskProfileService taskProfiles,
+                                  RolePromptComposer rolePrompts) {
         this.mapper = mapper;
         this.lifecycle = lifecycle;
         this.projects = projects;
@@ -122,6 +126,8 @@ public class DesignerSessionService {
         this.evidenceIndexer = evidenceIndexer;
         this.repairPatchService = repairPatchService;
         this.events = events;
+        this.taskProfiles = taskProfiles;
+        this.rolePrompts = rolePrompts;
     }
 
     public DesignerSessionRow create(String projectId, String initialMessage) {
@@ -292,8 +298,15 @@ public class DesignerSessionService {
 
     public boolean finalConfirmationEligible(String sessionId) {
         DesignerSessionRow session = get(sessionId);
-        if (!DesignWorkflowPhase.FINAL_REVIEW.name().equals(session.workflowPhase())
-                || session.currentRequirementRevision() == null) return false;
+        if (!DesignWorkflowPhase.FINAL_REVIEW.name().equals(session.workflowPhase())) return false;
+        if (session.currentRequirementRevision() == null) {
+            TaskProfileService.View profile = taskProfiles.current(sessionId);
+            if (profile.workflowTemplate() != io.opencode.loopper.domain.WorkflowTemplate.DIRECT_ARTIFACT) return false;
+            LoopSpec spec = drafts.spec(drafts.get(session.loopDraftId()));
+            return spec.stages().size() == 1 && spec.stages().getFirst().artifactPlanId() != null
+                    && mapper.findArtifactPlan(spec.stages().getFirst().artifactPlanId())
+                    .map(row -> "FROZEN".equals(row.state())).orElse(false);
+        }
         DesignRequirementRevisionRow revision = currentRequirement(sessionId);
         List<DesignWorkPackageRow> packages = mapper.listDesignWorkPackages(revision.id());
         return !packages.isEmpty() && packages.stream()
@@ -310,13 +323,16 @@ public class DesignerSessionService {
 
     public String activeActor(DesignerSessionRow session) {
         return switch (DesignWorkflowPhase.valueOf(session.workflowPhase())) {
+            case ROUTING -> DesignerActor.ROUTER.name();
             case DISCUSSING_REQUIREMENT, QUESTIONING_PACKAGE -> DesignerActor.DESIGNER.name();
             case DECOMPOSING -> DesignerActor.DECOMPOSER.name();
             case VALIDATING_DECOMPOSITION, AGGREGATING -> DesignerActor.VALIDATOR.name();
             case DESIGNING, REDESIGNING -> DesignerActor.DESIGNER.name();
             case COMPILING -> DesignerActor.COMPILER.name();
             case VALIDATING -> DesignerActor.VALIDATOR.name();
-            case REVIEWING_PACKAGE, FINAL_REVIEW, COMPLETED, FAILED -> DesignerActor.SYSTEM.name();
+            case GENERATING_REPORT -> DesignerActor.REVIEWER.name();
+            case VALIDATING_REPORT -> DesignerActor.VALIDATOR.name();
+            case REPORT_READY, REVIEWING_PACKAGE, FINAL_REVIEW, COMPLETED, FAILED -> DesignerActor.SYSTEM.name();
         };
     }
 
@@ -331,6 +347,28 @@ public class DesignerSessionService {
             return decomposition == null ? null : decomposition.workflowStep();
         }
         return null;
+    }
+
+    public void completeReadOnlyReport(String sessionId) {
+        DesignerSessionRow session = get(sessionId);
+        DesignerSessionRow completed = updateDesignerProjection(session, DesignerSessionState.COMPLETED,
+                DesignWorkflowPhase.REPORT_READY, null, "COMPLETED", session.designRevision(),
+                session.redesignCount(), session.currentRequirementRevision(), null);
+        appendMessage(sessionId, DesignerActor.SYSTEM,
+                "只读报告已经过证据定位与快照哈希校验；未创建 Task、分支、租约或可写 Session。",
+                "COMPLETED", session.currentRequirementRevision(), null);
+        publish(completed, "REPORT_READY", DesignerActor.REVIEWER, true, "", "只读报告已就绪");
+    }
+
+    public void completeDirectArtifactDesign(String sessionId) {
+        DesignerSessionRow session = get(sessionId);
+        DesignerSessionRow reviewing = updateDesignerProjection(session, DesignerSessionState.REVIEWING,
+                DesignWorkflowPhase.FINAL_REVIEW, null, "COMPLETED", session.designRevision() + 1,
+                session.redesignCount(), null, null);
+        appendMessage(sessionId, DesignerActor.COMPILER,
+                "专属制品 Compiler 已生成隐式 WP-1，并由服务端编译、校验并冻结制品计划；尚未写入目标文件。",
+                "COMPLETED", null, "WP-1");
+        publish(reviewing, "FINAL_REVIEW", DesignerActor.VALIDATOR, true, "", "直接制品方案等待最终确认");
     }
 
     public List<PendingQuestion> pendingQuestions(String sessionId) {
@@ -954,6 +992,11 @@ public class DesignerSessionService {
                 () -> mapper.insertDesignRequirementRevision(row),
                 () -> new ConflictException("DESIGN_REQUIREMENT_REVISION_CREATE_CONFLICT",
                         "The complete requirement revision could not be frozen"));
+        TaskProfileService.View profile = taskProfiles.current(session.id());
+        if (profile.id() != null && mapper.bindTaskProfileRequirement(profile.id(), row.id(), now) != 1) {
+            throw new ConflictException("TASK_PROFILE_REQUIREMENT_BIND_CONFLICT",
+                    "冻结任务画像未能绑定需求版本");
+        }
         mapper.bindOpenRequirementDiscussions(session.id(), revision);
         updateDesignerProjection(get(session.id()), DesignerSessionState.PENDING_HANDOFF,
                 DesignWorkflowPhase.DECOMPOSING, null, "PENDING", session.designRevision(), 0,
@@ -2989,7 +3032,7 @@ public class DesignerSessionService {
                                                  DesignerEvidenceIndexer.Index sourceIndex) {
         List<CompilerSemanticIssue> issues = new ArrayList<>();
         Set<String> coverable = Set.of("FOCUSED_TEST", "SELF_CHECK", "HTTP_STATUS", "JSON_PATH", "BROWSER",
-                "DATABASE_QUERY", "FILE_CONTENT", "FILE_HASH");
+                "DATABASE_QUERY", "FILE_CONTENT", "FILE_HASH", "DOCUMENT_STRUCTURE", "TABULAR_DATA");
         Set<String> supplemental = Set.of("FULL_TEST", "BUILD", "GIT_DIFF", "FILE_NOT_EXISTS", "JUNIT_XML");
         for (int stageIndex = 0; stageIndex < compact.stages().size(); stageIndex++) {
             CompactStage stage = compact.stages().get(stageIndex);
@@ -3083,10 +3126,13 @@ public class DesignerSessionService {
                     CompactEvidence focused = stage.evidence().get(evidenceIndex);
                     try {
                         List<String> command = canonicalTestCommand(focused.command());
-                        if (ProcessCommandPolicy.explicitFocusedJavaTestTargets(command).isEmpty()) {
+                        List<String> explicitTargets = stage.implementationKind() == ImplementationKind.JAVA_PRODUCTION
+                                ? ProcessCommandPolicy.explicitFocusedJavaTestTargets(command)
+                                : TestFrameworkPolicy.explicitTargets(command);
+                        if (explicitTargets.isEmpty()) {
                             issues.add(new CompilerSemanticIssue("COMPILER_PLAN_JAVA_TEST_EVIDENCE_REQUIRED",
                                     stagePath + "/evidence/" + evidenceIndex + "/command",
-                                    "focused test command needs an explicit Maven/Gradle test selector"));
+                                    "focused test command needs an explicit target for its recognized framework"));
                         }
                     } catch (BadRequestException invalid) {
                         issues.add(new CompilerSemanticIssue(invalid.code(),
@@ -3119,7 +3165,7 @@ public class DesignerSessionService {
                     "Evidence kind is required at stage " + stageIndex);
         }
         Set<String> coverable = Set.of("FOCUSED_TEST", "SELF_CHECK", "HTTP_STATUS", "JSON_PATH", "BROWSER",
-                "DATABASE_QUERY", "FILE_CONTENT", "FILE_HASH");
+                "DATABASE_QUERY", "FILE_CONTENT", "FILE_HASH", "DOCUMENT_STRUCTURE", "TABULAR_DATA");
         Set<String> supplemental = Set.of("FULL_TEST", "BUILD", "GIT_DIFF", "FILE_NOT_EXISTS", "JUNIT_XML");
         if (!coverable.contains(evidence.kind()) && !supplemental.contains(evidence.kind())) {
             throw new BadRequestException("COMPILER_PLAN_EVIDENCE_KIND_INVALID",
@@ -3162,7 +3208,9 @@ public class DesignerSessionService {
         List<String> command = "PROCESS".equals(type) ? canonicalTestCommand(evidence.command())
                 : evidence.command();
         List<String> targets = "FOCUSED_TEST".equals(evidence.kind())
-                ? ProcessCommandPolicy.explicitFocusedJavaTestTargets(command) : List.of();
+                ? (stage.implementationKind() == ImplementationKind.JAVA_PRODUCTION
+                    ? ProcessCommandPolicy.explicitFocusedJavaTestTargets(command)
+                    : TestFrameworkPolicy.explicitTargets(command)) : List.of();
         String output = "SELF_CHECK".equals(evidence.kind()) ? evidence.successMarker() : null;
         List<String> allowed = evidence.allowedPaths().isEmpty() && "GIT_DIFF".equals(type)
                 ? stage.allowedPaths() : evidence.allowedPaths();
@@ -3172,7 +3220,8 @@ public class DesignerSessionService {
                 forbidden, evidence.forbidDeletes(), output, evidence.url(), evidence.httpMethod(),
                 evidence.expectedStatus(), evidence.jsonPath(), evidence.expectedValue(), evidence.matchMode(),
                 evidence.expectedContent(), evidence.expectedSha256(), evidence.sql(), evidence.expectedRowCount(),
-                evidence.assertions(), List.copyOf(covers), purpose, targets);
+                evidence.assertions(), List.copyOf(covers), purpose, targets,
+                evidence.documentAssertions(), evidence.tabularAssertions());
     }
 
     private PackageCompilationPlanEnvelope readPackageCompilationPlan(String payload) {
@@ -3688,7 +3737,8 @@ public class DesignerSessionService {
                 verifier.forbidDeletes(), verifier.outputContains(), verifier.url(), verifier.httpMethod(),
                 verifier.expectedStatus(), verifier.jsonPath(), verifier.expectedValue(), verifier.matchMode(),
                 verifier.expectedContent(), verifier.expectedSha256(), verifier.sql(), verifier.expectedRowCount(),
-                verifier.assertions(), criterionIds, verifier.processPurpose(), testTargets);
+                verifier.assertions(), criterionIds, verifier.processPurpose(), testTargets,
+                verifier.documentAssertions(), verifier.tabularAssertions());
     }
 
     private String designerDeclaredTestEvidence(String design) {
@@ -4348,7 +4398,8 @@ public class DesignerSessionService {
                 workPackage.packageId(), prerequisites,
                 designerDeclaredTestEvidence(design),
                 evidenceIndexer.index(design).promptText(),
-                packageCompilerPlanningMachineContract(workPackage.packageId()),
+                packageCompilerPlanningMachineContract(workPackage.packageId(),
+                        taskProfiles.current(workPackage.designerSessionId())),
                 workPackage.designRevision(), design);
     }
 
@@ -4371,22 +4422,30 @@ public class DesignerSessionService {
         return write(contracts);
     }
 
-    private String packageCompilerPlanningMachineContract(String packageId) {
+    private String packageCompilerPlanningMachineContract(String packageId, TaskProfileService.View profile) {
+        String example = "software-java".equals(profile.rolePackId())
+                ? "{\"outcome\":\"COMPILED\",\"summary\":\"Java package plan\",\"stages\":[{\"objective\":\"observable result\",\"implementationKind\":\"JAVA_PRODUCTION\",\"allowedPaths\":[\"src/main/java/**\",\"src/test/java/**\"],\"forbiddenPaths\":[\".env\"],\"deliverables\":[\"implementation and focused test\"],\"criteria\":[{\"description\":\"observable business result\",\"sourceRefs\":[\"DS-L001\"],\"judgeRubric\":null,\"judgeOnlyReason\":null}],\"evidence\":[{\"kind\":\"FOCUSED_TEST\",\"command\":[\"mvn\",\"-q\",\"-Dtest=ExampleFocusedTest\",\"test\"],\"covers\":[0]}],\"verificationRuntime\":null}],\"handoffSummary\":\"bounded handoff\",\"designGaps\":[]}"
+                : "software-python".equals(profile.rolePackId())
+                ? "{\"outcome\":\"COMPILED\",\"summary\":\"Python package plan\",\"stages\":[{\"objective\":\"observable script result\",\"implementationKind\":\"NON_JAVA\",\"allowedPaths\":[\"scripts/**\",\"tests/**\"],\"forbiddenPaths\":[\".env\"],\"deliverables\":[\"Python script\"],\"criteria\":[{\"description\":\"observable conversion result\",\"sourceRefs\":[\"DS-L001\"],\"judgeRubric\":null,\"judgeOnlyReason\":null}],\"evidence\":[{\"kind\":\"FOCUSED_TEST\",\"command\":[\"python3\",\"-m\",\"pytest\",\"tests/test_converter.py\"],\"covers\":[0]}],\"verificationRuntime\":null}],\"handoffSummary\":\"bounded handoff\",\"designGaps\":[]}"
+                : "Use DOCUMENT_STRUCTURE or TABULAR_DATA native evidence. Do not generate PROCESS TEST for document or one-off conversion stages.";
         return """
+                %s
                 %s
                 Return only semantic stages, criteria, sourceRefs, and evidence intentions. The server generates
                 %s-AC-n, workPackageId, exact Designer excerpts, criterionIds, testTargets, and final StageSpec JSON.
                 Evidence kinds are FOCUSED_TEST, FULL_TEST, BUILD, SELF_CHECK, GIT_DIFF, HTTP_STATUS, JSON_PATH,
-                BROWSER, DATABASE_QUERY, FILE_CONTENT, FILE_HASH, FILE_NOT_EXISTS, and JUNIT_XML. covers contains
+                BROWSER, DATABASE_QUERY, FILE_CONTENT, FILE_HASH, DOCUMENT_STRUCTURE, TABULAR_DATA,
+                FILE_NOT_EXISTS, and JUNIT_XML. covers contains
                 zero-based criterion indexes. FULL_TEST/BUILD/GIT_DIFF/FILE_NOT_EXISTS/JUNIT_XML are supplemental
-                and must use covers:[]. FOCUSED_TEST uses safe direct Maven/Gradle argv; SELF_CHECK includes
+                and must use covers:[]. FOCUSED_TEST uses the current stack's safe direct test argv; SELF_CHECK includes
                 successMarker and must emit that marker on success; source-text searches such as grep/rg are not
                 behavior SELF_CHECK commands. Criteria contain only observable business outcomes. Code style,
                 source shape, annotations, assembly shape, build success, and test success stay in deliverables or
                 supplemental evidence instead of becoming criteria. Shells, pipes, redirects, unsafe paths, fake
                 tests, and missing Java focused tests are still rejected by the unchanged server validator.
-                {"outcome":"COMPILED","summary":"package plan","stages":[{"objective":"observable stage result","implementationKind":"JAVA_PRODUCTION","allowedPaths":["src/main/java/**","src/test/java/**"],"forbiddenPaths":[".env"],"deliverables":["implementation and focused test"],"criteria":[{"description":"observable business result","sourceRefs":["DS-L001"],"judgeRubric":null,"judgeOnlyReason":null}],"evidence":[{"kind":"FOCUSED_TEST","command":["mvn","-q","-Dtest=ExampleFocusedTest","test"],"covers":[0]},{"kind":"GIT_DIFF","covers":[],"requireChanges":true,"forbidDeletes":true}],"verificationRuntime":null}],"handoffSummary":"bounded handoff","designGaps":[]}
-                """.formatted(MachineRoleContractCatalog.card("COMPILER"), packageId);
+                %s
+                """.formatted(rolePrompts.compilerInstructions(profile),
+                MachineRoleContractCatalog.card("COMPILER"), packageId, example);
     }
 
     private String packageCompilerJsonPrompt(DesignerSessionRow session, LoopDraftRow draft,
@@ -4514,7 +4573,8 @@ public class DesignerSessionService {
                 %s
                 """.formatted(compilation.planningRepairCount(), MAX_COMPILER_REPAIRS, code, safeMessage(detail),
                 prerequisites, designerDeclaredTestEvidence(design),
-                packageCompilerPlanningMachineContract(workPackage.packageId()), design);
+                packageCompilerPlanningMachineContract(workPackage.packageId(),
+                        taskProfiles.current(workPackage.designerSessionId())), design);
     }
 
     private String packageCompilerSemanticPatchPrompt(LoopSpecCompilationRow compilation,
@@ -5823,7 +5883,9 @@ public class DesignerSessionService {
                                   String url, String httpMethod, Integer expectedStatus, String jsonPath,
                                   String expectedValue, String matchMode, String expectedContent,
                                   String expectedSha256, String sql, Integer expectedRowCount,
-                                  List<LoopSpec.BrowserAssertion> assertions) {
+                                  List<LoopSpec.BrowserAssertion> assertions,
+                                  List<LoopSpec.DocumentAssertion> documentAssertions,
+                                  List<LoopSpec.TabularAssertion> tabularAssertions) {
         public CompactEvidence {
             kind = kind == null ? null : kind.trim().toUpperCase();
             command = command == null ? List.of() : List.copyOf(command);
@@ -5831,11 +5893,14 @@ public class DesignerSessionService {
             allowedPaths = allowedPaths == null ? List.of() : List.copyOf(allowedPaths);
             forbiddenPaths = forbiddenPaths == null ? List.of() : List.copyOf(forbiddenPaths);
             assertions = assertions == null ? List.of() : List.copyOf(assertions);
+            documentAssertions = documentAssertions == null ? List.of() : List.copyOf(documentAssertions);
+            tabularAssertions = tabularAssertions == null ? List.of() : List.copyOf(tabularAssertions);
         }
         CompactEvidence withCovers(List<Integer> value) {
             return new CompactEvidence(kind, command, value, successMarker, path, requireChanges, allowedPaths,
                     forbiddenPaths, forbidDeletes, url, httpMethod, expectedStatus, jsonPath, expectedValue,
-                    matchMode, expectedContent, expectedSha256, sql, expectedRowCount, assertions);
+                    matchMode, expectedContent, expectedSha256, sql, expectedRowCount, assertions,
+                    documentAssertions, tabularAssertions);
         }
     }
     public record CompactStage(String objective, ImplementationKind implementationKind,

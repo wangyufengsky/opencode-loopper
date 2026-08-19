@@ -51,6 +51,18 @@ registered project root, while Loopper's bearer-protected Spring AI MCP server
 is independently exposed at `/api/mcp-streamable`.
 
 The REST workflow uses three model roles plus a deterministic server validator.
+Before selecting those roles, a no-tool Router supplies semantic task labels while the
+server combines them with bounded repository facts. The resulting frozen Role Pack
+chooses Java, Python, Node, document, tabular, report, or maintenance prompts; it cannot
+grant permissions, choose commands, or bypass human confirmation. Router format failure
+falls back to a generic profile question rather than failing the Designer Session.
+
+Document and tabular direct-artifact workflows do not create an implementation Session:
+the server materializes their frozen plans only after Task Start. Read-only report
+workflows use Reviewer permissions equivalent to the other read-only roles and terminate
+without a Task. A report-to-design request treats the report as quoted input and starts a
+new Designer Session.
+
 Each overall Designer Session is bound to the exact `loop_draft_id` shown in
 Review Gate. Before Task Decomposer runs, the interactive requirement Designer
 must call `question` with 1–3 design choices and then return a complete Markdown

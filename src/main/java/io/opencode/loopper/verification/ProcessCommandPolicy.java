@@ -203,6 +203,10 @@ public final class ProcessCommandPolicy {
             recognized = !args.isEmpty() && (args.getFirst().equals("test")
                     || (args.size() > 1 && args.getFirst().equals("run") && args.get(1).startsWith("test")));
         } else {
+            TestFrameworkPolicy.Assessment python = TestFrameworkPolicy.assess(command);
+            if (python.recognized()) {
+                return new TestCommandAssessment(true, python.skipped(), python.reason());
+            }
             recognized = false;
         }
         if (!recognized) {

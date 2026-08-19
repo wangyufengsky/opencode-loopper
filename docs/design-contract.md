@@ -141,6 +141,20 @@ Normal human discussion/approval is `REVIEWING`, never `WAITING_INPUT`;
 `activeWorkPackageId`, `discussionScope`, and `discussionRevision` identify the
 only scope/version that can accept a message or approval.
 
+Before requirement confirmation, the page shows the provisional task profile,
+confidence, evidence, workflow preview, Role Pack, execution strategy and test policy.
+Confidence below 80 or conflicting evidence blocks confirmation until a versioned
+profile override is saved. Confirmation freezes the profile. The progress rail is
+template-driven: omitted Decomposer/package/Compiler steps are not displayed.
+
+Simple Markdown/DOCX and one-shot tabular conversion still require the ordinary
+Designer question, then compile one implicit `WP-1` and enter `FINAL_REVIEW` without an
+AI Decomposer or repeated package Designer. Review Gate shows Markdown content, a DOCX
+structure summary, or source/target table conversion rules. No target file exists until
+the confirmed Task is explicitly started. Read-only review/research ends at a report
+card with file/line/hash freshness and a “convert to design” action; that action creates
+only a linked writable-design conversation and never directly creates a Task.
+
 Before a requirement revision exists, Designer must call `question` once with
 1–3 choice questions and then return a complete replacement Markdown snapshot.
 The question card blocks ordinary chat until answered and offers one-click
