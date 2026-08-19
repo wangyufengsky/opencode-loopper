@@ -211,6 +211,33 @@ public class TaskProfileService {
         return current(sessionId);
     }
 
+    public View acceptRecommendation(String sessionId, long expectedVersion) {
+        DesignerTaskProfileRow current = mapper.findCurrentDesignerTaskProfile(sessionId)
+                .orElseThrow(() -> new NotFoundException("Task profile not found for Designer session: " + sessionId));
+        if (!"PROVISIONAL".equals(current.state())) {
+            throw new ConflictException("TASK_PROFILE_FROZEN", "需求确认后不能自动确认任务画像");
+        }
+        if (current.version() != expectedVersion) {
+            throw new ConflictException("TASK_PROFILE_VERSION_CONFLICT", "任务画像已被并发更新");
+        }
+        if (current.decisionRequired() == 0) return view(current);
+        List<String> evidence = new java.util.ArrayList<>(readStrings(current.evidenceJson()));
+        if (evidence.contains("unsafe-operation-conflict")) {
+            throw new BadRequestException("UNSAFE_MAINTENANCE_OUT_OF_SCOPE",
+                    "当前版本不接受删除、服务启停、提交推送、发布或外部系统写入，不能由全自动确认绕过此边界");
+        }
+        evidence.add("auto-recommended-profile");
+        DesignerTaskProfileRow updated = new DesignerTaskProfileRow(current.id(), current.designerSessionId(),
+                current.requirementRevisionId(), current.state(), current.intent(), current.workflowTemplate(),
+                current.mutationMode(), current.artifactKindsJson(), current.technologiesJson(), current.testPolicy(),
+                current.executionStrategy(), current.rolePackId(), current.rolePackVersion(), current.confidence(),
+                write(evidence), "AUTO_RECOMMENDED", 0, current.createdAt(), Instant.now().toString(), current.version());
+        if (mapper.updateDesignerTaskProfile(updated) != 1) {
+            throw new ConflictException("TASK_PROFILE_VERSION_CONFLICT", "任务画像已被并发更新");
+        }
+        return current(sessionId);
+    }
+
     public View freeze(String sessionId) {
         if (mapper.findLatestTaskProfileRouterRun(sessionId)
                 .filter(run -> "PENDING".equals(run.state()) || "RUNNING".equals(run.state())).isPresent()) {

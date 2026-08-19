@@ -105,11 +105,37 @@ public class DesignerAutoModeService {
     }
 
     public void pollActive() {
-        for (DesignerAutoModeRow row : mapper.listActiveDesignerAutoModes()) {
+        for (DesignerAutoModeRow row : mapper.listDesignerAutoModesForAdvance()) {
             if (!inFlight.add(row.designerSessionId())) continue;
-            try { advanceOne(row.designerSessionId()); }
+            try {
+                if (isProfileDecisionBlock(row)) resumeProfileDecisionBlock(row.designerSessionId());
+                else advanceOne(row.designerSessionId());
+            }
             finally { inFlight.remove(row.designerSessionId()); }
         }
+    }
+
+    /** Restores only the obsolete profile-decision blocker; all other blockers still require reauthorization. */
+    public boolean resumeProfileDecisionBlock(String sessionId) {
+        DesignerAutoModeRow current = mapper.findDesignerAutoMode(sessionId).orElse(null);
+        if (!isProfileDecisionBlock(current)) return false;
+        TaskProfileService.View profile = profiles.current(sessionId);
+        DesignerSessionRow session = designerSessions.get(sessionId);
+        DesignerAutoModeRow changed = new DesignerAutoModeRow(sessionId, DesignerAutoModeState.ACTIVE.name(),
+                "PROFILE_DECISION_RESUMED", null, null, current.taskId(), current.authorizedAt(),
+                current.disabledAt(), now(), current.version());
+        try {
+            lifecycle.transition(subject(session), current.state(), changed.state(), LifecycleEvent.RESUME,
+                    "TASK_PROFILE_AUTO_DECISION_AVAILABLE", Map.of("taskProfileVersion", profile.version()),
+                    () -> mapper.updateDesignerAutoMode(changed), conflict());
+        } catch (ConflictException concurrentChange) {
+            if ("DESIGNER_AUTO_MODE_VERSION_CONFLICT".equals(concurrentChange.code())) return false;
+            throw concurrentChange;
+        }
+        designerSessions.recordAutoModeNotice(session.id(),
+                "任务画像决策已可继续，全自动模式将沿用原授权处理当前推荐画像。",
+                "AUTO_MODE_PROFILE_RESUMED");
+        return true;
     }
 
     void advanceOne(String sessionId) {
@@ -145,7 +171,16 @@ public class DesignerAutoModeService {
             if (DesignerSessionState.REVIEWING.name().equals(session.state())
                     && DesignWorkflowPhase.DISCUSSING_REQUIREMENT.name().equals(session.workflowPhase())
                     && session.currentRequirementRevision() == null) {
-                if (profiles.current(sessionId).state().startsWith("ROUTING_")) return;
+                TaskProfileService.View currentProfile = profiles.current(sessionId);
+                if (currentProfile.state().startsWith("ROUTING_")) return;
+                if (currentProfile.decisionRequired()) {
+                    profiles.acceptRecommendation(sessionId, currentProfile.version());
+                    recordAction(mode, "PROFILE_AUTO_CONFIRMED");
+                    designerSessions.recordAutoModeNotice(session.id(),
+                            "全自动模式已采用 Router 当前推荐的任务类型和主要制品；仍可在需求确认前人工覆盖。",
+                            "AUTO_MODE_PROFILE_CONFIRMED");
+                    return;
+                }
                 TaskProfileService.View profile = profiles.freeze(sessionId);
                 if (profile.executionStrategy() == io.opencode.loopper.domain.ExecutionStrategy.READ_ONLY_REPORT) {
                     designerSessions.beginReadOnlyReport(sessionId);
@@ -193,9 +228,15 @@ public class DesignerAutoModeService {
     private void recordAction(DesignerAutoModeRow current, String action) {
         DesignerAutoModeRow latest = mapper.findDesignerAutoMode(current.designerSessionId()).orElse(current);
         if (!DesignerAutoModeState.ACTIVE.name().equals(latest.state())) return;
+        if (action.equals(latest.lastAction()) && latest.errorCode() == null && latest.errorDetail() == null) return;
         DesignerAutoModeRow changed = new DesignerAutoModeRow(latest.designerSessionId(), latest.state(), action,
                 null, null, latest.taskId(), latest.authorizedAt(), latest.disabledAt(), now(), latest.version());
         lifecycle.mutateWithoutTransition(() -> mapper.updateDesignerAutoMode(changed), conflict());
+    }
+
+    private boolean isProfileDecisionBlock(DesignerAutoModeRow row) {
+        return row != null && DesignerAutoModeState.BLOCKED.name().equals(row.state())
+                && "TASK_PROFILE_DECISION_REQUIRED".equals(row.errorCode());
     }
 
     private void block(DesignerAutoModeRow current, DesignerSessionRow session, String code, String detail) {

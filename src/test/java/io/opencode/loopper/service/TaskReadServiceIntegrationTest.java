@@ -94,6 +94,32 @@ class TaskReadServiceIntegrationTest {
     }
 
     @Test
+    void overviewAndSummarySelectOneRetryPlanWhenClaimedHistoryOverlapsAnActivePlan() {
+        jdbc.update("""
+                INSERT INTO task_retry_schedule(id,task_id,stage_id,cause,ordinal,delay_seconds,due_at,
+                  remaining_seconds,prompt,state,created_at,updated_at,version)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """, "retry-claimed", "task-a", "stage-a", "SESSION", 1, 10,
+                "2026-01-02T00:00:00Z", null, "claimed", "CLAIMED",
+                "2026-01-01T00:00:00Z", "2026-01-01T00:01:00Z", 0);
+        jdbc.update("""
+                INSERT INTO task_retry_schedule(id,task_id,stage_id,cause,ordinal,delay_seconds,due_at,
+                  remaining_seconds,prompt,state,created_at,updated_at,version)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """, "retry-scheduled", "task-a", "stage-a", "VERIFICATION", 2, 20,
+                "2026-01-03T00:00:00Z", null, "scheduled", "SCHEDULED",
+                "2026-01-02T00:00:00Z", "2026-01-02T00:01:00Z", 0);
+
+        assertThat(reads.overview("task-a")).satisfies(overview -> {
+            assertThat(overview.retryCause()).isEqualTo("VERIFICATION");
+            assertThat(overview.retryOrdinal()).isEqualTo(2);
+        });
+        assertThat(reads.summaries(null, List.of(), "ACTIVE", null, "newest", null, 50).items())
+                .extracting(TaskReadService.TaskSummary::id)
+                .containsExactly("task-b", "task-a");
+    }
+
+    @Test
     void readModelsStayWithinFixedQueryBudgets() {
         queries.reset();
         reads.summaries(null, List.of(), "ACTIVE", null, "newest", null, 50);

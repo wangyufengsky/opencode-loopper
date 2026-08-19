@@ -72,6 +72,9 @@ insights, templates and automation runs are assembled in bounded batch queries.
 V33 adds keyset and child-lookup indexes for Tasks, Designer Sessions, Attempts,
 execution Sessions and automation runs. Project Git inspection is outside
 SQLite, cached for five seconds, and refreshed through at most four workers.
+Task summary and overview select exactly one retry schedule by state priority and
+latest update; a transient or recovered `CLAIMED` row may coexist with a new
+`SCHEDULED`/`PAUSED` row but must never multiply a single Task projection.
 Runtime data is requested only on its own route; SSE invalidates overview and
 audit independently with a short coalescing window. JSON/text responses above
 2 KiB are compressed, Inbox responses use shallow ETags, and read-model metrics
@@ -84,6 +87,12 @@ locking and records enable, disable, block, and completion transitions. The
 read-only handoffs; each Session is process-deduplicated and advances at most one
 existing authority boundary per tick. Confirmed drafts and already-started Tasks
 are reused so restart recovery cannot duplicate a Task or execution request.
+An ambiguous task profile is an explicit auto action rather than an auto-mode failure:
+an authorized Session persists the Router's current intent/artifact as `AUTO_RECOMMENDED`
+without inflating its confidence, then freezes it on a later tick. Unsafe-operation
+evidence remains fail-closed. Legacy `BLOCKED + TASK_PROFILE_DECISION_REQUIRED` rows may
+take one dedicated `RESUME` transition before that action; all other blocked causes retain
+explicit disable/re-authorize recovery.
 
 V35 adds a frozen task profile before workflow construction. `designer_task_profile`
 stores intent, workflow template, mutation mode, artifact kinds, technologies, test
@@ -109,6 +118,9 @@ without an OpenCode Session. Large documents require 2–6 level-two sections; t
 structured blocks are kept in source order and deterministically aggregated into one
 frozen plan. Every decomposed software package freezes its own detected technology list,
 Role Pack version, execution strategy and test policy before its Designer/Compiler prompt.
+Rows created before that freeze is complete are not valid Role Pack snapshots: read-only
+Designer projection omits the incomplete snapshot, and the next package-role use repairs it
+from the current or legacy task profile instead of parsing nullable enum columns.
 V37 copies that package decision into each confirmed Stage, so retries and Recovery compose
 implementation prompts from the immutable Stage snapshot. Read-only review/research creates
 an independent `REVIEWER_READ_ONLY` Session. V39 requires `REVIEWER_REPORT_V1` structured

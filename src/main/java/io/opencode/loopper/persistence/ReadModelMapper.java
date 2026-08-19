@@ -25,8 +25,12 @@ public interface ReadModelMapper {
             LEFT JOIN (
               SELECT task_id,COUNT(*) AS attempt_count FROM attempt GROUP BY task_id
             ) attempts ON attempts.task_id=t.id
-            LEFT JOIN task_retry_schedule retry
-              ON retry.task_id=t.id AND retry.state IN ('SCHEDULED','PAUSED','CLAIMED')
+            LEFT JOIN task_retry_schedule retry ON retry.id=(
+              SELECT candidate.id FROM task_retry_schedule candidate
+              WHERE candidate.task_id=t.id AND candidate.state IN ('SCHEDULED','PAUSED','CLAIMED')
+              ORDER BY CASE candidate.state WHEN 'SCHEDULED' THEN 0 WHEN 'PAUSED' THEN 1 ELSE 2 END,
+                candidate.updated_at DESC,candidate.id DESC LIMIT 1
+            )
             WHERE 1=1
             <if test="projectId != null">AND t.project_id=#{projectId}</if>
             <if test="states != null and !states.isEmpty()">
@@ -87,7 +91,12 @@ public interface ReadModelMapper {
             FROM task t JOIN project p ON p.id=t.project_id LEFT JOIN loop_draft d ON d.id=t.loop_draft_id
             LEFT JOIN task_archive archive ON archive.task_id=t.id
             LEFT JOIN (SELECT task_id,COUNT(*) AS attempt_count FROM attempt GROUP BY task_id) attempts ON attempts.task_id=t.id
-            LEFT JOIN task_retry_schedule retry ON retry.task_id=t.id AND retry.state IN ('SCHEDULED','PAUSED','CLAIMED')
+            LEFT JOIN task_retry_schedule retry ON retry.id=(
+              SELECT candidate.id FROM task_retry_schedule candidate
+              WHERE candidate.task_id=t.id AND candidate.state IN ('SCHEDULED','PAUSED','CLAIMED')
+              ORDER BY CASE candidate.state WHEN 'SCHEDULED' THEN 0 WHEN 'PAUSED' THEN 1 ELSE 2 END,
+                candidate.updated_at DESC,candidate.id DESC LIMIT 1
+            )
             LEFT JOIN task_execution_cycle cycle ON cycle.id=(SELECT c.id FROM task_execution_cycle c WHERE c.task_id=t.id ORDER BY c.ordinal DESC LIMIT 1)
             LEFT JOIN task_workspace_checkpoint checkpoint ON checkpoint.id=(SELECT c.id FROM task_workspace_checkpoint c WHERE c.task_id=t.id ORDER BY c.created_at DESC,c.id DESC LIMIT 1)
             LEFT JOIN task_lineage lineage ON lineage.child_task_id=t.id

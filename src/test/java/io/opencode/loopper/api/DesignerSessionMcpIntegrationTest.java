@@ -6,6 +6,7 @@ import io.opencode.loopper.domain.LoopDraftStatus;
 import io.opencode.loopper.domain.LoopSpec;
 import io.opencode.loopper.persistence.DesignDiscussionRevisionRow;
 import io.opencode.loopper.persistence.DesignRequirementRevisionRow;
+import io.opencode.loopper.persistence.DesignerAutoModeRow;
 import io.opencode.loopper.persistence.DesignerMessageRow;
 import io.opencode.loopper.persistence.DesignerSessionRow;
 import io.opencode.loopper.persistence.LoopDraftRow;
@@ -26,6 +27,7 @@ import io.opencode.loopper.service.TaskProfileService;
 import io.opencode.loopper.service.LoopDraftService;
 import io.opencode.loopper.service.ProjectService;
 import io.opencode.loopper.service.TaskService;
+import io.opencode.loopper.service.WorkPackageRoleService;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -86,6 +88,7 @@ class DesignerSessionMcpIntegrationTest {
     @Autowired private TaskProfileService taskProfiles;
     @Autowired private LoopDraftService drafts;
     @Autowired private TaskService tasks;
+    @Autowired private WorkPackageRoleService workPackageRoles;
     @Autowired private LoopperMapper mapper;
     @Autowired private OpenCodeClient openCode;
     @Autowired private ToolCallbackProvider loopperMcpToolCallbackProvider;
@@ -301,6 +304,40 @@ class DesignerSessionMcpIntegrationTest {
     }
 
     @Test
+    void incompleteHistoricalWorkPackageRoleSnapshotDoesNotBreakProjectionAndRepairsOnUse() throws Exception {
+        ProjectRow project = project("incomplete-work-package-role");
+        Files.writeString(Path.of(project.rootPath()).resolve("pom.xml"), "<project/>\n");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        fake().setDecomposerOutput(decomposition("DIRECT_DESIGN", "历史 Java 工作包", 1));
+        fake().setDesignerOutput(designerOutput("# 历史工作包\n\n保持旧设计可恢复。", legacySpec(project.id())));
+        DesignerSessionRow session = createConfirmedSession(project.id(), draft.id(), "恢复历史 Java 软件工作包");
+        for (int attempt = 0; attempt < 12 && designerSessions.workPackageStatuses(session.id()).isEmpty(); attempt++) {
+            designerSessions.pollActiveHandoffs();
+        }
+        var workPackage = mapper.findLatestDesignWorkPackage(session.id(), "WP-1").orElseThrow();
+        var assigned = mapper.findWorkPackageRoleProfile(workPackage.id()).orElseThrow();
+        assertThat(mapper.assignWorkPackageRoleProfile(new io.opencode.loopper.persistence.WorkPackageRoleProfileRow(
+                assigned.id(), assigned.designerSessionId(), assigned.packageId(), assigned.taskProfileId(),
+                assigned.rolePackId(), assigned.rolePackVersion(), null, null, assigned.technologiesJson())))
+                .isEqualTo(1);
+
+        assertThat(designerSessions.workPackageStatuses(session.id())).singleElement().satisfies(status -> {
+            assertThat(status.rolePackId()).isNull();
+            assertThat(status.executionStrategy()).isNull();
+            assertThat(status.testPolicy()).isNull();
+        });
+
+        assertThat(workPackageRoles.get(workPackage)).satisfies(repaired -> {
+            assertThat(repaired.rolePackId()).isEqualTo("software-java");
+            assertThat(repaired.executionStrategy().name()).isEqualTo("OPEN_CODE_IMPLEMENTATION");
+            assertThat(repaired.testPolicy().name()).isEqualTo("REQUIRED");
+        });
+        assertThat(designerSessions.workPackageStatuses(session.id())).singleElement()
+                .extracting(DesignerSessionService.WorkPackageStatus::executionStrategy)
+                .isEqualTo("OPEN_CODE_IMPLEMENTATION");
+    }
+
+    @Test
     void largeDocumentAndSafeMaintenanceUseDedicatedImplicitPackageFlows() throws Exception {
         ProjectRow documentProject = project("packaged-document");
         LoopDraftRow documentDraft = drafts.create(v2DocumentationSpec(documentProject.id()));
@@ -460,6 +497,80 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(mapper.listDesignDiscussionRevisions(session.id()))
                 .anyMatch(row -> row.decisionLogJson().contains("AUTO_RECOMMENDED")
                         && row.decisionLogJson().contains("推荐方案（推荐）"));
+    }
+
+    @Test
+    void autoModeAdoptsAmbiguousProfileRecommendationWithoutManualOverride() throws Exception {
+        ProjectRow project = project("designer-auto-profile-decision");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        fake().failNextReadOnlySessions("ROUTER", 2);
+        fake().setDesignerOutput(designerOutput("# 自动确认画像后的设计\n\n沿用已授权的全自动流程继续。",
+                legacySpec(project.id())));
+        DesignerSessionRow session = prepareReviewingSession(project.id(), draft.id(), "新增一个边界尚不明确的工具");
+        TaskProfileService.View ambiguous = taskProfiles.current(session.id());
+        assertThat(ambiguous.decisionRequired()).isTrue();
+        designerAutoMode.initialize(session.id(), true);
+
+        designerAutoMode.pollActive();
+
+        assertThat(designerAutoMode.get(session.id())).satisfies(mode -> {
+            assertThat(mode.state()).isEqualTo("ACTIVE");
+            assertThat(mode.lastAction()).isEqualTo("PROFILE_AUTO_CONFIRMED");
+            assertThat(mode.errorCode()).isNull();
+        });
+        assertThat(taskProfiles.current(session.id())).satisfies(profile -> {
+            assertThat(profile.decisionRequired()).isFalse();
+            assertThat(profile.resolutionSource()).isEqualTo("AUTO_RECOMMENDED");
+            assertThat(profile.evidence()).contains("auto-recommended-profile");
+        });
+        assertThat(mapper.findCurrentDesignRequirementRevision(session.id())).isEmpty();
+
+        designerAutoMode.pollActive();
+
+        assertThat(taskProfiles.current(session.id()).state()).isEqualTo("FROZEN");
+        assertThat(designerSessions.get(session.id()).workflowPhase()).isEqualTo("DECOMPOSING");
+    }
+
+    @Test
+    void legacyProfileDecisionBlockResumesImmediatelyAfterManualOverride() throws Exception {
+        ProjectRow project = project("designer-auto-profile-manual-recovery");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        fake().failNextReadOnlySessions("ROUTER", 1);
+        fake().setDesignerOutput(designerOutput("# 人工覆盖画像后的设计\n\n沿用已授权的全自动流程继续。",
+                legacySpec(project.id())));
+        DesignerSessionRow session = prepareReviewingSession(project.id(), draft.id(), "新增一个边界尚不明确的工具");
+        TaskProfileService.View ambiguous = taskProfiles.current(session.id());
+        designerAutoMode.initialize(session.id(), true);
+
+        DesignerAutoModeRow active = mapper.findDesignerAutoMode(session.id()).orElseThrow();
+        assertThat(mapper.updateDesignerAutoMode(new DesignerAutoModeRow(session.id(), "BLOCKED", "MODE_BLOCKED",
+                "TASK_PROFILE_DECISION_REQUIRED", "任务类型存在歧义，请先确认任务画像", active.taskId(),
+                active.authorizedAt(), active.disabledAt(), active.updatedAt(), active.version()))).isEqualTo(1);
+
+        mvc.perform(put("/api/designer-sessions/{id}/task-profile", session.id())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of(
+                                "intent", "SOFTWARE_CHANGE",
+                                "primaryArtifactKind", "SOURCE_CODE",
+                                "expectedVersion", ambiguous.version()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.decisionRequired").value(false))
+                .andExpect(jsonPath("$.resolutionSource").value("USER_OVERRIDE"));
+
+        assertThat(designerAutoMode.get(session.id())).satisfies(mode -> {
+            assertThat(mode.state()).isEqualTo("ACTIVE");
+            assertThat(mode.lastAction()).isEqualTo("PROFILE_DECISION_RESUMED");
+            assertThat(mode.errorCode()).isNull();
+            assertThat(mode.errorDetail()).isNull();
+        });
+        assertThat(designerSessions.messages(session.id()))
+                .anyMatch(message -> message.content().contains("任务画像决策已可继续")
+                        && "AUTO_MODE_PROFILE_RESUMED".equals(message.deliveryState()));
+
+        designerAutoMode.pollActive();
+
+        assertThat(taskProfiles.current(session.id()).state()).isEqualTo("FROZEN");
+        assertThat(designerSessions.get(session.id()).workflowPhase()).isEqualTo("DECOMPOSING");
     }
 
     @Test

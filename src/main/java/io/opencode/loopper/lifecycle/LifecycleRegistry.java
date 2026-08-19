@@ -235,6 +235,7 @@ public final class LifecycleRegistry {
                 .transition(DesignerAutoModeState.ACTIVE, REQUIRE_INPUT, DesignerAutoModeState.BLOCKED)
                 .transition(DesignerAutoModeState.BLOCKED, DISABLE, DesignerAutoModeState.DISABLED)
                 .transition(DesignerAutoModeState.BLOCKED, ENABLE, DesignerAutoModeState.ACTIVE)
+                .transition(DesignerAutoModeState.BLOCKED, RESUME, DesignerAutoModeState.ACTIVE)
                 .transition(DesignerAutoModeState.ACTIVE, COMPLETE, DesignerAutoModeState.COMPLETED)
                 .build();
     }

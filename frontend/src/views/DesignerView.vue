@@ -17,7 +17,15 @@ import { demoDraft, demoMessages } from '@/mock/demoData'
 import { useTaskStore } from '@/stores/taskStore'
 import type { AnalysisReport, AppSettings, DesignerMessage, DesignerSession, ErrorEvent, LoopDraft, LoopSpecAssessment, StructuredModelStep, TaskSessionPendingQuestion } from '@/types/domain'
 import { formatDateTime } from '@/utils/dateTime'
-import { statusLabel } from '@/utils/displayLabels'
+import {
+  artifactKindLabel,
+  executionStrategyLabel,
+  profileResolutionLabel,
+  statusLabel,
+  taskIntentLabel,
+  testPolicyLabel,
+  workflowTemplateLabel,
+} from '@/utils/displayLabels'
 
 const store = useTaskStore()
 const router = useRouter()
@@ -161,6 +169,8 @@ const discussionScopeLabel = computed(() => designerSession.value?.discussionSco
 const hasPendingDesignerQuestion = computed(() => (designerSession.value?.pendingQuestions?.length ?? 0) > 0)
 const autoModeActive = computed(() => designerSession.value?.autoMode.state === 'ACTIVE')
 const autoModeBlocked = computed(() => designerSession.value?.autoMode.state === 'BLOCKED')
+const autoModeResolvingProfile = computed(() => autoModeActive.value
+  && designerSession.value?.taskProfile.decisionRequired === true)
 const composerEnabled = computed(() => {
   if (!designerSession.value || autoModeActive.value || designerSession.value.state === 'RUNNING' || hasPendingDesignerQuestion.value) return false
   if (designerSession.value.workflowPhase === 'DISCUSSING_REQUIREMENT') return true
@@ -535,7 +545,7 @@ async function startDraft() {
 async function confirmAutoModeRisk() {
   try {
     await ElMessageBox.confirm(
-      '开启后会自动采用推荐答案、确认需求和工作包、确认最终设计，并创建及启动任务。执行期权限、异常恢复、结果确认、提交、推送和发布仍需人工处理。',
+      '开启后会自动采用 Router 推荐的任务画像和设计答案、确认需求和工作包、确认最终设计，并创建及启动任务。需求确认前仍可人工覆盖画像；执行期权限、异常恢复、结果确认、提交、推送和发布仍需人工处理。',
       '授权全自动设计？',
       { type: 'warning', confirmButtonText: '确认开启', cancelButtonText: '保持关闭' },
     )
@@ -1088,12 +1098,12 @@ async function redesignPackage(packageId: string) {
           <time :datetime="designerObservedAt">{{ formatObservedAt(designerObservedAt) }}</time>
         </div>
         <section v-if="designerSession?.taskProfile" class="task-profile-card" aria-label="任务画像与动态流程">
-          <header><div><strong>任务画像 · {{ designerSession.taskProfile.intent }}</strong><span>{{ designerSession.taskProfile.confidence }}% · {{ designerSession.taskProfile.rolePackId }}@{{ designerSession.taskProfile.rolePackVersion }}</span></div><b :class="{ warning: designerSession.taskProfile.decisionRequired }">{{ designerSession.taskProfile.decisionRequired ? '需要确认' : designerSession.taskProfile.resolutionSource }}</b></header>
-          <p>流程 {{ designerSession.taskProfile.workflowTemplate }} · 执行 {{ designerSession.taskProfile.executionStrategy }} · 测试 {{ designerSession.taskProfile.testPolicy }}</p>
+          <header><div><strong>任务画像 · {{ taskIntentLabel(designerSession.taskProfile.intent) }}</strong><span>{{ designerSession.taskProfile.confidence }}% · {{ designerSession.taskProfile.rolePackId }}@{{ designerSession.taskProfile.rolePackVersion }}</span></div><b :class="{ warning: designerSession.taskProfile.decisionRequired }">{{ designerSession.taskProfile.decisionRequired ? '需要确认' : profileResolutionLabel(designerSession.taskProfile.resolutionSource) }}</b></header>
+          <p>流程 {{ workflowTemplateLabel(designerSession.taskProfile.workflowTemplate) }} · 执行 {{ executionStrategyLabel(designerSession.taskProfile.executionStrategy) }} · 测试 {{ testPolicyLabel(designerSession.taskProfile.testPolicy) }}</p>
           <div class="profile-evidence"><span v-for="item in designerSession.taskProfile.evidence" :key="item">{{ item }}</span></div>
           <div v-if="designerSession.taskProfile.state === 'PROVISIONAL'" class="profile-override">
-            <el-select v-model="profileIntent" aria-label="覆盖任务类型"><el-option v-for="item in designerSession.availableProfileOverrides" :key="item" :label="item" :value="item" /></el-select>
-            <el-select v-model="profileArtifact" aria-label="覆盖主要制品"><el-option v-for="item in designerSession.availableArtifactOverrides" :key="item" :label="item" :value="item" /></el-select>
+            <el-select v-model="profileIntent" aria-label="覆盖任务类型"><el-option v-for="item in designerSession.availableProfileOverrides" :key="item" :label="taskIntentLabel(item)" :value="item" /></el-select>
+            <el-select v-model="profileArtifact" aria-label="覆盖主要制品"><el-option v-for="item in designerSession.availableArtifactOverrides" :key="item" :label="artifactKindLabel(item)" :value="item" /></el-select>
             <el-button plain :loading="busy" @click="updateTaskProfile">应用覆盖</el-button>
           </div>
         </section>
@@ -1107,7 +1117,7 @@ async function redesignPackage(packageId: string) {
         </section>
         <section v-if="designerSession?.autoMode.state !== 'DISABLED'" :class="['designer-auto-status', { blocked: autoModeBlocked, completed: designerSession?.autoMode.state === 'COMPLETED' }]" role="status" aria-live="polite">
           <Icon :icon="autoModeBlocked ? 'lucide:octagon-alert' : designerSession?.autoMode.state === 'COMPLETED' ? 'lucide:circle-check-big' : 'lucide:bot'" />
-          <div><strong>{{ autoModeBlocked ? '全自动模式已阻断' : designerSession?.autoMode.state === 'COMPLETED' ? '全自动设计已完成' : '全自动模式正在推进' }}</strong><p v-if="autoModeBlocked">{{ designerSession?.autoMode.errorDetail }}；请先关闭后人工处理，完成后可重新授权。</p><p v-else-if="designerSession?.autoMode.state === 'COMPLETED'">任务已请求启动，正在打开任务详情；执行期决策保持人工处理。</p><p v-else>每轮只推进一个权威动作；关闭不会撤销已完成动作或终止正在执行的模型调用。</p></div>
+          <div><strong>{{ autoModeBlocked ? '全自动模式已阻断' : designerSession?.autoMode.state === 'COMPLETED' ? '全自动设计已完成' : autoModeResolvingProfile ? '全自动模式正在确认画像' : '全自动模式正在推进' }}</strong><p v-if="autoModeBlocked">{{ designerSession?.autoMode.errorDetail }}；请先关闭后人工处理，完成后可重新授权。</p><p v-else-if="designerSession?.autoMode.state === 'COMPLETED'">任务已请求启动，正在打开任务详情；执行期决策保持人工处理。</p><p v-else-if="autoModeResolvingProfile">将采用 Router 当前推荐的任务类型和主要制品，无需人工覆盖；需求确认前仍可主动调整。</p><p v-else>每轮只推进一个权威动作；关闭不会撤销已完成动作或终止正在执行的模型调用。</p></div>
         </section>
         <section v-if="blockedWorkflowMessage" class="designer-session-alert" role="status" aria-live="polite"><Icon icon="lucide:refresh-cw" /><div><strong>{{ designerSession?.state === 'WAITING_INPUT' ? '设计工作流需要人工恢复' : '设计工作流已停止' }}</strong><p>{{ blockedWorkflowMessage.content }}</p><span class="tiny muted">最后有效需求快照、问题回答和候选 LoopSpec 均已保留；恢复不会重新执行已完成的拆包。</span><div class="recovery-actions"><el-button v-if="designerSession?.decomposition && !designerSession.activeWorkPackageId" plain size="small" :loading="busy" @click="retryDecomposition"><Icon icon="lucide:split" />重新拆解</el-button><el-button v-if="designerSession?.activeWorkPackageId" plain size="small" :loading="busy" @click="retryPackageCompiler(designerSession.activeWorkPackageId)"><Icon icon="lucide:braces" />重新编译当前包</el-button><el-button v-if="designerSession?.activeWorkPackageId" plain size="small" :loading="busy" @click="redesignPackage(designerSession.activeWorkPackageId)"><Icon icon="lucide:sparkles" />恢复当前包设计</el-button><template v-if="!designerSession?.decomposition"><el-button plain size="small" :loading="busy" @click="retryCompiler"><Icon icon="lucide:braces" />重新编译当前设计</el-button><el-button plain size="small" :loading="busy" @click="requestRedesign"><Icon icon="lucide:sparkles" />让 Designer 重新设计</el-button></template><el-button plain size="small" @click="restartDesigner"><Icon icon="lucide:rotate-ccw" />清理工作区</el-button></div></div></section>
         <section v-else-if="designerLiveError" class="designer-session-alert live-error" role="alert" aria-live="assertive"><Icon icon="lucide:triangle-alert" /><div><strong>OpenCode 实时错误</strong><p>{{ designerLiveError }}</p><span class="tiny muted">错误已从实时通道收到，正在同步持久化会话状态。</span></div></section>

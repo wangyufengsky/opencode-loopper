@@ -609,7 +609,9 @@ public interface LoopperMapper {
     int assignWorkPackageRoleProfile(WorkPackageRoleProfileRow row);
     @Select("""
             SELECT id,designer_session_id,package_id,task_profile_id,role_pack_id,role_pack_version,
-              execution_strategy,test_policy,technologies_json FROM design_work_package WHERE id=#{id}
+              execution_strategy,test_policy,technologies_json FROM design_work_package
+            WHERE id=#{id} AND role_pack_id IS NOT NULL AND role_pack_version IS NOT NULL
+              AND execution_strategy IS NOT NULL AND test_policy IS NOT NULL
             """)
     Optional<WorkPackageRoleProfileRow> findWorkPackageRoleProfile(String id);
     @Select("SELECT * FROM design_work_package WHERE id=#{id}")
@@ -1111,8 +1113,13 @@ public interface LoopperMapper {
     int insertDesignerAutoMode(DesignerAutoModeRow row);
     @Select("SELECT * FROM designer_auto_mode WHERE designer_session_id=#{sessionId}")
     Optional<DesignerAutoModeRow> findDesignerAutoMode(String sessionId);
-    @Select("SELECT * FROM designer_auto_mode WHERE state='ACTIVE' ORDER BY updated_at,designer_session_id")
-    List<DesignerAutoModeRow> listActiveDesignerAutoModes();
+    @Select("""
+            SELECT * FROM designer_auto_mode
+            WHERE state='ACTIVE'
+               OR (state='BLOCKED' AND error_code='TASK_PROFILE_DECISION_REQUIRED')
+            ORDER BY updated_at,designer_session_id
+            """)
+    List<DesignerAutoModeRow> listDesignerAutoModesForAdvance();
     @Update("""
             UPDATE designer_auto_mode SET state=#{state},last_action=#{lastAction},error_code=#{errorCode},
               error_detail=#{errorDetail},task_id=#{taskId},authorized_at=#{authorizedAt},

@@ -207,7 +207,10 @@ public class DesignerSessionController {
     @PutMapping("/{id}/task-profile")
     public TaskProfileService.View updateTaskProfile(@PathVariable String id,
                                                       @Valid @RequestBody UpdateTaskProfileRequest request) {
-        return profiles.override(id, request.intent(), request.primaryArtifactKind(), request.expectedVersion());
+        TaskProfileService.View profile = profiles.override(
+                id, request.intent(), request.primaryArtifactKind(), request.expectedVersion());
+        autoMode.resumeProfileDecisionBlock(id);
+        return profile;
     }
 
     @GetMapping("/{id}/reports/{reportId}")

@@ -1,4 +1,14 @@
-import type { TaskSessionActivityPart, TaskSessionSummary } from '@/types/domain'
+import type {
+  ArtifactKind,
+  DesignerTaskProfile,
+  TaskIntent,
+  TaskSessionActivityPart,
+  TaskSessionSummary,
+} from '@/types/domain'
+
+type WorkflowTemplate = DesignerTaskProfile['workflowTemplate']
+type ExecutionStrategy = DesignerTaskProfile['executionStrategy']
+type TestPolicy = DesignerTaskProfile['testPolicy']
 
 const statusLabels: Record<string, string> = {
   PENDING_START: '待开始', QUEUED: '排队中', PREPARING: '准备中', READY: '待执行', RUNNING: '运行中', VERIFYING: '验证中',
@@ -19,9 +29,86 @@ const toolLabels: Record<string, string> = {
   glob: '匹配文件', grep: '搜索内容', list: '列出文件', task: '子任务',
 }
 
+const taskIntentLabels: Record<TaskIntent, string> = {
+  SOFTWARE_CHANGE: '软件变更',
+  DOCUMENT_AUTHORING: '文档编写',
+  DATA_CONVERSION: '数据转换',
+  READ_ONLY_REVIEW: '只读评审',
+  RESEARCH: '调研',
+  CONFIGURATION: '配置修改',
+  LOCAL_MAINTENANCE: '本地维护',
+  LEGACY_SOFTWARE: '历史软件任务',
+}
+
+const artifactKindLabels: Record<ArtifactKind, string> = {
+  SOURCE_CODE: '源代码',
+  PYTHON_SCRIPT: 'Python 脚本',
+  MARKDOWN: 'Markdown 文档',
+  DOCX: 'Word 文档（DOCX）',
+  XLSX: 'Excel 工作簿（XLSX）',
+  CSV: 'CSV 表格',
+  TSV: 'TSV 表格',
+  CONFIGURATION: '配置文件',
+  ANALYSIS_REPORT: '分析报告',
+  OTHER: '其他制品',
+}
+
+const workflowTemplateLabels: Record<WorkflowTemplate, string> = {
+  FULL_PACKAGE_DESIGN: '完整分包设计',
+  DIRECT_ARTIFACT: '直接制品',
+  PACKAGED_ARTIFACT: '分包制品',
+  READ_ONLY_REPORT: '只读报告',
+  LOCAL_MAINTENANCE: '本地维护',
+}
+
+const executionStrategyLabels: Record<ExecutionStrategy, string> = {
+  OPEN_CODE_IMPLEMENTATION: 'OpenCode 实施',
+  SERVER_DOCUMENT_MATERIALIZATION: '服务端生成文档',
+  SERVER_TABULAR_CONVERSION: '服务端转换表格',
+  READ_ONLY_REPORT: '只读报告',
+}
+
+const testPolicyLabels: Record<TestPolicy, string> = {
+  REQUIRED: '必须测试',
+  OPTIONAL: '可选测试',
+  NOT_APPLICABLE: '不适用',
+}
+
+const profileResolutionLabels: Record<string, string> = {
+  AI_ROUTER: 'AI 路由',
+  ROUTER_FALLBACK: '路由降级',
+  AUTO_RECOMMENDED: '全自动推荐',
+  USER_OVERRIDE: '人工覆盖',
+  LEGACY: '历史兼容',
+}
+
 export function statusLabel(value?: string) {
   if (!value) return '未知'
   return statusLabels[value.toUpperCase()] ?? value.replace(/_/g, ' ')
+}
+
+export function taskIntentLabel(value: TaskIntent) {
+  return taskIntentLabels[value]
+}
+
+export function artifactKindLabel(value: ArtifactKind) {
+  return artifactKindLabels[value]
+}
+
+export function workflowTemplateLabel(value: WorkflowTemplate) {
+  return workflowTemplateLabels[value]
+}
+
+export function executionStrategyLabel(value: ExecutionStrategy) {
+  return executionStrategyLabels[value]
+}
+
+export function testPolicyLabel(value: TestPolicy) {
+  return testPolicyLabels[value]
+}
+
+export function profileResolutionLabel(value: string) {
+  return profileResolutionLabels[value] ?? value.replace(/_/g, ' ')
 }
 
 export function sessionLabel(session?: TaskSessionSummary) {

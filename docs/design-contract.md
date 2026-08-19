@@ -143,11 +143,20 @@ only scope/version that can accept a message or approval.
 
 Before requirement confirmation, the page shows the provisional task profile,
 confidence, evidence, workflow preview, Role Pack, execution strategy and test policy.
-Confidence below 80 or conflicting evidence blocks confirmation until a versioned
-profile override is saved. `ROUTING_PENDING/RUNNING` is backed by a persisted Router run;
+Task intent, artifact, workflow, execution and test-policy enum values are rendered as
+Chinese labels in the profile summary and override controls, while REST/SQLite continue
+to use the stable English enum codes.
+Confidence below 80 or conflicting evidence blocks ordinary-mode confirmation until a
+versioned profile override is saved. An explicitly authorized full-auto Session may accept
+the Router's current intent and primary artifact as an `AUTO_RECOMMENDED` decision; this
+cannot bypass unsafe-operation evidence, and a manual override remains available before
+requirement confirmation. `ROUTING_PENDING/RUNNING` is backed by a persisted Router run;
 the raw requirement and every completed Designer snapshot are classified separately, and
 starting a replacement discussion cancels the obsolete classification. Confirmation freezes the profile. The progress rail is
 template-driven: omitted Decomposer/package/Compiler steps are not displayed.
+Historical `BLOCKED + TASK_PROFILE_DECISION_REQUIRED` rows use one bounded `RESUME` action,
+then apply the same auto-recommended profile decision on the next monitor tick. A manual
+override also resumes that obsolete blocker immediately without a second authorization.
 
 Simple Markdown/DOCX and one-shot tabular conversion still require the ordinary
 Designer question, then compile one implicit `WP-1` and enter `FINAL_REVIEW` without an
@@ -166,6 +175,9 @@ execution strategy and test policy. The package Designer and Compiler prompts us
 package snapshot, so a mixed Java/Vue/Python request does not inherit one global
 Java/Maven contract for every package. Confirmation copies those values to every Stage;
 the task rail displays the frozen Role Pack and test policy used by implementation.
+Historical or interrupted rows whose execution strategy or test policy is still null are
+treated as an incomplete snapshot: the read-only rail remains available without enum
+conversion errors, and the next authoritative package-role use refreezes all required fields.
 
 Before a requirement revision exists, Designer must call `question` once with
 1–3 choice questions and then return a complete replacement Markdown snapshot.
@@ -194,7 +206,9 @@ messages and question decisions use `AUTO_RECOMMENDED`; manual decisions use
 Full-auto authorization ends once Task Start has been requested. It must never
 answer execution-time questions, grant dangerous permissions, choose recovery,
 accept execution results, commit, push, merge, or publish. Disabling stops only
-future automatic actions. Budget exhaustion, multi-task requirements, design or
+future automatic actions. A low-confidence/conflicting task profile is resolved as a
+separate, persisted auto-recommended action when full-auto is authorized; unsafe-operation
+evidence remains fail-closed. Budget exhaustion, multi-task requirements, design or
 validation failures, missing option data, optimistic conflicts, and Task Start
 errors move the mode to `BLOCKED` without hot retry; the operator must disable
 it or explicitly authorize it again after handling the cause.

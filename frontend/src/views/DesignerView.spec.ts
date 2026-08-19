@@ -1,5 +1,5 @@
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
-import ElementPlus, { ElMessageBox } from 'element-plus'
+import ElementPlus, { ElMessageBox, ElOption } from 'element-plus'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import DesignerView from '@/views/DesignerView.vue'
@@ -104,6 +104,46 @@ afterEach(() => {
 })
 
 describe('Designer draft composer', () => {
+  it('shows task profile summaries and override options in Chinese while preserving enum values', async () => {
+    routeQuery.sessionId = 'designer-profile'
+    const profileSession: DesignerSession = {
+      ...session,
+      id: 'designer-profile',
+      state: 'REVIEWING',
+      workflowPhase: 'DISCUSSING_REQUIREMENT',
+      discussionScope: 'REQUIREMENT',
+      finalConfirmationEligible: false,
+      taskProfile: {
+        ...session.taskProfile,
+        state: 'PROVISIONAL',
+        confidence: 90,
+        resolutionSource: 'AI_ROUTER',
+      },
+      availableProfileOverrides: ['SOFTWARE_CHANGE', 'DOCUMENT_AUTHORING', 'READ_ONLY_REVIEW'],
+      availableArtifactOverrides: ['SOURCE_CODE', 'PYTHON_SCRIPT', 'DOCX'],
+      draft: draftFrom({
+        schemaVersion: 'v2', projectId: project.id, goal: '验证中文任务画像', context: '', stages: [],
+        limits: { maxStageAttempts: 3, maxTaskAttempts: 7, maxDuration: '7200', attemptTimeout: '1800' },
+      }),
+    }
+    vi.spyOn(api, 'getDesignerSession').mockResolvedValue(profileSession)
+
+    const wrapper = mountDesigner()
+    await flushPromises()
+
+    const profileCard = wrapper.get('[aria-label="任务画像与动态流程"]')
+    expect(profileCard.text()).toContain('任务画像 · 软件变更')
+    expect(profileCard.text()).toContain('流程 完整分包设计 · 执行 OpenCode 实施 · 测试 必须测试')
+    expect(profileCard.text()).toContain('AI 路由')
+    const options = wrapper.findAllComponents(ElOption)
+    expect(options.map((option) => option.props('label'))).toEqual([
+      '软件变更', '文档编写', '只读评审', '源代码', 'Python 脚本', 'Word 文档（DOCX）',
+    ])
+    expect(options.map((option) => option.props('value'))).toEqual([
+      'SOFTWARE_CHANGE', 'DOCUMENT_AUTHORING', 'READ_ONLY_REVIEW', 'SOURCE_CODE', 'PYTHON_SCRIPT', 'DOCX',
+    ])
+  })
+
   it('keeps the new-design page focused and restores a history session from an explicit route', async () => {
     const recoverableDraft = draftFrom({
       schemaVersion: 'v2', projectId: project.id, goal: '恢复重启前的设计', context: '', stages: [],
@@ -221,7 +261,7 @@ describe('Designer draft composer', () => {
 
     await wrapper.get('.designer-auto-create .el-switch').trigger('click')
     await flushPromises()
-    expect(confirmation).toHaveBeenCalledWith(expect.stringContaining('自动采用推荐答案'), '授权全自动设计？', expect.any(Object))
+    expect(confirmation).toHaveBeenCalledWith(expect.stringContaining('自动采用 Router 推荐的任务画像和设计答案'), '授权全自动设计？', expect.any(Object))
 
     await wrapper.get('textarea[aria-label="草案设计目标"]').setValue('自动完成设计并启动任务')
     await wrapper.get('.create-draft-button').trigger('click')
@@ -229,6 +269,38 @@ describe('Designer draft composer', () => {
 
     expect(createSession).toHaveBeenCalledWith(project.id, 'draft-1', '自动完成设计并启动任务', true)
     expect(wrapper.text()).toContain('全自动模式正在推进')
+  })
+
+  it('shows that auto mode will adopt a low-confidence task profile recommendation without manual override', async () => {
+    routeQuery.sessionId = 'designer-profile-wait'
+    vi.spyOn(api, 'getDesignerSession').mockResolvedValue({
+      ...session,
+      id: 'designer-profile-wait',
+      state: 'REVIEWING',
+      workflowPhase: 'DISCUSSING_REQUIREMENT',
+      discussionScope: 'REQUIREMENT',
+      finalConfirmationEligible: false,
+      autoMode: { enabled: true, state: 'ACTIVE', version: 2, lastAction: 'PROFILE_DECISION_WAITING' },
+      taskProfile: {
+        ...session.taskProfile,
+        id: 'profile-wait',
+        state: 'PROVISIONAL',
+        confidence: 70,
+        decisionRequired: true,
+      },
+      draft: draftFrom({
+        schemaVersion: 'v2', projectId: project.id, goal: '验证全自动画像推荐', context: '', stages: [],
+        limits: { maxStageAttempts: 3, maxTaskAttempts: 7, maxDuration: '7200', attemptTimeout: '1800' },
+      }),
+    })
+
+    const wrapper = mountDesigner()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('全自动模式正在确认画像')
+    expect(wrapper.text()).toContain('无需人工覆盖；需求确认前仍可主动调整')
+    expect(wrapper.text()).not.toContain('全自动模式已阻断')
+    expect(wrapper.find('[aria-label="任务画像与动态流程"] .profile-override').exists()).toBe(true)
   })
 
   it('keeps auto mode off when the creation warning is cancelled', async () => {
