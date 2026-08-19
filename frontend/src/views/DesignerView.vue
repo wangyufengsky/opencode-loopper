@@ -53,6 +53,7 @@ const designerObservedAt = ref('')
 const designerStructuredStep = ref<StructuredModelStep>()
 const submittingDesignerQuestion = ref('')
 const selectedWorkPackageId = ref('')
+const expandedSystemGroups = ref(new Set<string>())
 const selectedProjectId = ref('')
 const designerRecoveryError = ref('')
 const profileIntent = ref<DesignerSession['taskProfile']['intent']>('SOFTWARE_CHANGE')
@@ -239,6 +240,7 @@ const visibleMessages = computed(() => messages.value.filter((message) => !selec
 type DesignerTimelineItem =
   | { key: string; kind: 'message'; message: DesignerMessage }
   | { key: string; kind: 'discussion'; entries: NonNullable<DesignerSession['answeredQuestions']> }
+  | { key: string; kind: 'system'; scopeKey: string; entries: DesignerMessage[] }
   | { key: 'validators'; kind: 'validators'; entries: DesignerMessage[] }
 const timelineItems = computed<DesignerTimelineItem[]>(() => {
   const items: DesignerTimelineItem[] = []
@@ -277,6 +279,19 @@ const timelineItems = computed<DesignerTimelineItem[]>(() => {
     })
   }
   let validatorsInserted = false
+  const appendMessage = (message: DesignerMessage) => {
+    if (message.actor !== 'SYSTEM') {
+      items.push({ key: message.id, kind: 'message', message })
+      return
+    }
+    const scopeKey = `${message.workPackageId ?? 'REQUIREMENT'}:${message.requirementRevision ?? 0}`
+    const previous = items.at(-1)
+    if (previous?.kind === 'system' && previous.scopeKey === scopeKey) {
+      previous.entries.push(message)
+      return
+    }
+    items.push({ key: `system:${message.id}`, kind: 'system', scopeKey, entries: [message] })
+  }
   for (const message of visibleMessages.value) {
     for (const group of discussionsBeforeMessage.get(message.id) ?? []) {
       items.push({ key: `discussion:${group.key}`, kind: 'discussion', entries: group.entries })
@@ -288,13 +303,25 @@ const timelineItems = computed<DesignerTimelineItem[]>(() => {
       }
       continue
     }
-    items.push({ key: message.id, kind: 'message', message })
+    appendMessage(message)
   }
   for (const group of trailingDiscussions) {
     items.push({ key: `discussion:${group.key}`, kind: 'discussion', entries: group.entries })
   }
   return items
 })
+
+function toggleSystemGroup(key: string) {
+  const next = new Set(expandedSystemGroups.value)
+  if (next.has(key)) next.delete(key)
+  else next.add(key)
+  expandedSystemGroups.value = next
+}
+
+function systemGroupHasError(entries: DesignerMessage[]) {
+  return entries.some((message) => ['RETRYABLE_ERROR', 'TERMINAL_ERROR', 'SESSION_ERROR'].includes(message.deliveryState ?? '')
+    || message.content.includes('SYSTEM_ERROR'))
+}
 
 function loadDemo(goal?: string) {
   draft.value = structuredClone(demoDraft)
@@ -1135,6 +1162,27 @@ async function redesignPackage(packageId: string) {
           <template v-for="item in timelineItems" :key="item.key">
           <DesignerDiscussionHistory v-if="item.kind === 'discussion'" :entries="item.entries" />
           <DesignerValidatorHistory v-else-if="item.kind === 'validators'" :entries="item.entries" />
+          <div v-else-if="item.kind === 'system'" :class="['system-message-group', { expanded: expandedSystemGroups.has(item.key), error: systemGroupHasError(item.entries) }]">
+            <button
+              class="system-message-toggle"
+              type="button"
+              :aria-expanded="expandedSystemGroups.has(item.key)"
+              :aria-label="`${expandedSystemGroups.has(item.key) ? '收起' : '展开'}系统消息，共 ${item.entries.length} 条`"
+              :title="`${expandedSystemGroups.has(item.key) ? '收起' : '展开'}系统消息`"
+              @click="toggleSystemGroup(item.key)"
+            >
+              <Icon :icon="systemGroupHasError(item.entries) ? 'lucide:triangle-alert' : 'lucide:info'" aria-hidden="true" />
+            </button>
+            <div v-if="expandedSystemGroups.has(item.key)" class="system-message-details">
+              <article v-for="message in item.entries" :key="message.id" class="chat-message chat-system">
+                <header class="chat-message-header">
+                  <span class="chat-author"><strong class="chat-role">系统</strong><small v-if="message.workPackageId">{{ workPackageLabel(message.workPackageId) }}</small></span>
+                  <time class="chat-message-time" :datetime="message.createdAt">{{ message.deliveryState ? `${statusLabel(message.deliveryState)} · ` : '' }}{{ formatDateTime(message.createdAt) }}</time>
+                </header>
+                <p class="plain-message-content">{{ ['RETRYABLE_ERROR', 'TERMINAL_ERROR', 'SESSION_ERROR'].includes(message.deliveryState ?? '') || message.content.includes('SYSTEM_ERROR') ? userFacingError(message.content) : message.content }}</p>
+              </article>
+            </div>
+          </div>
           <article v-else :class="['chat-message', `chat-${item.message.actor.toLowerCase()}`]">
             <header class="chat-message-header">
               <span class="chat-author">
@@ -1379,6 +1427,15 @@ async function redesignPackage(packageId: string) {
 .chat-system { padding-block: 10px; border-style: dashed; background: rgb(7 11 20 / 25%); }
 .chat-system .chat-avatar { border-color: var(--color-border-default); color: var(--color-text-muted); background: transparent; }
 .chat-system .chat-role { color: var(--color-text-secondary); }
+.system-message-group { display: flex; align-items: flex-start; gap: 10px; margin: 9px 0; }
+.system-message-toggle { display: grid; flex: 0 0 auto; place-items: center; width: 30px; height: 30px; padding: 0; border: 1px solid var(--color-border-default); border-radius: 9px; color: var(--color-text-muted); background: rgb(7 11 20 / 28%); cursor: pointer; transition: border-color .16s ease, color .16s ease, background-color .16s ease; }
+.system-message-toggle:hover, .system-message-toggle:focus-visible, .system-message-group.expanded .system-message-toggle { border-color: rgb(34 211 238 / 42%); color: var(--color-accent-cyan); background: rgb(34 211 238 / 8%); }
+.system-message-toggle:focus-visible { outline: 2px solid rgb(34 211 238 / 58%); outline-offset: 2px; }
+.system-message-group.error .system-message-toggle { border-color: rgb(239 68 68 / 42%); color: #fca5a5; }
+.system-message-toggle svg { width: 14px; height: 14px; }
+.system-message-details { min-width: 0; flex: 1; }
+.system-message-details .chat-message { margin: 0 0 8px; }
+.system-message-details .chat-message:last-child { margin-bottom: 0; }
 .chat-compiler .plain-message-content, .chat-validator .plain-message-content { margin-top: 2px; }
 .plain-message-content { margin: 7px 0 0; color: var(--color-text-primary); font-size: 12px; line-height: 1.65; white-space: pre-wrap; }
 .thinking-message { position: relative; display: flex; align-items: center; gap: 14px; margin: 14px 0; padding: 17px 18px; overflow: hidden; border: 1px solid rgb(139 92 246 / 28%); border-radius: 12px; background: linear-gradient(100deg, rgb(139 92 246 / 9%), rgb(34 211 238 / 5%), rgb(139 92 246 / 9%)); background-size: 220% 100%; box-shadow: 0 12px 36px rgb(0 0 0 / 12%); animation: thinking-sheen 3s ease-in-out infinite; }
