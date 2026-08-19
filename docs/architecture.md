@@ -89,7 +89,10 @@ V35 adds a frozen task profile before workflow construction. `designer_task_prof
 stores intent, workflow template, mutation mode, artifact kinds, technologies, test
 policy, execution strategy, Role Pack version, confidence and bounded evidence;
 historical rows without it project as `LEGACY_SOFTWARE` and keep the previous software
-path. The server scans only bounded, non-symlink manifest/file facts, while an independent
+path. V38 persists every raw or complete requirement snapshot in
+`task_profile_router_run`, including the no-tool external Session, response mode, labels,
+terminal error and deadline. Restart recovery polls the same Session; a replacement
+discussion aborts and supersedes the old run. The server scans only bounded, non-symlink manifest/file facts, while an independent
 `ROUTER_NO_TOOLS` OpenCode Session returns semantic labels through the fixed
 `TASK_PROFILE_ROUTER_V1` schema or marker fallback. The AI Router never owns permissions,
 commands, workflow selection, or authorization. Schema/session/output failure produces a
@@ -106,8 +109,12 @@ without an OpenCode Session. Large documents require 2–6 level-two sections; t
 structured blocks are kept in source order and deterministically aggregated into one
 frozen plan. Every decomposed software package freezes its own detected technology list,
 Role Pack version, execution strategy and test policy before its Designer/Compiler prompt.
-Read-only review/research creates an independent `REVIEWER_READ_ONLY` Session, validates
-managed `path:line` citations and source hashes, persists `analysis_report`, and never
+V37 copies that package decision into each confirmed Stage, so retries and Recovery compose
+implementation prompts from the immutable Stage snapshot. Read-only review/research creates
+an independent `REVIEWER_READ_ONLY` Session. V39 requires `REVIEWER_REPORT_V1` structured
+findings, validates every managed path and exact line before deterministically rendering
+Markdown and hashing sources, persists the contract version/findings/response mode/deadline
+in `analysis_report`, and never
 creates a Task, lease, branch, Attempt, or writable Session. Safe local maintenance uses
 one implicit package with exact relative paths and a mandatory no-delete `GIT_DIFF`; the
 draft confirmation gate rejects wildcard paths, process/browser/database verifiers,

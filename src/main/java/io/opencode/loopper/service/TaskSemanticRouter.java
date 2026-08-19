@@ -6,8 +6,6 @@ import io.opencode.loopper.domain.TaskIntent;
 import io.opencode.loopper.runtime.OpenCodeClient;
 import io.opencode.loopper.runtime.OpenCodeStructuredSchemas;
 import java.nio.file.Path;
-import java.time.Duration;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -19,7 +17,6 @@ import tools.jackson.databind.ObjectMapper;
 /** No-tool semantic classifier. Permissions, workflow and execution policy remain server-owned. */
 @Component
 public final class TaskSemanticRouter {
-    private static final Duration MAX_WAIT = Duration.ofSeconds(30);
     private static final String START = "<!-- TASK_PROFILE_ROUTER_JSON_START -->";
     private static final String END = "<!-- TASK_PROFILE_ROUTER_JSON_END -->";
     private final OpenCodeClient openCode;
@@ -32,8 +29,8 @@ public final class TaskSemanticRouter {
         this.json = json;
     }
 
-    public Result classify(Path root, String requirement, List<String> repositoryEvidence) {
-        if (!openCode.healthy()) return Result.failure("ROUTER_RUNTIME_UNAVAILABLE", "OpenCode Router runtime is unavailable");
+    public StartResult start(Path root, String requirement, List<String> repositoryEvidence) {
+        if (!openCode.healthy()) return StartResult.failure("ROUTER_RUNTIME_UNAVAILABLE", "OpenCode Router runtime is unavailable");
         OpenCodeClient.OpenCodeSession session = null;
         try {
             OpenCodeClient.OpenCodeModel model = configuredModel();
@@ -46,32 +43,34 @@ public final class TaskSemanticRouter {
                     OpenCodeStructuredSchemas.format(OpenCodeStructuredSchemas.TASK_PROFILE_ROUTER_V1))
                     : OpenCodeClient.PromptRequest.text(prompt);
             openCode.promptAsync(session, request);
-            Instant deadline = Instant.now().plus(MAX_WAIT);
-            while (Instant.now().isBefore(deadline)) {
-                OpenCodeClient.SessionStatus status = openCode.sessionStatus(session);
-                if (status.failed()) return Result.failure("ROUTER_SESSION_FAILED", safe(status.detail()));
-                if (status.completed()) {
-                    String output;
-                    if (schema) {
-                        OpenCodeClient.SessionResult result = openCode.sessionResult(session);
-                        if (result.structuredRetryCount() != 0 || !result.hasStructured()) {
-                            return Result.failure("ROUTER_SCHEMA_INVALID", safe(result.errorDetail()));
-                        }
-                        output = json.writeValueAsString(result.structured());
-                    } else output = openCode.sessionOutput(session);
-                    return Result.success(parse(output));
-                }
-                Thread.sleep(100L);
-            }
-            abortQuietly(session);
-            return Result.failure("ROUTER_TIMEOUT", "Task Router exceeded its 30 second boundary");
-        } catch (InterruptedException interrupted) {
-            Thread.currentThread().interrupt();
-            abortQuietly(session);
-            return Result.failure("ROUTER_INTERRUPTED", "Task Router was interrupted");
+            return StartResult.started(session.id(), schema ? "JSON_SCHEMA" : "TEXT_MARKER");
         } catch (Exception failure) {
             abortQuietly(session);
-            return Result.failure("ROUTER_OUTPUT_INVALID", safe(failure.getMessage()));
+            return StartResult.failure("ROUTER_START_FAILED", safe(failure.getMessage()));
+        }
+    }
+
+    public PollResult poll(Path root, String externalSessionId, String responseMode) {
+        if (externalSessionId == null || externalSessionId.isBlank()) {
+            return PollResult.failed("ROUTER_SESSION_MISSING", "Persisted Router run has no external Session");
+        }
+        OpenCodeClient.OpenCodeSession session = new OpenCodeClient.OpenCodeSession(externalSessionId, root);
+        try {
+            OpenCodeClient.SessionStatus status = openCode.sessionStatus(session);
+            if (status.retrying() || !status.completed() && !status.failed()) return PollResult.running(status.state());
+            if (status.failed()) return PollResult.failed("ROUTER_SESSION_FAILED", safe(status.detail()));
+            String output;
+            if ("JSON_SCHEMA".equals(responseMode)) {
+                OpenCodeClient.SessionResult result = openCode.sessionResult(session);
+                if (result.structuredRetryCount() != 0 || !result.hasStructured()) {
+                    return PollResult.failed("ROUTER_SCHEMA_INVALID", safe(result.errorDetail()));
+                }
+                output = json.writeValueAsString(result.structured());
+            } else output = openCode.sessionOutput(session);
+            return PollResult.completed(parse(output));
+        } catch (Exception failure) {
+            abortQuietly(session);
+            return PollResult.failed("ROUTER_OUTPUT_INVALID", safe(failure.getMessage()));
         }
     }
 
@@ -144,11 +143,25 @@ public final class TaskSemanticRouter {
         return List.copyOf(result);
     }
     private void abortQuietly(OpenCodeClient.OpenCodeSession session) { if (session != null) try { openCode.abort(session); } catch (Exception ignored) { } }
+    public void abort(Path root, String externalSessionId) {
+        if (externalSessionId != null && !externalSessionId.isBlank()) {
+            abortQuietly(new OpenCodeClient.OpenCodeSession(externalSessionId, root));
+        }
+    }
     private static String safe(String value) { return value == null || value.isBlank() ? "unknown Router failure" : value.substring(0, Math.min(1000, value.length())); }
 
-    public record Result(TaskProfileRouter.SemanticLabels labels, String errorCode, String errorDetail) {
-        static Result success(TaskProfileRouter.SemanticLabels labels) { return new Result(labels, null, null); }
-        static Result failure(String code, String detail) { return new Result(null, code, detail); }
-        public boolean success() { return labels != null; }
+    public record StartResult(String externalSessionId, String responseMode, String errorCode, String errorDetail) {
+        static StartResult started(String id, String mode) { return new StartResult(id, mode, null, null); }
+        static StartResult failure(String code, String detail) { return new StartResult(null, null, code, detail); }
+        public boolean started() { return externalSessionId != null; }
+    }
+
+    public record PollResult(String state, TaskProfileRouter.SemanticLabels labels,
+                             String externalState, String errorCode, String errorDetail) {
+        static PollResult running(String externalState) { return new PollResult("RUNNING", null, externalState, null, null); }
+        static PollResult completed(TaskProfileRouter.SemanticLabels labels) { return new PollResult("COMPLETED", labels, "COMPLETED", null, null); }
+        static PollResult failed(String code, String detail) { return new PollResult("FAILED", null, "FAILED", code, detail); }
+        public boolean completed() { return labels != null; }
+        public boolean failed() { return "FAILED".equals(state); }
     }
 }

@@ -176,8 +176,10 @@ reason in evidence. Linux/macOS leave native PATH lookup unchanged and require
 project scripts to be executable. Missing programs fail before launch with a
 typed error; this compatibility layer does not permit user-supplied shell
 launchers or snippets.
-V2 `PROCESS TEST` recognition uses exact Maven/Gradle/npm executable basenames,
-detects split exclusion arguments and npm optional-script bypasses, and is
+V2 `PROCESS TEST` recognition uses one `TestFrameworkPolicy` registry for exact
+Maven/Gradle/npm/pytest/unittest entry points, including `python -m pytest` and
+`python -m unittest`. It extracts explicit targets, detects split exclusion/skip
+arguments and npm optional-script bypasses, and is
 rechecked at the execution boundary after Maven argv normalization. A saved
 contract therefore cannot gain behavior coverage from a lookalike executable or
 later disable the tests it claimed to run. Business-mapped TEST evidence requires
@@ -192,7 +194,9 @@ source-equivalence assertions. Assertion DTOs contain no scripts, expressions, o
 formula evaluators. OOXML rejects macro formats, encryption, external relationships,
 symbolic links, zip bombs, and configured size/count overflows. XLSX formulas use
 stored display values without recalculation; merged cells retain only the top-left
-value; only trailing completely empty rows/columns are removed.
+value; only trailing completely empty rows/columns are removed. The frozen conversion
+plan records those three policies explicitly and bounds package parts, Sheets, rows,
+columns, cells, merged regions and merged-cell expansion.
 
 `PROCESS TEST` is selected by frozen task policy, not inserted into every Stage.
 Java production remains REQUIRED; existing framework evidence or an explicit user

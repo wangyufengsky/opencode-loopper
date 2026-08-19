@@ -345,7 +345,8 @@ public class TaskController {
                                         String compilerSummary, String handoffSummary) { }
     public record StageDto(String id, int ordinal, String objective, String status, JsonNode allowedPaths, JsonNode forbiddenPaths,
                            JsonNode deliverables, JsonNode verifiers, String startedAt, String updatedAt,
-                           String workPackageId) { }
+                           String workPackageId, String stageKind, String executionStrategy,
+                           String rolePackId, String rolePackVersion, String testPolicy, JsonNode technologies) { }
     public record WorkPackageProgressDto(String id, int ordinal, String status, int stageCount,
                                          int completedStages, int attemptCount, int attemptLimit) { }
     public record AttemptDto(String id, String stageId, int ordinal, String executionCycleId, String sessionId, String status, String failureKind, String summary,
@@ -356,7 +357,7 @@ public class TaskController {
                            String externalSessionId, String rawOutput, String createdAt, String endedAt) { }
     public record ArtifactDto(String id, String kind, String name, String contentType, String content, JsonNode metadata,
                               String attemptId, String judgeRunId, String createdAt) { }
-    private StageDto stage(StageRow row) { return new StageDto(row.id(), row.ordinal(), row.objective(), row.state(), node(row.allowedPathsJson()), node(row.forbiddenPathsJson()), node(row.deliverablesJson()), node(row.verifiersJson()), row.createdAt(), row.updatedAt(), row.workPackageId()); }
+    private StageDto stage(StageRow row) { return new StageDto(row.id(), row.ordinal(), row.objective(), row.state(), node(row.allowedPathsJson()), node(row.forbiddenPathsJson()), node(row.deliverablesJson()), node(row.verifiersJson()), row.createdAt(), row.updatedAt(), row.workPackageId(), row.stageKind(), row.executionStrategy(), row.rolePackId(), row.rolePackVersion(), row.testPolicy(), node(row.technologiesJson())); }
     private AttemptDto attempt(AttemptRow row) {
         String sessionId = mapper.latestSessionForAttempt(row.id())
                 .map(io.opencode.loopper.persistence.ExecutionSessionRow::id)

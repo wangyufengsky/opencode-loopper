@@ -187,34 +187,8 @@ public final class ProcessCommandPolicy {
      * a persisted contract cannot bypass the policy after confirmation.
      */
     public static TestCommandAssessment assessTestCommand(List<String> command) {
-        if (command == null || command.isEmpty()) {
-            return new TestCommandAssessment(false, false, "command is not a recognized test invocation");
-        }
-        String executable = baseName(command.getFirst());
-        List<String> args = command.stream().skip(1)
-                .map(value -> value == null ? "" : value.toLowerCase(Locale.ROOT))
-                .toList();
-        boolean recognized;
-        if (MAVEN_EXECUTABLES.contains(executable)) {
-            recognized = args.stream().anyMatch(arg -> Set.of("test", "integration-test", "verify").contains(arg));
-        } else if (GRADLE_EXECUTABLES.contains(executable)) {
-            recognized = args.stream().anyMatch(ProcessCommandPolicy::isGradleTestTask);
-        } else if (NPM_EXECUTABLES.contains(executable)) {
-            recognized = !args.isEmpty() && (args.getFirst().equals("test")
-                    || (args.size() > 1 && args.getFirst().equals("run") && args.get(1).startsWith("test")));
-        } else {
-            TestFrameworkPolicy.Assessment python = TestFrameworkPolicy.assess(command);
-            if (python.recognized()) {
-                return new TestCommandAssessment(true, python.skipped(), python.reason());
-            }
-            recognized = false;
-        }
-        if (!recognized) {
-            return new TestCommandAssessment(false, false, "command is not a recognized test invocation");
-        }
-        boolean skipped = skipsTests(executable, args);
-        return new TestCommandAssessment(true, skipped,
-                skipped ? "test command disables tests" : "targeted test command");
+        TestFrameworkPolicy.Assessment assessment = TestFrameworkPolicy.assess(command);
+        return new TestCommandAssessment(assessment.recognized(), assessment.skipped(), assessment.reason());
     }
 
     /** True only for a focused Java test command, never npm or an unfiltered full suite. */

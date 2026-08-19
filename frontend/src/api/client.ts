@@ -1,4 +1,5 @@
 import type { AppSettings, Artifact, Attempt, AutomationImportPreview, AutomationImportResult, AutomationRule, AutomationRuleMutation, AutomationRun, AutomationRunFeed, AvailableModel, BrowserAssertion, CommitMessageSuggestion, CreateAutomationRuleInput, DesignerAnsweredQuestion, DesignerAppendResult, DesignerHistoryItem, DesignerMessage, DesignerSession, DesignerSessionState, DesignerSessionSummary, DesignerStreamEvent, DirectorySelection, DirtyWorkspaceAction, DirtyWorkspaceResolution, DirtyWorkspaceState, ErrorEvent, InsightsSnapshot, Interaction, InteractionAction, JudgeRun, LocalSyncConflictContent, LocalSyncConflictFile, LocalSyncConflictSession, LocalSyncResolution, LoopDraft, LoopSpec, LoopSpecAssessment, LoopSpecTemplate, LoopSpecTemplateVersion, LoopVerifierSpec, MergeRequestDraft, Project, ProjectConventionDraft, ProjectConventionSnapshot, RecoveryDraft, RecoveryMode, RuntimeInfo, SessionCheckpoint, SessionForkResult, SessionRevertResult, SessionSummaryResult, SessionTodo, Stage, Task, TaskDecision, TaskDesignHistory, TaskDiffPreview, TaskEvent, TaskInsight, TaskPublicationStatus, TaskQueueStatus, TaskSessionActivity, TaskSessionActivityPart, TaskSessionPendingQuestion, TaskSessionSummary, UsageAggregate } from '@/types/domain'
+import type { AnalysisReport } from '@/types/domain'
 
 const apiBase = import.meta.env.VITE_API_BASE ?? '/api'
 
@@ -302,7 +303,15 @@ function normalizeStage(value: unknown, attempts: Attempt[]): Stage {
   const state = asString(raw.status || raw.state)
   const status = state === 'SUCCEEDED' ? 'SUCCEEDED' : state === 'RUNNING' ? 'RUNNING' : state === 'VERIFYING' ? 'VERIFYING' : state === 'PAUSED' ? 'PAUSED' : state === 'FAILED' ? 'BLOCKED' : 'PENDING'
   const id = asString(raw.id)
-  return { id, ordinal: asNumber(raw.ordinal) + 1, workPackageId: asString(raw.workPackageId) || undefined, objective: asString(raw.objective), status, attempts: attempts.filter((attempt) => attempt.stageId === id) }
+  const testPolicy = asString(raw.testPolicy)
+  return {
+    id, ordinal: asNumber(raw.ordinal) + 1, workPackageId: asString(raw.workPackageId) || undefined,
+    objective: asString(raw.objective), status, attempts: attempts.filter((attempt) => attempt.stageId === id),
+    stageKind: asString(raw.stageKind) || undefined, executionStrategy: asString(raw.executionStrategy) || undefined,
+    rolePackId: asString(raw.rolePackId) || undefined, rolePackVersion: asString(raw.rolePackVersion) || undefined,
+    testPolicy: (['REQUIRED', 'OPTIONAL', 'NOT_APPLICABLE'].includes(testPolicy) ? testPolicy : undefined) as Stage['testPolicy'],
+    technologies: asArray(raw.technologies).map(String),
+  }
 }
 
 function normalizeJudge(value: unknown): JudgeRun {
@@ -786,6 +795,18 @@ function normalizeDesignerSession(value: unknown): DesignerSession {
       taskId: asString(autoMode.taskId) || undefined,
       updatedAt: asString(autoMode.updatedAt) || undefined,
     },
+  }
+}
+
+function normalizeAnalysisReport(value: unknown): AnalysisReport {
+  const raw = asRecord(value)
+  return {
+    id: asString(raw.id), state: asString(raw.state), title: asString(raw.title), markdown: asString(raw.markdown),
+    contentSha256: asString(raw.contentSha256), sourceSnapshotSha256: asString(raw.sourceSnapshotSha256),
+    evidence: asArray(raw.evidence).map((item) => { const entry = asRecord(item); return { path: asString(entry.path), line: asNumber(entry.line), sha256: asString(entry.sha256), stale: entry.stale === true } }),
+    stale: raw.stale === true, errorCode: asString(raw.errorCode) || undefined, errorDetail: asString(raw.errorDetail) || undefined,
+    createdAt: asString(raw.createdAt), updatedAt: asString(raw.updatedAt), reviewerContractVersion: asString(raw.reviewerContractVersion) || undefined,
+    findings: asArray(raw.findings).map((item) => { const entry = asRecord(item); return { severity: asString(entry.severity), title: asString(entry.title), detail: asString(entry.detail), path: asString(entry.path), line: asNumber(entry.line), recommendation: asString(entry.recommendation) } }),
   }
 }
 
@@ -1389,6 +1410,8 @@ export const api = {
   archiveDesignerSession: async (id: string) => request<void>(`/designer-sessions/${encodeURIComponent(id)}/archive`, { method: 'PUT', headers: { 'X-Loopper-Local-UI': '1' } }),
   restoreDesignerSession: async (id: string) => request<void>(`/designer-sessions/${encodeURIComponent(id)}/archive`, { method: 'DELETE', headers: { 'X-Loopper-Local-UI': '1' } }),
   getDesignerSession: async (id: string) => normalizeDesignerSession(await request<unknown>(`/designer-sessions/${encodeURIComponent(id)}`)),
+  getAnalysisReport: async (id: string, reportId: string) => normalizeAnalysisReport(await request<unknown>(`/designer-sessions/${encodeURIComponent(id)}/reports/${encodeURIComponent(reportId)}`)),
+  convertAnalysisReportToDesign: async (id: string, reportId: string) => normalizeDesignerSession(await request<unknown>(`/designer-sessions/${encodeURIComponent(id)}/reports/${encodeURIComponent(reportId)}/convert-to-design`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } })),
   updateDesignerAutoMode: async (id: string, enabled: boolean, expectedVersion: number) => {
     const updated = asRecord(await request<unknown>(`/designer-sessions/${encodeURIComponent(id)}/auto-mode`, { method: 'PUT', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify({ enabled, expectedVersion }) }))
     const state = asString(updated.state)

@@ -377,12 +377,51 @@ public interface LoopperMapper {
     int supersedeProvisionalTaskProfiles(@Param("sessionId") String sessionId, @Param("updatedAt") String updatedAt);
 
     @Insert("""
+            INSERT INTO task_profile_router_run(id,designer_session_id,state,requirement_snapshot,
+              repository_evidence_json,external_session_id,external_session_state,response_mode,
+              semantic_labels_json,error_code,error_detail,created_at,updated_at,version)
+            VALUES(#{id},#{designerSessionId},#{state},#{requirementSnapshot},#{repositoryEvidenceJson},
+              #{externalSessionId},#{externalSessionState},#{responseMode},#{semanticLabelsJson},
+              #{errorCode},#{errorDetail},#{createdAt},#{updatedAt},#{version})
+            """)
+    int insertTaskProfileRouterRun(TaskProfileRouterRunRow row);
+    @Select("SELECT * FROM task_profile_router_run WHERE id=#{id}")
+    Optional<TaskProfileRouterRunRow> findTaskProfileRouterRun(String id);
+    @Select("""
+            SELECT * FROM task_profile_router_run WHERE designer_session_id=#{sessionId}
+            ORDER BY created_at DESC,id DESC LIMIT 1
+            """)
+    Optional<TaskProfileRouterRunRow> findLatestTaskProfileRouterRun(String sessionId);
+    @Select("SELECT * FROM task_profile_router_run WHERE state IN ('PENDING','RUNNING') ORDER BY created_at,id")
+    List<TaskProfileRouterRunRow> listActiveTaskProfileRouterRuns();
+    @Update("""
+            UPDATE task_profile_router_run SET state=#{state},external_session_id=#{externalSessionId},
+              external_session_state=#{externalSessionState},response_mode=#{responseMode},
+              semantic_labels_json=#{semanticLabelsJson},error_code=#{errorCode},error_detail=#{errorDetail},
+              updated_at=#{updatedAt},version=version+1 WHERE id=#{id} AND version=#{version}
+            """)
+    int updateTaskProfileRouterRun(TaskProfileRouterRunRow row);
+    @Update("""
+            UPDATE task_profile_router_run SET state='SUPERSEDED',updated_at=#{updatedAt},version=version+1
+            WHERE designer_session_id=#{sessionId} AND state IN ('PENDING','RUNNING')
+            """)
+    int supersedeActiveTaskProfileRouterRuns(@Param("sessionId") String sessionId,
+                                              @Param("updatedAt") String updatedAt);
+    @Update("""
+            UPDATE designer_task_profile SET state='SUPERSEDED',updated_at=#{updatedAt},version=version+1
+            WHERE designer_session_id=#{sessionId} AND state IN ('PROVISIONAL','FROZEN')
+            """)
+    int supersedeActiveTaskProfiles(@Param("sessionId") String sessionId, @Param("updatedAt") String updatedAt);
+
+    @Insert("""
             INSERT INTO analysis_report(id,designer_session_id,task_profile_id,state,title,markdown,evidence_json,
               content_sha256,source_snapshot_sha256,error_code,error_detail,created_at,updated_at,version,
-              external_session_id,external_session_state,source_requirement,role_pack_id,role_pack_version)
+              external_session_id,external_session_state,source_requirement,role_pack_id,role_pack_version,
+              reviewer_contract_version,response_mode,findings_json,deadline_at)
             VALUES(#{id},#{designerSessionId},#{taskProfileId},#{state},#{title},#{markdown},#{evidenceJson},
               #{contentSha256},#{sourceSnapshotSha256},#{errorCode},#{errorDetail},#{createdAt},#{updatedAt},#{version},
-              #{externalSessionId},#{externalSessionState},#{sourceRequirement},#{rolePackId},#{rolePackVersion})
+              #{externalSessionId},#{externalSessionState},#{sourceRequirement},#{rolePackId},#{rolePackVersion},
+              #{reviewerContractVersion},#{responseMode},#{findingsJson},#{deadlineAt})
             """)
     int insertAnalysisReport(AnalysisReportRow row);
     @Select("SELECT * FROM analysis_report WHERE id=#{id} AND designer_session_id=#{sessionId}")
@@ -397,6 +436,8 @@ public interface LoopperMapper {
               error_detail=#{errorDetail},external_session_id=#{externalSessionId},
               external_session_state=#{externalSessionState},source_requirement=#{sourceRequirement},
               role_pack_id=#{rolePackId},role_pack_version=#{rolePackVersion},
+              reviewer_contract_version=#{reviewerContractVersion},response_mode=#{responseMode},
+              findings_json=#{findingsJson},deadline_at=#{deadlineAt},
               updated_at=#{updatedAt},version=version+1 WHERE id=#{id} AND version=#{version}
             """)
     int updateAnalysisReport(AnalysisReportRow row);
@@ -688,7 +729,7 @@ public interface LoopperMapper {
     int updateTaskPublication(TaskPublicationRow row);
     @Delete("DELETE FROM task_publication WHERE task_id=#{taskId}") int deleteTaskPublicationForTask(String taskId);
 
-    @Insert("INSERT INTO stage(id,task_id,ordinal,objective,allowed_paths_json,forbidden_paths_json,deliverables_json,verifiers_json,state,created_at,updated_at,version,work_package_id,stage_kind,execution_strategy,artifact_plan_id) VALUES(#{id},#{taskId},#{ordinal},#{objective},#{allowedPathsJson},#{forbiddenPathsJson},#{deliverablesJson},#{verifiersJson},#{state},#{createdAt},#{updatedAt},#{version},#{workPackageId},#{stageKind},#{executionStrategy},#{artifactPlanId})")
+    @Insert("INSERT INTO stage(id,task_id,ordinal,objective,allowed_paths_json,forbidden_paths_json,deliverables_json,verifiers_json,state,created_at,updated_at,version,work_package_id,stage_kind,execution_strategy,artifact_plan_id,role_pack_id,role_pack_version,test_policy,technologies_json) VALUES(#{id},#{taskId},#{ordinal},#{objective},#{allowedPathsJson},#{forbiddenPathsJson},#{deliverablesJson},#{verifiersJson},#{state},#{createdAt},#{updatedAt},#{version},#{workPackageId},#{stageKind},#{executionStrategy},#{artifactPlanId},#{rolePackId},#{rolePackVersion},#{testPolicy},#{technologiesJson})")
     int insertStage(StageRow row);
     @Select("SELECT * FROM stage WHERE id=#{id}") Optional<StageRow> findStage(String id);
     @Select("SELECT * FROM stage WHERE task_id=#{taskId} ORDER BY ordinal") List<StageRow> listStages(String taskId);

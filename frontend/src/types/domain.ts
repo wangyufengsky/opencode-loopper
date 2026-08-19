@@ -180,6 +180,12 @@ export interface Stage {
   ordinal: number
   workPackageId?: string
   objective: string
+  stageKind?: string
+  executionStrategy?: string
+  rolePackId?: string
+  rolePackVersion?: string
+  testPolicy?: 'REQUIRED' | 'OPTIONAL' | 'NOT_APPLICABLE'
+  technologies?: string[]
   status: 'PENDING' | 'RUNNING' | 'VERIFYING' | 'PAUSED' | 'SUCCEEDED' | 'BLOCKED'
   attempts: Attempt[]
 }
@@ -977,6 +983,13 @@ export interface DesignerTaskProfile {
   version: number
 }
 export interface AnalysisReportSummary { id: string; state: string; title: string; contentSha256: string; stale: boolean; updatedAt: string }
+export interface AnalysisReportFinding { severity: string; title: string; detail: string; path: string; line: number; recommendation: string }
+export interface AnalysisReport {
+  id: string; state: string; title: string; markdown: string; contentSha256: string; sourceSnapshotSha256: string
+  evidence: Array<{ path: string; line: number; sha256: string; stale: boolean }>; stale: boolean
+  errorCode?: string; errorDetail?: string; createdAt: string; updatedAt: string
+  reviewerContractVersion?: string; findings: AnalysisReportFinding[]
+}
 
 export interface DesignerSession {
   id: string

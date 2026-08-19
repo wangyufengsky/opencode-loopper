@@ -145,6 +145,7 @@ public class DesignerAutoModeService {
             if (DesignerSessionState.REVIEWING.name().equals(session.state())
                     && DesignWorkflowPhase.DISCUSSING_REQUIREMENT.name().equals(session.workflowPhase())
                     && session.currentRequirementRevision() == null) {
+                if (profiles.current(sessionId).state().startsWith("ROUTING_")) return;
                 TaskProfileService.View profile = profiles.freeze(sessionId);
                 if (profile.executionStrategy() == io.opencode.loopper.domain.ExecutionStrategy.READ_ONLY_REPORT) {
                     designerSessions.beginReadOnlyReport(sessionId);

@@ -37,16 +37,27 @@ public final class WorkPackageRoleService {
         if (technologies.isEmpty()) technologies.addAll(parent.technologies());
         TaskIntent intent = parent.intent();
         List<ArtifactKind> artifacts = parent.artifactKinds();
-        if (parent.workflowTemplate() == io.opencode.loopper.domain.WorkflowTemplate.PACKAGED_ARTIFACT) {
+        boolean codeSignals = contains(text, "python", ".py", "pytest", "vue", "node", "typescript",
+                "javascript", "npm", "frontend", "前端", "java", "spring", "maven", "gradle", ".java", "代码", "接口");
+        boolean documentSignals = contains(text, "markdown", "docx", "文档", "章节", "readme") && !codeSignals;
+        boolean maintenanceSignals = contains(text, "配置", "依赖", "yaml", "yml", "properties") && !codeSignals;
+        if (parent.workflowTemplate() == io.opencode.loopper.domain.WorkflowTemplate.PACKAGED_ARTIFACT || documentSignals) {
             intent = TaskIntent.DOCUMENT_AUTHORING;
-            artifacts = parent.artifactKinds();
+            artifacts = text.contains("docx") ? List.of(ArtifactKind.DOCX) : List.of(ArtifactKind.MARKDOWN);
+            technologies.clear();
+        } else if (maintenanceSignals) {
+            intent = TaskIntent.LOCAL_MAINTENANCE;
+            artifacts = List.of(ArtifactKind.CONFIGURATION);
+            technologies.clear();
         }
         RolePackRegistry.RolePack pack = registry.resolve(intent, technologies, artifacts);
         TestPolicy testPolicy = pack.defaultTestPolicy();
         boolean explicitTests = parent.evidence().stream().anyMatch("requirement-tests=required"::equals);
         boolean pythonFramework = technologies.contains("python") && parent.evidence().stream()
                 .anyMatch(value -> value.contains("test-framework=pytest") || value.contains("test-framework=unittest"));
-        if (technologies.contains("java") || technologies.contains("node") || explicitTests || pythonFramework) {
+        boolean nodeFramework = technologies.contains("node") && parent.evidence().stream()
+                .anyMatch(value -> value.contains("test-framework=npm"));
+        if (technologies.contains("java") || explicitTests || pythonFramework || nodeFramework) {
             testPolicy = TestPolicy.REQUIRED;
         }
         WorkPackageRoleProfileRow stored = new WorkPackageRoleProfileRow(row.id(), row.designerSessionId(), row.packageId(),

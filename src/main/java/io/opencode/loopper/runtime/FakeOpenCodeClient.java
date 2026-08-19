@@ -139,8 +139,20 @@ public class FakeOpenCodeClient implements OpenCodeClient {
             try (var paths = java.nio.file.Files.walk(session.worktree(), 3)) {
                 String relative = paths.filter(java.nio.file.Files::isRegularFile).findFirst()
                         .map(path -> session.worktree().relativize(path).toString().replace('\\', '/')).orElse("README.md");
-                return "# 只读评审报告\n\n## 已确认发现\n\n- 已检查基线文件：" + relative + ":1。\n";
-            } catch (Exception ignored) { return "# 只读评审报告\n\n- README.md:1\n"; }
+                return "<!-- REVIEWER_REPORT_JSON_START -->\n"
+                        + "{\"title\":\"只读评审报告\",\"summary\":\"已按冻结范围完成只读检查。\","
+                        + "\"findings\":[{\"severity\":\"INFO\",\"title\":\"基线文件已检查\","
+                        + "\"detail\":\"已读取并核对受管项目中的基线文件。\",\"path\":\"" + relative
+                        + "\",\"line\":1,\"recommendation\":\"保留该证据并在修改前重新检查。\"}],\"limitations\":[]}\n"
+                        + "<!-- REVIEWER_REPORT_JSON_END -->";
+            } catch (Exception ignored) {
+                return "<!-- REVIEWER_REPORT_JSON_START -->\n"
+                        + "{\"title\":\"只读评审报告\",\"summary\":\"完成只读检查。\","
+                        + "\"findings\":[{\"severity\":\"INFO\",\"title\":\"README 已检查\","
+                        + "\"detail\":\"已检查基线。\",\"path\":\"README.md\",\"line\":1,"
+                        + "\"recommendation\":\"修改前重新检查。\"}],\"limitations\":[]}\n"
+                        + "<!-- REVIEWER_REPORT_JSON_END -->";
+            }
         }
         return outputForRole(role);
     }
@@ -160,11 +172,12 @@ public class FakeOpenCodeClient implements OpenCodeClient {
                 && (text.contains("一次性") || text.contains("转成") || text.contains("转换成"))
                 && !text.contains("脚本") && !text.contains("工具")) {
             intent = "DATA_CONVERSION"; artifacts = "[\"MARKDOWN\"]";
-        } else if ((text.contains("docx") || text.contains("markdown") || text.contains("文档"))
-                && !text.contains("代码") && !text.contains("脚本")) {
-            intent = "DOCUMENT_AUTHORING"; artifacts = text.contains("docx") ? "[\"DOCX\"]" : "[\"MARKDOWN\"]";
         } else if (text.contains("评审") || text.contains("只读") || text.contains("review")) {
             intent = "READ_ONLY_REVIEW"; artifacts = "[\"ANALYSIS_REPORT\"]";
+        } else if ((text.contains("docx") || text.contains("markdown") || text.contains(".md")
+                || text.contains("文档") || text.contains("手册"))
+                && !text.contains("代码") && !text.contains("脚本")) {
+            intent = "DOCUMENT_AUTHORING"; artifacts = text.contains("docx") ? "[\"DOCX\"]" : "[\"MARKDOWN\"]";
         } else if (text.contains("调研") || text.contains("research")) {
             intent = "RESEARCH"; artifacts = "[\"ANALYSIS_REPORT\"]";
         } else if (text.contains("配置") || text.contains("维护") || text.contains("依赖升级")) {

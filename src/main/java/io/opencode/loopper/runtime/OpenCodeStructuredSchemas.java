@@ -13,6 +13,7 @@ public final class OpenCodeStructuredSchemas {
     public static final String PACKAGE_COMPILATION_FINAL_V2 = "PACKAGE_COMPILATION_FINAL_V2";
     public static final String JUDGE_DECISION_V1 = "JUDGE_DECISION_V1";
     public static final String TASK_PROFILE_ROUTER_V1 = "TASK_PROFILE_ROUTER_V1";
+    public static final String REVIEWER_REPORT_V1 = "REVIEWER_REPORT_V1";
     private static final ObjectMapper JSON = new ObjectMapper();
 
     private OpenCodeStructuredSchemas() { }
@@ -31,6 +32,7 @@ public final class OpenCodeStructuredSchemas {
             case PACKAGE_COMPILATION_FINAL_V2 -> read(PACKAGE_COMPILATION_FINAL);
             case JUDGE_DECISION_V1 -> read(JUDGE_DECISION);
             case TASK_PROFILE_ROUTER_V1 -> read(TASK_PROFILE_ROUTER);
+            case REVIEWER_REPORT_V1 -> read(REVIEWER_REPORT);
             default -> throw new IllegalArgumentException("Unknown OpenCode response schema: " + schemaId);
         };
     }
@@ -180,6 +182,31 @@ public final class OpenCodeStructuredSchemas {
             "complexity":{"type":"string","enum":["SIMPLE","PACKAGED"]},
             "confidence":{"type":"integer","minimum":0,"maximum":100},
             "signals":{"type":"array","maxItems":16,"items":{"type":"string","minLength":1,"maxLength":256}}
+          }
+        }
+        """;
+
+    private static final String REVIEWER_REPORT = """
+        {
+          "$schema":"https://json-schema.org/draft/2020-12/schema",
+          "type":"object","additionalProperties":false,
+          "required":["title","summary","findings","limitations"],
+          "properties":{
+            "title":{"type":"string","minLength":1,"maxLength":200},
+            "summary":{"type":"string","minLength":1,"maxLength":8000},
+            "findings":{"type":"array","minItems":1,"maxItems":128,"items":{
+              "type":"object","additionalProperties":false,
+              "required":["severity","title","detail","path","line","recommendation"],
+              "properties":{
+                "severity":{"type":"string","enum":["CRITICAL","HIGH","MEDIUM","LOW","INFO"]},
+                "title":{"type":"string","minLength":1,"maxLength":300},
+                "detail":{"type":"string","minLength":1,"maxLength":4000},
+                "path":{"type":"string","minLength":1,"maxLength":1024},
+                "line":{"type":"integer","minimum":1,"maximum":10000000},
+                "recommendation":{"type":"string","minLength":1,"maxLength":4000}
+              }
+            }},
+            "limitations":{"type":"array","maxItems":32,"items":{"type":"string","minLength":1,"maxLength":2000}}
           }
         }
         """;

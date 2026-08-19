@@ -120,6 +120,7 @@ public class TaskService {
     private final TaskWorkspaceCheckpointService workspaceCheckpoints;
     private final AiOutputExtractor aiOutputExtractor;
     private final AiOutputAuditService aiOutputAudit;
+    private final RolePromptComposer rolePrompts;
     private final LoopperProperties defaults;
     private final TransactionTemplate transactions;
 
@@ -136,6 +137,7 @@ public class TaskService {
                        UsageInsightsService usageInsights,
                        TaskEventService events, AiOutputExtractor aiOutputExtractor,
                        AiOutputAuditService aiOutputAudit,
+                       RolePromptComposer rolePrompts,
                        TaskExecutionCycleService executionCycles,
                        TaskWorkspaceCheckpointService workspaceCheckpoints,
                        LoopperProperties defaults,
@@ -151,6 +153,7 @@ public class TaskService {
         this.usageInsights = usageInsights; this.events = events;
         this.executionCycles = executionCycles; this.workspaceCheckpoints = workspaceCheckpoints;
         this.aiOutputExtractor = aiOutputExtractor; this.aiOutputAudit = aiOutputAudit;
+        this.rolePrompts = rolePrompts;
         this.defaults = defaults;
         this.transactions = new TransactionTemplate(transactionManager);
     }
@@ -219,19 +222,41 @@ public class TaskService {
         persistConfirmedDesignContext(task, draft);
         int ordinal = 0;
         for (LoopSpec.StageSpec stage : spec.stages()) {
+            ExecutionRoleSnapshot executionRole = executionRole(draft, stage, profile);
             StageRow stageRow = new StageRow(UUID.randomUUID().toString(), taskId, ordinal++, stage.objective(),
                     write(stage.allowedPaths()), write(stage.forbiddenPaths()), write(stage.deliverables()), write(stage.verifiers()),
                     StageState.PENDING.name(), timestamp, timestamp, 0, stage.workPackageId(),
                     (stage.stageKind() == null ? io.opencode.loopper.domain.StageKind.LEGACY_SOFTWARE : stage.stageKind()).name(),
                     (stage.executionStrategy() == null
                             ? ExecutionStrategy.OPEN_CODE_IMPLEMENTATION : stage.executionStrategy()).name(),
-                    stage.artifactPlanId());
+                    stage.artifactPlanId(), executionRole.rolePackId(), executionRole.rolePackVersion(),
+                    executionRole.testPolicy(), executionRole.technologiesJson());
             lifecycle.create(subject(LifecycleMachineType.STAGE, stageRow.id(), taskId), stageRow.state(), Map.of(),
                     () -> mapper.insertStage(stageRow),
                     () -> new ConflictException("STAGE_CREATE_CONFLICT", "Stage could not be created"));
         }
         if (confirmDraft) confirmDraft(draft);
         return new TaskCreation(taskId, false);
+    }
+
+    private ExecutionRoleSnapshot executionRole(LoopDraftRow draft, LoopSpec.StageSpec stage,
+                                                  io.opencode.loopper.persistence.DesignerTaskProfileRow profile) {
+        io.opencode.loopper.persistence.WorkPackageRoleProfileRow packageRole = null;
+        if (stage.workPackageId() != null) {
+            packageRole = mapper.findLatestDesignerSessionByDraft(draft.id())
+                    .flatMap(session -> mapper.findLatestDesignWorkPackage(session.id(), stage.workPackageId()))
+                    .flatMap(workPackage -> mapper.findWorkPackageRoleProfile(workPackage.id()))
+                    .orElse(null);
+        }
+        if (packageRole != null) {
+            return new ExecutionRoleSnapshot(packageRole.rolePackId(), packageRole.rolePackVersion(),
+                    packageRole.testPolicy(), packageRole.technologiesJson());
+        }
+        if (profile != null) {
+            return new ExecutionRoleSnapshot(profile.rolePackId(), profile.rolePackVersion(),
+                    profile.testPolicy(), profile.technologiesJson());
+        }
+        return new ExecutionRoleSnapshot("software-java", "legacy", "REQUIRED", "[]");
     }
 
     private void confirmDraft(LoopDraftRow draft) {
@@ -2640,6 +2665,8 @@ public class TaskService {
     }
     private String safeNullable(String value) { return value == null ? null : safeMessage(value); }
     private record TaskCreation(String taskId, boolean existing) { }
+    private record ExecutionRoleSnapshot(String rolePackId, String rolePackVersion,
+                                         String testPolicy, String technologiesJson) { }
     private record PendingVerification(String id, int index, VerifierOutcome outcome) { }
     private enum VerificationAction { NONE, RETRY_STAGE, NEXT_STAGE, FINAL_REVIEW }
     private record VerificationContinuation(VerificationAction action, String taskId, String stageId,
@@ -2991,7 +3018,7 @@ public class TaskService {
                 safeMessage(message), retryable, write(evidence), now()));
     }
     private TaskRow state(TaskRow row, TaskState state) { return new TaskRow(row.id(), row.projectId(), row.loopDraftId(), row.title(), state.name(), row.worktreePath(), row.branchName(), row.sourceBranch(), row.baselineCommit(), row.createdAt(), now(), row.version(), row.taskProfileId(), row.rolePackId(), row.rolePackVersion()); }
-    private StageRow stageState(StageRow row, StageState state) { return new StageRow(row.id(), row.taskId(), row.ordinal(), row.objective(), row.allowedPathsJson(), row.forbiddenPathsJson(), row.deliverablesJson(), row.verifiersJson(), state.name(), row.createdAt(), now(), row.version(), row.workPackageId(), row.stageKind(), row.executionStrategy(), row.artifactPlanId()); }
+    private StageRow stageState(StageRow row, StageState state) { return new StageRow(row.id(), row.taskId(), row.ordinal(), row.objective(), row.allowedPathsJson(), row.forbiddenPathsJson(), row.deliverablesJson(), row.verifiersJson(), state.name(), row.createdAt(), now(), row.version(), row.workPackageId(), row.stageKind(), row.executionStrategy(), row.artifactPlanId(), row.rolePackId(), row.rolePackVersion(), row.testPolicy(), row.technologiesJson()); }
     private AttemptRow finish(AttemptRow row, AttemptState state, String failureKind, String summary) { return new AttemptRow(row.id(), row.taskId(), row.stageId(), row.executionCycleId(), row.ordinal(), state.name(), failureKind, safeMessage(summary), row.createdAt(), now(), row.version()); }
     private ExecutionSessionRow sessionState(ExecutionSessionRow row, SessionState state) { return new ExecutionSessionRow(row.id(), row.taskId(), row.stageId(), row.attemptId(), row.externalSessionId(), state.name(), row.createdAt(), now(), row.version(), row.todoCapability()); }
     private TaskRetryScheduleRow retryState(TaskRetryScheduleRow row, String state, String dueAt, Integer remainingSeconds) {
@@ -3062,7 +3089,12 @@ public class TaskService {
     private String normalizedTitle(String title, String goal) { return title == null || title.isBlank() ? goal.substring(0, Math.min(goal.length(), 120)) : title.trim(); }
     private String promptWithBoundaries(TaskRow task, LoopSpec spec, StageRow stage, Path executionWorkspace, String recovery) {
         String designContext = executionDesignContext(task.id(), stage);
-        return "Authoritative execution workspace: " + executionWorkspace
+        io.opencode.loopper.domain.TestPolicy testPolicy;
+        try { testPolicy = io.opencode.loopper.domain.TestPolicy.valueOf(stage.testPolicy()); }
+        catch (RuntimeException missingLegacySnapshot) { testPolicy = io.opencode.loopper.domain.TestPolicy.REQUIRED; }
+        String roleInstructions = rolePrompts.implementationInstructions(stage.rolePackId(), stage.rolePackVersion(),
+                readStringList(stage.technologiesJson()), testPolicy);
+        return roleInstructions + "\nAuthoritative execution workspace: " + executionWorkspace
                 + "\nWorkspace branch: " + task.branchName()
                 + "\nAll reads, writes, AgentBridge tool calls, searches, and commands must target this checkout and its current Task branch."
                 + "\nDo not switch branches, create another worktree, or write outside this workspace."
@@ -3076,6 +3108,12 @@ public class TaskService {
                 + "\nLanguage requirement: 使用简体中文撰写面向用户的进度说明、结论、评审和最终总结。"
                 + "代码、命令、路径、标识符、JSON 字段名、协议枚举值以及要求精确匹配的字面量保持原样；"
                 + "仅当用户目标明确要求其他语言时才切换语言。\n" + recovery;
+    }
+
+    private List<String> readStringList(String value) {
+        if (value == null || value.isBlank()) return List.of();
+        try { return json.readValue(value, new tools.jackson.core.type.TypeReference<>() { }); }
+        catch (RuntimeException ignored) { return List.of(); }
     }
 
     private String implementationTodoInstructions() {

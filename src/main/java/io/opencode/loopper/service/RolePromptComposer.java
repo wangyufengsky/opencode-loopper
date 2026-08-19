@@ -10,6 +10,7 @@ public final class RolePromptComposer {
         String specialized = switch (profile.rolePackId()) {
             case "software-python" -> "Treat this as Python software work. Ask about invocation, input/output, error semantics, portability, and whether repository tests exist. Never introduce Java or Maven assumptions.";
             case "software-node" -> "Treat this as Node/Vue/TypeScript software work. Ask about runtime, package manager, UI/runtime boundary, and the repository's actual test command.";
+            case "software-mixed" -> "Treat this as a mixed-stack vertical software change. Ask about the cross-stack behavior boundary and identify each repository-native focused test; do not force Java examples onto Python or Node packages.";
             case "document-markdown-docx" -> "Treat this as document authoring. Ask about target path/format, audience, required sections, tables, and unsupported images/embedded objects. Do not turn it into a code task.";
             case "tabular-conversion" -> "Treat this as a one-off bounded table conversion. Ask about the exact managed input and output paths, Sheet selection, formulas, merged cells, and empty-row policy. Do not propose a reusable script.";
             case "read-only-report" -> "Treat this as a read-only review/research report. Ask about review scope, severity or research criteria, and required evidence granularity. Do not propose edits or a Task.";
@@ -35,9 +36,10 @@ public final class RolePromptComposer {
     }
 
     public String packageDesignerInstructions(TaskProfileService.View profile, String rolePackId,
+                                              io.opencode.loopper.domain.ExecutionStrategy executionStrategy,
                                               List<String> technologies, TestPolicy testPolicy) {
         RolePackRegistry.RolePack pack = new RolePackRegistry.RolePack(rolePackId, profile.rolePackVersion(), rolePackId,
-                profile.executionStrategy(), testPolicy);
+                executionStrategy, testPolicy);
         return compilerInstructions(pack, technologies, testPolicy).replace("Role Pack:", "Work-package Role Pack:")
                 + "\n" + (rolePackId.equals("document-markdown-docx")
                 ? "Design one self-contained document fragment with headings, paragraphs, lists, code blocks and tables; include no executable test."
@@ -48,6 +50,25 @@ public final class RolePromptComposer {
 
     public String reviewerInstructions(TaskProfileService.View profile) {
         return header(profile) + "\nAct as an independent read-only Reviewer. Use only read/glob/grep. Every concrete finding must cite a managed relative file path and exact line as path:line. Separate confirmed findings, limitations, and recommendations. Never emit instructions to modify files or claim a Task was created.";
+    }
+
+    public String implementationInstructions(String rolePackId, String rolePackVersion,
+                                             List<String> technologies, TestPolicy testPolicy) {
+        String id = rolePackId == null || rolePackId.isBlank() ? "legacy-software" : rolePackId;
+        String version = rolePackVersion == null || rolePackVersion.isBlank() ? "legacy" : rolePackVersion;
+        String specialized = switch (id) {
+            case "software-java" -> "Use the repository Maven/Gradle conventions. Production Java changes require the focused TEST frozen in the verifier contract.";
+            case "software-python" -> "Use Python repository conventions. Prefer pytest/unittest when tests are required; a standalone script without a test framework may use an authorized deterministic SELF_CHECK plus native artifact assertions.";
+            case "software-node" -> "Use package.json scripts and the detected Node/Vue conventions. A required test must use a focused npm target and cannot be replaced by build output.";
+            case "software-mixed" -> "Respect each frozen technology boundary. Use only its repository-native test framework and keep cross-stack business acceptance separate from build evidence.";
+            case "local-maintenance" -> "Modify only the exact frozen files. Never delete files, control services, publish Git state, or write to external systems.";
+            default -> "Follow the frozen verifier contract and repository conventions without assuming Java or Maven.";
+        };
+        return "Frozen execution Role Pack: " + id + "@" + version
+                + "\nFrozen technologies: " + (technologies == null ? List.of() : technologies)
+                + "\nFrozen test policy: " + (testPolicy == null ? TestPolicy.REQUIRED : testPolicy)
+                + "\n" + specialized
+                + "\nREQUIRED means execute the recognized focused TEST declared by the verifier contract. OPTIONAL permits TEST or an authorized SELF_CHECK. NOT_APPLICABLE forbids PROCESS TEST.";
     }
 
     public String compilerInstructions(RolePackRegistry.RolePack pack, List<String> technologies,

@@ -71,7 +71,36 @@ public class DirectArtifactDesignService {
             throw new BadRequestException("PACKAGED_DOCUMENT_SECTION_LIMIT",
                     "大型文档必须在确认稿中包含 2-6 个二级章节；每章作为冻结结构化片段后由服务端按顺序聚合");
         }
-        return compile(sessionId, profile);
+        DesignerSessionRow session = mapper.findDesignerSession(sessionId)
+                .orElseThrow(() -> new NotFoundException("Designer session not found: " + sessionId));
+        if (profile.id() == null || !"FROZEN".equals(profile.state())) {
+            throw new ConflictException("TASK_PROFILE_NOT_FROZEN", "分包文档方案只能从冻结任务画像生成");
+        }
+        LoopDraftRow draft = drafts.get(session.loopDraftId());
+        String markdown = discussion.snapshotMarkdown();
+        boolean docx = profile.artifactKinds().contains(ArtifactKind.DOCX);
+        String target = paths(markdown).stream()
+                .filter(value -> docx ? extension(value).equals("docx") : List.of("md", "markdown").contains(extension(value)))
+                .findFirst().orElse(docx ? "output/document.docx" : "output/document.md");
+        String title = title(markdown, draft.goal());
+        PackagedDocument packaged = packagedDocument(markdown, title);
+        ArtifactPlanRow plan = artifacts.registerDocumentPlan(session.id(), profile.id(),
+                new ArtifactMaterializationService.DocumentPlan(target, docx ? "DOCX" : "MARKDOWN", title,
+                        packaged.preamble(), packaged.chapters()));
+        artifacts.freeze(plan.id());
+        List<String> criterionIds = packaged.chapters().stream()
+                .map(chapter -> chapter.workPackageId() + "-AC-1").toList();
+        List<LoopSpec.DocumentAssertion> assertions = packaged.chapters().stream()
+                .map(chapter -> new LoopSpec.DocumentAssertion("HEADING_EXISTS", chapter.title(), null, 2)).toList();
+        LoopSpec.VerifierSpec verifier = verifier("DOCUMENT_STRUCTURE", target, criterionIds, assertions, List.of());
+        List<LoopSpec.AcceptanceCriterion> criteria = packaged.chapters().stream()
+                .map(chapter -> new LoopSpec.AcceptanceCriterion(chapter.workPackageId() + "-AC-1",
+                        "聚合文档包含已冻结章节：" + chapter.title())).toList();
+        LoopSpec.StageSpec stage = new LoopSpec.StageSpec("按冻结章节包顺序聚合并验收 " + target,
+                List.of(target), List.of(), List.of(target), List.of(verifier), criteria,
+                null, ImplementationKind.NON_JAVA, "WP-1", StageKind.DOCUMENT_MATERIALIZATION,
+                ExecutionStrategy.SERVER_DOCUMENT_MATERIALIZATION, plan.id());
+        return updateDraft(draft, title, markdown, stage, plan.id());
     }
 
     private Result compileDocument(DesignerSessionRow session, TaskProfileService.View profile, String markdown,
@@ -173,13 +202,28 @@ public class DirectArtifactDesignService {
         List<String> items = new ArrayList<>();
         boolean code = false;
         StringBuilder codeText = new StringBuilder();
-        for (String line : markdown.split("\\R", -1)) {
+        String[] sourceLines = markdown.split("\\R", -1);
+        for (int lineIndex = 0; lineIndex < sourceLines.length; lineIndex++) {
+            String line = sourceLines[lineIndex];
             if (line.trim().startsWith("```")) {
                 flushParagraph(blocks, paragraph); flushList(blocks, items);
                 if (code) { blocks.add(new ArtifactMaterializationService.DocumentBlock("CODE", 0, codeText.toString(), List.of(), List.of())); codeText.setLength(0); }
                 code = !code; continue;
             }
             if (code) { if (!codeText.isEmpty()) codeText.append('\n'); codeText.append(line); continue; }
+            if (tableStart(sourceLines, lineIndex)) {
+                flushParagraph(blocks, paragraph); flushList(blocks, items);
+                List<List<String>> rows = new ArrayList<>();
+                rows.add(tableCells(line));
+                lineIndex += 2;
+                while (lineIndex < sourceLines.length && sourceLines[lineIndex].contains("|")) {
+                    rows.add(tableCells(sourceLines[lineIndex]));
+                    lineIndex++;
+                }
+                lineIndex--;
+                blocks.add(new ArtifactMaterializationService.DocumentBlock("TABLE", 0, "", List.of(), rows));
+                continue;
+            }
             Matcher heading = Pattern.compile("^(#{1,4})\\s+(.+)$").matcher(line.trim());
             if (heading.matches()) {
                 flushParagraph(blocks, paragraph); flushList(blocks, items);
@@ -201,6 +245,51 @@ public class DirectArtifactDesignService {
         return List.copyOf(blocks);
     }
 
+    private static boolean tableStart(String[] lines, int index) {
+        if (index + 1 >= lines.length || !lines[index].contains("|")) return false;
+        String separator = lines[index + 1].trim();
+        if (separator.startsWith("|")) separator = separator.substring(1);
+        if (separator.endsWith("|")) separator = separator.substring(0, separator.length() - 1);
+        String[] cells = separator.split("\\|", -1);
+        return cells.length > 0 && java.util.Arrays.stream(cells)
+                .allMatch(value -> value.trim().matches(":?-{3,}:?"));
+    }
+
+    private static List<String> tableCells(String line) {
+        String value = line.strip();
+        if (value.startsWith("|")) value = value.substring(1);
+        if (value.endsWith("|")) value = value.substring(0, value.length() - 1);
+        List<String> cells = new ArrayList<>();
+        for (String cell : value.split("(?<!\\\\)\\|", -1)) {
+            cells.add(cell.strip().replace("\\|", "|").replace("\\\\", "\\"));
+        }
+        return List.copyOf(cells);
+    }
+
+    private static PackagedDocument packagedDocument(String markdown, String title) {
+        List<String> preamble = new ArrayList<>();
+        List<ArtifactMaterializationService.DocumentChapter> chapters = new ArrayList<>();
+        String chapterTitle = null;
+        List<String> chapterLines = new ArrayList<>();
+        for (String line : markdown.split("\\R", -1)) {
+            Matcher heading = Pattern.compile("^##\\s+(.+)$").matcher(line.trim());
+            if (heading.matches()) {
+                if (chapterTitle != null) {
+                    chapters.add(new ArtifactMaterializationService.DocumentChapter("WP-" + (chapters.size() + 1),
+                            chapterTitle, documentBlocks(String.join("\n", chapterLines), chapterTitle)));
+                }
+                chapterTitle = heading.group(1).trim();
+                chapterLines = new ArrayList<>();
+            } else if (chapterTitle == null) preamble.add(line);
+            else chapterLines.add(line);
+        }
+        if (chapterTitle != null) {
+            chapters.add(new ArtifactMaterializationService.DocumentChapter("WP-" + (chapters.size() + 1),
+                    chapterTitle, documentBlocks(String.join("\n", chapterLines), chapterTitle)));
+        }
+        return new PackagedDocument(documentBlocks(String.join("\n", preamble), title), List.copyOf(chapters));
+    }
+
     private static void flushParagraph(List<ArtifactMaterializationService.DocumentBlock> blocks, List<String> lines) {
         if (!lines.isEmpty()) {
             blocks.add(new ArtifactMaterializationService.DocumentBlock("PARAGRAPH", 0, String.join(" ", lines), List.of(), List.of()));
@@ -216,4 +305,6 @@ public class DirectArtifactDesignService {
     }
 
     public record Result(String artifactPlanId, LoopSpec loopSpec) { }
+    private record PackagedDocument(List<ArtifactMaterializationService.DocumentBlock> preamble,
+                                    List<ArtifactMaterializationService.DocumentChapter> chapters) { }
 }

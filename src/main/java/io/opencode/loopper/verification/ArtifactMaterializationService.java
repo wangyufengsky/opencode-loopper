@@ -29,6 +29,7 @@ import org.springframework.stereotype.Component;
 public class ArtifactMaterializationService {
     private static final int MAX_OUTPUT_BYTES = 20_000_000;
     private static final int MAX_BLOCKS = 2_000;
+    private static final int MAX_DOCUMENT_CHARACTERS = 2_000_000;
     private final LoopperMapper mapper;
     private final ObjectMapper json;
 
@@ -83,9 +84,11 @@ public class ArtifactMaterializationService {
 
     private Result document(Path root, DocumentPlan plan) throws Exception {
         validate(plan); Path target = target(root, plan.targetPath(), plan.format().equals("DOCX") ? ".docx" : ".md");
-        byte[] bytes = plan.format().equals("DOCX") ? docx(plan) : markdown(plan).getBytes(StandardCharsets.UTF_8);
+        DocumentPlan aggregated = plan.aggregated();
+        byte[] bytes = plan.format().equals("DOCX") ? docx(aggregated) : markdown(aggregated).getBytes(StandardCharsets.UTF_8);
         writeAtomically(target, bytes);
-        return result(root, target, bytes, Map.of("format", plan.format(), "blockCount", plan.blocks().size()));
+        return result(root, target, bytes, Map.of("format", plan.format(), "blockCount", aggregated.blocks().size(),
+                "chapterPackages", plan.chapters().stream().map(DocumentChapter::workPackageId).toList()));
     }
 
     private Result tabular(Path root, TabularConversionPlan plan) {
@@ -106,8 +109,8 @@ public class ArtifactMaterializationService {
             markdown.append('\n');
         }
         byte[] bytes = markdown.toString().getBytes(StandardCharsets.UTF_8); writeAtomically(target, bytes);
-        return result(root, target, bytes, Map.of("sheetCount", selected.size(), "formulaMode", "CACHED_DISPLAY_VALUE",
-                "mergedCellMode", "TOP_LEFT_ONLY", "trimMode", "TRAILING_EMPTY_ONLY"));
+        return result(root, target, bytes, Map.of("sheetCount", selected.size(), "formulaMode", plan.formulaMode(),
+                "mergedCellMode", plan.mergedCellMode(), "trimMode", plan.emptyRowPolicy()));
     }
 
     private static void appendMarkdownRow(StringBuilder output, List<String> row, int columns) {
@@ -167,6 +170,19 @@ public class ArtifactMaterializationService {
             if ("HEADING".equals(block.type()) && (block.level() < 1 || block.level() > 4))
                 throw new TaskFailure("DOCUMENT_HEADING_LEVEL_INVALID", "DOCX/Markdown headings are limited to levels 1-4");
         }
+        int characters = plan.title().length();
+        for (DocumentBlock block : plan.aggregated().blocks()) {
+            characters += block.text().length() + block.items().stream().mapToInt(String::length).sum();
+            for (List<String> row : block.rows()) characters += row.stream().mapToInt(String::length).sum();
+        }
+        if (characters > MAX_DOCUMENT_CHARACTERS) throw new TaskFailure("DOCUMENT_CONTENT_LIMIT", "DocumentPlan exceeds the text limit");
+        if (plan.chapters().size() > 6) throw new TaskFailure("DOCUMENT_CHAPTER_LIMIT", "Packaged documents support at most six chapters");
+        for (int index = 0; index < plan.chapters().size(); index++) {
+            DocumentChapter chapter = plan.chapters().get(index);
+            if (!chapter.workPackageId().equals("WP-" + (index + 1)) || chapter.title().isBlank()
+                    || chapter.blocks().isEmpty()) throw new TaskFailure("DOCUMENT_CHAPTER_INVALID",
+                    "Document chapters must be ordered WP-1..WP-6 structured fragments");
+        }
     }
     private static void validate(TabularConversionPlan plan) {
         if (plan == null || plan.inputPath() == null || plan.targetPath() == null)
@@ -176,6 +192,12 @@ public class ArtifactMaterializationService {
             throw new TaskFailure("TABULAR_INPUT_FORMAT_INVALID", "Only XLSX, CSV, and TSV input is supported");
         if (!plan.targetPath().toLowerCase(Locale.ROOT).endsWith(".md"))
             throw new TaskFailure("TABULAR_TARGET_FORMAT_INVALID", "Tabular conversion target must be Markdown");
+        if (!"TRAILING_EMPTY_ONLY".equals(plan.emptyRowPolicy())
+                || !"CACHED_DISPLAY_VALUE".equals(plan.formulaMode())
+                || !"TOP_LEFT_ONLY".equals(plan.mergedCellMode())) {
+            throw new TaskFailure("TABULAR_POLICY_UNSUPPORTED",
+                    "First release supports only trailing-empty trim, cached formula display, and top-left merged cells");
+        }
     }
     private static Path target(Path root, String relative, String extension) {
         if (relative == null || !relative.toLowerCase(Locale.ROOT).endsWith(extension))
@@ -204,14 +226,43 @@ public class ArtifactMaterializationService {
         }
     }
 
-    public record DocumentPlan(String targetPath, String format, String title, List<DocumentBlock> blocks) {
-        public DocumentPlan { format = format == null ? null : format.toUpperCase(Locale.ROOT); blocks = blocks == null ? List.of() : List.copyOf(blocks); }
+    public record DocumentPlan(String targetPath, String format, String title, List<DocumentBlock> blocks,
+                               List<DocumentChapter> chapters) {
+        public DocumentPlan(String targetPath, String format, String title, List<DocumentBlock> blocks) {
+            this(targetPath, format, title, blocks, List.of());
+        }
+        public DocumentPlan {
+            format = format == null ? null : format.toUpperCase(Locale.ROOT);
+            blocks = blocks == null ? List.of() : List.copyOf(blocks);
+            chapters = chapters == null ? List.of() : List.copyOf(chapters);
+        }
+        DocumentPlan aggregated() {
+            if (chapters.isEmpty()) return this;
+            List<DocumentBlock> result = new ArrayList<>(blocks);
+            for (DocumentChapter chapter : chapters) {
+                result.add(new DocumentBlock("HEADING", 2, chapter.title(), List.of(), List.of()));
+                result.addAll(chapter.blocks());
+            }
+            return new DocumentPlan(targetPath, format, title, List.copyOf(result), List.of());
+        }
     }
     public record DocumentBlock(String type, int level, String text, List<String> items, List<List<String>> rows) {
         public DocumentBlock { type = type == null ? null : type.toUpperCase(Locale.ROOT); text = text == null ? "" : text; items = items == null ? List.of() : List.copyOf(items); rows = rows == null ? List.of() : rows.stream().map(List::copyOf).toList(); }
     }
-    public record TabularConversionPlan(String inputPath, List<String> sheets, String targetPath) {
-        public TabularConversionPlan { sheets = sheets == null ? List.of() : List.copyOf(sheets); }
+    public record DocumentChapter(String workPackageId, String title, List<DocumentBlock> blocks) {
+        public DocumentChapter { blocks = blocks == null ? List.of() : List.copyOf(blocks); }
+    }
+    public record TabularConversionPlan(String inputPath, List<String> sheets, String targetPath,
+                                        String emptyRowPolicy, String formulaMode, String mergedCellMode) {
+        public TabularConversionPlan(String inputPath, List<String> sheets, String targetPath) {
+            this(inputPath, sheets, targetPath, "TRAILING_EMPTY_ONLY", "CACHED_DISPLAY_VALUE", "TOP_LEFT_ONLY");
+        }
+        public TabularConversionPlan {
+            sheets = sheets == null ? List.of() : List.copyOf(sheets);
+            emptyRowPolicy = emptyRowPolicy == null ? "TRAILING_EMPTY_ONLY" : emptyRowPolicy;
+            formulaMode = formulaMode == null ? "CACHED_DISPLAY_VALUE" : formulaMode;
+            mergedCellMode = mergedCellMode == null ? "TOP_LEFT_ONLY" : mergedCellMode;
+        }
     }
     public record Result(String path, long sizeBytes, String sha256, Map<String,Object> details) { }
 }

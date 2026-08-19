@@ -41,6 +41,23 @@ class ArtifactMaterializationServiceTest {
         assertThat(snapshot.tableCount()).isEqualTo(1);
     }
 
+    @Test void deterministicallyAggregatesOrderedChapterPackages() throws Exception {
+        var plan = new ArtifactMaterializationService.DocumentPlan("out/guide.md", "MARKDOWN", "指南",
+                List.of(new ArtifactMaterializationService.DocumentBlock("PARAGRAPH", 0, "前言", List.of(), List.of())),
+                List.of(new ArtifactMaterializationService.DocumentChapter("WP-1", "安装",
+                                List.of(new ArtifactMaterializationService.DocumentBlock("PARAGRAPH", 0, "安装正文", List.of(), List.of()))),
+                        new ArtifactMaterializationService.DocumentChapter("WP-2", "运维",
+                                List.of(new ArtifactMaterializationService.DocumentBlock("TABLE", 0, "", List.of(),
+                                        List.of(List.of("动作", "说明"), List.of("检查", "健康")))))));
+        stub("chapters", "DOCUMENT", json.writeValueAsString(plan));
+
+        ArtifactMaterializationService.Result result = service.materialize(root, "chapters");
+
+        assertThat(Files.readString(root.resolve(result.path())))
+                .containsSubsequence("前言", "## 安装", "安装正文", "## 运维", "| 动作 | 说明 |");
+        assertThat(result.details().get("chapterPackages")).isEqualTo(List.of("WP-1", "WP-2"));
+    }
+
     @Test void convertsMultipleSheetsUsingCachedFormulaAndMarkdownEscaping() throws Exception {
         Path input = root.resolve("input.xlsx");
         try (Workbook workbook = new XSSFWorkbook()) {
@@ -48,7 +65,8 @@ class ArtifactMaterializationServiceTest {
             header.createCell(0).setCellValue("A|B"); header.createCell(1).setCellValue("Path\\Name");
             Row data = first.createRow(1); data.createCell(0).setCellValue("line1\nline2");
             Cell formula = data.createCell(1); formula.setCellFormula("1+1"); workbook.getCreationHelper().createFormulaEvaluator().evaluateFormulaCell(formula);
-            first.addMergedRegion(new CellRangeAddress(2, 2, 0, 1)); first.createRow(2).createCell(0).setCellValue("merged");
+            Row merged = first.createRow(2); merged.createCell(0).setCellValue("merged"); merged.createCell(1).setCellValue("hidden");
+            first.addMergedRegion(new CellRangeAddress(2, 2, 0, 1));
             workbook.createSheet("Second").createRow(0).createCell(0).setCellValue("only");
             try (var output = Files.newOutputStream(input)) { workbook.write(output); }
         }
@@ -56,7 +74,8 @@ class ArtifactMaterializationServiceTest {
         stub("table", "TABULAR_CONVERSION", json.writeValueAsString(plan));
         service.materialize(root, "table");
         String markdown = Files.readString(root.resolve("out/table.md"));
-        assertThat(markdown).contains("## Main", "## Second", "A\\|B", "Path\\\\Name", "line1<br>line2", "| 2 |", "merged");
+        assertThat(markdown).contains("## Main", "## Second", "A\\|B", "Path\\\\Name", "line1<br>line2", "| 2 |", "merged")
+                .doesNotContain("hidden");
     }
 
     private void stub(String id, String kind, String plan) {

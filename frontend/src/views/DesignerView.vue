@@ -15,7 +15,7 @@ import DesignerValidatorHistory from '@/components/DesignerValidatorHistory.vue'
 import { ApiError, api, subscribeDesignerEvents, type DesignerEventStream } from '@/api/client'
 import { demoDraft, demoMessages } from '@/mock/demoData'
 import { useTaskStore } from '@/stores/taskStore'
-import type { AppSettings, DesignerMessage, DesignerSession, ErrorEvent, LoopDraft, LoopSpecAssessment, StructuredModelStep, TaskSessionPendingQuestion } from '@/types/domain'
+import type { AnalysisReport, AppSettings, DesignerMessage, DesignerSession, ErrorEvent, LoopDraft, LoopSpecAssessment, StructuredModelStep, TaskSessionPendingQuestion } from '@/types/domain'
 import { formatDateTime } from '@/utils/dateTime'
 import { statusLabel } from '@/utils/displayLabels'
 
@@ -46,6 +46,7 @@ const selectedProjectId = ref('')
 const designerRecoveryError = ref('')
 const profileIntent = ref<DesignerSession['taskProfile']['intent']>('SOFTWARE_CHANGE')
 const profileArtifact = ref<DesignerSession['taskProfile']['artifactKinds'][number]>('SOURCE_CODE')
+const reportDetail = ref<AnalysisReport>()
 const designerWorkspaceKey = 'opencode-loopper.designer-workspace'
 const draftPromptKey = 'opencode-loopper.designer-draft-prompt'
 const messageDraftKey = 'opencode-loopper.designer-message-draft'
@@ -145,6 +146,11 @@ const designerSteps = computed(() => {
 })
 const currentPackage = computed(() => designerSession.value?.workPackages?.find((item) => item.id === designerSession.value?.activeWorkPackageId))
 const currentReport = computed(() => designerSession.value?.reports?.[0])
+watch(() => `${designerSession.value?.id ?? ''}:${currentReport.value?.id ?? ''}`, async () => {
+  if (!designerSession.value?.id || !currentReport.value?.id || store.usingDemo) { reportDetail.value = undefined; return }
+  try { reportDetail.value = await api.getAnalysisReport(designerSession.value.id, currentReport.value.id) }
+  catch { reportDetail.value = undefined }
+}, { immediate: true })
 const artifactStage = computed(() => draft.value?.spec.stages.find((stage) => stage.executionStrategy?.startsWith('SERVER_')))
 const artifactTarget = computed(() => artifactStage.value?.deliverables?.[0] ?? '')
 const artifactSource = computed(() => artifactStage.value?.verifiers?.flatMap((item) => item.tabularAssertions ?? [])
@@ -190,6 +196,20 @@ async function updateTaskProfile() {
     await refreshDesignerSession()
     ElMessage.success('任务画像和专属流程已更新')
   } catch (error) { ElMessage.error(error instanceof Error ? error.message : '任务画像更新失败') }
+  finally { busy.value = false }
+}
+async function convertReportToDesign() {
+  const session = designerSession.value
+  const report = currentReport.value
+  if (!session || !report) return
+  busy.value = true
+  try {
+    const created = await api.convertAnalysisReportToDesign(session.id, report.id)
+    if (created.draft) sessionStorage.setItem(designerWorkspaceKey, JSON.stringify({ sessionId: created.id, draftId: created.draft.id }))
+    await router.replace({ path: '/designer', query: { sessionId: created.id } })
+    await restoreDesignerSessionById(created.id)
+    ElMessage.success('已创建关联的可写 Designer 会话；尚未创建 Task')
+  } catch (error) { ElMessage.error(error instanceof Error ? error.message : '报告转换失败') }
   finally { busy.value = false }
 }
 const visibleMessages = computed(() => messages.value.filter((message) => !selectedWorkPackageId.value
@@ -1077,7 +1097,14 @@ async function redesignPackage(packageId: string) {
             <el-button plain :loading="busy" @click="updateTaskProfile">应用覆盖</el-button>
           </div>
         </section>
-        <section v-if="currentReport" class="task-profile-card report-card"><header><div><strong>只读报告</strong><span>{{ currentReport.title }}</span></div><b :class="{ warning: currentReport.stale }">{{ currentReport.stale ? '证据已过期' : '证据有效' }}</b></header><p class="mono">SHA-256 {{ currentReport.contentSha256 }}</p></section>
+        <section v-if="currentReport" class="task-profile-card report-card">
+          <header><div><strong>独立 Reviewer 报告</strong><span>{{ currentReport.title }}<template v-if="reportDetail?.reviewerContractVersion"> · {{ reportDetail.reviewerContractVersion }}</template></span></div><b :class="{ warning: currentReport.stale }">{{ currentReport.stale ? '证据已过期' : '证据有效' }}</b></header>
+          <p class="mono">SHA-256 {{ currentReport.contentSha256 }}</p>
+          <div v-if="reportDetail?.evidence.length" class="profile-evidence"><span v-for="item in reportDetail.evidence" :key="`${item.path}:${item.line}`">{{ item.path }}:{{ item.line }} · {{ item.stale ? '已过期' : '有效' }}</span></div>
+          <details v-if="reportDetail?.markdown"><summary>查看完整报告</summary><MarkdownDocument :content="reportDetail.markdown" /></details>
+          <el-button v-if="currentReport.state === 'READY'" plain :loading="busy" @click="convertReportToDesign">转为修改任务</el-button>
+          <small>该操作只创建关联 Designer 会话，不会直接创建 Task、分支或可写 Session。</small>
+        </section>
         <section v-if="designerSession?.autoMode.state !== 'DISABLED'" :class="['designer-auto-status', { blocked: autoModeBlocked, completed: designerSession?.autoMode.state === 'COMPLETED' }]" role="status" aria-live="polite">
           <Icon :icon="autoModeBlocked ? 'lucide:octagon-alert' : designerSession?.autoMode.state === 'COMPLETED' ? 'lucide:circle-check-big' : 'lucide:bot'" />
           <div><strong>{{ autoModeBlocked ? '全自动模式已阻断' : designerSession?.autoMode.state === 'COMPLETED' ? '全自动设计已完成' : '全自动模式正在推进' }}</strong><p v-if="autoModeBlocked">{{ designerSession?.autoMode.errorDetail }}；请先关闭后人工处理，完成后可重新授权。</p><p v-else-if="designerSession?.autoMode.state === 'COMPLETED'">任务已请求启动，正在打开任务详情；执行期决策保持人工处理。</p><p v-else>每轮只推进一个权威动作；关闭不会撤销已完成动作或终止正在执行的模型调用。</p></div>

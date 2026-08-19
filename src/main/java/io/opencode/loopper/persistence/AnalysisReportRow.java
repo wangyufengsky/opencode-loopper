@@ -7,6 +7,7 @@ public record AnalysisReportRow(
         String markdown, String evidenceJson, String contentSha256, String sourceSnapshotSha256,
         String errorCode, String errorDetail, String createdAt, String updatedAt, long version,
         String externalSessionId, String externalSessionState, String sourceRequirement,
-        String rolePackId, String rolePackVersion) {
+        String rolePackId, String rolePackVersion, String reviewerContractVersion,
+        String responseMode, String findingsJson, String deadlineAt) {
     @AutomapConstructor public AnalysisReportRow { }
 }

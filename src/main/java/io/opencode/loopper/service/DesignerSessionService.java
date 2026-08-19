@@ -156,15 +156,14 @@ public class DesignerSessionService {
                         "Designer session could not be created"));
         appendMessage(session.id(), DesignerActor.SYSTEM, "设计会话已创建，正在使用无工具 Router 识别任务画像。",
                 DesignerSessionState.PENDING_HANDOFF.name(), null, null);
+        if (initialMessage != null && !initialMessage.isBlank()) {
+            DesignerMessageRow user = appendMessage(session.id(), DesignerActor.USER,
+                    normalizeMessage(initialMessage), "PERSISTED", null, null);
+            createDiscussion(session, "REQUIREMENT", null, 1, user.id(), 0);
+        }
         TaskProfileService.View profile = taskProfiles.initialize(session.id(), initialMessage);
-        DesignerSessionRow discussing = updateDesignerProjection(get(session.id()), DesignerSessionState.PENDING_HANDOFF,
-                DesignWorkflowPhase.DISCUSSING_REQUIREMENT, null, "PENDING", 0, 0, null, null);
-        appendMessage(session.id(), DesignerActor.SYSTEM,
-                "任务画像已生成：" + profile.rolePackId() + "@" + profile.rolePackVersion()
-                        + (profile.decisionRequired() ? "；存在歧义，需求确认前必须人工覆盖。" : "；将由专属需求设计师继续。"),
-                "PERSISTED", null, null);
-        if (initialMessage != null && !initialMessage.isBlank()) appendUserMessage(session.id(), initialMessage);
-        return get(discussing.id());
+        if (!profile.state().startsWith("ROUTING_")) completeRouting(session.id());
+        return get(session.id());
     }
 
     public DesignerSessionRow get(String sessionId) {
@@ -414,7 +413,7 @@ public class DesignerSessionService {
                 DesignWorkflowPhase.FINAL_REVIEW, null, "COMPLETED", session.designRevision() + 1,
                 session.redesignCount(), null, null);
         appendMessage(sessionId, DesignerActor.COMPILER,
-                "专属 Role Pack 已生成隐式 WP-1；服务端已编译、校验并冻结执行合同，尚未执行或写入目标文件。",
+                "专属 Role Pack 已生成隐式工作包或有序章节包；服务端已确定性聚合、校验并冻结执行合同，尚未执行或写入目标文件。",
                 "COMPLETED", null, "WP-1");
         publish(reviewing, "FINAL_REVIEW", DesignerActor.VALIDATOR, true, "", "直接制品方案等待最终确认");
     }
@@ -580,6 +579,9 @@ public class DesignerSessionService {
             List<DesignerMessageRow> persisted = mapper.listDesignerMessages(session.id());
             return persisted.isEmpty() ? List.of() : List.of(persisted.getLast());
         }
+        // A new discussion will produce a replacement full snapshot. Stop any Router still classifying the
+        // previous snapshot so it cannot consume a later monitor tick or be mistaken for the current profile.
+        taskProfiles.invalidate(session.id());
         DesignerMessageRow user = appendMessage(session.id(), DesignerActor.USER,
                 normalizeMessage(content), "PERSISTED", null, null);
         DesignDiscussionRevisionRow discussion = createDiscussion(session, "REQUIREMENT", null,
@@ -626,6 +628,7 @@ public class DesignerSessionService {
         }
         abortQuietly(session.externalSessionId(), session.projectId());
         supersedeCurrentRequirement(session);
+        taskProfiles.invalidate(session.id());
         int requirementDiscussionRevision = mapper.findLatestDesignDiscussionRevision(session.id(), "REQUIREMENT")
                 .map(DesignDiscussionRevisionRow::revision).orElse(0);
         DesignerSessionRow reopened = new DesignerSessionRow(session.id(), session.projectId(),
@@ -875,6 +878,10 @@ public class DesignerSessionService {
                 DesignerSessionRow reviewing = updateDesignerDiscussionProjection(get(session.id()),
                         DesignerSessionState.REVIEWING, DesignWorkflowPhase.DISCUSSING_REQUIREMENT,
                         remote.id(), "COMPLETED", "REQUIREMENT", discussion.revision(), "SYNCED", null);
+                taskProfiles.reroute(session.id(), markdown);
+                appendMessage(session.id(), DesignerActor.SYSTEM,
+                        "完整需求稿已变化，正在异步重算任务画像；Router 完成前不能确认需求。",
+                        "PERSISTED", null, null);
                 publish(reviewing, "COMPLETED", DesignerActor.DESIGNER, true, "",
                         "完整需求稿已保存；继续讨论或确认后开始拆包");
             } else if (!same(session.externalSessionState(), status.state())) {
@@ -961,6 +968,14 @@ public class DesignerSessionService {
 
     /** External model calls are deliberately outside a surrounding database transaction. */
     public void pollActiveHandoffs() {
+        List<String> routed = taskProfiles.pollActive();
+        for (String sessionId : routed) {
+            try { completeRouting(sessionId); }
+            catch (RuntimeException ignoredConcurrentTransition) { }
+        }
+        // A monitor tick performs one external-role transition. In particular, do not immediately poll a
+        // Designer Session created by completeRouting before the client has had a chance to answer its question.
+        if (!routed.isEmpty()) return;
         for (TaskDecompositionRow decomposition : mapper.activeTaskDecompositions()) {
             try { pollDecomposer(decomposition); }
             catch (RuntimeException ignoredConcurrentTransition) { }
@@ -981,6 +996,28 @@ public class DesignerSessionService {
             try { pollCompiler(compilation); }
             catch (RuntimeException ignoredConcurrentTransition) { }
         }
+    }
+
+    private void completeRouting(String sessionId) {
+        DesignerSessionRow session = get(sessionId);
+        TaskProfileService.View profile = taskProfiles.current(sessionId);
+        appendMessage(session.id(), DesignerActor.SYSTEM,
+                "任务画像已生成：" + profile.rolePackId() + "@" + profile.rolePackVersion()
+                        + (profile.decisionRequired() ? "；存在歧义，需求确认前必须人工覆盖。" : "；将由专属需求设计师继续。"),
+                "PERSISTED", null, null);
+        if (!DesignWorkflowPhase.ROUTING.name().equals(session.workflowPhase())) {
+            publish(session, "STATUS", DesignerActor.ROUTER, true, "", "任务画像已按最新需求稿更新");
+            return;
+        }
+        DesignDiscussionRevisionRow discussion = mapper.findLatestDesignDiscussionRevision(session.id(), "REQUIREMENT")
+                .orElse(null);
+        if (discussion == null) {
+            DesignerSessionRow discussing = updateDesignerProjection(session, DesignerSessionState.PENDING_HANDOFF,
+                    DesignWorkflowPhase.DISCUSSING_REQUIREMENT, null, "PENDING", 0, 0, null, null);
+            publish(discussing, "STATUS", DesignerActor.ROUTER, true, "", "任务画像已就绪，等待需求输入");
+            return;
+        }
+        dispatchRequirementDesigner(session, discussion, messageContent(discussion.sourceMessageId()), false);
     }
 
     private void supersedeCurrentRequirement(DesignerSessionRow session) {
@@ -4395,7 +4432,8 @@ public class DesignerSessionService {
                 evidence for business behavior, not a meta acceptance item.
                 """.formatted(MachineRoleContractCatalog.card("DESIGNER") + "\n"
                         + rolePrompts.packageDesignerInstructions(taskProfiles.current(session.id()),
-                        packageRole.rolePackId(), packageRole.technologies(), packageRole.testPolicy()), project.rootPath(),
+                        packageRole.rolePackId(), packageRole.executionStrategy(), packageRole.technologies(),
+                        packageRole.testPolicy()), project.rootPath(),
                 revision.revision(), revision.requirementText(),
                 decomposition.planJson(), workPackage.packageId(), write(Map.of(
                         "title", workPackage.title(), "objective", workPackage.objective(),

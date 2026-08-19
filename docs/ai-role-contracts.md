@@ -29,14 +29,19 @@ Markdown/DOCX、表格转换、只读报告和本地维护各自组合提示，�
 Router 使用独立 `ROUTER_NO_TOOLS` Session；可用时返回固定
 `TASK_PROFILE_ROUTER_V1` JSON Schema，不可用时使用同一闭集对象的 marker。它只返回
 `intent / artifactKinds / technologies / complexity / confidence / signals`，服务端仍独占
-`WorkflowTemplate / MutationMode / ExecutionStrategy / TestPolicy`。需求 Designer 和
+`WorkflowTemplate / MutationMode / ExecutionStrategy / TestPolicy`。每次 Router 的需求
+快照、外部 Session、响应模式、截止时间、标签和失败原因都持久化；重启继续同一 Session，
+新一轮需求讨论会终止并废弃旧快照的 Router。需求 Designer 和
 Decomposer 使用父画像；每个软件工作包再按包标题、目标、范围和交付物检测技术栈，原子
-冻结自己的 Role Pack、执行策略和测试策略，包 Designer 与 Compiler 只读取该冻结值。
+冻结自己的 Role Pack、执行策略和测试策略，包 Designer 与 Compiler 只读取该冻结值；
+Task 确认后每个 Stage 也保存同一快照，Implementation 与 Recovery 不重新猜测角色。
 
 文档 Compiler 的权威输出是受限 `DocumentPlan`；表格 Compiler 的权威输出是受限
 `TabularConversionPlan`。服务端生成路径、隐式 `WP-1`、验收 ID 与最终 DTO，并在最终
-确认前只冻结计划。报告 Reviewer 仅可读取仓库并输出带证据定位的 Markdown；报告文字
-是数据而不是后续设计会话的系统指令。
+确认前只冻结计划。报告 Reviewer 是真正独立的 `REVIEWER_READ_ONLY` 角色，只可读取仓库，
+并输出 `REVIEWER_REPORT_V1` 的标题、摘要、受限 findings 和 limitations；服务端逐条校验
+受管相对路径、精确行号和快照哈希，再确定性生成 Markdown。报告文字是数据而不是后续
+设计会话的系统指令，“转为修改任务”只创建关联 Designer，不直接创建 Task。
 
 大型文档确认稿必须包含 2–6 个二级章节。服务端按章节顺序保留结构化标题、段落、列表、
 代码块和表格片段并确定性聚合为一个冻结 `DocumentPlan`，不会让模型执行第二次自由合并。
@@ -82,6 +87,10 @@ Python TEST 可识别 `pytest`、`python -m pytest`、`unittest` 和
 `python -m unittest`，仍要求显式目标且拒绝跳过/忽略缺失测试。仓库没有测试体系的独立
 Python 脚本可使用带成功标记的 `SELF_CHECK`；文档与一次性表格转换的测试策略是
 `NOT_APPLICABLE`，不得制造 `PROCESS TEST`。
+
+上述 Maven、Gradle、npm、pytest 和 unittest 入口由统一 `TestFrameworkPolicy` 注册表
+识别，Designer 草稿门禁与执行前复核共享同一结果；`REQUIRED` 必须存在未跳过且显式目标
+的 TEST，`OPTIONAL` 允许 SELF_CHECK，`NOT_APPLICABLE` 明确拒绝 PROCESS TEST。
 
 `criteria` 只承载可观察业务结果。弱模型把代码风格、源码/注解/装配形态、构建成功、
 测试通过或交付卫生重复写成条件时，服务端在它们没有显式聚焦测试映射的前提下，将其

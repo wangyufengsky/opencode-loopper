@@ -58,15 +58,19 @@ grant permissions, choose commands, or bypass human confirmation. Router format 
 falls back to a generic profile question rather than failing the Designer Session.
 The Router profile denies every tool, including read/glob/grep/question. It uses the
 bounded machine-response agent only for output control and has a 30-second server
-boundary. A completed response is accepted only as one closed semantic object.
+boundary. A completed response is accepted only as one closed semantic object. Router
+runs are persisted with their exact requirement snapshots and external Session IDs;
+restart polls the same Session, while a newer discussion aborts and supersedes stale runs.
 
 Document and tabular direct-artifact workflows do not create an implementation Session:
 the server materializes their frozen plans only after Task Start. Read-only report
 workflows use a distinct `REVIEWER_READ_ONLY` profile that permits only read/glob/grep and
 terminates without a Task. Completion alone is insufficient: Loopper accepts the report
-only after at least one managed `path:line` citation resolves and every cited source is
-hashed. A report-to-design request treats the report as quoted input and starts a new
-Designer Session.
+only after the fixed `REVIEWER_REPORT_V1` object is parsed, each finding's managed path and
+exact line resolves, and every cited source is hashed. The server renders report Markdown;
+the Reviewer cannot bypass the evidence contract with free-form citations. A
+report-to-design request treats the report as quoted input and starts a new Designer
+Session without creating a Task or writable execution Session.
 
 Each overall Designer Session is bound to the exact `loop_draft_id` shown in
 Review Gate. Before Task Decomposer runs, the interactive requirement Designer

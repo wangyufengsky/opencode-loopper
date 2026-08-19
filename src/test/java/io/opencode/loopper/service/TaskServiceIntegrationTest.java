@@ -85,7 +85,9 @@ class TaskServiceIntegrationTest {
         LoopDraftRow designerDraft = drafts.create(judgeContractSpec(project.id()));
         DesignerSessionRow designer = designerSessions.create(project.id(), designerDraft.id(),
                 "生成一份 DOCX 运行验证文档");
-        TaskProfileService.View profile = taskProfiles.initialize(designer.id(), "生成一份 DOCX 运行验证文档");
+        taskProfiles.initialize(designer.id(), "生成一份 DOCX 运行验证文档");
+        taskProfiles.pollActive();
+        TaskProfileService.View profile = taskProfiles.current(designer.id());
         ArtifactPlanRow provisional = artifactMaterializer.registerDocumentPlan(designer.id(), profile.id(),
                 new ArtifactMaterializationService.DocumentPlan("generated/runtime.docx", "DOCX",
                         "Runtime Document", List.of(

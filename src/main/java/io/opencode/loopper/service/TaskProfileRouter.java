@@ -36,14 +36,17 @@ public final class TaskProfileRouter {
         Decision deterministic = deterministic(requirement, facts);
         if (semantic == null) return genericFallback(facts, "router-output-unavailable");
         boolean unsafe = deterministic.evidence().contains("unsafe-operation-conflict");
+        boolean artifactConflict = !artifactsCompatible(semantic.intent(), semantic.artifactKinds());
         boolean conflict = semantic.intent() != deterministic.intent()
-                && deterministic.confidence() >= AUTO_ROUTE_CONFIDENCE;
+                && deterministic.confidence() >= AUTO_ROUTE_CONFIDENCE || artifactConflict
+                || deterministic.evidence().contains("mixed-mutation-conflict");
         TaskIntent intent = unsafe ? deterministic.intent() : semantic.intent();
         List<String> technologies = new ArrayList<>(facts.technologies());
         semantic.technologies().forEach(value -> { if (!technologies.contains(value)) technologies.add(value); });
         List<ArtifactKind> artifacts = semantic.artifactKinds().isEmpty()
                 ? deterministic.artifactKinds() : semantic.artifactKinds();
-        WorkflowTemplate workflow = workflow(intent, "PACKAGED".equals(semantic.complexity()));
+        WorkflowTemplate workflow = workflow(intent, "PACKAGED".equals(semantic.complexity())
+                || deterministic.workflowTemplate() == WorkflowTemplate.PACKAGED_ARTIFACT);
         MutationMode mutation = mutation(intent);
         int confidence = Math.min(100, (semantic.confidence() + deterministic.confidence()) / 2
                 + (semantic.intent() == deterministic.intent() ? 10 : 0));
@@ -51,12 +54,14 @@ public final class TaskProfileRouter {
         if (unsafe) confidence = Math.min(confidence, 50);
         List<String> evidence = new ArrayList<>(facts.evidence());
         deterministic.evidence().stream()
-                .filter(value -> value.startsWith("requirement-tests="))
+                .filter(value -> value.startsWith("requirement-tests=")
+                        || value.equals("mixed-mutation-conflict"))
                 .forEach(evidence::add);
         evidence.add("ai-router-intent=" + semantic.intent().name());
         evidence.add("ai-router-complexity=" + semantic.complexity());
         semantic.signals().forEach(value -> evidence.add("ai-router-signal=" + value));
         if (conflict) evidence.add("router-evidence-conflict=" + deterministic.intent().name());
+        if (artifactConflict) evidence.add("router-artifact-conflict=" + semantic.intent().name());
         if (unsafe) evidence.add("unsafe-operation-conflict");
         return new Decision(intent, workflow, mutation, List.copyOf(artifacts), List.copyOf(technologies),
                 confidence, confidence < AUTO_ROUTE_CONFIDENCE || conflict || unsafe, List.copyOf(evidence));
@@ -68,6 +73,7 @@ public final class TaskProfileRouter {
 
     private Decision deterministic(String requirement, RepositoryFacts facts) {
         String text = requirement == null ? "" : requirement.toLowerCase(Locale.ROOT);
+        boolean unsafe = unsafeOperationRequested(text);
         List<ArtifactKind> artifacts = new ArrayList<>();
         List<String> technologies = new ArrayList<>(facts.technologies());
         TaskIntent intent;
@@ -84,14 +90,14 @@ public final class TaskProfileRouter {
                 && containsAny(text, "转换", "转成", "导出") && !containsAny(text, "脚本", "程序", "工具")) {
             intent = TaskIntent.DATA_CONVERSION; workflow = WorkflowTemplate.DIRECT_ARTIFACT;
             mutation = MutationMode.WRITE_FILES; artifacts.add(ArtifactKind.MARKDOWN); confidence = 95;
-        } else if (containsAny(text, "docx", "markdown", "文档", "说明书", "报告")
+        } else if (containsAny(text, "docx", "markdown", ".md", "文档", "说明书", "手册", "报告")
                 && !containsAny(text, "代码", "接口", "程序", "脚本", "工具", "命令行", "cli", "python")) {
             intent = TaskIntent.DOCUMENT_AUTHORING;
-            workflow = containsAny(text, "大型", "多章节", "整本")
+            workflow = containsAny(text, "大型", "多章节", "整本") || markdownSectionCount(requirement) >= 2
                     ? WorkflowTemplate.PACKAGED_ARTIFACT : WorkflowTemplate.DIRECT_ARTIFACT;
             mutation = MutationMode.WRITE_FILES;
             artifacts.add(text.contains("docx") ? ArtifactKind.DOCX : ArtifactKind.MARKDOWN); confidence = 88;
-        } else if (containsAny(text, "配置", "依赖升级", "维护") && !containsAny(text, "删除", "服务", "推送", "发布")) {
+        } else if (containsAny(text, "配置", "依赖升级", "维护") && !unsafe) {
             intent = TaskIntent.LOCAL_MAINTENANCE; workflow = WorkflowTemplate.LOCAL_MAINTENANCE;
             mutation = MutationMode.SAFE_LOCAL_MAINTENANCE; artifacts.add(ArtifactKind.CONFIGURATION); confidence = 82;
         } else {
@@ -101,15 +107,18 @@ public final class TaskProfileRouter {
             if ((text.contains("python") || text.contains("py脚本")) && !technologies.contains("python")) technologies.add("python");
             confidence = facts.technologies().isEmpty() && !containsAny(text, "java", "python", "node", "vue", "脚本", "代码") ? 65 : 86;
         }
-        boolean unsafe = containsAny(text, "删除文件", "rm ", "启动服务", "停止服务", "重启服务", "推送", "外部系统")
-                || containsAny(text, "git 提交", "提交代码", "创建提交", "commit ")
-                || releaseOperation(text);
         List<String> evidence = new ArrayList<>(facts.evidence());
         evidence.add("requirement-intent=" + intent.name());
         if (containsAny(text, "必须测试", "需要测试", "编写测试", "补充测试", "with tests", "add tests")) {
             evidence.add("requirement-tests=required");
         }
         if (unsafe) { confidence = Math.min(confidence, 50); evidence.add("unsafe-operation-conflict"); }
+        boolean readAndWrite = containsAny(text, "评审", "review", "诊断", "只读")
+                && containsAny(text, "修改", "修复", "新增", "写入", "生成文件", "implement", "fix ");
+        if (readAndWrite) {
+            confidence = Math.min(confidence, 60);
+            evidence.add("mixed-mutation-conflict");
+        }
         return new Decision(intent, workflow, mutation, List.copyOf(artifacts), List.copyOf(technologies),
                 confidence, confidence < AUTO_ROUTE_CONFIDENCE || unsafe, List.copyOf(evidence));
     }
@@ -141,6 +150,19 @@ public final class TaskProfileRouter {
         };
     }
 
+    private static boolean artifactsCompatible(TaskIntent intent, List<ArtifactKind> artifacts) {
+        if (artifacts == null || artifacts.isEmpty()) return false;
+        Set<ArtifactKind> allowed = switch (intent) {
+            case READ_ONLY_REVIEW, RESEARCH -> Set.of(ArtifactKind.ANALYSIS_REPORT);
+            case DOCUMENT_AUTHORING -> Set.of(ArtifactKind.MARKDOWN, ArtifactKind.DOCX);
+            case DATA_CONVERSION -> Set.of(ArtifactKind.MARKDOWN, ArtifactKind.XLSX, ArtifactKind.CSV, ArtifactKind.TSV);
+            case CONFIGURATION, LOCAL_MAINTENANCE -> Set.of(ArtifactKind.CONFIGURATION, ArtifactKind.MARKDOWN);
+            default -> Set.of(ArtifactKind.SOURCE_CODE, ArtifactKind.PYTHON_SCRIPT, ArtifactKind.CONFIGURATION,
+                    ArtifactKind.MARKDOWN, ArtifactKind.OTHER);
+        };
+        return artifacts.stream().allMatch(allowed::contains);
+    }
+
     RepositoryFacts scan(Path root) {
         Path canonical = root.toAbsolutePath().normalize();
         Set<String> technologies = new LinkedHashSet<>();
@@ -164,7 +186,14 @@ public final class TaskProfileRouter {
                     } else if (name.endsWith(".py") && file.toString().replace('\\', '/').contains("/tests/")) {
                         technologies.add("python"); evidence.add("test-framework=unittest");
                     }
-                    if (name.equals("package.json")) technologies.add("node");
+                    if (name.equals("package.json")) {
+                        technologies.add("node");
+                        try {
+                            if (attrs.size() <= 512_000 && Files.readString(file).matches("(?s).*\\\"test[^\\\"]*\\\"\\s*:.*")) {
+                                evidence.add("test-framework=npm");
+                            }
+                        } catch (IOException ignored) { }
+                    }
                     return FileVisitResult.CONTINUE;
                 }
             });
@@ -181,9 +210,35 @@ public final class TaskProfileRouter {
         return false;
     }
 
+    private static long markdownSectionCount(String requirement) {
+        if (requirement == null || requirement.isBlank()) return 0;
+        return requirement.lines().map(String::strip).filter(line -> line.matches("^##\\s+.+")).count();
+    }
+
     private static boolean releaseOperation(String text) {
         if (!text.contains("发布")) return containsAny(text, "上线部署", "执行 release", "create release");
         return !containsAny(text, "发布边界", "事件发布", "发布事件", "发布能力", "发布订阅");
+    }
+
+    private static boolean unsafeOperationRequested(String text) {
+        String positive = text;
+        for (String negated : List.of(
+                "不删除文件", "不得删除文件", "禁止删除文件",
+                "不操作服务", "不得操作服务", "禁止操作服务",
+                "不启动服务", "不得启动服务", "禁止启动服务",
+                "不停止服务", "不得停止服务", "禁止停止服务",
+                "不重启服务", "不得重启服务", "禁止重启服务",
+                "不提交推送或发布", "不得提交推送或发布", "禁止提交推送或发布",
+                "不提交代码", "不得提交代码", "禁止提交代码",
+                "不创建提交", "不得创建提交", "禁止创建提交",
+                "不推送", "不得推送", "禁止推送",
+                "不发布", "不得发布", "禁止发布",
+                "不写入外部系统", "不得写入外部系统", "禁止写入外部系统")) {
+            positive = positive.replace(negated, "");
+        }
+        return containsAny(positive, "删除文件", "rm ", "启动服务", "停止服务", "重启服务", "推送", "外部系统")
+                || containsAny(positive, "git 提交", "提交代码", "创建提交", "commit ")
+                || releaseOperation(positive);
     }
 
     record RepositoryFacts(List<String> technologies, List<String> evidence) { }

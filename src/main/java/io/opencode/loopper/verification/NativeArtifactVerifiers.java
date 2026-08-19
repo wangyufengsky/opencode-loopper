@@ -202,6 +202,9 @@ record SheetData(String name, List<List<String>> rows) {
 record TabularSnapshot(byte[] bytes, List<SheetData> sheets) {
     private static final int MAX_ROWS = 100_000;
     private static final int MAX_COLUMNS = 1_000;
+    private static final int MAX_SHEETS = 128;
+    private static final int MAX_TOTAL_CELLS = 1_000_000;
+    private static final int MAX_MERGED_REGIONS = 10_000;
     static TabularSnapshot read(Path file) {
         String extension = DocumentSnapshot.extension(file);
         byte[] bytes = NativeVerifierHandlers.readBounded(file, 50_000_000, "TABULAR_DATA");
@@ -226,17 +229,24 @@ record TabularSnapshot(byte[] bytes, List<SheetData> sheets) {
         try (OPCPackage pkg = OoxmlSafety.open(file); Workbook workbook = new XSSFWorkbook(pkg)) {
             DataFormatter formatter = new DataFormatter(Locale.ROOT);
             List<SheetData> sheets = new ArrayList<>();
+            if (workbook.getNumberOfSheets() > MAX_SHEETS) throw new TaskFailure("TABULAR_SHEET_LIMIT", "XLSX exceeds the sheet limit");
+            long totalCells = 0;
             for (int index = 0; index < workbook.getNumberOfSheets(); index++) {
                 Sheet sheet = workbook.getSheetAt(index);
                 if (sheet.getLastRowNum() + 1 > MAX_ROWS) throw new TaskFailure("TABULAR_ROW_LIMIT", "XLSX exceeds the row limit");
+                if (sheet.getNumMergedRegions() > MAX_MERGED_REGIONS) throw new TaskFailure("TABULAR_MERGED_REGION_LIMIT", "XLSX exceeds the merged-region limit");
+                Set<Long> mergedNonTopLeft = mergedNonTopLeft(sheet);
                 List<List<String>> rows = new ArrayList<>();
                 for (int rowIndex = 0; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
                     Row row = sheet.getRow(rowIndex); List<String> values = new ArrayList<>();
                     int cells = row == null ? 0 : Math.max(0, row.getLastCellNum());
                     if (cells > MAX_COLUMNS) throw new TaskFailure("TABULAR_COLUMN_LIMIT", "XLSX exceeds the column limit");
+                    totalCells += cells;
+                    if (totalCells > MAX_TOTAL_CELLS) throw new TaskFailure("TABULAR_CELL_LIMIT", "XLSX exceeds the total cell limit");
                     for (int column = 0; column < cells; column++) {
                         Cell cell = row.getCell(column, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
-                        values.add(cell == null ? "" : displayValue(formatter, cell));
+                        values.add(cell == null || mergedNonTopLeft.contains(cellKey(rowIndex, column))
+                                ? "" : displayValue(formatter, cell));
                     }
                     trimTrailing(values); rows.add(List.copyOf(values));
                 }
@@ -246,6 +256,24 @@ record TabularSnapshot(byte[] bytes, List<SheetData> sheets) {
         } catch (TaskFailure failure) { throw failure; }
         catch (Exception failure) { throw new TaskFailure("XLSX_INVALID", "XLSX could not be parsed safely: " + failure.getMessage()); }
     }
+
+    private static Set<Long> mergedNonTopLeft(Sheet sheet) {
+        Set<Long> result = new java.util.HashSet<>();
+        for (org.apache.poi.ss.util.CellRangeAddress region : sheet.getMergedRegions()) {
+            long area = (long) (region.getLastRow() - region.getFirstRow() + 1)
+                    * (region.getLastColumn() - region.getFirstColumn() + 1);
+            if (area > MAX_TOTAL_CELLS || result.size() + area > MAX_TOTAL_CELLS) {
+                throw new TaskFailure("TABULAR_MERGED_CELL_LIMIT", "XLSX merged regions exceed the cell limit");
+            }
+            for (int row = region.getFirstRow(); row <= region.getLastRow(); row++) {
+                for (int column = region.getFirstColumn(); column <= region.getLastColumn(); column++) {
+                    if (row != region.getFirstRow() || column != region.getFirstColumn()) result.add(cellKey(row, column));
+                }
+            }
+        }
+        return result;
+    }
+    private static long cellKey(int row, int column) { return ((long) row << 32) | (column & 0xffffffffL); }
 
     private static TabularSnapshot delimited(Path file, byte[] bytes, char delimiter) {
         try (Reader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8);
@@ -305,6 +333,10 @@ final class OoxmlSafety {
         if (Files.isSymbolicLink(file)) throw new TaskFailure("OOXML_SYMLINK_FORBIDDEN", "OOXML input may not be a symbolic link");
         try {
             OPCPackage pkg = OPCPackage.open(file.toFile(), PackageAccess.READ);
+            if (pkg.getParts().size() > 10_000) {
+                try { pkg.close(); } catch (Exception ignored) { }
+                throw new TaskFailure("OOXML_PART_LIMIT", "OOXML package exceeds the part-count limit");
+            }
             requireNoExternal(pkg);
             return pkg;
         } catch (TaskFailure failure) { throw failure; }

@@ -155,7 +155,20 @@ public class LoopDraftService {
 
     private void validateFrozenProfileContract(LoopDraftRow draft, LoopSpec spec) {
         io.opencode.loopper.persistence.DesignerTaskProfileRow profile = mapper.findFrozenTaskProfileByDraft(draft.id()).orElse(null);
-        if (profile == null || !"SAFE_LOCAL_MAINTENANCE".equals(profile.mutationMode())) return;
+        if (profile == null) return;
+        var designerSession = mapper.findLatestDesignerSessionByDraft(draft.id()).orElse(null);
+        for (int index = 0; index < spec.stages().size(); index++) {
+            LoopSpec.StageSpec stage = spec.stages().get(index);
+            String testPolicy = profile.testPolicy();
+            if (designerSession != null && stage.workPackageId() != null) {
+                testPolicy = mapper.findLatestDesignWorkPackage(designerSession.id(), stage.workPackageId())
+                        .flatMap(workPackage -> mapper.findWorkPackageRoleProfile(workPackage.id()))
+                        .map(io.opencode.loopper.persistence.WorkPackageRoleProfileRow::testPolicy)
+                        .orElse(testPolicy);
+            }
+            validateStageTestPolicy(stage, index, testPolicy);
+        }
+        if (!"SAFE_LOCAL_MAINTENANCE".equals(profile.mutationMode())) return;
         for (int index = 0; index < spec.stages().size(); index++) {
             LoopSpec.StageSpec stage = spec.stages().get(index);
             String path = "stages[" + index + "]";
@@ -183,6 +196,38 @@ public class LoopDraftService {
                     throw new BadRequestException("MAINTENANCE_COMMAND_FORBIDDEN",
                             path + " contains deletion, service, Git publication, or external-control command");
                 }
+            }
+        }
+    }
+
+    private void validateStageTestPolicy(LoopSpec.StageSpec stage, int index, String testPolicy) {
+        List<LoopSpec.VerifierSpec> tests = stage.verifiers().stream()
+                .filter(verifier -> "PROCESS".equals(verifier.type()) && "TEST".equals(verifier.processPurpose()))
+                .toList();
+        String path = "stages[" + index + "]";
+        if ("NOT_APPLICABLE".equals(testPolicy) && !tests.isEmpty()) {
+            throw new BadRequestException("STAGE_TEST_NOT_APPLICABLE",
+                    path + " uses PROCESS TEST although its frozen task profile marks testing NOT_APPLICABLE");
+        }
+        boolean softwareStage = stage.executionStrategy() == io.opencode.loopper.domain.ExecutionStrategy.OPEN_CODE_IMPLEMENTATION
+                && (stage.stageKind() == null || Set.of(io.opencode.loopper.domain.StageKind.SOFTWARE_IMPLEMENTATION,
+                io.opencode.loopper.domain.StageKind.LEGACY_SOFTWARE).contains(stage.stageKind()));
+        if (!"REQUIRED".equals(testPolicy) || !softwareStage) return;
+        if (tests.isEmpty()) {
+            throw new BadRequestException("STAGE_REQUIRED_TEST_MISSING",
+                    path + " requires one recognized focused TEST under its frozen test policy");
+        }
+        for (LoopSpec.VerifierSpec verifier : tests) {
+            io.opencode.loopper.verification.TestFrameworkPolicy.Assessment assessment =
+                    io.opencode.loopper.verification.TestFrameworkPolicy.assess(verifier.command());
+            if (!assessment.recognized() || assessment.skipped() || !assessment.focused()) {
+                throw new BadRequestException("STAGE_REQUIRED_TEST_NOT_FOCUSED",
+                        path + " requires an explicit Maven, Gradle, npm, pytest, or unittest target");
+            }
+            if (!new java.util.LinkedHashSet<>(assessment.targets())
+                    .equals(new java.util.LinkedHashSet<>(verifier.testTargets()))) {
+                throw new BadRequestException("STAGE_TEST_TARGET_MISMATCH",
+                        path + " testTargets must exactly match the targets in the direct test command");
             }
         }
     }

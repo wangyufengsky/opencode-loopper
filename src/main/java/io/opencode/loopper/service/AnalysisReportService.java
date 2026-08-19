@@ -8,6 +8,7 @@ import io.opencode.loopper.persistence.DesignerSessionRow;
 import io.opencode.loopper.persistence.DesignerTaskProfileRow;
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.runtime.OpenCodeClient;
+import io.opencode.loopper.runtime.OpenCodeStructuredSchemas;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -16,16 +17,17 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
 @Service
 public class AnalysisReportService {
-    private static final Pattern LOCATION = Pattern.compile("(?m)(?<![A-Za-z0-9_./-])([A-Za-z0-9_./-]+\\.[A-Za-z0-9_-]{1,12}):(\\d{1,7})");
+    private static final String REVIEWER_CONTRACT = "REVIEWER_REPORT_V1";
+    private static final String REVIEWER_START = "<!-- REVIEWER_REPORT_JSON_START -->";
+    private static final String REVIEWER_END = "<!-- REVIEWER_REPORT_JSON_END -->";
     private final LoopperMapper mapper;
     private final ProjectService projects;
     private final ObjectMapper json;
@@ -55,16 +57,27 @@ public class AnalysisReportService {
             throw new ConflictException("REPORT_CONTENT_MISSING", "只读评审需求稿尚未形成");
         }
         Path root = Path.of(projects.get(session.projectId()).rootPath()).toAbsolutePath().normalize();
+        OpenCodeClient.OpenCodeModel model = configuredModel();
+        OpenCodeClient.StructuredOutputCapability capability = openCode.structuredOutputCapability(model);
+        boolean schema = capability.transport() != OpenCodeClient.CapabilityState.UNAVAILABLE
+                && capability.selectedModel() != OpenCodeClient.CapabilityState.UNAVAILABLE;
+        String responseMode = schema ? "JSON_SCHEMA" : "TEXT_MARKER";
         String now = Instant.now().toString();
         AnalysisReportRow row = new AnalysisReportRow(UUID.randomUUID().toString(), sessionId, profile.id(),
                 "RUNNING", "只读分析报告", "", "[]", null, null, null, null, now, now, 0,
-                null, "PENDING", discussion.snapshotMarkdown(), profile.rolePackId(), profile.rolePackVersion());
+                null, "PENDING", discussion.snapshotMarkdown(), profile.rolePackId(), profile.rolePackVersion(),
+                REVIEWER_CONTRACT, responseMode, "[]", Instant.now().plusSeconds(120).toString());
         if (mapper.insertAnalysisReport(row) != 1) throw new ConflictException("REPORT_CREATE_CONFLICT", "报告无法持久化");
         try {
             OpenCodeClient.OpenCodeSession remote = openCode.createSession(root,
-                    "OpenCode Loopper Independent Reviewer (READ_ONLY)", configuredModel(),
+                    "OpenCode Loopper Independent Reviewer (READ_ONLY)", model,
                     OpenCodeClient.SessionProfile.REVIEWER_READ_ONLY);
-            openCode.promptAsync(remote, reviewerPrompt(profile, root, discussion.snapshotMarkdown()));
+            String prompt = reviewerPrompt(profile, root, discussion.snapshotMarkdown(), schema);
+            OpenCodeClient.PromptRequest request = schema
+                    ? new OpenCodeClient.PromptRequest(prompt, null, OpenCodeClient.STRUCTURED_AGENT,
+                    OpenCodeStructuredSchemas.format(OpenCodeStructuredSchemas.REVIEWER_REPORT_V1))
+                    : OpenCodeClient.PromptRequest.text(prompt);
+            openCode.promptAsync(remote, request);
             return view(session, update(row, "RUNNING", "只读分析报告", "", List.of(), null, null,
                     null, null, remote.id(), "RUNNING"));
         } catch (RuntimeException failure) {
@@ -96,6 +109,13 @@ public class AnalysisReportService {
         DesignerSessionRow session = session(row.designerSessionId());
         Path root = Path.of(projects.get(session.projectId()).rootPath()).toAbsolutePath().normalize();
         OpenCodeClient.OpenCodeSession remote = new OpenCodeClient.OpenCodeSession(row.externalSessionId(), root);
+        if (row.deadlineAt() != null && Instant.now().isAfter(Instant.parse(row.deadlineAt()))) {
+            try { openCode.abort(remote); } catch (Exception ignored) { }
+            update(row, "FAILED", row.title(), row.markdown(), readEvidence(row.evidenceJson()), null, null,
+                    "REVIEWER_TIMEOUT", "Independent Reviewer exceeded its 120 second boundary", remote.id(), "FAILED");
+            return new PollResult(row.designerSessionId(), row.id(), false, "REVIEWER_TIMEOUT",
+                    "Independent Reviewer exceeded its 120 second boundary");
+        }
         OpenCodeClient.SessionStatus status = openCode.sessionStatus(remote);
         if (status.retrying()) {
             update(row, row.state(), row.title(), row.markdown(), readEvidence(row.evidenceJson()),
@@ -111,14 +131,22 @@ public class AnalysisReportService {
         if (!status.completed()) return null;
         AnalysisReportRow validating = update(row, "VALIDATING", row.title(), row.markdown(), List.of(), null, null,
                 null, null, remote.id(), status.state());
-        String markdown = openCode.sessionOutput(remote);
-        if (markdown == null || markdown.isBlank() || markdown.getBytes(StandardCharsets.UTF_8).length > 65_536) {
+        ReviewerEnvelope envelope;
+        try { envelope = reviewerResult(row, remote); }
+        catch (RuntimeException failure) {
+            update(validating, "FAILED", row.title(), "", List.of(), null, null,
+                    "REVIEWER_CONTRACT_INVALID", safeMessage(failure.getMessage()), remote.id(), status.state());
+            return new PollResult(row.designerSessionId(), row.id(), false,
+                    "REVIEWER_CONTRACT_INVALID", safeMessage(failure.getMessage()));
+        }
+        String markdown = render(envelope);
+        if (markdown.getBytes(StandardCharsets.UTF_8).length > 65_536) {
             update(validating, "FAILED", row.title(), "", List.of(), null, null,
                     "REPORT_CONTENT_INVALID", "Reviewer report must be 1-64 KiB Markdown", remote.id(), status.state());
             return new PollResult(row.designerSessionId(), row.id(), false,
                     "REPORT_CONTENT_INVALID", "Reviewer report must be 1-64 KiB Markdown");
         }
-        List<Evidence> evidence = evidence(root, markdown);
+        List<Evidence> evidence = evidence(root, envelope.findings());
         if (evidence.isEmpty()) {
             update(validating, "FAILED", reportTitle(markdown), markdown, evidence, null, null,
                     "REPORT_EVIDENCE_REQUIRED", "Reviewer report contains no valid managed path:line evidence",
@@ -129,9 +157,50 @@ public class AnalysisReportService {
         String contentHash = sha256(markdown.getBytes(StandardCharsets.UTF_8));
         String sourceHash = sha256(evidence.stream().map(item -> item.path() + ":" + item.sha256())
                 .sorted().reduce("", (left, right) -> left + "\n" + right).getBytes(StandardCharsets.UTF_8));
-        update(validating, "READY", reportTitle(markdown), markdown, evidence, contentHash, sourceHash,
-                null, null, remote.id(), status.state());
+        updateReady(validating, envelope, markdown, evidence, contentHash, sourceHash, remote.id(), status.state());
         return new PollResult(row.designerSessionId(), row.id(), true, null, null);
+    }
+
+    private ReviewerEnvelope reviewerResult(AnalysisReportRow row, OpenCodeClient.OpenCodeSession remote) {
+        try {
+            String value;
+            if ("JSON_SCHEMA".equals(row.responseMode())) {
+                OpenCodeClient.SessionResult result = openCode.sessionResult(remote);
+                if (result.structuredRetryCount() != 0 || !result.hasStructured()) {
+                    throw new IllegalArgumentException("Reviewer structured payload is missing: " + safeMessage(result.errorDetail()));
+                }
+                value = json.writeValueAsString(result.structured());
+            } else {
+                value = openCode.sessionOutput(remote);
+                int start = value == null ? -1 : value.indexOf(REVIEWER_START);
+                int end = value == null ? -1 : value.indexOf(REVIEWER_END);
+                if (start < 0 || end <= start) throw new IllegalArgumentException("Reviewer marker payload is missing");
+                value = value.substring(start + REVIEWER_START.length(), end).trim();
+            }
+            Map<String, Object> raw = json.readValue(value, new TypeReference<>() { });
+            String title = bounded(raw.get("title"), 200, "title");
+            String summary = bounded(raw.get("summary"), 8000, "summary");
+            List<ReviewerFinding> findings = new ArrayList<>();
+            if (!(raw.get("findings") instanceof List<?> values) || values.isEmpty() || values.size() > 128) {
+                throw new IllegalArgumentException("Reviewer findings must contain 1-128 items");
+            }
+            for (Object item : values) {
+                if (!(item instanceof Map<?, ?> finding)) throw new IllegalArgumentException("Reviewer finding must be an object");
+                String severity = bounded(finding.get("severity"), 16, "severity");
+                if (!List.of("CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO").contains(severity)) {
+                    throw new IllegalArgumentException("Reviewer severity is invalid");
+                }
+                int line = finding.get("line") instanceof Number number ? number.intValue() : -1;
+                if (line < 1 || line > 10_000_000) throw new IllegalArgumentException("Reviewer line is invalid");
+                findings.add(new ReviewerFinding(severity, bounded(finding.get("title"), 300, "finding title"),
+                        bounded(finding.get("detail"), 4000, "finding detail"),
+                        bounded(finding.get("path"), 1024, "finding path"), line,
+                        bounded(finding.get("recommendation"), 4000, "recommendation")));
+            }
+            List<String> limitations = strings(raw.get("limitations"), 32, 2000);
+            return new ReviewerEnvelope(title, summary, List.copyOf(findings), limitations);
+        } catch (RuntimeException failure) { throw failure; }
+        catch (Exception failure) { throw new IllegalArgumentException(failure.getMessage(), failure); }
     }
 
     public View get(String sessionId, String reportId) {
@@ -152,7 +221,20 @@ public class AnalysisReportService {
         AnalysisReportRow updated = new AnalysisReportRow(row.id(), row.designerSessionId(), row.taskProfileId(), state,
                 title, markdown, write(evidence), contentHash, sourceHash, errorCode, errorDetail, row.createdAt(),
                 Instant.now().toString(), row.version(), externalId, externalState, row.sourceRequirement(),
-                row.rolePackId(), row.rolePackVersion());
+                row.rolePackId(), row.rolePackVersion(), row.reviewerContractVersion(), row.responseMode(),
+                row.findingsJson(), row.deadlineAt());
+        if (mapper.updateAnalysisReport(updated) != 1) throw new ConflictException("REPORT_VERSION_CONFLICT", "报告状态已并发变化");
+        return mapper.findAnalysisReport(row.designerSessionId(), row.id()).orElseThrow();
+    }
+
+    private AnalysisReportRow updateReady(AnalysisReportRow row, ReviewerEnvelope envelope, String markdown,
+                                          List<Evidence> evidence, String contentHash, String sourceHash,
+                                          String externalId, String externalState) {
+        AnalysisReportRow updated = new AnalysisReportRow(row.id(), row.designerSessionId(), row.taskProfileId(),
+                "READY", envelope.title(), markdown, write(evidence), contentHash, sourceHash, null, null,
+                row.createdAt(), Instant.now().toString(), row.version(), externalId, externalState,
+                row.sourceRequirement(), row.rolePackId(), row.rolePackVersion(), row.reviewerContractVersion(),
+                row.responseMode(), write(envelope.findings()), row.deadlineAt());
         if (mapper.updateAnalysisReport(updated) != 1) throw new ConflictException("REPORT_VERSION_CONFLICT", "报告状态已并发变化");
         return mapper.findAnalysisReport(row.designerSessionId(), row.id()).orElseThrow();
     }
@@ -168,32 +250,68 @@ public class AnalysisReportService {
         }).toList();
         return new View(row.id(), row.state(), row.title(), row.markdown(), row.contentSha256(),
                 row.sourceSnapshotSha256(), views, views.stream().anyMatch(EvidenceView::stale),
-                row.errorCode(), row.errorDetail(), row.createdAt(), row.updatedAt());
+                row.errorCode(), row.errorDetail(), row.createdAt(), row.updatedAt(), row.reviewerContractVersion(),
+                readFindings(row.findingsJson()));
     }
 
-    private List<Evidence> evidence(Path root, String markdown) {
-        List<Evidence> result = new ArrayList<>(); Matcher matcher = LOCATION.matcher(markdown);
-        while (matcher.find() && result.size() < 128) {
+    private List<Evidence> evidence(Path root, List<ReviewerFinding> findings) {
+        List<Evidence> result = new ArrayList<>();
+        for (ReviewerFinding finding : findings) {
             try {
-                String relative = matcher.group(1); Path file = safe(root, relative);
+                Path file = safe(root, finding.path());
                 if (!Files.isRegularFile(file) || Files.size(file) > 16_000_000) continue;
-                int line = Integer.parseInt(matcher.group(2)); long lineCount;
+                long lineCount;
                 try (var lines = Files.lines(file, StandardCharsets.UTF_8)) { lineCount = lines.limit(1_000_001).count(); }
-                if (line < 1 || line > lineCount) continue;
-                result.add(new Evidence(relative.replace('\\','/'), line, sha256(Files.readAllBytes(file))));
+                if (finding.line() > lineCount) continue;
+                result.add(new Evidence(finding.path().replace('\\','/'), finding.line(), sha256(Files.readAllBytes(file))));
             } catch (Exception ignored) { }
         }
         return List.copyOf(result);
     }
+
     private static Path safe(Path root, String relative) throws Exception {
         Path input = Path.of(relative); if (input.isAbsolute()) throw new IllegalArgumentException();
         Path file = root.resolve(input).normalize(); if (!file.startsWith(root) || Files.isSymbolicLink(file)) throw new IllegalArgumentException();
         Path parent = Files.exists(file) ? file.toRealPath() : file.getParent().toRealPath();
         if (!parent.startsWith(root.toRealPath())) throw new IllegalArgumentException(); return file;
     }
-    private String reviewerPrompt(TaskProfileService.View profile, Path root, String requirement) {
+    private String reviewerPrompt(TaskProfileService.View profile, Path root, String requirement, boolean schema) {
         return prompts.reviewerInstructions(profile) + "\n\nProject root: " + root + "\nFrozen review requirement:\n"
-                + requirement + "\n\nReturn one complete Simplified-Chinese Markdown report. Every finding cites path:line.";
+                + requirement + "\n\nREVIEWER_REPORT_JSON contract: return title, summary, 1-128 findings, and limitations. "
+                + "Every finding contains severity, title, detail, managed relative path, exact line, and recommendation."
+                + (schema ? "" : "\n" + REVIEWER_START + "\n{\"title\":\"...\",\"summary\":\"...\",\"findings\":[],\"limitations\":[]}\n" + REVIEWER_END);
+    }
+
+    private String render(ReviewerEnvelope envelope) {
+        StringBuilder out = new StringBuilder("# ").append(envelope.title()).append("\n\n")
+                .append(envelope.summary()).append("\n\n## 已确认发现\n");
+        for (ReviewerFinding finding : envelope.findings()) {
+            out.append("\n### [").append(finding.severity()).append("] ").append(finding.title()).append("\n\n")
+                    .append("证据：`").append(finding.path()).append(":").append(finding.line()).append("`\n\n")
+                    .append(finding.detail()).append("\n\n建议：").append(finding.recommendation()).append("\n");
+        }
+        if (!envelope.limitations().isEmpty()) {
+            out.append("\n## 限制\n");
+            envelope.limitations().forEach(value -> out.append("\n- ").append(value));
+            out.append("\n");
+        }
+        return out.toString();
+    }
+
+    private static String bounded(Object value, int max, String field) {
+        String text = value == null ? "" : String.valueOf(value).strip();
+        if (text.isBlank() || text.length() > max) throw new IllegalArgumentException("Reviewer " + field + " is invalid");
+        return text;
+    }
+    private static List<String> strings(Object raw, int maxItems, int maxLength) {
+        if (!(raw instanceof List<?> values) || values.size() > maxItems) throw new IllegalArgumentException("Reviewer limitations are invalid");
+        List<String> result = new ArrayList<>();
+        for (Object value : values) result.add(bounded(value, maxLength, "limitation"));
+        return List.copyOf(result);
+    }
+    private List<ReviewerFinding> readFindings(String value) {
+        try { return json.readValue(value, new TypeReference<>() { }); }
+        catch (Exception ignored) { return List.of(); }
     }
     private OpenCodeClient.OpenCodeModel configuredModel() {
         String value = properties.getOpenCode().getModel(); if (value == null) return null;
@@ -224,6 +342,11 @@ public class AnalysisReportService {
     public record EvidenceView(String path, int line, String sha256, boolean stale) { }
     public record View(String id, String state, String title, String markdown, String contentSha256,
                        String sourceSnapshotSha256, List<EvidenceView> evidence, boolean stale,
-                       String errorCode, String errorDetail, String createdAt, String updatedAt) { }
+                       String errorCode, String errorDetail, String createdAt, String updatedAt,
+                       String reviewerContractVersion, List<ReviewerFinding> findings) { }
+    public record ReviewerFinding(String severity, String title, String detail, String path, int line,
+                                  String recommendation) { }
+    private record ReviewerEnvelope(String title, String summary, List<ReviewerFinding> findings,
+                                    List<String> limitations) { }
     public record Summary(String id, String state, String title, String contentSha256, boolean stale, String updatedAt) { }
 }

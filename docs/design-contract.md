@@ -144,7 +144,9 @@ only scope/version that can accept a message or approval.
 Before requirement confirmation, the page shows the provisional task profile,
 confidence, evidence, workflow preview, Role Pack, execution strategy and test policy.
 Confidence below 80 or conflicting evidence blocks confirmation until a versioned
-profile override is saved. Confirmation freezes the profile. The progress rail is
+profile override is saved. `ROUTING_PENDING/RUNNING` is backed by a persisted Router run;
+the raw requirement and every completed Designer snapshot are classified separately, and
+starting a replacement discussion cancels the obsolete classification. Confirmation freezes the profile. The progress rail is
 template-driven: omitted Decomposer/package/Compiler steps are not displayed.
 
 Simple Markdown/DOCX and one-shot tabular conversion still require the ordinary
@@ -162,7 +164,8 @@ only a linked writable-design conversation and never directly creates a Task.
 For full package workflows, each work package persists its own Role Pack, technology list,
 execution strategy and test policy. The package Designer and Compiler prompts use that
 package snapshot, so a mixed Java/Vue/Python request does not inherit one global
-Java/Maven contract for every package.
+Java/Maven contract for every package. Confirmation copies those values to every Stage;
+the task rail displays the frozen Role Pack and test policy used by implementation.
 
 Before a requirement revision exists, Designer must call `question` once with
 1–3 choice questions and then return a complete replacement Markdown snapshot.

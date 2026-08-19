@@ -17,11 +17,13 @@ public final class RolePackRegistry {
         List<String> normalized = technologies == null ? List.of() : technologies.stream()
                 .map(String::toLowerCase).toList();
         if (intent == TaskIntent.SOFTWARE_CHANGE || intent == TaskIntent.LEGACY_SOFTWARE) {
+            if (normalized.stream().distinct().count() > 1) return new RolePack("software-mixed", VERSION,
+                    "混合技术栈软件设计师", ExecutionStrategy.OPEN_CODE_IMPLEMENTATION, TestPolicy.REQUIRED);
             if (normalized.contains("python")) return new RolePack("software-python", VERSION,
                     "Python 软件设计师", ExecutionStrategy.OPEN_CODE_IMPLEMENTATION, TestPolicy.OPTIONAL);
             if (normalized.contains("node") || normalized.contains("vue") || normalized.contains("javascript")
                     || normalized.contains("typescript")) return new RolePack("software-node", VERSION,
-                    "Node/前端软件设计师", ExecutionStrategy.OPEN_CODE_IMPLEMENTATION, TestPolicy.REQUIRED);
+                    "Node/前端软件设计师", ExecutionStrategy.OPEN_CODE_IMPLEMENTATION, TestPolicy.OPTIONAL);
             return new RolePack("software-java", VERSION, "Java 软件设计师",
                     ExecutionStrategy.OPEN_CODE_IMPLEMENTATION, TestPolicy.REQUIRED);
         }

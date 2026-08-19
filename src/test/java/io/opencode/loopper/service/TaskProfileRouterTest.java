@@ -52,6 +52,17 @@ class TaskProfileRouterTest {
         assertThat(pack.defaultTestPolicy()).isEqualTo(TestPolicy.NOT_APPLICABLE);
     }
 
+    @Test void nodeRepositoryOnlyRequiresTestsWhenItsManifestDeclaresATestScript() throws Exception {
+        Files.writeString(root.resolve("package.json"), "{\"scripts\":{\"build\":\"vite build\"}}");
+        TaskProfileRouter.Decision withoutTests = router.route(root, "修改 Vue 页面交互");
+        RolePackRegistry.RolePack optional = new RolePackRegistry().resolve(withoutTests.intent(),
+                withoutTests.technologies(), withoutTests.artifactKinds());
+        assertThat(optional.defaultTestPolicy()).isEqualTo(TestPolicy.OPTIONAL);
+
+        Files.writeString(root.resolve("package.json"), "{\"scripts\":{\"test\":\"vitest\"}}");
+        assertThat(router.route(root, "修改 Vue 页面交互").evidence()).contains("test-framework=npm");
+    }
+
     @Test void ambiguousOrUnsafeMaintenanceRequiresHumanDecision() {
         TaskProfileRouter.Decision decision = router.route(root, "日常维护，删除文件并重启服务后推送");
         assertThat(decision.decisionRequired()).isTrue();
@@ -90,5 +101,36 @@ class TaskProfileRouterTest {
         assertThat(decision.decisionRequired()).isTrue();
         assertThat(decision.confidence()).isLessThan(80);
         assertThat(decision.evidence()).contains("router-evidence-conflict=DATA_CONVERSION");
+    }
+
+    @Test void structuredMultiChapterSnapshotKeepsPackagedDocumentWorkflowOnReroute() {
+        TaskProfileRouter.SemanticLabels labels = new TaskProfileRouter.SemanticLabels(
+                TaskIntent.DOCUMENT_AUTHORING, java.util.List.of(ArtifactKind.MARKDOWN),
+                java.util.List.of(), "SIMPLE", 93, java.util.List.of("document"));
+
+        TaskProfileRouter.Decision decision = router.route(root,
+                "# 手册\n\n## 安装\n正文\n\n## 运维\n正文", labels);
+
+        assertThat(decision.workflowTemplate()).isEqualTo(WorkflowTemplate.PACKAGED_ARTIFACT);
+    }
+
+    @Test void incompatibleReviewerArtifactAndMixedMutationRequireHumanDecision() {
+        TaskProfileRouter.SemanticLabels labels = new TaskProfileRouter.SemanticLabels(
+                TaskIntent.READ_ONLY_REVIEW, java.util.List.of(ArtifactKind.SOURCE_CODE),
+                java.util.List.of("java"), "SIMPLE", 98, java.util.List.of("review"));
+
+        TaskProfileRouter.Decision decision = router.route(root, "评审当前代码并直接修复发现的问题", labels);
+
+        assertThat(decision.decisionRequired()).isTrue();
+        assertThat(decision.evidence()).contains("mixed-mutation-conflict", "router-artifact-conflict=READ_ONLY_REVIEW");
+    }
+
+    @Test void maintenanceProhibitionsAreNotMisreadAsRequestsForUnsafeOperations() {
+        TaskProfileRouter.Decision decision = router.route(root,
+                "本地配置维护：只修改 settings.yml，不删除文件、不操作服务、不提交推送或发布");
+
+        assertThat(decision.intent()).isEqualTo(TaskIntent.LOCAL_MAINTENANCE);
+        assertThat(decision.decisionRequired()).isFalse();
+        assertThat(decision.evidence()).doesNotContain("unsafe-operation-conflict");
     }
 }

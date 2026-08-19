@@ -66,6 +66,7 @@ function statusDescription(status: Stage['status']) {
           </div>
           <footer>
             <span><Icon icon="lucide:activity" width="13" />{{ statusDescription(stage.status) }}</span>
+            <span v-if="stage.rolePackId"><Icon icon="lucide:package-check" width="12" />{{ stage.rolePackId }} · {{ stage.testPolicy }}</span>
             <span><Icon icon="lucide:rotate-cw" width="12" />{{ stage.attempts.length ? `${stage.attempts.length} 次尝试` : '尚未尝试' }}</span>
           </footer>
         </article>
