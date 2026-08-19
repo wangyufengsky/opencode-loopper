@@ -28,7 +28,8 @@
    - 不得只更新维护记录而遗漏已经变化的正文。
 4. **每次形成新的可交付 JAR 前必须先更新版本号**：
    - 任何开发、修改或优化后的重新打包都视为一次新交付，必须先递增版本号；
-   - 版本采用递增且从未发布过的 SemVer，禁止复用 Maven 版本、Git 标签或 GitHub Release；
+   - 版本采用递增且从未发布过的 `MAJOR.MINOR.PATCH`，禁止复用 Maven 版本、Git 标签或 GitHub Release；`MINOR` 和 `PATCH` 均只允许 `0–99`；
+   - 常规交付递增 `PATCH`；当前 `PATCH=99` 时向 `MINOR` 进一并把 `PATCH` 归零，例如 `0.1.99` 的下一版本必须是 `0.2.0`，不得使用 `0.1.100`；当前 `MINOR=99` 且再次进位时向 `MAJOR` 进一并把 `MINOR/PATCH` 归零，例如 `0.99.99` 的下一版本是 `1.0.0`；
    - 同步更新 `pom.xml`、`frontend/package.json`、`frontend/package-lock.json`、`application.yml`、Java MCP server info、README、本文件、`scripts/start-linux.sh` 和 `scripts/start-windows.bat`；
    - 使用 `rg` 检查旧版本是否仍残留在应同步的发布路径中；
    - 同一版本下仅允许对失败的同一次构建做诊断重试；源码或交付内容再次变化后必须使用下一个版本。
@@ -48,8 +49,9 @@
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
-8. 对需要交付的代码更新，提交并推送版本修改后创建不可移动的 `v<version>` 标签并推送；标签会触发 `.github/workflows/release.yml`，由 GitHub 在标签提交上重新测试、打包并发布 JAR、`start-linux.sh`、`start-windows.bat` 和 `SHA256SUMS`。必须等待工作流结束并回读 Release 资产状态与 digest。
-9. 最终交付必须明确报告：修改文件、验证命令及结果、本地 JAR 路径与校验值、Git 标签、GitHub Release URL、Actions 结果、尚未执行的运行时验证和剩余限制。
+8. 完成本地验证后，为本次范围创建本地提交；除非用户明确要求暂不提交，否则不得把已完成交付长期留在未提交状态。提交前必须确认暂存区只包含本任务文件，不得顺带纳入用户或其他 Agent 的既有修改。
+9. 默认不得推送提交、创建或推送标签、创建 GitHub Release。只有用户明确要求“发版”“推送新版本”或同等含义时，才统一推送已经核验的本地提交，创建并推送指向最新交付提交且不可移动的 `v<version>` 标签；标签触发 `.github/workflows/release.yml` 后，必须等待工作流结束并回读 Release 资产状态与 digest。
+10. 最终交付必须明确报告：修改文件、验证命令及结果、本地 JAR 路径与校验值、本地提交；未收到发版要求时明确报告尚未推送、未打标签、未创建 Release，收到发版要求时再报告 Git 标签、GitHub Release URL、Actions 结果；同时说明尚未执行的运行时验证和剩余限制。
 
 **“源码已改”“测试通过”“JAR 已生成”“端口 8080 正在运行新 JAR”“浏览器已加载新静态资源”是五个不同结论。** 未实际核验时不得宣称后一个结论。
 
@@ -59,7 +61,7 @@
 - 因环境、网络、依赖或已有用户改动导致完整验证失败时，不得伪造成功；先保留失败输出，尽可能运行安全的聚焦验证，并报告阻塞点。
 - 纯调查、解释或代码评审不授权修改文件，也不要求为只读任务打包；一旦实际修改仓库文件，就按上述交付流程执行。
 - 完整打包后仅回填本文件“维护记录”中的测试数、JAR 哈希和结果，不需要递归再次打包；该回填不改变可执行产物内容。
-- 用户已将版本标签触发 GitHub Release 定义为本项目的标准代码交付流程，因此完成可交付代码更新时允许推送对应提交和新版本标签；除此之外，不要擅自推送其他分支、部署、重启服务或覆盖运行中的 JAR。
+- 本地提交是默认代码交付流程，但不等于发版授权。只有用户明确要求发版后，才允许统一推送已核验提交和对应的新版本标签；除此之外，不要擅自推送任何分支或标签、创建 Release、部署、重启服务或覆盖运行中的 JAR。
 
 ## 1. 项目目标与产品边界
 
@@ -471,8 +473,8 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 - 工作区可能不干净。现有修改属于用户，除非有明确证据，否则不得恢复、覆盖、格式化或纳入本任务。
 - 禁止使用 `git reset --hard`、`git checkout -- <file>`、递归删除工作区或其他不可恢复操作。
 - 不要手工编辑 `target/`、`frontend/dist/`、`frontend/node_modules/`、SQLite 数据库或 Flyway 已执行迁移来“修复”源码问题。
-- 不创建提交、不切分支、不推送、不创建 PR/MR，除非用户明确要求。
-- 本项目的版本发布公约是上条规则的已授权例外：完成交付型代码更新后，允许推送已核验的发布提交和全新 `v<version>` 标签，以触发标准 Release 工作流；禁止强推、移动或复用标签。
+- 完成已授权的代码或文档修改并通过相应验证后，默认创建只包含本任务范围的本地提交；用户明确要求暂不提交时例外。不得为了提交而纳入、覆盖或拆散既有用户修改，也不得擅自切换分支。
+- 本地提交不授权任何远端写入。只有用户明确要求发版或推送新版本后，才允许统一推送已核验的本地提交和全新 `v<version>` 标签，以触发标准 Release 工作流；禁止强推、移动或复用标签，未获该授权时也不得创建 PR/MR。
 - 不自动删除 worktree、分支、运行数据或历史证据。
 - 修改前阅读文件，修改后检查 diff；批量格式化只能覆盖本任务文件。
 - 若用户修改与当前文件重叠，先停下说明冲突；能避开时保留用户修改继续。
@@ -493,8 +495,9 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 - [ ] `./scripts/verify.sh` 完成并生成新的可执行 JAR。
 - [ ] JAR 包含当前 Vue 静态资源，并记录新的 SHA-256。
 - [ ] `git diff --check` 通过，`git status` 中没有意外文件。
-- [ ] 发布提交已推送，新 `v<version>` 标签指向该提交且与 Maven 版本一致。
-- [ ] Release 工作流成功，GitHub 资产包含 JAR、`start-linux.sh`、`start-windows.bat` 和 `SHA256SUMS`，远端 digest 已回读。
+- [ ] 已创建只包含本任务范围的本地提交；若用户要求暂不提交，已在最终回复中明确说明。
+- [ ] 仅当用户明确要求发版时：发布提交已推送，新 `v<version>` 标签指向最新交付提交且与 Maven 版本一致。
+- [ ] 仅当用户明确要求发版时：Release 工作流成功，GitHub 资产包含 JAR、`start-linux.sh`、`start-windows.bat` 和 `SHA256SUMS`，远端 digest 已回读。
 - [ ] 如声称运行时有效，已核对真实 PID/cwd/JAR/health/浏览器证据。
 - [ ] 最终回复列出文件、验证、JAR、运行时边界和剩余风险。
 
@@ -504,6 +507,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-08-19 | 调整版本百进位、本地提交与按需发版公约 | 版本的 `MINOR/PATCH` 限定为 `0–99`，明确 `0.1.99 → 0.2.0`；完成交付默认创建范围内本地提交，但只有用户明确要求发版后才统一推送提交与最新版本标签并核验 Release | 仅修改开发公约，执行契约文本检查与 `git diff --check`；不改变源码或交付内容，不重新打包 JAR；本地提交，不推送、不打标签、不创建 Release |
 | 2026-08-19 | 三包收口：Stage 执行 Role Pack、持久化异步 Router、结构化独立 Reviewer、章节文档与 OOXML 安全，0.1.87 | V37/V38/V39 分别冻结 Stage 角色/测试策略、持久化可恢复 Router 运行、固定 `REVIEWER_REPORT_V1`；统一 Maven/Gradle/npm/pytest/unittest 测试策略；章节文档和表格转换冻结确定性策略；同步 README、架构、Designer、AI 角色、OpenCode、验证器合同与本公约正文 | 三包合并聚焦测试 89/89；`./scripts/verify.sh` 使用 JDK 21.0.12 通过：Java 476 项（0 失败、0 错误、1 平台条件跳过），Vitest 176/176，BUILD SUCCESS；本地 JAR `target/opencode-loopper-0.1.87.jar` 大小 283207041 字节、含 107 个 SPA 静态条目，SHA-256 `765d20fc549cfaa7b4070d24299933b31d378e23e206b6f17f2c6003f9fddc78`；既有隔离 Python、XLSX→Markdown、DOCX、只读报告四链路回归全部通过，另以独立数据目录在 18087 启动成品 JAR，Flyway v39、health `UP`、Runtime 版本 0.1.87，随后正常停止并释放端口；未替换或启动 8080 实例，Release 证据待标签触发后回填 |
 | 2026-08-19 | 无工具 AI Router、工作包级动态 Role Pack、真实只读 Reviewer、大型文档/安全维护专属流程与 0.1.86 交付 | V36 冻结每个工作包的 Role Pack、技术栈、执行策略和测试策略，并持久化 Reviewer 运行态；Router 只给语义标签，服务端合并受控仓库事实和权限边界；Reviewer 只开放 read/glob/grep 并校验证据位置；大型文档按 2–6 个章节片段确定性聚合；安全维护使用精确路径白名单、禁止删除和危险进程命令的双重硬门禁；同步 README、架构、Designer、AI 角色、OpenCode 合同与本公约正文 | 聚焦 Router/Reviewer/混合 Java-Python Role Pack/大型文档/安全维护/迁移/任务执行 100/100；首次完整验证发现 4 个旧 Session 计数和 3 个发布语义夹具兼容问题，修正事件发布与外部版本发布区分后失败集合通过；最终 `./scripts/verify.sh` 使用 JDK 21.0.12 通过：Java 464 项（0 失败、0 错误、1 平台条件跳过），Vitest 176/176，BUILD SUCCESS；本地 JAR `target/opencode-loopper-0.1.86.jar` 大小 283169461 字节、含 108 个 SPA 静态条目，SHA-256 `ebe8794e2ce8f72a3b8aeb60a6510be5bd3fc88b65c3f3feb227f91c1e2ced52`；未替换当前 8080 运行实例 |
 | 2026-08-19 | 动态任务画像、Role Pack、非代码制品/报告流程、Python 测试策略与 0.1.85 交付 | V35 持久化画像、制品计划和只读报告；按软件、文档、表格、报告、维护任务选择流程、执行策略和验收策略；新增 DOCX/Markdown 与 XLSX/CSV/TSV 原生物化和结构/等价验证、Python pytest/unittest 识别、动态 Designer UI；服务端制品阶段不创建可写 Session 且不进入 Java 门禁；同步 README、架构、Designer、AI 角色、OpenCode、验证器合同与本公约正文 | 0.1.83/0.1.84 隔离验收分别发现服务端文档误入 Java 门禁、可复用 Python 转换脚本被 Markdown 输出字样误路由，修复后按版本规则顺延；最终 `./scripts/verify.sh` 使用 JDK 21.0.12 通过：Java 457 项（0 失败、0 错误、1 平台条件跳过），Vitest 176/176，BUILD SUCCESS；本地 JAR `target/opencode-loopper-0.1.85.jar` 大小 283124367 字节、含 108 个 SPA 静态条目，SHA-256 `79ee430788c21b57cb37756b89d26faafad766e7bc5cf607fa87a6ad252787bb`；隔离 18086 实测 DOCX/TABULAR_DATA 均为 1 Attempt、0 可写 Session、原生验证 PASS，报告为 0 Task/Session/Lease；隔离 18085 真实 Python OpenCode 实施后 SELF_CHECK/FILE_CONTENT/GIT_DIFF 全部 PASS，完整自动 Designer 到 Python Compiler 后因 OpenCode 1.18.18 修复输出缺失未完成；两个隔离实例均已停止，当前 8080 未替换 |
