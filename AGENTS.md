@@ -42,10 +42,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.1.89.jar
-   jar tf target/opencode-loopper-0.1.89.jar \
+   test -s target/opencode-loopper-0.1.90.jar
+   jar tf target/opencode-loopper-0.1.90.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.1.89.jar
+   shasum -a 256 target/opencode-loopper-0.1.90.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -95,8 +95,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.1.89`。
-- 正式产物：`target/opencode-loopper-0.1.89.jar`。
+- Maven 项目版本：`0.1.90`。
+- 正式产物：`target/opencode-loopper-0.1.90.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -354,6 +354,10 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 - 服务端是权威状态；不要用计时器伪造阶段进度、用量、成本、Session 完成或 Judge 结果。
 - 所有等待、问题、权限、可恢复错误和终止错误都必须真实可见，并提供可执行的恢复动作；不要永久显示含糊的“待评审”。
 - 使用 `displayLabels.ts` 和现有 `StatusBadge`/错误组件表达中文含义；不要在多个页面复制英文枚举到中文的映射。
+- 前端遵循中文优先的极简文案：状态标签或操作已能表达含义时删除重复说明；全自动等模式只保留标签，只有阻断或待决策时显示原因和下一步。
+- 普通页面不得直接展示内部枚举/错误码或 Task、Designer Session、Session、Attempt、Draft、Work Package、Criterion 等记录 ID；使用名称、顺序、时间和 `displayLabels.ts` 中文投影。原始值只保留在协议、URL、组件 key、服务端审计和用户主动展开的命令日志中。
+- 所有页面错误、消息提示和工具提示必须用中文表达发生原因与下一步；未知英文码使用安全中文兜底，不得把 `XX_XX` 原样回显给用户。
+- 项目登记卡片桌面端最多两列，名称、路径、说明、统计和操作均允许换行，窄屏降为单列，禁止 `nowrap` 造成文字和按钮互相挤压。
 - Designer 任务画像摘要及任务类型、主要制品覆盖选项必须使用 `displayLabels.ts` 的中文标签；REST、SQLite 与选择控件的 `value` 继续使用稳定英文枚举码。
 - 遵循 `docs/design-contract.md` 的 dark-first token、错误层级和桌面优先结构；优先复用 `styles/tokens.css`，不要引入页面私有的另一套视觉系统。
 - Markdown 必须经过 DOMPurify；Mermaid 错误必须抑制并清理渲染残留，不允许把原始不可信 HTML 插入 DOM。
@@ -407,7 +411,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.1.89.jar
+JAR=target/opencode-loopper-0.1.90.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -508,6 +512,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-08-19 | 全前端中文极简化与可读性优化，0.1.90 | 所有主要页面删除冗余说明，状态、角色、验证器、错误码和内部名称统一走中文显示；普通页面隐藏任务、设计、工作包、尝试、会话、证据等记录 ID；项目登记卡片扩大为双列可换行布局；同步 README、设计合同与本公约正文 | 前端类型检查、聚焦发布契约及 `./scripts/verify.sh` 使用 JDK 21.0.12 完整通过：Java 480 项（0 失败、0 错误、1 平台条件跳过），Vitest 181/181，BUILD SUCCESS；本地 JAR `target/opencode-loopper-0.1.90.jar` 大小 283204274 字节、含 108 个 SPA 静态条目，SHA-256 `8e545c7bd03c50947533e1f8a0fdecf08cd7bcf2837191ac3414a9644142b1be`；未重启当前 8080，不推送、不打标签、不创建 Release |
 | 2026-08-19 | 修复任务画像确认与全自动模式冲突及 IDEA 暴露的读模型异常，0.1.89（等待发版窗口） | 全自动把 Router 当前意图/主要制品持久化为 `AUTO_RECOMMENDED` 后继续，普通模式仍保留人工覆盖；危险操作证据不能自动确认；历史 `TASK_PROFILE_DECISION_REQUIRED` 阻断走一次专用 `RESUME`；不完整工作包角色快照不再解析空枚举并可在权威使用时修复；Task 概览从重叠重试计划中只选一条；同步 README、架构、设计合同与本公约正文 | 聚焦后端 4/4、Designer 前端 25/25、前端类型检查通过；`./scripts/verify.sh` 使用 JDK 21.0.12 完整通过：Java 480 项（0 失败、0 错误、1 平台条件跳过），Vitest 178/178，BUILD SUCCESS；本地 JAR `target/opencode-loopper-0.1.89.jar` 大小 283209400 字节、含 108 个 SPA 静态条目，SHA-256 `204b6c9eb1481c2669e862bf97722d7bd5c359dcaf6291dfa9a3d2c3208311c8`；未重启当前 8080，不推送、不打标签、不创建 Release |
 | 2026-08-19 | 调整版本百进位、本地提交与按需发版公约 | 版本的 `MINOR/PATCH` 限定为 `0–99`，明确 `0.1.99 → 0.2.0`；完成交付默认创建范围内本地提交，但只有用户明确要求发版后才统一推送提交与最新版本标签并核验 Release | 仅修改开发公约，执行契约文本检查与 `git diff --check`；不改变源码或交付内容，不重新打包 JAR；本地提交，不推送、不打标签、不创建 Release |
 | 2026-08-19 | Designer 任务画像中文显示，准备 0.1.88（等待发版窗口） | 画像摘要、流程/执行/测试策略及任务类型、主要制品覆盖选项统一通过 `displayLabels.ts` 显示中文，REST/SQLite 稳定英文枚举码不变；同步 README、设计合同与本公约正文 | `npm --prefix frontend run test -- src/views/DesignerView.spec.ts` 24/24、`npm --prefix frontend run typecheck`、`./mvnw -q -Dtest=ReleasePackagingContractTest test` 及 `./scripts/verify.sh` 通过（Java 476，跳过 1；Vitest 177/177）；生成 `target/opencode-loopper-0.1.88.jar`（283207892 bytes，静态入口/资产 107 项，SHA-256 `ad1fa5bb7491dc2a57b468f5e896d6f3ef30901b96b6aa21e291f9d4488e1566`）；按用户要求不提交、不推送、不打标签、不发布，也不替换当前 8080 实例 |

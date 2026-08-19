@@ -5,6 +5,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { api } from '@/api/client'
 import { useTaskStore } from '@/stores/taskStore'
 import type { DirtyWorkspaceAction, DirtyWorkspaceFile, DirtyWorkspaceState } from '@/types/domain'
+import { userFacingError } from '@/utils/displayLabels'
 
 const props = defineProps<{ taskId: string; modelValue: boolean }>()
 const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>()
@@ -42,7 +43,7 @@ async function loadWorkspace() {
     workspace.value = latest
     actions.value = Object.fromEntries(latest.files.map((file) => [file.path, actions.value[file.path]]))
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : '无法读取未提交文件列表'
+    error.value = userFacingError(cause, '无法读取未提交文件列表')
   } finally {
     loading.value = false
   }
@@ -89,7 +90,7 @@ async function recheckAndContinue() {
       error.value = '工作区仍有新的或未处理的改动，请重新选择后继续。'
     }
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : '处理失败；服务器未确认工作区已经干净'
+    error.value = userFacingError(cause, '处理失败，服务器未确认工作区已经干净')
     await loadWorkspace()
   } finally {
     applying.value = false
@@ -112,7 +113,7 @@ async function cancelAsFailure() {
     emit('update:modelValue', false)
     ElMessage.warning('任务已因取消工作区处理而失败')
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : '无法终止任务'
+    error.value = userFacingError(cause, '无法终止任务')
   } finally {
     cancelling.value = false
   }

@@ -169,51 +169,46 @@ function configureVerifier(verifier: LoopVerifierSpec) {
 
 <template>
   <section class="loop-spec-form" :aria-label="ariaLabel">
-    <div v-if="parseError" class="parse-alert" role="alert"><Icon icon="lucide:triangle-alert" />LoopSpec 数据无法展示：{{ parseError }}</div>
+    <div v-if="parseError" class="parse-alert" role="alert"><Icon icon="lucide:triangle-alert" />执行规范无法展示：{{ parseError }}</div>
     <template v-else-if="spec">
       <section class="form-section overview-section">
         <header class="section-heading">
           <span class="section-icon cyan"><Icon icon="lucide:file-text" /></span>
-          <div><p class="section-kicker">基本信息</p><h3>任务目标与执行上下文</h3><p>这些内容会原样交给执行 Agent。</p></div>
+          <div><p class="section-kicker">基本信息</p><h3>任务目标与执行上下文</h3></div>
         </header>
         <div class="readonly-grid">
           <div><span>规范版本</span><strong>{{ spec.schemaVersion }}</strong></div>
-          <div><span>项目 ID</span><strong class="mono">{{ spec.projectId }}</strong></div>
         </div>
         <label class="field-block">
           <span class="field-title">任务目标 <em>必填</em></span>
-          <span class="field-help">清楚描述最终需要交付的结果。</span>
           <el-input v-model="spec.goal" type="textarea" :autosize="textAutosize" resize="none" aria-label="任务目标" />
         </label>
         <label class="field-block">
           <span class="field-title">执行上下文</span>
-          <span class="field-help">补充仓库环境、技术约束、禁止事项与运行方式。</span>
           <el-input v-model="spec.context" type="textarea" :autosize="textAutosize" resize="none" aria-label="执行上下文" />
         </label>
       </section>
 
       <section class="stages-section">
         <div class="collection-heading">
-          <div><p class="section-kicker">执行阶段</p><h3>分阶段交付与验收</h3><p>修改路径是给 Agent 的可选建议，只有明确列出的验收器会决定阶段是否通过。</p></div>
+          <div><p class="section-kicker">执行阶段</p><h3>分阶段交付与验收</h3></div>
           <el-button plain size="small" @click="addStage"><Icon icon="lucide:plus" />添加阶段</el-button>
         </div>
 
         <article v-for="(stage, stageIndex) in spec.stages" :key="stageIndex" :class="['stage-card', { 'package-stage': stage.workPackageId }]">
           <header class="stage-header">
             <div class="stage-number">{{ stageIndex + 1 }}</div>
-            <div><span>{{ stage.workPackageId ? `${stage.workPackageId} · ` : '' }}阶段 {{ stageIndex + 1 }}</span><strong>{{ stage.objective || '尚未填写阶段目标' }}</strong></div>
+            <div><span>阶段 {{ stageIndex + 1 }}</span><strong>{{ stage.objective || '尚未填写阶段目标' }}</strong></div>
             <el-button text type="danger" :disabled="spec.stages.length <= 1" aria-label="删除阶段" @click="removeStage(stageIndex)"><Icon icon="lucide:trash-2" /></el-button>
           </header>
 
           <div class="stage-body">
             <label class="field-block">
               <span class="field-title">阶段目标 <em>必填</em></span>
-              <span class="field-help">描述本阶段结束时可观察、可验证的结果。</span>
               <el-input v-model="stage.objective" type="textarea" :autosize="textAutosize" resize="none" :aria-label="`阶段 ${stageIndex + 1} 目标`" />
             </label>
             <label v-if="spec.schemaVersion === 'v2'" class="field-block implementation-kind-field">
               <span class="field-title">实现类型 <em>必填</em></span>
-              <span class="field-help">生产 Java 变化会在运行期复核；JAVA_PRODUCTION 必须由同阶段聚焦 Maven/Gradle 单元测试覆盖业务验收项。</span>
               <el-select v-model="stage.implementationKind" placeholder="请选择实现类型" :aria-label="`阶段 ${stageIndex + 1} 实现类型`">
                 <el-option label="生产 Java（必须有聚焦单元测试）" value="JAVA_PRODUCTION" />
                 <el-option label="仅 Java 测试" value="JAVA_TEST_ONLY" />
@@ -253,7 +248,6 @@ function configureVerifier(verifier: LoopVerifierSpec) {
             <section v-if="spec.schemaVersion === 'v2'" class="list-field criteria-list">
               <header><div><span>行为验收条件</span><small>分别规划机器验证、AI Judge 评审，或两者共同验收</small></div><button type="button" aria-label="添加验收条件" @click="addCriterion(stageIndex)"><Icon icon="lucide:plus" /></button></header>
               <div v-for="(criterion, criterionIndex) in stage.acceptanceCriteria" :key="criterionIndex" class="criterion-row">
-                <el-input v-model="criterion.id" class="mono" placeholder="AC-1" :aria-label="`阶段 ${stageIndex + 1} 验收条件 ID ${criterionIndex + 1}`" />
                 <el-input v-model="criterion.description" type="textarea" :autosize="compactAutosize" resize="none" placeholder="描述用户可观察、可判定的行为结果" :aria-label="`阶段 ${stageIndex + 1} 验收条件 ${criterionIndex + 1}`" />
                 <el-select v-model="criterion.verificationMode" :aria-label="`阶段 ${stageIndex + 1} 验收方式 ${criterionIndex + 1}`">
                   <el-option label="机器验证" value="MACHINE" />
@@ -303,7 +297,7 @@ function configureVerifier(verifier: LoopVerifierSpec) {
                   <label v-if="verifier.type === 'PROCESS'" class="field-block compact-field full-width"><span class="field-title">输出必须包含（可选）</span><el-input v-model="verifier.outputContains" type="textarea" :autosize="compactAutosize" resize="none" placeholder="例如：BUILD SUCCESS" /></label>
                 </div>
 
-                <section v-if="spec.schemaVersion === 'v2'" class="list-field nested-list"><header><div><span>覆盖的验收条件</span><small>仅 BEHAVIOR 分类会形成有效覆盖</small></div><button type="button" aria-label="添加验收条件映射" @click="addVerifierListItem(verifier, 'criterionIds')"><Icon icon="lucide:plus" /></button></header><div v-for="(_, itemIndex) in verifierList(verifier, 'criterionIds')" :key="itemIndex" class="list-row"><el-select v-model="verifier.criterionIds![itemIndex]" style="width:100%"><el-option v-for="criterion in stage.acceptanceCriteria" :key="criterion.id" :label="`${criterion.id} · ${criterion.description}`" :value="criterion.id" /></el-select><button type="button" aria-label="删除验收条件映射" @click="removeVerifierListItem(verifier, 'criterionIds', itemIndex)"><Icon icon="lucide:x" /></button></div></section>
+                <section v-if="spec.schemaVersion === 'v2'" class="list-field nested-list"><header><div><span>覆盖的验收条件</span></div><button type="button" aria-label="添加验收条件映射" @click="addVerifierListItem(verifier, 'criterionIds')"><Icon icon="lucide:plus" /></button></header><div v-for="(_, itemIndex) in verifierList(verifier, 'criterionIds')" :key="itemIndex" class="list-row"><el-select v-model="verifier.criterionIds![itemIndex]" style="width:100%"><el-option v-for="criterion in stage.acceptanceCriteria" :key="criterion.id" :label="criterion.description" :value="criterion.id" /></el-select><button type="button" aria-label="删除验收条件映射" @click="removeVerifierListItem(verifier, 'criterionIds', itemIndex)"><Icon icon="lucide:x" /></button></div></section>
 
                 <section v-if="verifier.type === 'PROCESS'" class="list-field nested-list">
                   <header><div><span>命令参数</span><small>每个参数独立一项，不经过 Shell 拼接</small></div><button type="button" aria-label="添加命令参数" @click="addVerifierListItem(verifier, 'command')"><Icon icon="lucide:plus" /></button></header>
@@ -338,10 +332,10 @@ function configureVerifier(verifier: LoopVerifierSpec) {
           <label><span>单次尝试超时</span><el-input v-model="spec.limits.attemptTimeout" class="mono" placeholder="PT30M" /><small>支持 ISO-8601（PT30M）或秒数（1800）</small></label>
         </div>
         <div class="retry-policy-grid">
-          <label class="switch-field"><span>验证失败后自动新建 Session</span><el-switch v-model="createFreshOnVerifierFailure" aria-label="验证失败后自动新建 Session" /></label>
+          <label class="switch-field"><span>验证失败后自动新建会话</span><el-switch v-model="createFreshOnVerifierFailure" aria-label="验证失败后自动新建会话" /></label>
           <label class="field-block">
             <span class="field-title">下一轮提示模板</span>
-            <span class="field-help">支持服务端限定的 Attempt、失败摘要、验证结果、变更路径和工作区指纹占位符。</span>
+            <span class="field-help">支持服务端限定的尝试、失败摘要、验证结果、变更路径和工作区指纹占位符。</span>
             <el-input v-model="spec.nextAttemptPromptTemplate" type="textarea" :autosize="textAutosize" resize="none" aria-label="下一轮提示模板" />
           </label>
         </div>
@@ -397,7 +391,7 @@ function configureVerifier(verifier: LoopVerifierSpec) {
 .list-row :deep(.el-textarea__inner) { min-height: 32px !important; padding: 7px 8px; font-size: 10px; line-height: 1.45; }
 .deliverables-list { margin-top: 10px; }
 .criteria-list, .runtime-block { margin-top: 10px; }
-.criterion-row { display: grid; grid-template-columns: 100px minmax(0, 1fr) 145px 25px; align-items: start; gap: 6px; margin-top: 8px; padding: 8px; border: 1px solid rgb(71 85 105 / 34%); border-radius: 8px; }
+.criterion-row { display: grid; grid-template-columns: minmax(0, 1fr) 145px 25px; align-items: start; gap: 6px; margin-top: 8px; padding: 8px; border: 1px solid rgb(71 85 105 / 34%); border-radius: 8px; }
 .criterion-detail { grid-column: 1 / 4; margin-top: 2px; }
 .runtime-block { padding: 11px; border: 1px solid rgb(34 211 238 / 22%); border-radius: 10px; background: rgb(8 47 73 / 14%); }
 .runtime-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }

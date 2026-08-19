@@ -38,9 +38,9 @@ describe('Settings model selection', () => {
 
     const limits = wrapper.get('.limits-grid')
     expect(limits.findAll('.el-form-item')).toHaveLength(7)
-    expect(limits.text()).toContain('Attempt 超时（分钟）')
+    expect(limits.text()).toContain('尝试超时（分钟）')
     expect(limits.text()).toContain('验证超时（分钟）')
-    expect(limits.text()).toContain('Designer 超时（分钟）')
+    expect(limits.text()).toContain('设计超时（分钟）')
   })
 
   it('loads CLI models into dropdowns and persists the selected model', async () => {

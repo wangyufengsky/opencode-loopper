@@ -4,6 +4,7 @@ import { Icon } from '@iconify/vue'
 import PageHeader from '@/components/PageHeader.vue'
 import { api } from '@/api/client'
 import type { TaskInsight, UsageAggregate } from '@/types/domain'
+import { statusLabel, userFacingError } from '@/utils/displayLabels'
 
 const tasks = ref<TaskInsight[]>([]); const globalUsage = ref<UsageAggregate>(); const loading = ref(true); const error = ref('')
 const nextCursor = ref<string>()
@@ -21,23 +22,23 @@ async function load(append = false) {
     const payload = await api.getInsightsPage(append ? nextCursor.value : undefined)
     tasks.value = append ? [...tasks.value, ...payload.tasks] : payload.tasks
     globalUsage.value = payload.usage; nextCursor.value = payload.nextCursor
-  } catch (cause) { error.value = cause instanceof Error ? cause.message : '无法读取服务端洞察' }
+  } catch (cause) { error.value = userFacingError(cause, '无法读取服务端洞察') }
   finally { loading.value = false }
 }
 onMounted(load)
 </script>
 
 <template>
-  <PageHeader eyebrow="Insights / Evidence" title="用量与质量洞察">
+  <PageHeader eyebrow="任务分析" title="用量与质量">
     <template #actions><el-button :loading="loading" @click="load()"><Icon icon="lucide:refresh-cw" />刷新</el-button></template>
   </PageHeader>
   <main id="main-content" class="content" tabindex="-1">
-    <section v-if="error" class="error-panel error-panel-task" role="status"><Icon class="error-panel-icon" icon="lucide:triangle-alert" /><div><h3>洞察未更新</h3><p>{{ error }}；页面不会用 0 替代未知 provider 数据。</p></div></section>
-    <section v-else-if="loading" class="card empty-state"><div><Icon icon="lucide:loader-circle" class="spin" /><strong>正在读取持久化证据</strong><p>用量、验收与评审结果均以服务端数据为准。</p></div></section>
+    <section v-if="error" class="error-panel error-panel-task" role="status"><Icon class="error-panel-icon" icon="lucide:triangle-alert" /><div><h3>数据未更新</h3><p>{{ userFacingError(error, '无法读取用量与质量数据') }}</p></div></section>
+    <section v-else-if="loading" class="card empty-state"><div><Icon icon="lucide:loader-circle" class="spin" /><strong>正在读取数据…</strong></div></section>
     <template v-else>
-      <section class="insight-metrics" aria-label="全局用量"><article class="card"><span>可靠总 Tokens</span><strong>{{ tokens(globalUsage?.totalTokens ?? null) }}</strong><small>{{ globalUsage?.unknownUsageCount ?? 0 }} 条未知记录</small></article><article class="card"><span>有已知用量的任务</span><strong>{{ knownTasks }}</strong><small>不将缺失数据估为零</small></article><article class="card"><span>成本（按币种）</span><strong class="costs">{{ Object.entries(globalUsage?.costByCurrency ?? {}).map(([currency, amount]) => `${currency} ${amount}`).join(' · ') || '未知' }}</strong><small>不同币种绝不相加</small></article></section>
-      <section v-if="!tasks.length" class="card empty-state"><div><Icon icon="lucide:chart-no-axes-combined" /><strong>尚无可汇总的任务证据</strong><p>完成一次 Session、确定性验收或双评审后，这里会显示服务端聚合。</p></div></section>
-      <section v-else class="insight-list" aria-label="任务洞察"><article v-for="task in tasks" :key="task.taskId" class="card insight-row"><header><div><p class="eyebrow">{{ task.state }}</p><h2>{{ task.title }}</h2></div><RouterLink :to="`/tasks/${task.taskId}#judge-review`" class="quality-link" :aria-label="`${qualityMeta[task.quality.state].label}，查看任务评审`"><span :class="['quality', `quality-${task.quality.state.toLowerCase()}`]" :title="task.quality.state"><span class="quality-icon" aria-hidden="true"><Icon :icon="qualityMeta[task.quality.state].icon" /></span><span>{{ qualityMeta[task.quality.state].label }}</span></span></RouterLink></header><dl><div><dt>Token</dt><dd>{{ tokens(task.usage.totalTokens) }}<small v-if="task.usage.unknownUsageCount"> + {{ task.usage.unknownUsageCount }} 未知</small></dd></div><div><dt>耗时</dt><dd>{{ duration(task.durationMs) }}</dd></div><div><dt>重试</dt><dd>{{ task.retryCount }}</dd></div><div><dt>质量</dt><dd>{{ task.quality.deterministicPassed ? '验收通过' : '验收待定' }} · {{ task.quality.requirementJudgePassed && task.quality.riskJudgePassed ? '双评审通过' : '评审待定' }}</dd></div></dl></article></section>
+      <section class="insight-metrics" aria-label="全局用量"><article class="card"><span>总用量</span><strong>{{ tokens(globalUsage?.totalTokens ?? null) }}</strong><small>{{ globalUsage?.unknownUsageCount ?? 0 }} 条未知记录</small></article><article class="card"><span>有用量数据的任务</span><strong>{{ knownTasks }}</strong></article><article class="card"><span>成本（按币种）</span><strong class="costs">{{ Object.entries(globalUsage?.costByCurrency ?? {}).map(([currency, amount]) => `${currency} ${amount}`).join(' · ') || '未知' }}</strong></article></section>
+      <section v-if="!tasks.length" class="card empty-state"><div><Icon icon="lucide:chart-no-axes-combined" /><strong>暂无可汇总数据</strong></div></section>
+      <section v-else class="insight-list" aria-label="任务洞察"><article v-for="task in tasks" :key="task.taskId" class="card insight-row"><header><div><p class="eyebrow">{{ statusLabel(task.state) }}</p><h2>{{ task.title }}</h2></div><RouterLink :to="`/tasks/${task.taskId}#judge-review`" class="quality-link" :aria-label="`${qualityMeta[task.quality.state].label}，查看任务评审`"><span :class="['quality', `quality-${task.quality.state.toLowerCase()}`]" :title="qualityMeta[task.quality.state].label"><span class="quality-icon" aria-hidden="true"><Icon :icon="qualityMeta[task.quality.state].icon" /></span><span>{{ qualityMeta[task.quality.state].label }}</span></span></RouterLink></header><dl><div><dt>用量</dt><dd>{{ tokens(task.usage.totalTokens) }}<small v-if="task.usage.unknownUsageCount"> + {{ task.usage.unknownUsageCount }} 未知</small></dd></div><div><dt>耗时</dt><dd>{{ duration(task.durationMs) }}</dd></div><div><dt>重试</dt><dd>{{ task.retryCount }}</dd></div><div><dt>质量</dt><dd>{{ task.quality.deterministicPassed ? '验收通过' : '验收待定' }} · {{ task.quality.requirementJudgePassed && task.quality.riskJudgePassed ? '双评审通过' : '评审待定' }}</dd></div></dl></article></section>
       <div v-if="nextCursor" class="load-more"><el-button plain :loading="loading" @click="load(true)">加载更多</el-button></div>
     </template>
   </main>

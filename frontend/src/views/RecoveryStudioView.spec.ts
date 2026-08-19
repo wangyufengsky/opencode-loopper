@@ -36,16 +36,17 @@ describe('RecoveryStudioView', () => {
     }))
     const wrapper = await mountView(fetchMock)
 
-    expect(wrapper.text()).toContain('VERIFICATION_FAILED')
+    expect(wrapper.text()).toContain('验收未通过')
+    expect(wrapper.text()).not.toContain('VERIFICATION_FAILED')
     expect(wrapper.text()).toContain('阶段 2 · 写入导入器')
-    await wrapper.findAll('button').find((button) => button.text().includes('创建派生'))!.trigger('click')
+    await wrapper.findAll('button').find((button) => button.text().includes('创建恢复草稿'))!.trigger('click')
     await flushPromises()
 
     expect(fetchMock.mock.calls[2]?.[0]).toBe('/api/tasks/parent-1/recoveries')
     expect(JSON.parse(fetchMock.mock.calls[2]?.[1].body)).toEqual({ mode: 'FROM_FAILED_STAGE' })
     expect(fetchMock.mock.calls[2]?.[1].headers['X-Loopper-Local-UI']).toBe('1')
-    expect(wrapper.text()).toContain('派生草稿已创建')
-    expect(wrapper.text()).toContain('child-1')
+    expect(wrapper.text()).toContain('恢复草稿已创建')
+    expect(wrapper.text()).not.toContain('child-1')
   })
 
   it('renders a 409 direct workspace conflict without claiming a draft was created', async () => {
@@ -53,10 +54,11 @@ describe('RecoveryStudioView', () => {
       .mockResolvedValueOnce(response({ detail: '工作区指纹已经变化', errorCode: 'RECOVERY_WORKSPACE_FINGERPRINT_MISMATCH' }, 409))
     const wrapper = await mountView(fetchMock)
 
-    await wrapper.findAll('button').find((button) => button.text().includes('创建派生'))!.trigger('click')
+    await wrapper.findAll('button').find((button) => button.text().includes('创建恢复草稿'))!.trigger('click')
     await flushPromises()
-    expect(wrapper.text()).toContain('恢复被安全阻止（409）')
-    expect(wrapper.text()).toContain('RECOVERY_WORKSPACE_FINGERPRINT_MISMATCH')
-    expect(wrapper.text()).not.toContain('派生草稿已创建')
+    expect(wrapper.text()).toContain('恢复未创建')
+    expect(wrapper.text()).toContain('工作区指纹已经变化')
+    expect(wrapper.text()).not.toContain('RECOVERY_WORKSPACE_FINGERPRINT_MISMATCH')
+    expect(wrapper.text()).not.toContain('恢复草稿已创建')
   })
 })

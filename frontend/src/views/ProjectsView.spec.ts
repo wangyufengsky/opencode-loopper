@@ -102,7 +102,7 @@ describe('Projects AGENTS.md convention flow', () => {
     await flushPromises()
 
     expect(api.getCurrentProjectConvention).toHaveBeenCalledWith('project-1')
-    expect(wrapper.text()).toContain('暂时没有')
+    expect(wrapper.text()).toContain('暂无项目公约')
     expect(api.generateProjectConvention).not.toHaveBeenCalled()
     const generate = wrapper.findAll('button').find((button) => button.text().includes('新增 Loopper 公约'))
     expect(generate).toBeDefined()
@@ -111,7 +111,8 @@ describe('Projects AGENTS.md convention flow', () => {
 
     expect(api.generateProjectConvention).toHaveBeenCalledWith('project-1')
     expect((wrapper.get('textarea[aria-label="AGENTS.md 完整预览"]').element as HTMLTextAreaElement).value).toContain('# Project rules')
-    expect(wrapper.text()).toContain('AI 输出已自动规范化：WRAPPER_TOLERATED')
+    expect(wrapper.text()).toContain('AI 输出已自动规范化：已兼容常见外层格式')
+    expect(wrapper.text()).not.toContain('WRAPPER_TOLERATED')
     const confirm = wrapper.findAll('button').find((button) => button.text().includes('确认写入 AGENTS.md'))
     expect(confirm).toBeDefined()
     expect(apply).not.toHaveBeenCalled()

@@ -8,6 +8,7 @@ import MetricCard from '@/components/MetricCard.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import { useTaskStore } from '@/stores/taskStore'
 import { formatCompactDateTime } from '@/utils/dateTime'
+import { userFacingError } from '@/utils/displayLabels'
 import type { Task, TaskStatus } from '@/types/domain'
 
 type StatusFilter = 'ALL' | 'ACTIVE' | 'TERMINATED' | TaskStatus
@@ -180,7 +181,7 @@ async function toggleArchive(task: Task) {
     if (!store.usingDemo) await reloadTasks()
     ElMessage.success(task.archived ? '任务已恢复到活动列表' : '任务已归档，可随时恢复')
   } catch (cause) {
-    ElMessage.error(cause instanceof Error ? cause.message : '任务归档状态更新失败')
+    ElMessage.error(userFacingError(cause, '任务归档状态更新失败'))
   } finally {
     archivingTaskId.value = ''
   }
@@ -200,7 +201,7 @@ async function confirmDelete(task: Task) {
     ElMessage.success('历史任务已永久删除')
   } catch (cause) {
     if (cause !== 'cancel' && cause !== 'close') {
-      ElMessage.error(cause instanceof Error ? cause.message : '历史任务删除失败')
+      ElMessage.error(userFacingError(cause, '历史任务删除失败'))
     }
   } finally {
     deletingTaskId.value = ''
@@ -209,7 +210,7 @@ async function confirmDelete(task: Task) {
 </script>
 
 <template>
-  <PageHeader eyebrow="Control Plane / Tasks" title="任务控制台">
+  <PageHeader eyebrow="任务" title="任务控制台">
     <template #actions>
       <el-button plain @click="refreshAll"><Icon icon="lucide:refresh-cw" aria-hidden="true" />刷新状态</el-button>
       <el-button v-if="noRegisteredProject" type="primary" @click="router.push('/projects')"><Icon icon="lucide:folder-plus" aria-hidden="true" />登记项目</el-button>
@@ -217,20 +218,20 @@ async function confirmDelete(task: Task) {
     </template>
   </PageHeader>
   <main id="main-content" class="content" tabindex="-1">
-    <section v-if="store.error && !store.usingDemo" class="error-panel error-panel-verification" role="status" aria-live="polite" style="margin-bottom: 16px"><Icon class="error-panel-icon" icon="lucide:server-off" aria-hidden="true" /><div><h3>无法读取本地控制面</h3><p>{{ store.error }}。真实状态不会被演示数据覆盖。</p><el-button size="small" plain type="primary" style="margin-top: 9px" @click="store.activateDemo()">载入交互演示</el-button></div></section>
+    <section v-if="store.error && !store.usingDemo" class="error-panel error-panel-verification" role="status" aria-live="polite" style="margin-bottom: 16px"><Icon class="error-panel-icon" icon="lucide:server-off" aria-hidden="true" /><div><h3>任务加载失败</h3><p>{{ userFacingError(store.error) }}</p><el-button size="small" plain type="primary" style="margin-top: 9px" @click="store.activateDemo()">载入演示</el-button></div></section>
 
     <section v-if="!store.loading && noRegisteredProject" class="card onboarding-card" aria-labelledby="task-onboarding-title">
       <span class="onboarding-icon"><Icon icon="lucide:folder-kanban" aria-hidden="true" /></span>
-      <div><p class="eyebrow">FIRST STEP</p><h2 id="task-onboarding-title">先登记一个项目</h2><p>Loopper 需要项目目录才能让 Designer 读取上下文并生成可执行的 LoopSpec。登记不会立即修改项目文件。</p></div>
+      <div><p class="eyebrow">开始使用</p><h2 id="task-onboarding-title">先登记一个项目</h2></div>
       <el-button type="primary" size="large" @click="router.push('/projects')">登记本机项目<Icon icon="lucide:arrow-right" aria-hidden="true" /></el-button>
     </section>
 
     <template v-if="!noRegisteredProject || store.tasks.length">
       <section class="metric-grid" aria-label="任务概览与快速筛选">
-        <MetricCard label="处理中" :value="activeCount" detail="运行、验证、重试与评审" icon="lucide:orbit" accent="var(--color-accent-cyan)" interactive :active="filter === 'ACTIVE'" @select="selectMetric('ACTIVE')" />
-        <MetricCard label="已成功" :value="finished" detail="验证与双评审均通过" icon="lucide:badge-check" accent="var(--color-success)" interactive :active="filter === 'SUCCEEDED'" @select="selectMetric('SUCCEEDED')" />
-        <MetricCard label="需要输入" :value="waitingInput" detail="等待你的决定后继续" icon="lucide:message-square-warning" accent="var(--color-accent-ai)" interactive :active="filter === 'WAITING_INPUT'" @select="selectMetric('WAITING_INPUT')" />
-        <MetricCard label="已终止" :value="terminated" detail="失败或取消，证据仍保留" icon="lucide:shield-x" accent="var(--color-task-danger)" interactive :active="filter === 'TERMINATED'" @select="selectMetric('TERMINATED')" />
+        <MetricCard label="处理中" :value="activeCount" icon="lucide:orbit" accent="var(--color-accent-cyan)" interactive :active="filter === 'ACTIVE'" @select="selectMetric('ACTIVE')" />
+        <MetricCard label="已成功" :value="finished" icon="lucide:badge-check" accent="var(--color-success)" interactive :active="filter === 'SUCCEEDED'" @select="selectMetric('SUCCEEDED')" />
+        <MetricCard label="需要输入" :value="waitingInput" icon="lucide:message-square-warning" accent="var(--color-accent-ai)" interactive :active="filter === 'WAITING_INPUT'" @select="selectMetric('WAITING_INPUT')" />
+        <MetricCard label="已终止" :value="terminated" icon="lucide:shield-x" accent="var(--color-task-danger)" interactive :active="filter === 'TERMINATED'" @select="selectMetric('TERMINATED')" />
       </section>
 
       <section class="toolbar task-toolbar" aria-label="任务筛选">
@@ -267,7 +268,7 @@ async function confirmDelete(task: Task) {
         </section>
       </div>
       <div v-if="store.taskNextCursor" class="load-more-row"><el-button plain :loading="store.loading" @click="reloadTasks(true)">加载更多</el-button></div>
-      <section v-if="!store.loading && !visibleTasks.length" class="card empty-state"><div><Icon icon="lucide:search-x" width="30" aria-hidden="true" /><strong>{{ store.tasks.length ? '没有匹配的任务' : '还没有任务' }}</strong><p>{{ store.tasks.length ? '调整搜索或筛选条件，归档任务可从“已归档”中恢复。' : '项目已就绪，可以让 Designer 生成第一份 LoopSpec。' }}</p><el-button v-if="store.tasks.length" plain @click="resetFilters">清除筛选</el-button><el-button v-else type="primary" @click="router.push('/designer')">开始设计</el-button></div></section>
+      <section v-if="!store.loading && !visibleTasks.length" class="card empty-state"><div><Icon icon="lucide:search-x" width="30" aria-hidden="true" /><strong>{{ store.tasks.length ? '没有匹配的任务' : '还没有任务' }}</strong><el-button v-if="store.tasks.length" plain @click="resetFilters">清除筛选</el-button><el-button v-else type="primary" @click="router.push('/designer')">开始设计</el-button></div></section>
     </template>
   </main>
 </template>

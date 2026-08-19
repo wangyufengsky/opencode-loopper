@@ -66,6 +66,15 @@ resource errors remain observable as HTTP 404 responses.
    fresh Session will continue the Loop.
 4. Task failures stop scheduling and use the red terminal treatment.
 
+## 前端文案与可读性
+
+- 页面采用中文优先的极简文案。标题、状态标签或操作本身已经能表达含义时，不再追加重复的说明段落；“全自动”等明确模式只展示一个状态标签，只有阻断或需要用户选择时才补充原因和动作。
+- REST、SQLite、路由参数和选择控件 `value` 保留稳定英文枚举码，普通页面不得直接展示 `QUESTIONING_PACKAGE`、`MANUAL_OVERRIDE`、`ATTEMPT_LIMIT_EXHAUSTED` 等内部值。所有状态、角色、流程、验证器和错误码统一通过 `frontend/src/utils/displayLabels.ts` 转为中文；未知值使用安全的中文兜底，不把原始协议码回显给用户。
+- 错误提示使用中文说明“发生了什么”和可执行的下一步。错误详情、消息提示、卡片、表格和工具提示遵守同一规则；原始命令输出只允许出现在用户主动展开的审计日志中。
+- 普通页面不展示 Task、Designer Session、Session、Attempt、Draft、Work Package、Criterion 等内部记录 ID，也不展示外部 Session ID。列表和时间线使用名称、顺序、时间和中文状态区分记录；ID 仅可存在于 URL、请求参数、组件 key 和服务端审计数据中。
+- 项目登记卡片在桌面宽度最多两列，路径、描述、统计和操作必须允许换行；不得用 `nowrap` 把长项目名、路径或按钮挤在同一行。窄屏按单列自然排布。
+- 产品名和不可翻译的技术名（OpenCode、Git、GitLab、Java、HTTP、JSON 等）可以保留；流程角色和产品概念使用“任务拆解器”“设计器”“规范编译器”“会话”“尝试”等中文名称。
+
 A Task in `WAITING_INPUT` must keep its context-specific recovery action when one
 is available and also expose a destructive, confirmed cancel action. Cancellation
 retains the execution directory, branch, and evidence instead of implying rollback.

@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import type { LoopSpec, LoopVerifierSpec } from '@/types/domain'
+import { displayLabel } from '@/utils/displayLabels'
 
 const props = defineProps<{ source: string }>()
 
@@ -19,7 +20,7 @@ const stages = computed<AcceptanceStage[]>(() => {
     return parsed.stages.map((stage, index) => {
       const verifiers = Array.isArray(stage.verifiers) ? stage.verifiers : []
       return {
-        objective: stage.objective?.trim() || `Stage ${index + 1}`,
+        objective: stage.objective?.trim() || `阶段 ${index + 1}`,
         verifiers,
         criteria: Array.isArray(stage.acceptanceCriteria) ? stage.acceptanceCriteria : [],
         weak: !verifiers.some((verifier) => String(verifier.type).toUpperCase() !== 'GIT_DIFF'),
@@ -37,7 +38,7 @@ function label(verifier: LoopVerifierSpec) {
   if (type === 'FILE_EXISTS') return `仅记录：${verifier.path || '缺少路径'}`
   if (type === 'FILE_NOT_EXISTS') return `文件不存在：${verifier.path || '缺少路径'}`
   if (type === 'GIT_DIFF') return 'Git 改动范围与删除策略'
-  return type || '未知 verifier'
+  return displayLabel(type || 'UNKNOWN')
 }
 
 function typeLabel(verifier: LoopVerifierSpec) {
@@ -46,7 +47,7 @@ function typeLabel(verifier: LoopVerifierSpec) {
   if (type === 'FILE_EXISTS') return '兼容检查（不阻断）'
   if (type === 'FILE_NOT_EXISTS') return '文件不存在'
   if (type === 'GIT_DIFF') return 'Git 差异检查'
-  return type || '未知验收器'
+  return displayLabel(type || 'UNKNOWN')
 }
 
 function modeLabel(mode?: string) {
@@ -60,7 +61,7 @@ function modeLabel(mode?: string) {
   <section class="acceptance-panel" aria-labelledby="execution-acceptance-title">
     <header>
       <span class="acceptance-icon"><Icon icon="lucide:badge-check" /></span>
-      <div><strong id="execution-acceptance-title">双重验收计划</strong><p>机器验收会实际运行并阻断阶段；AI Judge 在所有阶段通过后独立评审，计划不等于已通过。</p></div>
+      <div><strong id="execution-acceptance-title">验收计划</strong></div>
     </header>
     <div v-if="stages.length" class="acceptance-stages">
       <article v-for="(stage, index) in stages" :key="`${index}-${stage.objective}`" :class="['acceptance-stage', { weak: stage.weak }]">
@@ -72,19 +73,19 @@ function modeLabel(mode?: string) {
           </span>
         </div>
         <template v-if="stage.criteria.some(criterion => criterion.verificationMode === 'JUDGE' || criterion.verificationMode === 'BOTH')">
-          <div class="acceptance-subtitle judge-title">最终 AI Judge 评审计划</div>
+          <div class="acceptance-subtitle judge-title">最终 AI 评审</div>
           <div class="judge-list">
             <div v-for="criterion in stage.criteria.filter(item => item.verificationMode === 'JUDGE' || item.verificationMode === 'BOTH')" :key="criterion.id" class="judge-item">
-              <span><code>{{ criterion.id }}</code><b>{{ modeLabel(criterion.verificationMode) }}</b></span>
+              <span><b>{{ modeLabel(criterion.verificationMode) }}</b></span>
               <p>{{ criterion.judgeRubric || '尚未填写 AI 评审准则' }}</p>
               <small v-if="criterion.verificationMode === 'JUDGE'">仅 AI 原因：{{ criterion.judgeOnlyReason || '尚未填写' }}</small>
             </div>
           </div>
         </template>
-        <p v-if="stage.weak" class="weak-warning"><Icon icon="lucide:triangle-alert" />只有 Git 差异检查，无法证明 Designer 描述的功能验收；保存或确认会被拒绝。</p>
+        <p v-if="stage.weak" class="weak-warning"><Icon icon="lucide:triangle-alert" />缺少功能验收，暂时无法确认。</p>
       </article>
     </div>
-    <p v-else class="acceptance-empty">LoopSpec 数据有误或尚未定义执行阶段。</p>
+    <p v-else class="acceptance-empty">执行规范有误或尚未定义阶段。</p>
   </section>
 </template>
 

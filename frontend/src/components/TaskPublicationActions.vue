@@ -6,6 +6,7 @@ import { api } from '@/api/client'
 import { changedLineNumbers, countChangedGroups, languageForPath, parseMergeConflicts, resolveMergeConflict, type MergeSide } from '@/utils/mergeView'
 import CodeMergeEditor from './CodeMergeEditor.vue'
 import type { LocalSyncConflictContent, LocalSyncConflictFile, LocalSyncConflictSession, LocalSyncResolution, Task, TaskPublicationStatus } from '@/types/domain'
+import { userFacingError } from '@/utils/displayLabels'
 
 const props = withDefaults(defineProps<{ task: Task; demo?: boolean }>(), { demo: false })
 const emit = defineEmits<{ deliveryState: [state: TaskPublicationStatus['deliveryState']] }>()
@@ -112,7 +113,7 @@ async function loadPublication() {
     publication.value = await api.getTaskPublication(props.task.id)
     await reconcilePublication(false)
   } catch (cause) {
-    publication.value = { state: 'UNAVAILABLE', available: false, reason: cause instanceof Error ? cause.message : '无法读取任务发布状态', targetBranches: [], provider: 'UNKNOWN', hasChanges: false, conflictCount: 0, resolvedCount: 0, deliveryState: 'NOT_STARTED', deliveryFinal: false, reconciliationAvailable: false }
+    publication.value = { state: 'UNAVAILABLE', available: false, reason: userFacingError(cause, '无法读取任务发布状态'), targetBranches: [], provider: 'UNKNOWN', hasChanges: false, conflictCount: 0, resolvedCount: 0, deliveryState: 'NOT_STARTED', deliveryFinal: false, reconciliationAvailable: false }
   } finally {
     loading.value = false
   }
@@ -138,7 +139,7 @@ async function reconcilePublication(manual: boolean) {
     publication.value = await api.reconcileTaskPublication(props.task.id)
     if (manual) ElMessage.success(publication.value.deliveryState === 'MERGED' ? '已确认合并完成' : '合并状态已更新')
   } catch (cause) {
-    if (manual) ElMessage.error(cause instanceof Error ? cause.message : '无法检查合并状态')
+    if (manual) ElMessage.error(userFacingError(cause, '无法检查合并状态'))
   } finally {
     operationLoading.value = false
   }
@@ -170,7 +171,7 @@ async function openCommitDialog() {
     }
   } catch (cause) {
     commitSubject.value = props.task.title.replace(/^#[0-9]{4}_/, '').slice(0, 80)
-    commitError.value = cause instanceof Error ? `${cause.message}；已回填任务标题，可手工修改。` : 'AI 提交信息生成失败，可手工填写。'
+    commitError.value = `${userFacingError(cause, 'AI 提交信息生成失败')}，可手工填写。`
   } finally {
     suggestionLoading.value = false
   }
@@ -206,7 +207,7 @@ async function submitCommit() {
       ElMessage.success(localPublication.value ? '任务变更已提交到本地任务分支' : '任务变更已提交并推送')
     }
   } catch (cause) {
-    commitError.value = cause instanceof Error ? cause.message : '提交或推送失败'
+    commitError.value = userFacingError(cause, '提交或推送失败')
     await loadPublication()
   } finally {
     operationLoading.value = false
@@ -230,7 +231,7 @@ async function retryPublication() {
     if (publication.value.state === 'LOCAL_SYNC_CONFLICT') await openConflictCenter()
     else ElMessage.success(local ? '任务变更已同步到源项目' : '任务分支已推送')
   } catch (cause) {
-    ElMessage.error(cause instanceof Error ? cause.message : local ? '同步失败' : '推送失败')
+    ElMessage.error(userFacingError(cause, local ? '同步失败' : '推送失败'))
     await loadPublication()
   } finally {
     operationLoading.value = false
@@ -260,7 +261,7 @@ async function openConflictCenter() {
       : await api.createLocalSyncConflictSession(props.task.id)
     await loadConflictFiles()
   } catch (cause) {
-    conflictError.value = cause instanceof Error ? cause.message : '无法载入同步冲突会话'
+    conflictError.value = userFacingError(cause, '无法载入同步冲突会话')
   } finally {
     conflictLoading.value = false
   }
@@ -335,7 +336,7 @@ async function saveResolution(resolution: Exclude<LocalSyncResolution, 'AUTO'>) 
     await loadConflictFiles(content.path)
     ElMessage.success(resolution === 'MANUAL' ? '手工合并方案已保存' : '解决方式已保存')
   } catch (cause) {
-    conflictError.value = cause instanceof Error ? cause.message : '保存解决方案失败'
+    conflictError.value = userFacingError(cause, '保存解决方案失败')
   } finally {
     conflictSaving.value = false
   }
@@ -360,7 +361,7 @@ async function requestAiSuggestion() {
     const file = conflictFiles.value.find((candidate) => candidate.path === content.path)
     if (file) { file.hasAiSuggestion = true; file.version = suggestion.version }
   } catch (cause) {
-    conflictError.value = cause instanceof Error ? cause.message : 'AI 建议生成失败'
+    conflictError.value = userFacingError(cause, 'AI 建议生成失败')
   } finally {
     aiLoading.value = false
   }
@@ -381,7 +382,7 @@ async function refreshConflictSession() {
       conflictCount: conflictSession.value.conflictCount, resolvedCount: conflictSession.value.resolvedCount }
     await loadConflictFiles()
   } catch (cause) {
-    conflictError.value = cause instanceof Error ? cause.message : '刷新冲突会话失败'
+    conflictError.value = userFacingError(cause, '刷新冲突会话失败')
   } finally {
     conflictLoading.value = false
   }
@@ -392,7 +393,7 @@ async function applyConflictSession() {
   if (!session || session.resolvedCount !== session.conflictCount) return
   try {
     await ElMessageBox.confirm(
-      `将把 ${session.conflictCount} 个任务差异文件写入源项目（HEAD ${session.sourceHead.slice(0, 10)}），按原 LoopSpec 顺序验证；任何写入或验证失败都会自动恢复全部任务路径。`,
+      `将把 ${session.conflictCount} 个已解决文件同步到源项目并执行原验收计划；失败时自动恢复。`,
       '确认合并并同步？',
       { type: 'warning', confirmButtonText: '确认合并并同步', cancelButtonText: '继续检查' },
     )
@@ -406,10 +407,10 @@ async function applyConflictSession() {
       await loadPublication()
       ElMessage.success('冲突方案已验证并同步到源项目')
     } else {
-      conflictError.value = conflictSession.value.errorMessage ?? '同步未完成'
+      conflictError.value = userFacingError(conflictSession.value.errorMessage, '同步未完成')
     }
   } catch (cause) {
-    conflictError.value = cause instanceof Error ? cause.message : '应用冲突方案失败'
+    conflictError.value = userFacingError(cause, '应用冲突方案失败')
     await reloadConflictSession().catch(() => undefined)
   } finally {
     conflictSaving.value = false
@@ -435,7 +436,7 @@ async function createMergeRequest() {
     if (publication.value) publication.value = { ...publication.value, creationRequestedAt: new Date().toISOString() }
     ElMessage.success(`已打开 ${draft.provider === 'GITHUB' ? 'Pull Request' : 'Merge Request'} 创建页`)
   } catch (cause) {
-    mergeError.value = cause instanceof Error ? cause.message : '无法创建合并请求入口'
+    mergeError.value = userFacingError(cause, '无法创建合并请求入口')
   } finally {
     operationLoading.value = false
   }
@@ -464,7 +465,7 @@ async function createMergeRequest() {
       <el-button type="primary" plain @click="openMergeDialog"><Icon icon="lucide:git-pull-request-create" />重新打开创建页</el-button>
     </template>
     <el-button v-else-if="publication.state === 'MERGED'" type="success" disabled><Icon icon="lucide:badge-check" />已合并</el-button>
-    <el-tooltip v-else :content="publication.reason ?? '当前任务不可提交'" placement="bottom">
+    <el-tooltip v-else :content="userFacingError(publication.reason, '当前任务不可提交')" placement="bottom">
       <span><el-button plain disabled><Icon icon="lucide:git-commit-horizontal" />提交</el-button></span>
     </el-tooltip>
   </template>
@@ -506,16 +507,15 @@ async function createMergeRequest() {
   <el-dialog v-model="conflictDialogOpen" class="local-sync-dialog" title="本地源代码同步冲突解决中心" width="min(1500px, 96vw)" append-to-body :close-on-click-modal="false" destroy-on-close>
     <div v-if="conflictSession" class="conflict-session-bar">
       <span><Icon icon="lucide:folder-git-2" />{{ conflictSession.sourceRoot }}</span>
-      <code>source HEAD {{ conflictSession.sourceHead.slice(0, 12) }}</code>
       <strong>{{ conflictSession.resolvedCount }} / {{ conflictSession.conflictCount }} 已解决</strong>
     </div>
     <div v-if="conflictSession?.state === 'STALE'" class="conflict-state danger">
       <Icon icon="lucide:refresh-cw" /><span>源项目已变化，会话已过期。刷新后会重新计算三方内容，旧方案不会写入。</span>
       <el-button size="small" type="warning" :loading="conflictLoading" @click="refreshConflictSession">刷新预检</el-button>
     </div>
-    <div v-else-if="conflictSession?.state === 'ROLLED_BACK'" class="conflict-state danger"><Icon icon="lucide:undo-2" /><span>上次验证或写入失败，全部任务路径已自动恢复。{{ conflictSession.errorMessage || '解决方案仍保留，可编辑后重试。' }}</span></div>
+    <div v-else-if="conflictSession?.state === 'ROLLED_BACK'" class="conflict-state danger"><Icon icon="lucide:undo-2" /><span>{{ userFacingError(conflictSession.errorMessage, '上次验证或写入失败，已自动恢复') }}</span></div>
     <div v-else-if="conflictSession?.state === 'ROLLBACK_FAILED'" class="conflict-state danger"><Icon icon="lucide:triangle-alert" /><span>自动恢复失败，未标记同步成功。备份：{{ conflictSession.backupDir }}</span></div>
-    <div v-else-if="conflictSession?.state === 'APPLYING' || conflictSession?.state === 'VERIFYING'" class="conflict-state"><Icon icon="lucide:loader-circle" class="spin" /><span>{{ conflictSession.state === 'APPLYING' ? '正在原子写入源项目' : '正在按 LoopSpec 验证，失败会自动恢复' }}</span></div>
+    <div v-else-if="conflictSession?.state === 'APPLYING' || conflictSession?.state === 'VERIFYING'" class="conflict-state"><Icon icon="lucide:loader-circle" class="spin" /><span>{{ conflictSession.state === 'APPLYING' ? '正在写入源项目' : '正在按执行规范验证，失败时自动恢复' }}</span></div>
 
     <div v-loading="conflictLoading" class="conflict-workbench">
       <aside class="conflict-files">

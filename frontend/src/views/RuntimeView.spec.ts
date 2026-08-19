@@ -58,15 +58,16 @@ describe('RuntimeView managed startup diagnostics', () => {
       },
     })
 
-    expect(wrapper.get('.runtime-startup-error').text()).toContain('OpenCode 自动启动失败')
-    expect(wrapper.get('.runtime-startup-error').text()).toContain('exited with code 1')
+    expect(wrapper.get('.runtime-startup-error').text()).toContain('OpenCode 启动失败')
+    expect(wrapper.get('.runtime-startup-error').text()).toContain('请检查配置后重试')
+    expect(wrapper.get('.runtime-startup-error').text()).not.toContain('exited with code 1')
     expect(wrapper.text()).toContain('尝试地址')
     expect(wrapper.text()).toContain('http://127.0.0.1:51234')
-    expect(wrapper.text()).toContain('未建立受管进程')
-    expect(wrapper.get('.loopper-version').text()).toContain('OpenCode Loopper 版本')
+    expect(wrapper.text()).toContain('未启动')
+    expect(wrapper.get('.loopper-version').text()).toContain('Loopper 版本')
     expect(wrapper.get('.loopper-version').text()).toContain('0.1.53')
     expect(wrapper.text()).not.toContain('外部复用服务')
-    expect(wrapper.get('.start-runtime-button').text()).toContain('启动 OpenCode 并检查连接')
+    expect(wrapper.get('.start-runtime-button').text()).toContain('启动并检查连接')
   })
 
   it('starts OpenCode explicitly and reports success only after the checked snapshot is online', async () => {

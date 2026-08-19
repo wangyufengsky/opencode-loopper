@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import type { DesignerMessage } from '@/types/domain'
 import { formatDateTime } from '@/utils/dateTime'
-import { statusLabel } from '@/utils/displayLabels'
+import { statusLabel, userFacingError } from '@/utils/displayLabels'
 
 const props = defineProps<{ entries: DesignerMessage[] }>()
 
@@ -23,10 +23,10 @@ const latestEntry = computed(() => props.entries.at(-1))
         :class="['validator-entry', `validator-${entry.deliveryState?.toLowerCase() ?? 'status'}`]"
       >
         <header>
-          <span>{{ entry.workPackageId || '整体需求' }}</span>
+          <span>{{ entry.workPackageId ? '当前工作包' : '整体需求' }}</span>
           <time :datetime="entry.createdAt">{{ entry.deliveryState ? `${statusLabel(entry.deliveryState)} · ` : '' }}{{ formatDateTime(entry.createdAt) }}</time>
         </header>
-        <p>{{ entry.content }}</p>
+        <p>{{ ['RETRYABLE_ERROR', 'TERMINAL_ERROR', 'SESSION_ERROR'].includes(entry.deliveryState ?? '') ? userFacingError(entry.content) : entry.content }}</p>
       </article>
     </div>
   </details>

@@ -4,7 +4,7 @@ import { Icon } from '@iconify/vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { api } from '@/api/client'
 import type { TaskSessionActivity, TaskSessionPendingQuestion, TaskSessionSummary } from '@/types/domain'
-import { activityLabel, activityTypeLabel, sessionLabel, statusLabel } from '@/utils/displayLabels'
+import { activityLabel, activityTypeLabel, displayLabel, sessionLabel, statusLabel, userFacingError } from '@/utils/displayLabels'
 
 const props = defineProps<{ taskId: string }>()
 const sessions = ref<TaskSessionSummary[]>([])
@@ -37,13 +37,6 @@ function sessionTitle(session?: TaskSessionSummary) {
   if (!session) return '任务会话'
   if (session.kind === 'IMPLEMENTATION') return session.stageOrdinal ? `阶段 ${session.stageOrdinal} · 执行会话` : '执行会话'
   return sessionLabel(session)
-}
-
-function sessionPurpose(session: TaskSessionSummary) {
-  if (session.kind === 'IMPLEMENTATION') return session.stageObjective ?? '执行当前阶段目标'
-  if (session.label.toUpperCase().includes('REQUIREMENT')) return '核对任务目标、最终阶段与确定性验证证据'
-  if (session.label.toUpperCase().includes('RISK')) return '检查回归风险、安全边界与证据缺口'
-  return '独立审阅任务交付结果'
 }
 
 function sessionIcon(session: TaskSessionSummary) {
@@ -122,7 +115,7 @@ async function submitAnswer(pending: TaskSessionPendingQuestion) {
     ElMessage.success('回答已提交，OpenCode 会话继续执行')
     await refresh(generation)
   } catch (cause) {
-    ElMessage.error(cause instanceof Error ? cause.message : '回答提交失败')
+    ElMessage.error(userFacingError(cause, '回答提交失败'))
   } finally {
     submittingQuestion.value = ''
   }
@@ -139,7 +132,7 @@ async function rejectQuestion(pending: TaskSessionPendingQuestion) {
     ElMessage.success('已拒绝问题，OpenCode 会话将自行处理')
     await refresh(generation)
   } catch (cause) {
-    ElMessage.error(cause instanceof Error ? cause.message : '拒绝操作失败')
+    ElMessage.error(userFacingError(cause, '拒绝操作失败'))
   } finally {
     submittingQuestion.value = ''
   }
@@ -212,7 +205,7 @@ async function refresh(runGeneration = generation) {
     measurePartOverflow()
     if (followOutput.value && stream.value) stream.value.scrollTop = stream.value.scrollHeight
   } catch (cause) {
-    if (runGeneration === generation) error.value = cause instanceof Error ? cause.message : '会话监控暂时不可用'
+    if (runGeneration === generation) error.value = userFacingError(cause, '会话监控暂时不可用')
   } finally {
     if (runGeneration === generation) {
       loading.value = false
@@ -290,8 +283,7 @@ onBeforeUnmount(() => {
           @click="selectSession(session.key)"
         >
           <span class="session-option-top"><strong>{{ sessionTitle(session) }}</strong><i :class="session.state.toLowerCase()">{{ statusLabel(session.state) }}</i></span>
-          <span class="session-purpose"><Icon :icon="sessionIcon(session)" width="14" /><span>{{ sessionPurpose(session) }}</span></span>
-          <small>{{ session.kind === 'JUDGE' ? '独立只读评审' : `阶段 ${session.stageOrdinal ?? '—'}` }} · {{ formatSessionTime(session.createdAt) }}</small>
+          <small><Icon :icon="sessionIcon(session)" width="12" />{{ session.kind === 'JUDGE' ? '只读评审' : `阶段 ${session.stageOrdinal ?? '—'}` }} · {{ formatSessionTime(session.createdAt) }}</small>
         </button>
       </nav>
 
@@ -301,16 +293,16 @@ onBeforeUnmount(() => {
           <div><span :class="['transport-dot', { live: activity?.live }]" />{{ activity?.live ? 'OpenCode 已连接' : '持久化状态' }} · {{ observedTime }}</div>
         </div>
         <div ref="stream" class="console-stream" aria-live="polite" @scroll="onStreamScroll">
-          <div v-if="error" class="monitor-warning"><Icon icon="lucide:wifi-off" />{{ error }}</div>
-          <div v-else-if="activity?.detail && !activity.live" class="monitor-warning"><Icon icon="lucide:info" />{{ activity.detail }}</div>
+          <div v-if="error" class="monitor-warning"><Icon icon="lucide:wifi-off" />{{ userFacingError(error, '会话连接失败，请重试') }}</div>
+          <div v-else-if="activity?.detail && !activity.live" class="monitor-warning"><Icon icon="lucide:info" />{{ userFacingError(activity.detail, '会话暂时不可用') }}</div>
           <section v-if="selected?.kind === 'IMPLEMENTATION'" class="todo-panel" aria-label="OpenCode 实施计划">
-            <header><div><span>IMPLEMENTATION TODO</span><strong>OpenCode 进度投影</strong></div><i>{{ activity?.todoCapability ?? 'UNKNOWN' }}</i></header>
+            <header><div><span>实施清单</span><strong>OpenCode 进度</strong></div><i>{{ displayLabel(activity?.todoCapability) }}</i></header>
             <p v-if="activity?.todoDetail" class="todo-detail">{{ activity.todoDetail }}</p>
-            <p v-if="activity?.todoCapability === 'AVAILABLE' && !activity.todos.length" class="todo-empty">当前还没有 Todo；它不会替代 Loopper 的阶段与验收状态。</p>
+            <p v-if="activity?.todoCapability === 'AVAILABLE' && !activity.todos.length" class="todo-empty">暂无实施项。</p>
             <ol v-else-if="activity?.todos.length">
               <li v-for="todo in activity.todos" :key="todo.id" :class="`todo-${todo.status.toLowerCase()}`">
                 <span class="todo-state"><Icon :icon="todo.status === 'COMPLETED' ? 'lucide:circle-check' : todo.status === 'IN_PROGRESS' ? 'lucide:loader-circle' : todo.status === 'CANCELLED' ? 'lucide:circle-x' : 'lucide:circle'" width="14" /></span>
-                <span>{{ todo.content }}</span><small>{{ todo.status }}{{ todo.priority ? ` · ${todo.priority}` : '' }}</small>
+                <span>{{ todo.content }}</span><small>{{ displayLabel(todo.status) }}{{ todo.priority ? ` · ${displayLabel(todo.priority)}` : '' }}</small>
               </li>
             </ol>
             <footer v-if="activity?.todoTruncated">Todo 过长，当前仅显示安全截断后的投影。</footer>
@@ -332,7 +324,7 @@ onBeforeUnmount(() => {
             </div>
           </section>
           <section v-for="pending in pendingQuestions" :key="pending.id" class="question-card" aria-label="OpenCode 等待回答">
-            <header class="question-card-header"><div><span>需要你的回答</span><strong class="mono">{{ pending.id }}</strong></div><Icon icon="lucide:message-square-more" width="19" /></header>
+            <header class="question-card-header"><div><span>需要你的回答</span></div><Icon icon="lucide:message-square-more" width="19" /></header>
             <div v-for="(prompt, index) in pending.questions" :key="`${pending.id}-${index}`" class="question-prompt">
               <p class="question-header">{{ prompt.header || `问题 ${index + 1}` }}</p>
               <h3>{{ prompt.question }}</h3>
@@ -352,7 +344,7 @@ onBeforeUnmount(() => {
           </section>
           <div v-if="thinking" class="live-thinking" role="status" aria-label="模型正在思考">
             <span class="thinking-orbit"><span /></span>
-            <div><strong>模型正在思考<span class="thinking-dots"><i /><i /><i /></span></strong><p>等待 OpenCode 返回可公开的推理过程或正文增量…</p></div>
+            <div><strong>模型正在思考<span class="thinking-dots"><i /><i /><i /></span></strong></div>
           </div>
           <div v-if="!thinking && !error && activity && activity.parts.length === 0" class="monitor-placeholder">当前会话没有可显示的模型输出。</div>
         </div>

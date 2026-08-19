@@ -48,11 +48,6 @@ const formattedReason = computed(() => judgeReasonMarkdown(reason.value))
       <MarkdownDocument :content="formattedReason" />
     </div>
 
-    <footer v-if="judge.externalSessionId" class="judge-card-footer">
-      <Icon icon="lucide:fingerprint" width="13" aria-hidden="true" />
-      <span>会话</span>
-      <code>{{ judge.externalSessionId }}</code>
-    </footer>
   </article>
 </template>
 

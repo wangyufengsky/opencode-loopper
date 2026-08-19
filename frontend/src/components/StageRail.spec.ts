@@ -16,7 +16,7 @@ describe('StageRail', () => {
     expect(wrapper.findAll('.phase-objective p').map((item) => item.text())).toEqual(stages.map((stage) => stage.objective))
     expect(wrapper.findAll('.stage-connector')).toHaveLength(1)
     expect(wrapper.get('.stage-connector').classes()).toContain('connector-complete')
-    expect(wrapper.text()).toContain('PHASE 01')
+    expect(wrapper.text()).toContain('阶段 01')
     expect(wrapper.text()).toContain('1 次尝试')
     expect(wrapper.find('[role="tooltip"]').exists()).toBe(false)
   })

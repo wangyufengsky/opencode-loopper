@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
 import { api, ApiError } from '@/api/client'
 import type { RecoveryDraft, RecoveryMode, Task } from '@/types/domain'
+import { displayLabel, errorEventMessage, statusLabel, userFacingError } from '@/utils/displayLabels'
 
 type FailureContext = { code: string; message: string; stageId?: string; at?: string }
 
@@ -28,14 +29,6 @@ const selectedStage = computed(() => {
     ?? stages.find((stage) => stage.status !== 'SUCCEEDED')
     ?? stages.at(-1)
 })
-const modeDescription = computed(() => ({
-  FROM_FAILED_STAGE: selectedStage.value ? `从阶段 ${selectedStage.value.ordinal} 开始复制，已通过阶段保持在父任务证据中。` : '从第一个未完成阶段开始复制。',
-  ALL_STAGES: '重新派生完整 LoopSpec；不会对父任务或原目录执行原地回滚。',
-  VERIFY_ONLY: '只创建不可写的验证型恢复任务；服务端会阻止任何 OpenCode 可写执行会话。',
-  REWORK_ALL_STAGES: '从父任务创建时的基线拉取新分支，并重新执行全部阶段。',
-  INHERIT_CHANGES: '从父任务原始基线创建新分支，并把冻结的当前修改作为未提交内容还原。',
-} satisfies Record<RecoveryMode, string>)[mode.value])
-
 async function load() {
   if (!parentId.value) return
   loading.value = true
@@ -47,7 +40,7 @@ async function load() {
     recoveries.value = lineage
   } catch (cause) {
     parent.value = undefined
-    error.value = cause instanceof Error ? cause.message : '无法读取失败上下文'
+    error.value = userFacingError(cause, '无法读取失败上下文')
   } finally {
     loading.value = false
   }
@@ -63,7 +56,7 @@ async function createRecovery() {
   } catch (cause) {
     const prefix = cause instanceof ApiError && cause.status === 409 ? '恢复被安全阻止（409）' : '恢复草稿创建失败'
     const code = cause instanceof ApiError && cause.code ? ` · ${cause.code}` : ''
-    error.value = `${prefix}${code}：${cause instanceof Error ? cause.message : '未知错误'}`
+    error.value = `${prefix}${displayLabel(code)}：${userFacingError(cause, '恢复创建失败')}`
   } finally {
     creating.value = false
   }
@@ -73,7 +66,7 @@ watch(parentId, load, { immediate: true })
 </script>
 
 <template>
-  <PageHeader eyebrow="Recovery / Derived Draft" :title="parent ? `恢复工作台 · ${parent.title}` : '恢复工作台'" :title-tooltip="parent?.goal">
+  <PageHeader eyebrow="任务恢复" :title="parent ? `恢复工作台 · ${parent.title}` : '恢复工作台'" :title-tooltip="parent?.goal">
     <template #actions>
       <el-button plain :loading="loading" @click="load"><Icon icon="lucide:refresh-cw" />刷新上下文</el-button>
       <el-button plain @click="router.push(`/tasks/${parentId}`)"><Icon icon="lucide:arrow-left" />返回父任务</el-button>
@@ -82,42 +75,38 @@ watch(parentId, load, { immediate: true })
 
   <main id="main-content" class="content recovery-studio" tabindex="-1">
     <section v-if="loading" class="card card-pad" aria-live="polite"><div class="skeleton-block" style="height: 230px" /></section>
-    <section v-else-if="error && !parent" class="card empty-state recovery-empty" role="status"><div><Icon icon="lucide:triangle-alert" width="30" /><strong>无法读取恢复上下文</strong><p>{{ error }}</p></div></section>
+    <section v-else-if="error && !parent" class="card empty-state recovery-empty" role="status"><div><Icon icon="lucide:triangle-alert" width="30" /><strong>无法读取恢复上下文</strong><p>{{ userFacingError(error, '恢复上下文读取失败') }}</p></div></section>
     <section v-else-if="parent" class="recovery-layout">
       <article class="card context-card">
-        <header class="section-header"><div><p class="eyebrow">FAILURE CONTEXT</p><h2>父任务与失败上下文</h2></div><span :class="['terminal-chip', `is-${parent.status.toLowerCase()}`]">{{ parent.status }}</span></header>
+        <header class="section-header"><div><p class="eyebrow">失败上下文</p><h2>父任务</h2></div><span :class="['terminal-chip', `is-${parent.status.toLowerCase()}`]">{{ statusLabel(parent.status) }}</span></header>
         <div class="context-body">
           <p class="goal">{{ parent.goal || '该任务未保留额外目标说明。' }}</p>
           <dl class="context-facts"><div><dt>项目</dt><dd>{{ parent.projectName || '未命名项目' }}</dd></div><div><dt>恢复起点</dt><dd>{{ selectedStage ? `阶段 ${selectedStage.ordinal} · ${selectedStage.objective}` : '没有可复制阶段' }}</dd></div></dl>
-          <div v-if="failureContexts.length" class="failure-list"><article v-for="(failure, index) in failureContexts" :key="`${failure.code}-${index}`"><Icon icon="lucide:circle-x" /><div><code>{{ failure.code }}</code><p>{{ failure.message }}</p></div></article></div>
-          <p v-else class="no-failures"><Icon icon="lucide:ban" />此任务没有持久化错误事件；取消原因仍会作为父任务上下文保留。</p>
+          <div v-if="failureContexts.length" class="failure-list"><article v-for="(failure, index) in failureContexts" :key="`${failure.code}-${index}`"><Icon icon="lucide:circle-x" /><div><strong>{{ displayLabel(failure.code) }}</strong><p>{{ errorEventMessage(failure.code, failure.message) }}</p></div></article></div>
         </div>
       </article>
 
       <article class="card mode-card">
-        <div v-if="!eligible" class="ineligible"><Icon icon="lucide:lock-keyhole" /><strong>当前任务不可恢复</strong><p>仅 <code>FAILED</code> 或 <code>CANCELLED</code> 的父任务可以派生 Recovery 草稿。</p></div>
+        <div v-if="!eligible" class="ineligible"><Icon icon="lucide:lock-keyhole" /><strong>当前任务不可恢复</strong></div>
         <template v-else>
           <div class="mode-options" role="radiogroup" aria-label="恢复模式">
             <label v-for="item in (['FROM_FAILED_STAGE', 'ALL_STAGES', 'VERIFY_ONLY'] as RecoveryMode[])" :key="item" :class="['mode-option', { selected: mode === item }]">
               <input v-model="mode" type="radio" :value="item" />
-              <span><b>{{ item === 'FROM_FAILED_STAGE' ? '从失败阶段恢复' : item === 'ALL_STAGES' ? '复制全部阶段' : '只读验证' }}</b><small>{{ item }}</small></span>
+              <span><b>{{ item === 'FROM_FAILED_STAGE' ? '从失败阶段恢复' : item === 'ALL_STAGES' ? '复制全部阶段' : '只读验证' }}</b></span>
             </label>
           </div>
-          <p class="mode-description"><Icon icon="lucide:info" />{{ modeDescription }}</p>
-          <p class="safety-note"><Icon icon="lucide:shield-check" />不提供 Direct workspace 的原地回滚；所有恢复均为可追溯的派生任务。</p>
-          <el-button type="primary" :loading="creating" @click="createRecovery"><Icon icon="lucide:git-branch-plus" />创建派生 Recovery 草稿</el-button>
+          <el-button type="primary" :loading="creating" @click="createRecovery"><Icon icon="lucide:git-branch-plus" />创建恢复草稿</el-button>
         </template>
       </article>
 
       <article v-if="result || recoveries.length" class="card lineage-card" aria-live="polite">
-        <header class="section-header"><div><p class="eyebrow">TASK LINEAGE</p><h2>{{ result ? '派生草稿已创建' : '已派生的恢复草稿' }}</h2></div><Icon icon="lucide:badge-check" width="22" /></header>
+        <header class="section-header"><div><p class="eyebrow">恢复记录</p><h2>{{ result ? '恢复草稿已创建' : '已创建的恢复草稿' }}</h2></div><Icon icon="lucide:badge-check" width="22" /></header>
         <section v-for="item in recoveries" :key="item.taskId" class="lineage-entry">
-          <div class="lineage-flow"><code>{{ item.parentTaskId }}</code><Icon icon="lucide:arrow-right" /><code>{{ item.taskId }}</code></div>
-          <dl><div><dt>模式</dt><dd>{{ item.mode }}</dd></div><div><dt>父阶段</dt><dd>{{ item.parentStageId || '无' }}</dd></div><div><dt>工作区指纹</dt><dd class="fingerprint">{{ item.workspaceFingerprint || '未记录' }}</dd></div><div><dt>可写 Session</dt><dd>{{ item.writableSession ? '允许（按任务流程启动）' : '禁止 · VERIFY_ONLY' }}</dd></div></dl>
+          <dl><div><dt>恢复方式</dt><dd>{{ displayLabel(item.mode) }}</dd></div><div><dt>执行权限</dt><dd>{{ item.writableSession ? '可执行修改' : '只读验证' }}</dd></div></dl>
           <el-button plain @click="router.push(`/tasks/${item.taskId}`)"><Icon icon="lucide:external-link" />打开派生任务</el-button>
         </section>
       </article>
-      <section v-if="error" class="error-panel recovery-error" role="status"><Icon icon="lucide:shield-alert" /><div><h3>恢复未创建</h3><p>{{ error }}</p></div></section>
+      <section v-if="error" class="error-panel recovery-error" role="status"><Icon icon="lucide:shield-alert" /><div><h3>恢复未创建</h3><p>{{ userFacingError(error, '恢复草稿创建失败') }}</p></div></section>
     </section>
   </main>
 </template>

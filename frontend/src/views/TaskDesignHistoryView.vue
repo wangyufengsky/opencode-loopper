@@ -6,6 +6,7 @@ import PageHeader from '@/components/PageHeader.vue'
 import MarkdownDocument from '@/components/MarkdownDocument.vue'
 import { api } from '@/api/client'
 import type { LoopVerifierSpec, TaskDesignHistory } from '@/types/domain'
+import { displayLabel, statusLabel, userFacingError } from '@/utils/displayLabels'
 
 const route = useRoute()
 const router = useRouter()
@@ -19,15 +20,14 @@ const visibleMessages = computed(() => (record.value?.designerSession?.messages 
   && message.deliveryState === 'PENDING_HANDOFF'
   && !message.content.startsWith('SYSTEM_ERROR')
 )))
-const actorLabels = { USER: '你', ROUTER: 'Task Router / 任务路由器', DECOMPOSER: 'Task Decomposer / 任务拆解器', DESIGNER: 'Designer / 设计师', COMPILER: 'LoopSpec Compiler / 规范编译器', REVIEWER: 'Reviewer / 只读评审者', VALIDATOR: 'Deterministic Validator / 确定性校验器', SYSTEM: '系统' } as const
+const actorLabels = { USER: '你', ROUTER: '任务路由器', DECOMPOSER: '任务拆解器', DESIGNER: '设计器', COMPILER: '规范编译器', REVIEWER: '只读评审', VALIDATOR: '确定性校验器', SYSTEM: '系统' } as const
 const actorIcons = { USER: 'lucide:user-round', ROUTER: 'lucide:route', DECOMPOSER: 'lucide:split', DESIGNER: 'lucide:sparkles', COMPILER: 'lucide:braces', REVIEWER: 'lucide:file-search', VALIDATOR: 'lucide:badge-check', SYSTEM: 'lucide:info' } as const
-const rawSpec = computed(() => record.value ? JSON.stringify(record.value.draft.spec, null, 2) : '')
 
 async function load() {
   loading.value = true
   error.value = ''
   try { record.value = await api.getTaskDesignHistory(id.value) }
-  catch (cause) { error.value = cause instanceof Error ? cause.message : '无法读取历史设计记录' }
+  catch (cause) { error.value = userFacingError(cause, '无法读取历史设计记录') }
   finally { loading.value = false }
 }
 
@@ -36,7 +36,7 @@ function verifierSummary(verifier: LoopVerifierSpec) {
   if (verifier.type === 'FILE_EXISTS') return `文件必须存在：${verifier.path ?? '未配置路径'}`
   if (verifier.type === 'FILE_NOT_EXISTS') return `文件必须不存在：${verifier.path ?? '未配置路径'}`
   if (verifier.type === 'GIT_DIFF') return `差异范围：${verifier.allowedPaths?.join(', ') || '未限制路径'}`
-  return verifier.type
+  return displayLabel(verifier.type)
 }
 
 function formatDate(value: string) {
@@ -48,7 +48,7 @@ watch(id, load, { immediate: true })
 </script>
 
 <template>
-  <PageHeader eyebrow="任务 / 历史设计" :title="record?.taskTitle ?? '设计与 LoopSpec 历史'" :title-tooltip="record?.draft.spec.goal">
+  <PageHeader eyebrow="任务设计" :title="record?.taskTitle ?? '历史设计'" :title-tooltip="record?.draft.spec.goal">
     <template #actions>
       <el-button plain @click="router.push(`/tasks/${id}`)"><Icon icon="lucide:activity" />任务检视</el-button>
       <el-button plain @click="router.push('/tasks')"><Icon icon="lucide:list" />全部任务</el-button>
@@ -56,23 +56,23 @@ watch(id, load, { immediate: true })
   </PageHeader>
   <main id="main-content" class="content" tabindex="-1">
     <section v-if="loading" class="card card-pad" aria-live="polite"><div class="skeleton-block" style="height: 120px" /></section>
-    <section v-else-if="error" class="card empty-state"><div><Icon icon="lucide:file-warning" width="30" /><strong>无法读取历史设计</strong><p>{{ error }}</p></div></section>
+    <section v-else-if="error" class="card empty-state"><div><Icon icon="lucide:file-warning" width="30" /><strong>无法读取历史设计</strong><p>{{ userFacingError(error, '历史设计读取失败') }}</p></div></section>
     <template v-else-if="record">
       <section class="history-overview card card-pad">
         <div><p class="eyebrow">只读历史快照</p><h2>{{ record.projectName }}</h2></div>
         <div class="history-meta">
-          <span><b>LoopSpec</b>{{ record.draft.status }}</span>
-          <span><b>Designer</b>{{ record.designerSession?.state ?? '无关联会话' }}</span>
+          <span><b>执行规范</b>{{ statusLabel(record.draft.status) }}</span>
+          <span><b>设计会话</b>{{ record.designerSession?.state ? statusLabel(record.designerSession.state) : '无关联会话' }}</span>
           <span><b>更新于</b>{{ formatDate(record.draft.updatedAt) }}</span>
         </div>
       </section>
 
       <section v-if="record.requirement || record.decomposition || record.workPackages?.length" class="card package-history card-pad">
-        <div class="card-header"><div><p class="eyebrow">FROZEN DESIGN INPUTS</p><h2 class="card-title">需求版本与工作包快照</h2></div><span v-if="record.requirement" class="mono tiny">REV {{ record.requirement.revision }} · 模型调用 {{ record.requirement.modelCallsUsed }}/{{ record.requirement.maxModelCalls }}</span></div>
+        <div class="card-header"><div><p class="eyebrow">已确认设计</p><h2 class="card-title">需求与工作包</h2></div><span v-if="record.requirement" class="mono tiny">第 {{ record.requirement.revision }} 版 · 模型调用 {{ record.requirement.modelCallsUsed }}/{{ record.requirement.maxModelCalls }}</span></div>
         <p v-if="record.requirement" class="frozen-requirement">{{ record.requirement.requirementText }}</p>
         <div v-if="record.workPackages?.length" class="package-history-grid">
           <article v-for="item in record.workPackages ?? []" :key="item.id">
-            <header><b>{{ item.id }}</b><span>{{ item.state }}</span></header>
+            <header><b>工作包 {{ item.ordinal + 1 }}</b><span>{{ statusLabel(item.state) }}</span></header>
             <h3>{{ item.title }}</h3><p>{{ item.objective }}</p>
             <small v-if="item.compilerSummary">编译摘要：{{ item.compilerSummary }}</small>
             <small v-if="item.handoffSummary">交接摘要：{{ item.handoffSummary }}</small>
@@ -82,35 +82,34 @@ watch(id, load, { immediate: true })
 
       <section class="history-grid">
         <article class="card history-conversation">
-          <header class="history-card-header"><div><p class="eyebrow">DESIGN CONVERSATION</p><h2>历史设计对话</h2><p>共 {{ visibleMessages.length }} 条已持久化记录</p></div><Icon icon="lucide:messages-square" width="22" /></header>
+          <header class="history-card-header"><div><p class="eyebrow">设计记录</p><h2>历史设计对话</h2><p>{{ visibleMessages.length }} 条记录</p></div><Icon icon="lucide:messages-square" width="22" /></header>
           <div v-if="visibleMessages.length" class="message-list">
             <article v-for="message in visibleMessages" :key="message.id" :class="['history-message', `message-${message.actor.toLowerCase()}`]">
-              <header><span><Icon :icon="actorIcons[message.actor]" />{{ actorLabels[message.actor] }}<template v-if="message.workPackageId"> · {{ message.workPackageId }}</template></span><time>{{ formatDate(message.createdAt) }}</time></header>
+              <header><span><Icon :icon="actorIcons[message.actor]" />{{ actorLabels[message.actor] }}</span><time>{{ formatDate(message.createdAt) }}</time></header>
               <MarkdownDocument v-if="message.actor === 'DESIGNER'" :content="message.content" collapsible />
-              <p v-else>{{ message.content }}</p>
+              <p v-else>{{ message.actor === 'SYSTEM' ? userFacingError(message.content) : message.content }}</p>
             </article>
           </div>
-          <div v-else class="history-empty"><Icon icon="lucide:message-square-off" /><p>该任务保留了 LoopSpec，但没有可关联的历史 Designer 对话。</p></div>
+          <div v-else class="history-empty"><Icon icon="lucide:message-square-off" /><p>暂无历史设计对话。</p></div>
         </article>
 
         <article class="card history-spec">
-          <header class="history-card-header"><div><p class="eyebrow">CONFIRMED CONTRACT</p><h2>LoopSpec {{ record.draft.spec.schemaVersion }}</h2><p>{{ record.draft.id }}</p></div><Icon icon="lucide:file-lock-2" width="22" /></header>
+          <header class="history-card-header"><div><p class="eyebrow">已确认规范</p><h2>执行规范 {{ record.draft.spec.schemaVersion }}</h2></div><Icon icon="lucide:file-lock-2" width="22" /></header>
           <div class="spec-content">
             <section class="spec-section"><span>任务目标</span><p>{{ record.draft.spec.goal }}</p></section>
             <section class="spec-section"><span>执行上下文</span><p>{{ record.draft.spec.context || '未补充执行上下文' }}</p></section>
             <section class="spec-stages">
               <article v-for="(stage, stageIndex) in record.draft.spec.stages" :key="stageIndex" class="history-stage">
-                <header><i>{{ stageIndex + 1 }}</i><div><span>{{ stage.workPackageId ? `${stage.workPackageId} · ` : '' }}阶段 {{ stageIndex + 1 }}</span><h3>{{ stage.objective }}</h3></div></header>
+                <header><i>{{ stageIndex + 1 }}</i><div><span>阶段 {{ stageIndex + 1 }}</span><h3>{{ stage.objective }}</h3></div></header>
                 <div class="stage-facts">
                   <div><b>建议修改</b><p>{{ stage.allowedPaths.join('、') || '未限定' }}</p></div>
                   <div><b>建议避让</b><p>{{ stage.forbiddenPaths.join('、') || '无' }}</p></div>
                   <div><b>交付物</b><p>{{ stage.deliverables.join('、') || '未填写' }}</p></div>
                 </div>
-                <ul v-if="stage.verifiers.length" class="verifier-list"><li v-for="(verifier, verifierIndex) in stage.verifiers" :key="verifierIndex"><code>{{ verifier.type }}</code><span>{{ verifierSummary(verifier) }}</span></li></ul>
+                <ul v-if="stage.verifiers.length" class="verifier-list"><li v-for="(verifier, verifierIndex) in stage.verifiers" :key="verifierIndex"><code>{{ displayLabel(verifier.type) }}</code><span>{{ verifierSummary(verifier) }}</span></li></ul>
                 <p v-else class="tiny muted">该阶段未配置确定性验收器。</p>
               </article>
             </section>
-            <details class="raw-spec"><summary>查看完整 LoopSpec JSON</summary><pre>{{ rawSpec }}</pre></details>
           </div>
         </article>
       </section>

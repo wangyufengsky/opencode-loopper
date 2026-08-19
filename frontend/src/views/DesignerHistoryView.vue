@@ -8,7 +8,7 @@ import { api } from '@/api/client'
 import { useTaskStore } from '@/stores/taskStore'
 import type { DesignerHistoryItem } from '@/types/domain'
 import { formatDateTime } from '@/utils/dateTime'
-import { statusLabel } from '@/utils/displayLabels'
+import { statusLabel, userFacingError } from '@/utils/displayLabels'
 
 type StatusFilter = 'ALL' | 'CONFIRMED' | 'PROCESSING' | 'REVIEWING' | 'WAITING_INPUT' | 'SESSION_ERROR'
 type ArchiveFilter = 'ACTIVE' | 'ARCHIVED' | 'ALL'
@@ -117,7 +117,7 @@ async function loadHistory(append = false) {
     designs.value = append ? [...designs.value, ...page.items] : page.items
     nextCursor.value = page.nextCursor
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : '无法读取历史设计'
+    error.value = userFacingError(cause, '无法读取历史设计')
   } finally {
     loading.value = false
   }
@@ -160,7 +160,7 @@ async function toggleArchive(item: DesignerHistoryItem) {
       designs.value = designs.value.filter((design) => design.id !== item.id)
     }
   } catch (cause) {
-    ElMessage.error(cause instanceof Error ? cause.message : '归档状态更新失败')
+    ElMessage.error(userFacingError(cause, '归档状态更新失败'))
   } finally {
     archivingId.value = ''
   }
@@ -175,7 +175,7 @@ onBeforeUnmount(() => { if (reloadTimer) window.clearTimeout(reloadTimer) })
 </script>
 
 <template>
-  <PageHeader eyebrow="Designer / History" title="历史设计">
+  <PageHeader eyebrow="设计记录" title="历史设计">
     <template #actions>
       <el-button plain :loading="loading" @click="loadHistory()"><Icon icon="lucide:refresh-cw" />刷新</el-button>
       <el-button type="primary" @click="router.push('/designer')"><Icon icon="lucide:plus" />新建设计</el-button>
@@ -183,7 +183,7 @@ onBeforeUnmount(() => { if (reloadTimer) window.clearTimeout(reloadTimer) })
   </PageHeader>
   <main id="main-content" class="content design-history-page" tabindex="-1">
     <section class="history-intro">
-      <div><p class="eyebrow">PERSISTED DESIGN SESSIONS</p><h2>查看和管理历史设计</h2><p>未确认设计可以继续、修改或归档；已确认成任务的设计只读保留，可直接查看完整设计记录。</p></div>
+      <div><p class="eyebrow">设计记录</p><h2>查看和管理历史设计</h2></div>
       <div class="history-counts"><span><b>{{ resumableCount }}</b>可继续</span><span><b>{{ confirmedCount }}</b>已确认</span><span><b>{{ archivedCount }}</b>已归档</span></div>
     </section>
 
@@ -208,7 +208,7 @@ onBeforeUnmount(() => { if (reloadTimer) window.clearTimeout(reloadTimer) })
       <span class="mono tiny muted">{{ visibleDesigns.length }} 条</span>
     </section>
 
-    <section v-if="error" class="card history-error" role="status"><Icon icon="lucide:server-off" /><div><strong>历史设计加载失败</strong><p>{{ error }}</p></div><el-button plain size="small" @click="loadHistory()">重试</el-button></section>
+    <section v-if="error" class="card history-error" role="status"><Icon icon="lucide:server-off" /><div><strong>历史设计加载失败</strong><p>{{ userFacingError(error, '无法读取历史设计') }}</p></div><el-button plain size="small" @click="loadHistory()">重试</el-button></section>
     <section v-else-if="loading" class="history-list" aria-label="正在加载历史设计">
       <article v-for="index in 5" :key="index" class="card history-card skeleton-block" />
     </section>
@@ -217,7 +217,6 @@ onBeforeUnmount(() => { if (reloadTimer) window.clearTimeout(reloadTimer) })
         <div class="history-card-main">
           <div class="history-card-heading">
             <span :class="['history-status', `status-${item.archived ? 'archived' : statusKind(item).toLowerCase()}`]">{{ statusText(item) }}</span>
-            <span v-if="item.activeWorkPackageId" class="package-tag">{{ item.activeWorkPackageId }}</span>
           </div>
           <h3 :title="item.goal || '未命名设计'">{{ item.goal || '未命名设计' }}</h3>
           <div class="history-meta"><span><Icon icon="lucide:folder" />{{ item.projectName }}</span><span><Icon icon="lucide:clock-3" />更新于 {{ formatDateTime(item.updatedAt) }}</span><span v-if="item.taskState"><Icon icon="lucide:list-checks" />任务：{{ statusLabel(item.taskState) }}</span><span v-if="item.archivedAt"><Icon icon="lucide:archive" />归档于 {{ formatDateTime(item.archivedAt) }}</span></div>
@@ -237,7 +236,7 @@ onBeforeUnmount(() => { if (reloadTimer) window.clearTimeout(reloadTimer) })
       </article>
     </section>
     <div v-if="nextCursor" class="history-load-more"><el-button plain :loading="loading" @click="loadHistory(true)">加载更多历史设计</el-button></div>
-    <section v-if="!loading && !error && !visibleDesigns.length" class="card empty-state"><div><Icon icon="lucide:history" width="30" /><strong>还没有历史设计</strong><p>新建设计及已确认成任务的设计会集中显示在这里。</p><el-button type="primary" @click="router.push('/designer')">新建设计</el-button></div></section>
+    <section v-if="!loading && !error && !visibleDesigns.length" class="card empty-state"><div><Icon icon="lucide:history" width="30" /><strong>还没有历史设计</strong><el-button type="primary" @click="router.push('/designer')">新建设计</el-button></div></section>
   </main>
 </template>
 

@@ -16,7 +16,7 @@ const pendingPermission: Interaction = {
 const hardDenied: Interaction = {
   id: 'permission-danger', kind: 'PERMISSION', state: 'HARD_DENIED', taskId: 'task-12345678', sessionId: 'session-1',
   externalRequestId: 'permission-2', version: 0, createdAt: 'now', updatedAt: 'now',
-  payload: { permission: 'bash', patterns: ['git push origin main'], metadata: {}, title: '发布', hardDenied: true, hardDenyReason: 'git push 不可由运行 Session 授权' },
+  payload: { permission: 'bash', patterns: ['git push origin main'], metadata: {}, title: '发布', hardDenied: true, hardDenyReason: 'git push 不可由运行会话授权' },
 }
 
 beforeEach(() => {
@@ -33,8 +33,8 @@ describe('统一待处理中心', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('1 项等待处理')
-    expect(wrapper.text()).toContain('git push 不可由运行 Session 授权')
-    expect(wrapper.findAll('button').filter((button) => button.text().includes('本 Session 允许'))).toHaveLength(1)
+    expect(wrapper.text()).toContain('git push 不可由运行会话授权')
+    expect(wrapper.findAll('button').filter((button) => button.text().includes('本会话允许'))).toHaveLength(1)
 
     await wrapper.findAll('button').find((button) => button.text().includes('仅本次允许'))!.trigger('click')
     await flushPromises()

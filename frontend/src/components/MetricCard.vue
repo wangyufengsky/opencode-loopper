@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
-defineProps<{ label: string; value: string | number; detail: string; icon: string; accent?: string; interactive?: boolean; active?: boolean }>()
+defineProps<{ label: string; value: string | number; detail?: string; icon: string; accent?: string; interactive?: boolean; active?: boolean }>()
 const emit = defineEmits<{ select: [] }>()
 </script>
 
@@ -9,13 +9,13 @@ const emit = defineEmits<{ select: [] }>()
     <Icon :icon="icon" :style="{ color: accent ?? 'var(--color-action-primary)' }" width="18" aria-hidden="true" />
     <span class="metric-label">{{ label }}</span>
     <span class="metric-value">{{ value }}</span>
-    <span class="metric-detail">{{ detail }}</span>
+    <span v-if="detail" class="metric-detail">{{ detail }}</span>
   </button>
   <article v-else class="metric-card" :style="{ '--metric-accent': accent }">
     <Icon :icon="icon" :style="{ color: accent ?? 'var(--color-action-primary)' }" width="18" aria-hidden="true" />
     <div class="metric-label">{{ label }}</div>
     <div class="metric-value">{{ value }}</div>
-    <div class="metric-detail">{{ detail }}</div>
+    <div v-if="detail" class="metric-detail">{{ detail }}</div>
   </article>
 </template>
 

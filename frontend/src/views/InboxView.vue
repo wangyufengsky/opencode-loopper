@@ -5,6 +5,7 @@ import PageHeader from '@/components/PageHeader.vue'
 import PendingQuestionCard from '@/components/PendingQuestionCard.vue'
 import { api } from '@/api/client'
 import type { Interaction, InteractionAction, QuestionInteraction } from '@/types/domain'
+import { displayLabel, userFacingError } from '@/utils/displayLabels'
 
 const interactions = ref<Interaction[]>([])
 const loading = ref(true)
@@ -19,7 +20,7 @@ async function refresh() {
     interactions.value = await api.getInteractions()
     error.value = ''
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : '待处理中心暂时无法连接服务端'
+    error.value = userFacingError(cause, '待处理中心暂时无法连接服务端')
   } finally {
     loading.value = false
   }
@@ -31,7 +32,7 @@ async function resolve(item: Interaction, action: InteractionAction, answers?: s
     await api.resolveInteraction(item.id, { action, version: item.version, ...(answers ? { answers } : {}) })
     await refresh()
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : '交互提交失败，请刷新后重试'
+    error.value = userFacingError(cause, '交互提交失败，请刷新后重试')
     await refresh()
   } finally {
     submittingId.value = ''
@@ -50,7 +51,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 </script>
 
 <template>
-  <PageHeader eyebrow="Work Queue / Interaction" title="待处理中心">
+  <PageHeader eyebrow="交互队列" title="待处理中心">
     <template #actions>
       <span class="inbox-count"><b>{{ pendingCount }}</b> 项等待处理</span>
       <el-button :loading="loading" @click="refresh"><Icon icon="lucide:refresh-cw" />刷新</el-button>
@@ -59,15 +60,15 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
   <main id="main-content" class="content" tabindex="-1">
     <section v-if="error" class="error-panel error-panel-session" role="status">
       <Icon class="error-panel-icon" icon="lucide:triangle-alert" />
-      <div><h3>待处理状态未同步</h3><p>{{ error }}</p></div>
+      <div><h3>待处理状态未同步</h3><p>{{ userFacingError(error, '无法读取待处理项') }}</p></div>
     </section>
 
     <section v-if="loading && !interactions.length" class="card empty-state">
-      <div><Icon icon="lucide:loader-circle" class="spin" width="30" /><strong>正在读取服务端待处理项</strong><p>Question、Permission 与版本状态均来自 OpenCode 和本地持久化记录。</p></div>
+      <div><Icon icon="lucide:loader-circle" class="spin" width="30" /><strong>正在读取待处理项…</strong></div>
     </section>
 
     <section v-else-if="!interactions.length" class="card empty-state">
-      <div><Icon icon="lucide:inbox" width="30" /><strong>目前没有待处理项</strong><p>新的 Question 或 Permission 到达后会自动显示在这里。</p></div>
+      <div><Icon icon="lucide:inbox" width="30" /><strong>目前没有待处理项</strong></div>
     </section>
 
     <section v-else class="inbox-list" aria-live="polite">
@@ -75,20 +76,20 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
         <header>
           <div class="inbox-kind">
             <Icon :icon="item.kind === 'QUESTION' ? 'lucide:message-square-more' : 'lucide:shield-question'" />
-            <div><p>{{ item.kind === 'QUESTION' ? 'QUESTION' : 'PERMISSION' }}</p><h2>{{ item.kind === 'QUESTION' ? 'OpenCode 需要你的回答' : (item.payload.title || item.payload.permission || '权限请求') }}</h2></div>
+            <div><p>{{ item.kind === 'QUESTION' ? '问题' : '权限' }}</p><h2>{{ item.kind === 'QUESTION' ? 'OpenCode 需要你的回答' : (item.payload.title || displayLabel(item.payload.permission) || '权限请求') }}</h2></div>
           </div>
-          <div class="inbox-meta"><span class="mono">v{{ item.version }}</span><span>{{ item.taskId ? `Task ${item.taskId.slice(0, 8)}` : 'Designer' }}</span></div>
+          <div class="inbox-meta"><span>{{ item.taskId ? '任务执行' : '设计会话' }}</span></div>
         </header>
 
         <PendingQuestionCard v-if="item.kind === 'QUESTION' && item.state === 'PENDING'" :pending="pendingQuestion(item)" :submitting="submittingId === item.id" @submit="(answers) => resolve(item, 'REPLY', answers)" @reject="resolve(item, 'REJECT')" />
 
         <div v-else-if="item.kind === 'PERMISSION'" class="permission-body">
-          <dl><div><dt>权限类型</dt><dd class="mono">{{ item.payload.permission }}</dd></div><div><dt>匹配范围</dt><dd class="mono">{{ item.payload.patterns.join(' · ') || '未提供' }}</dd></div></dl>
-          <p v-if="item.payload.hardDenied" class="hard-deny-note"><Icon icon="lucide:shield-x" />{{ item.payload.hardDenyReason || '该请求已被不可覆盖的本地安全策略拒绝。' }}</p>
+          <dl><div><dt>权限类型</dt><dd>{{ displayLabel(item.payload.permission) }}</dd></div><div><dt>匹配范围</dt><dd class="mono">{{ item.payload.patterns.join(' · ') || '未提供' }}</dd></div></dl>
+          <p v-if="item.payload.hardDenied" class="hard-deny-note"><Icon icon="lucide:shield-x" />{{ userFacingError(item.payload.hardDenyReason, '该请求已被本地安全策略拒绝') }}</p>
           <footer v-if="item.state === 'PENDING'">
             <el-button :disabled="submittingId === item.id" @click="resolve(item, 'REJECT')">拒绝</el-button>
             <el-button :disabled="submittingId === item.id" @click="resolve(item, 'ONCE')">仅本次允许</el-button>
-            <el-button type="primary" :loading="submittingId === item.id" @click="resolve(item, 'SESSION')">本 Session 允许</el-button>
+            <el-button type="primary" :loading="submittingId === item.id" @click="resolve(item, 'SESSION')">本会话允许</el-button>
           </footer>
         </div>
       </article>

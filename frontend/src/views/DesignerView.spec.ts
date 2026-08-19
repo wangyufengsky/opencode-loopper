@@ -159,7 +159,7 @@ describe('Designer draft composer', () => {
 
     expect(sessionStorage.getItem('opencode-loopper.designer-workspace')).toContain('designer-recover')
     expect(wrapper.find('[aria-label="待继续设计"]').exists()).toBe(false)
-    expect(wrapper.find('textarea[aria-label="发送给只读 OpenCode Designer 的消息"]').exists()).toBe(true)
+    expect(wrapper.find('textarea[aria-label="发送给只读设计器的消息"]').exists()).toBe(true)
   })
 
   it('keeps the recovery pointer when the backend is temporarily unavailable after restart', async () => {
@@ -174,7 +174,7 @@ describe('Designer draft composer', () => {
 
     expect(sessionStorage.getItem('opencode-loopper.designer-workspace')).toContain('designer-recover')
     expect(wrapper.text()).toContain('上次设计暂时无法恢复：服务正在重启')
-    expect(wrapper.text()).toContain('服务端记录不会因短暂断线被删除')
+    expect(wrapper.text()).not.toContain('服务端记录不会因短暂断线被删除')
   })
 
   it('does not auto-open an archived design from a stale browser recovery pointer', async () => {
@@ -190,7 +190,7 @@ describe('Designer draft composer', () => {
     await flushPromises()
 
     expect(sessionStorage.getItem('opencode-loopper.designer-workspace')).toBeNull()
-    expect(wrapper.find('textarea[aria-label="发送给只读 OpenCode Designer 的消息"]').exists()).toBe(false)
+    expect(wrapper.find('textarea[aria-label="发送给只读设计器的消息"]').exists()).toBe(false)
     expect(wrapper.find('textarea[aria-label="草案设计目标"]').exists()).toBe(true)
   })
 
@@ -247,7 +247,7 @@ describe('Designer draft composer', () => {
     expect(createDraft.mock.calls[0]?.[0].stages[0]).toMatchObject({ allowedPaths: [], forbiddenPaths: [], verifiers: [] })
     expect(createDraft.mock.calls[0]?.[0].limits).toMatchObject({ maxTaskAttempts: 7, attemptTimeout: 'PT45M' })
     expect(sessionStorage.getItem('opencode-loopper.designer-draft-prompt')).toBeNull()
-    expect(wrapper.find('textarea[aria-label="发送给只读 OpenCode Designer 的消息"]').exists()).toBe(true)
+    expect(wrapper.find('textarea[aria-label="发送给只读设计器的消息"]').exists()).toBe(true)
   })
 
   it('requires risk confirmation before creating an auto-mode design', async () => {
@@ -268,7 +268,7 @@ describe('Designer draft composer', () => {
     await flushPromises()
 
     expect(createSession).toHaveBeenCalledWith(project.id, 'draft-1', '自动完成设计并启动任务', true)
-    expect(wrapper.text()).toContain('全自动模式正在推进')
+    expect(wrapper.text()).toContain('全自动模式')
   })
 
   it('shows that auto mode will adopt a low-confidence task profile recommendation without manual override', async () => {
@@ -297,8 +297,8 @@ describe('Designer draft composer', () => {
     const wrapper = mountDesigner()
     await flushPromises()
 
-    expect(wrapper.text()).toContain('全自动模式正在确认画像')
-    expect(wrapper.text()).toContain('无需人工覆盖；需求确认前仍可主动调整')
+    expect(wrapper.text()).toContain('全自动模式')
+    expect(wrapper.text()).not.toContain('无需人工覆盖；需求确认前仍可主动调整')
     expect(wrapper.text()).not.toContain('全自动模式已阻断')
     expect(wrapper.find('[aria-label="任务画像与动态流程"] .profile-override').exists()).toBe(true)
   })
@@ -330,7 +330,7 @@ describe('Designer draft composer', () => {
     await flushPromises()
 
     const followUp = '补充验收：前端测试和 Maven clean verify 必须通过。'
-    const messageInput = wrapper.get('textarea[aria-label="发送给只读 OpenCode Designer 的消息"]')
+    const messageInput = wrapper.get('textarea[aria-label="发送给只读设计器的消息"]')
     await messageInput.setValue(followUp)
     await wrapper.get('.compose-actions button').trigger('click')
     await flushPromises()
@@ -363,7 +363,7 @@ describe('Designer draft composer', () => {
     expect(conversation.element.children).toHaveLength(2)
     expect(conversation.element.children[0]?.classList.contains('chat-history')).toBe(true)
     expect(conversation.element.children[1]?.classList.contains('chat-compose')).toBe(true)
-    expect(wrapper.get('textarea[aria-label="发送给只读 OpenCode Designer 的消息"]').attributes('rows')).toBe('10')
+    expect(wrapper.get('textarea[aria-label="发送给只读设计器的消息"]').attributes('rows')).toBe('10')
   })
 
   it('shows an animated thinking state only while the Designer request is running', async () => {
@@ -378,9 +378,9 @@ describe('Designer draft composer', () => {
     await wrapper.get('.create-draft-button').trigger('click')
     await flushPromises()
 
-    const thinking = wrapper.get('[aria-label="Designer / 设计师正在处理"]')
-    expect(thinking.text()).toContain('Designer / 设计师正在设计中')
-    expect(thinking.text()).toContain('连接暂时中断，正在恢复并继续等待真实回复')
+    const thinking = wrapper.get('[aria-label="设计器正在处理"]')
+    expect(thinking.text()).toContain('设计器正在设计中')
+    expect(thinking.text()).not.toContain('连接暂时中断')
 
     wrapper.unmount()
   })
@@ -415,7 +415,7 @@ describe('Designer draft composer', () => {
     expect(wrapper.get('.designer-connection-strip').text()).toContain('实时通道已连接')
     expect(wrapper.get('.designer-connection-strip').text()).toContain('OpenCode 已连接')
     expect(wrapper.get('.chat-live').text()).toContain('第一段回复')
-    expect(wrapper.find('[aria-label="Designer / 设计师正在处理"]').exists()).toBe(false)
+    expect(wrapper.find('[aria-label="设计器正在处理"]').exists()).toBe(false)
 
     FakeEventSource.latest?.onmessage?.({ data: JSON.stringify({
       sequence: 3, sessionId: runningSession.id, type: 'STATUS', state: 'RUNNING', workflowPhase: 'COMPILING', activeActor: 'COMPILER', remoteState: 'REPAIRING_1',
@@ -424,7 +424,7 @@ describe('Designer draft composer', () => {
     await flushPromises()
 
     expect(wrapper.find('.chat-live').exists()).toBe(false)
-    expect(wrapper.get('[aria-label="LoopSpec Compiler / 规范编译器正在处理"]').text()).toContain('规范编译器正在进行第 1/2 次修复')
+    expect(wrapper.get('[aria-label="规范编译器正在处理"]').text()).toContain('规范编译器正在编译中 · JSON 修复')
     expect(wrapper.get('.designer-connection-strip').text()).toContain('编译中 · JSON 修复')
     expect(wrapper.text()).not.toContain('raw-json')
     wrapper.unmount()
@@ -459,7 +459,7 @@ describe('Designer draft composer', () => {
 
     const question = wrapper.getComponent(PendingQuestionCard)
     expect(question.text()).toContain('选择实现范围')
-    expect(wrapper.find('[aria-label="Designer / 设计师正在处理"]').exists()).toBe(false)
+    expect(wrapper.find('[aria-label="设计器正在处理"]').exists()).toBe(false)
     question.vm.$emit('submit', [['新增链路']])
     await flushPromises()
 
@@ -547,16 +547,16 @@ describe('Designer draft composer', () => {
     await wrapper.get('textarea[aria-label="草案设计目标"]').setValue('逐包优化查询设计')
     await wrapper.get('.create-draft-button').trigger('click')
     await flushPromises()
-    expect(wrapper.text()).toContain('当前作用域：WP-1')
-    expect(wrapper.text()).toContain('已同步 R2')
-    expect(wrapper.get('[aria-label="工作包设计轨道"]').text()).toContain('software-python · python · OPTIONAL')
+    expect(wrapper.text()).toContain('当前作用域：工作包 1')
+    expect(wrapper.text()).toContain('已同步')
+    expect(wrapper.get('[aria-label="工作包设计轨道"]').text()).toContain('Python 软件开发 · python · 可选测试')
 
-    await wrapper.get('textarea[aria-label="发送给只读 OpenCode Designer 的消息"]').setValue('只补充 WP-1 的异常边界')
+    await wrapper.get('textarea[aria-label="发送给只读设计器的消息"]').setValue('只补充 WP-1 的异常边界')
     await wrapper.get('.compose-actions button').trigger('click')
     await flushPromises()
     expect(sendPackage).toHaveBeenCalledWith(packageSession.id, 'WP-1', '只补充 WP-1 的异常边界', 2, 3)
 
-    await wrapper.findAll('button').find((button) => button.text().includes('接受 WP-1 并继续'))!.trigger('click')
+    await wrapper.findAll('button').find((button) => button.text().includes('接受工作包 1并继续'))!.trigger('click')
     await flushPromises()
     expect(approve).toHaveBeenCalledWith(packageSession.id, 'WP-1', 2, 3)
     wrapper.unmount()
@@ -615,7 +615,8 @@ describe('Designer draft composer', () => {
 
     expect(wrapper.text()).not.toContain('Designer session created in read-only mode.')
     expect(wrapper.text()).not.toContain('Message was handed to the read-only OpenCode Designer.')
-    expect(wrapper.text()).toContain('SYSTEM_ERROR[SESSION]: Runtime is unavailable.')
+    expect(wrapper.text()).not.toContain('SYSTEM_ERROR')
+    expect(wrapper.text()).toContain('错误，请按页面提示处理后重试')
   })
 
   it('restores distinct role cards, hides compiler JSON, and exposes both recovery actions', async () => {
@@ -653,8 +654,8 @@ describe('Designer draft composer', () => {
     await flushPromises()
 
     expect(wrapper.get('.chat-user').text()).toContain('你')
-    expect(wrapper.get('.chat-designer').text()).toContain('Designer / 设计师')
-    expect(wrapper.get('.chat-compiler').text()).toContain('LoopSpec Compiler / 规范编译器')
+    expect(wrapper.get('.chat-designer').text()).toContain('设计器')
+    expect(wrapper.get('.chat-compiler').text()).toContain('规范编译器')
     expect(wrapper.get('.chat-system').text()).toContain('系统')
     const discussion = wrapper.getComponent(DesignerDiscussionHistory)
     const historyChildren = Array.from(wrapper.get('.chat-history').element.children)
@@ -669,11 +670,11 @@ describe('Designer draft composer', () => {
     expect(wrapper.get('.validator-normalized').text()).toContain('输出包装已自动规范化')
     expect(wrapper.get('.validator-terminal_error').text()).toContain('工作流已停止')
     expect(wrapper.text()).not.toContain('"loopSpec":"secret"')
-    expect(wrapper.get('.designer-connection-strip').text()).toContain('Compiler 格式修复 0/2 · 语义修复 0/2')
+    expect(wrapper.get('.designer-connection-strip').text()).toContain('规范编译修复 0/2 · 语义修复 0/2')
 
     await wrapper.findAll('button').find((button) => button.text().includes('重新编译当前设计'))!.trigger('click')
     await flushPromises()
-    await wrapper.findAll('button').find((button) => button.text().includes('让 Designer 重新设计'))!.trigger('click')
+    await wrapper.findAll('button').find((button) => button.text().includes('让设计器重新设计'))!.trigger('click')
     await flushPromises()
     expect(retry).toHaveBeenCalledWith(failedSession.id)
     expect(redesign).toHaveBeenCalledWith(failedSession.id)
@@ -709,8 +710,9 @@ describe('Designer draft composer', () => {
     await wrapper.get('.create-draft-button').trigger('click')
     await flushPromises()
 
-    expect(wrapper.get('.chat-decomposer').text()).toContain('Task Decomposer / 任务拆解器')
-    expect(wrapper.get('[aria-label="工作包设计轨道"]').text()).toContain('WP-1')
+    expect(wrapper.get('.chat-decomposer').text()).toContain('任务拆解器')
+    expect(wrapper.get('[aria-label="工作包设计轨道"]').text()).toContain('工作包 1')
+    expect(wrapper.get('[aria-label="工作包设计轨道"]').text()).not.toContain('WP-1')
     expect(wrapper.get('[aria-label="工作包设计轨道"]').text()).toContain('讨论 0/5 · 设计 R1')
     expect(wrapper.get('.designer-connection-strip').text()).toContain('模型调用 9/32')
     expect(wrapper.text()).not.toContain('"stages":["secret"]')
@@ -738,7 +740,7 @@ describe('Designer draft composer', () => {
     await wrapper.get('textarea[aria-label="草案设计目标"]').setValue('这是需要清理的旧设计')
     await wrapper.get('.create-draft-button').trigger('click')
     await flushPromises()
-    await wrapper.get('textarea[aria-label="发送给只读 OpenCode Designer 的消息"]').setValue('未发送的旧补充')
+    await wrapper.get('textarea[aria-label="发送给只读设计器的消息"]').setValue('未发送的旧补充')
 
     expect(sessionStorage.getItem('opencode-loopper.designer-workspace')).toContain(session.id)
     expect(sessionStorage.getItem('opencode-loopper.designer-message-draft')).toBe('未发送的旧补充')
@@ -750,7 +752,7 @@ describe('Designer draft composer', () => {
     expect(sessionStorage.getItem('opencode-loopper.designer-workspace')).toBeNull()
     expect(sessionStorage.getItem('opencode-loopper.designer-draft-prompt')).toBeNull()
     expect(sessionStorage.getItem('opencode-loopper.designer-message-draft')).toBeNull()
-    expect(wrapper.find('textarea[aria-label="发送给只读 OpenCode Designer 的消息"]').exists()).toBe(false)
+    expect(wrapper.find('textarea[aria-label="发送给只读设计器的消息"]').exists()).toBe(false)
     expect(wrapper.find('textarea[aria-label="草案设计目标"]').exists()).toBe(true)
   })
 

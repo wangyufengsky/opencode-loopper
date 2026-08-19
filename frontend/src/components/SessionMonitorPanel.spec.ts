@@ -36,7 +36,7 @@ describe('SessionMonitorPanel', () => {
     expect(wrapper.text()).toContain('实时 · 1.2 秒')
     expect(wrapper.text()).toContain('执行会话')
     expect(wrapper.text()).toContain('阶段 1 · 执行会话')
-    expect(wrapper.text()).toContain('实现动态会话监控并完成本阶段验证')
+    expect(wrapper.text()).not.toContain('实现动态会话监控并完成本阶段验证')
     expect(wrapper.text()).not.toContain('remote-1')
     expect(wrapper.text()).not.toContain('local-1')
     expect(wrapper.text()).toContain('思考')
@@ -95,10 +95,10 @@ describe('SessionMonitorPanel', () => {
     await flushPromises()
 
     const panel = wrapper.get('[aria-label="OpenCode 实施计划"]')
-    expect(panel.text()).toContain('OpenCode 进度投影')
+    expect(panel.text()).toContain('实施清单')
     expect(panel.text()).toContain('实现 Todo 同步')
-    expect(panel.text()).toContain('IN_PROGRESS · HIGH')
-    expect(panel.text()).toContain('仅显示安全截断后的投影')
+    expect(panel.text()).toContain('进行中 · 高')
+    expect(panel.text()).not.toContain('IN_PROGRESS')
     wrapper.unmount()
   })
 

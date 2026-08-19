@@ -27,7 +27,7 @@ describe('InsightsDashboardView', () => {
     const markers = wrapper.findAll('.quality')
     expect(markers.map(marker => marker.text())).toEqual(['质量通过', '待验收', '待评审'])
     expect(markers.every(marker => marker.find('.quality-icon').exists())).toBe(true)
-    expect(markers.map(marker => marker.attributes('title'))).toEqual(['PASS', 'PENDING', 'REVIEW_REQUIRED'])
+    expect(markers.map(marker => marker.attributes('title'))).toEqual(['质量通过', '待验收', '待评审'])
     expect(wrapper.find('a[href="/tasks/REVIEW_REQUIRED#judge-review"]').exists()).toBe(true)
   })
 })

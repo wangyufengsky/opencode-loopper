@@ -119,7 +119,7 @@ describe('TaskDetailView judge action', () => {
     })
     await flushPromises()
 
-    expect(wrapper.text()).toContain('当前在排谁')
+    expect(wrapper.text()).toContain('排队状态')
     expect(wrapper.text()).toContain('已取消的旧任务')
     expect(wrapper.text()).toContain('工作区有未提交或未跟踪文件')
     const action = wrapper.findAll('button').find((button) => button.text().includes('取消任务'))
@@ -165,8 +165,8 @@ describe('TaskDetailView judge action', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('开始执行')
-    expect(wrapper.text()).toContain('尚未申请项目写租约或创建任务分支')
-    expect(wrapper.text()).toContain('确认计划不会占用写租约或切换项目分支')
+    expect(wrapper.text()).toContain('点击“开始执行”进入队列')
+    expect(wrapper.text()).not.toContain('确认计划不会占用写租约或切换项目分支')
     const action = wrapper.findAll('button').find((button) => button.text().includes('取消任务'))
     expect(action).toBeDefined()
     await action!.trigger('click')
@@ -270,12 +270,13 @@ describe('TaskDetailView judge action', () => {
     })
     await flushPromises()
 
-    expect(wrapper.get('#package-progress-heading').text()).toBe('工作包与独立尝试池')
-    expect(wrapper.get('.package-progress-grid').text()).toContain('WP-1')
+    expect(wrapper.get('#package-progress-heading').text()).toBe('执行进度')
+    expect(wrapper.get('.package-progress-grid').text()).toContain('工作包 1')
+    expect(wrapper.get('.package-progress-grid').text()).not.toContain('WP-1')
     expect(wrapper.get('.package-progress-grid').text()).toContain('2 / 4')
-    expect(wrapper.get('.package-progress-grid').text()).toContain('WP-2')
+    expect(wrapper.get('.package-progress-grid').text()).toContain('工作包 2')
     expect(wrapper.get('.package-progress-grid').text()).toContain('1 / 3')
-    expect(wrapper.text()).toContain('全部包完成后仅运行一组 Requirement / Risk Judge')
+    expect(wrapper.text()).not.toContain('Requirement / Risk Judge')
   })
 
   it('offers an explicit fresh double review for a deterministically accepted waiting task', async () => {
@@ -309,7 +310,7 @@ describe('TaskDetailView judge action', () => {
     await action!.trigger('click')
     await flushPromises()
 
-    expect(ElMessageBox.confirm).toHaveBeenCalledWith(expect.stringContaining('两个新的只读 OpenCode 评审 Session'), expect.any(String), expect.any(Object))
+    expect(ElMessageBox.confirm).toHaveBeenCalledWith(expect.stringContaining('两个新的只读评审会话'), expect.any(String), expect.any(Object))
     expect(store.retryJudges).toHaveBeenCalledWith('task-review')
   })
 
@@ -393,11 +394,11 @@ describe('TaskDetailView judge action', () => {
 
     const action = wrapper.findAll('button').find((button) => button.text().includes('继续一轮'))
     expect(action).toBeDefined()
-    expect(wrapper.text()).toContain('循环已因重复失败或重试策略暂停')
+    expect(wrapper.text()).toContain('循环已暂停，可确认后继续一轮')
     await action!.trigger('click')
     await flushPromises()
 
-    expect(ElMessageBox.confirm).toHaveBeenCalledWith(expect.stringContaining('全新的可写 OpenCode Session'), '确认继续一轮？', expect.any(Object))
+    expect(ElMessageBox.confirm).toHaveBeenCalledWith(expect.stringContaining('新的可写会话'), '确认继续一轮？', expect.any(Object))
     expect(store.retryWaitingLoop).toHaveBeenCalledWith('task-stagnant')
   })
 

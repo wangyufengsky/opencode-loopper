@@ -21,10 +21,13 @@ import {
   artifactKindLabel,
   executionStrategyLabel,
   profileResolutionLabel,
+  rolePackLabel,
+  displayLabel,
   statusLabel,
   taskIntentLabel,
   testPolicyLabel,
   workflowTemplateLabel,
+  userFacingError,
 } from '@/utils/displayLabels'
 
 const store = useTaskStore()
@@ -111,14 +114,14 @@ const designerSessionError = computed(() => designerSession.value?.state === 'SE
 const designerIsThinking = computed(() => designerSession.value?.state === 'RUNNING' && !designerLiveResponse.value
   && (designerSession.value.pendingQuestions?.length ?? 0) === 0)
 const actorMeta = {
-  USER: { label: '你', subtitle: '需求与补充', icon: 'lucide:user-round' },
-  ROUTER: { label: 'Task Router / 任务画像路由器', subtitle: '受控仓库事实与流程选择', icon: 'lucide:route' },
-  DECOMPOSER: { label: 'Task Decomposer / 任务拆解器', subtitle: '需求覆盖与纵向工作包', icon: 'lucide:split' },
-  DESIGNER: { label: 'Designer / 设计师', subtitle: 'Markdown 设计文档', icon: 'lucide:sparkles' },
-  COMPILER: { label: 'LoopSpec Compiler / 规范编译器', subtitle: '编译摘要与设计缺口', icon: 'lucide:braces' },
-  REVIEWER: { label: 'Reviewer / 只读评审器', subtitle: '报告与证据快照', icon: 'lucide:file-search' },
-  VALIDATOR: { label: 'Deterministic Validator / 确定性校验器', subtitle: '服务端硬校验结果', icon: 'lucide:badge-check' },
-  SYSTEM: { label: '系统', subtitle: '工作流通知', icon: 'lucide:info' },
+  USER: { label: '你', icon: 'lucide:user-round' },
+  ROUTER: { label: '任务路由器', icon: 'lucide:route' },
+  DECOMPOSER: { label: '任务拆解器', icon: 'lucide:split' },
+  DESIGNER: { label: '设计器', icon: 'lucide:sparkles' },
+  COMPILER: { label: '规范编译器', icon: 'lucide:braces' },
+  REVIEWER: { label: '只读评审器', icon: 'lucide:file-search' },
+  VALIDATOR: { label: '确定性校验器', icon: 'lucide:badge-check' },
+  SYSTEM: { label: '系统', icon: 'lucide:info' },
 } as const
 const workflowLabels = {
   ROUTING: '画像识别中', DISCUSSING_REQUIREMENT: '需求讨论', DECOMPOSING: '拆解中', VALIDATING_DECOMPOSITION: '校验拆解中', DESIGNING: '设计中', COMPILING: '编译中', VALIDATING: '确定性校验中', REDESIGNING: '重新设计中', QUESTIONING_PACKAGE: '设计提问', REVIEWING_PACKAGE: '工作包待确认', AGGREGATING: '聚合中', FINAL_REVIEW: '总体确认', GENERATING_REPORT: '报告生成中', VALIDATING_REPORT: '报告校验中', REPORT_READY: '报告已就绪', COMPLETED: '已完成', FAILED: '已停止',
@@ -133,6 +136,11 @@ const activeStructuredStep = computed(() => designerStructuredStep.value
   ?? (designerSession.value?.activeActor === 'COMPILER' ? designerSession.value.compiler?.workflowStep : undefined))
 const activeDetailedWorkflowLabel = computed(() => activeStructuredStep.value
   ? `${activeWorkflowLabel.value} · ${structuredStepLabels[activeStructuredStep.value]}` : activeWorkflowLabel.value)
+function workPackageLabel(packageId?: string) {
+  if (!packageId) return '工作包'
+  const index = designerSession.value?.workPackages?.findIndex(item => item.id === packageId) ?? -1
+  return index >= 0 ? `工作包 ${index + 1}` : '工作包'
+}
 const isFinalReview = computed(() => ['FINAL_REVIEW', 'COMPLETED'].includes(
   designerSession.value?.workflowPhase ?? '',
 ))
@@ -164,20 +172,19 @@ const artifactTarget = computed(() => artifactStage.value?.deliverables?.[0] ?? 
 const artifactSource = computed(() => artifactStage.value?.verifiers?.flatMap((item) => item.tabularAssertions ?? [])
   .find((item) => item.type === 'EQUIVALENT_TO')?.sourcePath ?? '')
 const documentHeadingCount = computed(() => (draft.value?.spec.context.match(/^#{1,4}\s+/gm) ?? []).length)
-const discussionScopeLabel = computed(() => designerSession.value?.discussionScope && designerSession.value.discussionScope !== 'REQUIREMENT'
-  ? designerSession.value.discussionScope : '整体需求')
+const discussionScopeLabel = computed(() => {
+  const scope = designerSession.value?.discussionScope
+  if (!scope || scope === 'REQUIREMENT') return '整体需求'
+  return scope === 'FINAL' ? '整体确认' : workPackageLabel(scope)
+})
 const hasPendingDesignerQuestion = computed(() => (designerSession.value?.pendingQuestions?.length ?? 0) > 0)
 const autoModeActive = computed(() => designerSession.value?.autoMode.state === 'ACTIVE')
 const autoModeBlocked = computed(() => designerSession.value?.autoMode.state === 'BLOCKED')
-const autoModeResolvingProfile = computed(() => autoModeActive.value
-  && designerSession.value?.taskProfile.decisionRequired === true)
 const composerEnabled = computed(() => {
   if (!designerSession.value || autoModeActive.value || designerSession.value.state === 'RUNNING' || hasPendingDesignerQuestion.value) return false
   if (designerSession.value.workflowPhase === 'DISCUSSING_REQUIREMENT') return true
   return designerSession.value.workflowPhase === 'REVIEWING_PACKAGE' && currentPackage.value?.state === 'REVIEWING'
 })
-const candidateJson = computed(() => designerSession.value?.candidate?.spec
-  ? JSON.stringify(designerSession.value.candidate.spec, null, 2) : '')
 const blockedWorkflowMessage = computed(() => designerSession.value?.state === 'WAITING_INPUT'
   ? [...messages.value].reverse().find((message) => ['TERMINAL_ERROR', 'DESIGN_INCOMPLETE', 'RETRYABLE_ERROR'].includes(message.deliveryState ?? ''))
   : designerSessionError.value)
@@ -205,7 +212,7 @@ async function updateTaskProfile() {
     await api.updateDesignerTaskProfile(session.id, profileIntent.value, profileArtifact.value, session.taskProfile.version)
     await refreshDesignerSession()
     ElMessage.success('任务画像和专属流程已更新')
-  } catch (error) { ElMessage.error(error instanceof Error ? error.message : '任务画像更新失败') }
+  } catch (error) { ElMessage.error(userFacingError(error, '任务画像更新失败')) }
   finally { busy.value = false }
 }
 async function convertReportToDesign() {
@@ -218,8 +225,8 @@ async function convertReportToDesign() {
     if (created.draft) sessionStorage.setItem(designerWorkspaceKey, JSON.stringify({ sessionId: created.id, draftId: created.draft.id }))
     await router.replace({ path: '/designer', query: { sessionId: created.id } })
     await restoreDesignerSessionById(created.id)
-    ElMessage.success('已创建关联的可写 Designer 会话；尚未创建 Task')
-  } catch (error) { ElMessage.error(error instanceof Error ? error.message : '报告转换失败') }
+    ElMessage.success('已创建关联的可写设计会话；尚未创建任务')
+  } catch (error) { ElMessage.error(userFacingError(error, '报告转换失败')) }
   finally { busy.value = false }
 }
 const visibleMessages = computed(() => messages.value.filter((message) => !selectedWorkPackageId.value
@@ -327,7 +334,7 @@ async function refreshDesignerSession() {
       draft.value = refreshed.draft
       if (!hadLocalChanges) editorValue.value = JSON.stringify(refreshed.draft.spec, null, 2)
       else if (editorValue.value !== JSON.stringify(refreshed.draft.spec, null, 2)) {
-        ElMessage.warning('Designer 已生成新的 LoopSpec；右侧保留了你的未保存编辑，请保存或刷新后查看服务端版本。')
+        ElMessage.warning('设计器已生成新的执行规范；右侧保留了未保存修改。')
       }
     }
     designerPollFailures = 0
@@ -341,7 +348,7 @@ async function refreshDesignerSession() {
     designerPollFailures += 1
     designerReconnecting.value = true
     if (designerPollFailures === 1) {
-      ElMessage.warning(error instanceof Error ? `${error.message}；正在自动重连` : 'Designer 会话刷新失败，正在自动重连')
+      ElMessage.warning(`${userFacingError(error, '设计会话刷新失败')}，正在自动重连`)
     }
   } finally {
     if (generation === designerPollGeneration) designerPollInFlight = false
@@ -382,11 +389,11 @@ async function answerDesignerQuestion(pending: TaskSessionPendingQuestion, answe
       pendingQuestions: (designerSession.value.pendingQuestions ?? []).filter((question) => question.id !== pending.id),
     }
     designerRemoteState.value = 'RUNNING'
-    designerLiveDetail.value = '回答已提交，OpenCode Designer 继续生成设计稿'
-    ElMessage.success('回答已提交，Designer 继续执行')
+    designerLiveDetail.value = '回答已提交，设计器继续生成设计稿'
+    ElMessage.success('回答已提交，设计器继续执行')
     await refreshDesignerSession()
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '回答提交失败')
+    ElMessage.error(userFacingError(error, '回答提交失败'))
   } finally {
     submittingDesignerQuestion.value = ''
   }
@@ -395,7 +402,7 @@ async function answerDesignerQuestion(pending: TaskSessionPendingQuestion, answe
 async function rejectDesignerQuestion(pending: TaskSessionPendingQuestion) {
   if (!designerSession.value || submittingDesignerQuestion.value) return
   try {
-    await ElMessageBox.confirm('拒绝后，本次 question 工具调用会结束并把拒绝结果返回 Designer。', '拒绝这个问题？', { confirmButtonText: '确认拒绝', cancelButtonText: '返回回答', type: 'warning' })
+    await ElMessageBox.confirm('拒绝后，设计器会收到拒绝结果。', '拒绝这个问题？', { confirmButtonText: '确认拒绝', cancelButtonText: '返回回答', type: 'warning' })
   } catch { return }
   submittingDesignerQuestion.value = pending.id
   try {
@@ -405,11 +412,11 @@ async function rejectDesignerQuestion(pending: TaskSessionPendingQuestion) {
       pendingQuestions: (designerSession.value.pendingQuestions ?? []).filter((question) => question.id !== pending.id),
     }
     designerRemoteState.value = 'RUNNING'
-    designerLiveDetail.value = '问题已拒绝，OpenCode Designer 将自行处理'
-    ElMessage.success('问题已拒绝，Designer 继续执行')
+    designerLiveDetail.value = '问题已拒绝，设计器将自行处理'
+    ElMessage.success('问题已拒绝，设计器继续执行')
     await refreshDesignerSession()
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '拒绝操作失败')
+    ElMessage.error(userFacingError(error, '拒绝操作失败'))
   } finally {
     submittingDesignerQuestion.value = ''
   }
@@ -484,7 +491,7 @@ watch(() => designerSession.value?.autoMode.taskId, async (taskId) => {
     await router.push(`/tasks/${taskId}`)
   } catch (error) {
     redirectedAutoTaskId = ''
-    ElMessage.error(error instanceof Error ? error.message : '自动任务已创建，但无法打开任务详情')
+    ElMessage.error(userFacingError(error, '自动任务已创建，但无法打开任务详情'))
   }
 })
 
@@ -514,7 +521,7 @@ async function applyBriefTemplate(prompt: string) {
 }
 
 function blankSpec(projectId: string, goal: string, settings: AppSettings): LoopDraft['spec'] {
-  return { schemaVersion: 'v2', projectId, goal, context: 'Execution 只允许在该 Task 的执行目录中修改；有 Git HEAD 时把登记项目目录切换到任务分支，否则直接使用登记的项目目录。', stages: [{ objective: '分析目标并实现最小可验证改动', allowedPaths: [], forbiddenPaths: [], deliverables: ['可验证实现'], implementationKind: 'NON_JAVA', acceptanceCriteria: [], verifiers: [] }], limits: { maxStageAttempts: settings.limits.maxStageAttempts, maxTaskAttempts: settings.limits.maxTaskAttempts, maxDuration: `PT${settings.limits.maxDurationMinutes}M`, attemptTimeout: `PT${settings.limits.attemptTimeoutMinutes}M` } }
+  return { schemaVersion: 'v2', projectId, goal, context: '', stages: [{ objective: '分析目标并实现最小可验证改动', allowedPaths: [], forbiddenPaths: [], deliverables: ['可验证实现'], implementationKind: 'NON_JAVA', acceptanceCriteria: [], verifiers: [] }], limits: { maxStageAttempts: settings.limits.maxStageAttempts, maxTaskAttempts: settings.limits.maxTaskAttempts, maxDuration: `PT${settings.limits.maxDurationMinutes}M`, attemptTimeout: `PT${settings.limits.attemptTimeoutMinutes}M` } }
 }
 
 async function startDraft() {
@@ -539,7 +546,7 @@ async function startDraft() {
     designerRecoveryError.value = ''
     draftPrompt.value = ''
     newAutoModeEnabled.value = false
-  } catch (error) { ElMessage.error(error instanceof Error ? error.message : '无法创建 LoopSpec 草案') } finally { busy.value = false }
+  } catch (error) { ElMessage.error(userFacingError(error, '无法创建设计草案')) } finally { busy.value = false }
 }
 
 async function confirmAutoModeRisk() {
@@ -570,7 +577,7 @@ async function changeAutoMode(value: string | number | boolean) {
     ElMessage.success(enabled ? '全自动模式已开启' : '全自动模式已关闭')
     await refreshDesignerSession()
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '全自动模式切换失败')
+    ElMessage.error(userFacingError(error, '全自动模式切换失败'))
     await refreshDesignerSession()
   } finally { autoModeBusy.value = false }
 }
@@ -594,7 +601,7 @@ async function restoreDesignerSessionById(sessionId: string) {
     activateDesignerWorkspace(restoredSession, restoredDraft)
     return true
   } catch (error) {
-    designerRecoveryError.value = error instanceof Error ? error.message : '无法恢复该设计会话'
+    designerRecoveryError.value = userFacingError(error, '无法恢复该设计会话')
     return false
   }
 }
@@ -645,12 +652,12 @@ function clearDesignerWorkspace() {
 async function restartDesigner() {
   try {
     await ElMessageBox.confirm(
-      '将清空当前浏览器中的 Designer 工作区和未发送输入。后端历史记录保留用于审计，已创建的 Task 不受影响。',
-      '重新开始 Designer？',
+      '将清空当前设计工作区和未发送内容，历史记录与已创建任务不受影响。',
+      '重新开始设计？',
       { type: 'warning', confirmButtonText: '清理并重新开始', cancelButtonText: '取消' },
     )
     clearDesignerWorkspace()
-    ElMessage.success('已清理当前 Designer 工作区，可以创建新草案')
+    ElMessage.success('已清理当前设计工作区，可以创建新草案')
   } catch { /* The user cancelled the destructive local reset. */ }
 }
 
@@ -660,7 +667,7 @@ async function restoreDesignerWorkspace() {
   let ids: { sessionId?: string, draftId?: string }
   try {
     ids = JSON.parse(saved) as { sessionId?: string, draftId?: string }
-    if (!ids.sessionId || !ids.draftId) throw new Error('Designer workspace reference is incomplete')
+    if (!ids.sessionId || !ids.draftId) throw new Error('设计工作区引用不完整')
   } catch {
     sessionStorage.removeItem(designerWorkspaceKey)
     return
@@ -677,7 +684,7 @@ async function restoreDesignerWorkspace() {
     activateDesignerWorkspace(restoredSession, restoredDraft)
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) sessionStorage.removeItem(designerWorkspaceKey)
-    designerRecoveryError.value = error instanceof Error ? `上次设计暂时无法恢复：${error.message}` : '上次设计暂时无法恢复'
+    designerRecoveryError.value = `上次设计暂时无法恢复：${userFacingError(error)}`
   }
 }
 
@@ -705,7 +712,7 @@ onBeforeUnmount(() => {
 onBeforeRouteLeave(async () => {
   if (!dirty.value) return true
   try {
-    await ElMessageBox.confirm('LoopSpec 有未保存的修改，离开后这些修改不会保留。', '离开 Designer？', { type: 'warning', confirmButtonText: '离开', cancelButtonText: '继续编辑' })
+    await ElMessageBox.confirm('执行规范有未保存的修改，离开后不会保留。', '离开设计页？', { type: 'warning', confirmButtonText: '离开', cancelButtonText: '继续编辑' })
     return true
   } catch { return false }
 })
@@ -719,12 +726,12 @@ function warnBeforeUnload(event: BeforeUnloadEvent) {
 function parsedSpec() {
   try {
     const spec = JSON.parse(editorValue.value) as LoopDraft['spec']
-    if (!spec.goal?.trim()) throw new Error('goal 不能为空')
-    if (!Array.isArray(spec.stages) || spec.stages.length === 0) throw new Error('至少需要一个 stage')
-    if (spec.schemaVersion === 'v2' && spec.stages.some((stage) => !stage.implementationKind)) throw new Error('每个 v2 stage 都必须选择 implementationKind')
+    if (!spec.goal?.trim()) throw new Error('任务目标不能为空')
+    if (!Array.isArray(spec.stages) || spec.stages.length === 0) throw new Error('至少需要一个阶段')
+    if (spec.schemaVersion === 'v2' && spec.stages.some((stage) => !stage.implementationKind)) throw new Error('每个阶段都必须选择实施方式')
     return spec
   } catch (error) {
-    fieldError.value = { id: 'field-json', layer: 'FIELD', code: 'LOOPSPEC_INVALID', message: error instanceof Error ? `LoopSpec 校验失败：${error.message}` : 'LoopSpec 不是有效 JSON', retryable: true, occurredAt: '刚刚' }
+    fieldError.value = { id: 'field-json', layer: 'FIELD', code: 'LOOPSPEC_INVALID', message: userFacingError(error, '执行规范格式无效'), retryable: true, occurredAt: '刚刚' }
     return undefined
   }
 }
@@ -745,10 +752,10 @@ async function saveDraft(): Promise<boolean> {
     draft.value = store.usingDemo ? { ...draft.value, spec, updatedAt: new Date().toISOString() } : await api.updateDraft(draft.value.id, spec)
     editorValue.value = JSON.stringify(draft.value.spec, null, 2)
     fieldError.value = undefined
-    ElMessage.success('LoopSpec 已保存并通过基础校验')
+    ElMessage.success('执行规范已保存并通过基础校验')
     return true
   } catch (error) {
-    fieldError.value = { id: 'field-api', layer: 'FIELD', code: 'LOOPSPEC_SAVE_FAILED', message: error instanceof Error ? error.message : '保存失败', retryable: true, occurredAt: '刚刚' }
+    fieldError.value = { id: 'field-api', layer: 'FIELD', code: 'LOOPSPEC_SAVE_FAILED', message: userFacingError(error, '保存失败'), retryable: true, occurredAt: '刚刚' }
     return false
   } finally { busy.value = false }
 }
@@ -764,9 +771,9 @@ async function copyLegacyDraftAsV2() {
     editorValue.value = JSON.stringify(draft.value.spec, null, 2)
     acceptanceAssessment.value = undefined
     sessionStorage.setItem(designerWorkspaceKey, JSON.stringify({ sessionId: designerSession.value.id, draftId: draft.value.id }))
-    ElMessage.success('已复制为新的 v2 草稿；请补齐验收条件与行为验证器后保存')
+    ElMessage.success('已升级草稿；请补齐验收条件与行为验证后保存')
   } catch (error) {
-    fieldError.value = { id: 'field-copy-v2', layer: 'FIELD', code: 'LOOPSPEC_COPY_V2_FAILED', message: error instanceof Error ? error.message : '复制 v2 草稿失败', retryable: true, occurredAt: '刚刚' }
+    fieldError.value = { id: 'field-copy-v2', layer: 'FIELD', code: 'LOOPSPEC_COPY_V2_FAILED', message: userFacingError(error, '升级规范失败'), retryable: true, occurredAt: '刚刚' }
   } finally { busy.value = false }
 }
 
@@ -776,7 +783,7 @@ async function confirm() {
   if (draft.value.status !== 'CONFIRMED' && !await saveDraft()) return
   busy.value = true
   try {
-    if (store.usingDemo) { draft.value = { ...draft.value, status: 'CONFIRMED' }; ElMessage.success('演示：Task 已创建，等待 MCP 交接') }
+    if (store.usingDemo) { draft.value = { ...draft.value, status: 'CONFIRMED' }; ElMessage.success('演示任务已创建') }
     else {
       const result = await api.confirmDraft(draft.value.id)
       draft.value = await api.getDraft(draft.value.id)
@@ -784,13 +791,13 @@ async function confirm() {
       const task = await store.loadTask(result.taskId)
       if (task?.status === 'FAILED') {
         const reason = task.errors?.find((error) => error.layer === 'TASK')
-        ElMessage.error(`Task ${result.taskId} 已创建，但准备失败${reason ? `：${reason.message}` : ''}`)
+        ElMessage.error(`任务已创建，但准备失败${reason ? `：${userFacingError(reason.message)}` : ''}`)
       } else {
-        ElMessage.success(`Task ${result.taskId} 已创建并交接到任务控制台`)
+        ElMessage.success('任务已创建')
       }
       await router.push(`/tasks/${result.taskId}`)
     }
-  } catch (error) { ElMessage.error(error instanceof Error ? error.message : '确认失败') } finally { busy.value = false }
+  } catch (error) { ElMessage.error(userFacingError(error, '确认失败')) } finally { busy.value = false }
 }
 
 async function sendMessage() {
@@ -802,7 +809,7 @@ async function sendMessage() {
     return
   }
   if (!designerSession.value) {
-    ElMessage.warning('请先创建 Designer session。')
+    ElMessage.warning('请先创建设计会话。')
     return
   }
   busy.value = true
@@ -817,11 +824,11 @@ async function sendMessage() {
     mergeMessages(result.persistedMessages)
     designerSession.value = { ...designerSession.value, state: result.state }
     userMessage.value = ''
-    ElMessage.info(result.notice || '消息已交给只读 OpenCode Designer。')
+    ElMessage.info(result.notice ? userFacingError(result.notice) : '消息已交给只读设计器。')
     await refreshDesignerSession()
     startDesignerPolling()
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '无法保存 Designer 消息')
+    ElMessage.error(userFacingError(error, '无法保存设计消息'))
   } finally {
     busy.value = false
   }
@@ -835,8 +842,8 @@ async function confirmRequirement() {
     await refreshDesignerSession()
     startDesignerPolling()
     ElMessage.success(designerSession.value?.taskProfile.workflowTemplate === 'READ_ONLY_REPORT'
-      ? '独立只读 Reviewer 已启动；不会创建任务或写入资源' : '整体需求已冻结，专属流程已启动')
-  } catch (error) { ElMessage.error(error instanceof Error ? error.message : '需求确认失败') }
+      ? '只读评审已启动' : '整体需求已冻结，专属流程已启动')
+  } catch (error) { ElMessage.error(userFacingError(error, '需求确认失败')) }
   finally { busy.value = false }
 }
 
@@ -853,7 +860,7 @@ async function reopenRequirement() {
     await refreshDesignerSession()
     selectedWorkPackageId.value = ''
     ElMessage.success('整体需求已重新打开')
-  } catch (error) { ElMessage.error(error instanceof Error ? error.message : '重开需求失败') }
+  } catch (error) { ElMessage.error(userFacingError(error, '重开需求失败')) }
   finally { busy.value = false }
 }
 
@@ -866,8 +873,8 @@ async function approvePackage() {
       designerSession.value.discussionRevision, currentPackage.value.designRevision)
     await refreshDesignerSession()
     startDesignerPolling()
-    ElMessage.success(`${approvedPackageId} 已接受`)
-  } catch (error) { ElMessage.error(error instanceof Error ? error.message : '工作包接受失败') }
+    ElMessage.success(`${workPackageLabel(approvedPackageId)}已接受`)
+  } catch (error) { ElMessage.error(userFacingError(error, '工作包接受失败')) }
   finally { busy.value = false }
 }
 
@@ -893,8 +900,8 @@ async function reopenPackage(packageId: string) {
   const dependents = dependentPackageIds(packageId)
   try {
     await ElMessageBox.confirm(
-      dependents.length ? `将重新讨论 ${packageId}，并使下游 ${dependents.join('、')} 失效。无关工作包保持已接受。`
-        : `将重新讨论 ${packageId}；没有下游工作包会失效。`,
+      dependents.length ? `将重新讨论${workPackageLabel(packageId)}，并使 ${dependents.map(workPackageLabel).join('、')}失效。`
+        : `将重新讨论${workPackageLabel(packageId)}。`,
       '重新讨论工作包？', { type: 'warning', confirmButtonText: '确认重新讨论', cancelButtonText: '取消' },
     )
   } catch { return }
@@ -904,8 +911,8 @@ async function reopenPackage(packageId: string) {
       designerSession.value.discussionRevision, item.approvedDesignRevision)
     await refreshDesignerSession()
     selectedWorkPackageId.value = packageId
-    ElMessage.success(invalidated.length ? `已重开；失效：${invalidated.join('、')}` : `${packageId} 已重开`)
-  } catch (error) { ElMessage.error(error instanceof Error ? error.message : '工作包重开失败') }
+    ElMessage.success(invalidated.length ? `已重开；失效：${invalidated.map(workPackageLabel).join('、')}` : `${workPackageLabel(packageId)}已重开`)
+  } catch (error) { ElMessage.error(userFacingError(error, '工作包重开失败')) }
   finally { busy.value = false }
 }
 
@@ -916,8 +923,8 @@ async function retryCompiler() {
     await api.retryDesignerCompiler(designerSession.value.id)
     await refreshDesignerSession()
     startDesignerPolling()
-    ElMessage.success('已启动新的只读规范编译器 Session')
-  } catch (error) { ElMessage.error(error instanceof Error ? error.message : '重新编译失败') }
+    ElMessage.success('已启动新的只读规范编译会话')
+  } catch (error) { ElMessage.error(userFacingError(error, '重新编译失败')) }
   finally { busy.value = false }
 }
 
@@ -929,7 +936,7 @@ async function requestRedesign() {
     await refreshDesignerSession()
     startDesignerPolling()
     ElMessage.success('已要求设计师生成完整替代稿')
-  } catch (error) { ElMessage.error(error instanceof Error ? error.message : '重新设计失败') }
+  } catch (error) { ElMessage.error(userFacingError(error, '重新设计失败')) }
   finally { busy.value = false }
 }
 
@@ -940,8 +947,8 @@ async function retryDecomposition() {
     await api.retryDesignerDecomposition(designerSession.value.id)
     await refreshDesignerSession()
     startDesignerPolling()
-    ElMessage.success('已启动新的只读任务拆解器 Session')
-  } catch (error) { ElMessage.error(error instanceof Error ? error.message : '重新拆解失败') }
+    ElMessage.success('已启动新的只读任务拆解会话')
+  } catch (error) { ElMessage.error(userFacingError(error, '重新拆解失败')) }
   finally { busy.value = false }
 }
 
@@ -952,8 +959,8 @@ async function retryPackageCompiler(packageId: string) {
     await api.retryWorkPackageCompiler(designerSession.value.id, packageId)
     await refreshDesignerSession()
     startDesignerPolling()
-    ElMessage.success(`${packageId} 已启动新的规范编译器 Session`)
-  } catch (error) { ElMessage.error(error instanceof Error ? error.message : '工作包重新编译失败') }
+    ElMessage.success(`${workPackageLabel(packageId)}已启动新的规范编译会话`)
+  } catch (error) { ElMessage.error(userFacingError(error, '工作包重新编译失败')) }
   finally { busy.value = false }
 }
 
@@ -964,35 +971,34 @@ async function redesignPackage(packageId: string) {
     await api.redesignWorkPackage(designerSession.value.id, packageId)
     await refreshDesignerSession()
     startDesignerPolling()
-    ElMessage.success(`${packageId} 已交给新的只读 Designer Session 重新设计`)
-  } catch (error) { ElMessage.error(error instanceof Error ? error.message : '工作包重新设计失败') }
+    ElMessage.success(`${workPackageLabel(packageId)}已重新开始设计`)
+  } catch (error) { ElMessage.error(userFacingError(error, '工作包重新设计失败')) }
   finally { busy.value = false }
 }
 </script>
 
 <template>
-  <PageHeader :eyebrow="draft ? 'Designer / Plan' : 'Designer'" :title="draft ? 'Designer 与 LoopSpec' : '设计工作台'">
+  <PageHeader eyebrow="设计" :title="draft ? '设计与执行规范' : '设计工作台'">
     <template v-if="draft" #actions><StatusBadge :status="draft.status === 'CONFIRMED' ? 'SUCCEEDED' : 'PENDING'" :label="draft.status" /><el-button v-if="designerSession?.requirementRevision !== undefined && draft.status !== 'CONFIRMED'" plain :disabled="busy || designerSession?.state === 'RUNNING'" @click="reopenRequirement"><Icon icon="lucide:message-circle-more" />重新讨论整体需求</el-button><el-button class="restart-designer-button" plain :disabled="busy" @click="restartDesigner"><Icon icon="lucide:rotate-ccw" />重新开始</el-button><el-button type="primary" :loading="busy" :disabled="!confirmationReady" @click="confirm"><Icon icon="lucide:circle-check-big" />确认设计并创建任务</el-button></template>
   </PageHeader>
   <main id="main-content" class="content" tabindex="-1">
     <section v-if="!draft && !store.usingDemo && !store.loading && !store.projects.length" class="card designer-onboarding" aria-labelledby="designer-onboarding-title">
       <span class="designer-onboarding-icon"><Icon icon="lucide:folder-plus" aria-hidden="true" /></span>
-      <div><p class="eyebrow">PROJECT REQUIRED</p><h2 id="designer-onboarding-title">先登记项目，再开始设计</h2><p>Designer 需要读取项目目录和约定，才能生成贴合代码库的 LoopSpec。登记项目不会启动 AI，也不会写入项目文件。</p></div>
+      <div><p class="eyebrow">需要项目</p><h2 id="designer-onboarding-title">先登记项目，再开始设计</h2></div>
       <el-button type="primary" size="large" @click="router.push('/projects')">前往登记项目<Icon icon="lucide:arrow-right" aria-hidden="true" /></el-button>
     </section>
     <section v-else-if="!draft" class="designer-start-page">
       <header class="designer-start-heading">
         <span class="designer-start-mark"><Icon icon="lucide:sparkles" /></span>
         <div>
-          <p class="eyebrow">NEW DESIGN</p>
+          <p class="eyebrow">新建设计</p>
           <h2>今天想推进什么？</h2>
-          <p>选择一个项目，描述你期望达成的结果。</p>
         </div>
       </header>
 
       <section v-if="designerRecoveryError" class="designer-recovery-notice" role="status">
         <Icon icon="lucide:cloud-off" />
-        <div><strong>设计恢复暂时不可用</strong><p>{{ designerRecoveryError }}。本地恢复指针和服务端记录不会因短暂断线被删除，可刷新后重试。</p></div>
+        <div><strong>设计恢复暂时不可用</strong><p>{{ userFacingError(designerRecoveryError) }}</p></div>
       </section>
 
       <div class="designer-start-layout">
@@ -1039,7 +1045,7 @@ async function redesignPackage(packageId: string) {
           <footer class="draft-create-actions">
             <div class="designer-auto-create">
               <span class="composer-boundary"><Icon icon="lucide:shield-check" />只读分析项目</span>
-              <label><el-switch v-model="newAutoModeEnabled" :disabled="store.usingDemo" @change="changeNewAutoMode" /><span><strong>全自动模式</strong><small>默认关闭；自动完成设计并启动任务</small></span></label>
+              <label><el-switch v-model="newAutoModeEnabled" :disabled="store.usingDemo" @change="changeNewAutoMode" /><span><strong>全自动模式</strong></span></label>
             </div>
             <div class="composer-submit">
               <span class="composer-shortcut">⌘ / Ctrl + Enter</span>
@@ -1053,7 +1059,7 @@ async function redesignPackage(packageId: string) {
         <aside class="card project-context-card" aria-label="当前项目上下文">
           <div class="context-card-heading">
             <span><Icon icon="lucide:scan-search" /></span>
-            <div><small>DESIGN CONTEXT</small><h3>当前上下文</h3></div>
+            <div><small>设计上下文</small><h3>当前上下文</h3></div>
           </div>
           <template v-if="selectedProject">
             <div class="context-project-name">
@@ -1062,20 +1068,14 @@ async function redesignPackage(packageId: string) {
             </div>
             <dl class="context-details">
               <div><dt>路径</dt><dd class="mono">{{ selectedProject.rootPath }}</dd></div>
-              <div><dt>执行位置</dt><dd class="mono">{{ selectedProject.executionMode === 'WORKTREE' ? '原项目目录（任务创建时切分支）' : selectedProject.executionMode === 'UNAVAILABLE' ? '不可用' : '原项目目录' }}</dd></div>
+              <div><dt>执行位置</dt><dd>{{ selectedProject.executionMode === 'WORKTREE' ? 'Git 分支模式' : selectedProject.executionMode === 'UNAVAILABLE' ? '不可用' : '直接模式' }}</dd></div>
               <div><dt>历史任务</dt><dd>{{ selectedProject.taskCount }} 个</dd></div>
               <div><dt>待继续设计</dt><dd>{{ selectedProject.openDesignerSessionCount }} 个</dd></div>
             </dl>
-            <div class="context-capabilities">
-              <span><Icon icon="lucide:check" />读取项目文件</span>
-              <span><Icon icon="lucide:check" />生成 LoopSpec</span>
-              <span class="is-muted"><Icon icon="lucide:minus" />不修改工作区</span>
-            </div>
           </template>
           <div v-else class="context-empty">
             <Icon icon="lucide:mouse-pointer-2" />
             <strong>先选择项目</strong>
-            <p>Designer 将使用该项目的文件和约定生成方案。</p>
           </div>
         </aside>
       </div>
@@ -1085,20 +1085,20 @@ async function redesignPackage(packageId: string) {
         <nav class="designer-steps" aria-label="Designer 流程">
           <span v-for="(label, index) in designerSteps" :key="label" :class="{ active: index === workflowStep, completed: index < workflowStep }"><i>{{ index + 1 }}</i>{{ label }}</span>
         </nav>
-        <div class="card-pad card-header"><div><p class="eyebrow">READ-ONLY DESIGNER</p><h2 class="card-title">{{ designerSession?.projectName ?? activeProjectName }}</h2></div><div class="designer-state-actions"><label class="designer-auto-switch"><span><strong>全自动</strong><small>{{ designerSession?.autoMode.state ?? 'DISABLED' }}</small></span><el-switch :model-value="designerSession?.autoMode.enabled === true" :loading="autoModeBusy" :disabled="store.usingDemo || designerSession?.autoMode.state === 'COMPLETED'" @change="changeAutoMode" /></label><el-button v-if="designerReconnecting || designerStreamState === 'reconnecting'" plain size="small" @click="reconnectDesigner"><Icon icon="lucide:refresh-cw" />立即重连</el-button><StatusBadge :status="designerBadgeStatus" :label="designerReconnecting || designerStreamState === 'reconnecting' ? 'RECONNECTING' : designerSession?.state ?? '等待 session'" /></div></div>
+        <div class="card-pad card-header"><div><p class="eyebrow">只读设计</p><h2 class="card-title">{{ designerSession?.projectName ?? activeProjectName }}</h2></div><div class="designer-state-actions"><label class="designer-auto-switch"><span><strong>全自动</strong><small>{{ statusLabel(designerSession?.autoMode.state ?? 'DISABLED') }}</small></span><el-switch :model-value="designerSession?.autoMode.enabled === true" :loading="autoModeBusy" :disabled="store.usingDemo || designerSession?.autoMode.state === 'COMPLETED'" @change="changeAutoMode" /></label><el-button v-if="designerReconnecting || designerStreamState === 'reconnecting'" plain size="small" @click="reconnectDesigner"><Icon icon="lucide:refresh-cw" />立即重连</el-button><StatusBadge :status="designerBadgeStatus" :label="designerReconnecting || designerStreamState === 'reconnecting' ? '重连中' : statusLabel(designerSession?.state ?? 'PENDING')" /></div></div>
         <div class="designer-connection-strip" role="status" aria-live="polite">
           <span><i :class="['connection-dot', designerStreamState]" />{{ designerTransportLabel }}</span>
           <span><i :class="['connection-dot', { connected: designerRuntimeConnected, error: designerLiveError }]" />{{ designerRuntimeLabel }}</span>
           <span class="active-role"><Icon :icon="activeActorMeta.icon" />{{ activeActorMeta.label }} · {{ activeDetailedWorkflowLabel }}</span>
-          <span v-if="designerSession?.activeWorkPackageId" class="mono">{{ designerSession.activeWorkPackageId }}/{{ designerSession.workPackages?.length ?? 0 }}</span>
+          <span v-if="designerSession?.activeWorkPackageId">{{ workPackageLabel(designerSession.activeWorkPackageId) }}/{{ designerSession.workPackages?.length ?? 0 }}</span>
           <span v-if="designerSession?.requirement" class="mono">模型调用 {{ designerSession.requirement.modelCallsUsed }}/{{ designerSession.requirement.maxModelCalls }}</span>
-          <span v-if="designerSession?.compiler" class="mono">Compiler 格式修复 {{ designerSession.compiler.formatRepairCount ?? 0 }}/2 · 语义修复 {{ designerSession.compiler.semanticRepairCount ?? 0 }}/2<span v-if="designerSession.compiler.serverCompiled"> · 程序已编译</span></span>
-          <span v-else-if="designerSession?.decomposition" class="mono">Decomposer 格式修复 {{ designerSession.decomposition.formatRepairCount ?? 0 }}/2 · 语义修复 {{ designerSession.decomposition.semanticRepairCount ?? 0 }}/2<span v-if="designerSession.decomposition.serverCompiled"> · 程序已编译</span></span>
-          <span class="mono">远端 {{ designerRemoteState || 'WAITING' }}</span>
+          <span v-if="designerSession?.compiler">规范编译修复 {{ designerSession.compiler.formatRepairCount ?? 0 }}/2 · 语义修复 {{ designerSession.compiler.semanticRepairCount ?? 0 }}/2<span v-if="designerSession.compiler.serverCompiled"> · 已编译</span></span>
+          <span v-else-if="designerSession?.decomposition">任务拆解修复 {{ designerSession.decomposition.formatRepairCount ?? 0 }}/2 · 语义修复 {{ designerSession.decomposition.semanticRepairCount ?? 0 }}/2<span v-if="designerSession.decomposition.serverCompiled"> · 已编译</span></span>
+          <span>远端 {{ statusLabel(designerRemoteState || 'WAITING') }}</span>
           <time :datetime="designerObservedAt">{{ formatObservedAt(designerObservedAt) }}</time>
         </div>
         <section v-if="designerSession?.taskProfile" class="task-profile-card" aria-label="任务画像与动态流程">
-          <header><div><strong>任务画像 · {{ taskIntentLabel(designerSession.taskProfile.intent) }}</strong><span>{{ designerSession.taskProfile.confidence }}% · {{ designerSession.taskProfile.rolePackId }}@{{ designerSession.taskProfile.rolePackVersion }}</span></div><b :class="{ warning: designerSession.taskProfile.decisionRequired }">{{ designerSession.taskProfile.decisionRequired ? '需要确认' : profileResolutionLabel(designerSession.taskProfile.resolutionSource) }}</b></header>
+          <header><div><strong>任务画像 · {{ taskIntentLabel(designerSession.taskProfile.intent) }}</strong><span>{{ designerSession.taskProfile.confidence }}% · {{ rolePackLabel(designerSession.taskProfile.rolePackId) }}</span></div><b :class="{ warning: designerSession.taskProfile.decisionRequired }">{{ designerSession.taskProfile.decisionRequired ? '需要确认' : profileResolutionLabel(designerSession.taskProfile.resolutionSource) }}</b></header>
           <p>流程 {{ workflowTemplateLabel(designerSession.taskProfile.workflowTemplate) }} · 执行 {{ executionStrategyLabel(designerSession.taskProfile.executionStrategy) }} · 测试 {{ testPolicyLabel(designerSession.taskProfile.testPolicy) }}</p>
           <div class="profile-evidence"><span v-for="item in designerSession.taskProfile.evidence" :key="item">{{ item }}</span></div>
           <div v-if="designerSession.taskProfile.state === 'PROVISIONAL'" class="profile-override">
@@ -1108,27 +1108,25 @@ async function redesignPackage(packageId: string) {
           </div>
         </section>
         <section v-if="currentReport" class="task-profile-card report-card">
-          <header><div><strong>独立 Reviewer 报告</strong><span>{{ currentReport.title }}<template v-if="reportDetail?.reviewerContractVersion"> · {{ reportDetail.reviewerContractVersion }}</template></span></div><b :class="{ warning: currentReport.stale }">{{ currentReport.stale ? '证据已过期' : '证据有效' }}</b></header>
-          <p class="mono">SHA-256 {{ currentReport.contentSha256 }}</p>
+          <header><div><strong>独立评审报告</strong><span>{{ currentReport.title }}</span></div><b :class="{ warning: currentReport.stale }">{{ currentReport.stale ? '证据已过期' : '证据有效' }}</b></header>
           <div v-if="reportDetail?.evidence.length" class="profile-evidence"><span v-for="item in reportDetail.evidence" :key="`${item.path}:${item.line}`">{{ item.path }}:{{ item.line }} · {{ item.stale ? '已过期' : '有效' }}</span></div>
           <details v-if="reportDetail?.markdown"><summary>查看完整报告</summary><MarkdownDocument :content="reportDetail.markdown" /></details>
           <el-button v-if="currentReport.state === 'READY'" plain :loading="busy" @click="convertReportToDesign">转为修改任务</el-button>
-          <small>该操作只创建关联 Designer 会话，不会直接创建 Task、分支或可写 Session。</small>
         </section>
         <section v-if="designerSession?.autoMode.state !== 'DISABLED'" :class="['designer-auto-status', { blocked: autoModeBlocked, completed: designerSession?.autoMode.state === 'COMPLETED' }]" role="status" aria-live="polite">
           <Icon :icon="autoModeBlocked ? 'lucide:octagon-alert' : designerSession?.autoMode.state === 'COMPLETED' ? 'lucide:circle-check-big' : 'lucide:bot'" />
-          <div><strong>{{ autoModeBlocked ? '全自动模式已阻断' : designerSession?.autoMode.state === 'COMPLETED' ? '全自动设计已完成' : autoModeResolvingProfile ? '全自动模式正在确认画像' : '全自动模式正在推进' }}</strong><p v-if="autoModeBlocked">{{ designerSession?.autoMode.errorDetail }}；请先关闭后人工处理，完成后可重新授权。</p><p v-else-if="designerSession?.autoMode.state === 'COMPLETED'">任务已请求启动，正在打开任务详情；执行期决策保持人工处理。</p><p v-else-if="autoModeResolvingProfile">将采用 Router 当前推荐的任务类型和主要制品，无需人工覆盖；需求确认前仍可主动调整。</p><p v-else>每轮只推进一个权威动作；关闭不会撤销已完成动作或终止正在执行的模型调用。</p></div>
+          <div><strong>{{ autoModeBlocked ? '全自动模式已阻断' : designerSession?.autoMode.state === 'COMPLETED' ? '全自动设计已完成' : '全自动模式' }}</strong><p v-if="autoModeBlocked">{{ userFacingError(designerSession?.autoMode.errorDetail) }}</p></div>
         </section>
-        <section v-if="blockedWorkflowMessage" class="designer-session-alert" role="status" aria-live="polite"><Icon icon="lucide:refresh-cw" /><div><strong>{{ designerSession?.state === 'WAITING_INPUT' ? '设计工作流需要人工恢复' : '设计工作流已停止' }}</strong><p>{{ blockedWorkflowMessage.content }}</p><span class="tiny muted">最后有效需求快照、问题回答和候选 LoopSpec 均已保留；恢复不会重新执行已完成的拆包。</span><div class="recovery-actions"><el-button v-if="designerSession?.decomposition && !designerSession.activeWorkPackageId" plain size="small" :loading="busy" @click="retryDecomposition"><Icon icon="lucide:split" />重新拆解</el-button><el-button v-if="designerSession?.activeWorkPackageId" plain size="small" :loading="busy" @click="retryPackageCompiler(designerSession.activeWorkPackageId)"><Icon icon="lucide:braces" />重新编译当前包</el-button><el-button v-if="designerSession?.activeWorkPackageId" plain size="small" :loading="busy" @click="redesignPackage(designerSession.activeWorkPackageId)"><Icon icon="lucide:sparkles" />恢复当前包设计</el-button><template v-if="!designerSession?.decomposition"><el-button plain size="small" :loading="busy" @click="retryCompiler"><Icon icon="lucide:braces" />重新编译当前设计</el-button><el-button plain size="small" :loading="busy" @click="requestRedesign"><Icon icon="lucide:sparkles" />让 Designer 重新设计</el-button></template><el-button plain size="small" @click="restartDesigner"><Icon icon="lucide:rotate-ccw" />清理工作区</el-button></div></div></section>
-        <section v-else-if="designerLiveError" class="designer-session-alert live-error" role="alert" aria-live="assertive"><Icon icon="lucide:triangle-alert" /><div><strong>OpenCode 实时错误</strong><p>{{ designerLiveError }}</p><span class="tiny muted">错误已从实时通道收到，正在同步持久化会话状态。</span></div></section>
+        <section v-if="blockedWorkflowMessage" class="designer-session-alert" role="status" aria-live="polite"><Icon icon="lucide:refresh-cw" /><div><strong>{{ designerSession?.state === 'WAITING_INPUT' ? '设计工作流需要人工恢复' : '设计工作流已停止' }}</strong><p>{{ userFacingError(blockedWorkflowMessage.content) }}</p><div class="recovery-actions"><el-button v-if="designerSession?.decomposition && !designerSession.activeWorkPackageId" plain size="small" :loading="busy" @click="retryDecomposition"><Icon icon="lucide:split" />重新拆解</el-button><el-button v-if="designerSession?.activeWorkPackageId" plain size="small" :loading="busy" @click="retryPackageCompiler(designerSession.activeWorkPackageId)"><Icon icon="lucide:braces" />重新编译当前包</el-button><el-button v-if="designerSession?.activeWorkPackageId" plain size="small" :loading="busy" @click="redesignPackage(designerSession.activeWorkPackageId)"><Icon icon="lucide:sparkles" />恢复当前包设计</el-button><template v-if="!designerSession?.decomposition"><el-button plain size="small" :loading="busy" @click="retryCompiler"><Icon icon="lucide:braces" />重新编译当前设计</el-button><el-button plain size="small" :loading="busy" @click="requestRedesign"><Icon icon="lucide:sparkles" />让设计器重新设计</el-button></template><el-button plain size="small" @click="restartDesigner"><Icon icon="lucide:rotate-ccw" />清理工作区</el-button></div></div></section>
+        <section v-else-if="designerLiveError" class="designer-session-alert live-error" role="alert" aria-live="assertive"><Icon icon="lucide:triangle-alert" /><div><strong>OpenCode 实时错误</strong><p>{{ userFacingError(designerLiveError) }}</p></div></section>
         <div class="designer-conversation">
           <section v-if="designerSession?.workPackages?.length" class="work-package-rail" aria-label="工作包设计轨道">
             <article v-for="item in designerSession.workPackages ?? []" :key="item.id" :class="['work-package-chip', `package-${item.state.toLowerCase()}`, { active: item.id === designerSession.activeWorkPackageId, selected: item.id === selectedWorkPackageId }]" role="button" tabindex="0" @click="selectedWorkPackageId = item.id" @keydown.enter="selectedWorkPackageId = item.id">
-              <header><b>{{ item.id }}</b><span>{{ item.state }}</span></header>
+              <header><b>{{ workPackageLabel(item.id) }}</b><span>{{ statusLabel(item.state) }}</span></header>
               <strong>{{ item.title }}</strong>
-              <small v-if="item.rolePackId" class="mono">{{ item.rolePackId }}<template v-if="item.technologies?.length"> · {{ item.technologies.join('/') }}</template><template v-if="item.testPolicy"> · {{ item.testPolicy }}</template></small>
-              <small v-if="item.state === 'STALE'">由 {{ item.invalidatedByPackageId }} 修订导致失效</small>
-              <small v-else-if="item.state === 'PENDING'">依赖 {{ item.dependencies.join('、') || '无' }} · 等待上游接受</small>
+              <small v-if="item.rolePackId">{{ rolePackLabel(item.rolePackId) }}<template v-if="item.technologies?.length"> · {{ item.technologies.join('/') }}</template><template v-if="item.testPolicy"> · {{ testPolicyLabel(item.testPolicy) }}</template></small>
+              <small v-if="item.state === 'STALE'">由{{ workPackageLabel(item.invalidatedByPackageId) }}修订导致失效</small>
+              <small v-else-if="item.state === 'PENDING'">{{ item.dependencies.length ? `依赖${item.dependencies.map(workPackageLabel).join('、')}` : '无前置依赖' }}</small>
               <small v-else>讨论 {{ item.discussionRoundCount }}/5 · 设计 R{{ item.designRevision }}<template v-if="item.approvedDesignRevision"> · 已接受 R{{ item.approvedDesignRevision }}</template></small>
               <el-button v-if="item.state === 'APPROVED'" text size="small" :disabled="busy || designerSession?.state === 'RUNNING'" @click.stop="reopenPackage(item.id)">重新讨论</el-button>
             </article>
@@ -1141,17 +1139,17 @@ async function redesignPackage(packageId: string) {
             <header class="chat-message-header">
               <span class="chat-author">
                 <span class="chat-avatar"><Icon :icon="actorMeta[item.message.actor].icon" /></span>
-                <span><strong class="chat-role">{{ actorMeta[item.message.actor].label }}</strong><small>{{ actorMeta[item.message.actor].subtitle }}<template v-if="item.message.workPackageId"> · {{ item.message.workPackageId }}</template></small></span>
+                <span><strong class="chat-role">{{ actorMeta[item.message.actor].label }}</strong><small v-if="item.message.workPackageId">{{ workPackageLabel(item.message.workPackageId) }}</small></span>
               </span>
               <time class="chat-message-time" :datetime="item.message.createdAt">{{ item.message.deliveryState ? `${statusLabel(item.message.deliveryState)} · ` : '' }}{{ formatDateTime(item.message.createdAt) }}</time>
             </header>
             <MarkdownDocument v-if="item.message.actor === 'DESIGNER'" :content="item.message.content" collapsible />
-            <p v-else class="plain-message-content">{{ item.message.content }}</p>
+            <p v-else class="plain-message-content">{{ ['RETRYABLE_ERROR', 'TERMINAL_ERROR', 'SESSION_ERROR'].includes(item.message.deliveryState ?? '') || item.message.content.includes('SYSTEM_ERROR') ? userFacingError(item.message.content) : item.message.content }}</p>
           </article>
           </template>
           <article v-if="designerLiveResponse" class="chat-message chat-designer chat-live" aria-label="Designer 正在流式回复" aria-live="polite">
             <header class="chat-message-header">
-              <span class="chat-author"><span class="chat-avatar"><Icon icon="lucide:sparkles" /></span><span><strong class="chat-role">Designer</strong><small>LIVE · Markdown 设计文档</small></span></span>
+              <span class="chat-author"><span class="chat-avatar"><Icon icon="lucide:sparkles" /></span><span><strong class="chat-role">设计器</strong><small>实时回复</small></span></span>
               <span class="chat-message-time">{{ formatObservedAt(designerObservedAt) }}</span>
             </header>
             <MarkdownDocument :content="designerLiveResponse" collapsible />
@@ -1171,12 +1169,11 @@ async function redesignPackage(packageId: string) {
             <span class="thinking-orbit" aria-hidden="true"><span /></span>
             <div class="thinking-copy">
               <strong>{{ activeActorMeta.label }}正在{{ activeDetailedWorkflowLabel }}<span class="thinking-dots" aria-hidden="true"><i /><i /><i /></span></strong>
-              <p>{{ designerReconnecting || designerStreamState === 'reconnecting' ? '连接暂时中断，正在恢复并继续等待真实回复。' : designerLiveDetail || 'OpenCode 已收到请求，等待首段模型回复。' }}</p>
             </div>
           </article>
           </div>
           <div class="chat-compose">
-            <div class="compose-heading"><label class="field-label" for="designer-message">当前作用域：{{ discussionScopeLabel }}</label><span class="tiny muted">完整快照 · R{{ designerSession?.discussionRevision ?? 0 }}</span></div>
+            <div class="compose-heading"><label class="field-label" for="designer-message">当前作用域：{{ discussionScopeLabel }}</label></div>
             <el-input
               id="designer-message"
               v-model="userMessage"
@@ -1189,47 +1186,47 @@ async function redesignPackage(packageId: string) {
               resize="vertical"
               :disabled="!composerEnabled"
               :placeholder="hasPendingDesignerQuestion ? '请先回答上方设计问题…' : designerSession?.state === 'RUNNING' ? '当前角色正在处理上一条消息…' : isFinalReview ? '总体确认阶段请使用工作包“重新讨论”或整体需求重开…' : `继续讨论${discussionScopeLabel}；不会触发全局重新拆包…`"
-              aria-label="发送给只读 OpenCode Designer 的消息"
+              aria-label="发送给只读设计器的消息"
               @keydown.meta.enter.prevent="sendMessage"
               @keydown.ctrl.enter.prevent="sendMessage"
             />
-            <div class="compose-actions"><span class="tiny muted">{{ hasPendingDesignerQuestion ? '问题回答与普通输入不能同时提交' : '⌘ / Ctrl + Enter 发送；只修改当前作用域' }}</span><el-button type="primary" :loading="busy" :disabled="!composerEnabled || !userMessage.trim()" @click="sendMessage"><Icon icon="lucide:send" />发送</el-button></div>
+            <div class="compose-actions"><span class="tiny muted">⌘ / Ctrl + Enter</span><el-button type="primary" :loading="busy" :disabled="!composerEnabled || !userMessage.trim()" @click="sendMessage"><Icon icon="lucide:send" />发送</el-button></div>
             <div v-if="designerSession?.workflowPhase === 'DISCUSSING_REQUIREMENT' && designerSession.state === 'REVIEWING'" class="scope-primary-action"><el-button type="primary" :loading="busy" :disabled="autoModeActive || designerSession.taskProfile.decisionRequired" @click="confirmRequirement"><Icon :icon="designerSession.taskProfile.workflowTemplate === 'READ_ONLY_REPORT' ? 'lucide:file-search' : ['DIRECT_ARTIFACT', 'PACKAGED_ARTIFACT'].includes(designerSession.taskProfile.workflowTemplate) ? 'lucide:file-output' : designerSession.taskProfile.workflowTemplate === 'LOCAL_MAINTENANCE' ? 'lucide:wrench' : 'lucide:split'" />{{ autoModeActive ? '全自动模式将确认需求' : designerSession.taskProfile.workflowTemplate === 'READ_ONLY_REPORT' ? '需求已明确，生成只读报告' : designerSession.taskProfile.workflowTemplate === 'DIRECT_ARTIFACT' ? '需求已明确，规划制品' : designerSession.taskProfile.workflowTemplate === 'PACKAGED_ARTIFACT' ? '需求已明确，规划章节制品' : designerSession.taskProfile.workflowTemplate === 'LOCAL_MAINTENANCE' ? '需求已明确，规划安全维护' : '需求已明确，开始拆包' }}</el-button></div>
-            <div v-else-if="designerSession?.workflowPhase === 'REVIEWING_PACKAGE' && currentPackage?.state === 'REVIEWING'" class="scope-primary-action"><span>候选已通过确定性校验，接受后才会进入下一个工作包。</span><el-button type="primary" :loading="busy" :disabled="autoModeActive" @click="approvePackage"><Icon icon="lucide:check-check" />{{ autoModeActive ? `全自动模式将接受 ${currentPackage.id}` : `接受 ${currentPackage.id} 并继续` }}</el-button></div>
+            <div v-else-if="designerSession?.workflowPhase === 'REVIEWING_PACKAGE' && currentPackage?.state === 'REVIEWING'" class="scope-primary-action"><el-button type="primary" :loading="busy" :disabled="autoModeActive" @click="approvePackage"><Icon icon="lucide:check-check" />{{ autoModeActive ? `全自动模式将接受${workPackageLabel(currentPackage.id)}` : `接受${workPackageLabel(currentPackage.id)}并继续` }}</el-button></div>
           </div>
         </div>
       </article>
       <article class="card spec-panel">
-        <div class="card-pad card-header"><div><p class="eyebrow">REVIEW GATE</p><h2 class="card-title">{{ isFinalReview ? '最终 LoopSpec' : '候选 LoopSpec' }}</h2></div><div class="review-actions"><span :class="['candidate-sync', `sync-${(designerSession?.candidate?.syncState ?? 'NONE').toLowerCase()}`]">{{ designerSession?.candidate?.syncState === 'SYNCING' ? '同步中' : designerSession?.candidate?.syncState === 'FAILED' ? '同步失败，保留上一版' : designerSession?.candidate?.syncState === 'SYNCED' ? `已同步 R${designerSession.candidate.discussionRevision}` : '等待候选' }}</span><template v-if="isFinalReview"><el-button v-if="draft.spec.schemaVersion === 'v1' && !store.usingDemo" plain size="small" :loading="busy" @click="copyLegacyDraftAsV2">复制为 v2</el-button><el-button plain size="small" :loading="busy" @click="saveDraft"><Icon icon="lucide:save" />保存</el-button></template></div></div>
-        <div class="spec-meta"><span><Icon icon="lucide:folder-git-2" />{{ draft.spec.projectId }}</span><span><Icon icon="lucide:flag" />{{ designerSession?.candidate?.spec?.stages.length ?? draft.spec.stages.length }} 个阶段</span><span><Icon icon="lucide:timer" />{{ draft.spec.limits.maxDuration }}</span><span v-if="draft.spec.schemaVersion === 'v1'" class="legacy-contract">旧合同（兼容）</span></div>
+        <div class="card-pad card-header"><div><p class="eyebrow">设计确认</p><h2 class="card-title">{{ isFinalReview ? '最终执行规范' : '候选执行规范' }}</h2></div><div class="review-actions"><span :class="['candidate-sync', `sync-${(designerSession?.candidate?.syncState ?? 'NONE').toLowerCase()}`]">{{ designerSession?.candidate?.syncState === 'SYNCING' ? '同步中' : designerSession?.candidate?.syncState === 'FAILED' ? '同步失败，保留上一版' : designerSession?.candidate?.syncState === 'SYNCED' ? '已同步' : '等待候选' }}</span><template v-if="isFinalReview"><el-button v-if="draft.spec.schemaVersion === 'v1' && !store.usingDemo" plain size="small" :loading="busy" @click="copyLegacyDraftAsV2">升级规范</el-button><el-button plain size="small" :loading="busy" @click="saveDraft"><Icon icon="lucide:save" />保存</el-button></template></div></div>
+        <div class="spec-meta"><span><Icon icon="lucide:flag" />{{ designerSession?.candidate?.spec?.stages.length ?? draft.spec.stages.length }} 个阶段</span><span><Icon icon="lucide:timer" />{{ draft.spec.limits.maxDuration }}</span><span v-if="draft.spec.schemaVersion === 'v1'" class="legacy-contract">旧版规范</span></div>
         <section v-if="isFinalReview && artifactStage" class="artifact-preview" aria-label="服务端制品预览">
           <header><strong>{{ artifactStage.stageKind === 'TABULAR_CONVERSION' ? '表格转换预览' : artifactTarget.endsWith('.docx') ? 'DOCX 结构摘要' : 'Markdown 预览' }}</strong><span>{{ artifactTarget }}</span></header>
           <template v-if="artifactStage.stageKind === 'TABULAR_CONVERSION'"><p>输入 {{ artifactSource }} → 输出 {{ artifactTarget }}</p><small>公式使用缓存显示值；合并区域仅保留左上角；仅移除尾部全空行列。</small></template>
-          <template v-else-if="artifactTarget.endsWith('.docx')"><p>{{ draft.spec.goal }} · {{ documentHeadingCount }} 个 1–4 级标题 · 服务端生成后执行 DOCUMENT_STRUCTURE 验收</p></template>
+          <template v-else-if="artifactTarget.endsWith('.docx')"><p>{{ draft.spec.goal }} · {{ documentHeadingCount }} 个 1–4 级标题 · 服务端执行文档结构验收</p></template>
           <MarkdownDocument v-else :content="draft.spec.context" collapsible />
         </section>
         <section v-if="acceptanceAssessment && !acceptanceAssessment.legacy" class="acceptance-matrix" aria-label="双重验收计划矩阵">
           <header><strong>双重验收计划</strong><span :class="acceptanceAssessment.valid ? 'matrix-pass' : 'matrix-fail'">{{ acceptanceAssessment.valid ? '计划有效' : `${acceptanceAssessment.errors.length} 项阻断` }}</span></header>
           <div v-for="stage in acceptanceAssessment.stageAssessments" :key="stage.stageIndex" class="matrix-stage">
-            <span>{{ draft.spec.stages[stage.stageIndex]?.workPackageId ? `${draft.spec.stages[stage.stageIndex]?.workPackageId} · ` : '' }}阶段 {{ stage.stageIndex + 1 }}</span>
+            <span>阶段 {{ stage.stageIndex + 1 }}</span>
             <div v-for="criterion in stage.criteria" :key="criterion.id">
-              <code>{{ criterion.id }}</code><span>{{ criterion.description }}</span><em>{{ criterion.verificationMode }}</em>
+              <span>{{ criterion.description }}</span><em>{{ displayLabel(criterion.verificationMode) }}</em>
               <b :class="criterion.machineCovered ? 'matrix-pass' : 'matrix-muted'">{{ criterion.machineCovered ? `机器：验收器 ${criterion.verifierIndexes.map(index => index + 1).join(', ')}` : '机器：不适用' }}</b>
               <b :class="criterion.judgePlanned ? 'matrix-planned' : 'matrix-muted'">{{ criterion.judgePlanned ? 'AI：计划评审' : 'AI：不适用' }}</b>
             </div>
             <div class="matrix-verifiers"><small v-for="verifier in stage.verifiers" :key="verifier.index">#{{ verifier.index + 1 }} {{ verifier.category }} · {{ verifier.reason }}</small></div>
           </div>
         </section>
-        <div v-if="!isFinalReview" class="candidate-readonly" aria-label="只读候选 LoopSpec"><p>{{ designerSession?.candidate?.detail }}</p><pre v-if="candidateJson">{{ candidateJson }}</pre><div v-else class="candidate-empty"><Icon icon="lucide:braces" />完成当前包设计与校验后，这里会显示最后有效候选。</div></div>
+        <div v-if="!isFinalReview" class="candidate-readonly" aria-label="只读候选执行规范"><p v-if="designerSession?.candidate?.detail">{{ designerSession.candidate.detail }}</p><div v-else class="candidate-empty"><Icon icon="lucide:braces" />等待候选</div></div>
         <LoopSpecEditor v-else v-model="editorValue" class="spec-editor" aria-label="LoopSpec 中文结构化编辑器">
           <template #after-stages><ExecutionAcceptancePanel :source="editorValue" /></template>
         </LoopSpecEditor>
         <LayeredErrorPanel v-if="fieldError" :error="fieldError" style="margin-top: 12px" />
         <div v-if="isFinalReview && draft.status !== 'CONFIRMED'" class="final-review-action">
-          <div><strong>设计已进入总体确认</strong><span>{{ autoModeActive ? '全自动模式将确认设计、创建任务并请求开始执行。' : '确认后只创建一个待开始任务，仍需在任务页单独点击开始执行。' }}</span></div>
+          <div><strong>设计已进入总体确认</strong></div>
           <el-button type="primary" size="large" :loading="busy" :disabled="!confirmationReady || autoModeActive" @click="confirm"><Icon icon="lucide:circle-check-big" />{{ autoModeActive ? '等待全自动确认并启动' : '确认设计并创建任务' }}</el-button>
         </div>
-        <div class="spec-footer"><span class="tiny muted"><Icon icon="lucide:git-branch" /> Git 项目切换原目录任务分支；无 HEAD 项目直接执行</span><time class="mono tiny" :datetime="draft.updatedAt">{{ formatDateTime(draft.updatedAt) }}</time></div>
+        <div class="spec-footer"><time class="mono tiny" :datetime="draft.updatedAt">{{ formatDateTime(draft.updatedAt) }}</time></div>
       </article>
     </section>
   </main>

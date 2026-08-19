@@ -4,6 +4,7 @@ import { Icon } from '@iconify/vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { api } from '@/api/client'
 import type { TaskDecision } from '@/types/domain'
+import { userFacingError } from '@/utils/displayLabels'
 
 const props = defineProps<{ taskId: string }>()
 const emit = defineEmits<{ reload: []; openTask: [taskId: string] }>()
@@ -26,7 +27,7 @@ async function load() {
       selectedStageId.value = preferred?.id ?? ''
     }
   } catch (failure) {
-    error.value = failure instanceof Error ? failure.message : '处置状态加载失败'
+    error.value = userFacingError(failure, '处置状态加载失败')
   } finally {
     loading.value = false
   }
@@ -46,7 +47,7 @@ async function run(operation: () => Promise<unknown>, successMessage: string) {
     await emit('reload')
     await load()
   } catch (failure) {
-    error.value = failure instanceof Error ? failure.message : '处置操作失败'
+    error.value = userFacingError(failure, '处置操作失败')
     await load()
   } finally {
     acting.value = false
@@ -61,7 +62,7 @@ async function continueCurrent() {
   await ElMessageBox.confirm(
     success.value
       ? '选中阶段及其后续阶段会重新执行；历史轮次、验证和审计证据保持不变，新轮次重新计算预算。'
-      : '将从失败或中断阶段创建全新的 Attempt / Session；已完成阶段保持成功，新轮次重新计算预算。',
+      : '将从失败或中断阶段创建新的尝试和会话；已完成阶段保持成功。',
     '继续当前任务？', { type: 'warning', confirmButtonText: '确认继续', cancelButtonText: '暂不继续' },
   )
   await run(() => api.continueTaskDecision(props.taskId, {
@@ -85,7 +86,7 @@ async function derive(mode: 'INHERIT_CHANGES' | 'REWORK_ALL_STAGES') {
     const child = await api.deriveTaskDecision(props.taskId, { ...versions(), mode })
     emit('openTask', child.taskId)
   } catch (failure) {
-    error.value = failure instanceof Error ? failure.message : '派生任务失败'
+    error.value = userFacingError(failure, '派生任务失败')
     await load()
   } finally {
     acting.value = false
@@ -93,14 +94,14 @@ async function derive(mode: 'INHERIT_CHANGES' | 'REWORK_ALL_STAGES') {
 }
 
 async function audit() {
-  await ElMessageBox.confirm('将创建只读审计任务，复用当前冻结代码，只执行确定性验证，不创建可写 OpenCode Session。',
+  await ElMessageBox.confirm('将创建只读审计任务，只执行确定性验证。',
     '直接审计当前代码？', { confirmButtonText: '创建审计任务', cancelButtonText: '取消' })
   acting.value = true
   try {
     const child = await api.auditTaskDecision(props.taskId, versions())
     emit('openTask', child.taskId)
   } catch (failure) {
-    error.value = failure instanceof Error ? failure.message : '创建审计任务失败'
+    error.value = userFacingError(failure, '创建审计任务失败')
     await load()
   } finally {
     acting.value = false
@@ -126,10 +127,9 @@ watch(() => props.taskId, load)
 <template>
   <section class="decision-panel card card-pad" aria-labelledby="task-decision-heading">
     <div class="decision-header">
-      <div><p class="eyebrow">USER DECISION</p><h2 id="task-decision-heading" class="card-title">执行结束，等待你的确认</h2></div>
+      <div><p class="eyebrow">用户确认</p><h2 id="task-decision-heading" class="card-title">执行结束，等待你的确认</h2></div>
       <span v-if="decision?.cycle" :class="['result-pill', success ? 'success' : 'danger']">第 {{ decision.cycle.ordinal }} 轮 · {{ success ? '执行成功' : '执行失败' }}</span>
     </div>
-    <p class="decision-copy">执行结果不是任务终态。冻结点验证成功后才会释放写租约并开放继续、继承和审计；你的选择会作为新的审计边界记录。</p>
     <div v-if="loading" class="muted">正在读取冻结点与可用动作…</div>
     <template v-else-if="decision">
       <div :class="['checkpoint', decision.checkpoint?.state === 'READY' ? 'ready' : 'blocked']">

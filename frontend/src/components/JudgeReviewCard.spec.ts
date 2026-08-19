@@ -27,7 +27,7 @@ describe('JudgeReviewCard', () => {
     expect(wrapper.findAll('.markdown-document ol > li')).toHaveLength(2)
     expect(wrapper.get('.markdown-document code').text()).toBe('javac')
     expect(wrapper.get('.markdown-document strong').text()).toBe('PASS')
-    expect(wrapper.get('.judge-card-footer code').text()).toBe('ses_read_only_123')
+    expect(wrapper.text()).not.toContain('ses_read_only_123')
   })
 
   it('keeps newly generated structured Markdown intact', () => {

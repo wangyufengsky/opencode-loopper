@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import type { Stage } from '@/types/domain'
-import { statusLabel } from '@/utils/displayLabels'
+import { rolePackLabel, statusLabel, testPolicyLabel } from '@/utils/displayLabels'
 
 const props = defineProps<{ stages: Stage[] }>()
 
@@ -28,14 +28,6 @@ function stageIcon(status: Stage['status']) {
   return 'lucide:circle-dashed'
 }
 
-function statusDescription(status: Stage['status']) {
-  if (status === 'SUCCEEDED') return '阶段目标与确定性验证均已通过'
-  if (status === 'RUNNING') return '当前执行会话正在推进此阶段'
-  if (status === 'VERIFYING') return '实现已结束，正在核验交付结果'
-  if (status === 'BLOCKED') return '阶段被阻塞，需要处理后继续'
-  if (status === 'PAUSED') return '阶段已暂停，保留当前执行现场'
-  return '等待前置阶段完成后启动'
-}
 </script>
 
 <template>
@@ -55,7 +47,7 @@ function statusDescription(status: Stage['status']) {
         <article v-for="stage in stages" :key="stage.id" :class="['phase-card', `is-${stage.status.toLowerCase()}`]">
           <header>
             <div>
-              <span class="phase-index">{{ stage.workPackageId ? `${stage.workPackageId} · ` : '' }}PHASE {{ String(stage.ordinal).padStart(2, '0') }}</span>
+              <span class="phase-index">阶段 {{ String(stage.ordinal).padStart(2, '0') }}</span>
               <strong>阶段 {{ stage.ordinal }}</strong>
             </div>
             <span class="phase-status"><Icon :icon="stageIcon(stage.status)" width="13" />{{ statusLabel(stage.status) }}</span>
@@ -65,8 +57,7 @@ function statusDescription(status: Stage['status']) {
             <p>{{ stage.objective }}</p>
           </div>
           <footer>
-            <span><Icon icon="lucide:activity" width="13" />{{ statusDescription(stage.status) }}</span>
-            <span v-if="stage.rolePackId"><Icon icon="lucide:package-check" width="12" />{{ stage.rolePackId }} · {{ stage.testPolicy }}</span>
+            <span v-if="stage.rolePackId"><Icon icon="lucide:package-check" width="12" />{{ rolePackLabel(stage.rolePackId) }}<template v-if="stage.testPolicy"> · {{ testPolicyLabel(stage.testPolicy) }}</template></span>
             <span><Icon icon="lucide:rotate-cw" width="12" />{{ stage.attempts.length ? `${stage.attempts.length} 次尝试` : '尚未尝试' }}</span>
           </footer>
         </article>

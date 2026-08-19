@@ -56,9 +56,9 @@ function adoptRecommendations() {
 </script>
 
 <template>
-  <section class="designer-question-card" aria-label="Designer 等待回答">
+  <section class="designer-question-card" aria-label="设计器等待回答">
     <header>
-      <div><span>需要你的回答</span><strong class="mono">{{ pending.id }}</strong></div>
+      <div><span>需要你的回答</span></div>
       <Icon icon="lucide:message-square-more" width="19" />
     </header>
     <div v-for="(prompt, index) in pending.questions" :key="`${pending.id}-${index}`" class="designer-question-prompt">

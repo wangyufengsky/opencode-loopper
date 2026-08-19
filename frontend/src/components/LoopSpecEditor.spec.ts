@@ -55,7 +55,7 @@ describe('LoopSpecEditor', () => {
     const wrapper = mount(LoopSpecEditor, { props: { modelValue: source }, global: { plugins: [ElementPlus], stubs: { Icon: true } } })
 
     await wrapper.get('textarea[aria-label="下一轮提示模板"]').setValue('下一轮先复核 ${changedPaths}')
-    const freshSessionSwitch = wrapper.find('[aria-label="验证失败后自动新建 Session"]')
+    const freshSessionSwitch = wrapper.find('[aria-label="验证失败后自动新建会话"]')
     expect(freshSessionSwitch.exists()).toBe(true)
     await freshSessionSwitch.trigger('click')
     await flushPromises()

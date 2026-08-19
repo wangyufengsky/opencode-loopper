@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import type { ErrorEvent, JudgeRun } from '@/types/domain'
-import { judgeRoleLabel, statusLabel } from '@/utils/displayLabels'
+import { errorEventMessage, judgeRoleLabel, statusLabel } from '@/utils/displayLabels'
 
 const props = withDefaults(defineProps<{ error: ErrorEvent, judges?: JudgeRun[] }>(), { judges: () => [] })
 
@@ -32,11 +32,9 @@ function judgeSummary(judge: JudgeRun) {
     <header class="judge-attention-header">
       <span class="judge-attention-icon" aria-hidden="true"><Icon icon="lucide:scale" width="18" /></span>
       <div>
-        <p class="eyebrow">FINAL REVIEW / ACTION REQUIRED</p>
+        <p class="eyebrow">评审结果</p>
         <h3>{{ error.code === 'JUDGE_CONFLICT' ? '需求 / 风险双评审尚未达成一致' : '双评审结论需要处理' }}</h3>
-        <p>当前结论已拆分为结构化摘要；完整评审证据保留在上方“需求 / 风险双评审”。</p>
       </div>
-      <span class="judge-attention-code">{{ error.code }}</span>
     </header>
 
     <div v-if="judgeRows.length" class="judge-attention-grid">
@@ -52,7 +50,7 @@ function judgeSummary(judge: JudgeRun) {
         <small>第 {{ judge.ordinal }} 次 · 独立只读评审</small>
       </article>
     </div>
-    <p v-else class="judge-attention-fallback">{{ error.message }}</p>
+    <p v-else class="judge-attention-fallback">{{ errorEventMessage(error.code, error.message) }}</p>
 
     <footer class="judge-attention-footer">
       <span><Icon icon="lucide:rotate-ccw" width="14" />补齐条件后，可从页首重新发起需求 / 风险双评审。</span>
@@ -62,20 +60,20 @@ function judgeSummary(judge: JudgeRun) {
   <section v-else-if="error.layer !== 'FIELD'" :class="['error-panel', `error-panel-${error.layer.toLowerCase()}`]" :role="error.layer === 'TASK' ? 'alert' : 'status'" aria-live="polite">
     <Icon class="error-panel-icon" :icon="error.layer === 'TASK' ? 'lucide:octagon-x' : error.layer === 'SESSION' ? 'lucide:refresh-cw' : 'lucide:shield-alert'" />
     <div>
-      <h3 v-if="error.layer === 'SESSION'">当前 Session 已结束，新 Session 将继续 Loop</h3>
+      <h3 v-if="error.layer === 'SESSION'">当前会话已结束，系统将使用新会话继续</h3>
       <h3 v-else-if="error.layer === 'VERIFICATION'">验证未通过，平台将携带证据进入下一轮</h3>
       <h3 v-else-if="error.code === 'SOURCE_BRANCH_WORKSPACE_DIRTY'">检测到未提交文件，等待人工处理</h3>
-      <h3 v-else>Task 已终止，后续 Session 不会再创建</h3>
-      <p>{{ error.message }}</p>
-      <p class="mono tiny">{{ error.code }} · {{ error.occurredAt }}</p>
+      <h3 v-else>任务已终止，不会再创建新会话</h3>
+      <p>{{ errorEventMessage(error.code, error.message) }}</p>
+      <p class="mono tiny">{{ error.occurredAt }}</p>
     </div>
   </section>
-  <p v-else class="inline-field-error" role="alert"><Icon icon="lucide:circle-alert" /> {{ error.message }}</p>
+  <p v-else class="inline-field-error" role="alert"><Icon icon="lucide:circle-alert" /> {{ errorEventMessage(error.code, error.message) }}</p>
 </template>
 
 <style scoped>
 .judge-attention-panel { overflow: hidden; border: 1px solid rgb(245 158 11 / 34%); border-radius: var(--radius-card); background: linear-gradient(135deg, rgb(245 158 11 / 7%), rgb(14 22 38 / 82%) 42%, rgb(7 11 20 / 76%)); box-shadow: inset 0 1px rgb(255 255 255 / 2%); }
-.judge-attention-header { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: 12px; padding: 15px 16px 14px; border-bottom: 1px solid rgb(245 158 11 / 14%); background: rgb(11 18 32 / 44%); }
+.judge-attention-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 12px; padding: 15px 16px 14px; border-bottom: 1px solid rgb(245 158 11 / 14%); background: rgb(11 18 32 / 44%); }
 .judge-attention-icon { display: grid; width: 34px; height: 34px; place-items: center; border: 1px solid rgb(245 158 11 / 28%); border-radius: 9px; background: rgb(245 158 11 / 8%); color: var(--color-session-warning); }
 .judge-attention-header h3 { margin: 3px 0 0; color: var(--color-text-primary); font-size: 13px; }
 .judge-attention-header p:not(.eyebrow) { margin: 6px 0 0; color: var(--color-text-secondary); font-size: 11px; line-height: 1.55; }
@@ -101,7 +99,7 @@ function judgeSummary(judge: JudgeRun) {
 .judge-attention-footer > span > svg { color: var(--color-session-warning); }
 .judge-attention-footer time { flex: 0 0 auto; font-size: 9px; }
 @media (max-width: 760px) {
-  .judge-attention-header { grid-template-columns: auto minmax(0, 1fr); }
+  .judge-attention-header { grid-template-columns: 1fr; }
   .judge-attention-code { grid-column: 2; width: fit-content; }
   .judge-attention-grid { grid-template-columns: 1fr; }
   .judge-attention-footer { align-items: flex-start; flex-direction: column; }

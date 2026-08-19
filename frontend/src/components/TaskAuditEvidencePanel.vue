@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { Icon } from '@iconify/vue'
 import { api } from '@/api/client'
 import type { Artifact, Attempt, TaskDiffPreview, VerifierResult } from '@/types/domain'
+import { displayLabel, userFacingError } from '@/utils/displayLabels'
 
 const props = defineProps<{
   taskId: string
@@ -77,7 +78,7 @@ async function loadBody(kind: 'verification' | 'artifact', id: string) {
       } catch { bodyCache.value[key] = result.content }
     } else bodyCache.value[key] = result.content
   } catch (cause) {
-    bodyErrors.value[key] = cause instanceof Error ? cause.message : '正文加载失败'
+    bodyErrors.value[key] = userFacingError(cause, '正文加载失败')
   } finally {
     bodyLoading.value[key] = false
   }
@@ -133,7 +134,7 @@ async function showDiff(path: string) {
     const result = await api.getTaskDiffPreview(props.taskId, path)
     if (request === previewRequest) preview.value = result
   } catch (cause) {
-    if (request === previewRequest) previewError.value = cause instanceof Error ? cause.message : '无法加载文件差异'
+    if (request === previewRequest) previewError.value = userFacingError(cause, '无法加载文件差异')
   } finally {
     if (request === previewRequest) previewLoading.value = false
   }
@@ -153,10 +154,10 @@ async function showDiff(path: string) {
 
     <div class="audit-content">
       <template v-if="activeTab === 'logs'">
-        <div class="source-note"><Icon icon="lucide:terminal-square" /><span><strong>确定性验证日志与 Attempt 交接</strong>均来自服务端持久化事实；模型会话实时输出保留在上方会话面板。</span><b>{{ logRows.length + handoffArtifacts.length }} 份</b></div>
+        <div class="source-note"><Icon icon="lucide:terminal-square" /><span><strong>验证日志与尝试交接</strong></span><b>{{ logRows.length + handoffArtifacts.length }} 份</b></div>
         <div v-if="logRows.length || handoffArtifacts.length" class="audit-stack">
           <details v-for="artifact in handoffArtifacts" :key="artifact.id" class="audit-disclosure handoff" @toggle="loadWhenOpened($event, 'artifact', artifact.id)">
-            <summary><span class="state-dot handoff" /><span class="summary-main"><strong>{{ artifact.title }}</strong><small>结构化重试交接 · {{ artifact.attemptId || '任务级证据' }}</small></span><Icon icon="lucide:chevron-down" /></summary>
+            <summary><span class="state-dot handoff" /><span class="summary-main"><strong>结构化重试交接</strong><small>任务证据</small></span><Icon icon="lucide:chevron-down" /></summary>
             <pre class="audit-log">{{ bodyLoading[`artifact:${artifact.id}`] ? '正在加载正文…' : bodyErrors[`artifact:${artifact.id}`] || artifactBody(artifact) }}</pre>
           </details>
           <details v-for="({ attempt, verifier }) in logRows" :key="verifier.id" class="audit-disclosure" @toggle="loadWhenOpened($event, 'verification', verifier.id)">
@@ -164,24 +165,24 @@ async function showDiff(path: string) {
             <pre class="audit-log">{{ bodyLoading[`verification:${verifier.id}`] ? '正在加载正文…' : bodyErrors[`verification:${verifier.id}`] || output(verifier) || '该验证没有原始输出' }}</pre>
           </details>
         </div>
-        <div v-else class="audit-empty"><Icon icon="lucide:clock-3" /><strong>验证日志尚未产生</strong><p>验证器开始执行后，这里会显示命令的真实 stdout / stderr；不会生成模拟日志。</p></div>
+        <div v-else class="audit-empty"><Icon icon="lucide:clock-3" /><strong>暂无验证日志</strong></div>
       </template>
 
       <template v-else-if="activeTab === 'diff'">
-        <div class="source-note"><Icon icon="lucide:git-compare-arrows" /><span><strong>不需要连接远端 Git。</strong>{{ directExecution ? '当前任务使用 Loopper 私有基线对比原项目目录。' : '当前任务使用任务创建时的 Git 基线，对比原项目目录中的当前任务分支。' }}</span><b>{{ changedPaths.length }} 个文件</b></div>
+        <div class="source-note"><Icon icon="lucide:git-compare-arrows" /><span><strong>本地变更</strong></span><b>{{ changedPaths.length }} 个文件</b></div>
         <div v-if="changedPaths.length" class="diff-list" aria-label="变更文件">
           <button v-for="path in changedPaths" :key="path" type="button" class="diff-row" :aria-label="`预览差异 ${path}`" @click="showDiff(path)"><span :class="['diff-state', { added: untrackedPaths.has(path) }]">{{ pathState(path) }}</span><code>{{ path }}</code><Icon icon="lucide:eye" /></button>
         </div>
-        <div v-else class="audit-empty"><Icon icon="lucide:file-diff" /><strong>没有检测到文件变更</strong><p>任务基线差异快照与显式 GIT_DIFF 验证器均未报告变更。</p></div>
+        <div v-else class="audit-empty"><Icon icon="lucide:file-diff" /><strong>没有检测到文件变更</strong></div>
         <div v-if="violations.length" class="violation-box"><strong><Icon icon="lucide:triangle-alert" />范围违规</strong><ul><li v-for="item in violations" :key="item">{{ item }}</li></ul></div>
         <details v-if="diffArtifact" class="audit-disclosure secondary" @toggle="loadWhenOpened($event, 'artifact', diffArtifact.id)"><summary><span class="summary-main"><strong>任务基线差异快照</strong><small>{{ diffArtifact.title }} · 按需读取持久化正文</small></span><Icon icon="lucide:chevron-down" /></summary><pre class="audit-log">{{ bodyLoading[`artifact:${diffArtifact.id}`] ? '正在加载正文…' : bodyErrors[`artifact:${diffArtifact.id}`] || artifactBody(diffArtifact) }}</pre></details>
       </template>
 
       <template v-else>
-        <div class="source-note"><Icon icon="lucide:badge-check" /><span><strong>确定性验证</strong>按尝试和验证器拆分展示，原始输出可单独展开。</span><b>{{ passedCount }} / {{ verificationRows.length }} 通过</b></div>
+        <div class="source-note"><Icon icon="lucide:badge-check" /><span><strong>确定性验证</strong></span><b>{{ passedCount }} / {{ verificationRows.length }} 通过</b></div>
         <div v-if="verificationRows.length" class="verification-grid">
           <article v-for="({ attempt, verifier }, index) in verificationRows" :key="verifier.id" class="verification-card">
-            <header><span :class="['verification-icon', verifier.status.toLowerCase()]"><Icon :icon="verifier.status === 'PASS' ? 'lucide:check' : verifier.status === 'FAIL' ? 'lucide:x' : 'lucide:loader-circle'" /></span><div><strong>{{ verifier.name }}</strong><small>尝试 {{ attempt.ordinal }} · 验证 {{ index + 1 }}</small></div><span :class="['result-pill', verifier.status.toLowerCase()]">{{ verifier.status === 'PASS' ? '通过' : verifier.status === 'FAIL' ? '失败' : '等待' }}</span></header>
+            <header><span :class="['verification-icon', verifier.status.toLowerCase()]"><Icon :icon="verifier.status === 'PASS' ? 'lucide:check' : verifier.status === 'FAIL' ? 'lucide:x' : 'lucide:loader-circle'" /></span><div><strong>{{ displayLabel(verifier.name) }}</strong><small>尝试 {{ attempt.ordinal }} · 验证 {{ index + 1 }}</small></div><span :class="['result-pill', verifier.status.toLowerCase()]">{{ verifier.status === 'PASS' ? '通过' : verifier.status === 'FAIL' ? '失败' : '等待' }}</span></header>
             <p>{{ verifier.summary }}</p>
             <div v-if="workingDirectory(verifier)" class="verification-meta">执行目录 <code>{{ workingDirectory(verifier) }}</code></div>
             <code v-if="verifier.evidence?.argv">{{ argv(verifier) }}</code>
@@ -190,7 +191,7 @@ async function showDiff(path: string) {
             <div v-if="verifier.name.toUpperCase() === 'GIT_DIFF' && strings(verifier.evidence?.changedPaths).length" class="verification-meta">已检查 {{ strings(verifier.evidence?.changedPaths).length }} 个变更文件</div>
           </article>
         </div>
-        <div v-else class="audit-empty"><Icon icon="lucide:badge-help" /><strong>尚无验证结果</strong><p>任务进入确定性验证阶段后会在此生成结构化记录。</p></div>
+        <div v-else class="audit-empty"><Icon icon="lucide:badge-help" /><strong>暂无验证结果</strong></div>
       </template>
 
     </div>

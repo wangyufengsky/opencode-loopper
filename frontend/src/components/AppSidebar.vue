@@ -9,7 +9,7 @@ const { runtime } = storeToRefs(taskStore)
 
 const navigation = [
   { to: '/projects', icon: 'lucide:folder-kanban', label: '项目' },
-  { to: '/designer', icon: 'lucide:sparkles', label: '设计器 / 循环规范' },
+  { to: '/designer', icon: 'lucide:sparkles', label: '设计与执行规范' },
   { to: '/designs', icon: 'lucide:history', label: '历史设计' },
   { to: '/tasks', icon: 'lucide:orbit', label: '任务' },
   { to: '/inbox', icon: 'lucide:inbox', label: '待处理中心' },
@@ -41,7 +41,7 @@ const navigation = [
 
     <div class="sidebar-spacer" />
     <RouterLink class="runtime-mini" to="/runtime">
-      <div class="runtime-mini-title"><span>OPENCODE 运行环境</span><span :class="['status-badge', runtime?.status === 'ONLINE' ? 'status-success' : 'status-danger']">{{ runtime ? statusLabel(runtime.status) : '检查中' }}</span></div>
+      <div class="runtime-mini-title"><span>OpenCode 运行环境</span><span :class="['status-badge', runtime?.status === 'ONLINE' ? 'status-success' : 'status-danger']">{{ runtime ? statusLabel(runtime.status) : '检查中' }}</span></div>
       <strong>{{ runtime?.model ?? '等待连接' }}</strong>
     </RouterLink>
   </aside>

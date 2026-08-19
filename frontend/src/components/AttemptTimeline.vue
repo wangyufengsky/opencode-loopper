@@ -22,8 +22,8 @@ function color(attempt: Attempt) {
       <span class="timeline-dot" :style="{ '--timeline-color': color(attempt) }" />
       <div class="timeline-main"><span class="timeline-title">尝试 {{ attempt.ordinal }}</span><StatusBadge :status="attempt.status === 'VERIFIED' ? 'PASS' : attempt.status === 'SESSION_ERROR' ? 'RETRY_WAIT' : attempt.status === 'VERIFIER_FAILED' ? 'PENDING' : attempt.status === 'TASK_ERROR' || attempt.status === 'CANCELLED' ? 'FAILED' : 'RUNNING'" :label="statusLabel(attempt.status)" /></div>
       <p class="timeline-copy">{{ attempt.summary }}</p>
-      <p class="mono tiny muted">{{ attempt.sessionId ?? '会话未创建' }} · <time :datetime="attempt.startedAt">{{ formatDateTime(attempt.startedAt) }}</time></p>
+      <p class="mono tiny muted"><time :datetime="attempt.startedAt">{{ formatDateTime(attempt.startedAt) }}</time></p>
     </article>
   </div>
-  <div v-else class="empty-state"><div><strong>尚未开始尝试</strong><p>此阶段会在前置阶段完成后自动加入调度队列。</p></div></div>
+  <div v-else class="empty-state"><div><strong>尚未开始尝试</strong></div></div>
 </template>
