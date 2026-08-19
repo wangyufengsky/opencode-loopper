@@ -113,6 +113,15 @@ class SessionLifecycleServiceIntegrationTest {
     }
 
     @Test
+    void providerRetryDoesNotProveThatAWriterHasTerminated() throws Exception {
+        Fixture retrying = fixture("feature/retrying", "COMPLETED", "RETRY");
+
+        assertThatThrownBy(() -> lifecycle.fork(retrying.taskId(), retrying.sessionId(), "message-1"))
+                .isInstanceOfSatisfying(ConflictException.class,
+                        ex -> assertThat(ex.code()).isEqualTo("SESSION_WRITER_UNCONFIRMED"));
+    }
+
+    @Test
     void directRevertIsForbiddenAndGitForkCreatesOnlyATerminalSnapshotAssociation() throws Exception {
         Fixture direct = fixture(GitWorktreeManager.DIRECT_BRANCH, "COMPLETED", "IDLE");
         assertThatThrownBy(() -> lifecycle.revert(direct.taskId(), direct.sessionId(), "message-1", "part-1"))

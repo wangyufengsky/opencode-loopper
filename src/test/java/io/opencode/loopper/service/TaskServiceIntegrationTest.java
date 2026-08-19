@@ -397,7 +397,7 @@ class TaskServiceIntegrationTest {
     }
 
     @Test
-    void completedJudgeUsageBlocksARetryBeforeCreatingAnotherReadOnlySession() throws Exception {
+    void completedJudgeUsageDoesNotBlockProviderRecoveryOnTheSameJudgeSession() throws Exception {
         ProjectRow project = projects.create("judge-budget", gitProject());
         LoopSpec limited = new LoopSpec("v1", project.id(), "Budget judges", null,
                 List.of(new LoopSpec.StageSpec("Check README", null, null, null,
@@ -420,16 +420,13 @@ class TaskServiceIntegrationTest {
 
         tasks.pollJudges(task.id());
 
-        assertThat(tasks.get(task.id()).state()).isEqualTo("WAITING_INPUT");
+        assertThat(tasks.get(task.id()).state()).isEqualTo("JUDGING");
         assertThat(tasks.judges(task.id())).hasSize(2);
         assertThat(fake.createReadOnlySessionCalls()).isEqualTo(readOnlyCallsBeforeRetry);
         assertThat(fake.promptCalls()).isEqualTo(promptCallsBeforeRetry);
-        assertThat(mapper.listTaskUsage(task.id())).anySatisfy(row -> {
-            assertThat(row.judgeRunId()).isEqualTo(requirement.id());
-            assertThat(row.executionSessionId()).isNull();
-            assertThat(row.totalTokens()).isEqualTo(10L);
-        });
-        assertThat(tasks.errors(task.id())).anyMatch(error -> error.code().equals("BUDGET_TOKEN_LIMIT_REACHED"));
+        assertThat(tasks.judges(task.id()).stream().filter(row -> row.id().equals(risk.id())).findFirst().orElseThrow().state())
+                .isEqualTo("RUNNING");
+        assertThat(tasks.errors(task.id())).noneMatch(error -> error.code().equals("BUDGET_TOKEN_LIMIT_REACHED"));
     }
 
     @Test
@@ -488,7 +485,7 @@ class TaskServiceIntegrationTest {
     }
 
     @Test
-    void providerRetryStatusFlowsThroughMonitorAsSessionErrorAndContinuesTaskLoop() throws Exception {
+    void providerRetryStatusKeepsTheSameImplementationSessionDuringProviderRecovery() throws Exception {
         ProjectRow project = projects.create("provider-retry", gitProject());
         TaskRow task = drafts.confirm(drafts.create(spec(project.id())).id(), "provider retry recovery");
         tasks.start(task.id());
@@ -498,14 +495,17 @@ class TaskServiceIntegrationTest {
 
         monitor.poll();
 
-        assertThat(tasks.get(task.id()).state()).isEqualTo("RETRY_WAIT");
-        assertThat(tasks.retrySchedule(task.id()).cause()).isEqualTo("RATE_LIMIT");
-        assertThat(tasks.retrySchedule(task.id()).delaySeconds()).isEqualTo(60);
+        assertThat(tasks.get(task.id()).state()).isEqualTo("RUNNING");
+        assertThat(tasks.retrySchedule(task.id())).isNull();
         assertThat(tasks.attempts(task.id())).hasSize(1);
         assertThat(tasks.attempts(task.id()).stream().filter(attempt -> attempt.id().equals(first.id())).findFirst().orElseThrow().state())
-                .isEqualTo("SESSION_ERROR");
-        assertThat(tasks.errors(task.id())).anyMatch(error -> error.layer().equals(ErrorLayer.SESSION.name())
-                && error.code().equals("OPENCODE_SESSION_RETRY") && error.message().contains("too frequent"));
+                .isEqualTo("RUNNING");
+        assertThat(mapper.activeSessions(task.id())).singleElement().satisfies(session -> {
+            assertThat(session.id()).isEqualTo(active.id());
+            assertThat(session.externalSessionId()).isEqualTo(active.externalSessionId());
+            assertThat(session.state()).isEqualTo("RUNNING");
+        });
+        assertThat(tasks.errors(task.id())).noneMatch(error -> error.code().equals("OPENCODE_SESSION_RETRY"));
     }
 
     @Test
@@ -1704,7 +1704,7 @@ class TaskServiceIntegrationTest {
     }
 
     @Test
-    void judgeRetryStatusStartsFreshReadOnlySessionWithProviderDetailWithoutFailingTask() throws Exception {
+    void judgeRetryStatusKeepsTheSameReadOnlySessionUntilProviderRecovers() throws Exception {
         ProjectRow project = projects.create("fixture", gitProject());
         TaskRow task = drafts.confirm(drafts.create(spec(project.id())).id(), "judge transport recovery");
         tasks.start(task.id());
@@ -1717,18 +1717,22 @@ class TaskServiceIntegrationTest {
 
         tasks.pollJudges(task.id());
         assertThat(tasks.get(task.id()).state()).isEqualTo("JUDGING");
-        assertThat(tasks.judges(task.id())).hasSize(3);
-        assertThat(tasks.errors(task.id())).anyMatch(error -> error.layer().equals(ErrorLayer.SESSION.name())
-                && error.code().equals("JUDGE_SESSION_RETRY") && error.message().contains("Free usage exceeded"));
+        assertThat(tasks.judges(task.id())).hasSize(2);
+        assertThat(tasks.judges(task.id()).stream().filter(row -> row.id().equals(retryingJudge.id())).findFirst().orElseThrow().state())
+                .isEqualTo("RUNNING");
+        assertThat(tasks.errors(task.id())).noneMatch(error -> error.code().equals("JUDGE_SESSION_RETRY"));
+        assertThat(mapper.listTaskUsage(task.id())).noneMatch(row -> retryingJudge.id().equals(row.judgeRunId()));
+
+        fake.setSessionStatus(retryingJudge.externalSessionId(), "COMPLETED", null);
+        tasks.pollJudges(task.id());
+        assertThat(tasks.get(task.id()).state()).isEqualTo("AWAITING_DECISION");
+        assertThat(tasks.judges(task.id())).hasSize(2);
         assertThat(mapper.listTaskUsage(task.id())).anySatisfy(row -> {
             assertThat(row.judgeRunId()).isEqualTo(retryingJudge.id());
             assertThat(row.executionSessionId()).isNull();
             assertThat(row.totalTokens()).isEqualTo(5L);
             assertThat(row.idempotencyKey()).isEqualTo("usage:judge:" + retryingJudge.id() + ":failed-judge-message");
         });
-
-        tasks.pollJudges(task.id());
-        assertThat(tasks.get(task.id()).state()).isEqualTo("AWAITING_DECISION");
     }
 
     @Test

@@ -224,6 +224,12 @@ public class ProjectConventionService {
             if (recoverToolLoop(row, failure)) return;
             throw failure;
         }
+        if (status.retrying()) {
+            if (!status.state().equalsIgnoreCase(row.externalSessionState())) {
+                transition(row, ProjectConventionState.RUNNING, status.state(), row.proposedContent(), row.errorMessage());
+            }
+            return;
+        }
         if (status.failed()) {
             transition(row, ProjectConventionState.FAILED, safeState(status.state()), null,
                     status.detail() == null || status.detail().isBlank()

@@ -204,7 +204,7 @@ public class SessionLifecycleService {
     private boolean terminal(String state) {
         return "COMPLETED".equalsIgnoreCase(state) || "IDLE".equalsIgnoreCase(state) || "DONE".equalsIgnoreCase(state)
                 || "FAILED".equalsIgnoreCase(state) || "ERROR".equalsIgnoreCase(state) || "ABORTED".equalsIgnoreCase(state)
-                || "TIMED_OUT".equalsIgnoreCase(state) || "RETRY".equalsIgnoreCase(state);
+                || "TIMED_OUT".equalsIgnoreCase(state);
     }
 
     private OpenCodeClient.OpenCodeModel model(TaskRow task) {

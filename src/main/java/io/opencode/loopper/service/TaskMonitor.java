@@ -54,6 +54,7 @@ class TaskMonitor {
                         // Todo is a non-authoritative projection and cannot alter execution lifecycle.
                     }
                     OpenCodeClient.SessionStatus status = openCode.sessionStatus(new OpenCodeClient.OpenCodeSession(session.externalSessionId(), Path.of(task.worktreePath())));
+                    if (status.retrying()) continue;
                     if (status.failed()) tasks.sessionFailed(task.id(), session.attemptId(), "OPENCODE_SESSION_" + status.state(),
                             status.detail() == null || status.detail().isBlank() ? "OpenCode session ended in " + status.state() : status.detail());
                     else if (status.completed()) verification.dispatch(task.id());

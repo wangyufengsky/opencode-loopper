@@ -81,6 +81,29 @@ class ProjectConventionServiceTest {
     }
 
     @Test
+    void providerRetryKeepsTheSameConventionSessionUntilItCompletes() throws Exception {
+        Path root = Files.createDirectory(temp.resolve("provider-retry"));
+        ProjectRow project = projects.create("provider-retry", root.toString());
+        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
+        fake.setDesignerOutput(aiContext("## 技术栈与目录\n- Java 21。"));
+        ProjectConventionDraftRow running = conventions.generate(project.id());
+        fake.setSessionStatus(running.externalSessionId(), "RETRY", "system cpu overloaded");
+
+        conventions.pollActiveGenerations();
+
+        ProjectConventionDraftRow retrying = conventions.get(project.id(), running.id());
+        assertThat(retrying.state()).isEqualTo(ProjectConventionState.RUNNING.name());
+        assertThat(retrying.externalSessionId()).isEqualTo(running.externalSessionId());
+        assertThat(retrying.externalSessionState()).isEqualTo("RETRY");
+        assertThat(fake.createReadOnlySessionCalls()).isEqualTo(1);
+
+        fake.setSessionStatus(running.externalSessionId(), "COMPLETED", null);
+        conventions.pollActiveGenerations();
+        assertThat(conventions.get(project.id(), running.id()).state()).isEqualTo(ProjectConventionState.READY.name());
+        assertThat(fake.createReadOnlySessionCalls()).isEqualTo(1);
+    }
+
+    @Test
     void restartCompletesADurableApplyingProposalAfterTheFileWasWritten() throws Exception {
         Path root = Files.createDirectory(temp.resolve("recover-apply"));
         ProjectRow project = projects.create("recover-apply", root.toString());

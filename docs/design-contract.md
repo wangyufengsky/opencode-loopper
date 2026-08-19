@@ -308,8 +308,10 @@ and keeps the same Session; it must not increment the design transport-retry
 counter. Interactive Designer uses the same transient rule: requirement,
 work-package, and compatibility polling keep the original remote Session and
 the workflow in `RUNNING`; auto mode remains `ACTIVE` until a true terminal
-Designer state is persisted. Implementation and Judge retain their existing
-failure-escalation behavior. Even while OpenCode reports `busy`, Loopper reads the bounded machine
+Designer state is persisted. The same provider-recovery rule applies to Judge,
+Implementation, project-convention, publication-suggestion, and local-sync
+Sessions: no new local execution row or Loopper retry budget is consumed, while
+the existing operation timeout still applies. Even while OpenCode reports `busy`, Loopper reads the bounded machine
 response transcript. If OpenCode rejects the stored Schema or reports a failed
 `StructuredOutput` tool part, the workflow shows the existing format fallback
 rather than a generic connection failure. A card may say the

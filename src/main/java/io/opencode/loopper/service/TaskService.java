@@ -1990,9 +1990,9 @@ public class TaskService {
     }
 
     /**
-     * Polls only final-review sessions.  A judge transport/model problem is recorded as a
-     * SESSION error and retried with a fresh judge row; it never enters the normal execution
-     * attempt recovery path and never turns the task FAILED by itself.
+     * Polls only final-review sessions. Provider RETRY is an in-progress remote projection and
+     * keeps the same judge row; a true terminal transport/model problem is recorded as a SESSION
+     * error and retried with a fresh judge row. Neither path enters normal execution recovery.
      */
     public void pollJudges(String taskId) {
         TaskRow task = get(taskId);
@@ -2138,6 +2138,7 @@ public class TaskService {
             }
             OpenCodeClient.OpenCodeSession remote = new OpenCodeClient.OpenCodeSession(judge.externalSessionId(), Path.of(requireWorktree(inputTask)));
             OpenCodeClient.SessionStatus status = openCode.sessionStatus(remote);
+            if (status.retrying()) return;
             if (status.failed()) {
                 String message = status.detail() == null || status.detail().isBlank()
                         ? "OpenCode judge session ended in " + status.state() : status.detail();

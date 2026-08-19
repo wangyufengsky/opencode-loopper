@@ -153,6 +153,15 @@ A Session adapter must never finalize a Task. It emits a typed
 retries are promoted to a failed execution-cycle result with
 `TASK/SESSION_RETRY_EXHAUSTED` and the complete chain of evidence.
 
+OpenCode `RETRY` is not a `SESSION` failure. It is provider-managed recovery on
+the same remote Session for every Loopper caller, including Designer and
+machine roles, Implementation, project-convention discovery, publication
+suggestions, and local synchronization. Loopper keeps polling the existing
+Session without creating an Attempt/Judge, consuming a Loopper retry budget, or
+persisting a Session error. The caller's existing operation timeout remains the
+hard boundary; only a real remote terminal failure or that local timeout enters
+the normal failure contract.
+
 An application restart follows the same Session boundary. Loopper best-effort
 aborts the old external Session, persists it and its Attempt as disconnected /
 `SESSION_ERROR`, and preserves or creates a persistent `RETRY_WAIT` schedule
@@ -332,12 +341,12 @@ a new lifecycle state or evidence source.
 Managed runtimes also define a private `loopper-structured` machine-response
 agent capped at 24 agentic steps. Decomposer, Compiler, and Judge select it to
 bound read-only exploration; it does not replace Loopper model-call, repair,
-timeout, validation, or lifecycle authority. For interactive Designer,
-Decomposer, and Compiler, OpenCode `RETRY` remains a transient external Session
-projection: Loopper keeps the same remote Session and the Designer workflow in
-`RUNNING`, so provider self-recovery such as capacity overload neither consumes
-a fresh-Session retry nor blocks Designer auto mode. Implementation and Judge
-retain their existing failure-escalation behavior.
+timeout, validation, or lifecycle authority. OpenCode `RETRY` remains a
+transient external Session projection for every caller: Loopper keeps the same
+remote Session, while Designer workflows also remain `RUNNING`, so provider
+self-recovery such as capacity overload neither consumes a fresh-Session retry
+nor blocks Designer auto mode. A `RETRY` projection is not a terminal writer
+observation and therefore cannot authorize an overlapping Session.
 The adapter signs tool calls after the latest user turn using normalized tool
 name and canonical arguments. Three identical consecutive signatures trigger
 an immediate best-effort abort and, once per persisted role step, one no-tools

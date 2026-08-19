@@ -182,8 +182,9 @@ public interface OpenCodeClient {
     record SessionStatus(String state, String detail) {
         public SessionStatus(String state) { this(state, null); }
         public boolean completed() { return "COMPLETED".equalsIgnoreCase(state) || "IDLE".equalsIgnoreCase(state) || "DONE".equalsIgnoreCase(state); }
+        /** RETRY is provider-managed recovery on the same remote Session, not a terminal failure. */
         public boolean failed() { return "FAILED".equalsIgnoreCase(state) || "ERROR".equalsIgnoreCase(state) || "ABORTED".equalsIgnoreCase(state)
-                || "TIMED_OUT".equalsIgnoreCase(state) || retrying(); }
+                || "TIMED_OUT".equalsIgnoreCase(state); }
         public boolean retrying() { return "RETRY".equalsIgnoreCase(state); }
     }
 }

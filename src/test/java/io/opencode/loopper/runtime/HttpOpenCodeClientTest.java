@@ -87,7 +87,7 @@ class HttpOpenCodeClientTest {
         assertThat(client.sessionStatus(session).failed()).isTrue();
         statusBody.set("{\"s1\":{\"type\":\"retry\",\"message\":\"Free usage exceeded\",\"action\":{\"reason\":\"free_tier_limit\"}}}");
         OpenCodeClient.SessionStatus retry = client.sessionStatus(session);
-        assertThat(retry.failed()).isTrue();
+        assertThat(retry.failed()).isFalse();
         assertThat(retry.retrying()).isTrue();
         assertThat(retry.detail()).isEqualTo("Free usage exceeded");
         assertThat(client.diff(session)).isEqualTo("[]");
