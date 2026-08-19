@@ -12,6 +12,7 @@ import io.opencode.loopper.service.LoopDraftService;
 import io.opencode.loopper.service.TaskProfileService;
 import io.opencode.loopper.service.AnalysisReportService;
 import io.opencode.loopper.service.DirectArtifactDesignService;
+import io.opencode.loopper.service.DirectMaintenanceDesignService;
 import io.opencode.loopper.domain.ExecutionStrategy;
 import io.opencode.loopper.domain.LoopSpec;
 import io.opencode.loopper.domain.ArtifactKind;
@@ -48,10 +49,12 @@ public class DesignerSessionController {
     private final TaskProfileService profiles;
     private final AnalysisReportService reports;
     private final DirectArtifactDesignService directArtifacts;
+    private final DirectMaintenanceDesignService directMaintenance;
 
     public DesignerSessionController(DesignerSessionService service, LoopDraftService drafts, DesignerEventHub events,
                                      DesignerAutoModeService autoMode, TaskProfileService profiles,
-                                     AnalysisReportService reports, DirectArtifactDesignService directArtifacts) {
+                                     AnalysisReportService reports, DirectArtifactDesignService directArtifacts,
+                                     DirectMaintenanceDesignService directMaintenance) {
         this.service = service;
         this.drafts = drafts;
         this.events = events;
@@ -59,6 +62,7 @@ public class DesignerSessionController {
         this.profiles = profiles;
         this.reports = reports;
         this.directArtifacts = directArtifacts;
+        this.directMaintenance = directMaintenance;
     }
 
     @PostMapping
@@ -173,12 +177,26 @@ public class DesignerSessionController {
                                                    @Valid @RequestBody DiscussionRevisionRequest request) {
         TaskProfileService.View profile = profiles.freeze(id);
         if (profile.executionStrategy() == ExecutionStrategy.READ_ONLY_REPORT) {
-            reports.generateFromDesignerSnapshot(id);
-            service.completeReadOnlyReport(id);
+            service.beginReadOnlyReport(id);
+            try { reports.startReviewer(id); }
+            catch (RuntimeException failure) {
+                service.failReadOnlyReport(id, "REVIEWER_START_FAILED", failure.getMessage());
+                throw failure;
+            }
             return ResponseEntity.accepted().build();
         }
         if (profile.workflowTemplate() == WorkflowTemplate.DIRECT_ARTIFACT) {
             directArtifacts.compile(id, profile);
+            service.completeDirectArtifactDesign(id);
+            return ResponseEntity.accepted().build();
+        }
+        if (profile.workflowTemplate() == WorkflowTemplate.PACKAGED_ARTIFACT) {
+            directArtifacts.compilePackagedDocument(id, profile);
+            service.completeDirectArtifactDesign(id);
+            return ResponseEntity.accepted().build();
+        }
+        if (profile.workflowTemplate() == WorkflowTemplate.LOCAL_MAINTENANCE) {
+            directMaintenance.compile(id, profile);
             service.completeDirectArtifactDesign(id);
             return ResponseEntity.accepted().build();
         }

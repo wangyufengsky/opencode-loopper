@@ -22,14 +22,27 @@ Decomposer 和 Compiler 新会话各只需一次机器规划调用。规划通�
 需求首先形成任务画像。Router 只提供软件、文档、数据转换、只读评审、调研、配置或
 本地维护等语义标签；服务端把标签与有界仓库事实合并，决定置信度、流程、权限、测试
 策略和最终执行方式。格式不可用或结果冲突时退回通用画像并提问，不能让首次路由失败
-终止 Designer。内置 Role Pack 以 `2026-08-dynamic-v1` 版本冻结：Java、Python、Node、
+终止 Designer。内置 Role Pack 以 `2026-08-dynamic-v2` 版本冻结：Java、Python、Node、
 Markdown/DOCX、表格转换、只读报告和本地维护各自组合提示，不能把 Java/Maven 示例
 注入 Python、文档或表格任务。
+
+Router 使用独立 `ROUTER_NO_TOOLS` Session；可用时返回固定
+`TASK_PROFILE_ROUTER_V1` JSON Schema，不可用时使用同一闭集对象的 marker。它只返回
+`intent / artifactKinds / technologies / complexity / confidence / signals`，服务端仍独占
+`WorkflowTemplate / MutationMode / ExecutionStrategy / TestPolicy`。需求 Designer 和
+Decomposer 使用父画像；每个软件工作包再按包标题、目标、范围和交付物检测技术栈，原子
+冻结自己的 Role Pack、执行策略和测试策略，包 Designer 与 Compiler 只读取该冻结值。
 
 文档 Compiler 的权威输出是受限 `DocumentPlan`；表格 Compiler 的权威输出是受限
 `TabularConversionPlan`。服务端生成路径、隐式 `WP-1`、验收 ID 与最终 DTO，并在最终
 确认前只冻结计划。报告 Reviewer 仅可读取仓库并输出带证据定位的 Markdown；报告文字
 是数据而不是后续设计会话的系统指令。
+
+大型文档确认稿必须包含 2–6 个二级章节。服务端按章节顺序保留结构化标题、段落、列表、
+代码块和表格片段并确定性聚合为一个冻结 `DocumentPlan`，不会让模型执行第二次自由合并。
+简单配置/维护生成隐式 `WP-1`，只接受确认稿中反引号标明的相对路径；执行合同必须包含
+精确 `allowedPaths`、`requireChanges=true` 和 `forbidDeletes=true`，并继续拒绝服务控制、
+Git 发布和外部写入。
 
 ## Decomposer
 

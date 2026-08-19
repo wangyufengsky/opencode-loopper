@@ -59,6 +59,21 @@ public class DirectArtifactDesignService {
                 : compileDocument(session, profile, discussion.snapshotMarkdown(), draft);
     }
 
+    public Result compilePackagedDocument(String sessionId, TaskProfileService.View profile) {
+        if (profile.intent() != TaskIntent.DOCUMENT_AUTHORING
+                || profile.workflowTemplate() != io.opencode.loopper.domain.WorkflowTemplate.PACKAGED_ARTIFACT) {
+            throw new ConflictException("PACKAGED_DOCUMENT_PROFILE_INVALID", "当前画像不是大型分包文档");
+        }
+        DesignDiscussionRevisionRow discussion = mapper.findLatestDesignDiscussionRevision(sessionId, "REQUIREMENT")
+                .orElseThrow(() -> new ConflictException("REQUIREMENT_DISCUSSION_MISSING", "需求讨论快照不存在"));
+        long sections = discussion.snapshotMarkdown().lines().filter(line -> line.matches("^##\\s+.+")).count();
+        if (sections < 2 || sections > 6) {
+            throw new BadRequestException("PACKAGED_DOCUMENT_SECTION_LIMIT",
+                    "大型文档必须在确认稿中包含 2-6 个二级章节；每章作为冻结结构化片段后由服务端按顺序聚合");
+        }
+        return compile(sessionId, profile);
+    }
+
     private Result compileDocument(DesignerSessionRow session, TaskProfileService.View profile, String markdown,
                                    LoopDraftRow draft) {
         boolean docx = profile.artifactKinds().contains(ArtifactKind.DOCX);

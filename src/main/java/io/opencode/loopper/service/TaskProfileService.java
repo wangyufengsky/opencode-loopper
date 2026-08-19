@@ -25,14 +25,17 @@ public class TaskProfileService {
     private final LoopperMapper mapper;
     private final ProjectService projects;
     private final TaskProfileRouter router;
+    private final TaskSemanticRouter semanticRouter;
     private final RolePackRegistry rolePacks;
     private final ObjectMapper json;
     private final TransactionTemplate transactions;
 
     public TaskProfileService(LoopperMapper mapper, ProjectService projects, TaskProfileRouter router,
+                              TaskSemanticRouter semanticRouter,
                               RolePackRegistry rolePacks, ObjectMapper json,
                               PlatformTransactionManager transactionManager) {
-        this.mapper = mapper; this.projects = projects; this.router = router; this.rolePacks = rolePacks;
+        this.mapper = mapper; this.projects = projects; this.router = router; this.semanticRouter = semanticRouter;
+        this.rolePacks = rolePacks;
         this.json = json; this.transactions = new TransactionTemplate(transactionManager);
     }
 
@@ -41,7 +44,14 @@ public class TaskProfileService {
         if (existing != null) return view(existing);
         DesignerSessionRow session = session(sessionId);
         ProjectRow project = projects.get(session.projectId());
-        TaskProfileRouter.Decision decision = router.route(Path.of(project.rootPath()), requirement);
+        Path root = Path.of(project.rootPath());
+        TaskProfileRouter.Decision serverEvidence = router.route(root, requirement);
+        TaskSemanticRouter.Result semantic = semanticRouter.classify(root, requirement, serverEvidence.evidence());
+        TaskProfileRouter.Decision decision = semantic.success()
+                ? router.route(root, requirement, semantic.labels())
+                : router.genericFallback(root, semantic.errorCode());
+        List<String> routingEvidence = new java.util.ArrayList<>(decision.evidence());
+        if (!semantic.success()) routingEvidence.add("router-error=" + semantic.errorCode() + ":" + semantic.errorDetail());
         RolePackRegistry.RolePack pack = rolePacks.resolve(decision.intent(), decision.technologies(), decision.artifactKinds());
         TestPolicy testPolicy = effectiveTestPolicy(pack.defaultTestPolicy(), decision.intent(), decision.technologies(), decision.evidence());
         String now = Instant.now().toString();
@@ -49,7 +59,8 @@ public class TaskProfileService {
                 "PROVISIONAL", decision.intent().name(), decision.workflowTemplate().name(),
                 decision.mutationMode().name(), write(decision.artifactKinds()), write(decision.technologies()),
                 testPolicy.name(), pack.executionStrategy().name(), pack.id(), pack.version(), decision.confidence(),
-                write(decision.evidence()), "ROUTER", decision.decisionRequired() ? 1 : 0, now, now, 0);
+                write(routingEvidence), semantic.success() ? "AI_ROUTER" : "ROUTER_FALLBACK",
+                decision.decisionRequired() ? 1 : 0, now, now, 0);
         if (mapper.insertDesignerTaskProfile(row) != 1) throw new ConflictException("TASK_PROFILE_CREATE_CONFLICT", "任务画像未能持久化");
         return view(row);
     }
@@ -113,6 +124,7 @@ public class TaskProfileService {
     private TestPolicy effectiveTestPolicy(TestPolicy fallback, TaskIntent intent, List<String> technologies, List<String> evidence) {
         if (intent == TaskIntent.DOCUMENT_AUTHORING || intent == TaskIntent.DATA_CONVERSION
                 || intent == TaskIntent.READ_ONLY_REVIEW || intent == TaskIntent.RESEARCH) return TestPolicy.NOT_APPLICABLE;
+        if (evidence.stream().anyMatch("requirement-tests=required"::equals)) return TestPolicy.REQUIRED;
         if (technologies.contains("java") || technologies.contains("node")) return TestPolicy.REQUIRED;
         if (technologies.contains("python") && evidence.stream().anyMatch(value -> value.contains("pytest") || value.contains("unittest")))
             return TestPolicy.REQUIRED;
@@ -121,9 +133,12 @@ public class TaskProfileService {
 
     private WorkflowTemplate workflow(TaskIntent intent, String previous) {
         return switch (intent) {
-            case DOCUMENT_AUTHORING, DATA_CONVERSION -> WorkflowTemplate.DIRECT_ARTIFACT;
+            case DOCUMENT_AUTHORING -> WorkflowTemplate.PACKAGED_ARTIFACT.name().equals(previous)
+                    ? WorkflowTemplate.PACKAGED_ARTIFACT : WorkflowTemplate.DIRECT_ARTIFACT;
+            case DATA_CONVERSION -> WorkflowTemplate.DIRECT_ARTIFACT;
             case READ_ONLY_REVIEW, RESEARCH -> WorkflowTemplate.READ_ONLY_REPORT;
-            case CONFIGURATION, LOCAL_MAINTENANCE -> WorkflowTemplate.LOCAL_MAINTENANCE;
+            case CONFIGURATION, LOCAL_MAINTENANCE -> WorkflowTemplate.FULL_PACKAGE_DESIGN.name().equals(previous)
+                    ? WorkflowTemplate.FULL_PACKAGE_DESIGN : WorkflowTemplate.LOCAL_MAINTENANCE;
             default -> WorkflowTemplate.FULL_PACKAGE_DESIGN;
         };
     }

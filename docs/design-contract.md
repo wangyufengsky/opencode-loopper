@@ -151,9 +151,18 @@ Simple Markdown/DOCX and one-shot tabular conversion still require the ordinary
 Designer question, then compile one implicit `WP-1` and enter `FINAL_REVIEW` without an
 AI Decomposer or repeated package Designer. Review Gate shows Markdown content, a DOCX
 structure summary, or source/target table conversion rules. No target file exists until
-the confirmed Task is explicitly started. Read-only review/research ends at a report
+the confirmed Task is explicitly started. A large document must expose 2–6 `##` sections;
+the server preserves those ordered structured fragments and aggregates the final plan
+deterministically. Simple maintenance likewise uses implicit `WP-1`, but Review Gate only
+becomes confirmable when exact relative targets and a no-delete `GIT_DIFF` are present.
+Read-only review/research ends at a report
 card with file/line/hash freshness and a “convert to design” action; that action creates
 only a linked writable-design conversation and never directly creates a Task.
+
+For full package workflows, each work package persists its own Role Pack, technology list,
+execution strategy and test policy. The package Designer and Compiler prompts use that
+package snapshot, so a mixed Java/Vue/Python request does not inherit one global
+Java/Maven contract for every package.
 
 Before a requirement revision exists, Designer must call `question` once with
 1–3 choice questions and then return a complete replacement Markdown snapshot.

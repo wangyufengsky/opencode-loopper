@@ -12,6 +12,7 @@ public final class OpenCodeStructuredSchemas {
     public static final String PACKAGE_COMPILATION_SEMANTIC_V3 = "PACKAGE_COMPILATION_SEMANTIC_V3";
     public static final String PACKAGE_COMPILATION_FINAL_V2 = "PACKAGE_COMPILATION_FINAL_V2";
     public static final String JUDGE_DECISION_V1 = "JUDGE_DECISION_V1";
+    public static final String TASK_PROFILE_ROUTER_V1 = "TASK_PROFILE_ROUTER_V1";
     private static final ObjectMapper JSON = new ObjectMapper();
 
     private OpenCodeStructuredSchemas() { }
@@ -29,6 +30,7 @@ public final class OpenCodeStructuredSchemas {
             case PACKAGE_COMPILATION_SEMANTIC_V3 -> read(PACKAGE_COMPILATION_SEMANTIC);
             case PACKAGE_COMPILATION_FINAL_V2 -> read(PACKAGE_COMPILATION_FINAL);
             case JUDGE_DECISION_V1 -> read(JUDGE_DECISION);
+            case TASK_PROFILE_ROUTER_V1 -> read(TASK_PROFILE_ROUTER);
             default -> throw new IllegalArgumentException("Unknown OpenCode response schema: " + schemaId);
         };
     }
@@ -163,6 +165,22 @@ public final class OpenCodeStructuredSchemas {
           "$schema":"https://json-schema.org/draft/2020-12/schema",
           "type":"object","additionalProperties":false,"required":["verdict","reason"],
           "properties":{"verdict":{"type":"string","enum":["PASS","REVISE","BLOCKED"]},"reason":{"type":"string","minLength":1,"maxLength":12000}}
+        }
+        """;
+
+    private static final String TASK_PROFILE_ROUTER = """
+        {
+          "$schema":"https://json-schema.org/draft/2020-12/schema",
+          "type":"object","additionalProperties":false,
+          "required":["intent","artifactKinds","technologies","complexity","confidence","signals"],
+          "properties":{
+            "intent":{"type":"string","enum":["SOFTWARE_CHANGE","DOCUMENT_AUTHORING","DATA_CONVERSION","READ_ONLY_REVIEW","RESEARCH","CONFIGURATION","LOCAL_MAINTENANCE"]},
+            "artifactKinds":{"type":"array","minItems":1,"maxItems":8,"items":{"type":"string","enum":["SOURCE_CODE","PYTHON_SCRIPT","MARKDOWN","DOCX","XLSX","CSV","TSV","CONFIGURATION","ANALYSIS_REPORT","OTHER"]}},
+            "technologies":{"type":"array","maxItems":16,"items":{"type":"string","minLength":1,"maxLength":64}},
+            "complexity":{"type":"string","enum":["SIMPLE","PACKAGED"]},
+            "confidence":{"type":"integer","minimum":0,"maximum":100},
+            "signals":{"type":"array","maxItems":16,"items":{"type":"string","minLength":1,"maxLength":256}}
+          }
         }
         """;
 }

@@ -89,18 +89,29 @@ V35 adds a frozen task profile before workflow construction. `designer_task_prof
 stores intent, workflow template, mutation mode, artifact kinds, technologies, test
 policy, execution strategy, Role Pack version, confidence and bounded evidence;
 historical rows without it project as `LEGACY_SOFTWARE` and keep the previous software
-path. The router scans only bounded, non-symlink manifest/file facts and never owns
-permissions or commands. Confidence below 80 or conflicting facts require a user
-decision. Profile references are copied to requirement/decomposition/package/Task and
-Recovery reuses the frozen values.
+path. The server scans only bounded, non-symlink manifest/file facts, while an independent
+`ROUTER_NO_TOOLS` OpenCode Session returns semantic labels through the fixed
+`TASK_PROFILE_ROUTER_V1` schema or marker fallback. The AI Router never owns permissions,
+commands, workflow selection, or authorization. Schema/session/output failure produces a
+generic decision-required profile instead of terminating the Designer. Confidence below
+80 or conflicting facts require a user decision. Profile references are copied to
+requirement/decomposition/package/Task and Recovery reuses the frozen values.
 
 The server owns five workflow templates. Software and complex maintenance use the full
 package lifecycle. Simple documents and tabular conversions compile an implicit `WP-1`
 and frozen `artifact_plan` without Decomposer or package Designer repetition. A normal
 Attempt is created only after Start; `SERVER_DOCUMENT_MATERIALIZATION` and
 `SERVER_TABULAR_CONVERSION` write atomically and proceed directly to native verification
-without an OpenCode Session. Read-only review/research persists `analysis_report` with
-source locations and hashes and never creates a Task, lease, branch, or writable Session.
+without an OpenCode Session. Large documents require 2–6 level-two sections; their bounded
+structured blocks are kept in source order and deterministically aggregated into one
+frozen plan. Every decomposed software package freezes its own detected technology list,
+Role Pack version, execution strategy and test policy before its Designer/Compiler prompt.
+Read-only review/research creates an independent `REVIEWER_READ_ONLY` Session, validates
+managed `path:line` citations and source hashes, persists `analysis_report`, and never
+creates a Task, lease, branch, Attempt, or writable Session. Safe local maintenance uses
+one implicit package with exact relative paths and a mandatory no-delete `GIT_DIFF`; the
+draft confirmation gate rejects wildcard paths, process/browser/database verifiers,
+deletion, service control and external writes.
 
 ## Authoritative lifecycle state machines
 

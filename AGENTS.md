@@ -41,10 +41,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.1.85.jar
-   jar tf target/opencode-loopper-0.1.85.jar \
+   test -s target/opencode-loopper-0.1.86.jar
+   jar tf target/opencode-loopper-0.1.86.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.1.85.jar
+   shasum -a 256 target/opencode-loopper-0.1.86.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -93,8 +93,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.1.85`。
-- 正式产物：`target/opencode-loopper-0.1.85.jar`。
+- Maven 项目版本：`0.1.86`。
+- 正式产物：`target/opencode-loopper-0.1.86.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -216,7 +216,8 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 
 ### 5.3 Designer 和 LoopSpec
 
-- V35 在设计流程前冻结 `TaskIntent / WorkflowTemplate / MutationMode / ArtifactKind / TestPolicy / ExecutionStrategy` 任务画像和版本化 Role Pack。置信度低于 80 或证据冲突必须人工确认；历史缺失画像投影为 `LEGACY_SOFTWARE`，Recovery 复用冻结画像。软件与复杂维护使用完整分包；简单文档/表格使用隐式 `WP-1`，只读报告不创建 Task。
+- V35 在设计流程前冻结 `TaskIntent / WorkflowTemplate / MutationMode / ArtifactKind / TestPolicy / ExecutionStrategy` 任务画像和版本化 Role Pack；V36 由独立 `ROUTER_NO_TOOLS` Session 输出闭集语义标签，服务端结合有界仓库事实决定最终流程，格式/Session 失败降级为通用画像提问而不终止 Designer。置信度低于 80 或证据冲突必须人工确认；历史缺失画像投影为 `LEGACY_SOFTWARE`，Recovery 复用冻结画像。软件与复杂维护使用完整分包且每个工作包冻结自己的技术栈、Role Pack、执行和测试策略；简单文档/表格/维护使用隐式 `WP-1`；大型文档要求 2–6 个二级章节并由服务端确定性聚合结构化片段；只读 Reviewer 只开放 `read/glob/grep`，报告必须通过 `path:line` 与源哈希校验且不创建 Task、Attempt、租约、分支或可写 Session。
+- 简单本地维护必须从确认稿提取明确的反引号相对路径，并生成精确 `allowedPaths`、`requireChanges=true`、`forbidDeletes=true` 的 `GIT_DIFF`；草稿确认和实施权限双重拒绝删除、通配路径、服务启停、Git 提交推送发布、外部应用与外部系统写入。
 - Java 生产代码仍强制聚焦 Maven/Gradle TEST；Python/Node 按仓库测试框架与用户要求选择 REQUIRED/OPTIONAL。无测试体系的独立 Python 脚本可用 SELF_CHECK 加原生输出验证；文档、一次性表格转换和只读报告为 NOT_APPLICABLE，不得生成 PROCESS TEST。
 - `SERVER_DOCUMENT_MATERIALIZATION` 和 `SERVER_TABULAR_CONVERSION` 只能在显式 Task Start 后执行冻结 `artifact_plan`，创建正常 Attempt 但不伪造 OpenCode Session。`DOCUMENT_STRUCTURE`/`TABULAR_DATA` 是行为验证器；BUILD、GIT_DIFF 和报告证据仍不能冒充业务验收。
 
@@ -403,7 +404,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.1.85.jar
+JAR=target/opencode-loopper-0.1.86.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -503,6 +504,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-08-19 | 无工具 AI Router、工作包级动态 Role Pack、真实只读 Reviewer、大型文档/安全维护专属流程与 0.1.86 交付 | V36 冻结每个工作包的 Role Pack、技术栈、执行策略和测试策略，并持久化 Reviewer 运行态；Router 只给语义标签，服务端合并受控仓库事实和权限边界；Reviewer 只开放 read/glob/grep 并校验证据位置；大型文档按 2–6 个章节片段确定性聚合；安全维护使用精确路径白名单、禁止删除和危险进程命令的双重硬门禁；同步 README、架构、Designer、AI 角色、OpenCode 合同与本公约正文 | 聚焦 Router/Reviewer/混合 Java-Python Role Pack/大型文档/安全维护/迁移/任务执行 100/100；首次完整验证发现 4 个旧 Session 计数和 3 个发布语义夹具兼容问题，修正事件发布与外部版本发布区分后失败集合通过；最终 `./scripts/verify.sh` 使用 JDK 21.0.12 通过：Java 464 项（0 失败、0 错误、1 平台条件跳过），Vitest 176/176，BUILD SUCCESS；本地 JAR `target/opencode-loopper-0.1.86.jar` 大小 283169461 字节、含 108 个 SPA 静态条目，SHA-256 `ebe8794e2ce8f72a3b8aeb60a6510be5bd3fc88b65c3f3feb227f91c1e2ced52`；未替换当前 8080 运行实例 |
 | 2026-08-19 | 动态任务画像、Role Pack、非代码制品/报告流程、Python 测试策略与 0.1.85 交付 | V35 持久化画像、制品计划和只读报告；按软件、文档、表格、报告、维护任务选择流程、执行策略和验收策略；新增 DOCX/Markdown 与 XLSX/CSV/TSV 原生物化和结构/等价验证、Python pytest/unittest 识别、动态 Designer UI；服务端制品阶段不创建可写 Session 且不进入 Java 门禁；同步 README、架构、Designer、AI 角色、OpenCode、验证器合同与本公约正文 | 0.1.83/0.1.84 隔离验收分别发现服务端文档误入 Java 门禁、可复用 Python 转换脚本被 Markdown 输出字样误路由，修复后按版本规则顺延；最终 `./scripts/verify.sh` 使用 JDK 21.0.12 通过：Java 457 项（0 失败、0 错误、1 平台条件跳过），Vitest 176/176，BUILD SUCCESS；本地 JAR `target/opencode-loopper-0.1.85.jar` 大小 283124367 字节、含 108 个 SPA 静态条目，SHA-256 `79ee430788c21b57cb37756b89d26faafad766e7bc5cf607fa87a6ad252787bb`；隔离 18086 实测 DOCX/TABULAR_DATA 均为 1 Attempt、0 可写 Session、原生验证 PASS，报告为 0 Task/Session/Lease；隔离 18085 真实 Python OpenCode 实施后 SELF_CHECK/FILE_CONTENT/GIT_DIFF 全部 PASS，完整自动 Designer 到 Python Compiler 后因 OpenCode 1.18.18 修复输出缺失未完成；两个隔离实例均已停止，当前 8080 未替换 |
 | 2026-08-19 | 全部 OpenCode Provider `RETRY` 同 Session 自恢复与 0.1.82 交付 | 将瞬态恢复语义扩展到 Designer、Decomposer、Compiler、Implementation、Judge、项目公约、提交建议和本地同步；不再创建新 Attempt/Judge、消耗 Loopper 重试预算、记录 Session 错误或将 `RETRY` 当成 writer 终态，原有超时保持不变；同步 README、架构、设计、OpenCode 合同与本公约正文 | 聚焦 RETRY/发布契约 Java 30/30、补充异步收束后退避与 Implementation 2/2，Vitest 176/176；首次完整验证的既有并发退避时序用例瞬时失败，单独复跑通过；第二次暴露新增用例完成状态触发的异步验证清库竞争，收束用例后最终 `./scripts/verify.sh` 使用 JDK 21.0.12 通过：Java 446 项（0 失败、0 错误、1 平台条件跳过），Vitest 176/176，BUILD SUCCESS；本地 JAR `target/opencode-loopper-0.1.82.jar` 大小 263372016 字节、含 108 个 SPA 静态条目，SHA-256 `be7c39f337e48bfe39546a4bb5322ddc1bf2fa75c17d91f597bd0bb8c4387b5d`；不替换当前运行实例 |
 | 2026-08-18 | Designer Provider 瞬态过载恢复与 0.1.81 交付 | 整体需求、工作包和兼容 Designer 轮询不再把 OpenCode `RETRY` 当作终态；保留原远端 Session、流程 `RUNNING` 与全自动 `ACTIVE`，Provider 恢复后沿原上下文继续，真实失败合同不变；同步 README、架构、设计、OpenCode 合同与本公约正文 | 新增整体需求全自动推荐回答、工作包设计两条 `system cpu overloaded` 注入及恢复回归；聚焦 Designer/HTTP/发布契约 64/64 及新增工作包用例通过；首次 `./scripts/verify.sh` 的既有 FIFO 并发时序用例瞬时失败，单独复跑通过，源码不变的第二次完整验证使用 JDK 21.0.12 通过：Java 444 项（0 失败、0 错误、1 平台条件跳过），Vitest 176/176，BUILD SUCCESS；本地 JAR `target/opencode-loopper-0.1.81.jar` 大小 263371897 字节、含 108 个 SPA 静态条目，SHA-256 `2a7e111653d93194e48f1f297a948a010f5746d8f932a2437121fa8de38597f8`；发布目标为 `v0.1.81`，不替换当前运行实例 |

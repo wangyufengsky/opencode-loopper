@@ -97,6 +97,31 @@ class HttpOpenCodeClientTest {
     }
 
     @Test
+    void routerHasNoToolsReviewerIsReadOnlyAndImplementationDeniesMaintenanceEscapes() throws Exception {
+        LoopperProperties properties = new LoopperProperties();
+        properties.getOpenCode().setBaseUrl(new java.net.URI("http://127.0.0.1:" + server.getAddress().getPort()));
+        HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(), properties);
+
+        client.createSession(worktree, "router", null, OpenCodeClient.SessionProfile.ROUTER_NO_TOOLS);
+        assertThat(createBody.get()).contains("\"permission\":\"*\"").contains("\"action\":\"deny\"")
+                .doesNotContain("\"permission\":\"glob\"")
+                .doesNotContain("\"permission\":\"grep\"")
+                .doesNotContain("\"permission\":\"question\"");
+
+        client.createSession(worktree, "reviewer", null, OpenCodeClient.SessionProfile.REVIEWER_READ_ONLY);
+        assertThat(createBody.get()).contains("\"permission\":\"read\"")
+                .contains("\"permission\":\"glob\"")
+                .contains("\"permission\":\"grep\"")
+                .doesNotContain("\"permission\":\"question\"");
+
+        client.createSession(worktree, "implementation", null, OpenCodeClient.SessionProfile.IMPLEMENTATION);
+        assertThat(createBody.get()).contains("*systemctl*")
+                .contains("*launchctl*")
+                .contains("*brew*services*")
+                .contains("rm *", "unlink *", "rmdir *");
+    }
+
+    @Test
     void mapsSchemaRejectionWhileReadingStructuredMessagesToFormatFallbackSignal() throws Exception {
         LoopperProperties properties = new LoopperProperties();
         properties.getOpenCode().setBaseUrl(new java.net.URI("http://127.0.0.1:" + server.getAddress().getPort()));

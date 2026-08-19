@@ -19,6 +19,10 @@ import io.opencode.loopper.service.BadRequestException;
 import io.opencode.loopper.service.ConflictException;
 import io.opencode.loopper.service.DesignerSessionService;
 import io.opencode.loopper.service.DesignerAutoModeService;
+import io.opencode.loopper.service.AnalysisReportService;
+import io.opencode.loopper.service.DirectArtifactDesignService;
+import io.opencode.loopper.service.DirectMaintenanceDesignService;
+import io.opencode.loopper.service.TaskProfileService;
 import io.opencode.loopper.service.LoopDraftService;
 import io.opencode.loopper.service.ProjectService;
 import io.opencode.loopper.service.TaskService;
@@ -76,6 +80,10 @@ class DesignerSessionMcpIntegrationTest {
     @Autowired private ProjectService projects;
     @Autowired private DesignerSessionService designerSessions;
     @Autowired private DesignerAutoModeService designerAutoMode;
+    @Autowired private AnalysisReportService reports;
+    @Autowired private DirectArtifactDesignService directArtifacts;
+    @Autowired private DirectMaintenanceDesignService directMaintenance;
+    @Autowired private TaskProfileService taskProfiles;
     @Autowired private LoopDraftService drafts;
     @Autowired private TaskService tasks;
     @Autowired private LoopperMapper mapper;
@@ -116,12 +124,16 @@ class DesignerSessionMcpIntegrationTest {
                 designerSessions.workPackageStatuses(session.id()), designerSessions.messages(session.id()))
                 .isEqualTo("REVIEWING");
         assertThat(completed.workflowPhase()).isEqualTo("FINAL_REVIEW");
-        assertThat(fake().createReadOnlySessionCalls()).isEqualTo(5);
+        assertThat(fake().createReadOnlySessionCalls()).isEqualTo(6);
         assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(5);
         assertThat(designerSessions.decompositionStatus(session.id()).resultType()).isEqualTo("DIRECT_DESIGN");
         assertThat(designerSessions.workPackageStatuses(session.id())).singleElement().satisfies(workPackage -> {
             assertThat(workPackage.id()).isEqualTo("WP-1");
             assertThat(workPackage.state()).isEqualTo("APPROVED");
+            assertThat(workPackage.rolePackId()).isEqualTo("software-java");
+            assertThat(workPackage.rolePackVersion()).isEqualTo("2026-08-dynamic-v2");
+            assertThat(workPackage.executionStrategy()).isEqualTo("OPEN_CODE_IMPLEMENTATION");
+            assertThat(workPackage.testPolicy()).isEqualTo("REQUIRED");
         });
         assertThat(designerSessions.messages(session.id()).stream().map(message -> message.actor()).toList())
                 .contains("DECOMPOSER", "DESIGNER", "COMPILER", "VALIDATOR")
@@ -139,6 +151,108 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(tasks.artifacts(task.id()).stream().map(TaskArtifactRow::kind).toList())
                 .contains("REQUIREMENT_CONTEXT", "DECOMPOSITION_CONTEXT", "WORK_PACKAGE_DESIGN",
                         "WORK_PACKAGE_COMPILATION_SUMMARY", "DESIGN_CONTEXT");
+    }
+
+    @Test
+    void readOnlyReviewRunsIndependentReviewerAndCreatesNoWritableRuntime() throws Exception {
+        ProjectRow project = project("independent-reviewer");
+        Files.writeString(Path.of(project.rootPath()).resolve("README.md"), "# Baseline\n\nreview target\n");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        fake().setDesignerOutput("# 只读评审范围\n\n检查 README.md 并输出带文件行号的报告。");
+        DesignerSessionRow session = prepareReviewingSession(project.id(), draft.id(), "只读评审当前项目并给出证据报告");
+
+        TaskProfileService.View profile = taskProfiles.freeze(session.id());
+        designerSessions.beginReadOnlyReport(session.id());
+        AnalysisReportService.View started = reports.startReviewer(session.id());
+        reports.pollActive();
+        AnalysisReportService.View ready = reports.get(session.id(), started.id());
+
+        assertThat(ready.state()).isEqualTo("READY");
+        assertThat(ready.evidence()).isNotEmpty().allMatch(item -> !item.stale());
+        assertThat(mapper.listTasks()).isEmpty();
+        assertThat(mapper.findWorkspaceLease(Path.of(project.rootPath()).toRealPath().toString())).isEmpty();
+        var row = mapper.listAnalysisReports(session.id()).getFirst();
+        assertThat(fake().profileForSession(row.externalSessionId()))
+                .isEqualTo(OpenCodeClient.SessionProfile.REVIEWER_READ_ONLY);
+        assertThat(profile.executionStrategy().name()).isEqualTo("READ_ONLY_REPORT");
+    }
+
+    @Test
+    void mixedPackagesFreezeIndependentStackAndTestPolicies() throws Exception {
+        ProjectRow project = project("mixed-role-packs");
+        Files.writeString(Path.of(project.rootPath()).resolve("pom.xml"), "<project/>\n");
+        LoopDraftRow draft = drafts.create(v2DocumentationSpec(project.id()));
+        String split = decomposition("DECOMPOSED", "Java 服务与 Python 工具", 2)
+                .replace("能力 1", "Java Spring 服务")
+                .replace("能力 2", "Python 独立脚本")
+                .replace("\"requirementRefs\":[\"RQ-1\"]", "\"requirementRefs\":[\"RQ-1\",\"RQ-2\"]");
+        fake().setDecomposerOutput(split);
+        fake().setDesignerOutput("# 混合技术栈设计\n\n先完成 Java 服务，再交付 Python 独立脚本。");
+
+        DesignerSessionRow session = createConfirmedSession(project.id(), draft.id(),
+                "先修改 Java Spring 服务，再新增无测试体系的 Python 独立脚本");
+        for (int attempt = 0; attempt < 12 && designerSessions.workPackageStatuses(session.id()).isEmpty(); attempt++) {
+            designerSessions.pollActiveHandoffs();
+        }
+
+        assertThat(designerSessions.workPackageStatuses(session.id()))
+                .as("session=%s decomposition=%s messages=%s", designerSessions.get(session.id()),
+                        designerSessions.decompositionStatus(session.id()), designerSessions.messages(session.id()))
+                .hasSize(2).satisfiesExactly(
+                javaPackage -> {
+                    assertThat(javaPackage.rolePackId()).isEqualTo("software-java");
+                    assertThat(javaPackage.technologies()).containsExactly("java");
+                    assertThat(javaPackage.testPolicy()).isEqualTo("REQUIRED");
+                },
+                pythonPackage -> {
+                    assertThat(pythonPackage.rolePackId()).isEqualTo("software-python");
+                    assertThat(pythonPackage.technologies()).containsExactly("python");
+                    assertThat(pythonPackage.testPolicy()).isEqualTo("OPTIONAL");
+                });
+        assertThat(mapper.listTasks()).isEmpty();
+    }
+
+    @Test
+    void largeDocumentAndSafeMaintenanceUseDedicatedImplicitPackageFlows() throws Exception {
+        ProjectRow documentProject = project("packaged-document");
+        LoopDraftRow documentDraft = drafts.create(v2DocumentationSpec(documentProject.id()));
+        fake().setDesignerOutput("# 运维手册\n\n目标文件 `docs/operations.md`。\n\n## 安装\n\n安装说明。\n\n## 运维\n\n运维说明。");
+        DesignerSessionRow documentSession = prepareReviewingSession(documentProject.id(), documentDraft.id(),
+                "编写大型多章节 Markdown 文档 `docs/operations.md`");
+        TaskProfileService.View documentProfile = taskProfiles.freeze(documentSession.id());
+        directArtifacts.compilePackagedDocument(documentSession.id(), documentProfile);
+        designerSessions.completeDirectArtifactDesign(documentSession.id());
+
+        LoopSpec documentSpec = drafts.spec(drafts.get(documentDraft.id()));
+        assertThat(documentProfile.workflowTemplate().name()).isEqualTo("PACKAGED_ARTIFACT");
+        assertThat(documentSpec.stages()).singleElement().satisfies(stage -> {
+            assertThat(stage.stageKind().name()).isEqualTo("DOCUMENT_MATERIALIZATION");
+            assertThat(stage.verifiers()).extracting(LoopSpec.VerifierSpec::type)
+                    .containsExactly("DOCUMENT_STRUCTURE");
+        });
+
+        ProjectRow maintenanceProject = project("safe-maintenance");
+        Files.writeString(Path.of(maintenanceProject.rootPath()).resolve("settings.yml"), "enabled: false\n");
+        LoopDraftRow maintenanceDraft = drafts.create(v2DocumentationSpec(maintenanceProject.id()));
+        fake().setDesignerOutput("# 安全维护\n\n只修改 `settings.yml`，把 enabled 调整为 true，不删除文件、不操作服务。");
+        DesignerSessionRow maintenanceSession = prepareReviewingSession(maintenanceProject.id(), maintenanceDraft.id(),
+                "本地配置维护：只修改 `settings.yml`");
+        TaskProfileService.View maintenanceProfile = taskProfiles.freeze(maintenanceSession.id());
+        directMaintenance.compile(maintenanceSession.id(), maintenanceProfile);
+        designerSessions.completeDirectArtifactDesign(maintenanceSession.id());
+
+        LoopSpec maintenanceSpec = drafts.spec(drafts.get(maintenanceDraft.id()));
+        assertThat(maintenanceProfile.workflowTemplate().name()).isEqualTo("LOCAL_MAINTENANCE");
+        assertThat(maintenanceSpec.stages()).singleElement().satisfies(stage -> {
+            assertThat(stage.stageKind().name()).isEqualTo("LOCAL_MAINTENANCE");
+            assertThat(stage.verifiers()).singleElement().satisfies(verifier -> {
+                assertThat(verifier.type()).isEqualTo("GIT_DIFF");
+                assertThat(verifier.requireChanges()).isTrue();
+                assertThat(verifier.forbidDeletes()).isTrue();
+                assertThat(verifier.allowedPaths()).containsExactly("settings.yml");
+            });
+        });
+        assertThat(mapper.listTasks()).isEmpty();
     }
 
     @Test
@@ -723,14 +837,16 @@ class DesignerSessionMcpIntegrationTest {
     void structuredDesignUsesRoleProfilesAndFallsBackOnceInAFreshSession() throws Exception {
         fake().setStructuredCapability(new OpenCodeClient.StructuredOutputCapability(
                 OpenCodeClient.CapabilityState.AVAILABLE, OpenCodeClient.CapabilityState.AVAILABLE, null));
-        fake().failNextStructuredPrompts(1);
         ProjectRow project = project("structured-fallback");
         LoopSpec structuredSpec = v2DocumentationSpec(project.id());
         LoopDraftRow draft = drafts.create(structuredSpec);
         fake().setDesignerOutput(designerOutput(
                 "# 结构化设计\n\nREADME 文档设计可执行验证。", structuredSpec));
 
-        DesignerSessionRow session = createConfirmedSession(project.id(), draft.id(), "结构化输出失败时安全回退");
+        DesignerSessionRow reviewing = prepareReviewingSession(project.id(), draft.id(), "结构化输出失败时安全回退");
+        fake().failNextStructuredPrompts(1);
+        designerSessions.confirmRequirement(reviewing.id(), reviewing.discussionRevision());
+        DesignerSessionRow session = designerSessions.get(reviewing.id());
         pollUntilSettled(session.id());
 
         var decomposition = mapper.findTaskDecompositionByRevision(
@@ -886,7 +1002,7 @@ class DesignerSessionMcpIntegrationTest {
         pollUntilSettled(session.id());
         assertThat(designerSessions.get(session.id()).workflowPhase()).isEqualTo("FINAL_REVIEW");
         assertPackageStates(session.id(), "COMPLETED", "COMPLETED", "COMPLETED");
-        assertThat(fake().createReadOnlySessionCalls()).isEqualTo(9);
+        assertThat(fake().createReadOnlySessionCalls()).isEqualTo(10);
         assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(9);
         LoopSpec aggregate = drafts.spec(drafts.get(draft.id()));
         assertThat(aggregate.goal()).isEqualTo("交付三段纵向能力");
@@ -923,7 +1039,7 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(designerSessions.workPackageStatuses(session.id())).hasSize(6)
                 .allMatch(workPackage -> "APPROVED".equals(workPackage.state()));
         assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(15);
-        assertThat(fake().createReadOnlySessionCalls()).isEqualTo(15);
+        assertThat(fake().createReadOnlySessionCalls()).isEqualTo(16);
         assertThat(drafts.spec(drafts.get(draft.id())).stages()).extracting(LoopSpec.StageSpec::workPackageId)
                 .containsExactly("WP-1", "WP-2", "WP-3", "WP-4", "WP-5", "WP-6");
         assertThat(mapper.listTasks()).isEmpty();
@@ -955,7 +1071,7 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(designerSessions.get(session.id()).state()).isEqualTo("WAITING_INPUT");
         assertThat(designerSessions.messages(session.id())).anyMatch(message ->
                 "VALIDATOR".equals(message.actor()) && message.content().contains("DESIGNER_DRAFT_CHANGED"));
-        assertThat(fake().createReadOnlySessionCalls()).isEqualTo(2);
+        assertThat(fake().createReadOnlySessionCalls()).isEqualTo(3);
         assertThat(mapper.listTasks()).isEmpty();
     }
 
@@ -1050,7 +1166,7 @@ class DesignerSessionMcpIntegrationTest {
 
         assertThat(designerSessions.get(session.id()).state()).isEqualTo("WAITING_INPUT");
         assertThat(designerSessions.decompositionStatus(session.id()).workflowStep()).isEqualTo("FINAL_JSON");
-        assertThat(fake().createReadOnlySessionCalls()).isEqualTo(2);
+        assertThat(fake().createReadOnlySessionCalls()).isEqualTo(3);
         assertThat(fake().promptHistory().stream().filter(call -> decompositionSessionId.equals(call.sessionId())))
                 .hasSize(3);
         assertThat(designerSessions.messages(session.id())).noneMatch(message ->
@@ -1573,13 +1689,19 @@ class DesignerSessionMcpIntegrationTest {
     }
 
     private DesignerSessionRow createConfirmedSession(String projectId, String draftId, String requirement) {
+        DesignerSessionRow reviewing = prepareReviewingSession(projectId, draftId, requirement);
+        assertThat(reviewing.state()).isEqualTo("REVIEWING");
+        designerSessions.confirmRequirement(reviewing.id(), reviewing.discussionRevision());
+        return designerSessions.get(reviewing.id());
+    }
+
+    private DesignerSessionRow prepareReviewingSession(String projectId, String draftId, String requirement) {
         DesignerSessionRow session = designerSessions.create(projectId, draftId, requirement);
         completeMandatoryDesignerQuestion(session.id());
         designerSessions.pollActiveHandoffs();
         DesignerSessionRow reviewing = designerSessions.get(session.id());
         assertThat(reviewing.state()).isEqualTo("REVIEWING");
-        designerSessions.confirmRequirement(session.id(), reviewing.discussionRevision());
-        return designerSessions.get(session.id());
+        return reviewing;
     }
 
     private void completeMandatoryDesignerQuestion(String sessionId) {

@@ -30,12 +30,14 @@ public class DesignerAutoModeService {
     private final TaskProfileService profiles;
     private final AnalysisReportService reports;
     private final DirectArtifactDesignService directArtifacts;
+    private final DirectMaintenanceDesignService directMaintenance;
     private final Set<String> inFlight = ConcurrentHashMap.newKeySet();
 
     public DesignerAutoModeService(LoopperMapper mapper, LifecycleTransitionService lifecycle,
                                    DesignerSessionService designerSessions, LoopDraftService drafts,
                                    TaskService tasks, TaskProfileService profiles,
-                                   AnalysisReportService reports, DirectArtifactDesignService directArtifacts) {
+                                   AnalysisReportService reports, DirectArtifactDesignService directArtifacts,
+                                   DirectMaintenanceDesignService directMaintenance) {
         this.mapper = mapper;
         this.lifecycle = lifecycle;
         this.designerSessions = designerSessions;
@@ -44,6 +46,7 @@ public class DesignerAutoModeService {
         this.profiles = profiles;
         this.reports = reports;
         this.directArtifacts = directArtifacts;
+        this.directMaintenance = directMaintenance;
     }
 
     public View initialize(String sessionId, boolean enabled) {
@@ -144,10 +147,16 @@ public class DesignerAutoModeService {
                     && session.currentRequirementRevision() == null) {
                 TaskProfileService.View profile = profiles.freeze(sessionId);
                 if (profile.executionStrategy() == io.opencode.loopper.domain.ExecutionStrategy.READ_ONLY_REPORT) {
-                    reports.generateFromDesignerSnapshot(sessionId);
-                    designerSessions.completeReadOnlyReport(sessionId);
+                    designerSessions.beginReadOnlyReport(sessionId);
+                    reports.startReviewer(sessionId);
                 } else if (profile.workflowTemplate() == io.opencode.loopper.domain.WorkflowTemplate.DIRECT_ARTIFACT) {
                     directArtifacts.compile(sessionId, profile);
+                    designerSessions.completeDirectArtifactDesign(sessionId);
+                } else if (profile.workflowTemplate() == io.opencode.loopper.domain.WorkflowTemplate.PACKAGED_ARTIFACT) {
+                    directArtifacts.compilePackagedDocument(sessionId, profile);
+                    designerSessions.completeDirectArtifactDesign(sessionId);
+                } else if (profile.workflowTemplate() == io.opencode.loopper.domain.WorkflowTemplate.LOCAL_MAINTENANCE) {
+                    directMaintenance.compile(sessionId, profile);
                     designerSessions.completeDirectArtifactDesign(sessionId);
                 } else {
                     designerSessions.confirmRequirementAutomatically(sessionId, session.discussionRevision());

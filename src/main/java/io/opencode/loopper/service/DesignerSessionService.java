@@ -106,6 +106,7 @@ public class DesignerSessionService {
     private final DesignerEventHub events;
     private final TaskProfileService taskProfiles;
     private final RolePromptComposer rolePrompts;
+    private final WorkPackageRoleService workPackageRoles;
 
     public DesignerSessionService(LoopperMapper mapper, LifecycleTransitionService lifecycle,
                                   ProjectService projects, OpenCodeClient openCode,
@@ -113,7 +114,7 @@ public class DesignerSessionService {
                                   AiOutputExtractor aiOutputExtractor, AiOutputAuditService aiOutputAudit,
                                   DesignerEvidenceIndexer evidenceIndexer, AiRepairPatchService repairPatchService,
                                   DesignerEventHub events, TaskProfileService taskProfiles,
-                                  RolePromptComposer rolePrompts) {
+                                  RolePromptComposer rolePrompts, WorkPackageRoleService workPackageRoles) {
         this.mapper = mapper;
         this.lifecycle = lifecycle;
         this.projects = projects;
@@ -128,6 +129,7 @@ public class DesignerSessionService {
         this.events = events;
         this.taskProfiles = taskProfiles;
         this.rolePrompts = rolePrompts;
+        this.workPackageRoles = workPackageRoles;
     }
 
     public DesignerSessionRow create(String projectId, String initialMessage) {
@@ -146,17 +148,23 @@ public class DesignerSessionService {
         String now = now();
         DesignerSessionRow session = new DesignerSessionRow(UUID.randomUUID().toString(), projectId,
                 DesignerSessionState.PENDING_HANDOFF.name(), READ_ONLY, now, now, 0,
-                null, "PENDING", loopDraftId, DesignWorkflowPhase.DISCUSSING_REQUIREMENT.name(), 0, 0,
+                null, "PENDING", loopDraftId, DesignWorkflowPhase.ROUTING.name(), 0, 0,
                 null, null, "REQUIREMENT", 0, "NONE");
         lifecycle.create(designerSubject(session), session.state(), java.util.Map.of(),
                 () -> mapper.insertDesignerSession(session),
                 () -> new ConflictException("DESIGNER_SESSION_CREATE_CONFLICT",
                         "Designer session could not be created"));
-        appendMessage(session.id(), DesignerActor.SYSTEM,
-                "设计会话已创建。请先与设计师澄清整体需求；只有点击“需求已明确，开始拆包”才会冻结需求并启动任务拆解器。",
+        appendMessage(session.id(), DesignerActor.SYSTEM, "设计会话已创建，正在使用无工具 Router 识别任务画像。",
                 DesignerSessionState.PENDING_HANDOFF.name(), null, null);
+        TaskProfileService.View profile = taskProfiles.initialize(session.id(), initialMessage);
+        DesignerSessionRow discussing = updateDesignerProjection(get(session.id()), DesignerSessionState.PENDING_HANDOFF,
+                DesignWorkflowPhase.DISCUSSING_REQUIREMENT, null, "PENDING", 0, 0, null, null);
+        appendMessage(session.id(), DesignerActor.SYSTEM,
+                "任务画像已生成：" + profile.rolePackId() + "@" + profile.rolePackVersion()
+                        + (profile.decisionRequired() ? "；存在歧义，需求确认前必须人工覆盖。" : "；将由专属需求设计师继续。"),
+                "PERSISTED", null, null);
         if (initialMessage != null && !initialMessage.isBlank()) appendUserMessage(session.id(), initialMessage);
-        return get(session.id());
+        return get(discussing.id());
     }
 
     public DesignerSessionRow get(String sessionId) {
@@ -246,6 +254,12 @@ public class DesignerSessionService {
         return mapper.listDesignWorkPackages(revision.id()).stream().map(row -> {
             LoopSpecCompilationRow compiler = mapper.findLatestLoopSpecCompilationForPackage(sessionId, row.packageId())
                     .orElse(null);
+            WorkPackageRoleService.View role = mapper.findWorkPackageRoleProfile(row.id())
+                    .map(stored -> new WorkPackageRoleService.View(stored.rolePackId(), stored.rolePackVersion(),
+                            io.opencode.loopper.domain.ExecutionStrategy.valueOf(stored.executionStrategy()),
+                            io.opencode.loopper.domain.TestPolicy.valueOf(stored.testPolicy()),
+                            strings(stored.technologiesJson())))
+                    .orElse(null);
             return new WorkPackageStatus(row.packageId(), row.ordinal(), row.title(), row.objective(), row.state(),
                     strings(row.dependenciesJson()), row.redesignCount(), compiler == null ? 0 : compiler.repairCount(),
                     compiler == null ? 0 : compiler.planningRepairCount(),
@@ -254,7 +268,11 @@ public class DesignerSessionService {
                     compiler != null && compiler.serverCompiled(),
                     row.compilerSummary(), row.handoffSummary(), row.lastErrorCode(), row.lastErrorDetail(),
                     row.designRevision(), row.approvedDesignRevision(), row.discussionRoundCount(),
-                    row.invalidatedByPackageId(), row.approvedAt());
+                    row.invalidatedByPackageId(), row.approvedAt(),
+                    role == null ? null : role.rolePackId(), role == null ? null : role.rolePackVersion(),
+                    role == null ? null : role.executionStrategy().name(),
+                    role == null ? null : role.testPolicy().name(),
+                    role == null ? List.of() : role.technologies());
         }).toList();
     }
 
@@ -301,9 +319,17 @@ public class DesignerSessionService {
         if (!DesignWorkflowPhase.FINAL_REVIEW.name().equals(session.workflowPhase())) return false;
         if (session.currentRequirementRevision() == null) {
             TaskProfileService.View profile = taskProfiles.current(sessionId);
-            if (profile.workflowTemplate() != io.opencode.loopper.domain.WorkflowTemplate.DIRECT_ARTIFACT) return false;
             LoopSpec spec = drafts.spec(drafts.get(session.loopDraftId()));
-            return spec.stages().size() == 1 && spec.stages().getFirst().artifactPlanId() != null
+            if (spec.stages().size() != 1) return false;
+            if (profile.workflowTemplate() == io.opencode.loopper.domain.WorkflowTemplate.LOCAL_MAINTENANCE) {
+                LoopSpec.StageSpec stage = spec.stages().getFirst();
+                return stage.stageKind() == io.opencode.loopper.domain.StageKind.LOCAL_MAINTENANCE
+                        && stage.verifiers().stream().anyMatch(verifier -> "GIT_DIFF".equals(verifier.type())
+                        && Boolean.TRUE.equals(verifier.forbidDeletes()));
+            }
+            if (!Set.of(io.opencode.loopper.domain.WorkflowTemplate.DIRECT_ARTIFACT,
+                    io.opencode.loopper.domain.WorkflowTemplate.PACKAGED_ARTIFACT).contains(profile.workflowTemplate())) return false;
+            return spec.stages().getFirst().artifactPlanId() != null
                     && mapper.findArtifactPlan(spec.stages().getFirst().artifactPlanId())
                     .map(row -> "FROZEN".equals(row.state())).orElse(false);
         }
@@ -360,13 +386,35 @@ public class DesignerSessionService {
         publish(completed, "REPORT_READY", DesignerActor.REVIEWER, true, "", "只读报告已就绪");
     }
 
+    public void beginReadOnlyReport(String sessionId) {
+        DesignerSessionRow session = get(sessionId);
+        DesignerSessionRow running = updateDesignerProjection(session, DesignerSessionState.RUNNING,
+                DesignWorkflowPhase.GENERATING_REPORT, null, "RUNNING", session.designRevision(),
+                session.redesignCount(), session.currentRequirementRevision(), null);
+        appendMessage(sessionId, DesignerActor.SYSTEM,
+                "独立只读 Reviewer 已启动；报告完成前不会创建 Task、分支、租约或可写 Session。",
+                "PERSISTED", session.currentRequirementRevision(), null);
+        publish(running, "REPORT_STARTED", DesignerActor.REVIEWER, true, "", "只读 Reviewer 正在生成证据报告");
+    }
+
+    public void failReadOnlyReport(String sessionId, String code, String detail) {
+        DesignerSessionRow session = get(sessionId);
+        DesignerSessionRow waiting = updateDesignerProjection(session, DesignerSessionState.WAITING_INPUT,
+                DesignWorkflowPhase.FAILED, null, "FAILED", session.designRevision(), session.redesignCount(),
+                session.currentRequirementRevision(), null);
+        appendMessage(sessionId, DesignerActor.SYSTEM,
+                "SYSTEM_ERROR[SESSION] " + code + ": " + safeMessage(detail), "TERMINAL_ERROR",
+                session.currentRequirementRevision(), null);
+        publish(waiting, "ERROR", DesignerActor.REVIEWER, false, "", code + ": " + safeMessage(detail));
+    }
+
     public void completeDirectArtifactDesign(String sessionId) {
         DesignerSessionRow session = get(sessionId);
         DesignerSessionRow reviewing = updateDesignerProjection(session, DesignerSessionState.REVIEWING,
                 DesignWorkflowPhase.FINAL_REVIEW, null, "COMPLETED", session.designRevision() + 1,
                 session.redesignCount(), null, null);
         appendMessage(sessionId, DesignerActor.COMPILER,
-                "专属制品 Compiler 已生成隐式 WP-1，并由服务端编译、校验并冻结制品计划；尚未写入目标文件。",
+                "专属 Role Pack 已生成隐式 WP-1；服务端已编译、校验并冻结执行合同，尚未执行或写入目标文件。",
                 "COMPLETED", null, "WP-1");
         publish(reviewing, "FINAL_REVIEW", DesignerActor.VALIDATOR, true, "", "直接制品方案等待最终确认");
     }
@@ -561,6 +609,7 @@ public class DesignerSessionService {
         DesignerMessageRow sourceMessage = mapper.listDesignerMessages(sessionId).stream()
                 .filter(message -> message.id().equals(discussion.designMessageId())).findFirst()
                 .orElseThrow(() -> new ConflictException("REQUIREMENT_SNAPSHOT_MISSING", "完整需求稿不存在"));
+        taskProfiles.freeze(sessionId);
         DesignRequirementRevisionRow revision = freezeRequirementRevision(session, sourceMessage);
         if ("AUTO_RECOMMENDED".equals(actionSource)) {
             appendMessage(session.id(), DesignerActor.SYSTEM, "全自动模式已确认整体需求并开始拆包。",
@@ -1300,7 +1349,9 @@ public class DesignerSessionService {
                     () -> mapper.insertDesignWorkPackage(row),
                     () -> new ConflictException("DESIGN_WORK_PACKAGE_CREATE_CONFLICT",
                             "Design work package could not be persisted: " + item.id()));
-            result.add(getWorkPackage(row.id()));
+            DesignWorkPackageRow stored = getWorkPackage(row.id());
+            workPackageRoles.assign(stored);
+            result.add(stored);
         }
         return List.copyOf(result);
     }
@@ -1931,7 +1982,7 @@ public class DesignerSessionService {
                     : bounded(envelope.summary(), 1_000);
             appendMessage(session.id(), DesignerActor.COMPILER, summary, "COMPILED");
             appendMessage(session.id(), DesignerActor.VALIDATOR,
-                    "确定性校验通过：字段、验证器、验收覆盖、来源追踪及 Java 单元测试规则均满足。",
+                    "确定性校验通过：字段、验证器、验收覆盖、来源追踪及当前 Role Pack 测试策略均满足。",
                     "PASS");
             updateCompilation(getCompilation(compilation.id()), LoopSpecCompilationState.COMPLETED,
                     remote.id(), "COMPLETED", compilation.repairCount(), null, null, session.projectId());
@@ -2021,7 +2072,7 @@ public class DesignerSessionService {
             appendMessage(session.id(), DesignerActor.COMPILER, workPackage.packageId() + "：" + summary,
                     "COMPILED", session.currentRequirementRevision(), workPackage.packageId());
             appendMessage(session.id(), DesignerActor.VALIDATOR,
-                    workPackage.packageId() + " 确定性校验通过：1–3 个 Stage、验收来源、验证器覆盖及 Java 单测门禁均满足。",
+                    workPackage.packageId() + " 确定性校验通过：1–3 个 Stage、验收来源、验证器覆盖及当前 Role Pack 测试门禁均满足。",
                     "PASS", session.currentRequirementRevision(), workPackage.packageId());
             DesignDiscussionRevisionRow discussion = mapper.findLatestDesignDiscussionRevision(
                     session.id(), workPackage.packageId()).orElseThrow();
@@ -4081,6 +4132,8 @@ public class DesignerSessionService {
                 read-only Session. Use only read, glob, and grep. Never edit/write files, execute commands, ask
                 questions, create tasks, or emit the final TASK_DECOMPOSITION envelope in this turn.
 
+                %s
+
                 Think in this fixed order and expose only the bounded planning result, not private chain-of-thought:
                 1. Plan one coherent package or 2-6 dependency-ordered vertical business packages.
                 2. Map every numbered requirement segment to a global constraint or work package with a short
@@ -4107,7 +4160,8 @@ public class DesignerSessionService {
                 The markers above are preferred. If they cannot be preserved, a complete top-level JSON object may
                 be returned bare, in one Markdown fence, or with a short explanation. Never return multiple
                 conflicting JSON objects; the server accepts only a uniquely identifiable valid object.
-                """.formatted(project.rootPath(), session.id(), revision.revision(),
+                """.formatted(rolePrompts.decomposerInstructions(taskProfiles.current(session.id())),
+                project.rootPath(), session.id(), revision.revision(),
                 retry ? " explicit retry" : "",
                 readSegments(revision.requirementSegmentsJson()).stream()
                         .map(segment -> segment.id() + ": " + segment.text())
@@ -4295,6 +4349,7 @@ public class DesignerSessionService {
         String previousDesign = blank(workPackage.designMessageId()) ? "（首次设计）"
                 : messageContent(workPackage.designMessageId());
         String decisions = discussion == null ? "[]" : discussion.decisionLogJson();
+        WorkPackageRoleService.View packageRole = workPackageRoles.get(workPackage);
         return """
                 You are OpenCode Loopper Designer / 设计师 for exactly one work package in its persistent strictly
                 read-only conversation. A healthy package Session is reused across human revisions; after transport
@@ -4335,9 +4390,12 @@ public class DesignerSessionService {
                 Only then produce one complete replacement Simplified-Chinese Markdown design no larger than 24 KiB
                 UTF-8. Never return a patch and never discard prior accepted facts or this round's answers. Cover scope and
                 non-scope, observable results, exception semantics, affected files/modules, 1-3 dependency-ordered
-                stages, delivery details, and acceptance intent. Production Java and its focused Maven/Gradle unit
-                test belong in the same stage. Tests are evidence for business behavior, not a meta acceptance item.
-                """.formatted(MachineRoleContractCatalog.card("DESIGNER"), project.rootPath(),
+                stages, delivery details, and acceptance intent. When the current Role Pack requires a focused
+                repository-native test, keep it in the same stage as the production behavior it proves. Tests are
+                evidence for business behavior, not a meta acceptance item.
+                """.formatted(MachineRoleContractCatalog.card("DESIGNER") + "\n"
+                        + rolePrompts.packageDesignerInstructions(taskProfiles.current(session.id()),
+                        packageRole.rolePackId(), packageRole.technologies(), packageRole.testPolicy()), project.rootPath(),
                 revision.revision(), revision.requirementText(),
                 decomposition.planJson(), workPackage.packageId(), write(Map.of(
                         "title", workPackage.title(), "objective", workPackage.objective(),
@@ -4359,7 +4417,7 @@ public class DesignerSessionService {
                 Think in this fixed order and expose only the bounded planning result, not private chain-of-thought:
                 1. Plan 1-3 coherent, dependency-ordered Stages inside the current package.
                 2. Map each observable acceptance criterion to one or more DS-L source refs and a concrete machine/
-                   Judge evidence strategy; production Java criteria name only the focused Maven/Gradle test argv.
+                   Judge evidence strategy; use only the current Role Pack's repository-native focused-test argv.
                 3. Return the structured planning envelope below. Do not redesign another package or invent a
                    requirement absent from the frozen design.
 
@@ -4398,8 +4456,7 @@ public class DesignerSessionService {
                 workPackage.packageId(), prerequisites,
                 designerDeclaredTestEvidence(design),
                 evidenceIndexer.index(design).promptText(),
-                packageCompilerPlanningMachineContract(workPackage.packageId(),
-                        taskProfiles.current(workPackage.designerSessionId())),
+                packageCompilerPlanningMachineContract(workPackage.packageId(), workPackageRoles.get(workPackage)),
                 workPackage.designRevision(), design);
     }
 
@@ -4422,7 +4479,7 @@ public class DesignerSessionService {
         return write(contracts);
     }
 
-    private String packageCompilerPlanningMachineContract(String packageId, TaskProfileService.View profile) {
+    private String packageCompilerPlanningMachineContract(String packageId, WorkPackageRoleService.View profile) {
         String example = "software-java".equals(profile.rolePackId())
                 ? "{\"outcome\":\"COMPILED\",\"summary\":\"Java package plan\",\"stages\":[{\"objective\":\"observable result\",\"implementationKind\":\"JAVA_PRODUCTION\",\"allowedPaths\":[\"src/main/java/**\",\"src/test/java/**\"],\"forbiddenPaths\":[\".env\"],\"deliverables\":[\"implementation and focused test\"],\"criteria\":[{\"description\":\"observable business result\",\"sourceRefs\":[\"DS-L001\"],\"judgeRubric\":null,\"judgeOnlyReason\":null}],\"evidence\":[{\"kind\":\"FOCUSED_TEST\",\"command\":[\"mvn\",\"-q\",\"-Dtest=ExampleFocusedTest\",\"test\"],\"covers\":[0]}],\"verificationRuntime\":null}],\"handoffSummary\":\"bounded handoff\",\"designGaps\":[]}"
                 : "software-python".equals(profile.rolePackId())
@@ -4442,9 +4499,10 @@ public class DesignerSessionService {
                 behavior SELF_CHECK commands. Criteria contain only observable business outcomes. Code style,
                 source shape, annotations, assembly shape, build success, and test success stay in deliverables or
                 supplemental evidence instead of becoming criteria. Shells, pipes, redirects, unsafe paths, fake
-                tests, and missing Java focused tests are still rejected by the unchanged server validator.
+                tests, and missing tests required by the frozen Role Pack are still rejected by the server validator.
                 %s
-                """.formatted(rolePrompts.compilerInstructions(profile),
+                """.formatted(rolePrompts.compilerInstructions(profile.rolePackId(), profile.rolePackVersion(),
+                        profile.executionStrategy(), profile.technologies(), profile.testPolicy()),
                 MachineRoleContractCatalog.card("COMPILER"), packageId, example);
     }
 
@@ -4573,8 +4631,7 @@ public class DesignerSessionService {
                 %s
                 """.formatted(compilation.planningRepairCount(), MAX_COMPILER_REPAIRS, code, safeMessage(detail),
                 prerequisites, designerDeclaredTestEvidence(design),
-                packageCompilerPlanningMachineContract(workPackage.packageId(),
-                        taskProfiles.current(workPackage.designerSessionId())), design);
+                packageCompilerPlanningMachineContract(workPackage.packageId(), workPackageRoles.get(workPackage)), design);
     }
 
     private String packageCompilerSemanticPatchPrompt(LoopSpecCompilationRow compilation,
@@ -4594,7 +4651,7 @@ public class DesignerSessionService {
                 %s
 
                 <!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->
-                {"patches":[{"op":"replace","path":"/stages/0/evidence/0/command","value":["mvn","-q","-Dtest=FocusedTest","test"]}]}
+                {"patches":[{"op":"replace","path":"/stages/0/objective","value":"observable result from the frozen design"}]}
                 <!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->
                 """.formatted(workPackage.packageId(), code, safeMessage(detail), compilation.semanticPlanJson());
     }
@@ -4676,14 +4733,16 @@ public class DesignerSessionService {
                 acceptance intent and exact validation commands when evidenced. Non-trivial work should normally use
                 2-6 independently deliverable stages; an atomic change may use one stage with a stated reason.
                 Every stage must be coherent and immediately verifiable. Do not postpone all behavior checks to a
-                final test stage. If a stage adds or changes production Java, put its focused Maven/Gradle unit test
-                in the same stage and describe which business acceptance behavior that test proves. A statement such
+                final test stage. If the frozen Role Pack requires a focused repository-native test, put it in the
+                same stage and describe which business acceptance behavior that test proves. A statement such
                 as 'all tests pass' is evidence, not a standalone business acceptance item. Include Mermaid for
                 multi-step workflows. Preserve identifiers, commands, paths, and enum literals exactly.
 
                 User request:
                 %s
-                """.formatted(MachineRoleContractCatalog.card("DESIGNER"), project.rootPath(), session.id(),
+                """.formatted(MachineRoleContractCatalog.card("DESIGNER") + "\n"
+                        + rolePrompts.requirementDesignerInstructions(taskProfiles.current(session.id())),
+                project.rootPath(), session.id(),
                 session.loopDraftId(), message);
     }
 
@@ -4785,8 +4844,8 @@ public class DesignerSessionService {
                 business semantics were missing. Produce a complete replacement Markdown design, not a patch or
                 commentary about the old design. Do not emit LoopSpec JSON or hidden machine markers. Preserve the
                 original user goal, but explicitly fill every listed gap with observable results, exception semantics,
-                scope, and acceptance intent. Production Java changes must include focused Maven/Gradle unit-test
-                evidence mapped to the business behavior in the same stage.
+                scope, and acceptance intent. Any focused test required by the frozen package Role Pack must be
+                mapped to the business behavior in the same stage.
 
                 Design gaps:
                 %s
@@ -5705,7 +5764,9 @@ public class DesignerSessionService {
                                     String lastErrorCode, String lastErrorDetail,
                                     int designRevision, Integer approvedDesignRevision,
                                     int discussionRoundCount, String invalidatedByPackageId,
-                                    String approvedAt) { }
+                                    String approvedAt, String rolePackId, String rolePackVersion,
+                                    String executionStrategy, String testPolicy,
+                                    List<String> technologies) { }
     public record CandidateStatus(String syncState, int discussionRevision, String workPackageId,
                                   LoopSpec spec, String detail) { }
     public record RequirementSegment(String id, String text) { }

@@ -147,8 +147,52 @@ public class LoopDraftService {
             }
             validateCompletedWorkPackageMapping(session.id(), spec(draft));
         });
-        validateExecutionContract(spec(draft));
+        LoopSpec confirmedSpec = spec(draft);
+        validateExecutionContract(confirmedSpec);
+        validateFrozenProfileContract(draft, confirmedSpec);
         return tasks.createAndConfirmFromDraft(draft, title, admissionSource, isolatedBaseline);
+    }
+
+    private void validateFrozenProfileContract(LoopDraftRow draft, LoopSpec spec) {
+        io.opencode.loopper.persistence.DesignerTaskProfileRow profile = mapper.findFrozenTaskProfileByDraft(draft.id()).orElse(null);
+        if (profile == null || !"SAFE_LOCAL_MAINTENANCE".equals(profile.mutationMode())) return;
+        for (int index = 0; index < spec.stages().size(); index++) {
+            LoopSpec.StageSpec stage = spec.stages().get(index);
+            String path = "stages[" + index + "]";
+            if (stage.stageKind() != io.opencode.loopper.domain.StageKind.LOCAL_MAINTENANCE
+                    || stage.executionStrategy() != io.opencode.loopper.domain.ExecutionStrategy.OPEN_CODE_IMPLEMENTATION) {
+                throw new BadRequestException("MAINTENANCE_STAGE_CONTRACT_INVALID",
+                        path + " must remain a LOCAL_MAINTENANCE OpenCode stage");
+            }
+            if (stage.allowedPaths().isEmpty() || stage.allowedPaths().stream().anyMatch(value -> value.contains("*")
+                    || value.equals(".") || value.startsWith("/") || value.contains(".."))) {
+                throw new BadRequestException("MAINTENANCE_PATH_SCOPE_INVALID",
+                        path + " requires explicit non-wildcard managed relative files");
+            }
+            boolean guardedDiff = stage.verifiers().stream().anyMatch(verifier -> "GIT_DIFF".equals(verifier.type())
+                    && Boolean.TRUE.equals(verifier.requireChanges()) && Boolean.TRUE.equals(verifier.forbidDeletes())
+                    && verifier.allowedPaths().equals(stage.allowedPaths()));
+            if (!guardedDiff) throw new BadRequestException("MAINTENANCE_DELETE_GUARD_REQUIRED",
+                    path + " requires GIT_DIFF with requireChanges=true, forbidDeletes=true and the exact allowed files");
+            for (LoopSpec.VerifierSpec verifier : stage.verifiers()) {
+                if (Set.of("HTTP_STATUS", "JSON_PATH", "BROWSER", "DATABASE_QUERY").contains(verifier.type())) {
+                    throw new BadRequestException("MAINTENANCE_EXTERNAL_VERIFIER_FORBIDDEN",
+                            path + " may not use runtime, browser, network, or database verifiers");
+                }
+                if ("PROCESS".equals(verifier.type()) && dangerousMaintenanceCommand(verifier.command())) {
+                    throw new BadRequestException("MAINTENANCE_COMMAND_FORBIDDEN",
+                            path + " contains deletion, service, Git publication, or external-control command");
+                }
+            }
+        }
+    }
+
+    private static boolean dangerousMaintenanceCommand(List<String> command) {
+        String joined = String.join(" ", command == null ? List.of() : command).toLowerCase(java.util.Locale.ROOT);
+        return List.of(" rm ", "rm -", "unlink", "rmdir", "systemctl", "launchctl", "brew services", " service ",
+                "git commit", "git push", "git tag", "git fetch", "git pull", "curl ", "wget ", "osascript",
+                "powershell", "shutdown", "reboot", "kill ", "pkill", "taskkill")
+                .stream().anyMatch(token -> (" " + joined + " ").contains(token));
     }
     private LifecycleTransitionService.Subject subject(LoopDraftRow row) {
         return new LifecycleTransitionService.Subject(LifecycleMachineType.LOOP_DRAFT, row.id(),

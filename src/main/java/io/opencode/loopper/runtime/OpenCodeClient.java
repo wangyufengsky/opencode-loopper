@@ -87,9 +87,11 @@ public interface OpenCodeClient {
     record OpenCodeSession(String id, Path worktree) { }
     record OpenCodeModel(String providerId, String modelId, Boolean thinking) { }
     enum SessionProfile {
+        ROUTER_NO_TOOLS,
         DECOMPOSER_READ_ONLY,
         DESIGNER_INTERACTIVE_READ_ONLY,
         COMPILER_READ_ONLY,
+        REVIEWER_READ_ONLY,
         JUDGE_READ_ONLY,
         PROJECT_CONVENTION_READ_ONLY,
         MACHINE_FINALIZER_NO_TOOLS,

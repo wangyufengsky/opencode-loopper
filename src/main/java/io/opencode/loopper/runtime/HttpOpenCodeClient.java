@@ -138,7 +138,8 @@ public class HttpOpenCodeClient implements OpenCodeClient {
         if (profile != SessionProfile.IMPLEMENTATION) {
             List<Map<String, String>> rules = new ArrayList<>();
             rules.add(permissionRule("*", "*", "deny"));
-            if (profile != SessionProfile.MACHINE_FINALIZER_NO_TOOLS) {
+            if (profile != SessionProfile.MACHINE_FINALIZER_NO_TOOLS
+                    && profile != SessionProfile.ROUTER_NO_TOOLS) {
                 rules.add(permissionRule("read", "*", "allow"));
                 rules.add(permissionRule("glob", "*", "allow"));
                 rules.add(permissionRule("grep", "*", "allow"));
@@ -172,6 +173,15 @@ public class HttpOpenCodeClient implements OpenCodeClient {
                 permissionRule("bash", "*git*pull*", "deny"),
                 permissionRule("bash", "git reset --hard*", "deny"),
                 permissionRule("bash", "rm -rf*", "deny"),
+                permissionRule("bash", "rm *", "deny"),
+                permissionRule("bash", "unlink *", "deny"),
+                permissionRule("bash", "rmdir *", "deny"),
+                permissionRule("bash", "*systemctl*", "deny"),
+                permissionRule("bash", "*launchctl*", "deny"),
+                permissionRule("bash", "*brew*services*", "deny"),
+                permissionRule("bash", "*service*start*", "deny"),
+                permissionRule("bash", "*service*stop*", "deny"),
+                permissionRule("bash", "*service*restart*", "deny"),
                 permissionRule("todowrite", "*", "allow")
         ));
         return List.copyOf(rules);
@@ -217,7 +227,9 @@ public class HttpOpenCodeClient implements OpenCodeClient {
     }
     private static boolean machineResponseProfile(SessionProfile profile) {
         return profile == SessionProfile.DECOMPOSER_READ_ONLY
+                || profile == SessionProfile.ROUTER_NO_TOOLS
                 || profile == SessionProfile.COMPILER_READ_ONLY
+                || profile == SessionProfile.REVIEWER_READ_ONLY
                 || profile == SessionProfile.JUDGE_READ_ONLY
                 || profile == SessionProfile.PROJECT_CONVENTION_READ_ONLY
                 || profile == SessionProfile.MACHINE_FINALIZER_NO_TOOLS;

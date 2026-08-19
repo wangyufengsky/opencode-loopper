@@ -8,15 +8,22 @@ import org.springframework.stereotype.Component;
 class DesignerSessionMonitor {
     private final DesignerSessionService designerSessions;
     private final DesignerAutoModeService autoMode;
+    private final AnalysisReportService reports;
 
-    DesignerSessionMonitor(DesignerSessionService designerSessions, DesignerAutoModeService autoMode) {
+    DesignerSessionMonitor(DesignerSessionService designerSessions, DesignerAutoModeService autoMode,
+                           AnalysisReportService reports) {
         this.designerSessions = designerSessions;
         this.autoMode = autoMode;
+        this.reports = reports;
     }
 
     @Scheduled(fixedDelayString = "${loopper.designer-monitor-delay:750ms}")
     void poll() {
         designerSessions.pollActiveHandoffs();
+        for (AnalysisReportService.PollResult result : reports.pollActive()) {
+            if (result.ready()) designerSessions.completeReadOnlyReport(result.designerSessionId());
+            else designerSessions.failReadOnlyReport(result.designerSessionId(), result.errorCode(), result.errorDetail());
+        }
         autoMode.pollActive();
     }
 }

@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.1.85`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.1.86`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -31,7 +31,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 - **本地项目登记**：登记绝对路径，识别 Git 任务分支模式或无可用 Git HEAD 时的直接模式。
 - **可讨论的只读多角色设计**：整体需求和每个工作包都先由 Designer 用 1–3 个选择题澄清，之后每轮保存完整 Markdown 替代稿；用户逐包讨论、查看 Compiler/Validator 候选并明确接受，最后再总体确认。Task Decomposer 与分包 LoopSpec Compiler 只输出紧凑的业务规划与证据意图，服务端生成状态、ID、引用、精确摘录、测试元数据和最终 LoopSpec 对象；原始机器 JSON 不进入聊天。确定性校验和人工确认完成前不写业务源码、不创建任务。
-- **动态任务画像与专属流程**：Designer 会先根据需求和有界仓库事实识别软件、文档、表格转换、只读评审/调研或安全本地维护，展示置信度、依据、Role Pack、执行与测试策略。低于 80 分或证据冲突时必须人工覆盖；确认后画像冻结并随 Recovery 复用。简单 Markdown/DOCX 和一次性 XLSX/CSV/TSV 转 Markdown 使用隐式 `WP-1` 与服务端制品执行，不创建可写 OpenCode Session；只读报告不创建 Task、分支或租约。
+- **动态任务画像与专属流程**：独立无工具 AI Router 先给出语义标签，服务端再与有界仓库事实合并并决定流程、权限、执行与测试策略；Router 格式失败降级为通用画像提问，不能终止 Designer。低于 80 分或证据冲突时必须人工覆盖；确认后画像冻结并随 Recovery 复用。软件工作包分别冻结 Java/Python/Node 等 Role Pack，Designer、Decomposer 和 Compiler 都读取对应专属提示。简单 Markdown/DOCX 和一次性 XLSX/CSV/TSV 转 Markdown 使用隐式 `WP-1`；大型文档要求 2–6 个二级章节并把章节结构确定性聚合到冻结计划；只读 Reviewer 只开放 read/glob/grep，报告不创建 Task、分支、租约或可写 Session；安全维护只允许明确相对路径并强制禁止删除、服务操作和外部写入。
 - **可选的 Designer 全自动模式**：新建设计和进行中会话均可单独授权，默认关闭。开启后自动选择推荐答案、确认整体需求、接受已通过确定性校验的工作包、确认最终设计并请求启动任务；执行期问题、危险权限、异常恢复、结果确认、提交、推送和发布仍保持人工边界。每次开启或阻断后重新授权都会再次确认风险，状态按会话持久化并可在重启后继续。
 - **项目公约**：只读分析项目并生成或更新根目录 `AGENTS.md`，展示完整预览后才写入；Loopper 管理区块以外的人工内容会被保留。
 - **分阶段执行循环**：按依赖顺序执行 Stage，每个阶段都携带目标、交付物、路径约束和可立即运行的验收规则。
@@ -122,7 +122,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.1.85.jar
+java -jar target/opencode-loopper-0.1.86.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -348,7 +348,7 @@ Git 任务的最新 Execution Cycle 成功并处于 `AWAITING_DECISION` 或用�
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.1.85.jar`
+- `target/opencode-loopper-0.1.86.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -379,7 +379,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:51234
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.1.85.jar`
+- `opencode-loopper-0.1.86.jar`
 - `start-windows.bat`
 
 确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
@@ -417,7 +417,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.1.85.jar \
+jar tf target/opencode-loopper-0.1.86.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -497,7 +497,7 @@ Windows PowerShell：
 例如发布下一版本：
 
 ```bash
-VERSION=0.1.85
+VERSION=0.1.86
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -537,7 +537,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.1.85.jar
+java -jar target/opencode-loopper-0.1.86.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。

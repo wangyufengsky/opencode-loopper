@@ -139,6 +139,7 @@ const designerSteps = computed(() => {
   const template = designerSession.value?.taskProfile.workflowTemplate
   if (template === 'READ_ONLY_REPORT') return ['需求讨论', '只读报告']
   if (template === 'DIRECT_ARTIFACT') return ['需求讨论', '制品规划', '总体确认', '创建任务']
+  if (template === 'PACKAGED_ARTIFACT') return ['需求讨论', '章节规划', '总体确认', '创建任务']
   if (template === 'LOCAL_MAINTENANCE') return ['需求讨论', '维护设计', '总体确认', '创建任务']
   return ['需求讨论', '工作包设计', '总体确认', '创建任务']
 })
@@ -804,7 +805,7 @@ async function confirmRequirement() {
     await refreshDesignerSession()
     startDesignerPolling()
     ElMessage.success(designerSession.value?.taskProfile.workflowTemplate === 'READ_ONLY_REPORT'
-      ? '只读报告已持久化；未创建任务或写入资源' : '整体需求已冻结，专属流程已启动')
+      ? '独立只读 Reviewer 已启动；不会创建任务或写入资源' : '整体需求已冻结，专属流程已启动')
   } catch (error) { ElMessage.error(error instanceof Error ? error.message : '需求确认失败') }
   finally { busy.value = false }
 }
@@ -1088,6 +1089,7 @@ async function redesignPackage(packageId: string) {
             <article v-for="item in designerSession.workPackages ?? []" :key="item.id" :class="['work-package-chip', `package-${item.state.toLowerCase()}`, { active: item.id === designerSession.activeWorkPackageId, selected: item.id === selectedWorkPackageId }]" role="button" tabindex="0" @click="selectedWorkPackageId = item.id" @keydown.enter="selectedWorkPackageId = item.id">
               <header><b>{{ item.id }}</b><span>{{ item.state }}</span></header>
               <strong>{{ item.title }}</strong>
+              <small v-if="item.rolePackId" class="mono">{{ item.rolePackId }}<template v-if="item.technologies?.length"> · {{ item.technologies.join('/') }}</template><template v-if="item.testPolicy"> · {{ item.testPolicy }}</template></small>
               <small v-if="item.state === 'STALE'">由 {{ item.invalidatedByPackageId }} 修订导致失效</small>
               <small v-else-if="item.state === 'PENDING'">依赖 {{ item.dependencies.join('、') || '无' }} · 等待上游接受</small>
               <small v-else>讨论 {{ item.discussionRoundCount }}/5 · 设计 R{{ item.designRevision }}<template v-if="item.approvedDesignRevision"> · 已接受 R{{ item.approvedDesignRevision }}</template></small>
@@ -1155,7 +1157,7 @@ async function redesignPackage(packageId: string) {
               @keydown.ctrl.enter.prevent="sendMessage"
             />
             <div class="compose-actions"><span class="tiny muted">{{ hasPendingDesignerQuestion ? '问题回答与普通输入不能同时提交' : '⌘ / Ctrl + Enter 发送；只修改当前作用域' }}</span><el-button type="primary" :loading="busy" :disabled="!composerEnabled || !userMessage.trim()" @click="sendMessage"><Icon icon="lucide:send" />发送</el-button></div>
-            <div v-if="designerSession?.workflowPhase === 'DISCUSSING_REQUIREMENT' && designerSession.state === 'REVIEWING'" class="scope-primary-action"><el-button type="primary" :loading="busy" :disabled="autoModeActive || designerSession.taskProfile.decisionRequired" @click="confirmRequirement"><Icon :icon="designerSession.taskProfile.workflowTemplate === 'READ_ONLY_REPORT' ? 'lucide:file-search' : 'lucide:split'" />{{ autoModeActive ? '全自动模式将确认需求' : designerSession.taskProfile.workflowTemplate === 'READ_ONLY_REPORT' ? '需求已明确，生成只读报告' : designerSession.taskProfile.workflowTemplate === 'DIRECT_ARTIFACT' ? '需求已明确，规划制品' : '需求已明确，开始拆包' }}</el-button></div>
+            <div v-if="designerSession?.workflowPhase === 'DISCUSSING_REQUIREMENT' && designerSession.state === 'REVIEWING'" class="scope-primary-action"><el-button type="primary" :loading="busy" :disabled="autoModeActive || designerSession.taskProfile.decisionRequired" @click="confirmRequirement"><Icon :icon="designerSession.taskProfile.workflowTemplate === 'READ_ONLY_REPORT' ? 'lucide:file-search' : ['DIRECT_ARTIFACT', 'PACKAGED_ARTIFACT'].includes(designerSession.taskProfile.workflowTemplate) ? 'lucide:file-output' : designerSession.taskProfile.workflowTemplate === 'LOCAL_MAINTENANCE' ? 'lucide:wrench' : 'lucide:split'" />{{ autoModeActive ? '全自动模式将确认需求' : designerSession.taskProfile.workflowTemplate === 'READ_ONLY_REPORT' ? '需求已明确，生成只读报告' : designerSession.taskProfile.workflowTemplate === 'DIRECT_ARTIFACT' ? '需求已明确，规划制品' : designerSession.taskProfile.workflowTemplate === 'PACKAGED_ARTIFACT' ? '需求已明确，规划章节制品' : designerSession.taskProfile.workflowTemplate === 'LOCAL_MAINTENANCE' ? '需求已明确，规划安全维护' : '需求已明确，开始拆包' }}</el-button></div>
             <div v-else-if="designerSession?.workflowPhase === 'REVIEWING_PACKAGE' && currentPackage?.state === 'REVIEWING'" class="scope-primary-action"><span>候选已通过确定性校验，接受后才会进入下一个工作包。</span><el-button type="primary" :loading="busy" :disabled="autoModeActive" @click="approvePackage"><Icon icon="lucide:check-check" />{{ autoModeActive ? `全自动模式将接受 ${currentPackage.id}` : `接受 ${currentPackage.id} 并继续` }}</el-button></div>
           </div>
         </div>

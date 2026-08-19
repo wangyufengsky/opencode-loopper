@@ -70,7 +70,9 @@ public class FakeOpenCodeClient implements OpenCodeClient {
         String normalizedTitle = title == null ? "" : title.toUpperCase();
         String packageId = java.util.regex.Pattern.compile("\\bWP-\\d+\\b").matcher(normalizedTitle).results()
                 .map(java.util.regex.MatchResult::group).findFirst().orElse(null);
-        String role = normalizedTitle.contains("TASK DECOMPOSER") ? "DECOMPOSER"
+        String role = normalizedTitle.contains("TASK ROUTER") ? "ROUTER"
+                : normalizedTitle.contains("REVIEWER") ? "REVIEWER"
+                : normalizedTitle.contains("TASK DECOMPOSER") ? "DECOMPOSER"
                 : title != null && title.toUpperCase().contains("COMMIT MESSAGE") ? "COMMIT"
                 : normalizedTitle.contains("LOOPSPEC COMPILER") ? "COMPILER" + (packageId == null ? "" : ":" + packageId)
                 : normalizedTitle.contains("DESIGNER") ? "DESIGNER" + (packageId == null ? "" : ":" + packageId)
@@ -123,6 +125,7 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     @Override public String sessionOutput(OpenCodeSession session) {
         String role = judgeRoleBySession.get(session.id());
         String prompt = promptBySession.getOrDefault(session.id(), "");
+        if (prompt.contains("TASK_PROFILE_ROUTER_INPUT")) return taskRouterOutput(prompt);
         if (prompt.contains("TASK_DECOMPOSITION_PLAN_JSON_START")) {
             String explicitPlan = judgeOutputByRole.get("DECOMPOSER_PLAN");
             return explicitPlan == null ? decompositionPlanningOutput(outputForRole(role)) : explicitPlan;
@@ -132,7 +135,48 @@ public class FakeOpenCodeClient implements OpenCodeClient {
             String explicitPlan = judgeOutputByRole.get(planRole);
             return explicitPlan == null ? packageCompilationPlanningOutput(outputForRole(role)) : explicitPlan;
         }
+        if ("REVIEWER".equals(role) && !judgeOutputByRole.containsKey("REVIEWER")) {
+            try (var paths = java.nio.file.Files.walk(session.worktree(), 3)) {
+                String relative = paths.filter(java.nio.file.Files::isRegularFile).findFirst()
+                        .map(path -> session.worktree().relativize(path).toString().replace('\\', '/')).orElse("README.md");
+                return "# 只读评审报告\n\n## 已确认发现\n\n- 已检查基线文件：" + relative + ":1。\n";
+            } catch (Exception ignored) { return "# 只读评审报告\n\n- README.md:1\n"; }
+        }
         return outputForRole(role);
+    }
+
+    private String taskRouterOutput(String prompt) {
+        String text = prompt == null ? "" : prompt.toLowerCase(java.util.Locale.ROOT);
+        int requirementStart = text.indexOf("requirement:");
+        int evidenceStart = text.indexOf("server-observed repository facts");
+        if (requirementStart >= 0 && evidenceStart > requirementStart) {
+            text = text.substring(requirementStart + "requirement:".length(), evidenceStart);
+        }
+        String intent = "SOFTWARE_CHANGE";
+        String artifacts = "[\"SOURCE_CODE\"]";
+        String technologies = "[]";
+        String complexity = text.contains("大型") || text.contains("多章节") ? "PACKAGED" : "SIMPLE";
+        if ((text.contains("xlsx") || text.contains("excel") || text.contains("csv") || text.contains("tsv"))
+                && (text.contains("一次性") || text.contains("转成") || text.contains("转换成"))
+                && !text.contains("脚本") && !text.contains("工具")) {
+            intent = "DATA_CONVERSION"; artifacts = "[\"MARKDOWN\"]";
+        } else if ((text.contains("docx") || text.contains("markdown") || text.contains("文档"))
+                && !text.contains("代码") && !text.contains("脚本")) {
+            intent = "DOCUMENT_AUTHORING"; artifacts = text.contains("docx") ? "[\"DOCX\"]" : "[\"MARKDOWN\"]";
+        } else if (text.contains("评审") || text.contains("只读") || text.contains("review")) {
+            intent = "READ_ONLY_REVIEW"; artifacts = "[\"ANALYSIS_REPORT\"]";
+        } else if (text.contains("调研") || text.contains("research")) {
+            intent = "RESEARCH"; artifacts = "[\"ANALYSIS_REPORT\"]";
+        } else if (text.contains("配置") || text.contains("维护") || text.contains("依赖升级")) {
+            intent = "LOCAL_MAINTENANCE"; artifacts = "[\"CONFIGURATION\"]";
+        }
+        if (text.contains("python") || text.contains("py脚本")) {
+            technologies = "[\"python\"]"; if (intent.equals("SOFTWARE_CHANGE")) artifacts = "[\"PYTHON_SCRIPT\"]";
+        } else if (text.contains("vue") || text.contains("node") || text.contains("typescript")) technologies = "[\"node\"]";
+        else if (text.contains("java") || text.contains("maven") || text.contains("spring")) technologies = "[\"java\"]";
+        return "{\"intent\":\"" + intent + "\",\"artifactKinds\":" + artifacts
+                + ",\"technologies\":" + technologies + ",\"complexity\":\"" + complexity
+                + "\",\"confidence\":92,\"signals\":[\"fake-router\"]}";
     }
     @Override public SessionResult sessionResult(OpenCodeSession session) {
         String output = sessionOutput(session);

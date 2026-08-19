@@ -56,12 +56,17 @@ server combines them with bounded repository facts. The resulting frozen Role Pa
 chooses Java, Python, Node, document, tabular, report, or maintenance prompts; it cannot
 grant permissions, choose commands, or bypass human confirmation. Router format failure
 falls back to a generic profile question rather than failing the Designer Session.
+The Router profile denies every tool, including read/glob/grep/question. It uses the
+bounded machine-response agent only for output control and has a 30-second server
+boundary. A completed response is accepted only as one closed semantic object.
 
 Document and tabular direct-artifact workflows do not create an implementation Session:
 the server materializes their frozen plans only after Task Start. Read-only report
-workflows use Reviewer permissions equivalent to the other read-only roles and terminate
-without a Task. A report-to-design request treats the report as quoted input and starts a
-new Designer Session.
+workflows use a distinct `REVIEWER_READ_ONLY` profile that permits only read/glob/grep and
+terminates without a Task. Completion alone is insufficient: Loopper accepts the report
+only after at least one managed `path:line` citation resolves and every cited source is
+hashed. A report-to-design request treats the report as quoted input and starts a new
+Designer Session.
 
 Each overall Designer Session is bound to the exact `loop_draft_id` shown in
 Review Gate. Before Task Decomposer runs, the interactive requirement Designer

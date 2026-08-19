@@ -930,6 +930,11 @@ export interface DesignWorkPackageStatus {
   discussionRoundCount: number
   invalidatedByPackageId?: string
   approvedAt?: string
+  rolePackId?: string
+  rolePackVersion?: string
+  executionStrategy?: DesignerTaskProfile['executionStrategy']
+  testPolicy?: DesignerTaskProfile['testPolicy']
+  technologies?: string[]
 }
 
 export interface DesignerCandidateStatus {

@@ -28,6 +28,45 @@ public final class TaskProfileRouter {
 
     public Decision route(Path root, String requirement) {
         RepositoryFacts facts = scan(root);
+        return deterministic(requirement, facts);
+    }
+
+    public Decision route(Path root, String requirement, SemanticLabels semantic) {
+        RepositoryFacts facts = scan(root);
+        Decision deterministic = deterministic(requirement, facts);
+        if (semantic == null) return genericFallback(facts, "router-output-unavailable");
+        boolean unsafe = deterministic.evidence().contains("unsafe-operation-conflict");
+        boolean conflict = semantic.intent() != deterministic.intent()
+                && deterministic.confidence() >= AUTO_ROUTE_CONFIDENCE;
+        TaskIntent intent = unsafe ? deterministic.intent() : semantic.intent();
+        List<String> technologies = new ArrayList<>(facts.technologies());
+        semantic.technologies().forEach(value -> { if (!technologies.contains(value)) technologies.add(value); });
+        List<ArtifactKind> artifacts = semantic.artifactKinds().isEmpty()
+                ? deterministic.artifactKinds() : semantic.artifactKinds();
+        WorkflowTemplate workflow = workflow(intent, "PACKAGED".equals(semantic.complexity()));
+        MutationMode mutation = mutation(intent);
+        int confidence = Math.min(100, (semantic.confidence() + deterministic.confidence()) / 2
+                + (semantic.intent() == deterministic.intent() ? 10 : 0));
+        if (conflict) confidence = Math.min(confidence, 69);
+        if (unsafe) confidence = Math.min(confidence, 50);
+        List<String> evidence = new ArrayList<>(facts.evidence());
+        deterministic.evidence().stream()
+                .filter(value -> value.startsWith("requirement-tests="))
+                .forEach(evidence::add);
+        evidence.add("ai-router-intent=" + semantic.intent().name());
+        evidence.add("ai-router-complexity=" + semantic.complexity());
+        semantic.signals().forEach(value -> evidence.add("ai-router-signal=" + value));
+        if (conflict) evidence.add("router-evidence-conflict=" + deterministic.intent().name());
+        if (unsafe) evidence.add("unsafe-operation-conflict");
+        return new Decision(intent, workflow, mutation, List.copyOf(artifacts), List.copyOf(technologies),
+                confidence, confidence < AUTO_ROUTE_CONFIDENCE || conflict || unsafe, List.copyOf(evidence));
+    }
+
+    public Decision genericFallback(Path root, String reason) {
+        return genericFallback(scan(root), reason);
+    }
+
+    private Decision deterministic(String requirement, RepositoryFacts facts) {
         String text = requirement == null ? "" : requirement.toLowerCase(Locale.ROOT);
         List<ArtifactKind> artifacts = new ArrayList<>();
         List<String> technologies = new ArrayList<>(facts.technologies());
@@ -62,12 +101,44 @@ public final class TaskProfileRouter {
             if ((text.contains("python") || text.contains("py脚本")) && !technologies.contains("python")) technologies.add("python");
             confidence = facts.technologies().isEmpty() && !containsAny(text, "java", "python", "node", "vue", "脚本", "代码") ? 65 : 86;
         }
-        boolean unsafe = containsAny(text, "删除文件", "rm ", "启动服务", "停止服务", "重启服务", "提交", "推送", "发布", "外部系统");
+        boolean unsafe = containsAny(text, "删除文件", "rm ", "启动服务", "停止服务", "重启服务", "推送", "外部系统")
+                || containsAny(text, "git 提交", "提交代码", "创建提交", "commit ")
+                || releaseOperation(text);
         List<String> evidence = new ArrayList<>(facts.evidence());
         evidence.add("requirement-intent=" + intent.name());
+        if (containsAny(text, "必须测试", "需要测试", "编写测试", "补充测试", "with tests", "add tests")) {
+            evidence.add("requirement-tests=required");
+        }
         if (unsafe) { confidence = Math.min(confidence, 50); evidence.add("unsafe-operation-conflict"); }
         return new Decision(intent, workflow, mutation, List.copyOf(artifacts), List.copyOf(technologies),
                 confidence, confidence < AUTO_ROUTE_CONFIDENCE || unsafe, List.copyOf(evidence));
+    }
+
+    private Decision genericFallback(RepositoryFacts facts, String reason) {
+        List<String> evidence = new ArrayList<>(facts.evidence());
+        evidence.add("router-fallback=" + reason);
+        return new Decision(TaskIntent.SOFTWARE_CHANGE, WorkflowTemplate.FULL_PACKAGE_DESIGN,
+                MutationMode.WRITE_CODE, List.of(ArtifactKind.SOURCE_CODE), facts.technologies(),
+                0, true, List.copyOf(evidence));
+    }
+
+    private static WorkflowTemplate workflow(TaskIntent intent, boolean packaged) {
+        return switch (intent) {
+            case DOCUMENT_AUTHORING -> packaged ? WorkflowTemplate.PACKAGED_ARTIFACT : WorkflowTemplate.DIRECT_ARTIFACT;
+            case DATA_CONVERSION -> WorkflowTemplate.DIRECT_ARTIFACT;
+            case READ_ONLY_REVIEW, RESEARCH -> WorkflowTemplate.READ_ONLY_REPORT;
+            case CONFIGURATION, LOCAL_MAINTENANCE -> packaged ? WorkflowTemplate.FULL_PACKAGE_DESIGN : WorkflowTemplate.LOCAL_MAINTENANCE;
+            default -> WorkflowTemplate.FULL_PACKAGE_DESIGN;
+        };
+    }
+
+    private static MutationMode mutation(TaskIntent intent) {
+        return switch (intent) {
+            case DOCUMENT_AUTHORING, DATA_CONVERSION -> MutationMode.WRITE_FILES;
+            case READ_ONLY_REVIEW, RESEARCH -> MutationMode.READ_ONLY;
+            case CONFIGURATION, LOCAL_MAINTENANCE -> MutationMode.SAFE_LOCAL_MAINTENANCE;
+            default -> MutationMode.WRITE_CODE;
+        };
     }
 
     RepositoryFacts scan(Path root) {
@@ -110,8 +181,21 @@ public final class TaskProfileRouter {
         return false;
     }
 
+    private static boolean releaseOperation(String text) {
+        if (!text.contains("发布")) return containsAny(text, "上线部署", "执行 release", "create release");
+        return !containsAny(text, "发布边界", "事件发布", "发布事件", "发布能力", "发布订阅");
+    }
+
     record RepositoryFacts(List<String> technologies, List<String> evidence) { }
     public record Decision(TaskIntent intent, WorkflowTemplate workflowTemplate, MutationMode mutationMode,
                            List<ArtifactKind> artifactKinds, List<String> technologies, int confidence,
                            boolean decisionRequired, List<String> evidence) { }
+    public record SemanticLabels(TaskIntent intent, List<ArtifactKind> artifactKinds, List<String> technologies,
+                                 String complexity, int confidence, List<String> signals) {
+        public SemanticLabels {
+            artifactKinds = artifactKinds == null ? List.of() : List.copyOf(artifactKinds);
+            technologies = technologies == null ? List.of() : List.copyOf(technologies);
+            signals = signals == null ? List.of() : List.copyOf(signals);
+        }
+    }
 }
