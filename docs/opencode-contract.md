@@ -52,8 +52,11 @@ is independently exposed at `/api/mcp-streamable`.
 
 The REST workflow uses three model roles plus a deterministic server validator.
 Before selecting those roles, a no-tool Router supplies semantic task labels while the
-server combines them with bounded repository facts. The resulting frozen Role Pack
-chooses Java, Python, Node, document, tabular, report, or maintenance prompts; it cannot
+server combines them with bounded repository facts. The `2026-08-dynamic-v3` selector
+normalizes technology aliases into Java, Python, Node, or Other families before choosing
+a frozen Role Pack: JavaScript is never a Java signal, same-family aliases do not create a
+mixed pack, and an explicit unknown single stack uses the generic software pack. The result
+chooses Java, Python, Node, mixed, generic, document, tabular, report, or maintenance prompts; it cannot
 grant permissions, choose commands, or bypass human confirmation. Router format failure
 falls back to a generic profile question rather than failing the Designer Session.
 The Router profile denies every tool, including read/glob/grep/question. It uses the
@@ -99,6 +102,18 @@ the same no-question rule to feedback and redesign. Loopper then
 creates a brand-new read-only Compiler Session for each candidate with the same
 configured model. Compiler has the same `read`/`glob`/`grep`-only boundary and
 cannot ask questions or create a Task.
+
+An initial Compiler candidate may read the repository, but every bounded format or semantic
+repair aborts that Session and starts a fresh `COMPILER_REPAIR_NO_TOOLS` Session. Its wildcard
+deny profile re-allows no tools at all; the prompt contains only the current compact object,
+deterministic issues and bounded frozen-design evidence. Format repair uses the full compact
+Compiler Schema. Semantic repair uses the separate `AI_SEMANTIC_PATCH_V1` Schema whose root is
+`patches`, so the transport contract matches the requested JSON Patch envelope.
+The semantic-repair prompt names the compact `evidence` field and repeats the Java Stage gate:
+every `JAVA_PRODUCTION` Stage needs a focused Maven/Gradle TEST, including Judge-only wiring or
+demo work; `FULL_TEST` and `BUILD` are supplemental only. A uniquely reversible final-DTO
+`/stages/<n>/verifiers...` pointer is normalized to compact `evidence`, and `replace` of a missing
+model-owned object leaf is normalized to `add`; neither normalization bypasses full validation.
 
 Session creation is role-scoped. Decomposer, Compiler, Judge, and general
 read-only roles start from a wildcard deny and allow only `read`, `glob`, and
@@ -239,6 +254,14 @@ temporary Stage contract and validates it with the authoritative v2
 assessment before freezing it; direct argv, BEHAVIOR coverage, focused Java
 tests and managed-runtime bindings therefore fail in the semantic repair pool
 before accepting the server-compiled result.
+New records are parsed as the compact contract by default. Only a persisted historical
+object with `evidenceMappings` enters the legacy planning parser; a current object that
+omits `outcome` is a format mismatch, not a legacy object missing `status`. A rejected
+patch envelope or other incomplete object cannot replace the last valid semantic snapshot.
+The compact transport accepts up to six Stages so direct software's 1–6 Stage product
+contract is not narrowed to the large-package 1–3 limit. For non-Java packs, safe explicit
+npm/pytest/unittest selectors are compiled by the shared test-policy registry rather than
+the Java-only target extractor.
 Stable criterion numbering, exact-source slicing, and duplicated TEST verifier
 `criterionIds`/`testTargets` are server-owned encoding work: Loopper canonicalizes
 them from the semantic evidence mappings before running that unchanged v2

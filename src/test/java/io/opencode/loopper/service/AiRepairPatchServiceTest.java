@@ -25,6 +25,21 @@ class AiRepairPatchServiceTest {
     }
 
     @Test
+    void normalizesFinalVerifierPathAndReplaceOfMissingCompactField() throws Exception {
+        AiRepairPatchService.Result result = service.apply(
+                "{\"stages\":[{\"evidence\":[{\"kind\":\"FILE_CONTENT\",\"covers\":[0]}]}]}",
+                "{\"patches\":[{\"op\":\"replace\",\"path\":\"/stages/0/verifiers/0/path\",\"value\":\"src/main/java/example/Main.java\"},{\"op\":\"replace\",\"path\":\"/stages/0/verifiers/0/expectedContent\",\"value\":\"event output\"}]}",
+                Pattern.compile("(?s)(.*)"), "PATCH", Set.of("stages"));
+
+        assertThat(json.readTree(result.json()).at("/stages/0/evidence/0/path").asText())
+                .isEqualTo("src/main/java/example/Main.java");
+        assertThat(json.readTree(result.json()).at("/stages/0/evidence/0/expectedContent").asText())
+                .isEqualTo("event output");
+        assertThat(result.normalizations()).contains(
+                "PATCH_FINAL_VERIFIERS_TO_COMPACT_EVIDENCE", "PATCH_REPLACE_ABSENT_AS_ADD");
+    }
+
+    @Test
     void rejectsDerivedOrExcessivePatchSpace() {
         assertThatThrownBy(() -> service.apply("{\"stages\":[]}",
                 "{\"patches\":[{\"op\":\"add\",\"path\":\"/criterionIds\",\"value\":[]}]}",

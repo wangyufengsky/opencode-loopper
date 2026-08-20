@@ -108,6 +108,14 @@ class HttpOpenCodeClientTest {
                 .doesNotContain("\"permission\":\"grep\"")
                 .doesNotContain("\"permission\":\"question\"");
 
+        client.createSession(worktree, "compiler repair", null,
+                OpenCodeClient.SessionProfile.COMPILER_REPAIR_NO_TOOLS);
+        assertThat(createBody.get()).contains("\"permission\":\"*\"").contains("\"action\":\"deny\"")
+                .doesNotContain("\"permission\":\"read\",\"action\":\"allow\",\"pattern\":\"*\"")
+                .doesNotContain("\"permission\":\"glob\"")
+                .doesNotContain("\"permission\":\"grep\"")
+                .doesNotContain("\"permission\":\"question\"");
+
         client.createSession(worktree, "reviewer", null, OpenCodeClient.SessionProfile.REVIEWER_READ_ONLY);
         assertThat(createBody.get()).contains("\"permission\":\"read\"")
                 .contains("\"permission\":\"glob\"")

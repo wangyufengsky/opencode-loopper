@@ -118,6 +118,12 @@ without an OpenCode Session. Large documents require 2–6 level-two sections; t
 structured blocks are kept in source order and deterministically aggregated into one
 frozen plan. Every decomposed software package freezes its own detected technology list,
 Role Pack version, execution strategy and test policy before its Designer/Compiler prompt.
+Role Pack `2026-08-dynamic-v3` groups normalized technology aliases into Java, Python,
+Node and Other software families. Node matching precedes Java so JavaScript is not Java;
+same-family aliases do not create a mixed pack, real cross-family work does, and explicit
+unknown single stacks use `software-generic` instead of inheriting Java/Maven. Document,
+tabular and report profiles keep their server-owned or Reviewer execution paths and never
+enter Compiler merely because a software example was available.
 Rows created before that freeze is complete are not valid Role Pack snapshots: read-only
 Designer projection omits the incomplete snapshot, and the next package-role use repairs it
 from the current or legacy task profile instead of parsing nullable enum columns.
@@ -344,6 +350,14 @@ instead of 20. V27 retains the 96-call ceiling so
 interactive requirement/package revisions use the same explicit budget.
 Confirmed transport retries and all content repairs still count against it.
 
+New Compiler rows treat the compact semantic object as the default. Only an explicit
+historical `evidenceMappings` member selects the legacy planning parser, so a malformed
+current object without `outcome` cannot be misreported as a missing legacy `status` field.
+The server persists a semantic snapshot only after a legal outcome is extracted, and a
+`COMPILED` outcome additionally requires a nonempty Stage set; a repair envelope or malformed
+object therefore cannot erase the last usable plan. Direct-mode transport and Schema bounds accept 1–6 Stages, while the
+large-package business validator still enforces 1–3.
+
 The semantic Compiler separates observable business criteria from engineering
 metadata. Untested code-style, source/annotation/assembly-shape, build/test-result,
 and delivery-hygiene entries remain available through the frozen design but do not
@@ -353,6 +367,16 @@ criteria in the same Stage; multiple candidates or missing real tests still fail
 Preflight batches all deterministic semantic errors with JSON Pointers into one
 repair response, while the authoritative verifier continues to reject source-text
 search as behavior evidence.
+Every Compiler format or semantic repair first aborts the repository-reading Session and
+uses a new `COMPILER_REPAIR_NO_TOOLS` profile. Format repair is constrained by the compact
+Compiler Schema; semantic repair is constrained by `AI_SEMANTIC_PATCH_V1`, matching the
+requested `patches` envelope. Java test targets retain the Maven/Gradle extractor, while
+Python and Node targets are compiled through the shared pytest/unittest/npm registry.
+Within that bounded semantic patch space, `/stages/<n>/verifiers...` is a uniquely reversible
+alias for compact `/stages/<n>/evidence...`, and `replace` of an absent object leaf is normalized
+to `add`; both corrections are audited before the entire semantic contract is re-run. Each
+`JAVA_PRODUCTION` Stage still requires a focused Maven/Gradle TEST even if its criteria are
+Judge-only, so supplemental full-suite/build evidence cannot create an untested Java Stage.
 
 V26 adds orthogonal OpenCode capability and response-contract metadata without
 merging lifecycle axes. Decomposition and compilation rows persist

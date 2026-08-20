@@ -11,6 +11,7 @@ public final class OpenCodeStructuredSchemas {
     public static final String PACKAGE_COMPILATION_PLAN_V2 = "PACKAGE_COMPILATION_PLAN_V2";
     public static final String PACKAGE_COMPILATION_SEMANTIC_V3 = "PACKAGE_COMPILATION_SEMANTIC_V3";
     public static final String PACKAGE_COMPILATION_FINAL_V2 = "PACKAGE_COMPILATION_FINAL_V2";
+    public static final String AI_SEMANTIC_PATCH_V1 = "AI_SEMANTIC_PATCH_V1";
     public static final String JUDGE_DECISION_V1 = "JUDGE_DECISION_V1";
     public static final String TASK_PROFILE_ROUTER_V1 = "TASK_PROFILE_ROUTER_V1";
     public static final String REVIEWER_REPORT_V1 = "REVIEWER_REPORT_V1";
@@ -30,6 +31,7 @@ public final class OpenCodeStructuredSchemas {
             case PACKAGE_COMPILATION_PLAN_V2 -> read(PACKAGE_COMPILATION_PLAN);
             case PACKAGE_COMPILATION_SEMANTIC_V3 -> read(PACKAGE_COMPILATION_SEMANTIC);
             case PACKAGE_COMPILATION_FINAL_V2 -> read(PACKAGE_COMPILATION_FINAL);
+            case AI_SEMANTIC_PATCH_V1 -> read(AI_SEMANTIC_PATCH);
             case JUDGE_DECISION_V1 -> read(JUDGE_DECISION);
             case TASK_PROFILE_ROUTER_V1 -> read(TASK_PROFILE_ROUTER);
             case REVIEWER_REPORT_V1 -> read(REVIEWER_REPORT);
@@ -124,8 +126,8 @@ public final class OpenCodeStructuredSchemas {
             "contractVersion":{"type":"integer","const":2},
             "status":{"type":"string","enum":["COMPILED","DESIGN_INCOMPLETE"]},
             "summary":{"type":["string","null"],"maxLength":1000},
-            "stages":{"type":"array","maxItems":3,"items":{"type":"object","additionalProperties":false,"required":["objective","allowedPaths","forbiddenPaths","deliverables","verifiers","verificationRuntime","implementationKind","workPackageId"],"properties":{"objective":{"type":"string","minLength":1,"maxLength":4000},"allowedPaths":{"$ref":"#/$defs/stringList"},"forbiddenPaths":{"$ref":"#/$defs/stringList"},"deliverables":{"$ref":"#/$defs/stringList"},"verifiers":{"type":"array","maxItems":32,"items":{"$ref":"#/$defs/verifier"}},"verificationRuntime":{"anyOf":[{"$ref":"#/$defs/runtime"},{"type":"null"}]},"implementationKind":{"type":"string","enum":["JAVA_PRODUCTION","JAVA_TEST_ONLY","NON_JAVA"]},"workPackageId":{"type":"string","pattern":"^WP-[1-6]$"}}}},
-            "evidenceMappings":{"type":"array","maxItems":64,"items":{"type":"object","additionalProperties":false,"required":["stageIndex","criterionId","description","designerExcerpt","verificationMode","judgeRubric","judgeOnlyReason","verifierStrategy","testCommand","testTargets"],"properties":{"stageIndex":{"type":"integer","minimum":0,"maximum":2},"criterionId":{"type":"string","minLength":1,"maxLength":64},"description":{"type":"string","minLength":1,"maxLength":2000},"designerExcerpt":{"type":"string","minLength":1,"maxLength":4000},"verificationMode":{"type":"string","enum":["MACHINE","JUDGE","BOTH"]},"judgeRubric":{"type":["string","null"],"maxLength":4000},"judgeOnlyReason":{"type":["string","null"],"maxLength":2000},"verifierStrategy":{"type":"string","minLength":1,"maxLength":2000},"testCommand":{"$ref":"#/$defs/stringList"},"testTargets":{"$ref":"#/$defs/stringList"}}}},
+            "stages":{"type":"array","maxItems":6,"items":{"type":"object","additionalProperties":false,"required":["objective","allowedPaths","forbiddenPaths","deliverables","verifiers","verificationRuntime","implementationKind","workPackageId"],"properties":{"objective":{"type":"string","minLength":1,"maxLength":4000},"allowedPaths":{"$ref":"#/$defs/stringList"},"forbiddenPaths":{"$ref":"#/$defs/stringList"},"deliverables":{"$ref":"#/$defs/stringList"},"verifiers":{"type":"array","maxItems":32,"items":{"$ref":"#/$defs/verifier"}},"verificationRuntime":{"anyOf":[{"$ref":"#/$defs/runtime"},{"type":"null"}]},"implementationKind":{"type":"string","enum":["JAVA_PRODUCTION","JAVA_TEST_ONLY","NON_JAVA"]},"workPackageId":{"type":"string","pattern":"^WP-[1-6]$"}}}},
+            "evidenceMappings":{"type":"array","maxItems":64,"items":{"type":"object","additionalProperties":false,"required":["stageIndex","criterionId","description","designerExcerpt","verificationMode","judgeRubric","judgeOnlyReason","verifierStrategy","testCommand","testTargets"],"properties":{"stageIndex":{"type":"integer","minimum":0,"maximum":5},"criterionId":{"type":"string","minLength":1,"maxLength":64},"description":{"type":"string","minLength":1,"maxLength":2000},"designerExcerpt":{"type":"string","minLength":1,"maxLength":4000},"verificationMode":{"type":"string","enum":["MACHINE","JUDGE","BOTH"]},"judgeRubric":{"type":["string","null"],"maxLength":4000},"judgeOnlyReason":{"type":["string","null"],"maxLength":2000},"verifierStrategy":{"type":"string","minLength":1,"maxLength":2000},"testCommand":{"$ref":"#/$defs/stringList"},"testTargets":{"$ref":"#/$defs/stringList"}}}},
             "handoffSummary":{"type":["string","null"],"maxLength":4096},
             "designGaps":{"type":"array","maxItems":32,"items":{"$ref":"#/$defs/gap"}}
           },
@@ -140,8 +142,8 @@ public final class OpenCodeStructuredSchemas {
           "properties":{
             "status":{"type":"string","enum":["COMPILED","DESIGN_INCOMPLETE"]},
             "summary":{"type":["string","null"],"maxLength":1000},
-            "stages":{"type":"array","maxItems":3,"items":{"type":"object","additionalProperties":false,"required":["objective","allowedPaths","forbiddenPaths","deliverables","verifiers","acceptanceCriteria","verificationRuntime","implementationKind","workPackageId"],"properties":{"objective":{"type":"string","minLength":1,"maxLength":4000},"allowedPaths":{"$ref":"#/$defs/stringList"},"forbiddenPaths":{"$ref":"#/$defs/stringList"},"deliverables":{"$ref":"#/$defs/stringList"},"verifiers":{"type":"array","maxItems":32,"items":{"$ref":"#/$defs/verifier"}},"acceptanceCriteria":{"type":"array","maxItems":64,"items":{"$ref":"#/$defs/criterion"}},"verificationRuntime":{"anyOf":[{"$ref":"#/$defs/runtime"},{"type":"null"}]},"implementationKind":{"type":"string","enum":["JAVA_PRODUCTION","JAVA_TEST_ONLY","NON_JAVA"]},"workPackageId":{"type":"string","pattern":"^WP-[1-6]$"}}}},
-            "criterionSources":{"type":"array","maxItems":64,"items":{"type":"object","additionalProperties":false,"required":["stageIndex","criterionId","excerpt"],"properties":{"stageIndex":{"type":"integer","minimum":0,"maximum":2},"criterionId":{"type":"string","minLength":1,"maxLength":64},"excerpt":{"type":"string","minLength":1,"maxLength":4000}}}},
+            "stages":{"type":"array","maxItems":6,"items":{"type":"object","additionalProperties":false,"required":["objective","allowedPaths","forbiddenPaths","deliverables","verifiers","acceptanceCriteria","verificationRuntime","implementationKind","workPackageId"],"properties":{"objective":{"type":"string","minLength":1,"maxLength":4000},"allowedPaths":{"$ref":"#/$defs/stringList"},"forbiddenPaths":{"$ref":"#/$defs/stringList"},"deliverables":{"$ref":"#/$defs/stringList"},"verifiers":{"type":"array","maxItems":32,"items":{"$ref":"#/$defs/verifier"}},"acceptanceCriteria":{"type":"array","maxItems":64,"items":{"$ref":"#/$defs/criterion"}},"verificationRuntime":{"anyOf":[{"$ref":"#/$defs/runtime"},{"type":"null"}]},"implementationKind":{"type":"string","enum":["JAVA_PRODUCTION","JAVA_TEST_ONLY","NON_JAVA"]},"workPackageId":{"type":"string","pattern":"^WP-[1-6]$"}}}},
+            "criterionSources":{"type":"array","maxItems":64,"items":{"type":"object","additionalProperties":false,"required":["stageIndex","criterionId","excerpt"],"properties":{"stageIndex":{"type":"integer","minimum":0,"maximum":5},"criterionId":{"type":"string","minLength":1,"maxLength":64},"excerpt":{"type":"string","minLength":1,"maxLength":4000}}}},
             "handoffSummary":{"type":["string","null"],"maxLength":4096},
             "designGaps":{"type":"array","maxItems":32,"items":{"$ref":"#/$defs/gap"}}
           },
@@ -156,9 +158,21 @@ public final class OpenCodeStructuredSchemas {
           "properties":{
             "outcome":{"type":"string","enum":["COMPILED","DESIGN_INCOMPLETE"]},
             "summary":{"type":["string","null"],"maxLength":1000},
-            "stages":{"type":"array","maxItems":3,"items":{"type":"object","required":["objective","implementationKind","allowedPaths","forbiddenPaths","deliverables","criteria","evidence"],"properties":{"objective":{"type":"string"},"implementationKind":{"type":"string","enum":["JAVA_PRODUCTION","JAVA_TEST_ONLY","NON_JAVA"]},"allowedPaths":{"type":"array","items":{"type":"string"}},"forbiddenPaths":{"type":"array","items":{"type":"string"}},"deliverables":{"type":"array","items":{"type":"string"}},"criteria":{"type":"array","items":{"type":"object","required":["description","sourceRefs"],"properties":{"description":{"type":"string"},"sourceRefs":{"type":"array","items":{"type":"string","pattern":"^DS-L[0-9]{3,}$"}},"judgeRubric":{"type":["string","null"]},"judgeOnlyReason":{"type":["string","null"]}}}},"evidence":{"type":"array","items":{"type":"object","required":["kind","covers"],"additionalProperties":true,"properties":{"kind":{"type":"string"},"command":{"type":"array","items":{"type":"string"}},"covers":{"type":"array","items":{"type":"integer","minimum":0}},"successMarker":{"type":["string","null"]}}}}}}},
+            "stages":{"type":"array","maxItems":6,"items":{"type":"object","required":["objective","implementationKind","allowedPaths","forbiddenPaths","deliverables","criteria","evidence"],"properties":{"objective":{"type":"string"},"implementationKind":{"type":"string","enum":["JAVA_PRODUCTION","JAVA_TEST_ONLY","NON_JAVA"]},"allowedPaths":{"type":"array","items":{"type":"string"}},"forbiddenPaths":{"type":"array","items":{"type":"string"}},"deliverables":{"type":"array","items":{"type":"string"}},"criteria":{"type":"array","items":{"type":"object","required":["description","sourceRefs"],"properties":{"description":{"type":"string"},"sourceRefs":{"type":"array","items":{"type":"string","pattern":"^DS-L[0-9]{3,}$"}},"judgeRubric":{"type":["string","null"]},"judgeOnlyReason":{"type":["string","null"]}}}},"evidence":{"type":"array","items":{"type":"object","required":["kind","covers"],"additionalProperties":true,"properties":{"kind":{"type":"string"},"command":{"type":"array","items":{"type":"string"}},"covers":{"type":"array","items":{"type":"integer","minimum":0}},"successMarker":{"type":["string","null"]}}}}}}},
             "handoffSummary":{"type":["string","null"],"maxLength":4096},"designGaps":{"type":"array"}
           }
+        }
+        """;
+
+    private static final String AI_SEMANTIC_PATCH = """
+        {
+          "$schema":"https://json-schema.org/draft/2020-12/schema",
+          "type":"object","additionalProperties":false,"required":["patches"],
+          "properties":{"patches":{"type":"array","minItems":1,"maxItems":16,"items":{
+            "type":"object","additionalProperties":false,"required":["op","path"],
+            "properties":{"op":{"type":"string","enum":["add","replace","remove"]},
+              "path":{"type":"string","pattern":"^/"},"value":{}}
+          }}}
         }
         """;
 

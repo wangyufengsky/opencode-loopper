@@ -139,6 +139,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
             List<Map<String, String>> rules = new ArrayList<>();
             rules.add(permissionRule("*", "*", "deny"));
             if (profile != SessionProfile.MACHINE_FINALIZER_NO_TOOLS
+                    && profile != SessionProfile.COMPILER_REPAIR_NO_TOOLS
                     && profile != SessionProfile.ROUTER_NO_TOOLS) {
                 rules.add(permissionRule("read", "*", "allow"));
                 rules.add(permissionRule("glob", "*", "allow"));
@@ -229,6 +230,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
         return profile == SessionProfile.DECOMPOSER_READ_ONLY
                 || profile == SessionProfile.ROUTER_NO_TOOLS
                 || profile == SessionProfile.COMPILER_READ_ONLY
+                || profile == SessionProfile.COMPILER_REPAIR_NO_TOOLS
                 || profile == SessionProfile.REVIEWER_READ_ONLY
                 || profile == SessionProfile.JUDGE_READ_ONLY
                 || profile == SessionProfile.PROJECT_CONVENTION_READ_ONLY

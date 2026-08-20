@@ -16,6 +16,7 @@ import io.opencode.loopper.persistence.TaskArtifactRow;
 import io.opencode.loopper.persistence.TaskRow;
 import io.opencode.loopper.runtime.FakeOpenCodeClient;
 import io.opencode.loopper.runtime.OpenCodeClient;
+import io.opencode.loopper.runtime.OpenCodeStructuredSchemas;
 import io.opencode.loopper.service.BadRequestException;
 import io.opencode.loopper.service.ConflictException;
 import io.opencode.loopper.service.DesignerSessionService;
@@ -220,7 +221,7 @@ class DesignerSessionMcpIntegrationTest {
             assertThat(workPackage.id()).isEqualTo("WP-1");
             assertThat(workPackage.state()).isEqualTo("APPROVED");
             assertThat(workPackage.rolePackId()).isEqualTo("software-java");
-            assertThat(workPackage.rolePackVersion()).isEqualTo("2026-08-dynamic-v2");
+            assertThat(workPackage.rolePackVersion()).isEqualTo("2026-08-dynamic-v3");
             assertThat(workPackage.executionStrategy()).isEqualTo("OPEN_CODE_IMPLEMENTATION");
             assertThat(workPackage.testPolicy()).isEqualTo("REQUIRED");
         });
@@ -241,7 +242,7 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(mapper.listTasks()).singleElement().extracting(TaskRow::id).isEqualTo(task.id());
         assertThat(mapper.listStages(task.id())).hasSize(6).allSatisfy(stage -> {
             assertThat(stage.rolePackId()).isEqualTo("software-java");
-            assertThat(stage.rolePackVersion()).isEqualTo("2026-08-dynamic-v2");
+            assertThat(stage.rolePackVersion()).isEqualTo("2026-08-dynamic-v3");
             assertThat(stage.testPolicy()).isEqualTo("REQUIRED");
             assertThat(stage.technologiesJson()).isEqualTo("[]");
         });
@@ -858,10 +859,35 @@ class DesignerSessionMcpIntegrationTest {
         });
         assertThat(mapper.findLatestLoopSpecCompilation(session.id()).orElseThrow().semanticPlanJson())
                 .contains("\"outcome\":\"COMPILED\"");
+        var firstRepair = mapper.findLatestLoopSpecCompilation(session.id()).orElseThrow();
+        assertThat(fake().promptForSession(firstRepair.externalSessionId()))
+                .contains("named `evidence`, not", "/stages/3/evidence/0/path",
+                        "Every JAVA_PRODUCTION Stage", "FULL_TEST and BUILD never satisfy");
+
+        String frozenSemantic = mapper.findLatestLoopSpecCompilation(session.id()).orElseThrow().semanticPlanJson();
+        fake().setPackageCompilerPlanningOutput("WP-1", """
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->
+                {"patches":[{"op":"replace","path":"/status","value":"COMPILED"}]}
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->
+                """);
+        designerSessions.pollActiveHandoffs();
+
+        var rejectedPatch = mapper.findLatestLoopSpecCompilation(session.id()).orElseThrow();
+        assertThat(rejectedPatch.semanticRepairCount()).isEqualTo(2);
+        assertThat(rejectedPatch.semanticPlanJson()).isEqualTo(frozenSemantic);
+        assertThat(fake().profileForSession(rejectedPatch.externalSessionId()))
+                .isEqualTo(OpenCodeClient.SessionProfile.COMPILER_REPAIR_NO_TOOLS);
+        OpenCodeClient.ResponseFormat repairFormat = fake()
+                .promptRequestForSession(rejectedPatch.externalSessionId()).responseFormat();
+        if (repairFormat instanceof OpenCodeClient.ResponseFormat.JsonSchema schema) {
+            assertThat(schema.schemaId()).isEqualTo(OpenCodeStructuredSchemas.AI_SEMANTIC_PATCH_V1);
+        } else {
+            assertThat(repairFormat).isInstanceOf(OpenCodeClient.ResponseFormat.Text.class);
+        }
 
         fake().setPackageCompilerPlanningOutput("WP-1", """
                 <!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->
-                {"patches":[{"op":"add","path":"/stages/0/evidence/-",
+                {"patches":[{"op":"add","path":"/stages/0/verifiers/-",
                  "value":{"kind":"SELF_CHECK","command":["python3","-c","print('ERROR_OK')"],
                  "successMarker":"ERROR_OK","covers":[1]}}]}
                 <!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->
@@ -871,7 +897,7 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(designerSessions.get(session.id()).workflowPhase()).isEqualTo("FINAL_REVIEW");
         assertThat(designerSessions.compilerStatus(session.id())).satisfies(status -> {
             assertThat(status.formatRepairCount()).isZero();
-            assertThat(status.semanticRepairCount()).isEqualTo(1);
+            assertThat(status.semanticRepairCount()).isEqualTo(2);
             assertThat(status.serverCompiled()).isTrue();
             assertThat(status.lastErrorCode()).isNull();
         });
@@ -1793,6 +1819,163 @@ class DesignerSessionMcpIntegrationTest {
     }
 
     @Test
+    void compilerTreatsWrongRoleEnvelopeAsFormatFailureAndRepairsInFreshNoToolsSession() throws Exception {
+        ProjectRow project = project("compiler-wrong-role-envelope");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        fake().setDesignerOutput(designerOutput(
+                "# 完整 Java 设计\n\n发布事件后监听器同步推进状态。\n\n聚焦测试：`mvn -q -Dtest=EventListenerFocusedTest test`。",
+                legacySpec(project.id())));
+        fake().setPackageCompilerPlanningOutput("WP-1", """
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->
+                {"workPackageId":"WP-1","planStatus":"COMPILED","stages":[]}
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->
+                """);
+
+        DesignerSessionRow session = createConfirmedSession(project.id(), draft.id(),
+                "新增 Java 行为并提供聚焦单元测试");
+        pollUntilCompilerState(session.id(), "RUNNING", 1);
+
+        var repairing = mapper.findLatestLoopSpecCompilation(session.id()).orElseThrow();
+        assertThat(repairing.lastErrorCode()).isEqualTo("COMPILER_PLAN_OUTPUT_CONTRACT_MISMATCH");
+        assertThat(repairing.formatRepairCount()).isEqualTo(1);
+        assertThat(repairing.semanticRepairCount()).isZero();
+        assertThat(repairing.semanticPlanJson()).isNull();
+        assertThat(fake().profileForSession(repairing.externalSessionId()))
+                .isEqualTo(OpenCodeClient.SessionProfile.COMPILER_REPAIR_NO_TOOLS);
+        assertThat(fake().promptForSession(repairing.externalSessionId()))
+                .contains("This repair Session", "has no tools", "return the complete object immediately")
+                .contains("Role Pack: software-java@2026-08-dynamic-v3", "mvn")
+                .doesNotContain("Use DOCUMENT_STRUCTURE or TABULAR_DATA native evidence");
+        List<String> compilerSessionIds = fake().promptHistory().stream()
+                .filter(call -> call.prompt().contains("LOOPSPEC_COMPILATION_PLAN_JSON_START"))
+                .map(FakeOpenCodeClient.PromptCall::sessionId).distinct().toList();
+        assertThat(compilerSessionIds).hasSizeGreaterThanOrEqualTo(2);
+        assertThat(fake().abortedSessionIds()).contains(compilerSessionIds.getFirst());
+
+        fake().setPackageCompilerPlanningOutput("WP-1", """
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->
+                {"outcome":"COMPILED","summary":"事件监听阶段","stages":[{
+                 "objective":"发布事件后监听器同步推进状态","implementationKind":"JAVA_PRODUCTION",
+                 "allowedPaths":["src/main/java/**","src/test/java/**"],"forbiddenPaths":[".env"],
+                 "deliverables":["事件监听实现和聚焦测试"],
+                 "criteria":[{"description":"发布事件后监听器同步推进状态","sourceRefs":["DS-L002"]}],
+                 "evidence":[{"kind":"FOCUSED_TEST",
+                   "command":["mvn","-q","-Dtest=EventListenerFocusedTest","test"],"covers":[0]},
+                   {"kind":"GIT_DIFF","covers":[],"requireChanges":true,"forbidDeletes":true}],
+                 "verificationRuntime":null}],"handoffSummary":"事件监听能力已冻结","designGaps":[]}
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->
+                """);
+        pollUntilSettled(session.id());
+        assertThat(designerSessions.get(session.id()).workflowPhase())
+                .as("session=%s compiler=%s packages=%s messages=%s", designerSessions.get(session.id()),
+                        designerSessions.compilerStatus(session.id()),
+                        designerSessions.workPackageStatuses(session.id()), designerSessions.messages(session.id()))
+                .isEqualTo("FINAL_REVIEW");
+        assertThat(designerSessions.compilerStatus(session.id()).serverCompiled()).isTrue();
+    }
+
+    @Test
+    void pythonAndNodeRolePacksCompileRepositoryNativeFocusedTestsToFinalReview() throws Exception {
+        assertNonJavaCompilerFlow("python-compiler-role", "pyproject.toml", "[tool.pytest.ini_options]\n",
+                "开发 Python 事件监听器并使用 pytest 聚焦测试",
+                "# Python 监听设计\n\n发布事件后 Python 监听器同步收到消息。\n\n聚焦测试：`python3 -m pytest tests/test_listener.py`。",
+                "software-python", "[\"python3\",\"-m\",\"pytest\",\"tests/test_listener.py\"]",
+                "src/**", "tests/**");
+        assertNonJavaCompilerFlow("node-compiler-role", "package.json",
+                "{\"scripts\":{\"test\":\"vitest\"}}\n",
+                "开发 TypeScript 事件监听器并使用 npm 聚焦测试",
+                "# Node 监听设计\n\n发布事件后 TypeScript 监听器同步更新界面。\n\n聚焦测试：`npm test -- src/listener.spec.ts`。",
+                "software-node", "[\"npm\",\"test\",\"--\",\"src/listener.spec.ts\"]",
+                "src/**", "src/listener.spec.ts");
+    }
+
+    @Test
+    void mixedAndGenericRolePacksCompileWithoutFallingBackToJavaOnlyContracts() throws Exception {
+        ProjectRow mixedProject = project("mixed-compiler-role");
+        Files.writeString(Path.of(mixedProject.rootPath()).resolve("pom.xml"),
+                "<project><modelVersion>4.0.0</modelVersion></project>\n");
+        Files.writeString(Path.of(mixedProject.rootPath()).resolve("package.json"),
+                "{\"scripts\":{\"test\":\"vitest\"}}\n");
+        LoopSpec mixedInitial = legacySpec(mixedProject.id());
+        LoopDraftRow mixedDraft = drafts.create(mixedInitial);
+        String mixedDesign = "# 混合栈监听设计\n\nJava 后端发布事件并返回可观察结果。"
+                + "\n\nTypeScript 前端接收结果并更新界面。";
+        fake().setDesignerOutput(designerOutput(mixedDesign, mixedInitial));
+        fake().setPackageDesignerOutput("WP-1", mixedDesign);
+        fake().setPackageCompilerPlanningOutput("WP-1", """
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->
+                {"outcome":"COMPILED","summary":"mixed vertical listener plan","stages":[
+                 {"objective":"Java 后端发布事件","implementationKind":"JAVA_PRODUCTION",
+                  "allowedPaths":["backend/**"],"forbiddenPaths":[".env"],
+                  "deliverables":["后端事件行为与聚焦测试"],
+                  "criteria":[{"description":"后端发布事件后产生可观察结果","sourceRefs":["DS-L002"]}],
+                  "evidence":[{"kind":"FOCUSED_TEST","command":["mvn","-q","-Dtest=BackendListenerTest","test"],"covers":[0]},
+                    {"kind":"GIT_DIFF","covers":[],"requireChanges":true,"forbidDeletes":true}],
+                  "verificationRuntime":null},
+                 {"objective":"TypeScript 前端展示事件结果","implementationKind":"NON_JAVA",
+                  "allowedPaths":["frontend/**"],"forbiddenPaths":[".env"],
+                  "deliverables":["前端监听行为与聚焦测试"],
+                  "criteria":[{"description":"前端收到事件后更新界面","sourceRefs":["DS-L003"]}],
+                  "evidence":[{"kind":"FOCUSED_TEST","command":["npm","test","--","src/listener.spec.ts"],"covers":[0]},
+                    {"kind":"GIT_DIFF","covers":[],"requireChanges":true,"forbidDeletes":true}],
+                  "verificationRuntime":null}],"handoffSummary":"跨栈行为已冻结","designGaps":[]}
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->
+                """);
+
+        DesignerSessionRow mixedSession = createConfirmedSession(mixedProject.id(), mixedDraft.id(),
+                "开发 Java 后端和 TypeScript 前端的事件监听能力并分别聚焦测试");
+        pollUntilSettled(mixedSession.id());
+        assertThat(designerSessions.get(mixedSession.id()).workflowPhase())
+                .as("compiler=%s messages=%s", designerSessions.compilerStatus(mixedSession.id()),
+                        designerSessions.messages(mixedSession.id()))
+                .isEqualTo("FINAL_REVIEW");
+        assertThat(designerSessions.workPackageStatuses(mixedSession.id())).singleElement()
+                .satisfies(workPackage -> assertThat(workPackage.rolePackId()).isEqualTo("software-mixed"));
+        assertThat(drafts.spec(drafts.get(mixedDraft.id())).stages())
+                .flatExtracting(LoopSpec.StageSpec::verifiers)
+                .filteredOn(verifier -> "TEST".equals(verifier.processPurpose()))
+                .hasSize(2).allSatisfy(verifier -> assertThat(verifier.testTargets()).isNotEmpty());
+
+        ProjectRow genericProject = project("generic-compiler-role");
+        Files.writeString(Path.of(genericProject.rootPath()).resolve("go.mod"),
+                "module example.com/listener\n\ngo 1.23\n");
+        LoopSpec genericInitial = legacySpec(genericProject.id());
+        LoopDraftRow genericDraft = drafts.create(genericInitial);
+        String genericDesign = "# Go 监听设计\n\n发布事件后 Go 监听器返回可观察结果。";
+        fake().setDesignerOutput(designerOutput(genericDesign, genericInitial));
+        fake().setPackageDesignerOutput("WP-1", genericDesign);
+        fake().setPackageCompilerPlanningOutput("WP-1", """
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->
+                {"outcome":"COMPILED","summary":"repository-native Go listener plan","stages":[{
+                 "objective":"实现 Go 事件监听行为","implementationKind":"NON_JAVA",
+                 "allowedPaths":["listener.go"],"forbiddenPaths":[".env"],
+                 "deliverables":["Go 监听实现"],
+                 "criteria":[{"description":"发布事件后 Go 监听器返回冻结结果","sourceRefs":["DS-L002"],
+                   "judgeRubric":"根据实现证据确认事件发布后返回冻结结果","judgeOnlyReason":null}],
+                 "evidence":[{"kind":"FILE_CONTENT","path":"listener.go","expectedContent":"Publish","covers":[0]},
+                   {"kind":"GIT_DIFF","covers":[],"requireChanges":true,"forbidDeletes":true}],
+                 "verificationRuntime":null}],"handoffSummary":"Go 监听合同已冻结","designGaps":[]}
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->
+                """);
+
+        DesignerSessionRow genericSession = createConfirmedSession(genericProject.id(), genericDraft.id(),
+                "开发 Go 事件监听器并保持仓库原生工具链");
+        pollUntilSettled(genericSession.id());
+        assertThat(designerSessions.get(genericSession.id()).workflowPhase())
+                .as("compiler=%s messages=%s", designerSessions.compilerStatus(genericSession.id()),
+                        designerSessions.messages(genericSession.id()))
+                .isEqualTo("FINAL_REVIEW");
+        assertThat(designerSessions.workPackageStatuses(genericSession.id())).singleElement()
+                .satisfies(workPackage -> assertThat(workPackage.rolePackId()).isEqualTo("software-generic"));
+        String genericCompilerPrompt = fake().promptHistory().stream()
+                .filter(call -> call.prompt().contains("Role Pack: software-generic@2026-08-dynamic-v3")
+                        && call.prompt().contains("LOOPSPEC_COMPILATION_PLAN_JSON_START"))
+                .map(FakeOpenCodeClient.PromptCall::prompt).findFirst().orElseThrow();
+        assertThat(genericCompilerPrompt).contains("repository-native software plan", "judgeOnlyReason")
+                .doesNotContain("-Dtest=ExampleFocusedTest", "python3 -m pytest", "npm test --");
+    }
+
+    @Test
     void packageCompilerInitialAndRepairPromptsRepeatCompleteJsonTypeContract() throws Exception {
         ProjectRow project = project("compiler-contract");
         LoopDraftRow draft = drafts.create(legacySpec(project.id()));
@@ -2112,6 +2295,47 @@ class DesignerSessionMcpIntegrationTest {
 
     private ProjectRow project(String name) throws Exception {
         return projects.create(name, Files.createDirectory(temp.resolve(name)).toString());
+    }
+
+    private void assertNonJavaCompilerFlow(String projectName, String manifest, String manifestContent,
+                                           String requirement, String design, String expectedRolePack,
+                                           String commandJson, String implementationPath,
+                                           String testPath) throws Exception {
+        ProjectRow project = project(projectName);
+        Files.writeString(Path.of(project.rootPath()).resolve(manifest), manifestContent);
+        LoopSpec initial = legacySpec(project.id());
+        LoopDraftRow draft = drafts.create(initial);
+        fake().setDesignerOutput(designerOutput(design, initial));
+        fake().setPackageDesignerOutput("WP-1", design);
+        fake().setPackageCompilerPlanningOutput("WP-1", """
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->
+                {"outcome":"COMPILED","summary":"repository-native listener plan","stages":[{
+                 "objective":"发布事件后监听器产生可观察结果","implementationKind":"NON_JAVA",
+                 "allowedPaths":["%s","%s"],"forbiddenPaths":[".env"],
+                 "deliverables":["监听器实现和聚焦测试"],
+                 "criteria":[{"description":"发布事件后监听器产生冻结的可观察结果","sourceRefs":["DS-L002"]}],
+                 "evidence":[{"kind":"FOCUSED_TEST","command":%s,"covers":[0]},
+                   {"kind":"GIT_DIFF","covers":[],"requireChanges":true,"forbidDeletes":true}],
+                 "verificationRuntime":null}],"handoffSummary":"监听器能力已冻结","designGaps":[]}
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->
+                """.formatted(implementationPath, testPath, commandJson));
+
+        DesignerSessionRow session = createConfirmedSession(project.id(), draft.id(), requirement);
+        pollUntilSettled(session.id());
+
+        assertThat(designerSessions.get(session.id()).workflowPhase())
+                .as("role=%s compiler=%s messages=%s", expectedRolePack,
+                        designerSessions.compilerStatus(session.id()), designerSessions.messages(session.id()))
+                .isEqualTo("FINAL_REVIEW");
+        assertThat(designerSessions.workPackageStatuses(session.id())).singleElement().satisfies(workPackage -> {
+            assertThat(workPackage.rolePackId()).isEqualTo(expectedRolePack);
+            assertThat(workPackage.rolePackVersion()).isEqualTo("2026-08-dynamic-v3");
+            assertThat(workPackage.testPolicy()).isIn("OPTIONAL", "REQUIRED");
+            assertThat(workPackage.compilerServerCompiled()).isTrue();
+        });
+        assertThat(drafts.spec(drafts.get(draft.id())).stages().getFirst().verifiers())
+                .filteredOn(verifier -> "TEST".equals(verifier.processPurpose()))
+                .singleElement().satisfies(verifier -> assertThat(verifier.testTargets()).isNotEmpty());
     }
 
     private DesignerSessionRow createConfirmedSession(String projectId, String draftId, String requirement) {

@@ -9,6 +9,7 @@ import io.opencode.loopper.persistence.WorkPackageRoleProfileRow;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
@@ -16,6 +17,8 @@ import tools.jackson.databind.ObjectMapper;
 /** Freezes a role pack independently for every decomposed package. */
 @Service
 public final class WorkPackageRoleService {
+    private static final Pattern JAVA_SIGNAL = Pattern.compile(
+            "(?<![a-z0-9])java(?:\\s*\\d+)?(?![a-z0-9])|(?<![a-z0-9])(jdk|spring|maven|gradle|kotlin)(?![a-z0-9])|\\.java(?![a-z0-9])");
     private final LoopperMapper mapper;
     private final RolePackRegistry registry;
     private final TaskProfileService profiles;
@@ -33,7 +36,7 @@ public final class WorkPackageRoleService {
         List<String> technologies = new ArrayList<>();
         if (contains(text, "python", ".py", "pytest")) technologies.add("python");
         if (contains(text, "vue", "node", "typescript", "javascript", "npm", "frontend", "前端")) technologies.add("node");
-        if (contains(text, "java", "spring", "maven", "gradle", ".java")) technologies.add("java");
+        if (hasJavaSignal(text)) technologies.add("java");
         if (technologies.isEmpty()) technologies.addAll(parent.technologies());
         TaskIntent intent = parent.intent();
         List<ArtifactKind> artifacts = parent.artifactKinds();
@@ -79,6 +82,9 @@ public final class WorkPackageRoleService {
     }
     private List<String> read(String value) { try { return json.readValue(value, new TypeReference<>() { }); } catch (Exception ignored) { return List.of(); } }
     private String write(Object value) { try { return json.writeValueAsString(value); } catch (Exception failure) { throw new IllegalStateException(failure); } }
+    static boolean hasJavaSignal(String text) {
+        return text != null && JAVA_SIGNAL.matcher(text.toLowerCase(Locale.ROOT)).find();
+    }
     private static boolean contains(String text, String... values) { for (String value : values) if (text.contains(value)) return true; return false; }
 
     public record View(String rolePackId, String rolePackVersion,

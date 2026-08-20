@@ -183,6 +183,8 @@ public final class TaskProfileRouter {
                     String name = file.getFileName().toString().toLowerCase(Locale.ROOT);
                     if (name.equals("pom.xml") || name.equals("build.gradle") || name.equals("build.gradle.kts")) technologies.add("java");
                     if (name.equals("pyproject.toml") || name.equals("requirements.txt") || name.equals("pytest.ini")) technologies.add("python");
+                    if (name.equals("go.mod")) technologies.add("go");
+                    if (name.equals("cargo.toml")) technologies.add("rust");
                     if (name.equals("pytest.ini") || name.equals("conftest.py") || name.startsWith("test_") && name.endsWith(".py")) {
                         technologies.add("python"); evidence.add("test-framework=pytest");
                     } else if (name.endsWith(".py") && file.toString().replace('\\', '/').contains("/tests/")) {

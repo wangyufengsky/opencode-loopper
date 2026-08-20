@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class MachineRoleContractCatalogTest {
@@ -20,5 +21,21 @@ class MachineRoleContractCatalogTest {
         assertThat(Files.readString(Path.of("docs/ai-role-contracts.md")))
                 .contains(MachineRoleContractCatalog.CONTRACT_VERSION,
                         "MachineRoleContractCatalog", "OpenCodeStructuredSchemas");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void directCompilerSchemaAllowsSixStagesAndSemanticRepairHasItsOwnPatchContract() {
+        Map<String, Object> semantic = OpenCodeStructuredSchemas.schema(
+                OpenCodeStructuredSchemas.PACKAGE_COMPILATION_SEMANTIC_V3);
+        Map<String, Object> properties = (Map<String, Object>) semantic.get("properties");
+        Map<String, Object> stages = (Map<String, Object>) properties.get("stages");
+        assertThat(stages.get("maxItems")).isEqualTo(6);
+
+        Map<String, Object> patch = OpenCodeStructuredSchemas.schema(
+                OpenCodeStructuredSchemas.AI_SEMANTIC_PATCH_V1);
+        Map<String, Object> patchProperties = (Map<String, Object>) patch.get("properties");
+        Map<String, Object> patches = (Map<String, Object>) patchProperties.get("patches");
+        assertThat(patches).containsEntry("minItems", 1).containsEntry("maxItems", 16);
     }
 }

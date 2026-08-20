@@ -63,6 +63,18 @@ class TaskProfileRouterTest {
         assertThat(router.route(root, "修改 Vue 页面交互").evidence()).contains("test-framework=npm");
     }
 
+    @Test void unknownSingleStackManifestUsesGenericSoftwarePackInsteadOfJava() throws Exception {
+        Files.writeString(root.resolve("go.mod"), "module example.com/listener\n\ngo 1.23\n");
+
+        TaskProfileRouter.Decision decision = router.route(root, "开发 Go 事件监听器");
+        RolePackRegistry.RolePack pack = new RolePackRegistry().resolve(decision.intent(),
+                decision.technologies(), decision.artifactKinds());
+
+        assertThat(decision.technologies()).containsExactly("go");
+        assertThat(pack.id()).isEqualTo("software-generic");
+        assertThat(pack.defaultTestPolicy()).isEqualTo(TestPolicy.OPTIONAL);
+    }
+
     @Test void ambiguousOrUnsafeMaintenanceRequiresHumanDecision() {
         TaskProfileRouter.Decision decision = router.route(root, "日常维护，删除文件并重启服务后推送");
         assertThat(decision.decisionRequired()).isTrue();

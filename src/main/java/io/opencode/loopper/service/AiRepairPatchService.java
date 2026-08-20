@@ -42,37 +42,44 @@ public class AiRepairPatchService {
             throw new BadRequestException(prefix + "_BASE_INVALID", "Frozen semantic snapshot must be an object");
         }
         ObjectNode result = object.deepCopy();
-        for (PatchOperation patch : extracted.value().patches()) applyOne(result, patch, allowedRoots, prefix);
+        List<String> normalizations = new ArrayList<>(extracted.normalizations());
+        for (PatchOperation patch : extracted.value().patches()) {
+            applyOne(result, patch, allowedRoots, prefix, normalizations);
+        }
         String value = result.toString();
         if (value.length() > MAX_RESULT_LENGTH) {
             throw new BadRequestException(prefix + "_TOO_LARGE", "Patched semantic object is too large");
         }
-        return new Result(value, extracted.normalizations());
+        return new Result(value, List.copyOf(new java.util.LinkedHashSet<>(normalizations)));
     }
 
-    private void applyOne(ObjectNode root, PatchOperation patch, Set<String> allowedRoots, String prefix) {
+    private void applyOne(ObjectNode root, PatchOperation patch, Set<String> allowedRoots, String prefix,
+                          List<String> normalizations) {
         if (patch == null || !Set.of("add", "replace", "remove").contains(patch.op())
                 || patch.path() == null || !patch.path().startsWith("/")) {
             throw new BadRequestException(prefix + "_OP_INVALID", "Only add, replace, and remove JSON paths are allowed");
         }
-        List<String> tokens = pointerTokens(patch.path());
+        String path = normalizeCompilerCompactPath(patch.path(), allowedRoots, normalizations);
+        List<String> tokens = pointerTokens(path);
         if (tokens.isEmpty() || !allowedRoots.contains(tokens.getFirst())) {
             throw new BadRequestException(prefix + "_PATH_FORBIDDEN",
-                    "Patch path is outside model-owned semantic fields: " + patch.path());
+                    "Patch path is outside model-owned semantic fields: " + path);
         }
         JsonNode parent = root;
         for (int index = 0; index < tokens.size() - 1; index++) {
             String token = tokens.get(index);
-            parent = child(parent, token, prefix, patch.path());
+            parent = child(parent, token, prefix, path);
         }
         String leaf = tokens.getLast();
         if (parent instanceof ObjectNode object) {
             boolean exists = object.has(leaf);
             if ("remove".equals(patch.op())) {
-                if (!exists) invalidPath(prefix, patch.path());
+                if (!exists) invalidPath(prefix, path);
                 object.remove(leaf);
             } else {
-                if ("replace".equals(patch.op()) && !exists) invalidPath(prefix, patch.path());
+                if ("replace".equals(patch.op()) && !exists) {
+                    normalizations.add("PATCH_REPLACE_ABSENT_AS_ADD");
+                }
                 if (patch.value() == null) throw new BadRequestException(prefix + "_VALUE_REQUIRED",
                         patch.op() + " requires value");
                 object.set(leaf, patch.value());
@@ -87,13 +94,23 @@ public class AiRepairPatchService {
                 array.add(patch.value());
                 return;
             }
-            int index = arrayIndex(leaf, array.size(), "add".equals(patch.op()), prefix, patch.path());
+            int index = arrayIndex(leaf, array.size(), "add".equals(patch.op()), prefix, path);
             if ("remove".equals(patch.op())) array.remove(index);
             else if ("add".equals(patch.op())) array.insert(index, patch.value());
             else array.set(index, patch.value());
             return;
         }
-        invalidPath(prefix, patch.path());
+        invalidPath(prefix, path);
+    }
+
+    private String normalizeCompilerCompactPath(String path, Set<String> allowedRoots,
+                                                List<String> normalizations) {
+        if (allowedRoots.contains("stages")
+                && path.matches("^/stages/(0|[1-9][0-9]*)/verifiers(?:/.*)?$")) {
+            normalizations.add("PATCH_FINAL_VERIFIERS_TO_COMPACT_EVIDENCE");
+            return path.replaceFirst("^(/stages/(?:0|[1-9][0-9]*))/verifiers", "$1/evidence");
+        }
+        return path;
     }
 
     private JsonNode child(JsonNode parent, String token, String prefix, String path) {

@@ -187,6 +187,12 @@ the task rail displays the frozen Role Pack and test policy used by implementati
 Historical or interrupted rows whose execution strategy or test policy is still null are
 treated as an incomplete snapshot: the read-only rail remains available without enum
 conversion errors, and the next authoritative package-role use refreezes all required fields.
+Role Pack version `2026-08-dynamic-v3` first normalizes aliases into Java, Python, Node,
+and Other families. JavaScript/TypeScript cannot trigger Java, multiple labels from the
+same family remain one stack, real cross-family work selects the mixed pack, and an explicit
+unknown single stack selects the generic software pack. Each Compiler-capable pack receives
+its own stack-native planning example; document, table, and read-only report packs explicitly
+state their server-owned or Reviewer bypass instead of inheriting a software fallback example.
 
 Before a requirement revision exists, Designer must call `question` once with
 1–3 choice questions. In ordinary software mode it may then finish with empty text:
@@ -254,6 +260,17 @@ requirement revision has a shared hard ceiling of 96 model calls, but package
 content retry counters remain independent. Draft concurrency, exhausted budgets, and
 unassignable aggregation conflicts enter `WAITING_INPUT` without synchronizing
 the draft or creating a Task.
+Each Compiler repair runs in a new no-tools Session after best-effort aborting the original
+repository-reading Session. Format repair returns one complete compact object; semantic
+repair returns only the `AI_SEMANTIC_PATCH_V1` patch envelope. A current response missing
+`outcome` is a format failure and cannot fall into the legacy `status` parser, while an
+invalid patch response cannot overwrite the last valid semantic snapshot.
+Compiler's compact Stage field is `evidence`, never the final DTO field `verifiers`. A uniquely
+reversible `/stages/<n>/verifiers...` repair pointer is normalized to `evidence`, and `replace`
+of an absent model-owned object leaf is treated as `add`; both remain audited and must pass the
+full contract again. Every `JAVA_PRODUCTION` Stage retains a focused Maven/Gradle TEST even when
+its acceptance is Judge-only; full-suite/build evidence cannot replace that gate, so wiring-only
+Java stages are merged with a related tested stage or carry a focused gate with `covers:[]`.
 
 OpenCode native agents are capability-discovered for server-side role selection,
 but the compact Runtime page does not expose that diagnostic projection and the

@@ -651,7 +651,7 @@ describe('Designer draft composer', () => {
       workPackages: [{ id: 'WP-1', ordinal: 0, title: '查询能力', objective: '交付查询结果',
         dependencies: [], state: 'REVIEWING', redesignCount: 0, compilerRepairCount: 0,
         compilerPlanningRepairCount: 0, designRevision: 3, discussionRoundCount: 1,
-        rolePackId: 'software-python', rolePackVersion: '2026-08-dynamic-v2',
+        rolePackId: 'software-python', rolePackVersion: '2026-08-dynamic-v3',
         testPolicy: 'OPTIONAL', executionStrategy: 'OPEN_CODE_IMPLEMENTATION', technologies: ['python'] }],
       candidate: { syncState: 'SYNCED', discussionRevision: 2, workPackageId: 'WP-1', detail: '当前候选有效' },
     }

@@ -22,9 +22,12 @@ Decomposer 和 Compiler 新会话各只需一次机器规划调用。规划通�
 需求首先形成任务画像。Router 只提供软件、文档、数据转换、只读评审、调研、配置或
 本地维护等语义标签；服务端把标签与有界仓库事实合并，决定置信度、流程、权限、测试
 策略和最终执行方式。格式不可用或结果冲突时退回通用画像并提问，不能让首次路由失败
-终止 Designer。内置 Role Pack 以 `2026-08-dynamic-v2` 版本冻结：Java、Python、Node、
-Markdown/DOCX、表格转换、只读报告和本地维护各自组合提示，不能把 Java/Maven 示例
-注入 Python、文档或表格任务。
+终止 Designer。内置 Role Pack 以 `2026-08-dynamic-v3` 版本冻结。服务端先把同义技术标签
+归并为 Java、Python、Node 和 Other 软件族，再选择 Role Pack：`java`、`java 8` 与
+`spring boot` 仍是同一 Java 族，`javascript/typescript` 只属于 Node，只有跨族组合才是
+`software-mixed`；显式但未知的单栈使用 `software-generic`，不再回退到 Java/Maven。
+Java、Python、Node、混合栈、通用软件、Markdown/DOCX、表格转换、只读报告和本地维护
+各自组合提示，不能把其他栈或非软件流程的示例注入当前 Compiler。
 
 Router 使用独立 `ROUTER_NO_TOOLS` Session；可用时返回固定
 `TASK_PROFILE_ROUTER_V1` JSON Schema，不可用时使用同一闭集对象的 marker。它只返回
@@ -93,8 +96,10 @@ Decomposer 返回 `READY | NEEDS_INPUT | MULTI_TASK_REQUIRED`、规范目标、�
 大型流程中的 Compiler 不得返回该缺口；多项目根、超过六包和独立发布边界仍使用
 `MULTI_TASK_REQUIRED`。
 
-服务端解析一个或多个 `DS-L` 引用并保存精确原文，生成 `<WP>-AC-n`，从安全的
-Maven/Gradle 显式选择器提取测试目标，并把 `covers` 编译成验证器关联。支持的意图为：
+服务端解析一个或多个 `DS-L` 引用并保存精确原文，生成 `<WP>-AC-n`，从统一测试策略
+注册表的 Maven/Gradle/npm/pytest/unittest 显式选择器提取测试目标，并把 `covers`
+编译成验证器关联。Java 仍使用 Java 专用选择器规则，Python 与 Node 不再经过 Java
+目标解析器。支持的意图为：
 
 - 可覆盖业务条件：`FOCUSED_TEST`、`SELF_CHECK`、`HTTP_STATUS`、`JSON_PATH`、
   `BROWSER`、`DATABASE_QUERY`、`FILE_CONTENT`、`FILE_HASH`、`DOCUMENT_STRUCTURE`、
@@ -125,8 +130,23 @@ Python 脚本可使用带成功标记的 `SELF_CHECK`；文档与一次性表格
 
 无法提取唯一标准 JSON object 时使用完整紧凑对象格式修复；可解析但合同不成立时，
 模型只返回最多 16 个 `add/replace/remove` JSON Pointer 补丁。格式修复和语义修复各
-最多两次、分别持久化和展示。补丁只能修改 AI 拥有的语义字段，不能覆盖任何服务端
-派生字段；应用后必须重新运行完整提取、规范化和权威校验。
+最多两次、分别持久化和展示。每次 Compiler 修复都先终止原有工具会话，再创建
+`COMPILER_REPAIR_NO_TOOLS` 新 Session；修复只能依据服务端给出的紧凑对象、错误指针和
+有界设计证据，不能重新读仓库。Schema 模式的格式修复使用完整 Compiler Schema，语义
+修复使用独立 `AI_SEMANTIC_PATCH_V1` Schema，不能拿完整规划 Schema 约束补丁响应。
+补丁只能修改 AI 拥有的语义字段，不能覆盖 `outcome` 等服务端控制字段或任何派生字段；
+应用后必须重新运行完整提取、规范化和权威校验。
+紧凑 Compiler Stage 的证据字段固定为 `evidence`；弱模型若在补丁路径中使用最终 DTO 名
+`verifiers`，服务端只在 `/stages/<n>/verifiers...` 可唯一反推时改写为 `evidence`，并把对
+尚未出现的对象字段执行 `replace` 规范化为等价 `add`，两类纠正都写入 V28 审计。每个
+`JAVA_PRODUCTION` Stage 即使只有 Judge 条件也必须保留 `covers:[]` 的聚焦 Maven/Gradle
+TEST；`FULL_TEST`/`BUILD` 不能替代该门禁。只有完整补丁应用后再次通过全部语义、路径、
+测试和验收校验，才允许冻结结果。
+
+新 Compiler 记录默认按紧凑合同解释，只有明确含历史 `evidenceMappings` 的活动记录才走
+旧规划兼容解析。缺少 `outcome` 的对象是格式合同不匹配，不能误送入要求 `status` 的旧
+解析器。只有合法 `outcome`，且 `COMPILED` 同时包含非空 Stage 的对象才可更新语义
+快照；错误补丁信封或不完整对象不会覆盖最后一个有效快照。
 
 服务端在一次预检中汇总同一紧凑对象内的全部确定性语义问题，以错误码和精确 JSON
 Pointer 一次返回。AI 应在同一个补丁中修完全部列出问题，避免按“未覆盖 → Judge 理由

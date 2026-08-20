@@ -316,6 +316,7 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     public void setHealthy(boolean value) { healthy = value; }
     public OpenCodeModel modelForSession(String id) { return modelBySession.get(id); }
     public String promptForSession(String id) { return promptBySession.get(id); }
+    public PromptRequest promptRequestForSession(String id) { return promptRequestBySession.get(id); }
     public List<PromptCall> promptHistory() { return List.copyOf(promptHistory); }
     public void failNextPrompts(int count) { failedPrompts.set(Math.max(0, count)); }
     public void failNextStructuredPrompts(int count) { failedStructuredPrompts.set(Math.max(0, count)); }

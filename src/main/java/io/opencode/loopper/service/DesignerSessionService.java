@@ -1493,15 +1493,20 @@ public class DesignerSessionService {
                                                    OpenCodeClient.OpenCodeSession remote, String output) {
         DecompositionPlanEnvelope plan;
         try {
+            List<String> patchNormalizations = List.of();
             if (input.semanticRepairCount() > 0 && output != null && output.contains("\"patches\"")
                     && !blank(input.semanticPlanJson())) {
-                output = repairPatchService.apply(input.semanticPlanJson(), output, DECOMPOSITION_PLAN_PAYLOAD,
-                        "DECOMPOSER_SEMANTIC_PATCH", Set.of("outcome", "normalizedGoal", "globalConstraints",
-                                "workPackages", "coverage", "designGaps", "reason")).json();
+                AiRepairPatchService.Result patched = repairPatchService.apply(input.semanticPlanJson(), output,
+                        DECOMPOSITION_PLAN_PAYLOAD, "DECOMPOSER_SEMANTIC_PATCH",
+                        Set.of("outcome", "normalizedGoal", "globalConstraints", "workPackages", "coverage",
+                                "designGaps", "reason"));
+                output = patched.json();
+                patchNormalizations = patched.normalizations();
             }
             DesignRequirementRevisionRow revision = getRequirement(input.requirementRevisionId());
             AiOutputExtractor.ExtractionResult<DecompositionPlanEnvelope> extracted =
                     parseDecompositionPlan(output, revision);
+            extracted = withAdditionalNormalizations(extracted, patchNormalizations);
             plan = extracted.value();
             recordNormalization(session, DesignerActor.DECOMPOSER, extracted,
                     revision.revision(), null);
@@ -2208,16 +2213,20 @@ public class DesignerSessionService {
         String design = designMessage(workPackage).content();
         PackageCompilationPlanEnvelope plan;
         try {
+            List<String> patchNormalizations = List.of();
             if (input.semanticRepairCount() > 0 && output != null && output.contains("\"patches\"")
                     && !blank(input.semanticPlanJson())) {
-                output = repairPatchService.apply(input.semanticPlanJson(), output, COMPILATION_PLAN_PAYLOAD,
-                        "COMPILER_SEMANTIC_PATCH", Set.of("outcome", "summary", "stages", "handoffSummary",
-                                "designGaps")).json();
+                AiRepairPatchService.Result patched = repairPatchService.apply(input.semanticPlanJson(), output,
+                        COMPILATION_PLAN_PAYLOAD, "COMPILER_SEMANTIC_PATCH",
+                        Set.of("outcome", "summary", "stages", "handoffSummary", "designGaps"));
+                output = patched.json();
+                patchNormalizations = patched.normalizations();
             }
             boolean requireEvidence = "v2".equalsIgnoreCase(
                     drafts.spec(drafts.get(session.loopDraftId())).schemaVersion());
             AiOutputExtractor.ExtractionResult<PackageCompilationPlanEnvelope> extracted =
                     parsePackageCompilationPlan(output, workPackage, design, requireEvidence);
+            extracted = withAdditionalNormalizations(extracted, patchNormalizations);
             plan = extracted.value();
             recordNormalization(session, DesignerActor.COMPILER, extracted,
                     session.currentRequirementRevision(), workPackage.packageId());
@@ -2511,20 +2520,33 @@ public class DesignerSessionService {
         DesignRequirementRevisionRow revision = currentRequirement(session.id());
         if (!consumeModelCall(session, revision, "WORK_PACKAGE_MODEL_CALL_LIMIT")) return;
         try {
-            submitModelPrompt(remote, planning
+            abortQuietly(remote.id(), session.projectId());
+            ProjectRow project = projects.get(session.projectId());
+            ModelResponseMode repairMode = ModelResponseMode.valueOf(planning
+                    ? repairing.planningResponseMode() : repairing.finalResponseMode());
+            String repairSchemaId = planning && !formatRepair
+                    ? OpenCodeStructuredSchemas.AI_SEMANTIC_PATCH_V1
+                    : planning ? repairing.planningResponseSchemaId() : repairing.finalResponseSchemaId();
+            OpenCodeClient.OpenCodeSession repairRemote = openCode.createSession(Path.of(project.rootPath()),
+                    "OpenCode Loopper LoopSpec Compiler Repair " + workPackage.packageId() + " (NO_TOOLS)",
+                    responseModel(repairMode), OpenCodeClient.SessionProfile.COMPILER_REPAIR_NO_TOOLS);
+            repairing = updateCompilation(repairing, LoopSpecCompilationState.RUNNING,
+                    repairRemote.id(), "REPAIRING_" + repair + "_NO_TOOLS", repairing.repairCount(),
+                    code, safeMessage(detail), session.projectId(), repairing.compiledPackageJson());
+            submitModelPrompt(repairRemote, planning
                             ? (formatRepair
                                 ? packageCompilerPlanningRepairPrompt(repairing, workPackage,
                                     designMessage(workPackage).content(), code, detail)
                                 : packageCompilerSemanticPatchPrompt(repairing, workPackage, code, detail))
                             : packageCompilerRepairPrompt(repairing, code, detail),
                     planning ? repairing.planningResponseMode() : repairing.finalResponseMode(),
-                    planning ? repairing.planningResponseSchemaId() : repairing.finalResponseSchemaId());
+                    repairSchemaId);
             updateDesignerProjection(get(session.id()), DesignerSessionState.RUNNING, DesignWorkflowPhase.COMPILING,
                     session.externalSessionId(), session.externalSessionState(), session.designRevision(),
                     session.redesignCount(), session.currentRequirementRevision(), workPackage.packageId());
             publish(session, "STATUS", DesignerActor.COMPILER, true, "",
                     workPackage.packageId() + " 规范编译器正在进行第 " + repair + "/"
-                            + MAX_COMPILER_REPAIRS + (formatRepair ? " 次格式修复" : " 次语义补丁修复"));
+                            + MAX_COMPILER_REPAIRS + (formatRepair ? " 次无工具格式修复" : " 次无工具语义补丁修复"));
         } catch (RuntimeException failure) {
             failPackageCompilation(repairing, session, "OPENCODE_COMPILER_REPAIR_FAILED",
                     failure.getMessage(), true);
@@ -3255,15 +3277,14 @@ public class DesignerSessionService {
 
     private AiOutputExtractor.ExtractionResult<PackageCompilationPlanEnvelope> parsePackageCompilationPlan(
             String output, DesignWorkPackageRow workPackage, String design, boolean requireEvidence) {
-        if (output != null && Pattern.compile("\\\"outcome\\\"\\s*:", Pattern.CASE_INSENSITIVE)
-                .matcher(output).find()) {
+        if (!legacyPackageCompilationPlan(output)) {
             AiOutputExtractor.ExtractionResult<CompactPackageCompilationPlan> compact =
                     aiOutputExtractor.extractJson(output, COMPILATION_PLAN_PAYLOAD, "COMPILER_PLAN_OUTPUT",
                             CompactPackageCompilationPlan.class, CompactPackageCompilationPlan::normalized,
                             value -> {
                                 if (value == null || blank(value.outcome())) {
-                                    throw new BadRequestException("COMPILER_PLAN_OUTCOME_MISSING",
-                                            "Compiler semantic outcome is required");
+                                    throw new BadRequestException("COMPILER_PLAN_OUTPUT_CONTRACT_MISMATCH",
+                                            "Compiler compact planning requires outcome=COMPILED or DESIGN_INCOMPLETE");
                                 }
                             });
             CompactPlanNormalization normalized = normalizeCompactPackagePlan(compact.value());
@@ -3288,6 +3309,11 @@ public class DesignerSessionService {
                     }
                     validatePackageCompilationPlan(workPackage, design, envelope, requireEvidence);
                 });
+    }
+
+    private boolean legacyPackageCompilationPlan(String output) {
+        return output != null && Pattern.compile("\\\"evidenceMappings\\\"\\s*:", Pattern.CASE_INSENSITIVE)
+                .matcher(output).find();
     }
 
     private PackageCompilationPlanEnvelope compileCompactPackagePlan(DesignWorkPackageRow workPackage,
@@ -3348,7 +3374,9 @@ public class DesignerSessionService {
                 List<String> testCommand = focused.isEmpty() ? List.of()
                         : canonicalTestCommand(focused.getFirst().command());
                 List<String> testTargets = focused.isEmpty() ? List.of()
-                        : ProcessCommandPolicy.explicitFocusedJavaTestTargets(testCommand);
+                        : stage.implementationKind() == ImplementationKind.JAVA_PRODUCTION
+                        ? ProcessCommandPolicy.explicitFocusedJavaTestTargets(testCommand)
+                        : TestFrameworkPolicy.explicitTargets(testCommand);
                 String strategy = covering.stream().map(CompactEvidence::kind).distinct()
                         .collect(java.util.stream.Collectors.joining(", "));
                 mappings.add(new AcceptanceEvidenceMapping(stageIndex, criterionId, criterion.description(),
@@ -4372,7 +4400,8 @@ public class DesignerSessionService {
         if (code == null) return false;
         boolean extraction = code.contains("_OUTPUT_") || code.contains("_PATCH_");
         return extraction && (code.endsWith("_MISSING") || code.endsWith("_UNPARSEABLE")
-                || code.endsWith("_AMBIGUOUS") || code.endsWith("_INVALID") || code.endsWith("_TOO_LARGE"));
+                || code.endsWith("_AMBIGUOUS") || code.endsWith("_INVALID") || code.endsWith("_TOO_LARGE")
+                || code.endsWith("_MISMATCH"));
     }
 
     private TaskDecompositionRow captureDecompositionSemantic(TaskDecompositionRow row, String output) {
@@ -4403,6 +4432,12 @@ public class DesignerSessionService {
             AiOutputExtractor.ExtractionResult<CompactPackageCompilationPlan> extracted =
                     aiOutputExtractor.extractJson(output, COMPILATION_PLAN_PAYLOAD, "COMPILER_PLAN_OUTPUT",
                             CompactPackageCompilationPlan.class, CompactPackageCompilationPlan::normalized, null);
+            CompactPackageCompilationPlan semantic = extracted.value();
+            boolean legalOutcome = semantic != null && ("COMPILED".equals(semantic.outcome())
+                    || "DESIGN_INCOMPLETE".equals(semantic.outcome()));
+            if (!legalOutcome || ("COMPILED".equals(semantic.outcome()) && semantic.stages().isEmpty())) {
+                return mapper.findLoopSpecCompilation(row.id()).orElse(row);
+            }
             LoopSpecCompilationRow updated = new LoopSpecCompilationRow(row.id(), row.designerSessionId(),
                     row.designRevision(), row.state(), row.externalSessionId(), row.externalSessionState(),
                     row.repairCount(), row.sourceDesignMessageId(), row.sourceDraftVersion(), row.lastErrorCode(),
@@ -4795,7 +4830,9 @@ public class DesignerSessionService {
 
                 When the current Role Pack requires a focused
                 repository-native test, keep it in the same stage as the production behavior it proves. Tests are
-                evidence for business behavior, not a meta acceptance item.
+                evidence for business behavior, not a meta acceptance item. In Java work, never create a final
+                production wiring/demo Stage backed only by full-suite or build commands: keep a focused Maven/
+                Gradle TEST in every JAVA_PRODUCTION Stage or merge that wiring into the related tested Stage.
                 """.formatted(MachineRoleContractCatalog.card("DESIGNER") + "\n"
                         + rolePrompts.packageDesignerInstructions(taskProfiles.current(session.id()),
                         packageRole.rolePackId(), packageRole.executionStrategy(), packageRole.technologies(),
@@ -4888,11 +4925,7 @@ public class DesignerSessionService {
     }
 
     private String packageCompilerPlanningMachineContract(String packageId, WorkPackageRoleService.View profile) {
-        String example = "software-java".equals(profile.rolePackId())
-                ? "{\"outcome\":\"COMPILED\",\"summary\":\"Java package plan\",\"stages\":[{\"objective\":\"observable result\",\"implementationKind\":\"JAVA_PRODUCTION\",\"allowedPaths\":[\"src/main/java/**\",\"src/test/java/**\"],\"forbiddenPaths\":[\".env\"],\"deliverables\":[\"implementation and focused test\"],\"criteria\":[{\"description\":\"observable business result\",\"sourceRefs\":[\"DS-L001\"],\"judgeRubric\":null,\"judgeOnlyReason\":null}],\"evidence\":[{\"kind\":\"FOCUSED_TEST\",\"command\":[\"mvn\",\"-q\",\"-Dtest=ExampleFocusedTest\",\"test\"],\"covers\":[0]}],\"verificationRuntime\":null}],\"handoffSummary\":\"bounded handoff\",\"designGaps\":[]}"
-                : "software-python".equals(profile.rolePackId())
-                ? "{\"outcome\":\"COMPILED\",\"summary\":\"Python package plan\",\"stages\":[{\"objective\":\"observable script result\",\"implementationKind\":\"NON_JAVA\",\"allowedPaths\":[\"scripts/**\",\"tests/**\"],\"forbiddenPaths\":[\".env\"],\"deliverables\":[\"Python script\"],\"criteria\":[{\"description\":\"observable conversion result\",\"sourceRefs\":[\"DS-L001\"],\"judgeRubric\":null,\"judgeOnlyReason\":null}],\"evidence\":[{\"kind\":\"FOCUSED_TEST\",\"command\":[\"python3\",\"-m\",\"pytest\",\"tests/test_converter.py\"],\"covers\":[0]}],\"verificationRuntime\":null}],\"handoffSummary\":\"bounded handoff\",\"designGaps\":[]}"
-                : "Use DOCUMENT_STRUCTURE or TABULAR_DATA native evidence. Do not generate PROCESS TEST for document or one-off conversion stages.";
+        String example = rolePrompts.compilerPlanningExample(profile.rolePackId());
         return """
                 %s
                 %s
@@ -4904,7 +4937,12 @@ public class DesignerSessionService {
                 zero-based criterion indexes. FULL_TEST/BUILD/GIT_DIFF/FILE_NOT_EXISTS/JUNIT_XML are supplemental
                 and must use covers:[]. FOCUSED_TEST uses the current stack's safe direct test argv; SELF_CHECK includes
                 successMarker and must emit that marker on success; source-text searches such as grep/rg are not
-                behavior SELF_CHECK commands. Criteria contain only observable business outcomes. Code style,
+                behavior SELF_CHECK commands. Every criterion must either be covered by one native behavior evidence
+                item or provide both judgeRubric and judgeOnlyReason for a genuinely Judge-only result. Every
+                JAVA_PRODUCTION Stage must include a focused Maven/Gradle TEST even if all criteria are Judge-only;
+                that gate may use covers:[] but FULL_TEST and BUILD never replace it. Merge Java wiring/demo work into
+                the related focused-test Stage instead of emitting a production-only final Stage. Criteria contain
+                only observable business outcomes. Code style,
                 source shape, annotations, assembly shape, build success, and test success stay in deliverables or
                 supplemental evidence instead of becoming criteria. Shells, pipes, redirects, unsafe paths, fake
                 tests, and missing tests required by the frozen Role Pack are still rejected by the server validator.
@@ -5020,7 +5058,9 @@ public class DesignerSessionService {
         return """
                 The deterministic server rejected the previous Stage/evidence planning envelope. Repair the entire
                 planning result without emitting final StageSpec/verifier JSON. Do not redesign, inspect another
-                package, or use DESIGN_INCOMPLETE to escape format, mapping, or field errors.
+                package, or use DESIGN_INCOMPLETE to escape format, mapping, or field errors. This repair Session
+                has no tools: do not attempt read/glob/grep and return the complete object immediately from the
+                frozen design, source index, Role Pack contract, and exact error below.
                 Repair %d/%d. Error code: %s. Error detail: %s.
 
                 Frozen prerequisite package contracts:
@@ -5050,11 +5090,20 @@ public class DesignerSessionService {
                 The server parsed the compact Compiler object but rejected a semantic or safety contract. Return
                 only a bounded patch object with add, replace, or remove operations. Allowed roots are outcome,
                 summary, stages, handoffSummary, and designGaps. Server-derived ids, excerpts, criterionIds,
-                testTargets, verification modes, and final verifier objects are outside patch space.
+                testTargets, verification modes, and final verifier objects are outside patch space. This repair
+                Session has no tools; return the patch immediately without repository exploration.
                 Work package: %s. Error code: %s. Error detail: %s.
                 Error detail may contain several [CODE] /json/pointer entries. Repair every listed entry in this
                 single patch response; do not spend one response per error. Do not turn engineering metadata into
                 business criteria or use source-text search as a behavior SELF_CHECK.
+                Patch the compact object exactly as frozen below: its Stage evidence array is named `evidence`, not
+                the server-derived final field `verifiers`. Use paths such as /stages/3/evidence/0/path. Every
+                criterion must either be covered by one native behavior evidence item or contain both judgeRubric
+                and judgeOnlyReason. Every JAVA_PRODUCTION Stage must retain a focused Maven/Gradle TEST even when
+                its criteria are Judge-only; FULL_TEST and BUILD never satisfy that Java gate. A Java wiring/demo
+                Stage without its own focused TEST must either add the frozen repository test with covers:[] and
+                make its criterion explicitly Judge-only, or be merged into the related focused-test Stage by
+                replacing the bounded stages array. Do not invent FILE_CONTENT evidence for runtime Java behavior.
 
                 Frozen semantic object:
                 %s
@@ -6085,6 +6134,15 @@ public class DesignerSessionService {
                 detail, "NORMALIZED", requirementRevision, workPackageId);
         publish(get(session.id()), "MESSAGE", DesignerActor.VALIDATOR, true,
                 message.content(), detail);
+    }
+
+    private <T> AiOutputExtractor.ExtractionResult<T> withAdditionalNormalizations(
+            AiOutputExtractor.ExtractionResult<T> extracted, List<String> additional) {
+        if (additional == null || additional.isEmpty()) return extracted;
+        LinkedHashSet<String> categories = new LinkedHashSet<>(extracted.normalizations());
+        categories.addAll(additional);
+        return new AiOutputExtractor.ExtractionResult<>(extracted.value(), extracted.source(),
+                List.copyOf(categories), extracted.canonicalJson());
     }
 
     private void publish(DesignerSessionRow session, String type, DesignerActor actor,
