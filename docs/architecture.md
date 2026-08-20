@@ -112,12 +112,13 @@ stores intent, workflow template, mutation mode, artifact kinds, technologies, t
 policy, execution strategy, Role Pack version, confidence and bounded evidence;
 historical rows without it project as `LEGACY_SOFTWARE` and keep the previous software
 path. V38 persists every raw or complete requirement snapshot in
-`task_profile_router_run`, including the no-tool external Session, response mode, labels,
+`task_profile_router_run`, including the built-in-tool-denied external Session, response mode, labels,
 terminal error and deadline. Restart recovery polls the same Session; a replacement
 discussion aborts and supersedes the old run. The server scans only bounded, non-symlink manifest/file facts, while an independent
 `ROUTER_NO_TOOLS` OpenCode Session returns semantic labels through the fixed
 `TASK_PROFILE_ROUTER_V1` schema or marker fallback. The AI Router never owns permissions,
-commands, workflow selection, or authorization. Schema/session/output failure produces a
+commands, workflow selection, or authorization; configured MCP tools are additive only and
+cannot weaken those boundaries. Schema/session/output failure produces a
 generic decision-required profile instead of terminating the Designer. Confidence below
 80 or conflicting facts require a user decision. Profile references are copied to
 requirement/decomposition/package/Task and Recovery reuses the frozen values.
@@ -434,6 +435,28 @@ that an external model Session stopped. Archived entries remain available from
 the history endpoint but are excluded from project `openDesignerSessionCount`
 and the active recovery query; restoring removes only the archive projection.
 
+Designer task-profile confirmation is an explicit derived decision axis, not another
+workflow enum or database migration. The current profile projects
+`ROUTING / NEEDS_CONFIRMATION / CONFIRMED / FROZEN` plus `confirmationReady`. A persisted
+`USER_CONFIRMED` or historical `USER_OVERRIDE` may be carried across a complete-requirement
+reroute only when intent, primary artifact, workflow, and mutation mode are unchanged and no
+new safety conflict exists; the carry-forward source is auditable as
+`USER_CONFIRMED_CARRIED_FORWARD`. Changed decisions retain the previous choice for an explicit
+comparison and block every design-start boundary until reconfirmed.
+
+Designer cleanup adds real `STOPPING` and `CANCELLED` lifecycle states. The stop transaction
+first prevents auto-mode and monitor dispatch, then external aborts cover every active Router,
+requirement/package Designer, Decomposer, Compiler, repair/finalizer, and Reviewer Session.
+Partial failure preserves `STOPPING` and the unarchived workspace so the same local-UI request
+can retry. Complete stop terminalizes child projections, records `CANCELLED`, and archives;
+the operation never equates a local state write with an unconfirmed remote stop.
+
+Designer activity is a bounded read model over the current remote Session plus persisted
+workflow step. Interactive Designer may expose thinking/output/tool parts; structured roles
+expose tool parts only, so transport observation never leaks raw planning JSON or becomes
+lifecycle authority. The browser refreshes this projection every 1.2 seconds and tolerates
+disconnection without altering the remote Session.
+
 Machine-response roles carry an explicit non-thinking model selection only for
 steps whose persisted response mode is `JSON_SCHEMA`. Managed DeepSeek starts
 with a private `loopper-no-thinking` variant and those Schema prompts select it;
@@ -453,7 +476,7 @@ nor blocks Designer auto mode. A `RETRY` projection is not a terminal writer
 observation and therefore cannot authorize an overlapping Session.
 The adapter signs tool calls after the latest user turn using normalized tool
 name and canonical arguments. Three identical consecutive signatures trigger
-an immediate best-effort abort and, once per persisted role step, one no-tools
+an immediate best-effort abort and, once per persisted role step, one built-in-tools-disabled
 finalizer using bounded deduplicated evidence. The finalizer consumes the global
 model-call budget but not a format-repair allowance; the 24-step cap remains a
 last-resort bound for other loop shapes.

@@ -54,7 +54,7 @@ describe('TaskDesignHistoryView', () => {
     expect(api.getTaskDesignHistory).toHaveBeenCalledWith('task-1')
     expect(wrapper.text()).toContain('请保留设计历史')
     expect(wrapper.text()).toContain('历史设计方案')
-    expect(wrapper.text()).toContain('任务拆解器')
+    expect(wrapper.text()).toContain('任务规划师')
     expect(wrapper.text()).toContain('冻结后的完整需求')
     expect(wrapper.text()).toContain('模型调用 7/24')
     expect(wrapper.text()).not.toContain('WP-1')

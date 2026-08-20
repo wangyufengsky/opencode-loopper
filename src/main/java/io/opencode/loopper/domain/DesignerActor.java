@@ -2,8 +2,8 @@ package io.opencode.loopper.domain;
 
 /** Stable persisted author identity; UI rendering must not infer it from message text. */
 public enum DesignerActor implements DescribedEnum {
-    USER("用户"), ROUTER("任务画像路由器"), DECOMPOSER("任务拆解器"), DESIGNER("设计师"),
-    COMPILER("规范编译器"), REVIEWER("只读评审器"), VALIDATOR("确定性校验器"), SYSTEM("系统");
+    USER("用户"), ROUTER("需求分析师"), DECOMPOSER("任务规划师"), DESIGNER("设计师"),
+    COMPILER("规范工程师"), REVIEWER("评审员"), VALIDATOR("验收工程师"), SYSTEM("系统");
 
     private final String description;
     DesignerActor(String description) { this.description = description; }

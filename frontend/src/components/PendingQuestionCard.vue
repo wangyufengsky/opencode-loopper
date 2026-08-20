@@ -56,7 +56,7 @@ function adoptRecommendations() {
 </script>
 
 <template>
-  <section class="designer-question-card" aria-label="设计器等待回答">
+  <section class="designer-question-card" aria-label="设计师等待回答">
     <header>
       <div><span>需要你的回答</span></div>
       <Icon icon="lucide:message-square-more" width="19" />

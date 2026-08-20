@@ -220,7 +220,7 @@ public interface ReadModelMapper {
                 </when>
                 <when test="statusMode == 'FAILED'">
                   AND d.status!='CONFIRMED' AND t.id IS NULL
-                  AND (latest.state='SESSION_ERROR' OR latest.workflow_phase='FAILED')
+                  AND (latest.state IN ('SESSION_ERROR','CANCELLED') OR latest.workflow_phase='FAILED')
                 </when>
                 <when test="statusMode == 'REVIEWING'">
                   AND d.status!='CONFIRMED' AND t.id IS NULL
@@ -228,7 +228,7 @@ public interface ReadModelMapper {
                 </when>
                 <when test="statusMode == 'PROCESSING'">
                   AND d.status!='CONFIRMED' AND t.id IS NULL
-                  AND latest.state NOT IN ('WAITING_INPUT','SESSION_ERROR','REVIEWING','COMPLETED')
+                  AND latest.state NOT IN ('WAITING_INPUT','SESSION_ERROR','CANCELLED','REVIEWING','COMPLETED')
                   AND latest.workflow_phase NOT IN ('FAILED','FINAL_REVIEW','COMPLETED')
                 </when>
               </choose>

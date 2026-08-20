@@ -96,8 +96,9 @@ public class HttpOpenCodeClient implements OpenCodeClient {
             if (model != null && model.providerId() != null && !model.providerId().isBlank() && model.modelId() != null && !model.modelId().isBlank()) {
                 request.put("model", Map.of("id", model.modelId(), "providerID", model.providerId()));
             }
+            List<String> mcpServers = mcpServers(canonical);
             List<Map<String, String>> permissions = OpenCodePermissionPolicy.rules(profile == null
-                    ? SessionProfile.IMPLEMENTATION : profile);
+                    ? SessionProfile.IMPLEMENTATION : profile, mcpServers);
             request.put("permission", permissions);
             JsonNode body = client().post().uri(uri -> directoryUri(uri, "/session", canonical))
                     .contentType(MediaType.APPLICATION_JSON).body(request)
@@ -354,6 +355,27 @@ public class HttpOpenCodeClient implements OpenCodeClient {
         }
     }
 
+    private List<String> mcpServers(Path worktree) {
+        try {
+            JsonNode body = client().get().uri(uri -> directoryUri(uri, "/mcp", worktree))
+                    .retrieve().body(JsonNode.class);
+            if (body == null || !body.isObject()) {
+                throw new SessionFailure("OPENCODE_MCP_DISCOVERY_FAILED",
+                        "OpenCode 未返回有效的 MCP Server 列表");
+            }
+            List<String> servers = new ArrayList<>();
+            body.propertyStream().limit(64).forEach(entry -> {
+                String name = entry.getKey();
+                if (name != null && !name.isBlank() && name.length() <= 128) servers.add(name);
+            });
+            return List.copyOf(servers);
+        } catch (SessionFailure failure) { throw failure; }
+        catch (RuntimeException failure) {
+            throw new SessionFailure("OPENCODE_MCP_DISCOVERY_FAILED",
+                    "无法读取当前项目的 MCP Server：" + responses.bounded(failure.getMessage()));
+        }
+    }
+
     @Override public List<AgentInfo> agents() {
         try {
             JsonNode body = client().get().uri("/agent").retrieve().body(JsonNode.class);
@@ -484,7 +506,10 @@ public class HttpOpenCodeClient implements OpenCodeClient {
     }
     @Override public void abort(OpenCodeSession session) {
         try { client().post().uri(uri -> sessionUri(uri, "/session/{id}/abort", session)).retrieve().toBodilessEntity(); }
-        catch (RuntimeException e) { throw new SessionFailure("OPENCODE_ABORT_FAILED", e.getMessage()); }
+        catch (RestClientResponseException failure) {
+            if (failure.getStatusCode().value() == 404) return;
+            throw new SessionFailure("OPENCODE_ABORT_FAILED", failure.getMessage());
+        } catch (RuntimeException e) { throw new SessionFailure("OPENCODE_ABORT_FAILED", e.getMessage()); }
     }
     private static URI sessionUri(org.springframework.web.util.UriBuilder uri, String path, OpenCodeSession session) {
         return directoryUri(uri, path, session.worktree(), Map.of("id", session.id()));

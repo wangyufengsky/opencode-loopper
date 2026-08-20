@@ -20,7 +20,7 @@ const visibleMessages = computed(() => (record.value?.designerSession?.messages 
   && message.deliveryState === 'PENDING_HANDOFF'
   && !message.content.startsWith('SYSTEM_ERROR')
 )))
-const actorLabels = { USER: '你', ROUTER: '任务路由器', DECOMPOSER: '任务拆解器', DESIGNER: '设计器', COMPILER: '规范编译器', REVIEWER: '只读评审', VALIDATOR: '确定性校验器', SYSTEM: '系统' } as const
+const actorLabels = { USER: '你', ROUTER: '需求分析师', DECOMPOSER: '任务规划师', DESIGNER: '设计师', COMPILER: '规范工程师', REVIEWER: '评审员', VALIDATOR: '验收工程师', SYSTEM: '系统' } as const
 const actorIcons = { USER: 'lucide:user-round', ROUTER: 'lucide:route', DECOMPOSER: 'lucide:split', DESIGNER: 'lucide:sparkles', COMPILER: 'lucide:braces', REVIEWER: 'lucide:file-search', VALIDATOR: 'lucide:badge-check', SYSTEM: 'lucide:info' } as const
 
 async function load() {

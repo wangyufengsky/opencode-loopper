@@ -54,7 +54,7 @@ final class FakeOpenCodeResponseFactory {
             }
             java.util.Map<String, Object> envelope = new java.util.LinkedHashMap<>();
             envelope.put("status", "COMPILED");
-            envelope.put("summary", "LoopSpec 已由测试用只读规范编译器生成。");
+            envelope.put("summary", "LoopSpec 已由测试用只读规范工程师生成。");
             envelope.put("stages", stageNodes);
             envelope.put("criterionSources", sources);
             envelope.put("handoffSummary", "WP-1 已完成，可执行聚合后的后续阶段。");

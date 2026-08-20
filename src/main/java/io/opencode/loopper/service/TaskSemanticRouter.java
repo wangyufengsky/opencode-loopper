@@ -34,7 +34,7 @@ public final class TaskSemanticRouter {
         OpenCodeClient.OpenCodeSession session = null;
         try {
             OpenCodeClient.OpenCodeModel model = configuredModel();
-            session = openCode.createSession(root, "OpenCode Loopper Task Router (NO_TOOLS)", model,
+            session = openCode.createSession(root, "OpenCode Loopper Task Router (MCP_ONLY)", model,
                     OpenCodeClient.SessionProfile.ROUTER_NO_TOOLS);
             boolean schema = schemaAvailable(model);
             String prompt = prompt(requirement, repositoryEvidence, schema);
@@ -93,7 +93,8 @@ public final class TaskSemanticRouter {
 
     private String prompt(String requirement, List<String> evidence, boolean schema) {
         return """
-                You are OpenCode Loopper Task Router. You have no tools and must only classify semantics.
+                You are OpenCode Loopper Task Router. Built-in repository, shell, write, and question tools are disabled.
+                Configured MCP tools may be used when they materially improve classification; otherwise classify directly.
                 Never decide permissions, commands, workflow state, execution strategy, or whether an operation is authorized.
                 Distinguish one-off file conversion from developing a reusable converter, and distinguish read-only review
                 from a request to modify files. PACKAGED means a genuinely large multi-section artifact or several coherent

@@ -135,6 +135,8 @@ public interface LoopperDesignerMapper {
             """)
     int supersedeActiveTaskProfileRouterRuns(@Param("sessionId") String sessionId,
                                               @Param("updatedAt") String updatedAt);
+    @Update("UPDATE task_profile_router_run SET state='SUPERSEDED',external_session_state='ABORTED',updated_at=#{updatedAt},version=version+1 WHERE designer_session_id=#{sessionId} AND state IN ('PENDING','RUNNING')")
+    int stopTaskProfileRouterRuns(@Param("sessionId") String sessionId, @Param("updatedAt") String updatedAt);
     @Update("""
             UPDATE designer_task_profile SET state='SUPERSEDED',updated_at=#{updatedAt},version=version+1
             WHERE designer_session_id=#{sessionId} AND state IN ('PROVISIONAL','FROZEN')
@@ -169,6 +171,8 @@ public interface LoopperDesignerMapper {
               updated_at=#{updatedAt},version=version+1 WHERE id=#{id} AND version=#{version}
             """)
     int updateAnalysisReport(AnalysisReportRow row);
+    @Update("UPDATE analysis_report SET state='FAILED',external_session_state='ABORTED',error_code='DESIGNER_CANCELLED',error_detail='Designer session was cancelled',updated_at=#{updatedAt},version=version+1 WHERE designer_session_id=#{sessionId} AND state IN ('RUNNING','VALIDATING')")
+    int stopAnalysisReports(@Param("sessionId") String sessionId, @Param("updatedAt") String updatedAt);
     @Insert("""
             INSERT INTO artifact_plan(id,designer_session_id,task_profile_id,kind,state,plan_json,plan_sha256,
               created_at,updated_at,version)
@@ -307,6 +311,8 @@ public interface LoopperDesignerMapper {
               updated_at=#{updatedAt},version=version+1 WHERE id=#{id} AND version=#{version}
             """)
     int updateTaskDecomposition(TaskDecompositionRow row);
+    @Update("UPDATE task_decomposition SET state='SESSION_ERROR',external_session_state='ABORTED',last_error_code='DESIGNER_CANCELLED',last_error_detail='Designer session was cancelled',updated_at=#{updatedAt},version=version+1 WHERE designer_session_id=#{sessionId} AND state IN ('PENDING_HANDOFF','RUNNING','VALIDATING')")
+    int stopTaskDecompositions(@Param("sessionId") String sessionId, @Param("updatedAt") String updatedAt);
 
     @Insert("""
             INSERT INTO design_work_package(id,designer_session_id,requirement_revision_id,decomposition_id,
@@ -362,6 +368,8 @@ public interface LoopperDesignerMapper {
               updated_at=#{updatedAt},version=version+1 WHERE id=#{id} AND version=#{version}
             """)
     int updateDesignWorkPackage(DesignWorkPackageRow row);
+    @Update("UPDATE design_work_package SET state='FAILED',designer_external_session_state='ABORTED',last_error_code='DESIGNER_CANCELLED',last_error_detail='Designer session was cancelled',updated_at=#{updatedAt},version=version+1 WHERE designer_session_id=#{sessionId} AND state IN ('QUESTIONING','DESIGNING','COMPILING','VALIDATING')")
+    int stopDesignWorkPackages(@Param("sessionId") String sessionId, @Param("updatedAt") String updatedAt);
 
     @Insert("""
             INSERT INTO loop_spec_compilation(id,designer_session_id,design_revision,state,
@@ -415,6 +423,29 @@ public interface LoopperDesignerMapper {
             WHERE id=#{id} AND version=#{version}
             """)
     int updateLoopSpecCompilation(LoopSpecCompilationRow row);
+    @Update("UPDATE loop_spec_compilation SET state='SESSION_ERROR',external_session_state='ABORTED',last_error_code='DESIGNER_CANCELLED',last_error_detail='Designer session was cancelled',updated_at=#{updatedAt},version=version+1 WHERE designer_session_id=#{sessionId} AND state IN ('PENDING_HANDOFF','RUNNING')")
+    int stopLoopSpecCompilations(@Param("sessionId") String sessionId, @Param("updatedAt") String updatedAt);
+
+    @Select("""
+            SELECT external_session_id FROM designer_session
+            WHERE id=#{sessionId} AND external_session_id IS NOT NULL
+            UNION SELECT external_session_id FROM task_profile_router_run
+            WHERE designer_session_id=#{sessionId} AND state IN ('PENDING','RUNNING')
+              AND external_session_id IS NOT NULL
+            UNION SELECT external_session_id FROM task_decomposition
+            WHERE designer_session_id=#{sessionId} AND state IN ('PENDING_HANDOFF','RUNNING')
+              AND external_session_id IS NOT NULL
+            UNION SELECT designer_external_session_id FROM design_work_package
+            WHERE designer_session_id=#{sessionId} AND state IN ('QUESTIONING','DESIGNING')
+              AND designer_external_session_id IS NOT NULL
+            UNION SELECT external_session_id FROM loop_spec_compilation
+            WHERE designer_session_id=#{sessionId} AND state IN ('PENDING_HANDOFF','RUNNING')
+              AND external_session_id IS NOT NULL
+            UNION SELECT external_session_id FROM analysis_report
+            WHERE designer_session_id=#{sessionId} AND state IN ('RUNNING','VALIDATING')
+              AND external_session_id IS NOT NULL
+            """)
+    List<String> listDesignerRemoteSessionIds(@Param("sessionId") String sessionId);
 
 
 }

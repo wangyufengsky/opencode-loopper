@@ -17,7 +17,7 @@ class CodeStructureContractTest {
      * Files leave this map as soon as they are at or below the default limit.
      */
     private static final Map<String, Integer> LEGACY_RATCHET = Map.of(
-            "io/opencode/loopper/service/DesignerSessionService.java", 6_037,
+            "io/opencode/loopper/service/DesignerSessionService.java", 6_004,
             "io/opencode/loopper/service/TaskService.java", 3_000,
             "io/opencode/loopper/service/LocalSyncConflictService.java", 1_160);
 

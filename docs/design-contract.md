@@ -73,7 +73,7 @@ resource errors remain observable as HTTP 404 responses.
 - 错误提示使用中文说明“发生了什么”和可执行的下一步。错误详情、消息提示、卡片、表格和工具提示遵守同一规则；原始命令输出只允许出现在用户主动展开的审计日志中。
 - 普通页面不展示 Task、Designer Session、Session、Attempt、Draft、Work Package、Criterion 等内部记录 ID，也不展示外部 Session ID。列表和时间线使用名称、顺序、时间和中文状态区分记录；ID 仅可存在于 URL、请求参数、组件 key 和服务端审计数据中。
 - 项目登记卡片在桌面宽度最多两列，路径、描述、统计和操作必须允许换行；不得用 `nowrap` 把长项目名、路径或按钮挤在同一行。窄屏按单列自然排布。
-- 产品名和不可翻译的技术名（OpenCode、Git、GitLab、Java、HTTP、JSON 等）可以保留；流程角色和产品概念使用“任务拆解器”“设计器”“规范编译器”“会话”“尝试”等中文名称。
+- 产品名和不可翻译的技术名（OpenCode、Git、GitLab、Java、HTTP、JSON 等）可以保留；角色使用像同事的中文称谓：需求分析师、任务规划师、设计师、规范工程师、评审员、验收工程师、开发工程师，以及需求评审员、风险评审员。协议和数据库英文角色码保持不变。
 
 A Task in `WAITING_INPUT` must keep its context-specific recovery action when one
 is available and also expose a destructive, confirmed cancel action. Cancellation
@@ -141,7 +141,7 @@ locally; the server records the override and returns the authoritative Task
 state.
 
 The overall design handoff states are `PENDING_HANDOFF`, `RUNNING`, `REVIEWING`,
-`WAITING_INPUT`, `COMPLETED`, and legacy-compatible `SESSION_ERROR`. Persisted
+`WAITING_INPUT`, `STOPPING`, `CANCELLED`, `COMPLETED`, and legacy-compatible `SESSION_ERROR`. Persisted
 workflow phases include `DISCUSSING_REQUIREMENT`, `DECOMPOSING`,
 `VALIDATING_DECOMPOSITION`, `QUESTIONING_PACKAGE`, `REVIEWING_PACKAGE`,
 `AGGREGATING`, and `FINAL_REVIEW` alongside the machine-processing phases.
@@ -154,9 +154,21 @@ Before requirement confirmation, the page shows the provisional task profile,
 confidence, evidence, workflow preview, Role Pack, execution strategy and test policy.
 Task intent, artifact, workflow, execution and test-policy enum values are rendered as
 Chinese labels in the profile summary and override controls, while REST/SQLite continue
-to use the stable English enum codes.
+to use the stable English enum codes. The DTO exposes `decisionState` as
+`ROUTING / NEEDS_CONFIRMATION / CONFIRMED / FROZEN`, a server-computed
+`confirmationReady`, and an optional `previousConfirmedChoice`. Every single-package,
+large-package, report, document, or conversion start action uses `confirmationReady`; the
+browser must never derive readiness from `!decisionRequired`.
+While a complete requirement snapshot is being rerouted, the page polls every 1.2 seconds,
+shows **任务画像计算中**, and keeps design actions disabled even when the Designer Session
+itself is `REVIEWING`. An equivalent reroute safely carries forward the persisted manual
+choice and refreshes technology, Role Pack, and test policy. A changed intent, primary
+artifact, workflow mode, mutation mode, or new safety conflict displays the previous and
+new choices with **沿用我已确认的画像**, **采用新画像**, and edit actions. Internal evidence
+codes such as `router-running` are not rendered. A click concurrent with Router completion
+only refreshes the authoritative snapshot rather than raising a red toast.
 Confidence below 80 or conflicting evidence blocks ordinary-mode confirmation until a
-versioned profile override is saved. An explicitly authorized full-auto Session may accept
+versioned profile confirmation or override is saved. An explicitly authorized full-auto Session may accept
 the Router's current intent and primary artifact as an `AUTO_RECOMMENDED` decision; this
 cannot bypass unsafe-operation evidence, and a manual override remains available before
 requirement confirmation. `ROUTING_PENDING/RUNNING` is backed by a persisted Router run;
@@ -260,8 +272,9 @@ requirement revision has a shared hard ceiling of 96 model calls, but package
 content retry counters remain independent. Draft concurrency, exhausted budgets, and
 unassignable aggregation conflicts enter `WAITING_INPUT` without synchronizing
 the draft or creating a Task.
-Each Compiler repair runs in a new no-tools Session after best-effort aborting the original
-repository-reading Session. Format repair returns one complete compact object; semantic
+Each Compiler repair runs in a new built-in-tools-disabled Session after best-effort aborting the
+original repository-reading Session; configured MCP tools remain available without changing
+repository-write or command boundaries. Format repair returns one complete compact object; semantic
 repair returns only the `AI_SEMANTIC_PATCH_V1` patch envelope. A current response missing
 `outcome` is a format failure and cannot fall into the legacy `status` parser, while an
 invalid patch response cannot overwrite the last valid semantic snapshot.
@@ -379,7 +392,8 @@ and instructed to stop exploring after collecting sufficient evidence. Loopper
 also enforces the same bound from message records rather than trusting the
 OpenCode agent setting alone. Three consecutive calls with the same normalized
 tool name and arguments trigger an immediate best-effort abort and at most one
-persisted, no-tools finalizer Session for that role step. The finalizer uses
+persisted, built-in-tools-disabled finalizer Session for that role step. Configured MCP tools
+remain available under the same additive permission rule. The finalizer uses
 bounded deduplicated evidence, counts against the global model-call budget, and
 does not consume format-repair budget; the 24-step cap remains the final safety
 net. For Decomposer
@@ -451,6 +465,25 @@ next-Attempt prompt template. Saving or confirming an aggregated package draft
 must not flatten its Stage mapping; the server rejects removal, reordering, or
 reassignment of an existing package mapping, and confirmation also verifies
 that every approved package remains represented in dependency order.
+
+The Designer activity panel polls `GET /activity` every 1.2 seconds and follows new content
+unless the user has scrolled away. For the interactive Designer it renders bounded thinking,
+incremental output, and ordinary/MCP tool calls with name, status, arguments, and output.
+Structured roles render only tool activity and their authoritative step; raw Router,
+Decomposer, Compiler, Reviewer, repair, finalizer, or Judge JSON is never shown. Reconnect
+keeps the last observed fragments and deduplicates stable part IDs.
+
+After final design confirmation returns a Task ID, the page marks that navigation as committed,
+clears the Designer workspace pointer and unsent input, skips the unsaved-design leave warning,
+and opens Task detail. The left navigation's next **设计** visit therefore opens the new-design
+page; the confirmed design remains available only as read-only history. Manual navigation with
+dirty unsent or unconfirmed design still uses the leave warning.
+
+**清理并重新开始** calls the local-UI stop endpoint before clearing browser state. While the
+server is `STOPPING`, the composer and dispatch controls remain disabled. The page clears the
+workspace only after the server reports both `CANCELLED` and archived; a partial remote-stop
+failure keeps the current design visible, reports the failed count, and offers the same action
+again. Repeated stop calls are idempotent.
 
 Task detail groups Stage progress by `workPackageId` and displays the independent
 attempt pool. Historical design restores the frozen requirement, Decomposer

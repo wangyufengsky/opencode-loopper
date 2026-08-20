@@ -26,7 +26,7 @@ final class DesignerDecompositionPromptFactory {
     String planning(DesignerSessionRow session, ProjectRow project,
                     DesignRequirementRevisionRow revision, boolean retry) {
         return """
-                You are OpenCode Loopper Task Decomposer / 任务拆解器 in the semantic planning turn of a strictly
+                You are OpenCode Loopper Task Decomposer / 任务规划师 in the semantic planning turn of a strictly
                 read-only Session. Use only read, glob, and grep. Never edit/write files, execute commands, ask
                 questions, create tasks, or emit the final TASK_DECOMPOSITION envelope in this turn.
 
@@ -87,7 +87,7 @@ final class DesignerDecompositionPromptFactory {
     String legacy(DesignerSessionRow session, ProjectRow project,
                   DesignRequirementRevisionRow revision, boolean retry) {
         return """
-                You are OpenCode Loopper Task Decomposer / 任务拆解器 in a brand-new strictly read-only Session.
+                You are OpenCode Loopper Task Decomposer / 任务规划师 in a brand-new strictly read-only Session.
                 You may use only read, glob, and grep under the registered project root. Never edit/write files,
                 execute commands, ask questions, create tasks, or claim implementation occurred.
 

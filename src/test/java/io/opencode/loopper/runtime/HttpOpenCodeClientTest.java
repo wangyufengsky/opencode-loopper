@@ -35,6 +35,7 @@ class HttpOpenCodeClientTest {
     private final AtomicReference<String> permissionActionBody = new AtomicReference<>();
     private final AtomicReference<String> todoBody = new AtomicReference<>("[]");
     private final AtomicReference<String> sessionActionBody = new AtomicReference<>();
+    private final AtomicReference<String> mcpBody = new AtomicReference<>("{}");
     private final AtomicReference<String> promptBody = new AtomicReference<>();
     private final AtomicReference<String> createResponseDirectory = new AtomicReference<>();
     private final AtomicLong responseDelayMillis = new AtomicLong();
@@ -49,6 +50,7 @@ class HttpOpenCodeClientTest {
         server.createContext("/question", this::question);
         server.createContext("/permission", this::permission);
         server.createContext("/experimental/tool/ids", exchange -> reply(exchange, "[\"read\",\"todowrite\"]"));
+        server.createContext("/mcp", exchange -> reply(exchange, mcpBody.get()));
         server.createContext("/agent", exchange -> reply(exchange,
                 "[{\"name\":\"build\",\"mode\":\"primary\"},{\"name\":\"plan\",\"mode\":\"primary\"}]"));
         server.start();
@@ -102,8 +104,10 @@ class HttpOpenCodeClientTest {
         properties.getOpenCode().setBaseUrl(new java.net.URI("http://127.0.0.1:" + server.getAddress().getPort()));
         HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(), properties);
 
+        mcpBody.set("{\"gitlab internal\":{\"status\":\"connected\"}}");
         client.createSession(worktree, "router", null, OpenCodeClient.SessionProfile.ROUTER_NO_TOOLS);
         assertThat(createBody.get()).contains("\"permission\":\"*\"").contains("\"action\":\"deny\"")
+                .contains("\"permission\":\"gitlab_internal_*\"")
                 .doesNotContain("\"permission\":\"glob\"")
                 .doesNotContain("\"permission\":\"grep\"")
                 .doesNotContain("\"permission\":\"question\"");
@@ -111,6 +115,7 @@ class HttpOpenCodeClientTest {
         client.createSession(worktree, "compiler repair", null,
                 OpenCodeClient.SessionProfile.COMPILER_REPAIR_NO_TOOLS);
         assertThat(createBody.get()).contains("\"permission\":\"*\"").contains("\"action\":\"deny\"")
+                .contains("\"permission\":\"gitlab_internal_*\"")
                 .doesNotContain("\"permission\":\"read\",\"action\":\"allow\",\"pattern\":\"*\"")
                 .doesNotContain("\"permission\":\"glob\"")
                 .doesNotContain("\"permission\":\"grep\"")
@@ -127,6 +132,22 @@ class HttpOpenCodeClientTest {
                 .contains("*launchctl*")
                 .contains("*brew*services*")
                 .contains("rm *", "unlink *", "rmdir *");
+    }
+
+    @Test
+    void refusesToCreateAnyRoleSessionWhenMcpDiscoveryIsInvalid() throws Exception {
+        LoopperProperties properties = new LoopperProperties();
+        properties.getOpenCode().setBaseUrl(new java.net.URI("http://127.0.0.1:" + server.getAddress().getPort()));
+        HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(), properties);
+        mcpBody.set("[]");
+
+        assertThatThrownBy(() -> client.createSession(worktree, "router", null,
+                OpenCodeClient.SessionProfile.ROUTER_NO_TOOLS))
+                .isInstanceOfSatisfying(SessionFailure.class, failure -> {
+                    assertThat(failure.code()).isEqualTo("OPENCODE_MCP_DISCOVERY_FAILED");
+                    assertThat(failure.getMessage()).contains("MCP Server");
+                });
+        assertThat(createBody.get()).isNull();
     }
 
     @Test
@@ -327,7 +348,7 @@ class HttpOpenCodeClientTest {
                 + "{\"info\":{\"id\":\"message-user\",\"role\":\"user\"},\"parts\":[{\"type\":\"text\",\"text\":\"prompt\"}]},"
                 + "{\"info\":{\"id\":\"message-assistant\",\"role\":\"assistant\",\"time\":{\"created\":1785836900057,\"completed\":1785836902200}},\"parts\":["
                 + "{\"id\":\"reason-1\",\"type\":\"reasoning\",\"text\":\"Inspecting the project\",\"time\":{\"start\":1785836901408}},"
-                + "{\"id\":\"tool-1\",\"type\":\"tool\",\"tool\":\"read\",\"state\":{\"status\":\"completed\",\"title\":\"Read pom.xml\",\"time\":{\"start\":1785836902020}}},"
+                + "{\"id\":\"tool-1\",\"type\":\"tool\",\"tool\":\"read\",\"state\":{\"status\":\"completed\",\"title\":\"Read pom.xml\",\"input\":{\"filePath\":\"pom.xml\"},\"output\":\"project source\",\"time\":{\"start\":1785836902020}}},"
                 + "{\"id\":\"text-1\",\"type\":\"text\",\"text\":\"Implementation is in progress\",\"time\":{\"start\":1785836902100}}]}]");
 
         OpenCodeClient.SessionTranscript transcript = client.sessionTranscript(session);
@@ -336,6 +357,7 @@ class HttpOpenCodeClientTest {
                 .containsExactly("THINKING", "TOOL", "OUTPUT");
         assertThat(transcript.parts().get(0).content()).isEqualTo("Inspecting the project");
         assertThat(transcript.parts().get(1).label()).isEqualTo("read");
+        assertThat(transcript.parts().get(1).content()).contains("参数", "pom.xml", "输出", "project source");
         assertThat(transcript.parts().get(2).content()).isEqualTo("Implementation is in progress");
         assertThat(transcript.parts()).extracting(OpenCodeClient.SessionPart::startedAt)
                 .containsExactly("2026-08-04T09:48:21.408Z", "2026-08-04T09:48:22.020Z", "2026-08-04T09:48:22.100Z");

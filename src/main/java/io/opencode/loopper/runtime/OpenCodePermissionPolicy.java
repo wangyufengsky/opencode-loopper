@@ -9,11 +9,16 @@ final class OpenCodePermissionPolicy {
     private OpenCodePermissionPolicy() { }
 
     static List<Map<String, String>> rules(OpenCodeClient.SessionProfile profile) {
+        return rules(profile, List.of());
+    }
+
+    static List<Map<String, String>> rules(OpenCodeClient.SessionProfile profile, List<String> mcpServers) {
         if (profile != OpenCodeClient.SessionProfile.IMPLEMENTATION) {
             List<Map<String, String>> rules = new ArrayList<>();
             rules.add(rule("*", "*", "deny"));
             if (isNoTools(profile)) {
                 rules.add(rule("external_directory", "*", "deny"));
+                allowMcp(rules, mcpServers);
                 return List.copyOf(rules);
             }
             rules.add(rule("read", "*", "allow"));
@@ -26,9 +31,10 @@ final class OpenCodePermissionPolicy {
             rules.add(rule("read", ".env.*", "deny"));
             rules.add(rule("read", ".env.example", "allow"));
             rules.add(rule("external_directory", "*", "deny"));
+            allowMcp(rules, mcpServers);
             return List.copyOf(rules);
         }
-        return List.of(
+        List<Map<String, String>> rules = new ArrayList<>(List.of(
                 rule("external_directory", "*", "deny"),
                 rule("bash", "*git*commit*", "deny"),
                 rule("bash", "*git*commit-tree*", "deny"),
@@ -57,13 +63,26 @@ final class OpenCodePermissionPolicy {
                 rule("bash", "*service*start*", "deny"),
                 rule("bash", "*service*stop*", "deny"),
                 rule("bash", "*service*restart*", "deny"),
-                rule("todowrite", "*", "allow"));
+                rule("todowrite", "*", "allow")));
+        allowMcp(rules, mcpServers);
+        return List.copyOf(rules);
     }
 
     private static boolean isNoTools(OpenCodeClient.SessionProfile profile) {
         return profile == OpenCodeClient.SessionProfile.MACHINE_FINALIZER_NO_TOOLS
                 || profile == OpenCodeClient.SessionProfile.COMPILER_REPAIR_NO_TOOLS
                 || profile == OpenCodeClient.SessionProfile.ROUTER_NO_TOOLS;
+    }
+
+    private static void allowMcp(List<Map<String, String>> rules, List<String> servers) {
+        if (servers == null) return;
+        servers.stream().filter(java.util.Objects::nonNull).map(OpenCodePermissionPolicy::sanitize)
+                .filter(value -> !value.isBlank()).distinct()
+                .forEach(server -> rules.add(rule(server + "_*", "*", "allow")));
+    }
+
+    private static String sanitize(String value) {
+        return value.replaceAll("[^a-zA-Z0-9_-]", "_");
     }
 
     private static Map<String, String> rule(String permission, String pattern, String action) {

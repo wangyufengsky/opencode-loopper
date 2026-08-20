@@ -41,7 +41,7 @@ public final class RolePackRegistry {
                     ExecutionStrategy.SERVER_TABULAR_CONVERSION, TestPolicy.NOT_APPLICABLE);
         }
         if (EnumSet.of(TaskIntent.READ_ONLY_REVIEW, TaskIntent.RESEARCH).contains(intent)) {
-            return new RolePack("read-only-report", VERSION, "只读评审器",
+            return new RolePack("read-only-report", VERSION, "评审员",
                     ExecutionStrategy.READ_ONLY_REPORT, TestPolicy.NOT_APPLICABLE);
         }
         return new RolePack("local-maintenance", VERSION, "本地维护设计师",

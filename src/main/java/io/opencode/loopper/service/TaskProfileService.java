@@ -106,6 +106,7 @@ public class TaskProfileService {
         for (TaskProfileRouterRunRow run : mapper.listActiveTaskProfileRouterRuns()) {
             try {
                 DesignerSessionRow session = session(run.designerSessionId());
+                if (stopping(session)) continue;
                 Path root = Path.of(projects.get(session.projectId()).rootPath());
                 if (Instant.now().isAfter(Instant.parse(run.createdAt()).plusSeconds(30))) {
                     semanticRouter.abort(root, run.externalSessionId());
@@ -188,16 +189,22 @@ public class TaskProfileService {
         if (labels == null) routingEvidence.add("router-error=" + errorCode + ":" + errorDetail);
         RolePackRegistry.RolePack pack = rolePacks.resolve(decision.intent(), decision.technologies(), decision.artifactKinds());
         TestPolicy testPolicy = effectiveTestPolicy(pack.defaultTestPolicy(), decision.intent(), decision.technologies(), routingEvidence);
+        ConfirmedChoice previous = previousConfirmedChoice(run.designerSessionId(), null);
+        boolean safeToCarry = previous != null && !routingEvidence.contains("unsafe-operation-conflict")
+                && previous.matches(decision);
+        boolean decisionRequired = previous != null ? !safeToCarry : decision.decisionRequired();
+        if (safeToCarry) routingEvidence.add("user-confirmed-carried-forward");
         String now = Instant.now().toString();
         DesignerTaskProfileRow row = new DesignerTaskProfileRow(UUID.randomUUID().toString(), run.designerSessionId(), null,
                 "PROVISIONAL", decision.intent().name(), decision.workflowTemplate().name(),
                 decision.mutationMode().name(), write(decision.artifactKinds()), write(decision.technologies()),
                 testPolicy.name(), pack.executionStrategy().name(), pack.id(), pack.version(), decision.confidence(),
-                write(routingEvidence), explicitWorkflow != null
-                        ? preservedWorkflowEvidence.startsWith(SOFTWARE_WORKFLOW_EVIDENCE_PREFIX)
-                                ? "USER_OVERRIDE" : "HISTORICAL_WORKFLOW_PRESERVED"
-                        : labels != null ? "AI_ROUTER" : "ROUTER_FALLBACK",
-                decision.decisionRequired() ? 1 : 0, now, now, 0);
+                write(routingEvidence), safeToCarry ? "USER_CONFIRMED_CARRIED_FORWARD"
+                        : explicitWorkflow != null
+                            ? preservedWorkflowEvidence.startsWith(SOFTWARE_WORKFLOW_EVIDENCE_PREFIX)
+                                    ? "USER_OVERRIDE" : "HISTORICAL_WORKFLOW_PRESERVED"
+                            : labels != null ? "AI_ROUTER" : "ROUTER_FALLBACK",
+                decisionRequired ? 1 : 0, now, now, 0);
         if (mapper.insertDesignerTaskProfile(row) != 1) throw new ConflictException("TASK_PROFILE_CREATE_CONFLICT", "任务画像未能持久化");
         return view(row);
     }
@@ -207,7 +214,7 @@ public class TaskProfileService {
         return mapper.findCurrentDesignerTaskProfile(sessionId).map(this::view).orElseGet(() ->
                 mapper.findLatestTaskProfileRouterRun(sessionId)
                         .filter(run -> "PENDING".equals(run.state()) || "RUNNING".equals(run.state()))
-                        .map(run -> routing(run.state())).orElseGet(this::legacy));
+                        .map(run -> routing(sessionId)).orElseGet(() -> legacy(sessionId)));
     }
 
     public WorkflowTemplate workflowTemplateIncludingSuperseded(String sessionId) {
@@ -241,15 +248,26 @@ public class TaskProfileService {
         MutationMode mutation = mutation(intent);
         RolePackRegistry.RolePack pack = rolePacks.resolve(intent, technologies, List.of(primaryArtifact));
         TestPolicy testPolicy = effectiveTestPolicy(pack.defaultTestPolicy(), intent, technologies, readStrings(current.evidenceJson()));
+        List<String> evidence = new java.util.ArrayList<>(readStrings(current.evidenceJson()));
+        evidence.removeIf(value -> value.startsWith("manual-override"));
+        evidence.add("manual-override");
         DesignerTaskProfileRow updated = new DesignerTaskProfileRow(current.id(), current.designerSessionId(), null,
                 current.state(), intent.name(), workflow.name(), mutation.name(), write(List.of(primaryArtifact)),
                 current.technologiesJson(), testPolicy.name(), pack.executionStrategy().name(), pack.id(), pack.version(),
-                100, write(List.of("manual-override")), "USER_OVERRIDE", 0, current.createdAt(), Instant.now().toString(), current.version());
+                100, write(evidence), "USER_OVERRIDE", 0, current.createdAt(), Instant.now().toString(), current.version());
         if (mapper.updateDesignerTaskProfile(updated) != 1) throw new ConflictException("TASK_PROFILE_VERSION_CONFLICT", "任务画像已被并发更新");
         return current(sessionId);
     }
 
     public View acceptRecommendation(String sessionId, long expectedVersion) {
+        return confirmRecommendation(sessionId, expectedVersion, false);
+    }
+
+    public View confirmRecommendation(String sessionId, long expectedVersion) {
+        return confirmRecommendation(sessionId, expectedVersion, true);
+    }
+
+    private View confirmRecommendation(String sessionId, long expectedVersion, boolean userConfirmed) {
         DesignerTaskProfileRow current = mapper.findCurrentDesignerTaskProfile(sessionId)
                 .orElseThrow(() -> new NotFoundException("Task profile not found for Designer session: " + sessionId));
         if (!"PROVISIONAL".equals(current.state())) {
@@ -258,18 +276,19 @@ public class TaskProfileService {
         if (current.version() != expectedVersion) {
             throw new ConflictException("TASK_PROFILE_VERSION_CONFLICT", "任务画像已被并发更新");
         }
-        if (current.decisionRequired() == 0) return view(current);
+        if (current.decisionRequired() == 0 && !userConfirmed) return view(current);
         List<String> evidence = new java.util.ArrayList<>(readStrings(current.evidenceJson()));
         if (evidence.contains("unsafe-operation-conflict")) {
             throw new BadRequestException("UNSAFE_MAINTENANCE_OUT_OF_SCOPE",
                     "当前版本不接受删除、服务启停、提交推送、发布或外部系统写入，不能由全自动确认绕过此边界");
         }
-        evidence.add("auto-recommended-profile");
+        evidence.add(userConfirmed ? "user-confirmed-profile" : "auto-recommended-profile");
         DesignerTaskProfileRow updated = new DesignerTaskProfileRow(current.id(), current.designerSessionId(),
                 current.requirementRevisionId(), current.state(), current.intent(), current.workflowTemplate(),
                 current.mutationMode(), current.artifactKindsJson(), current.technologiesJson(), current.testPolicy(),
                 current.executionStrategy(), current.rolePackId(), current.rolePackVersion(), current.confidence(),
-                write(evidence), "AUTO_RECOMMENDED", 0, current.createdAt(), Instant.now().toString(), current.version());
+                write(evidence), userConfirmed ? "USER_CONFIRMED" : "AUTO_RECOMMENDED", 0,
+                current.createdAt(), Instant.now().toString(), current.version());
         if (mapper.updateDesignerTaskProfile(updated) != 1) {
             throw new ConflictException("TASK_PROFILE_VERSION_CONFLICT", "任务画像已被并发更新");
         }
@@ -296,7 +315,7 @@ public class TaskProfileService {
         return transactions.execute(status -> {
             DesignerTaskProfileRow current = mapper.findCurrentDesignerTaskProfile(sessionId)
                     .orElseThrow(() -> new ConflictException("TASK_PROFILE_MISSING", "确认需求前必须完成任务画像识别"));
-            if (current.decisionRequired() == 1) throw new ConflictException("TASK_PROFILE_DECISION_REQUIRED", "任务类型存在歧义，请先确认任务画像");
+            if (!confirmationReady(current)) throw new ConflictException("TASK_PROFILE_DECISION_REQUIRED", "任务画像尚未确认，请先在画像卡片确认当前选择");
             if ("FROZEN".equals(current.state())) return view(current);
             DesignerTaskProfileRow frozen = new DesignerTaskProfileRow(current.id(), current.designerSessionId(),
                     current.requirementRevisionId(), "FROZEN", current.intent(), current.workflowTemplate(), current.mutationMode(),
@@ -397,6 +416,9 @@ public class TaskProfileService {
     private DesignerSessionRow session(String id) {
         return mapper.findDesignerSession(id).orElseThrow(() -> new NotFoundException("Designer session not found: " + id));
     }
+    private boolean stopping(DesignerSessionRow session) {
+        return "STOPPING".equals(session.state()) || "CANCELLED".equals(session.state());
+    }
     private String write(Object value) {
         try { return json.writeValueAsString(value); }
         catch (Exception failure) { throw new IllegalStateException("Unable to persist task profile", failure); }
@@ -409,32 +431,73 @@ public class TaskProfileService {
         List<ArtifactKind> artifacts;
         try { artifacts = json.readValue(row.artifactKindsJson(), new TypeReference<>() { }); }
         catch (Exception ignored) { artifacts = List.of(ArtifactKind.OTHER); }
-        return new View(row.id(), row.state(), TaskIntent.valueOf(row.intent()), WorkflowTemplate.valueOf(row.workflowTemplate()),
+        String decisionState = "FROZEN".equals(row.state()) ? "FROZEN"
+                : row.decisionRequired() == 1 ? "NEEDS_CONFIRMATION" : "CONFIRMED";
+        boolean ready = confirmationReady(row);
+        return new View(row.id(), row.state(), decisionState, ready,
+                TaskIntent.valueOf(row.intent()), WorkflowTemplate.valueOf(row.workflowTemplate()),
                 MutationMode.valueOf(row.mutationMode()), artifacts, readStrings(row.technologiesJson()),
                 TestPolicy.valueOf(row.testPolicy()), ExecutionStrategy.valueOf(row.executionStrategy()),
                 row.rolePackId(), row.rolePackVersion(), row.confidence(), readStrings(row.evidenceJson()),
                 row.resolutionSource(), row.decisionRequired() == 1,
                 TaskIntent.SOFTWARE_CHANGE.name().equals(row.intent())
-                        && WorkflowTemplate.FULL_PACKAGE_DESIGN.name().equals(row.workflowTemplate()), row.version());
+                        && WorkflowTemplate.FULL_PACKAGE_DESIGN.name().equals(row.workflowTemplate()),
+                ready ? null : previousConfirmedChoice(row.designerSessionId(), row.id()), row.version());
     }
-    private View legacy() {
-        return new View(null, "LEGACY", TaskIntent.LEGACY_SOFTWARE, WorkflowTemplate.FULL_PACKAGE_DESIGN,
+    private View legacy(String sessionId) {
+        return new View(null, "LEGACY", "CONFIRMED", true,
+                TaskIntent.LEGACY_SOFTWARE, WorkflowTemplate.FULL_PACKAGE_DESIGN,
                 MutationMode.WRITE_CODE, List.of(ArtifactKind.SOURCE_CODE), List.of(), TestPolicy.REQUIRED,
                 ExecutionStrategy.OPEN_CODE_IMPLEMENTATION, "software-java", "legacy", 0,
-                List.of("historical-session-without-profile"), "LEGACY", false, false, 0);
+                List.of("historical-session-without-profile"), "LEGACY", false, false, null, 0);
     }
 
-    private View routing(String state) {
-        return new View(null, "ROUTING_" + state, TaskIntent.SOFTWARE_CHANGE,
+    private View routing(String sessionId) {
+        ConfirmedChoice previous = previousConfirmedChoice(sessionId, null);
+        return new View(null, "ROUTING", "ROUTING", false, TaskIntent.SOFTWARE_CHANGE,
                 WorkflowTemplate.DIRECT_SOFTWARE_DESIGN, MutationMode.WRITE_CODE,
                 List.of(ArtifactKind.SOURCE_CODE), List.of(), TestPolicy.OPTIONAL,
                 ExecutionStrategy.OPEN_CODE_IMPLEMENTATION, "routing", "pending", 0,
-                List.of("router-running"), "ROUTER", false, false, 0);
+                List.of(), "ROUTER", true, false, previous, 0);
     }
 
-    public record View(String id, String state, TaskIntent intent, WorkflowTemplate workflowTemplate,
+    private boolean confirmationReady(DesignerTaskProfileRow row) {
+        return "FROZEN".equals(row.state()) || ("PROVISIONAL".equals(row.state()) && row.decisionRequired() == 0);
+    }
+
+    private ConfirmedChoice previousConfirmedChoice(String sessionId, String excludeId) {
+        return mapper.listDesignerTaskProfiles(sessionId).stream()
+                .filter(row -> excludeId == null || !excludeId.equals(row.id()))
+                .filter(row -> java.util.Set.of("USER_CONFIRMED", "USER_OVERRIDE",
+                        "USER_CONFIRMED_CARRIED_FORWARD").contains(row.resolutionSource()))
+                .map(this::choice).findFirst().orElse(null);
+    }
+
+    private ConfirmedChoice choice(DesignerTaskProfileRow row) {
+        List<ArtifactKind> artifacts;
+        try { artifacts = json.readValue(row.artifactKindsJson(), new TypeReference<>() { }); }
+        catch (Exception ignored) { artifacts = List.of(ArtifactKind.OTHER); }
+        WorkflowTemplate workflow = WorkflowTemplate.valueOf(row.workflowTemplate());
+        return new ConfirmedChoice(TaskIntent.valueOf(row.intent()), artifacts.isEmpty() ? ArtifactKind.OTHER : artifacts.getFirst(),
+                workflow, MutationMode.valueOf(row.mutationMode()), workflow == WorkflowTemplate.FULL_PACKAGE_DESIGN,
+                row.resolutionSource());
+    }
+
+    public record ConfirmedChoice(TaskIntent intent, ArtifactKind primaryArtifactKind,
+                                  WorkflowTemplate workflowTemplate, MutationMode mutationMode,
+                                  boolean largeTaskMode, String resolutionSource) {
+        private boolean matches(TaskProfileRouter.Decision decision) {
+            ArtifactKind primary = decision.artifactKinds().isEmpty() ? ArtifactKind.OTHER : decision.artifactKinds().getFirst();
+            return intent == decision.intent() && primaryArtifactKind == primary
+                    && workflowTemplate == decision.workflowTemplate() && mutationMode == decision.mutationMode();
+        }
+    }
+
+    public record View(String id, String state, String decisionState, boolean confirmationReady,
+                       TaskIntent intent, WorkflowTemplate workflowTemplate,
                        MutationMode mutationMode, List<ArtifactKind> artifactKinds, List<String> technologies,
                        TestPolicy testPolicy, ExecutionStrategy executionStrategy, String rolePackId,
                        String rolePackVersion, int confidence, List<String> evidence, String resolutionSource,
-                       boolean decisionRequired, boolean largeTaskMode, long version) { }
+                       boolean decisionRequired, boolean largeTaskMode, ConfirmedChoice previousConfirmedChoice,
+                       long version) { }
 }

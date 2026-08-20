@@ -117,4 +117,20 @@ describe('DesignerHistoryView', () => {
     await card.get('button').trigger('click')
     expect(routerPush).toHaveBeenCalledWith('/tasks/task-completed/design')
   })
+
+  it('keeps a stopped and archived design as a read-only cancelled record', async () => {
+    vi.spyOn(api, 'listDesignerHistoryPage').mockResolvedValue({ items: [
+      design({ id: 'designer-cancelled', state: 'CANCELLED', workflowPhase: 'FAILED', archived: true }),
+    ], facets: {} })
+
+    const wrapper = mountHistory()
+    await flushPromises()
+
+    const card = wrapper.get('.history-card:not(.skeleton-block)')
+    expect(card.text()).toContain('已取消')
+    expect(card.text()).toContain('只读记录')
+    expect(card.text()).not.toContain('继续')
+    expect(card.text()).not.toContain('修改')
+    expect(card.text()).not.toContain('恢复')
+  })
 })

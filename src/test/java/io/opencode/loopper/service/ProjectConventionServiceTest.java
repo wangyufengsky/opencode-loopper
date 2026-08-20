@@ -276,7 +276,7 @@ class ProjectConventionServiceTest {
     }
 
     @Test
-    void repeatedToolLoopAbortsAndUsesOnlyOnePersistedNoToolFinalizer() throws Exception {
+    void repeatedToolLoopAbortsAndUsesOnlyOnePersistedMcpOnlyFinalizer() throws Exception {
         Path root = Files.createDirectory(temp.resolve("tool-loop-project"));
         ProjectRow project = projects.create("tool-loop-project", root.toString());
         FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
@@ -290,12 +290,12 @@ class ProjectConventionServiceTest {
         ProjectConventionDraftRow finalizing = conventions.get(project.id(), running.id());
         assertThat(finalizing.state()).isEqualTo(ProjectConventionState.RUNNING.name());
         assertThat(finalizing.externalSessionId()).isNotEqualTo(failedSessionId);
-        assertThat(finalizing.normalizationNotice()).contains("无工具 Finalizer");
+        assertThat(finalizing.normalizationNotice()).contains("MCP-only 收口会话");
         assertThat(fake.abortedSessionIds()).contains(failedSessionId);
         assertThat(fake.profileForSession(finalizing.externalSessionId()))
                 .isEqualTo(OpenCodeClient.SessionProfile.MACHINE_FINALIZER_NO_TOOLS);
         assertThat(fake.promptForSession(finalizing.externalSessionId()))
-                .contains("FINALIZER RECOVERY", "Do not call any tool");
+                .contains("FINALIZER RECOVERY", "Do not call built-in tools", "Configured MCP tools remain allowed");
 
         conventions.pollActiveGenerations();
         assertThat(conventions.get(project.id(), running.id()).state())

@@ -225,7 +225,14 @@ public final class LifecycleRegistry {
                 .transition(DesignerSessionState.RUNNING, REQUIRE_REVIEW, DesignerSessionState.REVIEWING)
                 .transition(DesignerSessionState.REVIEWING, COMPLETE, DesignerSessionState.COMPLETED)
                 .transition(DesignerSessionState.RUNNING, COMPLETE, DesignerSessionState.COMPLETED)
-                .transition(DesignerSessionState.RUNNING, SESSION_FAIL, DesignerSessionState.SESSION_ERROR).build();
+                .transition(DesignerSessionState.RUNNING, SESSION_FAIL, DesignerSessionState.SESSION_ERROR)
+                .transition(DesignerSessionState.PENDING_HANDOFF, CANCEL, DesignerSessionState.STOPPING)
+                .transition(DesignerSessionState.RUNNING, CANCEL, DesignerSessionState.STOPPING)
+                .transition(DesignerSessionState.REVIEWING, CANCEL, DesignerSessionState.STOPPING)
+                .transition(DesignerSessionState.WAITING_INPUT, CANCEL, DesignerSessionState.STOPPING)
+                .transition(DesignerSessionState.COMPLETED, CANCEL, DesignerSessionState.STOPPING)
+                .transition(DesignerSessionState.SESSION_ERROR, CANCEL, DesignerSessionState.STOPPING)
+                .transition(DesignerSessionState.STOPPING, FINISH, DesignerSessionState.CANCELLED).build();
     }
 
     private static FiniteStateMachine<DesignerAutoModeState, LifecycleEvent> designerAutoMode() {

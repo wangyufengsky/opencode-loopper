@@ -864,7 +864,7 @@ export interface DesignerMessage {
   createdAt: string
 }
 
-export type DesignerSessionState = 'PENDING_HANDOFF' | 'RUNNING' | 'REVIEWING' | 'WAITING_INPUT' | 'COMPLETED' | 'SESSION_ERROR'
+export type DesignerSessionState = 'PENDING_HANDOFF' | 'RUNNING' | 'REVIEWING' | 'WAITING_INPUT' | 'COMPLETED' | 'SESSION_ERROR' | 'STOPPING' | 'CANCELLED'
 export type DesignWorkflowPhase = 'ROUTING' | 'DISCUSSING_REQUIREMENT' | 'DECOMPOSING' | 'VALIDATING_DECOMPOSITION' | 'DESIGNING' | 'COMPILING' | 'VALIDATING' | 'REDESIGNING' | 'QUESTIONING_PACKAGE' | 'REVIEWING_PACKAGE' | 'AGGREGATING' | 'FINAL_REVIEW' | 'GENERATING_REPORT' | 'VALIDATING_REPORT' | 'REPORT_READY' | 'COMPLETED' | 'FAILED'
 export type DesignerActor = DesignerMessage['actor']
 export type StructuredModelStep = 'PLANNING' | 'SERVER_COMPILING' | 'GENERATING_JSON' | 'REPAIRING_JSON' | 'FINAL_JSON'
@@ -967,6 +967,8 @@ export type ArtifactKind = 'SOURCE_CODE' | 'PYTHON_SCRIPT' | 'MARKDOWN' | 'DOCX'
 export interface DesignerTaskProfile {
   id?: string
   state: string
+  decisionState: 'ROUTING' | 'NEEDS_CONFIRMATION' | 'CONFIRMED' | 'FROZEN'
+  confirmationReady: boolean
   intent: TaskIntent
   workflowTemplate: 'DIRECT_SOFTWARE_DESIGN' | 'FULL_PACKAGE_DESIGN' | 'DIRECT_ARTIFACT' | 'PACKAGED_ARTIFACT' | 'READ_ONLY_REPORT' | 'LOCAL_MAINTENANCE'
   mutationMode: 'READ_ONLY' | 'WRITE_FILES' | 'WRITE_CODE' | 'SAFE_LOCAL_MAINTENANCE'
@@ -981,7 +983,32 @@ export interface DesignerTaskProfile {
   resolutionSource: string
   decisionRequired: boolean
   largeTaskMode: boolean
+  previousConfirmedChoice?: {
+    intent: TaskIntent
+    primaryArtifactKind: ArtifactKind
+    workflowTemplate: DesignerTaskProfile['workflowTemplate']
+    mutationMode: DesignerTaskProfile['mutationMode']
+    largeTaskMode: boolean
+    resolutionSource: string
+  }
   version: number
+}
+
+export interface DesignerActivity {
+  actor: DesignerActor
+  remoteState: string
+  connected: boolean
+  observedAt: string
+  structuredStep?: StructuredModelStep
+  parts: TaskSessionActivityPart[]
+  detail?: string
+}
+
+export interface DesignerStopResult {
+  stopStatus: 'STOPPING' | 'CANCELLED'
+  archived: boolean
+  stoppedSessions: number
+  failedSessions: number
 }
 export interface AnalysisReportSummary { id: string; state: string; title: string; contentSha256: string; stale: boolean; updatedAt: string }
 export interface AnalysisReportFinding { severity: string; title: string; detail: string; path: string; line: number; recommendation: string }

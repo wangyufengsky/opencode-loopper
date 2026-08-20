@@ -64,7 +64,7 @@ describe('task SSE reducer', () => {
       .toBe('RISK 输出已自动规范化：WRAPPER_TOLERATED')
     expect(aiOutputNotice({ id: 'finalizer', type: 'AI_TOOL_LOOP_FINALIZER_STARTED', at: 'now',
       data: { role: 'REQUIREMENT' } }))
-      .toContain('无工具 Finalizer')
+      .toContain('MCP-only 收口会话')
   })
 
   it('creates the rework child before starting that new task', async () => {

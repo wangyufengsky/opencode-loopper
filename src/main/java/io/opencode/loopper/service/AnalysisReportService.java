@@ -92,6 +92,8 @@ public class AnalysisReportService {
     public List<PollResult> pollActive() {
         List<PollResult> results = new ArrayList<>();
         for (AnalysisReportRow row : mapper.activeAnalysisReports()) {
+            DesignerSessionRow owner = session(row.designerSessionId());
+            if ("STOPPING".equals(owner.state()) || "CANCELLED".equals(owner.state())) continue;
             try { PollResult result = poll(row); if (result != null) results.add(result); }
             catch (RuntimeException failure) {
                 AnalysisReportRow latest = mapper.findAnalysisReport(row.designerSessionId(), row.id()).orElse(row);
@@ -323,7 +325,10 @@ public class AnalysisReportService {
         List<String> technologies;
         try { artifacts = json.readValue(row.artifactKindsJson(), new TypeReference<>() { }); } catch (Exception e) { artifacts = List.of(); }
         try { technologies = json.readValue(row.technologiesJson(), new TypeReference<>() { }); } catch (Exception e) { technologies = List.of(); }
-        return new TaskProfileService.View(row.id(), row.state(), TaskIntent.valueOf(row.intent()),
+        String decisionState = "FROZEN".equals(row.state()) ? "FROZEN"
+                : row.decisionRequired() == 1 ? "NEEDS_CONFIRMATION" : "CONFIRMED";
+        return new TaskProfileService.View(row.id(), row.state(), decisionState,
+                "FROZEN".equals(row.state()) || row.decisionRequired() == 0, TaskIntent.valueOf(row.intent()),
                 io.opencode.loopper.domain.WorkflowTemplate.valueOf(row.workflowTemplate()),
                 io.opencode.loopper.domain.MutationMode.valueOf(row.mutationMode()), artifacts, technologies,
                 io.opencode.loopper.domain.TestPolicy.valueOf(row.testPolicy()),
@@ -331,7 +336,7 @@ public class AnalysisReportService {
                 row.rolePackVersion(), row.confidence(), List.of(), row.resolutionSource(), row.decisionRequired()==1,
                 TaskIntent.SOFTWARE_CHANGE.name().equals(row.intent())
                         && io.opencode.loopper.domain.WorkflowTemplate.FULL_PACKAGE_DESIGN.name().equals(row.workflowTemplate()),
-                row.version());
+                null, row.version());
     }
     private String write(Object value) { try { return json.writeValueAsString(value); } catch (Exception failure) { throw new IllegalStateException(failure); } }
     private List<Evidence> readEvidence(String value) { try { return json.readValue(value, new TypeReference<>() { }); } catch (Exception ignored) { return List.of(); } }

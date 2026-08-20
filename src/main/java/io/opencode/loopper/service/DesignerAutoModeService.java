@@ -143,6 +143,8 @@ public class DesignerAutoModeService {
         if (mode == null || !DesignerAutoModeState.ACTIVE.name().equals(mode.state())) return;
         try {
             DesignerSessionRow session = designerSessions.get(sessionId);
+            if (DesignerSessionState.STOPPING.name().equals(session.state())
+                    || DesignerSessionState.CANCELLED.name().equals(session.state())) return;
             LoopDraftRow draft = designerSessions.draft(sessionId);
             if (draft == null) {
                 block(mode, session, "DESIGNER_AUTO_DRAFT_MISSING", "设计会话没有绑定草稿");
@@ -172,7 +174,7 @@ public class DesignerAutoModeService {
                     && DesignWorkflowPhase.DISCUSSING_REQUIREMENT.name().equals(session.workflowPhase())
                     && session.currentRequirementRevision() == null) {
                 TaskProfileService.View currentProfile = profiles.current(sessionId);
-                if (currentProfile.state().startsWith("ROUTING_")) return;
+                if ("ROUTING".equals(currentProfile.decisionState())) return;
                 if (currentProfile.decisionRequired()) {
                     profiles.acceptRecommendation(sessionId, currentProfile.version());
                     recordAction(mode, "PROFILE_AUTO_CONFIRMED");

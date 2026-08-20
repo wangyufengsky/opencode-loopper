@@ -270,10 +270,31 @@ final class OpenCodeResponseParser {
                 || "tool_invocation".equals(sourceType)) {
             JsonNode state = part.path("state");
             String label = firstText(part.path("tool"), part.path("name"), state.path("title"));
-            String content = firstText(state.path("output"), state.path("title"), part.path("text"));
+            String content = toolContent(firstNode(state.path("input"), part.path("input"), part.path("arguments")),
+                    firstNode(state.path("output"), part.path("output"), part.path("text")));
             String status = firstText(state.path("status"), part.path("status"));
             return new SessionPart(id, "TOOL", label.isBlank() ? "工具调用" : bounded(label),
                     bounded(content), bounded(status), startedAt);
+        }
+        return null;
+    }
+
+    private String toolContent(JsonNode input, JsonNode output) {
+        String arguments = displayValue(input);
+        String result = displayValue(output);
+        if (arguments.isBlank()) return result;
+        if (result.isBlank()) return "参数\n" + arguments;
+        return "参数\n" + arguments + "\n\n输出\n" + result;
+    }
+
+    private String displayValue(JsonNode value) {
+        if (value == null || value.isMissingNode() || value.isNull()) return "";
+        return value.isTextual() ? value.asText() : value.toString();
+    }
+
+    private JsonNode firstNode(JsonNode... candidates) {
+        for (JsonNode candidate : candidates) {
+            if (candidate != null && !candidate.isMissingNode() && !candidate.isNull()) return candidate;
         }
         return null;
     }

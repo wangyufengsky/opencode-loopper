@@ -23,6 +23,7 @@ const statusLabels: Record<string, string> = {
   PERSISTED: '已保存', PENDING_HANDOFF: '等待交接', DELIVERED: '已送达', RECONNECTING: '重连中',
   NORMALIZED: '已自动规范化',
   DRAFTING: '编辑中', DRAFT_READY: '待确认', CONFIRMED: '已确认', HANDOFF_FAILED: '交接失败',
+  STOPPING: '正在停止', NEEDS_CONFIRMATION: '待确认', FROZEN: '已冻结',
   APPROVED: '已接受', REVIEWING: '待确认', STALE: '已失效',
   ENABLED: '已启用', DISABLED: '已停用', ACTIVE: '进行中', ARCHIVED: '已归档',
   REVIEW_REQUIRED: '待人工确认', AUTO_START: '自动开始', DETECTED: '已检测', SKIPPED: '已跳过',
@@ -36,10 +37,10 @@ const generalLabels: Record<string, string> = {
   QUESTION: '问题', PERMISSION: '权限', MANUAL: '手动触发', CRON: '定时触发',
   GIT_HEAD_CHANGED: 'Git 版本变化', WEBHOOK: '回调触发',
   REVIEW_REQUIRED: '人工确认', AUTO_START: '自动开始',
-  ROUTER: '任务路由器', DECOMPOSER: '任务拆解器', DESIGNER: '设计器',
-  COMPILER: '规范编译器', REVIEWER: '只读评审', VALIDATOR: '确定性校验器', SYSTEM: '系统', USER: '你',
+  ROUTER: '需求分析师', DECOMPOSER: '任务规划师', DESIGNER: '设计师',
+  COMPILER: '规范工程师', REVIEWER: '评审员', VALIDATOR: '验收工程师', SYSTEM: '系统', USER: '你',
   FIELD: '输入问题', VERIFICATION: '验收问题', SESSION: '会话问题', TASK: '任务问题',
-  IMPLEMENTATION: '实施会话', JUDGE: '独立评审', REQUIREMENT: '需求评审', RISK: '风险评审',
+  IMPLEMENTATION: '开发工程师', JUDGE: '评审员', REQUIREMENT: '需求评审员', RISK: '风险评审员',
   WORKTREE: 'Git 分支模式', DIRECT: '直接模式',
   READ_ONLY: '只读', WRITE_FILES: '写入文件', WRITE_CODE: '修改代码', SAFE_LOCAL_MAINTENANCE: '安全本地维护',
   AUTO_RECOMMENDED: '全自动推荐', USER_OVERRIDE: '人工覆盖', MANUAL_OVERRIDE: '人工覆盖',
@@ -148,6 +149,8 @@ const profileResolutionLabels: Record<string, string> = {
   ROUTER_FALLBACK: '路由降级',
   AUTO_RECOMMENDED: '全自动推荐',
   USER_OVERRIDE: '人工覆盖',
+  USER_CONFIRMED: '人工确认',
+  USER_CONFIRMED_CARRIED_FORWARD: '已沿用人工确认',
   LEGACY: '历史兼容',
 }
 
@@ -232,13 +235,17 @@ export function rolePackLabel(value?: string) {
   return rolePackLabels[value.toLowerCase()] ?? '定制任务'
 }
 
+export function designerActorLabel(actor?: string) {
+  return displayLabel(actor ?? 'SYSTEM')
+}
+
 export function sessionLabel(session?: TaskSessionSummary) {
   if (!session) return '任务会话'
-  if (session.kind !== 'JUDGE') return '执行会话'
+  if (session.kind !== 'JUDGE') return '开发工程师会话'
   const source = session.label.toUpperCase()
-  if (source.includes('REQUIREMENT')) return '需求评审会话'
-  if (source.includes('RISK')) return '风险评审会话'
-  return '只读评审会话'
+  if (source.includes('REQUIREMENT')) return '需求评审员会话'
+  if (source.includes('RISK')) return '风险评审员会话'
+  return '评审员会话'
 }
 
 export function activityTypeLabel(type: TaskSessionActivityPart['type']) {
@@ -252,5 +259,5 @@ export function activityLabel(part: TaskSessionActivityPart) {
 }
 
 export function judgeRoleLabel(role: string) {
-  return role === 'REQUIREMENT' ? '需求评审' : role === 'RISK' ? '风险评审' : '独立评审'
+  return role === 'REQUIREMENT' ? '需求评审员' : role === 'RISK' ? '风险评审员' : '独立评审员'
 }

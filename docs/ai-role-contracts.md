@@ -29,7 +29,8 @@ Decomposer 和 Compiler 新会话各只需一次机器规划调用。规划通�
 Java、Python、Node、混合栈、通用软件、Markdown/DOCX、表格转换、只读报告和本地维护
 各自组合提示，不能把其他栈或非软件流程的示例注入当前 Compiler。
 
-Router 使用独立 `ROUTER_NO_TOOLS` Session；可用时返回固定
+Router 使用独立 `ROUTER_NO_TOOLS` Session；该名称表示禁止内置仓库工具，项目已配置并由
+`GET /mcp` 发现的 MCP Server 仍按 `<server>_*` 前缀开放。可用时返回固定
 `TASK_PROFILE_ROUTER_V1` JSON Schema，不可用时使用同一闭集对象的 marker。它只返回
 `intent / artifactKinds / technologies / complexity / confidence / signals`，服务端仍独占
 `WorkflowTemplate / MutationMode / ExecutionStrategy / TestPolicy`。每次 Router 的需求
@@ -38,6 +39,19 @@ Router 使用独立 `ROUTER_NO_TOOLS` Session；可用时返回固定
 Decomposer 使用父画像；每个软件工作包再按包标题、目标、范围和交付物检测技术栈，原子
 冻结自己的 Role Pack、执行策略和测试策略，包 Designer 与 Compiler 只读取该冻结值；
 Task 确认后每个 Stage 也保存同一快照，Implementation 与 Recovery 不重新猜测角色。
+
+任务画像对客户端投影 `ROUTING / NEEDS_CONFIRMATION / CONFIRMED / FROZEN` 与服务端计算的
+`confirmationReady`。人工采用推荐记录 `USER_CONFIRMED`，编辑或沿用旧选择记录
+`USER_OVERRIDE`；完整需求稿重算后，只有任务意图、主要制品、单包/大型流程和读写模式均一致
+且无新增安全冲突时，才以 `USER_CONFIRMED_CARRIED_FORWARD` 继承确认。技术栈、Role Pack 和
+测试策略仍使用重算结果。任一决策面变化都返回上次确认选项并阻断设计入口，直到用户明确沿用
+旧画像、采用新画像或编辑选择。
+
+所有机器角色在创建 Session 前都执行同一 MCP 发现，包括 Router、Compiler repair、工具循环
+finalizer 和双 Judge。MCP allow 只叠加到各角色既有权限模板，不能解除写文件、Bash、Git、外部
+目录或人工授权限制；发现失败时不发送模型提示。界面称谓统一为需求分析师、任务规划师、设计师、
+规范工程师、评审员、验收工程师和开发工程师；需求与风险 Judge 分别显示为需求评审员和风险评审员，
+数据库及协议角色码保持不变。
 
 软件任务默认使用 `DIRECT_SOFTWARE_DESIGN`。Router 的 `SIMPLE` 或 `PACKAGED` 复杂度只形成
 建议，不会自动打开大型任务；画像中的 `largeTaskMode` 由持久化的 `workflowTemplate` 派生，

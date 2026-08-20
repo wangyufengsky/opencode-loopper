@@ -21,7 +21,7 @@ describe('JudgeReviewCard', () => {
       global: { stubs: { Icon: true } },
     })
 
-    expect(wrapper.get('.judge-role strong').text()).toBe('需求评审')
+    expect(wrapper.get('.judge-role strong').text()).toBe('需求评审员')
     expect(wrapper.get('.judge-verdict').text()).toContain('通过')
     expect(wrapper.get('.markdown-document > p').text()).toBe('All objectives met.')
     expect(wrapper.findAll('.markdown-document ol > li')).toHaveLength(2)

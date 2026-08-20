@@ -117,7 +117,12 @@ class DesignerSessionMcpIntegrationTest {
         DesignerSessionRow created = designerSessions.create(project.id(), draft.id(), "新增 Python 转换脚本");
 
         assertThat(created.workflowPhase()).isEqualTo("ROUTING");
-        assertThat(taskProfiles.current(created.id()).state()).startsWith("ROUTING_");
+        assertThat(taskProfiles.current(created.id())).satisfies(profile -> {
+            assertThat(profile.state()).isEqualTo("ROUTING");
+            assertThat(profile.decisionState()).isEqualTo("ROUTING");
+            assertThat(profile.confirmationReady()).isFalse();
+            assertThat(profile.evidence()).isEmpty();
+        });
         assertThat(mapper.findLatestTaskProfileRouterRun(created.id())).hasValueSatisfying(run -> {
             assertThat(run.state()).isEqualTo("RUNNING");
             assertThat(run.externalSessionId()).isNotBlank();
@@ -141,6 +146,120 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(mapper.listDesignerTaskProfiles(created.id())).hasSize(2)
                 .extracting(io.opencode.loopper.persistence.DesignerTaskProfileRow::state)
                 .containsExactly("PROVISIONAL", "SUPERSEDED");
+    }
+
+    @Test
+    void confirmedProfileIsCarriedAcrossTheCompleteRequirementRerouteWithoutASecondHiddenDecision() throws Exception {
+        ProjectRow project = project("confirmed-profile-reroute");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        fake().setDesignerOutput("# Java 缓存刷新\n\n修改源代码并使用 Maven 聚焦测试验证。");
+        DesignerSessionRow created = designerSessions.create(project.id(), draft.id(),
+                "修改 Java 代码实现缓存刷新，并使用 Maven 测试验证");
+        designerSessions.pollActiveHandoffs();
+        TaskProfileService.View initial = taskProfiles.current(created.id());
+
+        mvc.perform(post("/api/designer-sessions/{id}/task-profile/confirm", created.id())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of("expectedVersion", initial.version()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.decisionState").value("CONFIRMED"))
+                .andExpect(jsonPath("$.confirmationReady").value(true))
+                .andExpect(jsonPath("$.resolutionSource").value("USER_CONFIRMED"));
+
+        completeMandatoryDesignerQuestion(created.id());
+        designerSessions.pollActiveHandoffs();
+        DesignerSessionRow reviewing = designerSessions.get(created.id());
+        assertThat(reviewing.state()).isEqualTo("REVIEWING");
+        assertThat(taskProfiles.current(created.id())).satisfies(profile -> {
+            assertThat(profile.decisionState()).isEqualTo("ROUTING");
+            assertThat(profile.confirmationReady()).isFalse();
+            assertThat(profile.previousConfirmedChoice()).isNotNull();
+        });
+        assertThatThrownBy(() -> designerSessions.confirmRequirement(reviewing.id(), reviewing.discussionRevision()))
+                .isInstanceOfSatisfying(ConflictException.class,
+                        failure -> assertThat(failure.code()).isEqualTo("TASK_PROFILE_ROUTING_IN_PROGRESS"));
+
+        designerSessions.pollActiveHandoffs();
+
+        assertThat(taskProfiles.current(created.id())).satisfies(profile -> {
+            assertThat(profile.decisionState()).isEqualTo("CONFIRMED");
+            assertThat(profile.confirmationReady()).isTrue();
+            assertThat(profile.resolutionSource()).isEqualTo("USER_CONFIRMED_CARRIED_FORWARD");
+            assertThat(profile.rolePackId()).isEqualTo("software-java");
+            assertThat(profile.testPolicy().name()).isEqualTo("REQUIRED");
+        });
+        designerSessions.confirmRequirement(reviewing.id(), reviewing.discussionRevision());
+        assertThat(designerSessions.get(created.id()).workflowPhase()).isEqualTo("DESIGNING");
+    }
+
+    @Test
+    void changedRerouteBlocksDesignAndExposesThePreviousConfirmedChoice() throws Exception {
+        ProjectRow project = project("changed-profile-reroute");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        DesignerSessionRow created = designerSessions.create(project.id(), draft.id(), "修改 Java 源代码并测试");
+        designerSessions.pollActiveHandoffs();
+        TaskProfileService.View initial = taskProfiles.current(created.id());
+        taskProfiles.confirmRecommendation(created.id(), initial.version());
+
+        taskProfiles.reroute(created.id(), "编写一份 Markdown 操作手册，仅生成文档制品");
+        assertThat(taskProfiles.current(created.id()).decisionState()).isEqualTo("ROUTING");
+        designerSessions.pollActiveHandoffs();
+
+        TaskProfileService.View changed = taskProfiles.current(created.id());
+        assertThat(changed.decisionState()).isEqualTo("NEEDS_CONFIRMATION");
+        assertThat(changed.confirmationReady()).isFalse();
+        assertThat(changed.intent().name()).isEqualTo("DOCUMENT_AUTHORING");
+        assertThat(changed.previousConfirmedChoice()).isNotNull();
+        assertThat(changed.previousConfirmedChoice().intent().name()).isEqualTo("SOFTWARE_CHANGE");
+
+        mvc.perform(post("/api/designer-sessions/{id}/task-profile/confirm", created.id())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of("expectedVersion", changed.version()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.confirmationReady").value(true))
+                .andExpect(jsonPath("$.resolutionSource").value("USER_CONFIRMED"));
+    }
+
+    @Test
+    void localStopAbortsEveryActiveDesignerRoleAndRetriesBeforeArchiving() throws Exception {
+        ProjectRow project = project("designer-stop-all-roles");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        DesignerSessionRow created = designerSessions.create(project.id(), draft.id(), "修改 Java 缓存刷新逻辑");
+        designerSessions.pollActiveHandoffs();
+        DesignerSessionRow discussing = designerSessions.get(created.id());
+        String designerRemote = discussing.externalSessionId();
+        taskProfiles.reroute(created.id(), "修改 Java 缓存刷新逻辑并补充测试");
+        String routerRemote = mapper.findLatestTaskProfileRouterRun(created.id()).orElseThrow().externalSessionId();
+        fake().failNextAborts(1);
+
+        mvc.perform(post("/api/designer-sessions/{id}/stop", created.id())
+                        .header("X-Loopper-Local-UI", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.stopStatus").value("STOPPING"))
+                .andExpect(jsonPath("$.archived").value(false))
+                .andExpect(jsonPath("$.stoppedSessions").value(1))
+                .andExpect(jsonPath("$.failedSessions").value(1));
+        assertThat(designerSessions.get(created.id()).state()).isEqualTo("STOPPING");
+
+        designerSessions.pollActiveHandoffs();
+        taskProfiles.pollActive();
+        assertThat(designerSessions.get(created.id()).state()).isEqualTo("STOPPING");
+
+        mvc.perform(post("/api/designer-sessions/{id}/stop", created.id())
+                        .header("X-Loopper-Local-UI", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.stopStatus").value("CANCELLED"))
+                .andExpect(jsonPath("$.archived").value(true))
+                .andExpect(jsonPath("$.failedSessions").value(0));
+        assertThat(fake().abortedSessionIds()).contains(designerRemote, routerRemote);
+        assertThat(mapper.listActiveTaskProfileRouterRuns()).noneMatch(row -> created.id().equals(row.designerSessionId()));
+
+        mvc.perform(post("/api/designer-sessions/{id}/stop", created.id())
+                        .header("X-Loopper-Local-UI", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.stopStatus").value("CANCELLED"))
+                .andExpect(jsonPath("$.archived").value(true))
+                .andExpect(jsonPath("$.stoppedSessions").value(0));
     }
 
     @Test
@@ -1843,7 +1962,8 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(fake().profileForSession(repairing.externalSessionId()))
                 .isEqualTo(OpenCodeClient.SessionProfile.COMPILER_REPAIR_NO_TOOLS);
         assertThat(fake().promptForSession(repairing.externalSessionId()))
-                .contains("This repair Session", "has no tools", "return the complete object immediately")
+                .contains("Built-in repository", "tools are disabled", "Configured MCP tools remain available",
+                        "return the complete object immediately")
                 .contains("Role Pack: software-java@2026-08-dynamic-v3", "mvn")
                 .doesNotContain("Use DOCUMENT_STRUCTURE or TABULAR_DATA native evidence");
         List<String> compilerSessionIds = fake().promptHistory().stream()
@@ -2352,6 +2472,10 @@ class DesignerSessionMcpIntegrationTest {
         designerSessions.pollActiveHandoffs();
         DesignerSessionRow reviewing = designerSessions.get(created.id());
         assertThat(reviewing.state()).isEqualTo("REVIEWING");
+        TaskProfileService.View currentProfile = taskProfiles.current(reviewing.id());
+        if (!currentProfile.confirmationReady() && !"ROUTING".equals(currentProfile.decisionState())) {
+            taskProfiles.confirmRecommendation(reviewing.id(), currentProfile.version());
+        }
         designerSessions.confirmRequirement(reviewing.id(), reviewing.discussionRevision());
         return designerSessions.get(reviewing.id());
     }
@@ -2378,6 +2502,10 @@ class DesignerSessionMcpIntegrationTest {
         designerSessions.pollActiveHandoffs();
         DesignerSessionRow reviewing = designerSessions.get(session.id());
         assertThat(reviewing.state()).isEqualTo("REVIEWING");
+        TaskProfileService.View currentProfile = taskProfiles.current(reviewing.id());
+        if (!currentProfile.confirmationReady() && !"ROUTING".equals(currentProfile.decisionState())) {
+            taskProfiles.confirmRecommendation(reviewing.id(), currentProfile.version());
+        }
         return reviewing;
     }
 

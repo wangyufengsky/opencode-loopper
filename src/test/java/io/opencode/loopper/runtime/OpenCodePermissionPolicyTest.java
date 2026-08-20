@@ -6,12 +6,28 @@ import org.junit.jupiter.api.Test;
 
 class OpenCodePermissionPolicyTest {
     @Test
-    void compilerRepairDeniesAllToolsAndExternalDirectories() {
-        var rules = OpenCodePermissionPolicy.rules(OpenCodeClient.SessionProfile.COMPILER_REPAIR_NO_TOOLS);
+    void everyRoleAllowsConfiguredMcpToolsWithoutRemovingItsBuiltInBoundary() {
+        for (OpenCodeClient.SessionProfile profile : OpenCodeClient.SessionProfile.values()) {
+            var rules = OpenCodePermissionPolicy.rules(profile, java.util.List.of("project mcp"));
+            assertThat(rules)
+                    .as(profile.name())
+                    .contains(java.util.Map.of("permission", "project_mcp_*", "pattern", "*", "action", "allow"));
+            assertThat(rules)
+                    .as(profile.name())
+                    .contains(java.util.Map.of("permission", "external_directory", "pattern", "*", "action", "deny"));
+        }
+    }
+
+    @Test
+    void compilerRepairDeniesBuiltInsButAllowsConfiguredMcpTools() {
+        var rules = OpenCodePermissionPolicy.rules(OpenCodeClient.SessionProfile.COMPILER_REPAIR_NO_TOOLS,
+                java.util.List.of("github", "internal docs"));
 
         assertThat(rules).contains(
                 java.util.Map.of("permission", "*", "pattern", "*", "action", "deny"),
-                java.util.Map.of("permission", "external_directory", "pattern", "*", "action", "deny"));
+                java.util.Map.of("permission", "external_directory", "pattern", "*", "action", "deny"),
+                java.util.Map.of("permission", "github_*", "pattern", "*", "action", "allow"),
+                java.util.Map.of("permission", "internal_docs_*", "pattern", "*", "action", "allow"));
         assertThat(rules).noneMatch(rule -> "allow".equals(rule.get("action"))
                 && java.util.Set.of("read", "glob", "grep", "question").contains(rule.get("permission")));
     }

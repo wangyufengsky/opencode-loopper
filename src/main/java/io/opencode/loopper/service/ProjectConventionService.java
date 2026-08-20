@@ -270,14 +270,14 @@ public class ProjectConventionService {
         try {
             try { openCode.abort(failed); } catch (RuntimeException ignored) { }
             OpenCodeClient.OpenCodeSession finalizer = openCode.createSession(Path.of(project.rootPath()),
-                    "OpenCode Loopper AGENTS.md Designer Finalizer (NO_TOOLS)", configuredModel(),
+                    "OpenCode Loopper AGENTS.md Designer Finalizer (MCP_ONLY)", configuredModel(),
                     OpenCodeClient.SessionProfile.MACHINE_FINALIZER_NO_TOOLS);
             ProjectConventionDraftRow updated = replaceRemote(row, finalizer.id(), "FINALIZER_RUNNING",
-                    "检测到重复工具调用，已启动一次无工具 Finalizer");
+                    "检测到重复工具调用，已启动一次 MCP-only 收口会话");
             SourceSnapshot source = new SourceSnapshot(updated.sourceExists() == 1, updated.sourceContent(),
                     updated.sourceSha256());
             openCode.promptAsync(finalizer, prompt(project, source)
-                    + "\n\nFINALIZER RECOVERY: Do not call any tool. Return the requested Markdown now."
+                    + "\n\nFINALIZER RECOVERY: Do not call built-in tools. Configured MCP tools remain allowed; return the requested Markdown now."
                     + evidence);
             return true;
         } catch (RuntimeException recoveryFailure) {

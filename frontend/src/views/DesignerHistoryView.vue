@@ -42,22 +42,28 @@ const projectOptions = computed(() => store.projects.slice()
   .sort((left, right) => left.name.localeCompare(right.name, 'zh-CN')))
 const archivedCount = computed(() => designs.value.filter((item) => item.archived).length)
 const confirmedCount = computed(() => designs.value.filter(isConfirmed).length)
-const resumableCount = computed(() => designs.value.filter((item) => !item.archived && !isConfirmed(item)).length)
+const resumableCount = computed(() => designs.value.filter((item) => !item.archived && !isConfirmed(item) && !isTerminal(item)).length)
 
 function isConfirmed(item: DesignerHistoryItem) {
   return item.draftStatus === 'CONFIRMED' || Boolean(item.taskId)
 }
 
+function isTerminal(item: DesignerHistoryItem) {
+  return item.state === 'CANCELLED'
+}
+
 function statusKind(item: DesignerHistoryItem): Exclude<StatusFilter, 'ALL'> {
   if (isConfirmed(item)) return 'CONFIRMED'
   if (item.state === 'WAITING_INPUT') return 'WAITING_INPUT'
-  if (item.state === 'SESSION_ERROR' || item.workflowPhase === 'FAILED') return 'SESSION_ERROR'
+  if (item.state === 'SESSION_ERROR' || item.state === 'CANCELLED' || item.workflowPhase === 'FAILED') return 'SESSION_ERROR'
   if (item.state === 'REVIEWING' || item.state === 'COMPLETED'
     || ['REVIEWING_PACKAGE', 'FINAL_REVIEW', 'COMPLETED'].includes(item.workflowPhase)) return 'REVIEWING'
   return 'PROCESSING'
 }
 
 function statusText(item: DesignerHistoryItem) {
+  if (item.state === 'CANCELLED') return '已取消'
+  if (item.state === 'STOPPING') return '正在停止'
   if (item.archived) return '已归档'
   return {
     CONFIRMED: '已确认成任务',
@@ -124,7 +130,7 @@ async function loadHistory(append = false) {
 }
 
 function openDesign(item: DesignerHistoryItem, mode: 'continue' | 'edit') {
-  if (item.archived || isConfirmed(item)) return
+  if (item.archived || isConfirmed(item) || isTerminal(item)) return
   void router.push({
     path: '/designer',
     query: { sessionId: item.id, projectId: item.projectId, ...(mode === 'edit' ? { mode: 'edit' } : {}) },
@@ -225,6 +231,7 @@ onBeforeUnmount(() => { if (reloadTimer) window.clearTimeout(reloadTimer) })
           <template v-if="isConfirmed(item)">
             <el-button v-if="item.taskId" size="small" plain @click="router.push(`/tasks/${item.taskId}/design`)"><Icon icon="lucide:messages-square" />查看设计</el-button>
           </template>
+          <template v-else-if="isTerminal(item)"><span class="mono tiny muted">只读记录</span></template>
           <template v-else>
             <template v-if="!item.archived">
               <el-button size="small" type="primary" @click="openDesign(item, 'continue')"><Icon icon="lucide:play" />继续</el-button>

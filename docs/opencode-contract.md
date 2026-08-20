@@ -50,8 +50,8 @@ not invent one: a Designer uses an OpenCode `createReadOnlySession` against the
 registered project root, while Loopper's bearer-protected Spring AI MCP server
 is independently exposed at `/api/mcp-streamable`.
 
-The REST workflow uses three model roles plus a deterministic server validator.
-Before selecting those roles, a no-tool Router supplies semantic task labels while the
+The REST workflow uses specialized model roles plus a deterministic server validator.
+Before selecting those roles, the requirement Router supplies semantic task labels while the
 server combines them with bounded repository facts. The `2026-08-dynamic-v3` selector
 normalizes technology aliases into Java, Python, Node, or Other families before choosing
 a frozen Role Pack: JavaScript is never a Java signal, same-family aliases do not create a
@@ -59,7 +59,8 @@ mixed pack, and an explicit unknown single stack uses the generic software pack.
 chooses Java, Python, Node, mixed, generic, document, tabular, report, or maintenance prompts; it cannot
 grant permissions, choose commands, or bypass human confirmation. Router format failure
 falls back to a generic profile question rather than failing the Designer Session.
-The Router profile denies every tool, including read/glob/grep/question. It uses the
+The Router profile denies every built-in tool, including read/glob/grep/question. Configured
+MCP tools remain available under their OpenCode server-name prefixes. It uses the
 bounded machine-response agent only for output control and has a 30-second server
 boundary. A completed response is accepted only as one closed semantic object. Router
 runs are persisted with their exact requirement snapshots and external Session IDs;
@@ -85,8 +86,8 @@ requirement messages repeat the selected contract without starting Decomposer. I
 requirement-confirm API freezes a numbered revision and the server creates `WP-1`
 directly; there is no Decomposer transport, prompt, Session, or role message. In
 explicitly enabled `FULL_PACKAGE_DESIGN`, confirmation supplies the frozen revision
-and read-only project context to Task Decomposer. It may use only `read`, `glob`, and
-`grep`, and returns a marked `DIRECT_DESIGN`, `DECOMPOSED`, `NEEDS_INPUT`, or
+and read-only project context to Task Decomposer. Its built-in tools are limited to `read`,
+`glob`, and `grep`; configured MCP tools remain available. It returns a marked `DIRECT_DESIGN`, `DECOMPOSED`, `NEEDS_INPUT`, or
 `MULTI_TASK_REQUIRED` envelope. It cannot write, execute commands, ask a
 model-side question, or create a Task. The server verifies complete requirement
 coverage and dependency order before persisting packages.
@@ -105,7 +106,7 @@ cannot ask questions or create a Task.
 
 An initial Compiler candidate may read the repository, but every bounded format or semantic
 repair aborts that Session and starts a fresh `COMPILER_REPAIR_NO_TOOLS` Session. Its wildcard
-deny profile re-allows no tools at all; the prompt contains only the current compact object,
+deny profile re-allows no built-in tools but still allows discovered MCP server prefixes; the prompt contains only the current compact object,
 deterministic issues and bounded frozen-design evidence. Format repair uses the full compact
 Compiler Schema. Semantic repair uses the separate `AI_SEMANTIC_PATCH_V1` Schema whose root is
 `patches`, so the transport contract matches the requested JSON Patch envelope.
@@ -115,13 +116,34 @@ demo work; `FULL_TEST` and `BUILD` are supplemental only. A uniquely reversible 
 `/stages/<n>/verifiers...` pointer is normalized to compact `evidence`, and `replace` of a missing
 model-owned object leaf is normalized to `add`; neither normalization bypasses full validation.
 
-Session creation is role-scoped. Decomposer, Compiler, Judge, and general
-read-only roles start from a wildcard deny and allow only `read`, `glob`, and
-`grep`; Designer additionally allows `question`. All read-only roles deny
+Session creation is role-scoped. Before every Session creation, the adapter reads
+`GET /mcp?directory=<canonical-root>`, validates the bounded server-name object, and appends
+one `<server>_*` allow rule per configured server to every role profile. Discovery failure is
+the explicit `OPENCODE_MCP_DISCOVERY_FAILED` Session error before any prompt is sent; Loopper
+never edits the user's OpenCode configuration. Decomposer, Compiler, Judge, and general
+read-only roles start from a wildcard deny and allow only the built-in `read`, `glob`, and
+`grep`; Designer additionally allows the built-in `question`. All read-only roles deny
 `.env`/`.env.*`, re-allow only `.env.example`, and deny external directories.
 Implementation retains the existing mutation and command boundary and explicitly
-allows `todowrite`. These permission profiles are sent when the Session is
-created; prompts cannot supply an ad-hoc tool list that weakens them.
+allows `todowrite`. MCP prefix rules do not relax built-in file-write, Bash, Git,
+external-directory, destructive-operation, or Loopper human-authorization boundaries. These
+permission profiles are sent when the Session is created; prompts cannot supply an ad-hoc
+tool list that weakens them.
+
+The local UI reads `GET /api/designer-sessions/{id}/activity` every 1.2 seconds. Interactive
+Designer activity may project bounded `THINKING`, `OUTPUT`, and `TOOL` parts from the active
+remote Session. Router, Decomposer, Compiler, Reviewer, repair, and finalizer activity exposes
+only tool parts plus the persisted authoritative workflow step; raw structured planning JSON is
+never returned as an activity fragment. Tool names, status, bounded arguments, and bounded
+output are presentation data only and cannot advance lifecycle state.
+
+`POST /api/designer-sessions/{id}/stop` is a local-UI-only, idempotent cancellation boundary.
+It moves the Designer Session to `STOPPING` before external calls, disables further auto-mode
+dispatch, then aborts every deduplicated active Router, requirement/package Designer,
+Decomposer, Compiler, repair/finalizer, and Reviewer Session. Any failed abort leaves the
+workspace in `STOPPING`, unarchived, and retryable. Only complete success records child
+terminal projections, transitions to `CANCELLED`, and archives the design; a missing remote
+Session on abort is treated as already stopped.
 
 The Runtime capability projection discovers `/agent` with a 30-second cache and
 records structured-output observations by endpoint, OpenCode version, provider,
@@ -226,7 +248,7 @@ agent setting is ignored. The managed agent uses temperature zero and a fixed
 instruction to stop repository exploration once evidence is sufficient and never
 repeat or invent tool calls. Three consecutive calls with the same normalized
 tool name and canonical arguments terminate that loop early. Loopper aborts the
-original Session and, once per persisted role step, may start a no-tools
+original Session and, once per persisted role step, may start a built-in-tools-disabled
 finalizer with bounded deduplicated evidence. That call counts against the
 global model-call budget but not the format/semantic repair budgets; V28
 prevents a restart from granting another finalizer. Implementation retains its existing

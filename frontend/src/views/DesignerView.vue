@@ -13,6 +13,7 @@ import PendingQuestionCard from '@/components/PendingQuestionCard.vue'
 import DesignerDiscussionHistory from '@/components/DesignerDiscussionHistory.vue'
 import DesignerSystemMessageHistory from '@/components/DesignerSystemMessageHistory.vue'
 import DesignerValidatorHistory from '@/components/DesignerValidatorHistory.vue'
+import DesignerActivityPanel from '@/components/DesignerActivityPanel.vue'
 import { ApiError, api, subscribeDesignerEvents, type DesignerEventStream } from '@/api/client'
 import { demoDraft, demoMessages } from '@/mock/demoData'
 import { useTaskStore } from '@/stores/taskStore'
@@ -20,6 +21,7 @@ import type { AnalysisReport, AppSettings, DesignerMessage, DesignerSession, Err
 import { formatDateTime } from '@/utils/dateTime'
 import {
   artifactKindLabel,
+  designerActorLabel,
   executionStrategyLabel,
   profileResolutionLabel,
   rolePackLabel,
@@ -59,6 +61,7 @@ const designerRecoveryError = ref('')
 const profileIntent = ref<DesignerSession['taskProfile']['intent']>('SOFTWARE_CHANGE')
 const profileArtifact = ref<DesignerSession['taskProfile']['artifactKinds'][number]>('SOURCE_CODE')
 const profileLargeTask = ref(false)
+const committedTaskNavigation = ref(false)
 const reportDetail = ref<AnalysisReport>()
 const designerWorkspaceKey = 'opencode-loopper.designer-workspace'
 const draftPromptKey = 'opencode-loopper.designer-draft-prompt'
@@ -108,6 +111,8 @@ const designerBadgeStatus = computed(() => {
   if (designerSession.value?.state === 'COMPLETED') return 'SUCCEEDED' as const
   if (designerSession.value?.state === 'WAITING_INPUT') return 'WAITING_INPUT' as const
   if (designerSession.value?.state === 'SESSION_ERROR') return 'RETRY_WAIT' as const
+  if (designerSession.value?.state === 'STOPPING') return 'RETRY_WAIT' as const
+  if (designerSession.value?.state === 'CANCELLED') return 'CANCELLED' as const
   return 'PENDING' as const
 })
 const designerSessionError = computed(() => designerSession.value?.state === 'SESSION_ERROR'
@@ -116,14 +121,14 @@ const designerSessionError = computed(() => designerSession.value?.state === 'SE
 const designerIsThinking = computed(() => designerSession.value?.state === 'RUNNING' && !designerLiveResponse.value
   && (designerSession.value.pendingQuestions?.length ?? 0) === 0)
 const actorMeta = {
-  USER: { label: '你', icon: 'lucide:user-round' },
-  ROUTER: { label: '任务路由器', icon: 'lucide:route' },
-  DECOMPOSER: { label: '任务拆解器', icon: 'lucide:split' },
-  DESIGNER: { label: '设计器', icon: 'lucide:sparkles' },
-  COMPILER: { label: '规范编译器', icon: 'lucide:braces' },
-  REVIEWER: { label: '只读评审器', icon: 'lucide:file-search' },
-  VALIDATOR: { label: '确定性校验器', icon: 'lucide:badge-check' },
-  SYSTEM: { label: '系统', icon: 'lucide:info' },
+  USER: { label: designerActorLabel('USER'), icon: 'lucide:user-round' },
+  ROUTER: { label: designerActorLabel('ROUTER'), icon: 'lucide:route' },
+  DECOMPOSER: { label: designerActorLabel('DECOMPOSER'), icon: 'lucide:split' },
+  DESIGNER: { label: designerActorLabel('DESIGNER'), icon: 'lucide:sparkles' },
+  COMPILER: { label: designerActorLabel('COMPILER'), icon: 'lucide:braces' },
+  REVIEWER: { label: designerActorLabel('REVIEWER'), icon: 'lucide:file-search' },
+  VALIDATOR: { label: designerActorLabel('VALIDATOR'), icon: 'lucide:badge-check' },
+  SYSTEM: { label: designerActorLabel('SYSTEM'), icon: 'lucide:info' },
 } as const
 const workflowLabels = {
   ROUTING: '画像识别中', DISCUSSING_REQUIREMENT: '需求讨论', DECOMPOSING: '拆解中', VALIDATING_DECOMPOSITION: '校验拆解中', DESIGNING: '设计中', COMPILING: '编译中', VALIDATING: '确定性校验中', REDESIGNING: '重新设计中', QUESTIONING_PACKAGE: '设计提问', REVIEWING_PACKAGE: '工作包待确认', AGGREGATING: '聚合中', FINAL_REVIEW: '总体确认', GENERATING_REPORT: '报告生成中', VALIDATING_REPORT: '报告校验中', REPORT_READY: '报告已就绪', COMPLETED: '已完成', FAILED: '已停止',
@@ -191,7 +196,7 @@ const hasPendingDesignerQuestion = computed(() => (designerSession.value?.pendin
 const autoModeActive = computed(() => designerSession.value?.autoMode.state === 'ACTIVE')
 const autoModeBlocked = computed(() => designerSession.value?.autoMode.state === 'BLOCKED')
 const composerEnabled = computed(() => {
-  if (!designerSession.value || autoModeActive.value || designerSession.value.state === 'RUNNING' || hasPendingDesignerQuestion.value) return false
+  if (!designerSession.value || autoModeActive.value || ['RUNNING', 'STOPPING', 'CANCELLED'].includes(designerSession.value.state) || hasPendingDesignerQuestion.value) return false
   if (designerSession.value.workflowPhase === 'DISCUSSING_REQUIREMENT') return true
   return designerSession.value.workflowPhase === 'REVIEWING_PACKAGE' && currentPackage.value?.state === 'REVIEWING'
 })
@@ -210,6 +215,10 @@ const designerRuntimeLabel = computed(() => {
   if (designerLiveError.value) return 'OpenCode 异常'
   return 'OpenCode 状态探测中'
 })
+const taskProfileRouting = computed(() => designerSession.value?.taskProfile.decisionState === 'ROUTING')
+const taskProfileNeedsConfirmation = computed(() => designerSession.value?.taskProfile.decisionState === 'NEEDS_CONFIRMATION')
+const shouldPollDesigner = computed(() => designerSession.value?.state === 'RUNNING'
+  || designerSession.value?.state === 'STOPPING' || taskProfileRouting.value)
 watch(() => designerSession.value?.taskProfile, (profile) => {
   if (!profile) return
   profileIntent.value = profile.intent
@@ -227,8 +236,38 @@ async function updateTaskProfile() {
       session.taskProfile.version, profileIntent.value === 'SOFTWARE_CHANGE' ? profileLargeTask.value : undefined)
     await refreshDesignerSession()
     ElMessage.success('任务画像和专属流程已更新')
-  } catch (error) { ElMessage.error(userFacingError(error, '任务画像更新失败')) }
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 409) {
+      await refreshDesignerSession()
+      ElMessage.info('任务画像刚刚发生变化，已刷新最新结果')
+    } else ElMessage.error(userFacingError(error, '任务画像更新失败'))
+  }
   finally { busy.value = false }
+}
+
+async function confirmTaskProfile() {
+  const session = designerSession.value
+  if (!session?.taskProfile.id || taskProfileRouting.value) return
+  busy.value = true
+  try {
+    await api.confirmDesignerTaskProfile(session.id, session.taskProfile.version)
+    await refreshDesignerSession()
+    ElMessage.success('已确认当前任务画像')
+  } catch (error) {
+    await refreshDesignerSession()
+    if (error instanceof ApiError && error.status === 409) ElMessage.info('任务画像刚刚发生变化，已刷新最新结果')
+    else ElMessage.error(userFacingError(error, '任务画像确认失败'))
+  } finally { busy.value = false }
+}
+
+async function carryForwardTaskProfile() {
+  const session = designerSession.value
+  const previous = session?.taskProfile.previousConfirmedChoice
+  if (!session?.taskProfile.id || !previous) return
+  profileIntent.value = previous.intent
+  profileArtifact.value = previous.primaryArtifactKind
+  profileLargeTask.value = previous.largeTaskMode
+  await updateTaskProfile()
 }
 
 async function enableLargeTaskMode() {
@@ -376,12 +415,13 @@ async function refreshDesignerSession() {
       draft.value = refreshed.draft
       if (!hadLocalChanges) editorValue.value = JSON.stringify(refreshed.draft.spec, null, 2)
       else if (editorValue.value !== JSON.stringify(refreshed.draft.spec, null, 2)) {
-        ElMessage.warning('设计器已生成新的执行规范；右侧保留了未保存修改。')
+        ElMessage.warning('设计师已生成新的执行规范；右侧保留了未保存修改。')
       }
     }
     designerPollFailures = 0
     designerReconnecting.value = false
-    if (refreshed.state !== 'RUNNING') {
+    if (refreshed.state !== 'RUNNING' && refreshed.taskProfile.decisionState !== 'ROUTING'
+      && refreshed.state !== 'STOPPING') {
       stopDesignerPolling()
       if (refreshed.state === 'COMPLETED') designerLiveResponse.value = ''
     }
@@ -398,12 +438,12 @@ async function refreshDesignerSession() {
 }
 
 function scheduleDesignerPoll(delay = 0) {
-  if (designerPollTimer || designerSession.value?.state !== 'RUNNING' || store.usingDemo) return
+  if (designerPollTimer || !shouldPollDesigner.value || store.usingDemo) return
   designerPollTimer = setTimeout(async () => {
     designerPollTimer = undefined
     await refreshDesignerSession()
-    if (designerSession.value?.state === 'RUNNING') {
-      const retryDelay = designerPollFailures === 0 ? 1500 : Math.min(1500 * (2 ** Math.min(designerPollFailures, 3)), 12000)
+    if (shouldPollDesigner.value) {
+      const retryDelay = designerPollFailures === 0 ? (taskProfileRouting.value ? 1200 : 1500) : Math.min(1500 * (2 ** Math.min(designerPollFailures, 3)), 12000)
       scheduleDesignerPoll(retryDelay)
     }
   }, delay)
@@ -431,8 +471,8 @@ async function answerDesignerQuestion(pending: TaskSessionPendingQuestion, answe
       pendingQuestions: (designerSession.value.pendingQuestions ?? []).filter((question) => question.id !== pending.id),
     }
     designerRemoteState.value = 'RUNNING'
-    designerLiveDetail.value = '回答已提交，设计器继续生成设计稿'
-    ElMessage.success('回答已提交，设计器继续执行')
+    designerLiveDetail.value = '回答已提交，设计师继续生成设计稿'
+    ElMessage.success('回答已提交，设计师继续执行')
     await refreshDesignerSession()
   } catch (error) {
     ElMessage.error(userFacingError(error, '回答提交失败'))
@@ -444,7 +484,7 @@ async function answerDesignerQuestion(pending: TaskSessionPendingQuestion, answe
 async function rejectDesignerQuestion(pending: TaskSessionPendingQuestion) {
   if (!designerSession.value || submittingDesignerQuestion.value) return
   try {
-    await ElMessageBox.confirm('拒绝后，设计器会收到拒绝结果。', '拒绝这个问题？', { confirmButtonText: '确认拒绝', cancelButtonText: '返回回答', type: 'warning' })
+    await ElMessageBox.confirm('拒绝后，设计师会收到拒绝结果。', '拒绝这个问题？', { confirmButtonText: '确认拒绝', cancelButtonText: '返回回答', type: 'warning' })
   } catch { return }
   submittingDesignerQuestion.value = pending.id
   try {
@@ -454,8 +494,8 @@ async function rejectDesignerQuestion(pending: TaskSessionPendingQuestion) {
       pendingQuestions: (designerSession.value.pendingQuestions ?? []).filter((question) => question.id !== pending.id),
     }
     designerRemoteState.value = 'RUNNING'
-    designerLiveDetail.value = '问题已拒绝，设计器将自行处理'
-    ElMessage.success('问题已拒绝，设计器继续执行')
+    designerLiveDetail.value = '问题已拒绝，设计师将自行处理'
+    ElMessage.success('问题已拒绝，设计师继续执行')
     await refreshDesignerSession()
   } catch (error) {
     ElMessage.error(userFacingError(error, '拒绝操作失败'))
@@ -510,8 +550,8 @@ function refreshDesignerAfterTerminalEvent(attempt = 0) {
   void refreshDesignerSession()
 }
 
-watch(() => designerSession.value?.state, (state) => {
-  if (state === 'RUNNING') startDesignerPolling()
+watch(() => `${designerSession.value?.state ?? ''}:${designerSession.value?.taskProfile.decisionState ?? ''}`, () => {
+  if (shouldPollDesigner.value) startDesignerPolling()
   else stopDesignerPolling()
 })
 
@@ -530,11 +570,10 @@ watch(() => designerSession.value?.autoMode.taskId, async (taskId) => {
   redirectedAutoTaskId = taskId
   try {
     await store.loadTask(taskId)
-    await router.push(`/tasks/${taskId}`)
   } catch (error) {
-    redirectedAutoTaskId = ''
-    ElMessage.error(userFacingError(error, '自动任务已创建，但无法打开任务详情'))
+    ElMessage.warning(userFacingError(error, '自动任务已创建，任务详情将在页面中重新加载'))
   }
+  await openCommittedTask(taskId)
 })
 
 watch(() => store.projects, (projects) => {
@@ -640,6 +679,9 @@ async function restoreDesignerSessionById(sessionId: string) {
     if (restoredSession.archived) throw new Error('该设计已归档，请先在历史设计页恢复')
     if (!restoredSession.draft) throw new Error('设计会话缺少可恢复草稿')
     const restoredDraft = restoredSession.draft
+    if (restoredDraft.status === 'CONFIRMED' || restoredSession.state === 'CANCELLED') {
+      throw new Error('该设计已结束，请在历史中只读查看')
+    }
     activateDesignerWorkspace(restoredSession, restoredDraft)
     return true
   } catch (error) {
@@ -691,16 +733,36 @@ function clearDesignerWorkspace() {
   sessionStorage.removeItem(messageDraftKey)
 }
 
+async function openCommittedTask(taskId: string) {
+  committedTaskNavigation.value = true
+  clearDesignerWorkspace()
+  await router.push(`/tasks/${taskId}`)
+}
+
 async function restartDesigner() {
   try {
     await ElMessageBox.confirm(
-      '将清空当前设计工作区和未发送内容，历史记录与已创建任务不受影响。',
+      '将先停止该设计的所有远端角色会话，成功后再归档并清空未发送内容。',
       '重新开始设计？',
       { type: 'warning', confirmButtonText: '清理并重新开始', cancelButtonText: '取消' },
     )
+  } catch { return }
+  busy.value = true
+  try {
+    if (designerSession.value && !store.usingDemo) {
+      const result = await api.stopDesignerSession(designerSession.value.id)
+      if (!result.archived || result.failedSessions > 0) {
+        await refreshDesignerSession()
+        ElMessage.error(`仍有 ${result.failedSessions} 个远端会话未确认停止，工作区已保留，可重试清理`)
+        return
+      }
+    }
     clearDesignerWorkspace()
-    ElMessage.success('已清理当前设计工作区，可以创建新草案')
-  } catch { /* The user cancelled the destructive local reset. */ }
+    ElMessage.success('所有远端会话已停止，可以开始新设计')
+  } catch (error) {
+    await refreshDesignerSession()
+    ElMessage.error(userFacingError(error, '停止设计会话失败，工作区已保留'))
+  } finally { busy.value = false }
 }
 
 async function restoreDesignerWorkspace() {
@@ -719,7 +781,7 @@ async function restoreDesignerWorkspace() {
       api.getDesignerSession(ids.sessionId),
       api.getDraft(ids.draftId),
     ])
-    if (restoredSession.archived) {
+    if (restoredSession.archived || restoredSession.state === 'CANCELLED' || restoredDraft.status === 'CONFIRMED') {
       sessionStorage.removeItem(designerWorkspaceKey)
       return
     }
@@ -752,6 +814,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('beforeunload', warnBeforeUnload)
 })
 onBeforeRouteLeave(async () => {
+  if (committedTaskNavigation.value) return true
   if (!dirty.value) return true
   try {
     await ElMessageBox.confirm('执行规范有未保存的修改，离开后不会保留。', '离开设计页？', { type: 'warning', confirmButtonText: '离开', cancelButtonText: '继续编辑' })
@@ -760,6 +823,7 @@ onBeforeRouteLeave(async () => {
 })
 
 function warnBeforeUnload(event: BeforeUnloadEvent) {
+  if (committedTaskNavigation.value) return
   if (!dirty.value) return
   event.preventDefault()
   event.returnValue = ''
@@ -830,14 +894,16 @@ async function confirm() {
       const result = await api.confirmDraft(draft.value.id)
       draft.value = await api.getDraft(draft.value.id)
       editorValue.value = JSON.stringify(draft.value.spec, null, 2)
-      const task = await store.loadTask(result.taskId)
-      if (task?.status === 'FAILED') {
-        const reason = task.errors?.find((error) => error.layer === 'TASK')
-        ElMessage.error(`任务已创建，但准备失败${reason ? `：${userFacingError(reason.message)}` : ''}`)
-      } else {
-        ElMessage.success('任务已创建')
+      try {
+        const task = await store.loadTask(result.taskId)
+        if (task?.status === 'FAILED') {
+          const reason = task.errors?.find((error) => error.layer === 'TASK')
+          ElMessage.error(`任务已创建，但准备失败${reason ? `：${userFacingError(reason.message)}` : ''}`)
+        } else ElMessage.success('任务已创建')
+      } catch (error) {
+        ElMessage.warning(userFacingError(error, '任务已创建，任务详情将在页面中重新加载'))
       }
-      await router.push(`/tasks/${result.taskId}`)
+      await openCommittedTask(result.taskId)
     }
   } catch (error) { ElMessage.error(userFacingError(error, '确认失败')) } finally { busy.value = false }
 }
@@ -866,7 +932,7 @@ async function sendMessage() {
     mergeMessages(result.persistedMessages)
     designerSession.value = { ...designerSession.value, state: result.state }
     userMessage.value = ''
-    ElMessage.info(result.notice ? userFacingError(result.notice) : '消息已交给只读设计器。')
+    ElMessage.info(result.notice ? userFacingError(result.notice) : '消息已交给只读设计师。')
     await refreshDesignerSession()
     startDesignerPolling()
   } catch (error) {
@@ -885,7 +951,12 @@ async function confirmRequirement() {
     startDesignerPolling()
     ElMessage.success(designerSession.value?.taskProfile.workflowTemplate === 'READ_ONLY_REPORT'
       ? '只读评审已启动' : '整体需求已冻结，专属流程已启动')
-  } catch (error) { ElMessage.error(userFacingError(error, '需求确认失败')) }
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 409) {
+      await refreshDesignerSession()
+      ElMessage.info('任务画像或讨论版本刚刚更新，已刷新最新状态')
+    } else ElMessage.error(userFacingError(error, '需求确认失败'))
+  }
   finally { busy.value = false }
 }
 
@@ -1139,15 +1210,22 @@ async function redesignPackage(packageId: string) {
           <span>远端 {{ statusLabel(designerRemoteState || 'WAITING') }}</span>
           <time :datetime="designerObservedAt">{{ formatObservedAt(designerObservedAt) }}</time>
         </div>
+        <DesignerActivityPanel v-if="designerSession && !store.usingDemo" :session-id="designerSession.id" />
         <section v-if="designerSession?.taskProfile" class="task-profile-card" aria-label="任务画像与动态流程">
-          <header><div><strong>任务画像 · {{ taskIntentLabel(designerSession.taskProfile.intent) }}</strong><span>{{ designerSession.taskProfile.confidence }}% · {{ rolePackLabel(designerSession.taskProfile.rolePackId) }}</span></div><b :class="{ warning: designerSession.taskProfile.decisionRequired }">{{ designerSession.taskProfile.decisionRequired ? '需要确认' : profileResolutionLabel(designerSession.taskProfile.resolutionSource) }}</b></header>
-          <p>流程 {{ workflowTemplateLabel(designerSession.taskProfile.workflowTemplate) }} · 执行 {{ executionStrategyLabel(designerSession.taskProfile.executionStrategy) }} · 测试 {{ testPolicyLabel(designerSession.taskProfile.testPolicy) }}</p>
-          <div class="profile-evidence"><span v-for="item in designerSession.taskProfile.evidence" :key="item">{{ item }}</span></div>
-          <div v-if="designerSession.taskProfile.state === 'PROVISIONAL'" class="profile-override">
+          <header><div><strong>{{ taskProfileRouting ? '任务画像计算中' : `任务画像 · ${taskIntentLabel(designerSession.taskProfile.intent)}` }}</strong><span v-if="!taskProfileRouting">{{ designerSession.taskProfile.confidence }}% · {{ rolePackLabel(designerSession.taskProfile.rolePackId) }}</span><span v-else>需求分析师正在根据完整需求稿重新识别</span></div><b :class="{ warning: !designerSession.taskProfile.confirmationReady }">{{ taskProfileRouting ? '计算中' : taskProfileNeedsConfirmation ? '画像有变化，需要确认' : profileResolutionLabel(designerSession.taskProfile.resolutionSource) }}</b></header>
+          <p v-if="!taskProfileRouting">流程 {{ workflowTemplateLabel(designerSession.taskProfile.workflowTemplate) }} · 执行 {{ executionStrategyLabel(designerSession.taskProfile.executionStrategy) }} · 测试 {{ testPolicyLabel(designerSession.taskProfile.testPolicy) }}</p>
+          <div v-if="taskProfileNeedsConfirmation && designerSession.taskProfile.previousConfirmedChoice" class="profile-change-summary">
+            <span>此前确认：{{ taskIntentLabel(designerSession.taskProfile.previousConfirmedChoice.intent) }} · {{ artifactKindLabel(designerSession.taskProfile.previousConfirmedChoice.primaryArtifactKind) }} · {{ workflowTemplateLabel(designerSession.taskProfile.previousConfirmedChoice.workflowTemplate) }}</span>
+            <span>最新识别：{{ taskIntentLabel(designerSession.taskProfile.intent) }} · {{ artifactKindLabel(designerSession.taskProfile.artifactKinds[0] ?? 'OTHER') }} · {{ workflowTemplateLabel(designerSession.taskProfile.workflowTemplate) }}</span>
+          </div>
+          <div v-if="designerSession.taskProfile.state === 'PROVISIONAL' && !taskProfileRouting" class="profile-override">
             <el-select v-model="profileIntent" aria-label="覆盖任务类型"><el-option v-for="item in designerSession.availableProfileOverrides" :key="item" :label="taskIntentLabel(item)" :value="item" /></el-select>
             <el-select v-model="profileArtifact" aria-label="覆盖主要制品"><el-option v-for="item in designerSession.availableArtifactOverrides" :key="item" :label="artifactKindLabel(item)" :value="item" /></el-select>
             <label v-if="profileIntent === 'SOFTWARE_CHANGE'" class="large-task-switch"><span><strong>大型任务</strong><small>开启多工作包拆解；默认关闭</small></span><el-switch v-model="profileLargeTask" aria-label="大型任务模式" /></label>
-            <el-button plain :loading="busy" @click="updateTaskProfile">应用覆盖</el-button>
+            <el-button v-if="taskProfileNeedsConfirmation && designerSession.taskProfile.previousConfirmedChoice" plain :loading="busy" @click="carryForwardTaskProfile">沿用我已确认的画像</el-button>
+            <el-button v-if="taskProfileNeedsConfirmation" type="primary" :loading="busy" @click="confirmTaskProfile">采用新画像</el-button>
+            <el-button v-else-if="!['USER_CONFIRMED', 'USER_OVERRIDE', 'USER_CONFIRMED_CARRIED_FORWARD'].includes(designerSession.taskProfile.resolutionSource)" type="primary" :loading="busy" @click="confirmTaskProfile">确认当前任务画像</el-button>
+            <el-button plain :loading="busy" @click="updateTaskProfile">应用我的选择</el-button>
           </div>
         </section>
         <section v-if="designerSession?.requirementSnapshot" class="task-profile-card requirement-snapshot-card" aria-label="需求快照">
@@ -1164,7 +1242,7 @@ async function redesignPackage(packageId: string) {
           <Icon :icon="autoModeBlocked ? 'lucide:octagon-alert' : designerSession?.autoMode.state === 'COMPLETED' ? 'lucide:circle-check-big' : 'lucide:bot'" />
           <div><strong>{{ autoModeBlocked ? '全自动模式已阻断' : designerSession?.autoMode.state === 'COMPLETED' ? '全自动设计已完成' : '全自动模式' }}</strong><p v-if="autoModeBlocked">{{ userFacingError(designerSession?.autoMode.errorDetail) }}</p></div>
         </section>
-        <section v-if="blockedWorkflowMessage" class="designer-session-alert" role="status" aria-live="polite"><Icon icon="lucide:refresh-cw" /><div><strong>{{ largeTaskModeRequired ? '普通任务无法安全容纳当前设计' : designerSession?.state === 'WAITING_INPUT' ? '设计工作流需要人工恢复' : '设计工作流已停止' }}</strong><p>{{ userFacingError(blockedWorkflowMessage.content) }}</p><div class="recovery-actions"><el-button v-if="largeTaskModeRequired" type="primary" size="small" :loading="busy" @click="enableLargeTaskMode"><Icon icon="lucide:split" />改用大型任务</el-button><template v-else><el-button v-if="designerSession?.decomposition && !designerSession.activeWorkPackageId" plain size="small" :loading="busy" @click="retryDecomposition"><Icon icon="lucide:split" />重新拆解</el-button><el-button v-if="designerSession?.activeWorkPackageId" plain size="small" :loading="busy" @click="retryPackageCompiler(designerSession.activeWorkPackageId)"><Icon icon="lucide:braces" />重新编译当前包</el-button><el-button v-if="designerSession?.activeWorkPackageId" plain size="small" :loading="busy" @click="redesignPackage(designerSession.activeWorkPackageId)"><Icon icon="lucide:sparkles" />恢复当前包设计</el-button><template v-if="!designerSession?.decomposition"><el-button plain size="small" :loading="busy" @click="retryCompiler"><Icon icon="lucide:braces" />重新编译当前设计</el-button><el-button plain size="small" :loading="busy" @click="requestRedesign"><Icon icon="lucide:sparkles" />让设计器重新设计</el-button></template></template><el-button plain size="small" @click="restartDesigner"><Icon icon="lucide:rotate-ccw" />清理工作区</el-button></div></div></section>
+        <section v-if="blockedWorkflowMessage" class="designer-session-alert" role="status" aria-live="polite"><Icon icon="lucide:refresh-cw" /><div><strong>{{ largeTaskModeRequired ? '普通任务无法安全容纳当前设计' : designerSession?.state === 'WAITING_INPUT' ? '设计工作流需要人工恢复' : '设计工作流已停止' }}</strong><p>{{ userFacingError(blockedWorkflowMessage.content) }}</p><div class="recovery-actions"><el-button v-if="largeTaskModeRequired" type="primary" size="small" :loading="busy" @click="enableLargeTaskMode"><Icon icon="lucide:split" />改用大型任务</el-button><template v-else><el-button v-if="designerSession?.decomposition && !designerSession.activeWorkPackageId" plain size="small" :loading="busy" @click="retryDecomposition"><Icon icon="lucide:split" />重新拆解</el-button><el-button v-if="designerSession?.activeWorkPackageId" plain size="small" :loading="busy" @click="retryPackageCompiler(designerSession.activeWorkPackageId)"><Icon icon="lucide:braces" />重新编译当前包</el-button><el-button v-if="designerSession?.activeWorkPackageId" plain size="small" :loading="busy" @click="redesignPackage(designerSession.activeWorkPackageId)"><Icon icon="lucide:sparkles" />恢复当前包设计</el-button><template v-if="!designerSession?.decomposition"><el-button plain size="small" :loading="busy" @click="retryCompiler"><Icon icon="lucide:braces" />重新编译当前设计</el-button><el-button plain size="small" :loading="busy" @click="requestRedesign"><Icon icon="lucide:sparkles" />让设计师重新设计</el-button></template></template><el-button plain size="small" @click="restartDesigner"><Icon icon="lucide:rotate-ccw" />清理工作区</el-button></div></div></section>
         <section v-else-if="designerLiveError" class="designer-session-alert live-error" role="alert" aria-live="assertive"><Icon icon="lucide:triangle-alert" /><div><strong>OpenCode 实时错误</strong><p>{{ userFacingError(designerLiveError) }}</p></div></section>
         <div class="designer-conversation">
           <section v-if="designerSession?.workPackages?.length && !directSoftwareMode" class="work-package-rail" aria-label="工作包设计轨道">
@@ -1195,9 +1273,9 @@ async function redesignPackage(packageId: string) {
             <p v-else class="plain-message-content">{{ ['RETRYABLE_ERROR', 'TERMINAL_ERROR', 'SESSION_ERROR'].includes(item.message.deliveryState ?? '') || item.message.content.includes('SYSTEM_ERROR') ? userFacingError(item.message.content) : item.message.content }}</p>
           </article>
           </template>
-          <article v-if="designerLiveResponse" class="chat-message chat-designer chat-live" aria-label="Designer 正在流式回复" aria-live="polite">
+          <article v-if="designerLiveResponse" class="chat-message chat-designer chat-live" aria-label="设计师正在流式回复" aria-live="polite">
             <header class="chat-message-header">
-              <span class="chat-author"><span class="chat-avatar"><Icon icon="lucide:sparkles" /></span><span><strong class="chat-role">设计器</strong><small>实时回复</small></span></span>
+              <span class="chat-author"><span class="chat-avatar"><Icon icon="lucide:sparkles" /></span><span><strong class="chat-role">设计师</strong><small>实时回复</small></span></span>
               <span class="chat-message-time">{{ formatObservedAt(designerObservedAt) }}</span>
             </header>
             <MarkdownDocument :content="designerLiveResponse" collapsible />
@@ -1234,12 +1312,12 @@ async function redesignPackage(packageId: string) {
               resize="vertical"
               :disabled="!composerEnabled"
               :placeholder="hasPendingDesignerQuestion ? '请先回答上方设计问题…' : designerSession?.state === 'RUNNING' ? '当前角色正在处理上一条消息…' : isFinalReview ? '总体确认阶段请使用工作包“重新讨论”或整体需求重开…' : `继续讨论${discussionScopeLabel}；不会触发全局重新拆包…`"
-              aria-label="发送给只读设计器的消息"
+              aria-label="发送给只读设计师的消息"
               @keydown.meta.enter.prevent="sendMessage"
               @keydown.ctrl.enter.prevent="sendMessage"
             />
             <div class="compose-actions"><span class="tiny muted">⌘ / Ctrl + Enter</span><el-button type="primary" :loading="busy" :disabled="!composerEnabled || !userMessage.trim()" @click="sendMessage"><Icon icon="lucide:send" />发送</el-button></div>
-            <div v-if="designerSession?.workflowPhase === 'DISCUSSING_REQUIREMENT' && designerSession.state === 'REVIEWING'" class="scope-primary-action"><el-button type="primary" :loading="busy" :disabled="autoModeActive || designerSession.taskProfile.decisionRequired" @click="confirmRequirement"><Icon :icon="designerSession.taskProfile.workflowTemplate === 'READ_ONLY_REPORT' ? 'lucide:file-search' : ['DIRECT_ARTIFACT', 'PACKAGED_ARTIFACT'].includes(designerSession.taskProfile.workflowTemplate) ? 'lucide:file-output' : designerSession.taskProfile.workflowTemplate === 'LOCAL_MAINTENANCE' ? 'lucide:wrench' : designerSession.taskProfile.workflowTemplate === 'DIRECT_SOFTWARE_DESIGN' ? 'lucide:sparkles' : 'lucide:split'" />{{ autoModeActive ? '全自动模式将确认需求' : designerSession.taskProfile.workflowTemplate === 'READ_ONLY_REPORT' ? '需求已明确，生成只读报告' : designerSession.taskProfile.workflowTemplate === 'DIRECT_ARTIFACT' ? '需求已明确，规划制品' : designerSession.taskProfile.workflowTemplate === 'PACKAGED_ARTIFACT' ? '需求已明确，规划章节制品' : designerSession.taskProfile.workflowTemplate === 'LOCAL_MAINTENANCE' ? '需求已明确，规划安全维护' : designerSession.taskProfile.workflowTemplate === 'DIRECT_SOFTWARE_DESIGN' ? '需求已明确，开始单包设计' : '需求已明确，开始拆包' }}</el-button></div>
+            <div v-if="designerSession?.workflowPhase === 'DISCUSSING_REQUIREMENT' && designerSession.state === 'REVIEWING'" class="scope-primary-action"><el-button type="primary" :loading="busy" :disabled="autoModeActive || !designerSession.taskProfile.confirmationReady" @click="confirmRequirement"><Icon :icon="designerSession.taskProfile.workflowTemplate === 'READ_ONLY_REPORT' ? 'lucide:file-search' : ['DIRECT_ARTIFACT', 'PACKAGED_ARTIFACT'].includes(designerSession.taskProfile.workflowTemplate) ? 'lucide:file-output' : designerSession.taskProfile.workflowTemplate === 'LOCAL_MAINTENANCE' ? 'lucide:wrench' : designerSession.taskProfile.workflowTemplate === 'DIRECT_SOFTWARE_DESIGN' ? 'lucide:sparkles' : 'lucide:split'" />{{ autoModeActive ? '全自动模式将确认需求' : taskProfileRouting ? '任务画像计算中' : taskProfileNeedsConfirmation ? '请先确认任务画像' : designerSession.taskProfile.workflowTemplate === 'READ_ONLY_REPORT' ? '需求已明确，生成只读报告' : designerSession.taskProfile.workflowTemplate === 'DIRECT_ARTIFACT' ? '需求已明确，规划制品' : designerSession.taskProfile.workflowTemplate === 'PACKAGED_ARTIFACT' ? '需求已明确，规划章节制品' : designerSession.taskProfile.workflowTemplate === 'LOCAL_MAINTENANCE' ? '需求已明确，规划安全维护' : designerSession.taskProfile.workflowTemplate === 'DIRECT_SOFTWARE_DESIGN' ? '需求已明确，开始单包设计' : '需求已明确，开始拆包' }}</el-button></div>
             <div v-else-if="designerSession?.workflowPhase === 'REVIEWING_PACKAGE' && currentPackage?.state === 'REVIEWING'" class="scope-primary-action"><el-button type="primary" :loading="busy" :disabled="autoModeActive" @click="approvePackage"><Icon icon="lucide:check-check" />{{ autoModeActive ? `全自动模式将接受${workPackageLabel(currentPackage.id)}` : `接受${workPackageLabel(currentPackage.id)}并继续` }}</el-button></div>
           </div>
         </div>
@@ -1480,6 +1558,7 @@ async function redesignPackage(packageId: string) {
 .designer-auto-switch { display: flex; align-items: center; gap: 8px; padding-right: 8px; border-right: 1px solid var(--color-border-default); }.designer-auto-switch > span { display: grid; text-align: right; }.designer-auto-switch strong { color: var(--color-text-primary); font-size: 9px; }.designer-auto-switch small { color: var(--color-text-muted); font: 7px/1.2 var(--font-code); }
 .task-profile-card { display: grid; gap: 8px; margin: 0 20px 10px; padding: 12px; border: 1px solid rgb(34 211 238 / 24%); border-radius: 10px; background: rgb(34 211 238 / 5%); }
 .task-profile-card header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }.task-profile-card header > div { display: grid; gap: 3px; }.task-profile-card strong { color: var(--color-text-primary); font-size: 11px; }.task-profile-card header span, .task-profile-card p { margin: 0; color: var(--color-text-secondary); font: 8px/1.5 var(--font-code); }.task-profile-card b { color: var(--color-success); font: 8px/1 var(--font-code); }.task-profile-card b.warning { color: var(--color-session-warning); }
+.profile-change-summary { display: grid; gap: 4px; padding: 8px; border-radius: 7px; background: rgb(245 158 11 / 8%); color: var(--color-text-secondary); font: 8px/1.5 var(--font-code); }
 .requirement-snapshot-card { border-color: rgb(99 102 241 / 28%); background: rgb(99 102 241 / 6%); }.requirement-snapshot-card details { min-width: 0; }.requirement-snapshot-card summary { cursor: pointer; color: var(--color-text-secondary); font: 9px/1.5 var(--font-code); }
 .profile-evidence { display: flex; flex-wrap: wrap; gap: 5px; }.profile-evidence span { padding: 3px 6px; border: 1px solid var(--color-border-default); border-radius: 999px; color: var(--color-text-muted); font: 7px/1 var(--font-code); }.profile-override { display: grid; grid-template-columns: 1fr 1fr minmax(180px, auto) auto; gap: 8px; }.large-task-switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; padding: 6px 10px; border: 1px solid var(--color-border-default); border-radius: 6px; }.large-task-switch span { display: grid; gap: 2px; min-width: 0; }.large-task-switch strong { font-size: 10px; }.large-task-switch small { color: var(--color-text-muted); font: 7px/1.2 var(--font-code); }.report-card { border-color: rgb(34 197 94 / 28%); background: rgb(34 197 94 / 5%); }
 

@@ -46,7 +46,7 @@ export function aiOutputNotice(event: TaskEvent): string | undefined {
     ? event.data.corrections.filter((item): item is string => typeof item === 'string').join('、') : ''
   return event.type === 'AI_OUTPUT_NORMALIZED'
     ? `${role} 输出已自动规范化${corrections ? `：${corrections}` : ''}`
-    : `${role} 重复工具调用已停止，正在使用一次无工具 Finalizer`
+    : `${role} 重复工具调用已停止，正在使用一次 MCP-only 收口会话`
 }
 
 export const useTaskStore = defineStore('task', () => {

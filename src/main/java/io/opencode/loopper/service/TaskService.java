@@ -2214,14 +2214,14 @@ public class TaskService {
         try {
             try { openCode.abort(failedRemote); } catch (RuntimeException ignored) { }
             OpenCodeClient.OpenCodeSession finalizer = openCode.createSession(Path.of(requireWorktree(task)),
-                    roleTitle(judge.role()) + " Finalizer (NO_TOOLS)",
+                    roleTitle(judge.role()) + " Finalizer (MCP_ONLY)",
                     judgeModel(spec(task), judge.responseMode()),
                     OpenCodeClient.SessionProfile.MACHINE_FINALIZER_NO_TOOLS);
             JudgeRunRow recovered = judgeState(judge, finalizer.id(), JudgeRunState.RUNNING,
                     null, null, null, null);
             updateJudge(recovered);
             String prompt = judgePrompt(task, attempt, judge.role())
-                    + "\n\nFINALIZER RECOVERY: Do not call any tool. Return the requested Judge object now."
+                    + "\n\nFINALIZER RECOVERY: Do not call built-in tools. Configured MCP tools remain allowed; return the requested Judge object now."
                     + evidence;
             if (ModelResponseMode.JSON_SCHEMA.name().equals(judge.responseMode())) {
                 openCode.promptAsync(finalizer, new OpenCodeClient.PromptRequest(prompt, null, null,

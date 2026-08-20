@@ -4,7 +4,8 @@ public enum DesignerSessionState implements DescribedEnum {
     PENDING_HANDOFF("等待设计交接"), RUNNING("设计会话运行中"),
     REVIEWING("设计稿等待人工确认"),
     WAITING_INPUT("设计工作流等待人工输入"),
-    COMPLETED("设计会话已完成"), SESSION_ERROR("设计会话异常");
+    COMPLETED("设计会话已完成"), SESSION_ERROR("设计会话异常"),
+    STOPPING("正在停止设计会话"), CANCELLED("设计会话已取消");
 
     private final String description;
     DesignerSessionState(String description) { this.description = description; }
