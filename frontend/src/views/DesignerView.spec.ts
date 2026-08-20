@@ -6,6 +6,7 @@ import DesignerView from '@/views/DesignerView.vue'
 import LoopSpecEditor from '@/components/LoopSpecEditor.vue'
 import PendingQuestionCard from '@/components/PendingQuestionCard.vue'
 import DesignerDiscussionHistory from '@/components/DesignerDiscussionHistory.vue'
+import DesignerSystemMessageHistory from '@/components/DesignerSystemMessageHistory.vue'
 import DesignerValidatorHistory from '@/components/DesignerValidatorHistory.vue'
 import { api } from '@/api/client'
 import { useTaskStore } from '@/stores/taskStore'
@@ -680,15 +681,14 @@ describe('Designer draft composer', () => {
     expect(wrapper.text()).not.toContain('Designer session created in read-only mode.')
     expect(wrapper.text()).not.toContain('Message was handed to the read-only OpenCode Designer.')
     expect(wrapper.text()).not.toContain('SYSTEM_ERROR')
-    expect(wrapper.text()).not.toContain('错误，请按页面提示处理后重试')
-    const systemToggle = wrapper.get('.system-message-toggle')
-    expect(systemToggle.attributes('aria-expanded')).toBe('false')
-    await systemToggle.trigger('click')
-    expect(systemToggle.attributes('aria-expanded')).toBe('true')
-    expect(wrapper.text()).toContain('错误，请按页面提示处理后重试')
+    const systemHistory = wrapper.getComponent(DesignerSystemMessageHistory)
+    expect(systemHistory.get('details').attributes('open')).toBeUndefined()
+    expect(systemHistory.get('summary').text()).toContain('系统消息 1 条')
+    expect(systemHistory.classes()).toContain('error')
+    expect(systemHistory.text()).toContain('错误，请按页面提示处理后重试')
   })
 
-  it('collapses consecutive system notices at the same timeline position into one icon', async () => {
+  it('collects consecutive system notices into one disclosure even when their scope metadata changes', async () => {
     const sessionWithGroupedNotices: DesignerSession = {
       ...session,
       messages: [
@@ -696,8 +696,8 @@ describe('Designer draft composer', () => {
         { id: 'system-1', role: 'SYSTEM', actor: 'SYSTEM', content: '全自动模式已授权', deliveryState: 'PERSISTED', requirementRevision: 1, createdAt: '2026-08-19T08:01:00Z' },
         { id: 'system-2', role: 'SYSTEM', actor: 'SYSTEM', content: '任务画像已生成', deliveryState: 'PERSISTED', requirementRevision: 1, createdAt: '2026-08-19T08:02:00Z' },
         { id: 'designer', role: 'ASSISTANT', actor: 'DESIGNER', content: '# 完整需求稿', deliveryState: 'PERSISTED', requirementRevision: 1, createdAt: '2026-08-19T08:03:00Z' },
-        { id: 'system-3', role: 'SYSTEM', actor: 'SYSTEM', content: '正在重新计算任务画像', deliveryState: 'PERSISTED', requirementRevision: 1, createdAt: '2026-08-19T08:04:00Z' },
-        { id: 'system-4', role: 'SYSTEM', actor: 'SYSTEM', content: '整体需求已确认', deliveryState: 'PERSISTED', requirementRevision: 1, createdAt: '2026-08-19T08:05:00Z' },
+        { id: 'system-3', role: 'SYSTEM', actor: 'SYSTEM', content: '正在重新计算任务画像', deliveryState: 'PERSISTED', requirementRevision: 2, createdAt: '2026-08-19T08:04:00Z' },
+        { id: 'system-4', role: 'SYSTEM', actor: 'SYSTEM', content: '整体需求已确认', deliveryState: 'PERSISTED', requirementRevision: 3, workPackageId: 'WP-1', createdAt: '2026-08-19T08:05:00Z' },
       ],
     }
     vi.spyOn(api, 'createDesignerSession').mockResolvedValue(sessionWithGroupedNotices)
@@ -709,24 +709,21 @@ describe('Designer draft composer', () => {
     await wrapper.get('.create-draft-button').trigger('click')
     await flushPromises()
 
-    const toggles = wrapper.findAll('.system-message-toggle')
-    expect(toggles).toHaveLength(2)
-    expect(toggles.map((toggle) => toggle.attributes('aria-label'))).toEqual([
-      '展开系统消息，共 2 条', '展开系统消息，共 2 条',
+    const histories = wrapper.findAllComponents(DesignerSystemMessageHistory)
+    expect(histories).toHaveLength(2)
+    expect(histories.map((history) => history.props('entries').map((entry) => entry.id))).toEqual([
+      ['system-1', 'system-2'], ['system-3', 'system-4'],
     ])
-    expect(wrapper.text()).not.toContain('全自动模式已授权')
-    expect(wrapper.text()).not.toContain('任务画像已生成')
-    expect(wrapper.text()).not.toContain('正在重新计算任务画像')
-    expect(wrapper.text()).not.toContain('整体需求已确认')
+    expect(histories.map((history) => history.get('summary').text())).toEqual([
+      '系统消息 2 条', '系统消息 2 条',
+    ])
+    expect(histories.every((history) => history.get('details').attributes('open') === undefined)).toBe(true)
 
-    await toggles[0]!.trigger('click')
-    expect(toggles[0]!.attributes('aria-label')).toBe('收起系统消息，共 2 条')
-    expect(wrapper.text()).toContain('全自动模式已授权')
-    expect(wrapper.text()).toContain('任务画像已生成')
-    expect(wrapper.text()).not.toContain('正在重新计算任务画像')
-
-    await toggles[0]!.trigger('click')
-    expect(wrapper.text()).not.toContain('全自动模式已授权')
+    await histories[0]!.get('summary').trigger('click')
+    expect(histories[0]!.get('details').attributes('open')).toBe('')
+    expect(histories[0]!.text()).toContain('全自动模式已授权')
+    expect(histories[0]!.text()).toContain('任务画像已生成')
+    expect(histories[0]!.text()).not.toContain('正在重新计算任务画像')
   })
 
   it('restores distinct role cards, hides compiler JSON, and exposes both recovery actions', async () => {
@@ -766,10 +763,10 @@ describe('Designer draft composer', () => {
     expect(wrapper.get('.chat-user').text()).toContain('你')
     expect(wrapper.get('.chat-designer').text()).toContain('设计器')
     expect(wrapper.get('.chat-compiler').text()).toContain('规范编译器')
-    const systemToggle = wrapper.get('.system-message-toggle')
-    expect(systemToggle.attributes('aria-expanded')).toBe('false')
-    await systemToggle.trigger('click')
-    expect(wrapper.get('.chat-system').text()).toContain('系统')
+    const systemHistory = wrapper.getComponent(DesignerSystemMessageHistory)
+    expect(systemHistory.get('details').attributes('open')).toBeUndefined()
+    expect(systemHistory.get('summary').text()).toContain('系统消息')
+    expect(systemHistory.text()).toContain('服务端状态通知')
     const discussion = wrapper.getComponent(DesignerDiscussionHistory)
     const historyChildren = Array.from(wrapper.get('.chat-history').element.children)
     expect(historyChildren.indexOf(discussion.element)).toBeLessThan(historyChildren.indexOf(wrapper.get('.chat-designer').element))

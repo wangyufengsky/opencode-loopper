@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.1.92`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.1.93`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -32,7 +32,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 - **本地项目登记**：登记绝对路径，识别 Git 任务分支模式或无可用 Git HEAD 时的直接模式。
 - **中文极简界面**：页面只保留完成当前操作所需的信息，状态、角色、验证器和错误统一显示中文；内部枚举码与任务、会话、尝试等记录 ID 不在普通页面回显，项目卡片支持长名称和路径自然换行。
 - **普通单包与大型任务设计**：软件任务默认固定一个 `WP-1`，包内仍由 Designer/Compiler 形成 1–6 个 Stage，按“需求讨论 → 单包设计 → 规范编译”推进；不创建 Task Decomposer Session，编译和确定性校验通过后自动接受 WP-1，再进入独立总体确认。只有画像冻结前显式打开“大型任务”才使用 2–6 个工作包，每包 1–3 个 Stage，并逐包人工接受。普通模式第 7 个 Stage 起以 `LARGE_TASK_MODE_REQUIRED` 停止，必须由用户显式改用大型任务，系统和全自动模式都不会自行切换。
-- **可讨论的只读多角色设计**：整体需求和每个工作包都先由 Designer 用 1–3 个选择题澄清，之后每轮保存完整 Markdown 替代稿；大型任务逐包讨论、查看 Compiler/Validator 候选并明确接受，普通任务在总体确认可重新讨论 WP-1。同一时间线位置的连续系统通知默认只显示一个图标，展开后按时间查看完整记录。Task Decomposer 与分包 LoopSpec Compiler 只输出紧凑的业务规划与证据意图，服务端生成状态、ID、引用、精确摘录、测试元数据和最终 LoopSpec 对象；原始机器 JSON 不进入聊天。确定性校验和人工确认完成前不写业务源码、不创建任务。
+- **可讨论的只读多角色设计**：整体需求和每个工作包都先由 Designer 用 1–3 个选择题澄清，之后每轮保存完整 Markdown 替代稿；大型任务逐包讨论、查看 Compiler/Validator 候选并明确接受，普通任务在总体确认可重新讨论 WP-1。时间线中真正连续的系统通知会跨需求修订与作用域元数据合并为一张默认收起的“系统消息”折叠条，样式与“需求讨论”一致，展开后按时间查看完整记录。Task Decomposer 与分包 LoopSpec Compiler 只输出紧凑的业务规划与证据意图，服务端生成状态、ID、引用、精确摘录、测试元数据和最终 LoopSpec 对象；原始机器 JSON 不进入聊天。确定性校验和人工确认完成前不写业务源码、不创建任务。
 - **动态任务画像与专属流程**：独立无工具 AI Router 先给出语义标签，服务端再与有界仓库事实合并并决定流程、权限、执行与测试策略；每次 Router 运行和完整需求快照都持久化，重启后继续轮询，旧快照在新讨论开始时终止并废弃。Router 格式失败降级为通用画像提问，不能终止 Designer。低于 80 分或证据冲突时，普通模式必须人工覆盖；已明确授权的全自动模式会把 Router 当前任务类型和主要制品作为可审计推荐项采用，需求确认前仍允许人工纠偏。画像摘要及覆盖选项使用中文展示，REST/SQLite 仍保留稳定英文枚举码；确认后画像冻结并随 Recovery 复用。软件工作包分别冻结 Java/Python/Node/混合栈 Role Pack，Task 创建时再把 Role Pack、技术栈和测试策略复制到每个 Stage，实施提示只能使用这份冻结快照。简单 Markdown/DOCX 和一次性 XLSX/CSV/TSV 转 Markdown 使用隐式 `WP-1`；大型文档把 2–6 个有序章节包确定性聚合到冻结计划；独立 Reviewer 只开放 read/glob/grep，以受限结构化发现合同输出并由服务端校验文件、行号和哈希，报告不创建 Task、分支、租约或可写 Session；“转为修改任务”只创建新的 Designer 会话。安全维护只允许明确相对路径并强制禁止删除、服务操作和外部写入。
 - **可选的 Designer 全自动模式**：新建设计和进行中会话均可单独授权，默认关闭。开启后自动采用 Router 推荐画像、选择推荐答案、确认整体需求、接受已通过确定性校验的工作包、确认最终设计并请求启动任务；画像推荐不能绕过删除、服务操作或外部写入等安全边界。执行期问题、危险权限、异常恢复、结果确认、提交、推送和发布仍保持人工边界。其他阻断在重新授权时仍会再次确认风险，状态按会话持久化并可在重启后继续。
 - **项目公约**：只读分析项目并生成或更新根目录 `AGENTS.md`，展示完整预览后才写入；Loopper 管理区块以外的人工内容会被保留。
@@ -126,7 +126,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.1.92.jar
+java -jar target/opencode-loopper-0.1.93.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -352,7 +352,7 @@ Git 任务的最新 Execution Cycle 成功并处于 `AWAITING_DECISION` 或用�
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.1.92.jar`
+- `target/opencode-loopper-0.1.93.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -383,7 +383,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:51234
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.1.92.jar`
+- `opencode-loopper-0.1.93.jar`
 - `start-windows.bat`
 
 确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
@@ -421,7 +421,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.1.92.jar \
+jar tf target/opencode-loopper-0.1.93.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -501,7 +501,7 @@ Windows PowerShell：
 例如发布下一版本：
 
 ```bash
-VERSION=0.1.92
+VERSION=0.1.93
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -541,7 +541,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.1.92.jar
+java -jar target/opencode-loopper-0.1.93.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。
@@ -637,6 +637,8 @@ echo %PATHEXT%
 `0.1.80` 增加按 Designer 会话持久化、默认关闭的全自动模式。每次开启需确认风险，服务端以独立 V34 状态机和乐观锁每轮最多推进一个动作：Router 推荐画像、推荐答案、整体需求确认、逐包批准、最终确认、唯一任务创建和正式 Task Start；重启可继续，异常进入 `BLOCKED` 且不会高频重试。低置信或冲突画像在全自动授权下采用当前推荐并记录 `AUTO_RECOMMENDED`，不再要求人工覆盖；历史 `TASK_PROFILE_DECISION_REQUIRED` 阻断会恢复后执行同一动作。危险操作边界不能由画像推荐绕过。授权在请求启动 Task 后结束，执行期问题、危险权限、异常恢复、结果确认、提交、推送与发布继续人工处理。
 
 `0.1.89` 同时收紧两处历史/并发读模型边界：工作包 Role Pack 只有在角色、执行策略和测试策略全部存在时才作为冻结快照读取，旧数据的空枚举不再使 Designer 轮询报错，并会在下一次权威使用时补齐；任务摘要和概览从重叠的 `CLAIMED` 与新活动重试计划中确定性选择一条，不再触发 MyBatis `selectOne` 多行异常。
+
+`0.1.93` 将 Designer 连续系统通知改为与“需求讨论”一致的整行折叠条，并按真实时间线连续性合并，不再因需求修订或需求/工作包作用域元数据变化拆成多个空白图标行；用户、设计器、讨论和确定性校验仍保持明确分组边界，错误组继续保留警示状态。
 
 `0.1.82` 将 OpenCode Provider 瞬态 `RETRY` 的同 Session 恢复语义扩展到全部调用路径。Designer、Decomposer、Compiler、Implementation、Judge、项目公约、提交建议和本地同步都保留原远端 Session 继续轮询；`RETRY` 不再创建新 Attempt/Judge、消耗 Loopper 重试预算、写入 Session 错误或证明旧 writer 已停止。既有角色/操作超时仍是硬边界，只有远端真实终态失败或本地超时才进入原有失败升级。
 

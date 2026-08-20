@@ -400,13 +400,13 @@ inference. The console renders user cards blue, Decomposer summaries indigo,
 Designer Markdown purple, Compiler summaries/gaps cyan,
 Validator results retain green/yellow/red item states inside one collapsed
 **确定性校验** disclosure instead of producing an unbounded run of cards; expanding
-it reveals each persisted result in order. Consecutive System notices at the same
-timeline position, requirement revision, and requirement/work-package scope render
-as one icon-only control. The control is collapsed by default and exposes no summary
-text; expanding it reveals every persisted notice in chronological order. User,
-Designer, discussion, Validator, scope, or revision boundaries must start a new
-System group. Error notices use an alert icon but keep the same explicit expansion
-boundary; the separate active workflow error banner remains visible.
+it reveals each persisted result in order. Consecutive System notices render as one
+full-width, collapsed **系统消息** disclosure even when their requirement revision or
+requirement/work-package scope metadata changes. Its summary follows the same visual
+structure as **需求讨论**, shows the persisted notice count, and expands to every
+notice in chronological order. User, Designer, discussion, or Validator timeline
+items start a new System group. Error groups use the same disclosure with an alert
+state; the separate active workflow error banner remains visible.
 A four-step bar shows requirement discussion,
 package design, final confirmation, and task creation. The selectable package
 rail exposes question/discussion/accept for the current package, **重新讨论** for

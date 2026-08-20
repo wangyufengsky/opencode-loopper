@@ -42,10 +42,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.1.92.jar
-   jar tf target/opencode-loopper-0.1.92.jar \
+   test -s target/opencode-loopper-0.1.93.jar
+   jar tf target/opencode-loopper-0.1.93.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.1.92.jar
+   shasum -a 256 target/opencode-loopper-0.1.93.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -95,8 +95,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.1.92`。
-- 正式产物：`target/opencode-loopper-0.1.92.jar`。
+- Maven 项目版本：`0.1.93`。
+- 正式产物：`target/opencode-loopper-0.1.93.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -368,7 +368,7 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 - 运行环境页只展示服务摘要、进程边界和恢复操作；原生能力发现与执行授权仍由服务端持有，但不再渲染独立的能力或授权说明卡片。
 - 设置页多列数值表单必须按控件底部对齐，避免一行/两行标签混排时输入框错位；窄屏降列时仍保持自然文档流。
 - 每个行为变化都在相邻 `.spec.ts` 中增加回归测试；路由级关键流程再考虑 `frontend/e2e/`。
-- Designer 的已回答问题必须按作用域和讨论修订分卡，并固定在对应设计稿之前；确定性校验消息只渲染一个默认收起的汇总卡，展开后保留逐条状态和时间；同一时间线位置、需求版本和需求/工作包作用域内的连续 System 消息必须合并为一个默认收起、仅显示图标的控件，展开后按持久化顺序展示完整内容，用户/设计器/讨论/校验/作用域/版本边界不得跨组，活动错误横幅不得因此隐藏。
+- Designer 的已回答问题必须按作用域和讨论修订分卡，并固定在对应设计稿之前；确定性校验消息只渲染一个默认收起的汇总卡，展开后保留逐条状态和时间；真正连续的 System 消息必须跨需求版本和需求/工作包作用域元数据合并为一张默认收起、与“需求讨论”同结构的整行折叠条，展开后按持久化顺序展示完整内容；用户/设计器/讨论/校验时间线项仍是分组边界，活动错误横幅不得因此隐藏。
 - UI 图标必须使用项目已打包的 Iconify/Lucide 资源，不依赖外网 CDN。
 - Spring SPA fallback 必须接住无扩展名的深层前端 history 路由；`/api`、`/actuator`、`/assets` 和带文件扩展名的静态资源路径不得被改写为 `index.html`。
 
@@ -411,7 +411,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.1.92.jar
+JAR=target/opencode-loopper-0.1.93.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -512,6 +512,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-08-20 | Designer 连续系统消息折叠条与 0.1.93 | 连续 System 通知跨需求修订和需求/工作包作用域元数据合并，默认以与“需求讨论”同结构的整行“系统消息”折叠条显示，用户/设计器/讨论/校验仍保持时间线边界；同步 README、设计合同与本公约正文 | Designer 聚焦测试 28/28、前端类型检查、发布打包契约通过；`./scripts/verify.sh` 使用 JDK 21.0.12 完整通过：Java 483 项（0 失败、0 错误、1 平台条件跳过），Vitest 184/184，BUILD SUCCESS；本地 JAR `target/opencode-loopper-0.1.93.jar` 大小 283212527 字节、含 108 个 SPA 静态入口/资产，SHA-256 `230db80101fb888fa354b3afef4fc8245186c6ed090dbf33ad7830fb159693b6`；未重启运行实例，不推送、不打标签、不创建 Release |
 | 2026-08-20 | 默认单包软件设计、大型任务开关与 0.1.92 | 软件任务默认 `DIRECT_SOFTWARE_DESIGN / WP-1`，允许 1–6 个 Stage，不创建 Decomposer Session 且校验后自动批准；画像冻结前可显式开启大型任务，保留既有多包/每包 1–3 Stage 流程；第 7 个 Stage 起以 `LARGE_TASK_MODE_REQUIRED` 停止并等待用户显式切换；同步 README、架构、Designer、OpenCode、AI 角色契约与本公约正文 | 聚焦后端 Router/Designer/打包契约及前端 Designer 28/28、类型检查通过；`./scripts/verify.sh` 使用 JDK 21.0.12 完整通过：Java 483 项（0 失败、0 错误、1 平台条件跳过），Vitest 184/184，BUILD SUCCESS；本地 JAR `target/opencode-loopper-0.1.92.jar` 大小 283212702 字节、含 109 个 SPA 静态条目，SHA-256 `724dbaed600cdc4d0083e50c18ec32cf27e5180151e8c6875c8c98dad2d7a59c`；未重启运行实例，不推送、不打标签、不创建 Release |
 | 2026-08-19 | Designer 同位置系统消息折叠，0.1.91 | 同一时间线位置、需求版本和需求/工作包作用域内的连续 System 消息合并为默认收起的单图标控件，展开后按持久化顺序查看完整记录；用户/设计器/讨论/校验和作用域边界保持分组隔离，错误组使用警示图标且不隐藏活动错误横幅；同步 README、设计合同与本公约正文 | Designer 聚焦测试 26/26、前端类型检查及 `./scripts/verify.sh` 使用 JDK 21.0.12 完整通过：Java 480 项（0 失败、0 错误、1 平台条件跳过），Vitest 182/182，BUILD SUCCESS；本地 JAR `target/opencode-loopper-0.1.91.jar` 大小 283204888 字节、含 108 个 SPA 静态条目，SHA-256 `a7d2908d26005af52e9c11f7f8b8ebd19ed978e9c95ff257f3557955e9e27ccd`；未重启当前 8080，不推送、不打标签、不创建 Release |
 | 2026-08-19 | 全前端中文极简化与可读性优化，0.1.90 | 所有主要页面删除冗余说明，状态、角色、验证器、错误码和内部名称统一走中文显示；普通页面隐藏任务、设计、工作包、尝试、会话、证据等记录 ID；项目登记卡片扩大为双列可换行布局；同步 README、设计合同与本公约正文 | 前端类型检查、聚焦发布契约及 `./scripts/verify.sh` 使用 JDK 21.0.12 完整通过：Java 480 项（0 失败、0 错误、1 平台条件跳过），Vitest 181/181，BUILD SUCCESS；本地 JAR `target/opencode-loopper-0.1.90.jar` 大小 283204274 字节、含 108 个 SPA 静态条目，SHA-256 `8e545c7bd03c50947533e1f8a0fdecf08cd7bcf2837191ac3414a9644142b1be`；未重启当前 8080，不推送、不打标签、不创建 Release |
