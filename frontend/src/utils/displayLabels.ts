@@ -70,6 +70,7 @@ const errorCodeLabels: Record<string, string> = {
   MULTI_TASK_REQUIRED: '需要将需求拆成多个独立任务', TASK_PROFILE_DECISION_REQUIRED: '需要确认任务类型',
   LARGE_TASK_MODE_REQUIRED: '当前需求无法安全容纳在普通单包中',
   LARGE_TASK_MODE_NOT_APPLICABLE: '大型任务模式只适用于软件任务',
+  REQUIREMENT_SNAPSHOT_TOO_LARGE: '需求快照超过 24 KiB，请新建设计并提交精简后的完整需求',
   REQUIREMENT_SEGMENT_UNCOVERED: '部分需求尚未纳入工作包',
   DECOMPOSER_PLAN_OUTPUT_MARKERS_MISSING: '任务拆解结果格式不完整',
   COMPILER_PLAN_OUTPUT_MARKERS_MISSING: '规范编译结果格式不完整',

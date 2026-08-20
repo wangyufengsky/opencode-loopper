@@ -210,6 +210,18 @@ public class TaskProfileService {
                         .map(run -> routing(run.state())).orElseGet(this::legacy));
     }
 
+    public WorkflowTemplate workflowTemplateIncludingSuperseded(String sessionId) {
+        session(sessionId);
+        return mapper.findCurrentDesignerTaskProfile(sessionId)
+                .map(DesignerTaskProfileRow::workflowTemplate)
+                .map(WorkflowTemplate::valueOf)
+                .orElseGet(() -> mapper.listDesignerTaskProfiles(sessionId).stream()
+                        .findFirst()
+                        .map(DesignerTaskProfileRow::workflowTemplate)
+                        .map(WorkflowTemplate::valueOf)
+                        .orElseGet(() -> current(sessionId).workflowTemplate()));
+    }
+
     public View override(String sessionId, TaskIntent intent, ArtifactKind primaryArtifact,
                          Boolean largeTaskMode, long expectedVersion) {
         if (intent == null || primaryArtifact == null) throw new BadRequestException("TASK_PROFILE_OVERRIDE_INVALID", "必须选择任务意图和主要制品类型");

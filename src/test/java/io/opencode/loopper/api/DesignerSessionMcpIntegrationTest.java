@@ -171,12 +171,17 @@ class DesignerSessionMcpIntegrationTest {
         LoopSpec sixStageSpec = legacySpecWithStages(project.id(), 6);
         LoopDraftRow draft = drafts.create(sixStageSpec);
         fake().setDesignerOutput(designerOutput("# 单包设计\n\n缓存刷新后用户能看到新值。", sixStageSpec));
+        fake().setJudgeOutput("DESIGNER", "");
+        fake().setPackageDesignerOutput("WP-1", "# 单包设计\n\n缓存刷新后用户能看到新值。");
 
         DesignerSessionRow reviewing = prepareReviewingSession(project.id(), draft.id(), "实现缓存刷新并保留验收证据");
         assertThat(taskProfiles.current(reviewing.id()).workflowTemplate().name()).isEqualTo("DIRECT_SOFTWARE_DESIGN");
         designerSessions.confirmRequirement(reviewing.id(), reviewing.discussionRevision());
         DesignerSessionRow session = designerSessions.get(reviewing.id());
-        assertThat(session.workflowPhase()).isEqualTo("QUESTIONING_PACKAGE");
+        assertThat(session.workflowPhase()).isEqualTo("DESIGNING");
+        assertThat(designerSessions.pendingQuestions(session.id())).isEmpty();
+        assertThat(fake().profileForSession(session.externalSessionId()))
+                .isEqualTo(OpenCodeClient.SessionProfile.GENERAL_READ_ONLY);
         assertThat(mapper.listTasks()).isEmpty();
         var markerDecomposition = mapper.findTaskDecompositionByRevision(
                 mapper.findCurrentDesignRequirementRevision(session.id()).orElseThrow().id()).orElseThrow();
@@ -190,6 +195,26 @@ class DesignerSessionMcpIntegrationTest {
                 .isEqualTo("REVIEWING");
         assertThat(completed.workflowPhase()).isEqualTo("FINAL_REVIEW");
         assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(3);
+        assertThat(designerSessions.requirementSnapshot(session.id())).satisfies(snapshot -> {
+            assertThat(snapshot.source()).isEqualTo("SERVER_ASSEMBLED");
+            assertThat(snapshot.markdown()).contains("实现缓存刷新并保留验收证据", "采用推荐项 (Recommended)")
+                    .doesNotContain("缓存刷新后用户能看到新值");
+        });
+        assertThat(designerSessions.messages(session.id()))
+                .anyMatch(message -> "SERVER_REQUIREMENT_SNAPSHOT".equals(message.deliveryState())
+                        && message.content().equals(designerSessions.requirementSnapshot(session.id()).markdown()));
+        DesignerMessageRow snapshotSource = designerSessions.messages(session.id()).stream()
+                .filter(message -> "SERVER_REQUIREMENT_SNAPSHOT".equals(message.deliveryState()))
+                .findFirst().orElseThrow();
+        DesignRequirementRevisionRow frozenRequirement = mapper.findCurrentDesignRequirementRevision(session.id())
+                .orElseThrow();
+        assertThat(frozenRequirement.sourceMessageId()).isEqualTo(snapshotSource.id());
+        assertThat(frozenRequirement.requirementText()).isEqualTo(snapshotSource.content());
+        mvc.perform(get("/api/designer-sessions/{id}", session.id()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.requirementSnapshot.discussionRevision").value(1))
+                .andExpect(jsonPath("$.requirementSnapshot.source").value("SERVER_ASSEMBLED"))
+                .andExpect(jsonPath("$.requirementSnapshot.markdown").value(snapshotSource.content()));
         assertThat(designerSessions.decompositionStatus(session.id()).resultType()).isEqualTo("DIRECT_DESIGN");
         assertThat(designerSessions.workPackageStatuses(session.id())).singleElement().satisfies(workPackage -> {
             assertThat(workPackage.id()).isEqualTo("WP-1");
@@ -256,7 +281,29 @@ class DesignerSessionMcpIntegrationTest {
                 .andExpect(jsonPath("$.workflowTemplate").value("FULL_PACKAGE_DESIGN"))
                 .andExpect(jsonPath("$.largeTaskMode").value(true));
         assertThat(designerSessions.get(reviewing.id()).workflowPhase()).isEqualTo("DISCUSSING_REQUIREMENT");
+        assertThat(designerSessions.get(reviewing.id()).state()).isEqualTo("RUNNING");
         assertThat(mapper.findCurrentDesignRequirementRevision(reviewing.id())).isEmpty();
+    }
+
+    @Test
+    void directRequirementSnapshotRejectsUtf8ContentOverTwentyFourKibWithoutTruncation() throws Exception {
+        ProjectRow project = project("direct-snapshot-limit");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        DesignerSessionRow session = designerSessions.create(project.id(), draft.id(), "需".repeat(8_500));
+        designerSessions.pollActiveHandoffs();
+        completeMandatoryDesignerQuestion(session.id());
+        designerSessions.pollActiveHandoffs();
+
+        DesignerSessionRow blocked = designerSessions.get(session.id());
+        assertThat(blocked.state()).isEqualTo("WAITING_INPUT");
+        assertThat(mapper.findLatestDesignDiscussionRevision(session.id(), "REQUIREMENT").orElseThrow())
+                .satisfies(discussion -> {
+                    assertThat(discussion.lastErrorCode()).isEqualTo("REQUIREMENT_SNAPSHOT_TOO_LARGE");
+                    assertThat(discussion.snapshotMarkdown()).isBlank();
+                });
+        assertThat(designerSessions.messages(session.id())).noneMatch(message ->
+                "SERVER_REQUIREMENT_SNAPSHOT".equals(message.deliveryState()));
+        assertThat(mapper.findCurrentDesignRequirementRevision(session.id())).isEmpty();
     }
 
     @Test
@@ -531,7 +578,7 @@ class DesignerSessionMcpIntegrationTest {
 
         DesignerSessionRow resumed = designerSessions.get(session.id());
         assertThat(resumed.currentRequirementRevision()).isNotNull();
-        assertThat(resumed.workflowPhase()).isEqualTo("QUESTIONING_PACKAGE");
+        assertThat(resumed.workflowPhase()).isEqualTo("DESIGNING");
         assertThat(designerAutoMode.get(session.id()).state()).isEqualTo("ACTIVE");
         assertThat(mapper.listDesignDiscussionRevisions(session.id()))
                 .anyMatch(row -> row.decisionLogJson().contains("AUTO_RECOMMENDED")
@@ -571,7 +618,7 @@ class DesignerSessionMcpIntegrationTest {
             assertThat(profile.workflowTemplate().name()).isEqualTo("DIRECT_SOFTWARE_DESIGN");
             assertThat(profile.largeTaskMode()).isFalse();
         });
-        assertThat(designerSessions.get(session.id()).workflowPhase()).isEqualTo("QUESTIONING_PACKAGE");
+        assertThat(designerSessions.get(session.id()).workflowPhase()).isEqualTo("DESIGNING");
     }
 
     @Test
@@ -613,7 +660,7 @@ class DesignerSessionMcpIntegrationTest {
         designerAutoMode.pollActive();
 
         assertThat(taskProfiles.current(session.id()).state()).isEqualTo("FROZEN");
-        assertThat(designerSessions.get(session.id()).workflowPhase()).isEqualTo("QUESTIONING_PACKAGE");
+        assertThat(designerSessions.get(session.id()).workflowPhase()).isEqualTo("DESIGNING");
     }
 
     @Test
@@ -624,6 +671,7 @@ class DesignerSessionMcpIntegrationTest {
         DesignerSessionRow session = prepareReviewingSession(project.id(), draft.id(),
                 "修改 Java 源代码实现缓存刷新功能并补充测试");
         TaskProfileService.View initial = taskProfiles.current(session.id());
+        String directRequirementSessionId = designerSessions.get(session.id()).externalSessionId();
         assertThat(initial.workflowTemplate().name()).isEqualTo("DIRECT_SOFTWARE_DESIGN");
         assertThat(initial.largeTaskMode()).isFalse();
 
@@ -635,6 +683,14 @@ class DesignerSessionMcpIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.workflowTemplate").value("FULL_PACKAGE_DESIGN"))
                 .andExpect(jsonPath("$.largeTaskMode").value(true));
+        DesignerSessionRow largePredesign = designerSessions.get(session.id());
+        String largeRequirementSessionId = largePredesign.externalSessionId();
+        assertThat(largePredesign.state()).isEqualTo("RUNNING");
+        assertThat(largePredesign.workflowPhase()).isEqualTo("DISCUSSING_REQUIREMENT");
+        assertThat(fake().abortedSessionIds()).contains(directRequirementSessionId);
+        assertThatThrownBy(() -> designerSessions.confirmRequirement(session.id(), largePredesign.discussionRevision()))
+                .isInstanceOfSatisfying(ConflictException.class, error ->
+                        assertThat(error.code()).isEqualTo("REQUIREMENT_DISCUSSION_INCOMPLETE"));
 
         mvc.perform(put("/api/designer-sessions/{id}/task-profile", session.id())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -657,6 +713,23 @@ class DesignerSessionMcpIntegrationTest {
                 .andExpect(status().isBadRequest());
 
         assertThat(large.largeTaskMode()).isTrue();
+
+        TaskProfileService.View latestLarge = taskProfiles.current(session.id());
+        mvc.perform(put("/api/designer-sessions/{id}/task-profile", session.id())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of(
+                                "intent", "SOFTWARE_CHANGE", "primaryArtifactKind", "SOURCE_CODE",
+                                "largeTaskMode", false, "expectedVersion", latestLarge.version()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.workflowTemplate").value("DIRECT_SOFTWARE_DESIGN"))
+                .andExpect(jsonPath("$.largeTaskMode").value(false));
+        assertThat(fake().abortedSessionIds()).contains(largeRequirementSessionId);
+        assertThat(designerSessions.get(session.id()).state()).isEqualTo("REVIEWING");
+        assertThat(designerSessions.requirementSnapshot(session.id())).satisfies(snapshot -> {
+            assertThat(snapshot.source()).isEqualTo("SERVER_ASSEMBLED");
+            assertThat(snapshot.markdown()).contains("修改 Java 源代码实现缓存刷新功能并补充测试")
+                    .doesNotContain("# Java 软件变更");
+        });
     }
 
     @Test
@@ -740,7 +813,7 @@ class DesignerSessionMcpIntegrationTest {
                     .extracting(LoopSpec.AcceptanceCriterion::id).isEqualTo("WP-1-AC-1");
             assertThat(stage.verifiers().getFirst().criterionIds()).containsExactly("WP-1-AC-1");
         });
-        assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(5);
+        assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(6);
         assertThat(fake().promptHistory()).noneMatch(call -> call.prompt().contains("Frozen planning:")
                 && call.prompt().contains("final CompiledPackage JSON"));
     }
@@ -1146,7 +1219,7 @@ class DesignerSessionMcpIntegrationTest {
         fake().setDesignerOutput(designerOutput(
                 "# 结构化设计\n\nREADME 文档设计可执行验证。", structuredSpec));
 
-        DesignerSessionRow reviewing = prepareReviewingSession(project.id(), draft.id(), "结构化输出失败时安全回退");
+        DesignerSessionRow reviewing = prepareLargeReviewingSession(project.id(), draft.id(), "结构化输出失败时安全回退");
         fake().failNextStructuredPrompts(1);
         designerSessions.confirmRequirement(reviewing.id(), reviewing.discussionRevision());
         DesignerSessionRow session = designerSessions.get(reviewing.id());
@@ -1161,7 +1234,7 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(decomposition.finalResponseSchemaId()).isEqualTo("DECOMPOSITION_FINAL_V1");
         assertThat(decomposition.planningRepairCount()).isEqualTo(1);
         var compilation = mapper.findLatestLoopSpecCompilationForPackage(session.id(), "WP-1").orElseThrow();
-        assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(6);
+        assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(7);
         assertThat(fake().profileForSession(decomposition.externalSessionId()))
                 .isEqualTo(OpenCodeClient.SessionProfile.DECOMPOSER_READ_ONLY);
         assertThat(fake().modelForSession(decomposition.externalSessionId()).thinking()).isNull();
@@ -1305,8 +1378,8 @@ class DesignerSessionMcpIntegrationTest {
         pollUntilSettled(session.id());
         assertThat(designerSessions.get(session.id()).workflowPhase()).isEqualTo("FINAL_REVIEW");
         assertPackageStates(session.id(), "COMPLETED", "COMPLETED", "COMPLETED");
-        assertThat(fake().createReadOnlySessionCalls()).isEqualTo(11);
-        assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(9);
+        assertThat(fake().createReadOnlySessionCalls()).isEqualTo(12);
+        assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(10);
         LoopSpec aggregate = drafts.spec(drafts.get(draft.id()));
         assertThat(aggregate.goal()).isEqualTo("交付三段纵向能力");
         assertThat(aggregate.stages()).extracting(LoopSpec.StageSpec::workPackageId)
@@ -1341,9 +1414,9 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(designerSessions.get(session.id()).workflowPhase()).isEqualTo("FINAL_REVIEW");
         assertThat(designerSessions.workPackageStatuses(session.id())).hasSize(6)
                 .allMatch(workPackage -> "APPROVED".equals(workPackage.state()));
-        assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(15);
-        // Requirement routing runs once for the raw request and once for the complete Designer snapshot.
-        assertThat(fake().createReadOnlySessionCalls()).isEqualTo(17);
+        assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(16);
+        // Default direct routing plus the explicit large-task switch add one requirement predesign call.
+        assertThat(fake().createReadOnlySessionCalls()).isEqualTo(18);
         assertThat(drafts.spec(drafts.get(draft.id())).stages()).extracting(LoopSpec.StageSpec::workPackageId)
                 .containsExactly("WP-1", "WP-2", "WP-3", "WP-4", "WP-5", "WP-6");
         assertThat(mapper.listTasks()).isEmpty();
@@ -1375,7 +1448,7 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(designerSessions.get(session.id()).state()).isEqualTo("WAITING_INPUT");
         assertThat(designerSessions.messages(session.id())).anyMatch(message ->
                 "VALIDATOR".equals(message.actor()) && message.content().contains("DESIGNER_DRAFT_CHANGED"));
-        assertThat(fake().createReadOnlySessionCalls()).isEqualTo(4);
+        assertThat(fake().createReadOnlySessionCalls()).isEqualTo(5);
         assertThat(mapper.listTasks()).isEmpty();
     }
 
@@ -1470,7 +1543,7 @@ class DesignerSessionMcpIntegrationTest {
 
         assertThat(designerSessions.get(session.id()).state()).isEqualTo("WAITING_INPUT");
         assertThat(designerSessions.decompositionStatus(session.id()).workflowStep()).isEqualTo("FINAL_JSON");
-        assertThat(fake().createReadOnlySessionCalls()).isEqualTo(4);
+        assertThat(fake().createReadOnlySessionCalls()).isEqualTo(5);
         assertThat(fake().promptHistory().stream().filter(call -> decompositionSessionId.equals(call.sessionId())))
                 .hasSize(3);
         assertThat(designerSessions.messages(session.id())).noneMatch(message ->
@@ -1498,7 +1571,7 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(status.resultType()).isEqualTo("NEEDS_INPUT");
         assertThat(status.planningRepairCount()).isZero();
         assertThat(status.repairCount()).isZero();
-        assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(2);
+        assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(3);
         assertThat(designerSessions.messages(session.id())).noneMatch(message ->
                 message.content().contains("OUTPUT_MARKERS_MISSING"));
         assertThat(mapper.listTasks()).isEmpty();
@@ -1599,6 +1672,18 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(mapper.listDesignDiscussionRevisions(session.id())).hasSize(2)
                 .allMatch(row -> !row.snapshotMarkdown().isBlank());
         assertThat(mapper.findLatestTaskDecomposition(session.id())).isEmpty();
+        DesignerSessionService.RequirementSnapshot snapshot = designerSessions.requirementSnapshot(session.id());
+        assertThat(snapshot.source()).isEqualTo("SERVER_ASSEMBLED");
+        assertThat(snapshot.markdown()).contains(
+                        "后续输入和回答优先于冲突的旧内容",
+                        "先实现查询能力",
+                        "历史问题仍然可见吗？",
+                        "回答：可以",
+                        "补充：失败时返回明确错误，且保持同一发布边界",
+                        "采用推荐项 (Recommended)")
+                .doesNotContain("# 补充后的完整设计", "异常和验收边界完整");
+        assertThat(snapshot.markdown().indexOf("先实现查询能力"))
+                .isLessThan(snapshot.markdown().indexOf("补充：失败时返回明确错误"));
 
         fake().setDecomposerOutput(decomposition("NEEDS_INPUT", "补充后的完整需求", 0));
         TaskProfileService.View profile = taskProfiles.current(session.id());
@@ -1644,9 +1729,41 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(second.id()).isNotEqualTo(first.id());
         assertThat(mapper.findTaskDecompositionByRevision(second.id()).orElseThrow().id())
                 .isNotEqualTo(firstDecomposition);
+        int latestRequirementDiscussion = mapper.findLatestDesignDiscussionRevision(session.id(), "REQUIREMENT")
+                .orElseThrow().revision();
         assertThat(mapper.listDesignDiscussionRevisions(session.id()).stream()
-                .filter(row -> "REQUIREMENT".equals(row.scopeKey()) && row.revision() == 2)
+                .filter(row -> "REQUIREMENT".equals(row.scopeKey())
+                        && row.revision() == latestRequirementDiscussion)
                 .map(DesignDiscussionRevisionRow::requirementRevision)).containsExactly(2);
+    }
+
+    @Test
+    void historicalFrozenAiSnapshotIsTheCompatibilityBaselineWhenSwitchingBackToDirectMode() throws Exception {
+        ProjectRow project = project("historical-ai-snapshot");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        fake().setDesignerOutput(designerOutput("# 历史冻结需求\n\n保留既有业务语义。", legacySpec(project.id())));
+        DesignerSessionRow session = createConfirmedSession(project.id(), draft.id(), "原始历史需求");
+        DesignerSessionRow frozen = designerSessions.get(session.id());
+        designerSessions.reopenRequirement(session.id(), frozen.discussionRevision());
+
+        fake().setDesignerOutput(designerOutput("# 未冻结 AI 推断\n\n这段内容不能进入普通快照。", legacySpec(project.id())));
+        DesignerSessionRow reopened = designerSessions.get(session.id());
+        designerSessions.appendRequirementMessage(session.id(), "新增用户明确边界", reopened.discussionRevision());
+        completeMandatoryDesignerQuestion(session.id());
+        designerSessions.pollActiveHandoffs();
+        designerSessions.pollActiveHandoffs();
+
+        TaskProfileService.View large = taskProfiles.current(session.id());
+        designerSessions.updateTaskProfile(session.id(), large.intent(), large.artifactKinds().getFirst(),
+                false, large.version());
+
+        assertThat(designerSessions.requirementSnapshot(session.id())).satisfies(snapshot -> {
+            assertThat(snapshot.source()).isEqualTo("SERVER_ASSEMBLED");
+            assertThat(snapshot.markdown()).contains(
+                            "## 历史兼容基线", "# 历史冻结需求", "保留既有业务语义。",
+                            "新增用户明确边界", "采用推荐项 (Recommended)")
+                    .doesNotContain("# 未冻结 AI 推断", "这段内容不能进入普通快照");
+        });
     }
 
     @Test
@@ -1998,14 +2115,19 @@ class DesignerSessionMcpIntegrationTest {
     }
 
     private DesignerSessionRow createConfirmedSession(String projectId, String draftId, String requirement) {
-        DesignerSessionRow reviewing = prepareReviewingSession(projectId, draftId, requirement);
-        assertThat(reviewing.state()).isEqualTo("REVIEWING");
-        TaskProfileService.View profile = taskProfiles.current(reviewing.id());
+        DesignerSessionRow created = designerSessions.create(projectId, draftId, requirement);
+        designerSessions.pollActiveHandoffs();
+        TaskProfileService.View profile = taskProfiles.current(created.id());
         if (profile.intent().name().equals("SOFTWARE_CHANGE")
                 && profile.workflowTemplate().name().equals("DIRECT_SOFTWARE_DESIGN")) {
-            taskProfiles.override(reviewing.id(), profile.intent(), profile.artifactKinds().getFirst(),
+            designerSessions.updateTaskProfile(created.id(), profile.intent(), profile.artifactKinds().getFirst(),
                     true, profile.version());
         }
+        completeMandatoryDesignerQuestion(created.id());
+        designerSessions.pollActiveHandoffs();
+        designerSessions.pollActiveHandoffs();
+        DesignerSessionRow reviewing = designerSessions.get(created.id());
+        assertThat(reviewing.state()).isEqualTo("REVIEWING");
         designerSessions.confirmRequirement(reviewing.id(), reviewing.discussionRevision());
         return designerSessions.get(reviewing.id());
     }
@@ -2013,6 +2135,20 @@ class DesignerSessionMcpIntegrationTest {
     private DesignerSessionRow prepareReviewingSession(String projectId, String draftId, String requirement) {
         DesignerSessionRow session = designerSessions.create(projectId, draftId, requirement);
         designerSessions.pollActiveHandoffs();
+        completeMandatoryDesignerQuestion(session.id());
+        designerSessions.pollActiveHandoffs();
+        designerSessions.pollActiveHandoffs();
+        DesignerSessionRow reviewing = designerSessions.get(session.id());
+        assertThat(reviewing.state()).isEqualTo("REVIEWING");
+        return reviewing;
+    }
+
+    private DesignerSessionRow prepareLargeReviewingSession(String projectId, String draftId, String requirement) {
+        DesignerSessionRow session = designerSessions.create(projectId, draftId, requirement);
+        designerSessions.pollActiveHandoffs();
+        TaskProfileService.View profile = taskProfiles.current(session.id());
+        designerSessions.updateTaskProfile(session.id(), profile.intent(), profile.artifactKinds().getFirst(),
+                true, profile.version());
         completeMandatoryDesignerQuestion(session.id());
         designerSessions.pollActiveHandoffs();
         designerSessions.pollActiveHandoffs();

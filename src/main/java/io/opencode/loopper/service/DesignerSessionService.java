@@ -9,10 +9,12 @@ import io.opencode.loopper.domain.DesignerSessionState;
 import io.opencode.loopper.domain.LifecycleMachineType;
 import io.opencode.loopper.domain.LifecycleScopeType;
 import io.opencode.loopper.domain.ImplementationKind;
+import io.opencode.loopper.domain.ArtifactKind;
 import io.opencode.loopper.domain.LoopSpec;
 import io.opencode.loopper.domain.LoopSpecCompilationState;
 import io.opencode.loopper.domain.ModelResponseMode;
 import io.opencode.loopper.domain.TaskDecompositionState;
+import io.opencode.loopper.domain.TaskIntent;
 import io.opencode.loopper.domain.WorkflowTemplate;
 import io.opencode.loopper.domain.SessionFailure;
 import io.opencode.loopper.domain.StructuredModelStep;
@@ -74,6 +76,7 @@ public class DesignerSessionService {
     private static final int MAX_COMPILER_REPAIRS = 2;
     private static final int MAX_AUTOMATIC_REDESIGNS = 1;
     private static final int MAX_HUMAN_PACKAGE_REVISIONS = 5;
+    public static final String SERVER_REQUIREMENT_SNAPSHOT = "SERVER_REQUIREMENT_SNAPSHOT";
     private static final Pattern COMPILATION_PAYLOAD = Pattern.compile(
             "<!--\\s*LOOPSPEC_COMPILATION_JSON_START\\s*-->(.*?)<!--\\s*LOOPSPEC_COMPILATION_JSON_END\\s*-->",
             Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
@@ -422,6 +425,7 @@ public class DesignerSessionService {
 
     public List<PendingQuestion> pendingQuestions(String sessionId) {
         DesignerSessionRow session = get(sessionId);
+        if (session.currentRequirementRevision() != null && directSoftwareMode(sessionId)) return List.of();
         if (!DesignerSessionState.RUNNING.name().equals(session.state())
                 || !Set.of(DesignWorkflowPhase.DISCUSSING_REQUIREMENT.name(),
                 DesignWorkflowPhase.QUESTIONING_PACKAGE.name(), DesignWorkflowPhase.DESIGNING.name(),
@@ -458,6 +462,19 @@ public class DesignerSessionService {
             }
         }
         return List.copyOf(answered);
+    }
+
+    public RequirementSnapshot requirementSnapshot(String sessionId) {
+        get(sessionId);
+        DesignDiscussionRevisionRow discussion = mapper.listDesignDiscussionRevisions(sessionId).stream()
+                .filter(row -> "REQUIREMENT".equals(row.scopeKey()) && !blank(row.snapshotMarkdown()))
+                .reduce((first, second) -> second).orElse(null);
+        if (discussion == null) return null;
+        String source = !blank(discussion.designMessageId()) && mapper.findDesignerMessage(discussion.designMessageId())
+                .filter(message -> SERVER_REQUIREMENT_SNAPSHOT.equals(message.deliveryState()))
+                .isPresent() ? "SERVER_ASSEMBLED" : "AI_ASSEMBLED";
+        return new RequirementSnapshot(discussion.revision(), source, discussion.snapshotMarkdown(),
+                discussion.updatedAt());
     }
 
     public void replyQuestion(String sessionId, String questionId, List<List<String>> answers) {
@@ -696,7 +713,18 @@ public class DesignerSessionService {
         publish(get(session.id()), "STATUS", DesignerActor.SYSTEM, true, "", "整体需求等待继续讨论");
     }
 
-    @Transactional
+    public TaskProfileService.View updateTaskProfile(String sessionId, TaskIntent intent,
+                                                     ArtifactKind primaryArtifactKind,
+                                                     Boolean largeTaskMode, long expectedVersion) {
+        TaskProfileService.View before = taskProfiles.current(sessionId);
+        TaskProfileService.View updated = taskProfiles.override(sessionId, intent, primaryArtifactKind,
+                largeTaskMode, expectedVersion);
+        if (before.workflowTemplate() != updated.workflowTemplate()) {
+            restartRequirementContract(sessionId, updated.workflowTemplate());
+        }
+        return updated;
+    }
+
     public TaskProfileService.View enableLargeTaskMode(String sessionId, int expectedDiscussionRevision,
                                                        long expectedProfileVersion) {
         DesignerSessionRow session = get(sessionId);
@@ -717,9 +745,53 @@ public class DesignerSessionService {
         TaskProfileService.View restored = taskProfiles.restoreAsLargeSoftwareProfile(
                 sessionId, profile, expectedProfileVersion);
         appendMessage(sessionId, DesignerActor.SYSTEM,
-                "已显式启用大型任务模式。整体需求已重新打开，请复核后重新确认，届时才会调用任务拆解器。",
+                "已显式启用大型任务模式。整体需求已重新打开，正在生成大型任务需求预设计。",
                 "PERSISTED", null, null);
+        restartRequirementContract(sessionId, WorkflowTemplate.FULL_PACKAGE_DESIGN);
         return restored;
+    }
+
+    private void restartRequirementContract(String sessionId, WorkflowTemplate target) {
+        DesignerSessionRow session = get(sessionId);
+        if (session.currentRequirementRevision() != null) return;
+        abortQuietly(session.externalSessionId(), session.projectId());
+        List<DesignDiscussionRevisionRow> requirementDiscussions = mapper.listDesignDiscussionRevisions(sessionId)
+                .stream().filter(row -> "REQUIREMENT".equals(row.scopeKey())).toList();
+        if (requirementDiscussions.isEmpty()) return;
+        DesignerMessageRow source = mapper.listDesignerMessages(sessionId).stream()
+                .filter(message -> DesignerActor.USER.name().equals(message.actor()))
+                .filter(message -> message.workPackageId() == null)
+                .reduce((first, second) -> second)
+                .orElseThrow(() -> new ConflictException("REQUIREMENT_SOURCE_MISSING", "整体需求原始输入不存在"));
+        int nextRevision = requirementDiscussions.stream().mapToInt(DesignDiscussionRevisionRow::revision)
+                .max().orElse(0) + 1;
+        boolean hasAnsweredDecision = requirementDiscussions.stream()
+                .anyMatch(row -> row.questionAnswered() && !blank(row.decisionLogJson())
+                        && !"[]".equals(row.decisionLogJson().trim()));
+        boolean directTarget = target == WorkflowTemplate.DIRECT_SOFTWARE_DESIGN;
+        boolean questionRequired = !directTarget || !hasAnsweredDecision;
+        DesignDiscussionRevisionRow discussion = createDiscussion(session, "REQUIREMENT", null, nextRevision,
+                source.id(), 0, questionRequired);
+        DesignerSessionRow pending = updateDesignerDiscussionProjection(get(sessionId),
+                questionRequired ? DesignerSessionState.PENDING_HANDOFF : DesignerSessionState.REVIEWING,
+                DesignWorkflowPhase.DISCUSSING_REQUIREMENT, null, "PENDING", "REQUIREMENT",
+                discussion.revision(), "SYNCING", null);
+        if (questionRequired) {
+            String context = assembleServerRequirementSnapshot(sessionId);
+            appendMessage(sessionId, DesignerActor.SYSTEM,
+                    target == WorkflowTemplate.FULL_PACKAGE_DESIGN
+                            ? "流程已切换为大型任务；将重新提问并生成完整需求预设计，完成前不能确认。"
+                            : directTarget
+                                    ? "流程已切换为普通任务；需要先完成本轮需求问题，再由服务端生成快照。"
+                                    : "任务专属流程已变化；将重新提问并生成完整需求稿，完成前不能确认。",
+                    "PERSISTED", null, null);
+            dispatchRequirementDesigner(pending, discussion, context, false);
+        } else {
+            appendMessage(sessionId, DesignerActor.SYSTEM,
+                    "流程已切换为普通任务；未确认的 AI 需求推断已排除，服务端正在重建需求快照。",
+                    "PERSISTED", null, null);
+            persistServerRequirementSnapshot(pending, discussion, null);
+        }
     }
 
     public List<DesignerMessageRow> appendPackageMessage(String sessionId, String packageId, String content,
@@ -744,7 +816,8 @@ public class DesignerSessionService {
         DesignerMessageRow user = appendMessage(session.id(), DesignerActor.USER, normalizeMessage(content),
                 "PERSISTED", session.currentRequirementRevision(), packageId);
         int discussionRevision = nextDiscussionRevision(session.id(), packageId);
-        createDiscussion(session, packageId, packageId, discussionRevision, user.id(), 0);
+        boolean directSoftware = directSoftwareMode(session.id());
+        createDiscussion(session, packageId, packageId, discussionRevision, user.id(), 0, !directSoftware);
         DesignWorkPackageRow revised = updateWorkPackage(workPackage, DesignWorkPackageState.REVIEWING,
                 workPackage.designerExternalSessionId(), workPackage.designerExternalSessionState(),
                 workPackage.designMessageId(), workPackage.designRevision(), workPackage.redesignCount(),
@@ -752,7 +825,9 @@ public class DesignerSessionService {
                 null, null, null, workPackage.discussionRoundCount() + 1, null, null);
         dispatchPackageDesigner(get(session.id()), revised,
                 "User feedback for this package:\n" + user.content()
-                        + "\nProduce a complete replacement design after the mandatory questions.", false);
+                        + (directSoftware
+                                ? "\nProduce a complete replacement design directly. Do not ask questions."
+                                : "\nProduce a complete replacement design after the mandatory questions."), false);
         return List.of(user);
     }
 
@@ -847,10 +922,18 @@ public class DesignerSessionService {
     private DesignDiscussionRevisionRow createDiscussion(DesignerSessionRow session, String scopeKey,
                                                          String packageId, int revision,
                                                          String sourceMessageId, int questionRetryCount) {
+        return createDiscussion(session, scopeKey, packageId, revision, sourceMessageId, questionRetryCount, true);
+    }
+
+    private DesignDiscussionRevisionRow createDiscussion(DesignerSessionRow session, String scopeKey,
+                                                         String packageId, int revision,
+                                                         String sourceMessageId, int questionRetryCount,
+                                                         boolean questionRequired) {
         String now = now();
         DesignDiscussionRevisionRow row = new DesignDiscussionRevisionRow(UUID.randomUUID().toString(),
-                session.id(), session.currentRequirementRevision(), scopeKey, packageId, revision, "QUESTIONING",
-                sourceMessageId, null, "", "[]", true, false, questionRetryCount, null,
+                session.id(), session.currentRequirementRevision(), scopeKey, packageId, revision,
+                questionRequired ? "QUESTIONING" : "DESIGNING",
+                sourceMessageId, null, "", "[]", questionRequired, !questionRequired, questionRetryCount, null,
                 null, null, now, now, 0);
         if (mapper.insertDesignDiscussionRevision(row) != 1) {
             throw new ConflictException("DESIGN_DISCUSSION_CREATE_CONFLICT", "设计讨论修订无法保存");
@@ -885,9 +968,12 @@ public class DesignerSessionService {
             openCode.promptAsync(remote, requirementDiscussionPrompt(running, project, previous, feedback, questionRepair));
             publish(running, "STATUS", DesignerActor.DESIGNER, true, "",
                     questionRepair ? "设计师正在补做必需的设计问题" : "设计师将先询问 1–3 个设计问题");
+            boolean serverSnapshot = directSoftwareMode(input.id());
             return appendMessage(input.id(), DesignerActor.SYSTEM,
                     questionRepair ? "设计师遗漏了必需问题，已在全新只读 Session 中补问。"
-                            : "本轮整体需求讨论已交给只读设计师；回答问题后会保存完整替代需求稿。",
+                            : serverSnapshot
+                                    ? "本轮整体需求讨论已交给只读设计师；回答后由服务端原样生成需求快照。"
+                                    : "本轮整体需求讨论已交给只读设计师；回答问题后会保存完整替代需求稿。",
                     "PENDING_HANDOFF", null, null);
         } catch (RuntimeException failure) {
             waitForRequirementDiscussion(input, discussion, "OPENCODE_DESIGNER_HANDOFF_FAILED",
@@ -943,6 +1029,10 @@ public class DesignerSessionService {
                     }
                     return;
                 }
+                if (directSoftwareMode(session.id())) {
+                    completeServerRequirementSnapshot(session, discussion, remote);
+                    return;
+                }
                 String markdown = designerMarkdown(openCode.sessionOutput(remote));
                 if (blank(markdown) || markdown.getBytes(java.nio.charset.StandardCharsets.UTF_8).length
                         > MAX_FROZEN_DESIGN_LENGTH) {
@@ -972,6 +1062,101 @@ public class DesignerSessionService {
         } catch (RuntimeException failure) {
             waitForRequirementDiscussion(session, discussion, "OPENCODE_DESIGNER_STATUS_FAILED",
                     failure.getMessage());
+        }
+    }
+
+    private void completeServerRequirementSnapshot(DesignerSessionRow session,
+                                                   DesignDiscussionRevisionRow discussion,
+                                                   OpenCodeClient.OpenCodeSession remote) {
+        persistServerRequirementSnapshot(session, discussion, remote.id());
+    }
+
+    private void persistServerRequirementSnapshot(DesignerSessionRow session,
+                                                  DesignDiscussionRevisionRow discussion,
+                                                  String externalSessionId) {
+        String markdown = assembleServerRequirementSnapshot(session.id());
+        if (markdown.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > MAX_FROZEN_DESIGN_LENGTH) {
+            waitForRequirementDiscussion(session, discussion, "REQUIREMENT_SNAPSHOT_TOO_LARGE",
+                    "服务端需求快照超过 24 KiB UTF-8；请新建设计并提交精简后的完整需求");
+            return;
+        }
+        DesignerMessageRow source = appendMessage(session.id(), DesignerActor.SYSTEM, markdown,
+                SERVER_REQUIREMENT_SNAPSHOT, null, null);
+        updateDiscussion(discussion, "REVIEWING", discussion.sourceMessageId(), source.id(), markdown,
+                discussion.decisionLogJson(), true, discussion.questionRetryCount(), null, null, null);
+        DesignerSessionRow reviewing = updateDesignerDiscussionProjection(get(session.id()),
+                DesignerSessionState.REVIEWING, DesignWorkflowPhase.DISCUSSING_REQUIREMENT,
+                externalSessionId, "COMPLETED", "REQUIREMENT", discussion.revision(), "SYNCED", null);
+        taskProfiles.reroute(session.id(), markdown);
+        appendMessage(session.id(), DesignerActor.SYSTEM,
+                "服务端已按原始输入、补充内容和最终回答生成需求快照，正在异步重算任务画像。",
+                "PERSISTED", null, null);
+        publish(reviewing, "COMPLETED", DesignerActor.SYSTEM, true, "",
+                "服务端需求快照已保存；Router 完成后可确认并开始单包设计");
+    }
+
+    private String assembleServerRequirementSnapshot(String sessionId) {
+        List<DesignerMessageRow> messages = mapper.listDesignerMessages(sessionId);
+        Map<String, DesignerMessageRow> messagesById = messages.stream()
+                .collect(java.util.stream.Collectors.toMap(DesignerMessageRow::id, message -> message,
+                        (first, second) -> first, LinkedHashMap::new));
+        DesignRequirementRevisionRow compatibilityBaseline = mapper.listDesignRequirementRevisions(sessionId).stream()
+                .filter(revision -> {
+                    DesignerMessageRow source = messagesById.get(revision.sourceMessageId());
+                    return source != null && DesignerActor.DESIGNER.name().equals(source.actor());
+                })
+                .reduce((first, second) -> second).orElse(null);
+        int baselineOrdinal = compatibilityBaseline == null ? 0
+                : messagesById.get(compatibilityBaseline.sourceMessageId()).ordinal();
+
+        StringBuilder snapshot = new StringBuilder("# 需求快照\n\n")
+                .append("> 本快照由服务端按时间顺序原样拼装；后续输入和回答优先于冲突的旧内容。")
+                .append(" 不包含设计器自由文本、仓库推断或任务画像。\n\n");
+        if (compatibilityBaseline != null) {
+            snapshot.append("## 历史兼容基线\n\n")
+                    .append(compatibilityBaseline.requirementText()).append("\n\n");
+        }
+
+        LinkedHashSet<String> includedSourceMessages = new LinkedHashSet<>();
+        int round = 0;
+        for (DesignDiscussionRevisionRow discussion : mapper.listDesignDiscussionRevisions(sessionId)) {
+            if (!"REQUIREMENT".equals(discussion.scopeKey())) continue;
+            DesignerMessageRow source = messagesById.get(discussion.sourceMessageId());
+            boolean afterBaseline = compatibilityBaseline == null
+                    || source != null && source.ordinal() > baselineOrdinal;
+            boolean includeInput = source != null && DesignerActor.USER.name().equals(source.actor())
+                    && source.ordinal() > baselineOrdinal && afterBaseline
+                    && includedSourceMessages.add(source.id());
+            boolean includeDecisions = !blank(discussion.decisionLogJson()) && afterBaseline;
+            if (!includeInput && !includeDecisions) continue;
+            round++;
+            snapshot.append("## 讨论 ").append(round).append("\n\n");
+            if (includeInput) {
+                snapshot.append("### 用户输入\n\n").append(source.content()).append("\n\n");
+            }
+            appendSnapshotDecisions(snapshot, discussion.decisionLogJson());
+        }
+        return snapshot.toString().stripTrailing();
+    }
+
+    private void appendSnapshotDecisions(StringBuilder snapshot, String decisionLogJson) {
+        if (blank(decisionLogJson)) return;
+        try {
+            List<Map<String, Object>> decisions = json.readValue(decisionLogJson,
+                    new TypeReference<List<Map<String, Object>>>() { });
+            if (decisions.isEmpty()) return;
+            snapshot.append("### 最终回答\n\n");
+            for (Map<String, Object> decision : decisions) {
+                List<List<String>> answers = answerLists(decision.get("answers"));
+                List<AnsweredQuestionPrompt> prompts = answeredPrompts(decision.get("questions"), answers);
+                for (AnsweredQuestionPrompt prompt : prompts) {
+                    snapshot.append("- 问题：").append(prompt.question()).append("\n")
+                            .append("  - 回答：").append(String.join("；", prompt.answers())).append("\n");
+                }
+            }
+            snapshot.append("\n");
+        } catch (JacksonException failure) {
+            throw new ConflictException("REQUIREMENT_DECISION_LOG_INVALID", "已保存的需求回答无法生成快照");
         }
     }
 
@@ -1491,23 +1676,27 @@ public class DesignerSessionService {
         }
         ProjectRow project = projects.get(session.projectId());
         try {
+            boolean directSoftware = directSoftwareMode(session.id());
             boolean questionRepair = replacementPrompt != null && replacementPrompt.startsWith("QUESTION_REPAIR:");
             OpenCodeClient.OpenCodeSession remote = !questionRepair && !blank(input.designerExternalSessionId())
                     && !same(input.designerExternalSessionState(), "FAILED")
                     ? new OpenCodeClient.OpenCodeSession(input.designerExternalSessionId(), Path.of(project.rootPath()))
                     : openCode.createSession(Path.of(project.rootPath()),
                     "OpenCode Loopper Designer " + input.packageId() + " (READ_ONLY)", configuredModel(),
-                    OpenCodeClient.SessionProfile.DESIGNER_INTERACTIVE_READ_ONLY);
+                    directSoftware ? OpenCodeClient.SessionProfile.GENERAL_READ_ONLY
+                            : OpenCodeClient.SessionProfile.DESIGNER_INTERACTIVE_READ_ONLY);
             int redesignCount = redesign ? input.redesignCount() + 1 : input.redesignCount();
             DesignDiscussionRevisionRow discussion = mapper.findLatestDesignDiscussionRevision(
-                    session.id(), input.packageId()).filter(row -> "QUESTIONING".equals(row.state()))
+                    session.id(), input.packageId()).filter(row -> Set.of("QUESTIONING", "DESIGNING").contains(row.state()))
                     .orElseGet(() -> createDiscussion(session, input.packageId(), input.packageId(),
-                            nextDiscussionRevision(session.id(), input.packageId()), null, 0));
-            DesignWorkPackageRow designing = updateWorkPackage(input, DesignWorkPackageState.QUESTIONING,
+                            nextDiscussionRevision(session.id(), input.packageId()), null, 0, !directSoftware));
+            DesignWorkPackageRow designing = updateWorkPackage(input, directSoftware
+                            ? DesignWorkPackageState.DESIGNING : DesignWorkPackageState.QUESTIONING,
                     remote.id(), "RUNNING", input.designMessageId(), input.designRevision(), redesignCount,
                     input.designerTransportRetryCount(), input.compilerSummary(), input.handoffSummary(), null, null);
             DesignerSessionRow running = updateDesignerDiscussionProjection(get(session.id()),
-                    DesignerSessionState.RUNNING, DesignWorkflowPhase.QUESTIONING_PACKAGE,
+                    DesignerSessionState.RUNNING, directSoftware
+                            ? DesignWorkflowPhase.DESIGNING : DesignWorkflowPhase.QUESTIONING_PACKAGE,
                     remote.id(), "RUNNING", input.packageId(), discussion.revision(), "SYNCING", input.packageId());
             if (!consumeModelCall(running, revision, "WORK_PACKAGE_MODEL_CALL_LIMIT")) {
                 abortQuietly(remote.id(), session.projectId());
@@ -1518,9 +1707,11 @@ public class DesignerSessionService {
                     ? packageDesignerPrompt(running, project, revision, designing)
                     : prefix + "\n\n" + packageDesignerPrompt(running, project, revision, designing));
             publish(running, "STATUS", DesignerActor.DESIGNER, true, "",
-                    input.packageId() + " 正在先询问 1–3 个设计问题");
+                    directSoftware ? input.packageId() + " 正在直接生成完整单包设计"
+                            : input.packageId() + " 正在先询问 1–3 个设计问题");
             appendMessage(session.id(), DesignerActor.SYSTEM,
-                    input.packageId() + (questionRepair ? " 已在全新只读 Session 中补做必需问题。"
+                    input.packageId() + (directSoftware ? " 已交给只读设计师直接生成完整替代设计稿，不再重复提问。"
+                            : questionRepair ? " 已在全新只读 Session 中补做必需问题。"
                             : " 已交给只读设计师；回答问题后生成完整替代设计稿。"), "PENDING_HANDOFF",
                     revision.revision(), input.packageId());
         } catch (SessionFailure failure) {
@@ -1546,6 +1737,12 @@ public class DesignerSessionService {
             requireDraftUnchanged(session, revision.sourceDraftVersion());
             List<OpenCodeClient.PendingQuestion> pending = openCode.pendingQuestions(remote);
             if (!pending.isEmpty()) {
+                if (directSoftwareMode(session.id())) {
+                    abortQuietly(remote.id(), session.projectId());
+                    failPackageDesigner(workPackage, session, "DIRECT_PACKAGE_QUESTION_NOT_ALLOWED",
+                            "普通单包设计不得再次提问，请直接生成完整替代设计稿", false);
+                    return;
+                }
                 // Designer is the only model role allowed to request user input.
                 DesignWorkPackageRow waiting = updateWorkPackage(workPackage, DesignWorkPackageState.QUESTIONING,
                         remote.id(), "WAITING_INPUT", workPackage.designMessageId(), workPackage.designRevision(),
@@ -2335,7 +2532,8 @@ public class DesignerSessionService {
     }
 
     private boolean directSoftwareMode(String sessionId) {
-        return taskProfiles.current(sessionId).workflowTemplate() == WorkflowTemplate.DIRECT_SOFTWARE_DESIGN;
+        return taskProfiles.workflowTemplateIncludingSuperseded(sessionId)
+                == WorkflowTemplate.DIRECT_SOFTWARE_DESIGN;
     }
 
     private int packageStageLimit(String sessionId) {
@@ -4542,6 +4740,23 @@ public class DesignerSessionService {
                 : messageContent(workPackage.designMessageId());
         String decisions = discussion == null ? "[]" : discussion.decisionLogJson();
         WorkPackageRoleService.View packageRole = workPackageRoles.get(workPackage);
+        boolean directSoftware = directSoftwareMode(session.id());
+        String turnContract = directSoftware ? """
+                DIRECT SINGLE-PACKAGE CONTRACT: do not call the question tool and do not ask the user anything.
+                Produce one complete replacement Simplified-Chinese Markdown design no larger than 24 KiB UTF-8.
+                Never return a patch. Preserve all still-valid facts and feedback. Cover scope and non-scope,
+                observable results, exception semantics, affected files/modules, 1-6 dependency-ordered stages,
+                delivery details, and acceptance intent. If the complete design cannot fit safely in 1-6 stages,
+                state that limitation explicitly so the Compiler can return LARGE_TASK_MODE_REQUIRED.
+                """ : """
+                MANDATORY TURN ORDER: before writing any design Markdown, call the question tool exactly once with
+                1-3 concise design questions. Each question has 2-3 mutually exclusive choices; put the recommended
+                choice first and suffix its label with “(Recommended)”. Wait for the answers in this same model call.
+                Only then produce one complete replacement Simplified-Chinese Markdown design no larger than 24 KiB
+                UTF-8. Never return a patch and never discard prior accepted facts or this round's answers. Cover scope
+                and non-scope, observable results, exception semantics, affected files/modules, 1-3 dependency-ordered
+                stages, delivery details, and acceptance intent.
+                """;
         return """
                 You are OpenCode Loopper Designer / 设计师 for exactly one work package in its persistent strictly
                 read-only conversation. A healthy package Session is reused across human revisions; after transport
@@ -4576,13 +4791,9 @@ public class DesignerSessionService {
                 at execution time. Do not redesign the current package merely because read/glob/grep cannot find a
                 prerequisite deliverable in the baseline repository.
 
-                MANDATORY TURN ORDER: before writing any design Markdown, call the question tool exactly once with
-                1-3 concise design questions. Each question has 2-3 mutually exclusive choices; put the recommended
-                choice first and suffix its label with “(Recommended)”. Wait for the answers in this same model call.
-                Only then produce one complete replacement Simplified-Chinese Markdown design no larger than 24 KiB
-                UTF-8. Never return a patch and never discard prior accepted facts or this round's answers. Cover scope and
-                non-scope, observable results, exception semantics, affected files/modules, 1-3 dependency-ordered
-                stages, delivery details, and acceptance intent. When the current Role Pack requires a focused
+                %s
+
+                When the current Role Pack requires a focused
                 repository-native test, keep it in the same stage as the production behavior it proves. Tests are
                 evidence for business behavior, not a meta acceptance item.
                 """.formatted(MachineRoleContractCatalog.card("DESIGNER") + "\n"
@@ -4596,7 +4807,7 @@ public class DesignerSessionService {
                         "deliverables", strings(workPackage.deliverablesJson()),
                         "acceptanceIntent", strings(workPackage.acceptanceIntentJson()),
                         "requirementRefs", strings(workPackage.requirementRefsJson()))),
-                prerequisites, previousDesign, decisions);
+                prerequisites, previousDesign, decisions, turnContract);
     }
 
     private String packageCompilerPlanningPrompt(ProjectRow project, DesignRequirementRevisionRow revision,
@@ -4732,6 +4943,7 @@ public class DesignerSessionService {
                                          DesignRequirementRevisionRow revision, DesignWorkPackageRow workPackage,
                                          String design) {
         String prerequisites = prerequisitePackageContracts(revision.id(), workPackage);
+        String stageRange = directSoftwareMode(session.id()) ? "1-6" : "1-3";
         return """
                 You are OpenCode Loopper LoopSpec Compiler / 规范编译器 for one frozen work-package design in a new
                 strictly read-only Session. You may use read, glob, and grep to verify build/test conventions. Never
@@ -4748,7 +4960,7 @@ public class DesignerSessionService {
                 before this package, so its currently absent deliverables are available-at-execution dependencies,
                 not MISSING_SCOPE. Do not reject the package solely because read/glob/grep cannot find those files.
 
-                COMPILED returns 1-3 complete StageSpec objects only (not a LoopSpec), a short summary, an exact
+                COMPILED returns %s complete StageSpec objects only (not a LoopSpec), a short summary, an exact
                 Designer excerpt for every criterion, and a dependency handoffSummary <=4 KiB UTF-8. Every StageSpec
                 sets workPackageId=%s. DESIGN_INCOMPLETE is only for the closed semantic gap codes. JSON/schema/
                 validator/coverage uncertainty must be repaired as COMPILED, not escaped as DESIGN_INCOMPLETE.
@@ -4764,7 +4976,7 @@ public class DesignerSessionService {
                 Frozen package design revision %d for requirement R%d:
                 %s
                 """.formatted(project.rootPath(), workPackage.packageId(), workPackage.packageId(), draft.specJson(),
-                prerequisites, workPackage.packageId(), packageCompilerMachineContract(workPackage.packageId()),
+                prerequisites, stageRange, workPackage.packageId(), packageCompilerMachineContract(workPackage.packageId()),
                 workPackage.designRevision(), revision.revision(), design);
     }
 
@@ -4949,6 +5161,34 @@ public class DesignerSessionService {
     private String requirementDiscussionPrompt(DesignerSessionRow session, ProjectRow project,
                                                String previousSnapshot, String feedback,
                                                boolean questionRepair) {
+        if (directSoftwareMode(session.id())) {
+            return """
+                    You are OpenCode Loopper Requirement Discussion Designer / 需求讨论设计师 in a persistent
+                    strictly read-only conversation. You may use read, glob, grep, and the question tool. Never edit
+                    files, run commands, create a Task, invoke Decomposer, or produce a requirement/design draft.
+
+                    Project root: %s
+                    Designer session: %s
+                    Existing server-owned requirement snapshot (context only):
+                    %s
+
+                    New user input:
+                    %s
+
+                    MANDATORY TURN ORDER:
+                    1. Call the question tool exactly once with 1-3 concise product/design questions. Each question
+                       offers 2-3 mutually exclusive options; put the recommended option first and suffix its label
+                       with “(Recommended)”. Custom input may be allowed.
+                    2. Wait for the user's answers in this same model call/session.
+                    3. End the turn. A short acknowledgement or an empty text response is valid. Do not return a
+                       Markdown requirement snapshot, summary, inferred requirement, implementation plan, or LoopSpec.
+
+                    The server will deterministically assemble the authoritative snapshot from the original user
+                    input, later requirement-scope user messages, and persisted final answers. Your free text and
+                    repository observations are never requirement semantics.%s
+                    """.formatted(project.rootPath(), session.id(), previousSnapshot, feedback,
+                    questionRepair ? " This is the single repair Session because the previous Session omitted its mandatory question." : "");
+        }
         return """
                 You are OpenCode Loopper Requirement Designer / 需求设计师 in a persistent strictly read-only
                 conversation. You may use read, glob, grep, and the question tool. Never edit files, run commands,
@@ -5824,7 +6064,8 @@ public class DesignerSessionService {
         String role = actor == DesignerActor.USER ? "USER"
                 : Set.of(DesignerActor.DECOMPOSER, DesignerActor.DESIGNER, DesignerActor.COMPILER).contains(actor)
                 ? "ASSISTANT" : "SYSTEM";
-        int contentLimit = actor == DesignerActor.DESIGNER ? MAX_FROZEN_DESIGN_LENGTH : MAX_MESSAGE_LENGTH;
+        int contentLimit = actor == DesignerActor.DESIGNER || SERVER_REQUIREMENT_SNAPSHOT.equals(deliveryState)
+                ? MAX_FROZEN_DESIGN_LENGTH : MAX_MESSAGE_LENGTH;
         DesignerMessageRow message = new DesignerMessageRow(UUID.randomUUID().toString(), sessionId,
                 mapper.nextDesignerMessageOrdinal(sessionId), role, bounded(content, contentLimit),
                 deliveryState, now(), actor.name(), requirementRevision, workPackageId);
@@ -5942,6 +6183,7 @@ public class DesignerSessionService {
                                    List<AnsweredQuestionPrompt> questions) { }
     public record AnsweredQuestionPrompt(String question, String header, List<QuestionOption> options,
                                          boolean multiple, boolean custom, List<String> answers) { }
+    public record RequirementSnapshot(int discussionRevision, String source, String markdown, String updatedAt) { }
     public record QuestionPrompt(String question, String header, List<QuestionOption> options,
                                  boolean multiple, boolean custom) { }
     public record QuestionOption(String label, String description) { }

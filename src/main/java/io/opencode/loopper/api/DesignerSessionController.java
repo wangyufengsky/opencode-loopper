@@ -207,7 +207,7 @@ public class DesignerSessionController {
     @PutMapping("/{id}/task-profile")
     public TaskProfileService.View updateTaskProfile(@PathVariable String id,
                                                       @Valid @RequestBody UpdateTaskProfileRequest request) {
-        TaskProfileService.View profile = profiles.override(
+        TaskProfileService.View profile = service.updateTaskProfile(
                 id, request.intent(), request.primaryArtifactKind(), request.largeTaskMode(), request.expectedVersion());
         autoMode.resumeProfileDecisionBlock(id);
         return profile;
@@ -333,6 +333,7 @@ public class DesignerSessionController {
                         draft.id(), draft.status(), draft.updatedAt(), drafts.spec(draft)),
                 service.messages(row.id()).stream().map(this::message).toList(), service.pendingQuestions(row.id()),
                 service.answeredQuestions(row.id()),
+                service.requirementSnapshot(row.id()),
                 service.compilerStatus(row.id()), service.requirementStatus(row.id()),
                 service.decompositionStatus(row.id()), service.workPackageStatuses(row.id()),
                 row.currentRequirementRevision(), row.activeWorkPackageId(), row.discussionScope(),
@@ -381,6 +382,7 @@ public class DesignerSessionController {
                                      DesignerDraftDto draft, List<DesignerMessageDto> messages,
                                      List<DesignerSessionService.PendingQuestion> pendingQuestions,
                                      List<DesignerSessionService.AnsweredQuestion> answeredQuestions,
+                                     DesignerSessionService.RequirementSnapshot requirementSnapshot,
                                      DesignerSessionService.CompilerStatus compiler,
                                      DesignerSessionService.RequirementRevisionStatus requirement,
                                      DesignerSessionService.DecompositionStatus decomposition,

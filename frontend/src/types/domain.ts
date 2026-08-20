@@ -858,7 +858,7 @@ export interface DesignerMessage {
   role: 'USER' | 'ASSISTANT' | 'SYSTEM'
   actor: 'USER' | 'ROUTER' | 'DECOMPOSER' | 'DESIGNER' | 'COMPILER' | 'REVIEWER' | 'VALIDATOR' | 'SYSTEM'
   content: string
-  deliveryState?: 'PERSISTED' | 'PENDING_HANDOFF' | 'COMPILED' | 'DESIGN_INCOMPLETE' | 'PASS' | 'NORMALIZED' | 'RETRYABLE_ERROR' | 'TERMINAL_ERROR' | 'SESSION_ERROR'
+  deliveryState?: 'PERSISTED' | 'PENDING_HANDOFF' | 'SERVER_REQUIREMENT_SNAPSHOT' | 'COMPILED' | 'DESIGN_INCOMPLETE' | 'PASS' | 'NORMALIZED' | 'RETRYABLE_ERROR' | 'TERMINAL_ERROR' | 'SESSION_ERROR'
   requirementRevision?: number
   workPackageId?: string
   createdAt: string
@@ -1008,6 +1008,12 @@ export interface DesignerSession {
   messages: DesignerMessage[]
   pendingQuestions?: TaskSessionPendingQuestion[]
   answeredQuestions?: DesignerAnsweredQuestion[]
+  requirementSnapshot?: {
+    discussionRevision: number
+    source: 'SERVER_ASSEMBLED' | 'AI_ASSEMBLED'
+    markdown: string
+    updatedAt: string
+  }
   compiler?: {
     id: string
     state: 'PENDING_HANDOFF' | 'RUNNING' | 'DESIGN_INCOMPLETE' | 'COMPLETED' | 'SESSION_ERROR'

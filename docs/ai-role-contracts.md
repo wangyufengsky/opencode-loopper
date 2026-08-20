@@ -41,6 +41,14 @@ Task 确认后每个 Stage 也保存同一快照，Implementation 与 Recovery �
 用户显式开启后才切换为 `FULL_PACKAGE_DESIGN`。普通模式由服务端直接生成覆盖全部 RQ 的
 `DIRECT_DESIGN / WP-1`，不创建 Decomposer Session；大型模式才调用 Decomposer 生成 2–6 包。
 
+普通模式的需求 Designer 只负责在每个需求讨论修订中调用一次 `question` 并等待回答，随后可空
+正文结束。服务端按消息时间原样拼装原始需求、需求作用域补充和持久化最终回答，后写语义优先；
+模型自由文本、仓库观察和画像标签不进入需求快照。快照以 `SERVER_REQUIREMENT_SNAPSHOT` 审计消息
+作为冻结原文，超过 24 KiB UTF-8 时以 `REQUIREMENT_SNAPSHOT_TOO_LARGE` 阻断。历史已冻结 AI
+需求稿作为兼容基线，之后只追加新的用户输入与回答。大型模式仍要求需求 Designer 输出完整替代
+预设计，并在每个包的初稿和修订中提问；普通 WP-1 使用不含 `question` 的通用只读角色，初稿、
+反馈修订和重新设计都直接返回 1–6 Stage 的完整替代设计。
+
 文档 Compiler 的权威输出是受限 `DocumentPlan`；表格 Compiler 的权威输出是受限
 `TabularConversionPlan`。服务端生成路径、隐式 `WP-1`、验收 ID 与最终 DTO，并在最终
 确认前只冻结计划。报告 Reviewer 是真正独立的 `REVIEWER_READ_ONLY` 角色，只可读取仓库，
@@ -79,7 +87,9 @@ Decomposer 返回 `READY | NEEDS_INPUT | MULTI_TASK_REQUIRED`、规范目标、�
 
 普通模式若无法把完整设计安全编译成一个 1–6 Stage 工作包，Compiler 返回唯一专用缺口
 `LARGE_TASK_MODE_REQUIRED`。服务端立即停止，不消耗自动重设计或修复预算，也不自动切换流程；
-用户显式“改用大型任务”后，系统重开整体需求并保留审计历史，待再次确认才调用 Decomposer。
+用户显式“改用大型任务”后，系统重开整体需求、终止普通讨论 Session 并立即启动大型需求预设计；
+预设计完成并再次确认后才调用 Decomposer。大型切回普通时终止未冻结预设计，服务端从用户输入和
+已回答决策重建快照，未确认 AI 推断不进入普通需求语义。
 大型流程中的 Compiler 不得返回该缺口；多项目根、超过六包和独立发布边界仍使用
 `MULTI_TASK_REQUIRED`。
 

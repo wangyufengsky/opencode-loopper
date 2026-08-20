@@ -308,8 +308,14 @@ under existing scope/risk rules. Actual Java changes in `JAVA_TEST_ONLY` or
 transactions for both Git and Direct workspaces.
 
 V22 adds a lifecycle before package Designer. V27 places an explicit requirement
-discussion gate in front of it: user messages create complete, recoverable
-requirement snapshots but do not invoke Decomposer. Only the scoped requirement
+discussion gate in front of it. For ordinary software, the model asks once but does not
+author the requirement: the server assembles a recoverable snapshot from chronological
+user inputs and persisted answers, writes the exact content as `SERVER_REQUIREMENT_SNAPSHOT`,
+and uses that message as the frozen revision source. AI prose, repository inference, and task
+profile labels are excluded. Historical frozen AI snapshots remain compatibility baselines;
+newer user input is appended. The 24 KiB UTF-8 limit fails with
+`REQUIREMENT_SNAPSHOT_TOO_LARGE` rather than truncating or summarizing. Large-task sessions
+retain the complete AI replacement snapshot. Neither mode invokes Decomposer before confirmation. Only the scoped requirement
 confirmation freezes the next numbered `design_requirement_revision`. New software
 sessions default to `DIRECT_SOFTWARE_DESIGN`: the server creates a compiled
 `DIRECT_DESIGN / WP-1` context without an external Decomposer. Historical and explicitly
@@ -319,7 +325,9 @@ Task Decomposer and returns 2–6 dependency-ordered vertical packages, `NEEDS_I
 coverage, package identity, backward-only dependencies, and the single-Task
 boundary. After decomposition, an unscoped user message is rejected; only an
 explicitly confirmed requirement reopen supersedes the old decomposition and
-package results without deleting their audit history. Direct WP-1 is automatically
+package results without deleting their audit history. Direct WP-1 enters `DESIGNING` without
+`QUESTIONING_PACKAGE`; its initial design and every replacement use the non-interactive
+general read-only role. Direct WP-1 is automatically
 approved only after Compiler and deterministic validation pass; aggregation and final
 human confirmation are unchanged. `LARGE_TASK_MODE_REQUIRED` stops direct mode without
 redesign or auto-switching and is recovered only by an explicit reopen into large mode.
@@ -370,6 +378,11 @@ package permits five human revisions after its initial design, and one current
 requirement revision permits 96 model calls across discussion, decomposition,
 design, compilation, format recovery, and repairs. Question answers resume the
 already counted model turn and never create a hidden call.
+
+The Designer Session DTO projects the latest non-empty requirement snapshot with its
+discussion revision, `SERVER_ASSEMBLED | AI_ASSEMBLED` source, Markdown, and timestamp.
+The server-owned source message remains available for audit and freezing but is excluded
+from the ordinary System-message disclosure to avoid rendering the same snapshot twice.
 
 V28 persists bounded AI-output handling events and Project Convention
 normalization notices. Each role step can therefore claim at most one tool-loop

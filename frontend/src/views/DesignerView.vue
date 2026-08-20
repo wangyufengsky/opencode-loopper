@@ -239,7 +239,7 @@ async function enableLargeTaskMode() {
     await api.enableDesignerLargeTaskMode(session.id, session.discussionRevision, session.taskProfile.version)
     await refreshDesignerSession()
     selectedWorkPackageId.value = ''
-    ElMessage.success('已启用大型任务模式，请复核整体需求后重新确认')
+    ElMessage.success('已启用大型任务模式，正在生成大型任务需求预设计')
   } catch (error) { ElMessage.error(userFacingError(error, '切换大型任务模式失败')) }
   finally { busy.value = false }
 }
@@ -259,6 +259,7 @@ async function convertReportToDesign() {
 }
 const visibleMessages = computed(() => messages.value.filter((message) => !selectedWorkPackageId.value
   || !message.workPackageId || message.workPackageId === selectedWorkPackageId.value)
+  .filter((message) => message.deliveryState !== 'SERVER_REQUIREMENT_SNAPSHOT')
   .filter((message) => !message.content.includes('LOOPSPEC_COMPILATION_JSON_START')).filter((message) => !(
   message.role === 'SYSTEM'
   && message.deliveryState === 'PENDING_HANDOFF'
@@ -1149,6 +1150,10 @@ async function redesignPackage(packageId: string) {
             <el-button plain :loading="busy" @click="updateTaskProfile">应用覆盖</el-button>
           </div>
         </section>
+        <section v-if="designerSession?.requirementSnapshot" class="task-profile-card requirement-snapshot-card" aria-label="需求快照">
+          <header><div><strong>需求快照 · 讨论第 {{ designerSession.requirementSnapshot.discussionRevision }} 版</strong><span>{{ formatDateTime(designerSession.requirementSnapshot.updatedAt) }}</span></div><b>{{ designerSession.requirementSnapshot.source === 'SERVER_ASSEMBLED' ? '服务端原样生成' : '历史 AI 生成' }}</b></header>
+          <details open><summary>查看完整需求快照</summary><MarkdownDocument :content="designerSession.requirementSnapshot.markdown" /></details>
+        </section>
         <section v-if="currentReport" class="task-profile-card report-card">
           <header><div><strong>独立评审报告</strong><span>{{ currentReport.title }}</span></div><b :class="{ warning: currentReport.stale }">{{ currentReport.stale ? '证据已过期' : '证据有效' }}</b></header>
           <div v-if="reportDetail?.evidence.length" class="profile-evidence"><span v-for="item in reportDetail.evidence" :key="`${item.path}:${item.line}`">{{ item.path }}:{{ item.line }} · {{ item.stale ? '已过期' : '有效' }}</span></div>
@@ -1475,6 +1480,7 @@ async function redesignPackage(packageId: string) {
 .designer-auto-switch { display: flex; align-items: center; gap: 8px; padding-right: 8px; border-right: 1px solid var(--color-border-default); }.designer-auto-switch > span { display: grid; text-align: right; }.designer-auto-switch strong { color: var(--color-text-primary); font-size: 9px; }.designer-auto-switch small { color: var(--color-text-muted); font: 7px/1.2 var(--font-code); }
 .task-profile-card { display: grid; gap: 8px; margin: 0 20px 10px; padding: 12px; border: 1px solid rgb(34 211 238 / 24%); border-radius: 10px; background: rgb(34 211 238 / 5%); }
 .task-profile-card header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }.task-profile-card header > div { display: grid; gap: 3px; }.task-profile-card strong { color: var(--color-text-primary); font-size: 11px; }.task-profile-card header span, .task-profile-card p { margin: 0; color: var(--color-text-secondary); font: 8px/1.5 var(--font-code); }.task-profile-card b { color: var(--color-success); font: 8px/1 var(--font-code); }.task-profile-card b.warning { color: var(--color-session-warning); }
+.requirement-snapshot-card { border-color: rgb(99 102 241 / 28%); background: rgb(99 102 241 / 6%); }.requirement-snapshot-card details { min-width: 0; }.requirement-snapshot-card summary { cursor: pointer; color: var(--color-text-secondary); font: 9px/1.5 var(--font-code); }
 .profile-evidence { display: flex; flex-wrap: wrap; gap: 5px; }.profile-evidence span { padding: 3px 6px; border: 1px solid var(--color-border-default); border-radius: 999px; color: var(--color-text-muted); font: 7px/1 var(--font-code); }.profile-override { display: grid; grid-template-columns: 1fr 1fr minmax(180px, auto) auto; gap: 8px; }.large-task-switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; padding: 6px 10px; border: 1px solid var(--color-border-default); border-radius: 6px; }.large-task-switch span { display: grid; gap: 2px; min-width: 0; }.large-task-switch strong { font-size: 10px; }.large-task-switch small { color: var(--color-text-muted); font: 7px/1.2 var(--font-code); }.report-card { border-color: rgb(34 197 94 / 28%); background: rgb(34 197 94 / 5%); }
 
 @media (max-width: 1180px) {

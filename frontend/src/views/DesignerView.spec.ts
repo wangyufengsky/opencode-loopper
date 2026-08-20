@@ -180,6 +180,62 @@ describe('Designer draft composer', () => {
     expect(update).toHaveBeenCalledWith(directSession.id, 'SOFTWARE_CHANGE', 'SOURCE_CODE', 4, true)
   })
 
+  it('renders the authoritative requirement snapshot separately and excludes its audit message from system history', async () => {
+    routeQuery.sessionId = 'designer-server-snapshot'
+    const snapshotMarkdown = '# 需求快照\n\n## 讨论 1\n\n原始需求保持原样'
+    const snapshotSession: DesignerSession = {
+      ...session,
+      id: 'designer-server-snapshot', state: 'REVIEWING', workflowPhase: 'DISCUSSING_REQUIREMENT',
+      discussionScope: 'REQUIREMENT', finalConfirmationEligible: false,
+      draft: draftFrom({ schemaVersion: 'v2', projectId: project.id, goal: '原样需求快照', context: '', stages: [],
+        limits: { maxStageAttempts: 3, maxTaskAttempts: 7, maxDuration: '7200', attemptTimeout: '1800' } }),
+      requirementSnapshot: {
+        discussionRevision: 2, source: 'SERVER_ASSEMBLED', markdown: snapshotMarkdown,
+        updatedAt: '2026-08-20T08:00:00Z',
+      },
+      messages: [
+        { id: 'snapshot-source', role: 'SYSTEM', actor: 'SYSTEM', content: snapshotMarkdown,
+          deliveryState: 'SERVER_REQUIREMENT_SNAPSHOT', createdAt: '2026-08-20T08:00:00Z' },
+        { id: 'normal-system', role: 'SYSTEM', actor: 'SYSTEM', content: '画像重算完成',
+          deliveryState: 'PERSISTED', createdAt: '2026-08-20T08:01:00Z' },
+      ],
+    }
+    vi.spyOn(api, 'getDesignerSession').mockResolvedValue(snapshotSession)
+
+    const wrapper = mountDesigner()
+    await flushPromises()
+
+    const snapshotCard = wrapper.get('[aria-label="需求快照"]')
+    expect(snapshotCard.text()).toContain('需求快照 · 讨论第 2 版')
+    expect(snapshotCard.text()).toContain('服务端原样生成')
+    expect(snapshotCard.text()).toContain('原始需求保持原样')
+    const systemHistory = wrapper.getComponent(DesignerSystemMessageHistory)
+    expect(systemHistory.props('entries').map(entry => entry.id)).toEqual(['normal-system'])
+    expect(systemHistory.text()).not.toContain('原始需求保持原样')
+  })
+
+  it('labels a historical AI requirement snapshot without presenting it as a server assembly', async () => {
+    routeQuery.sessionId = 'designer-ai-snapshot'
+    vi.spyOn(api, 'getDesignerSession').mockResolvedValue({
+      ...session,
+      id: 'designer-ai-snapshot', state: 'REVIEWING', workflowPhase: 'DISCUSSING_REQUIREMENT',
+      discussionScope: 'REQUIREMENT', finalConfirmationEligible: false,
+      draft: draftFrom({ schemaVersion: 'v2', projectId: project.id, goal: '历史需求', context: '', stages: [],
+        limits: { maxStageAttempts: 3, maxTaskAttempts: 7, maxDuration: '7200', attemptTimeout: '1800' } }),
+      requirementSnapshot: {
+        discussionRevision: 1, source: 'AI_ASSEMBLED', markdown: '# 历史需求稿',
+        updatedAt: '2026-08-19T08:00:00Z',
+      },
+    })
+
+    const wrapper = mountDesigner()
+    await flushPromises()
+
+    const snapshotCard = wrapper.get('[aria-label="需求快照"]')
+    expect(snapshotCard.text()).toContain('历史 AI 生成')
+    expect(snapshotCard.text()).not.toContain('服务端原样生成')
+  })
+
   it('hides the package approval rail in direct mode and exposes only the explicit large-task recovery', async () => {
     routeQuery.sessionId = 'designer-direct-overflow'
     const overflow: DesignerSession = {

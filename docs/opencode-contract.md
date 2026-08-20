@@ -74,9 +74,11 @@ Session without creating a Task or writable execution Session.
 
 Each overall Designer Session is bound to the exact `loop_draft_id` shown in
 Review Gate. Before any software package design runs, the interactive requirement Designer
-must call `question` with 1–3 design choices and then return a complete Markdown
-replacement in the same model turn. Follow-up requirement messages repeat that
-contract without starting Decomposer. In default `DIRECT_SOFTWARE_DESIGN`, the explicit
+must call `question` with 1–3 design choices. In default `DIRECT_SOFTWARE_DESIGN` it then
+ends the turn; empty text is valid and all model prose is ignored while the server builds the
+authoritative snapshot from user inputs and persisted answers. In `FULL_PACKAGE_DESIGN` it
+still returns a complete Markdown requirement predesign in the same model turn. Follow-up
+requirement messages repeat the selected contract without starting Decomposer. In default `DIRECT_SOFTWARE_DESIGN`, the explicit
 requirement-confirm API freezes a numbered revision and the server creates `WP-1`
 directly; there is no Decomposer transport, prompt, Session, or role message. In
 explicitly enabled `FULL_PACKAGE_DESIGN`, confirmation supplies the frozen revision
@@ -86,12 +88,14 @@ and read-only project context to Task Decomposer. It may use only `read`, `glob`
 model-side question, or create a Task. The server verifies complete requirement
 coverage and dependency order before persisting packages.
 
-For each package in order, Loopper creates a scoped read-only Designer
+For each large-task package in order, Loopper creates a scoped interactive read-only Designer
 conversation. A healthy remote Session is reused for that package's human
 revisions; after remote loss, a new Session receives the persisted requirement,
 decisions, previous full snapshot, and package-scoped message. Initial design and
 each human revision must call `question` before returning one complete Markdown
-replacement; Designer is never asked to populate LoopSpec fields. Loopper then
+replacement; Designer is never asked to populate LoopSpec fields. Direct WP-1 instead uses
+the general read-only profile without `question`, enters `DESIGNING` immediately, and applies
+the same no-question rule to feedback and redesign. Loopper then
 creates a brand-new read-only Compiler Session for each candidate with the same
 configured model. Compiler has the same `read`/`glob`/`grep`-only boundary and
 cannot ask questions or create a Task.

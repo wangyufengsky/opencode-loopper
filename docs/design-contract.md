@@ -189,14 +189,18 @@ treated as an incomplete snapshot: the read-only rail remains available without 
 conversion errors, and the next authoritative package-role use refreezes all required fields.
 
 Before a requirement revision exists, Designer must call `question` once with
-1–3 choice questions and then return a complete replacement Markdown snapshot.
+1–3 choice questions. In ordinary software mode it may then finish with empty text:
+the server assembles the authoritative Markdown snapshot verbatim from requirement-scope
+user messages and persisted final answers, and ignores free-form model text. In large-task
+mode Designer still returns the complete replacement Markdown requirement predesign.
 The question card blocks ordinary chat until answered and offers one-click
-selection of all recommended choices. Follow-up messages repeat that process but
+selection of all recommended choices. Follow-up messages repeat the active mode's contract but
 do not invoke Decomposer. Software sessions expose a default-off **大型任务** switch
 while the profile remains provisional. The default `DIRECT_SOFTWARE_DESIGN` path
 freezes the latest snapshot, deterministically creates one `DIRECT_DESIGN / WP-1`,
-and proceeds through package Designer and Compiler without a Decomposer Session or
-package-acceptance button. That direct package accepts 1–6 Stages. Only explicit
+and proceeds through package Designer and Compiler without a Decomposer Session,
+package question card, or package-acceptance button. Initial WP-1 design, feedback revisions,
+and final-review redesigns directly produce a replacement design. That direct package accepts 1–6 Stages. Only explicit
 `FULL_PACKAGE_DESIGN` starts the independent
 Task Decomposer and produces 2–6 vertical packages, with 1–3 Stages per package and
 at most 18 total. Every source requirement segment must
@@ -241,8 +245,8 @@ of complete Markdown. Compiler emits a compact semantic plan plus
 package fragment. Direct software allows 1–6 Stages; each large-task package remains
 limited to 1–3. Extraction failures receive at most two format repairs and
 field/verifier/traceability/coverage failures receive at most two semantic patch repairs;
-gaps receive one full redesign of that package only. Initial design and every
-human revision must ask questions first and return a complete snapshot. A valid
+gaps receive one full redesign of that package only. Large-task initial design and every
+human revision must ask questions first; direct WP-1 never asks again. Both return a complete snapshot. A valid
 candidate enters `REVIEWING` and the next package stays locked until the user
 accepts that exact revision; a failed replacement retains the last valid
 candidate. Each package allows at most five human revisions. The complete
