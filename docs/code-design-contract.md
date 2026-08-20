@@ -40,6 +40,28 @@ Use a design pattern only when it makes a changing axis explicit:
 Do not add a pattern merely to rename procedural code. A new abstraction must
 reduce coupling, isolate a changing axis, or make a contract independently testable.
 
+## Active compatibility-facade boundaries
+
+The historical `DesignerSessionService` and `TaskService` remain public
+compatibility coordinators while their use cases are migrated. Their public
+signatures may stay stable, but extracted implementation must follow these
+ownership rules:
+
+- `DesignerSessionService` owns Designer workflow ordering, lifecycle transitions,
+  remote role invocation, and persistence coordination. It must not implement
+  compact package-plan normalization, semantic validation, or executable verifier
+  synthesis; those belong to `DesignerPackagePlanCompiler`. Shared machine payload
+  shapes belong to `DesignerSemanticContracts` and must not depend back on the facade.
+- `TaskService` owns execution lifecycle ordering and error-layer escalation. It
+  must not assemble immutable design snapshots, verification aggregates, baseline
+  diffs, or Judge evidence prompts; those belong to `TaskEvidenceService`.
+- A responsibility is considered extracted only when the old implementation body
+  is removed, focused tests cover the new boundary, facade integration tests remain
+  green, and the legacy line-count ratchet is lowered in the same change.
+- New collaborators may return domain results or normalization notes. They must not
+  call back into the compatibility facade, duplicate lifecycle transitions, or
+  become generic utility bags for unrelated future methods.
+
 ## Size and dependency limits
 
 - Prefer at most 400 physical lines per production class and 250 per interface.

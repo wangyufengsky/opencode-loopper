@@ -31,8 +31,11 @@ adapters so deterministic fakes can exercise the orchestration state machine.
 The implementation follows [the code design contract](code-design-contract.md):
 large workflow facades remain compatibility coordinators while changing axes are
 owned by focused collaborators. `DesignerSessionService` delegates prompt and
-frozen package-context construction; `TaskService` delegates retry decisions,
-execution prompts, Judge response parsing, and lifecycle row persistence;
+frozen package-context construction plus compact package-plan normalization,
+semantic validation, and executable evidence compilation; its shared machine
+payloads live outside the workflow facade. `TaskService` delegates retry decisions,
+execution prompts, Judge response parsing, lifecycle row persistence, and immutable
+design/verification/diff/Judge evidence assembly;
 `HttpOpenCodeClient` delegates permission policy and response/Todo/machine-output
 parsing; `GitWorktreeManager` delegates branch naming, dirty-workspace handling,
 and checkpoint operations. These collaborators do not own the parent lifecycle.

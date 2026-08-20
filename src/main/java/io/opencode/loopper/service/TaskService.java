@@ -30,8 +30,6 @@ import io.opencode.loopper.domain.JudgeRunState;
 import io.opencode.loopper.domain.WorkspaceLeaseState;
 import io.opencode.loopper.lifecycle.LifecycleTransitionService;
 import io.opencode.loopper.persistence.AttemptRow;
-import io.opencode.loopper.persistence.DesignerMessageRow;
-import io.opencode.loopper.persistence.DesignerSessionRow;
 import io.opencode.loopper.persistence.ErrorEventRow;
 import io.opencode.loopper.persistence.ExecutionSessionRow;
 import io.opencode.loopper.persistence.JudgeRunRow;
@@ -56,12 +54,9 @@ import io.opencode.loopper.verification.VerifierOutcome;
 import io.opencode.loopper.verification.JavaUnitTestGatePolicy;
 import io.opencode.loopper.verification.BinaryArtifactPersistenceService;
 import java.nio.file.Path;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -79,11 +74,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 public class TaskService {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(TaskService.class);
-    private static final String DESIGN_CONTEXT_ARTIFACT_KIND = "DESIGN_CONTEXT";
-    private static final String REQUIREMENT_CONTEXT_ARTIFACT_KIND = "REQUIREMENT_CONTEXT";
-    private static final String DECOMPOSITION_CONTEXT_ARTIFACT_KIND = "DECOMPOSITION_CONTEXT";
-    private static final String WORK_PACKAGE_DESIGN_ARTIFACT_KIND = "WORK_PACKAGE_DESIGN";
-    private static final String WORK_PACKAGE_COMPILATION_SUMMARY_ARTIFACT_KIND = "WORK_PACKAGE_COMPILATION_SUMMARY";
     private static final String LOCAL_SOURCE_SYNC_ARTIFACT_KIND = "LOCAL_SOURCE_SYNC";
     private static final String ATTEMPT_HANDOFF_ARTIFACT_KIND = "ATTEMPT_HANDOFF";
     private static final String LOOP_STAGNATION_OVERRIDE_ARTIFACT_KIND = "LOOP_STAGNATION_OVERRIDE";
@@ -117,6 +107,7 @@ public class TaskService {
     private final TaskJudgeDecisionParser judgeDecisions;
     private final TaskExecutionPromptFactory executionPrompts;
     private final TaskStateStore taskStates;
+    private final TaskEvidenceService taskEvidence;
 
     public TaskService(LoopperMapper mapper, LifecycleTransitionService lifecycle, ObjectMapper json, ProjectService projects,
                        GitWorktreeManager worktrees, DirectWorkspaceLeaseCoordinator directLeases,
@@ -153,6 +144,7 @@ public class TaskService {
         this.judgeDecisions = new TaskJudgeDecisionParser(aiOutputExtractor);
         this.executionPrompts = new TaskExecutionPromptFactory(mapper, json, rolePrompts);
         this.taskStates = new TaskStateStore(mapper, lifecycle);
+        this.taskEvidence = new TaskEvidenceService(mapper, json, verifiers);
     }
 
     public TaskRow createFromDraft(LoopDraftRow draft, String title) {
@@ -216,7 +208,7 @@ public class TaskService {
         lifecycle.create(taskStates.subject(LifecycleMachineType.TASK, task.id(), task.id()), task.state(),
                 Map.of("source", admissionSource), () -> mapper.insertTask(task),
                 () -> new ConflictException("TASK_CREATE_CONFLICT", "Task could not be created"));
-        persistConfirmedDesignContext(task, draft);
+        taskEvidence.persistConfirmedDesignContext(task, draft);
         int ordinal = 0;
         for (LoopSpec.StageSpec stage : spec.stages()) {
             ExecutionRoleSnapshot executionRole = executionRole(draft, stage, profile);
@@ -549,7 +541,7 @@ public class TaskService {
     public void recordLocalSourceSync(String taskId, String commitSha, String mode) {
         TaskRow task = get(taskId);
         if (hasLocalSourceSync(taskId, commitSha)) return;
-        persistArtifact(task, null, null, LOCAL_SOURCE_SYNC_ARTIFACT_KIND, "local-source-sync.txt", "text/plain",
+        taskEvidence.persist(task, null, null, LOCAL_SOURCE_SYNC_ARTIFACT_KIND, "local-source-sync.txt", "text/plain",
                 commitSha, Map.of("source", "task-publication", "mode", mode));
     }
 
@@ -1088,7 +1080,7 @@ public class TaskService {
         if (continuation.action() == VerificationAction.FINAL_REVIEW) {
             AttemptRow attempt = mapper.findAttempt(continuation.attemptId())
                     .orElseThrow(() -> new TaskFailure("ATTEMPT_MISSING", "Final verification attempt disappeared"));
-            captureFinalEvidence(task, attempt);
+            taskEvidence.captureFinalEvidence(task, attempt);
             launchRequiredJudges(task, attempt);
             return;
         }
@@ -1281,7 +1273,7 @@ public class TaskService {
                         failTask(current, "JUDGE_FINAL_ATTEMPT_MISSING",
                                 "Application restart found no final attempt to review", finalStage, finalAttempt, null);
                     } else {
-                        captureFinalEvidence(current, finalAttempt);
+                        taskEvidence.captureFinalEvidence(current, finalAttempt);
                         launchRequiredJudges(current, finalAttempt);
                     }
                 }
@@ -1516,7 +1508,7 @@ public class TaskService {
         taskStates.createAttempt(attempt);
         ArtifactMaterializationService.Result result = artifactMaterializer.materialize(
                 Path.of(requireWorktree(freshTask)), stage.artifactPlanId());
-        persistArtifact(freshTask, attempt.id(), null, "SERVER_MATERIALIZATION", result.path(),
+        taskEvidence.persist(freshTask, attempt.id(), null, "SERVER_MATERIALIZATION", result.path(),
                 "application/json", write(result), Map.of("executionStrategy", stage.executionStrategy(),
                         "artifactPlanId", stage.artifactPlanId(), "sha256", result.sha256()));
         events.emit(freshTask.id(), "artifact.materialized", Map.of("attemptId", attempt.id(),
@@ -1788,7 +1780,7 @@ public class TaskService {
         metadata.put("stagnationComparable", handoff.comparableForStagnation());
         metadata.put("stagnationFingerprint", handoff.stagnationFingerprint());
         metadata.put("consecutiveStagnationCount", stagnationCount);
-        persistArtifact(task, attempt.id(), null, ATTEMPT_HANDOFF_ARTIFACT_KIND,
+        taskEvidence.persist(task, attempt.id(), null, ATTEMPT_HANDOFF_ARTIFACT_KIND,
                 "attempt-handoff-" + attempt.ordinal() + ".json", "application/json", write(content), metadata);
         return stagnationCount;
     }
@@ -1871,7 +1863,7 @@ public class TaskService {
                     "The latest Attempt handoff does not belong to the active stage");
         }
         String prompt = attemptHandoffs.explicitRetryPrompt(handoff, spec.nextAttemptPromptTemplate());
-        persistArtifact(task, null, null, LOOP_STAGNATION_OVERRIDE_ARTIFACT_KIND,
+        taskEvidence.persist(task, null, null, LOOP_STAGNATION_OVERRIDE_ARTIFACT_KIND,
                 "loop-stagnation-override.json", "application/json",
                 write(Map.of("stageId", stage.id(), "source", "LOCAL_UI", "approvedAt", now())),
                 Map.of("stageId", stage.id(), "source", "LOCAL_UI"));
@@ -2116,7 +2108,7 @@ public class TaskService {
                 return;
             }
             try {
-                prompts.put(role, judgePrompt(task, finalAttempt, role));
+                prompts.put(role, taskEvidence.judgePrompt(task, finalAttempt, role, spec(task)));
             } catch (TaskFailure failure) {
                 if (!"JUDGE_PROMPT_BUDGET_EXCEEDED".equals(failure.code())) throw failure;
                 waitForJudgeInput(task, finalAttempt, null, failure.code(), failure.getMessage());
@@ -2143,7 +2135,7 @@ public class TaskService {
         lifecycle.create(taskStates.subject(LifecycleMachineType.JUDGE_RUN, judge.id(), judge.taskId()), judge.state(),
                 Map.of("role", judge.role()), () -> mapper.insertJudgeRun(judge),
                 () -> new ConflictException("JUDGE_CREATE_CONFLICT", "Judge run could not be created"));
-        persistArtifact(task, finalAttempt.id(), judge.id(), "JUDGE_LOG_METADATA", role.toLowerCase() + "-judge-start.json",
+        taskEvidence.persist(task, finalAttempt.id(), judge.id(), "JUDGE_LOG_METADATA", role.toLowerCase() + "-judge-start.json",
                 "application/json", write(Map.of("role", role, "state", JudgeRunState.CREATING.name(), "readOnly", true)),
                 Map.of("source", "judge-session", "readOnly", true));
         OpenCodeClient.OpenCodeSession remote;
@@ -2220,7 +2212,7 @@ public class TaskService {
             JudgeRunRow recovered = judgeState(judge, finalizer.id(), JudgeRunState.RUNNING,
                     null, null, null, null);
             updateJudge(recovered);
-            String prompt = judgePrompt(task, attempt, judge.role())
+            String prompt = taskEvidence.judgePrompt(task, attempt, judge.role(), spec(task))
                     + "\n\nFINALIZER RECOVERY: Do not call built-in tools. Configured MCP tools remain allowed; return the requested Judge object now."
                     + evidence;
             if (ModelResponseMode.JSON_SCHEMA.name().equals(judge.responseMode())) {
@@ -2273,7 +2265,7 @@ public class TaskService {
                     "corrections", decision.normalizations()));
         }
         usageInsights.collectTerminalJudgeUsage(inputTask.id(), completed.id());
-        persistArtifact(inputTask, judge.attemptId(), judge.id(), "JUDGE_RESULT", judge.role().toLowerCase() + "-judge-result.txt",
+        taskEvidence.persist(inputTask, judge.attemptId(), judge.id(), "JUDGE_RESULT", judge.role().toLowerCase() + "-judge-result.txt",
                 "text/plain", rawOutput == null ? "" : rawOutput,
                 Map.of("role", judge.role(), "verdict", verdict, "reason", reason,
                         "state", JudgeRunState.COMPLETED.name()));
@@ -2290,7 +2282,7 @@ public class TaskService {
                 null, failure.code() + ": " + safeMessage(failure.getMessage()), null, now());
         updateJudge(failed);
         usageInsights.collectTerminalJudgeUsage(task.id(), failed.id());
-        persistArtifact(task, judge.attemptId(), judge.id(), "JUDGE_LOG_METADATA", judge.role().toLowerCase() + "-judge-session-error.json",
+        taskEvidence.persist(task, judge.attemptId(), judge.id(), "JUDGE_LOG_METADATA", judge.role().toLowerCase() + "-judge-session-error.json",
                 "application/json", write(Map.of("role", judge.role(), "code", failure.code(),
                         "message", safeMessage(failure.getMessage()), "state", JudgeRunState.SESSION_ERROR.name())),
                 Map.of("source", "judge-session", "retryable", true));
@@ -2376,76 +2368,6 @@ public class TaskService {
         return decision;
     }
 
-    private void captureFinalEvidence(TaskRow task, AttemptRow attempt) {
-        boolean aggregateCaptured = mapper.listTaskArtifacts(task.id()).stream()
-                .anyMatch(artifact -> "VERIFICATION_SUMMARY".equals(artifact.kind())
-                        && attempt.id().equals(artifact.attemptId())
-                        && artifact.content().contains("\"schemaVersion\":\"v2\""));
-        if (!aggregateCaptured) {
-            List<Map<String, Object>> stageEvidence = new ArrayList<>();
-            int resultCount = 0;
-            for (StageRow stage : mapper.listStages(task.id())) {
-                AttemptRow stageAttempt = mapper.latestAttempt(stage.id()).orElseThrow(() ->
-                        new TaskFailure("JUDGE_STAGE_EVIDENCE_MISSING",
-                                "Stage " + stage.ordinal() + " has no deterministic attempt evidence"));
-                if (!StageState.SUCCEEDED.name().equals(stage.state())
-                        || !AttemptState.SUCCEEDED.name().equals(stageAttempt.state())) {
-                    throw new TaskFailure("JUDGE_STAGE_EVIDENCE_INCOMPLETE",
-                            "Stage " + stage.ordinal() + " has not completed deterministic acceptance");
-                }
-                List<Map<String, Object>> results = new ArrayList<>();
-                for (VerificationResultRow row : mapper.listVerifications(stageAttempt.id())) {
-                    Map<String, Object> result = new LinkedHashMap<>();
-                    String evidence = row.evidenceJson() == null ? "" : row.evidenceJson();
-                    result.put("verifierIndex", row.verifierIndex());
-                    result.put("type", row.type());
-                    result.put("state", row.state());
-                    result.put("summary", row.summary());
-                    result.put("evidenceExcerpt", JudgePromptPolicy.evidenceExcerpt(evidence));
-                    result.put("evidenceTruncated", JudgePromptPolicy.utf8Bytes(evidence)
-                            > JudgePromptPolicy.MAX_EVIDENCE_EXCERPT_UTF8_BYTES);
-                    result.put("evidenceSha256", sha256(evidence));
-                    results.add(result);
-                }
-                resultCount += results.size();
-                Map<String, Object> stageResult = new LinkedHashMap<>();
-                stageResult.put("stageId", stage.id());
-                stageResult.put("ordinal", stage.ordinal());
-                stageResult.put("objective", stage.objective());
-                stageResult.put("attemptId", stageAttempt.id());
-                stageResult.put("attemptOrdinal", stageAttempt.ordinal());
-                stageResult.put("results", results);
-                stageEvidence.add(stageResult);
-            }
-            Map<String, Object> aggregate = new LinkedHashMap<>();
-            aggregate.put("schemaVersion", "v2");
-            aggregate.put("taskId", task.id());
-            aggregate.put("finalAttemptId", attempt.id());
-            aggregate.put("allPassed", stageEvidence.stream().flatMap(stage -> ((List<?>) stage.get("results")).stream())
-                    .map(result -> (Map<?, ?>) result)
-                    .allMatch(result -> VerificationState.PASS.name().equals(result.get("state"))));
-            aggregate.put("stages", stageEvidence);
-            persistArtifact(task, attempt.id(), null, "VERIFICATION_SUMMARY", "verification-summary-v2.json", "application/json",
-                    write(aggregate), Map.of("source", "deterministic-verifier-aggregate", "stageCount", stageEvidence.size(),
-                            "resultCount", resultCount, "schemaVersion", "v2"));
-        }
-        boolean alreadyCaptured = mapper.listTaskArtifacts(task.id()).stream()
-                .anyMatch(artifact -> "GIT_DIFF".equals(artifact.kind()) && attempt.id().equals(artifact.attemptId()));
-        if (alreadyCaptured) return;
-        VerifierOutcome snapshot = verifiers.verify(Path.of(requireWorktree(task)), task.baselineCommit(),
-                new LoopSpec.VerifierSpec("GIT_DIFF", null, null, false, List.of(), List.of(), false),
-                Duration.ofSeconds(10));
-        if (snapshot.state() != VerificationState.PASS) {
-            throw new TaskFailure("TASK_DIFF_CAPTURE_FAILED", snapshot.summary());
-        }
-        Map<String, Object> metadata = new LinkedHashMap<>(snapshot.evidence());
-        metadata.put("source", "deterministic-task-baseline-diff");
-        metadata.put("taskBranch", task.branchName());
-        metadata.put("attemptId", attempt.id());
-        persistArtifact(task, attempt.id(), null, "GIT_DIFF", "task-diff.json", "application/json",
-                write(metadata), metadata);
-    }
-
     private ModelResponseMode judgeResponseMode(TaskRow task, String role, LoopSpec spec) {
         JudgeRunRow previous = mapper.latestJudgeRun(task.id(), role).orElse(null);
         if (previous != null && ModelResponseMode.JSON_SCHEMA.name().equals(previous.responseMode())
@@ -2478,61 +2400,6 @@ public class TaskService {
         throw new SessionFailure("OPENCODE_STRUCTURED_OUTPUT_FAILED", detail);
     }
 
-    private void persistArtifact(TaskRow task, String attemptId, String judgeRunId, String kind, String name, String contentType,
-                                 String content, Map<String, ?> metadata) {
-        mapper.insertTaskArtifact(new TaskArtifactRow(UUID.randomUUID().toString(), task.id(), attemptId, judgeRunId, kind, name,
-                contentType, content == null ? "" : content, write(metadata), now()));
-    }
-
-    /** Freezes the complete requirement/decomposition/package lineage when the Task is created. */
-    private void persistConfirmedDesignContext(TaskRow task, LoopDraftRow draft) {
-        DesignerSessionRow session = mapper.findLatestDesignerSessionByDraft(draft.id()).orElse(null);
-        if (session == null || session.currentRequirementRevision() == null) {
-            mapper.findLatestPersistedDesignerMessageByDraft(draft.id()).ifPresent(message ->
-                    persistArtifact(task, null, null, DESIGN_CONTEXT_ARTIFACT_KIND, "confirmed-designer-design.md",
-                            "text/markdown", message.content(), Map.of(
-                                    "draftId", draft.id(), "designerSessionId", message.designerSessionId(),
-                                    "designerMessageId", message.id(), "deliveryState", message.deliveryState())));
-            return;
-        }
-        var revision = mapper.findCurrentDesignRequirementRevision(session.id()).orElse(null);
-        if (revision == null || !"COMPLETED".equals(revision.state())) return;
-        persistArtifact(task, null, null, REQUIREMENT_CONTEXT_ARTIFACT_KIND,
-                "requirement-r" + revision.revision() + ".md", "text/markdown", revision.requirementText(),
-                Map.of("designerSessionId", session.id(), "requirementRevision", revision.revision(),
-                        "sourceMessageId", revision.sourceMessageId()));
-        mapper.findTaskDecompositionByRevision(revision.id()).ifPresent(decomposition ->
-                persistArtifact(task, null, null, DECOMPOSITION_CONTEXT_ARTIFACT_KIND,
-                        "decomposition-r" + revision.revision() + ".json", "application/json",
-                        decomposition.planJson(), Map.of("designerSessionId", session.id(),
-                                "requirementRevision", revision.revision(), "decompositionId", decomposition.id(),
-                                "resultType", decomposition.resultType() == null ? "" : decomposition.resultType())));
-        StringBuilder combined = new StringBuilder("# 已确认分包设计\n\n");
-        for (var workPackage : mapper.listDesignWorkPackages(revision.id())) {
-            DesignerMessageRow design = mapper.listDesignerMessages(session.id()).stream()
-                    .filter(message -> message.id().equals(workPackage.designMessageId())).findFirst().orElse(null);
-            if (design != null) {
-                persistArtifact(task, null, null, WORK_PACKAGE_DESIGN_ARTIFACT_KIND,
-                        workPackage.packageId() + "-design.md", "text/markdown", design.content(),
-                        Map.of("workPackageId", workPackage.packageId(), "ordinal", workPackage.ordinal(),
-                                "designerMessageId", design.id(), "requirementRevision", revision.revision()));
-                combined.append("## ").append(workPackage.packageId()).append(" · ")
-                        .append(workPackage.title()).append("\n\n").append(design.content()).append("\n\n");
-            }
-            String summary = workPackage.compilerSummary() == null ? "" : workPackage.compilerSummary();
-            String handoff = workPackage.handoffSummary() == null ? "" : workPackage.handoffSummary();
-            persistArtifact(task, null, null, WORK_PACKAGE_COMPILATION_SUMMARY_ARTIFACT_KIND,
-                    workPackage.packageId() + "-compilation-summary.md", "text/markdown",
-                    summary + (handoff.isBlank() ? "" : "\n\n依赖交接：\n" + handoff),
-                    Map.of("workPackageId", workPackage.packageId(), "ordinal", workPackage.ordinal(),
-                            "handoffSummary", handoff, "requirementRevision", revision.revision()));
-        }
-        persistArtifact(task, null, null, DESIGN_CONTEXT_ARTIFACT_KIND, "confirmed-combined-design.md",
-                "text/markdown", combined.toString(), Map.of("draftId", draft.id(),
-                        "designerSessionId", session.id(), "requirementRevision", revision.revision(),
-                        "composite", true));
-    }
-
     private void abortJudgeSessions(TaskRow task) {
         if (task.worktreePath() == null) return;
         Path worktree = Path.of(task.worktreePath());
@@ -2549,32 +2416,6 @@ public class TaskService {
     }
 
     private String roleTitle(String role) { return "REQUIREMENT".equals(role) ? "Requirement Judge" : "Risk Judge"; }
-    private String judgePrompt(TaskRow task, AttemptRow attempt, String role) {
-        LoopSpec loopSpec = spec(task);
-        String objectives = mapper.listStages(task.id()).stream()
-                .filter(stage -> StageState.SUCCEEDED.name().equals(stage.state()))
-                .map(stage -> "- 阶段 " + (stage.ordinal() + 1) + "：" + stage.objective())
-                .collect(java.util.stream.Collectors.joining("\n"));
-        String verification = mapper.listTaskArtifacts(task.id()).stream()
-                .filter(artifact -> attempt.id().equals(artifact.attemptId())
-                        && "VERIFICATION_SUMMARY".equals(artifact.kind())
-                        && artifact.content().contains("\"schemaVersion\":\"v2\""))
-                .map(TaskArtifactRow::content).findFirst().orElse("No verification summary was persisted.");
-        String diff = mapper.listTaskArtifacts(task.id()).stream()
-                .filter(artifact -> attempt.id().equals(artifact.attemptId()) && "GIT_DIFF".equals(artifact.kind()))
-                .map(TaskArtifactRow::content).findFirst().orElse("No diff artifact was persisted.");
-        return JudgePromptPolicy.prompt(loopSpec, role, objectives, verification, diff, attempt.id());
-    }
-
-    private String sha256(String value) {
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                    .digest((value == null ? "" : value).getBytes(StandardCharsets.UTF_8)));
-        } catch (Exception impossible) {
-            throw new IllegalStateException("SHA-256 unavailable", impossible);
-        }
-    }
-
     private JudgeRunRow judgeState(JudgeRunRow row, String externalSessionId, JudgeRunState state, String verdict, String reason,
                                    String rawOutput, String endedAt) {
         return new JudgeRunRow(row.id(), row.taskId(), row.attemptId(), row.role(), row.ordinal(), externalSessionId, state.name(),

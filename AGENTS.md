@@ -42,10 +42,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.1.99.jar
-   jar tf target/opencode-loopper-0.1.99.jar \
+   test -s target/opencode-loopper-0.2.0.jar
+   jar tf target/opencode-loopper-0.2.0.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.1.99.jar
+   shasum -a 256 target/opencode-loopper-0.2.0.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -95,8 +95,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.1.99`。
-- 正式产物：`target/opencode-loopper-0.1.99.jar`。
+- Maven 项目版本：`0.2.0`。
+- 正式产物：`target/opencode-loopper-0.2.0.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -330,7 +330,8 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 
 - API Controller 只做输入/输出边界、校验和 DTO 映射；业务编排留在 `service/`。
 - 领域状态使用现有枚举和 typed failure；不要用散落字符串复制状态语义。
-- `TaskService` 负责 OpenCode、验证器、Judge 等副作用编排；状态机只决定合法转换，不承载外部 I/O。
+- `DesignerSessionService` 只协调 Designer 生命周期和远端角色步骤；紧凑包计划的规范化、语义校验与可执行证据生成归 `DesignerPackagePlanCompiler`，机器传输形状归 `DesignerSemanticContracts`，不得回流到会话编排器。
+- `TaskService` 协调 OpenCode、验证器、Judge 等执行生命周期；不可变设计快照、验证汇总、Git diff 和 Judge 提示证据归 `TaskEvidenceService`。状态机只决定合法转换，不承载外部 I/O 或证据装配。
 - 新 API 必须考虑：输入校验、local UI/MCP 授权、幂等、乐观锁、Problem Detail/明确错误码、终态重入。
 - MyBatis Mapper 方法应明确行数预期。状态更新和普通字段 mutation 分开，不能用同一 SQL 偷改状态。
 - 不得在持有数据库事务时等待模型、进程、网络、浏览器或长时间文件操作。
@@ -421,7 +422,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.1.99.jar
+JAR=target/opencode-loopper-0.2.0.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -523,6 +524,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-08-20 | Designer/Task 兼容门面继续瘦身，交付 0.2.0 | Designer 抽离机器语义合同及单包计划规范化、语义校验、证据映射与验证器合成，`DesignerSessionService` 从 6004 行降至 5406 行；Task 抽离冻结设计快照、验证摘要、最终差异和 Judge 证据投影，`TaskService` 从 3000 行降至 2841 行；结构门禁同步下调并在代码设计契约中固定兼容门面和新协作者的依赖边界；同步 README、架构与本公约正文 | 聚焦 `DesignerPackagePlanCompilerTest`、Designer/Task 集成、结构和打包契约通过；`./scripts/verify.sh` 完整通过（Java 513 项，失败 0、错误 0、跳过 1；Vitest 193 项全通过），BUILD SUCCESS；生成 `target/opencode-loopper-0.2.0.jar`（283335380 bytes，内含 108 个 `static/index.html`/`static/assets` 条目），SHA-256 `75bdfbf677c24ed8e03726d13356c2141f06e21362bac08c993cf9cc25d94c1c`；未重启运行实例，未推送、未打标签、未创建 Release |
 | 2026-08-20 | Designer 画像确认、实时活动、MCP 与会话清理，交付 0.1.99 | 画像增加决策态、服务端确认就绪和安全继承；重算持续刷新并展示新旧选择；确认后清除工作区并直达任务；清理操作停止全部远端角色后才归档；所有角色开放已配置 MCP 且保持内置危险工具边界；新增实时活动面板和同事化角色称谓；同步 README、架构、Designer、OpenCode、AI 角色合同与本公约正文 | 聚焦后端、前端类型检查及相关 44 项 Designer/UI 测试通过；隔离 OpenCode 1.18.18 MCP 冒烟验证 `/mcp` 发现与 `<server>_*` 权限写入成功且未修改用户配置；`./scripts/verify.sh` 通过（Java 511 项，失败 0、错误 0、跳过 1；Vitest 193 项全通过）；生成 `target/opencode-loopper-0.1.99.jar`（283322812 bytes，内含 108 个 `static/index.html`/`static/assets` 条目），SHA-256 `afc9f802f2e01a04f6dde59735a8aca986134e2b5ab79df7d23e7b71228d0b51`；未重启运行实例，未推送、未打标签、未创建 Release |
 | 2026-08-20 | God Class 职责拆分与代码结构门禁，交付 0.1.98 | 新增代码设计契约和 600 行默认门禁/遗留债务只降不升规则；Designer/Task 提取提示、上下文、重试、Judge、状态持久化职责；OpenCode HTTP、Git、发布、本地同步和 Mapper 按策略、解析、协议及聚合边界拆分；同步 README、架构、OpenCode 合同与本公约正文 | 聚焦结构、HTTP、Git、Designer、Task、发布和本地同步回归通过；`./scripts/verify.sh` 诊断重试完整通过：Java 504 项（0 失败、0 错误、1 项平台条件跳过），Vitest 186/186，BUILD SUCCESS；首次 0.1.98 全量运行仅并发队列测试出现一次时序失败，单测重跑及同源码全量重跑均通过；本地 JAR `target/opencode-loopper-0.1.98.jar` 大小 283292181 字节、含 108 个 SPA 静态入口/资产，SHA-256 `e58c391e00f75f07db907673ccbdf8ab563811ddb416ed073b1f1e4fff0ac738`；未重启运行实例，不推送、不打标签、不创建 Release |
 | 2026-08-20 | 全量动态 Role Pack 与 Compiler 可靠性收口，交付 0.1.96 | Role Pack v3 按 Java/Python/Node/Other 软件族消除 JavaScript、同族别名和未知单栈误路由；全部可编译角色使用栈原生规划样例与测试目标解析；当前紧凑合同不再误入历史 `status` 解析，格式/语义修复使用全新无工具 Session 与匹配 Schema，非法补丁不覆盖有效快照；Java/混合包禁止仅 FULL_TEST/BUILD 的生产 Stage，补丁中可唯一反推的 `verifiers` 和缺失字段 `replace` 分别规范化为 `evidence` 与 `add` 后重跑全校验；同步 README、架构、Designer、OpenCode、AI 角色合同与本公约正文 | 聚焦补丁/Role Prompt/Compiler 集成 9/9；`./scripts/verify.sh` 完整通过：Java 497 项（0 失败、0 错误、1 项平台条件跳过），Vitest 186/186，BUILD SUCCESS；本地 JAR `target/opencode-loopper-0.1.96.jar` 大小 283226768 字节、含 108 个 SPA 静态入口/资产，SHA-256 `385d302b73bfe1d44f1b4bbf2a170c40a5997a8c0c1ad7cbde76a13a738c08d1`；复制当前 SQLite 到隔离 18096，复用 OpenCode 1.18.18 + `opencode-go/deepseek-v4-flash` 对失败会话 `857a0148-186e-4c65-ade0-8d0c23ad4744` 的 WP-1 真实重编译，0 次格式/语义修复即 `server_compiled=1`、3 个 Java Stage 均含聚焦测试并进入 `FINAL_REVIEW`，新增 Task 0，旧 `status`/`/status` 冲突 0；隔离端口已释放，当前 8080 仍为 0.1.94/PID 59428，未重启、不推送、不打标签、不创建 Release |

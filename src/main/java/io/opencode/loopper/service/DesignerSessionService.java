@@ -1,5 +1,7 @@
 package io.opencode.loopper.service;
 
+import static io.opencode.loopper.service.DesignerSemanticContracts.*;
+
 import io.opencode.loopper.config.LoopperProperties;
 import io.opencode.loopper.domain.DesignWorkflowPhase;
 import io.opencode.loopper.domain.DesignRequirementRevisionState;
@@ -34,12 +36,10 @@ import io.opencode.loopper.runtime.OpenCodeClient;
 import io.opencode.loopper.runtime.OpenCodeStructuredSchemas;
 import io.opencode.loopper.runtime.MachineRoleContractCatalog;
 import io.opencode.loopper.verification.ProcessCommandPolicy;
-import io.opencode.loopper.verification.TestFrameworkPolicy;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -93,8 +93,6 @@ public class DesignerSessionService {
     private static final Pattern LEGACY_DESIGNER_PAYLOAD = Pattern.compile(
             "<!--\\s*LOOPSPEC_JSON_START\\s*-->.*?<!--\\s*LOOPSPEC_JSON_END\\s*-->",
             Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
-    private static final Set<DesignGapCode> ALLOWED_DESIGN_GAPS = EnumSet.allOf(DesignGapCode.class);
-
     private final LoopperMapper mapper;
     private final LifecycleTransitionService lifecycle;
     private final ProjectService projects;
@@ -105,6 +103,7 @@ public class DesignerSessionService {
     private final AiOutputExtractor aiOutputExtractor;
     private final AiOutputAuditService aiOutputAudit;
     private final DesignerEvidenceIndexer evidenceIndexer;
+    private final DesignerPackagePlanCompiler packagePlanCompiler;
     private final AiRepairPatchService repairPatchService;
     private final DesignerEventHub events;
     private final TaskProfileService taskProfiles;
@@ -134,6 +133,7 @@ public class DesignerSessionService {
         this.aiOutputExtractor = aiOutputExtractor;
         this.aiOutputAudit = aiOutputAudit;
         this.evidenceIndexer = evidenceIndexer;
+        this.packagePlanCompiler = new DesignerPackagePlanCompiler(evidenceIndexer);
         this.repairPatchService = repairPatchService;
         this.events = events;
         this.taskProfiles = taskProfiles;
@@ -3049,17 +3049,7 @@ public class DesignerSessionService {
     }
 
     private List<DesignGap> validateDesignGaps(List<DesignGap> input) {
-        if (input == null || input.isEmpty()) throw new BadRequestException("DESIGN_GAPS_REQUIRED",
-                "DESIGN_INCOMPLETE requires at least one concrete design gap");
-        List<DesignGap> result = new ArrayList<>();
-        for (DesignGap gap : input) {
-            if (gap == null || gap.code() == null || !ALLOWED_DESIGN_GAPS.contains(gap.code()) || blank(gap.detail())) {
-                throw new BadRequestException("DESIGN_GAP_INVALID",
-                        "Design gaps must use a closed semantic gap code and a concrete detail");
-            }
-            result.add(new DesignGap(gap.code(), bounded(gap.detail().trim(), 1_000)));
-        }
-        return List.copyOf(result);
+        return packagePlanCompiler.validateDesignGaps(input);
     }
 
     private void validateTraceability(String design, LoopSpec spec, List<CriterionSource> sources) {
@@ -3301,15 +3291,16 @@ public class DesignerSessionService {
                                             "Compiler compact planning requires outcome=COMPILED or DESIGN_INCOMPLETE");
                                 }
                             });
-            CompactPlanNormalization normalized = normalizeCompactPackagePlan(compact.value());
-            PackageCompilationPlanEnvelope compiled = compileCompactPackagePlan(workPackage, design,
-                    normalized.plan());
+            DesignerPackagePlanCompiler.Result result = packagePlanCompiler.compile(workPackage, design,
+                    compact.value(), packageStageLimit(workPackage.designerSessionId()),
+                    directSoftwareMode(workPackage.designerSessionId()));
+            PackageCompilationPlanEnvelope compiled = result.plan();
             validatePackageCompilationPlan(workPackage, design, compiled, requireEvidence);
             List<String> notes = new ArrayList<>(compact.normalizations());
             notes.add("AC_IDS_DERIVED");
             notes.add("SOURCE_REFS_RESOLVED");
             notes.add("VERIFIER_METADATA_DERIVED");
-            notes.addAll(normalized.normalizations());
+            notes.addAll(result.normalizations());
             return new AiOutputExtractor.ExtractionResult<>(compiled, compact.source(), List.copyOf(notes),
                     write(compiled));
         }
@@ -3328,377 +3319,6 @@ public class DesignerSessionService {
     private boolean legacyPackageCompilationPlan(String output) {
         return output != null && Pattern.compile("\\\"evidenceMappings\\\"\\s*:", Pattern.CASE_INSENSITIVE)
                 .matcher(output).find();
-    }
-
-    private PackageCompilationPlanEnvelope compileCompactPackagePlan(DesignWorkPackageRow workPackage,
-                                                                     String design,
-                                                                     CompactPackageCompilationPlan compact) {
-        if ("DESIGN_INCOMPLETE".equals(compact.outcome())) {
-            return new PackageCompilationPlanEnvelope(2, "DESIGN_INCOMPLETE", compact.summary(), List.of(),
-                    List.of(), compact.handoffSummary(), validateDesignGaps(compact.designGaps())).normalized();
-        }
-        if (!"COMPILED".equals(compact.outcome())) {
-            throw new BadRequestException("COMPILER_PLAN_OUTCOME_INVALID",
-                    "Compiler semantic outcome must be COMPILED or DESIGN_INCOMPLETE");
-        }
-        int stageLimit = packageStageLimit(workPackage.designerSessionId());
-        if (compact.stages().size() > stageLimit && directSoftwareMode(workPackage.designerSessionId())) {
-            throw new BadRequestException("LARGE_TASK_MODE_REQUIRED",
-                    "当前设计无法安全容纳在一个 1–6 Stage 工作包中，请显式改用大型任务模式");
-        }
-        if (compact.stages().isEmpty() || compact.stages().size() > stageLimit) {
-            throw new BadRequestException("COMPILER_PLAN_STAGE_COUNT_INVALID",
-                    "Compiler semantic planning must contain 1-" + stageLimit + " stages");
-        }
-        DesignerEvidenceIndexer.Index sourceIndex = evidenceIndexer.index(design);
-        validateCompactPackageSemantics(compact, sourceIndex);
-        List<PlannedStage> plannedStages = new ArrayList<>();
-        List<AcceptanceEvidenceMapping> mappings = new ArrayList<>();
-        int criterionOrdinal = 0;
-        for (int stageIndex = 0; stageIndex < compact.stages().size(); stageIndex++) {
-            CompactStage stage = compact.stages().get(stageIndex);
-            if (stage == null || blank(stage.objective()) || stage.implementationKind() == null
-                    || stage.deliverables().isEmpty() || stage.criteria().isEmpty()) {
-                throw new BadRequestException("COMPILER_PLAN_STAGE_INVALID",
-                        "Every semantic stage needs objective, implementationKind, deliverables, and criteria");
-            }
-            List<String> criterionIds = new ArrayList<>();
-            for (int criterionIndex = 0; criterionIndex < stage.criteria().size(); criterionIndex++) {
-                int currentCriterion = criterionIndex;
-                CompactCriterion criterion = stage.criteria().get(criterionIndex);
-                if (criterion == null || blank(criterion.description())) {
-                    throw new BadRequestException("COMPILER_PLAN_CRITERION_INVALID",
-                            "Every semantic criterion needs an observable description");
-                }
-                List<String> excerpts = sourceIndex.resolve(criterion.sourceRefs());
-                String criterionId = AiSemanticContractCompiler.acceptanceId(workPackage.packageId(),
-                        ++criterionOrdinal);
-                criterionIds.add(criterionId);
-                List<CompactEvidence> covering = stage.evidence().stream()
-                        .filter(item -> item != null && item.covers().contains(currentCriterion)).toList();
-                boolean machine = !covering.isEmpty();
-                String mode = AiSemanticContractCompiler.verificationMode(machine, criterion.judgeRubric(),
-                        criterion.judgeOnlyReason());
-                List<CompactEvidence> focused = covering.stream()
-                        .filter(item -> "FOCUSED_TEST".equals(item.kind())).toList();
-                if (focused.size() > 1) {
-                    throw new BadRequestException("COMPILER_PLAN_TEST_EVIDENCE_AMBIGUOUS",
-                            "One criterion cannot derive a unique focused test from multiple candidates");
-                }
-                List<String> testCommand = focused.isEmpty() ? List.of()
-                        : canonicalTestCommand(focused.getFirst().command());
-                List<String> testTargets = focused.isEmpty() ? List.of()
-                        : stage.implementationKind() == ImplementationKind.JAVA_PRODUCTION
-                        ? ProcessCommandPolicy.explicitFocusedJavaTestTargets(testCommand)
-                        : TestFrameworkPolicy.explicitTargets(testCommand);
-                String strategy = covering.stream().map(CompactEvidence::kind).distinct()
-                        .collect(java.util.stream.Collectors.joining(", "));
-                mappings.add(new AcceptanceEvidenceMapping(stageIndex, criterionId, criterion.description(),
-                        excerpts.getFirst(), mode, criterion.judgeRubric(), criterion.judgeOnlyReason(), strategy,
-                        testCommand, testTargets, excerpts));
-            }
-            List<LoopSpec.VerifierSpec> verifiers = new ArrayList<>();
-            for (CompactEvidence evidence : stage.evidence()) {
-                verifiers.add(compileEvidence(stageIndex, stage, evidence, criterionIds));
-            }
-            plannedStages.add(new PlannedStage(stage.objective(), stage.allowedPaths(), stage.forbiddenPaths(),
-                    stage.deliverables(), verifiers, stage.verificationRuntime(), stage.implementationKind(),
-                    workPackage.packageId()));
-        }
-        return new PackageCompilationPlanEnvelope(2, "COMPILED", compact.summary(), plannedStages, mappings,
-                compact.handoffSummary(), List.of()).normalized();
-    }
-
-    private CompactPlanNormalization normalizeCompactPackagePlan(CompactPackageCompilationPlan input) {
-        CompactPackageCompilationPlan compact = input.normalized();
-        LinkedHashSet<String> notes = new LinkedHashSet<>();
-        List<CompactStage> stages = new ArrayList<>();
-        for (CompactStage stage : compact.stages()) {
-            if (stage == null) {
-                stages.add(null);
-                continue;
-            }
-            Set<Integer> focusedIndexes = new LinkedHashSet<>();
-            for (CompactEvidence evidence : stage.evidence()) {
-                if (evidence != null && "FOCUSED_TEST".equals(evidence.kind())) {
-                    focusedIndexes.addAll(evidence.covers());
-                }
-            }
-            int[] remap = new int[stage.criteria().size()];
-            java.util.Arrays.fill(remap, -1);
-            List<CompactCriterion> criteria = new ArrayList<>();
-            for (int index = 0; index < stage.criteria().size(); index++) {
-                CompactCriterion criterion = stage.criteria().get(index);
-                boolean explicitFocused = focusedIndexes.contains(index);
-                if (!explicitFocused && criterion != null
-                        && AiSemanticContractCompiler.isEngineeringMetaCriterion(criterion.description())) {
-                    notes.add("ENGINEERING_META_CRITERIA_SUPPLEMENTALIZED");
-                    continue;
-                }
-                remap[index] = criteria.size();
-                criteria.add(criterion);
-            }
-
-            List<CompactEvidence> evidenceItems = new ArrayList<>();
-            for (CompactEvidence evidence : stage.evidence()) {
-                if (evidence == null) {
-                    evidenceItems.add(null);
-                    continue;
-                }
-                List<Integer> remappedCovers = new ArrayList<>();
-                boolean removedCover = false;
-                for (Integer original : evidence.covers()) {
-                    if (original != null && original >= 0 && original < remap.length && remap[original] >= 0) {
-                        if (!remappedCovers.contains(remap[original])) remappedCovers.add(remap[original]);
-                    } else if (original != null && original >= 0 && original < remap.length) {
-                        removedCover = true;
-                    } else {
-                        remappedCovers.add(original);
-                    }
-                }
-                if (removedCover) notes.add("META_EVIDENCE_COVERAGE_REMOVED");
-                if (removedCover && remappedCovers.isEmpty() && "SELF_CHECK".equals(evidence.kind())
-                        && ProcessCommandPolicy.isSourceTextSearch(evidence.command())) {
-                    notes.add("UNEXECUTABLE_META_SELF_CHECK_DROPPED");
-                    continue;
-                }
-                evidenceItems.add(evidence.withCovers(remappedCovers));
-            }
-
-            if (stage.implementationKind() == ImplementationKind.JAVA_PRODUCTION) {
-                List<Integer> focusedEvidence = new ArrayList<>();
-                for (int index = 0; index < evidenceItems.size(); index++) {
-                    CompactEvidence evidence = evidenceItems.get(index);
-                    if (evidence != null && "FOCUSED_TEST".equals(evidence.kind())) focusedEvidence.add(index);
-                }
-                if (focusedEvidence.size() == 1) {
-                    int focusedIndex = focusedEvidence.getFirst();
-                    CompactEvidence focused = evidenceItems.get(focusedIndex);
-                    List<Integer> covers = new ArrayList<>(focused.covers());
-                    boolean changed = false;
-                    for (int criterionIndex = 0; criterionIndex < criteria.size(); criterionIndex++) {
-                        if (covers.contains(criterionIndex)) continue;
-                        int currentCriterionIndex = criterionIndex;
-                        CompactCriterion criterion = criteria.get(criterionIndex);
-                        boolean hasOtherMachineEvidence = evidenceItems.stream()
-                                .filter(java.util.Objects::nonNull)
-                                .filter(item -> !"FOCUSED_TEST".equals(item.kind()))
-                                .anyMatch(item -> item.covers().contains(currentCriterionIndex));
-                        boolean explicitJudgeOnly = criterion != null && !blank(criterion.judgeRubric())
-                                && !blank(criterion.judgeOnlyReason()) && !hasOtherMachineEvidence;
-                        if (!explicitJudgeOnly) {
-                            covers.add(criterionIndex);
-                            changed = true;
-                        }
-                    }
-                    if (changed) {
-                        evidenceItems.set(focusedIndex, focused.withCovers(covers));
-                        notes.add("UNIQUE_FOCUSED_TEST_COVERAGE_DERIVED");
-                    }
-                }
-            }
-            stages.add(new CompactStage(stage.objective(), stage.implementationKind(), stage.allowedPaths(),
-                    stage.forbiddenPaths(), stage.deliverables(), criteria, evidenceItems,
-                    stage.verificationRuntime()));
-        }
-        return new CompactPlanNormalization(new CompactPackageCompilationPlan(compact.outcome(), compact.summary(),
-                stages, compact.handoffSummary(), compact.designGaps()).normalized(), List.copyOf(notes));
-    }
-
-    private void validateCompactPackageSemantics(CompactPackageCompilationPlan compact,
-                                                 DesignerEvidenceIndexer.Index sourceIndex) {
-        List<CompilerSemanticIssue> issues = new ArrayList<>();
-        Set<String> coverable = Set.of("FOCUSED_TEST", "SELF_CHECK", "HTTP_STATUS", "JSON_PATH", "BROWSER",
-                "DATABASE_QUERY", "FILE_CONTENT", "FILE_HASH", "DOCUMENT_STRUCTURE", "TABULAR_DATA");
-        Set<String> supplemental = Set.of("FULL_TEST", "BUILD", "GIT_DIFF", "FILE_NOT_EXISTS", "JUNIT_XML");
-        for (int stageIndex = 0; stageIndex < compact.stages().size(); stageIndex++) {
-            CompactStage stage = compact.stages().get(stageIndex);
-            String stagePath = "/stages/" + stageIndex;
-            if (stage == null) {
-                issues.add(new CompilerSemanticIssue("COMPILER_PLAN_STAGE_INVALID", stagePath,
-                        "stage must be an object"));
-                continue;
-            }
-            for (int evidenceIndex = 0; evidenceIndex < stage.evidence().size(); evidenceIndex++) {
-                CompactEvidence evidence = stage.evidence().get(evidenceIndex);
-                String evidencePath = stagePath + "/evidence/" + evidenceIndex;
-                if (evidence == null || blank(evidence.kind())) {
-                    issues.add(new CompilerSemanticIssue("COMPILER_PLAN_EVIDENCE_KIND_REQUIRED", evidencePath,
-                            "evidence kind is required"));
-                    continue;
-                }
-                if (!coverable.contains(evidence.kind()) && !supplemental.contains(evidence.kind())) {
-                    issues.add(new CompilerSemanticIssue("COMPILER_PLAN_EVIDENCE_KIND_INVALID",
-                            evidencePath + "/kind", "unsupported evidence kind: " + evidence.kind()));
-                }
-                if (supplemental.contains(evidence.kind()) && !evidence.covers().isEmpty()) {
-                    issues.add(new CompilerSemanticIssue("COMPILER_PLAN_EVIDENCE_COVERAGE_INVALID",
-                            evidencePath + "/covers", evidence.kind() + " is supplemental and cannot cover criteria"));
-                }
-                for (Integer criterionIndex : evidence.covers()) {
-                    if (criterionIndex == null || criterionIndex < 0 || criterionIndex >= stage.criteria().size()) {
-                        issues.add(new CompilerSemanticIssue("COMPILER_PLAN_EVIDENCE_COVERAGE_INVALID",
-                                evidencePath + "/covers", "unknown criterion index: " + criterionIndex));
-                    }
-                }
-                if ("SELF_CHECK".equals(evidence.kind())) {
-                    if (blank(evidence.successMarker())) {
-                        issues.add(new CompilerSemanticIssue("COMPILER_PLAN_SELF_CHECK_MARKER_REQUIRED",
-                                evidencePath + "/successMarker", "SELF_CHECK requires an explicit success marker"));
-                    }
-                    String commandError = ProcessCommandPolicy.directCommandError(evidence.command());
-                    if (commandError != null) {
-                        issues.add(new CompilerSemanticIssue("COMPILER_PLAN_SELF_CHECK_COMMAND_INVALID",
-                                evidencePath + "/command", commandError));
-                    } else if (ProcessCommandPolicy.isSourceTextSearch(evidence.command())) {
-                        issues.add(new CompilerSemanticIssue("COMPILER_PLAN_SELF_CHECK_COMMAND_INVALID",
-                                evidencePath + "/command",
-                                "source-text search cannot emit trustworthy positive runtime evidence"));
-                    }
-                }
-            }
-            for (int criterionIndex = 0; criterionIndex < stage.criteria().size(); criterionIndex++) {
-                CompactCriterion criterion = stage.criteria().get(criterionIndex);
-                String criterionPath = stagePath + "/criteria/" + criterionIndex;
-                if (criterion == null || blank(criterion.description())) {
-                    issues.add(new CompilerSemanticIssue("COMPILER_PLAN_CRITERION_INVALID", criterionPath,
-                            "criterion needs an observable description"));
-                    continue;
-                }
-                try {
-                    sourceIndex.resolve(criterion.sourceRefs());
-                } catch (BadRequestException invalid) {
-                    issues.add(new CompilerSemanticIssue(invalid.code(), criterionPath + "/sourceRefs",
-                            safeMessage(invalid.getMessage())));
-                }
-                List<Integer> coveringIndexes = new ArrayList<>();
-                List<Integer> focusedIndexes = new ArrayList<>();
-                for (int evidenceIndex = 0; evidenceIndex < stage.evidence().size(); evidenceIndex++) {
-                    CompactEvidence evidence = stage.evidence().get(evidenceIndex);
-                    if (evidence == null || !coverable.contains(evidence.kind())
-                            || !evidence.covers().contains(criterionIndex)) continue;
-                    coveringIndexes.add(evidenceIndex);
-                    if ("FOCUSED_TEST".equals(evidence.kind())) focusedIndexes.add(evidenceIndex);
-                }
-                boolean machine = !coveringIndexes.isEmpty();
-                boolean judge = !blank(criterion.judgeRubric());
-                if (!machine && !judge) {
-                    issues.add(new CompilerSemanticIssue("COMPILER_PLAN_CRITERION_UNCOVERED", criterionPath,
-                            "criterion needs focused/native machine evidence or a judgeRubric"));
-                } else if (!machine && blank(criterion.judgeOnlyReason())) {
-                    issues.add(new CompilerSemanticIssue("COMPILER_PLAN_JUDGE_REASON_REQUIRED",
-                            criterionPath + "/judgeOnlyReason", "Judge-only criterion needs judgeOnlyReason"));
-                }
-                if (focusedIndexes.size() > 1) {
-                    issues.add(new CompilerSemanticIssue("COMPILER_PLAN_TEST_EVIDENCE_AMBIGUOUS", criterionPath,
-                            "criterion is covered by multiple focused tests"));
-                }
-                if (stage.implementationKind() == ImplementationKind.JAVA_PRODUCTION && machine
-                        && focusedIndexes.isEmpty()) {
-                    issues.add(new CompilerSemanticIssue("COMPILER_PLAN_JAVA_TEST_EVIDENCE_REQUIRED", criterionPath,
-                            "JAVA_PRODUCTION machine criterion needs one focused Maven/Gradle test"));
-                }
-                if (focusedIndexes.size() == 1) {
-                    int evidenceIndex = focusedIndexes.getFirst();
-                    CompactEvidence focused = stage.evidence().get(evidenceIndex);
-                    try {
-                        List<String> command = canonicalTestCommand(focused.command());
-                        List<String> explicitTargets = stage.implementationKind() == ImplementationKind.JAVA_PRODUCTION
-                                ? ProcessCommandPolicy.explicitFocusedJavaTestTargets(command)
-                                : TestFrameworkPolicy.explicitTargets(command);
-                        if (explicitTargets.isEmpty()) {
-                            issues.add(new CompilerSemanticIssue("COMPILER_PLAN_JAVA_TEST_EVIDENCE_REQUIRED",
-                                    stagePath + "/evidence/" + evidenceIndex + "/command",
-                                    "focused test command needs an explicit target for its recognized framework"));
-                        }
-                    } catch (BadRequestException invalid) {
-                        issues.add(new CompilerSemanticIssue(invalid.code(),
-                                stagePath + "/evidence/" + evidenceIndex + "/command",
-                                safeMessage(invalid.getMessage())));
-                    }
-                }
-            }
-        }
-        if (issues.isEmpty()) return;
-        LinkedHashMap<String, CompilerSemanticIssue> unique = new LinkedHashMap<>();
-        for (CompilerSemanticIssue issue : issues) {
-            unique.putIfAbsent(issue.code() + "|" + issue.path() + "|" + issue.detail(), issue);
-        }
-        List<CompilerSemanticIssue> result = List.copyOf(unique.values());
-        if (result.size() == 1) {
-            CompilerSemanticIssue issue = result.getFirst();
-            throw new BadRequestException(issue.code(), issue.path() + ": " + issue.detail());
-        }
-        String detail = result.stream().map(issue -> "[" + issue.code() + "] " + issue.path() + ": "
-                + issue.detail()).collect(java.util.stream.Collectors.joining("; "));
-        throw new BadRequestException("COMPILER_PLAN_SEMANTIC_INVALID",
-                result.size() + " semantic issues: " + bounded(detail, 8_000));
-    }
-
-    private LoopSpec.VerifierSpec compileEvidence(int stageIndex, CompactStage stage,
-                                                  CompactEvidence evidence, List<String> criterionIds) {
-        if (evidence == null || blank(evidence.kind())) {
-            throw new BadRequestException("COMPILER_PLAN_EVIDENCE_KIND_REQUIRED",
-                    "Evidence kind is required at stage " + stageIndex);
-        }
-        Set<String> coverable = Set.of("FOCUSED_TEST", "SELF_CHECK", "HTTP_STATUS", "JSON_PATH", "BROWSER",
-                "DATABASE_QUERY", "FILE_CONTENT", "FILE_HASH", "DOCUMENT_STRUCTURE", "TABULAR_DATA");
-        Set<String> supplemental = Set.of("FULL_TEST", "BUILD", "GIT_DIFF", "FILE_NOT_EXISTS", "JUNIT_XML");
-        if (!coverable.contains(evidence.kind()) && !supplemental.contains(evidence.kind())) {
-            throw new BadRequestException("COMPILER_PLAN_EVIDENCE_KIND_INVALID",
-                    "Unsupported evidence kind: " + evidence.kind());
-        }
-        if (supplemental.contains(evidence.kind()) && !evidence.covers().isEmpty()) {
-            throw new BadRequestException("COMPILER_PLAN_EVIDENCE_COVERAGE_INVALID",
-                    evidence.kind() + " is supplemental and cannot cover business criteria");
-        }
-        LinkedHashSet<String> covers = new LinkedHashSet<>();
-        for (Integer index : evidence.covers()) {
-            if (index == null || index < 0 || index >= criterionIds.size()) {
-                throw new BadRequestException("COMPILER_PLAN_EVIDENCE_COVERAGE_INVALID",
-                        "Evidence covers an unknown criterion index at stage " + stageIndex);
-            }
-            covers.add(criterionIds.get(index));
-        }
-        String type = switch (evidence.kind()) {
-            case "FOCUSED_TEST", "FULL_TEST", "BUILD", "SELF_CHECK" -> "PROCESS";
-            default -> evidence.kind();
-        };
-        String purpose = switch (evidence.kind()) {
-            case "FOCUSED_TEST", "FULL_TEST" -> "TEST";
-            case "BUILD" -> "BUILD";
-            case "SELF_CHECK" -> "SELF_CHECK";
-            default -> null;
-        };
-        if ("SELF_CHECK".equals(evidence.kind())) {
-            String commandError = ProcessCommandPolicy.directCommandError(evidence.command());
-            if (commandError != null || ProcessCommandPolicy.isSourceTextSearch(evidence.command())) {
-                throw new BadRequestException("COMPILER_PLAN_SELF_CHECK_COMMAND_INVALID",
-                        commandError == null
-                                ? "SELF_CHECK source-text search cannot prove runtime behavior" : commandError);
-            }
-            if (blank(evidence.successMarker())) {
-                throw new BadRequestException("COMPILER_PLAN_SELF_CHECK_MARKER_REQUIRED",
-                        "SELF_CHECK requires an explicit success marker");
-            }
-        }
-        List<String> command = "PROCESS".equals(type) ? canonicalTestCommand(evidence.command())
-                : evidence.command();
-        List<String> targets = "FOCUSED_TEST".equals(evidence.kind())
-                ? (stage.implementationKind() == ImplementationKind.JAVA_PRODUCTION
-                    ? ProcessCommandPolicy.explicitFocusedJavaTestTargets(command)
-                    : TestFrameworkPolicy.explicitTargets(command)) : List.of();
-        String output = "SELF_CHECK".equals(evidence.kind()) ? evidence.successMarker() : null;
-        List<String> allowed = evidence.allowedPaths().isEmpty() && "GIT_DIFF".equals(type)
-                ? stage.allowedPaths() : evidence.allowedPaths();
-        List<String> forbidden = evidence.forbiddenPaths().isEmpty() && "GIT_DIFF".equals(type)
-                ? stage.forbiddenPaths() : evidence.forbiddenPaths();
-        return new LoopSpec.VerifierSpec(type, command, evidence.path(), evidence.requireChanges(), allowed,
-                forbidden, evidence.forbidDeletes(), output, evidence.url(), evidence.httpMethod(),
-                evidence.expectedStatus(), evidence.jsonPath(), evidence.expectedValue(), evidence.matchMode(),
-                evidence.expectedContent(), evidence.expectedSha256(), evidence.sql(), evidence.expectedRowCount(),
-                evidence.assertions(), List.copyOf(covers), purpose, targets,
-                evidence.documentAssertions(), evidence.tabularAssertions());
     }
 
     private PackageCompilationPlanEnvelope readPackageCompilationPlan(String payload) {
@@ -5773,158 +5393,6 @@ public class DesignerSessionService {
     public record CandidateStatus(String syncState, int discussionRevision, String workPackageId,
                                   LoopSpec spec, String detail) { }
     public record RequirementSegment(String id, String text) { }
-    public record GlobalConstraint(String text, List<String> requirementRefs) {
-        public GlobalConstraint { requirementRefs = requirementRefs == null ? List.of() : List.copyOf(requirementRefs); }
-    }
-    public record DecomposedWorkPackage(String id, String title, String objective,
-                                        List<String> scopeIn, List<String> scopeOut, List<String> dependencies,
-                                        List<String> deliverables, List<String> acceptanceIntent,
-                                        List<String> requirementRefs) {
-        public DecomposedWorkPackage {
-            scopeIn = scopeIn == null ? List.of() : List.copyOf(scopeIn);
-            scopeOut = scopeOut == null ? List.of() : List.copyOf(scopeOut);
-            dependencies = dependencies == null ? List.of() : List.copyOf(dependencies);
-            deliverables = deliverables == null ? List.of() : List.copyOf(deliverables);
-            acceptanceIntent = acceptanceIntent == null ? List.of() : List.copyOf(acceptanceIntent);
-            requirementRefs = requirementRefs == null ? List.of() : List.copyOf(requirementRefs);
-        }
-    }
-    public record RequirementCoverageMapping(String requirementRef, String targetType,
-                                             String targetId, String rationale) {
-        public RequirementCoverageMapping {
-            targetType = targetType == null ? null : targetType.trim().toUpperCase();
-        }
-    }
-    public record DependencyEvidence(String workPackageId, String dependsOn, String rationale) { }
-    public record CompactWorkPackage(String title, String objective, List<String> scopeIn, List<String> scopeOut,
-                                     List<String> deliverables, List<String> acceptanceIntent,
-                                     List<JsonNode> dependsOn) {
-        public CompactWorkPackage {
-            scopeIn = scopeIn == null ? List.of() : List.copyOf(scopeIn);
-            scopeOut = scopeOut == null ? List.of() : List.copyOf(scopeOut);
-            deliverables = deliverables == null ? List.of() : List.copyOf(deliverables);
-            acceptanceIntent = acceptanceIntent == null ? List.of() : List.copyOf(acceptanceIntent);
-            dependsOn = dependsOn == null ? List.of() : List.copyOf(dependsOn);
-        }
-    }
-    public record CompactCoverage(String requirementRef, String targetType, int targetIndex, String rationale) {
-        public CompactCoverage {
-            targetType = targetType == null ? null : targetType.trim().toUpperCase();
-        }
-    }
-    public record CompactDecompositionPlan(String outcome, String normalizedGoal,
-                                           List<JsonNode> globalConstraints,
-                                           List<CompactWorkPackage> workPackages,
-                                           List<CompactCoverage> coverage,
-                                           List<JsonNode> designGaps, String reason) {
-        CompactDecompositionPlan normalized() {
-            return new CompactDecompositionPlan(outcome == null ? null : outcome.trim().toUpperCase(),
-                    normalizedGoal, globalConstraints == null ? List.of() : List.copyOf(globalConstraints),
-                    workPackages == null ? List.of() : List.copyOf(workPackages),
-                    coverage == null ? List.of() : List.copyOf(coverage),
-                    designGaps == null ? List.of() : List.copyOf(designGaps), reason);
-        }
-    }
-    public record DecompositionPlanEnvelope(String status, String normalizedGoal,
-                                            List<GlobalConstraint> globalConstraints,
-                                            List<DecomposedWorkPackage> workPackages,
-                                            List<RequirementCoverageMapping> coverageMappings,
-                                            List<DependencyEvidence> dependencyEvidence,
-                                            List<DesignGap> designGaps, String reason) {
-        DecompositionPlanEnvelope normalized() {
-            return new DecompositionPlanEnvelope(status == null ? null : status.trim().toUpperCase(), normalizedGoal,
-                    globalConstraints == null ? List.of() : List.copyOf(globalConstraints),
-                    workPackages == null ? List.of() : List.copyOf(workPackages),
-                    coverageMappings == null ? List.of() : List.copyOf(coverageMappings),
-                    dependencyEvidence == null ? List.of() : List.copyOf(dependencyEvidence),
-                    designGaps == null ? List.of() : List.copyOf(designGaps), reason);
-        }
-        DecompositionEnvelope toEnvelope() {
-            return new DecompositionEnvelope(status, normalizedGoal, globalConstraints, workPackages,
-                    designGaps, reason).normalized();
-        }
-    }
-    public record DecompositionEnvelope(String status, String normalizedGoal,
-                                        List<GlobalConstraint> globalConstraints,
-                                        List<DecomposedWorkPackage> workPackages,
-                                        List<DesignGap> designGaps, String reason) {
-        DecompositionEnvelope normalized() {
-            return new DecompositionEnvelope(status == null ? null : status.trim().toUpperCase(), normalizedGoal,
-                    globalConstraints == null ? List.of() : List.copyOf(globalConstraints),
-                    workPackages == null ? List.of() : List.copyOf(workPackages),
-                    designGaps == null ? List.of() : List.copyOf(designGaps), reason);
-        }
-    }
-    public record CriterionSource(int stageIndex, String criterionId, String excerpt, List<String> excerpts) {
-        public CriterionSource(int stageIndex, String criterionId, String excerpt) {
-            this(stageIndex, criterionId, excerpt, blank(excerpt) ? List.of() : List.of(excerpt));
-        }
-        public CriterionSource {
-            excerpts = excerpts == null || excerpts.isEmpty()
-                    ? (blank(excerpt) ? List.of() : List.of(excerpt)) : List.copyOf(excerpts);
-            excerpt = blank(excerpt) && !excerpts.isEmpty() ? excerpts.getFirst() : excerpt;
-        }
-    }
-    public record DesignGap(DesignGapCode code, String detail) { }
-    public enum DesignGapCode {
-        MISSING_OBSERVABLE_OUTCOME, MISSING_EXCEPTION_SEMANTICS, MISSING_SCOPE, MISSING_ACCEPTANCE_INTENT,
-        LARGE_TASK_MODE_REQUIRED
-    }
-    public record CompilationEnvelope(String status, String summary, LoopSpec loopSpec,
-                                      List<CriterionSource> criterionSources, List<DesignGap> designGaps) {
-        CompilationEnvelope normalized() {
-            return new CompilationEnvelope(status == null ? null : status.trim().toUpperCase(), summary,
-                    loopSpec, criterionSources == null ? List.of() : List.copyOf(criterionSources),
-                    designGaps == null ? List.of() : List.copyOf(designGaps));
-        }
-    }
-    public record PackageCompilationEnvelope(String status, String summary,
-                                             List<LoopSpec.StageSpec> stages,
-                                             List<CriterionSource> criterionSources,
-                                             String handoffSummary, List<DesignGap> designGaps) {
-        PackageCompilationEnvelope normalized() {
-            return new PackageCompilationEnvelope(status == null ? null : status.trim().toUpperCase(), summary,
-                    stages == null ? List.of() : List.copyOf(stages),
-                    criterionSources == null ? List.of() : List.copyOf(criterionSources), handoffSummary,
-                    designGaps == null ? List.of() : List.copyOf(designGaps));
-        }
-    }
-    public record PlannedStage(String objective, List<String> allowedPaths, List<String> forbiddenPaths,
-                               List<String> deliverables, List<LoopSpec.VerifierSpec> verifiers,
-                               LoopSpec.VerificationRuntime verificationRuntime,
-                               ImplementationKind implementationKind, String workPackageId) {
-        public PlannedStage {
-            allowedPaths = allowedPaths == null ? List.of() : List.copyOf(allowedPaths);
-            forbiddenPaths = forbiddenPaths == null ? List.of() : List.copyOf(forbiddenPaths);
-            deliverables = deliverables == null ? List.of() : List.copyOf(deliverables);
-            verifiers = verifiers == null ? List.of() : List.copyOf(verifiers);
-        }
-    }
-    public record AcceptanceEvidenceMapping(int stageIndex, String criterionId, String description,
-                                            String designerExcerpt, String verificationMode,
-                                            String judgeRubric, String judgeOnlyReason,
-                                            String verifierStrategy, List<String> testCommand,
-                                            List<String> testTargets, List<String> designerExcerpts) {
-        public AcceptanceEvidenceMapping(int stageIndex, String criterionId, String description,
-                                         String designerExcerpt, String verificationMode,
-                                         String judgeRubric, String judgeOnlyReason,
-                                         String verifierStrategy, List<String> testCommand,
-                                         List<String> testTargets) {
-            this(stageIndex, criterionId, description, designerExcerpt, verificationMode, judgeRubric,
-                    judgeOnlyReason, verifierStrategy, testCommand, testTargets,
-                    blank(designerExcerpt) ? List.of() : List.of(designerExcerpt));
-        }
-        public AcceptanceEvidenceMapping {
-            verificationMode = blank(verificationMode) ? "MACHINE" : verificationMode.trim().toUpperCase();
-            testCommand = testCommand == null ? List.of() : List.copyOf(testCommand);
-            testTargets = testTargets == null ? List.of() : List.copyOf(testTargets);
-            designerExcerpts = designerExcerpts == null || designerExcerpts.isEmpty()
-                    ? (blank(designerExcerpt) ? List.of() : List.of(designerExcerpt))
-                    : List.copyOf(designerExcerpts);
-            designerExcerpt = blank(designerExcerpt) && !designerExcerpts.isEmpty()
-                    ? designerExcerpts.getFirst() : designerExcerpt;
-        }
-    }
     private record CanonicalEvidenceMapping(String originalCriterionId,
                                             AcceptanceEvidenceMapping mapping) { }
     private record FocusedJavaTestEvidence(List<String> command, List<String> testTargets) {
@@ -5935,70 +5403,4 @@ public class DesignerSessionService {
     }
     private record NormalizedEvidenceText(String text, List<Integer> starts,
                                           List<Integer> ends) { }
-    private record CompactPlanNormalization(CompactPackageCompilationPlan plan,
-                                            List<String> normalizations) { }
-    private record CompilerSemanticIssue(String code, String path, String detail) { }
-    public record CompactCriterion(String description, List<String> sourceRefs,
-                                   String judgeRubric, String judgeOnlyReason) {
-        public CompactCriterion { sourceRefs = sourceRefs == null ? List.of() : List.copyOf(sourceRefs); }
-    }
-    public record CompactEvidence(String kind, List<String> command, List<Integer> covers,
-                                  String successMarker, String path, Boolean requireChanges,
-                                  List<String> allowedPaths, List<String> forbiddenPaths, Boolean forbidDeletes,
-                                  String url, String httpMethod, Integer expectedStatus, String jsonPath,
-                                  String expectedValue, String matchMode, String expectedContent,
-                                  String expectedSha256, String sql, Integer expectedRowCount,
-                                  List<LoopSpec.BrowserAssertion> assertions,
-                                  List<LoopSpec.DocumentAssertion> documentAssertions,
-                                  List<LoopSpec.TabularAssertion> tabularAssertions) {
-        public CompactEvidence {
-            kind = kind == null ? null : kind.trim().toUpperCase();
-            command = command == null ? List.of() : List.copyOf(command);
-            covers = covers == null ? List.of() : List.copyOf(covers);
-            allowedPaths = allowedPaths == null ? List.of() : List.copyOf(allowedPaths);
-            forbiddenPaths = forbiddenPaths == null ? List.of() : List.copyOf(forbiddenPaths);
-            assertions = assertions == null ? List.of() : List.copyOf(assertions);
-            documentAssertions = documentAssertions == null ? List.of() : List.copyOf(documentAssertions);
-            tabularAssertions = tabularAssertions == null ? List.of() : List.copyOf(tabularAssertions);
-        }
-        CompactEvidence withCovers(List<Integer> value) {
-            return new CompactEvidence(kind, command, value, successMarker, path, requireChanges, allowedPaths,
-                    forbiddenPaths, forbidDeletes, url, httpMethod, expectedStatus, jsonPath, expectedValue,
-                    matchMode, expectedContent, expectedSha256, sql, expectedRowCount, assertions,
-                    documentAssertions, tabularAssertions);
-        }
-    }
-    public record CompactStage(String objective, ImplementationKind implementationKind,
-                               List<String> allowedPaths, List<String> forbiddenPaths,
-                               List<String> deliverables, List<CompactCriterion> criteria,
-                               List<CompactEvidence> evidence,
-                               LoopSpec.VerificationRuntime verificationRuntime) {
-        public CompactStage {
-            allowedPaths = allowedPaths == null ? List.of() : List.copyOf(allowedPaths);
-            forbiddenPaths = forbiddenPaths == null ? List.of() : List.copyOf(forbiddenPaths);
-            deliverables = deliverables == null ? List.of() : List.copyOf(deliverables);
-            criteria = criteria == null ? List.of() : List.copyOf(criteria);
-            evidence = evidence == null ? List.of() : List.copyOf(evidence);
-        }
-    }
-    public record CompactPackageCompilationPlan(String outcome, String summary, List<CompactStage> stages,
-                                                String handoffSummary, List<DesignGap> designGaps) {
-        CompactPackageCompilationPlan normalized() {
-            return new CompactPackageCompilationPlan(outcome == null ? null : outcome.trim().toUpperCase(), summary,
-                    stages == null ? List.of() : List.copyOf(stages), handoffSummary,
-                    designGaps == null ? List.of() : List.copyOf(designGaps));
-        }
-    }
-    public record PackageCompilationPlanEnvelope(Integer contractVersion, String status, String summary,
-                                                 List<PlannedStage> stages,
-                                                 List<AcceptanceEvidenceMapping> evidenceMappings,
-                                                 String handoffSummary, List<DesignGap> designGaps) {
-        PackageCompilationPlanEnvelope normalized() {
-            return new PackageCompilationPlanEnvelope(contractVersion == null ? 0 : contractVersion,
-                    status == null ? null : status.trim().toUpperCase(), summary,
-                    stages == null ? List.of() : List.copyOf(stages),
-                    evidenceMappings == null ? List.of() : List.copyOf(evidenceMappings), handoffSummary,
-                    designGaps == null ? List.of() : List.copyOf(designGaps));
-        }
-    }
 }

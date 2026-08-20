@@ -63,7 +63,7 @@ final class DesignerDecompositionPromptFactory {
                 numberedSegments(revision), revision.requirementText(), planningContract());
     }
 
-    String finalJson(DesignerSessionService.DecompositionPlanEnvelope plan) {
+    String finalJson(DesignerSemanticContracts.DecompositionPlanEnvelope plan) {
         return """
                 The semantic package planning and requirement coverage mapping below passed deterministic validation
                 and is now frozen. Generate the final decomposition JSON without redesigning, adding, removing,
