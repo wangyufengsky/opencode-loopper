@@ -21,7 +21,7 @@ class TaskProfileRouterTest {
         Files.writeString(root.resolve("test_converter.py"), "def test_convert(): pass\n");
         TaskProfileRouter.Decision decision = router.route(root, "开发一个可复用的 Python Excel 转换脚本");
         assertThat(decision.intent()).isEqualTo(TaskIntent.SOFTWARE_CHANGE);
-        assertThat(decision.workflowTemplate()).isEqualTo(WorkflowTemplate.FULL_PACKAGE_DESIGN);
+        assertThat(decision.workflowTemplate()).isEqualTo(WorkflowTemplate.DIRECT_SOFTWARE_DESIGN);
         assertThat(decision.technologies()).contains("python");
         assertThat(decision.decisionRequired()).isFalse();
         RolePackRegistry.RolePack pack = new RolePackRegistry().resolve(decision.intent(),
@@ -36,7 +36,7 @@ class TaskProfileRouterTest {
                 "编写一个可复用的 Python 命令行脚本 convert_csv.py：接收输入 CSV 和输出 Markdown 路径");
 
         assertThat(decision.intent()).isEqualTo(TaskIntent.SOFTWARE_CHANGE);
-        assertThat(decision.workflowTemplate()).isEqualTo(WorkflowTemplate.FULL_PACKAGE_DESIGN);
+        assertThat(decision.workflowTemplate()).isEqualTo(WorkflowTemplate.DIRECT_SOFTWARE_DESIGN);
         assertThat(decision.technologies()).contains("python");
         assertThat(decision.artifactKinds()).containsExactly(io.opencode.loopper.domain.ArtifactKind.PYTHON_SCRIPT);
         assertThat(new RolePackRegistry().resolve(decision.intent(), decision.technologies(),
@@ -85,9 +85,20 @@ class TaskProfileRouterTest {
         TaskProfileRouter.Decision decision = router.route(root,
                 "编写 Python 脚本并且必须测试", labels);
 
-        assertThat(decision.workflowTemplate()).isEqualTo(WorkflowTemplate.FULL_PACKAGE_DESIGN);
+        assertThat(decision.workflowTemplate()).isEqualTo(WorkflowTemplate.DIRECT_SOFTWARE_DESIGN);
         assertThat(decision.evidence()).contains("requirement-tests=required",
                 "ai-router-intent=SOFTWARE_CHANGE", "ai-router-signal=explicit reusable script");
+    }
+
+    @Test void packagedAiComplexityOnlyRecommendsLargeModeAndStillDefaultsToOnePackage() {
+        TaskProfileRouter.SemanticLabels labels = new TaskProfileRouter.SemanticLabels(
+                TaskIntent.SOFTWARE_CHANGE, java.util.List.of(ArtifactKind.SOURCE_CODE),
+                java.util.List.of("java"), "PACKAGED", 96, java.util.List.of("broad change"));
+
+        TaskProfileRouter.Decision decision = router.route(root, "实现跨模块软件能力", labels);
+
+        assertThat(decision.workflowTemplate()).isEqualTo(WorkflowTemplate.DIRECT_SOFTWARE_DESIGN);
+        assertThat(decision.evidence()).contains("large-task-recommended", "ai-router-complexity=PACKAGED");
     }
 
     @Test void semanticConflictCannotSilentlyOverrideStrongRepositoryAndRequirementEvidence() {

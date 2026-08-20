@@ -73,12 +73,14 @@ report-to-design request treats the report as quoted input and starts a new Desi
 Session without creating a Task or writable execution Session.
 
 Each overall Designer Session is bound to the exact `loop_draft_id` shown in
-Review Gate. Before Task Decomposer runs, the interactive requirement Designer
+Review Gate. Before any software package design runs, the interactive requirement Designer
 must call `question` with 1–3 design choices and then return a complete Markdown
 replacement in the same model turn. Follow-up requirement messages repeat that
-contract without starting Decomposer. Only the explicit requirement-confirm API
-freezes a numbered requirement revision and supplies it with read-only project
-context to Task Decomposer. It may use only `read`, `glob`, and
+contract without starting Decomposer. In default `DIRECT_SOFTWARE_DESIGN`, the explicit
+requirement-confirm API freezes a numbered revision and the server creates `WP-1`
+directly; there is no Decomposer transport, prompt, Session, or role message. In
+explicitly enabled `FULL_PACKAGE_DESIGN`, confirmation supplies the frozen revision
+and read-only project context to Task Decomposer. It may use only `read`, `glob`, and
 `grep`, and returns a marked `DIRECT_DESIGN`, `DECOMPOSED`, `NEEDS_INPUT`, or
 `MULTI_TASK_REQUIRED` envelope. It cannot write, execute commands, ask a
 model-side question, or create a Task. The server verifies complete requirement
@@ -124,7 +126,8 @@ frozen predecessor contract defines the required behavior/API.
 
 Decomposer and Compiler each return one compact semantic object from a read-only
 Session. Decomposer maps numbered requirements to package/constraint indices;
-Compiler maps 1–3 Stages and acceptance criteria to stable `DS-Lxxx` source refs
+Compiler maps 1–6 Stages for direct software or 1–3 Stages per large-task package,
+with acceptance criteria mapped to stable `DS-Lxxx` source refs
 and closed evidence intentions. Loopper validates and persists the semantic
 snapshot, derives all mechanical fields, and directly compiles the final legacy
 envelope. It does not send a second final-JSON prompt, and raw semantic output is

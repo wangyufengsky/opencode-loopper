@@ -310,14 +310,19 @@ transactions for both Git and Direct workspaces.
 V22 adds a lifecycle before package Designer. V27 places an explicit requirement
 discussion gate in front of it: user messages create complete, recoverable
 requirement snapshots but do not invoke Decomposer. Only the scoped requirement
-confirmation freezes the next numbered `design_requirement_revision` and starts
-an independent read-only Task Decomposer Session. The Decomposer may return one `DIRECT_DESIGN` work package,
-2–6 dependency-ordered vertical packages, `NEEDS_INPUT`, or
+confirmation freezes the next numbered `design_requirement_revision`. New software
+sessions default to `DIRECT_SOFTWARE_DESIGN`: the server creates a compiled
+`DIRECT_DESIGN / WP-1` context without an external Decomposer. Historical and explicitly
+large sessions retain `FULL_PACKAGE_DESIGN`, which starts the independent read-only
+Task Decomposer and returns 2–6 dependency-ordered vertical packages, `NEEDS_INPUT`, or
 `MULTI_TASK_REQUIRED`; the server numbers and verifies requirement-segment
 coverage, package identity, backward-only dependencies, and the single-Task
 boundary. After decomposition, an unscoped user message is rejected; only an
 explicitly confirmed requirement reopen supersedes the old decomposition and
-package results without deleting their audit history.
+package results without deleting their audit history. Direct WP-1 is automatically
+approved only after Compiler and deterministic validation pass; aggregation and final
+human confirmation are unchanged. `LARGE_TASK_MODE_REQUIRED` stops direct mode without
+redesign or auto-switching and is recovered only by an explicit reopen into large mode.
 
 V30 evolves the historical V23/V24 two-turn protocol into one compact semantic
 turn per Decomposer/Compiler candidate. The server derives status, IDs, reverse
@@ -440,7 +445,8 @@ different verifier contract.
 Package work is strictly serial. A package keeps one healthy interactive
 Designer Session across its discussion turns and reconstructs a replacement
 Session from persisted snapshots/decisions after transport loss. Every candidate
-uses an independent read-only Compiler Session, produces 1–3 Stages carrying
+uses an independent read-only Compiler Session, produces 1–6 Stages for direct software
+or 1–3 Stages per large-task package carrying
 `workPackageId`, and is deterministically validated into `REVIEWING`; the next
 package cannot start until the user accepts that exact design revision. A failed
 candidate keeps the previous valid candidate visible. Reopening an accepted

@@ -7,7 +7,7 @@ import java.util.Map;
  * prompts use these short cards so the model only has to decide business semantics.
  */
 public final class MachineRoleContractCatalog {
-    public static final String CONTRACT_VERSION = "2026-08-semantic-v2";
+    public static final String CONTRACT_VERSION = "2026-08-semantic-v3";
 
     private static final Map<String, String> CARDS = Map.of(
             "DECOMPOSER", "Return business goal, constraints, 1-6 vertical work packages, index dependencies, and RQ coverage. Do not assign ids or status.",

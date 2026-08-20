@@ -192,14 +192,22 @@ Before a requirement revision exists, Designer must call `question` once with
 1–3 choice questions and then return a complete replacement Markdown snapshot.
 The question card blocks ordinary chat until answered and offers one-click
 selection of all recommended choices. Follow-up messages repeat that process but
-do not invoke Decomposer. Only **需求已明确，开始拆包** freezes the latest complete
-snapshot and starts an independent read-only Task Decomposer Session. It selects
-exactly one `DIRECT_DESIGN` package or 2–6 vertical business packages, with 1–3
-Stages per package and at most 18 total. Every source requirement segment must
+do not invoke Decomposer. Software sessions expose a default-off **大型任务** switch
+while the profile remains provisional. The default `DIRECT_SOFTWARE_DESIGN` path
+freezes the latest snapshot, deterministically creates one `DIRECT_DESIGN / WP-1`,
+and proceeds through package Designer and Compiler without a Decomposer Session or
+package-acceptance button. That direct package accepts 1–6 Stages. Only explicit
+`FULL_PACKAGE_DESIGN` starts the independent
+Task Decomposer and produces 2–6 vertical packages, with 1–3 Stages per package and
+at most 18 total. Every source requirement segment must
 be assigned to a global constraint or at least one package. Multiple project
 roots, more than six packages, or independent release boundaries produce
 `MULTI_TASK_REQUIRED`; the product waits for the user and does not create child
-Tasks. `NEEDS_INPUT` likewise displays an explicit new requirement input path.
+Tasks. `NEEDS_INPUT` likewise displays an explicit new requirement input path. If
+the direct Compiler cannot safely fit the design into 1–6 Stages, it stops once with
+`LARGE_TASK_MODE_REQUIRED`; the user may explicitly reopen the requirement in large
+mode, but the server and full-auto mode never enable it automatically. Final overall
+confirmation remains a separate human gate for both modes.
 
 Designer may optionally authorize a per-Session full-auto mode. It is disabled
 by default and every enable or re-enable requires a local-UI risk confirmation.
@@ -228,9 +236,10 @@ from persisted snapshots/decisions after remote loss; each candidate uses a fres
 read-only LoopSpec Compiler with the configured model. Designer receives
 the original requirement, frozen decomposition, current package, global
 constraints, and bounded prerequisite handoffs, then emits at most 24 KiB UTF-8
-of complete Markdown. Compiler emits a compact 1–3 Stage semantic plan plus
+of complete Markdown. Compiler emits a compact semantic plan plus
 `DS-Lxxx` sources and a handoff summary of at most 4 KiB; the server compiles the
-package fragment. Extraction failures receive at most two format repairs and
+package fragment. Direct software allows 1–6 Stages; each large-task package remains
+limited to 1–3. Extraction failures receive at most two format repairs and
 field/verifier/traceability/coverage failures receive at most two semantic patch repairs;
 gaps receive one full redesign of that package only. Initial design and every
 human revision must ask questions first and return a complete snapshot. A valid
@@ -265,7 +274,8 @@ Decomposer and package Compiler use one persisted compact semantic turn per
 candidate. Decomposer returns business packages and RQ coverage by index;
 structured Markdown requirements are grouped by level-two business section so
 presentation-only headings and metadata do not become separate coverage work;
-Compiler plans 1–3 Stages and maps each observable criterion to stable `DS-Lxxx`
+Compiler plans 1–6 Stages for direct software or 1–3 for each large-task package and
+maps each observable criterion to stable `DS-Lxxx`
 Designer source references plus deterministic/Judge evidence intentions. The
 server derives statuses, stable IDs, reverse references, exact excerpts,
 `criterionIds`, safe test targets and complete `VerifierSpec` objects, then runs

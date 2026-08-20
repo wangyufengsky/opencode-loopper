@@ -968,7 +968,7 @@ export interface DesignerTaskProfile {
   id?: string
   state: string
   intent: TaskIntent
-  workflowTemplate: 'FULL_PACKAGE_DESIGN' | 'DIRECT_ARTIFACT' | 'PACKAGED_ARTIFACT' | 'READ_ONLY_REPORT' | 'LOCAL_MAINTENANCE'
+  workflowTemplate: 'DIRECT_SOFTWARE_DESIGN' | 'FULL_PACKAGE_DESIGN' | 'DIRECT_ARTIFACT' | 'PACKAGED_ARTIFACT' | 'READ_ONLY_REPORT' | 'LOCAL_MAINTENANCE'
   mutationMode: 'READ_ONLY' | 'WRITE_FILES' | 'WRITE_CODE' | 'SAFE_LOCAL_MAINTENANCE'
   artifactKinds: ArtifactKind[]
   technologies: string[]
@@ -980,6 +980,7 @@ export interface DesignerTaskProfile {
   evidence: string[]
   resolutionSource: string
   decisionRequired: boolean
+  largeTaskMode: boolean
   version: number
 }
 export interface AnalysisReportSummary { id: string; state: string; title: string; contentSha256: string; stale: boolean; updatedAt: string }

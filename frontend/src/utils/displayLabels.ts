@@ -68,6 +68,8 @@ const errorCodeLabels: Record<string, string> = {
   LOOP_STAGNATION_DETECTED: '连续多轮没有有效进展', LOOP_FRESH_SESSION_REQUIRED: '需要新会话才能继续',
   DESIGN_QUESTION_REQUIRED: '设计前需要先回答问题', DISCUSSION_SCOPE_REQUIRED: '请先选择要修改的讨论范围',
   MULTI_TASK_REQUIRED: '需要将需求拆成多个独立任务', TASK_PROFILE_DECISION_REQUIRED: '需要确认任务类型',
+  LARGE_TASK_MODE_REQUIRED: '当前需求无法安全容纳在普通单包中',
+  LARGE_TASK_MODE_NOT_APPLICABLE: '大型任务模式只适用于软件任务',
   REQUIREMENT_SEGMENT_UNCOVERED: '部分需求尚未纳入工作包',
   DECOMPOSER_PLAN_OUTPUT_MARKERS_MISSING: '任务拆解结果格式不完整',
   COMPILER_PLAN_OUTPUT_MARKERS_MISSING: '规范编译结果格式不完整',
@@ -119,6 +121,7 @@ const artifactKindLabels: Record<ArtifactKind, string> = {
 }
 
 const workflowTemplateLabels: Record<WorkflowTemplate, string> = {
+  DIRECT_SOFTWARE_DESIGN: '默认单包设计',
   FULL_PACKAGE_DESIGN: '完整分包设计',
   DIRECT_ARTIFACT: '直接制品',
   PACKAGED_ARTIFACT: '分包制品',

@@ -23,6 +23,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 public class TaskProfileService {
+    private static final String SOFTWARE_WORKFLOW_EVIDENCE_PREFIX = "user-software-workflow=";
+    private static final String HISTORICAL_SOFTWARE_WORKFLOW_EVIDENCE_PREFIX = "historical-software-workflow=";
     private final LoopperMapper mapper;
     private final ProjectService projects;
     private final TaskProfileRouter router;
@@ -52,9 +54,10 @@ public class TaskProfileService {
 
     public View reroute(String sessionId, String requirement) {
         session(sessionId);
-        List<String> inherited = mapper.findCurrentDesignerTaskProfile(sessionId).map(profile ->
+        List<String> inherited = new java.util.ArrayList<>(mapper.findCurrentDesignerTaskProfile(sessionId).map(profile ->
                 readStrings(profile.evidenceJson()).stream()
-                        .filter("requirement-tests=required"::equals).toList()).orElse(List.of());
+                        .filter("requirement-tests=required"::equals).toList()).orElse(List.of()));
+        preservedSoftwareWorkflowEvidence(sessionId).ifPresent(inherited::add);
         invalidate(sessionId);
         schedule(sessionId, requirement, inherited);
         return current(sessionId);
@@ -163,6 +166,22 @@ public class TaskProfileService {
         TaskProfileRouter.Decision decision = labels != null
                 ? router.route(root, run.requirementSnapshot(), labels)
                 : router.genericFallback(root, errorCode == null ? "router-output-unavailable" : errorCode);
+        String preservedWorkflowEvidence = readStrings(run.repositoryEvidenceJson()).stream()
+                .filter(value -> value.startsWith(SOFTWARE_WORKFLOW_EVIDENCE_PREFIX)
+                        || value.startsWith(HISTORICAL_SOFTWARE_WORKFLOW_EVIDENCE_PREFIX))
+                .findFirst().orElse(null);
+        WorkflowTemplate explicitWorkflow = java.util.Optional.ofNullable(preservedWorkflowEvidence)
+                .map(value -> value.substring(value.indexOf('=') + 1))
+                .map(value -> {
+                    try { return WorkflowTemplate.valueOf(value); }
+                    catch (IllegalArgumentException ignored) { return null; }
+                })
+                .filter(java.util.Objects::nonNull).orElse(null);
+        if (decision.intent() == TaskIntent.SOFTWARE_CHANGE && explicitWorkflow != null) {
+            decision = new TaskProfileRouter.Decision(decision.intent(), explicitWorkflow, decision.mutationMode(),
+                    decision.artifactKinds(), decision.technologies(), decision.confidence(),
+                    decision.decisionRequired(), decision.evidence());
+        }
         List<String> routingEvidence = new java.util.ArrayList<>(decision.evidence());
         readStrings(run.repositoryEvidenceJson()).stream().filter(value -> value.startsWith("requirement-tests="))
                 .filter(value -> !routingEvidence.contains(value)).forEach(routingEvidence::add);
@@ -174,7 +193,10 @@ public class TaskProfileService {
                 "PROVISIONAL", decision.intent().name(), decision.workflowTemplate().name(),
                 decision.mutationMode().name(), write(decision.artifactKinds()), write(decision.technologies()),
                 testPolicy.name(), pack.executionStrategy().name(), pack.id(), pack.version(), decision.confidence(),
-                write(routingEvidence), labels != null ? "AI_ROUTER" : "ROUTER_FALLBACK",
+                write(routingEvidence), explicitWorkflow != null
+                        ? preservedWorkflowEvidence.startsWith(SOFTWARE_WORKFLOW_EVIDENCE_PREFIX)
+                                ? "USER_OVERRIDE" : "HISTORICAL_WORKFLOW_PRESERVED"
+                        : labels != null ? "AI_ROUTER" : "ROUTER_FALLBACK",
                 decision.decisionRequired() ? 1 : 0, now, now, 0);
         if (mapper.insertDesignerTaskProfile(row) != 1) throw new ConflictException("TASK_PROFILE_CREATE_CONFLICT", "任务画像未能持久化");
         return view(row);
@@ -188,7 +210,8 @@ public class TaskProfileService {
                         .map(run -> routing(run.state())).orElseGet(this::legacy));
     }
 
-    public View override(String sessionId, TaskIntent intent, ArtifactKind primaryArtifact, long expectedVersion) {
+    public View override(String sessionId, TaskIntent intent, ArtifactKind primaryArtifact,
+                         Boolean largeTaskMode, long expectedVersion) {
         if (intent == null || primaryArtifact == null) throw new BadRequestException("TASK_PROFILE_OVERRIDE_INVALID", "必须选择任务意图和主要制品类型");
         DesignerTaskProfileRow current = mapper.findCurrentDesignerTaskProfile(sessionId)
                 .orElseThrow(() -> new NotFoundException("Task profile not found for Designer session: " + sessionId));
@@ -199,7 +222,10 @@ public class TaskProfileService {
                     "当前版本不接受删除、服务启停、提交推送、发布或外部系统写入，不能通过画像覆盖绕过此边界");
         }
         List<String> technologies = readStrings(current.technologiesJson());
-        WorkflowTemplate workflow = workflow(intent, current.workflowTemplate());
+        if (Boolean.TRUE.equals(largeTaskMode) && intent != TaskIntent.SOFTWARE_CHANGE) {
+            throw new BadRequestException("LARGE_TASK_MODE_NOT_APPLICABLE", "大型任务模式只适用于软件任务");
+        }
+        WorkflowTemplate workflow = workflow(intent, current.workflowTemplate(), largeTaskMode);
         MutationMode mutation = mutation(intent);
         RolePackRegistry.RolePack pack = rolePacks.resolve(intent, technologies, List.of(primaryArtifact));
         TestPolicy testPolicy = effectiveTestPolicy(pack.defaultTestPolicy(), intent, technologies, readStrings(current.evidenceJson()));
@@ -270,6 +296,31 @@ public class TaskProfileService {
         });
     }
 
+    public View restoreAsLargeSoftwareProfile(String sessionId, View source, long expectedVersion) {
+        if (source == null || source.id() == null || source.version() != expectedVersion) {
+            throw new ConflictException("TASK_PROFILE_VERSION_CONFLICT", "任务画像已变化，请刷新后重试");
+        }
+        if (source.intent() != TaskIntent.SOFTWARE_CHANGE
+                || source.workflowTemplate() != WorkflowTemplate.DIRECT_SOFTWARE_DESIGN) {
+            throw new BadRequestException("LARGE_TASK_MODE_NOT_APPLICABLE", "只有普通软件任务可以切换为大型任务模式");
+        }
+        if (mapper.findCurrentDesignerTaskProfile(sessionId).isPresent()) {
+            throw new ConflictException("TASK_PROFILE_REOPEN_CONFLICT", "重新打开需求后仍存在活动任务画像");
+        }
+        List<String> evidence = new java.util.ArrayList<>(source.evidence());
+        evidence.add("large-task-mode-enabled-after-overflow");
+        String now = Instant.now().toString();
+        DesignerTaskProfileRow row = new DesignerTaskProfileRow(UUID.randomUUID().toString(), sessionId, null,
+                "PROVISIONAL", TaskIntent.SOFTWARE_CHANGE.name(), WorkflowTemplate.FULL_PACKAGE_DESIGN.name(),
+                source.mutationMode().name(), write(source.artifactKinds()), write(source.technologies()),
+                source.testPolicy().name(), source.executionStrategy().name(), source.rolePackId(),
+                source.rolePackVersion(), 100, write(evidence), "USER_OVERRIDE", 0, now, now, 0);
+        if (mapper.insertDesignerTaskProfile(row) != 1) {
+            throw new ConflictException("TASK_PROFILE_CREATE_CONFLICT", "大型任务画像未能持久化");
+        }
+        return view(row);
+    }
+
     private TestPolicy effectiveTestPolicy(TestPolicy fallback, TaskIntent intent, List<String> technologies, List<String> evidence) {
         if (intent == TaskIntent.DOCUMENT_AUTHORING || intent == TaskIntent.DATA_CONVERSION
                 || intent == TaskIntent.READ_ONLY_REVIEW || intent == TaskIntent.RESEARCH) return TestPolicy.NOT_APPLICABLE;
@@ -282,7 +333,7 @@ public class TaskProfileService {
         return fallback;
     }
 
-    private WorkflowTemplate workflow(TaskIntent intent, String previous) {
+    private WorkflowTemplate workflow(TaskIntent intent, String previous, Boolean largeTaskMode) {
         return switch (intent) {
             case DOCUMENT_AUTHORING -> WorkflowTemplate.PACKAGED_ARTIFACT.name().equals(previous)
                     ? WorkflowTemplate.PACKAGED_ARTIFACT : WorkflowTemplate.DIRECT_ARTIFACT;
@@ -290,8 +341,36 @@ public class TaskProfileService {
             case READ_ONLY_REVIEW, RESEARCH -> WorkflowTemplate.READ_ONLY_REPORT;
             case CONFIGURATION, LOCAL_MAINTENANCE -> WorkflowTemplate.FULL_PACKAGE_DESIGN.name().equals(previous)
                     ? WorkflowTemplate.FULL_PACKAGE_DESIGN : WorkflowTemplate.LOCAL_MAINTENANCE;
+            case SOFTWARE_CHANGE -> largeTaskMode == null
+                    ? (WorkflowTemplate.FULL_PACKAGE_DESIGN.name().equals(previous)
+                            ? WorkflowTemplate.FULL_PACKAGE_DESIGN : WorkflowTemplate.DIRECT_SOFTWARE_DESIGN)
+                    : largeTaskMode ? WorkflowTemplate.FULL_PACKAGE_DESIGN : WorkflowTemplate.DIRECT_SOFTWARE_DESIGN;
             default -> WorkflowTemplate.FULL_PACKAGE_DESIGN;
         };
+    }
+
+    private java.util.Optional<String> preservedSoftwareWorkflowEvidence(String sessionId) {
+        List<DesignerTaskProfileRow> profiles = mapper.listDesignerTaskProfiles(sessionId);
+        java.util.Optional<WorkflowTemplate> userWorkflow = profiles.stream()
+                .filter(row -> "USER_OVERRIDE".equals(row.resolutionSource()))
+                .filter(row -> TaskIntent.SOFTWARE_CHANGE.name().equals(row.intent()))
+                .map(DesignerTaskProfileRow::workflowTemplate)
+                .map(value -> {
+                    try { return WorkflowTemplate.valueOf(value); }
+                    catch (IllegalArgumentException ignored) { return null; }
+                })
+                .filter(value -> value == WorkflowTemplate.DIRECT_SOFTWARE_DESIGN
+                        || value == WorkflowTemplate.FULL_PACKAGE_DESIGN)
+                .findFirst();
+        if (userWorkflow.isPresent()) {
+            return java.util.Optional.of(SOFTWARE_WORKFLOW_EVIDENCE_PREFIX + userWorkflow.get().name());
+        }
+        return profiles.stream()
+                .filter(row -> TaskIntent.SOFTWARE_CHANGE.name().equals(row.intent()))
+                .filter(row -> WorkflowTemplate.FULL_PACKAGE_DESIGN.name().equals(row.workflowTemplate()))
+                .findFirst()
+                .map(row -> HISTORICAL_SOFTWARE_WORKFLOW_EVIDENCE_PREFIX
+                        + WorkflowTemplate.FULL_PACKAGE_DESIGN.name());
     }
 
     private MutationMode mutation(TaskIntent intent) {
@@ -322,26 +401,28 @@ public class TaskProfileService {
                 MutationMode.valueOf(row.mutationMode()), artifacts, readStrings(row.technologiesJson()),
                 TestPolicy.valueOf(row.testPolicy()), ExecutionStrategy.valueOf(row.executionStrategy()),
                 row.rolePackId(), row.rolePackVersion(), row.confidence(), readStrings(row.evidenceJson()),
-                row.resolutionSource(), row.decisionRequired() == 1, row.version());
+                row.resolutionSource(), row.decisionRequired() == 1,
+                TaskIntent.SOFTWARE_CHANGE.name().equals(row.intent())
+                        && WorkflowTemplate.FULL_PACKAGE_DESIGN.name().equals(row.workflowTemplate()), row.version());
     }
     private View legacy() {
         return new View(null, "LEGACY", TaskIntent.LEGACY_SOFTWARE, WorkflowTemplate.FULL_PACKAGE_DESIGN,
                 MutationMode.WRITE_CODE, List.of(ArtifactKind.SOURCE_CODE), List.of(), TestPolicy.REQUIRED,
                 ExecutionStrategy.OPEN_CODE_IMPLEMENTATION, "software-java", "legacy", 0,
-                List.of("historical-session-without-profile"), "LEGACY", false, 0);
+                List.of("historical-session-without-profile"), "LEGACY", false, false, 0);
     }
 
     private View routing(String state) {
         return new View(null, "ROUTING_" + state, TaskIntent.SOFTWARE_CHANGE,
-                WorkflowTemplate.FULL_PACKAGE_DESIGN, MutationMode.WRITE_CODE,
+                WorkflowTemplate.DIRECT_SOFTWARE_DESIGN, MutationMode.WRITE_CODE,
                 List.of(ArtifactKind.SOURCE_CODE), List.of(), TestPolicy.OPTIONAL,
                 ExecutionStrategy.OPEN_CODE_IMPLEMENTATION, "routing", "pending", 0,
-                List.of("router-running"), "ROUTER", false, 0);
+                List.of("router-running"), "ROUTER", false, false, 0);
     }
 
     public record View(String id, String state, TaskIntent intent, WorkflowTemplate workflowTemplate,
                        MutationMode mutationMode, List<ArtifactKind> artifactKinds, List<String> technologies,
                        TestPolicy testPolicy, ExecutionStrategy executionStrategy, String rolePackId,
                        String rolePackVersion, int confidence, List<String> evidence, String resolutionSource,
-                       boolean decisionRequired, long version) { }
+                       boolean decisionRequired, boolean largeTaskMode, long version) { }
 }

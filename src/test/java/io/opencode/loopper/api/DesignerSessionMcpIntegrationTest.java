@@ -168,16 +168,20 @@ class DesignerSessionMcpIntegrationTest {
     @Test
     void directDesignUsesIndependentReadOnlyRolesAndCreatesNoTaskBeforeConfirmation() throws Exception {
         ProjectRow project = project("direct");
-        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
-        fake().setDesignerOutput(designerOutput("# 单包设计\n\n缓存刷新后用户能看到新值。", legacySpec(project.id())));
+        LoopSpec sixStageSpec = legacySpecWithStages(project.id(), 6);
+        LoopDraftRow draft = drafts.create(sixStageSpec);
+        fake().setDesignerOutput(designerOutput("# 单包设计\n\n缓存刷新后用户能看到新值。", sixStageSpec));
 
-        DesignerSessionRow session = createConfirmedSession(project.id(), draft.id(), "实现缓存刷新并保留验收证据");
-        assertThat(session.workflowPhase()).isEqualTo("DECOMPOSING");
+        DesignerSessionRow reviewing = prepareReviewingSession(project.id(), draft.id(), "实现缓存刷新并保留验收证据");
+        assertThat(taskProfiles.current(reviewing.id()).workflowTemplate().name()).isEqualTo("DIRECT_SOFTWARE_DESIGN");
+        designerSessions.confirmRequirement(reviewing.id(), reviewing.discussionRevision());
+        DesignerSessionRow session = designerSessions.get(reviewing.id());
+        assertThat(session.workflowPhase()).isEqualTo("QUESTIONING_PACKAGE");
         assertThat(mapper.listTasks()).isEmpty();
         var markerDecomposition = mapper.findTaskDecompositionByRevision(
                 mapper.findCurrentDesignRequirementRevision(session.id()).orElseThrow().id()).orElseThrow();
-        assertThat(markerDecomposition.planningResponseMode()).isEqualTo("TEXT_MARKER");
-        assertThat(fake().modelForSession(markerDecomposition.externalSessionId()).thinking()).isNull();
+        assertThat(markerDecomposition.externalSessionId()).isNull();
+        assertThat(markerDecomposition.serverCompiled()).isTrue();
         pollUntilSettled(session.id());
 
         DesignerSessionRow completed = designerSessions.get(session.id());
@@ -185,8 +189,7 @@ class DesignerSessionMcpIntegrationTest {
                 designerSessions.workPackageStatuses(session.id()), designerSessions.messages(session.id()))
                 .isEqualTo("REVIEWING");
         assertThat(completed.workflowPhase()).isEqualTo("FINAL_REVIEW");
-        assertThat(fake().createReadOnlySessionCalls()).isEqualTo(7);
-        assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(5);
+        assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(3);
         assertThat(designerSessions.decompositionStatus(session.id()).resultType()).isEqualTo("DIRECT_DESIGN");
         assertThat(designerSessions.workPackageStatuses(session.id())).singleElement().satisfies(workPackage -> {
             assertThat(workPackage.id()).isEqualTo("WP-1");
@@ -197,10 +200,12 @@ class DesignerSessionMcpIntegrationTest {
             assertThat(workPackage.testPolicy()).isEqualTo("REQUIRED");
         });
         assertThat(designerSessions.messages(session.id()).stream().map(message -> message.actor()).toList())
-                .contains("DECOMPOSER", "DESIGNER", "COMPILER", "VALIDATOR")
+                .contains("DESIGNER", "COMPILER", "VALIDATOR")
+                .doesNotContain("DECOMPOSER")
                 .doesNotContain("{\"status\":\"COMPILED\"");
         assertThat(mapper.listTasks()).isEmpty();
-        assertThat(drafts.spec(drafts.get(draft.id())).stages()).allMatch(stage -> "WP-1".equals(stage.workPackageId()));
+        assertThat(drafts.spec(drafts.get(draft.id())).stages()).hasSize(6)
+                .allMatch(stage -> "WP-1".equals(stage.workPackageId()));
 
         TaskRow task = drafts.confirm(draft.id(), "缓存刷新");
         assertThat(task.state()).isEqualTo("PENDING_START");
@@ -209,7 +214,7 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(mapper.listSessions(task.id())).isEmpty();
         assertThat(task.worktreePath()).isNullOrEmpty();
         assertThat(mapper.listTasks()).singleElement().extracting(TaskRow::id).isEqualTo(task.id());
-        assertThat(mapper.listStages(task.id())).singleElement().satisfies(stage -> {
+        assertThat(mapper.listStages(task.id())).hasSize(6).allSatisfy(stage -> {
             assertThat(stage.rolePackId()).isEqualTo("software-java");
             assertThat(stage.rolePackVersion()).isEqualTo("2026-08-dynamic-v2");
             assertThat(stage.testPolicy()).isEqualTo("REQUIRED");
@@ -218,6 +223,40 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(tasks.artifacts(task.id()).stream().map(TaskArtifactRow::kind).toList())
                 .contains("REQUIREMENT_CONTEXT", "DECOMPOSITION_CONTEXT", "WORK_PACKAGE_DESIGN",
                         "WORK_PACKAGE_COMPILATION_SUMMARY", "DESIGN_CONTEXT");
+    }
+
+    @Test
+    void directSoftwareOverflowStopsWithoutRedesignAndExplicitlyReopensAsLargeTask() throws Exception {
+        ProjectRow project = project("direct-overflow");
+        LoopSpec sevenStageSpec = legacySpecWithStages(project.id(), 7);
+        LoopDraftRow draft = drafts.create(sevenStageSpec);
+        fake().setDesignerOutput(designerOutput("# 超限单包设计\n\n需求包含多个必须独立推进的业务阶段。",
+                sevenStageSpec));
+
+        DesignerSessionRow reviewing = prepareReviewingSession(project.id(), draft.id(), "实现跨域大型软件能力");
+        designerSessions.confirmRequirement(reviewing.id(), reviewing.discussionRevision());
+        pollUntilSettled(reviewing.id());
+
+        DesignerSessionRow blocked = designerSessions.get(reviewing.id());
+        assertThat(blocked.state()).isEqualTo("WAITING_INPUT");
+        assertThat(designerSessions.workPackageStatuses(reviewing.id())).singleElement().satisfies(workPackage -> {
+            assertThat(workPackage.id()).isEqualTo("WP-1");
+            assertThat(workPackage.lastErrorCode()).isEqualTo("LARGE_TASK_MODE_REQUIRED");
+            assertThat(workPackage.redesignCount()).isZero();
+        });
+        assertThat(designerSessions.compilerStatus(reviewing.id()).lastErrorCode())
+                .isEqualTo("LARGE_TASK_MODE_REQUIRED");
+
+        mvc.perform(post("/api/designer-sessions/{id}/large-task-mode/enable", reviewing.id())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of(
+                                "expectedDiscussionRevision", blocked.discussionRevision(),
+                                "expectedProfileVersion", taskProfiles.current(reviewing.id()).version()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.workflowTemplate").value("FULL_PACKAGE_DESIGN"))
+                .andExpect(jsonPath("$.largeTaskMode").value(true));
+        assertThat(designerSessions.get(reviewing.id()).workflowPhase()).isEqualTo("DISCUSSING_REQUIREMENT");
+        assertThat(mapper.findCurrentDesignRequirementRevision(reviewing.id())).isEmpty();
     }
 
     @Test
@@ -492,7 +531,7 @@ class DesignerSessionMcpIntegrationTest {
 
         DesignerSessionRow resumed = designerSessions.get(session.id());
         assertThat(resumed.currentRequirementRevision()).isNotNull();
-        assertThat(resumed.workflowPhase()).isEqualTo("DECOMPOSING");
+        assertThat(resumed.workflowPhase()).isEqualTo("QUESTIONING_PACKAGE");
         assertThat(designerAutoMode.get(session.id()).state()).isEqualTo("ACTIVE");
         assertThat(mapper.listDesignDiscussionRevisions(session.id()))
                 .anyMatch(row -> row.decisionLogJson().contains("AUTO_RECOMMENDED")
@@ -527,8 +566,12 @@ class DesignerSessionMcpIntegrationTest {
 
         designerAutoMode.pollActive();
 
-        assertThat(taskProfiles.current(session.id()).state()).isEqualTo("FROZEN");
-        assertThat(designerSessions.get(session.id()).workflowPhase()).isEqualTo("DECOMPOSING");
+        assertThat(taskProfiles.current(session.id())).satisfies(profile -> {
+            assertThat(profile.state()).isEqualTo("FROZEN");
+            assertThat(profile.workflowTemplate().name()).isEqualTo("DIRECT_SOFTWARE_DESIGN");
+            assertThat(profile.largeTaskMode()).isFalse();
+        });
+        assertThat(designerSessions.get(session.id()).workflowPhase()).isEqualTo("QUESTIONING_PACKAGE");
     }
 
     @Test
@@ -570,7 +613,50 @@ class DesignerSessionMcpIntegrationTest {
         designerAutoMode.pollActive();
 
         assertThat(taskProfiles.current(session.id()).state()).isEqualTo("FROZEN");
-        assertThat(designerSessions.get(session.id()).workflowPhase()).isEqualTo("DECOMPOSING");
+        assertThat(designerSessions.get(session.id()).workflowPhase()).isEqualTo("QUESTIONING_PACKAGE");
+    }
+
+    @Test
+    void softwareProfileLargeTaskSwitchIsExplicitOptimisticAndSoftwareOnly() throws Exception {
+        ProjectRow project = project("designer-large-task-profile");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        fake().setDesignerOutput("# Java 软件变更\n\n修改源代码实现缓存刷新并补充聚焦测试。");
+        DesignerSessionRow session = prepareReviewingSession(project.id(), draft.id(),
+                "修改 Java 源代码实现缓存刷新功能并补充测试");
+        TaskProfileService.View initial = taskProfiles.current(session.id());
+        assertThat(initial.workflowTemplate().name()).isEqualTo("DIRECT_SOFTWARE_DESIGN");
+        assertThat(initial.largeTaskMode()).isFalse();
+
+        mvc.perform(put("/api/designer-sessions/{id}/task-profile", session.id())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of(
+                                "intent", "SOFTWARE_CHANGE", "primaryArtifactKind", "SOURCE_CODE",
+                                "largeTaskMode", true, "expectedVersion", initial.version()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.workflowTemplate").value("FULL_PACKAGE_DESIGN"))
+                .andExpect(jsonPath("$.largeTaskMode").value(true));
+
+        mvc.perform(put("/api/designer-sessions/{id}/task-profile", session.id())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of(
+                                "intent", "SOFTWARE_CHANGE", "primaryArtifactKind", "SOURCE_CODE",
+                                "largeTaskMode", false, "expectedVersion", initial.version()))))
+                .andExpect(status().isConflict());
+
+        TaskProfileService.View large = taskProfiles.current(session.id());
+        taskProfiles.reroute(session.id(), "即使 Router 认为复杂，也保留用户选择");
+        designerSessions.pollActiveHandoffs();
+        assertThat(taskProfiles.current(session.id()).largeTaskMode()).isTrue();
+
+        TaskProfileService.View rerouted = taskProfiles.current(session.id());
+        mvc.perform(put("/api/designer-sessions/{id}/task-profile", session.id())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of(
+                                "intent", "DOCUMENT_AUTHORING", "primaryArtifactKind", "MARKDOWN",
+                                "largeTaskMode", true, "expectedVersion", rerouted.version()))))
+                .andExpect(status().isBadRequest());
+
+        assertThat(large.largeTaskMode()).isTrue();
     }
 
     @Test
@@ -1515,6 +1601,8 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(mapper.findLatestTaskDecomposition(session.id())).isEmpty();
 
         fake().setDecomposerOutput(decomposition("NEEDS_INPUT", "补充后的完整需求", 0));
+        TaskProfileService.View profile = taskProfiles.current(session.id());
+        taskProfiles.override(session.id(), profile.intent(), profile.artifactKinds().getFirst(), true, profile.version());
         designerSessions.confirmRequirement(session.id(), secondReview.discussionRevision());
         assertThat(designerSessions.requirementStatus(session.id()).revision()).isEqualTo(1);
         assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(3);
@@ -1606,7 +1694,7 @@ class DesignerSessionMcpIntegrationTest {
                 .toList();
         assertThat(compilerPrompts).hasSize(1);
         assertThat(compilerPrompts.getFirst())
-                .contains("Machine role contract 2026-08-semantic-v2")
+                .contains("Machine role contract 2026-08-semantic-v3")
                 .contains("DS-L001", "FOCUSED_TEST", "covers")
                 .contains("Do not assign acceptance ids", "testTargets", "engineering metadata");
     }
@@ -1912,6 +2000,12 @@ class DesignerSessionMcpIntegrationTest {
     private DesignerSessionRow createConfirmedSession(String projectId, String draftId, String requirement) {
         DesignerSessionRow reviewing = prepareReviewingSession(projectId, draftId, requirement);
         assertThat(reviewing.state()).isEqualTo("REVIEWING");
+        TaskProfileService.View profile = taskProfiles.current(reviewing.id());
+        if (profile.intent().name().equals("SOFTWARE_CHANGE")
+                && profile.workflowTemplate().name().equals("DIRECT_SOFTWARE_DESIGN")) {
+            taskProfiles.override(reviewing.id(), profile.intent(), profile.artifactKinds().getFirst(),
+                    true, profile.version());
+        }
         designerSessions.confirmRequirement(reviewing.id(), reviewing.discussionRevision());
         return designerSessions.get(reviewing.id());
     }
@@ -2270,12 +2364,32 @@ class DesignerSessionMcpIntegrationTest {
                 + "\n<!-- LOOPSPEC_COMPILATION_JSON_END -->";
     }
 
+    private String packageDesignIncompletePlan(String code, String detail) throws Exception {
+        return "<!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->\n" + json.writeValueAsString(Map.of(
+                "outcome", "DESIGN_INCOMPLETE", "summary", "默认单包容量不足", "stages", List.of(),
+                "handoffSummary", "", "designGaps", List.of(Map.of("code", code, "detail", detail))))
+                + "\n<!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->";
+    }
+
     private LoopSpec legacySpec(String projectId) {
         return new LoopSpec("v1", projectId, "Implement the validated designer plan", "Keep the worktree isolated",
                 List.of(new LoopSpec.StageSpec("Implement the plan", List.of("src/**"), List.of(".env"),
                         List.of("README.md"), List.of(new LoopSpec.VerifierSpec("FILE_EXISTS", null,
                         "README.md", null, List.of("README.md"), List.of(), true)))),
                 new LoopSpec.Limits(3, 3, 2, 2, 3600L, 120L, 60L),
+                new LoopSpec.ModelSpec("opencode", "deepseek", false),
+                new LoopSpec.SessionPolicy(true, true), "Continue from verified evidence");
+    }
+
+    private LoopSpec legacySpecWithStages(String projectId, int stageCount) {
+        List<LoopSpec.StageSpec> stages = java.util.stream.IntStream.rangeClosed(1, stageCount)
+                .mapToObj(index -> new LoopSpec.StageSpec("Implement step " + index,
+                        List.of("src/**"), List.of(".env"), List.of("README-" + index + ".md"),
+                        List.of(new LoopSpec.VerifierSpec("FILE_EXISTS", null, "README.md", null,
+                                List.of("README.md"), List.of(), true))))
+                .toList();
+        return new LoopSpec("v1", projectId, "Implement the validated designer plan",
+                "Keep the worktree isolated", stages, new LoopSpec.Limits(3, 3, 2, 2, 3600L, 120L, 60L),
                 new LoopSpec.ModelSpec("opencode", "deepseek", false),
                 new LoopSpec.SessionPolicy(true, true), "Continue from verified evidence");
     }

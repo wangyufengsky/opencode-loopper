@@ -46,7 +46,7 @@ const session: DesignerSession = {
     mutationMode: 'WRITE_CODE', artifactKinds: ['SOURCE_CODE'], technologies: ['java'],
     testPolicy: 'REQUIRED', executionStrategy: 'OPEN_CODE_IMPLEMENTATION',
     rolePackId: 'software-java', rolePackVersion: 'test', confidence: 100,
-    evidence: [], resolutionSource: 'TEST', decisionRequired: false, version: 0,
+    evidence: [], resolutionSource: 'TEST', decisionRequired: false, largeTaskMode: true, version: 0,
   },
   availableProfileOverrides: [],
   availableArtifactOverrides: [],
@@ -142,6 +142,70 @@ describe('Designer draft composer', () => {
     expect(options.map((option) => option.props('value'))).toEqual([
       'SOFTWARE_CHANGE', 'DOCUMENT_AUTHORING', 'READ_ONLY_REVIEW', 'SOURCE_CODE', 'PYTHON_SCRIPT', 'DOCX',
     ])
+  })
+
+  it('defaults software design to one package and only enables decomposition through the explicit switch', async () => {
+    routeQuery.sessionId = 'designer-direct-profile'
+    const directSession: DesignerSession = {
+      ...session,
+      id: 'designer-direct-profile', state: 'REVIEWING', workflowPhase: 'DISCUSSING_REQUIREMENT',
+      discussionScope: 'REQUIREMENT', finalConfirmationEligible: false,
+      taskProfile: {
+        ...session.taskProfile, id: 'profile-direct', state: 'PROVISIONAL',
+        workflowTemplate: 'DIRECT_SOFTWARE_DESIGN', largeTaskMode: false, version: 4,
+      },
+      availableProfileOverrides: ['SOFTWARE_CHANGE'], availableArtifactOverrides: ['SOURCE_CODE'],
+      draft: draftFrom({
+        schemaVersion: 'v2', projectId: project.id, goal: '默认单包', context: '', stages: [],
+        limits: { maxStageAttempts: 3, maxTaskAttempts: 7, maxDuration: '7200', attemptTimeout: '1800' },
+      }),
+    }
+    vi.spyOn(api, 'getDesignerSession').mockResolvedValue(directSession)
+    const update = vi.spyOn(api, 'updateDesignerTaskProfile').mockResolvedValue({
+      ...directSession.taskProfile, workflowTemplate: 'FULL_PACKAGE_DESIGN', largeTaskMode: true,
+    })
+
+    const wrapper = mountDesigner()
+    await flushPromises()
+
+    expect(wrapper.get('[aria-label="Designer 流程"]').text()).toContain('1需求讨论2单包设计3规范编译')
+    expect(wrapper.get('[aria-label="任务画像与动态流程"]').text()).toContain('流程 默认单包设计')
+    expect(wrapper.get('[aria-label="大型任务模式"]').classes()).not.toContain('is-checked')
+    expect(wrapper.text()).toContain('需求已明确，开始单包设计')
+
+    await wrapper.get('[aria-label="大型任务模式"]').trigger('click')
+    await wrapper.findAll('button').find(button => button.text().includes('应用覆盖'))!.trigger('click')
+    await flushPromises()
+    expect(update).toHaveBeenCalledWith(directSession.id, 'SOFTWARE_CHANGE', 'SOURCE_CODE', 4, true)
+  })
+
+  it('hides the package approval rail in direct mode and exposes only the explicit large-task recovery', async () => {
+    routeQuery.sessionId = 'designer-direct-overflow'
+    const overflow: DesignerSession = {
+      ...session,
+      id: 'designer-direct-overflow', state: 'WAITING_INPUT', workflowPhase: 'FAILED',
+      activeActor: 'VALIDATOR', discussionScope: 'WP-1', discussionRevision: 3,
+      taskProfile: { ...session.taskProfile, id: 'profile-overflow', workflowTemplate: 'DIRECT_SOFTWARE_DESIGN', largeTaskMode: false, version: 2 },
+      workPackages: [{ id: 'WP-1', ordinal: 0, title: '默认单包设计', objective: '完整需求', dependencies: [], state: 'WAITING_INPUT', redesignCount: 0, compilerRepairCount: 0, compilerPlanningRepairCount: 0, designRevision: 1, discussionRoundCount: 0, lastErrorCode: 'LARGE_TASK_MODE_REQUIRED' }],
+      messages: [{ id: 'overflow', role: 'SYSTEM', actor: 'VALIDATOR', content: 'LARGE_TASK_MODE_REQUIRED：无法容纳在 1–6 个 Stage 中', deliveryState: 'TERMINAL_ERROR', requirementRevision: 1, workPackageId: 'WP-1', createdAt: 'now' }],
+      finalConfirmationEligible: false,
+      draft: draftFrom({ schemaVersion: 'v2', projectId: project.id, goal: '超限', context: '', stages: [], limits: { maxStageAttempts: 3, maxTaskAttempts: 7, maxDuration: '7200', attemptTimeout: '1800' } }),
+    }
+    vi.spyOn(api, 'getDesignerSession').mockResolvedValue(overflow)
+    const enable = vi.spyOn(api, 'enableDesignerLargeTaskMode').mockResolvedValue({
+      ...overflow.taskProfile, workflowTemplate: 'FULL_PACKAGE_DESIGN', largeTaskMode: true,
+    })
+
+    const wrapper = mountDesigner()
+    await flushPromises()
+
+    expect(wrapper.find('[aria-label="工作包设计轨道"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('普通任务无法安全容纳当前设计')
+    expect(wrapper.text()).toContain('改用大型任务')
+    expect(wrapper.text()).not.toContain('重新编译当前包')
+    await wrapper.findAll('button').find(button => button.text().includes('改用大型任务'))!.trigger('click')
+    await flushPromises()
+    expect(enable).toHaveBeenCalledWith(overflow.id, 3, 2)
   })
 
   it('keeps the new-design page focused and restores a history session from an explicit route', async () => {

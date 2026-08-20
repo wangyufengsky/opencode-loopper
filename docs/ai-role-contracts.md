@@ -1,6 +1,6 @@
 # AI 机器角色轻量合同
 
-运行时合同版本：`2026-08-semantic-v2`。
+运行时合同版本：`2026-08-semantic-v3`。
 
 本文供维护者理解角色边界。真正可执行的合同以
 `MachineRoleContractCatalog`、`OpenCodeStructuredSchemas`、服务端语义编译器和
@@ -36,6 +36,11 @@ Decomposer 使用父画像；每个软件工作包再按包标题、目标、范
 冻结自己的 Role Pack、执行策略和测试策略，包 Designer 与 Compiler 只读取该冻结值；
 Task 确认后每个 Stage 也保存同一快照，Implementation 与 Recovery 不重新猜测角色。
 
+软件任务默认使用 `DIRECT_SOFTWARE_DESIGN`。Router 的 `SIMPLE` 或 `PACKAGED` 复杂度只形成
+建议，不会自动打开大型任务；画像中的 `largeTaskMode` 由持久化的 `workflowTemplate` 派生，
+用户显式开启后才切换为 `FULL_PACKAGE_DESIGN`。普通模式由服务端直接生成覆盖全部 RQ 的
+`DIRECT_DESIGN / WP-1`，不创建 Decomposer Session；大型模式才调用 Decomposer 生成 2–6 包。
+
 文档 Compiler 的权威输出是受限 `DocumentPlan`；表格 Compiler 的权威输出是受限
 `TabularConversionPlan`。服务端生成路径、隐式 `WP-1`、验收 ID 与最终 DTO，并在最终
 确认前只冻结计划。报告 Reviewer 是真正独立的 `REVIEWER_READ_ONLY` 角色，只可读取仓库，
@@ -67,9 +72,16 @@ Decomposer 返回 `READY | NEEDS_INPUT | MULTI_TASK_REQUIRED`、规范目标、�
 
 ## Compiler
 
-冻结的 Designer Markdown 在当前修订内生成稳定 `DS-L001...` 行引用。Compiler 返回
-1–3 个语义 Stage、业务条件的 `sourceRefs` 和闭集证据意图，不填写 Stage 序号、
+冻结的 Designer Markdown 在当前修订内生成稳定 `DS-L001...` 行引用。Compiler 在普通单包中返回
+1–6 个语义 Stage，在大型任务的每个工作包中返回 1–3 个语义 Stage，同时返回业务条件的
+`sourceRefs` 和闭集证据意图，不填写 Stage 序号、
 `workPackageId`、验收 ID、精确摘录、`criterionIds` 或 `testTargets`。
+
+普通模式若无法把完整设计安全编译成一个 1–6 Stage 工作包，Compiler 返回唯一专用缺口
+`LARGE_TASK_MODE_REQUIRED`。服务端立即停止，不消耗自动重设计或修复预算，也不自动切换流程；
+用户显式“改用大型任务”后，系统重开整体需求并保留审计历史，待再次确认才调用 Decomposer。
+大型流程中的 Compiler 不得返回该缺口；多项目根、超过六包和独立发布边界仍使用
+`MULTI_TASK_REQUIRED`。
 
 服务端解析一个或多个 `DS-L` 引用并保存精确原文，生成 `<WP>-AC-n`，从安全的
 Maven/Gradle 显式选择器提取测试目标，并把 `covers` 编译成验证器关联。支持的意图为：

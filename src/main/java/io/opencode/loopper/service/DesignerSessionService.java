@@ -13,6 +13,7 @@ import io.opencode.loopper.domain.LoopSpec;
 import io.opencode.loopper.domain.LoopSpecCompilationState;
 import io.opencode.loopper.domain.ModelResponseMode;
 import io.opencode.loopper.domain.TaskDecompositionState;
+import io.opencode.loopper.domain.WorkflowTemplate;
 import io.opencode.loopper.domain.SessionFailure;
 import io.opencode.loopper.domain.StructuredModelStep;
 import io.opencode.loopper.lifecycle.LifecycleTransitionService;
@@ -68,6 +69,7 @@ public class DesignerSessionService {
     private static final int MAX_MODEL_CALLS = 96;
     private static final int MAX_WORK_PACKAGES = 6;
     private static final int MAX_PACKAGE_STAGES = 3;
+    private static final int MAX_DIRECT_SOFTWARE_STAGES = 6;
     private static final int MAX_TOTAL_STAGES = 18;
     private static final int MAX_COMPILER_REPAIRS = 2;
     private static final int MAX_AUTOMATIC_REDESIGNS = 1;
@@ -613,11 +615,61 @@ public class DesignerSessionService {
                 .orElseThrow(() -> new ConflictException("REQUIREMENT_SNAPSHOT_MISSING", "完整需求稿不存在"));
         taskProfiles.freeze(sessionId);
         DesignRequirementRevisionRow revision = freezeRequirementRevision(session, sourceMessage);
+        TaskProfileService.View profile = taskProfiles.current(sessionId);
+        boolean directSoftware = profile.workflowTemplate() == WorkflowTemplate.DIRECT_SOFTWARE_DESIGN;
         if ("AUTO_RECOMMENDED".equals(actionSource)) {
-            appendMessage(session.id(), DesignerActor.SYSTEM, "全自动模式已确认整体需求并开始拆包。",
+            appendMessage(session.id(), DesignerActor.SYSTEM, directSoftware
+                            ? "全自动模式已确认整体需求并开始默认单包设计。"
+                            : "全自动模式已确认整体需求并开始拆包。",
                     "AUTO_APPROVED", revision.revision(), null);
         }
-        dispatchDecomposer(get(sessionId), revision, false);
+        if (directSoftware) createDirectSoftwarePackage(get(sessionId), revision);
+        else dispatchDecomposer(get(sessionId), revision, false);
+    }
+
+    private void createDirectSoftwarePackage(DesignerSessionRow session, DesignRequirementRevisionRow revision) {
+        requireDraftUnchanged(session, revision.sourceDraftVersion());
+        List<String> requirementRefs = readSegments(revision.requirementSegmentsJson()).stream()
+                .map(RequirementSegment::id).toList();
+        DecomposedWorkPackage workPackage = new DecomposedWorkPackage("WP-1", "默认单包设计",
+                bounded(revision.requirementText(), 12_000), List.of("当前完整软件需求"), List.of(), List.of(),
+                List.of("完成当前需求的软件变更"), List.of("满足完整需求中的可观察业务结果"), requirementRefs);
+        List<RequirementCoverageMapping> coverage = requirementRefs.stream()
+                .map(ref -> new RequirementCoverageMapping(ref, "WORK_PACKAGE", "WP-1",
+                        "默认单包完整覆盖该需求段"))
+                .toList();
+        DecompositionPlanEnvelope plan = new DecompositionPlanEnvelope("DIRECT_DESIGN",
+                bounded(revision.requirementText(), 12_000), List.of(), List.of(workPackage), coverage,
+                List.of(), List.of(), null).normalized();
+        validateDecompositionPlan(plan, revision);
+        String now = now();
+        TaskDecompositionRow pending = new TaskDecompositionRow(UUID.randomUUID().toString(), session.id(),
+                revision.id(), TaskDecompositionState.PENDING_HANDOFF.name(), null, null, "[]", "{}",
+                null, "SERVER_DIRECT", 0, 0, revision.sourceDraftVersion(), null, null, now, now, 0,
+                StructuredModelStep.SERVER_COMPILING.name(), write(plan), 0,
+                ModelResponseMode.TEXT_MARKER.name(), null, false,
+                ModelResponseMode.TEXT_MARKER.name(), null, false, write(plan), 0, 0, true);
+        lifecycle.create(decompositionSubject(pending, session.projectId()), pending.state(), Map.of("mode", "DIRECT_SOFTWARE"),
+                () -> mapper.insertTaskDecomposition(pending),
+                () -> new ConflictException("TASK_DECOMPOSITION_CREATE_CONFLICT",
+                        "默认单包的确定性拆解上下文无法持久化"));
+        TaskDecompositionRow running = updateDecomposition(pending, TaskDecompositionState.RUNNING,
+                null, plan.normalizedGoal(), "[]", write(plan.toEnvelope()), null, "SERVER_DIRECT",
+                0, 0, null, null);
+        TaskDecompositionRow validating = updateDecomposition(running, TaskDecompositionState.VALIDATING,
+                "DIRECT_DESIGN", plan.normalizedGoal(), "[]", write(plan.toEnvelope()), null, "SERVER_DIRECT",
+                0, 0, null, null);
+        DesignerSessionRow validatingSession = updateDesignerProjection(get(session.id()), DesignerSessionState.RUNNING,
+                DesignWorkflowPhase.VALIDATING_DECOMPOSITION, null, "SERVER_DIRECT", session.designRevision(), 0,
+                revision.revision(), null);
+        TaskDecompositionRow completed = updateDecomposition(validating, TaskDecompositionState.COMPLETED,
+                "DIRECT_DESIGN", plan.normalizedGoal(), "[]", write(plan.toEnvelope()), null, "SERVER_DIRECT",
+                0, 0, null, null);
+        List<DesignWorkPackageRow> packages = persistWorkPackages(validatingSession, completed, plan.toEnvelope());
+        appendMessage(session.id(), DesignerActor.SYSTEM,
+                "普通软件任务已由服务端建立默认工作包 WP-1；未创建或调用任务拆解器。",
+                "COMPLETED", revision.revision(), null);
+        dispatchPackageDesigner(get(session.id()), packages.getFirst(), null, false);
     }
 
     public void reopenRequirement(String sessionId, int expectedDiscussionRevision) {
@@ -642,6 +694,32 @@ public class DesignerSessionService {
                 "整体需求已重新打开。原拆包与批准记录保留为历史但不再生效；发送补充后不会自动拆包。",
                 "PERSISTED", null, null);
         publish(get(session.id()), "STATUS", DesignerActor.SYSTEM, true, "", "整体需求等待继续讨论");
+    }
+
+    @Transactional
+    public TaskProfileService.View enableLargeTaskMode(String sessionId, int expectedDiscussionRevision,
+                                                       long expectedProfileVersion) {
+        DesignerSessionRow session = get(sessionId);
+        TaskProfileService.View profile = taskProfiles.current(sessionId);
+        if (profile.version() != expectedProfileVersion) {
+            throw new ConflictException("TASK_PROFILE_VERSION_CONFLICT", "任务画像已变化，请刷新后重试");
+        }
+        if (!DesignerSessionState.WAITING_INPUT.name().equals(session.state())
+                || profile.workflowTemplate() != WorkflowTemplate.DIRECT_SOFTWARE_DESIGN) {
+            throw new ConflictException("LARGE_TASK_MODE_SWITCH_NOT_ALLOWED",
+                    "只有因默认单包超限而等待处理的软件设计可以切换大型任务模式");
+        }
+        DesignWorkPackageRow workPackage = requireCurrentPackage(session, "WP-1");
+        if (!"LARGE_TASK_MODE_REQUIRED".equals(workPackage.lastErrorCode())) {
+            throw new ConflictException("LARGE_TASK_MODE_SWITCH_NOT_REQUIRED", "当前设计没有大型任务模式阻断");
+        }
+        reopenRequirement(sessionId, expectedDiscussionRevision);
+        TaskProfileService.View restored = taskProfiles.restoreAsLargeSoftwareProfile(
+                sessionId, profile, expectedProfileVersion);
+        appendMessage(sessionId, DesignerActor.SYSTEM,
+                "已显式启用大型任务模式。整体需求已重新打开，请复核后重新确认，届时才会调用任务拆解器。",
+                "PERSISTED", null, null);
+        return restored;
     }
 
     public List<DesignerMessageRow> appendPackageMessage(String sessionId, String packageId, String content,
@@ -716,7 +794,9 @@ public class DesignerSessionService {
                         discussion.questionRetryCount(), compilation.id(), null, null));
         String detail = "AUTO_RECOMMENDED".equals(source)
                 ? "全自动模式已接受 " + packageId + " 的当前已验证设计修订。"
-                : packageId + " 已接受。";
+                : "DIRECT_SOFTWARE".equals(source)
+                        ? "普通任务的默认工作包 WP-1 已通过编译与确定性校验并自动接受。"
+                        : packageId + " 已接受。";
         appendMessage(session.id(), DesignerActor.SYSTEM, detail,
                 "AUTO_RECOMMENDED".equals(source) ? "AUTO_APPROVED" : "APPROVED",
                 session.currentRequirementRevision(), packageId);
@@ -2057,6 +2137,15 @@ public class DesignerSessionService {
                 packageCompilerRejected(compilation, session, workPackage, remote, invalid.code(), invalid.getMessage());
                 return;
             }
+            if (gaps.stream().anyMatch(gap -> gap.code() == DesignGapCode.LARGE_TASK_MODE_REQUIRED)) {
+                if (directSoftwareMode(session.id())) {
+                    requireLargeTaskMode(compilation, session, workPackage, remote, summarizeGaps(gaps));
+                } else {
+                    packageCompilerRejected(compilation, session, workPackage, remote,
+                            "LARGE_TASK_GAP_NOT_ALLOWED", "大型任务流程不能返回 LARGE_TASK_MODE_REQUIRED");
+                }
+                return;
+            }
             updateCompilation(compilation, LoopSpecCompilationState.DESIGN_INCOMPLETE, remote.id(), "COMPLETED",
                     compilation.repairCount(), "DESIGN_INCOMPLETE", summarizeGaps(gaps), session.projectId(), null,
                     StructuredModelStep.FINAL_JSON, compilation.planningJson());
@@ -2109,19 +2198,27 @@ public class DesignerSessionService {
             appendMessage(session.id(), DesignerActor.COMPILER, workPackage.packageId() + "：" + summary,
                     "COMPILED", session.currentRequirementRevision(), workPackage.packageId());
             appendMessage(session.id(), DesignerActor.VALIDATOR,
-                    workPackage.packageId() + " 确定性校验通过：1–3 个 Stage、验收来源、验证器覆盖及当前 Role Pack 测试门禁均满足。",
+                    workPackage.packageId() + " 确定性校验通过："
+                            + stageRangeLabel(session.id())
+                            + " 个 Stage、验收来源、验证器覆盖及当前 Role Pack 测试门禁均满足。",
                     "PASS", session.currentRequirementRevision(), workPackage.packageId());
             DesignDiscussionRevisionRow discussion = mapper.findLatestDesignDiscussionRevision(
                     session.id(), workPackage.packageId()).orElseThrow();
             updateDiscussion(discussion, "REVIEWING", discussion.sourceMessageId(),
                     workPackage.designMessageId(), discussion.snapshotMarkdown(), discussion.decisionLogJson(),
                     discussion.questionAnswered(), discussion.questionRetryCount(), completedCompilation.id(), null, null);
-            DesignerSessionRow reviewing = updateDesignerDiscussionProjection(get(session.id()),
-                    DesignerSessionState.REVIEWING, DesignWorkflowPhase.REVIEWING_PACKAGE,
-                    session.externalSessionId(), "COMPLETED", workPackage.packageId(), discussion.revision(),
-                    "SYNCED", workPackage.packageId());
-            publish(reviewing, "COMPLETED", DesignerActor.VALIDATOR, true, "",
-                    workPackage.packageId() + " 候选 LoopSpec 已同步，等待人工接受");
+            if (directSoftwareMode(session.id())) {
+                DesignerSessionRow current = get(session.id());
+                approvePackage(session.id(), workPackage.packageId(), current.discussionRevision(),
+                        completed.designRevision(), "DIRECT_SOFTWARE");
+            } else {
+                DesignerSessionRow reviewing = updateDesignerDiscussionProjection(get(session.id()),
+                        DesignerSessionState.REVIEWING, DesignWorkflowPhase.REVIEWING_PACKAGE,
+                        session.externalSessionId(), "COMPLETED", workPackage.packageId(), discussion.revision(),
+                        "SYNCED", workPackage.packageId());
+                publish(reviewing, "COMPLETED", DesignerActor.VALIDATOR, true, "",
+                        workPackage.packageId() + " 候选 LoopSpec 已同步，等待人工接受");
+            }
         } catch (BadRequestException invalid) {
             packageCompilerRejected(getCompilation(compilation.id()), get(session.id()),
                     getWorkPackage(workPackage.id()), remote, invalid.code(), invalid.getMessage());
@@ -2133,9 +2230,14 @@ public class DesignerSessionService {
 
     private void validateCompiledPackage(DesignerSessionRow session, DesignWorkPackageRow workPackage,
                                          String design, PackageCompilationEnvelope envelope) {
-        if (envelope.stages().isEmpty() || envelope.stages().size() > MAX_PACKAGE_STAGES) {
+        int stageLimit = packageStageLimit(session.id());
+        if (envelope.stages().size() > stageLimit && directSoftwareMode(session.id())) {
+            throw new BadRequestException("LARGE_TASK_MODE_REQUIRED",
+                    "当前设计无法安全容纳在一个 1–6 Stage 工作包中，请显式改用大型任务模式");
+        }
+        if (envelope.stages().isEmpty() || envelope.stages().size() > stageLimit) {
             throw new BadRequestException("WORK_PACKAGE_STAGE_COUNT_INVALID",
-                    "A compiled work package must contain 1-3 stages");
+                    "A compiled work package must contain 1-" + stageLimit + " stages");
         }
         Set<String> criterionIds = new HashSet<>();
         for (int stageIndex = 0; stageIndex < envelope.stages().size(); stageIndex++) {
@@ -2174,6 +2276,10 @@ public class DesignerSessionService {
                                          DesignWorkPackageRow workPackage, OpenCodeClient.OpenCodeSession remote,
                                          String code, String detail) {
         LoopSpecCompilationRow compilation = getCompilation(input.id());
+        if ("LARGE_TASK_MODE_REQUIRED".equals(code) && directSoftwareMode(session.id())) {
+            requireLargeTaskMode(compilation, session, workPackage, remote, detail);
+            return;
+        }
         appendMessage(session.id(), DesignerActor.VALIDATOR,
                 workPackage.packageId() + " 确定性校验未通过（" + code + "）：" + safeMessage(detail),
                 "RETRYABLE_ERROR", session.currentRequirementRevision(), workPackage.packageId());
@@ -2226,6 +2332,44 @@ public class DesignerSessionService {
             failPackageCompilation(repairing, session, "OPENCODE_COMPILER_REPAIR_FAILED",
                     failure.getMessage(), true);
         }
+    }
+
+    private boolean directSoftwareMode(String sessionId) {
+        return taskProfiles.current(sessionId).workflowTemplate() == WorkflowTemplate.DIRECT_SOFTWARE_DESIGN;
+    }
+
+    private int packageStageLimit(String sessionId) {
+        return directSoftwareMode(sessionId) ? MAX_DIRECT_SOFTWARE_STAGES : MAX_PACKAGE_STAGES;
+    }
+
+    private String stageRangeLabel(String sessionId) {
+        return "1–" + packageStageLimit(sessionId);
+    }
+
+    private void requireLargeTaskMode(LoopSpecCompilationRow compilation, DesignerSessionRow session,
+                                      DesignWorkPackageRow workPackage, OpenCodeClient.OpenCodeSession remote,
+                                      String detail) {
+        String reason = blank(detail) ? "当前需求无法安全容纳在默认单包的 1–6 个 Stage 中" : safeMessage(detail);
+        abortQuietly(remote.id(), session.projectId());
+        if (LoopSpecCompilationState.RUNNING.name().equals(compilation.state())) {
+            updateCompilation(compilation, LoopSpecCompilationState.DESIGN_INCOMPLETE, remote.id(), "COMPLETED",
+                    compilation.repairCount(), "LARGE_TASK_MODE_REQUIRED", reason, session.projectId(),
+                    compilation.compiledPackageJson(), StructuredModelStep.valueOf(compilation.workflowStep()),
+                    compilation.planningJson());
+        }
+        DesignWorkPackageRow currentPackage = getWorkPackage(workPackage.id());
+        DesignWorkPackageRow waiting = Set.of(DesignWorkPackageState.COMPILING.name(),
+                DesignWorkPackageState.VALIDATING.name()).contains(currentPackage.state())
+                ? updateWorkPackage(currentPackage, DesignWorkPackageState.WAITING_INPUT,
+                        currentPackage.designerExternalSessionId(), currentPackage.designerExternalSessionState(),
+                        currentPackage.designMessageId(), currentPackage.designRevision(), currentPackage.redesignCount(),
+                        currentPackage.designerTransportRetryCount(), currentPackage.compilerSummary(),
+                        currentPackage.handoffSummary(), "LARGE_TASK_MODE_REQUIRED", reason)
+                : currentPackage;
+        appendMessage(session.id(), DesignerActor.COMPILER,
+                "LARGE_TASK_MODE_REQUIRED：" + reason + "。系统不会自动重设计或开启大型任务模式。",
+                "DESIGN_INCOMPLETE", session.currentRequirementRevision(), workPackage.packageId());
+        waitForDesignInput(session, currentRequirement(session.id()), waiting, "LARGE_TASK_MODE_REQUIRED", reason);
     }
 
     private void advancePackageOrAggregate(DesignerSessionRow session, DesignWorkPackageRow completed) {
@@ -2959,9 +3103,14 @@ public class DesignerSessionService {
             throw new BadRequestException("COMPILER_PLAN_OUTCOME_INVALID",
                     "Compiler semantic outcome must be COMPILED or DESIGN_INCOMPLETE");
         }
-        if (compact.stages().isEmpty() || compact.stages().size() > MAX_PACKAGE_STAGES) {
+        int stageLimit = packageStageLimit(workPackage.designerSessionId());
+        if (compact.stages().size() > stageLimit && directSoftwareMode(workPackage.designerSessionId())) {
+            throw new BadRequestException("LARGE_TASK_MODE_REQUIRED",
+                    "当前设计无法安全容纳在一个 1–6 Stage 工作包中，请显式改用大型任务模式");
+        }
+        if (compact.stages().isEmpty() || compact.stages().size() > stageLimit) {
             throw new BadRequestException("COMPILER_PLAN_STAGE_COUNT_INVALID",
-                    "Compiler semantic planning must contain 1-3 stages");
+                    "Compiler semantic planning must contain 1-" + stageLimit + " stages");
         }
         DesignerEvidenceIndexer.Index sourceIndex = evidenceIndexer.index(design);
         validateCompactPackageSemantics(compact, sourceIndex);
@@ -3547,9 +3696,15 @@ public class DesignerSessionService {
                 "Compiler planning status must be COMPILED or DESIGN_INCOMPLETE");
         if (!plan.designGaps().isEmpty()) throw new BadRequestException("COMPILER_PLAN_GAPS_UNEXPECTED",
                 "COMPILED planning must use an empty designGaps array");
-        if (plan.stages().isEmpty() || plan.stages().size() > MAX_PACKAGE_STAGES) {
+        int stageLimit = packageStageLimit(workPackage.designerSessionId());
+        if (plan.stages().size() > stageLimit
+                && directSoftwareMode(workPackage.designerSessionId())) {
+            throw new BadRequestException("LARGE_TASK_MODE_REQUIRED",
+                    "当前设计无法安全容纳在一个 1–6 Stage 工作包中，请显式改用大型任务模式");
+        }
+        if (plan.stages().isEmpty() || plan.stages().size() > stageLimit) {
             throw new BadRequestException("COMPILER_PLAN_STAGE_COUNT_INVALID",
-                    "Compiler planning must contain 1-3 stages");
+                    "Compiler planning must contain 1-" + stageLimit + " stages");
         }
         Set<String> criterionIds = new LinkedHashSet<>();
         Set<Integer> coveredStages = new LinkedHashSet<>();
@@ -4453,7 +4608,8 @@ public class DesignerSessionService {
                 never write files, execute commands, ask questions, create tasks, or emit final StageSpec JSON.
 
                 Think in this fixed order and expose only the bounded planning result, not private chain-of-thought:
-                1. Plan 1-3 coherent, dependency-ordered Stages inside the current package.
+                1. Plan a coherent, dependency-ordered Stage sequence inside the current package and obey the
+                   workflow-specific Stage limit below.
                 2. Map each observable acceptance criterion to one or more DS-L source refs and a concrete machine/
                    Judge evidence strategy; use only the current Role Pack's repository-native focused-test argv.
                 3. Return the structured planning envelope below. Do not redesign another package or invent a
@@ -4463,6 +4619,7 @@ public class DesignerSessionService {
                 Requirement revision: R%d
                 Required workPackageId: %s
                 Required criterion id prefix: %s-AC-
+                Workflow mode: %s
 
                 Frozen prerequisite package contracts:
                 %s
@@ -4491,7 +4648,9 @@ public class DesignerSessionService {
                 Frozen work-package design revision %d:
                 %s
                 """.formatted(project.rootPath(), revision.revision(), workPackage.packageId(),
-                workPackage.packageId(), prerequisites,
+                workPackage.packageId(), directSoftwareMode(workPackage.designerSessionId())
+                        ? "DIRECT_SOFTWARE_DESIGN. Produce 1-6 Stages. If the complete design cannot fit safely into one 1-6 Stage package, return DESIGN_INCOMPLETE with only LARGE_TASK_MODE_REQUIRED; never split packages or silently continue."
+                        : "FULL_PACKAGE_DESIGN. Produce 1-3 Stages. This package is already part of the large-task decomposition; never return LARGE_TASK_MODE_REQUIRED.", prerequisites,
                 designerDeclaredTestEvidence(design),
                 evidenceIndexer.index(design).promptText(),
                 packageCompilerPlanningMachineContract(workPackage.packageId(), workPackageRoles.get(workPackage)),
@@ -4743,11 +4902,14 @@ public class DesignerSessionService {
                   has one criterionSources object {"stageIndex":0,"criterionId":"%s","excerpt":"exact non-empty Designer substring"}.
                 - COMPILED uses designGaps:[]. DESIGN_INCOMPLETE uses stages:[], criterionSources:[], and one or more
                   objects such as {"code":"MISSING_OBSERVABLE_OUTCOME","detail":"concrete missing design fact"};
-                  allowed codes are MISSING_OBSERVABLE_OUTCOME, MISSING_EXCEPTION_SEMANTICS, MISSING_SCOPE, and
-                  MISSING_ACCEPTANCE_INTENT. designGaps entries are never strings.
+                  allowed codes are MISSING_OBSERVABLE_OUTCOME, MISSING_EXCEPTION_SEMANTICS, MISSING_SCOPE,
+                  MISSING_ACCEPTANCE_INTENT, and LARGE_TASK_MODE_REQUIRED. LARGE_TASK_MODE_REQUIRED is valid only for
+                  DIRECT_SOFTWARE_DESIGN when one coherent 1-6 Stage package cannot safely hold the complete design.
+                  designGaps entries are never strings.
 
                 Canonical COMPILED envelope for a JAVA_PRODUCTION stage (copy its JSON types and complete nesting;
-                replace example values with facts from the frozen design, and add up to three stages when needed):
+                replace example values with facts from the frozen design, and add stages only within the frozen
+                workflow limit when needed):
                 {"status":"COMPILED","summary":"compiled package summary","stages":[{"objective":"observable stage result","allowedPaths":["src/main/java/**","src/test/java/**"],"forbiddenPaths":[".env"],"deliverables":["production implementation and focused test"],"verifiers":[{"type":"PROCESS","command":["mvn","-q","-Dtest=ExampleFocusedTest","test"],"processPurpose":"TEST","testTargets":["ExampleFocusedTest"],"criterionIds":["%s"]},{"type":"GIT_DIFF","requireChanges":true,"allowedPaths":["src/main/java/**","src/test/java/**"],"forbiddenPaths":[".env"],"forbidDeletes":true}],"acceptanceCriteria":[{"id":"%s","description":"observable business result","verificationMode":"BOTH","judgeRubric":"Confirm the implemented behavior matches the frozen design and deterministic test evidence.","judgeOnlyReason":null}],"verificationRuntime":null,"implementationKind":"JAVA_PRODUCTION","workPackageId":"%s"}],"criterionSources":[{"stageIndex":0,"criterionId":"%s","excerpt":"exact non-empty Designer substring"}],"handoffSummary":"bounded dependency handoff summary","designGaps":[]}
                 """.formatted(criterionId, criterionId, criterionId, packageId, packageId, criterionId,
                 criterionId, criterionId, packageId, criterionId);
@@ -5902,7 +6064,8 @@ public class DesignerSessionService {
     }
     public record DesignGap(DesignGapCode code, String detail) { }
     public enum DesignGapCode {
-        MISSING_OBSERVABLE_OUTCOME, MISSING_EXCEPTION_SEMANTICS, MISSING_SCOPE, MISSING_ACCEPTANCE_INTENT
+        MISSING_OBSERVABLE_OUTCOME, MISSING_EXCEPTION_SEMANTICS, MISSING_SCOPE, MISSING_ACCEPTANCE_INTENT,
+        LARGE_TASK_MODE_REQUIRED
     }
     public record CompilationEnvelope(String status, String summary, LoopSpec loopSpec,
                                       List<CriterionSource> criterionSources, List<DesignGap> designGaps) {

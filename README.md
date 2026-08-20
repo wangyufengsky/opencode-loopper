@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.1.91`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.1.92`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -31,7 +31,8 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 - **本地项目登记**：登记绝对路径，识别 Git 任务分支模式或无可用 Git HEAD 时的直接模式。
 - **中文极简界面**：页面只保留完成当前操作所需的信息，状态、角色、验证器和错误统一显示中文；内部枚举码与任务、会话、尝试等记录 ID 不在普通页面回显，项目卡片支持长名称和路径自然换行。
-- **可讨论的只读多角色设计**：整体需求和每个工作包都先由 Designer 用 1–3 个选择题澄清，之后每轮保存完整 Markdown 替代稿；用户逐包讨论、查看 Compiler/Validator 候选并明确接受，最后再总体确认。同一时间线位置的连续系统通知默认只显示一个图标，展开后按时间查看完整记录。Task Decomposer 与分包 LoopSpec Compiler 只输出紧凑的业务规划与证据意图，服务端生成状态、ID、引用、精确摘录、测试元数据和最终 LoopSpec 对象；原始机器 JSON 不进入聊天。确定性校验和人工确认完成前不写业务源码、不创建任务。
+- **普通单包与大型任务设计**：软件任务默认固定一个 `WP-1`，包内仍由 Designer/Compiler 形成 1–6 个 Stage，按“需求讨论 → 单包设计 → 规范编译”推进；不创建 Task Decomposer Session，编译和确定性校验通过后自动接受 WP-1，再进入独立总体确认。只有画像冻结前显式打开“大型任务”才使用 2–6 个工作包，每包 1–3 个 Stage，并逐包人工接受。普通模式第 7 个 Stage 起以 `LARGE_TASK_MODE_REQUIRED` 停止，必须由用户显式改用大型任务，系统和全自动模式都不会自行切换。
+- **可讨论的只读多角色设计**：整体需求和每个工作包都先由 Designer 用 1–3 个选择题澄清，之后每轮保存完整 Markdown 替代稿；大型任务逐包讨论、查看 Compiler/Validator 候选并明确接受，普通任务在总体确认可重新讨论 WP-1。同一时间线位置的连续系统通知默认只显示一个图标，展开后按时间查看完整记录。Task Decomposer 与分包 LoopSpec Compiler 只输出紧凑的业务规划与证据意图，服务端生成状态、ID、引用、精确摘录、测试元数据和最终 LoopSpec 对象；原始机器 JSON 不进入聊天。确定性校验和人工确认完成前不写业务源码、不创建任务。
 - **动态任务画像与专属流程**：独立无工具 AI Router 先给出语义标签，服务端再与有界仓库事实合并并决定流程、权限、执行与测试策略；每次 Router 运行和完整需求快照都持久化，重启后继续轮询，旧快照在新讨论开始时终止并废弃。Router 格式失败降级为通用画像提问，不能终止 Designer。低于 80 分或证据冲突时，普通模式必须人工覆盖；已明确授权的全自动模式会把 Router 当前任务类型和主要制品作为可审计推荐项采用，需求确认前仍允许人工纠偏。画像摘要及覆盖选项使用中文展示，REST/SQLite 仍保留稳定英文枚举码；确认后画像冻结并随 Recovery 复用。软件工作包分别冻结 Java/Python/Node/混合栈 Role Pack，Task 创建时再把 Role Pack、技术栈和测试策略复制到每个 Stage，实施提示只能使用这份冻结快照。简单 Markdown/DOCX 和一次性 XLSX/CSV/TSV 转 Markdown 使用隐式 `WP-1`；大型文档把 2–6 个有序章节包确定性聚合到冻结计划；独立 Reviewer 只开放 read/glob/grep，以受限结构化发现合同输出并由服务端校验文件、行号和哈希，报告不创建 Task、分支、租约或可写 Session；“转为修改任务”只创建新的 Designer 会话。安全维护只允许明确相对路径并强制禁止删除、服务操作和外部写入。
 - **可选的 Designer 全自动模式**：新建设计和进行中会话均可单独授权，默认关闭。开启后自动采用 Router 推荐画像、选择推荐答案、确认整体需求、接受已通过确定性校验的工作包、确认最终设计并请求启动任务；画像推荐不能绕过删除、服务操作或外部写入等安全边界。执行期问题、危险权限、异常恢复、结果确认、提交、推送和发布仍保持人工边界。其他阻断在重新授权时仍会再次确认风险，状态按会话持久化并可在重启后继续。
 - **项目公约**：只读分析项目并生成或更新根目录 `AGENTS.md`，展示完整预览后才写入；Loopper 管理区块以外的人工内容会被保留。
@@ -53,11 +54,13 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 ```mermaid
 flowchart LR
     A["登记本地项目"] --> B["需求提问与讨论"]
-    B --> C["确认需求并拆包"]
-    C --> P["逐包提问、讨论与候选校验"]
+    B --> C{"大型任务开关"}
+    C -->|关闭| N["默认 WP-1 设计与规范编译"]
+    N --> R["总体确认"]
+    C -->|开启| P["拆包并逐包提问、讨论与候选校验"]
     P --> Q["接受当前包"]
     Q -->|还有工作包| P
-    Q -->|全部接受| R["总体确认"]
+    Q -->|全部接受| R
     R --> D["创建 PENDING_START 任务"]
     D --> S["显式开始执行"]
     S --> E["OpenCode 分阶段实施"]
@@ -123,7 +126,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.1.91.jar
+java -jar target/opencode-loopper-0.1.92.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -136,8 +139,8 @@ java -jar target/opencode-loopper-0.1.91.jar
 2. 打开 **运行环境**，确认服务端报告的 OpenCode Loopper 版本，并检查 OpenCode 状态、端点、版本、模型与进程所有权。
 3. 打开 **项目**，登记项目名称和绝对根路径。登记本身不会启动 AI，也不会写入项目文件。项目卡片分别显示已确认的任务数和尚未确认的“待继续设计”数；历史设计入口同时包含可继续设计与已确认成任务的只读设计记录。
 4. 可选：在项目卡片中打开 **AGENTS.md 项目公约**，让只读 Session 生成建议，检查完整预览后再确认写入。
-5. 打开 **设计器 / 循环规范**，选择项目并描述目标。该页只负责新建设计，不再平铺历史会话。先用问题卡回答整体设计选择，可一键采用全部推荐项；继续补充不会触发拆包，只有点击 **需求已明确，开始拆包** 才会冻结需求。已有未确认设计统一从 **历史设计** 页面继续、修改或归档；已确认成任务的设计也保留在该页，但只允许查看，不提供继续、修改或归档。服务重启或浏览器恢复指针失效不会丢失权威记录。
-6. 沿工作包轨道逐包回答问题、讨论完整设计稿，并查看右侧只读候选的同步状态。候选通过 Compiler 和 Validator 后点击 **接受 WP-N 并继续**；重开已接受包会先列出所有将失效的传递依赖包。全部包接受后进入总体确认，此时才可编辑最终聚合 LoopSpec，并点击 **确认设计并创建任务**。Loopper 只创建 `PENDING_START` 任务，不进入队列、不占用写租约，也不创建或切换 Git 分支。
+5. 打开 **设计器 / 循环规范**，选择项目并描述目标。软件任务默认关闭“大型任务”，因此采用一个 `WP-1`；只有确实需要多个纵向业务包时才在画像冻结前打开开关。先用问题卡回答整体设计选择；继续补充不会开始工作包设计，显式确认需求后才按已选模式推进。已有未确认设计统一从 **历史设计** 页面继续、修改或归档，服务重启后会从服务端恢复同一模式。
+6. 普通任务在 WP-1 内完成 1–6 个 Stage 的设计、编译和确定性校验后直接进入总体确认，不显示工作包轨道或接受按钮；需要修改时点击 **重新讨论设计**。大型任务沿轨道逐包讨论并点击 **接受工作包 N 并继续**。两种模式都只在总体确认后创建 `PENDING_START` Task，不进入队列、不占用写租约，也不创建或切换 Git 分支。
 7. 进入任务详情并点击一次 **开始执行**。此时才会申请队列/写租约、检查工作区、获取远端更新并准备任务分支；一旦准入会自动继续执行，不需要在 `READY` 状态再次点击。执行期间可查看阶段进度、尝试、真实模型输出、待处理问题、验证证据和双 Judge 评审。
 8. 任务成功后检查实际差异，再由人工提交任务分支；最终 Attempt 会无条件保存任务基线差异文件清单，不要求 LoopSpec 配置 `GIT_DIFF`。Loopper 随后恢复任务开始前的源分支，有排队任务时继续切到下一任务分支；差异预览、远端推送和合并请求继续显式引用已提交的任务分支。
 
@@ -349,7 +352,7 @@ Git 任务的最新 Execution Cycle 成功并处于 `AWAITING_DECISION` 或用�
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.1.91.jar`
+- `target/opencode-loopper-0.1.92.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -380,7 +383,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:51234
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.1.91.jar`
+- `opencode-loopper-0.1.92.jar`
 - `start-windows.bat`
 
 确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
@@ -418,7 +421,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.1.91.jar \
+jar tf target/opencode-loopper-0.1.92.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -498,7 +501,7 @@ Windows PowerShell：
 例如发布下一版本：
 
 ```bash
-VERSION=0.1.91
+VERSION=0.1.92
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -538,7 +541,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.1.91.jar
+java -jar target/opencode-loopper-0.1.92.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。

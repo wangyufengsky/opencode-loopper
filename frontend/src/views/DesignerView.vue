@@ -58,6 +58,7 @@ const selectedProjectId = ref('')
 const designerRecoveryError = ref('')
 const profileIntent = ref<DesignerSession['taskProfile']['intent']>('SOFTWARE_CHANGE')
 const profileArtifact = ref<DesignerSession['taskProfile']['artifactKinds'][number]>('SOURCE_CODE')
+const profileLargeTask = ref(false)
 const reportDetail = ref<AnalysisReport>()
 const designerWorkspaceKey = 'opencode-loopper.designer-workspace'
 const draftPromptKey = 'opencode-loopper.designer-draft-prompt'
@@ -147,7 +148,14 @@ const isFinalReview = computed(() => ['FINAL_REVIEW', 'COMPLETED'].includes(
 ))
 const confirmationReady = computed(() => store.usingDemo || designerSession.value?.finalConfirmationEligible === true
   || designerSession.value?.workflowPhase === 'COMPLETED')
+const directSoftwareMode = computed(() => designerSession.value?.taskProfile.workflowTemplate === 'DIRECT_SOFTWARE_DESIGN')
 const workflowStep = computed(() => {
+  if (directSoftwareMode.value) {
+    if (draft.value?.status === 'CONFIRMED' || ['FINAL_REVIEW', 'COMPLETED'].includes(designerSession.value?.workflowPhase ?? '')) return 3
+    if (['COMPILING', 'VALIDATING', 'AGGREGATING'].includes(designerSession.value?.workflowPhase ?? '')) return 2
+    if (designerSession.value?.requirementRevision !== undefined) return 1
+    return 0
+  }
   if (draft.value?.status === 'CONFIRMED') return 3
   if (designerSession.value?.workflowPhase === 'FINAL_REVIEW' || designerSession.value?.workflowPhase === 'COMPLETED') return 2
   if (designerSession.value?.requirementRevision !== undefined) return 1
@@ -155,6 +163,7 @@ const workflowStep = computed(() => {
 })
 const designerSteps = computed(() => {
   const template = designerSession.value?.taskProfile.workflowTemplate
+  if (template === 'DIRECT_SOFTWARE_DESIGN') return ['需求讨论', '单包设计', '规范编译']
   if (template === 'READ_ONLY_REPORT') return ['需求讨论', '只读报告']
   if (template === 'DIRECT_ARTIFACT') return ['需求讨论', '制品规划', '总体确认', '创建任务']
   if (template === 'PACKAGED_ARTIFACT') return ['需求讨论', '章节规划', '总体确认', '创建任务']
@@ -189,6 +198,8 @@ const composerEnabled = computed(() => {
 const blockedWorkflowMessage = computed(() => designerSession.value?.state === 'WAITING_INPUT'
   ? [...messages.value].reverse().find((message) => ['TERMINAL_ERROR', 'DESIGN_INCOMPLETE', 'RETRYABLE_ERROR'].includes(message.deliveryState ?? ''))
   : designerSessionError.value)
+const largeTaskModeRequired = computed(() => directSoftwareMode.value
+  && blockedWorkflowMessage.value?.content.includes('LARGE_TASK_MODE_REQUIRED'))
 const designerTransportLabel = computed(() => {
   if (designerStreamState.value === 'connected') return '实时通道已连接'
   if (designerStreamState.value === 'reconnecting') return '实时通道重连中'
@@ -203,17 +214,33 @@ watch(() => designerSession.value?.taskProfile, (profile) => {
   if (!profile) return
   profileIntent.value = profile.intent
   profileArtifact.value = profile.artifactKinds[0] ?? 'OTHER'
+  profileLargeTask.value = profile.largeTaskMode
 }, { immediate: true })
+watch(profileIntent, intent => { if (intent !== 'SOFTWARE_CHANGE') profileLargeTask.value = false })
 
 async function updateTaskProfile() {
   const session = designerSession.value
   if (!session?.taskProfile.id) return
   busy.value = true
   try {
-    await api.updateDesignerTaskProfile(session.id, profileIntent.value, profileArtifact.value, session.taskProfile.version)
+    await api.updateDesignerTaskProfile(session.id, profileIntent.value, profileArtifact.value,
+      session.taskProfile.version, profileIntent.value === 'SOFTWARE_CHANGE' ? profileLargeTask.value : undefined)
     await refreshDesignerSession()
     ElMessage.success('任务画像和专属流程已更新')
   } catch (error) { ElMessage.error(userFacingError(error, '任务画像更新失败')) }
+  finally { busy.value = false }
+}
+
+async function enableLargeTaskMode() {
+  const session = designerSession.value
+  if (!session?.taskProfile.id || !largeTaskModeRequired.value) return
+  busy.value = true
+  try {
+    await api.enableDesignerLargeTaskMode(session.id, session.discussionRevision, session.taskProfile.version)
+    await refreshDesignerSession()
+    selectedWorkPackageId.value = ''
+    ElMessage.success('已启用大型任务模式，请复核整体需求后重新确认')
+  } catch (error) { ElMessage.error(userFacingError(error, '切换大型任务模式失败')) }
   finally { busy.value = false }
 }
 async function convertReportToDesign() {
@@ -1131,6 +1158,7 @@ async function redesignPackage(packageId: string) {
           <div v-if="designerSession.taskProfile.state === 'PROVISIONAL'" class="profile-override">
             <el-select v-model="profileIntent" aria-label="覆盖任务类型"><el-option v-for="item in designerSession.availableProfileOverrides" :key="item" :label="taskIntentLabel(item)" :value="item" /></el-select>
             <el-select v-model="profileArtifact" aria-label="覆盖主要制品"><el-option v-for="item in designerSession.availableArtifactOverrides" :key="item" :label="artifactKindLabel(item)" :value="item" /></el-select>
+            <label v-if="profileIntent === 'SOFTWARE_CHANGE'" class="large-task-switch"><span><strong>大型任务</strong><small>开启多工作包拆解；默认关闭</small></span><el-switch v-model="profileLargeTask" aria-label="大型任务模式" /></label>
             <el-button plain :loading="busy" @click="updateTaskProfile">应用覆盖</el-button>
           </div>
         </section>
@@ -1144,10 +1172,10 @@ async function redesignPackage(packageId: string) {
           <Icon :icon="autoModeBlocked ? 'lucide:octagon-alert' : designerSession?.autoMode.state === 'COMPLETED' ? 'lucide:circle-check-big' : 'lucide:bot'" />
           <div><strong>{{ autoModeBlocked ? '全自动模式已阻断' : designerSession?.autoMode.state === 'COMPLETED' ? '全自动设计已完成' : '全自动模式' }}</strong><p v-if="autoModeBlocked">{{ userFacingError(designerSession?.autoMode.errorDetail) }}</p></div>
         </section>
-        <section v-if="blockedWorkflowMessage" class="designer-session-alert" role="status" aria-live="polite"><Icon icon="lucide:refresh-cw" /><div><strong>{{ designerSession?.state === 'WAITING_INPUT' ? '设计工作流需要人工恢复' : '设计工作流已停止' }}</strong><p>{{ userFacingError(blockedWorkflowMessage.content) }}</p><div class="recovery-actions"><el-button v-if="designerSession?.decomposition && !designerSession.activeWorkPackageId" plain size="small" :loading="busy" @click="retryDecomposition"><Icon icon="lucide:split" />重新拆解</el-button><el-button v-if="designerSession?.activeWorkPackageId" plain size="small" :loading="busy" @click="retryPackageCompiler(designerSession.activeWorkPackageId)"><Icon icon="lucide:braces" />重新编译当前包</el-button><el-button v-if="designerSession?.activeWorkPackageId" plain size="small" :loading="busy" @click="redesignPackage(designerSession.activeWorkPackageId)"><Icon icon="lucide:sparkles" />恢复当前包设计</el-button><template v-if="!designerSession?.decomposition"><el-button plain size="small" :loading="busy" @click="retryCompiler"><Icon icon="lucide:braces" />重新编译当前设计</el-button><el-button plain size="small" :loading="busy" @click="requestRedesign"><Icon icon="lucide:sparkles" />让设计器重新设计</el-button></template><el-button plain size="small" @click="restartDesigner"><Icon icon="lucide:rotate-ccw" />清理工作区</el-button></div></div></section>
+        <section v-if="blockedWorkflowMessage" class="designer-session-alert" role="status" aria-live="polite"><Icon icon="lucide:refresh-cw" /><div><strong>{{ largeTaskModeRequired ? '普通任务无法安全容纳当前设计' : designerSession?.state === 'WAITING_INPUT' ? '设计工作流需要人工恢复' : '设计工作流已停止' }}</strong><p>{{ userFacingError(blockedWorkflowMessage.content) }}</p><div class="recovery-actions"><el-button v-if="largeTaskModeRequired" type="primary" size="small" :loading="busy" @click="enableLargeTaskMode"><Icon icon="lucide:split" />改用大型任务</el-button><template v-else><el-button v-if="designerSession?.decomposition && !designerSession.activeWorkPackageId" plain size="small" :loading="busy" @click="retryDecomposition"><Icon icon="lucide:split" />重新拆解</el-button><el-button v-if="designerSession?.activeWorkPackageId" plain size="small" :loading="busy" @click="retryPackageCompiler(designerSession.activeWorkPackageId)"><Icon icon="lucide:braces" />重新编译当前包</el-button><el-button v-if="designerSession?.activeWorkPackageId" plain size="small" :loading="busy" @click="redesignPackage(designerSession.activeWorkPackageId)"><Icon icon="lucide:sparkles" />恢复当前包设计</el-button><template v-if="!designerSession?.decomposition"><el-button plain size="small" :loading="busy" @click="retryCompiler"><Icon icon="lucide:braces" />重新编译当前设计</el-button><el-button plain size="small" :loading="busy" @click="requestRedesign"><Icon icon="lucide:sparkles" />让设计器重新设计</el-button></template></template><el-button plain size="small" @click="restartDesigner"><Icon icon="lucide:rotate-ccw" />清理工作区</el-button></div></div></section>
         <section v-else-if="designerLiveError" class="designer-session-alert live-error" role="alert" aria-live="assertive"><Icon icon="lucide:triangle-alert" /><div><strong>OpenCode 实时错误</strong><p>{{ userFacingError(designerLiveError) }}</p></div></section>
         <div class="designer-conversation">
-          <section v-if="designerSession?.workPackages?.length" class="work-package-rail" aria-label="工作包设计轨道">
+          <section v-if="designerSession?.workPackages?.length && !directSoftwareMode" class="work-package-rail" aria-label="工作包设计轨道">
             <article v-for="item in designerSession.workPackages ?? []" :key="item.id" :class="['work-package-chip', `package-${item.state.toLowerCase()}`, { active: item.id === designerSession.activeWorkPackageId, selected: item.id === selectedWorkPackageId }]" role="button" tabindex="0" @click="selectedWorkPackageId = item.id" @keydown.enter="selectedWorkPackageId = item.id">
               <header><b>{{ workPackageLabel(item.id) }}</b><span>{{ statusLabel(item.state) }}</span></header>
               <strong>{{ item.title }}</strong>
@@ -1239,7 +1267,7 @@ async function redesignPackage(packageId: string) {
               @keydown.ctrl.enter.prevent="sendMessage"
             />
             <div class="compose-actions"><span class="tiny muted">⌘ / Ctrl + Enter</span><el-button type="primary" :loading="busy" :disabled="!composerEnabled || !userMessage.trim()" @click="sendMessage"><Icon icon="lucide:send" />发送</el-button></div>
-            <div v-if="designerSession?.workflowPhase === 'DISCUSSING_REQUIREMENT' && designerSession.state === 'REVIEWING'" class="scope-primary-action"><el-button type="primary" :loading="busy" :disabled="autoModeActive || designerSession.taskProfile.decisionRequired" @click="confirmRequirement"><Icon :icon="designerSession.taskProfile.workflowTemplate === 'READ_ONLY_REPORT' ? 'lucide:file-search' : ['DIRECT_ARTIFACT', 'PACKAGED_ARTIFACT'].includes(designerSession.taskProfile.workflowTemplate) ? 'lucide:file-output' : designerSession.taskProfile.workflowTemplate === 'LOCAL_MAINTENANCE' ? 'lucide:wrench' : 'lucide:split'" />{{ autoModeActive ? '全自动模式将确认需求' : designerSession.taskProfile.workflowTemplate === 'READ_ONLY_REPORT' ? '需求已明确，生成只读报告' : designerSession.taskProfile.workflowTemplate === 'DIRECT_ARTIFACT' ? '需求已明确，规划制品' : designerSession.taskProfile.workflowTemplate === 'PACKAGED_ARTIFACT' ? '需求已明确，规划章节制品' : designerSession.taskProfile.workflowTemplate === 'LOCAL_MAINTENANCE' ? '需求已明确，规划安全维护' : '需求已明确，开始拆包' }}</el-button></div>
+            <div v-if="designerSession?.workflowPhase === 'DISCUSSING_REQUIREMENT' && designerSession.state === 'REVIEWING'" class="scope-primary-action"><el-button type="primary" :loading="busy" :disabled="autoModeActive || designerSession.taskProfile.decisionRequired" @click="confirmRequirement"><Icon :icon="designerSession.taskProfile.workflowTemplate === 'READ_ONLY_REPORT' ? 'lucide:file-search' : ['DIRECT_ARTIFACT', 'PACKAGED_ARTIFACT'].includes(designerSession.taskProfile.workflowTemplate) ? 'lucide:file-output' : designerSession.taskProfile.workflowTemplate === 'LOCAL_MAINTENANCE' ? 'lucide:wrench' : designerSession.taskProfile.workflowTemplate === 'DIRECT_SOFTWARE_DESIGN' ? 'lucide:sparkles' : 'lucide:split'" />{{ autoModeActive ? '全自动模式将确认需求' : designerSession.taskProfile.workflowTemplate === 'READ_ONLY_REPORT' ? '需求已明确，生成只读报告' : designerSession.taskProfile.workflowTemplate === 'DIRECT_ARTIFACT' ? '需求已明确，规划制品' : designerSession.taskProfile.workflowTemplate === 'PACKAGED_ARTIFACT' ? '需求已明确，规划章节制品' : designerSession.taskProfile.workflowTemplate === 'LOCAL_MAINTENANCE' ? '需求已明确，规划安全维护' : designerSession.taskProfile.workflowTemplate === 'DIRECT_SOFTWARE_DESIGN' ? '需求已明确，开始单包设计' : '需求已明确，开始拆包' }}</el-button></div>
             <div v-else-if="designerSession?.workflowPhase === 'REVIEWING_PACKAGE' && currentPackage?.state === 'REVIEWING'" class="scope-primary-action"><el-button type="primary" :loading="busy" :disabled="autoModeActive" @click="approvePackage"><Icon icon="lucide:check-check" />{{ autoModeActive ? `全自动模式将接受${workPackageLabel(currentPackage.id)}` : `接受${workPackageLabel(currentPackage.id)}并继续` }}</el-button></div>
           </div>
         </div>
@@ -1272,6 +1300,7 @@ async function redesignPackage(packageId: string) {
         <LayeredErrorPanel v-if="fieldError" :error="fieldError" style="margin-top: 12px" />
         <div v-if="isFinalReview && draft.status !== 'CONFIRMED'" class="final-review-action">
           <div><strong>设计已进入总体确认</strong></div>
+          <el-button v-if="directSoftwareMode && designerSession?.workPackages?.[0]?.approvedDesignRevision" plain :loading="busy" @click="reopenPackage('WP-1')"><Icon icon="lucide:message-circle" />重新讨论设计</el-button>
           <el-button type="primary" size="large" :loading="busy" :disabled="!confirmationReady || autoModeActive" @click="confirm"><Icon icon="lucide:circle-check-big" />{{ autoModeActive ? '等待全自动确认并启动' : '确认设计并创建任务' }}</el-button>
         </div>
         <div class="spec-footer"><time class="mono tiny" :datetime="draft.updatedAt">{{ formatDateTime(draft.updatedAt) }}</time></div>
@@ -1491,7 +1520,7 @@ async function redesignPackage(packageId: string) {
 .designer-auto-switch { display: flex; align-items: center; gap: 8px; padding-right: 8px; border-right: 1px solid var(--color-border-default); }.designer-auto-switch > span { display: grid; text-align: right; }.designer-auto-switch strong { color: var(--color-text-primary); font-size: 9px; }.designer-auto-switch small { color: var(--color-text-muted); font: 7px/1.2 var(--font-code); }
 .task-profile-card { display: grid; gap: 8px; margin: 0 20px 10px; padding: 12px; border: 1px solid rgb(34 211 238 / 24%); border-radius: 10px; background: rgb(34 211 238 / 5%); }
 .task-profile-card header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }.task-profile-card header > div { display: grid; gap: 3px; }.task-profile-card strong { color: var(--color-text-primary); font-size: 11px; }.task-profile-card header span, .task-profile-card p { margin: 0; color: var(--color-text-secondary); font: 8px/1.5 var(--font-code); }.task-profile-card b { color: var(--color-success); font: 8px/1 var(--font-code); }.task-profile-card b.warning { color: var(--color-session-warning); }
-.profile-evidence { display: flex; flex-wrap: wrap; gap: 5px; }.profile-evidence span { padding: 3px 6px; border: 1px solid var(--color-border-default); border-radius: 999px; color: var(--color-text-muted); font: 7px/1 var(--font-code); }.profile-override { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; }.report-card { border-color: rgb(34 197 94 / 28%); background: rgb(34 197 94 / 5%); }
+.profile-evidence { display: flex; flex-wrap: wrap; gap: 5px; }.profile-evidence span { padding: 3px 6px; border: 1px solid var(--color-border-default); border-radius: 999px; color: var(--color-text-muted); font: 7px/1 var(--font-code); }.profile-override { display: grid; grid-template-columns: 1fr 1fr minmax(180px, auto) auto; gap: 8px; }.large-task-switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; padding: 6px 10px; border: 1px solid var(--color-border-default); border-radius: 6px; }.large-task-switch span { display: grid; gap: 2px; min-width: 0; }.large-task-switch strong { font-size: 10px; }.large-task-switch small { color: var(--color-text-muted); font: 7px/1.2 var(--font-code); }.report-card { border-color: rgb(34 197 94 / 28%); background: rgb(34 197 94 / 5%); }
 
 @media (max-width: 1180px) {
   .designer-start-layout { grid-template-columns: 1fr; }

@@ -208,7 +208,16 @@ public class DesignerSessionController {
     public TaskProfileService.View updateTaskProfile(@PathVariable String id,
                                                       @Valid @RequestBody UpdateTaskProfileRequest request) {
         TaskProfileService.View profile = profiles.override(
-                id, request.intent(), request.primaryArtifactKind(), request.expectedVersion());
+                id, request.intent(), request.primaryArtifactKind(), request.largeTaskMode(), request.expectedVersion());
+        autoMode.resumeProfileDecisionBlock(id);
+        return profile;
+    }
+
+    @PostMapping("/{id}/large-task-mode/enable")
+    public TaskProfileService.View enableLargeTaskMode(@PathVariable String id,
+                                                        @Valid @RequestBody EnableLargeTaskModeRequest request) {
+        TaskProfileService.View profile = service.enableLargeTaskMode(
+                id, request.expectedDiscussionRevision(), request.expectedProfileVersion());
         autoMode.resumeProfileDecisionBlock(id);
         return profile;
     }
@@ -361,7 +370,8 @@ public class DesignerSessionController {
                                                int expectedDiscussionRevision) { }
     public record DiscussionRevisionRequest(int expectedDiscussionRevision) { }
     public record UpdateTaskProfileRequest(TaskIntent intent, ArtifactKind primaryArtifactKind,
-                                           long expectedVersion) { }
+                                           Boolean largeTaskMode, long expectedVersion) { }
+    public record EnableLargeTaskModeRequest(int expectedDiscussionRevision, long expectedProfileVersion) { }
     public record PackageMessageRequest(@NotBlank @Size(max = 12_000) String content,
                                         int expectedDiscussionRevision, int expectedDesignRevision) { }
     public record PackageRevisionRequest(int expectedDiscussionRevision, int expectedDesignRevision) { }

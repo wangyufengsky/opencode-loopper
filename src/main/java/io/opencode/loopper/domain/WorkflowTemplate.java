@@ -1,7 +1,7 @@
 package io.opencode.loopper.domain;
 
 public enum WorkflowTemplate implements DescribedEnum {
-    FULL_PACKAGE_DESIGN("完整分包设计"), DIRECT_ARTIFACT("直接制品"),
+    DIRECT_SOFTWARE_DESIGN("默认单包设计"), FULL_PACKAGE_DESIGN("完整分包设计"), DIRECT_ARTIFACT("直接制品"),
     PACKAGED_ARTIFACT("分包制品"), READ_ONLY_REPORT("只读报告"),
     LOCAL_MAINTENANCE("本地维护");
 

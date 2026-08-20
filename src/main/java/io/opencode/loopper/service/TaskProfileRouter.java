@@ -45,8 +45,9 @@ public final class TaskProfileRouter {
         semantic.technologies().forEach(value -> { if (!technologies.contains(value)) technologies.add(value); });
         List<ArtifactKind> artifacts = semantic.artifactKinds().isEmpty()
                 ? deterministic.artifactKinds() : semantic.artifactKinds();
-        WorkflowTemplate workflow = workflow(intent, "PACKAGED".equals(semantic.complexity())
-                || deterministic.workflowTemplate() == WorkflowTemplate.PACKAGED_ARTIFACT);
+        boolean packaged = "PACKAGED".equals(semantic.complexity())
+                || deterministic.workflowTemplate() == WorkflowTemplate.PACKAGED_ARTIFACT;
+        WorkflowTemplate workflow = workflow(intent, packaged);
         MutationMode mutation = mutation(intent);
         int confidence = Math.min(100, (semantic.confidence() + deterministic.confidence()) / 2
                 + (semantic.intent() == deterministic.intent() ? 10 : 0));
@@ -59,6 +60,7 @@ public final class TaskProfileRouter {
                 .forEach(evidence::add);
         evidence.add("ai-router-intent=" + semantic.intent().name());
         evidence.add("ai-router-complexity=" + semantic.complexity());
+        if (intent == TaskIntent.SOFTWARE_CHANGE && packaged) evidence.add("large-task-recommended");
         semantic.signals().forEach(value -> evidence.add("ai-router-signal=" + value));
         if (conflict) evidence.add("router-evidence-conflict=" + deterministic.intent().name());
         if (artifactConflict) evidence.add("router-artifact-conflict=" + semantic.intent().name());
@@ -101,7 +103,7 @@ public final class TaskProfileRouter {
             intent = TaskIntent.LOCAL_MAINTENANCE; workflow = WorkflowTemplate.LOCAL_MAINTENANCE;
             mutation = MutationMode.SAFE_LOCAL_MAINTENANCE; artifacts.add(ArtifactKind.CONFIGURATION); confidence = 82;
         } else {
-            intent = TaskIntent.SOFTWARE_CHANGE; workflow = WorkflowTemplate.FULL_PACKAGE_DESIGN;
+            intent = TaskIntent.SOFTWARE_CHANGE; workflow = WorkflowTemplate.DIRECT_SOFTWARE_DESIGN;
             mutation = MutationMode.WRITE_CODE; artifacts.add(text.contains("python") || text.contains("py脚本")
                     ? ArtifactKind.PYTHON_SCRIPT : ArtifactKind.SOURCE_CODE);
             if ((text.contains("python") || text.contains("py脚本")) && !technologies.contains("python")) technologies.add("python");
@@ -126,7 +128,7 @@ public final class TaskProfileRouter {
     private Decision genericFallback(RepositoryFacts facts, String reason) {
         List<String> evidence = new ArrayList<>(facts.evidence());
         evidence.add("router-fallback=" + reason);
-        return new Decision(TaskIntent.SOFTWARE_CHANGE, WorkflowTemplate.FULL_PACKAGE_DESIGN,
+        return new Decision(TaskIntent.SOFTWARE_CHANGE, WorkflowTemplate.DIRECT_SOFTWARE_DESIGN,
                 MutationMode.WRITE_CODE, List.of(ArtifactKind.SOURCE_CODE), facts.technologies(),
                 0, true, List.copyOf(evidence));
     }
@@ -137,7 +139,7 @@ public final class TaskProfileRouter {
             case DATA_CONVERSION -> WorkflowTemplate.DIRECT_ARTIFACT;
             case READ_ONLY_REVIEW, RESEARCH -> WorkflowTemplate.READ_ONLY_REPORT;
             case CONFIGURATION, LOCAL_MAINTENANCE -> packaged ? WorkflowTemplate.FULL_PACKAGE_DESIGN : WorkflowTemplate.LOCAL_MAINTENANCE;
-            default -> WorkflowTemplate.FULL_PACKAGE_DESIGN;
+            default -> WorkflowTemplate.DIRECT_SOFTWARE_DESIGN;
         };
     }
 
