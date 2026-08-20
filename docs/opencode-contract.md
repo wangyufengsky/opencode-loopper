@@ -321,6 +321,14 @@ All OpenCode adapter requests and runtime health probes use the configured
 connect and request timeouts. This bounds a stalled local server rather than
 letting scheduler monitors wait indefinitely.
 
+The HTTP adapter is deliberately a protocol facade. `OpenCodePermissionPolicy`
+owns fail-closed role profiles; `OpenCodeResponseParser` owns common response and
+error decoding; `OpenCodeTodoParser` owns bounded Todo normalization; and
+`OpenCodeMachineResponseInspector` owns structured-output/tool-loop inspection.
+The facade retains request ordering, timeout, and transport ownership. A parser
+or policy must remain deterministic and must never persist lifecycle state,
+create a retry, or make a second HTTP request.
+
 A mutating implementation Session belongs to exactly one Attempt. After a
 verification failure, Loopper persists a bounded `ATTEMPT_HANDOFF` and supplies
 it to a newly created Session; it never continues the previous transcript.

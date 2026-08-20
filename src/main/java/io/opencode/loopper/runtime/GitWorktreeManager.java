@@ -2,17 +2,9 @@ package io.opencode.loopper.runtime;
 
 import io.opencode.loopper.config.LoopperProperties;
 import io.opencode.loopper.domain.TaskFailure;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.MessageDigest;
-import java.text.Normalizer;
 import java.time.Duration;
-import java.time.Instant;
-import java.util.ArrayList;
-import java.util.HexFormat;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Component;
@@ -23,20 +15,23 @@ import org.springframework.transaction.annotation.Transactional;
 public class GitWorktreeManager {
     public static final String DIRECT_BRANCH = "DIRECT";
     private static final Duration GIT_TIMEOUT = Duration.ofSeconds(30);
-    private static final Duration GIT_MUTATION_TIMEOUT = Duration.ofMinutes(2);
     static final Duration WORKTREE_CREATE_TIMEOUT = Duration.ofMinutes(10);
     private static final String BRANCH_NAMESPACE = "loopper/";
-    private static final int MAX_BRANCH_LEAF_BYTES = 180;
     private static final int MAX_BRANCH_OCCURRENCES = 10_000;
     private final SafeProcessRunner runner;
     private final LoopperProperties properties;
     private final DirectWorkspaceBaselineManager directBaselines;
+    private final GitBranchNamePolicy branchNames = new GitBranchNamePolicy();
+    private final GitDirtyWorkspaceManager dirtyWorkspaces;
+    private final GitWorkspaceCheckpointManager checkpoints;
 
     public GitWorktreeManager(SafeProcessRunner runner, LoopperProperties properties,
                               DirectWorkspaceBaselineManager directBaselines) {
         this.runner = runner;
         this.properties = properties;
         this.directBaselines = directBaselines;
+        this.dirtyWorkspaces = new GitDirtyWorkspaceManager(runner);
+        this.checkpoints = new GitWorkspaceCheckpointManager(runner, properties, dirtyWorkspaces);
     }
 
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
@@ -293,117 +288,7 @@ public class GitWorktreeManager {
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public synchronized WorkspaceCheckpoint freezeWorkspace(Path projectRoot, String taskId, String cycleId,
                                                              String expectedBranch) {
-        Path index = null;
-        try {
-            Path root = requireRepositoryRoot(projectRoot);
-            DirtyWorkspace before = inspectDirtyWorkspace(root);
-            if (!expectedBranch.equals(before.branch())) {
-                throw new TaskFailure("RECOVERY_CHECKPOINT_BRANCH_MISMATCH",
-                        "Registered checkout is not on the expected Task branch");
-            }
-            String checkpointRef = "refs/loopper/checkpoints/" + taskId + "/" + cycleId;
-            WorkspaceCheckpoint recovered = recoverCleanCheckpoint(root, before, checkpointRef, taskId, cycleId);
-            if (recovered != null) return recovered;
-            Path indexes = properties.getDataDir().toAbsolutePath().normalize().resolve("recovery-indexes");
-            Files.createDirectories(indexes);
-            index = Files.createTempFile(indexes, "checkpoint-", ".index");
-            Files.deleteIfExists(index);
-            Map<String, String> environment = new LinkedHashMap<>();
-            environment.put("GIT_INDEX_FILE", index.toString());
-            environment.put("GIT_AUTHOR_NAME", "OpenCode Loopper");
-            environment.put("GIT_AUTHOR_EMAIL", "loopper@localhost.invalid");
-            environment.put("GIT_COMMITTER_NAME", "OpenCode Loopper");
-            environment.put("GIT_COMMITTER_EMAIL", "loopper@localhost.invalid");
-            requireSuccess(runner.run(root, List.of("git", "read-tree", "HEAD"), GIT_TIMEOUT, environment),
-                    "RECOVERY_CHECKPOINT_CREATE_FAILED", "Unable to initialize the checkpoint index");
-            requireSuccess(runner.run(root, List.of("git", "add", "-A", "--", "."), GIT_MUTATION_TIMEOUT, environment),
-                    "RECOVERY_CHECKPOINT_CREATE_FAILED", "Unable to index the Task workspace");
-            String tree = requiredOutput(root, List.of("git", "write-tree"), environment,
-                    "RECOVERY_CHECKPOINT_CREATE_FAILED", "Unable to write the checkpoint tree");
-            String head = requiredOutput(root, List.of("git", "rev-parse", "HEAD"),
-                    "RECOVERY_CHECKPOINT_CREATE_FAILED", "Unable to resolve the Task branch HEAD");
-            String commit = requiredOutput(root,
-                    List.of("git", "commit-tree", tree, "-p", head, "-m", "Loopper private recovery checkpoint"),
-                    environment, "RECOVERY_CHECKPOINT_CREATE_FAILED", "Unable to create the checkpoint commit");
-            runRequired(root, List.of("git", "update-ref", checkpointRef, commit),
-                    "RECOVERY_CHECKPOINT_CREATE_FAILED", "Unable to persist the private checkpoint ref");
-
-            String stashCommit = null;
-            if (!before.clean()) {
-                runRequired(root, List.of("git", "stash", "push", "--include-untracked", "--message",
-                                "loopper-recovery:" + taskId + ":" + cycleId),
-                        "RECOVERY_CHECKPOINT_CLEAN_FAILED", "Unable to clean the Task workspace after checkpointing");
-                stashCommit = requiredOutput(root, List.of("git", "rev-parse", "refs/stash"),
-                        "RECOVERY_CHECKPOINT_CLEAN_FAILED", "Unable to record the recovery stash");
-            }
-            DirtyWorkspace after = inspectDirtyWorkspace(root);
-            if (!after.clean()) {
-                throw new TaskFailure("RECOVERY_CHECKPOINT_CLEAN_UNCONFIRMED",
-                        "The Task workspace is still dirty after checkpointing");
-            }
-            return new WorkspaceCheckpoint(before, checkpointRef, commit, tree, stashCommit);
-        } catch (TaskFailure failure) {
-            throw failure;
-        } catch (Exception failure) {
-            throw new TaskFailure("RECOVERY_CHECKPOINT_CREATE_FAILED",
-                    "Unable to freeze the Task workspace: " + failure.getMessage());
-        } finally {
-            if (index != null) {
-                try { Files.deleteIfExists(index); } catch (Exception ignored) { }
-                try { Files.deleteIfExists(index.resolveSibling(index.getFileName() + ".lock")); } catch (Exception ignored) { }
-            }
-        }
-    }
-
-    /** Completes the database side of a freeze that crashed after its ref and stash were durable. */
-    private WorkspaceCheckpoint recoverCleanCheckpoint(Path root, DirtyWorkspace current, String checkpointRef,
-                                                        String taskId, String cycleId) {
-        if (!current.clean()) return null;
-        String commit = optionalOutput(root, List.of("git", "rev-parse", "--verify", checkpointRef + "^{commit}"));
-        if (commit == null) return null;
-        String tree = requiredOutput(root, List.of("git", "rev-parse", checkpointRef + "^{tree}"),
-                "RECOVERY_CHECKPOINT_MISSING", "Recovery checkpoint tree is unavailable");
-        String parent = requiredOutput(root, List.of("git", "rev-parse", commit + "^"),
-                "RECOVERY_CHECKPOINT_INTEGRITY_MISMATCH", "Recovery checkpoint parent is unavailable");
-        if (!current.head().equals(parent)) {
-            throw new TaskFailure("RECOVERY_CHECKPOINT_INTEGRITY_MISMATCH",
-                    "Existing recovery checkpoint was created from a different Task branch HEAD");
-        }
-        List<DirtyFile> files = checkpointFiles(root, parent, commit);
-        DirtyWorkspace frozen = new DirtyWorkspace(current.branch(), current.head(),
-                sha256(checkpointRef + '\0' + commit + '\0' + tree), files);
-        String stash = recoveryStash(root, taskId, cycleId);
-        return new WorkspaceCheckpoint(frozen, checkpointRef, commit, tree, stash);
-    }
-
-    private List<DirtyFile> checkpointFiles(Path root, String baseline, String checkpointCommit) {
-        ProcessResult result = runner.run(root,
-                List.of("git", "diff", "--name-status", "-z", "--find-renames", baseline, checkpointCommit, "--"),
-                GIT_TIMEOUT);
-        requireSuccess(result, "RECOVERY_CHECKPOINT_INTEGRITY_MISMATCH",
-                "Unable to reconstruct the recovery checkpoint manifest");
-        String[] tokens = result.output().split(String.valueOf('\0'), -1);
-        List<DirtyFile> files = new ArrayList<>();
-        for (int index = 0; index < tokens.length && !tokens[index].isEmpty();) {
-            String status = tokens[index++];
-            char kind = status.charAt(0);
-            if ((kind == 'R' || kind == 'C') && index + 1 < tokens.length) {
-                String original = tokens[index++];
-                String path = tokens[index++];
-                files.add(new DirtyFile(path, original, String.valueOf(kind), " ", false));
-            } else if (index < tokens.length) {
-                files.add(new DirtyFile(tokens[index++], null, String.valueOf(kind), " ", false));
-            }
-        }
-        return List.copyOf(files);
-    }
-
-    private String recoveryStash(Path root, String taskId, String cycleId) {
-        String output = optionalOutput(root, List.of("git", "stash", "list", "--format=%H%x09%gs"));
-        if (output == null) return null;
-        String marker = "loopper-recovery:" + taskId + ":" + cycleId;
-        return output.lines().map(String::strip).filter(line -> line.endsWith(marker))
-                .map(line -> line.split("\\t", 2)[0]).findFirst().orElse(null);
+        return checkpoints.freeze(projectRoot, taskId, cycleId, expectedBranch);
     }
 
     /** Restores a verified private checkpoint as uncommitted changes on the unchanged Task branch. */
@@ -412,69 +297,8 @@ public class GitWorktreeManager {
                                                                   String sourceBranch, String baselineCommit,
                                                                   String checkpointRef, String checkpointCommit,
                                                                   String checkpointTree) {
-        Path index = null;
-        try {
-            Path root = requireRepositoryRoot(projectRoot);
-            DirtyWorkspace source = inspectDirtyWorkspace(root);
-            if (!source.clean()) {
-                throw new TaskFailure("RECOVERY_RESTORE_WORKSPACE_DIRTY",
-                        "Registered checkout changed while the Task was waiting for a decision");
-            }
-            String current = source.branch();
-            if (!taskBranch.equals(current)) {
-                if (sourceBranch != null && !sourceBranch.isBlank() && !sourceBranch.equals(current)) {
-                    throw new TaskFailure("RECOVERY_RESTORE_SOURCE_BRANCH_MISMATCH",
-                            "Registered checkout is no longer on the recorded source branch");
-                }
-                String taskHead = requiredOutput(root, List.of("git", "rev-parse", "refs/heads/" + taskBranch),
-                        "RECOVERY_RESTORE_TASK_BRANCH_MISSING", "Task branch is unavailable");
-                if (!baselineCommit.equals(taskHead)) {
-                    throw new TaskFailure("RECOVERY_RESTORE_TASK_BRANCH_MOVED",
-                            "Task branch moved after the workspace checkpoint was frozen");
-                }
-                runRequired(root, List.of("git", "-c", "core.longpaths=true", "switch", taskBranch),
-                        "RECOVERY_RESTORE_SWITCH_FAILED", "Unable to switch back to the Task branch");
-            }
-            String actualCommit = requiredOutput(root, List.of("git", "rev-parse", checkpointRef + "^{commit}"),
-                    "RECOVERY_CHECKPOINT_MISSING", "Recovery checkpoint ref is unavailable");
-            String actualTree = requiredOutput(root, List.of("git", "rev-parse", checkpointRef + "^{tree}"),
-                    "RECOVERY_CHECKPOINT_MISSING", "Recovery checkpoint tree is unavailable");
-            if (!checkpointCommit.equals(actualCommit) || !checkpointTree.equals(actualTree)) {
-                throw new TaskFailure("RECOVERY_CHECKPOINT_INTEGRITY_MISMATCH",
-                        "Recovery checkpoint ref no longer matches its persisted commit and tree");
-            }
-            runRequired(root, List.of("git", "read-tree", "--reset", "-u", checkpointTree),
-                    "RECOVERY_CHECKPOINT_RESTORE_FAILED", "Unable to materialize the recovery checkpoint");
-            runRequired(root, List.of("git", "reset", "--mixed", "HEAD"),
-                    "RECOVERY_CHECKPOINT_RESTORE_FAILED", "Unable to restore checkpoint changes as uncommitted files");
-
-            Path indexes = properties.getDataDir().toAbsolutePath().normalize().resolve("recovery-indexes");
-            Files.createDirectories(indexes);
-            index = Files.createTempFile(indexes, "verify-", ".index");
-            Files.deleteIfExists(index);
-            Map<String, String> environment = Map.of("GIT_INDEX_FILE", index.toString());
-            requireSuccess(runner.run(root, List.of("git", "read-tree", "HEAD"), GIT_TIMEOUT, environment),
-                    "RECOVERY_CHECKPOINT_RESTORE_FAILED", "Unable to initialize checkpoint verification");
-            requireSuccess(runner.run(root, List.of("git", "add", "-A", "--", "."), GIT_MUTATION_TIMEOUT, environment),
-                    "RECOVERY_CHECKPOINT_RESTORE_FAILED", "Unable to verify restored checkpoint files");
-            String restoredTree = requiredOutput(root, List.of("git", "write-tree"), environment,
-                    "RECOVERY_CHECKPOINT_RESTORE_FAILED", "Unable to verify restored checkpoint tree");
-            if (!checkpointTree.equals(restoredTree)) {
-                throw new TaskFailure("RECOVERY_CHECKPOINT_RESTORE_MISMATCH",
-                        "Restored workspace does not match the immutable checkpoint tree");
-            }
-            return inspectDirtyWorkspace(root);
-        } catch (TaskFailure failure) {
-            throw failure;
-        } catch (Exception failure) {
-            throw new TaskFailure("RECOVERY_CHECKPOINT_RESTORE_FAILED",
-                    "Unable to restore the Task checkpoint: " + failure.getMessage());
-        } finally {
-            if (index != null) {
-                try { Files.deleteIfExists(index); } catch (Exception ignored) { }
-                try { Files.deleteIfExists(index.resolveSibling(index.getFileName() + ".lock")); } catch (Exception ignored) { }
-            }
-        }
+        return checkpoints.restore(projectRoot, taskBranch, sourceBranch, baselineCommit,
+                checkpointRef, checkpointCommit, checkpointTree);
     }
 
     /**
@@ -485,101 +309,20 @@ public class GitWorktreeManager {
     public synchronized boolean workspaceMatchesCheckpointTree(Path projectRoot, String expectedBranch,
                                                                String checkpointRef, String checkpointCommit,
                                                                String checkpointTree) {
-        Path index = null;
-        try {
-            Path root = requireRepositoryRoot(projectRoot);
-            DirtyWorkspace current = inspectDirtyWorkspace(root);
-            if (!expectedBranch.equals(current.branch())) return false;
-            String actualCommit = requiredOutput(root, List.of("git", "rev-parse", checkpointRef + "^{commit}"),
-                    "RECOVERY_CHECKPOINT_MISSING", "Recovery checkpoint ref is unavailable");
-            String actualTree = requiredOutput(root, List.of("git", "rev-parse", checkpointRef + "^{tree}"),
-                    "RECOVERY_CHECKPOINT_MISSING", "Recovery checkpoint tree is unavailable");
-            if (!checkpointCommit.equals(actualCommit) || !checkpointTree.equals(actualTree)) {
-                throw new TaskFailure("RECOVERY_CHECKPOINT_INTEGRITY_MISMATCH",
-                        "Recovery checkpoint ref no longer matches its persisted commit and tree");
-            }
-            Path indexes = properties.getDataDir().toAbsolutePath().normalize().resolve("recovery-indexes");
-            Files.createDirectories(indexes);
-            index = Files.createTempFile(indexes, "match-", ".index");
-            Files.deleteIfExists(index);
-            Map<String, String> environment = Map.of("GIT_INDEX_FILE", index.toString());
-            requireSuccess(runner.run(root, List.of("git", "read-tree", "HEAD"), GIT_TIMEOUT, environment),
-                    "RECOVERY_CHECKPOINT_RESTORE_FAILED", "Unable to initialize checkpoint recovery verification");
-            requireSuccess(runner.run(root, List.of("git", "add", "-A", "--", "."), GIT_MUTATION_TIMEOUT, environment),
-                    "RECOVERY_CHECKPOINT_RESTORE_FAILED", "Unable to verify checkpoint recovery files");
-            String workspaceTree = requiredOutput(root, List.of("git", "write-tree"), environment,
-                    "RECOVERY_CHECKPOINT_RESTORE_FAILED", "Unable to verify checkpoint recovery tree");
-            return checkpointTree.equals(workspaceTree);
-        } catch (TaskFailure failure) {
-            throw failure;
-        } catch (Exception failure) {
-            throw new TaskFailure("RECOVERY_CHECKPOINT_RESTORE_FAILED",
-                    "Unable to verify the restored Task checkpoint: " + failure.getMessage());
-        } finally {
-            if (index != null) {
-                try { Files.deleteIfExists(index); } catch (Exception ignored) { }
-                try { Files.deleteIfExists(index.resolveSibling(index.getFileName() + ".lock")); } catch (Exception ignored) { }
-            }
-        }
+        return checkpoints.matches(projectRoot, expectedBranch, checkpointRef, checkpointCommit, checkpointTree);
     }
 
     /** Applies an already verified parent checkpoint tree to a newly created child Task branch. */
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public synchronized DirtyWorkspace materializeCheckpointTree(Path projectRoot, String expectedBranch,
                                                                  String checkpointTree) {
-        try {
-            Path root = requireRepositoryRoot(projectRoot);
-            DirtyWorkspace before = inspectDirtyWorkspace(root);
-            if (!before.clean() || !expectedBranch.equals(before.branch())) {
-                throw new TaskFailure("RECOVERY_SEED_WORKSPACE_MISMATCH",
-                        "Derived Task branch is not clean or is not currently checked out");
-            }
-            requireSuccess(runner.run(root, List.of("git", "cat-file", "-e", checkpointTree + "^{tree}"), GIT_TIMEOUT),
-                    "RECOVERY_CHECKPOINT_MISSING", "Inherited checkpoint tree is unavailable");
-            runRequired(root, List.of("git", "read-tree", "--reset", "-u", checkpointTree),
-                    "RECOVERY_SEED_APPLY_FAILED", "Unable to materialize inherited Task changes");
-            runRequired(root, List.of("git", "reset", "--mixed", "HEAD"),
-                    "RECOVERY_SEED_APPLY_FAILED", "Unable to expose inherited changes as uncommitted files");
-            return inspectDirtyWorkspace(root);
-        } catch (TaskFailure failure) {
-            throw failure;
-        } catch (Exception failure) {
-            throw new TaskFailure("RECOVERY_SEED_APPLY_FAILED",
-                    "Unable to materialize inherited Task changes: " + failure.getMessage());
-        }
+        return checkpoints.materialize(projectRoot, expectedBranch, checkpointTree);
     }
 
     /** Returns a path-safe, NUL-delimited snapshot of every tracked or untracked source-checkout change. */
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public DirtyWorkspace inspectDirtyWorkspace(Path projectRoot) {
-        try {
-            Path root = requireRepositoryRoot(projectRoot);
-            String branch = requiredOutput(root, List.of("git", "symbolic-ref", "--quiet", "--short", "HEAD"),
-                    "SOURCE_BRANCH_UNAVAILABLE", "The registered checkout must use a named branch");
-            String head = requiredOutput(root, List.of("git", "rev-parse", "HEAD"),
-                    "SOURCE_BRANCH_REPOSITORY_REQUIRED", "The registered checkout must have a valid HEAD");
-            ProcessResult result = runner.run(root,
-                    List.of("git", "status", "--porcelain=v1", "-z", "--untracked-files=all"), GIT_TIMEOUT);
-            requireSuccess(result, "SOURCE_BRANCH_STATUS_FAILED",
-                    "Unable to list uncommitted files in the registered source checkout");
-            List<DirtyFile> files = parseDirtyFiles(result.output());
-            StringBuilder fingerprint = new StringBuilder(branch).append('\0').append(head).append('\0');
-            for (DirtyFile file : files) {
-                fingerprint.append(file.indexStatus()).append(file.workTreeStatus()).append('\0')
-                        .append(file.path()).append('\0').append(file.originalPath() == null ? "" : file.originalPath()).append('\0');
-                for (String path : mutationPaths(file)) {
-                    fingerprint.append(path).append('\0')
-                            .append(fileFingerprint(root, path)).append('\0')
-                            .append(indexFingerprint(root, path)).append('\0');
-                }
-            }
-            return new DirtyWorkspace(branch, head, sha256(fingerprint.toString()), files);
-        } catch (TaskFailure failure) {
-            throw failure;
-        } catch (Exception failure) {
-            throw new TaskFailure("SOURCE_BRANCH_STATUS_FAILED",
-                    "Unable to inspect the registered source checkout: " + failure.getMessage());
-        }
+        return dirtyWorkspaces.inspect(projectRoot);
     }
 
     /** Applies the user's complete per-file decision against an unchanged Git snapshot. */
@@ -587,212 +330,7 @@ public class GitWorktreeManager {
     public synchronized DirtyWorkspace resolveDirtyWorkspace(Path projectRoot, String expectedSnapshot,
                                                               List<DirtyFileResolution> resolutions,
                                                               String commitMessage) {
-        Path root = requireRepositoryRoot(projectRoot);
-        DirtyWorkspace before = inspectDirtyWorkspace(root);
-        if (expectedSnapshot == null || !expectedSnapshot.equals(before.snapshotId())) {
-            throw new TaskFailure("SOURCE_BRANCH_WORKSPACE_CHANGED",
-                    "The uncommitted file list changed after the dialog was opened; refresh it before applying actions");
-        }
-        Map<String, DirtyFile> current = new LinkedHashMap<>();
-        before.files().forEach(file -> current.put(file.path(), file));
-        Map<String, DirtyFileAction> selected = new LinkedHashMap<>();
-        if (resolutions != null) {
-            for (DirtyFileResolution resolution : resolutions) {
-                if (resolution == null || resolution.path() == null || resolution.action() == null
-                        || selected.putIfAbsent(resolution.path(), resolution.action()) != null) {
-                    throw new TaskFailure("SOURCE_BRANCH_WORKSPACE_RESOLUTION_INVALID",
-                            "Each dirty file requires exactly one valid action");
-                }
-            }
-        }
-        if (!current.keySet().equals(selected.keySet())) {
-            throw new TaskFailure("SOURCE_BRANCH_WORKSPACE_RESOLUTION_INCOMPLETE",
-                    "Choose commit, stash, or remove for every currently dirty file");
-        }
-
-        List<DirtyFile> commit = selectedFiles(current, selected, DirtyFileAction.COMMIT);
-        List<DirtyFile> stash = selectedFiles(current, selected, DirtyFileAction.STASH);
-        List<DirtyFile> remove = selectedFiles(current, selected, DirtyFileAction.REMOVE);
-        if (!commit.isEmpty()) commitDirtyFiles(root, commit, commitMessage);
-        if (!stash.isEmpty()) stashDirtyFiles(root, stash);
-        for (DirtyFile file : remove) removeDirtyFile(root, file);
-        return inspectDirtyWorkspace(root);
-    }
-
-    private Path requireRepositoryRoot(Path projectRoot) {
-        try {
-            Path root = projectRoot.toRealPath();
-            String topLevel = requiredOutput(root, List.of("git", "rev-parse", "--show-toplevel"),
-                    "SOURCE_BRANCH_REPOSITORY_REQUIRED", "The registered checkout must be a Git repository root");
-            if (!Path.of(topLevel).toRealPath().equals(root)) {
-                throw new TaskFailure("SOURCE_BRANCH_REPOSITORY_ROOT_REQUIRED",
-                        "The registered checkout must be the Git repository root");
-            }
-            return root;
-        } catch (TaskFailure failure) {
-            throw failure;
-        } catch (Exception failure) {
-            throw new TaskFailure("SOURCE_BRANCH_REPOSITORY_REQUIRED",
-                    "Unable to resolve the registered Git repository root: " + failure.getMessage());
-        }
-    }
-
-    private List<DirtyFile> parseDirtyFiles(String output) {
-        List<DirtyFile> files = new ArrayList<>();
-        String[] records = output.split("\u0000", -1);
-        for (int index = 0; index < records.length; index++) {
-            String record = records[index];
-            if (record.isEmpty()) continue;
-            if (record.length() < 4 || record.charAt(2) != ' ') {
-                throw new TaskFailure("SOURCE_BRANCH_STATUS_INVALID", "Git returned an unreadable dirty-file record");
-            }
-            String indexStatus = String.valueOf(record.charAt(0));
-            String workTreeStatus = String.valueOf(record.charAt(1));
-            String path = record.substring(3);
-            String originalPath = null;
-            if ("RC".contains(indexStatus) || "RC".contains(workTreeStatus)) {
-                if (++index >= records.length || records[index].isEmpty()) {
-                    throw new TaskFailure("SOURCE_BRANCH_STATUS_INVALID", "Git returned an incomplete rename record");
-                }
-                originalPath = records[index];
-            }
-            files.add(new DirtyFile(path, originalPath, indexStatus, workTreeStatus,
-                    "?".equals(indexStatus) && "?".equals(workTreeStatus)));
-        }
-        return List.copyOf(files);
-    }
-
-    private List<DirtyFile> selectedFiles(Map<String, DirtyFile> current, Map<String, DirtyFileAction> selected,
-                                          DirtyFileAction action) {
-        return current.values().stream().filter(file -> action == selected.get(file.path())).toList();
-    }
-
-    private void commitDirtyFiles(Path root, List<DirtyFile> files, String message) {
-        String normalized = message == null ? "" : message.strip();
-        if (normalized.isEmpty() || normalized.length() > 160 || normalized.contains("\n") || normalized.contains("\r")) {
-            throw new TaskFailure("SOURCE_BRANCH_COMMIT_MESSAGE_INVALID",
-                    "A single-line commit message of 1 to 160 characters is required for files marked commit");
-        }
-        List<String> paths = allMutationPaths(files);
-        runRequired(root, command("git", "add", "--", paths), "SOURCE_BRANCH_COMMIT_STAGE_FAILED",
-                "Unable to stage the selected source files");
-        List<String> commit = new ArrayList<>(List.of("git", "commit", "--only", "-m", normalized, "--"));
-        commit.addAll(paths);
-        runRequired(root, commit, "SOURCE_BRANCH_COMMIT_FAILED", "Unable to commit the selected source files");
-    }
-
-    private void stashDirtyFiles(Path root, List<DirtyFile> files) {
-        List<String> command = new ArrayList<>(List.of("git", "stash", "push", "--include-untracked", "--message",
-                "Loopper pre-task cleanup " + Instant.now(), "--"));
-        command.addAll(allMutationPaths(files));
-        runRequired(root, command, "SOURCE_BRANCH_STASH_FAILED", "Unable to stash the selected source files");
-    }
-
-    private void removeDirtyFile(Path root, DirtyFile file) {
-        List<String> paths = mutationPaths(file);
-        if (file.untracked() || (file.originalPath() == null && "A".equals(file.indexStatus()))) {
-            List<String> reset = new ArrayList<>(List.of("git", "reset", "--quiet", "HEAD", "--"));
-            reset.addAll(paths);
-            runRequired(root, reset, "SOURCE_BRANCH_REMOVE_FAILED", "Unable to unstage the selected added file");
-            for (String path : paths) deleteContainedFile(root, path);
-            return;
-        }
-        List<String> restore = new ArrayList<>(List.of("git", "restore", "--source=HEAD", "--staged", "--worktree", "--"));
-        restore.addAll(paths);
-        runRequired(root, restore, "SOURCE_BRANCH_REMOVE_FAILED", "Unable to discard the selected tracked-file changes");
-    }
-
-    private void deleteContainedFile(Path root, String path) {
-        Path target = root.resolve(path).normalize();
-        if (!target.startsWith(root) || target.equals(root)) {
-            throw new TaskFailure("SOURCE_BRANCH_PATH_ESCAPE", "Dirty-file action escaped the registered repository");
-        }
-        try {
-            if (Files.isDirectory(target)) {
-                throw new TaskFailure("SOURCE_BRANCH_REMOVE_DIRECTORY_DENIED",
-                        "Loopper will not recursively remove an untracked directory");
-            }
-            Files.deleteIfExists(target);
-        } catch (TaskFailure failure) {
-            throw failure;
-        } catch (Exception failure) {
-            throw new TaskFailure("SOURCE_BRANCH_REMOVE_FAILED",
-                    "Unable to remove selected file " + path + ": " + failure.getMessage());
-        }
-    }
-
-    private List<String> mutationPaths(DirtyFile file) {
-        LinkedHashSet<String> paths = new LinkedHashSet<>();
-        paths.add(file.path());
-        if (file.originalPath() != null
-                && ("R".equals(file.indexStatus()) || "R".equals(file.workTreeStatus()))) {
-            paths.add(file.originalPath());
-        }
-        return List.copyOf(paths);
-    }
-
-    private List<String> allMutationPaths(List<DirtyFile> files) {
-        LinkedHashSet<String> paths = new LinkedHashSet<>();
-        files.forEach(file -> paths.addAll(mutationPaths(file)));
-        return List.copyOf(paths);
-    }
-
-    private List<String> command(String first, String second, String third, List<String> paths) {
-        List<String> command = new ArrayList<>(List.of(first, second, third));
-        command.addAll(paths);
-        return command;
-    }
-
-    private String fileFingerprint(Path root, String path) {
-        ProcessResult hash = runner.run(root, List.of("git", "hash-object", "--no-filters", "--", path), GIT_TIMEOUT);
-        if (hash.timedOut() || hash.outputTruncated()) {
-            throw new TaskFailure("SOURCE_BRANCH_STATUS_FAILED", "Unable to fingerprint dirty file " + path);
-        }
-        return hash.exitCode() == 0 ? hash.output().strip() : "<missing>";
-    }
-
-    private String indexFingerprint(Path root, String path) {
-        ProcessResult index = runner.run(root, List.of("git", "ls-files", "--stage", "-z", "--", path), GIT_TIMEOUT);
-        requireSuccess(index, "SOURCE_BRANCH_STATUS_FAILED", "Unable to fingerprint the Git index for " + path);
-        return index.output();
-    }
-
-    private void runRequired(Path root, List<String> command, String code, String message) {
-        ProcessResult result = runner.run(root, command, GIT_MUTATION_TIMEOUT);
-        requireSuccess(result, code, message);
-    }
-
-    private String requiredOutput(Path root, List<String> command, String code, String message) {
-        ProcessResult result = runner.run(root, command, GIT_TIMEOUT);
-        requireSuccess(result, code, message);
-        if (result.output().isBlank()) throw new TaskFailure(code, message);
-        return result.output().strip();
-    }
-
-    private String requiredOutput(Path root, List<String> command, Map<String, String> environment,
-                                  String code, String message) {
-        ProcessResult result = runner.run(root, command, GIT_TIMEOUT, environment);
-        requireSuccess(result, code, message);
-        if (result.output().isBlank()) throw new TaskFailure(code, message);
-        return result.output().strip();
-    }
-
-    private void requireSuccess(ProcessResult result, String code, String message) {
-        if (result.timedOut()) throw new TaskFailure(code, message + " (timed out)");
-        if (result.outputTruncated()) throw new TaskFailure(code, message + " (output exceeded the safety limit)");
-        if (result.exitCode() != 0) {
-            String detail = trim(result.output());
-            throw new TaskFailure(code, detail.isBlank() ? message : message + ": " + detail);
-        }
-    }
-
-    private String sha256(String value) {
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                    .digest(value.getBytes(StandardCharsets.UTF_8)));
-        } catch (Exception failure) {
-            throw new IllegalStateException("SHA-256 is unavailable", failure);
-        }
+        return dirtyWorkspaces.resolve(projectRoot, expectedSnapshot, resolutions, commitMessage);
     }
 
     /** Restores a clean registered checkout after its Task changes have been committed to the Task branch. */
@@ -949,70 +487,8 @@ public class GitWorktreeManager {
         return !remote.output().isBlank();
     }
 
-    private String branchName(String base, int occurrence) {
-        String suffix = occurrence == 1 ? "" : "(第" + occurrence + "次)";
-        int suffixBytes = suffix.getBytes(StandardCharsets.UTF_8).length;
-        String leaf = validTruncatedLeaf(base, MAX_BRANCH_LEAF_BYTES - suffixBytes);
-        return BRANCH_NAMESPACE + leaf + suffix;
-    }
-
     String branchNameForTask(String taskName, String taskId, int occurrence) {
-        return branchName(normalizedBranchLeaf(taskName, taskId), occurrence);
-    }
-
-    private String validTruncatedLeaf(String value, int maxBytes) {
-        String leaf = trimInvalidEnding(truncateUtf8(value, maxBytes));
-        if (leaf.equals("@") || leaf.isBlank()) leaf = "task";
-        if (leaf.endsWith(".lock")) leaf = leaf.substring(0, leaf.length() - 5) + "-lock";
-        leaf = trimInvalidEnding(truncateUtf8(leaf, maxBytes));
-        return leaf.equals("@") || leaf.isBlank() ? "task" : leaf;
-    }
-
-    private String normalizedBranchLeaf(String taskName, String taskId) {
-        String source = taskName == null || taskName.isBlank() ? "task-" + taskId : taskName.trim();
-        source = Normalizer.normalize(source, Normalizer.Form.NFKC);
-        StringBuilder normalized = new StringBuilder();
-        source.codePoints().forEach(codePoint -> {
-            if (codePoint <= 0x20 || codePoint == 0x7f || "~^:?*[\\/".indexOf(codePoint) >= 0) {
-                normalized.append('-');
-            } else {
-                normalized.appendCodePoint(codePoint);
-            }
-        });
-        String value = normalized.toString()
-                .replace("@{", "-")
-                .replaceAll("\\.{2,}", "-")
-                .replaceAll("-{2,}", "-")
-                .replaceAll("^[.-]+", "");
-        value = trimInvalidEnding(value);
-        if (value.equals("@") || value.isBlank()) value = "task-" + taskId;
-        if (value.endsWith(".lock")) value += "-branch";
-        return value;
-    }
-
-    private String truncateUtf8(String value, int maxBytes) {
-        StringBuilder result = new StringBuilder();
-        int bytes = 0;
-        for (int offset = 0; offset < value.length();) {
-            int codePoint = value.codePointAt(offset);
-            String character = new String(Character.toChars(codePoint));
-            int characterBytes = character.getBytes(StandardCharsets.UTF_8).length;
-            if (bytes + characterBytes > maxBytes) break;
-            result.append(character);
-            bytes += characterBytes;
-            offset += Character.charCount(codePoint);
-        }
-        return result.toString();
-    }
-
-    private String trimInvalidEnding(String value) {
-        int end = value.length();
-        while (end > 0) {
-            char last = value.charAt(end - 1);
-            if (last != '.' && last != '-' && last != '/') break;
-            end--;
-        }
-        return value.substring(0, end);
+        return branchNames.branchName(taskName, taskId, occurrence);
     }
 
     private String trim(String value) {

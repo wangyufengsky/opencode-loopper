@@ -7,11 +7,11 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class GitWorktreeManagerTest {
-    private final GitWorktreeManager manager = new GitWorktreeManager(null, null, null);
+    private final GitBranchNamePolicy branchNames = new GitBranchNamePolicy();
 
     @Test
     void repairsLockSuffixExposedOnlyAfterUtf8Truncation() throws Exception {
-        String branch = manager.branchNameForTask("a".repeat(175) + ".lock" + "suffix", "task-1", 1);
+        String branch = branchNames.branchName("a".repeat(175) + ".lock" + "suffix", "task-1", 1);
 
         assertThat(branch).endsWith("-lock").doesNotEndWith(".lock");
         assertValidBranch(branch);
@@ -19,7 +19,7 @@ class GitWorktreeManagerTest {
 
     @Test
     void preservesOccurrenceSuffixAndByteLimitForLongMultibyteNames() throws Exception {
-        String branch = manager.branchNameForTask("超长任务名称".repeat(40) + ".lock-tail", "task-2", 2);
+        String branch = branchNames.branchName("超长任务名称".repeat(40) + ".lock-tail", "task-2", 2);
         String leaf = branch.substring("loopper/".length());
 
         assertThat(branch).endsWith("(第2次)");

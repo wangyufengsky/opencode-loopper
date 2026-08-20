@@ -3,20 +3,14 @@ package io.opencode.loopper.runtime;
 import tools.jackson.databind.JsonNode;
 import io.opencode.loopper.config.LoopperProperties;
 import io.opencode.loopper.domain.SessionFailure;
-import java.math.BigDecimal;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.Map;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 import org.springframework.http.MediaType;
@@ -27,9 +21,6 @@ import tools.jackson.databind.ObjectMapper;
 
 /** Thin adapter for the local OpenCode server; all transport faults become SessionFailure. */
 public class HttpOpenCodeClient implements OpenCodeClient {
-    private static final int MAX_TODOS = 64;
-    private static final int MAX_TODO_CONTENT_UTF8 = 1_024;
-    private static final int MAX_TODO_TOTAL_UTF8 = 64 * 1_024;
     private final RestClient.Builder baseBuilder;
     private final Supplier<ConnectionDetails> connectionSupplier;
     private final Duration connectTimeout;
@@ -40,6 +31,10 @@ public class HttpOpenCodeClient implements OpenCodeClient {
     private final Map<String, Boolean> managedSessions = new ConcurrentHashMap<>();
     private final Map<String, Boolean> structuredPrompts = new ConcurrentHashMap<>();
     private final ObjectMapper json = new ObjectMapper();
+    private final OpenCodeResponseParser responses = new OpenCodeResponseParser();
+    private final OpenCodeMachineResponseInspector machineResponses =
+            new OpenCodeMachineResponseInspector(json, responses);
+    private final OpenCodeTodoParser todoParser = new OpenCodeTodoParser();
     public HttpOpenCodeClient(RestClient.Builder builder, LoopperProperties properties) {
         this(builder, () -> new ConnectionDetails(properties.getOpenCode().getBaseUrl(), properties.getOpenCode().getUsername(), properties.getOpenCode().getPassword(), false),
                 new Timeouts(properties.getOpenCode().getConnectTimeout(), properties.getOpenCode().getRequestTimeout()),
@@ -101,7 +96,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
             if (model != null && model.providerId() != null && !model.providerId().isBlank() && model.modelId() != null && !model.modelId().isBlank()) {
                 request.put("model", Map.of("id", model.modelId(), "providerID", model.providerId()));
             }
-            List<Map<String, String>> permissions = permissions(profile == null
+            List<Map<String, String>> permissions = OpenCodePermissionPolicy.rules(profile == null
                     ? SessionProfile.IMPLEMENTATION : profile);
             request.put("permission", permissions);
             JsonNode body = client().post().uri(uri -> directoryUri(uri, "/session", canonical))
@@ -130,62 +125,6 @@ public class HttpOpenCodeClient implements OpenCodeClient {
             return session;
         } catch (SessionFailure e) { throw e; }
         catch (Exception e) { throw new SessionFailure("OPENCODE_SESSION_CREATE_FAILED", e.getMessage()); }
-    }
-    private static Map<String, String> permissionRule(String permission, String pattern, String action) {
-        return Map.of("permission", permission, "pattern", pattern, "action", action);
-    }
-    private static List<Map<String, String>> permissions(SessionProfile profile) {
-        if (profile != SessionProfile.IMPLEMENTATION) {
-            List<Map<String, String>> rules = new ArrayList<>();
-            rules.add(permissionRule("*", "*", "deny"));
-            if (profile != SessionProfile.MACHINE_FINALIZER_NO_TOOLS
-                    && profile != SessionProfile.COMPILER_REPAIR_NO_TOOLS
-                    && profile != SessionProfile.ROUTER_NO_TOOLS) {
-                rules.add(permissionRule("read", "*", "allow"));
-                rules.add(permissionRule("glob", "*", "allow"));
-                rules.add(permissionRule("grep", "*", "allow"));
-            }
-            if (profile == SessionProfile.DESIGNER_INTERACTIVE_READ_ONLY) {
-                rules.add(permissionRule("question", "*", "allow"));
-            }
-            rules.add(permissionRule("read", ".env", "deny"));
-            rules.add(permissionRule("read", ".env.*", "deny"));
-            rules.add(permissionRule("read", ".env.example", "allow"));
-            rules.add(permissionRule("external_directory", "*", "deny"));
-            return List.copyOf(rules);
-        }
-        List<Map<String, String>> rules = new ArrayList<>(List.of(
-                permissionRule("external_directory", "*", "deny"),
-                permissionRule("bash", "*git*commit*", "deny"),
-                permissionRule("bash", "*git*commit-tree*", "deny"),
-                permissionRule("bash", "*git*update-ref*", "deny"),
-                permissionRule("bash", "*git*symbolic-ref*", "deny"),
-                permissionRule("bash", "*git*push*", "deny"),
-                permissionRule("bash", "*git*branch*", "deny"),
-                permissionRule("bash", "*git*checkout*", "deny"),
-                permissionRule("bash", "*git*switch*", "deny"),
-                permissionRule("bash", "*git*merge*", "deny"),
-                permissionRule("bash", "*git*rebase*", "deny"),
-                permissionRule("bash", "*git*cherry-pick*", "deny"),
-                permissionRule("bash", "*git*tag*", "deny"),
-                permissionRule("bash", "*git*stash*", "deny"),
-                permissionRule("bash", "*git*worktree*", "deny"),
-                permissionRule("bash", "*git*fetch*", "deny"),
-                permissionRule("bash", "*git*pull*", "deny"),
-                permissionRule("bash", "git reset --hard*", "deny"),
-                permissionRule("bash", "rm -rf*", "deny"),
-                permissionRule("bash", "rm *", "deny"),
-                permissionRule("bash", "unlink *", "deny"),
-                permissionRule("bash", "rmdir *", "deny"),
-                permissionRule("bash", "*systemctl*", "deny"),
-                permissionRule("bash", "*launchctl*", "deny"),
-                permissionRule("bash", "*brew*services*", "deny"),
-                permissionRule("bash", "*service*start*", "deny"),
-                permissionRule("bash", "*service*stop*", "deny"),
-                permissionRule("bash", "*service*restart*", "deny"),
-                permissionRule("todowrite", "*", "allow")
-        ));
-        return List.copyOf(rules);
     }
     @Override public void promptAsync(OpenCodeSession session, String prompt) {
         promptAsync(session, PromptRequest.text(prompt));
@@ -269,22 +208,22 @@ public class HttpOpenCodeClient implements OpenCodeClient {
     @Override public SessionResult sessionResult(OpenCodeSession session) {
         try {
             JsonNode messages = sessionMessages(session);
-            JsonNode latest = latestAssistantAfterUser(messages);
+            JsonNode latest = responses.latestAssistantAfterUser(messages);
             if (latest == null) throw new SessionFailure("OPENCODE_OUTPUT_MISSING", "OpenCode did not return an assistant turn");
             JsonNode info = latest.path("info");
             JsonNode error = info.path("error");
             String errorType = null;
             String errorDetail = null;
             if (!error.isMissingNode() && !error.isNull()) {
-                errorType = firstText(error.path("name"), error.path("code"), error.path("type"));
-                errorDetail = errorDetail(error);
+                errorType = responses.firstText(error.path("name"), error.path("code"), error.path("type"));
+                errorDetail = responses.errorDetail(error);
             }
             JsonNode structured = info.path("structured");
             if ((structured.isMissingNode() || structured.isNull()) && latest.has("structured")) {
                 structured = latest.path("structured");
             }
-            Map<String, Object> structuredValue = structured.isObject() ? object(structured) : Map.of();
-            String text = assistantText(latest);
+            Map<String, Object> structuredValue = structured.isObject() ? responses.object(structured) : Map.of();
+            String text = responses.assistantText(latest);
             int retryCount = info.path("structuredRetryCount").asInt(
                     info.path("structured_retry_count").asInt(0));
             URI endpoint = connectionSupplier.get().baseUrl();
@@ -296,87 +235,23 @@ public class HttpOpenCodeClient implements OpenCodeClient {
         catch (RuntimeException e) { throw new SessionFailure("OPENCODE_OUTPUT_FAILED", e.getMessage()); }
     }
 
-    private JsonNode latestAssistantAfterUser(JsonNode messages) {
-        int latestUserIndex = -1;
-        JsonNode latest = null;
-        int index = 0;
-        for (JsonNode message : messages) {
-                JsonNode info = message.path("info");
-                String role = info.path("role").asText(message.path("role").asText(""));
-            if ("user".equalsIgnoreCase(role)) {
-                latestUserIndex = index;
-                latest = null;
-            } else if ("assistant".equalsIgnoreCase(role) && index > latestUserIndex) {
-                latest = message;
-            }
-            index++;
-        }
-        return latest;
-    }
-
     @Override public String sessionLiveOutput(OpenCodeSession session) {
         try {
-            JsonNode messages = sessionMessages(session);
-            int latestUserIndex = -1;
-            String latest = "";
-            int index = 0;
-            for (JsonNode message : messages) {
-                JsonNode info = message.path("info");
-                String role = info.path("role").asText(message.path("role").asText(""));
-                if ("user".equalsIgnoreCase(role)) {
-                    latestUserIndex = index;
-                    latest = "";
-                } else if ("assistant".equalsIgnoreCase(role) && index > latestUserIndex) {
-                    String output = assistantText(message);
-                    if (!output.isBlank()) latest = output;
-                }
-                index++;
-            }
-            return bounded(latest);
+            return responses.liveOutput(sessionMessages(session));
         } catch (SessionFailure e) { throw e; }
         catch (RuntimeException e) { throw new SessionFailure("OPENCODE_LIVE_OUTPUT_FAILED", e.getMessage()); }
     }
 
     @Override public SessionTranscript sessionTranscript(OpenCodeSession session) {
         try {
-            JsonNode messages = sessionMessages(session);
-            List<SessionPart> result = new ArrayList<>();
-            int messageIndex = 0;
-            for (JsonNode message : messages) {
-                JsonNode info = message.path("info");
-                String role = info.path("role").asText(message.path("role").asText(""));
-                if (!"assistant".equalsIgnoreCase(role)) { messageIndex++; continue; }
-                JsonNode parts = message.path("parts");
-                if (parts.isArray()) {
-                    int partIndex = 0;
-                    for (JsonNode part : parts) {
-                        SessionPart parsed = monitorPart(part, message, messageIndex, partIndex++);
-                        if (parsed != null && result.size() < 200) result.add(parsed);
-                    }
-                } else if (message.hasNonNull("text")) {
-                    result.add(new SessionPart("message-" + messageIndex, "OUTPUT", "模型输出",
-                            bounded(message.path("text").asText()), null, startedAt(message.path("info").path("time").path("created"))));
-                }
-                messageIndex++;
-            }
-            return new SessionTranscript(result);
+            return responses.transcript(sessionMessages(session));
         } catch (SessionFailure e) { throw e; }
         catch (RuntimeException e) { throw new SessionFailure("OPENCODE_TRANSCRIPT_FAILED", e.getMessage()); }
     }
 
     @Override public List<SessionMessageRef> sessionMessageRefs(OpenCodeSession session) {
         try {
-            List<SessionMessageRef> result = new ArrayList<>();
-            for (JsonNode message : sessionMessages(session)) {
-                JsonNode info = message.path("info");
-                String id = firstText(info.path("id"), message.path("id"));
-                if (id.isBlank()) continue;
-                String role = firstText(info.path("role"), message.path("role"));
-                result.add(new SessionMessageRef(id, role,
-                        startedAt(info.path("time").path("created")),
-                        startedAt(info.path("time").path("completed"))));
-            }
-            return List.copyOf(result);
+            return responses.messageRefs(sessionMessages(session));
         } catch (SessionFailure failure) {
             throw failure;
         } catch (RuntimeException failure) {
@@ -388,34 +263,11 @@ public class HttpOpenCodeClient implements OpenCodeClient {
         try {
             JsonNode body = client().get().uri(uri -> directoryUri(uri, "/question", session.worktree()))
                     .retrieve().body(JsonNode.class);
-            JsonNode requests = body != null && body.isArray() ? body : body == null ? null : body.path("data");
-            if (requests == null || !requests.isArray()) {
+            List<PendingQuestion> result = responses.questions(body, session.id());
+            if (result == null) {
                 throw new SessionFailure("OPENCODE_QUESTION_INVALID_RESPONSE", "OpenCode did not return a pending question list");
             }
-            List<PendingQuestion> result = new ArrayList<>();
-            for (JsonNode request : requests) {
-                String sessionId = request.path("sessionID").asText("");
-                if (!session.id().equals(sessionId)) continue;
-                String requestId = request.path("id").asText("");
-                if (requestId.isBlank()) continue;
-                List<QuestionPrompt> questions = new ArrayList<>();
-                JsonNode prompts = request.path("questions");
-                if (prompts.isArray()) {
-                    for (JsonNode prompt : prompts) {
-                        List<QuestionOption> options = new ArrayList<>();
-                        JsonNode optionNodes = prompt.path("options");
-                        if (optionNodes.isArray()) {
-                            for (JsonNode option : optionNodes) {
-                                options.add(new QuestionOption(option.path("label").asText(""), option.path("description").asText("")));
-                            }
-                        }
-                        questions.add(new QuestionPrompt(prompt.path("question").asText(""), prompt.path("header").asText(""),
-                                options, prompt.path("multiple").asBoolean(false), !prompt.has("custom") || prompt.path("custom").asBoolean(true)));
-                    }
-                }
-                result.add(new PendingQuestion(requestId, sessionId, questions));
-            }
-            return List.copyOf(result);
+            return result;
         } catch (SessionFailure e) { throw e; }
         catch (RuntimeException e) { throw new SessionFailure("OPENCODE_QUESTION_LIST_FAILED", e.getMessage()); }
     }
@@ -440,22 +292,11 @@ public class HttpOpenCodeClient implements OpenCodeClient {
         try {
             JsonNode body = client().get().uri(uri -> directoryUri(uri, "/permission", session.worktree()))
                     .retrieve().body(JsonNode.class);
-            JsonNode requests = listBody(body);
-            if (requests == null) {
+            List<PendingPermission> result = responses.permissions(body, session.id());
+            if (result == null) {
                 throw new SessionFailure("OPENCODE_PERMISSION_INVALID_RESPONSE", "OpenCode did not return a pending permission list");
             }
-            List<PendingPermission> result = new ArrayList<>();
-            for (JsonNode request : requests) {
-                String sessionId = request.path("sessionID").asText("");
-                if (!session.id().equals(sessionId)) continue;
-                String requestId = request.path("id").asText("");
-                if (requestId.isBlank()) continue;
-                JsonNode metadata = request.path("metadata");
-                result.add(new PendingPermission(requestId, sessionId, request.path("permission").asText(""),
-                        strings(request.path("patterns")), object(metadata),
-                        firstText(metadata.path("title"), metadata.path("description"), request.path("permission"))));
-            }
-            return List.copyOf(result);
+            return result;
         } catch (SessionFailure e) { throw e; }
         catch (RuntimeException e) { throw new SessionFailure("OPENCODE_PERMISSION_LIST_FAILED", e.getMessage()); }
     }
@@ -482,41 +323,11 @@ public class HttpOpenCodeClient implements OpenCodeClient {
         try {
             JsonNode body = client().get().uri(uri -> sessionUri(uri, "/session/{id}/todo", session))
                     .retrieve().body(JsonNode.class);
-            JsonNode todos = listBody(body);
-            if (todos == null) throw new SessionFailure("OPENCODE_TODO_INVALID_RESPONSE", "OpenCode did not return a todo list");
-            List<SessionTodo> result = new ArrayList<>();
-            Map<String, Integer> occurrences = new HashMap<>();
-            int ordinal = 0;
-            int totalBytes = 0;
-            boolean truncated = false;
-            for (JsonNode todo : todos) {
-                if (result.size() >= MAX_TODOS) { truncated = true; break; }
-                String rawContent = todo.path("content").asText("");
-                String content = truncateUtf8(rawContent, MAX_TODO_CONTENT_UTF8);
-                if (!content.equals(rawContent)) truncated = true;
-                int bytes = content.getBytes(StandardCharsets.UTF_8).length;
-                if (totalBytes + bytes > MAX_TODO_TOTAL_UTF8) { truncated = true; break; }
-                totalBytes += bytes;
-                String normalized = normalizeTodoContent(content);
-                int occurrence = occurrences.merge(normalized, 1, Integer::sum);
-                String rawStatus = todo.path("status").asText("");
-                String rawPriority = todo.path("priority").asText("");
-                Map<String, Object> metadata = new LinkedHashMap<>(object(todo.path("metadata")));
-                metadata.put("rawStatus", rawStatus);
-                metadata.put("rawPriority", rawPriority);
-                String id = "todo-v2:" + sha256(normalized) + ":" + occurrence;
-                result.add(new SessionTodo(id, content, todoStatus(rawStatus), todoPriority(rawPriority),
-                        ordinal++, metadata));
+            SessionTodoSnapshot snapshot = todoParser.parse(body);
+            if (snapshot == null) {
+                throw new SessionFailure("OPENCODE_TODO_INVALID_RESPONSE", "OpenCode did not return a todo list");
             }
-            if (truncated && !result.isEmpty()) {
-                SessionTodo last = result.getLast();
-                Map<String, Object> metadata = new LinkedHashMap<>(last.metadata());
-                metadata.put("projectionTruncated", true);
-                result.set(result.size() - 1, new SessionTodo(last.id(), last.content(), last.status(),
-                        last.priority(), last.ordinal(), metadata));
-            }
-            return new SessionTodoSnapshot(result, truncated,
-                    truncated ? "OpenCode Todo projection was truncated to Loopper safety bounds" : null);
+            return snapshot;
         } catch (SessionFailure e) { throw e; }
         catch (RuntimeException e) { throw new SessionFailure("OPENCODE_TODO_LIST_FAILED", e.getMessage()); }
     }
@@ -526,7 +337,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
             Path canonical = worktree.toRealPath();
             JsonNode body = client().get().uri(uri -> directoryUri(uri, "/experimental/tool/ids", canonical))
                     .retrieve().body(JsonNode.class);
-            JsonNode ids = listBody(body);
+            JsonNode ids = responses.listBody(body);
             if (ids == null) return new ToolCapabilityProbe(CapabilityState.UNKNOWN, List.of(),
                     "OpenCode returned an invalid tool-id response");
             List<String> result = new ArrayList<>();
@@ -537,26 +348,19 @@ public class HttpOpenCodeClient implements OpenCodeClient {
                 return new ToolCapabilityProbe(CapabilityState.UNAVAILABLE, List.of(),
                         "OpenCode does not expose /experimental/tool/ids");
             }
-            return new ToolCapabilityProbe(CapabilityState.UNKNOWN, List.of(), bounded(failure.getMessage()));
+            return new ToolCapabilityProbe(CapabilityState.UNKNOWN, List.of(), responses.bounded(failure.getMessage()));
         } catch (RuntimeException | java.io.IOException failure) {
-            return new ToolCapabilityProbe(CapabilityState.UNKNOWN, List.of(), bounded(failure.getMessage()));
+            return new ToolCapabilityProbe(CapabilityState.UNKNOWN, List.of(), responses.bounded(failure.getMessage()));
         }
     }
 
     @Override public List<AgentInfo> agents() {
         try {
             JsonNode body = client().get().uri("/agent").retrieve().body(JsonNode.class);
-            JsonNode values = listBody(body);
-            if (values == null) throw new SessionFailure("OPENCODE_AGENT_INVALID_RESPONSE",
+            List<AgentInfo> result = responses.agents(body);
+            if (result == null) throw new SessionFailure("OPENCODE_AGENT_INVALID_RESPONSE",
                     "OpenCode did not return an agent list");
-            List<AgentInfo> result = new ArrayList<>();
-            for (JsonNode value : values) {
-                String name = firstText(value.path("name"), value.path("id"));
-                if (name.isBlank()) continue;
-                result.add(new AgentInfo(name, blankToNull(value.path("mode").asText("")),
-                        blankToNull(firstText(value.path("description"), value.path("prompt")))));
-            }
-            return List.copyOf(result);
+            return result;
         } catch (SessionFailure failure) { throw failure; }
         catch (RuntimeException failure) {
             throw new SessionFailure("OPENCODE_AGENT_LIST_FAILED", failure.getMessage());
@@ -616,125 +420,9 @@ public class HttpOpenCodeClient implements OpenCodeClient {
 
     @Override public List<UsageRecord> sessionUsage(OpenCodeSession session) {
         try {
-            List<UsageRecord> result = new ArrayList<>();
-            for (JsonNode message : sessionMessages(session)) {
-                JsonNode info = message.path("info");
-                String role = info.path("role").asText(message.path("role").asText(""));
-                if (!"assistant".equalsIgnoreCase(role)) continue;
-                String messageId = firstText(info.path("id"), message.path("id"));
-                if (messageId.isBlank()) continue;
-                JsonNode tokens = info.path("tokens");
-                Long input = nullableLong(tokens.path("input"));
-                Long output = nullableLong(tokens.path("output"));
-                Long total = nullableLong(tokens.path("total"));
-                BigDecimal cost = nullableDecimal(info.path("cost"));
-                boolean reliable = input != null || output != null || total != null || cost != null;
-                result.add(new UsageRecord(messageId, nullableText(info.path("providerID")), nullableText(info.path("modelID")),
-                        input, output, total, cost, nullableText(info.path("currency")), reliable));
-            }
-            return List.copyOf(result);
+            return responses.usage(sessionMessages(session));
         } catch (SessionFailure e) { throw e; }
         catch (RuntimeException e) { throw new SessionFailure("OPENCODE_USAGE_LIST_FAILED", e.getMessage()); }
-    }
-
-    private SessionPart monitorPart(JsonNode part, JsonNode message, int messageIndex, int partIndex) {
-        String sourceType = part.path("type").asText("").toLowerCase();
-        String id = part.path("id").asText("message-" + messageIndex + "-part-" + partIndex);
-        String startedAt = startedAt(part.path("time").path("start"), part.path("state").path("time").path("start"),
-                message.path("info").path("time").path("created"));
-        if ("text".equals(sourceType)) {
-            String content = bounded(part.path("text").asText(""));
-            return content.isBlank() ? null : new SessionPart(id, "OUTPUT", "模型输出", content, null, startedAt);
-        }
-        if ("reasoning".equals(sourceType) || "thinking".equals(sourceType)) {
-            String content = firstText(part.path("text"), part.path("content"), part.path("reasoning"));
-            return content.isBlank() ? null : new SessionPart(id, "THINKING", "Thinking", bounded(content), part.path("state").asText(null), startedAt);
-        }
-        if ("tool".equals(sourceType) || "tool-call".equals(sourceType) || "tool_invocation".equals(sourceType)) {
-            JsonNode state = part.path("state");
-            String label = firstText(part.path("tool"), part.path("name"), state.path("title"));
-            String content = firstText(state.path("output"), state.path("title"), part.path("text"));
-            String status = firstText(state.path("status"), part.path("status"));
-            return new SessionPart(id, "TOOL", label.isBlank() ? "工具调用" : bounded(label), bounded(content), bounded(status), startedAt);
-        }
-        return null;
-    }
-
-    private String startedAt(JsonNode... candidates) {
-        for (JsonNode candidate : candidates) {
-            if (candidate == null || candidate.isMissingNode() || candidate.isNull()) continue;
-            if (candidate.isNumber()) {
-                long value = candidate.asLong();
-                if (value <= 0) continue;
-                return (value >= 10_000_000_000L ? java.time.Instant.ofEpochMilli(value) : java.time.Instant.ofEpochSecond(value)).toString();
-            }
-            if (candidate.isTextual() && !candidate.asText().isBlank()) return candidate.asText();
-        }
-        return null;
-    }
-
-    private String firstText(JsonNode... candidates) {
-        for (JsonNode candidate : candidates) {
-            if (candidate != null && candidate.isValueNode()) {
-                String value = candidate.asText("");
-                if (!value.isBlank()) return value;
-            }
-        }
-        return "";
-    }
-
-    private String bounded(String value) {
-        if (value == null) return "";
-        return value.length() <= 40_000 ? value : value.substring(0, 40_000) + "\n… output truncated by Loopper …";
-    }
-
-    private JsonNode listBody(JsonNode body) {
-        JsonNode value = body != null && body.isArray() ? body : body == null ? null : body.path("data");
-        return value != null && value.isArray() ? value : null;
-    }
-
-    private List<String> strings(JsonNode value) {
-        if (value == null || !value.isArray()) return List.of();
-        List<String> result = new ArrayList<>();
-        for (JsonNode item : value) if (item.isValueNode()) result.add(item.asText(""));
-        return List.copyOf(result);
-    }
-
-    private Map<String, Object> object(JsonNode value) {
-        if (value == null || !value.isObject()) return Map.of();
-        Map<String, Object> result = new LinkedHashMap<>();
-        for (Map.Entry<String, JsonNode> entry : value.properties()) {
-            result.put(entry.getKey(), jsonValue(entry.getValue()));
-        }
-        return java.util.Collections.unmodifiableMap(result);
-    }
-
-    private Object jsonValue(JsonNode value) {
-        if (value == null || value.isMissingNode() || value.isNull()) return null;
-        if (value.isObject()) return object(value);
-        if (value.isArray()) {
-            List<Object> result = new ArrayList<>();
-            for (JsonNode item : value) {
-                result.add(jsonValue(item));
-            }
-            return java.util.Collections.unmodifiableList(result);
-        }
-        if (value.isBoolean()) return value.booleanValue();
-        if (value.isIntegralNumber()) return value.longValue();
-        if (value.isNumber()) return value.decimalValue();
-        return value.asText("");
-    }
-
-    private Long nullableLong(JsonNode value) {
-        return value == null || value.isMissingNode() || value.isNull() || !value.isNumber() ? null : value.longValue();
-    }
-
-    private BigDecimal nullableDecimal(JsonNode value) {
-        return value == null || value.isMissingNode() || value.isNull() || !value.isNumber() ? null : value.decimalValue();
-    }
-
-    private String nullableText(JsonNode value) {
-        return value == null || value.isMissingNode() || value.isNull() || value.asText("").isBlank() ? null : value.asText();
     }
 
     private JsonNode sessionMessages(OpenCodeSession session) {
@@ -759,171 +447,20 @@ public class HttpOpenCodeClient implements OpenCodeClient {
     }
     private void inspectMachineResponseProgress(OpenCodeSession session, JsonNode messages) {
         if (!machineResponseProfile(sessionProfiles.get(session.id()))) return;
-        int latestUserIndex = -1;
-        int index = 0;
-        for (JsonNode message : messages) {
-            JsonNode info = message.path("info");
-            String role = info.path("role").asText(message.path("role").asText(""));
-            if ("user".equalsIgnoreCase(role)) latestUserIndex = index;
-            index++;
-        }
         boolean structuredPrompt = Boolean.TRUE.equals(structuredPrompts.get(session.id()));
-        int assistantTurns = 0;
-        int stepStarts = 0;
-        String previousToolSignature = null;
-        String previousToolName = null;
-        int repeatedToolCalls = 0;
-        index = 0;
-        for (JsonNode message : messages) {
-            if (index++ <= latestUserIndex) continue;
-            JsonNode info = message.path("info");
-            String role = info.path("role").asText(message.path("role").asText(""));
-            if (!"assistant".equalsIgnoreCase(role)) continue;
-            assistantTurns++;
-            JsonNode structured = info.path("structured");
-            if (structured.isObject() && !structured.isEmpty()) {
-                capabilities.structured(connectionSupplier.get().baseUrl(), sessionModels.get(session.id()));
-            }
-            if (structuredPrompt && !info.path("error").isMissingNode() && !info.path("error").isNull()) {
-                String detail = errorDetail(info.path("error"));
-                if (structuredError(firstText(info.path("error").path("name"),
-                        info.path("error").path("code"), info.path("error").path("type")), detail)) {
-                    capabilities.modelUnsupported(connectionSupplier.get().baseUrl(), sessionModels.get(session.id()), detail);
-                    throw new SessionFailure("OPENCODE_STRUCTURED_OUTPUT_FAILED", detail);
-                }
-            }
-            JsonNode parts = message.path("parts");
-            if (!parts.isArray()) continue;
-            for (JsonNode part : parts) {
-                if ("step-start".equalsIgnoreCase(part.path("type").asText())) stepStarts++;
-                if ("tool".equalsIgnoreCase(part.path("type").asText())) {
-                    String toolName = normalizedToolName(part.path("tool").asText());
-                    String signature = toolCallSignature(toolName, part);
-                    if (signature.equals(previousToolSignature)) repeatedToolCalls++;
-                    else repeatedToolCalls = 1;
-                    previousToolSignature = signature;
-                    previousToolName = toolName;
-                    if (repeatedToolCalls >= 3) {
-                        throw new SessionFailure("OPENCODE_MACHINE_TOOL_LOOP",
-                                "Detected 3 consecutive identical " + previousToolName
-                                        + " tool calls (signature " + sha256(signature).substring(0, 12) + ")");
-                    }
-                }
-                if (!structuredPrompt || !"tool".equalsIgnoreCase(part.path("type").asText())
-                        || !structuredTool(part.path("tool").asText())) continue;
-                JsonNode state = part.path("state");
-                String status = state.path("status").asText("");
-                if (!Set.of("error", "failed", "rejected").contains(status.toLowerCase(Locale.ROOT))) continue;
-                String detail = firstText(state.path("error").path("message"), state.path("error"),
-                        state.path("message"), state.path("output"));
-                if (detail.isBlank()) detail = "OpenCode structured-output tool failed";
-                capabilities.modelUnsupported(connectionSupplier.get().baseUrl(), sessionModels.get(session.id()), detail);
-                throw new SessionFailure("OPENCODE_STRUCTURED_OUTPUT_FAILED", detail);
-            }
-        }
-        int observedSteps = Math.max(assistantTurns, stepStarts);
-        if (observedSteps > STRUCTURED_AGENT_STEPS) {
-            String detail = "OpenCode machine-response session exceeded Loopper's hard limit of "
-                    + STRUCTURED_AGENT_STEPS + " steps (observed " + observedSteps + ")";
-            if (structuredPrompt) {
-                capabilities.modelUnsupported(connectionSupplier.get().baseUrl(), sessionModels.get(session.id()), detail);
-                throw new SessionFailure("OPENCODE_STRUCTURED_OUTPUT_FAILED", detail);
-            }
-            throw new SessionFailure("OPENCODE_MACHINE_STEP_LIMIT_EXCEEDED", detail);
-        }
-    }
-    private boolean structuredTool(String tool) {
-        if (tool == null) return false;
-        return "structuredoutput".equals(tool.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", ""));
-    }
-    private String normalizedToolName(String tool) {
-        String normalized = tool == null ? "" : tool.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
-        return normalized.isBlank() ? "unknown" : normalized;
-    }
-    private String toolCallSignature(String toolName, JsonNode part) {
-        JsonNode state = part.path("state");
-        JsonNode arguments = firstPresent(state.path("input"), state.path("arguments"),
-                part.path("input"), part.path("arguments"));
-        return toolName + ":" + canonicalJson(arguments);
-    }
-    private JsonNode firstPresent(JsonNode... candidates) {
-        for (JsonNode candidate : candidates) {
-            if (candidate != null && !candidate.isMissingNode() && !candidate.isNull()) return candidate;
-        }
-        return json.getNodeFactory().nullNode();
-    }
-    private String canonicalJson(JsonNode node) {
-        if (node == null || node.isMissingNode() || node.isNull()) return "null";
-        if (node.isArray()) {
-            StringBuilder result = new StringBuilder("[");
-            for (JsonNode item : node) {
-                if (result.length() > 1) result.append(',');
-                result.append(canonicalJson(item));
-            }
-            return result.append(']').toString();
-        }
-        if (node.isObject()) {
-            StringBuilder result = new StringBuilder("{");
-            node.propertyStream().sorted(Map.Entry.comparingByKey()).forEach(entry -> {
-                if (result.length() > 1) result.append(',');
-                try { result.append(json.writeValueAsString(entry.getKey())); }
-                catch (JacksonException impossible) { throw new IllegalStateException(impossible); }
-                result.append(':').append(canonicalJson(entry.getValue()));
-            });
-            return result.append('}').toString();
-        }
-        return node.toString();
-    }
-    private String assistantText(JsonNode message) {
-        StringBuilder text = new StringBuilder();
-        JsonNode parts = message.path("parts");
-        if (parts.isArray()) {
-            for (JsonNode part : parts) {
-                if ("text".equalsIgnoreCase(part.path("type").asText()) && part.hasNonNull("text")) {
-                    if (!text.isEmpty()) text.append('\n');
-                    text.append(part.path("text").asText());
-                }
-            }
-        }
-        if (text.isEmpty() && message.hasNonNull("text")) text.append(message.path("text").asText());
-        return text.toString();
+        URI endpoint = connectionSupplier.get().baseUrl();
+        OpenCodeModel model = sessionModels.get(session.id());
+        machineResponses.inspect(messages, structuredPrompt,
+                () -> capabilities.structured(endpoint, model),
+                detail -> capabilities.modelUnsupported(endpoint, model, detail));
     }
     private SessionStatus messageStatus(OpenCodeSession session) {
         try {
             JsonNode messages = sessionMessages(session);
             inspectMachineResponseProgress(session, messages);
-            boolean relevantMessage = false;
-            int latestUserIndex = -1;
-            int latestAssistantIndex = -1;
-            JsonNode latestAssistant = null;
-            int index = 0;
-            for (JsonNode message : messages) {
-                JsonNode info = message.path("info");
-                String role = info.path("role").asText(message.path("role").asText(""));
-                if (!"assistant".equalsIgnoreCase(role) && !"user".equalsIgnoreCase(role)) { index++; continue; }
-                relevantMessage = true;
-                if ("user".equalsIgnoreCase(role)) latestUserIndex = index;
-                if ("assistant".equalsIgnoreCase(role)) { latestAssistant = message; latestAssistantIndex = index; }
-                index++;
-            }
-            // A reusable session retains its earlier replies.  It is complete only
-            // when the latest assistant reply follows the latest user prompt.
-            if (latestAssistant != null && latestAssistantIndex > latestUserIndex) {
-                JsonNode info = latestAssistant.path("info");
-                if (!info.path("error").isMissingNode() && !info.path("error").isNull()) {
-                    return new SessionStatus("FAILED", errorDetail(info.path("error")));
-                }
-                JsonNode completed = info.path("time").path("completed");
-                if (!completed.isMissingNode() && !completed.isNull()) return new SessionStatus("COMPLETED");
-            }
-            return relevantMessage ? new SessionStatus("RUNNING") : new SessionStatus("UNKNOWN");
+            return responses.messageStatus(messages);
         } catch (SessionFailure e) { throw e; }
         catch (RuntimeException e) { throw new SessionFailure("OPENCODE_MESSAGES_FAILED", e.getMessage()); }
-    }
-    private String errorDetail(JsonNode error) {
-        String detail = firstText(error.path("message"), error.path("data").path("message"),
-                error.path("name"), error.path("code"));
-        return detail.isBlank() ? error.toString() : detail;
     }
     private boolean formatRejected(RestClientResponseException failure) {
         int status = failure.getStatusCode().value();
@@ -937,43 +474,6 @@ public class HttpOpenCodeClient implements OpenCodeClient {
                 .toLowerCase(Locale.ROOT);
         return value.contains("structuredoutput") || value.contains("structured_output")
                 || value.contains("json schema") || value.contains("json_schema");
-    }
-    private String todoStatus(String value) {
-        return switch (value == null ? "" : value.trim().toLowerCase(Locale.ROOT).replace('-', '_')) {
-            case "pending", "open", "todo" -> "PENDING";
-            case "in_progress", "inprogress", "doing" -> "IN_PROGRESS";
-            case "completed", "complete", "done" -> "COMPLETED";
-            case "cancelled", "canceled" -> "CANCELLED";
-            default -> "UNKNOWN";
-        };
-    }
-    private String todoPriority(String value) {
-        return switch (value == null ? "" : value.trim().toLowerCase(Locale.ROOT)) {
-            case "high" -> "HIGH";
-            case "medium", "normal" -> "MEDIUM";
-            case "low" -> "LOW";
-            default -> null;
-        };
-    }
-    private String normalizeTodoContent(String value) {
-        return (value == null ? "" : value).replace("\r\n", "\n").replace('\r', '\n')
-                .trim().replaceAll("\\s+", " ");
-    }
-    private String truncateUtf8(String value, int maxBytes) {
-        if (value == null || value.isEmpty()) return "";
-        byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
-        if (bytes.length <= maxBytes) return value;
-        int end = value.length();
-        while (end > 0 && value.substring(0, end).getBytes(StandardCharsets.UTF_8).length > maxBytes) end--;
-        return value.substring(0, end);
-    }
-    private String sha256(String value) {
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                    .digest((value == null ? "" : value).getBytes(StandardCharsets.UTF_8)));
-        } catch (Exception impossible) {
-            throw new IllegalStateException("SHA-256 unavailable", impossible);
-        }
     }
     private String blankToNull(String value) { return value == null || value.isBlank() ? null : value; }
     @Override public String diff(OpenCodeSession session) {

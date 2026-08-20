@@ -89,8 +89,6 @@ public class DesignerSessionService {
     private static final Pattern COMPILATION_PLAN_PAYLOAD = Pattern.compile(
             "<!--\\s*LOOPSPEC_COMPILATION_PLAN_JSON_START\\s*-->(.*?)<!--\\s*LOOPSPEC_COMPILATION_PLAN_JSON_END\\s*-->",
             Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
-    private static final Pattern DESIGNER_TEST_EVIDENCE = Pattern.compile(
-            "(?i)(?:-D(?:it\\.)?test\\s*=|--tests(?:\\s|=)|[A-Za-z_$][A-Za-z0-9_.$]*(?:Test|Tests)(?:\\.java)?)");
     /** Compatibility sanitization only: a Designer payload is never consumed as LoopSpec. */
     private static final Pattern LEGACY_DESIGNER_PAYLOAD = Pattern.compile(
             "<!--\\s*LOOPSPEC_JSON_START\\s*-->.*?<!--\\s*LOOPSPEC_JSON_END\\s*-->",
@@ -111,6 +109,11 @@ public class DesignerSessionService {
     private final DesignerEventHub events;
     private final TaskProfileService taskProfiles;
     private final RolePromptComposer rolePrompts;
+    private final DesignerConversationPromptFactory conversationPrompts =
+            new DesignerConversationPromptFactory();
+    private final DesignerDecompositionPromptFactory decompositionPrompts;
+    private final DesignerPackageContext packageContext;
+    private final DesignerPackagePromptFactory packagePrompts;
     private final WorkPackageRoleService workPackageRoles;
 
     public DesignerSessionService(LoopperMapper mapper, LifecycleTransitionService lifecycle,
@@ -134,6 +137,10 @@ public class DesignerSessionService {
         this.events = events;
         this.taskProfiles = taskProfiles;
         this.rolePrompts = rolePrompts;
+        this.decompositionPrompts = new DesignerDecompositionPromptFactory(json, taskProfiles, rolePrompts);
+        this.packageContext = new DesignerPackageContext(mapper, json);
+        this.packagePrompts = new DesignerPackagePromptFactory(
+                taskProfiles, rolePrompts, workPackageRoles, packageContext);
         this.workPackageRoles = workPackageRoles;
     }
 
@@ -4211,10 +4218,7 @@ public class DesignerSessionService {
     }
 
     private String designerDeclaredTestEvidence(String design) {
-        if (blank(design)) return "[]";
-        return write(design.lines().map(String::trim).filter(line -> !line.isEmpty())
-                .filter(line -> DESIGNER_TEST_EVIDENCE.matcher(line).find())
-                .map(line -> bounded(line, 512)).distinct().limit(24).toList());
+        return packageContext.declaredTestEvidence(design);
     }
 
     private String canonicalDesignerExcerpt(String design, String candidate) {
@@ -4552,205 +4556,31 @@ public class DesignerSessionService {
 
     private String decomposerPlanningPrompt(DesignerSessionRow session, ProjectRow project,
                                             DesignRequirementRevisionRow revision, boolean retry) {
-        return """
-                You are OpenCode Loopper Task Decomposer / 任务拆解器 in the semantic planning turn of a strictly
-                read-only Session. Use only read, glob, and grep. Never edit/write files, execute commands, ask
-                questions, create tasks, or emit the final TASK_DECOMPOSITION envelope in this turn.
-
-                %s
-
-                Think in this fixed order and expose only the bounded planning result, not private chain-of-thought:
-                1. Plan one coherent package or 2-6 dependency-ordered vertical business packages.
-                2. Map every numbered requirement segment to a global constraint or work package with a short
-                   rationale, and explain every inter-package dependency.
-                3. Return the structured planning envelope below. Do not mechanically split database/backend/
-                   frontend/tests. Use NEEDS_INPUT only for a genuinely missing semantic fact and
-                   MULTI_TASK_REQUIRED only for multiple roots, independent releases, or more than six packages.
-
-                Project root: %s
-                Designer session: %s
-                Requirement revision: R%d%s
-                Numbered immutable requirement segments:
-                %s
-
-                Complete immutable requirement:
-                %s
-
-                %s
-
-                <!-- TASK_DECOMPOSITION_PLAN_JSON_START -->
-                Put exactly one complete planning object matching the contract above here.
-                <!-- TASK_DECOMPOSITION_PLAN_JSON_END -->
-
-                The markers above are preferred. If they cannot be preserved, a complete top-level JSON object may
-                be returned bare, in one Markdown fence, or with a short explanation. Never return multiple
-                conflicting JSON objects; the server accepts only a uniquely identifiable valid object.
-                """.formatted(rolePrompts.decomposerInstructions(taskProfiles.current(session.id())),
-                project.rootPath(), session.id(), revision.revision(),
-                retry ? " explicit retry" : "",
-                readSegments(revision.requirementSegmentsJson()).stream()
-                        .map(segment -> segment.id() + ": " + segment.text())
-                        .collect(java.util.stream.Collectors.joining("\n")), revision.requirementText(),
-                decompositionPlanningMachineContract());
-    }
-
-    private String decompositionPlanningMachineContract() {
-        return """
-                %s
-                Return only the compact semantic object. The server derives DIRECT_DESIGN/DECOMPOSED, GC/WP ids,
-                requirementRefs, dependency ids, and dependency evidence; do not spend effort emitting those fields.
-                READY uses 1-6 vertical work packages. targetIndex and packageIndex are zero-based.
-                {"outcome":"READY","normalizedGoal":"observable overall goal","globalConstraints":[{"text":"constraint"}],"workPackages":[{"title":"vertical capability","objective":"observable result","scopeIn":["..."],"scopeOut":[],"deliverables":["..."],"acceptanceIntent":["..."],"dependsOn":[]}],"coverage":[{"requirementRef":"RQ-1","targetType":"WORK_PACKAGE","targetIndex":0,"rationale":"optional"}],"designGaps":[],"reason":null}
-                NEEDS_INPUT and MULTI_TASK_REQUIRED keep workPackages/coverage empty and provide the existing closed
-                designGaps or a concrete reason. All arrays remain arrays.
-                """.formatted(MachineRoleContractCatalog.card("DECOMPOSER"));
+        return decompositionPrompts.planning(session, project, revision, retry);
     }
 
     private String decomposerJsonPrompt(DecompositionPlanEnvelope plan) {
-        return """
-                The semantic package planning and requirement coverage mapping below passed deterministic validation
-                and is now frozen. Generate the final decomposition JSON without redesigning, adding, removing,
-                reordering, or paraphrasing any planning decision. Do not emit planning markers in this turn.
-
-                Frozen planning:
-                %s
-
-                %s
-
-                <!-- TASK_DECOMPOSITION_JSON_START -->
-                Put exactly one final decomposition object matching the frozen planning here.
-                <!-- TASK_DECOMPOSITION_JSON_END -->
-
-                The markers above are preferred. If they cannot be preserved, a complete top-level JSON object may
-                be returned bare, in one Markdown fence, or with a short explanation. Never return multiple
-                conflicting JSON objects; the server accepts only a uniquely identifiable valid object.
-                """.formatted(write(plan), decompositionMachineContract());
-    }
-
-    private String decompositionMachineContract() {
-        return """
-                Final decomposition JSON contract:
-                - The final object contains exactly status, normalizedGoal, globalConstraints, workPackages,
-                  designGaps, and reason. It omits coverageMappings and dependencyEvidence because the server already
-                  persisted those planning proofs.
-                - All collection fields remain JSON arrays. Global constraints and work packages retain the exact
-                  object shapes, values, ordering, requirementRefs, and dependencies from the frozen planning.
-                - DIRECT_DESIGN/DECOMPOSED use designGaps:[] and reason:null. NEEDS_INPUT uses designGaps objects
-                  {"code":"closed code","detail":"concrete missing fact"}, never strings.
-                  MULTI_TASK_REQUIRED uses workPackages:[], designGaps:[], and a concrete reason.
-                """;
+        return decompositionPrompts.finalJson(plan);
     }
 
     /** Compatibility prompt for a V22 decomposition already active during a V23 upgrade. */
     private String decomposerPrompt(DesignerSessionRow session, ProjectRow project,
                                     DesignRequirementRevisionRow revision, boolean retry) {
-        return """
-                You are OpenCode Loopper Task Decomposer / 任务拆解器 in a brand-new strictly read-only Session.
-                You may use only read, glob, and grep under the registered project root. Never edit/write files,
-                execute commands, ask questions, create tasks, or claim implementation occurred.
-
-                Decide whether this complete requirement is one coherent package (DIRECT_DESIGN), 2-6 dependency-
-                ordered vertical business packages (DECOMPOSED), requires explicit user input (NEEDS_INPUT), or
-                crosses the single-Task boundary (MULTI_TASK_REQUIRED: more than six packages, multiple project roots,
-                or independent release boundaries). Do not mechanically split database/backend/frontend/tests.
-                Every numbered requirement segment must be referenced by at least one global constraint or package.
-                Package ids are exactly WP-1..WP-n; dependencies point only to earlier ids.
-
-                Project root: %s
-                Designer session: %s
-                Requirement revision: R%d%s
-                Numbered immutable requirement segments:
-                %s
-
-                Complete immutable requirement:
-                %s
-
-                Prefer one JSON object between the exact markers. If your provider cannot preserve them, the same
-                complete top-level object may be returned bare, in one Markdown fence, or with a short explanation.
-                Never return multiple conflicting objects:
-                <!-- TASK_DECOMPOSITION_JSON_START -->
-                {"status":"DIRECT_DESIGN|DECOMPOSED|NEEDS_INPUT|MULTI_TASK_REQUIRED","normalizedGoal":"...","globalConstraints":[{"text":"...","requirementRefs":["RQ-1"]}],"workPackages":[{"id":"WP-1","title":"...","objective":"...","scopeIn":[],"scopeOut":[],"dependencies":[],"deliverables":[],"acceptanceIntent":[],"requirementRefs":["RQ-1"]}],"designGaps":[],"reason":null}
-                <!-- TASK_DECOMPOSITION_JSON_END -->
-                """.formatted(project.rootPath(), session.id(), revision.revision(), retry ? " explicit retry" : "",
-                readSegments(revision.requirementSegmentsJson()).stream()
-                        .map(segment -> segment.id() + ": " + segment.text()).collect(java.util.stream.Collectors.joining("\n")),
-                revision.requirementText());
+        return decompositionPrompts.legacy(session, project, revision, retry);
     }
 
     private String decompositionRepairPrompt(TaskDecompositionRow row, String code, String detail) {
-        if (blank(row.planningJson())) {
-            return """
-                    The deterministic server rejected the previous decomposition envelope from a workflow started
-                    before structured planning was introduced. Repair the complete envelope without changing the
-                    requirement or using NEEDS_INPUT/MULTI_TASK_REQUIRED to escape JSON or validation errors.
-                    Repair %d/%d. Error code: %s. Error detail: %s.
-
-                    %s
-
-                    Prefer one complete replacement object between TASK_DECOMPOSITION_JSON_START/END markers. If
-                    markers cannot be preserved, return one uniquely identifiable complete top-level JSON object,
-                    either bare, fenced, or accompanied by a short explanation.
-                    """.formatted(row.repairCount(), MAX_DECOMPOSER_REPAIRS, code, safeMessage(detail),
-                    decompositionMachineContract());
-        }
-        DecompositionPlanEnvelope plan = readDecompositionPlan(row.planningJson());
-        return """
-                The deterministic server rejected the previous decomposition envelope. Repair the complete envelope
-                using the already validated frozen planning below. Do not redesign or change to NEEDS_INPUT or
-                MULTI_TASK_REQUIRED merely to escape JSON, coverage, dependency, or field errors.
-                Repair %d/%d. Error code: %s. Error detail: %s.
-
-                Frozen planning:
-                %s
-
-                %s
-
-                Prefer one complete replacement object between TASK_DECOMPOSITION_JSON_START/END markers. If
-                markers cannot be preserved, return one uniquely identifiable complete top-level JSON object,
-                either bare, fenced, or accompanied by a short explanation.
-                """.formatted(row.repairCount(), MAX_DECOMPOSER_REPAIRS, code, safeMessage(detail),
-                write(plan), decompositionMachineContract());
+        return decompositionPrompts.repair(row, code, detail);
     }
 
     private String decompositionPlanningRepairPrompt(TaskDecompositionRow row,
                                                      DesignRequirementRevisionRow revision,
                                                      String code, String detail) {
-        return """
-                The deterministic server rejected the previous decomposition planning envelope. Repair the complete
-                planning result without emitting the final decomposition JSON. Do not use NEEDS_INPUT or
-                MULTI_TASK_REQUIRED to escape JSON, coverage, dependency, or field errors.
-                Repair %d/%d. Error code: %s. Error detail: %s.
-
-                Numbered immutable requirement segments:
-                %s
-
-                %s
-
-                Prefer one complete replacement object between TASK_DECOMPOSITION_PLAN_JSON_START/END markers. If
-                markers cannot be preserved, return one uniquely identifiable complete top-level JSON object,
-                either bare, fenced, or accompanied by a short explanation.
-                """.formatted(row.planningRepairCount(), MAX_DECOMPOSER_REPAIRS, code, safeMessage(detail),
-                readSegments(revision.requirementSegmentsJson()).stream()
-                        .map(segment -> segment.id() + ": " + segment.text())
-                        .collect(java.util.stream.Collectors.joining("\n")),
-                decompositionPlanningMachineContract());
+        return decompositionPrompts.planningRepair(row, revision, code, detail);
     }
 
     private String decompositionSemanticPatchPrompt(TaskDecompositionRow row, String code, String detail) {
-        return """
-                The server parsed the compact decomposition object but rejected a semantic or safety contract.
-                Return only a bounded patch object; do not repeat the full plan. Allowed operations are add,
-                replace, and remove. Allowed roots are outcome, normalizedGoal, globalConstraints, workPackages,
-                coverage, designGaps, and reason. Never patch ids, status, requirementRefs, or dependencies because
-                the server derives them. Error code: %s. Error detail: %s.
-
-                Frozen semantic object:
-                %s
-
-                <!-- TASK_DECOMPOSITION_PLAN_JSON_START -->
-                {"patches":[{"op":"replace","path":"/coverage/0/targetIndex","value":0}]}
-                <!-- TASK_DECOMPOSITION_PLAN_JSON_END -->
-                """.formatted(code, safeMessage(detail), row.semanticPlanJson());
+        return decompositionPrompts.semanticPatch(row, code, detail);
     }
 
     private String decomposerTransportRetryPrompt(TaskDecompositionRow row, ProjectRow project,
@@ -4768,83 +4598,7 @@ public class DesignerSessionService {
                                          DesignRequirementRevisionRow revision,
                                          DesignWorkPackageRow workPackage) {
         TaskDecompositionRow decomposition = mapper.findTaskDecompositionByRevision(revision.id()).orElseThrow();
-        String prerequisites = prerequisitePackageContracts(revision.id(), workPackage);
-        DesignDiscussionRevisionRow discussion = mapper.findLatestDesignDiscussionRevision(
-                session.id(), workPackage.packageId()).orElse(null);
-        String previousDesign = blank(workPackage.designMessageId()) ? "（首次设计）"
-                : messageContent(workPackage.designMessageId());
-        String decisions = discussion == null ? "[]" : discussion.decisionLogJson();
-        WorkPackageRoleService.View packageRole = workPackageRoles.get(workPackage);
-        boolean directSoftware = directSoftwareMode(session.id());
-        String turnContract = directSoftware ? """
-                DIRECT SINGLE-PACKAGE CONTRACT: do not call the question tool and do not ask the user anything.
-                Produce one complete replacement Simplified-Chinese Markdown design no larger than 24 KiB UTF-8.
-                Never return a patch. Preserve all still-valid facts and feedback. Cover scope and non-scope,
-                observable results, exception semantics, affected files/modules, 1-6 dependency-ordered stages,
-                delivery details, and acceptance intent. If the complete design cannot fit safely in 1-6 stages,
-                state that limitation explicitly so the Compiler can return LARGE_TASK_MODE_REQUIRED.
-                """ : """
-                MANDATORY TURN ORDER: before writing any design Markdown, call the question tool exactly once with
-                1-3 concise design questions. Each question has 2-3 mutually exclusive choices; put the recommended
-                choice first and suffix its label with “(Recommended)”. Wait for the answers in this same model call.
-                Only then produce one complete replacement Simplified-Chinese Markdown design no larger than 24 KiB
-                UTF-8. Never return a patch and never discard prior accepted facts or this round's answers. Cover scope
-                and non-scope, observable results, exception semantics, affected files/modules, 1-3 dependency-ordered
-                stages, delivery details, and acceptance intent.
-                """;
-        return """
-                You are OpenCode Loopper Designer / 设计师 for exactly one work package in its persistent strictly
-                read-only conversation. A healthy package Session is reused across human revisions; after transport
-                loss, this prompt reconstructs the conversation from the persisted snapshots and decisions below.
-                You may use read, glob, and grep. Do not edit/write files, execute commands, ask implementation agents,
-                create tasks, emit LoopSpec fields/JSON, or redesign other packages.
-
-                %s
-
-                Project root: %s
-                Complete original requirement R%d:
-                %s
-
-                Frozen decomposition plan:
-                %s
-
-                Current package %s (only scope to design):
-                %s
-
-                Frozen prerequisite package contracts and handoff summaries:
-                %s
-
-                Previous complete package design snapshot (preserve all still-valid information):
-                %s
-
-                Persisted decisions for the current discussion round:
-                %s
-
-                The repository is the immutable pre-execution baseline. A prerequisite with state APPROVED has
-                completed Designer/Compiler/Validator processing, but its production files are intentionally absent
-                until the single Task executes packages in dependency order. Treat its frozen contract as available
-                at execution time. Do not redesign the current package merely because read/glob/grep cannot find a
-                prerequisite deliverable in the baseline repository.
-
-                %s
-
-                When the current Role Pack requires a focused
-                repository-native test, keep it in the same stage as the production behavior it proves. Tests are
-                evidence for business behavior, not a meta acceptance item. In Java work, never create a final
-                production wiring/demo Stage backed only by full-suite or build commands: keep a focused Maven/
-                Gradle TEST in every JAVA_PRODUCTION Stage or merge that wiring into the related tested Stage.
-                """.formatted(MachineRoleContractCatalog.card("DESIGNER") + "\n"
-                        + rolePrompts.packageDesignerInstructions(taskProfiles.current(session.id()),
-                        packageRole.rolePackId(), packageRole.executionStrategy(), packageRole.technologies(),
-                        packageRole.testPolicy()), project.rootPath(),
-                revision.revision(), revision.requirementText(),
-                decomposition.planJson(), workPackage.packageId(), write(Map.of(
-                        "title", workPackage.title(), "objective", workPackage.objective(),
-                        "scopeIn", strings(workPackage.scopeInJson()), "scopeOut", strings(workPackage.scopeOutJson()),
-                        "deliverables", strings(workPackage.deliverablesJson()),
-                        "acceptanceIntent", strings(workPackage.acceptanceIntentJson()),
-                        "requirementRefs", strings(workPackage.requirementRefsJson()))),
-                prerequisites, previousDesign, decisions, turnContract);
+        return packagePrompts.build(session, project, revision, workPackage, decomposition);
     }
 
     private String packageCompilerPlanningPrompt(ProjectRow project, DesignRequirementRevisionRow revision,
@@ -4907,49 +4661,11 @@ public class DesignerSessionService {
 
     private String prerequisitePackageContracts(String requirementRevisionId,
                                                 DesignWorkPackageRow workPackage) {
-        Set<String> dependencyIds = new LinkedHashSet<>(strings(workPackage.dependenciesJson()));
-        if (dependencyIds.isEmpty()) return "[]";
-        List<Map<String, Object>> contracts = mapper.listDesignWorkPackages(requirementRevisionId).stream()
-                .filter(item -> dependencyIds.contains(item.packageId()))
-                .map(item -> {
-                    Map<String, Object> contract = new LinkedHashMap<>();
-                    contract.put("workPackageId", item.packageId());
-                    contract.put("state", item.state());
-                    contract.put("objective", item.objective());
-                    contract.put("compilerSummary", blank(item.compilerSummary()) ? "" : item.compilerSummary());
-                    contract.put("handoffSummary", blank(item.handoffSummary()) ? "" : item.handoffSummary());
-                    return contract;
-                })
-                .toList();
-        return write(contracts);
+        return packageContext.prerequisites(requirementRevisionId, workPackage);
     }
 
     private String packageCompilerPlanningMachineContract(String packageId, WorkPackageRoleService.View profile) {
-        String example = rolePrompts.compilerPlanningExample(profile.rolePackId());
-        return """
-                %s
-                %s
-                Return only semantic stages, criteria, sourceRefs, and evidence intentions. The server generates
-                %s-AC-n, workPackageId, exact Designer excerpts, criterionIds, testTargets, and final StageSpec JSON.
-                Evidence kinds are FOCUSED_TEST, FULL_TEST, BUILD, SELF_CHECK, GIT_DIFF, HTTP_STATUS, JSON_PATH,
-                BROWSER, DATABASE_QUERY, FILE_CONTENT, FILE_HASH, DOCUMENT_STRUCTURE, TABULAR_DATA,
-                FILE_NOT_EXISTS, and JUNIT_XML. covers contains
-                zero-based criterion indexes. FULL_TEST/BUILD/GIT_DIFF/FILE_NOT_EXISTS/JUNIT_XML are supplemental
-                and must use covers:[]. FOCUSED_TEST uses the current stack's safe direct test argv; SELF_CHECK includes
-                successMarker and must emit that marker on success; source-text searches such as grep/rg are not
-                behavior SELF_CHECK commands. Every criterion must either be covered by one native behavior evidence
-                item or provide both judgeRubric and judgeOnlyReason for a genuinely Judge-only result. Every
-                JAVA_PRODUCTION Stage must include a focused Maven/Gradle TEST even if all criteria are Judge-only;
-                that gate may use covers:[] but FULL_TEST and BUILD never replace it. Merge Java wiring/demo work into
-                the related focused-test Stage instead of emitting a production-only final Stage. Criteria contain
-                only observable business outcomes. Code style,
-                source shape, annotations, assembly shape, build success, and test success stay in deliverables or
-                supplemental evidence instead of becoming criteria. Shells, pipes, redirects, unsafe paths, fake
-                tests, and missing tests required by the frozen Role Pack are still rejected by the server validator.
-                %s
-                """.formatted(rolePrompts.compilerInstructions(profile.rolePackId(), profile.rolePackVersion(),
-                        profile.executionStrategy(), profile.technologies(), profile.testPolicy()),
-                MachineRoleContractCatalog.card("COMPILER"), packageId, example);
+        return DesignerCompilerPromptContracts.planning(packageId, profile, rolePrompts);
     }
 
     private String packageCompilerJsonPrompt(DesignerSessionRow session, LoopDraftRow draft,
@@ -5129,216 +4845,36 @@ public class DesignerSessionService {
     }
 
     private String packageCompilerMachineContract(String packageId) {
-        String criterionId = packageId + "-AC-1";
-        return """
-                Strict JSON type contract (property names and JSON types are exact):
-                - stages, allowedPaths, forbiddenPaths, deliverables, verifiers, acceptanceCriteria,
-                  criterionSources, designGaps, command, criterionIds, testTargets, assertions, and startCommand are
-                  JSON arrays even when they contain only one item. Never emit a command or verifier as a string.
-                - stages[*].verifiers[*] is a VerifierSpec JSON object. A PROCESS verifier uses
-                  {"type":"PROCESS","command":["mvn","-q","-Dtest=ExampleFocusedTest","test"],"processPurpose":"TEST","testTargets":["ExampleFocusedTest"],"criterionIds":["%s"]}.
-                  processPurpose is BUILD, TEST, or SELF_CHECK. A TEST mapped to a business criterion has non-empty
-                  testTargets; a full-suite supplemental TEST has empty criterionIds/testTargets. SELF_CHECK has
-                  outputContains. command is direct argv and never one shell command string.
-                - Path policies must be satisfiable. No stage or GIT_DIFF allowedPaths rule may be entirely covered
-                  by a forbiddenPaths rule (for example, event/bridge/** cannot be allowed while event/** is
-                  forbidden). Narrow exclusions inside a broader allow rule remain valid.
-                - stages[*].acceptanceCriteria[*] is
-                  {"id":"%s","description":"observable business result","verificationMode":"MACHINE|JUDGE|BOTH","judgeRubric":"required for JUDGE/BOTH or null","judgeOnlyReason":"required only for JUDGE or null"}.
-                - verificationRuntime is null for PROCESS-only stages. It is never a test framework name such as
-                  MAVEN_JUNIT5. Only an HTTP_STATUS, JSON_PATH, or BROWSER stage that starts its own service uses
-                  {"startCommand":["java","-jar","app.jar","--server.port={{LOOPPER_PORT}}"],"readiness":{"path":"/actuator/health","expectedStatus":200,"jsonPath":"$.status","expectedValue":"UP","matchMode":"EXACT"},"startupTimeoutSeconds":60,"shutdownTimeoutSeconds":10}.
-                - Other supported verifier object shapes are:
-                  GIT_DIFF {"type":"GIT_DIFF","requireChanges":true,"allowedPaths":["src/**"],"forbiddenPaths":[".env"],"forbidDeletes":true};
-                  HTTP_STATUS {"type":"HTTP_STATUS","url":"http://127.0.0.1:{{LOOPPER_PORT}}/path","httpMethod":"GET","expectedStatus":200,"criterionIds":["%s"]};
-                  JSON_PATH adds jsonPath, expectedValue, and matchMode; FILE_CONTENT uses path, expectedContent,
-                  matchMode, and criterionIds; FILE_HASH uses path, expectedSha256, and criterionIds;
-                  DATABASE_QUERY uses path, sql, expectedRowCount, and criterionIds; BROWSER uses url,
-                  criterionIds, and assertion objects {"type":"EXISTS|VISIBLE|TEXT_CONTAINS|COUNT|ATTRIBUTE_EQUALS","selector":"...","value":"... or null","attribute":"... or null","expectedCount":1}.
-                  FILE_NOT_EXISTS, JUNIT_XML, and legacy advisory FILE_EXISTS use a path and cannot cover behavior.
-                - implementationKind is exactly JAVA_PRODUCTION, JAVA_TEST_ONLY, or NON_JAVA. JAVA_PRODUCTION puts
-                  production Java and its focused Maven/Gradle PROCESS TEST in the same stage, and that TEST's
-                  criterionIds covers every MACHINE/BOTH criterion in the stage.
-                - Every stage sets workPackageId to "%s". Criterion ids are unique and use %s-AC-n. Every criterion
-                  has one criterionSources object {"stageIndex":0,"criterionId":"%s","excerpt":"exact non-empty Designer substring"}.
-                - COMPILED uses designGaps:[]. DESIGN_INCOMPLETE uses stages:[], criterionSources:[], and one or more
-                  objects such as {"code":"MISSING_OBSERVABLE_OUTCOME","detail":"concrete missing design fact"};
-                  allowed codes are MISSING_OBSERVABLE_OUTCOME, MISSING_EXCEPTION_SEMANTICS, MISSING_SCOPE,
-                  MISSING_ACCEPTANCE_INTENT, and LARGE_TASK_MODE_REQUIRED. LARGE_TASK_MODE_REQUIRED is valid only for
-                  DIRECT_SOFTWARE_DESIGN when one coherent 1-6 Stage package cannot safely hold the complete design.
-                  designGaps entries are never strings.
-
-                Canonical COMPILED envelope for a JAVA_PRODUCTION stage (copy its JSON types and complete nesting;
-                replace example values with facts from the frozen design, and add stages only within the frozen
-                workflow limit when needed):
-                {"status":"COMPILED","summary":"compiled package summary","stages":[{"objective":"observable stage result","allowedPaths":["src/main/java/**","src/test/java/**"],"forbiddenPaths":[".env"],"deliverables":["production implementation and focused test"],"verifiers":[{"type":"PROCESS","command":["mvn","-q","-Dtest=ExampleFocusedTest","test"],"processPurpose":"TEST","testTargets":["ExampleFocusedTest"],"criterionIds":["%s"]},{"type":"GIT_DIFF","requireChanges":true,"allowedPaths":["src/main/java/**","src/test/java/**"],"forbiddenPaths":[".env"],"forbidDeletes":true}],"acceptanceCriteria":[{"id":"%s","description":"observable business result","verificationMode":"BOTH","judgeRubric":"Confirm the implemented behavior matches the frozen design and deterministic test evidence.","judgeOnlyReason":null}],"verificationRuntime":null,"implementationKind":"JAVA_PRODUCTION","workPackageId":"%s"}],"criterionSources":[{"stageIndex":0,"criterionId":"%s","excerpt":"exact non-empty Designer substring"}],"handoffSummary":"bounded dependency handoff summary","designGaps":[]}
-                """.formatted(criterionId, criterionId, criterionId, packageId, packageId, criterionId,
-                criterionId, criterionId, packageId, criterionId);
+        return DesignerCompilerPromptContracts.compiledPackage(packageId);
     }
 
     private String designerPrompt(DesignerSessionRow session, ProjectRow project, String message) {
-        return """
-                You are OpenCode Loopper Designer / 设计师 in strictly read-only advisory mode.
-                You may use read, glob, and grep to inspect the registered project. Do not edit or write files,
-                run commands, create tasks, or claim implementation has happened.
-
-                %s
-
-                Registered project root: %s
-                Designer session id: %s
-                Bound draft id: %s
-
-                Produce one complete, replacement-quality Markdown design in Simplified Chinese. Do not emit
-                LoopSpec JSON, schema fields, hidden markers, or a machine payload. Include implementation scope,
-                observable business results, exception semantics, affected modules/files, dependency-ordered stages,
-                acceptance intent and exact validation commands when evidenced. Non-trivial work should normally use
-                2-6 independently deliverable stages; an atomic change may use one stage with a stated reason.
-                Every stage must be coherent and immediately verifiable. Do not postpone all behavior checks to a
-                final test stage. If the frozen Role Pack requires a focused repository-native test, put it in the
-                same stage and describe which business acceptance behavior that test proves. A statement such
-                as 'all tests pass' is evidence, not a standalone business acceptance item. Include Mermaid for
-                multi-step workflows. Preserve identifiers, commands, paths, and enum literals exactly.
-
-                User request:
-                %s
-                """.formatted(MachineRoleContractCatalog.card("DESIGNER") + "\n"
-                        + rolePrompts.requirementDesignerInstructions(taskProfiles.current(session.id())),
-                project.rootPath(), session.id(),
+        String instructions = MachineRoleContractCatalog.card("DESIGNER") + "\n"
+                + rolePrompts.requirementDesignerInstructions(taskProfiles.current(session.id()));
+        return conversationPrompts.designer(instructions, project.rootPath(), session.id(),
                 session.loopDraftId(), message);
     }
 
     private String requirementDiscussionPrompt(DesignerSessionRow session, ProjectRow project,
                                                String previousSnapshot, String feedback,
                                                boolean questionRepair) {
-        if (directSoftwareMode(session.id())) {
-            return """
-                    You are OpenCode Loopper Requirement Discussion Designer / 需求讨论设计师 in a persistent
-                    strictly read-only conversation. You may use read, glob, grep, and the question tool. Never edit
-                    files, run commands, create a Task, invoke Decomposer, or produce a requirement/design draft.
-
-                    Project root: %s
-                    Designer session: %s
-                    Existing server-owned requirement snapshot (context only):
-                    %s
-
-                    New user input:
-                    %s
-
-                    MANDATORY TURN ORDER:
-                    1. Call the question tool exactly once with 1-3 concise product/design questions. Each question
-                       offers 2-3 mutually exclusive options; put the recommended option first and suffix its label
-                       with “(Recommended)”. Custom input may be allowed.
-                    2. Wait for the user's answers in this same model call/session.
-                    3. End the turn. A short acknowledgement or an empty text response is valid. Do not return a
-                       Markdown requirement snapshot, summary, inferred requirement, implementation plan, or LoopSpec.
-
-                    The server will deterministically assemble the authoritative snapshot from the original user
-                    input, later requirement-scope user messages, and persisted final answers. Your free text and
-                    repository observations are never requirement semantics.%s
-                    """.formatted(project.rootPath(), session.id(), previousSnapshot, feedback,
-                    questionRepair ? " This is the single repair Session because the previous Session omitted its mandatory question." : "");
-        }
-        return """
-                You are OpenCode Loopper Requirement Designer / 需求设计师 in a persistent strictly read-only
-                conversation. You may use read, glob, grep, and the question tool. Never edit files, run commands,
-                create a Task, invoke the Task Decomposer, or emit LoopSpec JSON.
-
-                %s
-
-                Project root: %s
-                Designer session: %s
-                Previous complete requirement snapshot:
-                %s
-
-                New user input:
-                %s
-
-                MANDATORY TURN ORDER:
-                1. Before producing any design Markdown, call the question tool exactly once with 1-3 concise
-                   product/design questions. Each question must offer 2-3 mutually exclusive options; put the
-                   recommended option first and suffix its label with “(Recommended)”. Custom input may be allowed.
-                2. Wait for the user's answers in this same model call/session.
-                3. Then return one complete replacement Simplified-Chinese Markdown requirement snapshot, no larger
-                   than 24 KiB UTF-8. Preserve all still-valid prior facts and decisions; never return a patch.
-
-                The snapshot must cover goal, scope/non-scope, user-visible flow, edge/error behavior, affected
-                modules, acceptance intent, and all decisions made in the question answers. Do not include machine
-                JSON or claim decomposition/implementation has occurred.%s
-                """.formatted(MachineRoleContractCatalog.card("DESIGNER"), project.rootPath(), session.id(),
-                previousSnapshot, feedback,
-                questionRepair ? " This is the single repair Session because the previous Session omitted its mandatory question." : "");
+        return conversationPrompts.requirementDiscussion(directSoftwareMode(session.id()),
+                MachineRoleContractCatalog.card("DESIGNER"), project.rootPath(), session.id(),
+                previousSnapshot, feedback, questionRepair);
     }
 
-    private String compilerPrompt(DesignerSessionRow session, ProjectRow project, LoopDraftRow draft, String design) {
-        return """
-                You are OpenCode Loopper LoopSpec Compiler / 规范编译器 in a new strictly read-only Session.
-                You compile a frozen Designer Markdown document into machine LoopSpec; you do not redesign it.
-                You may use read, glob, and grep to verify build files and test conventions. Do not edit/write files,
-                execute commands, ask questions, create tasks, or add business requirements absent from the design.
-
-                Project root: %s
-                Required projectId: %s
-                Draft schema/version context (read-only):
-                %s
-
-                Prefer one JSON object between the exact markers below. If the markers are unavailable, return one
-                uniquely identifiable complete top-level JSON object, bare, fenced, or with a short explanation.
-                Status COMPILED requires loopSpec, a short summary, and one criterionSources entry for every
-                stage acceptance criterion. Each entry has stageIndex, criterionId, and excerpt; excerpt must be an
-                exact non-empty substring of the frozen design. Status DESIGN_INCOMPLETE is allowed only when the
-                design lacks business semantics and requires designGaps using only these codes:
-                MISSING_OBSERVABLE_OUTCOME, MISSING_EXCEPTION_SEMANTICS, MISSING_SCOPE, MISSING_ACCEPTANCE_INTENT.
-                Never use DESIGN_INCOMPLETE for malformed JSON, schema uncertainty, invalid validators, or coverage errors.
-
-                For v2 every stage must set implementationKind to JAVA_PRODUCTION, JAVA_TEST_ONLY, or NON_JAVA.
-                JAVA_PRODUCTION requires a non-skipped focused Maven/Gradle PROCESS TEST with concrete testTargets,
-                and every MACHINE/BOTH business criterion must be mapped to that focused test through criterionIds.
-                Tests are evidence for business criteria, never a separate 'tests pass' criterion. PROCESS is direct
-                argv, never shell. Every v2 PROCESS declares processPurpose. Every stage has at least one blocking
-                deterministic verifier. GIT_DIFF is scope only; FILE_EXISTS is advisory; build/lint/typecheck are not
-                behavior. Use JUDGE only when deterministic proof is genuinely unreliable and explain why.
-
-                Required envelope shape:
-                <!-- LOOPSPEC_COMPILATION_JSON_START -->
-                ```json
-                {"status":"COMPILED","summary":"...","loopSpec":{"schemaVersion":"v2","projectId":"%s","goal":"...","context":"...","stages":[{"objective":"...","allowedPaths":[],"forbiddenPaths":[],"deliverables":[],"implementationKind":"NON_JAVA","acceptanceCriteria":[{"id":"AC-1","description":"...","verificationMode":"MACHINE"}],"verifiers":[]}],"limits":{}},"criterionSources":[{"stageIndex":0,"criterionId":"AC-1","excerpt":"exact Designer text"}],"designGaps":[]}
-                ```
-                <!-- LOOPSPEC_COMPILATION_JSON_END -->
-
-                Frozen Designer Markdown revision %d:
-                %s
-                """.formatted(project.rootPath(), session.projectId(), draft.specJson(),
-                session.projectId(), session.designRevision(), design);
+    private String compilerPrompt(DesignerSessionRow session, ProjectRow project,
+                                  LoopDraftRow draft, String design) {
+        return conversationPrompts.compiler(project.rootPath(), session.projectId(), draft.specJson(),
+                session.designRevision(), design);
     }
 
     private String compilerRepairPrompt(LoopSpecCompilationRow compilation, String code, String detail) {
-        return """
-                The deterministic server validator rejected the previous compiler envelope.
-                Repair the complete compilation envelope using only the same frozen Designer document and prior
-                read-only evidence. Do not redesign, ask questions, inspect additional scope, execute commands, or
-                return DESIGN_INCOMPLETE to escape JSON/schema/verifier/coverage errors.
-
-                Repair %d/%d
-                Error code: %s
-                Error detail: %s
-
-                Return one complete replacement JSON object between
-                <!-- LOOPSPEC_COMPILATION_JSON_START --> and <!-- LOOPSPEC_COMPILATION_JSON_END -->.
-                """.formatted(compilation.repairCount(), MAX_COMPILER_REPAIRS, code, safeMessage(detail));
+        return conversationPrompts.compilerRepair(compilation.repairCount(), MAX_COMPILER_REPAIRS, code, detail);
     }
 
     private String redesignPrompt(String gaps) {
-        return """
-                The independent LoopSpec Compiler could not compile the previous frozen design because required
-                business semantics were missing. Produce a complete replacement Markdown design, not a patch or
-                commentary about the old design. Do not emit LoopSpec JSON or hidden machine markers. Preserve the
-                original user goal, but explicitly fill every listed gap with observable results, exception semantics,
-                scope, and acceptance intent. Any focused test required by the frozen package Role Pack must be
-                mapped to the business behavior in the same stage.
-
-                Design gaps:
-                %s
-                """.formatted(gaps);
+        return conversationPrompts.redesign(gaps);
     }
 
     private String designerMarkdown(String output) {

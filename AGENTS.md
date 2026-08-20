@@ -42,10 +42,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.1.96.jar
-   jar tf target/opencode-loopper-0.1.96.jar \
+   test -s target/opencode-loopper-0.1.98.jar
+   jar tf target/opencode-loopper-0.1.98.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.1.96.jar
+   shasum -a 256 target/opencode-loopper-0.1.98.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -95,8 +95,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.1.96`。
-- 正式产物：`target/opencode-loopper-0.1.96.jar`。
+- Maven 项目版本：`0.1.98`。
+- 正式产物：`target/opencode-loopper-0.1.98.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -127,6 +127,7 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 │   └── release.yml                   # v<version> 标签验证并发布 JAR/脚本/校验值
 ├── docs/
 │   ├── architecture.md               # 权威架构、生命周期、错误和工作区边界
+│   ├── code-design-contract.md        # 单一职责、依赖方向、规模门禁和重构准则
 │   ├── ai-role-contracts.md           # 机器角色轻量语义合同与服务端编译边界
 │   ├── design-contract.md            # UI、Designer 和 Review Gate 合同
 │   ├── opencode-contract.md          # OpenCode HTTP、Session、MCP、权限契约
@@ -174,6 +175,7 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 | 数据库变化 | 所有受影响契约 | `db/migration/`、`LoopperMapper.java`、对应集成测试 |
 | UI 视觉/状态 | `docs/design-contract.md` | 相似 `views/`、`components/`、`styles/tokens.css` 和 `.spec.ts` |
 | 打包/部署 | `README.md` | `pom.xml`、`application.yml`、`scripts/verify.sh`、`scripts/start-linux.sh`、`scripts/start-windows.bat` |
+| 代码结构/重构 | `docs/code-design-contract.md` | 目标类、相似职责组件、相邻测试、`CodeStructureContractTest` |
 
 文档与源码冲突时：
 
@@ -319,6 +321,10 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 
 ## 6. 后端开发约定
 
+- 所有新增和修改必须遵守 `docs/code-design-contract.md`：编排、策略、持久化、传输、解析和展示职责分离，依赖从适配层指向稳定领域合同，优先组合而非为复用实现建立继承层级。
+- 新生产 Java 文件默认不得超过 600 行；推荐类不超过 400 行、接口不超过 250 行、方法不超过 40 行、构造依赖不超过 8 个。存量超限文件由 `CodeStructureContractTest` 维护只降不升的债务上限，拆分时必须同步降低上限，不得为通过构建调高阈值。
+- 设计模式只用于隔离真实变化轴：可替换算法用 Strategy，确定性判断用 Policy，构造与协议装配用 Factory/Assembler，有界用例用 Coordinator，外部系统用 Adapter。禁止用无行为的转发层掩盖原 God Class。
+
 - API Controller 只做输入/输出边界、校验和 DTO 映射；业务编排留在 `service/`。
 - 领域状态使用现有枚举和 typed failure；不要用散落字符串复制状态语义。
 - `TaskService` 负责 OpenCode、验证器、Judge 等副作用编排；状态机只决定合法转换，不承载外部 I/O。
@@ -411,7 +417,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.1.96.jar
+JAR=target/opencode-loopper-0.1.98.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -468,6 +474,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 | OpenCode API、Session、权限或 MCP | `docs/opencode-contract.md` |
 | Recovery、Interaction、Verifier、Insight、Automation | `docs/seven-feature-contract.md` |
 | Agent 命令、目录、开发规则、关键陷阱、完成定义 | `AGENTS.md` |
+| 代码职责、依赖方向、类/方法规模或结构例外 | `docs/code-design-contract.md`、`AGENTS.md`、`CodeStructureContractTest` |
 | 版本/JAR 名称 | README、AGENTS、POM、前端 package、Linux 脚本、application.yml |
 
 更新文档时只写已经实现并验证的事实。计划、建议和未验证运行时结果必须清楚标注，不得写成现有能力。
@@ -512,6 +519,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-08-20 | God Class 职责拆分与代码结构门禁，交付 0.1.98 | 新增代码设计契约和 600 行默认门禁/遗留债务只降不升规则；Designer/Task 提取提示、上下文、重试、Judge、状态持久化职责；OpenCode HTTP、Git、发布、本地同步和 Mapper 按策略、解析、协议及聚合边界拆分；同步 README、架构、OpenCode 合同与本公约正文 | 聚焦结构、HTTP、Git、Designer、Task、发布和本地同步回归通过；`./scripts/verify.sh` 诊断重试完整通过：Java 504 项（0 失败、0 错误、1 项平台条件跳过），Vitest 186/186，BUILD SUCCESS；首次 0.1.98 全量运行仅并发队列测试出现一次时序失败，单测重跑及同源码全量重跑均通过；本地 JAR `target/opencode-loopper-0.1.98.jar` 大小 283292181 字节、含 108 个 SPA 静态入口/资产，SHA-256 `e58c391e00f75f07db907673ccbdf8ab563811ddb416ed073b1f1e4fff0ac738`；未重启运行实例，不推送、不打标签、不创建 Release |
 | 2026-08-20 | 全量动态 Role Pack 与 Compiler 可靠性收口，交付 0.1.96 | Role Pack v3 按 Java/Python/Node/Other 软件族消除 JavaScript、同族别名和未知单栈误路由；全部可编译角色使用栈原生规划样例与测试目标解析；当前紧凑合同不再误入历史 `status` 解析，格式/语义修复使用全新无工具 Session 与匹配 Schema，非法补丁不覆盖有效快照；Java/混合包禁止仅 FULL_TEST/BUILD 的生产 Stage，补丁中可唯一反推的 `verifiers` 和缺失字段 `replace` 分别规范化为 `evidence` 与 `add` 后重跑全校验；同步 README、架构、Designer、OpenCode、AI 角色合同与本公约正文 | 聚焦补丁/Role Prompt/Compiler 集成 9/9；`./scripts/verify.sh` 完整通过：Java 497 项（0 失败、0 错误、1 项平台条件跳过），Vitest 186/186，BUILD SUCCESS；本地 JAR `target/opencode-loopper-0.1.96.jar` 大小 283226768 字节、含 108 个 SPA 静态入口/资产，SHA-256 `385d302b73bfe1d44f1b4bbf2a170c40a5997a8c0c1ad7cbde76a13a738c08d1`；复制当前 SQLite 到隔离 18096，复用 OpenCode 1.18.18 + `opencode-go/deepseek-v4-flash` 对失败会话 `857a0148-186e-4c65-ade0-8d0c23ad4744` 的 WP-1 真实重编译，0 次格式/语义修复即 `server_compiled=1`、3 个 Java Stage 均含聚焦测试并进入 `FINAL_REVIEW`，新增 Task 0，旧 `status`/`/status` 冲突 0；隔离端口已释放，当前 8080 仍为 0.1.94/PID 59428，未重启、不推送、不打标签、不创建 Release |
 | 2026-08-20 | 普通任务服务端需求快照、单次提问流程与 0.1.94 | 普通需求只在讨论阶段提问，服务端从用户输入和最终回答原样组装权威快照；WP-1 初稿/修订/重设计不再提问；大型任务保留 AI 预设计和逐包问题；双向模式切换终止旧 Session 并重建目标合同；同步 README、架构、Designer、OpenCode、AI 角色契约与本公约正文 | Designer 后端聚焦测试 52/52、Designer 前端聚焦测试 30/30、前端类型检查通过；`./scripts/verify.sh` 完整通过：Java 485 项（0 失败、0 错误、1 项平台条件跳过），Vitest 186/186，BUILD SUCCESS；本地 JAR `target/opencode-loopper-0.1.94.jar` 大小 283220431 字节、含 108 个 SPA 静态入口/资产，SHA-256 `b846dc89dff89a0c6e4a5d3b1a9fdaaea2e723a1a720716a16504671f23fe084`；未重启运行实例，不推送、不打标签、不创建 Release |
 | 2026-08-20 | Designer 连续系统消息折叠条与 0.1.93 | 连续 System 通知跨需求修订和需求/工作包作用域元数据合并，默认以与“需求讨论”同结构的整行“系统消息”折叠条显示，用户/设计器/讨论/校验仍保持时间线边界；同步 README、设计合同与本公约正文 | Designer 聚焦测试 28/28、前端类型检查、发布打包契约通过；`./scripts/verify.sh` 使用 JDK 21.0.12 完整通过：Java 483 项（0 失败、0 错误、1 平台条件跳过），Vitest 184/184，BUILD SUCCESS；本地 JAR `target/opencode-loopper-0.1.93.jar` 大小 283212527 字节、含 108 个 SPA 静态入口/资产，SHA-256 `230db80101fb888fa354b3afef4fc8245186c6ed090dbf33ad7830fb159693b6`；未重启运行实例，不推送、不打标签、不创建 Release |

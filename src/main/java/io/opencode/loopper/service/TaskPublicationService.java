@@ -1,8 +1,6 @@
 package io.opencode.loopper.service;
 
 import io.opencode.loopper.config.LoopperProperties;
-import io.opencode.loopper.domain.LifecycleMachineType;
-import io.opencode.loopper.domain.LifecycleScopeType;
 import io.opencode.loopper.domain.TaskPublicationState;
 import io.opencode.loopper.domain.TaskState;
 import io.opencode.loopper.lifecycle.LifecycleTransitionService;
@@ -12,36 +10,23 @@ import io.opencode.loopper.persistence.TaskPublicationRow;
 import io.opencode.loopper.persistence.TaskRow;
 import io.opencode.loopper.runtime.GitWorktreeManager;
 import io.opencode.loopper.runtime.OpenCodeClient;
-import io.opencode.loopper.runtime.ProcessResult;
 import io.opencode.loopper.runtime.SafeProcessRunner;
-import java.net.URI;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 
 /** Human-triggered publication for a successfully verified Git Task branch. */
 @Service
 public class TaskPublicationService {
-    private static final Duration GIT_READ_TIMEOUT = Duration.ofSeconds(30);
     private static final Duration GIT_WRITE_TIMEOUT = Duration.ofMinutes(2);
     private static final Duration AI_TIMEOUT = Duration.ofSeconds(75);
     private static final Pattern COMMIT_MESSAGE = Pattern.compile("^#[0-9]{4}_[^\\r\\n]{1,120}$");
-    private static final Pattern PREFIX = Pattern.compile("^#[0-9]{4}_");
-    private static final Pattern SCP_REMOTE = Pattern.compile("^(?:[^@/]+@)?([^:/]+):(.+)$");
     private static final int PUBLICATION_LOCK_STRIPES = 64;
 
     private final TaskService tasks;
@@ -54,6 +39,10 @@ public class TaskPublicationService {
     private final LoopperMapper mapper;
     private final LifecycleTransitionService lifecycle;
     private final GitLabMergeRequestClient gitlab;
+    private final PublicationGitClient publicationGit;
+    private final LocalSourceSynchronizer localSourceSynchronizer;
+    private final TaskPublicationTracker publicationTracker;
+    private final CommitMessagePromptFactory commitMessages;
     private final ReentrantLock[] taskLocks = lockStripes(PUBLICATION_LOCK_STRIPES);
 
     public TaskPublicationService(TaskService tasks, ProjectService projects, GitWorktreeManager worktrees,
@@ -70,6 +59,11 @@ public class TaskPublicationService {
         this.mapper = mapper;
         this.lifecycle = lifecycle;
         this.gitlab = gitlab;
+        this.publicationGit = new PublicationGitClient(runner, properties);
+        this.localSourceSynchronizer = new LocalSourceSynchronizer(tasks, projects, runner, properties,
+                localConflicts, publicationGit);
+        this.publicationTracker = new TaskPublicationTracker(tasks, mapper, lifecycle, gitlab, publicationGit);
+        this.commitMessages = new CommitMessagePromptFactory(tasks, publicationGit);
     }
 
     public PublicationStatus status(String taskId) {
@@ -106,7 +100,7 @@ public class TaskPublicationService {
         try {
             session = openCode.createReadOnlySession(workspace,
                     "OpenCode Loopper Commit Message (READ_ONLY)", configuredModel());
-            openCode.promptAsync(session, commitPrompt(task, workspace));
+            openCode.promptAsync(session, commitMessages.prompt(task, workspace));
         } catch (RuntimeException failure) {
             throw new ServiceUnavailableException("COMMIT_MESSAGE_AI_FAILED", safeMessage(failure));
         }
@@ -116,7 +110,7 @@ public class TaskPublicationService {
             try {
                 OpenCodeClient.SessionStatus state = openCode.sessionStatus(session);
                 if (state.completed()) {
-                    String subject = normalizeAiSubject(openCode.sessionOutput(session));
+                    String subject = commitMessages.normalizeSubject(openCode.sessionOutput(session));
                     return new CommitSuggestion(subject, true);
                 }
                 if (state.failed()) {
@@ -240,7 +234,7 @@ public class TaskPublicationService {
         if (normalizedDescription.length() > 8000) {
             throw new BadRequestException("MERGE_DESCRIPTION_INVALID", "合并请求说明不能超过 8000 个字符");
         }
-        RemoteRepository remote = remoteRepository(current.remoteUrl());
+        PublicationGitClient.RemoteRepository remote = remoteRepository(current.remoteUrl());
         if (remote.webBase() == null || "UNKNOWN".equals(remote.provider())) {
             throw new BadRequestException("MERGE_REQUEST_PROVIDER_UNSUPPORTED", "当前远端地址无法生成 GitLab 或 GitHub 合并请求入口");
         }
@@ -271,7 +265,7 @@ public class TaskPublicationService {
         }
         if (snapshot == null) throw new ConflictException("TASK_PUBLICATION_NOT_STARTED", "任务尚未产生可核对的发布提交");
         if (TaskPublicationState.MERGED.name().equals(snapshot.state())) return withDelivery(inspected, snapshot, null);
-        RemoteRepository remote = remoteRepository(snapshot.remoteUrl());
+        PublicationGitClient.RemoteRepository remote = remoteRepository(snapshot.remoteUrl());
         if (!"GITLAB".equals(remote.provider())) {
             return withDelivery(inspected, recordCheckError(snapshot, "GitHub 合并状态暂未接入自动确认"), null);
         }
@@ -303,177 +297,47 @@ public class TaskPublicationService {
     }
 
     private TaskPublicationRow observe(TaskRow task, PublicationStatus status) {
-        TaskPublicationState observed = switch (status.state()) {
-            case "COMMITTED" -> TaskPublicationState.COMMITTED;
-            case "PUSHED" -> TaskPublicationState.PUSHED;
-            case "SYNCED_LOCAL" -> TaskPublicationState.LOCAL_COMPLETED;
-            default -> null;
-        };
-        TaskPublicationRow existing = mapper.findTaskPublication(task.id()).orElse(null);
-        if (observed == null) return existing;
-        if (existing == null) return createPublication(task, status, observed);
-        TaskPublicationState current = TaskPublicationState.valueOf(existing.state());
-        if (current == TaskPublicationState.MERGED || current == TaskPublicationState.LOCAL_COMPLETED) return existing;
-        existing = refreshRemoteMetadata(existing, status);
-        if (publicationRank(observed) <= publicationRank(current)) return existing;
-        return transitionPublication(existing, observed, firstNonBlank(existing.targetBranch(), status.targetBranch()),
-                existing.lastCheckedAt(), null);
-    }
-
-    private TaskPublicationRow refreshRemoteMetadata(TaskPublicationRow row, PublicationStatus status) {
-        String remoteName = firstNonBlank(status.remoteName(), row.remoteName());
-        String remoteUrl = firstNonBlank(status.remoteUrl(), row.remoteUrl());
-        String provider = firstNonBlank(status.provider(), row.provider());
-        String sourceBranch = firstNonBlank(status.branch(), row.sourceBranch());
-        if (java.util.Objects.equals(remoteName, row.remoteName())
-                && java.util.Objects.equals(remoteUrl, row.remoteUrl())
-                && java.util.Objects.equals(provider, row.provider())
-                && java.util.Objects.equals(sourceBranch, row.sourceBranch())) {
-            return row;
-        }
-        String now = Instant.now().toString();
-        TaskPublicationRow updated = new TaskPublicationRow(row.taskId(), row.state(), remoteName, remoteUrl,
-                provider, sourceBranch, row.targetBranch(), row.taskCommitSha(), row.commitMessage(), row.creationRequestedAt(),
-                row.mergeRequestIid(), row.mergeRequestUrl(), row.mergeRequestState(), row.mergeRequestHeadSha(),
-                row.mergeCommitSha(), row.mergeRequestOpenedAt(), row.mergedAt(), row.lastCheckedAt(), row.lastCheckError(),
-                row.createdAt(), now, row.version());
-        lifecycle.mutateWithoutTransition(() -> mapper.updateTaskPublication(updated),
-                () -> new ConflictException("TASK_PUBLICATION_CONFLICT", "任务发布状态已变化，请刷新后重试"));
-        return mapper.findTaskPublication(row.taskId()).orElseThrow();
+        return publicationTracker.observe(task, status);
     }
 
     private TaskPublicationRow createPublication(TaskRow task, PublicationStatus status, TaskPublicationState initial) {
-        String now = Instant.now().toString();
-        TaskPublicationRow row = new TaskPublicationRow(task.id(), initial.name(), status.remoteName(), status.remoteUrl(),
-                status.provider(), status.branch(), status.targetBranch(), status.commitSha(), status.commitMessage(),
-                null, null, null, null, null, null, null, null, null, null, now, now, 0);
-        lifecycle.create(publicationSubject(task.id()), initial.name(), java.util.Map.of("provider", status.provider()),
-                () -> mapper.insertTaskPublication(row), () -> new ConflictException("TASK_PUBLICATION_CONFLICT", "任务发布状态已被并发创建"));
-        return mapper.findTaskPublication(task.id()).orElseThrow();
+        return publicationTracker.create(task, status, initial);
     }
 
     private TaskPublicationRow transitionPublication(TaskPublicationRow row, TaskPublicationState target,
                                                      String targetBranch, String checkedAt,
                                                      GitLabMergeRequestClient.MergeRequest mr) {
-        TaskPublicationState current = TaskPublicationState.valueOf(row.state());
-        if (current == TaskPublicationState.MERGED) return row;
-        String now = Instant.now().toString();
-        TaskPublicationRow updated = new TaskPublicationRow(row.taskId(), target.name(), row.remoteName(), row.remoteUrl(),
-                row.provider(), row.sourceBranch(), targetBranch, row.taskCommitSha(), row.commitMessage(), row.creationRequestedAt(),
-                mr == null ? row.mergeRequestIid() : Long.valueOf(mr.iid()), mr == null ? row.mergeRequestUrl() : mr.webUrl(),
-                mr == null ? row.mergeRequestState() : mr.state(), mr == null ? row.mergeRequestHeadSha() : mr.headSha(),
-                mr == null ? row.mergeCommitSha() : mr.mergeCommitSha(),
-                mr == null ? row.mergeRequestOpenedAt() : firstNonBlank(row.mergeRequestOpenedAt(), mr.openedAt()),
-                target == TaskPublicationState.MERGED && mr != null ? firstNonBlank(mr.mergedAt(), now) : row.mergedAt(),
-                checkedAt, null, row.createdAt(), now, row.version());
-        if (current == target) {
-            lifecycle.mutateWithoutTransition(() -> mapper.updateTaskPublication(updated),
-                    () -> new ConflictException("TASK_PUBLICATION_CONFLICT", "任务发布状态已变化，请刷新后重试"));
-            return mapper.findTaskPublication(row.taskId()).orElseThrow();
-        }
-        lifecycle.transition(publicationSubject(row.taskId()), row.state(), target.name(), null,
-                java.util.Map.of("provider", row.provider()), () -> mapper.updateTaskPublication(updated),
-                () -> new ConflictException("TASK_PUBLICATION_CONFLICT", "任务发布状态已变化，请刷新后重试"));
-        return mapper.findTaskPublication(row.taskId()).orElseThrow();
+        return publicationTracker.transition(row, target, targetBranch, checkedAt, mr);
     }
 
     private void recordCreationRequest(TaskRow task, PublicationStatus status, String targetBranch) {
-        TaskPublicationRow row = mapper.findTaskPublication(task.id()).orElseGet(() -> createPublication(task, status, TaskPublicationState.PUSHED));
-        if (TaskPublicationState.MERGED.name().equals(row.state())) throw mergedConflict();
-        String now = Instant.now().toString();
-        TaskPublicationRow updated = new TaskPublicationRow(row.taskId(), row.state(), row.remoteName(), row.remoteUrl(),
-                row.provider(), row.sourceBranch(), targetBranch, row.taskCommitSha(), row.commitMessage(), now,
-                row.mergeRequestIid(), row.mergeRequestUrl(), row.mergeRequestState(), row.mergeRequestHeadSha(),
-                row.mergeCommitSha(), row.mergeRequestOpenedAt(), row.mergedAt(), row.lastCheckedAt(), null,
-                row.createdAt(), now, row.version());
-        lifecycle.mutateWithoutTransition(() -> mapper.updateTaskPublication(updated),
-                () -> new ConflictException("TASK_PUBLICATION_CONFLICT", "任务发布状态已变化，请刷新后重试"));
+        publicationTracker.recordCreationRequest(task, status, targetBranch);
     }
 
     private TaskPublicationRow recordCheckError(TaskPublicationRow row, String message) {
-        return recordCheck(row, row.targetBranch(), Instant.now().toString(), safeMessage(new RuntimeException(message)), row.mergeRequestState());
+        return publicationTracker.recordCheckError(row, message);
     }
 
     private TaskPublicationRow recordCheck(TaskPublicationRow row, String targetBranch, String checkedAt,
                                            String error, String mergeRequestState) {
-        String now = Instant.now().toString();
-        TaskPublicationRow updated = new TaskPublicationRow(row.taskId(), row.state(), row.remoteName(), row.remoteUrl(),
-                row.provider(), row.sourceBranch(), targetBranch, row.taskCommitSha(), row.commitMessage(), row.creationRequestedAt(),
-                row.mergeRequestIid(), row.mergeRequestUrl(), mergeRequestState, row.mergeRequestHeadSha(), row.mergeCommitSha(),
-                row.mergeRequestOpenedAt(), row.mergedAt(), checkedAt, error, row.createdAt(), now, row.version());
-        lifecycle.mutateWithoutTransition(() -> mapper.updateTaskPublication(updated),
-                () -> new ConflictException("TASK_PUBLICATION_CONFLICT", "任务发布状态已变化，请刷新后重试"));
-        return mapper.findTaskPublication(row.taskId()).orElseThrow();
+        return publicationTracker.recordCheck(row, targetBranch, checkedAt, error, mergeRequestState);
     }
 
-    private TaskPublicationRow requireUnchangedSnapshot(TaskRow taskSnapshot, TaskPublicationRow snapshot) {
-        TaskRow latestTask = tasks.get(taskSnapshot.id());
-        if (latestTask.version() != taskSnapshot.version()
-                || !java.util.Objects.equals(latestTask.state(), taskSnapshot.state())
-                || !hasSuccessfulResult(latestTask)
-                || !java.util.Objects.equals(latestTask.branchName(), taskSnapshot.branchName())) {
-            throw new ConflictException("TASK_PUBLICATION_CONFLICT", "查询期间任务状态已变化，请重试");
-        }
-        TaskPublicationRow latest = mapper.findTaskPublication(snapshot.taskId())
-                .orElseThrow(() -> new ConflictException("TASK_PUBLICATION_CONFLICT", "任务发布记录已被删除"));
-        if (latest.version() != snapshot.version() || !java.util.Objects.equals(latest.taskCommitSha(), snapshot.taskCommitSha())) {
-            throw new ConflictException("TASK_PUBLICATION_CONFLICT", "查询期间任务发布状态已变化，请重试");
-        }
-        return latest;
+    private TaskPublicationRow requireUnchangedSnapshot(TaskRow task, TaskPublicationRow snapshot) {
+        return publicationTracker.requireUnchangedSnapshot(task, snapshot);
     }
 
-    private PublicationStatus withDelivery(PublicationStatus base, TaskPublicationRow row, TaskPublicationState fallback) {
-        TaskPublicationState delivery = row == null ? (fallback == null ? TaskPublicationState.NOT_STARTED : fallback)
-                : TaskPublicationState.valueOf(row.state());
-        String remoteUrl = firstNonBlank(row == null ? null : row.remoteUrl(), base.remoteUrl());
-        RemoteRepository remote = remoteRepository(remoteUrl);
-        boolean reconcile = row != null && "GITLAB".equals(row.provider()) && gitlab.configuredFor(remote.host())
-                && row.taskCommitSha() != null && !row.taskCommitSha().isBlank();
-        MergeRequestStatus mr = row == null || row.mergeRequestIid() == null ? null
-                : new MergeRequestStatus(row.provider(), row.mergeRequestIid(), row.mergeRequestUrl(), row.mergeRequestState(),
-                row.sourceBranch(), row.targetBranch(), row.mergeRequestHeadSha(), row.mergeCommitSha(),
-                row.mergeRequestOpenedAt(), row.mergedAt(), row.lastCheckedAt());
-        String operational = switch (delivery) {
-            case COMMITTED, PUSHED, MERGE_REQUEST_OPENED, MERGE_REQUEST_CLOSED, MERGED -> delivery.name();
-            case LOCAL_COMPLETED -> "SYNCED_LOCAL";
-            default -> base.state();
-        };
-        boolean available = delivery != TaskPublicationState.NOT_STARTED && delivery != TaskPublicationState.NOT_APPLICABLE
-                ? true : base.available();
-        return new PublicationStatus(operational, available, base.reason(),
-                firstNonBlank(row == null ? null : row.sourceBranch(), base.branch()),
-                firstNonBlank(row == null ? null : row.remoteName(), base.remoteName()), remoteUrl,
-                firstNonBlank(row == null ? null : row.taskCommitSha(), base.commitSha()),
-                firstNonBlank(row == null ? null : row.commitMessage(), base.commitMessage()),
-                firstNonBlank(row == null ? null : row.targetBranch(), base.targetBranch()), base.targetBranches(),
-                firstNonBlank(row == null ? null : row.provider(), base.provider()), base.upstream(), base.hasChanges(), base.conflictSessionId(), base.conflictCount(),
-                base.resolvedCount(), delivery.name(), delivery.terminal(), row == null ? null : row.creationRequestedAt(),
-                mr, reconcile, row == null ? null : row.lastCheckError(), row == null ? null : row.lastCheckedAt());
+    private PublicationStatus withDelivery(PublicationStatus base, TaskPublicationRow row,
+                                           TaskPublicationState fallback) {
+        return publicationTracker.withDelivery(base, row, fallback);
     }
 
     private void requireNotMerged(String taskId) {
-        if (mapper.findTaskPublication(taskId).map(TaskPublicationRow::state).filter(TaskPublicationState.MERGED.name()::equals).isPresent()) {
-            throw mergedConflict();
-        }
+        publicationTracker.requireNotMerged(taskId);
     }
 
     private ConflictException mergedConflict() {
-        return new ConflictException("TASK_PUBLICATION_MERGED", "任务合并请求已经合并，原任务发布状态不可再改变");
-    }
-
-    private LifecycleTransitionService.Subject publicationSubject(String taskId) {
-        return new LifecycleTransitionService.Subject(LifecycleMachineType.TASK_PUBLICATION, taskId,
-                LifecycleScopeType.TASK, taskId);
-    }
-
-    private int publicationRank(TaskPublicationState state) {
-        return switch (state) {
-            case NOT_STARTED, NOT_APPLICABLE -> 0;
-            case COMMITTED -> 1;
-            case PUSHED -> 2;
-            case MERGE_REQUEST_OPENED, MERGE_REQUEST_CLOSED -> 3;
-            case MERGED, LOCAL_COMPLETED -> 4;
-        };
+        return publicationTracker.mergedConflict();
     }
 
     private String firstNonBlank(String first, String second) {
@@ -577,95 +441,7 @@ public class TaskPublicationService {
     }
 
     private void syncLocalSource(TaskRow task, Path workspace, String commitSha) {
-        if (task.baselineCommit() == null || task.baselineCommit().isBlank()) {
-            throw new ConflictException("TASK_BASELINE_MISSING", "任务缺少创建分支时的基线提交，无法安全同步源代码");
-        }
-        ProjectRow project = projects.get(task.projectId());
-        Path source = Path.of(project.rootPath());
-        requireExactRepository(source);
-        String sourceHead = requiredOutput(source, List.of("git", "rev-parse", "HEAD"), "SOURCE_GIT_HEAD_UNAVAILABLE");
-        if (commitSha.equals(sourceHead)) {
-            tasks.recordLocalSourceSync(task.id(), commitSha, "ALREADY_PRESENT");
-            return;
-        }
-        String sourceStatus = requiredOutputAllowEmpty(source,
-                List.of("git", "status", "--porcelain=v1", "--untracked-files=all"), "SOURCE_GIT_STATUS_FAILED");
-        if (task.baselineCommit().equals(sourceHead) && sourceStatus.isBlank()) {
-            runRequired(source, List.of("git", "merge", "--ff-only", commitSha), GIT_WRITE_TIMEOUT,
-                    "LOCAL_SOURCE_FAST_FORWARD_FAILED", "无法将任务提交快进到源项目目录");
-            String mergedHead = requiredOutput(source, List.of("git", "rev-parse", "HEAD"), "SOURCE_GIT_HEAD_UNAVAILABLE");
-            if (!commitSha.equals(mergedHead)) {
-                throw new ConflictException("LOCAL_SOURCE_FAST_FORWARD_UNCONFIRMED", "源项目快进完成后提交状态不一致");
-            }
-            tasks.recordLocalSourceSync(task.id(), commitSha, "FAST_FORWARD");
-            return;
-        }
-        if (task.baselineCommit().equals(sourceHead)) {
-            requireNoStagedTaskPaths(task, workspace, source, commitSha);
-            try {
-                applyTaskPatch(task, workspace, source, commitSha);
-                tasks.recordLocalSourceSync(task.id(), commitSha, "WORKTREE_OVERLAY");
-                return;
-            } catch (ConflictException conflict) {
-                if (!"LOCAL_SOURCE_CONFLICT".equals(conflict.code())) throw conflict;
-            }
-        }
-        localConflicts.createOrRefresh(task.id());
-    }
-
-    private void requireNoStagedTaskPaths(TaskRow task, Path workspace, Path source, String commitSha) {
-        String taskPaths = requiredOutputAllowEmpty(workspace,
-                List.of("git", "diff", "--name-only", "-z", task.baselineCommit(), commitSha, "--"),
-                "LOCAL_SOURCE_PATH_CHECK_FAILED");
-        String stagedPaths = requiredOutputAllowEmpty(source,
-                List.of("git", "diff", "--cached", "--name-only", "-z", "--"),
-                "SOURCE_GIT_INDEX_CHECK_FAILED");
-        Set<String> taskSet = new java.util.HashSet<>(List.of(taskPaths.split("\u0000", -1)));
-        boolean overlaps = List.of(stagedPaths.split("\u0000", -1)).stream()
-                .filter(path -> !path.isBlank()).anyMatch(taskSet::contains);
-        if (overlaps) {
-            throw new ConflictException("LOCAL_SOURCE_TASK_PATH_STAGED",
-                    "源项目中任务涉及路径已暂存；请取消暂存或提交后再同步");
-        }
-    }
-
-    private void applyTaskPatch(TaskRow task, Path workspace, Path source, String commitSha) {
-        Path patch = null;
-        try {
-            Path directory = properties.getDataDir().toAbsolutePath().normalize().resolve("publication-patches");
-            Files.createDirectories(directory);
-            patch = Files.createTempFile(directory, "task-" + task.id() + "-", ".patch");
-            runRequired(workspace,
-                    List.of("git", "diff", "--binary", "--full-index", "--output=" + patch,
-                            task.baselineCommit(), commitSha, "--"),
-                    GIT_WRITE_TIMEOUT, "LOCAL_SOURCE_PATCH_CREATE_FAILED", "无法生成任务同步补丁");
-            ProcessResult check = runner.run(source,
-                    List.of("git", "apply", "--check", "--binary", "--whitespace=nowarn", patch.toString()),
-                    GIT_WRITE_TIMEOUT);
-            if (check.timedOut() || check.outputTruncated()) {
-                throw new ConflictException("LOCAL_SOURCE_CONFLICT", "任务补丁冲突检查失败；未修改源项目");
-            }
-            if (check.exitCode() != 0) {
-                ProcessResult alreadyApplied = runner.run(source,
-                        List.of("git", "apply", "--check", "--reverse", "--binary", "--whitespace=nowarn", patch.toString()),
-                        GIT_WRITE_TIMEOUT);
-                if (!alreadyApplied.timedOut() && !alreadyApplied.outputTruncated() && alreadyApplied.exitCode() == 0) return;
-                String detail = scrub(check.output());
-                throw new ConflictException("LOCAL_SOURCE_CONFLICT",
-                        "源项目现有改动与任务变更冲突；未修改源项目，请处理冲突后重试"
-                                + (detail.isBlank() ? "" : "：" + detail));
-            }
-            runRequired(source, List.of("git", "apply", "--binary", "--whitespace=nowarn", patch.toString()),
-                    GIT_WRITE_TIMEOUT, "LOCAL_SOURCE_APPLY_FAILED", "任务补丁检查通过，但写入源项目失败");
-        } catch (ConflictException failure) {
-            throw failure;
-        } catch (Exception failure) {
-            throw new ConflictException("LOCAL_SOURCE_SYNC_FAILED", "无法同步到源项目目录：" + safeMessage(failure));
-        } finally {
-            if (patch != null) {
-                try { Files.deleteIfExists(patch); } catch (Exception ignored) { }
-            }
-        }
+        localSourceSynchronizer.sync(task, workspace, commitSha);
     }
 
     private Path workspace(TaskRow task) {
@@ -703,67 +479,20 @@ public class TaskPublicationService {
     }
 
     private void requireExactRepository(Path workspace) {
-        String top = requiredOutput(workspace, List.of("git", "rev-parse", "--show-toplevel"), "GIT_REPOSITORY_UNAVAILABLE");
-        try {
-            if (!Path.of(top).toRealPath().equals(workspace.toRealPath())) {
-                throw new ConflictException("TASK_REPOSITORY_MISMATCH", "任务执行目录不是当前 Git 仓库根目录");
-            }
-        } catch (ConflictException failure) {
-            throw failure;
-        } catch (Exception failure) {
-            throw new ConflictException("TASK_REPOSITORY_UNAVAILABLE", "无法确认任务 Git 仓库边界");
-        }
+        publicationGit.requireExactRepository(workspace);
     }
 
     private List<String> targetBranches(Path workspace, String remoteName, String sourceBranch) {
-        String output = requiredOutputAllowEmpty(workspace,
-                List.of("git", "for-each-ref", "--format=%(refname:short)", "refs/remotes/" + remoteName + "/"),
-                "GIT_REMOTE_BRANCHES_FAILED");
-        Set<String> branches = new LinkedHashSet<>();
-        String prefix = remoteName + "/";
-        for (String line : output.lines().toList()) {
-            String value = line.strip();
-            if (!value.startsWith(prefix)) continue;
-            value = value.substring(prefix.length());
-            if (value.isBlank() || value.equals("HEAD") || value.equals(sourceBranch)) continue;
-            branches.add(value);
-        }
-        List<String> result = new ArrayList<>(branches);
-        result.sort(Comparator.comparingInt(this::branchPriority).thenComparing(String::compareTo));
-        return List.copyOf(result);
+        return publicationGit.targetBranches(workspace, remoteName, sourceBranch);
     }
 
     private String preferredTarget(Path workspace, TaskRow task, String remoteName, List<String> branches) {
-        if (branches.isEmpty()) return null;
-        if (task.sourceBranch() != null && branches.contains(task.sourceBranch())) return task.sourceBranch();
-        ProjectRow project = projects.get(task.projectId());
-        String projectBranch = optionalOutput(Path.of(project.rootPath()), List.of("git", "branch", "--show-current"));
-        if (projectBranch != null && branches.contains(projectBranch)) return projectBranch;
-        String remoteHead = optionalOutput(workspace,
-                List.of("git", "symbolic-ref", "--short", "refs/remotes/" + remoteName + "/HEAD"));
-        if (remoteHead != null && remoteHead.startsWith(remoteName + "/")) {
-            String candidate = remoteHead.substring(remoteName.length() + 1);
-            if (branches.contains(candidate)) return candidate;
-        }
-        return branches.getFirst();
-    }
-
-    private int branchPriority(String branch) {
-        return switch (branch) {
-            case "main" -> 0;
-            case "master" -> 1;
-            case "develop" -> 2;
-            default -> 10;
-        };
+        Path projectRoot = Path.of(projects.get(task.projectId()).rootPath());
+        return publicationGit.preferredTarget(workspace, projectRoot, task.sourceBranch(), remoteName, branches);
     }
 
     private String preferredRemote(Path workspace) {
-        String output = requiredOutputAllowEmpty(workspace, List.of("git", "remote"), "GIT_REMOTE_UNAVAILABLE");
-        List<String> remotes = output.lines().map(String::strip).filter(value -> !value.isBlank()).toList();
-        if (remotes.contains("origin")) return "origin";
-        if (remotes.isEmpty()) return null;
-        if (remotes.size() == 1) return remotes.getFirst();
-        throw new ConflictException("GIT_REMOTE_AMBIGUOUS", "仓库存在多个 Git remote 且没有 origin，无法确定发布目标");
+        return publicationGit.preferredRemote(workspace);
     }
 
     private String requireCommitMessage(String value) {
@@ -775,12 +504,7 @@ public class TaskPublicationService {
     }
 
     private String normalizedBranch(String value) {
-        String branch = singleLine(value, 250, "MERGE_TARGET_INVALID", "请选择有效的目标分支");
-        ProcessResult result = runner.run(Path.of("."), List.of("git", "check-ref-format", "--branch", branch), GIT_READ_TIMEOUT);
-        if (result.timedOut() || result.outputTruncated() || result.exitCode() != 0) {
-            throw new BadRequestException("MERGE_TARGET_INVALID", "请选择有效的目标分支");
-        }
-        return branch;
+        return publicationGit.normalizedBranch(value);
     }
 
     private String singleLine(String value, int max, String code, String message) {
@@ -789,67 +513,6 @@ public class TaskPublicationService {
             throw new BadRequestException(code, message);
         }
         return normalized;
-    }
-
-    private String commitPrompt(TaskRow task, Path workspace) {
-        return """
-                你只负责生成一条 Git commit subject，不执行命令、不修改文件、不输出 Markdown。
-                根据下面由 Loopper 确定性读取的实际 Git 变更摘要和任务目标，生成简洁、具体的中文提交说明。
-                不要包含工单号、#、下划线、引号、换行、Markdown 或 conventional commit 前缀；控制在 50 个汉字以内。
-                只返回提交说明本身。
-
-                任务标题：%s
-                任务目标：%s
-                实际 Git 变更摘要：
-                %s
-                """.formatted(task.title(), taskGoal(task), publicationEvidence(task, workspace));
-    }
-
-    private String publicationEvidence(TaskRow task, Path workspace) {
-        var checkpoint = tasks.latestWorkspaceCheckpoint(task.id());
-        if (TaskState.AWAITING_DECISION.name().equals(task.state())
-                && checkpoint != null && "READY".equals(checkpoint.state())) {
-            String stat = requiredOutputAllowEmpty(workspace,
-                    List.of("git", "diff", "--stat", "--no-ext-diff", checkpoint.baselineCommit(),
-                            checkpoint.checkpointTree(), "--"),
-                    "GIT_DIFF_SUMMARY_FAILED");
-            String status = requiredOutputAllowEmpty(workspace,
-                    List.of("git", "diff", "--name-status", "--no-ext-diff", checkpoint.baselineCommit(),
-                            checkpoint.checkpointTree(), "--"),
-                    "GIT_STATUS_FAILED");
-            String evidence = (stat.isBlank() ? "无文件统计" : stat) + "\n" + status;
-            return evidence.substring(0, Math.min(evidence.length(), 5000));
-        }
-        String stat = requiredOutputAllowEmpty(workspace,
-                List.of("git", "diff", "--stat", "--no-ext-diff", task.baselineCommit(), "--"),
-                "GIT_DIFF_SUMMARY_FAILED");
-        String status = requiredOutputAllowEmpty(workspace,
-                List.of("git", "status", "--short", "--untracked-files=all"),
-                "GIT_STATUS_FAILED");
-        String evidence = (stat.isBlank() ? "无已跟踪文件统计" : stat) + "\n" + status;
-        return evidence.substring(0, Math.min(evidence.length(), 5000));
-    }
-
-    private String taskGoal(TaskRow task) {
-        try {
-            return tasks.goal(task.id());
-        } catch (RuntimeException ignored) {
-            return task.title();
-        }
-    }
-
-    private String normalizeAiSubject(String output) {
-        if (output == null) throw new ServiceUnavailableException("COMMIT_MESSAGE_AI_EMPTY", "AI 没有返回提交信息");
-        String value = output.strip();
-        if (value.startsWith("```") && value.endsWith("```")) {
-            value = value.substring(3, value.length() - 3).strip();
-            if (value.startsWith("text")) value = value.substring(4).strip();
-        }
-        value = value.lines().map(String::strip).filter(line -> !line.isBlank()).findFirst().orElse("");
-        value = PREFIX.matcher(value).replaceFirst("").replace("`", "").replace("\"", "").strip();
-        if (value.length() > 120) value = value.substring(0, 120).strip();
-        if (value.isBlank()) throw new ServiceUnavailableException("COMMIT_MESSAGE_AI_EMPTY", "AI 没有返回可用的提交信息");
-        return value;
     }
 
     private OpenCodeClient.OpenCodeModel configuredModel() {
@@ -865,37 +528,19 @@ public class TaskPublicationService {
     }
 
     private String requiredOutput(Path directory, List<String> argv, String code) {
-        String output = requiredOutputAllowEmpty(directory, argv, code);
-        if (output.isBlank()) throw new ConflictException(code, "Git 命令没有返回所需信息");
-        return output.strip();
+        return publicationGit.required(directory, argv, code);
     }
 
     private String requiredOutputAllowEmpty(Path directory, List<String> argv, String code) {
-        ProcessResult result = runner.run(directory, argv, GIT_READ_TIMEOUT);
-        if (result.timedOut()) throw new ConflictException(code, "Git 状态检查超时");
-        if (result.outputTruncated()) throw new ConflictException(code, "Git 状态输出过大，已停止操作");
-        if (result.exitCode() != 0) throw new ConflictException(code, scrub(result.output()));
-        return result.output() == null ? "" : result.output().stripTrailing();
+        return publicationGit.allowEmpty(directory, argv, code);
     }
 
     private String optionalOutput(Path directory, List<String> argv) {
-        try {
-            ProcessResult result = runner.run(directory, argv, GIT_READ_TIMEOUT);
-            if (result.timedOut() || result.outputTruncated() || result.exitCode() != 0 || result.output() == null || result.output().isBlank()) return null;
-            return result.output().strip();
-        } catch (RuntimeException ignored) {
-            return null;
-        }
+        return publicationGit.optional(directory, argv);
     }
 
     private void runRequired(Path directory, List<String> argv, Duration timeout, String code, String message) {
-        ProcessResult result = runner.run(directory, argv, timeout);
-        if (result.timedOut()) throw new ConflictException(code, message + "：命令超时");
-        if (result.outputTruncated()) throw new ConflictException(code, message + "：命令输出过大");
-        if (result.exitCode() != 0) {
-            String detail = scrub(result.output());
-            throw new ConflictException(code, detail.isBlank() ? message : message + "：" + detail);
-        }
+        publicationGit.run(directory, argv, timeout, code, message);
     }
 
     private PublicationStatus unavailable(TaskRow task, String reason) {
@@ -904,67 +549,25 @@ public class TaskPublicationService {
                 null, false, null, null, false, null, null);
     }
 
-    private RemoteRepository remoteRepository(String raw) {
-        if (raw == null || raw.isBlank()) return new RemoteRepository("UNKNOWN", null, null, null);
-        String host;
-        String path;
-        String scheme = null;
-        try {
-            if (raw.contains("://")) {
-                URI uri = URI.create(raw);
-                host = uri.getHost();
-                path = uri.getPath();
-                if ("http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme())) {
-                    scheme = uri.getScheme().toLowerCase(Locale.ROOT);
-                }
-            } else {
-                Matcher matcher = SCP_REMOTE.matcher(raw);
-                if (!matcher.matches()) return new RemoteRepository("UNKNOWN", null, null, null);
-                host = matcher.group(1);
-                path = matcher.group(2);
-            }
-        } catch (RuntimeException invalid) {
-            return new RemoteRepository("UNKNOWN", null, null, null);
-        }
-        if (host == null || host.isBlank() || path == null || path.isBlank()) return new RemoteRepository("UNKNOWN", null, null, null);
-        path = path.replaceFirst("^/+", "").replaceFirst("\\.git/?$", "");
-        if (path.isBlank()) return new RemoteRepository("UNKNOWN", null, null, null);
-        String lowerHost = host.toLowerCase(Locale.ROOT);
-        String configuredGitLabHost = properties.getPublication().getGitlab().getHost();
-        String provider = configuredGitLabHost != null && lowerHost.equalsIgnoreCase(configuredGitLabHost.strip())
-                ? "GITLAB" : lowerHost.contains("github") ? "GITHUB" : lowerHost.contains("gitlab") ? "GITLAB" : "UNKNOWN";
-        if (configuredHttpWebHost(lowerHost)) scheme = "http";
-        else if (scheme == null) scheme = "https";
-        return new RemoteRepository(provider, scheme + "://" + host + "/" + path, lowerHost, path);
-    }
-
-    private boolean configuredHttpWebHost(String lowerHost) {
-        return properties.getPublication().getHttpWebHosts().stream()
-                .filter(value -> value != null && !value.isBlank())
-                .map(value -> value.strip().toLowerCase(Locale.ROOT))
-                .anyMatch(lowerHost::equals);
+    private PublicationGitClient.RemoteRepository remoteRepository(String raw) {
+        return publicationGit.remoteRepository(raw);
     }
 
     private String query(String key, String value) {
-        return URLEncoder.encode(key, StandardCharsets.UTF_8) + "=" + URLEncoder.encode(value, StandardCharsets.UTF_8);
+        return publicationGit.query(key, value);
     }
 
     private String pathSegment(String value) {
-        return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
+        return publicationGit.pathSegment(value);
     }
 
     private String scrub(String value) {
-        if (value == null) return "";
-        String scrubbed = value.replaceAll("(?i)(https?://)[^/@\\s]+@", "$1***@").strip();
-        return scrubbed.substring(0, Math.min(scrubbed.length(), 1200));
+        return publicationGit.scrub(value);
     }
 
     private String safeMessage(Throwable failure) {
-        String message = failure == null || failure.getMessage() == null ? "任务发布状态不可用" : failure.getMessage();
-        return scrub(message);
+        return publicationGit.safeMessage(failure);
     }
-
-    private record RemoteRepository(String provider, String webBase, String host, String projectPath) { }
 
     public record PublicationStatus(String state, boolean available, String reason, String branch,
                                     String remoteName, String remoteUrl, String commitSha, String commitMessage,

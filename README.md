@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.1.96`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.1.98`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -127,7 +127,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.1.96.jar
+java -jar target/opencode-loopper-0.1.98.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -353,7 +353,7 @@ Git 任务的最新 Execution Cycle 成功并处于 `AWAITING_DECISION` 或用�
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.1.96.jar`
+- `target/opencode-loopper-0.1.98.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -384,7 +384,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:51234
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.1.96.jar`
+- `opencode-loopper-0.1.98.jar`
 - `start-windows.bat`
 
 确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
@@ -422,7 +422,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.1.96.jar \
+jar tf target/opencode-loopper-0.1.98.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -488,6 +488,8 @@ Windows PowerShell：
 
 `mvn clean` 会先清理 Maven 管理的前端工具链与静态资源，避免新 JAR 意外携带旧前端。真实 OpenCode/模型端到端结果与 mock/契约测试应分别判断。
 
+生产代码同时遵守 [代码设计契约](docs/code-design-contract.md)：单一职责、组合优先、策略/工厂/适配器只用于真实变化轴，生产 Java 文件默认不超过 600 行。`CodeStructureContractTest` 对仍在拆分的历史大类使用只能下降的上限；修改这些文件时必须同步降低上限，不能用扩大阈值让构建通过。
+
 ### 版本发布
 
 每个可交付的新 JAR 必须使用一个未发布过且递增的 SemVer 版本。版本号需要同时更新 Maven、前端 package、MCP 配置、README、`AGENTS.md`、Linux 与 Windows 启动脚本，然后在该版本下重新执行完整验证。
@@ -502,7 +504,7 @@ Windows PowerShell：
 例如发布下一版本：
 
 ```bash
-VERSION=0.1.96
+VERSION=0.1.98
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -542,7 +544,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.1.96.jar
+java -jar target/opencode-loopper-0.1.98.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。
@@ -640,6 +642,8 @@ echo %PATHEXT%
 `0.1.89` 同时收紧两处历史/并发读模型边界：工作包 Role Pack 只有在角色、执行策略和测试策略全部存在时才作为冻结快照读取，旧数据的空枚举不再使 Designer 轮询报错，并会在下一次权威使用时补齐；任务摘要和概览从重叠的 `CLAIMED` 与新活动重试计划中确定性选择一条，不再触发 MyBatis `selectOne` 多行异常。
 
 `0.1.95` 系统审计并修复动态 Role Pack 到 Compiler 的完整链路。Role Pack v3 按软件族规范化 Java/Python/Node/Other 标签，避免 JavaScript 误入 Java、同族别名误入混合栈和未知单栈默认 Java；每个可编译角色使用栈原生规划示例与测试目标解析，非软件流程明确绕过 Compiler。当前输出默认进入紧凑 `outcome` 合同，历史 `status` 解析只接受明确旧信封；格式与语义修复改用全新无工具 Session，JSON Schema 分别匹配完整规划与补丁信封，非法补丁不会覆盖有效语义快照，直接软件 1–6 Stage 的 Schema 上限也与产品合同一致。
+
+`0.1.98` 引入代码结构硬契约和只降不升的 God Class 债务门禁。Designer/Task 保留生命周期协调权，但提示构造、包级上下文、重试策略、执行提示、Judge 解析和状态持久化已经分离；OpenCode HTTP、Git、发布、本地同步和 MyBatis 聚合分别拆出策略、解析器、协议客户端和窄 Mapper。新增与修改必须继续遵守单一职责、组合优先和 600 行默认上限。
 
 `0.1.96` 根据真实 DeepSeek 回归继续收紧 Java Stage 与语义补丁合同。每个 `JAVA_PRODUCTION` Stage 即使只有 Judge 条件也必须保留聚焦 Maven/Gradle TEST，FULL_TEST/BUILD 仍只作补充；Role Pack 明确禁止创建只有全量测试/构建的 Java 接线或演示 Stage。弱模型若把紧凑补丁字段 `evidence` 写成最终 DTO 字段 `verifiers`，或对尚未出现的对象字段使用 `replace`，服务端在唯一可逆范围内规范化并审计，随后重新执行完整安全、证据和验收校验。
 

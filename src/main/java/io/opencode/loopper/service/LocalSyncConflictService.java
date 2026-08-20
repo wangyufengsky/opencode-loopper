@@ -57,7 +57,6 @@ public class LocalSyncConflictService {
     static final long MAX_SESSION_BYTES = 100L * 1024L * 1024L;
     private static final Duration GIT_TIMEOUT = Duration.ofSeconds(30);
     private static final Duration MERGE_TIMEOUT = Duration.ofSeconds(30);
-    private static final Duration AI_TIMEOUT = Duration.ofSeconds(75);
     private static final String MISSING = "MISSING";
 
     private final LoopperMapper mapper;
@@ -65,12 +64,12 @@ public class LocalSyncConflictService {
     private final ProjectService projects;
     private final GitWorktreeManager worktrees;
     private final SafeProcessRunner runner;
-    private final OpenCodeClient openCode;
-    private final LoopperProperties properties;
     private final LoopDraftService drafts;
     private final VerifierEngine verifiers;
     private final TaskEventService events;
     private final ObjectMapper json;
+    private final LocalSyncAiAdvisor aiAdvisor;
+    private final LocalSyncPathPolicy paths;
     private final ReentrantLock[] sourceLocks = lockStripes(SOURCE_LOCK_STRIPES);
 
     public LocalSyncConflictService(LoopperMapper mapper, TaskService tasks, ProjectService projects,
@@ -83,12 +82,12 @@ public class LocalSyncConflictService {
         this.projects = projects;
         this.worktrees = worktrees;
         this.runner = runner;
-        this.openCode = openCode;
-        this.properties = properties;
         this.drafts = drafts;
         this.verifiers = verifiers;
         this.events = events;
         this.json = json;
+        this.aiAdvisor = new LocalSyncAiAdvisor(openCode, properties);
+        this.paths = new LocalSyncPathPolicy(properties.getDataDir());
     }
 
     public SessionView createOrRefresh(String taskId) {
@@ -224,21 +223,10 @@ public class LocalSyncConflictService {
         if (!aiEligible(file)) {
             throw new BadRequestException("LOCAL_SYNC_AI_UNSUPPORTED", "AI 建议只支持三方内容均不超过 200 KiB 的文本文件");
         }
-        if (!openCode.healthy()) {
-            throw new ServiceUnavailableException("OPENCODE_UNAVAILABLE", "当前 OpenCode 模型不可用");
-        }
         Path aiWorkspace = managedSessionDir(session.id()).resolve("ai");
         try { Files.createDirectories(aiWorkspace); }
         catch (IOException failure) { throw new ServiceUnavailableException("LOCAL_SYNC_AI_FAILED", safeMessage(failure)); }
-        OpenCodeClient.OpenCodeSession aiSession;
-        try {
-            aiSession = openCode.createReadOnlySession(aiWorkspace,
-                    "Loopper Local Sync Merge Suggestion (READ_ONLY)", configuredModel());
-            openCode.promptAsync(aiSession, aiPrompt(tasks.get(taskId), file));
-        } catch (RuntimeException failure) {
-            throw new ServiceUnavailableException("LOCAL_SYNC_AI_FAILED", safeMessage(failure));
-        }
-        String suggestion = awaitAi(aiSession);
+        String suggestion = aiAdvisor.suggest(aiWorkspace, tasks.goal(taskId), file);
         LocalSyncConflictFileRow updated = copyFile(file, file.resolution(), file.resolvedContent(), suggestion,
                 sha256(suggestion.getBytes(StandardCharsets.UTF_8)), Instant.now().toString());
         if (mapper.updateLocalSyncConflictFile(updated) != 1) {
@@ -863,8 +851,7 @@ public class LocalSyncConflictService {
     }
 
     private Path managedSessionDir(String sessionId) {
-        if (!sessionId.matches("[0-9a-fA-F-]{36}")) throw new IllegalArgumentException("invalid session id");
-        return properties.getDataDir().toAbsolutePath().normalize().resolve("local-sync-conflicts").resolve(sessionId);
+        return paths.sessionDirectory(sessionId);
     }
 
     private List<RawChange> rawChanges(Path workspace, String baseline, String taskHead) {
@@ -1018,37 +1005,15 @@ public class LocalSyncConflictService {
     }
 
     private String safeRelative(Path root, String raw) {
-        validateRelative(raw);
-        Path resolved = safeResolve(root, raw);
-        return root.relativize(resolved).toString().replace('\\', '/');
+        return paths.safeRelative(root, raw);
     }
 
     private Path safeResolve(Path root, String relative) {
-        validateRelative(relative);
-        Path normalizedRoot = root.toAbsolutePath().normalize();
-        Path resolved = normalizedRoot.resolve(relative).normalize();
-        if (!resolved.startsWith(normalizedRoot)) throw new BadRequestException("LOCAL_SYNC_PATH_ESCAPE", "路径越出源项目根目录");
-        Path cursor = normalizedRoot;
-        for (Path part : normalizedRoot.relativize(resolved)) {
-            cursor = cursor.resolve(part);
-            if (Files.isSymbolicLink(cursor)) {
-                throw new BadRequestException("LOCAL_SYNC_PATH_ESCAPE", "路径不能经过符号链接：" + relative);
-            }
-        }
-        return resolved;
+        return paths.safeResolve(root, relative);
     }
 
     private void validateRelative(String value) {
-        if (value == null || value.isBlank()) throw new BadRequestException("LOCAL_SYNC_PATH_INVALID", "文件路径不能为空");
-        Path path;
-        try { path = Path.of(value); }
-        catch (RuntimeException failure) { throw new BadRequestException("LOCAL_SYNC_PATH_INVALID", "文件路径无效"); }
-        boolean gitMetadata = false;
-        for (Path part : path) if (".git".equalsIgnoreCase(part.toString())) gitMetadata = true;
-        if (path.isAbsolute() || path.normalize().startsWith("..") || path.toString().indexOf('\0') >= 0
-                || gitMetadata) {
-            throw new BadRequestException("LOCAL_SYNC_PATH_ESCAPE", "路径必须位于源项目内且不能进入 .git");
-        }
+        paths.validateRelative(value);
     }
 
     private String gitRequired(Path directory, List<String> command, String code) {
@@ -1143,59 +1108,6 @@ public class LocalSyncConflictService {
             for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) Files.deleteIfExists(path);
         } catch (Exception ignored) { }
     }
-
-    private OpenCodeClient.OpenCodeModel configuredModel() {
-        String configured = properties.getOpenCode().getModel();
-        if (configured == null) return null;
-        int separator = configured.indexOf('/');
-        if (separator <= 0 || separator >= configured.length() - 1) return null;
-        return new OpenCodeClient.OpenCodeModel(configured.substring(0, separator), configured.substring(separator + 1), null);
-    }
-
-    private String aiPrompt(TaskRow task, LocalSyncConflictFileRow file) {
-        return """
-                你是只读的单文件三方合并建议器。不要调用工具，不要读取工作区，不要输出 Markdown 或解释。
-                仅根据下方 BASE、源项目、任务三个版本和任务目标，返回完整建议文件内容。
-                建议不会被自动采用，用户会在编辑器中复核后手工确认。
-
-                任务目标：%s
-                文件：%s
-                ===== BASE =====
-                %s
-                ===== 源项目 =====
-                %s
-                ===== 任务 =====
-                %s
-                """.formatted(tasks.goal(task.id()), file.path(), nullToEmpty(file.baseContent()),
-                nullToEmpty(file.sourceContent()), nullToEmpty(file.taskContent()));
-    }
-
-    private String awaitAi(OpenCodeClient.OpenCodeSession session) {
-        long deadline = System.nanoTime() + AI_TIMEOUT.toNanos();
-        while (System.nanoTime() < deadline) {
-            try {
-                OpenCodeClient.SessionStatus status = openCode.sessionStatus(session);
-                if (status.completed()) {
-                    String output = openCode.sessionOutput(session);
-                    if (output == null || output.isBlank()) throw new ServiceUnavailableException("LOCAL_SYNC_AI_EMPTY", "AI 未返回建议");
-                    if (output.getBytes(StandardCharsets.UTF_8).length > MAX_TEXT_BYTES) {
-                        throw new ServiceUnavailableException("LOCAL_SYNC_AI_TOO_LARGE", "AI 建议超过 1 MiB 安全上限");
-                    }
-                    return output;
-                }
-                if (status.failed()) throw new ServiceUnavailableException("LOCAL_SYNC_AI_FAILED", status.detail());
-                TimeUnit.MILLISECONDS.sleep(250);
-            } catch (InterruptedException interrupted) {
-                Thread.currentThread().interrupt();
-                try { openCode.abort(session); } catch (RuntimeException ignored) { }
-                throw new ServiceUnavailableException("LOCAL_SYNC_AI_INTERRUPTED", "AI 建议生成被中断");
-            }
-        }
-        try { openCode.abort(session); } catch (RuntimeException ignored) { }
-        throw new ServiceUnavailableException("LOCAL_SYNC_AI_TIMEOUT", "AI 建议生成超时");
-    }
-
-    private String nullToEmpty(String value) { return value == null ? "" : value; }
 
     private LocalSyncConflictFileRow copyFile(LocalSyncConflictFileRow file, String resolution,
                                                String resolvedContent, String aiSuggestion,
