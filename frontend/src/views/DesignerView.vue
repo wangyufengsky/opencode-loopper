@@ -13,7 +13,7 @@ import PendingQuestionCard from '@/components/PendingQuestionCard.vue'
 import DesignerDiscussionHistory from '@/components/DesignerDiscussionHistory.vue'
 import DesignerSystemMessageHistory from '@/components/DesignerSystemMessageHistory.vue'
 import DesignerValidatorHistory from '@/components/DesignerValidatorHistory.vue'
-import DesignerActivityPanel from '@/components/DesignerActivityPanel.vue'
+import DesignerCurrentActivity from '@/components/DesignerCurrentActivity.vue'
 import { ApiError, api, subscribeDesignerEvents, type DesignerEventStream } from '@/api/client'
 import { demoDraft, demoMessages } from '@/mock/demoData'
 import { useTaskStore } from '@/stores/taskStore'
@@ -49,9 +49,7 @@ const designerReconnecting = ref(false)
 const designerStreamState = ref<'idle' | 'connecting' | 'connected' | 'reconnecting'>('idle')
 const designerRuntimeConnected = ref(false)
 const designerRemoteState = ref('')
-const designerLiveResponse = ref('')
 const designerLiveError = ref('')
-const designerLiveDetail = ref('')
 const designerObservedAt = ref('')
 const designerStructuredStep = ref<StructuredModelStep>()
 const submittingDesignerQuestion = ref('')
@@ -118,8 +116,6 @@ const designerBadgeStatus = computed(() => {
 const designerSessionError = computed(() => designerSession.value?.state === 'SESSION_ERROR'
   ? [...messages.value].reverse().find((message) => ['SESSION_ERROR', 'TERMINAL_ERROR'].includes(message.deliveryState ?? ''))
   : undefined)
-const designerIsThinking = computed(() => designerSession.value?.state === 'RUNNING' && !designerLiveResponse.value
-  && (designerSession.value.pendingQuestions?.length ?? 0) === 0)
 const actorMeta = {
   USER: { label: designerActorLabel('USER'), icon: 'lucide:user-round' },
   ROUTER: { label: designerActorLabel('ROUTER'), icon: 'lucide:route' },
@@ -134,7 +130,8 @@ const workflowLabels = {
   ROUTING: '画像识别中', DISCUSSING_REQUIREMENT: '需求讨论', DECOMPOSING: '拆解中', VALIDATING_DECOMPOSITION: '校验拆解中', DESIGNING: '设计中', COMPILING: '编译中', VALIDATING: '确定性校验中', REDESIGNING: '重新设计中', QUESTIONING_PACKAGE: '设计提问', REVIEWING_PACKAGE: '工作包待确认', AGGREGATING: '聚合中', FINAL_REVIEW: '总体确认', GENERATING_REPORT: '报告生成中', VALIDATING_REPORT: '报告校验中', REPORT_READY: '报告已就绪', COMPLETED: '已完成', FAILED: '已停止',
 } as const
 const activeActorMeta = computed(() => actorMeta[designerSession.value?.activeActor ?? 'SYSTEM'])
-const activeWorkflowLabel = computed(() => workflowLabels[designerSession.value?.workflowPhase ?? 'DESIGNING'])
+const activeWorkflowLabel = computed(() => designerSession.value?.taskProfile.decisionState === 'ROUTING'
+  ? workflowLabels.ROUTING : workflowLabels[designerSession.value?.workflowPhase ?? 'DESIGNING'])
 const structuredStepLabels: Record<StructuredModelStep, string> = {
   PLANNING: '语义规划', SERVER_COMPILING: '程序编译', GENERATING_JSON: 'JSON 生成', REPAIRING_JSON: 'JSON 修复', FINAL_JSON: 'JSON 已校验',
 }
@@ -217,6 +214,8 @@ const designerRuntimeLabel = computed(() => {
 })
 const taskProfileRouting = computed(() => designerSession.value?.taskProfile.decisionState === 'ROUTING')
 const taskProfileNeedsConfirmation = computed(() => designerSession.value?.taskProfile.decisionState === 'NEEDS_CONFIRMATION')
+const showCurrentRoleActivity = computed(() => (designerSession.value?.state === 'RUNNING' || taskProfileRouting.value)
+  && (designerSession.value?.pendingQuestions?.length ?? 0) === 0)
 const shouldPollDesigner = computed(() => designerSession.value?.state === 'RUNNING'
   || designerSession.value?.state === 'STOPPING' || taskProfileRouting.value)
 watch(() => designerSession.value?.taskProfile, (profile) => {
@@ -423,7 +422,6 @@ async function refreshDesignerSession() {
     if (refreshed.state !== 'RUNNING' && refreshed.taskProfile.decisionState !== 'ROUTING'
       && refreshed.state !== 'STOPPING') {
       stopDesignerPolling()
-      if (refreshed.state === 'COMPLETED') designerLiveResponse.value = ''
     }
   } catch (error) {
     if (generation !== designerPollGeneration || designerSession.value?.id !== sessionId) return
@@ -471,7 +469,6 @@ async function answerDesignerQuestion(pending: TaskSessionPendingQuestion, answe
       pendingQuestions: (designerSession.value.pendingQuestions ?? []).filter((question) => question.id !== pending.id),
     }
     designerRemoteState.value = 'RUNNING'
-    designerLiveDetail.value = '回答已提交，设计师继续生成设计稿'
     ElMessage.success('回答已提交，设计师继续执行')
     await refreshDesignerSession()
   } catch (error) {
@@ -494,7 +491,6 @@ async function rejectDesignerQuestion(pending: TaskSessionPendingQuestion) {
       pendingQuestions: (designerSession.value.pendingQuestions ?? []).filter((question) => question.id !== pending.id),
     }
     designerRemoteState.value = 'RUNNING'
-    designerLiveDetail.value = '问题已拒绝，设计师将自行处理'
     ElMessage.success('问题已拒绝，设计师继续执行')
     await refreshDesignerSession()
   } catch (error) {
@@ -520,10 +516,7 @@ function startDesignerStream(sessionId: string) {
     designerRuntimeConnected.value = event.runtimeConnected
     designerRemoteState.value = event.remoteState ?? event.state
     designerObservedAt.value = event.at
-    designerLiveDetail.value = event.detail
     designerStructuredStep.value = event.structuredStep
-    if (event.activeActor !== 'DESIGNER') designerLiveResponse.value = ''
-    else if (event.content && (event.type === 'PARTIAL' || event.type === 'COMPLETED')) designerLiveResponse.value = event.content
     if (event.type === 'ERROR') designerLiveError.value = event.detail || 'OpenCode Designer 返回错误'
     if (designerSession.value) {
       designerSession.value = { ...designerSession.value, state: event.state, workflowPhase: event.workflowPhase, activeActor: event.activeActor, updatedAt: event.at, requirementRevision: event.requirementRevision, activeWorkPackageId: event.activeWorkPackageId, requirement: designerSession.value.requirement ? { ...designerSession.value.requirement, modelCallsUsed: event.modelCallsUsed, maxModelCalls: event.maxModelCalls } : designerSession.value.requirement }
@@ -716,9 +709,7 @@ function clearDesignerWorkspace() {
   designerReconnecting.value = false
   designerRuntimeConnected.value = false
   designerRemoteState.value = ''
-  designerLiveResponse.value = ''
   designerLiveError.value = ''
-  designerLiveDetail.value = ''
   designerObservedAt.value = ''
   designerStructuredStep.value = undefined
   designerSession.value = undefined
@@ -846,9 +837,7 @@ async function saveDraft(): Promise<boolean> {
   const spec = parsedSpec()
   if (!spec || !draft.value) return false
   busy.value = true
-  designerLiveResponse.value = ''
   designerLiveError.value = ''
-  designerLiveDetail.value = '正在将提示词交给 OpenCode'
   try {
     if (!store.usingDemo) {
       const assessment = await api.validateDraft(spec)
@@ -1210,7 +1199,6 @@ async function redesignPackage(packageId: string) {
           <span>远端 {{ statusLabel(designerRemoteState || 'WAITING') }}</span>
           <time :datetime="designerObservedAt">{{ formatObservedAt(designerObservedAt) }}</time>
         </div>
-        <DesignerActivityPanel v-if="designerSession && !store.usingDemo" :session-id="designerSession.id" />
         <section v-if="designerSession?.taskProfile" class="task-profile-card" aria-label="任务画像与动态流程">
           <header><div><strong>{{ taskProfileRouting ? '任务画像计算中' : `任务画像 · ${taskIntentLabel(designerSession.taskProfile.intent)}` }}</strong><span v-if="!taskProfileRouting">{{ designerSession.taskProfile.confidence }}% · {{ rolePackLabel(designerSession.taskProfile.rolePackId) }}</span><span v-else>需求分析师正在根据完整需求稿重新识别</span></div><b :class="{ warning: !designerSession.taskProfile.confirmationReady }">{{ taskProfileRouting ? '计算中' : taskProfileNeedsConfirmation ? '画像有变化，需要确认' : profileResolutionLabel(designerSession.taskProfile.resolutionSource) }}</b></header>
           <p v-if="!taskProfileRouting">流程 {{ workflowTemplateLabel(designerSession.taskProfile.workflowTemplate) }} · 执行 {{ executionStrategyLabel(designerSession.taskProfile.executionStrategy) }} · 测试 {{ testPolicyLabel(designerSession.taskProfile.testPolicy) }}</p>
@@ -1273,14 +1261,6 @@ async function redesignPackage(packageId: string) {
             <p v-else class="plain-message-content">{{ ['RETRYABLE_ERROR', 'TERMINAL_ERROR', 'SESSION_ERROR'].includes(item.message.deliveryState ?? '') || item.message.content.includes('SYSTEM_ERROR') ? userFacingError(item.message.content) : item.message.content }}</p>
           </article>
           </template>
-          <article v-if="designerLiveResponse" class="chat-message chat-designer chat-live" aria-label="设计师正在流式回复" aria-live="polite">
-            <header class="chat-message-header">
-              <span class="chat-author"><span class="chat-avatar"><Icon icon="lucide:sparkles" /></span><span><strong class="chat-role">设计师</strong><small>实时回复</small></span></span>
-              <span class="chat-message-time">{{ formatObservedAt(designerObservedAt) }}</span>
-            </header>
-            <MarkdownDocument :content="designerLiveResponse" collapsible />
-            <span v-if="designerSession?.state === 'RUNNING'" class="stream-caret" aria-hidden="true" />
-          </article>
           <PendingQuestionCard
             v-for="pending in designerSession?.pendingQuestions ?? []"
             :key="pending.id"
@@ -1291,12 +1271,7 @@ async function redesignPackage(packageId: string) {
             @submit="(answers: string[][]) => answerDesignerQuestion(pending, answers)"
             @reject="rejectDesignerQuestion(pending)"
           />
-          <article v-if="designerIsThinking" :class="['thinking-message', `thinking-${designerSession?.activeActor?.toLowerCase() ?? 'system'}`]" role="status" aria-live="polite" :aria-label="`${activeActorMeta.label}正在处理`">
-            <span class="thinking-orbit" aria-hidden="true"><span /></span>
-            <div class="thinking-copy">
-              <strong>{{ activeActorMeta.label }}正在{{ activeDetailedWorkflowLabel }}<span class="thinking-dots" aria-hidden="true"><i /><i /><i /></span></strong>
-            </div>
-          </article>
+          <DesignerCurrentActivity v-if="showCurrentRoleActivity && designerSession && !store.usingDemo" :session-id="designerSession.id" />
           </div>
           <div class="chat-compose">
             <div class="compose-heading"><label class="field-label" for="designer-message">当前作用域：{{ discussionScopeLabel }}</label></div>
@@ -1501,30 +1476,9 @@ async function redesignPackage(packageId: string) {
 .chat-validator.validator-normalized .chat-role, .chat-validator.validator-normalized .chat-avatar { color: #67e8f9; }
 .chat-validator.validator-terminal_error { border-color: rgb(239 68 68 / 42%); background: rgb(239 68 68 / 9%); box-shadow: inset 2px 0 rgb(239 68 68 / 68%); }
 .chat-validator.validator-terminal_error .chat-role, .chat-validator.validator-terminal_error .chat-avatar { color: #fca5a5; }
-.chat-live { position: relative; border-color: rgb(34 211 238 / 30%); box-shadow: 0 14px 38px rgb(0 0 0 / 13%), inset 2px 0 rgb(34 211 238 / 55%); }
-.stream-caret { display: inline-block; width: 7px; height: 14px; margin: 4px 0 -2px 3px; background: var(--color-accent-cyan); animation: stream-blink .85s steps(1) infinite; box-shadow: 0 0 8px rgb(34 211 238 / 55%); }
 .chat-compiler .plain-message-content, .chat-validator .plain-message-content { margin-top: 2px; }
 .plain-message-content { margin: 7px 0 0; color: var(--color-text-primary); font-size: 12px; line-height: 1.65; white-space: pre-wrap; }
-.thinking-message { position: relative; display: flex; align-items: center; gap: 14px; margin: 14px 0; padding: 17px 18px; overflow: hidden; border: 1px solid rgb(139 92 246 / 28%); border-radius: 12px; background: linear-gradient(100deg, rgb(139 92 246 / 9%), rgb(34 211 238 / 5%), rgb(139 92 246 / 9%)); background-size: 220% 100%; box-shadow: 0 12px 36px rgb(0 0 0 / 12%); animation: thinking-sheen 3s ease-in-out infinite; }
-.thinking-message::after { position: absolute; inset: auto 16px 0; height: 1px; background: linear-gradient(90deg, transparent, rgb(34 211 238 / 55%), transparent); content: ""; animation: thinking-scan 2.2s ease-in-out infinite; }
-.thinking-orbit { position: relative; display: grid; flex: 0 0 auto; place-items: center; width: 38px; height: 38px; border: 2px solid rgb(139 92 246 / 18%); border-top-color: #a78bfa; border-right-color: var(--color-accent-cyan); border-radius: 50%; box-shadow: 0 0 18px rgb(139 92 246 / 18%); animation: thinking-spin 1s linear infinite; }
-.thinking-orbit span { width: 8px; height: 8px; border-radius: 50%; background: linear-gradient(135deg, #a78bfa, var(--color-accent-cyan)); box-shadow: 0 0 12px rgb(34 211 238 / 55%); }
-.thinking-compiler { border-color: rgb(34 211 238 / 38%); background: linear-gradient(100deg, rgb(34 211 238 / 10%), rgb(8 47 73 / 5%), rgb(34 211 238 / 10%)); }
-.thinking-decomposer { border-color: rgb(99 102 241 / 42%); background: linear-gradient(100deg, rgb(99 102 241 / 11%), rgb(49 46 129 / 5%), rgb(99 102 241 / 11%)); }
-.thinking-validator { border-color: rgb(34 197 94 / 36%); background: linear-gradient(100deg, rgb(34 197 94 / 9%), rgb(20 83 45 / 5%), rgb(34 197 94 / 9%)); }
-.thinking-copy { min-width: 0; }
-.thinking-copy strong { display: flex; align-items: baseline; color: #f5f3ff; font-size: 13px; font-weight: 720; letter-spacing: -.01em; }
-.thinking-copy p { margin: 5px 0 0; color: var(--color-text-secondary); font-size: 11px; line-height: 1.55; }
-.thinking-dots { display: inline-flex; align-items: flex-end; gap: 3px; height: 12px; margin-left: 5px; }
-.thinking-dots i { width: 4px; height: 4px; border-radius: 50%; background: var(--color-accent-cyan); animation: thinking-dot 1.15s ease-in-out infinite; }
-.thinking-dots i:nth-child(2) { animation-delay: .16s; }
-.thinking-dots i:nth-child(3) { animation-delay: .32s; }
-@keyframes thinking-spin { to { transform: rotate(360deg); } }
-@keyframes thinking-dot { 0%, 65%, 100% { opacity: .25; transform: translateY(0); } 35% { opacity: 1; transform: translateY(-4px); } }
-@keyframes thinking-sheen { 0%, 100% { background-position: 0 50%; } 50% { background-position: 100% 50%; } }
-@keyframes thinking-scan { 0%, 100% { opacity: .2; transform: scaleX(.25); } 50% { opacity: .85; transform: scaleX(1); } }
 @keyframes live-pulse { 0%, 100% { opacity: .35; transform: scale(.85); } 50% { opacity: 1; transform: scale(1.15); } }
-@keyframes stream-blink { 0%, 48% { opacity: 1; } 49%, 100% { opacity: 0; } }
 .chat-compose { padding: 18px; border-top: 1px solid var(--color-border-default); background: rgb(7 12 23 / 72%); }
 .compose-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
 .scope-primary-action { display: flex; min-width: 0; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 12px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--color-border-default); }

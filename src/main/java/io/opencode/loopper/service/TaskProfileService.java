@@ -16,7 +16,9 @@ import io.opencode.loopper.persistence.TaskProfileRouterRunRow;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -32,6 +34,8 @@ public class TaskProfileService {
     private final RolePackRegistry rolePacks;
     private final ObjectMapper json;
     private final TransactionTemplate transactions;
+    /** Prevents the synchronous starter and the 750 ms monitor from owning the same persisted run. */
+    private final Set<String> claimedRouterRuns = ConcurrentHashMap.newKeySet();
 
     public TaskProfileService(LoopperMapper mapper, ProjectService projects, TaskProfileRouter router,
                               TaskSemanticRouter semanticRouter,
@@ -66,6 +70,8 @@ public class TaskProfileService {
     public void invalidate(String sessionId) {
         DesignerSessionRow session = session(sessionId);
         Path root = Path.of(projects.get(session.projectId()).rootPath());
+        // Every abort must be acknowledged before the old rows are superseded. Otherwise a replacement
+        // Router could run in parallel with an unobserved predecessor.
         mapper.listActiveTaskProfileRouterRuns().stream()
                 .filter(run -> sessionId.equals(run.designerSessionId()))
                 .forEach(run -> semanticRouter.abort(root, run.externalSessionId()));
@@ -83,27 +89,34 @@ public class TaskProfileService {
         if (inheritedEvidence != null) inheritedEvidence.stream().filter(value -> !observedEvidence.contains(value))
                 .forEach(observedEvidence::add);
         String now = Instant.now().toString();
-        TaskProfileRouterRunRow pending = new TaskProfileRouterRunRow(UUID.randomUUID().toString(), sessionId,
+        String runId = UUID.randomUUID().toString();
+        TaskProfileRouterRunRow pending = new TaskProfileRouterRunRow(runId, sessionId,
                 "PENDING", requirement == null ? "" : requirement, write(observedEvidence),
                 null, null, null, null, null, null, now, now, 0);
-        if (mapper.insertTaskProfileRouterRun(pending) != 1) {
-            throw new ConflictException("TASK_PROFILE_ROUTER_CREATE_CONFLICT", "任务画像 Router 运行记录未能持久化");
+        claimedRouterRuns.add(runId);
+        try {
+            if (mapper.insertTaskProfileRouterRun(pending) != 1) {
+                throw new ConflictException("TASK_PROFILE_ROUTER_CREATE_CONFLICT", "任务画像 Router 运行记录未能持久化");
+            }
+            TaskSemanticRouter.StartResult started = semanticRouter.start(root, requirement, observedEvidence);
+            TaskProfileRouterRunRow updated = new TaskProfileRouterRunRow(pending.id(), sessionId,
+                    started.started() ? "RUNNING" : "FAILED", pending.requirementSnapshot(), pending.repositoryEvidenceJson(),
+                    started.externalSessionId(), started.started() ? "RUNNING" : "FAILED", started.responseMode(), null,
+                    started.errorCode(), started.errorDetail(), pending.createdAt(), Instant.now().toString(), pending.version());
+            if (mapper.updateTaskProfileRouterRun(updated) != 1) {
+                semanticRouter.abortQuietly(root, started.externalSessionId());
+                throw new ConflictException("TASK_PROFILE_ROUTER_VERSION_CONFLICT", "任务画像 Router 运行记录被并发更新");
+            }
+            if (!started.started()) materialize(updated, null, started.errorCode(), started.errorDetail());
+        } finally {
+            claimedRouterRuns.remove(runId);
         }
-        TaskSemanticRouter.StartResult started = semanticRouter.start(root, requirement, observedEvidence);
-        TaskProfileRouterRunRow updated = new TaskProfileRouterRunRow(pending.id(), sessionId,
-                started.started() ? "RUNNING" : "FAILED", pending.requirementSnapshot(), pending.repositoryEvidenceJson(),
-                started.externalSessionId(), started.started() ? "RUNNING" : "FAILED", started.responseMode(), null,
-                started.errorCode(), started.errorDetail(), pending.createdAt(), Instant.now().toString(), pending.version());
-        if (mapper.updateTaskProfileRouterRun(updated) != 1) {
-            if (started.externalSessionId() != null) semanticRouter.abort(root, started.externalSessionId());
-            throw new ConflictException("TASK_PROFILE_ROUTER_VERSION_CONFLICT", "任务画像 Router 运行记录被并发更新");
-        }
-        if (!started.started()) materialize(updated, null, started.errorCode(), started.errorDetail());
     }
 
     public List<String> pollActive() {
         List<String> completedSessions = new java.util.ArrayList<>();
         for (TaskProfileRouterRunRow run : mapper.listActiveTaskProfileRouterRuns()) {
+            if (!claimedRouterRuns.add(run.id())) continue;
             try {
                 DesignerSessionRow session = session(run.designerSessionId());
                 if (stopping(session)) continue;
@@ -119,9 +132,15 @@ public class TaskProfileService {
                 if ("PENDING".equals(run.state())) {
                     TaskSemanticRouter.StartResult started = semanticRouter.start(root, run.requirementSnapshot(),
                             readStrings(run.repositoryEvidenceJson()));
-                    TaskProfileRouterRunRow startedRow = updateRun(run, started.started() ? "RUNNING" : "FAILED",
-                            started.externalSessionId(), started.started() ? "RUNNING" : "FAILED", started.responseMode(),
-                            null, started.errorCode(), started.errorDetail());
+                    TaskProfileRouterRunRow startedRow;
+                    try {
+                        startedRow = updateRun(run, started.started() ? "RUNNING" : "FAILED",
+                                started.externalSessionId(), started.started() ? "RUNNING" : "FAILED", started.responseMode(),
+                                null, started.errorCode(), started.errorDetail());
+                    } catch (RuntimeException concurrentUpdate) {
+                        semanticRouter.abortQuietly(root, started.externalSessionId());
+                        throw concurrentUpdate;
+                    }
                     if (!started.started()) {
                         materialize(startedRow, null, started.errorCode(), started.errorDetail());
                         completedSessions.add(run.designerSessionId());
@@ -143,7 +162,10 @@ public class TaskProfileService {
                     updateRun(run, "RUNNING", run.externalSessionId(), result.externalState(), run.responseMode(),
                             run.semanticLabelsJson(), null, null);
                 }
-            } catch (RuntimeException ignoredConcurrentOrMissingSession) { }
+            } catch (RuntimeException ignoredConcurrentOrMissingSession) {
+            } finally {
+                claimedRouterRuns.remove(run.id());
+            }
         }
         return List.copyOf(completedSessions);
     }
@@ -231,20 +253,10 @@ public class TaskProfileService {
 
     public View override(String sessionId, TaskIntent intent, ArtifactKind primaryArtifact,
                          Boolean largeTaskMode, long expectedVersion) {
-        if (intent == null || primaryArtifact == null) throw new BadRequestException("TASK_PROFILE_OVERRIDE_INVALID", "必须选择任务意图和主要制品类型");
-        DesignerTaskProfileRow current = mapper.findCurrentDesignerTaskProfile(sessionId)
-                .orElseThrow(() -> new NotFoundException("Task profile not found for Designer session: " + sessionId));
-        if (!"PROVISIONAL".equals(current.state())) throw new ConflictException("TASK_PROFILE_FROZEN", "需求确认后不能覆盖任务画像");
-        if (current.version() != expectedVersion) throw new ConflictException("TASK_PROFILE_VERSION_CONFLICT", "任务画像已被并发更新");
-        if (readStrings(current.evidenceJson()).contains("unsafe-operation-conflict")) {
-            throw new BadRequestException("UNSAFE_MAINTENANCE_OUT_OF_SCOPE",
-                    "当前版本不接受删除、服务启停、提交推送、发布或外部系统写入，不能通过画像覆盖绕过此边界");
-        }
-        List<String> technologies = readStrings(current.technologiesJson());
-        if (Boolean.TRUE.equals(largeTaskMode) && intent != TaskIntent.SOFTWARE_CHANGE) {
-            throw new BadRequestException("LARGE_TASK_MODE_NOT_APPLICABLE", "大型任务模式只适用于软件任务");
-        }
-        WorkflowTemplate workflow = workflow(intent, current.workflowTemplate(), largeTaskMode);
+        OverrideContext context = overrideContext(sessionId, intent, primaryArtifact, largeTaskMode, expectedVersion);
+        DesignerTaskProfileRow current = context.current();
+        List<String> technologies = context.technologies();
+        WorkflowTemplate workflow = context.workflow();
         MutationMode mutation = mutation(intent);
         RolePackRegistry.RolePack pack = rolePacks.resolve(intent, technologies, List.of(primaryArtifact));
         TestPolicy testPolicy = effectiveTestPolicy(pack.defaultTestPolicy(), intent, technologies, readStrings(current.evidenceJson()));
@@ -257,6 +269,37 @@ public class TaskProfileService {
                 100, write(evidence), "USER_OVERRIDE", 0, current.createdAt(), Instant.now().toString(), current.version());
         if (mapper.updateDesignerTaskProfile(updated) != 1) throw new ConflictException("TASK_PROFILE_VERSION_CONFLICT", "任务画像已被并发更新");
         return current(sessionId);
+    }
+
+    public WorkflowTemplate previewWorkflowForOverride(String sessionId, TaskIntent intent,
+                                                        ArtifactKind primaryArtifact, Boolean largeTaskMode,
+                                                        long expectedVersion) {
+        return overrideContext(sessionId, intent, primaryArtifact, largeTaskMode, expectedVersion).workflow();
+    }
+
+    private OverrideContext overrideContext(String sessionId, TaskIntent intent, ArtifactKind primaryArtifact,
+                                            Boolean largeTaskMode, long expectedVersion) {
+        if (intent == null || primaryArtifact == null) {
+            throw new BadRequestException("TASK_PROFILE_OVERRIDE_INVALID", "必须选择任务意图和主要制品类型");
+        }
+        DesignerTaskProfileRow current = mapper.findCurrentDesignerTaskProfile(sessionId)
+                .orElseThrow(() -> new NotFoundException("Task profile not found for Designer session: " + sessionId));
+        if (!"PROVISIONAL".equals(current.state())) {
+            throw new ConflictException("TASK_PROFILE_FROZEN", "需求确认后不能覆盖任务画像");
+        }
+        if (current.version() != expectedVersion) {
+            throw new ConflictException("TASK_PROFILE_VERSION_CONFLICT", "任务画像已被并发更新");
+        }
+        List<String> evidence = readStrings(current.evidenceJson());
+        if (evidence.contains("unsafe-operation-conflict")) {
+            throw new BadRequestException("UNSAFE_MAINTENANCE_OUT_OF_SCOPE",
+                    "当前版本不接受删除、服务启停、提交推送、发布或外部系统写入，不能通过画像覆盖绕过此边界");
+        }
+        if (Boolean.TRUE.equals(largeTaskMode) && intent != TaskIntent.SOFTWARE_CHANGE) {
+            throw new BadRequestException("LARGE_TASK_MODE_NOT_APPLICABLE", "大型任务模式只适用于软件任务");
+        }
+        return new OverrideContext(current, readStrings(current.technologiesJson()),
+                workflow(intent, current.workflowTemplate(), largeTaskMode));
     }
 
     public View acceptRecommendation(String sessionId, long expectedVersion) {
@@ -492,6 +535,9 @@ public class TaskProfileService {
                     && workflowTemplate == decision.workflowTemplate() && mutationMode == decision.mutationMode();
         }
     }
+
+    private record OverrideContext(DesignerTaskProfileRow current, List<String> technologies,
+                                   WorkflowTemplate workflow) { }
 
     public record View(String id, String state, String decisionState, boolean confirmationReady,
                        TaskIntent intent, WorkflowTemplate workflowTemplate,

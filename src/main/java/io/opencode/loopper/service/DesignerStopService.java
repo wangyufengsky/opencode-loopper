@@ -8,8 +8,6 @@ import io.opencode.loopper.domain.LifecycleScopeType;
 import io.opencode.loopper.lifecycle.LifecycleTransitionService;
 import io.opencode.loopper.persistence.DesignerSessionRow;
 import io.opencode.loopper.persistence.LoopperMapper;
-import io.opencode.loopper.runtime.OpenCodeClient;
-import java.nio.file.Path;
 import java.time.Instant;
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -20,16 +18,14 @@ import org.springframework.stereotype.Service;
 @Service
 public final class DesignerStopService {
     private final LoopperMapper mapper;
-    private final ProjectService projects;
-    private final OpenCodeClient openCode;
+    private final DesignerSessionRuntimeControl runtimeControl;
     private final LifecycleTransitionService lifecycle;
     private final DesignerAutoModeService autoMode;
 
-    public DesignerStopService(LoopperMapper mapper, ProjectService projects, OpenCodeClient openCode,
+    public DesignerStopService(LoopperMapper mapper, DesignerSessionRuntimeControl runtimeControl,
                                LifecycleTransitionService lifecycle, DesignerAutoModeService autoMode) {
         this.mapper = mapper;
-        this.projects = projects;
-        this.openCode = openCode;
+        this.runtimeControl = runtimeControl;
         this.lifecycle = lifecycle;
         this.autoMode = autoMode;
     }
@@ -44,13 +40,12 @@ public final class DesignerStopService {
             session = beginStopping(session);
         }
         disableAutoMode(sessionId);
-        Path root = Path.of(projects.get(session.projectId()).rootPath()).toAbsolutePath().normalize();
         Set<String> remoteIds = allRemoteIds(session);
         int stopped = 0;
         int failed = 0;
         for (String remoteId : remoteIds) {
             try {
-                openCode.abort(new OpenCodeClient.OpenCodeSession(remoteId, root));
+                runtimeControl.abort(remoteId, session.projectId());
                 stopped++;
             } catch (RuntimeException failure) {
                 failed++;

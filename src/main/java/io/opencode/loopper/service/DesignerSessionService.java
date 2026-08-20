@@ -107,6 +107,7 @@ public class DesignerSessionService {
     private final AiRepairPatchService repairPatchService;
     private final DesignerEventHub events;
     private final TaskProfileService taskProfiles;
+    private final DesignerSessionRuntimeControl runtimeControl;
     private final RolePromptComposer rolePrompts;
     private final DesignerConversationPromptFactory conversationPrompts =
             new DesignerConversationPromptFactory();
@@ -122,7 +123,8 @@ public class DesignerSessionService {
                                   AiOutputExtractor aiOutputExtractor, AiOutputAuditService aiOutputAudit,
                                   DesignerEvidenceIndexer evidenceIndexer, AiRepairPatchService repairPatchService,
                                   DesignerEventHub events, TaskProfileService taskProfiles,
-                                  RolePromptComposer rolePrompts, WorkPackageRoleService workPackageRoles) {
+                                  DesignerSessionRuntimeControl runtimeControl, RolePromptComposer rolePrompts,
+                                  WorkPackageRoleService workPackageRoles) {
         this.mapper = mapper;
         this.lifecycle = lifecycle;
         this.projects = projects;
@@ -137,6 +139,7 @@ public class DesignerSessionService {
         this.repairPatchService = repairPatchService;
         this.events = events;
         this.taskProfiles = taskProfiles;
+        this.runtimeControl = runtimeControl;
         this.rolePrompts = rolePrompts;
         this.decompositionPrompts = new DesignerDecompositionPromptFactory(json, taskProfiles, rolePrompts);
         this.packageContext = new DesignerPackageContext(mapper, json);
@@ -361,6 +364,10 @@ public class DesignerSessionService {
     }
 
     public String activeActor(DesignerSessionRow session) {
+        if (mapper.findLatestTaskProfileRouterRun(session.id())
+                .filter(row -> "PENDING".equals(row.state()) || "RUNNING".equals(row.state())).isPresent()) {
+            return DesignerActor.ROUTER.name();
+        }
         return switch (DesignWorkflowPhase.valueOf(session.workflowPhase())) {
             case ROUTING -> DesignerActor.ROUTER.name();
             case DISCUSSING_REQUIREMENT, QUESTIONING_PACKAGE -> DesignerActor.DESIGNER.name();
@@ -704,7 +711,7 @@ public class DesignerSessionService {
         if (session.currentRequirementRevision() == null) {
             throw new ConflictException("REQUIREMENT_NOT_CONFIRMED", "整体需求仍处于讨论阶段");
         }
-        abortQuietly(session.externalSessionId(), session.projectId());
+        runtimeControl.requireStoppedBeforeReplacement(session.externalSessionId(), session.projectId());
         supersedeCurrentRequirement(session);
         taskProfiles.invalidate(session.id());
         int requirementDiscussionRevision = mapper.findLatestDesignDiscussionRevision(session.id(), "REQUIREMENT")
@@ -726,6 +733,12 @@ public class DesignerSessionService {
                                                      ArtifactKind primaryArtifactKind,
                                                      Boolean largeTaskMode, long expectedVersion) {
         TaskProfileService.View before = taskProfiles.current(sessionId);
+        WorkflowTemplate targetWorkflow = taskProfiles.previewWorkflowForOverride(
+                sessionId, intent, primaryArtifactKind, largeTaskMode, expectedVersion);
+        if (before.workflowTemplate() != targetWorkflow) {
+            DesignerSessionRow session = get(sessionId);
+            runtimeControl.requireStoppedBeforeReplacement(session.externalSessionId(), session.projectId());
+        }
         TaskProfileService.View updated = taskProfiles.override(sessionId, intent, primaryArtifactKind,
                 largeTaskMode, expectedVersion);
         if (before.workflowTemplate() != updated.workflowTemplate()) {
@@ -763,7 +776,6 @@ public class DesignerSessionService {
     private void restartRequirementContract(String sessionId, WorkflowTemplate target) {
         DesignerSessionRow session = get(sessionId);
         if (session.currentRequirementRevision() != null) return;
-        abortQuietly(session.externalSessionId(), session.projectId());
         List<DesignDiscussionRevisionRow> requirementDiscussions = mapper.listDesignDiscussionRevisions(sessionId)
                 .stream().filter(row -> "REQUIREMENT".equals(row.scopeKey())).toList();
         if (requirementDiscussions.isEmpty()) return;
@@ -1023,7 +1035,7 @@ public class DesignerSessionService {
                         "OPENCODE_DESIGNER_" + safeState(status.state()), statusDetail(status));
             } else if (status.completed()) {
                 if (discussion.questionRequired() && !discussion.questionAnswered()) {
-                    abortQuietly(remote.id(), session.projectId());
+                    runtimeControl.requireStoppedBeforeReplacement(remote.id(), session.projectId());
                     if (discussion.questionRetryCount() < 1) {
                         DesignDiscussionRevisionRow repaired = updateDiscussion(discussion, "QUESTIONING",
                                 discussion.sourceMessageId(), discussion.designMessageId(), discussion.snapshotMarkdown(),
@@ -1251,17 +1263,17 @@ public class DesignerSessionService {
         // Designer Session created by completeRouting before the client has had a chance to answer its question.
         if (!routed.isEmpty()) return;
         for (TaskDecompositionRow decomposition : mapper.activeTaskDecompositions()) {
-            if (stopping(decomposition.designerSessionId())) continue;
+            if (runtimeControl.stopping(decomposition.designerSessionId())) continue;
             try { pollDecomposer(decomposition); }
             catch (RuntimeException ignoredConcurrentTransition) { }
         }
         for (DesignWorkPackageRow workPackage : mapper.activeDesignWorkPackages()) {
-            if (stopping(workPackage.designerSessionId())) continue;
+            if (runtimeControl.stopping(workPackage.designerSessionId())) continue;
             try { pollWorkPackageDesigner(workPackage); }
             catch (RuntimeException ignoredConcurrentTransition) { }
         }
         for (DesignerSessionRow session : mapper.activeDesignerHandoffs()) {
-            if (stopping(session.id())) continue;
+            if (runtimeControl.stopping(session.id())) continue;
             if (session.currentRequirementRevision() == null
                     && DesignWorkflowPhase.DISCUSSING_REQUIREMENT.name().equals(session.workflowPhase())) {
                 try { pollRequirementDesigner(session); }
@@ -1270,7 +1282,7 @@ public class DesignerSessionService {
             catch (RuntimeException ignoredConcurrentTransition) { }
         }
         for (LoopSpecCompilationRow compilation : mapper.activeLoopSpecCompilations()) {
-            if (stopping(compilation.designerSessionId())) continue;
+            if (runtimeControl.stopping(compilation.designerSessionId())) continue;
             try { pollCompiler(compilation); }
             catch (RuntimeException ignoredConcurrentTransition) { }
         }
@@ -1278,7 +1290,7 @@ public class DesignerSessionService {
 
     private void completeRouting(String sessionId) {
         DesignerSessionRow session = get(sessionId);
-        if (stopping(sessionId)) return;
+        if (runtimeControl.stopping(sessionId)) return;
         TaskProfileService.View profile = taskProfiles.current(sessionId);
         appendMessage(session.id(), DesignerActor.SYSTEM,
                 "任务画像已生成：" + profile.rolePackId() + "@" + profile.rolePackVersion()
@@ -1303,7 +1315,7 @@ public class DesignerSessionService {
         DesignRequirementRevisionRow current = mapper.findCurrentDesignRequirementRevision(session.id()).orElse(null);
         if (current == null || DesignRequirementRevisionState.SUPERSEDED.name().equals(current.state())) return;
         mapper.findTaskDecompositionByRevision(current.id()).ifPresent(row -> {
-            abortQuietly(row.externalSessionId(), session.projectId());
+            runtimeControl.abortQuietly(row.externalSessionId(), session.projectId());
             if (Set.of(TaskDecompositionState.PENDING_HANDOFF.name(), TaskDecompositionState.RUNNING.name(),
                     TaskDecompositionState.VALIDATING.name()).contains(row.state())) {
                 updateDecomposition(row, TaskDecompositionState.SESSION_ERROR, row.resultType(), row.normalizedGoal(),
@@ -1313,7 +1325,7 @@ public class DesignerSessionService {
             }
         });
         for (DesignWorkPackageRow workPackage : mapper.listDesignWorkPackages(current.id())) {
-            abortQuietly(workPackage.designerExternalSessionId(), session.projectId());
+            runtimeControl.abortQuietly(workPackage.designerExternalSessionId(), session.projectId());
             if (Set.of(DesignWorkPackageState.DESIGNING.name(), DesignWorkPackageState.COMPILING.name(),
                     DesignWorkPackageState.VALIDATING.name()).contains(workPackage.state())) {
                 updateWorkPackage(workPackage, DesignWorkPackageState.FAILED,
@@ -1324,7 +1336,7 @@ public class DesignerSessionService {
                         "A newer complete requirement revision replaced this work package");
             }
             mapper.findLatestLoopSpecCompilationForPackage(session.id(), workPackage.packageId()).ifPresent(compilation -> {
-                abortQuietly(compilation.externalSessionId(), session.projectId());
+                runtimeControl.abortQuietly(compilation.externalSessionId(), session.projectId());
                 if (Set.of(LoopSpecCompilationState.PENDING_HANDOFF.name(), LoopSpecCompilationState.RUNNING.name())
                         .contains(compilation.state())) {
                     updateCompilation(compilation, LoopSpecCompilationState.SESSION_ERROR,
@@ -1407,7 +1419,7 @@ public class DesignerSessionService {
                     DesignWorkflowPhase.DECOMPOSING, remote.id(), "RUNNING", input.designRevision(), 0,
                     revision.revision(), null);
             if (!consumeModelCall(session, revision, "DECOMPOSER_MODEL_CALL_LIMIT")) {
-                abortQuietly(remote.id(), input.projectId());
+                runtimeControl.abortQuietly(remote.id(), input.projectId());
                 return appendMessage(session.id(), DesignerActor.SYSTEM,
                         "需求版本的 " + MAX_MODEL_CALLS + " 次自动模型调用预算已耗尽，任务拆解已停止。", "TERMINAL_ERROR",
                         revision.revision(), null);
@@ -1442,7 +1454,7 @@ public class DesignerSessionService {
             if (!blank(decomposition.planningJson()) && Set.of(StructuredModelStep.GENERATING_JSON.name(),
                     StructuredModelStep.REPAIRING_JSON.name(), StructuredModelStep.SERVER_COMPILING.name())
                     .contains(decomposition.workflowStep())) {
-                abortQuietly(remote.id(), session.projectId());
+                runtimeControl.abortQuietly(remote.id(), session.projectId());
                 DecompositionPlanEnvelope plan = readDecompositionPlan(decomposition.planningJson());
                 TaskDecompositionRow recovered = markDecompositionServerCompiled(decomposition,
                         decomposition.planningJson());
@@ -1718,7 +1730,7 @@ public class DesignerSessionService {
                             ? DesignWorkflowPhase.DESIGNING : DesignWorkflowPhase.QUESTIONING_PACKAGE,
                     remote.id(), "RUNNING", input.packageId(), discussion.revision(), "SYNCING", input.packageId());
             if (!consumeModelCall(running, revision, "WORK_PACKAGE_MODEL_CALL_LIMIT")) {
-                abortQuietly(remote.id(), session.projectId());
+                runtimeControl.abortQuietly(remote.id(), session.projectId());
                 return;
             }
             String prefix = questionRepair ? replacementPrompt.substring("QUESTION_REPAIR:".length()) : replacementPrompt;
@@ -1757,7 +1769,7 @@ public class DesignerSessionService {
             List<OpenCodeClient.PendingQuestion> pending = openCode.pendingQuestions(remote);
             if (!pending.isEmpty()) {
                 if (directSoftwareMode(session.id())) {
-                    abortQuietly(remote.id(), session.projectId());
+                    runtimeControl.abortQuietly(remote.id(), session.projectId());
                     failPackageDesigner(workPackage, session, "DIRECT_PACKAGE_QUESTION_NOT_ALLOWED",
                             "普通单包设计不得再次提问，请直接生成完整替代设计稿", false);
                     return;
@@ -1802,7 +1814,7 @@ public class DesignerSessionService {
                         "OPENCODE_PACKAGE_DESIGNER_" + safeState(status.state()), statusDetail(status), true);
             } else if (status.completed()) {
                 if (discussion.questionRequired() && !discussion.questionAnswered()) {
-                    abortQuietly(remote.id(), session.projectId());
+                    runtimeControl.abortQuietly(remote.id(), session.projectId());
                     if (discussion.questionRetryCount() < 1) {
                         DesignDiscussionRevisionRow repaired = updateDiscussion(discussion, "QUESTIONING",
                                 discussion.sourceMessageId(), discussion.designMessageId(),
@@ -1898,7 +1910,7 @@ public class DesignerSessionService {
             LoopSpecCompilationRow running = updateCompilation(pending, LoopSpecCompilationState.RUNNING,
                     remote.id(), "RUNNING", 0, null, null, session.projectId(), null);
             if (!consumeModelCall(session, revision, "WORK_PACKAGE_MODEL_CALL_LIMIT")) {
-                abortQuietly(remote.id(), session.projectId());
+                runtimeControl.abortQuietly(remote.id(), session.projectId());
                 return;
             }
             submitModelPrompt(remote, packageCompilerPlanningPrompt(project, revision, workPackage,
@@ -2056,7 +2068,7 @@ public class DesignerSessionService {
             if (!blank(compilation.workPackageId()) && !blank(compilation.planningJson())
                     && Set.of(StructuredModelStep.GENERATING_JSON.name(), StructuredModelStep.REPAIRING_JSON.name(),
                             StructuredModelStep.SERVER_COMPILING.name()).contains(compilation.workflowStep())) {
-                abortQuietly(remote.id(), session.projectId());
+                runtimeControl.abortQuietly(remote.id(), session.projectId());
                 PackageCompilationPlanEnvelope plan = readPackageCompilationPlan(compilation.planningJson());
                 LoopSpecCompilationRow recovered = markCompilationServerCompiled(compilation,
                         compilation.planningJson());
@@ -2534,7 +2546,7 @@ public class DesignerSessionService {
         DesignRequirementRevisionRow revision = currentRequirement(session.id());
         if (!consumeModelCall(session, revision, "WORK_PACKAGE_MODEL_CALL_LIMIT")) return;
         try {
-            abortQuietly(remote.id(), session.projectId());
+            runtimeControl.abortQuietly(remote.id(), session.projectId());
             ProjectRow project = projects.get(session.projectId());
             ModelResponseMode repairMode = ModelResponseMode.valueOf(planning
                     ? repairing.planningResponseMode() : repairing.finalResponseMode());
@@ -2584,7 +2596,7 @@ public class DesignerSessionService {
                                       DesignWorkPackageRow workPackage, OpenCodeClient.OpenCodeSession remote,
                                       String detail) {
         String reason = blank(detail) ? "当前需求无法安全容纳在默认单包的 1–6 个 Stage 中" : safeMessage(detail);
-        abortQuietly(remote.id(), session.projectId());
+        runtimeControl.abortQuietly(remote.id(), session.projectId());
         if (LoopSpecCompilationState.RUNNING.name().equals(compilation.state())) {
             updateCompilation(compilation, LoopSpecCompilationState.DESIGN_INCOMPLETE, remote.id(), "COMPLETED",
                     compilation.repairCount(), "LARGE_TASK_MODE_REQUIRED", reason, session.projectId(),
@@ -2750,10 +2762,10 @@ public class DesignerSessionService {
             return false;
         }
         if (!consumeModelCall(session, revision, "DECOMPOSER_MODEL_CALL_LIMIT")) {
-            abortQuietly(row.externalSessionId(), session.projectId());
+            runtimeControl.abortQuietly(row.externalSessionId(), session.projectId());
             return true;
         }
-        abortQuietly(row.externalSessionId(), session.projectId());
+        runtimeControl.abortQuietly(row.externalSessionId(), session.projectId());
         try {
             ProjectRow project = projects.get(session.projectId());
             OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
@@ -2796,10 +2808,10 @@ public class DesignerSessionService {
                 : requireCurrentPackage(session, row.workPackageId());
         DesignRequirementRevisionRow revision = workPackage == null ? null : currentRequirement(session.id());
         if (revision != null && !consumeModelCall(session, revision, "WORK_PACKAGE_MODEL_CALL_LIMIT")) {
-            abortQuietly(row.externalSessionId(), session.projectId());
+            runtimeControl.abortQuietly(row.externalSessionId(), session.projectId());
             return true;
         }
-        abortQuietly(row.externalSessionId(), session.projectId());
+        runtimeControl.abortQuietly(row.externalSessionId(), session.projectId());
         try {
             ProjectRow project = projects.get(session.projectId());
             OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
@@ -2844,7 +2856,7 @@ public class DesignerSessionService {
         LoopSpecCompilationRow current = mapper.findLoopSpecCompilation(input.id()).orElse(input);
         if (structuredFormatFailure(code) && fallbackCompilation(current, session, code, detail)) return;
         current = mapper.findLoopSpecCompilation(input.id()).orElse(current);
-        abortQuietly(current.externalSessionId(), session.projectId());
+        runtimeControl.abortQuietly(current.externalSessionId(), session.projectId());
         if (!LoopSpecCompilationState.SESSION_ERROR.name().equals(current.state())
                 && !LoopSpecCompilationState.COMPLETED.name().equals(current.state())
                 && !LoopSpecCompilationState.DESIGN_INCOMPLETE.name().equals(current.state())) {
@@ -2863,7 +2875,7 @@ public class DesignerSessionService {
                 && fallbackDecomposition(decomposition, session, revision, code, detail)) return;
         decomposition = mapper.findTaskDecomposition(input.id()).orElse(decomposition);
         if (transportFailure && decomposition.transportRetryCount() < 1 && isCurrent(session, revision)) {
-            abortQuietly(decomposition.externalSessionId(), session.projectId());
+            runtimeControl.abortQuietly(decomposition.externalSessionId(), session.projectId());
             ProjectRow project = projects.get(session.projectId());
             try {
                 OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
@@ -2879,7 +2891,7 @@ public class DesignerSessionService {
                         DesignWorkflowPhase.DECOMPOSING, remote.id(), "TRANSPORT_RETRY", session.designRevision(),
                         session.redesignCount(), revision.revision(), null);
                 if (!consumeModelCall(running, revision, "DECOMPOSER_MODEL_CALL_LIMIT")) {
-                    abortQuietly(remote.id(), session.projectId());
+                    runtimeControl.abortQuietly(remote.id(), session.projectId());
                     return;
                 }
                 submitModelPrompt(remote, decomposerTransportRetryPrompt(retried, project, revision),
@@ -2895,7 +2907,7 @@ public class DesignerSessionService {
             }
         }
         decomposition = mapper.findTaskDecomposition(input.id()).orElse(decomposition);
-        abortQuietly(decomposition.externalSessionId(), session.projectId());
+        runtimeControl.abortQuietly(decomposition.externalSessionId(), session.projectId());
         if (Set.of(TaskDecompositionState.PENDING_HANDOFF.name(), TaskDecompositionState.RUNNING.name(),
                 TaskDecompositionState.VALIDATING.name()).contains(decomposition.state())) {
             updateDecomposition(decomposition, TaskDecompositionState.SESSION_ERROR,
@@ -2910,7 +2922,7 @@ public class DesignerSessionService {
                                      String code, String detail, boolean transportFailure) {
         DesignWorkPackageRow workPackage = getWorkPackage(input.id());
         DesignRequirementRevisionRow revision = getRequirement(workPackage.requirementRevisionId());
-        abortQuietly(workPackage.designerExternalSessionId(), session.projectId());
+        runtimeControl.abortQuietly(workPackage.designerExternalSessionId(), session.projectId());
         if (transportFailure && workPackage.designerTransportRetryCount() < 1 && isCurrent(session, revision)) {
             DesignWorkPackageRow waiting = updateWorkPackage(workPackage, DesignWorkPackageState.WAITING_INPUT,
                     workPackage.designerExternalSessionId(), "TRANSPORT_RETRY", workPackage.designMessageId(),
@@ -2938,7 +2950,7 @@ public class DesignerSessionService {
         DesignRequirementRevisionRow revision = currentRequirement(session.id());
         if (structuredFormatFailure(code) && fallbackCompilation(compilation, session, code, detail)) return;
         compilation = mapper.findLoopSpecCompilation(input.id()).orElse(compilation);
-        abortQuietly(compilation.externalSessionId(), session.projectId());
+        runtimeControl.abortQuietly(compilation.externalSessionId(), session.projectId());
         if (transportFailure && compilation.transportRetryCount() < 1 && isCurrent(session, revision)) {
             ProjectRow project = projects.get(session.projectId());
             try {
@@ -2964,7 +2976,7 @@ public class DesignerSessionService {
                         remote.id(), "TRANSPORT_RETRY", compilation.repairCount(), code, safeMessage(detail),
                         session.projectId(), compilation.compiledPackageJson());
                 if (!consumeModelCall(session, revision, "WORK_PACKAGE_MODEL_CALL_LIMIT")) {
-                    abortQuietly(remote.id(), session.projectId());
+                    runtimeControl.abortQuietly(remote.id(), session.projectId());
                     return;
                 }
                 submitModelPrompt(remote, packageCompilerTransportRetryPrompt(running, session, project,
@@ -2981,7 +2993,7 @@ public class DesignerSessionService {
             }
         }
         compilation = mapper.findLoopSpecCompilation(input.id()).orElse(compilation);
-        abortQuietly(compilation.externalSessionId(), session.projectId());
+        runtimeControl.abortQuietly(compilation.externalSessionId(), session.projectId());
         if (Set.of(LoopSpecCompilationState.PENDING_HANDOFF.name(), LoopSpecCompilationState.RUNNING.name())
                 .contains(compilation.state())) {
             updateCompilation(compilation, LoopSpecCompilationState.SESSION_ERROR,
@@ -4766,13 +4778,13 @@ public class DesignerSessionService {
                             currentPackage.designMessageId(), currentPackage.designRevision(),
                             currentPackage.redesignCount(), currentPackage.designerTransportRetryCount(),
                             currentPackage.compilerSummary(), currentPackage.handoffSummary(), code, detail);
-                    abortQuietly(currentPackage.designerExternalSessionId(), currentSession.projectId());
+                    runtimeControl.abortQuietly(currentPackage.designerExternalSessionId(), currentSession.projectId());
                 }
                 mapper.findLatestLoopSpecCompilationForPackage(currentSession.id(),
                         currentSession.activeWorkPackageId()).ifPresent(compilation -> {
                     if (Set.of(LoopSpecCompilationState.PENDING_HANDOFF.name(),
                             LoopSpecCompilationState.RUNNING.name()).contains(compilation.state())) {
-                        abortQuietly(compilation.externalSessionId(), currentSession.projectId());
+                        runtimeControl.abortQuietly(compilation.externalSessionId(), currentSession.projectId());
                         updateCompilation(compilation, LoopSpecCompilationState.SESSION_ERROR,
                                 compilation.externalSessionId(), "MODEL_CALL_LIMIT", compilation.repairCount(),
                                 code, detail, currentSession.projectId(), compilation.compiledPackageJson());
@@ -4782,7 +4794,7 @@ public class DesignerSessionService {
                 mapper.findTaskDecompositionByRevision(revision.id()).ifPresent(decomposition -> {
                     if (Set.of(TaskDecompositionState.PENDING_HANDOFF.name(), TaskDecompositionState.RUNNING.name())
                             .contains(decomposition.state())) {
-                        abortQuietly(decomposition.externalSessionId(), currentSession.projectId());
+                        runtimeControl.abortQuietly(decomposition.externalSessionId(), currentSession.projectId());
                         updateDecomposition(decomposition, TaskDecompositionState.SESSION_ERROR,
                                 decomposition.resultType(), decomposition.normalizedGoal(),
                                 decomposition.globalConstraintsJson(), decomposition.planJson(),
@@ -4954,21 +4966,6 @@ public class DesignerSessionService {
             throw new ConflictException("DESIGNER_DRAFT_CHANGED",
                     "The bound draft changed after the complete requirement revision was frozen");
         }
-    }
-
-    private void abortQuietly(String externalSessionId, String projectId) {
-        if (blank(externalSessionId)) return;
-        try {
-            openCode.abort(new OpenCodeClient.OpenCodeSession(externalSessionId,
-                    Path.of(projects.get(projectId).rootPath())));
-        } catch (RuntimeException ignored) { }
-    }
-
-    private boolean stopping(String sessionId) {
-        return mapper.findDesignerSession(sessionId)
-                .map(row -> DesignerSessionState.STOPPING.name().equals(row.state())
-                        || DesignerSessionState.CANCELLED.name().equals(row.state()))
-                .orElse(true);
     }
 
     private LoopSpec.Limits safeAggregateLimits(LoopSpec.Limits base,

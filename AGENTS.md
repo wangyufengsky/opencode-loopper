@@ -42,10 +42,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.2.0.jar
-   jar tf target/opencode-loopper-0.2.0.jar \
+   test -s target/opencode-loopper-0.2.3.jar
+   jar tf target/opencode-loopper-0.2.3.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.2.0.jar
+   shasum -a 256 target/opencode-loopper-0.2.3.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -95,8 +95,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.2.0`。
-- 正式产物：`target/opencode-loopper-0.2.0.jar`。
+- Maven 项目版本：`0.2.3`。
+- 正式产物：`target/opencode-loopper-0.2.3.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -222,6 +222,7 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 
 - V35 在设计流程前冻结 `TaskIntent / WorkflowTemplate / MutationMode / ArtifactKind / TestPolicy / ExecutionStrategy` 任务画像和版本化 Role Pack；V36 引入独立 `ROUTER_NO_TOOLS` 和 Reviewer 运行态；V37 把工作包 Role Pack、版本、技术栈和测试策略复制到每个确认 Stage，Implementation/Recovery 必须复用；V38 持久化每次 Router 的完整需求快照、外部 Session、响应模式、标签和错误，重启继续同一 Session，新讨论必须 abort 并废弃旧运行；V39 把 Reviewer 升级为固定 `REVIEWER_REPORT_V1` findings 合同并持久化合同版本。服务端结合有界仓库事实决定最终流程，格式/Session 失败降级为通用画像提问而不终止 Designer。置信度低于 80 或证据冲突必须人工确认；历史缺失画像投影为 `LEGACY_SOFTWARE`，Recovery 复用冻结画像。Role Pack `2026-08-dynamic-v3` 必须先把技术别名归并为 Java/Python/Node/Other 软件族：JavaScript/TypeScript 不得命中 Java，同族别名不得生成混合栈，真实跨族使用 `software-mixed`，显式未知单栈使用 `software-generic`；每个可编译角色使用栈原生规划示例，文档、表格和只读报告明确走服务端或 Reviewer 绕过。新软件任务默认使用 `DIRECT_SOFTWARE_DESIGN` 和单一 `WP-1`，只有画像冻结前由用户显式打开“大型任务”才使用 `FULL_PACKAGE_DESIGN`；两种软件流程都冻结工作包自己的技术栈、Role Pack、执行和测试策略。简单文档/表格/维护继续使用既有专属流程；大型文档要求 2–6 个二级章节包并由服务端确定性聚合结构化片段；只读 Reviewer 只开放 `read/glob/grep`，服务端逐条校验 finding 的受管路径、精确行号与源哈希且不创建 Task、Attempt、租约、分支或可写 Session；转换入口只创建关联 Designer。
 - 任务画像对外决策态固定为 `ROUTING / NEEDS_CONFIRMATION / CONFIRMED / FROZEN`，所有设计入口统一依赖服务端 `confirmationReady`，不得从 `!decisionRequired` 推导。人工推荐确认记录 `USER_CONFIRMED`，编辑/沿用记录 `USER_OVERRIDE`；完整需求稿重算只有在任务意图、主要制品、单包/大型流程和读写模式不变且无新增安全冲突时，才以 `USER_CONFIRMED_CARRIED_FORWARD` 继承确认，技术栈、Role Pack 和测试策略仍取最新结果。实质变化必须返回 `previousConfirmedChoice` 并在 UI 展示新旧差异和明确确认入口，确认前不得启动设计。
+- 请求线程和 Monitor 必须互斥领取同一 Router run；丢失乐观更新的启动方必须停止其刚创建的孤儿远端。新讨论、重算或画像换流程必须在旧远端 Session 确认停止后才能废弃旧运行并创建替代 Session，停止失败时保留原画像和 Session。新建设计提交后必须留在当前设计页持续刷新并在 Router 完成后自动继续，不得要求用户从历史设计恢复。
 - 简单本地维护必须从确认稿提取明确的反引号相对路径，并生成精确 `allowedPaths`、`requireChanges=true`、`forbidDeletes=true` 的 `GIT_DIFF`；草稿确认和实施权限双重拒绝删除、通配路径、服务启停、Git 提交推送发布、外部应用与外部系统写入。
 - Java 生产代码仍强制聚焦 Maven/Gradle TEST；统一 `TestFrameworkPolicy` 注册 Maven/Gradle/npm/pytest/unittest，解析显式目标并拒绝跳过参数。Python/Node 按仓库测试框架与用户要求选择 REQUIRED/OPTIONAL。无测试体系的独立 Python 脚本可用 SELF_CHECK 加原生输出验证；文档、一次性表格转换和只读报告为 NOT_APPLICABLE，不得生成 PROCESS TEST。
 - `SERVER_DOCUMENT_MATERIALIZATION` 和 `SERVER_TABULAR_CONVERSION` 只能在显式 Task Start 后执行冻结 `artifact_plan`，创建正常 Attempt 但不伪造 OpenCode Session。`DOCUMENT_STRUCTURE`/`TABULAR_DATA` 是行为验证器；BUILD、GIT_DIFF 和报告证据仍不能冒充业务验收。
@@ -253,7 +254,7 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 - Designer 合并在单个数组项中的 Maven 参数若能无歧义解析，应在同步时直接规范化并保存为独立 argv，不消耗自动纠正次数；只有引号未闭合等无法安全解析的输入才按无效 LoopSpec 回送纠正。
 - 草稿确认必须是幂等边界；确认后创建唯一 `PENDING_START` Task，且确认事务不申请执行资源。默认由用户显式请求开始；当前 Designer 会话处于全自动授权时，确认完成后再复用正式 Task Start 边界请求执行。
 - Designer 可按单个会话启用默认关闭的全自动模式；每次启用或从普通 `BLOCKED` 重新授权都必须由本地 UI 显示风险确认。V34 独立持久化 `DISABLED / ACTIVE / BLOCKED / COMPLETED`、最近动作、错误、Task 和乐观锁版本；750ms Monitor 每轮每会话最多推进一个动作，且只能复用已有画像推荐、问题回答、需求确认、工作包批准、草稿确认与 Task Start 权威入口。全自动模式只能遵循当前已持久化的大型任务选择，不得自动打开、关闭或在 `LARGE_TASK_MODE_REQUIRED` 后自动切换。低置信或冲突任务画像在普通模式仍必须人工覆盖；全自动模式把 Router 当前意图/主要制品单独持久化为 `AUTO_RECOMMENDED`，保留原置信度且不得绕过危险操作证据，需求确认前仍允许人工纠偏。历史 `BLOCKED + TASK_PROFILE_DECISION_REQUIRED` 允许一次专用 `RESUME` 后在下一轮采用同一推荐，不要求关闭再授权。自动答案按中英文推荐标记选择，无标记时兼容首项，多选只取推荐项；全部动作写入 System 消息和生命周期审计。其他异常进入 `BLOCKED` 后不得高频自动重试；关闭只停止后续动作，不撤销已完成动作或终止正在运行的模型调用。自动授权在 Task Start 成功请求后终止，执行期问题、危险权限、恢复、结果确认、提交、推送、合并和发布始终保持人工处理。
-- Designer 页面每 1.2 秒读取有界活动投影：交互设计师可展示思考、增量文字和普通/MCP 工具调用，Router/Decomposer/Compiler/Reviewer/repair/finalizer 等结构化角色只展示工具活动和权威步骤，禁止泄露原始规划 JSON。断线保留最后活动并重连，活动投影不得推进生命周期。
+- Designer 页面在消息时间线现有的当前角色卡片内每 1.2 秒读取有界活动投影，只替换展示一条最新活动，不得另建顶部活动面板或累积历史。交互设计师使用消息一致的 Markdown 展示思考、增量文字和普通/MCP 工具调用，Router/Decomposer/Compiler/Reviewer/repair/finalizer 等结构化角色只展示最新工具活动和权威步骤，禁止泄露原始规划 JSON。断线只保留最后一条活动并重连，活动投影不得推进生命周期。
 - Designer “清理并重新开始”必须先把会话转为 `STOPPING` 并停止 Router、需求/包设计师、Decomposer、Compiler、repair/finalizer 和 Reviewer 等全部活动远端 Session；`STOPPING` 期间 Monitor/全自动不得继续派发。失败时保留工作区、保持未归档并允许幂等重试；全部确认停止后才进入 `CANCELLED` 并归档。确认设计取得 Task ID 后，前端必须清除工作区指针和未发送内容、跳过本次离页警告并打开任务详情；以后从左侧进入 Designer 必须是新建设计，旧稿仅从历史只读查看。
 - 项目 `taskCount` 只统计已创建的 Task，不得把确认前 Designer 会话伪装成任务；服务端必须按项目另行投影每个未确认草稿的最新 Designer Session 和 `openDesignerSessionCount`。浏览器工作区 ID 只是恢复提示，服务重启或短暂 API 失败不得清除。Designer 起始页只负责新建，不得平铺历史会话；独立“历史设计”页负责项目/状态/归档筛选与时间排序，未确认设计可继续、修改、归档和恢复，已确认设计必须关联 Task 只读展示且不得提供继续、修改或归档。V29 归档只增加可恢复投影，不删除草稿、消息、问题、候选或批准，且归档项不计入 `openDesignerSessionCount`。
 - Designer 双栏和 PageHeader 操作区必须以 `min-width: 0`、换行和响应式单列保持在视口边界内；总体确认按钮除页头外还必须在 Review Gate 内提供同一权威动作，不能因窄视口变得不可点击。
@@ -422,7 +423,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.2.0.jar
+JAR=target/opencode-loopper-0.2.3.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -524,6 +525,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-08-20 | Router 串行启动、画像 Session 交接与时间线实时活动，交付 0.2.3 | Router 请求线程与 Monitor 互斥领取运行，丢失乐观更新时停止孤儿远端；画像换流程严格先停旧 Session 再持久化和派发，停止失败不创建并行 Session；新需求保持在当前设计页并在画像完成后自动继续；实时活动收回消息时间线当前角色卡，只显示最新 Markdown/工具片段；同步 README、架构、Designer、OpenCode 合同与本公约正文 | `0.2.1` 首次完整验证暴露旧发布契约与结构门禁，`0.2.2` 聚焦验证暴露停止服务依赖环，修正源码后均按公约顺延；聚焦 Router/画像交接/实时活动/结构/发布契约通过；`./scripts/verify.sh` 完整通过（Java 519 项，失败 0、错误 0、跳过 1；Vitest 192 项全通过），BUILD SUCCESS；生成 `target/opencode-loopper-0.2.3.jar`（283338579 bytes，内含 108 个 `static/index.html`/`static/assets` 条目），SHA-256 `7b1629f9177b6ab141ec08f04e2b528debdf43e5079a4a377480101cfc81e898`；未重启运行实例，等待推送标签和 Release 核验 |
 | 2026-08-20 | Designer/Task 兼容门面继续瘦身，交付 0.2.0 | Designer 抽离机器语义合同及单包计划规范化、语义校验、证据映射与验证器合成，`DesignerSessionService` 从 6004 行降至 5406 行；Task 抽离冻结设计快照、验证摘要、最终差异和 Judge 证据投影，`TaskService` 从 3000 行降至 2841 行；结构门禁同步下调并在代码设计契约中固定兼容门面和新协作者的依赖边界；同步 README、架构与本公约正文 | 聚焦 `DesignerPackagePlanCompilerTest`、Designer/Task 集成、结构和打包契约通过；`./scripts/verify.sh` 完整通过（Java 513 项，失败 0、错误 0、跳过 1；Vitest 193 项全通过），BUILD SUCCESS；生成 `target/opencode-loopper-0.2.0.jar`（283335380 bytes，内含 108 个 `static/index.html`/`static/assets` 条目），SHA-256 `75bdfbf677c24ed8e03726d13356c2141f06e21362bac08c993cf9cc25d94c1c`；未重启运行实例，未推送、未打标签、未创建 Release |
 | 2026-08-20 | Designer 画像确认、实时活动、MCP 与会话清理，交付 0.1.99 | 画像增加决策态、服务端确认就绪和安全继承；重算持续刷新并展示新旧选择；确认后清除工作区并直达任务；清理操作停止全部远端角色后才归档；所有角色开放已配置 MCP 且保持内置危险工具边界；新增实时活动面板和同事化角色称谓；同步 README、架构、Designer、OpenCode、AI 角色合同与本公约正文 | 聚焦后端、前端类型检查及相关 44 项 Designer/UI 测试通过；隔离 OpenCode 1.18.18 MCP 冒烟验证 `/mcp` 发现与 `<server>_*` 权限写入成功且未修改用户配置；`./scripts/verify.sh` 通过（Java 511 项，失败 0、错误 0、跳过 1；Vitest 193 项全通过）；生成 `target/opencode-loopper-0.1.99.jar`（283322812 bytes，内含 108 个 `static/index.html`/`static/assets` 条目），SHA-256 `afc9f802f2e01a04f6dde59735a8aca986134e2b5ab79df7d23e7b71228d0b51`；未重启运行实例，未推送、未打标签、未创建 Release |
 | 2026-08-20 | God Class 职责拆分与代码结构门禁，交付 0.1.98 | 新增代码设计契约和 600 行默认门禁/遗留债务只降不升规则；Designer/Task 提取提示、上下文、重试、Judge、状态持久化职责；OpenCode HTTP、Git、发布、本地同步和 Mapper 按策略、解析、协议及聚合边界拆分；同步 README、架构、OpenCode 合同与本公约正文 | 聚焦结构、HTTP、Git、Designer、Task、发布和本地同步回归通过；`./scripts/verify.sh` 诊断重试完整通过：Java 504 项（0 失败、0 错误、1 项平台条件跳过），Vitest 186/186，BUILD SUCCESS；首次 0.1.98 全量运行仅并发队列测试出现一次时序失败，单测重跑及同源码全量重跑均通过；本地 JAR `target/opencode-loopper-0.1.98.jar` 大小 283292181 字节、含 108 个 SPA 静态入口/资产，SHA-256 `e58c391e00f75f07db907673ccbdf8ab563811ddb416ed073b1f1e4fff0ac738`；未重启运行实例，不推送、不打标签、不创建 Release |

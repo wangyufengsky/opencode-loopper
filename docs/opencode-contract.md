@@ -135,7 +135,17 @@ Designer activity may project bounded `THINKING`, `OUTPUT`, and `TOOL` parts fro
 remote Session. Router, Decomposer, Compiler, Reviewer, repair, and finalizer activity exposes
 only tool parts plus the persisted authoritative workflow step; raw structured planning JSON is
 never returned as an activity fragment. Tool names, status, bounded arguments, and bounded
-output are presentation data only and cannot advance lifecycle state.
+output are presentation data only and cannot advance lifecycle state. The endpoint returns at
+most the latest safe fragment. The UI replaces the body of the current-role card in the message
+timeline, uses normal Markdown rendering, and does not build a separate activity panel or
+client-side activity history; reconnect keeps only the last observed fragment.
+
+Every persisted task-profile Router run has one in-process owner at a time. The synchronous
+request path claims a new `PENDING` run before it becomes visible to the monitor, and recovery
+polling uses the same claim boundary. A remote Session created by a caller that loses the
+optimistic row update is aborted immediately. Reroute and profile workflow replacement require
+an acknowledged abort of the previous remote Session before superseding state or creating the
+next Session; an abort failure leaves the current authoritative profile and Session unchanged.
 
 `POST /api/designer-sessions/{id}/stop` is a local-UI-only, idempotent cancellation boundary.
 It moves the Designer Session to `STOPPING` before external calls, disables further auto-mode

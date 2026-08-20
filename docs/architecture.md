@@ -117,7 +117,11 @@ historical rows without it project as `LEGACY_SOFTWARE` and keep the previous so
 path. V38 persists every raw or complete requirement snapshot in
 `task_profile_router_run`, including the built-in-tool-denied external Session, response mode, labels,
 terminal error and deadline. Restart recovery polls the same Session; a replacement
-discussion aborts and supersedes the old run. The server scans only bounded, non-symlink manifest/file facts, while an independent
+discussion must receive a successful abort acknowledgement before superseding the old run or
+creating its replacement. The synchronous request starter and the 750 ms monitor claim each
+persisted Router run exclusively; if an optimistic update is lost after remote creation, that
+unowned remote Session is aborted instead of escaping as a parallel run. The server scans only
+bounded, non-symlink manifest/file facts, while an independent
 `ROUTER_NO_TOOLS` OpenCode Session returns semantic labels through the fixed
 `TASK_PROFILE_ROUTER_V1` schema or marker fallback. The AI Router never owns permissions,
 commands, workflow selection, or authorization; configured MCP tools are additive only and
@@ -457,8 +461,10 @@ the operation never equates a local state write with an unconfirmed remote stop.
 Designer activity is a bounded read model over the current remote Session plus persisted
 workflow step. Interactive Designer may expose thinking/output/tool parts; structured roles
 expose tool parts only, so transport observation never leaks raw planning JSON or becomes
-lifecycle authority. The browser refreshes this projection every 1.2 seconds and tolerates
-disconnection without altering the remote Session.
+lifecycle authority. The API and browser keep only the latest safe fragment and render it in
+the existing current-role card inside the message timeline; there is no separate top activity
+panel or activity history. The browser refreshes every 1.2 seconds and preserves that one
+fragment across a reconnect without altering the remote Session.
 
 Machine-response roles carry an explicit non-thinking model selection only for
 steps whose persisted response mode is `JSON_SCHEMA`. Managed DeepSeek starts

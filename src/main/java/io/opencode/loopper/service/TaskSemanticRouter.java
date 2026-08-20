@@ -146,6 +146,11 @@ public final class TaskSemanticRouter {
     private void abortQuietly(OpenCodeClient.OpenCodeSession session) { if (session != null) try { openCode.abort(session); } catch (Exception ignored) { } }
     public void abort(Path root, String externalSessionId) {
         if (externalSessionId != null && !externalSessionId.isBlank()) {
+            openCode.abort(new OpenCodeClient.OpenCodeSession(externalSessionId, root));
+        }
+    }
+    public void abortQuietly(Path root, String externalSessionId) {
+        if (externalSessionId != null && !externalSessionId.isBlank()) {
             abortQuietly(new OpenCodeClient.OpenCodeSession(externalSessionId, root));
         }
     }

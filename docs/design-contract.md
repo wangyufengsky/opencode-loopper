@@ -172,8 +172,13 @@ versioned profile confirmation or override is saved. An explicitly authorized fu
 the Router's current intent and primary artifact as an `AUTO_RECOMMENDED` decision; this
 cannot bypass unsafe-operation evidence, and a manual override remains available before
 requirement confirmation. `ROUTING_PENDING/RUNNING` is backed by a persisted Router run;
-the raw requirement and every completed Designer snapshot are classified separately, and
-starting a replacement discussion cancels the obsolete classification. Confirmation freezes the profile. The progress rail is
+the request starter and monitor cannot own the same run concurrently. The raw requirement
+and every completed Designer snapshot are classified separately. Starting a replacement
+discussion or changing to another workflow must first confirm the obsolete remote Session has
+stopped; an abort failure keeps the current choice and Session unchanged and does not dispatch
+a replacement. A newly submitted requirement remains on the active design page throughout
+routing and continues automatically when classification completes; it must not require a
+history-page restore. Confirmation freezes the profile. The progress rail is
 template-driven: omitted Decomposer/package/Compiler steps are not displayed.
 Historical `BLOCKED + TASK_PROFILE_DECISION_REQUIRED` rows use one bounded `RESUME` action,
 then apply the same auto-recommended profile decision on the next monitor tick. A manual
@@ -466,12 +471,14 @@ must not flatten its Stage mapping; the server rejects removal, reordering, or
 reassignment of an existing package mapping, and confirmation also verifies
 that every approved package remains represented in dependency order.
 
-The Designer activity panel polls `GET /activity` every 1.2 seconds and follows new content
-unless the user has scrolled away. For the interactive Designer it renders bounded thinking,
-incremental output, and ordinary/MCP tool calls with name, status, arguments, and output.
-Structured roles render only tool activity and their authoritative step; raw Router,
-Decomposer, Compiler, Reviewer, repair, finalizer, or Judge JSON is never shown. Reconnect
-keeps the last observed fragments and deduplicates stable part IDs.
+The current-role card inside the message timeline polls `GET /activity` every 1.2 seconds and
+replaces its body with only the latest safe fragment; it is not a separate top-level panel and
+does not accumulate activity history. Interactive Designer content uses the same Markdown
+presentation as persisted messages and may show bounded thinking, incremental output, and
+ordinary/MCP tool calls with name, status, arguments, and output. Structured roles render only
+the latest tool activity and their authoritative step; raw Router, Decomposer, Compiler,
+Reviewer, repair, finalizer, or Judge JSON is never shown. Reconnect keeps that one latest
+fragment until a newer authoritative observation arrives.
 
 After final design confirmation returns a Task ID, the page marks that navigation as committed,
 clears the Designer workspace pointer and unsent input, skips the unsaved-design leave warning,

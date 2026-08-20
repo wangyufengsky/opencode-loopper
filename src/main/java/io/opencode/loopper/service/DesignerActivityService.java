@@ -14,7 +14,6 @@ import org.springframework.stereotype.Service;
 /** Read-only live projection for the currently active Designer role. */
 @Service
 public final class DesignerActivityService {
-    private static final int MAX_PARTS = 64;
     private static final int MAX_PART_CHARS = 8_192;
     private final LoopperMapper mapper;
     private final ProjectService projects;
@@ -34,7 +33,8 @@ public final class DesignerActivityService {
         String observedAt = Instant.now().toString();
         if (remote.id() == null || remote.id().isBlank()) {
             return new View(actor.name(), remote.state(), false, observedAt, step(session, actor), List.of(),
-                    "当前角色尚未创建可观测的远端会话");
+                    actor == DesignerActor.VALIDATOR || actor == DesignerActor.SYSTEM
+                            ? "服务端正在执行当前权威步骤" : "当前角色正在建立远端会话");
         }
         Path root = Path.of(projects.get(session.projectId()).rootPath()).toAbsolutePath().normalize();
         try {
@@ -45,8 +45,7 @@ public final class DesignerActivityService {
             List<Part> allParts = openCode.sessionTranscript(openCodeSession).parts().stream()
                     .filter(part -> !structured || "TOOL".equals(part.type()))
                     .map(this::part).toList();
-            List<Part> parts = allParts.size() <= MAX_PARTS ? allParts
-                    : List.copyOf(allParts.subList(allParts.size() - MAX_PARTS, allParts.size()));
+            List<Part> parts = allParts.isEmpty() ? List.of() : List.of(allParts.getLast());
             return new View(actor.name(), status.state(), true, observedAt, step(session, actor), parts,
                     bounded(status.detail()));
         } catch (RuntimeException failure) {
@@ -90,6 +89,10 @@ public final class DesignerActivityService {
     }
 
     private DesignerActor actor(DesignerSessionRow session) {
+        if (mapper.findLatestTaskProfileRouterRun(session.id())
+                .filter(row -> "PENDING".equals(row.state()) || "RUNNING".equals(row.state())).isPresent()) {
+            return DesignerActor.ROUTER;
+        }
         return switch (DesignWorkflowPhase.valueOf(session.workflowPhase())) {
             case ROUTING -> DesignerActor.ROUTER;
             case DISCUSSING_REQUIREMENT, QUESTIONING_PACKAGE, DESIGNING, REDESIGNING -> DesignerActor.DESIGNER;

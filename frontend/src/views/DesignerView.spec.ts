@@ -82,7 +82,7 @@ function mountDesigner(): VueWrapper {
         StatusBadge: true,
         LayeredErrorPanel: true,
         LoopSpecEditor: true,
-        DesignerActivityPanel: true,
+        DesignerCurrentActivity: { template: '<article class="designer-current-activity-stub" aria-label="当前角色正在处理" />' },
         Icon: true,
       },
     },
@@ -613,7 +613,7 @@ describe('Designer draft composer', () => {
     expect(wrapper.get('textarea[aria-label="发送给只读设计师的消息"]').attributes('rows')).toBe('10')
   })
 
-  it('shows an animated thinking state only while the Designer request is running', async () => {
+  it('places the current role activity inside the message list only while work is running', async () => {
     const runningSession: DesignerSession = { ...session, state: 'RUNNING', workflowPhase: 'DESIGNING', activeActor: 'DESIGNER' }
     vi.spyOn(api, 'createDesignerSession').mockResolvedValue(runningSession)
     vi.spyOn(api, 'createDraft').mockImplementation(async (spec) => draftFrom(spec))
@@ -625,14 +625,14 @@ describe('Designer draft composer', () => {
     await wrapper.get('.create-draft-button').trigger('click')
     await flushPromises()
 
-    const thinking = wrapper.get('[aria-label="设计师正在处理"]')
-    expect(thinking.text()).toContain('设计师正在设计中')
-    expect(thinking.text()).not.toContain('连接暂时中断')
+    const activity = wrapper.get('.designer-current-activity-stub')
+    expect(activity.element.parentElement?.classList.contains('chat-history')).toBe(true)
+    expect(wrapper.findAll('.designer-current-activity-stub')).toHaveLength(1)
 
     wrapper.unmount()
   })
 
-  it('renders streamed Designer Markdown and live connection state before completion', async () => {
+  it('uses the inline current-role activity for every actor and never renders raw SSE role output', async () => {
     class FakeEventSource {
       static latest?: FakeEventSource
       onopen?: () => void
@@ -661,8 +661,8 @@ describe('Designer draft composer', () => {
 
     expect(wrapper.get('.designer-connection-strip').text()).toContain('实时通道已连接')
     expect(wrapper.get('.designer-connection-strip').text()).toContain('OpenCode 已连接')
-    expect(wrapper.get('.chat-live').text()).toContain('第一段回复')
-    expect(wrapper.find('[aria-label="设计师正在处理"]').exists()).toBe(false)
+    expect(wrapper.find('.chat-live').exists()).toBe(false)
+    expect(wrapper.get('.designer-current-activity-stub').element.parentElement?.classList.contains('chat-history')).toBe(true)
 
     FakeEventSource.latest?.onmessage?.({ data: JSON.stringify({
       sequence: 3, sessionId: runningSession.id, type: 'STATUS', state: 'RUNNING', workflowPhase: 'COMPILING', activeActor: 'COMPILER', remoteState: 'REPAIRING_1',
@@ -671,7 +671,7 @@ describe('Designer draft composer', () => {
     await flushPromises()
 
     expect(wrapper.find('.chat-live').exists()).toBe(false)
-    expect(wrapper.get('[aria-label="规范工程师正在处理"]').text()).toContain('规范工程师正在编译中 · JSON 修复')
+    expect(wrapper.find('.designer-current-activity-stub').exists()).toBe(true)
     expect(wrapper.get('.designer-connection-strip').text()).toContain('编译中 · JSON 修复')
     expect(wrapper.text()).not.toContain('raw-json')
     wrapper.unmount()
@@ -706,7 +706,7 @@ describe('Designer draft composer', () => {
 
     const question = wrapper.getComponent(PendingQuestionCard)
     expect(question.text()).toContain('选择实现范围')
-    expect(wrapper.find('[aria-label="设计师正在处理"]').exists()).toBe(false)
+    expect(wrapper.find('.designer-current-activity-stub').exists()).toBe(false)
     question.vm.$emit('submit', [['新增链路']])
     await flushPromises()
 

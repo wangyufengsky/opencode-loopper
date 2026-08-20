@@ -4,6 +4,7 @@ import io.opencode.loopper.LoopperApplication;
 import io.opencode.loopper.domain.ImplementationKind;
 import io.opencode.loopper.domain.LoopDraftStatus;
 import io.opencode.loopper.domain.LoopSpec;
+import io.opencode.loopper.domain.SessionFailure;
 import io.opencode.loopper.persistence.DesignDiscussionRevisionRow;
 import io.opencode.loopper.persistence.DesignRequirementRevisionRow;
 import io.opencode.loopper.persistence.DesignerAutoModeRow;
@@ -27,6 +28,7 @@ import io.opencode.loopper.service.DirectMaintenanceDesignService;
 import io.opencode.loopper.service.TaskProfileService;
 import io.opencode.loopper.service.LoopDraftService;
 import io.opencode.loopper.service.ProjectService;
+import io.opencode.loopper.service.ServiceUnavailableException;
 import io.opencode.loopper.service.TaskService;
 import io.opencode.loopper.service.WorkPackageRoleService;
 import java.nio.charset.StandardCharsets;
@@ -218,6 +220,90 @@ class DesignerSessionMcpIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.confirmationReady").value(true))
                 .andExpect(jsonPath("$.resolutionSource").value("USER_CONFIRMED"));
+    }
+
+    @Test
+    void rerouteNeverStartsAReplacementWhenThePreviousRouterAbortIsUnconfirmed() throws Exception {
+        ProjectRow project = project("router-replacement-abort");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        DesignerSessionRow created = designerSessions.create(project.id(), draft.id(), "修改 Java 缓存刷新逻辑");
+        var original = mapper.findLatestTaskProfileRouterRun(created.id()).orElseThrow();
+        int sessionsBefore = fake().createReadOnlySessionCalls();
+        fake().failNextAborts(1);
+
+        assertThatThrownBy(() -> taskProfiles.reroute(created.id(), "修改 Java 缓存刷新逻辑并补充测试"))
+                .isInstanceOf(SessionFailure.class)
+                .hasMessageContaining("abort transport failure");
+
+        assertThat(fake().createReadOnlySessionCalls()).isEqualTo(sessionsBefore);
+        assertThat(mapper.findLatestTaskProfileRouterRun(created.id())).hasValueSatisfying(current -> {
+            assertThat(current.id()).isEqualTo(original.id());
+            assertThat(current.state()).isEqualTo("RUNNING");
+        });
+
+        taskProfiles.reroute(created.id(), "修改 Java 缓存刷新逻辑并补充测试");
+
+        assertThat(fake().abortedSessionIds()).contains(original.externalSessionId());
+        assertThat(fake().createReadOnlySessionCalls()).isEqualTo(sessionsBefore + 1);
+        assertThat(mapper.findLatestTaskProfileRouterRun(created.id())).hasValueSatisfying(current -> {
+            assertThat(current.id()).isNotEqualTo(original.id());
+            assertThat(current.state()).isEqualTo("RUNNING");
+        });
+    }
+
+    @Test
+    void profileWorkflowSwitchStopsTheOldDesignerBeforePersistingAndDispatchingAReplacement() throws Exception {
+        ProjectRow project = project("profile-workflow-replacement");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        DesignerSessionRow created = designerSessions.create(project.id(), draft.id(), "修改 Java 缓存刷新逻辑");
+        designerSessions.pollActiveHandoffs();
+        DesignerSessionRow discussing = designerSessions.get(created.id());
+        TaskProfileService.View before = taskProfiles.current(created.id());
+        String oldRemote = discussing.externalSessionId();
+        fake().setSessionState(oldRemote, "RUNNING");
+        int sessionsBefore = fake().createReadOnlySessionCalls();
+        fake().failNextAborts(1);
+
+        assertThatThrownBy(() -> designerSessions.updateTaskProfile(created.id(), before.intent(),
+                before.artifactKinds().getFirst(), true, before.version()))
+                .isInstanceOfSatisfying(ServiceUnavailableException.class, failure ->
+                        assertThat(failure.code()).isEqualTo("DESIGNER_SESSION_REPLACEMENT_ABORT_FAILED"));
+
+        assertThat(taskProfiles.current(created.id()).workflowTemplate())
+                .isEqualTo(before.workflowTemplate());
+        assertThat(fake().createReadOnlySessionCalls()).isEqualTo(sessionsBefore);
+        assertThat(designerSessions.get(created.id()).externalSessionId()).isEqualTo(oldRemote);
+
+        TaskProfileService.View updated = designerSessions.updateTaskProfile(created.id(), before.intent(),
+                before.artifactKinds().getFirst(), true, before.version());
+
+        assertThat(updated.workflowTemplate().name()).isEqualTo("FULL_PACKAGE_DESIGN");
+        assertThat(fake().abortedSessionIds()).contains(oldRemote);
+        assertThat(fake().createReadOnlySessionCalls()).isEqualTo(sessionsBefore + 1);
+        assertThat(designerSessions.get(created.id()).externalSessionId()).isNotEqualTo(oldRemote);
+    }
+
+    @Test
+    void staleProfileWorkflowSwitchDoesNotStopTheCurrentDesigner() throws Exception {
+        ProjectRow project = project("stale-profile-workflow-replacement");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        DesignerSessionRow created = designerSessions.create(project.id(), draft.id(), "修改 Java 缓存刷新逻辑");
+        designerSessions.pollActiveHandoffs();
+        DesignerSessionRow discussing = designerSessions.get(created.id());
+        TaskProfileService.View before = taskProfiles.current(created.id());
+        String oldRemote = discussing.externalSessionId();
+        int sessionsBefore = fake().createReadOnlySessionCalls();
+        int abortsBefore = fake().abortedSessionIds().size();
+
+        assertThatThrownBy(() -> designerSessions.updateTaskProfile(created.id(), before.intent(),
+                before.artifactKinds().getFirst(), true, before.version() + 1))
+                .isInstanceOfSatisfying(ConflictException.class, failure ->
+                        assertThat(failure.code()).isEqualTo("TASK_PROFILE_VERSION_CONFLICT"));
+
+        assertThat(fake().abortedSessionIds()).hasSize(abortsBefore);
+        assertThat(fake().createReadOnlySessionCalls()).isEqualTo(sessionsBefore);
+        assertThat(designerSessions.get(created.id()).externalSessionId()).isEqualTo(oldRemote);
+        assertThat(taskProfiles.current(created.id()).workflowTemplate()).isEqualTo(before.workflowTemplate());
     }
 
     @Test
