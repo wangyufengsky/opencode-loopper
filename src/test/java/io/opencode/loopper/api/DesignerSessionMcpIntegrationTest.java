@@ -284,6 +284,47 @@ class DesignerSessionMcpIntegrationTest {
     }
 
     @Test
+    void taskProfilePreviewIsReadOnlyAndAnExactConfirmedSelectionIsANoOp() throws Exception {
+        ProjectRow project = project("profile-update-preview");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        DesignerSessionRow created = designerSessions.create(project.id(), draft.id(), "修改 Java 缓存刷新逻辑");
+        designerSessions.pollActiveHandoffs();
+        DesignerSessionRow discussing = designerSessions.get(created.id());
+        TaskProfileService.View before = taskProfiles.current(created.id());
+        int abortsBefore = fake().abortedSessionIds().size();
+        int sessionsBefore = fake().createReadOnlySessionCalls();
+
+        mvc.perform(post("/api/designer-sessions/{id}/task-profile/preview", created.id())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of(
+                                "intent", before.intent().name(),
+                                "primaryArtifactKind", before.artifactKinds().getFirst().name(),
+                                "largeTaskMode", before.largeTaskMode(),
+                                "expectedVersion", before.version()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.selectionChanged").value(false))
+                .andExpect(jsonPath("$.updateRequired").value(false))
+                .andExpect(jsonPath("$.sessionRestartRequired").value(false))
+                .andExpect(jsonPath("$.targetWorkflowTemplate").value(before.workflowTemplate().name()));
+
+        TaskProfileService.View unchanged = designerSessions.updateTaskProfile(created.id(), before.intent(),
+                before.artifactKinds().getFirst(), before.largeTaskMode(), before.version());
+
+        assertThat(unchanged.version()).isEqualTo(before.version());
+        assertThat(unchanged.resolutionSource()).isEqualTo(before.resolutionSource());
+        assertThat(fake().abortedSessionIds()).hasSize(abortsBefore);
+        assertThat(fake().createReadOnlySessionCalls()).isEqualTo(sessionsBefore);
+        assertThat(designerSessions.get(created.id()).externalSessionId()).isEqualTo(discussing.externalSessionId());
+
+        TaskProfileService.OverridePreview replacement = taskProfiles.previewOverride(
+                created.id(), before.intent(), before.artifactKinds().getFirst(), true, before.version());
+        assertThat(replacement.selectionChanged()).isTrue();
+        assertThat(replacement.updateRequired()).isTrue();
+        assertThat(replacement.sessionRestartRequired()).isTrue();
+        assertThat(replacement.targetWorkflowTemplate().name()).isEqualTo("FULL_PACKAGE_DESIGN");
+    }
+
+    @Test
     void staleProfileWorkflowSwitchDoesNotStopTheCurrentDesigner() throws Exception {
         ProjectRow project = project("stale-profile-workflow-replacement");
         LoopDraftRow draft = drafts.create(legacySpec(project.id()));
@@ -828,7 +869,7 @@ class DesignerSessionMcpIntegrationTest {
     }
 
     @Test
-    void legacyProfileDecisionBlockResumesImmediatelyAfterManualOverride() throws Exception {
+    void legacyProfileDecisionBlockResumesWhenTheCurrentSelectionIsAlreadyReady() throws Exception {
         ProjectRow project = project("designer-auto-profile-manual-recovery");
         LoopDraftRow draft = drafts.create(legacySpec(project.id()));
         fake().failNextReadOnlySessions("ROUTER", 1);
@@ -851,7 +892,8 @@ class DesignerSessionMcpIntegrationTest {
                                 "expectedVersion", ambiguous.version()))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.decisionRequired").value(false))
-                .andExpect(jsonPath("$.resolutionSource").value("USER_OVERRIDE"));
+                .andExpect(jsonPath("$.resolutionSource").value("AI_ROUTER"))
+                .andExpect(jsonPath("$.version").value(ambiguous.version()));
 
         assertThat(designerAutoMode.get(session.id())).satisfies(mode -> {
             assertThat(mode.state()).isEqualTo("ACTIVE");
@@ -860,7 +902,7 @@ class DesignerSessionMcpIntegrationTest {
             assertThat(mode.errorDetail()).isNull();
         });
         assertThat(designerSessions.messages(session.id()))
-                .anyMatch(message -> message.content().contains("任务画像决策已可继续")
+                .anyMatch(message -> message.content().contains("任务设置已可继续")
                         && "AUTO_MODE_PROFILE_RESUMED".equals(message.deliveryState()));
 
         designerAutoMode.pollActive();

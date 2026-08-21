@@ -146,6 +146,11 @@ polling uses the same claim boundary. A remote Session created by a caller that 
 optimistic row update is aborted immediately. Reroute and profile workflow replacement require
 an acknowledged abort of the previous remote Session before superseding state or creating the
 next Session; an abort failure leaves the current authoritative profile and Session unchanged.
+`POST /api/designer-sessions/{id}/task-profile/preview` is read-only and reports whether a
+versioned selection changes the profile, requires an update, changes the workflow, and which
+workflow would be selected. The UI must obtain this preview before saving. A workflow-changing
+write is sent only after the user confirms **停止当前设计并重新开始**; an already confirmed
+exact-match write is a server-side no-op and cannot abort or replace a remote Session.
 
 `POST /api/designer-sessions/{id}/stop` is a local-UI-only, idempotent cancellation boundary.
 It moves the Designer Session to `STOPPING` before external calls, disables further auto-mode

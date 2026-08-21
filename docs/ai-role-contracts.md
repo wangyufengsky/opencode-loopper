@@ -40,12 +40,12 @@ Decomposer 使用父画像；每个软件工作包再按包标题、目标、范
 冻结自己的 Role Pack、执行策略和测试策略，包 Designer 与 Compiler 只读取该冻结值；
 Task 确认后每个 Stage 也保存同一快照，Implementation 与 Recovery 不重新猜测角色。
 
-任务画像对客户端投影 `ROUTING / NEEDS_CONFIRMATION / CONFIRMED / FROZEN` 与服务端计算的
+任务画像对客户端以“任务设置”投影 `ROUTING / NEEDS_CONFIRMATION / CONFIRMED / FROZEN` 与服务端计算的
 `confirmationReady`。人工采用推荐记录 `USER_CONFIRMED`，编辑或沿用旧选择记录
 `USER_OVERRIDE`；完整需求稿重算后，只有任务意图、主要制品、单包/大型流程和读写模式均一致
 且无新增安全冲突时，才以 `USER_CONFIRMED_CARRIED_FORWARD` 继承确认。技术栈、Role Pack 和
-测试策略仍使用重算结果。任一决策面变化都返回上次确认选项并阻断设计入口，直到用户明确沿用
-旧画像、采用新画像或编辑选择。
+测试策略仍使用重算结果。任一决策面变化都返回上次确认选项并阻断设计入口，直到用户明确继续使用
+原设置、使用本次识别结果或进入“修改设置”；修改导致流程切换时必须先确认停止当前设计并重新开始。
 
 所有机器角色在创建 Session 前都执行同一 MCP 发现，包括 Router、Compiler repair、工具循环
 finalizer 和双 Judge。MCP allow 只叠加到各角色既有权限模板，不能解除写文件、Bash、Git、外部

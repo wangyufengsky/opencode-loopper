@@ -153,20 +153,27 @@ only scope/version that can accept a message or approval.
 Before requirement confirmation, the page shows the provisional task profile,
 confidence, evidence, workflow preview, Role Pack, execution strategy and test policy.
 Task intent, artifact, workflow, execution and test-policy enum values are rendered as
-Chinese labels in the profile summary and override controls, while REST/SQLite continue
+Chinese labels in the user-facing **任务设置** summary and edit controls, while REST/SQLite continue
 to use the stable English enum codes. The DTO exposes `decisionState` as
 `ROUTING / NEEDS_CONFIRMATION / CONFIRMED / FROZEN`, a server-computed
 `confirmationReady`, and an optional `previousConfirmedChoice`. Every single-package,
 large-package, report, document, or conversion start action uses `confirmationReady`; the
 browser must never derive readiness from `!decisionRequired`.
 While a complete requirement snapshot is being rerouted, the page polls every 1.2 seconds,
-shows **任务画像计算中**, and keeps design actions disabled even when the Designer Session
+shows **任务设置识别中**, and keeps design actions disabled even when the Designer Session
 itself is `REVIEWING`. An equivalent reroute safely carries forward the persisted manual
 choice and refreshes technology, Role Pack, and test policy. A changed intent, primary
-artifact, workflow mode, mutation mode, or new safety conflict displays the previous and
-new choices with **沿用我已确认的画像**, **采用新画像**, and edit actions. Internal evidence
-codes such as `router-running` are not rendered. A click concurrent with Router completion
-only refreshes the authoritative snapshot rather than raising a red toast.
+artifact, workflow mode, mutation mode, or new safety conflict displays **原设置** and
+**本次识别结果** with explicit **继续使用原设置**, **使用本次识别结果**, and **修改设置**
+actions. An initial ambiguous recognition without a previous choice instead shows **请确认**
+with **确认并继续** and **修改设置**. Edit controls are hidden until the user selects
+**修改设置**; an unchanged confirmed selection is disabled in the browser and is also a
+server-side no-op. Before any edit is written, the browser calls the read-only profile update
+preview. When the target workflow changes, a warning names the target workflow and the only
+committing action is **停止当前设计并重新开始**; cancelling preserves the current profile and
+remote Session. Internal evidence codes such as `router-running` are not rendered. A click
+concurrent with Router completion only refreshes the authoritative snapshot rather than
+raising a red toast.
 Confidence below 80 or conflicting evidence blocks ordinary-mode confirmation until a
 versioned profile confirmation or override is saved. An explicitly authorized full-auto Session may accept
 the Router's current intent and primary artifact as an `AUTO_RECOMMENDED` decision; this

@@ -96,7 +96,7 @@ public class TaskProfileService {
         claimedRouterRuns.add(runId);
         try {
             if (mapper.insertTaskProfileRouterRun(pending) != 1) {
-                throw new ConflictException("TASK_PROFILE_ROUTER_CREATE_CONFLICT", "任务画像 Router 运行记录未能持久化");
+                throw new ConflictException("TASK_PROFILE_ROUTER_CREATE_CONFLICT", "任务设置识别记录未能持久化");
             }
             TaskSemanticRouter.StartResult started = semanticRouter.start(root, requirement, observedEvidence);
             TaskProfileRouterRunRow updated = new TaskProfileRouterRunRow(pending.id(), sessionId,
@@ -105,7 +105,7 @@ public class TaskProfileService {
                     started.errorCode(), started.errorDetail(), pending.createdAt(), Instant.now().toString(), pending.version());
             if (mapper.updateTaskProfileRouterRun(updated) != 1) {
                 semanticRouter.abortQuietly(root, started.externalSessionId());
-                throw new ConflictException("TASK_PROFILE_ROUTER_VERSION_CONFLICT", "任务画像 Router 运行记录被并发更新");
+                throw new ConflictException("TASK_PROFILE_ROUTER_VERSION_CONFLICT", "任务设置识别记录被并发更新");
             }
             if (!started.started()) materialize(updated, null, started.errorCode(), started.errorDetail());
         } finally {
@@ -177,7 +177,7 @@ public class TaskProfileService {
                 run.requirementSnapshot(), run.repositoryEvidenceJson(), externalSessionId, externalState,
                 responseMode, labels, errorCode, errorDetail, run.createdAt(), Instant.now().toString(), run.version());
         if (mapper.updateTaskProfileRouterRun(updated) != 1) {
-            throw new ConflictException("TASK_PROFILE_ROUTER_VERSION_CONFLICT", "任务画像 Router 运行记录被并发更新");
+            throw new ConflictException("TASK_PROFILE_ROUTER_VERSION_CONFLICT", "任务设置识别记录被并发更新");
         }
         return mapper.findTaskProfileRouterRun(run.id()).orElse(updated);
     }
@@ -227,7 +227,7 @@ public class TaskProfileService {
                                     ? "USER_OVERRIDE" : "HISTORICAL_WORKFLOW_PRESERVED"
                             : labels != null ? "AI_ROUTER" : "ROUTER_FALLBACK",
                 decisionRequired ? 1 : 0, now, now, 0);
-        if (mapper.insertDesignerTaskProfile(row) != 1) throw new ConflictException("TASK_PROFILE_CREATE_CONFLICT", "任务画像未能持久化");
+        if (mapper.insertDesignerTaskProfile(row) != 1) throw new ConflictException("TASK_PROFILE_CREATE_CONFLICT", "任务设置未能持久化");
         return view(row);
     }
 
@@ -255,6 +255,9 @@ public class TaskProfileService {
                          Boolean largeTaskMode, long expectedVersion) {
         OverrideContext context = overrideContext(sessionId, intent, primaryArtifact, largeTaskMode, expectedVersion);
         DesignerTaskProfileRow current = context.current();
+        if (!overrideRequired(current, intent, primaryArtifact, context.workflow())) {
+            return view(current);
+        }
         List<String> technologies = context.technologies();
         WorkflowTemplate workflow = context.workflow();
         MutationMode mutation = mutation(intent);
@@ -267,14 +270,34 @@ public class TaskProfileService {
                 current.state(), intent.name(), workflow.name(), mutation.name(), write(List.of(primaryArtifact)),
                 current.technologiesJson(), testPolicy.name(), pack.executionStrategy().name(), pack.id(), pack.version(),
                 100, write(evidence), "USER_OVERRIDE", 0, current.createdAt(), Instant.now().toString(), current.version());
-        if (mapper.updateDesignerTaskProfile(updated) != 1) throw new ConflictException("TASK_PROFILE_VERSION_CONFLICT", "任务画像已被并发更新");
+        if (mapper.updateDesignerTaskProfile(updated) != 1) throw new ConflictException("TASK_PROFILE_VERSION_CONFLICT", "任务设置已被并发更新");
         return current(sessionId);
     }
 
-    public WorkflowTemplate previewWorkflowForOverride(String sessionId, TaskIntent intent,
-                                                        ArtifactKind primaryArtifact, Boolean largeTaskMode,
-                                                        long expectedVersion) {
-        return overrideContext(sessionId, intent, primaryArtifact, largeTaskMode, expectedVersion).workflow();
+    public OverridePreview previewOverride(String sessionId, TaskIntent intent, ArtifactKind primaryArtifact,
+                                           Boolean largeTaskMode, long expectedVersion) {
+        OverrideContext context = overrideContext(sessionId, intent, primaryArtifact, largeTaskMode, expectedVersion);
+        DesignerTaskProfileRow current = context.current();
+        boolean selectionChanged = selectionChanged(current, intent, primaryArtifact, context.workflow());
+        boolean updateRequired = selectionChanged || current.decisionRequired() == 1;
+        boolean sessionRestartRequired = selectionChanged
+                && WorkflowTemplate.valueOf(current.workflowTemplate()) != context.workflow();
+        return new OverridePreview(selectionChanged, updateRequired, sessionRestartRequired, context.workflow());
+    }
+
+    private boolean overrideRequired(DesignerTaskProfileRow current, TaskIntent intent,
+                                     ArtifactKind primaryArtifact, WorkflowTemplate workflow) {
+        return current.decisionRequired() == 1 || selectionChanged(current, intent, primaryArtifact, workflow);
+    }
+
+    private boolean selectionChanged(DesignerTaskProfileRow current, TaskIntent intent,
+                                     ArtifactKind primaryArtifact, WorkflowTemplate workflow) {
+        List<ArtifactKind> artifacts;
+        try { artifacts = json.readValue(current.artifactKindsJson(), new TypeReference<>() { }); }
+        catch (Exception ignored) { artifacts = List.of(ArtifactKind.OTHER); }
+        ArtifactKind currentPrimary = artifacts.isEmpty() ? ArtifactKind.OTHER : artifacts.getFirst();
+        return TaskIntent.valueOf(current.intent()) != intent || currentPrimary != primaryArtifact
+                || WorkflowTemplate.valueOf(current.workflowTemplate()) != workflow;
     }
 
     private OverrideContext overrideContext(String sessionId, TaskIntent intent, ArtifactKind primaryArtifact,
@@ -285,10 +308,10 @@ public class TaskProfileService {
         DesignerTaskProfileRow current = mapper.findCurrentDesignerTaskProfile(sessionId)
                 .orElseThrow(() -> new NotFoundException("Task profile not found for Designer session: " + sessionId));
         if (!"PROVISIONAL".equals(current.state())) {
-            throw new ConflictException("TASK_PROFILE_FROZEN", "需求确认后不能覆盖任务画像");
+            throw new ConflictException("TASK_PROFILE_FROZEN", "需求确认后不能修改任务设置");
         }
         if (current.version() != expectedVersion) {
-            throw new ConflictException("TASK_PROFILE_VERSION_CONFLICT", "任务画像已被并发更新");
+            throw new ConflictException("TASK_PROFILE_VERSION_CONFLICT", "任务设置已被并发更新");
         }
         List<String> evidence = readStrings(current.evidenceJson());
         if (evidence.contains("unsafe-operation-conflict")) {
@@ -314,10 +337,10 @@ public class TaskProfileService {
         DesignerTaskProfileRow current = mapper.findCurrentDesignerTaskProfile(sessionId)
                 .orElseThrow(() -> new NotFoundException("Task profile not found for Designer session: " + sessionId));
         if (!"PROVISIONAL".equals(current.state())) {
-            throw new ConflictException("TASK_PROFILE_FROZEN", "需求确认后不能自动确认任务画像");
+            throw new ConflictException("TASK_PROFILE_FROZEN", "需求确认后不能自动确认任务设置");
         }
         if (current.version() != expectedVersion) {
-            throw new ConflictException("TASK_PROFILE_VERSION_CONFLICT", "任务画像已被并发更新");
+            throw new ConflictException("TASK_PROFILE_VERSION_CONFLICT", "任务设置已被并发更新");
         }
         if (current.decisionRequired() == 0 && !userConfirmed) return view(current);
         List<String> evidence = new java.util.ArrayList<>(readStrings(current.evidenceJson()));
@@ -333,7 +356,7 @@ public class TaskProfileService {
                 write(evidence), userConfirmed ? "USER_CONFIRMED" : "AUTO_RECOMMENDED", 0,
                 current.createdAt(), Instant.now().toString(), current.version());
         if (mapper.updateDesignerTaskProfile(updated) != 1) {
-            throw new ConflictException("TASK_PROFILE_VERSION_CONFLICT", "任务画像已被并发更新");
+            throw new ConflictException("TASK_PROFILE_VERSION_CONFLICT", "任务设置已被并发更新");
         }
         return current(sessionId);
     }
@@ -341,7 +364,7 @@ public class TaskProfileService {
     public View freeze(String sessionId) {
         if (mapper.findLatestTaskProfileRouterRun(sessionId)
                 .filter(run -> "PENDING".equals(run.state()) || "RUNNING".equals(run.state())).isPresent()) {
-            throw new ConflictException("TASK_PROFILE_ROUTING_IN_PROGRESS", "任务画像仍在识别，请等待 Router 完成");
+            throw new ConflictException("TASK_PROFILE_ROUTING_IN_PROGRESS", "任务设置仍在识别，请等待完成");
         }
         if (mapper.findCurrentDesignerTaskProfile(sessionId).isEmpty()) {
             String now = Instant.now().toString();
@@ -352,34 +375,34 @@ public class TaskProfileService {
                     "software-java", "legacy", 0, write(List.of("legacy-session-without-router")),
                     "LEGACY", 0, now, now, 0);
             if (mapper.insertDesignerTaskProfile(legacy) != 1) {
-                throw new ConflictException("TASK_PROFILE_CREATE_CONFLICT", "历史任务画像未能持久化");
+                throw new ConflictException("TASK_PROFILE_CREATE_CONFLICT", "历史任务设置未能持久化");
             }
         }
         return transactions.execute(status -> {
             DesignerTaskProfileRow current = mapper.findCurrentDesignerTaskProfile(sessionId)
-                    .orElseThrow(() -> new ConflictException("TASK_PROFILE_MISSING", "确认需求前必须完成任务画像识别"));
-            if (!confirmationReady(current)) throw new ConflictException("TASK_PROFILE_DECISION_REQUIRED", "任务画像尚未确认，请先在画像卡片确认当前选择");
+                    .orElseThrow(() -> new ConflictException("TASK_PROFILE_MISSING", "确认需求前必须完成任务设置识别"));
+            if (!confirmationReady(current)) throw new ConflictException("TASK_PROFILE_DECISION_REQUIRED", "任务设置尚未确认，请先确认或修改当前设置");
             if ("FROZEN".equals(current.state())) return view(current);
             DesignerTaskProfileRow frozen = new DesignerTaskProfileRow(current.id(), current.designerSessionId(),
                     current.requirementRevisionId(), "FROZEN", current.intent(), current.workflowTemplate(), current.mutationMode(),
                     current.artifactKindsJson(), current.technologiesJson(), current.testPolicy(), current.executionStrategy(),
                     current.rolePackId(), current.rolePackVersion(), current.confidence(), current.evidenceJson(),
                     current.resolutionSource(), 0, current.createdAt(), Instant.now().toString(), current.version());
-            if (mapper.updateDesignerTaskProfile(frozen) != 1) throw new ConflictException("TASK_PROFILE_VERSION_CONFLICT", "任务画像已被并发更新");
+            if (mapper.updateDesignerTaskProfile(frozen) != 1) throw new ConflictException("TASK_PROFILE_VERSION_CONFLICT", "任务设置已被并发更新");
             return view(frozen);
         });
     }
 
     public View restoreAsLargeSoftwareProfile(String sessionId, View source, long expectedVersion) {
         if (source == null || source.id() == null || source.version() != expectedVersion) {
-            throw new ConflictException("TASK_PROFILE_VERSION_CONFLICT", "任务画像已变化，请刷新后重试");
+            throw new ConflictException("TASK_PROFILE_VERSION_CONFLICT", "任务设置已变化，请刷新后重试");
         }
         if (source.intent() != TaskIntent.SOFTWARE_CHANGE
                 || source.workflowTemplate() != WorkflowTemplate.DIRECT_SOFTWARE_DESIGN) {
             throw new BadRequestException("LARGE_TASK_MODE_NOT_APPLICABLE", "只有普通软件任务可以切换为大型任务模式");
         }
         if (mapper.findCurrentDesignerTaskProfile(sessionId).isPresent()) {
-            throw new ConflictException("TASK_PROFILE_REOPEN_CONFLICT", "重新打开需求后仍存在活动任务画像");
+            throw new ConflictException("TASK_PROFILE_REOPEN_CONFLICT", "重新打开需求后仍存在活动任务设置");
         }
         List<String> evidence = new java.util.ArrayList<>(source.evidence());
         evidence.add("large-task-mode-enabled-after-overflow");
@@ -390,7 +413,7 @@ public class TaskProfileService {
                 source.testPolicy().name(), source.executionStrategy().name(), source.rolePackId(),
                 source.rolePackVersion(), 100, write(evidence), "USER_OVERRIDE", 0, now, now, 0);
         if (mapper.insertDesignerTaskProfile(row) != 1) {
-            throw new ConflictException("TASK_PROFILE_CREATE_CONFLICT", "大型任务画像未能持久化");
+            throw new ConflictException("TASK_PROFILE_CREATE_CONFLICT", "大型任务设置未能持久化");
         }
         return view(row);
     }
@@ -538,6 +561,9 @@ public class TaskProfileService {
 
     private record OverrideContext(DesignerTaskProfileRow current, List<String> technologies,
                                    WorkflowTemplate workflow) { }
+
+    public record OverridePreview(boolean selectionChanged, boolean updateRequired,
+                                  boolean sessionRestartRequired, WorkflowTemplate targetWorkflowTemplate) { }
 
     public record View(String id, String state, String decisionState, boolean confirmationReady,
                        TaskIntent intent, WorkflowTemplate workflowTemplate,

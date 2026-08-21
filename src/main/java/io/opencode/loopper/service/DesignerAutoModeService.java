@@ -133,7 +133,7 @@ public class DesignerAutoModeService {
             throw concurrentChange;
         }
         designerSessions.recordAutoModeNotice(session.id(),
-                "任务画像决策已可继续，全自动模式将沿用原授权处理当前推荐画像。",
+                "任务设置已可继续，全自动模式将沿用原授权处理当前识别结果。",
                 "AUTO_MODE_PROFILE_RESUMED");
         return true;
     }

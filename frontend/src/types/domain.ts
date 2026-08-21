@@ -994,6 +994,13 @@ export interface DesignerTaskProfile {
   version: number
 }
 
+export interface DesignerTaskProfileUpdatePreview {
+  selectionChanged: boolean
+  updateRequired: boolean
+  sessionRestartRequired: boolean
+  targetWorkflowTemplate: DesignerTaskProfile['workflowTemplate']
+}
+
 export interface DesignerActivity {
   actor: DesignerActor
   remoteState: string

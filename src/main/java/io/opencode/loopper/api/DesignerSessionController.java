@@ -213,6 +213,13 @@ public class DesignerSessionController {
         return profile;
     }
 
+    @PostMapping("/{id}/task-profile/preview")
+    public TaskProfileService.OverridePreview previewTaskProfileUpdate(
+            @PathVariable String id, @Valid @RequestBody UpdateTaskProfileRequest request) {
+        return profiles.previewOverride(
+                id, request.intent(), request.primaryArtifactKind(), request.largeTaskMode(), request.expectedVersion());
+    }
+
     @PostMapping("/{id}/task-profile/confirm")
     public TaskProfileService.View confirmTaskProfile(@PathVariable String id,
                                                        @Valid @RequestBody ConfirmTaskProfileRequest request) {

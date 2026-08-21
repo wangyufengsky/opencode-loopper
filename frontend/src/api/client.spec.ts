@@ -20,6 +20,27 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 afterEach(() => vi.unstubAllGlobals())
 
 describe('Loopper REST contract adapter', () => {
+  it('previews a Designer task-setting change without using the mutation endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(json({
+      selectionChanged: true, updateRequired: true, sessionRestartRequired: true,
+      targetWorkflowTemplate: 'FULL_PACKAGE_DESIGN',
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(api.previewDesignerTaskProfileUpdate(
+      'designer 1', 'SOFTWARE_CHANGE', 'SOURCE_CODE', 7, true,
+    )).resolves.toEqual({
+      selectionChanged: true, updateRequired: true, sessionRestartRequired: true,
+      targetWorkflowTemplate: 'FULL_PACKAGE_DESIGN',
+    })
+    expect(fetchMock).toHaveBeenCalledWith('/api/designer-sessions/designer%201/task-profile/preview', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({
+        intent: 'SOFTWARE_CHANGE', primaryArtifactKind: 'SOURCE_CODE', expectedVersion: 7, largeTaskMode: true,
+      }),
+    }))
+  })
+
   it('authorizes Designer auto mode only through the local UI header and normalizes its state', async () => {
     const session = {
       id: 'designer-1', projectId: 'project-1', state: 'RUNNING', workflowPhase: 'DISCUSSING_REQUIREMENT',

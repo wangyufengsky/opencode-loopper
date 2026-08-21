@@ -59,6 +59,7 @@ const designerRecoveryError = ref('')
 const profileIntent = ref<DesignerSession['taskProfile']['intent']>('SOFTWARE_CHANGE')
 const profileArtifact = ref<DesignerSession['taskProfile']['artifactKinds'][number]>('SOURCE_CODE')
 const profileLargeTask = ref(false)
+const profileEditing = ref(false)
 const committedTaskNavigation = ref(false)
 const reportDetail = ref<AnalysisReport>()
 const designerWorkspaceKey = 'opencode-loopper.designer-workspace'
@@ -214,34 +215,84 @@ const designerRuntimeLabel = computed(() => {
 })
 const taskProfileRouting = computed(() => designerSession.value?.taskProfile.decisionState === 'ROUTING')
 const taskProfileNeedsConfirmation = computed(() => designerSession.value?.taskProfile.decisionState === 'NEEDS_CONFIRMATION')
+const profileSelectionDirty = computed(() => {
+  const profile = designerSession.value?.taskProfile
+  if (!profile) return false
+  return profileIntent.value !== profile.intent
+    || profileArtifact.value !== (profile.artifactKinds[0] ?? 'OTHER')
+    || (profileIntent.value === 'SOFTWARE_CHANGE' && profileLargeTask.value !== profile.largeTaskMode)
+})
 const showCurrentRoleActivity = computed(() => (designerSession.value?.state === 'RUNNING' || taskProfileRouting.value)
   && (designerSession.value?.pendingQuestions?.length ?? 0) === 0)
 const shouldPollDesigner = computed(() => designerSession.value?.state === 'RUNNING'
   || designerSession.value?.state === 'STOPPING' || taskProfileRouting.value)
-watch(() => designerSession.value?.taskProfile, (profile) => {
+function resetProfileSelection() {
+  const profile = designerSession.value?.taskProfile
   if (!profile) return
   profileIntent.value = profile.intent
   profileArtifact.value = profile.artifactKinds[0] ?? 'OTHER'
   profileLargeTask.value = profile.largeTaskMode
+}
+watch(() => `${designerSession.value?.taskProfile.id ?? ''}:${designerSession.value?.taskProfile.version ?? ''}:${designerSession.value?.taskProfile.state ?? ''}`, () => {
+  resetProfileSelection()
+  profileEditing.value = false
 }, { immediate: true })
 watch(profileIntent, intent => { if (intent !== 'SOFTWARE_CHANGE') profileLargeTask.value = false })
 
-async function updateTaskProfile() {
+function startTaskProfileEdit() {
+  resetProfileSelection()
+  profileEditing.value = true
+}
+
+function cancelTaskProfileEdit() {
+  resetProfileSelection()
+  profileEditing.value = false
+}
+
+async function applyTaskProfileSelection(
+  intent: DesignerSession['taskProfile']['intent'],
+  primaryArtifactKind: DesignerSession['taskProfile']['artifactKinds'][number],
+  largeTaskMode: boolean,
+) {
   const session = designerSession.value
   if (!session?.taskProfile.id) return
   busy.value = true
   try {
-    await api.updateDesignerTaskProfile(session.id, profileIntent.value, profileArtifact.value,
-      session.taskProfile.version, profileIntent.value === 'SOFTWARE_CHANGE' ? profileLargeTask.value : undefined)
+    const requestedLargeTaskMode = intent === 'SOFTWARE_CHANGE' ? largeTaskMode : undefined
+    const preview = await api.previewDesignerTaskProfileUpdate(
+      session.id, intent, primaryArtifactKind, session.taskProfile.version, requestedLargeTaskMode,
+    )
+    if (!preview.updateRequired) {
+      cancelTaskProfileEdit()
+      ElMessage.info('任务设置没有变化')
+      return
+    }
+    if (preview.sessionRestartRequired) {
+      try {
+        await ElMessageBox.confirm(
+          `这项修改会停止当前远端设计会话，废弃其中尚未保存的上下文，并按“${workflowTemplateLabel(preview.targetWorkflowTemplate)}”重新开始。需求快照和已保存的讨论记录会保留。`,
+          '需要重新开始当前设计',
+          { type: 'warning', confirmButtonText: '停止当前设计并重新开始', cancelButtonText: '保留当前设置' },
+        )
+      } catch { return }
+    }
+    await api.updateDesignerTaskProfile(
+      session.id, intent, primaryArtifactKind, session.taskProfile.version, requestedLargeTaskMode,
+    )
     await refreshDesignerSession()
-    ElMessage.success('任务画像和专属流程已更新')
+    profileEditing.value = false
+    ElMessage.success(preview.sessionRestartRequired ? '已按新设置重新开始设计' : '任务设置已更新')
   } catch (error) {
     if (error instanceof ApiError && error.status === 409) {
       await refreshDesignerSession()
-      ElMessage.info('任务画像刚刚发生变化，已刷新最新结果')
-    } else ElMessage.error(userFacingError(error, '任务画像更新失败'))
+      ElMessage.info('任务设置刚刚发生变化，已刷新最新结果')
+    } else ElMessage.error(userFacingError(error, '任务设置更新失败'))
   }
   finally { busy.value = false }
+}
+
+async function updateTaskProfile() {
+  await applyTaskProfileSelection(profileIntent.value, profileArtifact.value, profileLargeTask.value)
 }
 
 async function confirmTaskProfile() {
@@ -251,11 +302,11 @@ async function confirmTaskProfile() {
   try {
     await api.confirmDesignerTaskProfile(session.id, session.taskProfile.version)
     await refreshDesignerSession()
-    ElMessage.success('已确认当前任务画像')
+    ElMessage.success('已确认任务设置')
   } catch (error) {
     await refreshDesignerSession()
-    if (error instanceof ApiError && error.status === 409) ElMessage.info('任务画像刚刚发生变化，已刷新最新结果')
-    else ElMessage.error(userFacingError(error, '任务画像确认失败'))
+    if (error instanceof ApiError && error.status === 409) ElMessage.info('任务设置刚刚发生变化，已刷新最新结果')
+    else ElMessage.error(userFacingError(error, '任务设置确认失败'))
   } finally { busy.value = false }
 }
 
@@ -263,10 +314,7 @@ async function carryForwardTaskProfile() {
   const session = designerSession.value
   const previous = session?.taskProfile.previousConfirmedChoice
   if (!session?.taskProfile.id || !previous) return
-  profileIntent.value = previous.intent
-  profileArtifact.value = previous.primaryArtifactKind
-  profileLargeTask.value = previous.largeTaskMode
-  await updateTaskProfile()
+  await applyTaskProfileSelection(previous.intent, previous.primaryArtifactKind, previous.largeTaskMode)
 }
 
 async function enableLargeTaskMode() {
@@ -626,7 +674,7 @@ async function startDraft() {
 async function confirmAutoModeRisk() {
   try {
     await ElMessageBox.confirm(
-      '开启后会自动采用 Router 推荐的任务画像和设计答案、确认需求和工作包、确认最终设计，并创建及启动任务。需求确认前仍可人工覆盖画像；执行期权限、异常恢复、结果确认、提交、推送和发布仍需人工处理。',
+      '开启后会自动采用需求分析师识别的任务设置和设计答案、确认需求和工作包、确认最终设计，并创建及启动任务。需求确认前仍可人工修改设置；执行期权限、异常恢复、结果确认、提交、推送和发布仍需人工处理。',
       '授权全自动设计？',
       { type: 'warning', confirmButtonText: '确认开启', cancelButtonText: '保持关闭' },
     )
@@ -943,7 +991,7 @@ async function confirmRequirement() {
   } catch (error) {
     if (error instanceof ApiError && error.status === 409) {
       await refreshDesignerSession()
-      ElMessage.info('任务画像或讨论版本刚刚更新，已刷新最新状态')
+      ElMessage.info('任务设置或讨论版本刚刚更新，已刷新最新状态')
     } else ElMessage.error(userFacingError(error, '需求确认失败'))
   }
   finally { busy.value = false }
@@ -1199,21 +1247,23 @@ async function redesignPackage(packageId: string) {
           <span>远端 {{ statusLabel(designerRemoteState || 'WAITING') }}</span>
           <time :datetime="designerObservedAt">{{ formatObservedAt(designerObservedAt) }}</time>
         </div>
-        <section v-if="designerSession?.taskProfile" class="task-profile-card" aria-label="任务画像与动态流程">
-          <header><div><strong>{{ taskProfileRouting ? '任务画像计算中' : `任务画像 · ${taskIntentLabel(designerSession.taskProfile.intent)}` }}</strong><span v-if="!taskProfileRouting">{{ designerSession.taskProfile.confidence }}% · {{ rolePackLabel(designerSession.taskProfile.rolePackId) }}</span><span v-else>需求分析师正在根据完整需求稿重新识别</span></div><b :class="{ warning: !designerSession.taskProfile.confirmationReady }">{{ taskProfileRouting ? '计算中' : taskProfileNeedsConfirmation ? '画像有变化，需要确认' : profileResolutionLabel(designerSession.taskProfile.resolutionSource) }}</b></header>
+        <section v-if="designerSession?.taskProfile" class="task-profile-card" aria-label="任务设置与设计流程">
+          <header><div><strong>{{ taskProfileRouting ? '任务设置识别中' : `任务设置 · ${taskIntentLabel(designerSession.taskProfile.intent)}` }}</strong><span v-if="!taskProfileRouting">{{ designerSession.taskProfile.confidence }}% · {{ rolePackLabel(designerSession.taskProfile.rolePackId) }}</span><span v-else>需求分析师正在根据完整需求稿重新识别</span></div><b :class="{ warning: !designerSession.taskProfile.confirmationReady }">{{ taskProfileRouting ? '识别中' : taskProfileNeedsConfirmation ? (designerSession.taskProfile.previousConfirmedChoice ? '识别结果有变化' : '请确认') : profileResolutionLabel(designerSession.taskProfile.resolutionSource) }}</b></header>
           <p v-if="!taskProfileRouting">流程 {{ workflowTemplateLabel(designerSession.taskProfile.workflowTemplate) }} · 执行 {{ executionStrategyLabel(designerSession.taskProfile.executionStrategy) }} · 测试 {{ testPolicyLabel(designerSession.taskProfile.testPolicy) }}</p>
           <div v-if="taskProfileNeedsConfirmation && designerSession.taskProfile.previousConfirmedChoice" class="profile-change-summary">
-            <span>此前确认：{{ taskIntentLabel(designerSession.taskProfile.previousConfirmedChoice.intent) }} · {{ artifactKindLabel(designerSession.taskProfile.previousConfirmedChoice.primaryArtifactKind) }} · {{ workflowTemplateLabel(designerSession.taskProfile.previousConfirmedChoice.workflowTemplate) }}</span>
-            <span>最新识别：{{ taskIntentLabel(designerSession.taskProfile.intent) }} · {{ artifactKindLabel(designerSession.taskProfile.artifactKinds[0] ?? 'OTHER') }} · {{ workflowTemplateLabel(designerSession.taskProfile.workflowTemplate) }}</span>
+            <span>原设置：{{ taskIntentLabel(designerSession.taskProfile.previousConfirmedChoice.intent) }} · {{ artifactKindLabel(designerSession.taskProfile.previousConfirmedChoice.primaryArtifactKind) }} · {{ workflowTemplateLabel(designerSession.taskProfile.previousConfirmedChoice.workflowTemplate) }}</span>
+            <span>本次识别结果：{{ taskIntentLabel(designerSession.taskProfile.intent) }} · {{ artifactKindLabel(designerSession.taskProfile.artifactKinds[0] ?? 'OTHER') }} · {{ workflowTemplateLabel(designerSession.taskProfile.workflowTemplate) }}</span>
           </div>
-          <div v-if="designerSession.taskProfile.state === 'PROVISIONAL' && !taskProfileRouting" class="profile-override">
+          <div v-if="designerSession.taskProfile.state === 'PROVISIONAL' && !taskProfileRouting && !profileEditing" class="profile-actions">
+            <el-button v-if="taskProfileNeedsConfirmation && designerSession.taskProfile.previousConfirmedChoice" plain :loading="busy" @click="carryForwardTaskProfile">继续使用原设置</el-button>
+            <el-button v-if="taskProfileNeedsConfirmation" type="primary" :loading="busy" @click="confirmTaskProfile">{{ designerSession.taskProfile.previousConfirmedChoice ? '使用本次识别结果' : '确认并继续' }}</el-button>
+            <el-button plain :disabled="busy" @click="startTaskProfileEdit">修改设置</el-button>
+          </div>
+          <div v-if="designerSession.taskProfile.state === 'PROVISIONAL' && !taskProfileRouting && profileEditing" class="profile-override">
             <el-select v-model="profileIntent" aria-label="覆盖任务类型"><el-option v-for="item in designerSession.availableProfileOverrides" :key="item" :label="taskIntentLabel(item)" :value="item" /></el-select>
             <el-select v-model="profileArtifact" aria-label="覆盖主要制品"><el-option v-for="item in designerSession.availableArtifactOverrides" :key="item" :label="artifactKindLabel(item)" :value="item" /></el-select>
             <label v-if="profileIntent === 'SOFTWARE_CHANGE'" class="large-task-switch"><span><strong>大型任务</strong><small>开启多工作包拆解；默认关闭</small></span><el-switch v-model="profileLargeTask" aria-label="大型任务模式" /></label>
-            <el-button v-if="taskProfileNeedsConfirmation && designerSession.taskProfile.previousConfirmedChoice" plain :loading="busy" @click="carryForwardTaskProfile">沿用我已确认的画像</el-button>
-            <el-button v-if="taskProfileNeedsConfirmation" type="primary" :loading="busy" @click="confirmTaskProfile">采用新画像</el-button>
-            <el-button v-else-if="!['USER_CONFIRMED', 'USER_OVERRIDE', 'USER_CONFIRMED_CARRIED_FORWARD'].includes(designerSession.taskProfile.resolutionSource)" type="primary" :loading="busy" @click="confirmTaskProfile">确认当前任务画像</el-button>
-            <el-button plain :loading="busy" @click="updateTaskProfile">应用我的选择</el-button>
+            <div class="profile-edit-actions"><el-button plain :disabled="busy" @click="cancelTaskProfileEdit">取消</el-button><el-button type="primary" :loading="busy" :disabled="!profileSelectionDirty" @click="updateTaskProfile">保存设置</el-button></div>
           </div>
         </section>
         <section v-if="designerSession?.requirementSnapshot" class="task-profile-card requirement-snapshot-card" aria-label="需求快照">
@@ -1292,7 +1342,7 @@ async function redesignPackage(packageId: string) {
               @keydown.ctrl.enter.prevent="sendMessage"
             />
             <div class="compose-actions"><span class="tiny muted">⌘ / Ctrl + Enter</span><el-button type="primary" :loading="busy" :disabled="!composerEnabled || !userMessage.trim()" @click="sendMessage"><Icon icon="lucide:send" />发送</el-button></div>
-            <div v-if="designerSession?.workflowPhase === 'DISCUSSING_REQUIREMENT' && designerSession.state === 'REVIEWING'" class="scope-primary-action"><el-button type="primary" :loading="busy" :disabled="autoModeActive || !designerSession.taskProfile.confirmationReady" @click="confirmRequirement"><Icon :icon="designerSession.taskProfile.workflowTemplate === 'READ_ONLY_REPORT' ? 'lucide:file-search' : ['DIRECT_ARTIFACT', 'PACKAGED_ARTIFACT'].includes(designerSession.taskProfile.workflowTemplate) ? 'lucide:file-output' : designerSession.taskProfile.workflowTemplate === 'LOCAL_MAINTENANCE' ? 'lucide:wrench' : designerSession.taskProfile.workflowTemplate === 'DIRECT_SOFTWARE_DESIGN' ? 'lucide:sparkles' : 'lucide:split'" />{{ autoModeActive ? '全自动模式将确认需求' : taskProfileRouting ? '任务画像计算中' : taskProfileNeedsConfirmation ? '请先确认任务画像' : designerSession.taskProfile.workflowTemplate === 'READ_ONLY_REPORT' ? '需求已明确，生成只读报告' : designerSession.taskProfile.workflowTemplate === 'DIRECT_ARTIFACT' ? '需求已明确，规划制品' : designerSession.taskProfile.workflowTemplate === 'PACKAGED_ARTIFACT' ? '需求已明确，规划章节制品' : designerSession.taskProfile.workflowTemplate === 'LOCAL_MAINTENANCE' ? '需求已明确，规划安全维护' : designerSession.taskProfile.workflowTemplate === 'DIRECT_SOFTWARE_DESIGN' ? '需求已明确，开始单包设计' : '需求已明确，开始拆包' }}</el-button></div>
+            <div v-if="designerSession?.workflowPhase === 'DISCUSSING_REQUIREMENT' && designerSession.state === 'REVIEWING'" class="scope-primary-action"><el-button type="primary" :loading="busy" :disabled="autoModeActive || !designerSession.taskProfile.confirmationReady" @click="confirmRequirement"><Icon :icon="designerSession.taskProfile.workflowTemplate === 'READ_ONLY_REPORT' ? 'lucide:file-search' : ['DIRECT_ARTIFACT', 'PACKAGED_ARTIFACT'].includes(designerSession.taskProfile.workflowTemplate) ? 'lucide:file-output' : designerSession.taskProfile.workflowTemplate === 'LOCAL_MAINTENANCE' ? 'lucide:wrench' : designerSession.taskProfile.workflowTemplate === 'DIRECT_SOFTWARE_DESIGN' ? 'lucide:sparkles' : 'lucide:split'" />{{ autoModeActive ? '全自动模式将确认需求' : taskProfileRouting ? '任务设置识别中' : taskProfileNeedsConfirmation ? '请先确认任务设置' : designerSession.taskProfile.workflowTemplate === 'READ_ONLY_REPORT' ? '需求已明确，生成只读报告' : designerSession.taskProfile.workflowTemplate === 'DIRECT_ARTIFACT' ? '需求已明确，规划制品' : designerSession.taskProfile.workflowTemplate === 'PACKAGED_ARTIFACT' ? '需求已明确，规划章节制品' : designerSession.taskProfile.workflowTemplate === 'LOCAL_MAINTENANCE' ? '需求已明确，规划安全维护' : designerSession.taskProfile.workflowTemplate === 'DIRECT_SOFTWARE_DESIGN' ? '需求已明确，开始单包设计' : '需求已明确，开始拆包' }}</el-button></div>
             <div v-else-if="designerSession?.workflowPhase === 'REVIEWING_PACKAGE' && currentPackage?.state === 'REVIEWING'" class="scope-primary-action"><el-button type="primary" :loading="busy" :disabled="autoModeActive" @click="approvePackage"><Icon icon="lucide:check-check" />{{ autoModeActive ? `全自动模式将接受${workPackageLabel(currentPackage.id)}` : `接受${workPackageLabel(currentPackage.id)}并继续` }}</el-button></div>
           </div>
         </div>
@@ -1514,7 +1564,7 @@ async function redesignPackage(packageId: string) {
 .task-profile-card header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }.task-profile-card header > div { display: grid; gap: 3px; }.task-profile-card strong { color: var(--color-text-primary); font-size: 11px; }.task-profile-card header span, .task-profile-card p { margin: 0; color: var(--color-text-secondary); font: 8px/1.5 var(--font-code); }.task-profile-card b { color: var(--color-success); font: 8px/1 var(--font-code); }.task-profile-card b.warning { color: var(--color-session-warning); }
 .profile-change-summary { display: grid; gap: 4px; padding: 8px; border-radius: 7px; background: rgb(245 158 11 / 8%); color: var(--color-text-secondary); font: 8px/1.5 var(--font-code); }
 .requirement-snapshot-card { border-color: rgb(99 102 241 / 28%); background: rgb(99 102 241 / 6%); }.requirement-snapshot-card details { min-width: 0; }.requirement-snapshot-card summary { cursor: pointer; color: var(--color-text-secondary); font: 9px/1.5 var(--font-code); }
-.profile-evidence { display: flex; flex-wrap: wrap; gap: 5px; }.profile-evidence span { padding: 3px 6px; border: 1px solid var(--color-border-default); border-radius: 999px; color: var(--color-text-muted); font: 7px/1 var(--font-code); }.profile-override { display: grid; grid-template-columns: 1fr 1fr minmax(180px, auto) auto; gap: 8px; }.large-task-switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; padding: 6px 10px; border: 1px solid var(--color-border-default); border-radius: 6px; }.large-task-switch span { display: grid; gap: 2px; min-width: 0; }.large-task-switch strong { font-size: 10px; }.large-task-switch small { color: var(--color-text-muted); font: 7px/1.2 var(--font-code); }.report-card { border-color: rgb(34 197 94 / 28%); background: rgb(34 197 94 / 5%); }
+.profile-actions, .profile-edit-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }.profile-edit-actions { grid-column: 1 / -1; }.profile-evidence { display: flex; flex-wrap: wrap; gap: 5px; }.profile-evidence span { padding: 3px 6px; border: 1px solid var(--color-border-default); border-radius: 999px; color: var(--color-text-muted); font: 7px/1 var(--font-code); }.profile-override { display: grid; grid-template-columns: 1fr 1fr minmax(180px, auto); gap: 8px; }.large-task-switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; padding: 6px 10px; border: 1px solid var(--color-border-default); border-radius: 6px; }.large-task-switch span { display: grid; gap: 2px; min-width: 0; }.large-task-switch strong { font-size: 10px; }.large-task-switch small { color: var(--color-text-muted); font: 7px/1.2 var(--font-code); }.report-card { border-color: rgb(34 197 94 / 28%); background: rgb(34 197 94 / 5%); }
 
 @media (max-width: 1180px) {
   .designer-start-layout { grid-template-columns: 1fr; }

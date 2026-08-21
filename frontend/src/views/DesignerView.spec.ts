@@ -142,15 +142,15 @@ describe('Designer draft composer', () => {
 
     const wrapper = mountDesigner()
     await flushPromises()
-    expect(wrapper.get('[aria-label="任务画像与动态流程"]').text()).toContain('任务画像计算中')
-    const startWhileRouting = wrapper.findAll('button').find(button => button.text().includes('任务画像计算中'))!
+    expect(wrapper.get('[aria-label="任务设置与设计流程"]').text()).toContain('任务设置识别中')
+    const startWhileRouting = wrapper.findAll('button').find(button => button.text().includes('任务设置识别中'))!
     expect(startWhileRouting.attributes('disabled')).toBeDefined()
 
     await vi.advanceTimersByTimeAsync(0)
     await flushPromises()
 
     expect(getSession).toHaveBeenCalledTimes(2)
-    expect(wrapper.get('[aria-label="任务画像与动态流程"]').text()).toContain('已沿用人工确认')
+    expect(wrapper.get('[aria-label="任务设置与设计流程"]').text()).toContain('已沿用人工确认')
     const start = wrapper.findAll('button').find(button => button.text().includes('开始单包设计'))!
     expect(start.attributes('disabled')).toBeUndefined()
     wrapper.unmount()
@@ -184,18 +184,23 @@ describe('Designer draft composer', () => {
       ...changed.taskProfile, decisionState: 'CONFIRMED', confirmationReady: true,
       decisionRequired: false, resolutionSource: 'USER_CONFIRMED',
     })
+    const previewUpdate = vi.spyOn(api, 'previewDesignerTaskProfileUpdate')
+    const restartConfirmation = vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
     const wrapper = mountDesigner()
     await flushPromises()
 
-    const card = wrapper.get('[aria-label="任务画像与动态流程"]')
-    expect(card.text()).toContain('画像有变化，需要确认')
-    expect(card.text()).toContain('此前确认：软件变更 · 源代码 · 默认单包设计')
-    expect(card.text()).toContain('最新识别：文档编写 · Markdown 文档 · 直接制品')
-    expect(wrapper.findAll('button').find(button => button.text().includes('请先确认任务画像'))!.attributes('disabled')).toBeDefined()
+    const card = wrapper.get('[aria-label="任务设置与设计流程"]')
+    expect(card.text()).toContain('识别结果有变化')
+    expect(card.text()).toContain('原设置：软件变更 · 源代码 · 默认单包设计')
+    expect(card.text()).toContain('本次识别结果：文档编写 · Markdown 文档 · 直接制品')
+    expect(wrapper.findAll('button').find(button => button.text().includes('请先确认任务设置'))!.attributes('disabled')).toBeDefined()
+    expect(card.find('.profile-override').exists()).toBe(false)
 
-    await wrapper.findAll('button').find(button => button.text().includes('采用新画像'))!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text().includes('使用本次识别结果'))!.trigger('click')
     await flushPromises()
     expect(confirmProfile).toHaveBeenCalledWith(changed.id, 7)
+    expect(previewUpdate).not.toHaveBeenCalled()
+    expect(restartConfirmation).not.toHaveBeenCalled()
   })
 
   it('refreshes an authoritative profile conflict without showing a red error', async () => {
@@ -206,6 +211,11 @@ describe('Designer draft composer', () => {
       taskProfile: {
         ...session.taskProfile, id: 'profile-conflict', state: 'PROVISIONAL', decisionState: 'NEEDS_CONFIRMATION',
         confirmationReady: false, decisionRequired: true, version: 3,
+        previousConfirmedChoice: {
+          intent: 'SOFTWARE_CHANGE', primaryArtifactKind: 'SOURCE_CODE',
+          workflowTemplate: 'DIRECT_SOFTWARE_DESIGN', mutationMode: 'WRITE_CODE',
+          largeTaskMode: false, resolutionSource: 'USER_CONFIRMED',
+        },
       },
       availableProfileOverrides: ['SOFTWARE_CHANGE'], availableArtifactOverrides: ['SOURCE_CODE'],
       draft: draftFrom({
@@ -214,18 +224,23 @@ describe('Designer draft composer', () => {
       }),
     }
     const getSession = vi.spyOn(api, 'getDesignerSession').mockResolvedValue(changed)
+    vi.spyOn(api, 'previewDesignerTaskProfileUpdate').mockResolvedValue({
+      selectionChanged: true, updateRequired: true, sessionRestartRequired: true,
+      targetWorkflowTemplate: 'DIRECT_SOFTWARE_DESIGN',
+    })
     vi.spyOn(api, 'updateDesignerTaskProfile')
-      .mockRejectedValue(new ApiError('任务画像已变化', 409, { code: 'TASK_PROFILE_VERSION_CONFLICT' }))
+      .mockRejectedValue(new ApiError('任务设置已变化', 409, { code: 'TASK_PROFILE_VERSION_CONFLICT' }))
+    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
     const info = vi.spyOn(ElMessage, 'info')
     const error = vi.spyOn(ElMessage, 'error')
     const wrapper = mountDesigner()
     await flushPromises()
 
-    await wrapper.findAll('button').find(button => button.text().includes('应用我的选择'))!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text().includes('继续使用原设置'))!.trigger('click')
     await flushPromises()
 
     expect(getSession).toHaveBeenCalledTimes(2)
-    expect(info).toHaveBeenCalledWith('任务画像刚刚发生变化，已刷新最新结果')
+    expect(info).toHaveBeenCalledWith('任务设置刚刚发生变化，已刷新最新结果')
     expect(error).not.toHaveBeenCalled()
     wrapper.unmount()
   })
@@ -242,6 +257,10 @@ describe('Designer draft composer', () => {
       taskProfile: {
         ...session.taskProfile,
         state: 'PROVISIONAL',
+        decisionState: 'NEEDS_CONFIRMATION',
+        confirmationReady: false,
+        decisionRequired: true,
+        previousConfirmedChoice: undefined,
         confidence: 90,
         resolutionSource: 'AI_ROUTER',
       },
@@ -257,11 +276,15 @@ describe('Designer draft composer', () => {
     const wrapper = mountDesigner()
     await flushPromises()
 
-    const profileCard = wrapper.get('[aria-label="任务画像与动态流程"]')
-    expect(profileCard.text()).toContain('任务画像 · 软件变更')
+    const profileCard = wrapper.get('[aria-label="任务设置与设计流程"]')
+    expect(profileCard.text()).toContain('任务设置 · 软件变更')
     expect(profileCard.text()).toContain('流程 完整分包设计 · 执行 OpenCode 实施 · 测试 必须测试')
-    expect(profileCard.text()).toContain('AI 路由')
-    expect(profileCard.text()).toContain('确认当前任务画像')
+    expect(profileCard.text()).toContain('请确认')
+    expect(profileCard.text()).toContain('确认并继续')
+    expect(profileCard.text()).toContain('修改设置')
+    expect(wrapper.find('[aria-label="覆盖任务类型"]').exists()).toBe(false)
+
+    await wrapper.findAll('button').find(button => button.text().includes('修改设置'))!.trigger('click')
     const options = wrapper.findAllComponents(ElOption)
     expect(options.map((option) => option.props('label'))).toEqual([
       '软件变更', '文档编写', '只读评审', '源代码', 'Python 脚本', 'Word 文档（DOCX）',
@@ -288,21 +311,32 @@ describe('Designer draft composer', () => {
       }),
     }
     vi.spyOn(api, 'getDesignerSession').mockResolvedValue(directSession)
+    vi.spyOn(api, 'previewDesignerTaskProfileUpdate').mockResolvedValue({
+      selectionChanged: true, updateRequired: true, sessionRestartRequired: true,
+      targetWorkflowTemplate: 'FULL_PACKAGE_DESIGN',
+    })
     const update = vi.spyOn(api, 'updateDesignerTaskProfile').mockResolvedValue({
       ...directSession.taskProfile, workflowTemplate: 'FULL_PACKAGE_DESIGN', largeTaskMode: true,
     })
+    const confirmation = vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
 
     const wrapper = mountDesigner()
     await flushPromises()
 
     expect(wrapper.get('[aria-label="Designer 流程"]').text()).toContain('1需求讨论2单包设计3规范编译')
-    expect(wrapper.get('[aria-label="任务画像与动态流程"]').text()).toContain('流程 默认单包设计')
-    expect(wrapper.get('[aria-label="大型任务模式"]').classes()).not.toContain('is-checked')
+    expect(wrapper.get('[aria-label="任务设置与设计流程"]').text()).toContain('流程 默认单包设计')
+    expect(wrapper.find('[aria-label="大型任务模式"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('需求已明确，开始单包设计')
 
+    await wrapper.findAll('button').find(button => button.text().includes('修改设置'))!.trigger('click')
+    expect(wrapper.get('[aria-label="大型任务模式"]').classes()).not.toContain('is-checked')
     await wrapper.get('[aria-label="大型任务模式"]').trigger('click')
-    await wrapper.findAll('button').find(button => button.text().includes('应用我的选择'))!.trigger('click')
+    await wrapper.findAll('button').find(button => button.text().includes('保存设置'))!.trigger('click')
     await flushPromises()
+    expect(confirmation).toHaveBeenCalledWith(
+      expect.stringContaining('停止当前远端设计会话'), '需要重新开始当前设计',
+      expect.objectContaining({ confirmButtonText: '停止当前设计并重新开始' }),
+    )
     expect(update).toHaveBeenCalledWith(directSession.id, 'SOFTWARE_CHANGE', 'SOURCE_CODE', 4, true)
   })
 
@@ -508,7 +542,7 @@ describe('Designer draft composer', () => {
 
     await wrapper.get('.designer-auto-create .el-switch').trigger('click')
     await flushPromises()
-    expect(confirmation).toHaveBeenCalledWith(expect.stringContaining('自动采用 Router 推荐的任务画像和设计答案'), '授权全自动设计？', expect.any(Object))
+    expect(confirmation).toHaveBeenCalledWith(expect.stringContaining('自动采用需求分析师识别的任务设置和设计答案'), '授权全自动设计？', expect.any(Object))
 
     await wrapper.get('textarea[aria-label="草案设计目标"]').setValue('自动完成设计并启动任务')
     await wrapper.get('.create-draft-button').trigger('click')
@@ -547,7 +581,8 @@ describe('Designer draft composer', () => {
     expect(wrapper.text()).toContain('全自动模式')
     expect(wrapper.text()).not.toContain('无需人工覆盖；需求确认前仍可主动调整')
     expect(wrapper.text()).not.toContain('全自动模式已阻断')
-    expect(wrapper.find('[aria-label="任务画像与动态流程"] .profile-override').exists()).toBe(true)
+    expect(wrapper.find('[aria-label="任务设置与设计流程"] .profile-actions').exists()).toBe(true)
+    expect(wrapper.find('[aria-label="任务设置与设计流程"] .profile-override').exists()).toBe(false)
   })
 
   it('keeps auto mode off when the creation warning is cancelled', async () => {

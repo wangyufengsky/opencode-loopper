@@ -171,7 +171,7 @@ public class DesignerSessionService {
                 () -> mapper.insertDesignerSession(session),
                 () -> new ConflictException("DESIGNER_SESSION_CREATE_CONFLICT",
                         "Designer session could not be created"));
-        appendMessage(session.id(), DesignerActor.SYSTEM, "设计会话已创建，需求分析师正在识别任务画像。",
+        appendMessage(session.id(), DesignerActor.SYSTEM, "设计会话已创建，需求分析师正在识别任务设置。",
                 DesignerSessionState.PENDING_HANDOFF.name(), null, null);
         if (initialMessage != null && !initialMessage.isBlank()) {
             DesignerMessageRow user = appendMessage(session.id(), DesignerActor.USER,
@@ -733,9 +733,12 @@ public class DesignerSessionService {
                                                      ArtifactKind primaryArtifactKind,
                                                      Boolean largeTaskMode, long expectedVersion) {
         TaskProfileService.View before = taskProfiles.current(sessionId);
-        WorkflowTemplate targetWorkflow = taskProfiles.previewWorkflowForOverride(
+        TaskProfileService.OverridePreview preview = taskProfiles.previewOverride(
                 sessionId, intent, primaryArtifactKind, largeTaskMode, expectedVersion);
-        if (before.workflowTemplate() != targetWorkflow) {
+        if (!preview.updateRequired()) {
+            return before;
+        }
+        if (preview.sessionRestartRequired()) {
             DesignerSessionRow session = get(sessionId);
             runtimeControl.requireStoppedBeforeReplacement(session.externalSessionId(), session.projectId());
         }
@@ -752,7 +755,7 @@ public class DesignerSessionService {
         DesignerSessionRow session = get(sessionId);
         TaskProfileService.View profile = taskProfiles.current(sessionId);
         if (profile.version() != expectedProfileVersion) {
-            throw new ConflictException("TASK_PROFILE_VERSION_CONFLICT", "任务画像已变化，请刷新后重试");
+            throw new ConflictException("TASK_PROFILE_VERSION_CONFLICT", "任务设置已变化，请刷新后重试");
         }
         if (!DesignerSessionState.WAITING_INPUT.name().equals(session.state())
                 || profile.workflowTemplate() != WorkflowTemplate.DIRECT_SOFTWARE_DESIGN) {
@@ -1071,7 +1074,7 @@ public class DesignerSessionService {
                         remote.id(), "COMPLETED", "REQUIREMENT", discussion.revision(), "SYNCED", null);
                 taskProfiles.reroute(session.id(), markdown);
                 appendMessage(session.id(), DesignerActor.SYSTEM,
-                        "完整需求稿已变化，正在异步重算任务画像；Router 完成前不能确认需求。",
+                        "完整需求稿已变化，正在异步重新识别任务设置；识别完成前不能确认需求。",
                         "PERSISTED", null, null);
                 publish(reviewing, "COMPLETED", DesignerActor.DESIGNER, true, "",
                         "完整需求稿已保存；继续讨论或确认后开始拆包");
@@ -1110,7 +1113,7 @@ public class DesignerSessionService {
                 externalSessionId, "COMPLETED", "REQUIREMENT", discussion.revision(), "SYNCED", null);
         taskProfiles.reroute(session.id(), markdown);
         appendMessage(session.id(), DesignerActor.SYSTEM,
-                "服务端已按原始输入、补充内容和最终回答生成需求快照，正在异步重算任务画像。",
+                "服务端已按原始输入、补充内容和最终回答生成需求快照，正在异步重新识别任务设置。",
                 "PERSISTED", null, null);
         publish(reviewing, "COMPLETED", DesignerActor.SYSTEM, true, "",
                 "服务端需求快照已保存；Router 完成后可确认并开始单包设计");
@@ -1132,7 +1135,7 @@ public class DesignerSessionService {
 
         StringBuilder snapshot = new StringBuilder("# 需求快照\n\n")
                 .append("> 本快照由服务端按时间顺序原样拼装；后续输入和回答优先于冲突的旧内容。")
-                .append(" 不包含设计师自由文本、仓库推断或任务画像。\n\n");
+                .append(" 不包含设计师自由文本、仓库推断或任务设置。\n\n");
         if (compatibilityBaseline != null) {
             snapshot.append("## 历史兼容基线\n\n")
                     .append(compatibilityBaseline.requirementText()).append("\n\n");
@@ -1293,11 +1296,11 @@ public class DesignerSessionService {
         if (runtimeControl.stopping(sessionId)) return;
         TaskProfileService.View profile = taskProfiles.current(sessionId);
         appendMessage(session.id(), DesignerActor.SYSTEM,
-                "任务画像已生成：" + profile.rolePackId() + "@" + profile.rolePackVersion()
-                        + (profile.decisionRequired() ? "；存在歧义，需求确认前必须人工覆盖。" : "；将由专属需求设计师继续。"),
+                "任务设置已识别：" + profile.rolePackId() + "@" + profile.rolePackVersion()
+                        + (profile.decisionRequired() ? "；识别结果存在歧义，请确认或修改任务设置。" : "；将由专属需求设计师继续。"),
                 "PERSISTED", null, null);
         if (!DesignWorkflowPhase.ROUTING.name().equals(session.workflowPhase())) {
-            publish(session, "STATUS", DesignerActor.ROUTER, true, "", "任务画像已按最新需求稿更新");
+            publish(session, "STATUS", DesignerActor.ROUTER, true, "", "任务设置已按最新需求稿更新");
             return;
         }
         DesignDiscussionRevisionRow discussion = mapper.findLatestDesignDiscussionRevision(session.id(), "REQUIREMENT")
@@ -1305,7 +1308,7 @@ public class DesignerSessionService {
         if (discussion == null) {
             DesignerSessionRow discussing = updateDesignerProjection(session, DesignerSessionState.PENDING_HANDOFF,
                     DesignWorkflowPhase.DISCUSSING_REQUIREMENT, null, "PENDING", 0, 0, null, null);
-            publish(discussing, "STATUS", DesignerActor.ROUTER, true, "", "任务画像已就绪，等待需求输入");
+            publish(discussing, "STATUS", DesignerActor.ROUTER, true, "", "任务设置已就绪，等待需求输入");
             return;
         }
         dispatchRequirementDesigner(session, discussion, messageContent(discussion.sourceMessageId()), false);
@@ -1372,7 +1375,7 @@ public class DesignerSessionService {
         TaskProfileService.View profile = taskProfiles.current(session.id());
         if (profile.id() != null && mapper.bindTaskProfileRequirement(profile.id(), row.id(), now) != 1) {
             throw new ConflictException("TASK_PROFILE_REQUIREMENT_BIND_CONFLICT",
-                    "冻结任务画像未能绑定需求版本");
+                    "冻结任务设置未能绑定需求版本");
         }
         mapper.bindOpenRequirementDiscussions(session.id(), revision);
         updateDesignerProjection(get(session.id()), DesignerSessionState.PENDING_HANDOFF,
