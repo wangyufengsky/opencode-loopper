@@ -44,31 +44,40 @@ final class DesignerAcceptancePlanCompiler {
         List<String> normalizations = new ArrayList<>();
         long explored = 0;
         boolean fallback = false;
-        int selectedCount = 0;
+        LinkedHashSet<Integer> selectedCapabilityIndexes = new LinkedHashSet<>();
         List<Integer> allUncovered = new ArrayList<>();
         List<String> allowedPaths = allowedPaths(facts, scopeIn, role);
         List<String> stageDeliverables = deliverables(facts, deliverables);
-        for (Group group : groups) {
+        List<Capability> independentRequired = capabilities.capabilities().stream()
+                .filter(Capability::mandatory).filter(capability -> capability.coversFactIndexes().isEmpty()).toList();
+        for (int groupIndex = 0; groupIndex < groups.size(); groupIndex++) {
+            Group group = groups.get(groupIndex);
             SolveResult solved = solve(group.factIndexes(), capabilities.capabilities(), binding);
+            List<Capability> selected = new ArrayList<>(solved.selected());
+            if (groupIndex == groups.size() - 1) {
+                independentRequired.stream().filter(capability -> selected.stream()
+                        .noneMatch(existing -> existing.index() == capability.index())).forEach(selected::add);
+            }
             explored += solved.exploredNodes();
             fallback |= solved.fallbackUsed();
-            selectedCount += solved.selected().size();
+            selected.stream().map(Capability::index).forEach(selectedCapabilityIndexes::add);
             allUncovered.addAll(solved.uncovered());
-            stages.add(stage(group, facts, solved.selected(), allowedPaths, scopeOut,
+            stages.add(stage(group, facts, selected, allowedPaths, scopeOut,
                     stageDeliverables, role, scenarioViews));
         }
         if (!allUncovered.isEmpty()) {
             return incomplete(workPackage, design, facts, capabilities, binding, allUncovered,
-                    explored, fallback, selectedCount, scenarioViews, stageLimit, directSoftwareMode);
+                    explored, fallback, selectedCapabilityIndexes.size(), scenarioViews, stageLimit, directSoftwareMode);
         }
         CompactPackageCompilationPlan compact = new CompactPackageCompilationPlan("COMPILED", binding.summary(),
                 stages, binding.handoffSummary(), List.of());
         DesignerPackagePlanCompiler.Result lowered = packageCompiler.compile(
                 workPackage, design, compact, stageLimit, directSoftwareMode);
         normalizations.addAll(lowered.normalizations());
+        if (!independentRequired.isEmpty()) normalizations.add("INDEPENDENT_REQUIRED_CAPABILITIES_BOUND");
         SolverDiagnostics diagnostics = new SolverDiagnostics(fallback
                 ? "DETERMINISTIC_GREEDY_2OPT" : "EXACT_BRANCH_AND_BOUND", explored, fallback,
-                acceptanceFacts.size(), capabilities.capabilities().size(), selectedCount,
+                acceptanceFacts.size(), capabilities.capabilities().size(), selectedCapabilityIndexes.size(),
                 List.copyOf(allUncovered), normalizations);
         return new Result(lowered.plan(), List.copyOf(normalizations), diagnostics, List.copyOf(scenarioViews));
     }
@@ -102,8 +111,7 @@ final class DesignerAcceptancePlanCompiler {
         DesignerAcceptanceStageEvidenceBinder.Binding binding = evidenceBinder.bind(
                 group.factIndexes(), catalog, selected, allowedPaths, scopeOut);
         views.addAll(binding.views());
-        ImplementationKind kind = role.technologies().contains("java")
-                ? ImplementationKind.JAVA_PRODUCTION : ImplementationKind.NON_JAVA;
+        ImplementationKind kind = implementationKind(role, allowedPaths);
         return new CompactStage(group.objective(), kind, allowedPaths, forbiddenPaths(scopeOut), deliverables,
                 binding.criteria(), binding.evidence(), null);
     }
@@ -144,7 +152,7 @@ final class DesignerAcceptancePlanCompiler {
         LinkedHashMap<Integer, Integer> preference = new LinkedHashMap<>();
         int ordinal = 0;
         for (AcceptanceCapabilityPreference item : binding.capabilityPreferences()) {
-            if (!requiredFacts.contains(item.factIndex())) continue;
+            if (item.factIndex() == null || !requiredFacts.contains(item.factIndex())) continue;
             for (Integer index : item.capabilityIndexes()) preference.putIfAbsent(index, ordinal++);
         }
         return Comparator.<Capability>comparingInt(capability -> preference.getOrDefault(capability.index(), 10_000))
@@ -205,6 +213,14 @@ final class DesignerAcceptancePlanCompiler {
                 .map(Fact::title).filter(value -> !blank(value)).forEach(values::add);
         if (values.isEmpty()) values.add("实现与聚焦验收测试");
         return List.copyOf(values);
+    }
+
+    private static ImplementationKind implementationKind(WorkPackageRoleService.View role,
+                                                          List<String> allowedPaths) {
+        if (!role.technologies().contains("java")) return ImplementationKind.NON_JAVA;
+        boolean production = allowedPaths.stream().map(value -> value.replace('\\', '/').toLowerCase())
+                .anyMatch(value -> value.contains("/src/main/java/") || value.startsWith("src/main/java/"));
+        return production ? ImplementationKind.JAVA_PRODUCTION : ImplementationKind.JAVA_TEST_ONLY;
     }
 
     private static List<String> forbiddenPaths(List<String> scopeOut) {

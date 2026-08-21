@@ -214,15 +214,18 @@ conversion errors, and the next authoritative package-role use refreezes all req
 Role Pack version `2026-08-dynamic-v5` first normalizes aliases into Java, Python, Node,
 and Other families. JavaScript/TypeScript cannot trigger Java, multiple labels from the
 same family remain one stack, real cross-family work selects the mixed pack, and an explicit
-unknown single stack selects the generic software pack. Each Compiler-capable pack receives
+unknown single stack selects the generic software pack. Package-local matching uses token
+boundaries, so a Java domain type containing `Node` does not create a Node family. Each Compiler-capable pack receives
 its own stack-native planning example; document, table, and read-only report packs explicitly
 state their server-owned or Reviewer bypass instead of inheriting a software fallback example.
 For software acceptance, negative/no-change rows never create test capabilities. Positive deliverables,
 stage relationships and acceptance constraints form the capability-to-scenario graph; qualified test
 names are reduced to their subject symbols before competitive semantic matching. A business criterion
-binds to at most one focused test, while an independently required target without its own scenario is
-shown as a separate source-backed machine criterion. The model only advises grouping and preferences;
-the server alone derives `COMPILED` or a concrete `DESIGN_INCOMPLETE` gap.
+binds to at most one focused test through a title-weighted unique winner, while an independently required
+target without its own scenario is shown exactly once as a separate source-backed machine criterion.
+The model only advises grouping and preferences; if that advice cannot be normalized it is discarded and
+the server compiles from the frozen fact/capability graph. The server alone derives `COMPILED` or a concrete
+`DESIGN_INCOMPLETE` gap, and test-only Java paths remain `JAVA_TEST_ONLY`.
 
 Before a requirement revision exists, Designer must call `question` once with
 1–3 choice questions. In ordinary software mode it may then finish with empty text:
@@ -279,8 +282,10 @@ constraints, and bounded prerequisite handoffs, then emits at most 24 KiB UTF-8
 of complete Markdown. Compiler emits a compact semantic plan plus
 `DS-Lxxx` sources and a handoff summary of at most 4 KiB; the server compiles the
 package fragment. Direct software allows 1–6 Stages; each large-task package remains
-limited to 1–3. Extraction failures receive at most two format repairs and
-field/verifier/traceability/coverage failures receive at most two semantic patch repairs;
+limited to 1–3. Decomposer and historical semantic-Compiler extraction failures receive at most
+two format repairs, and field/verifier/traceability/coverage failures receive at most two semantic
+patch repairs. Current v5 acceptance grouping/preferences are optional advice: an unreadable advice
+object is discarded and the frozen server graph compiles without a repair Session;
 gaps receive one full redesign of that package only. Large-task initial design and every
 human revision must ask questions first; direct WP-1 never asks again. Both return a complete snapshot. A valid
 candidate enters `REVIEWING` and the next package stays locked until the user
@@ -290,11 +295,12 @@ requirement revision has a shared hard ceiling of 96 model calls, but package
 content retry counters remain independent. Draft concurrency, exhausted budgets, and
 unassignable aggregation conflicts enter `WAITING_INPUT` without synchronizing
 the draft or creating a Task.
-Each Compiler repair runs in a new built-in-tools-disabled Session after best-effort aborting the
+Each applicable historical Compiler repair runs in a new built-in-tools-disabled Session after best-effort aborting the
 original repository-reading Session; configured MCP tools remain available without changing
 repository-write or command boundaries. Format repair returns one complete compact object; semantic
 repair returns only the `AI_SEMANTIC_PATCH_V1` patch envelope. A current response missing
-`outcome` is a format failure and cannot fall into the legacy `status` parser, while an
+`outcome` is valid for v5 acceptance advice but remains a format failure for historical semantic
+contracts and cannot fall into the legacy `status` parser, while an
 invalid patch response cannot overwrite the last valid semantic snapshot.
 Compiler's compact Stage field is `evidence`, never the final DTO field `verifiers`. A uniquely
 reversible `/stages/<n>/verifiers...` repair pointer is normalized to `evidence`, and `replace`

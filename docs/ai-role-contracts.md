@@ -161,12 +161,12 @@ Python 脚本可使用带成功标记的 `SELF_CHECK`；文档与一次性表格
 
 ## 修复协议
 
-v5 无法提取唯一标准 JSON object 或绑定合同不成立时，都返回完整的小型绑定对象，不使用
-JSON Patch。格式修复和语义修复各最多两次、分别持久化和展示。每次 Compiler 修复先终止原
-Session，再创建 `COMPILER_REPAIR_NO_TOOLS` 新 Session，只依据冻结事实、能力索引和错误信息，
-不能重新读仓库。v3 历史活动仍按既有 `AI_SEMANTIC_PATCH_V1` 和最多 16 个补丁兼容，不会覆盖
-v5 绑定快照。冻结为 `2026-08-dynamic-v4` 的在途工作包继续允许进入同一确定性编译器，但新请求
-统一使用 v5 Schema。
+v5 提示同时给出唯一的小型 JSON 对象形状。分组与能力偏好不是正确性输入：缺少可选偏好字段时
+可确定性丢弃该项；对象仍不可读、字段形状无法唯一规范化或分组超过上限时，服务端记录
+`OPTIONAL_ACCEPTANCE_ADVICE_DROPPED`，使用空建议继续闭集编译，不创建格式/语义修复 Session，
+也不得因此进入 `WAITING_INPUT`。v3 历史活动仍按既有 `AI_SEMANTIC_PATCH_V1` 和最多 16 个补丁兼容，
+不会覆盖 v5 绑定快照。冻结为 `2026-08-dynamic-v4` 的在途工作包继续允许进入同一确定性编译器，
+但新请求统一使用 v5 Schema。
 历史 v3 补丁只能修改 AI 拥有的语义字段，不能覆盖服务端控制字段或任何派生字段；
 应用后必须重新运行完整提取、规范化和权威校验。
 紧凑 Compiler Stage 的证据字段固定为 `evidence`；弱模型若在补丁路径中使用最终 DTO 名
@@ -180,7 +180,8 @@ TEST；`FULL_TEST`/`BUILD` 不能替代该门禁。只有完整补丁应用后�
 旧规划兼容解析。缺少 `outcome` 是 v5 的合法形态；历史响应额外携带 `status/outcome/designGaps`
 也不能夺回结果所有权。服务端在闭集覆盖后唯一派生 `COMPILED`，无覆盖能力时唯一派生带具体事实
 标题的 `DESIGN_INCOMPLETE / VERIFICATION_CAPABILITY_UNAVAILABLE`，不会把这类确定性结论再交给
-模型来回修复。错误对象不会覆盖最后一个有效建议快照。
+模型来回修复。错误对象不会覆盖最后一个有效建议快照；只有测试路径的 Java 包生成
+`JAVA_TEST_ONLY`，独立必跑但无业务场景的目标只生成一次机器条件。
 
 服务端在一次预检中汇总同一紧凑对象内的全部确定性语义问题，以错误码和精确 JSON
 Pointer 一次返回。AI 应在同一个补丁中修完全部列出问题，避免按“未覆盖 → Judge 理由

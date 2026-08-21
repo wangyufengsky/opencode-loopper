@@ -133,9 +133,13 @@ final class DesignerSemanticContracts {
         }
     }
 
-    public record AcceptanceCapabilityPreference(int factIndex, List<Integer> capabilityIndexes) {
+    public record AcceptanceCapabilityPreference(Integer factIndex, List<Integer> capabilityIndexes) {
         public AcceptanceCapabilityPreference {
             capabilityIndexes = capabilityIndexes == null ? List.of() : List.copyOf(capabilityIndexes);
+        }
+
+        boolean usable() {
+            return factIndex != null && !capabilityIndexes.isEmpty();
         }
     }
 
@@ -147,7 +151,8 @@ final class DesignerSemanticContracts {
         public CompactAcceptanceBindingPlan normalized() {
             return new CompactAcceptanceBindingPlan(summary,
                     groupHints == null ? List.of() : List.copyOf(groupHints),
-                    capabilityPreferences == null ? List.of() : List.copyOf(capabilityPreferences),
+                    capabilityPreferences == null ? List.of() : capabilityPreferences.stream()
+                            .filter(item -> item != null && item.usable()).toList(),
                     handoffSummary);
         }
     }

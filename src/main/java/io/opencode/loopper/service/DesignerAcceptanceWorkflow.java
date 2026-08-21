@@ -81,13 +81,21 @@ final class DesignerAcceptanceWorkflow {
     }
 
     AiOutputExtractor.ExtractionResult<CompactAcceptanceBindingPlan> parse(String output, int stageLimit) {
-        return outputExtractor.extractJson(output, PAYLOAD, "ACCEPTANCE_BINDING_OUTPUT",
-                CompactAcceptanceBindingPlan.class, CompactAcceptanceBindingPlan::normalized, value -> {
-                    if (value != null && value.groupHints().size() > stageLimit) {
-                        throw new BadRequestException("ACCEPTANCE_BINDING_GROUP_LIMIT_EXCEEDED",
-                                "Acceptance binding exceeds the package Stage limit");
-                    }
-                });
+        try {
+            return outputExtractor.extractJson(output, PAYLOAD, "ACCEPTANCE_BINDING_OUTPUT",
+                    CompactAcceptanceBindingPlan.class, CompactAcceptanceBindingPlan::normalized, value -> {
+                        if (value != null && value.groupHints().size() > stageLimit) {
+                            throw new BadRequestException("ACCEPTANCE_BINDING_GROUP_LIMIT_EXCEEDED",
+                                    "Acceptance binding exceeds the package Stage limit");
+                        }
+                    });
+        } catch (BadRequestException invalidAdvice) {
+            CompactAcceptanceBindingPlan fallback = new CompactAcceptanceBindingPlan(
+                    null, List.of(), List.of(), null).normalized();
+            return new AiOutputExtractor.ExtractionResult<>(fallback,
+                    AiOutputExtractor.CandidateSource.EMBEDDED,
+                    List.of("OPTIONAL_ACCEPTANCE_ADVICE_DROPPED"), write(fallback));
+        }
     }
 
     BoundResult bind(DesignAcceptancePlanningRow row, DesignWorkPackageRow workPackage, String design,

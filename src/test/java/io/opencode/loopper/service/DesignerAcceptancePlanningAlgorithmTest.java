@@ -9,6 +9,7 @@ import io.opencode.loopper.domain.TestPolicy;
 import io.opencode.loopper.persistence.DesignWorkPackageRow;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.ObjectMapper;
 
 class DesignerAcceptancePlanningAlgorithmTest {
     private static final String PIN_TRANS_DESIGN = """
@@ -252,6 +253,132 @@ class DesignerAcceptancePlanningAlgorithmTest {
         assertThat(result.normalizations()).contains("SERVER_DERIVED_DESIGN_INCOMPLETE");
     }
 
+    @Test
+    void acceptsAlternateAdvisoryGroupingShapeAndDropsUnreadableOptionalAdvice() {
+        ObjectMapper json = new ObjectMapper();
+        DesignerAcceptanceWorkflow workflow = new DesignerAcceptanceWorkflow(null, json,
+                new AiOutputExtractor(json), null, evidenceIndexer,
+                new DesignerPackagePlanCompiler(evidenceIndexer));
+
+        var compatible = workflow.parse("""
+                LOOPSPEC_COMPILATION_PLAN_JSON_START
+                {"summary":"分组建议","groupHints":[{"groupIndex":0,"title":"注册表测试",
+                "factIndexes":[1,2],"capabilityIndexes":[0],"dependsOnHintIndexes":[]}],
+                "capabilityPreferences":[{"capabilityIndex":0,"preference":"preferred","reason":"唯一测试"}],
+                "handoffSummary":"建议完成"}
+                LOOPSPEC_COMPILATION_PLAN_JSON_END
+                """, 6);
+        assertThat(compatible.value().groupHints()).singleElement().satisfies(group -> {
+            assertThat(group.title()).isEqualTo("注册表测试");
+            assertThat(group.factIndexes()).containsExactly(1, 2);
+        });
+        assertThat(compatible.value().capabilityPreferences()).isEmpty();
+        assertThat(compatible.normalizations()).contains("UNKNOWN_FIELDS_IGNORED", "CONTRACT_METADATA_DERIVED");
+
+        var fallback = workflow.parse("""
+                LOOPSPEC_COMPILATION_PLAN_JSON_START
+                {"summary":"无法采用的建议","groupHints":"not-an-array",
+                 "capabilityPreferences":false,"handoffSummary":null}
+                LOOPSPEC_COMPILATION_PLAN_JSON_END
+                """, 6);
+        assertThat(fallback.value().groupHints()).isEmpty();
+        assertThat(fallback.value().capabilityPreferences()).isEmpty();
+        assertThat(fallback.normalizations()).containsExactly("OPTIONAL_ACCEPTANCE_ADVICE_DROPPED");
+    }
+
+    @Test
+    void bindsPositiveRegressionTargetOnceWithoutMakingItCoverUnrelatedBusinessScenarios() {
+        String design = """
+                ## 目标与范围
+                为对象注册表补齐单元测试，既有失败回归继续作为独立证据。
+
+                ## 影响与交付
+                | 类型 | 相对路径或符号 | 说明 |
+                | --- | --- | --- |
+                | 新增测试 | src/test/java/example/ObjectRegistryTest.java | 注册、查询和重复键行为 |
+
+                ## 验收场景
+                | 场景 | 前置/触发 | 操作 | 可观察结果 | 保持不变 |
+                | --- | --- | --- | --- | --- |
+                | 重复键拒绝 | 已注册 key=A | 再次 register(A) | 抛出 duplicate 异常 | 首次注册仍可查询 |
+
+                ## 验收约束
+                ObjectRegistryTest 与 ExistingFailureRegressionTest 必须分别独立通过。
+
+                ## 阶段与依赖
+                | 阶段建议 | 包含场景/交付 | 前置阶段 |
+                | --- | --- | --- |
+                | 注册表测试 | ObjectRegistryTest 覆盖重复键拒绝；ExistingFailureRegressionTest 继续回归 | 无 |
+                """;
+        Catalog facts = extractor.extract("WP-1", 1, design);
+        WorkPackageRoleService.View role = role("software-java", List.of("java"));
+        CapabilityCatalog capabilities = registry.build(facts, role, design);
+        assertThat(capabilities.capabilities()).filteredOn(capability ->
+                        capability.testTargets().contains("ExistingFailureRegressionTest"))
+                .singleElement().satisfies(capability -> {
+                    assertThat(capability.mandatory()).isTrue();
+                    assertThat(capability.coversFactIndexes()).isEmpty();
+                });
+
+        DesignerAcceptancePlanCompiler.Result result = compiler.compile(workPackage(), design, facts, capabilities,
+                new CompactAcceptanceBindingPlan("注册表验收", List.of(), List.of(), "完成"), role,
+                List.of("src/test/java/**"), List.of("src/main/**"), List.of("新增测试"), 6, true);
+        assertThat(result.plan().status()).isEqualTo("COMPILED");
+        assertThat(result.plan().stages()).singleElement().satisfies(stage -> {
+            assertThat(stage.implementationKind().name()).isEqualTo("JAVA_TEST_ONLY");
+            assertThat(stage.verifiers()).filteredOn(verifier -> "TEST".equals(verifier.processPurpose()))
+                    .extracting(verifier -> verifier.testTargets())
+                    .containsExactlyInAnyOrder(List.of("ObjectRegistryTest"),
+                            List.of("ExistingFailureRegressionTest"));
+        });
+        assertThat(result.normalizations()).contains("INDEPENDENT_REQUIRED_CAPABILITIES_BOUND");
+    }
+
+    @Test
+    void competitivelyMapsSharedDomainNamesToTheirDeclaredStageInsteadOfEverySimilarTest() {
+        String design = """
+                ## 目标与范围
+                为共享 Object 前缀的注册表、策略、上下文和调用器分别补齐测试。
+
+                ## 影响与交付
+                | 类型 | 相对路径或符号 | 说明 |
+                | --- | --- | --- |
+                | 新增测试 | src/test/java/example/ObjectRegistryTest.java | 注册、查询、重复键和未知键 |
+                | 新增测试 | src/test/java/example/ObjectPolicyTest.java | 默认作用域、空白归一化和不可变性 |
+                | 新增测试 | src/test/java/example/ObjectContextTest.java | 属性、中断和 reached 状态 |
+                | 新增测试 | src/test/java/example/ObjectInvokerNormalTest.java | 正常按序调用、显式作用域和 MDC 清理 |
+
+                ## 验收场景
+                | 场景 | 前置/触发 | 操作 | 可观察结果 | 保持不变 |
+                | --- | --- | --- | --- | --- |
+                | 重复键拒绝 | 已注册 key=A | 再次 register(A) | 抛出 duplicate 异常 | 原值可查询 |
+                | 未知键拒绝 | 空注册表 | get(NO_SUCH) | 抛出 unknown 异常 | 注册表为空 |
+                | 空白作用域归一化 | 构造 ObjectPolicy | scope(" ") | 返回默认作用域 | 原对象不变 |
+                | reached 状态隔离 | 新 ObjectContext | 在两个 scope 标记 reached | 两个作用域互不污染 | 属性不变 |
+                | 正常按序调用 | 注册 A、B | ObjectInvoker 依次 execute | A 先于 B | 各执行一次 |
+                | 显式作用域调用 | 注册 A | execute(A, scope1) | reached 记录在 scope1 | 默认作用域不变 |
+
+                ## 验收约束
+                四个测试类必须分别独立通过。
+
+                ## 阶段与依赖
+                | 阶段建议 | 包含场景/交付 | 前置阶段 |
+                | --- | --- | --- |
+                | 注册表 | ObjectRegistryTest 覆盖重复键与未知键 | 无 |
+                | 策略 | ObjectPolicyTest 覆盖作用域归一化 | 无 |
+                | 上下文 | ObjectContextTest 覆盖 reached 状态隔离 | 无 |
+                | 调用器 | ObjectInvokerNormalTest 覆盖按序调用与显式作用域 | 注册表、上下文 |
+                """;
+        Catalog facts = extractor.extract("WP-1", 1, design);
+        CapabilityCatalog capabilities = registry.build(facts, role("software-java", List.of("java")), design);
+
+        assertThat(capabilities.issues()).isEmpty();
+        assertCoverage(facts, capabilities, "ObjectRegistryTest", "重复键拒绝", "未知键拒绝");
+        assertCoverage(facts, capabilities, "ObjectPolicyTest", "空白作用域归一化");
+        assertCoverage(facts, capabilities, "ObjectContextTest", "reached 状态隔离");
+        assertCoverage(facts, capabilities, "ObjectInvokerNormalTest", "正常按序调用", "显式作用域调用");
+    }
+
     private void assertNativeCapability(List<String> technologies, String rolePack, String design,
                                         List<String> expectedCommand) {
         Catalog facts = extractor.extract("WP-1", 1, design);
@@ -264,6 +391,17 @@ class DesignerAcceptancePlanningAlgorithmTest {
     private static WorkPackageRoleService.View role(String rolePack, List<String> technologies) {
         return new WorkPackageRoleService.View(rolePack, RolePackRegistry.VERSION,
                 ExecutionStrategy.OPEN_CODE_IMPLEMENTATION, TestPolicy.REQUIRED, technologies);
+    }
+
+    private static void assertCoverage(Catalog facts, CapabilityCatalog capabilities,
+                                       String target, String... scenarioTitles) {
+        List<String> titles = List.of(scenarioTitles);
+        List<Integer> expected = facts.facts().stream().filter(fact -> titles.contains(fact.title()))
+                .map(Fact::index).toList();
+        assertThat(expected).hasSize(scenarioTitles.length);
+        assertThat(capabilities.capabilities()).filteredOn(capability -> capability.testTargets().contains(target))
+                .singleElement().satisfies(capability ->
+                        assertThat(capability.coversFactIndexes()).containsExactlyInAnyOrderElementsOf(expected));
     }
 
     private static DesignWorkPackageRow workPackage() {

@@ -146,9 +146,13 @@ unknown single stacks use `software-generic` instead of inheriting Java/Maven. D
 tabular and report profiles keep their server-owned or Reviewer execution paths and never
 enter Compiler merely because a software example was available.
 JUnit/Jupiter/Surefire labels remain in the Java family instead of creating a false mixed stack.
+Package-local technology discovery uses token boundaries, so domain symbols such as
+`ChainNodeInvoker` cannot manufacture a Node family signal.
 Acceptance compilation consumes only positive deliverable-to-test relationships, uses target-symbol
-and semantic competition to bind each scenario once, preserves independent required test targets as
-source-backed criteria, and derives the final outcome on the server. Frozen v4 packages may resume
+and title-weighted semantic competition with one unique winner to bind each scenario once, preserves
+independent required test targets exactly once as source-backed criteria, and derives the final outcome
+on the server. A v5 model response is advisory: uniquely reversible soft-preference drift is normalized,
+and any other unreadable advice is discarded before the same closed server compiler runs. Frozen v4 packages may resume
 through this same deterministic path; newly frozen packages use v5.
 Rows created before that freeze is complete are not valid Role Pack snapshots: read-only
 Designer projection omits the incomplete snapshot, and the next package-role use repairs it

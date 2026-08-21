@@ -59,6 +59,9 @@ mixed pack, and an explicit unknown single stack uses the generic software pack.
 chooses Java, Python, Node, mixed, generic, document, tabular, report, or maintenance prompts; it cannot
 grant permissions, choose commands, or bypass human confirmation. Router format failure
 falls back to a generic profile question rather than failing the Designer Session.
+Package-local technology matching uses token boundaries, so symbols such as `ChainNodeInvoker`
+do not trigger the Node family. Router test-artifact aliases such as `TEST_SOURCE_CODE` remain
+source code rather than failing the profile.
 The Router profile denies every built-in tool, including read/glob/grep/question. Configured
 MCP tools remain available under their OpenCode server-name prefixes. It uses the
 bounded machine-response agent only for output control and has a 30-second server
@@ -73,8 +76,11 @@ earlier-group dependencies, and capability preferences through
 `PACKAGE_ACCEPTANCE_BINDING_V5`; it cannot return outcome, design gaps, executable commands,
 repository paths, test targets, acceptance ids, or verifier objects. The server discovers test
 targets only from positive delivery relationships, excludes negative/no-change clauses, assigns
-one focused test per business criterion, and materializes independently required targets as their
-own source-backed criteria before deriving `COMPILED` or `DESIGN_INCOMPLETE`. Configured MCP permissions stay subject
+each scenario through title-weighted unique-winner competition, and binds an independent required
+target only once. The prompt includes the exact four-field compact object. Missing soft preference
+keys are safely discarded; any other unreadable advice records `OPTIONAL_ACCEPTANCE_ADVICE_DROPPED`
+and proceeds with empty advice through the same deterministic compiler instead of creating repair Sessions.
+Configured MCP permissions stay subject
 to the ordinary additive server-name policy and cannot weaken this ownership boundary.
 
 Document and tabular direct-artifact workflows do not create an implementation Session:
@@ -290,11 +296,11 @@ failure-escalation contract. Actual terminal failure, retry exhaustion, timeout,
 human input always makes a best-effort abort call before Loopper reports the
 structured role as stopped.
 
-Compiler's compact object contains either `COMPILED` semantic Stages or
+Decomposer and the historical semantic Compiler use a compact object containing either `COMPILED` semantic Stages or
 `DESIGN_INCOMPLETE` with closed gap codes. Loopper resolves every `DS-Lxxx`
 reference to exact frozen text, derives the complete package fragment, and runs
 the same field, verifier, coverage, project, and draft-version validation used
-by other entry points. Extraction failures receive at most two full-object format
+by other entry points. Their extraction failures receive at most two full-object format
 repairs; semantic/safety failures receive at most two restricted JSON Patch turns.
 The counters are independent. Missing observable outcome,
 exception semantics, scope, or acceptance intent requests at most one automatic
@@ -310,9 +316,9 @@ temporary Stage contract and validates it with the authoritative v2
 assessment before freezing it; direct argv, BEHAVIOR coverage, focused Java
 tests and managed-runtime bindings therefore fail in the semantic repair pool
 before accepting the server-compiled result.
-New records are parsed as the compact contract by default. Only a persisted historical
-object with `evidenceMappings` enters the legacy planning parser; a current object that
-omits `outcome` is a format mismatch, not a legacy object missing `status`. A rejected
+Historical semantic records are parsed as that compact contract by default. Only a persisted historical
+object with `evidenceMappings` enters the legacy planning parser; a semantic object that
+omits `outcome` is a format mismatch, while v5 acceptance advice intentionally has no outcome. A rejected
 patch envelope or other incomplete object cannot replace the last valid semantic snapshot.
 The compact transport accepts up to six Stages so direct software's 1–6 Stage product
 contract is not narrowed to the large-package 1–3 limit. For non-Java packs, safe explicit

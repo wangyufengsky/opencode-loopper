@@ -96,7 +96,7 @@ public final class TaskSemanticRouter {
         String value = raw == null ? "" : raw.trim().toUpperCase(Locale.ROOT)
                 .replace('-', '_').replace(' ', '_');
         return switch (value) {
-            case "TEST", "TESTS", "TEST_CODE", "TEST_SOURCE", "UNIT_TEST", "UNIT_TESTS" -> ArtifactKind.SOURCE_CODE;
+            case "TEST", "TESTS", "TEST_CODE", "TEST_SOURCE", "TEST_SOURCE_CODE", "UNIT_TEST", "UNIT_TESTS" -> ArtifactKind.SOURCE_CODE;
             case "PYTHON_TEST", "PYTHON_TESTS" -> ArtifactKind.PYTHON_SCRIPT;
             default -> ArtifactKind.valueOf(value);
         };

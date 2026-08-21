@@ -18,6 +18,7 @@ class TaskProfileRouterTest {
 
     @Test void normalizesModelTestArtifactAliasesWithoutChangingTheTaskIntent() {
         assertThat(TaskSemanticRouter.artifactKind("TEST_CODE")).isEqualTo(ArtifactKind.SOURCE_CODE);
+        assertThat(TaskSemanticRouter.artifactKind("TEST_SOURCE_CODE")).isEqualTo(ArtifactKind.SOURCE_CODE);
         assertThat(TaskSemanticRouter.artifactKind("unit-tests")).isEqualTo(ArtifactKind.SOURCE_CODE);
         assertThat(TaskSemanticRouter.artifactKind("python test")).isEqualTo(ArtifactKind.PYTHON_SCRIPT);
     }

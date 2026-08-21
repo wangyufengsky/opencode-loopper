@@ -2044,29 +2044,53 @@ class DesignerSessionMcpIntegrationTest {
     }
 
     @Test
-    void compilerGetsTwoRepairsWhileSemanticGapRedesignsOnlyCurrentPackage() throws Exception {
-        ProjectRow project = project("retry");
+    void compilerDropsInvalidOptionalAdviceWithoutConsumingRepairBudget() throws Exception {
+        ProjectRow project = project("optional-acceptance-advice");
         LoopDraftRow draft = drafts.create(legacySpec(project.id()));
-        fake().setDesignerOutput(designerOutput("# 完整设计\n\n输出明确且可验收。", legacySpec(project.id())));
+        String design = """
+                ## 目标与范围
+                为 Java ObjectRegistry 补齐重复键拒绝的单元测试，不修改生产代码。
+
+                ## 影响与交付
+                | 类型 | 相对路径或符号 | 说明 |
+                | --- | --- | --- |
+                | 新增测试 | src/test/java/example/ObjectRegistryTest.java | 重复键拒绝的聚焦测试 |
+
+                ## 验收场景
+                | 场景 | 前置/触发 | 操作 | 可观察结果 | 保持不变 |
+                | --- | --- | --- | --- | --- |
+                | ObjectRegistry 重复键拒绝 | 已注册 key=A | 再次注册 key=A | 抛出 IllegalArgumentException | 首次注册仍可查询 |
+
+                ## 验收约束
+                ObjectRegistryTest 必须独立通过，不依赖外部网络、数据库或 Spring 上下文。
+
+                ## 阶段与依赖
+                | 阶段建议 | 包含场景/交付 | 前置阶段 |
+                | --- | --- | --- |
+                | 注册表单元测试 | 重复键拒绝场景与聚焦测试 | 无 |
+                """;
+        fake().setDesignerOutput(designerOutput(design, legacySpec(project.id())));
+        fake().setPackageDesignerOutput("WP-1", design);
         fake().setPackageCompilerPlanningOutput("WP-1", "planning without required JSON");
         DesignerSessionRow session = createConfirmedSession(project.id(), draft.id(), "实现可验收能力");
-        pollUntilCompilerState(session.id(), "RUNNING", 1);
-        assertThat(designerSessions.compilerStatus(session.id()).formatRepairCount()).isEqualTo(1);
-        designerSessions.pollActiveHandoffs();
-        assertThat(designerSessions.compilerStatus(session.id()).formatRepairCount()).isEqualTo(2);
-        designerSessions.pollActiveHandoffs();
-        assertThat(designerSessions.get(session.id()).state()).isEqualTo("WAITING_INPUT");
-        assertThat(designerSessions.workPackageStatuses(session.id()).getFirst().lastErrorCode())
-                .isEqualTo("COMPILER_RETRY_EXHAUSTED");
+        pollUntilSettled(session.id());
 
-        fake().setCompilerOutput(designIncomplete("MISSING_EXCEPTION_SEMANTICS", "缺少异常结果"));
-        fake().setPackageCompilerPlanningOutput("WP-1", null);
-        designerSessions.retryPackageCompilation(session.id(), "WP-1");
-        for (int i = 0; i < 8 && !"QUESTIONING_PACKAGE".equals(designerSessions.get(session.id()).workflowPhase()); i++) {
-            pollWithMandatoryQuestion(session.id());
-        }
-        assertThat(designerSessions.get(session.id()).workflowPhase()).isEqualTo("QUESTIONING_PACKAGE");
-        assertThat(designerSessions.workPackageStatuses(session.id()).getFirst().redesignCount()).isEqualTo(1);
+        assertThat(designerSessions.get(session.id()).workflowPhase())
+                .as("session=%s compiler=%s packages=%s messages=%s", designerSessions.get(session.id()),
+                        designerSessions.compilerStatus(session.id()),
+                        designerSessions.workPackageStatuses(session.id()), designerSessions.messages(session.id()))
+                .isEqualTo("FINAL_REVIEW");
+        assertThat(designerSessions.compilerStatus(session.id())).satisfies(status -> {
+            assertThat(status.serverCompiled()).isTrue();
+            assertThat(status.formatRepairCount()).isZero();
+            assertThat(status.semanticRepairCount()).isZero();
+            assertThat(status.lastErrorCode()).isNull();
+        });
+        var compilation = mapper.findLatestLoopSpecCompilationForPackage(session.id(), "WP-1").orElseThrow();
+        assertThat(mapper.findDesignAcceptancePlanning(compilation.id())).hasValueSatisfying(planning ->
+                assertThat(planning.bindingJson())
+                        .contains("\"groupHints\":[]", "\"capabilityPreferences\":[]"));
+        assertThat(mapper.listTasks()).isEmpty();
     }
 
     @Test

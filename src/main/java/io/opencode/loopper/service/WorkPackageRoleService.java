@@ -19,6 +19,10 @@ import tools.jackson.databind.ObjectMapper;
 public final class WorkPackageRoleService {
     private static final Pattern JAVA_SIGNAL = Pattern.compile(
             "(?<![a-z0-9])java(?:\\s*\\d+)?(?![a-z0-9])|(?<![a-z0-9])(jdk|spring|maven|gradle|kotlin)(?![a-z0-9])|\\.java(?![a-z0-9])");
+    private static final Pattern NODE_SIGNAL = Pattern.compile(
+            "(?<![a-z0-9])(javascript|typescript|node(?:\\.js)?|npm|pnpm|yarn|vue|react|vite|vitest|frontend)(?![a-z0-9])|前端");
+    private static final Pattern PYTHON_SIGNAL = Pattern.compile(
+            "(?<![a-z0-9])(python(?:3)?|pytest|unittest|django|flask|fastapi)(?![a-z0-9])|\\.py(?![a-z0-9])");
     private final LoopperMapper mapper;
     private final RolePackRegistry registry;
     private final TaskProfileService profiles;
@@ -34,14 +38,14 @@ public final class WorkPackageRoleService {
         String text = (row.title() + "\n" + row.objective() + "\n" + row.scopeInJson()
                 + "\n" + row.deliverablesJson()).toLowerCase(Locale.ROOT);
         List<String> technologies = new ArrayList<>();
-        if (contains(text, "python", ".py", "pytest")) technologies.add("python");
-        if (contains(text, "vue", "node", "typescript", "javascript", "npm", "frontend", "前端")) technologies.add("node");
+        if (hasPythonSignal(text)) technologies.add("python");
+        if (hasNodeSignal(text)) technologies.add("node");
         if (hasJavaSignal(text)) technologies.add("java");
         if (technologies.isEmpty()) technologies.addAll(parent.technologies());
         TaskIntent intent = parent.intent();
         List<ArtifactKind> artifacts = parent.artifactKinds();
-        boolean codeSignals = contains(text, "python", ".py", "pytest", "vue", "node", "typescript",
-                "javascript", "npm", "frontend", "前端", "java", "spring", "maven", "gradle", ".java", "代码", "接口");
+        boolean codeSignals = hasPythonSignal(text) || hasNodeSignal(text) || hasJavaSignal(text)
+                || contains(text, "代码", "接口");
         boolean documentSignals = contains(text, "markdown", "docx", "文档", "章节", "readme") && !codeSignals;
         boolean maintenanceSignals = contains(text, "配置", "依赖", "yaml", "yml", "properties") && !codeSignals;
         if (parent.workflowTemplate() == io.opencode.loopper.domain.WorkflowTemplate.PACKAGED_ARTIFACT || documentSignals) {
@@ -84,6 +88,12 @@ public final class WorkPackageRoleService {
     private String write(Object value) { try { return json.writeValueAsString(value); } catch (Exception failure) { throw new IllegalStateException(failure); } }
     static boolean hasJavaSignal(String text) {
         return text != null && JAVA_SIGNAL.matcher(text.toLowerCase(Locale.ROOT)).find();
+    }
+    static boolean hasNodeSignal(String text) {
+        return text != null && NODE_SIGNAL.matcher(text.toLowerCase(Locale.ROOT)).find();
+    }
+    static boolean hasPythonSignal(String text) {
+        return text != null && PYTHON_SIGNAL.matcher(text.toLowerCase(Locale.ROOT)).find();
     }
     private static boolean contains(String text, String... values) { for (String value : values) if (text.contains(value)) return true; return false; }
 

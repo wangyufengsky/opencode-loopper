@@ -21,7 +21,8 @@ final class DesignerVerificationIntentMapper {
             "(?i)(不变|保持原样|保持不变|不得|禁止|不允许|不新增|不修改|不重写|不删除|不引入|无需|排除|forbid|must not|do not|unchanged)");
     private static final Set<String> GENERIC_IDENTIFIERS = Set.of(
             "test", "tests", "spec", "core", "unit", "integration", "behavior", "contract",
-            "acceptance", "aggregate", "suite", "src", "main", "java", "python", "result", "context");
+            "acceptance", "aggregate", "suite", "src", "main", "java", "python", "result", "context",
+            "chain", "node", "module", "normal");
     private static final Set<String> GENERIC_HAN = Set.of(
             "测试", "场景", "行为", "正常", "异常", "执行", "结果", "新增", "生成", "覆盖", "校验", "参数");
 
@@ -35,13 +36,14 @@ final class DesignerVerificationIntentMapper {
         List<Fact> scenarios = catalog.facts().stream().filter(fact -> fact.kind() == FactKind.SCENARIO).toList();
         for (Fact scenario : scenarios) {
             List<Profile> direct = profiles.stream().filter(profile -> directlyMentions(profile, scenario)).toList();
-            if (!direct.isEmpty()) {
-                direct.forEach(profile -> coverage.get(profile.index()).add(scenario.index()));
+            if (direct.size() == 1) {
+                coverage.get(direct.getFirst().index()).add(scenario.index());
                 continue;
             }
             int best = 0;
             List<Profile> winners = new ArrayList<>();
-            for (Profile profile : profiles) {
+            List<Profile> candidates = direct.isEmpty() ? profiles : direct;
+            for (Profile profile : candidates) {
                 int score = score(profile, scenario);
                 if (score > best) {
                     best = score;
@@ -49,7 +51,9 @@ final class DesignerVerificationIntentMapper {
                     winners.add(profile);
                 } else if (score == best && score > 0) winners.add(profile);
             }
-            if (best >= 20) winners.forEach(profile -> coverage.get(profile.index()).add(scenario.index()));
+            if (best >= 2 && winners.size() == 1) {
+                coverage.get(winners.getFirst().index()).add(scenario.index());
+            }
         }
         if (profiles.size() == 1 && coverage.get(0).isEmpty() && !scenarios.isEmpty()) {
             coverage.get(0).addAll(scenarios.stream().map(Fact::index).toList());
@@ -137,6 +141,9 @@ final class DesignerVerificationIntentMapper {
             Set<String> contextWords = camelWords(context);
             score += intersection(contextWords, titleWords) * 12;
             score += intersection(contextWords, allWords) * 4;
+            score += wordAffinity(contextWords, titleWords) * 10;
+            score += wordAffinity(contextWords, allWords) * 6;
+            score += Math.min(20, intersection(hanBigrams(context), hanBigrams(fact.title()))) * 20;
             score += Math.min(20, intersection(hanBigrams(context), hanBigrams(factText(fact)))) * 2;
         }
         return score;
@@ -150,7 +157,8 @@ final class DesignerVerificationIntentMapper {
         LinkedHashSet<String> result = new LinkedHashSet<>();
         String stripped = value.replaceAll("(?i)(?:tests?|spec)$", "");
         result.add(identifierKey(stripped));
-        String subject = stripped.replaceAll("(?i)(?:core|unit|integration|behavior|contract|acceptance|aggregate|suite|it)$", "");
+        String subject = stripped.replaceAll(
+                "(?i)(?:core|unit|integration|behavior|contract|acceptance|aggregate|suite|normal|happy|success|it)$", "");
         result.add(identifierKey(subject));
         result.removeIf(item -> item.length() < 3 || GENERIC_IDENTIFIERS.contains(item));
         return Set.copyOf(result);
@@ -218,6 +226,24 @@ final class DesignerVerificationIntentMapper {
     }
     private static int intersection(Set<String> left, Set<String> right) {
         return (int) left.stream().filter(right::contains).count();
+    }
+    private static int wordAffinity(Set<String> left, Set<String> right) {
+        int count = 0;
+        for (String first : left) {
+            for (String second : right) {
+                if (!first.equals(second) && commonPrefix(first, second) >= 5) {
+                    count++;
+                    break;
+                }
+            }
+        }
+        return count;
+    }
+    private static int commonPrefix(String first, String second) {
+        int limit = Math.min(first.length(), second.length());
+        int index = 0;
+        while (index < limit && first.charAt(index) == second.charAt(index)) index++;
+        return index;
     }
     private static String factText(Fact fact) {
         return String.join(" ", List.of(value(fact.title()), value(fact.condition()), value(fact.action()),

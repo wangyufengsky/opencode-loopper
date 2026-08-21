@@ -29,6 +29,10 @@ class RolePackRegistryTest {
                 .isFalse();
         assertThat(WorkPackageRoleService.hasJavaSignal("Spring Boot Java 8 listener"))
                 .isTrue();
+        assertThat(WorkPackageRoleService.hasNodeSignal("ChainNodeInvoker 单元测试"))
+                .isFalse();
+        assertThat(WorkPackageRoleService.hasNodeSignal("Node.js + Vue 前端测试"))
+                .isTrue();
     }
 
     @Test void onlyRealCrossFamilyWorkIsMixedAndUnknownStacksStayGeneric() {
