@@ -144,8 +144,12 @@ public interface OpenCodeClient {
         }
         public boolean contains(String toolId) { return toolId != null && toolIds.stream().anyMatch(toolId::equals); }
     }
-    record SessionTranscript(List<SessionPart> parts) {
-        public SessionTranscript { parts = parts == null ? List.of() : List.copyOf(parts); }
+    record SessionTranscript(List<SessionPart> parts, List<UsageRecord> usage) {
+        public SessionTranscript(List<SessionPart> parts) { this(parts, List.of()); }
+        public SessionTranscript {
+            parts = parts == null ? List.of() : List.copyOf(parts);
+            usage = usage == null ? List.of() : List.copyOf(usage);
+        }
     }
     record SessionPart(String id, String type, String label, String content, String status, String startedAt) {
         public SessionPart(String id, String type, String label, String content, String status) {

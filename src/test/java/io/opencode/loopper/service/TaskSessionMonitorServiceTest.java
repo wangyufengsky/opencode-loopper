@@ -22,7 +22,8 @@ class TaskSessionMonitorServiceTest {
     private final TaskService tasks = mock(TaskService.class);
     private final LoopperMapper mapper = mock(LoopperMapper.class);
     private final OpenCodeClient openCode = mock(OpenCodeClient.class);
-    private final TaskSessionMonitorService monitor = new TaskSessionMonitorService(tasks, mapper, openCode);
+    private final ModelTokenUsageProjectionService tokenUsage = mock(ModelTokenUsageProjectionService.class);
+    private final TaskSessionMonitorService monitor = new TaskSessionMonitorService(tasks, mapper, openCode, tokenUsage);
 
     @Test
     void returnsProviderExposedLiveThinkingAndOutputForTheSelectedTaskSession() {
@@ -39,10 +40,14 @@ class TaskSessionMonitorServiceTest {
                 "{\"rawStatus\":\"in_progress\"}", task.updatedAt(), 0)));
         OpenCodeClient.OpenCodeSession remote = new OpenCodeClient.OpenCodeSession(session.externalSessionId(), Path.of(task.worktreePath()));
         when(openCode.sessionStatus(remote)).thenReturn(new OpenCodeClient.SessionStatus("busy", "editing"));
+        List<OpenCodeClient.UsageRecord> usage = List.of(new OpenCodeClient.UsageRecord(
+                "message-1", "provider", "model", 64L, 32L, 96L, null, null, true));
         when(openCode.sessionTranscript(remote)).thenReturn(new OpenCodeClient.SessionTranscript(List.of(
                 new OpenCodeClient.SessionPart("reason-1", "THINKING", "Thinking", "Inspecting files", "running", "2026-08-04T08:01:01Z"),
-                new OpenCodeClient.SessionPart("text-1", "OUTPUT", "模型输出", "Implementing now", null))));
+                new OpenCodeClient.SessionPart("text-1", "OUTPUT", "模型输出", "Implementing now", null)), usage));
         when(openCode.pendingQuestions(remote)).thenReturn(List.of());
+        when(tokenUsage.observeTask(task.id(), remote.worktree(), remote.id(), usage, false))
+                .thenReturn(new ModelTokenUsageProjectionService.UsageView(96L, 0, "now"));
 
         TaskSessionMonitorService.SessionActivity activity = monitor.activity(task.id(), "execution:" + session.id());
 
@@ -55,6 +60,7 @@ class TaskSessionMonitorServiceTest {
         assertThat(activity.session().stageOrdinal()).isEqualTo(1);
         assertThat(activity.session().stageObjective()).isEqualTo("实现动态会话监控并完成本阶段验证");
         assertThat(activity.todoCapability()).isEqualTo("AVAILABLE");
+        assertThat(activity.usage().totalTokens()).isEqualTo(96L);
         assertThat(activity.todos()).singleElement().satisfies(todo -> {
             assertThat(todo.content()).isEqualTo("实现并验证 Todo 投影");
             assertThat(todo.status()).isEqualTo("IN_PROGRESS");

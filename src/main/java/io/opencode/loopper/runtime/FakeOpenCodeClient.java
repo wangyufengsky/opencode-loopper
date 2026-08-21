@@ -219,7 +219,8 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     @Override public SessionTranscript sessionTranscript(OpenCodeSession session) {
         String output = sessionOutput(session);
         return new SessionTranscript(output == null || output.isBlank() ? java.util.List.of() : java.util.List.of(
-                new SessionPart("fake-output", "OUTPUT", "模型输出", output, states.get(session.id()))));
+                new SessionPart("fake-output", "OUTPUT", "模型输出", output, states.get(session.id()))),
+                usageBySession.getOrDefault(session.id(), List.of()));
     }
     @Override public List<SessionMessageRef> sessionMessageRefs(OpenCodeSession session) {
         return List.of(new SessionMessageRef("fake-message", "assistant", null, null));

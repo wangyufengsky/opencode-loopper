@@ -558,6 +558,7 @@ function normalizeDesignerAnsweredQuestion(value: unknown): DesignerAnsweredQues
 
 function normalizeTaskSessionActivity(value: unknown): TaskSessionActivity {
   const raw = asRecord(value)
+  const usage = asRecord(raw.usage)
   const todoCapability = asString(raw.todoCapability).toUpperCase()
   return {
     session: normalizeTaskSession(raw.session),
@@ -568,6 +569,7 @@ function normalizeTaskSessionActivity(value: unknown): TaskSessionActivity {
     pendingQuestions: asArray(raw.pendingQuestions).map(normalizeTaskSessionQuestion),
     detail: asString(raw.detail) || undefined,
     todoCapability: todoCapability === 'AVAILABLE' || todoCapability === 'UNAVAILABLE' ? todoCapability : 'UNKNOWN',
+    usage: { totalTokens: asNullableNumber(usage.totalTokens), unknownUsageCount: asNumber(usage.unknownUsageCount), observedAt: asString(usage.observedAt) },
     todos: asArray(raw.todos).map((value) => {
       const todo = asRecord(value)
       const status = asString(todo.status).toUpperCase()
@@ -1442,7 +1444,8 @@ export const api = {
   confirmDesignerTaskProfile: async (id: string, expectedVersion: number) => request<DesignerSession['taskProfile']>(`/designer-sessions/${encodeURIComponent(id)}/task-profile/confirm`, { method: 'POST', body: JSON.stringify({ expectedVersion }) }),
   getDesignerActivity: async (id: string): Promise<DesignerActivity> => {
     const raw = asRecord(await request<unknown>(`/designer-sessions/${encodeURIComponent(id)}/activity`))
-    return { actor: normalizeDesignerActor(raw.actor), remoteState: asString(raw.remoteState), connected: raw.connected === true, observedAt: asString(raw.observedAt), structuredStep: normalizeStructuredStep(raw.structuredStep), parts: asArray(raw.parts).map((value) => { const part = asRecord(value); return { id: asString(part.id), type: asString(part.type) as TaskSessionActivityPart['type'], label: asString(part.label), content: asString(part.content), status: asString(part.status), startedAt: asString(part.startedAt) } }), detail: asString(raw.detail) || undefined }
+    const usage = asRecord(raw.usage)
+    return { actor: normalizeDesignerActor(raw.actor), remoteState: asString(raw.remoteState), connected: raw.connected === true, observedAt: asString(raw.observedAt), structuredStep: normalizeStructuredStep(raw.structuredStep), parts: asArray(raw.parts).map((value) => { const part = asRecord(value); return { id: asString(part.id), type: asString(part.type) as TaskSessionActivityPart['type'], label: asString(part.label), content: asString(part.content), status: asString(part.status), startedAt: asString(part.startedAt) } }), detail: asString(raw.detail) || undefined, usage: { totalTokens: asNullableNumber(usage.totalTokens), unknownUsageCount: asNumber(usage.unknownUsageCount), observedAt: asString(usage.observedAt) } }
   },
   stopDesignerSession: async (id: string): Promise<DesignerStopResult> => request<DesignerStopResult>(`/designer-sessions/${encodeURIComponent(id)}/stop`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } }),
   enableDesignerLargeTaskMode: async (id: string, expectedDiscussionRevision: number, expectedProfileVersion: number) => request<DesignerSession['taskProfile']>(`/designer-sessions/${encodeURIComponent(id)}/large-task-mode/enable`, { method: 'POST', body: JSON.stringify({ expectedDiscussionRevision, expectedProfileVersion }) }),

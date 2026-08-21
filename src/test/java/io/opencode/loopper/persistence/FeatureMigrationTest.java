@@ -69,7 +69,7 @@ class FeatureMigrationTest {
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
 
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("39");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("40");
         try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
             try (var result = statement.executeQuery("SELECT state,workflow_phase,discussion_scope FROM designer_session WHERE id='s27'")) {
                 assertThat(result.next()).isTrue();
@@ -101,7 +101,7 @@ class FeatureMigrationTest {
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
 
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("39");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("40");
         try (var connection = DriverManager.getConnection(url);
              var statement = connection.prepareStatement("SELECT name FROM sqlite_master WHERE type='table'")) {
             try (var result = statement.executeQuery()) {
@@ -118,7 +118,8 @@ class FeatureMigrationTest {
                         "design_discussion_revision", "ai_output_handling_event", "designer_session_archive",
                         "app_settings", "task_retry_schedule", "task_execution_cycle",
                         "task_workspace_checkpoint", "designer_auto_mode",
-                        "designer_task_profile", "task_profile_router_run", "analysis_report"));
+                        "designer_task_profile", "task_profile_router_run", "analysis_report",
+                        "model_token_usage"));
             }
         }
         try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
@@ -158,7 +159,8 @@ class FeatureMigrationTest {
                 while (result.next()) indexes.add(result.getString("name"));
                 assertThat(indexes).contains("idx_task_updated_id", "idx_task_project_updated_id",
                         "idx_designer_session_draft_created_id", "idx_attempt_task_created",
-                        "idx_designer_auto_mode_state_updated");
+                        "idx_designer_auto_mode_state_updated", "idx_model_token_usage_designer",
+                        "idx_model_token_usage_task");
             }
             try (var result = statement.executeQuery("SELECT sql FROM sqlite_master WHERE type='table' AND name='task_queue'")) {
                 assertThat(result.next()).isTrue();
@@ -220,12 +222,26 @@ class FeatureMigrationTest {
     private void assertAutomationApprovalAndImmutabilityGuards(String url) throws Exception {
         try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
             statement.executeUpdate("INSERT INTO project(id,name,root_path,created_at,updated_at) VALUES('p','P','/tmp/p','now','now')");
+            statement.executeUpdate("INSERT INTO loop_draft(id,project_id,goal,spec_json,status,created_at,updated_at) VALUES('draft-live','p','G','{}','DRAFT_READY','now','now')");
+            statement.executeUpdate("INSERT INTO designer_session(id,project_id,state,access_mode,loop_draft_id,created_at,updated_at) VALUES('designer-live','p','RUNNING','READ_ONLY','draft-live','now','now')");
+            statement.executeUpdate("UPDATE designer_session SET external_session_id='designer-remote-1' WHERE id='designer-live'");
+            statement.executeUpdate("UPDATE designer_session SET external_session_id='designer-remote-2' WHERE id='designer-live'");
+            try (var result = statement.executeQuery("SELECT COUNT(*) FROM model_token_usage WHERE designer_session_id='designer-live'")) {
+                assertThat(result.next()).isTrue();
+                assertThat(result.getInt(1)).isEqualTo(2);
+            }
             statement.executeUpdate("INSERT INTO task(id,project_id,title,state,created_at,updated_at) VALUES('task-scope','p','T','READY','now','now')");
             statement.executeUpdate("INSERT INTO task(id,project_id,title,state,created_at,updated_at) VALUES('task-other','p','Other','READY','now','now')");
             statement.executeUpdate("INSERT INTO task_lineage(child_task_id,parent_task_id,recovery_mode,workspace_fingerprint,created_at) VALUES('task-other','task-scope','REWORK_ALL_STAGES','baseline','now')");
             statement.executeUpdate("INSERT INTO stage(id,task_id,ordinal,objective,allowed_paths_json,forbidden_paths_json,deliverables_json,verifiers_json,state,created_at,updated_at) VALUES('stage','task-scope',0,'S','[]','[]','[]','[]','SUCCEEDED','now','now')");
             statement.executeUpdate("INSERT INTO attempt(id,task_id,stage_id,ordinal,state,created_at) VALUES('attempt','task-scope','stage',1,'SUCCEEDED','now')");
             statement.executeUpdate("INSERT INTO execution_session(id,task_id,stage_id,attempt_id,state,created_at) VALUES('session','task-scope','stage','attempt','COMPLETED','now')");
+            statement.executeUpdate("UPDATE execution_session SET external_session_id='task-remote-1' WHERE id='session'");
+            statement.executeUpdate("UPDATE execution_session SET external_session_id='task-remote-2' WHERE id='session'");
+            try (var result = statement.executeQuery("SELECT COUNT(*) FROM model_token_usage WHERE task_id='task-scope' AND external_session_id LIKE 'task-remote-%'")) {
+                assertThat(result.next()).isTrue();
+                assertThat(result.getInt(1)).isEqualTo(2);
+            }
             statement.executeUpdate("INSERT INTO judge_run(id,task_id,attempt_id,role,ordinal,state,created_at) VALUES('judge','task-scope','attempt','REQUIREMENT',1,'COMPLETED','now')");
             statement.executeUpdate("INSERT INTO session_usage(id,task_id,execution_session_id,external_message_id,idempotency_key,reliable,observed_at) VALUES('usage-session','task-scope','session','m1','session:m1',0,'now')");
             statement.executeUpdate("INSERT INTO session_usage(id,task_id,judge_run_id,external_message_id,idempotency_key,reliable,observed_at) VALUES('usage-judge','task-scope','judge','m2','judge:m2',1,'now')");
@@ -237,6 +253,13 @@ class FeatureMigrationTest {
                     .hasMessageContaining("session usage must reference a session from the same task");
             assertThatThrownBy(() -> statement.executeUpdate("UPDATE session_usage SET external_message_id='rewritten' WHERE id='usage-session'"))
                     .hasMessageContaining("session usage identity is immutable");
+            statement.executeUpdate("INSERT INTO model_token_usage(id,task_id,external_session_id,total_tokens,reliable,complete,observed_at) VALUES('live-usage','task-scope','remote-live',96,1,0,'now')");
+            assertThatThrownBy(() -> statement.executeUpdate("INSERT INTO model_token_usage(id,external_session_id,reliable,complete,observed_at) VALUES('live-neither','remote-none',0,0,'now')"))
+                    .hasMessageContaining("CHECK constraint failed");
+            assertThatThrownBy(() -> statement.executeUpdate("INSERT INTO model_token_usage(id,task_id,external_session_id,total_tokens,reliable,complete,observed_at) VALUES('live-negative','task-scope','remote-negative',-1,1,0,'now')"))
+                    .hasMessageContaining("CHECK constraint failed");
+            assertThatThrownBy(() -> statement.executeUpdate("UPDATE model_token_usage SET external_session_id='rewritten' WHERE id='live-usage'"))
+                    .hasMessageContaining("model token usage identity is immutable");
             assertThatThrownBy(() -> statement.executeUpdate("INSERT INTO interaction(id,scope_type,scope_id,task_id,external_session_id,external_request_id,kind,state,payload_json,created_at,updated_at) VALUES('bad-scope','TASK','different-task','task-scope','remote','request','QUESTION','PENDING','{}','now','now')"))
                     .hasMessageContaining("CHECK constraint failed");
             statement.executeUpdate("INSERT INTO loopspec_template(id,name,description,state,created_at,updated_at) VALUES('tpl','T','','ACTIVE','now','now')");

@@ -18,7 +18,8 @@ class DesignerActivityServiceTest {
     private final LoopperMapper mapper = mock(LoopperMapper.class);
     private final ProjectService projects = mock(ProjectService.class);
     private final OpenCodeClient openCode = mock(OpenCodeClient.class);
-    private final DesignerActivityService activities = new DesignerActivityService(mapper, projects, openCode);
+    private final ModelTokenUsageProjectionService tokenUsage = mock(ModelTokenUsageProjectionService.class);
+    private final DesignerActivityService activities = new DesignerActivityService(mapper, projects, openCode, tokenUsage);
 
     @Test
     void exposesOnlyTheLatestDesignerActivityFragment() {
@@ -27,16 +28,21 @@ class DesignerActivityServiceTest {
         when(mapper.findDesignerSession(session.id())).thenReturn(Optional.of(session));
         when(projects.get(session.projectId())).thenReturn(project());
         when(openCode.sessionStatus(remote)).thenReturn(new OpenCodeClient.SessionStatus("BUSY", "streaming"));
+        List<OpenCodeClient.UsageRecord> usage = List.of(new OpenCodeClient.UsageRecord(
+                "message-1", "provider", "model", 120L, 30L, 150L, null, null, true));
         when(openCode.sessionTranscript(remote)).thenReturn(new OpenCodeClient.SessionTranscript(List.of(
                 new OpenCodeClient.SessionPart("thinking", "THINKING", "Thinking", "正在检查画像", "RUNNING"),
                 new OpenCodeClient.SessionPart("tool", "TOOL", "gitlab_search",
                         "{\"query\":\"profile\"}\n返回 2 条", "COMPLETED"),
-                new OpenCodeClient.SessionPart("output", "OUTPUT", "assistant", "设计稿已生成", null))));
+                new OpenCodeClient.SessionPart("output", "OUTPUT", "assistant", "设计稿已生成", null)), usage));
+        when(tokenUsage.observeDesigner(session.id(), Path.of("/tmp"), remote.id(), usage, false))
+                .thenReturn(new ModelTokenUsageProjectionService.UsageView(150L, 0, "now"));
 
         DesignerActivityService.View view = activities.activity(session.id());
 
         assertThat(view.actor()).isEqualTo("DESIGNER");
         assertThat(view.connected()).isTrue();
+        assertThat(view.usage().totalTokens()).isEqualTo(150L);
         assertThat(view.parts()).singleElement().satisfies(part -> {
             assertThat(part.type()).isEqualTo("OUTPUT");
             assertThat(part.content()).isEqualTo("设计稿已生成");

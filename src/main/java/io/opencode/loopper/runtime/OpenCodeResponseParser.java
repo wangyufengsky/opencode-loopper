@@ -70,7 +70,7 @@ final class OpenCodeResponseParser {
             }
             messageIndex++;
         }
-        return new SessionTranscript(result);
+        return new SessionTranscript(result, usage(messages));
     }
 
     List<SessionMessageRef> messageRefs(JsonNode messages) {

@@ -487,6 +487,13 @@ the latest tool activity and their authoritative step; raw Router, Decomposer, C
 Reviewer, repair, finalizer, or Judge JSON is never shown. Reconnect keeps that one latest
 fragment until a newer authoritative observation arrives.
 
+The same current-role card includes one compact numeric token window. Its total is the
+server-persisted, provider-reported aggregate for every remote role Session in the current
+Designer scope. The first observation establishes a silent baseline; each later positive
+change briefly renders `+N` and immediately advances the total. The window adds no visible
+budget, cost, quota, or explanatory copy, never overlays the activity content, never counts
+time locally, and suppresses its burst animation under reduced-motion preferences.
+
 After final design confirmation returns a Task ID, the page marks that navigation as committed,
 clears the Designer workspace pointer and unsent input, skips the unsaved-design leave warning,
 and opens Task detail. The left navigation's next **设计** visit therefore opens the new-design
@@ -504,6 +511,11 @@ attempt pool. Historical design restores the frozen requirement, Decomposer
 summary, every package design/compilation summary, and the final Stage mapping.
 The interface states explicitly that only one final Requirement/Risk Judge batch
 runs after all packages pass.
+
+The Task Session monitor header reuses the same numeric token window for the authoritative
+Task-wide aggregate across implementation and Judge remotes. Selecting another Session does
+not reset the total; changing Task scope does. An older or incomplete response cannot decrease
+the rendered value or produce a negative delta.
 
 New drafts use LoopSpec v2. Each Stage declares `implementationKind` and
 observable `acceptanceCriteria`. Each criterion selects `verificationMode` as `MACHINE`,

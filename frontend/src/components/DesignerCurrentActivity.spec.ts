@@ -15,6 +15,7 @@ describe('DesignerCurrentActivity', () => {
       .mockResolvedValueOnce({
         actor: 'DESIGNER', remoteState: 'BUSY', connected: true,
         observedAt: '2026-08-20T08:00:00Z',
+        usage: { totalTokens: 1200, unknownUsageCount: 0, observedAt: '2026-08-20T08:00:00Z' },
         parts: [
           { id: 'thinking-1', type: 'THINKING', label: 'thinking', content: '旧的思考内容' },
           { id: 'output-1', type: 'OUTPUT', label: 'assistant', content: '## 正在形成需求稿\n\n只显示当前进展。' },
@@ -23,6 +24,7 @@ describe('DesignerCurrentActivity', () => {
       .mockResolvedValueOnce({
         actor: 'COMPILER', remoteState: 'RUNNING', connected: true,
         observedAt: '2026-08-20T08:00:01Z', structuredStep: 'SERVER_COMPILING',
+        usage: { totalTokens: 1584, unknownUsageCount: 0, observedAt: '2026-08-20T08:00:01Z' },
         parts: [
           { id: 'tool-old', type: 'TOOL', label: 'read', content: '旧工具调用', status: 'COMPLETED' },
           { id: 'tool-current', type: 'TOOL', label: 'gitlab_search', content: '**正在查询** `profile`', status: 'RUNNING' },
@@ -48,6 +50,7 @@ describe('DesignerCurrentActivity', () => {
     expect(wrapper.text()).toContain('正在查询')
     expect(wrapper.text()).not.toContain('旧工具调用')
     expect(wrapper.text()).not.toContain('正在形成需求稿')
+    expect(wrapper.text()).toContain('+384')
     wrapper.unmount()
   })
 
@@ -57,6 +60,7 @@ describe('DesignerCurrentActivity', () => {
       .mockResolvedValueOnce({
         actor: 'ROUTER', remoteState: 'RUNNING', connected: true,
         observedAt: '2026-08-20T08:00:00Z',
+        usage: { totalTokens: 80, unknownUsageCount: 0, observedAt: '2026-08-20T08:00:00Z' },
         parts: [{ id: 'tool-1', type: 'TOOL', label: 'jira_search', content: '正在确认需求边界' }],
       })
       .mockRejectedValueOnce(new Error('connection reset'))

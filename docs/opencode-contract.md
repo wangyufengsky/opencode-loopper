@@ -140,6 +140,14 @@ most the latest safe fragment. The UI replaces the body of the current-role card
 timeline, uses normal Markdown rendering, and does not build a separate activity panel or
 client-side activity history; reconnect keeps only the last observed fragment.
 
+The activity message response is also parsed for provider-reported token fields, so the active
+remote never requires a second message-list request merely to refresh its numeric token window.
+Loopper persists a monotonic aggregate per external Session and sums those rows within the
+Designer or Task scope. One non-current incomplete remote may be reconciled per poll to retain
+repair, finalizer, previous Attempt, and parallel Judge usage without creating an unbounded
+request fan-out. Missing provider token fields remain unknown; elapsed time, output length, and
+cost are never converted into synthetic tokens.
+
 Every persisted task-profile Router run has one in-process owner at a time. The synchronous
 request path claims a new `PENDING` run before it becomes visible to the monitor, and recovery
 polling uses the same claim boundary. A remote Session created by a caller that loses the

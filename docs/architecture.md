@@ -466,6 +466,16 @@ the existing current-role card inside the message timeline; there is no separate
 panel or activity history. The browser refreshes every 1.2 seconds and preserves that one
 fragment across a reconnect without altering the remote Session.
 
+V40 adds `model_token_usage` as an orthogonal, display-only read model. Each row belongs to
+exactly one Designer Session or Task and one immutable external model Session. Provider token
+totals are monotonically upserted, then summed across requirement, Router, Decomposer,
+Designer, Compiler, repair/finalizer, Implementation, and Judge remotes in that scope. Active
+remote IDs are registered by V40 insert/update triggers so replacement cannot erase an earlier
+Session from the aggregate. Active activity parsing reuses the existing message response; at most one other incomplete remote is
+reconciled per browser poll. This aggregate powers only the compact numeric window and cannot
+advance lifecycle state, fabricate missing usage, enforce a budget, or rewrite the authoritative
+per-message `session_usage` evidence.
+
 Machine-response roles carry an explicit non-thinking model selection only for
 steps whose persisted response mode is `JSON_SCHEMA`. Managed DeepSeek starts
 with a private `loopper-no-thinking` variant and those Schema prompts select it;

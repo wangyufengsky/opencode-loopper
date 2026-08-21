@@ -13,7 +13,8 @@ const session: TaskSessionSummary = {
 
 function activity(parts: TaskSessionActivity['parts'], pendingQuestions: TaskSessionActivity['pendingQuestions'] = []): TaskSessionActivity {
   return { session, remoteState: 'busy', live: true, observedAt: '2026-08-04T08:00:00Z', parts, pendingQuestions,
-    todoCapability: 'AVAILABLE', todos: [], todoTruncated: false }
+    todoCapability: 'AVAILABLE', todos: [], todoTruncated: false,
+    usage: { totalTokens: 96, unknownUsageCount: 0, observedAt: '2026-08-04T08:00:00Z' } }
 }
 
 afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers() })

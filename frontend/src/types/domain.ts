@@ -437,6 +437,12 @@ export interface TaskSessionTodo {
   ordinal: number
 }
 
+export interface ModelTokenUsage {
+  totalTokens: number | null
+  unknownUsageCount: number
+  observedAt: string
+}
+
 export interface TaskSessionActivity {
   session: TaskSessionSummary
   remoteState: string
@@ -449,6 +455,7 @@ export interface TaskSessionActivity {
   todos: TaskSessionTodo[]
   todoTruncated: boolean
   todoDetail?: string
+  usage: ModelTokenUsage
 }
 
 export type InteractionAction = 'REPLY' | 'ONCE' | 'SESSION' | 'REJECT'
@@ -1009,6 +1016,7 @@ export interface DesignerActivity {
   structuredStep?: StructuredModelStep
   parts: TaskSessionActivityPart[]
   detail?: string
+  usage: ModelTokenUsage
 }
 
 export interface DesignerStopResult {

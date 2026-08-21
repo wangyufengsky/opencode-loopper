@@ -18,11 +18,14 @@ public final class DesignerActivityService {
     private final LoopperMapper mapper;
     private final ProjectService projects;
     private final OpenCodeClient openCode;
+    private final ModelTokenUsageProjectionService tokenUsage;
 
-    public DesignerActivityService(LoopperMapper mapper, ProjectService projects, OpenCodeClient openCode) {
+    public DesignerActivityService(LoopperMapper mapper, ProjectService projects, OpenCodeClient openCode,
+                                   ModelTokenUsageProjectionService tokenUsage) {
         this.mapper = mapper;
         this.projects = projects;
         this.openCode = openCode;
+        this.tokenUsage = tokenUsage;
     }
 
     public View activity(String sessionId) {
@@ -34,7 +37,8 @@ public final class DesignerActivityService {
         if (remote.id() == null || remote.id().isBlank()) {
             return new View(actor.name(), remote.state(), false, observedAt, step(session, actor), List.of(),
                     actor == DesignerActor.VALIDATOR || actor == DesignerActor.SYSTEM
-                            ? "服务端正在执行当前权威步骤" : "当前角色正在建立远端会话");
+                            ? "服务端正在执行当前权威步骤" : "当前角色正在建立远端会话",
+                    tokenUsage.designerUsage(session.id()));
         }
         Path root = Path.of(projects.get(session.projectId()).rootPath()).toAbsolutePath().normalize();
         try {
@@ -42,15 +46,18 @@ public final class DesignerActivityService {
             OpenCodeClient.SessionStatus status = openCode.sessionStatus(openCodeSession);
             boolean structured = actor == DesignerActor.ROUTER || actor == DesignerActor.DECOMPOSER
                     || actor == DesignerActor.COMPILER || actor == DesignerActor.REVIEWER;
-            List<Part> allParts = openCode.sessionTranscript(openCodeSession).parts().stream()
+            OpenCodeClient.SessionTranscript transcript = openCode.sessionTranscript(openCodeSession);
+            ModelTokenUsageProjectionService.UsageView usage = tokenUsage.observeDesigner(session.id(), root,
+                    remote.id(), transcript.usage(), status.completed() || status.failed());
+            List<Part> allParts = transcript.parts().stream()
                     .filter(part -> !structured || "TOOL".equals(part.type()))
                     .map(this::part).toList();
             List<Part> parts = allParts.isEmpty() ? List.of() : List.of(allParts.getLast());
             return new View(actor.name(), status.state(), true, observedAt, step(session, actor), parts,
-                    bounded(status.detail()));
+                    bounded(status.detail()), usage);
         } catch (RuntimeException failure) {
             return new View(actor.name(), remote.state(), false, observedAt, step(session, actor), List.of(),
-                    bounded(failure.getMessage()));
+                    bounded(failure.getMessage()), tokenUsage.designerUsage(session.id()));
         }
     }
 
@@ -122,5 +129,6 @@ public final class DesignerActivityService {
     private record Remote(String id, String state) { }
     public record Part(String id, String type, String label, String content, String status, String startedAt) { }
     public record View(String actor, String remoteState, boolean connected, String observedAt,
-                       String structuredStep, List<Part> parts, String detail) { }
+                       String structuredStep, List<Part> parts, String detail,
+                       ModelTokenUsageProjectionService.UsageView usage) { }
 }

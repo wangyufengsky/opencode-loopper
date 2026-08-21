@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { api } from '@/api/client'
 import MarkdownDocument from '@/components/MarkdownDocument.vue'
+import TokenUsageWindow from '@/components/TokenUsageWindow.vue'
 import type { DesignerActivity } from '@/types/domain'
 import {
   activityLabel,
@@ -80,6 +81,7 @@ onBeforeUnmount(() => { generation += 1; stop() })
         <strong>{{ actor }}正在处理<span class="thinking-dots" aria-hidden="true"><i /><i /><i /></span></strong>
         <small>{{ currentStep }}</small>
       </div>
+      <TokenUsageWindow :key="sessionId" :total-tokens="activity?.usage.totalTokens" />
     </div>
     <div class="current-activity">
       <p v-if="error" class="activity-warning"><Icon icon="lucide:wifi-off" />{{ error }}</p>
@@ -99,10 +101,10 @@ onBeforeUnmount(() => { generation += 1; stop() })
 <style scoped>
 .thinking-message { position: relative; display: grid; gap: 14px; margin: 14px 0; padding: 17px 18px; overflow: hidden; border: 1px solid rgb(139 92 246 / 28%); border-radius: 12px; background: linear-gradient(100deg, rgb(139 92 246 / 9%), rgb(34 211 238 / 5%), rgb(139 92 246 / 9%)); background-size: 220% 100%; box-shadow: 0 12px 36px rgb(0 0 0 / 12%); animation: thinking-sheen 3s ease-in-out infinite; }
 .thinking-message::after { position: absolute; inset: auto 16px 0; height: 1px; background: linear-gradient(90deg, transparent, rgb(34 211 238 / 55%), transparent); content: ""; animation: thinking-scan 2.2s ease-in-out infinite; }
-.activity-heading { display: flex; align-items: center; gap: 14px; }
+.activity-heading { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .thinking-orbit { position: relative; display: grid; flex: 0 0 auto; place-items: center; width: 38px; height: 38px; border: 2px solid rgb(139 92 246 / 18%); border-top-color: #a78bfa; border-right-color: var(--color-accent-cyan); border-radius: 50%; box-shadow: 0 0 18px rgb(139 92 246 / 18%); animation: thinking-spin 1s linear infinite; }
 .thinking-orbit span { width: 8px; height: 8px; border-radius: 50%; background: linear-gradient(135deg, #a78bfa, var(--color-accent-cyan)); box-shadow: 0 0 12px rgb(34 211 238 / 55%); }
-.thinking-copy { min-width: 0; }
+.thinking-copy { min-width: 0; margin-right: auto; }
 .thinking-copy strong { display: flex; align-items: baseline; color: #f5f3ff; font-size: 13px; font-weight: 720; letter-spacing: -.01em; }
 .thinking-copy small { display: block; margin-top: 5px; color: var(--color-text-secondary); font: 9px/1.45 var(--font-code); }
 .thinking-dots { display: inline-flex; align-items: flex-end; gap: 3px; height: 12px; margin-left: 5px; }

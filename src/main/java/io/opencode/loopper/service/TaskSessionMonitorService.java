@@ -1,6 +1,7 @@
 package io.opencode.loopper.service;
 
 import io.opencode.loopper.domain.SessionFailure;
+import io.opencode.loopper.domain.JudgeRunState;
 import io.opencode.loopper.domain.SessionState;
 import io.opencode.loopper.domain.TaskState;
 import io.opencode.loopper.domain.TodoCapability;
@@ -24,11 +25,14 @@ public class TaskSessionMonitorService {
     private final TaskService tasks;
     private final LoopperMapper mapper;
     private final OpenCodeClient openCode;
+    private final ModelTokenUsageProjectionService tokenUsage;
 
-    public TaskSessionMonitorService(TaskService tasks, LoopperMapper mapper, OpenCodeClient openCode) {
+    public TaskSessionMonitorService(TaskService tasks, LoopperMapper mapper, OpenCodeClient openCode,
+                                     ModelTokenUsageProjectionService tokenUsage) {
         this.tasks = tasks;
         this.mapper = mapper;
         this.openCode = openCode;
+        this.tokenUsage = tokenUsage;
     }
 
     public List<SessionSummary> list(String taskId) {
@@ -47,12 +51,16 @@ public class TaskSessionMonitorService {
         if (summary.externalSessionId() == null || summary.externalSessionId().isBlank() || task.worktreePath() == null || task.worktreePath().isBlank()) {
             return new SessionActivity(summary, summary.state(), false, Instant.now().toString(), List.of(), List.of(),
                     "Session 尚未获得可读取的 OpenCode 远端标识或 worktree",
-                    resolved.todo().capability(), resolved.todo().todos(), resolved.todo().truncated(), resolved.todo().detail());
+                    resolved.todo().capability(), resolved.todo().todos(), resolved.todo().truncated(),
+                    resolved.todo().detail(), tokenUsage.taskUsage(task.id()));
         }
         try {
             OpenCodeClient.OpenCodeSession remote = new OpenCodeClient.OpenCodeSession(summary.externalSessionId(), Path.of(task.worktreePath()));
             OpenCodeClient.SessionStatus status = openCode.sessionStatus(remote);
-            List<ActivityPart> parts = openCode.sessionTranscript(remote).parts().stream()
+            OpenCodeClient.SessionTranscript transcript = openCode.sessionTranscript(remote);
+            ModelTokenUsageProjectionService.UsageView usage = tokenUsage.observeTask(task.id(), remote.worktree(),
+                    remote.id(), transcript.usage(), terminal(summary) || status.completed() || status.failed());
+            List<ActivityPart> parts = transcript.parts().stream()
                     .map(part -> new ActivityPart(part.id(), part.type(), part.label(), part.content(), part.status(), part.startedAt()))
                     .toList();
             List<PendingQuestion> questions = interactive(task, summary)
@@ -60,17 +68,17 @@ public class TaskSessionMonitorService {
                     : List.of();
             return new SessionActivity(summary, status.state(), true, Instant.now().toString(), parts, questions,
                     status.detail(), resolved.todo().capability(), resolved.todo().todos(),
-                    resolved.todo().truncated(), resolved.todo().detail());
+                    resolved.todo().truncated(), resolved.todo().detail(), usage);
         } catch (SessionFailure failure) {
             List<ActivityPart> persisted = persistedOutput(summary, resolved.persistedOutput());
             return new SessionActivity(summary, summary.state(), false, Instant.now().toString(), persisted, List.of(),
                     safe(failure.getMessage()), resolved.todo().capability(), resolved.todo().todos(),
-                    resolved.todo().truncated(), resolved.todo().detail());
+                    resolved.todo().truncated(), resolved.todo().detail(), tokenUsage.taskUsage(task.id()));
         } catch (RuntimeException failure) {
             return new SessionActivity(summary, summary.state(), false, Instant.now().toString(),
                     persistedOutput(summary, resolved.persistedOutput()), List.of(), safe(failure.getMessage()),
                     resolved.todo().capability(), resolved.todo().todos(), resolved.todo().truncated(),
-                    resolved.todo().detail());
+                    resolved.todo().detail(), tokenUsage.taskUsage(task.id()));
         }
     }
 
@@ -210,6 +218,16 @@ public class TaskSessionMonitorService {
         return value.length() <= 2_000 ? value : value.substring(0, 2_000);
     }
 
+    private boolean terminal(SessionSummary summary) {
+        try {
+            return "JUDGE".equals(summary.kind())
+                    ? JudgeRunState.valueOf(summary.state()).terminal()
+                    : SessionState.valueOf(summary.state()).terminal();
+        } catch (RuntimeException unknown) {
+            return false;
+        }
+    }
+
     public record SessionSummary(String key, String kind, String label, String localSessionId, String externalSessionId,
                                  String state, String stageId, Integer stageOrdinal, String stageObjective,
                                  String attemptId, String createdAt, String endedAt) { }
@@ -220,7 +238,7 @@ public class TaskSessionMonitorService {
     public record SessionActivity(SessionSummary session, String remoteState, boolean live, String observedAt,
                                   List<ActivityPart> parts, List<PendingQuestion> pendingQuestions, String detail,
                                   String todoCapability, List<TodoActivity> todos, boolean todoTruncated,
-                                  String todoDetail) { }
+                                  String todoDetail, ModelTokenUsageProjectionService.UsageView usage) { }
     public record TodoActivity(String id, String content, String status, String priority, int ordinal) { }
     private record TodoProjection(String capability, List<TodoActivity> todos, boolean truncated, String detail) {
         private static TodoProjection none() { return new TodoProjection(TodoCapability.UNKNOWN.name(), List.of(), false, null); }

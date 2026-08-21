@@ -283,6 +283,14 @@ Usage is idempotent per provider message. Missing provider usage/cost stays
 `null`/unknown, never zero. Only reliable usage can stop the next model call at
 a soft budget and move a Task to `WAITING_INPUT`.
 
+V40 adds the separate `model_token_usage` presentation projection. It stores one monotonic
+provider-reported total per external model Session and aggregates it across the current
+Designer or Task scope for the compact live window. It backfills completed Task remotes from
+existing reliable `session_usage` evidence, but it does not replace that per-message evidence,
+change budget enforcement, infer cost, or create lifecycle events. V40 triggers register every
+new external Session ID when its authoritative Designer/Task row is persisted, retaining the
+old ID even when a repair or finalizer later replaces the source projection.
+
 Automation triggers are `MANUAL`, `CRON`, `GIT_HEAD_CHANGED`, and loopback
 `WEBHOOK`. New rules are `DISABLED` and `REVIEW_REQUIRED`. `AUTO_START` requires
 an explicitly approved immutable template version and still passes through the
