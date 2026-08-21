@@ -10,6 +10,7 @@ public final class OpenCodeStructuredSchemas {
     public static final String DECOMPOSITION_FINAL_V1 = "DECOMPOSITION_FINAL_V1";
     public static final String PACKAGE_COMPILATION_PLAN_V2 = "PACKAGE_COMPILATION_PLAN_V2";
     public static final String PACKAGE_COMPILATION_SEMANTIC_V3 = "PACKAGE_COMPILATION_SEMANTIC_V3";
+    public static final String PACKAGE_ACCEPTANCE_BINDING_V4 = "PACKAGE_ACCEPTANCE_BINDING_V4";
     public static final String PACKAGE_COMPILATION_FINAL_V2 = "PACKAGE_COMPILATION_FINAL_V2";
     public static final String AI_SEMANTIC_PATCH_V1 = "AI_SEMANTIC_PATCH_V1";
     public static final String JUDGE_DECISION_V1 = "JUDGE_DECISION_V1";
@@ -30,6 +31,7 @@ public final class OpenCodeStructuredSchemas {
             case DECOMPOSITION_FINAL_V1 -> read(DECOMPOSITION_FINAL);
             case PACKAGE_COMPILATION_PLAN_V2 -> read(PACKAGE_COMPILATION_PLAN);
             case PACKAGE_COMPILATION_SEMANTIC_V3 -> read(PACKAGE_COMPILATION_SEMANTIC);
+            case PACKAGE_ACCEPTANCE_BINDING_V4 -> read(PACKAGE_ACCEPTANCE_BINDING);
             case PACKAGE_COMPILATION_FINAL_V2 -> read(PACKAGE_COMPILATION_FINAL);
             case AI_SEMANTIC_PATCH_V1 -> read(AI_SEMANTIC_PATCH);
             case JUDGE_DECISION_V1 -> read(JUDGE_DECISION);
@@ -107,7 +109,7 @@ public final class OpenCodeStructuredSchemas {
     private static final String COMPILER_DEFS = """
         "$defs": {
           "stringList":{"type":"array","maxItems":64,"items":{"type":"string","minLength":1,"maxLength":2048}},
-          "gap":{"type":"object","additionalProperties":false,"required":["code","detail"],"properties":{"code":{"type":"string","enum":["MISSING_OBSERVABLE_OUTCOME","MISSING_EXCEPTION_SEMANTICS","MISSING_SCOPE","MISSING_ACCEPTANCE_INTENT","LARGE_TASK_MODE_REQUIRED"]},"detail":{"type":"string","minLength":1,"maxLength":2000}}},
+          "gap":{"type":"object","additionalProperties":false,"required":["code","detail"],"properties":{"code":{"type":"string","enum":["MISSING_OBSERVABLE_OUTCOME","MISSING_EXCEPTION_SEMANTICS","MISSING_SCOPE","MISSING_ACCEPTANCE_INTENT","AMBIGUOUS_ACCEPTANCE_INTENT","VERIFICATION_CAPABILITY_UNAVAILABLE","LARGE_TASK_MODE_REQUIRED"]},"detail":{"type":"string","minLength":1,"maxLength":2000}}},
           "assertion":{"type":"object","additionalProperties":false,"required":["type","selector","value","attribute","expectedCount"],"properties":{"type":{"type":"string","minLength":1,"maxLength":64},"selector":{"type":"string","minLength":1,"maxLength":1024},"value":{"type":["string","null"],"maxLength":4000},"attribute":{"type":["string","null"],"maxLength":256},"expectedCount":{"type":["integer","null"],"minimum":0}}},
           "documentAssertion":{"type":"object","additionalProperties":false,"required":["type"],"properties":{"type":{"type":"string","enum":["HEADING_EXISTS","TEXT_EXISTS","TABLE_COUNT","LOCAL_LINKS_VALID"]},"value":{"type":["string","null"],"maxLength":2000},"expectedCount":{"type":["integer","null"],"minimum":0,"maximum":10000},"headingLevel":{"type":["integer","null"],"minimum":1,"maximum":4}}},
           "tabularAssertion":{"type":"object","additionalProperties":false,"required":["type"],"properties":{"type":{"type":"string","enum":["SHEET_EXISTS","ROW_COUNT","COLUMN_COUNT","HEADER_EQUALS","CELL_EQUALS","EQUIVALENT_TO"]},"sheet":{"type":["string","null"],"maxLength":128},"row":{"type":["integer","null"],"minimum":0,"maximum":100000},"column":{"type":["integer","null"],"minimum":0,"maximum":1000},"expectedValue":{"type":["string","null"],"maxLength":4000},"expectedCount":{"type":["integer","null"],"minimum":0,"maximum":100000},"sourcePath":{"type":["string","null"],"maxLength":512}}},
@@ -163,6 +165,32 @@ public final class OpenCodeStructuredSchemas {
           }
         }
         """;
+
+    private static final String PACKAGE_ACCEPTANCE_BINDING = """
+        {
+          "$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","additionalProperties":false,
+          "required":["outcome","summary","groupHints","capabilityPreferences","handoffSummary","designGaps"],
+          "properties":{
+            "outcome":{"type":"string","enum":["COMPILED","DESIGN_INCOMPLETE"]},
+            "summary":{"type":["string","null"],"maxLength":1000},
+            "groupHints":{"type":"array","maxItems":6,"items":{"type":"object","additionalProperties":false,
+              "required":["title","objective","factIndexes","dependsOnHintIndexes"],"properties":{
+                "title":{"type":"string","minLength":1,"maxLength":200},
+                "objective":{"type":"string","minLength":1,"maxLength":2000},
+                "factIndexes":{"type":"array","maxItems":128,"items":{"type":"integer","minimum":0,"maximum":127}},
+                "dependsOnHintIndexes":{"type":"array","maxItems":5,"items":{"type":"integer","minimum":0,"maximum":5}}
+              }}},
+            "capabilityPreferences":{"type":"array","maxItems":128,"items":{"type":"object","additionalProperties":false,
+              "required":["factIndex","capabilityIndexes"],"properties":{
+                "factIndex":{"type":"integer","minimum":0,"maximum":127},
+                "capabilityIndexes":{"type":"array","maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}
+              }}},
+            "handoffSummary":{"type":["string","null"],"maxLength":4096},
+            "designGaps":{"type":"array","maxItems":32,"items":{"$ref":"#/$defs/gap"}}
+          },
+          %s
+        }
+        """.formatted(COMPILER_DEFS);
 
     private static final String AI_SEMANTIC_PATCH = """
         {

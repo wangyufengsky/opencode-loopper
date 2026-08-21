@@ -812,7 +812,7 @@ describe('Designer draft composer', () => {
       workPackages: [{ id: 'WP-1', ordinal: 0, title: '查询能力', objective: '交付查询结果',
         dependencies: [], state: 'REVIEWING', redesignCount: 0, compilerRepairCount: 0,
         compilerPlanningRepairCount: 0, designRevision: 3, discussionRoundCount: 1,
-        rolePackId: 'software-python', rolePackVersion: '2026-08-dynamic-v3',
+        rolePackId: 'software-python', rolePackVersion: '2026-08-dynamic-v4',
         testPolicy: 'OPTIONAL', executionStrategy: 'OPEN_CODE_IMPLEMENTATION', technologies: ['python'] }],
       candidate: { syncState: 'SYNCED', discussionRevision: 2, workPackageId: 'WP-1', detail: '当前候选有效' },
     }
@@ -842,6 +842,41 @@ describe('Designer draft composer', () => {
     await flushPromises()
     expect(approve).toHaveBeenCalledWith(packageSession.id, 'WP-1', 2, 3)
     wrapper.unmount()
+  })
+
+  it('shows acceptance intent coverage without exposing internal fact or capability ids', async () => {
+    const acceptanceSession: DesignerSession = {
+      ...session, state: 'RUNNING', workflowPhase: 'COMPILING', activeActor: 'COMPILER',
+      requirementRevision: 1, activeWorkPackageId: 'WP-1', discussionScope: 'WP-1', finalConfirmationEligible: false,
+      workPackages: [{ id: 'WP-1', ordinal: 0, title: 'PIN 转换', objective: '交付 PIN 转换行为',
+        dependencies: [], state: 'COMPILING', redesignCount: 0, compilerRepairCount: 0,
+        compilerPlanningRepairCount: 0, designRevision: 1, discussionRoundCount: 0,
+        acceptancePlanning: { state: 'EXTRACTED', factCount: 7, scenarioCount: 4, automatedCount: 3,
+          bothCount: 0, judgeCount: 0, unresolvedCount: 1,
+          scenarios: [
+            { title: 'pinBlock 路径缺失', coverage: 'AUTOMATED', capabilities: ['MAVEN · PinTransTest'] },
+            { title: '特殊渠道类型', coverage: 'UNRESOLVED', capabilities: [] },
+          ], issues: ['VERIFICATION_CAPABILITY_UNAVAILABLE:[6]'] } }],
+    }
+    vi.spyOn(api, 'createDraft').mockImplementation(async (spec) => draftFrom(spec))
+    vi.spyOn(api, 'createDesignerSession').mockResolvedValue(acceptanceSession)
+    vi.spyOn(api, 'getDesignerSession').mockResolvedValue(acceptanceSession)
+    const wrapper = mountDesigner()
+    await flushPromises()
+
+    await wrapper.get('textarea[aria-label="草案设计目标"]').setValue('设计 PIN 转换')
+    await wrapper.get('.create-draft-button').trigger('click')
+    await flushPromises()
+
+    const card = wrapper.get('[aria-label="验收意图识别"]')
+    expect(card.text()).toContain('4 个场景 · 7 项设计事实')
+    expect(card.text()).toContain('机器 3')
+    expect(card.text()).toContain('待覆盖 1')
+    expect(card.text()).toContain('pinBlock 路径缺失')
+    expect(card.text()).toContain('MAVEN · PinTransTest')
+    expect(card.text()).toContain('部分验收场景缺少可执行的验证能力')
+    expect(card.text()).not.toContain('VERIFICATION_CAPABILITY_UNAVAILABLE')
+    expect(card.text()).not.toContain('[6]')
   })
 
   it('replaces the right-side LoopSpec when the completed Designer session returns its bound draft', async () => {

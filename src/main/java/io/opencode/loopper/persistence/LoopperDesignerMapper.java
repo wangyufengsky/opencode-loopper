@@ -390,6 +390,28 @@ public interface LoopperDesignerMapper {
               #{semanticRepairCount},#{serverCompiled})
             """)
     int insertLoopSpecCompilation(LoopSpecCompilationRow row);
+
+    @Insert("""
+            INSERT INTO design_acceptance_planning(compilation_id,designer_session_id,work_package_id,
+              design_revision,contract_version,design_sha256,state,facts_json,capabilities_json,
+              binding_json,diagnostics_json,error_code,error_detail,created_at,updated_at,version)
+            VALUES(#{compilationId},#{designerSessionId},#{workPackageId},#{designRevision},#{contractVersion},
+              #{designSha256},#{state},#{factsJson},#{capabilitiesJson},#{bindingJson},#{diagnosticsJson},
+              #{errorCode},#{errorDetail},#{createdAt},#{updatedAt},#{version})
+            """)
+    int insertDesignAcceptancePlanning(DesignAcceptancePlanningRow row);
+
+    @Select("SELECT * FROM design_acceptance_planning WHERE compilation_id=#{compilationId}")
+    Optional<DesignAcceptancePlanningRow> findDesignAcceptancePlanning(String compilationId);
+
+    @Update("""
+            UPDATE design_acceptance_planning SET state=#{state},binding_json=#{bindingJson},
+              diagnostics_json=#{diagnosticsJson},error_code=#{errorCode},error_detail=#{errorDetail},
+              updated_at=#{updatedAt},version=version+1
+            WHERE compilation_id=#{compilationId} AND version=#{version}
+            """)
+    int updateDesignAcceptancePlanning(DesignAcceptancePlanningRow row);
+
     @Select("SELECT * FROM loop_spec_compilation WHERE id=#{id}")
     Optional<LoopSpecCompilationRow> findLoopSpecCompilation(String id);
     @Select("SELECT * FROM loop_spec_compilation WHERE designer_session_id=#{sessionId} ORDER BY created_at DESC LIMIT 1")

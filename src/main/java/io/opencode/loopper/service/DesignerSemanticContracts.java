@@ -122,7 +122,34 @@ final class DesignerSemanticContracts {
 
     public enum DesignGapCode {
         MISSING_OBSERVABLE_OUTCOME, MISSING_EXCEPTION_SEMANTICS, MISSING_SCOPE, MISSING_ACCEPTANCE_INTENT,
-        LARGE_TASK_MODE_REQUIRED
+        AMBIGUOUS_ACCEPTANCE_INTENT, VERIFICATION_CAPABILITY_UNAVAILABLE, LARGE_TASK_MODE_REQUIRED
+    }
+
+    public record AcceptanceGroupHint(String title, String objective, List<Integer> factIndexes,
+                                      List<Integer> dependsOnHintIndexes) {
+        public AcceptanceGroupHint {
+            factIndexes = factIndexes == null ? List.of() : List.copyOf(factIndexes);
+            dependsOnHintIndexes = dependsOnHintIndexes == null ? List.of() : List.copyOf(dependsOnHintIndexes);
+        }
+    }
+
+    public record AcceptanceCapabilityPreference(int factIndex, List<Integer> capabilityIndexes) {
+        public AcceptanceCapabilityPreference {
+            capabilityIndexes = capabilityIndexes == null ? List.of() : List.copyOf(capabilityIndexes);
+        }
+    }
+
+    /** V4 Compiler output: advisory grouping and preference only; the server owns all executable fields. */
+    public record CompactAcceptanceBindingPlan(String outcome, String summary,
+                                               List<AcceptanceGroupHint> groupHints,
+                                               List<AcceptanceCapabilityPreference> capabilityPreferences,
+                                               String handoffSummary, List<DesignGap> designGaps) {
+        public CompactAcceptanceBindingPlan normalized() {
+            return new CompactAcceptanceBindingPlan(outcome == null ? null : outcome.trim().toUpperCase(), summary,
+                    groupHints == null ? List.of() : List.copyOf(groupHints),
+                    capabilityPreferences == null ? List.of() : List.copyOf(capabilityPreferences),
+                    handoffSummary, designGaps == null ? List.of() : List.copyOf(designGaps));
+        }
     }
 
     public record CompilationEnvelope(String status, String summary, LoopSpec loopSpec,

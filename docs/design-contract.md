@@ -211,7 +211,7 @@ the task rail displays the frozen Role Pack and test policy used by implementati
 Historical or interrupted rows whose execution strategy or test policy is still null are
 treated as an incomplete snapshot: the read-only rail remains available without enum
 conversion errors, and the next authoritative package-role use refreezes all required fields.
-Role Pack version `2026-08-dynamic-v3` first normalizes aliases into Java, Python, Node,
+Role Pack version `2026-08-dynamic-v4` first normalizes aliases into Java, Python, Node,
 and Other families. JavaScript/TypeScript cannot trigger Java, multiple labels from the
 same family remain one stack, real cross-family work selects the mixed pack, and an explicit
 unknown single stack selects the generic software pack. Each Compiler-capable pack receives
@@ -315,6 +315,23 @@ single confirmed Task executes package Stages in dependency order, current
 absence of such a deliverable is not `MISSING_SCOPE` and must not trigger a
 redesign. A semantic gap remains valid only when the required contract is absent
 from both the current frozen design and the predecessor contract/handoff.
+
+New software designs use fixed controlled Markdown sections: target/scope,
+impact/delivery, acceptance scenarios, optional human review, acceptance constraints,
+and stage dependencies. The acceptance table records scenario, precondition/trigger,
+action, observable result, and invariant. Designer must not emit internal WP/AC/DS-L
+ids, LoopSpec JSON, or executable argv; it names repository-native test classes or
+targets and independence constraints, while the server creates safe capabilities.
+This is a DMN-inspired decision-table input, not a second DMN runtime: rows stay readable
+to the designer, lower directly to EARS criteria, and can be reviewed as
+Given/When/Then/And scenarios without maintaining three competing sources of truth.
+
+Before Compiler binding, the server persists immutable DesignFact and capability
+snapshots. The UI renders an **验收意图识别** card with fact/scenario totals and
+machine, machine+human, human-only, and unresolved counts. Expanded rows show only
+human-readable scenario/capability names and Chinese issues—never internal indexes,
+protocol enums, or raw JSON. Unresolved items remain blocking at the server Review
+Gate; the client cannot infer confirmation eligibility from this card.
 
 Decomposer and package Compiler use one persisted compact semantic turn per
 candidate. Decomposer returns business packages and RQ coverage by index;

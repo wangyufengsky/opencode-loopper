@@ -146,6 +146,19 @@ function workPackageLabel(packageId?: string) {
   const index = designerSession.value?.workPackages?.findIndex(item => item.id === packageId) ?? -1
   return index >= 0 ? `工作包 ${index + 1}` : '工作包'
 }
+function acceptanceCoverageLabel(value: string) {
+  return ({ AUTOMATED: '机器验收', BOTH: '机器 + 人工', JUDGE: '人工评审', UNRESOLVED: '尚未覆盖' } as Record<string, string>)[value] ?? '尚未覆盖'
+}
+function acceptanceIssueLabel(value: string) {
+  if (value === 'LEGACY_MARKDOWN_FALLBACK') return '设计稿未使用受控验收表格，当前使用兼容识别'
+  if (value.startsWith('VERIFICATION_CAPABILITY_UNAVAILABLE')) return '部分验收场景缺少可执行的验证能力'
+  if (value === 'REQUIRED_FOCUSED_TEST_UNAVAILABLE') return '尚未识别到必需的聚焦测试目标'
+  if (value === 'MISSING_ACCEPTANCE_INTENT') return '设计稿缺少可观察的验收场景'
+  if (value === 'AMBIGUOUS_ACCEPTANCE_INTENT') return '部分验收意图仍有歧义，需要补充设计'
+  if (value.startsWith('ACCEPTANCE_BINDING_')) return '验收意图分组未通过确定性校验'
+  if (value.startsWith('DESIGN_ACCEPTANCE_')) return '验收意图快照未通过确定性校验'
+  return userFacingError(value)
+}
 const isFinalReview = computed(() => ['FINAL_REVIEW', 'COMPLETED'].includes(
   designerSession.value?.workflowPhase ?? '',
 ))
@@ -174,6 +187,8 @@ const designerSteps = computed(() => {
   return ['需求讨论', '工作包设计', '总体确认', '创建任务']
 })
 const currentPackage = computed(() => designerSession.value?.workPackages?.find((item) => item.id === designerSession.value?.activeWorkPackageId))
+const acceptancePackage = computed(() => designerSession.value?.workPackages?.find((item) =>
+  item.id === (selectedWorkPackageId.value || designerSession.value?.activeWorkPackageId)) ?? currentPackage.value)
 const currentReport = computed(() => designerSession.value?.reports?.[0])
 watch(() => `${designerSession.value?.id ?? ''}:${currentReport.value?.id ?? ''}`, async () => {
   if (!designerSession.value?.id || !currentReport.value?.id || store.usingDemo) { reportDetail.value = undefined; return }
@@ -1270,6 +1285,22 @@ async function redesignPackage(packageId: string) {
           <header><div><strong>需求快照 · 讨论第 {{ designerSession.requirementSnapshot.discussionRevision }} 版</strong><span>{{ formatDateTime(designerSession.requirementSnapshot.updatedAt) }}</span></div><b>{{ designerSession.requirementSnapshot.source === 'SERVER_ASSEMBLED' ? '服务端原样生成' : '历史 AI 生成' }}</b></header>
           <details open><summary>查看完整需求快照</summary><MarkdownDocument :content="designerSession.requirementSnapshot.markdown" /></details>
         </section>
+        <section v-if="acceptancePackage?.acceptancePlanning" class="task-profile-card acceptance-intent-card" aria-label="验收意图识别">
+          <header>
+            <div><strong>验收意图识别 · {{ workPackageLabel(acceptancePackage.id) }}</strong><span>{{ acceptancePackage.acceptancePlanning.scenarioCount }} 个场景 · {{ acceptancePackage.acceptancePlanning.factCount }} 项设计事实</span></div>
+            <b :class="{ warning: acceptancePackage.acceptancePlanning.unresolvedCount > 0 || acceptancePackage.acceptancePlanning.state === 'FAILED' }">{{ acceptancePackage.acceptancePlanning.unresolvedCount > 0 ? `${acceptancePackage.acceptancePlanning.unresolvedCount} 项待覆盖` : acceptancePackage.acceptancePlanning.state === 'COMPILED' ? '已确定性编译' : '识别中' }}</b>
+          </header>
+          <div class="acceptance-intent-counts">
+            <span>机器 {{ acceptancePackage.acceptancePlanning.automatedCount }}</span>
+            <span>双重 {{ acceptancePackage.acceptancePlanning.bothCount }}</span>
+            <span>人工 {{ acceptancePackage.acceptancePlanning.judgeCount }}</span>
+            <span :class="{ warning: acceptancePackage.acceptancePlanning.unresolvedCount > 0 }">待覆盖 {{ acceptancePackage.acceptancePlanning.unresolvedCount }}</span>
+          </div>
+          <details><summary>查看场景与验收方式</summary>
+            <ul class="acceptance-intent-list"><li v-for="scenario in acceptancePackage.acceptancePlanning.scenarios" :key="scenario.title"><span><strong>{{ scenario.title }}</strong><small v-if="scenario.capabilities.length">{{ scenario.capabilities.join('、') }}</small></span><b :class="{ warning: scenario.coverage === 'UNRESOLVED' }">{{ acceptanceCoverageLabel(scenario.coverage) }}</b></li></ul>
+          </details>
+          <p v-for="issue in acceptancePackage.acceptancePlanning.issues" :key="issue" class="acceptance-intent-issue">{{ acceptanceIssueLabel(issue) }}</p>
+        </section>
         <section v-if="currentReport" class="task-profile-card report-card">
           <header><div><strong>独立评审报告</strong><span>{{ currentReport.title }}</span></div><b :class="{ warning: currentReport.stale }">{{ currentReport.stale ? '证据已过期' : '证据有效' }}</b></header>
           <div v-if="reportDetail?.evidence.length" class="profile-evidence"><span v-for="item in reportDetail.evidence" :key="`${item.path}:${item.line}`">{{ item.path }}:{{ item.line }} · {{ item.stale ? '已过期' : '有效' }}</span></div>
@@ -1562,6 +1593,15 @@ async function redesignPackage(packageId: string) {
 .designer-auto-switch { display: flex; align-items: center; gap: 8px; padding-right: 8px; border-right: 1px solid var(--color-border-default); }.designer-auto-switch > span { display: grid; text-align: right; }.designer-auto-switch strong { color: var(--color-text-primary); font-size: 9px; }.designer-auto-switch small { color: var(--color-text-muted); font: 7px/1.2 var(--font-code); }
 .task-profile-card { display: grid; gap: 8px; margin: 0 20px 10px; padding: 12px; border: 1px solid rgb(34 211 238 / 24%); border-radius: 10px; background: rgb(34 211 238 / 5%); }
 .task-profile-card header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }.task-profile-card header > div { display: grid; gap: 3px; }.task-profile-card strong { color: var(--color-text-primary); font-size: 11px; }.task-profile-card header span, .task-profile-card p { margin: 0; color: var(--color-text-secondary); font: 8px/1.5 var(--font-code); }.task-profile-card b { color: var(--color-success); font: 8px/1 var(--font-code); }.task-profile-card b.warning { color: var(--color-session-warning); }
+.acceptance-intent-counts { display: flex; flex-wrap: wrap; gap: 6px; }
+.acceptance-intent-counts span { padding: 4px 7px; border: 1px solid rgb(34 211 238 / 18%); border-radius: 999px; color: var(--color-text-secondary); font: 8px/1 var(--font-code); }
+.acceptance-intent-counts span.warning { border-color: rgb(251 191 36 / 30%); color: var(--color-session-warning); }
+.acceptance-intent-card details { color: var(--color-text-secondary); font-size: 9px; }
+.acceptance-intent-list { display: grid; gap: 5px; margin: 8px 0 0; padding: 0; list-style: none; }
+.acceptance-intent-list li { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 6px 0; border-top: 1px solid rgb(148 163 184 / 12%); }
+.acceptance-intent-list li span { display: grid; gap: 2px; }
+.acceptance-intent-list li small { color: var(--color-text-muted); font: 8px/1.4 var(--font-code); }
+.acceptance-intent-issue { color: var(--color-session-warning) !important; }
 .profile-change-summary { display: grid; gap: 4px; padding: 8px; border-radius: 7px; background: rgb(245 158 11 / 8%); color: var(--color-text-secondary); font: 8px/1.5 var(--font-code); }
 .requirement-snapshot-card { border-color: rgb(99 102 241 / 28%); background: rgb(99 102 241 / 6%); }.requirement-snapshot-card details { min-width: 0; }.requirement-snapshot-card summary { cursor: pointer; color: var(--color-text-secondary); font: 9px/1.5 var(--font-code); }
 .profile-actions, .profile-edit-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }.profile-edit-actions { grid-column: 1 / -1; }.profile-evidence { display: flex; flex-wrap: wrap; gap: 5px; }.profile-evidence span { padding: 3px 6px; border: 1px solid var(--color-border-default); border-radius: 999px; color: var(--color-text-muted); font: 7px/1 var(--font-code); }.profile-override { display: grid; grid-template-columns: 1fr 1fr minmax(180px, auto); gap: 8px; }.large-task-switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; padding: 6px 10px; border: 1px solid var(--color-border-default); border-radius: 6px; }.large-task-switch span { display: grid; gap: 2px; min-width: 0; }.large-task-switch strong { font-size: 10px; }.large-task-switch small { color: var(--color-text-muted); font: 7px/1.2 var(--font-code); }.report-card { border-color: rgb(34 197 94 / 28%); background: rgb(34 197 94 / 5%); }

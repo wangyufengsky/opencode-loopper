@@ -170,6 +170,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
         return profile == SessionProfile.DECOMPOSER_READ_ONLY
                 || profile == SessionProfile.ROUTER_NO_TOOLS
                 || profile == SessionProfile.COMPILER_READ_ONLY
+                || profile == SessionProfile.COMPILER_BINDING_NO_TOOLS
                 || profile == SessionProfile.COMPILER_REPAIR_NO_TOOLS
                 || profile == SessionProfile.REVIEWER_READ_ONLY
                 || profile == SessionProfile.JUDGE_READ_ONLY

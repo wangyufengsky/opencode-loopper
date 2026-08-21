@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.2.8`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.2.9`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -35,7 +35,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 - **可讨论的只读多角色设计**：普通软件任务只在需求讨论时由设计师用 1–3 个选择题澄清；回答后服务端把原始需求、后续补充和最终回答按时间原样组装为 24 KiB 内的权威需求快照，忽略 AI 自由正文，WP-1 初稿、反馈修订和重新设计都直接输出完整替代设计而不再提问。大型任务仍保留 AI 完整需求预设计和逐包提问/接受。需求快照作为独立只读卡片展示，其审计来源消息不重复进入“系统消息”折叠条。任务规划师与规范工程师只输出紧凑的业务规划与证据意图，服务端生成状态、ID、引用、精确摘录、测试元数据和最终 LoopSpec 对象；原始机器 JSON 不进入聊天。确定性校验和人工确认完成前不写业务源码、不创建任务。
 - **动态任务画像与专属流程**：需求分析师先给出语义标签，服务端再与有界仓库事实合并并决定流程、权限、执行与测试策略。页面统一称为“任务设置”，默认只展示识别结果；首次歧义使用“确认并继续 / 修改设置”，重算发生变化时展示“原设置 / 本次识别结果”以及“继续使用原设置 / 使用本次识别结果 / 修改设置”，不再用“采用新画像”表达普通确认。编辑控件只在主动修改后出现，已确认且完全相同的保存是服务端无操作；保存前先只读预览影响，只有流程切换时才显示“停止当前设计并重新开始”的明确确认，取消不会废弃当前 Session。画像仍按 `ROUTING / NEEDS_CONFIRMATION / CONFIRMED / FROZEN` 对外投影，所有设计入口统一依赖服务端 `confirmationReady`；完整需求触发重算时页面留在当前设计并持续刷新，等价的人工选择会安全继承。Router 请求与监控器只允许一个启动方；画像换流程只有在旧远端 Session 确认停止后才创建新 Session。每次 Router 运行和完整需求快照都持久化，重启后继续轮询。低于 80 分或证据冲突时不能自动继承；已明确授权的全自动模式仍不能绕过安全冲突。REST/SQLite 保留稳定英文枚举码；确认后画像冻结并随 Recovery 复用。软件工作包分别冻结 Java/Python/Node/混合栈 Role Pack，Task 创建时再把 Role Pack、技术栈和测试策略复制到每个 Stage。
 - **实时活动与可终止设计会话**：Designer 页面在消息列表现有的“当前角色正在处理”卡片中，每 1.2 秒用 Markdown 样式替换展示一条最新活动，不单独放置顶部面板，也不保留活动历史。卡片内的纯数字窗口按服务端权威投影累计当前设计全部模型 Session 的 Token，正增量短暂显示 `+xxx`，不显示额度、成本或说明文案。设计师可显示最新文字、思考和普通/MCP 工具调用；任务规划师、规范工程师等结构化角色只显示最新工具活动和权威步骤，不显示原始规划 JSON。“清理并重新开始”先进入 `STOPPING`，停止该设计下全部远端角色 Session，全部成功后才进入 `CANCELLED` 并归档，失败时保留工作区供重试。确认设计并获得 Task 后会清除当前设计工作区并直接打开任务详情，再点左侧“设计”从新建页开始。
-- **Role Pack v3 与可恢复 Compiler**：技术标签先归并为 Java、Python、Node 和 Other 软件族，JavaScript 不再误判为 Java，同族别名不再误判为混合栈，未知单栈使用通用软件包。每个可编译 Role Pack 使用自己的测试框架和规划示例；文档、表格、只读报告明确绕过软件 Compiler。Compiler 新输出默认按紧凑 `outcome` 合同解析，只有明确历史信封才使用旧 `status` 合同；格式/语义修复均在全新禁用内置工具的 Session 中完成，项目已配置 MCP 仍可用，语义修复使用独立 JSON Patch Schema，错误响应不会覆盖最后一个有效规划快照。补丁中的最终 DTO 路径 `verifiers` 可唯一反推时规范化为紧凑 `evidence`，缺失对象字段上的 `replace` 规范化为 `add`，两者仍需重跑完整校验；每个 Java 生产 Stage 都必须保留聚焦测试，FULL_TEST/BUILD 不能替代。
+- **Role Pack v4 与确定性验收编译**：技术标签先归并为 Java、Python、Node 和 Other 软件族。新软件设计按固定 Markdown 决策表描述范围、交付、EARS/Gherkin 验收场景、约束和依赖；服务端用 CommonMark AST 冻结精确 DesignFact 与验证能力，只让无内置工具的 Compiler 返回事实分组和能力索引。随后以有界精确集合覆盖选择最少且最强的确定性证据，超限时确定性降级，最后由服务端生成命令、路径、测试目标、验收 ID 和 LoopSpec v2。Java/Node/Python/混合栈测试目标都由冻结 Role Pack 派生；无法覆盖的场景继续阻断 Review Gate。v3 历史规划和 JSON Patch 修复只用于旧活动记录。
 - **可选的 Designer 全自动模式**：新建设计和进行中会话均可单独授权，默认关闭。开启后自动采用需求分析师识别的任务设置、选择推荐答案、确认整体需求、接受已通过确定性校验的工作包、确认最终设计并请求启动任务；识别结果不能绕过删除、服务操作或外部写入等安全边界。执行期问题、危险权限、异常恢复、结果确认、提交、推送和发布仍保持人工边界。其他阻断在重新授权时仍会再次确认风险，状态按会话持久化并可在重启后继续。
 - **项目公约**：只读分析项目并生成或更新根目录 `AGENTS.md`，展示完整预览后才写入；Loopper 管理区块以外的人工内容会被保留。
 - **分阶段执行循环**：按依赖顺序执行 Stage，每个阶段都携带目标、交付物、路径约束和可立即运行的验收规则。
@@ -128,7 +128,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.2.8.jar
+java -jar target/opencode-loopper-0.2.9.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -354,7 +354,7 @@ Git 任务的最新 Execution Cycle 成功并处于 `AWAITING_DECISION` 或用�
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.2.8.jar`
+- `target/opencode-loopper-0.2.9.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -385,7 +385,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:51234
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.2.8.jar`
+- `opencode-loopper-0.2.9.jar`
 - `start-windows.bat`
 
 确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
@@ -423,7 +423,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.2.8.jar \
+jar tf target/opencode-loopper-0.2.9.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -505,7 +505,7 @@ Windows PowerShell：
 例如发布下一版本：
 
 ```bash
-VERSION=0.2.8
+VERSION=0.2.9
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -545,7 +545,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.2.8.jar
+java -jar target/opencode-loopper-0.2.9.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。

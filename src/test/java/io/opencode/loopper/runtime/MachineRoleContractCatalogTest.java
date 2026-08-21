@@ -13,10 +13,12 @@ class MachineRoleContractCatalogTest {
         assertThat(MachineRoleContractCatalog.card("DECOMPOSER"))
                 .contains(MachineRoleContractCatalog.CONTRACT_VERSION, "Do not assign ids");
         assertThat(MachineRoleContractCatalog.card("COMPILER"))
-                .contains("DS-L", "testTargets", "engineering metadata");
+                .contains("DesignFacts", "verification capabilities", "Do not invent commands");
         assertThat(OpenCodeStructuredSchemas.schema(OpenCodeStructuredSchemas.DECOMPOSITION_SEMANTIC_V2))
                 .containsEntry("type", "object");
         assertThat(OpenCodeStructuredSchemas.schema(OpenCodeStructuredSchemas.PACKAGE_COMPILATION_SEMANTIC_V3))
+                .containsEntry("type", "object");
+        assertThat(OpenCodeStructuredSchemas.schema(OpenCodeStructuredSchemas.PACKAGE_ACCEPTANCE_BINDING_V4))
                 .containsEntry("type", "object");
         assertThat(Files.readString(Path.of("docs/ai-role-contracts.md")))
                 .contains(MachineRoleContractCatalog.CONTRACT_VERSION,
@@ -37,5 +39,17 @@ class MachineRoleContractCatalogTest {
         Map<String, Object> patchProperties = (Map<String, Object>) patch.get("properties");
         Map<String, Object> patches = (Map<String, Object>) patchProperties.get("patches");
         assertThat(patches).containsEntry("minItems", 1).containsEntry("maxItems", 16);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void acceptanceBindingSchemaCarriesOnlyIndexesAndAdvisoryGroups() {
+        Map<String, Object> binding = OpenCodeStructuredSchemas.schema(
+                OpenCodeStructuredSchemas.PACKAGE_ACCEPTANCE_BINDING_V4);
+        Map<String, Object> properties = (Map<String, Object>) binding.get("properties");
+        assertThat(properties).containsKeys("outcome", "groupHints", "capabilityPreferences", "designGaps")
+                .doesNotContainKeys("stages", "commands", "verifiers", "sourceRefs");
+        Map<String, Object> groups = (Map<String, Object>) properties.get("groupHints");
+        assertThat(groups).containsEntry("maxItems", 6);
     }
 }

@@ -31,18 +31,16 @@ final class DesignerPackagePromptFactory {
         String turnContract = directSoftware ? """
                 DIRECT SINGLE-PACKAGE CONTRACT: do not call the question tool and do not ask the user anything.
                 Produce one complete replacement Simplified-Chinese Markdown design no larger than 24 KiB UTF-8.
-                Never return a patch. Preserve all still-valid facts and feedback. Cover scope and non-scope,
-                observable results, exception semantics, affected files/modules, 1-6 dependency-ordered stages,
-                delivery details, and acceptance intent. If the complete design cannot fit safely in 1-6 stages,
+                Never return a patch. Preserve all still-valid facts and feedback. Use exactly the controlled
+                Markdown sections and tables defined below. If the complete design cannot fit safely in 1-6 stages,
                 state that limitation explicitly so the Compiler can return LARGE_TASK_MODE_REQUIRED.
                 """ : """
                 MANDATORY TURN ORDER: before writing any design Markdown, call the question tool exactly once with
                 1-3 concise design questions. Each question has 2-3 mutually exclusive choices; put the recommended
                 choice first and suffix its label with “(Recommended)”. Wait for the answers in this same model call.
                 Only then produce one complete replacement Simplified-Chinese Markdown design no larger than 24 KiB
-                UTF-8. Never return a patch and never discard prior accepted facts or this round's answers. Cover scope
-                and non-scope, observable results, exception semantics, affected files/modules, 1-3 dependency-ordered
-                stages, delivery details, and acceptance intent.
+                UTF-8. Never return a patch and never discard prior accepted facts or this round's answers. Use
+                exactly the controlled Markdown sections and tables defined below.
                 """;
         return """
                 You are OpenCode Loopper Designer / 设计师 for exactly one work package in its persistent strictly
@@ -79,6 +77,26 @@ final class DesignerPackagePromptFactory {
                 prerequisite deliverable in the baseline repository.
 
                 %s
+
+                CONTROLLED MARKDOWN CONTRACT (section names and table columns are exact):
+                ## 目标与范围
+                State the business goal, in-scope behavior, and explicit non-scope in prose.
+                ## 影响与交付
+                | 类型 | 相对路径或符号 | 说明 |
+                ## 验收场景
+                | 场景 | 前置/触发 | 操作 | 可观察结果 | 保持不变 |
+                Write one row per normal, exception, or boundary path. Use EARS semantics: condition/trigger,
+                action, observable result, and invariant. This table is the authoritative acceptance intent.
+                ## 人工评审项
+                | 评审项 | 判断标准 | 仅人工原因 |
+                Include this optional section only for genuinely subjective outcomes.
+                ## 验收约束
+                State repository-native test classes or test targets that must pass independently, forbidden
+                external dependencies, and test-isolation constraints. Do not write shell commands or argv.
+                ## 阶段与依赖
+                | 阶段建议 | 包含场景/交付 | 前置阶段 |
+                Use 1-6 rows in direct mode or 1-3 rows in package mode. Keep stages vertical and dependency ordered.
+                Never emit DS-L references, WP/AC ids, JSON, LoopSpec fields, or executable command arrays.
 
                 When the current Role Pack requires a focused repository-native test, keep it in the same stage as
                 the production behavior it proves. Tests are evidence for business behavior, not a meta acceptance

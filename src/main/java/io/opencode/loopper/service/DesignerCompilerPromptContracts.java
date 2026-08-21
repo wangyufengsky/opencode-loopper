@@ -6,6 +6,38 @@ import io.opencode.loopper.runtime.MachineRoleContractCatalog;
 final class DesignerCompilerPromptContracts {
     private DesignerCompilerPromptContracts() { }
 
+    static String acceptanceBinding(String packageId, String factsJson, String capabilitiesJson,
+                                    int stageLimit, String priorError) {
+        return """
+                %s
+                You receive a frozen DesignFact catalog and a closed verification-capability catalog. Return only
+                advisory grouping and capability preferences. The server owns EARS criterion text, exact source
+                excerpts and hashes, commands, paths, test targets, verifier objects, acceptance ids, workPackageId,
+                dependency validation, set-cover optimization, and final LoopSpec v2 lowering.
+                - COMPILED uses 1-%d groupHints. factIndexes and capabilityIndexes must reference only the supplied
+                  catalogs. Every acceptance fact should appear in one group. dependsOnHintIndexes may reference only
+                  an earlier group. Preferences are soft; omit them when uncertain.
+                - DESIGN_INCOMPLETE is allowed only for a real semantic ambiguity or closed capability gap and must
+                  use MISSING_OBSERVABLE_OUTCOME, MISSING_EXCEPTION_SEMANTICS, MISSING_SCOPE,
+                  MISSING_ACCEPTANCE_INTENT, AMBIGUOUS_ACCEPTANCE_INTENT,
+                  VERIFICATION_CAPABILITY_UNAVAILABLE, or LARGE_TASK_MODE_REQUIRED.
+                - Never invent a verifier, test command, source reference, path, id, or fact.
+                - Built-in repository tools are disabled in this binding session. Configured MCP tools remain available
+                  under the existing permission policy; do not read the repository again; return the complete object immediately.
+                In TEXT_MARKER compatibility mode, put the same complete object between
+                LOOPSPEC_COMPILATION_PLAN_JSON_START and LOOPSPEC_COMPILATION_PLAN_JSON_END markers.
+                %s
+
+                Frozen package: %s
+                Frozen DesignFacts:
+                %s
+                Frozen verification capabilities:
+                %s
+                """.formatted(MachineRoleContractCatalog.card("COMPILER"), stageLimit,
+                priorError == null || priorError.isBlank() ? "" : "Repair the complete binding after: " + priorError,
+                packageId, factsJson, capabilitiesJson);
+    }
+
     static String planning(String packageId, WorkPackageRoleService.View profile,
                            RolePromptComposer rolePrompts) {
         String example = rolePrompts.compilerPlanningExample(profile.rolePackId());

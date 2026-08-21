@@ -139,7 +139,7 @@ without an OpenCode Session. Large documents require 2–6 level-two sections; t
 structured blocks are kept in source order and deterministically aggregated into one
 frozen plan. Every decomposed software package freezes its own detected technology list,
 Role Pack version, execution strategy and test policy before its Designer/Compiler prompt.
-Role Pack `2026-08-dynamic-v3` groups normalized technology aliases into Java, Python,
+Role Pack `2026-08-dynamic-v4` groups normalized technology aliases into Java, Python,
 Node and Other software families. Node matching precedes Java so JavaScript is not Java;
 same-family aliases do not create a mixed pack, real cross-family work does, and explicit
 unknown single stacks use `software-generic` instead of inheriting Java/Maven. Document,
@@ -475,6 +475,12 @@ Session from the aggregate. Active activity parsing reuses the existing message 
 reconciled per browser poll. This aggregate powers only the compact numeric window and cannot
 advance lifecycle state, fabricate missing usage, enforce a budget, or rewrite the authoritative
 per-message `session_usage` evidence.
+
+V41 adds one `design_acceptance_planning` row per work-package compilation. It freezes the
+controlled-Markdown design hash, DesignFact catalog and closed verification-capability catalog;
+those identity fields are immutable. AI binding, solver diagnostics and failure detail are
+versioned updates. New v4 rows resume from this snapshot, while compilations without a row remain
+on the historical v3 parser/repair path. The UI reads only a bounded human-facing projection.
 
 Machine-response roles carry an explicit non-thinking model selection only for
 steps whose persisted response mode is `JSON_SCHEMA`. Managed DeepSeek starts

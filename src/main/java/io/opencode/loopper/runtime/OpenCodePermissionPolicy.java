@@ -70,6 +70,7 @@ final class OpenCodePermissionPolicy {
 
     private static boolean isNoTools(OpenCodeClient.SessionProfile profile) {
         return profile == OpenCodeClient.SessionProfile.MACHINE_FINALIZER_NO_TOOLS
+                || profile == OpenCodeClient.SessionProfile.COMPILER_BINDING_NO_TOOLS
                 || profile == OpenCodeClient.SessionProfile.COMPILER_REPAIR_NO_TOOLS
                 || profile == OpenCodeClient.SessionProfile.ROUTER_NO_TOOLS;
     }

@@ -1,6 +1,6 @@
 # AI 机器角色轻量合同
 
-运行时合同版本：`2026-08-semantic-v3`。
+运行时合同版本：`2026-08-semantic-v4`。
 
 本文供维护者理解角色边界。真正可执行的合同以
 `MachineRoleContractCatalog`、`OpenCodeStructuredSchemas`、服务端语义编译器和
@@ -22,7 +22,7 @@ Decomposer 和 Compiler 新会话各只需一次机器规划调用。规划通�
 需求首先形成任务画像。Router 只提供软件、文档、数据转换、只读评审、调研、配置或
 本地维护等语义标签；服务端把标签与有界仓库事实合并，决定置信度、流程、权限、测试
 策略和最终执行方式。格式不可用或结果冲突时退回通用画像并提问，不能让首次路由失败
-终止 Designer。内置 Role Pack 以 `2026-08-dynamic-v3` 版本冻结。服务端先把同义技术标签
+终止 Designer。内置 Role Pack 以 `2026-08-dynamic-v4` 版本冻结。服务端先把同义技术标签
 归并为 Java、Python、Node 和 Other 软件族，再选择 Role Pack：`java`、`java 8` 与
 `spring boot` 仍是同一 Java 族，`javascript/typescript` 只属于 Node，只有跨族组合才是
 `software-mixed`；显式但未知的单栈使用 `software-generic`，不再回退到 Java/Maven。
@@ -97,10 +97,22 @@ Decomposer 返回 `READY | NEEDS_INPUT | MULTI_TASK_REQUIRED`、规范目标、�
 
 ## Compiler
 
-冻结的 Designer Markdown 在当前修订内生成稳定 `DS-L001...` 行引用。Compiler 在普通单包中返回
-1–6 个语义 Stage，在大型任务的每个工作包中返回 1–3 个语义 Stage，同时返回业务条件的
-`sourceRefs` 和闭集证据意图，不填写 Stage 序号、
-`workPackageId`、验收 ID、精确摘录、`criterionIds` 或 `testTargets`。
+新软件设计先使用固定受控 Markdown：`目标与范围`、`影响与交付`、`验收场景`、可选
+`人工评审项`、`验收约束`、`阶段与依赖`。验收场景表固定为“场景 / 前置或触发 / 操作 /
+可观察结果 / 保持不变”，对应 EARS 条件/触发/响应/不变量，也可直接表达 Given/When/Then/And。
+原 Markdown 始终保留，不会被 AI 摘要替代。
+
+服务端使用 CommonMark AST 与 GFM 表格扩展生成 `SCENARIO / REVIEW / SCOPE / DELIVERABLE /
+POLICY / DEPENDENCY` DesignFact。每项事实保存精确 Designer 原文、稳定行引用和 SHA-256；上限为
+64 个场景、128 个总事实和 24 KiB UTF-8。随后服务端根据冻结 Role Pack、技术栈、测试策略、
+明确测试类/目标、范围与外部依赖限制生成闭集验证能力。AI 不再生成命令、路径、测试目标或验证器。
+
+Compiler 使用 `COMPILER_BINDING_NO_TOOLS` Session 和 `PACKAGE_ACCEPTANCE_BINDING_V4` Schema，只返回
+事实分组、前置分组以及事实到能力的软偏好。服务端把事实与能力构成二部图：先处理强制独立测试和
+单候选事实，再按 AI 给出的有界 Stage 分组运行精确 branch-and-bound 集合覆盖；超过 100,000 个节点时
+确定性降级为贪心选择并复核。每个分组以零未覆盖为硬条件，再优先减少 Judge-only、提高确定性证据
+强度和减少能力数量，AI 软偏好只作为稳定排序参考。结果仍须经过现有
+`DesignerPackagePlanCompiler` 和 LoopSpec v2 全量校验。
 
 普通模式若无法把完整设计安全编译成一个 1–6 Stage 工作包，Compiler 返回唯一专用缺口
 `LARGE_TASK_MODE_REQUIRED`。服务端立即停止，不消耗自动重设计或修复预算，也不自动切换流程；
@@ -110,10 +122,9 @@ Decomposer 返回 `READY | NEEDS_INPUT | MULTI_TASK_REQUIRED`、规范目标、�
 大型流程中的 Compiler 不得返回该缺口；多项目根、超过六包和独立发布边界仍使用
 `MULTI_TASK_REQUIRED`。
 
-服务端解析一个或多个 `DS-L` 引用并保存精确原文，生成 `<WP>-AC-n`，从统一测试策略
-注册表的 Maven/Gradle/npm/pytest/unittest 显式选择器提取测试目标，并把 `covers`
-编译成验证器关联。Java 仍使用 Java 专用选择器规则，Python 与 Node 不再经过 Java
-目标解析器。支持的意图为：
+服务端从 DesignFact 的精确来源生成 `<WP>-AC-n`，并把求解结果编译成验证器关联。v3 历史流程
+继续解析 `DS-L` 与 Maven/Gradle/npm/pytest/unittest 显式选择器，不会被 v4 快照重解释。
+支持的确定性能力仍包括：
 
 - 可覆盖业务条件：`FOCUSED_TEST`、`SELF_CHECK`、`HTTP_STATUS`、`JSON_PATH`、
   `BROWSER`、`DATABASE_QUERY`、`FILE_CONTENT`、`FILE_HASH`、`DOCUMENT_STRUCTURE`、
@@ -142,13 +153,12 @@ Python 脚本可使用带成功标记的 `SELF_CHECK`；文档与一次性表格
 
 ## 修复协议
 
-无法提取唯一标准 JSON object 时使用完整紧凑对象格式修复；可解析但合同不成立时，
-模型只返回最多 16 个 `add/replace/remove` JSON Pointer 补丁。格式修复和语义修复各
-最多两次、分别持久化和展示。每次 Compiler 修复都先终止原有工具会话，再创建
-`COMPILER_REPAIR_NO_TOOLS` 新 Session；修复只能依据服务端给出的紧凑对象、错误指针和
-有界设计证据，不能重新读仓库。Schema 模式的格式修复使用完整 Compiler Schema，语义
-修复使用独立 `AI_SEMANTIC_PATCH_V1` Schema，不能拿完整规划 Schema 约束补丁响应。
-补丁只能修改 AI 拥有的语义字段，不能覆盖 `outcome` 等服务端控制字段或任何派生字段；
+v4 无法提取唯一标准 JSON object 或绑定合同不成立时，都返回完整的小型绑定对象，不使用
+JSON Patch。格式修复和语义修复各最多两次、分别持久化和展示。每次 Compiler 修复先终止原
+Session，再创建 `COMPILER_REPAIR_NO_TOOLS` 新 Session，只依据冻结事实、能力索引和错误信息，
+不能重新读仓库。v3 历史活动仍按既有 `AI_SEMANTIC_PATCH_V1` 和最多 16 个补丁兼容，不会覆盖
+v4 绑定快照。
+历史 v3 补丁只能修改 AI 拥有的语义字段，不能覆盖 `outcome` 等服务端控制字段或任何派生字段；
 应用后必须重新运行完整提取、规范化和权威校验。
 紧凑 Compiler Stage 的证据字段固定为 `evidence`；弱模型若在补丁路径中使用最终 DTO 名
 `verifiers`，服务端只在 `/stages/<n>/verifiers...` 可唯一反推时改写为 `evidence`，并把对

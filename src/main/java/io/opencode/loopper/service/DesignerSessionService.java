@@ -104,6 +104,7 @@ public class DesignerSessionService {
     private final AiOutputAuditService aiOutputAudit;
     private final DesignerEvidenceIndexer evidenceIndexer;
     private final DesignerPackagePlanCompiler packagePlanCompiler;
+    private final DesignerAcceptanceWorkflow acceptanceWorkflow;
     private final AiRepairPatchService repairPatchService;
     private final DesignerEventHub events;
     private final TaskProfileService taskProfiles;
@@ -136,6 +137,7 @@ public class DesignerSessionService {
         this.aiOutputAudit = aiOutputAudit;
         this.evidenceIndexer = evidenceIndexer;
         this.packagePlanCompiler = new DesignerPackagePlanCompiler(evidenceIndexer);
+        this.acceptanceWorkflow = new DesignerAcceptanceWorkflow(mapper, json, aiOutputExtractor, lifecycle, evidenceIndexer, packagePlanCompiler);
         this.repairPatchService = repairPatchService;
         this.events = events;
         this.taskProfiles = taskProfiles;
@@ -288,7 +290,7 @@ public class DesignerSessionService {
                     role == null ? null : role.rolePackId(), role == null ? null : role.rolePackVersion(),
                     role == null ? null : role.executionStrategy().name(),
                     role == null ? null : role.testPolicy().name(),
-                    role == null ? List.of() : role.technologies());
+                    role == null ? List.of() : role.technologies(), acceptanceWorkflow.status(compiler));
         }).toList();
     }
 
@@ -1891,35 +1893,46 @@ public class DesignerSessionService {
                                   DesignerMessageRow source) {
         DesignRequirementRevisionRow revision = getRequirement(workPackage.requirementRevisionId());
         requireDraftUnchanged(session, revision.sourceDraftVersion());
+        WorkPackageRoleService.View role = workPackageRoles.get(workPackage);
+        boolean acceptanceV4 = acceptanceWorkflow.applies(role);
         String now = now();
         ModelResponseMode responseMode = preferredResponseMode();
         LoopSpecCompilationRow pending = new LoopSpecCompilationRow(UUID.randomUUID().toString(), session.id(),
                 workPackage.designRevision(), LoopSpecCompilationState.PENDING_HANDOFF.name(), null, "PENDING", 0,
                 source.id(), revision.sourceDraftVersion(), null, null, now, now, 0,
                 workPackage.packageId(), 0, null, StructuredModelStep.PLANNING.name(), null, 0,
-                responseMode.name(), schemaId(responseMode, OpenCodeStructuredSchemas.PACKAGE_COMPILATION_SEMANTIC_V3), false,
+                responseMode.name(), schemaId(responseMode, acceptanceV4 ? OpenCodeStructuredSchemas.PACKAGE_ACCEPTANCE_BINDING_V4
+                        : OpenCodeStructuredSchemas.PACKAGE_COMPILATION_SEMANTIC_V3), false,
                 responseMode.name(), schemaId(responseMode, OpenCodeStructuredSchemas.PACKAGE_COMPILATION_FINAL_V2), false,
                 null, 0, 0, false);
         lifecycle.create(compilationSubject(pending, session.projectId()), pending.state(),
                 Map.of("workPackageId", workPackage.packageId()), () -> mapper.insertLoopSpecCompilation(pending),
                 () -> new ConflictException("LOOPSPEC_COMPILATION_CREATE_CONFLICT",
                         "Work-package compilation could not be created"));
+        if (acceptanceV4) acceptanceWorkflow.freeze(pending, workPackage, source.content(), role, now);
         ProjectRow project = projects.get(session.projectId());
         try {
             OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
-                    "OpenCode Loopper LoopSpec Compiler " + workPackage.packageId() + " (READ_ONLY)",
+                    "OpenCode Loopper LoopSpec Compiler " + workPackage.packageId()
+                            + (acceptanceV4 ? " (NO_TOOLS_BINDING)" : " (READ_ONLY)"),
                     responseModel(responseMode),
-                    OpenCodeClient.SessionProfile.COMPILER_READ_ONLY);
+                    acceptanceV4 ? OpenCodeClient.SessionProfile.COMPILER_BINDING_NO_TOOLS
+                            : OpenCodeClient.SessionProfile.COMPILER_READ_ONLY);
             LoopSpecCompilationRow running = updateCompilation(pending, LoopSpecCompilationState.RUNNING,
                     remote.id(), "RUNNING", 0, null, null, session.projectId(), null);
             if (!consumeModelCall(session, revision, "WORK_PACKAGE_MODEL_CALL_LIMIT")) {
                 runtimeControl.abortQuietly(remote.id(), session.projectId());
                 return;
             }
-            submitModelPrompt(remote, packageCompilerPlanningPrompt(project, revision, workPackage,
-                    source.content()), running.planningResponseMode(), running.planningResponseSchemaId());
+            submitModelPrompt(remote, acceptanceV4
+                            ? acceptanceWorkflow.prompt(running.id(), workPackage.packageId(),
+                            packageStageLimit(workPackage.designerSessionId()), null)
+                            : packageCompilerPlanningPrompt(project, revision, workPackage, source.content()),
+                    running.planningResponseMode(), running.planningResponseSchemaId());
             publish(session, "STATUS", DesignerActor.COMPILER, true, "",
-                    workPackage.packageId() + " 规范工程师正在规划 Stage 与验收证据映射");
+                    workPackage.packageId() + (acceptanceV4
+                            ? " 规范工程师正在绑定验收事实与可执行能力"
+                            : " 规范工程师正在规划 Stage 与验收证据映射"));
         } catch (SessionFailure failure) {
             failPackageCompilation(pending, session, failure.code(), failure.getMessage(), true);
         } catch (RuntimeException failure) {
@@ -2242,6 +2255,18 @@ public class DesignerSessionService {
         String design = designMessage(workPackage).content();
         PackageCompilationPlanEnvelope plan;
         try {
+            var acceptance = acceptanceWorkflow.find(input.id()).orElse(null);
+            if (acceptance != null && !acceptanceWorkflow.legacyV3Output(output)) {
+                WorkPackageRoleService.View role = workPackageRoles.get(workPackage);
+                DesignerAcceptanceWorkflow.BoundResult bound = acceptanceWorkflow.bind(acceptance, workPackage,
+                        design, output, role, strings(workPackage.scopeInJson()),
+                        strings(workPackage.scopeOutJson()), strings(workPackage.deliverablesJson()),
+                        packageStageLimit(workPackage.designerSessionId()),
+                        directSoftwareMode(workPackage.designerSessionId()));
+                plan = bound.compiled().plan();
+                recordNormalization(session, DesignerActor.COMPILER, bound.normalized(),
+                        session.currentRequirementRevision(), workPackage.packageId());
+            } else {
             List<String> patchNormalizations = List.of();
             if (input.semanticRepairCount() > 0 && output != null && output.contains("\"patches\"")
                     && !blank(input.semanticPlanJson())) {
@@ -2259,8 +2284,11 @@ public class DesignerSessionService {
             plan = extracted.value();
             recordNormalization(session, DesignerActor.COMPILER, extracted,
                     session.currentRequirementRevision(), workPackage.packageId());
+                if (acceptance != null) acceptanceWorkflow.markCompatibility(acceptance, output);
+            }
         } catch (BadRequestException invalid) {
-            if (!formatOutputFailure(invalid.code())) input = captureCompilationSemantic(input, output);
+            acceptanceWorkflow.markFailed(input.id(), output, invalid.code(), safeMessage(invalid.getMessage()));
+            if (!formatOutputFailure(invalid.code())) input = acceptanceWorkflow.captureSemantic(input, output, MAX_DIRECT_SOFTWARE_STAGES);
             packageCompilerRejected(input, session, workPackage, remote, invalid.code(), invalid.getMessage());
             return;
         }
@@ -2518,6 +2546,7 @@ public class DesignerSessionService {
         appendMessage(session.id(), DesignerActor.VALIDATOR,
                 workPackage.packageId() + " 确定性校验未通过（" + code + "）：" + safeMessage(detail),
                 "RETRYABLE_ERROR", session.currentRequirementRevision(), workPackage.packageId());
+        boolean acceptanceV4 = acceptanceWorkflow.present(compilation.id());
         boolean planning = StructuredModelStep.PLANNING.name().equals(compilation.workflowStep());
         boolean formatRepair = planning && formatOutputFailure(code);
         int repairsUsed = planning
@@ -2543,7 +2572,7 @@ public class DesignerSessionService {
                 compilation.compiledPackageJson(),
                 planning ? StructuredModelStep.PLANNING : StructuredModelStep.REPAIRING_JSON,
                 compilation.planningJson(), compilation.planningRepairCount());
-        if (planning) repairing = updateCompilationRepairCounts(repairing,
+        if (planning) repairing = acceptanceWorkflow.updateRepairCounts(repairing,
                 compilation.formatRepairCount() + (formatRepair ? 1 : 0),
                 compilation.semanticRepairCount() + (formatRepair ? 0 : 1));
         DesignRequirementRevisionRow revision = currentRequirement(session.id());
@@ -2553,7 +2582,7 @@ public class DesignerSessionService {
             ProjectRow project = projects.get(session.projectId());
             ModelResponseMode repairMode = ModelResponseMode.valueOf(planning
                     ? repairing.planningResponseMode() : repairing.finalResponseMode());
-            String repairSchemaId = planning && !formatRepair
+            String repairSchemaId = planning && !formatRepair && !acceptanceV4
                     ? OpenCodeStructuredSchemas.AI_SEMANTIC_PATCH_V1
                     : planning ? repairing.planningResponseSchemaId() : repairing.finalResponseSchemaId();
             OpenCodeClient.OpenCodeSession repairRemote = openCode.createSession(Path.of(project.rootPath()),
@@ -2563,7 +2592,11 @@ public class DesignerSessionService {
                     repairRemote.id(), "REPAIRING_" + repair + "_NO_TOOLS", repairing.repairCount(),
                     code, safeMessage(detail), session.projectId(), repairing.compiledPackageJson());
             submitModelPrompt(repairRemote, planning
-                            ? (formatRepair
+                            ? (acceptanceV4
+                                ? acceptanceWorkflow.prompt(repairing.id(), workPackage.packageId(),
+                                    packageStageLimit(workPackage.designerSessionId()),
+                                    code + ": " + safeMessage(detail))
+                                : formatRepair
                                 ? packageCompilerPlanningRepairPrompt(repairing, workPackage,
                                     designMessage(workPackage).content(), code, detail)
                                 : packageCompilerSemanticPatchPrompt(repairing, workPackage, code, detail))
@@ -2575,7 +2608,8 @@ public class DesignerSessionService {
                     session.redesignCount(), session.currentRequirementRevision(), workPackage.packageId());
             publish(session, "STATUS", DesignerActor.COMPILER, true, "",
                     workPackage.packageId() + " 规范工程师正在进行第 " + repair + "/"
-                            + MAX_COMPILER_REPAIRS + (formatRepair ? " 次 MCP-only 格式修复" : " 次 MCP-only 语义补丁修复"));
+                            + MAX_COMPILER_REPAIRS + (formatRepair ? " 次 MCP-only 格式修复"
+                            : acceptanceV4 ? " 次 MCP-only 完整绑定修复" : " 次 MCP-only 语义补丁修复"));
         } catch (RuntimeException failure) {
             failPackageCompilation(repairing, session, "OPENCODE_COMPILER_REPAIR_FAILED",
                     failure.getMessage(), true);
@@ -2818,9 +2852,11 @@ public class DesignerSessionService {
         try {
             ProjectRow project = projects.get(session.projectId());
             OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
-                    "OpenCode Loopper LoopSpec Compiler format fallback (READ_ONLY)",
+                    "OpenCode Loopper LoopSpec Compiler format fallback",
                     responseModel(ModelResponseMode.TEXT_MARKER),
-                    OpenCodeClient.SessionProfile.COMPILER_READ_ONLY);
+                    acceptanceWorkflow.present(row.id())
+                            ? OpenCodeClient.SessionProfile.COMPILER_BINDING_NO_TOOLS
+                            : OpenCodeClient.SessionProfile.COMPILER_READ_ONLY);
             LoopSpecCompilationRow transport = compilationTransport(row, planning,
                     ModelResponseMode.TEXT_MARKER, null, true);
             int repair = repairs + 1;
@@ -2833,8 +2869,11 @@ public class DesignerSessionService {
             if (workPackage == null) {
                 prompt = compilerRepairPrompt(running, code, detail);
             } else if (planning) {
-                prompt = packageCompilerPlanningRepairPrompt(running, workPackage,
-                        designMessage(workPackage).content(), code, detail);
+                prompt = acceptanceWorkflow.present(running.id())
+                        ? acceptanceWorkflow.prompt(running.id(), workPackage.packageId(),
+                            packageStageLimit(workPackage.designerSessionId()), code + ": " + safeMessage(detail))
+                        : packageCompilerPlanningRepairPrompt(running, workPackage,
+                            designMessage(workPackage).content(), code, detail);
             } else {
                 prompt = packageCompilerRepairPrompt(running, code, detail);
             }
@@ -2958,10 +2997,12 @@ public class DesignerSessionService {
             ProjectRow project = projects.get(session.projectId());
             try {
                 OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
-                        "OpenCode Loopper LoopSpec Compiler " + workPackage.packageId() + " retry (READ_ONLY)",
+                        "OpenCode Loopper LoopSpec Compiler " + workPackage.packageId() + " retry",
                         responseModel(currentResponseMode(compilation.workflowStep(),
                                 compilation.planningResponseMode(), compilation.finalResponseMode())),
-                        OpenCodeClient.SessionProfile.COMPILER_READ_ONLY);
+                        acceptanceWorkflow.present(compilation.id())
+                                ? OpenCodeClient.SessionProfile.COMPILER_BINDING_NO_TOOLS
+                                : OpenCodeClient.SessionProfile.COMPILER_READ_ONLY);
                 LoopSpecCompilationRow retryBase = new LoopSpecCompilationRow(compilation.id(),
                         compilation.designerSessionId(), compilation.designRevision(), compilation.state(),
                         compilation.externalSessionId(), compilation.externalSessionState(), compilation.repairCount(),
@@ -4073,35 +4114,6 @@ public class DesignerSessionService {
         }
     }
 
-    private LoopSpecCompilationRow captureCompilationSemantic(LoopSpecCompilationRow row, String output) {
-        try {
-            AiOutputExtractor.ExtractionResult<CompactPackageCompilationPlan> extracted =
-                    aiOutputExtractor.extractJson(output, COMPILATION_PLAN_PAYLOAD, "COMPILER_PLAN_OUTPUT",
-                            CompactPackageCompilationPlan.class, CompactPackageCompilationPlan::normalized, null);
-            CompactPackageCompilationPlan semantic = extracted.value();
-            boolean legalOutcome = semantic != null && ("COMPILED".equals(semantic.outcome())
-                    || "DESIGN_INCOMPLETE".equals(semantic.outcome()));
-            if (!legalOutcome || ("COMPILED".equals(semantic.outcome()) && semantic.stages().isEmpty())) {
-                return mapper.findLoopSpecCompilation(row.id()).orElse(row);
-            }
-            LoopSpecCompilationRow updated = new LoopSpecCompilationRow(row.id(), row.designerSessionId(),
-                    row.designRevision(), row.state(), row.externalSessionId(), row.externalSessionState(),
-                    row.repairCount(), row.sourceDesignMessageId(), row.sourceDraftVersion(), row.lastErrorCode(),
-                    row.lastErrorDetail(), row.createdAt(), now(), row.version(), row.workPackageId(),
-                    row.transportRetryCount(), row.compiledPackageJson(), row.workflowStep(), row.planningJson(),
-                    row.planningRepairCount(), row.planningResponseMode(), row.planningResponseSchemaId(),
-                    row.planningFormatFallbackUsed(), row.finalResponseMode(), row.finalResponseSchemaId(),
-                    row.finalFormatFallbackUsed(), extracted.canonicalJson(), row.formatRepairCount(),
-                    row.semanticRepairCount(), row.serverCompiled());
-            lifecycle.mutateWithoutTransition(() -> mapper.updateLoopSpecCompilation(updated),
-                    () -> new ConflictException("LOOPSPEC_COMPILATION_VERSION_CONFLICT",
-                            "LoopSpec compilation was updated concurrently"));
-            return getCompilation(row.id());
-        } catch (RuntimeException ignored) {
-            return mapper.findLoopSpecCompilation(row.id()).orElse(row);
-        }
-    }
-
     private TaskDecompositionRow updateDecompositionRepairCounts(TaskDecompositionRow row,
                                                                  int formatRepairs, int semanticRepairs) {
         TaskDecompositionRow updated = new TaskDecompositionRow(row.id(), row.designerSessionId(),
@@ -4117,23 +4129,6 @@ public class DesignerSessionService {
                 () -> new ConflictException("TASK_DECOMPOSITION_VERSION_CONFLICT",
                         "Task decomposition was updated concurrently"));
         return getDecomposition(row.id());
-    }
-
-    private LoopSpecCompilationRow updateCompilationRepairCounts(LoopSpecCompilationRow row,
-                                                                 int formatRepairs, int semanticRepairs) {
-        LoopSpecCompilationRow updated = new LoopSpecCompilationRow(row.id(), row.designerSessionId(),
-                row.designRevision(), row.state(), row.externalSessionId(), row.externalSessionState(),
-                row.repairCount(), row.sourceDesignMessageId(), row.sourceDraftVersion(), row.lastErrorCode(),
-                row.lastErrorDetail(), row.createdAt(), now(), row.version(), row.workPackageId(),
-                row.transportRetryCount(), row.compiledPackageJson(), row.workflowStep(), row.planningJson(),
-                formatRepairs + semanticRepairs, row.planningResponseMode(), row.planningResponseSchemaId(),
-                row.planningFormatFallbackUsed(), row.finalResponseMode(), row.finalResponseSchemaId(),
-                row.finalFormatFallbackUsed(), row.semanticPlanJson(), formatRepairs, semanticRepairs,
-                row.serverCompiled());
-        lifecycle.mutateWithoutTransition(() -> mapper.updateLoopSpecCompilation(updated),
-                () -> new ConflictException("LOOPSPEC_COMPILATION_VERSION_CONFLICT",
-                        "LoopSpec compilation was updated concurrently"));
-        return getCompilation(row.id());
     }
 
     private void validateRequirementRefs(List<String> refs, Set<String> valid, Set<String> covered) {
@@ -4428,6 +4423,11 @@ public class DesignerSessionService {
     private String packageCompilerTransportRetryPrompt(LoopSpecCompilationRow row, DesignerSessionRow session,
                                                        ProjectRow project, DesignRequirementRevisionRow revision,
                                                        DesignWorkPackageRow workPackage, String design) {
+        if (acceptanceWorkflow.present(row.id())) {
+            return acceptanceWorkflow.prompt(row.id(), workPackage.packageId(),
+                    packageStageLimit(workPackage.designerSessionId()),
+                    blank(row.lastErrorCode()) ? null : row.lastErrorCode() + ": " + row.lastErrorDetail());
+        }
         return switch (StructuredModelStep.valueOf(row.workflowStep())) {
             case PLANNING -> packageCompilerPlanningPrompt(project, revision, workPackage, design);
             case SERVER_COMPILING -> packageCompilerPlanningPrompt(project, revision, workPackage, design);
@@ -5389,7 +5389,7 @@ public class DesignerSessionService {
                                     int discussionRoundCount, String invalidatedByPackageId,
                                     String approvedAt, String rolePackId, String rolePackVersion,
                                     String executionStrategy, String testPolicy,
-                                    List<String> technologies) { }
+                                    List<String> technologies, AcceptancePlanningStatus acceptancePlanning) { }
     public record CandidateStatus(String syncState, int discussionRevision, String workPackageId,
                                   LoopSpec spec, String detail) { }
     public record RequirementSegment(String id, String text) { }

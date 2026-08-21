@@ -33,6 +33,16 @@ class OpenCodePermissionPolicyTest {
     }
 
     @Test
+    void compilerBindingDeniesAllBuiltInTools() {
+        var rules = OpenCodePermissionPolicy.rules(OpenCodeClient.SessionProfile.COMPILER_BINDING_NO_TOOLS);
+
+        assertThat(rules).contains(java.util.Map.of(
+                "permission", "*", "pattern", "*", "action", "deny"));
+        assertThat(rules).noneMatch(rule -> "allow".equals(rule.get("action"))
+                && java.util.Set.of("read", "glob", "grep", "question").contains(rule.get("permission")));
+    }
+
+    @Test
     void interactiveDesignerAllowsQuestionButKeepsSecretsAndExternalDirectoriesDenied() {
         var rules = OpenCodePermissionPolicy.rules(
                 OpenCodeClient.SessionProfile.DESIGNER_INTERACTIVE_READ_ONLY);

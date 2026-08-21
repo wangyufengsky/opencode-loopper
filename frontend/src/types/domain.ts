@@ -948,6 +948,23 @@ export interface DesignWorkPackageStatus {
   executionStrategy?: DesignerTaskProfile['executionStrategy']
   testPolicy?: DesignerTaskProfile['testPolicy']
   technologies?: string[]
+  acceptancePlanning?: DesignerAcceptancePlanningStatus
+}
+
+export interface DesignerAcceptancePlanningStatus {
+  state: 'EXTRACTED' | 'BOUND' | 'COMPILED' | 'FAILED'
+  factCount: number
+  scenarioCount: number
+  automatedCount: number
+  bothCount: number
+  judgeCount: number
+  unresolvedCount: number
+  scenarios: Array<{
+    title: string
+    coverage: 'AUTOMATED' | 'BOTH' | 'JUDGE' | 'UNRESOLVED'
+    capabilities: string[]
+  }>
+  issues: string[]
 }
 
 export interface DesignerCandidateStatus {

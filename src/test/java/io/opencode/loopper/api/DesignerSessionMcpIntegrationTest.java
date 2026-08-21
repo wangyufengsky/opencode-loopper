@@ -467,7 +467,7 @@ class DesignerSessionMcpIntegrationTest {
             assertThat(workPackage.id()).isEqualTo("WP-1");
             assertThat(workPackage.state()).isEqualTo("APPROVED");
             assertThat(workPackage.rolePackId()).isEqualTo("software-java");
-            assertThat(workPackage.rolePackVersion()).isEqualTo("2026-08-dynamic-v3");
+            assertThat(workPackage.rolePackVersion()).isEqualTo("2026-08-dynamic-v4");
             assertThat(workPackage.executionStrategy()).isEqualTo("OPEN_CODE_IMPLEMENTATION");
             assertThat(workPackage.testPolicy()).isEqualTo("REQUIRED");
         });
@@ -488,7 +488,7 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(mapper.listTasks()).singleElement().extracting(TaskRow::id).isEqualTo(task.id());
         assertThat(mapper.listStages(task.id())).hasSize(6).allSatisfy(stage -> {
             assertThat(stage.rolePackId()).isEqualTo("software-java");
-            assertThat(stage.rolePackVersion()).isEqualTo("2026-08-dynamic-v3");
+            assertThat(stage.rolePackVersion()).isEqualTo("2026-08-dynamic-v4");
             assertThat(stage.testPolicy()).isEqualTo("REQUIRED");
             assertThat(stage.technologiesJson()).isEqualTo("[]");
         });
@@ -1043,7 +1043,11 @@ class DesignerSessionMcpIntegrationTest {
         DesignerSessionRow session = createConfirmedSession(project.id(), draft.id(), "补充 README 事件说明并可验证");
         pollUntilSettled(session.id());
 
-        assertThat(designerSessions.get(session.id()).workflowPhase()).isEqualTo("FINAL_REVIEW");
+        assertThat(designerSessions.get(session.id()).workflowPhase())
+                .as("session=%s compiler=%s packages=%s messages=%s", designerSessions.get(session.id()),
+                        designerSessions.compilerStatus(session.id()),
+                        designerSessions.workPackageStatuses(session.id()), designerSessions.messages(session.id()))
+                .isEqualTo("FINAL_REVIEW");
         assertThat(designerSessions.decompositionStatus(session.id())).satisfies(status -> {
             assertThat(status.resultType()).isEqualTo("DIRECT_DESIGN");
             assertThat(status.serverCompiled()).isTrue();
@@ -2092,7 +2096,7 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(fake().promptForSession(repairing.externalSessionId()))
                 .contains("Built-in repository", "tools are disabled", "Configured MCP tools remain available",
                         "return the complete object immediately")
-                .contains("Role Pack: software-java@2026-08-dynamic-v3", "mvn")
+                .contains("Machine role contract 2026-08-semantic-v4", "Frozen DesignFacts", "mvn")
                 .doesNotContain("Use DOCUMENT_STRUCTURE or TABULAR_DATA native evidence");
         List<String> compilerSessionIds = fake().promptHistory().stream()
                 .filter(call -> call.prompt().contains("LOOPSPEC_COMPILATION_PLAN_JSON_START"))
@@ -2120,6 +2124,90 @@ class DesignerSessionMcpIntegrationTest {
                         designerSessions.workPackageStatuses(session.id()), designerSessions.messages(session.id()))
                 .isEqualTo("FINAL_REVIEW");
         assertThat(designerSessions.compilerStatus(session.id()).serverCompiled()).isTrue();
+    }
+
+    @Test
+    void controlledAcceptanceDesignUsesV4BindingSolverPersistenceAndReadModel() throws Exception {
+        fake().setStructuredCapability(new OpenCodeClient.StructuredOutputCapability(
+                OpenCodeClient.CapabilityState.AVAILABLE, OpenCodeClient.CapabilityState.AVAILABLE, null));
+        ProjectRow project = project("controlled-acceptance-v4");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        String design = """
+                ## 目标与范围
+                为 Java PinTrans 冻结缺失 pinBlock 时的异常行为。
+
+                ## 影响与交付
+                | 类型 | 相对路径或符号 | 说明 |
+                | --- | --- | --- |
+                | 生产代码 | upfs-common/src/main/java/com/spdb/upfs/pin/PinTrans.java | PIN 转换行为 |
+                | 测试代码 | upfs-common/src/test/java/com/spdb/upfs/pin/PinTransTest.java | 聚焦单元测试 |
+
+                ## 验收场景
+                | 场景 | 前置/触发 | 操作 | 可观察结果 | 保持不变 |
+                | --- | --- | --- | --- | --- |
+                | PinTrans: pinBlock 路径缺失 | 输入缺少 pinBlock 路径 | 调用转换 | 抛出 PinException，错误码 DEF9900000 | 不调用外部依赖 |
+
+                ## 验收约束
+                PinTransTest 必须独立通过，不依赖外部网络、数据库或 Spring 上下文。
+
+                ## 阶段与依赖
+                | 阶段建议 | 包含场景/交付 | 前置阶段 |
+                | --- | --- | --- |
+                | 完成 PIN 转换行为 | pinBlock 路径缺失场景与测试 | 无 |
+                """;
+        fake().setDesignerOutput(designerOutput(design, legacySpec(project.id())));
+        fake().setPackageDesignerOutput("WP-1", design);
+        fake().setPackageCompilerPlanningOutput("WP-1", """
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->
+                {"outcome":"COMPILED","summary":"PIN 转换验收已绑定", "groupHints":[{
+                  "title":"PIN 转换","objective":"实现并验证 PIN 转换异常行为",
+                  "factIndexes":[2],"dependsOnHintIndexes":[]}],
+                  "capabilityPreferences":[{"factIndex":2,"capabilityIndexes":[0]}],
+                  "handoffSummary":"PIN 转换行为已冻结","designGaps":[]}
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->
+                """);
+
+        DesignerSessionRow session = createConfirmedSession(project.id(), draft.id(),
+                "修改 Java PinTrans 并用 PinTransTest 验收异常行为");
+        pollUntilSettled(session.id());
+
+        assertThat(designerSessions.get(session.id()).workflowPhase())
+                .as("session=%s compiler=%s packages=%s messages=%s", designerSessions.get(session.id()),
+                        designerSessions.compilerStatus(session.id()),
+                        designerSessions.workPackageStatuses(session.id()), designerSessions.messages(session.id()))
+                .isEqualTo("FINAL_REVIEW");
+        var compilation = mapper.findLatestLoopSpecCompilationForPackage(session.id(), "WP-1").orElseThrow();
+        assertThat(compilation.planningResponseSchemaId()).isEqualTo("PACKAGE_ACCEPTANCE_BINDING_V4");
+        assertThat(fake().profileForSession(compilation.externalSessionId()))
+                .isEqualTo(OpenCodeClient.SessionProfile.COMPILER_BINDING_NO_TOOLS);
+        assertThat(mapper.findDesignAcceptancePlanning(compilation.id())).hasValueSatisfying(planning -> {
+            assertThat(planning.state()).isEqualTo("COMPILED");
+            assertThat(planning.contractVersion()).isEqualTo("DESIGN_ACCEPTANCE_V4");
+            assertThat(planning.bindingJson()).contains("capabilityPreferences");
+            assertThat(planning.diagnosticsJson()).contains("EXACT_BRANCH_AND_BOUND");
+        });
+        assertThat(designerSessions.workPackageStatuses(session.id())).singleElement().satisfies(workPackage -> {
+            assertThat(workPackage.acceptancePlanning().state()).isEqualTo("COMPILED");
+            assertThat(workPackage.acceptancePlanning().scenarioCount()).isEqualTo(1);
+            assertThat(workPackage.acceptancePlanning().automatedCount()).isEqualTo(1);
+            assertThat(workPackage.acceptancePlanning().unresolvedCount()).isZero();
+        });
+        assertThat(drafts.spec(drafts.get(draft.id())).stages()).singleElement().satisfies(stage -> {
+            assertThat(stage.acceptanceCriteria()).singleElement()
+                    .satisfies(criterion -> assertThat(criterion.description())
+                            .contains("当输入缺少 pinBlock 路径时", "抛出 PinException", "不调用外部依赖"));
+            assertThat(stage.verifiers()).filteredOn(verifier -> "TEST".equals(verifier.processPurpose()))
+                    .singleElement().satisfies(verifier -> {
+                        assertThat(verifier.command()).containsExactly(
+                                "mvn", "-pl", "upfs-common", "-Dtest=PinTransTest", "test");
+                        assertThat(verifier.testTargets()).containsExactly("PinTransTest");
+                    });
+        });
+        mvc.perform(get("/api/designer-sessions/{id}", session.id()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.workPackages[0].acceptancePlanning.state").value("COMPILED"))
+                .andExpect(jsonPath("$.workPackages[0].acceptancePlanning.scenarioCount").value(1))
+                .andExpect(jsonPath("$.workPackages[0].acceptancePlanning.unresolvedCount").value(0));
     }
 
     @Test
@@ -2216,10 +2304,11 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(designerSessions.workPackageStatuses(genericSession.id())).singleElement()
                 .satisfies(workPackage -> assertThat(workPackage.rolePackId()).isEqualTo("software-generic"));
         String genericCompilerPrompt = fake().promptHistory().stream()
-                .filter(call -> call.prompt().contains("Role Pack: software-generic@2026-08-dynamic-v3")
+                .filter(call -> call.prompt().contains("Machine role contract 2026-08-semantic-v4")
+                        && call.prompt().contains("Go 监听器")
                         && call.prompt().contains("LOOPSPEC_COMPILATION_PLAN_JSON_START"))
                 .map(FakeOpenCodeClient.PromptCall::prompt).findFirst().orElseThrow();
-        assertThat(genericCompilerPrompt).contains("repository-native software plan", "judgeOnlyReason")
+        assertThat(genericCompilerPrompt).contains("Frozen DesignFacts", "Frozen verification capabilities")
                 .doesNotContain("-Dtest=ExampleFocusedTest", "python3 -m pytest", "npm test --");
     }
 
@@ -2242,9 +2331,9 @@ class DesignerSessionMcpIntegrationTest {
                 .toList();
         assertThat(compilerPrompts).hasSize(1);
         assertThat(compilerPrompts.getFirst())
-                .contains("Machine role contract 2026-08-semantic-v3")
-                .contains("DS-L001", "FOCUSED_TEST", "covers")
-                .contains("Do not assign acceptance ids", "testTargets", "engineering metadata");
+                .contains("Machine role contract 2026-08-semantic-v4")
+                .contains("DESIGN_ACCEPTANCE_V4", "FOCUSED_TEST", "Frozen verification capabilities")
+                .contains("server owns EARS criterion text", "groupHints", "capabilityIndexes");
     }
 
     @Test
@@ -2461,6 +2550,11 @@ class DesignerSessionMcpIntegrationTest {
         fake().setDesignerOutput(designerOutput("# 历史设计\n\n可观察结果。", legacySpec(project.id())));
         DesignerSessionRow session = createConfirmedSession(project.id(), draft.id(), "保存完整历史");
         pollUntilSettled(session.id());
+        assertThat(designerSessions.get(session.id()).workflowPhase())
+                .as("session=%s compiler=%s packages=%s messages=%s", designerSessions.get(session.id()),
+                        designerSessions.compilerStatus(session.id()),
+                        designerSessions.workPackageStatuses(session.id()), designerSessions.messages(session.id()))
+                .isEqualTo("FINAL_REVIEW");
         TaskRow task = drafts.confirm(draft.id(), "历史设计");
 
         mvc.perform(get("/api/designer-sessions/history").queryParam("projectId", project.id()))
@@ -2577,7 +2671,7 @@ class DesignerSessionMcpIntegrationTest {
                 .isEqualTo("FINAL_REVIEW");
         assertThat(designerSessions.workPackageStatuses(session.id())).singleElement().satisfies(workPackage -> {
             assertThat(workPackage.rolePackId()).isEqualTo(expectedRolePack);
-            assertThat(workPackage.rolePackVersion()).isEqualTo("2026-08-dynamic-v3");
+            assertThat(workPackage.rolePackVersion()).isEqualTo("2026-08-dynamic-v4");
             assertThat(workPackage.testPolicy()).isIn("OPTIONAL", "REQUIRED");
             assertThat(workPackage.compilerServerCompiled()).isTrue();
         });

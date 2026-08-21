@@ -15,7 +15,7 @@ class RolePackRegistryTest {
                 List.of("java", "Java 8", "Spring Boot", "Maven"), List.of(ArtifactKind.SOURCE_CODE));
 
         assertThat(pack.id()).isEqualTo("software-java");
-        assertThat(pack.version()).isEqualTo("2026-08-dynamic-v3");
+        assertThat(pack.version()).isEqualTo("2026-08-dynamic-v4");
     }
 
     @Test void javascriptIsNodeAndNeverMatchesTheJavaFamily() {

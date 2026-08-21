@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
 /** Versioned prompt capabilities; permissions and workflow remain server-owned. */
 @Component
 public final class RolePackRegistry {
-    public static final String VERSION = "2026-08-dynamic-v3";
+    public static final String VERSION = "2026-08-dynamic-v4";
 
     public RolePack resolve(TaskIntent intent, List<String> technologies, List<ArtifactKind> artifacts) {
         if (intent == TaskIntent.SOFTWARE_CHANGE || intent == TaskIntent.LEGACY_SOFTWARE) {
