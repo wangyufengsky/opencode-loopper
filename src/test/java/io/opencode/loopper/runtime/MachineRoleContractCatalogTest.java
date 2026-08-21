@@ -18,7 +18,7 @@ class MachineRoleContractCatalogTest {
                 .containsEntry("type", "object");
         assertThat(OpenCodeStructuredSchemas.schema(OpenCodeStructuredSchemas.PACKAGE_COMPILATION_SEMANTIC_V3))
                 .containsEntry("type", "object");
-        assertThat(OpenCodeStructuredSchemas.schema(OpenCodeStructuredSchemas.PACKAGE_ACCEPTANCE_BINDING_V4))
+        assertThat(OpenCodeStructuredSchemas.schema(OpenCodeStructuredSchemas.PACKAGE_ACCEPTANCE_BINDING_V5))
                 .containsEntry("type", "object");
         assertThat(Files.readString(Path.of("docs/ai-role-contracts.md")))
                 .contains(MachineRoleContractCatalog.CONTRACT_VERSION,
@@ -45,10 +45,10 @@ class MachineRoleContractCatalogTest {
     @SuppressWarnings("unchecked")
     void acceptanceBindingSchemaCarriesOnlyIndexesAndAdvisoryGroups() {
         Map<String, Object> binding = OpenCodeStructuredSchemas.schema(
-                OpenCodeStructuredSchemas.PACKAGE_ACCEPTANCE_BINDING_V4);
+                OpenCodeStructuredSchemas.PACKAGE_ACCEPTANCE_BINDING_V5);
         Map<String, Object> properties = (Map<String, Object>) binding.get("properties");
-        assertThat(properties).containsKeys("outcome", "groupHints", "capabilityPreferences", "designGaps")
-                .doesNotContainKeys("stages", "commands", "verifiers", "sourceRefs");
+        assertThat(properties).containsKeys("summary", "groupHints", "capabilityPreferences", "handoffSummary")
+                .doesNotContainKeys("outcome", "designGaps", "stages", "commands", "verifiers", "sourceRefs");
         Map<String, Object> groups = (Map<String, Object>) properties.get("groupHints");
         assertThat(groups).containsEntry("maxItems", 6);
     }

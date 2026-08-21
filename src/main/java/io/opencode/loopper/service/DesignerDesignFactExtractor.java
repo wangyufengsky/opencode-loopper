@@ -182,13 +182,24 @@ final class DesignerDesignFactExtractor {
         List<String> meaningful = cells.stream().filter(value -> !blank(value)).toList();
         for (String raw : source.split("\n", -1)) {
             String line = raw.strip();
-            if (!line.isEmpty() && meaningful.stream().allMatch(line::contains)) return line;
+            String normalized = evidenceKey(line);
+            if (!line.isEmpty() && meaningful.stream().map(DesignerDesignFactExtractor::evidenceKey)
+                    .filter(value -> !value.isEmpty()).allMatch(normalized::contains)) return line;
         }
         for (String raw : source.split("\n", -1)) {
             String line = raw.strip();
-            if (!line.isEmpty() && meaningful.stream().anyMatch(value -> value.contains(line))) return line;
+            String normalized = evidenceKey(line);
+            if (!line.isEmpty() && meaningful.stream().map(DesignerDesignFactExtractor::evidenceKey)
+                    .filter(value -> value.length() >= 8)
+                    .anyMatch(value -> normalized.contains(value) || value.contains(normalized))) return line;
         }
         return meaningful.isEmpty() ? "设计稿验收事实" : String.join(" | ", meaningful);
+    }
+
+    private static String evidenceKey(String value) {
+        return value == null ? "" : value.toLowerCase(Locale.ROOT)
+                .replace('“', '"').replace('”', '"').replace('‘', '\'').replace('’', '\'')
+                .replaceAll("[^a-z0-9\\p{IsHan}]", "");
     }
 
     private static String sourceRef(DesignerEvidenceIndexer.Index index, String excerpt) {

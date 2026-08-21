@@ -16,6 +16,12 @@ class TaskProfileRouterTest {
     @TempDir Path root;
     private final TaskProfileRouter router = new TaskProfileRouter();
 
+    @Test void normalizesModelTestArtifactAliasesWithoutChangingTheTaskIntent() {
+        assertThat(TaskSemanticRouter.artifactKind("TEST_CODE")).isEqualTo(ArtifactKind.SOURCE_CODE);
+        assertThat(TaskSemanticRouter.artifactKind("unit-tests")).isEqualTo(ArtifactKind.SOURCE_CODE);
+        assertThat(TaskSemanticRouter.artifactKind("python test")).isEqualTo(ArtifactKind.PYTHON_SCRIPT);
+    }
+
     @Test void routesPythonScriptWithoutJavaAssumptions() throws Exception {
         Files.writeString(root.resolve("pyproject.toml"), "[tool.pytest.ini_options]\n");
         Files.writeString(root.resolve("test_converter.py"), "def test_convert(): pass\n");

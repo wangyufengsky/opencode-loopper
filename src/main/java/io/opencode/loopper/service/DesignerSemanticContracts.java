@@ -139,16 +139,16 @@ final class DesignerSemanticContracts {
         }
     }
 
-    /** V4 Compiler output: advisory grouping and preference only; the server owns all executable fields. */
-    public record CompactAcceptanceBindingPlan(String outcome, String summary,
+    /** V5 Compiler output: advisory grouping and preference only; the server derives the outcome. */
+    public record CompactAcceptanceBindingPlan(String summary,
                                                List<AcceptanceGroupHint> groupHints,
                                                List<AcceptanceCapabilityPreference> capabilityPreferences,
-                                               String handoffSummary, List<DesignGap> designGaps) {
+                                               String handoffSummary) {
         public CompactAcceptanceBindingPlan normalized() {
-            return new CompactAcceptanceBindingPlan(outcome == null ? null : outcome.trim().toUpperCase(), summary,
+            return new CompactAcceptanceBindingPlan(summary,
                     groupHints == null ? List.of() : List.copyOf(groupHints),
                     capabilityPreferences == null ? List.of() : List.copyOf(capabilityPreferences),
-                    handoffSummary, designGaps == null ? List.of() : List.copyOf(designGaps));
+                    handoffSummary);
         }
     }
 

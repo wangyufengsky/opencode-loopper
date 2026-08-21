@@ -52,7 +52,7 @@ is independently exposed at `/api/mcp-streamable`.
 
 The REST workflow uses specialized model roles plus a deterministic server validator.
 Before selecting those roles, the requirement Router supplies semantic task labels while the
-server combines them with bounded repository facts. The `2026-08-dynamic-v4` selector
+server combines them with bounded repository facts. The `2026-08-dynamic-v5` selector
 normalizes technology aliases into Java, Python, Node, or Other families before choosing
 a frozen Role Pack: JavaScript is never a Java signal, same-family aliases do not create a
 mixed pack, and an explicit unknown single stack uses the generic software pack. The result
@@ -70,8 +70,11 @@ New software-package compilation uses `COMPILER_BINDING_NO_TOOLS`: all built-in 
 tools are denied because the server has already frozen a bounded DesignFact catalog and a
 closed verification-capability catalog. The Compiler may return only indexed grouping,
 earlier-group dependencies, and capability preferences through
-`PACKAGE_ACCEPTANCE_BINDING_V4`; it cannot return executable commands, repository paths,
-test targets, acceptance ids, or verifier objects. Configured MCP permissions stay subject
+`PACKAGE_ACCEPTANCE_BINDING_V5`; it cannot return outcome, design gaps, executable commands,
+repository paths, test targets, acceptance ids, or verifier objects. The server discovers test
+targets only from positive delivery relationships, excludes negative/no-change clauses, assigns
+one focused test per business criterion, and materializes independently required targets as their
+own source-backed criteria before deriving `COMPILED` or `DESIGN_INCOMPLETE`. Configured MCP permissions stay subject
 to the ordinary additive server-name policy and cannot weaken this ownership boundary.
 
 Document and tabular direct-artifact workflows do not create an implementation Session:

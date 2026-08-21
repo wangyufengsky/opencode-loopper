@@ -467,7 +467,7 @@ class DesignerSessionMcpIntegrationTest {
             assertThat(workPackage.id()).isEqualTo("WP-1");
             assertThat(workPackage.state()).isEqualTo("APPROVED");
             assertThat(workPackage.rolePackId()).isEqualTo("software-java");
-            assertThat(workPackage.rolePackVersion()).isEqualTo("2026-08-dynamic-v4");
+            assertThat(workPackage.rolePackVersion()).isEqualTo("2026-08-dynamic-v5");
             assertThat(workPackage.executionStrategy()).isEqualTo("OPEN_CODE_IMPLEMENTATION");
             assertThat(workPackage.testPolicy()).isEqualTo("REQUIRED");
         });
@@ -488,7 +488,7 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(mapper.listTasks()).singleElement().extracting(TaskRow::id).isEqualTo(task.id());
         assertThat(mapper.listStages(task.id())).hasSize(6).allSatisfy(stage -> {
             assertThat(stage.rolePackId()).isEqualTo("software-java");
-            assertThat(stage.rolePackVersion()).isEqualTo("2026-08-dynamic-v4");
+            assertThat(stage.rolePackVersion()).isEqualTo("2026-08-dynamic-v5");
             assertThat(stage.testPolicy()).isEqualTo("REQUIRED");
             assertThat(stage.technologiesJson()).isEqualTo("[]");
         });
@@ -2096,7 +2096,7 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(fake().promptForSession(repairing.externalSessionId()))
                 .contains("Built-in repository", "tools are disabled", "Configured MCP tools remain available",
                         "return the complete object immediately")
-                .contains("Machine role contract 2026-08-semantic-v4", "Frozen DesignFacts", "mvn")
+                .contains("Machine role contract 2026-08-semantic-v5", "Frozen DesignFacts", "mvn")
                 .doesNotContain("Use DOCUMENT_STRUCTURE or TABULAR_DATA native evidence");
         List<String> compilerSessionIds = fake().promptHistory().stream()
                 .filter(call -> call.prompt().contains("LOOPSPEC_COMPILATION_PLAN_JSON_START"))
@@ -2127,10 +2127,10 @@ class DesignerSessionMcpIntegrationTest {
     }
 
     @Test
-    void controlledAcceptanceDesignUsesV4BindingSolverPersistenceAndReadModel() throws Exception {
+    void controlledAcceptanceDesignUsesV5BindingSolverPersistenceAndReadModel() throws Exception {
         fake().setStructuredCapability(new OpenCodeClient.StructuredOutputCapability(
                 OpenCodeClient.CapabilityState.AVAILABLE, OpenCodeClient.CapabilityState.AVAILABLE, null));
-        ProjectRow project = project("controlled-acceptance-v4");
+        ProjectRow project = project("controlled-acceptance-v5");
         LoopDraftRow draft = drafts.create(legacySpec(project.id()));
         String design = """
                 ## 目标与范围
@@ -2159,11 +2159,11 @@ class DesignerSessionMcpIntegrationTest {
         fake().setPackageDesignerOutput("WP-1", design);
         fake().setPackageCompilerPlanningOutput("WP-1", """
                 <!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->
-                {"outcome":"COMPILED","summary":"PIN 转换验收已绑定", "groupHints":[{
+                {"summary":"PIN 转换验收已绑定", "groupHints":[{
                   "title":"PIN 转换","objective":"实现并验证 PIN 转换异常行为",
                   "factIndexes":[2],"dependsOnHintIndexes":[]}],
                   "capabilityPreferences":[{"factIndex":2,"capabilityIndexes":[0]}],
-                  "handoffSummary":"PIN 转换行为已冻结","designGaps":[]}
+                  "handoffSummary":"PIN 转换行为已冻结"}
                 <!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->
                 """);
 
@@ -2177,12 +2177,12 @@ class DesignerSessionMcpIntegrationTest {
                         designerSessions.workPackageStatuses(session.id()), designerSessions.messages(session.id()))
                 .isEqualTo("FINAL_REVIEW");
         var compilation = mapper.findLatestLoopSpecCompilationForPackage(session.id(), "WP-1").orElseThrow();
-        assertThat(compilation.planningResponseSchemaId()).isEqualTo("PACKAGE_ACCEPTANCE_BINDING_V4");
+        assertThat(compilation.planningResponseSchemaId()).isEqualTo("PACKAGE_ACCEPTANCE_BINDING_V5");
         assertThat(fake().profileForSession(compilation.externalSessionId()))
                 .isEqualTo(OpenCodeClient.SessionProfile.COMPILER_BINDING_NO_TOOLS);
         assertThat(mapper.findDesignAcceptancePlanning(compilation.id())).hasValueSatisfying(planning -> {
             assertThat(planning.state()).isEqualTo("COMPILED");
-            assertThat(planning.contractVersion()).isEqualTo("DESIGN_ACCEPTANCE_V4");
+            assertThat(planning.contractVersion()).isEqualTo("DESIGN_ACCEPTANCE_V5");
             assertThat(planning.bindingJson()).contains("capabilityPreferences");
             assertThat(planning.diagnosticsJson()).contains("EXACT_BRANCH_AND_BOUND");
         });
@@ -2304,7 +2304,7 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(designerSessions.workPackageStatuses(genericSession.id())).singleElement()
                 .satisfies(workPackage -> assertThat(workPackage.rolePackId()).isEqualTo("software-generic"));
         String genericCompilerPrompt = fake().promptHistory().stream()
-                .filter(call -> call.prompt().contains("Machine role contract 2026-08-semantic-v4")
+                .filter(call -> call.prompt().contains("Machine role contract 2026-08-semantic-v5")
                         && call.prompt().contains("Go 监听器")
                         && call.prompt().contains("LOOPSPEC_COMPILATION_PLAN_JSON_START"))
                 .map(FakeOpenCodeClient.PromptCall::prompt).findFirst().orElseThrow();
@@ -2331,8 +2331,8 @@ class DesignerSessionMcpIntegrationTest {
                 .toList();
         assertThat(compilerPrompts).hasSize(1);
         assertThat(compilerPrompts.getFirst())
-                .contains("Machine role contract 2026-08-semantic-v4")
-                .contains("DESIGN_ACCEPTANCE_V4", "FOCUSED_TEST", "Frozen verification capabilities")
+                .contains("Machine role contract 2026-08-semantic-v5")
+                .contains("DESIGN_ACCEPTANCE_V5", "FOCUSED_TEST", "Frozen verification capabilities")
                 .contains("server owns EARS criterion text", "groupHints", "capabilityIndexes");
     }
 
@@ -2671,7 +2671,7 @@ class DesignerSessionMcpIntegrationTest {
                 .isEqualTo("FINAL_REVIEW");
         assertThat(designerSessions.workPackageStatuses(session.id())).singleElement().satisfies(workPackage -> {
             assertThat(workPackage.rolePackId()).isEqualTo(expectedRolePack);
-            assertThat(workPackage.rolePackVersion()).isEqualTo("2026-08-dynamic-v4");
+            assertThat(workPackage.rolePackVersion()).isEqualTo("2026-08-dynamic-v5");
             assertThat(workPackage.testPolicy()).isIn("OPTIONAL", "REQUIRED");
             assertThat(workPackage.compilerServerCompiled()).isTrue();
         });

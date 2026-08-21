@@ -211,12 +211,18 @@ the task rail displays the frozen Role Pack and test policy used by implementati
 Historical or interrupted rows whose execution strategy or test policy is still null are
 treated as an incomplete snapshot: the read-only rail remains available without enum
 conversion errors, and the next authoritative package-role use refreezes all required fields.
-Role Pack version `2026-08-dynamic-v4` first normalizes aliases into Java, Python, Node,
+Role Pack version `2026-08-dynamic-v5` first normalizes aliases into Java, Python, Node,
 and Other families. JavaScript/TypeScript cannot trigger Java, multiple labels from the
 same family remain one stack, real cross-family work selects the mixed pack, and an explicit
 unknown single stack selects the generic software pack. Each Compiler-capable pack receives
 its own stack-native planning example; document, table, and read-only report packs explicitly
 state their server-owned or Reviewer bypass instead of inheriting a software fallback example.
+For software acceptance, negative/no-change rows never create test capabilities. Positive deliverables,
+stage relationships and acceptance constraints form the capability-to-scenario graph; qualified test
+names are reduced to their subject symbols before competitive semantic matching. A business criterion
+binds to at most one focused test, while an independently required target without its own scenario is
+shown as a separate source-backed machine criterion. The model only advises grouping and preferences;
+the server alone derives `COMPILED` or a concrete `DESIGN_INCOMPLETE` gap.
 
 Before a requirement revision exists, Designer must call `question` once with
 1–3 choice questions. In ordinary software mode it may then finish with empty text:

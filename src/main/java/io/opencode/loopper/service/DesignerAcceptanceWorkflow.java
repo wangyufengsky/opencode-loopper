@@ -47,7 +47,7 @@ final class DesignerAcceptanceWorkflow {
     }
 
     boolean applies(WorkPackageRoleService.View role) {
-        return role != null && RolePackRegistry.VERSION.equals(role.rolePackVersion())
+        return role != null && RolePackRegistry.supportsDeterministicAcceptance(role.rolePackVersion())
                 && role.rolePackId() != null && role.rolePackId().startsWith("software-");
     }
 
@@ -83,11 +83,7 @@ final class DesignerAcceptanceWorkflow {
     AiOutputExtractor.ExtractionResult<CompactAcceptanceBindingPlan> parse(String output, int stageLimit) {
         return outputExtractor.extractJson(output, PAYLOAD, "ACCEPTANCE_BINDING_OUTPUT",
                 CompactAcceptanceBindingPlan.class, CompactAcceptanceBindingPlan::normalized, value -> {
-                    if (value == null || blank(value.outcome())) {
-                        throw new BadRequestException("ACCEPTANCE_BINDING_OUTPUT_CONTRACT_MISMATCH",
-                                "Acceptance binding requires outcome=COMPILED or DESIGN_INCOMPLETE");
-                    }
-                    if ("COMPILED".equals(value.outcome()) && value.groupHints().size() > stageLimit) {
+                    if (value != null && value.groupHints().size() > stageLimit) {
                         throw new BadRequestException("ACCEPTANCE_BINDING_GROUP_LIMIT_EXCEEDED",
                                 "Acceptance binding exceeds the package Stage limit");
                     }
@@ -102,7 +98,7 @@ final class DesignerAcceptanceWorkflow {
         DesignerAcceptancePlanCompiler.Result compiled = planCompiler.compile(workPackage, design, facts(row),
                 capabilities(row), extracted.value(), role, scopeIn, scopeOut, deliverables, stageLimit,
                 directSoftwareMode);
-        update(row, "COMPILED", extracted.canonicalJson(),
+        update(row, compiled.plan().status(), extracted.canonicalJson(),
                 write(Map.of("solver", compiled.diagnostics(), "scenarios", compiled.scenarios())), null, null);
         List<String> notes = new ArrayList<>(extracted.normalizations());
         notes.add("DESIGN_FACTS_BOUND");

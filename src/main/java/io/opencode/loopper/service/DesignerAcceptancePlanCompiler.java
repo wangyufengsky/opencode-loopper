@@ -17,6 +17,7 @@ import java.util.Set;
 final class DesignerAcceptancePlanCompiler {
     private static final long NODE_LIMIT = 100_000;
     private final DesignerPackagePlanCompiler packageCompiler;
+    private final DesignerAcceptanceStageEvidenceBinder evidenceBinder = new DesignerAcceptanceStageEvidenceBinder();
 
     DesignerAcceptancePlanCompiler(DesignerPackagePlanCompiler packageCompiler) {
         this.packageCompiler = packageCompiler;
@@ -27,17 +28,6 @@ final class DesignerAcceptancePlanCompiler {
                    WorkPackageRoleService.View role, List<String> scopeIn, List<String> scopeOut,
                    List<String> deliverables, int stageLimit, boolean directSoftwareMode) {
         CompactAcceptanceBindingPlan binding = input.normalized();
-        if ("DESIGN_INCOMPLETE".equals(binding.outcome())) {
-            CompactPackageCompilationPlan incomplete = new CompactPackageCompilationPlan(
-                    "DESIGN_INCOMPLETE", binding.summary(), List.of(), binding.handoffSummary(), binding.designGaps());
-            DesignerPackagePlanCompiler.Result lowered = packageCompiler.compile(
-                    workPackage, design, incomplete, stageLimit, directSoftwareMode);
-            return new Result(lowered.plan(), lowered.normalizations(), emptyDiagnostics(facts, capabilities), List.of());
-        }
-        if (!"COMPILED".equals(binding.outcome())) {
-            throw new BadRequestException("ACCEPTANCE_BINDING_OUTCOME_INVALID",
-                    "Acceptance binding outcome must be COMPILED or DESIGN_INCOMPLETE");
-        }
         List<Fact> acceptanceFacts = facts.facts().stream()
                 .filter(fact -> fact.kind() == FactKind.SCENARIO || fact.kind() == FactKind.REVIEW).toList();
         if (acceptanceFacts.isEmpty()) {
@@ -64,12 +54,12 @@ final class DesignerAcceptancePlanCompiler {
             fallback |= solved.fallbackUsed();
             selectedCount += solved.selected().size();
             allUncovered.addAll(solved.uncovered());
-            stages.add(stage(group, facts, capabilities, solved.selected(), allowedPaths, scopeOut,
+            stages.add(stage(group, facts, solved.selected(), allowedPaths, scopeOut,
                     stageDeliverables, role, scenarioViews));
         }
         if (!allUncovered.isEmpty()) {
-            throw new BadRequestException("VERIFICATION_CAPABILITY_UNAVAILABLE",
-                    "No deterministic or explicitly justified Judge capability covers facts " + allUncovered);
+            return incomplete(workPackage, design, facts, capabilities, binding, allUncovered,
+                    explored, fallback, selectedCount, scenarioViews, stageLimit, directSoftwareMode);
         }
         CompactPackageCompilationPlan compact = new CompactPackageCompilationPlan("COMPILED", binding.summary(),
                 stages, binding.handoffSummary(), List.of());
@@ -83,53 +73,39 @@ final class DesignerAcceptancePlanCompiler {
         return new Result(lowered.plan(), List.copyOf(normalizations), diagnostics, List.copyOf(scenarioViews));
     }
 
-    private CompactStage stage(Group group, Catalog catalog, CapabilityCatalog catalogCapabilities,
-                               List<Capability> selected, List<String> allowedPaths, List<String> scopeOut,
+    private Result incomplete(DesignWorkPackageRow workPackage, String design, Catalog facts,
+                              CapabilityCatalog capabilities, CompactAcceptanceBindingPlan binding,
+                              List<Integer> uncovered, long explored, boolean fallback, int selectedCount,
+                              List<ScenarioView> scenarioViews, int stageLimit, boolean directSoftwareMode) {
+        String titles = uncovered.stream().map(index -> fact(facts, index).title())
+                .distinct().collect(java.util.stream.Collectors.joining("、"));
+        String detail = bounded("服务端闭集验证能力无法覆盖以下设计事实：" + titles, 2_000);
+        CompactPackageCompilationPlan incomplete = new CompactPackageCompilationPlan(
+                "DESIGN_INCOMPLETE", binding.summary(), List.of(), binding.handoffSummary(),
+                List.of(new DesignGap(DesignGapCode.VERIFICATION_CAPABILITY_UNAVAILABLE, detail)));
+        DesignerPackagePlanCompiler.Result lowered = packageCompiler.compile(
+                workPackage, design, incomplete, stageLimit, directSoftwareMode);
+        List<String> normalizations = new ArrayList<>(lowered.normalizations());
+        normalizations.add("SERVER_DERIVED_DESIGN_INCOMPLETE");
+        SolverDiagnostics diagnostics = new SolverDiagnostics(fallback
+                ? "DETERMINISTIC_GREEDY_2OPT" : "EXACT_BRANCH_AND_BOUND", explored, fallback,
+                facts.facts().stream().filter(fact -> fact.kind() == FactKind.SCENARIO
+                        || fact.kind() == FactKind.REVIEW).toList().size(),
+                capabilities.capabilities().size(), selectedCount, List.copyOf(uncovered), normalizations);
+        return new Result(lowered.plan(), List.copyOf(normalizations), diagnostics, List.copyOf(scenarioViews));
+    }
+
+    private CompactStage stage(Group group, Catalog catalog, List<Capability> selected,
+                               List<String> allowedPaths, List<String> scopeOut,
                                List<String> deliverables, WorkPackageRoleService.View role,
                                List<ScenarioView> views) {
-        Map<Integer, Integer> localIndexes = new LinkedHashMap<>();
-        List<CompactCriterion> criteria = new ArrayList<>();
-        for (Integer factIndex : group.factIndexes()) {
-            Fact fact = fact(catalog, factIndex);
-            localIndexes.put(factIndex, criteria.size());
-            boolean review = fact.kind() == FactKind.REVIEW;
-            criteria.add(new CompactCriterion(fact.acceptanceText(), List.of(fact.sourceRef()),
-                    review ? fact.detail() : null,
-                    review ? "该判断依赖人工语义评审，无法由确定性运行证据完整证明" : null));
-        }
-        List<CompactEvidence> evidence = new ArrayList<>();
-        for (Capability capability : selected) {
-            List<Integer> covers = capability.coversFactIndexes().stream().filter(localIndexes::containsKey)
-                    .map(localIndexes::get).distinct().toList();
-            if ("FOCUSED_TEST".equals(capability.kind()) && !covers.isEmpty()) {
-                evidence.add(emptyEvidence("FOCUSED_TEST", capability.command(), covers, allowedPaths, scopeOut));
-            }
-        }
-        evidence.add(new CompactEvidence("GIT_DIFF", List.of(), List.of(),
-                null, null, true, allowedPaths, forbiddenPaths(scopeOut), true,
-                null, null, null, null, null, null, null, null, null, null,
-                List.of(), List.of(), List.of()));
-        for (Integer factIndex : group.factIndexes()) {
-            Fact fact = fact(catalog, factIndex);
-            List<Capability> covering = selected.stream()
-                    .filter(capability -> capability.coversFactIndexes().contains(factIndex)).toList();
-            CoverageMode mode = fact.kind() == FactKind.REVIEW ? CoverageMode.JUDGE
-                    : covering.isEmpty() ? CoverageMode.UNRESOLVED : CoverageMode.AUTOMATED;
-            views.add(new ScenarioView(factIndex, fact.title(), mode,
-                    covering.stream().map(Capability::label).toList()));
-        }
+        DesignerAcceptanceStageEvidenceBinder.Binding binding = evidenceBinder.bind(
+                group.factIndexes(), catalog, selected, allowedPaths, scopeOut);
+        views.addAll(binding.views());
         ImplementationKind kind = role.technologies().contains("java")
                 ? ImplementationKind.JAVA_PRODUCTION : ImplementationKind.NON_JAVA;
         return new CompactStage(group.objective(), kind, allowedPaths, forbiddenPaths(scopeOut), deliverables,
-                criteria, evidence, null);
-    }
-
-    private static CompactEvidence emptyEvidence(String kind, List<String> command, List<Integer> covers,
-                                                  List<String> allowedPaths, List<String> forbiddenPaths) {
-        return new CompactEvidence(kind, command, covers,
-                null, null, null, allowedPaths, forbiddenPaths, null,
-                null, null, null, null, null, null, null, null, null, null,
-                List.of(), List.of(), List.of());
+                binding.criteria(), binding.evidence(), null);
     }
 
     private SolveResult solve(List<Integer> requiredFacts, List<Capability> all,
@@ -243,11 +219,6 @@ final class DesignerAcceptancePlanCompiler {
                         "Unknown acceptance fact index " + index));
     }
 
-    private static SolverDiagnostics emptyDiagnostics(Catalog facts, CapabilityCatalog capabilities) {
-        return new SolverDiagnostics("NOT_RUN", 0, false, facts.facts().size(),
-                capabilities.capabilities().size(), 0, List.of(), List.of());
-    }
-
     private static LinkedHashSet<Integer> covered(List<Capability> candidates, Set<Integer> selected) {
         LinkedHashSet<Integer> covered = new LinkedHashSet<>();
         candidates.stream().filter(capability -> selected.contains(capability.index()))
@@ -266,6 +237,9 @@ final class DesignerAcceptancePlanCompiler {
     }
 
     private static boolean blank(String value) { return value == null || value.isBlank(); }
+    private static String bounded(String value, int max) {
+        return value.length() <= max ? value : value.substring(0, max);
+    }
 
     record Result(PackageCompilationPlanEnvelope plan, List<String> normalizations,
                   SolverDiagnostics diagnostics, List<ScenarioView> scenarios) { }

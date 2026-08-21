@@ -14,7 +14,9 @@ import org.springframework.stereotype.Component;
 /** Versioned prompt capabilities; permissions and workflow remain server-owned. */
 @Component
 public final class RolePackRegistry {
-    public static final String VERSION = "2026-08-dynamic-v4";
+    public static final String VERSION = "2026-08-dynamic-v5";
+    private static final Set<String> DETERMINISTIC_ACCEPTANCE_VERSIONS = Set.of(
+            "2026-08-dynamic-v4", VERSION);
 
     public RolePack resolve(TaskIntent intent, List<String> technologies, List<ArtifactKind> artifacts) {
         if (intent == TaskIntent.SOFTWARE_CHANGE || intent == TaskIntent.LEGACY_SOFTWARE) {
@@ -58,6 +60,10 @@ public final class RolePackRegistry {
         return Set.copyOf(families);
     }
 
+    static boolean supportsDeterministicAcceptance(String version) {
+        return DETERMINISTIC_ACCEPTANCE_VERSIONS.contains(version);
+    }
+
     private static SoftwareFamily softwareFamily(String technology) {
         if (technology == null || technology.isBlank()) return null;
         String value = technology.trim().toLowerCase(Locale.ROOT);
@@ -66,7 +72,8 @@ public final class RolePackRegistry {
         if (containsAny(value, "python", "python3", "pytest", "unittest", "django", "flask", "fastapi"))
             return SoftwareFamily.PYTHON;
         if (value.equals("java") || value.startsWith("java ") || value.matches("java\\d+.*")
-                || containsAny(value, "jdk", "spring", "maven", "gradle", "kotlin"))
+                || containsAny(value, "jdk", "spring", "maven", "gradle", "kotlin", "junit",
+                "jupiter", "surefire", "testng"))
             return SoftwareFamily.JAVA;
         return SoftwareFamily.OTHER;
     }

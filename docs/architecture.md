@@ -139,12 +139,17 @@ without an OpenCode Session. Large documents require 2–6 level-two sections; t
 structured blocks are kept in source order and deterministically aggregated into one
 frozen plan. Every decomposed software package freezes its own detected technology list,
 Role Pack version, execution strategy and test policy before its Designer/Compiler prompt.
-Role Pack `2026-08-dynamic-v4` groups normalized technology aliases into Java, Python,
+Role Pack `2026-08-dynamic-v5` groups normalized technology aliases into Java, Python,
 Node and Other software families. Node matching precedes Java so JavaScript is not Java;
 same-family aliases do not create a mixed pack, real cross-family work does, and explicit
 unknown single stacks use `software-generic` instead of inheriting Java/Maven. Document,
 tabular and report profiles keep their server-owned or Reviewer execution paths and never
 enter Compiler merely because a software example was available.
+JUnit/Jupiter/Surefire labels remain in the Java family instead of creating a false mixed stack.
+Acceptance compilation consumes only positive deliverable-to-test relationships, uses target-symbol
+and semantic competition to bind each scenario once, preserves independent required test targets as
+source-backed criteria, and derives the final outcome on the server. Frozen v4 packages may resume
+through this same deterministic path; newly frozen packages use v5.
 Rows created before that freeze is complete are not valid Role Pack snapshots: read-only
 Designer projection omits the incomplete snapshot, and the next package-role use repairs it
 from the current or legacy task profile instead of parsing nullable enum columns.

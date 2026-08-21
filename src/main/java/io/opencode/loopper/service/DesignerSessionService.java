@@ -1894,14 +1894,14 @@ public class DesignerSessionService {
         DesignRequirementRevisionRow revision = getRequirement(workPackage.requirementRevisionId());
         requireDraftUnchanged(session, revision.sourceDraftVersion());
         WorkPackageRoleService.View role = workPackageRoles.get(workPackage);
-        boolean acceptanceV4 = acceptanceWorkflow.applies(role);
+        boolean deterministicAcceptance = acceptanceWorkflow.applies(role);
         String now = now();
         ModelResponseMode responseMode = preferredResponseMode();
         LoopSpecCompilationRow pending = new LoopSpecCompilationRow(UUID.randomUUID().toString(), session.id(),
                 workPackage.designRevision(), LoopSpecCompilationState.PENDING_HANDOFF.name(), null, "PENDING", 0,
                 source.id(), revision.sourceDraftVersion(), null, null, now, now, 0,
                 workPackage.packageId(), 0, null, StructuredModelStep.PLANNING.name(), null, 0,
-                responseMode.name(), schemaId(responseMode, acceptanceV4 ? OpenCodeStructuredSchemas.PACKAGE_ACCEPTANCE_BINDING_V4
+                responseMode.name(), schemaId(responseMode, deterministicAcceptance ? OpenCodeStructuredSchemas.PACKAGE_ACCEPTANCE_BINDING_V5
                         : OpenCodeStructuredSchemas.PACKAGE_COMPILATION_SEMANTIC_V3), false,
                 responseMode.name(), schemaId(responseMode, OpenCodeStructuredSchemas.PACKAGE_COMPILATION_FINAL_V2), false,
                 null, 0, 0, false);
@@ -1909,14 +1909,14 @@ public class DesignerSessionService {
                 Map.of("workPackageId", workPackage.packageId()), () -> mapper.insertLoopSpecCompilation(pending),
                 () -> new ConflictException("LOOPSPEC_COMPILATION_CREATE_CONFLICT",
                         "Work-package compilation could not be created"));
-        if (acceptanceV4) acceptanceWorkflow.freeze(pending, workPackage, source.content(), role, now);
+        if (deterministicAcceptance) acceptanceWorkflow.freeze(pending, workPackage, source.content(), role, now);
         ProjectRow project = projects.get(session.projectId());
         try {
             OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
                     "OpenCode Loopper LoopSpec Compiler " + workPackage.packageId()
-                            + (acceptanceV4 ? " (NO_TOOLS_BINDING)" : " (READ_ONLY)"),
+                            + (deterministicAcceptance ? " (NO_TOOLS_BINDING)" : " (READ_ONLY)"),
                     responseModel(responseMode),
-                    acceptanceV4 ? OpenCodeClient.SessionProfile.COMPILER_BINDING_NO_TOOLS
+                    deterministicAcceptance ? OpenCodeClient.SessionProfile.COMPILER_BINDING_NO_TOOLS
                             : OpenCodeClient.SessionProfile.COMPILER_READ_ONLY);
             LoopSpecCompilationRow running = updateCompilation(pending, LoopSpecCompilationState.RUNNING,
                     remote.id(), "RUNNING", 0, null, null, session.projectId(), null);
@@ -1924,13 +1924,13 @@ public class DesignerSessionService {
                 runtimeControl.abortQuietly(remote.id(), session.projectId());
                 return;
             }
-            submitModelPrompt(remote, acceptanceV4
+            submitModelPrompt(remote, deterministicAcceptance
                             ? acceptanceWorkflow.prompt(running.id(), workPackage.packageId(),
                             packageStageLimit(workPackage.designerSessionId()), null)
                             : packageCompilerPlanningPrompt(project, revision, workPackage, source.content()),
                     running.planningResponseMode(), running.planningResponseSchemaId());
             publish(session, "STATUS", DesignerActor.COMPILER, true, "",
-                    workPackage.packageId() + (acceptanceV4
+                    workPackage.packageId() + (deterministicAcceptance
                             ? " 规范工程师正在绑定验收事实与可执行能力"
                             : " 规范工程师正在规划 Stage 与验收证据映射"));
         } catch (SessionFailure failure) {
@@ -2267,23 +2267,23 @@ public class DesignerSessionService {
                 recordNormalization(session, DesignerActor.COMPILER, bound.normalized(),
                         session.currentRequirementRevision(), workPackage.packageId());
             } else {
-            List<String> patchNormalizations = List.of();
-            if (input.semanticRepairCount() > 0 && output != null && output.contains("\"patches\"")
-                    && !blank(input.semanticPlanJson())) {
-                AiRepairPatchService.Result patched = repairPatchService.apply(input.semanticPlanJson(), output,
-                        COMPILATION_PLAN_PAYLOAD, "COMPILER_SEMANTIC_PATCH",
-                        Set.of("outcome", "summary", "stages", "handoffSummary", "designGaps"));
-                output = patched.json();
-                patchNormalizations = patched.normalizations();
-            }
-            boolean requireEvidence = "v2".equalsIgnoreCase(
-                    drafts.spec(drafts.get(session.loopDraftId())).schemaVersion());
-            AiOutputExtractor.ExtractionResult<PackageCompilationPlanEnvelope> extracted =
-                    parsePackageCompilationPlan(output, workPackage, design, requireEvidence);
-            extracted = withAdditionalNormalizations(extracted, patchNormalizations);
-            plan = extracted.value();
-            recordNormalization(session, DesignerActor.COMPILER, extracted,
-                    session.currentRequirementRevision(), workPackage.packageId());
+                List<String> patchNormalizations = List.of();
+                if (input.semanticRepairCount() > 0 && output != null && output.contains("\"patches\"")
+                        && !blank(input.semanticPlanJson())) {
+                    AiRepairPatchService.Result patched = repairPatchService.apply(input.semanticPlanJson(), output,
+                            COMPILATION_PLAN_PAYLOAD, "COMPILER_SEMANTIC_PATCH",
+                            Set.of("outcome", "summary", "stages", "handoffSummary", "designGaps"));
+                    output = patched.json();
+                    patchNormalizations = patched.normalizations();
+                }
+                boolean requireEvidence = "v2".equalsIgnoreCase(
+                        drafts.spec(drafts.get(session.loopDraftId())).schemaVersion());
+                AiOutputExtractor.ExtractionResult<PackageCompilationPlanEnvelope> extracted =
+                        parsePackageCompilationPlan(output, workPackage, design, requireEvidence);
+                extracted = withAdditionalNormalizations(extracted, patchNormalizations);
+                plan = extracted.value();
+                recordNormalization(session, DesignerActor.COMPILER, extracted,
+                        session.currentRequirementRevision(), workPackage.packageId());
                 if (acceptance != null) acceptanceWorkflow.markCompatibility(acceptance, output);
             }
         } catch (BadRequestException invalid) {
@@ -2546,7 +2546,7 @@ public class DesignerSessionService {
         appendMessage(session.id(), DesignerActor.VALIDATOR,
                 workPackage.packageId() + " 确定性校验未通过（" + code + "）：" + safeMessage(detail),
                 "RETRYABLE_ERROR", session.currentRequirementRevision(), workPackage.packageId());
-        boolean acceptanceV4 = acceptanceWorkflow.present(compilation.id());
+        boolean deterministicAcceptance = acceptanceWorkflow.present(compilation.id());
         boolean planning = StructuredModelStep.PLANNING.name().equals(compilation.workflowStep());
         boolean formatRepair = planning && formatOutputFailure(code);
         int repairsUsed = planning
@@ -2582,7 +2582,7 @@ public class DesignerSessionService {
             ProjectRow project = projects.get(session.projectId());
             ModelResponseMode repairMode = ModelResponseMode.valueOf(planning
                     ? repairing.planningResponseMode() : repairing.finalResponseMode());
-            String repairSchemaId = planning && !formatRepair && !acceptanceV4
+            String repairSchemaId = planning && !formatRepair && !deterministicAcceptance
                     ? OpenCodeStructuredSchemas.AI_SEMANTIC_PATCH_V1
                     : planning ? repairing.planningResponseSchemaId() : repairing.finalResponseSchemaId();
             OpenCodeClient.OpenCodeSession repairRemote = openCode.createSession(Path.of(project.rootPath()),
@@ -2592,7 +2592,7 @@ public class DesignerSessionService {
                     repairRemote.id(), "REPAIRING_" + repair + "_NO_TOOLS", repairing.repairCount(),
                     code, safeMessage(detail), session.projectId(), repairing.compiledPackageJson());
             submitModelPrompt(repairRemote, planning
-                            ? (acceptanceV4
+                            ? (deterministicAcceptance
                                 ? acceptanceWorkflow.prompt(repairing.id(), workPackage.packageId(),
                                     packageStageLimit(workPackage.designerSessionId()),
                                     code + ": " + safeMessage(detail))
@@ -2609,7 +2609,7 @@ public class DesignerSessionService {
             publish(session, "STATUS", DesignerActor.COMPILER, true, "",
                     workPackage.packageId() + " 规范工程师正在进行第 " + repair + "/"
                             + MAX_COMPILER_REPAIRS + (formatRepair ? " 次 MCP-only 格式修复"
-                            : acceptanceV4 ? " 次 MCP-only 完整绑定修复" : " 次 MCP-only 语义补丁修复"));
+                            : deterministicAcceptance ? " 次 MCP-only 完整绑定修复" : " 次 MCP-only 语义补丁修复"));
         } catch (RuntimeException failure) {
             failPackageCompilation(repairing, session, "OPENCODE_COMPILER_REPAIR_FAILED",
                     failure.getMessage(), true);

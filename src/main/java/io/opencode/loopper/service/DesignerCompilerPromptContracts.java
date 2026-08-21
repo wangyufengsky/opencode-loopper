@@ -13,19 +13,18 @@ final class DesignerCompilerPromptContracts {
                 You receive a frozen DesignFact catalog and a closed verification-capability catalog. Return only
                 advisory grouping and capability preferences. The server owns EARS criterion text, exact source
                 excerpts and hashes, commands, paths, test targets, verifier objects, acceptance ids, workPackageId,
-                dependency validation, set-cover optimization, and final LoopSpec v2 lowering.
-                - COMPILED uses 1-%d groupHints. factIndexes and capabilityIndexes must reference only the supplied
+                dependency validation, set-cover optimization, compilation outcome, design gaps, and final LoopSpec v2
+                lowering. Do not return outcome, status, designGaps, contractVersion, workPackageId, or design hashes.
+                - Return 0-%d groupHints. Empty groupHints asks the server to use one deterministic group. factIndexes
+                  and capabilityIndexes must reference only the supplied
                   catalogs. Every acceptance fact should appear in one group. dependsOnHintIndexes may reference only
                   an earlier group. Preferences are soft; omit them when uncertain.
-                - DESIGN_INCOMPLETE is allowed only for a real semantic ambiguity or closed capability gap and must
-                  use MISSING_OBSERVABLE_OUTCOME, MISSING_EXCEPTION_SEMANTICS, MISSING_SCOPE,
-                  MISSING_ACCEPTANCE_INTENT, AMBIGUOUS_ACCEPTANCE_INTENT,
-                  VERIFICATION_CAPABILITY_UNAVAILABLE, or LARGE_TASK_MODE_REQUIRED.
                 - Never invent a verifier, test command, source reference, path, id, or fact.
                 - Built-in repository tools are disabled in this binding session. Configured MCP tools remain available
                   under the existing permission policy; do not read the repository again; return the complete object immediately.
                 In TEXT_MARKER compatibility mode, put the same complete object between
                 LOOPSPEC_COMPILATION_PLAN_JSON_START and LOOPSPEC_COMPILATION_PLAN_JSON_END markers.
+                The complete object has exactly summary, groupHints, capabilityPreferences, and handoffSummary.
                 %s
 
                 Frozen package: %s

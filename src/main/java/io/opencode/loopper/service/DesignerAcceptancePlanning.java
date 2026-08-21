@@ -4,7 +4,7 @@ import java.util.List;
 
 /** Immutable semantic inputs and diagnostics for deterministic acceptance planning. */
 final class DesignerAcceptancePlanning {
-    static final String CONTRACT_VERSION = "DESIGN_ACCEPTANCE_V4";
+    static final String CONTRACT_VERSION = "DESIGN_ACCEPTANCE_V5";
 
     private DesignerAcceptancePlanning() { }
 

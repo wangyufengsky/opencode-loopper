@@ -17,7 +17,6 @@ import java.util.regex.Pattern;
 
 /** Builds a closed, frozen verifier capability graph from the Role Pack and Designer facts. */
 final class DesignerVerificationCapabilityRegistry {
-    private static final Pattern CODE = Pattern.compile("`([^`\\n]{3,1000})`");
     private static final Pattern TEST_CLASS = Pattern.compile("(?<![A-Za-z0-9_$])([A-Za-z_$][A-Za-z0-9_$]*(?:Test|Tests|Spec))(?![A-Za-z0-9_$])");
     private static final Pattern MODULE_PATH = Pattern.compile("(?<![A-Za-z0-9_.-])([A-Za-z0-9_.-]+)/src/(?:main|test)/");
     private static final Pattern PYTHON_TEST_PATH = Pattern.compile(
@@ -28,28 +27,28 @@ final class DesignerVerificationCapabilityRegistry {
             Pattern.CASE_INSENSITIVE);
     private static final Set<String> EXECUTABLES = Set.of(
             "mvn", "mvnw", "gradle", "gradlew", "npm", "pytest", "py.test", "python", "python3", "py");
+    private final DesignerVerificationIntentMapper intentMapper = new DesignerVerificationIntentMapper();
 
     CapabilityCatalog build(Catalog facts, WorkPackageRoleService.View role, String design) {
         List<Capability> result = new ArrayList<>();
         LinkedHashSet<String> issues = new LinkedHashSet<>();
-        List<List<String>> commands = explicitCommands(design);
+        List<List<String>> commands = explicitCommands(facts, design);
         if (commands.isEmpty() && role.testPolicy() == TestPolicy.REQUIRED) {
-            commands.addAll(derivedCommands(role, design));
+            commands.addAll(derivedCommands(role, facts, design));
         }
         List<List<String>> focusedCommands = commands.stream().flatMap(command -> splitTargets(command).stream())
                 .distinct().toList();
-        List<String> allTargetKeys = focusedCommands.stream()
-                .flatMap(command -> TestFrameworkPolicy.explicitTargets(command).stream())
-                .map(DesignerVerificationCapabilityRegistry::targetKey).filter(value -> !value.isBlank())
-                .distinct().toList();
-        for (List<String> command : focusedCommands) {
+        List<List<String>> targetLists = focusedCommands.stream()
+                .map(TestFrameworkPolicy::assess).map(TestFrameworkPolicy.Assessment::targets).toList();
+        List<DesignerVerificationIntentMapper.TargetMapping> mappings = intentMapper.map(facts, targetLists, design);
+        for (int index = 0; index < focusedCommands.size(); index++) {
+            List<String> command = focusedCommands.get(index);
             TestFrameworkPolicy.Assessment assessment = TestFrameworkPolicy.assess(command);
             if (!assessment.recognized() || assessment.skipped() || !assessment.focused()) continue;
-            List<Integer> covers = covers(facts, assessment.targets(), allTargetKeys);
-            boolean mandatory = independentRequirement(design, assessment.targets());
+            DesignerVerificationIntentMapper.TargetMapping mapping = mappings.get(index);
             result.add(new Capability(result.size(), "FOCUSED_TEST",
                     assessment.framework() + " · " + String.join(", ", assessment.targets()), command,
-                    covers, assessment.targets(), true, mandatory, 100));
+                    mapping.coversFactIndexes(), assessment.targets(), true, mapping.mandatory(), 100));
         }
         for (Fact fact : facts.facts()) {
             if (fact.kind() != FactKind.REVIEW) continue;
@@ -68,11 +67,9 @@ final class DesignerVerificationCapabilityRegistry {
         return new CapabilityCatalog(CONTRACT_VERSION, List.copyOf(result), List.copyOf(issues));
     }
 
-    private static List<List<String>> explicitCommands(String design) {
+    private List<List<String>> explicitCommands(Catalog facts, String design) {
         LinkedHashMap<String, List<String>> commands = new LinkedHashMap<>();
-        Matcher matcher = CODE.matcher(design == null ? "" : design);
-        while (matcher.find()) addCommand(commands, matcher.group(1));
-        if (design != null) for (String line : design.split("\\R")) addCommand(commands, stripMarkdown(line));
+        for (String evidence : intentMapper.positiveEvidence(facts, design)) addCommand(commands, stripMarkdown(evidence));
         return new ArrayList<>(commands.values());
     }
 
@@ -89,8 +86,8 @@ final class DesignerVerificationCapabilityRegistry {
         commands.putIfAbsent(String.join("\u0000", command), command);
     }
 
-    private static List<List<String>> derivedCommands(WorkPackageRoleService.View role, String design) {
-        String source = design == null ? "" : design;
+    List<List<String>> derivedCommands(WorkPackageRoleService.View role, Catalog facts, String design) {
+        String source = String.join("\n", intentMapper.positiveEvidence(facts, design));
         List<List<String>> commands = new ArrayList<>();
         if (role.technologies().contains("java")) {
             LinkedHashSet<String> targets = new LinkedHashSet<>();
@@ -137,56 +134,6 @@ final class DesignerVerificationCapabilityRegistry {
         return List.copyOf(result);
     }
 
-    private static List<Integer> covers(Catalog catalog, List<String> targets, List<String> allTargetKeys) {
-        List<String> keys = targets.stream().map(DesignerVerificationCapabilityRegistry::targetKey)
-                .filter(value -> !value.isBlank()).toList();
-        Map<String, Long> frequency = new LinkedHashMap<>();
-        for (String key : allTargetKeys) {
-            frequency.put(key, catalog.facts().stream().filter(fact -> fact.kind() == FactKind.SCENARIO)
-                    .map(DesignerVerificationCapabilityRegistry::factText).filter(text -> text.contains(key)).count());
-        }
-        List<Integer> matches = new ArrayList<>();
-        for (Fact fact : catalog.facts()) {
-            if (fact.kind() != FactKind.SCENARIO) continue;
-            String text = factText(fact);
-            boolean direct = keys.stream().anyMatch(text::contains);
-            long bestFrequency = allTargetKeys.stream().filter(text::contains)
-                    .mapToLong(key -> frequency.getOrDefault(key, Long.MAX_VALUE)).min().orElse(Long.MAX_VALUE);
-            boolean mostSpecific = keys.stream().filter(text::contains)
-                    .anyMatch(key -> frequency.getOrDefault(key, Long.MAX_VALUE) == bestFrequency);
-            if (direct && mostSpecific) matches.add(fact.index());
-        }
-        long scenarioCount = catalog.facts().stream().filter(fact -> fact.kind() == FactKind.SCENARIO).count();
-        if (matches.isEmpty() && scenarioCount > 0 && allTargetKeys.size() == 1) {
-            return catalog.facts().stream().filter(fact -> fact.kind() == FactKind.SCENARIO).map(Fact::index).toList();
-        }
-        return List.copyOf(matches);
-    }
-
-    private static boolean independentRequirement(String design, List<String> targets) {
-        String text = design == null ? "" : design.toLowerCase(Locale.ROOT);
-        return (text.contains("独立") || text.contains("分别") || text.contains("各自"))
-                && targets.stream().map(String::toLowerCase).anyMatch(text::contains);
-    }
-
-    private static String factText(Fact fact) {
-        return String.join(" ", List.of(value(fact.title()), value(fact.condition()), value(fact.action()),
-                value(fact.expected()), value(fact.invariant()), value(fact.detail())))
-                .toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9\\p{IsHan}]", "");
-    }
-
-    private static String targetKey(String target) {
-        if (target == null) return "";
-        String value = target.replace('\\', '/');
-        value = value.substring(value.lastIndexOf('/') + 1);
-        int selector = Math.max(value.indexOf('#'), value.indexOf("::"));
-        if (selector > 0) value = value.substring(0, selector);
-        value = value.replaceAll("(?i)\\.(?:[cm]?[jt]sx?|py)$", "");
-        value = value.replaceAll("(?i)[._-]?(?:tests?|spec)$", "");
-        value = value.replaceAll("(?i)^test[._-]?", "");
-        return value.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9\\p{IsHan}]", "");
-    }
-
     private static int executableIndex(List<String> values) {
         for (int index = 0; index < values.size(); index++) {
             String value = values.get(index).replace('\\', '/').toLowerCase(Locale.ROOT);
@@ -222,5 +169,4 @@ final class DesignerVerificationCapabilityRegistry {
         return line.replaceFirst("^\\s*[-*+]\\s+", "").replace("`", "").trim();
     }
 
-    private static String value(String value) { return value == null ? "" : value; }
 }

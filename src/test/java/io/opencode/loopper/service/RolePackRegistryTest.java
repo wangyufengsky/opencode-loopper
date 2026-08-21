@@ -12,10 +12,13 @@ class RolePackRegistryTest {
 
     @Test void aliasesFromOneTechnologyFamilyDoNotBecomeMixedStack() {
         RolePackRegistry.RolePack pack = registry.resolve(TaskIntent.SOFTWARE_CHANGE,
-                List.of("java", "Java 8", "Spring Boot", "Maven"), List.of(ArtifactKind.SOURCE_CODE));
+                List.of("java", "Java 8", "Spring Boot", "Maven", "JUnit 5", "Surefire"),
+                List.of(ArtifactKind.SOURCE_CODE));
 
         assertThat(pack.id()).isEqualTo("software-java");
-        assertThat(pack.version()).isEqualTo("2026-08-dynamic-v4");
+        assertThat(pack.version()).isEqualTo("2026-08-dynamic-v5");
+        assertThat(RolePackRegistry.supportsDeterministicAcceptance("2026-08-dynamic-v4")).isTrue();
+        assertThat(RolePackRegistry.supportsDeterministicAcceptance(pack.version())).isTrue();
     }
 
     @Test void javascriptIsNodeAndNeverMatchesTheJavaFamily() {

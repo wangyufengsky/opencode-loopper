@@ -1,6 +1,6 @@
 # AI 机器角色轻量合同
 
-运行时合同版本：`2026-08-semantic-v4`。
+运行时合同版本：`2026-08-semantic-v5`。
 
 本文供维护者理解角色边界。真正可执行的合同以
 `MachineRoleContractCatalog`、`OpenCodeStructuredSchemas`、服务端语义编译器和
@@ -22,7 +22,7 @@ Decomposer 和 Compiler 新会话各只需一次机器规划调用。规划通�
 需求首先形成任务画像。Router 只提供软件、文档、数据转换、只读评审、调研、配置或
 本地维护等语义标签；服务端把标签与有界仓库事实合并，决定置信度、流程、权限、测试
 策略和最终执行方式。格式不可用或结果冲突时退回通用画像并提问，不能让首次路由失败
-终止 Designer。内置 Role Pack 以 `2026-08-dynamic-v4` 版本冻结。服务端先把同义技术标签
+终止 Designer。内置 Role Pack 以 `2026-08-dynamic-v5` 版本冻结。服务端先把同义技术标签
 归并为 Java、Python、Node 和 Other 软件族，再选择 Role Pack：`java`、`java 8` 与
 `spring boot` 仍是同一 Java 族，`javascript/typescript` 只属于 Node，只有跨族组合才是
 `software-mixed`；显式但未知的单栈使用 `software-generic`，不再回退到 Java/Maven。
@@ -107,12 +107,20 @@ POLICY / DEPENDENCY` DesignFact。每项事实保存精确 Designer 原文、稳
 64 个场景、128 个总事实和 24 KiB UTF-8。随后服务端根据冻结 Role Pack、技术栈、测试策略、
 明确测试类/目标、范围与外部依赖限制生成闭集验证能力。AI 不再生成命令、路径、测试目标或验证器。
 
-Compiler 使用 `COMPILER_BINDING_NO_TOOLS` Session 和 `PACKAGE_ACCEPTANCE_BINDING_V4` Schema，只返回
-事实分组、前置分组以及事实到能力的软偏好。服务端把事实与能力构成二部图：先处理强制独立测试和
+Compiler 使用 `COMPILER_BINDING_NO_TOOLS` Session 和 `PACKAGE_ACCEPTANCE_BINDING_V5` Schema，只返回
+摘要、事实分组、前置分组、事实到能力的软偏好与交接摘要；`outcome` 和 `designGaps` 不再属于 AI
+合同。服务端把事实与能力构成二部图：先处理强制独立测试和
 单候选事实，再按 AI 给出的有界 Stage 分组运行精确 branch-and-bound 集合覆盖；超过 100,000 个节点时
 确定性降级为贪心选择并复核。每个分组以零未覆盖为硬条件，再优先减少 Judge-only、提高确定性证据
 强度和减少能力数量，AI 软偏好只作为稳定排序参考。结果仍须经过现有
 `DesignerPackagePlanCompiler` 和 LoopSpec v2 全量校验。
+
+测试能力只从“新增/修改/测试代码”等正向交付物、正向验收约束和阶段交付关系中发现；“不变、禁止、
+不修改、不引入”等负向子句只保留为约束，不能生成 focused-test 目标。目标名先去除路径、扩展名和
+通用 `Test/Spec/Core/Unit/Integration` 限定词，再结合符号标识、CamelCase 词和中文语义片段做竞争式
+匹配；场景直接点名的目标优先，模糊关系只分配给得分最高的能力。每个业务条件最终只绑定一个
+focused test；设计明确要求“各自独立通过”而没有独立业务场景的测试目标，会生成带原始约束来源的
+独立机器验收条件，既不丢失验收意图，也不制造多测试覆盖同一条件的歧义。
 
 普通模式若无法把完整设计安全编译成一个 1–6 Stage 工作包，Compiler 返回唯一专用缺口
 `LARGE_TASK_MODE_REQUIRED`。服务端立即停止，不消耗自动重设计或修复预算，也不自动切换流程；
@@ -123,7 +131,7 @@ Compiler 使用 `COMPILER_BINDING_NO_TOOLS` Session 和 `PACKAGE_ACCEPTANCE_BIND
 `MULTI_TASK_REQUIRED`。
 
 服务端从 DesignFact 的精确来源生成 `<WP>-AC-n`，并把求解结果编译成验证器关联。v3 历史流程
-继续解析 `DS-L` 与 Maven/Gradle/npm/pytest/unittest 显式选择器，不会被 v4 快照重解释。
+继续解析 `DS-L` 与 Maven/Gradle/npm/pytest/unittest 显式选择器，不会被 v5 快照重解释。
 支持的确定性能力仍包括：
 
 - 可覆盖业务条件：`FOCUSED_TEST`、`SELF_CHECK`、`HTTP_STATUS`、`JSON_PATH`、
@@ -153,12 +161,13 @@ Python 脚本可使用带成功标记的 `SELF_CHECK`；文档与一次性表格
 
 ## 修复协议
 
-v4 无法提取唯一标准 JSON object 或绑定合同不成立时，都返回完整的小型绑定对象，不使用
+v5 无法提取唯一标准 JSON object 或绑定合同不成立时，都返回完整的小型绑定对象，不使用
 JSON Patch。格式修复和语义修复各最多两次、分别持久化和展示。每次 Compiler 修复先终止原
 Session，再创建 `COMPILER_REPAIR_NO_TOOLS` 新 Session，只依据冻结事实、能力索引和错误信息，
 不能重新读仓库。v3 历史活动仍按既有 `AI_SEMANTIC_PATCH_V1` 和最多 16 个补丁兼容，不会覆盖
-v4 绑定快照。
-历史 v3 补丁只能修改 AI 拥有的语义字段，不能覆盖 `outcome` 等服务端控制字段或任何派生字段；
+v5 绑定快照。冻结为 `2026-08-dynamic-v4` 的在途工作包继续允许进入同一确定性编译器，但新请求
+统一使用 v5 Schema。
+历史 v3 补丁只能修改 AI 拥有的语义字段，不能覆盖服务端控制字段或任何派生字段；
 应用后必须重新运行完整提取、规范化和权威校验。
 紧凑 Compiler Stage 的证据字段固定为 `evidence`；弱模型若在补丁路径中使用最终 DTO 名
 `verifiers`，服务端只在 `/stages/<n>/verifiers...` 可唯一反推时改写为 `evidence`，并把对
@@ -167,10 +176,11 @@ v4 绑定快照。
 TEST；`FULL_TEST`/`BUILD` 不能替代该门禁。只有完整补丁应用后再次通过全部语义、路径、
 测试和验收校验，才允许冻结结果。
 
-新 Compiler 记录默认按紧凑合同解释，只有明确含历史 `evidenceMappings` 的活动记录才走
-旧规划兼容解析。缺少 `outcome` 的对象是格式合同不匹配，不能误送入要求 `status` 的旧
-解析器。只有合法 `outcome`，且 `COMPILED` 同时包含非空 Stage 的对象才可更新语义
-快照；错误补丁信封或不完整对象不会覆盖最后一个有效快照。
+新 Compiler 记录默认按 v5 建议合同解释，只有明确含历史 `evidenceMappings` 的活动记录才走
+旧规划兼容解析。缺少 `outcome` 是 v5 的合法形态；历史响应额外携带 `status/outcome/designGaps`
+也不能夺回结果所有权。服务端在闭集覆盖后唯一派生 `COMPILED`，无覆盖能力时唯一派生带具体事实
+标题的 `DESIGN_INCOMPLETE / VERIFICATION_CAPABILITY_UNAVAILABLE`，不会把这类确定性结论再交给
+模型来回修复。错误对象不会覆盖最后一个有效建议快照。
 
 服务端在一次预检中汇总同一紧凑对象内的全部确定性语义问题，以错误码和精确 JSON
 Pointer 一次返回。AI 应在同一个补丁中修完全部列出问题，避免按“未覆盖 → Judge 理由

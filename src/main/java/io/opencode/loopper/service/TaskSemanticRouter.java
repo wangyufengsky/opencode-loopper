@@ -79,7 +79,8 @@ public final class TaskSemanticRouter {
         Map<String, Object> value = json.readValue(candidate, new TypeReference<>() { });
         TaskIntent intent = TaskIntent.valueOf(String.valueOf(value.get("intent")));
         if (intent == TaskIntent.LEGACY_SOFTWARE) throw new IllegalArgumentException("legacy intent is not routable");
-        List<ArtifactKind> artifacts = strings(value.get("artifactKinds")).stream().map(ArtifactKind::valueOf).distinct().toList();
+        List<ArtifactKind> artifacts = strings(value.get("artifactKinds")).stream()
+                .map(TaskSemanticRouter::artifactKind).distinct().toList();
         if (artifacts.isEmpty() || artifacts.size() > 8) throw new IllegalArgumentException("artifactKinds must contain 1-8 values");
         List<String> technologies = strings(value.get("technologies")).stream()
                 .map(item -> item.toLowerCase(Locale.ROOT)).distinct().limit(16).toList();
@@ -89,6 +90,16 @@ public final class TaskSemanticRouter {
         if (confidence < 0 || confidence > 100) throw new IllegalArgumentException("confidence is invalid");
         return new TaskProfileRouter.SemanticLabels(intent, artifacts, technologies, complexity, confidence,
                 strings(value.get("signals")).stream().limit(16).toList());
+    }
+
+    static ArtifactKind artifactKind(String raw) {
+        String value = raw == null ? "" : raw.trim().toUpperCase(Locale.ROOT)
+                .replace('-', '_').replace(' ', '_');
+        return switch (value) {
+            case "TEST", "TESTS", "TEST_CODE", "TEST_SOURCE", "UNIT_TEST", "UNIT_TESTS" -> ArtifactKind.SOURCE_CODE;
+            case "PYTHON_TEST", "PYTHON_TESTS" -> ArtifactKind.PYTHON_SCRIPT;
+            default -> ArtifactKind.valueOf(value);
+        };
     }
 
     private String prompt(String requirement, List<String> evidence, boolean schema) {
