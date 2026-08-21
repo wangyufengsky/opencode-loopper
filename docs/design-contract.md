@@ -211,6 +211,13 @@ the task rail displays the frozen Role Pack and test policy used by implementati
 Historical or interrupted rows whose execution strategy or test policy is still null are
 treated as an incomplete snapshot: the read-only rail remains available without enum
 conversion errors, and the next authoritative package-role use refreezes all required fields.
+The implicit `WP-1` of `DIRECT_SOFTWARE_DESIGN` is the complete frozen software requirement,
+so its Role Pack, technology family and test policy inherit the confirmed task profile. Free-form
+requirement prose such as “no mock dependency” or “configuration remains unchanged” cannot
+downgrade it to local maintenance or clear its software family. A previously frozen direct-software
+row with a non-software Role Pack is an inconsistent snapshot and is repaired on the next
+authoritative package-role use, including manual recompilation. Package-local document or
+configuration specialization is reserved for explicit `FULL_PACKAGE_DESIGN` packages.
 Role Pack version `2026-08-dynamic-v5` first normalizes aliases into Java, Python, Node,
 and Other families. JavaScript/TypeScript cannot trigger Java, multiple labels from the
 same family remain one stack, real cross-family work selects the mixed pack, and an explicit

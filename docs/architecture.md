@@ -582,6 +582,13 @@ may fill omitted duplicate commands/targets or the equivalent TEST verifier. Bro
 test suites and ambiguous candidates are never guessed. The normal v2 assessment
 still runs after canonicalization and remains authoritative.
 
+The implicit direct-software `WP-1` is not reclassified from arbitrary requirement prose: it
+inherits the confirmed task profile's software Role Pack, technology family, and test policy.
+Only explicit large-task packages may specialize their package role from package-local content.
+If a direct-software package was previously frozen with a non-software Role Pack, the next
+authoritative role use repairs that inconsistent snapshot before Compiler selection, so manual
+recompilation enters the deterministic acceptance workflow instead of the historical compact path.
+
 The confirmed aggregate still creates exactly one Task, one task branch, and
 one publication. Stage execution remains serial, while each package owns an
 attempt pool of `min(stageCount * maxStageAttempts, stageCount + 2)` and earlier

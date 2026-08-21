@@ -7,6 +7,7 @@ import io.opencode.loopper.domain.LoopSpec;
 import io.opencode.loopper.domain.SessionFailure;
 import io.opencode.loopper.persistence.DesignDiscussionRevisionRow;
 import io.opencode.loopper.persistence.DesignRequirementRevisionRow;
+import io.opencode.loopper.persistence.DesignWorkPackageRow;
 import io.opencode.loopper.persistence.DesignerAutoModeRow;
 import io.opencode.loopper.persistence.DesignerMessageRow;
 import io.opencode.loopper.persistence.DesignerSessionRow;
@@ -15,6 +16,7 @@ import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.ProjectRow;
 import io.opencode.loopper.persistence.TaskArtifactRow;
 import io.opencode.loopper.persistence.TaskRow;
+import io.opencode.loopper.persistence.WorkPackageRoleProfileRow;
 import io.opencode.loopper.runtime.FakeOpenCodeClient;
 import io.opencode.loopper.runtime.OpenCodeClient;
 import io.opencode.loopper.runtime.OpenCodeStructuredSchemas;
@@ -495,6 +497,67 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(tasks.artifacts(task.id()).stream().map(TaskArtifactRow::kind).toList())
                 .contains("REQUIREMENT_CONTEXT", "DECOMPOSITION_CONTEXT", "WORK_PACKAGE_DESIGN",
                         "WORK_PACKAGE_COMPILATION_SUMMARY", "DESIGN_CONTEXT");
+    }
+
+    @Test
+    void directSoftwareRoleSurvivesMaintenanceVocabularyAndRepairsBeforeCompilerSelection() throws Exception {
+        ProjectRow project = project("direct-role-invariant");
+        Files.writeString(Path.of(project.rootPath()).resolve("pom.xml"), "<project/>\n");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        String design = """
+                ## 目标与范围
+                为责任链框架补充纯 JUnit 5 单元测试，不引入 mock 框架依赖，生产配置保持不变。
+
+                ## 影响与交付
+                - 新增 `src/test/java/example/ChainContextTest.java`。
+
+                ## 验收场景
+                | 场景 | 前置/触发 | 操作 | 可观察结果 | 保持不变 |
+                | --- | --- | --- | --- | --- |
+                | 中断状态 | 新上下文 | 调用 interrupt | 状态与原因可查询 | 生产代码不变 |
+
+                ## 验收约束
+                `mvn -q -Dtest=ChainContextTest test` 必须独立通过。
+
+                ## 阶段与依赖
+                - 单阶段新增并验证责任链单元测试，无前置阶段。
+                """;
+        fake().setDesignerOutput(designerOutput(design, legacySpec(project.id())));
+        fake().setPackageDesignerOutput("WP-1", design);
+
+        DesignerSessionRow reviewing = prepareReviewingSession(project.id(), draft.id(),
+                "实现责任链功能并新增单元测试，测试不依赖外部服务");
+        assertThat(taskProfiles.current(reviewing.id())).satisfies(profile -> {
+            assertThat(profile.workflowTemplate().name()).isEqualTo("DIRECT_SOFTWARE_DESIGN");
+            assertThat(profile.rolePackId()).isEqualTo("software-java");
+        });
+        designerSessions.confirmRequirement(reviewing.id(), reviewing.discussionRevision());
+        DesignWorkPackageRow workPackage = mapper.findLatestDesignWorkPackage(reviewing.id(), "WP-1").orElseThrow();
+        WorkPackageRoleProfileRow assigned = mapper.findWorkPackageRoleProfile(workPackage.id()).orElseThrow();
+        assertThat(assigned.rolePackId()).isEqualTo("software-java");
+        assertThat(assigned.testPolicy()).isEqualTo("REQUIRED");
+
+        assertThat(mapper.assignWorkPackageRoleProfile(new WorkPackageRoleProfileRow(
+                assigned.id(), assigned.designerSessionId(), assigned.packageId(), assigned.taskProfileId(),
+                "local-maintenance", assigned.rolePackVersion(), assigned.executionStrategy(), "OPTIONAL", "[]")))
+                .isEqualTo(1);
+        designerSessions.pollActiveHandoffs();
+
+        var compilation = mapper.findLatestLoopSpecCompilationForPackage(reviewing.id(), "WP-1").orElseThrow();
+        if ("JSON_SCHEMA".equals(compilation.planningResponseMode())) {
+            assertThat(compilation.planningResponseSchemaId()).isEqualTo("PACKAGE_ACCEPTANCE_BINDING_V5");
+        } else {
+            assertThat(compilation.planningResponseMode()).isEqualTo("TEXT_MARKER");
+            assertThat(compilation.planningResponseSchemaId()).isNull();
+        }
+        assertThat(mapper.findDesignAcceptancePlanning(compilation.id())).isPresent();
+        assertThat(fake().profileForSession(compilation.externalSessionId()))
+                .isEqualTo(OpenCodeClient.SessionProfile.COMPILER_BINDING_NO_TOOLS);
+        assertThat(mapper.findWorkPackageRoleProfile(workPackage.id())).hasValueSatisfying(repaired -> {
+            assertThat(repaired.rolePackId()).isEqualTo("software-java");
+            assertThat(repaired.testPolicy()).isEqualTo("REQUIRED");
+            assertThat(repaired.technologiesJson()).contains("java");
+        });
     }
 
     @Test

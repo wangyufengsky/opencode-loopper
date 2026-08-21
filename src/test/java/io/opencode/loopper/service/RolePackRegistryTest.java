@@ -46,4 +46,13 @@ class RolePackRegistryTest {
                 List.of(), List.of(ArtifactKind.SOURCE_CODE)).id())
                 .isEqualTo("software-java");
     }
+
+    @Test void maintenanceSignalsRequireAnExplicitConfigurationOrDependencyChange() {
+        assertThat(WorkPackageRoleService.hasMaintenanceSignal("纯 JUnit 5 手写桩，不引入 mock 框架依赖"))
+                .isFalse();
+        assertThat(WorkPackageRoleService.hasMaintenanceSignal("升级 pom.xml 中的依赖版本"))
+                .isTrue();
+        assertThat(WorkPackageRoleService.hasMaintenanceSignal("修改 application.yml 配置项"))
+                .isTrue();
+    }
 }

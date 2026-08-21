@@ -3,6 +3,7 @@ package io.opencode.loopper.service;
 import io.opencode.loopper.domain.ArtifactKind;
 import io.opencode.loopper.domain.TaskIntent;
 import io.opencode.loopper.domain.TestPolicy;
+import io.opencode.loopper.domain.WorkflowTemplate;
 import io.opencode.loopper.persistence.DesignWorkPackageRow;
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.WorkPackageRoleProfileRow;
@@ -35,30 +36,41 @@ public final class WorkPackageRoleService {
 
     public View assign(DesignWorkPackageRow row) {
         TaskProfileService.View parent = profiles.current(row.designerSessionId());
+        return assign(row, parent);
+    }
+
+    private View assign(DesignWorkPackageRow row, TaskProfileService.View parent) {
         String text = (row.title() + "\n" + row.objective() + "\n" + row.scopeInJson()
                 + "\n" + row.deliverablesJson()).toLowerCase(Locale.ROOT);
+        boolean directSoftware = directSoftware(parent);
         List<String> technologies = new ArrayList<>();
-        if (hasPythonSignal(text)) technologies.add("python");
-        if (hasNodeSignal(text)) technologies.add("node");
-        if (hasJavaSignal(text)) technologies.add("java");
-        if (technologies.isEmpty()) technologies.addAll(parent.technologies());
+        if (directSoftware) {
+            technologies.addAll(parent.technologies());
+        } else {
+            if (hasPythonSignal(text)) technologies.add("python");
+            if (hasNodeSignal(text)) technologies.add("node");
+            if (hasJavaSignal(text)) technologies.add("java");
+            if (technologies.isEmpty()) technologies.addAll(parent.technologies());
+        }
         TaskIntent intent = parent.intent();
         List<ArtifactKind> artifacts = parent.artifactKinds();
         boolean codeSignals = hasPythonSignal(text) || hasNodeSignal(text) || hasJavaSignal(text)
                 || contains(text, "代码", "接口");
         boolean documentSignals = contains(text, "markdown", "docx", "文档", "章节", "readme") && !codeSignals;
-        boolean maintenanceSignals = contains(text, "配置", "依赖", "yaml", "yml", "properties") && !codeSignals;
-        if (parent.workflowTemplate() == io.opencode.loopper.domain.WorkflowTemplate.PACKAGED_ARTIFACT || documentSignals) {
+        boolean maintenanceSignals = hasMaintenanceSignal(text) && !codeSignals;
+        boolean packageSpecialization = parent.workflowTemplate() == WorkflowTemplate.FULL_PACKAGE_DESIGN;
+        if (parent.workflowTemplate() == WorkflowTemplate.PACKAGED_ARTIFACT
+                || packageSpecialization && documentSignals) {
             intent = TaskIntent.DOCUMENT_AUTHORING;
             artifacts = text.contains("docx") ? List.of(ArtifactKind.DOCX) : List.of(ArtifactKind.MARKDOWN);
             technologies.clear();
-        } else if (maintenanceSignals) {
+        } else if (packageSpecialization && maintenanceSignals) {
             intent = TaskIntent.LOCAL_MAINTENANCE;
             artifacts = List.of(ArtifactKind.CONFIGURATION);
             technologies.clear();
         }
         RolePackRegistry.RolePack pack = registry.resolve(intent, technologies, artifacts);
-        TestPolicy testPolicy = pack.defaultTestPolicy();
+        TestPolicy testPolicy = directSoftware ? parent.testPolicy() : pack.defaultTestPolicy();
         boolean explicitTests = parent.evidence().stream().anyMatch("requirement-tests=required"::equals);
         boolean pythonFramework = technologies.contains("python") && parent.evidence().stream()
                 .anyMatch(value -> value.contains("test-framework=pytest") || value.contains("test-framework=unittest"));
@@ -76,7 +88,22 @@ public final class WorkPackageRoleService {
     }
 
     public View get(DesignWorkPackageRow row) {
-        return mapper.findWorkPackageRoleProfile(row.id()).map(this::view).orElseGet(() -> assign(row));
+        TaskProfileService.View parent = profiles.current(row.designerSessionId());
+        return mapper.findWorkPackageRoleProfile(row.id())
+                .filter(stored -> !inconsistentDirectSoftwareRole(parent, stored))
+                .map(this::view)
+                .orElseGet(() -> assign(row, parent));
+    }
+
+    private boolean inconsistentDirectSoftwareRole(TaskProfileService.View parent,
+                                                    WorkPackageRoleProfileRow stored) {
+        return directSoftware(parent)
+                && (stored.rolePackId() == null || !stored.rolePackId().startsWith("software-"));
+    }
+
+    private static boolean directSoftware(TaskProfileService.View parent) {
+        return parent.workflowTemplate() == WorkflowTemplate.DIRECT_SOFTWARE_DESIGN
+                && (parent.intent() == TaskIntent.SOFTWARE_CHANGE || parent.intent() == TaskIntent.LEGACY_SOFTWARE);
     }
 
     private View view(WorkPackageRoleProfileRow row) {
@@ -94,6 +121,11 @@ public final class WorkPackageRoleService {
     }
     static boolean hasPythonSignal(String text) {
         return text != null && PYTHON_SIGNAL.matcher(text.toLowerCase(Locale.ROOT)).find();
+    }
+    static boolean hasMaintenanceSignal(String text) {
+        return text != null && contains(text.toLowerCase(Locale.ROOT), "配置文件", "配置项", "修改配置", "更新配置",
+                "调整配置", "依赖版本", "依赖升级", "升级依赖", "更新依赖", "新增依赖", "添加依赖", "移除依赖",
+                "删除依赖", "pom.xml", "package.json", ".yaml", ".yml", ".properties");
     }
     private static boolean contains(String text, String... values) { for (String value : values) if (text.contains(value)) return true; return false; }
 
