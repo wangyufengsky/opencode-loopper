@@ -152,6 +152,12 @@ only scope/version that can accept a message or approval.
 
 Before requirement confirmation, the page shows the provisional task profile,
 confidence, evidence, workflow preview, Role Pack, execution strategy and test policy.
+The Projects card also shows the latest persisted stack-profile summary without triggering
+filesystem analysis: Java, Node, Python, mixed, unanalysed, partial, or failed, plus component
+count and analysis time. Opening a project stack detail uses the dedicated profile endpoint.
+The **AI 更新 Loopper 公约** action is the only manual refresh entry: its progress text first
+states that the stack is being refreshed, then that AI is regenerating the managed sections.
+`PARTIAL` is a visible review warning, while `FAILED` prevents proposal generation.
 Task intent, artifact, workflow, execution and test-policy enum values are rendered as
 Chinese labels in the user-facing **任务设置** summary and edit controls, while REST/SQLite continue
 to use the stable English enum codes. The DTO exposes `decisionState` as
@@ -159,6 +165,13 @@ to use the stable English enum codes. The DTO exposes `decisionState` as
 `confirmationReady`, and an optional `previousConfirmedChoice`. Every single-package,
 large-package, report, document, or conversion start action uses `confirmationReady`; the
 browser must never derive readiness from `!decisionRequired`.
+For software tasks the DTO also exposes the manifest fingerprint, selected component keys,
+candidate components, and a server-owned `componentSelectionRequired`. A component selector is
+rendered only for an ambiguous multi-stack result; a single-family project keeps the compact
+summary. The selector submits stable component keys with the existing profile version. The server
+validates project ownership and staleness, so the browser refreshes on a profile-fingerprint
+conflict instead of retrying cached choices. Empty or failed repository evidence is shown as
+generic/needs-confirmation and is never relabelled as Java by the UI.
 While a complete requirement snapshot is being rerouted, the page polls every 1.2 seconds,
 shows **任务设置识别中**, and keeps design actions disabled even when the Designer Session
 itself is `REVIEWING`. An equivalent reroute safely carries forward the persisted manual
@@ -185,7 +198,9 @@ discussion or changing to another workflow must first confirm the obsolete remot
 stopped; an abort failure keeps the current choice and Session unchanged and does not dispatch
 a replacement. A newly submitted requirement remains on the active design page throughout
 routing and continues automatically when classification completes; it must not require a
-history-page restore. Confirmation freezes the profile. The progress rail is
+history-page restore. Confirmation freezes the project-profile id, manifest fingerprint,
+component keys, and task profile together. Later project analysis cannot update existing
+Task/Stage/Recovery displays. The progress rail is
 template-driven: omitted Decomposer/package/Compiler steps are not displayed.
 Historical `BLOCKED + TASK_PROFILE_DECISION_REQUIRED` rows use one bounded `RESUME` action,
 then apply the same auto-recommended profile decision on the next monitor tick. A manual

@@ -141,6 +141,24 @@ describe('Projects AGENTS.md convention flow', () => {
 })
 
 describe('Projects management', () => {
+  it('shows the persisted project stack summary without triggering a filesystem refresh', () => {
+    const store = useTaskStore()
+    store.projects = [{
+      id: 'project-1', name: 'Example', rootPath: '/tmp/example', status: 'READY', updatedAt: 'now',
+      taskCount: 0, openDesignerSessionCount: 0, stackProfileState: 'READY',
+      stackTechnologyFamilies: ['java'], stackComponentCount: 2, stackAnalyzedAt: 'now',
+    }]
+    const stackProfile = vi.spyOn(api, 'getProjectStackProfile')
+
+    const wrapper = mount(ProjectsView, {
+      global: { plugins: [ElementPlus], stubs: { teleport: true, PageHeader: { template: '<header><slot /><slot name="actions" /></header>' }, StatusBadge: true, Icon: true } },
+    })
+
+    expect(wrapper.text()).toContain('Java')
+    expect(wrapper.text()).toContain('2 个组件')
+    expect(stackProfile).not.toHaveBeenCalled()
+  })
+
   it('keeps Task count separate and opens the persistent Designer recovery list', async () => {
     const store = useTaskStore()
     store.projects = [{

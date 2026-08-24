@@ -14,6 +14,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 
 /** One-query project counters plus bounded/cached Git inspection for list pages. */
@@ -23,6 +25,7 @@ public class ProjectReadService {
     private final ReadModelMapper mapper;
     private final GitWorktreeManager worktrees;
     private final MeterRegistry metrics;
+    private final ObjectMapper json;
     private final ExecutorService inspectionPool = Executors.newFixedThreadPool(4, runnable -> {
         Thread thread = new Thread(runnable, "project-git-inspection");
         thread.setDaemon(true);
@@ -30,10 +33,12 @@ public class ProjectReadService {
     });
     private final Map<String, CachedInspection> cache = new ConcurrentHashMap<>();
 
-    public ProjectReadService(ReadModelMapper mapper, GitWorktreeManager worktrees, MeterRegistry metrics) {
+    public ProjectReadService(ReadModelMapper mapper, GitWorktreeManager worktrees, MeterRegistry metrics,
+                              ObjectMapper json) {
         this.mapper = mapper;
         this.worktrees = worktrees;
         this.metrics = metrics;
+        this.json = json;
     }
 
     public List<ProjectSummary> summaries(boolean refresh) {
@@ -53,7 +58,14 @@ public class ProjectReadService {
         String executionMode = inspection.isolatedWorktree()
                 ? "WORKTREE" : inspection.pathAvailable() ? "DIRECT" : "UNAVAILABLE";
         return new ProjectSummary(row.id(), row.name(), row.rootPath(), status, row.description(), inspection.branch(),
-                executionMode, row.updatedAt(), row.taskCount(), row.openDesignerSessionCount());
+                executionMode, row.updatedAt(), row.taskCount(), row.openDesignerSessionCount(),
+                row.stackProfileState(), strings(row.stackTechnologyFamiliesJson()), row.stackComponentCount(),
+                row.stackAnalyzedAt());
+    }
+
+    private List<String> strings(String value) {
+        try { return json.readValue(value, new TypeReference<>() { }); }
+        catch (Exception ignored) { return List.of(); }
     }
 
     private GitWorktreeManager.RepositoryInspection inspection(String rootPath, boolean refresh) {
@@ -74,5 +86,7 @@ public class ProjectReadService {
 
     public record ProjectSummary(String id, String name, String rootPath, String status, String description,
                                  String branch, String executionMode, String updatedAt, int taskCount,
-                                 int openDesignerSessionCount) { }
+                                 int openDesignerSessionCount, String stackProfileState,
+                                 List<String> stackTechnologyFamilies, int stackComponentCount,
+                                 String stackAnalyzedAt) { }
 }

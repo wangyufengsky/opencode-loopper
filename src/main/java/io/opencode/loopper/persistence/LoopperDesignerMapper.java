@@ -64,11 +64,13 @@ public interface LoopperDesignerMapper {
             INSERT INTO designer_task_profile(id,designer_session_id,requirement_revision_id,state,intent,
               workflow_template,mutation_mode,artifact_kinds_json,technologies_json,test_policy,
               execution_strategy,role_pack_id,role_pack_version,confidence,evidence_json,resolution_source,
-              decision_required,created_at,updated_at,version)
+              decision_required,created_at,updated_at,version,project_stack_profile_id,component_keys_json,
+              stack_fingerprint)
             VALUES(#{id},#{designerSessionId},#{requirementRevisionId},#{state},#{intent},
               #{workflowTemplate},#{mutationMode},#{artifactKindsJson},#{technologiesJson},#{testPolicy},
               #{executionStrategy},#{rolePackId},#{rolePackVersion},#{confidence},#{evidenceJson},#{resolutionSource},
-              #{decisionRequired},#{createdAt},#{updatedAt},#{version})
+              #{decisionRequired},#{createdAt},#{updatedAt},#{version},#{projectStackProfileId},
+              #{componentKeysJson},#{stackFingerprint})
             """)
     int insertDesignerTaskProfile(DesignerTaskProfileRow row);
     @Select("SELECT * FROM designer_task_profile WHERE id=#{id}")
@@ -93,7 +95,9 @@ public interface LoopperDesignerMapper {
               artifact_kinds_json=#{artifactKindsJson},technologies_json=#{technologiesJson},test_policy=#{testPolicy},
               execution_strategy=#{executionStrategy},role_pack_id=#{rolePackId},role_pack_version=#{rolePackVersion},
               confidence=#{confidence},evidence_json=#{evidenceJson},resolution_source=#{resolutionSource},
-              decision_required=#{decisionRequired},updated_at=#{updatedAt},version=version+1
+              decision_required=#{decisionRequired},project_stack_profile_id=#{projectStackProfileId},
+              component_keys_json=#{componentKeysJson},stack_fingerprint=#{stackFingerprint},
+              updated_at=#{updatedAt},version=version+1
             WHERE id=#{id} AND version=#{version}
             """)
     int updateDesignerTaskProfile(DesignerTaskProfileRow row);
@@ -107,10 +111,12 @@ public interface LoopperDesignerMapper {
     @Insert("""
             INSERT INTO task_profile_router_run(id,designer_session_id,state,requirement_snapshot,
               repository_evidence_json,external_session_id,external_session_state,response_mode,
-              semantic_labels_json,error_code,error_detail,created_at,updated_at,version)
+              semantic_labels_json,error_code,error_detail,created_at,updated_at,version,
+              project_stack_profile_id,component_keys_json,stack_fingerprint)
             VALUES(#{id},#{designerSessionId},#{state},#{requirementSnapshot},#{repositoryEvidenceJson},
               #{externalSessionId},#{externalSessionState},#{responseMode},#{semanticLabelsJson},
-              #{errorCode},#{errorDetail},#{createdAt},#{updatedAt},#{version})
+              #{errorCode},#{errorDetail},#{createdAt},#{updatedAt},#{version},#{projectStackProfileId},
+              #{componentKeysJson},#{stackFingerprint})
             """)
     int insertTaskProfileRouterRun(TaskProfileRouterRunRow row);
     @Select("SELECT * FROM task_profile_router_run WHERE id=#{id}")
@@ -337,13 +343,16 @@ public interface LoopperDesignerMapper {
     @Update("""
             UPDATE design_work_package SET task_profile_id=#{taskProfileId},role_pack_id=#{rolePackId},
               role_pack_version=#{rolePackVersion},execution_strategy=#{executionStrategy},
-              test_policy=#{testPolicy},technologies_json=#{technologiesJson}
+              test_policy=#{testPolicy},technologies_json=#{technologiesJson},
+              project_stack_profile_id=#{projectStackProfileId},component_keys_json=#{componentKeysJson},
+              stack_fingerprint=#{stackFingerprint}
             WHERE id=#{id}
             """)
     int assignWorkPackageRoleProfile(WorkPackageRoleProfileRow row);
     @Select("""
             SELECT id,designer_session_id,package_id,task_profile_id,role_pack_id,role_pack_version,
-              execution_strategy,test_policy,technologies_json FROM design_work_package
+              execution_strategy,test_policy,technologies_json,project_stack_profile_id,
+              component_keys_json,stack_fingerprint FROM design_work_package
             WHERE id=#{id} AND role_pack_id IS NOT NULL AND role_pack_version IS NOT NULL
               AND execution_strategy IS NOT NULL AND test_policy IS NOT NULL
             """)

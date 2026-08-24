@@ -219,7 +219,9 @@ public class TaskService {
                     (stage.executionStrategy() == null
                             ? ExecutionStrategy.OPEN_CODE_IMPLEMENTATION : stage.executionStrategy()).name(),
                     stage.artifactPlanId(), executionRole.rolePackId(), executionRole.rolePackVersion(),
-                    executionRole.testPolicy(), executionRole.technologiesJson());
+                    executionRole.testPolicy(), executionRole.technologiesJson(), executionRole.projectStackProfileId(),
+                    executionRole.componentKeysJson(),
+                    executionRole.stackFingerprint());
             lifecycle.create(taskStates.subject(LifecycleMachineType.STAGE, stageRow.id(), taskId), stageRow.state(), Map.of(),
                     () -> mapper.insertStage(stageRow),
                     () -> new ConflictException("STAGE_CREATE_CONFLICT", "Stage could not be created"));
@@ -227,7 +229,6 @@ public class TaskService {
         if (confirmDraft) confirmDraft(draft);
         return new TaskCreation(taskId, false);
     }
-
     private ExecutionRoleSnapshot executionRole(LoopDraftRow draft, LoopSpec.StageSpec stage,
                                                   io.opencode.loopper.persistence.DesignerTaskProfileRow profile) {
         io.opencode.loopper.persistence.WorkPackageRoleProfileRow packageRole = null;
@@ -237,17 +238,16 @@ public class TaskService {
                     .flatMap(workPackage -> mapper.findWorkPackageRoleProfile(workPackage.id()))
                     .orElse(null);
         }
-        if (packageRole != null) {
-            return new ExecutionRoleSnapshot(packageRole.rolePackId(), packageRole.rolePackVersion(),
-                    packageRole.testPolicy(), packageRole.technologiesJson());
-        }
-        if (profile != null) {
-            return new ExecutionRoleSnapshot(profile.rolePackId(), profile.rolePackVersion(),
-                    profile.testPolicy(), profile.technologiesJson());
-        }
-        return new ExecutionRoleSnapshot("software-java", "legacy", "REQUIRED", "[]");
+        if (packageRole != null) return new ExecutionRoleSnapshot(
+                    packageRole.rolePackId(), packageRole.rolePackVersion(), packageRole.testPolicy(),
+                    packageRole.technologiesJson(), packageRole.projectStackProfileId(),
+                    packageRole.componentKeysJson(), packageRole.stackFingerprint());
+        if (profile != null) return new ExecutionRoleSnapshot(
+                    profile.rolePackId(), profile.rolePackVersion(), profile.testPolicy(),
+                    profile.technologiesJson(), profile.projectStackProfileId(),
+                    profile.componentKeysJson(), profile.stackFingerprint());
+        return new ExecutionRoleSnapshot("software-java", "legacy", "REQUIRED", "[]", null, "[]", null);
     }
-
     private void confirmDraft(LoopDraftRow draft) {
         if (LoopDraftStatus.CONFIRMED.name().equals(draft.status())) return;
         LoopDraftRow confirmed = new LoopDraftRow(draft.id(), draft.projectId(), draft.goal(), draft.specJson(),
@@ -2435,8 +2435,8 @@ public class TaskService {
     }
     private String safeNullable(String value) { return value == null ? null : safeMessage(value); }
     private record TaskCreation(String taskId, boolean existing) { }
-    private record ExecutionRoleSnapshot(String rolePackId, String rolePackVersion,
-                                         String testPolicy, String technologiesJson) { }
+    private record ExecutionRoleSnapshot(String rolePackId, String rolePackVersion, String testPolicy,
+            String technologiesJson, String projectStackProfileId, String componentKeysJson, String stackFingerprint) { }
     private record PendingVerification(String id, int index, VerifierOutcome outcome) { }
     private enum VerificationAction { NONE, RETRY_STAGE, NEXT_STAGE, FINAL_REVIEW }
     private record VerificationContinuation(VerificationAction action, String taskId, String stageId,

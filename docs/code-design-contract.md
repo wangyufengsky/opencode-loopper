@@ -27,6 +27,7 @@ behavior, while this document defines how that behavior is divided into code.
 | Object construction | `*Factory` / assembler | lifecycle transitions or remote calls |
 | Persistence | aggregate-oriented `*Mapper` / `*Persistence` | network, Git, model, browser, long file I/O |
 | External integration | `*Client`, `*Transport`, adapter | Task/Designer lifecycle decisions |
+| Project fact discovery | bounded `*Analyzer` plus immutable snapshot | AI routing, task mutation, long DB transactions |
 | Untrusted payload parsing | `*Parser`, normalizer | persistence mutations or retries |
 
 Use a design pattern only when it makes a changing axis explicit:
@@ -55,6 +56,15 @@ ownership rules:
 - `TaskService` owns execution lifecycle ordering and error-layer escalation. It
   must not assemble immutable design snapshots, verification aggregates, baseline
   diffs, or Judge evidence prompts; those belong to `TaskEvidenceService`.
+- `ProjectStackAnalyzer` owns bounded filesystem evidence and manifest fingerprinting;
+  `ProjectStackProfileService` owns immutable snapshot persistence and freshness checks.
+  Project list reads must use persisted summaries and must not call either filesystem path.
+- `TaskProfileRouter` owns deterministic selection from a supplied stack snapshot, while
+  `TaskProfileOverridePolicy` owns versioned component/profile override validation.
+  Neither may infer repository technologies from `AGENTS.md` or permit AI labels to create evidence.
+- `ProjectConventionService` owns proposal/apply lifecycle coordination, while
+  `ProjectConventionStackPolicy` owns the stack-bound prompt, required-section validation,
+  unsupported-technology rejection, and apply-time fingerprint guard.
 - A responsibility is considered extracted only when the old implementation body
   is removed, focused tests cover the new boundary, facade integration tests remain
   green, and the legacy line-count ratchet is lowered in the same change.

@@ -39,13 +39,41 @@ public interface LoopperProjectMapper {
     int unmanageProject(@Param("id") String id, @Param("updatedAt") String updatedAt);
 
     @Insert("""
+            INSERT INTO project_stack_profile(
+              id,project_id,analysis_state,manifest_fingerprint,technology_families_json,
+              technologies_json,evidence_json,files_scanned,component_count,error_code,error_detail,
+              analyzed_at,created_at)
+            VALUES(#{id},#{projectId},#{analysisState},#{manifestFingerprint},#{technologyFamiliesJson},
+              #{technologiesJson},#{evidenceJson},#{filesScanned},#{componentCount},#{errorCode},#{errorDetail},
+              #{analyzedAt},#{createdAt})
+            """)
+    int insertProjectStackProfile(ProjectStackProfileRow row);
+    @Insert("""
+            INSERT INTO project_stack_component(
+              profile_id,component_key,relative_root,technology_families_json,technologies_json,
+              build_tools_json,test_frameworks_json,manifest_sources_json,evidence_json)
+            VALUES(#{profileId},#{componentKey},#{relativeRoot},#{technologyFamiliesJson},#{technologiesJson},
+              #{buildToolsJson},#{testFrameworksJson},#{manifestSourcesJson},#{evidenceJson})
+            """)
+    int insertProjectStackComponent(ProjectStackComponentRow row);
+    @Select("SELECT * FROM project_stack_profile WHERE id=#{id}")
+    Optional<ProjectStackProfileRow> findProjectStackProfile(String id);
+    @Select("""
+            SELECT * FROM project_stack_profile WHERE project_id=#{projectId}
+            ORDER BY analyzed_at DESC,id DESC LIMIT 1
+            """)
+    Optional<ProjectStackProfileRow> findCurrentProjectStackProfile(String projectId);
+    @Select("SELECT * FROM project_stack_component WHERE profile_id=#{profileId} ORDER BY relative_root,component_key")
+    List<ProjectStackComponentRow> listProjectStackComponents(String profileId);
+
+    @Insert("""
             INSERT INTO project_convention_draft(
               id,project_id,state,external_session_id,external_session_state,
               source_exists,source_sha256,source_content,proposed_content,normalization_notice,error_message,
-              created_at,updated_at,version)
+              created_at,updated_at,version,project_stack_profile_id,stack_fingerprint)
             VALUES(#{id},#{projectId},#{state},#{externalSessionId},#{externalSessionState},
               #{sourceExists},#{sourceSha256},#{sourceContent},#{proposedContent},#{normalizationNotice},#{errorMessage},
-              #{createdAt},#{updatedAt},#{version})
+              #{createdAt},#{updatedAt},#{version},#{projectStackProfileId},#{stackFingerprint})
             """)
     int insertProjectConventionDraft(ProjectConventionDraftRow row);
     @Select("SELECT * FROM project_convention_draft WHERE id=#{id}")

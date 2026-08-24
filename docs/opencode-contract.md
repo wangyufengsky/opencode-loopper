@@ -52,7 +52,11 @@ is independently exposed at `/api/mcp-streamable`.
 
 The REST workflow uses specialized model roles plus a deterministic server validator.
 Before selecting those roles, the requirement Router supplies semantic task labels while the
-server combines them with bounded repository facts. The `2026-08-dynamic-v5` selector
+server combines them with the latest immutable V42 project stack snapshot. The snapshot is
+created by deterministic bounded filesystem analysis, not by Router output or `AGENTS.md`.
+Relative paths, module names, and Router labels may select only repository-backed component
+keys. Ambiguous multi-stack and missing/partial evidence require user confirmation; an empty
+project cannot become Java merely because the Router says Java. The `2026-08-dynamic-v5` selector
 normalizes technology aliases into Java, Python, Node, or Other families before choosing
 a frozen Role Pack: JavaScript is never a Java signal, same-family aliases do not create a
 mixed pack, and an explicit unknown single stack uses the generic software pack. The result
@@ -67,7 +71,20 @@ MCP tools remain available under their OpenCode server-name prefixes. It uses th
 bounded machine-response agent only for output control and has a 30-second server
 boundary. A completed response is accepted only as one closed semantic object. Router
 runs are persisted with their exact requirement snapshots and external Session IDs;
-restart polls the same Session, while a newer discussion aborts and supersedes stale runs.
+restart polls the same Session, while a newer discussion aborts and supersedes stale runs. Each
+run also persists the project-profile id, manifest fingerprint, and selected component keys.
+Those fields flow into the confirmed profile, direct work package, Stage, and Recovery snapshot;
+the Router and later project analyses cannot rewrite a frozen task.
+
+Project-convention generation is a separate read-only role. `POST /api/projects/{id}/agents-md`
+first forces deterministic stack analysis outside SQLite. A `FAILED` snapshot stops before any
+OpenCode Session; `PARTIAL` is included as an explicit evidence warning. The read-only prompt
+contains the structured profile and bounded current `AGENTS.md`, and requires complete replacement
+content for `技术栈与模块`, `构建与测试`, and `目录与边界`. Built-in access remains read-only.
+The server rejects missing sections, unsafe size or markers, and known technologies absent from the
+snapshot. The preview records the source-file hash plus profile id and fingerprint; apply verifies
+the source hash and recomputes the live manifest fingerprint before writing only the marked block.
+Analysis and AI preview never write the project file by themselves.
 
 New software-package compilation uses `COMPILER_BINDING_NO_TOOLS`: all built-in repository
 tools are denied because the server has already frozen a bounded DesignFact catalog and a

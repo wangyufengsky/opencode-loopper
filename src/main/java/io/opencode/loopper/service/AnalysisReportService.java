@@ -336,8 +336,11 @@ public class AnalysisReportService {
                 row.rolePackVersion(), row.confidence(), List.of(), row.resolutionSource(), row.decisionRequired()==1,
                 TaskIntent.SOFTWARE_CHANGE.name().equals(row.intent())
                         && io.opencode.loopper.domain.WorkflowTemplate.FULL_PACKAGE_DESIGN.name().equals(row.workflowTemplate()),
-                null, row.version());
+                null, row.version(), row.projectStackProfileId(), row.stackFingerprint(),
+                readStringList(row.componentKeysJson()), List.of(),
+                row.projectStackProfileId() == null ? "UNANALYZED" : "FROZEN", false);
     }
+    private List<String> readStringList(String value) { try { return json.readValue(value, new TypeReference<>() { }); } catch (Exception ignored) { return List.of(); } }
     private String write(Object value) { try { return json.writeValueAsString(value); } catch (Exception failure) { throw new IllegalStateException(failure); } }
     private List<Evidence> readEvidence(String value) { try { return json.readValue(value, new TypeReference<>() { }); } catch (Exception ignored) { return List.of(); } }
     private DesignerSessionRow session(String id) { return mapper.findDesignerSession(id).orElseThrow(() -> new NotFoundException("Designer session not found: " + id)); }

@@ -730,25 +730,25 @@ public class DesignerSessionService {
                 "PERSISTED", null, null);
         publish(get(session.id()), "STATUS", DesignerActor.SYSTEM, true, "", "整体需求等待继续讨论");
     }
-
-    public TaskProfileService.View updateTaskProfile(String sessionId, TaskIntent intent,
-                                                     ArtifactKind primaryArtifactKind,
+    public TaskProfileService.View updateTaskProfile(String sessionId, TaskIntent intent, ArtifactKind primaryArtifactKind,
                                                      Boolean largeTaskMode, long expectedVersion) {
+        return updateTaskProfile(sessionId, intent, primaryArtifactKind, largeTaskMode, null, expectedVersion);
+    }
+    public TaskProfileService.View updateTaskProfile(String sessionId, TaskIntent intent, ArtifactKind primaryArtifactKind,
+                                                     Boolean largeTaskMode, List<String> componentKeys,
+                                                     long expectedVersion) {
         TaskProfileService.View before = taskProfiles.current(sessionId);
         TaskProfileService.OverridePreview preview = taskProfiles.previewOverride(
-                sessionId, intent, primaryArtifactKind, largeTaskMode, expectedVersion);
-        if (!preview.updateRequired()) {
-            return before;
-        }
+                sessionId, intent, primaryArtifactKind, largeTaskMode, componentKeys, expectedVersion);
+        if (!preview.updateRequired()) return before;
         if (preview.sessionRestartRequired()) {
             DesignerSessionRow session = get(sessionId);
             runtimeControl.requireStoppedBeforeReplacement(session.externalSessionId(), session.projectId());
         }
         TaskProfileService.View updated = taskProfiles.override(sessionId, intent, primaryArtifactKind,
-                largeTaskMode, expectedVersion);
-        if (before.workflowTemplate() != updated.workflowTemplate()) {
+                largeTaskMode, componentKeys, expectedVersion);
+        if (before.workflowTemplate() != updated.workflowTemplate())
             restartRequirementContract(sessionId, updated.workflowTemplate());
-        }
         return updated;
     }
 

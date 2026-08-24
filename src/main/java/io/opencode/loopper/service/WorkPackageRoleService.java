@@ -79,8 +79,11 @@ public final class WorkPackageRoleService {
         if (technologies.contains("java") || explicitTests || pythonFramework || nodeFramework) {
             testPolicy = TestPolicy.REQUIRED;
         }
+        List<String> componentKeys = directSoftware ? parent.componentKeys()
+                : specializedComponentKeys(parent, technologies);
         WorkPackageRoleProfileRow stored = new WorkPackageRoleProfileRow(row.id(), row.designerSessionId(), row.packageId(),
-                parent.id(), pack.id(), pack.version(), pack.executionStrategy().name(), testPolicy.name(), write(technologies));
+                parent.id(), pack.id(), pack.version(), pack.executionStrategy().name(), testPolicy.name(), write(technologies),
+                parent.projectStackProfileId(), write(componentKeys), parent.stackFingerprint());
         if (mapper.assignWorkPackageRoleProfile(stored) != 1) {
             throw new ConflictException("WORK_PACKAGE_ROLE_PROFILE_CONFLICT", "工作包 Role Pack 无法冻结：" + row.packageId());
         }
@@ -109,7 +112,15 @@ public final class WorkPackageRoleService {
     private View view(WorkPackageRoleProfileRow row) {
         return new View(row.rolePackId(), row.rolePackVersion(),
                 io.opencode.loopper.domain.ExecutionStrategy.valueOf(row.executionStrategy()),
-                TestPolicy.valueOf(row.testPolicy()), read(row.technologiesJson()));
+                TestPolicy.valueOf(row.testPolicy()), read(row.technologiesJson()), row.projectStackProfileId(),
+                read(row.componentKeysJson()), row.stackFingerprint());
+    }
+    private List<String> specializedComponentKeys(TaskProfileService.View parent, List<String> technologies) {
+        if (technologies.isEmpty()) return parent.componentKeys();
+        List<String> matches = parent.candidateComponents().stream()
+                .filter(component -> component.technologies().stream().anyMatch(technologies::contains))
+                .map(ProjectStackSnapshot.Component::key).toList();
+        return matches.isEmpty() ? parent.componentKeys() : matches;
     }
     private List<String> read(String value) { try { return json.readValue(value, new TypeReference<>() { }); } catch (Exception ignored) { return List.of(); } }
     private String write(Object value) { try { return json.writeValueAsString(value); } catch (Exception failure) { throw new IllegalStateException(failure); } }
@@ -131,5 +142,12 @@ public final class WorkPackageRoleService {
 
     public record View(String rolePackId, String rolePackVersion,
                        io.opencode.loopper.domain.ExecutionStrategy executionStrategy,
-                       TestPolicy testPolicy, List<String> technologies) { }
+                       TestPolicy testPolicy, List<String> technologies, String projectStackProfileId,
+                       List<String> componentKeys, String stackFingerprint) {
+        public View(String rolePackId, String rolePackVersion,
+                    io.opencode.loopper.domain.ExecutionStrategy executionStrategy,
+                    TestPolicy testPolicy, List<String> technologies) {
+            this(rolePackId, rolePackVersion, executionStrategy, testPolicy, technologies, null, List.of(), null);
+        }
+    }
 }

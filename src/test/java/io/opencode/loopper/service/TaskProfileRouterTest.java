@@ -8,6 +8,7 @@ import io.opencode.loopper.domain.WorkflowTemplate;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.junit.jupiter.api.io.TempDir;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -162,5 +163,59 @@ class TaskProfileRouterTest {
         assertThat(decision.intent()).isEqualTo(TaskIntent.LOCAL_MAINTENANCE);
         assertThat(decision.decisionRequired()).isFalse();
         assertThat(decision.evidence()).doesNotContain("unsafe-operation-conflict");
+    }
+
+    @Test void componentEvidenceSelectsJavaNodeAndRealMixedTasksWithoutFlatUnion() throws Exception {
+        Files.writeString(root.resolve("pom.xml"), "<project />");
+        Path frontend = Files.createDirectory(root.resolve("frontend"));
+        Files.writeString(frontend.resolve("package.json"), "{\"scripts\":{\"test\":\"vitest\"}}");
+
+        TaskProfileRouter.Decision javaTask = router.route(root, "在 Java 服务中新增责任链单元测试");
+        TaskProfileRouter.Decision nodeTask = router.route(root, "修改 frontend/ 的 Vue 交互");
+        TaskProfileRouter.Decision mixedTask = router.route(root, "同时修改 Java API 与 frontend/ Vue 页面");
+        TaskProfileRouter.Decision ambiguous = router.route(root, "优化公共业务流程");
+
+        assertThat(javaTask.technologies()).containsExactly("java");
+        assertThat(nodeTask.technologies()).containsExactly("node");
+        assertThat(mixedTask.technologies()).containsExactly("java", "node");
+        assertThat(ambiguous.technologies()).isEmpty();
+        assertThat(ambiguous.decisionRequired()).isTrue();
+        assertThat(ambiguous.evidence()).contains("component-selection-ambiguous");
+    }
+
+    @Test void emptyRepositoryUsesGenericConfirmationInsteadOfImplicitJava() {
+        TaskProfileRouter.Decision decision = router.route(root, "新增业务能力");
+
+        assertThat(decision.technologies()).isEmpty();
+        assertThat(decision.decisionRequired()).isTrue();
+        assertThat(new RolePackRegistry().resolve(decision.intent(), decision.technologies(),
+                decision.artifactKinds()).id()).isEqualTo("software-generic");
+    }
+
+    @Test void aiTechnologyLabelsCannotInventAStackForAnEmptyRepository() {
+        TaskProfileRouter.SemanticLabels labels = new TaskProfileRouter.SemanticLabels(
+                TaskIntent.SOFTWARE_CHANGE, java.util.List.of(ArtifactKind.SOURCE_CODE),
+                java.util.List.of("java"), "SIMPLE", 99, java.util.List.of("model guessed java"));
+
+        TaskProfileRouter.Decision decision = router.route(root, "新增业务能力", labels);
+
+        assertThat(decision.technologies()).isEmpty();
+        assertThat(decision.decisionRequired()).isTrue();
+        assertThat(new RolePackRegistry().resolve(decision.intent(), decision.technologies(),
+                decision.artifactKinds()).id()).isEqualTo("software-generic");
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "loopper.cupxml2java.root", matches = ".+")
+    void cupXml2JavaResponsibilityChainTestRoutesFromRealMavenEvidence() {
+        Path cupXml2Java = Path.of(System.getProperty("loopper.cupxml2java.root"));
+
+        TaskProfileRouter.Decision decision = router.route(cupXml2Java, "新增责任链单元测试");
+
+        assertThat(decision.technologies()).containsExactly("java");
+        assertThat(decision.componentKeys()).hasSize(1);
+        assertThat(decision.decisionRequired()).isFalse();
+        assertThat(new RolePackRegistry().resolve(decision.intent(), decision.technologies(),
+                decision.artifactKinds()).id()).isEqualTo("software-java");
     }
 }

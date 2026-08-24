@@ -31,6 +31,34 @@ export interface Project {
   updatedAt: string
   taskCount: number
   openDesignerSessionCount: number
+  stackProfileState?: 'UNANALYZED' | 'READY' | 'PARTIAL' | 'FAILED'
+  stackTechnologyFamilies?: string[]
+  stackComponentCount?: number
+  stackAnalyzedAt?: string
+}
+
+export interface ProjectStackComponent {
+  key: string
+  relativeRoot: string
+  technologyFamilies: string[]
+  technologies: string[]
+  buildTools: string[]
+  testFrameworks: string[]
+  manifestSources: string[]
+}
+
+export interface ProjectStackProfile {
+  id?: string
+  projectId: string
+  state: Project['stackProfileState']
+  manifestFingerprint?: string
+  technologyFamilies: string[]
+  technologies: string[]
+  filesScanned: number
+  errorCode?: string
+  errorDetail?: string
+  analyzedAt?: string
+  components: ProjectStackComponent[]
 }
 
 export interface DirectorySelection {
@@ -49,6 +77,8 @@ export interface ProjectConventionDraft {
   normalizationNotice?: string
   error?: string
   updatedAt: string
+  stackProfileId?: string
+  stackFingerprint?: string
 }
 
 export interface ProjectConventionSnapshot {
@@ -1014,8 +1044,17 @@ export interface DesignerTaskProfile {
     mutationMode: DesignerTaskProfile['mutationMode']
     largeTaskMode: boolean
     resolutionSource: string
+    projectStackProfileId?: string
+    stackFingerprint?: string
+    componentKeys?: string[]
   }
   version: number
+  projectStackProfileId?: string
+  stackFingerprint?: string
+  componentKeys?: string[]
+  candidateComponents?: ProjectStackComponent[]
+  stackProfileState?: Project['stackProfileState']
+  componentSelectionRequired?: boolean
 }
 
 export interface DesignerTaskProfileUpdatePreview {

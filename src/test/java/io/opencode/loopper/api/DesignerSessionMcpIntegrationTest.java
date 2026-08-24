@@ -30,6 +30,8 @@ import io.opencode.loopper.service.DirectMaintenanceDesignService;
 import io.opencode.loopper.service.TaskProfileService;
 import io.opencode.loopper.service.LoopDraftService;
 import io.opencode.loopper.service.ProjectService;
+import io.opencode.loopper.service.ProjectStackProfileService;
+import io.opencode.loopper.service.ProjectStackSnapshot;
 import io.opencode.loopper.service.ServiceUnavailableException;
 import io.opencode.loopper.service.TaskService;
 import io.opencode.loopper.service.WorkPackageRoleService;
@@ -91,6 +93,7 @@ class DesignerSessionMcpIntegrationTest {
     @Autowired private DirectArtifactDesignService directArtifacts;
     @Autowired private DirectMaintenanceDesignService directMaintenance;
     @Autowired private TaskProfileService taskProfiles;
+    @Autowired private ProjectStackProfileService stackProfiles;
     @Autowired private LoopDraftService drafts;
     @Autowired private TaskService tasks;
     @Autowired private WorkPackageRoleService workPackageRoles;
@@ -194,6 +197,70 @@ class DesignerSessionMcpIntegrationTest {
         });
         designerSessions.confirmRequirement(reviewing.id(), reviewing.discussionRevision());
         assertThat(designerSessions.get(created.id()).workflowPhase()).isEqualTo("DESIGNING");
+    }
+
+    @Test
+    void manifestChangePreventsCarryingAnUnfrozenConfirmedProfileAcrossReroute() throws Exception {
+        ProjectRow project = project("profile-manifest-reroute");
+        Path root = Path.of(project.rootPath());
+        Files.writeString(root.resolve("pom.xml"), "<project />");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        DesignerSessionRow created = designerSessions.create(project.id(), draft.id(),
+                "修改 Java 服务并新增单元测试");
+        designerSessions.pollActiveHandoffs();
+        TaskProfileService.View initial = taskProfiles.current(created.id());
+        taskProfiles.confirmRecommendation(created.id(), initial.version());
+
+        Files.writeString(root.resolve("pom.xml"), "<project><version>2</version></project>");
+        taskProfiles.reroute(created.id(), "修改 Java 服务并新增单元测试");
+        designerSessions.pollActiveHandoffs();
+
+        assertThat(taskProfiles.current(created.id())).satisfies(changed -> {
+            assertThat(changed.decisionState()).isEqualTo("NEEDS_CONFIRMATION");
+            assertThat(changed.confirmationReady()).isFalse();
+            assertThat(changed.stackFingerprint()).isNotEqualTo(initial.stackFingerprint());
+            assertThat(changed.previousConfirmedChoice()).isNotNull();
+        });
+    }
+
+    @Test
+    void ambiguousMultiStackSelectionIsExplicitAndFrozenAgainstLaterProjectRefreshes() throws Exception {
+        ProjectRow project = project("component-profile-freeze");
+        Path root = Path.of(project.rootPath());
+        Files.writeString(root.resolve("pom.xml"), "<project />");
+        Path frontend = Files.createDirectory(root.resolve("frontend"));
+        Files.writeString(frontend.resolve("package.json"), "{\"scripts\":{\"test\":\"vitest\"}}");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+
+        DesignerSessionRow created = designerSessions.create(project.id(), draft.id(), "优化公共业务流程");
+        designerSessions.pollActiveHandoffs();
+        TaskProfileService.View ambiguous = taskProfiles.current(created.id());
+
+        assertThat(ambiguous.decisionState()).isEqualTo("NEEDS_CONFIRMATION");
+        assertThat(ambiguous.componentSelectionRequired()).isTrue();
+        assertThat(ambiguous.componentKeys()).isEmpty();
+        assertThat(ambiguous.candidateComponents()).hasSize(2);
+        String javaComponent = ambiguous.candidateComponents().stream()
+                .filter(component -> component.technologies().contains("java"))
+                .map(ProjectStackSnapshot.Component::key).findFirst().orElseThrow();
+
+        TaskProfileService.View selected = taskProfiles.override(created.id(), ambiguous.intent(),
+                ambiguous.artifactKinds().getFirst(), false, List.of(javaComponent), ambiguous.version());
+        assertThat(selected.technologies()).containsExactly("java");
+        assertThat(selected.rolePackId()).isEqualTo("software-java");
+        assertThat(selected.componentKeys()).containsExactly(javaComponent);
+        TaskProfileService.View frozen = taskProfiles.freeze(created.id());
+
+        Files.writeString(frontend.resolve("package.json"), "{\"scripts\":{\"test\":\"vitest run\"}}");
+        ProjectStackSnapshot refreshed = stackProfiles.forceRefresh(project.id());
+
+        assertThat(refreshed.id()).isNotEqualTo(frozen.projectStackProfileId());
+        assertThat(taskProfiles.current(created.id())).satisfies(stillFrozen -> {
+            assertThat(stillFrozen.state()).isEqualTo("FROZEN");
+            assertThat(stillFrozen.projectStackProfileId()).isEqualTo(frozen.projectStackProfileId());
+            assertThat(stillFrozen.stackFingerprint()).isEqualTo(frozen.stackFingerprint());
+            assertThat(stillFrozen.componentKeys()).containsExactly(javaComponent);
+        });
     }
 
     @Test
@@ -417,6 +484,7 @@ class DesignerSessionMcpIntegrationTest {
     @Test
     void directDesignUsesIndependentReadOnlyRolesAndCreatesNoTaskBeforeConfirmation() throws Exception {
         ProjectRow project = project("direct");
+        Files.writeString(Path.of(project.rootPath()).resolve("pom.xml"), "<project />\n");
         LoopSpec sixStageSpec = legacySpecWithStages(project.id(), 6);
         LoopDraftRow draft = drafts.create(sixStageSpec);
         fake().setDesignerOutput(designerOutput("# 单包设计\n\n缓存刷新后用户能看到新值。", sixStageSpec));
@@ -424,7 +492,10 @@ class DesignerSessionMcpIntegrationTest {
         fake().setPackageDesignerOutput("WP-1", "# 单包设计\n\n缓存刷新后用户能看到新值。");
 
         DesignerSessionRow reviewing = prepareReviewingSession(project.id(), draft.id(), "实现缓存刷新并保留验收证据");
-        assertThat(taskProfiles.current(reviewing.id()).workflowTemplate().name()).isEqualTo("DIRECT_SOFTWARE_DESIGN");
+        TaskProfileService.View directProfile = taskProfiles.current(reviewing.id());
+        assertThat(directProfile.workflowTemplate().name()).isEqualTo("DIRECT_SOFTWARE_DESIGN");
+        assertThat(directProfile.projectStackProfileId()).isNotBlank();
+        assertThat(directProfile.componentKeys()).hasSize(1);
         designerSessions.confirmRequirement(reviewing.id(), reviewing.discussionRevision());
         DesignerSessionRow session = designerSessions.get(reviewing.id());
         assertThat(session.workflowPhase()).isEqualTo("DESIGNING");
@@ -473,6 +544,12 @@ class DesignerSessionMcpIntegrationTest {
             assertThat(workPackage.executionStrategy()).isEqualTo("OPEN_CODE_IMPLEMENTATION");
             assertThat(workPackage.testPolicy()).isEqualTo("REQUIRED");
         });
+        WorkPackageRoleProfileRow packageProfile = mapper.findWorkPackageRoleProfile(
+                mapper.findLatestDesignWorkPackage(session.id(), "WP-1").orElseThrow().id()).orElseThrow();
+        assertThat(packageProfile.projectStackProfileId()).isEqualTo(directProfile.projectStackProfileId());
+        assertThat(json.readValue(packageProfile.componentKeysJson(), List.class))
+                .containsExactlyElementsOf(directProfile.componentKeys());
+        assertThat(packageProfile.stackFingerprint()).isEqualTo(directProfile.stackFingerprint());
         assertThat(designerSessions.messages(session.id()).stream().map(message -> message.actor()).toList())
                 .contains("DESIGNER", "COMPILER", "VALIDATOR")
                 .doesNotContain("DECOMPOSER")
@@ -492,7 +569,10 @@ class DesignerSessionMcpIntegrationTest {
             assertThat(stage.rolePackId()).isEqualTo("software-java");
             assertThat(stage.rolePackVersion()).isEqualTo("2026-08-dynamic-v5");
             assertThat(stage.testPolicy()).isEqualTo("REQUIRED");
-            assertThat(stage.technologiesJson()).isEqualTo("[]");
+            assertThat(stage.technologiesJson()).isEqualTo("[\"java\"]");
+            assertThat(stage.projectStackProfileId()).isEqualTo(directProfile.projectStackProfileId());
+            assertThat(stage.componentKeysJson()).isEqualTo(packageProfile.componentKeysJson());
+            assertThat(stage.stackFingerprint()).isEqualTo(directProfile.stackFingerprint());
         });
         assertThat(tasks.artifacts(task.id()).stream().map(TaskArtifactRow::kind).toList())
                 .contains("REQUIREMENT_CONTEXT", "DECOMPOSITION_CONTEXT", "WORK_PACKAGE_DESIGN",
@@ -563,12 +643,17 @@ class DesignerSessionMcpIntegrationTest {
     @Test
     void directSoftwareOverflowStopsWithoutRedesignAndExplicitlyReopensAsLargeTask() throws Exception {
         ProjectRow project = project("direct-overflow");
+        Files.writeString(Path.of(project.rootPath()).resolve("pom.xml"), "<project/>");
         LoopSpec sevenStageSpec = legacySpecWithStages(project.id(), 7);
         LoopDraftRow draft = drafts.create(sevenStageSpec);
         fake().setDesignerOutput(designerOutput("# 超限单包设计\n\n需求包含多个必须独立推进的业务阶段。",
                 sevenStageSpec));
 
         DesignerSessionRow reviewing = prepareReviewingSession(project.id(), draft.id(), "实现跨域大型软件能力");
+        TaskProfileService.View profile = taskProfiles.current(reviewing.id());
+        if (!profile.confirmationReady()) {
+            taskProfiles.confirmRecommendation(reviewing.id(), profile.version());
+        }
         designerSessions.confirmRequirement(reviewing.id(), reviewing.discussionRevision());
         pollUntilSettled(reviewing.id());
 
@@ -841,6 +926,7 @@ class DesignerSessionMcpIntegrationTest {
     @Test
     void autoModeKeepsRequirementDesignerActiveDuringProviderRetryAndResumesSameSession() throws Exception {
         ProjectRow project = project("designer-auto-provider-retry");
+        Files.writeString(Path.of(project.rootPath()).resolve("pom.xml"), "<project/>");
         LoopDraftRow draft = drafts.create(legacySpec(project.id()));
         fake().setDesignerOutput(designerOutput("# 过载恢复后的设计\n\n保持原会话并继续形成可验收结果。",
                 legacySpec(project.id())));
@@ -881,10 +967,11 @@ class DesignerSessionMcpIntegrationTest {
                         || message.content().contains("全自动模式已阻断"));
 
         fake().setSessionState(remoteId, "COMPLETED");
-        designerSessions.pollActiveHandoffs();
-        designerAutoMode.pollActive();
-        designerSessions.pollActiveHandoffs();
-        designerAutoMode.pollActive();
+        for (int step = 0; step < 5; step++) {
+            designerSessions.pollActiveHandoffs();
+            designerAutoMode.pollActive();
+            if (designerSessions.get(session.id()).currentRequirementRevision() != null) break;
+        }
 
         DesignerSessionRow resumed = designerSessions.get(session.id());
         assertThat(resumed.currentRequirementRevision()).isNotNull();
@@ -932,7 +1019,7 @@ class DesignerSessionMcpIntegrationTest {
     }
 
     @Test
-    void legacyProfileDecisionBlockResumesWhenTheCurrentSelectionIsAlreadyReady() throws Exception {
+    void legacyProfileDecisionBlockResumesAfterManualConfirmation() throws Exception {
         ProjectRow project = project("designer-auto-profile-manual-recovery");
         LoopDraftRow draft = drafts.create(legacySpec(project.id()));
         fake().failNextReadOnlySessions("ROUTER", 1);
@@ -955,8 +1042,8 @@ class DesignerSessionMcpIntegrationTest {
                                 "expectedVersion", ambiguous.version()))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.decisionRequired").value(false))
-                .andExpect(jsonPath("$.resolutionSource").value("AI_ROUTER"))
-                .andExpect(jsonPath("$.version").value(ambiguous.version()));
+                .andExpect(jsonPath("$.resolutionSource").value("USER_OVERRIDE"))
+                .andExpect(jsonPath("$.version").value(ambiguous.version() + 1));
 
         assertThat(designerAutoMode.get(session.id())).satisfies(mode -> {
             assertThat(mode.state()).isEqualTo("ACTIVE");

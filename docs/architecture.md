@@ -8,11 +8,12 @@ when Git HEAD is unavailable, directly inside that same registered root.
 
 ## Module boundaries
 
-- `project`: registered roots and Git baseline validation
+- `project`: registered roots, Git baseline validation, and immutable module-level stack profiles
 - `designer`: real read-only OpenCode planning Session and versioned Loop drafts
-- `project conventions`: read-only OpenCode project analysis plus a persisted
-  `AGENTS.md` preview; an explicit local-UI apply and matching source hash are
-  required before the project file is created or its Looper block is updated;
+- `project conventions`: a forced deterministic stack refresh followed by read-only
+  OpenCode regeneration of a persisted `AGENTS.md` preview; an explicit local-UI apply,
+  matching source hash, and matching manifest fingerprint are required before the
+  project file is created or its Looper block is updated;
   apply first commits `APPLYING`, writes the file outside SQLite, then commits
   `APPLIED`, and restart recovery compares the original/proposed hashes before
   completing or failing the interrupted write
@@ -494,6 +495,41 @@ on the historical v3 parser/repair path. Planning state is a closed persistence 
 `DESIGN_INCOMPLETE`, `COMPILED` records a fully lowered plan, and `FAILED` records an invalid
 planning boundary. Compiler outcome codes are never written directly into this lifecycle column.
 The UI reads only a bounded human-facing projection.
+
+V42 adds immutable `project_stack_profile` snapshots and their
+`project_stack_component` rows. Registration of a new or re-managed project schedules one
+bounded deterministic analysis after the registration transaction commits. Existing managed
+projects are not backfilled: they project as `UNANALYZED` until their first convention update
+or new Designer creation. Project list SQL joins only the latest persisted snapshot and never
+walks registered roots, so historical projects cannot create an N+1 filesystem scan.
+
+The analyzer follows at most 2,000 regular non-symbolic-link files to depth five, skips generated
+directories, and recognizes Maven/Gradle as Java, `package.json` as Node, Python configuration or
+test files as Python, and Go/Rust as Other. A component is rooted at the signal directory; only
+different software families in that same component produce a mixed component. The manifest
+fingerprint is SHA-256 over sorted relative signal paths plus their content hashes. A hard read/root
+failure persists `FAILED`; a limit or incomplete read persists `PARTIAL`; neither state is silently
+converted to Java. `GET /api/projects/{id}/stack-profile` exposes the bounded module projection.
+
+Every Router run, confirmed task profile, work package, and Stage records the exact project-profile
+id, manifest fingerprint, and selected component keys it used. Repository paths, module names, and
+AI semantic technology labels may select only components supported by that snapshot; the AI cannot
+invent repository evidence or override execution and permission policy. A single family is selected
+automatically, explicit cross-component work becomes mixed, ambiguous multi-stack work requires a
+component choice, and an empty repository becomes generic plus confirmation. Direct `WP-1` inherits
+the confirmed selection; only explicit full-package design may specialize it. Once frozen, Task,
+Stage, and Recovery snapshots are immutable even if a later project analysis discovers changes.
+An unfrozen Designer sees a new profile only when a new requirement reroute is scheduled, and
+carry-forward is legal only when fingerprint, component selection, intent, and workflow agree.
+
+Project-convention generation always forces that analysis outside the SQLite transaction before a
+read-only AI Session starts. `FAILED` prevents the Session; `PARTIAL` continues with an explicit
+review warning. The prompt includes only the latest structured snapshot and bounded existing file,
+and the response must contain `技术栈与模块`, `构建与测试`, and `目录与边界`. Server validation
+rejects unsupported technology claims. The persisted convention draft records the profile identity
+and fingerprint, and apply rechecks both the current `AGENTS.md` hash and a live manifest fingerprint.
+The first apply appends one Looper marker block; later applies replace only that block and preserve
+all human content outside it.
 
 Machine-response roles carry an explicit non-thinking model selection only for
 steps whose persisted response mode is `JSON_SCHEMA`. Managed DeepSeek starts

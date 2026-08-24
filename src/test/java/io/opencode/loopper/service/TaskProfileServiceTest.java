@@ -59,7 +59,7 @@ class TaskProfileServiceTest {
             return 1;
         });
         when(projects.get(session.projectId())).thenReturn(project());
-        when(router.route(any(), anyString())).thenReturn(decision());
+        when(router.route(any(ProjectStackSnapshot.class), anyString())).thenReturn(decision());
         when(semanticRouter.start(any(), anyString(), any())).thenAnswer(invocation -> {
             starts.incrementAndGet();
             startEntered.countDown();
@@ -107,8 +107,16 @@ class TaskProfileServiceTest {
 
     private TaskProfileService service(LoopperMapper mapper, ProjectService projects, TaskProfileRouter router,
                                        TaskSemanticRouter semanticRouter) {
-        return new TaskProfileService(mapper, projects, router, semanticRouter, new RolePackRegistry(),
-                new ObjectMapper(), mock(PlatformTransactionManager.class));
+        ProjectStackProfileService stackProfiles = mock(ProjectStackProfileService.class);
+        when(stackProfiles.ensureCurrent(anyString())).thenReturn(new ProjectStackSnapshot(
+                "stack-1", "project-1", io.opencode.loopper.domain.ProjectStackProfileState.READY,
+                "fingerprint", List.of("java"), List.of("java"), List.of(), 1, null, null, "now",
+                List.of(new ProjectStackSnapshot.Component("java-root", ".", List.of("java"), List.of("java"),
+                        List.of("maven"), List.of("junit"), List.of("pom.xml"), List.of()))));
+        ObjectMapper json = new ObjectMapper();
+        return new TaskProfileService(mapper, projects, router, stackProfiles,
+                new TaskProfileOverridePolicy(stackProfiles, json), semanticRouter, new RolePackRegistry(),
+                json, mock(PlatformTransactionManager.class));
     }
 
     private DesignerSessionRow session() {

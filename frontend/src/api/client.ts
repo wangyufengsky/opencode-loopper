@@ -1,5 +1,5 @@
 import type { AppSettings, Artifact, Attempt, AutomationImportPreview, AutomationImportResult, AutomationRule, AutomationRuleMutation, AutomationRun, AutomationRunFeed, AvailableModel, BrowserAssertion, CommitMessageSuggestion, CreateAutomationRuleInput, DesignerActivity, DesignerAnsweredQuestion, DesignerAppendResult, DesignerHistoryItem, DesignerMessage, DesignerSession, DesignerSessionState, DesignerSessionSummary, DesignerStopResult, DesignerStreamEvent, DirectorySelection, DirtyWorkspaceAction, DirtyWorkspaceResolution, DirtyWorkspaceState, ErrorEvent, InsightsSnapshot, Interaction, InteractionAction, JudgeRun, LocalSyncConflictContent, LocalSyncConflictFile, LocalSyncConflictSession, LocalSyncResolution, LoopDraft, LoopSpec, LoopSpecAssessment, LoopSpecTemplate, LoopSpecTemplateVersion, LoopVerifierSpec, MergeRequestDraft, Project, ProjectConventionDraft, ProjectConventionSnapshot, RecoveryDraft, RecoveryMode, RuntimeInfo, SessionCheckpoint, SessionForkResult, SessionRevertResult, SessionSummaryResult, SessionTodo, Stage, Task, TaskDecision, TaskDesignHistory, TaskDiffPreview, TaskEvent, TaskInsight, TaskPublicationStatus, TaskQueueStatus, TaskSessionActivity, TaskSessionActivityPart, TaskSessionPendingQuestion, TaskSessionSummary, UsageAggregate } from '@/types/domain'
-import type { AnalysisReport, DesignerTaskProfileUpdatePreview } from '@/types/domain'
+import type { AnalysisReport, DesignerTaskProfileUpdatePreview, ProjectStackProfile } from '@/types/domain'
 
 const apiBase = import.meta.env.VITE_API_BASE ?? '/api'
 
@@ -199,7 +199,19 @@ function normalizeProject(value: unknown): Project {
   const raw = asRecord(value)
   const status = asString(raw.status)
   const executionMode = asString(raw.executionMode)
-  return { id: asString(raw.id), name: asString(raw.name), rootPath: asString(raw.rootPath), branch: asString(raw.branch) || undefined, description: asString(raw.description) || undefined, status: status === 'INVALID' || status === 'NEEDS_GIT' ? status : 'READY', executionMode: executionMode === 'WORKTREE' || executionMode === 'DIRECT' || executionMode === 'UNAVAILABLE' ? executionMode : undefined, updatedAt: asString(raw.updatedAt), taskCount: asNumber(raw.taskCount), openDesignerSessionCount: asNumber(raw.openDesignerSessionCount) }
+  const stackState = asString(raw.stackProfileState)
+  return { id: asString(raw.id), name: asString(raw.name), rootPath: asString(raw.rootPath), branch: asString(raw.branch) || undefined, description: asString(raw.description) || undefined, status: status === 'INVALID' || status === 'NEEDS_GIT' ? status : 'READY', executionMode: executionMode === 'WORKTREE' || executionMode === 'DIRECT' || executionMode === 'UNAVAILABLE' ? executionMode : undefined, updatedAt: asString(raw.updatedAt), taskCount: asNumber(raw.taskCount), openDesignerSessionCount: asNumber(raw.openDesignerSessionCount), stackProfileState: stackState === 'READY' || stackState === 'PARTIAL' || stackState === 'FAILED' ? stackState : 'UNANALYZED', stackTechnologyFamilies: asArray(raw.stackTechnologyFamilies).map(String), stackComponentCount: asNumber(raw.stackComponentCount), stackAnalyzedAt: asString(raw.stackAnalyzedAt) || undefined }
+}
+
+function normalizeStackComponent(value: unknown) {
+  const raw = asRecord(value)
+  return { key: asString(raw.key), relativeRoot: asString(raw.relativeRoot, '.'), technologyFamilies: asArray(raw.technologyFamilies).map(String), technologies: asArray(raw.technologies).map(String), buildTools: asArray(raw.buildTools).map(String), testFrameworks: asArray(raw.testFrameworks).map(String), manifestSources: asArray(raw.manifestSources).map(String) }
+}
+
+function normalizeProjectStackProfile(value: unknown): ProjectStackProfile {
+  const raw = asRecord(value)
+  const state = asString(raw.state)
+  return { id: asString(raw.id) || undefined, projectId: asString(raw.projectId), state: state === 'READY' || state === 'PARTIAL' || state === 'FAILED' ? state : 'UNANALYZED', manifestFingerprint: asString(raw.manifestFingerprint) || undefined, technologyFamilies: asArray(raw.technologyFamilies).map(String), technologies: asArray(raw.technologies).map(String), filesScanned: asNumber(raw.filesScanned), errorCode: asString(raw.errorCode) || undefined, errorDetail: asString(raw.errorDetail) || undefined, analyzedAt: asString(raw.analyzedAt) || undefined, components: asArray(raw.components).map(normalizeStackComponent) }
 }
 
 function normalizeProjectConvention(value: unknown): ProjectConventionDraft {
@@ -215,6 +227,8 @@ function normalizeProjectConvention(value: unknown): ProjectConventionDraft {
     normalizationNotice: asString(raw.normalizationNotice) || undefined,
     error: asString(raw.error) || undefined,
     updatedAt: asString(raw.updatedAt),
+    stackProfileId: asString(raw.stackProfileId) || undefined,
+    stackFingerprint: asString(raw.stackFingerprint) || undefined,
   }
 }
 
@@ -782,7 +796,7 @@ function normalizeDesignerSession(value: unknown): DesignerSession {
       workflowTemplate: asString(item.workflowTemplate, 'FULL_PACKAGE_DESIGN') as DesignerSession['taskProfile']['workflowTemplate'], mutationMode: asString(item.mutationMode, 'WRITE_CODE') as DesignerSession['taskProfile']['mutationMode'],
       artifactKinds: asArray(item.artifactKinds).map(String) as DesignerSession['taskProfile']['artifactKinds'], technologies: asArray(item.technologies).map(String),
       testPolicy: asString(item.testPolicy, 'REQUIRED') as DesignerSession['taskProfile']['testPolicy'], executionStrategy: asString(item.executionStrategy, 'OPEN_CODE_IMPLEMENTATION') as DesignerSession['taskProfile']['executionStrategy'],
-      rolePackId: asString(item.rolePackId, 'software-java'), rolePackVersion: asString(item.rolePackVersion, 'legacy'), confidence: asNumber(item.confidence), evidence: asArray(item.evidence).map(String), resolutionSource: asString(item.resolutionSource), decisionRequired: item.decisionRequired === true, largeTaskMode: typeof item.largeTaskMode === 'boolean' ? item.largeTaskMode : asString(item.workflowTemplate) === 'FULL_PACKAGE_DESIGN', previousConfirmedChoice: item.previousConfirmedChoice ? (() => { const previous = asRecord(item.previousConfirmedChoice); return { intent: asString(previous.intent) as DesignerSession['taskProfile']['intent'], primaryArtifactKind: asString(previous.primaryArtifactKind) as DesignerSession['taskProfile']['artifactKinds'][number], workflowTemplate: asString(previous.workflowTemplate) as DesignerSession['taskProfile']['workflowTemplate'], mutationMode: asString(previous.mutationMode) as DesignerSession['taskProfile']['mutationMode'], largeTaskMode: previous.largeTaskMode === true, resolutionSource: asString(previous.resolutionSource) } })() : undefined, version: asNumber(item.version),
+      rolePackId: asString(item.rolePackId, 'software-java'), rolePackVersion: asString(item.rolePackVersion, 'legacy'), confidence: asNumber(item.confidence), evidence: asArray(item.evidence).map(String), resolutionSource: asString(item.resolutionSource), decisionRequired: item.decisionRequired === true, largeTaskMode: typeof item.largeTaskMode === 'boolean' ? item.largeTaskMode : asString(item.workflowTemplate) === 'FULL_PACKAGE_DESIGN', previousConfirmedChoice: item.previousConfirmedChoice ? (() => { const previous = asRecord(item.previousConfirmedChoice); return { intent: asString(previous.intent) as DesignerSession['taskProfile']['intent'], primaryArtifactKind: asString(previous.primaryArtifactKind) as DesignerSession['taskProfile']['artifactKinds'][number], workflowTemplate: asString(previous.workflowTemplate) as DesignerSession['taskProfile']['workflowTemplate'], mutationMode: asString(previous.mutationMode) as DesignerSession['taskProfile']['mutationMode'], largeTaskMode: previous.largeTaskMode === true, resolutionSource: asString(previous.resolutionSource), projectStackProfileId: asString(previous.projectStackProfileId) || undefined, stackFingerprint: asString(previous.stackFingerprint) || undefined, componentKeys: asArray(previous.componentKeys).map(String) } })() : undefined, version: asNumber(item.version), projectStackProfileId: asString(item.projectStackProfileId) || undefined, stackFingerprint: asString(item.stackFingerprint) || undefined, componentKeys: asArray(item.componentKeys).map(String), candidateComponents: asArray(item.candidateComponents).map(normalizeStackComponent), stackProfileState: (() => { const state = asString(item.stackProfileState); return state === 'READY' || state === 'PARTIAL' || state === 'FAILED' ? state : 'UNANALYZED' })(), componentSelectionRequired: item.componentSelectionRequired === true,
     } })(),
     availableProfileOverrides: asArray(raw.availableProfileOverrides).map(String) as DesignerSession['availableProfileOverrides'],
     availableArtifactOverrides: asArray(raw.availableArtifactOverrides).map(String) as DesignerSession['availableArtifactOverrides'],
@@ -1285,6 +1299,7 @@ export const api = {
     return { selected: raw.selected === true, path: asString(raw.path) || undefined, name: asString(raw.name) || undefined }
   },
   createProject: async (input: Pick<Project, 'name' | 'rootPath' | 'description'>) => normalizeProject(await request<unknown>('/projects', { method: 'POST', body: JSON.stringify({ name: input.name, rootPath: input.rootPath, description: input.description?.trim() || '' }) })),
+  getProjectStackProfile: async (projectId: string) => normalizeProjectStackProfile(await request<unknown>(`/projects/${encodeURIComponent(projectId)}/stack-profile`)),
   cancelProjectManagement: async (projectId: string) => request<void>(`/projects/${encodeURIComponent(projectId)}`, { method: 'DELETE', headers: { 'X-Loopper-Local-UI': '1' } }),
   getCurrentProjectConvention: async (projectId: string) => normalizeProjectConventionSnapshot(await request<unknown>(`/projects/${encodeURIComponent(projectId)}/agents-md`)),
   generateProjectConvention: async (projectId: string) => normalizeProjectConvention(await request<unknown>(`/projects/${encodeURIComponent(projectId)}/agents-md`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } })),
@@ -1439,8 +1454,8 @@ export const api = {
     return { sessionId: asString(raw.sessionId), state: normalizeDesignerState(raw.state), persistedMessages: asArray(raw.persistedMessages).map(normalizeDesignerMessage), notice: asString(raw.notice) }
   },
   confirmDesignerRequirement: async (id: string, expectedDiscussionRevision: number) => request<void>(`/designer-sessions/${encodeURIComponent(id)}/requirement/confirm`, { method: 'POST', body: JSON.stringify({ expectedDiscussionRevision }) }),
-  previewDesignerTaskProfileUpdate: async (id: string, intent: DesignerSession['taskProfile']['intent'], primaryArtifactKind: DesignerSession['taskProfile']['artifactKinds'][number], expectedVersion: number, largeTaskMode?: boolean) => request<DesignerTaskProfileUpdatePreview>(`/designer-sessions/${encodeURIComponent(id)}/task-profile/preview`, { method: 'POST', body: JSON.stringify({ intent, primaryArtifactKind, expectedVersion, largeTaskMode }) }),
-  updateDesignerTaskProfile: async (id: string, intent: DesignerSession['taskProfile']['intent'], primaryArtifactKind: DesignerSession['taskProfile']['artifactKinds'][number], expectedVersion: number, largeTaskMode?: boolean) => request<DesignerSession['taskProfile']>(`/designer-sessions/${encodeURIComponent(id)}/task-profile`, { method: 'PUT', body: JSON.stringify({ intent, primaryArtifactKind, expectedVersion, largeTaskMode }) }),
+  previewDesignerTaskProfileUpdate: async (id: string, intent: DesignerSession['taskProfile']['intent'], primaryArtifactKind: DesignerSession['taskProfile']['artifactKinds'][number], expectedVersion: number, largeTaskMode?: boolean, componentKeys?: string[]) => request<DesignerTaskProfileUpdatePreview>(`/designer-sessions/${encodeURIComponent(id)}/task-profile/preview`, { method: 'POST', body: JSON.stringify({ intent, primaryArtifactKind, expectedVersion, largeTaskMode, componentKeys }) }),
+  updateDesignerTaskProfile: async (id: string, intent: DesignerSession['taskProfile']['intent'], primaryArtifactKind: DesignerSession['taskProfile']['artifactKinds'][number], expectedVersion: number, largeTaskMode?: boolean, componentKeys?: string[]) => request<DesignerSession['taskProfile']>(`/designer-sessions/${encodeURIComponent(id)}/task-profile`, { method: 'PUT', body: JSON.stringify({ intent, primaryArtifactKind, expectedVersion, largeTaskMode, componentKeys }) }),
   confirmDesignerTaskProfile: async (id: string, expectedVersion: number) => request<DesignerSession['taskProfile']>(`/designer-sessions/${encodeURIComponent(id)}/task-profile/confirm`, { method: 'POST', body: JSON.stringify({ expectedVersion }) }),
   getDesignerActivity: async (id: string): Promise<DesignerActivity> => {
     const raw = asRecord(await request<unknown>(`/designer-sessions/${encodeURIComponent(id)}/activity`))

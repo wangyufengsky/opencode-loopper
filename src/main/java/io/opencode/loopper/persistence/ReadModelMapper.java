@@ -267,9 +267,17 @@ public interface ReadModelMapper {
             )
             SELECT p.id,p.name,p.root_path,p.description,p.updated_at,
               COALESCE(tasks.task_count,0) AS task_count,
-              COALESCE(designs.open_count,0) AS open_designer_session_count
+              COALESCE(designs.open_count,0) AS open_designer_session_count,
+              COALESCE(stack.analysis_state,'UNANALYZED') AS stack_profile_state,
+              COALESCE(stack.technology_families_json,'[]') AS stack_technology_families_json,
+              COALESCE(stack.component_count,0) AS stack_component_count,
+              stack.analyzed_at AS stack_analyzed_at
             FROM project p LEFT JOIN task_counts tasks ON tasks.project_id=p.id
             LEFT JOIN open_designer_counts designs ON designs.project_id=p.id
+            LEFT JOIN project_stack_profile stack ON stack.id=(
+              SELECT current.id FROM project_stack_profile current
+              WHERE current.project_id=p.id ORDER BY current.analyzed_at DESC,current.id DESC LIMIT 1
+            )
             WHERE p.managed=1 ORDER BY p.created_at DESC
             """)
     List<ProjectSummaryRow> projectSummaries();

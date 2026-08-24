@@ -59,6 +59,7 @@ const designerRecoveryError = ref('')
 const profileIntent = ref<DesignerSession['taskProfile']['intent']>('SOFTWARE_CHANGE')
 const profileArtifact = ref<DesignerSession['taskProfile']['artifactKinds'][number]>('SOURCE_CODE')
 const profileLargeTask = ref(false)
+const profileComponents = ref<string[]>([])
 const profileEditing = ref(false)
 const committedTaskNavigation = ref(false)
 const reportDetail = ref<AnalysisReport>()
@@ -236,6 +237,7 @@ const profileSelectionDirty = computed(() => {
   return profileIntent.value !== profile.intent
     || profileArtifact.value !== (profile.artifactKinds[0] ?? 'OTHER')
     || (profileIntent.value === 'SOFTWARE_CHANGE' && profileLargeTask.value !== profile.largeTaskMode)
+    || [...profileComponents.value].sort().join('|') !== [...(profile.componentKeys ?? [])].sort().join('|')
 })
 const showCurrentRoleActivity = computed(() => (designerSession.value?.state === 'RUNNING' || taskProfileRouting.value)
   && (designerSession.value?.pendingQuestions?.length ?? 0) === 0)
@@ -247,6 +249,7 @@ function resetProfileSelection() {
   profileIntent.value = profile.intent
   profileArtifact.value = profile.artifactKinds[0] ?? 'OTHER'
   profileLargeTask.value = profile.largeTaskMode
+  profileComponents.value = [...(profile.componentKeys ?? [])]
 }
 watch(() => `${designerSession.value?.taskProfile.id ?? ''}:${designerSession.value?.taskProfile.version ?? ''}:${designerSession.value?.taskProfile.state ?? ''}`, () => {
   resetProfileSelection()
@@ -268,6 +271,7 @@ async function applyTaskProfileSelection(
   intent: DesignerSession['taskProfile']['intent'],
   primaryArtifactKind: DesignerSession['taskProfile']['artifactKinds'][number],
   largeTaskMode: boolean,
+  componentKeys = profileComponents.value,
 ) {
   const session = designerSession.value
   if (!session?.taskProfile.id) return
@@ -276,6 +280,7 @@ async function applyTaskProfileSelection(
     const requestedLargeTaskMode = intent === 'SOFTWARE_CHANGE' ? largeTaskMode : undefined
     const preview = await api.previewDesignerTaskProfileUpdate(
       session.id, intent, primaryArtifactKind, session.taskProfile.version, requestedLargeTaskMode,
+      componentKeys,
     )
     if (!preview.updateRequired) {
       cancelTaskProfileEdit()
@@ -293,6 +298,7 @@ async function applyTaskProfileSelection(
     }
     await api.updateDesignerTaskProfile(
       session.id, intent, primaryArtifactKind, session.taskProfile.version, requestedLargeTaskMode,
+      componentKeys,
     )
     await refreshDesignerSession()
     profileEditing.value = false
@@ -329,7 +335,13 @@ async function carryForwardTaskProfile() {
   const session = designerSession.value
   const previous = session?.taskProfile.previousConfirmedChoice
   if (!session?.taskProfile.id || !previous) return
-  await applyTaskProfileSelection(previous.intent, previous.primaryArtifactKind, previous.largeTaskMode)
+  await applyTaskProfileSelection(previous.intent, previous.primaryArtifactKind, previous.largeTaskMode,
+    previous.componentKeys ?? [])
+}
+
+function componentLabel(component: NonNullable<DesignerSession['taskProfile']['candidateComponents']>[number]) {
+  const stack = component.technologies.length ? component.technologies.join(' / ') : '通用'
+  return `${component.relativeRoot === '.' ? '项目根目录' : component.relativeRoot} · ${stack}`
 }
 
 async function enableLargeTaskMode() {
@@ -1271,14 +1283,17 @@ async function redesignPackage(packageId: string) {
           </div>
           <div v-if="designerSession.taskProfile.state === 'PROVISIONAL' && !taskProfileRouting && !profileEditing" class="profile-actions">
             <el-button v-if="taskProfileNeedsConfirmation && designerSession.taskProfile.previousConfirmedChoice" plain :loading="busy" @click="carryForwardTaskProfile">继续使用原设置</el-button>
-            <el-button v-if="taskProfileNeedsConfirmation" type="primary" :loading="busy" @click="confirmTaskProfile">{{ designerSession.taskProfile.previousConfirmedChoice ? '使用本次识别结果' : '确认并继续' }}</el-button>
-            <el-button plain :disabled="busy" @click="startTaskProfileEdit">修改设置</el-button>
+            <el-button v-if="taskProfileNeedsConfirmation && !designerSession.taskProfile.componentSelectionRequired" type="primary" :loading="busy" @click="confirmTaskProfile">{{ designerSession.taskProfile.previousConfirmedChoice ? '使用本次识别结果' : '确认并继续' }}</el-button>
+            <el-button :type="designerSession.taskProfile.componentSelectionRequired ? 'primary' : undefined" plain :disabled="busy" @click="startTaskProfileEdit">{{ designerSession.taskProfile.componentSelectionRequired ? '选择影响组件' : '修改设置' }}</el-button>
           </div>
           <div v-if="designerSession.taskProfile.state === 'PROVISIONAL' && !taskProfileRouting && profileEditing" class="profile-override">
             <el-select v-model="profileIntent" aria-label="覆盖任务类型"><el-option v-for="item in designerSession.availableProfileOverrides" :key="item" :label="taskIntentLabel(item)" :value="item" /></el-select>
             <el-select v-model="profileArtifact" aria-label="覆盖主要制品"><el-option v-for="item in designerSession.availableArtifactOverrides" :key="item" :label="artifactKindLabel(item)" :value="item" /></el-select>
+            <el-select v-if="designerSession.taskProfile.componentSelectionRequired" v-model="profileComponents" multiple collapse-tags aria-label="选择影响组件" placeholder="选择本任务影响的组件">
+              <el-option v-for="component in designerSession.taskProfile.candidateComponents ?? []" :key="component.key" :label="componentLabel(component)" :value="component.key" />
+            </el-select>
             <label v-if="profileIntent === 'SOFTWARE_CHANGE'" class="large-task-switch"><span><strong>大型任务</strong><small>开启多工作包拆解；默认关闭</small></span><el-switch v-model="profileLargeTask" aria-label="大型任务模式" /></label>
-            <div class="profile-edit-actions"><el-button plain :disabled="busy" @click="cancelTaskProfileEdit">取消</el-button><el-button type="primary" :loading="busy" :disabled="!profileSelectionDirty" @click="updateTaskProfile">保存设置</el-button></div>
+            <div class="profile-edit-actions"><el-button plain :disabled="busy" @click="cancelTaskProfileEdit">取消</el-button><el-button type="primary" :loading="busy" :disabled="!profileSelectionDirty || (designerSession.taskProfile.componentSelectionRequired && profileComponents.length === 0)" @click="updateTaskProfile">保存设置</el-button></div>
           </div>
         </section>
         <section v-if="designerSession?.requirementSnapshot" class="task-profile-card requirement-snapshot-card" aria-label="需求快照">

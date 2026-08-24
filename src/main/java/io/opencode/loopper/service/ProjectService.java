@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,10 +18,13 @@ public class ProjectService {
     private final LoopperMapper mapper;
     private final LoopperProperties properties;
     private final GitWorktreeManager worktrees;
-    public ProjectService(LoopperMapper mapper, LoopperProperties properties, GitWorktreeManager worktrees) {
+    private final ApplicationEventPublisher events;
+    public ProjectService(LoopperMapper mapper, LoopperProperties properties, GitWorktreeManager worktrees,
+                          ApplicationEventPublisher events) {
         this.mapper = mapper;
         this.properties = properties;
         this.worktrees = worktrees;
+        this.events = events;
     }
     @Transactional
     public ProjectRow create(String name, String rootPath) {
@@ -44,11 +48,14 @@ public class ProjectService {
             if (mapper.updateProject(restored) != 1) {
                 throw new ConflictException("PROJECT_VERSION_CONFLICT", "Project was updated concurrently");
             }
-            return get(old.id());
+            ProjectRow result = get(old.id());
+            events.publishEvent(new ProjectRegisteredEvent(result.id()));
+            return result;
         }
         ProjectRow project = new ProjectRow(UUID.randomUUID().toString(), name.trim(), root, normalizedDescription,
                 now, now, 1, 0);
         mapper.insertProject(project);
+        events.publishEvent(new ProjectRegisteredEvent(project.id()));
         return project;
     }
     public List<ProjectRow> list() { return mapper.listProjects(); }

@@ -44,6 +44,9 @@ class RolePackRegistryTest {
                 .isEqualTo("software-generic");
         assertThat(registry.resolve(TaskIntent.SOFTWARE_CHANGE,
                 List.of(), List.of(ArtifactKind.SOURCE_CODE)).id())
+                .isEqualTo("software-generic");
+        assertThat(registry.resolve(TaskIntent.LEGACY_SOFTWARE,
+                List.of(), List.of(ArtifactKind.SOURCE_CODE)).id())
                 .isEqualTo("software-java");
     }
 

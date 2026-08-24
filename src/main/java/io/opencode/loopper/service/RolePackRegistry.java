@@ -29,8 +29,12 @@ public final class RolePackRegistry {
                     "Node/前端软件设计师", ExecutionStrategy.OPEN_CODE_IMPLEMENTATION, TestPolicy.OPTIONAL);
             if (families.contains(SoftwareFamily.JAVA)) return new RolePack("software-java", VERSION,
                     "Java 软件设计师", ExecutionStrategy.OPEN_CODE_IMPLEMENTATION, TestPolicy.REQUIRED);
-            if (families.isEmpty()) return new RolePack("software-java", VERSION, "Java 软件设计师",
-                    ExecutionStrategy.OPEN_CODE_IMPLEMENTATION, TestPolicy.REQUIRED);
+            if (families.isEmpty() && intent == TaskIntent.LEGACY_SOFTWARE) {
+                return new RolePack("software-java", VERSION, "Java 软件设计师",
+                        ExecutionStrategy.OPEN_CODE_IMPLEMENTATION, TestPolicy.REQUIRED);
+            }
+            if (families.isEmpty()) return new RolePack("software-generic", VERSION, "通用软件设计师",
+                    ExecutionStrategy.OPEN_CODE_IMPLEMENTATION, TestPolicy.OPTIONAL);
             return new RolePack("software-generic", VERSION, "通用软件设计师",
                     ExecutionStrategy.OPEN_CODE_IMPLEMENTATION, TestPolicy.OPTIONAL);
         }

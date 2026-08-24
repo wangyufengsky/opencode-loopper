@@ -39,7 +39,7 @@ final class TaskStateStore {
                 row.forbiddenPathsJson(), row.deliverablesJson(), row.verifiersJson(), state.name(), row.createdAt(),
                 now(), row.version(), row.workPackageId(), row.stageKind(), row.executionStrategy(),
                 row.artifactPlanId(), row.rolePackId(), row.rolePackVersion(), row.testPolicy(),
-                row.technologiesJson());
+                row.technologiesJson(), row.projectStackProfileId(), row.componentKeysJson(), row.stackFingerprint());
     }
 
     AttemptRow finishAttempt(AttemptRow row, AttemptState state, String failureKind, String summary) {

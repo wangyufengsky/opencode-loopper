@@ -29,6 +29,19 @@ const cancellingProjectId = ref('')
 let conventionPollTimer: number | undefined
 onMounted(() => { void store.loadProjects() })
 
+function stackLabel(project: Project) {
+  if (project.stackProfileState === 'FAILED') return '分析失败'
+  if (project.stackProfileState === 'PARTIAL') return '画像不完整'
+  if (!project.stackProfileState || project.stackProfileState === 'UNANALYZED') return '待分析'
+  const families = project.stackTechnologyFamilies ?? []
+  if (families.length > 1) return '混合栈'
+  if (families[0] === 'java') return 'Java'
+  if (families[0] === 'node') return 'Node'
+  if (families[0] === 'python') return 'Python'
+  if (families[0] === 'other') return '其他技术栈'
+  return '未识别技术栈'
+}
+
 function openDialog() {
   form.value = { name: '', rootPath: '', description: '' }
   fieldError.value = ''
@@ -64,7 +77,7 @@ async function submit() {
   saving.value = true
   try {
     if (store.usingDemo) {
-      store.projects.push({ id: `demo-${Date.now()}`, ...form.value, status: 'NEEDS_GIT', executionMode: 'DIRECT', updatedAt: new Date().toISOString(), taskCount: 0, openDesignerSessionCount: 0 })
+      store.projects.push({ id: `demo-${Date.now()}`, ...form.value, status: 'NEEDS_GIT', executionMode: 'DIRECT', updatedAt: new Date().toISOString(), taskCount: 0, openDesignerSessionCount: 0, stackProfileState: 'UNANALYZED', stackTechnologyFamilies: [], stackComponentCount: 0 })
     } else {
       store.projects.push(await api.createProject(form.value))
     }
@@ -204,6 +217,7 @@ onBeforeUnmount(clearConventionPoll)
         <div class="card-header"><div><div class="project-icon"><Icon :icon="project.executionMode === 'WORKTREE' ? 'lucide:folder-git-2' : 'lucide:folder-cog'" /></div><h2 class="card-title" style="margin-top: 12px">{{ project.name }}</h2></div><StatusBadge :status="project.status === 'INVALID' ? 'FAILED' : project.status === 'READY' ? 'SUCCEEDED' : 'PENDING'" :label="project.status === 'INVALID' ? '路径不可用' : project.executionMode === 'WORKTREE' ? 'Git 分支模式' : '直接模式'" /></div>
         <p v-if="project.description" class="card-description">{{ project.description }}</p>
         <div class="divider" /><p class="mono tiny muted project-path">{{ project.rootPath }}</p>
+        <div class="stack-summary"><Icon icon="lucide:layers-3" /><strong>{{ stackLabel(project) }}</strong><span class="tiny muted">{{ project.stackComponentCount ?? 0 }} 个组件</span></div>
         <div class="project-footer">
           <div class="project-stats"><span class="execution-mode"><Icon :icon="project.executionMode === 'WORKTREE' ? 'lucide:git-branch' : 'lucide:folder-cog'" /><span class="mono tiny">{{ project.executionMode === 'WORKTREE' ? project.branch : project.executionMode === 'UNAVAILABLE' ? '目录不可访问' : '原项目目录' }}</span></span><span class="tiny muted">{{ project.taskCount }} 个任务 · {{ project.openDesignerSessionCount }} 个待继续设计</span></div>
           <div class="project-actions">
@@ -243,7 +257,7 @@ onBeforeUnmount(clearConventionPoll)
       <Icon icon="lucide:loader-circle" class="spin" /><strong>正在读取项目公约…</strong>
     </div>
     <div v-else-if="conventionDraft?.state === 'RUNNING'" class="convention-progress">
-      <Icon icon="lucide:loader-circle" class="spin" /><div><strong>AI 正在分析项目…</strong></div>
+      <Icon icon="lucide:loader-circle" class="spin" /><div><strong>画像已刷新，AI 正在重新生成项目公约…</strong></div>
     </div>
     <div v-else-if="conventionDraft?.state === 'APPLYING'" class="convention-progress">
       <Icon icon="lucide:loader-circle" class="spin" /><div><strong>正在确认写入结果…</strong></div>
@@ -284,6 +298,7 @@ onBeforeUnmount(clearConventionPoll)
 <style scoped>
 .project-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .project-card { display: flex; min-width: 0; min-height: 276px; flex-direction: column; }.project-card .card-header { align-items: flex-start; }.project-card .card-description { line-height: 1.65; overflow-wrap: anywhere; }.project-icon { display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid rgb(139 92 246 / 42%); border-radius: 9px; color: var(--color-accent-ai); background: rgb(139 92 246 / 10%); }.project-path { white-space: normal; overflow-wrap: anywhere; }.project-footer { display: flex; align-items: flex-start; flex-direction: column; gap: 14px; margin-top: auto; padding-top: 15px; color: var(--color-text-secondary); }.project-stats { display: grid; width: 100%; gap: 8px; min-width: 0; }.execution-mode { display: inline-flex; min-width: 0; align-items: center; gap: 6px; }.execution-mode svg { flex: 0 0 auto; color: var(--color-accent-cyan); }.execution-mode span { white-space: normal; overflow-wrap: anywhere; }.project-actions { display: flex; width: 100%; flex-wrap: wrap; justify-content: flex-start; gap: 8px; }
+.stack-summary { display: flex; align-items: center; gap: 7px; margin-top: 10px; color: var(--color-text-secondary); }.stack-summary svg { color: var(--color-accent-cyan); }.stack-summary strong { font-size: 12px; }
 .convention-action { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; gap: 6px; min-height: 30px; padding: 0 10px; border: 1px solid rgb(139 92 246 / 34%); border-radius: 7px; color: #c4b5fd; background: rgb(139 92 246 / 8%); font-size: 10px; font-weight: 680; line-height: 1; cursor: pointer; transition: color .16s ease, background-color .16s ease, border-color .16s ease, box-shadow .16s ease, transform .08s ease; touch-action: manipulation; }.convention-action svg { width: 13px; height: 13px; }.convention-action:hover:not(:disabled) { border-color: rgb(139 92 246 / 62%); color: #ede9fe; background: rgb(139 92 246 / 17%); box-shadow: 0 0 18px rgb(139 92 246 / 13%); }.convention-action:active:not(:disabled) { transform: translateY(1px); }.convention-action:focus-visible { outline: 2px solid var(--color-accent-cyan); outline-offset: 3px; }.convention-action:disabled { opacity: .5; cursor: wait; }
 .resume-design-action { border-color: rgb(34 211 238 / 36%); color: #67e8f9; background: rgb(8 145 178 / 10%); }
 .danger-action { border-color: rgb(248 113 113 / 28%); color: #fca5a5; background: rgb(127 29 29 / 8%); }.danger-action:hover:not(:disabled) { border-color: rgb(248 113 113 / 55%); color: #fecaca; background: rgb(127 29 29 / 20%); box-shadow: 0 0 18px rgb(248 113 113 / 10%); }

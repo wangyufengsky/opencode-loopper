@@ -208,7 +208,8 @@ public class DesignerSessionController {
     public TaskProfileService.View updateTaskProfile(@PathVariable String id,
                                                       @Valid @RequestBody UpdateTaskProfileRequest request) {
         TaskProfileService.View profile = service.updateTaskProfile(
-                id, request.intent(), request.primaryArtifactKind(), request.largeTaskMode(), request.expectedVersion());
+                id, request.intent(), request.primaryArtifactKind(), request.largeTaskMode(), request.componentKeys(),
+                request.expectedVersion());
         autoMode.resumeProfileDecisionBlock(id);
         return profile;
     }
@@ -217,7 +218,8 @@ public class DesignerSessionController {
     public TaskProfileService.OverridePreview previewTaskProfileUpdate(
             @PathVariable String id, @Valid @RequestBody UpdateTaskProfileRequest request) {
         return profiles.previewOverride(
-                id, request.intent(), request.primaryArtifactKind(), request.largeTaskMode(), request.expectedVersion());
+                id, request.intent(), request.primaryArtifactKind(), request.largeTaskMode(), request.componentKeys(),
+                request.expectedVersion());
     }
 
     @PostMapping("/{id}/task-profile/confirm")
@@ -386,7 +388,8 @@ public class DesignerSessionController {
                                                int expectedDiscussionRevision) { }
     public record DiscussionRevisionRequest(int expectedDiscussionRevision) { }
     public record UpdateTaskProfileRequest(TaskIntent intent, ArtifactKind primaryArtifactKind,
-                                           Boolean largeTaskMode, long expectedVersion) { }
+                                           Boolean largeTaskMode, List<String> componentKeys,
+                                           long expectedVersion) { }
     public record ConfirmTaskProfileRequest(long expectedVersion) { }
     public record EnableLargeTaskModeRequest(int expectedDiscussionRevision, long expectedProfileVersion) { }
     public record PackageMessageRequest(@NotBlank @Size(max = 12_000) String content,

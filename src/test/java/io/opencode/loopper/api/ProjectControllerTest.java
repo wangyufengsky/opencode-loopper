@@ -12,6 +12,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import io.opencode.loopper.service.DirectoryPickerService;
 import io.opencode.loopper.service.ProjectConventionService;
 import io.opencode.loopper.service.ProjectService;
+import io.opencode.loopper.service.ProjectStackProfileService;
+import io.opencode.loopper.service.ProjectStackSnapshot;
 import io.opencode.loopper.persistence.ProjectConventionDraftRow;
 import io.opencode.loopper.persistence.ProjectRow;
 import io.opencode.loopper.runtime.GitWorktreeManager.RepositoryInspection;
@@ -26,7 +28,9 @@ class ProjectControllerTest {
     private final ProjectService projects = mock(ProjectService.class);
     private final DirectoryPickerService directoryPicker = mock(DirectoryPickerService.class);
     private final ProjectConventionService conventions = mock(ProjectConventionService.class);
-    private final MockMvc mvc = MockMvcBuilders.standaloneSetup(new ProjectController(projects, directoryPicker, conventions))
+    private final ProjectStackProfileService stackProfiles = mock(ProjectStackProfileService.class);
+    private final MockMvc mvc = MockMvcBuilders.standaloneSetup(new ProjectController(
+                    projects, directoryPicker, conventions, stackProfiles))
             .setControllerAdvice(new ApiExceptionHandler()).build();
 
     @Test
@@ -37,6 +41,11 @@ class ProjectControllerTest {
         when(projects.inspect(project)).thenReturn(new RepositoryInspection(true, true, "main"));
         when(projects.taskCount("project-1")).thenReturn(2);
         when(projects.openDesignerSessionCount("project-1")).thenReturn(1);
+        when(stackProfiles.current("project-1")).thenReturn(new ProjectStackSnapshot(null, "project-1",
+                io.opencode.loopper.domain.ProjectStackProfileState.READY, "sha",
+                List.of("java"), List.of("java"), List.of(), 4, null, null, "now",
+                List.of(new ProjectStackSnapshot.Component("root", ".", List.of("java"), List.of("java"),
+                        List.of("maven"), List.of("junit"), List.of("pom.xml"), List.of()))));
 
         mvc.perform(get("/api/projects"))
                 .andExpect(status().isOk())
@@ -45,7 +54,26 @@ class ProjectControllerTest {
                 .andExpect(jsonPath("$[0].executionMode").value("WORKTREE"))
                 .andExpect(jsonPath("$[0].branch").value("main"))
                 .andExpect(jsonPath("$[0].taskCount").value(2))
-                .andExpect(jsonPath("$[0].openDesignerSessionCount").value(1));
+                .andExpect(jsonPath("$[0].openDesignerSessionCount").value(1))
+                .andExpect(jsonPath("$[0].stackProfileState").value("READY"))
+                .andExpect(jsonPath("$[0].stackTechnologyFamilies[0]").value("java"))
+                .andExpect(jsonPath("$[0].stackComponentCount").value(1));
+    }
+
+    @Test
+    void returnsThePersistedModuleLevelStackProfile() throws Exception {
+        when(stackProfiles.current("project-1")).thenReturn(new ProjectStackSnapshot("profile-1", "project-1",
+                io.opencode.loopper.domain.ProjectStackProfileState.READY, "sha", List.of("node"), List.of("node"),
+                List.of(), 7, null, null, "now", List.of(new ProjectStackSnapshot.Component(
+                "frontend", "frontend", List.of("node"), List.of("node"), List.of("npm"), List.of("vitest"),
+                List.of("frontend/package.json"), List.of()))));
+
+        mvc.perform(get("/api/projects/project-1/stack-profile"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value("profile-1"))
+                .andExpect(jsonPath("$.manifestFingerprint").value("sha"))
+                .andExpect(jsonPath("$.components[0].relativeRoot").value("frontend"))
+                .andExpect(jsonPath("$.components[0].testFrameworks[0]").value("vitest"));
     }
 
     @Test

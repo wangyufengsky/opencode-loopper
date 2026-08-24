@@ -41,6 +41,34 @@ describe('Loopper REST contract adapter', () => {
     }))
   })
 
+  it('normalizes project stack profiles and submits explicit component ownership', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json({
+        id: 'profile-1', projectId: 'project-1', state: 'READY', manifestFingerprint: 'sha',
+        technologyFamilies: ['java', 'node'], technologies: ['java', 'node'], filesScanned: 12,
+        analyzedAt: 'now', components: [{ key: 'frontend', relativeRoot: 'frontend',
+          technologyFamilies: ['node'], technologies: ['node'], buildTools: ['npm'],
+          testFrameworks: ['vitest'], manifestSources: ['frontend/package.json'], evidence: ['package.json'] }],
+      }))
+      .mockResolvedValueOnce(json({ selectionChanged: true, updateRequired: true,
+        sessionRestartRequired: false, targetWorkflowTemplate: 'DIRECT_SOFTWARE_DESIGN' }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(api.getProjectStackProfile('project 1')).resolves.toMatchObject({
+      state: 'READY', manifestFingerprint: 'sha',
+      components: [{ key: 'frontend', relativeRoot: 'frontend', technologies: ['node'] }],
+    })
+    await api.previewDesignerTaskProfileUpdate(
+      'designer-1', 'SOFTWARE_CHANGE', 'SOURCE_CODE', 4, false, ['frontend'],
+    )
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/projects/project%201/stack-profile')
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({
+      intent: 'SOFTWARE_CHANGE', primaryArtifactKind: 'SOURCE_CODE', expectedVersion: 4,
+      largeTaskMode: false, componentKeys: ['frontend'],
+    })
+  })
+
   it('authorizes Designer auto mode only through the local UI header and normalizes its state', async () => {
     const session = {
       id: 'designer-1', projectId: 'project-1', state: 'RUNNING', workflowPhase: 'DISCUSSING_REQUIREMENT',

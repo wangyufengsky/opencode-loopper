@@ -30,6 +30,8 @@ public class TaskProfileService {
     private final LoopperMapper mapper;
     private final ProjectService projects;
     private final TaskProfileRouter router;
+    private final ProjectStackProfileService stackProfiles;
+    private final TaskProfileOverridePolicy overridePolicy;
     private final TaskSemanticRouter semanticRouter;
     private final RolePackRegistry rolePacks;
     private final ObjectMapper json;
@@ -38,10 +40,14 @@ public class TaskProfileService {
     private final Set<String> claimedRouterRuns = ConcurrentHashMap.newKeySet();
 
     public TaskProfileService(LoopperMapper mapper, ProjectService projects, TaskProfileRouter router,
+                              ProjectStackProfileService stackProfiles,
+                              TaskProfileOverridePolicy overridePolicy,
                               TaskSemanticRouter semanticRouter,
                               RolePackRegistry rolePacks, ObjectMapper json,
                               PlatformTransactionManager transactionManager) {
-        this.mapper = mapper; this.projects = projects; this.router = router; this.semanticRouter = semanticRouter;
+        this.mapper = mapper; this.projects = projects; this.router = router; this.stackProfiles = stackProfiles;
+        this.overridePolicy = overridePolicy;
+        this.semanticRouter = semanticRouter;
         this.rolePacks = rolePacks;
         this.json = json; this.transactions = new TransactionTemplate(transactionManager);
     }
@@ -84,7 +90,8 @@ public class TaskProfileService {
         DesignerSessionRow session = session(sessionId);
         ProjectRow project = projects.get(session.projectId());
         Path root = Path.of(project.rootPath());
-        TaskProfileRouter.Decision serverEvidence = router.route(root, requirement);
+        ProjectStackSnapshot stackProfile = stackProfiles.ensureCurrent(project.id());
+        TaskProfileRouter.Decision serverEvidence = router.route(stackProfile, requirement);
         List<String> observedEvidence = new java.util.ArrayList<>(serverEvidence.evidence());
         if (inheritedEvidence != null) inheritedEvidence.stream().filter(value -> !observedEvidence.contains(value))
                 .forEach(observedEvidence::add);
@@ -92,7 +99,9 @@ public class TaskProfileService {
         String runId = UUID.randomUUID().toString();
         TaskProfileRouterRunRow pending = new TaskProfileRouterRunRow(runId, sessionId,
                 "PENDING", requirement == null ? "" : requirement, write(observedEvidence),
-                null, null, null, null, null, null, now, now, 0);
+                null, null, null, null, null, null, now, now, 0,
+                serverEvidence.projectStackProfileId(), write(serverEvidence.componentKeys()),
+                serverEvidence.stackFingerprint());
         claimedRouterRuns.add(runId);
         try {
             if (mapper.insertTaskProfileRouterRun(pending) != 1) {
@@ -102,7 +111,8 @@ public class TaskProfileService {
             TaskProfileRouterRunRow updated = new TaskProfileRouterRunRow(pending.id(), sessionId,
                     started.started() ? "RUNNING" : "FAILED", pending.requirementSnapshot(), pending.repositoryEvidenceJson(),
                     started.externalSessionId(), started.started() ? "RUNNING" : "FAILED", started.responseMode(), null,
-                    started.errorCode(), started.errorDetail(), pending.createdAt(), Instant.now().toString(), pending.version());
+                    started.errorCode(), started.errorDetail(), pending.createdAt(), Instant.now().toString(), pending.version(),
+                    pending.projectStackProfileId(), pending.componentKeysJson(), pending.stackFingerprint());
             if (mapper.updateTaskProfileRouterRun(updated) != 1) {
                 semanticRouter.abortQuietly(root, started.externalSessionId());
                 throw new ConflictException("TASK_PROFILE_ROUTER_VERSION_CONFLICT", "任务设置识别记录被并发更新");
@@ -175,7 +185,8 @@ public class TaskProfileService {
                                                String errorCode, String errorDetail) {
         TaskProfileRouterRunRow updated = new TaskProfileRouterRunRow(run.id(), run.designerSessionId(), state,
                 run.requirementSnapshot(), run.repositoryEvidenceJson(), externalSessionId, externalState,
-                responseMode, labels, errorCode, errorDetail, run.createdAt(), Instant.now().toString(), run.version());
+                responseMode, labels, errorCode, errorDetail, run.createdAt(), Instant.now().toString(), run.version(),
+                run.projectStackProfileId(), run.componentKeysJson(), run.stackFingerprint());
         if (mapper.updateTaskProfileRouterRun(updated) != 1) {
             throw new ConflictException("TASK_PROFILE_ROUTER_VERSION_CONFLICT", "任务设置识别记录被并发更新");
         }
@@ -185,10 +196,12 @@ public class TaskProfileService {
     private View materialize(TaskProfileRouterRunRow run, TaskProfileRouter.SemanticLabels labels,
                              String errorCode, String errorDetail) {
         DesignerSessionRow session = session(run.designerSessionId());
-        Path root = Path.of(projects.get(session.projectId()).rootPath());
+        ProjectStackSnapshot stackProfile = run.projectStackProfileId() == null
+                ? stackProfiles.current(session.projectId()) : stackProfiles.get(session.projectId(), run.projectStackProfileId());
         TaskProfileRouter.Decision decision = labels != null
-                ? router.route(root, run.requirementSnapshot(), labels)
-                : router.genericFallback(root, errorCode == null ? "router-output-unavailable" : errorCode);
+                ? router.route(stackProfile, run.requirementSnapshot(), labels)
+                : router.genericFallback(stackProfile, run.requirementSnapshot(),
+                        errorCode == null ? "router-output-unavailable" : errorCode);
         String preservedWorkflowEvidence = readStrings(run.repositoryEvidenceJson()).stream()
                 .filter(value -> value.startsWith(SOFTWARE_WORKFLOW_EVIDENCE_PREFIX)
                         || value.startsWith(HISTORICAL_SOFTWARE_WORKFLOW_EVIDENCE_PREFIX))
@@ -203,7 +216,9 @@ public class TaskProfileService {
         if (decision.intent() == TaskIntent.SOFTWARE_CHANGE && explicitWorkflow != null) {
             decision = new TaskProfileRouter.Decision(decision.intent(), explicitWorkflow, decision.mutationMode(),
                     decision.artifactKinds(), decision.technologies(), decision.confidence(),
-                    decision.decisionRequired(), decision.evidence());
+                    decision.decisionRequired(), decision.evidence(), decision.projectStackProfileId(),
+                    decision.stackFingerprint(), decision.componentKeys(), decision.availableComponents(),
+                    decision.stackProfileState());
         }
         List<String> routingEvidence = new java.util.ArrayList<>(decision.evidence());
         readStrings(run.repositoryEvidenceJson()).stream().filter(value -> value.startsWith("requirement-tests="))
@@ -226,7 +241,8 @@ public class TaskProfileService {
                             ? preservedWorkflowEvidence.startsWith(SOFTWARE_WORKFLOW_EVIDENCE_PREFIX)
                                     ? "USER_OVERRIDE" : "HISTORICAL_WORKFLOW_PRESERVED"
                             : labels != null ? "AI_ROUTER" : "ROUTER_FALLBACK",
-                decisionRequired ? 1 : 0, now, now, 0);
+                decisionRequired ? 1 : 0, now, now, 0, decision.projectStackProfileId(),
+                write(decision.componentKeys()), decision.stackFingerprint());
         if (mapper.insertDesignerTaskProfile(row) != 1) throw new ConflictException("TASK_PROFILE_CREATE_CONFLICT", "任务设置未能持久化");
         return view(row);
     }
@@ -253,9 +269,15 @@ public class TaskProfileService {
 
     public View override(String sessionId, TaskIntent intent, ArtifactKind primaryArtifact,
                          Boolean largeTaskMode, long expectedVersion) {
-        OverrideContext context = overrideContext(sessionId, intent, primaryArtifact, largeTaskMode, expectedVersion);
+        return override(sessionId, intent, primaryArtifact, largeTaskMode, null, expectedVersion);
+    }
+
+    public View override(String sessionId, TaskIntent intent, ArtifactKind primaryArtifact,
+                         Boolean largeTaskMode, List<String> componentKeys, long expectedVersion) {
+        TaskProfileOverridePolicy.Context context = overrideContext(sessionId, intent, primaryArtifact, largeTaskMode,
+                componentKeys, expectedVersion);
         DesignerTaskProfileRow current = context.current();
-        if (!overrideRequired(current, intent, primaryArtifact, context.workflow())) {
+        if (current.decisionRequired() == 0 && !context.selectionChanged()) {
             return view(current);
         }
         List<String> technologies = context.technologies();
@@ -268,61 +290,36 @@ public class TaskProfileService {
         evidence.add("manual-override");
         DesignerTaskProfileRow updated = new DesignerTaskProfileRow(current.id(), current.designerSessionId(), null,
                 current.state(), intent.name(), workflow.name(), mutation.name(), write(List.of(primaryArtifact)),
-                current.technologiesJson(), testPolicy.name(), pack.executionStrategy().name(), pack.id(), pack.version(),
-                100, write(evidence), "USER_OVERRIDE", 0, current.createdAt(), Instant.now().toString(), current.version());
+                write(technologies), testPolicy.name(), pack.executionStrategy().name(), pack.id(), pack.version(),
+                100, write(evidence), "USER_OVERRIDE", 0, current.createdAt(), Instant.now().toString(), current.version(),
+                current.projectStackProfileId(), write(context.componentKeys()), current.stackFingerprint());
         if (mapper.updateDesignerTaskProfile(updated) != 1) throw new ConflictException("TASK_PROFILE_VERSION_CONFLICT", "任务设置已被并发更新");
         return current(sessionId);
     }
 
     public OverridePreview previewOverride(String sessionId, TaskIntent intent, ArtifactKind primaryArtifact,
                                            Boolean largeTaskMode, long expectedVersion) {
-        OverrideContext context = overrideContext(sessionId, intent, primaryArtifact, largeTaskMode, expectedVersion);
+        return previewOverride(sessionId, intent, primaryArtifact, largeTaskMode, null, expectedVersion);
+    }
+
+    public OverridePreview previewOverride(String sessionId, TaskIntent intent, ArtifactKind primaryArtifact,
+                                           Boolean largeTaskMode, List<String> componentKeys, long expectedVersion) {
+        TaskProfileOverridePolicy.Context context = overrideContext(sessionId, intent, primaryArtifact, largeTaskMode,
+                componentKeys, expectedVersion);
         DesignerTaskProfileRow current = context.current();
-        boolean selectionChanged = selectionChanged(current, intent, primaryArtifact, context.workflow());
+        boolean selectionChanged = context.selectionChanged();
         boolean updateRequired = selectionChanged || current.decisionRequired() == 1;
         boolean sessionRestartRequired = selectionChanged
                 && WorkflowTemplate.valueOf(current.workflowTemplate()) != context.workflow();
         return new OverridePreview(selectionChanged, updateRequired, sessionRestartRequired, context.workflow());
     }
 
-    private boolean overrideRequired(DesignerTaskProfileRow current, TaskIntent intent,
-                                     ArtifactKind primaryArtifact, WorkflowTemplate workflow) {
-        return current.decisionRequired() == 1 || selectionChanged(current, intent, primaryArtifact, workflow);
-    }
-
-    private boolean selectionChanged(DesignerTaskProfileRow current, TaskIntent intent,
-                                     ArtifactKind primaryArtifact, WorkflowTemplate workflow) {
-        List<ArtifactKind> artifacts;
-        try { artifacts = json.readValue(current.artifactKindsJson(), new TypeReference<>() { }); }
-        catch (Exception ignored) { artifacts = List.of(ArtifactKind.OTHER); }
-        ArtifactKind currentPrimary = artifacts.isEmpty() ? ArtifactKind.OTHER : artifacts.getFirst();
-        return TaskIntent.valueOf(current.intent()) != intent || currentPrimary != primaryArtifact
-                || WorkflowTemplate.valueOf(current.workflowTemplate()) != workflow;
-    }
-
-    private OverrideContext overrideContext(String sessionId, TaskIntent intent, ArtifactKind primaryArtifact,
-                                            Boolean largeTaskMode, long expectedVersion) {
-        if (intent == null || primaryArtifact == null) {
-            throw new BadRequestException("TASK_PROFILE_OVERRIDE_INVALID", "必须选择任务意图和主要制品类型");
-        }
+    private TaskProfileOverridePolicy.Context overrideContext(String sessionId, TaskIntent intent,
+            ArtifactKind primaryArtifact, Boolean largeTaskMode, List<String> componentKeys, long expectedVersion) {
         DesignerTaskProfileRow current = mapper.findCurrentDesignerTaskProfile(sessionId)
                 .orElseThrow(() -> new NotFoundException("Task profile not found for Designer session: " + sessionId));
-        if (!"PROVISIONAL".equals(current.state())) {
-            throw new ConflictException("TASK_PROFILE_FROZEN", "需求确认后不能修改任务设置");
-        }
-        if (current.version() != expectedVersion) {
-            throw new ConflictException("TASK_PROFILE_VERSION_CONFLICT", "任务设置已被并发更新");
-        }
-        List<String> evidence = readStrings(current.evidenceJson());
-        if (evidence.contains("unsafe-operation-conflict")) {
-            throw new BadRequestException("UNSAFE_MAINTENANCE_OUT_OF_SCOPE",
-                    "当前版本不接受删除、服务启停、提交推送、发布或外部系统写入，不能通过画像覆盖绕过此边界");
-        }
-        if (Boolean.TRUE.equals(largeTaskMode) && intent != TaskIntent.SOFTWARE_CHANGE) {
-            throw new BadRequestException("LARGE_TASK_MODE_NOT_APPLICABLE", "大型任务模式只适用于软件任务");
-        }
-        return new OverrideContext(current, readStrings(current.technologiesJson()),
-                workflow(intent, current.workflowTemplate(), largeTaskMode));
+        return overridePolicy.resolve(current, sessionId == null ? null : session(sessionId).projectId(), intent,
+                primaryArtifact, largeTaskMode, componentKeys, expectedVersion);
     }
 
     public View acceptRecommendation(String sessionId, long expectedVersion) {
@@ -348,13 +345,17 @@ public class TaskProfileService {
             throw new BadRequestException("UNSAFE_MAINTENANCE_OUT_OF_SCOPE",
                     "当前版本不接受删除、服务启停、提交推送、发布或外部系统写入，不能由全自动确认绕过此边界");
         }
+        if (evidence.contains("component-selection-ambiguous") && readStrings(current.componentKeysJson()).isEmpty()) {
+            throw new BadRequestException("PROJECT_COMPONENT_SELECTION_REQUIRED", "多栈项目必须先选择本任务影响的组件");
+        }
         evidence.add(userConfirmed ? "user-confirmed-profile" : "auto-recommended-profile");
         DesignerTaskProfileRow updated = new DesignerTaskProfileRow(current.id(), current.designerSessionId(),
                 current.requirementRevisionId(), current.state(), current.intent(), current.workflowTemplate(),
                 current.mutationMode(), current.artifactKindsJson(), current.technologiesJson(), current.testPolicy(),
                 current.executionStrategy(), current.rolePackId(), current.rolePackVersion(), current.confidence(),
                 write(evidence), userConfirmed ? "USER_CONFIRMED" : "AUTO_RECOMMENDED", 0,
-                current.createdAt(), Instant.now().toString(), current.version());
+                current.createdAt(), Instant.now().toString(), current.version(), current.projectStackProfileId(),
+                current.componentKeysJson(), current.stackFingerprint());
         if (mapper.updateDesignerTaskProfile(updated) != 1) {
             throw new ConflictException("TASK_PROFILE_VERSION_CONFLICT", "任务设置已被并发更新");
         }
@@ -387,7 +388,8 @@ public class TaskProfileService {
                     current.requirementRevisionId(), "FROZEN", current.intent(), current.workflowTemplate(), current.mutationMode(),
                     current.artifactKindsJson(), current.technologiesJson(), current.testPolicy(), current.executionStrategy(),
                     current.rolePackId(), current.rolePackVersion(), current.confidence(), current.evidenceJson(),
-                    current.resolutionSource(), 0, current.createdAt(), Instant.now().toString(), current.version());
+                    current.resolutionSource(), 0, current.createdAt(), Instant.now().toString(), current.version(),
+                    current.projectStackProfileId(), current.componentKeysJson(), current.stackFingerprint());
             if (mapper.updateDesignerTaskProfile(frozen) != 1) throw new ConflictException("TASK_PROFILE_VERSION_CONFLICT", "任务设置已被并发更新");
             return view(frozen);
         });
@@ -411,7 +413,8 @@ public class TaskProfileService {
                 "PROVISIONAL", TaskIntent.SOFTWARE_CHANGE.name(), WorkflowTemplate.FULL_PACKAGE_DESIGN.name(),
                 source.mutationMode().name(), write(source.artifactKinds()), write(source.technologies()),
                 source.testPolicy().name(), source.executionStrategy().name(), source.rolePackId(),
-                source.rolePackVersion(), 100, write(evidence), "USER_OVERRIDE", 0, now, now, 0);
+                source.rolePackVersion(), 100, write(evidence), "USER_OVERRIDE", 0, now, now, 0,
+                source.projectStackProfileId(), write(source.componentKeys()), source.stackFingerprint());
         if (mapper.insertDesignerTaskProfile(row) != 1) {
             throw new ConflictException("TASK_PROFILE_CREATE_CONFLICT", "大型任务设置未能持久化");
         }
@@ -428,22 +431,6 @@ public class TaskProfileService {
         if (technologies.contains("python") && evidence.stream().anyMatch(value -> value.contains("pytest") || value.contains("unittest")))
             return TestPolicy.REQUIRED;
         return fallback;
-    }
-
-    private WorkflowTemplate workflow(TaskIntent intent, String previous, Boolean largeTaskMode) {
-        return switch (intent) {
-            case DOCUMENT_AUTHORING -> WorkflowTemplate.PACKAGED_ARTIFACT.name().equals(previous)
-                    ? WorkflowTemplate.PACKAGED_ARTIFACT : WorkflowTemplate.DIRECT_ARTIFACT;
-            case DATA_CONVERSION -> WorkflowTemplate.DIRECT_ARTIFACT;
-            case READ_ONLY_REVIEW, RESEARCH -> WorkflowTemplate.READ_ONLY_REPORT;
-            case CONFIGURATION, LOCAL_MAINTENANCE -> WorkflowTemplate.FULL_PACKAGE_DESIGN.name().equals(previous)
-                    ? WorkflowTemplate.FULL_PACKAGE_DESIGN : WorkflowTemplate.LOCAL_MAINTENANCE;
-            case SOFTWARE_CHANGE -> largeTaskMode == null
-                    ? (WorkflowTemplate.FULL_PACKAGE_DESIGN.name().equals(previous)
-                            ? WorkflowTemplate.FULL_PACKAGE_DESIGN : WorkflowTemplate.DIRECT_SOFTWARE_DESIGN)
-                    : largeTaskMode ? WorkflowTemplate.FULL_PACKAGE_DESIGN : WorkflowTemplate.DIRECT_SOFTWARE_DESIGN;
-            default -> WorkflowTemplate.FULL_PACKAGE_DESIGN;
-        };
     }
 
     private java.util.Optional<String> preservedSoftwareWorkflowEvidence(String sessionId) {
@@ -500,6 +487,13 @@ public class TaskProfileService {
         String decisionState = "FROZEN".equals(row.state()) ? "FROZEN"
                 : row.decisionRequired() == 1 ? "NEEDS_CONFIRMATION" : "CONFIRMED";
         boolean ready = confirmationReady(row);
+        ProjectStackSnapshot stackProfile = row.projectStackProfileId() == null ? null
+                : stackProfiles.get(session(row.designerSessionId()).projectId(), row.projectStackProfileId());
+        List<ProjectStackSnapshot.Component> components = stackProfile == null
+                ? List.of() : stackProfile.components();
+        List<String> componentKeys = readStrings(row.componentKeysJson());
+        boolean componentSelectionRequired = row.decisionRequired() == 1 && componentKeys.isEmpty()
+                && readStrings(row.evidenceJson()).contains("component-selection-ambiguous");
         return new View(row.id(), row.state(), decisionState, ready,
                 TaskIntent.valueOf(row.intent()), WorkflowTemplate.valueOf(row.workflowTemplate()),
                 MutationMode.valueOf(row.mutationMode()), artifacts, readStrings(row.technologiesJson()),
@@ -508,14 +502,18 @@ public class TaskProfileService {
                 row.resolutionSource(), row.decisionRequired() == 1,
                 TaskIntent.SOFTWARE_CHANGE.name().equals(row.intent())
                         && WorkflowTemplate.FULL_PACKAGE_DESIGN.name().equals(row.workflowTemplate()),
-                ready ? null : previousConfirmedChoice(row.designerSessionId(), row.id()), row.version());
+                ready ? null : previousConfirmedChoice(row.designerSessionId(), row.id()), row.version(),
+                row.projectStackProfileId(), row.stackFingerprint(), componentKeys, components,
+                stackProfile == null ? "UNANALYZED" : stackProfile.state().name(),
+                componentSelectionRequired);
     }
     private View legacy(String sessionId) {
         return new View(null, "LEGACY", "CONFIRMED", true,
                 TaskIntent.LEGACY_SOFTWARE, WorkflowTemplate.FULL_PACKAGE_DESIGN,
                 MutationMode.WRITE_CODE, List.of(ArtifactKind.SOURCE_CODE), List.of(), TestPolicy.REQUIRED,
                 ExecutionStrategy.OPEN_CODE_IMPLEMENTATION, "software-java", "legacy", 0,
-                List.of("historical-session-without-profile"), "LEGACY", false, false, null, 0);
+                List.of("historical-session-without-profile"), "LEGACY", false, false, null, 0,
+                null, null, List.of(), List.of(), "UNANALYZED", false);
     }
 
     private View routing(String sessionId) {
@@ -524,7 +522,8 @@ public class TaskProfileService {
                 WorkflowTemplate.DIRECT_SOFTWARE_DESIGN, MutationMode.WRITE_CODE,
                 List.of(ArtifactKind.SOURCE_CODE), List.of(), TestPolicy.OPTIONAL,
                 ExecutionStrategy.OPEN_CODE_IMPLEMENTATION, "routing", "pending", 0,
-                List.of(), "ROUTER", true, false, previous, 0);
+                List.of(), "ROUTER", true, false, previous, 0,
+                null, null, List.of(), List.of(), "UNANALYZED", false);
     }
 
     private boolean confirmationReady(DesignerTaskProfileRow row) {
@@ -546,21 +545,23 @@ public class TaskProfileService {
         WorkflowTemplate workflow = WorkflowTemplate.valueOf(row.workflowTemplate());
         return new ConfirmedChoice(TaskIntent.valueOf(row.intent()), artifacts.isEmpty() ? ArtifactKind.OTHER : artifacts.getFirst(),
                 workflow, MutationMode.valueOf(row.mutationMode()), workflow == WorkflowTemplate.FULL_PACKAGE_DESIGN,
-                row.resolutionSource());
+                row.resolutionSource(), row.projectStackProfileId(), row.stackFingerprint(),
+                readStrings(row.componentKeysJson()));
     }
 
     public record ConfirmedChoice(TaskIntent intent, ArtifactKind primaryArtifactKind,
                                   WorkflowTemplate workflowTemplate, MutationMode mutationMode,
-                                  boolean largeTaskMode, String resolutionSource) {
+                                  boolean largeTaskMode, String resolutionSource,
+                                  String projectStackProfileId, String stackFingerprint,
+                                  List<String> componentKeys) {
         private boolean matches(TaskProfileRouter.Decision decision) {
             ArtifactKind primary = decision.artifactKinds().isEmpty() ? ArtifactKind.OTHER : decision.artifactKinds().getFirst();
             return intent == decision.intent() && primaryArtifactKind == primary
-                    && workflowTemplate == decision.workflowTemplate() && mutationMode == decision.mutationMode();
+                    && workflowTemplate == decision.workflowTemplate() && mutationMode == decision.mutationMode()
+                    && java.util.Objects.equals(stackFingerprint, decision.stackFingerprint())
+                    && componentKeys.equals(decision.componentKeys());
         }
     }
-
-    private record OverrideContext(DesignerTaskProfileRow current, List<String> technologies,
-                                   WorkflowTemplate workflow) { }
 
     public record OverridePreview(boolean selectionChanged, boolean updateRequired,
                                   boolean sessionRestartRequired, WorkflowTemplate targetWorkflowTemplate) { }
@@ -571,5 +572,7 @@ public class TaskProfileService {
                        TestPolicy testPolicy, ExecutionStrategy executionStrategy, String rolePackId,
                        String rolePackVersion, int confidence, List<String> evidence, String resolutionSource,
                        boolean decisionRequired, boolean largeTaskMode, ConfirmedChoice previousConfirmedChoice,
-                       long version) { }
+                       long version, String projectStackProfileId, String stackFingerprint,
+                       List<String> componentKeys, List<ProjectStackSnapshot.Component> candidateComponents,
+                       String stackProfileState, boolean componentSelectionRequired) { }
 }

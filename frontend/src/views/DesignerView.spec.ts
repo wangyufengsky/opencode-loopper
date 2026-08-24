@@ -1,5 +1,5 @@
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
-import ElementPlus, { ElMessage, ElMessageBox, ElOption } from 'element-plus'
+import ElementPlus, { ElMessage, ElMessageBox, ElOption, ElSelect } from 'element-plus'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import DesignerView from '@/views/DesignerView.vue'
@@ -294,6 +294,58 @@ describe('Designer draft composer', () => {
     ])
   })
 
+  it('asks for a component only when a multi-stack software task is ambiguous', async () => {
+    routeQuery.sessionId = 'designer-component-profile'
+    const componentSession: DesignerSession = {
+      ...session,
+      id: 'designer-component-profile', state: 'REVIEWING', workflowPhase: 'DISCUSSING_REQUIREMENT',
+      discussionScope: 'REQUIREMENT', finalConfirmationEligible: false,
+      taskProfile: {
+        ...session.taskProfile, id: 'profile-components', state: 'PROVISIONAL',
+        decisionState: 'NEEDS_CONFIRMATION', confirmationReady: false, decisionRequired: true,
+        workflowTemplate: 'DIRECT_SOFTWARE_DESIGN', largeTaskMode: false, version: 3,
+        technologies: [], componentKeys: [], componentSelectionRequired: true,
+        candidateComponents: [
+          { key: 'backend', relativeRoot: '.', technologyFamilies: ['java'], technologies: ['java'], buildTools: ['maven'], testFrameworks: ['junit'], manifestSources: ['pom.xml'] },
+          { key: 'frontend', relativeRoot: 'frontend', technologyFamilies: ['node'], technologies: ['node'], buildTools: ['npm'], testFrameworks: ['vitest'], manifestSources: ['frontend/package.json'] },
+        ],
+      },
+      availableProfileOverrides: ['SOFTWARE_CHANGE'], availableArtifactOverrides: ['SOURCE_CODE'],
+      draft: draftFrom({
+        schemaVersion: 'v2', projectId: project.id, goal: '选择受影响组件', context: '', stages: [],
+        limits: { maxStageAttempts: 3, maxTaskAttempts: 7, maxDuration: '7200', attemptTimeout: '1800' },
+      }),
+    }
+    vi.spyOn(api, 'getDesignerSession').mockResolvedValue(componentSession)
+    vi.spyOn(api, 'previewDesignerTaskProfileUpdate').mockResolvedValue({
+      selectionChanged: true, updateRequired: true, sessionRestartRequired: false,
+      targetWorkflowTemplate: 'DIRECT_SOFTWARE_DESIGN',
+    })
+    const update = vi.spyOn(api, 'updateDesignerTaskProfile').mockResolvedValue({
+      ...componentSession.taskProfile, technologies: ['java'], componentKeys: ['backend'],
+      componentSelectionRequired: false, decisionRequired: false, confirmationReady: true,
+    })
+
+    const wrapper = mountDesigner()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('选择影响组件')
+    expect(wrapper.text()).not.toContain('确认并继续')
+    await wrapper.findAll('button').find(button => button.text().includes('选择影响组件'))!.trigger('click')
+    const selector = wrapper.findAllComponents(ElSelect)[2]!
+    expect(selector.exists()).toBe(true)
+    expect(wrapper.findAllComponents(ElOption).map(option => option.props('label')))
+      .toContain('frontend · node')
+    selector.vm.$emit('update:modelValue', ['frontend'])
+    await flushPromises()
+    await wrapper.findAll('button').find(button => button.text().includes('保存设置'))!.trigger('click')
+    await flushPromises()
+
+    expect(update).toHaveBeenCalledWith(
+      componentSession.id, 'SOFTWARE_CHANGE', 'SOURCE_CODE', 3, false, ['frontend'],
+    )
+  })
+
   it('defaults software design to one package and only enables decomposition through the explicit switch', async () => {
     routeQuery.sessionId = 'designer-direct-profile'
     const directSession: DesignerSession = {
@@ -337,7 +389,7 @@ describe('Designer draft composer', () => {
       expect.stringContaining('停止当前远端设计会话'), '需要重新开始当前设计',
       expect.objectContaining({ confirmButtonText: '停止当前设计并重新开始' }),
     )
-    expect(update).toHaveBeenCalledWith(directSession.id, 'SOFTWARE_CHANGE', 'SOURCE_CODE', 4, true)
+    expect(update).toHaveBeenCalledWith(directSession.id, 'SOFTWARE_CHANGE', 'SOURCE_CODE', 4, true, [])
   })
 
   it('renders the authoritative requirement snapshot separately and excludes its audit message from system history', async () => {

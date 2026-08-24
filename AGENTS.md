@@ -42,10 +42,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.2.14.jar
-   jar tf target/opencode-loopper-0.2.14.jar \
+   test -s target/opencode-loopper-0.2.15.jar
+   jar tf target/opencode-loopper-0.2.15.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.2.14.jar
+   shasum -a 256 target/opencode-loopper-0.2.15.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -95,8 +95,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.2.14`。
-- 正式产物：`target/opencode-loopper-0.2.14.jar`。
+- Maven 项目版本：`0.2.15`。
+- 正式产物：`target/opencode-loopper-0.2.15.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -235,6 +235,9 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 - `DIRECT_DESIGN` 恰好一个包且允许 1–6 个 Stage；大型任务拆成 2–6 个依赖有序的纵向业务包，每包 1–3 个 Stage、总计不超过 18 个。禁止把数据库、后端、前端、测试机械分层拆包。普通模式需要第 7 个 Stage 时必须以 `LARGE_TASK_MODE_REQUIRED` 立即停止，不重设计、不自动切换；只有用户显式点击“改用大型任务”才重开当前需求。多项目根、超过六包或多个独立发布边界仍必须返回 `MULTI_TASK_REQUIRED` 并等待人工，不自动创建子 Task。
 - 工作包严格串行执行。大型任务每包在健康时复用自己的只读交互 Designer Session；普通 WP-1 使用不开放 `question` 的通用只读 Session，创建后直接进入 `DESIGNING`，初稿、人工反馈和重新设计都直接输出完整替代设计，不得创建包级 Pending Question 或进入 `QUESTIONING_PACKAGE`。每个候选使用当前配置的同一模型。Designer 只输出不超过 24 KiB UTF-8 的完整 Markdown；当前软件设计固定使用“目标与范围 / 影响与交付 / 验收场景 / 可选人工评审项 / 验收约束 / 阶段与依赖”，场景列固定为“场景 / 前置或触发 / 操作 / 可观察结果 / 保持不变”。Designer 不得输出 WP/AC/DS-L ID、LoopSpec JSON 或可执行 argv，只能写相对路径/符号、测试类或原生测试路径和独立性约束。
 - V41 为每次新软件包编译冻结一条 `design_acceptance_planning`：CommonMark AST 与 GFM 表格提取 `SCENARIO/REVIEW/SCOPE/DELIVERABLE/POLICY/DEPENDENCY` DesignFact，保存精确原文、稳定引用和 SHA-256；设计上限 24 KiB UTF-8、64 个场景、128 个事实。服务端从冻结 Role Pack、技术栈和测试策略生成闭集验证能力，Java/Node/Python/混合栈只允许仓库原生聚焦目标；用户要求“独立/分别/各自通过”时相应能力为强制项。AI 不得生成命令、路径、测试目标或验证器。规划持久化状态固定为 `EXTRACTED / BOUND / COMPILED / FAILED`：闭集求解得到 `DESIGN_INCOMPLETE` 时写入 `BOUND` 并由编排器进入重设计/人工输入流程，不得把编译结果码直接写入状态列。
+- V42 用不可变 `project_stack_profile / project_stack_component` 保存项目技术栈与模块基线。新登记或取消管理后重新登记的项目在登记事务提交后自动分析；既有受管项目不批量回填，项目列表只连接最新持久化摘要并投影 `UNANALYZED`，不得产生文件系统 N+1。第一次创建新 Designer 或点击“AI 更新 Loopper 公约”时按需分析，后者必须强制重析。分析最多读取 2000 个非符号链接普通文件、深度 5，并跳过生成目录；Maven/Gradle、`package.json`、Python 配置/测试、Go/Rust 分别形成 Java、Node、Python、Other 组件，同一组件根真实跨软件族才是 mixed。指纹必须基于排序后的相对 Manifest 路径与内容 SHA-256；失败持久化 `FAILED`，超限或证据不完整持久化 `PARTIAL`，任何状态都不得隐式兜底为 Java。
+- V42 Router 只能用需求相对路径、模块名和 AI 语义标签在当前项目画像证据内选择组件；AI 不能覆盖证据、权限、测试或执行策略。单栈可自动选，明确跨组件使用 `software-mixed`，多栈歧义、`PARTIAL/FAILED` 或空仓库无明确技术必须进入确认，空仓库使用 `software-generic`。任务画像、Router run、工作包和 Stage 冻结项目画像 ID、Manifest 指纹与组件键；普通 WP-1 继承已确认组件，只有大型任务允许包级专门化。冻结 Task/Stage/Recovery 永不被后续重析改写；未冻结 Designer 仅在需求重算时使用新画像，且只有指纹、组件、意图和流程均一致才能继承原确认。
+- “AI 更新 Loopper 公约”必须在数据库事务外先强制重析，再创建只读 AI Session；`FAILED` 不启动 AI，`PARTIAL` 必须显示复核警告。AI 必须根据结构化画像和当前文件重新生成 `技术栈与模块 / 构建与测试 / 目录与边界`，服务端拒绝缺失章节、超限内容和画像中不存在的已知技术。`project_convention_draft` 冻结画像 ID 与指纹；预览不写文件，确认写入前同时复核原 `AGENTS.md` 哈希和实时 Manifest 指纹。没有 marker 时首次追加，已有 marker 时仅替换管理区块，区块外人工内容必须原样保留；`AGENTS.md` 只服务于 Agent 上下文，不是机器路由权威来源。
 - 新软件 Compiler 使用 `COMPILER_BINDING_NO_TOOLS` 和 `PACKAGE_ACCEPTANCE_BINDING_V5`，只返回事实分组、仅向前的分组依赖、事实到能力的软偏好和交接摘要，不得返回 `outcome/designGaps`。提示必须给出唯一的小型对象形状；该建议无法解析、字段形状漂移或超过分组上限时，服务端审计 `OPTIONAL_ACCEPTANCE_ADVICE_DROPPED` 并使用空建议继续确定性编译，不得消耗格式/语义修复后把 Designer 停在 `WAITING_INPUT`。服务端只从正向交付物、验收约束和阶段关系发现测试能力，负向/不变文本不得生成测试目标；测试限定名按主体符号归一并通过标识符、CamelCase、标题优先和中文语义唯一胜者竞争映射，每个业务条件至多绑定一个 focused test，独立必跑但无专属场景的目标只生成一次带原始来源的独立机器条件；仅测试路径生成 `JAVA_TEST_ONLY`，不得伪装生产变更。服务端对每个有界 Stage 分组运行上限 100000 节点的精确 branch-and-bound 集合覆盖，超限后确定性贪心复核，以零未覆盖为硬条件，再优先少 Judge-only、强确定性证据和少能力；随后唯一派生 `COMPILED` 或具体 `DESIGN_INCOMPLETE`，生成 EARS 验收文字、`<workPackageId>-AC-n`、精确来源、直接 argv、测试目标和验证器，并继续通过 `DesignerPackagePlanCompiler` 与 LoopSpec v2 全量校验。冻结 v4 工作包允许沿同一算法恢复；无闭集能力覆盖时必须失败关闭，不得因模型猜测放行；UI 只展示有界中文场景/能力投影，不泄露内部索引或原始 JSON。
 - Decomposer 与历史 v3 Compiler 每个候选仍使用既有紧凑语义合同；只有没有 V41 快照的历史活动或明确 v3 信封才使用最多 16 个 `add/replace/remove` 的 `AI_SEMANTIC_PATCH_V1`，并继续保留各两次格式/语义修复。V5 验收绑定是可选建议，形状错误直接丢弃后由服务端闭集编译，不创建修复 Session；真实闭集设计缺口最多只让当前包完整重设计一次。每个只读角色已确认的传输失败允许一个全新 Session 重试。整个需求版本最多 96 次模型调用；各包内容次数互不挤占但受全局上限约束。
 - 新 Decomposer 紧凑规划、Compiler 紧凑规划和 Judge 必须优先使用服务端固定 ID 的 OpenCode JSON Schema；旧 final Schema 只保留给缺少语义快照的历史活动记录。provider 内建 schema 重试固定为 0。只有格式接口拒绝、明确 `StructuredOutputError` 或完成后缺失 structured payload 才能在全新只读角色 Session 中回退到 marker，并计入当前步骤原有模型调用与格式修复预算；不得在失败 Session 内继续、增加隐藏重试池或绕过确定性语义校验。历史活动记录按 `TEXT_MARKER` 兼容。
@@ -352,7 +355,7 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 
 ### 数据库迁移
 
-- 已有 V1–V39 Flyway 迁移不可修改；Schema 变化新增下一序号迁移，并同时验证全新数据库和至少一个受支持旧版本升级路径。
+- 已有 V1–V42 Flyway 迁移不可修改；Schema 变化新增下一序号迁移，并同时验证全新数据库和至少一个受支持旧版本升级路径。
 - SQLite 外键级联不能只靠假设；活动连接必须明确启用，终止删除路径仍要按依赖顺序显式清理并验证事务回滚。
 - 数据库枚举码、artifact kind、错误码和 audit event 是兼容性契约；修改前先搜索所有 Java、SQL、前端 type/label 和测试消费者。
 
@@ -425,7 +428,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.2.14.jar
+JAR=target/opencode-loopper-0.2.15.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -527,6 +530,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-08-24 | 项目技术栈画像、AGENTS.md AI 更新联动与任务组件路由，交付 0.2.15 | V42 新增不可变项目/组件技术栈画像、Manifest 指纹和 Task/工作包/Stage 冻结引用；新项目自动分析、老项目按需分析且列表不扫描；公约按钮强制重析并让只读 AI 重生成三个受画像约束的管理章节，写前复核文件与画像；多栈歧义显式选择组件，空仓库不再默认 Java；同步 README、架构、Designer/OpenCode/代码设计合同与本公约正文 | 画像、迁移、API、公约、路由聚焦后端 62 项通过，前端类型检查/生产构建与 Vitest 199/199 通过；`./scripts/verify.sh` 完整通过，Java 555 项（0 失败、0 错误、2 条件跳过），前端 199/199；真实 CupXml2Java 条件化烟测 1/1，隔离 18015 成品 JAR + OpenCode 1.18.18 的只读普通任务 Loop 将“新增责任链单元测试”冻结为单组件 Java/Maven、`software-java / REQUIRED / WP-1`，Session `b480e531-85b4-4b2d-b04f-1473056e4a56` 以 `server_compiled=true`、0 次规划/格式/语义修复进入 `FINAL_REVIEW`，生成 2 个 `JAVA_TEST_ONLY` Stage 和 3 个聚焦 Maven 测试目标，Task 0；JAR `target/opencode-loopper-0.2.15.jar` 为 283537238 字节，含 110 个 SPA 静态条目，SHA-256 `7c5d36cd7ac2762438bfbff9056b4e4b46cd86691985c413cc8ac721a676ba90`；隔离进程已正常停止，未替换 8080 实例，未推送、未打标签、未创建 Release |
 | 2026-08-24 | Designer v5 不完整结果持久化状态修复，交付 0.2.14 | `DesignerAcceptanceWorkflow` 不再把确定性结果码 `DESIGN_INCOMPLETE` 直接写入 V41 的闭集状态列，而是持久化为 `BOUND` 并保留既有重设计/人工输入编排；新增真实 SQLite 迁移与 Designer 全链路回归，架构与本公约明确 `EXTRACTED / BOUND / COMPILED / FAILED` 状态语义；同步全部发布版本路径 | 聚焦不完整规划状态与发布脚本合同通过；`./scripts/verify.sh` 完整通过，Java 536 项（0 失败、0 错误、1 跳过），前端 Vitest 196/196；JAR `target/opencode-loopper-0.2.14.jar` 为 283477302 字节，含 110 个 SPA 静态条目，SHA-256 `61a10b31c3446417adfdb2b0d30260714574ced6d092e12abfd518d40c04c7f6`；隔离 18014 使用 OpenCode 1.18.18 对 CupXml2Java 普通任务“新增责任链单元测试”真实 Loop，Session `26fe8697-4c4e-4d62-8dc9-268a3e37f981` 的 WP-1 以 v5、0 次格式/语义修复、`server_compiled=1` 进入 `FINAL_REVIEW`，新增 Task 0；未重启当前 8080 实例，未推送、未打标签、未创建 Release |
 | 2026-08-21 | Designer 单包软件角色继承与 Compiler 路由自愈，交付 0.2.12 | 普通 `DIRECT_SOFTWARE_DESIGN / WP-1` 固定继承已确认任务画像的技术栈、软件 Role Pack 与测试策略，设计稿中的“依赖”等非变更语句不再把软件包误降级为本地维护；历史或异常的非软件工作包快照在 Compiler 权威读取前自动重算并持久化，从而稳定进入 v5 验收绑定；只有大型多包流程允许基于包级交付语义专门化文档/维护角色；同步 README、架构、Designer/AI 角色合同与本公约正文 | 聚焦角色信号、历史快照自愈、v5 Compiler 选择与发布合同通过；GitNexus 变更影响为 medium，仅命中工作包编译规划链路；`./scripts/verify.sh` 完整通过，Java 535 项（0 失败、0 错误、1 跳过），前端 Vitest 196/196；JAR `target/opencode-loopper-0.2.12.jar` 为 283476978 字节，含 110 个 SPA 静态条目，SHA-256 `4f2deca787383d6f3e7c16885a3dc13a8fd2468b740ec8378f3ccbfac0bfd2c8`；未重启当前 8080 实例，等待推送、标签与 Release 核验 |
 | 2026-08-21 | Designer v5 可选建议降级与关系竞争修复，交付 0.2.11 | 真实弱模型输出证明 v5 已进入运行链路，但模型返回 `groupIndex/capabilityIndex/preference` 形状后仍耗尽格式修复；现将分组/偏好明确为可丢弃建议，提示给出唯一对象形状，兼容可逆的软偏好缺失，其他无效建议审计后由服务端空建议确定性编译；共享领域词按标题优先和唯一胜者竞争，独立必跑目标只绑定一次；工作包技术信号使用词边界，`ChainNodeInvoker` 不再误判 Node；Router 兼容 `TEST_SOURCE_CODE`，纯测试 Stage 生成 `JAVA_TEST_ONLY`；同步 README、架构、Designer/OpenCode/AI 角色合同与本公约正文 | 聚焦 v5 算法/角色/Router/结构/发布合同和真实编译链路通过；`./scripts/verify.sh` 成功，Java 533 项（0 失败、0 错误、1 跳过），前端 Vitest 196/196；JAR `target/opencode-loopper-0.2.11.jar` 为 283476127 字节，含 110 个 SPA 静态条目，SHA-256 `d6dde83f5df392c2216eb977e6fc5e6fc16a388783f600901e4fd81e0a0f809c`；未重启当前 8080 实例，未推送、未打标签、未创建 Release |

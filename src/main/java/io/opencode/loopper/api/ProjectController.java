@@ -6,6 +6,8 @@ import io.opencode.loopper.service.BadRequestException;
 import io.opencode.loopper.service.DirectoryPickerService;
 import io.opencode.loopper.service.ProjectConventionService;
 import io.opencode.loopper.service.ProjectService;
+import io.opencode.loopper.service.ProjectStackProfileService;
+import io.opencode.loopper.service.ProjectStackSnapshot;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -29,14 +31,20 @@ public class ProjectController {
     private final ProjectService service;
     private final DirectoryPickerService directoryPicker;
     private final ProjectConventionService conventions;
+    private final ProjectStackProfileService stackProfiles;
     public ProjectController(ProjectService service, DirectoryPickerService directoryPicker,
-                             ProjectConventionService conventions) {
+                             ProjectConventionService conventions, ProjectStackProfileService stackProfiles) {
         this.service = service;
         this.directoryPicker = directoryPicker;
         this.conventions = conventions;
+        this.stackProfiles = stackProfiles;
     }
     @GetMapping public List<ProjectDto> list() { return service.list().stream().map(this::dto).toList(); }
     @GetMapping("/{id}") public ProjectDto get(@PathVariable String id) { return dto(service.get(id)); }
+    @GetMapping("/{id}/stack-profile")
+    public ProjectStackProfileDto stackProfile(@PathVariable String id) {
+        return stackProfileDto(stackProfiles.current(id));
+    }
     @PostMapping public ResponseEntity<ProjectDto> create(@Valid @RequestBody ProjectRequest request) {
         ProjectRow row = service.create(request.name(), request.rootPath(), request.description());
         return ResponseEntity.created(URI.create("/api/projects/" + row.id())).body(dto(row));
@@ -83,19 +91,23 @@ public class ProjectController {
     public record DirectorySelectionDto(boolean selected, String path, String name) { }
     public record ProjectConventionDto(String id, String projectId, String state, String operation,
                                        boolean readOnlyGeneration, String content, String normalizationNotice,
-                                       String error, String updatedAt) { }
+                                       String error, String updatedAt, String stackProfileId,
+                                       String stackFingerprint) { }
     public record CurrentProjectConventionDto(String projectId, boolean exists, boolean loopperManaged, String content) { }
     private String directoryName(String path) { Path fileName = Path.of(path).getFileName(); return fileName == null ? path : fileName.toString(); }
     private ProjectDto dto(ProjectRow row) {
         var inspection = service.inspect(row);
+        ProjectStackSnapshot stack = stackProfiles.current(row.id());
         String status = !inspection.pathAvailable() ? "INVALID" : inspection.isolatedWorktree() ? "READY" : "NEEDS_GIT";
         String executionMode = inspection.isolatedWorktree() ? "WORKTREE" : inspection.pathAvailable() ? "DIRECT" : "UNAVAILABLE";
         return new ProjectDto(row.id(), row.name(), row.rootPath(), status, row.description(), inspection.branch(),
-                executionMode, row.updatedAt(), service.taskCount(row.id()), service.openDesignerSessionCount(row.id()));
+                executionMode, row.updatedAt(), service.taskCount(row.id()), service.openDesignerSessionCount(row.id()),
+                stack.state().name(), stack.technologyFamilies(), stack.components().size(), stack.analyzedAt());
     }
     private ProjectConventionDto conventionDto(ProjectConventionDraftRow row) {
         return new ProjectConventionDto(row.id(), row.projectId(), row.state(), row.sourceExists() == 1 ? "UPDATE" : "CREATE",
-                true, row.proposedContent(), row.normalizationNotice(), row.errorMessage(), row.updatedAt());
+                true, row.proposedContent(), row.normalizationNotice(), row.errorMessage(), row.updatedAt(),
+                row.projectStackProfileId(), row.stackFingerprint());
     }
     private void requireLocalUi(String localUi) {
         if (!"1".equals(localUi)) {
@@ -104,5 +116,22 @@ public class ProjectController {
     }
     public record ProjectDto(String id, String name, String rootPath, String status, String description, String branch,
                              String executionMode, String updatedAt, int taskCount,
-                             int openDesignerSessionCount) { }
+                             int openDesignerSessionCount, String stackProfileState,
+                             List<String> stackTechnologyFamilies, int stackComponentCount,
+                             String stackAnalyzedAt) { }
+    public record ProjectStackProfileDto(String id, String projectId, String state, String manifestFingerprint,
+                                         List<String> technologyFamilies, List<String> technologies,
+                                         int filesScanned, String errorCode, String errorDetail, String analyzedAt,
+                                         List<ProjectStackComponentDto> components) { }
+    public record ProjectStackComponentDto(String key, String relativeRoot, List<String> technologyFamilies,
+                                           List<String> technologies, List<String> buildTools,
+                                           List<String> testFrameworks, List<String> manifestSources) { }
+    private ProjectStackProfileDto stackProfileDto(ProjectStackSnapshot profile) {
+        return new ProjectStackProfileDto(profile.id(), profile.projectId(), profile.state().name(),
+                profile.manifestFingerprint(), profile.technologyFamilies(), profile.technologies(),
+                profile.filesScanned(), profile.errorCode(), profile.errorDetail(), profile.analyzedAt(),
+                profile.components().stream().map(component -> new ProjectStackComponentDto(component.key(),
+                        component.relativeRoot(), component.technologyFamilies(), component.technologies(),
+                        component.buildTools(), component.testFrameworks(), component.manifestSources())).toList());
+    }
 }
