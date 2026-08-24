@@ -489,7 +489,11 @@ V41 adds one `design_acceptance_planning` row per work-package compilation. It f
 controlled-Markdown design hash, DesignFact catalog and closed verification-capability catalog;
 those identity fields are immutable. AI binding, solver diagnostics and failure detail are
 versioned updates. New v4 rows resume from this snapshot, while compilations without a row remain
-on the historical v3 parser/repair path. The UI reads only a bounded human-facing projection.
+on the historical v3 parser/repair path. Planning state is a closed persistence contract:
+`EXTRACTED` is the frozen input, `BOUND` records a valid binding whose deterministic result is
+`DESIGN_INCOMPLETE`, `COMPILED` records a fully lowered plan, and `FAILED` records an invalid
+planning boundary. Compiler outcome codes are never written directly into this lifecycle column.
+The UI reads only a bounded human-facing projection.
 
 Machine-response roles carry an explicit non-thinking model selection only for
 steps whose persisted response mode is `JSON_SCHEMA`. Managed DeepSeek starts

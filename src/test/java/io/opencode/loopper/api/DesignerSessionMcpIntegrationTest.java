@@ -2157,6 +2157,62 @@ class DesignerSessionMcpIntegrationTest {
     }
 
     @Test
+    void deterministicDesignIncompletePersistsBoundPlanningInsteadOfBecomingSessionError() throws Exception {
+        ProjectRow project = project("deterministic-incomplete-planning-state");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        String design = """
+                ## 目标与范围
+                为 Java Listener 补齐事件投递行为，但当前设计尚未声明聚焦测试目标。
+
+                ## 影响与交付
+                | 类型 | 相对路径或符号 | 说明 |
+                | --- | --- | --- |
+                | 生产代码 | src/main/java/example/Listener.java | 事件投递行为 |
+
+                ## 验收场景
+                | 场景 | 前置/触发 | 操作 | 可观察结果 | 保持不变 |
+                | --- | --- | --- | --- | --- |
+                | Listener 投递事件 | 已注册监听器 | publish | 监听器收到事件 | 注册表不变 |
+
+                ## 验收约束
+                必须提供可重复的自动化测试，但当前设计没有声明测试目标。
+
+                ## 阶段与依赖
+                | 阶段建议 | 包含场景/交付 | 前置阶段 |
+                | --- | --- | --- |
+                | 事件投递 | Listener 投递事件 | 无 |
+                """;
+        fake().setDesignerOutput(designerOutput(design, legacySpec(project.id())));
+        fake().setPackageDesignerOutput("WP-1", design);
+        fake().setPackageCompilerPlanningOutput("WP-1", """
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->
+                {"summary":"事件投递验收绑定","groupHints":[],"capabilityPreferences":[],
+                 "handoffSummary":"等待补齐验证能力"}
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->
+                """);
+
+        DesignerSessionRow session = createConfirmedSession(project.id(), draft.id(),
+                "修改 Java Listener 并提供聚焦单元测试");
+        pollUntilSettled(session.id());
+
+        assertThat(designerSessions.get(session.id()).state()).isEqualTo("WAITING_INPUT");
+        assertThat(designerSessions.get(session.id()).state()).isNotEqualTo("SESSION_ERROR");
+        var compilation = mapper.findLatestLoopSpecCompilationForPackage(session.id(), "WP-1").orElseThrow();
+        assertThat(compilation.state()).isEqualTo("DESIGN_INCOMPLETE");
+        assertThat(compilation.externalSessionState()).isEqualTo("COMPLETED");
+        assertThat(compilation.lastErrorCode()).isEqualTo("DESIGN_INCOMPLETE");
+        assertThat(mapper.findDesignAcceptancePlanning(compilation.id())).hasValueSatisfying(planning -> {
+            assertThat(planning.state()).isEqualTo("BOUND");
+            assertThat(planning.errorCode()).isNull();
+            assertThat(planning.diagnosticsJson())
+                    .contains("SERVER_DERIVED_DESIGN_INCOMPLETE", "uncoveredFactIndexes");
+        });
+        assertThat(designerSessions.messages(session.id()))
+                .noneSatisfy(message -> assertThat(message.content()).contains("SQLITE_CONSTRAINT_CHECK"));
+        assertThat(mapper.listTasks()).isEmpty();
+    }
+
+    @Test
     void compilerTreatsWrongRoleEnvelopeAsFormatFailureAndRepairsInFreshNoToolsSession() throws Exception {
         ProjectRow project = project("compiler-wrong-role-envelope");
         LoopDraftRow draft = drafts.create(legacySpec(project.id()));

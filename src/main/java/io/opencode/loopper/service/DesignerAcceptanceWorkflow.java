@@ -106,7 +106,7 @@ final class DesignerAcceptanceWorkflow {
         DesignerAcceptancePlanCompiler.Result compiled = planCompiler.compile(workPackage, design, facts(row),
                 capabilities(row), extracted.value(), role, scopeIn, scopeOut, deliverables, stageLimit,
                 directSoftwareMode);
-        update(row, compiled.plan().status(), extracted.canonicalJson(),
+        update(row, planningState(compiled.plan().status()), extracted.canonicalJson(),
                 write(Map.of("solver", compiled.diagnostics(), "scenarios", compiled.scenarios())), null, null);
         List<String> notes = new ArrayList<>(extracted.normalizations());
         notes.add("DESIGN_FACTS_BOUND");
@@ -117,6 +117,15 @@ final class DesignerAcceptanceWorkflow {
                 new AiOutputExtractor.ExtractionResult<>(compiled.plan(), extracted.source(), List.copyOf(notes),
                         write(compiled.plan()));
         return new BoundResult(compiled, normalized);
+    }
+
+    private String planningState(String compilationStatus) {
+        return switch (compilationStatus) {
+            case "COMPILED" -> "COMPILED";
+            case "DESIGN_INCOMPLETE" -> "BOUND";
+            default -> throw new IllegalStateException("Unsupported deterministic compilation status: "
+                    + compilationStatus);
+        };
     }
 
     void markCompatibility(DesignAcceptancePlanningRow row, String output) {
