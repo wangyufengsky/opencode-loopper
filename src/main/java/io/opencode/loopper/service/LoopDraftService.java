@@ -95,6 +95,25 @@ public class LoopDraftService {
     /** Compiler boundary: refuse to overwrite a draft edited after the design was frozen. */
     @Transactional
     public LoopDraftRow updateAtVersion(String id, LoopSpec spec, Long expectedVersion) {
+        return updateAtVersion(id, spec, expectedVersion, null);
+    }
+
+    /**
+     * Aggregation boundary: explicitly approved packages may replace a pre-design placeholder mapping, while the
+     * frozen package order remains authoritative. Ordinary draft updates still preserve the exact aggregate mapping.
+     */
+    @Transactional
+    public LoopDraftRow updateAggregatedAtVersion(String id, LoopSpec spec, Long expectedVersion,
+                                                   List<String> expectedWorkPackageIds) {
+        if (expectedWorkPackageIds == null || expectedWorkPackageIds.isEmpty()) {
+            throw invalidWorkPackageMapping();
+        }
+        requireWorkPackageMapping(spec, expectedWorkPackageIds);
+        return updateAtVersion(id, spec, expectedVersion, expectedWorkPackageIds);
+    }
+
+    private LoopDraftRow updateAtVersion(String id, LoopSpec spec, Long expectedVersion,
+                                         List<String> aggregateWorkPackageIds) {
         LoopDraftRow old = get(id);
         if (expectedVersion != null && old.version() != expectedVersion) {
             throw new ConflictException("DESIGNER_DRAFT_CHANGED",
@@ -105,7 +124,7 @@ public class LoopDraftService {
             throw new BadRequestException("LOOPSPEC_SCHEMA_IMMUTABLE",
                     "Persisted drafts cannot change schemaVersion; copy the draft to upgrade it");
         }
-        preserveAggregatedWorkPackageMapping(oldSpec, spec);
+        if (aggregateWorkPackageIds == null) preserveAggregatedWorkPackageMapping(oldSpec, spec);
         reject(assessment(spec, true, true).errors());
         if (LoopDraftStatus.CONFIRMED.name().equals(old.status())) throw new ConflictException("DRAFT_CONFIRMED", "Confirmed LoopSpec is immutable; create a new draft");
         if (!old.projectId().equals(spec.projectId())) throw new BadRequestException("DRAFT_PROJECT_MISMATCH", "LoopSpec projectId cannot be changed");
@@ -433,20 +452,26 @@ public class LoopDraftService {
             List<String> expected = packages.stream()
                     .map(io.opencode.loopper.persistence.DesignWorkPackageRow::packageId).toList();
             if (expected.isEmpty()) return;
-            Map<String, Integer> order = new LinkedHashMap<>();
-            for (int index = 0; index < expected.size(); index++) order.put(expected.get(index), index);
-            Set<String> represented = new LinkedHashSet<>();
-            int previous = -1;
-            for (LoopSpec.StageSpec stage : spec.stages()) {
-                Integer current = order.get(stage.workPackageId());
-                if (current == null || current < previous) {
-                    throw invalidWorkPackageMapping();
-                }
-                previous = current;
-                represented.add(stage.workPackageId());
-            }
-            if (!represented.equals(new LinkedHashSet<>(expected))) throw invalidWorkPackageMapping();
+            requireWorkPackageMapping(spec, expected);
         });
+    }
+
+    private void requireWorkPackageMapping(LoopSpec spec, List<String> expected) {
+        if (expected.stream().anyMatch(this::blank)
+                || new LinkedHashSet<>(expected).size() != expected.size()) {
+            throw invalidWorkPackageMapping();
+        }
+        Map<String, Integer> order = new LinkedHashMap<>();
+        for (int index = 0; index < expected.size(); index++) order.put(expected.get(index), index);
+        Set<String> represented = new LinkedHashSet<>();
+        int previous = -1;
+        for (LoopSpec.StageSpec stage : spec.stages()) {
+            Integer current = order.get(stage.workPackageId());
+            if (current == null || current < previous) throw invalidWorkPackageMapping();
+            previous = current;
+            represented.add(stage.workPackageId());
+        }
+        if (!represented.equals(new LinkedHashSet<>(expected))) throw invalidWorkPackageMapping();
     }
 
     private BadRequestException invalidWorkPackageMapping() {

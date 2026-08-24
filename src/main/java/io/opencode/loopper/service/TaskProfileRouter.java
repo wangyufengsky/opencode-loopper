@@ -24,9 +24,20 @@ public final class TaskProfileRouter {
             "(?<![a-z0-9])(javascript|typescript|node(?:\\.js)?|npm|pnpm|yarn|vue|react|vite|vitest|frontend)(?![a-z0-9])|前端");
     private static final Pattern PYTHON = Pattern.compile(
             "(?<![a-z0-9])(python(?:3)?|pytest|unittest|django|flask|fastapi)(?![a-z0-9])|\\.py(?![a-z0-9])");
+    private static final Pattern LOCAL_MAINTENANCE = Pattern.compile(
+            "(?:^|[。！？；;：:\\n\\r])\\s*(?:[-*#>]\\s*)*(?:(?:请|需要|帮我)\\s*)?"
+                    + "(?:(?:安全|本地|日常|简单|常规)(?:配置|依赖)?维护|(?:配置|依赖)维护|依赖升级)"
+                    + "|(?:修改|更新|调整|修复|升级).{0,12}(?:配置(?:文件|项|值|参数|版本|[\\s，。；;]|$)|依赖版本)"
+                    + "|(?:配置(?:文件|项|值|参数|版本)|依赖版本).{0,12}(?:修改|更新|调整|修复|升级)");
     private final ProjectStackAnalyzer analyzer;
+    private final TaskProfileSafetyPolicy safetyPolicy;
+    private final TaskProfileIntentPolicy intentPolicy;
 
-    public TaskProfileRouter(ProjectStackAnalyzer analyzer) { this.analyzer = analyzer; }
+    public TaskProfileRouter(ProjectStackAnalyzer analyzer) {
+        this.analyzer = analyzer;
+        this.safetyPolicy = new TaskProfileSafetyPolicy();
+        this.intentPolicy = new TaskProfileIntentPolicy();
+    }
     public TaskProfileRouter() { this(new ProjectStackAnalyzer()); }
 
     public Decision route(Path root, String requirement) { return route(ephemeral(root), requirement); }
@@ -88,13 +99,14 @@ public final class TaskProfileRouter {
 
     private Decision deterministic(String requirement, ProjectStackSnapshot profile, StackSelection selection) {
         String text = requirement == null ? "" : requirement.toLowerCase(Locale.ROOT);
-        boolean unsafe = unsafeOperationRequested(text);
+        boolean unsafe = safetyPolicy.requestsUnsafeOperation(text);
         List<ArtifactKind> artifacts = new ArrayList<>();
         TaskIntent intent;
         WorkflowTemplate workflow;
         MutationMode mutation;
         int confidence;
-        if (containsAny(text, "评审", "review", "检查代码", "诊断", "只读报告")) {
+        boolean readOnlyReview = intentPolicy.requestsReadOnlyReview(text);
+        if (readOnlyReview) {
             intent = TaskIntent.READ_ONLY_REVIEW; workflow = WorkflowTemplate.READ_ONLY_REPORT;
             mutation = MutationMode.READ_ONLY; artifacts.add(ArtifactKind.ANALYSIS_REPORT); confidence = 92;
         } else if (containsAny(text, "调研", "research", "调查报告")) {
@@ -111,7 +123,7 @@ public final class TaskProfileRouter {
                     ? WorkflowTemplate.PACKAGED_ARTIFACT : WorkflowTemplate.DIRECT_ARTIFACT;
             mutation = MutationMode.WRITE_FILES;
             artifacts.add(text.contains("docx") ? ArtifactKind.DOCX : ArtifactKind.MARKDOWN); confidence = 88;
-        } else if (containsAny(text, "配置", "依赖升级", "维护") && !unsafe) {
+        } else if (LOCAL_MAINTENANCE.matcher(text).find() && !unsafe) {
             intent = TaskIntent.LOCAL_MAINTENANCE; workflow = WorkflowTemplate.LOCAL_MAINTENANCE;
             mutation = MutationMode.SAFE_LOCAL_MAINTENANCE; artifacts.add(ArtifactKind.CONFIGURATION); confidence = 82;
         } else {
@@ -125,8 +137,7 @@ public final class TaskProfileRouter {
         if (containsAny(text, "必须测试", "需要测试", "编写测试", "补充测试", "新增测试", "单元测试",
                 "with tests", "add tests")) evidence.add("requirement-tests=required");
         if (unsafe) { confidence = Math.min(confidence, 50); evidence.add("unsafe-operation-conflict"); }
-        boolean readAndWrite = containsAny(text, "评审", "review", "诊断", "只读")
-                && containsAny(text, "修改", "修复", "新增", "写入", "生成文件", "implement", "fix ");
+        boolean readAndWrite = readOnlyReview && intentPolicy.requestsMutation(text);
         if (readAndWrite) { confidence = Math.min(confidence, 60); evidence.add("mixed-mutation-conflict"); }
         boolean componentSelectionRequired = requiresComponentSelection(intent, selection);
         if (componentSelectionRequired) confidence = Math.min(confidence, 69);
@@ -282,25 +293,6 @@ public final class TaskProfileRouter {
         if (requirement == null || requirement.isBlank()) return 0;
         return requirement.lines().map(String::strip).filter(line -> line.matches("^##\\s+.+")).count();
     }
-    private static boolean releaseOperation(String text) {
-        if (!text.contains("发布")) return containsAny(text, "上线部署", "执行 release", "create release");
-        return !containsAny(text, "发布边界", "事件发布", "发布事件", "发布能力", "发布订阅");
-    }
-    private static boolean unsafeOperationRequested(String text) {
-        String positive = text;
-        for (String negated : List.of(
-                "不删除文件", "不得删除文件", "禁止删除文件", "不操作服务", "不得操作服务", "禁止操作服务",
-                "不启动服务", "不得启动服务", "禁止启动服务", "不停止服务", "不得停止服务", "禁止停止服务",
-                "不重启服务", "不得重启服务", "禁止重启服务", "不提交推送或发布", "不得提交推送或发布",
-                "禁止提交推送或发布", "不提交代码", "不得提交代码", "禁止提交代码", "不创建提交",
-                "不得创建提交", "禁止创建提交", "不推送", "不得推送", "禁止推送", "不发布", "不得发布",
-                "禁止发布", "不写入外部系统", "不得写入外部系统", "禁止写入外部系统")) {
-            positive = positive.replace(negated, "");
-        }
-        return containsAny(positive, "删除文件", "rm ", "启动服务", "停止服务", "重启服务", "推送", "外部系统")
-                || containsAny(positive, "git 提交", "提交代码", "创建提交", "commit ") || releaseOperation(positive);
-    }
-
     private record StackSelection(List<String> componentKeys, List<String> technologies,
                                   boolean decisionRequired, List<String> evidence) { }
     public record Decision(TaskIntent intent, WorkflowTemplate workflowTemplate, MutationMode mutationMode,

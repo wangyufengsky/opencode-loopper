@@ -82,6 +82,31 @@ class LoopSpecAcceptanceServiceTest {
     }
 
     @Test
+    void acceptsUnmappedFocusedTestAsJavaStageGateWhenEveryCriterionIsJudgeOnly() {
+        LoopSpec.VerifierSpec stageGate = process("TEST",
+                List.of("mvn", "-Dtest=ChainEventStateMachineTest", "test"), List.of(),
+                List.of("ChainEventStateMachineTest"));
+        LoopSpec.StageSpec stage = new LoopSpec.StageSpec("state-machine structure", List.of(), List.of(),
+                List.of("state-machine configuration"), List.of(stageGate), List.of(
+                criterion("AC-JUDGE-1", "event naming is coherent", "JUDGE",
+                        "review lifecycle naming", "naming has no unique binary assertion"),
+                criterion("AC-JUDGE-2", "listener wiring is maintainable", "JUDGE",
+                        "review listener boundaries", "wiring quality requires human judgment")), null,
+                ImplementationKind.JAVA_PRODUCTION);
+
+        var result = service.assess(new LoopSpec("v2", "project", "goal", "", List.of(stage),
+                null, null, null, null), List.of(), false);
+
+        assertThat(result.valid()).isTrue();
+        assertThat(result.stageAssessments().getFirst().verifiers()).singleElement().satisfies(verifier -> {
+            assertThat(verifier.blocking()).isTrue();
+            assertThat(verifier.criterionIds()).isEmpty();
+        });
+        assertThat(result.stageAssessments().getFirst().criteria())
+                .allSatisfy(criterion -> assertThat(criterion.overallPlanned()).isTrue());
+    }
+
+    @Test
     void rejectsIncompleteOrConflictingJudgePlans() {
         LoopSpec.VerifierSpec focusedTest = process("TEST", List.of("mvn", "-Dtest=FooTest", "test"),
                 List.of("AC-1"), List.of("FooTest"));

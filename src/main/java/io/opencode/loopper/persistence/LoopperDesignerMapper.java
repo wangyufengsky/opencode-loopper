@@ -272,7 +272,7 @@ public interface LoopperDesignerMapper {
     List<DesignRequirementRevisionRow> listDesignRequirementRevisions(String sessionId);
     @Select("SELECT * FROM design_requirement_revision WHERE designer_session_id=#{sessionId} AND state<>'SUPERSEDED' ORDER BY revision DESC LIMIT 1")
     Optional<DesignRequirementRevisionRow> findCurrentDesignRequirementRevision(String sessionId);
-    @Update("UPDATE design_requirement_revision SET state=#{state},model_calls_used=#{modelCallsUsed},updated_at=#{updatedAt},version=version+1 WHERE id=#{id} AND version=#{version}")
+    @Update("UPDATE design_requirement_revision SET source_draft_version=#{sourceDraftVersion},state=#{state},model_calls_used=#{modelCallsUsed},updated_at=#{updatedAt},version=version+1 WHERE id=#{id} AND version=#{version}")
     int updateDesignRequirementRevision(DesignRequirementRevisionRow row);
 
     @Insert("""

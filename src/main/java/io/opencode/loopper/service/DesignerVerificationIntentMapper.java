@@ -27,9 +27,11 @@ final class DesignerVerificationIntentMapper {
             "测试", "场景", "行为", "正常", "异常", "执行", "结果", "新增", "生成", "覆盖", "校验", "参数");
 
     List<TargetMapping> map(Catalog catalog, List<List<String>> targetLists, String design) {
+        Integer soleDeclaredTarget = soleDeclaredTarget(catalog, targetLists);
         List<Profile> profiles = new ArrayList<>();
         for (int index = 0; index < targetLists.size(); index++) {
-            profiles.add(profile(index, targetLists.get(index), catalog, targetLists, design));
+            profiles.add(profile(index, targetLists.get(index), catalog, targetLists, design,
+                    soleDeclaredTarget));
         }
         Map<Integer, LinkedHashSet<Integer>> coverage = new LinkedHashMap<>();
         profiles.forEach(profile -> coverage.put(profile.index(), new LinkedHashSet<>()));
@@ -38,6 +40,10 @@ final class DesignerVerificationIntentMapper {
             List<Profile> direct = profiles.stream().filter(profile -> directlyMentions(profile, scenario)).toList();
             if (direct.size() == 1) {
                 coverage.get(direct.getFirst().index()).add(scenario.index());
+                continue;
+            }
+            if (direct.isEmpty() && soleDeclaredTarget != null) {
+                coverage.get(soleDeclaredTarget).add(scenario.index());
                 continue;
             }
             int best = 0;
@@ -87,14 +93,14 @@ final class DesignerVerificationIntentMapper {
     }
 
     private Profile profile(int index, List<String> targets, Catalog catalog,
-                            List<List<String>> allTargets, String design) {
+                            List<List<String>> allTargets, String design, Integer soleDeclaredTarget) {
         LinkedHashSet<String> aliases = new LinkedHashSet<>();
         for (String target : targets) aliases.addAll(aliases(target));
         LinkedHashSet<String> contexts = new LinkedHashSet<>();
         boolean mandatory = false;
         for (Fact fact : catalog.facts()) {
             if (fact.kind() == FactKind.DELIVERABLE && positive(fact.detail())
-                    && mentions(fact.title() + " " + fact.detail(), targets)) {
+                    && explicitlyMentions(fact.title() + " " + fact.detail(), targets)) {
                 contexts.add(fact.title() + " " + fact.detail());
                 mandatory = true;
             } else if (fact.kind() == FactKind.POLICY) {
@@ -108,17 +114,47 @@ final class DesignerVerificationIntentMapper {
         }
         for (StageHint hint : catalog.stageHints()) {
             String text = hint.title() + " " + hint.objective();
-            if (!negative(text) && mentions(text, targets)) {
+            boolean named = mentions(text, targets);
+            boolean unambiguousAnaphora = soleDeclaredTarget != null && soleDeclaredTarget == index
+                    && refersToFocusedTest(text);
+            if (!negative(text) && (named || unambiguousAnaphora)) {
                 mandatory = true;
-                if (mentionCount(text, allTargets) == 1) contexts.add(text);
+                if (unambiguousAnaphora || mentionCount(text, allTargets) == 1) contexts.add(text);
             }
         }
         for (String clause : positiveClauses(design)) {
             if (!mentions(clause, targets)) continue;
             mandatory |= required(clause);
-            if (mentionCount(clause, allTargets) == 1) contexts.add(clause);
+            if (mentionCount(clause, allTargets) == 1 && coverageContext(clause)) contexts.add(clause);
         }
         return new Profile(index, Set.copyOf(aliases), List.copyOf(contexts), mandatory);
+    }
+
+    private static Integer soleDeclaredTarget(Catalog catalog, List<List<String>> targetLists) {
+        List<Integer> declared = new ArrayList<>();
+        for (int index = 0; index < targetLists.size(); index++) {
+            List<String> targets = targetLists.get(index);
+            boolean present = catalog.facts().stream().filter(fact -> fact.kind() == FactKind.DELIVERABLE)
+                    .filter(fact -> positive(fact.detail()))
+                    .anyMatch(fact -> explicitlyMentions(fact.title() + " " + fact.detail(), targets));
+            if (present) declared.add(index);
+        }
+        return declared.size() == 1 ? declared.getFirst() : null;
+    }
+
+    private static boolean refersToFocusedTest(String text) {
+        String value = value(text).toLowerCase(Locale.ROOT);
+        return value.contains("聚焦测试") || value.contains("同一测试类")
+                || value.contains("该测试类") || value.contains("本测试类")
+                || value.contains("focused test");
+    }
+
+    private static boolean coverageContext(String text) {
+        String value = value(text).toLowerCase(Locale.ROOT);
+        if (value.contains("测试风格") || value.contains("style reference")) return false;
+        boolean regressionOnly = value.contains("回归") || value.contains("保持通过")
+                || value.contains("继续通过") || value.contains("remain passing");
+        return !regressionOnly || value.contains("覆盖") || value.contains("cover");
     }
 
     private int score(Profile profile, Fact fact) {
@@ -218,6 +254,21 @@ final class DesignerVerificationIntentMapper {
     private static boolean mentions(String text, List<String> targets) {
         String key = semanticKey(text);
         return targets.stream().flatMap(target -> aliases(target).stream()).anyMatch(key::contains);
+    }
+    private static boolean explicitlyMentions(String text, List<String> targets) {
+        Set<String> identifiers = identifiers(text);
+        return targets.stream().map(DesignerVerificationIntentMapper::targetIdentifier)
+                .filter(target -> !target.isEmpty()).anyMatch(identifiers::contains);
+    }
+    private static String targetIdentifier(String target) {
+        String normalized = value(target).replace('\\', '/');
+        normalized = normalized.substring(normalized.lastIndexOf('/') + 1)
+                .replaceAll("(?i)\\.(?:[cm]?[jt]sx?|py)$", "");
+        int hash = normalized.indexOf('#');
+        int selector = normalized.indexOf("::");
+        int end = hash < 0 ? selector : selector < 0 ? hash : Math.min(hash, selector);
+        if (end > 0) normalized = normalized.substring(0, end);
+        return identifierKey(normalized);
     }
     private static int mentionCount(String text, List<List<String>> targets) {
         int count = 0;

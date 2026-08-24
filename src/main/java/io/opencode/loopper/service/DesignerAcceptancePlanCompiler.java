@@ -18,6 +18,7 @@ final class DesignerAcceptancePlanCompiler {
     private static final long NODE_LIMIT = 100_000;
     private final DesignerPackagePlanCompiler packageCompiler;
     private final DesignerAcceptanceStageEvidenceBinder evidenceBinder = new DesignerAcceptanceStageEvidenceBinder();
+    private final DesignerAcceptancePathPolicy pathPolicy = new DesignerAcceptancePathPolicy();
 
     DesignerAcceptancePlanCompiler(DesignerPackagePlanCompiler packageCompiler) {
         this.packageCompiler = packageCompiler;
@@ -33,7 +34,7 @@ final class DesignerAcceptancePlanCompiler {
         if (acceptanceFacts.isEmpty()) {
             throw new BadRequestException("MISSING_ACCEPTANCE_INTENT", "No acceptance facts are available to bind");
         }
-        List<Group> groups = groups(binding, acceptanceFacts);
+        List<Group> groups = groups(binding, facts, acceptanceFacts);
         if (groups.size() > stageLimit) {
             throw new BadRequestException(directSoftwareMode ? "LARGE_TASK_MODE_REQUIRED"
                     : "COMPILER_PLAN_STAGE_COUNT_INVALID", "Acceptance groups exceed the package Stage limit");
@@ -46,24 +47,34 @@ final class DesignerAcceptancePlanCompiler {
         boolean fallback = false;
         LinkedHashSet<Integer> selectedCapabilityIndexes = new LinkedHashSet<>();
         List<Integer> allUncovered = new ArrayList<>();
-        List<String> allowedPaths = allowedPaths(facts, scopeIn, role);
-        List<String> stageDeliverables = deliverables(facts, deliverables);
         List<Capability> independentRequired = capabilities.capabilities().stream()
                 .filter(Capability::mandatory).filter(capability -> capability.coversFactIndexes().isEmpty()).toList();
         for (int groupIndex = 0; groupIndex < groups.size(); groupIndex++) {
             Group group = groups.get(groupIndex);
-            SolveResult solved = solve(group.factIndexes(), capabilities.capabilities(), binding);
+            SolveResult solved = solve(group.acceptanceFactIndexes(), capabilities.capabilities(), binding);
             List<Capability> selected = new ArrayList<>(solved.selected());
             if (groupIndex == groups.size() - 1) {
                 independentRequired.stream().filter(capability -> selected.stream()
                         .noneMatch(existing -> existing.index() == capability.index())).forEach(selected::add);
             }
+            List<String> allowedPaths = allowedPaths(facts, group.materialFactIndexes(), scopeIn, role);
+            List<String> stageDeliverables = deliverables(facts, group.materialFactIndexes(), deliverables);
+            ImplementationKind kind = implementationKind(role, allowedPaths);
+            Capability stageGate = javaProductionGate(group, facts, capabilities.capabilities(), selected, kind);
+            if (solved.uncovered().isEmpty() && kind == ImplementationKind.JAVA_PRODUCTION
+                    && selected.stream().noneMatch(DesignerAcceptancePlanCompiler::focused)
+                    && stageGate == null) {
+                return incompleteStageGate(workPackage, design, facts, capabilities, binding, group,
+                        explored + solved.exploredNodes(), fallback || solved.fallbackUsed(),
+                        selectedCapabilityIndexes.size(), scenarioViews, stageLimit, directSoftwareMode);
+            }
             explored += solved.exploredNodes();
             fallback |= solved.fallbackUsed();
             selected.stream().map(Capability::index).forEach(selectedCapabilityIndexes::add);
+            if (stageGate != null) selectedCapabilityIndexes.add(stageGate.index());
             allUncovered.addAll(solved.uncovered());
-            stages.add(stage(group, facts, selected, allowedPaths, scopeOut,
-                    stageDeliverables, role, scenarioViews));
+            stages.add(stage(group, facts, selected, stageGate, allowedPaths, scopeOut,
+                    stageDeliverables, kind, scenarioViews));
         }
         if (!allUncovered.isEmpty()) {
             return incomplete(workPackage, design, facts, capabilities, binding, allUncovered,
@@ -75,6 +86,9 @@ final class DesignerAcceptancePlanCompiler {
                 workPackage, design, compact, stageLimit, directSoftwareMode);
         normalizations.addAll(lowered.normalizations());
         if (!independentRequired.isEmpty()) normalizations.add("INDEPENDENT_REQUIRED_CAPABILITIES_BOUND");
+        if (stages.stream().anyMatch(stage -> stage.implementationKind() == ImplementationKind.JAVA_PRODUCTION
+                && stage.evidence().stream().anyMatch(item -> "FOCUSED_TEST".equals(item.kind())
+                && item.covers().isEmpty()))) normalizations.add("JAVA_PRODUCTION_STAGE_GATE_BOUND");
         SolverDiagnostics diagnostics = new SolverDiagnostics(fallback
                 ? "DETERMINISTIC_GREEDY_2OPT" : "EXACT_BRANCH_AND_BOUND", explored, fallback,
                 acceptanceFacts.size(), capabilities.capabilities().size(), selectedCapabilityIndexes.size(),
@@ -104,15 +118,36 @@ final class DesignerAcceptancePlanCompiler {
         return new Result(lowered.plan(), List.copyOf(normalizations), diagnostics, List.copyOf(scenarioViews));
     }
 
-    private CompactStage stage(Group group, Catalog catalog, List<Capability> selected,
-                               List<String> allowedPaths, List<String> scopeOut,
-                               List<String> deliverables, WorkPackageRoleService.View role,
+    private Result incompleteStageGate(DesignWorkPackageRow workPackage, String design, Catalog facts,
+                                       CapabilityCatalog capabilities, CompactAcceptanceBindingPlan binding,
+                                       Group group, long explored, boolean fallback, int selectedCount,
+                                       List<ScenarioView> scenarioViews, int stageLimit, boolean directSoftwareMode) {
+        String detail = bounded("Java 生产阶段“" + group.objective()
+                + "”没有可唯一绑定的聚焦 Maven/Gradle 测试门禁", 2_000);
+        CompactPackageCompilationPlan incomplete = new CompactPackageCompilationPlan(
+                "DESIGN_INCOMPLETE", binding.summary(), List.of(), binding.handoffSummary(),
+                List.of(new DesignGap(DesignGapCode.VERIFICATION_CAPABILITY_UNAVAILABLE, detail)));
+        DesignerPackagePlanCompiler.Result lowered = packageCompiler.compile(
+                workPackage, design, incomplete, stageLimit, directSoftwareMode);
+        List<String> normalizations = new ArrayList<>(lowered.normalizations());
+        normalizations.add("SERVER_DERIVED_DESIGN_INCOMPLETE");
+        SolverDiagnostics diagnostics = new SolverDiagnostics(fallback
+                ? "DETERMINISTIC_GREEDY_2OPT" : "EXACT_BRANCH_AND_BOUND", explored, fallback,
+                facts.facts().stream().filter(fact -> fact.kind() == FactKind.SCENARIO
+                        || fact.kind() == FactKind.REVIEW).toList().size(),
+                capabilities.capabilities().size(), selectedCount, group.acceptanceFactIndexes(), normalizations);
+        return new Result(lowered.plan(), List.copyOf(normalizations), diagnostics, List.copyOf(scenarioViews));
+    }
+
+    private CompactStage stage(Group group, Catalog catalog, List<Capability> selected, Capability stageGate,
+                               List<String> allowedPaths, List<String> scopeOut, List<String> deliverables,
+                               ImplementationKind kind,
                                List<ScenarioView> views) {
+        List<String> effectiveForbiddenPaths = forbiddenPaths(scopeOut);
         DesignerAcceptanceStageEvidenceBinder.Binding binding = evidenceBinder.bind(
-                group.factIndexes(), catalog, selected, allowedPaths, scopeOut);
+                group.acceptanceFactIndexes(), catalog, selected, stageGate, allowedPaths, effectiveForbiddenPaths);
         views.addAll(binding.views());
-        ImplementationKind kind = implementationKind(role, allowedPaths);
-        return new CompactStage(group.objective(), kind, allowedPaths, forbiddenPaths(scopeOut), deliverables,
+        return new CompactStage(group.objective(), kind, allowedPaths, effectiveForbiddenPaths, deliverables,
                 binding.criteria(), binding.evidence(), null);
     }
 
@@ -161,24 +196,31 @@ final class DesignerAcceptancePlanCompiler {
                 .thenComparingInt(Capability::index);
     }
 
-    private List<Group> groups(CompactAcceptanceBindingPlan binding, List<Fact> acceptanceFacts) {
-        LinkedHashSet<Integer> valid = acceptanceFacts.stream().map(Fact::index)
+    private List<Group> groups(CompactAcceptanceBindingPlan binding, Catalog catalog, List<Fact> acceptanceFacts) {
+        LinkedHashSet<Integer> validAcceptance = acceptanceFacts.stream().map(Fact::index)
                 .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        LinkedHashSet<Integer> validFacts = catalog.facts().stream().map(Fact::index)
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        List<Integer> allMaterial = validFacts.stream().filter(index -> !validAcceptance.contains(index)).toList();
         if (binding.groupHints().isEmpty()) {
-            return List.of(new Group("实现并验证验收场景", List.copyOf(valid), List.of()));
+            return List.of(new Group("实现并验证验收场景", List.copyOf(validAcceptance), allMaterial, List.of()));
         }
         List<Group> result = new ArrayList<>();
         LinkedHashSet<Integer> assigned = new LinkedHashSet<>();
         for (int index = 0; index < binding.groupHints().size(); index++) {
             AcceptanceGroupHint hint = binding.groupHints().get(index);
-            List<Integer> indexes = hint.factIndexes().stream().filter(valid::contains).filter(assigned::add).toList();
-            if (indexes.isEmpty()) continue;
+            List<Integer> acceptanceIndexes = hint.factIndexes().stream().filter(validAcceptance::contains)
+                    .filter(assigned::add).toList();
+            if (acceptanceIndexes.isEmpty()) continue;
+            List<Integer> materialIndexes = hint.factIndexes().stream().filter(validFacts::contains)
+                    .filter(factIndex -> !validAcceptance.contains(factIndex)).toList();
             String objective = blank(hint.objective()) ? hint.title() : hint.objective();
-            result.add(new Group(blank(objective) ? "实现并验证验收场景" : objective, indexes,
+            result.add(new Group(blank(objective) ? "实现并验证验收场景" : objective, acceptanceIndexes,
+                    materialIndexes,
                     hint.dependsOnHintIndexes()));
         }
-        List<Integer> remaining = valid.stream().filter(index -> !assigned.contains(index)).toList();
-        if (!remaining.isEmpty()) result.add(new Group("实现并验证其余验收场景", remaining, List.of()));
+        List<Integer> remaining = validAcceptance.stream().filter(index -> !assigned.contains(index)).toList();
+        if (!remaining.isEmpty()) result.add(new Group("实现并验证其余验收场景", remaining, List.of(), List.of()));
         return List.copyOf(result);
     }
 
@@ -193,11 +235,13 @@ final class DesignerAcceptancePlanCompiler {
         }
     }
 
-    private static List<String> allowedPaths(Catalog facts, List<String> scopeIn, WorkPackageRoleService.View role) {
+    private List<String> allowedPaths(Catalog facts, List<Integer> materialFactIndexes,
+                                      List<String> scopeIn, WorkPackageRoleService.View role) {
         LinkedHashSet<String> paths = new LinkedHashSet<>();
-        facts.facts().stream().filter(fact -> fact.kind() == FactKind.DELIVERABLE || fact.kind() == FactKind.SCOPE)
-                .map(Fact::title).filter(DesignerAcceptancePlanCompiler::pathLike).forEach(paths::add);
-        if (scopeIn != null) scopeIn.stream().filter(DesignerAcceptancePlanCompiler::pathLike).forEach(paths::add);
+        paths.addAll(pathPolicy.paths(facts, materialFactIndexes));
+        if (paths.isEmpty()) paths.addAll(pathPolicy.paths(scopeIn));
+        if (paths.isEmpty()) paths.addAll(pathPolicy.paths(facts,
+                facts.facts().stream().map(Fact::index).toList()));
         if (paths.isEmpty() && role.technologies().contains("java")) {
             paths.add("src/main/java/**"); paths.add("src/test/java/**");
         } else if (paths.isEmpty() && role.technologies().contains("python")) {
@@ -206,13 +250,40 @@ final class DesignerAcceptancePlanCompiler {
         return List.copyOf(paths);
     }
 
-    private static List<String> deliverables(Catalog facts, List<String> frozen) {
+    private static List<String> deliverables(Catalog facts, List<Integer> materialFactIndexes,
+                                             List<String> frozen) {
         LinkedHashSet<String> values = new LinkedHashSet<>();
-        if (frozen != null) frozen.stream().filter(value -> !blank(value)).forEach(values::add);
-        facts.facts().stream().filter(fact -> fact.kind() == FactKind.DELIVERABLE)
+        LinkedHashSet<Integer> selected = new LinkedHashSet<>(materialFactIndexes);
+        facts.facts().stream().filter(fact -> selected.contains(fact.index()))
+                .filter(fact -> fact.kind() == FactKind.DELIVERABLE)
+                .map(Fact::title).filter(value -> !blank(value)).forEach(values::add);
+        if (values.isEmpty() && frozen != null) frozen.stream().filter(value -> !blank(value)).forEach(values::add);
+        if (values.isEmpty()) facts.facts().stream().filter(fact -> fact.kind() == FactKind.DELIVERABLE)
                 .map(Fact::title).filter(value -> !blank(value)).forEach(values::add);
         if (values.isEmpty()) values.add("实现与聚焦验收测试");
         return List.copyOf(values);
+    }
+
+    private static Capability javaProductionGate(Group group, Catalog catalog, List<Capability> capabilities,
+                                                 List<Capability> selected, ImplementationKind kind) {
+        if (kind != ImplementationKind.JAVA_PRODUCTION || selected.stream().anyMatch(
+                DesignerAcceptancePlanCompiler::focused)) return null;
+        List<Capability> focused = capabilities.stream().filter(DesignerAcceptancePlanCompiler::focused).toList();
+        StringBuilder source = new StringBuilder(group.objective());
+        for (Integer factIndex : group.materialFactIndexes()) {
+            Fact fact = fact(catalog, factIndex);
+            source.append('\n').append(fact.title()).append('\n').append(fact.detail());
+        }
+        String normalized = source.toString().toLowerCase(java.util.Locale.ROOT);
+        List<Capability> referenced = focused.stream().filter(capability -> capability.testTargets().stream()
+                .map(target -> target.toLowerCase(java.util.Locale.ROOT)).anyMatch(normalized::contains)).toList();
+        if (referenced.size() == 1) return referenced.getFirst();
+        return referenced.isEmpty() && focused.size() == 1 ? focused.getFirst() : null;
+    }
+
+    private static boolean focused(Capability capability) {
+        return "FOCUSED_TEST".equals(capability.kind()) && !capability.command().isEmpty()
+                && !capability.testTargets().isEmpty();
     }
 
     private static ImplementationKind implementationKind(WorkPackageRoleService.View role,
@@ -223,9 +294,9 @@ final class DesignerAcceptancePlanCompiler {
         return production ? ImplementationKind.JAVA_PRODUCTION : ImplementationKind.JAVA_TEST_ONLY;
     }
 
-    private static List<String> forbiddenPaths(List<String> scopeOut) {
+    private List<String> forbiddenPaths(List<String> scopeOut) {
         LinkedHashSet<String> values = new LinkedHashSet<>(List.of(".env", ".env.*"));
-        if (scopeOut != null) scopeOut.stream().filter(DesignerAcceptancePlanCompiler::pathLike).forEach(values::add);
+        values.addAll(pathPolicy.paths(scopeOut));
         return List.copyOf(values);
     }
 
@@ -247,11 +318,6 @@ final class DesignerAcceptancePlanCompiler {
                 .filter(index -> !covered.contains(index)).count();
     }
 
-    private static boolean pathLike(String value) {
-        return !blank(value) && (value.contains("/") || value.contains("\\") || value.contains("*")
-                || value.matches(".*\\.[A-Za-z0-9]{1,10}$"));
-    }
-
     private static boolean blank(String value) { return value == null || value.isBlank(); }
     private static String bounded(String value, int max) {
         return value.length() <= max ? value : value.substring(0, max);
@@ -259,7 +325,8 @@ final class DesignerAcceptancePlanCompiler {
 
     record Result(PackageCompilationPlanEnvelope plan, List<String> normalizations,
                   SolverDiagnostics diagnostics, List<ScenarioView> scenarios) { }
-    private record Group(String objective, List<Integer> factIndexes, List<Integer> dependsOn) { }
+    private record Group(String objective, List<Integer> acceptanceFactIndexes,
+                         List<Integer> materialFactIndexes, List<Integer> dependsOn) { }
     private record SolveResult(List<Capability> selected, List<Integer> uncovered,
                                long exploredNodes, boolean fallbackUsed) { }
 

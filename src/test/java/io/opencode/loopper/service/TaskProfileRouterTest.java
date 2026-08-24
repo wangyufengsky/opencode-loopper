@@ -93,7 +93,14 @@ class TaskProfileRouterTest {
     @Test void eventPublishingAndReleaseBoundariesAreNotExternalReleaseOperations() {
         assertThat(router.route(root, "新增事件发布能力并划分多个发布边界").evidence())
                 .doesNotContain("unsafe-operation-conflict");
+        assertThat(router.route(root,
+                "失败时发布包含调用身份、失败节点、错误分类和原始 cause 的领域事件").evidence())
+                .doesNotContain("unsafe-operation-conflict");
+        assertThat(router.route(root, "发布携带版本号的状态变更事件").evidence())
+                .doesNotContain("unsafe-operation-conflict");
         assertThat(router.route(root, "提交代码并发布版本").evidence())
+                .contains("unsafe-operation-conflict");
+        assertThat(router.route(root, "发布领域事件，并发布新版本").evidence())
                 .contains("unsafe-operation-conflict");
     }
 
@@ -156,6 +163,40 @@ class TaskProfileRouterTest {
         assertThat(decision.evidence()).contains("mixed-mutation-conflict", "router-artifact-conflict=READ_ONLY_REVIEW");
     }
 
+    @Test void reviewVocabularyInsideWritableDesignDoesNotTurnTheTaskIntoAReadOnlyReview() throws Exception {
+        Files.writeString(root.resolve("pom.xml"), "<project />");
+        String assembledSnapshot = """
+                ## 目标
+                新增调用身份、节点执行轨迹与领域事件发布能力，并补充 JUnit 5 聚焦测试。
+                轨迹应当可通过 ChainContext 只读获取，每个节点记录轨迹并发布/可观测。
+                ## 人工复核点
+                如需新增错误码则进行人工评审；不得修改既有 XML 转换成功路径。
+                """;
+        TaskProfileRouter.SemanticLabels labels = new TaskProfileRouter.SemanticLabels(
+                TaskIntent.SOFTWARE_CHANGE, java.util.List.of(ArtifactKind.SOURCE_CODE),
+                java.util.List.of("java"), "PACKAGED", 96, java.util.List.of("writable software design"));
+
+        TaskProfileRouter.Decision deterministic = router.route(root, assembledSnapshot);
+        TaskProfileRouter.Decision semantic = router.route(root, assembledSnapshot, labels);
+
+        assertThat(deterministic.intent()).isEqualTo(TaskIntent.SOFTWARE_CHANGE);
+        assertThat(deterministic.evidence()).doesNotContain("unsafe-operation-conflict", "mixed-mutation-conflict");
+        assertThat(semantic.intent()).isEqualTo(TaskIntent.SOFTWARE_CHANGE);
+        assertThat(semantic.evidence()).doesNotContain("unsafe-operation-conflict", "mixed-mutation-conflict");
+    }
+
+    @Test void explicitReadOnlyAndMixedReviewRequestsStillKeepTheirSafetyBoundary() throws Exception {
+        Files.writeString(root.resolve("pom.xml"), "<project />");
+
+        TaskProfileRouter.Decision readOnly = router.route(root, "只读评审当前 Java 代码并输出证据报告");
+        TaskProfileRouter.Decision mixed = router.route(root, "评审当前代码并直接修复发现的问题");
+
+        assertThat(readOnly.intent()).isEqualTo(TaskIntent.READ_ONLY_REVIEW);
+        assertThat(readOnly.evidence()).doesNotContain("mixed-mutation-conflict");
+        assertThat(mixed.intent()).isEqualTo(TaskIntent.READ_ONLY_REVIEW);
+        assertThat(mixed.evidence()).contains("mixed-mutation-conflict");
+    }
+
     @Test void maintenanceProhibitionsAreNotMisreadAsRequestsForUnsafeOperations() {
         TaskProfileRouter.Decision decision = router.route(root,
                 "本地配置维护：只修改 settings.yml，不删除文件、不操作服务、不提交推送或发布");
@@ -163,6 +204,27 @@ class TaskProfileRouterTest {
         assertThat(decision.intent()).isEqualTo(TaskIntent.LOCAL_MAINTENANCE);
         assertThat(decision.decisionRequired()).isFalse();
         assertThat(decision.evidence()).doesNotContain("unsafe-operation-conflict");
+    }
+
+    @Test void configurableSoftwareAndNegativeDependencyBoundariesAreNotLocalMaintenance() {
+        TaskProfileRouter.Decision software = router.route(root,
+                "新增显式可配置的补偿节点，不新增第三方依赖，并为每个工作包编写 JUnit 5 测试");
+        TaskProfileRouter.Decision responsibilityDescription = router.route(root, """
+                新增责任链执行治理与 JUnit 5 聚焦测试。
+                - BusinessChainExecutor（调用入口，维护 tradeSeq/MDC）。
+                - 引入可配置的补偿节点，不新增第三方依赖。
+                """);
+        TaskProfileRouter.Decision maintenance = router.route(root, "本地配置维护：更新 application.yml 配置项");
+        TaskProfileRouter.Decision assembledMaintenance = router.route(root,
+                "初始需求：本地配置维护：只修改 `settings.yml`");
+        TaskProfileRouter.Decision generatedMaintenance = router.route(root,
+                "# 安全维护\n\n只修改 `settings.yml`，把 enabled 调整为 true");
+
+        assertThat(software.intent()).isEqualTo(TaskIntent.SOFTWARE_CHANGE);
+        assertThat(responsibilityDescription.intent()).isEqualTo(TaskIntent.SOFTWARE_CHANGE);
+        assertThat(maintenance.intent()).isEqualTo(TaskIntent.LOCAL_MAINTENANCE);
+        assertThat(assembledMaintenance.intent()).isEqualTo(TaskIntent.LOCAL_MAINTENANCE);
+        assertThat(generatedMaintenance.intent()).isEqualTo(TaskIntent.LOCAL_MAINTENANCE);
     }
 
     @Test void componentEvidenceSelectsJavaNodeAndRealMixedTasksWithoutFlatUnion() throws Exception {

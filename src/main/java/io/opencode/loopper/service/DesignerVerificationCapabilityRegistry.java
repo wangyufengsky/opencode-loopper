@@ -18,6 +18,9 @@ import java.util.regex.Pattern;
 /** Builds a closed, frozen verifier capability graph from the Role Pack and Designer facts. */
 final class DesignerVerificationCapabilityRegistry {
     private static final Pattern TEST_CLASS = Pattern.compile("(?<![A-Za-z0-9_$])([A-Za-z_$][A-Za-z0-9_$]*(?:Test|Tests|Spec))(?![A-Za-z0-9_$])");
+    private static final Pattern NEGATED_TEST_CLASS = Pattern.compile(
+            "(?i)(?:禁止|不得|不使用|不依赖|无|without|must\\s+not|do\\s+not\\s+use|does\\s+not\\s+use|not\\s+depend(?:s|ing)?\\s+on)"
+                    + "[^。；;\\n]{0,80}?([A-Za-z_$][A-Za-z0-9_$]*(?:Test|Tests|Spec))");
     private static final Pattern MODULE_PATH = Pattern.compile("(?<![A-Za-z0-9_.-])([A-Za-z0-9_.-]+)/src/(?:main|test)/");
     private static final Pattern PYTHON_TEST_PATH = Pattern.compile(
             "(?<![A-Za-z0-9_.-])([A-Za-z0-9_./-]*(?:test_[A-Za-z0-9_-]+|[A-Za-z0-9_-]+_test)\\.py)(?![A-Za-z0-9_.-])",
@@ -91,8 +94,11 @@ final class DesignerVerificationCapabilityRegistry {
         List<List<String>> commands = new ArrayList<>();
         if (role.technologies().contains("java")) {
             LinkedHashSet<String> targets = new LinkedHashSet<>();
+            LinkedHashSet<String> negatedTargets = matches(NEGATED_TEST_CLASS, source);
             Matcher matcher = TEST_CLASS.matcher(source);
-            while (matcher.find()) targets.add(matcher.group(1));
+            while (matcher.find()) {
+                if (!negatedTargets.contains(matcher.group(1))) targets.add(matcher.group(1));
+            }
             Matcher moduleMatcher = MODULE_PATH.matcher(source);
             String module = moduleMatcher.find() ? moduleMatcher.group(1) : null;
             commands.addAll(targets.stream().map(target -> module == null

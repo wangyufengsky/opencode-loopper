@@ -62,9 +62,22 @@ ownership rules:
 - `ProjectStackAnalyzer` owns bounded filesystem evidence and manifest fingerprinting;
   `ProjectStackProfileService` owns immutable snapshot persistence and freshness checks.
   Project list reads must use persisted summaries and must not call either filesystem path.
-- `TaskProfileRouter` owns deterministic selection from a supplied stack snapshot, while
-  `TaskProfileOverridePolicy` owns versioned component/profile override validation.
+- `TaskProfileRouter` owns deterministic selection from a supplied stack snapshot,
+  `TaskProfileSafetyPolicy` owns requested external-mutation and publication-target classification,
+  `TaskProfileIntentPolicy` owns task-level read-only review and positive-mutation classification,
+  while `TaskProfileOverridePolicy` owns versioned component/profile override validation.
   Neither may infer repository technologies from `AGENTS.md` or permit AI labels to create evidence.
+- `DesignerVerificationIntentMapper` owns source-backed test-to-scenario relationships, including
+  default ownership by a package's sole positive focused-test deliverable and unambiguous references
+  back to it; regression-only, test-style, and negated framework references are execution constraints,
+  not scenario coverage or capabilities. `DesignerDesignFactExtractor` rejects partial or duplicated
+  controlled section sets before facts can be merged. `DesignerAcceptancePlanCompiler`
+  owns fact grouping, closed capability selection and Stage assembly;
+  `DesignerAcceptancePathPolicy` alone decides whether Designer-owned text is a standalone repository-relative
+  path rule. Natural-language scope descriptions must not leak into executable `GIT_DIFF` policies.
+- `LoopSpecAcceptanceService` owns the final cross-source acceptance contract. A focused Maven/Gradle
+  test with no criterion mapping is a valid blocking gate only for a `JAVA_PRODUCTION` Stage whose
+  criteria are all Judge-only; machine or mixed criteria still require explicit focused-test coverage.
 - `ProjectConventionService` owns proposal/apply lifecycle coordination, while
   `ProjectConventionStackPolicy` owns the stack-bound prompt, required-section validation,
   unsupported-technology rejection, and apply-time fingerprint guard. Guarded AGENTS.md

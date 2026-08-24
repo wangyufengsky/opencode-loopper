@@ -99,6 +99,7 @@ public class DesignerSessionService {
     private final OpenCodeClient openCode;
     private final LoopperProperties defaults;
     private final LoopDraftService drafts;
+    private final DesignerRequirementDraftGuard requirementDraftGuard;
     private final ObjectMapper json;
     private final AiOutputExtractor aiOutputExtractor;
     private final AiOutputAuditService aiOutputAudit;
@@ -132,6 +133,7 @@ public class DesignerSessionService {
         this.openCode = openCode;
         this.defaults = defaults;
         this.drafts = drafts;
+        this.requirementDraftGuard = new DesignerRequirementDraftGuard(mapper, drafts);
         this.json = json;
         this.aiOutputExtractor = aiOutputExtractor;
         this.aiOutputAudit = aiOutputAudit;
@@ -663,7 +665,7 @@ public class DesignerSessionService {
     }
 
     private void createDirectSoftwarePackage(DesignerSessionRow session, DesignRequirementRevisionRow revision) {
-        requireDraftUnchanged(session, revision.sourceDraftVersion());
+        requirementDraftGuard.requireUnchanged(session, revision.sourceDraftVersion());
         List<String> requirementRefs = readSegments(revision.requirementSegmentsJson()).stream()
                 .map(RequirementSegment::id).toList();
         DecomposedWorkPackage workPackage = new DecomposedWorkPackage("WP-1", "默认单包设计",
@@ -904,8 +906,8 @@ public class DesignerSessionService {
         advancePackageOrAggregate(get(session.id()), approved);
     }
 
-    public List<String> reopenPackage(String sessionId, String packageId, int expectedDiscussionRevision,
-                                      int expectedApprovedDesignRevision) {
+    @Transactional public List<String> reopenPackage(String sessionId, String packageId,
+                                                     int expectedDiscussionRevision, int expectedApprovedDesignRevision) {
         DesignerSessionRow session = get(sessionId);
         requireDiscussionRevision(session, expectedDiscussionRevision);
         DesignWorkPackageRow selected = requireCurrentPackage(session, packageId);
@@ -914,6 +916,7 @@ public class DesignerSessionService {
                 || selected.approvedDesignRevision() != expectedApprovedDesignRevision) {
             throw new ConflictException("WORK_PACKAGE_REOPEN_STALE", "工作包批准版本已变化，请刷新后重试");
         }
+        reactivateRequirement(currentRequirement(sessionId), true);
         List<DesignWorkPackageRow> packages = mapper.listDesignWorkPackages(selected.requirementRevisionId());
         Set<String> staleIds = transitiveDependents(packages, packageId);
         for (DesignWorkPackageRow row : packages) {
@@ -944,7 +947,6 @@ public class DesignerSessionService {
         publish(reviewing, "STATUS", DesignerActor.SYSTEM, true, "", packageId + " 等待继续讨论");
         return List.copyOf(staleIds);
     }
-
     private DesignDiscussionRevisionRow createDiscussion(DesignerSessionRow session, String scopeKey,
                                                          String packageId, int revision,
                                                          String sourceMessageId, int questionRetryCount) {
@@ -1224,7 +1226,7 @@ public class DesignerSessionService {
         if (DesignerSessionState.RUNNING.name().equals(session.state())) {
             throw new ConflictException("DESIGN_WORKFLOW_BUSY", "The design workflow is still running");
         }
-        DesignRequirementRevisionRow revision = reactivateRequirement(currentRequirement(sessionId));
+        DesignRequirementRevisionRow revision = reactivateRequirement(currentRequirement(sessionId), false);
         dispatchDecomposer(session, revision, true);
     }
 
@@ -1234,7 +1236,7 @@ public class DesignerSessionService {
             throw new ConflictException("DESIGN_WORKFLOW_BUSY", "The design workflow is still running");
         }
         DesignWorkPackageRow workPackage = requireCurrentPackage(session, packageId);
-        reactivateRequirement(currentRequirement(sessionId));
+        reactivateRequirement(currentRequirement(sessionId), true);
         DesignerMessageRow source = designMessage(workPackage);
         DesignWorkPackageRow compiling = updateWorkPackage(workPackage, DesignWorkPackageState.COMPILING,
                 workPackage.designerExternalSessionId(), workPackage.designerExternalSessionState(),
@@ -1253,7 +1255,7 @@ public class DesignerSessionService {
             throw new ConflictException("DESIGN_WORKFLOW_BUSY", "The design workflow is still running");
         }
         DesignWorkPackageRow workPackage = requireCurrentPackage(session, packageId);
-        reactivateRequirement(currentRequirement(sessionId));
+        reactivateRequirement(currentRequirement(sessionId), true);
         dispatchPackageDesigner(session, workPackage, redesignPrompt("人工要求重新设计当前工作包完整方案"), true);
     }
 
@@ -1389,7 +1391,7 @@ public class DesignerSessionService {
     private DesignerMessageRow dispatchDecomposer(DesignerSessionRow input,
                                                    DesignRequirementRevisionRow revision,
                                                    boolean explicitRetry) {
-        requireDraftUnchanged(input, revision.sourceDraftVersion());
+        requirementDraftGuard.requireUnchanged(input, revision.sourceDraftVersion());
         if (!openCode.healthy()) {
             DesignerSessionRow pending = updateDesignerProjection(input, DesignerSessionState.PENDING_HANDOFF,
                     DesignWorkflowPhase.DECOMPOSING, null, "UNAVAILABLE", input.designRevision(), 0,
@@ -1455,7 +1457,7 @@ public class DesignerSessionService {
         OpenCodeClient.OpenCodeSession remote = new OpenCodeClient.OpenCodeSession(
                 decomposition.externalSessionId(), Path.of(project.rootPath()));
         try {
-            requireDraftUnchanged(session, revision.sourceDraftVersion());
+            requirementDraftGuard.requireUnchanged(session, revision.sourceDraftVersion());
             if (!blank(decomposition.planningJson()) && Set.of(StructuredModelStep.GENERATING_JSON.name(),
                     StructuredModelStep.REPAIRING_JSON.name(), StructuredModelStep.SERVER_COMPILING.name())
                     .contains(decomposition.workflowStep())) {
@@ -1697,7 +1699,7 @@ public class DesignerSessionService {
     private void dispatchPackageDesigner(DesignerSessionRow session, DesignWorkPackageRow input,
                                          String replacementPrompt, boolean redesign) {
         DesignRequirementRevisionRow revision = getRequirement(input.requirementRevisionId());
-        requireDraftUnchanged(session, revision.sourceDraftVersion());
+        requirementDraftGuard.requireUnchanged(session, revision.sourceDraftVersion());
         if (!isCurrent(session, revision)) throw new ConflictException("REQUIREMENT_REVISION_STALE",
                 "This work package belongs to a superseded requirement revision");
         if (redesign && input.redesignCount() >= MAX_AUTOMATIC_REDESIGNS) {
@@ -1770,7 +1772,7 @@ public class DesignerSessionService {
                 session.id(), workPackage.packageId()).orElseThrow(() -> new ConflictException(
                 "DESIGN_DISCUSSION_MISSING", "工作包讨论快照不存在"));
         try {
-            requireDraftUnchanged(session, revision.sourceDraftVersion());
+            requirementDraftGuard.requireUnchanged(session, revision.sourceDraftVersion());
             List<OpenCodeClient.PendingQuestion> pending = openCode.pendingQuestions(remote);
             if (!pending.isEmpty()) {
                 if (directSoftwareMode(session.id())) {
@@ -1892,7 +1894,7 @@ public class DesignerSessionService {
     private void startCompilation(DesignerSessionRow session, DesignWorkPackageRow workPackage,
                                   DesignerMessageRow source) {
         DesignRequirementRevisionRow revision = getRequirement(workPackage.requirementRevisionId());
-        requireDraftUnchanged(session, revision.sourceDraftVersion());
+        requirementDraftGuard.requireUnchanged(session, revision.sourceDraftVersion());
         WorkPackageRoleService.View role = workPackageRoles.get(workPackage);
         boolean deterministicAcceptance = acceptanceWorkflow.applies(role);
         String now = now();
@@ -2079,7 +2081,7 @@ public class DesignerSessionService {
                 compilation.externalSessionId(), Path.of(project.rootPath()));
         try {
             if (!blank(compilation.workPackageId())) {
-                requireDraftUnchanged(session, currentRequirement(session.id()).sourceDraftVersion());
+                requirementDraftGuard.requireUnchanged(session, currentRequirement(session.id()).sourceDraftVersion());
             }
             if (!blank(compilation.workPackageId()) && !blank(compilation.planningJson())
                     && Set.of(StructuredModelStep.GENERATING_JSON.name(), StructuredModelStep.REPAIRING_JSON.name(),
@@ -2657,7 +2659,7 @@ public class DesignerSessionService {
 
     private void advancePackageOrAggregate(DesignerSessionRow session, DesignWorkPackageRow completed) {
         DesignRequirementRevisionRow revision = currentRequirement(session.id());
-        requireDraftUnchanged(session, revision.sourceDraftVersion());
+        requirementDraftGuard.requireUnchanged(session, revision.sourceDraftVersion());
         List<DesignWorkPackageRow> packages = mapper.listDesignWorkPackages(revision.id());
         DesignWorkPackageRow awaitingReview = packages.stream()
                 .filter(row -> row.ordinal() > completed.ordinal())
@@ -2729,13 +2731,15 @@ public class DesignerSessionService {
                 .orElseThrow(() -> new ConflictException("DECOMPOSITION_MISSING", "Frozen decomposition is missing"));
         LoopDraftRow draft = drafts.get(session.loopDraftId());
         LoopSpec base = drafts.spec(draft);
-        String context = aggregateContext(base.context(), decomposition.globalConstraintsJson());
+        String context = DesignerAggregateContext.merge(json, base.context(), decomposition.globalConstraintsJson());
         LoopSpec.Limits limits = safeAggregateLimits(base.limits(), packages, compiled);
         LoopSpec aggregate = new LoopSpec(base.schemaVersion(), base.projectId(), decomposition.normalizedGoal(),
                 context, stages, limits, base.model(), base.sessionPolicy(), base.nextAttemptPromptTemplate(), base.budget());
         try {
-            drafts.updateAtVersion(draft.id(), aggregate, revision.sourceDraftVersion());
-            updateRequirement(revision, DesignRequirementRevisionState.COMPLETED, revision.modelCallsUsed());
+            LoopDraftRow aggregated = drafts.updateAggregatedAtVersion(draft.id(), aggregate,
+                    revision.sourceDraftVersion(), packages.stream().map(DesignWorkPackageRow::packageId).toList());
+            updateRequirement(revision, DesignRequirementRevisionState.COMPLETED,
+                    revision.modelCallsUsed(), aggregated.version());
             appendMessage(session.id(), DesignerActor.VALIDATOR,
                     "最终聚合校验通过：" + packages.size() + " 个工作包、" + stages.size()
                             + " 个 Stage 已按包顺序写入 Review Gate；确认前仍未创建 Task。",
@@ -4814,23 +4818,27 @@ public class DesignerSessionService {
         return true;
     }
 
-    private DesignRequirementRevisionRow reactivateRequirement(DesignRequirementRevisionRow revision) {
-        if (DesignRequirementRevisionState.WAITING_INPUT.name().equals(revision.state())) {
-            return updateRequirement(revision, DesignRequirementRevisionState.ACTIVE, revision.modelCallsUsed());
+    private DesignRequirementRevisionRow reactivateRequirement(DesignRequirementRevisionRow revision, boolean allowCompleted) {
+        long draftVersion = requirementDraftGuard.retryVersion(get(revision.designerSessionId()), revision, allowCompleted);
+        if (DesignRequirementRevisionState.WAITING_INPUT.name().equals(revision.state()) || allowCompleted && DesignRequirementRevisionState.COMPLETED.name().equals(revision.state())) {
+            return updateRequirement(revision, DesignRequirementRevisionState.ACTIVE, revision.modelCallsUsed(), draftVersion);
         }
         if (!DesignRequirementRevisionState.ACTIVE.name().equals(revision.state())) {
             throw new ConflictException("DESIGN_REQUIREMENT_REVISION_NOT_RECOVERABLE",
                     "Only the current active or waiting requirement revision can be retried");
         }
-        return revision;
+        return draftVersion == revision.sourceDraftVersion() ? revision
+                : updateRequirement(revision, DesignRequirementRevisionState.ACTIVE, revision.modelCallsUsed(), draftVersion);
     }
 
-    private DesignRequirementRevisionRow updateRequirement(DesignRequirementRevisionRow row,
-                                                            DesignRequirementRevisionState state,
-                                                            int modelCallsUsed) {
+    private DesignRequirementRevisionRow updateRequirement(DesignRequirementRevisionRow row, DesignRequirementRevisionState state, int modelCallsUsed) {
+        return updateRequirement(row, state, modelCallsUsed, row.sourceDraftVersion());
+    }
+
+    private DesignRequirementRevisionRow updateRequirement(DesignRequirementRevisionRow row, DesignRequirementRevisionState state, int modelCallsUsed, long sourceDraftVersion) {
         DesignRequirementRevisionRow updated = new DesignRequirementRevisionRow(row.id(), row.designerSessionId(),
                 row.revision(), row.sourceMessageId(), row.requirementText(), row.requirementSegmentsJson(),
-                row.sourceDraftVersion(), state.name(), modelCallsUsed, row.maxModelCalls(), row.createdAt(), now(),
+                sourceDraftVersion, state.name(), modelCallsUsed, row.maxModelCalls(), row.createdAt(), now(),
                 row.version());
         if (row.state().equals(updated.state())) {
             lifecycle.mutateWithoutTransition(() -> mapper.updateDesignRequirementRevision(updated),
@@ -4963,14 +4971,6 @@ public class DesignerSessionService {
                 && !DesignRequirementRevisionState.SUPERSEDED.name().equals(revision.state());
     }
 
-    private void requireDraftUnchanged(DesignerSessionRow session, long expectedVersion) {
-        LoopDraftRow draft = drafts.get(session.loopDraftId());
-        if (draft.version() != expectedVersion) {
-            throw new ConflictException("DESIGNER_DRAFT_CHANGED",
-                    "The bound draft changed after the complete requirement revision was frozen");
-        }
-    }
-
     private LoopSpec.Limits safeAggregateLimits(LoopSpec.Limits base,
                                                 List<DesignWorkPackageRow> packages,
                                                 List<PackageCompilationEnvelope> compiled) {
@@ -4993,18 +4993,6 @@ public class DesignerSessionService {
                 base.sessionErrorLimit(), base.stagnationLimit(),
                 Math.max(base.maxDurationSeconds(), minimumDuration), base.attemptTimeoutSeconds(),
                 base.verifierTimeoutSeconds());
-    }
-
-    private String aggregateContext(String original, String constraintsJson) {
-        List<GlobalConstraint> constraints;
-        try { constraints = json.readValue(constraintsJson, new TypeReference<List<GlobalConstraint>>() { }); }
-        catch (JacksonException invalid) { throw new ConflictException("DECOMPOSITION_CONTEXT_INVALID",
-                "Frozen global constraints are unreadable"); }
-        if (constraints.isEmpty()) return original == null ? "" : original;
-        String tracked = constraints.stream().map(item -> "- " + item.text() + " ["
-                + String.join(",", item.requirementRefs()) + "]")
-                .collect(java.util.stream.Collectors.joining("\n"));
-        return (blank(original) ? "" : original.trim() + "\n\n") + "全局约束（来源可追踪）：\n" + tracked;
     }
 
     private List<String> strings(String source) {

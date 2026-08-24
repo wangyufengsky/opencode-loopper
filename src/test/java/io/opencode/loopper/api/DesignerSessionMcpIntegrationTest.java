@@ -1628,6 +1628,8 @@ class DesignerSessionMcpIntegrationTest {
         DesignerSessionRow session = createConfirmedSession(project.id(), draft.id(), "验证工作包传递失效边界");
         pollUntilSettled(session.id());
         assertThat(designerSessions.workPackageStatuses(session.id())).allMatch(item -> "APPROVED".equals(item.state()));
+        assertThat(mapper.findCurrentDesignRequirementRevision(session.id()).orElseThrow().state())
+                .isEqualTo("COMPLETED");
 
         var first = designerSessions.workPackageStatuses(session.id()).getFirst();
         List<String> invalidated = designerSessions.reopenPackage(session.id(), "WP-1",
@@ -1636,6 +1638,40 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(invalidated).containsExactly("WP-2", "WP-3");
         assertThat(designerSessions.workPackageStatuses(session.id())).extracting(item -> item.state())
                 .containsExactly("REVIEWING", "STALE", "STALE", "APPROVED");
+        assertThat(mapper.findCurrentDesignRequirementRevision(session.id()).orElseThrow().state())
+                .isEqualTo("ACTIVE");
+
+        designerSessions.retryPackageCompilation(session.id(), "WP-1");
+        pollUntilPackageReview(session.id());
+        assertThat(designerSessions.workPackageStatuses(session.id()).getFirst().state()).isEqualTo("REVIEWING");
+    }
+
+    @Test
+    void externalDraftEditAfterFinalAggregationStillBlocksPackageReopen() throws Exception {
+        ProjectRow project = project("package-reopen-draft-conflict");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        fake().setDecomposerOutput(decomposition("DECOMPOSED", "两个工作包", 2));
+        for (int ordinal = 1; ordinal <= 2; ordinal++) {
+            String packageId = "WP-" + ordinal;
+            String design = "# " + packageId + " 设计\n\n提供独立可观察结果。";
+            fake().setPackageDesignerOutput(packageId, design);
+            fake().setPackageCompilerOutput(packageId, packageCompilation(packageId, design));
+        }
+        DesignerSessionRow session = createConfirmedSession(project.id(), draft.id(), "验证聚合后的外部草稿修改仍被阻断");
+        pollUntilSettled(session.id());
+        LoopDraftRow aggregated = drafts.get(draft.id());
+        LoopSpec spec = drafts.spec(aggregated);
+        drafts.update(draft.id(), new LoopSpec(spec.schemaVersion(), spec.projectId(), spec.goal(),
+                spec.context() + "\n外部修改", spec.stages(), spec.limits(), spec.model(), spec.sessionPolicy(),
+                spec.nextAttemptPromptTemplate(), spec.budget()));
+
+        var first = designerSessions.workPackageStatuses(session.id()).getFirst();
+        assertThatThrownBy(() -> designerSessions.reopenPackage(session.id(), "WP-1",
+                designerSessions.get(session.id()).discussionRevision(), first.approvedDesignRevision()))
+                .isInstanceOfSatisfying(ConflictException.class,
+                        error -> assertThat(error.code()).isEqualTo("DESIGNER_DRAFT_CHANGED"));
+        assertThat(designerSessions.requirementStatus(session.id()).state()).isEqualTo("COMPLETED");
+        assertThat(designerSessions.workPackageStatuses(session.id())).allMatch(item -> "APPROVED".equals(item.state()));
     }
 
     @Test
@@ -1783,7 +1819,14 @@ class DesignerSessionMcpIntegrationTest {
     @Test
     void threePackagesAreDesignedAndCompiledStrictlySerialThenAggregatedIntoOneTask() throws Exception {
         ProjectRow project = project("three-packages");
-        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        LoopSpec initial = legacySpec(project.id());
+        LoopSpec.StageSpec placeholder = initial.stages().getFirst();
+        LoopDraftRow draft = drafts.create(new LoopSpec(initial.schemaVersion(), initial.projectId(), initial.goal(),
+                initial.context(), List.of(new LoopSpec.StageSpec(placeholder.objective(), placeholder.allowedPaths(),
+                placeholder.forbiddenPaths(), placeholder.deliverables(), placeholder.verifiers(),
+                placeholder.acceptanceCriteria(), placeholder.verificationRuntime(), placeholder.implementationKind(),
+                "WP-1")), initial.limits(), initial.model(), initial.sessionPolicy(),
+                initial.nextAttemptPromptTemplate(), initial.budget()));
         fake().setDecomposerOutput(decomposition("DECOMPOSED", "交付三段纵向能力", 3));
         for (int ordinal = 1; ordinal <= 3; ordinal++) {
             String packageId = "WP-" + ordinal;

@@ -6,7 +6,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -27,6 +26,9 @@ final class DesignerDesignFactExtractor {
     private static final int MAX_DESIGN_BYTES = 24 * 1024;
     private static final int MAX_FACTS = 128;
     private static final int MAX_SCENARIOS = 64;
+    private static final List<String> REQUIRED_CONTROLLED_SECTIONS = List.of(
+            "目标与范围", "影响与交付", "验收场景", "验收约束", "阶段与依赖");
+    private static final List<String> OPTIONAL_CONTROLLED_SECTIONS = List.of("可选人工评审项", "人工评审项");
     private final Parser parser = Parser.builder().extensions(List.of(TablesExtension.create())).build();
     private final DesignerEvidenceIndexer evidenceIndexer;
 
@@ -44,12 +46,15 @@ final class DesignerDesignFactExtractor {
         DesignerEvidenceIndexer.Index lineIndex = evidenceIndexer.index(source);
         List<Fact> facts = new ArrayList<>();
         List<StageHint> stageHints = new ArrayList<>();
-        LinkedHashSet<String> sections = new LinkedHashSet<>();
+        Map<String, Integer> controlledSectionCounts = new LinkedHashMap<>();
         String section = "";
         for (Node node = root.getFirstChild(); node != null; node = node.getNext()) {
             if (node instanceof Heading heading) {
                 section = text(heading).trim();
-                sections.add(section);
+                if (REQUIRED_CONTROLLED_SECTIONS.contains(section)
+                        || OPTIONAL_CONTROLLED_SECTIONS.contains(section)) {
+                    controlledSectionCounts.merge(section, 1, Integer::sum);
+                }
                 continue;
             }
             if (node instanceof TableBlock table) {
@@ -63,12 +68,10 @@ final class DesignerDesignFactExtractor {
                 }
             }
         }
-        boolean controlled = containsSection(sections, "目标与范围")
-                && containsSection(sections, "影响与交付")
-                && containsSection(sections, "验收场景")
-                && containsSection(sections, "验收约束")
-                && containsSection(sections, "阶段与依赖");
-        if (facts.stream().noneMatch(fact -> fact.kind() == FactKind.SCENARIO)) {
+        boolean usesControlledSections = !controlledSectionCounts.isEmpty();
+        if (usesControlledSections) validateControlledSections(controlledSectionCounts);
+        boolean controlled = usesControlledSections;
+        if (!controlled && facts.stream().noneMatch(fact -> fact.kind() == FactKind.SCENARIO)) {
             fallbackScenarios(root, source, lineIndex, facts);
         }
         int scenarios = (int) facts.stream().filter(fact -> fact.kind() == FactKind.SCENARIO).count();
@@ -221,8 +224,19 @@ final class DesignerDesignFactExtractor {
         return value == null ? "" : value.toLowerCase(Locale.ROOT).replaceAll("[\\s/|（）()、_-]", "");
     }
 
-    private static boolean containsSection(LinkedHashSet<String> sections, String expected) {
-        return sections.stream().anyMatch(section -> section.contains(expected));
+    private static void validateControlledSections(Map<String, Integer> counts) {
+        List<String> missing = REQUIRED_CONTROLLED_SECTIONS.stream()
+                .filter(section -> counts.getOrDefault(section, 0) == 0).toList();
+        if (!missing.isEmpty()) {
+            throw new BadRequestException("MISSING_CONTROLLED_DESIGN_SECTION",
+                    "Controlled package design is missing required sections: " + missing);
+        }
+        List<String> duplicated = counts.entrySet().stream().filter(entry -> entry.getValue() > 1)
+                .map(Map.Entry::getKey).toList();
+        if (!duplicated.isEmpty()) {
+            throw new BadRequestException("DUPLICATED_CONTROLLED_DESIGN_SECTION",
+                    "Controlled package design repeats sections: " + duplicated);
+        }
     }
 
     private static boolean engineeringMeta(String value) {

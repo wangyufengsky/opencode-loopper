@@ -197,7 +197,23 @@ Confidence below 80 or conflicting evidence blocks ordinary-mode confirmation un
 versioned profile confirmation or override is saved. An explicitly authorized full-auto Session may accept
 the Router's current intent and primary artifact as an `AUTO_RECOMMENDED` decision; this
 cannot bypass unsafe-operation evidence, and a manual override remains available before
-requirement confirmation. `ROUTING_PENDING/RUNNING` is backed by a persisted Router run;
+requirement confirmation.
+Unsafe-operation evidence is derived from the requested mutation target, not from an isolated
+publication verb. Publishing an in-process domain event, message, notification, signal, metric,
+or pub/sub contract remains software-domain language in any natural word order. Publishing a
+version, artifact, image, package, environment, GitHub Release, or an otherwise unqualified
+publication remains fail-closed alongside commit, push, service control, deletion, and external
+system writes.
+Negation is evaluated within the operation clause, and an external-system reference is unsafe
+only when it is the target of a requested mutation. Evidence wording such as “do not fabricate
+external-system results” is not a write request. Likewise, “configurable” capabilities and
+negative dependency constraints do not select `LOCAL_MAINTENANCE`; that route requires an
+explicit configuration/dependency maintenance action.
+Read-only routing is likewise based on a task-level review, inspection, or diagnosis action.
+Review checkpoints, read-only accessors, and acceptance-review vocabulary inside a writable
+requirement snapshot do not select the Reviewer or create a mixed-mutation conflict. An explicit
+task-level request to review and then modify code remains a mixed request that requires confirmation.
+`ROUTING_PENDING/RUNNING` is backed by a persisted Router run;
 the request starter and monitor cannot own the same run concurrently. The raw requirement
 and every completed Designer snapshot are classified separately. Starting a replacement
 discussion or changing to another workflow must first confirm the obsolete remote Session has
@@ -251,6 +267,10 @@ stage relationships and acceptance constraints form the capability-to-scenario g
 names are reduced to their subject symbols before competitive semantic matching. A business criterion
 binds to at most one focused test through a title-weighted unique winner, while an independently required
 target without its own scenario is shown exactly once as a separate source-backed machine criterion.
+When exactly one focused test is declared by a positive package deliverable, stage text such as
+“the same/this focused test class” may refer back to it and bind the scenarios named by that stage.
+With multiple declared tests that reference remains ambiguous and must not be guessed. Regression-only
+“remain passing” and test-style comparison clauses create no business-scenario coverage.
 The model only advises grouping and preferences; if that advice cannot be normalized it is discarded and
 the server compiles from the frozen fact/capability graph. The server alone derives `COMPILED` or a concrete
 `DESIGN_INCOMPLETE` gap, and test-only Java paths remain `JAVA_TEST_ONLY`.
@@ -365,6 +385,11 @@ targets and independence constraints, while the server creates safe capabilities
 This is a DMN-inspired decision-table input, not a second DMN runtime: rows stay readable
 to the designer, lower directly to EARS criteria, and can be reviewed as
 Given/When/Then/And scenarios without maintaining three competing sources of truth.
+The controlled section names form one replacement document: each required section
+must occur exactly once and an optional review section may occur at most once. A response
+that repeats a complete design or omits part of the controlled shape is rejected for a
+fresh design instead of merging duplicate tables. Negative framework constraints such as
+`无 @SpringBootTest` cannot become executable test capabilities.
 
 Before Compiler binding, the server persists immutable DesignFact and capability
 snapshots. The UI renders an **验收意图识别** card with fact/scenario totals and
@@ -405,12 +430,26 @@ Loopper never invents a test from prose, a broad full-suite command, or an ambig
 set of focused tests. Ambiguous or absent source matches and semantically incomplete
 test evidence still fail the authoritative validation.
 
+Stage grouping preserves the non-acceptance facts referenced by each group. Those
+positive deliverable/scope facts produce that Stage's path and deliverable boundary;
+natural-language scope descriptions are not treated as repository path rules merely
+because they contain a slash. A `JAVA_PRODUCTION` Stage that contains only Judge
+criteria still receives a `covers:[]` focused-test gate when the Stage explicitly
+references one package test or the package exposes exactly one focused capability.
+If that gate is absent or ambiguous, deterministic planning returns
+`DESIGN_INCOMPLETE` before final LoopSpec validation or any model repair. Final LoopSpec
+validation accepts that empty mapping only when every criterion in the Java production
+Stage is Judge-only; it remains blocking execution evidence without pretending to cover
+a subjective criterion. Any machine criterion still requires explicit test mapping.
+
 Only observable business outcomes become acceptance criteria. If a weak Compiler
 duplicates code style, source/annotation/assembly shape, build/test success, or
 delivery hygiene as criteria without an explicit focused-test mapping, Loopper
 keeps those facts in the frozen design but deterministically removes the redundant
-criteria and remaps evidence. A single focused Java test may cover otherwise
-unmapped business criteria in the same Stage; multiple candidates remain ambiguous.
+criteria and remaps evidence. A sole positive focused-test deliverable owns otherwise
+unmapped package business scenarios; named regression gates remain independently required
+with no scenario coverage. Multiple positive deliverable candidates remain ambiguous unless
+the frozen design names the relationship.
 Before any semantic repair, Loopper reports all deterministic failures together
 with exact JSON Pointers so one bounded patch can fix the complete set. Source-text
 search commands remain invalid behavior `SELF_CHECK` evidence.
@@ -492,8 +531,19 @@ bypass Review Gate.
 After every package is explicitly accepted, the server deterministically
 concatenates Stage fragments, raises only the minimum attempt/time limits,
 validates the complete LoopSpec, and atomically updates Review Gate at the frozen
-draft version. Reopening an accepted package first lists and then marks only its
-transitive dependents `STALE`; unrelated accepted packages remain valid. Review
+draft version. This dedicated aggregation mutation may replace a pre-design
+placeholder `workPackageId`, but only when the result represents every frozen
+package in dependency order; ordinary draft mutation continues to preserve the
+exact mapping after aggregation. Re-aggregation canonicalizes the frozen decomposition constraints into
+one traceable context section instead of appending duplicate sections. A successful deterministic aggregation advances the requirement's
+optimistic draft checkpoint while leaving its frozen text and source message unchanged. Legacy aggregates
+without that checkpoint may be adopted once only when their draft is exactly one version newer than the
+Decomposer baseline and still contains every frozen package in order; any later external draft edit remains
+`DESIGNER_DRAFT_CHANGED`. Reopening an accepted package first lists and then marks only its
+transitive dependents `STALE`; unrelated accepted packages remain valid. Reopening from `FINAL_REVIEW`
+atomically reactivates the same immutable requirement revision through `COMPLETED + RETRY -> ACTIVE`; an explicit
+recompile then advances the reopened package through `REVIEWING + RETRY -> COMPILING`, so package
+feedback, redesign or compiler retry cannot remain stranded behind the prior aggregate state. Review
 Gate cannot be edited as a complete LoopSpec before `FINAL_REVIEW`. Human recovery
 actions target decomposition or the current package; the old generic
 compiler/redesign endpoints remain a compatibility alias.

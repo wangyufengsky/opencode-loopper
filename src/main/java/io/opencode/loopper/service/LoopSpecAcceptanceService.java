@@ -59,6 +59,10 @@ public class LoopSpecAcceptanceService {
             criteria.keySet().forEach(id -> machineCoverage.put(id, new ArrayList<>()));
             List<VerifierAssessment> verifierAssessments = new ArrayList<>();
             List<Integer> focusedJavaTestVerifierIndexes = new ArrayList<>();
+            boolean judgeOnlyJavaStage = stage.implementationKind() == ImplementationKind.JAVA_PRODUCTION
+                    && !stage.acceptanceCriteria().isEmpty()
+                    && stage.acceptanceCriteria().stream().allMatch(criterion ->
+                    "JUDGE".equals(text(criterion.verificationMode())));
             boolean hasBlockingDeterministicVerifier = false;
             for (int verifierIndex = 0; verifierIndex < stage.verifiers().size(); verifierIndex++) {
                 LoopSpec.VerifierSpec verifier = stage.verifiers().get(verifierIndex);
@@ -78,12 +82,16 @@ public class LoopSpecAcceptanceService {
                 if (blocking) {
                     hasBlockingDeterministicVerifier = true;
                 }
-                if ("PROCESS".equals(verifierType) && "TEST".equals(text(verifier.processPurpose()))
+                boolean focusedJavaTest = "PROCESS".equals(verifierType)
+                        && "TEST".equals(text(verifier.processPurpose()))
                         && !verifier.testTargets().isEmpty()
-                        && ProcessCommandPolicy.isFocusedJavaTestCommand(verifier.command())) {
+                        && ProcessCommandPolicy.isFocusedJavaTestCommand(verifier.command());
+                if (focusedJavaTest) {
                     focusedJavaTestVerifierIndexes.add(verifierIndex);
                 }
-                if (behavior && verifier.criterionIds().isEmpty()) {
+                boolean judgeOnlyStageGate = behavior && focusedJavaTest && judgeOnlyJavaStage
+                        && verifier.criterionIds().isEmpty();
+                if (behavior && verifier.criterionIds().isEmpty() && !judgeOnlyStageGate) {
                     errors.add(path + ".criterionIds: behavior verifier must cover at least one acceptance criterion");
                 }
                 Set<String> seenIds = new HashSet<>();

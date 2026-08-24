@@ -3,6 +3,7 @@ package io.opencode.loopper.service;
 import static io.opencode.loopper.service.DesignerAcceptancePlanning.*;
 import static io.opencode.loopper.service.DesignerSemanticContracts.*;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.opencode.loopper.domain.ExecutionStrategy;
 import io.opencode.loopper.domain.TestPolicy;
@@ -45,6 +46,132 @@ class DesignerAcceptancePlanningAlgorithmTest {
     private final DesignerVerificationCapabilityRegistry registry = new DesignerVerificationCapabilityRegistry();
     private final DesignerAcceptancePlanCompiler compiler = new DesignerAcceptancePlanCompiler(
             new DesignerPackagePlanCompiler(evidenceIndexer));
+
+    @Test
+    void rejectsControlledDesignWhoseAcceptanceTableIsMalformedInsteadOfTreatingEveryParagraphAsScenario() {
+        String malformed = """
+                ## 目标与范围
+                为责任链增加补偿与幂等保护。
+
+                ## 影响与交付
+                | 类型 | 相对路径或符号 | 说明 |
+                | 新增 | src/main/java/example/Compensation.java | 补偿能力 |
+
+                ## 验收场景
+                | 场景 | 前置/触发 | 操作 | 可观察结果 | 保持不变 |
+                | 逆序补偿 | A、B 成功且 C 失败 | 触发补偿 | B 先于 A 补偿 | 原始失败不变 |
+
+                ## 验收约束
+                CompensationTest 必须独立通过。
+
+                ## 阶段与依赖
+                | 阶段建议 | 包含场景/交付 | 前置阶段 |
+                | 补偿执行 | 逆序补偿与 CompensationTest | 无 |
+                """;
+
+        assertThatThrownBy(() -> extractor.extract("WP-3", 1, malformed))
+                .isInstanceOfSatisfying(BadRequestException.class, error -> {
+                    assertThat(error.code()).isEqualTo("MISSING_ACCEPTANCE_INTENT");
+                    assertThat(error).hasMessage("设计稿缺少可观察的验收场景");
+                });
+    }
+
+    @Test
+    void rejectsRepeatedControlledSectionsInsteadOfCompilingDuplicateAcceptanceTables() {
+        String duplicated = """
+                ## 目标与范围
+                为状态机增加事件桥接。
+
+                ## 影响与交付
+                | 类型 | 相对路径或符号 | 说明 |
+                | --- | --- | --- |
+                | 新增 | src/main/java/example/EventBridge.java | 状态机事件桥接 |
+
+                ## 验收场景
+                | 场景 | 前置/触发 | 操作 | 可观察结果 | 保持不变 |
+                | --- | --- | --- | --- | --- |
+                | 合法事件迁移 | 已配置迁移 | 发布事件 | 状态完成迁移 | 公开 API 不变 |
+
+                ## 验收约束
+                EventBridgeTest 必须独立通过。
+
+                ## 阶段与依赖
+                | 阶段建议 | 包含场景/交付 | 前置阶段 |
+                | --- | --- | --- |
+                | 事件桥接 | 合法事件迁移与 EventBridgeTest | 无 |
+
+                ## 目标与范围
+                再次输出完整替代设计。
+
+                ## 影响与交付
+                | 类型 | 相对路径或符号 | 说明 |
+                | --- | --- | --- |
+                | 新增 | src/main/java/example/EventBridge.java | 状态机事件桥接 |
+
+                ## 验收场景
+                | 场景 | 前置/触发 | 操作 | 可观察结果 | 保持不变 |
+                | --- | --- | --- | --- | --- |
+                | 合法事件迁移 | 已配置迁移 | 发布事件 | 状态完成迁移 | 公开 API 不变 |
+
+                ## 验收约束
+                EventBridgeTest 必须独立通过。
+
+                ## 阶段与依赖
+                | 阶段建议 | 包含场景/交付 | 前置阶段 |
+                | --- | --- | --- |
+                | 事件桥接 | 合法事件迁移与 EventBridgeTest | 无 |
+                """;
+
+        assertThatThrownBy(() -> extractor.extract("WP-4", 1, duplicated))
+                .isInstanceOfSatisfying(BadRequestException.class, error -> {
+                    assertThat(error.code()).isEqualTo("DUPLICATED_CONTROLLED_DESIGN_SECTION");
+                    assertThat(error).hasMessageContaining("目标与范围").hasMessageContaining("验收场景");
+                });
+    }
+
+    @Test
+    void bindsUniqueDeclaredFocusedTestAndRejectsNegatedFrameworkMarkersAsCapabilities() {
+        String design = """
+                ## 目标与范围
+                为链路生命周期事件增加状态机订阅桥接。
+
+                ## 影响与交付
+                | 类型 | 相对路径或符号 | 说明 |
+                | --- | --- | --- |
+                | 新增 | src/main/java/example/ChainLifecycleEventBridge.java | 生命周期事件桥接 |
+                | 新增测试 | src/test/java/example/ChainStateMachineEventTest.java | 本包唯一新增聚焦测试类 |
+
+                ## 验收场景
+                | 场景 | 前置/触发 | 操作 | 可观察结果 | 保持不变 |
+                | --- | --- | --- | --- | --- |
+                | 合法开始事件驱动转换 | 已配置开始迁移 | 发布开始事件 | 状态变为运行中 | 公开 API 不变 |
+                | 重复事件被拒绝 | 已完成一次迁移 | 重复发布事件 | 状态保持不变 | 不影响链路执行 |
+                | 订阅器与事件总线解耦 | 纯 JUnit 环境 | 直接构造并发布 | 订阅器收到事件 | 无 Spring 上下文 |
+
+                ## 验收约束
+                ChainStateMachineEventTest 必须独立通过。StateMachineCoreTest 必须继续回归通过。
+                所有新增测试为纯 JUnit 5，无 @SpringBootTest、无 Spring 上下文。
+
+                ## 阶段与依赖
+                | 阶段建议 | 包含场景/交付 | 前置阶段 |
+                | --- | --- | --- |
+                | 桥接层实现与聚焦测试 | ChainStateMachineEventTest 覆盖全部验收场景；StateMachineCoreTest 继续回归 | 无 |
+                """;
+        Catalog facts = extractor.extract("WP-4", 1, design);
+        CapabilityCatalog capabilities = registry.build(facts, role("software-java", List.of("java")), design);
+
+        assertCoverage(facts, capabilities, "ChainStateMachineEventTest",
+                "合法开始事件驱动转换", "重复事件被拒绝", "订阅器与事件总线解耦");
+        assertThat(capabilities.capabilities()).extracting(Capability::testTargets)
+                .doesNotContain(List.of("SpringBootTest"));
+        assertThat(capabilities.capabilities()).filteredOn(capability ->
+                        capability.testTargets().contains("StateMachineCoreTest"))
+                .singleElement().satisfies(capability -> {
+                    assertThat(capability.mandatory()).isTrue();
+                    assertThat(capability.coversFactIndexes()).isEmpty();
+                });
+        assertThat(capabilities.issues()).isEmpty();
+    }
 
     @Test
     void extractsEarsFactsBuildsIndependentCapabilitiesAndLowersPinTransDeterministically() {
@@ -186,6 +313,82 @@ class DesignerAcceptancePlanningAlgorithmTest {
         assertThat(result.plan().stages()).singleElement().satisfies(stage ->
                 assertThat(stage.verifiers()).filteredOn(verifier -> "TEST".equals(verifier.processPurpose()))
                         .hasSize(3));
+    }
+
+    @Test
+    void bindsUnambiguousFocusedTestAnaphoraAcrossStagesWithoutBorrowingRegressionTests() {
+        String design = """
+                ## 目标与范围
+                为责任链调用身份和节点轨迹补齐治理能力。
+
+                ## 影响与交付
+                | 类型 | 相对路径或符号 | 说明 |
+                | --- | --- | --- |
+                | 修改 | src/main/java/example/ChainExecutor.java | 调用身份与节点轨迹实现 |
+                | 新增测试 | src/test/java/example/ChainExecutionTraceTest.java | 本工作包唯一新增聚焦测试类 |
+
+                ## 验收场景
+                | 场景 | 前置/触发 | 操作 | 可观察结果 | 保持不变 |
+                | --- | --- | --- | --- | --- |
+                | 节点轨迹成功 | 普通节点正常返回 | 执行节点 | 记录 SUCCESS 轨迹 | 结果不变 |
+                | 身份推导正向 | 已有 tradeSeq | 执行整链 | 复用原调用身份 | 不生成 UUID |
+                | UUID 兜底 | 所有身份键缺失 | 执行整链 | 生成 UUID 并回写 | 成功路径不变 |
+
+                ## 验收约束
+                ChainExecutionTraceTest 必须独立通过。ExistingExceptionTest 必须保持通过。
+                实现风格与 ExistingExceptionTest 的测试风格一致。
+
+                ## 阶段与依赖
+                | 阶段建议 | 包含场景/交付 | 前置阶段 |
+                | --- | --- | --- |
+                | 节点轨迹 | 聚焦测试覆盖节点轨迹成功 | 无 |
+                | 调用身份 | 同一聚焦测试类覆盖身份推导正向、UUID 兜底 | 节点轨迹 |
+                """;
+        Catalog facts = extractor.extract("WP-1", 1, design);
+        CapabilityCatalog capabilities = registry.build(facts, role("software-java", List.of("java")), design);
+
+        assertCoverage(facts, capabilities, "ChainExecutionTraceTest",
+                "节点轨迹成功", "身份推导正向", "UUID 兜底");
+        assertThat(capabilities.capabilities()).filteredOn(capability ->
+                        capability.testTargets().contains("ExistingExceptionTest"))
+                .singleElement().satisfies(capability -> {
+                    assertThat(capability.mandatory()).isTrue();
+                    assertThat(capability.coversFactIndexes()).isEmpty();
+                });
+        assertThat(capabilities.issues()).isEmpty();
+    }
+
+    @Test
+    void doesNotResolveAnaphoricStageToOneOfSeveralDeclaredFocusedTests() {
+        String design = """
+                ## 目标与范围
+                为两个独立组件补齐测试。
+
+                ## 影响与交付
+                | 类型 | 相对路径或符号 | 说明 |
+                | --- | --- | --- |
+                | 新增测试 | src/test/java/example/AlphaBehaviorTest.java | Alpha 基础行为 |
+                | 新增测试 | src/test/java/example/BetaBehaviorTest.java | Beta 基础行为 |
+
+                ## 验收场景
+                | 场景 | 前置/触发 | 操作 | 可观察结果 | 保持不变 |
+                | --- | --- | --- | --- | --- |
+                | 共享兜底 | 两个组件均无值 | 执行兜底 | 生成共享值 | 组件状态不变 |
+
+                ## 验收约束
+                AlphaBehaviorTest 与 BetaBehaviorTest 必须分别独立通过。
+
+                ## 阶段与依赖
+                | 阶段建议 | 包含场景/交付 | 前置阶段 |
+                | --- | --- | --- |
+                | 共享行为 | 同一聚焦测试类覆盖共享兜底 | 无 |
+                """;
+        Catalog facts = extractor.extract("WP-1", 1, design);
+        CapabilityCatalog capabilities = registry.build(facts, role("software-java", List.of("java")), design);
+
+        assertThat(capabilities.capabilities()).filteredOn(capability -> "FOCUSED_TEST".equals(capability.kind()))
+                .allSatisfy(capability -> assertThat(capability.coversFactIndexes()).isEmpty());
+        assertThat(capabilities.issues()).contains("VERIFICATION_CAPABILITY_UNAVAILABLE:[2]");
     }
 
     @Test
@@ -379,6 +582,102 @@ class DesignerAcceptancePlanningAlgorithmTest {
         assertCoverage(facts, capabilities, "ObjectInvokerNormalTest", "正常按序调用", "显式作用域调用");
     }
 
+    @Test
+    void bindsUniquePackageTestAsReviewOnlyJavaStageGateAndKeepsNaturalLanguageOutOfPaths() {
+        String design = """
+                ## 目标与范围
+                为责任链生命周期事件补齐进程内分发、状态订阅与发布接入。
+
+                ## 影响与交付
+                | 类型 | 相对路径或符号 | 说明 |
+                | --- | --- | --- |
+                | 新增 | src/main/java/example/event/EventBus.java | 事件注册与分发 |
+                | 新增 | src/main/java/example/state/StateSubscriber.java | 合法事件驱动状态迁移 |
+                | 新增 | src/main/java/example/business/ChainLifecyclePublisher.java | executor/invoker 生命周期发布接入 |
+                | 新增测试 | src/test/java/example/event/ChainLifecycleEventTest.java | 覆盖事件分发、状态迁移与发布 cause 语义 |
+
+                ## 验收场景
+                | 场景 | 前置/触发 | 操作 | 可观察结果 | 保持不变 |
+                | --- | --- | --- | --- | --- |
+                | 事件总线分发 | 已注册监听器 | 发布开始事件 | 监听器收到同一调用身份 | 注册表不变 |
+                | 状态订阅迁移 | 已配置合法映射 | 发布成功事件 | 状态机完成一次合法迁移 | 重复事件不改状态 |
+                | 失败 cause 传播 | executor 发生失败 | 发布失败事件 | 监听器收到原始 cause 同一实例 | 原异常不被包装 |
+
+                ## 可选人工评审项
+                | 评审项 | 判断标准 | 仅人工原因 |
+                | --- | --- | --- |
+                | 状态事件映射 | 四类映射符合业务编排语义 | 语义合理性依赖业务意图 |
+                | 发布接入位置 | executor/invoker 接入自然且不侵入成功路径 | 代码组织需要人工判断 |
+
+                ## 验收约束
+                ChainLifecycleEventTest 必须独立通过并作为每个生产 Java 阶段的聚焦门禁，不依赖 Spring 上下文。
+
+                ## 阶段与依赖
+                | 阶段建议 | 包含场景/交付 | 前置阶段 |
+                | --- | --- | --- |
+                | 事件模型与总线 | EventBus 与事件总线分发 | 无 |
+                | 状态机订阅 | StateSubscriber 与状态订阅迁移、失败 cause 传播 | 事件模型与总线 |
+                | 发布接入 | ChainLifecyclePublisher、ChainLifecycleEventTest 与发布接入位置评审 | 状态机订阅 |
+                """;
+        Catalog facts = extractor.extract("WP-4", 1, design);
+        WorkPackageRoleService.View role = role("software-java", List.of("java"));
+        CapabilityCatalog capabilities = registry.build(facts, role, design);
+        assertThat(capabilities.issues()).isEmpty();
+        assertThat(capabilities.capabilities()).filteredOn(capability ->
+                        capability.testTargets().contains("ChainLifecycleEventTest"))
+                .singleElement();
+
+        CompactAcceptanceBindingPlan binding = new CompactAcceptanceBindingPlan("生命周期事件三阶段验收", List.of(
+                new AcceptanceGroupHint("事件模型与总线", "实现事件模型与总线", List.of(
+                        factIndex(facts, FactKind.DELIVERABLE, "EventBus.java"),
+                        factIndex(facts, FactKind.SCENARIO, "事件总线分发")), List.of()),
+                new AcceptanceGroupHint("状态机订阅", "实现状态机订阅", List.of(
+                        factIndex(facts, FactKind.DELIVERABLE, "StateSubscriber.java"),
+                        factIndex(facts, FactKind.SCENARIO, "状态订阅迁移"),
+                        factIndex(facts, FactKind.SCENARIO, "失败 cause 传播"),
+                        factIndex(facts, FactKind.REVIEW, "状态事件映射")), List.of(0)),
+                new AcceptanceGroupHint("发布接入", "实现发布接入并运行 ChainLifecycleEventTest", List.of(
+                        factIndex(facts, FactKind.DELIVERABLE, "ChainLifecyclePublisher.java"),
+                        factIndex(facts, FactKind.DELIVERABLE, "ChainLifecycleEventTest.java"),
+                        factIndex(facts, FactKind.REVIEW, "发布接入位置"),
+                        facts.facts().stream().filter(fact -> fact.kind() == FactKind.POLICY)
+                                .findFirst().orElseThrow().index()), List.of(0, 1))),
+                List.of(), "生命周期事件链路完成");
+        DesignerAcceptancePlanCompiler.Result result = compiler.compile(workPackage(), design, facts, capabilities,
+                binding, role, List.of(
+                        "新增事件/监听包：进程内事件注册/分发",
+                        "business/ 与 chain/：生命周期发布点",
+                        "state/：状态机订阅映射"), List.of(
+                        "失败领域事件发布（阶段二）",
+                        "补偿节点与幂等（阶段三）",
+                        "多线程/多进程语义与持久化",
+                        "target/**"), List.of("生命周期事件能力"), 3, false);
+
+        assertThat(result.plan().status()).isEqualTo("COMPILED");
+        assertThat(result.plan().stages()).hasSize(3).allSatisfy(stage ->
+                assertThat(stage.verifiers()).filteredOn(verifier -> "TEST".equals(verifier.processPurpose()))
+                        .singleElement().satisfies(verifier ->
+                                assertThat(verifier.testTargets()).containsExactly("ChainLifecycleEventTest")));
+        assertThat(result.plan().stages().get(2).verifiers())
+                .filteredOn(verifier -> "TEST".equals(verifier.processPurpose()))
+                .singleElement().satisfies(verifier -> assertThat(verifier.criterionIds()).isEmpty());
+        assertThat(result.plan().stages().get(0).allowedPaths())
+                .containsExactly("src/main/java/example/event/EventBus.java");
+        assertThat(result.plan().stages().get(1).allowedPaths())
+                .containsExactly("src/main/java/example/state/StateSubscriber.java");
+        assertThat(result.plan().stages().get(2).allowedPaths()).containsExactly(
+                "src/main/java/example/business/ChainLifecyclePublisher.java",
+                "src/test/java/example/event/ChainLifecycleEventTest.java");
+        assertThat(result.plan().stages()).allSatisfy(stage -> assertThat(stage.allowedPaths())
+                .noneMatch(path -> path.contains("：") || path.contains(" 与 ")));
+        assertThat(result.plan().stages()).allSatisfy(stage -> {
+            assertThat(stage.forbiddenPaths()).containsExactly(".env", ".env.*", "target/**");
+            assertThat(stage.verifiers()).allSatisfy(verifier ->
+                    assertThat(verifier.forbiddenPaths()).containsExactly(".env", ".env.*", "target/**"));
+        });
+        assertThat(result.normalizations()).contains("JAVA_PRODUCTION_STAGE_GATE_BOUND");
+    }
+
     private void assertNativeCapability(List<String> technologies, String rolePack, String design,
                                         List<String> expectedCommand) {
         Catalog facts = extractor.extract("WP-1", 1, design);
@@ -402,6 +701,11 @@ class DesignerAcceptancePlanningAlgorithmTest {
         assertThat(capabilities.capabilities()).filteredOn(capability -> capability.testTargets().contains(target))
                 .singleElement().satisfies(capability ->
                         assertThat(capability.coversFactIndexes()).containsExactlyInAnyOrderElementsOf(expected));
+    }
+
+    private static int factIndex(Catalog facts, FactKind kind, String titleFragment) {
+        return facts.facts().stream().filter(fact -> fact.kind() == kind)
+                .filter(fact -> fact.title().contains(titleFragment)).findFirst().orElseThrow().index();
     }
 
     private static DesignWorkPackageRow workPackage() {

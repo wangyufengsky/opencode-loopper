@@ -5,6 +5,7 @@ import static io.opencode.loopper.service.DesignerSemanticContracts.*;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -12,7 +13,7 @@ import java.util.Map;
 /** Assigns each criterion to one focused test and preserves independently required test targets. */
 final class DesignerAcceptanceStageEvidenceBinder {
     Binding bind(List<Integer> factIndexes, Catalog catalog, List<Capability> selected,
-                 List<String> allowedPaths, List<String> forbiddenPaths) {
+                 Capability stageGate, List<String> allowedPaths, List<String> forbiddenPaths) {
         Map<Integer, Integer> localIndexes = new LinkedHashMap<>();
         List<CompactCriterion> criteria = new ArrayList<>();
         for (Integer factIndex : factIndexes) {
@@ -44,6 +45,9 @@ final class DesignerAcceptanceStageEvidenceBinder {
                 covers = List.of(criterionIndex);
             }
             if (!covers.isEmpty()) evidence.add(focusedEvidence(capability, covers, allowedPaths, forbiddenPaths));
+        }
+        if (stageGate != null && selected.stream().noneMatch(item -> item.index() == stageGate.index())) {
+            evidence.add(focusedEvidence(stageGate, List.of(), allowedPaths, forbiddenPaths));
         }
         evidence.add(new CompactEvidence("GIT_DIFF", List.of(), List.of(), null, null, true,
                 allowedPaths, forbiddenPaths(forbiddenPaths), true, null, null, null, null, null, null,
@@ -86,7 +90,7 @@ final class DesignerAcceptanceStageEvidenceBinder {
     }
 
     private static List<String> forbiddenPaths(List<String> values) {
-        List<String> result = new ArrayList<>(List.of(".env", ".env.*"));
+        LinkedHashSet<String> result = new LinkedHashSet<>(List.of(".env", ".env.*"));
         if (values != null) values.stream().filter(value -> value != null && !value.isBlank()).forEach(result::add);
         return List.copyOf(result);
     }
