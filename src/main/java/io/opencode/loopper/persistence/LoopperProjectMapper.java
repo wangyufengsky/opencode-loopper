@@ -80,13 +80,13 @@ public interface LoopperProjectMapper {
     Optional<ProjectConventionDraftRow> findProjectConventionDraft(String id);
     @Select("""
             SELECT * FROM project_convention_draft
-            WHERE project_id=#{projectId} AND state IN ('RUNNING','APPLYING')
+            WHERE project_id=#{projectId} AND state IN ('RUNNING','STOPPING','APPLYING')
             ORDER BY created_at DESC LIMIT 1
             """)
     Optional<ProjectConventionDraftRow> activeProjectConventionDraft(String projectId);
     @Select("""
             SELECT * FROM project_convention_draft
-            WHERE (state='RUNNING' AND external_session_id IS NOT NULL) OR state='APPLYING'
+            WHERE (state IN ('RUNNING','STOPPING') AND external_session_id IS NOT NULL) OR state='APPLYING'
             ORDER BY updated_at
             """)
     List<ProjectConventionDraftRow> activeProjectConventionDrafts();
@@ -106,6 +106,12 @@ public interface LoopperProjectMapper {
             WHERE id=#{id} AND version=#{version}
             """)
     int updateProjectConventionProjection(ProjectConventionDraftRow row);
+    @Insert("INSERT INTO project_convention_runtime(draft_id,last_progress_at,progress_fingerprint,stop_reason,stop_detail,created_at,updated_at,version) VALUES(#{draftId},#{lastProgressAt},#{progressFingerprint},#{stopReason},#{stopDetail},#{createdAt},#{updatedAt},#{version})")
+    int insertProjectConventionRuntime(ProjectConventionRuntimeRow row);
+    @Select("SELECT * FROM project_convention_runtime WHERE draft_id=#{draftId}")
+    Optional<ProjectConventionRuntimeRow> findProjectConventionRuntime(String draftId);
+    @Update("UPDATE project_convention_runtime SET last_progress_at=#{lastProgressAt},progress_fingerprint=#{progressFingerprint},stop_reason=#{stopReason},stop_detail=#{stopDetail},updated_at=#{updatedAt},version=version+1 WHERE draft_id=#{draftId} AND version=#{version}")
+    int updateProjectConventionRuntime(ProjectConventionRuntimeRow row);
 
     @Insert("INSERT INTO loop_draft(id,project_id,goal,spec_json,status,created_at,updated_at,version) VALUES(#{id},#{projectId},#{goal},#{specJson},#{status},#{createdAt},#{updatedAt},#{version})")
     int insertDraft(LoopDraftRow row);

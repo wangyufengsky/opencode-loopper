@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.opencode.loopper.LoopperApplication;
+import io.opencode.loopper.config.LoopperProperties;
 import io.opencode.loopper.domain.ProjectConventionState;
 import io.opencode.loopper.persistence.ProjectConventionDraftRow;
 import io.opencode.loopper.persistence.ProjectRow;
@@ -11,6 +12,9 @@ import io.opencode.loopper.runtime.FakeOpenCodeClient;
 import io.opencode.loopper.runtime.OpenCodeClient;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,7 +32,9 @@ class ProjectConventionServiceTest {
     @Autowired private Flyway flyway;
     @Autowired private ProjectService projects;
     @Autowired private ProjectConventionService conventions;
+    @Autowired private ProjectConventionActivityService conventionActivity;
     @Autowired private OpenCodeClient openCode;
+    @Autowired private LoopperProperties properties;
     @Autowired private JdbcTemplate jdbc;
     @TempDir Path temp;
 
@@ -37,6 +43,7 @@ class ProjectConventionServiceTest {
         flyway.clean();
         flyway.migrate();
         ((FakeOpenCodeClient) openCode).reset();
+        properties.setProjectConventionStallTimeout(Duration.ofMinutes(2));
     }
 
     @Test
@@ -101,6 +108,65 @@ class ProjectConventionServiceTest {
         conventions.pollActiveGenerations();
         assertThat(conventions.get(project.id(), running.id()).state()).isEqualTo(ProjectConventionState.READY.name());
         assertThat(fake.createReadOnlySessionCalls()).isEqualTo(1);
+    }
+
+    @Test
+    void exposesLiveOutputAndAuthoritativeTokensWhileGenerationIsRunning() throws Exception {
+        Path root = javaRoot("live-convention");
+        ProjectRow project = projects.create("live-convention", root.toString());
+        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
+        fake.setDesignerOutput(validJavaContext());
+        ProjectConventionDraftRow running = conventions.generate(project.id());
+        fake.setSessionStatus(running.externalSessionId(), "RUNNING", "正在读取构建文件");
+        fake.setSessionUsage(running.externalSessionId(), List.of(new OpenCodeClient.UsageRecord(
+                "message-1", "opencode", "deepseek-v4", 4L, 5L, 9L, null, null, true)));
+
+        ProjectConventionActivityService.View activity = conventionActivity.activity(project.id(), running.id());
+
+        assertThat(activity.connected()).isTrue();
+        assertThat(activity.remoteState()).isEqualTo("RUNNING");
+        assertThat(activity.parts()).singleElement().satisfies(part -> {
+            assertThat(part.type()).isEqualTo("OUTPUT");
+            assertThat(part.content()).contains("技术栈与模块", "Java 21");
+        });
+        assertThat(activity.usage().totalTokens()).isEqualTo(9L);
+    }
+
+    @Test
+    void noProgressWatchdogStopsTheRemoteSessionBeforeTheTotalTimeout() throws Exception {
+        Path root = javaRoot("stalled-convention");
+        ProjectRow project = projects.create("stalled-convention", root.toString());
+        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
+        fake.setDesignerOutput(validJavaContext());
+        ProjectConventionDraftRow running = conventions.generate(project.id());
+        fake.setSessionStatus(running.externalSessionId(), "RUNNING", null);
+
+        conventions.pollActiveGenerations();
+        jdbc.update("UPDATE project_convention_runtime SET last_progress_at=? WHERE draft_id=?",
+                Instant.now().minusSeconds(30).toString(), running.id());
+        properties.setProjectConventionStallTimeout(Duration.ofSeconds(1));
+        conventions.pollActiveGenerations();
+
+        ProjectConventionDraftRow failed = conventions.get(project.id(), running.id());
+        assertThat(failed.state()).isEqualTo(ProjectConventionState.FAILED.name());
+        assertThat(failed.errorMessage()).contains("无进展时限");
+        assertThat(fake.abortedSessionIds()).contains(running.externalSessionId());
+    }
+
+    @Test
+    void userCancellationIsDurableAndConfirmsTheRemoteSessionStopped() throws Exception {
+        Path root = javaRoot("cancel-convention");
+        ProjectRow project = projects.create("cancel-convention", root.toString());
+        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
+        fake.setDesignerOutput(validJavaContext());
+        ProjectConventionDraftRow running = conventions.generate(project.id());
+        fake.setSessionStatus(running.externalSessionId(), "RUNNING", null);
+
+        ProjectConventionDraftRow cancelled = conventions.cancel(project.id(), running.id());
+
+        assertThat(cancelled.state()).isEqualTo(ProjectConventionState.CANCELLED.name());
+        assertThat(cancelled.errorMessage()).contains("用户取消");
+        assertThat(fake.abortedSessionIds()).contains(running.externalSessionId());
     }
 
     @Test

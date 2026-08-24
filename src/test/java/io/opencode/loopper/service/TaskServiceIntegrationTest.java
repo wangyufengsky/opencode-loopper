@@ -272,20 +272,21 @@ class TaskServiceIntegrationTest {
     }
 
     @Test
-    void cancellingDirtyWorkspaceMarksTheTaskFailedWithoutChangingLocalFiles() throws Exception {
+    void cancellingDirtyWorkspaceCancelsTheTaskWithoutChangingLocalFiles() throws Exception {
         Path root = Path.of(gitProject());
         Files.writeString(root.resolve("local-only.txt"), "keep me\n");
         ProjectRow project = projects.create("dirty-source-cancel", root.toString());
         TaskRow pending = drafts.confirm(drafts.create(spec(project.id())).id(), "取消工作区处理");
         TaskRow waiting = tasks.start(pending.id());
 
-        TaskRow failed = tasks.failDirtyWorkspace(waiting.id());
+        TaskRow failed = tasks.cancelDirtyWorkspace(waiting.id());
 
-        assertThat(failed.state()).isEqualTo("AWAITING_DECISION");
+        assertThat(failed.state()).isEqualTo("CANCELLED");
         assertThat(failed.branchName()).isNull();
         assertThat(Files.readString(root.resolve("local-only.txt"))).isEqualTo("keep me\n");
         assertThat(tasks.errors(failed.id())).anyMatch(error ->
                 error.code().equals("SOURCE_BRANCH_WORKSPACE_CANCELLED"));
+        assertThat(tasks.latestExecutionCycle(failed.id()).state()).isEqualTo("INTERRUPTED");
     }
 
     @Test
@@ -634,13 +635,16 @@ class TaskServiceIntegrationTest {
         tasks.retrySessionCleanup(active.id());
         tasks.retrySessionCleanup(active.id()); // no-op after the persisted limit
 
-        assertThat(tasks.get(task.id()).state()).isEqualTo("CANCELLED");
+        assertThat(tasks.get(task.id()).state()).isEqualTo("STOPPING");
         assertThat(mapper.findSession(active.id()).orElseThrow().state()).isEqualTo("DISCONNECTED");
         assertThat(mapper.sessionsPendingAbortCleanup()).isEmpty();
         assertThat(tasks.errors(task.id())).anyMatch(error -> error.code().equals("SESSION_ABORT_CLEANUP_EXHAUSTED")
                 && !error.retryable());
         assertThat(openCode.sessionStatus(new OpenCodeClient.OpenCodeSession(active.externalSessionId(), Path.of(task.worktreePath()))).state())
                 .isEqualTo("RUNNING");
+
+        fake.setSessionState(active.externalSessionId(), "COMPLETED");
+        assertThat(tasks.cancel(task.id()).state()).isEqualTo("CANCELLED");
     }
 
     @Test
@@ -1340,12 +1344,13 @@ class TaskServiceIntegrationTest {
 
         tasks.cancel(first.id());
 
-        assertThat(tasks.get(first.id()).state()).isEqualTo("CANCELLED");
+        assertThat(tasks.get(first.id()).state()).isEqualTo("STOPPING");
         assertThat(tasks.get(second.id()).state()).isEqualTo("QUEUED");
         assertThat(tasks.queueStatus(second.id()).leaseState()).isEqualTo("RELEASE_PENDING");
 
         tasks.retrySessionCleanup(writer.id());
 
+        assertThat(tasks.get(first.id()).state()).isEqualTo("CANCELLED");
         assertThat(tasks.get(second.id()).state()).isEqualTo("RUNNING");
         assertThat(tasks.queueStatus(second.id()).state()).isEqualTo("ADMITTED");
     }

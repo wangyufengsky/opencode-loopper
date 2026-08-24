@@ -18,6 +18,7 @@ public class LoopperProperties {
     private Duration monitorDelay = Duration.ofSeconds(2);
     private Duration designerMonitorDelay = Duration.ofMillis(750);
     private Duration designerTimeout = Duration.ofMinutes(15);
+    private Duration projectConventionStallTimeout = Duration.ofMinutes(2);
     /** Optional canonical parent directory for newly registered projects. */
     private String allowedRoot = "";
     /** Follow-up abort attempts after a mutating Session could not be confirmed stopped. */
@@ -46,6 +47,8 @@ public class LoopperProperties {
     public void setDesignerMonitorDelay(Duration value) { this.designerMonitorDelay = value; }
     public Duration getDesignerTimeout() { return designerTimeout; }
     public void setDesignerTimeout(Duration value) { this.designerTimeout = value; }
+    public Duration getProjectConventionStallTimeout() { return projectConventionStallTimeout; }
+    public void setProjectConventionStallTimeout(Duration value) { this.projectConventionStallTimeout = value; }
     public String getAllowedRoot() { return allowedRoot; }
     public void setAllowedRoot(String value) { this.allowedRoot = value; }
     public int getAbortCleanupAttempts() { return abortCleanupAttempts; }

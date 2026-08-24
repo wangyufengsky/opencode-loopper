@@ -210,6 +210,51 @@ public class ManagedVerificationRuntimeService {
                 Map.of("code", "VERIFIER_RUNTIME_TERMINATION_UNCONFIRMED", "phase", "starting"));
     }
 
+    /**
+     * Reconciles the persisted process identity after a stop request. A Task may
+     * become terminal only when every verifier process is either already gone or
+     * was stopped through the exact persisted PID/start-time identity.
+     */
+    public boolean confirmTaskStopped(String taskId) {
+        boolean confirmed = true;
+        for (VerifierRuntimeRow row : mapper.listVerifierRuntimes(taskId)) {
+            VerifierRuntimeState state;
+            try { state = VerifierRuntimeState.valueOf(row.state()); }
+            catch (RuntimeException unknownState) { confirmed = false; continue; }
+            if (state == VerifierRuntimeState.STOPPED || state == VerifierRuntimeState.FAILED) continue;
+            if (activeByTask.containsKey(taskId) || startingTasks.contains(taskId)) {
+                confirmed = false;
+                continue;
+            }
+            ProcessHandle handle = row.pid() == null ? null : ProcessHandle.of(row.pid()).orElse(null);
+            if (handle == null || !handle.isAlive()) {
+                update(state(row, VerifierRuntimeState.STOPPED, null,
+                        Map.of("recovery", "process-already-gone", "cancellation", true), true));
+                continue;
+            }
+            boolean identityMatches = row.processStartInstant() != null
+                    && handle.info().startInstant()
+                    .map(instant -> instant.toString().equals(row.processStartInstant())).orElse(false);
+            if (!identityMatches) {
+                if (state != VerifierRuntimeState.DISCONNECTED) {
+                    update(state(row, VerifierRuntimeState.DISCONNECTED, null,
+                            Map.of("recovery", "pid-identity-mismatch", "cancellation", true), true));
+                }
+                confirmed = false;
+                continue;
+            }
+            List<ProcessHandle> descendants = handle.descendants().toList();
+            for (ProcessHandle child : descendants.reversed()) if (child.isAlive()) child.destroyForcibly();
+            handle.destroyForcibly();
+            boolean stopped = waitStopped(handle, descendants, Duration.ofSeconds(5));
+            update(state(row, stopped ? VerifierRuntimeState.STOPPED : VerifierRuntimeState.DISCONNECTED,
+                    null, Map.of("recovery", stopped ? "terminated-matching-process" : "termination-unconfirmed",
+                            "cancellation", true), true));
+            confirmed &= stopped;
+        }
+        return confirmed;
+    }
+
     /** Reconciles only matching process identities; PID reuse is never killed. */
     public RecoveryResult recoverActive() {
         List<String> blocked = new ArrayList<>();

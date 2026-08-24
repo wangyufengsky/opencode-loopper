@@ -1,4 +1,4 @@
-import type { AppSettings, Artifact, Attempt, AutomationImportPreview, AutomationImportResult, AutomationRule, AutomationRuleMutation, AutomationRun, AutomationRunFeed, AvailableModel, BrowserAssertion, CommitMessageSuggestion, CreateAutomationRuleInput, DesignerActivity, DesignerAnsweredQuestion, DesignerAppendResult, DesignerHistoryItem, DesignerMessage, DesignerSession, DesignerSessionState, DesignerSessionSummary, DesignerStopResult, DesignerStreamEvent, DirectorySelection, DirtyWorkspaceAction, DirtyWorkspaceResolution, DirtyWorkspaceState, ErrorEvent, InsightsSnapshot, Interaction, InteractionAction, JudgeRun, LocalSyncConflictContent, LocalSyncConflictFile, LocalSyncConflictSession, LocalSyncResolution, LoopDraft, LoopSpec, LoopSpecAssessment, LoopSpecTemplate, LoopSpecTemplateVersion, LoopVerifierSpec, MergeRequestDraft, Project, ProjectConventionDraft, ProjectConventionSnapshot, RecoveryDraft, RecoveryMode, RuntimeInfo, SessionCheckpoint, SessionForkResult, SessionRevertResult, SessionSummaryResult, SessionTodo, Stage, Task, TaskDecision, TaskDesignHistory, TaskDiffPreview, TaskEvent, TaskInsight, TaskPublicationStatus, TaskQueueStatus, TaskSessionActivity, TaskSessionActivityPart, TaskSessionPendingQuestion, TaskSessionSummary, UsageAggregate } from '@/types/domain'
+import type { AppSettings, Artifact, Attempt, AutomationImportPreview, AutomationImportResult, AutomationRule, AutomationRuleMutation, AutomationRun, AutomationRunFeed, AvailableModel, BrowserAssertion, CommitMessageSuggestion, CreateAutomationRuleInput, DesignerActivity, DesignerAnsweredQuestion, DesignerAppendResult, DesignerHistoryItem, DesignerMessage, DesignerSession, DesignerSessionState, DesignerSessionSummary, DesignerStopResult, DesignerStreamEvent, DirectorySelection, DirtyWorkspaceAction, DirtyWorkspaceResolution, DirtyWorkspaceState, ErrorEvent, InsightsSnapshot, Interaction, InteractionAction, JudgeRun, LocalSyncConflictContent, LocalSyncConflictFile, LocalSyncConflictSession, LocalSyncResolution, LoopDraft, LoopSpec, LoopSpecAssessment, LoopSpecTemplate, LoopSpecTemplateVersion, LoopVerifierSpec, MergeRequestDraft, Project, ProjectConventionActivity, ProjectConventionDraft, ProjectConventionSnapshot, RecoveryDraft, RecoveryMode, RuntimeInfo, SessionCheckpoint, SessionForkResult, SessionRevertResult, SessionSummaryResult, SessionTodo, Stage, Task, TaskDecision, TaskDesignHistory, TaskDiffPreview, TaskEvent, TaskInsight, TaskPublicationStatus, TaskQueueStatus, TaskSessionActivity, TaskSessionActivityPart, TaskSessionPendingQuestion, TaskSessionSummary, UsageAggregate } from '@/types/domain'
 import type { AnalysisReport, DesignerTaskProfileUpdatePreview, ProjectStackProfile } from '@/types/domain'
 
 const apiBase = import.meta.env.VITE_API_BASE ?? '/api'
@@ -220,7 +220,7 @@ function normalizeProjectConvention(value: unknown): ProjectConventionDraft {
   return {
     id: asString(raw.id),
     projectId: asString(raw.projectId),
-    state: state === 'READY' || state === 'APPLYING' || state === 'APPLIED' || state === 'FAILED' ? state : 'RUNNING',
+    state: state === 'STOPPING' || state === 'CANCELLED' || state === 'READY' || state === 'APPLYING' || state === 'APPLIED' || state === 'FAILED' ? state : 'RUNNING',
     operation: asString(raw.operation) === 'UPDATE' ? 'UPDATE' : 'CREATE',
     readOnlyGeneration: raw.readOnlyGeneration === true,
     content: asString(raw.content) || undefined,
@@ -229,6 +229,24 @@ function normalizeProjectConvention(value: unknown): ProjectConventionDraft {
     updatedAt: asString(raw.updatedAt),
     stackProfileId: asString(raw.stackProfileId) || undefined,
     stackFingerprint: asString(raw.stackFingerprint) || undefined,
+  }
+}
+
+function normalizeProjectConventionActivity(value: unknown): ProjectConventionActivity {
+  const raw = asRecord(value)
+  const usage = asRecord(raw.usage)
+  return {
+    actor: 'PROJECT_CONVENTION',
+    remoteState: asString(raw.remoteState, 'UNKNOWN'),
+    connected: raw.connected === true,
+    observedAt: asString(raw.observedAt),
+    parts: asArray(raw.parts).map(normalizeTaskSessionPart),
+    detail: asString(raw.detail) || undefined,
+    usage: {
+      totalTokens: typeof usage.totalTokens === 'number' ? usage.totalTokens : null,
+      unknownUsageCount: asNumber(usage.unknownUsageCount),
+      observedAt: asString(usage.observedAt),
+    },
   }
 }
 
@@ -315,7 +333,7 @@ function normalizeAttempt(value: unknown): Attempt {
 function normalizeStage(value: unknown, attempts: Attempt[]): Stage {
   const raw = asRecord(value)
   const state = asString(raw.status || raw.state)
-  const status = state === 'SUCCEEDED' ? 'SUCCEEDED' : state === 'RUNNING' ? 'RUNNING' : state === 'VERIFYING' ? 'VERIFYING' : state === 'PAUSED' ? 'PAUSED' : state === 'FAILED' ? 'BLOCKED' : 'PENDING'
+  const status = state === 'SUCCEEDED' ? 'SUCCEEDED' : state === 'RUNNING' ? 'RUNNING' : state === 'VERIFYING' ? 'VERIFYING' : state === 'PAUSED' ? 'PAUSED' : state === 'FAILED' ? 'BLOCKED' : state === 'CANCELLED' ? 'CANCELLED' : 'PENDING'
   const id = asString(raw.id)
   const testPolicy = asString(raw.testPolicy)
   return {
@@ -456,7 +474,7 @@ function normalizeTask(value: unknown): Task {
   const stages = asArray(raw.stages).map((stage) => normalizeStage(stage, attempts))
   const taskId = asString(raw.id)
   const workPackages = asArray(raw.workPackages).map((value) => { const item = asRecord(value); return { id: asString(item.id), ordinal: asNumber(item.ordinal), status: asString(item.status) as NonNullable<Task['workPackages']>[number]['status'], stageCount: asNumber(item.stageCount), completedStages: asNumber(item.completedStages), attemptCount: asNumber(item.attemptCount), attemptLimit: asNumber(item.attemptLimit) } })
-  return { id: taskId, projectId: asString(raw.projectId), projectName: asString(raw.projectName, 'Unknown project'), title: asString(raw.title), goal: asString(raw.goal), branch: asString(raw.branch) || '等待选择执行模式', worktreePath: asString(raw.worktreePath) || '等待准备执行目录', status: asString(raw.status) as Task['status'], retryCause: ['RATE_LIMIT', 'SESSION', 'VERIFICATION'].includes(asString(raw.retryCause)) ? asString(raw.retryCause) as Task['retryCause'] : undefined, retryOrdinal: typeof raw.retryOrdinal === 'number' ? raw.retryOrdinal : undefined, retryScheduledAt: asString(raw.retryScheduledAt) || undefined, retryDueAt: asString(raw.retryDueAt) || undefined, retryDelaySeconds: typeof raw.retryDelaySeconds === 'number' ? raw.retryDelaySeconds : undefined, waitingReasonCode: asString(raw.waitingReasonCode) || undefined, loopRetryAvailable: raw.loopRetryAvailable === true, hasDesignHistory: raw.hasDesignHistory === true, archived: raw.archived === true, executionResult: asString(raw.executionResult) as Task['executionResult'] || undefined, executionCycleOrdinal: typeof raw.executionCycleOrdinal === 'number' ? raw.executionCycleOrdinal : undefined, checkpointState: asString(raw.checkpointState) as Task['checkpointState'] || undefined, parentTaskId: asString(raw.parentTaskId) || undefined, successorTaskId: asString(raw.successorTaskId) || undefined, activeStage: stages.find((stage) => stage.status === 'RUNNING')?.ordinal, attemptCount: asNumber(raw.attemptCount, attempts.length), maxAttempts: asNumber(raw.maxAttempts, 12), createdAt: asString(raw.createdAt), updatedAt: asString(raw.updatedAt), stages, workPackages, attempts, errors: asArray(raw.errors).map(normalizeError), judges: asArray(raw.judges).map(normalizeJudge), artifacts: asArray(raw.artifacts).map((artifact) => normalizeArtifact(artifact, taskId)) }
+  return { id: taskId, projectId: asString(raw.projectId), projectName: asString(raw.projectName, 'Unknown project'), title: asString(raw.title), goal: asString(raw.goal), branch: asString(raw.branch) || '等待选择执行模式', worktreePath: asString(raw.worktreePath) || '等待准备执行目录', status: asString(raw.status) as Task['status'], retryCause: ['RATE_LIMIT', 'SESSION', 'VERIFICATION'].includes(asString(raw.retryCause)) ? asString(raw.retryCause) as Task['retryCause'] : undefined, retryOrdinal: typeof raw.retryOrdinal === 'number' ? raw.retryOrdinal : undefined, retryScheduledAt: asString(raw.retryScheduledAt) || undefined, retryDueAt: asString(raw.retryDueAt) || undefined, retryDelaySeconds: typeof raw.retryDelaySeconds === 'number' ? raw.retryDelaySeconds : undefined, waitingReasonCode: asString(raw.waitingReasonCode) || undefined, loopRetryAvailable: raw.loopRetryAvailable === true, cancellationAvailable: raw.cancellationAvailable === true, hasDesignHistory: raw.hasDesignHistory === true, archived: raw.archived === true, executionResult: asString(raw.executionResult) as Task['executionResult'] || undefined, executionCycleOrdinal: typeof raw.executionCycleOrdinal === 'number' ? raw.executionCycleOrdinal : undefined, checkpointState: asString(raw.checkpointState) as Task['checkpointState'] || undefined, parentTaskId: asString(raw.parentTaskId) || undefined, successorTaskId: asString(raw.successorTaskId) || undefined, activeStage: stages.find((stage) => stage.status === 'RUNNING')?.ordinal, attemptCount: asNumber(raw.attemptCount, attempts.length), maxAttempts: asNumber(raw.maxAttempts, 12), createdAt: asString(raw.createdAt), updatedAt: asString(raw.updatedAt), stages, workPackages, attempts, errors: asArray(raw.errors).map(normalizeError), judges: asArray(raw.judges).map(normalizeJudge), artifacts: asArray(raw.artifacts).map((artifact) => normalizeArtifact(artifact, taskId)) }
 }
 
 function normalizeTaskQueueStatus(value: unknown): TaskQueueStatus {
@@ -486,6 +504,8 @@ function normalizeTaskDesignHistory(value: unknown): TaskDesignHistory {
     taskId: asString(raw.taskId),
     taskTitle: asString(raw.taskTitle),
     projectName: asString(raw.projectName, 'Unknown project'),
+    designSourceTaskId: asString(raw.designSourceTaskId) || undefined,
+    inheritedConversation: raw.inheritedConversation === true,
     draft: normalizeDraft(raw.draft),
     designerSession: raw.designerSession ? {
       id: asString(session.id),
@@ -1304,6 +1324,8 @@ export const api = {
   getCurrentProjectConvention: async (projectId: string) => normalizeProjectConventionSnapshot(await request<unknown>(`/projects/${encodeURIComponent(projectId)}/agents-md`)),
   generateProjectConvention: async (projectId: string) => normalizeProjectConvention(await request<unknown>(`/projects/${encodeURIComponent(projectId)}/agents-md`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } })),
   getProjectConventionDraft: async (projectId: string, draftId: string) => normalizeProjectConvention(await request<unknown>(`/projects/${encodeURIComponent(projectId)}/agents-md/${encodeURIComponent(draftId)}`)),
+  getProjectConventionActivity: async (projectId: string, draftId: string) => normalizeProjectConventionActivity(await request<unknown>(`/projects/${encodeURIComponent(projectId)}/agents-md/${encodeURIComponent(draftId)}/activity`)),
+  cancelProjectConvention: async (projectId: string, draftId: string) => normalizeProjectConvention(await request<unknown>(`/projects/${encodeURIComponent(projectId)}/agents-md/${encodeURIComponent(draftId)}`, { method: 'DELETE', headers: { 'X-Loopper-Local-UI': '1' } })),
   applyProjectConvention: async (projectId: string, draftId: string) => normalizeProjectConvention(await request<unknown>(`/projects/${encodeURIComponent(projectId)}/agents-md/${encodeURIComponent(draftId)}`, { method: 'PUT', headers: { 'X-Loopper-Local-UI': '1' } })),
   getTasks: async () => (await request<unknown[]>('/tasks')).map(normalizeTask),
   getTask: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}`)),

@@ -86,6 +86,17 @@ snapshot. The preview records the source-file hash plus profile id and fingerpri
 the source hash and recomputes the live manifest fingerprint before writing only the marked block.
 Analysis and AI preview never write the project file by themselves.
 
+`GET /api/projects/{id}/agents-md/{draftId}/activity` performs one bounded transcript
+read and returns only the latest safe thinking/output/tool part plus provider-reported
+tokens from that same observation. The browser does not estimate tokens or infer progress.
+The generation monitor persists a fingerprint over remote state, latest part/content,
+part count, and token total; no change for two minutes triggers a durable stop intent.
+`DELETE /api/projects/{id}/agents-md/{draftId}` uses the same local-UI-only boundary for
+manual cancellation. Timeout, polling failure, stalling, and user cancellation all pass
+through `STOPPING`; retry/fresh generation is blocked until abort plus terminal status
+confirm that the previous read-only Session is no longer consuming work. A tool-loop
+finalizer is likewise created only after the looping Session's termination is confirmed.
+
 New software-package compilation uses `COMPILER_BINDING_NO_TOOLS`: all built-in repository
 tools are denied because the server has already frozen a bounded DesignFact catalog and a
 closed verification-capability catalog. The Compiler may return only indexed grouping,

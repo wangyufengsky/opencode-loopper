@@ -27,14 +27,17 @@ public class RecoveryService {
     private final ProjectService projects;
     private final RecoveryPersistence persistence;
     private final TaskService tasks;
+    private final TaskDesignOriginService designOrigins;
 
     public RecoveryService(LoopperMapper mapper, LoopDraftService drafts, ProjectService projects,
-                           RecoveryPersistence persistence, TaskService tasks) {
+                           RecoveryPersistence persistence, TaskService tasks,
+                           TaskDesignOriginService designOrigins) {
         this.mapper = mapper;
         this.drafts = drafts;
         this.projects = projects;
         this.persistence = persistence;
         this.tasks = tasks;
+        this.designOrigins = designOrigins;
     }
 
     public FeatureContracts.RecoveryDto create(String parentTaskId, RecoveryMode requestedMode) {
@@ -68,8 +71,11 @@ public class RecoveryService {
         TaskRow child = mode == RecoveryMode.REWORK_ALL_STAGES || checkpointSeeded
                 ? drafts.confirmAtBaseline(childDraft.id(), recoveryTitle(parent.title(), mode), "RECOVERY", parent.baselineCommit())
                 : drafts.confirm(childDraft.id(), recoveryTitle(parent.title(), mode), "RECOVERY");
+        TaskDesignOriginService.Origin origin = designOrigins.sourceForChild(parent);
         persistence.link(new TaskLineageRow(child.id(), parent.id(), mode.name(),
-                recoveryPoint == null ? null : recoveryPoint.id(), fingerprint, Instant.now().toString()));
+                recoveryPoint == null ? null : recoveryPoint.id(), fingerprint, Instant.now().toString(),
+                origin.sourceTask().id(), origin.loopDraft() == null ? parentDraft.id() : origin.loopDraft().id(),
+                origin.designerSession() == null ? null : origin.designerSession().id()));
         if (TaskState.AWAITING_DECISION.name().equals(parent.state())
                 && (mode == RecoveryMode.INHERIT_CHANGES || mode == RecoveryMode.REWORK_ALL_STAGES)) {
             tasks.supersede(parent.id(), child.id(), mode.name());

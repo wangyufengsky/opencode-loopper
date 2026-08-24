@@ -11,6 +11,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import io.opencode.loopper.service.DirectoryPickerService;
 import io.opencode.loopper.service.ProjectConventionService;
+import io.opencode.loopper.service.ProjectConventionActivityService;
+import io.opencode.loopper.service.ModelTokenUsageProjectionService;
 import io.opencode.loopper.service.ProjectService;
 import io.opencode.loopper.service.ProjectStackProfileService;
 import io.opencode.loopper.service.ProjectStackSnapshot;
@@ -29,8 +31,9 @@ class ProjectControllerTest {
     private final DirectoryPickerService directoryPicker = mock(DirectoryPickerService.class);
     private final ProjectConventionService conventions = mock(ProjectConventionService.class);
     private final ProjectStackProfileService stackProfiles = mock(ProjectStackProfileService.class);
+    private final ProjectConventionActivityService conventionActivity = mock(ProjectConventionActivityService.class);
     private final MockMvc mvc = MockMvcBuilders.standaloneSetup(new ProjectController(
-                    projects, directoryPicker, conventions, stackProfiles))
+                    projects, directoryPicker, conventions, stackProfiles, conventionActivity))
             .setControllerAdvice(new ApiExceptionHandler()).build();
 
     @Test
@@ -126,6 +129,30 @@ class ProjectControllerTest {
                 .andExpect(jsonPath("$.exists").value(true))
                 .andExpect(jsonPath("$.loopperManaged").value(true))
                 .andExpect(jsonPath("$.content").value("# Current rules\n"));
+    }
+
+    @Test
+    void exposesLiveConventionActivityAndCancelsOnlyFromTheLocalUi() throws Exception {
+        when(conventionActivity.activity("project-1", "draft-1")).thenReturn(
+                new ProjectConventionActivityService.View("PROJECT_CONVENTION", "RUNNING", true,
+                        "2026-08-24T00:00:00Z",
+                        List.of(new ProjectConventionActivityService.Part("part-1", "THINKING",
+                                "思考", "检查模块", "RUNNING", "2026-08-24T00:00:00Z")),
+                        null, new ModelTokenUsageProjectionService.UsageView(
+                                21L, 0, "2026-08-24T00:00:00Z")));
+        when(conventions.cancel("project-1", "draft-1"))
+                .thenReturn(convention("draft-1", "project-1", "CANCELLED", 0, null));
+
+        mvc.perform(get("/api/projects/project-1/agents-md/draft-1/activity"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.parts[0].type").value("THINKING"))
+                .andExpect(jsonPath("$.usage.totalTokens").value(21));
+        mvc.perform(delete("/api/projects/project-1/agents-md/draft-1")
+                        .header("X-Loopper-Local-UI", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.state").value("CANCELLED"));
+        mvc.perform(delete("/api/projects/project-1/agents-md/draft-1"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

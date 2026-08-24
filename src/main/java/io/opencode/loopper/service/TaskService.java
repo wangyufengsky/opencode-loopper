@@ -68,8 +68,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * The sole owner of execution-state transitions. In particular, only this class turns a
- * TaskFailure into FAILED; SessionFailure always closes its attempt then starts a fresh session.
+ * Execution facade and owner of ordinary Task orchestration. Cancellation state closure and
+ * writer termination proof are delegated to narrow collaborators; TaskFailure still becomes a
+ * failed execution cycle only here, while SessionFailure closes its attempt before a fresh Session.
  */
 @Service
 public class TaskService {
@@ -108,6 +109,8 @@ public class TaskService {
     private final TaskExecutionPromptFactory executionPrompts;
     private final TaskStateStore taskStates;
     private final TaskEvidenceService taskEvidence;
+    private final TaskCancellationCoordinator cancellations;
+    private final TaskWriterTerminationService writerTermination;
 
     public TaskService(LoopperMapper mapper, LifecycleTransitionService lifecycle, ObjectMapper json, ProjectService projects,
                        GitWorktreeManager worktrees, DirectWorkspaceLeaseCoordinator directLeases,
@@ -145,6 +148,10 @@ public class TaskService {
         this.executionPrompts = new TaskExecutionPromptFactory(mapper, json, rolePrompts);
         this.taskStates = new TaskStateStore(mapper, lifecycle);
         this.taskEvidence = new TaskEvidenceService(mapper, json, verifiers);
+        this.writerTermination = new TaskWriterTerminationService(mapper, taskStates, lifecycle, openCode,
+                usageInsights, directLeases, projects, defaults, events, json);
+        this.cancellations = new TaskCancellationCoordinator(mapper, taskStates, managedVerifierRuntimes,
+                directLeases, events, executionCycles, writerTermination);
     }
 
     public TaskRow createFromDraft(LoopDraftRow draft, String title) {
@@ -556,7 +563,7 @@ public class TaskService {
         if (!GitWorktreeManager.DIRECT_BRANCH.equals(task.branchName())) {
             worktrees.restoreSourceBranch(inPlaceRoot(task), task.branchName(), task.sourceBranch());
         }
-        settleTerminalInPlaceLease(task, !hasUnconfirmedWriter(task.id()), "TASK_COMMITTED");
+        settleTerminalInPlaceLease(task, !writerTermination.hasUnconfirmedWriter(task.id()), "TASK_COMMITTED");
     }
 
     /** Reacquires the FIFO lease and restores a frozen successful cycle before a publication write. */
@@ -1104,7 +1111,7 @@ public class TaskService {
             for (ExecutionSessionRow session : mapper.activeSessions(task.id())) {
                 Map<String, Object> evidence = new LinkedHashMap<>();
                 evidence.put("pause", true);
-                boolean stopped = confirmStoppedBeforeRetry(task, session, evidence);
+                boolean stopped = writerTermination.confirmStopped(task, session, evidence);
                 allWritersStopped &= stopped;
                 AttemptRow attempt = mapper.findAttempt(session.attemptId()).orElse(null);
                 StageRow sessionStage = attempt == null ? null : mapper.findStage(attempt.stageId()).orElse(null);
@@ -1113,7 +1120,7 @@ public class TaskService {
                     taskStates.updateAttempt(taskStates.finishAttempt(attempt, AttemptState.SESSION_ERROR, "PAUSED", "Task paused after stopping its writer Session"));
                 }
                 if (!stopped) {
-                    recordAbortUnconfirmed(task, sessionStage, attempt, session,
+                    writerTermination.recordUnconfirmed(task, sessionStage, attempt, session,
                             "Task pause could not confirm the previous mutating Session stopped", evidence);
                 }
             }
@@ -1126,7 +1133,7 @@ public class TaskService {
                             "Task paused while its current work was still in flight"));
                 }
             }
-            allWritersStopped &= !hasUnconfirmedWriter(task.id());
+            allWritersStopped &= !writerTermination.hasUnconfirmedWriter(task.id());
             for (StageRow stage : mapper.listStages(taskId)) {
                 if (StageState.RUNNING.name().equals(stage.state())) taskStates.updateStage(taskStates.stageState(stage, StageState.PAUSED));
             }
@@ -1187,40 +1194,17 @@ public class TaskService {
         return get(taskId);
     }
 
-    public TaskRow cancel(String taskId) {
-        VerifierOutcome runtimeStop = managedVerifierRuntimes.stopTask(taskId, "task-cancelled");
-        if (runtimeStop != null && runtimeStop.state() == VerificationState.ERROR) {
-            failTaskForManagedRuntime(taskId, runtimeStop);
-            return get(taskId);
-        }
-        return cancelState(taskId);
+    public TaskRow cancel(String taskId) { return settleCancelledLease(cancellations.cancel(taskId)); }
+
+    public TaskRow continueCancellation(String taskId) {
+        return settleCancelledLease(cancellations.continueCancellation(taskId));
     }
 
-    private TaskRow cancelState(String taskId) {
-        TaskRow task = get(taskId);
-        if (TaskState.valueOf(task.state()).terminal()) return task;
-        taskStates.cancelRetrySchedule(taskId, RETRY_CANCELLED);
-        if (TaskState.PENDING_START.name().equals(task.state())) {
-            taskStates.updateTask(taskStates.taskState(task, TaskState.CANCELLED));
-            events.emit(taskId, "task.cancelled", Map.of("state", TaskState.CANCELLED.name(),
-                    "executionRequested", false));
-            return get(taskId);
+    private TaskRow settleCancelledLease(TaskRow task) {
+        if (TaskState.CANCELLED.name().equals(task.state())) {
+            settleTerminalInPlaceLease(task, true, "TASK_CANCELLED");
         }
-        if (TaskState.QUEUED.name().equals(task.state())) {
-            if (mapper.findTaskQueue(task.id()).isPresent()) directLeases.cancelQueued(task.id());
-            taskStates.updateTask(taskStates.taskState(task, TaskState.CANCELLED));
-            events.emit(taskId, "task.cancelled", Map.of("state", TaskState.CANCELLED.name(), "queueCancelled", true));
-            return get(taskId);
-        }
-        boolean writersStopped = abortSessions(task);
-        abortJudgeSessions(task);
-        for (AttemptRow attempt : mapper.listAttempts(taskId)) {
-            if (AttemptState.RUNNING.name().equals(attempt.state())) taskStates.updateAttempt(taskStates.finishAttempt(attempt, AttemptState.CANCELLED, "CANCELLED", "Task cancelled"));
-        }
-        taskStates.updateTask(taskStates.taskState(get(taskId), TaskState.CANCELLED));
-        events.emit(taskId, "task.cancelled", Map.of("state", TaskState.CANCELLED.name()));
-        settleTerminalInPlaceLease(get(taskId), writersStopped, "TASK_CANCELLED");
-        return get(taskId);
+        return get(task.id());
     }
 
     public void recoverAfterRestart() {
@@ -1237,6 +1221,11 @@ public class TaskService {
         for (Map.Entry<String, String> interrupted : interruptedStates.entrySet()) {
             TaskRow task = mapper.findTask(interrupted.getKey()).orElse(null);
             if (task == null || !interrupted.getValue().equals(task.state())) continue;
+            if (TaskState.STOPPING.name().equals(task.state())) {
+                try { continueCancellation(task.id()); }
+                catch (RuntimeException ignoredConcurrentCancellation) { }
+                continue;
+            }
             if (runtimeRecovery.blockedTaskIds().contains(task.id())) {
                 failTask(task, "VERIFIER_RUNTIME_TERMINATION_UNCONFIRMED",
                         "Application restart could not prove that the previous managed verifier runtime stopped; refusing overlapping writes",
@@ -1286,7 +1275,7 @@ public class TaskService {
             for (ExecutionSessionRow session : mapper.activeSessions(task.id())) {
                 Map<String, Object> recoveryEvidence = new LinkedHashMap<>();
                 recoveryEvidence.put("recovery", "fresh_session");
-                boolean remoteTerminationConfirmed = confirmStoppedBeforeRetry(task, session, recoveryEvidence);
+                boolean remoteTerminationConfirmed = writerTermination.confirmStopped(task, session, recoveryEvidence);
                 taskStates.updateSession(taskStates.sessionState(session, SessionState.DISCONNECTED));
                 AttemptRow attempt = mapper.findAttempt(session.attemptId()).orElse(null);
                 StageRow stage = attempt == null ? null : mapper.findStage(attempt.stageId()).orElse(null);
@@ -1305,7 +1294,7 @@ public class TaskService {
                         "Application restart disconnected the previous session", true,
                         recoveryEvidence);
                 if (!remoteTerminationConfirmed) {
-                    recordAbortUnconfirmed(task, stage, attempt, session,
+                    writerTermination.recordUnconfirmed(task, stage, attempt, session,
                             "The previous mutating Session could not be confirmed stopped after restart",
                             recoveryEvidence);
                 }
@@ -1368,6 +1357,7 @@ public class TaskService {
      */
     private void recoverCompletedCycleHandoffs() {
         for (TaskRow candidate : mapper.listRecoverableTasks()) {
+            if (TaskState.STOPPING.name().equals(candidate.state())) continue;
             TaskExecutionCycleRow cycle = executionCycles.latest(candidate.id());
             if (cycle == null || !ExecutionCycleState.valueOf(cycle.state()).terminal()) continue;
             TaskRow task = mapper.findTask(candidate.id()).orElse(candidate);
@@ -1531,12 +1521,12 @@ public class TaskService {
         Map<String, Object> recoveryEvidence = new LinkedHashMap<>();
         recoveryEvidence.put("recovery", "fresh_session");
         recoveryEvidence.put("originalFailureCode", failure.code());
-        boolean stopped = confirmStoppedBeforeRetry(currentTask, session, recoveryEvidence);
+        boolean stopped = writerTermination.confirmStopped(currentTask, session, recoveryEvidence);
         if (session != null) taskStates.updateSession(taskStates.sessionState(session, stopped ? SessionState.FAILED : SessionState.DISCONNECTED));
         if (AttemptState.RUNNING.name().equals(attempt.state())) taskStates.updateAttempt(taskStates.finishAttempt(attempt, AttemptState.SESSION_ERROR, failure.code(), failure.getMessage()));
         recordError(task, stage, attempt, session, ErrorLayer.SESSION, failure.code(), failure.getMessage(), stopped, recoveryEvidence);
         if (!stopped) {
-            recordAbortUnconfirmed(currentTask, stage, attempt, session,
+            writerTermination.recordUnconfirmed(currentTask, stage, attempt, session,
                     "The failed mutating Session could not be confirmed stopped",
                     recoveryEvidence);
             failTask(get(task.id()), "SESSION_ABORT_UNCONFIRMED",
@@ -1605,51 +1595,6 @@ public class TaskService {
     }
 
     /**
-     * A retry may write the same worktree only after the previous mutating
-     * Session is positively stopped. An abort response is only a request; a
-     * separate terminal status observation is always required.
-     */
-    private boolean confirmStoppedBeforeRetry(TaskRow task, ExecutionSessionRow session, Map<String, Object> evidence) {
-        if (session == null || session.externalSessionId() == null) {
-            evidence.put("abortRequested", false);
-            return true;
-        }
-        evidence.put("abortRequested", true);
-        if (task.worktreePath() == null) {
-            evidence.put("abortSucceeded", false);
-            evidence.put("abortError", "Task worktree path is unavailable");
-            return false;
-        }
-        OpenCodeClient.OpenCodeSession remote;
-        try {
-            remote = new OpenCodeClient.OpenCodeSession(session.externalSessionId(), Path.of(task.worktreePath()));
-        } catch (RuntimeException invalidWorktree) {
-            evidence.put("abortSucceeded", false);
-            evidence.put("abortError", safeMessage(invalidWorktree));
-            return false;
-        }
-        try {
-            openCode.abort(remote);
-            evidence.put("abortSucceeded", true);
-        } catch (RuntimeException abortFailure) {
-            evidence.put("abortSucceeded", false);
-            evidence.put("abortErrorCode", abortFailure instanceof SessionFailure sessionFailure
-                    ? sessionFailure.code() : "SESSION_ABORT_FAILED");
-            evidence.put("abortError", safeMessage(abortFailure));
-        }
-        try {
-            OpenCodeClient.SessionStatus status = openCode.sessionStatus(remote);
-            evidence.put("postAbortState", safeMessage(status.state()));
-            boolean terminal = status.completed() || status.failed();
-            evidence.put("writerTerminationConfirmed", terminal);
-            return terminal;
-        } catch (RuntimeException statusFailure) {
-            evidence.put("postAbortStatusError", safeMessage(statusFailure));
-            return false;
-        }
-    }
-
-    /**
      * Retries only the remote abort obligation for a terminal Task. It never
      * changes the Task/Attempt state and therefore cannot create another writer.
      * The error log is the persistent retry counter and survives application
@@ -1670,7 +1615,7 @@ public class TaskService {
         Map<String, Object> evidence = new LinkedHashMap<>();
         evidence.put("cleanupAttempt", attemptNumber);
         evidence.put("cleanupLimit", limit);
-        boolean stopped = confirmStoppedBeforeRetry(task, session, evidence);
+        boolean stopped = writerTermination.confirmStopped(task, session, evidence);
         if (stopped) {
             taskStates.updateSession(taskStates.sessionState(session, SessionState.ABORTED));
             recordError(task, stage, attempt, session, ErrorLayer.SESSION,
@@ -1678,6 +1623,10 @@ public class TaskService {
                     "The remote Session was confirmed stopped by bounded cleanup", false, evidence);
             events.emit(task.id(), "session.cleanup_confirmed",
                     Map.of("sessionId", session.id(), "attempt", attemptNumber));
+            if (TaskState.STOPPING.name().equals(task.state())) {
+                continueCancellation(task.id());
+                return;
+            }
             if (isAdmittedInPlace(task)) {
                 if (TaskState.valueOf(task.state()).terminal()) {
                     settleTerminalInPlaceLease(task, true, "SESSION_ABORT_CLEANUP_CONFIRMED");
@@ -1830,7 +1779,7 @@ public class TaskService {
         if (!retryStatus.loopRetryAvailable()) {
             throw new ConflictException("LOOP_RETRY_NOT_ACTIONABLE", "This waiting task requires a different explicit resolution");
         }
-        if (!mapper.activeSessions(task.id()).isEmpty() || hasUnconfirmedWriter(task.id())) {
+        if (!mapper.activeSessions(task.id()).isEmpty() || writerTermination.hasUnconfirmedWriter(task.id())) {
             throw new ConflictException("SESSION_WRITER_ACTIVE", "A fresh retry cannot overlap an existing or unconfirmed writer");
         }
         StageRow stage = mapper.listStages(task.id()).stream()
@@ -1927,12 +1876,13 @@ public class TaskService {
         return new WorkspaceDirtyResolution(continued, worktrees.inspectDirtyWorkspace(root));
     }
 
-    /** Explicit dialog cancellation is a preparation failure, not a rollback or ordinary task cancellation. */
-    public TaskRow failDirtyWorkspace(String taskId) {
+    /** Cancels the Task while preserving the user's dirty source workspace byte-for-byte. */
+    public TaskRow cancelDirtyWorkspace(String taskId) {
         TaskRow task = requireWorkspaceDirtyWait(taskId);
-        failTask(task, "SOURCE_BRANCH_WORKSPACE_CANCELLED",
-                "User cancelled source-workspace cleanup before the Task branch was created", null, null, null);
-        return get(taskId);
+        recordError(task, null, null, null, ErrorLayer.TASK, "SOURCE_BRANCH_WORKSPACE_CANCELLED",
+                "User cancelled source-workspace cleanup before the Task branch was created", false,
+                Map.of("localFilesPreserved", true, "resolution", TaskState.CANCELLED.name()));
+        return cancel(taskId);
     }
 
     private TaskRow requireWorkspaceDirtyWait(String taskId) {
@@ -2318,13 +2268,13 @@ public class TaskService {
         // session_usage uses the judge-run/message idempotency key, so repeated polling is safe.
         usageInsights.collectTaskUsage(task.id());
         finishCycleAndAwaitDecision(get(task.id()), ExecutionCycleState.SUCCEEDED, null,
-                "Requirement and Risk judges passed", !hasUnconfirmedWriter(task.id()));
+                "Requirement and Risk judges passed", !writerTermination.hasUnconfirmedWriter(task.id()));
     }
 
     private void waitForJudgeInput(TaskRow inputTask, AttemptRow attempt, JudgeRunRow judge, String code, String message) {
         TaskRow task = get(inputTask.id());
         if (!TaskState.JUDGING.name().equals(task.state())) return;
-        abortJudgeSessions(task);
+        writerTermination.stopJudges(task);
         // Final review is a verification outcome, not a field-validation issue and not a
         // terminal task fault.  Keeping it visible in the existing verification panel makes
         // the WAITING_INPUT reason discoverable without violating task/session error layering.
@@ -2400,21 +2350,6 @@ public class TaskService {
         throw new SessionFailure("OPENCODE_STRUCTURED_OUTPUT_FAILED", detail);
     }
 
-    private void abortJudgeSessions(TaskRow task) {
-        if (task.worktreePath() == null) return;
-        Path worktree = Path.of(task.worktreePath());
-        for (JudgeRunRow judge : mapper.activeJudgeRuns(task.id())) {
-            if (judge.externalSessionId() != null) {
-                try { openCode.abort(new OpenCodeClient.OpenCodeSession(judge.externalSessionId(), worktree)); }
-                catch (SessionFailure ignored) { /* terminal task decision and stored judge evidence remain authoritative */ }
-            }
-            JudgeRunRow aborted = judgeState(judge, judge.externalSessionId(), JudgeRunState.ABORTED,
-                    judge.verdict(), judge.reason(), judge.rawOutput(), now());
-            updateJudge(aborted);
-            usageInsights.collectTerminalJudgeUsage(task.id(), aborted.id());
-        }
-    }
-
     private String roleTitle(String role) { return "REQUIREMENT".equals(role) ? "Requirement Judge" : "Risk Judge"; }
     private JudgeRunRow judgeState(JudgeRunRow row, String externalSessionId, JudgeRunState state, String verdict, String reason,
                                    String rawOutput, String endedAt) {
@@ -2458,8 +2393,8 @@ public class TaskService {
         TaskRow current = mapper.findTask(task.id()).orElse(task);
         if (TaskState.valueOf(current.state()).terminal()) return;
         taskStates.cancelRetrySchedule(current.id(), RETRY_CANCELLED);
-        boolean writersStopped = abortSessions(current);
-        abortJudgeSessions(current);
+        boolean writersStopped = writerTermination.stopSessions(current);
+        writerTermination.stopJudges(current);
         // The task-fatal boundary closes every active attempt. Some failures are
         // discovered before a caller has an AttemptRow reference (for example a
         // malformed persisted verifier), but no child may remain RUNNING after
@@ -2476,7 +2411,7 @@ public class TaskService {
         }
         recordError(current, stage, attempt, session, ErrorLayer.TASK, code, message, false, Map.of());
         finishCycleAndAwaitDecision(get(current.id()), ExecutionCycleState.FAILED, code, message,
-                writersStopped && !hasUnconfirmedWriter(current.id()));
+                writersStopped && !writerTermination.hasUnconfirmedWriter(current.id()));
     }
 
     private void finishCycleAndAwaitDecision(TaskRow task, ExecutionCycleState result, String code,
@@ -2536,42 +2471,6 @@ public class TaskService {
         TaskRow task = get(taskId);
         String code = String.valueOf(outcome.evidence().getOrDefault("code", "VERIFIER_RUNTIME_TERMINATION_UNCONFIRMED"));
         failTask(task, code, outcome.summary(), null, null, null);
-    }
-
-    private boolean abortSessions(TaskRow task) {
-        boolean allStopped = true;
-        for (ExecutionSessionRow session : mapper.activeSessions(task.id())) {
-            Map<String, Object> evidence = new LinkedHashMap<>();
-            evidence.put("cleanup", "terminal_task");
-            boolean stopped = confirmStoppedBeforeRetry(task, session, evidence);
-            AttemptRow attempt = mapper.findAttempt(session.attemptId()).orElse(null);
-            StageRow stage = attempt == null ? null : mapper.findStage(attempt.stageId()).orElse(null);
-            if (stopped) {
-                taskStates.updateSession(taskStates.sessionState(session, SessionState.ABORTED));
-            } else {
-                allStopped = false;
-                taskStates.updateSession(taskStates.sessionState(session, SessionState.DISCONNECTED));
-                recordAbortUnconfirmed(task, stage, attempt, session,
-                        "Task became terminal before its mutating Session could be confirmed stopped",
-                        evidence);
-            }
-        }
-        return allStopped && !hasUnconfirmedWriter(task.id());
-    }
-
-    private void recordAbortUnconfirmed(TaskRow task, StageRow stage, AttemptRow attempt,
-                                        ExecutionSessionRow session, String message,
-                                        Map<String, Object> evidence) {
-        if (session == null) return;
-        Map<String, Object> persistentEvidence = new LinkedHashMap<>(evidence);
-        persistentEvidence.put("cleanupScheduled", true);
-        persistentEvidence.put("cleanupLimit", Math.max(1, defaults.getAbortCleanupAttempts()));
-        recordError(task, stage, attempt, session, ErrorLayer.SESSION,
-                "SESSION_ABORT_UNCONFIRMED", message, true, persistentEvidence);
-        if (isAdmittedInPlace(task)) {
-            directLeases.markWriterUnconfirmed(inPlaceRoot(task), task.id(), session.id(), message);
-        }
-        events.emit(task.id(), "session.cleanup_pending", Map.of("sessionId", session.id()));
     }
 
     private TaskRow prepareAdmittedInPlaceTask(String taskId) {
@@ -2651,7 +2550,7 @@ public class TaskService {
         // The persisted Session/runtime evidence remains authoritative. The boolean is retained
         // at this call boundary so cancellation and cleanup cannot accidentally discard their
         // immediate termination result before that evidence has been written.
-        if (!writerTerminationConfirmed && !hasUnconfirmedWriter(task.id())) {
+        if (!writerTerminationConfirmed && !writerTermination.hasUnconfirmedWriter(task.id())) {
             mapper.listSessions(task.id()).stream().filter(session -> session.externalSessionId() != null)
                     .findFirst().ifPresent(session -> directLeases.retainBlocked(
                             mapper.findTaskQueue(task.id()).orElseThrow().canonicalRoot(), task.id(), true, session.id(),
@@ -2714,7 +2613,7 @@ public class TaskService {
         }
         Map<String, Object> evidence = new LinkedHashMap<>();
         evidence.put("recovery", "lease_rehydrate");
-        boolean stopped = confirmStoppedBeforeRetry(task, writer, evidence);
+        boolean stopped = writerTermination.confirmStopped(task, writer, evidence);
         if (stopped) {
             taskStates.updateSession(taskStates.sessionState(writer, SessionState.ABORTED));
             continueAfterLeaseReconciliation(reconcileTerminalLease(task,
@@ -2723,7 +2622,7 @@ public class TaskService {
             taskStates.updateSession(taskStates.sessionState(writer, SessionState.DISCONNECTED));
             AttemptRow attempt = mapper.findAttempt(writer.attemptId()).orElse(null);
             StageRow stage = attempt == null ? null : mapper.findStage(attempt.stageId()).orElse(null);
-            recordAbortUnconfirmed(task, stage, attempt, writer,
+            writerTermination.recordUnconfirmed(task, stage, attempt, writer,
                     "Restart could not confirm the terminal task's Direct writer stopped", evidence);
         }
     }
@@ -2741,18 +2640,6 @@ public class TaskService {
     private boolean isVerificationOnlyRecovery(String taskId) {
         return mapper.findTaskLineage(taskId)
                 .map(lineage -> "VERIFY_ONLY".equals(lineage.recoveryMode())).orElse(false);
-    }
-
-    private boolean hasUnconfirmedWriter(String taskId) {
-        if (mapper.listVerifierRuntimes(taskId).stream()
-                .anyMatch(runtime -> List.of("STARTING", "RUNNING", "STOPPING", "DISCONNECTED")
-                        .contains(runtime.state()))) return true;
-        java.util.Set<String> confirmed = mapper.listErrors(taskId).stream()
-                .filter(error -> "SESSION_ABORT_CLEANUP_CONFIRMED".equals(error.code()) && error.sessionId() != null)
-                .map(ErrorEventRow::sessionId).collect(java.util.stream.Collectors.toSet());
-        return mapper.listErrors(taskId).stream()
-                .anyMatch(error -> "SESSION_ABORT_UNCONFIRMED".equals(error.code())
-                        && error.sessionId() != null && !confirmed.contains(error.sessionId()));
     }
 
     private Path inPlaceRoot(TaskRow task) { return Path.of(projects.get(task.projectId()).rootPath()); }

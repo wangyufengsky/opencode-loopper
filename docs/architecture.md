@@ -531,6 +531,17 @@ and fingerprint, and apply rechecks both the current `AGENTS.md` hash and a live
 The first apply appends one Looper marker block; later applies replace only that block and preserve
 all human content outside it.
 
+V43 adds durable cancellation and design-provenance support. `task_lineage` stores the
+root design Task, LoopDraft, and Designer Session used by a derived recovery/rework
+Task. The child keeps its independently frozen LoopSpec while design-history reads the
+referenced requirement, decomposition, packages, questions, and messages; legacy null
+columns resolve by walking the parent lineage without copying history. The same migration
+adds `project_convention_runtime`, whose versioned progress fingerprint and last-progress
+time survive restart. Project-convention polling fingerprints remote state, latest safe
+part/content, part count, and provider token total. Two minutes without change requests a
+remote stop before failing; explicit user cancellation uses the same `RUNNING -> STOPPING`
+boundary and reaches `CANCELLED` only after terminal remote status is observed.
+
 Machine-response roles carry an explicit non-thinking model selection only for
 steps whose persisted response mode is `JSON_SCHEMA`. Managed DeepSeek starts
 with a private `loopper-no-thinking` variant and those Schema prompts select it;
@@ -772,8 +783,9 @@ through the transient `READY` state into `RUNNING`; users do not click Start twi
 When a project has a valid Git HEAD, execution first snapshots the registered checkout. A dirty checkout
 moves the admitted Task to `WAITING_INPUT` while retaining its writer lease and
 exposes every porcelain-status path to the local UI. The user must choose
-`COMMIT`, `STASH`, or `REMOVE` per path, or cancel and fail the Task without
-changing the files. Cleanup is accepted only against the same branch, HEAD,
+`COMMIT`, `STASH`, or `REMOVE` per path, or cancel the Task without changing the
+files. Cancellation interrupts the active Execution Cycle and reaches `CANCELLED`;
+it does not manufacture a Task failure. Cleanup is accepted only against the same branch, HEAD,
 index, status, and file-content snapshot. After an authoritative clean recheck,
 Loopper creates and checks out `loopper/<taskName>` in that registered checkout
 itself. Repeated task names use
@@ -792,7 +804,8 @@ I/O runs with the caller's SQLite transaction suspended. A persistent FIFO write
 lease permits only one Task to own a registered checkout, so IDEA-bound AgentBridge,
 OpenCode and every verifier observe the same canonical directory and current branch.
 Any Task still in `QUEUED` may be explicitly cancelled before admission. Cancellation
-transitions only that Task and its queue row to `CANCELLED`; it never releases or
+transitions only that Task and its queue row through a persisted stop intent to
+`CANCELLED`; it never releases or
 transfers the current holder's lease. The cancelled terminal Task may then follow the
 ordinary archive and protected history-deletion flow only after it no longer owns an
 active lease.
@@ -801,6 +814,13 @@ before its first writable OpenCode Session starts. The ordinary Task cancellatio
 preserves its branch, execution directory, and evidence, then reuses terminal-holder
 reconciliation to restore the recorded source branch and release the workspace lease
 only when the existing safety checks pass.
+All other active Task states share that stop protocol. `CANCEL` first persists
+`STOPPING`, then independently stops and rechecks implementation Sessions, Judge
+Sessions, and exact-identity managed verifier processes. Unconfirmed writers keep
+the Task, its lease, and evidence in `STOPPING`; restart and the monitor resume the
+same intent. Only a fully confirmed stop cancels running Attempts and nonterminal
+Stages, records the active Execution Cycle as `INTERRUPTED`, and advances the Task
+to `CANCELLED`. This prevents local terminal state from getting ahead of remote work.
 Task, Queue, and Lease remain separate lifecycle machines. Their cross-machine
 invariant is coordinated by `WorkspaceLeaseReconciliationService`: an `ADMITTED`
 queue row must name the same Task as the non-`RELEASED` lease holder, and a terminal

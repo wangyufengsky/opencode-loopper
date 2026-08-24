@@ -97,21 +97,21 @@ async function recheckAndContinue() {
   }
 }
 
-async function cancelAsFailure() {
+async function cancelTask() {
   if (cancelling.value) return
   try {
     await ElMessageBox.confirm(
-      '任务分支尚未创建。取消后该任务将直接标记为失败，现有本地文件保持原样。',
-      '取消工作区处理并终止任务？',
-      { type: 'warning', confirmButtonText: '标记任务失败', cancelButtonText: '继续处理' },
+      '任务分支尚未创建。取消后任务会进入已取消，本轮执行记为中断；现有本地文件保持原样。',
+      '取消任务并保留本地文件？',
+      { type: 'warning', confirmButtonText: '取消任务', cancelButtonText: '继续处理' },
     )
   } catch { return }
   cancelling.value = true
   error.value = ''
   try {
-    await store.failDirtyWorkspace(props.taskId)
+    await store.cancelDirtyWorkspace(props.taskId)
     emit('update:modelValue', false)
-    ElMessage.warning('任务已因取消工作区处理而失败')
+    ElMessage.warning('任务已取消，本地文件保持原样')
   } catch (cause) {
     error.value = userFacingError(cause, '无法终止任务')
   } finally {
@@ -177,7 +177,7 @@ async function cancelAsFailure() {
     </template>
 
     <template #footer>
-      <el-button type="danger" plain :loading="cancelling" @click="cancelAsFailure">取消并标记任务失败</el-button>
+      <el-button type="danger" plain :loading="cancelling" @click="cancelTask">取消任务并保留文件</el-button>
       <el-button type="primary" :loading="applying" :disabled="loading || !workspace" @click="recheckAndContinue">
         重新检查并继续
       </el-button>

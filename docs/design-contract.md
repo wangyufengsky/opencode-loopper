@@ -75,14 +75,18 @@ resource errors remain observable as HTTP 404 responses.
 - 项目登记卡片在桌面宽度最多两列，路径、描述、统计和操作必须允许换行；不得用 `nowrap` 把长项目名、路径或按钮挤在同一行。窄屏按单列自然排布。
 - 产品名和不可翻译的技术名（OpenCode、Git、GitLab、Java、HTTP、JSON 等）可以保留；角色使用像同事的中文称谓：需求分析师、任务规划师、设计师、规范工程师、评审员、验收工程师、开发工程师，以及需求评审员、风险评审员。协议和数据库英文角色码保持不变。
 
-A Task in `WAITING_INPUT` must keep its context-specific recovery action when one
-is available and also expose a destructive, confirmed cancel action. Cancellation
+A Task in any active execution state, including `WAITING_INPUT`, `PREPARING`,
+`RUNNING`, `VERIFYING`, `RETRY_WAIT`, `PAUSED`, and `JUDGING`, must expose a
+confirmed cancel action. The server first projects `STOPPING`; the page keeps
+polling and offers **重试停止** until implementation/Judge Sessions and managed
+verifiers are confirmed terminal. Only then may it show `CANCELLED`. Cancellation
 retains the execution directory, branch, and evidence instead of implying rollback.
 
 A Task in `QUEUED` must likewise expose a confirmed **取消任务** action on Task
 detail. The confirmation explains that only the waiting queue row is cancelled:
 the current writer and its workspace lease remain untouched. The server-authoritative
-result is `CANCELLED`, after which the existing Task-list archive and permanent-delete
+result passes through a normally short `STOPPING` confirmation before `CANCELLED`,
+after which the existing Task-list archive and permanent-delete
 flow becomes available only when the Task no longer owns an active workspace lease.
 A newly confirmed Task is `PENDING_START`. It must show **开始执行** and a separate
 confirmed **取消任务** action, and its summary must say that confirmation has not
@@ -90,7 +94,8 @@ created a queue row, acquired a write lease, allocated an execution directory, o
 switched a Git branch. Cancelling this state changes only the Task to `CANCELLED`.
 Clicking **开始执行** is the single execution request: the server may move through
 `QUEUED`, `PREPARING`, and the transient `READY` state into `RUNNING` without a
-second click. If `READY` is observed during that continuation, the UI shows that
+second click. The no-runtime cancellation still uses the same persisted stop intent,
+but normally confirms `CANCELLED` in that request. If `READY` is observed during that continuation, the UI shows that
 automatic startup is in progress and may retain the confirmed cancel action, but
 does not render another Start button.
 While a Task remains `QUEUED`, detail renders a server-backed **当前在排谁** card with
@@ -108,8 +113,9 @@ When `waitingReasonCode` is `SOURCE_BRANCH_WORKSPACE_DIRTY`, Task detail opens a
 non-dismissible **发现未提交文件** dialog backed by the server's current Git
 snapshot. It lists every path and requires one explicit `提交 / stash / 移除`
 decision per file before **重新检查并继续** is enabled. Removal has an additional
-destructive confirmation. The only alternate exit is the confirmed **取消并标记任务失败**
-action, which must leave local files unchanged. Snapshot conflicts refresh the
+destructive confirmation. The only alternate exit is the confirmed **取消任务并保留文件**
+action, which must leave local files unchanged, interrupt the active Execution Cycle,
+and produce `CANCELLED` rather than borrowing the Task-failure path. Snapshot conflicts refresh the
 authoritative list; the browser never assumes cleanup or branch creation succeeded.
 The `SOURCE_BRANCH_WORKSPACE_DIRTY` error event remains immutable audit history,
 but its active red alert is rendered only while the Task is still in
@@ -664,6 +670,19 @@ it does not claim that an MR exists. After that action, the page offers a manual
 open a new creation page. **已合并** is a disabled final badge and hides all
 original-Task commit, push, MR creation, and judge-retry actions while preserving
 **新分支重做**.
+
+A derived Task's design-history page renders its own frozen LoopSpec and follows
+its persisted design-origin reference for the parent requirement, answered questions,
+and role-tagged conversation. It labels that provenance and never copies historical
+messages into the child draft.
+
+The Project Convention dialog uses the same restrained active-work treatment as
+Designer: one rotating current-activity card shows the newest safe thinking, tool,
+or output fragment plus the provider-authoritative token total. It polls the draft
+and activity projection together, preserves one last fragment during transient
+disconnect, and provides **停止生成**. While the server is `STOPPING`, close controls
+remain disabled and the dialog explains that remote termination is still being
+confirmed; `FAILED` or `CANCELLED` exposes an explicit fresh-generation action.
 
 The page performs one reconciliation on entry and when browser focus returns,
 with a 30-second cooldown and no background polling. Missing GitLab credentials

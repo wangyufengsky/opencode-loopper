@@ -5,6 +5,7 @@ import io.opencode.loopper.persistence.ProjectConventionDraftRow;
 import io.opencode.loopper.service.BadRequestException;
 import io.opencode.loopper.service.DirectoryPickerService;
 import io.opencode.loopper.service.ProjectConventionService;
+import io.opencode.loopper.service.ProjectConventionActivityService;
 import io.opencode.loopper.service.ProjectService;
 import io.opencode.loopper.service.ProjectStackProfileService;
 import io.opencode.loopper.service.ProjectStackSnapshot;
@@ -31,12 +32,15 @@ public class ProjectController {
     private final ProjectService service;
     private final DirectoryPickerService directoryPicker;
     private final ProjectConventionService conventions;
+    private final ProjectConventionActivityService conventionActivity;
     private final ProjectStackProfileService stackProfiles;
     public ProjectController(ProjectService service, DirectoryPickerService directoryPicker,
-                             ProjectConventionService conventions, ProjectStackProfileService stackProfiles) {
+                             ProjectConventionService conventions, ProjectStackProfileService stackProfiles,
+                             ProjectConventionActivityService conventionActivity) {
         this.service = service;
         this.directoryPicker = directoryPicker;
         this.conventions = conventions;
+        this.conventionActivity = conventionActivity;
         this.stackProfiles = stackProfiles;
     }
     @GetMapping public List<ProjectDto> list() { return service.list().stream().map(this::dto).toList(); }
@@ -84,6 +88,18 @@ public class ProjectController {
                                                 @RequestHeader("X-Loopper-Local-UI") String localUi) {
         requireLocalUi(localUi);
         return conventionDto(conventions.apply(id, draftId));
+    }
+    @GetMapping("/{id}/agents-md/{draftId}/activity")
+    public ProjectConventionActivityService.View conventionActivity(
+            @PathVariable String id, @PathVariable String draftId) {
+        return conventionActivity.activity(id, draftId);
+    }
+    @DeleteMapping("/{id}/agents-md/{draftId}")
+    public ProjectConventionDto cancelConvention(
+            @PathVariable String id, @PathVariable String draftId,
+            @RequestHeader("X-Loopper-Local-UI") String localUi) {
+        requireLocalUi(localUi);
+        return conventionDto(conventions.cancel(id, draftId));
     }
     public record ProjectRequest(@NotBlank String name, @NotBlank String rootPath,
                                  @Size(max = 500) String description) { }

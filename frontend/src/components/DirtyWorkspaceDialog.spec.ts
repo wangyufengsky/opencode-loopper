@@ -61,9 +61,9 @@ describe('DirtyWorkspaceDialog', () => {
     expect(wrapper.emitted('update:modelValue')).toContainEqual([false])
   })
 
-  it('requires confirmation and marks the task failed without resolving files', async () => {
+  it('requires confirmation and cancels the task without resolving files', async () => {
     const store = useTaskStore()
-    const fail = vi.spyOn(store, 'failDirtyWorkspace').mockResolvedValue({ id: 'task-1', status: 'FAILED' } as never)
+    const fail = vi.spyOn(store, 'cancelDirtyWorkspace').mockResolvedValue({ id: 'task-1', status: 'CANCELLED' } as never)
     vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
     mount(DirtyWorkspaceDialog, {
       props: { taskId: 'task-1', modelValue: true },
@@ -72,12 +72,12 @@ describe('DirtyWorkspaceDialog', () => {
     await flushPromises()
 
     const cancelButton = [...document.querySelectorAll('button')]
-      .find((button) => button.textContent?.includes('取消并标记任务失败')) as HTMLButtonElement
+      .find((button) => button.textContent?.includes('取消任务并保留文件')) as HTMLButtonElement
     cancelButton.click()
     await flushPromises()
 
     expect(ElMessageBox.confirm).toHaveBeenCalledWith(expect.stringContaining('现有本地文件保持原样'),
-      '取消工作区处理并终止任务？', expect.any(Object))
+      '取消任务并保留本地文件？', expect.any(Object))
     expect(fail).toHaveBeenCalledWith('task-1')
   })
 })

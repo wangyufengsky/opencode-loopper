@@ -29,6 +29,7 @@ vi.mock('@/api/client', () => ({ api: apiMocks }))
 const reviewTask = {
   id: 'task-review', projectId: 'project-1', title: '待评审任务', goal: '验证显式评审入口',
   status: 'WAITING_INPUT', branch: 'DIRECT', worktreePath: '/tmp/project', attemptCount: 1, maxAttempts: 3,
+  cancellationAvailable: true,
   createdAt: 'start', updatedAt: 'now', errors: [], artifacts: [], attempts: [],
   stages: [{ id: 'stage-1', ordinal: 1, objective: '完成实现', status: 'SUCCEEDED', attempts: [] }],
   judges: [

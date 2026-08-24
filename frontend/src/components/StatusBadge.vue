@@ -8,7 +8,7 @@ const props = defineProps<{ status: TaskStatus | 'ONLINE' | 'OFFLINE' | 'STARTIN
 const tone = computed(() => {
   if (['RUNNING', 'VERIFYING', 'JUDGING', 'ONLINE'].includes(props.status)) return 'status-running'
   if (['SUCCEEDED', 'PASS'].includes(props.status)) return 'status-success'
-  if (['RETRY_WAIT', 'STARTING'].includes(props.status)) return 'status-session'
+  if (['RETRY_WAIT', 'STARTING', 'STOPPING'].includes(props.status)) return 'status-session'
   if (['FAILED', 'CANCELLED', 'OFFLINE', 'INCOMPATIBLE', 'FAIL'].includes(props.status)) return 'status-danger'
   if (props.status === 'WAITING_INPUT') return 'status-ai'
   return 'status-pending'

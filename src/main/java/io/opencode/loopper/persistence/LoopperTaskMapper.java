@@ -22,7 +22,7 @@ public interface LoopperTaskMapper {
     int restoreTask(String taskId);
     @Delete("DELETE FROM task WHERE id=#{id}")
     int deleteTask(String id);
-    @Select("SELECT * FROM task WHERE state IN ('PREPARING','RUNNING','VERIFYING','RETRY_WAIT','JUDGING') ORDER BY created_at") List<TaskRow> listRecoverableTasks();
+    @Select("SELECT * FROM task WHERE state IN ('PREPARING','RUNNING','VERIFYING','RETRY_WAIT','JUDGING','STOPPING') ORDER BY created_at") List<TaskRow> listRecoverableTasks();
     @Update("UPDATE task SET state=#{state}, updated_at=#{updatedAt}, version=version+1 WHERE id=#{id} AND version=#{version}")
     int updateTaskState(TaskRow row);
     @Update("UPDATE task SET worktree_path=#{worktreePath}, branch_name=#{branchName}, source_branch=#{sourceBranch}, baseline_commit=#{baselineCommit}, state=#{state}, updated_at=#{updatedAt}, version=version+1 WHERE id=#{id} AND version=#{version}")
@@ -354,7 +354,7 @@ public interface LoopperTaskMapper {
     int markInteractionStale(@Param("id") String id, @Param("version") long version,
                              @Param("updatedAt") String updatedAt);
 
-    @Insert("INSERT INTO task_lineage(child_task_id,parent_task_id,recovery_mode,parent_stage_id,workspace_fingerprint,created_at) VALUES(#{childTaskId},#{parentTaskId},#{recoveryMode},#{parentStageId},#{workspaceFingerprint},#{createdAt})")
+    @Insert("INSERT INTO task_lineage(child_task_id,parent_task_id,recovery_mode,parent_stage_id,workspace_fingerprint,created_at,design_source_task_id,design_source_loop_draft_id,design_source_designer_session_id) VALUES(#{childTaskId},#{parentTaskId},#{recoveryMode},#{parentStageId},#{workspaceFingerprint},#{createdAt},#{designSourceTaskId},#{designSourceLoopDraftId},#{designSourceDesignerSessionId})")
     int insertTaskLineage(TaskLineageRow row);
     @Select("SELECT * FROM task_lineage WHERE child_task_id=#{childTaskId}") Optional<TaskLineageRow> findTaskLineage(String childTaskId);
     @Select("SELECT * FROM task_lineage WHERE parent_task_id=#{parentTaskId} ORDER BY created_at DESC") List<TaskLineageRow> childTasks(String parentTaskId);

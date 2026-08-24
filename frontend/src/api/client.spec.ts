@@ -232,14 +232,14 @@ describe('Loopper REST contract adapter', () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(json(workspace))
       .mockResolvedValueOnce(json({ task: readyTask, workspace: { ...workspace, clean: true, files: [] } }))
-      .mockResolvedValueOnce(json({ ...readyTask, status: 'FAILED', branch: null, worktreePath: null }))
+      .mockResolvedValueOnce(json({ ...readyTask, status: 'CANCELLED', branch: null, worktreePath: null }))
     vi.stubGlobal('fetch', fetchMock)
 
     await expect(api.getDirtyWorkspace('task 1')).resolves.toMatchObject({ snapshotId: 'snapshot-1', files: [{ path: 'README.md' }] })
     await expect(api.resolveDirtyWorkspace('task 1', {
       snapshotId: 'snapshot-1', resolutions: [{ path: 'README.md', action: 'COMMIT' }], commitMessage: 'save work',
     })).resolves.toMatchObject({ task: { status: 'READY' }, workspace: { clean: true } })
-    await expect(api.cancelDirtyWorkspace('task 1')).resolves.toMatchObject({ status: 'FAILED' })
+    await expect(api.cancelDirtyWorkspace('task 1')).resolves.toMatchObject({ status: 'CANCELLED' })
 
     expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/tasks/task%201/workspace-dirty')
     expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({ method: 'POST', headers: expect.objectContaining({ 'X-Loopper-Local-UI': '1' }) })

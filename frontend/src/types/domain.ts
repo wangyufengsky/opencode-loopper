@@ -11,6 +11,7 @@ export type TaskStatus =
   | 'PAUSED'
   | 'WAITING_INPUT'
   | 'JUDGING'
+  | 'STOPPING'
   | 'AWAITING_DECISION'
   | 'COMPLETED'
   | 'SUPERSEDED'
@@ -70,7 +71,7 @@ export interface DirectorySelection {
 export interface ProjectConventionDraft {
   id: string
   projectId: string
-  state: 'RUNNING' | 'READY' | 'APPLYING' | 'APPLIED' | 'FAILED'
+  state: 'RUNNING' | 'STOPPING' | 'CANCELLED' | 'READY' | 'APPLYING' | 'APPLIED' | 'FAILED'
   operation: 'CREATE' | 'UPDATE'
   readOnlyGeneration: boolean
   content?: string
@@ -79,6 +80,16 @@ export interface ProjectConventionDraft {
   updatedAt: string
   stackProfileId?: string
   stackFingerprint?: string
+}
+
+export interface ProjectConventionActivity {
+  actor: 'PROJECT_CONVENTION'
+  remoteState: string
+  connected: boolean
+  observedAt: string
+  parts: TaskSessionActivityPart[]
+  detail?: string
+  usage: ModelTokenUsage
 }
 
 export interface ProjectConventionSnapshot {
@@ -216,7 +227,7 @@ export interface Stage {
   rolePackVersion?: string
   testPolicy?: 'REQUIRED' | 'OPTIONAL' | 'NOT_APPLICABLE'
   technologies?: string[]
-  status: 'PENDING' | 'RUNNING' | 'VERIFYING' | 'PAUSED' | 'SUCCEEDED' | 'BLOCKED'
+  status: 'PENDING' | 'RUNNING' | 'VERIFYING' | 'PAUSED' | 'SUCCEEDED' | 'BLOCKED' | 'CANCELLED'
   attempts: Attempt[]
 }
 
@@ -246,6 +257,7 @@ export interface Task {
   retryDelaySeconds?: number
   waitingReasonCode?: string
   loopRetryAvailable?: boolean
+  cancellationAvailable?: boolean
   hasDesignHistory?: boolean
   archived?: boolean
   executionResult?: 'SUCCEEDED' | 'FAILED' | 'INTERRUPTED' | 'AUDIT_COMPLETED'
@@ -1147,6 +1159,8 @@ export interface TaskDesignHistory {
   taskId: string
   taskTitle: string
   projectName: string
+  designSourceTaskId?: string
+  inheritedConversation?: boolean
   draft: LoopDraft
   designerSession?: {
     id: string

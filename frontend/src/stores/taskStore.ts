@@ -9,7 +9,7 @@ function copy<T>(value: T): T {
 }
 
 function taskStatus(value: unknown): TaskStatus | undefined {
-  const valid = ['PENDING_START', 'QUEUED', 'PREPARING', 'READY', 'RUNNING', 'VERIFYING', 'RETRY_WAIT', 'PAUSED', 'WAITING_INPUT', 'JUDGING', 'AWAITING_DECISION', 'COMPLETED', 'SUPERSEDED', 'SUCCEEDED', 'FAILED', 'CANCELLED']
+  const valid = ['PENDING_START', 'QUEUED', 'PREPARING', 'READY', 'RUNNING', 'VERIFYING', 'RETRY_WAIT', 'PAUSED', 'WAITING_INPUT', 'JUDGING', 'STOPPING', 'AWAITING_DECISION', 'COMPLETED', 'SUPERSEDED', 'SUCCEEDED', 'FAILED', 'CANCELLED']
   return typeof value === 'string' && valid.includes(value) ? value as TaskStatus : undefined
 }
 
@@ -208,11 +208,13 @@ export const useTaskStore = defineStore('task', () => {
       return
     }
     const update = action === 'start' ? api.startTask : action === 'pause' ? api.pauseTask : action === 'resume' ? api.resumeTask : api.cancelTask
+    error.value = undefined
     try {
       const changed = await update(id)
       tasks.value = tasks.value.map((task) => task.id === id ? changed : task)
     } catch (cause) {
       error.value = cause instanceof Error ? cause.message : '任务操作失败'
+      if (action === 'cancel') throw cause
     }
   }
 
@@ -266,7 +268,7 @@ export const useTaskStore = defineStore('task', () => {
     }
   }
 
-  async function failDirtyWorkspace(id: string) {
+  async function cancelDirtyWorkspace(id: string) {
     error.value = undefined
     try {
       const changed = await api.cancelDirtyWorkspace(id)
@@ -411,6 +413,6 @@ export const useTaskStore = defineStore('task', () => {
   return { projects, tasks, runtime, artifacts, taskNotices, loading, auditLoading, auditErrors,
     taskNextCursor, taskFacets, error, usingDemo, streamState, activeTasks, selectedTask, activateDemo,
     deactivateDemo, loadOverview, loadProjects, loadTaskSummaries, loadTaskOverview, loadTaskAudit, loadTask,
-    updateTask, retryJudges, retryWaitingLoop, resolveDirtyWorkspace, failDirtyWorkspace, reworkTask,
+    updateTask, retryJudges, retryWaitingLoop, resolveDirtyWorkspace, cancelDirtyWorkspace, reworkTask,
     setTaskArchived, deleteArchivedTask, watchTask, stopWatching, refreshRuntime, restartRuntime, startRuntime }
 })

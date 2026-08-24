@@ -21,6 +21,7 @@ import io.opencode.loopper.service.LocalSyncConflictService;
 import io.opencode.loopper.service.TaskEventHub;
 import io.opencode.loopper.service.TaskPublicationService;
 import io.opencode.loopper.service.TaskService;
+import io.opencode.loopper.service.TaskDesignOriginService;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -34,7 +35,7 @@ class TaskControllerArchiveTest {
     private final LoopperMapper mapper = mock(LoopperMapper.class);
     private final TaskController controller = new TaskController(tasks, mapper, mock(TaskEventHub.class),
             mock(ObjectMapper.class), mock(LoopDraftService.class), mock(TaskPublicationService.class),
-            mock(LocalSyncConflictService.class));
+            mock(LocalSyncConflictService.class), mock(TaskDesignOriginService.class));
     private final MockMvc mvc = MockMvcBuilders.standaloneSetup(controller)
             .setControllerAdvice(new ApiExceptionHandler()).build();
 
@@ -230,10 +231,10 @@ class TaskControllerArchiveTest {
     }
 
     @Test
-    void cancellingDirtyWorkspaceFailsTheTaskOnlyThroughTheLocalUiContract() throws Exception {
-        TaskRow failed = new TaskRow("task-dirty", "project-1", null, "Dirty", "FAILED",
+    void cancellingDirtyWorkspaceCancelsTheTaskOnlyThroughTheLocalUiContract() throws Exception {
+        TaskRow failed = new TaskRow("task-dirty", "project-1", null, "Dirty", "CANCELLED",
                 "/tmp/project", null, null, "2026-08-12T00:00:00Z", "2026-08-12T00:01:00Z", 2);
-        when(tasks.failDirtyWorkspace(failed.id())).thenReturn(failed);
+        when(tasks.cancelDirtyWorkspace(failed.id())).thenReturn(failed);
         when(tasks.archived(failed.id())).thenReturn(false);
         when(tasks.attempts(failed.id())).thenReturn(List.of());
         when(tasks.stages(failed.id())).thenReturn(List.of());
@@ -245,7 +246,7 @@ class TaskControllerArchiveTest {
         mvc.perform(post("/api/tasks/task-dirty/workspace-dirty/cancel")
                         .header("X-Loopper-Local-UI", "1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("FAILED"));
+                .andExpect(jsonPath("$.status").value("CANCELLED"));
         mvc.perform(post("/api/tasks/task-dirty/workspace-dirty/cancel"))
                 .andExpect(status().isBadRequest());
     }

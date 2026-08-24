@@ -19,7 +19,10 @@ beforeEach(() => {
   routerPush.mockReset()
 })
 
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.useRealTimers()
+})
 
 describe('Projects folder picker', () => {
   it('fills the absolute path and suggests a project name after directory selection', async () => {
@@ -137,6 +140,45 @@ describe('Projects AGENTS.md convention flow', () => {
     expect((wrapper.get('textarea[aria-label="当前 AGENTS.md 项目公约"]').element as HTMLTextAreaElement).value).toContain('# Existing rules')
     expect(wrapper.text()).toContain('AI 更新 Loopper 公约')
     expect(generate).not.toHaveBeenCalled()
+  })
+
+  it('streams live AI activity and sends an explicit remote stop request', async () => {
+    vi.useFakeTimers()
+    const store = useTaskStore()
+    store.projects = [{ id: 'project-1', name: 'Example', rootPath: '/tmp/example', status: 'READY', updatedAt: 'now', taskCount: 0, openDesignerSessionCount: 0 }]
+    vi.spyOn(api, 'getCurrentProjectConvention').mockResolvedValue({ projectId: 'project-1', exists: true, loopperManaged: true, content: '# Existing\n' })
+    vi.spyOn(api, 'generateProjectConvention').mockResolvedValue({
+      id: 'draft-1', projectId: 'project-1', state: 'RUNNING', operation: 'UPDATE', readOnlyGeneration: true, updatedAt: 'now',
+    })
+    vi.spyOn(api, 'getProjectConventionDraft').mockResolvedValue({
+      id: 'draft-1', projectId: 'project-1', state: 'RUNNING', operation: 'UPDATE', readOnlyGeneration: true, updatedAt: 'later',
+    })
+    vi.spyOn(api, 'getProjectConventionActivity').mockResolvedValue({
+      actor: 'PROJECT_CONVENTION', remoteState: 'RUNNING', connected: true, observedAt: 'later',
+      parts: [{ id: 'part-1', type: 'THINKING', label: '分析构建文件', content: '正在核对 Maven 模块', status: 'RUNNING' }],
+      usage: { totalTokens: 321, unknownUsageCount: 0, observedAt: 'later' },
+    })
+    const cancel = vi.spyOn(api, 'cancelProjectConvention').mockResolvedValue({
+      id: 'draft-1', projectId: 'project-1', state: 'CANCELLED', operation: 'UPDATE', readOnlyGeneration: true, error: '用户取消了项目公约生成', updatedAt: 'stopped',
+    })
+    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
+    const wrapper = mount(ProjectsView, {
+      global: { plugins: [ElementPlus], stubs: { teleport: true, PageHeader: { template: '<header><slot /><slot name="actions" /></header>' }, StatusBadge: true, Icon: true } },
+    })
+
+    await wrapper.get('button[aria-label="查看 AGENTS.md 项目公约"]').trigger('click')
+    await flushPromises()
+    await wrapper.findAll('button').find((button) => button.text().includes('AI 更新 Loopper 公约'))!.trigger('click')
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(1000)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('项目公约设计师正在处理')
+    expect(wrapper.text()).toContain('正在核对 Maven 模块')
+    expect(wrapper.text()).toContain('321')
+    await wrapper.findAll('button').find((button) => button.text().includes('停止生成'))!.trigger('click')
+    await flushPromises()
+    expect(cancel).toHaveBeenCalledWith('project-1', 'draft-1')
   })
 })
 

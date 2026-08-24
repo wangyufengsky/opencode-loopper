@@ -17,12 +17,14 @@ import io.opencode.loopper.persistence.TaskRetryScheduleRow;
 import io.opencode.loopper.persistence.TaskDecompositionRow;
 import io.opencode.loopper.persistence.VerificationResultRow;
 import io.opencode.loopper.domain.LoopSpec;
+import io.opencode.loopper.domain.TaskState;
 import io.opencode.loopper.runtime.GitWorktreeManager;
 import io.opencode.loopper.service.LoopDraftService;
 import io.opencode.loopper.service.LocalSyncConflictService;
 import io.opencode.loopper.service.TaskEventHub;
 import io.opencode.loopper.service.TaskPublicationService;
 import io.opencode.loopper.service.TaskService;
+import io.opencode.loopper.service.TaskDesignOriginService;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -52,12 +54,15 @@ public class TaskController {
     private final LoopDraftService drafts;
     private final TaskPublicationService publication;
     private final LocalSyncConflictService localSyncConflicts;
+    private final TaskDesignOriginService designOrigins;
     public TaskController(TaskService service, LoopperMapper mapper, TaskEventHub events, ObjectMapper json,
                           LoopDraftService drafts, TaskPublicationService publication,
-                          LocalSyncConflictService localSyncConflicts) {
+                          LocalSyncConflictService localSyncConflicts,
+                          TaskDesignOriginService designOrigins) {
         this.service = service; this.mapper = mapper; this.events = events; this.json = json;
         this.drafts = drafts; this.publication = publication;
         this.localSyncConflicts = localSyncConflicts;
+        this.designOrigins = designOrigins;
     }
     @GetMapping public List<TaskDto> list() { return service.list().stream().map(this::dto).toList(); }
     @GetMapping("/{id}") public TaskDto get(@PathVariable String id) { return dto(service.get(id)); }
@@ -83,7 +88,8 @@ public class TaskController {
         }
         LoopDraftRow draft = mapper.findDraft(task.loopDraftId())
                 .orElseThrow(() -> new io.opencode.loopper.service.NotFoundException("LoopSpec history not found for task: " + id));
-        DesignerSessionRow session = mapper.findLatestDesignerSessionByDraft(draft.id()).orElse(null);
+        TaskDesignOriginService.Origin designOrigin = designOrigins.resolve(task);
+        DesignerSessionRow session = designOrigin.designerSession();
         List<DesignerHistoryMessageDto> messages = session == null ? List.of() : mapper.listDesignerMessages(session.id()).stream()
                 .map(this::designerHistoryMessage).toList();
         String projectName = mapper.findProject(task.projectId()).map(p -> p.name()).orElse("Unknown project");
@@ -94,6 +100,7 @@ public class TaskController {
         List<DesignWorkPackageRow> packages = requirement == null ? List.of()
                 : mapper.listDesignWorkPackages(requirement.id());
         return new TaskDesignHistoryDto(task.id(), task.title(), projectName,
+                designOrigin.sourceTask().id(), designOrigin.inherited(),
                 new TaskLoopDraftDto(draft.id(), draft.status(), draft.updatedAt(), drafts.spec(draft)),
                 session == null ? null : new DesignerHistorySessionDto(session.id(), session.state(), session.accessMode(),
                         session.createdAt(), session.updatedAt(), messages),
@@ -150,7 +157,7 @@ public class TaskController {
     public TaskDto cancelWorkspaceDirty(
             @PathVariable String id, @RequestHeader("X-Loopper-Local-UI") String localUi) {
         requireLocalUi(localUi);
-        return dto(service.failDirtyWorkspace(id));
+        return dto(service.cancelDirtyWorkspace(id));
     }
     @PutMapping("/{id}/archive")
     public TaskDto archive(@PathVariable String id, @RequestHeader("X-Loopper-Local-UI") String localUi) {
@@ -307,6 +314,7 @@ public class TaskController {
                 retry == null ? null : retry.createdAt(), retry == null ? null : retry.dueAt(),
                 retry == null ? null : retry.delaySeconds(),
                 loopRetry.waitingReasonCode(), loopRetry.loopRetryAvailable(),
+                cancellationAvailable(task),
                 draft != null, service.archived(task.id()),
                 cycle == null ? null : cycle.state(), cycle == null ? null : cycle.ordinal(),
                 checkpoint == null ? null : checkpoint.state(), parentTaskId, successorTaskId,
@@ -320,6 +328,7 @@ public class TaskController {
                           String worktreePath, String status, String retryCause, Integer retryOrdinal,
                           String retryScheduledAt, String retryDueAt, Integer retryDelaySeconds,
                           String waitingReasonCode, boolean loopRetryAvailable,
+                          boolean cancellationAvailable,
                           boolean hasDesignHistory, boolean archived,
                           String executionResult, Integer executionCycleOrdinal, String checkpointState,
                           String parentTaskId, String successorTaskId,
@@ -327,7 +336,14 @@ public class TaskController {
                           String updatedAt, List<StageDto> stages, List<WorkPackageProgressDto> workPackages,
                           List<AttemptDto> attempts, List<ErrorDto> errors,
                           List<JudgeDto> judges, List<ArtifactDto> artifacts) { }
-    public record TaskDesignHistoryDto(String taskId, String taskTitle, String projectName, TaskLoopDraftDto draft,
+
+    private boolean cancellationAvailable(TaskRow task) {
+        TaskState state = TaskState.valueOf(task.state());
+        return !state.terminal() && state != TaskState.AWAITING_DECISION;
+    }
+    public record TaskDesignHistoryDto(String taskId, String taskTitle, String projectName,
+                                       String designSourceTaskId, boolean inheritedConversation,
+                                       TaskLoopDraftDto draft,
                                        DesignerHistorySessionDto designerSession,
                                        DesignRequirementHistoryDto requirement,
                                        DecompositionHistoryDto decomposition,

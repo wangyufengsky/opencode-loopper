@@ -107,10 +107,11 @@ public final class LifecycleRegistry {
                 .transition(TaskState.AWAITING_DECISION, SUPERSEDE, TaskState.SUPERSEDED)
                 .transition(TaskState.AWAITING_DECISION, CANCEL, TaskState.CANCELLED);
         for (TaskState state : TaskState.values()) {
-            if (!state.terminal() && state != TaskState.AWAITING_DECISION) {
-                b.transition(state, CANCEL, TaskState.CANCELLED).transition(state, FAIL, TaskState.AWAITING_DECISION);
+            if (!state.terminal() && state != TaskState.AWAITING_DECISION && state != TaskState.STOPPING) {
+                b.transition(state, CANCEL, TaskState.STOPPING).transition(state, FAIL, TaskState.AWAITING_DECISION);
             }
         }
+        b.transition(TaskState.STOPPING, COMPLETE, TaskState.CANCELLED);
         return b.build();
     }
 
@@ -160,6 +161,9 @@ public final class LifecycleRegistry {
                 .transition(StageState.RUNNING, PAUSE, StageState.PAUSED)
                 .transition(StageState.RUNNING, FAIL, StageState.FAILED)
                 .transition(StageState.PAUSED, FAIL, StageState.FAILED)
+                .transition(StageState.PENDING, CANCEL, StageState.CANCELLED)
+                .transition(StageState.RUNNING, CANCEL, StageState.CANCELLED)
+                .transition(StageState.PAUSED, CANCEL, StageState.CANCELLED)
                 .transition(StageState.FAILED, RECOVER, StageState.PENDING)
                 .transition(StageState.SUCCEEDED, RECOVER, StageState.PENDING)
                 .transition(StageState.RUNNING, COMPLETE, StageState.SUCCEEDED).build();
@@ -318,6 +322,9 @@ public final class LifecycleRegistry {
         return machine(LifecycleMachineType.PROJECT_CONVENTION, ProjectConventionState.class)
                 .transition(ProjectConventionState.RUNNING, COMPLETE, ProjectConventionState.READY)
                 .transition(ProjectConventionState.RUNNING, FAIL, ProjectConventionState.FAILED)
+                .transition(ProjectConventionState.RUNNING, CANCEL, ProjectConventionState.STOPPING)
+                .transition(ProjectConventionState.STOPPING, COMPLETE, ProjectConventionState.CANCELLED)
+                .transition(ProjectConventionState.STOPPING, FAIL, ProjectConventionState.FAILED)
                 .transition(ProjectConventionState.READY, APPLY, ProjectConventionState.APPLYING)
                 .transition(ProjectConventionState.APPLYING, COMPLETE, ProjectConventionState.APPLIED)
                 .transition(ProjectConventionState.APPLYING, FAIL, ProjectConventionState.FAILED).build();

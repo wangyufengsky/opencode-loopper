@@ -15,6 +15,7 @@ import io.opencode.loopper.persistence.LoopDraftRow;
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.ProjectRow;
 import io.opencode.loopper.persistence.TaskArtifactRow;
+import io.opencode.loopper.persistence.TaskLineageRow;
 import io.opencode.loopper.persistence.TaskRow;
 import io.opencode.loopper.persistence.WorkPackageRoleProfileRow;
 import io.opencode.loopper.runtime.FakeOpenCodeClient;
@@ -38,6 +39,7 @@ import io.opencode.loopper.service.WorkPackageRoleService;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -2801,6 +2803,21 @@ class DesignerSessionMcpIntegrationTest {
                 .andExpect(jsonPath("$.workPackages[0].id").value("WP-1"))
                 .andExpect(jsonPath("$.designerSession.messages[?(@.actor == 'DECOMPOSER')]").exists())
                 .andExpect(jsonPath("$.designerSession.messages[?(@.workPackageId == 'WP-1')]").exists());
+
+        LoopDraftRow reworkDraft = drafts.create(legacySpec(project.id()));
+        TaskRow rework = drafts.confirm(reworkDraft.id(), "历史设计重做");
+        assertThat(mapper.insertTaskLineage(new TaskLineageRow(rework.id(), task.id(), "REWORK_ALL_STAGES",
+                null, "baseline", Instant.now().toString(), task.id(), draft.id(), session.id()))).isEqualTo(1);
+
+        mvc.perform(get("/api/tasks/{id}/design-history", rework.id()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.draft.id").value(reworkDraft.id()))
+                .andExpect(jsonPath("$.designSourceTaskId").value(task.id()))
+                .andExpect(jsonPath("$.inheritedConversation").value(true))
+                .andExpect(jsonPath("$.designerSession.id").value(session.id()))
+                .andExpect(jsonPath("$.requirement.requirementText")
+                        .value(org.hamcrest.Matchers.containsString("历史设计")))
+                .andExpect(jsonPath("$.designerSession.messages[?(@.actor == 'DECOMPOSER')]").exists());
     }
 
     @Test

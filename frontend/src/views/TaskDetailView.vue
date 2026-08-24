@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
-import { ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
@@ -45,6 +45,8 @@ const passedVerifications = computed(() => verificationRows.value.filter((verifi
 const judgeRetrying = ref(false)
 const loopRetrying = ref(false)
 const reworking = ref(false)
+const cancellingTask = ref(false)
+const taskActionError = ref('')
 const dirtyWorkspaceDialogOpen = ref(false)
 const queueStatus = ref<TaskQueueStatus>()
 const queueLoading = ref(false)
@@ -77,10 +79,7 @@ const canRetryJudges = computed(() => deterministicAccepted.value
   && (task.value?.status === 'WAITING_INPUT' || (task.value?.status === 'SUCCEEDED' && !doubleReviewApproved.value)))
 const canRetryLoop = computed(() => task.value?.status === 'WAITING_INPUT'
   && !deterministicAccepted.value && task.value.loopRetryAvailable === true)
-const canCancelDirectly = computed(() => task.value?.status === 'PENDING_START'
-  || task.value?.status === 'QUEUED'
-  || task.value?.status === 'READY'
-  || (task.value?.status === 'WAITING_INPUT' && !waitingForWorkspaceCleanup.value))
+const canCancelTask = computed(() => task.value?.cancellationAvailable === true)
 const judgeActionLabel = computed(() => judges.value.length ? '重新发起双评审' : '启动双评审')
 const canRework = computed(() => !isDirectExecution.value
   && !waitingForWorkspaceCleanup.value
@@ -95,6 +94,7 @@ const nextAction = computed(() => {
   if (task.value.status === 'SUCCEEDED') return publicationState.value === 'MERGED' ? '代码已推送并由 GitLab 确认合并，原任务交付状态不可再改变。' : isDirectExecution.value ? '检查原项目目录中的变更并决定后续发布方式。' : '检查变更摘要，然后提交并发布当前分支。'
   if (task.value.status === 'FAILED') return '先查看最上方错误与失败验证，再根据证据重新设计或新建任务。'
   if (task.value.status === 'CANCELLED') return '任务已取消；执行目录和证据仍保留，可据此新建设计。'
+  if (task.value.status === 'STOPPING') return '停止意图已保存；Loopper 正在确认远端会话、评审与验证器都已终止，确认前不会伪装成已取消。'
   if (task.value.status === 'PENDING_START') return '点击“开始执行”进入队列。'
   if (task.value.status === 'QUEUED') return '正在等待项目写租约。'
   if (task.value.status === 'RETRY_WAIT') return `${retryCauseLabel.value}，约 ${retryRemainingSeconds.value} 秒后重试。`
@@ -172,10 +172,11 @@ async function reconcileQueue() {
 }
 
 async function confirmCancel() {
-  if (!task.value) return
+  if (!task.value || cancellingTask.value) return
   const pending = task.value.status === 'PENDING_START'
   const queued = task.value.status === 'QUEUED'
   const ready = task.value.status === 'READY'
+  const stopping = task.value.status === 'STOPPING'
   try {
     await ElMessageBox.confirm(
       pending
@@ -184,13 +185,28 @@ async function confirmCancel() {
         ? '将从等待队列中移除此任务并标记为已取消；当前正在执行的任务和项目写租约不会受影响。取消后可从任务列表归档或删除。'
         : ready
           ? '任务尚未开始执行。取消后会保留任务分支、执行目录和已有证据，并按现有安全规则释放项目写租约。'
+        : stopping
+          ? '将再次请求停止尚未确认终止的远端会话、评审或验证器。只有确认全部停止后，任务才会进入已取消。'
         : '将中止当前会话、停止验证器，并保留执行目录和证据。此操作无法自动恢复。',
-      pending ? '取消待开始任务？' : queued ? '取消排队任务？' : ready ? '取消待执行任务？' : '取消当前任务？',
-      { type: 'warning', confirmButtonText: '取消任务', cancelButtonText: pending ? '保留待开始' : queued ? '继续排队' : ready ? '保留待执行' : '继续执行' },
+      pending ? '取消待开始任务？' : queued ? '取消排队任务？' : ready ? '取消待执行任务？' : stopping ? '重试停止远端执行？' : '取消当前任务？',
+      { type: 'warning', confirmButtonText: stopping ? '重试停止' : '取消任务', cancelButtonText: pending ? '保留待开始' : queued ? '继续排队' : ready ? '保留待执行' : '返回' },
     )
-    await store.updateTask(id.value, 'cancel')
   } catch {
-    // User kept the running task.
+    return
+  }
+  cancellingTask.value = true
+  taskActionError.value = ''
+  try {
+    await store.updateTask(id.value, 'cancel')
+    if (task.value?.status === 'STOPPING') {
+      ElMessage.info('停止请求已保存，正在等待远端终止确认')
+    } else {
+      ElMessage.success('任务已取消')
+    }
+  } catch (cause) {
+    taskActionError.value = userFacingError(cause, '任务取消失败')
+  } finally {
+    cancellingTask.value = false
   }
 }
 
@@ -253,9 +269,9 @@ async function confirmRework() {
       <el-button v-if="canRework" type="warning" plain :loading="reworking" @click="confirmRework"><Icon icon="lucide:git-branch-plus" />新分支重做</el-button>
       <el-button plain @click="router.push('/tasks')"><Icon icon="lucide:list" />全部任务</el-button>
       <el-button v-if="task?.status === 'PENDING_START'" type="primary" @click="store.updateTask(id, 'start')"><Icon icon="lucide:play" />开始执行</el-button>
-      <template v-else-if="task?.status === 'RUNNING' || task?.status === 'VERIFYING' || task?.status === 'RETRY_WAIT'"><el-button plain @click="store.updateTask(id, 'pause')"><Icon icon="lucide:pause" />暂停</el-button><el-button plain type="danger" @click="confirmCancel"><Icon icon="lucide:square" />取消</el-button></template>
+      <el-button v-else-if="task?.status === 'RUNNING' || task?.status === 'VERIFYING' || task?.status === 'RETRY_WAIT'" plain @click="store.updateTask(id, 'pause')"><Icon icon="lucide:pause" />暂停</el-button>
       <el-button v-else-if="task?.status === 'PAUSED'" type="primary" @click="store.updateTask(id, 'resume')"><Icon icon="lucide:play" />继续</el-button>
-      <el-button v-if="canCancelDirectly" plain type="danger" @click="confirmCancel"><Icon icon="lucide:square" />取消任务</el-button>
+      <el-button v-if="canCancelTask" plain type="danger" :loading="cancellingTask" @click="confirmCancel"><Icon icon="lucide:square" />{{ task?.status === 'STOPPING' ? '重试停止' : '取消任务' }}</el-button>
       <el-button v-if="canRetryLoop" type="warning" :loading="loopRetrying" @click="confirmRetryLoop"><Icon icon="lucide:rotate-ccw" />继续一轮</el-button>
       <el-button v-if="canRetryJudges" type="warning" :loading="judgeRetrying" @click="confirmRetryJudges"><Icon icon="lucide:scan-eye" />{{ judgeActionLabel }}</el-button>
       <TaskPublicationActions v-if="publicationEligible && task" :task="task" :demo="store.usingDemo" @delivery-state="publicationState = $event" />
@@ -264,6 +280,7 @@ async function confirmRework() {
   <main id="main-content" class="content" tabindex="-1">
     <section v-if="!task" class="card empty-state"><div><Icon icon="lucide:search-x" width="30" /><strong>未找到此任务</strong></div></section>
     <template v-else>
+      <el-alert v-if="taskActionError" :title="taskActionError" type="error" :closable="false" show-icon class="task-action-error" />
       <section class="task-overview card card-pad">
         <div v-if="task.status === 'PENDING_START'"><p class="eyebrow">等待开始</p></div>
         <div v-else><p class="eyebrow">{{ isDirectExecution ? '直接执行' : '原项目任务分支' }}</p><span class="mono tiny muted">{{ isDirectExecution ? '原项目目录' : task.branch }} · {{ task.worktreePath }}</span></div>

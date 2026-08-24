@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Icon } from '@iconify/vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
+import ProjectConventionActivityPanel from '@/components/ProjectConventionActivityPanel.vue'
 import { api } from '@/api/client'
 import { useTaskStore } from '@/stores/taskStore'
-import type { Project, ProjectConventionDraft, ProjectConventionSnapshot } from '@/types/domain'
+import type { Project, ProjectConventionActivity, ProjectConventionDraft, ProjectConventionSnapshot } from '@/types/domain'
 import { userFacingError } from '@/utils/displayLabels'
 
 const store = useTaskStore()
@@ -21,12 +22,17 @@ const conventionVisible = ref(false)
 const conventionProject = ref<Project>()
 const conventionSnapshot = ref<ProjectConventionSnapshot>()
 const conventionDraft = ref<ProjectConventionDraft>()
+const conventionActivity = ref<ProjectConventionActivity>()
+const conventionActivityError = ref('')
 const conventionError = ref('')
 const loadingConvention = ref(false)
 const generatingProjectId = ref('')
 const applyingConvention = ref(false)
+const stoppingConvention = ref(false)
 const cancellingProjectId = ref('')
 let conventionPollTimer: number | undefined
+const conventionInFlight = computed(() => conventionDraft.value?.state === 'RUNNING'
+  || conventionDraft.value?.state === 'STOPPING')
 onMounted(() => { void store.loadProjects() })
 
 function stackLabel(project: Project) {
@@ -100,7 +106,19 @@ function scheduleConventionPoll(projectId: string, draftId: string) {
     try {
       const draft = await api.getProjectConventionDraft(projectId, draftId)
       conventionDraft.value = draft
-      if (draft.state === 'RUNNING') scheduleConventionPoll(projectId, draftId)
+      if (draft.state === 'RUNNING' || draft.state === 'STOPPING') {
+        try {
+          const next = await api.getProjectConventionActivity(projectId, draftId)
+          const previous = conventionActivity.value?.parts.at(-1)
+          conventionActivity.value = !next.connected && !next.parts.length && previous
+            ? { ...next, parts: [previous] }
+            : { ...next, parts: next.parts.length ? [next.parts.at(-1)!] : [] }
+          conventionActivityError.value = ''
+        } catch (activityFailure) {
+          conventionActivityError.value = userFacingError(activityFailure, 'AI 活动暂时无法刷新')
+        }
+        scheduleConventionPoll(projectId, draftId)
+      }
     } catch (error) {
       conventionError.value = userFacingError(error, '无法获取项目公约生成状态')
     }
@@ -112,6 +130,8 @@ async function openConvention(project: Project) {
   conventionProject.value = project
   conventionSnapshot.value = undefined
   conventionDraft.value = undefined
+  conventionActivity.value = undefined
+  conventionActivityError.value = ''
   conventionError.value = ''
   conventionVisible.value = true
   if (store.usingDemo) {
@@ -134,6 +154,8 @@ async function generateConvention() {
   if (store.usingDemo) { ElMessage.warning('演示模式不会调用 AI 或写入项目文件'); return }
   clearConventionPoll()
   conventionDraft.value = undefined
+  conventionActivity.value = undefined
+  conventionActivityError.value = ''
   conventionError.value = ''
   generatingProjectId.value = project.id
   try {
@@ -144,6 +166,29 @@ async function generateConvention() {
     conventionError.value = userFacingError(error, '项目公约生成失败')
   } finally {
     generatingProjectId.value = ''
+  }
+}
+
+async function cancelConventionGeneration() {
+  const project = conventionProject.value
+  const draft = conventionDraft.value
+  if (!project || !draft || !conventionInFlight.value || stoppingConvention.value) return
+  try {
+    await ElMessageBox.confirm(
+      'Loopper 会先保存停止意图，再确认只读 AI Session 已终止；确认前状态会保持“正在停止”。',
+      '停止生成项目公约？',
+      { type: 'warning', confirmButtonText: '停止生成', cancelButtonText: '继续生成' },
+    )
+  } catch { return }
+  stoppingConvention.value = true
+  conventionError.value = ''
+  try {
+    conventionDraft.value = await api.cancelProjectConvention(project.id, draft.id)
+    if (conventionDraft.value.state === 'STOPPING') scheduleConventionPoll(project.id, draft.id)
+  } catch (error) {
+    conventionError.value = userFacingError(error, '无法停止项目公约生成')
+  } finally {
+    stoppingConvention.value = false
   }
 }
 
@@ -252,12 +297,18 @@ onBeforeUnmount(clearConventionPoll)
     <template #footer><el-button @click="dialogVisible = false">取消</el-button><el-button type="primary" :loading="saving" @click="submit">验证并登记</el-button></template>
   </el-dialog>
 
-  <el-dialog v-model="conventionVisible" title="项目公约 AGENTS.md" width="min(820px, calc(100vw - 32px))" :close-on-click-modal="false" @closed="closeConvention">
+  <el-dialog v-model="conventionVisible" title="项目公约 AGENTS.md" width="min(920px, calc(100vw - 32px))" :close-on-click-modal="false" :show-close="!conventionInFlight" :close-on-press-escape="!conventionInFlight" @closed="closeConvention">
     <div v-if="loadingConvention" class="convention-progress">
       <Icon icon="lucide:loader-circle" class="spin" /><strong>正在读取项目公约…</strong>
     </div>
-    <div v-else-if="conventionDraft?.state === 'RUNNING'" class="convention-progress">
-      <Icon icon="lucide:loader-circle" class="spin" /><div><strong>画像已刷新，AI 正在重新生成项目公约…</strong></div>
+    <ProjectConventionActivityPanel
+      v-else-if="conventionDraft?.state === 'RUNNING'"
+      :activity="conventionActivity"
+      :loading="!conventionActivity"
+      :error="conventionActivityError"
+    />
+    <div v-else-if="conventionDraft?.state === 'STOPPING'" class="convention-progress">
+      <Icon icon="lucide:loader-circle" class="spin" /><div><strong>正在确认只读 AI Session 已停止…</strong><p class="muted tiny">确认前不会把远端执行伪装成已取消。</p></div>
     </div>
     <div v-else-if="conventionDraft?.state === 'APPLYING'" class="convention-progress">
       <Icon icon="lucide:loader-circle" class="spin" /><div><strong>正在确认写入结果…</strong></div>
@@ -285,11 +336,12 @@ onBeforeUnmount(clearConventionPoll)
       <el-input class="convention-preview mono" type="textarea" :autosize="{ minRows: 16, maxRows: 26 }" :model-value="conventionDraft.content" readonly aria-label="AGENTS.md 完整预览" />
     </template>
     <template #footer>
-      <el-button @click="closeConvention">{{ conventionDraft?.state === 'APPLIED' ? '关闭' : '取消' }}</el-button>
+      <el-button v-if="conventionInFlight" type="danger" plain :loading="stoppingConvention" @click="cancelConventionGeneration">停止生成</el-button>
+      <el-button v-else @click="closeConvention">关闭</el-button>
       <el-button v-if="!conventionDraft && conventionSnapshot" type="primary" :loading="Boolean(generatingProjectId)" @click="generateConvention">
         {{ conventionSnapshot.exists ? 'AI 更新 Loopper 公约' : '新增 Loopper 公约' }}
       </el-button>
-      <el-button v-else-if="conventionDraft?.state === 'FAILED'" type="primary" :loading="Boolean(generatingProjectId)" @click="generateConvention">重新进行 AI 设计</el-button>
+      <el-button v-else-if="conventionDraft?.state === 'FAILED' || conventionDraft?.state === 'CANCELLED'" type="primary" :loading="Boolean(generatingProjectId)" @click="generateConvention">重新进行 AI 设计</el-button>
       <el-button v-if="conventionDraft?.state === 'READY'" type="primary" :loading="applyingConvention" @click="applyConvention">确认写入 AGENTS.md</el-button>
     </template>
   </el-dialog>

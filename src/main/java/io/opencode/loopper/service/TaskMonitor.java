@@ -36,6 +36,13 @@ class TaskMonitor {
             }
         }
         for (TaskRow task : mapper.listTasks()) {
+            if (TaskState.STOPPING.name().equals(task.state())) {
+                try { tasks.continueCancellation(task.id()); }
+                catch (RuntimeException ignoredConcurrentCancellation) {
+                    // A user retry or another monitor pass may have completed the same cancellation.
+                }
+                continue;
+            }
             if (TaskState.JUDGING.name().equals(task.state())) {
                 try { tasks.pollJudges(task.id()); }
                 catch (RuntimeException ignoredConcurrentTransition) {

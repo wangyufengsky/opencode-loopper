@@ -24,6 +24,7 @@ function stageIcon(status: Stage['status']) {
   if (status === 'RUNNING') return 'lucide:radio-tower'
   if (status === 'VERIFYING') return 'lucide:scan-search'
   if (status === 'BLOCKED') return 'lucide:triangle-alert'
+  if (status === 'CANCELLED') return 'lucide:circle-x'
   if (status === 'PAUSED') return 'lucide:pause'
   return 'lucide:circle-dashed'
 }

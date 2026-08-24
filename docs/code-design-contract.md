@@ -53,9 +53,12 @@ ownership rules:
   compact package-plan normalization, semantic validation, or executable verifier
   synthesis; those belong to `DesignerPackagePlanCompiler`. Shared machine payload
   shapes belong to `DesignerSemanticContracts` and must not depend back on the facade.
-- `TaskService` owns execution lifecycle ordering and error-layer escalation. It
+- `TaskService` owns ordinary execution ordering and error-layer escalation. It
   must not assemble immutable design snapshots, verification aggregates, baseline
   diffs, or Judge evidence prompts; those belong to `TaskEvidenceService`.
+  `TaskCancellationCoordinator` owns durable `STOPPING -> CANCELLED` child-state closure,
+  while `TaskWriterTerminationService` owns remote Session/Judge termination proof and
+  persistent unconfirmed-writer evidence; neither may release/admit the next Direct lease.
 - `ProjectStackAnalyzer` owns bounded filesystem evidence and manifest fingerprinting;
   `ProjectStackProfileService` owns immutable snapshot persistence and freshness checks.
   Project list reads must use persisted summaries and must not call either filesystem path.
@@ -64,7 +67,9 @@ ownership rules:
   Neither may infer repository technologies from `AGENTS.md` or permit AI labels to create evidence.
 - `ProjectConventionService` owns proposal/apply lifecycle coordination, while
   `ProjectConventionStackPolicy` owns the stack-bound prompt, required-section validation,
-  unsupported-technology rejection, and apply-time fingerprint guard.
+  unsupported-technology rejection, and apply-time fingerprint guard. Guarded AGENTS.md
+  reads, atomic writes, permission preservation and marker replacement belong only to
+  `ProjectConventionDocumentStore`.
 - A responsibility is considered extracted only when the old implementation body
   is removed, focused tests cover the new boundary, facade integration tests remain
   green, and the legacy line-count ratchet is lowered in the same change.

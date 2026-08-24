@@ -66,6 +66,14 @@ watch(id, load, { immediate: true })
           <span><b>更新于</b>{{ formatDate(record.draft.updatedAt) }}</span>
         </div>
       </section>
+      <el-alert
+        v-if="record.inheritedConversation"
+        class="inherited-conversation"
+        type="info"
+        :closable="false"
+        show-icon
+        title="该重做/恢复任务沿用父任务冻结时的设计对话；下方执行规范仍是当前任务自己的冻结副本。"
+      />
 
       <section v-if="record.requirement || record.decomposition || record.workPackages?.length" class="card package-history card-pad">
         <div class="card-header"><div><p class="eyebrow">已确认设计</p><h2 class="card-title">需求与工作包</h2></div><span v-if="record.requirement" class="mono tiny">第 {{ record.requirement.revision }} 版 · 模型调用 {{ record.requirement.modelCallsUsed }}/{{ record.requirement.maxModelCalls }}</span></div>
@@ -121,6 +129,7 @@ watch(id, load, { immediate: true })
 .history-overview { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
 .history-overview h2 { margin: 5px 0 7px; font-size: 17px; }
 .history-overview p:not(.eyebrow) { max-width: 680px; margin: 0; color: var(--color-text-secondary); font-size: 11px; line-height: 1.6; }
+.inherited-conversation { margin-top: 16px; }
 .history-meta { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 9px; }
 .history-meta span { min-width: 120px; padding: 9px 11px; border: 1px solid var(--color-border-default); border-radius: 9px; color: var(--color-text-primary); background: rgb(2 6 23 / 28%); font: 10px/1.4 var(--font-code); }
 .history-meta b { display: block; margin-bottom: 3px; color: var(--color-text-muted); font-size: 8px; letter-spacing: .08em; text-transform: uppercase; }
