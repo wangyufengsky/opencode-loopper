@@ -14,7 +14,6 @@ import io.opencode.loopper.runtime.OpenCodeClient;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.MessageDigest;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.HexFormat;
 import java.util.UUID;
@@ -34,8 +33,6 @@ public class ProjectConventionService {
     private static final int MAX_PROJECT_CONTEXT_REPAIR_ATTEMPTS = 2;
     private static final String PROJECT_CONTEXT_REPAIR_STATE = "REPAIRING_PROJECT_CONTEXT_";
     private static final String STOP_USER_CANCEL = "USER_CANCEL";
-    private static final String STOP_STALLED = "NO_PROGRESS";
-    private static final String STOP_TIMED_OUT = "TIMED_OUT";
     private static final String STOP_POLL_FAILED = "POLL_FAILED";
     private static final Pattern AI_PAYLOAD = Pattern.compile(
             "<!--\\s*LOOPPER_PROJECT_CONTEXT_START\\s*-->(.*?)<!--\\s*LOOPPER_PROJECT_CONTEXT_END\\s*-->",
@@ -112,7 +109,7 @@ public class ProjectConventionService {
         } catch (RuntimeException runtimeFailure) {
             try { openCode.abort(remote); } catch (RuntimeException ignored) { }
             return transition(created, ProjectConventionState.FAILED, "RUNTIME_CREATE_FAILED", null,
-                    "AGENTS.md generation watchdog could not be persisted");
+                    "AGENTS.md generation runtime state could not be persisted");
         }
         ProjectConventionDraftRow row = transition(created, ProjectConventionState.RUNNING, "RUNNING", null, null);
         try {
@@ -253,10 +250,6 @@ public class ProjectConventionService {
 
     private void poll(ProjectConventionDraftRow row) {
         if (!ProjectConventionState.RUNNING.name().equals(row.state())) return;
-        if (timedOut(row)) {
-            requestStop(row, STOP_TIMED_OUT, "OpenCode AGENTS.md generation timed out");
-            return;
-        }
         OpenCodeClient.SessionStatus status;
         try {
             status = openCode.sessionStatus(session(row));
@@ -273,11 +266,6 @@ public class ProjectConventionService {
             } catch (RuntimeException ignoredActivityFailure) {
                 // Status remains authoritative; a later monitor pass can recover activity.
             }
-        }
-        if (!status.completed() && !status.failed() && stalled(row)) {
-            requestStop(row, STOP_STALLED,
-                    "项目公约 AI 会话超过无进展时限，已请求停止；可重新生成");
-            return;
         }
         if (status.retrying()) {
             if (!status.state().equalsIgnoreCase(row.externalSessionState())) {
@@ -413,17 +401,6 @@ public class ProjectConventionService {
         return sha256(value.toString().getBytes(StandardCharsets.UTF_8));
     }
 
-    private boolean stalled(ProjectConventionDraftRow row) {
-        Duration timeout = properties.getProjectConventionStallTimeout();
-        if (timeout == null || timeout.isZero() || timeout.isNegative()) return false;
-        try {
-            return Duration.between(Instant.parse(ensureRuntime(row).lastProgressAt()), Instant.now())
-                    .compareTo(timeout) > 0;
-        } catch (RuntimeException invalidTimestamp) {
-            return false;
-        }
-    }
-
     private ProjectConventionRuntimeRow ensureRuntime(ProjectConventionDraftRow row) {
         ProjectConventionRuntimeRow runtime = mapper.findProjectConventionRuntime(row.id()).orElse(null);
         if (runtime != null) return runtime;
@@ -547,13 +524,6 @@ public class ProjectConventionService {
     private LifecycleTransitionService.Subject subject(ProjectConventionDraftRow row) {
         return new LifecycleTransitionService.Subject(LifecycleMachineType.PROJECT_CONVENTION, row.id(),
                 LifecycleScopeType.PROJECT, row.projectId());
-    }
-
-    private boolean timedOut(ProjectConventionDraftRow row) {
-        Duration timeout = properties.getDesignerTimeout();
-        if (timeout == null || timeout.isZero() || timeout.isNegative()) return false;
-        try { return Duration.between(Instant.parse(row.createdAt()), Instant.now()).compareTo(timeout) > 0; }
-        catch (RuntimeException invalidTimestamp) { return false; }
     }
 
     private OpenCodeClient.OpenCodeModel configuredModel() {

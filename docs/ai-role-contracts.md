@@ -30,11 +30,12 @@ Java、Python、Node、混合栈、通用软件、Markdown/DOCX、表格转换�
 各自组合提示，不能把其他栈或非软件流程的示例注入当前 Compiler。
 
 Router 使用独立 `ROUTER_NO_TOOLS` Session；该名称表示禁止内置仓库工具，项目已配置并由
-`GET /mcp` 发现的 MCP Server 仍按 `<server>_*` 前缀开放。可用时返回固定
-`TASK_PROFILE_ROUTER_V1` JSON Schema，不可用时使用同一闭集对象的 marker。它只返回
+`GET /mcp` 发现的 MCP Server 仍按 `<server>_*` 前缀开放。Router 固定使用 marker 信封承载
+`TASK_PROFILE_ROUTER_V1` 闭集对象，不向 OpenCode Session 持久化 JSON Schema 响应格式，
+以兼容会在加载该格式时崩溃的桌面版本；服务端解析与闭集校验没有放宽。它只返回
 `intent / artifactKinds / technologies / complexity / confidence / signals`，服务端仍独占
 `WorkflowTemplate / MutationMode / ExecutionStrategy / TestPolicy`。每次 Router 的需求
-快照、外部 Session、响应模式、截止时间、标签和失败原因都持久化；重启继续同一 Session，
+快照、外部 Session、响应模式、时间戳、标签和失败原因都持久化；重启继续同一 Session，
 新一轮需求讨论会终止并废弃旧快照的 Router。需求 Designer 和
 Decomposer 使用父画像；每个软件工作包再按包标题、目标、范围和交付物检测技术栈，原子
 冻结自己的 Role Pack、执行策略和测试策略，包 Designer 与 Compiler 只读取该冻结值；

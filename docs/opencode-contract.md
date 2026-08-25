@@ -68,11 +68,13 @@ do not trigger the Node family. Router test-artifact aliases such as `TEST_SOURC
 source code rather than failing the profile.
 The Router profile denies every built-in tool, including read/glob/grep/question. Configured
 MCP tools remain available under their OpenCode server-name prefixes. It uses the
-bounded machine-response agent only for output control and has a configurable
-`loopper.task-profile-router-timeout` boundary, defaulting to 240 seconds from the persisted run
-creation time. The monitor must receive an acknowledged remote abort before recording
-`ROUTER_TIMEOUT` and materializing a retryable fallback. A completed response is accepted only as
-one closed semantic object. Router
+fixed marker envelope rather than an OpenCode JSON Schema response format, avoiding the desktop
+Session-loader incompatibility that rejects a persisted `{type: json_schema, schema: ...}` object.
+The same closed server-side contract and validation still apply. Its configurable
+`loopper.task-profile-router-timeout` boundary defaults to 240 seconds and applies only while the
+run has no persisted external Session ID. Once connected, the monitor waits for the remote terminal
+state without a wall-clock deadline. An unconnected deadline records `ROUTER_TIMEOUT` and
+materializes a retryable fallback. A completed response is accepted only as one closed semantic object. Router
 runs are persisted with their exact requirement snapshots and external Session IDs;
 restart polls the same Session, while a newer discussion aborts and supersedes stale runs. Each
 run also persists the project-profile id, manifest fingerprint, and selected component keys.
@@ -93,12 +95,12 @@ Analysis and AI preview never write the project file by themselves.
 read and returns only the latest safe thinking/output/tool part plus provider-reported
 tokens from that same observation. The browser does not estimate tokens or infer progress.
 The generation monitor persists a fingerprint over remote state, latest part/content,
-part count, and token total; no change for 240 seconds by default triggers a durable stop intent.
-Any new state, content, part, or Token observation resets the stall clock; the separate 30-minute
-total generation boundary remains unchanged.
+part count, and token total for restart-safe observation. Once the read-only Session is connected,
+neither inactivity nor elapsed wall-clock time automatically stops it; polling continues until a
+real remote terminal state or explicit user cancellation, and the browser shows no timeout limit.
 `DELETE /api/projects/{id}/agents-md/{draftId}` uses the same local-UI-only boundary for
-manual cancellation. Timeout, polling failure, stalling, and user cancellation all pass
-through `STOPPING`; retry/fresh generation is blocked until abort plus terminal status
+manual cancellation. Polling failure and user cancellation pass through `STOPPING`;
+retry/fresh generation is blocked until abort plus terminal status
 confirm that the previous read-only Session is no longer consuming work. A tool-loop
 finalizer is likewise created only after the looping Session's termination is confirmed.
 

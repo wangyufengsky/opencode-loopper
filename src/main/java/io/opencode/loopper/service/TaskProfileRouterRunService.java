@@ -45,13 +45,14 @@ public final class TaskProfileRouterRunService {
         if (run == null) return null;
         DesignerTaskProfileRow profile = mapper.findCurrentDesignerTaskProfile(sessionId).orElse(null);
         return new RouterRunView(run.id(), run.state(), run.externalSessionState(), run.errorCode(), run.errorDetail(),
-                run.createdAt(), run.updatedAt(), router.deadline(run.createdAt()).toString(),
+                run.createdAt(), run.updatedAt(), router.connectionDeadline(run.externalSessionId(), run.createdAt())
+                        .map(java.time.Instant::toString).orElse(null),
                 TERMINAL_STATES.contains(run.state()) && profile != null
                         && "PROVISIONAL".equals(profile.state()) && profile.decisionRequired() == 1);
     }
 
     public String timeoutDetail() {
-        return "任务设置识别超过 " + router.timeout().toSeconds() + " 秒，远端 Session 已终止";
+        return "任务设置识别长时间未能连接远端 Session，已停止本次连接尝试";
     }
 
     private void session(String sessionId) {

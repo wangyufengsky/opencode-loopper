@@ -120,19 +120,22 @@ policy, execution strategy, Role Pack version, confidence and bounded evidence;
 historical rows without it project as `LEGACY_SOFTWARE` and keep the previous software
 path. V38 persists every raw or complete requirement snapshot in
 `task_profile_router_run`, including the built-in-tool-denied external Session, response mode, labels,
-terminal error and deadline. Restart recovery polls the same Session; a replacement
+terminal error and timestamps. Restart recovery polls the same Session; a replacement
 discussion must receive a successful abort acknowledgement before superseding the old run or
 creating its replacement. The synchronous request starter and the 750 ms monitor claim each
 persisted Router run exclusively; if an optimistic update is lost after remote creation, that
 unowned remote Session is aborted instead of escaping as a parallel run. The server scans only
 bounded, non-symlink manifest/file facts, while an independent
-`ROUTER_NO_TOOLS` OpenCode Session returns semantic labels through the fixed
-`TASK_PROFILE_ROUTER_V1` schema or marker fallback. The AI Router never owns permissions,
+`ROUTER_NO_TOOLS` OpenCode Session returns semantic labels through a fixed marker envelope and
+the same closed `TASK_PROFILE_ROUTER_V1` object contract. Router deliberately does not persist an
+OpenCode JSON Schema response format because affected OpenCode desktop versions reject that stored
+shape while loading the Session. The AI Router never owns permissions,
 commands, workflow selection, or authorization; configured MCP tools are additive only and
-cannot weaken those boundaries. Schema/session/output failure produces a
-generic decision-required profile instead of terminating the Designer. The Router deadline is
-computed from persisted creation time and defaults to 240 seconds; timeout first aborts the remote
-Session, then records `ROUTER_TIMEOUT`. The latest run is exposed in the Designer read model, and a
+cannot weaken those boundaries. Session/output failure produces a generic decision-required profile
+instead of terminating the Designer. The configurable 240-second Router boundary applies only until
+an external Session ID has been persisted. Once connected, the server keeps polling until the remote
+Session reaches a real terminal state and exposes no deadline in the read model. An unconnected
+deadline records retryable `ROUTER_TIMEOUT`. The latest run is exposed in the Designer read model, and a
 versioned reroute can only use its persisted requirement snapshot after the run is terminal. A
 successful first ordinary result is persisted but does not create a requirement Designer Session
 until confirmation or override; equivalent later reroutes may carry forward the prior explicit
@@ -546,9 +549,10 @@ referenced requirement, decomposition, packages, questions, and messages; legacy
 columns resolve by walking the parent lineage without copying history. The same migration
 adds `project_convention_runtime`, whose versioned progress fingerprint and last-progress
 time survive restart. Project-convention polling fingerprints remote state, latest safe
-part/content, part count, and provider token total. Two minutes without change requests a
-remote stop before failing; explicit user cancellation uses the same `RUNNING -> STOPPING`
-boundary and reaches `CANCELLED` only after terminal remote status is observed.
+part/content, part count, and provider token total. A connected generation has no inactivity or
+wall-clock deadline and remains `RUNNING` until the remote Session reaches a real terminal state;
+explicit user cancellation uses the `RUNNING -> STOPPING` boundary and reaches `CANCELLED` only
+after terminal remote status is observed.
 
 Machine-response roles carry an explicit non-thinking model selection only for
 steps whose persisted response mode is `JSON_SCHEMA`. Managed DeepSeek starts

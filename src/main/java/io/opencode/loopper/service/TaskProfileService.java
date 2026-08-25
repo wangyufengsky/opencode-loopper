@@ -143,7 +143,7 @@ public class TaskProfileService {
                 DesignerSessionRow session = session(run.designerSessionId());
                 if (stopping(session)) continue;
                 Path root = Path.of(projects.get(session.projectId()).rootPath());
-                if (semanticRouter.timedOut(run.createdAt(), Instant.now())) {
+                if (semanticRouter.connectionTimedOut(run.externalSessionId(), run.createdAt(), Instant.now())) {
                     semanticRouter.abort(root, run.externalSessionId());
                     TaskProfileRouterRunRow failed = updateRun(run, "FAILED", run.externalSessionId(), "FAILED",
                             run.responseMode(), null, "ROUTER_TIMEOUT", routerRuns.timeoutDetail());

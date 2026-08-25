@@ -121,11 +121,13 @@ class DesignerSessionMcpIntegrationTest {
                 OpenCodeClient.CapabilityState.UNAVAILABLE, OpenCodeClient.CapabilityState.UNKNOWN,
                 "marker compatibility fixture"));
         properties.setTaskProfileRouterTimeout(Duration.ofSeconds(240));
-        properties.setProjectConventionStallTimeout(Duration.ofSeconds(240));
     }
 
     @Test
     void routerIsPersistedAsyncAndRerunsForTheCompleteRequirementSnapshot() throws Exception {
+        fake().setStructuredCapability(new OpenCodeClient.StructuredOutputCapability(
+                OpenCodeClient.CapabilityState.AVAILABLE, OpenCodeClient.CapabilityState.AVAILABLE,
+                "Router deliberately uses marker compatibility"));
         ProjectRow project = project("async-router");
         LoopDraftRow draft = drafts.create(legacySpec(project.id()));
         fake().setDesignerOutput("# Python 转换工具\n\n新增可复用 Python 脚本并保留明确输入输出。");
@@ -142,6 +144,9 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(mapper.findLatestTaskProfileRouterRun(created.id())).hasValueSatisfying(run -> {
             assertThat(run.state()).isEqualTo("RUNNING");
             assertThat(run.externalSessionId()).isNotBlank();
+            assertThat(run.responseMode()).isEqualTo("TEXT_MARKER");
+            assertThat(fake().promptRequestForSession(run.externalSessionId()).responseFormat())
+                    .isInstanceOf(OpenCodeClient.ResponseFormat.Text.class);
         });
         assertThatThrownBy(() -> taskProfiles.freeze(created.id()))
                 .isInstanceOf(ConflictException.class).hasMessageContaining("仍在识别");
@@ -547,7 +552,7 @@ class DesignerSessionMcpIntegrationTest {
     }
 
     @Test
-    void routerTimeoutStopsTheRemoteAndRerouteUsesOnlyThePersistedRequirementSnapshot() throws Exception {
+    void connectedRouterHasNoWallClockTimeoutAndRerouteUsesOnlyThePersistedRequirementSnapshot() throws Exception {
         ProjectRow project = project("router-timeout-reroute");
         LoopDraftRow draft = drafts.create(legacySpec(project.id()));
         String requirement = "修改多模块 Maven 项目的 Java 异常构造器";
@@ -560,11 +565,18 @@ class DesignerSessionMcpIntegrationTest {
 
         designerSessions.pollActiveHandoffs();
 
-        var timedOut = mapper.findLatestTaskProfileRouterRun(created.id()).orElseThrow();
-        assertThat(timedOut.state()).isEqualTo("FAILED");
-        assertThat(timedOut.errorCode()).isEqualTo("ROUTER_TIMEOUT");
-        assertThat(timedOut.errorDetail()).contains("240").doesNotContain("30 second");
-        assertThat(fake().abortedSessionIds()).contains(running.externalSessionId());
+        var stillRunning = mapper.findLatestTaskProfileRouterRun(created.id()).orElseThrow();
+        assertThat(stillRunning.state()).isEqualTo("RUNNING");
+        assertThat(stillRunning.errorCode()).isNull();
+        assertThat(fake().abortedSessionIds()).doesNotContain(running.externalSessionId());
+        assertThat(taskProfiles.routerRun(created.id()).deadlineAt()).isNull();
+
+        fake().setSessionStatus(running.externalSessionId(), "FAILED", "Provider connection closed");
+        designerSessions.pollActiveHandoffs();
+
+        var failed = mapper.findLatestTaskProfileRouterRun(created.id()).orElseThrow();
+        assertThat(failed.state()).isEqualTo("FAILED");
+        assertThat(failed.errorCode()).isEqualTo("ROUTER_SESSION_FAILED");
         assertThat(taskProfiles.current(created.id())).satisfies(profile -> {
             assertThat(profile.decisionState()).isEqualTo("NEEDS_CONFIRMATION");
             assertThat(profile.confirmationReady()).isFalse();
@@ -575,21 +587,44 @@ class DesignerSessionMcpIntegrationTest {
         mvc.perform(post("/api/designer-sessions/{id}/task-profile/reroute", created.id())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json.writeValueAsString(Map.of(
-                                "expectedRunId", timedOut.id(),
+                                "expectedRunId", failed.id(),
                                 "expectedProfileVersion", fallback.version()))))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.state").value("RUNNING"))
-                .andExpect(jsonPath("$.deadlineAt").isNotEmpty());
+                .andExpect(jsonPath("$.deadlineAt").doesNotExist());
         var replacement = mapper.findLatestTaskProfileRouterRun(created.id()).orElseThrow();
-        assertThat(replacement.id()).isNotEqualTo(timedOut.id());
+        assertThat(replacement.id()).isNotEqualTo(failed.id());
         assertThat(replacement.requirementSnapshot()).isEqualTo(requirement);
 
         mvc.perform(post("/api/designer-sessions/{id}/task-profile/reroute", created.id())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json.writeValueAsString(Map.of(
-                                "expectedRunId", timedOut.id(),
+                                "expectedRunId", failed.id(),
                                 "expectedProfileVersion", fallback.version()))))
                 .andExpect(status().isConflict());
+    }
+
+    @Test
+    void unconnectedRouterRunStillStopsAtTheConnectionDeadline() throws Exception {
+        ProjectRow project = project("router-connection-timeout");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        DesignerSessionRow created = designerSessions.create(project.id(), draft.id(), "修改 Java 源代码");
+        var started = mapper.findLatestTaskProfileRouterRun(created.id()).orElseThrow();
+        openCode.abort(new OpenCodeClient.OpenCodeSession(started.externalSessionId(), Path.of(project.rootPath())));
+        assertThat(jdbc.update("""
+                UPDATE task_profile_router_run
+                   SET state='PENDING', external_session_id=NULL, external_session_state=NULL,
+                       response_mode=NULL, created_at=?, updated_at=?
+                 WHERE id=?
+                """, Instant.now().minusSeconds(241).toString(), Instant.now().toString(), started.id())).isEqualTo(1);
+
+        designerSessions.pollActiveHandoffs();
+
+        var timedOut = mapper.findLatestTaskProfileRouterRun(created.id()).orElseThrow();
+        assertThat(timedOut.state()).isEqualTo("FAILED");
+        assertThat(timedOut.errorCode()).isEqualTo("ROUTER_TIMEOUT");
+        assertThat(timedOut.errorDetail()).contains("未能连接").doesNotContain("240");
+        assertThat(taskProfiles.current(created.id()).resolutionSource()).isEqualTo("ROUTER_FALLBACK");
     }
 
     @Test

@@ -180,8 +180,9 @@ conflict instead of retrying cached choices. Empty or failed repository evidence
 generic/needs-confirmation and is never relabelled as Java by the UI.
 While a Router run is active, a dedicated task-settings dialog polls the authoritative Designer
 snapshot and safe activity every 1.2 seconds. The dialog cannot be closed by its close button,
-mask, or Escape key and displays the real elapsed time against the server-projected 240-second
-deadline, remote state, latest bounded activity, and provider-reported Token usage. It never
+mask, or Escape key and displays real elapsed time, remote state, latest bounded activity, and
+provider-reported Token usage. It does not show a timeout limit: after the remote Session is
+connected there is no Router wall-clock deadline, and the server waits for its real terminal state. It never
 renders an estimated progress percentage or raw Router object. Marker or JSON-like fragments are
 replaced by **正在整理任务设置识别结果**.
 
@@ -191,7 +192,7 @@ creation until a versioned decision is saved. The result dialog separates **识�
 execution strategy, and test policy. Its actions are **确认并进入设计**, **重新识别**, and
 **手动修改**. Closing a terminal dialog only dismisses that presentation; the task-settings card
 keeps a **查看识别结果** entry, and refresh restores the dialog while no decision has been saved.
-Failed, timed-out, or malformed runs show their comprehensible reason and fallback settings rather
+Failed, unconnected-timeout, or malformed runs show their comprehensible reason and fallback settings rather
 than silently accepting a `0%` profile.
 
 Reroute sends the expected run ID and profile version to
@@ -752,7 +753,8 @@ The Project Convention dialog uses the same restrained active-work treatment as
 Designer: one rotating current-activity card shows the newest safe thinking, tool,
 or output fragment plus the provider-authoritative token total. It polls the draft
 and activity projection together, preserves one last fragment during transient
-disconnect, and provides **停止生成**. While the server is `STOPPING`, close controls
+disconnect, shows no timeout limit, and provides **停止生成**. A connected generation has no
+inactivity or wall-clock deadline and waits for the remote terminal state. While the server is `STOPPING`, close controls
 remain disabled and the dialog explains that remote termination is still being
 confirmed; `FAILED` or `CANCELLED` exposes an explicit fresh-generation action.
 

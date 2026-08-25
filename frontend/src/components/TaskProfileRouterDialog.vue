@@ -41,12 +41,7 @@ const running = computed(() => run.value?.state === 'PENDING' || run.value?.stat
 const failed = computed(() => run.value?.state === 'FAILED'
   || profile.value.evidence.some(item => item.startsWith('router-error=')))
 const elapsedSeconds = computed(() => Math.max(0, Math.floor((now.value - Date.parse(run.value?.createdAt ?? '')) / 1_000) || 0))
-const limitSeconds = computed(() => {
-  const start = Date.parse(run.value?.createdAt ?? '')
-  const end = Date.parse(run.value?.deadlineAt ?? '')
-  return Number.isFinite(start) && Number.isFinite(end) ? Math.max(1, Math.round((end - start) / 1_000)) : 240
-})
-const stateText = computed(() => `${statusLabel(run.value?.externalState || run.value?.state || 'PENDING')} · 已用 ${elapsedSeconds.value} 秒 / 上限 ${limitSeconds.value} 秒`)
+const stateText = computed(() => `${statusLabel(run.value?.externalState || run.value?.state || 'PENDING')} · 已用 ${elapsedSeconds.value} 秒`)
 const affectedComponents = computed(() => {
   const candidates = profile.value.candidateComponents ?? []
   const selected = new Set(profile.value.componentKeys ?? [])
@@ -129,7 +124,6 @@ onBeforeUnmount(() => { generation += 1; stopPolling(); if (clockTimer) clearInt
       <dl class="router-runtime">
         <div><dt>远端状态</dt><dd>{{ statusLabel(run?.externalState || run?.state || 'PENDING') }}</dd></div>
         <div><dt>已用时间</dt><dd>{{ elapsedSeconds }} 秒</dd></div>
-        <div><dt>超时上限</dt><dd>{{ limitSeconds }} 秒</dd></div>
       </dl>
     </template>
     <template v-else>
@@ -173,7 +167,7 @@ onBeforeUnmount(() => { generation += 1; stopPolling(); if (clockTimer) clearInt
 
 <style scoped>
 .router-intro { margin: 0 0 14px; color: var(--color-text-secondary); font-size: 12px; line-height: 1.65; }
-.router-runtime { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 14px 0 0; }.router-runtime div, .profile-result-grid article { padding: 12px; border: 1px solid var(--color-border-soft); border-radius: 9px; background: rgb(15 23 42 / 42%); }.router-runtime dt, .profile-result-grid span { color: var(--color-text-secondary); font-size: 10px; }.router-runtime dd { margin: 5px 0 0; color: var(--color-text-primary); font: 11px var(--font-code); }
+.router-runtime { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 14px 0 0; }.router-runtime div, .profile-result-grid article { padding: 12px; border: 1px solid var(--color-border-soft); border-radius: 9px; background: rgb(15 23 42 / 42%); }.router-runtime dt, .profile-result-grid span { color: var(--color-text-secondary); font-size: 10px; }.router-runtime dd { margin: 5px 0 0; color: var(--color-text-primary); font: 11px var(--font-code); }
 .profile-result-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }.profile-result-grid article { display: grid; gap: 6px; }.profile-result-grid strong { color: var(--color-text-primary); font-size: 13px; }
 .router-profile-edit { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--color-border-soft); }.router-large-task { display: flex; align-items: center; justify-content: space-between; gap: 12px; grid-column: 1 / -1; }.router-large-task span { display: grid; gap: 3px; }.router-large-task small { color: var(--color-text-secondary); }
 .router-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }

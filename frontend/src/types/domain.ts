@@ -1084,7 +1084,7 @@ export interface TaskProfileRouterRun {
   errorDetail?: string
   createdAt: string
   updatedAt: string
-  deadlineAt: string
+  deadlineAt?: string
   retryAvailable: boolean
 }
 

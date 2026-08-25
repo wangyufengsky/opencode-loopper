@@ -176,6 +176,7 @@ describe('Projects AGENTS.md convention flow', () => {
     expect(wrapper.text()).toContain('项目公约设计师正在处理')
     expect(wrapper.text()).toContain('正在核对 Maven 模块')
     expect(wrapper.text()).toContain('321')
+    expect(wrapper.text()).not.toContain('超时上限')
     await wrapper.findAll('button').find((button) => button.text().includes('停止生成'))!.trigger('click')
     await flushPromises()
     expect(cancel).toHaveBeenCalledWith('project-1', 'draft-1')

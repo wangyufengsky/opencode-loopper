@@ -43,7 +43,7 @@ class ProjectConventionServiceTest {
         flyway.clean();
         flyway.migrate();
         ((FakeOpenCodeClient) openCode).reset();
-        properties.setProjectConventionStallTimeout(Duration.ofSeconds(240));
+        properties.setDesignerTimeout(Duration.ofMinutes(30));
     }
 
     @Test
@@ -133,55 +133,26 @@ class ProjectConventionServiceTest {
     }
 
     @Test
-    void noProgressWatchdogStopsTheRemoteSessionBeforeTheTotalTimeout() throws Exception {
-        Path root = javaRoot("stalled-convention");
-        ProjectRow project = projects.create("stalled-convention", root.toString());
+    void connectedGenerationWaitsPastFormerStallAndTotalTimeouts() throws Exception {
+        Path root = javaRoot("long-running-convention");
+        ProjectRow project = projects.create("long-running-convention", root.toString());
         FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
         fake.setDesignerOutput(validJavaContext());
         ProjectConventionDraftRow running = conventions.generate(project.id());
         fake.setSessionStatus(running.externalSessionId(), "RUNNING", null);
 
         conventions.pollActiveGenerations();
-        jdbc.update("UPDATE project_convention_runtime SET last_progress_at=? WHERE draft_id=?",
-                Instant.now().minusSeconds(30).toString(), running.id());
-        properties.setProjectConventionStallTimeout(Duration.ofSeconds(1));
-        conventions.pollActiveGenerations();
-
-        ProjectConventionDraftRow failed = conventions.get(project.id(), running.id());
-        assertThat(failed.state()).isEqualTo(ProjectConventionState.FAILED.name());
-        assertThat(failed.errorMessage()).contains("无进展时限");
-        assertThat(fake.abortedSessionIds()).contains(running.externalSessionId());
-    }
-
-    @Test
-    void defaultWatchdogAllowsTwoHundredThirtyNineSecondsAndNewActivityResetsTheClock() throws Exception {
-        Path root = javaRoot("watchdog-240-seconds");
-        ProjectRow project = projects.create("watchdog-240-seconds", root.toString());
-        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
-        fake.setDesignerOutput(validJavaContext());
-        ProjectConventionDraftRow running = conventions.generate(project.id());
-        fake.setSessionStatus(running.externalSessionId(), "RUNNING", null);
-        conventions.pollActiveGenerations();
-
-        jdbc.update("UPDATE project_convention_runtime SET last_progress_at=? WHERE draft_id=?",
-                Instant.now().minusSeconds(239).toString(), running.id());
-        conventions.pollActiveGenerations();
-        assertThat(conventions.get(project.id(), running.id()).state()).isEqualTo(ProjectConventionState.RUNNING.name());
-
-        fake.setSessionUsage(running.externalSessionId(), List.of(new OpenCodeClient.UsageRecord(
-                "progress", "provider", "model", 10L, 2L, 12L, null, null, true)));
-        conventions.pollActiveGenerations();
-        String refreshedAt = jdbc.queryForObject(
-                "SELECT last_progress_at FROM project_convention_runtime WHERE draft_id=?",
-                String.class, running.id());
-        Instant refreshed = refreshedAt == null ? Instant.EPOCH : Instant.parse(refreshedAt);
-        assertThat(refreshed).isAfter(Instant.now().minusSeconds(5));
-
         jdbc.update("UPDATE project_convention_runtime SET last_progress_at=? WHERE draft_id=?",
                 Instant.now().minusSeconds(241).toString(), running.id());
+        assertThat(jdbc.update("UPDATE project_convention_draft SET created_at=? WHERE id=?",
+                Instant.now().minusSeconds(1_801).toString(), running.id())).isEqualTo(1);
+        properties.setDesignerTimeout(Duration.ofSeconds(1));
         conventions.pollActiveGenerations();
-        assertThat(conventions.get(project.id(), running.id()).state()).isEqualTo(ProjectConventionState.FAILED.name());
-        assertThat(fake.abortedSessionIds()).contains(running.externalSessionId());
+
+        ProjectConventionDraftRow waiting = conventions.get(project.id(), running.id());
+        assertThat(waiting.state()).isEqualTo(ProjectConventionState.RUNNING.name());
+        assertThat(waiting.externalSessionId()).isEqualTo(running.externalSessionId());
+        assertThat(fake.abortedSessionIds()).doesNotContain(running.externalSessionId());
     }
 
     @Test

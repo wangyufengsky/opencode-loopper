@@ -55,13 +55,13 @@ afterEach(() => {
 })
 
 describe('TaskProfileRouterDialog', () => {
-  it('locks the running dialog and displays real activity, elapsed time, limit, and provider tokens', async () => {
+  it('locks the running dialog and displays real activity, elapsed time, and provider tokens without a timeout limit', async () => {
     const session: DesignerSession = {
       ...baseSession,
       routerRun: {
         id: 'run-active', state: 'RUNNING', externalState: 'RUNNING',
         createdAt: '2026-08-25T07:00:00Z', updatedAt: '2026-08-25T07:00:20Z',
-        deadlineAt: '2026-08-25T07:04:00Z', retryAvailable: false,
+        retryAvailable: false,
       },
     }
     vi.spyOn(api, 'getDesignerActivity').mockResolvedValue({
@@ -77,7 +77,9 @@ describe('TaskProfileRouterDialog', () => {
     expect(dialog.props('closeOnClickModal')).toBe(false)
     expect(dialog.props('closeOnPressEscape')).toBe(false)
     expect(dialog.props('showClose')).toBe(false)
-    expect(bodyText()).toContain('已用 30 秒 / 上限 240 秒')
+    expect(bodyText()).toContain('已用 30 秒')
+    expect(bodyText()).not.toContain('上限')
+    expect(bodyText()).not.toContain('超时')
     expect(bodyText()).toContain('正在分析 Maven 多模块结构')
     expect(bodyText()).toContain('15')
     expect(api.getDesignerActivity).toHaveBeenCalledWith(session.id)
@@ -95,7 +97,7 @@ describe('TaskProfileRouterDialog', () => {
       routerRun: {
         id: 'run-completed', state: 'COMPLETED', externalState: 'COMPLETED',
         createdAt: '2026-08-25T07:00:00Z', updatedAt: '2026-08-25T07:00:20Z',
-        deadlineAt: '2026-08-25T07:04:00Z', retryAvailable: true,
+        retryAvailable: true,
       },
     }
     const wrapper = mountDialog(session)
@@ -126,15 +128,15 @@ describe('TaskProfileRouterDialog', () => {
         evidence: ['router-error=ROUTER_TIMEOUT'], resolutionSource: 'ROUTER_FALLBACK',
       },
       routerRun: {
-        id: 'run-failed', state: 'FAILED', externalState: 'FAILED', errorCode: 'ROUTER_TIMEOUT',
-        errorDetail: '任务设置识别超过 240 秒，已终止远端会话', createdAt: '2026-08-25T07:00:00Z',
-        updatedAt: '2026-08-25T07:04:01Z', deadlineAt: '2026-08-25T07:04:00Z', retryAvailable: true,
+        id: 'run-failed', state: 'FAILED', externalState: 'FAILED', errorCode: 'ROUTER_START_FAILED',
+        errorDetail: '任务设置识别未能连接远端 Session', createdAt: '2026-08-25T07:00:00Z',
+        updatedAt: '2026-08-25T07:04:01Z', retryAvailable: true,
       },
     })
     await flushPromises()
 
     expect(bodyText()).toContain('本次识别未能可靠完成')
-    expect(bodyText()).toContain('任务设置识别超过 240 秒，已终止远端会话')
+    expect(bodyText()).toContain('任务设置识别未能连接远端 Session')
     wrapper.unmount()
   })
 })

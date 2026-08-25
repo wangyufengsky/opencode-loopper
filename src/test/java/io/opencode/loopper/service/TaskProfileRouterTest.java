@@ -21,16 +21,22 @@ class TaskProfileRouterTest {
     @TempDir Path root;
     private final TaskProfileRouter router = new TaskProfileRouter();
 
-    @Test void routerTimeoutDefaultsToTwoHundredFortySecondsFromRunCreation() {
+    @Test void routerTimeoutOnlyBoundsRunsWithoutAnExternalSession() {
         LoopperProperties properties = new LoopperProperties();
         TaskSemanticRouter semanticRouter = new TaskSemanticRouter(mock(OpenCodeClient.class), properties,
                 new tools.jackson.databind.ObjectMapper());
         String createdAt = "2026-08-25T00:00:00Z";
 
         assertThat(properties.getTaskProfileRouterTimeout().toSeconds()).isEqualTo(240);
-        assertThat(semanticRouter.deadline(createdAt)).isEqualTo(Instant.parse("2026-08-25T00:04:00Z"));
-        assertThat(semanticRouter.timedOut(createdAt, Instant.parse("2026-08-25T00:03:59Z"))).isFalse();
-        assertThat(semanticRouter.timedOut(createdAt, Instant.parse("2026-08-25T00:04:01Z"))).isTrue();
+        assertThat(semanticRouter.connectionDeadline(null, createdAt))
+                .contains(Instant.parse("2026-08-25T00:04:00Z"));
+        assertThat(semanticRouter.connectionTimedOut(null, createdAt,
+                Instant.parse("2026-08-25T00:03:59Z"))).isFalse();
+        assertThat(semanticRouter.connectionTimedOut(null, createdAt,
+                Instant.parse("2026-08-25T00:04:01Z"))).isTrue();
+        assertThat(semanticRouter.connectionDeadline("session-connected", createdAt)).isEmpty();
+        assertThat(semanticRouter.connectionTimedOut("session-connected", createdAt,
+                Instant.parse("2026-08-26T00:00:00Z"))).isFalse();
     }
 
     @Test void normalizesModelTestArtifactAliasesWithoutChangingTheTaskIntent() {
