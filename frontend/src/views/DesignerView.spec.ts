@@ -165,6 +165,56 @@ describe('Designer draft composer', () => {
     wrapper.unmount()
   })
 
+  it('cancels the active Router through the server and refreshes into manual selection', async () => {
+    vi.useFakeTimers()
+    routeQuery.sessionId = 'designer-cancel-router'
+    const routing: DesignerSession = {
+      ...session, id: 'designer-cancel-router', state: 'PENDING_HANDOFF', workflowPhase: 'ROUTING',
+      activeActor: 'ROUTER', discussionScope: 'REQUIREMENT', discussionRevision: 0,
+      finalConfirmationEligible: false,
+      taskProfile: {
+        ...session.taskProfile, id: undefined, state: 'ROUTING', decisionState: 'ROUTING', confirmationReady: false,
+        resolutionSource: 'ROUTER', decisionRequired: true, evidence: [], largeTaskMode: false, version: 0,
+      },
+      routerRun: {
+        id: 'router-active', state: 'RUNNING', externalState: 'RUNNING',
+        createdAt: '2026-08-25T07:00:00Z', updatedAt: '2026-08-25T07:00:01Z', retryAvailable: false,
+      },
+      availableProfileOverrides: ['SOFTWARE_CHANGE'], availableArtifactOverrides: ['SOURCE_CODE'],
+      draft: draftFrom({
+        schemaVersion: 'v2', projectId: project.id, goal: '取消识别并手动设置', context: '', stages: [],
+        limits: { maxStageAttempts: 3, maxTaskAttempts: 7, maxDuration: '7200', attemptTimeout: '1800' },
+      }),
+    }
+    const manual: DesignerSession = {
+      ...routing,
+      taskProfile: {
+        ...routing.taskProfile, id: 'profile-manual', state: 'PROVISIONAL', decisionState: 'NEEDS_CONFIRMATION',
+        resolutionSource: 'USER_SELECTION_PENDING', evidence: ['router-error=ROUTER_USER_CANCELLED:用户取消'], version: 0,
+      },
+      routerRun: {
+        ...routing.routerRun!, state: 'SUPERSEDED', externalState: 'ABORTED',
+        errorCode: 'ROUTER_USER_CANCELLED', errorDetail: '用户已取消 AI 任务设置识别，请手动选择任务设置',
+      },
+    }
+    const getSession = vi.spyOn(api, 'getDesignerSession')
+      .mockResolvedValueOnce(routing)
+      .mockResolvedValueOnce(manual)
+    const cancel = vi.spyOn(api, 'cancelDesignerTaskProfileRouting').mockResolvedValue(manual.taskProfile)
+    const wrapper = mountDesigner()
+    await flushPromises()
+
+    wrapper.getComponent(TaskProfileRouterDialog).vm.$emit('cancel')
+    await flushPromises()
+
+    expect(cancel).toHaveBeenCalledWith(routing.id, 'router-active')
+    expect(getSession).toHaveBeenCalledTimes(2)
+    expect(wrapper.getComponent(TaskProfileRouterDialog).props('session').routerRun?.errorCode)
+      .toBe('ROUTER_USER_CANCELLED')
+    expect(wrapper.getComponent(TaskProfileRouterDialog).props('modelValue')).toBe(true)
+    wrapper.unmount()
+  })
+
   it('shows changed profile choices and confirms the new recommendation explicitly', async () => {
     routeQuery.sessionId = 'designer-changed-profile'
     const changed: DesignerSession = {

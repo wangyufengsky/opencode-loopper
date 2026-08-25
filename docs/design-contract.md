@@ -194,11 +194,15 @@ replaced by **正在整理任务设置识别结果**.
 The first successful ordinary-mode result remains in `ROUTING` and blocks requirement-Designer
 creation until a versioned decision is saved. The result dialog separates **识别置信度** from
 **技术栈**, and also displays task type, affected components, workflow, primary artifact,
-execution strategy, and test policy. Its actions are **确认并进入设计**, **重新识别**, and
-**手动修改**. Closing a terminal dialog only dismisses that presentation; the task-settings card
+execution strategy, and test policy. While running it exposes **取消识别，手动设置**; the server aborts
+the remote Session before the dialog switches directly to the manual controls, and failure to confirm
+the abort keeps the run active. Terminal actions are **确认并进入设计**, **重新识别**, and **手动修改**.
+Closing a terminal dialog only dismisses that presentation; the task-settings card
 keeps a **查看识别结果** entry, and refresh restores the dialog while no decision has been saved.
 Failed, unconnected-timeout, or malformed runs show their comprehensible reason and fallback settings rather
 than silently accepting a `0%` profile.
+Router cancellation is not a failed recommendation: it displays an informational manual-selection notice,
+persists a full-auto blocker, and does not expose confirm/retry actions until the user leaves manual editing.
 
 Reroute sends the expected run ID and profile version to
 `POST /api/designer-sessions/{id}/task-profile/reroute`; the server accepts only a terminal latest

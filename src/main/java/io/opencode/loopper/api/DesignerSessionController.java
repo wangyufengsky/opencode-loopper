@@ -239,6 +239,12 @@ public class DesignerSessionController {
                 id, request.expectedRunId(), request.expectedProfileVersion()));
     }
 
+    @PostMapping("/{id}/task-profile/cancel")
+    public TaskProfileService.View cancelTaskProfileRouting(
+            @PathVariable String id, @Valid @RequestBody CancelTaskProfileRoutingRequest request) {
+        return profiles.cancelRouting(id, request.expectedRunId());
+    }
+
     @PostMapping("/{id}/large-task-mode/enable")
     public TaskProfileService.View enableLargeTaskMode(@PathVariable String id,
                                                         @Valid @RequestBody EnableLargeTaskModeRequest request) {
@@ -403,6 +409,7 @@ public class DesignerSessionController {
                                            long expectedVersion) { }
     public record ConfirmTaskProfileRequest(long expectedVersion) { }
     public record RerouteTaskProfileRequest(@NotBlank String expectedRunId, long expectedProfileVersion) { }
+    public record CancelTaskProfileRoutingRequest(@NotBlank String expectedRunId) { }
     public record EnableLargeTaskModeRequest(int expectedDiscussionRevision, long expectedProfileVersion) { }
     public record PackageMessageRequest(@NotBlank @Size(max = 12_000) String content,
                                         int expectedDiscussionRevision, int expectedDesignRevision) { }

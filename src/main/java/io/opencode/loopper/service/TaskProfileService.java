@@ -17,9 +17,7 @@ import io.opencode.loopper.persistence.TaskProfileRouterRunRow;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -38,8 +36,6 @@ public class TaskProfileService {
     private final RolePackRegistry rolePacks;
     private final ObjectMapper json;
     private final TransactionTemplate transactions;
-    /** Prevents the synchronous starter and the 750 ms monitor from owning the same persisted run. */
-    private final Set<String> claimedRouterRuns = ConcurrentHashMap.newKeySet();
 
     public TaskProfileService(LoopperMapper mapper, ProjectService projects, TaskProfileRouter router,
                               ProjectStackProfileService stackProfiles,
@@ -85,6 +81,13 @@ public class TaskProfileService {
         return routerRuns.current(sessionId);
     }
 
+    public synchronized View cancelRouting(String sessionId, String expectedRunId) {
+        DesignerSessionRow session = session(sessionId);
+        Path root = Path.of(projects.get(session.projectId()).rootPath());
+        TaskProfileRouterRunRow cancelled = routerRuns.cancel(sessionId, expectedRunId, root);
+        return materialize(cancelled, null, cancelled.errorCode(), cancelled.errorDetail());
+    }
+
     public void invalidate(String sessionId) {
         DesignerSessionRow session = session(sessionId);
         Path root = Path.of(projects.get(session.projectId()).rootPath());
@@ -114,7 +117,7 @@ public class TaskProfileService {
                 null, null, null, null, null, null, now, now, 0,
                 serverEvidence.projectStackProfileId(), write(serverEvidence.componentKeys()),
                 serverEvidence.stackFingerprint());
-        claimedRouterRuns.add(runId);
+        routerRuns.claim(runId);
         try {
             if (mapper.insertTaskProfileRouterRun(pending) != 1) {
                 throw new ConflictException("TASK_PROFILE_ROUTER_CREATE_CONFLICT", "任务设置识别记录未能持久化");
@@ -131,14 +134,14 @@ public class TaskProfileService {
             }
             if (!started.started()) materialize(updated, null, started.errorCode(), started.errorDetail());
         } finally {
-            claimedRouterRuns.remove(runId);
+            routerRuns.release(runId);
         }
     }
 
     public List<String> pollActive() {
         List<String> completedSessions = new java.util.ArrayList<>();
         for (TaskProfileRouterRunRow run : mapper.listActiveTaskProfileRouterRuns()) {
-            if (!claimedRouterRuns.add(run.id())) continue;
+            if (!routerRuns.claim(run.id())) continue;
             try {
                 DesignerSessionRow session = session(run.designerSessionId());
                 if (stopping(session)) continue;
@@ -186,7 +189,7 @@ public class TaskProfileService {
                 }
             } catch (RuntimeException ignoredConcurrentOrMissingSession) {
             } finally {
-                claimedRouterRuns.remove(run.id());
+                routerRuns.release(run.id());
             }
         }
         return List.copyOf(completedSessions);
@@ -235,11 +238,12 @@ public class TaskProfileService {
         List<String> routingEvidence = new java.util.ArrayList<>(decision.evidence());
         readStrings(run.repositoryEvidenceJson()).stream().filter(value -> value.startsWith("requirement-tests="))
                 .filter(value -> !routingEvidence.contains(value)).forEach(routingEvidence::add);
+        boolean userCancelled = "ROUTER_USER_CANCELLED".equals(errorCode);
         if (labels == null) routingEvidence.add("router-error=" + errorCode + ":" + errorDetail);
         RolePackRegistry.RolePack pack = rolePacks.resolve(decision.intent(), decision.technologies(), decision.artifactKinds());
         TestPolicy testPolicy = effectiveTestPolicy(pack.defaultTestPolicy(), decision.intent(), decision.technologies(), routingEvidence);
         ConfirmedChoice previous = previousConfirmedChoice(run.designerSessionId(), null);
-        boolean safeToCarry = previous != null && !routingEvidence.contains("unsafe-operation-conflict")
+        boolean safeToCarry = labels != null && previous != null && !routingEvidence.contains("unsafe-operation-conflict")
                 && previous.matches(decision);
         // Every first Router result is an explicit gate in ordinary mode. Full-auto authorization may
         // adopt a safe successful recommendation through the same persisted confirmation boundary.
@@ -251,7 +255,7 @@ public class TaskProfileService {
                 decision.mutationMode().name(), write(decision.artifactKinds()), write(decision.technologies()),
                 testPolicy.name(), pack.executionStrategy().name(), pack.id(), pack.version(), decision.confidence(),
                 write(routingEvidence), safeToCarry ? "USER_CONFIRMED_CARRIED_FORWARD"
-                        : explicitWorkflow != null
+                        : userCancelled ? "USER_SELECTION_PENDING" : explicitWorkflow != null
                             ? preservedWorkflowEvidence.startsWith(SOFTWARE_WORKFLOW_EVIDENCE_PREFIX)
                                     ? "USER_OVERRIDE" : "HISTORICAL_WORKFLOW_PRESERVED"
                             : labels != null ? "AI_ROUTER" : "ROUTER_FALLBACK",

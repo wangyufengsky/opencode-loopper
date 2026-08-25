@@ -29,8 +29,9 @@ Decomposer 和 Compiler 新会话各只需一次机器规划调用。规划通�
 Java、Python、Node、混合栈、通用软件、Markdown/DOCX、表格转换、只读报告和本地维护
 各自组合提示，不能把其他栈或非软件流程的示例注入当前 Compiler。
 
-Router 使用独立 `ROUTER_NO_TOOLS` Session；该名称表示禁止内置仓库工具，项目已配置并由
-`GET /mcp` 发现的 MCP Server 仍按 `<server>_*` 前缀开放。Router 固定使用 marker 信封承载
+Router 使用独立 `ROUTER_NO_TOOLS` Session；它不执行 MCP 发现并拒绝全部内置与 MCP 工具，
+只使用服务端提供的需求快照和有界仓库标签完成单次分类。受管运行时为它选择单步、零温度、
+非思考的 `loopper-router` Agent；提示明确禁止仓库搜索、方案设计、实现推演和解释。Router 固定使用 marker 信封承载
 `TASK_PROFILE_ROUTER_V1` 闭集对象，不向 OpenCode Session 持久化 JSON Schema 响应格式，
 以兼容会在加载该格式时崩溃的桌面版本；服务端解析与闭集校验没有放宽。它只返回
 `intent / artifactKinds / technologies / complexity / confidence / signals`，服务端仍独占
@@ -40,6 +41,10 @@ Router 使用独立 `ROUTER_NO_TOOLS` Session；该名称表示禁止内置仓�
 Decomposer 使用父画像；每个软件工作包再按包标题、目标、范围和交付物检测技术栈，原子
 冻结自己的 Role Pack、执行策略和测试策略，包 Designer 与 Compiler 只读取该冻结值；
 Task 确认后每个 Stage 也保存同一快照，Implementation 与 Recovery 不重新猜测角色。
+
+运行中的 Router 可由用户通过版本化接口主动取消。服务端只有在远端 abort 成功后才把该 run
+收束为 `SUPERSEDED / ROUTER_USER_CANCELLED`，形成阻断全自动采用的人工待选画像；前端随后直接
+打开任务类型、主要制品、大型任务和组件选择控件。过期 run ID、重复点击或与 Monitor 争用返回 409。
 
 任务画像对客户端以“任务设置”投影 `ROUTING / NEEDS_CONFIRMATION / CONFIRMED / FROZEN` 与服务端计算的
 `confirmationReady`。人工采用推荐记录 `USER_CONFIRMED`，编辑或沿用旧选择记录

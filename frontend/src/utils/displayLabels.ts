@@ -151,6 +151,7 @@ const profileResolutionLabels: Record<string, string> = {
   USER_OVERRIDE: '人工覆盖',
   USER_CONFIRMED: '人工确认',
   USER_CONFIRMED_CARRIED_FORWARD: '已沿用人工确认',
+  USER_SELECTION_PENDING: '等待人工选择',
   LEGACY: '历史兼容',
 }
 

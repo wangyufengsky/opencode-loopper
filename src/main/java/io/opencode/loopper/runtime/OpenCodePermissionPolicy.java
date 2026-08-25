@@ -18,7 +18,9 @@ final class OpenCodePermissionPolicy {
             rules.add(rule("*", "*", "deny"));
             if (isNoTools(profile)) {
                 rules.add(rule("external_directory", "*", "deny"));
-                allowMcp(rules, mcpServers);
+                // Router receives a bounded server snapshot and must remain a true zero-tool classifier.
+                // Other no-built-in roles may still use explicitly configured MCP evidence sources.
+                if (profile != OpenCodeClient.SessionProfile.ROUTER_NO_TOOLS) allowMcp(rules, mcpServers);
                 return List.copyOf(rules);
             }
             rules.add(rule("read", "*", "allow"));

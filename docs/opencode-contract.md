@@ -66,8 +66,11 @@ falls back to a generic profile question rather than failing the Designer Sessio
 Package-local technology matching uses token boundaries, so symbols such as `ChainNodeInvoker`
 do not trigger the Node family. Router test-artifact aliases such as `TEST_SOURCE_CODE` remain
 source code rather than failing the profile.
-The Router profile denies every built-in tool, including read/glob/grep/question. Configured
-MCP tools remain available under their OpenCode server-name prefixes. It uses the
+The Router profile is a true zero-tool classifier: it denies every built-in tool, including
+read/glob/grep/question, skips MCP discovery, and does not allow configured MCP tools. A managed
+runtime selects the private one-step, zero-temperature `loopper-router` agent and the non-thinking
+variant where available. Its prompt forbids repository exploration, design, implementation planning,
+and reasoning exposition, and requires the closed object immediately. It uses the
 fixed marker envelope rather than an OpenCode JSON Schema response format, avoiding the desktop
 Session-loader incompatibility that rejects a persisted `{type: json_schema, schema: ...}` object.
 The same closed server-side contract and validation still apply. Its configurable
@@ -236,6 +239,11 @@ deadline, and retry eligibility. `POST /api/designer-sessions/{id}/task-profile/
 the expected terminal run ID and current unresolved provisional profile version and uses only the
 persisted requirement snapshot; a confirmed profile is not retryable, and stale or duplicate
 requests return 409 without creating concurrent runs.
+`POST /api/designer-sessions/{id}/task-profile/cancel` requires the expected active run ID. It claims
+the same monitor boundary, aborts the remote Session, and only then persists `SUPERSEDED` with
+`ROUTER_USER_CANCELLED` plus a provisional manual-selection profile. Abort failure leaves the run
+active; stale, duplicate, or concurrently owned requests return 409. The cancellation evidence blocks
+full-auto adoption until the user saves an explicit override.
 `POST /api/designer-sessions/{id}/task-profile/preview` is read-only and reports whether a
 versioned selection changes the profile, requires an update, changes the workflow, and which
 workflow would be selected. The UI must obtain this preview before saving. A workflow-changing
@@ -255,11 +263,10 @@ records structured-output observations by endpoint, OpenCode version, provider,
 and model. It may show that native `plan` exists, but this release does not
 select that agent for Designer: Designer Markdown, Compiler JSON, and the
 deterministic Validator remain separate artifacts and authority boundaries.
-Loopper-managed runtimes additionally define a private `loopper-structured`
-agent with at most 24 agentic steps. Only Decomposer, Compiler, and Judge select
-it; interactive Markdown Designer and writable Implementation remain on their
-normal agent behavior. The step bound limits repository exploration without
-changing the per-Session permission profile or making agent output authoritative.
+Loopper-managed runtimes define a private `loopper-structured` agent with at most 24 agentic steps
+for Decomposer, Compiler, and Judge, plus a separate one-step `loopper-router` agent for immediate
+zero-tool task classification. Interactive Markdown Designer and writable Implementation remain on
+their normal agent behavior. Neither agent output becomes authoritative without server validation.
 
 Those tools see the pre-execution repository baseline, not a simulated checkout
 after earlier packages. For a package dependency already marked `APPROVED`,
@@ -301,13 +308,15 @@ transport/model failures separately.
 
 Decomposer, Compiler, and final Judge steps select the configured provider/model
 with `thinking=false` only while their persisted response mode is `JSON_SCHEMA`.
-`TEXT_MARKER` steps, including a fresh Session created after Schema fallback,
-retain the configured thinking choice or the provider default when it is absent.
+Ordinary `TEXT_MARKER` steps, including a fresh Session created after Schema fallback,
+retain the configured thinking choice or the provider default when it is absent. The managed
+Router is the deliberate exception: its marker prompt always selects the private non-thinking
+variant for DeepSeek because classification must not spend time on design-like reasoning.
 Interactive Markdown Designer and writable Implementation Sessions keep their
 existing configured behavior. For a Loopper-managed DeepSeek runtime, startup injects a private
 `loopper-no-thinking` model variant whose provider option is
-`thinking.type=disabled`, and only JSON Schema prompts for those three
-machine-response roles select that variant. Plain marker prompts never attach it.
+`thinking.type=disabled`; JSON Schema prompts for those three machine-response roles and the
+managed Router select that variant. Other marker prompts never attach it.
 This avoids DeepSeek's incompatibility between Thinking and
 OpenCode's required structured-output tool choice without weakening any role
 permission or deterministic validation boundary. A reused external OpenCode

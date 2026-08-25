@@ -17,6 +17,15 @@ public interface OpenCodeClient {
             Never retry the same tool call or invent another tool name. Once enough evidence is available, stop exploring and
             immediately return exactly the response format requested by the user prompt, without commentary.
             """.strip();
+    /** Private managed-runtime agent for one-shot task classification without repository exploration. */
+    String ROUTER_AGENT = "loopper-router";
+    int ROUTER_AGENT_STEPS = 1;
+    double ROUTER_AGENT_TEMPERATURE = 0.0d;
+    String ROUTER_AGENT_PROMPT = """
+            Classify the supplied requirement in one response. Never call tools, inspect the repository, design a solution,
+            propose implementation steps, or explain your reasoning. Return the exact object requested by the user prompt
+            immediately and without commentary.
+            """.strip();
 
     boolean healthy();
     OpenCodeSession createSession(Path worktree, String title, OpenCodeModel model);

@@ -385,6 +385,23 @@ async function rerouteTaskProfile() {
   } finally { busy.value = false }
 }
 
+async function cancelTaskProfileRouting() {
+  const session = designerSession.value
+  if (!session?.routerRun || !['PENDING', 'RUNNING'].includes(session.routerRun.state)) return
+  busy.value = true
+  try {
+    await api.cancelDesignerTaskProfileRouting(session.id, session.routerRun.id)
+    dismissedRouterRunId.value = ''
+    await refreshDesignerSession()
+    routerDialogVisible.value = true
+    ElMessage.info('AI 识别已取消，请手动选择任务设置')
+  } catch (error) {
+    await refreshDesignerSession()
+    if (error instanceof ApiError && error.status === 409) ElMessage.info('识别状态刚刚发生变化，已刷新最新状态')
+    else ElMessage.error(userFacingError(error, '取消任务设置识别失败'))
+  } finally { busy.value = false }
+}
+
 async function saveTaskProfileFromDialog(value: {
   intent: DesignerSession['taskProfile']['intent']
   artifact: DesignerSession['taskProfile']['artifactKinds'][number]
@@ -1216,7 +1233,8 @@ async function redesignPackage(packageId: string) {
   </PageHeader>
   <TaskProfileRouterDialog v-if="designerSession" :model-value="routerDialogVisible"
     :session="designerSession" :busy="busy" @update:model-value="setRouterDialogVisible"
-    @confirm="confirmTaskProfile" @reroute="rerouteTaskProfile" @save="saveTaskProfileFromDialog" />
+    @cancel="cancelTaskProfileRouting" @confirm="confirmTaskProfile" @reroute="rerouteTaskProfile"
+    @save="saveTaskProfileFromDialog" />
   <main id="main-content" class="content" tabindex="-1">
     <section v-if="!draft && !store.usingDemo && !store.loading && !store.projects.length" class="card designer-onboarding" aria-labelledby="designer-onboarding-title">
       <span class="designer-onboarding-icon"><Icon icon="lucide:folder-plus" aria-hidden="true" /></span>

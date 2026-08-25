@@ -75,8 +75,9 @@ ownership rules:
   `TaskProfileSafetyPolicy` owns requested external-mutation and publication-target classification,
   `TaskProfileIntentPolicy` owns task-level read-only review and positive-mutation classification,
   while `TaskProfileOverridePolicy` owns versioned component/profile override validation.
-  `TaskProfileRouterRunService` owns latest-run read projection plus optimistic terminal-reroute
-  validation. `TaskProfileService` remains the profile persistence and routing coordinator.
+  `TaskProfileRouterRunService` owns request/monitor run claiming, confirmed remote cancellation,
+  latest-run read projection, and optimistic terminal-reroute validation. `TaskProfileService`
+  remains the profile persistence and routing coordinator.
   Neither may infer repository technologies from `AGENTS.md` or permit AI labels to create evidence.
 - `DesignerVerificationIntentMapper` owns source-backed test-to-scenario relationships, including
   default ownership by a package's sole positive focused-test deliverable and unambiguous references

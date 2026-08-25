@@ -212,12 +212,19 @@ public final class OpenCodeRuntimeManager implements AutoCloseable {
                         "git push *", "deny",
                         "git reset --hard*", "deny",
                         "rm -rf*", "deny")));
-        config.put("agent", Map.of(OpenCodeClient.STRUCTURED_AGENT, Map.of(
-                "description", "Bounded read-only Loopper role for machine-response workflows",
-                "mode", "primary",
-                "steps", OpenCodeClient.STRUCTURED_AGENT_STEPS,
-                "temperature", OpenCodeClient.STRUCTURED_AGENT_TEMPERATURE,
-                "prompt", OpenCodeClient.STRUCTURED_AGENT_PROMPT)));
+        config.put("agent", Map.of(
+                OpenCodeClient.STRUCTURED_AGENT, Map.of(
+                        "description", "Bounded read-only Loopper role for machine-response workflows",
+                        "mode", "primary",
+                        "steps", OpenCodeClient.STRUCTURED_AGENT_STEPS,
+                        "temperature", OpenCodeClient.STRUCTURED_AGENT_TEMPERATURE,
+                        "prompt", OpenCodeClient.STRUCTURED_AGENT_PROMPT),
+                OpenCodeClient.ROUTER_AGENT, Map.of(
+                        "description", "Single-shot Loopper task classifier without tools or design work",
+                        "mode", "primary",
+                        "steps", OpenCodeClient.ROUTER_AGENT_STEPS,
+                        "temperature", OpenCodeClient.ROUTER_AGENT_TEMPERATURE,
+                        "prompt", OpenCodeClient.ROUTER_AGENT_PROMPT)));
         String configured = properties.getOpenCode().getModel();
         if (!blank(configured)) {
             int separator = configured.indexOf('/');

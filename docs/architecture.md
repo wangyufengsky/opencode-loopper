@@ -135,14 +135,19 @@ bounded, non-symlink manifest/file facts, while an independent
 `ROUTER_NO_TOOLS` OpenCode Session returns semantic labels through a fixed marker envelope and
 the same closed `TASK_PROFILE_ROUTER_V1` object contract. Router deliberately does not persist an
 OpenCode JSON Schema response format because affected OpenCode desktop versions reject that stored
-shape while loading the Session. The AI Router never owns permissions,
-commands, workflow selection, or authorization; configured MCP tools are additive only and
-cannot weaken those boundaries. Session/output failure produces a generic decision-required profile
+shape while loading the Session. Router skips MCP discovery, denies every built-in and configured MCP
+tool, and on a managed runtime uses a one-step, zero-temperature, non-thinking `loopper-router` Agent.
+Its prompt allows only immediate task classification and forbids repository search, design, implementation
+planning, or reasoning exposition. The AI Router never owns permissions, commands, workflow selection,
+or authorization. Session/output failure produces a generic decision-required profile
 instead of terminating the Designer. The configurable 240-second Router boundary applies only until
 an external Session ID has been persisted. Once connected, the server keeps polling until the remote
 Session reaches a real terminal state and exposes no deadline in the read model. An unconnected
 deadline records retryable `ROUTER_TIMEOUT`. The latest run is exposed in the Designer read model, and a
 versioned reroute can only use its persisted requirement snapshot after the run is terminal. A
+versioned user cancellation claims the same run owner, aborts the remote Session, persists the run as
+`SUPERSEDED / ROUTER_USER_CANCELLED`, and materializes a provisional profile that only manual override
+may advance; abort failure leaves the active run unchanged and duplicate/stale cancellation returns 409. A
 successful first ordinary result is persisted but does not create a requirement Designer Session
 until confirmation or override; equivalent later reroutes may carry forward the prior explicit
 choice. Profile references are copied to
@@ -560,17 +565,16 @@ wall-clock deadline and remains `RUNNING` until the remote Session reaches a rea
 explicit user cancellation uses the `RUNNING -> STOPPING` boundary and reaches `CANCELLED` only
 after terminal remote status is observed.
 
-Machine-response roles carry an explicit non-thinking model selection only for
-steps whose persisted response mode is `JSON_SCHEMA`. Managed DeepSeek starts
-with a private `loopper-no-thinking` variant and those Schema prompts select it;
-`TEXT_MARKER` initial, retry, fallback, and finalizer Sessions retain the configured
-thinking choice or provider default. Markdown Designer and Implementation keep
+Machine-response roles carry an explicit non-thinking model selection for steps whose persisted response
+mode is `JSON_SCHEMA`, and Router uses it for its one-shot `TEXT_MARKER` classification. Managed DeepSeek
+starts with a private `loopper-no-thinking` variant; other `TEXT_MARKER` initial, retry, fallback, and
+finalizer Sessions retain the configured thinking choice or provider default. Markdown Designer and Implementation keep
 their configured thinking behavior. This is a transport compatibility rule, not
 a new lifecycle state or evidence source.
 
-Managed runtimes also define a private `loopper-structured` machine-response
-agent capped at 24 agentic steps. Decomposer, Compiler, and Judge select it to
-bound read-only exploration; it does not replace Loopper model-call, repair,
+Managed runtimes define a private `loopper-structured` machine-response agent capped at 24 agentic steps.
+Decomposer, Compiler, and Judge select it to bound read-only exploration; Router instead selects the
+one-step zero-tool `loopper-router` agent. These do not replace Loopper model-call, repair,
 timeout, validation, or lifecycle authority. OpenCode `RETRY` remains a
 transient external Session projection for every caller: Loopper keeps the same
 remote Session, while Designer workflows also remain `RUNNING`, so provider

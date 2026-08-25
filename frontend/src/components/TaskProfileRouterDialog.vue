@@ -17,6 +17,7 @@ import {
 const props = defineProps<{ modelValue: boolean; session: DesignerSession; busy?: boolean }>()
 const emit = defineEmits<{
   'update:modelValue': [value: boolean]
+  cancel: []
   confirm: []
   reroute: []
   save: [value: { intent: TaskIntent; artifact: ArtifactKind; largeTaskMode: boolean; componentKeys: string[] }]
@@ -38,8 +39,9 @@ let generation = 0
 const run = computed(() => props.session.routerRun)
 const profile = computed(() => props.session.taskProfile)
 const running = computed(() => run.value?.state === 'PENDING' || run.value?.state === 'RUNNING')
-const failed = computed(() => run.value?.state === 'FAILED'
-  || profile.value.evidence.some(item => item.startsWith('router-error=')))
+const cancelledForManualSelection = computed(() => run.value?.errorCode === 'ROUTER_USER_CANCELLED')
+const failed = computed(() => !cancelledForManualSelection.value && (run.value?.state === 'FAILED'
+  || profile.value.evidence.some(item => item.startsWith('router-error='))))
 const elapsedSeconds = computed(() => Math.max(0, Math.floor((now.value - Date.parse(run.value?.createdAt ?? '')) / 1_000) || 0))
 const stateText = computed(() => `${statusLabel(run.value?.externalState || run.value?.state || 'PENDING')} · 已用 ${elapsedSeconds.value} 秒`)
 const affectedComponents = computed(() => {
@@ -55,7 +57,7 @@ function resetForm() {
   artifact.value = profile.value.artifactKinds[0] ?? 'OTHER'
   largeTaskMode.value = profile.value.largeTaskMode
   componentKeys.value = [...(profile.value.componentKeys ?? [])]
-  editing.value = false
+  editing.value = cancelledForManualSelection.value
 }
 
 function stopPolling() {
@@ -127,6 +129,8 @@ onBeforeUnmount(() => { generation += 1; stopPolling(); if (clockTimer) clearInt
       </dl>
     </template>
     <template v-else>
+      <el-alert v-if="cancelledForManualSelection" type="info" :closable="false" show-icon
+        title="已取消 AI 识别，请手动选择任务设置" />
       <el-alert v-if="failed" type="warning" :closable="false" show-icon
         title="本次识别未能可靠完成，当前显示的是服务端降级设置"
         :description="run?.errorDetail || '可以重新识别、手动修改，或在理解降级范围后显式采用。'" />
@@ -149,18 +153,21 @@ onBeforeUnmount(() => { generation += 1; stopPolling(); if (clockTimer) clearInt
         <label v-if="intent === 'SOFTWARE_CHANGE'" class="router-large-task"><span><strong>大型任务</strong><small>开启多工作包拆解；默认关闭</small></span><el-switch v-model="largeTaskMode" aria-label="弹窗大型任务模式" /></label>
       </div>
     </template>
-    <template v-if="!running" #footer>
-      <div class="router-actions">
-        <el-button v-if="editing" plain :disabled="busy" @click="editing = false">取消修改</el-button>
-        <el-button v-if="editing" type="primary" :loading="busy"
-          :disabled="profile.componentSelectionRequired && componentKeys.length === 0"
-          @click="emit('save', { intent, artifact, largeTaskMode, componentKeys })">保存并进入设计</el-button>
-        <template v-else>
-          <el-button v-if="run?.retryAvailable" plain :loading="busy" @click="emit('reroute')">重新识别</el-button>
-          <el-button plain :disabled="busy" @click="editing = true">手动修改</el-button>
-          <el-button type="primary" :loading="busy" :disabled="profile.componentSelectionRequired" @click="emit('confirm')">确认并进入设计</el-button>
-        </template>
+    <template #footer>
+      <div v-if="running" class="router-actions">
+        <el-button type="danger" plain :loading="busy" @click="emit('cancel')">取消识别，手动设置</el-button>
       </div>
+      <div v-else class="router-actions">
+          <el-button v-if="editing && !cancelledForManualSelection" plain :disabled="busy" @click="editing = false">取消修改</el-button>
+          <el-button v-if="editing" type="primary" :loading="busy"
+            :disabled="profile.componentSelectionRequired && componentKeys.length === 0"
+            @click="emit('save', { intent, artifact, largeTaskMode, componentKeys })">保存并进入设计</el-button>
+          <template v-else>
+            <el-button v-if="run?.retryAvailable" plain :loading="busy" @click="emit('reroute')">重新识别</el-button>
+            <el-button plain :disabled="busy" @click="editing = true">手动修改</el-button>
+            <el-button type="primary" :loading="busy" :disabled="profile.componentSelectionRequired" @click="emit('confirm')">确认并进入设计</el-button>
+          </template>
+        </div>
     </template>
   </el-dialog>
 </template>

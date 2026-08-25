@@ -82,7 +82,32 @@ describe('TaskProfileRouterDialog', () => {
     expect(bodyText()).not.toContain('超时')
     expect(bodyText()).toContain('正在分析 Maven 多模块结构')
     expect(bodyText()).toContain('15')
+    await clickButton('取消识别，手动设置')
+    expect(wrapper.emitted('cancel')).toHaveLength(1)
     expect(api.getDesignerActivity).toHaveBeenCalledWith(session.id)
+    wrapper.unmount()
+  })
+
+  it('opens manual settings after the server confirms Router cancellation', async () => {
+    const wrapper = mountDialog({
+      ...baseSession,
+      taskProfile: {
+        ...baseSession.taskProfile, id: 'profile-manual', state: 'PROVISIONAL',
+        decisionState: 'NEEDS_CONFIRMATION', resolutionSource: 'USER_SELECTION_PENDING',
+        evidence: ['router-error=ROUTER_USER_CANCELLED:用户已取消 AI 任务设置识别'],
+      },
+      routerRun: {
+        id: 'run-cancelled', state: 'SUPERSEDED', externalState: 'ABORTED',
+        errorCode: 'ROUTER_USER_CANCELLED', errorDetail: '用户已取消 AI 任务设置识别，请手动选择任务设置',
+        createdAt: '2026-08-25T07:00:00Z', updatedAt: '2026-08-25T07:00:20Z', retryAvailable: false,
+      },
+    })
+    await flushPromises()
+
+    expect(bodyText()).toContain('已取消 AI 识别，请手动选择任务设置')
+    expect(bodyText()).not.toContain('本次识别未能可靠完成')
+    expect(document.body.querySelector('.router-profile-edit')).not.toBeNull()
+    expect(bodyText()).toContain('保存并进入设计')
     wrapper.unmount()
   })
 

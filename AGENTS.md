@@ -42,10 +42,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.2.51.jar
-   jar tf target/opencode-loopper-0.2.51.jar \
+   test -s target/opencode-loopper-0.2.52.jar
+   jar tf target/opencode-loopper-0.2.52.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.2.51.jar
+   shasum -a 256 target/opencode-loopper-0.2.52.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -95,8 +95,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.2.51`。
-- 正式产物：`target/opencode-loopper-0.2.51.jar`。
+- Maven 项目版本：`0.2.52`。
+- 正式产物：`target/opencode-loopper-0.2.52.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -224,7 +224,7 @@ Task 详情 `overview` 必须投影 `loopRetryAvailable`、`cancellationAvailabl
 - V35 在设计流程前冻结 `TaskIntent / WorkflowTemplate / MutationMode / ArtifactKind / TestPolicy / ExecutionStrategy` 任务画像和版本化 Role Pack；V36 引入独立 `ROUTER_NO_TOOLS` 和 Reviewer 运行态；V37 把工作包 Role Pack、版本、技术栈和测试策略复制到每个确认 Stage，Implementation/Recovery 必须复用；V38 持久化每次 Router 的完整需求快照、外部 Session、响应模式、标签和错误，重启继续同一 Session，新讨论必须 abort 并废弃旧运行；V39 把 Reviewer 升级为固定 `REVIEWER_REPORT_V1` findings 合同并持久化合同版本。服务端结合有界仓库事实决定最终流程，格式/Session 失败降级为通用画像提问而不终止 Designer。置信度低于 80 或证据冲突必须人工确认；历史缺失画像投影为 `LEGACY_SOFTWARE`，Recovery 复用冻结画像。Role Pack `2026-08-dynamic-v5` 必须先把技术别名归并为 Java/Python/Node/Other 软件族：JavaScript/TypeScript 不得命中 Java，JUnit/Jupiter/Surefire 仍属于 Java，同族别名不得生成混合栈，真实跨族使用 `software-mixed`，显式未知单栈使用 `software-generic`；工作包技术信号使用词边界，业务符号中的 `Node`/`node` 子串不得误判为 Node 技术栈；每个可编译角色使用栈原生规划示例，文档、表格和只读报告明确走服务端或 Reviewer 绕过。新软件任务默认使用 `DIRECT_SOFTWARE_DESIGN` 和单一 `WP-1`，只有画像冻结前由用户显式打开“大型任务”才使用 `FULL_PACKAGE_DESIGN`；两种软件流程都冻结工作包自己的技术栈、Role Pack、执行和测试策略，其中默认单包必须继承已确认的软件任务画像，需求正文中的否定性“依赖/配置”措辞不得把它降级为维护角色，已冻结的冲突快照在下次权威使用时修复；只有大型任务的显式分包允许按包内容专门化角色。简单文档/表格/维护继续使用既有专属流程；大型文档要求 2–6 个二级章节包并由服务端确定性聚合结构化片段；只读 Reviewer 只开放 `read/glob/grep`，服务端逐条校验 finding 的受管路径、精确行号与源哈希且不创建 Task、Attempt、租约、分支或可写 Session；转换入口只创建关联 Designer。
 - 任务画像对外决策态固定为 `ROUTING / NEEDS_CONFIRMATION / CONFIRMED / FROZEN`，所有设计入口统一依赖服务端 `confirmationReady`，不得从 `!decisionRequired` 推导。人工推荐确认记录 `USER_CONFIRMED`，编辑/沿用记录 `USER_OVERRIDE`；完整需求稿重算只有在任务意图、主要制品、单包/大型流程和读写模式不变且无新增安全冲突时，才以 `USER_CONFIRMED_CARRIED_FORWARD` 继承确认，技术栈、Role Pack 和测试策略仍取最新结果。对用户统一称为“任务设置”：首次歧义显示“确认并继续 / 修改设置”，实质变化返回 `previousConfirmedChoice` 并显示“原设置 / 本次识别结果”与“继续使用原设置 / 使用本次识别结果 / 修改设置”；编辑控件必须由用户主动打开。保存前调用只读影响预览，已确认且完全相同的选择由服务端无操作；只有流程切换才显示“停止当前设计并重新开始”的明确确认，取消不得废弃当前 Session，确认前不得启动设计。
 - 危险操作判定必须识别动作对象与否定作用域，不能把孤立“发布”词面等同外部发版，也不能把“外部系统”引用等同写请求：进程内领域事件、消息、通知、信号、指标、执行轨迹可观测、发布订阅、事件总线的“监听器注册、发布与按类型分发”、生命周期 `started/succeeded/failed/compensated` 示例和受控的 `CHAIN_STARTED/SUCCEEDED/FAILED/COMPENSATED` 事件常量属于软件业务语义；“发布器/发布者/发布-订阅器”是组件名词而非发版动作，“进程内同步发布”是事件投递上下文；同句“重复/再次/重新发布”仅可继承前一个已证明的业务事件对象，普通第二次裸发布不得继承。只有写入、修改、创建、上传、同步或发送等动作以外部系统/应用为对象时形成外部写入冲突；版本、制品、构建产物、镜像、安装包、环境、GitHub Release、无法限定对象的裸发布以及提交推送继续失败关闭。`LOCAL_MAINTENANCE` 只由任务级明确配置/依赖维护指令触发，“可配置”能力、“不新增依赖”约束或“某类维护 tradeSeq/MDC”等源码职责描述不得把开发任务降级。只读 Reviewer 只由任务级评审、审查、检查或诊断动作选择；完整软件设计中的人工评审点、只读 getter/投影和验收复核措辞不得把写任务降级或制造读写冲突，显式任务级“评审并修复”仍必须人工确认。AI 标签、全自动模式和人工任务设置均不能覆盖真实危险操作证据。
-- 请求线程和 Monitor 必须互斥领取同一 Router run；丢失乐观更新的启动方必须停止其刚创建的孤儿远端。Router 的可配置 `task-profile-router-timeout` 默认 240 秒，只约束尚未持久化外部 Session ID 的连接等待；一旦连接成功必须持续轮询到远端真实终态，不得再按墙钟超时，读模型也不投影截止时间。未连接越界记录 `ROUTER_TIMEOUT` 和可重做降级结果。Router 新会话固定使用 `TEXT_MARKER` 与同一服务端闭集校验，不得向 OpenCode 持久化会触发桌面 Session 加载错误的 `json_schema` 响应格式。新讨论、重算或画像换流程必须在旧远端 Session 确认停止后才能废弃旧运行并创建替代 Session，停止失败时保留原画像和 Session。新建设计提交后必须留在当前设计页持续刷新；普通模式首次成功结果也必须停在可恢复的任务设置确认门，确认或手动覆盖后才创建需求 Designer Session；全自动只可采用成功且通过安全/组件校验的结果。未连接超时、运行失败、危险证据或组件歧义不得自动越界。只有等价重算的人工设置可沿用 `USER_CONFIRMED_CARRIED_FORWARD`。重做接口必须校验最新终态 run ID、仍待决的任务设置及其版本，并仅使用该 run 的服务端持久化需求快照；已确认设置不得再重做，不得接受浏览器回传正文或创建并发 Router。
+- 请求线程和 Monitor 必须互斥领取同一 Router run；丢失乐观更新的启动方必须停止其刚创建的孤儿远端。Router 必须是真正的单次零工具分类器：不执行 MCP 发现，权限拒绝全部内置/MCP 工具，受管运行时选择单步、零温度、非思考 `loopper-router` Agent，提示词禁止仓库搜索、设计、实现推演和解释，只允许立即返回闭集标签。Router 的可配置 `task-profile-router-timeout` 默认 240 秒，只约束尚未持久化外部 Session ID 的连接等待；一旦连接成功必须持续轮询到远端真实终态，不得再按墙钟超时，读模型也不投影截止时间。未连接越界记录 `ROUTER_TIMEOUT` 和可重做降级结果。Router 新会话固定使用 `TEXT_MARKER` 与同一服务端闭集校验，不得向 OpenCode 持久化会触发桌面 Session 加载错误的 `json_schema` 响应格式。运行中取消必须携带期望 run ID 并领取同一并发边界，远端 abort 成功后才写入 `SUPERSEDED / ROUTER_USER_CANCELLED` 和阻断全自动的人工待选画像；失败时保留活动 run，过期、重复或争用点击返回 409。新讨论、重算或画像换流程必须在旧远端 Session 确认停止后才能废弃旧运行并创建替代 Session，停止失败时保留原画像和 Session。新建设计提交后必须留在当前设计页持续刷新；普通模式首次成功结果也必须停在可恢复的任务设置确认门，确认或手动覆盖后才创建需求 Designer Session；全自动只可采用成功且通过安全/组件校验的结果。未连接超时、运行失败、用户取消、危险证据或组件歧义不得自动越界。只有等价重算的人工设置可沿用 `USER_CONFIRMED_CARRIED_FORWARD`。重做接口必须校验最新终态 run ID、仍待决的任务设置及其版本，并仅使用该 run 的服务端持久化需求快照；已确认设置不得再重做，不得接受浏览器回传正文或创建并发 Router。
 - 简单本地维护必须从确认稿提取明确的反引号相对路径，并生成精确 `allowedPaths`、`requireChanges=true`、`forbidDeletes=true` 的 `GIT_DIFF`；草稿确认和实施权限双重拒绝删除、通配路径、服务启停、Git 提交推送发布、外部应用与外部系统写入。
 - Java 生产代码仍强制聚焦 Maven/Gradle TEST；统一 `TestFrameworkPolicy` 注册 Maven/Gradle/npm/pytest/unittest，解析显式目标并拒绝跳过参数。Python/Node 按仓库测试框架与用户要求选择 REQUIRED/OPTIONAL。无测试体系的独立 Python 脚本可用 SELF_CHECK 加原生输出验证；文档、一次性表格转换和只读报告为 NOT_APPLICABLE，不得生成 PROCESS TEST。
 - `SERVER_DOCUMENT_MATERIALIZATION` 和 `SERVER_TABULAR_CONVERSION` 只能在显式 Task Start 后执行冻结 `artifact_plan`，创建正常 Attempt 但不伪造 OpenCode Session。`DOCUMENT_STRUCTURE`/`TABULAR_DATA` 是行为验证器；BUILD、GIT_DIFF 和报告证据仍不能冒充业务验收。
@@ -261,7 +261,7 @@ Task 详情 `overview` 必须投影 `loopRetryAvailable`、`cancellationAvailabl
 - Designer 合并在单个数组项中的 Maven 参数若能无歧义解析，应在同步时直接规范化并保存为独立 argv，不消耗自动纠正次数；只有引号未闭合等无法安全解析的输入才按无效 LoopSpec 回送纠正。
 - 草稿确认必须是幂等边界；确认后创建唯一 `PENDING_START` Task，且确认事务不申请执行资源。默认由用户显式请求开始；当前 Designer 会话处于全自动授权时，确认完成后再复用正式 Task Start 边界请求执行。
 - Designer 可按单个会话启用默认关闭的全自动模式；每次启用或从普通 `BLOCKED` 重新授权都必须由本地 UI 显示风险确认。V34 独立持久化 `DISABLED / ACTIVE / BLOCKED / COMPLETED`、最近动作、错误、Task 和乐观锁版本；750ms Monitor 每轮每会话最多推进一个动作，且只能复用已有画像推荐、问题回答、需求确认、工作包批准、草稿确认与 Task Start 权威入口。全自动模式只能遵循当前已持久化的大型任务选择，不得自动打开、关闭或在 `LARGE_TASK_MODE_REQUIRED` 后自动切换。普通模式所有首次 Router 结果均须人工确认；全自动模式只把成功且通过服务端危险证据与组件选择校验的 Router 意图/主要制品单独持久化为 `AUTO_RECOMMENDED`，保留原置信度。Router 超时、运行失败、危险操作或组件歧义必须进入人工确认，不能静默采用降级设置。历史 `BLOCKED + TASK_PROFILE_DECISION_REQUIRED` 允许一次专用 `RESUME` 后在下一轮采用同一推荐，不要求关闭再授权。自动答案按中英文推荐标记选择，无标记时兼容首项，多选只取推荐项；全部动作写入 System 消息和生命周期审计。其他异常进入 `BLOCKED` 后不得高频自动重试；关闭只停止后续动作，不撤销已完成动作或终止正在运行的模型调用。自动授权在 Task Start 成功请求后终止，执行期问题、危险权限、恢复、结果确认、提交、推送、合并和发布始终保持人工处理。
-- Designer 页面在消息时间线现有的当前角色卡片内每 1.2 秒读取有界活动投影，只替换展示一条最新活动，不得另建顶部活动面板或累积历史。交互设计师使用消息一致的 Markdown 展示思考、增量文字和普通/MCP 工具调用；Router 在专用任务设置弹窗复用同一活动组件，允许展示有界思考、普通文字和工具片段，但检测到 marker、JSON 或任务画像机器字段时必须替换为“正在整理任务设置识别结果”，不得泄露原始对象；Decomposer/Compiler/Reviewer/repair/finalizer 等其他结构化角色只展示最新工具活动和权威步骤。Router 运行弹窗必须显示真实已用时间、远端状态和 Provider Token，不得展示超时上限，运行中禁止遮罩、Esc 或关闭；终态分字段展示中文结果，不得拼接“0% · Java”或使用虚假进度。未决定时允许关闭结果弹窗，但任务设置卡必须保留“查看识别结果”，刷新后恢复确认门。断线只保留最后一条活动并重连，活动投影不得推进生命周期。V40 的 `model_token_usage` 只按 Designer 或 Task 范围累计 Provider 报告的远端 Session Token；活动消息与 Token 必须复用同一次读取，单次轮询最多额外补齐一个历史远端。Designer 当前角色卡和 Task 模型输出头部只显示紧凑数字与正增量 `+xxx`，不得显示额度、成本、无限 Token 或解释文案，也不得用时间/文本长度伪造 Token。
+- Designer 页面在消息时间线现有的当前角色卡片内每 1.2 秒读取有界活动投影，只替换展示一条最新活动，不得另建顶部活动面板或累积历史。交互设计师使用消息一致的 Markdown 展示思考、增量文字和普通/MCP 工具调用；Router 在专用任务设置弹窗复用同一活动组件，但其正常新会话不得调用工具；检测到 marker、JSON 或任务画像机器字段时必须替换为“正在整理任务设置识别结果”，不得泄露原始对象；Decomposer/Compiler/Reviewer/repair/finalizer 等其他结构化角色只展示最新工具活动和权威步骤。Router 运行弹窗必须显示真实已用时间、远端状态和 Provider Token，不得展示超时上限，运行中禁止遮罩、Esc 或关闭，但必须提供“取消识别，手动设置”；服务端确认远端停止后弹窗直接打开人工控件，并以信息提示区别于识别失败。终态分字段展示中文结果，不得拼接“0% · Java”或使用虚假进度。未决定时允许关闭结果弹窗，但任务设置卡必须保留“查看识别结果”，刷新后恢复确认门。断线只保留最后一条活动并重连，活动投影不得推进生命周期。V40 的 `model_token_usage` 只按 Designer 或 Task 范围累计 Provider 报告的远端 Session Token；活动消息与 Token 必须复用同一次读取，单次轮询最多额外补齐一个历史远端。Designer 当前角色卡和 Task 模型输出头部只显示紧凑数字与正增量 `+xxx`，不得显示额度、成本、无限 Token 或解释文案，也不得用时间/文本长度伪造 Token。
 - Designer “清理并重新开始”必须先把会话转为 `STOPPING` 并停止 Router、需求/包设计师、Decomposer、Compiler、repair/finalizer 和 Reviewer 等全部活动远端 Session；`STOPPING` 期间 Monitor/全自动不得继续派发。失败时保留工作区、保持未归档并允许幂等重试；全部确认停止后才进入 `CANCELLED` 并归档。确认设计取得 Task ID 后，前端必须清除工作区指针和未发送内容、跳过本次离页警告并打开任务详情；以后从左侧进入 Designer 必须是新建设计，旧稿仅从历史只读查看。
 - 项目 `taskCount` 只统计已创建的 Task，不得把确认前 Designer 会话伪装成任务；服务端必须按项目另行投影每个未确认草稿的最新 Designer Session 和 `openDesignerSessionCount`。浏览器工作区 ID 只是恢复提示，服务重启或短暂 API 失败不得清除。Designer 起始页只负责新建，不得平铺历史会话；独立“历史设计”页负责项目/状态/归档筛选与时间排序，未确认设计可继续、修改、归档和恢复，已确认设计必须关联 Task 只读展示且不得提供继续、修改或归档。V29 归档只增加可恢复投影，不删除草稿、消息、问题、候选或批准，且归档项不计入 `openDesignerSessionCount`。
 - Designer 双栏和 PageHeader 操作区必须以 `min-width: 0`、换行和响应式单列保持在视口边界内；总体确认按钮除页头外还必须在 Review Gate 内提供同一权威动作，不能因窄视口变得不可点击。
@@ -433,7 +433,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.2.51.jar
+JAR=target/opencode-loopper-0.2.52.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -535,6 +535,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-08-25 | Router 单次快速分类、主动取消与人工接管，交付 0.2.52 | Router 不再发现或开放 MCP/内置工具，受管运行时新增单步零温度非思考 `loopper-router` Agent，提示仅允许任务分类；新增版本化取消接口，远端 abort 成功后收束 run 并阻断全自动，弹窗直接进入人工设置；同步 README、架构、Designer、OpenCode、AI 角色合同和本公约正文 | 聚焦 Router 后端与结构测试通过，前端 Router/Designer 42/42、类型检查通过；首次 `./scripts/verify.sh` 仅既有任务队列并发时序用例偶发失败，单独复跑通过且源码未变，随后同一构建完整重试通过：Java 588 项（0 失败、0 错误、2 条件跳过），Vitest 209/209，BUILD SUCCESS；JAR `target/opencode-loopper-0.2.52.jar` 为 283623490 字节，含 112 个 SPA 静态条目，SHA-256 `424bcf2954c64887a287bf6bc202725b75bee2508c6e0e452855abecf167a6ac`；未重启或替换当前运行实例，未推送、未打标签、未创建 Release |
 | 2026-08-25 | Task 详情取消能力投影与前端精简读模型防退化，交付 0.2.51 | `TaskState` 统一持有通用取消可用性，兼容 `TaskDto` 与轻量 `TaskOverview` 复用同一规则；overview 完整投影取消、循环重试、设计历史与归档四个详情控制字段，前端把缺少关键布尔值视为不完整响应并回退完整详情接口，不再静默转成 `false` 隐藏操作；审计确认任务列表、项目摘要和队列诊断字段裁剪均与现有页面使用一致；同步 README、架构、设计合同与本公约正文 | 后端读模型聚焦 8/8，前端 API/Store/详情聚焦 65/65 与类型检查通过；0.2.50 首次完整验证由仍断言旧 JAR 名的发布契约拦截，修正源码后按版本规则顺延；0.2.51 `./scripts/verify.sh` 通过：Java 585 项（0 失败、0 错误、2 条件跳过）、前端 207/207，JAR 含 112 个静态资源条目、大小 283618954 字节、SHA-256 `c8df97388179e63f3be1529495bf2edc5f6dc3c6454705a67babe8b2e8435f81`；未重启或替换当前运行实例，未推送、未打标签、未创建 Release |
 | 2026-08-25 | Router 与 AGENTS.md 连接后无限等待、隐藏上限及 OpenCode Schema 崩溃兼容，交付 0.2.49 | Router 的 240 秒配置只约束未建立外部 Session 的连接等待，连接后持续轮询真实终态且 DTO 截止时间为空；Router 运行弹窗仅展示真实已用时间、远端状态、活动与 Token；新 Router 固定 `TEXT_MARKER`，避开 OpenCode 桌面加载持久化 `json_schema` 格式时的崩溃，同时保留相同服务端闭集解析与安全校验；AGENTS.md 只读 Session 同样取消无进展和总时长自动停止，移除已失效的停滞配置，保留显式停止与远端终态确认；同步 README、架构、Designer、OpenCode、AI 角色合同和本公约正文 | Router 聚焦后端 97 项（0 失败、0 错误、1 条件跳过），前端 40/40 与类型检查通过；0.2.48 在用户补充 AGENTS.md 同步语义前完整验证通过但不作为交付；0.2.49 `./scripts/verify.sh` 通过：Java 584 项（0 失败、0 错误、2 条件跳过）、前端 205/205，JAR 含 112 个静态资源条目、大小 283618717 字节、SHA-256 `c05544d8b2bb1f251849a21b1684ec6f4434d1b7334318ec2dfada6c37ecc816`；未重启或替换当前运行实例，未推送、未打标签、未创建 Release |
 | 2026-08-25 | Task Router 可视化确认门、240 秒超时与项目公约停滞时限，交付 0.2.47 | 普通模式首次 Router 结果在需求 Designer 启动前等待确认，终态支持同一持久化需求快照重做和手动覆盖；全自动只采用通过安全/组件校验的成功结果；Designer DTO 投影 Router run/deadline/error，活动接口展示有界思考/文字/工具并隐藏机器对象；前端复用 AI 活动组件提供不可关闭运行弹窗与中文分字段结果；Router 总时限和公约无进展时限默认 240 秒，公约 30 分钟总时限不变；Router run 重做/读投影抽取为独立协作者，机器 marker 模式归入 `DesignerSemanticContracts` 并下调主编排类结构门禁；同步 README、架构、Designer、OpenCode、代码设计与本公约正文 | 0.2.43 首次完整验证的 583 个非结构行为测试均通过，但结构门禁发现 `TaskProfileService` 增长到 622 行；抽取 `TaskProfileRouterRunService` 后降至 595 行并顺延，0.2.44 重试在测试编译期发现对应构造夹具未同步；0.2.45 完整验证通过后复核发现已确认画像仍可直接调用重做接口，现将重做严格限定为待决画像且重复确认无操作；0.2.46 全量仅新回归断言使用了错误字段名，按 RFC 9457 的 `errorCode` 修正并顺延；聚焦后端 129 项（0 失败、0 错误、1 条件跳过），前端 40/40 与类型检查通过；`./scripts/verify.sh` 对 0.2.47 完整通过：Java 584 项（0 失败、0 错误、2 条件跳过），Vitest 205/205；JAR `target/opencode-loopper-0.2.47.jar` 为 283619964 字节，含 112 个 SPA 静态条目，SHA-256 `46b12c48f5ab2d4bb41528726222f06e02b94d53cc9615df5343e3ef12dded18`；未重启或替换当前运行实例，未推送、未打标签、未创建 Release |

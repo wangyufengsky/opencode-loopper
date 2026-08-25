@@ -147,6 +147,11 @@ class DesignerSessionMcpIntegrationTest {
             assertThat(run.responseMode()).isEqualTo("TEXT_MARKER");
             assertThat(fake().promptRequestForSession(run.externalSessionId()).responseFormat())
                     .isInstanceOf(OpenCodeClient.ResponseFormat.Text.class);
+            assertThat(fake().profileForSession(run.externalSessionId()))
+                    .isEqualTo(OpenCodeClient.SessionProfile.ROUTER_NO_TOOLS);
+            assertThat(fake().promptRequestForSession(run.externalSessionId()).text())
+                    .contains("single-shot task-type classifier", "Do not call any tool", "Do not design")
+                    .doesNotContain("MCP tools may be used");
         });
         assertThatThrownBy(() -> taskProfiles.freeze(created.id()))
                 .isInstanceOf(ConflictException.class).hasMessageContaining("仍在识别");
@@ -602,6 +607,52 @@ class DesignerSessionMcpIntegrationTest {
                                 "expectedRunId", failed.id(),
                                 "expectedProfileVersion", fallback.version()))))
                 .andExpect(status().isConflict());
+    }
+
+    @Test
+    void userCanCancelAnActiveRouterAndContinueOnlyThroughManualSelection() throws Exception {
+        ProjectRow project = project("router-user-cancel");
+        Files.writeString(Path.of(project.rootPath()).resolve("pom.xml"), "<project />\n");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        DesignerSessionRow created = designerSessions.create(project.id(), draft.id(),
+                "修改多模块 Maven 项目的 Java 异常构造器");
+        var running = mapper.findLatestTaskProfileRouterRun(created.id()).orElseThrow();
+        String externalSessionId = running.externalSessionId();
+
+        mvc.perform(post("/api/designer-sessions/{id}/task-profile/cancel", created.id())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of("expectedRunId", running.id()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.decisionState").value("NEEDS_CONFIRMATION"))
+                .andExpect(jsonPath("$.confirmationReady").value(false))
+                .andExpect(jsonPath("$.resolutionSource").value("USER_SELECTION_PENDING"));
+
+        var cancelled = mapper.findLatestTaskProfileRouterRun(created.id()).orElseThrow();
+        assertThat(cancelled.state()).isEqualTo("SUPERSEDED");
+        assertThat(cancelled.externalSessionState()).isEqualTo("ABORTED");
+        assertThat(cancelled.errorCode()).isEqualTo("ROUTER_USER_CANCELLED");
+        assertThat(fake().abortedSessionIds()).contains(externalSessionId);
+        assertThat(mapper.listActiveTaskProfileRouterRuns()).noneMatch(run -> created.id().equals(run.designerSessionId()));
+        assertThat(taskProfiles.routerRun(created.id()).retryAvailable()).isFalse();
+        assertThat(designerSessions.get(created.id()).workflowPhase()).isEqualTo("ROUTING");
+        TaskProfileService.View manual = taskProfiles.current(created.id());
+        assertThat(manual.evidence()).anyMatch(value -> value.startsWith("router-error=ROUTER_USER_CANCELLED:"));
+
+        mvc.perform(post("/api/designer-sessions/{id}/task-profile/cancel", created.id())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of("expectedRunId", running.id()))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode").value("TASK_PROFILE_ROUTER_NOT_ACTIVE"));
+
+        mvc.perform(put("/api/designer-sessions/{id}/task-profile", created.id())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of(
+                                "intent", "SOFTWARE_CHANGE", "primaryArtifactKind", "SOURCE_CODE",
+                                "largeTaskMode", false, "expectedVersion", manual.version()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.resolutionSource").value("USER_OVERRIDE"))
+                .andExpect(jsonPath("$.confirmationReady").value(true));
+        assertThat(designerSessions.get(created.id()).workflowPhase()).isEqualTo("DISCUSSING_REQUIREMENT");
     }
 
     @Test

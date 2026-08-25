@@ -91,14 +91,15 @@ public class HttpOpenCodeClient implements OpenCodeClient {
                                                     SessionProfile profile) {
         try {
             Path canonical = worktree.toRealPath();
+            SessionProfile effectiveProfile = profile == null ? SessionProfile.IMPLEMENTATION : profile;
             Map<String, Object> request = new LinkedHashMap<>();
             if (title != null && !title.isBlank()) request.put("title", title);
             if (model != null && model.providerId() != null && !model.providerId().isBlank() && model.modelId() != null && !model.modelId().isBlank()) {
                 request.put("model", Map.of("id", model.modelId(), "providerID", model.providerId()));
             }
-            List<String> mcpServers = mcpServers(canonical);
-            List<Map<String, String>> permissions = OpenCodePermissionPolicy.rules(profile == null
-                    ? SessionProfile.IMPLEMENTATION : profile, mcpServers);
+            List<String> mcpServers = effectiveProfile == SessionProfile.ROUTER_NO_TOOLS
+                    ? List.of() : mcpServers(canonical);
+            List<Map<String, String>> permissions = OpenCodePermissionPolicy.rules(effectiveProfile, mcpServers);
             request.put("permission", permissions);
             JsonNode body = client().post().uri(uri -> directoryUri(uri, "/session", canonical))
                     .contentType(MediaType.APPLICATION_JSON).body(request)
@@ -121,7 +122,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
             }
             OpenCodeSession session = new OpenCodeSession(id, canonical);
             if (model != null) sessionModels.put(id, model);
-            sessionProfiles.put(id, profile == null ? SessionProfile.IMPLEMENTATION : profile);
+            sessionProfiles.put(id, effectiveProfile);
             managedSessions.put(id, connectionSupplier.get().managed());
             return session;
         } catch (SessionFailure e) { throw e; }
@@ -136,14 +137,17 @@ public class HttpOpenCodeClient implements OpenCodeClient {
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("parts", List.of(Map.of("type", "text", "text", prompt == null ? "" : prompt.text())));
             if (prompt != null && prompt.system() != null && !prompt.system().isBlank()) body.put("system", prompt.system());
+            SessionProfile profile = sessionProfiles.get(session.id());
             if (prompt != null && prompt.agent() != null && !prompt.agent().isBlank()) {
                 body.put("agent", prompt.agent());
-            } else if (Boolean.TRUE.equals(managedSessions.get(session.id()))
-                    && machineResponseProfile(sessionProfiles.get(session.id()))) {
-                body.put("agent", STRUCTURED_AGENT);
+            } else if (Boolean.TRUE.equals(managedSessions.get(session.id()))) {
+                if (profile == SessionProfile.ROUTER_NO_TOOLS) body.put("agent", ROUTER_AGENT);
+                else if (machineResponseProfile(profile)) body.put("agent", STRUCTURED_AGENT);
             }
             OpenCodeModel selectedModel = sessionModels.get(session.id());
-            if (structured && usesStructuredNoThinkingVariant(selectedModel)) {
+            boolean managed = Boolean.TRUE.equals(managedSessions.get(session.id()));
+            if (isDeepSeek(selectedModel) && (structured && Boolean.FALSE.equals(selectedModel.thinking())
+                    || managed && profile == SessionProfile.ROUTER_NO_TOOLS)) {
                 body.put("variant", STRUCTURED_NO_THINKING_VARIANT);
             }
             if (structured) {
@@ -162,9 +166,8 @@ public class HttpOpenCodeClient implements OpenCodeClient {
             throw new SessionFailure("OPENCODE_PROMPT_FAILED", failure.getMessage());
         } catch (RuntimeException e) { throw new SessionFailure("OPENCODE_PROMPT_FAILED", e.getMessage()); }
     }
-    private static boolean usesStructuredNoThinkingVariant(OpenCodeModel model) {
-        return model != null && Boolean.FALSE.equals(model.thinking())
-                && model.providerId() != null && "deepseek".equalsIgnoreCase(model.providerId().trim());
+    private static boolean isDeepSeek(OpenCodeModel model) {
+        return model != null && model.providerId() != null && "deepseek".equalsIgnoreCase(model.providerId().trim());
     }
     private static boolean machineResponseProfile(SessionProfile profile) {
         return profile == SessionProfile.DECOMPOSER_READ_ONLY

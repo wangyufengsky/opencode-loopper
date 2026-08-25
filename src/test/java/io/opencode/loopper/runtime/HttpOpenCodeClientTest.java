@@ -107,7 +107,7 @@ class HttpOpenCodeClientTest {
         mcpBody.set("{\"gitlab internal\":{\"status\":\"connected\"}}");
         client.createSession(worktree, "router", null, OpenCodeClient.SessionProfile.ROUTER_NO_TOOLS);
         assertThat(createBody.get()).contains("\"permission\":\"*\"").contains("\"action\":\"deny\"")
-                .contains("\"permission\":\"gitlab_internal_*\"")
+                .doesNotContain("\"permission\":\"gitlab_internal_*\"")
                 .doesNotContain("\"permission\":\"glob\"")
                 .doesNotContain("\"permission\":\"grep\"")
                 .doesNotContain("\"permission\":\"question\"");
@@ -135,14 +135,19 @@ class HttpOpenCodeClientTest {
     }
 
     @Test
-    void refusesToCreateAnyRoleSessionWhenMcpDiscoveryIsInvalid() throws Exception {
+    void routerSkipsInvalidMcpDiscoveryWhileEvidenceRolesStillFailClosed() throws Exception {
         LoopperProperties properties = new LoopperProperties();
         properties.getOpenCode().setBaseUrl(new java.net.URI("http://127.0.0.1:" + server.getAddress().getPort()));
         HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(), properties);
         mcpBody.set("[]");
 
-        assertThatThrownBy(() -> client.createSession(worktree, "router", null,
-                OpenCodeClient.SessionProfile.ROUTER_NO_TOOLS))
+        assertThat(client.createSession(worktree, "router", null,
+                OpenCodeClient.SessionProfile.ROUTER_NO_TOOLS).id()).isEqualTo("s1");
+        assertThat(createBody.get()).doesNotContain("gitlab_internal_*");
+
+        createBody.set(null);
+        assertThatThrownBy(() -> client.createSession(worktree, "compiler", null,
+                OpenCodeClient.SessionProfile.COMPILER_READ_ONLY))
                 .isInstanceOfSatisfying(SessionFailure.class, failure -> {
                     assertThat(failure.code()).isEqualTo("OPENCODE_MCP_DISCOVERY_FAILED");
                     assertThat(failure.getMessage()).contains("MCP Server");
@@ -275,6 +280,21 @@ class HttpOpenCodeClientTest {
         client.promptAsync(session, OpenCodeClient.PromptRequest.text("decompose"));
 
         assertThat(promptBody.get()).contains("\"agent\":\"loopper-structured\"");
+    }
+
+    @Test
+    void selectsSingleShotNoThinkingAgentForManagedRouter() throws Exception {
+        java.net.URI endpoint = new java.net.URI("http://127.0.0.1:" + server.getAddress().getPort());
+        HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(),
+                () -> new OpenCodeRuntimeManager.Connection(endpoint, "", "", true));
+        OpenCodeClient.OpenCodeSession session = client.createSession(worktree, "router",
+                new OpenCodeClient.OpenCodeModel("deepseek", "deepseek-v4-flash", true),
+                OpenCodeClient.SessionProfile.ROUTER_NO_TOOLS);
+
+        client.promptAsync(session, OpenCodeClient.PromptRequest.text("classify"));
+
+        assertThat(promptBody.get()).contains("\"agent\":\"loopper-router\"")
+                .contains("\"variant\":\"loopper-no-thinking\"");
     }
 
     @Test

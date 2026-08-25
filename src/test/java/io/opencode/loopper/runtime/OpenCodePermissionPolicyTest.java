@@ -6,8 +6,9 @@ import org.junit.jupiter.api.Test;
 
 class OpenCodePermissionPolicyTest {
     @Test
-    void everyRoleAllowsConfiguredMcpToolsWithoutRemovingItsBuiltInBoundary() {
+    void everyNonRouterRoleAllowsConfiguredMcpToolsWithoutRemovingItsBuiltInBoundary() {
         for (OpenCodeClient.SessionProfile profile : OpenCodeClient.SessionProfile.values()) {
+            if (profile == OpenCodeClient.SessionProfile.ROUTER_NO_TOOLS) continue;
             var rules = OpenCodePermissionPolicy.rules(profile, java.util.List.of("project mcp"));
             assertThat(rules)
                     .as(profile.name())
@@ -16,6 +17,17 @@ class OpenCodePermissionPolicyTest {
                     .as(profile.name())
                     .contains(java.util.Map.of("permission", "external_directory", "pattern", "*", "action", "deny"));
         }
+    }
+
+    @Test
+    void routerDeniesBuiltInAndConfiguredMcpTools() {
+        var rules = OpenCodePermissionPolicy.rules(OpenCodeClient.SessionProfile.ROUTER_NO_TOOLS,
+                java.util.List.of("project mcp"));
+
+        assertThat(rules).contains(
+                java.util.Map.of("permission", "*", "pattern", "*", "action", "deny"),
+                java.util.Map.of("permission", "external_directory", "pattern", "*", "action", "deny"));
+        assertThat(rules).noneMatch(rule -> "allow".equals(rule.get("action")));
     }
 
     @Test

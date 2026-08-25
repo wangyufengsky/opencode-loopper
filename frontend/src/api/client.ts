@@ -1503,6 +1503,7 @@ export const api = {
   updateDesignerTaskProfile: async (id: string, intent: DesignerSession['taskProfile']['intent'], primaryArtifactKind: DesignerSession['taskProfile']['artifactKinds'][number], expectedVersion: number, largeTaskMode?: boolean, componentKeys?: string[]) => request<DesignerSession['taskProfile']>(`/designer-sessions/${encodeURIComponent(id)}/task-profile`, { method: 'PUT', body: JSON.stringify({ intent, primaryArtifactKind, expectedVersion, largeTaskMode, componentKeys }) }),
   confirmDesignerTaskProfile: async (id: string, expectedVersion: number) => request<DesignerSession['taskProfile']>(`/designer-sessions/${encodeURIComponent(id)}/task-profile/confirm`, { method: 'POST', body: JSON.stringify({ expectedVersion }) }),
   rerouteDesignerTaskProfile: async (id: string, expectedRunId: string, expectedProfileVersion: number) => request<NonNullable<DesignerSession['routerRun']>>(`/designer-sessions/${encodeURIComponent(id)}/task-profile/reroute`, { method: 'POST', body: JSON.stringify({ expectedRunId, expectedProfileVersion }) }),
+  cancelDesignerTaskProfileRouting: async (id: string, expectedRunId: string) => request<DesignerSession['taskProfile']>(`/designer-sessions/${encodeURIComponent(id)}/task-profile/cancel`, { method: 'POST', body: JSON.stringify({ expectedRunId }) }),
   getDesignerActivity: async (id: string): Promise<DesignerActivity> => {
     const raw = asRecord(await request<unknown>(`/designer-sessions/${encodeURIComponent(id)}/activity`))
     const usage = asRecord(raw.usage)

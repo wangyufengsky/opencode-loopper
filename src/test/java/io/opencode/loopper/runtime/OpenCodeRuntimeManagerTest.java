@@ -83,7 +83,8 @@ class OpenCodeRuntimeManagerTest {
                 .contains("external_directory", "git push *", "deepseek-v4-flash",
                         "loopper-no-thinking", "\"thinking\":{\"type\":\"disabled\"}",
                         "loopper-structured", "\"steps\":24", "\"temperature\":0.0",
-                        "Never retry the same tool call");
+                        "Never retry the same tool call", "loopper-router", "\"steps\":1",
+                        "Classify the supplied requirement in one response");
         assertThat(capturedCommand.get().toString()).doesNotContain(capturedEnvironment.get().get("OPENCODE_SERVER_PASSWORD"));
 
         HttpOpenCodeClient client = new HttpOpenCodeClient(org.springframework.web.client.RestClient.builder(), manager::connectionForClient);
