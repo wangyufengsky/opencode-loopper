@@ -33,7 +33,55 @@ final class DesignerConversationPromptFactory {
 
     String requirementDiscussion(boolean directSoftware, String machineContract, String projectRoot,
                                  String sessionId, String previousSnapshot, String feedback,
-                                 boolean questionRepair) {
+                                 boolean questionRepair, boolean questionRequired,
+                                 boolean nativeQuestion) {
+        if (!questionRequired) {
+            return """
+                    You are OpenCode Loopper Requirement Designer / 需求设计师 in a persistent strictly read-only
+                    conversation. The user has answered the required questions through Loopper chat because the
+                    current OpenCode runtime does not expose the native question tool. Do not ask another question.
+                    Never edit files, run commands, create a Task, invoke the Task Decomposer, or emit LoopSpec JSON.
+
+                    %s
+
+                    Project root: %s
+                    Designer session: %s
+                    Previous complete requirement snapshot:
+                    %s
+
+                    User's direct chat answer:
+                    %s
+
+                    Return one complete replacement Simplified-Chinese Markdown requirement snapshot, no larger
+                    than 24 KiB UTF-8. Preserve all still-valid prior facts and decisions; never return a patch.
+                    Cover goal, scope/non-scope, user-visible flow, edge/error behavior, affected modules,
+                    acceptance intent, and the user's direct answer. Do not include machine JSON or claim
+                    decomposition/implementation has occurred.
+                    """.formatted(machineContract, projectRoot, sessionId, previousSnapshot, feedback);
+        }
+        if (!nativeQuestion) {
+            return """
+                    You are OpenCode Loopper Requirement Discussion Designer / 需求讨论设计师 in a strictly
+                    read-only conversation. The current OpenCode runtime does not expose the native question tool.
+                    Never call question, edit files, run commands, create a Task, invoke Decomposer, or produce a
+                    requirement/design draft.
+
+                    Project root: %s
+                    Designer session: %s
+                    Existing requirement snapshot (context only):
+                    %s
+
+                    New user input:
+                    %s
+
+                    Return only 1-3 concise Simplified-Chinese product/design questions as ordinary Markdown text.
+                    Number each question. For every question list 2-3 mutually exclusive choices, put the recommended
+                    choice first, and label it “（推荐）”. Tell the user they may answer with a choice or their own
+                    wording. End the response immediately after the questions. Do not return a requirement snapshot,
+                    summary, inferred requirement, implementation plan, or LoopSpec. The user will answer directly
+                    in Loopper's chat input.
+                    """.formatted(projectRoot, sessionId, previousSnapshot, feedback);
+        }
         if (directSoftware) {
             return """
                     You are OpenCode Loopper Requirement Discussion Designer / 需求讨论设计师 in a persistent

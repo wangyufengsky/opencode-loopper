@@ -53,6 +53,9 @@ ownership rules:
   compact package-plan normalization, semantic validation, or executable verifier
   synthesis; those belong to `DesignerPackagePlanCompiler`. Shared machine payload
   shapes belong to `DesignerSemanticContracts` and must not depend back on the facade.
+  OpenCode `question` capability selection, answer validation, durable decision-log
+  encoding and compatibility-chat projection belong to `DesignerQuestionSupport`;
+  that collaborator must not perform Designer lifecycle transitions.
 - `TaskService` owns ordinary execution ordering and error-layer escalation. It
   must not assemble immutable design snapshots, verification aggregates, baseline
   diffs, or Judge evidence prompts; those belong to `TaskEvidenceService`.

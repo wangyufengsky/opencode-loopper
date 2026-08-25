@@ -121,9 +121,29 @@ the Reviewer cannot bypass the evidence contract with free-form citations. A
 report-to-design request treats the report as quoted input and starts a new Designer
 Session without creating a Task or writable execution Session.
 
+`question` is a discovered runtime capability, not an assumption derived from a configured
+permission rule. Before each question-required Designer turn, Loopper probes the project-scoped
+tool ids. Only an `AVAILABLE` probe that explicitly contains `question` selects
+`DESIGNER_INTERACTIVE_READ_ONLY` and calls `/question`; `UNKNOWN`, `UNAVAILABLE`, or an available
+tool list without `question` selects `GENERAL_READ_ONLY`. In that compatibility mode the model
+returns only 1–3 numbered ordinary-text questions, Loopper persists them as `CHAT_QUESTION`, and
+the existing chat composer accepts the user's direct answer even when Designer full-auto is active.
+The answer is stored in the same decision log before the server assembles the direct requirement
+snapshot or asks the same package Session for its complete replacement design. Capability absence
+is not a Session error and never triggers the missing-native-question repair loop.
+
+The packaged launchers default `OPENCODE_ENABLE_QUESTION_TOOL=true`, and every Loopper-managed
+OpenCode child receives that environment variable explicitly. A healthy external OpenCode process
+is never restarted or mutated merely to change tools and cannot inherit environment variables after
+it has started. It therefore remains in compatibility mode until its own service manager/container/
+launch command supplies the flag and restarts that external process; restarting only Loopper is not
+sufficient. `opencode.json` permissions may allow a registered tool but cannot register a tool that
+the OpenCode server omitted.
+
 Each overall Designer Session is bound to the exact `loop_draft_id` shown in
 Review Gate. Before any software package design runs, the interactive requirement Designer
-must call `question` with 1–3 design choices. In default `DIRECT_SOFTWARE_DESIGN` it then
+must ask 1–3 design choices, using native `question` only when the capability probe proves it.
+In default `DIRECT_SOFTWARE_DESIGN` it then
 ends the turn; empty text is valid and all model prose is ignored while the server builds the
 authoritative snapshot from user inputs and persisted answers. In `FULL_PACKAGE_DESIGN` it
 still returns a complete Markdown requirement predesign in the same model turn. Follow-up
@@ -141,8 +161,10 @@ For each large-task package in order, Loopper creates a scoped interactive read-
 conversation. A healthy remote Session is reused for that package's human
 revisions; after remote loss, a new Session receives the persisted requirement,
 decisions, previous full snapshot, and package-scoped message. Initial design and
-each human revision must call `question` before returning one complete Markdown
-replacement; Designer is never asked to populate LoopSpec fields. Direct WP-1 instead uses
+each human revision must ask its required questions before returning one complete Markdown
+replacement; native-capable runtimes call `question`, while compatibility mode splits ordinary-text
+questions and the complete design across two prompts in that same package Session. Designer is never
+asked to populate LoopSpec fields. Direct WP-1 instead uses
 the general read-only profile without `question`, enters `DESIGNING` immediately, and applies
 the same no-question rule to feedback and redesign. Loopper then
 creates a brand-new read-only Compiler Session for each candidate with the same
@@ -167,7 +189,8 @@ one `<server>_*` allow rule per configured server to every role profile. Discove
 the explicit `OPENCODE_MCP_DISCOVERY_FAILED` Session error before any prompt is sent; Loopper
 never edits the user's OpenCode configuration. Decomposer, Compiler, Judge, and general
 read-only roles start from a wildcard deny and allow only the built-in `read`, `glob`, and
-`grep`; Designer additionally allows the built-in `question`. All read-only roles deny
+`grep`; the interactive Designer additionally allows the built-in `question` when the runtime
+actually registers it. All read-only roles deny
 `.env`/`.env.*`, re-allow only `.env.example`, and deny external directories.
 Implementation retains the existing mutation and command boundary and explicitly
 allows `todowrite`. MCP prefix rules do not relax built-in file-write, Bash, Git,

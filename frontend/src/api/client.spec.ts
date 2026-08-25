@@ -665,6 +665,7 @@ describe('Loopper REST contract adapter', () => {
       .mockResolvedValueOnce(json({
         id: 'designer-1', projectId: 'project-1', state: 'RUNNING', accessMode: 'READ_ONLY', readOnly: true,
         updatedAt: 'now', messages: [{ id: 'user-1', role: 'USER', content: 'plan', deliveryState: 'PERSISTED', createdAt: 'now' }],
+        questionInteraction: { mode: 'CHAT_FALLBACK', awaitingAnswer: true },
         pendingQuestions: [{ id: 'question-1', questions: [{ question: 'Which scope?', header: 'Scope', options: [{ label: 'New chain', description: 'Add it' }], multiple: false, custom: false }] }],
         answeredQuestions: [{ id: 'question-0', scope: 'REQUIREMENT', discussionRevision: 1, designMessageId: 'design-1', answeredAt: 'earlier', questions: [{ question: 'Keep scope?', header: 'Scope', options: [{ label: 'Keep', description: 'No expansion' }], multiple: false, custom: false, answers: ['Keep'] }] }],
       }))
@@ -678,6 +679,7 @@ describe('Loopper REST contract adapter', () => {
 
     await expect(api.getDesignerSession('designer-1')).resolves.toMatchObject({
       state: 'RUNNING', updatedAt: 'now', pendingQuestions: [{ id: 'question-1', questions: [{ custom: false }] }],
+      questionInteraction: { mode: 'CHAT_FALLBACK', awaitingAnswer: true },
       answeredQuestions: [{ id: 'question-0', designMessageId: 'design-1', questions: [{ answers: ['Keep'], options: [{ label: 'Keep', description: 'No expansion' }] }] }],
     })
     await expect(api.sendDesignerMessage('designer-1', 'continue')).resolves.toMatchObject({

@@ -33,8 +33,10 @@ The implementation follows [the code design contract](code-design-contract.md):
 large workflow facades remain compatibility coordinators while changing axes are
 owned by focused collaborators. `DesignerSessionService` delegates prompt and
 frozen package-context construction plus compact package-plan normalization,
-semantic validation, and executable evidence compilation; its shared machine
-payloads live outside the workflow facade. `TaskService` delegates retry decisions,
+semantic validation, executable evidence compilation, and question capability /
+decision-log handling; its shared machine payloads live outside the workflow facade.
+`DesignerQuestionSupport` owns the latter compatibility policy but never advances a
+Designer lifecycle. `TaskService` delegates retry decisions,
 execution prompts, Judge response parsing, lifecycle row persistence, and immutable
 design/verification/diff/Judge evidence assembly;
 `HttpOpenCodeClient` delegates permission policy and response/Todo/machine-output

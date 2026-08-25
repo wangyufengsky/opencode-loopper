@@ -29,7 +29,7 @@ STARTUP_OVERRIDES="${LOOPPER_DATA_DIR}/config/startup-overrides.properties"
 is_startup_key() {
   case "$1" in
     SERVER_PORT|LOOPPER_OPEN_BROWSER|LOOPPER_ALLOWED_ROOT|LOOPPER_MONITOR_DELAY|LOOPPER_DESIGNER_MONITOR_DELAY|LOOPPER_ABORT_CLEANUP_ATTEMPTS|\
-    LOOPPER_OPENCODE_MODE|OPENCODE_BASE_URL|OPENCODE_EXECUTABLE|OPENCODE_MODEL|LOOPPER_OPENCODE_CONNECT_TIMEOUT|\
+    LOOPPER_OPENCODE_MODE|OPENCODE_BASE_URL|OPENCODE_EXECUTABLE|OPENCODE_MODEL|OPENCODE_ENABLE_QUESTION_TOOL|LOOPPER_OPENCODE_CONNECT_TIMEOUT|\
     LOOPPER_OPENCODE_REQUEST_TIMEOUT|LOOPPER_OPENCODE_STARTUP_TIMEOUT|LOOPPER_MAX_STAGE_ATTEMPTS|\
     LOOPPER_MAX_TASK_ATTEMPTS|LOOPPER_SESSION_ERROR_LIMIT|LOOPPER_MAX_DURATION|LOOPPER_ATTEMPT_TIMEOUT|\
     LOOPPER_VERIFIER_TIMEOUT|LOOPPER_DESIGNER_TIMEOUT|LOOPPER_RETRY_RATE_LIMIT_BASE|LOOPPER_RETRY_RATE_LIMIT_MAX|\
@@ -49,7 +49,7 @@ validate_startup_value() {
   case "${key}" in
     SERVER_PORT|LOOPPER_ABORT_CLEANUP_ATTEMPTS|LOOPPER_MAX_STAGE_ATTEMPTS|LOOPPER_MAX_TASK_ATTEMPTS|LOOPPER_SESSION_ERROR_LIMIT)
       [[ "${value}" =~ ^[0-9]+$ ]] ;;
-    LOOPPER_OPEN_BROWSER) [[ "${value}" == "true" || "${value}" == "false" ]] ;;
+    LOOPPER_OPEN_BROWSER|OPENCODE_ENABLE_QUESTION_TOOL) [[ "${value}" == "true" || "${value}" == "false" ]] ;;
     LOOPPER_OPENCODE_MODE) [[ "${value}" == "auto" || "${value}" == "http" ]] ;;
     OPENCODE_BASE_URL|LOOPPER_GITLAB_API_BASE_URL) [[ "${value}" =~ ^https?://[^[:space:]]+$ ]] ;;
     LOOPPER_MONITOR_DELAY|LOOPPER_DESIGNER_MONITOR_DELAY|LOOPPER_OPENCODE_CONNECT_TIMEOUT|\
@@ -76,6 +76,11 @@ if [[ -f "${STARTUP_OVERRIDES}" ]]; then
     export "${key}"
   done < "${STARTUP_OVERRIDES}"
 fi
+
+# Managed OpenCode children inherit this v1.18.22 question-tool registration flag.
+# An already-running external process keeps its own environment; Designer falls
+# back to chat questions until that external process is restarted with the flag.
+export OPENCODE_ENABLE_QUESTION_TOOL="${OPENCODE_ENABLE_QUESTION_TOOL:-true}"
 
 if [[ -n "${LOOPPER_JAVA_HOME:-}" ]]; then
   JAVA_HOME="${LOOPPER_JAVA_HOME}"
@@ -111,12 +116,12 @@ fi
 
 if [[ -n "${LOOPPER_JAR_PATH:-}" ]]; then
   JAR_PATH="${LOOPPER_JAR_PATH}"
-elif [[ -f "${APP_HOME}/target/opencode-loopper-0.2.41.jar" ]]; then
-  JAR_PATH="${APP_HOME}/target/opencode-loopper-0.2.41.jar"
-elif [[ -f "${APP_HOME}/opencode-loopper-0.2.41.jar" ]]; then
-  JAR_PATH="${APP_HOME}/opencode-loopper-0.2.41.jar"
+elif [[ -f "${APP_HOME}/target/opencode-loopper-0.2.42.jar" ]]; then
+  JAR_PATH="${APP_HOME}/target/opencode-loopper-0.2.42.jar"
+elif [[ -f "${APP_HOME}/opencode-loopper-0.2.42.jar" ]]; then
+  JAR_PATH="${APP_HOME}/opencode-loopper-0.2.42.jar"
 else
-  fail "找不到成品 JAR。请把 opencode-loopper-0.2.41.jar 放到 ${APP_HOME}，或设置 LOOPPER_JAR_PATH。"
+  fail "找不到成品 JAR。请把 opencode-loopper-0.2.42.jar 放到 ${APP_HOME}，或设置 LOOPPER_JAR_PATH。"
 fi
 
 [[ -f "${JAR_PATH}" ]] || fail "JAR 不存在：${JAR_PATH}"

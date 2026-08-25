@@ -39,7 +39,8 @@ class ReleasePackagingContractTest {
         String linux = Files.readString(PROJECT_ROOT.resolve("scripts/start-linux.sh"));
 
         assertThat(windows)
-                .contains("opencode-loopper-0.2.41.jar")
+                .contains("opencode-loopper-0.2.42.jar")
+                .contains("OPENCODE_ENABLE_QUESTION_TOOL=true")
                 .contains("STARTUP_OVERRIDES=%LOOPPER_DATA_DIR%\\config\\startup-overrides.properties")
                 .contains("$line.Split('=',2)")
                 .contains("if not defined SERVER_PORT set \"SERVER_PORT=%%L\"")
@@ -62,7 +63,8 @@ class ReleasePackagingContractTest {
                 .doesNotContain("serve --hostname 127.0.0.1 --port 4096");
 
         assertThat(linux)
-                .contains("opencode-loopper-0.2.41.jar")
+                .contains("opencode-loopper-0.2.42.jar")
+                .contains("OPENCODE_ENABLE_QUESTION_TOOL=\"${OPENCODE_ENABLE_QUESTION_TOOL:-true}\"")
                 .contains("STARTUP_OVERRIDES=\"${LOOPPER_DATA_DIR}/config/startup-overrides.properties\"")
                 .contains("printf -v \"${key}\" '%s' \"${value}\"")
                 .contains("LOOPPER_PUBLICATION_HTTP_WEB_HOSTS=\"${LOOPPER_PUBLICATION_HTTP_WEB_HOSTS:-gitlab.spdb.com}\"")

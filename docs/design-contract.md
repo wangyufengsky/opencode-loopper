@@ -275,13 +275,18 @@ The model only advises grouping and preferences; if that advice cannot be normal
 the server compiles from the frozen fact/capability graph. The server alone derives `COMPILED` or a concrete
 `DESIGN_INCOMPLETE` gap, and test-only Java paths remain `JAVA_TEST_ONLY`.
 
-Before a requirement revision exists, Designer must call `question` once with
-1–3 choice questions. In ordinary software mode it may then finish with empty text:
+Before a requirement revision exists, Designer must ask once with 1–3 choice questions. Loopper
+uses the native `question` card only when the project-scoped OpenCode tool probe explicitly reports
+that tool. If the tool is unavailable or the probe is inconclusive, Designer returns only numbered
+ordinary-text questions and the page shows a **对话回答模式** notice. The normal composer becomes
+the answer control even while the Session is `RUNNING` or full-auto is active; after persistence,
+the same decision history and snapshot rules apply. In ordinary software mode it may then finish with empty text:
 the server assembles the authoritative Markdown snapshot verbatim from requirement-scope
 user messages and persisted final answers, and ignores free-form model text. In large-task
 mode Designer still returns the complete replacement Markdown requirement predesign.
-The question card blocks ordinary chat until answered and offers one-click
-selection of all recommended choices. Follow-up messages repeat the active mode's contract but
+The native question card blocks ordinary chat until answered and offers one-click
+selection of all recommended choices; compatibility mode instead exposes only the direct-answer
+composer and never calls the `/question` endpoints. Follow-up messages repeat the active mode's contract but
 do not invoke Decomposer. Software sessions expose a default-off **大型任务** switch
 while the profile remains provisional. The default `DIRECT_SOFTWARE_DESIGN` path
 freezes the latest snapshot, deterministically creates one `DIRECT_DESIGN / WP-1`,
@@ -304,7 +309,7 @@ Designer may optionally authorize a per-Session full-auto mode. It is disabled
 by default and every enable or re-enable requires a local-UI risk confirmation.
 The persisted `DISABLED / ACTIVE / BLOCKED / COMPLETED` state advances at most
 one authoritative action per monitor tick and survives process restarts. It may
-answer pending design questions from explicitly recommended options (falling
+answer native pending design questions from explicitly recommended options (falling
 back to the first option), confirm the requirement, accept only the current
 deterministically validated package revision, confirm the final draft, and call
 the ordinary Task Start boundary. These actions remain visible as System
@@ -313,7 +318,9 @@ messages and question decisions use `AUTO_RECOMMENDED`; manual decisions use
 
 Full-auto authorization ends once Task Start has been requested. It must never
 answer execution-time questions, grant dangerous permissions, choose recovery,
-accept execution results, commit, push, merge, or publish. Disabling stops only
+accept execution results, commit, push, merge, or publish. A compatibility-mode ordinary-text
+question has no machine-readable recommendation, so full-auto pauses for the user's direct chat
+answer instead of guessing. Disabling stops only
 future automatic actions. A low-confidence/conflicting task profile is resolved as a
 separate, persisted auto-recommended action when full-auto is authorized; unsafe-operation
 evidence remains fail-closed. Budget exhaustion, multi-task requirements, design or

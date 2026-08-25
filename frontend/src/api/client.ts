@@ -784,6 +784,14 @@ function normalizeDesignerSession(value: unknown): DesignerSession {
     messages: asArray(raw.messages).map(normalizeDesignerMessage),
     pendingQuestions: asArray(raw.pendingQuestions).map(normalizeTaskSessionQuestion),
     answeredQuestions: asArray(raw.answeredQuestions).map(normalizeDesignerAnsweredQuestion),
+    questionInteraction: (() => {
+      const interaction = asRecord(raw.questionInteraction)
+      const mode = asString(interaction.mode)
+      return {
+        mode: (['NATIVE_TOOL', 'CHAT_FALLBACK'].includes(mode) ? mode : 'NONE') as DesignerSession['questionInteraction']['mode'],
+        awaitingAnswer: interaction.awaitingAnswer === true,
+      }
+    })(),
     compiler: raw.compiler ? (() => {
       const compiler = asRecord(raw.compiler)
       return {

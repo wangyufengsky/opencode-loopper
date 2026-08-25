@@ -1547,6 +1547,119 @@ class DesignerSessionMcpIntegrationTest {
     }
 
     @Test
+    void missingQuestionCapabilityFallsBackToChatAndPersistsTheDirectAnswer() throws Exception {
+        ProjectRow project = project("question-chat-fallback");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        fake().setToolCapability(new OpenCodeClient.ToolCapabilityProbe(
+                OpenCodeClient.CapabilityState.AVAILABLE, List.of("read", "glob", "grep"), null));
+        fake().setDesignerOutput("1. 缓存更新失败时如何处理？\n   - 保留旧值并报错（推荐）\n   - 清空缓存\n\n可直接回复选项或自己的方案。");
+
+        DesignerSessionRow session = designerSessions.create(project.id(), draft.id(), "实现可恢复的缓存刷新");
+        designerSessions.pollActiveHandoffs();
+        session = designerSessions.get(session.id());
+        assertThat(fake().profileForSession(session.externalSessionId()))
+                .isEqualTo(OpenCodeClient.SessionProfile.GENERAL_READ_ONLY);
+        assertThat(fake().promptForSession(session.externalSessionId()))
+                .contains("does not expose the native question tool", "ordinary Markdown text")
+                .doesNotContain("Call the question tool exactly once");
+
+        designerSessions.pollActiveHandoffs();
+
+        session = designerSessions.get(session.id());
+        assertThat(session.state()).isEqualTo("RUNNING");
+        assertThat(session.workflowPhase()).isEqualTo("DISCUSSING_REQUIREMENT");
+        assertThat(session.externalSessionState()).isEqualTo("WAITING_INPUT");
+        assertThat(designerSessions.pendingQuestions(session.id())).isEmpty();
+        assertThat(designerSessions.questionInteractionStatus(session.id()))
+                .isEqualTo(new DesignerSessionService.QuestionInteractionStatus("CHAT_FALLBACK", true));
+        assertThat(designerSessions.messages(session.id())).anyMatch(message ->
+                "CHAT_QUESTION".equals(message.deliveryState()) && message.content().contains("缓存更新失败"));
+
+        designerSessions.appendRequirementMessage(session.id(), "选择保留旧值并报错，同时记录失败原因。",
+                session.discussionRevision());
+
+        assertThat(designerSessions.get(session.id()).state()).isEqualTo("REVIEWING");
+        assertThat(mapper.listDesignDiscussionRevisions(session.id())).singleElement().satisfies(revision -> {
+            assertThat(revision.questionAnswered()).isTrue();
+            assertThat(revision.decisionLogJson()).contains("CHAT_FALLBACK", "选择保留旧值并报错");
+            assertThat(revision.snapshotMarkdown()).contains("实现可恢复的缓存刷新", "选择保留旧值并报错");
+        });
+        assertThat(mapper.findCurrentDesignRequirementRevision(session.id())).isEmpty();
+        assertThat(mapper.listTasks()).isEmpty();
+
+        mvc.perform(get("/api/designer-sessions/{sessionId}", session.id()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.questionInteraction.mode").value("NONE"))
+                .andExpect(jsonPath("$.questionInteraction.awaitingAnswer").value(false));
+    }
+
+    @Test
+    void availableQuestionCapabilityKeepsTheNativeInteractiveProfile() throws Exception {
+        ProjectRow project = project("question-native-tool");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        fake().setToolCapability(new OpenCodeClient.ToolCapabilityProbe(
+                OpenCodeClient.CapabilityState.AVAILABLE,
+                List.of("read", "glob", "grep", "question"), null));
+
+        DesignerSessionRow created = designerSessions.create(project.id(), draft.id(), "实现可恢复的缓存刷新");
+        designerSessions.pollActiveHandoffs();
+        DesignerSessionRow running = designerSessions.get(created.id());
+
+        assertThat(fake().profileForSession(running.externalSessionId()))
+                .isEqualTo(OpenCodeClient.SessionProfile.DESIGNER_INTERACTIVE_READ_ONLY);
+        assertThat(fake().promptForSession(running.externalSessionId()))
+                .contains("Call the question tool exactly once")
+                .doesNotContain("does not expose the native question tool");
+        assertThat(designerSessions.questionInteractionStatus(running.id()))
+                .isEqualTo(new DesignerSessionService.QuestionInteractionStatus("NATIVE_TOOL", false));
+
+        String questionId = "native-question";
+        fake().setPendingQuestion(running.externalSessionId(), new OpenCodeClient.PendingQuestion(
+                questionId, running.externalSessionId(), List.of(new OpenCodeClient.QuestionPrompt(
+                "采用推荐边界吗？", "设计边界", List.of(new OpenCodeClient.QuestionOption(
+                "采用推荐项 (Recommended)", "保持最小范围")), false, true))));
+        assertThat(designerSessions.pendingQuestions(running.id()))
+                .extracting(DesignerSessionService.PendingQuestion::id).containsExactly(questionId);
+    }
+
+    @Test
+    void largeTaskPackageAlsoUsesChatFallbackAndContinuesAfterTheDirectAnswer() throws Exception {
+        ProjectRow project = project("package-question-chat-fallback");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        fake().setDesignerOutput(designerOutput("# 大型缓存改造\n\n拆分可恢复刷新与状态展示。",
+                legacySpec(project.id())));
+        DesignerSessionRow session = createConfirmedSession(project.id(), draft.id(), "大型缓存改造需要拆包设计");
+        fake().setToolCapability(new OpenCodeClient.ToolCapabilityProbe(
+                OpenCodeClient.CapabilityState.AVAILABLE, List.of("read", "glob", "grep"), null));
+        fake().setPackageDesignerOutput("WP-1", "1. 失败状态由谁观察？\n   - 管理页面展示（推荐）\n   - 仅写日志");
+
+        designerSessions.pollActiveHandoffs();
+        designerSessions.pollActiveHandoffs();
+
+        session = designerSessions.get(session.id());
+        DesignWorkPackageRow workPackage = mapper.listDesignWorkPackages(
+                mapper.findCurrentDesignRequirementRevision(session.id()).orElseThrow().id()).getFirst();
+        assertThat(session.workflowPhase()).isEqualTo("QUESTIONING_PACKAGE");
+        assertThat(workPackage.state()).isEqualTo("QUESTIONING");
+        assertThat(designerSessions.questionInteractionStatus(session.id()))
+                .isEqualTo(new DesignerSessionService.QuestionInteractionStatus("CHAT_FALLBACK", true));
+        assertThat(fake().profileForSession(workPackage.designerExternalSessionId()))
+                .isEqualTo(OpenCodeClient.SessionProfile.GENERAL_READ_ONLY);
+
+        fake().setPackageDesignerOutput("WP-1", "# 完整工作包设计\n\n展示失败状态并保留旧缓存值。");
+        designerSessions.appendPackageMessage(session.id(), "WP-1", "由管理页面展示，同时保留旧值。",
+                session.discussionRevision(), workPackage.designRevision());
+
+        DesignWorkPackageRow designing = mapper.listDesignWorkPackages(workPackage.requirementRevisionId()).getFirst();
+        assertThat(designing.state()).isEqualTo("DESIGNING");
+        assertThat(fake().promptForSession(designing.designerExternalSessionId()))
+                .contains("Do not ask another question", "COMPLETE-DESIGN CONTRACT")
+                .doesNotContain("CHAT QUESTION COMPATIBILITY CONTRACT");
+        assertThat(designerSessions.questionInteractionStatus(session.id()))
+                .isEqualTo(new DesignerSessionService.QuestionInteractionStatus("CHAT_FALLBACK", false));
+    }
+
+    @Test
     void scopedPackageDiscussionPersistsFiveFullRevisionsAndRejectsStaleOrSixthActions() throws Exception {
         ProjectRow project = project("package-discussion-revisions");
         LoopDraftRow draft = drafts.create(legacySpec(project.id()));

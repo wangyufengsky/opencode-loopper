@@ -46,6 +46,7 @@ const session: DesignerSession = {
   discussionRevision: 1,
   finalConfirmationEligible: true,
   autoMode: { enabled: false, state: 'DISABLED', version: 0 },
+  questionInteraction: { mode: 'NONE', awaitingAnswer: false },
   taskProfile: {
     state: 'FROZEN', decisionState: 'FROZEN', confirmationReady: true,
     intent: 'SOFTWARE_CHANGE', workflowTemplate: 'FULL_PACKAGE_DESIGN',
@@ -680,6 +681,50 @@ describe('Designer draft composer', () => {
     expect(sessionStorage.getItem('opencode-loopper.designer-message-draft')).toBeNull()
   })
 
+  it('keeps the chat answer composer available in auto mode when native question is unsupported', async () => {
+    let answered = false
+    const fallbackSession: DesignerSession = {
+      ...session,
+      state: 'RUNNING', workflowPhase: 'DISCUSSING_REQUIREMENT', activeActor: 'DESIGNER',
+      discussionScope: 'REQUIREMENT', discussionRevision: 1, finalConfirmationEligible: false,
+      autoMode: { enabled: true, state: 'ACTIVE', version: 1 },
+      questionInteraction: { mode: 'CHAT_FALLBACK', awaitingAnswer: true },
+      messages: [{ id: 'chat-question', role: 'ASSISTANT', actor: 'DESIGNER',
+        content: '1. 失败时保留旧值还是清空？', deliveryState: 'CHAT_QUESTION', createdAt: 'now' }],
+    }
+    const reviewedSession: DesignerSession = {
+      ...fallbackSession, state: 'REVIEWING',
+      questionInteraction: { mode: 'CHAT_FALLBACK', awaitingAnswer: false },
+    }
+    vi.spyOn(api, 'createDraft').mockImplementation(async (spec) => draftFrom(spec))
+    vi.spyOn(api, 'createDesignerSession').mockResolvedValue(fallbackSession)
+    vi.spyOn(api, 'getDesignerSession').mockImplementation(async () => answered ? reviewedSession : fallbackSession)
+    const send = vi.spyOn(api, 'sendRequirementMessage').mockImplementation(async () => {
+      answered = true
+      return { sessionId: fallbackSession.id, state: 'REVIEWING', persistedMessages: [], notice: '回答已保存' }
+    })
+    const wrapper = mountDesigner()
+    await flushPromises()
+
+    await wrapper.get('textarea[aria-label="草案设计目标"]').setValue('实现可恢复的缓存刷新')
+    await wrapper.get('.create-draft-button').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('.chat-question-compat').text()).toContain('对话回答模式')
+    expect(wrapper.text()).toContain('失败时保留旧值还是清空')
+    expect(wrapper.find('.designer-current-activity-stub').exists()).toBe(false)
+    const input = wrapper.get('textarea[aria-label="发送给只读设计师的消息"]')
+    expect(input.attributes('disabled')).toBeUndefined()
+    expect(input.attributes('placeholder')).toContain('直接回答')
+    await input.setValue('保留旧值并记录错误')
+    expect(wrapper.get('.compose-actions button').text()).toContain('提交回答')
+    await wrapper.get('.compose-actions button').trigger('click')
+    await flushPromises()
+
+    expect(send).toHaveBeenCalledWith(fallbackSession.id, '保留旧值并记录错误', 1)
+    wrapper.unmount()
+  })
+
   it('keeps the reply composer immediately after the naturally growing message history', async () => {
     vi.spyOn(api, 'createDesignerSession').mockResolvedValue({
       ...session,
@@ -1092,6 +1137,33 @@ describe('Designer draft composer', () => {
     await flushPromises()
     expect(retry).toHaveBeenCalledWith(failedSession.id)
     expect(redesign).toHaveBeenCalledWith(failedSession.id)
+  })
+
+  it('does not expose compiler recovery actions when requirement questioning failed before compilation', async () => {
+    const failedQuestionSession: DesignerSession = {
+      ...session,
+      state: 'WAITING_INPUT', workflowPhase: 'FAILED', activeActor: 'SYSTEM',
+      finalConfirmationEligible: false,
+      compiler: undefined,
+      messages: [{
+        id: 'terminal-question', role: 'SYSTEM', actor: 'SYSTEM',
+        content: 'DESIGN_QUESTION_REQUIRED: Designer completed without asking the required question',
+        deliveryState: 'TERMINAL_ERROR', createdAt: 'now',
+      }],
+    }
+    vi.spyOn(api, 'createDraft').mockImplementation(async (spec) => draftFrom(spec))
+    vi.spyOn(api, 'createDesignerSession').mockResolvedValue(failedQuestionSession)
+    vi.spyOn(api, 'getDesignerSession').mockResolvedValue(failedQuestionSession)
+    const wrapper = mountDesigner()
+    await flushPromises()
+    await wrapper.get('textarea[aria-label="草案设计目标"]').setValue('讨论缓存刷新策略')
+    await wrapper.get('.create-draft-button').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('设计前需要先回答问题')
+    expect(wrapper.text()).not.toContain('重新编译当前设计')
+    expect(wrapper.text()).not.toContain('让设计师重新设计')
+    expect(wrapper.text()).toContain('清理工作区')
   })
 
   it('restores the Decomposer card, package rail, retry counters, and waiting-input boundary', async () => {

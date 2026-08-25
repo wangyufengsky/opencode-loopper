@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.2.41`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.2.42`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -128,7 +128,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.2.41.jar
+java -jar target/opencode-loopper-0.2.42.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -141,7 +141,7 @@ java -jar target/opencode-loopper-0.2.41.jar
 2. 打开 **运行环境**，确认服务端报告的 OpenCode Loopper 版本，并检查 OpenCode 状态、端点、版本、模型与进程所有权。
 3. 打开 **项目**，登记项目名称和绝对根路径。登记会自动生成结构化技术栈基线，但不会启动 AI 或写入项目文件；项目卡片显示 Java、Node、Python、混合栈、待分析、分析不完整或分析失败，以及组件数量。已经受管的老项目保持“待分析”，不会在启动或列表加载时批量扫描。
 4. 可选：在项目卡片中打开 **AGENTS.md 项目公约**。该动作会强制重析项目并让只读 Session 重新生成管理区块；检查完整预览后再确认写入。若分析失败，不会启动 AI；证据不完整时预览会显示复核警告。
-5. 打开 **设计 / 循环规范**，选择项目并描述目标。创建新设计前会检查 Manifest 指纹并在变化时刷新画像；刷新失败或组件歧义会进入可见的任务设置确认，不会伪装为 Java。提交后保持在当前设计页，画像计算完成会自动继续，不需要到历史设计手工恢复。软件任务默认关闭“大型任务”，因此采用一个 `WP-1`；只有确实需要多个纵向业务包时才在画像冻结前打开开关。普通模式先回答唯一一轮需求问题，服务端随后显示原样需求快照；继续补充会产生新的需求问题和替代快照，但不会启动工作包。显式确认后 WP-1 直接设计，不会再出现包级问题卡。已有未确认设计仍可从 **历史设计** 页面继续、修改或归档，服务重启后会从服务端恢复同一模式和快照。
+5. 打开 **设计 / 循环规范**，选择项目并描述目标。创建新设计前会检查 Manifest 指纹并在变化时刷新画像；刷新失败或组件歧义会进入可见的任务设置确认，不会伪装为 Java。提交后保持在当前设计页，画像计算完成会自动继续，不需要到历史设计手工恢复。软件任务默认关闭“大型任务”，因此采用一个 `WP-1`；只有确实需要多个纵向业务包时才在画像冻结前打开开关。普通模式先回答唯一一轮需求问题，服务端随后显示原样需求快照；继续补充会产生新的需求问题和替代快照，但不会启动工作包。OpenCode 提供原生 `question` 时页面显示选项卡；能力探测不到时页面显示“对话回答模式”，设计师用普通消息提问，输入框即使在全自动模式下也会开放给用户直接作答。显式确认后 WP-1 直接设计，不会再出现包级问题卡。已有未确认设计仍可从 **历史设计** 页面继续、修改或归档，服务重启后会从服务端恢复同一模式和快照。
 6. 普通任务在 WP-1 内完成 1–6 个 Stage 的设计、编译和确定性校验后直接进入总体确认，不显示工作包轨道或接受按钮；需要修改时点击 **重新讨论设计**。大型任务沿轨道逐包讨论并点击 **接受工作包 N 并继续**。两种模式都只在总体确认后创建 `PENDING_START` Task，不进入队列、不占用写租约，也不创建或切换 Git 分支。
 7. 进入任务详情并点击一次 **开始执行**。此时才会申请队列/写租约、检查工作区、获取远端更新并准备任务分支；一旦准入会自动继续执行，不需要在 `READY` 状态再次点击。执行期间可查看阶段进度、尝试、真实模型输出、待处理问题、验证证据和双 Judge 评审；模型输出区的纯数字窗口累计该 Task 全部实施与 Judge Session 的 Token，并以 `+xxx` 展示每次权威增量。
 8. 任务成功后检查实际差异，再由人工提交任务分支；最终 Attempt 会无条件保存任务基线差异文件清单，不要求 LoopSpec 配置 `GIT_DIFF`。Loopper 随后恢复任务开始前的源分支，有排队任务时继续切到下一任务分支；差异预览、远端推送和合并请求继续显式引用已提交的任务分支。
@@ -319,6 +319,7 @@ Git 任务的最新 Execution Cycle 成功并处于 `AWAITING_DECISION` 或用�
 | `SERVER_PORT` | `8080` | Loopper HTTP 端口；监听地址固定为 loopback |
 | `LOOPPER_OPENCODE_MODE` | `auto` | `auto` 复用或启动本机服务；`http` 只连接；`fake` 仅用于测试 |
 | `OPENCODE_BASE_URL` | `http://127.0.0.1:4096` | 要探测或复用的 OpenCode loopback 端点 |
+| `OPENCODE_ENABLE_QUESTION_TOOL` | 成品启动脚本和受管 OpenCode 默认为 `true` | OpenCode v1.18.22 服务端注册原生 `question` 工具；已有外部进程必须在自身启动环境中带此变量并重启，Loopper 不能修改已运行进程的环境 |
 | `OPENCODE_USERNAME` | 空 | 外部 OpenCode 的 Basic Auth 用户名 |
 | `OPENCODE_PASSWORD` | 空 | Basic Auth 密码；只从进程环境读取，不持久化 |
 | `OPENCODE_EXECUTABLE` | 从 `PATH` 查找 | 受管 `auto` 模式使用的 OpenCode 可执行文件 |
@@ -336,7 +337,7 @@ Git 任务的最新 Execution Cycle 成功并处于 `AWAITING_DECISION` 或用�
 | `LOOPPER_RETRY_SESSION_BASE` / `MAX` | `10s` / `60s` | 普通 Session 错误的指数退避起始值和上限 |
 | `LOOPPER_RETRY_VERIFICATION_BASE` / `MAX` | `5s` / `30s` | 验证失败后的指数退避起始值和上限 |
 
-`/settings` 将非敏感设置按运行环境、OpenCode、执行上限、`RETRY_WAIT` 和发布网络分区。保存时，完整配置写入 SQLite，并原子生成 `${LOOPPER_DATA_DIR}/config/startup-overrides.properties`；数据库或文件任一步失败都会恢复旧文件，不应用半套配置。Linux/Windows 启动器只逐项读取固定白名单，不执行文件内容，优先级为“显式环境变量 > 页面保存值 > 脚本默认值”；未知键告警忽略，已知键格式非法则终止启动。数据目录、Java Home、JAR 路径、MCP/OpenCode/GitLab 密钥不进入页面或该文件，监听地址继续固定为 loopback。页面会分别标明立即生效、下一次 Session/Task 生效和重启生效，保存不会自动重启服务。
+`/settings` 将非敏感设置按运行环境、OpenCode、执行上限、`RETRY_WAIT` 和发布网络分区。保存时，完整配置写入 SQLite，并原子生成 `${LOOPPER_DATA_DIR}/config/startup-overrides.properties`；数据库或文件任一步失败都会恢复旧文件，不应用半套配置。Linux/Windows 启动器只逐项读取固定白名单，不执行文件内容，优先级为“显式环境变量 > 页面保存值 > 脚本默认值”；未知键告警忽略，已知键格式非法则终止启动。启动器默认导出 `OPENCODE_ENABLE_QUESTION_TOOL=true`，受管 OpenCode 子进程也会被强制注入该值。数据目录、Java Home、JAR 路径、MCP/OpenCode/GitLab 密钥不进入页面或该文件，监听地址继续固定为 loopback。页面会分别标明立即生效、下一次 Session/Task 生效和重启生效，保存不会自动重启服务。
 
 全局 Stage/Task/Session 次数和时长限制是安全上限，与 LoopSpec 明确值取较小值。生产环境默认启用 `loopper.scheduling.enabled` 和 `loopper.startup-recovery.enabled`，后者统一恢复中断任务、本地同步与自动化状态。
 
@@ -354,7 +355,7 @@ Git 任务的最新 Execution Cycle 成功并处于 `AWAITING_DECISION` 或用�
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.2.41.jar`
+- `target/opencode-loopper-0.2.42.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -366,7 +367,7 @@ LOOPPER_JAVA_HOME=/opt/java/jdk-21 ./start-linux.sh
 
 脚本也允许误用 `sh start-linux.sh`，它会先切换到 Bash。JDK 选择顺序是 `LOOPPER_JAVA_HOME`，然后是脚本内的 `DEFAULT_JAVA_HOME=/opt/jdk-21`；脚本故意忽略继承的 `JAVA_HOME`，避免旧 JDK 8 覆盖指定版本。
 
-Linux 启动脚本不再固定 OpenCode 端口。未设置 `OPENCODE_BASE_URL` 时，它会先识别当前主机的 OpenCode 进程，再读取命令行中的显式 `--port`，并通过 `lsof` 或 `ss` 解析该进程实际监听的 TCP 端口，因此也能覆盖直接运行 `opencode` 的 TUI 和 `opencode web` 所启动的动态端口。Linux 对非特权用户隐藏 socket 的 PID/进程名时，脚本会把本机 TCP 监听端口作为有界候选逐个检查；候选只有在 loopback `/global/health` 精确返回 `healthy=true` 后才会被识别为 OpenCode。发现后以 `http` 模式复用；没有可复用实例时使用 `auto` 模式。脚本会先把 `opencode` 解析为确定的可执行文件路径，找不到或不可执行时直接报错；通过检查后，Loopper 才在动态 loopback 端口启动并管理 OpenCode。
+Linux 启动脚本不再固定 OpenCode 端口。未设置 `OPENCODE_BASE_URL` 时，它会先识别当前主机的 OpenCode 进程，再读取命令行中的显式 `--port`，并通过 `lsof` 或 `ss` 解析该进程实际监听的 TCP 端口，因此也能覆盖直接运行 `opencode` 的 TUI 和 `opencode web` 所启动的动态端口。Linux 对非特权用户隐藏 socket 的 PID/进程名时，脚本会把本机 TCP 监听端口作为有界候选逐个检查；候选只有在 loopback `/global/health` 精确返回 `healthy=true` 后才会被识别为 OpenCode。发现后以 `http` 模式复用；没有可复用实例时使用 `auto` 模式。脚本会先把 `opencode` 解析为确定的可执行文件路径，找不到或不可执行时直接报错；通过检查后，Loopper 才在动态 loopback 端口启动并管理 OpenCode。脚本和受管进程默认启用 `OPENCODE_ENABLE_QUESTION_TOOL=true`。若复用的是启动前已经存在的外部 OpenCode，该进程不会继承新环境；Loopper 会先自动降级为“设计师普通消息提问、用户在聊天框直接回答”，不会再报 `DESIGN_QUESTION_REQUIRED`。要恢复选项卡式原生提问，应在外部 OpenCode 自己的 systemd、容器或启动命令中设置该变量并重启它；仅重启 Loopper 不会改变外部进程环境。
 
 受管进程启动失败时，运行环境页会显示明确的“OpenCode 自动启动失败”、失败原因和本次实际尝试的动态地址，不再把默认探测地址 `127.0.0.1:4096` 显示成正在监听的地址。失败后不会因页面刷新或普通状态读取反复启动进程；点击“启动 OpenCode 并检查连接”会执行一次明确的本地 Auto 启动，并且只有 `/global/health` 验证通过后才显示连接成功。
 
@@ -385,7 +386,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:51234
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.2.41.jar`
+- `opencode-loopper-0.2.42.jar`
 - `start-windows.bat`
 
 确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
@@ -423,7 +424,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.2.41.jar \
+jar tf target/opencode-loopper-0.2.42.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -505,7 +506,7 @@ Windows PowerShell：
 例如发布下一版本：
 
 ```bash
-VERSION=0.2.41
+VERSION=0.2.42
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -545,7 +546,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.2.41.jar
+java -jar target/opencode-loopper-0.2.42.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。

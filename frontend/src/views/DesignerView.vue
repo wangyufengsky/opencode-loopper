@@ -207,10 +207,16 @@ const discussionScopeLabel = computed(() => {
   return scope === 'FINAL' ? '整体确认' : workPackageLabel(scope)
 })
 const hasPendingDesignerQuestion = computed(() => (designerSession.value?.pendingQuestions?.length ?? 0) > 0)
+const chatQuestionFallback = computed(() => designerSession.value?.questionInteraction.mode === 'CHAT_FALLBACK')
+const awaitingChatAnswer = computed(() => chatQuestionFallback.value
+  && designerSession.value?.questionInteraction.awaitingAnswer === true)
 const autoModeActive = computed(() => designerSession.value?.autoMode.state === 'ACTIVE')
 const autoModeBlocked = computed(() => designerSession.value?.autoMode.state === 'BLOCKED')
 const composerEnabled = computed(() => {
-  if (!designerSession.value || autoModeActive.value || ['RUNNING', 'STOPPING', 'CANCELLED'].includes(designerSession.value.state) || hasPendingDesignerQuestion.value) return false
+  if (!designerSession.value || ['STOPPING', 'CANCELLED'].includes(designerSession.value.state) || hasPendingDesignerQuestion.value) return false
+  if (awaitingChatAnswer.value) return designerSession.value.workflowPhase === 'DISCUSSING_REQUIREMENT'
+    || designerSession.value.workflowPhase === 'QUESTIONING_PACKAGE'
+  if (autoModeActive.value || designerSession.value.state === 'RUNNING') return false
   if (designerSession.value.workflowPhase === 'DISCUSSING_REQUIREMENT') return true
   return designerSession.value.workflowPhase === 'REVIEWING_PACKAGE' && currentPackage.value?.state === 'REVIEWING'
 })
@@ -239,7 +245,8 @@ const profileSelectionDirty = computed(() => {
     || (profileIntent.value === 'SOFTWARE_CHANGE' && profileLargeTask.value !== profile.largeTaskMode)
     || [...profileComponents.value].sort().join('|') !== [...(profile.componentKeys ?? [])].sort().join('|')
 })
-const showCurrentRoleActivity = computed(() => (designerSession.value?.state === 'RUNNING' || taskProfileRouting.value)
+const showCurrentRoleActivity = computed(() => !awaitingChatAnswer.value
+  && (designerSession.value?.state === 'RUNNING' || taskProfileRouting.value)
   && (designerSession.value?.pendingQuestions?.length ?? 0) === 0)
 const shouldPollDesigner = computed(() => designerSession.value?.state === 'RUNNING'
   || designerSession.value?.state === 'STOPPING' || taskProfileRouting.value)
@@ -1326,7 +1333,7 @@ async function redesignPackage(packageId: string) {
           <Icon :icon="autoModeBlocked ? 'lucide:octagon-alert' : designerSession?.autoMode.state === 'COMPLETED' ? 'lucide:circle-check-big' : 'lucide:bot'" />
           <div><strong>{{ autoModeBlocked ? '全自动模式已阻断' : designerSession?.autoMode.state === 'COMPLETED' ? '全自动设计已完成' : '全自动模式' }}</strong><p v-if="autoModeBlocked">{{ userFacingError(designerSession?.autoMode.errorDetail) }}</p></div>
         </section>
-        <section v-if="blockedWorkflowMessage" class="designer-session-alert" role="status" aria-live="polite"><Icon icon="lucide:refresh-cw" /><div><strong>{{ largeTaskModeRequired ? '普通任务无法安全容纳当前设计' : designerSession?.state === 'WAITING_INPUT' ? '设计工作流需要人工恢复' : '设计工作流已停止' }}</strong><p>{{ userFacingError(blockedWorkflowMessage.content) }}</p><div class="recovery-actions"><el-button v-if="largeTaskModeRequired" type="primary" size="small" :loading="busy" @click="enableLargeTaskMode"><Icon icon="lucide:split" />改用大型任务</el-button><template v-else><el-button v-if="designerSession?.decomposition && !designerSession.activeWorkPackageId" plain size="small" :loading="busy" @click="retryDecomposition"><Icon icon="lucide:split" />重新拆解</el-button><el-button v-if="designerSession?.activeWorkPackageId" plain size="small" :loading="busy" @click="retryPackageCompiler(designerSession.activeWorkPackageId)"><Icon icon="lucide:braces" />重新编译当前包</el-button><el-button v-if="designerSession?.activeWorkPackageId" plain size="small" :loading="busy" @click="redesignPackage(designerSession.activeWorkPackageId)"><Icon icon="lucide:sparkles" />恢复当前包设计</el-button><template v-if="!designerSession?.decomposition"><el-button plain size="small" :loading="busy" @click="retryCompiler"><Icon icon="lucide:braces" />重新编译当前设计</el-button><el-button plain size="small" :loading="busy" @click="requestRedesign"><Icon icon="lucide:sparkles" />让设计师重新设计</el-button></template></template><el-button plain size="small" @click="restartDesigner"><Icon icon="lucide:rotate-ccw" />清理工作区</el-button></div></div></section>
+        <section v-if="blockedWorkflowMessage" class="designer-session-alert" role="status" aria-live="polite"><Icon icon="lucide:refresh-cw" /><div><strong>{{ largeTaskModeRequired ? '普通任务无法安全容纳当前设计' : designerSession?.state === 'WAITING_INPUT' ? '设计工作流需要人工恢复' : '设计工作流已停止' }}</strong><p>{{ userFacingError(blockedWorkflowMessage.content) }}</p><div class="recovery-actions"><el-button v-if="largeTaskModeRequired" type="primary" size="small" :loading="busy" @click="enableLargeTaskMode"><Icon icon="lucide:split" />改用大型任务</el-button><template v-else><el-button v-if="designerSession?.decomposition && !designerSession.activeWorkPackageId" plain size="small" :loading="busy" @click="retryDecomposition"><Icon icon="lucide:split" />重新拆解</el-button><el-button v-if="designerSession?.activeWorkPackageId" plain size="small" :loading="busy" @click="retryPackageCompiler(designerSession.activeWorkPackageId)"><Icon icon="lucide:braces" />重新编译当前包</el-button><el-button v-if="designerSession?.activeWorkPackageId" plain size="small" :loading="busy" @click="redesignPackage(designerSession.activeWorkPackageId)"><Icon icon="lucide:sparkles" />恢复当前包设计</el-button><template v-if="designerSession?.compiler && !designerSession?.decomposition"><el-button plain size="small" :loading="busy" @click="retryCompiler"><Icon icon="lucide:braces" />重新编译当前设计</el-button><el-button plain size="small" :loading="busy" @click="requestRedesign"><Icon icon="lucide:sparkles" />让设计师重新设计</el-button></template></template><el-button plain size="small" @click="restartDesigner"><Icon icon="lucide:rotate-ccw" />清理工作区</el-button></div></div></section>
         <section v-else-if="designerLiveError" class="designer-session-alert live-error" role="alert" aria-live="assertive"><Icon icon="lucide:triangle-alert" /><div><strong>OpenCode 实时错误</strong><p>{{ userFacingError(designerLiveError) }}</p></div></section>
         <div class="designer-conversation">
           <section v-if="designerSession?.workPackages?.length && !directSoftwareMode" class="work-package-rail" aria-label="工作包设计轨道">
@@ -1341,6 +1348,10 @@ async function redesignPackage(packageId: string) {
             </article>
           </section>
           <div class="chat-history">
+          <section v-if="chatQuestionFallback" class="chat-question-compat" role="status" aria-live="polite">
+            <Icon icon="lucide:message-circle-question" />
+            <div><strong>对话回答模式</strong><p>{{ awaitingChatAnswer ? '当前 OpenCode 不提供选项式提问，请阅读下方设计师问题并直接在输入框回答。' : '当前 OpenCode 不提供选项式提问，设计师将以普通消息完成提问。' }}</p></div>
+          </section>
           <template v-for="item in timelineItems" :key="item.key">
           <DesignerDiscussionHistory v-if="item.kind === 'discussion'" :entries="item.entries" />
           <DesignerValidatorHistory v-else-if="item.kind === 'validators'" :entries="item.entries" />
@@ -1382,12 +1393,12 @@ async function redesignPackage(packageId: string) {
               autocomplete="off"
               resize="vertical"
               :disabled="!composerEnabled"
-              :placeholder="hasPendingDesignerQuestion ? '请先回答上方设计问题…' : designerSession?.state === 'RUNNING' ? '当前角色正在处理上一条消息…' : isFinalReview ? '总体确认阶段请使用工作包“重新讨论”或整体需求重开…' : `继续讨论${discussionScopeLabel}；不会触发全局重新拆包…`"
+              :placeholder="hasPendingDesignerQuestion ? '请先回答上方设计问题…' : awaitingChatAnswer ? '直接回答上方设计师问题，可填写选项或自己的方案…' : designerSession?.state === 'RUNNING' ? '当前角色正在处理上一条消息…' : isFinalReview ? '总体确认阶段请使用工作包“重新讨论”或整体需求重开…' : `继续讨论${discussionScopeLabel}；不会触发全局重新拆包…`"
               aria-label="发送给只读设计师的消息"
               @keydown.meta.enter.prevent="sendMessage"
               @keydown.ctrl.enter.prevent="sendMessage"
             />
-            <div class="compose-actions"><span class="tiny muted">⌘ / Ctrl + Enter</span><el-button type="primary" :loading="busy" :disabled="!composerEnabled || !userMessage.trim()" @click="sendMessage"><Icon icon="lucide:send" />发送</el-button></div>
+            <div class="compose-actions"><span class="tiny muted">⌘ / Ctrl + Enter</span><el-button type="primary" :loading="busy" :disabled="!composerEnabled || !userMessage.trim()" @click="sendMessage"><Icon icon="lucide:send" />{{ awaitingChatAnswer ? '提交回答' : '发送' }}</el-button></div>
             <div v-if="designerSession?.workflowPhase === 'DISCUSSING_REQUIREMENT' && designerSession.state === 'REVIEWING'" class="scope-primary-action"><el-button type="primary" :loading="busy" :disabled="autoModeActive || !designerSession.taskProfile.confirmationReady" @click="confirmRequirement"><Icon :icon="designerSession.taskProfile.workflowTemplate === 'READ_ONLY_REPORT' ? 'lucide:file-search' : ['DIRECT_ARTIFACT', 'PACKAGED_ARTIFACT'].includes(designerSession.taskProfile.workflowTemplate) ? 'lucide:file-output' : designerSession.taskProfile.workflowTemplate === 'LOCAL_MAINTENANCE' ? 'lucide:wrench' : designerSession.taskProfile.workflowTemplate === 'DIRECT_SOFTWARE_DESIGN' ? 'lucide:sparkles' : 'lucide:split'" />{{ autoModeActive ? '全自动模式将确认需求' : taskProfileRouting ? '任务设置识别中' : taskProfileNeedsConfirmation ? '请先确认任务设置' : designerSession.taskProfile.workflowTemplate === 'READ_ONLY_REPORT' ? '需求已明确，生成只读报告' : designerSession.taskProfile.workflowTemplate === 'DIRECT_ARTIFACT' ? '需求已明确，规划制品' : designerSession.taskProfile.workflowTemplate === 'PACKAGED_ARTIFACT' ? '需求已明确，规划章节制品' : designerSession.taskProfile.workflowTemplate === 'LOCAL_MAINTENANCE' ? '需求已明确，规划安全维护' : designerSession.taskProfile.workflowTemplate === 'DIRECT_SOFTWARE_DESIGN' ? '需求已明确，开始单包设计' : '需求已明确，开始拆包' }}</el-button></div>
             <div v-else-if="designerSession?.workflowPhase === 'REVIEWING_PACKAGE' && currentPackage?.state === 'REVIEWING'" class="scope-primary-action"><el-button type="primary" :loading="busy" :disabled="autoModeActive" @click="approvePackage"><Icon icon="lucide:check-check" />{{ autoModeActive ? `全自动模式将接受${workPackageLabel(currentPackage.id)}` : `接受${workPackageLabel(currentPackage.id)}并继续` }}</el-button></div>
           </div>
@@ -1545,6 +1556,10 @@ async function redesignPackage(packageId: string) {
 .work-package-chip.package-stale { border-color: rgb(245 158 11 / 42%); background: rgb(245 158 11 / 6%); }
 .work-package-chip.package-failed { border-color: rgb(239 68 68 / 42%); }
 .chat-history { min-height: 0; padding: 0 20px 22px; }
+.chat-question-compat { display: flex; gap: 10px; margin: 14px 0; padding: 11px 12px; border: 1px solid rgb(34 211 238 / 36%); border-radius: 10px; color: var(--color-accent-cyan); background: rgb(34 211 238 / 7%); }
+.chat-question-compat svg { flex: 0 0 auto; margin-top: 2px; }
+.chat-question-compat strong { font-size: 10px; }
+.chat-question-compat p { margin: 4px 0 0; color: var(--color-text-secondary); font-size: 10px; line-height: 1.55; }
 .chat-message { margin: 14px 0; padding: 13px 14px; border: 1px solid var(--color-border-default); border-radius: 12px; background: rgb(7 11 20 / 45%); }
 .chat-message-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 10px; }
 .chat-author { display: flex; align-items: center; gap: 9px; min-width: 0; }

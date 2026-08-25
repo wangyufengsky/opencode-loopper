@@ -76,7 +76,9 @@ class OpenCodeRuntimeManagerTest {
         assertThat(started.managed()).isTrue();
         assertThat(started.pid()).isEqualTo(6200L);
         assertThat(capturedCommand.get()).containsExactly(executable.toString(), "serve", "--hostname", "127.0.0.1", "--port", capturedCommand.get().get(5));
-        assertThat(capturedEnvironment.get()).containsKeys("OPENCODE_SERVER_USERNAME", "OPENCODE_SERVER_PASSWORD", "OPENCODE_CONFIG_CONTENT");
+        assertThat(capturedEnvironment.get())
+                .containsEntry("OPENCODE_ENABLE_QUESTION_TOOL", "true")
+                .containsKeys("OPENCODE_SERVER_USERNAME", "OPENCODE_SERVER_PASSWORD", "OPENCODE_CONFIG_CONTENT");
         assertThat(capturedEnvironment.get().get("OPENCODE_CONFIG_CONTENT"))
                 .contains("external_directory", "git push *", "deepseek-v4-flash",
                         "loopper-no-thinking", "\"thinking\":{\"type\":\"disabled\"}",

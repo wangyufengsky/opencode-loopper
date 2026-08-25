@@ -173,6 +173,7 @@ public final class OpenCodeRuntimeManager implements AutoCloseable {
         Map<String, String> environment = new LinkedHashMap<>();
         environment.put("OPENCODE_SERVER_USERNAME", username);
         environment.put("OPENCODE_SERVER_PASSWORD", password);
+        environment.put("OPENCODE_ENABLE_QUESTION_TOOL", "true");
         environment.put("OPENCODE_CONFIG_CONTENT", managedConfig());
         Process process;
         try {
