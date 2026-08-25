@@ -42,10 +42,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.2.40.jar
-   jar tf target/opencode-loopper-0.2.40.jar \
+   test -s target/opencode-loopper-0.2.41.jar
+   jar tf target/opencode-loopper-0.2.41.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.2.40.jar
+   shasum -a 256 target/opencode-loopper-0.2.41.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -95,8 +95,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.2.40`。
-- 正式产物：`target/opencode-loopper-0.2.40.jar`。
+- Maven 项目版本：`0.2.41`。
+- 正式产物：`target/opencode-loopper-0.2.41.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -432,7 +432,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.2.40.jar
+JAR=target/opencode-loopper-0.2.41.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -534,7 +534,8 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
-| 2026-08-25 | 本地同步并发锁测试确定性握手并交付 0.2.40 | `LocalSyncConflictServiceIntegrationTest` 不再用异步任务须在 1 秒内启动和固定 `sleep` 推断源目录锁已持有；外部验证脚本与测试通过源仓库之外的 started/release 标记显式握手，确认会话已进入 `VERIFYING` 后再验证第二次 apply 被拒绝，并在 `finally` 释放首个验证 | 并发用例在独立测试进程连续 10/10 通过，画像排序与发布契约聚焦通过；`./scripts/verify.sh` 完整通过：Java 575 项（0 失败、0 错误、2 条件跳过），前端 Vitest 200/200；JAR `target/opencode-loopper-0.2.40.jar` 为 283588851 字节，含 110 个 SPA 静态条目，SHA-256 `a5a90e5525771f9d81f98ce9e5b92d275b3db01469712ee1903bf579d7adf0a9`；GitHub Release 结果待标签工作流完成后核验，未重启或替换当前 8080 实例 |
+| 2026-08-25 | Designer 活动投影跨平台测试路径契约并交付 0.2.41 | `DesignerActivityServiceTest` 不再用 Unix 专属 `/tmp` 同时模拟登记项目根与运行时 Session 键，而是从同一规范化绝对 `@TempDir` 构造两者，保持与生产服务的绝对路径规范化边界一致；代码设计契约明确 canonical workspace/session mock 的跨平台路径要求；`v0.2.40` 已成功创建 Release 且资产校验通过，但同轮分支 CI 在 Windows 暴露该测试夹具缺陷，保留不可移动标签并顺延新版本 | 聚焦 `DesignerActivityServiceTest,ReleasePackagingContractTest` 通过；`./scripts/verify.sh` 完整通过：Java 575 项（0 失败、0 错误、2 条件跳过），前端 Vitest 200/200；JAR `target/opencode-loopper-0.2.41.jar` 为 283588850 字节，含 110 个 SPA 静态条目，SHA-256 `d7e40f08db888a4ac51c4e4988c7de42d0842aa537a19c79d9b20d0556e4dbc5`；GitHub 全平台 CI、Release 与资产结果待标签工作流完成后核验，未重启或替换当前 8080 实例 |
+| 2026-08-25 | 本地同步并发锁测试确定性握手并交付 0.2.40 | `LocalSyncConflictServiceIntegrationTest` 不再用异步任务须在 1 秒内启动和固定 `sleep` 推断源目录锁已持有；外部验证脚本与测试通过源仓库之外的 started/release 标记显式握手，确认会话已进入 `VERIFYING` 后再验证第二次 apply 被拒绝，并在 `finally` 释放首个验证 | 并发用例在独立测试进程连续 10/10 通过，画像排序与发布契约聚焦通过；`./scripts/verify.sh` 完整通过：Java 575 项（0 失败、0 错误、2 条件跳过），前端 Vitest 200/200；JAR `target/opencode-loopper-0.2.40.jar` 为 283588851 字节，含 110 个 SPA 静态条目，SHA-256 `a5a90e5525771f9d81f98ce9e5b92d275b3db01469712ee1903bf579d7adf0a9`；`v0.2.40` Release 与资产验收成功，但分支 CI 的 Windows `DesignerActivityServiceTest` 因 Unix 专属路径夹具失败，后续由 0.2.41 修复；未重启或替换当前 8080 实例 |
 | 2026-08-25 | 项目技术栈画像跨平台确定性修复并交付 0.2.39 | `ProjectStackAnalyzer` 对画像级和组件级技术族、技术、构建工具、测试框架、Manifest 与证据统一输出规范字典序，消除文件系统遍历顺序对不可变画像和跨平台验证的影响；代码设计契约补充确定性快照约束；`v0.2.38` 首次发布验证在 Ubuntu 暴露顺序缺陷并失败，保留该不可移动失败标签，修复后顺延新版本 | 聚焦 `ProjectStackAnalyzerTest,ProjectStackProfileServiceTest,TaskProfileRouterTest` 与发布契约通过；`./scripts/verify.sh` 完整通过：Java 575 项（0 失败、0 错误、2 条件跳过），前端 Vitest 200/200；JAR `target/opencode-loopper-0.2.39.jar` 为 283588854 字节，含 110 个 SPA 静态条目，SHA-256 `33f56c43a437468f28ce34e8d80e2250c90c001414e246176976c2ce6817c9a1`；`v0.2.39` Release 的画像排序回归已在 Ubuntu 通过，但同轮 `LocalSyncConflictServiceIntegrationTest` 暴露独立并发测试竞态而失败，未创建 Release；未重启或替换当前 8080 实例 |
 | 2026-08-24 | CupXml2Java 大型拆包 Router/Compiler 根因修复与真实 Loop 最终交付 0.2.38（承接下方 0.2.34 候选记录） | 除 Router 动作对象/否定作用域、Compiler 分组事实、Stage 路径与聚焦测试映射、GFM 设计 fail-closed、Judge-only Java 门禁及最终验收合同外，进一步修复专用聚合写入不能替换设计前占位包映射、纯中文斜杠范围说明被当成路径、`FINAL_REVIEW` 重开包无法恢复需求/工作包生命周期、聚合后草稿乐观锁检查点未推进，以及重复聚合反复追加全局约束；聚合上下文现按冻结 Decomposer 约束确定性归一化且保持幂等，普通草稿更新仍严格拒绝映射漂移和并发编辑 | `./scripts/verify.sh` 完整通过：Java 575 项（0 失败、0 错误、2 条件跳过），前端 Vitest 200/200；JAR `target/opencode-loopper-0.2.38.jar` 为 283588573 字节，含 110 个 SPA 静态条目，SHA-256 `d10b14f5a4bd04e63ad22a9952bf882cc2559da1f95a8042e4fd898b6770e6a6`。精确 JAR 隔离运行于 18038，在真实 Session `8bebf41a-da35-4a81-b22c-a89fe244a611` 重编译 WP-4 并重新聚合同一会话既有 4 包编译结果：最终各包 `serverCompiled=true` 且规划/格式/语义/总修复均为 0，生成 9 个依赖有序 Stage，唯一全局约束区块，进入 `REVIEWING / FINAL_REVIEW` 且 `finalConfirmationEligible=true`；Task 0，未确认实施；隔离 Loopper 与受管 OpenCode 已停止，未替换 8080 实例，未推送、未打标签、未创建 Release |
 | 2026-08-24 | CupXml2Java 大型拆包 Router/Compiler 根因修复与真实 Loop，交付 0.2.34 | Router 安全策略按动作对象与否定作用域判定，领域事件/执行轨迹可观测、事件总线注册/发布/按类型分发、生命周期事件示例和大小写无关的受控 `CHAIN_*` 事件常量等进程内发布语义不再误判为外部发版，发布器/发布者/发布-订阅器名词不作为动作，同句内“仅发布一次/重复发布”在已有可证明业务发布对象时继承该对象，任务级意图避免人工评审点、只读 getter 与源码职责中的“维护”动词把软件写任务降级；Compiler 保留分组引用的交付事实以形成 Stage 级路径/交付边界，拒绝把含说明的 scope 整句当路径，并让 Stage 与 PROCESS/GIT_DIFF 证据共享过滤后的禁止路径；固定章节软件设计缺少合法 GFM 验收场景表或重复/缺失受控章节时 fail-closed，不再用旧稿段落降级或重复抽取把标题、范围、伪表格与整套重复设计冒充场景；只有 Judge 条件的 Java 生产 Stage 从组内明确测试或包内唯一聚焦能力生成 `covers:[]` 阻断门禁，最终验收只在该 Stage 全部条件均为 Judge 时接受空映射，歧义、缺失或存在机器条件未映射时直接返回设计不完整；验收能力映射把包内唯一正向测试交付作为未显式点名场景的权威聚焦测试，使用完整测试标识判定交付所有权，识别“同一/该/本聚焦测试类”阶段回指，把既有回归保持与测试风格说明排除出业务场景覆盖，并拒绝把“无 `@SpringBootTest`”等否定框架标记当作测试能力 | 0.2.17、0.2.18、0.2.19 候选的真实 Loop 分别暴露安全否定、任务级评审词和 WP-4 无聚焦门禁；0.2.20 暴露“发布器”子串问题，0.2.21 又以真实需求稿暴露“某类维护 MDC”职责描述被当成本地维护任务；0.2.22 完整验证进一步暴露组装快照中的“初始需求：本地配置维护”需保持兼容，0.2.23 聚焦集成验证确认生成稿标题“安全维护”也必须保持自动确认；0.2.24 真实冻结稿暴露“发布-订阅器生命周期”中的组件名词，0.2.25 精确回放进一步定位 `发布 CHAIN_STARTED/CHAIN_SUCCEEDED` 的受控事件常量，0.2.26 聚焦测试消除策略依赖调用方预先小写的隐含条件；0.2.27 全量验证通过后，真实冻结稿再次暴露同句第二个“重复发布”丢失事件宾语，0.2.28 全量验证后又由新冻结稿暴露事件总线枚举发布与生命周期事件样例；0.2.29 真实 WP-1 冻结稿进一步暴露唯一新增聚焦测试的阶段回指未被识别、旧回归测试反被词汇相似度绑定；0.2.30 WP-1 候选又暴露 Stage 已过滤而证据仍使用原始 scope 说明的路径边界分叉；0.2.31 WP-3 冻结稿暴露无 GFM 分隔行的当前格式设计仍被段落兼容分支伪装为有效场景；0.2.32 WP-4 冻结稿暴露同一响应重复两套受控设计、否定 `@SpringBootTest` 被识别成能力且旧状态机回归测试夺取新增场景覆盖；0.2.33 WP-4 三阶段真实编译暴露服务端生成的 Judge-only `covers:[]` 聚焦门禁仍被最终 LoopSpec 旧规则拒绝并耗尽重试；均从语义分类/编译绑定/最终验收合同根因修正并按版本规则顺延；0.2.34 完整验证、新 JAR 与最终四包真实 Loop 结果待本次交付完成后回填 |

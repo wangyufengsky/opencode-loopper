@@ -9,12 +9,15 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class DesignerActivityServiceTest {
+    @TempDir Path projectRoot;
+
     private final LoopperMapper mapper = mock(LoopperMapper.class);
     private final ProjectService projects = mock(ProjectService.class);
     private final OpenCodeClient openCode = mock(OpenCodeClient.class);
@@ -35,7 +38,7 @@ class DesignerActivityServiceTest {
                 new OpenCodeClient.SessionPart("tool", "TOOL", "gitlab_search",
                         "{\"query\":\"profile\"}\n返回 2 条", "COMPLETED"),
                 new OpenCodeClient.SessionPart("output", "OUTPUT", "assistant", "设计稿已生成", null)), usage));
-        when(tokenUsage.observeDesigner(session.id(), Path.of("/tmp"), remote.id(), usage, false))
+        when(tokenUsage.observeDesigner(session.id(), root(), remote.id(), usage, false))
                 .thenReturn(new ModelTokenUsageProjectionService.UsageView(150L, 0, "now"));
 
         DesignerActivityService.View view = activities.activity(session.id());
@@ -100,10 +103,14 @@ class DesignerActivityServiceTest {
     }
 
     private ProjectRow project() {
-        return new ProjectRow("project-1", "Project", "/tmp", "", "now", "now", 1, 0);
+        return new ProjectRow("project-1", "Project", root().toString(), "", "now", "now", 1, 0);
     }
 
     private OpenCodeClient.OpenCodeSession remote(String id) {
-        return new OpenCodeClient.OpenCodeSession(id, Path.of("/tmp"));
+        return new OpenCodeClient.OpenCodeSession(id, root());
+    }
+
+    private Path root() {
+        return projectRoot.toAbsolutePath().normalize();
     }
 }

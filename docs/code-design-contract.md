@@ -64,6 +64,9 @@ ownership rules:
   Analyzer snapshot collections must be emitted in canonical lexical order so filesystem
   visitation order cannot change persisted profiles or cross-platform verification results.
   Project list reads must use persisted summaries and must not call either filesystem path.
+- Tests that mock canonical workspace/session paths must derive both the registered project root
+  and the expected runtime key from the same normalized absolute `@TempDir`; Unix-only literals
+  such as `/tmp` must not encode path equality assumptions into cross-platform contracts.
 - `TaskProfileRouter` owns deterministic selection from a supplied stack snapshot,
   `TaskProfileSafetyPolicy` owns requested external-mutation and publication-target classification,
   `TaskProfileIntentPolicy` owns task-level read-only review and positive-mutation classification,
