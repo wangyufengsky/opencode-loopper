@@ -61,6 +61,8 @@ ownership rules:
   persistent unconfirmed-writer evidence; neither may release/admit the next Direct lease.
 - `ProjectStackAnalyzer` owns bounded filesystem evidence and manifest fingerprinting;
   `ProjectStackProfileService` owns immutable snapshot persistence and freshness checks.
+  Analyzer snapshot collections must be emitted in canonical lexical order so filesystem
+  visitation order cannot change persisted profiles or cross-platform verification results.
   Project list reads must use persisted summaries and must not call either filesystem path.
 - `TaskProfileRouter` owns deterministic selection from a supplied stack snapshot,
   `TaskProfileSafetyPolicy` owns requested external-mutation and publication-target classification,

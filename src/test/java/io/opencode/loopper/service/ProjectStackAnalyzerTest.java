@@ -29,13 +29,22 @@ class ProjectStackAnalyzerTest {
     }
 
     @Test void onlyMarksMixedWhenFamiliesShareTheSameComponentDirectory() throws Exception {
-        Files.writeString(root.resolve("pom.xml"), "<project />");
         Files.writeString(root.resolve("package.json"), "{}");
+        Files.writeString(root.resolve("pom.xml"), "<project><build><plugins>junit surefire</plugins></build></project>");
+        Files.writeString(root.resolve("build.gradle"), "plugins { id 'java' } // testng");
 
         ProjectStackAnalyzer.Analysis result = analyzer.analyze(root);
 
         assertThat(result.components()).hasSize(1);
         assertThat(result.components().getFirst().technologyFamilies()).containsExactly("java", "node");
+        assertThat(result.components().getFirst().technologies()).containsExactly("java", "node");
+        assertThat(result.components().getFirst().buildTools()).containsExactly("gradle", "maven", "npm");
+        assertThat(result.components().getFirst().testFrameworks())
+                .containsExactly("junit", "surefire", "testng");
+        assertThat(result.components().getFirst().manifestSources())
+                .containsExactly("build.gradle", "package.json", "pom.xml");
+        assertThat(result.components().getFirst().evidence())
+                .containsExactly("source=build.gradle", "source=package.json", "source=pom.xml");
     }
 
     @Test void recognizesPythonGoRustAndSkipsSymbolicLinks() throws Exception {

@@ -150,10 +150,12 @@ public final class ProjectStackAnalyzer {
                 technologies.addAll(component.technologies());
                 families.addAll(component.technologyFamilies());
             });
-            evidence.add("files-scanned=" + filesScanned);
-            evidence.add("components=" + results.size());
+            List<String> stableEvidence = new ArrayList<>(evidence);
+            stableEvidence.sort(String::compareTo);
+            stableEvidence.add("files-scanned=" + filesScanned);
+            stableEvidence.add("components=" + results.size());
             return new Analysis(partial ? ProjectStackProfileState.PARTIAL : ProjectStackProfileState.READY,
-                    sha256(fingerprintInput), List.copyOf(families), List.copyOf(technologies), List.copyOf(evidence),
+                    sha256(fingerprintInput), sortedCopy(families), sortedCopy(technologies), List.copyOf(stableEvidence),
                     filesScanned, partial ? "PROJECT_STACK_PARTIAL" : null,
                     partial ? "The bounded scan completed with incomplete evidence" : null, results);
         }
@@ -191,9 +193,9 @@ public final class ProjectStackAnalyzer {
         }
 
         private ComponentResult result() {
-            return new ComponentResult(componentKey(relativeRoot), relativeRoot, List.copyOf(families),
-                    List.copyOf(technologies), List.copyOf(buildTools), List.copyOf(testFrameworks),
-                    List.copyOf(manifests), List.copyOf(evidence));
+            return new ComponentResult(componentKey(relativeRoot), relativeRoot, sortedCopy(families),
+                    sortedCopy(technologies), sortedCopy(buildTools), sortedCopy(testFrameworks),
+                    sortedCopy(manifests), sortedCopy(evidence));
         }
     }
 
@@ -244,6 +246,7 @@ public final class ProjectStackAnalyzer {
     private record Signal(String path, String sha256) { }
 
     private static String componentKey(String root) { return "component-" + sha256(root).substring(0, 12); }
+    private static List<String> sortedCopy(Set<String> values) { return values.stream().sorted().toList(); }
     private static String normalized(Path path) { return path.toString().replace('\\', '/'); }
     private static String sha256(String value) { return sha256(value.getBytes(StandardCharsets.UTF_8)); }
     private static String sha256(byte[] value) {
