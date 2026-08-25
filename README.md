@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.2.49`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.2.51`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -128,7 +128,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.2.49.jar
+java -jar target/opencode-loopper-0.2.51.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -143,7 +143,7 @@ java -jar target/opencode-loopper-0.2.49.jar
 4. 可选：在项目卡片中打开 **AGENTS.md 项目公约**。该动作会强制重析项目并让只读 Session 重新生成管理区块；检查完整预览后再确认写入。若分析失败，不会启动 AI；证据不完整时预览会显示复核警告。
 5. 打开 **设计 / 循环规范**，选择项目并描述目标。创建新设计前会检查 Manifest 指纹并在变化时刷新画像；刷新失败或组件歧义会进入可见的任务设置确认，不会伪装为 Java。提交后保持在当前设计页，画像计算完成会自动继续，不需要到历史设计手工恢复。软件任务默认关闭“大型任务”，因此采用一个 `WP-1`；只有确实需要多个纵向业务包时才在画像冻结前打开开关。普通模式先回答唯一一轮需求问题，服务端随后显示原样需求快照；继续补充会产生新的需求问题和替代快照，但不会启动工作包。OpenCode 提供原生 `question` 时页面显示选项卡；能力探测不到时页面显示“对话回答模式”，设计师用普通消息提问，输入框即使在全自动模式下也会开放给用户直接作答。显式确认后 WP-1 直接设计，不会再出现包级问题卡。已有未确认设计仍可从 **历史设计** 页面继续、修改或归档，服务重启后会从服务端恢复同一模式和快照。
 6. 普通任务在 WP-1 内完成 1–6 个 Stage 的设计、编译和确定性校验后直接进入总体确认，不显示工作包轨道或接受按钮；需要修改时点击 **重新讨论设计**。大型任务沿轨道逐包讨论并点击 **接受工作包 N 并继续**。两种模式都只在总体确认后创建 `PENDING_START` Task，不进入队列、不占用写租约，也不创建或切换 Git 分支。
-7. 进入任务详情并点击一次 **开始执行**。此时才会申请队列/写租约、检查工作区、获取远端更新并准备任务分支；一旦准入会自动继续执行，不需要在 `READY` 状态再次点击。执行期间可查看阶段进度、尝试、真实模型输出、待处理问题、验证证据和双 Judge 评审；模型输出区的纯数字窗口累计该 Task 全部实施与 Judge Session 的 Token，并以 `+xxx` 展示每次权威增量。
+7. 进入任务详情并点击一次 **开始执行**。此时才会申请队列/写租约、检查工作区、获取远端更新并准备任务分支；一旦准入会自动继续执行，不需要在 `READY` 状态再次点击。排队及其他非终态任务的取消入口由服务端能力字段决定；轻量详情响应缺少关键能力字段时会回退完整详情读取，不会把缺字段静默当成“不可取消”。执行期间可查看阶段进度、尝试、真实模型输出、待处理问题、验证证据和双 Judge 评审；模型输出区的纯数字窗口累计该 Task 全部实施与 Judge Session 的 Token，并以 `+xxx` 展示每次权威增量。
 8. 任务成功后检查实际差异，再由人工提交任务分支；最终 Attempt 会无条件保存任务基线差异文件清单，不要求 LoopSpec 配置 `GIT_DIFF`。Loopper 随后恢复任务开始前的源分支，有排队任务时继续切到下一任务分支；差异预览、远端推送和合并请求继续显式引用已提交的任务分支。
 
 ## 功能页面
@@ -356,7 +356,7 @@ Git 任务的最新 Execution Cycle 成功并处于 `AWAITING_DECISION` 或用�
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.2.49.jar`
+- `target/opencode-loopper-0.2.51.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -387,7 +387,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:51234
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.2.49.jar`
+- `opencode-loopper-0.2.51.jar`
 - `start-windows.bat`
 
 确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
@@ -425,7 +425,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.2.49.jar \
+jar tf target/opencode-loopper-0.2.51.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -507,7 +507,7 @@ Windows PowerShell：
 例如发布下一版本：
 
 ```bash
-VERSION=0.2.49
+VERSION=0.2.51
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -547,7 +547,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.2.49.jar
+java -jar target/opencode-loopper-0.2.51.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。

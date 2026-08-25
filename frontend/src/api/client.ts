@@ -47,6 +47,12 @@ function requiredString(raw: JsonRecord, field: string, context: string): string
   return value
 }
 
+function requireBooleanFields(raw: JsonRecord, fields: string[], context: string): void {
+  for (const field of fields) {
+    if (typeof raw[field] !== 'boolean') throw new TypeError(`${context}.${field} must be boolean`)
+  }
+}
+
 function parseBrowserAssertion(value: unknown): BrowserAssertion {
   const raw = asRecord(value)
   const type = asString(raw.type).toUpperCase()
@@ -475,6 +481,12 @@ function normalizeTask(value: unknown): Task {
   const taskId = asString(raw.id)
   const workPackages = asArray(raw.workPackages).map((value) => { const item = asRecord(value); return { id: asString(item.id), ordinal: asNumber(item.ordinal), status: asString(item.status) as NonNullable<Task['workPackages']>[number]['status'], stageCount: asNumber(item.stageCount), completedStages: asNumber(item.completedStages), attemptCount: asNumber(item.attemptCount), attemptLimit: asNumber(item.attemptLimit) } })
   return { id: taskId, projectId: asString(raw.projectId), projectName: asString(raw.projectName, 'Unknown project'), title: asString(raw.title), goal: asString(raw.goal), branch: asString(raw.branch) || '等待选择执行模式', worktreePath: asString(raw.worktreePath) || '等待准备执行目录', status: asString(raw.status) as Task['status'], retryCause: ['RATE_LIMIT', 'SESSION', 'VERIFICATION'].includes(asString(raw.retryCause)) ? asString(raw.retryCause) as Task['retryCause'] : undefined, retryOrdinal: typeof raw.retryOrdinal === 'number' ? raw.retryOrdinal : undefined, retryScheduledAt: asString(raw.retryScheduledAt) || undefined, retryDueAt: asString(raw.retryDueAt) || undefined, retryDelaySeconds: typeof raw.retryDelaySeconds === 'number' ? raw.retryDelaySeconds : undefined, waitingReasonCode: asString(raw.waitingReasonCode) || undefined, loopRetryAvailable: raw.loopRetryAvailable === true, cancellationAvailable: raw.cancellationAvailable === true, hasDesignHistory: raw.hasDesignHistory === true, archived: raw.archived === true, executionResult: asString(raw.executionResult) as Task['executionResult'] || undefined, executionCycleOrdinal: typeof raw.executionCycleOrdinal === 'number' ? raw.executionCycleOrdinal : undefined, checkpointState: asString(raw.checkpointState) as Task['checkpointState'] || undefined, parentTaskId: asString(raw.parentTaskId) || undefined, successorTaskId: asString(raw.successorTaskId) || undefined, activeStage: stages.find((stage) => stage.status === 'RUNNING')?.ordinal, attemptCount: asNumber(raw.attemptCount, attempts.length), maxAttempts: asNumber(raw.maxAttempts, 12), createdAt: asString(raw.createdAt), updatedAt: asString(raw.updatedAt), stages, workPackages, attempts, errors: asArray(raw.errors).map(normalizeError), judges: asArray(raw.judges).map(normalizeJudge), artifacts: asArray(raw.artifacts).map((artifact) => normalizeArtifact(artifact, taskId)) }
+}
+
+function normalizeTaskOverview(value: unknown): Task {
+  const raw = asRecord(value)
+  requireBooleanFields(raw, ['loopRetryAvailable', 'cancellationAvailable', 'hasDesignHistory', 'archived'], 'TaskOverview')
+  return normalizeTask(raw)
 }
 
 function normalizeTaskQueueStatus(value: unknown): TaskQueueStatus {
@@ -1341,7 +1353,7 @@ export const api = {
   getTasks: async () => (await request<unknown[]>('/tasks')).map(normalizeTask),
   getTask: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}`)),
   getTaskSummaries: async (input: TaskSummaryQuery = {}) => normalizeTaskPage(await request<unknown>(`/tasks/summaries${pageQuery(input)}`)),
-  getTaskOverview: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}/overview`)),
+  getTaskOverview: async (id: string) => normalizeTaskOverview(await request<unknown>(`/tasks/${encodeURIComponent(id)}/overview`)),
   getTaskAudit: async (id: string) => normalizeTaskAudit(await request<unknown>(`/tasks/${encodeURIComponent(id)}/audit`), id),
   getVerificationEvidence: async (taskId: string, id: string) => normalizeReadContent(await request<unknown>(`/tasks/${encodeURIComponent(taskId)}/verifications/${encodeURIComponent(id)}/evidence`)),
   getErrorEvidence: async (taskId: string, id: string) => normalizeReadContent(await request<unknown>(`/tasks/${encodeURIComponent(taskId)}/errors/${encodeURIComponent(id)}/evidence`)),

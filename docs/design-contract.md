@@ -88,6 +88,11 @@ the current writer and its workspace lease remain untouched. The server-authorit
 result passes through a normally short `STOPPING` confirmation before `CANCELLED`,
 after which the existing Task-list archive and permanent-delete
 flow becomes available only when the Task no longer owns an active workspace lease.
+The lightweight Task overview must carry the server-owned cancellation and retry
+capabilities plus the design-history and archive flags used by the detail header.
+Missing required boolean fields are an incomplete API projection, not `false`:
+the frontend rejects that overview and falls back to the compatibility detail read
+so an available action cannot disappear silently.
 A newly confirmed Task is `PENDING_START`. It must show **开始执行** and a separate
 confirmed **取消任务** action, and its summary must say that confirmation has not
 created a queue row, acquired a write lease, allocated an execution directory, or

@@ -17,4 +17,8 @@ public enum TaskState implements DescribedEnum {
     public boolean terminal() {
         return this == SUCCEEDED || this == FAILED || this == COMPLETED || this == SUPERSEDED || this == CANCELLED;
     }
+
+    public boolean cancellationAvailable() {
+        return !terminal() && this != AWAITING_DECISION;
+    }
 }

@@ -500,6 +500,25 @@ describe('Loopper REST contract adapter', () => {
     expect(task.loopRetryAvailable).toBe(true)
   })
 
+  it('requires every action-driving capability in the lightweight task overview', async () => {
+    const overview = {
+      id: 'task-queued', projectId: 'project-1', projectName: 'Project', title: 'Queued', goal: 'Goal',
+      branch: 'DIRECT', worktreePath: '/tmp/project', status: 'QUEUED', loopRetryAvailable: false,
+      cancellationAvailable: true, hasDesignHistory: true, archived: false,
+      attemptCount: 0, maxAttempts: 3, createdAt: 'start', updatedAt: 'now', stages: [], errors: [], judges: [],
+    }
+    const { cancellationAvailable: _missing, ...incomplete } = overview
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json(overview))
+      .mockResolvedValueOnce(json(incomplete))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(api.getTaskOverview('task-queued')).resolves.toMatchObject({
+      status: 'QUEUED', cancellationAvailable: true, loopRetryAvailable: false,
+    })
+    await expect(api.getTaskOverview('task-queued')).rejects.toThrow('TaskOverview.cancellationAvailable must be boolean')
+  })
+
   it('archives, restores and deletes task history only through the local UI contract', async () => {
     const response = { id: 'task-1', projectId: 'project-1', projectName: 'Project', title: 'Task', goal: 'Goal', branch: 'DIRECT', worktreePath: '/tmp/project', status: 'CANCELLED', archived: true, attemptCount: 1, maxAttempts: 3, createdAt: 'start', updatedAt: 'now' }
     const fetchMock = vi.fn().mockResolvedValueOnce(json(response)).mockResolvedValueOnce(json({ ...response, archived: false })).mockResolvedValueOnce(new Response(null, { status: 204 }))

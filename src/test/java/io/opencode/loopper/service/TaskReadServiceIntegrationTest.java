@@ -94,6 +94,20 @@ class TaskReadServiceIntegrationTest {
     }
 
     @Test
+    void overviewProjectsTheAuthoritativeCancellationCapabilityForEveryTaskState() {
+        assertThat(reads.overview("task-a").cancellationAvailable()).isTrue();
+
+        jdbc.update("UPDATE task SET state=? WHERE id=?", "QUEUED", "task-a");
+        assertThat(reads.overview("task-a").cancellationAvailable()).isTrue();
+
+        jdbc.update("UPDATE task SET state=? WHERE id=?", "AWAITING_DECISION", "task-a");
+        assertThat(reads.overview("task-a").cancellationAvailable()).isFalse();
+
+        jdbc.update("UPDATE task SET state=? WHERE id=?", "CANCELLED", "task-a");
+        assertThat(reads.overview("task-a").cancellationAvailable()).isFalse();
+    }
+
+    @Test
     void overviewAndSummarySelectOneRetryPlanWhenClaimedHistoryOverlapsAnActivePlan() {
         jdbc.update("""
                 INSERT INTO task_retry_schedule(id,task_id,stage_id,cause,ordinal,delay_seconds,due_at,

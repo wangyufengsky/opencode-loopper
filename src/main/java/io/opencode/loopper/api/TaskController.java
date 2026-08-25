@@ -314,7 +314,7 @@ public class TaskController {
                 retry == null ? null : retry.createdAt(), retry == null ? null : retry.dueAt(),
                 retry == null ? null : retry.delaySeconds(),
                 loopRetry.waitingReasonCode(), loopRetry.loopRetryAvailable(),
-                cancellationAvailable(task),
+                TaskState.valueOf(task.state()).cancellationAvailable(),
                 draft != null, service.archived(task.id()),
                 cycle == null ? null : cycle.state(), cycle == null ? null : cycle.ordinal(),
                 checkpoint == null ? null : checkpoint.state(), parentTaskId, successorTaskId,
@@ -337,10 +337,6 @@ public class TaskController {
                           List<AttemptDto> attempts, List<ErrorDto> errors,
                           List<JudgeDto> judges, List<ArtifactDto> artifacts) { }
 
-    private boolean cancellationAvailable(TaskRow task) {
-        TaskState state = TaskState.valueOf(task.state());
-        return !state.terminal() && state != TaskState.AWAITING_DECISION;
-    }
     public record TaskDesignHistoryDto(String taskId, String taskTitle, String projectName,
                                        String designSourceTaskId, boolean inheritedConversation,
                                        TaskLoopDraftDto draft,

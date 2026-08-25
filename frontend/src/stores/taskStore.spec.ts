@@ -10,6 +10,8 @@ const apiMocks = vi.hoisted(() => ({
   deleteArchivedTask: vi.fn(),
   getProjects: vi.fn(),
   getTasks: vi.fn(),
+  getTask: vi.fn(),
+  getTaskOverview: vi.fn(),
   getRuntime: vi.fn(),
 }))
 
@@ -111,6 +113,20 @@ describe('task SSE reducer', () => {
 
     expect(store.tasks).toEqual([holder])
     expect(store.error).toContain('工作区有未提交文件')
+  })
+
+  it('falls back to the complete task endpoint when an overview capability contract is incomplete', async () => {
+    const queued = { ...demoTasks[0]!, id: 'queued-task', status: 'QUEUED' as const, cancellationAvailable: true }
+    apiMocks.getTaskOverview.mockRejectedValue(new TypeError('TaskOverview.cancellationAvailable must be boolean'))
+    apiMocks.getTask.mockResolvedValue(queued)
+    const store = useTaskStore()
+    store.usingDemo = false
+
+    await expect(store.loadTask(queued.id)).resolves.toEqual(queued)
+
+    expect(apiMocks.getTaskOverview).toHaveBeenCalledWith(queued.id)
+    expect(apiMocks.getTask).toHaveBeenCalledWith(queued.id)
+    expect(store.tasks).toContainEqual(queued)
   })
 
   it('exits demo mode and reloads authoritative backend data', async () => {

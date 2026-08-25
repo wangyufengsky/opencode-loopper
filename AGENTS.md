@@ -42,10 +42,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.2.49.jar
-   jar tf target/opencode-loopper-0.2.49.jar \
+   test -s target/opencode-loopper-0.2.51.jar
+   jar tf target/opencode-loopper-0.2.51.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.2.49.jar
+   shasum -a 256 target/opencode-loopper-0.2.51.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -95,8 +95,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.2.49`。
-- 正式产物：`target/opencode-loopper-0.2.49.jar`。
+- Maven 项目版本：`0.2.51`。
+- 正式产物：`target/opencode-loopper-0.2.51.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -213,6 +213,7 @@ Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级�
 `RETRY_WAIT` 必须由 V31 持久化计划驱动，同一 Task 只允许一个 `SCHEDULED`/`PAUSED` 活动计划。限流、普通 Session、验证失败默认分别按 `60→120→240→300`、`10→20→40→60`、`5→10→20→30` 秒退避并保持上限，不加随机抖动；计划创建后到期时间不可被后续设置追溯修改。只有确认旧 writer 已停止后才能建计划，到期由 Monitor 原子领取并创建唯一新 Attempt/Session；重启保留计划，历史无计划等待按普通 Session 默认值补建。暂停冻结剩余时间，恢复继续等待，Task 成功/失败/取消关闭活动计划。OpenCode `RETRY` 是 Provider 在原远端 Session 内的自恢复状态，不是 Session 错误、Loopper `RETRY_WAIT` 或 writer 终态证明；所有调用方必须保留原 Session 继续轮询，既有角色/操作超时仍为硬边界。
 
 除 `AWAITING_DECISION` 由独立结果处置接口负责外，所有非终态 Task 都必须在本地任务详情中保留取消入口；取消需二次确认并保留已有执行目录、分支和证据，不得伪装成回滚。服务端必须先把 Task 持久化为 `STOPPING`，停止并确认该 Task 的验证进程、Implementation/Judge 远端 Session 和其他 writer 已终止，再把 Attempt/Stage/Execution Cycle 分别收束为 `CANCELLED / CANCELLED / INTERRUPTED` 并将 Task 转为 `CANCELLED`；停止无法确认时保持 `STOPPING` 和 `DISCONNECTED`，允许显式重试，禁止释放租约或启动重叠 writer。`PENDING_START` 取消只改变自身 Task，必须保持无 Queue/Lease/分支/执行目录；取消排队任务只取消自身 Queue，不得释放或转移当前 holder 的写租约。脏工作区对话框的“取消任务并保留文件”也必须走同一取消协议，不得用通用失败入口制造 `FAILED` Task 或遗留 `RUNNING` Cycle。
+Task 详情 `overview` 必须投影 `loopRetryAvailable`、`cancellationAvailable`、`hasDesignHistory` 和 `archived` 四个布尔字段；前端不得把缺失字段静默解释为 `false`，而应拒绝不完整 overview 并回退完整详情接口。取消能力规则由 `TaskState.cancellationAvailable()` 统一持有，精简读模型与兼容 `TaskDto` 不得各自复制判断。
 
 验证失败后的 Attempt 必须固化有界 `ATTEMPT_HANDOFF`，下一轮只能使用新 Attempt 和新可写 Session；不得复用旧实施对话。只有可靠且相同的失败签名与工作区内容指纹才累计停滞次数，达到 `stagnationLimit` 后必须进入 `WAITING_INPUT`，由本地 UI 明确确认继续。
 
@@ -432,7 +433,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.2.49.jar
+JAR=target/opencode-loopper-0.2.51.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -534,6 +535,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-08-25 | Task 详情取消能力投影与前端精简读模型防退化，交付 0.2.51 | `TaskState` 统一持有通用取消可用性，兼容 `TaskDto` 与轻量 `TaskOverview` 复用同一规则；overview 完整投影取消、循环重试、设计历史与归档四个详情控制字段，前端把缺少关键布尔值视为不完整响应并回退完整详情接口，不再静默转成 `false` 隐藏操作；审计确认任务列表、项目摘要和队列诊断字段裁剪均与现有页面使用一致；同步 README、架构、设计合同与本公约正文 | 后端读模型聚焦 8/8，前端 API/Store/详情聚焦 65/65 与类型检查通过；0.2.50 首次完整验证由仍断言旧 JAR 名的发布契约拦截，修正源码后按版本规则顺延；0.2.51 `./scripts/verify.sh` 通过：Java 585 项（0 失败、0 错误、2 条件跳过）、前端 207/207，JAR 含 112 个静态资源条目、大小 283618954 字节、SHA-256 `c8df97388179e63f3be1529495bf2edc5f6dc3c6454705a67babe8b2e8435f81`；未重启或替换当前运行实例，未推送、未打标签、未创建 Release |
 | 2026-08-25 | Router 与 AGENTS.md 连接后无限等待、隐藏上限及 OpenCode Schema 崩溃兼容，交付 0.2.49 | Router 的 240 秒配置只约束未建立外部 Session 的连接等待，连接后持续轮询真实终态且 DTO 截止时间为空；Router 运行弹窗仅展示真实已用时间、远端状态、活动与 Token；新 Router 固定 `TEXT_MARKER`，避开 OpenCode 桌面加载持久化 `json_schema` 格式时的崩溃，同时保留相同服务端闭集解析与安全校验；AGENTS.md 只读 Session 同样取消无进展和总时长自动停止，移除已失效的停滞配置，保留显式停止与远端终态确认；同步 README、架构、Designer、OpenCode、AI 角色合同和本公约正文 | Router 聚焦后端 97 项（0 失败、0 错误、1 条件跳过），前端 40/40 与类型检查通过；0.2.48 在用户补充 AGENTS.md 同步语义前完整验证通过但不作为交付；0.2.49 `./scripts/verify.sh` 通过：Java 584 项（0 失败、0 错误、2 条件跳过）、前端 205/205，JAR 含 112 个静态资源条目、大小 283618717 字节、SHA-256 `c05544d8b2bb1f251849a21b1684ec6f4434d1b7334318ec2dfada6c37ecc816`；未重启或替换当前运行实例，未推送、未打标签、未创建 Release |
 | 2026-08-25 | Task Router 可视化确认门、240 秒超时与项目公约停滞时限，交付 0.2.47 | 普通模式首次 Router 结果在需求 Designer 启动前等待确认，终态支持同一持久化需求快照重做和手动覆盖；全自动只采用通过安全/组件校验的成功结果；Designer DTO 投影 Router run/deadline/error，活动接口展示有界思考/文字/工具并隐藏机器对象；前端复用 AI 活动组件提供不可关闭运行弹窗与中文分字段结果；Router 总时限和公约无进展时限默认 240 秒，公约 30 分钟总时限不变；Router run 重做/读投影抽取为独立协作者，机器 marker 模式归入 `DesignerSemanticContracts` 并下调主编排类结构门禁；同步 README、架构、Designer、OpenCode、代码设计与本公约正文 | 0.2.43 首次完整验证的 583 个非结构行为测试均通过，但结构门禁发现 `TaskProfileService` 增长到 622 行；抽取 `TaskProfileRouterRunService` 后降至 595 行并顺延，0.2.44 重试在测试编译期发现对应构造夹具未同步；0.2.45 完整验证通过后复核发现已确认画像仍可直接调用重做接口，现将重做严格限定为待决画像且重复确认无操作；0.2.46 全量仅新回归断言使用了错误字段名，按 RFC 9457 的 `errorCode` 修正并顺延；聚焦后端 129 项（0 失败、0 错误、1 条件跳过），前端 40/40 与类型检查通过；`./scripts/verify.sh` 对 0.2.47 完整通过：Java 584 项（0 失败、0 错误、2 条件跳过），Vitest 205/205；JAR `target/opencode-loopper-0.2.47.jar` 为 283619964 字节，含 112 个 SPA 静态条目，SHA-256 `46b12c48f5ab2d4bb41528726222f06e02b94d53cc9615df5343e3ef12dded18`；未重启或替换当前运行实例，未推送、未打标签、未创建 Release |
 | 2026-08-25 | OpenCode `question` 能力探测、聊天降级与启动注入，交付 0.2.42 | Designer 只在项目作用域工具探测为 `AVAILABLE` 且明确包含 `question` 时使用交互式只读 Session；缺失/未知时以普通消息提问、持久化同一决策日志并在全自动模式中等待聊天回答；需求阶段尚无 Compiler 时不再展示会触发 409 的编译/重设计动作；Linux/Windows 启动器与受管子进程默认注入 `OPENCODE_ENABLE_QUESTION_TOOL=true`，已运行外部进程保持自身环境；新增 `DesignerQuestionSupport` 隔离能力、答案和决策日志职责并保持主编排类结构门禁；同步 README、架构、设计、OpenCode 与代码设计契约 | 聚焦后端 21/21、前端 75/75；首次全量验证的 578 个 Java 行为测试均无失败，但结构门禁发现 `DesignerSessionService` 增长到 5608 行，抽取协作者并降至 5403 行后，`./scripts/verify.sh` 完整通过：Java 578 项（0 失败、0 错误、2 条件跳过），Vitest 202/202；真实 OpenCode 1.18.22 无变量为 13 项且无 `question`、聊天问题成功，有变量为 14 项且原生问题创建/回答 200，随后自动升级的 1.18.23 复核结果相同；临时端口均已释放；JAR `target/opencode-loopper-0.2.42.jar` 为 283605797 字节，含 110 个 SPA 静态条目，SHA-256 `12f93b5ebc71cb13c5c4c64f1a9627c6b687acca5304652cb343a2ba9db3c352`；未重启或替换当前运行实例 |

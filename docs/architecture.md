@@ -94,6 +94,12 @@ SQLite, cached for five seconds, and refreshed through at most four workers.
 Task summary and overview select exactly one retry schedule by state priority and
 latest update; a transient or recovered `CLAIMED` row may coexist with a new
 `SCHEDULED`/`PAUSED` row but must never multiply a single Task projection.
+The overview also carries every server-owned boolean used to expose Task-detail
+actions (`loopRetryAvailable`, `cancellationAvailable`) and adjacent history/archive
+controls. Those fields are required in the frontend overview adapter: an incomplete
+projection fails over to the compatibility detail endpoint instead of silently
+hiding an action by coercing a missing value to `false`. List summaries remain
+intentionally smaller and do not expose Task-detail capabilities.
 Runtime data is requested only on its own route; SSE invalidates overview and
 audit independently with a short coalescing window. JSON/text responses above
 2 KiB are compressed, Inbox responses use shallow ETags, and read-model metrics
