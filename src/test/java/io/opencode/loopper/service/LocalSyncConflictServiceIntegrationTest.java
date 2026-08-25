@@ -408,8 +408,13 @@ class LocalSyncConflictServiceIntegrationTest {
     @EnabledOnOs({OS.LINUX, OS.MAC})
     void sourceRootLockRejectsConcurrentApplyForTheSameProject() throws Exception {
         Path source = repository("base\n");
+        Path verifierStarted = temp.resolve("slow-verifier-started");
+        Path verifierRelease = temp.resolve("slow-verifier-release");
         Path sleeper = source.resolve("slow-verify.sh");
-        Files.writeString(sleeper, "#!/bin/sh\nsleep 1\nexit 0\n");
+        Files.writeString(sleeper, "#!/bin/sh\n"
+                + ": > " + shellQuote(verifierStarted) + "\n"
+                + "while [ ! -f " + shellQuote(verifierRelease) + " ]; do sleep 1; done\n"
+                + "exit 0\n");
         Files.setPosixFilePermissions(sleeper, Set.of(PosixFilePermission.OWNER_READ,
                 PosixFilePermission.OWNER_WRITE, PosixFilePermission.OWNER_EXECUTE));
         run(source, "git", "add", ".");
@@ -426,18 +431,18 @@ class LocalSyncConflictServiceIntegrationTest {
         LocalSyncConflictService.SessionView ready = session;
         CompletableFuture<LocalSyncConflictService.SessionView> first = CompletableFuture.supplyAsync(() ->
                 conflicts.apply(task.id(), ready.id(), new LocalSyncConflictService.ApplyRequest(true, ready.version())));
-        LocalSyncConflictService.SessionView active = null;
-        for (int attempt = 0; attempt < 100; attempt++) {
-            active = conflicts.get(task.id(), ready.id());
-            if (Set.of("APPLYING", "VERIFYING").contains(active.state())) break;
-            Thread.sleep(10);
+        try {
+            for (int attempt = 0; attempt < 500 && !Files.exists(verifierStarted); attempt++) Thread.sleep(10);
+            assertThat(verifierStarted).as("the first apply reached its blocking verifier").exists();
+            LocalSyncConflictService.SessionView active = conflicts.get(task.id(), ready.id());
+            assertThat(active.state()).isEqualTo("VERIFYING");
+            assertThatThrownBy(() -> conflicts.apply(task.id(), active.id(),
+                    new LocalSyncConflictService.ApplyRequest(true, active.version())))
+                    .isInstanceOfSatisfying(ConflictException.class,
+                            failure -> assertThat(failure.code()).isEqualTo("LOCAL_SYNC_SOURCE_ACTIVE"));
+        } finally {
+            Files.writeString(verifierRelease, "release\n");
         }
-        assertThat(active).isNotNull();
-        LocalSyncConflictService.SessionView current = active;
-        assertThatThrownBy(() -> conflicts.apply(task.id(), current.id(),
-                new LocalSyncConflictService.ApplyRequest(true, current.version())))
-                .isInstanceOfSatisfying(ConflictException.class,
-                        failure -> assertThat(failure.code()).isEqualTo("LOCAL_SYNC_SOURCE_ACTIVE"));
         assertThat(first.get(5, TimeUnit.SECONDS).state()).isEqualTo("APPLIED");
     }
 
@@ -625,5 +630,9 @@ class LocalSyncConflictServiceIntegrationTest {
         String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
         assertThat(process.waitFor()).as(String.join(" ", argv) + "\n" + output).isZero();
         return output;
+    }
+
+    private String shellQuote(Path path) {
+        return "'" + path.toAbsolutePath().toString().replace("'", "'\"'\"'") + "'";
     }
 }
