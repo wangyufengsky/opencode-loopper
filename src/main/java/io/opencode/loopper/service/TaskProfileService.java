@@ -3,6 +3,7 @@ package io.opencode.loopper.service;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 import io.opencode.loopper.domain.ArtifactKind;
+import io.opencode.loopper.domain.DesignWorkflowPhase;
 import io.opencode.loopper.domain.ExecutionStrategy;
 import io.opencode.loopper.domain.MutationMode;
 import io.opencode.loopper.domain.TaskIntent;
@@ -33,6 +34,7 @@ public class TaskProfileService {
     private final ProjectStackProfileService stackProfiles;
     private final TaskProfileOverridePolicy overridePolicy;
     private final TaskSemanticRouter semanticRouter;
+    private final TaskProfileRouterRunService routerRuns;
     private final RolePackRegistry rolePacks;
     private final ObjectMapper json;
     private final TransactionTemplate transactions;
@@ -43,11 +45,13 @@ public class TaskProfileService {
                               ProjectStackProfileService stackProfiles,
                               TaskProfileOverridePolicy overridePolicy,
                               TaskSemanticRouter semanticRouter,
+                              TaskProfileRouterRunService routerRuns,
                               RolePackRegistry rolePacks, ObjectMapper json,
                               PlatformTransactionManager transactionManager) {
         this.mapper = mapper; this.projects = projects; this.router = router; this.stackProfiles = stackProfiles;
         this.overridePolicy = overridePolicy;
         this.semanticRouter = semanticRouter;
+        this.routerRuns = routerRuns;
         this.rolePacks = rolePacks;
         this.json = json; this.transactions = new TransactionTemplate(transactionManager);
     }
@@ -62,7 +66,7 @@ public class TaskProfileService {
         return current(sessionId);
     }
 
-    public View reroute(String sessionId, String requirement) {
+    public synchronized View reroute(String sessionId, String requirement) {
         session(sessionId);
         List<String> inherited = new java.util.ArrayList<>(mapper.findCurrentDesignerTaskProfile(sessionId).map(profile ->
                 readStrings(profile.evidenceJson()).stream()
@@ -71,6 +75,14 @@ public class TaskProfileService {
         invalidate(sessionId);
         schedule(sessionId, requirement, inherited);
         return current(sessionId);
+    }
+
+    public synchronized TaskProfileRouterRunService.RouterRunView reroutePersistedSnapshot(
+            String sessionId, String expectedRunId, long expectedProfileVersion) {
+        TaskProfileRouterRunService.RetryRequest retry = routerRuns.requireReroute(
+                sessionId, expectedRunId, expectedProfileVersion);
+        reroute(sessionId, retry.requirementSnapshot());
+        return routerRuns.current(sessionId);
     }
 
     public void invalidate(String sessionId) {
@@ -131,11 +143,11 @@ public class TaskProfileService {
                 DesignerSessionRow session = session(run.designerSessionId());
                 if (stopping(session)) continue;
                 Path root = Path.of(projects.get(session.projectId()).rootPath());
-                if (Instant.now().isAfter(Instant.parse(run.createdAt()).plusSeconds(30))) {
+                if (semanticRouter.timedOut(run.createdAt(), Instant.now())) {
                     semanticRouter.abort(root, run.externalSessionId());
                     TaskProfileRouterRunRow failed = updateRun(run, "FAILED", run.externalSessionId(), "FAILED",
-                            run.responseMode(), null, "ROUTER_TIMEOUT", "Task Router exceeded its 30 second boundary");
-                    materialize(failed, null, "ROUTER_TIMEOUT", "Task Router exceeded its 30 second boundary");
+                            run.responseMode(), null, "ROUTER_TIMEOUT", routerRuns.timeoutDetail());
+                    materialize(failed, null, "ROUTER_TIMEOUT", routerRuns.timeoutDetail());
                     completedSessions.add(run.designerSessionId());
                     continue;
                 }
@@ -229,7 +241,9 @@ public class TaskProfileService {
         ConfirmedChoice previous = previousConfirmedChoice(run.designerSessionId(), null);
         boolean safeToCarry = previous != null && !routingEvidence.contains("unsafe-operation-conflict")
                 && previous.matches(decision);
-        boolean decisionRequired = previous != null ? !safeToCarry : decision.decisionRequired();
+        // Every first Router result is an explicit gate in ordinary mode. Full-auto authorization may
+        // adopt a safe successful recommendation through the same persisted confirmation boundary.
+        boolean decisionRequired = previous == null || !safeToCarry;
         if (safeToCarry) routingEvidence.add("user-confirmed-carried-forward");
         String now = Instant.now().toString();
         DesignerTaskProfileRow row = new DesignerTaskProfileRow(UUID.randomUUID().toString(), run.designerSessionId(), null,
@@ -254,6 +268,8 @@ public class TaskProfileService {
                         .filter(run -> "PENDING".equals(run.state()) || "RUNNING".equals(run.state()))
                         .map(run -> routing(sessionId)).orElseGet(() -> legacy(sessionId)));
     }
+
+    public TaskProfileRouterRunService.RouterRunView routerRun(String sessionId) { return routerRuns.current(sessionId); }
 
     public WorkflowTemplate workflowTemplateIncludingSuperseded(String sessionId) {
         session(sessionId);
@@ -309,7 +325,8 @@ public class TaskProfileService {
         DesignerTaskProfileRow current = context.current();
         boolean selectionChanged = context.selectionChanged();
         boolean updateRequired = selectionChanged || current.decisionRequired() == 1;
-        boolean sessionRestartRequired = selectionChanged
+        boolean initialRoutingGate = DesignWorkflowPhase.ROUTING.name().equals(session(sessionId).workflowPhase());
+        boolean sessionRestartRequired = !initialRoutingGate && selectionChanged
                 && WorkflowTemplate.valueOf(current.workflowTemplate()) != context.workflow();
         return new OverridePreview(selectionChanged, updateRequired, sessionRestartRequired, context.workflow());
     }
@@ -339,7 +356,7 @@ public class TaskProfileService {
         if (current.version() != expectedVersion) {
             throw new ConflictException("TASK_PROFILE_VERSION_CONFLICT", "任务设置已被并发更新");
         }
-        if (current.decisionRequired() == 0 && !userConfirmed) return view(current);
+        if (current.decisionRequired() == 0) return view(current);
         List<String> evidence = new java.util.ArrayList<>(readStrings(current.evidenceJson()));
         if (evidence.contains("unsafe-operation-conflict")) {
             throw new BadRequestException("UNSAFE_MAINTENANCE_OUT_OF_SCOPE",

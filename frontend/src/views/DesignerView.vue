@@ -14,6 +14,7 @@ import DesignerDiscussionHistory from '@/components/DesignerDiscussionHistory.vu
 import DesignerSystemMessageHistory from '@/components/DesignerSystemMessageHistory.vue'
 import DesignerValidatorHistory from '@/components/DesignerValidatorHistory.vue'
 import DesignerCurrentActivity from '@/components/DesignerCurrentActivity.vue'
+import TaskProfileRouterDialog from '@/components/TaskProfileRouterDialog.vue'
 import { ApiError, api, subscribeDesignerEvents, type DesignerEventStream } from '@/api/client'
 import { demoDraft, demoMessages } from '@/mock/demoData'
 import { useTaskStore } from '@/stores/taskStore'
@@ -60,6 +61,8 @@ const profileIntent = ref<DesignerSession['taskProfile']['intent']>('SOFTWARE_CH
 const profileArtifact = ref<DesignerSession['taskProfile']['artifactKinds'][number]>('SOURCE_CODE')
 const profileLargeTask = ref(false)
 const profileComponents = ref<string[]>([])
+const routerDialogVisible = ref(false)
+const dismissedRouterRunId = ref('')
 const profileEditing = ref(false)
 const committedTaskNavigation = ref(false)
 const reportDetail = ref<AnalysisReport>()
@@ -237,6 +240,7 @@ const designerRuntimeLabel = computed(() => {
 })
 const taskProfileRouting = computed(() => designerSession.value?.taskProfile.decisionState === 'ROUTING')
 const taskProfileNeedsConfirmation = computed(() => designerSession.value?.taskProfile.decisionState === 'NEEDS_CONFIRMATION')
+const routerRunActive = computed(() => ['PENDING', 'RUNNING'].includes(designerSession.value?.routerRun?.state ?? ''))
 const profileSelectionDirty = computed(() => {
   const profile = designerSession.value?.taskProfile
   if (!profile) return false
@@ -262,7 +266,32 @@ watch(() => `${designerSession.value?.taskProfile.id ?? ''}:${designerSession.va
   resetProfileSelection()
   profileEditing.value = false
 }, { immediate: true })
+watch(() => `${designerSession.value?.routerRun?.id ?? ''}:${designerSession.value?.routerRun?.state ?? ''}:${designerSession.value?.taskProfile.decisionState ?? ''}:${designerSession.value?.workflowPhase ?? ''}`, () => {
+  const session = designerSession.value
+  const run = session?.routerRun
+  if (!session || !run) return
+  if (['PENDING', 'RUNNING'].includes(run.state)) {
+    dismissedRouterRunId.value = ''
+    routerDialogVisible.value = true
+    return
+  }
+  if (session.taskProfile.decisionState === 'NEEDS_CONFIRMATION'
+      && dismissedRouterRunId.value !== run.id) routerDialogVisible.value = true
+  else if (session.taskProfile.confirmationReady) routerDialogVisible.value = false
+}, { immediate: true })
 watch(profileIntent, intent => { if (intent !== 'SOFTWARE_CHANGE') profileLargeTask.value = false })
+
+function setRouterDialogVisible(value: boolean) {
+  if (!value && !routerRunActive.value && designerSession.value?.routerRun) {
+    dismissedRouterRunId.value = designerSession.value.routerRun.id
+  }
+  routerDialogVisible.value = value
+}
+
+function showRouterDialog() {
+  dismissedRouterRunId.value = ''
+  routerDialogVisible.value = true
+}
 
 function startTaskProfileEdit() {
   resetProfileSelection()
@@ -330,6 +359,7 @@ async function confirmTaskProfile() {
   try {
     await api.confirmDesignerTaskProfile(session.id, session.taskProfile.version)
     await refreshDesignerSession()
+    routerDialogVisible.value = false
     ElMessage.success('已确认任务设置')
   } catch (error) {
     await refreshDesignerSession()
@@ -338,12 +368,31 @@ async function confirmTaskProfile() {
   } finally { busy.value = false }
 }
 
-async function carryForwardTaskProfile() {
+async function rerouteTaskProfile() {
   const session = designerSession.value
-  const previous = session?.taskProfile.previousConfirmedChoice
-  if (!session?.taskProfile.id || !previous) return
-  await applyTaskProfileSelection(previous.intent, previous.primaryArtifactKind, previous.largeTaskMode,
-    previous.componentKeys ?? [])
+  if (!session?.routerRun || !session.taskProfile.id) return
+  busy.value = true
+  try {
+    await api.rerouteDesignerTaskProfile(session.id, session.routerRun.id, session.taskProfile.version)
+    dismissedRouterRunId.value = ''
+    await refreshDesignerSession()
+    routerDialogVisible.value = true
+    ElMessage.success('已使用原需求快照重新识别')
+  } catch (error) {
+    await refreshDesignerSession()
+    if (error instanceof ApiError && error.status === 409) ElMessage.info('识别记录刚刚发生变化，已刷新最新状态')
+    else ElMessage.error(userFacingError(error, '重新识别失败'))
+  } finally { busy.value = false }
+}
+
+async function saveTaskProfileFromDialog(value: {
+  intent: DesignerSession['taskProfile']['intent']
+  artifact: DesignerSession['taskProfile']['artifactKinds'][number]
+  largeTaskMode: boolean
+  componentKeys: string[]
+}) {
+  await applyTaskProfileSelection(value.intent, value.artifact, value.largeTaskMode, value.componentKeys)
+  if (designerSession.value?.taskProfile.confirmationReady) routerDialogVisible.value = false
 }
 
 function componentLabel(component: NonNullable<DesignerSession['taskProfile']['candidateComponents']>[number]) {
@@ -1165,6 +1214,9 @@ async function redesignPackage(packageId: string) {
   <PageHeader eyebrow="设计" :title="draft ? '设计与执行规范' : '设计工作台'">
     <template v-if="draft" #actions><StatusBadge :status="draft.status === 'CONFIRMED' ? 'SUCCEEDED' : 'PENDING'" :label="draft.status" /><el-button v-if="designerSession?.requirementRevision !== undefined && draft.status !== 'CONFIRMED'" plain :disabled="busy || designerSession?.state === 'RUNNING'" @click="reopenRequirement"><Icon icon="lucide:message-circle-more" />重新讨论整体需求</el-button><el-button class="restart-designer-button" plain :disabled="busy" @click="restartDesigner"><Icon icon="lucide:rotate-ccw" />重新开始</el-button><el-button type="primary" :loading="busy" :disabled="!confirmationReady" @click="confirm"><Icon icon="lucide:circle-check-big" />确认设计并创建任务</el-button></template>
   </PageHeader>
+  <TaskProfileRouterDialog v-if="designerSession" :model-value="routerDialogVisible"
+    :session="designerSession" :busy="busy" @update:model-value="setRouterDialogVisible"
+    @confirm="confirmTaskProfile" @reroute="rerouteTaskProfile" @save="saveTaskProfileFromDialog" />
   <main id="main-content" class="content" tabindex="-1">
     <section v-if="!draft && !store.usingDemo && !store.loading && !store.projects.length" class="card designer-onboarding" aria-labelledby="designer-onboarding-title">
       <span class="designer-onboarding-icon"><Icon icon="lucide:folder-plus" aria-hidden="true" /></span>
@@ -1282,17 +1334,17 @@ async function redesignPackage(packageId: string) {
           <time :datetime="designerObservedAt">{{ formatObservedAt(designerObservedAt) }}</time>
         </div>
         <section v-if="designerSession?.taskProfile" class="task-profile-card" aria-label="任务设置与设计流程">
-          <header><div><strong>{{ taskProfileRouting ? '任务设置识别中' : `任务设置 · ${taskIntentLabel(designerSession.taskProfile.intent)}` }}</strong><span v-if="!taskProfileRouting">{{ designerSession.taskProfile.confidence }}% · {{ rolePackLabel(designerSession.taskProfile.rolePackId) }}</span><span v-else>需求分析师正在根据完整需求稿重新识别</span></div><b :class="{ warning: !designerSession.taskProfile.confirmationReady }">{{ taskProfileRouting ? '识别中' : taskProfileNeedsConfirmation ? (designerSession.taskProfile.previousConfirmedChoice ? '识别结果有变化' : '请确认') : profileResolutionLabel(designerSession.taskProfile.resolutionSource) }}</b></header>
+          <header><div><strong>{{ taskProfileRouting ? '任务设置识别中' : `任务设置 · ${taskIntentLabel(designerSession.taskProfile.intent)}` }}</strong><span v-if="!taskProfileRouting">识别置信度 {{ designerSession.taskProfile.confidence }}%</span><span v-if="!taskProfileRouting">技术栈 {{ designerSession.taskProfile.technologies.length ? designerSession.taskProfile.technologies.join(' / ') : rolePackLabel(designerSession.taskProfile.rolePackId) }}</span><span v-else>需求分析师正在根据完整需求稿重新识别</span></div><b :class="{ warning: !designerSession.taskProfile.confirmationReady }">{{ taskProfileRouting ? '识别中' : taskProfileNeedsConfirmation ? (designerSession.taskProfile.previousConfirmedChoice ? '识别结果有变化' : '请确认') : profileResolutionLabel(designerSession.taskProfile.resolutionSource) }}</b></header>
           <p v-if="!taskProfileRouting">流程 {{ workflowTemplateLabel(designerSession.taskProfile.workflowTemplate) }} · 执行 {{ executionStrategyLabel(designerSession.taskProfile.executionStrategy) }} · 测试 {{ testPolicyLabel(designerSession.taskProfile.testPolicy) }}</p>
           <div v-if="taskProfileNeedsConfirmation && designerSession.taskProfile.previousConfirmedChoice" class="profile-change-summary">
             <span>原设置：{{ taskIntentLabel(designerSession.taskProfile.previousConfirmedChoice.intent) }} · {{ artifactKindLabel(designerSession.taskProfile.previousConfirmedChoice.primaryArtifactKind) }} · {{ workflowTemplateLabel(designerSession.taskProfile.previousConfirmedChoice.workflowTemplate) }}</span>
             <span>本次识别结果：{{ taskIntentLabel(designerSession.taskProfile.intent) }} · {{ artifactKindLabel(designerSession.taskProfile.artifactKinds[0] ?? 'OTHER') }} · {{ workflowTemplateLabel(designerSession.taskProfile.workflowTemplate) }}</span>
           </div>
           <div v-if="designerSession.taskProfile.state === 'PROVISIONAL' && !taskProfileRouting && !profileEditing" class="profile-actions">
-            <el-button v-if="taskProfileNeedsConfirmation && designerSession.taskProfile.previousConfirmedChoice" plain :loading="busy" @click="carryForwardTaskProfile">继续使用原设置</el-button>
-            <el-button v-if="taskProfileNeedsConfirmation && !designerSession.taskProfile.componentSelectionRequired" type="primary" :loading="busy" @click="confirmTaskProfile">{{ designerSession.taskProfile.previousConfirmedChoice ? '使用本次识别结果' : '确认并继续' }}</el-button>
-            <el-button :type="designerSession.taskProfile.componentSelectionRequired ? 'primary' : undefined" plain :disabled="busy" @click="startTaskProfileEdit">{{ designerSession.taskProfile.componentSelectionRequired ? '选择影响组件' : '修改设置' }}</el-button>
+            <el-button v-if="taskProfileNeedsConfirmation" type="primary" :disabled="busy" @click="showRouterDialog">查看识别结果</el-button>
+            <template v-else><el-button plain :disabled="busy" @click="startTaskProfileEdit">修改设置</el-button></template>
           </div>
+          <div v-if="taskProfileRouting" class="profile-actions"><el-button type="primary" plain @click="showRouterDialog">查看识别活动</el-button></div>
           <div v-if="designerSession.taskProfile.state === 'PROVISIONAL' && !taskProfileRouting && profileEditing" class="profile-override">
             <el-select v-model="profileIntent" aria-label="覆盖任务类型"><el-option v-for="item in designerSession.availableProfileOverrides" :key="item" :label="taskIntentLabel(item)" :value="item" /></el-select>
             <el-select v-model="profileArtifact" aria-label="覆盖主要制品"><el-option v-for="item in designerSession.availableArtifactOverrides" :key="item" :label="artifactKindLabel(item)" :value="item" /></el-select>

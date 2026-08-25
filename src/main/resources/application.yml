@@ -10,7 +10,7 @@ spring:
           enabled: false
         protocol: STREAMABLE
         name: opencode-loopper
-        version: 0.2.42
+        version: 0.2.47
         type: SYNC
         instructions: >-
           Use the six Loopper tools only. Designer access is READ_ONLY; proposals synchronize
@@ -81,7 +81,8 @@ loopper:
   workspace-lease-reconcile-delay: 10s
   designer-monitor-delay: ${LOOPPER_DESIGNER_MONITOR_DELAY:750ms}
   designer-timeout: ${LOOPPER_DESIGNER_TIMEOUT:30m}
-  project-convention-stall-timeout: ${LOOPPER_PROJECT_CONVENTION_STALL_TIMEOUT:2m}
+  task-profile-router-timeout: ${LOOPPER_TASK_PROFILE_ROUTER_TIMEOUT:240s}
+  project-convention-stall-timeout: ${LOOPPER_PROJECT_CONVENTION_STALL_TIMEOUT:240s}
   # A Task may be terminal while its last remote writer still needs best-effort
   # cleanup. These bounded, persisted retries never start another Session.
   abort-cleanup-attempts: ${LOOPPER_ABORT_CLEANUP_ATTEMPTS:3}

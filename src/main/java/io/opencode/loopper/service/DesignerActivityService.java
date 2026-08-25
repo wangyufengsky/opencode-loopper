@@ -9,6 +9,7 @@ import io.opencode.loopper.runtime.OpenCodeClient;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import org.springframework.stereotype.Service;
 
 /** Read-only live projection for the currently active Designer role. */
@@ -44,14 +45,15 @@ public final class DesignerActivityService {
         try {
             OpenCodeClient.OpenCodeSession openCodeSession = new OpenCodeClient.OpenCodeSession(remote.id(), root);
             OpenCodeClient.SessionStatus status = openCode.sessionStatus(openCodeSession);
-            boolean structured = actor == DesignerActor.ROUTER || actor == DesignerActor.DECOMPOSER
+            boolean structured = actor == DesignerActor.DECOMPOSER
                     || actor == DesignerActor.COMPILER || actor == DesignerActor.REVIEWER;
             OpenCodeClient.SessionTranscript transcript = openCode.sessionTranscript(openCodeSession);
             ModelTokenUsageProjectionService.UsageView usage = tokenUsage.observeDesigner(session.id(), root,
                     remote.id(), transcript.usage(), status.completed() || status.failed());
             List<Part> allParts = transcript.parts().stream()
                     .filter(part -> !structured || "TOOL".equals(part.type()))
-                    .map(this::part).toList();
+                    .filter(part -> actor != DesignerActor.ROUTER || Set.of("THINKING", "TOOL", "OUTPUT").contains(part.type()))
+                    .map(part -> actor == DesignerActor.ROUTER ? routerPart(part) : part(part)).toList();
             List<Part> parts = allParts.isEmpty() ? List.of() : List.of(allParts.getLast());
             return new View(actor.name(), status.state(), true, observedAt, step(session, actor), parts,
                     bounded(status.detail()), usage);
@@ -114,6 +116,24 @@ public final class DesignerActivityService {
     private Part part(OpenCodeClient.SessionPart source) {
         return new Part(source.id(), source.type(), source.label(), boundedContent(source.content()),
                 source.status(), source.startedAt());
+    }
+
+    private Part routerPart(OpenCodeClient.SessionPart source) {
+        String content = source.content();
+        if (looksLikeRouterObject(content)) {
+            content = "正在整理任务设置识别结果…";
+        }
+        return new Part(source.id(), source.type(), source.label(), boundedContent(content),
+                source.status(), source.startedAt());
+    }
+
+    private boolean looksLikeRouterObject(String value) {
+        if (value == null) return false;
+        String trimmed = value.trim();
+        return trimmed.contains("TASK_PROFILE_ROUTER_JSON_")
+                || trimmed.startsWith("{") || trimmed.startsWith("[")
+                || trimmed.contains("\"intent\"") || trimmed.contains("\"artifactKinds\"")
+                || trimmed.contains("\"technologies\"") || trimmed.contains("\"confidence\"");
     }
 
     private String boundedContent(String value) {

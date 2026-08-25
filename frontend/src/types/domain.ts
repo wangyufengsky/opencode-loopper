@@ -1076,6 +1076,18 @@ export interface DesignerTaskProfileUpdatePreview {
   targetWorkflowTemplate: DesignerTaskProfile['workflowTemplate']
 }
 
+export interface TaskProfileRouterRun {
+  id: string
+  state: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'SUPERSEDED'
+  externalState?: string
+  errorCode?: string
+  errorDetail?: string
+  createdAt: string
+  updatedAt: string
+  deadlineAt: string
+  retryAvailable: boolean
+}
+
 export interface DesignerActivity {
   actor: DesignerActor
   remoteState: string
@@ -1154,6 +1166,7 @@ export interface DesignerSession {
   finalConfirmationEligible: boolean
   autoMode: DesignerAutoMode
   taskProfile: DesignerTaskProfile
+  routerRun?: TaskProfileRouterRun
   availableProfileOverrides: TaskIntent[]
   availableArtifactOverrides: ArtifactKind[]
   reports: AnalysisReportSummary[]

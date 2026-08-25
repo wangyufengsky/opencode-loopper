@@ -108,18 +108,19 @@ public class DesignerAutoModeService {
         for (DesignerAutoModeRow row : mapper.listDesignerAutoModesForAdvance()) {
             if (!inFlight.add(row.designerSessionId())) continue;
             try {
-                if (isProfileDecisionBlock(row)) resumeProfileDecisionBlock(row.designerSessionId());
+                if (isLegacyProfileDecisionBlock(row)) resumeProfileDecisionBlock(row.designerSessionId());
                 else advanceOne(row.designerSessionId());
             }
             finally { inFlight.remove(row.designerSessionId()); }
         }
     }
 
-    /** Restores only the obsolete profile-decision blocker; all other blockers still require reauthorization. */
+    /** Restores a profile blocker only after the authoritative profile is explicitly ready. */
     public boolean resumeProfileDecisionBlock(String sessionId) {
         DesignerAutoModeRow current = mapper.findDesignerAutoMode(sessionId).orElse(null);
         if (!isProfileDecisionBlock(current)) return false;
         TaskProfileService.View profile = profiles.current(sessionId);
+        if (!isLegacyProfileDecisionBlock(current) && !profile.confirmationReady()) return false;
         DesignerSessionRow session = designerSessions.get(sessionId);
         DesignerAutoModeRow changed = new DesignerAutoModeRow(sessionId, DesignerAutoModeState.ACTIVE.name(),
                 "PROFILE_DECISION_RESUMED", null, null, current.taskId(), current.authorizedAt(),
@@ -162,6 +163,24 @@ public class DesignerAutoModeService {
                     || DesignWorkflowPhase.FAILED.name().equals(session.workflowPhase())) {
                 block(mode, session, "DESIGNER_AUTO_WORKFLOW_BLOCKED",
                         "设计流程正在等待人工处理或已发生会话错误");
+                return;
+            }
+            if (DesignWorkflowPhase.ROUTING.name().equals(session.workflowPhase())) {
+                TaskProfileService.View profile = profiles.current(sessionId);
+                if ("ROUTING".equals(profile.decisionState())) return;
+                if (profile.evidence().stream().anyMatch(value -> value.startsWith("router-error="))) {
+                    block(mode, session, "TASK_PROFILE_ROUTER_REVIEW_REQUIRED",
+                            "任务设置识别失败或已降级，需要人工重做、修改或显式采用");
+                    return;
+                }
+                if (profile.decisionRequired()) {
+                    profiles.acceptRecommendation(sessionId, profile.version());
+                    recordAction(mode, "PROFILE_AUTO_CONFIRMED");
+                    designerSessions.recordAutoModeNotice(session.id(),
+                            "全自动模式已采用 Router 的安全识别结果并进入需求设计。",
+                            "AUTO_MODE_PROFILE_CONFIRMED");
+                }
+                designerSessions.continueAfterTaskProfileDecision(sessionId);
                 return;
             }
             var questions = designerSessions.pendingQuestions(sessionId);
@@ -238,7 +257,12 @@ public class DesignerAutoModeService {
 
     private boolean isProfileDecisionBlock(DesignerAutoModeRow row) {
         return row != null && DesignerAutoModeState.BLOCKED.name().equals(row.state())
-                && "TASK_PROFILE_DECISION_REQUIRED".equals(row.errorCode());
+                && Set.of("TASK_PROFILE_DECISION_REQUIRED", "TASK_PROFILE_ROUTER_REVIEW_REQUIRED")
+                .contains(row.errorCode());
+    }
+
+    private boolean isLegacyProfileDecisionBlock(DesignerAutoModeRow row) {
+        return isProfileDecisionBlock(row) && "TASK_PROFILE_DECISION_REQUIRED".equals(row.errorCode());
     }
 
     private void block(DesignerAutoModeRow current, DesignerSessionRow session, String code, String detail) {

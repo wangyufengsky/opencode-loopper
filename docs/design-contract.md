@@ -178,26 +178,38 @@ summary. The selector submits stable component keys with the existing profile ve
 validates project ownership and staleness, so the browser refreshes on a profile-fingerprint
 conflict instead of retrying cached choices. Empty or failed repository evidence is shown as
 generic/needs-confirmation and is never relabelled as Java by the UI.
-While a complete requirement snapshot is being rerouted, the page polls every 1.2 seconds,
-shows **任务设置识别中**, and keeps design actions disabled even when the Designer Session
-itself is `REVIEWING`. An equivalent reroute safely carries forward the persisted manual
-choice and refreshes technology, Role Pack, and test policy. A changed intent, primary
-artifact, workflow mode, mutation mode, or new safety conflict displays **原设置** and
-**本次识别结果** with explicit **继续使用原设置**, **使用本次识别结果**, and **修改设置**
-actions. An initial ambiguous recognition without a previous choice instead shows **请确认**
-with **确认并继续** and **修改设置**. Edit controls are hidden until the user selects
-**修改设置**; an unchanged confirmed selection is disabled in the browser and is also a
-server-side no-op. Before any edit is written, the browser calls the read-only profile update
-preview. When the target workflow changes, a warning names the target workflow and the only
-committing action is **停止当前设计并重新开始**; cancelling preserves the current profile and
-remote Session. Internal evidence codes such as `router-running` are not rendered. A click
-concurrent with Router completion only refreshes the authoritative snapshot rather than
-raising a red toast.
-Confidence below 80 or conflicting evidence blocks ordinary-mode confirmation until a
-versioned profile confirmation or override is saved. An explicitly authorized full-auto Session may accept
-the Router's current intent and primary artifact as an `AUTO_RECOMMENDED` decision; this
-cannot bypass unsafe-operation evidence, and a manual override remains available before
-requirement confirmation.
+While a Router run is active, a dedicated task-settings dialog polls the authoritative Designer
+snapshot and safe activity every 1.2 seconds. The dialog cannot be closed by its close button,
+mask, or Escape key and displays the real elapsed time against the server-projected 240-second
+deadline, remote state, latest bounded activity, and provider-reported Token usage. It never
+renders an estimated progress percentage or raw Router object. Marker or JSON-like fragments are
+replaced by **正在整理任务设置识别结果**.
+
+The first successful ordinary-mode result remains in `ROUTING` and blocks requirement-Designer
+creation until a versioned decision is saved. The result dialog separates **识别置信度** from
+**技术栈**, and also displays task type, affected components, workflow, primary artifact,
+execution strategy, and test policy. Its actions are **确认并进入设计**, **重新识别**, and
+**手动修改**. Closing a terminal dialog only dismisses that presentation; the task-settings card
+keeps a **查看识别结果** entry, and refresh restores the dialog while no decision has been saved.
+Failed, timed-out, or malformed runs show their comprehensible reason and fallback settings rather
+than silently accepting a `0%` profile.
+
+Reroute sends the expected run ID and profile version to
+`POST /api/designer-sessions/{id}/task-profile/reroute`; the server accepts only a terminal latest
+run whose current profile is still unresolved and always reuses its persisted requirement snapshot.
+Confirmed profiles are no longer retryable; stale, resolved, or concurrent requests return 409.
+An equivalent complete-requirement reroute carries the previous manual choice as
+`USER_CONFIRMED_CARRIED_FORWARD`; a changed result reopens the dialog. Before any manual edit is
+written, the browser calls the read-only profile update preview. The initial `ROUTING` gate has no
+requirement Designer to stop, so changing workflow there does not show a false restart warning.
+Later workflow changes retain the existing **停止当前设计并重新开始** confirmation and abort
+boundary. A click concurrent with Router completion refreshes the authoritative snapshot rather
+than raising a red toast.
+
+An explicitly authorized full-auto Session may accept only a successful result that passes the
+same server safety and component checks, recording `AUTO_RECOMMENDED` before continuing. Timeout,
+run failure, unsafe-operation evidence, or required component selection remains blocked for human
+reroute, override, or explicit confirmation; full-auto never silently adopts the fallback.
 Unsafe-operation evidence is derived from the requested mutation target, not from an isolated
 publication verb. Publishing an in-process domain event, message, notification, signal, metric,
 or pub/sub contract remains software-domain language in any natural word order. Publishing a
@@ -219,8 +231,9 @@ and every completed Designer snapshot are classified separately. Starting a repl
 discussion or changing to another workflow must first confirm the obsolete remote Session has
 stopped; an abort failure keeps the current choice and Session unchanged and does not dispatch
 a replacement. A newly submitted requirement remains on the active design page throughout
-routing and continues automatically when classification completes; it must not require a
-history-page restore. Confirmation freezes the project-profile id, manifest fingerprint,
+routing; equivalent carried-forward and safely authorized full-auto results may continue, while
+the first ordinary result waits at the visible confirmation gate and never requires a history-page
+restore. Confirmation freezes the project-profile id, manifest fingerprint,
 component keys, and task profile together. Later project analysis cannot update existing
 Task/Stage/Recovery displays. The progress rail is
 template-driven: omitted Decomposer/package/Compiler steps are not displayed.
@@ -596,10 +609,12 @@ The current-role card inside the message timeline polls `GET /activity` every 1.
 replaces its body with only the latest safe fragment; it is not a separate top-level panel and
 does not accumulate activity history. Interactive Designer content uses the same Markdown
 presentation as persisted messages and may show bounded thinking, incremental output, and
-ordinary/MCP tool calls with name, status, arguments, and output. Structured roles render only
-the latest tool activity and their authoritative step; raw Router, Decomposer, Compiler,
-Reviewer, repair, finalizer, or Judge JSON is never shown. Reconnect keeps that one latest
-fragment until a newer authoritative observation arrives.
+ordinary/MCP tool calls with name, status, arguments, and output. The task-settings Router reuses
+the same activity component inside its modal and may show bounded thinking, output, and tool
+fragments after server redaction; any marker or JSON-like result becomes a neutral整理提示.
+Other structured roles render only the latest tool activity and their authoritative step. Raw
+Router, Decomposer, Compiler, Reviewer, repair, finalizer, or Judge JSON is never shown. Reconnect
+keeps that one latest fragment until a newer authoritative observation arrives.
 
 The same current-role card includes one compact numeric token window. Its total is the
 server-persisted, provider-reported aggregate for every remote role Session in the current

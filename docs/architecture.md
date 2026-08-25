@@ -106,10 +106,11 @@ locking and records enable, disable, block, and completion transitions. The
 read-only handoffs; each Session is process-deduplicated and advances at most one
 existing authority boundary per tick. Confirmed drafts and already-started Tasks
 are reused so restart recovery cannot duplicate a Task or execution request.
-An ambiguous task profile is an explicit auto action rather than an auto-mode failure:
-an authorized Session persists the Router's current intent/artifact as `AUTO_RECOMMENDED`
-without inflating its confidence, then freezes it on a later tick. Unsafe-operation
-evidence remains fail-closed. Legacy `BLOCKED + TASK_PROFILE_DECISION_REQUIRED` rows may
+The first ordinary-mode task profile is an explicit human gate. An authorized full-auto Session
+may persist a successful, server-validated Router intent/artifact as `AUTO_RECOMMENDED` without
+inflating its confidence, then continue on a later tick. Timeout, run failure, unsafe-operation
+evidence, and required component selection remain blocked for human handling. Legacy
+`BLOCKED + TASK_PROFILE_DECISION_REQUIRED` rows may
 take one dedicated `RESUME` transition before that action; all other blocked causes retain
 explicit disable/re-authorize recovery.
 
@@ -129,8 +130,13 @@ bounded, non-symlink manifest/file facts, while an independent
 `TASK_PROFILE_ROUTER_V1` schema or marker fallback. The AI Router never owns permissions,
 commands, workflow selection, or authorization; configured MCP tools are additive only and
 cannot weaken those boundaries. Schema/session/output failure produces a
-generic decision-required profile instead of terminating the Designer. Confidence below
-80 or conflicting facts require a user decision. Profile references are copied to
+generic decision-required profile instead of terminating the Designer. The Router deadline is
+computed from persisted creation time and defaults to 240 seconds; timeout first aborts the remote
+Session, then records `ROUTER_TIMEOUT`. The latest run is exposed in the Designer read model, and a
+versioned reroute can only use its persisted requirement snapshot after the run is terminal. A
+successful first ordinary result is persisted but does not create a requirement Designer Session
+until confirmation or override; equivalent later reroutes may carry forward the prior explicit
+choice. Profile references are copied to
 requirement/decomposition/package/Task and Recovery reuses the frozen values.
 
 The server owns five workflow templates. Software and complex maintenance use the full

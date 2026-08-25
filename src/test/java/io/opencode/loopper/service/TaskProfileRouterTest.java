@@ -5,17 +5,33 @@ import io.opencode.loopper.domain.ArtifactKind;
 import io.opencode.loopper.domain.TaskIntent;
 import io.opencode.loopper.domain.TestPolicy;
 import io.opencode.loopper.domain.WorkflowTemplate;
+import io.opencode.loopper.config.LoopperProperties;
+import io.opencode.loopper.runtime.OpenCodeClient;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.junit.jupiter.api.io.TempDir;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 class TaskProfileRouterTest {
     @TempDir Path root;
     private final TaskProfileRouter router = new TaskProfileRouter();
+
+    @Test void routerTimeoutDefaultsToTwoHundredFortySecondsFromRunCreation() {
+        LoopperProperties properties = new LoopperProperties();
+        TaskSemanticRouter semanticRouter = new TaskSemanticRouter(mock(OpenCodeClient.class), properties,
+                new tools.jackson.databind.ObjectMapper());
+        String createdAt = "2026-08-25T00:00:00Z";
+
+        assertThat(properties.getTaskProfileRouterTimeout().toSeconds()).isEqualTo(240);
+        assertThat(semanticRouter.deadline(createdAt)).isEqualTo(Instant.parse("2026-08-25T00:04:00Z"));
+        assertThat(semanticRouter.timedOut(createdAt, Instant.parse("2026-08-25T00:03:59Z"))).isFalse();
+        assertThat(semanticRouter.timedOut(createdAt, Instant.parse("2026-08-25T00:04:01Z"))).isTrue();
+    }
 
     @Test void normalizesModelTestArtifactAliasesWithoutChangingTheTaskIntent() {
         assertThat(TaskSemanticRouter.artifactKind("TEST_CODE")).isEqualTo(ArtifactKind.SOURCE_CODE);

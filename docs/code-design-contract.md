@@ -52,7 +52,8 @@ ownership rules:
   remote role invocation, and persistence coordination. It must not implement
   compact package-plan normalization, semantic validation, or executable verifier
   synthesis; those belong to `DesignerPackagePlanCompiler`. Shared machine payload
-  shapes belong to `DesignerSemanticContracts` and must not depend back on the facade.
+  shapes and marker-extraction patterns belong to `DesignerSemanticContracts` and must not
+  depend back on the facade.
   OpenCode `question` capability selection, answer validation, durable decision-log
   encoding and compatibility-chat projection belong to `DesignerQuestionSupport`;
   that collaborator must not perform Designer lifecycle transitions.
@@ -74,6 +75,8 @@ ownership rules:
   `TaskProfileSafetyPolicy` owns requested external-mutation and publication-target classification,
   `TaskProfileIntentPolicy` owns task-level read-only review and positive-mutation classification,
   while `TaskProfileOverridePolicy` owns versioned component/profile override validation.
+  `TaskProfileRouterRunService` owns latest-run read projection plus optimistic terminal-reroute
+  validation. `TaskProfileService` remains the profile persistence and routing coordinator.
   Neither may infer repository technologies from `AGENTS.md` or permit AI labels to create evidence.
 - `DesignerVerificationIntentMapper` owns source-backed test-to-scenario relationships, including
   default ownership by a package's sole positive focused-test deliverable and unambiguous references

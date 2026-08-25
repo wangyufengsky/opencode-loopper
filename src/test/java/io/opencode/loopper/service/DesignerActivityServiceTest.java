@@ -53,7 +53,7 @@ class DesignerActivityServiceTest {
     }
 
     @Test
-    void structuredRolesExposeOnlyToolActivityAndTheAuthoritativeStep() {
+    void routerExposesSafeLiveFragmentsButHidesTheMachineObject() {
         DesignerSessionRow session = session("ROUTING", null);
         TaskProfileRouterRunRow router = new TaskProfileRouterRunRow("router-1", session.id(), "RUNNING", "req",
                 "[]", "router-remote", "RUNNING", "JSON_SCHEMA", null, null, null, "now", "now", 0);
@@ -71,10 +71,37 @@ class DesignerActivityServiceTest {
 
         assertThat(view.actor()).isEqualTo("ROUTER");
         assertThat(view.parts()).singleElement().satisfies(part -> {
-            assertThat(part.type()).isEqualTo("TOOL");
-            assertThat(part.label()).isEqualTo("jira_search");
+            assertThat(part.type()).isEqualTo("OUTPUT");
+            assertThat(part.content()).isEqualTo("正在整理任务设置识别结果…");
         });
         assertThat(view.parts()).noneMatch(part -> part.content().contains("intent"));
+    }
+
+    @Test
+    void routerExposesBoundedPlainThinkingAndTokenProjection() {
+        DesignerSessionRow session = session("ROUTING", null);
+        TaskProfileRouterRunRow router = new TaskProfileRouterRunRow("router-safe", session.id(), "RUNNING", "req",
+                "[]", "router-remote", "RUNNING", "TEXT_MARKER", null, null, null, "now", "now", 0);
+        OpenCodeClient.OpenCodeSession remote = remote("router-remote");
+        when(mapper.findDesignerSession(session.id())).thenReturn(Optional.of(session));
+        when(mapper.findLatestTaskProfileRouterRun(session.id())).thenReturn(Optional.of(router));
+        when(projects.get(session.projectId())).thenReturn(project());
+        when(openCode.sessionStatus(remote)).thenReturn(new OpenCodeClient.SessionStatus("RUNNING"));
+        List<OpenCodeClient.UsageRecord> usage = List.of(new OpenCodeClient.UsageRecord(
+                "message-2", "provider", "model", 200L, 40L, 240L, null, null, true));
+        when(openCode.sessionTranscript(remote)).thenReturn(new OpenCodeClient.SessionTranscript(List.of(
+                new OpenCodeClient.SessionPart("thinking", "THINKING", "Thinking",
+                        "正在核对 Maven 模块和测试框架", "RUNNING")), usage));
+        when(tokenUsage.observeDesigner(session.id(), root(), remote.id(), usage, false))
+                .thenReturn(new ModelTokenUsageProjectionService.UsageView(240L, 90L, "now"));
+
+        DesignerActivityService.View view = activities.activity(session.id());
+
+        assertThat(view.parts()).singleElement().satisfies(part -> {
+            assertThat(part.type()).isEqualTo("THINKING");
+            assertThat(part.content()).isEqualTo("正在核对 Maven 模块和测试框架");
+        });
+        assertThat(view.usage().totalTokens()).isEqualTo(240L);
     }
 
     @Test

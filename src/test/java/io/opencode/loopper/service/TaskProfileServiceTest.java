@@ -115,8 +115,9 @@ class TaskProfileServiceTest {
                         List.of("maven"), List.of("junit"), List.of("pom.xml"), List.of()))));
         ObjectMapper json = new ObjectMapper();
         return new TaskProfileService(mapper, projects, router, stackProfiles,
-                new TaskProfileOverridePolicy(stackProfiles, json), semanticRouter, new RolePackRegistry(),
-                json, mock(PlatformTransactionManager.class));
+                new TaskProfileOverridePolicy(stackProfiles, json), semanticRouter,
+                new TaskProfileRouterRunService(mapper, semanticRouter), new RolePackRegistry(), json,
+                mock(PlatformTransactionManager.class));
     }
 
     private DesignerSessionRow session() {

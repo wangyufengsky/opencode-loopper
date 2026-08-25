@@ -1,8 +1,9 @@
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
-import ElementPlus, { ElMessage, ElMessageBox, ElOption, ElSelect } from 'element-plus'
+import ElementPlus, { ElMessage, ElMessageBox } from 'element-plus'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import DesignerView from '@/views/DesignerView.vue'
+import TaskProfileRouterDialog from '@/components/TaskProfileRouterDialog.vue'
 import LoopSpecEditor from '@/components/LoopSpecEditor.vue'
 import PendingQuestionCard from '@/components/PendingQuestionCard.vue'
 import DesignerDiscussionHistory from '@/components/DesignerDiscussionHistory.vue'
@@ -10,7 +11,7 @@ import DesignerSystemMessageHistory from '@/components/DesignerSystemMessageHist
 import DesignerValidatorHistory from '@/components/DesignerValidatorHistory.vue'
 import { api, ApiError } from '@/api/client'
 import { useTaskStore } from '@/stores/taskStore'
-import type { AppSettings, DesignerSession, LoopDraft, LoopSpec, Project, Task } from '@/types/domain'
+import type { AppSettings, DesignerSession, LoopDraft, LoopSpec, Project, Task, TaskProfileRouterRun } from '@/types/domain'
 
 const { routerPush, routeQuery, routeLeave } = vi.hoisted(() => ({
   routerPush: vi.fn(),
@@ -72,6 +73,13 @@ const settings: AppSettings = {
 
 function draftFrom(spec: LoopSpec): LoopDraft {
   return { id: 'draft-1', status: 'DRAFT_READY', updatedAt: 'now', spec }
+}
+
+function completedRouterRun(id = 'router-1'): TaskProfileRouterRun {
+  return {
+    id, state: 'COMPLETED', externalState: 'COMPLETED', createdAt: '2026-08-25T07:00:00Z',
+    updatedAt: '2026-08-25T07:00:03Z', deadlineAt: '2026-08-25T07:04:00Z', retryAvailable: true,
+  }
 }
 
 function mountDesigner(): VueWrapper {
@@ -175,6 +183,7 @@ describe('Designer draft composer', () => {
       },
       availableProfileOverrides: ['SOFTWARE_CHANGE', 'DOCUMENT_AUTHORING'],
       availableArtifactOverrides: ['SOURCE_CODE', 'MARKDOWN'],
+      routerRun: completedRouterRun('router-changed'),
       draft: draftFrom({
         schemaVersion: 'v2', projectId: project.id, goal: '画像变化', context: '', stages: [],
         limits: { maxStageAttempts: 3, maxTaskAttempts: 7, maxDuration: '7200', attemptTimeout: '1800' },
@@ -197,7 +206,7 @@ describe('Designer draft composer', () => {
     expect(wrapper.findAll('button').find(button => button.text().includes('请先确认任务设置'))!.attributes('disabled')).toBeDefined()
     expect(card.find('.profile-override').exists()).toBe(false)
 
-    await wrapper.findAll('button').find(button => button.text().includes('使用本次识别结果'))!.trigger('click')
+    wrapper.getComponent(TaskProfileRouterDialog).vm.$emit('confirm')
     await flushPromises()
     expect(confirmProfile).toHaveBeenCalledWith(changed.id, 7)
     expect(previewUpdate).not.toHaveBeenCalled()
@@ -219,6 +228,7 @@ describe('Designer draft composer', () => {
         },
       },
       availableProfileOverrides: ['SOFTWARE_CHANGE'], availableArtifactOverrides: ['SOURCE_CODE'],
+      routerRun: completedRouterRun('router-conflict'),
       draft: draftFrom({
         schemaVersion: 'v2', projectId: project.id, goal: '并发画像', context: '', stages: [],
         limits: { maxStageAttempts: 3, maxTaskAttempts: 7, maxDuration: '7200', attemptTimeout: '1800' },
@@ -237,7 +247,9 @@ describe('Designer draft composer', () => {
     const wrapper = mountDesigner()
     await flushPromises()
 
-    await wrapper.findAll('button').find(button => button.text().includes('继续使用原设置'))!.trigger('click')
+    wrapper.getComponent(TaskProfileRouterDialog).vm.$emit('save', {
+      intent: 'SOFTWARE_CHANGE', artifact: 'SOURCE_CODE', largeTaskMode: false, componentKeys: [],
+    })
     await flushPromises()
 
     expect(getSession).toHaveBeenCalledTimes(2)
@@ -267,6 +279,7 @@ describe('Designer draft composer', () => {
       },
       availableProfileOverrides: ['SOFTWARE_CHANGE', 'DOCUMENT_AUTHORING', 'READ_ONLY_REVIEW'],
       availableArtifactOverrides: ['SOURCE_CODE', 'PYTHON_SCRIPT', 'DOCX'],
+      routerRun: completedRouterRun('router-summary'),
       draft: draftFrom({
         schemaVersion: 'v2', projectId: project.id, goal: '验证中文任务画像', context: '', stages: [],
         limits: { maxStageAttempts: 3, maxTaskAttempts: 7, maxDuration: '7200', attemptTimeout: '1800' },
@@ -279,20 +292,13 @@ describe('Designer draft composer', () => {
 
     const profileCard = wrapper.get('[aria-label="任务设置与设计流程"]')
     expect(profileCard.text()).toContain('任务设置 · 软件变更')
+    expect(profileCard.text()).toContain('识别置信度 90%')
+    expect(profileCard.text()).toContain('技术栈 java')
     expect(profileCard.text()).toContain('流程 完整分包设计 · 执行 OpenCode 实施 · 测试 必须测试')
     expect(profileCard.text()).toContain('请确认')
-    expect(profileCard.text()).toContain('确认并继续')
-    expect(profileCard.text()).toContain('修改设置')
+    expect(profileCard.text()).toContain('查看识别结果')
     expect(wrapper.find('[aria-label="覆盖任务类型"]').exists()).toBe(false)
-
-    await wrapper.findAll('button').find(button => button.text().includes('修改设置'))!.trigger('click')
-    const options = wrapper.findAllComponents(ElOption)
-    expect(options.map((option) => option.props('label'))).toEqual([
-      '软件变更', '文档编写', '只读评审', '源代码', 'Python 脚本', 'Word 文档（DOCX）',
-    ])
-    expect(options.map((option) => option.props('value'))).toEqual([
-      'SOFTWARE_CHANGE', 'DOCUMENT_AUTHORING', 'READ_ONLY_REVIEW', 'SOURCE_CODE', 'PYTHON_SCRIPT', 'DOCX',
-    ])
+    expect(wrapper.getComponent(TaskProfileRouterDialog).props('modelValue')).toBe(true)
   })
 
   it('asks for a component only when a multi-stack software task is ambiguous', async () => {
@@ -312,6 +318,7 @@ describe('Designer draft composer', () => {
         ],
       },
       availableProfileOverrides: ['SOFTWARE_CHANGE'], availableArtifactOverrides: ['SOURCE_CODE'],
+      routerRun: completedRouterRun('router-components'),
       draft: draftFrom({
         schemaVersion: 'v2', projectId: project.id, goal: '选择受影响组件', context: '', stages: [],
         limits: { maxStageAttempts: 3, maxTaskAttempts: 7, maxDuration: '7200', attemptTimeout: '1800' },
@@ -330,16 +337,11 @@ describe('Designer draft composer', () => {
     const wrapper = mountDesigner()
     await flushPromises()
 
-    expect(wrapper.text()).toContain('选择影响组件')
-    expect(wrapper.text()).not.toContain('确认并继续')
-    await wrapper.findAll('button').find(button => button.text().includes('选择影响组件'))!.trigger('click')
-    const selector = wrapper.findAllComponents(ElSelect)[2]!
-    expect(selector.exists()).toBe(true)
-    expect(wrapper.findAllComponents(ElOption).map(option => option.props('label')))
-      .toContain('frontend · node')
-    selector.vm.$emit('update:modelValue', ['frontend'])
-    await flushPromises()
-    await wrapper.findAll('button').find(button => button.text().includes('保存设置'))!.trigger('click')
+    const routerDialog = wrapper.getComponent(TaskProfileRouterDialog)
+    expect(routerDialog.props('modelValue')).toBe(true)
+    routerDialog.vm.$emit('save', {
+      intent: 'SOFTWARE_CHANGE', artifact: 'SOURCE_CODE', largeTaskMode: false, componentKeys: ['frontend'],
+    })
     await flushPromises()
 
     expect(update).toHaveBeenCalledWith(

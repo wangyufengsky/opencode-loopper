@@ -68,8 +68,11 @@ do not trigger the Node family. Router test-artifact aliases such as `TEST_SOURC
 source code rather than failing the profile.
 The Router profile denies every built-in tool, including read/glob/grep/question. Configured
 MCP tools remain available under their OpenCode server-name prefixes. It uses the
-bounded machine-response agent only for output control and has a 30-second server
-boundary. A completed response is accepted only as one closed semantic object. Router
+bounded machine-response agent only for output control and has a configurable
+`loopper.task-profile-router-timeout` boundary, defaulting to 240 seconds from the persisted run
+creation time. The monitor must receive an acknowledged remote abort before recording
+`ROUTER_TIMEOUT` and materializing a retryable fallback. A completed response is accepted only as
+one closed semantic object. Router
 runs are persisted with their exact requirement snapshots and external Session IDs;
 restart polls the same Session, while a newer discussion aborts and supersedes stale runs. Each
 run also persists the project-profile id, manifest fingerprint, and selected component keys.
@@ -90,7 +93,9 @@ Analysis and AI preview never write the project file by themselves.
 read and returns only the latest safe thinking/output/tool part plus provider-reported
 tokens from that same observation. The browser does not estimate tokens or infer progress.
 The generation monitor persists a fingerprint over remote state, latest part/content,
-part count, and token total; no change for two minutes triggers a durable stop intent.
+part count, and token total; no change for 240 seconds by default triggers a durable stop intent.
+Any new state, content, part, or Token observation resets the stall clock; the separate 30-minute
+total generation boundary remains unchanged.
 `DELETE /api/projects/{id}/agents-md/{draftId}` uses the same local-UI-only boundary for
 manual cancellation. Timeout, polling failure, stalling, and user cancellation all pass
 through `STOPPING`; retry/fresh generation is blocked until abort plus terminal status
@@ -200,9 +205,11 @@ tool list that weakens them.
 
 The local UI reads `GET /api/designer-sessions/{id}/activity` every 1.2 seconds. Interactive
 Designer activity may project bounded `THINKING`, `OUTPUT`, and `TOOL` parts from the active
-remote Session. Router, Decomposer, Compiler, Reviewer, repair, and finalizer activity exposes
-only tool parts plus the persisted authoritative workflow step; raw structured planning JSON is
-never returned as an activity fragment. Tool names, status, bounded arguments, and bounded
+remote Session. Router uses the same bounded part types in its dedicated modal, but any marker,
+JSON-like object, or task-profile field is replaced by **正在整理任务设置识别结果** before it
+crosses the API. Decomposer, Compiler, Reviewer, repair, and finalizer expose only tool parts plus
+the persisted authoritative workflow step; raw structured planning JSON is never returned as an
+activity fragment. Tool names, status, bounded arguments, and bounded
 output are presentation data only and cannot advance lifecycle state. The endpoint returns at
 most the latest safe fragment. The UI replaces the body of the current-role card in the message
 timeline, uses normal Markdown rendering, and does not build a separate activity panel or
@@ -222,6 +229,11 @@ polling uses the same claim boundary. A remote Session created by a caller that 
 optimistic row update is aborted immediately. Reroute and profile workflow replacement require
 an acknowledged abort of the previous remote Session before superseding state or creating the
 next Session; an abort failure leaves the current authoritative profile and Session unchanged.
+The Designer DTO projects the latest Router run ID, local/remote state, error, timestamps,
+deadline, and retry eligibility. `POST /api/designer-sessions/{id}/task-profile/reroute` requires
+the expected terminal run ID and current unresolved provisional profile version and uses only the
+persisted requirement snapshot; a confirmed profile is not retryable, and stale or duplicate
+requests return 409 without creating concurrent runs.
 `POST /api/designer-sessions/{id}/task-profile/preview` is read-only and reports whether a
 versioned selection changes the profile, requires an update, changes the workflow, and which
 workflow would be selected. The UI must obtain this preview before saving. A workflow-changing

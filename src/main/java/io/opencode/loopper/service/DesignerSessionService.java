@@ -81,18 +81,6 @@ public class DesignerSessionService {
     private static final int MAX_AUTOMATIC_REDESIGNS = 1;
     private static final int MAX_HUMAN_PACKAGE_REVISIONS = 5;
     public static final String SERVER_REQUIREMENT_SNAPSHOT = "SERVER_REQUIREMENT_SNAPSHOT";
-    private static final Pattern COMPILATION_PAYLOAD = Pattern.compile(
-            "<!--\\s*LOOPSPEC_COMPILATION_JSON_START\\s*-->(.*?)<!--\\s*LOOPSPEC_COMPILATION_JSON_END\\s*-->",
-            Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
-    private static final Pattern DECOMPOSITION_PAYLOAD = Pattern.compile(
-            "<!--\\s*TASK_DECOMPOSITION_JSON_START\\s*-->(.*?)<!--\\s*TASK_DECOMPOSITION_JSON_END\\s*-->",
-            Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
-    private static final Pattern DECOMPOSITION_PLAN_PAYLOAD = Pattern.compile(
-            "<!--\\s*TASK_DECOMPOSITION_PLAN_JSON_START\\s*-->(.*?)<!--\\s*TASK_DECOMPOSITION_PLAN_JSON_END\\s*-->",
-            Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
-    private static final Pattern COMPILATION_PLAN_PAYLOAD = Pattern.compile(
-            "<!--\\s*LOOPSPEC_COMPILATION_PLAN_JSON_START\\s*-->(.*?)<!--\\s*LOOPSPEC_COMPILATION_PLAN_JSON_END\\s*-->",
-            Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
     private final LoopperMapper mapper;
     private final LifecycleTransitionService lifecycle;
     private final ProjectService projects;
@@ -775,8 +763,10 @@ public class DesignerSessionService {
         }
         TaskProfileService.View updated = taskProfiles.override(sessionId, intent, primaryArtifactKind,
                 largeTaskMode, componentKeys, expectedVersion);
-        if (before.workflowTemplate() != updated.workflowTemplate())
+        if (!DesignWorkflowPhase.ROUTING.name().equals(get(sessionId).workflowPhase())
+                && before.workflowTemplate() != updated.workflowTemplate())
             restartRequirementContract(sessionId, updated.workflowTemplate());
+        continueAfterTaskProfileDecision(sessionId);
         return updated;
     }
 
@@ -1361,21 +1351,32 @@ public class DesignerSessionService {
         TaskProfileService.View profile = taskProfiles.current(sessionId);
         appendMessage(session.id(), DesignerActor.SYSTEM,
                 "任务设置已识别：" + profile.rolePackId() + "@" + profile.rolePackVersion()
-                        + (profile.decisionRequired() ? "；识别结果存在歧义，请确认或修改任务设置。" : "；将由专属需求设计师继续。"),
+                        + (profile.confirmationReady() ? "；已沿用此前确认，将继续设计。"
+                        : "；请确认、重新识别或手动修改后再进入设计。"),
                 "PERSISTED", null, null);
         if (!DesignWorkflowPhase.ROUTING.name().equals(session.workflowPhase())) {
-            publish(session, "STATUS", DesignerActor.ROUTER, true, "", "任务设置已按最新需求稿更新");
-            return;
+            publish(session, "STATUS", DesignerActor.ROUTER, true, "", "任务设置已按最新需求稿更新"); return;
         }
-        DesignDiscussionRevisionRow discussion = mapper.findLatestDesignDiscussionRevision(session.id(), "REQUIREMENT")
-                .orElse(null);
-        if (discussion == null) {
+        if (!profile.confirmationReady()) {
+            publish(session, "STATUS", DesignerActor.ROUTER, true, "", "任务设置识别已完成，等待人工确认"); return;
+        }
+        continueAfterTaskProfileDecision(sessionId);
+    }
+
+    public void continueAfterTaskProfileDecision(String sessionId) {
+        DesignerSessionRow session = get(sessionId);
+        if (runtimeControl.stopping(sessionId) || !DesignWorkflowPhase.ROUTING.name().equals(session.workflowPhase())) return;
+        if (!taskProfiles.current(sessionId).confirmationReady()) {
+            throw new ConflictException("TASK_PROFILE_DECISION_REQUIRED", "任务设置尚未确认，请先确认或修改当前设置");
+        }
+        DesignDiscussionRevisionRow discussion = mapper.findLatestDesignDiscussionRevision(session.id(), "REQUIREMENT").orElse(null);
+        if (discussion != null) {
+            dispatchRequirementDesigner(session, discussion, messageContent(discussion.sourceMessageId()), false);
+        } else {
             DesignerSessionRow discussing = updateDesignerProjection(session, DesignerSessionState.PENDING_HANDOFF,
                     DesignWorkflowPhase.DISCUSSING_REQUIREMENT, null, "PENDING", 0, 0, null, null);
             publish(discussing, "STATUS", DesignerActor.ROUTER, true, "", "任务设置已就绪，等待需求输入");
-            return;
         }
-        dispatchRequirementDesigner(session, discussion, messageContent(discussion.sourceMessageId()), false);
     }
 
     private void supersedeCurrentRequirement(DesignerSessionRow session) {

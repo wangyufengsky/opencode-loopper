@@ -3,6 +3,7 @@ package io.opencode.loopper.service;
 import io.opencode.loopper.domain.ImplementationKind;
 import io.opencode.loopper.domain.LoopSpec;
 import java.util.List;
+import java.util.regex.Pattern;
 import tools.jackson.databind.JsonNode;
 
 /**
@@ -10,7 +11,17 @@ import tools.jackson.databind.JsonNode;
  * These records contain transport shape only; validation and compilation belong to focused policy classes.
  */
 final class DesignerSemanticContracts {
+    static final Pattern COMPILATION_PAYLOAD = payload("LOOPSPEC_COMPILATION_JSON");
+    static final Pattern DECOMPOSITION_PAYLOAD = payload("TASK_DECOMPOSITION_JSON");
+    static final Pattern DECOMPOSITION_PLAN_PAYLOAD = payload("TASK_DECOMPOSITION_PLAN_JSON");
+    static final Pattern COMPILATION_PLAN_PAYLOAD = payload("LOOPSPEC_COMPILATION_PLAN_JSON");
+
     private DesignerSemanticContracts() { }
+
+    private static Pattern payload(String marker) {
+        return Pattern.compile("<!--\\s*" + marker + "_START\\s*-->(.*?)<!--\\s*" + marker
+                + "_END\\s*-->", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+    }
 
     public record GlobalConstraint(String text, List<String> requirementRefs) {
         public GlobalConstraint {

@@ -10,6 +10,7 @@ import io.opencode.loopper.service.DesignerAutoModeService;
 import io.opencode.loopper.service.DesignerEventHub;
 import io.opencode.loopper.service.LoopDraftService;
 import io.opencode.loopper.service.TaskProfileService;
+import io.opencode.loopper.service.TaskProfileRouterRunService;
 import io.opencode.loopper.service.AnalysisReportService;
 import io.opencode.loopper.service.DirectArtifactDesignService;
 import io.opencode.loopper.service.DirectMaintenanceDesignService;
@@ -226,8 +227,16 @@ public class DesignerSessionController {
     public TaskProfileService.View confirmTaskProfile(@PathVariable String id,
                                                        @Valid @RequestBody ConfirmTaskProfileRequest request) {
         TaskProfileService.View profile = profiles.confirmRecommendation(id, request.expectedVersion());
+        service.continueAfterTaskProfileDecision(id);
         autoMode.resumeProfileDecisionBlock(id);
         return profile;
+    }
+
+    @PostMapping("/{id}/task-profile/reroute")
+    public ResponseEntity<TaskProfileRouterRunService.RouterRunView> rerouteTaskProfile(
+            @PathVariable String id, @Valid @RequestBody RerouteTaskProfileRequest request) {
+        return ResponseEntity.accepted().body(profiles.reroutePersistedSnapshot(
+                id, request.expectedRunId(), request.expectedProfileVersion()));
     }
 
     @PostMapping("/{id}/large-task-mode/enable")
@@ -357,7 +366,8 @@ public class DesignerSessionController {
                 row.currentRequirementRevision(), row.activeWorkPackageId(), row.discussionScope(),
                 row.discussionRevision(), service.candidateStatus(row.id()),
                 service.finalConfirmationEligible(row.id()), service.archived(row.id()), autoMode.get(row.id()),
-                profiles.current(row.id()), List.of(TaskIntent.values()), List.of(ArtifactKind.values()),
+                profiles.current(row.id()), profiles.routerRun(row.id()),
+                List.of(TaskIntent.values()), List.of(ArtifactKind.values()),
                 reports.list(row.id()));
     }
 
@@ -392,6 +402,7 @@ public class DesignerSessionController {
                                            Boolean largeTaskMode, List<String> componentKeys,
                                            long expectedVersion) { }
     public record ConfirmTaskProfileRequest(long expectedVersion) { }
+    public record RerouteTaskProfileRequest(@NotBlank String expectedRunId, long expectedProfileVersion) { }
     public record EnableLargeTaskModeRequest(int expectedDiscussionRevision, long expectedProfileVersion) { }
     public record PackageMessageRequest(@NotBlank @Size(max = 12_000) String content,
                                         int expectedDiscussionRevision, int expectedDesignRevision) { }
@@ -414,6 +425,7 @@ public class DesignerSessionController {
                                      boolean finalConfirmationEligible, boolean archived,
                                      DesignerAutoModeService.View autoMode,
                                      TaskProfileService.View taskProfile,
+                                     TaskProfileRouterRunService.RouterRunView routerRun,
                                      List<TaskIntent> availableProfileOverrides,
                                      List<ArtifactKind> availableArtifactOverrides,
                                      List<AnalysisReportService.Summary> reports) { }

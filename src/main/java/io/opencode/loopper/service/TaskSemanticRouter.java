@@ -6,6 +6,8 @@ import io.opencode.loopper.domain.TaskIntent;
 import io.opencode.loopper.runtime.OpenCodeClient;
 import io.opencode.loopper.runtime.OpenCodeStructuredSchemas;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -165,6 +167,9 @@ public final class TaskSemanticRouter {
             abortQuietly(new OpenCodeClient.OpenCodeSession(externalSessionId, root));
         }
     }
+    public Duration timeout() { return properties.getTaskProfileRouterTimeout(); }
+    public Instant deadline(String createdAt) { return Instant.parse(createdAt).plus(timeout()); }
+    public boolean timedOut(String createdAt, Instant observedAt) { return observedAt.isAfter(deadline(createdAt)); }
     private static String safe(String value) { return value == null || value.isBlank() ? "unknown Router failure" : value.substring(0, Math.min(1000, value.length())); }
 
     public record StartResult(String externalSessionId, String responseMode, String errorCode, String errorDetail) {
