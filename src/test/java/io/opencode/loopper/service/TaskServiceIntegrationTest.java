@@ -1368,6 +1368,11 @@ class TaskServiceIntegrationTest {
         FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
         fake.setSessionState(writer.externalSessionId(), "RUNNING");
         fake.failNextAborts(2);
+        AtomicInteger statusCalls = new AtomicInteger();
+        org.mockito.Mockito.doAnswer(invocation -> {
+            statusCalls.incrementAndGet();
+            return new OpenCodeClient.SessionStatus("RUNNING");
+        }).when(openCode).sessionStatus(org.mockito.ArgumentMatchers.any());
 
         tasks.cancel(holder.id());
         TaskRow stopping = tasks.get(holder.id());
@@ -1387,9 +1392,11 @@ class TaskServiceIntegrationTest {
         assertThat(tasks.errors(holder.id())).noneMatch(error -> error.code().equals("SESSION_ABORT_CLEANUP_CONFIRMED"));
         assertThat(tasks.get(waiter.id()).state()).isEqualTo("QUEUED");
 
+        int statusCallsBeforeAcknowledgedAbort = statusCalls.get();
         FeatureContracts.QueueStatusDto reconciled = tasks.reconcileQueue(waiter.id());
 
         assertThat(reconciled.state()).isEqualTo("ADMITTED");
+        assertThat(statusCalls.get()).isEqualTo(statusCallsBeforeAcknowledgedAbort);
         assertThat(mapper.findSession(writer.id()).orElseThrow().state()).isEqualTo("ABORTED");
         assertThat(tasks.errors(holder.id())).anyMatch(error -> error.code().equals("SESSION_ABORT_CLEANUP_CONFIRMED")
                 && writer.id().equals(error.sessionId()));

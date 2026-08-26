@@ -38,6 +38,8 @@ class HttpOpenCodeClientTest {
     private final AtomicReference<String> mcpBody = new AtomicReference<>("{}");
     private final AtomicReference<String> promptBody = new AtomicReference<>();
     private final AtomicReference<String> createResponseDirectory = new AtomicReference<>();
+    private final AtomicReference<String> abortBody = new AtomicReference<>("true");
+    private final AtomicInteger abortStatusCode = new AtomicInteger(200);
     private final AtomicLong responseDelayMillis = new AtomicLong();
     @TempDir Path worktree;
 
@@ -94,8 +96,25 @@ class HttpOpenCodeClientTest {
         assertThat(retry.detail()).isEqualTo("Free usage exceeded");
         assertThat(client.diff(session)).isEqualTo("[]");
         assertThat(lastPathAndQuery.get()).contains("/session/s1/diff").contains("directory=");
-        client.abort(session);
+        assertThat(client.abortWithConfirmation(session)).isEqualTo(OpenCodeClient.AbortConfirmation.ACKNOWLEDGED);
         assertThat(lastPathAndQuery.get()).contains("/session/s1/abort").contains("directory=");
+    }
+
+    @Test
+    void requiresPositiveAbortAcknowledgementAndTreatsMissingSessionAsStopped() throws Exception {
+        LoopperProperties properties = new LoopperProperties();
+        properties.getOpenCode().setBaseUrl(new java.net.URI("http://127.0.0.1:" + server.getAddress().getPort()));
+        HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(), properties);
+        OpenCodeClient.OpenCodeSession session = new OpenCodeClient.OpenCodeSession("s1", worktree);
+        abortBody.set("false");
+
+        assertThatThrownBy(() -> client.abortWithConfirmation(session))
+                .isInstanceOfSatisfying(SessionFailure.class,
+                        failure -> assertThat(failure.code()).isEqualTo("OPENCODE_ABORT_UNCONFIRMED"));
+
+        abortStatusCode.set(404);
+        assertThat(client.abortWithConfirmation(session))
+                .isEqualTo(OpenCodeClient.AbortConfirmation.ALREADY_ABSENT);
     }
 
     @Test
@@ -542,6 +561,7 @@ class HttpOpenCodeClientTest {
         }
         else if (path.endsWith("/message")) reply(exchange, messageStatusCode.get(), messageBody.get());
         else if (path.endsWith("/prompt_async")) { promptBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)); reply(exchange, "true"); }
+        else if (path.endsWith("/abort")) reply(exchange, abortStatusCode.get(), abortBody.get());
         else if (path.endsWith("/todo")) reply(exchange, todoBody.get());
         else if (path.endsWith("/fork")) { sessionActionBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)); reply(exchange, "{\"id\":\"fork-1\"}"); }
         else if (path.endsWith("/revert") || path.endsWith("/summarize")) { sessionActionBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)); reply(exchange, "true"); }

@@ -42,10 +42,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.2.59.jar
-   jar tf target/opencode-loopper-0.2.59.jar \
+   test -s target/opencode-loopper-0.2.60.jar
+   jar tf target/opencode-loopper-0.2.60.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.2.59.jar
+   shasum -a 256 target/opencode-loopper-0.2.60.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -95,8 +95,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.2.59`。
-- 正式产物：`target/opencode-loopper-0.2.59.jar`。
+- Maven 项目版本：`0.2.60`。
+- 正式产物：`target/opencode-loopper-0.2.60.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -208,7 +208,7 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 - `SESSION`：OpenCode Session 失败，关闭当前 Session/Attempt，安全确认后创建新 Session。
 - `TASK`：当前执行轮次无法安全继续或预算耗尽，关闭所有子运行，记录失败轮次并进入 `AWAITING_DECISION`；不得未经用户处置直接形成新任务终态。
 
-Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级由编排器负责。终止 Task 不能伪造远端 Session 已停止：无法确认的写入者保留为 `DISCONNECTED`，并阻止重叠写入。
+Session adapter 不得直接把 Task 写成 `FAILED`；重试耗尽后的升级由编排器负责。终止 Task 不能伪造远端 Session 已停止：HTTP abort 必须解析 boolean，只有 `true`、精确 404 已不存在或独立终态状态可作为正向证明；`false`、空响应和传输失败均保持未确认。无法确认的写入者保留为 `DISCONNECTED`，并阻止重叠写入。
 
 `RETRY_WAIT` 必须由 V31 持久化计划驱动，同一 Task 只允许一个 `SCHEDULED`/`PAUSED` 活动计划。限流、普通 Session、验证失败默认分别按 `60→120→240→300`、`10→20→40→60`、`5→10→20→30` 秒退避并保持上限，不加随机抖动；计划创建后到期时间不可被后续设置追溯修改。只有确认旧 writer 已停止后才能建计划，到期由 Monitor 原子领取并创建唯一新 Attempt/Session；重启保留计划，历史无计划等待按普通 Session 默认值补建。暂停冻结剩余时间，恢复继续等待，Task 成功/失败/取消关闭活动计划。OpenCode `RETRY` 是 Provider 在原远端 Session 内的自恢复状态，不是 Session 错误、Loopper `RETRY_WAIT` 或 writer 终态证明；所有调用方必须保留原 Session 继续轮询，既有角色/操作超时仍为硬边界。
 
@@ -314,7 +314,7 @@ Task 详情 `overview` 必须投影 `loopRetryAvailable`、`cancellationAvailabl
 - 所有路径 canonicalize 后进行 containment 和符号链接检查。
 - 同一登记 root（Git 或 Direct）同时只能有一个未释放写租约；旧写入者状态未知时保持租约并阻断 Recovery/Automation。执行轮次结束后只有在旧 writer 已确认停止、全部 tracked/deleted/untracked 修改已通过临时 index 冻结到 `refs/loopper/checkpoints/<taskId>/<cycleId>`、工作区已清理且源分支可恢复时，才释放租约；私有 checkpoint ref 与 stash 永不推送。继续或派生写入前必须复核 root、分支、HEAD、ref、commit、tree 和清单，任一不一致都 fail closed。
 - Checkpoint `CAPTURING`/`RESTORING` 必须可在应用重启后幂等续接：已落盘的私有 ref 不得被干净工作区覆盖，已恢复工作区必须重算 tree 精确匹配后才能推进；已终止 Execution Cycle 但尚未写入 Task 投影时只能恢复到 `AWAITING_DECISION`，不得凭空创建重试。成功等待任务发布时以 `PUBLICATION` 来源重新参与同一 FIFO 准入并恢复冻结点。
-- Task、Queue 与 Lease 必须保持独立状态机，并由统一协调器维护跨状态不变量：`ADMITTED` 必须与非 `RELEASED` 租约的 holder 一致。终态 holder 只有在写入 Session/验证运行时已确认停止、项目指纹一致、工作区干净且源分支可安全恢复时，才允许完成队列项并严格按 FIFO 原子转移租约；Git/指纹检查在 SQLite 事务外，真正的完成/转移在短事务内复核。启动恢复、取消/Session 清理、归档前置、手动检查和仅扫描“终态 holder + QUEUED waiter”的 10 秒后台协调必须复用同一逻辑，且并发幂等。`DISCONNECTED` 或历史 `SESSION_ABORT_UNCONFIRMED` 不能作为本地终态证明；重启及显式本地 UI 修复必须重新核验精确远端 Session，并在成功时持久化 `SESSION_ABORT_CLEANUP_CONFIRMED` 后再进入协调器，失败继续保持 `RELEASE_PENDING`。活动 holder 或 `ADMITTED` 任务不得归档/永久删除，删除路径不得清空 holder 绕过状态机；任何阻塞均 fail closed，不得自动 stash、提交、删除或强制切分支。
+- Task、Queue 与 Lease 必须保持独立状态机，并由统一协调器维护跨状态不变量：`ADMITTED` 必须与非 `RELEASED` 租约的 holder 一致。终态 holder 只有在写入 Session/验证运行时已确认停止、项目指纹一致、工作区干净且源分支可安全恢复时，才允许完成队列项并严格按 FIFO 原子转移租约；Git/指纹检查在 SQLite 事务外，真正的完成/转移在短事务内复核。启动恢复、取消/Session 清理、归档前置、手动检查和仅扫描“终态 holder + QUEUED waiter”的 10 秒后台协调必须复用同一逻辑，且并发幂等。`DISCONNECTED` 或历史 `SESSION_ABORT_UNCONFIRMED` 不能作为本地终态证明；重启及显式本地 UI 修复必须重新核验精确远端 Session，消费 abort `true`、精确 404 已不存在或独立终态状态，并在成功时持久化 `SESSION_ABORT_CLEANUP_CONFIRMED` 后再进入协调器，失败继续保持 `RELEASE_PENDING`。活动 holder 或 `ADMITTED` 任务不得归档/永久删除，删除路径不得清空 holder 绕过状态机；任何阻塞均 fail closed，不得自动 stash、提交、删除或强制切分支。
 - `AWAITING_DECISION` 的失败轮次支持继续当前 Task、`INHERIT_CHANGES` 派生、`REWORK_ALL_STAGES`、`VERIFY_ONLY` 审计和取消；成功轮次还支持发布、选择 Stage 继续优化及空变更显式接受。派生子任务保持 `PENDING_START`，继承修改只把冻结 tree 作为未提交工作区种子，Task baseline 仍为父任务开始前 baseline；历史 `FAILED`/`CANCELLED` Recovery 保持只读兼容。
 - `VERIFY_ONLY` 不创建可写 Session；Direct 模式不提供原地回滚。
 - fingerprint、baseline 或旧 writer 不匹配时必须 fail closed。
@@ -435,7 +435,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.2.59.jar
+JAR=target/opencode-loopper-0.2.60.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -537,6 +537,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-08-26 | 消费 OpenCode abort 正向回执，交付 0.2.60 | HTTP adapter 解析 abort boolean，`true`/精确 404 成为停止证明，`false`/空响应/传输失败继续失败关闭；writer、Judge 和项目公约停止不再被 abort 后缺失活动状态及未完成消息反向误判；同步 README、架构、OpenCode 合同与本公约正文 | 聚焦后端 107 项、Vitest 212/212；`./scripts/verify.sh`：Java 608 项（0 失败、0 错误、2 跳过）、Vitest 212/212，`BUILD SUCCESS`；JAR `target/opencode-loopper-0.2.60.jar` 为 283653042 字节，含 112 个 SPA 静态条目，SHA-256 `6e8f197d7fb7dc30fca4fa12a084523de9dc186b6cf155927fb3324ad3880401`；未启动或替换运行实例，未推送、未打标签、未创建 Release |
 | 2026-08-26 | 修复遗留 writer 阻塞终态 holder 租约，交付 0.2.59 | 重启与手动队列修复重新核验 `DISCONNECTED`/未确认 Session，成功后持久化正向终止证据再安全转移租约；任务详情新增“终止遗留会话并释放”确认入口；同步 README、架构、设计合同与本公约正文 | 聚焦后端 2/2、TaskDetail 14/14、类型检查通过；`./scripts/verify.sh`：Java 607 项（0 失败、0 错误、2 跳过）、Vitest 212/212，`BUILD SUCCESS`；JAR 283651443 bytes，含 112 个 SPA 静态条目，SHA-256 `84d86d753420d8a6a5013aa2ac620f013726600696c272c33f1c28a81170c865`；未启动或替换运行实例，未推送、未打标签、未创建 Release |
 | 2026-08-26 | 服务端快速路径与按需 Compiler，交付 0.2.58 | Role Pack 升级为 v6 受控阶段表；普通单包设计先经服务端精确符号解析、约束校验和确定性编译，只有闭集事实或能力归属仍有歧义时才调用一次锁定拓扑的 Compiler；新增稳定 binding source、诊断与业务化来源投影，历史 v5 保持兼容；同步 README、架构、Designer、OpenCode、AI 角色、代码设计和本公约正文 | 聚焦后端算法/迁移/结构测试通过，Designer 集成 79/79，前端 Designer 40/40 与类型检查通过；`./scripts/verify.sh`：Java 606 项（0 失败、0 错误、2 条件跳过），Vitest 212/212，BUILD SUCCESS；JAR `target/opencode-loopper-0.2.58.jar` 为 283650836 字节，含 112 个 SPA 静态条目，SHA-256 `fb2d2c9d98001a7718777110b632cea06ec16bcbe2ff36c24c16cc0b009916b0`；未启动或替换运行实例，未推送、未打标签、未创建 Release |
 | 2026-08-26 | Designer 双重验收矩阵响应式布局，交付 0.2.57 | 验收条件改为可伸缩主列，模式、机器验收和 AI 评审合并为可换行状态组；窄屏状态组下移并左对齐；发布契约测试改为从 Maven 版本派生启动脚本 JAR 名；同步 README、设计合同和本公约正文 | 组件聚焦 39/39、Chrome E2E 2/2、类型检查通过；0.2.56 首次 `./scripts/verify.sh` 的 593 项 Java 测试仅发布契约旧版本硬编码失败，修正测试源码后按交付规则顺延；0.2.57 `./scripts/verify.sh`：Java 593 项（0 失败、0 错误、2 条件跳过），Vitest 211/211，BUILD SUCCESS；JAR `target/opencode-loopper-0.2.57.jar` 为 283624359 字节，含 112 个 SPA 静态条目，SHA-256 `d61a4b4960a31dae9d13ecb958236c991da0810a9947bed380e6789ad1b94d18`；未启动或替换运行实例，未推送、未打标签、未创建 Release |

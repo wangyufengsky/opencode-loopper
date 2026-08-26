@@ -311,9 +311,7 @@ public class ProjectConventionService {
         OpenCodeClient.OpenCodeSession failed = session(row);
         String evidence = boundedToolEvidence(failed);
         try {
-            openCode.abort(failed);
-            OpenCodeClient.SessionStatus stopped = openCode.sessionStatus(failed);
-            if (!stopped.completed() && !stopped.failed()) return false;
+            openCode.abortWithConfirmation(failed);
             OpenCodeClient.OpenCodeSession finalizer = openCode.createSession(Path.of(project.rootPath()),
                     "OpenCode Loopper AGENTS.md Designer Finalizer (MCP_ONLY)", configuredModel(),
                     OpenCodeClient.SessionProfile.MACHINE_FINALIZER_NO_TOOLS);
@@ -355,21 +353,21 @@ public class ProjectConventionService {
 
     private void pollStopping(ProjectConventionDraftRow row) {
         if (!ProjectConventionState.STOPPING.name().equals(row.state())) return;
-        OpenCodeClient.SessionStatus status;
+        OpenCodeClient.AbortConfirmation confirmation;
         try {
-            openCode.abort(session(row));
-            status = openCode.sessionStatus(session(row));
+            confirmation = openCode.abortWithConfirmation(session(row));
         } catch (RuntimeException unconfirmed) {
             return;
         }
-        if (!status.completed() && !status.failed()) return;
+        String stoppedState = confirmation == OpenCodeClient.AbortConfirmation.ALREADY_ABSENT
+                ? "ALREADY_ABSENT" : "ABORTED";
         ProjectConventionRuntimeRow runtime = ensureRuntime(row);
         if (STOP_USER_CANCEL.equals(runtime.stopReason())) {
             transition(get(row.projectId(), row.id()), ProjectConventionState.CANCELLED,
-                    safeState(status.state()), null, runtime.stopDetail());
+                    stoppedState, null, runtime.stopDetail());
         } else {
             transition(get(row.projectId(), row.id()), ProjectConventionState.FAILED,
-                    safeState(status.state()), null,
+                    stoppedState, null,
                     runtime.stopDetail() == null ? "项目公约生成已停止" : runtime.stopDetail());
         }
     }

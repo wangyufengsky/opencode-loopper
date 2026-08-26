@@ -76,8 +76,11 @@ final class TaskWriterTerminationService {
             return false;
         }
         try {
-            openCode.abort(remote);
+            OpenCodeClient.AbortConfirmation confirmation = openCode.abortWithConfirmation(remote);
             evidence.put("abortSucceeded", true);
+            evidence.put("abortConfirmation", confirmation.name());
+            evidence.put("writerTerminationConfirmed", true);
+            return true;
         } catch (RuntimeException abortFailure) {
             evidence.put("abortSucceeded", false);
             evidence.put("abortErrorCode", abortFailure instanceof SessionFailure failure
@@ -127,12 +130,16 @@ final class TaskWriterTerminationService {
             boolean stopped = judge.externalSessionId() == null;
             if (judge.externalSessionId() != null) {
                 OpenCodeClient.OpenCodeSession remote = new OpenCodeClient.OpenCodeSession(judge.externalSessionId(), worktree);
-                try { openCode.abort(remote); } catch (SessionFailure ignoredAbortFailure) { }
                 try {
-                    OpenCodeClient.SessionStatus status = openCode.sessionStatus(remote);
-                    stopped = status.completed() || status.failed();
-                } catch (SessionFailure ignoredStatusFailure) {
-                    stopped = false;
+                    openCode.abortWithConfirmation(remote);
+                    stopped = true;
+                } catch (SessionFailure ignoredAbortFailure) {
+                    try {
+                        OpenCodeClient.SessionStatus status = openCode.sessionStatus(remote);
+                        stopped = status.completed() || status.failed();
+                    } catch (SessionFailure ignoredStatusFailure) {
+                        stopped = false;
+                    }
                 }
             }
             if (!stopped) {

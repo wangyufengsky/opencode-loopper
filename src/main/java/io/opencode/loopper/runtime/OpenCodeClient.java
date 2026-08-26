@@ -93,7 +93,17 @@ public interface OpenCodeClient {
     default List<UsageRecord> sessionUsage(OpenCodeSession session) { return List.of(); }
     String diff(OpenCodeSession session);
     void abort(OpenCodeSession session);
+    /**
+     * Aborts a remote Session and returns the provider's positive acknowledgement.
+     * Implementations must throw when the remote endpoint does not confirm the
+     * request; callers may therefore use a normal return as termination proof.
+     */
+    default AbortConfirmation abortWithConfirmation(OpenCodeSession session) {
+        abort(session);
+        return AbortConfirmation.ACKNOWLEDGED;
+    }
     record OpenCodeSession(String id, Path worktree) { }
+    enum AbortConfirmation { ACKNOWLEDGED, ALREADY_ABSENT }
     record OpenCodeModel(String providerId, String modelId, Boolean thinking) { }
     enum SessionProfile {
         ROUTER_NO_TOOLS,

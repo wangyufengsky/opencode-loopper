@@ -276,8 +276,10 @@ aborts the old external Session, persists it and its Attempt as disconnected /
 while limits remain. A Task-level failure closes every active Attempt and child Session; no
 child is allowed to remain `RUNNING` while its parent waits for disposition.
 
-An execution-cycle result does not fabricate remote terminality. If an abort and its
-independent status read both fail to prove that a writer stopped, its local
+An execution-cycle result does not fabricate remote terminality. A parsed `true` response from
+OpenCode's HTTP abort endpoint is a positive termination acknowledgement; a 404 proves the exact
+remote Session is already absent. If abort is unacknowledged and an independent status read also
+fails to prove that a writer stopped, its local
 Session becomes `DISCONNECTED` with `SESSION_ABORT_UNCONFIRMED`. The monitor
 persists up to `loopper.abort-cleanup-attempts` abort retries across restarts;
 success becomes `ABORTED`, while exhaustion stays `DISCONNECTED` with explicit
@@ -285,7 +287,8 @@ success becomes `ABORTED`, while exhaustion stays `DISCONNECTED` with explicit
 
 When a terminal holder blocks a queued Task, restart rehydration and the explicit
 local queue action must re-probe `DISCONNECTED` writers instead of treating the
-local row as a terminality proof. A successful abort/status observation persists
+local row as a terminality proof. A positive abort acknowledgement, already-absent response,
+or independent terminal status observation persists
 `SESSION_ABORT_CLEANUP_CONFIRMED` even when the local Session was already terminal;
 only then may the ordinary lease reconciler transfer ownership. Failure retains
 `RELEASE_PENDING` and never force-releases the root.

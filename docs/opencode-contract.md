@@ -14,7 +14,7 @@ Verified locally on 2026-08-04 with `opencode serve --hostname 127.0.0.1
 | Session Todo | `GET /session/{id}/todo?directory=...` | bounded implementation progress projection |
 | built-in tool ids | `GET /experimental/tool/ids?directory=...` | workspace-scoped tool capability list |
 | native agents | `GET /agent` | native agent metadata, including optional `plan` |
-| abort | `POST /session/{id}/abort` | boolean |
+| abort | `POST /session/{id}/abort` | boolean; parsed `true` is a positive stop acknowledgement, `false`/empty is unconfirmed, and 404 means the exact Session is already absent |
 | delete | `DELETE /session/{id}` | boolean |
 | events | `GET /event` | SSE stream per published API |
 
@@ -104,8 +104,10 @@ neither inactivity nor elapsed wall-clock time automatically stops it; polling c
 real remote terminal state or explicit user cancellation, and the browser shows no timeout limit.
 `DELETE /api/projects/{id}/agents-md/{draftId}` uses the same local-UI-only boundary for
 manual cancellation. Polling failure and user cancellation pass through `STOPPING`;
-retry/fresh generation is blocked until abort plus terminal status
-confirm that the previous read-only Session is no longer consuming work. A tool-loop
+retry/fresh generation is blocked until a positive abort acknowledgement, already-absent
+response, or an independent terminal status confirms that the previous read-only Session is no
+longer consuming work. The activity status map may remove an aborted Session before its latest
+message receives a completion timestamp, so it cannot override a positive abort acknowledgement. A tool-loop
 finalizer is likewise created only after the looping Session's termination is confirmed.
 
 New v6 software-package compilation first runs entirely on the server against frozen DesignFact and

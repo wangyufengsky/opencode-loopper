@@ -508,12 +508,25 @@ public class HttpOpenCodeClient implements OpenCodeClient {
                     .retrieve().body(String.class);
         } catch (RuntimeException e) { throw new SessionFailure("OPENCODE_DIFF_FAILED", e.getMessage()); }
     }
-    @Override public void abort(OpenCodeSession session) {
-        try { client().post().uri(uri -> sessionUri(uri, "/session/{id}/abort", session)).retrieve().toBodilessEntity(); }
+    @Override public void abort(OpenCodeSession session) { abortWithConfirmation(session); }
+    @Override public AbortConfirmation abortWithConfirmation(OpenCodeSession session) {
+        try {
+            Boolean acknowledged = client().post().uri(uri -> sessionUri(uri, "/session/{id}/abort", session))
+                    .retrieve().body(Boolean.class);
+            if (!Boolean.TRUE.equals(acknowledged)) {
+                throw new SessionFailure("OPENCODE_ABORT_UNCONFIRMED",
+                        "OpenCode abort endpoint did not acknowledge termination");
+            }
+            return AbortConfirmation.ACKNOWLEDGED;
+        }
         catch (RestClientResponseException failure) {
-            if (failure.getStatusCode().value() == 404) return;
+            if (failure.getStatusCode().value() == 404) return AbortConfirmation.ALREADY_ABSENT;
             throw new SessionFailure("OPENCODE_ABORT_FAILED", failure.getMessage());
-        } catch (RuntimeException e) { throw new SessionFailure("OPENCODE_ABORT_FAILED", e.getMessage()); }
+        } catch (SessionFailure failure) {
+            throw failure;
+        } catch (RuntimeException e) {
+            throw new SessionFailure("OPENCODE_ABORT_FAILED", e.getMessage());
+        }
     }
     private static URI sessionUri(org.springframework.web.util.UriBuilder uri, String path, OpenCodeSession session) {
         return directoryUri(uri, path, session.worktree(), Map.of("id", session.id()));
