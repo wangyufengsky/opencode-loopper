@@ -281,7 +281,7 @@ downgrade it to local maintenance or clear its software family. A previously fro
 row with a non-software Role Pack is an inconsistent snapshot and is repaired on the next
 authoritative package-role use, including manual recompilation. Package-local document or
 configuration specialization is reserved for explicit `FULL_PACKAGE_DESIGN` packages.
-Role Pack version `2026-08-dynamic-v5` first normalizes aliases into Java, Python, Node,
+Role Pack version `2026-08-dynamic-v6` first normalizes aliases into Java, Python, Node,
 and Other families. JavaScript/TypeScript cannot trigger Java, multiple labels from the
 same family remain one stack, real cross-family work selects the mixed pack, and an explicit
 unknown single stack selects the generic software pack. Package-local matching uses token
@@ -356,19 +356,20 @@ it or explicitly authorize it again after handling the cause.
 
 Packages then run strictly serially. Each package reuses its healthy interactive
 read-only Designer conversation across revisions and reconstructs a fresh one
-from persisted snapshots/decisions after remote loss; each candidate uses a fresh
-read-only LoopSpec Compiler with the configured model. Designer receives
+from persisted snapshots/decisions after remote loss. Designer receives
 the original requirement, frozen decomposition, current package, global
 constraints, and bounded prerequisite handoffs, then emits one complete Markdown
 replacement without a fixed byte-size ceiling. The server persists that exact design and
-continues to enforce the controlled section shape plus scenario/fact limits. Compiler emits a compact semantic plan plus
-`DS-Lxxx` sources and a handoff summary of at most 4 KiB; the server compiles the
-package fragment. Direct software allows 1–6 Stages; each large-task package remains
-limited to 1–3. Decomposer and historical semantic-Compiler extraction failures receive at most
+continues to enforce the controlled section shape plus scenario/fact limits. For v6, the server first
+resolves the exact Stage table and compiles a complete ordinary `WP-1` without creating a remote
+Compiler Session or consuming a model call. Only unresolved closed-set fact/capability bindings create
+one `COMPILER_BINDING_NO_TOOLS` Session; every large-task package also takes that one disambiguation turn
+to preserve its handoff summary, while the frozen Stage topology remains immutable. Direct software
+allows 1–6 Stages; each large-task package remains limited to 1–3. Decomposer and historical semantic-Compiler extraction failures receive at most
 two format repairs, and field/verifier/traceability/coverage failures receive at most two semantic
-patch repairs. Current v5 acceptance grouping/preferences are optional advice: an unreadable advice
-object is discarded and the frozen server graph compiles without a repair Session;
-gaps receive one full redesign of that package only. Large-task initial design and every
+patch repairs. Current v6 disambiguation has no repair loop: malformed or out-of-closure output becomes
+targeted `AMBIGUOUS_ACCEPTANCE_INTENT`, never an empty binding or catch-all Stage; gaps receive one full
+redesign of that package only. Large-task initial design and every
 human revision must ask questions first; direct WP-1 never asks again. Both return a complete snapshot. A valid
 candidate enters `REVIEWING` and the next package stays locked until the user
 accepts that exact revision; a failed replacement retains the last valid
@@ -381,7 +382,7 @@ Each applicable historical Compiler repair runs in a new built-in-tools-disabled
 original repository-reading Session; configured MCP tools remain available without changing
 repository-write or command boundaries. Format repair returns one complete compact object; semantic
 repair returns only the `AI_SEMANTIC_PATCH_V1` patch envelope. A current response missing
-`outcome` is valid for v5 acceptance advice but remains a format failure for historical semantic
+`outcome` is absent by contract in v6 disambiguation but remains a format failure for historical semantic
 contracts and cannot fall into the legacy `status` parser, while an
 invalid patch response cannot overwrite the last valid semantic snapshot.
 Compiler's compact Stage field is `evidence`, never the final DTO field `verifiers`. A uniquely
@@ -416,6 +417,9 @@ and stage dependencies. The acceptance table records scenario, precondition/trig
 action, observable result, and invariant. Designer must not emit internal WP/AC/DS-L
 ids, LoopSpec JSON, or executable argv; it names repository-native test classes or
 targets and independence constraints, while the server creates safe capabilities.
+The v6 Stage table is exactly `阶段 | 目标 | 包含场景/评审/交付 | 前置阶段`.
+The inclusion cell copies earlier titles verbatim and separates multiple names with `；` or `;`;
+dependencies copy only earlier Stage titles, while blank or `无` means no dependency.
 This is a DMN-inspired decision-table input, not a second DMN runtime: rows stay readable
 to the designer, lower directly to EARS criteria, and can be reviewed as
 Given/When/Then/And scenarios without maintaining three competing sources of truth.
@@ -425,20 +429,25 @@ that repeats a complete design or omits part of the controlled shape is rejected
 fresh design instead of merging duplicate tables. Negative framework constraints such as
 `无 @SpringBootTest` cannot become executable test capabilities.
 
-Before Compiler binding, the server persists immutable DesignFact and capability
-snapshots. The UI renders an **验收意图识别** card with fact/scenario totals and
+Before acceptance binding, the server persists immutable DesignFact and capability
+snapshots. Exact matching applies Unicode NFKC, edge trimming, whitespace collapse, and Latin
+case-folding only; punctuation is retained and substring/fuzzy matching is forbidden. The UI renders
+an **验收意图识别** card with fact/scenario totals and
 machine, machine+human, human-only, and unresolved counts. Expanded rows show only
 human-readable scenario/capability names and Chinese issues—never internal indexes,
 protocol enums, or raw JSON. Unresolved items remain blocking at the server Review
-Gate; the client cannot infer confirmation eligibility from this card.
+Gate; the client cannot infer confirmation eligibility from this card. The source label is
+“服务端直接编译”, “规范工程师辅助消歧”, or “历史编译”. A server-direct result has no remote
+activity card and does not poll a nonexistent Session; `serverCompiled` remains compatibility data,
+not a source inference.
 
-Decomposer and package Compiler use one persisted compact semantic turn per
-candidate. Decomposer returns business packages and RQ coverage by index;
+Decomposer uses one persisted compact semantic turn per candidate. The optional package Compiler uses
+one v6 fill-hole turn and cannot edit locked Stages. Decomposer returns business packages and RQ coverage by index;
 structured Markdown requirements are grouped by level-two business section so
 presentation-only headings and metadata do not become separate coverage work;
-Compiler plans 1–6 Stages for direct software or 1–3 for each large-task package and
-maps each observable criterion to stable `DS-Lxxx`
-Designer source references plus deterministic/Judge evidence intentions. The
+the server preserves the Designer's 1–6 Stages for direct software or 1–3 per large-task package,
+maps each observable criterion to stable `DS-Lxxx` Designer source references, and uses only closed
+capability preferences from the optional disambiguation. The
 server derives statuses, stable IDs, reverse references, exact excerpts,
 `criterionIds`, safe test targets and complete `VerifierSpec` objects, then runs
 the normal LoopSpec v2 execution assessment before freezing, so shell

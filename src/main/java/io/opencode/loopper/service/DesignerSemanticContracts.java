@@ -168,6 +168,29 @@ final class DesignerSemanticContracts {
         }
     }
 
+    public record AcceptanceFactAssignment(Integer factIndex, Integer stageIndex) { }
+
+    /** V6 Compiler output: fills only the unresolved slots in a server-owned stage skeleton. */
+    public record CompactAcceptanceDisambiguationPlan(
+            String summary, List<AcceptanceFactAssignment> factAssignments,
+            List<AcceptanceCapabilityPreference> capabilityPreferences, String handoffSummary) {
+        public CompactAcceptanceDisambiguationPlan normalized() {
+            if (factAssignments != null && factAssignments.stream().anyMatch(java.util.Objects::isNull)) {
+                throw new BadRequestException("AMBIGUOUS_ACCEPTANCE_INTENT",
+                        "V6 acceptance disambiguation cannot contain empty fact assignments");
+            }
+            if (capabilityPreferences != null
+                    && capabilityPreferences.stream().anyMatch(java.util.Objects::isNull)) {
+                throw new BadRequestException("AMBIGUOUS_ACCEPTANCE_INTENT",
+                        "V6 acceptance disambiguation cannot contain empty capability preferences");
+            }
+            return new CompactAcceptanceDisambiguationPlan(summary,
+                    factAssignments == null ? List.of() : List.copyOf(factAssignments),
+                    capabilityPreferences == null ? List.of() : List.copyOf(capabilityPreferences),
+                    handoffSummary);
+        }
+    }
+
     public record CompilationEnvelope(String status, String summary, LoopSpec loopSpec,
                                       List<CriterionSource> criterionSources, List<DesignGap> designGaps) {
         CompilationEnvelope normalized() {

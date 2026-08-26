@@ -44,10 +44,11 @@ persisted role step may use one no-tools finalizer with bounded deduplicated
 evidence; it counts against the global model-call budget, not the format-repair
 budget. The 24-step hard cap remains the fallback for other loop shapes.
 
-New Compiler plans store semantic Stages, `DS-Lxxx` source refs and closed evidence
-intentions in V30. The server generates complete verifier/runtime blueprints and
-validates them with the normal LoopSpec v2 execution contract before compiling the
-final object. Legacy V23 complete plans remain readable.
+Historical semantic Compiler plans store Stages, `DS-Lxxx` source refs and closed evidence
+intentions in V30. Current v6 designs instead freeze the Designer Stage topology and let the
+server compile complete verifier/runtime blueprints; only closed-set ambiguity or large-package
+handoff creates one fill-hole Compiler turn. Both paths use the normal LoopSpec v2 execution
+contract before freezing the final object. Legacy V23 complete plans remain readable.
 
 Historical migrations remain immutable. Empty databases and supported V21/V24
 databases must all migrate to V30. Legacy AI rows default to `TEXT_MARKER`; old

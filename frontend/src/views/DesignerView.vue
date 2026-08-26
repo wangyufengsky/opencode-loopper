@@ -153,6 +153,10 @@ function workPackageLabel(packageId?: string) {
 function acceptanceCoverageLabel(value: string) {
   return ({ AUTOMATED: '机器验收', BOTH: '机器 + 人工', JUDGE: '人工评审', UNRESOLVED: '尚未覆盖' } as Record<string, string>)[value] ?? '尚未覆盖'
 }
+function acceptanceBindingSourceLabel(value: string) {
+  return ({ SERVER_STAGE_HINTS: '服务端直接编译', AI_DISAMBIGUATION_V6: '规范工程师辅助消歧',
+    LEGACY_UNKNOWN: '历史编译', UNDECIDED: '编译路径判定中' } as Record<string, string>)[value] ?? '历史编译'
+}
 function acceptanceIssueLabel(value: string) {
   if (value === 'LEGACY_MARKDOWN_FALLBACK') return '设计稿未使用受控验收表格，当前使用兼容识别'
   if (value.startsWith('VERIFICATION_CAPABILITY_UNAVAILABLE')) return '部分验收场景缺少可执行的验证能力'
@@ -239,6 +243,8 @@ const designerRuntimeLabel = computed(() => {
   return 'OpenCode 状态探测中'
 })
 const taskProfileRouting = computed(() => designerSession.value?.taskProfile.decisionState === 'ROUTING')
+const serverDirectCompilation = computed(() => acceptancePackage.value?.acceptancePlanning?.bindingSource === 'SERVER_STAGE_HINTS'
+  && designerSession.value?.compiler?.externalSessionState === 'SERVER_DIRECT')
 const taskProfileNeedsConfirmation = computed(() => designerSession.value?.taskProfile.decisionState === 'NEEDS_CONFIRMATION')
 const routerRunActive = computed(() => ['PENDING', 'RUNNING'].includes(designerSession.value?.routerRun?.state ?? ''))
 const profileSelectionDirty = computed(() => {
@@ -251,6 +257,7 @@ const profileSelectionDirty = computed(() => {
 })
 const showCurrentRoleActivity = computed(() => !awaitingChatAnswer.value
   && (designerSession.value?.state === 'RUNNING' || taskProfileRouting.value)
+  && !serverDirectCompilation.value
   && (designerSession.value?.pendingQuestions?.length ?? 0) === 0)
 const shouldPollDesigner = computed(() => designerSession.value?.state === 'RUNNING'
   || designerSession.value?.state === 'STOPPING' || taskProfileRouting.value)
@@ -1350,7 +1357,7 @@ async function redesignPackage(packageId: string) {
           <span v-if="designerSession?.requirement" class="mono">模型调用 {{ designerSession.requirement.modelCallsUsed }}/{{ designerSession.requirement.maxModelCalls }}</span>
           <span v-if="designerSession?.compiler">规范编译修复 {{ designerSession.compiler.formatRepairCount ?? 0 }}/2 · 语义修复 {{ designerSession.compiler.semanticRepairCount ?? 0 }}/2<span v-if="designerSession.compiler.serverCompiled"> · 已编译</span></span>
           <span v-else-if="designerSession?.decomposition">任务拆解修复 {{ designerSession.decomposition.formatRepairCount ?? 0 }}/2 · 语义修复 {{ designerSession.decomposition.semanticRepairCount ?? 0 }}/2<span v-if="designerSession.decomposition.serverCompiled"> · 已编译</span></span>
-          <span>远端 {{ statusLabel(designerRemoteState || 'WAITING') }}</span>
+          <span v-if="serverDirectCompilation">服务端直接编译</span><span v-else>远端 {{ statusLabel(designerRemoteState || 'WAITING') }}</span>
           <time :datetime="designerObservedAt">{{ formatObservedAt(designerObservedAt) }}</time>
         </div>
         <section v-if="designerSession?.taskProfile" class="task-profile-card" aria-label="任务设置与设计流程">
@@ -1381,7 +1388,7 @@ async function redesignPackage(packageId: string) {
         </section>
         <section v-if="acceptancePackage?.acceptancePlanning" class="task-profile-card acceptance-intent-card" aria-label="验收意图识别">
           <header>
-            <div><strong>验收意图识别 · {{ workPackageLabel(acceptancePackage.id) }}</strong><span>{{ acceptancePackage.acceptancePlanning.scenarioCount }} 个场景 · {{ acceptancePackage.acceptancePlanning.factCount }} 项设计事实</span></div>
+            <div><strong>验收意图识别 · {{ workPackageLabel(acceptancePackage.id) }}</strong><span>{{ acceptancePackage.acceptancePlanning.scenarioCount }} 个场景 · {{ acceptancePackage.acceptancePlanning.factCount }} 项设计事实</span><span>{{ acceptanceBindingSourceLabel(acceptancePackage.acceptancePlanning.bindingSource) }}</span></div>
             <b :class="{ warning: acceptancePackage.acceptancePlanning.unresolvedCount > 0 || acceptancePackage.acceptancePlanning.state === 'FAILED' }">{{ acceptancePackage.acceptancePlanning.unresolvedCount > 0 ? `${acceptancePackage.acceptancePlanning.unresolvedCount} 项待覆盖` : acceptancePackage.acceptancePlanning.state === 'COMPILED' ? '已确定性编译' : '识别中' }}</b>
           </header>
           <div class="acceptance-intent-counts">
@@ -1394,6 +1401,7 @@ async function redesignPackage(packageId: string) {
             <ul class="acceptance-intent-list"><li v-for="scenario in acceptancePackage.acceptancePlanning.scenarios" :key="scenario.title"><span><strong>{{ scenario.title }}</strong><small v-if="scenario.capabilities.length">{{ scenario.capabilities.join('、') }}</small></span><b :class="{ warning: scenario.coverage === 'UNRESOLVED' }">{{ acceptanceCoverageLabel(scenario.coverage) }}</b></li></ul>
           </details>
           <p v-for="issue in acceptancePackage.acceptancePlanning.issues" :key="issue" class="acceptance-intent-issue">{{ acceptanceIssueLabel(issue) }}</p>
+          <p v-for="reason in acceptancePackage.acceptancePlanning.routingReasons" :key="reason" class="acceptance-intent-issue">{{ reason }}</p>
         </section>
         <section v-if="currentReport" class="task-profile-card report-card">
           <header><div><strong>独立评审报告</strong><span>{{ currentReport.title }}</span></div><b :class="{ warning: currentReport.stale }">{{ currentReport.stale ? '证据已过期' : '证据有效' }}</b></header>

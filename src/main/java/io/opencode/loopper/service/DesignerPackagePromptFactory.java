@@ -102,8 +102,11 @@ final class DesignerPackagePromptFactory {
                 State repository-native test classes or test targets that must pass independently, forbidden
                 external dependencies, and test-isolation constraints. Do not write shell commands or argv.
                 ## 阶段与依赖
-                | 阶段建议 | 包含场景/交付 | 前置阶段 |
+                | 阶段 | 目标 | 包含场景/评审/交付 | 前置阶段 |
                 Use 1-6 rows in direct mode or 1-3 rows in package mode. Keep stages vertical and dependency ordered.
+                The inclusion column must quote the exact titles used above; separate multiple titles with `；` or
+                `;`. A prerequisite must quote the exact title of an earlier stage. Use an empty value or `无` when
+                there is no prerequisite. Do not abbreviate, fuzzily match, or refer to “all/remaining scenarios”.
                 Never emit DS-L references, WP/AC ids, JSON, LoopSpec fields, or executable command arrays.
 
                 When the current Role Pack requires a focused repository-native test, keep it in the same stage as

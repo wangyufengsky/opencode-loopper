@@ -403,9 +403,9 @@ public interface LoopperDesignerMapper {
     @Insert("""
             INSERT INTO design_acceptance_planning(compilation_id,designer_session_id,work_package_id,
               design_revision,contract_version,design_sha256,state,facts_json,capabilities_json,
-              binding_json,diagnostics_json,error_code,error_detail,created_at,updated_at,version)
+              binding_source,binding_json,diagnostics_json,error_code,error_detail,created_at,updated_at,version)
             VALUES(#{compilationId},#{designerSessionId},#{workPackageId},#{designRevision},#{contractVersion},
-              #{designSha256},#{state},#{factsJson},#{capabilitiesJson},#{bindingJson},#{diagnosticsJson},
+              #{designSha256},#{state},#{factsJson},#{capabilitiesJson},#{bindingSource},#{bindingJson},#{diagnosticsJson},
               #{errorCode},#{errorDetail},#{createdAt},#{updatedAt},#{version})
             """)
     int insertDesignAcceptancePlanning(DesignAcceptancePlanningRow row);
@@ -414,7 +414,7 @@ public interface LoopperDesignerMapper {
     Optional<DesignAcceptancePlanningRow> findDesignAcceptancePlanning(String compilationId);
 
     @Update("""
-            UPDATE design_acceptance_planning SET state=#{state},binding_json=#{bindingJson},
+            UPDATE design_acceptance_planning SET state=#{state},binding_source=#{bindingSource},binding_json=#{bindingJson},
               diagnostics_json=#{diagnosticsJson},error_code=#{errorCode},error_detail=#{errorDetail},
               updated_at=#{updatedAt},version=version+1
             WHERE compilation_id=#{compilationId} AND version=#{version}
@@ -435,7 +435,17 @@ public interface LoopperDesignerMapper {
     Optional<LoopSpecCompilationRow> findLoopSpecCompilationForPackageRevision(
             @Param("sessionId") String sessionId, @Param("packageId") String packageId,
             @Param("designRevision") int designRevision);
-    @Select("SELECT * FROM loop_spec_compilation WHERE state='RUNNING' AND external_session_id IS NOT NULL ORDER BY updated_at")
+    @Select("""
+            SELECT compilation.* FROM loop_spec_compilation compilation
+            WHERE compilation.state IN ('PENDING_HANDOFF','RUNNING')
+              AND (compilation.external_session_id IS NOT NULL
+                OR compilation.external_session_state='SERVER_DIRECT'
+                OR EXISTS (
+                  SELECT 1 FROM design_acceptance_planning planning
+                  WHERE planning.compilation_id=compilation.id
+                    AND planning.binding_source='SERVER_STAGE_HINTS'))
+            ORDER BY compilation.updated_at
+            """)
     List<LoopSpecCompilationRow> activeLoopSpecCompilations();
     @Update("""
             UPDATE loop_spec_compilation SET state=#{state},external_session_id=#{externalSessionId},

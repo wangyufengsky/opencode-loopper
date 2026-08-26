@@ -4,7 +4,8 @@ import java.util.List;
 
 /** Immutable semantic inputs and diagnostics for deterministic acceptance planning. */
 final class DesignerAcceptancePlanning {
-    static final String CONTRACT_VERSION = "DESIGN_ACCEPTANCE_V5";
+    static final String CONTRACT_VERSION_V5 = "DESIGN_ACCEPTANCE_V5";
+    static final String CONTRACT_VERSION_V6 = "DESIGN_ACCEPTANCE_V6";
 
     private DesignerAcceptancePlanning() { }
 
@@ -36,8 +37,12 @@ final class DesignerAcceptancePlanning {
         }
     }
 
-    record StageHint(String title, String objective, List<Integer> factIndexes, List<Integer> dependsOnIndexes) {
+    record StageHint(String title, String objective, List<String> includedReferences,
+                     List<String> dependencyReferences, List<Integer> factIndexes,
+                     List<Integer> dependsOnIndexes) {
         StageHint {
+            includedReferences = includedReferences == null ? List.of() : List.copyOf(includedReferences);
+            dependencyReferences = dependencyReferences == null ? List.of() : List.copyOf(dependencyReferences);
             factIndexes = factIndexes == null ? List.of() : List.copyOf(factIndexes);
             dependsOnIndexes = dependsOnIndexes == null ? List.of() : List.copyOf(dependsOnIndexes);
         }

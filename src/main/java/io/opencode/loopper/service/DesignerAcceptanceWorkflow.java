@@ -2,6 +2,7 @@ package io.opencode.loopper.service;
 
 import static io.opencode.loopper.service.DesignerSemanticContracts.*;
 
+import io.opencode.loopper.domain.AcceptanceBindingSource;
 import io.opencode.loopper.lifecycle.LifecycleTransitionService;
 import io.opencode.loopper.persistence.DesignAcceptancePlanningRow;
 import io.opencode.loopper.persistence.DesignWorkPackageRow;
@@ -9,15 +10,17 @@ import io.opencode.loopper.persistence.LoopSpecCompilationRow;
 import io.opencode.loopper.persistence.LoopperMapper;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Pattern;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
-/** Owns the v4 DesignFact snapshot, model binding boundary, deterministic solver, and read model. */
+/** Owns legacy v5 and current v6 DesignFact snapshots, binding boundaries, solver, and read model. */
 final class DesignerAcceptanceWorkflow {
     private static final Pattern PAYLOAD = Pattern.compile(
             "<!--\\s*LOOPSPEC_COMPILATION_PLAN_JSON_START\\s*-->(.*?)"
@@ -32,6 +35,8 @@ final class DesignerAcceptanceWorkflow {
     private final DesignerDesignFactExtractor factExtractor;
     private final DesignerVerificationCapabilityRegistry capabilityRegistry;
     private final DesignerAcceptancePlanCompiler planCompiler;
+    private final DesignerPackagePlanCompiler packagePlanCompiler;
+    private final DesignerAcceptanceFastPathResolver fastPathResolver = new DesignerAcceptanceFastPathResolver();
 
     DesignerAcceptanceWorkflow(LoopperMapper mapper, ObjectMapper json, AiOutputExtractor outputExtractor,
                                LifecycleTransitionService lifecycle,
@@ -44,6 +49,7 @@ final class DesignerAcceptanceWorkflow {
         this.factExtractor = new DesignerDesignFactExtractor(evidenceIndexer);
         this.capabilityRegistry = new DesignerVerificationCapabilityRegistry();
         this.planCompiler = new DesignerAcceptancePlanCompiler(packagePlanCompiler);
+        this.packagePlanCompiler = packagePlanCompiler;
     }
 
     boolean applies(WorkPackageRoleService.View role) {
@@ -53,12 +59,16 @@ final class DesignerAcceptanceWorkflow {
 
     void freeze(LoopSpecCompilationRow compilation, DesignWorkPackageRow workPackage, String design,
                 WorkPackageRoleService.View role, String now) {
+        String contractVersion = RolePackRegistry.VERSION.equals(role.rolePackVersion())
+                ? DesignerAcceptancePlanning.CONTRACT_VERSION_V6
+                : DesignerAcceptancePlanning.CONTRACT_VERSION_V5;
         DesignerAcceptancePlanning.Catalog facts = factExtractor.extract(
-                workPackage.packageId(), workPackage.designRevision(), design);
+                workPackage.packageId(), workPackage.designRevision(), design, contractVersion);
         DesignerAcceptancePlanning.CapabilityCatalog capabilities = capabilityRegistry.build(facts, role, design);
         DesignAcceptancePlanningRow row = new DesignAcceptancePlanningRow(compilation.id(),
                 compilation.designerSessionId(), workPackage.packageId(), workPackage.designRevision(),
-                facts.contractVersion(), facts.designSha256(), "EXTRACTED", write(facts), write(capabilities),
+                facts.contractVersion(), facts.designSha256(), "EXTRACTED", AcceptanceBindingSource.UNDECIDED.name(),
+                write(facts), write(capabilities),
                 null, null, null, null, now, now, 0);
         if (mapper.insertDesignAcceptancePlanning(row) != 1) {
             throw new ConflictException("DESIGN_ACCEPTANCE_PLANNING_CREATE_CONFLICT", "验收意图快照无法冻结");
@@ -73,9 +83,40 @@ final class DesignerAcceptanceWorkflow {
         return find(compilationId).isPresent();
     }
 
+    boolean v6(String compilationId) {
+        return find(compilationId).map(DesignerAcceptanceWorkflow::v6).orElse(false);
+    }
+
+    boolean serverDirect(String compilationId) {
+        return find(compilationId).map(row -> AcceptanceBindingSource.SERVER_STAGE_HINTS.name()
+                .equals(row.bindingSource())).orElse(false);
+    }
+
+    RoutingResult route(String compilationId, boolean compilerAlways) {
+        DesignAcceptancePlanningRow row = find(compilationId).orElseThrow(() ->
+                new ConflictException("DESIGN_ACCEPTANCE_PLANNING_MISSING", "验收意图快照缺失"));
+        if (!v6(row)) return new RoutingResult(null, false, true);
+        DesignerAcceptanceFastPathResolver.Resolution resolution = fastPathResolver.resolve(facts(row), capabilities(row));
+        boolean compilerRequired = resolution.outcome() == DesignerAcceptanceFastPathResolver.Outcome.NEEDS_COMPILER
+                || compilerAlways && resolution.outcome() == DesignerAcceptanceFastPathResolver.Outcome.RESOLVED;
+        AcceptanceBindingSource source = compilerRequired
+                ? AcceptanceBindingSource.AI_DISAMBIGUATION_V6 : AcceptanceBindingSource.SERVER_STAGE_HINTS;
+        update(row, row.state(), source.name(), write(resolution),
+                routingDiagnostics(resolution, null, null), null, null);
+        return new RoutingResult(resolution,
+                resolution.outcome() == DesignerAcceptanceFastPathResolver.Outcome.RESOLVED,
+                compilerRequired);
+    }
+
     String prompt(String compilationId, String workPackageId, int stageLimit, String priorError) {
         DesignAcceptancePlanningRow row = find(compilationId).orElseThrow(() ->
                 new ConflictException("DESIGN_ACCEPTANCE_PLANNING_MISSING", "验收意图快照缺失"));
+        if (v6(row)) {
+            DesignerAcceptanceFastPathResolver.Resolution resolution = fastPathResolver.resolve(
+                    facts(row), capabilities(row));
+            return DesignerCompilerPromptContracts.acceptanceDisambiguation(workPackageId, row.factsJson(),
+                    row.capabilitiesJson(), write(resolution), priorError);
+        }
         return DesignerCompilerPromptContracts.acceptanceBinding(workPackageId, row.factsJson(),
                 row.capabilitiesJson(), stageLimit, priorError);
     }
@@ -98,16 +139,81 @@ final class DesignerAcceptanceWorkflow {
         }
     }
 
+    AiOutputExtractor.ExtractionResult<CompactAcceptanceDisambiguationPlan> parseV6(String output) {
+        AiOutputExtractor.ExtractionResult<CompactAcceptanceDisambiguationPlan> extracted =
+                outputExtractor.extractJson(output, PAYLOAD, "ACCEPTANCE_DISAMBIGUATION_OUTPUT",
+                        CompactAcceptanceDisambiguationPlan.class,
+                        CompactAcceptanceDisambiguationPlan::normalized, null);
+        if (extracted.normalizations().stream().anyMatch(normalization -> Set.of(
+                "UNKNOWN_FIELDS_IGNORED", "FIELD_NAME_NORMALIZED", "SINGLETON_COLLECTION_NORMALIZED",
+                "NULL_COLLECTION_NORMALIZED", "CONTRACT_METADATA_DERIVED").contains(normalization))) {
+            throw new BadRequestException("AMBIGUOUS_ACCEPTANCE_INTENT",
+                    "V6 acceptance disambiguation must use the exact closed response shape");
+        }
+        return extracted;
+    }
+
     BoundResult bind(DesignAcceptancePlanningRow row, DesignWorkPackageRow workPackage, String design,
                      String output, WorkPackageRoleService.View role, List<String> scopeIn,
                      List<String> scopeOut, List<String> deliverables, int stageLimit,
                      boolean directSoftwareMode) {
-        AiOutputExtractor.ExtractionResult<CompactAcceptanceBindingPlan> extracted = parse(output, stageLimit);
+        AiOutputExtractor.ExtractionResult<CompactAcceptanceBindingPlan> extracted;
+        if (v6(row)) {
+            AiOutputExtractor.ExtractionResult<CompactAcceptanceDisambiguationPlan> disambiguation = parseV6(output);
+            DesignerAcceptanceFastPathResolver.Resolution resolution = fastPathResolver.resolve(
+                    facts(row), capabilities(row));
+            CompactAcceptanceBindingPlan merged = fastPathResolver.merge(resolution,
+                    disambiguation.value(), facts(row), capabilities(row));
+            extracted = new AiOutputExtractor.ExtractionResult<>(merged, disambiguation.source(),
+                    disambiguation.normalizations(), write(merged));
+        } else {
+            extracted = parse(output, stageLimit);
+        }
+        return compile(row, workPackage, design, role, scopeIn, scopeOut, deliverables, stageLimit,
+                directSoftwareMode, extracted);
+    }
+
+    BoundResult compileServer(DesignAcceptancePlanningRow row, DesignWorkPackageRow workPackage, String design,
+                              WorkPackageRoleService.View role, List<String> scopeIn, List<String> scopeOut,
+                              List<String> deliverables, int stageLimit, boolean directSoftwareMode) {
+        DesignerAcceptanceFastPathResolver.Resolution resolution = fastPathResolver.resolve(
+                facts(row), capabilities(row));
+        if (resolution.outcome() == DesignerAcceptanceFastPathResolver.Outcome.DESIGN_INCOMPLETE) {
+            CompactPackageCompilationPlan incomplete = new CompactPackageCompilationPlan(
+                    "DESIGN_INCOMPLETE", "服务端阶段解析发现设计不完整", List.of(), null,
+                    resolution.designGaps());
+            PackageCompilationPlanEnvelope plan = packagePlanCompiler.compile(
+                    workPackage, design, incomplete, stageLimit, directSoftwareMode).plan();
+            update(row, "BOUND", AcceptanceBindingSource.SERVER_STAGE_HINTS.name(), write(resolution),
+                    routingDiagnostics(resolution, null, null), "AMBIGUOUS_ACCEPTANCE_INTENT",
+                    resolution.designGaps().getFirst().detail());
+            return normalized(plan, List.of("SERVER_STAGE_HINTS_DESIGN_INCOMPLETE"));
+        }
+        if (resolution.outcome() != DesignerAcceptanceFastPathResolver.Outcome.RESOLVED) {
+            throw new ConflictException("ACCEPTANCE_COMPILER_REQUIRED", "验收绑定仍需规范工程师消歧");
+        }
+        CompactAcceptanceBindingPlan binding = new CompactAcceptanceBindingPlan(
+                "服务端按设计阶段表直接编译", resolution.groupHints(), List.of(), null).normalized();
+        AiOutputExtractor.ExtractionResult<CompactAcceptanceBindingPlan> extracted =
+                new AiOutputExtractor.ExtractionResult<>(binding, AiOutputExtractor.CandidateSource.STRUCTURED,
+                        List.of("SERVER_STAGE_HINTS_RESOLVED"), write(binding));
+        return compile(row, workPackage, design, role, scopeIn, scopeOut, deliverables, stageLimit,
+                directSoftwareMode, extracted);
+    }
+
+    private BoundResult compile(DesignAcceptancePlanningRow row, DesignWorkPackageRow workPackage, String design,
+                                WorkPackageRoleService.View role, List<String> scopeIn, List<String> scopeOut,
+                                List<String> deliverables, int stageLimit, boolean directSoftwareMode,
+                                AiOutputExtractor.ExtractionResult<CompactAcceptanceBindingPlan> extracted) {
         DesignerAcceptancePlanCompiler.Result compiled = planCompiler.compile(workPackage, design, facts(row),
                 capabilities(row), extracted.value(), role, scopeIn, scopeOut, deliverables, stageLimit,
                 directSoftwareMode);
-        update(row, planningState(compiled.plan().status()), extracted.canonicalJson(),
-                write(Map.of("solver", compiled.diagnostics(), "scenarios", compiled.scenarios())), null, null);
+        DesignerAcceptanceFastPathResolver.Resolution resolution = v6(row)
+                ? fastPathResolver.resolve(facts(row), capabilities(row)) : null;
+        update(row, planningState(compiled.plan().status()), row.bindingSource(), extracted.canonicalJson(),
+                resolution == null
+                        ? write(Map.of("solver", compiled.diagnostics(), "scenarios", compiled.scenarios()))
+                        : routingDiagnostics(resolution, compiled.diagnostics(), compiled.scenarios()), null, null);
         List<String> notes = new ArrayList<>(extracted.normalizations());
         notes.add("DESIGN_FACTS_BOUND");
         notes.add("CAPABILITY_SET_COVER_SOLVED");
@@ -116,7 +222,12 @@ final class DesignerAcceptanceWorkflow {
         AiOutputExtractor.ExtractionResult<PackageCompilationPlanEnvelope> normalized =
                 new AiOutputExtractor.ExtractionResult<>(compiled.plan(), extracted.source(), List.copyOf(notes),
                         write(compiled.plan()));
-        return new BoundResult(compiled, normalized);
+        return new BoundResult(compiled.plan(), normalized);
+    }
+
+    private BoundResult normalized(PackageCompilationPlanEnvelope plan, List<String> notes) {
+        return new BoundResult(plan, new AiOutputExtractor.ExtractionResult<>(plan,
+                AiOutputExtractor.CandidateSource.STRUCTURED, notes, write(plan)));
     }
 
     private String planningState(String compilationStatus) {
@@ -129,13 +240,29 @@ final class DesignerAcceptanceWorkflow {
     }
 
     void markCompatibility(DesignAcceptancePlanningRow row, String output) {
-        update(row, "COMPILED", output, write(Map.of("algorithm", "V3_COMPATIBILITY",
+        update(row, "COMPILED", AcceptanceBindingSource.LEGACY_UNKNOWN.name(), output,
+                write(Map.of("algorithm", "V3_COMPATIBILITY",
                 "normalizations", List.of("LEGACY_V3_MODEL_OUTPUT_COMPATIBILITY"))), null, null);
     }
 
     void markFailed(String compilationId, String output, String errorCode, String errorDetail) {
-        find(compilationId).ifPresent(row -> update(row, "FAILED", output, row.diagnosticsJson(),
-                errorCode, errorDetail));
+        find(compilationId).ifPresent(row -> update(row, "FAILED", row.bindingSource(), output,
+                failureDiagnostics(row, errorCode, errorDetail), errorCode, errorDetail));
+    }
+
+    @SuppressWarnings("unchecked")
+    private String failureDiagnostics(DesignAcceptancePlanningRow row, String errorCode, String errorDetail) {
+        Map<String, Object> diagnostics = new LinkedHashMap<>();
+        try {
+            if (!blank(row.diagnosticsJson())) {
+                diagnostics.putAll(json.readValue(row.diagnosticsJson(), Map.class));
+            }
+        } catch (JacksonException ignored) {
+            diagnostics.put("priorDiagnostics", row.diagnosticsJson());
+        }
+        diagnostics.put("compilerErrorCode", errorCode);
+        diagnostics.put("compilerErrorDetail", errorDetail);
+        return write(diagnostics);
     }
 
     boolean legacyV3Output(String output) {
@@ -190,11 +317,13 @@ final class DesignerAcceptanceWorkflow {
             LinkedHashSet<String> issues = new LinkedHashSet<>(facts.issues());
             issues.addAll(capabilities.issues());
             if (!blank(row.errorCode())) issues.add(row.errorCode());
-            return new AcceptancePlanningStatus(row.state(), facts.facts().size(), scenarios.size(),
+            return new AcceptancePlanningStatus(row.state(), row.bindingSource(), routingReasons(row),
+                    facts.facts().size(), scenarios.size(),
                     count(scenarios, "AUTOMATED"), count(scenarios, "BOTH"), count(scenarios, "JUDGE"),
                     count(scenarios, "UNRESOLVED"), scenarios, List.copyOf(issues));
         } catch (RuntimeException invalid) {
-            return new AcceptancePlanningStatus("FAILED", 0, 0, 0, 0, 0, 0, List.of(),
+            return new AcceptancePlanningStatus("FAILED", AcceptanceBindingSource.LEGACY_UNKNOWN.name(), List.of(),
+                    0, 0, 0, 0, 0, 0, List.of(),
                     List.of("验收意图快照不可读"));
         }
     }
@@ -223,11 +352,11 @@ final class DesignerAcceptanceWorkflow {
         }
     }
 
-    private void update(DesignAcceptancePlanningRow row, String state, String bindingJson,
+    private void update(DesignAcceptancePlanningRow row, String state, String bindingSource, String bindingJson,
                         String diagnosticsJson, String errorCode, String errorDetail) {
         DesignAcceptancePlanningRow updated = new DesignAcceptancePlanningRow(row.compilationId(),
                 row.designerSessionId(), row.workPackageId(), row.designRevision(), row.contractVersion(),
-                row.designSha256(), state, row.factsJson(), row.capabilitiesJson(), bindingJson, diagnosticsJson,
+                row.designSha256(), state, bindingSource, row.factsJson(), row.capabilitiesJson(), bindingJson, diagnosticsJson,
                 errorCode, errorDetail, row.createdAt(), Instant.now().toString(), row.version());
         if (mapper.updateDesignAcceptancePlanning(updated) != 1) {
             throw new ConflictException("DESIGN_ACCEPTANCE_PLANNING_VERSION_CONFLICT", "验收意图规划已被并发更新");
@@ -261,12 +390,62 @@ final class DesignerAcceptanceWorkflow {
         catch (JacksonException failure) { throw new IllegalStateException("Unable to serialize acceptance plan", failure); }
     }
 
+    private String routingDiagnostics(DesignerAcceptanceFastPathResolver.Resolution resolution,
+                                      Object solver, Object scenarios) {
+        Map<String, Object> values = new java.util.LinkedHashMap<>();
+        values.put("fastPathDecision", resolution.outcome().name());
+        values.put("routingReasons", resolution.routingReasons());
+        values.put("unresolvedFactIndexes", resolution.unresolvedFactIndexes());
+        values.put("ambiguousCapabilityFactIndexes", resolution.ambiguousCapabilityFactIndexes());
+        if (solver != null) values.put("solver", solver);
+        if (scenarios != null) values.put("scenarios", scenarios);
+        return write(values);
+    }
+
+    private List<String> routingReasons(DesignAcceptancePlanningRow row) {
+        if (blank(row.diagnosticsJson())) return List.of();
+        try {
+            tools.jackson.databind.JsonNode node = json.readTree(row.diagnosticsJson()).get("routingReasons");
+            if (node == null || !node.isArray()) return List.of();
+            List<String> values = new ArrayList<>();
+            node.forEach(item -> values.add(routingReason(item.asText())));
+            return List.copyOf(values);
+        } catch (JacksonException invalid) { return List.of(); }
+    }
+
+    private static String routingReason(String value) {
+        if (value == null) return "验收绑定原因不可读";
+        if (value.startsWith("UNKNOWN_FACT_REFERENCE:"))
+            return "阶段表引用“" + value.substring(value.indexOf(':') + 1) + "”无法对应前文标题";
+        if (value.startsWith("AMBIGUOUS_FACT_REFERENCE:"))
+            return "阶段表引用“" + value.substring(value.indexOf(':') + 1) + "”对应多个同名事实";
+        if (value.startsWith("UNRESOLVED_FACTS:")) return "存在尚未归属阶段的验收事实";
+        if (value.startsWith("AMBIGUOUS_CAPABILITY:")) return "存在多个可行验证能力，需要辅助选择";
+        return switch (value) {
+            case "ACCEPTANCE_STAGE_COUNT_INVALID" -> "阶段数量必须为 1–6 个";
+            case "ACCEPTANCE_STAGE_TITLE_MISSING" -> "阶段名称不能为空";
+            case "ACCEPTANCE_STAGE_TITLE_DUPLICATE" -> "阶段名称必须唯一";
+            case "ACCEPTANCE_STAGE_DEPENDENCY_UNKNOWN" -> "前置阶段引用不存在";
+            case "ACCEPTANCE_STAGE_DEPENDENCY_NOT_PRIOR" -> "前置阶段只能引用更早阶段";
+            case "ACCEPTANCE_FACT_ASSIGNED_MORE_THAN_ONCE" -> "验收场景或评审项不能归属多个阶段";
+            case "VERIFICATION_CAPABILITY_UNAVAILABLE" -> "验收场景缺少可执行验证能力";
+            default -> "验收绑定需要补充设计";
+        };
+    }
+
+    private static boolean v6(DesignAcceptancePlanningRow row) {
+        return DesignerAcceptancePlanning.CONTRACT_VERSION_V6.equals(row.contractVersion());
+    }
+
     private static int count(List<AcceptancePlanningStatus.Scenario> scenarios, String coverage) {
         return (int) scenarios.stream().filter(item -> coverage.equals(item.coverage())).count();
     }
 
     private static boolean blank(String value) { return value == null || value.isBlank(); }
 
-    record BoundResult(DesignerAcceptancePlanCompiler.Result compiled,
+    record RoutingResult(DesignerAcceptanceFastPathResolver.Resolution resolution,
+                         boolean serverResolved, boolean compilerRequired) { }
+
+    record BoundResult(PackageCompilationPlanEnvelope plan,
                        AiOutputExtractor.ExtractionResult<PackageCompilationPlanEnvelope> normalized) { }
 }

@@ -9,6 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import org.commonmark.ext.gfm.tables.TableBlock;
 import org.commonmark.ext.gfm.tables.TableCell;
 import org.commonmark.ext.gfm.tables.TableRow;
@@ -36,6 +37,10 @@ final class DesignerDesignFactExtractor {
     }
 
     Catalog extract(String workPackageId, int designRevision, String markdown) {
+        return extract(workPackageId, designRevision, markdown, CONTRACT_VERSION_V5);
+    }
+
+    Catalog extract(String workPackageId, int designRevision, String markdown, String contractVersion) {
         String source = markdown == null ? "" : markdown.replace("\r\n", "\n");
         Document root = (Document) parser.parse(source);
         DesignerEvidenceIndexer.Index lineIndex = evidenceIndexer.index(source);
@@ -78,7 +83,7 @@ final class DesignerDesignFactExtractor {
                     "Acceptance design supports at most 64 scenarios and 128 total facts");
         }
         List<String> issues = controlled ? List.of() : List.of("LEGACY_MARKDOWN_FALLBACK");
-        return new Catalog(CONTRACT_VERSION, workPackageId, designRevision, sha256(source), controlled,
+        return new Catalog(contractVersion, workPackageId, designRevision, sha256(source), controlled,
                 reindex(facts), List.copyOf(stageHints), issues);
     }
 
@@ -112,10 +117,13 @@ final class DesignerDesignFactExtractor {
                         type + "：" + first(values, "说明", "description"), ref, excerpt);
             } else if (section.contains("阶段与依赖")) {
                 String title = first(values, "阶段建议", "阶段", "stage");
-                stageHints.add(new StageHint(title, first(values, "包含场景交付", "包含场景或交付", "包含场景", "scope"),
-                        List.of(), List.of()));
+                String objective = first(values, "目标", "objective");
+                String included = first(values, "包含场景评审交付", "包含场景交付", "包含场景或交付", "包含场景", "scope");
+                String dependencies = first(values, "前置阶段", "依赖", "depends");
+                stageHints.add(new StageHint(title, objective, references(included),
+                        noDependency(dependencies) ? List.of() : references(dependencies), List.of(), List.of()));
                 add(facts, FactKind.DEPENDENCY, title, null, null, null, null,
-                        "前置阶段：" + first(values, "前置阶段", "依赖", "depends"), ref, excerpt);
+                        "前置阶段：" + dependencies, ref, excerpt);
             }
         }
     }
@@ -217,6 +225,16 @@ final class DesignerDesignFactExtractor {
 
     private static String key(String value) {
         return value == null ? "" : value.toLowerCase(Locale.ROOT).replaceAll("[\\s/|（）()、_-]", "");
+    }
+
+    private static List<String> references(String value) {
+        if (blank(value)) return List.of();
+        return java.util.Arrays.stream(value.split("[；;]", -1)).map(String::trim)
+                .filter(item -> !item.isBlank()).toList();
+    }
+
+    private static boolean noDependency(String value) {
+        return blank(value) || Set.of("无", "none", "n/a").contains(value.trim().toLowerCase(Locale.ROOT));
     }
 
     private static void validateControlledSections(Map<String, Integer> counts) {

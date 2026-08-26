@@ -56,7 +56,7 @@ and SIMPLE/PACKAGED while the server combines them with the latest immutable V42
 created by deterministic bounded filesystem analysis, not by Router output or `AGENTS.md`.
 Relative paths, module names, and requirement text may select only repository-backed component
 keys. Ambiguous multi-stack and missing/partial evidence require user confirmation; an empty
-project cannot become Java from an AI guess. The `2026-08-dynamic-v5` selector
+project cannot become Java from an AI guess. The `2026-08-dynamic-v6` selector
 normalizes technology aliases into Java, Python, Node, or Other families before choosing
 a frozen Role Pack: JavaScript is never a Java signal, same-family aliases do not create a
 mixed pack, and an explicit unknown single stack uses the generic software pack. The result
@@ -108,17 +108,19 @@ retry/fresh generation is blocked until abort plus terminal status
 confirm that the previous read-only Session is no longer consuming work. A tool-loop
 finalizer is likewise created only after the looping Session's termination is confirmed.
 
-New software-package compilation uses `COMPILER_BINDING_NO_TOOLS`: all built-in repository
-tools are denied because the server has already frozen a bounded DesignFact catalog and a
-closed verification-capability catalog. The Compiler may return only indexed grouping,
-earlier-group dependencies, and capability preferences through
-`PACKAGE_ACCEPTANCE_BINDING_V5`; it cannot return outcome, design gaps, executable commands,
-repository paths, test targets, acceptance ids, or verifier objects. The server discovers test
-targets only from positive delivery relationships, excludes negative/no-change clauses, assigns
-each scenario through title-weighted unique-winner competition, and binds an independent required
-target only once. The prompt includes the exact four-field compact object. Missing soft preference
-keys are safely discarded; any other unreadable advice records `OPTIONAL_ACCEPTANCE_ADVICE_DROPPED`
-and proceeds with empty advice through the same deterministic compiler instead of creating repair Sessions.
+New v6 software-package compilation first runs entirely on the server against frozen DesignFact and
+verification-capability catalogs. The exact Designer Stage table locks names, objectives, order,
+dependencies, and every uniquely resolved fact. A complete ordinary `DIRECT_SOFTWARE_DESIGN / WP-1`
+therefore creates no OpenCode Compiler Session and consumes no model call.
+
+Only unresolved closed-set facts or capabilities create one `COMPILER_BINDING_NO_TOOLS` Session;
+large-task packages also create that one Session to preserve their handoff summary. All built-in
+repository tools are denied. `PACKAGE_ACCEPTANCE_DISAMBIGUATION_V6` returns only `summary`,
+`factAssignments`, `capabilityPreferences`, and `handoffSummary`; it cannot create, remove, rename,
+merge, reorder, or change dependencies of a Stage, move a locked fact, or return outcome, gaps,
+commands, paths, test targets, IDs, or verifier objects. Extra fields, duplicate/out-of-range
+assignments, or incomplete coverage are rejected as `AMBIGUOUS_ACCEPTANCE_INTENT` and trigger a
+scoped Designer replacement instead of a repair Session, empty binding, or catch-all Stage.
 Configured MCP permissions stay subject
 to the ordinary additive server-name policy and cannot weaken this ownership boundary.
 
@@ -177,12 +179,13 @@ replacement; native-capable runtimes call `question`, while compatibility mode s
 questions and the complete design across two prompts in that same package Session. Designer is never
 asked to populate LoopSpec fields. Direct WP-1 instead uses
 the general read-only profile without `question`, enters `DESIGNING` immediately, and applies
-the same no-question rule to feedback and redesign. Loopper then
-creates a brand-new read-only Compiler Session for each candidate with the same
-configured model. Compiler has the same `read`/`glob`/`grep`-only boundary and
-cannot ask questions or create a Task.
+the same no-question rule to feedback and redesign. Loopper then routes each candidate through
+server acceptance resolution. Only a v6 ambiguity or a large-task handoff creates one no-tools
+Compiler Session with the configured model; a server-direct result has no remote Session to display
+or poll. Historical frozen designs retain their own read-only Compiler and recovery contract.
+Compiler cannot ask questions or create a Task.
 
-An initial Compiler candidate may read the repository, but every bounded format or semantic
+An initial historical semantic Compiler candidate may read the repository, but every bounded format or semantic
 repair aborts that Session and starts a fresh `COMPILER_REPAIR_NO_TOOLS` Session. Its wildcard
 deny profile re-allows no built-in tools but still allows discovered MCP server prefixes; the prompt contains only the current compact object,
 deterministic issues and bounded frozen-design evidence. Format repair uses the full compact
@@ -278,14 +281,12 @@ available-at-execution dependency rather than `MISSING_SCOPE`. Compiler may only
 report a dependency-related semantic gap when neither the current design nor the
 frozen predecessor contract defines the required behavior/API.
 
-Decomposer and Compiler each return one compact semantic object from a read-only
-Session. Decomposer maps numbered requirements to package/constraint indices;
-Compiler maps 1–6 Stages for direct software or 1–3 Stages per large-task package,
-with acceptance criteria mapped to stable `DS-Lxxx` source refs
-and closed evidence intentions. Loopper validates and persists the semantic
-snapshot, derives all mechanical fields, and directly compiles the final legacy
-envelope. It does not send a second final-JSON prompt, and raw semantic output is
-never a chat/SSE model message.
+Decomposer returns one compact semantic object from a read-only Session and maps numbered requirements
+to package/constraint indices. For v6 acceptance, the server preserves the Designer's 1–6 direct Stages
+or 1–3 Stages per large package; an optional one-turn Compiler fills only enumerated fact/capability holes.
+Loopper validates and persists that binding, derives all mechanical fields and stable `DS-Lxxx` source
+references, and directly compiles the final package envelope. It does not send a second final-JSON prompt,
+and raw machine output is never a chat/SSE model message.
 
 The compact Compiler contract asks only for observable business criteria. Loopper
 deterministically treats untested code-style, source/annotation/assembly-shape,
@@ -297,7 +298,7 @@ Pointers in one repair prompt; source-text search is never executable behavior
 evidence.
 
 New work uses three stable server-owned response Schemas: compact Decomposer,
-compact Compiler, and final Judge. Legacy Decomposer/Compiler final Schemas remain
+v6 acceptance disambiguation, and final Judge. Legacy Decomposer/Compiler final Schemas remain
 registered only for historical rows without a semantic snapshot. A typed prompt may choose text or one of those
 schemas and may set system/agent fields, but it never accepts caller-owned tools.
 Schema mode uses OpenCode `format.type=json_schema` with provider retry count
@@ -325,7 +326,7 @@ runtime remains operator-owned and must expose the same variant for its selected
 DeepSeek model to get the direct schema path; otherwise the existing fresh-Session
 marker fallback remains the safe compatibility path.
 
-New Decomposer/Compiler records prefer JSON Schema unless capability is known
+New Decomposer and v6 disambiguation records prefer JSON Schema unless capability is known
 unavailable. OpenCode 1.18.12 through 1.18.18 are deterministically quarantined
 to marker mode because both endpoints of that patch range were verified to
 accept `prompt_async` and then reject their own stored Schema during message
@@ -393,7 +394,7 @@ tests and managed-runtime bindings therefore fail in the semantic repair pool
 before accepting the server-compiled result.
 Historical semantic records are parsed as that compact contract by default. Only a persisted historical
 object with `evidenceMappings` enters the legacy planning parser; a semantic object that
-omits `outcome` is a format mismatch, while v5 acceptance advice intentionally has no outcome. A rejected
+omits `outcome` is a format mismatch, while v6 acceptance disambiguation intentionally has no outcome. A rejected
 patch envelope or other incomplete object cannot replace the last valid semantic snapshot.
 The compact transport accepts up to six Stages so direct software's 1–6 Stage product
 contract is not narrowed to the large-package 1–3 limit. For non-Java packs, safe explicit

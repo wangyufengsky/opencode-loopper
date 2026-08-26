@@ -12,6 +12,7 @@ public final class OpenCodeStructuredSchemas {
     public static final String PACKAGE_COMPILATION_SEMANTIC_V3 = "PACKAGE_COMPILATION_SEMANTIC_V3";
     public static final String PACKAGE_ACCEPTANCE_BINDING_V4 = "PACKAGE_ACCEPTANCE_BINDING_V4";
     public static final String PACKAGE_ACCEPTANCE_BINDING_V5 = "PACKAGE_ACCEPTANCE_BINDING_V5";
+    public static final String PACKAGE_ACCEPTANCE_DISAMBIGUATION_V6 = "PACKAGE_ACCEPTANCE_DISAMBIGUATION_V6";
     public static final String PACKAGE_COMPILATION_FINAL_V2 = "PACKAGE_COMPILATION_FINAL_V2";
     public static final String AI_SEMANTIC_PATCH_V1 = "AI_SEMANTIC_PATCH_V1";
     public static final String JUDGE_DECISION_V1 = "JUDGE_DECISION_V1";
@@ -35,6 +36,7 @@ public final class OpenCodeStructuredSchemas {
             case PACKAGE_COMPILATION_SEMANTIC_V3 -> read(PACKAGE_COMPILATION_SEMANTIC);
             case PACKAGE_ACCEPTANCE_BINDING_V4 -> read(PACKAGE_ACCEPTANCE_BINDING_V4_SCHEMA);
             case PACKAGE_ACCEPTANCE_BINDING_V5 -> read(PACKAGE_ACCEPTANCE_BINDING_V5_SCHEMA);
+            case PACKAGE_ACCEPTANCE_DISAMBIGUATION_V6 -> read(PACKAGE_ACCEPTANCE_DISAMBIGUATION_V6_SCHEMA);
             case PACKAGE_COMPILATION_FINAL_V2 -> read(PACKAGE_COMPILATION_FINAL);
             case AI_SEMANTIC_PATCH_V1 -> read(AI_SEMANTIC_PATCH);
             case JUDGE_DECISION_V1 -> read(JUDGE_DECISION);
@@ -213,6 +215,27 @@ public final class OpenCodeStructuredSchemas {
               "required":["factIndex","capabilityIndexes"],"properties":{
                 "factIndex":{"type":"integer","minimum":0,"maximum":127},
                 "capabilityIndexes":{"type":"array","maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}
+              }}},
+            "handoffSummary":{"type":["string","null"],"maxLength":4096}
+          }
+        }
+        """;
+
+    private static final String PACKAGE_ACCEPTANCE_DISAMBIGUATION_V6_SCHEMA = """
+        {
+          "$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","additionalProperties":false,
+          "required":["summary","factAssignments","capabilityPreferences","handoffSummary"],
+          "properties":{
+            "summary":{"type":["string","null"],"maxLength":1000},
+            "factAssignments":{"type":"array","maxItems":128,"items":{"type":"object","additionalProperties":false,
+              "required":["factIndex","stageIndex"],"properties":{
+                "factIndex":{"type":"integer","minimum":0,"maximum":127},
+                "stageIndex":{"type":"integer","minimum":0,"maximum":5}
+              }}},
+            "capabilityPreferences":{"type":"array","maxItems":128,"items":{"type":"object","additionalProperties":false,
+              "required":["factIndex","capabilityIndexes"],"properties":{
+                "factIndex":{"type":"integer","minimum":0,"maximum":127},
+                "capabilityIndexes":{"type":"array","minItems":1,"maxItems":64,"items":{"type":"integer","minimum":0,"maximum":255}}
               }}},
             "handoffSummary":{"type":["string","null"],"maxLength":4096}
           }

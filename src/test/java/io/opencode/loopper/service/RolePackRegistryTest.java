@@ -16,7 +16,7 @@ class RolePackRegistryTest {
                 List.of(ArtifactKind.SOURCE_CODE));
 
         assertThat(pack.id()).isEqualTo("software-java");
-        assertThat(pack.version()).isEqualTo("2026-08-dynamic-v5");
+        assertThat(pack.version()).isEqualTo("2026-08-dynamic-v6");
         assertThat(RolePackRegistry.supportsDeterministicAcceptance("2026-08-dynamic-v4")).isTrue();
         assertThat(RolePackRegistry.supportsDeterministicAcceptance(pack.version())).isTrue();
     }

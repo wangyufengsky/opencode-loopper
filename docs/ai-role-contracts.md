@@ -1,6 +1,6 @@
 # AI 机器角色轻量合同
 
-运行时合同版本：`2026-08-semantic-v5`。
+运行时合同版本：`2026-08-semantic-v6`。
 
 本文供维护者理解角色边界。真正可执行的合同以
 `MachineRoleContractCatalog`、`OpenCodeStructuredSchemas`、服务端语义编译器和
@@ -13,7 +13,8 @@ ID、状态、引用反向映射、精确来源摘录、测试目标、验证器
 只要唯一可解析、可规范化并通过业务与安全合同，就直接接受，不因包装或冗余字段
 消耗修复预算。
 
-Decomposer 和 Compiler 新会话各只需一次机器规划调用。规划通过后由服务端直接
+Decomposer 新会话只需一次机器规划调用；Compiler 只在服务端无法唯一绑定或大型任务
+需要交接摘要时创建，并且每个候选至多调用一次。规划通过后由服务端直接
 生成最终 `Decomposition` 或 `CompiledPackage`，不再要求模型进行第二次逐字段抄写。
 旧 final Schema 和字段仅用于历史读取与缺少规划快照的旧活动记录兼容。
 
@@ -22,7 +23,7 @@ Decomposer 和 Compiler 新会话各只需一次机器规划调用。规划通�
 需求首先形成任务画像。Router 只提供软件、文档、数据转换、只读评审、调研、配置或
 本地维护等语义标签；服务端把标签与有界仓库事实合并，决定置信度、流程、权限、测试
 策略和最终执行方式。格式不可用或结果冲突时退回通用画像并提问，不能让首次路由失败
-终止 Designer。内置 Role Pack 以 `2026-08-dynamic-v5` 版本冻结。服务端先把同义技术标签
+终止 Designer。内置 Role Pack 以 `2026-08-dynamic-v6` 版本冻结。服务端先把同义技术标签
 归并为 Java、Python、Node 和 Other 软件族，再选择 Role Pack：`java`、`java 8` 与
 `spring boot` 仍是同一 Java 族，`javascript/typescript` 只属于 Node，只有跨族组合才是
 `software-mixed`；显式但未知的单栈使用 `software-generic`，不再回退到 Java/Maven。
@@ -116,6 +117,8 @@ Decomposer 返回 `READY | NEEDS_INPUT | MULTI_TASK_REQUIRED`、规范目标、�
 新软件设计先使用固定受控 Markdown：`目标与范围`、`影响与交付`、`验收场景`、可选
 `人工评审项`、`验收约束`、`阶段与依赖`。验收场景表固定为“场景 / 前置或触发 / 操作 /
 可观察结果 / 保持不变”，对应 EARS 条件/触发/响应/不变量，也可直接表达 Given/When/Then/And。
+`阶段与依赖` 表固定为“阶段 / 目标 / 包含场景/评审/交付 / 前置阶段”；“包含”只能原样引用
+前文标题，多项使用中文或英文分号分隔，前置阶段只能原样引用更早阶段，空值或“无”表示无依赖。
 原 Markdown 始终保留，不会被 AI 摘要替代。
 
 服务端使用 CommonMark AST 与 GFM 表格扩展生成 `SCENARIO / REVIEW / SCOPE / DELIVERABLE /
@@ -123,12 +126,20 @@ POLICY / DEPENDENCY` DesignFact。每项事实保存精确 Designer 原文、稳
 设计没有固定字节上限，仍限制为 64 个场景和 128 个总事实。随后服务端根据冻结 Role Pack、技术栈、测试策略、
 明确测试类/目标、范围与外部依赖限制生成闭集验证能力。AI 不再生成命令、路径、测试目标或验证器。
 
-Compiler 使用 `COMPILER_BINDING_NO_TOOLS` Session 和 `PACKAGE_ACCEPTANCE_BINDING_V5` Schema，只返回
-摘要、事实分组、前置分组、事实到能力的软偏好与交接摘要；`outcome` 和 `designGaps` 不再属于 AI
-合同。服务端把事实与能力构成二部图：先处理强制独立测试和
-单候选事实，再按 AI 给出的有界 Stage 分组运行精确 branch-and-bound 集合覆盖；超过 100,000 个节点时
+服务端先用 `DesignerAcceptanceFastPathResolver` 解析 v6 阶段表。符号只做 Unicode NFKC、首尾裁剪、
+连续空白折叠和拉丁字符大小写归一；标点保留，禁止子串或模糊自动匹配。`SCENARIO / REVIEW`
+必须恰好属于一个阶段，`DELIVERABLE` 可重复引用，`SCOPE / POLICY` 保持包级；阶段名唯一、数量为
+1–6，依赖只能指向更早阶段。完整的普通 `DIRECT_SOFTWARE_DESIGN / WP-1` 直接使用冻结拓扑，
+不创建 Compiler Session，也不增加模型调用。
+
+只有闭集事实或能力仍无法唯一绑定时，才创建一次 `COMPILER_BINDING_NO_TOOLS` Session，并使用
+`PACKAGE_ACCEPTANCE_DISAMBIGUATION_V6`。它只能返回 `summary / factAssignments /
+capabilityPreferences / handoffSummary`，只填写服务端列出的 unresolved facts 和候选能力；阶段名称、
+目标、顺序、依赖和已锁定事实均不可修改。大型多包仍为每个候选调用一次，以保留交接摘要，但使用
+同一锁定拓扑。服务端把事实与能力构成二部图：先处理强制独立测试和单候选事实，再按锁定 Stage
+运行精确 branch-and-bound 集合覆盖；超过 100,000 个节点时
 确定性降级为贪心选择并复核。每个分组以零未覆盖为硬条件，再优先减少 Judge-only、提高确定性证据
-强度和减少能力数量，AI 软偏好只作为稳定排序参考。结果仍须经过现有
+强度和减少能力数量，AI 偏好只作为稳定排序参考。结果仍须经过现有
 `DesignerPackagePlanCompiler` 和 LoopSpec v2 全量校验。
 
 测试能力只从“新增/修改/测试代码”等正向交付物、正向验收约束和阶段交付关系中发现；“不变、禁止、
@@ -165,7 +176,7 @@ AI 分组中引用的 `DELIVERABLE / SCOPE` 事实只用于确定该 Stage 的�
 `MULTI_TASK_REQUIRED`。
 
 服务端从 DesignFact 的精确来源生成 `<WP>-AC-n`，并把求解结果编译成验证器关联。v3 历史流程
-继续解析 `DS-L` 与 Maven/Gradle/npm/pytest/unittest 显式选择器，不会被 v5 快照重解释。
+继续解析 `DS-L` 与 Maven/Gradle/npm/pytest/unittest 显式选择器，不会被 v6 快照重解释。
 支持的确定性能力仍包括：
 
 - 可覆盖业务条件：`FOCUSED_TEST`、`SELF_CHECK`、`HTTP_STATUS`、`JSON_PATH`、
@@ -195,15 +206,17 @@ Python 脚本可使用带成功标记的 `SELF_CHECK`；文档与一次性表格
 
 ## 修复协议
 
-v5 提示同时给出唯一的小型 JSON 对象形状。分组与能力偏好不是正确性输入：缺少可选偏好字段时
-可确定性丢弃该项；对象仍不可读、字段形状无法唯一规范化或分组超过上限时，服务端记录
-`OPTIONAL_ACCEPTANCE_ADVICE_DROPPED`，使用空建议继续闭集编译，不创建格式/语义修复 Session，
-也不得因此进入 `WAITING_INPUT`。v3 历史活动仍按既有 `AI_SEMANTIC_PATCH_V1` 和最多 16 个补丁兼容，
-不会覆盖 v5 绑定快照。冻结为 `2026-08-dynamic-v4` 的在途工作包继续允许进入同一确定性编译器，
-但新请求统一使用 v5 Schema。
+v6 消歧提示给出唯一小型对象形状和全部闭集候选。额外字段、索引越界、重复分配、遗漏待分配事实、
+修改锁定事实或阶段拓扑都直接产生 `AMBIGUOUS_ACCEPTANCE_INTENT`，不创建格式或语义修复 Session，
+也不以空 binding、丢弃建议或“其余验收场景”单阶段继续。服务端沿既有自动重设计边界要求 Designer
+提交一份完整替代设计，并在诊断中保留未解析引用与调用原因。结构缺失、依赖冲突和确定性验证能力
+缺失则直接 `DESIGN_INCOMPLETE`，不会为了取得一个无法改变结论的回答而调用 Compiler。
+
+v3 历史活动仍按既有 `AI_SEMANTIC_PATCH_V1` 和最多 16 个补丁兼容；冻结 v4/v5 的在途工作包继续按
+自己的快照恢复，不会被 v6 合同重解释。新请求统一使用 v6 阶段表和消歧 Schema。
 `DIRECT_SOFTWARE_DESIGN` 的隐式 `WP-1` 继承已确认的软件任务画像；需求正文中的否定性
 “依赖/配置”措辞不得把它降级为 `local-maintenance`。若历史或中断记录出现这种与父画像
-冲突的非软件 Role Pack，人工重新编译前的权威读取会重新冻结软件 Role Pack，再进入 v5
+冲突的非软件 Role Pack，人工重新编译前的权威读取会重新冻结软件 Role Pack，再进入 v6
 验收事实与能力求解器。只有大型任务的显式分包允许按包内容专门化为文档或配置维护角色。
 历史 v3 补丁只能修改 AI 拥有的语义字段，不能覆盖服务端控制字段或任何派生字段；
 应用后必须重新运行完整提取、规范化和权威校验。
@@ -214,9 +227,9 @@ v5 提示同时给出唯一的小型 JSON 对象形状。分组与能力偏好�
 TEST；`FULL_TEST`/`BUILD` 不能替代该门禁。只有完整补丁应用后再次通过全部语义、路径、
 测试和验收校验，才允许冻结结果。
 
-新 Compiler 记录默认按 v5 建议合同解释，只有明确含历史 `evidenceMappings` 的活动记录才走
-旧规划兼容解析。缺少 `outcome` 是 v5 的合法形态；历史响应额外携带 `status/outcome/designGaps`
-也不能夺回结果所有权。服务端在闭集覆盖后唯一派生 `COMPILED`，无覆盖能力时唯一派生带具体事实
+新 Compiler 记录默认按 v6 消歧合同解释，只有冻结为旧 Role Pack 或明确含历史
+`evidenceMappings` 的活动记录才走兼容解析。缺少 `outcome` 是 v6 的合法形态；历史响应额外携带
+`status/outcome/designGaps` 也不能夺回结果所有权。服务端在闭集覆盖后唯一派生 `COMPILED`，无覆盖能力时唯一派生带具体事实
 标题的 `DESIGN_INCOMPLETE / VERIFICATION_CAPABILITY_UNAVAILABLE`，不会把这类确定性结论再交给
 模型来回修复。错误对象不会覆盖最后一个有效建议快照；只有测试路径的 Java 包生成
 `JAVA_TEST_ONLY`，独立必跑但无业务场景的目标只生成一次机器条件。

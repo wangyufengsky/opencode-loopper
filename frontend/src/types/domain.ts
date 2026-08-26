@@ -995,6 +995,8 @@ export interface DesignWorkPackageStatus {
 
 export interface DesignerAcceptancePlanningStatus {
   state: 'EXTRACTED' | 'BOUND' | 'COMPILED' | 'FAILED'
+  bindingSource: 'UNDECIDED' | 'SERVER_STAGE_HINTS' | 'AI_DISAMBIGUATION_V6' | 'LEGACY_UNKNOWN'
+  routingReasons: string[]
   factCount: number
   scenarioCount: number
   automatedCount: number

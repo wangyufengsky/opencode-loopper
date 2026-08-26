@@ -28,6 +28,7 @@ import io.opencode.loopper.lifecycle.LifecycleTransitionService;
 import io.opencode.loopper.persistence.DesignerMessageRow;
 import io.opencode.loopper.persistence.DesignerSessionHistoryRow;
 import io.opencode.loopper.persistence.DesignerSessionRow;
+import io.opencode.loopper.persistence.DesignAcceptancePlanningRow;
 import io.opencode.loopper.persistence.DesignDiscussionRevisionRow;
 import io.opencode.loopper.persistence.DesignRequirementRevisionRow;
 import io.opencode.loopper.persistence.DesignWorkPackageRow;
@@ -1973,13 +1974,16 @@ public class DesignerSessionService {
         requirementDraftGuard.requireUnchanged(session, revision.sourceDraftVersion());
         WorkPackageRoleService.View role = workPackageRoles.get(workPackage);
         boolean deterministicAcceptance = acceptanceWorkflow.applies(role);
+        boolean v6Acceptance = deterministicAcceptance && RolePackRegistry.VERSION.equals(role.rolePackVersion());
         String now = now();
         ModelResponseMode responseMode = preferredResponseMode();
         LoopSpecCompilationRow pending = new LoopSpecCompilationRow(UUID.randomUUID().toString(), session.id(),
                 workPackage.designRevision(), LoopSpecCompilationState.PENDING_HANDOFF.name(), null, "PENDING", 0,
                 source.id(), revision.sourceDraftVersion(), null, null, now, now, 0,
                 workPackage.packageId(), 0, null, StructuredModelStep.PLANNING.name(), null, 0,
-                responseMode.name(), schemaId(responseMode, deterministicAcceptance ? OpenCodeStructuredSchemas.PACKAGE_ACCEPTANCE_BINDING_V5
+                responseMode.name(), schemaId(responseMode, v6Acceptance
+                        ? OpenCodeStructuredSchemas.PACKAGE_ACCEPTANCE_DISAMBIGUATION_V6
+                        : deterministicAcceptance ? OpenCodeStructuredSchemas.PACKAGE_ACCEPTANCE_BINDING_V5
                         : OpenCodeStructuredSchemas.PACKAGE_COMPILATION_SEMANTIC_V3), false,
                 responseMode.name(), schemaId(responseMode, OpenCodeStructuredSchemas.PACKAGE_COMPILATION_FINAL_V2), false,
                 null, 0, 0, false);
@@ -1987,7 +1991,20 @@ public class DesignerSessionService {
                 Map.of("workPackageId", workPackage.packageId()), () -> mapper.insertLoopSpecCompilation(pending),
                 () -> new ConflictException("LOOPSPEC_COMPILATION_CREATE_CONFLICT",
                         "Work-package compilation could not be created"));
-        if (deterministicAcceptance) acceptanceWorkflow.freeze(pending, workPackage, source.content(), role, now);
+        if (deterministicAcceptance) {
+            acceptanceWorkflow.freeze(pending, workPackage, source.content(), role, now);
+            DesignerAcceptanceWorkflow.RoutingResult routing = acceptanceWorkflow.route(
+                    pending.id(), !directSoftwareMode(session.id()));
+            if (v6Acceptance && directSoftwareMode(session.id()) && !routing.compilerRequired()) {
+                runServerDirectCompilation(pending, session, workPackage, source.content(), role);
+                return;
+            }
+            if (v6Acceptance && routing.resolution() != null
+                    && routing.resolution().outcome() == DesignerAcceptanceFastPathResolver.Outcome.DESIGN_INCOMPLETE) {
+                runServerDirectCompilation(pending, session, workPackage, source.content(), role);
+                return;
+            }
+        }
         ProjectRow project = projects.get(session.projectId());
         try {
             OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
@@ -2015,6 +2032,42 @@ public class DesignerSessionService {
             failPackageCompilation(pending, session, failure.code(), failure.getMessage(), true);
         } catch (RuntimeException failure) {
             failPackageCompilation(pending, session, "OPENCODE_COMPILER_HANDOFF_FAILED", failure.getMessage(), true);
+        }
+    }
+
+    private void runServerDirectCompilation(LoopSpecCompilationRow pending, DesignerSessionRow session,
+                                            DesignWorkPackageRow workPackage, String design,
+                                            WorkPackageRoleService.View role) {
+        try {
+            LoopSpecCompilationRow running = LoopSpecCompilationState.RUNNING.name().equals(pending.state())
+                    ? pending : updateCompilation(pending, LoopSpecCompilationState.RUNNING,
+                    null, "SERVER_DIRECT", 0, null, null, session.projectId(), null,
+                    StructuredModelStep.SERVER_COMPILING, null);
+            DesignAcceptancePlanningRow planning = acceptanceWorkflow.find(running.id()).orElseThrow(() ->
+                    new ConflictException("DESIGN_ACCEPTANCE_PLANNING_MISSING", "验收意图快照缺失"));
+            DesignerAcceptanceWorkflow.BoundResult bound = acceptanceWorkflow.compileServer(
+                    planning, workPackage, design, role, strings(workPackage.scopeInJson()),
+                    strings(workPackage.scopeOutJson()), strings(workPackage.deliverablesJson()),
+                    packageStageLimit(workPackage.designerSessionId()), directSoftwareMode(workPackage.designerSessionId()));
+            recordNormalization(session, DesignerActor.COMPILER, bound.normalized(),
+                    session.currentRequirementRevision(), workPackage.packageId());
+            LoopSpecCompilationRow planned = updateCompilation(running, LoopSpecCompilationState.RUNNING,
+                    null, "SERVER_DIRECT", running.repairCount(), null, null, session.projectId(),
+                    running.compiledPackageJson(), StructuredModelStep.SERVER_COMPILING, write(bound.plan()));
+            planned = markCompilationServerCompiled(planned, write(bound.plan()));
+            appendMessage(session.id(), DesignerActor.VALIDATOR,
+                    workPackage.packageId() + " 阶段表已由服务端直接解析并编译，未创建规范工程师 Session。",
+                    "NORMALIZED", session.currentRequirementRevision(), workPackage.packageId());
+            handlePackageCompilationEnvelope(planned, session, null, compilePackagePlan(bound.plan()));
+        } catch (BadRequestException invalid) {
+            completeAcceptanceDesignIncomplete(pending, session, workPackage, null,
+                    invalid.code(), invalid.getMessage());
+        } catch (ConflictException stale) {
+            failPackageCompilation(getCompilation(pending.id()), get(session.id()),
+                    stale.code(), stale.getMessage(), false);
+        } catch (RuntimeException failure) {
+            failPackageCompilation(getCompilation(pending.id()), get(session.id()),
+                    "SERVER_ACCEPTANCE_COMPILATION_FAILED", failure.getMessage(), false);
         }
     }
 
@@ -2152,6 +2205,12 @@ public class DesignerSessionService {
 
     private void pollCompiler(LoopSpecCompilationRow compilation) {
         DesignerSessionRow session = get(compilation.designerSessionId());
+        if (blank(compilation.externalSessionId()) && ("SERVER_DIRECT".equals(compilation.externalSessionState()) || acceptanceWorkflow.serverDirect(compilation.id()))) {
+            DesignWorkPackageRow workPackage = requireCurrentPackage(session, compilation.workPackageId());
+            runServerDirectCompilation(compilation, session, workPackage,
+                    designMessage(workPackage).content(), workPackageRoles.get(workPackage));
+            return;
+        }
         ProjectRow project = projects.get(session.projectId());
         OpenCodeClient.OpenCodeSession remote = new OpenCodeClient.OpenCodeSession(
                 compilation.externalSessionId(), Path.of(project.rootPath()));
@@ -2341,7 +2400,7 @@ public class DesignerSessionService {
                         strings(workPackage.scopeOutJson()), strings(workPackage.deliverablesJson()),
                         packageStageLimit(workPackage.designerSessionId()),
                         directSoftwareMode(workPackage.designerSessionId()));
-                plan = bound.compiled().plan();
+                plan = bound.plan();
                 recordNormalization(session, DesignerActor.COMPILER, bound.normalized(),
                         session.currentRequirementRevision(), workPackage.packageId());
             } else {
@@ -2366,6 +2425,11 @@ public class DesignerSessionService {
             }
         } catch (BadRequestException invalid) {
             acceptanceWorkflow.markFailed(input.id(), output, invalid.code(), safeMessage(invalid.getMessage()));
+            if (acceptanceWorkflow.v6(input.id())) {
+                completeAcceptanceDesignIncomplete(input, session, workPackage, remote,
+                        "AMBIGUOUS_ACCEPTANCE_INTENT", invalid.getMessage());
+                return;
+            }
             if (!formatOutputFailure(invalid.code())) input = acceptanceWorkflow.captureSemantic(input, output, MAX_DIRECT_SOFTWARE_STAGES);
             packageCompilerRejected(input, session, workPackage, remote, invalid.code(), invalid.getMessage());
             return;
@@ -2380,7 +2444,7 @@ public class DesignerSessionService {
                 "NORMALIZED", session.currentRequirementRevision(), workPackage.packageId());
         publish(session, "STATUS", DesignerActor.COMPILER, true, "",
                 workPackage.packageId() + " 规划已冻结，服务端正在生成 CompiledPackage");
-        handlePackageCompilerOutput(planned, session, remote, write(envelope));
+        handlePackageCompilationEnvelope(planned, session, remote, envelope);
     }
 
     private void handleCompilerOutput(LoopSpecCompilationRow compilation, DesignerSessionRow session,
@@ -2471,6 +2535,14 @@ public class DesignerSessionService {
             packageCompilerRejected(compilation, session, workPackage, remote, invalid.code(), invalid.getMessage());
             return;
         }
+        handlePackageCompilationEnvelope(compilation, session, remote, envelope);
+    }
+
+    private void handlePackageCompilationEnvelope(LoopSpecCompilationRow compilation, DesignerSessionRow session,
+                                                  OpenCodeClient.OpenCodeSession remote,
+                                                  PackageCompilationEnvelope envelope) {
+        DesignWorkPackageRow workPackage = requireCurrentPackage(session, compilation.workPackageId());
+        String externalSessionId = remote == null ? compilation.externalSessionId() : remote.id();
         if ("DESIGN_INCOMPLETE".equals(envelope.status())) {
             List<DesignGap> gaps;
             try { gaps = validateDesignGaps(envelope.designGaps()); }
@@ -2487,7 +2559,7 @@ public class DesignerSessionService {
                 }
                 return;
             }
-            updateCompilation(compilation, LoopSpecCompilationState.DESIGN_INCOMPLETE, remote.id(), "COMPLETED",
+            updateCompilation(compilation, LoopSpecCompilationState.DESIGN_INCOMPLETE, externalSessionId, "COMPLETED",
                     compilation.repairCount(), "DESIGN_INCOMPLETE", summarizeGaps(gaps), session.projectId(), null,
                     StructuredModelStep.FINAL_JSON, compilation.planningJson());
             DesignWorkPackageRow waiting = updateWorkPackage(workPackage, DesignWorkPackageState.WAITING_INPUT,
@@ -2528,7 +2600,7 @@ public class DesignerSessionService {
                     : bounded(envelope.summary(), 1_000);
             String handoff = boundedUtf8(envelope.handoffSummary(), MAX_HANDOFF_SUMMARY_LENGTH);
             LoopSpecCompilationRow completedCompilation = updateCompilation(compilation,
-                    LoopSpecCompilationState.COMPLETED, remote.id(), "COMPLETED",
+                    LoopSpecCompilationState.COMPLETED, externalSessionId, "COMPLETED",
                     compilation.repairCount(), null, null, session.projectId(), write(envelope),
                     StructuredModelStep.FINAL_JSON, compilation.planningJson());
             DesignWorkPackageRow completed = updateWorkPackage(getWorkPackage(workPackage.id()),
@@ -2621,6 +2693,12 @@ public class DesignerSessionService {
             requireLargeTaskMode(compilation, session, workPackage, remote, detail);
             return;
         }
+        if (remote == null || acceptanceWorkflow.v6(compilation.id())
+                && StructuredModelStep.PLANNING.name().equals(compilation.workflowStep())) {
+            completeAcceptanceDesignIncomplete(compilation, session, workPackage, remote,
+                    "AMBIGUOUS_ACCEPTANCE_INTENT", detail);
+            return;
+        }
         appendMessage(session.id(), DesignerActor.VALIDATOR,
                 workPackage.packageId() + " 确定性校验未通过（" + code + "）：" + safeMessage(detail),
                 "RETRYABLE_ERROR", session.currentRequirementRevision(), workPackage.packageId());
@@ -2694,6 +2772,23 @@ public class DesignerSessionService {
         }
     }
 
+    private void completeAcceptanceDesignIncomplete(LoopSpecCompilationRow compilation,
+                                                    DesignerSessionRow session,
+                                                    DesignWorkPackageRow workPackage,
+                                                    OpenCodeClient.OpenCodeSession remote,
+                                                    String code, String detail) {
+        String reason = blank(detail) ? "阶段引用或验收能力无法唯一绑定" : safeMessage(detail);
+        List<DesignGap> gaps = List.of(new DesignGap(DesignGapCode.AMBIGUOUS_ACCEPTANCE_INTENT, reason));
+        PackageCompilationEnvelope envelope = new PackageCompilationEnvelope(
+                "DESIGN_INCOMPLETE", workPackage.packageId() + " 需要定点补全验收绑定",
+                List.of(), List.of(), null, gaps).normalized();
+        appendMessage(session.id(), DesignerActor.VALIDATOR,
+                workPackage.packageId() + " 验收绑定未完成（" + code + "）：" + reason
+                        + "。将要求设计师提交完整替代设计，已确定内容保持不变。",
+                "DESIGN_INCOMPLETE", session.currentRequirementRevision(), workPackage.packageId());
+        handlePackageCompilationEnvelope(getCompilation(compilation.id()), get(session.id()), remote, envelope);
+    }
+
     private boolean directSoftwareMode(String sessionId) {
         return taskProfiles.workflowTemplateIncludingSuperseded(sessionId)
                 == WorkflowTemplate.DIRECT_SOFTWARE_DESIGN;
@@ -2711,9 +2806,10 @@ public class DesignerSessionService {
                                       DesignWorkPackageRow workPackage, OpenCodeClient.OpenCodeSession remote,
                                       String detail) {
         String reason = blank(detail) ? "当前需求无法安全容纳在默认单包的 1–6 个 Stage 中" : safeMessage(detail);
-        runtimeControl.abortQuietly(remote.id(), session.projectId());
+        String externalSessionId = remote == null ? compilation.externalSessionId() : remote.id();
+        runtimeControl.abortQuietly(externalSessionId, session.projectId());
         if (LoopSpecCompilationState.RUNNING.name().equals(compilation.state())) {
-            updateCompilation(compilation, LoopSpecCompilationState.DESIGN_INCOMPLETE, remote.id(), "COMPLETED",
+            updateCompilation(compilation, LoopSpecCompilationState.DESIGN_INCOMPLETE, externalSessionId, "COMPLETED",
                     compilation.repairCount(), "LARGE_TASK_MODE_REQUIRED", reason, session.projectId(),
                     compilation.compiledPackageJson(), StructuredModelStep.valueOf(compilation.workflowStep()),
                     compilation.planningJson());
@@ -2915,6 +3011,7 @@ public class DesignerSessionService {
 
     private boolean fallbackCompilation(LoopSpecCompilationRow row, DesignerSessionRow session,
                                         String code, String detail) {
+        if (acceptanceWorkflow.v6(row.id())) return false;
         boolean planning = StructuredModelStep.PLANNING.name().equals(row.workflowStep());
         boolean alreadyUsed = planning ? row.planningFormatFallbackUsed() : row.finalFormatFallbackUsed();
         boolean schemaMode = ModelResponseMode.JSON_SCHEMA.name().equals(
@@ -3073,7 +3170,8 @@ public class DesignerSessionService {
         if (structuredFormatFailure(code) && fallbackCompilation(compilation, session, code, detail)) return;
         compilation = mapper.findLoopSpecCompilation(input.id()).orElse(compilation);
         runtimeControl.abortQuietly(compilation.externalSessionId(), session.projectId());
-        if (transportFailure && compilation.transportRetryCount() < 1 && isCurrent(session, revision)) {
+        if (transportFailure && !acceptanceWorkflow.v6(compilation.id())
+                && compilation.transportRetryCount() < 1 && isCurrent(session, revision)) {
             ProjectRow project = projects.get(session.projectId());
             try {
                 OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
@@ -4323,58 +4421,14 @@ public class DesignerSessionService {
     private String packageCompilerPlanningPrompt(ProjectRow project, DesignRequirementRevisionRow revision,
                                                  DesignWorkPackageRow workPackage, String design) {
         String prerequisites = prerequisitePackageContracts(revision.id(), workPackage);
-        return """
-                You are OpenCode Loopper LoopSpec Compiler / 规范工程师 in the semantic planning turn for exactly one
-                frozen work-package design. This is a strictly read-only Session: use only read, glob, and grep;
-                never write files, execute commands, ask questions, create tasks, or emit final StageSpec JSON.
-
-                Think in this fixed order and expose only the bounded planning result, not private chain-of-thought:
-                1. Plan a coherent, dependency-ordered Stage sequence inside the current package and obey the
-                   workflow-specific Stage limit below.
-                2. Map each observable acceptance criterion to one or more DS-L source refs and a concrete machine/
-                   Judge evidence strategy; use only the current Role Pack's repository-native focused-test argv.
-                3. Return the structured planning envelope below. Do not redesign another package or invent a
-                   requirement absent from the frozen design.
-
-                Project root: %s
-                Requirement revision: R%d
-                Required workPackageId: %s
-                Required criterion id prefix: %s-AC-
-                Workflow mode: %s
-
-                Frozen prerequisite package contracts:
-                %s
-
-                Repository timing rule: this read-only repository is the immutable pre-execution baseline. A listed
-                prerequisite with state APPROVED is guaranteed to execute successfully before this package's Stages
-                can start in the single dependency-ordered Task. Its files may therefore be absent now. Use read/glob/
-                grep only for baseline conventions and files not owned by completed prerequisites. You must not return
-                DESIGN_INCOMPLETE or MISSING_SCOPE merely because a completed prerequisite deliverable is absent from
-                the current repository. Report a semantic gap only when the required contract is absent from both the
-                frozen current design and the frozen prerequisite contract/handoff.
-
-                Designer-declared focused test evidence (exact frozen design lines; reuse these named tests and
-                commands instead of inventing replacements):
-                %s
-
-                Frozen Designer source index (use only these DS-L refs; the server resolves exact text):
-                %s
-
-                %s
-
-                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->
-                Put exactly one complete planning object matching the contract above here.
-                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->
-
-                Frozen work-package design revision %d:
-                %s
-                """.formatted(project.rootPath(), revision.revision(), workPackage.packageId(),
-                workPackage.packageId(), directSoftwareMode(workPackage.designerSessionId())
-                        ? "DIRECT_SOFTWARE_DESIGN. Produce 1-6 Stages. If the complete design cannot fit safely into one 1-6 Stage package, return DESIGN_INCOMPLETE with only LARGE_TASK_MODE_REQUIRED; never split packages or silently continue."
-                        : "FULL_PACKAGE_DESIGN. Produce 1-3 Stages. This package is already part of the large-task decomposition; never return LARGE_TASK_MODE_REQUIRED.", prerequisites,
-                designerDeclaredTestEvidence(design),
+        String mode = directSoftwareMode(workPackage.designerSessionId())
+                ? "DIRECT_SOFTWARE_DESIGN. Produce 1-6 Stages. If the complete design cannot fit safely into one 1-6 Stage package, return DESIGN_INCOMPLETE with only LARGE_TASK_MODE_REQUIRED; never split packages or silently continue."
+                : "FULL_PACKAGE_DESIGN. Produce 1-3 Stages. This package is already part of the large-task decomposition; never return LARGE_TASK_MODE_REQUIRED.";
+        return DesignerCompilerPromptContracts.semanticPlanning(project.rootPath(), revision.revision(),
+                workPackage.packageId(), mode, prerequisites, designerDeclaredTestEvidence(design),
                 evidenceIndexer.index(design).promptText(),
-                packageCompilerPlanningMachineContract(workPackage.packageId(), workPackageRoles.get(workPackage)),
+                DesignerCompilerPromptContracts.planning(workPackage.packageId(), workPackageRoles.get(workPackage),
+                        rolePrompts),
                 workPackage.designRevision(), design);
     }
 
@@ -4383,32 +4437,11 @@ public class DesignerSessionService {
         return packageContext.prerequisites(requirementRevisionId, workPackage);
     }
 
-    private String packageCompilerPlanningMachineContract(String packageId, WorkPackageRoleService.View profile) {
-        return DesignerCompilerPromptContracts.planning(packageId, profile, rolePrompts);
-    }
-
     private String packageCompilerJsonPrompt(DesignerSessionRow session, LoopDraftRow draft,
                                              DesignWorkPackageRow workPackage,
                                              PackageCompilationPlanEnvelope plan) {
-        return """
-                The Stage planning and acceptance evidence mapping below passed deterministic validation and is now
-                frozen. Compile it into the final CompiledPackage JSON. Preserve every Stage field, acceptance field,
-                exact Designer excerpt, verifier object, verificationRuntime, test argv/target, handoff, ordering,
-                and status. The verifier/runtime blueprints are already executable and must be copied byte-for-field;
-                do not redesign, add, remove, or paraphrase planning decisions.
-
-                Required workPackageId: %s
-                Read-only draft defaults preserved later by server aggregation: %s
-                Frozen planning:
-                %s
-
-                %s
-
-                <!-- LOOPSPEC_COMPILATION_JSON_START -->
-                Put exactly one complete replacement object matching the frozen plan and machine contract here.
-                <!-- LOOPSPEC_COMPILATION_JSON_END -->
-                """.formatted(workPackage.packageId(), draft.specJson(), write(plan),
-                packageCompilerMachineContract(workPackage.packageId()));
+        return DesignerCompilerPromptContracts.finalJson(workPackage.packageId(), draft.specJson(), write(plan),
+                DesignerCompilerPromptContracts.compiledPackage(workPackage.packageId()));
     }
 
     /** Compatibility prompt for a V22 package compilation already active during a V23 upgrade. */
@@ -4417,39 +4450,9 @@ public class DesignerSessionService {
                                          String design) {
         String prerequisites = prerequisitePackageContracts(revision.id(), workPackage);
         String stageRange = directSoftwareMode(session.id()) ? "1-6" : "1-3";
-        return """
-                You are OpenCode Loopper LoopSpec Compiler / 规范工程师 for one frozen work-package design in a new
-                strictly read-only Session. You may use read, glob, and grep to verify build/test conventions. Never
-                edit/write files, execute commands, ask questions, create tasks, compile other packages, or add absent
-                business requirements.
-
-                Project root: %s
-                Required workPackageId: %s
-                Required criterion id prefix: %s-AC-
-                Read-only draft defaults to preserve during later server aggregation: %s
-                Frozen prerequisite package contracts: %s
-
-                This repository is the pre-execution baseline. A prerequisite with state APPROVED will execute
-                before this package, so its currently absent deliverables are available-at-execution dependencies,
-                not MISSING_SCOPE. Do not reject the package solely because read/glob/grep cannot find those files.
-
-                COMPILED returns %s complete StageSpec objects only (not a LoopSpec), a short summary, an exact
-                Designer excerpt for every criterion, and a dependency handoffSummary <=4 KiB UTF-8. Every StageSpec
-                sets workPackageId=%s. DESIGN_INCOMPLETE is only for the closed semantic gap codes. JSON/schema/
-                validator/coverage uncertainty must be repaired as COMPILED, not escaped as DESIGN_INCOMPLETE.
-                Existing implementationKind, direct PROCESS, behavior coverage, Java focused-unit-test, runtime, and
-                blocking deterministic verifier rules all apply.
-
-                %s
-
-                <!-- LOOPSPEC_COMPILATION_JSON_START -->
-                Put exactly one complete replacement object matching the canonical envelope above here.
-                <!-- LOOPSPEC_COMPILATION_JSON_END -->
-
-                Frozen package design revision %d for requirement R%d:
-                %s
-                """.formatted(project.rootPath(), workPackage.packageId(), workPackage.packageId(), draft.specJson(),
-                prerequisites, stageRange, workPackage.packageId(), packageCompilerMachineContract(workPackage.packageId()),
+        return DesignerCompilerPromptContracts.legacyFinal(project.rootPath(), workPackage.packageId(),
+                draft.specJson(), prerequisites, stageRange,
+                DesignerCompilerPromptContracts.compiledPackage(workPackage.packageId()),
                 workPackage.designRevision(), revision.revision(), design);
     }
 
@@ -4465,7 +4468,7 @@ public class DesignerSessionService {
 
                     Return one replacement object between LOOPSPEC_COMPILATION_JSON_START/END markers.
                     """.formatted(compilation.repairCount(), MAX_COMPILER_REPAIRS, code, safeMessage(detail),
-                    packageCompilerMachineContract(compilation.workPackageId()));
+                    DesignerCompilerPromptContracts.compiledPackage(compilation.workPackageId()));
         }
         PackageCompilationPlanEnvelope plan = readPackageCompilationPlan(compilation.planningJson());
         return """
@@ -4483,7 +4486,7 @@ public class DesignerSessionService {
 
                 Return one replacement object between LOOPSPEC_COMPILATION_JSON_START/END markers.
                 """.formatted(compilation.repairCount(), MAX_COMPILER_REPAIRS, code, safeMessage(detail),
-                write(plan), packageCompilerMachineContract(compilation.workPackageId()));
+                write(plan), DesignerCompilerPromptContracts.compiledPackage(compilation.workPackageId()));
     }
 
     private String packageCompilerPlanningRepairPrompt(LoopSpecCompilationRow compilation,
@@ -4492,7 +4495,8 @@ public class DesignerSessionService {
         String prerequisites = prerequisitePackageContracts(workPackage.requirementRevisionId(), workPackage);
         return compilerRepairPrompts.planning(compilation.planningRepairCount(), MAX_COMPILER_REPAIRS, code, detail,
                 prerequisites, designerDeclaredTestEvidence(design),
-                packageCompilerPlanningMachineContract(workPackage.packageId(), workPackageRoles.get(workPackage)), design);
+                DesignerCompilerPromptContracts.planning(workPackage.packageId(), workPackageRoles.get(workPackage),
+                        rolePrompts), design);
     }
 
     private String packageCompilerSemanticPatchPrompt(LoopSpecCompilationRow compilation,
@@ -4519,10 +4523,6 @@ public class DesignerSessionService {
             case FINAL_JSON -> packageCompilerPrompt(session, project, drafts.get(session.loopDraftId()),
                     revision, workPackage, design);
         };
-    }
-
-    private String packageCompilerMachineContract(String packageId) {
-        return DesignerCompilerPromptContracts.compiledPackage(packageId);
     }
 
     private String designerPrompt(DesignerSessionRow session, ProjectRow project, String message) {

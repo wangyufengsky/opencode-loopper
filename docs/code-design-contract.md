@@ -87,6 +87,12 @@ ownership rules:
   owns fact grouping, closed capability selection and Stage assembly;
   `DesignerAcceptancePathPolicy` alone decides whether Designer-owned text is a standalone repository-relative
   path rule. Natural-language scope descriptions must not leak into executable `GIT_DIFF` policies.
+- `DesignerAcceptanceFastPathResolver` alone owns v6 exact-reference normalization, Stage topology
+  validation, direct/AI/incomplete routing, and the merge of closed-set Compiler assignments. It must
+  never perform fuzzy or substring matching. `DesignerAcceptanceWorkflow` owns persistence and solver
+  coordination; `DesignerCompilerPromptContracts` owns both legacy and v6 Compiler prompt construction.
+  `DesignerSessionService` may select the route and coordinate lifecycle only. Adding this path must
+  lower or preserve its legacy line-count ratchet; prompt text and parsing rules do not move back into it.
 - `LoopSpecAcceptanceService` owns the final cross-source acceptance contract. A focused Maven/Gradle
   test with no criterion mapping is a valid blocking gate only for a `JAVA_PRODUCTION` Stage whose
   criteria are all Judge-only; machine or mixed criteria still require explicit focused-test coverage.

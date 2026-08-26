@@ -67,7 +67,7 @@ final class DesignerVerificationCapabilityRegistry {
         if (role.testPolicy() == TestPolicy.REQUIRED && result.stream().noneMatch(cap -> "FOCUSED_TEST".equals(cap.kind()))) {
             issues.add("REQUIRED_FOCUSED_TEST_UNAVAILABLE");
         }
-        return new CapabilityCatalog(CONTRACT_VERSION, List.copyOf(result), List.copyOf(issues));
+        return new CapabilityCatalog(facts.contractVersion(), List.copyOf(result), List.copyOf(issues));
     }
 
     private List<List<String>> explicitCommands(Catalog facts, String design) {

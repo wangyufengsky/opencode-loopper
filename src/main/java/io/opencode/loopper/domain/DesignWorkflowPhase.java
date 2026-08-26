@@ -7,7 +7,7 @@ public enum DesignWorkflowPhase implements DescribedEnum {
     DECOMPOSING("任务规划师正在分析需求"),
     VALIDATING_DECOMPOSITION("服务端正在校验拆解计划"),
     DESIGNING("设计师正在生成完整设计稿"),
-    COMPILING("规范工程师正在生成 LoopSpec"),
+    COMPILING("正在编译规范"),
     VALIDATING("验收工程师正在验证 LoopSpec"),
     REDESIGNING("设计师正在根据设计缺口重新设计"),
     QUESTIONING_PACKAGE("设计师正在澄清当前工作包"),

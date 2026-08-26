@@ -13,12 +13,18 @@ class MachineRoleContractCatalogTest {
         assertThat(MachineRoleContractCatalog.card("DECOMPOSER"))
                 .contains(MachineRoleContractCatalog.CONTRACT_VERSION, "Do not assign ids");
         assertThat(MachineRoleContractCatalog.card("COMPILER"))
-                .contains("DesignFacts", "verification capabilities", "Do not invent commands");
+                .contains("server-locked stage topology", "unresolved fact assignments", "Do not edit stages");
+        assertThat(MachineRoleContractCatalog.legacyCompilerCard())
+                .contains(MachineRoleContractCatalog.LEGACY_COMPILER_CONTRACT_VERSION,
+                        "DesignFacts", "verification capabilities");
         assertThat(OpenCodeStructuredSchemas.schema(OpenCodeStructuredSchemas.DECOMPOSITION_SEMANTIC_V2))
                 .containsEntry("type", "object");
         assertThat(OpenCodeStructuredSchemas.schema(OpenCodeStructuredSchemas.PACKAGE_COMPILATION_SEMANTIC_V3))
                 .containsEntry("type", "object");
         assertThat(OpenCodeStructuredSchemas.schema(OpenCodeStructuredSchemas.PACKAGE_ACCEPTANCE_BINDING_V5))
+                .containsEntry("type", "object");
+        assertThat(OpenCodeStructuredSchemas.schema(
+                OpenCodeStructuredSchemas.PACKAGE_ACCEPTANCE_DISAMBIGUATION_V6))
                 .containsEntry("type", "object");
         assertThat(Files.readString(Path.of("docs/ai-role-contracts.md")))
                 .contains(MachineRoleContractCatalog.CONTRACT_VERSION,
@@ -51,6 +57,19 @@ class MachineRoleContractCatalogTest {
                 .doesNotContainKeys("outcome", "designGaps", "stages", "commands", "verifiers", "sourceRefs");
         Map<String, Object> groups = (Map<String, Object>) properties.get("groupHints");
         assertThat(groups).containsEntry("maxItems", 6);
+
+        Map<String, Object> disambiguation = OpenCodeStructuredSchemas.schema(
+                OpenCodeStructuredSchemas.PACKAGE_ACCEPTANCE_DISAMBIGUATION_V6);
+        Map<String, Object> v6Properties = (Map<String, Object>) disambiguation.get("properties");
+        assertThat(disambiguation).containsEntry("additionalProperties", false);
+        assertThat(v6Properties).containsOnlyKeys(
+                "summary", "factAssignments", "capabilityPreferences", "handoffSummary");
+        Map<String, Object> assignments = (Map<String, Object>) v6Properties.get("factAssignments");
+        assertThat((Map<String, Object>) assignments.get("items"))
+                .containsEntry("additionalProperties", false);
+        Map<String, Object> preferences = (Map<String, Object>) v6Properties.get("capabilityPreferences");
+        assertThat((Map<String, Object>) preferences.get("items"))
+                .containsEntry("additionalProperties", false);
     }
 
     @Test

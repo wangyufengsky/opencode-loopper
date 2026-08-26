@@ -131,6 +131,43 @@ class DesignerAcceptancePlanningAlgorithmTest {
     }
 
     @Test
+    void v6StageTableSplitsChineseAndEnglishSemicolonsWithoutRewritingExactReferences() {
+        String design = """
+                ## 目标与范围
+                实现两阶段 Java 行为。
+
+                ## 影响与交付
+                | 类型 | 相对路径或符号 | 说明 |
+                | --- | --- | --- |
+                | 生产代码 | src/main/java/example/Flow.java | 流程行为 |
+
+                ## 验收场景
+                | 场景 | 前置/触发 | 操作 | 可观察结果 | 保持不变 |
+                | --- | --- | --- | --- | --- |
+                | 成功路径 | 输入合法 | 执行 | 返回成功 | 不写外部系统 |
+                | 失败路径 | 输入非法 | 执行 | 抛出异常 | 不写外部系统 |
+
+                ## 验收约束
+                FlowTest 必须独立通过。
+
+                ## 阶段与依赖
+                | 阶段 | 目标 | 包含场景/评审/交付 | 前置阶段 |
+                | --- | --- | --- | --- |
+                | 成功阶段 | 实现成功路径 | 成功路径；src/main/java/example/Flow.java | 无 |
+                | 失败阶段 | 实现失败路径 | 失败路径; src/main/java/example/Flow.java | 成功阶段 |
+                """;
+
+        Catalog catalog = extractor.extract("WP-1", 1, design, CONTRACT_VERSION_V6);
+
+        assertThat(catalog.stageHints()).hasSize(2);
+        assertThat(catalog.stageHints().get(0).includedReferences())
+                .containsExactly("成功路径", "src/main/java/example/Flow.java");
+        assertThat(catalog.stageHints().get(1).includedReferences())
+                .containsExactly("失败路径", "src/main/java/example/Flow.java");
+        assertThat(catalog.stageHints().get(1).dependencyReferences()).containsExactly("成功阶段");
+    }
+
+    @Test
     void extractsCompleteControlledDesignLargerThanTwentyFourKibibytes() {
         String design = """
                 ## 目标与范围

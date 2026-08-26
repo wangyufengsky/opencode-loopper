@@ -1,0 +1,3 @@
+ALTER TABLE design_acceptance_planning
+    ADD COLUMN binding_source TEXT NOT NULL DEFAULT 'LEGACY_UNKNOWN'
+    CHECK (binding_source IN ('UNDECIDED', 'SERVER_STAGE_HINTS', 'AI_DISAMBIGUATION_V6', 'LEGACY_UNKNOWN'));

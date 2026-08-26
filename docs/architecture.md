@@ -164,7 +164,7 @@ without an OpenCode Session. Large documents require 2–6 level-two sections; t
 structured blocks are kept in source order and deterministically aggregated into one
 frozen plan. Every decomposed software package freezes its own detected technology list,
 Role Pack version, execution strategy and test policy before its Designer/Compiler prompt.
-Role Pack `2026-08-dynamic-v5` groups normalized technology aliases into Java, Python,
+Role Pack `2026-08-dynamic-v6` groups normalized technology aliases into Java, Python,
 Node and Other software families. Node matching precedes Java so JavaScript is not Java;
 same-family aliases do not create a mixed pack, real cross-family work does, and explicit
 unknown single stacks use `software-generic` instead of inheriting Java/Maven. Document,
@@ -176,9 +176,9 @@ Package-local technology discovery uses token boundaries, so domain symbols such
 Acceptance compilation consumes only positive deliverable-to-test relationships, uses target-symbol
 and title-weighted semantic competition with one unique winner to bind each scenario once, preserves
 independent required test targets exactly once as source-backed criteria, and derives the final outcome
-on the server. A v5 model response is advisory: uniquely reversible soft-preference drift is normalized,
-and any other unreadable advice is discarded before the same closed server compiler runs. Frozen v4 packages may resume
-through this same deterministic path; newly frozen packages use v5.
+on the server. New v6 designs carry an exact stage table; ordinary `DIRECT_SOFTWARE_DESIGN / WP-1`
+uses that frozen topology directly when every fact and capability has one legal binding. Frozen v5 packages may resume
+through their compatible historical path; newly frozen packages use v6.
 Rows created before that freeze is complete are not valid Role Pack snapshots: read-only
 Designer projection omits the incomplete snapshot, and the next package-role use repairs it
 from the current or legacy task profile instead of parsing nullable enum columns.
@@ -515,12 +515,28 @@ controlled-Markdown design hash, DesignFact catalog and closed verification-capa
 those identity fields are immutable. Package-design source and Designer message persistence have no
 fixed byte-size ceiling; the controlled Markdown shape, 64-scenario ceiling and 128-fact ceiling remain
 the bounded semantic contract. AI binding, solver diagnostics and failure detail are
-versioned updates. New v4 rows resume from this snapshot, while compilations without a row remain
+versioned updates. New v6 rows resume from this snapshot, while compilations without a row remain
 on the historical v3 parser/repair path. Planning state is a closed persistence contract:
 `EXTRACTED` is the frozen input, `BOUND` records a valid binding whose deterministic result is
 `DESIGN_INCOMPLETE`, `COMPILED` records a fully lowered plan, and `FAILED` records an invalid
 planning boundary. Compiler outcome codes are never written directly into this lifecycle column.
 The UI reads only a bounded human-facing projection.
+
+V44 adds immutable-origin semantics to that projection through `binding_source`:
+`UNDECIDED`, `SERVER_STAGE_HINTS`, `AI_DISAMBIGUATION_V6`, and `LEGACY_UNKNOWN`.
+The v6 resolver builds symbols with Unicode NFKC, edge trimming, whitespace collapse, and
+Latin case folding; punctuation is retained and substring/fuzzy matching is forbidden.
+`SCENARIO` and `REVIEW` facts have exactly one Stage owner, `DELIVERABLE` may be shared,
+and dependencies may name only an earlier Stage. Complete direct `WP-1` designs transition
+`PENDING_HANDOFF -> RUNNING(SERVER_DIRECT) -> COMPLETED` without an OpenCode Compiler Session
+or model call; active `SERVER_DIRECT` rows are selected by the monitor and resume idempotently.
+Structural gaps become `DESIGN_INCOMPLETE`. Only unresolved closed-set assignments invoke one
+`COMPILER_BINDING_NO_TOOLS` Session using `PACKAGE_ACCEPTANCE_DISAMBIGUATION_V6`; invalid output
+becomes targeted `AMBIGUOUS_ACCEPTANCE_INTENT` redesign and never creates an empty or catch-all Stage.
+Large software packages still take that single disambiguation turn so they can provide a handoff
+summary, but their Stage names, order, objectives, and dependencies remain server-locked.
+Historical rows upgraded from V41 use `LEGACY_UNKNOWN`; `serverCompiled` remains compatibility data and
+never decides the source label or whether a remote Session should be polled.
 
 V42 adds immutable `project_stack_profile` snapshots and their
 `project_stack_component` rows. Registration of a new or re-managed project schedules one
@@ -617,20 +633,17 @@ authoritative semantic validation without consuming a format repair. Project
 Convention Markdown uses the analogous marker, unique fence, then full-response
 policy and still enforces its reserved-marker and length boundaries.
 
-The package Compiler's current planning contract is version 2. Each planned
-Stage already carries exact `VerifierSpec` blueprints and an optional managed
-runtime. Before freezing, the server builds a temporary v2 execution contract
-and runs the same direct-command, behavior-coverage, Java-test and runtime
-assessment used by Review Gate. Shell strategies or unmapped MACHINE/BOTH
-criteria are repaired while still planning. Final JSON must copy those verified
-objects exactly, so generation cannot turn a valid evidence design into a
-different verifier contract.
+The historical semantic package Compiler planning contract is version 2. It remains available
+only for frozen pre-v6 records and non-deterministic compatibility flows. Current v6 software
+packages instead freeze the Designer Stage table and closed DesignFact/capability catalogs first;
+the server produces exact `VerifierSpec` objects, source mappings, IDs, and final package JSON.
 
 Package work is strictly serial. A package keeps one healthy interactive
 Designer Session across its discussion turns and reconstructs a replacement
-Session from persisted snapshots/decisions after transport loss. Every candidate
-uses an independent read-only Compiler Session, produces 1–6 Stages for direct software
-or 1–3 Stages per large-task package carrying
+Session from persisted snapshots/decisions after transport loss. A v6 direct candidate skips
+Compiler when the server resolves every exact reference; a direct ambiguity or every large-task
+candidate uses exactly one locked-topology no-tools disambiguation Session. The result produces
+1–6 Stages for direct software or 1–3 Stages per large-task package carrying
 `workPackageId`, and is deterministically validated into `REVIEWING`; the next
 package cannot start until the user accepts that exact design revision. A failed
 candidate keeps the previous valid candidate visible. Reopening an accepted
@@ -648,11 +661,11 @@ All package design Sessions read the same immutable pre-execution repository
 baseline. An `APPROVED` predecessor means its frozen design/compilation contract
 is valid and its Stages are ordered before the current package; it does not mean
 the design-time repository already contains its files. The server injects the
-predecessor summary/handoff as an available-at-execution contract, and Compiler
-must not turn baseline absence into `MISSING_SCOPE`. During Compiler planning,
-the model owns Stage and evidence semantics while the server owns mechanical
-criterion numbering, uniquely recoverable exact Designer slices, and propagation
-of evidence-mapping TEST targets/criterion IDs to the matching verifier. Explicit
+predecessor summary/handoff as an available-at-execution contract, and optional Compiler
+disambiguation must not turn baseline absence into `MISSING_SCOPE`. For v6, the server owns the
+Stage topology and fact binding; the model may choose only listed unresolved assignments and capability
+preferences. The server also owns mechanical criterion numbering, uniquely recoverable exact Designer
+slices, and propagation of evidence-mapping TEST targets/criterion IDs to the matching verifier. Explicit
 focused Maven/Gradle selectors in the frozen design or planned verifier are carried
 into the Compiler prompt and deterministically parsed; a unique Stage-level match
 may fill omitted duplicate commands/targets or the equivalent TEST verifier. Broad

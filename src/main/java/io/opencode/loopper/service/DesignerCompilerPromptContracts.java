@@ -37,9 +37,41 @@ final class DesignerCompilerPromptContracts {
                 %s
                 Frozen verification capabilities:
                 %s
-                """.formatted(MachineRoleContractCatalog.card("COMPILER"), stageLimit,
+                """.formatted(MachineRoleContractCatalog.legacyCompilerCard(), stageLimit,
                 priorError == null || priorError.isBlank() ? "" : "Repair the complete binding after: " + priorError,
                 packageId, factsJson, capabilitiesJson);
+    }
+
+    static String acceptanceDisambiguation(String packageId, String factsJson, String capabilitiesJson,
+                                           String lockedResolutionJson, String priorError) {
+        return """
+                %s
+                The server has already frozen and validated the complete stage topology. Fill only the listed
+                unresolved fact assignments and ambiguous capability preferences. You cannot create, delete, rename,
+                merge, reorder, or change a stage or dependency. factIndex, stageIndex, and capabilityIndexes must
+                come from the closed candidates below. Assign every unresolved fact exactly once. Return no locked
+                fact assignment and no preference for an unlisted fact. Do not return stage objects, group hints,
+                commands, paths, verifier objects, outcome, status, design gaps, ids, or explanations.
+                Built-in and MCP tools are disabled. Return the complete object immediately.
+                In TEXT_MARKER mode, put the same object between LOOPSPEC_COMPILATION_PLAN_JSON_START and
+                LOOPSPEC_COMPILATION_PLAN_JSON_END markers.
+                The object has exactly summary, factAssignments, capabilityPreferences, and handoffSummary:
+                {"summary":"short summary","factAssignments":[{"factIndex":3,"stageIndex":1}],
+                "capabilityPreferences":[{"factIndex":3,"capabilityIndexes":[2]}],
+                "handoffSummary":"short handoff"}
+                %s
+
+                Frozen package: %s
+                Locked resolution and closed unresolved slots:
+                %s
+                Frozen DesignFacts:
+                %s
+                Frozen verification capabilities:
+                %s
+                """.formatted(MachineRoleContractCatalog.card("COMPILER"),
+                priorError == null || priorError.isBlank() ? ""
+                        : "The previous output was rejected; return one complete replacement after: " + priorError,
+                packageId, lockedResolutionJson, factsJson, capabilitiesJson);
     }
 
     static String planning(String packageId, WorkPackageRoleService.View profile,
@@ -68,7 +100,118 @@ final class DesignerCompilerPromptContracts {
                 %s
                 """.formatted(rolePrompts.compilerInstructions(profile.rolePackId(), profile.rolePackVersion(),
                         profile.executionStrategy(), profile.technologies(), profile.testPolicy()),
-                MachineRoleContractCatalog.card("COMPILER"), packageId, example);
+                MachineRoleContractCatalog.legacyCompilerCard(), packageId, example);
+    }
+
+    static String semanticPlanning(String projectRoot, int requirementRevision, String packageId,
+                                   String workflowMode, String prerequisites, String testEvidence,
+                                   String sourceIndex, String machineContract, int designRevision, String design) {
+        return """
+                You are OpenCode Loopper LoopSpec Compiler / 规范工程师 in the semantic planning turn for exactly one
+                frozen work-package design. This is a strictly read-only Session: use only read, glob, and grep;
+                never write files, execute commands, ask questions, create tasks, or emit final StageSpec JSON.
+
+                Think in this fixed order and expose only the bounded planning result, not private chain-of-thought:
+                1. Plan a coherent, dependency-ordered Stage sequence inside the current package and obey the
+                   workflow-specific Stage limit below.
+                2. Map each observable acceptance criterion to one or more DS-L source refs and a concrete machine/
+                   Judge evidence strategy; use only the current Role Pack's repository-native focused-test argv.
+                3. Return the structured planning envelope below. Do not redesign another package or invent a
+                   requirement absent from the frozen design.
+
+                Project root: %s
+                Requirement revision: R%d
+                Required workPackageId: %s
+                Required criterion id prefix: %s-AC-
+                Workflow mode: %s
+
+                Frozen prerequisite package contracts:
+                %s
+
+                Repository timing rule: this read-only repository is the immutable pre-execution baseline. A listed
+                prerequisite with state APPROVED is guaranteed to execute successfully before this package's Stages
+                can start in the single dependency-ordered Task. Its files may therefore be absent now. Use read/glob/
+                grep only for baseline conventions and files not owned by completed prerequisites. You must not return
+                DESIGN_INCOMPLETE or MISSING_SCOPE merely because a completed prerequisite deliverable is absent from
+                the current repository. Report a semantic gap only when the required contract is absent from both the
+                frozen current design and the frozen prerequisite contract/handoff.
+
+                Designer-declared focused test evidence (exact frozen design lines; reuse these named tests and
+                commands instead of inventing replacements):
+                %s
+
+                Frozen Designer source index (use only these DS-L refs; the server resolves exact text):
+                %s
+
+                %s
+
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->
+                Put exactly one complete planning object matching the contract above here.
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->
+
+                Frozen work-package design revision %d:
+                %s
+                """.formatted(projectRoot, requirementRevision, packageId, packageId, workflowMode, prerequisites,
+                testEvidence, sourceIndex, machineContract, designRevision, design);
+    }
+
+    static String finalJson(String packageId, String draftJson, String planJson, String machineContract) {
+        return """
+                The Stage planning and acceptance evidence mapping below passed deterministic validation and is now
+                frozen. Compile it into the final CompiledPackage JSON. Preserve every Stage field, acceptance field,
+                exact Designer excerpt, verifier object, verificationRuntime, test argv/target, handoff, ordering,
+                and status. The verifier/runtime blueprints are already executable and must be copied byte-for-field;
+                do not redesign, add, remove, or paraphrase planning decisions.
+
+                Required workPackageId: %s
+                Read-only draft defaults preserved later by server aggregation: %s
+                Frozen planning:
+                %s
+
+                %s
+
+                <!-- LOOPSPEC_COMPILATION_JSON_START -->
+                Put exactly one complete replacement object matching the frozen plan and machine contract here.
+                <!-- LOOPSPEC_COMPILATION_JSON_END -->
+                """.formatted(packageId, draftJson, planJson, machineContract);
+    }
+
+    static String legacyFinal(String projectRoot, String packageId, String draftJson, String prerequisites,
+                              String stageRange, String machineContract, int designRevision,
+                              int requirementRevision, String design) {
+        return """
+                You are OpenCode Loopper LoopSpec Compiler / 规范工程师 for one frozen work-package design in a new
+                strictly read-only Session. You may use read, glob, and grep to verify build/test conventions. Never
+                edit/write files, execute commands, ask questions, create tasks, compile other packages, or add absent
+                business requirements.
+
+                Project root: %s
+                Required workPackageId: %s
+                Required criterion id prefix: %s-AC-
+                Read-only draft defaults preserved later by server aggregation: %s
+                Frozen prerequisite package contracts: %s
+
+                This repository is the pre-execution baseline. A prerequisite with state APPROVED will execute
+                before this package, so its currently absent deliverables are available-at-execution dependencies,
+                not MISSING_SCOPE. Do not reject the package solely because read/glob/grep cannot find those files.
+
+                COMPILED returns %s complete StageSpec objects only (not a LoopSpec), a short summary, an exact
+                Designer excerpt for every criterion, and a dependency handoffSummary <=4 KiB UTF-8. Every StageSpec
+                sets workPackageId=%s. DESIGN_INCOMPLETE is only for the closed semantic gap codes. JSON/schema/
+                validator/coverage uncertainty must be repaired as COMPILED, not escaped as DESIGN_INCOMPLETE.
+                Existing implementationKind, direct PROCESS, behavior coverage, Java focused-unit-test, runtime, and
+                blocking deterministic verifier rules all apply.
+
+                %s
+
+                <!-- LOOPSPEC_COMPILATION_JSON_START -->
+                Put exactly one complete replacement object matching the canonical envelope above here.
+                <!-- LOOPSPEC_COMPILATION_JSON_END -->
+
+                Frozen package design revision %d for requirement R%d:
+                %s
+                """.formatted(projectRoot, packageId, packageId, draftJson, prerequisites, stageRange, packageId,
+                machineContract, designRevision, requirementRevision, design);
     }
 
     static String compiledPackage(String packageId) {

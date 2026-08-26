@@ -70,7 +70,7 @@ class FeatureMigrationTest {
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
 
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("43");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("44");
         try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
             try (var result = statement.executeQuery("SELECT state,workflow_phase,discussion_scope FROM designer_session WHERE id='s27'")) {
                 assertThat(result.next()).isTrue();
@@ -90,6 +90,29 @@ class FeatureMigrationTest {
         }
     }
 
+    @Test
+    void v43AcceptancePlanningRowsUpgradeAsLegacyUnknown() throws Exception {
+        Path database = temporaryDirectory.resolve("v43-acceptance-source.db");
+        String url = "jdbc:sqlite:" + database;
+        Flyway.configure().dataSource(url, null, null).target(MigrationVersion.fromVersion("43")).load().migrate();
+        try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
+            statement.executeUpdate("INSERT INTO project(id,name,root_path,created_at,updated_at) VALUES('p44','P','/tmp/p44','now','now')");
+            statement.executeUpdate("INSERT INTO loop_draft(id,project_id,goal,spec_json,status,created_at,updated_at) VALUES('d44','p44','G','{}','DRAFT_READY','now','now')");
+            statement.executeUpdate("INSERT INTO designer_session(id,project_id,state,access_mode,loop_draft_id,created_at,updated_at) VALUES('s44','p44','RUNNING','READ_ONLY','d44','now','now')");
+            statement.executeUpdate("INSERT INTO designer_message(id,designer_session_id,ordinal,role,content,delivery_state,created_at) VALUES('m44','s44',1,'ASSISTANT','design','PERSISTED','now')");
+            statement.executeUpdate("INSERT INTO loop_spec_compilation(id,designer_session_id,design_revision,state,source_design_message_id,source_draft_version,created_at,updated_at) VALUES('cmp44','s44',1,'RUNNING','m44',0,'now','now')");
+            statement.executeUpdate("INSERT INTO design_acceptance_planning(compilation_id,designer_session_id,work_package_id,design_revision,contract_version,design_sha256,state,facts_json,capabilities_json,created_at,updated_at) VALUES('cmp44','s44','WP-1',1,'DESIGN_ACCEPTANCE_V5','"
+                    + "0".repeat(64) + "','EXTRACTED','{}','{}','now','now')");
+        }
+
+        Flyway.configure().dataSource(url, null, null).load().migrate();
+        try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement();
+             var result = statement.executeQuery("SELECT binding_source FROM design_acceptance_planning WHERE compilation_id='cmp44'")) {
+            assertThat(result.next()).isTrue();
+            assertThat(result.getString(1)).isEqualTo("LEGACY_UNKNOWN");
+        }
+    }
+
     private void assertMigratesToLatest(Path database, String startingVersion) throws Exception {
         String url = "jdbc:sqlite:" + database;
         if (startingVersion != null) {
@@ -102,7 +125,7 @@ class FeatureMigrationTest {
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
 
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("43");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("44");
         try (var connection = DriverManager.getConnection(url);
              var statement = connection.prepareStatement("SELECT name FROM sqlite_master WHERE type='table'")) {
             try (var result = statement.executeQuery()) {
