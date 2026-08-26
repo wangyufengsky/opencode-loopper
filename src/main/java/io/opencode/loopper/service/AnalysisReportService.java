@@ -333,7 +333,9 @@ public class AnalysisReportService {
                 io.opencode.loopper.domain.MutationMode.valueOf(row.mutationMode()), artifacts, technologies,
                 io.opencode.loopper.domain.TestPolicy.valueOf(row.testPolicy()),
                 io.opencode.loopper.domain.ExecutionStrategy.valueOf(row.executionStrategy()), row.rolePackId(),
-                row.rolePackVersion(), row.confidence(), List.of(), row.resolutionSource(), row.decisionRequired()==1,
+                row.rolePackVersion(), row.confidence(),
+                TaskProfileConfidence.available(row.resolutionSource(), row.confidence(), List.of()),
+                List.of(), row.resolutionSource(), row.decisionRequired()==1,
                 TaskIntent.SOFTWARE_CHANGE.name().equals(row.intent())
                         && io.opencode.loopper.domain.WorkflowTemplate.FULL_PACKAGE_DESIGN.name().equals(row.workflowTemplate()),
                 null, row.version(), row.projectStackProfileId(), row.stackFingerprint(),

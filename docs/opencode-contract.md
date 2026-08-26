@@ -51,12 +51,12 @@ registered project root, while Loopper's bearer-protected Spring AI MCP server
 is independently exposed at `/api/mcp-streamable`.
 
 The REST workflow uses specialized model roles plus a deterministic server validator.
-Before selecting those roles, the requirement Router supplies semantic task labels while the
-server combines them with the latest immutable V42 project stack snapshot. The snapshot is
+Before selecting those roles, the requirement Router supplies only intent, one primary artifact,
+and SIMPLE/PACKAGED while the server combines them with the latest immutable V42 project stack snapshot. The snapshot is
 created by deterministic bounded filesystem analysis, not by Router output or `AGENTS.md`.
-Relative paths, module names, and Router labels may select only repository-backed component
+Relative paths, module names, and requirement text may select only repository-backed component
 keys. Ambiguous multi-stack and missing/partial evidence require user confirmation; an empty
-project cannot become Java merely because the Router says Java. The `2026-08-dynamic-v5` selector
+project cannot become Java from an AI guess. The `2026-08-dynamic-v5` selector
 normalizes technology aliases into Java, Python, Node, or Other families before choosing
 a frozen Role Pack: JavaScript is never a Java signal, same-family aliases do not create a
 mixed pack, and an explicit unknown single stack uses the generic software pack. The result
@@ -73,7 +73,8 @@ variant where available. Its prompt forbids repository exploration, design, impl
 and reasoning exposition, and requires the closed object immediately. It uses the
 fixed marker envelope rather than an OpenCode JSON Schema response format, avoiding the desktop
 Session-loader incompatibility that rejects a persisted `{type: json_schema, schema: ...}` object.
-The same closed server-side contract and validation still apply. Its configurable
+The V2 server contract contains only those three classification labels; V1 extra fields remain
+parse-compatible but are ignored. Technology, components, and confidence are server-derived. Its configurable
 `loopper.task-profile-router-timeout` boundary defaults to 240 seconds and applies only while the
 run has no persisted external Session ID. Once connected, the monitor waits for the remote terminal
 state without a wall-clock deadline. An unconnected deadline records `ROUTER_TIMEOUT` and

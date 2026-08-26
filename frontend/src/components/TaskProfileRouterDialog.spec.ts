@@ -111,13 +111,13 @@ describe('TaskProfileRouterDialog', () => {
     wrapper.unmount()
   })
 
-  it('separates confidence from Java and exposes confirm, reroute, and manual modification', async () => {
+  it('shows unavailable confidence separately from Java and exposes all decisions', async () => {
     const session: DesignerSession = {
       ...baseSession,
       workflowPhase: 'ROUTING',
       taskProfile: {
         ...baseSession.taskProfile, state: 'PROVISIONAL', decisionState: 'NEEDS_CONFIRMATION',
-        technologies: ['java'], confidence: 0, confirmationReady: false,
+        technologies: ['java'], confidence: 0, confidenceAvailable: false, confirmationReady: false,
       },
       routerRun: {
         id: 'run-completed', state: 'COMPLETED', externalState: 'COMPLETED',
@@ -129,7 +129,7 @@ describe('TaskProfileRouterDialog', () => {
     await flushPromises()
 
     const fields = [...document.body.querySelectorAll('.profile-result-grid article')]
-    expect(fields[0]!.textContent).toBe('识别置信度0%')
+    expect(fields[0]!.textContent).toBe('识别置信度未产生')
     expect(fields[1]!.textContent).toBe('技术栈java')
     await clickButton('重新识别')
     await clickButton('确认并进入设计')
@@ -151,6 +151,7 @@ describe('TaskProfileRouterDialog', () => {
       taskProfile: {
         ...baseSession.taskProfile, state: 'PROVISIONAL', decisionState: 'NEEDS_CONFIRMATION',
         evidence: ['router-error=ROUTER_TIMEOUT'], resolutionSource: 'ROUTER_FALLBACK',
+        confidence: 0, confidenceAvailable: false,
       },
       routerRun: {
         id: 'run-failed', state: 'FAILED', externalState: 'FAILED', errorCode: 'ROUTER_START_FAILED',
@@ -158,8 +159,10 @@ describe('TaskProfileRouterDialog', () => {
         updatedAt: '2026-08-25T07:04:01Z', retryAvailable: true,
       },
     })
+
     await flushPromises()
 
+    expect(bodyText()).toContain('识别置信度未产生')
     expect(bodyText()).toContain('本次识别未能可靠完成')
     expect(bodyText()).toContain('任务设置识别未能连接远端 Session')
     wrapper.unmount()

@@ -1045,6 +1045,7 @@ export interface DesignerTaskProfile {
   rolePackId: string
   rolePackVersion: string
   confidence: number
+  confidenceAvailable?: boolean
   evidence: string[]
   resolutionSource: string
   decisionRequired: boolean

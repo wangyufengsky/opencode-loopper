@@ -52,4 +52,17 @@ class MachineRoleContractCatalogTest {
         Map<String, Object> groups = (Map<String, Object>) properties.get("groupHints");
         assertThat(groups).containsEntry("maxItems", 6);
     }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void taskRouterV2CarriesOnlyTheThreeClassificationLabels() {
+        Map<String, Object> schema = OpenCodeStructuredSchemas.schema(
+                OpenCodeStructuredSchemas.TASK_PROFILE_ROUTER_V2);
+        Map<String, Object> properties = (Map<String, Object>) schema.get("properties");
+
+        assertThat(schema.get("required")).isEqualTo(java.util.List.of(
+                "intent", "artifactKinds", "complexity"));
+        assertThat(properties).containsOnlyKeys("intent", "artifactKinds", "complexity");
+        assertThat((Map<String, Object>) properties.get("artifactKinds")).containsEntry("maxItems", 1);
+    }
 }

@@ -45,18 +45,19 @@ public final class TaskProfileRouter {
         return route(ephemeral(root), requirement, semantic);
     }
     public Decision route(ProjectStackSnapshot profile, String requirement) {
-        StackSelection selection = select(profile, requirement, List.of());
+        StackSelection selection = select(profile, requirement);
         return deterministic(requirement, profile, selection);
     }
 
     public Decision route(ProjectStackSnapshot profile, String requirement, SemanticLabels semantic) {
         if (semantic == null) return genericFallback(profile, requirement, "router-output-unavailable");
-        StackSelection selection = select(profile, requirement, semantic.technologies());
+        StackSelection selection = select(profile, requirement);
         Decision deterministic = deterministic(requirement, profile, selection);
         boolean unsafe = deterministic.evidence().contains("unsafe-operation-conflict");
         boolean artifactConflict = !artifactsCompatible(semantic.intent(), semantic.artifactKinds());
-        boolean conflict = semantic.intent() != deterministic.intent()
-                && deterministic.confidence() >= AUTO_ROUTE_CONFIDENCE || artifactConflict
+        boolean intentConflict = semantic.intent() != deterministic.intent()
+                && deterministic.confidence() >= AUTO_ROUTE_CONFIDENCE;
+        boolean conflict = intentConflict || artifactConflict
                 || deterministic.evidence().contains("mixed-mutation-conflict");
         TaskIntent intent = unsafe ? deterministic.intent() : semantic.intent();
         List<ArtifactKind> artifacts = semantic.artifactKinds().isEmpty()
@@ -66,8 +67,10 @@ public final class TaskProfileRouter {
         WorkflowTemplate workflow = workflow(intent, packaged);
         MutationMode mutation = mutation(intent);
         boolean componentSelectionRequired = requiresComponentSelection(intent, selection);
-        int confidence = Math.min(100, (semantic.confidence() + deterministic.confidence()) / 2
-                + (semantic.intent() == deterministic.intent() ? 10 : 0));
+        boolean semanticAgreement = semantic.intent() == deterministic.intent() && !artifactConflict;
+        int confidence = semanticAgreement
+                ? Math.min(100, deterministic.confidence() + 10)
+                : deterministic.confidence();
         if (conflict) confidence = Math.min(confidence, 69);
         if (unsafe) confidence = Math.min(confidence, 50);
         if (componentSelectionRequired) confidence = Math.min(confidence, 69);
@@ -78,8 +81,8 @@ public final class TaskProfileRouter {
                 .filter(value -> !evidence.contains(value)).forEach(evidence::add);
         evidence.add("ai-router-intent=" + semantic.intent().name());
         evidence.add("ai-router-complexity=" + semantic.complexity());
+        evidence.add("ai-router-contract=TASK_PROFILE_ROUTER_V2");
         if (intent == TaskIntent.SOFTWARE_CHANGE && packaged) evidence.add("large-task-recommended");
-        semantic.signals().forEach(value -> evidence.add("ai-router-signal=" + value));
         if (conflict) evidence.add("router-evidence-conflict=" + deterministic.intent().name());
         if (artifactConflict) evidence.add("router-artifact-conflict=" + semantic.intent().name());
         return decision(profile, selection, intent, workflow, mutation, artifacts, confidence,
@@ -90,7 +93,7 @@ public final class TaskProfileRouter {
         return genericFallback(ephemeral(root), "", reason);
     }
     public Decision genericFallback(ProjectStackSnapshot profile, String requirement, String reason) {
-        StackSelection selection = select(profile, requirement, List.of());
+        StackSelection selection = select(profile, requirement);
         List<String> evidence = new ArrayList<>(selection.evidence());
         evidence.add("router-fallback=" + reason);
         return decision(profile, selection, TaskIntent.SOFTWARE_CHANGE, WorkflowTemplate.DIRECT_SOFTWARE_DESIGN,
@@ -145,11 +148,9 @@ public final class TaskProfileRouter {
                 confidence < AUTO_ROUTE_CONFIDENCE || unsafe || componentSelectionRequired, evidence);
     }
 
-    private StackSelection select(ProjectStackSnapshot profile, String requirement, List<String> semanticTechnologies) {
+    private StackSelection select(ProjectStackSnapshot profile, String requirement) {
         String text = requirement == null ? "" : requirement.toLowerCase(Locale.ROOT);
         LinkedHashSet<String> requestedFamilies = new LinkedHashSet<>(explicitFamilies(text));
-        if (semanticTechnologies != null) semanticTechnologies.stream().map(TaskProfileRouter::family)
-                .filter(value -> value != null).forEach(requestedFamilies::add);
         LinkedHashSet<String> selected = new LinkedHashSet<>();
         for (ProjectStackSnapshot.Component component : profile.components()) {
             if (mentionsComponent(text, component)
@@ -165,9 +166,8 @@ public final class TaskProfileRouter {
         LinkedHashSet<String> technologies = new LinkedHashSet<>();
         profile.components().stream().filter(component -> selected.contains(component.key()))
                 .forEach(component -> technologies.addAll(component.technologies()));
-        // Semantic labels may help choose among repository-backed components, but they never create
-        // a technology stack when the bounded repository analysis found no component evidence.
-        if (profile.components().isEmpty()) explicitTechnologies(text, List.of()).forEach(technologies::add);
+        // Technology selection is server-owned and may only use repository evidence or explicit requirement text.
+        if (profile.components().isEmpty()) explicitTechnologies(text).forEach(technologies::add);
         List<String> evidence = new ArrayList<>(profile.evidence());
         if (profile.id() != null) evidence.add("stack-profile=" + profile.id());
         if (profile.manifestFingerprint() != null) evidence.add("stack-fingerprint=" + profile.manifestFingerprint());
@@ -203,35 +203,14 @@ public final class TaskProfileRouter {
         return result;
     }
 
-    private static List<String> explicitTechnologies(String text, List<String> semantic) {
+    private static List<String> explicitTechnologies(String text) {
         LinkedHashSet<String> values = new LinkedHashSet<>();
         if (JAVA.matcher(text).find()) values.add("java");
         if (NODE.matcher(text).find()) values.add("node");
         if (PYTHON.matcher(text).find()) values.add("python");
         if (Pattern.compile("(?<![a-z0-9])(go|golang)(?![a-z0-9])").matcher(text).find()) values.add("go");
         if (Pattern.compile("(?<![a-z0-9])(rust|cargo)(?![a-z0-9])").matcher(text).find()) values.add("rust");
-        if (semantic != null) semantic.stream().map(TaskProfileRouter::normalizeTechnology)
-                .filter(value -> value != null).forEach(values::add);
         return List.copyOf(values);
-    }
-
-    private static String family(String value) {
-        String normalized = normalizeTechnology(value);
-        if (normalized == null) return null;
-        return switch (normalized) {
-            case "java" -> "java"; case "node" -> "node"; case "python" -> "python"; default -> "other";
-        };
-    }
-    private static String normalizeTechnology(String value) {
-        if (value == null || value.isBlank()) return null;
-        String lower = value.toLowerCase(Locale.ROOT);
-        if (JAVA.matcher(lower).find()) return "java";
-        if (NODE.matcher(lower).find()) return "node";
-        if (PYTHON.matcher(lower).find()) return "python";
-        if (lower.matches(".*(?<![a-z0-9])(go|golang)(?![a-z0-9]).*")) return "go";
-        if (lower.contains("rust") || lower.contains("cargo")) return "rust";
-        String normalized = lower.replaceAll("[^a-z0-9.+#-]", "");
-        return normalized.isBlank() ? null : normalized;
     }
 
     private ProjectStackSnapshot ephemeral(Path root) {
@@ -307,12 +286,9 @@ public final class TaskProfileRouter {
                     decisionRequired, evidence, null, null, List.of(), List.of(), "UNANALYZED");
         }
     }
-    public record SemanticLabels(TaskIntent intent, List<ArtifactKind> artifactKinds, List<String> technologies,
-                                 String complexity, int confidence, List<String> signals) {
+    public record SemanticLabels(TaskIntent intent, List<ArtifactKind> artifactKinds, String complexity) {
         public SemanticLabels {
             artifactKinds = artifactKinds == null ? List.of() : List.copyOf(artifactKinds);
-            technologies = technologies == null ? List.of() : List.copyOf(technologies);
-            signals = signals == null ? List.of() : List.copyOf(signals);
         }
     }
 }

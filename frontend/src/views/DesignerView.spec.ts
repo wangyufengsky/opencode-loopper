@@ -325,6 +325,7 @@ describe('Designer draft composer', () => {
         decisionRequired: true,
         previousConfirmedChoice: undefined,
         confidence: 90,
+        confidenceAvailable: true,
         resolutionSource: 'AI_ROUTER',
       },
       availableProfileOverrides: ['SOFTWARE_CHANGE', 'DOCUMENT_AUTHORING', 'READ_ONLY_REVIEW'],

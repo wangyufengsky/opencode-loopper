@@ -122,7 +122,7 @@ public class TaskProfileService {
             if (mapper.insertTaskProfileRouterRun(pending) != 1) {
                 throw new ConflictException("TASK_PROFILE_ROUTER_CREATE_CONFLICT", "任务设置识别记录未能持久化");
             }
-            TaskSemanticRouter.StartResult started = semanticRouter.start(root, requirement, observedEvidence);
+            TaskSemanticRouter.StartResult started = semanticRouter.start(root, requirement);
             TaskProfileRouterRunRow updated = new TaskProfileRouterRunRow(pending.id(), sessionId,
                     started.started() ? "RUNNING" : "FAILED", pending.requirementSnapshot(), pending.repositoryEvidenceJson(),
                     started.externalSessionId(), started.started() ? "RUNNING" : "FAILED", started.responseMode(), null,
@@ -155,8 +155,7 @@ public class TaskProfileService {
                     continue;
                 }
                 if ("PENDING".equals(run.state())) {
-                    TaskSemanticRouter.StartResult started = semanticRouter.start(root, run.requirementSnapshot(),
-                            readStrings(run.repositoryEvidenceJson()));
+                    TaskSemanticRouter.StartResult started = semanticRouter.start(root, run.requirementSnapshot());
                     TaskProfileRouterRunRow startedRow;
                     try {
                         startedRow = updateRun(run, started.started() ? "RUNNING" : "FAILED",
@@ -515,11 +514,13 @@ public class TaskProfileService {
         List<String> componentKeys = readStrings(row.componentKeysJson());
         boolean componentSelectionRequired = row.decisionRequired() == 1 && componentKeys.isEmpty()
                 && readStrings(row.evidenceJson()).contains("component-selection-ambiguous");
+        List<String> evidence = readStrings(row.evidenceJson());
         return new View(row.id(), row.state(), decisionState, ready,
                 TaskIntent.valueOf(row.intent()), WorkflowTemplate.valueOf(row.workflowTemplate()),
                 MutationMode.valueOf(row.mutationMode()), artifacts, readStrings(row.technologiesJson()),
                 TestPolicy.valueOf(row.testPolicy()), ExecutionStrategy.valueOf(row.executionStrategy()),
-                row.rolePackId(), row.rolePackVersion(), row.confidence(), readStrings(row.evidenceJson()),
+                row.rolePackId(), row.rolePackVersion(), row.confidence(),
+                TaskProfileConfidence.available(row.resolutionSource(), row.confidence(), evidence), evidence,
                 row.resolutionSource(), row.decisionRequired() == 1,
                 TaskIntent.SOFTWARE_CHANGE.name().equals(row.intent())
                         && WorkflowTemplate.FULL_PACKAGE_DESIGN.name().equals(row.workflowTemplate()),
@@ -532,7 +533,7 @@ public class TaskProfileService {
         return new View(null, "LEGACY", "CONFIRMED", true,
                 TaskIntent.LEGACY_SOFTWARE, WorkflowTemplate.FULL_PACKAGE_DESIGN,
                 MutationMode.WRITE_CODE, List.of(ArtifactKind.SOURCE_CODE), List.of(), TestPolicy.REQUIRED,
-                ExecutionStrategy.OPEN_CODE_IMPLEMENTATION, "software-java", "legacy", 0,
+                ExecutionStrategy.OPEN_CODE_IMPLEMENTATION, "software-java", "legacy", 0, false,
                 List.of("historical-session-without-profile"), "LEGACY", false, false, null, 0,
                 null, null, List.of(), List.of(), "UNANALYZED", false);
     }
@@ -542,11 +543,10 @@ public class TaskProfileService {
         return new View(null, "ROUTING", "ROUTING", false, TaskIntent.SOFTWARE_CHANGE,
                 WorkflowTemplate.DIRECT_SOFTWARE_DESIGN, MutationMode.WRITE_CODE,
                 List.of(ArtifactKind.SOURCE_CODE), List.of(), TestPolicy.OPTIONAL,
-                ExecutionStrategy.OPEN_CODE_IMPLEMENTATION, "routing", "pending", 0,
+                ExecutionStrategy.OPEN_CODE_IMPLEMENTATION, "routing", "pending", 0, false,
                 List.of(), "ROUTER", true, false, previous, 0,
                 null, null, List.of(), List.of(), "UNANALYZED", false);
     }
-
     private boolean confirmationReady(DesignerTaskProfileRow row) {
         return "FROZEN".equals(row.state()) || ("PROVISIONAL".equals(row.state()) && row.decisionRequired() == 0);
     }
@@ -591,7 +591,8 @@ public class TaskProfileService {
                        TaskIntent intent, WorkflowTemplate workflowTemplate,
                        MutationMode mutationMode, List<ArtifactKind> artifactKinds, List<String> technologies,
                        TestPolicy testPolicy, ExecutionStrategy executionStrategy, String rolePackId,
-                       String rolePackVersion, int confidence, List<String> evidence, String resolutionSource,
+                       String rolePackVersion, int confidence, boolean confidenceAvailable,
+                       List<String> evidence, String resolutionSource,
                        boolean decisionRequired, boolean largeTaskMode, ConfirmedChoice previousConfirmedChoice,
                        long version, String projectStackProfileId, String stackFingerprint,
                        List<String> componentKeys, List<ProjectStackSnapshot.Component> candidateComponents,

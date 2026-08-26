@@ -160,13 +160,12 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     private String taskRouterOutput(String prompt) {
         String text = prompt == null ? "" : prompt.toLowerCase(java.util.Locale.ROOT);
         int requirementStart = text.indexOf("requirement:");
-        int evidenceStart = text.indexOf("server-observed repository facts");
-        if (requirementStart >= 0 && evidenceStart > requirementStart) {
-            text = text.substring(requirementStart + "requirement:".length(), evidenceStart);
+        int outputStart = text.indexOf("return only the marker-wrapped object");
+        if (requirementStart >= 0 && outputStart > requirementStart) {
+            text = text.substring(requirementStart + "requirement:".length(), outputStart);
         }
         String intent = "SOFTWARE_CHANGE";
         String artifacts = "[\"SOURCE_CODE\"]";
-        String technologies = "[]";
         String complexity = text.contains("大型") || text.contains("多章节") ? "PACKAGED" : "SIMPLE";
         if ((text.contains("xlsx") || text.contains("excel") || text.contains("csv") || text.contains("tsv"))
                 && (text.contains("一次性") || text.contains("转成") || text.contains("转换成"))
@@ -183,13 +182,11 @@ public class FakeOpenCodeClient implements OpenCodeClient {
         } else if (text.contains("配置") || text.contains("维护") || text.contains("依赖升级")) {
             intent = "LOCAL_MAINTENANCE"; artifacts = "[\"CONFIGURATION\"]";
         }
-        if (text.contains("python") || text.contains("py脚本")) {
-            technologies = "[\"python\"]"; if (intent.equals("SOFTWARE_CHANGE")) artifacts = "[\"PYTHON_SCRIPT\"]";
-        } else if (text.contains("vue") || text.contains("node") || text.contains("typescript")) technologies = "[\"node\"]";
-        else if (text.contains("java") || text.contains("maven") || text.contains("spring")) technologies = "[\"java\"]";
+        if ((text.contains("python") || text.contains("py脚本")) && intent.equals("SOFTWARE_CHANGE")) {
+            artifacts = "[\"PYTHON_SCRIPT\"]";
+        }
         return "{\"intent\":\"" + intent + "\",\"artifactKinds\":" + artifacts
-                + ",\"technologies\":" + technologies + ",\"complexity\":\"" + complexity
-                + "\",\"confidence\":92,\"signals\":[\"fake-router\"]}";
+                + ",\"complexity\":\"" + complexity + "\"}";
     }
     @Override public SessionResult sessionResult(OpenCodeSession session) {
         String output = sessionOutput(session);

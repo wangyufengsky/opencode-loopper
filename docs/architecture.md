@@ -132,14 +132,16 @@ creating its replacement. The synchronous request starter and the 750 ms monitor
 persisted Router run exclusively; if an optimistic update is lost after remote creation, that
 unowned remote Session is aborted instead of escaping as a parallel run. The server scans only
 bounded, non-symlink manifest/file facts, while an independent
-`ROUTER_NO_TOOLS` OpenCode Session returns semantic labels through a fixed marker envelope and
-the same closed `TASK_PROFILE_ROUTER_V1` object contract. Router deliberately does not persist an
+`ROUTER_NO_TOOLS` OpenCode Session returns only intent, one primary artifact, and SIMPLE/PACKAGED
+through a fixed marker envelope and the closed `TASK_PROFILE_ROUTER_V2` contract. Historical V1
+extra fields remain parse-compatible but cannot influence technology or confidence. Router deliberately does not persist an
 OpenCode JSON Schema response format because affected OpenCode desktop versions reject that stored
 shape while loading the Session. Router skips MCP discovery, denies every built-in and configured MCP
 tool, and on a managed runtime uses a one-step, zero-temperature, non-thinking `loopper-router` Agent.
 Its prompt allows only immediate task classification and forbids repository search, design, implementation
-planning, or reasoning exposition. The AI Router never owns permissions, commands, workflow selection,
-or authorization. Session/output failure produces a generic decision-required profile
+planning, or reasoning exposition. Technology/component selection and confidence are derived only from
+bounded server evidence plus agreement with those three labels. The AI Router never owns permissions,
+commands, workflow selection, or authorization. Session/output failure produces a generic decision-required profile
 instead of terminating the Designer. The configurable 240-second Router boundary applies only until
 an external Session ID has been persisted. Once connected, the server keeps polling until the remote
 Session reaches a real terminal state and exposes no deadline in the read model. An unconnected
@@ -537,8 +539,8 @@ converted to Java. `GET /api/projects/{id}/stack-profile` exposes the bounded mo
 
 Every Router run, confirmed task profile, work package, and Stage records the exact project-profile
 id, manifest fingerprint, and selected component keys it used. Repository paths, module names, and
-AI semantic technology labels may select only components supported by that snapshot; the AI cannot
-invent repository evidence or override execution and permission policy. A single family is selected
+explicit technology words in the requirement may select only components supported by that snapshot;
+the AI labels cannot select a technology or override execution and permission policy. A single family is selected
 automatically, explicit cross-component work becomes mixed, ambiguous multi-stack work requires a
 component choice, and an empty repository becomes generic plus confirmation. Direct `WP-1` inherits
 the confirmed selection; only explicit full-package design may specialize it. Once frozen, Task,

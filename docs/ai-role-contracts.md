@@ -30,11 +30,12 @@ Java、Python、Node、混合栈、通用软件、Markdown/DOCX、表格转换�
 各自组合提示，不能把其他栈或非软件流程的示例注入当前 Compiler。
 
 Router 使用独立 `ROUTER_NO_TOOLS` Session；它不执行 MCP 发现并拒绝全部内置与 MCP 工具，
-只使用服务端提供的需求快照和有界仓库标签完成单次分类。受管运行时为它选择单步、零温度、
+只读取服务端提供的需求快照完成单次分类；仓库画像不进入模型提示。受管运行时为它选择单步、零温度、
 非思考的 `loopper-router` Agent；提示明确禁止仓库搜索、方案设计、实现推演和解释。Router 固定使用 marker 信封承载
-`TASK_PROFILE_ROUTER_V1` 闭集对象，不向 OpenCode Session 持久化 JSON Schema 响应格式，
+`TASK_PROFILE_ROUTER_V2` 闭集对象，不向 OpenCode Session 持久化 JSON Schema 响应格式，
 以兼容会在加载该格式时崩溃的桌面版本；服务端解析与闭集校验没有放宽。它只返回
-`intent / artifactKinds / technologies / complexity / confidence / signals`，服务端仍独占
+`intent / artifactKinds（恰好一个主要制品）/ complexity`；V1 的额外字段仅兼容读取，不能参与决策。
+技术栈、组件和置信度由服务端仓库证据与三标签一致性推导，服务端仍独占
 `WorkflowTemplate / MutationMode / ExecutionStrategy / TestPolicy`。每次 Router 的需求
 快照、外部 Session、响应模式、时间戳、标签和失败原因都持久化；重启继续同一 Session，
 新一轮需求讨论会终止并废弃旧快照的 Router。需求 Designer 和

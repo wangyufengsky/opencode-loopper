@@ -139,6 +139,7 @@ class DesignerSessionMcpIntegrationTest {
             assertThat(profile.state()).isEqualTo("ROUTING");
             assertThat(profile.decisionState()).isEqualTo("ROUTING");
             assertThat(profile.confirmationReady()).isFalse();
+            assertThat(profile.confidenceAvailable()).isFalse();
             assertThat(profile.evidence()).isEmpty();
         });
         assertThat(mapper.findLatestTaskProfileRouterRun(created.id())).hasValueSatisfying(run -> {
@@ -150,8 +151,10 @@ class DesignerSessionMcpIntegrationTest {
             assertThat(fake().profileForSession(run.externalSessionId()))
                     .isEqualTo(OpenCodeClient.SessionProfile.ROUTER_NO_TOOLS);
             assertThat(fake().promptRequestForSession(run.externalSessionId()).text())
-                    .contains("single-shot task-type classifier", "Do not call any tool", "Do not design")
-                    .doesNotContain("MCP tools may be used");
+                    .contains("TASK_PROFILE_ROUTER_V2", "fast single-shot task classifier",
+                            "Do not use tools", "Return immediately after choosing three labels")
+                    .doesNotContain("MCP tools may be used", "Server-observed repository facts",
+                            "\"technologies\"", "\"confidence\"", "\"signals\"");
         });
         assertThatThrownBy(() -> taskProfiles.freeze(created.id()))
                 .isInstanceOf(ConflictException.class).hasMessageContaining("仍在识别");
@@ -173,6 +176,7 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(taskProfiles.current(created.id())).satisfies(profile -> {
             assertThat(profile.state()).isEqualTo("PROVISIONAL");
             assertThat(profile.rolePackId()).isEqualTo("software-python");
+            assertThat(profile.confidenceAvailable()).isTrue();
         });
         assertThat(mapper.listDesignerTaskProfiles(created.id())).hasSize(2)
                 .extracting(io.opencode.loopper.persistence.DesignerTaskProfileRow::state)
@@ -508,6 +512,7 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(taskProfiles.current(created.id())).satisfies(profile -> {
             assertThat(profile.state()).isEqualTo("PROVISIONAL");
             assertThat(profile.resolutionSource()).isEqualTo("ROUTER_FALLBACK");
+            assertThat(profile.confidenceAvailable()).isFalse();
             assertThat(profile.decisionRequired()).isTrue();
             assertThat(profile.evidence()).anyMatch(value -> value.startsWith("router-error=ROUTER_SESSION_FAILED"));
         });
@@ -586,6 +591,7 @@ class DesignerSessionMcpIntegrationTest {
             assertThat(profile.decisionState()).isEqualTo("NEEDS_CONFIRMATION");
             assertThat(profile.confirmationReady()).isFalse();
             assertThat(profile.resolutionSource()).isEqualTo("ROUTER_FALLBACK");
+            assertThat(profile.confidenceAvailable()).isFalse();
         });
 
         TaskProfileService.View fallback = taskProfiles.current(created.id());
@@ -675,7 +681,10 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(timedOut.state()).isEqualTo("FAILED");
         assertThat(timedOut.errorCode()).isEqualTo("ROUTER_TIMEOUT");
         assertThat(timedOut.errorDetail()).contains("未能连接").doesNotContain("240");
-        assertThat(taskProfiles.current(created.id()).resolutionSource()).isEqualTo("ROUTER_FALLBACK");
+        assertThat(taskProfiles.current(created.id())).satisfies(profile -> {
+            assertThat(profile.resolutionSource()).isEqualTo("ROUTER_FALLBACK");
+            assertThat(profile.confidenceAvailable()).isFalse();
+        });
     }
 
     @Test

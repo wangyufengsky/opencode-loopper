@@ -16,6 +16,7 @@ public final class OpenCodeStructuredSchemas {
     public static final String AI_SEMANTIC_PATCH_V1 = "AI_SEMANTIC_PATCH_V1";
     public static final String JUDGE_DECISION_V1 = "JUDGE_DECISION_V1";
     public static final String TASK_PROFILE_ROUTER_V1 = "TASK_PROFILE_ROUTER_V1";
+    public static final String TASK_PROFILE_ROUTER_V2 = "TASK_PROFILE_ROUTER_V2";
     public static final String REVIEWER_REPORT_V1 = "REVIEWER_REPORT_V1";
     private static final ObjectMapper JSON = new ObjectMapper();
 
@@ -37,7 +38,8 @@ public final class OpenCodeStructuredSchemas {
             case PACKAGE_COMPILATION_FINAL_V2 -> read(PACKAGE_COMPILATION_FINAL);
             case AI_SEMANTIC_PATCH_V1 -> read(AI_SEMANTIC_PATCH);
             case JUDGE_DECISION_V1 -> read(JUDGE_DECISION);
-            case TASK_PROFILE_ROUTER_V1 -> read(TASK_PROFILE_ROUTER);
+            case TASK_PROFILE_ROUTER_V1 -> read(TASK_PROFILE_ROUTER_V1_SCHEMA);
+            case TASK_PROFILE_ROUTER_V2 -> read(TASK_PROFILE_ROUTER_V2_SCHEMA);
             case REVIEWER_REPORT_V1 -> read(REVIEWER_REPORT);
             default -> throw new IllegalArgumentException("Unknown OpenCode response schema: " + schemaId);
         };
@@ -237,7 +239,7 @@ public final class OpenCodeStructuredSchemas {
         }
         """;
 
-    private static final String TASK_PROFILE_ROUTER = """
+    private static final String TASK_PROFILE_ROUTER_V1_SCHEMA = """
         {
           "$schema":"https://json-schema.org/draft/2020-12/schema",
           "type":"object","additionalProperties":false,
@@ -249,6 +251,19 @@ public final class OpenCodeStructuredSchemas {
             "complexity":{"type":"string","enum":["SIMPLE","PACKAGED"]},
             "confidence":{"type":"integer","minimum":0,"maximum":100},
             "signals":{"type":"array","maxItems":16,"items":{"type":"string","minLength":1,"maxLength":256}}
+          }
+        }
+        """;
+
+    private static final String TASK_PROFILE_ROUTER_V2_SCHEMA = """
+        {
+          "$schema":"https://json-schema.org/draft/2020-12/schema",
+          "type":"object","additionalProperties":false,
+          "required":["intent","artifactKinds","complexity"],
+          "properties":{
+            "intent":{"type":"string","enum":["SOFTWARE_CHANGE","DOCUMENT_AUTHORING","DATA_CONVERSION","READ_ONLY_REVIEW","RESEARCH","CONFIGURATION","LOCAL_MAINTENANCE"]},
+            "artifactKinds":{"type":"array","minItems":1,"maxItems":1,"items":{"type":"string","enum":["SOURCE_CODE","PYTHON_SCRIPT","MARKDOWN","DOCX","XLSX","CSV","TSV","CONFIGURATION","ANALYSIS_REPORT","OTHER"]}},
+            "complexity":{"type":"string","enum":["SIMPLE","PACKAGED"]}
           }
         }
         """;

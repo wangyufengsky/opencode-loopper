@@ -15,7 +15,9 @@ import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.junit.jupiter.api.io.TempDir;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class TaskProfileRouterTest {
     @TempDir Path root;
@@ -23,8 +25,9 @@ class TaskProfileRouterTest {
 
     @Test void routerTimeoutOnlyBoundsRunsWithoutAnExternalSession() {
         LoopperProperties properties = new LoopperProperties();
-        TaskSemanticRouter semanticRouter = new TaskSemanticRouter(mock(OpenCodeClient.class), properties,
-                new tools.jackson.databind.ObjectMapper());
+        tools.jackson.databind.ObjectMapper json = new tools.jackson.databind.ObjectMapper();
+        TaskSemanticRouter semanticRouter = new TaskSemanticRouter(mock(OpenCodeClient.class), properties, json,
+                new AiOutputExtractor(json));
         String createdAt = "2026-08-25T00:00:00Z";
 
         assertThat(properties.getTaskProfileRouterTimeout().toSeconds()).isEqualTo(240);
@@ -44,6 +47,43 @@ class TaskProfileRouterTest {
         assertThat(TaskSemanticRouter.artifactKind("TEST_SOURCE_CODE")).isEqualTo(ArtifactKind.SOURCE_CODE);
         assertThat(TaskSemanticRouter.artifactKind("unit-tests")).isEqualTo(ArtifactKind.SOURCE_CODE);
         assertThat(TaskSemanticRouter.artifactKind("python test")).isEqualTo(ArtifactKind.PYTHON_SCRIPT);
+    }
+
+    @Test void parsesTheMinimalV2LabelsWithoutModelConfidenceOrTechnology() {
+        OpenCodeClient client = mock(OpenCodeClient.class);
+        tools.jackson.databind.ObjectMapper json = new tools.jackson.databind.ObjectMapper();
+        TaskSemanticRouter semanticRouter = new TaskSemanticRouter(client, new LoopperProperties(), json,
+                new AiOutputExtractor(json));
+        when(client.sessionStatus(any())).thenReturn(new OpenCodeClient.SessionStatus("COMPLETED", null));
+        when(client.sessionOutput(any())).thenReturn("""
+                <!-- TASK_PROFILE_ROUTER_JSON_START -->
+                {"intent":"SOFTWARE_CHANGE","artifactKinds":["SOURCE_CODE"],"complexity":"SIMPLE"}
+                <!-- TASK_PROFILE_ROUTER_JSON_END -->
+                """);
+
+        TaskSemanticRouter.PollResult result = semanticRouter.poll(root, "router-v2", "TEXT_MARKER");
+
+        assertThat(result.completed()).isTrue();
+        assertThat(result.labels()).isEqualTo(new TaskProfileRouter.SemanticLabels(
+                TaskIntent.SOFTWARE_CHANGE, java.util.List.of(ArtifactKind.SOURCE_CODE), "SIMPLE"));
+    }
+
+    @Test void acceptsLegacyV1ExtraFieldsButDoesNotTrustThem() {
+        OpenCodeClient client = mock(OpenCodeClient.class);
+        tools.jackson.databind.ObjectMapper json = new tools.jackson.databind.ObjectMapper();
+        TaskSemanticRouter semanticRouter = new TaskSemanticRouter(client, new LoopperProperties(), json,
+                new AiOutputExtractor(json));
+        when(client.sessionStatus(any())).thenReturn(new OpenCodeClient.SessionStatus("COMPLETED", null));
+        when(client.sessionOutput(any())).thenReturn("""
+                {"intent":"SOFTWARE_CHANGE","artifactKinds":["SOURCE_CODE"],"technologies":["java"],
+                 "complexity":"SIMPLE","confidence":0,"signals":["ignored"]}
+                """);
+
+        TaskSemanticRouter.PollResult result = semanticRouter.poll(root, "router-v1", "TEXT_MARKER");
+
+        assertThat(result.completed()).isTrue();
+        assertThat(result.labels()).isEqualTo(new TaskProfileRouter.SemanticLabels(
+                TaskIntent.SOFTWARE_CHANGE, java.util.List.of(ArtifactKind.SOURCE_CODE), "SIMPLE"));
     }
 
     @Test void routesPythonScriptWithoutJavaAssumptions() throws Exception {
@@ -128,21 +168,19 @@ class TaskProfileRouterTest {
 
     @Test void combinesAiSemanticsWithServerOwnedWorkflowAndExplicitTestPolicyEvidence() {
         TaskProfileRouter.SemanticLabels labels = new TaskProfileRouter.SemanticLabels(
-                TaskIntent.SOFTWARE_CHANGE, java.util.List.of(ArtifactKind.PYTHON_SCRIPT),
-                java.util.List.of("python"), "SIMPLE", 96, java.util.List.of("explicit reusable script"));
+                TaskIntent.SOFTWARE_CHANGE, java.util.List.of(ArtifactKind.PYTHON_SCRIPT), "SIMPLE");
 
         TaskProfileRouter.Decision decision = router.route(root,
                 "编写 Python 脚本并且必须测试", labels);
 
         assertThat(decision.workflowTemplate()).isEqualTo(WorkflowTemplate.DIRECT_SOFTWARE_DESIGN);
         assertThat(decision.evidence()).contains("requirement-tests=required",
-                "ai-router-intent=SOFTWARE_CHANGE", "ai-router-signal=explicit reusable script");
+                "ai-router-intent=SOFTWARE_CHANGE", "ai-router-contract=TASK_PROFILE_ROUTER_V2");
     }
 
     @Test void packagedAiComplexityOnlyRecommendsLargeModeAndStillDefaultsToOnePackage() {
         TaskProfileRouter.SemanticLabels labels = new TaskProfileRouter.SemanticLabels(
-                TaskIntent.SOFTWARE_CHANGE, java.util.List.of(ArtifactKind.SOURCE_CODE),
-                java.util.List.of("java"), "PACKAGED", 96, java.util.List.of("broad change"));
+                TaskIntent.SOFTWARE_CHANGE, java.util.List.of(ArtifactKind.SOURCE_CODE), "PACKAGED");
 
         TaskProfileRouter.Decision decision = router.route(root, "实现跨模块软件能力", labels);
 
@@ -150,10 +188,24 @@ class TaskProfileRouterTest {
         assertThat(decision.evidence()).contains("large-task-recommended", "ai-router-complexity=PACKAGED");
     }
 
+    @Test void serverEvidenceGivesAMultiModuleJavaTaskRealConfidence() throws Exception {
+        Files.writeString(root.resolve("pom.xml"), "<project><modules><module>core</module></modules></project>");
+        Path core = Files.createDirectory(root.resolve("core"));
+        Files.writeString(core.resolve("pom.xml"), "<project />");
+        TaskProfileRouter.SemanticLabels labels = new TaskProfileRouter.SemanticLabels(
+                TaskIntent.SOFTWARE_CHANGE, java.util.List.of(ArtifactKind.SOURCE_CODE), "SIMPLE");
+
+        TaskProfileRouter.Decision decision = router.route(root,
+                "修改多模块 Maven 项目的 Java 异常构造器并补充 JUnit 测试", labels);
+
+        assertThat(decision.technologies()).containsExactly("java");
+        assertThat(decision.confidence()).isGreaterThanOrEqualTo(TaskProfileRouter.AUTO_ROUTE_CONFIDENCE);
+        assertThat(decision.evidence()).contains("ai-router-contract=TASK_PROFILE_ROUTER_V2");
+    }
+
     @Test void semanticConflictCannotSilentlyOverrideStrongRepositoryAndRequirementEvidence() {
         TaskProfileRouter.SemanticLabels labels = new TaskProfileRouter.SemanticLabels(
-                TaskIntent.DOCUMENT_AUTHORING, java.util.List.of(ArtifactKind.MARKDOWN),
-                java.util.List.of(), "SIMPLE", 95, java.util.List.of("ambiguous wording"));
+                TaskIntent.DOCUMENT_AUTHORING, java.util.List.of(ArtifactKind.MARKDOWN), "SIMPLE");
 
         TaskProfileRouter.Decision decision = router.route(root,
                 "把 report.xlsx 一次性转换成 Markdown", labels);
@@ -165,8 +217,7 @@ class TaskProfileRouterTest {
 
     @Test void structuredMultiChapterSnapshotKeepsPackagedDocumentWorkflowOnReroute() {
         TaskProfileRouter.SemanticLabels labels = new TaskProfileRouter.SemanticLabels(
-                TaskIntent.DOCUMENT_AUTHORING, java.util.List.of(ArtifactKind.MARKDOWN),
-                java.util.List.of(), "SIMPLE", 93, java.util.List.of("document"));
+                TaskIntent.DOCUMENT_AUTHORING, java.util.List.of(ArtifactKind.MARKDOWN), "SIMPLE");
 
         TaskProfileRouter.Decision decision = router.route(root,
                 "# 手册\n\n## 安装\n正文\n\n## 运维\n正文", labels);
@@ -176,8 +227,7 @@ class TaskProfileRouterTest {
 
     @Test void incompatibleReviewerArtifactAndMixedMutationRequireHumanDecision() {
         TaskProfileRouter.SemanticLabels labels = new TaskProfileRouter.SemanticLabels(
-                TaskIntent.READ_ONLY_REVIEW, java.util.List.of(ArtifactKind.SOURCE_CODE),
-                java.util.List.of("java"), "SIMPLE", 98, java.util.List.of("review"));
+                TaskIntent.READ_ONLY_REVIEW, java.util.List.of(ArtifactKind.SOURCE_CODE), "SIMPLE");
 
         TaskProfileRouter.Decision decision = router.route(root, "评审当前代码并直接修复发现的问题", labels);
 
@@ -195,8 +245,7 @@ class TaskProfileRouterTest {
                 如需新增错误码则进行人工评审；不得修改既有 XML 转换成功路径。
                 """;
         TaskProfileRouter.SemanticLabels labels = new TaskProfileRouter.SemanticLabels(
-                TaskIntent.SOFTWARE_CHANGE, java.util.List.of(ArtifactKind.SOURCE_CODE),
-                java.util.List.of("java"), "PACKAGED", 96, java.util.List.of("writable software design"));
+                TaskIntent.SOFTWARE_CHANGE, java.util.List.of(ArtifactKind.SOURCE_CODE), "PACKAGED");
 
         TaskProfileRouter.Decision deterministic = router.route(root, assembledSnapshot);
         TaskProfileRouter.Decision semantic = router.route(root, assembledSnapshot, labels);
@@ -276,10 +325,9 @@ class TaskProfileRouterTest {
                 decision.artifactKinds()).id()).isEqualTo("software-generic");
     }
 
-    @Test void aiTechnologyLabelsCannotInventAStackForAnEmptyRepository() {
+    @Test void semanticLabelsCannotInventAStackForAnEmptyRepository() {
         TaskProfileRouter.SemanticLabels labels = new TaskProfileRouter.SemanticLabels(
-                TaskIntent.SOFTWARE_CHANGE, java.util.List.of(ArtifactKind.SOURCE_CODE),
-                java.util.List.of("java"), "SIMPLE", 99, java.util.List.of("model guessed java"));
+                TaskIntent.SOFTWARE_CHANGE, java.util.List.of(ArtifactKind.SOURCE_CODE), "SIMPLE");
 
         TaskProfileRouter.Decision decision = router.route(root, "新增业务能力", labels);
 

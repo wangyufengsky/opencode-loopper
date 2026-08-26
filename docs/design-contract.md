@@ -201,8 +201,8 @@ the remote Session before the dialog switches directly to the manual controls, a
 the abort keeps the run active. Terminal actions are **确认并进入设计**, **重新识别**, and **手动修改**.
 Closing a terminal dialog only dismisses that presentation; the task-settings card
 keeps a **查看识别结果** entry, and refresh restores the dialog while no decision has been saved.
-Failed, unconnected-timeout, or malformed runs show their comprehensible reason and fallback settings rather
-than silently accepting a `0%` profile.
+Failed, unconnected-timeout, or malformed runs show their comprehensible reason and fallback settings. Their
+confidence field is explicitly **未产生**, never a misleading `0%` value.
 Router cancellation is not a failed recommendation: it displays an informational manual-selection notice,
 persists a full-auto blocker, and does not expose confirm/retry actions until the user leaves manual editing.
 

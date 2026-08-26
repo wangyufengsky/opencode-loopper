@@ -135,7 +135,7 @@ onBeforeUnmount(() => { generation += 1; stopPolling(); if (clockTimer) clearInt
         title="本次识别未能可靠完成，当前显示的是服务端降级设置"
         :description="run?.errorDetail || '可以重新识别、手动修改，或在理解降级范围后显式采用。'" />
       <div class="profile-result-grid" aria-label="任务设置识别字段">
-        <article><span>识别置信度</span><strong>{{ profile.confidence }}%</strong></article>
+        <article><span>识别置信度</span><strong>{{ profile.confidenceAvailable === true ? `${profile.confidence}%` : '未产生' }}</strong></article>
         <article><span>技术栈</span><strong>{{ profile.technologies.length ? profile.technologies.join(' / ') : rolePackLabel(profile.rolePackId) }}</strong></article>
         <article><span>任务类型</span><strong>{{ taskIntentLabel(profile.intent) }}</strong></article>
         <article><span>影响组件</span><strong>{{ affectedComponents }}</strong></article>
