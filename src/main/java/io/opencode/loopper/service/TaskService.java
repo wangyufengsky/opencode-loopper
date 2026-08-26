@@ -628,6 +628,17 @@ public class TaskService {
         }
         WorkspaceLeaseReconciliationService.Result result = leaseReconciliation.reconcileHolder(
                 lease.holderTaskId(), WorkspaceLeaseReconciliationService.TRIGGER_MANUAL, "MANUAL_QUEUE_RECONCILIATION");
+        if (result.blocked() && "SESSION_WRITER_UNCONFIRMED".equals(result.blockerCode())) {
+            TaskRow holder = mapper.findTask(lease.holderTaskId()).orElse(null);
+            if (holder != null && TaskState.valueOf(holder.state()).terminal()) {
+                managedVerifierRuntimes.stopTask(holder.id(), "manual-queue-reconciliation");
+                managedVerifierRuntimes.confirmTaskStopped(holder.id());
+                writerTermination.retryUnconfirmedSessions(holder, "manual-queue-reconciliation");
+                result = leaseReconciliation.reconcileHolder(holder.id(),
+                        WorkspaceLeaseReconciliationService.TRIGGER_MANUAL,
+                        "MANUAL_QUEUE_RECONCILIATION_AFTER_WRITER_CONFIRMATION");
+            }
+        }
         continueAfterLeaseReconciliation(result);
         if (result.blocked()) throw new ConflictException(result.blockerCode(), result.blockerMessage());
         return queueStatus(taskId);
@@ -2604,27 +2615,14 @@ public class TaskService {
         }
         ExecutionSessionRow writer = mapper.listSessions(task.id()).stream()
                 .filter(session -> lease.writerSessionId().equals(session.id())).findFirst().orElse(null);
-        if (writer == null || SessionState.DISCONNECTED.name().equals(writer.state())) return;
-        if (List.of(SessionState.COMPLETED.name(), SessionState.FAILED.name(), SessionState.TIMED_OUT.name(),
-                SessionState.ABORTED.name()).contains(writer.state())) {
+        if (writer == null) {
             continueAfterLeaseReconciliation(reconcileTerminalLease(task,
-                    WorkspaceLeaseReconciliationService.TRIGGER_RESTART, "RESTART_WRITER_ALREADY_TERMINAL"));
+                    WorkspaceLeaseReconciliationService.TRIGGER_RESTART, "RESTART_WRITER_RECORD_MISSING"));
             return;
         }
-        Map<String, Object> evidence = new LinkedHashMap<>();
-        evidence.put("recovery", "lease_rehydrate");
-        boolean stopped = writerTermination.confirmStopped(task, writer, evidence);
-        if (stopped) {
-            taskStates.updateSession(taskStates.sessionState(writer, SessionState.ABORTED));
-            continueAfterLeaseReconciliation(reconcileTerminalLease(task,
-                    WorkspaceLeaseReconciliationService.TRIGGER_RESTART, "RESTART_WRITER_TERMINAL_CONFIRMED"));
-        } else {
-            taskStates.updateSession(taskStates.sessionState(writer, SessionState.DISCONNECTED));
-            AttemptRow attempt = mapper.findAttempt(writer.attemptId()).orElse(null);
-            StageRow stage = attempt == null ? null : mapper.findStage(attempt.stageId()).orElse(null);
-            writerTermination.recordUnconfirmed(task, stage, attempt, writer,
-                    "Restart could not confirm the terminal task's Direct writer stopped", evidence);
-        }
+        writerTermination.retryUnconfirmedSessions(task, "restart-terminal-lease-rehydrate");
+        continueAfterLeaseReconciliation(reconcileTerminalLease(task,
+                WorkspaceLeaseReconciliationService.TRIGGER_RESTART, "RESTART_WRITER_TERMINATION_RECHECKED"));
     }
 
     private void requireInPlaceWritable(TaskRow task, ProjectRow project) {

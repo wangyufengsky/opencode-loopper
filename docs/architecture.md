@@ -283,6 +283,13 @@ persists up to `loopper.abort-cleanup-attempts` abort retries across restarts;
 success becomes `ABORTED`, while exhaustion stays `DISCONNECTED` with explicit
 `SESSION_ABORT_CLEANUP_EXHAUSTED` evidence. Cleanup never creates an Attempt.
 
+When a terminal holder blocks a queued Task, restart rehydration and the explicit
+local queue action must re-probe `DISCONNECTED` writers instead of treating the
+local row as a terminality proof. A successful abort/status observation persists
+`SESSION_ABORT_CLEANUP_CONFIRMED` even when the local Session was already terminal;
+only then may the ordinary lease reconciler transfer ownership. Failure retains
+`RELEASE_PENDING` and never force-releases the root.
+
 Before every Session retry, Loopper aborts the old mutating Session. If abort
 fails and that Session cannot be independently observed in a terminal state,
 safe continuation is impossible. Recovery then promotes the condition to

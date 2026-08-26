@@ -106,8 +106,10 @@ automatic startup is in progress and may retain the confirmed cancel action, but
 does not render another Start button.
 While a Task remains `QUEUED`, detail renders a server-backed **当前在排谁** card with
 the holder title/link, Task state, archive flag, lease state, queue position, and stable
-release blocker. **重新检查并释放** posts only the waiter ID to the local-UI endpoint;
-the server locates the holder and returns the latest queue projection. A 409 keeps the
+release blocker. Ordinary blockers use **重新检查并释放**. An unconfirmed writer uses
+the explicit **终止遗留会话并释放** confirmation: it still posts only the waiter ID,
+while the server locates the terminal holder, reissues termination/status checks, persists
+positive cleanup evidence, and then runs the same safe lease reconciliation. A 409 keeps the
 card visible and renders its concrete dirty-workspace, unconfirmed-writer, fingerprint,
 unavailable-root, or unsafe-branch reason. A successful action refreshes Task and queue
 state and may continue the already-requested Task through preparation into model

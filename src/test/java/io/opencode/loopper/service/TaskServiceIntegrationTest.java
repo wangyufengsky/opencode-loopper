@@ -1356,23 +1356,78 @@ class TaskServiceIntegrationTest {
     }
 
     @Test
+    void manualReconciliationConfirmsAStrandedTerminalHoldersWriterBeforeReleasingItsLease() throws Exception {
+        Path root = Files.createDirectory(temp.resolve("manual-stranded-writer-root"));
+        Files.writeString(root.resolve("README.md"), "fixture");
+        ProjectRow project = projects.create("manual-stranded-writer", root.toString());
+        TaskRow holder = drafts.confirm(drafts.create(spec(project.id())).id(), "stranded cancelled holder");
+        TaskRow waiter = drafts.confirm(drafts.create(spec(project.id())).id(), "waiter after stranded writer");
+        tasks.start(holder.id());
+        tasks.start(waiter.id());
+        ExecutionSessionRow writer = mapper.activeSessions(holder.id()).getFirst();
+        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
+        fake.setSessionState(writer.externalSessionId(), "RUNNING");
+        fake.failNextAborts(2);
+
+        tasks.cancel(holder.id());
+        TaskRow stopping = tasks.get(holder.id());
+        mapper.updateTaskState(new TaskRow(stopping.id(), stopping.projectId(), stopping.loopDraftId(), stopping.title(),
+                "CANCELLED", stopping.worktreePath(), stopping.branchName(), stopping.sourceBranch(),
+                stopping.baselineCommit(), stopping.createdAt(), Instant.now().toString(), stopping.version(),
+                stopping.taskProfileId(), stopping.rolePackId(), stopping.rolePackVersion()));
+
+        assertThat(mapper.findSession(writer.id()).orElseThrow().state()).isEqualTo("DISCONNECTED");
+        assertThat(tasks.queueStatus(waiter.id()).leaseState()).isEqualTo("RELEASE_PENDING");
+        assertThat(tasks.errors(holder.id())).anyMatch(error -> error.code().equals("SESSION_ABORT_UNCONFIRMED"));
+
+        assertThatThrownBy(() -> tasks.reconcileQueue(waiter.id()))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("未确认终止");
+        assertThat(mapper.findSession(writer.id()).orElseThrow().state()).isEqualTo("DISCONNECTED");
+        assertThat(tasks.errors(holder.id())).noneMatch(error -> error.code().equals("SESSION_ABORT_CLEANUP_CONFIRMED"));
+        assertThat(tasks.get(waiter.id()).state()).isEqualTo("QUEUED");
+
+        FeatureContracts.QueueStatusDto reconciled = tasks.reconcileQueue(waiter.id());
+
+        assertThat(reconciled.state()).isEqualTo("ADMITTED");
+        assertThat(mapper.findSession(writer.id()).orElseThrow().state()).isEqualTo("ABORTED");
+        assertThat(tasks.errors(holder.id())).anyMatch(error -> error.code().equals("SESSION_ABORT_CLEANUP_CONFIRMED")
+                && writer.id().equals(error.sessionId()));
+        assertThat(tasks.get(waiter.id()).state()).isEqualTo("RUNNING");
+    }
+
+    @Test
     void restartRehydratesATerminalHolderAndAdmitsThePersistedNextTaskWithoutLeaseExpiry() throws Exception {
         Path root = Files.createDirectory(temp.resolve("restart-direct-root"));
         Files.writeString(root.resolve("README.md"), "fixture");
         ProjectRow project = projects.create("restart-direct", root.toString());
         TaskRow first = drafts.confirm(drafts.create(spec(project.id())).id(), "crashed terminal holder");
         TaskRow second = drafts.confirm(drafts.create(spec(project.id())).id(), "persisted restart waiter");
-        first = tasks.start(first.id());
+        tasks.start(first.id());
         tasks.start(second.id());
-        mapper.updateTaskState(new TaskRow(first.id(), first.projectId(), first.loopDraftId(), first.title(), "CANCELLED",
-                first.worktreePath(), first.branchName(), first.baselineCommit(), first.createdAt(), Instant.now().toString(), first.version()));
-        mapper.archiveTask(first.id(), Instant.now().toString());
+        ExecutionSessionRow writer = mapper.activeSessions(first.id()).getFirst();
+        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
+        fake.setSessionState(writer.externalSessionId(), "RUNNING");
+        fake.failNextAborts(1);
+        tasks.cancel(first.id());
+        TaskRow stopping = tasks.get(first.id());
+        mapper.updateTaskState(new TaskRow(stopping.id(), stopping.projectId(), stopping.loopDraftId(), stopping.title(),
+                "CANCELLED", stopping.worktreePath(), stopping.branchName(), stopping.sourceBranch(),
+                stopping.baselineCommit(), stopping.createdAt(), Instant.now().toString(), stopping.version(),
+                stopping.taskProfileId(), stopping.rolePackId(), stopping.rolePackVersion()));
+        mapper.archiveTask(stopping.id(), Instant.now().toString());
+
+        assertThat(mapper.findSession(writer.id()).orElseThrow().state()).isEqualTo("DISCONNECTED");
+        assertThat(tasks.errors(first.id())).anyMatch(error -> error.code().equals("SESSION_ABORT_UNCONFIRMED"));
 
         tasks.recoverAfterRestart();
 
         assertThat(tasks.get(first.id()).state()).isEqualTo("CANCELLED");
         assertThat(tasks.archived(first.id())).isTrue();
         assertThat(mapper.findTaskQueue(first.id()).orElseThrow().state()).isEqualTo("FINISHED");
+        assertThat(mapper.findSession(writer.id()).orElseThrow().state()).isEqualTo("ABORTED");
+        assertThat(tasks.errors(first.id())).anyMatch(error -> error.code().equals("SESSION_ABORT_CLEANUP_CONFIRMED")
+                && writer.id().equals(error.sessionId()));
         assertThat(tasks.get(second.id()).state()).isEqualTo("RUNNING");
         assertThat(tasks.queueStatus(second.id()).state()).isEqualTo("ADMITTED");
     }

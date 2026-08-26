@@ -221,7 +221,13 @@ describe('TaskDetailView judge action', () => {
       ...reviewTask,
       id: 'task-queued', title: '排队任务', status: 'QUEUED', worktreePath: '', stages: [], judges: [],
     }]
+    apiMocks.getTaskQueue.mockResolvedValue({
+      taskId: 'task-queued', state: 'QUEUED', queuePosition: 1, leaseState: 'RELEASE_PENDING',
+      holderTaskId: 'holder-1', holderTaskTitle: '已取消的旧任务', holderTaskState: 'CANCELLED', holderArchived: true,
+      releaseReason: 'SESSION_WRITER_UNCONFIRMED', reconcileAvailable: true,
+    })
     apiMocks.reconcileTaskQueue.mockRejectedValue(new Error('当前写入 Session 尚未确认停止'))
+    const confirmation = vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue(undefined as never)
     const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/tasks/:id', component: { template: '<div />' } }] })
     await router.push('/tasks/task-queued')
     await router.isReady()
@@ -238,9 +244,15 @@ describe('TaskDetailView judge action', () => {
     })
     await flushPromises()
 
-    await wrapper.findAll('button').find((button) => button.text().includes('重新检查并释放'))!.trigger('click')
+    await wrapper.findAll('button').find((button) => button.text().includes('终止遗留会话并释放'))!.trigger('click')
     await flushPromises()
 
+    expect(confirmation).toHaveBeenCalledWith(
+      expect.stringContaining('只有取得远端终止证明后才会释放租约'),
+      '终止遗留会话并释放？',
+      expect.objectContaining({ confirmButtonText: '终止并重新检查' }),
+    )
+    expect(apiMocks.reconcileTaskQueue).toHaveBeenCalledWith('task-queued')
     expect(wrapper.text()).toContain('当前写入 Session 尚未确认停止')
     expect(wrapper.text()).toContain('已取消的旧任务')
     expect(store.loadTask).toHaveBeenCalledTimes(2)

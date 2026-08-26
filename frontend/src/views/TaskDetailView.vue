@@ -52,6 +52,10 @@ const queueStatus = ref<TaskQueueStatus>()
 const queueLoading = ref(false)
 const queueReconciling = ref(false)
 const queueError = ref('')
+const queueNeedsWriterTermination = computed(() => queueStatus.value?.releaseReason === 'SESSION_WRITER_UNCONFIRMED')
+const queueReconcileLabel = computed(() => queueNeedsWriterTermination.value
+  ? '终止遗留会话并释放'
+  : '重新检查并释放')
 const publicationState = ref<TaskPublicationStatus['deliveryState']>('NOT_STARTED')
 const publicationEligible = computed(() => task.value?.status === 'SUCCEEDED'
   || (['AWAITING_DECISION', 'COMPLETED'].includes(task.value?.status ?? '')
@@ -153,6 +157,15 @@ async function loadQueue() {
 
 async function reconcileQueue() {
   if (!queueStatus.value?.reconcileAvailable || queueReconciling.value) return
+  if (queueNeedsWriterTermination.value) {
+    try {
+      await ElMessageBox.confirm(
+        `Loopper 将重新终止并核验“${queueStatus.value.holderTaskTitle ?? '当前持有任务'}”遗留的可写会话；只有取得远端终止证明后才会释放租约。`,
+        '终止遗留会话并释放？',
+        { confirmButtonText: '终止并重新检查', cancelButtonText: '暂不处理', type: 'warning' },
+      )
+    } catch { return }
+  }
   queueReconciling.value = true
   queueError.value = ''
   try {
@@ -329,7 +342,7 @@ async function confirmRework() {
           </div>
           <p class="queue-copy">{{ queueReleaseDetail }}</p>
           <el-button v-if="queueStatus.reconcileAvailable" type="primary" plain :loading="queueReconciling" @click="reconcileQueue">
-            <Icon icon="lucide:refresh-cw" />重新检查并释放
+            <Icon icon="lucide:refresh-cw" />{{ queueReconcileLabel }}
           </el-button>
         </template>
         <p v-if="queueError" class="queue-error" role="alert">{{ queueError }}</p>

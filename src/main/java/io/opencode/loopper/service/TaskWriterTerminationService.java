@@ -150,14 +150,45 @@ final class TaskWriterTerminationService {
     }
 
     void retryDisconnectedSessions(TaskRow task) {
+        retryUnconfirmedSessions(task, "explicit-cancellation-retry");
+    }
+
+    /**
+     * Explicitly re-probes every locally active or historically unconfirmed writer.
+     * A successful remote terminal observation is persisted even when the local
+     * Session row was already terminal, because lease reconciliation consumes the
+     * positive cleanup evidence rather than inferring safety from local state alone.
+     */
+    boolean retryUnconfirmedSessions(TaskRow task, String cleanupReason) {
+        Set<String> unresolved = unresolvedSessionIds(task.id());
+        boolean allStopped = true;
         for (ExecutionSessionRow session : mapper.listSessions(task.id())) {
-            if (!SessionState.DISCONNECTED.name().equals(session.state())) continue;
+            SessionState state;
+            try { state = SessionState.valueOf(session.state()); }
+            catch (RuntimeException unknownState) { allStopped = false; continue; }
+            boolean confirmationRequired = unresolved.contains(session.id());
+            if (state.terminal() && !confirmationRequired) continue;
             Map<String, Object> evidence = new LinkedHashMap<>();
-            evidence.put("cleanup", "explicit-cancellation-retry");
-            if (!confirmStopped(task, session, evidence)) continue;
-            states.updateSession(states.sessionState(session, SessionState.ABORTED));
-            recordConfirmed(task, session, "The remote Session was confirmed stopped", evidence);
+            evidence.put("cleanup", cleanupReason);
+            if (confirmStopped(task, session, evidence)) {
+                if (!state.terminal()) {
+                    states.updateSession(states.sessionState(session, SessionState.ABORTED));
+                }
+                recordConfirmed(task, session, "The remote Session was confirmed stopped", evidence);
+                continue;
+            }
+            allStopped = false;
+            if (!state.terminal() && state != SessionState.DISCONNECTED) {
+                states.updateSession(states.sessionState(session, SessionState.DISCONNECTED));
+            }
+            if (!confirmationRequired) {
+                AttemptRow attempt = mapper.findAttempt(session.attemptId()).orElse(null);
+                StageRow stage = attempt == null ? null : mapper.findStage(attempt.stageId()).orElse(null);
+                recordUnconfirmed(task, stage, attempt, session,
+                        "Explicit cleanup could not confirm the mutating Session stopped", evidence);
+            }
         }
+        return allStopped && !hasUnconfirmedWriter(task.id());
     }
 
     void recordUnconfirmed(TaskRow task, StageRow stage, AttemptRow attempt,
@@ -183,12 +214,17 @@ final class TaskWriterTerminationService {
         if (mapper.listVerifierRuntimes(taskId).stream()
                 .anyMatch(runtime -> List.of("STARTING", "RUNNING", "STOPPING", "DISCONNECTED")
                         .contains(runtime.state()))) return true;
+        return !unresolvedSessionIds(taskId).isEmpty();
+    }
+
+    private Set<String> unresolvedSessionIds(String taskId) {
         Set<String> confirmed = mapper.listErrors(taskId).stream()
                 .filter(error -> "SESSION_ABORT_CLEANUP_CONFIRMED".equals(error.code()) && error.sessionId() != null)
                 .map(ErrorEventRow::sessionId).collect(java.util.stream.Collectors.toSet());
         return mapper.listErrors(taskId).stream()
-                .anyMatch(error -> "SESSION_ABORT_UNCONFIRMED".equals(error.code())
-                        && error.sessionId() != null && !confirmed.contains(error.sessionId()));
+                .filter(error -> "SESSION_ABORT_UNCONFIRMED".equals(error.code())
+                        && error.sessionId() != null && !confirmed.contains(error.sessionId()))
+                .map(ErrorEventRow::sessionId).collect(java.util.stream.Collectors.toSet());
     }
 
     private void updateJudge(JudgeRunRow row) {

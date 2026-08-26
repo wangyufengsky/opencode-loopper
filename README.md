@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.2.58`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.2.59`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -128,7 +128,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.2.58.jar
+java -jar target/opencode-loopper-0.2.59.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -257,9 +257,9 @@ REST/JSON/浏览器条件使用阶段 `verificationRuntime` 启动本次代码�
 | Git 任务分支 | 项目有可用 Git HEAD | 已登记的原项目目录；脏文件先进入人工处理弹窗，清理后非交互 fetch 当前远端分支并切换到 `loopper/<任务名>`，同名时追加 `(第N次)` | 成功后人工提交；有远端则正常推送，无远端则保留本地提交 |
 | Direct | 没有可用 Git HEAD | 已登记的原项目目录 | 不提供自动发布或原地回滚；使用私有基线做差异和删除检查 |
 
-Loopper 不会因为任务成功就自动提交、推送或合并。确认计划只创建 `PENDING_START` Task，不创建队列项、不申请写租约，也不 fetch、创建或切换任务分支。用户点击“开始执行”后，服务端才原子登记执行请求并竞争写租约；被接纳的任务随后完成工作区准备并自动开始首个 Stage，被阻塞的任务停在 `QUEUED`。每个登记目录通过持久化 FIFO 写租约串行执行；前一个任务仍有未提交改动时，后一个任务不会切换分支。Task、Queue 和 Lease 保持独立状态域，由统一协调器在写入者已确认停止、目录指纹一致、工作区干净且分支可安全恢复时，原子完成旧队列项并按 FIFO 转移租约。终态 holder 实际阻塞等待者时每 10 秒自动检查一次，任务详情也可手动触发；任何安全条件不满足都保留 holder，不会自动 stash、提交、删除或强制切分支。用户确认提交后，Loopper 把改动提交到任务分支并恢复任务开始前的源分支；有排队任务时再从源分支进入下一任务分支。开始执行时的 fetch 只更新 remote-tracking refs；任务分支在人工发布前仍是本地分支，不会提前出现在 GitLab/GitHub。
+Loopper 不会因为任务成功就自动提交、推送或合并。确认计划只创建 `PENDING_START` Task，不创建队列项、不申请写租约，也不 fetch、创建或切换任务分支。用户点击“开始执行”后，服务端才原子登记执行请求并竞争写租约；被接纳的任务随后完成工作区准备并自动开始首个 Stage，被阻塞的任务停在 `QUEUED`。每个登记目录通过持久化 FIFO 写租约串行执行；前一个任务仍有未提交改动时，后一个任务不会切换分支。Task、Queue 和 Lease 保持独立状态域，由统一协调器在写入者已确认停止、目录指纹一致、工作区干净且分支可安全恢复时，原子完成旧队列项并按 FIFO 转移租约。终态 holder 实际阻塞等待者时每 10 秒自动检查一次，任务详情也可手动触发；遗留写入 Session 未确认停止时，手动动作会重新执行精确远端终止与状态检查，只有持久化正向确认后才继续释放，失败仍保留 holder。其他安全条件不满足时同样不会自动 stash、提交、删除或强制切分支。用户确认提交后，Loopper 把改动提交到任务分支并恢复任务开始前的源分支；有排队任务时再从源分支进入下一任务分支。开始执行时的 fetch 只更新 remote-tracking refs；任务分支在人工发布前仍是本地分支，不会提前出现在 GitLab/GitHub。
 
-处于 `PENDING_START` 的任务可在详情页二次确认后直接取消；此时尚无队列项、写租约、任务分支、执行目录或 OpenCode Session。`READY` 只作为开始请求已经接纳后的短暂内部准备状态，前端不会要求再次点击“开始执行”。处于 `QUEUED` 的任务也可直接取消；取消只移除该任务的排队资格，不会释放或切换当前执行任务持有的项目写租约。所有未结束的执行态统一先持久化为 `STOPPING`，停止并复核当前 OpenCode Session、Judge Session 和托管验证器进程；全部确认终止后才把运行 Attempt/Stage 分别记为取消、把本轮 Execution Cycle 记为 `INTERRUPTED`，最后进入 `CANCELLED`。终止无法确认时保留 `STOPPING`、执行目录和租约，并允许“重试停止”，不会伪造终态。排队详情同时显示 holder 标题、状态、归档状态、租约状态和最近阻塞原因；“重新检查并释放”只让服务端重新执行安全检查，不接收客户端指定的 holder。持有活动租约或仍为 `ADMITTED` 的终态任务必须先完成安全释放，才能归档或永久删除。
+处于 `PENDING_START` 的任务可在详情页二次确认后直接取消；此时尚无队列项、写租约、任务分支、执行目录或 OpenCode Session。`READY` 只作为开始请求已经接纳后的短暂内部准备状态，前端不会要求再次点击“开始执行”。处于 `QUEUED` 的任务也可直接取消；取消只移除该任务的排队资格，不会释放或切换当前执行任务持有的项目写租约。所有未结束的执行态统一先持久化为 `STOPPING`，停止并复核当前 OpenCode Session、Judge Session 和托管验证器进程；全部确认终止后才把运行 Attempt/Stage 分别记为取消、把本轮 Execution Cycle 记为 `INTERRUPTED`，最后进入 `CANCELLED`。终止无法确认时保留 `STOPPING`、执行目录和租约，并允许“重试停止”，不会伪造终态。排队详情同时显示 holder 标题、状态、归档状态、租约状态和最近阻塞原因；普通阻断使用“重新检查并释放”，`SESSION_WRITER_UNCONFIRMED` 使用带二次确认的“终止遗留会话并释放”。两者都只提交 waiter ID，由服务端权威定位 holder，不能由客户端指定或强制转移。持有活动租约或仍为 `ADMITTED` 的终态任务必须先完成安全释放，才能归档或永久删除。
 
 任务开始前发现脏工作区时，任务会停在 `WAITING_INPUT`，详情页自动弹出具体文件列表。每个文件必须明确选择“提交到当前源分支”“暂存到 Git stash”或“移除/丢弃改动”，再点击“重新检查并继续”。处理请求绑定当前 Git 状态快照；期间文件、索引、HEAD 或分支有变化时会拒绝旧决定并刷新列表，避免把过期选择用于新内容。提交只生成本地提交，不自动推送；stash 只包含选择的路径；移除未跟踪文件或丢弃跟踪文件改动前还会二次确认。外部 Git 操作不是数据库事务，若中途某一步失败，已成功的 Git 操作不会伪装回滚，弹窗会按最新状态重新列出剩余文件。处理完成后，历史错误仍作为审计证据保留，任务会从准备状态自动继续执行，详情页不再显示“检测到未提交文件”的活动红色告警。点击“取消任务并保留文件”后在当前弹窗内二次确认，不再叠加全局确认框；即使文件列表读取失败，取消入口仍可用。确认取消会保留全部现有文件，把本轮执行记为中断并将任务转为 `CANCELLED`，不再借用任务失败路径。远端认证失败或本地/远端历史分叉仍会失败关闭。分支切换使用 10 分钟有界超时，并为 Windows 命令局部启用 Git 长路径支持。
 
@@ -356,7 +356,7 @@ Git 任务的最新 Execution Cycle 成功并处于 `AWAITING_DECISION` 或用�
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.2.58.jar`
+- `target/opencode-loopper-0.2.59.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -387,7 +387,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:51234
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.2.58.jar`
+- `opencode-loopper-0.2.59.jar`
 - `start-windows.bat`
 
 确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
@@ -425,7 +425,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.2.58.jar \
+jar tf target/opencode-loopper-0.2.59.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -507,7 +507,7 @@ Windows PowerShell：
 例如发布下一版本：
 
 ```bash
-VERSION=0.2.58
+VERSION=0.2.59
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -547,7 +547,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.2.58.jar
+java -jar target/opencode-loopper-0.2.59.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。
@@ -648,6 +648,8 @@ echo %PATHEXT%
 `0.1.95` 系统审计并修复动态 Role Pack 到 Compiler 的完整链路。Role Pack v3 按软件族规范化 Java/Python/Node/Other 标签，避免 JavaScript 误入 Java、同族别名误入混合栈和未知单栈默认 Java；每个可编译角色使用栈原生规划示例与测试目标解析，非软件流程明确绕过 Compiler。当前输出默认进入紧凑 `outcome` 合同，历史 `status` 解析只接受明确旧信封；格式与语义修复改用全新无工具 Session，JSON Schema 分别匹配完整规划与补丁信封，非法补丁不会覆盖有效语义快照，直接软件 1–6 Stage 的 Schema 上限也与产品合同一致。
 
 `0.2.0` 继续收缩历史 God Class：Designer 的紧凑包计划规范化、语义校验和可执行证据编译由独立确定性编译器负责，共享机器合同移出会话编排器；Task 的确认设计快照、验证汇总、Git diff 和 Judge 提示证据由独立证据服务负责。`DesignerSessionService` 与 `TaskService` 仍是待继续拆分的兼容编排器，结构门禁已同步下调，不把本次提取描述为债务清零。
+
+`0.2.59` 修复终态 holder 的遗留 writer 永久阻塞队列：重启恢复不再跳过 `DISCONNECTED`，终止确认成功后无论本地 Session 是否已进入终态都持久化正向清理证据；排队详情对该阻断提供二次确认的“终止遗留会话并释放”，服务端只按 waiter 的规范 root 定位终态 holder，重新核验 OpenCode Session 和托管验证进程后复用原安全协调器。任何确认、指纹、工作区或分支检查失败都继续保持 `RELEASE_PENDING`。
 
 `0.2.58` 将新软件设计升级到 Role Pack `2026-08-dynamic-v6`：Designer 用精确标题阶段表表达 1–6 个阶段，服务端以 NFKC/空白/大小写规范化完成符号绑定、能力求解和 LoopSpec v2 lowering。完整普通 `WP-1` 不再创建 Compiler Session 或消耗模型调用；只有闭集事实或能力仍有歧义时才调用一次无工具规范工程师填洞，大型任务保留一次消歧与交接摘要但不能改写阶段拓扑。V44 持久化绑定来源，界面区分“服务端直接编译 / 规范工程师辅助消歧 / 历史编译”，无远程 Session 时不显示或轮询虚假活动。
 
