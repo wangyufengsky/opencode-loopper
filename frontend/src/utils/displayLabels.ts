@@ -12,6 +12,8 @@ type TestPolicy = DesignerTaskProfile['testPolicy']
 
 const statusLabels: Record<string, string> = {
   PENDING_START: '待开始', QUEUED: '排队中', PREPARING: '准备中', READY: '待执行', RUNNING: '运行中', VERIFYING: '验证中',
+  PACKAGE_DESIGNING: '设计下一包', PLANNED: '已规划', DESIGN_REVIEW: '设计待确认', EXECUTION_READY: '待开始执行',
+  CHECKPOINTING: '冻结事实中', FACT_FROZEN: '事实已冻结',
   RETRY_WAIT: '等待重试', RETRY: '重试中', PAUSED: '已暂停', WAITING_INPUT: '等待输入', JUDGING: '评审中',
   AWAITING_DECISION: '等待处置', COMPLETED: '已确认完成', SUPERSEDED: '已由新任务接续',
   SUCCEEDED: '历史成功', FAILED: '历史失败', CANCELLED: '已取消', ONLINE: '在线', OFFLINE: '离线',

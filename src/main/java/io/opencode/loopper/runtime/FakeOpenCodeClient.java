@@ -21,6 +21,7 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     private final ConcurrentHashMap<String, SessionProfile> profileBySession = new ConcurrentHashMap<>();
     private final CopyOnWriteArrayList<PromptCall> promptHistory = new CopyOnWriteArrayList<>();
     private final ConcurrentHashMap<String, OpenCodeModel> modelBySession = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Path> worktreeBySession = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> detailBySession = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, PendingQuestion> pendingQuestionBySession = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, java.util.List<java.util.List<String>>> answersByQuestion = new ConcurrentHashMap<>();
@@ -45,6 +46,7 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     private final AtomicInteger promptCalls = new AtomicInteger();
     private final FakeOpenCodeResponseFactory responses = new FakeOpenCodeResponseFactory();
     private volatile String judgeOutput = "{\"verdict\":\"PASS\",\"reason\":\"确定性证据满足评审要求。\"}";
+    private volatile String taskRouterOutputOverride;
     private volatile boolean healthy = true;
     private volatile ToolCapabilityProbe toolCapability = new ToolCapabilityProbe(CapabilityState.AVAILABLE,
             List.of("read", "glob", "grep", "question", "todowrite"), null);
@@ -55,6 +57,7 @@ public class FakeOpenCodeClient implements OpenCodeClient {
         createSessionCalls.incrementAndGet();
         String id = "fake-" + UUID.randomUUID();
         states.put(id, "RUNNING");
+        worktreeBySession.put(id, worktree);
         profileBySession.put(id, SessionProfile.IMPLEMENTATION);
         if (model != null) modelBySession.put(id, model);
         return new OpenCodeSession(id, worktree);
@@ -66,6 +69,7 @@ public class FakeOpenCodeClient implements OpenCodeClient {
         }
         String id = "fake-judge-" + UUID.randomUUID();
         readOnly.put(id, Boolean.TRUE);
+        worktreeBySession.put(id, worktree);
         profileBySession.put(id, SessionProfile.GENERAL_READ_ONLY);
         String normalizedTitle = title == null ? "" : title.toUpperCase();
         String packageId = java.util.regex.Pattern.compile("\\bWP-\\d+\\b").matcher(normalizedTitle).results()
@@ -158,6 +162,7 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     }
 
     private String taskRouterOutput(String prompt) {
+        if (taskRouterOutputOverride != null) return taskRouterOutputOverride;
         String text = prompt == null ? "" : prompt.toLowerCase(java.util.Locale.ROOT);
         int requirementStart = text.indexOf("requirement:");
         int outputStart = text.indexOf("return only the marker-wrapped object");
@@ -303,6 +308,7 @@ public class FakeOpenCodeClient implements OpenCodeClient {
             setDecomposerOutput(responses.directDecomposition(output));
         }
     }
+    public void setTaskRouterOutput(String output) { taskRouterOutputOverride = output; }
     public void setDecomposerOutput(String output) { setJudgeOutput("DECOMPOSER", output); }
     public void setDecomposerPlanningOutput(String output) { setJudgeOutput("DECOMPOSER_PLAN", output); }
     public void setCompilerOutput(String output) { setJudgeOutput("COMPILER", output); }
@@ -316,6 +322,7 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     public String promptForSession(String id) { return promptBySession.get(id); }
     public PromptRequest promptRequestForSession(String id) { return promptRequestBySession.get(id); }
     public List<PromptCall> promptHistory() { return List.copyOf(promptHistory); }
+    public Path sessionWorktree(String sessionId) { return worktreeBySession.get(sessionId); }
     public void failNextPrompts(int count) { failedPrompts.set(Math.max(0, count)); }
     public void failNextStructuredPrompts(int count) { failedStructuredPrompts.set(Math.max(0, count)); }
     public void failNextAborts(int count) { failedAborts.set(Math.max(0, count)); }
@@ -360,7 +367,7 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     public void failNextReadOnlySessions(int count) { failedReadOnlySessions.set(Math.max(0, count)); }
     public void failNextReadOnlySessionCreations(int count) { failedReadOnlySessionCreations.set(Math.max(0, count)); }
     public void failNextReadOnlySessions(String role, int count) { failedReadOnlySessionsByRole.put(role.toUpperCase(), new AtomicInteger(Math.max(0, count))); }
-    public void reset() { states.clear(); readOnly.clear(); judgeRoleBySession.clear(); judgeOutputByRole.clear(); promptBySession.clear(); promptRequestBySession.clear(); profileBySession.clear(); promptHistory.clear(); modelBySession.clear(); detailBySession.clear(); pendingQuestionBySession.clear(); answersByQuestion.clear(); rejectedQuestions.clear(); pendingPermissionsBySession.clear(); permissionRepliesByRequest.clear(); todosBySession.clear(); usageBySession.clear(); forkCalls.clear(); revertCalls.clear(); summarizeCalls.clear(); abortedSessionIds.clear(); failedReadOnlySessionsByRole.clear(); failedReadOnlySessions.set(0); failedReadOnlySessionCreations.set(0); failedPrompts.set(0); failedStructuredPrompts.set(0); failedAborts.set(0); toolLoopStatusFailures.set(0); createSessionCalls.set(0); createReadOnlySessionCalls.set(0); promptCalls.set(0); judgeOutput = "{\"verdict\":\"PASS\",\"reason\":\"确定性证据满足评审要求。\"}"; healthy = true; toolCapability = new ToolCapabilityProbe(CapabilityState.AVAILABLE, List.of("read", "glob", "grep", "question", "todowrite"), null); structuredCapability = new StructuredOutputCapability(CapabilityState.AVAILABLE, CapabilityState.AVAILABLE, null); }
+    public void reset() { states.clear(); readOnly.clear(); judgeRoleBySession.clear(); judgeOutputByRole.clear(); promptBySession.clear(); promptRequestBySession.clear(); profileBySession.clear(); promptHistory.clear(); modelBySession.clear(); worktreeBySession.clear(); detailBySession.clear(); pendingQuestionBySession.clear(); answersByQuestion.clear(); rejectedQuestions.clear(); pendingPermissionsBySession.clear(); permissionRepliesByRequest.clear(); todosBySession.clear(); usageBySession.clear(); forkCalls.clear(); revertCalls.clear(); summarizeCalls.clear(); abortedSessionIds.clear(); failedReadOnlySessionsByRole.clear(); failedReadOnlySessions.set(0); failedReadOnlySessionCreations.set(0); failedPrompts.set(0); failedStructuredPrompts.set(0); failedAborts.set(0); toolLoopStatusFailures.set(0); createSessionCalls.set(0); createReadOnlySessionCalls.set(0); promptCalls.set(0); judgeOutput = "{\"verdict\":\"PASS\",\"reason\":\"确定性证据满足评审要求。\"}"; taskRouterOutputOverride = null; healthy = true; toolCapability = new ToolCapabilityProbe(CapabilityState.AVAILABLE, List.of("read", "glob", "grep", "question", "todowrite"), null); structuredCapability = new StructuredOutputCapability(CapabilityState.AVAILABLE, CapabilityState.AVAILABLE, null); }
     public record PermissionReplyCall(String sessionId, String requestId, PermissionReply reply, String message) { }
     public record PromptCall(String sessionId, String prompt) { }
     public record ForkCall(String parentSessionId, String childSessionId, String messageId) { }

@@ -103,7 +103,20 @@ public class WorkspaceLeaseReconciliationService {
         boolean decisionCheckpointReady = TaskState.AWAITING_DECISION.name().equals(task.state())
                 && mapper.latestTaskWorkspaceCheckpoint(task.id())
                 .map(checkpoint -> "READY".equals(checkpoint.state())).orElse(false);
-        if (!TaskState.valueOf(task.state()).terminal() && !decisionCheckpointReady) {
+        boolean rollingPackageCheckpointReady = TaskState.PACKAGE_DESIGNING.name().equals(task.state())
+                && "ROLLING_PACKAGES".equals(task.executionMode())
+                && "RELEASE_BETWEEN_PACKAGES".equals(task.workspacePolicy())
+                && mapper.latestTaskWorkspaceCheckpoint(task.id())
+                .map(checkpoint -> "READY".equals(checkpoint.state())).orElse(false);
+        boolean rollingFailureCheckpointReady = TaskState.WAITING_INPUT.name().equals(task.state())
+                && "ROLLING_PACKAGES".equals(task.executionMode())
+                && "RELEASE_BETWEEN_PACKAGES".equals(task.workspacePolicy())
+                && mapper.currentTaskPackageRun(task.id())
+                .map(run -> "PACKAGE_EXECUTION_FAILED".equals(run.waitingReasonCode())).orElse(false)
+                && mapper.latestTaskWorkspaceCheckpoint(task.id())
+                .map(checkpoint -> "READY".equals(checkpoint.state())).orElse(false);
+        if (!TaskState.valueOf(task.state()).terminal()
+                && !decisionCheckpointReady && !rollingPackageCheckpointReady && !rollingFailureCheckpointReady) {
             return Result.blocked(holderTaskId, "TASK_QUEUE_HOLDER_ACTIVE",
                     TaskState.AWAITING_DECISION.name().equals(task.state())
                             ? "任务正在等待用户处置，但工作区尚未安全冻结"

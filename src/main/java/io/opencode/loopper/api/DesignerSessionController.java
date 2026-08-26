@@ -358,7 +358,7 @@ public class DesignerSessionController {
     private DesignerSessionDto dto(DesignerSessionRow row) {
         ProjectRow project = service.project(row.id());
         LoopDraftRow draft = service.draft(row.id());
-        return new DesignerSessionDto(row.id(), row.projectId(), project.name(), row.state(), row.workflowPhase(),
+        return new DesignerSessionDto(row.id(), row.taskId(), row.projectId(), project.name(), row.state(), row.workflowPhase(),
                 service.activeActor(row), row.accessMode(), true,
                 "Task Decomposer and each package's Designer/LoopSpec Compiler use separate read-only Sessions. Only the deterministic server validator may aggregate and synchronize the bound draft.",
                 row.createdAt(), row.updatedAt(), draft == null ? null : new DesignerDraftDto(
@@ -414,7 +414,7 @@ public class DesignerSessionController {
     public record PackageMessageRequest(@NotBlank @Size(max = 12_000) String content,
                                         int expectedDiscussionRevision, int expectedDesignRevision) { }
     public record PackageRevisionRequest(int expectedDiscussionRevision, int expectedDesignRevision) { }
-    public record DesignerSessionDto(String id, String projectId, String projectName, String state,
+    public record DesignerSessionDto(String id, String taskId, String projectId, String projectName, String state,
                                      String workflowPhase, String activeActor, String accessMode,
                                      boolean readOnly, String permissionSummary, String createdAt, String updatedAt,
                                      DesignerDraftDto draft, List<DesignerMessageDto> messages,

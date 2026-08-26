@@ -34,6 +34,7 @@ import io.opencode.loopper.service.LoopDraftService;
 import io.opencode.loopper.service.ProjectService;
 import io.opencode.loopper.service.ProjectStackProfileService;
 import io.opencode.loopper.service.ProjectStackSnapshot;
+import io.opencode.loopper.service.RollingPackagePlanGenerationService;
 import io.opencode.loopper.service.ServiceUnavailableException;
 import io.opencode.loopper.service.TaskService;
 import io.opencode.loopper.service.WorkPackageRoleService;
@@ -105,6 +106,7 @@ class DesignerSessionMcpIntegrationTest {
     @Autowired private LoopDraftService drafts;
     @Autowired private TaskService tasks;
     @Autowired private WorkPackageRoleService workPackageRoles;
+    @Autowired private RollingPackagePlanGenerationService rollingPlanGeneration;
     @Autowired private LoopperMapper mapper;
     @Autowired private JdbcTemplate jdbc;
     @Autowired private OpenCodeClient openCode;
@@ -125,6 +127,196 @@ class DesignerSessionMcpIntegrationTest {
                 OpenCodeClient.CapabilityState.UNAVAILABLE, OpenCodeClient.CapabilityState.UNKNOWN,
                 "marker compatibility fixture"));
         properties.setTaskProfileRouterTimeout(Duration.ofSeconds(240));
+        properties.setRollingPackagesEnabled(false);
+    }
+
+    @Test
+    void rollingThreePackageFlowFreezesRealFactsAndLaunchesOneFinalJudgePair() throws Exception {
+        properties.setRollingPackagesEnabled(true);
+        ProjectRow project = project("rolling-large-package-one");
+        Files.writeString(Path.of(project.rootPath()).resolve("README.md"), "event rolling baseline\n");
+        Files.createDirectories(Path.of(project.rootPath()).resolve("tests"));
+        Files.writeString(Path.of(project.rootPath()).resolve("tests/__init__.py"), "");
+        Files.writeString(Path.of(project.rootPath()).resolve("tests/test_acceptance.py"), """
+                import pathlib
+                import unittest
+
+                class RollingPackageAcceptanceTest(unittest.TestCase):
+                    def test_event_marker_remains_visible(self):
+                        self.assertIn("event", pathlib.Path("README.md").read_text())
+                """);
+        fake().setTaskRouterOutput("{\"intent\":\"SOFTWARE_CHANGE\",\"artifactKinds\":[\"SOURCE_CODE\"],"
+                + "\"complexity\":\"PACKAGED\"}");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        fake().setDecomposerOutput(decomposition("DECOMPOSED", "先建立核心，再接入业务", 3));
+        String firstDesign = rollingControlledDesign("# WP-1 设计\n\n交付可独立验证的核心能力。");
+        setPackageDesignerOutput("WP-1", firstDesign);
+        fake().setPackageCompilerPlanningOutput("WP-1",
+                packageCompilationPlanV2("WP-1", "交付可独立验证的核心能力。", false));
+        String secondDesign = rollingControlledDesign("# WP-2 设计\n\n读取包1真实产物后接入业务能力。");
+        setPackageDesignerOutput("WP-2", secondDesign);
+        fake().setPackageCompilerPlanningOutput("WP-2",
+                packageCompilationPlanV2("WP-2", "读取包1真实产物后接入业务能力。", false));
+        String thirdDesign = rollingControlledDesign("# WP-3 设计\n\n基于前两包事实完成集成。");
+        setPackageDesignerOutput("WP-3", thirdDesign);
+        fake().setPackageCompilerPlanningOutput("WP-3",
+                packageCompilationPlanV2("WP-3", "基于前两包事实完成集成。", false));
+
+        DesignerSessionRow created = designerSessions.create(project.id(), draft.id(), "实现大型软件能力并分两包交付");
+        designerSessions.pollActiveHandoffs();
+        TaskProfileService.View detected = taskProfiles.current(created.id());
+        TaskProfileService.View updated = designerSessions.updateTaskProfile(created.id(),
+                io.opencode.loopper.domain.TaskIntent.SOFTWARE_CHANGE,
+                io.opencode.loopper.domain.ArtifactKind.SOURCE_CODE, true, detected.version());
+        if (!updated.confirmationReady()) {
+            taskProfiles.confirmRecommendation(created.id(), updated.version());
+        }
+        designerSessions.continueAfterTaskProfileDecision(created.id());
+        completeMandatoryDesignerQuestion(created.id());
+        designerSessions.pollActiveHandoffs();
+        designerSessions.pollActiveHandoffs();
+        DesignerSessionRow session = designerSessions.get(created.id());
+        TaskProfileService.View recomputed = taskProfiles.current(session.id());
+        TaskProfileService.View ready = designerSessions.updateTaskProfile(session.id(),
+                io.opencode.loopper.domain.TaskIntent.SOFTWARE_CHANGE,
+                io.opencode.loopper.domain.ArtifactKind.SOURCE_CODE, true, recomputed.version());
+        if (!ready.confirmationReady()) {
+            taskProfiles.confirmRecommendation(session.id(), ready.version());
+        }
+        completeMandatoryDesignerQuestion(session.id());
+        designerSessions.pollActiveHandoffs();
+        designerSessions.pollActiveHandoffs();
+        session = designerSessions.get(session.id());
+        TaskProfileService.View finalProfile = taskProfiles.current(session.id());
+        if (!finalProfile.confirmationReady()) {
+            taskProfiles.confirmRecommendation(session.id(), finalProfile.version());
+        }
+        designerSessions.confirmRequirement(session.id(), session.discussionRevision());
+        session = designerSessions.get(session.id());
+        pollUntilPackageReview(session.id());
+
+        assertThat(mapper.listTasks()).isEmpty();
+        assertThat(taskProfiles.current(session.id())).satisfies(profile -> {
+            assertThat(profile.state()).isEqualTo("FROZEN");
+            assertThat(profile.intent().name()).isEqualTo("SOFTWARE_CHANGE");
+            assertThat(profile.workflowTemplate().name()).isEqualTo("FULL_PACKAGE_DESIGN");
+        });
+        DesignerSessionRow reviewing = designerSessions.get(session.id());
+        assertThat(reviewing.workflowPhase()).as("session=%s packages=%s compiler=%s messages=%s", reviewing,
+                designerSessions.workPackageStatuses(session.id()), designerSessions.compilerStatus(session.id()),
+                designerSessions.messages(session.id())).isEqualTo("REVIEWING_PACKAGE");
+        var first = designerSessions.workPackageStatuses(session.id()).stream()
+                .filter(item -> "REVIEWING".equals(item.state())).findFirst().orElseThrow();
+        designerSessions.approvePackage(session.id(), first.id(), reviewing.discussionRevision(),
+                first.designRevision());
+
+        TaskRow task = mapper.listTasks().getFirst();
+        String taskId = task.id();
+        String firstRunId = mapper.listTaskPackageRuns(taskId).getFirst().id();
+        assertThat(mapper.listTasks()).singleElement().extracting(TaskRow::id).isEqualTo(task.id());
+        assertThat(task.state()).isEqualTo("PENDING_START");
+        assertThat(task.executionMode()).isEqualTo("ROLLING_PACKAGES");
+        assertThat(task.workspacePolicy()).isEqualTo("PINNED_DIRECT");
+        assertThat(mapper.findTaskQueue(task.id())).isEmpty();
+        assertThat(mapper.findActiveWorkspaceLeaseByHolder(task.id())).isEmpty();
+        assertThat(mapper.listSessions(task.id())).isEmpty();
+        assertThat(mapper.listTaskPackageRuns(task.id())).extracting(row -> row.state())
+                .containsExactly("EXECUTION_READY", "PLANNED", "PLANNED");
+        assertThat(mapper.listTaskSpecRevisions(task.id())).singleElement()
+                .extracting(row -> row.revision()).isEqualTo(1);
+        assertThat(mapper.listStages(task.id())).allSatisfy(stage ->
+                assertThat(stage.packageRunId()).isEqualTo(firstRunId));
+        assertThat(mapper.findDesignerSession(session.id())).hasValueSatisfying(row ->
+                assertThat(row.taskId()).isEqualTo(taskId));
+
+        var packageOne = mapper.currentTaskPackageRun(task.id()).orElseThrow();
+        tasks.startRollingPackage(task.id(), packageOne.id(), task.version(), packageOne.version());
+        Files.writeString(Path.of(project.rootPath()).resolve("README.md"),
+                "event rolling baseline\nfact from package one\n");
+        tasks.verify(task.id());
+
+        assertThat(mapper.listPackageFactSnapshots(task.id())).hasSize(1);
+        assertThat(tasks.judges(task.id())).isEmpty();
+        assertThat(mapper.findActiveWorkspaceLeaseByHolder(task.id())).isPresent();
+        assertThat(Files.readString(Path.of(project.rootPath()).resolve("README.md")))
+                .contains("fact from package one");
+        pollUntilRollingPackageReview(task.id(), session.id());
+        assertThat(fake().promptHistory()).anySatisfy(call -> assertThat(call.prompt())
+                .contains("### 已冻结事实", "AI 导航摘要（非证据）"));
+
+        var replanAnchor = mapper.currentTaskPackageRun(task.id()).orElseThrow();
+        fake().setDecomposerOutput("""
+                <!-- ROLLING_PACKAGE_PLAN_JSON_START -->
+                {"packages":[
+                  {"packageKey":"WP-2","title":"业务接入","objective":"按包1真实产物接入业务能力",\
+                   "replaces":["WP-2"],"dependencies":["WP-1"],"requirementRefs":["RQ-2"]},
+                  {"packageKey":"WP-3","title":"集成收口","objective":"基于前两包事实完成集成",\
+                   "replaces":["WP-3"],"dependencies":["WP-2"],"requirementRefs":["RQ-3"]}
+                ]}
+                <!-- ROLLING_PACKAGE_PLAN_JSON_END -->
+                """);
+        var generating = rollingPlanGeneration.suggest(task.id(), mapper.findTask(task.id()).orElseThrow().version(),
+                replanAnchor.id(), replanAnchor.version());
+        assertThat(generating.state()).isEqualTo("GENERATING");
+        rollingPlanGeneration.pollGenerating();
+        assertThat(mapper.findTaskPackagePlanRevision(generating.id())).hasValueSatisfying(proposal -> {
+            assertThat(proposal.state()).isEqualTo("PROPOSED");
+            assertThat(proposal.origin()).isEqualTo("AI");
+            assertThat(proposal.impactJson()).contains("dependencyChanges", "split", "merged");
+            assertThat(proposal.baseCheckpointId())
+                    .isEqualTo(mapper.listPackageFactSnapshots(taskId).getFirst().checkpointId());
+        });
+        assertThat(fake().promptHistory()).anySatisfy(call -> {
+            assertThat(call.prompt()).contains("原始冻结需求", "当前未执行计划", "已冻结事实索引");
+            assertThat(Files.readString(fake().sessionWorktree(call.sessionId()).resolve("README.md")))
+                    .contains("fact from package one");
+        });
+        assertThat(mapper.listPackageFactSnapshots(task.id())).hasSize(1);
+
+        var packageTwo = mapper.currentTaskPackageRun(task.id()).orElseThrow();
+        String packageTwoWorkPackageId = packageTwo.packageKey();
+        var packageTwoDesign = designerSessions.workPackageStatuses(session.id()).stream()
+                .filter(item -> item.id().equals(packageTwoWorkPackageId)).findFirst().orElseThrow();
+        DesignerSessionRow packageTwoReview = designerSessions.get(session.id());
+        designerSessions.approvePackage(session.id(), packageTwoDesign.id(),
+                packageTwoReview.discussionRevision(), packageTwoDesign.designRevision());
+        task = mapper.findTask(task.id()).orElseThrow();
+        packageTwo = mapper.findTaskPackageRun(packageTwo.id()).orElseThrow();
+        TaskRow packageTwoStarted = tasks.startRollingPackage(task.id(), packageTwo.id(), task.version(), packageTwo.version());
+        assertThat(packageTwoStarted.state()).as("errors=%s events=%s stages=%s cycles=%s",
+                mapper.listErrors(task.id()), mapper.eventsAfter(task.id(), 0), mapper.listStages(task.id()),
+                mapper.listTaskExecutionCycles(task.id())).isEqualTo("RUNNING");
+        Files.writeString(Path.of(project.rootPath()).resolve("README.md"),
+                "event rolling baseline\nfact from package one\nfact from package two\n");
+        tasks.verify(task.id());
+
+        assertThat(mapper.listPackageFactSnapshots(task.id())).hasSize(2);
+        assertThat(tasks.judges(task.id())).isEmpty();
+        pollUntilRollingPackageReview(task.id(), session.id());
+        var packageThree = mapper.currentTaskPackageRun(task.id()).orElseThrow();
+        String packageThreeWorkPackageId = packageThree.packageKey();
+        var packageThreeDesign = designerSessions.workPackageStatuses(session.id()).stream()
+                .filter(item -> item.id().equals(packageThreeWorkPackageId)).findFirst().orElseThrow();
+        DesignerSessionRow packageThreeReview = designerSessions.get(session.id());
+        designerSessions.approvePackage(session.id(), packageThreeDesign.id(),
+                packageThreeReview.discussionRevision(), packageThreeDesign.designRevision());
+        task = mapper.findTask(task.id()).orElseThrow();
+        packageThree = mapper.findTaskPackageRun(packageThree.id()).orElseThrow();
+        TaskRow packageThreeStarted = tasks.startRollingPackage(task.id(), packageThree.id(), task.version(), packageThree.version());
+        assertThat(packageThreeStarted.state()).as("errors=%s events=%s stages=%s cycles=%s",
+                mapper.listErrors(task.id()), mapper.eventsAfter(task.id(), 0), mapper.listStages(task.id()),
+                mapper.listTaskExecutionCycles(task.id())).isEqualTo("RUNNING");
+        Files.writeString(Path.of(project.rootPath()).resolve("README.md"),
+                "event rolling baseline\nfact from package one\nfact from package two\nfact from package three\n");
+        tasks.verify(task.id());
+
+        assertThat(mapper.listPackageFactSnapshots(task.id())).hasSize(3);
+        assertThat(mapper.listTaskPackageRuns(task.id())).extracting(row -> row.state())
+                .containsExactly("FACT_FROZEN", "FACT_FROZEN", "FACT_FROZEN");
+        assertThat(tasks.judges(task.id())).extracting(row -> row.role())
+                .containsExactlyInAnyOrder("REQUIREMENT", "RISK");
+        assertThat(mapper.listTaskSpecRevisions(task.id())).hasSize(3);
+        assertThat(mapper.listStages(task.id())).hasSize(3);
     }
 
     @Test
@@ -1136,7 +1328,7 @@ class DesignerSessionMcpIntegrationTest {
         TaskRow task = mapper.findTaskByDraft(draft.id()).orElseThrow();
         assertThat(task.state()).isNotEqualTo("PENDING_START");
         assertThat(designerAutoMode.get(session.id())).satisfies(mode -> {
-            assertThat(mode.state()).isEqualTo("COMPLETED");
+            assertThat(mode.state()).as(mode.toString()).isEqualTo("COMPLETED");
             assertThat(mode.taskId()).isEqualTo(task.id());
         });
         assertThat(mapper.listDesignDiscussionRevisions(session.id()))
@@ -3671,6 +3863,26 @@ class DesignerSessionMcpIntegrationTest {
         }
     }
 
+    private void pollUntilRollingPackageReview(String taskId, String sessionId) {
+        for (int attempt = 0; attempt < 80; attempt++) {
+            var run = mapper.currentTaskPackageRun(taskId).orElse(null);
+            if (run != null && "DESIGN_REVIEW".equals(run.state())) {
+                var workPackage = designerSessions.workPackageStatuses(sessionId).stream()
+                        .filter(item -> item.id().equals(run.packageKey()))
+                        .findFirst().orElse(null);
+                if (workPackage != null && "REVIEWING".equals(workPackage.state())) return;
+            }
+            pollWithMandatoryQuestion(sessionId);
+        }
+        throw new AssertionError("rolling package review did not settle: run="
+                + mapper.currentTaskPackageRun(taskId).orElse(null)
+                + " packages=" + designerSessions.workPackageStatuses(sessionId)
+                + " session=" + designerSessions.get(sessionId)
+                + " errors=" + mapper.listErrors(taskId)
+                + " events=" + mapper.eventsAfter(taskId, 0)
+                + " messages=" + designerSessions.messages(sessionId));
+    }
+
     private void pollUntilPackageStates(String sessionId, String... states) {
         for (int attempt = 0; attempt < 40; attempt++) {
             List<String> current = compatibilityPackageStates(sessionId);
@@ -4059,6 +4271,34 @@ class DesignerSessionMcpIntegrationTest {
                 | --- | --- | --- | --- |
                 | 实现与验证 | 完成当前工作包并验证可观察结果 | 当前工作包验收；%s | 无 |
                 """.formatted(target, command, target);
+    }
+
+    private String rollingControlledDesign(String markdown) {
+        return markdown + """
+
+                ## 目标与范围
+                完成当前滚动工作包，并且只修改 README 中的可观察事实。
+
+                ## 影响与交付
+                | 类型 | 相对路径或符号 | 说明 |
+                | --- | --- | --- |
+                | 修改 | README.md | 当前包形成的可观察结果 |
+                | 测试 | tests/test_acceptance.py | 当前包的聚焦验收测试 |
+
+                ## 验收场景
+                | 场景 | 前置/触发 | 操作 | 可观察结果 | 保持不变 |
+                | --- | --- | --- | --- | --- |
+                | 当前包验收 | 前序事实已冻结 | 执行当前包 | README 保留 event 标记，由 tests/test_acceptance.py 覆盖 | 既有事实不删除 |
+
+                ## 验收约束
+                聚焦测试必须独立通过：
+                `python3 -m unittest tests.test_acceptance`
+
+                ## 阶段与依赖
+                | 阶段 | 目标 | 包含场景/评审/交付 | 前置阶段 |
+                | --- | --- | --- | --- |
+                | 实现与验证 | 写入并验证当前包事实 | 当前包验收；README.md；tests/test_acceptance.py | 无 |
+                """;
     }
 
     private String stageControlledDesign(String markdown, int stageCount) {

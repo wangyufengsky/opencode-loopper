@@ -35,6 +35,12 @@ public class TaskExecutionCycleService {
 
     public TaskExecutionCycleRow create(TaskRow task, ExecutionCycleKind kind, StageRow startStage,
                                         String supplementalPrompt, String budgetJson) {
+        return create(task, kind, startStage, supplementalPrompt, budgetJson, null, "LEGACY");
+    }
+
+    public TaskExecutionCycleRow create(TaskRow task, ExecutionCycleKind kind, StageRow startStage,
+                                        String supplementalPrompt, String budgetJson,
+                                        String packageRunId, String cycleType) {
         if (mapper.activeTaskExecutionCycle(task.id()).isPresent()) {
             throw new ConflictException("TASK_EXECUTION_CYCLE_ACTIVE", "Task already has an active execution cycle");
         }
@@ -43,7 +49,7 @@ public class TaskExecutionCycleService {
                 mapper.maxTaskExecutionCycleOrdinal(task.id()) + 1, kind.name(), ExecutionCycleState.RUNNING.name(),
                 startStage == null ? null : startStage.id(), startStage == null ? null : startStage.ordinal(),
                 bounded(supplementalPrompt, 12_000), budgetJson == null ? "{}" : budgetJson,
-                null, null, now, now, null, 0);
+                null, null, now, now, null, 0, packageRunId, cycleType);
         lifecycle.create(subject(row), row.state(), Map.of("kind", kind.name(), "ordinal", row.ordinal()),
                 () -> mapper.insertTaskExecutionCycle(row),
                 () -> new ConflictException("TASK_EXECUTION_CYCLE_CREATE_CONFLICT", "Execution cycle was created concurrently"));
@@ -57,7 +63,8 @@ public class TaskExecutionCycleService {
         TaskExecutionCycleRow ended = new TaskExecutionCycleRow(current.id(), current.taskId(), current.ordinal(),
                 current.kind(), result.name(), current.startStageId(), current.startStageOrdinal(),
                 current.supplementalPrompt(), current.budgetJson(), bounded(code, 200), bounded(message, 2_000),
-                current.authorizedAt(), current.startedAt(), Instant.now().toString(), current.version());
+                current.authorizedAt(), current.startedAt(), Instant.now().toString(), current.version(),
+                current.packageRunId(), current.cycleType());
         LifecycleEvent event = switch (result) {
             case SUCCEEDED -> LifecycleEvent.CYCLE_SUCCEED;
             case FAILED -> LifecycleEvent.CYCLE_FAIL;

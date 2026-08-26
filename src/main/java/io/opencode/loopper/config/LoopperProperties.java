@@ -19,6 +19,8 @@ public class LoopperProperties {
     private Duration designerMonitorDelay = Duration.ofMillis(750);
     private Duration designerTimeout = Duration.ofMinutes(15);
     private Duration taskProfileRouterTimeout = Duration.ofSeconds(240);
+    /** Emergency compatibility switch; eligible new large software designs use rolling packages by default. */
+    private boolean rollingPackagesEnabled = true;
     /** Optional canonical parent directory for newly registered projects. */
     private String allowedRoot = "";
     /** Follow-up abort attempts after a mutating Session could not be confirmed stopped. */
@@ -49,6 +51,8 @@ public class LoopperProperties {
     public void setDesignerTimeout(Duration value) { this.designerTimeout = value; }
     public Duration getTaskProfileRouterTimeout() { return taskProfileRouterTimeout; }
     public void setTaskProfileRouterTimeout(Duration value) { this.taskProfileRouterTimeout = value; }
+    public boolean isRollingPackagesEnabled() { return rollingPackagesEnabled; }
+    public void setRollingPackagesEnabled(boolean value) { this.rollingPackagesEnabled = value; }
     public String getAllowedRoot() { return allowedRoot; }
     public void setAllowedRoot(String value) { this.allowedRoot = value; }
     public int getAbortCleanupAttempts() { return abortCleanupAttempts; }

@@ -79,6 +79,18 @@ public class TaskReadService {
             recordRows("task-overview", 1L + stages.size() + errors.size() + judges.size());
             boolean retryAvailable = "LOOP_STAGNATION_DETECTED".equals(task.waitingReasonCode())
                     || "LOOP_FRESH_SESSION_REQUIRED".equals(task.waitingReasonCode());
+            boolean rolling = "ROLLING_PACKAGES".equals(task.executionMode());
+            String activePlanId = rolling
+                    ? mapper.activeTaskPackagePlanRevision(taskId).map(row -> row.id()).orElse(null) : null;
+            var packageRuns = rolling ? mapper.listTaskPackageRuns(taskId).stream()
+                    .filter(run -> "FACT_FROZEN".equals(run.state())
+                            || activePlanId != null && activePlanId.equals(run.planRevisionId()))
+                    .filter(run -> !"SUPERSEDED".equals(run.state())).toList() : List
+                    .<io.opencode.loopper.persistence.TaskPackageRunRow>of();
+            var currentPackage = rolling ? mapper.currentTaskPackageRun(taskId).orElse(null) : null;
+            int frozenPackages = (int) packageRuns.stream().filter(run -> "FACT_FROZEN".equals(run.state())).count();
+            PackageCapabilities packageCapabilities = rolling
+                    ? packageCapabilities(task, currentPackage, frozenPackages) : null;
             return new TaskOverview(task.id(), task.projectId(), task.projectName(), task.title(), task.goal(),
                     blankToDefault(task.branchName(), "等待选择执行模式"), task.worktreePath(), task.state(),
                     task.retryCause(), task.retryOrdinal(), task.retryCreatedAt(), task.retryDueAt(),
@@ -87,8 +99,40 @@ public class TaskReadService {
                     task.hasDesignHistory() == 1, task.archived() == 1, task.executionResult(),
                     task.executionCycleOrdinal(), task.checkpointState(), task.parentTaskId(), task.successorTaskId(),
                     task.attemptCount(), task.maxTaskAttempts(), task.createdAt(), task.updatedAt(),
-                    stages.stream().map(this::stage).toList(), workPackageProgress(stages, task.maxStageAttempts()), errors, judges);
+                    stages.stream().map(this::stage).toList(), workPackageProgress(stages, task.maxStageAttempts()), errors, judges,
+                    task.version(), task.executionMode(), task.workspacePolicy(),
+                    currentPackage == null ? null : new CurrentPackage(currentPackage.id(), currentPackage.packageKey(),
+                            currentPackage.ordinal(), currentPackage.title(), currentPackage.state(), currentPackage.version()),
+                    packageRuns.size(), frozenPackages, packageCapabilities);
         });
+    }
+
+    private PackageCapabilities packageCapabilities(TaskOverviewRow task,
+                                                     io.opencode.loopper.persistence.TaskPackageRunRow run,
+                                                     int frozenPackages) {
+        boolean safeCheckpoint = mapper.listPackageFactSnapshots(task.id()).stream().reduce((left, right) -> right)
+                .flatMap(fact -> mapper.findTaskWorkspaceCheckpoint(fact.checkpointId()))
+                .map(checkpoint -> "READY".equals(checkpoint.state()) || "RESTORED".equals(checkpoint.state()))
+                .orElse(false);
+        boolean writerFree = mapper.activeSessions(task.id()).isEmpty()
+                && mapper.activeJudgeRuns(task.id()).isEmpty()
+                && mapper.listVerifierRuntimes(task.id()).stream()
+                .noneMatch(runtime -> Set.of("STARTING", "RUNNING", "STOPPING", "DISCONNECTED")
+                        .contains(runtime.state()));
+        if (run == null) return new PackageCapabilities(false, false, false, false, false, false,
+                writerFree && safeCheckpoint && frozenPackages > 0);
+        return new PackageCapabilities(
+                Set.of("DESIGNING", "DESIGN_REVIEW").contains(run.state()),
+                "DESIGN_REVIEW".equals(run.state()),
+                "EXECUTION_READY".equals(run.state()) || "QUEUED".equals(run.state())
+                        && Set.of("PENDING_START", "WAITING_INPUT").contains(task.state()),
+                "WAITING_INPUT".equals(run.state()) && Set.of("PACKAGE_EXECUTION_FAILED", "PACKAGE_CHECKPOINT_BLOCKED")
+                        .contains(run.waitingReasonCode()),
+                "WAITING_INPUT".equals(run.state()) && safeCheckpoint
+                        && !"PACKAGE_CHECKPOINT_BLOCKED".equals(run.waitingReasonCode()),
+                writerFree && safeCheckpoint && Set.of("PLANNED", "DESIGNING", "DESIGN_REVIEW", "EXECUTION_READY")
+                        .contains(run.state()),
+                writerFree && safeCheckpoint && frozenPackages > 0);
     }
 
     public TaskAudit audit(String taskId) {
@@ -299,7 +343,15 @@ public class TaskReadService {
                                Integer executionCycleOrdinal, String checkpointState, String parentTaskId,
                                String successorTaskId, int attemptCount, int maxAttempts, String createdAt,
                                String updatedAt, List<StageSummary> stages, List<WorkPackageSummary> workPackages,
-                               List<ErrorSummary> errors, List<JudgeSummary> judges) { }
+                               List<ErrorSummary> errors, List<JudgeSummary> judges,
+                               long version, String executionMode, String workspacePolicy,
+                               CurrentPackage currentPackage, int plannedPackageCount, int frozenPackageCount,
+                               PackageCapabilities packageCapabilities) { }
+    public record CurrentPackage(String id, String packageKey, int ordinal, String title, String state,
+                                 long version) { }
+    public record PackageCapabilities(boolean canDiscuss, boolean canApproveDesign, boolean canStartPackage,
+                                      boolean canRetryPackage, boolean canRedesignPackage,
+                                      boolean canReplanRemaining, boolean canAddCorrectionPackage) { }
     public record StageSummary(String id, int ordinal, String objective, String status, JsonNode allowedPaths,
                                JsonNode forbiddenPaths, JsonNode deliverables, JsonNode verifiers,
                                String startedAt, String updatedAt, String workPackageId) { }

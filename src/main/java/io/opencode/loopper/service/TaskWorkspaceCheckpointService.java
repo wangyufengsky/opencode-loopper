@@ -12,6 +12,7 @@ import io.opencode.loopper.persistence.TaskExecutionCycleRow;
 import io.opencode.loopper.persistence.TaskRow;
 import io.opencode.loopper.persistence.TaskWorkspaceCheckpointRow;
 import io.opencode.loopper.runtime.DirectWorkspaceLeaseCoordinator;
+import io.opencode.loopper.runtime.DirectWorkspaceBaselineManager;
 import io.opencode.loopper.runtime.GitWorktreeManager;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -21,6 +22,7 @@ import java.util.HexFormat;
 import java.util.Map;
 import java.util.UUID;
 import java.util.List;
+import java.util.Set;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.ObjectMapper;
 
@@ -30,15 +32,19 @@ public class TaskWorkspaceCheckpointService {
     private final LoopperMapper mapper;
     private final ProjectService projects;
     private final GitWorktreeManager worktrees;
+    private final DirectWorkspaceBaselineManager directBaselines;
     private final LifecycleTransitionService lifecycle;
     private final ObjectMapper json;
 
     public TaskWorkspaceCheckpointService(LoopperMapper mapper, ProjectService projects,
-                                          GitWorktreeManager worktrees, LifecycleTransitionService lifecycle,
+                                          GitWorktreeManager worktrees,
+                                          DirectWorkspaceBaselineManager directBaselines,
+                                          LifecycleTransitionService lifecycle,
                                           ObjectMapper json) {
         this.mapper = mapper;
         this.projects = projects;
         this.worktrees = worktrees;
+        this.directBaselines = directBaselines;
         this.lifecycle = lifecycle;
         this.json = json;
     }
@@ -64,8 +70,24 @@ public class TaskWorkspaceCheckpointService {
                     () -> new ConflictException("RECOVERY_CHECKPOINT_CREATE_CONFLICT", "Workspace checkpoint was created concurrently"));
         }
         if (GitWorktreeManager.DIRECT_BRANCH.equals(task.branchName())) {
-            return block(row, "RECOVERY_DIRECT_CHECKPOINT_UNSUPPORTED",
-                    "Direct workspace cannot be cleared and shared without overwriting user files");
+            try {
+                DirectWorkspaceBaselineManager.Checkpoint frozen = directBaselines.captureCheckpoint(root, task.id());
+                String manifest = json.writeValueAsString(Map.of("gitIndexBase64",
+                        java.util.Base64.getEncoder().encodeToString(
+                                frozen.manifest().getBytes(StandardCharsets.UTF_8))));
+                TaskWorkspaceCheckpointRow ready = new TaskWorkspaceCheckpointRow(row.id(), row.taskId(), row.cycleId(),
+                        WorkspaceCheckpointState.READY.name(), sha256(frozen.tree()), row.canonicalRoot(),
+                        row.rootFingerprint(), row.branchName(), row.sourceBranch(), row.baselineCommit(),
+                        "direct-checkpoint:" + task.id() + ":" + cycle.id(), null, frozen.tree(), manifest,
+                        sha256(manifest), null, null, null, row.createdAt(), Instant.now().toString(), row.version());
+                update(row, ready, LifecycleEvent.COMPLETE, Map.of("checkpointTree", frozen.tree(),
+                        "workspacePolicy", "PINNED_DIRECT"));
+                return mapper.findTaskWorkspaceCheckpoint(row.id()).orElse(ready);
+            } catch (TaskFailure failure) {
+                return block(row, failure.code(), failure.getMessage());
+            } catch (Exception failure) {
+                return block(row, "DIRECT_CHECKPOINT_CREATE_FAILED", failure.getMessage());
+            }
         }
         try {
             GitWorktreeManager.WorkspaceCheckpoint frozen = worktrees.freezeWorkspace(root, task.id(), cycle.id(), task.branchName());
@@ -88,7 +110,9 @@ public class TaskWorkspaceCheckpointService {
 
     public TaskWorkspaceCheckpointRow restore(TaskRow task, TaskWorkspaceCheckpointRow checkpoint) {
         boolean resuming = WorkspaceCheckpointState.RESTORING.name().equals(checkpoint.state());
-        if (!WorkspaceCheckpointState.READY.name().equals(checkpoint.state()) && !resuming) {
+        boolean reusable = WorkspaceCheckpointState.READY.name().equals(checkpoint.state())
+                || WorkspaceCheckpointState.RESTORED.name().equals(checkpoint.state());
+        if (!reusable && !resuming) {
             throw new ConflictException("RECOVERY_CHECKPOINT_NOT_READY", "Task checkpoint is not safe to restore");
         }
         ProjectRow project = projects.get(task.projectId());
@@ -107,6 +131,16 @@ public class TaskWorkspaceCheckpointService {
         }
         try {
             Path root = Path.of(project.rootPath());
+            if (GitWorktreeManager.DIRECT_BRANCH.equals(checkpoint.branchName())) {
+                if (!directBaselines.matchesCheckpoint(root, task.id(), checkpoint.checkpointTree())) {
+                    throw new ConflictException("DIRECT_PACKAGE_CHECKPOINT_DRIFT",
+                            "Direct 登记目录已偏离上一工作包事实点");
+                }
+                TaskWorkspaceCheckpointRow currentCheckpoint = mapper.findTaskWorkspaceCheckpoint(checkpoint.id()).orElse(restoring);
+                TaskWorkspaceCheckpointRow restored = copyState(currentCheckpoint, WorkspaceCheckpointState.RESTORED, null, null);
+                update(currentCheckpoint, restored, LifecycleEvent.COMPLETE, Map.of("checkpointTree", checkpoint.checkpointTree()));
+                return mapper.findTaskWorkspaceCheckpoint(checkpoint.id()).orElse(restored);
+            }
             if (!worktrees.workspaceMatchesCheckpointTree(root, checkpoint.branchName(), checkpoint.checkpointRef(),
                     checkpoint.checkpointCommit(), checkpoint.checkpointTree())) {
                 worktrees.restoreWorkspaceCheckpoint(root, checkpoint.branchName(),
@@ -148,6 +182,23 @@ public class TaskWorkspaceCheckpointService {
 
     public TaskWorkspaceCheckpointRow latest(String taskId) {
         return mapper.latestTaskWorkspaceCheckpoint(taskId).orElse(null);
+    }
+
+    /** Returns the exact read root for the next package and revalidates Direct drift before use. */
+    public Path designSnapshot(TaskRow task, TaskWorkspaceCheckpointRow checkpoint) {
+        if (checkpoint == null || !Set.of(WorkspaceCheckpointState.READY.name(),
+                WorkspaceCheckpointState.RESTORED.name()).contains(checkpoint.state())) {
+            throw new ConflictException("PACKAGE_DESIGN_CHECKPOINT_MISSING", "下一工作包缺少可验证的事实点");
+        }
+        Path root = Path.of(projects.get(task.projectId()).rootPath());
+        if (GitWorktreeManager.DIRECT_BRANCH.equals(checkpoint.branchName())) {
+            if (!directBaselines.matchesCheckpoint(root, task.id(), checkpoint.checkpointTree())) {
+                throw new ConflictException("DIRECT_PACKAGE_CHECKPOINT_DRIFT",
+                        "Direct 登记目录已偏离上一工作包事实点");
+            }
+            return root.toAbsolutePath().normalize();
+        }
+        return worktrees.materializeReadOnlySnapshot(root, task.id(), checkpoint.id(), checkpoint.checkpointTree());
     }
 
     private TaskWorkspaceCheckpointRow block(TaskWorkspaceCheckpointRow row, String code, String message) {

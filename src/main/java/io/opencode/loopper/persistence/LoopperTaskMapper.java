@@ -10,7 +10,7 @@ import org.apache.ibatis.annotations.Update;
 
 /** Domain-focused persistence contract composed by {@link LoopperMapper}. */
 public interface LoopperTaskMapper {
-    @Insert("INSERT INTO task(id,project_id,loop_draft_id,title,state,worktree_path,branch_name,source_branch,baseline_commit,created_at,updated_at,version,task_profile_id,role_pack_id,role_pack_version) VALUES(#{id},#{projectId},#{loopDraftId},#{title},#{state},#{worktreePath},#{branchName},#{sourceBranch},#{baselineCommit},#{createdAt},#{updatedAt},#{version},#{taskProfileId},#{rolePackId},#{rolePackVersion})")
+    @Insert("INSERT INTO task(id,project_id,loop_draft_id,title,state,worktree_path,branch_name,source_branch,baseline_commit,created_at,updated_at,version,task_profile_id,role_pack_id,role_pack_version,execution_mode,workspace_policy) VALUES(#{id},#{projectId},#{loopDraftId},#{title},#{state},#{worktreePath},#{branchName},#{sourceBranch},#{baselineCommit},#{createdAt},#{updatedAt},#{version},#{taskProfileId},#{rolePackId},#{rolePackVersion},#{executionMode},#{workspacePolicy})")
     int insertTask(TaskRow row);
     @Select("SELECT * FROM task WHERE id=#{id}") Optional<TaskRow> findTask(String id);
     @Select("SELECT * FROM task WHERE loop_draft_id=#{draftId} ORDER BY created_at DESC LIMIT 1") Optional<TaskRow> findTaskByDraft(String draftId);
@@ -22,7 +22,7 @@ public interface LoopperTaskMapper {
     int restoreTask(String taskId);
     @Delete("DELETE FROM task WHERE id=#{id}")
     int deleteTask(String id);
-    @Select("SELECT * FROM task WHERE state IN ('PREPARING','RUNNING','VERIFYING','RETRY_WAIT','JUDGING','STOPPING') ORDER BY created_at") List<TaskRow> listRecoverableTasks();
+    @Select("SELECT * FROM task WHERE state IN ('PREPARING','RUNNING','VERIFYING','RETRY_WAIT','JUDGING','PACKAGE_DESIGNING','STOPPING') ORDER BY created_at") List<TaskRow> listRecoverableTasks();
     @Update("UPDATE task SET state=#{state}, updated_at=#{updatedAt}, version=version+1 WHERE id=#{id} AND version=#{version}")
     int updateTaskState(TaskRow row);
     @Update("UPDATE task SET worktree_path=#{worktreePath}, branch_name=#{branchName}, source_branch=#{sourceBranch}, baseline_commit=#{baselineCommit}, state=#{state}, updated_at=#{updatedAt}, version=version+1 WHERE id=#{id} AND version=#{version}")
@@ -53,7 +53,7 @@ public interface LoopperTaskMapper {
     int updateTaskPublication(TaskPublicationRow row);
     @Delete("DELETE FROM task_publication WHERE task_id=#{taskId}") int deleteTaskPublicationForTask(String taskId);
 
-    @Insert("INSERT INTO stage(id,task_id,ordinal,objective,allowed_paths_json,forbidden_paths_json,deliverables_json,verifiers_json,state,created_at,updated_at,version,work_package_id,stage_kind,execution_strategy,artifact_plan_id,role_pack_id,role_pack_version,test_policy,technologies_json,project_stack_profile_id,component_keys_json,stack_fingerprint) VALUES(#{id},#{taskId},#{ordinal},#{objective},#{allowedPathsJson},#{forbiddenPathsJson},#{deliverablesJson},#{verifiersJson},#{state},#{createdAt},#{updatedAt},#{version},#{workPackageId},#{stageKind},#{executionStrategy},#{artifactPlanId},#{rolePackId},#{rolePackVersion},#{testPolicy},#{technologiesJson},#{projectStackProfileId},#{componentKeysJson},#{stackFingerprint})")
+    @Insert("INSERT INTO stage(id,task_id,ordinal,objective,allowed_paths_json,forbidden_paths_json,deliverables_json,verifiers_json,state,created_at,updated_at,version,work_package_id,stage_kind,execution_strategy,artifact_plan_id,role_pack_id,role_pack_version,test_policy,technologies_json,project_stack_profile_id,component_keys_json,stack_fingerprint,package_run_id) VALUES(#{id},#{taskId},#{ordinal},#{objective},#{allowedPathsJson},#{forbiddenPathsJson},#{deliverablesJson},#{verifiersJson},#{state},#{createdAt},#{updatedAt},#{version},#{workPackageId},#{stageKind},#{executionStrategy},#{artifactPlanId},#{rolePackId},#{rolePackVersion},#{testPolicy},#{technologiesJson},#{projectStackProfileId},#{componentKeysJson},#{stackFingerprint},#{packageRunId})")
     int insertStage(StageRow row);
     @Select("SELECT * FROM stage WHERE id=#{id}") Optional<StageRow> findStage(String id);
     @Select("SELECT * FROM stage WHERE task_id=#{taskId} ORDER BY ordinal") List<StageRow> listStages(String taskId);
@@ -91,9 +91,11 @@ public interface LoopperTaskMapper {
 
     @Insert("""
             INSERT INTO task_execution_cycle(id,task_id,ordinal,kind,state,start_stage_id,start_stage_ordinal,
-              supplemental_prompt,budget_json,failure_code,failure_message,authorized_at,started_at,ended_at,version)
+              supplemental_prompt,budget_json,failure_code,failure_message,authorized_at,started_at,ended_at,version,
+              package_run_id,cycle_type)
             VALUES(#{id},#{taskId},#{ordinal},#{kind},#{state},#{startStageId},#{startStageOrdinal},
-              #{supplementalPrompt},#{budgetJson},#{failureCode},#{failureMessage},#{authorizedAt},#{startedAt},#{endedAt},#{version})
+              #{supplementalPrompt},#{budgetJson},#{failureCode},#{failureMessage},#{authorizedAt},#{startedAt},#{endedAt},#{version},
+              #{packageRunId},#{cycleType})
             """)
     int insertTaskExecutionCycle(TaskExecutionCycleRow row);
     @Select("SELECT * FROM task_execution_cycle WHERE id=#{id}") Optional<TaskExecutionCycleRow> findTaskExecutionCycle(String id);
@@ -110,6 +112,98 @@ public interface LoopperTaskMapper {
               ended_at=#{endedAt},version=version+1 WHERE id=#{id} AND version=#{version}
             """)
     int updateTaskExecutionCycle(TaskExecutionCycleRow row);
+
+    @Insert("""
+            INSERT INTO task_package_plan_revision(id,task_id,designer_session_id,requirement_revision_id,
+              revision,state,origin,plan_json,impact_json,external_session_id,external_session_state,
+              last_error_code,last_error_detail,base_checkpoint_id,base_task_version,base_package_run_id,
+              base_package_version,created_at,updated_at,approved_at,superseded_at,version)
+            VALUES(#{id},#{taskId},#{designerSessionId},#{requirementRevisionId},#{revision},#{state},#{origin},
+              #{planJson},#{impactJson},#{externalSessionId},#{externalSessionState},#{lastErrorCode},#{lastErrorDetail},
+              #{baseCheckpointId},#{baseTaskVersion},#{basePackageRunId},#{basePackageVersion},#{createdAt},#{updatedAt},
+              #{approvedAt},#{supersededAt},#{version})
+            """)
+    int insertTaskPackagePlanRevision(TaskPackagePlanRevisionRow row);
+    @Select("SELECT * FROM task_package_plan_revision WHERE task_id=#{taskId} AND state='ACTIVE' LIMIT 1")
+    Optional<TaskPackagePlanRevisionRow> activeTaskPackagePlanRevision(String taskId);
+    @Select("SELECT * FROM task_package_plan_revision WHERE id=#{id}")
+    Optional<TaskPackagePlanRevisionRow> findTaskPackagePlanRevision(String id);
+    @Select("SELECT * FROM task_package_plan_revision WHERE task_id=#{taskId} ORDER BY revision DESC")
+    List<TaskPackagePlanRevisionRow> listTaskPackagePlanRevisions(String taskId);
+    @Select("SELECT * FROM task_package_plan_revision WHERE state='GENERATING' ORDER BY created_at")
+    List<TaskPackagePlanRevisionRow> listGeneratingTaskPackagePlanRevisions();
+    @Update("""
+            UPDATE task_package_plan_revision SET state=#{state},plan_json=#{planJson},impact_json=#{impactJson},
+              external_session_id=#{externalSessionId},external_session_state=#{externalSessionState},
+              last_error_code=#{lastErrorCode},last_error_detail=#{lastErrorDetail},updated_at=#{updatedAt},
+              approved_at=#{approvedAt},superseded_at=#{supersededAt},version=version+1
+            WHERE id=#{id} AND version=#{version}
+            """)
+    int updateTaskPackagePlanRevision(TaskPackagePlanRevisionRow row);
+
+    @Insert("""
+            INSERT INTO task_package_run(id,task_id,plan_revision_id,design_work_package_id,package_key,
+              ordinal,title,state,correction_of_package_run_id,discussion_revision,design_revision,
+              accepted_design_revision,waiting_reason_code,created_at,updated_at,version,resume_checkpoint_id)
+            VALUES(#{id},#{taskId},#{planRevisionId},#{designWorkPackageId},#{packageKey},#{ordinal},#{title},
+              #{state},#{correctionOfPackageRunId},#{discussionRevision},#{designRevision},
+              #{acceptedDesignRevision},#{waitingReasonCode},#{createdAt},#{updatedAt},#{version},#{resumeCheckpointId})
+            """)
+    int insertTaskPackageRun(TaskPackageRunRow row);
+    @Select("SELECT * FROM task_package_run WHERE id=#{id}") Optional<TaskPackageRunRow> findTaskPackageRun(String id);
+    @Select("SELECT * FROM task_package_run WHERE task_id=#{taskId} ORDER BY ordinal,created_at")
+    List<TaskPackageRunRow> listTaskPackageRuns(String taskId);
+    @Select("SELECT * FROM task_package_run WHERE task_id=#{taskId} AND state NOT IN ('FACT_FROZEN','SUPERSEDED','CANCELLED') ORDER BY ordinal LIMIT 1")
+    Optional<TaskPackageRunRow> currentTaskPackageRun(String taskId);
+    @Update("""
+            UPDATE task_package_run SET state=#{state},discussion_revision=#{discussionRevision},
+              design_revision=#{designRevision},accepted_design_revision=#{acceptedDesignRevision},
+              waiting_reason_code=#{waitingReasonCode},resume_checkpoint_id=#{resumeCheckpointId},
+              updated_at=#{updatedAt},version=version+1
+            WHERE id=#{id} AND version=#{version}
+            """)
+    int updateTaskPackageRun(TaskPackageRunRow row);
+    @Update("UPDATE task_package_run SET resume_checkpoint_id=#{checkpointId},updated_at=#{updatedAt},version=version+1 WHERE id=#{id} AND version=#{version}")
+    int updateTaskPackageRunResumeCheckpoint(@Param("id") String id, @Param("checkpointId") String checkpointId,
+                                             @Param("updatedAt") String updatedAt, @Param("version") long version);
+
+    @Insert("""
+            INSERT INTO task_spec_revision(id,task_id,revision,package_run_id,spec_json,spec_sha256,stage_count,created_at)
+            VALUES(#{id},#{taskId},#{revision},#{packageRunId},#{specJson},#{specSha256},#{stageCount},#{createdAt})
+            """)
+    int insertTaskSpecRevision(TaskSpecRevisionRow row);
+    @Select("SELECT * FROM task_spec_revision WHERE task_id=#{taskId} ORDER BY revision DESC LIMIT 1")
+    Optional<TaskSpecRevisionRow> latestTaskSpecRevision(String taskId);
+    @Select("SELECT * FROM task_spec_revision WHERE task_id=#{taskId} ORDER BY revision")
+    List<TaskSpecRevisionRow> listTaskSpecRevisions(String taskId);
+
+    @Insert("""
+            INSERT INTO package_fact_snapshot(id,task_id,package_run_id,checkpoint_id,successful_attempt_id,
+              input_tree,output_tree,manifest_sha256,diff_sha256,evidence_sha256,proven_json,
+              accepted_contract_json,navigation_summary,task_spec_sha256,created_at)
+            VALUES(#{id},#{taskId},#{packageRunId},#{checkpointId},#{successfulAttemptId},#{inputTree},
+              #{outputTree},#{manifestSha256},#{diffSha256},#{evidenceSha256},#{provenJson},
+              #{acceptedContractJson},#{navigationSummary},#{taskSpecSha256},#{createdAt})
+            """)
+    int insertPackageFactSnapshot(PackageFactSnapshotRow row);
+    @Select("SELECT * FROM package_fact_snapshot WHERE package_run_id=#{packageRunId}")
+    Optional<PackageFactSnapshotRow> findPackageFactSnapshot(String packageRunId);
+    @Select("SELECT * FROM package_fact_snapshot WHERE task_id=#{taskId} ORDER BY created_at")
+    List<PackageFactSnapshotRow> listPackageFactSnapshots(String taskId);
+    @Delete("DELETE FROM package_fact_snapshot WHERE task_id=#{taskId}")
+    int deletePackageFactSnapshotsForTask(String taskId);
+    @Delete("DELETE FROM task_spec_revision WHERE task_id=#{taskId}")
+    int deleteTaskSpecRevisionsForTask(String taskId);
+    @Update("UPDATE task_package_run SET resume_checkpoint_id=NULL,correction_of_package_run_id=NULL WHERE task_id=#{taskId}")
+    int detachTaskPackageRunReferences(String taskId);
+    @Update("UPDATE task_package_plan_revision SET base_checkpoint_id=NULL,base_package_run_id=NULL WHERE task_id=#{taskId}")
+    int detachTaskPackagePlanRevisionReferences(String taskId);
+    @Delete("DELETE FROM task_execution_cycle WHERE task_id=#{taskId}")
+    int deleteTaskExecutionCyclesForTask(String taskId);
+    @Delete("DELETE FROM task_package_run WHERE task_id=#{taskId}")
+    int deleteTaskPackageRunsForTask(String taskId);
+    @Delete("DELETE FROM task_package_plan_revision WHERE task_id=#{taskId}")
+    int deleteTaskPackagePlanRevisionsForTask(String taskId);
 
     @Insert("""
             INSERT INTO task_workspace_checkpoint(id,task_id,cycle_id,state,snapshot_id,canonical_root,root_fingerprint,

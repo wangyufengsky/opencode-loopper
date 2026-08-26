@@ -9,7 +9,8 @@ public record DesignerSessionRow(String id, String projectId, String state, Stri
                                  String loopDraftId, String workflowPhase,
                                  int designRevision, int redesignCount,
                                  Integer currentRequirementRevision, String activeWorkPackageId,
-                                 String discussionScope, int discussionRevision, String candidateSyncState) {
+                                 String discussionScope, int discussionRevision, String candidateSyncState,
+                                 String taskId) {
     @AutomapConstructor
     public DesignerSessionRow { }
 
@@ -20,7 +21,7 @@ public record DesignerSessionRow(String id, String projectId, String state, Stri
                               int designRevision, int redesignCount) {
         this(id, projectId, state, accessMode, createdAt, updatedAt, version, externalSessionId,
                 externalSessionState, loopDraftId, workflowPhase, designRevision, redesignCount, null, null,
-                "REQUIREMENT", 0, "NONE");
+                "REQUIREMENT", 0, "NONE", null);
     }
 
     public DesignerSessionRow(String id, String projectId, String state, String accessMode,
@@ -32,6 +33,19 @@ public record DesignerSessionRow(String id, String projectId, String state, Stri
         this(id, projectId, state, accessMode, createdAt, updatedAt, version, externalSessionId,
                 externalSessionState, loopDraftId, workflowPhase, designRevision, redesignCount,
                 currentRequirementRevision, activeWorkPackageId,
-                activeWorkPackageId == null ? "REQUIREMENT" : activeWorkPackageId, 0, "NONE");
+                activeWorkPackageId == null ? "REQUIREMENT" : activeWorkPackageId, 0, "NONE", null);
+    }
+
+    public DesignerSessionRow(String id, String projectId, String state, String accessMode,
+                              String createdAt, String updatedAt, long version,
+                              String externalSessionId, String externalSessionState,
+                              String loopDraftId, String workflowPhase,
+                              int designRevision, int redesignCount,
+                              Integer currentRequirementRevision, String activeWorkPackageId,
+                              String discussionScope, int discussionRevision, String candidateSyncState) {
+        this(id, projectId, state, accessMode, createdAt, updatedAt, version, externalSessionId,
+                externalSessionState, loopDraftId, workflowPhase, designRevision, redesignCount,
+                currentRequirementRevision, activeWorkPackageId, discussionScope, discussionRevision,
+                candidateSyncState, null);
     }
 }

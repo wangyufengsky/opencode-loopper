@@ -23,7 +23,13 @@ public enum LifecycleEvent implements DescribedEnum {
     CYCLE_INTERRUPT("记录轮次中断"), CYCLE_AUDIT_COMPLETE("记录审计轮次完成"),
     ACCEPT_RESULT("接受执行结果"),
     SUPERSEDE("由新版本替代"), RECORD_COMMIT("记录提交"), RECORD_PUSH("记录推送"), OPEN_MERGE_REQUEST("记录合并请求"),
-    CLOSE_MERGE_REQUEST("关闭合并请求"), RECORD_MERGE("记录合并"), COMPLETE_LOCAL_PUBLICATION("完成本地交付");
+    CLOSE_MERGE_REQUEST("关闭合并请求"), RECORD_MERGE("记录合并"), COMPLETE_LOCAL_PUBLICATION("完成本地交付"),
+    BEGIN_PACKAGE_DESIGN("开始工作包设计"), REQUEST_PACKAGE_REVIEW("请求工作包设计确认"),
+    APPROVE_PACKAGE_DESIGN("确认工作包设计"), REQUEST_PACKAGE_EXECUTION("请求工作包执行"),
+    BEGIN_PACKAGE_CHECKPOINT("开始冻结工作包事实"), FREEZE_PACKAGE_FACT("冻结工作包事实"),
+    SUPERSEDE_PACKAGE("替代未执行工作包"), BEGIN_PACKAGE_REPLAN("开始生成剩余拆包建议"),
+    COMPLETE_PACKAGE_REPLAN("完成剩余拆包建议"), FAIL_PACKAGE_REPLAN("剩余拆包建议生成失败"),
+    APPROVE_PACKAGE_REPLAN("确认剩余拆包计划");
 
     private final String description;
     LifecycleEvent(String description) { this.description = description; }

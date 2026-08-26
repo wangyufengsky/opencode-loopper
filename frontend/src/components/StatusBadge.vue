@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { TaskStatus } from '@/types/domain'
 import { statusLabel } from '@/utils/displayLabels'
 
-const props = defineProps<{ status: TaskStatus | 'ONLINE' | 'OFFLINE' | 'STARTING' | 'INCOMPATIBLE' | 'PASS' | 'FAIL' | 'PENDING'; label?: string }>()
+const props = defineProps<{ status: string; label?: string }>()
 
 const tone = computed(() => {
   if (['RUNNING', 'VERIFYING', 'JUDGING', 'ONLINE'].includes(props.status)) return 'status-running'

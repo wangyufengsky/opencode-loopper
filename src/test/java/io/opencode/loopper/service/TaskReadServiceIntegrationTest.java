@@ -108,6 +108,49 @@ class TaskReadServiceIntegrationTest {
     }
 
     @Test
+    void rollingOverviewProjectsPackageStateAndFailsClosedCapabilitiesFromPersistedFacts() {
+        jdbc.update("INSERT INTO loop_draft(id,project_id,goal,spec_json,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?)",
+                "rolling-draft", "p", "Rolling", "{}", "CONFIRMED", "now", "now");
+        jdbc.update("UPDATE task SET loop_draft_id=?,state='WAITING_INPUT',execution_mode='ROLLING_PACKAGES',workspace_policy='RELEASE_BETWEEN_PACKAGES' WHERE id='task-a'",
+                "rolling-draft");
+        jdbc.update("INSERT INTO designer_session(id,project_id,state,access_mode,loop_draft_id,workflow_phase,task_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+                "rolling-designer", "p", "REVIEWING", "READ_ONLY", "rolling-draft", "REVIEWING_PACKAGE",
+                "task-a", "now", "now");
+        jdbc.update("INSERT INTO designer_message(id,designer_session_id,ordinal,role,content,delivery_state,created_at) VALUES(?,?,?,?,?,?,?)",
+                "rolling-message", "rolling-designer", 1, "ASSISTANT", "design", "PERSISTED", "now");
+        jdbc.update("INSERT INTO design_requirement_revision(id,designer_session_id,revision,source_message_id,requirement_text,requirement_segments_json,source_draft_version,state,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+                "rolling-requirement", "rolling-designer", 1, "rolling-message", "requirement", "[]", 0,
+                "COMPLETED", "now", "now");
+        jdbc.update("INSERT INTO task_decomposition(id,designer_session_id,requirement_revision_id,state,result_type,source_draft_version,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)",
+                "rolling-decomposition", "rolling-designer", "rolling-requirement", "COMPLETED", "DECOMPOSED",
+                0, "now", "now");
+        jdbc.update("INSERT INTO design_work_package(id,designer_session_id,requirement_revision_id,decomposition_id,package_id,ordinal,title,objective,scope_in_json,scope_out_json,dependencies_json,deliverables_json,acceptance_intent_json,requirement_refs_json,state,design_message_id,design_revision,approved_design_revision,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "rolling-package", "rolling-designer", "rolling-requirement", "rolling-decomposition", "WP-1", 0,
+                "基础能力", "实现基础能力", "[]", "[]", "[]", "[]", "[]", "[]", "APPROVED",
+                "rolling-message", 2, 2, "now", "now");
+        jdbc.update("INSERT INTO task_package_plan_revision(id,task_id,designer_session_id,requirement_revision_id,revision,state,plan_json,impact_json,created_at,approved_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+                "rolling-plan", "task-a", "rolling-designer", "rolling-requirement", 1, "ACTIVE", "[]", "{}", "now", "now");
+        jdbc.update("INSERT INTO task_package_run(id,task_id,plan_revision_id,design_work_package_id,package_key,ordinal,title,state,discussion_revision,design_revision,accepted_design_revision,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "rolling-run", "task-a", "rolling-plan", "rolling-package", "WP-1", 0, "基础能力",
+                "EXECUTION_READY", 3, 2, 2, "now", "now");
+
+        var ready = reads.overview("task-a");
+        assertThat(ready.executionMode()).isEqualTo("ROLLING_PACKAGES");
+        assertThat(ready.currentPackage()).extracting(TaskReadService.CurrentPackage::id).isEqualTo("rolling-run");
+        assertThat(ready.plannedPackageCount()).isEqualTo(1);
+        assertThat(ready.packageCapabilities()).satisfies(capabilities -> {
+            assertThat(capabilities.canStartPackage()).isTrue();
+            assertThat(capabilities.canApproveDesign()).isFalse();
+            assertThat(capabilities.canReplanRemaining()).isFalse();
+        });
+
+        jdbc.update("UPDATE task_package_run SET state='WAITING_INPUT',waiting_reason_code='PACKAGE_CHECKPOINT_BLOCKED' WHERE id='rolling-run'");
+        var blocked = reads.overview("task-a").packageCapabilities();
+        assertThat(blocked.canRetryPackage()).isTrue();
+        assertThat(blocked.canRedesignPackage()).isFalse();
+    }
+
+    @Test
     void overviewAndSummarySelectOneRetryPlanWhenClaimedHistoryOverlapsAnActivePlan() {
         jdbc.update("""
                 INSERT INTO task_retry_schedule(id,task_id,stage_id,cause,ordinal,delay_seconds,due_at,

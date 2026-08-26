@@ -519,6 +519,55 @@ describe('Loopper REST contract adapter', () => {
     await expect(api.getTaskOverview('task-queued')).rejects.toThrow('TaskOverview.cancellationAvailable must be boolean')
   })
 
+  it('fails closed when a rolling overview omits package capabilities', async () => {
+    const base = {
+      id: 'rolling-1', projectId: 'project-1', projectName: 'Project', title: 'Rolling', goal: 'Goal',
+      branch: 'loopper/rolling', worktreePath: '/tmp/project', status: 'PACKAGE_DESIGNING',
+      executionMode: 'ROLLING_PACKAGES', workspacePolicy: 'RELEASE_BETWEEN_PACKAGES',
+      loopRetryAvailable: false, cancellationAvailable: true, hasDesignHistory: true, archived: false,
+      currentPackage: { id: 'run-2', packageKey: 'WP-2', ordinal: 1, title: '第二包', state: 'DESIGN_REVIEW', version: 3 },
+      plannedPackageCount: 3, frozenPackageCount: 1, attemptCount: 1, maxAttempts: 6,
+      createdAt: 'start', updatedAt: 'now', stages: [], errors: [], judges: [],
+    }
+    const capabilities = { canDiscuss: true, canApproveDesign: true, canStartPackage: false,
+      canRetryPackage: false, canRedesignPackage: false, canReplanRemaining: true,
+      canAddCorrectionPackage: true }
+    const fetchMock = vi.fn().mockResolvedValueOnce(json({ ...base, packageCapabilities: capabilities }))
+      .mockResolvedValueOnce(json(base))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(api.getTaskOverview('rolling-1')).resolves.toMatchObject({
+      executionMode: 'ROLLING_PACKAGES', frozenPackageCount: 1,
+      packageCapabilities: { canApproveDesign: true, canStartPackage: false },
+    })
+    await expect(api.getTaskOverview('rolling-1')).rejects.toThrow(
+      'TaskOverview.packageCapabilities is required for rolling tasks',
+    )
+  })
+
+  it('uses versioned rolling package commands and accepts empty success bodies', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(new Response(null, { status: 202 }))
+      .mockResolvedValueOnce(new Response(null, { status: 202 }))
+    vi.stubGlobal('fetch', fetchMock)
+    const versions = { expectedTaskVersion: 8, expectedPackageVersion: 5,
+      expectedDiscussionRevision: 3, expectedDesignRevision: 4 }
+
+    await expect(api.approveRollingPackageDesign('task 1', 'run 1', versions)).resolves.toBeUndefined()
+    await expect(api.startRollingPackage('task 1', 'run 1', versions)).resolves.toBeUndefined()
+    await expect(api.retryRollingPackageCheckpoint('task 1', 'run 1', versions)).resolves.toBeUndefined()
+
+    expect(fetchMock.mock.calls.map(call => call[0])).toEqual([
+      '/api/tasks/task%201/packages/run%201/approve-design',
+      '/api/tasks/task%201/packages/run%201/start',
+      '/api/tasks/task%201/packages/run%201/retry-checkpoint',
+    ])
+    expect(fetchMock.mock.calls.map(call => JSON.parse(String(call[1]?.body)))).toEqual([
+      versions, versions, versions,
+    ])
+  })
+
   it('archives, restores and deletes task history only through the local UI contract', async () => {
     const response = { id: 'task-1', projectId: 'project-1', projectName: 'Project', title: 'Task', goal: 'Goal', branch: 'DIRECT', worktreePath: '/tmp/project', status: 'CANCELLED', archived: true, attemptCount: 1, maxAttempts: 3, createdAt: 'start', updatedAt: 'now' }
     const fetchMock = vi.fn().mockResolvedValueOnce(json(response)).mockResolvedValueOnce(json({ ...response, archived: false })).mockResolvedValueOnce(new Response(null, { status: 204 }))

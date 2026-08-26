@@ -12,6 +12,7 @@ public enum DesignWorkPackageState implements DescribedEnum {
     APPROVED("工作包设计已接受"),
     STALE("工作包因上游修订而失效"),
     WAITING_INPUT("工作包等待人工恢复"),
+    SUPERSEDED("工作包已被新计划替代"),
     FAILED("工作包自动流程已终止");
 
     private final String description;

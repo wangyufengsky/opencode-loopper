@@ -9,6 +9,7 @@ export type TaskStatus =
   | 'VERIFYING'
   | 'RETRY_WAIT'
   | 'PAUSED'
+  | 'PACKAGE_DESIGNING'
   | 'WAITING_INPUT'
   | 'JUDGING'
   | 'STOPPING'
@@ -260,6 +261,13 @@ export interface Task {
   cancellationAvailable?: boolean
   hasDesignHistory?: boolean
   archived?: boolean
+  version?: number
+  executionMode?: 'LEGACY_AGGREGATE' | 'ROLLING_PACKAGES'
+  workspacePolicy?: 'RELEASE_BETWEEN_PACKAGES' | 'PINNED_DIRECT'
+  currentPackage?: RollingPackageRun
+  plannedPackageCount?: number
+  frozenPackageCount?: number
+  packageCapabilities?: RollingPackageCapabilities
   executionResult?: 'SUCCEEDED' | 'FAILED' | 'INTERRUPTED' | 'AUDIT_COMPLETED'
   executionCycleOrdinal?: number
   checkpointState?: 'CAPTURING' | 'READY' | 'RESTORING' | 'RESTORED' | 'BLOCKED'
@@ -276,6 +284,94 @@ export interface Task {
   errors?: ErrorEvent[]
   judges?: JudgeRun[]
   artifacts?: Artifact[]
+}
+
+export interface RollingPackageCapabilities {
+  canDiscuss: boolean
+  canApproveDesign: boolean
+  canStartPackage: boolean
+  canRetryPackage: boolean
+  canRedesignPackage: boolean
+  canReplanRemaining: boolean
+  canAddCorrectionPackage: boolean
+}
+
+export interface RollingPackageRun {
+  id: string
+  packageKey: string
+  ordinal: number
+  title: string
+  state: 'PLANNED' | 'DESIGNING' | 'DESIGN_REVIEW' | 'EXECUTION_READY' | 'QUEUED' | 'RUNNING' | 'VERIFYING' | 'CHECKPOINTING' | 'FACT_FROZEN' | 'WAITING_INPUT' | 'SUPERSEDED' | 'CANCELLED'
+  version: number
+  discussionRevision: number
+  designRevision: number
+  acceptedDesignRevision?: number
+  waitingReasonCode?: string
+  correctionOfPackageRunId?: string
+  dependencies: string[]
+}
+
+export interface RollingPackageFact {
+  id: string
+  packageRunId: string
+  checkpointId: string
+  successfulAttemptId: string
+  provenJson: string
+  acceptedContractJson: string
+  navigationSummary: string
+  createdAt: string
+}
+
+export interface RollingPackageWorkbench {
+  taskId: string
+  title: string
+  taskState: TaskStatus
+  taskVersion: number
+  executionMode: 'ROLLING_PACKAGES'
+  workspacePolicy: 'RELEASE_BETWEEN_PACKAGES' | 'PINNED_DIRECT'
+  planRevisionId: string
+  planRevision: number
+  plannedPackageCount: number
+  frozenPackageCount: number
+  packages: RollingPackageRun[]
+}
+
+export interface RollingPackageDetail {
+  packageRun: RollingPackageRun
+  objective: string
+  deliverablesJson: string
+  acceptanceIntentJson: string
+  compilerSummary?: string
+  handoffSummary?: string
+  designMarkdown?: string
+  fact?: RollingPackageFact
+}
+
+export interface RollingPlanPackage {
+  packageKey: string
+  title: string
+  objective: string
+  sourcePackageRunId?: string
+  sourcePackageRunIds?: string[]
+  correctionOfPackageRunId?: string
+  dependencies: string[]
+  requirementRefs: string[]
+}
+
+export interface RollingPlanProposal {
+  id: string
+  revision: number
+  state: 'GENERATING' | 'PROPOSED' | 'ACTIVE' | 'FAILED' | 'SUPERSEDED'
+  version: number
+  planJson: string
+  impactJson: string
+  origin: 'INITIAL' | 'USER' | 'AI' | 'CORRECTION'
+  externalSessionState?: string
+  lastErrorCode?: string
+  lastErrorDetail?: string
+  createdAt: string
+  updatedAt: string
+  approvedAt?: string
 }
 
 export interface TaskEvent {
@@ -1119,6 +1215,7 @@ export interface AnalysisReport {
 
 export interface DesignerSession {
   id: string
+  taskId?: string
   projectId: string
   projectName?: string
   archived?: boolean

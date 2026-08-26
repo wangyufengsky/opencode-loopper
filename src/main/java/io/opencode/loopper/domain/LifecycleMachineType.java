@@ -12,7 +12,8 @@ public enum LifecycleMachineType implements DescribedEnum {
     WORKSPACE_LEASE("工作区租约状态机"), TASK_QUEUE("任务队列状态机"),
     LOOPSPEC_TEMPLATE("LoopSpec 模板状态机"), AUTOMATION_RULE("自动化规则状态机"),
     AUTOMATION_RUN("自动化运行状态机"), TASK_PUBLICATION("任务发布状态机"),
-    TASK_EXECUTION_CYCLE("任务执行轮次状态机"), WORKSPACE_CHECKPOINT("工作区冻结点状态机");
+    TASK_EXECUTION_CYCLE("任务执行轮次状态机"), WORKSPACE_CHECKPOINT("工作区冻结点状态机"),
+    TASK_PACKAGE_RUN("任务工作包状态机"), PACKAGE_PLAN_REVISION("工作包计划修订状态机");
 
     private final String description;
     LifecycleMachineType(String description) { this.description = description; }

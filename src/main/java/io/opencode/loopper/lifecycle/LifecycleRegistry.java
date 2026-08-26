@@ -37,6 +37,8 @@ public final class LifecycleRegistry {
         register(LifecycleMachineType.TASK_PUBLICATION, TaskPublicationState.class, taskPublication());
         register(LifecycleMachineType.TASK_EXECUTION_CYCLE, ExecutionCycleState.class, executionCycle());
         register(LifecycleMachineType.WORKSPACE_CHECKPOINT, WorkspaceCheckpointState.class, workspaceCheckpoint());
+        register(LifecycleMachineType.TASK_PACKAGE_RUN, TaskPackageRunState.class, packageRun());
+        register(LifecycleMachineType.PACKAGE_PLAN_REVISION, PackagePlanRevisionState.class, packagePlanRevision());
         if (machines.size() != LifecycleMachineType.values().length) {
             throw new IllegalStateException("Every lifecycle machine type must be registered");
         }
@@ -79,7 +81,13 @@ public final class LifecycleRegistry {
                 .transition(TaskState.VERIFYING, SCHEDULE_RETRY, TaskState.RETRY_WAIT)
                 .transition(TaskState.RETRY_WAIT, RETRY, TaskState.RUNNING)
                 .transition(TaskState.VERIFYING, ADVANCE_STAGE, TaskState.RUNNING)
+                .transition(TaskState.VERIFYING, BEGIN_PACKAGE_CHECKPOINT, TaskState.PACKAGE_DESIGNING)
                 .transition(TaskState.VERIFYING, BEGIN_FINAL_REVIEW, TaskState.JUDGING)
+                .transition(TaskState.PACKAGE_DESIGNING, REQUIRE_INPUT, TaskState.WAITING_INPUT)
+                .transition(TaskState.PACKAGE_DESIGNING, BEGIN_FINAL_REVIEW, TaskState.JUDGING)
+                .transition(TaskState.WAITING_INPUT, BEGIN_PACKAGE_DESIGN, TaskState.PACKAGE_DESIGNING)
+                .transition(TaskState.WAITING_INPUT, REQUEST_START, TaskState.QUEUED)
+                .transition(TaskState.JUDGING, BEGIN_PACKAGE_DESIGN, TaskState.PACKAGE_DESIGNING)
                 .transition(TaskState.JUDGING, APPROVE, TaskState.AWAITING_DECISION)
                 .transition(TaskState.JUDGING, REQUIRE_INPUT, TaskState.WAITING_INPUT)
                 .transition(TaskState.WAITING_INPUT, RETRY_FINAL_REVIEW, TaskState.JUDGING)
@@ -113,6 +121,49 @@ public final class LifecycleRegistry {
         }
         b.transition(TaskState.STOPPING, COMPLETE, TaskState.CANCELLED);
         return b.build();
+    }
+
+    private static FiniteStateMachine<TaskPackageRunState, LifecycleEvent> packageRun() {
+        var b = machine(LifecycleMachineType.TASK_PACKAGE_RUN, TaskPackageRunState.class);
+        b.transition(TaskPackageRunState.PLANNED, BEGIN_PACKAGE_DESIGN, TaskPackageRunState.DESIGNING)
+                .transition(TaskPackageRunState.DESIGNING, REQUEST_PACKAGE_REVIEW, TaskPackageRunState.DESIGN_REVIEW)
+                .transition(TaskPackageRunState.DESIGN_REVIEW, APPROVE_PACKAGE_DESIGN, TaskPackageRunState.EXECUTION_READY)
+                .transition(TaskPackageRunState.EXECUTION_READY, REQUEST_PACKAGE_EXECUTION, TaskPackageRunState.QUEUED)
+                .transition(TaskPackageRunState.QUEUED, START, TaskPackageRunState.RUNNING)
+                .transition(TaskPackageRunState.RUNNING, BEGIN_VERIFICATION, TaskPackageRunState.VERIFYING)
+                .transition(TaskPackageRunState.VERIFYING, BEGIN_PACKAGE_CHECKPOINT, TaskPackageRunState.CHECKPOINTING)
+                .transition(TaskPackageRunState.CHECKPOINTING, FREEZE_PACKAGE_FACT, TaskPackageRunState.FACT_FROZEN);
+        for (TaskPackageRunState state : TaskPackageRunState.values()) {
+            if (!state.terminal() && state != TaskPackageRunState.WAITING_INPUT) {
+                b.transition(state, REQUIRE_INPUT, TaskPackageRunState.WAITING_INPUT)
+                        .transition(state, CANCEL, TaskPackageRunState.CANCELLED);
+            }
+            if (state == TaskPackageRunState.PLANNED || state == TaskPackageRunState.DESIGNING
+                    || state == TaskPackageRunState.DESIGN_REVIEW || state == TaskPackageRunState.EXECUTION_READY
+                    || state == TaskPackageRunState.WAITING_INPUT) {
+                b.transition(state, SUPERSEDE_PACKAGE, TaskPackageRunState.SUPERSEDED);
+            }
+        }
+        b.transition(TaskPackageRunState.WAITING_INPUT, BEGIN_PACKAGE_DESIGN, TaskPackageRunState.DESIGNING)
+                .transition(TaskPackageRunState.DESIGN_REVIEW, BEGIN_PACKAGE_DESIGN, TaskPackageRunState.DESIGNING)
+                .transition(TaskPackageRunState.EXECUTION_READY, BEGIN_PACKAGE_DESIGN, TaskPackageRunState.DESIGNING)
+                .transition(TaskPackageRunState.WAITING_INPUT, APPROVE_PACKAGE_DESIGN, TaskPackageRunState.EXECUTION_READY)
+                .transition(TaskPackageRunState.WAITING_INPUT, REQUEST_PACKAGE_EXECUTION, TaskPackageRunState.QUEUED)
+                .transition(TaskPackageRunState.WAITING_INPUT, CANCEL, TaskPackageRunState.CANCELLED);
+        return b.build();
+    }
+
+    private static FiniteStateMachine<PackagePlanRevisionState, LifecycleEvent> packagePlanRevision() {
+        return machine(LifecycleMachineType.PACKAGE_PLAN_REVISION, PackagePlanRevisionState.class)
+                .transition(PackagePlanRevisionState.GENERATING, COMPLETE_PACKAGE_REPLAN,
+                        PackagePlanRevisionState.PROPOSED)
+                .transition(PackagePlanRevisionState.GENERATING, FAIL_PACKAGE_REPLAN,
+                        PackagePlanRevisionState.FAILED)
+                .transition(PackagePlanRevisionState.PROPOSED, APPROVE_PACKAGE_REPLAN,
+                        PackagePlanRevisionState.ACTIVE)
+                .transition(PackagePlanRevisionState.ACTIVE, SUPERSEDE,
+                        PackagePlanRevisionState.SUPERSEDED)
+                .build();
     }
 
     private static FiniteStateMachine<TaskPublicationState, LifecycleEvent> taskPublication() {
@@ -149,6 +200,7 @@ public final class LifecycleRegistry {
                 .transition(WorkspaceCheckpointState.CAPTURING, COMPLETE, WorkspaceCheckpointState.READY)
                 .transition(WorkspaceCheckpointState.CAPTURING, FAIL, WorkspaceCheckpointState.BLOCKED)
                 .transition(WorkspaceCheckpointState.READY, RESTORE, WorkspaceCheckpointState.RESTORING)
+                .transition(WorkspaceCheckpointState.RESTORED, RESTORE, WorkspaceCheckpointState.RESTORING)
                 .transition(WorkspaceCheckpointState.RESTORING, COMPLETE, WorkspaceCheckpointState.RESTORED)
                 .transition(WorkspaceCheckpointState.RESTORING, FAIL, WorkspaceCheckpointState.BLOCKED)
                 .build();
@@ -307,6 +359,10 @@ public final class LifecycleRegistry {
                 .transition(DesignWorkPackageState.QUESTIONING, FAIL, DesignWorkPackageState.FAILED)
                 .transition(DesignWorkPackageState.COMPILING, FAIL, DesignWorkPackageState.FAILED)
                 .transition(DesignWorkPackageState.VALIDATING, FAIL, DesignWorkPackageState.FAILED)
+                .transition(DesignWorkPackageState.PENDING, SUPERSEDE_PACKAGE, DesignWorkPackageState.SUPERSEDED)
+                .transition(DesignWorkPackageState.REVIEWING, SUPERSEDE_PACKAGE, DesignWorkPackageState.SUPERSEDED)
+                .transition(DesignWorkPackageState.APPROVED, SUPERSEDE_PACKAGE, DesignWorkPackageState.SUPERSEDED)
+                .transition(DesignWorkPackageState.WAITING_INPUT, SUPERSEDE_PACKAGE, DesignWorkPackageState.SUPERSEDED)
                 .build();
     }
 

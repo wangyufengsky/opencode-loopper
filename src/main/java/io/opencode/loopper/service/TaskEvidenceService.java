@@ -9,12 +9,16 @@ import io.opencode.loopper.persistence.AttemptRow;
 import io.opencode.loopper.persistence.DesignerMessageRow;
 import io.opencode.loopper.persistence.LoopDraftRow;
 import io.opencode.loopper.persistence.LoopperMapper;
+import io.opencode.loopper.persistence.PackageFactSnapshotRow;
 import io.opencode.loopper.persistence.StageRow;
 import io.opencode.loopper.persistence.TaskArtifactRow;
+import io.opencode.loopper.persistence.TaskPackageRunRow;
 import io.opencode.loopper.persistence.TaskRow;
 import io.opencode.loopper.persistence.VerificationResultRow;
 import io.opencode.loopper.verification.VerifierEngine;
 import io.opencode.loopper.verification.VerifierOutcome;
+import io.opencode.loopper.runtime.DirectWorkspaceBaselineManager;
+import io.opencode.loopper.runtime.GitWorktreeManager;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -26,10 +30,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.stereotype.Service;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
 /** Owns immutable Task audit artifacts and the bounded evidence projection consumed by final Judges. */
+@Service
 final class TaskEvidenceService {
     private static final String DESIGN_CONTEXT = "DESIGN_CONTEXT";
     private static final String REQUIREMENT_CONTEXT = "REQUIREMENT_CONTEXT";
@@ -64,6 +70,64 @@ final class TaskEvidenceService {
                 write(metadata), metadata);
     }
 
+    RollingPackageService.FactEvidence capturePackageFactEvidence(TaskRow task, TaskPackageRunRow run,
+                                                                  AttemptRow successfulAttempt) {
+        List<Map<String, Object>> stages = new ArrayList<>();
+        List<StageRow> acceptedStages = packageFactStages(task, run);
+        for (StageRow stage : acceptedStages) {
+            AttemptRow attempt = mapper.latestAttempt(stage.id()).orElseThrow(() ->
+                    new TaskFailure("PACKAGE_FACT_ATTEMPT_MISSING", "工作包 Stage 缺少成功 Attempt"));
+            if (!StageState.SUCCEEDED.name().equals(stage.state())
+                    || !AttemptState.SUCCEEDED.name().equals(attempt.state())) {
+                throw new TaskFailure("PACKAGE_FACT_VERIFICATION_INCOMPLETE", "工作包尚未完成全部机器验收");
+            }
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("stageId", stage.id());
+            item.put("ordinal", stage.ordinal());
+            item.put("attemptId", attempt.id());
+            item.put("verificationResults", verificationResults(attempt));
+            stages.add(item);
+        }
+        if (stages.isEmpty()) throw new TaskFailure("PACKAGE_FACT_STAGE_MISSING", "工作包没有可冻结的 Stage");
+
+        PackageFactSnapshotRow previous = mapper.listPackageFactSnapshots(task.id()).stream()
+                .reduce((left, right) -> right).orElse(null);
+        String inputTree = previous == null ? task.baselineCommit() : previous.outputTree();
+        String verifierBaseline = inputTree;
+        if (GitWorktreeManager.DIRECT_BRANCH.equals(task.branchName())
+                && inputTree != null && !inputTree.startsWith(DirectWorkspaceBaselineManager.PREFIX)) {
+            verifierBaseline = DirectWorkspaceBaselineManager.PREFIX + task.id() + ":" + inputTree;
+        }
+        VerifierOutcome diff = verifiers.verify(Path.of(requireWorktree(task)), verifierBaseline,
+                new LoopSpec.VerifierSpec("GIT_DIFF", null, null, false, List.of(), List.of(), false),
+                Duration.ofSeconds(10));
+        if (diff.state() != VerificationState.PASS) {
+            throw new TaskFailure("PACKAGE_DIFF_CAPTURE_FAILED", diff.summary());
+        }
+        Map<String, Object> evidence = new LinkedHashMap<>();
+        evidence.put("schemaVersion", "package-fact-v1");
+        evidence.put("taskId", task.id());
+        evidence.put("packageRunId", run.id());
+        evidence.put("successfulAttemptId", successfulAttempt.id());
+        evidence.put("stages", stages);
+        String evidenceJson = write(evidence);
+        String diffJson = write(diff.evidence());
+        var workPackage = mapper.findDesignWorkPackage(run.designWorkPackageId()).orElse(null);
+        String navigation = workPackage == null ? ""
+                : String.join("\n", List.of(nullToEmpty(workPackage.compilerSummary()),
+                nullToEmpty(workPackage.handoffSummary()))).strip();
+        String diffArtifactId = persistOnce(task, successfulAttempt.id(), "PACKAGE_FACT_DIFF",
+                run.packageKey() + "-fact-diff.json", "application/json", diffJson,
+                Map.of("packageRunId", run.id(), "diffSha256", sha256(diffJson)));
+        String evidenceArtifactId = persistOnce(task, successfulAttempt.id(), "PACKAGE_FACT_EVIDENCE",
+                run.packageKey() + "-fact-evidence.json", "application/json", evidenceJson,
+                Map.of("packageRunId", run.id(), "diffSha256", sha256(diffJson),
+                        "evidenceSha256", sha256(evidenceJson)));
+        return new RollingPackageService.FactEvidence(inputTree, sha256(diffJson),
+                sha256(evidenceJson), diffArtifactId, evidenceArtifactId,
+                acceptedStages.stream().map(StageRow::id).toList(), navigation);
+    }
+
     private void captureVerificationSummary(TaskRow task, AttemptRow attempt) {
         if (mapper.listTaskArtifacts(task.id()).stream()
                 .anyMatch(artifact -> "VERIFICATION_SUMMARY".equals(artifact.kind())
@@ -71,7 +135,7 @@ final class TaskEvidenceService {
                         && artifact.content().contains("\"schemaVersion\":\"v2\""))) return;
         List<Map<String, Object>> stageEvidence = new ArrayList<>();
         int resultCount = 0;
-        for (StageRow stage : mapper.listStages(task.id())) {
+        for (StageRow stage : effectiveStages(task)) {
             AttemptRow stageAttempt = mapper.latestAttempt(stage.id()).orElseThrow(() ->
                     new TaskFailure("JUDGE_STAGE_EVIDENCE_MISSING",
                             "Stage " + stage.ordinal() + " has no deterministic attempt evidence"));
@@ -174,7 +238,7 @@ final class TaskEvidenceService {
     }
 
     String judgePrompt(TaskRow task, AttemptRow attempt, String role, LoopSpec loopSpec) {
-        String objectives = mapper.listStages(task.id()).stream()
+        String objectives = effectiveStages(task).stream()
                 .filter(stage -> StageState.SUCCEEDED.name().equals(stage.state()))
                 .map(stage -> "- 阶段 " + (stage.ordinal() + 1) + "：" + stage.objective())
                 .collect(java.util.stream.Collectors.joining("\n"));
@@ -184,6 +248,18 @@ final class TaskEvidenceService {
         String diff = artifact(task.id(), attempt.id(), "GIT_DIFF", content -> true,
                 "No diff artifact was persisted.");
         return JudgePromptPolicy.prompt(loopSpec, role, objectives, verification, diff, attempt.id());
+    }
+
+    private String persistOnce(TaskRow task, String attemptId, String kind, String name,
+                               String contentType, String content, Map<String, ?> metadata) {
+        TaskArtifactRow existing = mapper.listTaskArtifacts(task.id()).stream()
+                .filter(row -> kind.equals(row.kind()) && name.equals(row.name())
+                        && java.util.Objects.equals(attemptId, row.attemptId())).findFirst().orElse(null);
+        if (existing != null) return existing.id();
+        String id = UUID.randomUUID().toString();
+        mapper.insertTaskArtifact(new TaskArtifactRow(id, task.id(), attemptId,
+                null, kind, name, contentType, content == null ? "" : content, write(metadata), now()));
+        return id;
     }
 
     void persist(TaskRow task, String attemptId, String judgeRunId, String kind, String name,
@@ -202,6 +278,42 @@ final class TaskEvidenceService {
     private boolean hasArtifact(String taskId, String attemptId, String kind) {
         return mapper.listTaskArtifacts(taskId).stream()
                 .anyMatch(artifact -> kind.equals(artifact.kind()) && attemptId.equals(artifact.attemptId()));
+    }
+
+    private List<StageRow> packageFactStages(TaskRow task, TaskPackageRunRow run) {
+        var current = mapper.latestTaskSpecRevision(task.id()).orElseThrow(() ->
+                new TaskFailure("TASK_SPEC_REVISION_MISSING", "工作包缺少当前累计执行规范"));
+        if (!run.id().equals(current.packageRunId())) {
+            throw new TaskFailure("PACKAGE_TASK_SPEC_MISMATCH", "当前累计执行规范不属于待冻结工作包");
+        }
+        int acceptedBaseCount = mapper.listPackageFactSnapshots(task.id()).stream().reduce((left, right) -> right)
+                .flatMap(fact -> mapper.listTaskSpecRevisions(task.id()).stream()
+                        .filter(revision -> fact.taskSpecSha256().equals(revision.specSha256())).findFirst())
+                .map(io.opencode.loopper.persistence.TaskSpecRevisionRow::stageCount).orElse(0);
+        int acceptedCount = current.stageCount() - acceptedBaseCount;
+        List<StageRow> candidates = mapper.listStages(task.id()).stream()
+                .filter(stage -> run.id().equals(stage.packageRunId()))
+                .sorted(java.util.Comparator.comparingInt(StageRow::ordinal)).toList();
+        if (acceptedCount <= 0 || candidates.size() < acceptedCount) {
+            throw new TaskFailure("PACKAGE_FACT_STAGE_MISMATCH", "当前工作包的已接受 Stage 与累计规范不一致");
+        }
+        return candidates.subList(candidates.size() - acceptedCount, candidates.size());
+    }
+
+    private List<StageRow> effectiveStages(TaskRow task) {
+        if (!"ROLLING_PACKAGES".equals(task.executionMode())) return mapper.listStages(task.id());
+        java.util.Set<String> acceptedIds = new java.util.LinkedHashSet<>();
+        try {
+            for (PackageFactSnapshotRow fact : mapper.listPackageFactSnapshots(task.id())) {
+                for (var stage : json.readTree(fact.acceptedContractJson()).path("stages")) {
+                    String id = stage.path("id").asText();
+                    if (!id.isBlank()) acceptedIds.add(id);
+                }
+            }
+        } catch (JacksonException unreadable) {
+            throw new TaskFailure("PACKAGE_FACT_CONTRACT_INVALID", "已冻结工作包合同无法读取");
+        }
+        return mapper.listStages(task.id()).stream().filter(stage -> acceptedIds.contains(stage.id())).toList();
     }
 
     private String requireWorktree(TaskRow task) {
@@ -231,4 +343,6 @@ final class TaskEvidenceService {
     private String now() {
         return Instant.now().toString();
     }
+
+    private String nullToEmpty(String value) { return value == null ? "" : value; }
 }

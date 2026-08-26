@@ -187,6 +187,29 @@ Compiler Session with the configured model; a server-direct result has no remote
 or poll. Historical frozen designs retain their own read-only Compiler and recovery contract.
 Compiler cannot ask questions or create a Task.
 
+For a new rolling software Task, that description applies to package 1 only before Task creation.
+After package 1 is accepted, every later package Designer is rooted in the latest successful
+`PackageFactSnapshot`, never the original repository baseline. A Git project exposes a managed,
+read-only directory rebuilt from the checkpoint tree; a Direct project exposes the registered
+directory only after its tree and manifest still match the prior fact point. The read-only profile
+continues to permit only `read/glob/grep` (plus configured MCP prefixes); it cannot write, execute,
+approve a design, or start implementation. The prompt contains bounded fact indexes—at most 4 KiB
+per package and 24 KiB total—and labels Compiler/handoff prose as navigation rather than evidence.
+Full evidence remains available through the fact and evidence APIs. A model response cannot create
+or mutate a checkpoint, proven fact, accepted contract, Stage, or cumulative TaskSpec.
+
+Remaining-plan changes are a separate human-confirmed boundary. The user may edit the suffix or
+explicitly start a `DECOMPOSER_READ_ONLY` AI suggestion rooted in the verified latest checkpoint.
+The asynchronous suggestion persists its remote Session, base Task/package/checkpoint versions,
+transport state, output and typed failure; after restart the dedicated monitor resumes polling.
+If the process stops in the prompt-submission uncertainty window, Loopper first confirms the old
+Session has stopped before creating a replacement. The server validates marker JSON source links
+and dependencies, then computes additions, removals, order, dependency, split, and merge impact.
+No active plan changes until local confirmation. This proposal path is read-only with respect to
+the checkout and cannot supersede a frozen package. Package design
+approval and package execution start remain separate local actions even when Designer full-auto is
+enabled; full-auto may only advance Router, initial decomposition, and read-only design generation.
+
 An initial historical semantic Compiler candidate may read the repository, but every bounded format or semantic
 repair aborts that Session and starts a fresh `COMPILER_REPAIR_NO_TOOLS` Session. Its wildcard
 deny profile re-allows no built-in tools but still allows discovered MCP server prefixes; the prompt contains only the current compact object,

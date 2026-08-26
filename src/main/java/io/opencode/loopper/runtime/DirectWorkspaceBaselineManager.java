@@ -40,13 +40,7 @@ public class DirectWorkspaceBaselineManager {
             requireSuccess(root, List.of("git", "init", "--quiet", repository.toString()),
                     "DIRECT_BASELINE_CREATE_FAILED", "Unable to initialize the direct-execution baseline");
             Path gitDir = repository.resolve(".git").toRealPath();
-            java.util.ArrayList<String> add = new java.util.ArrayList<>(List.of(
-                    "add", "-A", "--", ".", ":(exclude).git", ":(exclude).git/**"));
-            if (base.startsWith(root)) {
-                String managedData = root.relativize(base).toString().replace('\\', '/');
-                add.add(":(exclude)" + managedData);
-                add.add(":(exclude)" + managedData + "/**");
-            }
+            java.util.ArrayList<String> add = addArguments(root, base);
             requireSuccess(root, git(root, gitDir, add.toArray(String[]::new)),
                     "DIRECT_BASELINE_CREATE_FAILED", "Unable to index the direct-execution baseline");
             ProcessResult tree = runner.run(root, git(root, gitDir, "write-tree"), GIT_TIMEOUT);
@@ -59,6 +53,38 @@ public class DirectWorkspaceBaselineManager {
         } catch (Exception exception) {
             throw new TaskFailure("DIRECT_BASELINE_CREATE_FAILED", "Unable to capture the direct-execution baseline: " + exception.getMessage());
         }
+    }
+
+    /** Writes another immutable tree into the Task's private object database without touching the user directory. */
+    public Checkpoint captureCheckpoint(Path projectRoot, String taskId) {
+        try {
+            Path root = projectRoot.toRealPath();
+            Path gitDir = requireRepository(taskId);
+            Path base = properties.getDataDir().toAbsolutePath().normalize().resolve("direct-baselines");
+            requireSuccess(root, git(root, gitDir, addArguments(root, base).toArray(String[]::new)),
+                    "DIRECT_CHECKPOINT_CREATE_FAILED", "Unable to index the Direct package checkpoint");
+            ProcessResult tree = runner.run(root, git(root, gitDir, "write-tree"), GIT_TIMEOUT);
+            if (tree.timedOut() || tree.outputTruncated() || tree.exitCode() != 0
+                    || !tree.output().trim().matches("[0-9a-fA-F]{40,64}")) {
+                throw new TaskFailure("DIRECT_CHECKPOINT_CREATE_FAILED",
+                        "Unable to write the Direct package tree: " + trim(tree.output()));
+            }
+            ProcessResult manifest = runner.run(root,
+                    git(root, gitDir, "ls-files", "-s", "-z"), GIT_TIMEOUT);
+            if (manifest.timedOut() || manifest.outputTruncated() || manifest.exitCode() != 0) {
+                throw new TaskFailure("DIRECT_CHECKPOINT_CREATE_FAILED",
+                        "Unable to read the Direct package manifest: " + trim(manifest.output()));
+            }
+            return new Checkpoint(tree.output().trim(), manifest.output());
+        } catch (TaskFailure failure) {
+            throw failure;
+        } catch (Exception failure) {
+            throw new TaskFailure("DIRECT_CHECKPOINT_CREATE_FAILED", failure.getMessage());
+        }
+    }
+
+    public boolean matchesCheckpoint(Path projectRoot, String taskId, String expectedTree) {
+        return captureCheckpoint(projectRoot, taskId).tree().equals(expectedTree);
     }
 
     public DiffResult diff(Path projectRoot, String marker, Duration timeout) {
@@ -122,6 +148,28 @@ public class DirectWorkspaceBaselineManager {
         }
     }
 
+    private Path requireRepository(String taskId) {
+        try {
+            if (taskId == null || !taskId.matches("[A-Za-z0-9-]{1,80}")) {
+                throw new TaskFailure("DIRECT_BASELINE_INVALID", "Direct task identifier is invalid");
+            }
+            Path base = properties.getDataDir().toAbsolutePath().normalize().resolve("direct-baselines").toRealPath();
+            Path repository = base.resolve(taskId).normalize();
+            if (!repository.getParent().equals(base)) {
+                throw new TaskFailure("DIRECT_BASELINE_PATH_INVALID", "Direct checkpoint escaped its managed directory");
+            }
+            Path gitDir = repository.resolve(".git").toRealPath();
+            if (!gitDir.startsWith(base) || !Files.isDirectory(gitDir.resolve("objects"))) {
+                throw new TaskFailure("DIRECT_BASELINE_UNAVAILABLE", "Direct baseline object database is unavailable");
+            }
+            return gitDir;
+        } catch (TaskFailure failure) {
+            throw failure;
+        } catch (Exception failure) {
+            throw new TaskFailure("DIRECT_BASELINE_UNAVAILABLE", failure.getMessage());
+        }
+    }
+
     private List<String> git(Path root, Path gitDir, String... arguments) {
         java.util.ArrayList<String> command = new java.util.ArrayList<>();
         command.add("git");
@@ -129,6 +177,17 @@ public class DirectWorkspaceBaselineManager {
         command.add("--work-tree=" + root);
         command.addAll(List.of(arguments));
         return List.copyOf(command);
+    }
+
+    private java.util.ArrayList<String> addArguments(Path root, Path baselineBase) {
+        java.util.ArrayList<String> add = new java.util.ArrayList<>(List.of(
+                "add", "-A", "--", ".", ":(exclude).git", ":(exclude).git/**"));
+        if (baselineBase.startsWith(root)) {
+            String managedData = root.relativize(baselineBase).toString().replace('\\', '/');
+            add.add(":(exclude)" + managedData);
+            add.add(":(exclude)" + managedData + "/**");
+        }
+        return add;
     }
 
     private void requireSuccess(Path directory, List<String> command, String code, String message) {
@@ -144,4 +203,5 @@ public class DirectWorkspaceBaselineManager {
 
     private record Baseline(Path gitDir, String tree) { }
     public record DiffResult(ProcessResult tracked, ProcessResult untracked) { }
+    public record Checkpoint(String tree, String manifest) { }
 }

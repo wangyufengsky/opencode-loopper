@@ -1,5 +1,5 @@
 import type { AppSettings, Artifact, Attempt, AutomationImportPreview, AutomationImportResult, AutomationRule, AutomationRuleMutation, AutomationRun, AutomationRunFeed, AvailableModel, BrowserAssertion, CommitMessageSuggestion, CreateAutomationRuleInput, DesignerActivity, DesignerAnsweredQuestion, DesignerAppendResult, DesignerHistoryItem, DesignerMessage, DesignerSession, DesignerSessionState, DesignerSessionSummary, DesignerStopResult, DesignerStreamEvent, DirectorySelection, DirtyWorkspaceAction, DirtyWorkspaceResolution, DirtyWorkspaceState, ErrorEvent, InsightsSnapshot, Interaction, InteractionAction, JudgeRun, LocalSyncConflictContent, LocalSyncConflictFile, LocalSyncConflictSession, LocalSyncResolution, LoopDraft, LoopSpec, LoopSpecAssessment, LoopSpecTemplate, LoopSpecTemplateVersion, LoopVerifierSpec, MergeRequestDraft, Project, ProjectConventionActivity, ProjectConventionDraft, ProjectConventionSnapshot, RecoveryDraft, RecoveryMode, RuntimeInfo, SessionCheckpoint, SessionForkResult, SessionRevertResult, SessionSummaryResult, SessionTodo, Stage, Task, TaskDecision, TaskDesignHistory, TaskDiffPreview, TaskEvent, TaskInsight, TaskPublicationStatus, TaskQueueStatus, TaskSessionActivity, TaskSessionActivityPart, TaskSessionPendingQuestion, TaskSessionSummary, UsageAggregate } from '@/types/domain'
-import type { AnalysisReport, DesignerTaskProfileUpdatePreview, ProjectStackProfile } from '@/types/domain'
+import type { AnalysisReport, DesignerTaskProfileUpdatePreview, ProjectStackProfile, RollingPackageCapabilities, RollingPackageDetail, RollingPackageFact, RollingPackageRun, RollingPackageWorkbench, RollingPlanPackage, RollingPlanProposal } from '@/types/domain'
 
 const apiBase = import.meta.env.VITE_API_BASE ?? '/api'
 
@@ -480,12 +480,63 @@ function normalizeTask(value: unknown): Task {
   const stages = asArray(raw.stages).map((stage) => normalizeStage(stage, attempts))
   const taskId = asString(raw.id)
   const workPackages = asArray(raw.workPackages).map((value) => { const item = asRecord(value); return { id: asString(item.id), ordinal: asNumber(item.ordinal), status: asString(item.status) as NonNullable<Task['workPackages']>[number]['status'], stageCount: asNumber(item.stageCount), completedStages: asNumber(item.completedStages), attemptCount: asNumber(item.attemptCount), attemptLimit: asNumber(item.attemptLimit) } })
-  return { id: taskId, projectId: asString(raw.projectId), projectName: asString(raw.projectName, 'Unknown project'), title: asString(raw.title), goal: asString(raw.goal), branch: asString(raw.branch) || '等待选择执行模式', worktreePath: asString(raw.worktreePath) || '等待准备执行目录', status: asString(raw.status) as Task['status'], retryCause: ['RATE_LIMIT', 'SESSION', 'VERIFICATION'].includes(asString(raw.retryCause)) ? asString(raw.retryCause) as Task['retryCause'] : undefined, retryOrdinal: typeof raw.retryOrdinal === 'number' ? raw.retryOrdinal : undefined, retryScheduledAt: asString(raw.retryScheduledAt) || undefined, retryDueAt: asString(raw.retryDueAt) || undefined, retryDelaySeconds: typeof raw.retryDelaySeconds === 'number' ? raw.retryDelaySeconds : undefined, waitingReasonCode: asString(raw.waitingReasonCode) || undefined, loopRetryAvailable: raw.loopRetryAvailable === true, cancellationAvailable: raw.cancellationAvailable === true, hasDesignHistory: raw.hasDesignHistory === true, archived: raw.archived === true, executionResult: asString(raw.executionResult) as Task['executionResult'] || undefined, executionCycleOrdinal: typeof raw.executionCycleOrdinal === 'number' ? raw.executionCycleOrdinal : undefined, checkpointState: asString(raw.checkpointState) as Task['checkpointState'] || undefined, parentTaskId: asString(raw.parentTaskId) || undefined, successorTaskId: asString(raw.successorTaskId) || undefined, activeStage: stages.find((stage) => stage.status === 'RUNNING')?.ordinal, attemptCount: asNumber(raw.attemptCount, attempts.length), maxAttempts: asNumber(raw.maxAttempts, 12), createdAt: asString(raw.createdAt), updatedAt: asString(raw.updatedAt), stages, workPackages, attempts, errors: asArray(raw.errors).map(normalizeError), judges: asArray(raw.judges).map(normalizeJudge), artifacts: asArray(raw.artifacts).map((artifact) => normalizeArtifact(artifact, taskId)) }
+  const executionMode = asString(raw.executionMode) as Task['executionMode']
+  const packageCapabilities = raw.packageCapabilities ? normalizeRollingCapabilities(raw.packageCapabilities) : undefined
+  return { id: taskId, projectId: asString(raw.projectId), projectName: asString(raw.projectName, 'Unknown project'), title: asString(raw.title), goal: asString(raw.goal), branch: asString(raw.branch) || '等待选择执行模式', worktreePath: asString(raw.worktreePath) || '等待准备执行目录', status: asString(raw.status) as Task['status'], retryCause: ['RATE_LIMIT', 'SESSION', 'VERIFICATION'].includes(asString(raw.retryCause)) ? asString(raw.retryCause) as Task['retryCause'] : undefined, retryOrdinal: typeof raw.retryOrdinal === 'number' ? raw.retryOrdinal : undefined, retryScheduledAt: asString(raw.retryScheduledAt) || undefined, retryDueAt: asString(raw.retryDueAt) || undefined, retryDelaySeconds: typeof raw.retryDelaySeconds === 'number' ? raw.retryDelaySeconds : undefined, waitingReasonCode: asString(raw.waitingReasonCode) || undefined, loopRetryAvailable: raw.loopRetryAvailable === true, cancellationAvailable: raw.cancellationAvailable === true, hasDesignHistory: raw.hasDesignHistory === true, archived: raw.archived === true, version: typeof raw.version === 'number' ? raw.version : undefined, executionMode: executionMode || undefined, workspacePolicy: asString(raw.workspacePolicy) as Task['workspacePolicy'] || undefined, currentPackage: raw.currentPackage ? normalizeRollingRun(raw.currentPackage) : undefined, plannedPackageCount: typeof raw.plannedPackageCount === 'number' ? raw.plannedPackageCount : undefined, frozenPackageCount: typeof raw.frozenPackageCount === 'number' ? raw.frozenPackageCount : undefined, packageCapabilities, executionResult: asString(raw.executionResult) as Task['executionResult'] || undefined, executionCycleOrdinal: typeof raw.executionCycleOrdinal === 'number' ? raw.executionCycleOrdinal : undefined, checkpointState: asString(raw.checkpointState) as Task['checkpointState'] || undefined, parentTaskId: asString(raw.parentTaskId) || undefined, successorTaskId: asString(raw.successorTaskId) || undefined, activeStage: stages.find((stage) => stage.status === 'RUNNING')?.ordinal, attemptCount: asNumber(raw.attemptCount, attempts.length), maxAttempts: asNumber(raw.maxAttempts, 12), createdAt: asString(raw.createdAt), updatedAt: asString(raw.updatedAt), stages, workPackages, attempts, errors: asArray(raw.errors).map(normalizeError), judges: asArray(raw.judges).map(normalizeJudge), artifacts: asArray(raw.artifacts).map((artifact) => normalizeArtifact(artifact, taskId)) }
+}
+
+function normalizeRollingCapabilities(value: unknown): RollingPackageCapabilities {
+  const raw = asRecord(value)
+  requireBooleanFields(raw, ['canDiscuss', 'canApproveDesign', 'canStartPackage', 'canRetryPackage', 'canRedesignPackage', 'canReplanRemaining', 'canAddCorrectionPackage'], 'RollingPackageCapabilities')
+  return { canDiscuss: raw.canDiscuss as boolean, canApproveDesign: raw.canApproveDesign as boolean,
+    canStartPackage: raw.canStartPackage as boolean, canRetryPackage: raw.canRetryPackage as boolean,
+    canRedesignPackage: raw.canRedesignPackage as boolean, canReplanRemaining: raw.canReplanRemaining as boolean,
+    canAddCorrectionPackage: raw.canAddCorrectionPackage as boolean }
+}
+
+function normalizeRollingRun(value: unknown): RollingPackageRun {
+  const raw = asRecord(value)
+  return { id: requiredString(raw, 'id', 'RollingPackageRun'), packageKey: requiredString(raw, 'packageKey', 'RollingPackageRun'),
+    ordinal: asNumber(raw.ordinal), title: asString(raw.title), state: asString(raw.state) as RollingPackageRun['state'],
+    version: asNumber(raw.version), discussionRevision: asNumber(raw.discussionRevision), designRevision: asNumber(raw.designRevision),
+    acceptedDesignRevision: typeof raw.acceptedDesignRevision === 'number' ? raw.acceptedDesignRevision : undefined,
+    waitingReasonCode: asString(raw.waitingReasonCode) || undefined,
+    correctionOfPackageRunId: asString(raw.correctionOfPackageRunId) || undefined,
+    dependencies: asArray(raw.dependencies).map(value => asString(value)).filter(Boolean) }
+}
+
+function normalizeRollingFact(value: unknown): RollingPackageFact {
+  const raw = asRecord(value)
+  return { id: requiredString(raw, 'id', 'RollingPackageFact'), packageRunId: requiredString(raw, 'packageRunId', 'RollingPackageFact'),
+    checkpointId: asString(raw.checkpointId), successfulAttemptId: asString(raw.successfulAttemptId),
+    provenJson: asString(raw.provenJson), acceptedContractJson: asString(raw.acceptedContractJson),
+    navigationSummary: asString(raw.navigationSummary), createdAt: asString(raw.createdAt) }
+}
+
+function normalizeRollingWorkbench(value: unknown): RollingPackageWorkbench {
+  const raw = asRecord(value)
+  return { taskId: requiredString(raw, 'taskId', 'RollingPackageWorkbench'), title: asString(raw.title),
+    taskState: asString(raw.taskState) as RollingPackageWorkbench['taskState'], taskVersion: asNumber(raw.taskVersion),
+    executionMode: 'ROLLING_PACKAGES', workspacePolicy: asString(raw.workspacePolicy) as RollingPackageWorkbench['workspacePolicy'],
+    planRevisionId: asString(raw.planRevisionId), planRevision: asNumber(raw.planRevision),
+    plannedPackageCount: asNumber(raw.plannedPackageCount), frozenPackageCount: asNumber(raw.frozenPackageCount),
+    packages: asArray(raw.packages).map(normalizeRollingRun) }
+}
+
+function normalizeRollingDetail(value: unknown): RollingPackageDetail {
+  const raw = asRecord(value)
+  return { packageRun: normalizeRollingRun(raw.packageRun), objective: asString(raw.objective),
+    deliverablesJson: asString(raw.deliverablesJson), acceptanceIntentJson: asString(raw.acceptanceIntentJson),
+    compilerSummary: asString(raw.compilerSummary) || undefined, handoffSummary: asString(raw.handoffSummary) || undefined,
+    designMarkdown: asString(raw.designMarkdown) || undefined, fact: raw.fact ? normalizeRollingFact(raw.fact) : undefined }
 }
 
 function normalizeTaskOverview(value: unknown): Task {
   const raw = asRecord(value)
   requireBooleanFields(raw, ['loopRetryAvailable', 'cancellationAvailable', 'hasDesignHistory', 'archived'], 'TaskOverview')
+  if (raw.executionMode === 'ROLLING_PACKAGES' && !raw.packageCapabilities) {
+    throw new TypeError('TaskOverview.packageCapabilities is required for rolling tasks')
+  }
   return normalizeTask(raw)
 }
 
@@ -782,6 +833,7 @@ function normalizeDesignerSession(value: unknown): DesignerSession {
   const autoModeState = asString(autoMode.state)
   return {
     id: asString(raw.id),
+    taskId: asString(raw.taskId) || undefined,
     projectId: asString(raw.projectId),
     projectName: asString(raw.projectName) || undefined,
     archived: raw.archived === true,
@@ -1335,6 +1387,13 @@ function normalizeInsights(value: unknown): InsightsSnapshot {
   }
 }
 
+type RollingPackageCommandVersions = {
+  expectedTaskVersion: number
+  expectedPackageVersion: number
+  expectedDiscussionRevision: number
+  expectedDesignRevision: number
+}
+
 export const api = {
   getProjects: async (refresh = false) => (await request<unknown[]>(`/projects/summaries${refresh ? '?refresh=true' : ''}`)).map(normalizeProject),
   pickProjectDirectory: async (): Promise<DirectorySelection> => {
@@ -1354,6 +1413,20 @@ export const api = {
   getTask: async (id: string) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}`)),
   getTaskSummaries: async (input: TaskSummaryQuery = {}) => normalizeTaskPage(await request<unknown>(`/tasks/summaries${pageQuery(input)}`)),
   getTaskOverview: async (id: string) => normalizeTaskOverview(await request<unknown>(`/tasks/${encodeURIComponent(id)}/overview`)),
+  getRollingPackageWorkbench: async (taskId: string) => normalizeRollingWorkbench(await request<unknown>(`/tasks/${encodeURIComponent(taskId)}/packages`)),
+  getRollingPackageDetail: async (taskId: string, runId: string) => normalizeRollingDetail(await request<unknown>(`/tasks/${encodeURIComponent(taskId)}/packages/${encodeURIComponent(runId)}`)),
+  getRollingPackageFact: async (taskId: string, runId: string) => normalizeRollingFact(await request<unknown>(`/tasks/${encodeURIComponent(taskId)}/packages/${encodeURIComponent(runId)}/fact`)),
+  startRollingPackage: async (taskId: string, runId: string, input: RollingPackageCommandVersions) => request<void>(`/tasks/${encodeURIComponent(taskId)}/packages/${encodeURIComponent(runId)}/start`, { method: 'POST', body: JSON.stringify(input) }),
+  approveRollingPackageDesign: async (taskId: string, runId: string, input: RollingPackageCommandVersions) => request<void>(`/tasks/${encodeURIComponent(taskId)}/packages/${encodeURIComponent(runId)}/approve-design`, { method: 'POST', body: JSON.stringify(input) }),
+  discussRollingPackage: async (taskId: string, runId: string, input: RollingPackageCommandVersions & { content: string }) => request<void>(`/tasks/${encodeURIComponent(taskId)}/packages/${encodeURIComponent(runId)}/messages`, { method: 'POST', body: JSON.stringify(input) }),
+  redesignRollingPackage: async (taskId: string, runId: string, input: RollingPackageCommandVersions) => request<void>(`/tasks/${encodeURIComponent(taskId)}/packages/${encodeURIComponent(runId)}/redesign`, { method: 'POST', body: JSON.stringify(input) }),
+  retryRollingPackageCheckpoint: async (taskId: string, runId: string, input: RollingPackageCommandVersions) => request<void>(`/tasks/${encodeURIComponent(taskId)}/packages/${encodeURIComponent(runId)}/retry-checkpoint`, { method: 'POST', body: JSON.stringify(input) }),
+  resolveRollingPackageFailure: async (taskId: string, runId: string, input: RollingPackageCommandVersions & { action: 'CONTINUE_CANDIDATE' | 'REDESIGN_FROM_PREVIOUS' | 'ABANDON_TASK' }) => request<void>(`/tasks/${encodeURIComponent(taskId)}/packages/${encodeURIComponent(runId)}/continue-failure`, { method: 'POST', body: JSON.stringify(input) }),
+  proposeRollingPlan: async (taskId: string, input: RollingPackageCommandVersions & { expectedPackageRunId: string; packages: RollingPlanPackage[] }) => request<RollingPlanProposal>(`/tasks/${encodeURIComponent(taskId)}/packages/plan-revisions`, { method: 'POST', body: JSON.stringify(input) }),
+  suggestRollingPlan: async (taskId: string, input: RollingPackageCommandVersions & { expectedPackageRunId: string }) => request<RollingPlanProposal>(`/tasks/${encodeURIComponent(taskId)}/packages/plan-revisions/suggest`, { method: 'POST', body: JSON.stringify(input) }),
+  getRollingPlanRevisions: async (taskId: string) => request<RollingPlanProposal[]>(`/tasks/${encodeURIComponent(taskId)}/packages/plan-revisions`),
+  confirmRollingPlan: async (taskId: string, proposalId: string, input: RollingPackageCommandVersions & { expectedPackageRunId: string; expectedProposalVersion: number }) => request<RollingPlanProposal>(`/tasks/${encodeURIComponent(taskId)}/packages/plan-revisions/${encodeURIComponent(proposalId)}/confirm`, { method: 'POST', body: JSON.stringify(input) }),
+  addRollingCorrection: async (taskId: string, input: RollingPackageCommandVersions & { correctionOfPackageRunId: string; title?: string; objective?: string }) => request<RollingPlanProposal>(`/tasks/${encodeURIComponent(taskId)}/packages/corrections`, { method: 'POST', body: JSON.stringify(input) }),
   getTaskAudit: async (id: string) => normalizeTaskAudit(await request<unknown>(`/tasks/${encodeURIComponent(id)}/audit`), id),
   getVerificationEvidence: async (taskId: string, id: string) => normalizeReadContent(await request<unknown>(`/tasks/${encodeURIComponent(taskId)}/verifications/${encodeURIComponent(id)}/evidence`)),
   getErrorEvidence: async (taskId: string, id: string) => normalizeReadContent(await request<unknown>(`/tasks/${encodeURIComponent(taskId)}/errors/${encodeURIComponent(id)}/evidence`)),

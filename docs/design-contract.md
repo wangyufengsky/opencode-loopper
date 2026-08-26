@@ -337,16 +337,19 @@ Tasks. `NEEDS_INPUT` likewise displays an explicit new requirement input path. I
 the direct Compiler cannot safely fit the design into 1–6 Stages, it stops once with
 `LARGE_TASK_MODE_REQUIRED`; the user may explicitly reopen the requirement in large
 mode, but the server and full-auto mode never enable it automatically. Final overall
-confirmation remains a separate human gate for both modes.
+confirmation remains the ordinary/legacy aggregate gate. In the rolling large-software
+flow, confirming package 1 is the Task-creation gate; later design approvals append to
+that same Task and never reopen the original LoopDraft.
 
 Designer may optionally authorize a per-Session full-auto mode. It is disabled
 by default and every enable or re-enable requires a local-UI risk confirmation.
 The persisted `DISABLED / ACTIVE / BLOCKED / COMPLETED` state advances at most
 one authoritative action per monitor tick and survives process restarts. It may
 answer native pending design questions from explicitly recommended options (falling
-back to the first option), confirm the requirement, accept only the current
-deterministically validated package revision, confirm the final draft, and call
-the ordinary Task Start boundary. These actions remain visible as System
+back to the first option), confirm the requirement, and drive legacy design gates.
+For a rolling large-software session it may generate the decomposition and read-only
+package candidate, but must stop before every package-design approval and every package
+execution start. These actions remain visible as System
 messages and question decisions use `AUTO_RECOMMENDED`; manual decisions use
 `MANUAL`.
 
@@ -400,6 +403,41 @@ full contract again. Every `JAVA_PRODUCTION` Stage retains a focused Maven/Gradl
 its acceptance is Judge-only; full-suite/build evidence cannot replace that gate, so wiring-only
 Java stages are merged with a related tested stage or carry a focused gate with `covers:[]`.
 
+For a new rolling large-software Task, only package 1 is designed on `/designer`.
+Approving its exact validated revision creates one `PENDING_START` Task and navigates
+to `/tasks/:id`; no Queue, Lease, branch, Attempt, or writable Session exists yet.
+Every later package stays on that task page and starts its read-only Designer automatically
+from the preceding successful fact snapshot. Candidate arrival changes the Task to
+`WAITING_INPUT / PACKAGE_DESIGN_APPROVAL_REQUIRED`; approval appends only that package's
+Stages and a cumulative TaskSpec revision, then a separate **开始本包执行** button is
+required. Full-auto cannot cross either button.
+
+The rolling workbench is a three-column desktop layout: ordered package navigation,
+current design/execution workspace, and fact evidence. Below 980 px it becomes a package
+selector plus a single-column content flow. Navigation shows Chinese order, title, and
+authoritative state only. The header says **已冻结 N/M 包** and never derives a percentage.
+The fact column visually separates **已证明**, **已接受合同**, and **AI 导航摘要 · 非证据**;
+older facts remain expandable history and never merge into the current fact. Existing
+StageRail, Session Monitor, machine-verification evidence, and layered error panels remain
+the Task-wide authoritative components below the rolling workspace.
+
+The only package actions are server capabilities: `canDiscuss`, `canApproveDesign`,
+`canStartPackage`, `canRetryPackage`, `canRedesignPackage`, `canReplanRemaining`, and
+`canAddCorrectionPackage`. Missing any capability fails overview normalization and falls
+back to full task detail; no button is inferred from a state name. All writes carry Task,
+package-run, discussion, and design versions and refresh after a successful empty `202/204`;
+stale input returns 409. **继续失败候选**, **回到上一事实点重新设计**, **AI 调整剩余拆包**,
+**人工调整剩余拆包**,
+**新增修正包**, and **修改整体需求并重开任务** are distinct decisions. Direct mode shows
+before first execution that the registered directory remains leased until completion or
+cancellation.
+
+The AI replan action creates a durable asynchronous suggestion and polls the authoritative
+`GENERATING / PROPOSED / FAILED` row. The browser never invents progress from elapsed time. A
+completed suggestion opens the same server-computed impact confirmation as manual editing; it does
+not activate the plan automatically. Closing or rejecting that confirmation leaves the active plan
+unchanged.
+
 OpenCode native agents are capability-discovered for server-side role selection,
 but the compact Runtime page does not expose that diagnostic projection and the
 Designer does not delegate to the native plan agent in this release. Designer
@@ -409,8 +447,8 @@ server-owned and deterministic. This preserves Review Gate labels, persistence,
 repair budgets, source mapping, and the rule that raw machine JSON is not a chat
 message.
 
-Designer and Compiler inspect an immutable pre-execution repository baseline.
-For a later package, a predecessor whose package state is `APPROVED` has passed
+Legacy aggregate Designer and Compiler inspect an immutable pre-execution repository baseline.
+For a later legacy package, a predecessor whose package state is `APPROVED` has passed
 its Designer/Compiler/Validator workflow but has intentionally not written its
 production files yet. Loopper injects that predecessor's frozen objective,
 Compiler summary, and bounded handoff contract into both prompts. Because the
@@ -418,6 +456,11 @@ single confirmed Task executes package Stages in dependency order, current
 absence of such a deliverable is not `MISSING_SCOPE` and must not trigger a
 redesign. A semantic gap remains valid only when the required contract is absent
 from both the current frozen design and the predecessor contract/handoff.
+Rolling package Designer/Compiler instead read the exact preceding successful state:
+a managed read-only Checkpoint snapshot for Git, or the continuously leased registered
+directory after a Direct tree/manifest equality check. They receive bounded fact indexes
+and navigation, not a claim that the initial baseline already contains new files. Snapshot
+drift blocks design as `PACKAGE_CHECKPOINT_BLOCKED`.
 
 New software designs use fixed controlled Markdown sections: target/scope,
 impact/delivery, acceptance scenarios, optional human review, acceptance constraints,
@@ -671,6 +714,11 @@ attempt pool. Historical design restores the frozen requirement, Decomposer
 summary, every package design/compilation summary, and the final Stage mapping.
 The interface states explicitly that only one final Requirement/Risk Judge batch
 runs after all packages pass.
+For rolling Tasks, Stage/Judge rows are additionally filtered by the latest cumulative
+TaskSpec and successful fact chain: a failed package's stale Stage cannot leak into a
+later accepted contract or final Judge. Plan-revision previews show added, removed,
+reordered, dependency, split, and merge effects before confirmation; confirmation may
+supersede only unfinished rows, while a correction links to but never mutates a frozen run.
 
 The Task Session monitor header reuses the same numeric token window for the authoritative
 Task-wide aggregate across implementation and Judge remotes. Selecting another Session does

@@ -715,7 +715,7 @@ watch(() => designerSession.value?.activeWorkPackageId, (packageId) => {
 })
 
 let redirectedAutoTaskId = ''
-watch(() => designerSession.value?.autoMode.taskId, async (taskId) => {
+watch(() => designerSession.value?.taskId ?? designerSession.value?.autoMode.taskId, async (taskId) => {
   if (!taskId || taskId === redirectedAutoTaskId || store.usingDemo) return
   redirectedAutoTaskId = taskId
   try {

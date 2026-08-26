@@ -70,7 +70,7 @@ class FeatureMigrationTest {
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
 
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("44");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("45");
         try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
             try (var result = statement.executeQuery("SELECT state,workflow_phase,discussion_scope FROM designer_session WHERE id='s27'")) {
                 assertThat(result.next()).isTrue();
@@ -125,7 +125,7 @@ class FeatureMigrationTest {
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
 
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("44");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("45");
         try (var connection = DriverManager.getConnection(url);
              var statement = connection.prepareStatement("SELECT name FROM sqlite_master WHERE type='table'")) {
             try (var result = statement.executeQuery()) {
@@ -144,11 +144,18 @@ class FeatureMigrationTest {
                         "task_workspace_checkpoint", "designer_auto_mode",
                         "designer_task_profile", "task_profile_router_run", "analysis_report",
                         "model_token_usage", "design_acceptance_planning", "project_stack_profile",
-                        "project_stack_component", "project_convention_runtime"));
+                        "project_stack_component", "project_convention_runtime",
+                        "task_package_plan_revision", "task_package_run", "task_spec_revision",
+                        "package_fact_snapshot"));
             }
         }
         try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
             if (startingVersion != null) {
+                try (var result = statement.executeQuery("SELECT execution_mode,workspace_policy FROM task WHERE id='legacy-task'")) {
+                    assertThat(result.next()).isTrue();
+                    assertThat(result.getString("execution_mode")).isEqualTo("LEGACY_AGGREGATE");
+                    assertThat(result.getString("workspace_policy")).isNull();
+                }
                 try (var result = statement.executeQuery("SELECT COUNT(*) FROM task_publication WHERE task_id='legacy-task'")) {
                     assertThat(result.next()).isTrue();
                     assertThat(result.getInt(1)).isZero();
@@ -172,6 +179,13 @@ class FeatureMigrationTest {
                 while (result.next()) columns.add(result.getString("name"));
                 assertThat(columns).contains("source_branch");
             }
+            try (var result = statement.executeQuery("PRAGMA table_info(task_package_plan_revision)")) {
+                var columns = new java.util.ArrayList<String>();
+                while (result.next()) columns.add(result.getString("name"));
+                assertThat(columns).contains("origin", "external_session_id", "external_session_state",
+                        "last_error_code", "last_error_detail", "base_checkpoint_id", "base_task_version",
+                        "base_package_run_id", "base_package_version", "updated_at");
+            }
             try (var result = statement.executeQuery("PRAGMA table_info(app_settings)")) {
                 var columns = new java.util.ArrayList<String>();
                 while (result.next()) columns.add(result.getString("name"));
@@ -193,14 +207,14 @@ class FeatureMigrationTest {
             }
             try (var result = statement.executeQuery("SELECT sql FROM sqlite_master WHERE type='table' AND name='task_queue'")) {
                 assertThat(result.next()).isTrue();
-                assertThat(result.getString(1)).contains("'PUBLICATION'");
+                assertThat(result.getString(1)).contains("'PUBLICATION'", "'PACKAGE'");
             }
             try (var result = statement.executeQuery("PRAGMA table_info(designer_session)")) {
                 var columns = new java.util.ArrayList<String>();
                 while (result.next()) columns.add(result.getString("name"));
                 assertThat(columns).contains("workflow_phase", "design_revision", "redesign_count",
                         "current_requirement_revision", "active_work_package_id", "discussion_scope",
-                        "discussion_revision", "candidate_sync_state");
+                        "discussion_revision", "candidate_sync_state", "task_id");
             }
             try (var result = statement.executeQuery("PRAGMA table_info(designer_message)")) {
                 var columns = new java.util.ArrayList<String>();
@@ -212,7 +226,8 @@ class FeatureMigrationTest {
                 while (result.next()) columns.add(result.getString("name"));
                 assertThat(columns).contains("role_pack_id", "role_pack_version", "execution_strategy",
                         "test_policy", "technologies_json", "project_stack_profile_id",
-                        "component_keys_json", "stack_fingerprint");
+                        "component_keys_json", "stack_fingerprint", "plan_revision",
+                        "correction_of_package_id", "superseded_at");
             }
             try (var result = statement.executeQuery("PRAGMA table_info(analysis_report)")) {
                 var columns = new java.util.ArrayList<String>();
@@ -226,7 +241,7 @@ class FeatureMigrationTest {
                 while (result.next()) columns.add(result.getString("name"));
                 assertThat(columns).contains("work_package_id", "role_pack_id", "role_pack_version",
                         "test_policy", "technologies_json", "project_stack_profile_id",
-                        "component_keys_json", "stack_fingerprint");
+                        "component_keys_json", "stack_fingerprint", "package_run_id");
             }
             for (String table : List.of("task_decomposition", "loop_spec_compilation")) {
                 try (var result = statement.executeQuery("PRAGMA table_info(" + table + ")")) {

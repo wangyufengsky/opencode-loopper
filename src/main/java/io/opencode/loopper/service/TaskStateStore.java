@@ -17,8 +17,10 @@ import io.opencode.loopper.persistence.TaskRow;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.springframework.stereotype.Component;
 
 /** Owns optimistic lifecycle persistence and immutable row state projections for Task execution. */
+@Component
 final class TaskStateStore {
     private final LoopperMapper mapper;
     private final LifecycleTransitionService lifecycle;
@@ -31,7 +33,8 @@ final class TaskStateStore {
     TaskRow taskState(TaskRow row, TaskState state) {
         return new TaskRow(row.id(), row.projectId(), row.loopDraftId(), row.title(), state.name(),
                 row.worktreePath(), row.branchName(), row.sourceBranch(), row.baselineCommit(), row.createdAt(),
-                now(), row.version(), row.taskProfileId(), row.rolePackId(), row.rolePackVersion());
+                now(), row.version(), row.taskProfileId(), row.rolePackId(), row.rolePackVersion(),
+                row.executionMode(), row.workspacePolicy());
     }
 
     StageRow stageState(StageRow row, StageState state) {
@@ -39,7 +42,8 @@ final class TaskStateStore {
                 row.forbiddenPathsJson(), row.deliverablesJson(), row.verifiersJson(), state.name(), row.createdAt(),
                 now(), row.version(), row.workPackageId(), row.stageKind(), row.executionStrategy(),
                 row.artifactPlanId(), row.rolePackId(), row.rolePackVersion(), row.testPolicy(),
-                row.technologiesJson(), row.projectStackProfileId(), row.componentKeysJson(), row.stackFingerprint());
+                row.technologiesJson(), row.projectStackProfileId(), row.componentKeysJson(), row.stackFingerprint(),
+                row.packageRunId());
     }
 
     AttemptRow finishAttempt(AttemptRow row, AttemptState state, String failureKind, String summary) {

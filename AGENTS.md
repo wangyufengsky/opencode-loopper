@@ -42,10 +42,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.2.61.jar
-   jar tf target/opencode-loopper-0.2.61.jar \
+   test -s target/opencode-loopper-0.2.63.jar
+   jar tf target/opencode-loopper-0.2.63.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.2.61.jar
+   shasum -a 256 target/opencode-loopper-0.2.63.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -95,8 +95,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.2.61`。
-- 正式产物：`target/opencode-loopper-0.2.61.jar`。
+- Maven 项目版本：`0.2.63`。
+- 正式产物：`target/opencode-loopper-0.2.63.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -251,8 +251,9 @@ Task 详情 `overview` 必须投影 `loopRetryAvailable`、`cancellationAvailabl
 - Decomposer、Compiler、Judge 与项目公约共用有界包容性提取器：原生 structured payload、角色 marker、`json`/无语言代码块、说明文字中括号完整的 object 和整段 object 按优先级提取。仅接受标准 JSON object；字符串花括号、转义、BOM 和空白必须正确处理；等价候选去重，不等价且都合格的候选按歧义拒绝。字段名、可选集合、枚举和安全命令分词只做唯一可逆的确定性规范化，成功提取/规范化直接进入同一权威业务合同校验并记录 `AI_OUTPUT_NORMALIZED`，不得消耗格式修复次数；数组根、残缺/非标准 JSON、不可唯一推导的缺口以及安全或执行合同违规则继续阻断。
 - `MachineRoleContractCatalog`、紧凑 JSON Schema、服务端快速路径/语义编译器和 `docs/ai-role-contracts.md` 必须使用同一合同版本。当前 v6 Compiler 提示只允许未解析事实分配与闭集能力偏好；历史 v3 提示才允许语义 Stage、`DS-Lxxx` 来源和闭集证据意图。任何版本都不得让模型填写服务端派生的验收 ID、精确原文、`criterionIds`、`testTargets` 或重复命令。服务端编译完整 `VerifierSpec` 和可选 `verificationRuntime` 后，必须使用权威 LoopSpec v2 合同校验直接命令、行为覆盖、Java 聚焦测试及运行时绑定；短提示不能替代服务端确定性校验。
 - Compiler 的 `criteria` 只承载可观察业务结果；未被聚焦测试显式覆盖的代码风格、源码/注解/装配形态、构建/测试结果和交付卫生属于工程元数据，服务端可确定性降级并重排 `covers`，不得因此消耗语义修复。一个 Java Stage 只有一个聚焦测试候选时可补齐剩余业务条件映射；每个 `JAVA_PRODUCTION` Stage 即使只有 Judge 条件也必须保留 `covers:[]` 的聚焦 Maven/Gradle TEST，`FULL_TEST`/`BUILD` 不能替代，不得生成只有全量测试/构建的 Java 接线或演示 Stage。v5 服务端须先从该 Stage 引用的测试交付唯一匹配门禁；没有组内匹配时仅允许使用包内唯一聚焦能力。多个候选、缺少真实聚焦测试或不可唯一推导必须直接形成 `DESIGN_INCOMPLETE`，不得落入已知不可修复的模型 JSON 修复循环。语义预检应一次汇总全部问题并返回精确 JSON Pointer；源码搜索不得作为行为 `SELF_CHECK`。
-- 分包 Designer/Compiler 读取的仓库是不可变的执行前基线；前置包 `APPROVED` 表示其设计、编译和校验合同已通过且已经人工接受，不表示生产文件已写入基线仓库。服务端必须注入前置包的冻结目标、Compiler 摘要和交接合同；严格串行执行保证前置 Stage 先落地，因此当前 `read/glob/grep` 找不到前置交付物不得返回 `MISSING_SCOPE`。Compiler 负责 Stage/业务验收/证据语义；服务端在权威 v2 校验前确定性生成 `<workPackageId>-AC-n`、仅在唯一归一化匹配时恢复 Designer 精确原文，并把 Designer 明确列出的聚焦单测行作为强制证据注入规划/修复提示。服务端只允许从统一 `TestFrameworkPolicy` 提取安全显式目标：Java 使用 Maven/Gradle `-Dtest`、`-Dit.test`、`--tests`，Python/Node 使用 pytest/unittest/npm 注册规则，不得让非 Java 命令经过 Java 解析器；同一 Java Stage 唯一匹配时可补齐重复的 `testCommand`/`testTargets`/`criterionIds` 或等价 TEST 验证器，不得从普通描述、全量测试或多个候选中猜测。歧义匹配或缺少语义证据仍必须阻断。
-- 全部包完成后只能由服务端按包顺序确定性聚合，不允许模型二次合并；聚合保留草稿模型、Session 策略、预算和重试模板，并只在最初冻结的 draft version 上原子同步。专用聚合写入可以替换设计前占位 Stage 的 `workPackageId`，但新映射必须完整表示全部冻结包且保持依赖顺序；不得让普通草稿更新用该权限绕过映射保护。草稿并发变化必须在启动下一包前停止，不再消耗模型调用。
+- 历史 Designer/Task、大型文档和关闭滚动兼容开关时继续使用聚合流程：分包 Designer/Compiler 读取不可变执行前基线，前置包 `APPROVED` 只表示设计合同已接受，不表示生产文件已写入；全部包完成后由服务端确定性聚合 LoopDraft，禁止模型二次合并或普通草稿更新绕过映射保护。
+- 新建 `FULL_PACKAGE_DESIGN` 软件任务默认使用 `ROLLING_PACKAGES`：包 1 详细设计确认才创建唯一 `PENDING_START` Task，且不得申请 Queue/Lease、创建执行目录或可写 Session；后续包只在前一包确定性验收、Checkpoint 和 `PackageFactSnapshot` 成功冻结后设计。Git 每包释放租约并从精确 checkpoint tree 构造只读快照，Direct 全程持有租约并在每次设计前后复核目录 tree/manifest；两者都不得回退初始基线冒充当前事实。LoopDraft 保持不可变，每次包设计批准只追加完整 `TaskSpecRevision` 与新 Stage，不修改或重排已执行 Stage。
+- `TaskPackageRun` 是独立状态轴，状态变化必须经过生命周期服务；事实严格分为机器证明、人工接受合同和非证据 AI 导航摘要，提示每包最多 4 KiB、总计 24 KiB。失败候选 checkpoint 不得形成已证明事实；重规划只替换未执行后缀，来源映射必须能预览新增、删除、拆分、合并、排序和依赖变化；人工编辑或只读 AI 异步建议都只形成待确认计划，AI 建议必须持久化 Session、基线版本和 `GENERATING / PROPOSED / FAILED` 状态，重启继续轮询且不能越过人工确认；已冻结行为只能通过 `correctionOf` 修正包单调追加。包级 `JUDGE/BOTH` 只标记计划评审，最后一个有效包冻结后才创建唯一 Requirement/Risk Judge 批次。
 - 聚合 Stage 的 `workPackageId` 映射进入 Review Gate 后不可删除、改写或重排；前端读取、结构化编辑、保存和确认必须无损往返。普通草稿更新边界拒绝映射漂移，确认边界还要校验每个已批准工作包均存在且保持依赖顺序，禁止静默降级成无包 Stage 任务。
 - 工作包 Designer 在健康时复用该包自己的交互 Session；远端丢失时用持久化需求、当前完整包设计、决策和作用域消息重建，不得重跑已完成 Decomposer。每个候选都经过唯一权威 Validator，但只有 v6 歧义、大型任务或历史冻结合同才创建独立只读 Compiler；大型任务通过后进入 `REVIEWING`，只有人工接受或当前会话的全自动授权接受当前已验证修订才启动下一包；普通单包在服务端直编或按需 Compiler/Validator 通过后自动批准 `WP-1`、确定性聚合并直接进入总体确认，不显示包级接受步骤。初稿后每包最多 5 轮人工修改；失败候选不得覆盖上一版有效候选。重开已接受包时先展示影响，只把它的传递依赖标记 `STALE`，无关 `APPROVED` 包保持有效；最终确定性聚合必须推进需求的草稿乐观锁检查点但保持冻结正文和来源消息不变，旧版未推进检查点的聚合只有在草稿恰比 Decomposer 基线多一个版本且仍精确覆盖全部冻结包时才允许一次兼容恢复，任何后续外部编辑继续以 `DESIGNER_DRAFT_CHANGED` 阻断；从 `FINAL_REVIEW` 重开时必须在同一事务内把同一不可变需求版本从 `COMPLETED` 以 `RETRY` 恢复为 `ACTIVE`，显式重编译再经 `REVIEWING + RETRY -> COMPILING`，确保后续讨论、重设计或重编译不会被旧聚合终态阻断。
 - 全部工作包 `APPROVED` 后才允许服务端确定性聚合并进入 `FINAL_REVIEW`；重复聚合必须把冻结的 Decomposer 全局约束规范化为唯一一段可追踪 context，不得重复追加；包级阶段右侧候选只读，最终聚合阶段才开放结构化编辑。V27 持久化讨论与批准；历史未确认 `COMPLETED` 包迁移为 `REVIEWING`，已确认草稿和已创建 Task 不变。
@@ -267,7 +268,7 @@ Task 详情 `overview` 必须投影 `loopRetryAvailable`、`cancellationAvailabl
 - 项目 `taskCount` 只统计已创建的 Task，不得把确认前 Designer 会话伪装成任务；服务端必须按项目另行投影每个未确认草稿的最新 Designer Session 和 `openDesignerSessionCount`。浏览器工作区 ID 只是恢复提示，服务重启或短暂 API 失败不得清除。Designer 起始页只负责新建，不得平铺历史会话；独立“历史设计”页负责项目/状态/归档筛选与时间排序，未确认设计可继续、修改、归档和恢复，已确认设计必须关联 Task 只读展示且不得提供继续、修改或归档。V29 归档只增加可恢复投影，不删除草稿、消息、问题、候选或批准，且归档项不计入 `openDesignerSessionCount`。
 - Designer 双栏和 PageHeader 操作区必须以 `min-width: 0`、换行和响应式单列保持在视口边界内；总体确认按钮除页头外还必须在 Review Gate 内提供同一权威动作，不能因窄视口变得不可点击。
 - Designer 双重验收矩阵的验收条件必须占据可伸缩主列，模式、机器验收和 AI 评审作为可换行状态组；禁止用固定窄列压缩长条件，窄屏时状态组整体下移并左对齐。
-- 聚合后仍只创建一个 Task、一个任务分支和一次发布；Stage/包严格串行。每包尝试池为 `min(stageCount × maxStageAttempts, stageCount + 2)`，必须为未启动 Stage 保留首次尝试，剩余额度不跨包转移；全部 Stage 通过后只运行一次 Requirement/Risk 双 Judge。
+- 聚合和滚动两种大型软件流程都只创建一个 Task、一个任务分支和一次发布；Stage/包严格串行。滚动模式中每包设计确认和执行开始始终是两次人工动作，全自动只能推进 Router、拆包和只读设计生成；最后一次包事实冻结后只运行一次 Requirement/Risk 双 Judge。
 - 新建、导入和模板新版本使用 LoopSpec v2：每阶段必须显式声明 `implementationKind`，并至少有一个可观察 `acceptanceCriteria`。条件通过 `verificationMode` 选择 `MACHINE`、`JUDGE` 或 `BOTH`；机器模式必须由服务端分类为 `BEHAVIOR` 的验证器通过 `criterionIds` 覆盖，Judge 模式必须提供 `judgeRubric`，仅 Judge 还必须提供 `judgeOnlyReason` 且不能已有机器行为映射。每阶段无论模式都至少有一个阻断性确定性验证器。旧 v2 缺少 `implementationKind` 时只允许查看，再次保存、发布模板或确认前必须补齐；已持久化且未写模式的 v2 条件默认 `MACHINE`；v1 继续兼容且不得原地改版，只能复制为新 v2 草稿后补齐计划。
 
 - 聚焦测试到验收场景的映射必须来自正向交付、明确覆盖关系或无歧义的阶段回指。包内只有一个正向交付声明的聚焦测试时，未显式点名其他测试的新增场景均由该目标覆盖，“同一/该/本聚焦测试类”也可回指该目标；存在多个交付测试时不得猜测。既有测试“保持通过/继续回归”和“测试风格一致”只形成独立必跑约束，不得凭词汇相似度覆盖新增业务场景。
@@ -435,7 +436,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.2.61.jar
+JAR=target/opencode-loopper-0.2.63.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -537,6 +538,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-08-26 | 大型软件任务逐包闭环，交付 0.2.63 | 新建大型软件任务采用单 Task、逐包设计/执行/机器验收/事实冻结和最终一次双 Judge；新增独立包运行、计划修订、累计 TaskSpec、事实快照和 AI 剩余计划建议状态轴，Git 包间释放租约、Direct 全程持锁，旧任务与大型文档保持聚合兼容；任务工作台按已证明证据、已接受合同和导航摘要分层，并同步 README、架构、Designer、OpenCode、AI 角色、Recovery、代码结构与本公约正文 | 聚焦后端 32 项、聚焦 Vitest 112/112、前端类型检查通过；`./scripts/verify.sh`：Java 616 项（0 失败、0 错误、2 跳过）、Vitest 219/219，`BUILD SUCCESS`；JAR `target/opencode-loopper-0.2.63.jar` 为 283807221 字节，含 112 个 SPA 静态条目，SHA-256 `712757182bbe15b99977a17ea25980a7cf5c2d2402b11bbac204873e4c092cd4`；未启动或替换运行实例，未推送、未打标签、未创建 Release |
 | 2026-08-26 | 任务历史错误与当前告警分离，交付 0.2.61 | Task 详情按权威生命周期选择当前 `TASK` 错误：当前等待原因、失败轮次待处置或历史失败终态仅展示最新一条，排队、准备、运行、验证等继续态隐藏旧轮次红色告警但不删除审计记录；同步 README、设计合同与本公约正文 | TaskDetail 聚焦 16/16、前端类型检查通过；`./scripts/verify.sh`：Java 608 项（0 失败、0 错误、2 跳过）、Vitest 214/214，`BUILD SUCCESS`；JAR `target/opencode-loopper-0.2.61.jar` 为 283653135 字节，含 112 个 SPA 静态条目，SHA-256 `770107b178d0863db6b3db8b277c6c23b4a67b6568eb7d4d75a84b74a51407fa`；未启动或替换运行实例，未推送、未打标签、未创建 Release |
 | 2026-08-26 | 消费 OpenCode abort 正向回执，交付 0.2.60 | HTTP adapter 解析 abort boolean，`true`/精确 404 成为停止证明，`false`/空响应/传输失败继续失败关闭；writer、Judge 和项目公约停止不再被 abort 后缺失活动状态及未完成消息反向误判；同步 README、架构、OpenCode 合同与本公约正文 | 聚焦后端 107 项、Vitest 212/212；`./scripts/verify.sh`：Java 608 项（0 失败、0 错误、2 跳过）、Vitest 212/212，`BUILD SUCCESS`；JAR `target/opencode-loopper-0.2.60.jar` 为 283653042 字节，含 112 个 SPA 静态条目，SHA-256 `6e8f197d7fb7dc30fca4fa12a084523de9dc186b6cf155927fb3324ad3880401`；未启动或替换运行实例，未推送、未打标签、未创建 Release |
 | 2026-08-26 | 修复遗留 writer 阻塞终态 holder 租约，交付 0.2.59 | 重启与手动队列修复重新核验 `DISCONNECTED`/未确认 Session，成功后持久化正向终止证据再安全转移租约；任务详情新增“终止遗留会话并释放”确认入口；同步 README、架构、设计合同与本公约正文 | 聚焦后端 2/2、TaskDetail 14/14、类型检查通过；`./scripts/verify.sh`：Java 607 项（0 失败、0 错误、2 跳过）、Vitest 212/212，`BUILD SUCCESS`；JAR 283651443 bytes，含 112 个 SPA 静态条目，SHA-256 `84d86d753420d8a6a5013aa2ac620f013726600696c272c33f1c28a81170c865`；未启动或替换运行实例，未推送、未打标签、未创建 Release |

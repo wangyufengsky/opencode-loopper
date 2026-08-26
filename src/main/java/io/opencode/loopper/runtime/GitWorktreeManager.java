@@ -319,6 +319,72 @@ public class GitWorktreeManager {
         return checkpoints.materialize(projectRoot, expectedBranch, checkpointTree);
     }
 
+    /** Materializes an immutable package tree outside the registered checkout for read-only design. */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public synchronized Path materializeReadOnlySnapshot(Path projectRoot, String taskId, String checkpointId,
+                                                          String checkpointTree) {
+        if (!safeId(taskId) || !safeId(checkpointId)
+                || checkpointTree == null || !checkpointTree.matches("[0-9a-fA-F]{40,64}")) {
+            throw new TaskFailure("PACKAGE_DESIGN_SNAPSHOT_INVALID", "Package design snapshot identity is invalid");
+        }
+        try {
+            Path root = projectRoot.toRealPath();
+            Path base = properties.getDataDir().toAbsolutePath().normalize().resolve("package-design-snapshots");
+            Files.createDirectories(base);
+            Path snapshot = base.resolve(taskId).resolve(checkpointId).normalize();
+            Path treeMarker = base.resolve(taskId).resolve(checkpointId + ".tree").normalize();
+            if (!snapshot.startsWith(base) || !treeMarker.startsWith(base) || Files.exists(snapshot)) {
+                if (Files.isDirectory(snapshot) && Files.isRegularFile(treeMarker)
+                        && checkpointTree.equals(Files.readString(treeMarker).strip())
+                        && readOnlySnapshotMatches(root, snapshot, treeMarker, checkpointTree)) {
+                    return snapshot.toRealPath();
+                }
+                throw new TaskFailure("PACKAGE_DESIGN_SNAPSHOT_PATH_INVALID",
+                        "Package design snapshot escaped its managed directory or cannot prove its tree");
+            }
+            Files.createDirectories(snapshot);
+            Path index = base.resolve(taskId).resolve(checkpointId + ".index").normalize();
+            Map<String, String> environment = Map.of("GIT_INDEX_FILE", index.toString());
+            ProcessResult readTree = runner.run(root, List.of("git", "read-tree", checkpointTree),
+                    GIT_TIMEOUT, environment);
+            if (readTree.timedOut() || readTree.outputTruncated() || readTree.exitCode() != 0) {
+                throw new TaskFailure("PACKAGE_DESIGN_SNAPSHOT_CREATE_FAILED", trim(readTree.output()));
+            }
+            ProcessResult checkout = runner.run(root,
+                    List.of("git", "--work-tree=" + snapshot, "checkout-index", "-a", "-f"),
+                    GIT_TIMEOUT, environment);
+            if (checkout.timedOut() || checkout.outputTruncated() || checkout.exitCode() != 0) {
+                throw new TaskFailure("PACKAGE_DESIGN_SNAPSHOT_CREATE_FAILED", trim(checkout.output()));
+            }
+            try (var paths = Files.walk(snapshot)) {
+                paths.sorted(java.util.Comparator.reverseOrder()).forEach(path -> path.toFile().setWritable(false, false));
+            }
+            Files.writeString(treeMarker, checkpointTree + "\n");
+            return snapshot.toRealPath();
+        } catch (TaskFailure failure) {
+            throw failure;
+        } catch (Exception failure) {
+            throw new TaskFailure("PACKAGE_DESIGN_SNAPSHOT_CREATE_FAILED", failure.getMessage());
+        }
+    }
+
+    private boolean readOnlySnapshotMatches(Path repository, Path snapshot, Path treeMarker, String expectedTree) {
+        Path verifyIndex = treeMarker.resolveSibling(treeMarker.getFileName() + ".verify-index");
+        Map<String, String> environment = Map.of("GIT_INDEX_FILE", verifyIndex.toString());
+        ProcessResult reset = runner.run(repository, List.of("git", "read-tree", "--empty"), GIT_TIMEOUT, environment);
+        ProcessResult add = runner.run(repository, List.of("git", "--work-tree=" + snapshot,
+                "add", "-A", "-f", "--", "."), GIT_TIMEOUT, environment);
+        ProcessResult tree = runner.run(repository, List.of("git", "write-tree"), GIT_TIMEOUT, environment);
+        return reset.exitCode() == 0 && add.exitCode() == 0 && tree.exitCode() == 0
+                && !reset.timedOut() && !add.timedOut() && !tree.timedOut()
+                && !reset.outputTruncated() && !add.outputTruncated() && !tree.outputTruncated()
+                && expectedTree.equals(tree.output().strip());
+    }
+
+    private static boolean safeId(String value) {
+        return value != null && value.matches("[A-Za-z0-9-]{1,80}");
+    }
+
     /** Returns a path-safe, NUL-delimited snapshot of every tracked or untracked source-checkout change. */
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public DirtyWorkspace inspectDirtyWorkspace(Path projectRoot) {

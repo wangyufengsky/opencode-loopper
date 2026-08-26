@@ -17,6 +17,27 @@ class GitWorktreeManagerIntegrationTest {
     @TempDir Path temp;
 
     @Test
+    void materializesTheExactPackageTreeAndRejectsAChangedDesignSnapshot() throws Exception {
+        Path project = initializedProject("package-design-snapshot-project");
+        String tree = run(project, "git", "rev-parse", "HEAD^{tree}").strip();
+        LoopperProperties properties = new LoopperProperties();
+        properties.setDataDir(temp.resolve("package-design-snapshot-data"));
+        GitWorktreeManager manager = new GitWorktreeManager(new SafeProcessRunner(), properties, null);
+
+        Path snapshot = manager.materializeReadOnlySnapshot(project, "task-rolling", "checkpoint-1", tree);
+
+        assertThat(Files.readString(snapshot.resolve("README.md"))).isEqualTo("initial\n");
+        assertThat(run(project, "git", "status", "--porcelain")).isBlank();
+        snapshot.resolve("README.md").toFile().setWritable(true, false);
+        Files.writeString(snapshot.resolve("README.md"), "tampered\n");
+
+        assertThatThrownBy(() -> manager.materializeReadOnlySnapshot(
+                project, "task-rolling", "checkpoint-1", tree))
+                .isInstanceOfSatisfying(TaskFailure.class, failure ->
+                        assertThat(failure.code()).isEqualTo("PACKAGE_DESIGN_SNAPSHOT_PATH_INVALID"));
+    }
+
+    @Test
     void freezesAndRestoresModifiedDeletedAndUntrackedFilesWithoutMovingTaskBranch() throws Exception {
         Path project = initializedProject("recovery-checkpoint-project");
         Files.writeString(project.resolve("deleted.txt"), "delete me\n");

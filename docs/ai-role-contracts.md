@@ -75,6 +75,17 @@ finalizer 和双 Judge。MCP allow 只叠加到各角色既有权限模板，不
 用户显式开启后才切换为 `FULL_PACKAGE_DESIGN`。普通模式由服务端直接生成覆盖全部 RQ 的
 `DIRECT_DESIGN / WP-1`，不创建 Decomposer Session；大型模式才调用 Decomposer 生成 2–6 包。
 
+新建大型软件任务使用逐包闭环：Decomposer 只负责冻结高层包边界，包 1 详细设计确认后创建唯一
+Task；后续包在前一包机器验收和事实冻结后才生成详细设计。大型文档和历史 Designer/Task 继续使用
+聚合流程。后续包 Designer 接收原始冻结需求、最新真实只读快照和分层事实索引，其中“已证明”只来自
+服务端 Checkpoint/验证证据，“已接受合同”只来自人工确认的设计与累计 TaskSpec，“AI 导航摘要”永远
+不能作为通过条件。每包事实索引限制为 4 KiB、累计 24 KiB；超出部分只能通过只读事实/证据接口读取。
+模型不能重写已冻结包；改变既有行为只能提出带 `correctionOf` 的后续修正包。
+调整未执行后缀时，用户可以人工编辑，也可以显式启动独立的只读 AI 建议。建议角色只读取原始冻结需求、
+当前未执行包、精确 Checkpoint 快照和有界事实索引，以 marker JSON 返回 `replaces/dependencies/requirementRefs`；
+服务端验证来源、依赖、基线版本并计算影响。`GENERATING / PROPOSED / FAILED`、外部 Session 和错误均持久化，
+Monitor 可在重启后继续；AI 完成只形成候选，不能确认计划、确认包设计或开始执行。
+
 普通模式的需求 Designer 只负责在每个需求讨论修订中调用一次 `question` 并等待回答，随后可空
 正文结束。服务端按消息时间原样拼装原始需求、需求作用域补充和持久化最终回答，后写语义优先；
 模型自由文本、仓库观察和画像标签不进入需求快照。快照以 `SERVER_REQUIREMENT_SNAPSHOT` 审计消息
@@ -174,6 +185,11 @@ AI 分组中引用的 `DELIVERABLE / SCOPE` 事实只用于确定该 Stage 的�
 已回答决策重建快照，未确认 AI 推断不进入普通需求语义。
 大型流程中的 Compiler 不得返回该缺口；多项目根、超过六包和独立发布边界仍使用
 `MULTI_TASK_REQUIRED`。
+
+滚动模式下，Compiler 仍只编译当前包的验收语义；服务端把确认结果追加为新的完整
+`TaskSpecRevision` 和新 Stage，不回写原始 LoopDraft，也不修改或重排已执行 Stage。包内标为
+`JUDGE/BOTH` 的条件在事实冻结时只是“计划评审”，不会启动包级 Judge。只有全部有效包
+`FACT_FROZEN` 后，最终累计 TaskSpec 和完整事实链才进入唯一一批 Requirement/Risk Judge。
 
 服务端从 DesignFact 的精确来源生成 `<WP>-AC-n`，并把求解结果编译成验证器关联。v3 历史流程
 继续解析 `DS-L` 与 Maven/Gradle/npm/pytest/unittest 显式选择器，不会被 v6 快照重解释。

@@ -39,6 +39,12 @@ decision-log handling; its shared machine payloads live outside the workflow fac
 Designer lifecycle. `TaskService` delegates retry decisions,
 execution prompts, Judge response parsing, lifecycle row persistence, and immutable
 design/verification/diff/Judge evidence assembly;
+`RollingPackageService`, `RollingPackageCheckpointService`, and
+`RollingPackagePlanService` separately own rolling package commands, the
+Checkpoint-to-fact saga, and confirmed plan revisions; `RollingPackagePlanGenerationService`
+owns the restart-safe read-only AI suggestion transport and `RollingPackageReadService` owns the
+lightweight workbench projection. None of those collaborators rewrites an accepted
+LoopDraft or absorbs package state into Stage/Attempt/Designer enums.
 `HttpOpenCodeClient` delegates permission policy and response/Todo/machine-output
 parsing; `GitWorktreeManager` delegates branch naming, dirty-workspace handling,
 and checkpoint operations. These collaborators do not own the parent lifecycle.
@@ -100,6 +106,10 @@ controls. Those fields are required in the frontend overview adapter: an incompl
 projection fails over to the compatibility detail endpoint instead of silently
 hiding an action by coercing a missing value to `false`. List summaries remain
 intentionally smaller and do not expose Task-detail capabilities.
+Rolling overviews additionally require `executionMode`, workspace policy, current
+package/frozen counts, and the complete package capability object. Missing capability
+fields fail the frontend adapter and trigger the full-detail fallback; clients may
+not infer package actions from Task or package enums.
 Runtime data is requested only on its own route; SSE invalidates overview and
 audit independently with a short coalescing window. JSON/text responses above
 2 KiB are compressed, Inbox responses use shallow ETags, and read-model metrics
@@ -659,7 +669,7 @@ package cannot start until the user accepts that exact design revision. A failed
 candidate keeps the previous valid candidate visible. Reopening an accepted
 package marks only its transitive dependents `STALE`; unrelated accepted packages
 remain valid. Compiler output is a package fragment, not a complete LoopSpec.
-After all packages are `APPROVED`, the server concatenates Stages in package
+For `LEGACY_AGGREGATE` records, after all packages are `APPROVED` the server concatenates Stages in package
 order and atomically synchronizes one aggregate LoopSpec at the original draft
 version; no model performs a second merge. Confirmation
 freezes `REQUIREMENT_CONTEXT`, `DECOMPOSITION_CONTEXT`, per-package
@@ -667,7 +677,7 @@ freezes `REQUIREMENT_CONTEXT`, `DECOMPOSITION_CONTEXT`, per-package
 composite compatibility `DESIGN_CONTEXT`. A draft version conflict stops before
 the next model call and never creates a Task.
 
-All package design Sessions read the same immutable pre-execution repository
+Legacy aggregate package design Sessions read the same immutable pre-execution repository
 baseline. An `APPROVED` predecessor means its frozen design/compilation contract
 is valid and its Stages are ordered before the current package; it does not mean
 the design-time repository already contains its files. The server injects the
@@ -682,6 +692,50 @@ may fill omitted duplicate commands/targets or the equivalent TEST verifier. Bro
 test suites and ambiguous candidates are never guessed. The normal v2 assessment
 still runs after canonicalization and remains authoritative.
 
+V45 gives only newly created `FULL_PACKAGE_DESIGN` software work a distinct
+`ROLLING_PACKAGES` execution mode; old Tasks, ordinary software, large documents,
+and other artifact flows remain `LEGACY_AGGREGATE`. Package 1 approval atomically
+creates one `PENDING_START` Task, active plan revision, package runs, TaskSpec revision,
+and only package 1 Stages. It creates no Queue, Lease, execution directory, Attempt,
+or writable Session. The accepted LoopDraft remains the immutable design source;
+each later approval appends a full cumulative `TaskSpecRevision` and new Stages without
+mutating or reordering any executed Stage.
+
+`TaskPackageRun` is an independent lifecycle:
+`PLANNED → DESIGNING → DESIGN_REVIEW → EXECUTION_READY → QUEUED → RUNNING → VERIFYING
+→ CHECKPOINTING → FACT_FROZEN`. `WAITING_INPUT`, `SUPERSEDED`, and `CANCELLED` are
+explicit alternate states. Task uses `PACKAGE_DESIGNING` between a successful
+Checkpoint and a candidate design, then `WAITING_INPUT` with one of
+`PACKAGE_DESIGN_APPROVAL_REQUIRED`, `PACKAGE_EXECUTION_START_REQUIRED`,
+`PACKAGE_EXECUTION_FAILED`, or `PACKAGE_CHECKPOINT_BLOCKED`. Package transitions
+use the shared lifecycle service and audit stream; they are never encoded as Stage,
+Attempt, Cycle, or Designer states.
+
+Successful package verification closes its `PACKAGE_EXECUTION` Cycle before the
+Checkpoint/fact saga. One `PackageFactSnapshot` binds exactly one ready Checkpoint
+and successful Attempt, and separates: machine-proven trees/manifest/diff/evidence
+hashes, the accepted design/Stage/deliverable/acceptance contract, and a non-evidentiary
+AI navigation summary. Prompt injection is capped at 4 KiB UTF-8 per package and
+24 KiB total; complete bodies stay on task-scoped lazy evidence endpoints. A failure
+candidate Checkpoint may support continuation but never creates a proven fact.
+
+Git Tasks freeze the branch tree, materialize a managed read-only snapshot for the
+next Designer, restore the registered source branch, and release the FIFO lease. A
+later `PACKAGE` queue admission revalidates canonical root, ref, tree, and manifest
+before restoring the same Task branch. Direct Tasks retain their lease and registered
+directory throughout the package sequence; their private Git-compatible object database
+freezes immutable trees, while every next-design/start boundary compares the live tree
+with the preceding fact and fails closed on external drift. Neither policy falls back
+to the initial repository baseline.
+
+Plan revisions replace only nonterminal runs after proving that no writer/Verifier/Judge
+is active and the latest successful Checkpoint still validates. Confirmation marks old
+unfinished runs/designs `SUPERSEDED`, appends a new active plan, and starts only its first
+read-only design. Frozen runs remain immutable; a correction is a monotonic new run with
+`correctionOfPackageRunId`. The last fact enters `JUDGING`, creates one `FINAL_REVIEW`
+Cycle and exactly one Requirement/Risk batch, then uses existing `AWAITING_DECISION` and
+single publication semantics.
+
 The implicit direct-software `WP-1` is not reclassified from arbitrary requirement prose: it
 inherits the confirmed task profile's software Role Pack, technology family, and test policy.
 Only explicit large-task packages may specialize their package role from package-local content.
@@ -689,14 +743,14 @@ If a direct-software package was previously frozen with a non-software Role Pack
 authoritative role use repairs that inconsistent snapshot before Compiler selection, so manual
 recompilation enters the deterministic acceptance workflow instead of the historical compact path.
 
-The confirmed aggregate still creates exactly one Task, one task branch, and
+Both legacy and rolling package flows create exactly one Task, one task branch, and
 one publication. Stage execution remains serial, while each package owns an
 attempt pool of `min(stageCount * maxStageAttempts, stageCount + 2)` and earlier
 Stages cannot consume the reserved first Attempt of an unstarted Stage. Package
 reserves do not transfer. `maxTaskAttempts` and safe duration are raised to the
 deterministic minimum during aggregation, but token and cost budgets are never
 raised. All Stages must pass before the one final Requirement/Risk Judge batch.
-The aggregate Stage-to-package mapping is immutable once synchronized into the
+The legacy aggregate Stage-to-package mapping is immutable once synchronized into the
 Review Gate. Frontend normalization must preserve every `workPackageId`; the
 draft update boundary rejects a removed or changed mapping, and confirmation
 fails closed if approved packages are missing, unknown, or out of dependency

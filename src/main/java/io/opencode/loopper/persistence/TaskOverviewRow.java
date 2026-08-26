@@ -7,4 +7,5 @@ public record TaskOverviewRow(String id, String projectId, String projectName, S
                               int hasDesignHistory, int archived, String executionResult,
                               Integer executionCycleOrdinal, String checkpointState,
                               String parentTaskId, String successorTaskId, int attemptCount,
-                              int maxTaskAttempts, int maxStageAttempts, String createdAt, String updatedAt) { }
+                              int maxTaskAttempts, int maxStageAttempts, String createdAt, String updatedAt,
+                              long version, String executionMode, String workspacePolicy) { }

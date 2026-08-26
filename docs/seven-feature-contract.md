@@ -101,6 +101,39 @@ with source `PUBLICATION`, restores the checkpoint, commits it, and releases the
 
 ## Recovery and Session lifecycle
 
+New rolling software Tasks add a package checkpoint boundary inside one Task and one final
+publication. A package may become `FACT_FROZEN` only when all of its deterministic verification
+has passed and the successful Attempt, workspace tree, manifest, real diff, evidence digests,
+accepted design revision, and cumulative TaskSpec digest are atomically linked. Requirement/Risk
+Judges do not run at that boundary. Git projects then clean the registered checkout, restore the
+source branch, and release the lease; the next package later queues with source `PACKAGE` and must
+restore the exact root/ref/tree/manifest. Direct projects retain the writer lease and freeze a
+private immutable tree/manifest without replacing the user's directory. Any external Direct drift
+or Git snapshot mismatch fails closed.
+
+An execution failure may preserve a candidate checkpoint so a Git lease can be released safely,
+but that candidate is not a `PackageFactSnapshot` and cannot be injected as proven state. The local
+decision is explicit: continue from the candidate, redesign from the preceding successful fact, or
+cancel while retaining files and audit history. Checkpoint capture, fact insertion, design dispatch,
+and lease transfer are individually idempotent recovery boundaries. Startup reuses a verified
+durable checkpoint/fact; it never falls back to the original baseline when the latest fact cannot
+be proven.
+
+Only the unexecuted suffix may be replanned, and only with no active writer, verifier, or Designer
+and a verified current checkpoint. Confirmation supersedes old unfinished package and design rows,
+then starts read-only design for the new first suffix package. Frozen facts, their Stage/Attempt
+history, and previous TaskSpec revisions remain immutable. A correction appends a package linked to
+the frozen run; a final Judge request for changes follows this same correction path rather than
+reopening an old package. After the last effective package freezes, exactly one final Judge batch is
+created from the latest cumulative TaskSpec and all effective facts.
+
+An AI suffix suggestion is a durable `PackagePlanRevision` lifecycle of
+`GENERATING -> PROPOSED | FAILED`; only the human confirmation transition may make it `ACTIVE` and
+supersede the previous active plan. The row freezes Task, current package and checkpoint versions,
+the remote read-only Session and typed error. Polling revalidates the exact snapshot before accepting
+output, rejects model questions, preserves provider `RETRY` on the same Session, and fails closed on
+drift, timeout or malformed/source-invalid output.
+
 New Tasks separate an execution-cycle result from user-confirmed finality.
 Success and failure both enter `AWAITING_DECISION`; legacy `SUCCEEDED`/`FAILED`
 rows remain terminal compatibility records. The decision API is local-UI-only,
@@ -262,13 +295,19 @@ added, modified, and rename-target production `.java` paths in both Git and
 Direct workspaces. Classification mismatches and missing successful focused
 tests are blocking verifier results that enter the ordinary Attempt retry loop.
 
-For decomposed Tasks, Stage order is also package order. A package owns
+For legacy aggregate decomposed Tasks, Stage order is also package order. A package owns
 `min(stageCount * maxStageAttempts, stageCount + 2)` Attempts and reserves one
 for each unstarted Stage; unused capacity cannot be borrowed by another package.
 Aggregate admission raises `maxTaskAttempts` and maximum duration only to the
 safe calculated floor and never raises token/cost budgets. The final ordered
 verification summary still launches exactly one Requirement/Risk Judge batch
 after all packages pass.
+
+For rolling Tasks, package attempt budgets and execution cycles are allocated when each package is
+started. Later confirmed package designs append Stage rows and a complete cumulative TaskSpec
+revision; already executed rows are not reopened merely because a later plan changes. The final
+verification summary uses the newest accepted cumulative revision and excludes superseded or
+failed-candidate Stage contracts.
 
 Network behavior coverage requires a Stage-managed runtime with dynamic
 `{{LOOPPER_PORT}}`, bounded readiness, and direct argv startup. V19 records its

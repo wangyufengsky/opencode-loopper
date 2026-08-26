@@ -12,6 +12,7 @@ import io.opencode.loopper.persistence.DesignerSessionRow;
 import io.opencode.loopper.persistence.LoopDraftRow;
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.TaskRow;
+import io.opencode.loopper.config.LoopperProperties;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Set;
@@ -31,13 +32,15 @@ public class DesignerAutoModeService {
     private final AnalysisReportService reports;
     private final DirectArtifactDesignService directArtifacts;
     private final DirectMaintenanceDesignService directMaintenance;
+    private final LoopperProperties properties;
     private final Set<String> inFlight = ConcurrentHashMap.newKeySet();
 
     public DesignerAutoModeService(LoopperMapper mapper, LifecycleTransitionService lifecycle,
                                    DesignerSessionService designerSessions, LoopDraftService drafts,
                                    TaskService tasks, TaskProfileService profiles,
                                    AnalysisReportService reports, DirectArtifactDesignService directArtifacts,
-                                   DirectMaintenanceDesignService directMaintenance) {
+                                   DirectMaintenanceDesignService directMaintenance,
+                                   LoopperProperties properties) {
         this.mapper = mapper;
         this.lifecycle = lifecycle;
         this.designerSessions = designerSessions;
@@ -47,6 +50,7 @@ public class DesignerAutoModeService {
         this.reports = reports;
         this.directArtifacts = directArtifacts;
         this.directMaintenance = directMaintenance;
+        this.properties = properties;
     }
 
     public View initialize(String sessionId, boolean enabled) {
@@ -227,6 +231,13 @@ public class DesignerAutoModeService {
                         .stream().filter(item -> item.id().equals(session.activeWorkPackageId())).findFirst()
                         .orElseThrow(() -> new ConflictException("WORK_PACKAGE_MISSING", "当前工作包不存在"));
                 if ("REVIEWING".equals(workPackage.state())) {
+                    TaskProfileService.View profile = profiles.current(sessionId);
+                    if (properties.isRollingPackagesEnabled()
+                            && profile.workflowTemplate() == io.opencode.loopper.domain.WorkflowTemplate.FULL_PACKAGE_DESIGN
+                            && profile.intent() == io.opencode.loopper.domain.TaskIntent.SOFTWARE_CHANGE) {
+                        recordAction(mode, "ROLLING_PACKAGE_MANUAL_APPROVAL_REQUIRED");
+                        return;
+                    }
                     designerSessions.approvePackageAutomatically(sessionId, workPackage.id(),
                             session.discussionRevision(), workPackage.designRevision());
                     recordAction(mode, "WORK_PACKAGE_AUTO_APPROVED");

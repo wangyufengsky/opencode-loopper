@@ -455,9 +455,9 @@ public class DirectWorkspaceLeaseCoordinator {
 
     private static String source(String source) {
         String normalized = source == null ? "" : source.trim().toUpperCase(Locale.ROOT);
-        if (!List.of("MANUAL", "RECOVERY", "AUTOMATION", "PUBLICATION").contains(normalized)) {
+        if (!List.of("MANUAL", "RECOVERY", "AUTOMATION", "PUBLICATION", "PACKAGE").contains(normalized)) {
             throw new TaskFailure("DIRECT_QUEUE_SOURCE_INVALID",
-                    "Direct queue source must be MANUAL, RECOVERY, AUTOMATION, or PUBLICATION");
+                    "Direct queue source must be MANUAL, RECOVERY, AUTOMATION, PUBLICATION, or PACKAGE");
         }
         return normalized;
     }

@@ -11,6 +11,7 @@ import LayeredErrorPanel from '@/components/LayeredErrorPanel.vue'
 import JudgeReviewCard from '@/components/JudgeReviewCard.vue'
 import DirtyWorkspaceDialog from '@/components/DirtyWorkspaceDialog.vue'
 import TaskDecisionPanel from '@/components/TaskDecisionPanel.vue'
+import RollingPackageWorkbench from '@/components/RollingPackageWorkbench.vue'
 import { api } from '@/api/client'
 import { useTaskStore } from '@/stores/taskStore'
 import type { Attempt, ErrorEvent, TaskPublicationStatus, TaskQueueStatus } from '@/types/domain'
@@ -291,7 +292,7 @@ async function confirmRework() {
       <el-button v-if="task?.status === 'FAILED' || task?.status === 'CANCELLED'" type="primary" @click="router.push(`/tasks/${id}/recovery`)"><Icon icon="lucide:git-fork" />恢复</el-button>
       <el-button v-if="canRework" type="warning" plain :loading="reworking" @click="confirmRework"><Icon icon="lucide:git-branch-plus" />新分支重做</el-button>
       <el-button plain @click="router.push('/tasks')"><Icon icon="lucide:list" />全部任务</el-button>
-      <el-button v-if="task?.status === 'PENDING_START'" type="primary" @click="store.updateTask(id, 'start')"><Icon icon="lucide:play" />开始执行</el-button>
+      <el-button v-if="task?.status === 'PENDING_START' && task.executionMode !== 'ROLLING_PACKAGES'" type="primary" @click="store.updateTask(id, 'start')"><Icon icon="lucide:play" />开始执行</el-button>
       <el-button v-else-if="task?.status === 'RUNNING' || task?.status === 'VERIFYING' || task?.status === 'RETRY_WAIT'" plain @click="store.updateTask(id, 'pause')"><Icon icon="lucide:pause" />暂停</el-button>
       <el-button v-else-if="task?.status === 'PAUSED'" type="primary" @click="store.updateTask(id, 'resume')"><Icon icon="lucide:play" />继续</el-button>
       <el-button v-if="canCancelTask" plain type="danger" :loading="cancellingTask" @click="confirmCancel"><Icon icon="lucide:square" />{{ task?.status === 'STOPPING' ? '重试停止' : '取消任务' }}</el-button>
@@ -309,6 +310,7 @@ async function confirmRework() {
         <div v-else><p class="eyebrow">{{ isDirectExecution ? '直接执行' : '原项目任务分支' }}</p><span class="mono tiny muted">{{ isDirectExecution ? '原项目目录' : task.branch }} · {{ task.worktreePath }}</span></div>
         <div class="overview-meta"><span><b>{{ task.attemptCount }}</b> / {{ task.maxAttempts }} 次尝试</span><span v-if="store.streamState !== 'idle'" :class="['stream-state', store.streamState]">{{ store.streamState === 'connected' ? '实时连接正常' : '实时连接恢复中' }}</span></div>
       </section>
+      <RollingPackageWorkbench v-if="task.executionMode === 'ROLLING_PACKAGES'" :task="task" @refresh="load" />
       <TaskDecisionPanel v-if="task.status === 'AWAITING_DECISION'" :task-id="task.id" @reload="load" @open-task="(taskId) => router.push(`/tasks/${taskId}`)" />
       <section v-if="task.status === 'SUPERSEDED' && task.successorTaskId" class="decision-successor card card-pad">
         <div><p class="eyebrow">后续任务</p><h2 class="card-title">后续工作已转移到新任务</h2></div>
@@ -357,7 +359,7 @@ async function confirmRework() {
         </template>
         <p v-if="queueError" class="queue-error" role="alert">{{ queueError }}</p>
       </section>
-      <section v-if="task.workPackages?.length" class="card card-pad package-progress" aria-labelledby="package-progress-heading">
+      <section v-if="task.executionMode !== 'ROLLING_PACKAGES' && task.workPackages?.length" class="card card-pad package-progress" aria-labelledby="package-progress-heading">
         <div class="card-header"><div><p class="eyebrow">工作包</p><h2 id="package-progress-heading" class="card-title">执行进度</h2></div></div>
         <div class="package-progress-grid">
           <article v-for="(item, index) in task.workPackages" :key="item.id" :class="['package-progress-card', `is-${item.status.toLowerCase()}`]">

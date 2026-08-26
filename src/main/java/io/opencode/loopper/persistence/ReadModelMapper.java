@@ -17,7 +17,7 @@ public interface ReadModelMapper {
               CASE WHEN archive.task_id IS NULL THEN 0 ELSE 1 END AS archived,
               COALESCE(attempts.attempt_count,0) AS attempt_count,
               COALESCE(CAST(json_extract(d.spec_json,'$.limits.maxTaskAttempts') AS INTEGER),12) AS max_attempts,
-              t.created_at,t.updated_at
+              t.created_at,t.updated_at,t.version,t.execution_mode,t.workspace_policy
             FROM task t
             JOIN project p ON p.id=t.project_id
             LEFT JOIN loop_draft d ON d.id=t.loop_draft_id
@@ -87,7 +87,7 @@ public interface ReadModelMapper {
               COALESCE(attempts.attempt_count,0) AS attempt_count,
               COALESCE(CAST(json_extract(d.spec_json,'$.limits.maxTaskAttempts') AS INTEGER),12) AS max_task_attempts,
               COALESCE(CAST(json_extract(d.spec_json,'$.limits.maxStageAttempts') AS INTEGER),3) AS max_stage_attempts,
-              t.created_at,t.updated_at
+              t.created_at,t.updated_at,t.version,t.execution_mode,t.workspace_policy
             FROM task t JOIN project p ON p.id=t.project_id LEFT JOIN loop_draft d ON d.id=t.loop_draft_id
             LEFT JOIN task_archive archive ON archive.task_id=t.id
             LEFT JOIN (SELECT task_id,COUNT(*) AS attempt_count FROM attempt GROUP BY task_id) attempts ON attempts.task_id=t.id

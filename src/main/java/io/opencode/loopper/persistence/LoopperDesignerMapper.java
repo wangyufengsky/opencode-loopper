@@ -13,6 +13,11 @@ public interface LoopperDesignerMapper {
     @Insert("INSERT INTO designer_session(id,project_id,state,access_mode,external_session_id,external_session_state,loop_draft_id,workflow_phase,design_revision,redesign_count,current_requirement_revision,active_work_package_id,discussion_scope,discussion_revision,candidate_sync_state,created_at,updated_at,version) VALUES(#{id},#{projectId},#{state},#{accessMode},#{externalSessionId},#{externalSessionState},#{loopDraftId},#{workflowPhase},#{designRevision},#{redesignCount},#{currentRequirementRevision},#{activeWorkPackageId},#{discussionScope},#{discussionRevision},#{candidateSyncState},#{createdAt},#{updatedAt},#{version})")
     int insertDesignerSession(DesignerSessionRow row);
     @Select("SELECT * FROM designer_session WHERE id=#{id}") Optional<DesignerSessionRow> findDesignerSession(String id);
+    @Select("SELECT * FROM designer_session WHERE task_id=#{taskId} ORDER BY updated_at DESC LIMIT 1")
+    Optional<DesignerSessionRow> findDesignerSessionByTask(String taskId);
+    @Update("UPDATE designer_session SET task_id=#{taskId},updated_at=#{updatedAt},version=version+1 WHERE id=#{sessionId} AND version=#{version} AND task_id IS NULL")
+    int bindDesignerSessionTask(@Param("sessionId") String sessionId, @Param("taskId") String taskId,
+                                @Param("updatedAt") String updatedAt, @Param("version") long version);
     @Select("SELECT * FROM designer_session WHERE loop_draft_id=#{draftId} ORDER BY created_at DESC LIMIT 1")
     Optional<DesignerSessionRow> findLatestDesignerSessionByDraft(String draftId);
     @Select("""
@@ -327,7 +332,8 @@ public interface LoopperDesignerMapper {
               designer_external_session_state,design_message_id,design_revision,redesign_count,
               designer_transport_retry_count,compiler_summary,handoff_summary,last_error_code,last_error_detail,
               approved_design_revision,discussion_round_count,invalidated_by_package_id,approved_at,
-              created_at,updated_at,version,task_profile_id,role_pack_id,role_pack_version)
+              created_at,updated_at,version,task_profile_id,role_pack_id,role_pack_version,
+              plan_revision,correction_of_package_id,superseded_at)
             VALUES(#{id},#{designerSessionId},#{requirementRevisionId},#{decompositionId},#{packageId},#{ordinal},
               #{title},#{objective},#{scopeInJson},#{scopeOutJson},#{dependenciesJson},#{deliverablesJson},
               #{acceptanceIntentJson},#{requirementRefsJson},#{state},#{designerExternalSessionId},
@@ -337,7 +343,8 @@ public interface LoopperDesignerMapper {
               #{createdAt},#{updatedAt},#{version},
               (SELECT id FROM designer_task_profile WHERE designer_session_id=#{designerSessionId} AND state='FROZEN' ORDER BY created_at DESC LIMIT 1),
               (SELECT role_pack_id FROM designer_task_profile WHERE designer_session_id=#{designerSessionId} AND state='FROZEN' ORDER BY created_at DESC LIMIT 1),
-              (SELECT role_pack_version FROM designer_task_profile WHERE designer_session_id=#{designerSessionId} AND state='FROZEN' ORDER BY created_at DESC LIMIT 1))
+              (SELECT role_pack_version FROM designer_task_profile WHERE designer_session_id=#{designerSessionId} AND state='FROZEN' ORDER BY created_at DESC LIMIT 1),
+              #{planRevision},#{correctionOfPackageId},#{supersededAt})
             """)
     int insertDesignWorkPackage(DesignWorkPackageRow row);
     @Update("""
@@ -359,9 +366,9 @@ public interface LoopperDesignerMapper {
     Optional<WorkPackageRoleProfileRow> findWorkPackageRoleProfile(String id);
     @Select("SELECT * FROM design_work_package WHERE id=#{id}")
     Optional<DesignWorkPackageRow> findDesignWorkPackage(String id);
-    @Select("SELECT * FROM design_work_package WHERE requirement_revision_id=#{revisionId} ORDER BY ordinal")
+    @Select("SELECT * FROM design_work_package WHERE requirement_revision_id=#{revisionId} AND plan_revision=(SELECT MAX(plan_revision) FROM design_work_package WHERE requirement_revision_id=#{revisionId}) ORDER BY ordinal")
     List<DesignWorkPackageRow> listDesignWorkPackages(String revisionId);
-    @Select("SELECT * FROM design_work_package WHERE designer_session_id=#{sessionId} AND package_id=#{packageId} ORDER BY created_at DESC LIMIT 1")
+    @Select("SELECT * FROM design_work_package WHERE designer_session_id=#{sessionId} AND package_id=#{packageId} ORDER BY plan_revision DESC,created_at DESC LIMIT 1")
     Optional<DesignWorkPackageRow> findLatestDesignWorkPackage(@Param("sessionId") String sessionId,
                                                                @Param("packageId") String packageId);
     @Select("SELECT * FROM design_work_package WHERE state IN ('QUESTIONING','DESIGNING') AND designer_external_session_id IS NOT NULL ORDER BY updated_at")
@@ -374,7 +381,8 @@ public interface LoopperDesignerMapper {
               handoff_summary=#{handoffSummary},last_error_code=#{lastErrorCode},last_error_detail=#{lastErrorDetail},
               approved_design_revision=#{approvedDesignRevision},discussion_round_count=#{discussionRoundCount},
               invalidated_by_package_id=#{invalidatedByPackageId},approved_at=#{approvedAt},
-              updated_at=#{updatedAt},version=version+1 WHERE id=#{id} AND version=#{version}
+              superseded_at=#{supersededAt},updated_at=#{updatedAt},version=version+1
+            WHERE id=#{id} AND version=#{version}
             """)
     int updateDesignWorkPackage(DesignWorkPackageRow row);
     @Update("UPDATE design_work_package SET state='FAILED',designer_external_session_state='ABORTED',last_error_code='DESIGNER_CANCELLED',last_error_detail='Designer session was cancelled',updated_at=#{updatedAt},version=version+1 WHERE designer_session_id=#{sessionId} AND state IN ('QUESTIONING','DESIGNING','COMPILING','VALIDATING')")

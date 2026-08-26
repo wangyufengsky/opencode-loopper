@@ -63,6 +63,15 @@ ownership rules:
   `TaskCancellationCoordinator` owns durable `STOPPING -> CANCELLED` child-state closure,
   while `TaskWriterTerminationService` owns remote Session/Judge termination proof and
   persistent unconfirmed-writer evidence; neither may release/admit the next Direct lease.
+- Rolling execution is split by reason to change: `RollingPackageService` owns package command
+  boundaries and cumulative TaskSpec/Stage append; `RollingPackageCheckpointService` owns the
+  verify-checkpoint-fact-lease saga and crash recovery; `RollingPackagePlanService` owns only
+  unfinished-suffix revisions and correction packages; `RollingPackagePlanGenerationService`
+  owns only read-only AI suggestion Session dispatch, polling, bounded extraction, and base-snapshot
+  verification; `RollingPackageReadService` owns bounded
+  workbench/fact projections. None may rewrite the immutable LoopDraft or derive UI capabilities.
+  `RollingPackageTaskHooks` is the narrow bridge from the legacy Task facade, not a second workflow
+  implementation. `TaskEvidenceService` remains the sole owner of proven diff/evidence material.
 - `ProjectStackAnalyzer` owns bounded filesystem evidence and manifest fingerprinting;
   `ProjectStackProfileService` owns immutable snapshot persistence and freshness checks.
   Analyzer snapshot collections must be emitted in canonical lexical order so filesystem
@@ -127,6 +136,10 @@ ownership rules:
 ratchet. It is intentionally dependency-free so it runs in every Maven test and
 release build. Lower a legacy cap in the same change that extracts responsibility;
 never raise a cap to make a build green.
+
+The current compatibility ratchets are 5,401 physical lines for
+`DesignerSessionService` and 2,727 for `TaskService`. Rolling package behavior must stay in the
+collaborators above; a later change may only preserve or lower those caps.
 
 ## Change workflow
 
