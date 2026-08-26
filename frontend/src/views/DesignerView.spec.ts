@@ -1387,10 +1387,11 @@ describe('Designer draft composer', () => {
   })
 
   it('renders the coverage matrix and blocks save when a v2 criterion is uncovered', async () => {
+    const criterionDescription = '当构造点位于 catch 块且目标调用未传递 Throwable 时，执行链路仍应保留原始异常语义和消息文本'
     const invalidSpec: LoopSpec = {
       schemaVersion: 'v2', projectId: project.id, goal: '严格验收', context: '',
       stages: [{ objective: '实现', implementationKind: 'NON_JAVA', allowedPaths: [], forbiddenPaths: [], deliverables: ['实现'],
-        acceptanceCriteria: [{ id: 'AC-1', description: '用户能观察到结果' }],
+        acceptanceCriteria: [{ id: 'AC-1', description: criterionDescription }],
         verifiers: [{ type: 'PROCESS', command: ['mvn', 'package'], processPurpose: 'BUILD', criterionIds: ['AC-1'] }] }],
       limits: { maxStageAttempts: 3, maxTaskAttempts: 12, maxDuration: '7200', attemptTimeout: '1800' },
     }
@@ -1401,7 +1402,7 @@ describe('Designer draft composer', () => {
       valid: false, schemaVersion: 'v2', legacy: false,
       errors: ['stages[0].acceptanceCriteria[AC-1]: no valid BEHAVIOR verifier covers this criterion'],
       stageAssessments: [{ stageIndex: 0,
-        criteria: [{ id: 'AC-1', description: '用户能观察到结果', verificationMode: 'MACHINE', covered: false,
+        criteria: [{ id: 'AC-1', description: criterionDescription, verificationMode: 'MACHINE', covered: false,
           machineCovered: false, judgePlanned: false, overallPlanned: false, verifierIndexes: [] }],
         verifiers: [{ index: 0, type: 'PROCESS', category: 'BUILD', blocking: true, criterionIds: ['AC-1'], reason: 'compile/build/static-quality command' }],
       }],
@@ -1418,8 +1419,13 @@ describe('Designer draft composer', () => {
     await flushPromises()
 
     expect(update).not.toHaveBeenCalled()
-    expect(wrapper.get('[aria-label="双重验收计划矩阵"]').text()).toContain('机器：不适用')
-    expect(wrapper.get('[aria-label="双重验收计划矩阵"]').text()).toContain('BUILD')
+    const matrix = wrapper.get('[aria-label="双重验收计划矩阵"]')
+    const criterionRow = matrix.get('.matrix-criterion-row')
+    expect(criterionRow.element.children).toHaveLength(2)
+    expect(criterionRow.get('.matrix-criterion-description').text()).toBe(criterionDescription)
+    expect(criterionRow.get('.matrix-criterion-statuses').findAll('em, b')).toHaveLength(3)
+    expect(matrix.text()).toContain('机器：不适用')
+    expect(matrix.text()).toContain('BUILD')
   })
 
   it('reopens an already confirmed draft idempotently without trying to modify the immutable LoopSpec', async () => {

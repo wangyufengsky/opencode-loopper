@@ -1489,10 +1489,13 @@ async function redesignPackage(packageId: string) {
           <header><strong>双重验收计划</strong><span :class="acceptanceAssessment.valid ? 'matrix-pass' : 'matrix-fail'">{{ acceptanceAssessment.valid ? '计划有效' : `${acceptanceAssessment.errors.length} 项阻断` }}</span></header>
           <div v-for="stage in acceptanceAssessment.stageAssessments" :key="stage.stageIndex" class="matrix-stage">
             <span>阶段 {{ stage.stageIndex + 1 }}</span>
-            <div v-for="criterion in stage.criteria" :key="criterion.id">
-              <span>{{ criterion.description }}</span><em>{{ displayLabel(criterion.verificationMode) }}</em>
-              <b :class="criterion.machineCovered ? 'matrix-pass' : 'matrix-muted'">{{ criterion.machineCovered ? `机器：验收器 ${criterion.verifierIndexes.map(index => index + 1).join(', ')}` : '机器：不适用' }}</b>
-              <b :class="criterion.judgePlanned ? 'matrix-planned' : 'matrix-muted'">{{ criterion.judgePlanned ? 'AI：计划评审' : 'AI：不适用' }}</b>
+            <div v-for="criterion in stage.criteria" :key="criterion.id" class="matrix-criterion-row">
+              <span class="matrix-criterion-description">{{ criterion.description }}</span>
+              <div class="matrix-criterion-statuses">
+                <em>{{ displayLabel(criterion.verificationMode) }}</em>
+                <b :class="criterion.machineCovered ? 'matrix-pass' : 'matrix-muted'">{{ criterion.machineCovered ? `机器：验收器 ${criterion.verifierIndexes.map(index => index + 1).join(', ')}` : '机器：不适用' }}</b>
+                <b :class="criterion.judgePlanned ? 'matrix-planned' : 'matrix-muted'">{{ criterion.judgePlanned ? 'AI：计划评审' : 'AI：不适用' }}</b>
+              </div>
             </div>
             <div class="matrix-verifiers"><small v-for="verifier in stage.verifiers" :key="verifier.index">#{{ verifier.index + 1 }} {{ verifier.category }} · {{ verifier.reason }}</small></div>
           </div>
@@ -1538,19 +1541,21 @@ async function redesignPackage(packageId: string) {
 .project-path { float: right; max-width: 250px; overflow: hidden; color: var(--color-text-muted); font-family: var(--font-code); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .legacy-contract { color: #fbbf24 !important; }
 .review-actions { display: flex; align-items: center; gap: 6px; }
-.acceptance-matrix { margin: 12px 20px 0; padding: 12px; border: 1px solid rgb(34 211 238 / 22%); border-radius: 10px; background: rgb(8 47 73 / 12%); }
+.acceptance-matrix { min-width: 0; margin: 12px 20px 0; padding: 12px; border: 1px solid rgb(34 211 238 / 22%); border-radius: 10px; background: rgb(8 47 73 / 12%); }
 .acceptance-matrix > header { display: flex; justify-content: space-between; gap: 12px; font-size: 11px; }
-.matrix-stage { display: grid; gap: 6px; margin-top: 10px; }
+.matrix-stage { display: grid; min-width: 0; gap: 6px; margin-top: 10px; }
 .matrix-stage > span { color: var(--color-text-muted); font: 9px var(--font-code); }
-.matrix-stage > div:not(.matrix-verifiers) { display: grid; grid-template-columns: 60px minmax(0,1fr) 58px auto auto; gap: 8px; align-items: center; padding: 7px; border-radius: 7px; background: rgb(2 6 23 / 35%); font-size: 9px; }
-.matrix-stage em { color: var(--color-accent-ai); font: 700 8px var(--font-code); font-style: normal; }
-.matrix-stage b { font-weight: 650; }
+.matrix-criterion-row { display: grid; grid-template-columns: minmax(220px, 1fr) auto; gap: 10px 16px; align-items: start; min-width: 0; padding: 9px 10px; border-radius: 7px; background: rgb(2 6 23 / 35%); }
+.matrix-criterion-description { min-width: 0; color: var(--color-text-secondary); font-size: 10px; line-height: 1.55; overflow-wrap: anywhere; }
+.matrix-criterion-statuses { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px 10px; min-width: 0; }
+.matrix-criterion-statuses em { color: var(--color-accent-ai); font: 700 8px/1.5 var(--font-code); font-style: normal; white-space: nowrap; }
+.matrix-criterion-statuses b { font-size: 9px; font-weight: 650; line-height: 1.35; white-space: nowrap; }
 .matrix-pass { color: #86efac; }
 .matrix-fail { color: #fca5a5; }
 .matrix-planned { color: #c4b5fd; }
 .matrix-muted { color: var(--color-text-muted); }
 .matrix-verifiers { display: flex; flex-wrap: wrap; gap: 6px; }
-.matrix-verifiers small { padding: 4px 6px; border: 1px solid rgb(71 85 105 / 40%); border-radius: 6px; color: var(--color-text-muted); font: 8px var(--font-code); }
+.matrix-verifiers small { min-width: 0; padding: 4px 6px; border: 1px solid rgb(71 85 105 / 40%); border-radius: 6px; color: var(--color-text-muted); font: 8px/1.45 var(--font-code); overflow-wrap: anywhere; }
 .compose-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 9px; }
 .draft-goal-input, .designer-message-input { display: block; position: relative; z-index: 0; width: 100%; }
 .draft-goal-input :deep(.el-textarea__inner) { min-height: 174px !important; padding: 16px 17px; border-color: rgb(45 63 94 / 82%); border-radius: 10px; background: rgb(5 10 20 / 72%); font-size: 13px; line-height: 1.7; box-shadow: inset 0 1px 0 rgb(255 255 255 / 2%); }
@@ -1733,5 +1738,7 @@ async function redesignPackage(packageId: string) {
   .designer-connection-strip { align-items: flex-start; flex-direction: column; }
   .designer-connection-strip time { margin-left: 0; }
   .profile-override { grid-template-columns: 1fr; }
+  .matrix-criterion-row { grid-template-columns: minmax(0, 1fr); }
+  .matrix-criterion-statuses { justify-content: flex-start; }
 }
 </style>

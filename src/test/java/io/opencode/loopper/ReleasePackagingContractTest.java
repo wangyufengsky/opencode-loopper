@@ -7,6 +7,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
@@ -15,6 +17,8 @@ import org.junit.jupiter.api.io.TempDir;
 class ReleasePackagingContractTest {
 
     private static final Path PROJECT_ROOT = Path.of(System.getProperty("user.dir"));
+    private static final Pattern PROJECT_VERSION_PATTERN = Pattern.compile(
+            "<artifactId>opencode-loopper</artifactId>\\s*<version>([^<]+)</version>");
 
     @TempDir
     Path tempDir;
@@ -37,9 +41,10 @@ class ReleasePackagingContractTest {
     void startupScriptsPinCurrentJarAndDiscoverOpenCodeWithoutFixedPort() throws IOException {
         String windows = Files.readString(PROJECT_ROOT.resolve("scripts/start-windows.bat"));
         String linux = Files.readString(PROJECT_ROOT.resolve("scripts/start-linux.sh"));
+        String jarName = "opencode-loopper-" + projectVersion() + ".jar";
 
         assertThat(windows)
-                .contains("opencode-loopper-0.2.55.jar")
+                .contains(jarName)
                 .contains("OPENCODE_ENABLE_QUESTION_TOOL=true")
                 .contains("STARTUP_OVERRIDES=%LOOPPER_DATA_DIR%\\config\\startup-overrides.properties")
                 .contains("$line.Split('=',2)")
@@ -63,7 +68,7 @@ class ReleasePackagingContractTest {
                 .doesNotContain("serve --hostname 127.0.0.1 --port 4096");
 
         assertThat(linux)
-                .contains("opencode-loopper-0.2.55.jar")
+                .contains(jarName)
                 .contains("OPENCODE_ENABLE_QUESTION_TOOL=\"${OPENCODE_ENABLE_QUESTION_TOOL:-true}\"")
                 .contains("STARTUP_OVERRIDES=\"${LOOPPER_DATA_DIR}/config/startup-overrides.properties\"")
                 .contains("printf -v \"${key}\" '%s' \"${value}\"")
@@ -84,6 +89,15 @@ class ReleasePackagingContractTest {
                 .doesNotContain("source \"${STARTUP_OVERRIDES}\"")
                 .doesNotContain("eval ")
                 .doesNotContain("127.0.0.1:4096");
+    }
+
+    private String projectVersion() throws IOException {
+        String pom = Files.readString(PROJECT_ROOT.resolve("pom.xml"), StandardCharsets.UTF_8);
+        Matcher matcher = PROJECT_VERSION_PATTERN.matcher(pom);
+        if (!matcher.find()) {
+            throw new IllegalStateException("Cannot resolve the project version from pom.xml");
+        }
+        return matcher.group(1);
     }
 
     @Test

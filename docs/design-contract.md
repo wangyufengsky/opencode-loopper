@@ -73,6 +73,7 @@ resource errors remain observable as HTTP 404 responses.
 - 错误提示使用中文说明“发生了什么”和可执行的下一步。错误详情、消息提示、卡片、表格和工具提示遵守同一规则；原始命令输出只允许出现在用户主动展开的审计日志中。
 - 普通页面不展示 Task、Designer Session、Session、Attempt、Draft、Work Package、Criterion 等内部记录 ID，也不展示外部 Session ID。列表和时间线使用名称、顺序、时间和中文状态区分记录；ID 仅可存在于 URL、请求参数、组件 key 和服务端审计数据中。
 - 项目登记卡片在桌面宽度最多两列，路径、描述、统计和操作必须允许换行；不得用 `nowrap` 把长项目名、路径或按钮挤在同一行。窄屏按单列自然排布。
+- Designer 双重验收矩阵必须让验收条件占据可伸缩主列，模式、机器验收和 AI 评审状态作为独立的可换行状态组；不得用固定窄列压缩长条件，窄屏下状态组应整体下移并保持左对齐。
 - 产品名和不可翻译的技术名（OpenCode、Git、GitLab、Java、HTTP、JSON 等）可以保留；角色使用像同事的中文称谓：需求分析师、任务规划师、设计师、规范工程师、评审员、验收工程师、开发工程师，以及需求评审员、风险评审员。协议和数据库英文角色码保持不变。
 
 A Task in any active execution state, including `WAITING_INPUT`, `PREPARING`,

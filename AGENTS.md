@@ -42,10 +42,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.2.55.jar
-   jar tf target/opencode-loopper-0.2.55.jar \
+   test -s target/opencode-loopper-0.2.57.jar
+   jar tf target/opencode-loopper-0.2.57.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.2.55.jar
+   shasum -a 256 target/opencode-loopper-0.2.57.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -95,8 +95,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.2.55`。
-- 正式产物：`target/opencode-loopper-0.2.55.jar`。
+- Maven 项目版本：`0.2.57`。
+- 正式产物：`target/opencode-loopper-0.2.57.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -265,6 +265,7 @@ Task 详情 `overview` 必须投影 `loopRetryAvailable`、`cancellationAvailabl
 - Designer “清理并重新开始”必须先把会话转为 `STOPPING` 并停止 Router、需求/包设计师、Decomposer、Compiler、repair/finalizer 和 Reviewer 等全部活动远端 Session；`STOPPING` 期间 Monitor/全自动不得继续派发。失败时保留工作区、保持未归档并允许幂等重试；全部确认停止后才进入 `CANCELLED` 并归档。确认设计取得 Task ID 后，前端必须清除工作区指针和未发送内容、跳过本次离页警告并打开任务详情；以后从左侧进入 Designer 必须是新建设计，旧稿仅从历史只读查看。
 - 项目 `taskCount` 只统计已创建的 Task，不得把确认前 Designer 会话伪装成任务；服务端必须按项目另行投影每个未确认草稿的最新 Designer Session 和 `openDesignerSessionCount`。浏览器工作区 ID 只是恢复提示，服务重启或短暂 API 失败不得清除。Designer 起始页只负责新建，不得平铺历史会话；独立“历史设计”页负责项目/状态/归档筛选与时间排序，未确认设计可继续、修改、归档和恢复，已确认设计必须关联 Task 只读展示且不得提供继续、修改或归档。V29 归档只增加可恢复投影，不删除草稿、消息、问题、候选或批准，且归档项不计入 `openDesignerSessionCount`。
 - Designer 双栏和 PageHeader 操作区必须以 `min-width: 0`、换行和响应式单列保持在视口边界内；总体确认按钮除页头外还必须在 Review Gate 内提供同一权威动作，不能因窄视口变得不可点击。
+- Designer 双重验收矩阵的验收条件必须占据可伸缩主列，模式、机器验收和 AI 评审作为可换行状态组；禁止用固定窄列压缩长条件，窄屏时状态组整体下移并左对齐。
 - 聚合后仍只创建一个 Task、一个任务分支和一次发布；Stage/包严格串行。每包尝试池为 `min(stageCount × maxStageAttempts, stageCount + 2)`，必须为未启动 Stage 保留首次尝试，剩余额度不跨包转移；全部 Stage 通过后只运行一次 Requirement/Risk 双 Judge。
 - 新建、导入和模板新版本使用 LoopSpec v2：每阶段必须显式声明 `implementationKind`，并至少有一个可观察 `acceptanceCriteria`。条件通过 `verificationMode` 选择 `MACHINE`、`JUDGE` 或 `BOTH`；机器模式必须由服务端分类为 `BEHAVIOR` 的验证器通过 `criterionIds` 覆盖，Judge 模式必须提供 `judgeRubric`，仅 Judge 还必须提供 `judgeOnlyReason` 且不能已有机器行为映射。每阶段无论模式都至少有一个阻断性确定性验证器。旧 v2 缺少 `implementationKind` 时只允许查看，再次保存、发布模板或确认前必须补齐；已持久化且未写模式的 v2 条件默认 `MACHINE`；v1 继续兼容且不得原地改版，只能复制为新 v2 草稿后补齐计划。
 
@@ -433,7 +434,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.2.55.jar
+JAR=target/opencode-loopper-0.2.57.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -535,6 +536,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-08-26 | Designer 双重验收矩阵响应式布局，交付 0.2.57 | 验收条件改为可伸缩主列，模式、机器验收和 AI 评审合并为可换行状态组；窄屏状态组下移并左对齐；发布契约测试改为从 Maven 版本派生启动脚本 JAR 名；同步 README、设计合同和本公约正文 | 组件聚焦 39/39、Chrome E2E 2/2、类型检查通过；0.2.56 首次 `./scripts/verify.sh` 的 593 项 Java 测试仅发布契约旧版本硬编码失败，修正测试源码后按交付规则顺延；0.2.57 `./scripts/verify.sh`：Java 593 项（0 失败、0 错误、2 条件跳过），Vitest 211/211，BUILD SUCCESS；JAR `target/opencode-loopper-0.2.57.jar` 为 283624359 字节，含 112 个 SPA 静态条目，SHA-256 `d61a4b4960a31dae9d13ecb958236c991da0810a9947bed380e6789ad1b94d18`；未启动或替换运行实例，未推送、未打标签、未创建 Release |
 | 2026-08-26 | Task Router V2 最小分类与证据置信度，交付 0.2.55 | Router 提示与输出收敛为任务意图、单一主要制品和复杂度三个闭集标签，不再向分类模型提供仓库证据或要求推断技术栈、置信度与信号；服务端继续用项目画像、需求证据、标签一致性和安全冲突确定技术栈、组件、置信度与确认门，旧 V1 扩展字段仅兼容解析且不再采信；降级结果新增显式置信度可用性，界面显示“未产生”而不是误导性的 `0%`；同步 README、架构、Designer、OpenCode、AI 角色合同和本公约正文 | 0.2.54 首次全量验证的行为测试通过，但结构门禁发现 `TaskProfileService` 为 609 行，抽取 `TaskProfileConfidence` 后按交付规则顺延 0.2.55；聚焦后端 118 项（0 失败、0 错误、1 条件跳过），前端 Router/Designer 43/43 与类型检查通过；`./scripts/verify.sh`：Java 593 项（0 失败、0 错误、2 条件跳过），Vitest 211/211，BUILD SUCCESS；JAR `target/opencode-loopper-0.2.55.jar` 为 283624296 字节，含 112 个 SPA 静态条目，SHA-256 `19ec647299077c660459e7578c41f1db0e1529a157c0553c392c24c4d3872298`；未启动或替换运行实例，未推送、未打标签、未创建 Release |
 | 2026-08-26 | 设计稿容量、需求讨论锚点与脏工作区取消，交付 0.2.53 | 工作包设计与 DesignFact 提取取消 24 KiB 固定上限，需求快照防护不变；需求讨论可固定在隐藏的服务端快照位置；脏文件取消改为同弹窗二次确认且不依赖文件列表加载；同步 README、架构、Designer、AI 角色合同和本公约正文 | 聚焦 DesignFact 14/14、大稿持久化 1/1、取消服务端 1/1、发布契约 9/9、前端 42/42 与类型检查通过；`./scripts/verify.sh`：Java 589 项（0 失败、0 错误、2 条件跳过），Vitest 211/211，BUILD SUCCESS；JAR `target/opencode-loopper-0.2.53.jar` 为 283623563 字节，含 112 个 SPA 静态条目，SHA-256 `b087ba09912608a7ac9d8a6514a3f7b531cd972993d6df52eddeb0cc86d74e2d`；未启动或替换运行实例，未推送、未打标签、未创建 Release |
 | 2026-08-25 | Router 单次快速分类、主动取消与人工接管，交付 0.2.52 | Router 不再发现或开放 MCP/内置工具，受管运行时新增单步零温度非思考 `loopper-router` Agent，提示仅允许任务分类；新增版本化取消接口，远端 abort 成功后收束 run 并阻断全自动，弹窗直接进入人工设置；同步 README、架构、Designer、OpenCode、AI 角色合同和本公约正文 | 聚焦 Router 后端与结构测试通过，前端 Router/Designer 42/42、类型检查通过；首次 `./scripts/verify.sh` 仅既有任务队列并发时序用例偶发失败，单独复跑通过且源码未变，随后同一构建完整重试通过：Java 588 项（0 失败、0 错误、2 条件跳过），Vitest 209/209，BUILD SUCCESS；JAR `target/opencode-loopper-0.2.52.jar` 为 283623490 字节，含 112 个 SPA 静态条目，SHA-256 `424bcf2954c64887a287bf6bc202725b75bee2508c6e0e452855abecf167a6ac`；未重启或替换当前运行实例，未推送、未打标签、未创建 Release |

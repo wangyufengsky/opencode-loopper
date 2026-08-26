@@ -16,7 +16,7 @@ const finalSpec = {
   stages: [
     {
       workPackageId: 'WP-1', objective: '建立核心能力', allowedPaths: ['src/**'], forbiddenPaths: [], deliverables: ['核心实现'], implementationKind: 'NON_JAVA',
-      acceptanceCriteria: [{ id: 'WP-1-AC-1', description: '核心能力可验证', verificationMode: 'MACHINE' }],
+      acceptanceCriteria: [{ id: 'WP-1-AC-1', description: '当构造点位于 catch 块且目标调用未传递 Throwable 时，执行链路仍应保留原始异常语义、错误码和消息文本', verificationMode: 'MACHINE' }],
       verifiers: [{ type: 'PROCESS', command: ['node', '--version'], processPurpose: 'SELF_CHECK', outputContains: 'v', criterionIds: ['WP-1-AC-1'] }],
     },
     {
@@ -27,6 +27,17 @@ const finalSpec = {
   ],
   limits: { maxStageAttempts: 3, maxTaskAttempts: 7, maxDuration: 'PT2H', attemptTimeout: 'PT45M' },
   sessionPolicy: { reuseHealthySession: true, createFreshOnVerifierFailure: true },
+}
+
+const acceptanceAssessment = {
+  valid: true, schemaVersion: 'v2', legacy: false, errors: [],
+  stageAssessments: finalSpec.stages.map((stage, stageIndex) => ({
+    stageIndex,
+    criteria: stage.acceptanceCriteria.map((criterion) => ({
+      ...criterion, covered: true, machineCovered: true, judgePlanned: false, overallPlanned: true, verifierIndexes: [0],
+    })),
+    verifiers: [{ index: 0, type: 'PROCESS', category: 'BEHAVIOR', blocking: true, criterionIds: [stage.acceptanceCriteria[0].id], reason: '可观测行为自检' }],
+  })),
 }
 
 function draft(status = 'DRAFT_READY') {
@@ -90,6 +101,14 @@ function session(phase: Phase) {
     id: 'designer-e2e', projectId: project.id, projectName: project.name,
     state: reviewing ? 'REVIEWING' : 'RUNNING', workflowPhase,
     activeActor: reviewing ? 'SYSTEM' : 'DESIGNER', readOnly: true, updatedAt: now,
+    taskProfile: {
+      state: 'FROZEN', decisionState: 'FROZEN', confirmationReady: true,
+      intent: 'SOFTWARE_CHANGE', workflowTemplate: 'FULL_PACKAGE_DESIGN', mutationMode: 'WRITE_CODE',
+      artifactKinds: ['SOURCE_CODE'], technologies: ['node'], testPolicy: 'REQUIRED', executionStrategy: 'OPEN_CODE_IMPLEMENTATION',
+      rolePackId: 'software-node', rolePackVersion: 'e2e', confidence: 100, confidenceAvailable: true,
+      evidence: [], resolutionSource: 'TEST', decisionRequired: false, largeTaskMode: true, version: 1,
+    },
+    availableProfileOverrides: [], availableArtifactOverrides: [], reports: [],
     draft: draft(), messages: [{ id: `message-${phase}`, role: 'ASSISTANT', actor: 'DESIGNER', content: `# ${phase}\n\n完整设计快照`, deliveryState: 'PERSISTED', workPackageId: activeWorkPackageId, requirementRevision: 1, createdAt: now }],
     pendingQuestions, requirement: { revision: 1, state: 'FROZEN', modelCallsUsed: 12, maxModelCalls: 96, sourceDraftVersion: 1 },
     decomposition: requirement ? undefined : { id: 'decomp-e2e', state: 'COMPLETED', resultType: 'DECOMPOSED', repairCount: 0, transportRetryCount: 0, workflowStep: 'FINAL_JSON', planningRepairCount: 0 },
@@ -120,7 +139,7 @@ async function installDesignerApi(page: Page) {
     if (path === '/api/settings') return fulfill(settings)
     if (path === '/api/designer-sessions' && method === 'GET') return fulfill([])
     if (path === '/api/loop-drafts' && method === 'POST') return fulfill(draft())
-    if (path === '/api/loop-drafts/validate' && method === 'POST') return fulfill({ valid: true, schemaVersion: 'v2', legacy: false, errors: [], stageAssessments: [] })
+    if (path === '/api/loop-drafts/validate' && method === 'POST') return fulfill(acceptanceAssessment)
     if (path === '/api/loop-drafts/draft-e2e' && method === 'PUT') return fulfill(draft())
     if (path === '/api/loop-drafts/draft-e2e' && method === 'GET') return fulfill(draft(confirmed ? 'CONFIRMED' : 'DRAFT_READY'))
     if (path === '/api/loop-drafts/draft-e2e/confirm' && method === 'POST') { confirmed = true; return fulfill({ taskId: 'task-e2e' }) }
@@ -156,19 +175,33 @@ test('需求提问后逐包讨论并确认为 PENDING_START 任务', async ({ pa
 
   await expect(page.getByText('WP-1 采用哪种边界？')).toBeVisible()
   await page.getByRole('button', { name: '采用全部推荐项' }).click()
-  await expect(page.getByRole('button', { name: '接受 WP-1 并继续' })).toBeVisible()
-  await page.getByRole('button', { name: '接受 WP-1 并继续' }).click()
+  await expect(page.getByRole('button', { name: '接受工作包 1并继续' })).toBeVisible()
+  await page.getByRole('button', { name: '接受工作包 1并继续' }).click()
 
   await expect(page.getByText('WP-2 采用哪种交互？')).toBeVisible()
   await page.getByRole('button', { name: '采用全部推荐项' }).click()
-  await expect(page.getByRole('button', { name: '接受 WP-2 并继续' })).toBeVisible()
-  await page.getByRole('button', { name: '接受 WP-2 并继续' }).click()
+  await expect(page.getByRole('button', { name: '接受工作包 2并继续' })).toBeVisible()
+  await page.getByRole('button', { name: '接受工作包 2并继续' }).click()
 
   await expect(page.getByRole('navigation', { name: 'Designer 流程' })).toContainText('总体确认')
+  await page.getByRole('button', { name: '保存' }).click()
+  const criterionRow = page.locator('.matrix-criterion-row').first()
+  const criterionDescription = criterionRow.locator('.matrix-criterion-description')
+  const criterionStatuses = criterionRow.locator('.matrix-criterion-statuses')
+  await expect(criterionRow).toBeVisible()
+  const desktopDescriptionBox = await criterionDescription.boundingBox()
+  expect(desktopDescriptionBox?.width).toBeGreaterThan(200)
+  expect(desktopDescriptionBox?.height).toBeLessThan(80)
+
+  await page.setViewportSize({ width: 640, height: 900 })
+  const mobileDescriptionBox = await criterionDescription.boundingBox()
+  const mobileStatusesBox = await criterionStatuses.boundingBox()
+  expect(mobileStatusesBox!.y).toBeGreaterThanOrEqual(mobileDescriptionBox!.y + mobileDescriptionBox!.height - 1)
+  await page.setViewportSize({ width: 1280, height: 720 })
   await page.getByRole('button', { name: '确认设计并创建任务' }).last().click()
 
   await expect(page).toHaveURL(/\/tasks\/task-e2e$/)
-  await expect(page.getByText('执行环境尚未申请')).toBeVisible()
+  await expect(page.getByText('点击“开始执行”进入队列。')).toBeVisible()
   await expect(page.getByRole('button', { name: '开始执行' })).toBeVisible()
 })
 
@@ -187,7 +220,7 @@ test('只开启全自动后无需人工审批即可进入已启动任务', async
     if (path === '/api/tasks' || path === '/api/tasks/summaries') return fulfill(path.endsWith('summaries') ? { items: [], facets: {} } : [])
     if (path === '/api/settings') return fulfill(settings)
     if (path === '/api/loop-drafts' && method === 'POST') return fulfill(draft())
-    if (path === '/api/loop-drafts/validate' && method === 'POST') return fulfill({ valid: true, schemaVersion: 'v2', legacy: false, errors: [], stageAssessments: [] })
+    if (path === '/api/loop-drafts/validate' && method === 'POST') return fulfill(acceptanceAssessment)
     if (path === '/api/designer-sessions' && method === 'GET') return fulfill([])
     const autoSession = (completed: boolean) => ({
       ...session(completed ? 'final-review' : 'requirement-question'),
