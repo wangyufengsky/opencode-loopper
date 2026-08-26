@@ -42,10 +42,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.2.52.jar
-   jar tf target/opencode-loopper-0.2.52.jar \
+   test -s target/opencode-loopper-0.2.53.jar
+   jar tf target/opencode-loopper-0.2.53.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.2.52.jar
+   shasum -a 256 target/opencode-loopper-0.2.53.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -95,8 +95,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.2.52`。
-- 正式产物：`target/opencode-loopper-0.2.52.jar`。
+- Maven 项目版本：`0.2.53`。
+- 正式产物：`target/opencode-loopper-0.2.53.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -229,15 +229,15 @@ Task 详情 `overview` 必须投影 `loopRetryAvailable`、`cancellationAvailabl
 - Java 生产代码仍强制聚焦 Maven/Gradle TEST；统一 `TestFrameworkPolicy` 注册 Maven/Gradle/npm/pytest/unittest，解析显式目标并拒绝跳过参数。Python/Node 按仓库测试框架与用户要求选择 REQUIRED/OPTIONAL。无测试体系的独立 Python 脚本可用 SELF_CHECK 加原生输出验证；文档、一次性表格转换和只读报告为 NOT_APPLICABLE，不得生成 PROCESS TEST。
 - `SERVER_DOCUMENT_MATERIALIZATION` 和 `SERVER_TABULAR_CONVERSION` 只能在显式 Task Start 后执行冻结 `artifact_plan`，创建正常 Attempt 但不伪造 OpenCode Session。`DOCUMENT_STRUCTURE`/`TABULAR_DATA` 是行为验证器；BUILD、GIT_DIFF 和报告证据仍不能冒充业务验收。
 
-- Designer 新建会话先进入 `DISCUSSING_REQUIREMENT`。普通软件需求的每个讨论修订只提问一次 1–3 个选择题；服务端必须先探测项目作用域 OpenCode 工具，只有 `AVAILABLE` 且明确包含 `question` 才创建 `DESIGNER_INTERACTIVE_READ_ONLY` 并调用原生问题接口。`UNKNOWN`、`UNAVAILABLE` 或列表不含 `question` 时使用 `GENERAL_READ_ONLY`：AI 只输出普通文本问题，服务端以 `CHAT_QUESTION` 保存，页面显示“对话回答模式”并在 `RUNNING`/全自动模式下开放聊天输入框；用户回答必须先写入同一决策日志，再由服务端生成普通需求快照或让同一大型工作包 Session 继续生成完整设计。能力缺失不是 Session 错误，不进入 `DESIGN_QUESTION_REQUIRED` 修复循环。原生回答后允许 AI 空正文，服务端按时间原样拼装原始需求、需求作用域补充和持久化最终回答，后写优先，禁止把 AI 自由文本、仓库推断或任务画像混入需求语义。快照以 `SERVER_REQUIREMENT_SNAPSHOT` 系统来源消息保存并作为冻结需求的精确 `source_message_id`，页面通过独立只读卡片展示且不重复进入系统消息折叠组；历史冻结 AI 快照作为兼容基线。超过 24 KiB UTF-8 必须以 `REQUIREMENT_SNAPSHOT_TOO_LARGE` 阻断，不得截断或调用 AI 压缩。大型任务继续在需求讨论和每个工作包初稿/人工修订中提问，并由 AI 返回不超过 24 KiB UTF-8 的完整 Markdown 替代快照。只有已证明支持原生工具但遗漏必需问题时，才允许在全新 Session 补问一次，再次遗漏以 `DESIGN_QUESTION_REQUIRED` 进入 `WAITING_INPUT`。正常讨论/评审使用 Designer Session `REVIEWING`，不得滥用 `WAITING_INPUT`。
+- Designer 新建会话先进入 `DISCUSSING_REQUIREMENT`。普通软件需求的每个讨论修订只提问一次 1–3 个选择题；服务端必须先探测项目作用域 OpenCode 工具，只有 `AVAILABLE` 且明确包含 `question` 才创建 `DESIGNER_INTERACTIVE_READ_ONLY` 并调用原生问题接口。`UNKNOWN`、`UNAVAILABLE` 或列表不含 `question` 时使用 `GENERAL_READ_ONLY`：AI 只输出普通文本问题，服务端以 `CHAT_QUESTION` 保存，页面显示“对话回答模式”并在 `RUNNING`/全自动模式下开放聊天输入框；用户回答必须先写入同一决策日志，再由服务端生成普通需求快照或让同一大型工作包 Session 继续生成完整设计。能力缺失不是 Session 错误，不进入 `DESIGN_QUESTION_REQUIRED` 修复循环。原生回答后允许 AI 空正文，服务端按时间原样拼装原始需求、需求作用域补充和持久化最终回答，后写优先，禁止把 AI 自由文本、仓库推断或任务画像混入需求语义。快照以 `SERVER_REQUIREMENT_SNAPSHOT` 系统来源消息保存并作为冻结需求的精确 `source_message_id`，页面通过独立只读卡片展示且不重复进入系统消息折叠组；历史冻结 AI 快照作为兼容基线。超过 24 KiB UTF-8 必须以 `REQUIREMENT_SNAPSHOT_TOO_LARGE` 阻断，不得截断或调用 AI 压缩。大型任务继续在需求讨论和每个工作包初稿/人工修订中提问；大型完整需求替代快照仍受 24 KiB UTF-8 防护，工作包设计稿不设固定字节上限。只有已证明支持原生工具但遗漏必需问题时，才允许在全新 Session 补问一次，再次遗漏以 `DESIGN_QUESTION_REQUIRED` 进入 `WAITING_INPUT`。正常讨论/评审使用 Designer Session `REVIEWING`，不得滥用 `WAITING_INPUT`。
 - 已回答的 Designer 问题不得从讨论记录中消失：服务端从持久化决策日志权威投影原问题、标题、全部选项说明和规范化最终回答，页面默认折叠为“需求讨论”，展开后完整展示；刷新、进程重启和历史旧格式恢复不得依赖浏览器本地状态。新决策日志必须保存完整问题结构，旧版仅含问题文本与答案的日志继续兼容读取。
 - Recovery/重做生成的新 Task 必须持久化原始设计来源 Task、Loop Draft 和 Designer Session；任务历史设计使用子 Task 自己冻结的 LoopSpec，但需求、对话、问题、拆包和包设计从这条不可变来源读取。连续重做必须继续指向根设计来源，历史旧数据只允许沿 lineage 有界解析，不得复制对话或依赖当前子 Task 恰好存在 Designer Session。
 - 拆包前的需求消息只更新需求讨论，不调用 Decomposer；只有显式确认需求才冻结下一编号需求版本并拆包。拆包后旧 `/messages` 缺少作用域时必须返回 `DISCUSSION_SCOPE_REQUIRED`；修改整体需求要显式重开并废弃当前拆包/批准，包级消息只能修改当前包且不得创建新需求版本或重跑 Decomposer。全部作用域写请求和批准都携带期望讨论/设计修订，过期操作返回 409。
 - Designer 写接口允许用空响应体返回成功的 `202 Accepted` 或 `204 No Content`；前端公共 API transport 必须把任意成功空响应解释为已完成的 void 操作，再刷新服务端权威快照，不得对空内容调用 JSON 解析器并误报失败。
 - 只有冻结为 `FULL_PACKAGE_DESIGN` 的完整需求才交给独立只读 Task Decomposer；只允许 `read/glob/grep`，不得写文件、执行命令、提问或创建 Task。服务端按非空段落/列表编号并校验每段被全局约束或至少一个工作包引用。`DIRECT_SOFTWARE_DESIGN` 不创建或调用 Decomposer Session，由服务端直接生成覆盖全部 RQ 的 `DIRECT_DESIGN / WP-1`。
 - `DIRECT_DESIGN` 恰好一个包且允许 1–6 个 Stage；大型任务拆成 2–6 个依赖有序的纵向业务包，每包 1–3 个 Stage、总计不超过 18 个。禁止把数据库、后端、前端、测试机械分层拆包。普通模式需要第 7 个 Stage 时必须以 `LARGE_TASK_MODE_REQUIRED` 立即停止，不重设计、不自动切换；只有用户显式点击“改用大型任务”才重开当前需求。多项目根、超过六包或多个独立发布边界仍必须返回 `MULTI_TASK_REQUIRED` 并等待人工，不自动创建子 Task。
-- 工作包严格串行执行。大型任务每包在健康时复用自己的只读交互 Designer Session；普通 WP-1 使用不开放 `question` 的通用只读 Session，创建后直接进入 `DESIGNING`，初稿、人工反馈和重新设计都直接输出完整替代设计，不得创建包级 Pending Question 或进入 `QUESTIONING_PACKAGE`。每个候选使用当前配置的同一模型。Designer 只输出不超过 24 KiB UTF-8 的完整 Markdown；当前软件设计固定使用“目标与范围 / 影响与交付 / 验收场景 / 可选人工评审项 / 验收约束 / 阶段与依赖”，每个必需章节恰好出现一次、可选人工评审章节至多一次，同一响应重复整套设计或缺失任一固定章节必须重设计，不得合并抽取；场景列固定为“场景 / 前置或触发 / 操作 / 可观察结果 / 保持不变”。Designer 不得输出 WP/AC/DS-L ID、LoopSpec JSON 或可执行 argv，只能写相对路径/符号、测试类或原生测试路径和独立性约束。
-- V41 为每次新软件包编译冻结一条 `design_acceptance_planning`：CommonMark AST 与 GFM 表格提取 `SCENARIO/REVIEW/SCOPE/DELIVERABLE/POLICY/DEPENDENCY` DesignFact，保存精确原文、稳定引用和 SHA-256；设计上限 24 KiB UTF-8、64 个场景、128 个事实。服务端从冻结 Role Pack、技术栈和测试策略生成闭集验证能力，Java/Node/Python/混合栈只允许仓库原生聚焦目标；用户要求“独立/分别/各自通过”时相应能力为强制项，“无 `@SpringBootTest`/无框架上下文”等否定标记只作为约束而不能创建测试能力。AI 不得生成命令、路径、测试目标或验证器。规划持久化状态固定为 `EXTRACTED / BOUND / COMPILED / FAILED`：闭集求解得到 `DESIGN_INCOMPLETE` 时写入 `BOUND` 并由编排器进入重设计/人工输入流程，不得把编译结果码直接写入状态列。
+- 工作包严格串行执行。大型任务每包在健康时复用自己的只读交互 Designer Session；普通 WP-1 使用不开放 `question` 的通用只读 Session，创建后直接进入 `DESIGNING`，初稿、人工反馈和重新设计都直接输出完整替代设计，不得创建包级 Pending Question 或进入 `QUESTIONING_PACKAGE`。每个候选使用当前配置的同一模型。工作包 Designer 输出不设固定字节上限并按原文持久化；当前软件设计固定使用“目标与范围 / 影响与交付 / 验收场景 / 可选人工评审项 / 验收约束 / 阶段与依赖”，每个必需章节恰好出现一次、可选人工评审章节至多一次，同一响应重复整套设计或缺失任一固定章节必须重设计，不得合并抽取；场景列固定为“场景 / 前置或触发 / 操作 / 可观察结果 / 保持不变”。Designer 不得输出 WP/AC/DS-L ID、LoopSpec JSON 或可执行 argv，只能写相对路径/符号、测试类或原生测试路径和独立性约束。
+- V41 为每次新软件包编译冻结一条 `design_acceptance_planning`：CommonMark AST 与 GFM 表格提取 `SCENARIO/REVIEW/SCOPE/DELIVERABLE/POLICY/DEPENDENCY` DesignFact，保存精确原文、稳定引用和 SHA-256；工作包设计没有固定字节上限，仍限制为 64 个场景和 128 个事实。服务端从冻结 Role Pack、技术栈和测试策略生成闭集验证能力，Java/Node/Python/混合栈只允许仓库原生聚焦目标；用户要求“独立/分别/各自通过”时相应能力为强制项，“无 `@SpringBootTest`/无框架上下文”等否定标记只作为约束而不能创建测试能力。AI 不得生成命令、路径、测试目标或验证器。规划持久化状态固定为 `EXTRACTED / BOUND / COMPILED / FAILED`：闭集求解得到 `DESIGN_INCOMPLETE` 时写入 `BOUND` 并由编排器进入重设计/人工输入流程，不得把编译结果码直接写入状态列。
 - V42 用不可变 `project_stack_profile / project_stack_component` 保存项目技术栈与模块基线。新登记或取消管理后重新登记的项目在登记事务提交后自动分析；既有受管项目不批量回填，项目列表只连接最新持久化摘要并投影 `UNANALYZED`，不得产生文件系统 N+1。第一次创建新 Designer 或点击“AI 更新 Loopper 公约”时按需分析，后者必须强制重析。分析最多读取 2000 个非符号链接普通文件、深度 5，并跳过生成目录；Maven/Gradle、`package.json`、Python 配置/测试、Go/Rust 分别形成 Java、Node、Python、Other 组件，同一组件根真实跨软件族才是 mixed。指纹必须基于排序后的相对 Manifest 路径与内容 SHA-256；失败持久化 `FAILED`，超限或证据不完整持久化 `PARTIAL`，任何状态都不得隐式兜底为 Java。
 - V42 Router 只能用需求相对路径、模块名和 AI 语义标签在当前项目画像证据内选择组件；AI 不能覆盖证据、权限、测试或执行策略。单栈可自动选，明确跨组件使用 `software-mixed`，多栈歧义、`PARTIAL/FAILED` 或空仓库无明确技术必须进入确认，空仓库使用 `software-generic`。任务画像、Router run、工作包和 Stage 冻结项目画像 ID、Manifest 指纹与组件键；普通 WP-1 继承已确认组件，只有大型任务允许包级专门化。冻结 Task/Stage/Recovery 永不被后续重析改写；未冻结 Designer 仅在需求重算时使用新画像，且只有指纹、组件、意图和流程均一致才能继承原确认。
 - “AI 更新 Loopper 公约”必须在数据库事务外先强制重析，再创建只读 AI Session；`FAILED` 不启动 AI，`PARTIAL` 必须显示复核警告。AI 必须根据结构化画像和当前文件重新生成 `技术栈与模块 / 构建与测试 / 目录与边界`，服务端拒绝缺失章节、超限内容和画像中不存在的已知技术。`project_convention_draft` 冻结画像 ID 与指纹；预览不写文件，确认写入前同时复核原 `AGENTS.md` 哈希和实时 Manifest 指纹。没有 marker 时首次追加，已有 marker 时仅替换管理区块，区块外人工内容必须原样保留；`AGENTS.md` 只服务于 Agent 上下文，不是机器路由权威来源。生成中的最新思考、工具/输出片段与 Provider 权威 Token 必须由服务端活动接口投影并在弹窗持续刷新；V43 持久化进度指纹和显式停止意图用于重启恢复，但连接成功后不得因无进展或总时长自动停止，必须持续轮询到远端真实终态，弹窗不得展示超时上限。用户显式停止必须先持久化 `STOPPING`，确认远端终止后进入 `CANCELLED`；浏览器关闭弹窗不得冒充远端取消。
@@ -304,7 +304,7 @@ Task 详情 `overview` 必须投影 `loopRetryAvailable`、`cancellationAvailabl
 ### 5.5 工作区、租约与 Recovery
 
 - 计划确认与执行资源申请必须分离：确认可做只读项目/重做基线校验，但不得识别并持久化 Queue/Lease、fetch 或切换 Git。首次显式开始才解析当前工作区身份，并在短事务中原子完成 `PENDING_START -> QUEUED` 与准入/排队；外部 Git/文件 I/O 随后执行。Recovery 子任务同样先停在 `PENDING_START`；自动化只有在已授权的自动开始或人工批准动作中才调用同一开始边界。
-- 有可用 Git HEAD：登记目录有未提交或未跟踪文件时，任务持有租约进入 `WAITING_INPUT`，本地 UI 显示具体文件并要求逐文件选择提交、stash 或移除；处理决定必须绑定分支、HEAD、索引、状态和内容快照，取消弹窗直接把任务标记为失败且不改文件。重新检查干净后，在登记目录本身创建并切换 `loopper/<任务名>`；本地或远端跟踪分支已有同名时从第二次起追加 `(第2次)`、`(第3次)`，Git 禁止字符确定性替换为 `-`，分支叶名称按 UTF-8 字节安全截断，并在截断后重新修正 `.lock` 等非法结尾。
+- 有可用 Git HEAD：登记目录有未提交或未跟踪文件时，任务持有租约进入 `WAITING_INPUT`，本地 UI 显示具体文件并要求逐文件选择提交、stash 或移除；处理决定必须绑定分支、HEAD、索引、状态和内容快照。取消入口在同一脏文件弹窗内二次确认，即使列表读取失败也必须可用；确认后走统一 `STOPPING → CANCELLED` 协议并保持文件原样。重新检查干净后，在登记目录本身创建并切换 `loopper/<任务名>`；本地或远端跟踪分支已有同名时从第二次起追加 `(第2次)`、`(第3次)`，Git 禁止字符确定性替换为 `-`，分支叶名称按 UTF-8 字节安全截断，并在截断后重新修正 `.lock` 等非法结尾。
 - 创建任务分支前以非交互方式 fetch 当前分支的 upstream/明确首选远端；远端线性领先时从远端最新提交创建任务。本地领先时保留本地提交；认证失败、fetch 失败或历史分叉必须 fail closed。未收到逐路径确认时禁止自动 stash、提交、覆盖或丢弃改动；移除操作必须二次确认。外部 Git 操作部分成功后不得伪造事务回滚，必须回读最新状态继续处理。
 - 原项目分支 checkout 使用独立 10 分钟有界超时和命令局部 `core.longpaths=true`；短 Git 检查仍使用 30 秒边界，失败诊断保留输出尾部。
 - OpenCode 的 canonical `directory` 查询值必须作为 URI 模板变量百分号编码，禁止让合法路径中的 `+` 被表单语义解码为空格；创建 Session 后必须回报与登记项目根一致的规范执行目录，缺失或不一致时不得发送实施提示；实施提示明确 AgentBridge、搜索、命令和验证器都使用该目录及当前任务分支。
@@ -433,7 +433,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.2.52.jar
+JAR=target/opencode-loopper-0.2.53.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -535,6 +535,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-08-26 | 设计稿容量、需求讨论锚点与脏工作区取消，交付 0.2.53 | 工作包设计与 DesignFact 提取取消 24 KiB 固定上限，需求快照防护不变；需求讨论可固定在隐藏的服务端快照位置；脏文件取消改为同弹窗二次确认且不依赖文件列表加载；同步 README、架构、Designer、AI 角色合同和本公约正文 | 聚焦 DesignFact 14/14、大稿持久化 1/1、取消服务端 1/1、发布契约 9/9、前端 42/42 与类型检查通过；`./scripts/verify.sh`：Java 589 项（0 失败、0 错误、2 条件跳过），Vitest 211/211，BUILD SUCCESS；JAR `target/opencode-loopper-0.2.53.jar` 为 283623563 字节，含 112 个 SPA 静态条目，SHA-256 `b087ba09912608a7ac9d8a6514a3f7b531cd972993d6df52eddeb0cc86d74e2d`；未启动或替换运行实例，未推送、未打标签、未创建 Release |
 | 2026-08-25 | Router 单次快速分类、主动取消与人工接管，交付 0.2.52 | Router 不再发现或开放 MCP/内置工具，受管运行时新增单步零温度非思考 `loopper-router` Agent，提示仅允许任务分类；新增版本化取消接口，远端 abort 成功后收束 run 并阻断全自动，弹窗直接进入人工设置；同步 README、架构、Designer、OpenCode、AI 角色合同和本公约正文 | 聚焦 Router 后端与结构测试通过，前端 Router/Designer 42/42、类型检查通过；首次 `./scripts/verify.sh` 仅既有任务队列并发时序用例偶发失败，单独复跑通过且源码未变，随后同一构建完整重试通过：Java 588 项（0 失败、0 错误、2 条件跳过），Vitest 209/209，BUILD SUCCESS；JAR `target/opencode-loopper-0.2.52.jar` 为 283623490 字节，含 112 个 SPA 静态条目，SHA-256 `424bcf2954c64887a287bf6bc202725b75bee2508c6e0e452855abecf167a6ac`；未重启或替换当前运行实例，未推送、未打标签、未创建 Release |
 | 2026-08-25 | Task 详情取消能力投影与前端精简读模型防退化，交付 0.2.51 | `TaskState` 统一持有通用取消可用性，兼容 `TaskDto` 与轻量 `TaskOverview` 复用同一规则；overview 完整投影取消、循环重试、设计历史与归档四个详情控制字段，前端把缺少关键布尔值视为不完整响应并回退完整详情接口，不再静默转成 `false` 隐藏操作；审计确认任务列表、项目摘要和队列诊断字段裁剪均与现有页面使用一致；同步 README、架构、设计合同与本公约正文 | 后端读模型聚焦 8/8，前端 API/Store/详情聚焦 65/65 与类型检查通过；0.2.50 首次完整验证由仍断言旧 JAR 名的发布契约拦截，修正源码后按版本规则顺延；0.2.51 `./scripts/verify.sh` 通过：Java 585 项（0 失败、0 错误、2 条件跳过）、前端 207/207，JAR 含 112 个静态资源条目、大小 283618954 字节、SHA-256 `c8df97388179e63f3be1529495bf2edc5f6dc3c6454705a67babe8b2e8435f81`；未重启或替换当前运行实例，未推送、未打标签、未创建 Release |
 | 2026-08-25 | Router 与 AGENTS.md 连接后无限等待、隐藏上限及 OpenCode Schema 崩溃兼容，交付 0.2.49 | Router 的 240 秒配置只约束未建立外部 Session 的连接等待，连接后持续轮询真实终态且 DTO 截止时间为空；Router 运行弹窗仅展示真实已用时间、远端状态、活动与 Token；新 Router 固定 `TEXT_MARKER`，避开 OpenCode 桌面加载持久化 `json_schema` 格式时的崩溃，同时保留相同服务端闭集解析与安全校验；AGENTS.md 只读 Session 同样取消无进展和总时长自动停止，移除已失效的停滞配置，保留显式停止与远端终态确认；同步 README、架构、Designer、OpenCode、AI 角色合同和本公约正文 | Router 聚焦后端 97 项（0 失败、0 错误、1 条件跳过），前端 40/40 与类型检查通过；0.2.48 在用户补充 AGENTS.md 同步语义前完整验证通过但不作为交付；0.2.49 `./scripts/verify.sh` 通过：Java 584 项（0 失败、0 错误、2 条件跳过）、前端 205/205，JAR 含 112 个静态资源条目、大小 283618717 字节、SHA-256 `c05544d8b2bb1f251849a21b1684ec6f4434d1b7334318ec2dfada6c37ecc816`；未重启或替换当前运行实例，未推送、未打标签、未创建 Release |

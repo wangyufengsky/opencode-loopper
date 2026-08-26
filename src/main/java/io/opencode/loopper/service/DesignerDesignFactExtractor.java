@@ -23,7 +23,6 @@ import org.commonmark.parser.Parser;
 
 /** Parses controlled Designer Markdown into exact-source EARS/Gherkin-style facts. */
 final class DesignerDesignFactExtractor {
-    private static final int MAX_DESIGN_BYTES = 24 * 1024;
     private static final int MAX_FACTS = 128;
     private static final int MAX_SCENARIOS = 64;
     private static final List<String> REQUIRED_CONTROLLED_SECTIONS = List.of(
@@ -38,10 +37,6 @@ final class DesignerDesignFactExtractor {
 
     Catalog extract(String workPackageId, int designRevision, String markdown) {
         String source = markdown == null ? "" : markdown.replace("\r\n", "\n");
-        if (source.getBytes(StandardCharsets.UTF_8).length > MAX_DESIGN_BYTES) {
-            throw new BadRequestException("DESIGN_ACCEPTANCE_SOURCE_TOO_LARGE",
-                    "Frozen package design exceeds 24 KiB UTF-8");
-        }
         Document root = (Document) parser.parse(source);
         DesignerEvidenceIndexer.Index lineIndex = evidenceIndexer.index(source);
         List<Fact> facts = new ArrayList<>();

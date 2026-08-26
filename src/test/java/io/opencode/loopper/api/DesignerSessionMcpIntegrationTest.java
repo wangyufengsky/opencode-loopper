@@ -686,7 +686,10 @@ class DesignerSessionMcpIntegrationTest {
         LoopDraftRow draft = drafts.create(sixStageSpec);
         fake().setDesignerOutput(designerOutput("# 单包设计\n\n缓存刷新后用户能看到新值。", sixStageSpec));
         fake().setJudgeOutput("DESIGNER", "");
-        fake().setPackageDesignerOutput("WP-1", "# 单包设计\n\n缓存刷新后用户能看到新值。");
+        String largePackageDesign = "# 单包设计\n\n"
+                + "缓存刷新后用户能看到新值，并保持并发读写与失败恢复边界。".repeat(700);
+        assertThat(largePackageDesign.getBytes(StandardCharsets.UTF_8).length).isGreaterThan(24 * 1024);
+        fake().setPackageDesignerOutput("WP-1", largePackageDesign);
 
         DesignerSessionRow reviewing = prepareReviewingSession(project.id(), draft.id(), "实现缓存刷新并保留验收证据");
         TaskProfileService.View directProfile = taskProfiles.current(reviewing.id());
@@ -751,6 +754,9 @@ class DesignerSessionMcpIntegrationTest {
                 .contains("DESIGNER", "COMPILER", "VALIDATOR")
                 .doesNotContain("DECOMPOSER")
                 .doesNotContain("{\"status\":\"COMPILED\"");
+        assertThat(designerSessions.messages(session.id()))
+                .anyMatch(message -> "WP-1".equals(message.workPackageId())
+                        && largePackageDesign.equals(message.content()));
         assertThat(mapper.listTasks()).isEmpty();
         assertThat(drafts.spec(drafts.get(draft.id())).stages()).hasSize(6)
                 .allMatch(stage -> "WP-1".equals(stage.workPackageId()));

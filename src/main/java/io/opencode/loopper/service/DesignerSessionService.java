@@ -69,7 +69,7 @@ import tools.jackson.databind.ObjectMapper;
 public class DesignerSessionService {
     public static final String READ_ONLY = "READ_ONLY";
     private static final int MAX_MESSAGE_LENGTH = 12_000;
-    private static final int MAX_FROZEN_DESIGN_LENGTH = 24 * 1024;
+    private static final int MAX_REQUIREMENT_SNAPSHOT_LENGTH = 24 * 1024;
     private static final int MAX_HANDOFF_SUMMARY_LENGTH = 4 * 1024;
     private static final int MAX_DECOMPOSER_REPAIRS = 2;
     private static final int MAX_MODEL_CALLS = 96;
@@ -1134,7 +1134,7 @@ public class DesignerSessionService {
                 }
                 String markdown = questionSupport.markdown(openCode.sessionOutput(remote));
                 if (blank(markdown) || markdown.getBytes(java.nio.charset.StandardCharsets.UTF_8).length
-                        > MAX_FROZEN_DESIGN_LENGTH) {
+                        > MAX_REQUIREMENT_SNAPSHOT_LENGTH) {
                     waitForRequirementDiscussion(session, discussion, blank(markdown)
                                     ? "DESIGN_OUTPUT_MISSING" : "DESIGN_OUTPUT_TOO_LARGE",
                             "Designer must return one complete Markdown requirement snapshot no larger than 24 KiB");
@@ -1174,7 +1174,7 @@ public class DesignerSessionService {
                                                   DesignDiscussionRevisionRow discussion,
                                                   String externalSessionId) {
         String markdown = assembleServerRequirementSnapshot(session.id());
-        if (markdown.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > MAX_FROZEN_DESIGN_LENGTH) {
+        if (markdown.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > MAX_REQUIREMENT_SNAPSHOT_LENGTH) {
             waitForRequirementDiscussion(session, discussion, "REQUIREMENT_SNAPSHOT_TOO_LARGE",
                     "服务端需求快照超过 24 KiB UTF-8；请新建设计并提交精简后的完整需求");
             return;
@@ -1927,11 +1927,6 @@ public class DesignerSessionService {
                 if (markdown.isBlank()) {
                     failPackageDesigner(workPackage, session, "DESIGN_OUTPUT_MISSING",
                             "Package Designer completed without Markdown", false);
-                    return;
-                }
-                if (markdown.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > MAX_FROZEN_DESIGN_LENGTH) {
-                    failPackageDesigner(workPackage, session, "WORK_PACKAGE_DESIGN_TOO_LARGE",
-                            "Package design exceeds 24 KiB UTF-8", false);
                     return;
                 }
                 DesignerMessageRow source = appendMessage(session.id(), DesignerActor.DESIGNER, markdown,
@@ -5237,10 +5232,12 @@ public class DesignerSessionService {
         String role = actor == DesignerActor.USER ? "USER"
                 : Set.of(DesignerActor.DECOMPOSER, DesignerActor.DESIGNER, DesignerActor.COMPILER).contains(actor)
                 ? "ASSISTANT" : "SYSTEM";
-        int contentLimit = actor == DesignerActor.DESIGNER || SERVER_REQUIREMENT_SNAPSHOT.equals(deliveryState)
-                ? MAX_FROZEN_DESIGN_LENGTH : MAX_MESSAGE_LENGTH;
+        String persistedContent = actor == DesignerActor.DESIGNER
+                || SERVER_REQUIREMENT_SNAPSHOT.equals(deliveryState)
+                ? (content == null ? "" : content)
+                : bounded(content, MAX_MESSAGE_LENGTH);
         DesignerMessageRow message = new DesignerMessageRow(UUID.randomUUID().toString(), sessionId,
-                mapper.nextDesignerMessageOrdinal(sessionId), role, bounded(content, contentLimit),
+                mapper.nextDesignerMessageOrdinal(sessionId), role, persistedContent,
                 deliveryState, now(), actor.name(), requirementRevision, workPackageId);
         mapper.insertDesignerMessage(message);
         return message;

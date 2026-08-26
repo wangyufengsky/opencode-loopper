@@ -510,7 +510,9 @@ per-message `session_usage` evidence.
 
 V41 adds one `design_acceptance_planning` row per work-package compilation. It freezes the
 controlled-Markdown design hash, DesignFact catalog and closed verification-capability catalog;
-those identity fields are immutable. AI binding, solver diagnostics and failure detail are
+those identity fields are immutable. Package-design source and Designer message persistence have no
+fixed byte-size ceiling; the controlled Markdown shape, 64-scenario ceiling and 128-fact ceiling remain
+the bounded semantic contract. AI binding, solver diagnostics and failure detail are
 versioned updates. New v4 rows resume from this snapshot, while compilations without a row remain
 on the historical v3 parser/repair path. Planning state is a closed persistence contract:
 `EXTRACTED` is the frozen input, `BOUND` records a valid binding whose deterministic result is

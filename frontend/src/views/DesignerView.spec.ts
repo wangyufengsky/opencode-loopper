@@ -953,6 +953,44 @@ describe('Designer draft composer', () => {
     expect(children.indexOf(secondHistory.element)).toBeLessThan(children.indexOf(secondDesign.element))
   })
 
+  it('keeps requirement discussion anchored before its hidden server snapshot as later messages arrive', async () => {
+    const discussionSession: DesignerSession = {
+      ...session,
+      answeredQuestions: [{
+        id: 'question-r1', scope: 'REQUIREMENT', discussionRevision: 1,
+        designMessageId: 'requirement-snapshot-r1', answeredAt: '2026-08-18T04:00:00Z',
+        questions: [{ question: '需要覆盖哪些边界？', header: '需求范围', multiple: false, custom: false,
+          options: [{ label: '并发与恢复', description: '覆盖并发和失败恢复' }], answers: ['并发与恢复'] }],
+      }],
+      messages: [
+        { id: 'user', role: 'USER', actor: 'USER', content: '设计缓存刷新任务', deliveryState: 'PERSISTED', createdAt: '2026-08-18T03:00:00Z' },
+        { id: 'requirement-snapshot-r1', role: 'SYSTEM', actor: 'SYSTEM', content: '# 权威需求快照',
+          deliveryState: 'SERVER_REQUIREMENT_SNAPSHOT', createdAt: '2026-08-18T04:01:00Z' },
+        { id: 'system-after-r1', role: 'SYSTEM', actor: 'SYSTEM', content: '任务设置已确认',
+          deliveryState: 'PERSISTED', createdAt: '2026-08-18T04:02:00Z' },
+        { id: 'system-later', role: 'SYSTEM', actor: 'SYSTEM', content: '后续设计流程已完成',
+          deliveryState: 'PERSISTED', createdAt: '2026-08-18T05:00:00Z' },
+      ],
+    }
+    vi.spyOn(api, 'createDraft').mockImplementation(async (spec) => draftFrom(spec))
+    vi.spyOn(api, 'createDesignerSession').mockResolvedValue(discussionSession)
+    vi.spyOn(api, 'getDesignerSession').mockResolvedValue(discussionSession)
+    const wrapper = mountDesigner()
+    await flushPromises()
+    await wrapper.get('textarea[aria-label="草案设计目标"]').setValue('设计缓存刷新任务')
+    await wrapper.get('.create-draft-button').trigger('click')
+    await flushPromises()
+
+    const history = wrapper.getComponent(DesignerDiscussionHistory)
+    const systemHistory = wrapper.getComponent(DesignerSystemMessageHistory)
+    const children = Array.from(wrapper.get('.chat-history').element.children)
+    expect(wrapper.text()).not.toContain('权威需求快照')
+    expect(history.text()).toContain('需要覆盖哪些边界？')
+    expect(systemHistory.text()).toContain('任务设置已确认')
+    expect(systemHistory.text()).toContain('后续设计流程已完成')
+    expect(children.indexOf(history.element)).toBeLessThan(children.indexOf(systemHistory.element))
+  })
+
   it('keeps package feedback scoped and requires explicit acceptance before continuing', async () => {
     const packageSession: DesignerSession = {
       ...session, state: 'REVIEWING', workflowPhase: 'REVIEWING_PACKAGE', activeActor: 'VALIDATOR',

@@ -118,8 +118,8 @@ Decomposer 返回 `READY | NEEDS_INPUT | MULTI_TASK_REQUIRED`、规范目标、�
 原 Markdown 始终保留，不会被 AI 摘要替代。
 
 服务端使用 CommonMark AST 与 GFM 表格扩展生成 `SCENARIO / REVIEW / SCOPE / DELIVERABLE /
-POLICY / DEPENDENCY` DesignFact。每项事实保存精确 Designer 原文、稳定行引用和 SHA-256；上限为
-64 个场景、128 个总事实和 24 KiB UTF-8。随后服务端根据冻结 Role Pack、技术栈、测试策略、
+POLICY / DEPENDENCY` DesignFact。每项事实保存精确 Designer 原文、稳定行引用和 SHA-256；工作包
+设计没有固定字节上限，仍限制为 64 个场景和 128 个总事实。随后服务端根据冻结 Role Pack、技术栈、测试策略、
 明确测试类/目标、范围与外部依赖限制生成闭集验证能力。AI 不再生成命令、路径、测试目标或验证器。
 
 Compiler 使用 `COMPILER_BINDING_NO_TOOLS` Session 和 `PACKAGE_ACCEPTANCE_BINDING_V5` Schema，只返回

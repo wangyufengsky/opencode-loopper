@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import io.opencode.loopper.domain.ExecutionStrategy;
 import io.opencode.loopper.domain.TestPolicy;
 import io.opencode.loopper.persistence.DesignWorkPackageRow;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
@@ -127,6 +128,39 @@ class DesignerAcceptancePlanningAlgorithmTest {
                     assertThat(error.code()).isEqualTo("DUPLICATED_CONTROLLED_DESIGN_SECTION");
                     assertThat(error).hasMessageContaining("目标与范围").hasMessageContaining("验收场景");
                 });
+    }
+
+    @Test
+    void extractsCompleteControlledDesignLargerThanTwentyFourKibibytes() {
+        String design = """
+                ## 目标与范围
+                %s
+
+                ## 影响与交付
+                | 类型 | 相对路径或符号 | 说明 |
+                | --- | --- | --- |
+                | 修改 | src/main/java/example/EventBridge.java | 状态机事件桥接 |
+
+                ## 验收场景
+                | 场景 | 前置/触发 | 操作 | 可观察结果 | 保持不变 |
+                | --- | --- | --- | --- | --- |
+                | 合法事件迁移 | 已配置迁移 | 发布事件 | 状态完成迁移 | 公开 API 不变 |
+
+                ## 验收约束
+                EventBridgeTest 必须独立通过。
+
+                ## 阶段与依赖
+                | 阶段建议 | 包含场景/交付 | 前置阶段 |
+                | --- | --- | --- |
+                | 事件桥接 | 合法事件迁移与 EventBridgeTest | 无 |
+                """.formatted("完整设计背景与业务边界。".repeat(1_500));
+
+        assertThat(design.getBytes(StandardCharsets.UTF_8).length).isGreaterThan(24 * 1024);
+        Catalog facts = extractor.extract("WP-1", 1, design);
+
+        assertThat(facts.controlledFormat()).isTrue();
+        assertThat(facts.facts()).anyMatch(fact -> fact.kind() == FactKind.SCENARIO
+                && "合法事件迁移".equals(fact.title()));
     }
 
     @Test

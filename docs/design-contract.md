@@ -120,8 +120,10 @@ snapshot. It lists every path and requires one explicit `提交 / stash / 移除
 decision per file before **重新检查并继续** is enabled. Removal has an additional
 destructive confirmation. The only alternate exit is the confirmed **取消任务并保留文件**
 action, which must leave local files unchanged, interrupt the active Execution Cycle,
-and produce `CANCELLED` rather than borrowing the Task-failure path. Snapshot conflicts refresh the
-authoritative list; the browser never assumes cleanup or branch creation succeeded.
+and produce `CANCELLED` rather than borrowing the Task-failure path. Its second confirmation stays
+inside the same non-dismissible dialog instead of opening a competing global modal, and remains
+available even when the file-list refresh fails. Snapshot conflicts refresh the authoritative list;
+the browser never assumes cleanup or branch creation succeeded.
 The `SOURCE_BRANCH_WORKSPACE_DIRTY` error event remains immutable audit history,
 but its active red alert is rendered only while the Task is still in
 `WAITING_INPUT` with that exact `waitingReasonCode`. Once preparation reaches
@@ -356,8 +358,9 @@ read-only Designer conversation across revisions and reconstructs a fresh one
 from persisted snapshots/decisions after remote loss; each candidate uses a fresh
 read-only LoopSpec Compiler with the configured model. Designer receives
 the original requirement, frozen decomposition, current package, global
-constraints, and bounded prerequisite handoffs, then emits at most 24 KiB UTF-8
-of complete Markdown. Compiler emits a compact semantic plan plus
+constraints, and bounded prerequisite handoffs, then emits one complete Markdown
+replacement without a fixed byte-size ceiling. The server persists that exact design and
+continues to enforce the controlled section shape plus scenario/fact limits. Compiler emits a compact semantic plan plus
 `DS-Lxxx` sources and a handoff summary of at most 4 KiB; the server compiles the
 package fragment. Direct software allows 1–6 Stages; each large-task package remains
 limited to 1–3. Decomposer and historical semantic-Compiler extraction failures receive at most

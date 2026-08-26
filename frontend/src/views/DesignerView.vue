@@ -443,14 +443,15 @@ async function convertReportToDesign() {
   } catch (error) { ElMessage.error(userFacingError(error, '报告转换失败')) }
   finally { busy.value = false }
 }
-const visibleMessages = computed(() => messages.value.filter((message) => !selectedWorkPackageId.value
+const scopedMessages = computed(() => messages.value.filter((message) => !selectedWorkPackageId.value
   || !message.workPackageId || message.workPackageId === selectedWorkPackageId.value)
-  .filter((message) => message.deliveryState !== 'SERVER_REQUIREMENT_SNAPSHOT')
   .filter((message) => !message.content.includes('LOOPSPEC_COMPILATION_JSON_START')).filter((message) => !(
   message.role === 'SYSTEM'
   && message.deliveryState === 'PENDING_HANDOFF'
   && !message.content.startsWith('SYSTEM_ERROR')
 )))
+const visibleMessages = computed(() => scopedMessages.value
+  .filter((message) => message.deliveryState !== 'SERVER_REQUIREMENT_SNAPSHOT'))
 type DesignerTimelineItem =
   | { key: string; kind: 'message'; message: DesignerMessage }
   | { key: string; kind: 'discussion'; entries: NonNullable<DesignerSession['answeredQuestions']> }
@@ -483,7 +484,7 @@ const timelineItems = computed<DesignerTimelineItem[]>(() => {
     const assignedDesignIds = new Set<string>()
     groups.forEach((group) => {
       const linkedDesignId = group.entries.find((entry) => entry.designMessageId)?.designMessageId
-      const target = (linkedDesignId ? designs.find((message) => message.id === linkedDesignId) : undefined)
+      const target = (linkedDesignId ? scopedMessages.value.find((message) => message.id === linkedDesignId) : undefined)
         ?? designs.find((message) => !assignedDesignIds.has(message.id))
       if (!target) trailingDiscussions.push(group)
       else {
@@ -505,10 +506,11 @@ const timelineItems = computed<DesignerTimelineItem[]>(() => {
     }
     items.push({ key: `system:${message.id}`, kind: 'system', entries: [message] })
   }
-  for (const message of visibleMessages.value) {
+  for (const message of scopedMessages.value) {
     for (const group of discussionsBeforeMessage.get(message.id) ?? []) {
       items.push({ key: `discussion:${group.key}`, kind: 'discussion', entries: group.entries })
     }
+    if (message.deliveryState === 'SERVER_REQUIREMENT_SNAPSHOT') continue
     if (message.actor === 'VALIDATOR') {
       if (!validatorsInserted) {
         items.push({ key: 'validators', kind: 'validators', entries: validatorEntries })

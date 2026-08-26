@@ -1,5 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils'
-import ElementPlus, { ElMessageBox, ElSelect } from 'element-plus'
+import ElementPlus, { ElSelect } from 'element-plus'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import DirtyWorkspaceDialog from './DirtyWorkspaceDialog.vue'
@@ -64,7 +64,6 @@ describe('DirtyWorkspaceDialog', () => {
   it('requires confirmation and cancels the task without resolving files', async () => {
     const store = useTaskStore()
     const fail = vi.spyOn(store, 'cancelDirtyWorkspace').mockResolvedValue({ id: 'task-1', status: 'CANCELLED' } as never)
-    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
     mount(DirtyWorkspaceDialog, {
       props: { taskId: 'task-1', modelValue: true },
       global: { plugins: [ElementPlus] }, attachTo: document.body,
@@ -76,8 +75,37 @@ describe('DirtyWorkspaceDialog', () => {
     cancelButton.click()
     await flushPromises()
 
-    expect(ElMessageBox.confirm).toHaveBeenCalledWith(expect.stringContaining('现有本地文件保持原样'),
-      '取消任务并保留本地文件？', expect.any(Object))
+    expect(fail).not.toHaveBeenCalled()
+    expect(document.body.textContent).toContain('确认取消？')
+    const confirmButton = [...document.querySelectorAll('button')]
+      .find((button) => button.textContent?.includes('确认取消任务')) as HTMLButtonElement
+    confirmButton.click()
+    await flushPromises()
+
     expect(fail).toHaveBeenCalledWith('task-1')
+  })
+
+  it('keeps cancellation available when the dirty file list cannot be loaded', async () => {
+    mocks.getDirtyWorkspace.mockRejectedValueOnce(new Error('unavailable'))
+    const store = useTaskStore()
+    const cancel = vi.spyOn(store, 'cancelDirtyWorkspace')
+      .mockResolvedValue({ id: 'task-1', status: 'CANCELLED' } as never)
+    mount(DirtyWorkspaceDialog, {
+      props: { taskId: 'task-1', modelValue: true },
+      global: { plugins: [ElementPlus] }, attachTo: document.body,
+    })
+    await flushPromises()
+
+    const cancelButton = [...document.querySelectorAll('button')]
+      .find((button) => button.textContent?.includes('取消任务并保留文件')) as HTMLButtonElement
+    expect(cancelButton.disabled).toBe(false)
+    cancelButton.click()
+    await flushPromises()
+    const confirmButton = [...document.querySelectorAll('button')]
+      .find((button) => button.textContent?.includes('确认取消任务')) as HTMLButtonElement
+    confirmButton.click()
+    await flushPromises()
+
+    expect(cancel).toHaveBeenCalledWith('task-1')
   })
 })

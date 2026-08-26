@@ -16,6 +16,7 @@ const commitMessage = ref('chore: 保存任务开始前的本地改动')
 const loading = ref(false)
 const applying = ref(false)
 const cancelling = ref(false)
+const cancelConfirmationVisible = ref(false)
 const error = ref('')
 
 const allSelected = computed(() => Boolean(workspace.value)
@@ -50,6 +51,7 @@ async function loadWorkspace() {
 }
 
 watch(() => [props.modelValue, props.taskId], ([open]) => {
+  cancelConfirmationVisible.value = false
   if (open) void loadWorkspace()
 }, { immediate: true })
 
@@ -97,19 +99,18 @@ async function recheckAndContinue() {
   }
 }
 
-async function cancelTask() {
-  if (cancelling.value) return
-  try {
-    await ElMessageBox.confirm(
-      '任务分支尚未创建。取消后任务会进入已取消，本轮执行记为中断；现有本地文件保持原样。',
-      '取消任务并保留本地文件？',
-      { type: 'warning', confirmButtonText: '取消任务', cancelButtonText: '继续处理' },
-    )
-  } catch { return }
+function requestCancelTask() {
+  if (cancelling.value || applying.value) return
+  cancelConfirmationVisible.value = true
+}
+
+async function confirmCancelTask() {
+  if (cancelling.value || applying.value) return
   cancelling.value = true
   error.value = ''
   try {
     await store.cancelDirtyWorkspace(props.taskId)
+    cancelConfirmationVisible.value = false
     emit('update:modelValue', false)
     ElMessage.warning('任务已取消，本地文件保持原样')
   } catch (cause) {
@@ -177,10 +178,19 @@ async function cancelTask() {
     </template>
 
     <template #footer>
-      <el-button type="danger" plain :loading="cancelling" @click="cancelTask">取消任务并保留文件</el-button>
-      <el-button type="primary" :loading="applying" :disabled="loading || !workspace" @click="recheckAndContinue">
-        重新检查并继续
-      </el-button>
+      <div v-if="cancelConfirmationVisible" class="cancel-confirmation" role="alert">
+        <span>确认取消？任务会进入已取消，本轮执行记为中断；现有本地文件保持原样。</span>
+        <div class="cancel-confirmation-actions">
+          <el-button :disabled="cancelling" @click="cancelConfirmationVisible = false">继续处理</el-button>
+          <el-button type="danger" :loading="cancelling" @click="confirmCancelTask">确认取消任务</el-button>
+        </div>
+      </div>
+      <template v-else>
+        <el-button type="danger" plain :disabled="applying" @click="requestCancelTask">取消任务并保留文件</el-button>
+        <el-button type="primary" :loading="applying" :disabled="loading || !workspace || cancelling" @click="recheckAndContinue">
+          重新检查并继续
+        </el-button>
+      </template>
     </template>
   </el-dialog>
 </template>
@@ -192,5 +202,7 @@ async function cancelTask() {
 .status-chip { display: inline-flex; padding: 3px 7px; border: 1px solid rgb(245 158 11 / 28%); border-radius: 999px; background: rgb(245 158 11 / 8%); color: var(--color-session-warning); font-size: 10px; }
 .commit-message { margin-top: 16px; padding: 14px; border: 1px solid var(--color-border-default); border-radius: 10px; background: rgb(7 12 22 / 48%); }.commit-message label { display: block; margin-bottom: 8px; color: var(--color-text-primary); font-size: 12px; }.commit-message p { margin: 7px 0 0; color: var(--color-text-tertiary); font-size: 10px; }
 .action-notes { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 14px; color: var(--color-text-tertiary); font-size: 10px; }.action-notes b { color: var(--color-text-secondary); }.action-notes .danger, .action-notes .danger b { color: var(--color-task-error); }
+.cancel-confirmation { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 12px; border: 1px solid rgb(239 68 68 / 32%); border-radius: 10px; background: rgb(239 68 68 / 8%); color: var(--color-task-error); text-align: left; }
+.cancel-confirmation-actions { display: flex; flex: 0 0 auto; gap: 8px; }
 @media (max-width: 680px) { .dirty-intro { grid-template-columns: auto 1fr; }.dirty-intro > button { grid-column: 1 / -1; } }
 </style>
