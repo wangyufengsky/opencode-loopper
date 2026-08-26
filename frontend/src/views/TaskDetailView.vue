@@ -31,9 +31,19 @@ const attempts = computed<Attempt[]>(() => task.value?.attempts ?? task.value?.s
 const waitingForWorkspaceCleanup = computed(() => task.value?.status === 'WAITING_INPUT'
   && task.value.waitingReasonCode === 'SOURCE_BRANCH_WORKSPACE_DIRTY')
 const sessionErrors = computed<ErrorEvent[]>(() => (task.value?.errors ?? attempts.value.flatMap((attempt) => attempt.errors)).filter((error) => error.layer === 'SESSION'))
-const taskErrors = computed<ErrorEvent[]>(() => (task.value?.errors ?? [])
-  .filter((error) => error.layer === 'TASK')
-  .filter((error) => error.code !== 'SOURCE_BRANCH_WORKSPACE_DIRTY' || waitingForWorkspaceCleanup.value))
+const taskErrors = computed<ErrorEvent[]>(() => {
+  const current = task.value
+  if (!current) return []
+  const errors = (current.errors ?? []).filter((error) => error.layer === 'TASK')
+  if (current.status === 'WAITING_INPUT') {
+    return current.waitingReasonCode
+      ? errors.filter((error) => error.code === current.waitingReasonCode).slice(0, 1)
+      : []
+  }
+  if ((current.status === 'AWAITING_DECISION' && current.executionResult === 'FAILED')
+    || current.status === 'FAILED') return errors.slice(0, 1)
+  return []
+})
 const judges = computed(() => task.value?.judges ?? [])
 const artifacts = computed(() => task.value?.artifacts ?? store.artifacts.filter((artifact) => artifact.taskId === id.value))
 const verificationRows = computed(() => attempts.value.flatMap((attempt) => attempt.verifiers))

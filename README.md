@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.2.60`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.2.61`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -30,7 +30,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 ## 核心能力
 
 - **本地项目登记**：登记绝对路径，识别 Git 任务分支模式或无可用 Git HEAD 时的直接模式；新登记项目同时建立有界的模块级技术栈基线，已经受管的老项目在第一次更新公约或创建新设计时按需分析，项目列表本身不会逐个扫描文件系统。
-- **中文极简界面**：页面只保留完成当前操作所需的信息，状态、角色、验证器和错误统一显示中文；内部枚举码与任务、会话、尝试等记录 ID 不在普通页面回显，项目卡片支持长名称和路径自然换行。
+- **中文极简界面**：页面只保留完成当前操作所需的信息，状态、角色、验证器和错误统一显示中文；任务错误仍完整保留为审计历史，但红色当前告警只跟随服务端权威等待原因或当前失败轮次，任务重新排队、准备或运行后不会继续展示旧轮次告警；内部枚举码与任务、会话、尝试等记录 ID 不在普通页面回显，项目卡片支持长名称和路径自然换行。
 - **普通单包与大型任务设计**：软件任务默认固定一个 `WP-1`，包内仍由 Designer/Compiler 形成 1–6 个 Stage，按“需求讨论 → 单包设计 → 规范编译”推进；不创建 Task Decomposer Session，编译和确定性校验通过后自动接受 WP-1，再进入独立总体确认。只有画像冻结前显式打开“大型任务”才使用 2–6 个工作包，每包 1–3 个 Stage，并逐包人工接受。普通模式第 7 个 Stage 起以 `LARGE_TASK_MODE_REQUIRED` 停止，必须由用户显式改用大型任务，系统和全自动模式都不会自行切换。最终聚合由专用服务端边界把设计前占位 Stage 替换为全部已批准包，并再次校验每个包均被按冻结顺序表示；进入 Review Gate 后普通编辑不能删除、改写或重排该映射。
 - **可讨论的只读多角色设计**：普通软件任务只在需求讨论时由设计师用 1–3 个选择题澄清；回答后服务端把原始需求、后续补充和最终回答按时间原样组装为 24 KiB 内的权威需求快照，忽略 AI 自由正文，WP-1 初稿、反馈修订和重新设计都直接输出不设固定字节上限的完整替代设计而不再提问。大型任务仍保留 AI 完整需求预设计和逐包提问/接受。需求讨论按服务端快照或设计消息的精确位置固定，不会被后续消息推到列表底部；需求快照作为独立只读卡片展示，其审计来源消息不重复进入“系统消息”折叠条。任务规划师与规范工程师只输出紧凑的业务规划与证据意图，服务端生成状态、ID、引用、精确摘录、测试元数据和最终 LoopSpec 对象；原始机器 JSON 不进入聊天。确定性校验和人工确认完成前不写业务源码、不创建任务。
 - **动态任务画像与专属流程**：服务端先从 Maven/Gradle、`package.json`、Python、Go 和 Rust 证据建立结构化组件画像，再用需求中的相对路径、模块名和明确技术词约束到真实组件。Router 是单次快速分类器：不发现或调用内置/MCP 工具，不搜索仓库、不做设计或方案推演；受管运行时使用单步、零温度和非思考专用 Agent，只返回任务意图、一个主要制品和 SIMPLE/PACKAGED 三项闭集标签。技术栈、组件和置信度完全由服务端证据与标签一致性计算，失败或降级时页面显示“识别置信度 未产生”，不再把占位值展示成 `0%`。任务设置识别只在尚未建立远端 Session 时保留 240 秒连接等待；连接成功后一直等待真实终态。运行弹窗只显示真实已用时间、远端状态、最新安全活动和 Provider Token，不显示超时上限、估算百分比或原始 Router JSON，并提供“取消识别，手动设置”；服务端确认远端 Session 已取消后直接打开人工选择控件，全自动模式也不会采用该结果。Router 固定使用安全 marker 信封和同一服务端闭集校验，不再向 OpenCode 持久化会触发部分桌面版本加载错误的 JSON Schema 响应格式。普通模式在中文结果页明确选择“确认并进入设计 / 重新识别 / 手动修改”，决定前不会创建需求 Designer Session；重新识别只使用服务端保存的同一需求快照。单栈自动选择；明确跨组件使用混合栈；多栈但无法定位、分析不完整，或无 Manifest 且需求未明确技术时必须确认，不再默认 Java。页面统一称为“任务设置”，只在多栈歧义时展示组件选择器。画像仍按 `ROUTING / NEEDS_CONFIRMATION / CONFIRMED / FROZEN` 投影；确认后同时冻结画像指纹和组件键，普通 WP-1、Stage 与 Recovery 复用该快照，后续项目重析不能改写老任务。安全判定按动作对象和否定作用域区分外部写入/发版与进程内领域事件、消息或通知；执行轨迹的发布/可观测语义、事件总线“监听器注册、发布、按类型分发”、生命周期 `started/succeeded/failed/compensated` 事件示例与受控的 `CHAIN_STARTED/SUCCEEDED/FAILED/COMPENSATED` 事件常量保持为软件领域行为，“发布器/发布者/发布-订阅器”按组件名词处理，“进程内同步发布”按事件投递上下文处理；同句“重复/再次/重新发布”仅可继承前一个已证明的业务事件对象，普通第二次裸发布不继承。版本、制品、镜像、环境、提交推送和无法判定的裸发布仍失败关闭，单纯声明“不伪造外部系统结果”不会被当成写请求。“可配置”、“不新增依赖”等软件约束或“某类维护调用身份/MDC”等源码职责描述不会把开发任务降级为本地维护，完整设计中的人工评审点、只读 getter 或验收复核措辞也不会把明确的软件交付改路由为只读报告；只有任务级评审/诊断请求才进入 Reviewer 或形成读写冲突。只有 Manifest 指纹、组件选择、意图和流程均不变时，完整需求重算才能继承原确认。
@@ -128,7 +128,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.2.60.jar
+java -jar target/opencode-loopper-0.2.61.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -356,7 +356,7 @@ Git 任务的最新 Execution Cycle 成功并处于 `AWAITING_DECISION` 或用�
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.2.60.jar`
+- `target/opencode-loopper-0.2.61.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -387,7 +387,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:51234
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.2.60.jar`
+- `opencode-loopper-0.2.61.jar`
 - `start-windows.bat`
 
 确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
@@ -425,7 +425,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.2.60.jar \
+jar tf target/opencode-loopper-0.2.61.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -507,7 +507,7 @@ Windows PowerShell：
 例如发布下一版本：
 
 ```bash
-VERSION=0.2.60
+VERSION=0.2.61
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -547,7 +547,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.2.60.jar
+java -jar target/opencode-loopper-0.2.61.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。
@@ -648,6 +648,8 @@ echo %PATHEXT%
 `0.1.95` 系统审计并修复动态 Role Pack 到 Compiler 的完整链路。Role Pack v3 按软件族规范化 Java/Python/Node/Other 标签，避免 JavaScript 误入 Java、同族别名误入混合栈和未知单栈默认 Java；每个可编译角色使用栈原生规划示例与测试目标解析，非软件流程明确绕过 Compiler。当前输出默认进入紧凑 `outcome` 合同，历史 `status` 解析只接受明确旧信封；格式与语义修复改用全新无工具 Session，JSON Schema 分别匹配完整规划与补丁信封，非法补丁不会覆盖有效语义快照，直接软件 1–6 Stage 的 Schema 上限也与产品合同一致。
 
 `0.2.0` 继续收缩历史 God Class：Designer 的紧凑包计划规范化、语义校验和可执行证据编译由独立确定性编译器负责，共享机器合同移出会话编排器；Task 的确认设计快照、验证汇总、Git diff 和 Judge 提示证据由独立证据服务负责。`DesignerSessionService` 与 `TaskService` 仍是待继续拆分的兼容编排器，结构门禁已同步下调，不把本次提取描述为债务清零。
+
+`0.2.61` 将任务错误的不可变审计历史与详情页当前告警分离。红色 `TASK` 告警只在 `WAITING_INPUT` 且错误码匹配当前等待原因、失败轮次正处于 `AWAITING_DECISION`，或历史 `FAILED` 终态时显示最新一条；任务释放租约并重新进入排队、准备、运行或验证后，不再把旧轮次的“任务已终止”错误继续显示为当前故障。
 
 `0.2.60` 修复 0.2.59 仍无法释放的第二层根因：HTTP 适配器不再丢弃 OpenCode abort 的 boolean 回执，只有解析到 `true` 才把请求视为正向停止证明，404 作为精确 Session 已不存在；`false`、空响应和传输失败继续失败关闭。writer、Judge 与项目公约停止流程直接消费该回执，不再让 abort 后从活动状态表消失、但消息未写完成时间的 Session 被回退逻辑重新误判为运行中。
 

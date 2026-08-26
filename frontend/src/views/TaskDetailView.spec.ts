@@ -495,6 +495,85 @@ describe('TaskDetailView judge action', () => {
     expect(wrapper.find('.layered-error-stub').exists()).toBe(false)
   })
 
+  it('hides a historical task failure after a new execution cycle starts', async () => {
+    store.tasks = [{
+      ...reviewTask,
+      id: 'task-failure-resumed',
+      status: 'RUNNING',
+      branch: 'loopper/task-failure-resumed',
+      waitingReasonCode: 'DIRECT_WORKSPACE_UNAVAILABLE',
+      judges: [],
+      errors: [{
+        id: 'workspace-history', layer: 'TASK', code: 'DIRECT_WORKSPACE_UNAVAILABLE',
+        message: '历史项目目录失败', retryable: false, occurredAt: 'earlier',
+      }],
+    }]
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/tasks/:id', component: { template: '<div />' } }] })
+    await router.push('/tasks/task-failure-resumed')
+    await router.isReady()
+
+    const wrapper = mount(TaskDetailView, {
+      global: {
+        plugins: [router, ElementPlus],
+        stubs: {
+          Icon: true,
+          PageHeader: { template: '<header><slot name="actions" /></header><slot />' },
+          StatusBadge: true,
+          StageRail: true,
+          AttemptTimeline: true,
+          LayeredErrorPanel: { props: ['error'], template: '<div class="layered-error-stub">{{ error.code }}</div>' },
+          SessionMonitorPanel: true,
+          JudgeReviewCard: true,
+          TaskAuditEvidencePanel: true,
+          TaskPublicationActions: true,
+          DirtyWorkspaceDialog: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.find('.layered-error-stub').exists()).toBe(false)
+  })
+
+  it('keeps only the latest task failure visible while its cycle awaits a decision', async () => {
+    store.tasks = [{
+      ...reviewTask,
+      id: 'task-failure-current',
+      status: 'AWAITING_DECISION',
+      executionResult: 'FAILED',
+      judges: [],
+      errors: [
+        { id: 'current', layer: 'TASK', code: 'DIRECT_WORKSPACE_UNAVAILABLE', message: '当前失败', retryable: false, occurredAt: 'now' },
+        { id: 'historical', layer: 'TASK', code: 'PROCESS_FAILED', message: '历史失败', retryable: false, occurredAt: 'earlier' },
+      ],
+    }]
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/tasks/:id', component: { template: '<div />' } }] })
+    await router.push('/tasks/task-failure-current')
+    await router.isReady()
+
+    const wrapper = mount(TaskDetailView, {
+      global: {
+        plugins: [router, ElementPlus],
+        stubs: {
+          Icon: true,
+          PageHeader: { template: '<header><slot name="actions" /></header><slot />' },
+          StatusBadge: true,
+          StageRail: true,
+          AttemptTimeline: true,
+          LayeredErrorPanel: { props: ['error'], template: '<div class="layered-error-stub">{{ error.code }}</div>' },
+          SessionMonitorPanel: true,
+          JudgeReviewCard: true,
+          TaskAuditEvidencePanel: true,
+          TaskPublicationActions: true,
+          DirtyWorkspaceDialog: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.findAll('.layered-error-stub').map((panel) => panel.text())).toEqual(['DIRECT_WORKSPACE_UNAVAILABLE'])
+  })
+
   it('keeps the dirty-workspace alert visible while that wait reason is current', async () => {
     store.tasks = [{
       ...reviewTask,

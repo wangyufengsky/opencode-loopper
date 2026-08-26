@@ -127,10 +127,16 @@ and produce `CANCELLED` rather than borrowing the Task-failure path. Its second 
 inside the same non-dismissible dialog instead of opening a competing global modal, and remains
 available even when the file-list refresh fails. Snapshot conflicts refresh the authoritative list;
 the browser never assumes cleanup or branch creation succeeded.
-The `SOURCE_BRANCH_WORKSPACE_DIRTY` error event remains immutable audit history,
-but its active red alert is rendered only while the Task is still in
-`WAITING_INPUT` with that exact `waitingReasonCode`. Once preparation reaches
-`READY` or execution continues, the stale alert disappears without deleting evidence.
+Every `TASK` error event remains immutable audit history, but Task detail must
+separate that history from the active red alert. While the Task is in
+`WAITING_INPUT`, only the newest error whose code exactly matches the authoritative
+`waitingReasonCode` is active. While a failed execution cycle is in
+`AWAITING_DECISION`, or for a legacy `FAILED` Task, only the newest Task error is
+active. `PENDING_START`, `QUEUED`, `PREPARING`, `READY`, `RUNNING`, `VERIFYING`,
+`RETRY_WAIT`, `PAUSED`, `JUDGING`, `STOPPING`, and successful/cancelled/superseded
+terminal views do not promote historical Task errors into current red alerts.
+This includes `SOURCE_BRANCH_WORKSPACE_DIRTY`: once preparation or execution
+continues, its stale alert disappears without deleting evidence.
 
 The Runtime failure card exposes **启动 OpenCode 并检查连接** only after an Auto
 launch has failed. The button stays loading while the server performs the bounded

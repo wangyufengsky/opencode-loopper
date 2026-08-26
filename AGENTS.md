@@ -42,10 +42,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.2.60.jar
-   jar tf target/opencode-loopper-0.2.60.jar \
+   test -s target/opencode-loopper-0.2.61.jar
+   jar tf target/opencode-loopper-0.2.61.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.2.60.jar
+   shasum -a 256 target/opencode-loopper-0.2.61.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -95,8 +95,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.2.60`。
-- 正式产物：`target/opencode-loopper-0.2.60.jar`。
+- Maven 项目版本：`0.2.61`。
+- 正式产物：`target/opencode-loopper-0.2.61.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -371,7 +371,7 @@ Task 详情 `overview` 必须投影 `loopRetryAvailable`、`cancellationAvailabl
 - TypeScript 类型以 `frontend/src/types/domain.ts` 为边界，API 变更必须同步 DTO、client、store、view 和测试；Designer 保存/确认必须无损往返 Stage `workPackageId` 以及全部 LoopSpec limits、model、sessionPolicy 和 nextAttemptPromptTemplate。
 - 任务详情只为 `PENDING_START` 显示“开始执行”；该状态必须明确尚未入队、占用租约或切换分支。`READY` 是已请求执行后的短暂内部状态，只显示自动继续语义，不得再次显示开始按钮。
 - Task 等待动作以服务端 `waitingReasonCode` / `loopRetryAvailable` 投影为准，前端不得从历史错误推断当前“继续一轮”入口。
-- `SOURCE_BRANCH_WORKSPACE_DIRTY` 错误事件作为审计历史保留，但活动红色提示只在 Task 仍为 `WAITING_INPUT` 且当前 `waitingReasonCode` 与其一致时显示；进入 `READY`/执行阶段后不得残留为当前故障。
+- 所有 `TASK` 错误事件都作为不可变审计历史保留，但详情页红色当前告警必须跟随权威生命周期：`WAITING_INPUT` 只显示与当前 `waitingReasonCode` 精确匹配的最新错误，失败轮次 `AWAITING_DECISION` 和历史 `FAILED` 只显示最新 Task 错误；进入排队、准备、`READY`、运行、验证、重试、暂停、评审、停止中或成功/取消/接续终态后，不得把旧 Task 错误继续渲染成当前故障。`SOURCE_BRANCH_WORKSPACE_DIRTY` 同样遵守该通用规则。
 - `SOURCE_BRANCH_WORKSPACE_DIRTY` 必须打开不可静默关闭的文件处理弹窗，逐文件选择提交、stash 或移除；重新检查成功前不得制造任务分支已创建的状态，取消只能经确认后把任务标记为失败。
 - 服务端是权威状态；不要用计时器伪造阶段进度、用量、成本、Session 完成或 Judge 结果。
 - 动态 Token 窗口只消费服务端单调累计值；首次值静默建立基线，后续正增量短暂显示 `+xxx`，旧快照不得降低总量或显示负增量，切换 Designer/Task 作用域必须重置本地基线；动画只使用 `transform`/`opacity` 并尊重 `prefers-reduced-motion`。
@@ -435,7 +435,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.2.60.jar
+JAR=target/opencode-loopper-0.2.61.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -537,6 +537,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-08-26 | 任务历史错误与当前告警分离，交付 0.2.61 | Task 详情按权威生命周期选择当前 `TASK` 错误：当前等待原因、失败轮次待处置或历史失败终态仅展示最新一条，排队、准备、运行、验证等继续态隐藏旧轮次红色告警但不删除审计记录；同步 README、设计合同与本公约正文 | TaskDetail 聚焦 16/16、前端类型检查通过；`./scripts/verify.sh`：Java 608 项（0 失败、0 错误、2 跳过）、Vitest 214/214，`BUILD SUCCESS`；JAR `target/opencode-loopper-0.2.61.jar` 为 283653135 字节，含 112 个 SPA 静态条目，SHA-256 `770107b178d0863db6b3db8b277c6c23b4a67b6568eb7d4d75a84b74a51407fa`；未启动或替换运行实例，未推送、未打标签、未创建 Release |
 | 2026-08-26 | 消费 OpenCode abort 正向回执，交付 0.2.60 | HTTP adapter 解析 abort boolean，`true`/精确 404 成为停止证明，`false`/空响应/传输失败继续失败关闭；writer、Judge 和项目公约停止不再被 abort 后缺失活动状态及未完成消息反向误判；同步 README、架构、OpenCode 合同与本公约正文 | 聚焦后端 107 项、Vitest 212/212；`./scripts/verify.sh`：Java 608 项（0 失败、0 错误、2 跳过）、Vitest 212/212，`BUILD SUCCESS`；JAR `target/opencode-loopper-0.2.60.jar` 为 283653042 字节，含 112 个 SPA 静态条目，SHA-256 `6e8f197d7fb7dc30fca4fa12a084523de9dc186b6cf155927fb3324ad3880401`；未启动或替换运行实例，未推送、未打标签、未创建 Release |
 | 2026-08-26 | 修复遗留 writer 阻塞终态 holder 租约，交付 0.2.59 | 重启与手动队列修复重新核验 `DISCONNECTED`/未确认 Session，成功后持久化正向终止证据再安全转移租约；任务详情新增“终止遗留会话并释放”确认入口；同步 README、架构、设计合同与本公约正文 | 聚焦后端 2/2、TaskDetail 14/14、类型检查通过；`./scripts/verify.sh`：Java 607 项（0 失败、0 错误、2 跳过）、Vitest 212/212，`BUILD SUCCESS`；JAR 283651443 bytes，含 112 个 SPA 静态条目，SHA-256 `84d86d753420d8a6a5013aa2ac620f013726600696c272c33f1c28a81170c865`；未启动或替换运行实例，未推送、未打标签、未创建 Release |
 | 2026-08-26 | 服务端快速路径与按需 Compiler，交付 0.2.58 | Role Pack 升级为 v6 受控阶段表；普通单包设计先经服务端精确符号解析、约束校验和确定性编译，只有闭集事实或能力归属仍有歧义时才调用一次锁定拓扑的 Compiler；新增稳定 binding source、诊断与业务化来源投影，历史 v5 保持兼容；同步 README、架构、Designer、OpenCode、AI 角色、代码设计和本公约正文 | 聚焦后端算法/迁移/结构测试通过，Designer 集成 79/79，前端 Designer 40/40 与类型检查通过；`./scripts/verify.sh`：Java 606 项（0 失败、0 错误、2 条件跳过），Vitest 212/212，BUILD SUCCESS；JAR `target/opencode-loopper-0.2.58.jar` 为 283650836 字节，含 112 个 SPA 静态条目，SHA-256 `fb2d2c9d98001a7718777110b632cea06ec16bcbe2ff36c24c16cc0b009916b0`；未启动或替换运行实例，未推送、未打标签、未创建 Release |
