@@ -1,6 +1,6 @@
 # 002：唯一自动绑定与局部路径消歧
 
-状态：IN_PROGRESS
+状态：DONE
 
 Blocked by：001
 
@@ -29,13 +29,13 @@ Blocks：003、004
 
 ## 验收标准
 
-- [ ] 单 Stage 漏路径从 001 的 `DESIGN_INCOMPLETE` 变为服务端直接 `COMPILED`。
-- [ ] 唯一事实引用和唯一规则覆盖均不创建 Compiler Session。
-- [ ] 多 Stage 多候选不调用模型，保留为只含项目相对路径和候选 Stage 名称的定点阻断。
-- [ ] 不允许模型、包级 fallback、技术栈 fallback、标题或目录词修改路径归属和拓扑。
-- [ ] Stage、聚焦测试和 `GIT_DIFF` 路径集合完全一致。
-- [ ] 多个义务可分别绑定，不因一个局部歧义丢弃已确定绑定。
-- [ ] 普通 WP-1 与滚动包当前包均有覆盖；历史包行为不变。
+- [x] 单 Stage 漏路径从 001 的 `DESIGN_INCOMPLETE` 变为服务端直接 `COMPILED`。
+- [x] 唯一事实引用和唯一规则覆盖均不创建 Compiler Session。
+- [x] 多 Stage 多候选不调用模型，保留为只含项目相对路径和候选 Stage 名称的定点阻断。
+- [x] 不允许模型、包级 fallback、技术栈 fallback、标题或目录词修改路径归属和拓扑。
+- [x] Stage、聚焦测试和 `GIT_DIFF` 路径集合完全一致。
+- [x] 多个义务可分别绑定，不因一个局部歧义丢弃已确定绑定。
+- [x] 普通 WP-1 与滚动包当前包均有覆盖；历史包行为不变。
 
 ## 聚焦验证
 
