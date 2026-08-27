@@ -38,12 +38,16 @@ function versions() {
   return { expectedTaskVersion: decision.value.taskVersion, expectedCycleVersion: decision.value.cycle.version }
 }
 
-async function run(operation: () => Promise<unknown>, successMessage: string) {
+async function run(operation: () => Promise<TaskDecision>, successMessage: string) {
   acting.value = true
   error.value = ''
   try {
-    await operation()
-    ElMessage.success(successMessage)
+    const result = await operation()
+    if (result.taskState === 'STOPPING') {
+      ElMessage.info('取消请求已保存，正在等待远端写入者停止确认')
+    } else {
+      ElMessage.success(successMessage)
+    }
     await emit('reload')
     await load()
   } catch (failure) {
@@ -115,7 +119,7 @@ async function accept() {
 }
 
 async function cancel() {
-  await ElMessageBox.confirm('取消后任务进入终态；冻结点、执行历史和审计证据仍会保留。',
+  await ElMessageBox.confirm('取消请求会先安全停止仍存活的写入者，再进入终态；冻结点、执行历史和审计证据仍会保留。',
     '取消任务？', { type: 'warning', confirmButtonText: '取消任务', cancelButtonText: '保留任务' })
   await run(() => api.cancelTaskDecision(props.taskId, versions()), '任务已取消')
 }

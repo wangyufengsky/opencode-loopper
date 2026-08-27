@@ -98,6 +98,12 @@ A newly confirmed Task is `PENDING_START`. It must show **开始执行** and a s
 confirmed **取消任务** action, and its summary must say that confirmation has not
 created a queue row, acquired a write lease, allocated an execution directory, or
 switched a Git branch. Cancelling this state changes only the Task to `CANCELLED`.
+
+The `AWAITING_DECISION` result card owns a separate confirmed **取消任务** action.
+It must call the versioned result-disposition endpoint rather than the ordinary
+runtime-cancel endpoint. The server may briefly return `STOPPING` while it rechecks
+all writers, then reaches `CANCELLED` without changing the frozen succeeded/failed
+Execution Cycle or its historical Stage evidence.
 Clicking **开始执行** is the single execution request: the server may move through
 `QUEUED`, `PREPARING`, and the transient `READY` state into `RUNNING` without a
 second click. The no-runtime cancellation still uses the same persisted stop intent,

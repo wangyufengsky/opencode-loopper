@@ -113,7 +113,7 @@ public final class LifecycleRegistry {
                 .transition(TaskState.AWAITING_DECISION, ACCEPT_RESULT, TaskState.COMPLETED)
                 .transition(TaskState.AWAITING_DECISION, COMPLETE, TaskState.COMPLETED)
                 .transition(TaskState.AWAITING_DECISION, SUPERSEDE, TaskState.SUPERSEDED)
-                .transition(TaskState.AWAITING_DECISION, CANCEL, TaskState.CANCELLED);
+                .transition(TaskState.AWAITING_DECISION, CANCEL, TaskState.STOPPING);
         for (TaskState state : TaskState.values()) {
             if (!state.terminal() && state != TaskState.AWAITING_DECISION && state != TaskState.STOPPING) {
                 b.transition(state, CANCEL, TaskState.STOPPING).transition(state, FAIL, TaskState.AWAITING_DECISION);

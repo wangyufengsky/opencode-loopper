@@ -1214,12 +1214,12 @@ public class TaskService {
         return get(taskId);
     }
     public TaskRow cancel(String taskId) { return settleCancelledLease(cancellations.cancel(taskId)); }
+    public TaskRow cancelDecision(String taskId) { return settleCancelledLease(cancellations.cancelDecision(taskId)); }
     public TaskRow continueCancellation(String taskId) { return settleCancelledLease(cancellations.continueCancellation(taskId)); }
     private TaskRow settleCancelledLease(TaskRow task) {
-        if (TaskState.CANCELLED.name().equals(task.state())) {
-            settleTerminalInPlaceLease(task, true, "TASK_CANCELLED");
-            rollingPackages.cancelRuns(task);
-        }
+        if (!TaskState.CANCELLED.name().equals(task.state())) return get(task.id());
+        settleTerminalInPlaceLease(task, true, "TASK_CANCELLED");
+        rollingPackages.cancelRuns(task);
         return get(task.id());
     }
     public void recoverAfterRestart() {

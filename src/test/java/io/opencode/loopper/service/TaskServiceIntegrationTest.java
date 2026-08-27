@@ -19,7 +19,9 @@ import io.opencode.loopper.persistence.LoopDraftRow;
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.ProjectRow;
 import io.opencode.loopper.persistence.SessionUsageRow;
+import io.opencode.loopper.persistence.StageRow;
 import io.opencode.loopper.persistence.TaskArtifactRow;
+import io.opencode.loopper.persistence.TaskExecutionCycleRow;
 import io.opencode.loopper.persistence.TaskRow;
 import io.opencode.loopper.persistence.WorkspaceLeaseRow;
 import io.opencode.loopper.runtime.FakeOpenCodeClient;
@@ -1623,6 +1625,39 @@ class TaskServiceIntegrationTest {
         assertThat(tasks.get(task.id()).state()).isEqualTo("AWAITING_DECISION");
         assertThat(tasks.attempts(task.id())).hasSize(attemptsAfterSuccess);
         assertThat(tasks.errors(task.id())).hasSize(errorsAfterSuccess);
+    }
+
+    @Test
+    void awaitingDecisionCancellationUsesTheDedicatedStopProtocolAndPreservesTheCycleResult() throws Exception {
+        ProjectRow project = projects.create("decision-cancel", gitProject());
+        TaskRow task = drafts.confirm(drafts.create(spec(project.id())).id(), "cancel frozen result");
+        tasks.start(task.id());
+        tasks.verify(task.id());
+        tasks.pollJudges(task.id());
+        TaskExecutionCycleRow completedCycle = tasks.latestExecutionCycle(task.id());
+        List<String> completedStages = tasks.stages(task.id()).stream().map(StageRow::state).toList();
+
+        assertThat(tasks.get(task.id()).state()).isEqualTo("AWAITING_DECISION");
+        assertThatThrownBy(() -> tasks.cancel(task.id()))
+                .isInstanceOfSatisfying(ConflictException.class,
+                        failure -> assertThat(failure.code()).isEqualTo("TASK_DECISION_REQUIRED"));
+
+        TaskRow cancelled = tasks.cancelDecision(task.id());
+
+        assertThat(cancelled.state()).isEqualTo("CANCELLED");
+        assertThat(tasks.latestExecutionCycle(task.id()).state()).isEqualTo(completedCycle.state());
+        assertThat(tasks.stages(task.id())).extracting(StageRow::state).containsExactlyElementsOf(completedStages);
+        assertThat(mapper.listStateTransitionsForScope("TASK", task.id(), 0, 100))
+                .anySatisfy(event -> {
+                    assertThat(event.fromState()).isEqualTo("AWAITING_DECISION");
+                    assertThat(event.event()).isEqualTo("CANCEL");
+                    assertThat(event.toState()).isEqualTo("STOPPING");
+                })
+                .anySatisfy(event -> {
+                    assertThat(event.fromState()).isEqualTo("STOPPING");
+                    assertThat(event.event()).isEqualTo("COMPLETE");
+                    assertThat(event.toState()).isEqualTo("CANCELLED");
+                });
     }
 
     @Test

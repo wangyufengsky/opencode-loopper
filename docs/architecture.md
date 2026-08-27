@@ -973,6 +973,13 @@ continuation reopens only the chosen/failed Stage and later Stages, creates fres
 Attempts/Sessions, resets limits for the new cycle, and reruns final verification
 and both Judges; historical evidence remains immutable.
 
+Result cancellation is a dedicated optimistic-lock disposition command, not the
+ordinary runtime-cancel endpoint. It still enters the shared durable `STOPPING`
+protocol so a stranded implementation/Judge Session or verifier cannot be hidden by
+a local terminal state. Once termination is confirmed, the Task becomes `CANCELLED`;
+the already-terminal Execution Cycle and its succeeded/failed Stage evidence remain
+immutable rather than being rewritten as an interrupted execution.
+
 The local UI publishes a successful waiting Task only after a human enters the four-digit work item
 and confirms the AI-suggested `#dddd_subject`. Generating that suggestion reads the immutable
 baseline-to-checkpoint-tree diff without restoring the checkout, acquiring a lease, or switching branches.
@@ -1016,7 +1023,8 @@ Execution-cycle result, user-confirmed Task finality, and delivery are separate
 state axes. V32 stores cycle results and immutable workspace checkpoints.
 `AWAITING_DECISION` is not terminal; durable local commit or confirmed push advances
 the Task to `COMPLETED`, an inherited/rework successor advances the parent to
-`SUPERSEDED`, and explicit cancellation advances it to `CANCELLED`. Historical
+`SUPERSEDED`, and explicit result cancellation advances it through `STOPPING` to
+`CANCELLED` without changing the terminal cycle result. Historical
 `SUCCEEDED`/`FAILED` rows remain readable legacy terminals and are never silently
 reopened. A successful `COMPLETED` Task keeps any still-applicable publication
 actions, including creating an MR/PR after push, until the independent delivery

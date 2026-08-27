@@ -94,7 +94,7 @@ public class TaskDecisionController {
         requireLocalUi(localUi);
         requireRequest(request);
         requireVersions(taskId, request.expectedTaskVersion(), request.expectedCycleVersion());
-        return dto(tasks.cancel(taskId));
+        return dto(tasks.cancelDecision(taskId));
     }
 
     private DecisionDto dto(TaskRow task) {

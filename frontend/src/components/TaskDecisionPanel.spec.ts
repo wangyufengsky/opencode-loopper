@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
-import ElementPlus, { ElMessageBox } from 'element-plus'
+import ElementPlus, { ElMessage, ElMessageBox } from 'element-plus'
 import TaskDecisionPanel from './TaskDecisionPanel.vue'
 import type { TaskDecision } from '@/types/domain'
 
@@ -82,5 +82,29 @@ describe('TaskDecisionPanel', () => {
 
     expect(wrapper.text()).toContain('请选择起始阶段并填写补充要求')
     expect(mocks.continueTaskDecision).not.toHaveBeenCalled()
+  })
+
+  it('submits the frozen result versions through the dedicated cancellation endpoint', async () => {
+    const info = vi.spyOn(ElMessage, 'info')
+    mocks.cancelTaskDecision.mockResolvedValue({
+      ...failedDecision,
+      taskState: 'STOPPING',
+      taskVersion: 8,
+      availableActions: [],
+    })
+    const wrapper = mount(TaskDecisionPanel, {
+      props: { taskId: 'task-1' }, global: { plugins: [ElementPlus] }, attachTo: document.body,
+    })
+    await flushPromises()
+
+    const cancelButton = wrapper.findAll('button').find((button) => button.text().includes('取消任务'))
+    await cancelButton!.trigger('click')
+    await flushPromises()
+
+    expect(mocks.cancelTaskDecision).toHaveBeenCalledWith('task-1', {
+      expectedTaskVersion: 7,
+      expectedCycleVersion: 3,
+    })
+    expect(info).toHaveBeenCalledWith('取消请求已保存，正在等待远端写入者停止确认')
   })
 })

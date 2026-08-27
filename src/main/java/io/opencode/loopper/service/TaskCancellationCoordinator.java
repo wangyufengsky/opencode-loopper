@@ -54,13 +54,27 @@ final class TaskCancellationCoordinator {
             writers.retryDisconnectedSessions(current);
             return continueCancellation(taskId);
         }
-        states.cancelRetrySchedule(taskId, RETRY_CANCELLED);
-        TaskQueueRow queue = mapper.findTaskQueue(taskId).orElse(null);
+        return requestCancellation(current);
+    }
+
+    TaskRow cancelDecision(String taskId) {
+        TaskRow current = task(taskId);
+        if (TaskState.CANCELLED.name().equals(current.state())) return current;
+        if (!TaskState.AWAITING_DECISION.name().equals(current.state())) {
+            throw new ConflictException("TASK_NOT_AWAITING_DECISION",
+                    "Task does not have an execution result awaiting disposition");
+        }
+        return requestCancellation(current);
+    }
+
+    private TaskRow requestCancellation(TaskRow current) {
+        states.cancelRetrySchedule(current.id(), RETRY_CANCELLED);
+        TaskQueueRow queue = mapper.findTaskQueue(current.id()).orElse(null);
         if (queue != null && TaskQueueState.QUEUED.name().equals(queue.state())) leases.cancelQueued(current.id());
         states.updateTask(states.taskState(current, TaskState.STOPPING), LifecycleEvent.CANCEL,
                 Map.of("remoteTerminationRequired", hasExternalWriter(current)));
-        events.emit(taskId, "task.cancellation_requested", Map.of("state", TaskState.STOPPING.name()));
-        return continueCancellation(taskId);
+        events.emit(current.id(), "task.cancellation_requested", Map.of("state", TaskState.STOPPING.name()));
+        return continueCancellation(current.id());
     }
 
     TaskRow continueCancellation(String taskId) {

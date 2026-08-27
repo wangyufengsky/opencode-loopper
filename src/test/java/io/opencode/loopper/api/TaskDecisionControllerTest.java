@@ -15,6 +15,7 @@ import tools.jackson.databind.ObjectMapper;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -65,6 +66,26 @@ class TaskDecisionControllerTest {
         assertThat(controller.audit(task.id(), "1", new TaskDecisionController.VersionRequest(2, 5)))
                 .isEqualTo(expected);
         verify(recovery).create(task.id(), RecoveryMode.VERIFY_ONLY);
+    }
+
+    @Test
+    void cancellationUsesTheDedicatedResultDispositionCommand() {
+        TaskRow task = task(6);
+        TaskExecutionCycleRow cycle = cycle("FAILED", 4);
+        TaskRow cancelled = new TaskRow(task.id(), task.projectId(), task.loopDraftId(), task.title(), "CANCELLED",
+                task.worktreePath(), task.branchName(), task.sourceBranch(), task.baselineCommit(),
+                task.createdAt(), "later", 8);
+        when(tasks.get(task.id())).thenReturn(task);
+        when(tasks.latestExecutionCycle(task.id())).thenReturn(cycle);
+        when(tasks.cancelDecision(task.id())).thenReturn(cancelled);
+        when(tasks.stages(task.id())).thenReturn(List.of(stage()));
+
+        TaskDecisionController.DecisionDto result = controller.cancel(task.id(), "1",
+                new TaskDecisionController.VersionRequest(6, 4));
+
+        assertThat(result.taskState()).isEqualTo("CANCELLED");
+        verify(tasks).cancelDecision(task.id());
+        verify(tasks, never()).cancel(task.id());
     }
 
     private TaskRow task(long version) {
