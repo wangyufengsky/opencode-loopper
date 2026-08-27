@@ -1081,6 +1081,11 @@ export interface DesignerAcceptancePlanningStatus {
   bothCount: number
   judgeCount: number
   unresolvedCount: number
+  mutationObligationCount: number
+  resolvedMutationObligationCount: number
+  unresolvedMutationObligationCount: number
+  pathConservation: 'NOT_EVALUATED' | 'CONSERVED' | 'BLOCKED'
+  mutationBindingReasons: string[]
   scenarios: Array<{
     title: string
     coverage: 'AUTOMATED' | 'BOTH' | 'JUDGE' | 'UNRESOLVED'

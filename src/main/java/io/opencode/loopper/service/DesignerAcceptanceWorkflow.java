@@ -141,6 +141,17 @@ final class DesignerAcceptanceWorkflow {
                 compilerRequired);
     }
 
+    RoutingResult routeCurrent(String compilationId, boolean directSoftwareMode, String rolePackVersion) {
+        return route(compilationId, !directSoftwareMode && !RolePackRegistry.VERSION.equals(rolePackVersion));
+    }
+
+    DesignGap targetedMutationGap(List<DesignGap> gaps) {
+        return gaps.stream().filter(gap -> gap != null
+                        && (gap.code() == DesignGapCode.REQUIRED_MUTATION_PATH_UNASSIGNED
+                        || gap.code() == DesignGapCode.REQUIRED_MUTATION_PATH_FORBIDDEN))
+                .findFirst().orElse(null);
+    }
+
     String prompt(String compilationId, String workPackageId, int stageLimit, String priorError) {
         DesignAcceptancePlanningRow row = find(compilationId).orElseThrow(() ->
                 new ConflictException("DESIGN_ACCEPTANCE_PLANNING_MISSING", "验收意图快照缺失"));
@@ -354,14 +365,17 @@ final class DesignerAcceptanceWorkflow {
             issues.addAll(facts.mutationIssues());
             issues.addAll(capabilities.issues());
             if (!blank(row.errorCode())) issues.add(row.errorCode());
+            MutationStatus mutation = mutationStatus(row);
             return new AcceptancePlanningStatus(row.state(), row.bindingSource(), routingReasons(row),
                     facts.facts().size(), scenarios.size(),
                     count(scenarios, "AUTOMATED"), count(scenarios, "BOTH"), count(scenarios, "JUDGE"),
-                    count(scenarios, "UNRESOLVED"), scenarios, List.copyOf(issues));
+                    count(scenarios, "UNRESOLVED"), scenarios, List.copyOf(issues),
+                    mutation.obligationCount(), mutation.resolvedCount(), mutation.unresolvedCount(),
+                    mutation.pathConservation(), mutation.reasons());
         } catch (RuntimeException invalid) {
             return new AcceptancePlanningStatus("FAILED", AcceptanceBindingSource.LEGACY_UNKNOWN.name(), List.of(),
                     0, 0, 0, 0, 0, 0, List.of(),
-                    List.of("验收意图快照不可读"));
+                    List.of("验收意图快照不可读"), 0, 0, 0, "NOT_EVALUATED", List.of());
         }
     }
 
@@ -442,8 +456,50 @@ final class DesignerAcceptanceWorkflow {
             values.put("resolvedMutationObligationCount", mutationConservation.resolvedCount());
             values.put("unresolvedMutationObligationCount", mutationConservation.unresolvedCount());
             values.put("pathConservation", mutationConservation.pathConservation());
+            List<String> mutationReasons = new ArrayList<>();
+            mutationConservation.bindings().stream().map(DesignerAcceptanceWorkflow::bindingReason)
+                    .forEach(mutationReasons::add);
+            mutationConservation.unresolved().stream().map(item -> item.pathRule() + "：" + item.reason())
+                    .forEach(mutationReasons::add);
+            values.put("mutationBindingReasons", List.copyOf(mutationReasons));
         }
         return write(values);
+    }
+
+    private MutationStatus mutationStatus(DesignAcceptancePlanningRow row) {
+        if (blank(row.diagnosticsJson())) return MutationStatus.empty();
+        try {
+            tools.jackson.databind.JsonNode root = json.readTree(row.diagnosticsJson());
+            List<String> reasons = new ArrayList<>();
+            tools.jackson.databind.JsonNode reasonNode = root.get("mutationBindingReasons");
+            if (reasonNode != null && reasonNode.isArray()) reasonNode.forEach(item -> reasons.add(item.asText()));
+            return new MutationStatus(integer(root, "mutationObligationCount"),
+                    integer(root, "resolvedMutationObligationCount"),
+                    integer(root, "unresolvedMutationObligationCount"),
+                    text(root, "pathConservation", "NOT_EVALUATED"), List.copyOf(reasons));
+        } catch (JacksonException invalid) {
+            return MutationStatus.empty();
+        }
+    }
+
+    private static int integer(tools.jackson.databind.JsonNode root, String field) {
+        tools.jackson.databind.JsonNode value = root == null ? null : root.get(field);
+        return value != null && value.isIntegralNumber() ? Math.max(0, value.asInt()) : 0;
+    }
+
+    private static String text(tools.jackson.databind.JsonNode root, String field, String fallback) {
+        tools.jackson.databind.JsonNode value = root == null ? null : root.get(field);
+        return value != null && value.isTextual() && !value.asText().isBlank() ? value.asText() : fallback;
+    }
+
+    private static String bindingReason(MutationConservationPolicy.Binding binding) {
+        String source = switch (binding.source()) {
+            case EXACT_FACT_REFERENCE -> "精确设计事实引用";
+            case UNIQUE_PATH_COVERAGE -> "唯一阶段路径覆盖";
+            case SINGLE_STAGE -> "单阶段精确路径补齐";
+        };
+        return binding.pathRule() + "：" + source + "，归属阶段："
+                + String.join("、", binding.stageNames());
     }
 
     private List<String> routingReasons(DesignAcceptancePlanningRow row) {
@@ -493,4 +549,11 @@ final class DesignerAcceptanceWorkflow {
 
     record BoundResult(PackageCompilationPlanEnvelope plan,
                        AiOutputExtractor.ExtractionResult<PackageCompilationPlanEnvelope> normalized) { }
+
+    private record MutationStatus(int obligationCount, int resolvedCount, int unresolvedCount,
+                                  String pathConservation, List<String> reasons) {
+        static MutationStatus empty() {
+            return new MutationStatus(0, 0, 0, "NOT_EVALUATED", List.of());
+        }
+    }
 }

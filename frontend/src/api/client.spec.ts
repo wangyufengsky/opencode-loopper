@@ -781,6 +781,13 @@ describe('Loopper REST contract adapter', () => {
         questionInteraction: { mode: 'CHAT_FALLBACK', awaitingAnswer: true },
         pendingQuestions: [{ id: 'question-1', questions: [{ question: 'Which scope?', header: 'Scope', options: [{ label: 'New chain', description: 'Add it' }], multiple: false, custom: false }] }],
         answeredQuestions: [{ id: 'question-0', scope: 'REQUIREMENT', discussionRevision: 1, designMessageId: 'design-1', answeredAt: 'earlier', questions: [{ question: 'Keep scope?', header: 'Scope', options: [{ label: 'Keep', description: 'No expansion' }], multiple: false, custom: false, answers: ['Keep'] }] }],
+        workPackages: [{ id: 'WP-1', ordinal: 1, title: '实现', objective: '实现路径守恒', state: 'COMPILING', dependencies: [], acceptancePlanning: {
+          state: 'BOUND', bindingSource: 'SERVER_STAGE_HINTS', routingReasons: [], factCount: 3,
+          scenarioCount: 1, automatedCount: 1, bothCount: 0, judgeCount: 0, unresolvedCount: 0,
+          mutationObligationCount: 2, resolvedMutationObligationCount: 1, unresolvedMutationObligationCount: 1,
+          pathConservation: 'BLOCKED', mutationBindingReasons: ['src/main/java/Foo.java：候选阶段：实现；测试'],
+          scenarios: [], issues: [],
+        } }],
       }))
       .mockResolvedValueOnce(json({
         sessionId: 'designer-1', state: 'SESSION_ERROR', notice: 'retry with a fresh session',
@@ -794,6 +801,10 @@ describe('Loopper REST contract adapter', () => {
       state: 'RUNNING', updatedAt: 'now', pendingQuestions: [{ id: 'question-1', questions: [{ custom: false }] }],
       questionInteraction: { mode: 'CHAT_FALLBACK', awaitingAnswer: true },
       answeredQuestions: [{ id: 'question-0', designMessageId: 'design-1', questions: [{ answers: ['Keep'], options: [{ label: 'Keep', description: 'No expansion' }] }] }],
+      workPackages: [{ acceptancePlanning: {
+        mutationObligationCount: 2, resolvedMutationObligationCount: 1, unresolvedMutationObligationCount: 1,
+        pathConservation: 'BLOCKED', mutationBindingReasons: ['src/main/java/Foo.java：候选阶段：实现；测试'],
+      } }],
     })
     await expect(api.sendDesignerMessage('designer-1', 'continue')).resolves.toMatchObject({
       state: 'SESSION_ERROR', persistedMessages: [{ deliveryState: 'SESSION_ERROR' }],

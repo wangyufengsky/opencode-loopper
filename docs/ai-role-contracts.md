@@ -13,8 +13,9 @@ ID、状态、引用反向映射、精确来源摘录、测试目标、验证器
 只要唯一可解析、可规范化并通过业务与安全合同，就直接接受，不因包装或冗余字段
 消耗修复预算。
 
-Decomposer 新会话只需一次机器规划调用；Compiler 只在服务端无法唯一绑定或大型任务
-需要交接摘要时创建，并且每个候选至多调用一次。规划通过后由服务端直接
+Decomposer 新会话只需一次机器规划调用；当前 v7 Compiler 只在服务端无法唯一绑定闭集事实或能力时创建，
+普通包、大型任务包和滚动执行当前包均不因包形态或交接摘要强制调用；冻结 v6 大型包保留历史一次调用兼容。
+每个候选至多调用一次。规划通过后由服务端直接
 生成最终 `Decomposition` 或 `CompiledPackage`，不再要求模型进行第二次逐字段抄写。
 旧 final Schema 和字段仅用于历史读取与缺少规划快照的旧活动记录兼容。
 
@@ -161,12 +162,16 @@ capabilityPreferences / handoffSummary`，只填写服务端列出的 unresolved
 强度和减少能力数量，AI 偏好只作为稳定排序参考。结果仍须经过现有
 `DesignerPackagePlanCompiler` 和 LoopSpec v2 全量校验。
 
-Stage 组装完成后、lowering 前必须执行路径守恒：每个 `WRITE/MOVE_DESTINATION` 都要由该 Stage 自己引用
-的受控交付/范围事实形成的路径合同覆盖，且不能同时命中禁止路径；包级范围、全局事实和技术栈 fallback
-不能证明归属。Stage、focused test 和显式 `GIT_DIFF` 必须复用同一
+Stage 组装完成后，服务端只接受三种路径归属证明：Stage 精确引用产生义务的受控交付/范围事实；恰好一个
+Stage 的既有精确路径规则按运行期语义覆盖义务；或计划恰好一个 Stage 时把精确 `WRITE/MOVE_DESTINATION`
+路径补入该 Stage。多个 Stage 均可覆盖时保留为定点阻断并显示候选 Stage 中文名，不交给 Compiler 选择。
+随后在 lowering 前执行路径守恒：义务不能命中禁止路径，包级范围、全局事实和技术栈 fallback 不能单独证明归属。
+Stage、focused test 和显式 `GIT_DIFF` 必须复用同一
 allowed/forbidden 集合。遗漏返回 `REQUIRED_MUTATION_PATH_UNASSIGNED`，冲突、删除和移动源端返回
 `REQUIRED_MUTATION_PATH_FORBIDDEN`。该门禁完全由服务端和运行期同一匹配语义决定，不交给弱模型、
-Judge 或 catch-all Stage 降级；现有 `PACKAGE_ACCEPTANCE_DISAMBIGUATION_V6` 输出形状保持不变。
+Judge 或 catch-all Stage 降级；路径义务不进入模型输入输出，现有 `PACKAGE_ACCEPTANCE_DISAMBIGUATION_V6` 输出形状保持不变。
+当前 v7 普通包、大型任务包和滚动执行当前包在服务端绑定完整时都走 `SERVER_DIRECT`，不因包形态强制创建
+Compiler Session。路径归属缺口直接进入有界人工输入门，不消耗整份工作包的自动重设计次数。
 
 测试能力只从“新增/修改/测试代码”等正向交付物、正向验收约束和阶段交付关系中发现；“不变、禁止、
 不修改、不引入、无 `@SpringBootTest`/无框架上下文”等负向子句只保留为约束，不能生成 focused-test

@@ -113,6 +113,11 @@ ownership rules:
   exact-path/path-rule typing. Clause/list scope, external-path rejection, source excerpts, and hashes must remain deterministic.
   `DesignerAcceptanceStagePathPlanner` owns executable Stage path selection and path provenance; package scope,
   global fact and technology fallbacks may shape execution but cannot prove a Stage owns a frozen obligation.
+  `DesignerMutationStageBinder` alone owns v7 deterministic obligation-to-Stage binding: exact controlled fact
+  reference, one uniquely covering existing Stage rule, or an exact path added to the only Stage. It must keep
+  real multi-Stage candidates blocked and must not expose mutation choices to the model.
+  `DesignerAcceptanceCapabilitySolver` owns exact branch-and-bound capability cover, bounded greedy fallback,
+  and AI preference tie ordering; `DesignerAcceptancePlanCompiler` only orchestrates Stage assembly and lowering.
   `MutationConservationPolicy` runs before lowering and may only use bounded rule-containment/overlap relations
   shared with `VerifierPathPolicy`; unproved containment, forbidden overlap, delete, or move-source must fail closed.
 - `LoopSpecAcceptanceService` owns the final cross-source acceptance contract. A focused Maven/Gradle

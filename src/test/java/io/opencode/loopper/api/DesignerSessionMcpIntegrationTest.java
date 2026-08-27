@@ -3051,6 +3051,7 @@ class DesignerSessionMcpIntegrationTest {
                     "mutationObligations", "sourceSha256");
             assertThat(planning.diagnosticsJson()).contains(
                     "EXACT_BRANCH_AND_BOUND",
+                    "MUTATION_PATH_EXACT_FACT_REFERENCE_BOUND",
                     "\"mutationObligationCount\":2",
                     "\"resolvedMutationObligationCount\":2",
                     "\"unresolvedMutationObligationCount\":0",
@@ -3063,6 +3064,13 @@ class DesignerSessionMcpIntegrationTest {
             assertThat(workPackage.acceptancePlanning().scenarioCount()).isEqualTo(1);
             assertThat(workPackage.acceptancePlanning().automatedCount()).isEqualTo(1);
             assertThat(workPackage.acceptancePlanning().unresolvedCount()).isZero();
+            assertThat(workPackage.acceptancePlanning().mutationObligationCount()).isEqualTo(2);
+            assertThat(workPackage.acceptancePlanning().resolvedMutationObligationCount()).isEqualTo(2);
+            assertThat(workPackage.acceptancePlanning().unresolvedMutationObligationCount()).isZero();
+            assertThat(workPackage.acceptancePlanning().pathConservation()).isEqualTo("CONSERVED");
+            assertThat(workPackage.acceptancePlanning().mutationBindingReasons())
+                    .hasSize(2)
+                    .allSatisfy(reason -> assertThat(reason).contains("精确设计事实引用", "PIN 转换"));
         });
         assertThat(drafts.spec(drafts.get(draft.id())).stages()).singleElement().satisfies(stage -> {
             assertThat(stage.acceptanceCriteria()).singleElement()
@@ -3080,11 +3088,13 @@ class DesignerSessionMcpIntegrationTest {
                 .andExpect(jsonPath("$.workPackages[0].acceptancePlanning.state").value("COMPILED"))
                 .andExpect(jsonPath("$.workPackages[0].acceptancePlanning.bindingSource").value("SERVER_STAGE_HINTS"))
                 .andExpect(jsonPath("$.workPackages[0].acceptancePlanning.scenarioCount").value(1))
-                .andExpect(jsonPath("$.workPackages[0].acceptancePlanning.unresolvedCount").value(0));
+                .andExpect(jsonPath("$.workPackages[0].acceptancePlanning.unresolvedCount").value(0))
+                .andExpect(jsonPath("$.workPackages[0].acceptancePlanning.mutationObligationCount").value(2))
+                .andExpect(jsonPath("$.workPackages[0].acceptancePlanning.pathConservation").value("CONSERVED"));
     }
 
     @Test
-    void v7ServerCompilationBlocksWhenFrozenRequirementMutationIsMissingFromEveryStage() throws Exception {
+    void v7ServerCompilationAutoBindsAFrozenExactRequirementMutationToItsOnlyStage() throws Exception {
         ProjectRow project = project("controlled-acceptance-v7-missing-mutation");
         LoopDraftRow draft = drafts.create(legacySpec(project.id()));
         String design = """
@@ -3122,24 +3132,149 @@ class DesignerSessionMcpIntegrationTest {
         designerSessions.confirmRequirement(reviewing.id(), reviewing.discussionRevision());
         pollUntilSettled(reviewing.id());
 
-        assertThat(designerSessions.get(reviewing.id()).state()).isEqualTo("WAITING_INPUT");
+        assertThat(designerSessions.get(reviewing.id()).workflowPhase()).isEqualTo("FINAL_REVIEW");
         var compilation = mapper.findLatestLoopSpecCompilationForPackage(reviewing.id(), "WP-1").orElseThrow();
-        assertThat(compilation.state()).isEqualTo("DESIGN_INCOMPLETE");
+        assertThat(compilation.state()).isEqualTo("COMPLETED");
         assertThat(compilation.externalSessionId()).isNull();
         assertThat(compilation.serverCompiled()).isTrue();
-        assertThat(compilation.lastErrorDetail()).contains("config/external-adapter.yml");
         assertThat(mapper.findDesignAcceptancePlanning(compilation.id())).hasValueSatisfying(planning -> {
-            assertThat(planning.state()).isEqualTo("BOUND");
+            assertThat(planning.state()).isEqualTo("COMPILED");
             assertThat(planning.contractVersion()).isEqualTo("DESIGN_ACCEPTANCE_V7");
             assertThat(planning.factsJson()).contains(
                     "config/external-adapter.yml", "REQUIREMENT:L", "sourceSha256");
             assertThat(planning.diagnosticsJson()).contains(
                     "\"mutationObligationCount\":3",
-                    "\"resolvedMutationObligationCount\":2",
-                    "\"unresolvedMutationObligationCount\":1",
-                    "\"pathConservation\":\"BLOCKED\"");
+                    "\"resolvedMutationObligationCount\":3",
+                    "\"unresolvedMutationObligationCount\":0",
+                    "\"pathConservation\":\"CONSERVED\"",
+                    "MUTATION_PATH_SINGLE_STAGE_BOUND");
+        });
+        assertThat(designerSessions.workPackageStatuses(reviewing.id())).singleElement()
+                .satisfies(workPackage -> {
+                    assertThat(workPackage.acceptancePlanning().mutationObligationCount()).isEqualTo(3);
+                    assertThat(workPackage.acceptancePlanning().resolvedMutationObligationCount()).isEqualTo(3);
+                    assertThat(workPackage.acceptancePlanning().unresolvedMutationObligationCount()).isZero();
+                    assertThat(workPackage.acceptancePlanning().pathConservation()).isEqualTo("CONSERVED");
+                });
+        assertThat(drafts.spec(drafts.get(draft.id())).stages()).singleElement().satisfies(stage -> {
+            assertThat(stage.allowedPaths()).contains("config/external-adapter.yml");
+            assertThat(stage.verifiers()).allSatisfy(verifier ->
+                    assertThat(verifier.allowedPaths()).containsExactlyElementsOf(stage.allowedPaths()));
         });
         assertThat(mapper.listTasks()).isEmpty();
+    }
+
+    @Test
+    void v7AmbiguousMutationStagesWaitForTargetedInputWithoutCompilerOrWholeDesignRetry() throws Exception {
+        fake().setTaskRouterOutput("{\"intent\":\"SOFTWARE_CHANGE\",\"artifactKinds\":[\"SOURCE_CODE\"],"
+                + "\"complexity\":\"SIMPLE\"}");
+        ProjectRow project = project("controlled-acceptance-v7-ambiguous-mutation");
+        Files.writeString(Path.of(project.rootPath()).resolve("pom.xml"), "<project/>\n");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        String design = """
+                ## 目标与范围
+                实现配置适配和回退行为。
+
+                ## 影响与交付
+                | 类型 | 相对路径或符号 | 说明 |
+                | --- | --- | --- |
+                | 修改 | config/*.yml | 适配配置 |
+                | 生产代码 | src/main/java/example/AdapterService.java | 适配实现 |
+                | 测试代码 | src/test/java/example/AdapterServiceTest.java | 适配测试 |
+
+                ## 验收场景
+                | 场景 | 前置/触发 | 操作 | 可观察结果 | 保持不变 |
+                | --- | --- | --- | --- | --- |
+                | 适配配置生效 | 已配置 adapter | 调用适配服务 | 返回适配结果 | 不写外部系统 |
+                | 回退配置生效 | 适配器失败 | 调用回退服务 | 返回回退结果 | 原始错误保留 |
+
+                ## 验收约束
+                AdapterServiceTest 必须独立通过。
+
+                ## 阶段与依赖
+                | 阶段 | 目标 | 包含场景/评审/交付 | 前置阶段 |
+                | --- | --- | --- | --- |
+                | 适配阶段 | 实现配置适配 | 适配配置生效；config/*.yml；src/main/java/example/AdapterService.java；src/test/java/example/AdapterServiceTest.java | 无 |
+                | 回退阶段 | 实现配置回退 | 回退配置生效；config/*.yml | 适配阶段 |
+                """;
+        fake().setDesignerOutput(designerOutput(design, legacySpec(project.id())));
+        setPackageDesignerOutput("WP-1", design);
+        DesignerSessionRow reviewing = prepareReviewingSession(project.id(), draft.id(),
+                "修改 Java 配置适配并新增 `config/external-adapter.yml`");
+        TaskProfileService.View profile = taskProfiles.current(reviewing.id());
+        if (!profile.confirmationReady()) {
+            taskProfiles.confirmRecommendation(reviewing.id(), profile.version());
+        }
+
+        designerSessions.confirmRequirement(reviewing.id(), reviewing.discussionRevision());
+        pollUntilSettled(reviewing.id());
+
+        assertThat(designerSessions.get(reviewing.id()).state())
+                .as("session=%s packages=%s compiler=%s messages=%s",
+                        designerSessions.get(reviewing.id()), designerSessions.workPackageStatuses(reviewing.id()),
+                        designerSessions.compilerStatus(reviewing.id()), designerSessions.messages(reviewing.id()))
+                .isEqualTo("WAITING_INPUT");
+        assertThat(designerSessions.workPackageStatuses(reviewing.id())).singleElement().satisfies(workPackage -> {
+            assertThat(workPackage.lastErrorCode()).isEqualTo("DESIGN_INCOMPLETE");
+            assertThat(workPackage.redesignCount()).isZero();
+            assertThat(workPackage.acceptancePlanning().mutationBindingReasons())
+                    .filteredOn(reason -> reason.contains("config/external-adapter.yml"))
+                    .singleElement()
+                    .satisfies(reason -> assertThat(reason)
+                            .contains("config/external-adapter.yml", "适配阶段", "回退阶段")
+                            .doesNotContain("实现配置适配", "实现配置回退"));
+        });
+        var compilation = mapper.findLatestLoopSpecCompilationForPackage(reviewing.id(), "WP-1").orElseThrow();
+        assertThat(compilation.externalSessionId()).isNull();
+        assertThat(compilation.lastErrorDetail()).contains("REQUIRED_MUTATION_PATH_UNASSIGNED");
+        assertThat(fake().promptHistory()).noneMatch(call -> call.prompt().contains("factAssignments"));
+        assertThat(mapper.listTasks()).isEmpty();
+    }
+
+    @Test
+    void rollingV7PackageWithResolvedAcceptanceCompilesOnTheServerWithoutCompilerSession() throws Exception {
+        properties.setRollingPackagesEnabled(true);
+        fake().setTaskRouterOutput("{\"intent\":\"SOFTWARE_CHANGE\",\"artifactKinds\":[\"SOURCE_CODE\"],"
+                + "\"complexity\":\"PACKAGED\"}");
+        ProjectRow project = project("rolling-v7-server-direct");
+        Files.writeString(Path.of(project.rootPath()).resolve("README.md"), "event baseline\n");
+        Files.createDirectories(Path.of(project.rootPath()).resolve("tests"));
+        Files.writeString(Path.of(project.rootPath()).resolve("tests/__init__.py"), "");
+        Files.writeString(Path.of(project.rootPath()).resolve("tests/test_acceptance.py"), """
+                import unittest
+
+                class AcceptanceTest(unittest.TestCase):
+                    def test_event(self):
+                        self.assertTrue(True)
+                """);
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        fake().setDecomposerOutput(decomposition("DECOMPOSED", "两包交付", 2));
+        setPackageDesignerOutput("WP-1", rollingControlledDesign("# WP-1\n\n形成第一包事实。"));
+        setPackageDesignerOutput("WP-2", rollingControlledDesign("# WP-2\n\n基于第一包事实收口。"));
+        DesignerSessionRow reviewing = prepareLargeReviewingSession(project.id(), draft.id(),
+                "大型 Python 任务：分两包交付并分别用 unittest 验收");
+
+        designerSessions.confirmRequirement(reviewing.id(), reviewing.discussionRevision());
+        pollUntilPackageReview(reviewing.id());
+
+        var compilation = mapper.findLatestLoopSpecCompilationForPackage(reviewing.id(), "WP-1").orElseThrow();
+        var workPackage = mapper.findLatestDesignWorkPackage(reviewing.id(), "WP-1").orElseThrow();
+        var roleSnapshot = mapper.findWorkPackageRoleProfile(workPackage.id()).orElseThrow();
+        assertThat(roleSnapshot.rolePackVersion()).isEqualTo("2026-08-dynamic-v7");
+        var planningSnapshot = mapper.findDesignAcceptancePlanning(compilation.id())
+                .orElseThrow(() -> new AssertionError("planning missing: compilation=" + compilation
+                        + " role=" + roleSnapshot));
+        assertThat(compilation.externalSessionId())
+                .as("compilation=%s planning=%s role=%s", compilation, planningSnapshot,
+                        roleSnapshot)
+                .isNull();
+        assertThat(compilation.serverCompiled()).isTrue();
+        assertThat(mapper.findDesignAcceptancePlanning(compilation.id())).hasValueSatisfying(planning -> {
+            assertThat(planning.contractVersion()).isEqualTo("DESIGN_ACCEPTANCE_V7");
+            assertThat(planning.bindingSource()).isEqualTo("SERVER_STAGE_HINTS");
+            assertThat(planning.diagnosticsJson()).contains("\"pathConservation\":\"CONSERVED\"");
+        });
+        assertThat(fake().promptHistory()).noneMatch(call -> call.prompt().contains("factAssignments"));
     }
 
     @Test
@@ -3311,7 +3446,7 @@ class DesignerSessionMcpIntegrationTest {
     }
 
     @Test
-    void largeV6PackagesStillUseOneCompilerPassWithoutChangingFrozenStageTopology() throws Exception {
+    void largeV7PackagesCompileServerDirectWithoutChangingFrozenStageTopology() throws Exception {
         fake().setStructuredCapability(new OpenCodeClient.StructuredOutputCapability(
                 OpenCodeClient.CapabilityState.AVAILABLE, OpenCodeClient.CapabilityState.AVAILABLE, null));
         ProjectRow project = project("large-v6-locked-topology");
@@ -3322,7 +3457,7 @@ class DesignerSessionMcpIntegrationTest {
                 "开发两个依赖有序的 Java 工作包，每个工作包都必须用 Maven 聚焦单元测试验证可观察行为。",
                 initial));
         fake().setDecomposerOutput(decomposition("DECOMPOSED", "两包 Java 能力", 2));
-        String firstDesign = stageControlledDesign("# WP-1 Java 设计", 2);
+        String firstDesign = stageControlledDesign("# WP-1 Java 设计", 1);
         String secondDesign = stageControlledDesign("# WP-2 Java 设计", 1);
         setPackageDesignerOutput("WP-1", firstDesign);
         setPackageDesignerOutput("WP-2", secondDesign);
@@ -3352,21 +3487,73 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(List.of(firstCompilation, secondCompilation)).allSatisfy(compilation -> {
             assertThat(compilation.planningResponseSchemaId())
                     .isEqualTo("PACKAGE_ACCEPTANCE_DISAMBIGUATION_V6");
-            assertThat(fake().profileForSession(compilation.externalSessionId()))
-                    .isEqualTo(OpenCodeClient.SessionProfile.COMPILER_BINDING_NO_TOOLS);
+            assertThat(compilation.externalSessionId()).isNull();
+            assertThat(compilation.serverCompiled()).isTrue();
             assertThat(mapper.findDesignAcceptancePlanning(compilation.id())).hasValueSatisfying(planning -> {
-                assertThat(planning.bindingSource()).isEqualTo("AI_DISAMBIGUATION_V6");
+                assertThat(planning.contractVersion()).isEqualTo("DESIGN_ACCEPTANCE_V7");
+                assertThat(planning.bindingSource()).isEqualTo("SERVER_STAGE_HINTS");
                 assertThat(planning.bindingJson()).contains("阶段 1").doesNotContain("factAssignments");
             });
         });
         assertThat(fake().promptHistory().stream()
-                .filter(call -> call.prompt().contains("factAssignments"))).hasSize(2);
+                .filter(call -> call.prompt().contains("factAssignments"))).isEmpty();
         assertThat(drafts.spec(drafts.get(draft.id())).stages())
                 .extracting(LoopSpec.StageSpec::objective)
-                .containsExactly("完成能力 1", "完成能力 2", "完成能力 1");
+                .containsExactly("完成能力 1", "完成能力 1");
         assertThat(drafts.spec(drafts.get(draft.id())).stages())
                 .extracting(LoopSpec.StageSpec::workPackageId)
-                .containsExactly("WP-1", "WP-1", "WP-2");
+                .containsExactly("WP-1", "WP-2");
+    }
+
+    @Test
+    void frozenV6LargePackagesKeepTheirSingleCompilerCompatibilityPass() throws Exception {
+        ProjectRow project = project("large-frozen-v6-compiler-compatibility");
+        Files.writeString(Path.of(project.rootPath()).resolve("pom.xml"), "<project/>\n");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        fake().setDesignerOutput(designerOutput(
+                "开发两个依赖有序的 Java 工作包，每包使用 Maven 聚焦测试。", legacySpec(project.id())));
+        fake().setDecomposerOutput(decomposition("DECOMPOSED", "两包 Java 能力", 2));
+        setPackageDesignerOutput("WP-1", stageControlledDesign("# WP-1 Java 设计", 1));
+        setPackageDesignerOutput("WP-2", stageControlledDesign("# WP-2 Java 设计", 1));
+        String emptyDisambiguation = """
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->
+                {"summary":"冻结 v6 兼容","factAssignments":[],"capabilityPreferences":[],
+                 "handoffSummary":"按冻结阶段交接"}
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->
+                """;
+        fake().setPackageCompilerPlanningOutput("WP-1", emptyDisambiguation);
+        fake().setPackageCompilerPlanningOutput("WP-2", emptyDisambiguation);
+
+        DesignerSessionRow reviewing = prepareLargeReviewingSession(project.id(), draft.id(),
+                "大型 Java 任务：分两包实现并使用 Maven 聚焦测试验收");
+        designerSessions.confirmRequirement(reviewing.id(), reviewing.discussionRevision());
+        designerSessions.pollActiveHandoffs();
+        List<DesignWorkPackageRow> packages = mapper.listDesignWorkPackages(
+                mapper.findCurrentDesignRequirementRevision(reviewing.id()).orElseThrow().id());
+        assertThat(packages).hasSize(2);
+        packages.forEach(workPackage -> {
+            WorkPackageRoleProfileRow assigned = mapper.findWorkPackageRoleProfile(workPackage.id()).orElseThrow();
+            assertThat(mapper.assignWorkPackageRoleProfile(new WorkPackageRoleProfileRow(
+                    assigned.id(), assigned.designerSessionId(), assigned.packageId(), assigned.taskProfileId(),
+                    assigned.rolePackId(), "2026-08-dynamic-v6", assigned.executionStrategy(),
+                    assigned.testPolicy(), assigned.technologiesJson()))).isEqualTo(1);
+        });
+        pollUntilSettled(reviewing.id());
+
+        assertThat(List.of(
+                mapper.findLatestLoopSpecCompilationForPackage(reviewing.id(), "WP-1").orElseThrow(),
+                mapper.findLatestLoopSpecCompilationForPackage(reviewing.id(), "WP-2").orElseThrow()))
+                .allSatisfy(compilation -> {
+                    assertThat(compilation.externalSessionId()).isNotBlank();
+                    assertThat(fake().profileForSession(compilation.externalSessionId()))
+                            .isEqualTo(OpenCodeClient.SessionProfile.COMPILER_BINDING_NO_TOOLS);
+                    assertThat(mapper.findDesignAcceptancePlanning(compilation.id())).hasValueSatisfying(planning -> {
+                        assertThat(planning.contractVersion()).isEqualTo("DESIGN_ACCEPTANCE_V6");
+                        assertThat(planning.bindingSource()).isEqualTo("AI_DISAMBIGUATION_V6");
+                    });
+                });
+        assertThat(fake().promptHistory().stream()
+                .filter(call -> call.prompt().contains("factAssignments"))).hasSize(2);
     }
 
     @Test

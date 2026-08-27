@@ -1042,6 +1042,11 @@ describe('Designer draft composer', () => {
         acceptancePlanning: { state: 'EXTRACTED', bindingSource: 'AI_DISAMBIGUATION_V6',
           routingReasons: ['存在尚未归属阶段的验收事实'], factCount: 7, scenarioCount: 4, automatedCount: 3,
           bothCount: 0, judgeCount: 0, unresolvedCount: 1,
+          mutationObligationCount: 2, resolvedMutationObligationCount: 1,
+            unresolvedMutationObligationCount: 1, pathConservation: 'BLOCKED',
+            mutationBindingReasons: [
+              'config/external-adapter.yml 可由多个阶段承接，需要在阶段表中明确引用：适配配置、回退配置',
+            ],
           scenarios: [
             { title: 'pinBlock 路径缺失', coverage: 'AUTOMATED', capabilities: ['MAVEN · PinTransTest'] },
             { title: '特殊渠道类型', coverage: 'UNRESOLVED', capabilities: [] },
@@ -1063,6 +1068,9 @@ describe('Designer draft composer', () => {
     expect(card.text()).toContain('规范工程师辅助消歧')
     expect(card.text()).toContain('机器 3')
     expect(card.text()).toContain('待覆盖 1')
+    expect(card.text()).toContain('路径待归属 1')
+    expect(card.text()).toContain('config/external-adapter.yml')
+    expect(card.text()).toContain('适配配置、回退配置')
     expect(card.text()).toContain('pinBlock 路径缺失')
     expect(card.text()).toContain('MAVEN · PinTransTest')
     expect(card.text()).toContain('部分验收场景缺少可执行的验证能力')
@@ -1086,7 +1094,9 @@ describe('Designer draft composer', () => {
         compilerPlanningRepairCount: 0, designRevision: 1, discussionRoundCount: 0,
         acceptancePlanning: { state: 'EXTRACTED', bindingSource: 'SERVER_STAGE_HINTS', routingReasons: [],
           factCount: 2, scenarioCount: 1, automatedCount: 1, bothCount: 0, judgeCount: 0,
-          unresolvedCount: 0, scenarios: [{ title: '成功路径', coverage: 'AUTOMATED', capabilities: ['Vitest'] }],
+          unresolvedCount: 0, mutationObligationCount: 1, resolvedMutationObligationCount: 1,
+          unresolvedMutationObligationCount: 0, pathConservation: 'CONSERVED', mutationBindingReasons: [],
+          scenarios: [{ title: '成功路径', coverage: 'AUTOMATED', capabilities: ['Vitest'] }],
           issues: [] } }],
     }
     vi.spyOn(api, 'createDraft').mockImplementation(async (spec) => draftFrom(spec))

@@ -377,11 +377,11 @@ from persisted snapshots/decisions after remote loss. Designer receives
 the original requirement, frozen decomposition, current package, global
 constraints, and bounded prerequisite handoffs, then emits one complete Markdown
 replacement without a fixed byte-size ceiling. The server persists that exact design and
-continues to enforce the controlled section shape plus scenario/fact limits. For v6, the server first
-resolves the exact Stage table and compiles a complete ordinary `WP-1` without creating a remote
-Compiler Session or consuming a model call. Only unresolved closed-set fact/capability bindings create
-one `COMPILER_BINDING_NO_TOOLS` Session; every large-task package also takes that one disambiguation turn
-to preserve its handoff summary, while the frozen Stage topology remains immutable. Direct software
+continues to enforce the controlled section shape plus scenario/fact limits. For current V7, the server first
+resolves the exact Stage table and compiles a complete ordinary `WP-1`, large-task package, or active rolling
+package without creating a remote Compiler Session or consuming a model call. Only unresolved closed-set
+fact/capability bindings create one `COMPILER_BINDING_NO_TOOLS` Session; frozen V6 large-task packages retain
+their historical one-turn Compiler compatibility path, while the frozen Stage topology remains immutable. Direct software
 allows 1–6 Stages; each large-task package remains limited to 1–3. Decomposer and historical semantic-Compiler extraction failures receive at most
 two format repairs, and field/verifier/traceability/coverage failures receive at most two semantic
 patch repairs. Current v6 disambiguation has no repair loop: malformed or out-of-closure output becomes
@@ -545,17 +545,23 @@ Loopper never invents a test from prose, a broad full-suite command, or an ambig
 set of focused tests. Ambiguous or absent source matches and semantically incomplete
 test evidence still fail the authoritative validation.
 
-For v7 plans, `MutationConservationPolicy` runs after Stage assembly and before package lowering.
-Every frozen `WRITE` or move destination must have a Stage owner justified by that Stage's referenced
-controlled material facts and whose `allowedPaths`
+For v7 plans, `DesignerMutationStageBinder` runs after Stage assembly and accepts only an exact controlled
+fact reference, one uniquely covering existing Stage rule, or an exact write/move-destination path added to
+the plan's only Stage. Multiple matching Stages remain blocked and are never delegated to the Compiler.
+`MutationConservationPolicy` then runs before package lowering. Every frozen `WRITE` or move destination must
+have one of those justified Stage owners whose `allowedPaths`
 covers it with the runtime `VerifierPathPolicy` semantics, and no effective forbidden rule may cover
 the same path. A technology-only fallback such as `src/main/java/**` cannot prove an explicit
 obligation; package scope and global-fact fallbacks have the same limitation. The owning Stage,
 focused-test evidence, and explicit `GIT_DIFF` must reuse the same
 normalized allowed/forbidden sets. Missing ownership returns
 `REQUIRED_MUTATION_PATH_UNASSIGNED`; forbidden, delete, and move-source obligations return
-`REQUIRED_MUTATION_PATH_FORBIDDEN`. These gaps stay `DESIGN_INCOMPLETE` and cannot be converted to
+`REQUIRED_MUTATION_PATH_FORBIDDEN`. Diagnostics expose bounded business counts, project-relative paths,
+binding reasons, and Stage names without internal indexes or raw JSON. These gaps stay `DESIGN_INCOMPLETE` and cannot be converted to
 Judge-only acceptance or a catch-all Stage.
+For the current V7 role pack, the same server-direct path applies to direct packages, large-task packages, and the
+active rolling package whenever closed facts and capabilities are resolved. Mutation ownership gaps wait for targeted
+human input and do not spend the package's complete-redesign budget.
 
 Stage grouping preserves the non-acceptance facts referenced by each group. Those
 positive deliverable/scope facts produce that Stage's path and deliverable boundary;

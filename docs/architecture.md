@@ -590,16 +590,20 @@ obligation as an exact path or path rule with source evidence and hash. Broad gl
 controlled design, and frozen package fields remain obligations but cannot become precise Stage proof. v5/v6 rows deserialize missing
 obligation fields as empty and resume under their original semantics; frozen `dynamic-v6` packages create
 V6 snapshots even when their first compilation happens after the upgrade. Before lowering, a server-owned conservation gate proves
-that every write or move destination has a Stage owner justified by that Stage's referenced controlled
-material facts, is not forbidden, and
+that every write or move destination has a Stage owner justified by an exact controlled fact reference,
+one uniquely covering existing Stage path rule, or the exact path added to the plan's only Stage; is not forbidden; and
 uses the same path contract in the Stage, focused test, and `GIT_DIFF`. Unassigned paths return
 `REQUIRED_MUTATION_PATH_UNASSIGNED`; forbidden paths, deletion, and move sources return
 `REQUIRED_MUTATION_PATH_FORBIDDEN`. Diagnostics expose only bounded counts and
 `NOT_EVALUATED/CONSERVED/BLOCKED`, while runtime `VerifierEngine` remains unchanged and authoritative.
-Package scope, global-fact, and technology fallbacks cannot prove ownership. V7 may use only a Stage's explicit,
-positive controlled `DELIVERABLE/SCOPE` reference as provenance; V5/V6 keep their pre-v7 material-path selection.
+Package scope, global-fact, and technology fallbacks cannot prove ownership by themselves. Multiple matching Stages
+remain blocked and expose only the project-relative path plus candidate Stage names; mutation paths never enter the
+Compiler schema. V5/V6 keep their pre-v7 material-path selection.
 Positive project-external
 paths are rejected before a Compilation row is created and are never classified as model transport failures.
+For the current V7 role pack, a fully resolved direct package, large-task package, or active rolling package is
+compiled through `SERVER_DIRECT`; package shape alone does not create a Compiler Session. A mutation ownership gap
+transitions the package and Designer session to bounded `WAITING_INPUT` without dispatching a whole-package redesign.
 
 V42 adds immutable `project_stack_profile` snapshots and their
 `project_stack_component` rows. Registration of a new or re-managed project schedules one
@@ -703,9 +707,10 @@ the server produces exact `VerifierSpec` objects, source mappings, IDs, and fina
 
 Package work is strictly serial. A package keeps one healthy interactive
 Designer Session across its discussion turns and reconstructs a replacement
-Session from persisted snapshots/decisions after transport loss. A v6 direct candidate skips
-Compiler when the server resolves every exact reference; a direct ambiguity or every large-task
-candidate uses exactly one locked-topology no-tools disambiguation Session. The result produces
+Session from persisted snapshots/decisions after transport loss. A current V7 direct, large-task,
+or active rolling candidate skips Compiler when the server resolves every exact reference and closed capability;
+only a remaining fact/capability ambiguity uses one locked-topology no-tools disambiguation Session. Frozen V6
+large-task packages preserve their historical one-Compiler compatibility path. The result produces
 1–6 Stages for direct software or 1–3 Stages per large-task package carrying
 `workPackageId`, and is deterministically validated into `REVIEWING`; the next
 package cannot start until the user accepts that exact design revision. A failed

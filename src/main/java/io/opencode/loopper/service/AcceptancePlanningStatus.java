@@ -7,6 +7,9 @@ public record AcceptancePlanningStatus(String state, String bindingSource, List<
                                        int factCount, int scenarioCount,
                                        int automatedCount, int bothCount, int judgeCount,
                                        int unresolvedCount, List<Scenario> scenarios,
-                                       List<String> issues) {
+                                       List<String> issues,
+                                       int mutationObligationCount, int resolvedMutationObligationCount,
+                                       int unresolvedMutationObligationCount, String pathConservation,
+                                       List<String> mutationBindingReasons) {
     public record Scenario(String title, String coverage, List<String> capabilities) { }
 }

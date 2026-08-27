@@ -1992,9 +1992,8 @@ public class DesignerSessionService {
         if (deterministicAcceptance) {
             acceptanceWorkflow.freeze(pending, workPackage, revision.requirementText(), source.content(),
                     strings(workPackage.scopeInJson()), strings(workPackage.scopeOutJson()), strings(workPackage.deliverablesJson()), role, now);
-            DesignerAcceptanceWorkflow.RoutingResult routing = acceptanceWorkflow.route(
-                    pending.id(), !directSoftwareMode(session.id()));
-            if (v6Acceptance && directSoftwareMode(session.id()) && !routing.compilerRequired()) {
+            DesignerAcceptanceWorkflow.RoutingResult routing = acceptanceWorkflow.routeCurrent(pending.id(), directSoftwareMode(session.id()), role.rolePackVersion());
+            if (v6Acceptance && !routing.compilerRequired()) {
                 runServerDirectCompilation(pending, session, workPackage, source.content(), role);
                 return;
             }
@@ -2569,11 +2568,12 @@ public class DesignerSessionService {
             appendMessage(session.id(), DesignerActor.COMPILER,
                     workPackage.packageId() + " 设计稿暂不可编译：\n" + summarizeGaps(gaps),
                     "DESIGN_INCOMPLETE", session.currentRequirementRevision(), workPackage.packageId());
-            if (workPackage.redesignCount() < MAX_AUTOMATIC_REDESIGNS) {
+            DesignGap mutationGap = acceptanceWorkflow.targetedMutationGap(gaps);
+            if (mutationGap == null && workPackage.redesignCount() < MAX_AUTOMATIC_REDESIGNS) {
                 dispatchPackageDesigner(get(session.id()), waiting, redesignPrompt(summarizeGaps(gaps)), true);
             } else {
                 waitForDesignInput(session, currentRequirement(session.id()), waiting,
-                        "DESIGN_RETRY_EXHAUSTED", summarizeGaps(gaps));
+                        mutationGap == null ? "DESIGN_RETRY_EXHAUSTED" : mutationGap.code().name(), summarizeGaps(gaps));
             }
             return;
         }

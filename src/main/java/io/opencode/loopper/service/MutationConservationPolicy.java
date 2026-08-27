@@ -12,9 +12,30 @@ import java.util.List;
 final class MutationConservationPolicy {
     Evaluation evaluate(Catalog catalog, List<CompactStage> stages,
                         List<List<String>> justifiedMutationPaths) {
+        return evaluate(catalog, stages, obligation ->
+                new Ownership(owners(obligation, stages, justifiedMutationPaths,
+                        VerifierPathPolicy.boundedRuleRelations()), null, null, List.of()));
+    }
+
+    Evaluation evaluate(Catalog catalog, List<CompactStage> stages,
+                        DesignerMutationStageBinder.Resolution bindings) {
+        return evaluate(catalog, stages, obligation -> {
+            DesignerMutationStageBinder.Unresolved unresolved = bindings.unresolved().stream()
+                    .filter(item -> item.obligationIndex() == obligation.index()).findFirst().orElse(null);
+            if (unresolved != null) return new Ownership(List.of(), unresolved.reason(), null, List.of());
+            DesignerMutationStageBinder.Assignment assignment = bindings.assignments().stream()
+                    .filter(item -> item.obligationIndex() == obligation.index())
+                    .findFirst().orElse(null);
+            return assignment == null ? new Ownership(List.of(), null, null, List.of())
+                    : new Ownership(assignment.stageIndexes(), null, assignment.source(), assignment.stageNames());
+        });
+    }
+
+    private Evaluation evaluate(Catalog catalog, List<CompactStage> stages, OwnershipResolver ownershipResolver) {
         if (catalog.mutationObligations().isEmpty()) return Evaluation.conservedEmpty();
         VerifierPathPolicy.RuleRelations relations = VerifierPathPolicy.boundedRuleRelations();
         List<Unresolved> unresolved = new ArrayList<>();
+        List<Binding> bindings = new ArrayList<>();
         int resolved = 0;
         for (MutationObligation obligation : catalog.mutationObligations()) {
             if (obligation.operation() == MutationOperation.DELETE_REQUEST
@@ -24,7 +45,8 @@ final class MutationConservationPolicy {
                         "删除或移动源端不能由验收编译器自动授权"));
                 continue;
             }
-            List<Integer> owners = owners(obligation, stages, justifiedMutationPaths, relations);
+            Ownership ownership = ownershipResolver.resolve(obligation);
+            List<Integer> owners = ownership.stageIndexes();
             boolean forbidden = stages.stream().flatMap(stage -> stage.forbiddenPaths().stream())
                     .anyMatch(rule -> overlaps(obligation, rule, relations));
             if (forbidden) {
@@ -34,17 +56,35 @@ final class MutationConservationPolicy {
             } else if (owners.isEmpty()) {
                 unresolved.add(new Unresolved(obligation.index(), obligation.pathRule(),
                         DesignGapCode.REQUIRED_MUTATION_PATH_UNASSIGNED,
-                        "必改路径没有进入任何阶段的允许路径合同"));
+                        ownership.unresolvedReason() == null
+                                ? "必改路径没有进入任何阶段的允许路径合同"
+                                : ownership.unresolvedReason()));
+            } else if (!ownersHavePathCoverage(obligation, stages, owners, relations)) {
+                unresolved.add(new Unresolved(obligation.index(), obligation.pathRule(),
+                        DesignGapCode.REQUIRED_MUTATION_PATH_UNASSIGNED,
+                        "已绑定阶段没有覆盖必改路径的允许规则"));
             } else if (!evidenceContractsMatch(stages, owners)) {
                 unresolved.add(new Unresolved(obligation.index(), obligation.pathRule(),
                         DesignGapCode.REQUIRED_MUTATION_PATH_UNASSIGNED,
                         "阶段、聚焦测试和 GIT_DIFF 的路径合同不一致"));
             } else {
                 resolved++;
+                if (ownership.bindingSource() != null) {
+                    bindings.add(new Binding(obligation.pathRule(), ownership.bindingSource(),
+                            ownership.stageNames()));
+                }
             }
         }
         return new Evaluation(catalog.mutationObligations().size(), resolved,
-                List.copyOf(unresolved), unresolved.isEmpty() ? "CONSERVED" : "BLOCKED");
+                List.copyOf(unresolved), unresolved.isEmpty() ? "CONSERVED" : "BLOCKED",
+                List.copyOf(bindings));
+    }
+
+    private static boolean ownersHavePathCoverage(MutationObligation obligation, List<CompactStage> stages,
+                                                  List<Integer> owners,
+                                                  VerifierPathPolicy.RuleRelations relations) {
+        return owners.stream().allMatch(owner -> owner != null && owner >= 0 && owner < stages.size()
+                && stages.get(owner).allowedPaths().stream().anyMatch(rule -> covers(obligation, rule, relations)));
     }
 
     private static List<Integer> owners(MutationObligation obligation, List<CompactStage> stages,
@@ -106,15 +146,16 @@ final class MutationConservationPolicy {
     }
 
     record Evaluation(int obligationCount, int resolvedCount, List<Unresolved> unresolved,
-                      String pathConservation) {
+                      String pathConservation, List<Binding> bindings) {
         Evaluation {
             unresolved = unresolved == null ? List.of() : List.copyOf(unresolved);
+            bindings = bindings == null ? List.of() : List.copyOf(bindings);
         }
 
-        static Evaluation conservedEmpty() { return new Evaluation(0, 0, List.of(), "CONSERVED"); }
+        static Evaluation conservedEmpty() { return new Evaluation(0, 0, List.of(), "CONSERVED", List.of()); }
         static Evaluation notEvaluated(Catalog catalog) {
             int count = catalog == null ? 0 : catalog.mutationObligations().size();
-            return new Evaluation(count, 0, List.of(), "NOT_EVALUATED");
+            return new Evaluation(count, 0, List.of(), "NOT_EVALUATED", List.of());
         }
         int unresolvedCount() { return Math.max(0, obligationCount - resolvedCount); }
         boolean passed() {
@@ -123,4 +164,18 @@ final class MutationConservationPolicy {
     }
 
     record Unresolved(int obligationIndex, String pathRule, DesignGapCode code, String reason) { }
+    record Binding(String pathRule, DesignerMutationStageBinder.BindingSource source, List<String> stageNames) {
+        Binding {
+            stageNames = stageNames == null ? List.of() : List.copyOf(stageNames);
+        }
+    }
+
+    private record Ownership(List<Integer> stageIndexes, String unresolvedReason,
+                             DesignerMutationStageBinder.BindingSource bindingSource,
+                             List<String> stageNames) { }
+
+    @FunctionalInterface
+    private interface OwnershipResolver {
+        Ownership resolve(MutationObligation obligation);
+    }
 }

@@ -1,6 +1,6 @@
 # 弱模型友好的 Designer Compiler v7
 
-状态：设计完成，等待分票实施。本文是计划，不描述当前已实现能力。
+状态：分票实施中；001 已完成，002 正在交付。本文同时记录后续 003/004 的目标边界。
 
 ## 1. 目标
 
@@ -119,15 +119,13 @@ API/UI 不展示内部索引、原始 JSON 或项目根外绝对路径。
 
 ### 5.2 服务端路径归属证明
 
-Stage 先按既有事实分配组装。每条 Mutation Obligation 只在以下条件同时成立时算作已守恒：
+Stage 先按既有事实分配组装。每条 Mutation Obligation 只接受以下确定性归属证明：
 
-1. 至少一个 Stage 自己引用了受控正向 `DELIVERABLE / SCOPE` 事实；
-2. 该事实产生的路径规则按运行期语义覆盖义务；
-3. Stage、focused test 和显式 `GIT_DIFF` 使用同一 allowed/forbidden 集合；
-4. 义务不与任一禁止规则相交。
+1. `EXACT_FACT_REFERENCE`：Stage 自己引用了产生该义务的受控正向 `DELIVERABLE / SCOPE` 事实；
+2. `UNIQUE_PATH_COVERAGE`：恰好一个 Stage 的现有精确正向路径规则按运行期语义覆盖义务；
+3. `SINGLE_STAGE`：计划恰好一个 Stage，且义务为精确 `WRITE/MOVE_DESTINATION`，服务端把同一精确路径补入该 Stage、focused test 和显式 `GIT_DIFF`。
 
-包级 `scopeIn`、全局事实、技术栈 fallback 和“只有一个 Stage”都不能证明路径归属。不得按最后一个 Stage、
-标题相似度、目录词相似度或宽泛默认值分配。
+归属后仍须独立证明 Stage、focused test 和显式 `GIT_DIFF` 共用同一 allowed/forbidden 集合，且义务不与任何禁止规则相交。包级 `scopeIn`、全局事实和技术栈 fallback 不能单独证明归属；不得按最后一个 Stage、标题相似度、目录词相似度或宽泛默认值分配。多个 Stage 均可覆盖时保留为 `MUTATION_PATH_AMBIGUOUS_STAGE_BLOCKED`，不交给模型选择。
 
 ### 5.3 局部闭集消歧
 
@@ -160,6 +158,7 @@ Stage 组装后、`DesignerPackagePlanCompiler` lowering 前执行 `MutationCons
 - Stage、聚焦测试和显式 `GIT_DIFF` 必须共享完全相同的规范化路径集合；
 - 未决义务返回 `DESIGN_INCOMPLETE / REQUIRED_MUTATION_PATH_UNASSIGNED`；
 - 冲突义务返回 `DESIGN_INCOMPLETE / REQUIRED_MUTATION_PATH_FORBIDDEN`；
+- 当前 v7 普通包、大型任务包与滚动执行当前包在确定性绑定完整时统一服务端直编；路径缺口只进入定点人工输入门，不消耗整稿自动重设计次数；
 - 项目根外路径返回现有权限/多项目边界，不得转换为相对路径；
 - 删除或移动源端继续返回明确人工缺口，不能通过 `forbidDeletes=false` 整体放宽。
 
@@ -169,7 +168,7 @@ Stage 组装后、`DesignerPackagePlanCompiler` lowering 前执行 `MutationCons
 
 - 模型输出平坦闭集选择，不输出 LoopSpec、命令、测试目标或路径。
 - 服务端先完成所有唯一可推导工作，再决定是否调用模型。
-- 一次响应只解决当前未决义务和真实同分能力，避免让弱模型重述整稿。
+- 一次响应只解决闭集事实和真实同分能力；路径义务完全由服务端证明或阻断，避免让弱模型重述整稿或选择权限。
 - 机械格式偏差只在可逆且安全时规范化；语义、安全或执行缺口继续阻断。
 - invalid response 不丢弃已冻结事实，也不生成空 binding、catch-all Stage 或宽泛路径。
 
@@ -205,7 +204,7 @@ Stage 组装后、`DesignerPackagePlanCompiler` lowering 前执行 `MutationCons
 1. 需求有 A、B，设计 Stage 只引用 A：不得 `COMPILED` 后遗漏 B。
 2. 单 Stage 且遗漏 B：服务端唯一补入 B，不调用模型。
 3. 多 Stage 且 B 只有一个现有路径规则可覆盖：唯一补入。
-4. 多 Stage 均可承载 B：只请求一个闭集选择；无有效选择则定点阻断。
+4. 多 Stage 均可承载 B：不调用模型，保留项目相对路径和候选 Stage 名称并定点阻断。
 5. B 被 `forbiddenPaths` 覆盖：编译期阻断。
 6. B 在项目根外：保持权限边界。
 7. 删除或 rename source：保持删除保护。
@@ -229,7 +228,7 @@ Stage 组装后、`DesignerPackagePlanCompiler` lowering 前执行 `MutationCons
 - 不用 Judge 替代本可确定性证明的业务验收。
 - 不做模糊标题匹配或从源码搜索推断用户写入意图。
 - 不在本轮重写整个 Designer/Compiler 生命周期。
-- 不让 Compiler 修改 Stage 拓扑、命令、路径或测试目标。
+- 不让 Compiler 修改 Stage 拓扑、命令、路径归属或测试目标。
 
 ## 12. 实施顺序
 

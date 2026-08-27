@@ -9,6 +9,7 @@ import io.opencode.loopper.domain.ExecutionStrategy;
 import io.opencode.loopper.domain.TestPolicy;
 import io.opencode.loopper.persistence.DesignWorkPackageRow;
 import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashSet;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
@@ -535,7 +536,7 @@ class DesignerAcceptancePlanningAlgorithmTest {
     }
 
     @Test
-    void v7RejectsExplicitRequiredMutationPathOmittedFromEveryStageBeforeLowering() {
+    void v7AutoBindsAnExactRequiredMutationPathWhenThereIsOnlyOneStage() {
         String design = """
                 ## 目标与范围
                 修改 Service 并保持外部适配配置与实现一致。
@@ -580,12 +581,167 @@ class DesignerAcceptancePlanningAlgorithmTest {
                 role, List.of("src/main/java/**", "src/test/java/**"), List.of(),
                 List.of("服务实现"), 6, true);
 
-        assertThat(result.plan().status()).isEqualTo("DESIGN_INCOMPLETE");
-        assertThat(result.plan().designGaps()).singleElement().satisfies(gap -> {
-            assertThat(gap.code()).isEqualTo(DesignGapCode.REQUIRED_MUTATION_PATH_UNASSIGNED);
-            assertThat(gap.detail()).contains("config/external-adapter.yml");
+        assertThat(result.plan().status()).isEqualTo("COMPILED");
+        assertThat(result.plan().stages()).singleElement().satisfies(stage -> {
+            assertThat(stage.allowedPaths()).containsExactly(
+                    "src/main/java/example/Service.java",
+                    "src/test/java/example/ServiceTest.java",
+                    "config/external-adapter.yml");
+            assertThat(stage.verifiers()).allSatisfy(verifier -> {
+                assertThat(verifier.allowedPaths()).containsExactlyElementsOf(stage.allowedPaths());
+                assertThat(verifier.forbiddenPaths()).containsExactlyElementsOf(stage.forbiddenPaths());
+            });
         });
-        assertThat(result.normalizations()).contains("MUTATION_PATH_CONSERVATION_BLOCKED");
+        assertThat(result.mutationConservation()).satisfies(evaluation -> {
+            assertThat(evaluation.obligationCount()).isEqualTo(1);
+            assertThat(evaluation.resolvedCount()).isEqualTo(1);
+            assertThat(evaluation.pathConservation()).isEqualTo("CONSERVED");
+        });
+        assertThat(result.normalizations()).contains("MUTATION_PATH_SINGLE_STAGE_BOUND");
+    }
+
+    @Test
+    void v7BindsARequirementMutationToTheOnlyStageWhoseDeclaredRuleCoversIt() {
+        String design = """
+                ## 目标与范围
+                实现配置适配和回退行为。
+
+                ## 影响与交付
+                | 类型 | 相对路径或符号 | 说明 |
+                | --- | --- | --- |
+                | 修改 | config/*.yml | 适配配置 |
+                | 修改 | src/main/java/example/AdapterService.java | 适配实现 |
+                | 新增测试 | src/test/java/example/AdapterServiceTest.java | 适配配置生效 |
+                | 修改 | src/main/java/example/FallbackService.java | 回退实现 |
+                | 新增测试 | src/test/java/example/FallbackServiceTest.java | 回退策略生效 |
+
+                ## 验收场景
+                | 场景 | 前置/触发 | 操作 | 可观察结果 | 保持不变 |
+                | --- | --- | --- | --- | --- |
+                | 适配配置生效 | 配置 adapter | 调用适配服务 | 返回适配结果 | 不写外部系统 |
+                | 回退策略生效 | 适配器失败 | 调用回退服务 | 返回回退结果 | 原始错误保留 |
+
+                ## 验收约束
+                AdapterServiceTest 与 FallbackServiceTest 必须各自独立通过。
+
+                ## 阶段与依赖
+                | 阶段 | 目标 | 包含场景/评审/交付 | 前置阶段 |
+                | --- | --- | --- | --- |
+                | 适配配置 | 实现并验证配置适配 | 适配配置生效；config/*.yml；src/main/java/example/AdapterService.java；src/test/java/example/AdapterServiceTest.java | 无 |
+                | 回退实现 | 实现并验证回退策略 | 回退策略生效；src/main/java/example/FallbackService.java；src/test/java/example/FallbackServiceTest.java | 适配配置 |
+                """;
+        Catalog base = extractor.extract("WP-1", 1, design, CONTRACT_VERSION_V7);
+        Catalog facts = mutationCatalog(base, List.of(
+                mutation(0, "config/external-adapter.yml", MutationOperation.WRITE)));
+        WorkPackageRoleService.View role = role("software-java", List.of("java"));
+        CapabilityCatalog capabilities = registry.build(facts, role, design);
+        DesignerAcceptanceFastPathResolver.Resolution resolution =
+                new DesignerAcceptanceFastPathResolver().resolve(facts, capabilities);
+
+        assertThat(resolution.outcome()).isEqualTo(DesignerAcceptanceFastPathResolver.Outcome.RESOLVED);
+        DesignerAcceptancePlanCompiler.Result result = compiler.compile(workPackage(), design, facts, capabilities,
+                new CompactAcceptanceBindingPlan("两阶段验收", resolution.groupHints(), List.of(), "待验证"),
+                role, List.of(), List.of(), List.of("配置适配和回退行为"), 6, true);
+
+        assertThat(result.plan().status()).isEqualTo("COMPILED");
+        assertThat(result.plan().stages()).hasSize(2);
+        assertThat(result.plan().stages().getFirst().allowedPaths()).contains("config/*.yml");
+        assertThat(result.plan().stages().get(1).allowedPaths()).doesNotContain("config/*.yml");
+        assertThat(result.normalizations()).contains("MUTATION_PATH_UNIQUE_PATH_COVERAGE_BOUND");
+
+        int configFact = facts.facts().stream().filter(fact -> "config/*.yml".equals(fact.title()))
+                .map(Fact::index).findFirst().orElseThrow();
+        AcceptanceGroupHint second = resolution.groupHints().get(1);
+        LinkedHashSet<Integer> secondFacts = new LinkedHashSet<>(second.factIndexes());
+        secondFacts.add(configFact);
+        DesignerAcceptancePlanCompiler.Result ambiguous = compiler.compile(workPackage(), design, facts, capabilities,
+                new CompactAcceptanceBindingPlan("两阶段验收", List.of(resolution.groupHints().getFirst(),
+                        new AcceptanceGroupHint(second.title(), second.objective(), List.copyOf(secondFacts),
+                                second.dependsOnHintIndexes())), List.of(), "待验证"),
+                role, List.of(), List.of(), List.of("配置适配和回退行为"), 6, true);
+
+        assertThat(ambiguous.plan().status()).isEqualTo("DESIGN_INCOMPLETE");
+        assertThat(ambiguous.plan().designGaps()).singleElement().satisfies(gap -> {
+            assertThat(gap.code()).isEqualTo(DesignGapCode.REQUIRED_MUTATION_PATH_UNASSIGNED);
+            assertThat(gap.detail()).contains("config/external-adapter.yml", "适配配置", "回退实现")
+                    .doesNotContain("实现并验证配置适配", "实现并验证回退策略");
+        });
+        assertThat(ambiguous.normalizations()).contains(
+                "MUTATION_PATH_AMBIGUOUS_STAGE_BLOCKED", "MUTATION_PATH_CONSERVATION_BLOCKED");
+    }
+
+    @Test
+    void v7KeepsMultipleIndirectStageCandidatesBlockedWithoutAWeakModelAssignment() {
+        Fact sharedRule = new Fact(0, FactKind.DELIVERABLE, "config/*.yml", null, null,
+                null, null, "修改：共享配置规则", "DS-L010", "config/*.yml", "4".repeat(64));
+        Catalog facts = new Catalog(CONTRACT_VERSION_V7, "WP-1", 1, "5".repeat(64), true,
+                List.of(sharedRule), List.of(),
+                List.of(mutation(0, "config/external-adapter.yml", MutationOperation.WRITE)),
+                List.of(), List.of());
+        DesignerAcceptanceStagePathPlanner.Selection sharedSelection =
+                new DesignerAcceptanceStagePathPlanner.Selection(
+                        List.of("config/*.yml"), List.of("config/*.yml"));
+
+        DesignerMutationStageBinder.Resolution result = new DesignerMutationStageBinder().bind(facts, List.of(
+                new DesignerMutationStageBinder.StageInput("适配配置", List.of(0), sharedSelection),
+                new DesignerMutationStageBinder.StageInput("回退配置", List.of(0), sharedSelection)));
+
+        assertThat(result.assignments()).isEmpty();
+        assertThat(result.unresolved()).singleElement().satisfies(unresolved -> {
+            assertThat(unresolved.obligationIndex()).isZero();
+            assertThat(unresolved.candidateStageIndexes()).containsExactly(0, 1);
+            assertThat(unresolved.reason()).contains("适配配置", "回退配置");
+        });
+        assertThat(result.normalizations()).contains("MUTATION_PATH_AMBIGUOUS_STAGE_BLOCKED");
+    }
+
+    @Test
+    void v7BindsAnObligationThroughItsExactControlledFactReference() {
+        Fact exactFact = new Fact(0, FactKind.DELIVERABLE, "config/exact.yml", null, null,
+                null, null, "修改：精确配置", "DS-L010", "config/exact.yml", "4".repeat(64));
+        Catalog facts = new Catalog(CONTRACT_VERSION_V7, "WP-1", 1, "5".repeat(64), true,
+                List.of(exactFact), List.of(),
+                List.of(new MutationObligation(0, "MO-1", "config/exact.yml", MutationOperation.WRITE,
+                        MutationSourceKind.DESIGN_DELIVERABLE, "DS-L010", "config/exact.yml",
+                        "6".repeat(64), List.of(), List.of())), List.of(), List.of());
+        DesignerAcceptanceStagePathPlanner.Selection selection =
+                new DesignerAcceptanceStagePathPlanner.Selection(
+                        List.of("config/exact.yml"), List.of("config/exact.yml"));
+
+        DesignerMutationStageBinder.Resolution result = new DesignerMutationStageBinder().bind(facts, List.of(
+                new DesignerMutationStageBinder.StageInput("精确配置", List.of(0), selection)));
+
+        assertThat(result.assignments()).singleElement().satisfies(assignment -> {
+            assertThat(assignment.stageIndexes()).containsExactly(0);
+            assertThat(assignment.source())
+                    .isEqualTo(DesignerMutationStageBinder.BindingSource.EXACT_FACT_REFERENCE);
+        });
+        assertThat(result.normalizations()).contains("MUTATION_PATH_EXACT_FACT_REFERENCE_BOUND");
+    }
+
+    @Test
+    void v7KeepsMultipleExactFactOwnersBlocked() {
+        Fact exactFact = new Fact(0, FactKind.DELIVERABLE, "config/exact.yml", null, null,
+                null, null, "修改：精确配置", "DS-L010", "config/exact.yml", "4".repeat(64));
+        Catalog facts = new Catalog(CONTRACT_VERSION_V7, "WP-1", 1, "5".repeat(64), true,
+                List.of(exactFact), List.of(),
+                List.of(new MutationObligation(0, "MO-1", "config/exact.yml", MutationOperation.WRITE,
+                        MutationSourceKind.DESIGN_DELIVERABLE, "DS-L010", "config/exact.yml",
+                        "6".repeat(64), List.of(), List.of())), List.of(), List.of());
+        DesignerAcceptanceStagePathPlanner.Selection selection =
+                new DesignerAcceptanceStagePathPlanner.Selection(
+                        List.of("config/exact.yml"), List.of("config/exact.yml"));
+
+        DesignerMutationStageBinder.Resolution result = new DesignerMutationStageBinder().bind(facts, List.of(
+                new DesignerMutationStageBinder.StageInput("适配配置", List.of(0), selection),
+                new DesignerMutationStageBinder.StageInput("回退配置", List.of(0), selection)));
+
+        assertThat(result.assignments()).isEmpty();
+        assertThat(result.unresolved()).singleElement().satisfies(unresolved -> {
+            assertThat(unresolved.candidateStageIndexes()).containsExactly(0, 1);
+            assertThat(unresolved.reason()).contains("适配配置", "回退配置");
+        });
+        assertThat(result.normalizations()).contains("MUTATION_PATH_AMBIGUOUS_STAGE_BLOCKED");
     }
 
     @Test
@@ -1497,7 +1653,7 @@ class DesignerAcceptancePlanningAlgorithmTest {
     }
 
     @Test
-    void v7DoesNotTreatBroadTechnologyFallbackAsProofOfAnExplicitMutationObligation() {
+    void v7SingleStageBindingAddsTheExactPathInsteadOfTreatingTechnologyFallbackAsProof() {
         String design = """
                 ## 目标与范围
                 实现 EventService 的事件投递行为。
@@ -1535,13 +1691,16 @@ class DesignerAcceptancePlanningAlgorithmTest {
                 new CompactAcceptanceBindingPlan("事件服务验收", List.of(), List.of(), "待验证"),
                 role, List.of(), List.of(), List.of("EventService"), 6, true);
 
-        assertThat(result.plan().status()).isEqualTo("DESIGN_INCOMPLETE");
-        assertThat(result.plan().designGaps()).singleElement().satisfies(gap ->
-                assertThat(gap.code()).isEqualTo(DesignGapCode.REQUIRED_MUTATION_PATH_UNASSIGNED));
+        assertThat(result.plan().status()).isEqualTo("COMPILED");
+        assertThat(result.plan().stages()).singleElement().satisfies(stage ->
+                assertThat(stage.allowedPaths()).contains(
+                        "src/main/java/**", "src/test/java/**",
+                        "src/main/java/example/EventService.java"));
+        assertThat(result.normalizations()).contains("MUTATION_PATH_SINGLE_STAGE_BOUND");
     }
 
     @Test
-    void v7DoesNotTreatPackageScopeFallbackAsStageOwnerProof() {
+    void v7SingleStageBindingAddsTheExactPathInsteadOfTreatingPackageScopeAsProof() {
         String design = """
                 ## 目标与范围
                 实现 EventService 的事件投递行为。
@@ -1574,9 +1733,11 @@ class DesignerAcceptancePlanningAlgorithmTest {
                 new CompactAcceptanceBindingPlan("事件服务验收", List.of(), List.of(), "待验证"),
                 role, List.of("config/**"), List.of(), List.of("EventService"), 6, true);
 
-        assertThat(result.plan().status()).isEqualTo("DESIGN_INCOMPLETE");
-        assertThat(result.plan().designGaps()).singleElement().satisfies(gap ->
-                assertThat(gap.code()).isEqualTo(DesignGapCode.REQUIRED_MUTATION_PATH_UNASSIGNED));
+        assertThat(result.plan().status()).isEqualTo("COMPILED");
+        assertThat(result.plan().stages()).singleElement().satisfies(stage ->
+                assertThat(stage.allowedPaths()).containsExactly(
+                        "config/**", "config/external-adapter.yml"));
+        assertThat(result.normalizations()).contains("MUTATION_PATH_SINGLE_STAGE_BOUND");
     }
 
     @Test

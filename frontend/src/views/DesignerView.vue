@@ -1394,19 +1394,21 @@ async function redesignPackage(packageId: string) {
         <section v-if="acceptancePackage?.acceptancePlanning" class="task-profile-card acceptance-intent-card" aria-label="验收意图识别">
           <header>
             <div><strong>验收意图识别 · {{ workPackageLabel(acceptancePackage.id) }}</strong><span>{{ acceptancePackage.acceptancePlanning.scenarioCount }} 个场景 · {{ acceptancePackage.acceptancePlanning.factCount }} 项设计事实</span><span>{{ acceptanceBindingSourceLabel(acceptancePackage.acceptancePlanning.bindingSource) }}</span></div>
-            <b :class="{ warning: acceptancePackage.acceptancePlanning.unresolvedCount > 0 || acceptancePackage.acceptancePlanning.state === 'FAILED' }">{{ acceptancePackage.acceptancePlanning.unresolvedCount > 0 ? `${acceptancePackage.acceptancePlanning.unresolvedCount} 项待覆盖` : acceptancePackage.acceptancePlanning.state === 'COMPILED' ? '已确定性编译' : '识别中' }}</b>
+            <b :class="{ warning: acceptancePackage.acceptancePlanning.unresolvedCount > 0 || acceptancePackage.acceptancePlanning.unresolvedMutationObligationCount > 0 || acceptancePackage.acceptancePlanning.state === 'FAILED' }">{{ acceptancePackage.acceptancePlanning.unresolvedMutationObligationCount > 0 ? `${acceptancePackage.acceptancePlanning.unresolvedMutationObligationCount} 项路径待归属` : acceptancePackage.acceptancePlanning.unresolvedCount > 0 ? `${acceptancePackage.acceptancePlanning.unresolvedCount} 项待覆盖` : acceptancePackage.acceptancePlanning.state === 'COMPILED' ? '已确定性编译' : '识别中' }}</b>
           </header>
           <div class="acceptance-intent-counts">
             <span>机器 {{ acceptancePackage.acceptancePlanning.automatedCount }}</span>
             <span>双重 {{ acceptancePackage.acceptancePlanning.bothCount }}</span>
             <span>人工 {{ acceptancePackage.acceptancePlanning.judgeCount }}</span>
             <span :class="{ warning: acceptancePackage.acceptancePlanning.unresolvedCount > 0 }">待覆盖 {{ acceptancePackage.acceptancePlanning.unresolvedCount }}</span>
+            <span :class="{ warning: acceptancePackage.acceptancePlanning.unresolvedMutationObligationCount > 0 }">路径待归属 {{ acceptancePackage.acceptancePlanning.unresolvedMutationObligationCount }}</span>
           </div>
           <details><summary>查看场景与验收方式</summary>
             <ul class="acceptance-intent-list"><li v-for="scenario in acceptancePackage.acceptancePlanning.scenarios" :key="scenario.title"><span><strong>{{ scenario.title }}</strong><small v-if="scenario.capabilities.length">{{ scenario.capabilities.join('、') }}</small></span><b :class="{ warning: scenario.coverage === 'UNRESOLVED' }">{{ acceptanceCoverageLabel(scenario.coverage) }}</b></li></ul>
           </details>
           <p v-for="issue in acceptancePackage.acceptancePlanning.issues" :key="issue" class="acceptance-intent-issue">{{ acceptanceIssueLabel(issue) }}</p>
           <p v-for="reason in acceptancePackage.acceptancePlanning.routingReasons" :key="reason" class="acceptance-intent-issue">{{ reason }}</p>
+          <p v-for="reason in acceptancePackage.acceptancePlanning.mutationBindingReasons" :key="reason" class="acceptance-intent-issue">{{ reason }}</p>
         </section>
         <section v-if="currentReport" class="task-profile-card report-card">
           <header><div><strong>独立评审报告</strong><span>{{ currentReport.title }}</span></div><b :class="{ warning: currentReport.stale }">{{ currentReport.stale ? '证据已过期' : '证据有效' }}</b></header>

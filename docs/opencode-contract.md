@@ -182,8 +182,8 @@ questions and the complete design across two prompts in that same package Sessio
 asked to populate LoopSpec fields. Direct WP-1 instead uses
 the general read-only profile without `question`, enters `DESIGNING` immediately, and applies
 the same no-question rule to feedback and redesign. Loopper then routes each candidate through
-server acceptance resolution. Only a v6 ambiguity or a large-task handoff creates one no-tools
-Compiler Session with the configured model; a server-direct result has no remote Session to display
+server acceptance resolution. Only a closed-set ambiguity or a frozen V6 large-task handoff creates one no-tools
+Compiler Session with the configured model; a current V7 server-direct result has no remote Session to display
 or poll. Historical frozen designs retain their own read-only Compiler and recovery contract.
 Compiler cannot ask questions or create a Task.
 
@@ -312,6 +312,11 @@ or 1–3 Stages per large package; an optional one-turn Compiler fills only enum
 Loopper validates and persists that binding, derives all mechanical fields and stable `DS-Lxxx` source
 references, and directly compiles the final package envelope. It does not send a second final-JSON prompt,
 and raw machine output is never a chat/SSE model message.
+V7 mutation obligations never enter that Compiler request or Schema. The server binds only exact controlled
+fact references, one uniquely covering existing Stage path rule, or an exact path added to the plan's only Stage;
+real multi-Stage candidates remain a deterministic `DESIGN_INCOMPLETE` gap.
+Current V7 direct, large-task, and active rolling packages skip the Compiler Session whenever all closed-set bindings
+are server-resolved. A mutation ownership gap waits for targeted input instead of launching a whole-package Designer retry.
 
 The compact Compiler contract asks only for observable business criteria. Loopper
 deterministically treats untested code-style, source/annotation/assembly-shape,
