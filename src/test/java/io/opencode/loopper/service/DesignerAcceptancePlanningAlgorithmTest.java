@@ -488,6 +488,45 @@ class DesignerAcceptancePlanningAlgorithmTest {
     }
 
     @Test
+    void preservesExplicitUnittestCommandWhenStructuredFactsAlsoProvidePositiveEvidence() {
+        String design = """
+                ## 目标与范围
+                更新 README 中的滚动包事实。
+
+                ## 影响与交付
+                | 类型 | 相对路径或符号 | 说明 |
+                | --- | --- | --- |
+                | 修改 | README.md | 当前包形成的可观察结果 |
+                | 测试 | tests/test_acceptance.py | 当前包的聚焦验收测试 |
+
+                ## 验收场景
+                | 场景 | 前置/触发 | 操作 | 可观察结果 | 保持不变 |
+                | --- | --- | --- | --- | --- |
+                | 当前包验收 | 前序事实已冻结 | 执行当前包 | README 保留 event 标记 | 既有事实不删除 |
+
+                ## 验收约束
+                聚焦测试必须独立通过：
+                `python3 -m unittest tests.test_acceptance`
+
+                ## 阶段与依赖
+                | 阶段 | 目标 | 包含场景/评审/交付 | 前置阶段 |
+                | --- | --- | --- | --- |
+                | 实现与验证 | 写入并验证当前包事实 | 当前包验收；README.md；tests/test_acceptance.py | 无 |
+                """;
+        Catalog facts = extractor.extract("WP-1", 1, design);
+
+        CapabilityCatalog capabilities = registry.build(
+                facts, role("software-python", List.of("python")), design);
+
+        assertThat(capabilities.capabilities()).singleElement().satisfies(capability -> {
+            assertThat(capability.command())
+                    .containsExactly("python3", "-m", "unittest", "tests.test_acceptance");
+            assertThat(capability.testTargets()).containsExactly("tests.test_acceptance");
+        });
+        assertThat(capabilities.issues()).isEmpty();
+    }
+
+    @Test
     void derivesConcreteIncompleteOutcomeOnTheServerWhenNoClosedCapabilityCanCoverTheScenario() {
         String design = """
                 ## 目标与范围

@@ -88,7 +88,7 @@ final class DesignerVerificationIntentMapper {
         for (StageHint hint : catalog.stageHints()) {
             positiveClauses(hint.title() + " " + hint.objective()).forEach(result::add);
         }
-        if (result.isEmpty()) positiveClauses(design).forEach(result::add);
+        positiveClauses(design).forEach(result::add);
         return List.copyOf(result);
     }
 

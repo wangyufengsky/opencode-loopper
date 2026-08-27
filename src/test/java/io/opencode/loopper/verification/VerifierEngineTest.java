@@ -252,6 +252,32 @@ class VerifierEngineTest {
     }
 
     @Test
+    void pythonTestVerifierSuppressesBytecodeFilesWithoutChangingDeclaredArgv() {
+        AtomicReference<Map<String, String>> environment = new AtomicReference<>();
+        SafeProcessRunner capturingRunner = new SafeProcessRunner(new ExecutableResolver("Linux", Map.of())) {
+            @Override
+            public ProcessResult run(Path ignored, List<String> argv, Duration timeout,
+                                     Map<String, String> environmentOverlay) {
+                environment.set(Map.copyOf(environmentOverlay));
+                return new ProcessResult(0, "OK", false);
+            }
+        };
+        List<String> command = List.of("python3", "-m", "unittest", "tests.test_acceptance");
+        VerifierSpec spec = new VerifierSpec("PROCESS", command, null, null, List.of(), List.of(), false, null,
+                null, null, null, null, null, null, null, null, null, null, List.of(),
+                List.of("AC-1"), "TEST", List.of("tests.test_acceptance"));
+
+        VerifierOutcome outcome = new VerifierEngine(capturingRunner)
+                .verify(directory, "unused", spec, Duration.ofSeconds(5));
+
+        assertThat(outcome.state()).isEqualTo(VerificationState.PASS);
+        assertThat(environment.get()).containsEntry("PYTHONDONTWRITEBYTECODE", "1");
+        assertThat(outcome.evidence())
+                .containsEntry("argv", command)
+                .containsEntry("processEnvironmentPolicy", "PYTHON_TEST_NO_BYTECODE");
+    }
+
+    @Test
     void safelySplitsCollapsedMavenArgumentsBeforeStartingTheProcess() {
         AtomicReference<List<String>> actualArgv = new AtomicReference<>();
         SafeProcessRunner capturingRunner = new SafeProcessRunner(new ExecutableResolver("Linux", Map.of())) {

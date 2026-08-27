@@ -228,6 +228,11 @@ Python TEST 可识别 `pytest`、`python -m pytest`、`unittest` 和
 `python -m unittest`，仍要求显式目标且拒绝跳过/忽略缺失测试。仓库没有测试体系的独立
 Python 脚本可使用带成功标记的 `SELF_CHECK`；文档与一次性表格转换的测试策略是
 `NOT_APPLICABLE`，不得制造 `PROCESS TEST`。
+受控设计已声明合法的显式测试命令时，服务端直编必须原样保留其框架和目标；即使交付表或 Stage
+同时提供了可推导的测试路径，也不得把显式 `unittest` 改写成猜测的 `pytest`。只有完全缺少合法
+显式命令时，才允许按冻结技术栈和正向测试目标确定性派生候选。执行 Python TEST 时，验证器进程
+固定注入 `PYTHONDONTWRITEBYTECODE=1`，防止自身生成的 `__pycache__`/`.pyc` 越过冻结 GIT_DIFF
+路径；声明 argv、测试框架、目标和 Stage 路径集合均不因此改写。
 
 上述 Maven、Gradle、npm、pytest 和 unittest 入口由统一 `TestFrameworkPolicy` 注册表
 识别，Designer 草稿门禁与执行前复核共享同一结果；`REQUIRED` 必须存在未跳过且显式目标

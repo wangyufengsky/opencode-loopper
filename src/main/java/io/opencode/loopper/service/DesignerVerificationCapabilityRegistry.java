@@ -28,6 +28,7 @@ final class DesignerVerificationCapabilityRegistry {
     private static final Pattern NODE_TEST_PATH = Pattern.compile(
             "(?<![A-Za-z0-9_.-])([A-Za-z0-9_./-]+\\.(?:test|spec)\\.(?:[cm]?[jt]sx?))(?![A-Za-z0-9_.-])",
             Pattern.CASE_INSENSITIVE);
+    private static final Pattern MARKDOWN_CODE_SPAN = Pattern.compile("`([^`\\r\\n]+)`");
     private static final Set<String> EXECUTABLES = Set.of(
             "mvn", "mvnw", "gradle", "gradlew", "npm", "pytest", "py.test", "python", "python3", "py");
     private final DesignerVerificationIntentMapper intentMapper = new DesignerVerificationIntentMapper();
@@ -72,7 +73,15 @@ final class DesignerVerificationCapabilityRegistry {
 
     private List<List<String>> explicitCommands(Catalog facts, String design) {
         LinkedHashMap<String, List<String>> commands = new LinkedHashMap<>();
-        for (String evidence : intentMapper.positiveEvidence(facts, design)) addCommand(commands, stripMarkdown(evidence));
+        List<String> evidenceItems = intentMapper.positiveEvidence(facts, design);
+        for (String evidence : evidenceItems) {
+            Matcher code = MARKDOWN_CODE_SPAN.matcher(evidence);
+            while (code.find()) {
+                addCommand(commands, code.group(1).trim());
+            }
+        }
+        if (!commands.isEmpty()) return new ArrayList<>(commands.values());
+        for (String evidence : evidenceItems) addCommand(commands, stripMarkdown(evidence));
         return new ArrayList<>(commands.values());
     }
 

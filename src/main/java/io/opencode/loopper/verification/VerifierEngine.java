@@ -152,9 +152,12 @@ public class VerifierEngine {
             }
         }
         ResolvedProcessCommand resolved = resolveProcessCommand(worktree, declaredCommand);
+        Map<String, String> processEnvironment = pythonTestEnvironment(spec, declaredCommand);
         ProcessResult result;
         try {
-            result = runner.run(worktree, resolved.argv(), timeout);
+            result = processEnvironment.isEmpty()
+                    ? runner.run(worktree, resolved.argv(), timeout)
+                    : runner.run(worktree, resolved.argv(), timeout, processEnvironment);
         } catch (TaskFailure startFailure) {
             if (usesMavenWrapper(declaredCommand) && !resolved.fallback()
                     && "PROCESS_START_FAILED".equals(startFailure.code())) {
@@ -189,6 +192,9 @@ public class VerifierEngine {
             evidence.putIfAbsent("declaredArgv", declaredCommand);
             evidence.put("executableResolution", resolved.executableReason());
         }
+        if (!processEnvironment.isEmpty()) {
+            evidence.put("processEnvironmentPolicy", "PYTHON_TEST_NO_BYTECODE");
+        }
         evidence.put("exitCode", result.exitCode());
         evidence.put("timedOut", result.timedOut());
         evidence.put("outputTruncated", result.outputTruncated());
@@ -199,6 +205,13 @@ public class VerifierEngine {
         }
         return new VerifierOutcome("PROCESS", passed ? VerificationState.PASS : VerificationState.FAIL,
                 summary, evidence);
+    }
+
+    private static Map<String, String> pythonTestEnvironment(VerifierSpec spec, List<String> command) {
+        if (!"TEST".equals(spec.processPurpose())) return Map.of();
+        String framework = TestFrameworkPolicy.assess(command).framework();
+        return "PYTEST".equals(framework) || "UNITTEST".equals(framework)
+                ? Map.of("PYTHONDONTWRITEBYTECODE", "1") : Map.of();
     }
 
     private String canonicalWorkingDirectory(Path worktree) {
