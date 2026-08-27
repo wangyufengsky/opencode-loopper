@@ -1979,8 +1979,8 @@ public class DesignerSessionService {
                 workPackage.designRevision(), LoopSpecCompilationState.PENDING_HANDOFF.name(), null, "PENDING", 0,
                 source.id(), revision.sourceDraftVersion(), null, null, now, now, 0,
                 workPackage.packageId(), 0, null, StructuredModelStep.PLANNING.name(), null, 0,
-                responseMode.name(), schemaId(responseMode, v6Acceptance
-                        ? OpenCodeStructuredSchemas.PACKAGE_ACCEPTANCE_DISAMBIGUATION_V6
+                responseMode.name(), schemaId(responseMode, v6Acceptance && RolePackRegistry.VERSION.equals(role.rolePackVersion())
+                        ? OpenCodeStructuredSchemas.PACKAGE_ACCEPTANCE_CLOSED_CHOICE_V7 : v6Acceptance ? OpenCodeStructuredSchemas.PACKAGE_ACCEPTANCE_DISAMBIGUATION_V6
                         : deterministicAcceptance ? OpenCodeStructuredSchemas.PACKAGE_ACCEPTANCE_BINDING_V5
                         : OpenCodeStructuredSchemas.PACKAGE_COMPILATION_SEMANTIC_V3), false,
                 responseMode.name(), schemaId(responseMode, OpenCodeStructuredSchemas.PACKAGE_COMPILATION_FINAL_V2), false,
@@ -3010,7 +3010,7 @@ public class DesignerSessionService {
     }
     private boolean fallbackCompilation(LoopSpecCompilationRow row, DesignerSessionRow session,
                                         String code, String detail) {
-        if (acceptanceWorkflow.v6(row.id())) return false;
+        if (acceptanceWorkflow.v6(row.id()) && !acceptanceWorkflow.v7(row.id())) return false;
         boolean planning = StructuredModelStep.PLANNING.name().equals(row.workflowStep());
         boolean alreadyUsed = planning ? row.planningFormatFallbackUsed() : row.finalFormatFallbackUsed();
         boolean schemaMode = ModelResponseMode.JSON_SCHEMA.name().equals(

@@ -26,6 +26,12 @@ class MachineRoleContractCatalogTest {
         assertThat(OpenCodeStructuredSchemas.schema(
                 OpenCodeStructuredSchemas.PACKAGE_ACCEPTANCE_DISAMBIGUATION_V6))
                 .containsEntry("type", "object");
+        assertThat(OpenCodeStructuredSchemas.schema(
+                OpenCodeStructuredSchemas.PACKAGE_ACCEPTANCE_CLOSED_CHOICE_V7))
+                .containsEntry("type", "object");
+        assertThat(MachineRoleContractCatalog.closedChoiceCompilerCard())
+                .contains(MachineRoleContractCatalog.CLOSED_CHOICE_CONTRACT_VERSION,
+                        "closed candidates", "Do not emit paths, commands, tests, or stages");
         assertThat(Files.readString(Path.of("docs/ai-role-contracts.md")))
                 .contains(MachineRoleContractCatalog.CONTRACT_VERSION,
                         "MachineRoleContractCatalog", "OpenCodeStructuredSchemas");
@@ -70,6 +76,21 @@ class MachineRoleContractCatalogTest {
         Map<String, Object> preferences = (Map<String, Object>) v6Properties.get("capabilityPreferences");
         assertThat((Map<String, Object>) preferences.get("items"))
                 .containsEntry("additionalProperties", false);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void v7ClosedChoiceSchemaRequiresOnlyServerOwnedSelections() {
+        Map<String, Object> schema = OpenCodeStructuredSchemas.schema(
+                OpenCodeStructuredSchemas.PACKAGE_ACCEPTANCE_CLOSED_CHOICE_V7);
+        Map<String, Object> properties = (Map<String, Object>) schema.get("properties");
+
+        assertThat(schema).containsEntry("additionalProperties", true);
+        assertThat(schema.get("required")).isEqualTo(java.util.List.of(
+                "factAssignments", "capabilityPreferences"));
+        assertThat(properties).containsOnlyKeys(
+                "summary", "factAssignments", "capabilityPreferences", "handoffSummary")
+                .doesNotContainKeys("stages", "commands", "paths", "testTargets", "verifiers");
     }
 
     @Test

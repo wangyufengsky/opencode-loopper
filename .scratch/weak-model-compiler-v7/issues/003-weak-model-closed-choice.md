@@ -1,6 +1,6 @@
 # 003：弱模型闭集协议与唯一最优能力
 
-状态：BLOCKED
+状态：DONE
 
 Blocked by：001、002
 
@@ -44,13 +44,13 @@ Blocks：004
 
 ## 验收标准
 
-- [ ] 多 covering capability、唯一最优时模型调用为 0。
-- [ ] 真实同分时最多调用 1 次，合法闭集选择可编译。
-- [ ] 弱模型夹带无害摘要字段不再触发整稿重设计。
-- [ ] 路径、命令、拓扑等越权字段仍阻断。
-- [ ] invalid 输出保留冻结事实和已完成的唯一绑定。
-- [ ] 不增加 Judge-only 条件，不减少 focused-test 覆盖。
-- [ ] OpenCode Schema 不支持时沿既有全新 marker Session 回退，不扩大重试预算。
+- [x] 多 covering capability、唯一最优时模型调用为 0。
+- [x] 真实同分时最多调用 1 次，合法闭集选择可编译。
+- [x] 弱模型夹带无害摘要字段不再触发整稿重设计。
+- [x] 路径、命令、拓扑等越权字段仍阻断。
+- [x] invalid 输出保留冻结事实和已完成的唯一绑定。
+- [x] 不增加 Judge-only 条件，不减少 focused-test 覆盖。
+- [x] OpenCode Schema 不支持时沿既有全新 marker Session 回退，不扩大重试预算。
 
 ## 聚焦验证
 

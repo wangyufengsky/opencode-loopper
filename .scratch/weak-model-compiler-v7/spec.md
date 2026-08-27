@@ -1,6 +1,6 @@
 # 弱模型友好的 Designer Compiler v7
 
-状态：分票实施中；001 已完成，002 正在交付。本文同时记录后续 003/004 的目标边界。
+状态：分票实施中；001、002、003 已完成，004 待执行。本文同时记录 004 的目标边界。
 
 ## 1. 目标
 
@@ -92,8 +92,9 @@ every Stage GIT_DIFF uses the same normalized path contract as the Stage and foc
 
 ### 4.3 服务端守恒输出
 
-v7 不扩展弱模型 binding schema，继续使用 `PACKAGE_ACCEPTANCE_DISAMBIGUATION_V6` 的
-`summary / factAssignments / capabilityPreferences / handoffSummary` 闭集。Mutation Obligation 不进入模型输入或
+v7 使用最小 `PACKAGE_ACCEPTANCE_CLOSED_CHOICE_V7` binding schema，只保留
+`summary / factAssignments / capabilityPreferences / handoffSummary` 闭集。该 transport envelope
+允许服务端忽略不参与合同的说明字段，但原始响应中的执行、安全或拓扑字段会在规范化前失败关闭。Mutation Obligation 不进入模型输入或
 输出；服务端在 Stage 组装后，根据各 Stage 自己引用的受控正向 `DELIVERABLE / SCOPE` 路径来源证明归属并执行守恒门禁。
 义务记录中的候选/分配索引只作历史兼容的空字段读取，不由模型或启发式回填。Stage 标题、目标、顺序、依赖、
 路径文本、命令和测试目标仍由服务端锁定。
@@ -129,7 +130,7 @@ Stage 先按既有事实分配组装。每条 Mutation Obligation 只接受以�
 
 ### 5.3 局部闭集消歧
 
-只有闭集事实或能力候选仍无法唯一绑定时，才向一次沿用 V6 schema 的 Compiler 提供：
+只有闭集事实或能力候选仍无法唯一绑定时，才向一次使用 V7 最小 schema 的 Compiler 提供：
 
 - 未决事实及其候选 Stage；
 - 真正同分的能力候选。
@@ -143,9 +144,10 @@ Parser 可以接受唯一可逆的字段别名、单项集合和无害额外说�
 1. 零未覆盖；
 2. 强制能力完整；
 3. 更少 Judge-only；
-4. 更高确定性和强度；
+4. 更少非确定性能力；
 5. 更少能力；
-6. 稳定索引顺序只用于输出稳定，不用于打破真实同分的业务选择。
+6. 更高证据强度；
+7. 稳定索引顺序只用于输出稳定，不用于打破真实同分的业务选择。
 
 只有多个候选在全部业务评分维度真实同分时才请求闭集偏好。唯一最优解直接编译。
 

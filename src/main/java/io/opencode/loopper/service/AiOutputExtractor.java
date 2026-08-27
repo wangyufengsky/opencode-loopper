@@ -44,6 +44,20 @@ public class AiOutputExtractor {
     public <T> ExtractionResult<T> extractJson(String output, Pattern markerPattern, String prefix,
                                                 Class<T> type, UnaryOperator<T> normalizer,
                                                 Consumer<T> validator) {
+        return extractJson(output, markerPattern, prefix, type, normalizer, validator, null);
+    }
+
+    public <T> ExtractionResult<T> extractJson(String output, Pattern markerPattern, String prefix,
+                                                Class<T> type, UnaryOperator<T> normalizer,
+                                                Consumer<T> validator, Consumer<JsonNode> rawValidator) {
+        return extractJson(output, markerPattern, prefix, type, normalizer, validator, rawValidator,
+                CandidatePolicy.PREFER_MARKER);
+    }
+
+    public <T> ExtractionResult<T> extractJson(String output, Pattern markerPattern, String prefix,
+                                                Class<T> type, UnaryOperator<T> normalizer,
+                                                Consumer<T> validator, Consumer<JsonNode> rawValidator,
+                                                CandidatePolicy candidatePolicy) {
         if (output == null || output.isBlank()) {
             throw new BadRequestException(prefix + "_MISSING", "Read-only model completed without output");
         }
@@ -51,22 +65,28 @@ public class AiOutputExtractor {
             throw new BadRequestException(prefix + "_TOO_LARGE", "AI output exceeds the bounded extraction size");
         }
         String source = stripBom(output);
+        boolean strictClosedChoice = candidatePolicy == CandidatePolicy.STRICT_CLOSED_CHOICE;
+        int scanLimit = strictClosedChoice ? Integer.MAX_VALUE : MAX_CANDIDATES;
         List<Candidate> candidates = new ArrayList<>();
         if (markerPattern != null) {
             Matcher marker = markerPattern.matcher(source);
             while (marker.find()) {
-                addObjects(marker.group(1), CandidateSource.MARKER, candidates);
-                if (candidates.size() >= MAX_CANDIDATES) break;
+                addObjects(marker.group(1), CandidateSource.MARKER, candidates, scanLimit);
+                if (candidates.size() >= scanLimit) break;
             }
         }
         Matcher fence = JSON_FENCE.matcher(source);
-        while (fence.find() && candidates.size() < MAX_CANDIDATES) {
-            addObjects(fence.group(2), CandidateSource.FENCE, candidates);
+        while (fence.find() && candidates.size() < scanLimit) {
+            addObjects(fence.group(2), CandidateSource.FENCE, candidates, scanLimit);
         }
-        if (candidates.size() < MAX_CANDIDATES) {
-            addObjects(source, CandidateSource.EMBEDDED, candidates);
+        if (candidates.size() < scanLimit) {
+            addObjects(source, CandidateSource.EMBEDDED, candidates, scanLimit);
         }
         candidates = deduplicate(candidates);
+        if (strictClosedChoice && candidates.size() > MAX_CANDIDATES) {
+            throw new BadRequestException(prefix + "_TOO_MANY_CANDIDATES",
+                    "Closed-choice output contains too many distinct JSON objects");
+        }
         if (candidates.isEmpty()) {
             throw new BadRequestException(prefix + "_UNPARSEABLE",
                     "Output did not contain a complete valid JSON object");
@@ -77,6 +97,7 @@ public class AiOutputExtractor {
         for (Candidate candidate : candidates) {
             try {
                 LinkedHashSet<String> notes = new LinkedHashSet<>();
+                if (rawValidator != null) rawValidator.accept(candidate.node());
                 JsonNode normalizedTree = normalize(candidate.node(), type, notes);
                 T value = json.treeToValue(normalizedTree, type);
                 if (normalizer != null) value = normalizer.apply(value);
@@ -85,6 +106,7 @@ public class AiOutputExtractor {
                 if (!canonical.equals(normalizedTree)) notes.add("CONTRACT_METADATA_DERIVED");
                 decoded.add(new Decoded<>(value, canonical, candidate.source(), notes));
             } catch (BadRequestException failure) {
+                if (candidatePolicy == CandidatePolicy.STRICT_CLOSED_CHOICE) throw failure;
                 if (semanticFailure == null) semanticFailure = failure;
             } catch (RuntimeException failure) {
                 // 该候选不符合目标类型，继续检查其他完整 JSON 对象。
@@ -96,8 +118,8 @@ public class AiOutputExtractor {
                     "JSON objects were found but none matched the required response contract");
         }
 
-        List<Decoded<T>> preferred = decoded.stream()
-                .filter(item -> item.source() == CandidateSource.MARKER).toList();
+        List<Decoded<T>> preferred = candidatePolicy == CandidatePolicy.STRICT_CLOSED_CHOICE ? List.of()
+                : decoded.stream().filter(item -> item.source() == CandidateSource.MARKER).toList();
         List<Decoded<T>> eligible = preferred.isEmpty() ? decoded : preferred;
         JsonNode canonical = eligible.getFirst().canonical();
         if (eligible.stream().anyMatch(item -> !canonical.equals(item.canonical()))) {
@@ -158,7 +180,7 @@ public class AiOutputExtractor {
         return result;
     }
 
-    private void addObjects(String text, CandidateSource source, List<Candidate> candidates) {
+    private void addObjects(String text, CandidateSource source, List<Candidate> candidates, int limit) {
         if (text == null || text.isBlank()) return;
         String value = stripBom(text).trim();
         try {
@@ -171,7 +193,7 @@ public class AiOutputExtractor {
             // 外围说明文字不是 JSON 时，再扫描其中完整的 object；标准数组根仍会在上面直接拒绝。
         }
         int cursor = 0;
-        while (cursor < value.length() && candidates.size() < MAX_CANDIDATES) {
+        while (cursor < value.length() && candidates.size() < limit) {
             int start = value.indexOf('{', cursor);
             if (start < 0) return;
             int end = matchingObjectEnd(value, start);
@@ -301,6 +323,8 @@ public class AiOutputExtractor {
         private final int priority;
         CandidateSource(int priority) { this.priority = priority; }
     }
+
+    public enum CandidatePolicy { PREFER_MARKER, STRICT_CLOSED_CHOICE }
 
     public record ExtractionResult<T>(T value, CandidateSource source, List<String> normalizations,
                                       String canonicalJson) {

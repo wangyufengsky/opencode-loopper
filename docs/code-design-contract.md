@@ -107,7 +107,10 @@ ownership rules:
 - `DesignerAcceptanceFastPathResolver` alone owns v6/v7 exact-reference normalization, Stage topology
   validation, direct/AI/incomplete routing, and the merge of closed-set Compiler assignments. It must
   never perform fuzzy or substring matching. `DesignerAcceptanceWorkflow` owns persistence and solver
-  coordination; `DesignerCompilerPromptContracts` owns both legacy and v6 Compiler prompt construction.
+  coordination; `DesignerClosedChoiceContract` owns the current-v7 minimal prompt projection and raw-output
+  semantic firewall, while `DesignerCompilerPromptContracts` owns legacy, frozen-v6, and current-v7 Compiler
+  role instructions. `OpenCodeStructuredSchemas` owns only the transport
+  envelope and cannot authorize execution/topology/safety fields merely because an extra property is transport-valid.
   `DesignerSessionService` may select the route and coordinate lifecycle only. Adding this path must
   lower or preserve its legacy line-count ratchet; prompt text and parsing rules do not move back into it.
 - `DesignerMutationObligationExtractor` alone freezes source-backed positive repository mutation obligations;
@@ -121,7 +124,12 @@ ownership rules:
   reference, one uniquely covering existing Stage rule, or an exact path added to the only Stage. It must keep
   real multi-Stage candidates blocked and must not expose mutation choices to the model.
   `DesignerAcceptanceCapabilitySolver` owns exact branch-and-bound capability cover, bounded greedy fallback,
-  and AI preference tie ordering; `DesignerAcceptancePlanCompiler` only orchestrates Stage assembly and lowering.
+  the complete business-score tuple, the full set of equal optimal solution signatures, and bounded
+  non-exhaustive diagnostics. Stable candidate order may stabilize output but must not collapse a true business tie;
+  a current-v7 Compiler may see only the membership-discriminating candidates from exhaustive equal optima and
+  must select the complete discriminating signature of exactly one optimum. A non-exhaustive search is diagnostic
+  evidence only and cannot authorize a model choice or a compiled plan.
+  `DesignerAcceptancePlanCompiler` only orchestrates Stage assembly and lowering.
   `MutationConservationPolicy` runs before lowering and may only use bounded rule-containment/overlap relations
   shared with `VerifierPathPolicy`; unproved containment, forbidden overlap, delete, or move-source must fail closed.
 - `LoopSpecAcceptanceService` owns the final cross-source acceptance contract. A focused Maven/Gradle

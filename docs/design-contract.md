@@ -384,7 +384,7 @@ fact/capability bindings create one `COMPILER_BINDING_NO_TOOLS` Session; frozen 
 their historical one-turn Compiler compatibility path, while the frozen Stage topology remains immutable. Direct software
 allows 1–6 Stages; each large-task package remains limited to 1–3. Decomposer and historical semantic-Compiler extraction failures receive at most
 two format repairs, and field/verifier/traceability/coverage failures receive at most two semantic
-patch repairs. Current v6 disambiguation has no repair loop: malformed or out-of-closure output becomes
+patch repairs. Current v7 and frozen v6 disambiguation have no semantic repair loop: malformed or out-of-closure output becomes
 targeted `AMBIGUOUS_ACCEPTANCE_INTENT`, never an empty binding or catch-all Stage; gaps receive one full
 redesign of that package only. Large-task initial design and every
 human revision must ask questions first; direct WP-1 never asks again. Both return a complete snapshot. A valid
@@ -517,8 +517,19 @@ Gate; the client cannot infer confirmation eligibility from this card. The sourc
 activity card and does not poll a nonexistent Session; `serverCompiled` remains compatibility data,
 not a source inference.
 
-Decomposer uses one persisted compact semantic turn per candidate. The optional package Compiler uses
-one v6 fill-hole turn and cannot edit locked Stages. Decomposer returns business packages and RQ coverage by index;
+Current v7 capability resolution is global across all coverable facts. The server selects the only optimum
+after complete coverage and mandatory-capability checks, then compares fewer Judge-only capabilities, fewer
+nondeterministic capabilities, fewer total capabilities, and greater evidence strength. Stable indexes order
+the output only. A unique optimum records `compilerAvoidedReason=UNIQUE_OPTIMUM` and invokes no model; only
+multiple solutions equal on every business dimension increment `trueCapabilityTieCount` and may create the one
+closed-choice Session. That Session receives only candidates whose membership differs across the exhaustive equal
+optima, and its complete selected-index union must equal one listed optimum; common members, weaker alternatives,
+and mixed non-optimal combinations are rejected. A bounded non-exhaustive search is blocking diagnostic evidence,
+not permission to delegate authority to the model. The result may never trade a focused test for Judge-only acceptance.
+
+Decomposer uses one persisted compact semantic turn per candidate. The optional current package Compiler uses
+one v7 closed-choice turn and cannot edit locked Stages; frozen v6 records retain their original fill-hole turn.
+Decomposer returns business packages and RQ coverage by index;
 structured Markdown requirements are grouped by level-two business section so
 presentation-only headings and metadata do not become separate coverage work;
 the server preserves the Designer's 1–6 Stages for direct software or 1–3 per large-task package,
@@ -608,7 +619,18 @@ ordinary `NORMALIZED` information item rather than an error or raw model dump.
 No raw machine JSON is displayed as a chat message; the status strip exposes
 planning, bounded format/semantic repair, and ordinary server-compilation notices.
 
-The compact Decomposer/Compiler steps prefer stable OpenCode JSON Schemas;
+For `PACKAGE_ACCEPTANCE_CLOSED_CHOICE_V7`, reversible aliases, singleton collection shape,
+`null` collections, and contract-irrelevant explanatory fields are the only additional safe
+normalizations. They produce one persisted `NORMALIZED` AI-output audit item and bounded
+`safeNormalizations` diagnostics without spending a repair turn. The raw object is inspected before
+normalization: any attempt to provide paths, commands, test targets, Stage topology, permissions, or
+safety policy is rejected. Missing, duplicate, conflicting, or out-of-range selections and multiple
+non-equivalent valid JSON candidates remain blocking. A rejected response preserves the immutable fact
+catalog and already completed server bindings.
+
+The compact Decomposer/Compiler steps prefer stable OpenCode JSON Schemas; current v7 acceptance uses
+`PACKAGE_ACCEPTANCE_CLOSED_CHOICE_V7`, while frozen v6 rows keep
+`PACKAGE_ACCEPTANCE_DISAMBIGUATION_V6`.
 the final Judge contract has its own schema. Legacy final schemas remain for
 historical recovery only. Capability-unknown starts
 optimistically in schema mode except for the verified OpenCode 1.18.12–1.18.18

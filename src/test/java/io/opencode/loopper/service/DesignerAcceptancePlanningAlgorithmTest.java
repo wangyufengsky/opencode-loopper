@@ -2040,6 +2040,226 @@ class DesignerAcceptancePlanningAlgorithmTest {
     }
 
     @Test
+    void v7SafelyNormalizesClosedChoicesAndIgnoresHarmlessNarrativeMetadata() {
+        ObjectMapper json = new ObjectMapper();
+        DesignerAcceptanceWorkflow workflow = new DesignerAcceptanceWorkflow(null, json,
+                new AiOutputExtractor(json), null, evidenceIndexer,
+                new DesignerPackagePlanCompiler(evidenceIndexer));
+
+        var extracted = workflow.parseV7("""
+                LOOPSPEC_COMPILATION_PLAN_JSON_START
+                {"summary":"唯一闭集选择","fact_assignments":{"fact_index":3,"stage_index":1},
+                 "capability_preferences":{"fact_index":3,"capability_indexes":2},
+                 "handoff_summary":null,"explanation":"仅解释为何选择服务端候选"}
+                LOOPSPEC_COMPILATION_PLAN_JSON_END
+                """);
+
+        assertThat(extracted.value().factAssignments()).containsExactly(new AcceptanceFactAssignment(3, 1));
+        assertThat(extracted.value().capabilityPreferences()).containsExactly(
+                new AcceptanceCapabilityPreference(3, List.of(2)));
+        assertThat(extracted.normalizations()).contains(
+                "FIELD_NAME_NORMALIZED", "SINGLETON_COLLECTION_NORMALIZED",
+                "UNKNOWN_FIELDS_IGNORED");
+    }
+
+    @Test
+    void v7CarriesTheUniqueGlobalCapabilitySetThroughStageLowering() {
+        List<Fact> factList = List.of(
+                new Fact(0, FactKind.SCENARIO, "成功", "输入合法", "执行", "返回成功", "状态一致",
+                        null, "DS-L001", "受控设计", "0".repeat(64)),
+                new Fact(1, FactKind.SCENARIO, "失败", "输入非法", "执行", "抛出异常", "状态一致",
+                        null, "DS-L001", "受控设计", "1".repeat(64)),
+                new Fact(2, FactKind.DELIVERABLE, "src/main/java/example/Flow.java", null, null, null,
+                        null, "生产代码", "DS-L001", "受控设计", "2".repeat(64)),
+                new Fact(3, FactKind.DELIVERABLE, "src/test/java/example/FlowTest.java", null, null, null,
+                        null, "测试代码", "DS-L001", "受控设计", "3".repeat(64)));
+        Catalog facts = new Catalog(CONTRACT_VERSION_V7, "WP-1", 1, "4".repeat(64), true,
+                factList, List.of(), List.of(), List.of(), List.of());
+        Capability broad = new Capability(2, "FOCUSED_TEST", "全局 Flow 测试",
+                List.of("mvn", "-Dtest=BroadFlowTest", "test"), List.of(0, 1),
+                List.of("BroadFlowTest"), true, false, 80);
+        Capability localSuccess = new Capability(0, "FOCUSED_TEST", "局部成功测试",
+                List.of("mvn", "-Dtest=LocalSuccessTest", "test"), List.of(0),
+                List.of("LocalSuccessTest"), true, false, 100);
+        Capability localFailure = new Capability(1, "FOCUSED_TEST", "局部失败测试",
+                List.of("mvn", "-Dtest=LocalFailureTest", "test"), List.of(1),
+                List.of("LocalFailureTest"), true, false, 100);
+        CompactAcceptanceBindingPlan binding = new CompactAcceptanceBindingPlan("全局唯一能力",
+                List.of(new AcceptanceGroupHint("成功阶段", "实现成功", List.of(0, 2, 3), List.of()),
+                        new AcceptanceGroupHint("失败阶段", "实现失败", List.of(1, 2, 3), List.of(0))),
+                List.of(), null);
+
+        DesignerAcceptancePlanCompiler.Result result = compiler.compile(workPackage(), "受控设计", facts,
+                new CapabilityCatalog(CONTRACT_VERSION_V7,
+                        List.of(localSuccess, localFailure, broad), List.of()),
+                binding, role("software-java", List.of("java")), List.of(), List.of(), List.of(), 6, true);
+
+        assertThat(result.plan().status()).isEqualTo("COMPILED");
+        assertThat(result.plan().stages()).hasSize(2).allSatisfy(stage ->
+                assertThat(stage.verifiers()).filteredOn(verifier -> "TEST".equals(verifier.processPurpose()))
+                        .singleElement().satisfies(verifier ->
+                                assertThat(verifier.command()).contains("-Dtest=BroadFlowTest")));
+    }
+
+    @Test
+    void v7StageLoweringRejectsANonExhaustiveCapabilitySolution() {
+        List<Fact> factList = List.of(
+                new Fact(0, FactKind.SCENARIO, "成功", "输入合法", "执行", "返回成功", "状态一致",
+                        null, "DS-L001", "受控设计", "0".repeat(64)),
+                new Fact(1, FactKind.DELIVERABLE, "src/main/java/example/Flow.java", null, null, null,
+                        null, "生产代码", "DS-L001", "受控设计", "1".repeat(64)),
+                new Fact(2, FactKind.DELIVERABLE, "src/test/java/example/FlowTest.java", null, null, null,
+                        null, "测试代码", "DS-L001", "受控设计", "2".repeat(64)));
+        Catalog facts = new Catalog(CONTRACT_VERSION_V7, "WP-1", 1, "3".repeat(64), true,
+                factList, List.of(), List.of(), List.of(), List.of());
+        CapabilityCatalog capabilities = new CapabilityCatalog(CONTRACT_VERSION_V7, List.of(
+                new Capability(0, "FOCUSED_TEST", "测试 A", List.of("mvn", "-Dtest=ATest", "test"),
+                        List.of(0), List.of("ATest"), true, false, 100),
+                new Capability(1, "FOCUSED_TEST", "测试 B", List.of("mvn", "-Dtest=BTest", "test"),
+                        List.of(0), List.of("BTest"), true, false, 100)), List.of());
+        CompactAcceptanceBindingPlan binding = new CompactAcceptanceBindingPlan("受控验收",
+                List.of(new AcceptanceGroupHint("实现", "实现并验证", List.of(0, 1, 2), List.of())),
+                List.of(), null);
+        DesignerAcceptancePlanCompiler bounded = new DesignerAcceptancePlanCompiler(
+                new DesignerPackagePlanCompiler(evidenceIndexer), new DesignerAcceptanceCapabilitySolver(1));
+
+        DesignerAcceptancePlanCompiler.Result result = bounded.compile(workPackage(), "受控设计", facts,
+                capabilities, binding, role("software-java", List.of("java")), List.of(), List.of(),
+                List.of(), 6, true);
+
+        assertThat(result.plan().status()).isEqualTo("DESIGN_INCOMPLETE");
+        assertThat(result.plan().designGaps()).singleElement().satisfies(gap -> {
+            assertThat(gap.code()).isEqualTo(DesignGapCode.AMBIGUOUS_ACCEPTANCE_INTENT);
+            assertThat(gap.detail()).contains("有界节点", "权威最优");
+        });
+    }
+
+    @Test
+    void v7RejectsModelAttemptsToWriteExecutionOrTopologyFields() {
+        ObjectMapper json = new ObjectMapper();
+        DesignerAcceptanceWorkflow workflow = new DesignerAcceptanceWorkflow(null, json,
+                new AiOutputExtractor(json), null, evidenceIndexer,
+                new DesignerPackagePlanCompiler(evidenceIndexer));
+
+        assertThatThrownBy(() -> workflow.parseV7("""
+                LOOPSPEC_COMPILATION_PLAN_JSON_START
+                {"summary":"越权选择","factAssignments":[],"capabilityPreferences":[],
+                 "handoffSummary":null,"commands":["mvn","test"],
+                 "stages":[{"allowedPaths":["src/**"]}]}
+                LOOPSPEC_COMPILATION_PLAN_JSON_END
+                """))
+                .isInstanceOfSatisfying(BadRequestException.class, error -> {
+                    assertThat(error.code()).isEqualTo("AMBIGUOUS_ACCEPTANCE_INTENT");
+                    assertThat(error).hasMessageContaining("execution or topology");
+                });
+    }
+
+    @Test
+    void v7RejectsSingularAndCompoundExecutionOrTopologyFieldNames() {
+        ObjectMapper json = new ObjectMapper();
+        DesignerAcceptanceWorkflow workflow = new DesignerAcceptanceWorkflow(null, json,
+                new AiOutputExtractor(json), null, evidenceIndexer,
+                new DesignerPackagePlanCompiler(evidenceIndexer));
+
+        for (String field : List.of("testTarget", "stageTopology", "stageIndex", "safetyPolicy",
+                "shellCommand", "obligationIndex", "cmd", "argv", "shell", "script")) {
+            assertThatThrownBy(() -> workflow.parseV7("""
+                    LOOPSPEC_COMPILATION_PLAN_JSON_START
+                    {"factAssignments":[],"capabilityPreferences":[],"%s":"forbidden"}
+                    LOOPSPEC_COMPILATION_PLAN_JSON_END
+                    """.formatted(field)))
+                    .as(field)
+                    .isInstanceOfSatisfying(BadRequestException.class, error ->
+                            assertThat(error.code()).isEqualTo("AMBIGUOUS_ACCEPTANCE_INTENT"));
+        }
+    }
+
+    @Test
+    void v7RejectsConflictingValidChoicesAcrossMarkerAndNarrativeObjects() {
+        ObjectMapper json = new ObjectMapper();
+        DesignerAcceptanceWorkflow workflow = new DesignerAcceptanceWorkflow(null, json,
+                new AiOutputExtractor(json), null, evidenceIndexer,
+                new DesignerPackagePlanCompiler(evidenceIndexer));
+
+        assertThatThrownBy(() -> workflow.parseV7("""
+                {"factAssignments":[],"capabilityPreferences":[{"factIndex":3,"capabilityIndexes":[1]}]}
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->
+                {"factAssignments":[],"capabilityPreferences":[{"factIndex":3,"capabilityIndexes":[2]}]}
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->
+                """))
+                .isInstanceOfSatisfying(BadRequestException.class, error ->
+                        assertThat(error.code()).isEqualTo("ACCEPTANCE_CLOSED_CHOICE_OUTPUT_AMBIGUOUS"));
+    }
+
+    @Test
+    void v7RejectsAnyDangerousRawCandidateEvenWhenTheMarkerChoiceIsValid() {
+        ObjectMapper json = new ObjectMapper();
+        DesignerAcceptanceWorkflow workflow = new DesignerAcceptanceWorkflow(null, json,
+                new AiOutputExtractor(json), null, evidenceIndexer,
+                new DesignerPackagePlanCompiler(evidenceIndexer));
+
+        assertThatThrownBy(() -> workflow.parseV7("""
+                {"shellCommand":["mvn","test"]}
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->
+                {"factAssignments":[],"capabilityPreferences":[]}
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->
+                """))
+                .isInstanceOfSatisfying(BadRequestException.class, error ->
+                        assertThat(error.code()).isEqualTo("AMBIGUOUS_ACCEPTANCE_INTENT"));
+    }
+
+    @Test
+    void v7CandidateLimitCannotHideALaterDangerousObject() {
+        ObjectMapper json = new ObjectMapper();
+        DesignerAcceptanceWorkflow workflow = new DesignerAcceptanceWorkflow(null, json,
+                new AiOutputExtractor(json), null, evidenceIndexer,
+                new DesignerPackagePlanCompiler(evidenceIndexer));
+        String safeMarker = """
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->
+                {"factAssignments":[],"capabilityPreferences":[]}
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->
+                """;
+
+        assertThatThrownBy(() -> workflow.parseV7(safeMarker.repeat(16)
+                + "{\"shellCommand\":[\"mvn\",\"test\"]}"))
+                .isInstanceOfSatisfying(BadRequestException.class, error ->
+                        assertThat(error.code()).isEqualTo("AMBIGUOUS_ACCEPTANCE_INTENT"));
+    }
+
+    @Test
+    void v7RejectsConflictingAliasesInsteadOfSilentlyTakingTheLastValue() {
+        ObjectMapper json = new ObjectMapper();
+        DesignerAcceptanceWorkflow workflow = new DesignerAcceptanceWorkflow(null, json,
+                new AiOutputExtractor(json), null, evidenceIndexer,
+                new DesignerPackagePlanCompiler(evidenceIndexer));
+
+        assertThatThrownBy(() -> workflow.parseV7("""
+                {"factAssignments":{"factIndex":3,"stageIndex":0},
+                 "fact_assignments":{"fact_index":3,"stage_index":1},
+                 "capabilityPreferences":[]}
+                """))
+                .isInstanceOfSatisfying(BadRequestException.class, error ->
+                        assertThat(error.code()).isEqualTo("AMBIGUOUS_ACCEPTANCE_INTENT"));
+    }
+
+    @Test
+    void v7RejectsSelectionFieldsOutsideTheirClosedChoiceObjects() {
+        ObjectMapper json = new ObjectMapper();
+        DesignerAcceptanceWorkflow workflow = new DesignerAcceptanceWorkflow(null, json,
+                new AiOutputExtractor(json), null, evidenceIndexer,
+                new DesignerPackagePlanCompiler(evidenceIndexer));
+
+        for (String field : List.of("factIndex", "capabilityIndexes")) {
+            assertThatThrownBy(() -> workflow.parseV7("""
+                    {"factAssignments":[],"capabilityPreferences":[],"%s":3}
+                    """.formatted(field)))
+                    .as(field)
+                    .isInstanceOfSatisfying(BadRequestException.class, error ->
+                            assertThat(error.code()).isEqualTo("AMBIGUOUS_ACCEPTANCE_INTENT"));
+        }
+    }
+
+    @Test
     void bindsPositiveRegressionTargetOnceWithoutMakingItCoverUnrelatedBusinessScenarios() {
         String design = """
                 ## 目标与范围

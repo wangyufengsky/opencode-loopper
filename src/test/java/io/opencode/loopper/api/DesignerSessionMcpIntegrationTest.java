@@ -1048,7 +1048,7 @@ class DesignerSessionMcpIntegrationTest {
 
         var compilation = mapper.findLatestLoopSpecCompilationForPackage(reviewing.id(), "WP-1").orElseThrow();
         if ("JSON_SCHEMA".equals(compilation.planningResponseMode()))
-            assertThat(compilation.planningResponseSchemaId()).isEqualTo("PACKAGE_ACCEPTANCE_DISAMBIGUATION_V6");
+            assertThat(compilation.planningResponseSchemaId()).isEqualTo("PACKAGE_ACCEPTANCE_CLOSED_CHOICE_V7");
         assertThat(mapper.findDesignAcceptancePlanning(compilation.id())).isPresent();
         assertThat(compilation.externalSessionId()).isNull();
         assertThat(mapper.findDesignAcceptancePlanning(compilation.id()).orElseThrow().bindingSource())
@@ -2816,7 +2816,7 @@ class DesignerSessionMcpIntegrationTest {
     }
 
     @Test
-    void invalidV6CompilerOutputTriggersTargetedRedesignWithoutGenericStageFallback() throws Exception {
+    void invalidV7CompilerOutputPreservesFrozenBindingAndTriggersTargetedRedesign() throws Exception {
         ProjectRow project = project("optional-acceptance-advice");
         Files.writeString(Path.of(project.rootPath()).resolve("pom.xml"), "<project/>\n");
         LoopDraftRow draft = drafts.create(legacySpec(project.id()));
@@ -2870,8 +2870,11 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(mapper.findDesignAcceptancePlanning(compilation.id())).hasValueSatisfying(planning -> {
             assertThat(planning.state()).isEqualTo("FAILED");
             assertThat(planning.bindingSource()).isEqualTo("AI_DISAMBIGUATION_V6");
+            assertThat(planning.factsJson()).contains("ObjectRegistry 重复键拒绝");
+            assertThat(planning.bindingJson()).contains("unresolvedFactIndexes")
+                    .doesNotContain("planning without required JSON");
             assertThat(planning.diagnosticsJson()).contains(
-                    "ACCEPTANCE_DISAMBIGUATION_OUTPUT_UNPARSEABLE",
+                    "ACCEPTANCE_CLOSED_CHOICE_OUTPUT_UNPARSEABLE",
                     "\"mutationObligationCount\":1",
                     "\"resolvedMutationObligationCount\":0",
                     "\"unresolvedMutationObligationCount\":1",
@@ -3037,7 +3040,7 @@ class DesignerSessionMcpIntegrationTest {
                         designerSessions.workPackageStatuses(session.id()), designerSessions.messages(session.id()))
                 .isEqualTo("FINAL_REVIEW");
         var compilation = mapper.findLatestLoopSpecCompilationForPackage(session.id(), "WP-1").orElseThrow();
-        assertThat(compilation.planningResponseSchemaId()).isEqualTo("PACKAGE_ACCEPTANCE_DISAMBIGUATION_V6");
+        assertThat(compilation.planningResponseSchemaId()).isEqualTo("PACKAGE_ACCEPTANCE_CLOSED_CHOICE_V7");
         assertThat(compilation.externalSessionId()).isNull();
         assertThat(compilation.serverCompiled()).isTrue();
         assertThat(mapper.findDesignAcceptancePlanning(compilation.id())).hasValueSatisfying(planning -> {
@@ -3380,7 +3383,7 @@ class DesignerSessionMcpIntegrationTest {
     }
 
     @Test
-    void v6AcceptanceAmbiguityCreatesExactlyOneLockedDisambiguationSession() throws Exception {
+    void v7AcceptanceAmbiguityCreatesExactlyOneLockedClosedChoiceSession() throws Exception {
         fake().setStructuredCapability(new OpenCodeClient.StructuredOutputCapability(
                 OpenCodeClient.CapabilityState.AVAILABLE, OpenCodeClient.CapabilityState.AVAILABLE, null));
         ProjectRow project = project("controlled-acceptance-v6-disambiguation");
@@ -3414,8 +3417,9 @@ class DesignerSessionMcpIntegrationTest {
         setPackageDesignerOutput("WP-1", design);
         fake().setPackageCompilerPlanningOutput("WP-1", """
                 <!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->
-                {"summary":"失败路径已消歧","factAssignments":[{"factIndex":3,"stageIndex":1}],
-                 "capabilityPreferences":[],"handoffSummary":"两阶段流程已冻结"}
+                {"summary":"失败路径已消歧","fact_assignments":{"fact_index":3,"stage_index":1},
+                 "capability_preferences":null,"handoff_summary":"两阶段流程已冻结",
+                 "explanation":"仅解释闭集选择，不改变冻结拓扑"}
                 <!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->
                 """);
 
@@ -3426,7 +3430,7 @@ class DesignerSessionMcpIntegrationTest {
 
         var compilation = mapper.findLatestLoopSpecCompilationForPackage(
                 reviewing.id(), "WP-1").orElseThrow();
-        assertThat(compilation.planningResponseSchemaId()).isEqualTo("PACKAGE_ACCEPTANCE_DISAMBIGUATION_V6");
+        assertThat(compilation.planningResponseSchemaId()).isEqualTo("PACKAGE_ACCEPTANCE_CLOSED_CHOICE_V7");
         assertThat(compilation.formatRepairCount()).isZero();
         assertThat(compilation.semanticRepairCount()).isZero();
         assertThat(fake().profileForSession(compilation.externalSessionId()))
@@ -3434,15 +3438,71 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(mapper.findDesignAcceptancePlanning(compilation.id())).hasValueSatisfying(planning -> {
             assertThat(planning.bindingSource()).isEqualTo("AI_DISAMBIGUATION_V6");
             assertThat(planning.bindingJson()).contains("factIndexes").doesNotContain("factAssignments");
-            assertThat(planning.diagnosticsJson()).contains("UNRESOLVED_FACTS:[3]");
+            assertThat(planning.diagnosticsJson()).contains("UNRESOLVED_FACTS:[3]",
+                    "\"safeNormalizations\"", "FIELD_NAME_NORMALIZED",
+                    "SINGLETON_COLLECTION_NORMALIZED", "NULL_COLLECTION_NORMALIZED",
+                    "UNKNOWN_FIELDS_IGNORED");
         });
         assertThat(fake().promptHistory().stream()
                 .filter(call -> call.prompt().contains("factAssignments")
                         && call.prompt().contains("WP-1"))).hasSize(1);
         assertThat(fake().promptForSession(compilation.externalSessionId()))
-                .contains("Machine role contract 2026-08-semantic-v6", "server-locked stage topology")
-                .doesNotContain("Machine role contract 2026-08-semantic-v5");
+                .contains("Machine role contract 2026-08-semantic-v7", "server-locked stage topology",
+                        "closed candidates")
+                .doesNotContain("Machine role contract 2026-08-semantic-v5",
+                        "Machine role contract 2026-08-semantic-v6",
+                        "src/main/java/example/Flow.java", "src/test/java/example/FlowTest.java",
+                        "\"command\"", "\"testTargets\"");
+        assertThat(mapper.listAiOutputHandlingEvents("DESIGNER_SESSION", reviewing.id()))
+                .anySatisfy(event -> {
+                    assertThat(event.eventType()).isEqualTo("NORMALIZED");
+                    assertThat(event.correctionCategoriesJson()).contains(
+                            "FIELD_NAME_NORMALIZED", "SINGLETON_COLLECTION_NORMALIZED",
+                            "NULL_COLLECTION_NORMALIZED", "UNKNOWN_FIELDS_IGNORED");
+                });
+        assertThat(designerSessions.messages(reviewing.id()))
+                .filteredOn(message -> "NORMALIZED".equals(message.deliveryState()))
+                .anySatisfy(message -> assertThat(message.content()).contains("FIELD_NAME_NORMALIZED",
+                        "SINGLETON_COLLECTION_NORMALIZED", "NULL_COLLECTION_NORMALIZED",
+                        "UNKNOWN_FIELDS_IGNORED"));
         assertThat(drafts.spec(drafts.get(draft.id())).stages()).hasSize(2);
+    }
+
+    @Test
+    void v7ClosedChoiceUsesOneFreshMarkerSessionWhenSchemaIsUnsupported() throws Exception {
+        fake().setStructuredCapability(new OpenCodeClient.StructuredOutputCapability(
+                OpenCodeClient.CapabilityState.AVAILABLE, OpenCodeClient.CapabilityState.AVAILABLE, null));
+        ProjectRow project = project("controlled-acceptance-v7-schema-fallback");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        String design = stageControlledDesign("# v7 marker 回退", 1)
+                .replace("| 阶段 1 | 完成能力 1 | 场景 1；", "| 阶段 1 | 完成能力 1 | 需消歧场景；");
+        fake().setDesignerOutput(designerOutput(design, legacySpec(project.id())));
+        setPackageDesignerOutput("WP-1", design);
+        fake().setPackageCompilerPlanningOutput("WP-1", """
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->
+                {"factAssignments":[{"factIndex":1,"stageIndex":0}],"capabilityPreferences":[]}
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->
+                """);
+        DesignerSessionRow reviewing = prepareReviewingSession(project.id(), draft.id(),
+                "修改 Java 验收能力并用 AcceptanceContractTest 验收");
+        fake().failNextStructuredPrompts(1);
+        designerSessions.confirmRequirement(reviewing.id(), reviewing.discussionRevision());
+        pollUntilSettled(reviewing.id());
+
+        assertThat(designerSessions.get(reviewing.id()).workflowPhase()).isEqualTo("FINAL_REVIEW");
+        var compilation = mapper.findLatestLoopSpecCompilationForPackage(reviewing.id(), "WP-1").orElseThrow();
+        assertThat(compilation.planningResponseMode()).isEqualTo("TEXT_MARKER");
+        assertThat(compilation.planningResponseSchemaId()).isNull();
+        assertThat(compilation.planningFormatFallbackUsed()).isTrue();
+        assertThat(compilation.planningRepairCount()).isEqualTo(1);
+        assertThat(compilation.formatRepairCount()).isZero();
+        assertThat(compilation.semanticRepairCount()).isZero();
+        assertThat(fake().profileForSession(compilation.externalSessionId()))
+                .isEqualTo(OpenCodeClient.SessionProfile.COMPILER_BINDING_NO_TOOLS);
+        assertThat(fake().promptForSession(compilation.externalSessionId()))
+                .contains("Machine role contract 2026-08-semantic-v7", "TEXT_MARKER mode");
+        assertThat(fake().abortedSessionIds()).hasSize(1)
+                .doesNotContain(compilation.externalSessionId());
     }
 
     @Test
@@ -3486,7 +3546,7 @@ class DesignerSessionMcpIntegrationTest {
                 .orElseThrow();
         assertThat(List.of(firstCompilation, secondCompilation)).allSatisfy(compilation -> {
             assertThat(compilation.planningResponseSchemaId())
-                    .isEqualTo("PACKAGE_ACCEPTANCE_DISAMBIGUATION_V6");
+                    .isEqualTo("PACKAGE_ACCEPTANCE_CLOSED_CHOICE_V7");
             assertThat(compilation.externalSessionId()).isNull();
             assertThat(compilation.serverCompiled()).isTrue();
             assertThat(mapper.findDesignAcceptancePlanning(compilation.id())).hasValueSatisfying(planning -> {

@@ -115,14 +115,21 @@ verification-capability catalogs. The exact Designer Stage table locks names, ob
 dependencies, and every uniquely resolved fact. A complete ordinary `DIRECT_SOFTWARE_DESIGN / WP-1`
 therefore creates no OpenCode Compiler Session and consumes no model call.
 
-Only unresolved closed-set facts or capabilities create one `COMPILER_BINDING_NO_TOOLS` Session;
-large-task packages also create that one Session to preserve their handoff summary. All built-in
-repository tools are denied. `PACKAGE_ACCEPTANCE_DISAMBIGUATION_V6` returns only `summary`,
+For current v7, only unresolved closed-set facts or a true global capability-score tie create one
+`COMPILER_BINDING_NO_TOOLS` Session; package shape and a handoff summary alone do not. All built-in
+repository tools are denied. `PACKAGE_ACCEPTANCE_CLOSED_CHOICE_V7` returns only `summary`,
 `factAssignments`, `capabilityPreferences`, and `handoffSummary`; it cannot create, remove, rename,
 merge, reorder, or change dependencies of a Stage, move a locked fact, or return outcome, gaps,
-commands, paths, test targets, IDs, or verifier objects. Extra fields, duplicate/out-of-range
-assignments, or incomplete coverage are rejected as `AMBIGUOUS_ACCEPTANCE_INTENT` and trigger a
-scoped Designer replacement instead of a repair Session, empty binding, or catch-all Stage.
+commands, paths, test targets, IDs, verifier objects, permissions, or safety policy. Reversible aliases,
+singleton collection shapes, `null` collections, and explanatory fields are normalized and audited
+without a repair turn. Raw execution/topology/safety fields, duplicate/out-of-range/conflicting assignments,
+incomplete coverage, and multiple non-equivalent valid JSON candidates are rejected as
+`AMBIGUOUS_ACCEPTANCE_INTENT`; frozen facts and server bindings remain intact. Frozen v6 packages retain
+`PACKAGE_ACCEPTANCE_DISAMBIGUATION_V6` and its strict historical parser.
+For a true current-v7 tie, the prompt exposes only candidates whose membership differs between exhaustive equal
+optima. The response must name the complete discriminating index set of one listed optimum; common capabilities,
+weaker candidates, partial choices, duplicate indexes, and cross-optimum mixtures are not valid choices. If the
+bounded solver cannot prove exhaustiveness, no Compiler Session is created and the design remains incomplete.
 Configured MCP permissions stay subject
 to the ordinary additive server-name policy and cannot weaken this ownership boundary.
 
@@ -327,8 +334,8 @@ chooses among multiple candidates. Semantic preflight returns all errors with JS
 Pointers in one repair prompt; source-text search is never executable behavior
 evidence.
 
-New work uses three stable server-owned response Schemas: compact Decomposer,
-v6 acceptance disambiguation, and final Judge. Legacy Decomposer/Compiler final Schemas remain
+New work uses stable server-owned response Schemas: compact Decomposer,
+v7 acceptance closed choice, frozen-v6 acceptance disambiguation, and final Judge. Legacy Decomposer/Compiler final Schemas remain
 registered only for historical rows without a semantic snapshot. A typed prompt may choose text or one of those
 schemas and may set system/agent fields, but it never accepts caller-owned tools.
 Schema mode uses OpenCode `format.type=json_schema` with provider retry count
@@ -356,15 +363,16 @@ runtime remains operator-owned and must expose the same variant for its selected
 DeepSeek model to get the direct schema path; otherwise the existing fresh-Session
 marker fallback remains the safe compatibility path.
 
-New Decomposer and v6 disambiguation records prefer JSON Schema unless capability is known
+New Decomposer and current v7/frozen-v6 disambiguation records prefer JSON Schema unless capability is known
 unavailable. OpenCode 1.18.12 through 1.18.18 are deterministically quarantined
 to marker mode because both endpoints of that patch range were verified to
 accept `prompt_async` and then reject their own stored Schema during message
 decoding. Later versions return to normal capability probing. A rejected format,
 typed structured-output error, or completed turn
-without structured data consumes one ordinary model call and the matching
-format-repair allowance, then creates one fresh read-only role
-Session and retries that step with the legacy marker contract. It never retries
+without structured data consumes one ordinary model call and the existing one-time transport fallback allowance,
+then creates one fresh read-only role Session and retries that step with the matching marker contract. V7 retains
+the same `PACKAGE_ACCEPTANCE_CLOSED_CHOICE_V7` semantic closure in marker mode; this fallback does not create a
+format/semantic repair pool or permit a second closed-choice answer. It never retries
 in the failed transcript, never adds a provider-owned hidden retry pool, and
 never bypasses the same deterministic semantic validation. Legacy active rows
 default to marker mode. Judge records likewise persist response mode/schema;

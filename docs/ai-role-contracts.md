@@ -1,6 +1,7 @@
 # AI 机器角色轻量合同
 
-运行时合同版本：`2026-08-semantic-v6`。
+通用运行时合同版本：`2026-08-semantic-v6`；当前验收闭集 Compiler 合同版本：
+`2026-08-semantic-v7`。
 
 本文供维护者理解角色边界。真正可执行的合同以
 `MachineRoleContractCatalog`、`OpenCodeStructuredSchemas`、服务端语义编译器和
@@ -152,14 +153,18 @@ POLICY / DEPENDENCY` DesignFact。每项事实保存精确 Designer 原文、稳
 1–6，依赖只能指向更早阶段。完整的普通 `DIRECT_SOFTWARE_DESIGN / WP-1` 直接使用冻结拓扑，
 不创建 Compiler Session，也不增加模型调用。
 
-只有闭集事实或能力仍无法唯一绑定时，才创建一次 `COMPILER_BINDING_NO_TOOLS` Session，并使用
-`PACKAGE_ACCEPTANCE_DISAMBIGUATION_V6`。它只能返回 `summary / factAssignments /
+只有闭集事实或能力仍无法唯一绑定时，才创建一次 `COMPILER_BINDING_NO_TOOLS` Session。当前 v7
+使用 `PACKAGE_ACCEPTANCE_CLOSED_CHOICE_V7`；冻结 v6 继续使用
+`PACKAGE_ACCEPTANCE_DISAMBIGUATION_V6`。二者都只承载 `summary / factAssignments /
 capabilityPreferences / handoffSummary`，只填写服务端列出的 unresolved facts 和候选能力；阶段名称、
-目标、顺序、依赖和已锁定事实均不可修改。大型多包仍为每个候选调用一次，以保留交接摘要，但使用
-同一锁定拓扑。服务端把事实与能力构成二部图：先处理强制独立测试和单候选事实，再按锁定 Stage
-运行精确 branch-and-bound 集合覆盖；超过 100,000 个节点时
-确定性降级为贪心选择并复核。每个分组以零未覆盖为硬条件，再优先减少 Judge-only、提高确定性证据
-强度和减少能力数量，AI 偏好只作为稳定排序参考。结果仍须经过现有
+目标、顺序、依赖和已锁定事实均不可修改。服务端把全部可覆盖事实与能力构成一个全局二部图：先处理
+强制独立测试和单候选事实，再按锁定 Stage 运行精确 branch-and-bound 集合覆盖；超过 100,000 个节点时
+确定性降级为贪心选择并复核。业务评分依次要求零未覆盖、强制能力完整、更少 Judge-only、更少
+非确定性能力、更少能力和更高证据强度；稳定索引只用于输出顺序。只有全部业务维度同分的多个最优集合
+才是真实 tie，并触发一次模型选择；唯一全局最优集合直接编译，不能因单个事实有多个 covering capability
+制造一次 Compiler 调用。模型只看到这些等价最优集合之间真正改变成员关系的候选，并且必须返回恰好一个
+完整最优集合的判别索引；共同成员、较弱候选和非最优组合不进入选择面。若有界搜索未穷举，结果只作为诊断
+并失败关闭，不允许把贪心结果或模型选择冒充权威最优解。AI 偏好不参与服务端评分。结果仍须经过现有
 `DesignerPackagePlanCompiler` 和 LoopSpec v2 全量校验。
 
 Stage 组装完成后，服务端只接受三种路径归属证明：Stage 精确引用产生义务的受控交付/范围事实；恰好一个
@@ -169,7 +174,7 @@ Stage 的既有精确路径规则按运行期语义覆盖义务；或计划恰�
 Stage、focused test 和显式 `GIT_DIFF` 必须复用同一
 allowed/forbidden 集合。遗漏返回 `REQUIRED_MUTATION_PATH_UNASSIGNED`，冲突、删除和移动源端返回
 `REQUIRED_MUTATION_PATH_FORBIDDEN`。该门禁完全由服务端和运行期同一匹配语义决定，不交给弱模型、
-Judge 或 catch-all Stage 降级；路径义务不进入模型输入输出，现有 `PACKAGE_ACCEPTANCE_DISAMBIGUATION_V6` 输出形状保持不变。
+Judge 或 catch-all Stage 降级；路径义务不进入模型输入输出，v7 最小闭集输出形状不增加执行字段。
 当前 v7 普通包、大型任务包和滚动执行当前包在服务端绑定完整时都走 `SERVER_DIRECT`，不因包形态强制创建
 Compiler Session。路径归属缺口直接进入有界人工输入门，不消耗整份工作包的自动重设计次数。
 
@@ -247,14 +252,18 @@ Python 脚本可使用带成功标记的 `SELF_CHECK`；文档与一次性表格
 
 ## 修复协议
 
-v6 消歧提示给出唯一小型对象形状和全部闭集候选。额外字段、索引越界、重复分配、遗漏待分配事实、
-修改锁定事实或阶段拓扑都直接产生 `AMBIGUOUS_ACCEPTANCE_INTENT`，不创建格式或语义修复 Session，
-也不以空 binding、丢弃建议或“其余验收场景”单阶段继续。服务端沿既有自动重设计边界要求 Designer
-提交一份完整替代设计，并在诊断中保留未解析引用与调用原因。结构缺失、依赖冲突和确定性验证能力
-缺失则直接 `DESIGN_INCOMPLETE`，不会为了取得一个无法改变结论的回答而调用 Compiler。
+v7 消歧提示给出唯一小型对象形状和全部闭集候选。服务端可机械接受可逆字段别名、单项对象/数组互转、
+`null` 集合归一为空集合，并忽略不参与合同的说明字段；每个动作都写入 AI 输出 `NORMALIZED` 审计和
+`safeNormalizations` 诊断，不消耗格式/语义修复预算。原始响应在规范化前扫描：路径、命令、测试目标、
+Stage 拓扑、权限或安全字段即使 Schema transport 接受也必须失败关闭。缺少必选项、越界索引、重复或冲突
+选择、修改锁定事实，以及多个不等价的有效 JSON 候选都产生 `AMBIGUOUS_ACCEPTANCE_INTENT`，不创建
+格式或语义修复 Session，也不以空 binding、丢弃建议或 catch-all Stage 继续。无效结果保留冻结事实和
+已完成的唯一绑定，只更新失败诊断。结构缺失、依赖冲突和确定性验证能力缺失直接
+`DESIGN_INCOMPLETE`，不会为了取得一个无法改变结论的回答而调用 Compiler。
 
 v3 历史活动仍按既有 `AI_SEMANTIC_PATCH_V1` 和最多 16 个补丁兼容；冻结 v4/v5 的在途工作包继续按
-自己的快照恢复，不会被 v6 合同重解释。新请求统一使用 v6 阶段表和消歧 Schema。
+自己的快照恢复，不会被 v6/v7 合同重解释。冻结 v6 使用原阶段表和 V6 Schema；当前 v7 新请求使用
+同一受控阶段表和 V7 最小闭集 Schema。
 `DIRECT_SOFTWARE_DESIGN` 的隐式 `WP-1` 继承已确认的软件任务画像；需求正文中的否定性
 “依赖/配置”措辞不得把它降级为 `local-maintenance`。若历史或中断记录出现这种与父画像
 冲突的非软件 Role Pack，人工重新编译前的权威读取会重新冻结软件 Role Pack，再进入 v6
@@ -268,8 +277,8 @@ v3 历史活动仍按既有 `AI_SEMANTIC_PATCH_V1` 和最多 16 个补丁兼容�
 TEST；`FULL_TEST`/`BUILD` 不能替代该门禁。只有完整补丁应用后再次通过全部语义、路径、
 测试和验收校验，才允许冻结结果。
 
-新 Compiler 记录默认按 v6 消歧合同解释，只有冻结为旧 Role Pack 或明确含历史
-`evidenceMappings` 的活动记录才走兼容解析。缺少 `outcome` 是 v6 的合法形态；历史响应额外携带
+新 Compiler 记录按其冻结规划合同解释：当前 v7 使用闭集规范化边界，冻结 v6 保持严格原形状，只有冻结为旧 Role Pack 或明确含历史
+`evidenceMappings` 的活动记录才走兼容解析。缺少 `outcome` 是 v6/v7 的合法形态；历史响应额外携带
 `status/outcome/designGaps` 也不能夺回结果所有权。服务端在闭集覆盖后唯一派生 `COMPILED`，无覆盖能力时唯一派生带具体事实
 标题的 `DESIGN_INCOMPLETE / VERIFICATION_CAPABILITY_UNAVAILABLE`，不会把这类确定性结论再交给
 模型来回修复。错误对象不会覆盖最后一个有效建议快照；只有测试路径的 Java 包生成

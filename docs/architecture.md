@@ -604,6 +604,11 @@ paths are rejected before a Compilation row is created and are never classified 
 For the current V7 role pack, a fully resolved direct package, large-task package, or active rolling package is
 compiled through `SERVER_DIRECT`; package shape alone does not create a Compiler Session. A mutation ownership gap
 transitions the package and Designer session to bounded `WAITING_INPUT` without dispatching a whole-package redesign.
+V7 capability resolution evaluates one global closed cover over all coverable facts. Complete coverage and mandatory
+capabilities are hard constraints; the business score then prefers fewer Judge-only capabilities, fewer nondeterministic
+capabilities, fewer total capabilities, and greater evidence strength. Stable indexes only order output. A unique optimum
+records `compilerAvoidedReason=UNIQUE_OPTIMUM` and avoids the model; only solutions tied on every business dimension
+contribute to `trueCapabilityTieCount` and can create one `COMPILER_BINDING_NO_TOOLS` Session.
 
 V42 adds immutable `project_stack_profile` snapshots and their
 `project_stack_component` rows. Registration of a new or re-managed project schedules one
@@ -709,7 +714,7 @@ Package work is strictly serial. A package keeps one healthy interactive
 Designer Session across its discussion turns and reconstructs a replacement
 Session from persisted snapshots/decisions after transport loss. A current V7 direct, large-task,
 or active rolling candidate skips Compiler when the server resolves every exact reference and closed capability;
-only a remaining fact/capability ambiguity uses one locked-topology no-tools disambiguation Session. Frozen V6
+only a remaining fact ambiguity or true global capability tie uses one locked-topology no-tools disambiguation Session. Frozen V6
 large-task packages preserve their historical one-Compiler compatibility path. The result produces
 1–6 Stages for direct software or 1–3 Stages per large-task package carrying
 `workPackageId`, and is deterministically validated into `REVIEWING`; the next
@@ -739,6 +744,14 @@ into the Compiler prompt and deterministically parsed; a unique Stage-level matc
 may fill omitted duplicate commands/targets or the equivalent TEST verifier. Broad
 test suites and ambiguous candidates are never guessed. The normal v2 assessment
 still runs after canonicalization and remains authoritative.
+
+For current v7, that Session uses `PACKAGE_ACCEPTANCE_CLOSED_CHOICE_V7` and the
+`2026-08-semantic-v7` card. Safe reversible aliases, singleton collection shapes, `null` collections,
+and explanatory fields are normalized and audited without consuming a repair allowance. Before normalization,
+the raw object is rejected if it attempts to supply paths, commands, test targets, Stage topology, permissions,
+or safety policy. Missing, duplicate, conflicting, or out-of-range selections and multiple non-equivalent valid
+JSON candidates remain `AMBIGUOUS_ACCEPTANCE_INTENT`. Invalid output preserves the immutable fact catalog and
+server-resolved binding. Frozen v6 rows keep their strict V6 Schema/card/parser and are never reinterpreted by v7.
 
 V45 gives only newly created `FULL_PACKAGE_DESIGN` software work a distinct
 `ROLLING_PACKAGES` execution mode; old Tasks, ordinary software, large documents,

@@ -8,6 +8,7 @@ import java.util.Map;
  */
 public final class MachineRoleContractCatalog {
     public static final String CONTRACT_VERSION = "2026-08-semantic-v6";
+    public static final String CLOSED_CHOICE_CONTRACT_VERSION = "2026-08-semantic-v7";
     public static final String LEGACY_COMPILER_CONTRACT_VERSION = "2026-08-semantic-v5";
 
     private static final Map<String, String> CARDS = Map.of(
@@ -29,5 +30,12 @@ public final class MachineRoleContractCatalog {
                 + ": Given frozen DesignFacts and verification capabilities, suggest dependency-ordered groups "
                 + "and optional indexed capability preferences. Do not decide outcome or gaps. Do not invent "
                 + "commands, paths, ids, criteria, source refs, or executable verifier fields.";
+    }
+
+    public static String closedChoiceCompilerCard() {
+        return "Machine role contract " + CLOSED_CHOICE_CONTRACT_VERSION
+                + ": Select every required fact assignment and capability preference only from the server's "
+                + "closed candidates. Do not emit paths, commands, tests, or stages; do not change topology, "
+                + "permissions, safety fields, or invent indexes.";
     }
 }

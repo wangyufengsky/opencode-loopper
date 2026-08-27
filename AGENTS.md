@@ -42,10 +42,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.2.69.jar
-   jar tf target/opencode-loopper-0.2.69.jar \
+   test -s target/opencode-loopper-0.2.70.jar
+   jar tf target/opencode-loopper-0.2.70.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.2.69.jar
+   shasum -a 256 target/opencode-loopper-0.2.70.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -95,8 +95,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.2.69`。
-- 正式产物：`target/opencode-loopper-0.2.69.jar`。
+- Maven 项目版本：`0.2.70`。
+- 正式产物：`target/opencode-loopper-0.2.70.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -245,7 +245,8 @@ Task 详情 `overview` 必须投影 `loopRetryAvailable`、`cancellationAvailabl
 - V42 用不可变 `project_stack_profile / project_stack_component` 保存项目技术栈与模块基线。新登记或取消管理后重新登记的项目在登记事务提交后自动分析；既有受管项目不批量回填，项目列表只连接最新持久化摘要并投影 `UNANALYZED`，不得产生文件系统 N+1。第一次创建新 Designer 或点击“AI 更新 Loopper 公约”时按需分析，后者必须强制重析。分析最多读取 2000 个非符号链接普通文件、深度 5，并跳过生成目录；Maven/Gradle、`package.json`、Python 配置/测试、Go/Rust 分别形成 Java、Node、Python、Other 组件，同一组件根真实跨软件族才是 mixed。指纹必须基于排序后的相对 Manifest 路径与内容 SHA-256；失败持久化 `FAILED`，超限或证据不完整持久化 `PARTIAL`，任何状态都不得隐式兜底为 Java。
 - V42 Router 只能用需求相对路径、模块名和明确技术词在当前项目画像证据内选择组件；AI 三标签不能选择或发明技术栈，也不能覆盖证据、权限、测试或执行策略。单栈可自动选，明确跨组件使用 `software-mixed`，多栈歧义、`PARTIAL/FAILED` 或空仓库无明确技术必须进入确认，空仓库使用 `software-generic`。任务画像、Router run、工作包和 Stage 冻结项目画像 ID、Manifest 指纹与组件键；普通 WP-1 继承已确认组件，只有大型任务允许包级专门化。冻结 Task/Stage/Recovery 永不被后续重析改写；未冻结 Designer 仅在需求重算时使用新画像，且只有指纹、组件、意图和流程均一致才能继承原确认。
 - “AI 更新 Loopper 公约”必须在数据库事务外先强制重析，再创建只读 AI Session；`FAILED` 不启动 AI，`PARTIAL` 必须显示复核警告。AI 必须根据结构化画像和当前文件重新生成 `技术栈与模块 / 构建与测试 / 目录与边界`，服务端拒绝缺失章节、超限内容和画像中不存在的已知技术。`project_convention_draft` 冻结画像 ID 与指纹；预览不写文件，确认写入前同时复核原 `AGENTS.md` 哈希和实时 Manifest 指纹。没有 marker 时首次追加，已有 marker 时仅替换管理区块，区块外人工内容必须原样保留；`AGENTS.md` 只服务于 Agent 上下文，不是机器路由权威来源。生成中的最新思考、工具/输出片段与 Provider 权威 Token 必须由服务端活动接口投影并在弹窗持续刷新；V43 持久化进度指纹和显式停止意图用于重启恢复，但连接成功后不得因无进展或总时长自动停止，必须持续轮询到远端真实终态，弹窗不得展示超时上限。用户显式停止必须先持久化 `STOPPING`，确认远端终止后进入 `CANCELLED`；浏览器关闭弹窗不得冒充远端取消。
-- v6/v7 软件验收先由 `DesignerAcceptanceFastPathResolver` 执行服务端符号解析：只允许 Unicode NFKC、首尾裁剪、连续空白折叠和拉丁字符大小写归一，不删除标点，不做子串或模糊匹配；`SCENARIO/REVIEW` 恰好属于一个 Stage，`DELIVERABLE` 可共享；V6 的 `SCOPE/POLICY` 为包级约束，V7 仅允许正向受控 `SCOPE` 被 Stage 精确引用作路径 provenance，`POLICY` 仍为包级约束；阶段名唯一、数量 1–6 且依赖只能指向前序。当前 v7 普通 `DIRECT_SOFTWARE_DESIGN / WP-1`、大型任务包与滚动执行当前包在闭集事实和能力已确定时均不创建 Compiler Session、不消费模型调用，按 Designer 阶段数直接进入能力求解和 LoopSpec v2 lowering；冻结 v6 大型包继续保持历史的一次 Compiler 交接摘要语义。只有闭集事实或能力仍有歧义时才调用一次 `COMPILER_BINDING_NO_TOOLS / PACKAGE_ACCEPTANCE_DISAMBIGUATION_V6`；AI 只能填写 `factAssignments/capabilityPreferences` 并给出摘要，不能修改锁定事实、阶段拓扑或路径归属。额外字段、索引越界、重复或遗漏分配、修改锁定内容一律形成定点 `AMBIGUOUS_ACCEPTANCE_INTENT` 重设计，不做修复 Session、空 binding 或通用单阶段降级；确定性结构/能力缺失不调用 Compiler。服务端只从正向交付物、验收约束和阶段关系发现测试能力，负向/不变文本不得生成测试目标；测试限定名按主体符号归一并通过标识符、CamelCase、标题优先和中文语义唯一胜者竞争映射，每个业务条件至多绑定一个 focused test，独立必跑但无专属场景的目标只生成一次带原始来源的独立机器条件；仅测试路径生成 `JAVA_TEST_ONLY`，不得伪装生产变更。分组引用的非验收事实必须保留为该 Stage 的交付与路径边界；只有独立完整的仓库相对路径或 glob 才可进入路径合同，含说明、连接词或中文标点的 scope 整句不得因包含 `/` 被当成路径。服务端对每个有界 Stage 分组运行上限 100000 节点的精确 branch-and-bound 集合覆盖，超限后确定性贪心复核，以零未覆盖为硬条件，再优先少 Judge-only、强确定性证据和少能力；随后唯一派生 `COMPILED` 或具体 `DESIGN_INCOMPLETE`，生成 EARS 验收文字、`<workPackageId>-AC-n`、精确来源、直接 argv、测试目标和验证器，并继续通过 `DesignerPackagePlanCompiler` 与 LoopSpec v2 全量校验。冻结 v4/v5/v6 工作包按自身合同恢复；无闭集能力覆盖时必须失败关闭，不得因模型猜测放行；UI 只展示有界中文场景/能力投影，不泄露内部索引或原始 JSON。
+- v6/v7 软件验收先由 `DesignerAcceptanceFastPathResolver` 执行服务端符号解析：只允许 Unicode NFKC、首尾裁剪、连续空白折叠和拉丁字符大小写归一，不删除标点，不做子串或模糊匹配；`SCENARIO/REVIEW` 恰好属于一个 Stage，`DELIVERABLE` 可共享；V6 的 `SCOPE/POLICY` 为包级约束，V7 仅允许正向受控 `SCOPE` 被 Stage 精确引用作路径 provenance，`POLICY` 仍为包级约束；阶段名唯一、数量 1–6 且依赖只能指向前序。当前 v7 普通 `DIRECT_SOFTWARE_DESIGN / WP-1`、大型任务包与滚动执行当前包在闭集事实和能力已确定时均不创建 Compiler Session、不消费模型调用，按 Designer 阶段数直接进入能力求解和 LoopSpec v2 lowering；冻结 v6 大型包继续保持历史的一次 Compiler 交接摘要语义。当前 v7 对全部可覆盖事实运行一次全局能力集合求解：完整覆盖和强制能力是硬约束，再依次偏好少 Judge-only、少非确定性能力、少能力和高证据强度；稳定索引只能稳定输出，不能打破业务真实同分。唯一最优记录 `compilerAvoidedReason=UNIQUE_OPTIMUM` 并直接编译，只有全部业务维度同分才计入 `trueCapabilityTieCount` 并调用一次 `COMPILER_BINDING_NO_TOOLS / PACKAGE_ACCEPTANCE_CLOSED_CHOICE_V7`。该闭集合同只能填写 `factAssignments/capabilityPreferences` 并给出摘要；可逆别名、单项集合、`null` 集合和无害说明字段可机械规范化，必须记录 `NORMALIZED` 审计和 `safeNormalizations`，且不消耗语义修复；原始响应尝试写路径、命令、测试目标、Stage 拓扑、权限或安全字段时必须在规范化前阻断。索引越界、重复/冲突/遗漏选择及多个不等价有效 JSON 候选一律形成定点 `AMBIGUOUS_ACCEPTANCE_INTENT`，不做修复 Session、空 binding 或通用单阶段降级，并保留冻结事实和已完成的唯一绑定。Schema 不支持时只允许在一个全新零工具 marker Session 中使用同一 v7 闭集合同回退，不扩大既有模型调用/传输回退预算。冻结 v6 继续使用 `PACKAGE_ACCEPTANCE_DISAMBIGUATION_V6` 严格原合同。服务端只从正向交付物、验收约束和阶段关系发现测试能力，负向/不变文本不得生成测试目标；测试限定名按主体符号归一并通过标识符、CamelCase、标题优先和中文语义唯一胜者竞争映射，每个业务条件至多绑定一个 focused test，独立必跑但无专属场景的目标只生成一次带原始来源的独立机器条件；仅测试路径生成 `JAVA_TEST_ONLY`，不得伪装生产变更。分组引用的非验收事实必须保留为该 Stage 的交付与路径边界；只有独立完整的仓库相对路径或 glob 才可进入路径合同，含说明、连接词或中文标点的 scope 整句不得因包含 `/` 被当成路径。求解超过 100000 节点时只允许确定性贪心复核并按非穷举诊断阻断模型替代权威评分；随后唯一派生 `COMPILED` 或具体 `DESIGN_INCOMPLETE`，生成 EARS 验收文字、`<workPackageId>-AC-n`、精确来源、直接 argv、测试目标和验证器，并继续通过 `DesignerPackagePlanCompiler` 与 LoopSpec v2 全量校验。不得用 Judge-only 替代 focused-test 门禁。冻结 v4/v5/v6 工作包按自身合同恢复；无闭集能力覆盖时必须失败关闭，不得因模型猜测放行；UI 只展示有界中文场景/能力投影，不泄露内部索引或原始 JSON。
+- 当前 v7 真实同分时只向 Compiler 投影穷举等价最优集合间成员关系不同的能力；模型返回的完整判别索引并集必须恰好等于其中一个最优集合，共同成员、较弱候选、局部选择或跨最优组合均不得进入有效选择。非穷举结果只作阻断性诊断，不能创建 Compiler Session 或编译计划。
 - Decomposer 与历史 v3 Compiler 每个候选仍使用既有紧凑语义合同；只有没有 V41 快照的历史活动或明确 v3 信封才使用最多 16 个 `add/replace/remove` 的 `AI_SEMANTIC_PATCH_V1`，并继续保留各两次格式/语义修复。冻结 v5 验收绑定继续按历史建议合同恢复；新 v6 消歧形状错误不得丢弃为空建议继续，而应直接定点重设计。每个只读角色已确认的传输失败允许一个全新 Session 重试。整个需求版本最多 96 次模型调用；各包内容次数互不挤占但受全局上限约束。
 - 新 Decomposer 紧凑规划、Compiler 紧凑规划和 Judge 必须优先使用服务端固定 ID 的 OpenCode JSON Schema；旧 final Schema 只保留给缺少语义快照的历史活动记录。provider 内建 schema 重试固定为 0。只有格式接口拒绝、明确 `StructuredOutputError` 或完成后缺失 structured payload 才能在全新只读角色 Session 中回退到 marker，并计入当前步骤原有模型调用与格式修复预算；不得在失败 Session 内继续、增加隐藏重试池或绕过确定性语义校验。历史活动记录按 `TEXT_MARKER` 兼容。
 - OpenCode `RETRY` 是 Provider 自恢复中的瞬态 Session 状态，统一适用于交互式 Designer、Decomposer、Compiler、Implementation、Judge、项目公约、提交建议和本地同步：必须保留原远端 Session 继续轮询，不得新建 Attempt/Judge、消耗 Loopper 重试预算、写入 Session 错误或把它当作旧 writer 已停止；Designer 流程保持 `RUNNING`，不得阻断已授权的全自动模式。除已明确采用连接后无限等待的 Router 和项目公约外，各调用方自身保留的角色/操作超时继续生效。Loopper 管理的 Decomposer、Compiler 和 Judge 必须选择最多 24 个 agentic steps 的私有 `loopper-structured` agent。若最近一次用户提示后的同一规范化工具名和参数连续出现 3 次，必须立即尽力 abort，并且每个角色步骤最多启动一次禁用全部内置工具的 finalizer Session；恢复资格和纠正类别持久化在 V28，finalizer 计入全局模型调用预算但不占格式修复次数，24 步仍是最终保险。若 structured prompt 已接受但消息读取接口随后以格式/Schema 400 拒绝，必须按结构化格式不支持进入既有全新 marker Session 回退。结构化角色最终进入 `WAITING_INPUT` 或 `SESSION_ERROR` 前必须尽力 abort 当前远端 Session，UI 的“已停止”不得与仍在读仓库的远端执行并存。
@@ -440,7 +441,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.2.69.jar
+JAR=target/opencode-loopper-0.2.70.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -542,6 +543,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-08-27 | 弱模型 Compiler v7 闭集选择与唯一全局最优，交付 0.2.70 | 当前 v7 对全部可覆盖验收事实一次求解完整业务评分，唯一全局最优零模型直编，真实同分只开放等价最优集合间的判别能力并要求选择一个完整最优集合；新增最小 Schema/marker、严格多候选与危险字段语义防火墙、安全机械规范化审计、非穷举失败关闭和已绑定事实保留，冻结 v5/v6 合同及 focused-test/Judge 门禁保持兼容；同步 README、架构、设计、OpenCode、AI 角色、代码结构、本公约和 003 工单，无 Flyway 迁移 | 聚焦 Designer/Compiler 后端 210/210，双轴代码评审无剩余 P0–P2；`./scripts/verify.sh`：Java 730 项（0 失败、0 错误、2 跳过）、Vitest 230/230，`BUILD SUCCESS`；JAR `target/opencode-loopper-0.2.70.jar` 为 283953904 字节，含 112 个 SPA 静态条目，SHA-256 `49ea4c26d054fa0163b657806876d6808b30205fcd41947b2528ce5aff41488d`；未启动或替换运行实例，尚未推送、未打标签、未创建 Release |
 | 2026-08-27 | 修复逐包工作台拆包调整入口状态漂移，交付 0.2.69 | 读模型与命令端共用 `RollingPackageCommandContextService` 构造 owner/Checkpoint 事实；工作台同一响应返回当前包、Task/包版本和完整命令能力，前端不再混用旧 Task overview；当前包仍在设计、编译或校验以及活动 writer/verifier/Judge 均失败关闭，并在并发 409 后自动刷新；同步 README、设计、七特性、代码结构和本公约正文，无 Flyway 迁移 | 聚焦后端 18/18、聚焦 Vitest 51/51、前端类型检查通过；首次 `./scripts/verify.sh` 的 707 项 Java 行为断言无失败，但既有并发测试偶发 `SQLITE_LOCKED_SHAREDCACHE`，该场景单独复跑 1/1 通过，源码不变的同版本诊断重试完整通过：Java 707 项（0 失败、0 错误、2 跳过）、Vitest 230/230，`BUILD SUCCESS`；JAR `target/opencode-loopper-0.2.69.jar` 为 283934316 字节，含 113 个 SPA 静态条目，SHA-256 `e146176f347af8aefdfd3e4d5f4382f660d6873c8c176f90fc55041ea9bba26c`；未启动或替换运行实例，未推送、未打标签、未创建 Release |
 | 2026-08-27 | 弱模型修改义务唯一归属与定点歧义门，交付 0.2.68 | 在 v7 路径守恒之上新增服务端确定性 Stage Binder：精确事实引用、唯一运行期路径覆盖或单 Stage 才可自动绑定；真实多候选按路径与 Stage 中文名定点阻断，不调用 Compiler、不重做整包，Stage、聚焦测试与 `GIT_DIFF` 保持同一授权集合；普通单包、大型包和滚动当前包走相同直编边界，冻结 v6 快照保持兼容；显式代码段测试命令优先于正文推断，Python pytest/unittest 验证进程禁止生成 `__pycache__`；同步 AI 角色、设计、代码结构、README 与本工单文档，无 Flyway 迁移 | 聚焦后端 114/114、Designer/API Vitest 86/86、前端类型检查通过；隔离工作树 `./scripts/verify.sh`：Java 706 项（0 失败、0 错误、2 跳过）、Vitest 227/227，`BUILD SUCCESS`；JAR `target/opencode-loopper-0.2.68.jar` 为 283933193 字节，含 113 个 SPA 静态条目，SHA-256 `efd4bfa47cf2be5ce1da35bbce2da30223ae4501768b7dea5aa420f553694161`；未启动或替换运行实例，未推送、未打标签、未创建 Release |
 | 2026-08-27 | 弱模型软件验收路径守恒，交付 0.2.67 | Role Pack 升级为 `2026-08-dynamic-v7`：服务端从冻结需求、受控设计事实与工作包范围提取显式正向修改义务，区分精确路径与路径规则，并在 lowering 前证明每条义务由对应 Stage 自身的受控 `DELIVERABLE/SCOPE` 来源覆盖；否定、示例、只读、范围外、删除/移动源与外部路径继续失败关闭，V6 弱模型消歧合同和历史冻结快照保持兼容；Designer 展示守恒诊断，同步 README、架构、设计、OpenCode、AI 角色、代码结构和本公约正文，无 Flyway 迁移 | 聚焦后端 217/217；`./scripts/verify.sh`：Java 697 项（0 失败、0 错误、2 跳过）、Vitest 227/227，`BUILD SUCCESS`；JAR `target/opencode-loopper-0.2.67.jar` 为 283903654 字节，含 112 个 SPA 静态条目，SHA-256 `595c6834445e5a9cbfe0a4b39bed51106e255d4f06cf975d29bc7711944e2894`；未启动或替换运行实例，未推送、未打标签、未创建 Release |

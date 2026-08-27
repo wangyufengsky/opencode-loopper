@@ -12,14 +12,20 @@ import java.util.List;
 /** Solves fact-to-capability coverage, then lowers it through the existing authoritative package compiler. */
 final class DesignerAcceptancePlanCompiler {
     private final DesignerPackagePlanCompiler packageCompiler;
-    private final DesignerAcceptanceCapabilitySolver capabilitySolver = new DesignerAcceptanceCapabilitySolver();
+    private final DesignerAcceptanceCapabilitySolver capabilitySolver;
     private final DesignerAcceptanceStageEvidenceBinder evidenceBinder = new DesignerAcceptanceStageEvidenceBinder();
     private final DesignerAcceptanceStagePathPlanner stagePathPlanner = new DesignerAcceptanceStagePathPlanner();
     private final DesignerMutationStageBinder mutationStageBinder = new DesignerMutationStageBinder();
     private final MutationConservationPolicy mutationConservationPolicy = new MutationConservationPolicy();
 
     DesignerAcceptancePlanCompiler(DesignerPackagePlanCompiler packageCompiler) {
+        this(packageCompiler, new DesignerAcceptanceCapabilitySolver());
+    }
+
+    DesignerAcceptancePlanCompiler(DesignerPackagePlanCompiler packageCompiler,
+                                   DesignerAcceptanceCapabilitySolver capabilitySolver) {
         this.packageCompiler = packageCompiler;
+        this.capabilitySolver = capabilitySolver;
     }
 
     Result compile(DesignWorkPackageRow workPackage, String design, Catalog facts,
@@ -28,6 +34,11 @@ final class DesignerAcceptancePlanCompiler {
                    List<String> deliverables, int stageLimit, boolean directSoftwareMode) {
         Preparation prepared = prepare(facts, input, role, scopeIn, stageLimit, directSoftwareMode);
         StageBuild built = buildStages(prepared, facts, capabilities, role, scopeOut, deliverables);
+        if (!built.exhaustive()) {
+            return incompleteNonExhaustive(workPackage, design, facts, capabilities, prepared.binding(),
+                    built.explored(), built.fallback(), built.selectedCount(), built.scenarioViews(), stageLimit,
+                    directSoftwareMode);
+        }
         if (built.gateGap() != null) {
             return incompleteStageGate(workPackage, design, facts, capabilities, prepared.binding(), built.gateGap(),
                     built.explored(), built.fallback(), built.selectedCount(), built.scenarioViews(), stageLimit,
@@ -92,17 +103,24 @@ final class DesignerAcceptancePlanCompiler {
                                    List<String> deliverables) {
         List<CompactStage> stages = new ArrayList<>();
         List<ScenarioView> scenarioViews = new ArrayList<>();
-        long explored = 0;
-        boolean fallback = false;
+        DesignerAcceptanceCapabilitySolver.Result global = CONTRACT_VERSION_V7.equals(facts.contractVersion())
+                ? capabilitySolver.solveV7(prepared.acceptanceFacts().stream().map(Fact::index).toList(),
+                        capabilities.capabilities(), prepared.binding()) : null;
+        long explored = global == null ? 0 : global.exploredNodes();
+        boolean fallback = global != null && global.fallbackUsed();
+        boolean exhaustive = global == null || global.exhaustive();
         LinkedHashSet<Integer> selectedCapabilityIndexes = new LinkedHashSet<>();
-        List<Integer> allUncovered = new ArrayList<>();
+        List<Integer> allUncovered = global == null
+                ? new ArrayList<>() : new ArrayList<>(global.uncovered());
         List<Capability> independentRequired = capabilities.capabilities().stream()
                 .filter(Capability::mandatory).filter(capability -> capability.coversFactIndexes().isEmpty()).toList();
         for (int groupIndex = 0; groupIndex < prepared.groups().size(); groupIndex++) {
             Group group = prepared.groups().get(groupIndex);
-            DesignerAcceptanceCapabilitySolver.Result solved = capabilitySolver.solve(
-                    group.acceptanceFactIndexes(), capabilities.capabilities(), prepared.binding());
-            List<Capability> selected = new ArrayList<>(solved.selected());
+            DesignerAcceptanceCapabilitySolver.Result solved = global == null ? capabilitySolver.solve(
+                    group.acceptanceFactIndexes(), capabilities.capabilities(), prepared.binding()) : global;
+            List<Capability> selected = new ArrayList<>(global == null ? solved.selected()
+                    : global.selected().stream().filter(capability -> capability.coversFactIndexes().stream()
+                            .anyMatch(group.acceptanceFactIndexes()::contains)).toList());
             if (groupIndex == prepared.groups().size() - 1) {
                 independentRequired.stream().filter(capability -> selected.stream()
                         .noneMatch(existing -> existing.index() == capability.index())).forEach(selected::add);
@@ -119,18 +137,43 @@ final class DesignerAcceptancePlanCompiler {
                     && stageGate == null) {
                 return new StageBuild(List.copyOf(stages), List.copyOf(scenarioViews),
                         explored + solved.exploredNodes(), fallback || solved.fallbackUsed(),
-                        selectedCapabilityIndexes.size(), List.copyOf(allUncovered), group, independentRequired);
+                        selectedCapabilityIndexes.size(), List.copyOf(allUncovered), group, independentRequired,
+                        exhaustive);
             }
-            explored += solved.exploredNodes();
-            fallback |= solved.fallbackUsed();
+            if (global == null) {
+                explored += solved.exploredNodes();
+                fallback |= solved.fallbackUsed();
+                allUncovered.addAll(solved.uncovered());
+            }
             selected.stream().map(Capability::index).forEach(selectedCapabilityIndexes::add);
             if (stageGate != null) selectedCapabilityIndexes.add(stageGate.index());
-            allUncovered.addAll(solved.uncovered());
             stages.add(stage(group, facts, selected, stageGate, allowedPaths, scopeOut,
                     stageDeliverables, kind, scenarioViews));
         }
         return new StageBuild(List.copyOf(stages), List.copyOf(scenarioViews), explored, fallback,
-                selectedCapabilityIndexes.size(), List.copyOf(allUncovered), null, independentRequired);
+                selectedCapabilityIndexes.size(), List.copyOf(allUncovered), null, independentRequired, exhaustive);
+    }
+
+    private Result incompleteNonExhaustive(DesignWorkPackageRow workPackage, String design, Catalog facts,
+                                           CapabilityCatalog capabilities, CompactAcceptanceBindingPlan binding,
+                                           long explored, boolean fallback, int selectedCount,
+                                           List<ScenarioView> scenarioViews, int stageLimit,
+                                           boolean directSoftwareMode) {
+        CompactPackageCompilationPlan incomplete = new CompactPackageCompilationPlan(
+                "DESIGN_INCOMPLETE", binding.summary(), List.of(), binding.handoffSummary(),
+                List.of(new DesignGap(DesignGapCode.AMBIGUOUS_ACCEPTANCE_INTENT,
+                        "服务端能力求解未在有界节点内完成穷举，不能证明权威最优集合")));
+        DesignerPackagePlanCompiler.Result lowered = packageCompiler.compile(
+                workPackage, design, incomplete, stageLimit, directSoftwareMode);
+        List<String> normalizations = new ArrayList<>(lowered.normalizations());
+        normalizations.add("CAPABILITY_SOLVER_NON_EXHAUSTIVE");
+        SolverDiagnostics diagnostics = new SolverDiagnostics(fallback
+                ? "DETERMINISTIC_GREEDY_2OPT" : "EXACT_BRANCH_AND_BOUND", explored, fallback,
+                facts.facts().stream().filter(fact -> fact.kind() == FactKind.SCENARIO
+                        || fact.kind() == FactKind.REVIEW).toList().size(),
+                capabilities.capabilities().size(), selectedCount, List.of(), normalizations);
+        return new Result(lowered.plan(), List.copyOf(normalizations), diagnostics,
+                List.copyOf(scenarioViews), MutationConservationPolicy.Evaluation.notEvaluated(facts));
     }
 
     private Result incompleteMutation(DesignWorkPackageRow workPackage, String design, Catalog facts,
@@ -298,7 +341,7 @@ final class DesignerAcceptancePlanCompiler {
                                List<Group> groups, DesignerMutationStageBinder.Resolution mutationBindings) { }
     private record StageBuild(List<CompactStage> stages, List<ScenarioView> scenarioViews,
                               long explored, boolean fallback, int selectedCount, List<Integer> uncovered,
-                              Group gateGap, List<Capability> independentRequired) { }
+                              Group gateGap, List<Capability> independentRequired, boolean exhaustive) { }
     private record Group(String title, String objective, List<Integer> acceptanceFactIndexes,
                          List<Integer> materialFactIndexes, List<Integer> dependsOn) { }
 }

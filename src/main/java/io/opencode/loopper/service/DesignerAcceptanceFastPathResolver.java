@@ -16,6 +16,15 @@ import java.util.Set;
 final class DesignerAcceptanceFastPathResolver {
     private static final int MIN_STAGES = 1;
     private static final int MAX_STAGES = 6;
+    private final DesignerAcceptanceCapabilitySolver capabilitySolver;
+
+    DesignerAcceptanceFastPathResolver() {
+        this(new DesignerAcceptanceCapabilitySolver());
+    }
+
+    DesignerAcceptanceFastPathResolver(DesignerAcceptanceCapabilitySolver capabilitySolver) {
+        this.capabilitySolver = capabilitySolver;
+    }
 
     Resolution resolve(Catalog catalog, CapabilityCatalog capabilities) {
         if (!catalog.mutationIssues().isEmpty()) {
@@ -23,13 +32,13 @@ final class DesignerAcceptanceFastPathResolver {
             DesignGapCode code = "MUTATION_PATH_SCOPE_CONFLICT".equals(issue)
                     ? DesignGapCode.REQUIRED_MUTATION_PATH_FORBIDDEN
                     : DesignGapCode.AMBIGUOUS_ACCEPTANCE_INTENT;
-            return new Resolution(Outcome.DESIGN_INCOMPLETE, List.of(), List.of(), List.of(),
+            return new Resolution(Outcome.DESIGN_INCOMPLETE, List.of(), List.of(), List.of(), Map.of(), List.of(), 0,
                     catalog.mutationIssues(), List.of(new DesignGap(code,
                     "冻结修改路径的正负作用域存在冲突，需要先明确路径边界")));
         }
         List<StageHint> stages = catalog.stageHints();
         if (stages.size() > MAX_STAGES) {
-            return new Resolution(Outcome.DESIGN_INCOMPLETE, List.of(), List.of(), List.of(),
+            return new Resolution(Outcome.DESIGN_INCOMPLETE, List.of(), List.of(), List.of(), Map.of(), List.of(), 0,
                     List.of("ACCEPTANCE_STAGE_COUNT_INVALID"),
                     List.of(new DesignGap(DesignGapCode.LARGE_TASK_MODE_REQUIRED,
                             "阶段表超过普通单包允许的 1–6 个阶段，当前为 " + stages.size())));
@@ -57,6 +66,12 @@ final class DesignerAcceptanceFastPathResolver {
         List<String> reasons = new ArrayList<>();
         LinkedHashSet<Integer> unresolvedFacts = new LinkedHashSet<>();
         LinkedHashSet<Integer> ambiguousCapabilities = new LinkedHashSet<>();
+        List<Integer> coverableAcceptanceFacts = new ArrayList<>();
+        List<Integer> multipleCapabilityFacts = new ArrayList<>();
+        Map<Integer, List<Integer>> tiedCapabilityIndexesByFact = new LinkedHashMap<>();
+        List<List<Integer>> optimalTieChoiceSets = List.of();
+        int trueCapabilityTieCount = 0;
+        boolean compilerAvoidedForUniqueOptimum = false;
         Map<Integer, Integer> acceptanceOwners = new LinkedHashMap<>();
 
         for (int stageIndex = 0; stageIndex < stages.size(); stageIndex++) {
@@ -104,11 +119,39 @@ final class DesignerAcceptanceFastPathResolver {
                 return incomplete("VERIFICATION_CAPABILITY_UNAVAILABLE",
                         "验收事实“" + fact.title() + "”没有可执行验证能力");
             }
+            if (!covering.isEmpty()) coverableAcceptanceFacts.add(fact.index());
             if (covering.size() > 1) {
-                ambiguousCapabilities.add(fact.index());
-                reasons.add("AMBIGUOUS_CAPABILITY:" + fact.index());
+                if (CONTRACT_VERSION_V7.equals(catalog.contractVersion())) {
+                    multipleCapabilityFacts.add(fact.index());
+                } else {
+                    ambiguousCapabilities.add(fact.index());
+                    trueCapabilityTieCount++;
+                    reasons.add("AMBIGUOUS_CAPABILITY:" + fact.index());
+                }
             }
         }
+        if (CONTRACT_VERSION_V7.equals(catalog.contractVersion()) && !multipleCapabilityFacts.isEmpty()) {
+            DesignerAcceptanceCapabilitySolver.Result optimum = capabilitySolver.solveV7(
+                    coverableAcceptanceFacts, capabilities.capabilities(),
+                    new CompactAcceptanceBindingPlan(null, List.of(), List.of(), null));
+            if (!optimum.exhaustive()) {
+                return incomplete("CAPABILITY_SOLVER_NON_EXHAUSTIVE",
+                        "验收能力集合无法在有界节点内完成权威最优证明");
+            } else if (optimum.uniqueOptimum()) {
+                compilerAvoidedForUniqueOptimum = true;
+            } else {
+                List<Integer> tiedFacts = optimum.tiedFactIndexes().stream()
+                        .filter(multipleCapabilityFacts::contains).toList();
+                if (tiedFacts.isEmpty()) tiedFacts = List.copyOf(multipleCapabilityFacts);
+                ambiguousCapabilities.addAll(tiedFacts);
+                tiedFacts.forEach(factIndex -> tiedCapabilityIndexesByFact.put(factIndex,
+                        optimum.tiedCapabilityIndexesByFact().getOrDefault(factIndex, List.of())));
+                optimalTieChoiceSets = optimum.optimalTieChoiceSets();
+                trueCapabilityTieCount = optimum.optimalSolutionCount();
+                tiedFacts.forEach(factIndex -> reasons.add("AMBIGUOUS_CAPABILITY:" + factIndex));
+            }
+        }
+        if (compilerAvoidedForUniqueOptimum) reasons.add("COMPILER_AVOIDED_UNIQUE_OPTIMUM");
         if (!unresolvedFacts.isEmpty()) reasons.add("UNRESOLVED_FACTS:" + unresolvedFacts);
 
         if (unresolvedFacts.isEmpty() && reasons.stream().anyMatch(reason ->
@@ -135,7 +178,8 @@ final class DesignerAcceptanceFastPathResolver {
         Outcome outcome = unresolvedFacts.isEmpty() && ambiguousCapabilities.isEmpty()
                 ? Outcome.RESOLVED : Outcome.NEEDS_COMPILER;
         return new Resolution(outcome, List.copyOf(groups), List.copyOf(unresolvedFacts),
-                List.copyOf(ambiguousCapabilities), List.copyOf(reasons), List.of());
+                List.copyOf(ambiguousCapabilities), tiedCapabilityIndexesByFact,
+                optimalTieChoiceSets, trueCapabilityTieCount, List.copyOf(reasons), List.of());
     }
 
     CompactAcceptanceBindingPlan merge(Resolution resolution, CompactAcceptanceDisambiguationPlan input,
@@ -166,16 +210,32 @@ final class DesignerAcceptanceFastPathResolver {
                     || preferences.putIfAbsent(factIndex, preference) != null) {
                 throw invalid("Compiler returned an illegal or duplicate capability preference");
             }
-            Set<Integer> allowed = capabilities.capabilities().stream()
-                    .filter(capability -> capability.coversFactIndexes().contains(factIndex))
-                    .map(Capability::index).collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+            Set<Integer> allowed = resolution.tiedCapabilityIndexesByFact().containsKey(factIndex)
+                    ? new LinkedHashSet<>(resolution.tiedCapabilityIndexesByFact().get(factIndex))
+                    : capabilities.capabilities().stream()
+                            .filter(capability -> capability.coversFactIndexes().contains(factIndex))
+                            .map(Capability::index)
+                            .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
             if (preference.capabilityIndexes().isEmpty()
+                    || (CONTRACT_VERSION_V7.equals(catalog.contractVersion())
+                            && new LinkedHashSet<>(preference.capabilityIndexes()).size()
+                            != preference.capabilityIndexes().size())
                     || preference.capabilityIndexes().stream().anyMatch(index -> !allowed.contains(index))) {
                 throw invalid("Compiler capability preference is outside the frozen candidate set");
             }
         }
         if (!preferences.keySet().equals(ambiguousCapabilities)) {
             throw invalid("Compiler must choose preferences for every ambiguous capability binding");
+        }
+        if (!resolution.optimalTieChoiceSets().isEmpty()) {
+            LinkedHashSet<Integer> selected = preferences.values().stream()
+                    .flatMap(preference -> preference.capabilityIndexes().stream())
+                    .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+            long matches = resolution.optimalTieChoiceSets().stream()
+                    .filter(choice -> new LinkedHashSet<>(choice).equals(selected)).count();
+            if (matches != 1) {
+                throw invalid("Compiler must select one complete equal-optimum capability set");
+            }
         }
 
         List<AcceptanceGroupHint> groups = new ArrayList<>();
@@ -198,7 +258,8 @@ final class DesignerAcceptanceFastPathResolver {
     }
 
     private static Resolution incomplete(String code, String detail) {
-        return new Resolution(Outcome.DESIGN_INCOMPLETE, List.of(), List.of(), List.of(), List.of(code),
+        return new Resolution(Outcome.DESIGN_INCOMPLETE, List.of(), List.of(), List.of(), Map.of(), List.of(), 0,
+                List.of(code),
                 List.of(new DesignGap(DesignGapCode.AMBIGUOUS_ACCEPTANCE_INTENT, detail)));
     }
 
@@ -227,12 +288,22 @@ final class DesignerAcceptanceFastPathResolver {
 
     record Resolution(Outcome outcome, List<AcceptanceGroupHint> groupHints,
                       List<Integer> unresolvedFactIndexes, List<Integer> ambiguousCapabilityFactIndexes,
+                      Map<Integer, List<Integer>> tiedCapabilityIndexesByFact,
+                      List<List<Integer>> optimalTieChoiceSets, int trueCapabilityTieCount,
                       List<String> routingReasons, List<DesignGap> designGaps) {
         Resolution {
             groupHints = groupHints == null ? List.of() : List.copyOf(groupHints);
             unresolvedFactIndexes = unresolvedFactIndexes == null ? List.of() : List.copyOf(unresolvedFactIndexes);
             ambiguousCapabilityFactIndexes = ambiguousCapabilityFactIndexes == null
                     ? List.of() : List.copyOf(ambiguousCapabilityFactIndexes);
+            LinkedHashMap<Integer, List<Integer>> copied = new LinkedHashMap<>();
+            if (tiedCapabilityIndexesByFact != null) {
+                tiedCapabilityIndexesByFact.forEach((factIndex, indexes) ->
+                        copied.put(factIndex, indexes == null ? List.of() : List.copyOf(indexes)));
+            }
+            tiedCapabilityIndexesByFact = java.util.Collections.unmodifiableMap(copied);
+            optimalTieChoiceSets = optimalTieChoiceSets == null ? List.of()
+                    : optimalTieChoiceSets.stream().map(List::copyOf).toList();
             routingReasons = routingReasons == null ? List.of() : List.copyOf(routingReasons);
             designGaps = designGaps == null ? List.of() : List.copyOf(designGaps);
         }

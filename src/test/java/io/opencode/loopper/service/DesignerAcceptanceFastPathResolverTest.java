@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.ObjectMapper;
 
 class DesignerAcceptanceFastPathResolverTest {
     private final DesignerAcceptanceFastPathResolver resolver = new DesignerAcceptanceFastPathResolver();
@@ -135,6 +136,162 @@ class DesignerAcceptanceFastPathResolverTest {
                         List.of(new AcceptanceCapabilityPreference(0, List.of(0))), null),
                 catalog, capabilities)).isInstanceOfSatisfying(BadRequestException.class,
                         error -> assertThat(error.code()).isEqualTo("AMBIGUOUS_ACCEPTANCE_INTENT"));
+    }
+
+    @Test
+    void historicalV6KeepsAcceptingDuplicateCapabilityIndexes() {
+        Catalog catalog = catalog(List.of(stage("实现", "实现行为", List.of("成功"), List.of())),
+                List.of(fact(0, FactKind.SCENARIO, "成功")));
+        CapabilityCatalog capabilities = new CapabilityCatalog(CONTRACT_VERSION_V6, List.of(
+                capability(0, 0), capability(1, 0)), List.of());
+        var resolution = resolver.resolve(catalog, capabilities);
+
+        CompactAcceptanceBindingPlan merged = resolver.merge(resolution,
+                new CompactAcceptanceDisambiguationPlan(null, List.of(),
+                        List.of(new AcceptanceCapabilityPreference(0, List.of(0, 0))), null),
+                catalog, capabilities);
+
+        assertThat(merged.capabilityPreferences()).singleElement().satisfies(preference ->
+                assertThat(preference.capabilityIndexes()).containsExactly(0, 0));
+    }
+
+    @Test
+    void v7AvoidsCompilerWhenMultipleCoveringCapabilitiesHaveOneBusinessOptimum() {
+        Catalog catalog = new Catalog(CONTRACT_VERSION_V7, "WP-1", 1, "0".repeat(64), true,
+                List.of(fact(0, FactKind.SCENARIO, "成功")),
+                List.of(stage("实现", "实现行为", List.of("成功"), List.of())), List.of());
+        CapabilityCatalog capabilities = new CapabilityCatalog(CONTRACT_VERSION_V7, List.of(
+                new Capability(0, "FOCUSED_TEST", "强确定性测试",
+                        List.of("mvn", "-Dtest=StrongTest", "test"), List.of(0),
+                        List.of("StrongTest"), true, false, 100),
+                new Capability(1, "FOCUSED_TEST", "弱候选测试",
+                        List.of("mvn", "-Dtest=WeakTest", "test"), List.of(0),
+                        List.of("WeakTest"), true, false, 80)), List.of());
+
+        var resolution = resolver.resolve(catalog, capabilities);
+
+        assertThat(resolution.outcome()).isEqualTo(DesignerAcceptanceFastPathResolver.Outcome.RESOLVED);
+        assertThat(resolution.ambiguousCapabilityFactIndexes()).isEmpty();
+        assertThat(resolution.routingReasons()).contains("COMPILER_AVOIDED_UNIQUE_OPTIMUM");
+    }
+
+    @Test
+    void v7TreatsDeterminismAsBusinessScoreAndReportsOnlyRealTies() {
+        Catalog catalog = new Catalog(CONTRACT_VERSION_V7, "WP-1", 1, "0".repeat(64), true,
+                List.of(fact(0, FactKind.SCENARIO, "成功")),
+                List.of(stage("实现", "实现行为", List.of("成功"), List.of())), List.of());
+        Capability deterministic = new Capability(0, "FOCUSED_TEST", "确定性测试",
+                List.of("mvn", "-Dtest=StableTest", "test"), List.of(0),
+                List.of("StableTest"), true, false, 100);
+        Capability nondeterministic = new Capability(1, "FOCUSED_TEST", "非确定性候选",
+                List.of("mvn", "-Dtest=UnstableTest", "test"), List.of(0),
+                List.of("UnstableTest"), false, false, 100);
+
+        var unique = resolver.resolve(catalog,
+                new CapabilityCatalog(CONTRACT_VERSION_V7,
+                        List.of(deterministic, nondeterministic), List.of()));
+        var tied = resolver.resolve(catalog,
+                new CapabilityCatalog(CONTRACT_VERSION_V7,
+                        List.of(deterministic, new Capability(2, "FOCUSED_TEST", "同分确定性测试",
+                                List.of("mvn", "-Dtest=PeerTest", "test"), List.of(0),
+                                List.of("PeerTest"), true, false, 100)), List.of()));
+
+        assertThat(unique.outcome()).isEqualTo(DesignerAcceptanceFastPathResolver.Outcome.RESOLVED);
+        assertThat(unique.routingReasons()).contains("COMPILER_AVOIDED_UNIQUE_OPTIMUM");
+        assertThat(unique.trueCapabilityTieCount()).isZero();
+        assertThat(tied.outcome()).isEqualTo(DesignerAcceptanceFastPathResolver.Outcome.NEEDS_COMPILER);
+        assertThat(tied.ambiguousCapabilityFactIndexes()).containsExactly(0);
+        assertThat(tied.trueCapabilityTieCount()).isEqualTo(2);
+        assertThat(tied.tiedCapabilityIndexesByFact()).containsEntry(0, List.of(0, 2));
+    }
+
+    @Test
+    void v7RejectsWeakOrDuplicatePreferencesOutsideTheTrueTieSet() {
+        Catalog catalog = new Catalog(CONTRACT_VERSION_V7, "WP-1", 1, "0".repeat(64), true,
+                List.of(fact(0, FactKind.SCENARIO, "成功")),
+                List.of(stage("实现", "实现行为", List.of("成功"), List.of())), List.of());
+        CapabilityCatalog capabilities = new CapabilityCatalog(CONTRACT_VERSION_V7, List.of(
+                new Capability(0, "FOCUSED_TEST", "同分 A", List.of("mvn", "-Dtest=ATest", "test"),
+                        List.of(0), List.of("ATest"), true, false, 100),
+                new Capability(1, "FOCUSED_TEST", "同分 B", List.of("mvn", "-Dtest=BTest", "test"),
+                        List.of(0), List.of("BTest"), true, false, 100),
+                new Capability(2, "FOCUSED_TEST", "较弱 C", List.of("mvn", "-Dtest=CTest", "test"),
+                        List.of(0), List.of("CTest"), true, false, 80)), List.of());
+        var resolution = resolver.resolve(catalog, capabilities);
+        ObjectMapper json = new ObjectMapper();
+        DesignerAcceptanceWorkflow workflow = new DesignerAcceptanceWorkflow(null, json,
+                new AiOutputExtractor(json), null, new DesignerEvidenceIndexer(),
+                new DesignerPackagePlanCompiler(new DesignerEvidenceIndexer()));
+
+        assertThat(workflow.closedChoiceCapabilities(capabilities, resolution))
+                .contains("同分 A", "同分 B")
+                .doesNotContain("较弱 C", "command", "testTargets", "CTest");
+
+        for (List<Integer> invalid : List.of(List.of(2), List.of(0, 0))) {
+            assertThatThrownBy(() -> resolver.merge(resolution,
+                    new CompactAcceptanceDisambiguationPlan(null, List.of(),
+                            List.of(new AcceptanceCapabilityPreference(0, invalid)), null),
+                    catalog, capabilities))
+                    .isInstanceOfSatisfying(BadRequestException.class,
+                            error -> assertThat(error.code()).isEqualTo("AMBIGUOUS_ACCEPTANCE_INTENT"));
+        }
+    }
+
+    @Test
+    void v7FailsClosedInsteadOfCallingCompilerWhenTheOptimumWasNotExhaustivelyProven() {
+        DesignerAcceptanceFastPathResolver bounded = new DesignerAcceptanceFastPathResolver(
+                new DesignerAcceptanceCapabilitySolver(1));
+        Catalog catalog = new Catalog(CONTRACT_VERSION_V7, "WP-1", 1, "0".repeat(64), true,
+                List.of(fact(0, FactKind.SCENARIO, "成功")),
+                List.of(stage("实现", "实现行为", List.of("成功"), List.of())), List.of());
+        CapabilityCatalog capabilities = new CapabilityCatalog(CONTRACT_VERSION_V7,
+                List.of(capability(0, 0), capability(1, 0)), List.of());
+
+        var result = bounded.resolve(catalog, capabilities);
+
+        assertThat(result.outcome()).isEqualTo(DesignerAcceptanceFastPathResolver.Outcome.DESIGN_INCOMPLETE);
+        assertThat(result.routingReasons()).containsExactly("CAPABILITY_SOLVER_NON_EXHAUSTIVE");
+    }
+
+    @Test
+    void v7RequiresPreferencesToIdentifyOneCompleteOptimalCapabilitySet() {
+        Catalog catalog = new Catalog(CONTRACT_VERSION_V7, "WP-1", 1, "0".repeat(64), true,
+                List.of(fact(0, FactKind.SCENARIO, "成功")),
+                List.of(stage("实现", "实现行为", List.of("成功"), List.of())), List.of());
+        CapabilityCatalog capabilities = new CapabilityCatalog(CONTRACT_VERSION_V7,
+                List.of(capability(0, 0), capability(1, 0), capability(2, 0)), List.of());
+        var resolution = new DesignerAcceptanceFastPathResolver.Resolution(
+                DesignerAcceptanceFastPathResolver.Outcome.NEEDS_COMPILER,
+                List.of(new AcceptanceGroupHint("实现", "实现行为", List.of(0), List.of())),
+                List.of(), List.of(0), java.util.Map.of(0, List.of(0, 1, 2)),
+                List.of(List.of(0, 1), List.of(0, 2), List.of(1, 2)), 3,
+                List.of("AMBIGUOUS_CAPABILITY:0"), List.of());
+
+        assertThatThrownBy(() -> resolver.merge(resolution,
+                new CompactAcceptanceDisambiguationPlan(null, List.of(),
+                        List.of(new AcceptanceCapabilityPreference(0, List.of(0))), null),
+                catalog, capabilities))
+                .isInstanceOfSatisfying(BadRequestException.class,
+                        error -> assertThat(error.code()).isEqualTo("AMBIGUOUS_ACCEPTANCE_INTENT"));
+    }
+
+    @Test
+    void v7UsesTheUniqueGlobalCapabilitySetInsteadOfMistakingLocalChoicesForTies() {
+        Catalog catalog = new Catalog(CONTRACT_VERSION_V7, "WP-1", 1, "0".repeat(64), true,
+                List.of(fact(0, FactKind.SCENARIO, "成功"), fact(1, FactKind.SCENARIO, "失败")),
+                List.of(stage("实现", "实现行为", List.of("成功", "失败"), List.of())), List.of());
+        CapabilityCatalog capabilities = new CapabilityCatalog(CONTRACT_VERSION_V7, List.of(
+                new Capability(0, "FOCUSED_TEST", "全局能力",
+                        List.of("mvn", "-Dtest=FlowTest", "test"), List.of(0, 1),
+                        List.of("FlowTest"), true, false, 100),
+                capability(1, 0), capability(2, 1)), List.of());
+
+        var resolution = resolver.resolve(catalog, capabilities);
+
+        assertThat(resolution.outcome()).isEqualTo(DesignerAcceptanceFastPathResolver.Outcome.RESOLVED);
+        assertThat(resolution.ambiguousCapabilityFactIndexes()).isEmpty();
+        assertThat(resolution.trueCapabilityTieCount()).isZero();
+        assertThat(resolution.routingReasons()).contains("COMPILER_AVOIDED_UNIQUE_OPTIMUM");
     }
 
     @Test

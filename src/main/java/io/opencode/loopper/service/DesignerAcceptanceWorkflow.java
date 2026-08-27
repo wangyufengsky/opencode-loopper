@@ -39,6 +39,7 @@ final class DesignerAcceptanceWorkflow {
     private final DesignerAcceptancePlanCompiler planCompiler;
     private final DesignerPackagePlanCompiler packagePlanCompiler;
     private final DesignerAcceptanceFastPathResolver fastPathResolver = new DesignerAcceptanceFastPathResolver();
+    private final DesignerClosedChoiceContract closedChoiceContract;
 
     DesignerAcceptanceWorkflow(LoopperMapper mapper, ObjectMapper json, AiOutputExtractor outputExtractor,
                                LifecycleTransitionService lifecycle,
@@ -52,6 +53,7 @@ final class DesignerAcceptanceWorkflow {
         this.capabilityRegistry = new DesignerVerificationCapabilityRegistry();
         this.planCompiler = new DesignerAcceptancePlanCompiler(packagePlanCompiler);
         this.packagePlanCompiler = packagePlanCompiler;
+        this.closedChoiceContract = new DesignerClosedChoiceContract(json, outputExtractor);
     }
 
     boolean applies(WorkPackageRoleService.View role) {
@@ -117,6 +119,11 @@ final class DesignerAcceptanceWorkflow {
         return find(compilationId).map(DesignerAcceptanceWorkflow::v6).orElse(false);
     }
 
+    boolean v7(String compilationId) {
+        return find(compilationId).map(row ->
+                DesignerAcceptancePlanning.CONTRACT_VERSION_V7.equals(row.contractVersion())).orElse(false);
+    }
+
     boolean serverDirect(String compilationId) {
         return find(compilationId).map(row -> AcceptanceBindingSource.SERVER_STAGE_HINTS.name()
                 .equals(row.bindingSource())).orElse(false);
@@ -135,7 +142,7 @@ final class DesignerAcceptanceWorkflow {
                 DesignerAcceptancePlanning.CONTRACT_VERSION_V7.equals(row.contractVersion())
                         ? MutationConservationPolicy.Evaluation.notEvaluated(facts(row)) : null;
         update(row, row.state(), source.name(), write(resolution),
-                routingDiagnostics(resolution, null, null, conservation), null, null);
+                routingDiagnostics(resolution, null, null, conservation, List.of()), null, null);
         return new RoutingResult(resolution,
                 resolution.outcome() == DesignerAcceptanceFastPathResolver.Outcome.RESOLVED,
                 compilerRequired);
@@ -158,11 +165,26 @@ final class DesignerAcceptanceWorkflow {
         if (v6(row)) {
             DesignerAcceptanceFastPathResolver.Resolution resolution = fastPathResolver.resolve(
                     facts(row), capabilities(row));
-            return DesignerCompilerPromptContracts.acceptanceDisambiguation(workPackageId, row.factsJson(),
-                    row.capabilitiesJson(), write(resolution), priorError);
+            return DesignerAcceptancePlanning.CONTRACT_VERSION_V7.equals(row.contractVersion())
+                    ? DesignerCompilerPromptContracts.acceptanceClosedChoice(workPackageId,
+                            closedChoiceFacts(facts(row), resolution),
+                            closedChoiceCapabilities(capabilities(row), resolution),
+                            write(resolution), priorError)
+                    : DesignerCompilerPromptContracts.acceptanceDisambiguation(workPackageId, row.factsJson(),
+                            row.capabilitiesJson(), write(resolution), priorError);
         }
         return DesignerCompilerPromptContracts.acceptanceBinding(workPackageId, row.factsJson(),
                 row.capabilitiesJson(), stageLimit, priorError);
+    }
+
+    String closedChoiceFacts(DesignerAcceptancePlanning.Catalog catalog,
+                             DesignerAcceptanceFastPathResolver.Resolution resolution) {
+        return closedChoiceContract.facts(catalog, resolution);
+    }
+
+    String closedChoiceCapabilities(DesignerAcceptancePlanning.CapabilityCatalog catalog,
+                                    DesignerAcceptanceFastPathResolver.Resolution resolution) {
+        return closedChoiceContract.capabilities(catalog, resolution);
     }
 
     AiOutputExtractor.ExtractionResult<CompactAcceptanceBindingPlan> parse(String output, int stageLimit) {
@@ -197,13 +219,19 @@ final class DesignerAcceptanceWorkflow {
         return extracted;
     }
 
+    AiOutputExtractor.ExtractionResult<CompactAcceptanceDisambiguationPlan> parseV7(String output) {
+        return closedChoiceContract.parse(output);
+    }
+
     BoundResult bind(DesignAcceptancePlanningRow row, DesignWorkPackageRow workPackage, String design,
                      String output, WorkPackageRoleService.View role, List<String> scopeIn,
                      List<String> scopeOut, List<String> deliverables, int stageLimit,
                      boolean directSoftwareMode) {
         AiOutputExtractor.ExtractionResult<CompactAcceptanceBindingPlan> extracted;
         if (v6(row)) {
-            AiOutputExtractor.ExtractionResult<CompactAcceptanceDisambiguationPlan> disambiguation = parseV6(output);
+            AiOutputExtractor.ExtractionResult<CompactAcceptanceDisambiguationPlan> disambiguation =
+                    DesignerAcceptancePlanning.CONTRACT_VERSION_V7.equals(row.contractVersion())
+                            ? parseV7(output) : parseV6(output);
             DesignerAcceptanceFastPathResolver.Resolution resolution = fastPathResolver.resolve(
                     facts(row), capabilities(row));
             CompactAcceptanceBindingPlan merged = fastPathResolver.merge(resolution,
@@ -231,7 +259,7 @@ final class DesignerAcceptanceWorkflow {
             PackageCompilationPlanEnvelope plan = packagePlanCompiler.compile(
                     workPackage, design, incomplete, stageLimit, directSoftwareMode).plan();
             update(row, "BOUND", AcceptanceBindingSource.SERVER_STAGE_HINTS.name(), write(resolution),
-                    routingDiagnostics(resolution, null, null, conservation), "AMBIGUOUS_ACCEPTANCE_INTENT",
+                    routingDiagnostics(resolution, null, null, conservation, List.of()), "AMBIGUOUS_ACCEPTANCE_INTENT",
                     resolution.designGaps().getFirst().detail());
             return normalized(plan, List.of("SERVER_STAGE_HINTS_DESIGN_INCOMPLETE"));
         }
@@ -260,7 +288,7 @@ final class DesignerAcceptanceWorkflow {
                 resolution == null
                         ? write(Map.of("solver", compiled.diagnostics(), "scenarios", compiled.scenarios()))
                         : routingDiagnostics(resolution, compiled.diagnostics(), compiled.scenarios(),
-                        compiled.mutationConservation()), null, null);
+                        compiled.mutationConservation(), extracted.normalizations()), null, null);
         List<String> notes = new ArrayList<>(extracted.normalizations());
         notes.add("DESIGN_FACTS_BOUND");
         notes.add("CAPABILITY_SET_COVER_SOLVED");
@@ -293,7 +321,9 @@ final class DesignerAcceptanceWorkflow {
     }
 
     void markFailed(String compilationId, String output, String errorCode, String errorDetail) {
-        find(compilationId).ifPresent(row -> update(row, "FAILED", row.bindingSource(), output,
+        find(compilationId).ifPresent(row -> update(row, "FAILED", row.bindingSource(),
+                DesignerAcceptancePlanning.CONTRACT_VERSION_V7.equals(row.contractVersion())
+                        ? row.bindingJson() : output,
                 failureDiagnostics(row, errorCode, errorDetail), errorCode, errorDetail));
     }
 
@@ -443,12 +473,20 @@ final class DesignerAcceptanceWorkflow {
 
     private String routingDiagnostics(DesignerAcceptanceFastPathResolver.Resolution resolution,
                                       Object solver, Object scenarios,
-                                      MutationConservationPolicy.Evaluation mutationConservation) {
+                                      MutationConservationPolicy.Evaluation mutationConservation,
+                                      List<String> safeNormalizations) {
         Map<String, Object> values = new java.util.LinkedHashMap<>();
         values.put("fastPathDecision", resolution.outcome().name());
         values.put("routingReasons", resolution.routingReasons());
         values.put("unresolvedFactIndexes", resolution.unresolvedFactIndexes());
         values.put("ambiguousCapabilityFactIndexes", resolution.ambiguousCapabilityFactIndexes());
+        values.put("trueCapabilityTieCount", resolution.trueCapabilityTieCount());
+        if (resolution.routingReasons().contains("COMPILER_AVOIDED_UNIQUE_OPTIMUM")) {
+            values.put("compilerAvoidedReason", "UNIQUE_OPTIMUM");
+        }
+        if (safeNormalizations != null && !safeNormalizations.isEmpty()) {
+            values.put("safeNormalizations", List.copyOf(safeNormalizations));
+        }
         if (solver != null) values.put("solver", solver);
         if (scenarios != null) values.put("scenarios", scenarios);
         if (mutationConservation != null) {
