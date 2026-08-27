@@ -20,6 +20,51 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 afterEach(() => vi.unstubAllGlobals())
 
 describe('Loopper REST contract adapter', () => {
+  it('rejects unknown Task states from the API', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({
+      id: 'task-future', projectId: 'project-1', title: 'Future', status: 'FUTURE_STATE',
+      loopRetryAvailable: false, cancellationAvailable: false, hasDesignHistory: false, archived: false,
+      stages: [], attempts: [], errors: [], judges: [], artifacts: [],
+    })))
+
+    await expect(api.getTask('task-future')).rejects.toThrow('Task returned unknown state: FUTURE_STATE')
+  })
+
+  it('rejects unknown rolling-package states instead of accepting TypeScript casts', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json({ taskId: 'task-1', taskState: 'FUTURE_STATE', packages: [] }))
+      .mockResolvedValueOnce(json({
+        taskId: 'task-1', taskState: 'PACKAGE_DESIGNING', packages: [{
+          id: 'run-1', packageKey: 'WP-1', ordinal: 1, state: 'FUTURE_PACKAGE_STATE', dependencies: [],
+        }],
+      }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(api.getRollingPackageWorkbench('task-1'))
+      .rejects.toThrow('RollingPackageWorkbench returned unknown state: FUTURE_STATE')
+    await expect(api.getRollingPackageWorkbench('task-1'))
+      .rejects.toThrow('RollingPackageRun returned unknown state: FUTURE_PACKAGE_STATE')
+  })
+
+  it('rejects unknown Designer work-package states', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({
+      id: 'designer-1', projectId: 'project-1', state: 'RUNNING', workflowPhase: 'DESIGNING',
+      activeActor: 'DESIGNER', messages: [], workPackages: [{ id: 'wp-1', state: 'FUTURE_PACKAGE_STATE' }],
+    })))
+
+    await expect(api.getDesignerSession('designer-1'))
+      .rejects.toThrow('DesignWorkPackage returned unknown state: FUTURE_PACKAGE_STATE')
+  })
+
+  it('sends the server-owned Task status group without expanding client states', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(json({ items: [], facets: { PROCESSING: 3, MATCHED_TOTAL: 3 } }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(api.getTaskSummaries({ statusGroup: 'PROCESSING', archive: 'ACTIVE' }))
+      .resolves.toMatchObject({ items: [], facets: { PROCESSING: 3, MATCHED_TOTAL: 3 } })
+    expect(fetchMock).toHaveBeenCalledWith('/api/tasks/summaries?statusGroup=PROCESSING&archive=ACTIVE', expect.any(Object))
+  })
+
   it('previews a Designer task-setting change without using the mutation endpoint', async () => {
     const fetchMock = vi.fn().mockResolvedValue(json({
       selectionChanged: true, updateRequired: true, sessionRestartRequired: true,
@@ -226,7 +271,7 @@ describe('Loopper REST contract adapter', () => {
     const readyTask = {
       id: 'task-1', projectId: 'project-1', projectName: 'Example', title: 'Task', goal: '',
       branch: 'loopper/Task', worktreePath: '/tmp/example', status: 'READY', waitingReasonCode: null,
-      loopRetryAvailable: false, hasDesignHistory: true, archived: false, attemptCount: 0, maxAttempts: 3,
+      loopRetryAvailable: false, cancellationAvailable: true, hasDesignHistory: true, archived: false, attemptCount: 0, maxAttempts: 3,
       createdAt: 'now', updatedAt: 'later', stages: [], attempts: [], errors: [], judges: [], artifacts: [],
     }
     const fetchMock = vi.fn()
@@ -482,7 +527,7 @@ describe('Loopper REST contract adapter', () => {
   it('uses persisted verification and error field names from TaskController', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({
       id: 'task-1', projectId: 'project-1', projectName: 'Project', title: 'Task', goal: 'Goal', branch: 'loopper/task-1', worktreePath: '/tmp/task',
-      status: 'WAITING_INPUT', waitingReasonCode: 'LOOP_STAGNATION_DETECTED', loopRetryAvailable: true, hasDesignHistory: true, archived: true, attemptCount: 1, maxAttempts: 12, createdAt: 'start', updatedAt: 'now', stages: [],
+      status: 'WAITING_INPUT', waitingReasonCode: 'LOOP_STAGNATION_DETECTED', loopRetryAvailable: true, cancellationAvailable: true, hasDesignHistory: true, archived: true, attemptCount: 1, maxAttempts: 12, createdAt: 'start', updatedAt: 'now', stages: [],
       attempts: [{ id: 'attempt-1', stageId: 'stage-1', ordinal: 1, status: 'RUNNING', summary: 'running', startedAt: 'start', verifications: [{ id: 'verification-1', type: 'PROCESS', status: 'PASS', summary: 'ok', evidence: { argv: ['mvn', 'test'], exitCode: 0, output: 'BUILD SUCCESS' }, at: 'now' }] }],
       errors: [{ id: 'error-1', layer: 'SESSION', code: 'DISCONNECTED', message: 'reconnect', retryable: true, at: 'now' }],
       judges: [{ id: 'judge-1', role: 'RISK', ordinal: 1, status: 'COMPLETED', verdict: 'PASS', reason: 'No unsafe diff', createdAt: 'now', endedAt: 'later' }],
@@ -569,7 +614,7 @@ describe('Loopper REST contract adapter', () => {
   })
 
   it('archives, restores and deletes task history only through the local UI contract', async () => {
-    const response = { id: 'task-1', projectId: 'project-1', projectName: 'Project', title: 'Task', goal: 'Goal', branch: 'DIRECT', worktreePath: '/tmp/project', status: 'CANCELLED', archived: true, attemptCount: 1, maxAttempts: 3, createdAt: 'start', updatedAt: 'now' }
+    const response = { id: 'task-1', projectId: 'project-1', projectName: 'Project', title: 'Task', goal: 'Goal', branch: 'DIRECT', worktreePath: '/tmp/project', status: 'CANCELLED', loopRetryAvailable: false, cancellationAvailable: false, hasDesignHistory: true, archived: true, attemptCount: 1, maxAttempts: 3, createdAt: 'start', updatedAt: 'now' }
     const fetchMock = vi.fn().mockResolvedValueOnce(json(response)).mockResolvedValueOnce(json({ ...response, archived: false })).mockResolvedValueOnce(new Response(null, { status: 204 }))
     vi.stubGlobal('fetch', fetchMock)
 
@@ -637,7 +682,7 @@ describe('Loopper REST contract adapter', () => {
 
   it('does not render a terminal Task attempt as still running', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({
-      id: 'task-failed', projectId: 'project-1', title: 'Failed', status: 'FAILED', stages: [], errors: [],
+      id: 'task-failed', projectId: 'project-1', title: 'Failed', status: 'FAILED', loopRetryAvailable: false, cancellationAvailable: false, hasDesignHistory: false, archived: false, stages: [], errors: [],
       attempts: [{ id: 'attempt-failed', stageId: 'stage-1', ordinal: 1, status: 'TASK_ERROR', failureKind: 'PATH_ESCAPE', summary: 'stopped', startedAt: 'start', endedAt: 'end', verifications: [] }],
     })))
 
@@ -648,7 +693,7 @@ describe('Loopper REST contract adapter', () => {
 
   it('preserves historical terminal Judge states instead of fabricating RUNNING', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({
-      id: 'task-judge-history', projectId: 'project-1', title: 'Judge history', status: 'FAILED',
+      id: 'task-judge-history', projectId: 'project-1', title: 'Judge history', status: 'FAILED', loopRetryAvailable: false, cancellationAvailable: false, hasDesignHistory: false, archived: false,
       stages: [], attempts: [], errors: [],
       judges: [
         { id: 'judge-failed', role: 'REQUIREMENT', ordinal: 1, status: 'FAILED', createdAt: 'start', endedAt: 'end' },
@@ -663,7 +708,7 @@ describe('Loopper REST contract adapter', () => {
 
   it('starts a prepared Task through the explicit start endpoint', async () => {
     const fetchMock = vi.fn().mockResolvedValue(json({
-      id: 'task-ready', projectId: 'project-1', title: 'Ready task', status: 'RUNNING', stages: [], errors: [], attempts: [],
+      id: 'task-ready', projectId: 'project-1', title: 'Ready task', status: 'RUNNING', loopRetryAvailable: false, cancellationAvailable: true, hasDesignHistory: false, archived: false, stages: [], errors: [], attempts: [],
     }))
     vi.stubGlobal('fetch', fetchMock)
 
@@ -673,7 +718,7 @@ describe('Loopper REST contract adapter', () => {
 
   it('retries task judges only through the local UI contract', async () => {
     const fetchMock = vi.fn().mockResolvedValue(json({
-      id: 'task-review', projectId: 'project-1', title: 'Review task', status: 'JUDGING', stages: [], errors: [], attempts: [],
+      id: 'task-review', projectId: 'project-1', title: 'Review task', status: 'JUDGING', loopRetryAvailable: false, cancellationAvailable: true, hasDesignHistory: false, archived: false, stages: [], errors: [], attempts: [],
     }))
     vi.stubGlobal('fetch', fetchMock)
 
@@ -685,7 +730,7 @@ describe('Loopper REST contract adapter', () => {
 
   it('retries a noise-protected loop only through the local UI contract', async () => {
     const fetchMock = vi.fn().mockResolvedValue(json({
-      id: 'task-loop', projectId: 'project-1', title: 'Loop task', status: 'RUNNING', stages: [], errors: [], attempts: [],
+      id: 'task-loop', projectId: 'project-1', title: 'Loop task', status: 'RUNNING', loopRetryAvailable: false, cancellationAvailable: true, hasDesignHistory: false, archived: false, stages: [], errors: [], attempts: [],
     }))
     vi.stubGlobal('fetch', fetchMock)
 
@@ -717,7 +762,7 @@ describe('Loopper REST contract adapter', () => {
 
   it('preserves paused Stage state and exposed execution Session id', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({
-      id: 'task-paused', projectId: 'project-1', title: 'Paused', status: 'PAUSED', errors: [],
+      id: 'task-paused', projectId: 'project-1', title: 'Paused', status: 'PAUSED', loopRetryAvailable: false, cancellationAvailable: true, hasDesignHistory: false, archived: false, errors: [],
       stages: [{ id: 'stage-1', ordinal: 0, objective: 'Wait', status: 'PAUSED' }],
       attempts: [{ id: 'attempt-1', stageId: 'stage-1', ordinal: 1, sessionId: 'session-1', status: 'SESSION_ERROR', verifications: [] }],
     })))
@@ -780,7 +825,7 @@ describe('Loopper REST contract adapter', () => {
       .mockResolvedValueOnce(json([{
         id: 'designer-1', projectId: 'project one', projectName: 'Example', state: 'WAITING_INPUT', workflowPhase: 'FAILED',
         createdAt: 'created', updatedAt: 'updated', draftId: 'draft-1', draftStatus: 'DRAFT_READY', goal: 'Resume me',
-        requirementRevision: 2, activeWorkPackageId: 'WP-2', archived: false, taskId: 'task-1', taskState: 'COMPLETED',
+        requirementRevision: 2, activeWorkPackageId: 'WP-2', archived: false, taskId: 'task-1', taskState: 'COMPLETED', resumable: false, stopRetryAvailable: false,
       }]))
       .mockResolvedValueOnce(new Response(null, { status: 204 }))
       .mockResolvedValueOnce(new Response(null, { status: 204 }))

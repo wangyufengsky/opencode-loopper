@@ -1342,7 +1342,7 @@ describe('Designer draft composer', () => {
     })
     vi.spyOn(api, 'createDraft').mockImplementation(async (spec) => draftFrom(spec))
     const stop = vi.spyOn(api, 'stopDesignerSession').mockResolvedValue({
-      stopStatus: 'CANCELLED', archived: true, stoppedSessions: 1, failedSessions: 0,
+      stopStatus: 'CANCELLED', archived: true, stoppedSessions: 1, failedSessions: 0, pendingFinalizations: 0,
     })
     const confirmation = vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
     const wrapper = mountDesigner()

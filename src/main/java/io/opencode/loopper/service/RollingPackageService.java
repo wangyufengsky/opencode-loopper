@@ -12,6 +12,7 @@ import io.opencode.loopper.domain.StageState;
 import io.opencode.loopper.domain.TaskExecutionMode;
 import io.opencode.loopper.domain.TaskIntent;
 import io.opencode.loopper.domain.TaskPackageRunState;
+import io.opencode.loopper.domain.TaskQueueState;
 import io.opencode.loopper.domain.TaskState;
 import io.opencode.loopper.domain.TaskWorkspacePolicy;
 import io.opencode.loopper.domain.WorkflowTemplate;
@@ -32,6 +33,7 @@ import io.opencode.loopper.persistence.TaskWorkspaceCheckpointRow;
 import io.opencode.loopper.persistence.WorkPackageRoleProfileRow;
 import io.opencode.loopper.runtime.GitWorktreeManager;
 import java.nio.file.Path;
+import java.util.Set;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -60,12 +62,14 @@ public class RollingPackageService {
     private final TaskEventService events;
     private final ObjectProvider<DesignerSessionService> designers;
     private final TransactionTemplate transactions;
+    private final RollingPackageCommandPolicy commandPolicy;
     public RollingPackageService(LoopperMapper mapper, LifecycleTransitionService lifecycle, ObjectMapper json,
                                  ProjectService projects, GitWorktreeManager worktrees,
                                  LoopperProperties properties,
                                  TaskWorkspaceCheckpointService checkpoints,
                                  RollingPackageCheckpointService checkpointSaga, TaskEventService events,
                                  ObjectProvider<DesignerSessionService> designers,
+                                 RollingPackageCommandPolicy commandPolicy,
                                  PlatformTransactionManager transactionManager) {
         this.mapper = mapper;
         this.lifecycle = lifecycle;
@@ -77,6 +81,7 @@ public class RollingPackageService {
         this.checkpointSaga = checkpointSaga;
         this.events = events;
         this.designers = designers;
+        this.commandPolicy = commandPolicy;
         this.transactions = new TransactionTemplate(transactionManager);
     }
     public boolean eligible(String designerSessionId) {
@@ -176,7 +181,9 @@ public class RollingPackageService {
                         null, selected ? locked.discussionRevision() : 0,
                         selected ? row.designRevision() : 0,
                         selected ? row.approvedDesignRevision() : null, null, now, now, 0);
-                mapper.insertTaskPackageRun(run);
+                lifecycle.create(packageSubject(run), run.state(), Map.of("packageKey", run.packageKey()),
+                        () -> mapper.insertTaskPackageRun(run),
+                        () -> new ConflictException("PACKAGE_RUN_CREATE_CONFLICT", "工作包运行记录被并发创建"));
                 if (selected) firstRun = run;
             }
             if (firstRun == null) throw new ConflictException("ROLLING_PACKAGE_PLAN_INVALID", "首包未进入滚动计划");
@@ -210,9 +217,9 @@ public class RollingPackageService {
         events.emit(session.taskId(), "package.design_review_required", Map.of("packageKey", run.packageKey()));
     }
 
-    /** Marks the authoritative package run before TaskService enters the normal start boundary. */
-    public TaskPackageRunRow requestExecution(String taskId, String packageRunId, long expectedTaskVersion,
-                                              long expectedPackageVersion) {
+    /** Validates a package start without changing the child aggregate. */
+    public ExecutionRequest executionRequest(String taskId, String packageRunId, long expectedTaskVersion,
+                                             long expectedPackageVersion) {
         TaskRow task = mapper.findTask(taskId).orElseThrow(() -> new NotFoundException("Task not found: " + taskId));
         if (!TaskExecutionMode.ROLLING_PACKAGES.name().equals(task.executionMode())) {
             throw new ConflictException("ROLLING_TASK_REQUIRED", "该任务不是逐包闭环任务");
@@ -222,11 +229,21 @@ public class RollingPackageService {
         }
         TaskPackageRunRow run = mapper.currentTaskPackageRun(taskId).filter(item -> item.id().equals(packageRunId))
                 .orElseThrow(() -> new ConflictException("PACKAGE_RUN_MISSING", "请求的工作包不是当前工作包"));
-        if (run.version() != expectedPackageVersion || !List.of(TaskPackageRunState.EXECUTION_READY.name(),
-                TaskPackageRunState.QUEUED.name()).contains(run.state())) {
+        if (run.version() != expectedPackageVersion) {
             throw new ConflictException("PACKAGE_RUN_VERSION_CONFLICT", "工作包状态已更新，请刷新后重试");
         }
-        if (TaskPackageRunState.QUEUED.name().equals(run.state())) return run;
+        RollingPackageCommandPolicy.Context context = policyContext(task, run);
+        commandPolicy.require(RollingPackageCommandPolicy.Command.START, context);
+        return new ExecutionRequest(taskId, packageRunId, expectedTaskVersion, expectedPackageVersion,
+                commandPolicy.startDisposition(context));
+    }
+
+    /** Joins Task admission so Run, Task, Queue, and Lease commit or roll back together. */
+    public TaskPackageRunRow requestExecutionInTransaction(ExecutionRequest request) {
+        ExecutionRequest current = executionRequest(request.taskId(), request.packageRunId(),
+                request.expectedTaskVersion(), request.expectedPackageVersion());
+        TaskPackageRunRow run = mapper.findTaskPackageRun(request.packageRunId()).orElseThrow();
+        if (current.disposition() == RollingPackageCommandPolicy.StartDisposition.IDEMPOTENT) return run;
         updateRun(run, TaskPackageRunState.QUEUED, LifecycleEvent.REQUEST_PACKAGE_EXECUTION,
                 run.discussionRevision(), run.designRevision(), run.acceptedDesignRevision(), null);
         return mapper.findTaskPackageRun(run.id()).orElseThrow();
@@ -234,7 +251,8 @@ public class RollingPackageService {
 
     public void discuss(String taskId, String packageRunId, long expectedTaskVersion, long expectedPackageVersion,
                         int expectedDiscussionRevision, int expectedDesignRevision, String content) {
-        CommandContext context = command(taskId, packageRunId, expectedTaskVersion, expectedPackageVersion);
+        CommandContext context = command(taskId, packageRunId, expectedTaskVersion, expectedPackageVersion,
+                RollingPackageCommandPolicy.Command.DISCUSS);
         designers.getObject().appendPackageMessage(context.session().id(), context.run().packageKey(), content,
                 expectedDiscussionRevision, expectedDesignRevision);
         beginDesign(context);
@@ -243,14 +261,16 @@ public class RollingPackageService {
     public void approveDesign(String taskId, String packageRunId, long expectedTaskVersion,
                               long expectedPackageVersion, int expectedDiscussionRevision,
                               int expectedDesignRevision) {
-        CommandContext context = command(taskId, packageRunId, expectedTaskVersion, expectedPackageVersion);
+        CommandContext context = command(taskId, packageRunId, expectedTaskVersion, expectedPackageVersion,
+                RollingPackageCommandPolicy.Command.APPROVE_DESIGN);
         designers.getObject().approvePackage(context.session().id(), context.run().packageKey(),
                 expectedDiscussionRevision, expectedDesignRevision);
     }
 
     public void redesign(String taskId, String packageRunId, long expectedTaskVersion,
                          long expectedPackageVersion) {
-        CommandContext context = command(taskId, packageRunId, expectedTaskVersion, expectedPackageVersion);
+        CommandContext context = command(taskId, packageRunId, expectedTaskVersion, expectedPackageVersion,
+                RollingPackageCommandPolicy.Command.REDESIGN);
         designers.getObject().requestPackageRedesign(context.session().id(), context.run().packageKey());
         TaskPackageRunRow run = context.run();
         if ("PACKAGE_EXECUTION_FAILED".equals(run.waitingReasonCode())) {
@@ -264,14 +284,16 @@ public class RollingPackageService {
 
     public void retryCheckpointRelease(String taskId, String packageRunId, long expectedTaskVersion,
                                        long expectedPackageVersion) {
-        CommandContext context = command(taskId, packageRunId, expectedTaskVersion, expectedPackageVersion);
+        CommandContext context = command(taskId, packageRunId, expectedTaskVersion, expectedPackageVersion,
+                RollingPackageCommandPolicy.Command.RETRY);
         checkpointSaga.retryLeaseRelease(context.task(), context.run());
     }
 
     public TaskPackageRunRow prepareFailedCandidateRetry(String taskId, String packageRunId,
                                                          long expectedTaskVersion,
                                                          long expectedPackageVersion) {
-        CommandContext context = command(taskId, packageRunId, expectedTaskVersion, expectedPackageVersion);
+        CommandContext context = command(taskId, packageRunId, expectedTaskVersion, expectedPackageVersion,
+                RollingPackageCommandPolicy.Command.RETRY);
         TaskPackageRunRow run = context.run();
         if (!TaskPackageRunState.WAITING_INPUT.name().equals(run.state())
                 || !"PACKAGE_EXECUTION_FAILED".equals(run.waitingReasonCode())
@@ -284,7 +306,7 @@ public class RollingPackageService {
     }
 
     private CommandContext command(String taskId, String packageRunId, long expectedTaskVersion,
-                                   long expectedPackageVersion) {
+                                   long expectedPackageVersion, RollingPackageCommandPolicy.Command command) {
         TaskRow task = mapper.findTask(taskId).orElseThrow(() -> new NotFoundException("Task not found: " + taskId));
         TaskPackageRunRow run = mapper.findTaskPackageRun(packageRunId).orElseThrow(() ->
                 new NotFoundException("Package run not found: " + packageRunId));
@@ -294,7 +316,31 @@ public class RollingPackageService {
         }
         DesignerSessionRow session = mapper.findDesignerSessionByTask(taskId).orElseThrow(() ->
                 new ConflictException("ROLLING_DESIGNER_MISSING", "滚动任务没有绑定设计会话"));
+        commandPolicy.require(command, policyContext(task, run));
         return new CommandContext(task, run, session);
+    }
+
+    RollingPackageCommandPolicy.Context policyContext(TaskRow task, TaskPackageRunRow run) {
+        boolean safeCheckpoint = mapper.listPackageFactSnapshots(task.id()).stream().reduce((left, right) -> right)
+                .flatMap(fact -> mapper.findTaskWorkspaceCheckpoint(fact.checkpointId()))
+                .map(checkpoint -> Set.of("READY", "RESTORED").contains(checkpoint.state())).orElse(false);
+        boolean writerFree = mapper.activeSessions(task.id()).isEmpty()
+                && mapper.activeJudgeRuns(task.id()).isEmpty()
+                && mapper.listVerifierRuntimes(task.id()).stream().noneMatch(runtime ->
+                Set.of("STARTING", "RUNNING", "STOPPING", "DISCONNECTED").contains(runtime.state()));
+        boolean designerFree = mapper.findDesignerSessionByTask(task.id())
+                .map(session -> !"RUNNING".equals(session.state()) && mapper.activeDesignWorkPackages().stream()
+                        .noneMatch(row -> session.id().equals(row.designerSessionId())))
+                .orElse(true);
+        TaskQueueState queueState = mapper.findTaskQueue(task.id())
+                .map(row -> TaskQueueState.valueOf(row.state())).orElse(null);
+        int frozen = (int) mapper.listTaskPackageRuns(task.id()).stream()
+                .filter(row -> TaskPackageRunState.FACT_FROZEN.name().equals(row.state())).count();
+        return new RollingPackageCommandPolicy.Context(TaskState.valueOf(task.state()),
+                mapper.findTaskWaitingReasonCode(task.id()).orElse(null),
+                run == null ? null : TaskPackageRunState.valueOf(run.state()),
+                run == null ? null : run.waitingReasonCode(), queueState, writerFree, designerFree,
+                safeCheckpoint, frozen);
     }
 
     private void beginDesign(CommandContext context) {
@@ -383,26 +429,35 @@ public class RollingPackageService {
                         run.discussionRevision(), run.designRevision(), run.acceptedDesignRevision(), null));
     }
 
-    public void beginPlannedDesign(String taskId, String packageRunId) {
+    void beginPlannedDesignInTransaction(String taskId, String packageRunId,
+                                         RollingPackageCommandPolicy.Command command) {
         TaskRow task = mapper.findTask(taskId).orElseThrow(() -> new NotFoundException("Task not found: " + taskId));
         TaskPackageRunRow run = mapper.findTaskPackageRun(packageRunId).orElseThrow(() ->
                 new NotFoundException("Package run not found: " + packageRunId));
         if (!taskId.equals(run.taskId()) || !TaskPackageRunState.PLANNED.name().equals(run.state())) {
             throw new ConflictException("PACKAGE_PLAN_START_CONFLICT", "新计划的首个工作包已变化");
         }
-        PackageFactSnapshotRow fact = facts(taskId).stream().reduce((left, right) -> right).orElseThrow(() ->
-                new ConflictException("PACKAGE_FACT_REQUIRED", "重规划必须建立在成功事实点上"));
-        TaskWorkspaceCheckpointRow checkpoint = mapper.findTaskWorkspaceCheckpoint(fact.checkpointId()).orElseThrow();
-        TaskPackageRunRow designing = mapper.findTaskPackageRun(run.id()).orElse(run);
-        updateRun(designing, TaskPackageRunState.DESIGNING, LifecycleEvent.BEGIN_PACKAGE_DESIGN,
-                designing.discussionRevision(), designing.designRevision(), null, null);
-        TaskRow current = mapper.findTask(taskId).orElse(task);
-        if (TaskState.WAITING_INPUT.name().equals(current.state()) || TaskState.JUDGING.name().equals(current.state())) {
-            updateTask(current, TaskState.PACKAGE_DESIGNING, LifecycleEvent.BEGIN_PACKAGE_DESIGN,
+        commandPolicy.require(command, policyContext(task, run));
+        updateRun(run, TaskPackageRunState.DESIGNING, LifecycleEvent.BEGIN_PACKAGE_DESIGN,
+                run.discussionRevision(), run.designRevision(), null, null);
+        if (TaskState.WAITING_INPUT.name().equals(task.state())) {
+            updateTask(task, TaskState.PACKAGE_DESIGNING, LifecycleEvent.BEGIN_PACKAGE_DESIGN,
                     Map.of("packageKey", run.packageKey(), "source", "PLAN_REVISION"));
         }
+    }
+
+    void dispatchPlannedDesign(String taskId, String packageRunId, String checkpointId) {
+        TaskRow task = mapper.findTask(taskId).orElseThrow(() -> new NotFoundException("Task not found: " + taskId));
+        TaskPackageRunRow run = mapper.findTaskPackageRun(packageRunId).orElseThrow(() ->
+                new NotFoundException("Package run not found: " + packageRunId));
+        if (!TaskPackageRunState.DESIGNING.name().equals(run.state())
+                || !TaskState.PACKAGE_DESIGNING.name().equals(task.state())) {
+            throw new ConflictException("PACKAGE_PLAN_START_CONFLICT", "新计划的设计状态已变化");
+        }
+        TaskWorkspaceCheckpointRow checkpoint = mapper.findTaskWorkspaceCheckpoint(checkpointId).orElseThrow(() ->
+                new ConflictException("PACKAGE_CHECKPOINT_MISSING", "重规划事实快照已不存在"));
         try {
-            Path root = checkpoints.designSnapshot(mapper.findTask(taskId).orElse(task), checkpoint);
+            Path root = checkpoints.designSnapshot(task, checkpoint);
             dispatchDesign(taskId, run.designWorkPackageId(), root);
         }
         catch (RuntimeException failure) {
@@ -526,5 +581,8 @@ public class RollingPackageService {
     public record FactEvidence(String inputTree, String diffSha256, String evidenceSha256,
                                String diffArtifactId, String evidenceArtifactId,
                                List<String> acceptedStageIds, String navigationSummary) { }
+    public record ExecutionRequest(String taskId, String packageRunId, long expectedTaskVersion,
+                                   long expectedPackageVersion,
+                                   RollingPackageCommandPolicy.StartDisposition disposition) { }
     private record CommandContext(TaskRow task, TaskPackageRunRow run, DesignerSessionRow session) { }
 }

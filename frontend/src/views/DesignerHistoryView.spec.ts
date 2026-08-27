@@ -24,7 +24,8 @@ function design(overrides: Partial<DesignerHistoryItem>): DesignerHistoryItem {
   return {
     id: 'designer-1', projectId: 'project-1', projectName: 'Alpha', state: 'WAITING_INPUT', workflowPhase: 'FAILED',
     createdAt: '2026-08-17T01:00:00Z', updatedAt: '2026-08-17T02:00:00Z', draftId: 'draft-1',
-    draftStatus: 'DRAFT_READY', goal: '设计 Alpha', archived: false, ...overrides,
+    draftStatus: 'DRAFT_READY', goal: '设计 Alpha', archived: false, resumable: true, stopRetryAvailable: false,
+    ...overrides,
   }
 }
 
@@ -120,7 +121,7 @@ describe('DesignerHistoryView', () => {
 
   it('keeps a stopped and archived design as a read-only cancelled record', async () => {
     vi.spyOn(api, 'listDesignerHistoryPage').mockResolvedValue({ items: [
-      design({ id: 'designer-cancelled', state: 'CANCELLED', workflowPhase: 'FAILED', archived: true }),
+      design({ id: 'designer-cancelled', state: 'CANCELLED', workflowPhase: 'FAILED', archived: true, resumable: false }),
     ], facets: {} })
 
     const wrapper = mountHistory()
@@ -132,5 +133,25 @@ describe('DesignerHistoryView', () => {
     expect(card.text()).not.toContain('继续')
     expect(card.text()).not.toContain('修改')
     expect(card.text()).not.toContain('恢复')
+  })
+
+  it('shows only retry-stop while the server reports STOPPING', async () => {
+    const retry = vi.spyOn(api, 'stopDesignerSession').mockResolvedValue({
+      stopStatus: 'STOPPING', archived: false, stoppedSessions: 1, failedSessions: 0, pendingFinalizations: 1,
+    })
+    vi.spyOn(api, 'listDesignerHistoryPage').mockResolvedValue({ items: [
+      design({ id: 'designer-stopping', state: 'STOPPING', resumable: false, stopRetryAvailable: true }),
+    ], facets: { STOP_RETRY_TOTAL: 1 } })
+
+    const wrapper = mountHistory()
+    await flushPromises()
+    const card = wrapper.get('.history-card:not(.skeleton-block)')
+    expect(card.text()).toContain('重试停止')
+    expect(card.text()).not.toContain('继续')
+    expect(card.text()).not.toContain('修改')
+    expect(card.text()).not.toContain('归档')
+    await card.get('button').trigger('click')
+    await flushPromises()
+    expect(retry).toHaveBeenCalledWith('designer-stopping')
   })
 })

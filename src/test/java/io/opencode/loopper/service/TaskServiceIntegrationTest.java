@@ -1775,6 +1775,9 @@ class TaskServiceIntegrationTest {
                 task.id(), "#3032_持久化任务分支差异");
 
         assertThat(published.state()).isEqualTo("SYNCED_LOCAL");
+        assertThat(tasks.get(task.id()).state()).isEqualTo("COMPLETED");
+        assertThat(mapper.findTaskQueue(task.id())).get().extracting(row -> row.state()).isEqualTo("FINISHED");
+        assertThat(mapper.findActiveWorkspaceLeaseByHolder(task.id())).isEmpty();
         assertThat(runOutput(workspace, "git", "branch", "--show-current").strip()).isEqualTo(task.sourceBranch());
         assertThat(tasks.diffPreview(task.id(), "feature.txt").patch()).contains("+verified change");
     }

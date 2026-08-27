@@ -23,12 +23,13 @@ public class TaskReadController {
     public CursorPage<TaskSummary> summaries(
             @RequestParam(required = false) String projectId,
             @RequestParam(required = false) List<String> status,
+            @RequestParam(required = false) String statusGroup,
             @RequestParam(defaultValue = "ACTIVE") String archive,
             @RequestParam(required = false) String q,
             @RequestParam(defaultValue = "newest") String order,
             @RequestParam(required = false) String cursor,
             @RequestParam(required = false) Integer limit) {
-        return reads.summaries(projectId, status, archive, q, order, cursor, limit);
+        return reads.summaries(projectId, status, statusGroup, archive, q, order, cursor, limit);
     }
 
     @GetMapping("/{id}/overview") public TaskOverview overview(@PathVariable String id) { return reads.overview(id); }

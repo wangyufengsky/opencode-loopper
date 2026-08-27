@@ -6,6 +6,7 @@ import RecoveryStudioView from '@/views/RecoveryStudioView.vue'
 
 const parent = {
   id: 'parent-1', title: '失败的导入任务', status: 'FAILED', projectName: '演示项目', goal: '导入并验证数据',
+  loopRetryAvailable: false, cancellationAvailable: false, hasDesignHistory: false, archived: false,
   stages: [{ id: 'stage-1', ordinal: 0, objective: '准备输入', status: 'SUCCEEDED' }, { id: 'stage-2', ordinal: 1, objective: '写入导入器', status: 'FAILED' }],
   errors: [{ code: 'VERIFICATION_FAILED', message: '输出缺少摘要', stageId: 'stage-2' }],
 }

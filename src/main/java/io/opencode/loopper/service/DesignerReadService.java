@@ -48,8 +48,9 @@ public class DesignerReadService {
             if (!Set.of("ACTIVE", "ARCHIVED", "ALL").contains(archiveMode)) {
                 throw new BadRequestException("DESIGNER_HISTORY_ARCHIVE_INVALID", "Unsupported archive filter: " + archive);
             }
+            String queryPattern = like(query);
             List<DesignerSessionHistoryRow> rows = mapper.designerHistoryPage(projectId, statusMode, archiveMode,
-                    like(query), decoded == null ? null : decoded.value(), decoded == null ? null : decoded.id(),
+                    queryPattern, decoded == null ? null : decoded.value(), decoded == null ? null : decoded.id(),
                     oldest, limit + 1);
             boolean more = rows.size() > limit;
             List<DesignerSessionHistoryRow> pageRows = more ? rows.subList(0, limit) : rows;
@@ -57,7 +58,10 @@ public class DesignerReadService {
             String next = more && !pageRows.isEmpty()
                     ? new PageCursor(pageRows.getLast().updatedAt(), pageRows.getLast().id()).encode() : null;
             recordRows("designer.history", items.size());
-            return new CursorPage<>(items, next, Map.of());
+            Map<String, Long> facets = new java.util.LinkedHashMap<>();
+            mapper.designerHistoryFacets(projectId, archiveMode, queryPattern)
+                    .forEach(row -> facets.put(row.state(), row.count()));
+            return new CursorPage<>(items, next, facets);
         });
     }
 
@@ -130,12 +134,17 @@ public class DesignerReadService {
     public record HistoryItem(String id, String projectId, String projectName, String state, String workflowPhase,
                               String createdAt, String updatedAt, String draftId, String draftStatus, String goal,
                               Integer requirementRevision, String activeWorkPackageId, boolean archived,
-                              String archivedAt, String taskId, String taskState) {
+                              String archivedAt, String taskId, String taskState,
+                              boolean resumable, boolean stopRetryAvailable) {
         static HistoryItem from(DesignerSessionHistoryRow row) {
+            boolean confirmed = "CONFIRMED".equals(row.draftStatus()) || row.taskId() != null;
+            boolean resumable = row.archived() == 0 && !confirmed
+                    && !Set.of("STOPPING", "CANCELLED").contains(row.state());
+            boolean stopRetryAvailable = row.archived() == 0 && !confirmed && "STOPPING".equals(row.state());
             return new HistoryItem(row.id(), row.projectId(), row.projectName(), row.state(), row.workflowPhase(),
                     row.createdAt(), row.updatedAt(), row.draftId(), row.draftStatus(), row.goal(),
                     row.requirementRevision(), row.activeWorkPackageId(), row.archived() == 1, row.archivedAt(),
-                    row.taskId(), row.taskState());
+                    row.taskId(), row.taskState(), resumable, stopRetryAvailable);
         }
     }
 

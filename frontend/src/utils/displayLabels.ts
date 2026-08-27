@@ -26,7 +26,7 @@ const statusLabels: Record<string, string> = {
   NORMALIZED: '已自动规范化',
   DRAFTING: '编辑中', DRAFT_READY: '待确认', CONFIRMED: '已确认', HANDOFF_FAILED: '交接失败',
   STOPPING: '正在停止', NEEDS_CONFIRMATION: '待确认', FROZEN: '已冻结',
-  APPROVED: '已接受', REVIEWING: '待确认', STALE: '已失效',
+  QUESTIONING: '提问中', APPROVED: '已接受', REVIEWING: '待确认', STALE: '已失效',
   ENABLED: '已启用', DISABLED: '已停用', ACTIVE: '进行中', ARCHIVED: '已归档',
   REVIEW_REQUIRED: '待人工确认', AUTO_START: '自动开始', DETECTED: '已检测', SKIPPED: '已跳过',
   ADMITTED: '已准入', FINISHED: '已结束', HELD: '占用中', RELEASE_PENDING: '待释放', RELEASED: '已释放',

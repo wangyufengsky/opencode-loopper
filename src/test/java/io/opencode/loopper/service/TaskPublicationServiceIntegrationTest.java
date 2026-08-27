@@ -180,6 +180,8 @@ class TaskPublicationServiceIntegrationTest {
         assertThat(tasks.get(task.id()).state()).isEqualTo("AWAITING_DECISION");
         TaskPublicationService.PublicationStatus pushed = publication.commitAndPush(task.id(), "#3032_验证合并状态核对");
         assertThat(tasks.get(task.id()).state()).isEqualTo("COMPLETED");
+        assertThat(mapper.findTaskQueue(task.id())).get().extracting(row -> row.state()).isEqualTo("FINISHED");
+        assertThat(mapper.findActiveWorkspaceLeaseByHolder(task.id())).isEmpty();
 
         AtomicReference<String> mrState = new AtomicReference<>("opened");
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);

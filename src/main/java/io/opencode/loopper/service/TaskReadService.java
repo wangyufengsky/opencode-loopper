@@ -5,6 +5,10 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import io.opencode.loopper.api.CursorPage;
 import io.opencode.loopper.domain.TaskState;
+import io.opencode.loopper.domain.TaskPackageRunState;
+import io.opencode.loopper.domain.TaskQueueState;
+import io.opencode.loopper.domain.TaskStatusGroup;
+import io.opencode.loopper.domain.WorkPackageAggregateState;
 import io.opencode.loopper.persistence.ErrorEventRow;
 import io.opencode.loopper.persistence.JudgeRunRow;
 import io.opencode.loopper.persistence.LoopperMapper;
@@ -38,31 +42,53 @@ public class TaskReadService {
     private final LoopperMapper mapper;
     private final ObjectMapper json;
     private final MeterRegistry meters;
+    private final RollingPackageCommandPolicy packageCommands;
 
-    public TaskReadService(ReadModelMapper reads, LoopperMapper mapper, ObjectMapper json, MeterRegistry meters) {
+    public TaskReadService(ReadModelMapper reads, LoopperMapper mapper, ObjectMapper json, MeterRegistry meters,
+                           RollingPackageCommandPolicy packageCommands) {
         this.reads = reads;
         this.mapper = mapper;
         this.json = json;
         this.meters = meters;
+        this.packageCommands = packageCommands;
     }
 
     public CursorPage<TaskSummary> summaries(String projectId, List<String> states, String archive,
                                              String query, String order, String cursor, Integer requestedLimit) {
+        return summaries(projectId, states, null, archive, query, order, cursor, requestedLimit);
+    }
+
+    public CursorPage<TaskSummary> summaries(String projectId, List<String> states, String statusGroup,
+                                             String archive, String query, String order, String cursor,
+                                             Integer requestedLimit) {
         return measured("task-summaries", () -> {
             int limit = PageCursor.limit(requestedLimit);
             String archiveMode = normalizedArchive(archive);
             List<String> normalizedStates = normalizedStates(states);
+            TaskStatusGroup normalizedGroup = normalizedStatusGroup(statusGroup);
+            if (!normalizedStates.isEmpty() && normalizedGroup != null) {
+                throw new BadRequestException("TASK_STATUS_FILTER_CONFLICT",
+                        "status and statusGroup cannot be used together");
+            }
+            if (normalizedGroup != null) normalizedStates = normalizedGroup.states().stream().map(Enum::name).toList();
+            String queryPattern = likePattern(query);
             boolean oldest = "oldest".equalsIgnoreCase(order);
             PageCursor decoded = PageCursor.decode(cursor);
             List<TaskSummaryRow> rows = reads.taskSummaries(blankToNull(projectId), normalizedStates, archiveMode,
-                    likePattern(query), oldest, decoded == null ? null : decoded.value(),
+                    queryPattern, oldest, decoded == null ? null : decoded.value(),
                     decoded == null ? null : decoded.id(), limit + 1);
             boolean hasMore = rows.size() > limit;
             List<TaskSummaryRow> pageRows = hasMore ? rows.subList(0, limit) : rows;
             List<TaskSummary> items = pageRows.stream().map(this::summary).toList();
             Map<String, Long> facets = new LinkedHashMap<>();
-            reads.taskFacets().forEach(row -> facets.put(row.state(), row.count()));
-            facets.put("TOTAL", facets.values().stream().mapToLong(Long::longValue).sum());
+            reads.taskFacets(blankToNull(projectId), normalizedStates, archiveMode, queryPattern)
+                    .forEach(row -> facets.put(row.state(), row.count()));
+            for (TaskStatusGroup group : TaskStatusGroup.values()) {
+                facets.put(group.name(), group.states().stream()
+                        .mapToLong(state -> facets.getOrDefault(state.name(), 0L)).sum());
+            }
+            facets.put("TOTAL", java.util.Arrays.stream(TaskState.values())
+                    .mapToLong(state -> facets.getOrDefault(state.name(), 0L)).sum());
             String next = hasMore ? new PageCursor(pageRows.getLast().updatedAt(), pageRows.getLast().id()).encode() : null;
             recordRows("task-summaries", items.size());
             return new CursorPage<>(items, next, facets);
@@ -119,20 +145,19 @@ public class TaskReadService {
                 && mapper.listVerifierRuntimes(task.id()).stream()
                 .noneMatch(runtime -> Set.of("STARTING", "RUNNING", "STOPPING", "DISCONNECTED")
                         .contains(runtime.state()));
-        if (run == null) return new PackageCapabilities(false, false, false, false, false, false,
-                writerFree && safeCheckpoint && frozenPackages > 0);
-        return new PackageCapabilities(
-                Set.of("DESIGNING", "DESIGN_REVIEW").contains(run.state()),
-                "DESIGN_REVIEW".equals(run.state()),
-                "EXECUTION_READY".equals(run.state()) || "QUEUED".equals(run.state())
-                        && Set.of("PENDING_START", "WAITING_INPUT").contains(task.state()),
-                "WAITING_INPUT".equals(run.state()) && Set.of("PACKAGE_EXECUTION_FAILED", "PACKAGE_CHECKPOINT_BLOCKED")
-                        .contains(run.waitingReasonCode()),
-                "WAITING_INPUT".equals(run.state()) && safeCheckpoint
-                        && !"PACKAGE_CHECKPOINT_BLOCKED".equals(run.waitingReasonCode()),
-                writerFree && safeCheckpoint && Set.of("PLANNED", "DESIGNING", "DESIGN_REVIEW", "EXECUTION_READY")
-                        .contains(run.state()),
-                writerFree && safeCheckpoint && frozenPackages > 0);
+        boolean designerFree = mapper.findDesignerSessionByTask(task.id())
+                .map(session -> !"RUNNING".equals(session.state()) && mapper.activeDesignWorkPackages().stream()
+                        .noneMatch(row -> session.id().equals(row.designerSessionId())))
+                .orElse(true);
+        TaskQueueState queueState = mapper.findTaskQueue(task.id()).map(row -> TaskQueueState.valueOf(row.state())).orElse(null);
+        RollingPackageCommandPolicy.Capabilities result = packageCommands.capabilities(
+                new RollingPackageCommandPolicy.Context(TaskState.valueOf(task.state()), task.waitingReasonCode(),
+                        run == null ? null : TaskPackageRunState.valueOf(run.state()),
+                        run == null ? null : run.waitingReasonCode(), queueState, writerFree, designerFree,
+                        safeCheckpoint, frozenPackages));
+        return new PackageCapabilities(result.canDiscuss(), result.canApproveDesign(), result.canStartPackage(),
+                result.canRetryPackage(), result.canRedesignPackage(), result.canReplanRemaining(),
+                result.canAddCorrectionPackage());
     }
 
     public TaskAudit audit(String taskId) {
@@ -260,10 +285,8 @@ public class TaskReadService {
         return grouped.entrySet().stream().map(entry -> {
             List<TaskStageReadRow> packageStages = entry.getValue();
             int complete = (int) packageStages.stream().filter(stage -> "SUCCEEDED".equals(stage.state())).count();
-            String state = packageStages.stream().anyMatch(stage -> "FAILED".equals(stage.state())) ? "FAILED"
-                    : complete == packageStages.size() ? "SUCCEEDED"
-                    : packageStages.stream().anyMatch(stage -> List.of("RUNNING", "PAUSED").contains(stage.state()))
-                    ? "RUNNING" : "PENDING";
+            String state = WorkPackageAggregateState.aggregate(
+                    packageStages.stream().map(TaskStageReadRow::state).toList()).name();
             int used = packageStages.stream().mapToInt(TaskStageReadRow::attemptCount).sum();
             int stageCount = packageStages.size();
             int limit = Math.min(stageCount * maxStageAttempts, stageCount + 2);
@@ -281,6 +304,14 @@ public class TaskReadService {
             }
             return normalized;
         }).distinct().toList();
+    }
+
+    private TaskStatusGroup normalizedStatusGroup(String value) {
+        if (value == null || value.isBlank()) return null;
+        try { return TaskStatusGroup.valueOf(value.trim().toUpperCase(Locale.ROOT)); }
+        catch (IllegalArgumentException invalid) {
+            throw new BadRequestException("TASK_STATUS_GROUP_INVALID", "Unknown task status group: " + value);
+        }
     }
 
     private String normalizedArchive(String archive) {

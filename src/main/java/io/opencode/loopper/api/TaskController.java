@@ -396,10 +396,8 @@ public class TaskController {
             List<StageRow> packageStages = entry.getValue();
             java.util.Set<String> ids = packageStages.stream().map(StageRow::id).collect(java.util.stream.Collectors.toSet());
             int complete = (int) packageStages.stream().filter(stage -> "SUCCEEDED".equals(stage.state())).count();
-            String state = packageStages.stream().anyMatch(stage -> "FAILED".equals(stage.state())) ? "FAILED"
-                    : complete == packageStages.size() ? "SUCCEEDED"
-                    : packageStages.stream().anyMatch(stage -> List.of("RUNNING", "PAUSED").contains(stage.state()))
-                    ? "RUNNING" : "PENDING";
+            String state = io.opencode.loopper.domain.WorkPackageAggregateState.aggregate(
+                    packageStages.stream().map(StageRow::state).toList()).name();
             int used = (int) attempts.stream().filter(attempt -> ids.contains(attempt.stageId())).count();
             int limit = Math.min(packageStages.size() * spec.limits().maxStageAttempts(), packageStages.size() + 2);
             return new WorkPackageProgressDto(entry.getKey(), ordinal[0]++, state, packageStages.size(),

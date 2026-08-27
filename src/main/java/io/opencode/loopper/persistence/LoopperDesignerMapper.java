@@ -371,6 +371,8 @@ public interface LoopperDesignerMapper {
     @Select("SELECT * FROM design_work_package WHERE designer_session_id=#{sessionId} AND package_id=#{packageId} ORDER BY plan_revision DESC,created_at DESC LIMIT 1")
     Optional<DesignWorkPackageRow> findLatestDesignWorkPackage(@Param("sessionId") String sessionId,
                                                                @Param("packageId") String packageId);
+    @Select("SELECT * FROM design_work_package WHERE designer_session_id=#{sessionId} ORDER BY created_at,id")
+    List<DesignWorkPackageRow> listDesignerWorkPackages(String sessionId);
     @Select("SELECT * FROM design_work_package WHERE state IN ('QUESTIONING','DESIGNING') AND designer_external_session_id IS NOT NULL ORDER BY updated_at")
     List<DesignWorkPackageRow> activeDesignWorkPackages();
     @Update("""

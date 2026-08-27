@@ -76,6 +76,12 @@ and Git is untouched. The explicit Start action records `REQUEST_START`, queue
 admission and lease acquisition; an admitted Task then prepares its workspace and
 continues automatically into execution, while a waiter remains `QUEUED` with the same
 execution request already recorded.
+For rolling execution, `EXECUTION_READY -> QUEUED`, Task admission, Queue creation,
+and Lease acquisition/transfer share that same short transaction. A queued package is
+idempotent only when Task, package Run, and Queue all agree; mixed parent/child state is
+an invariant failure, never a successful retry. Package-plan confirmation likewise
+activates the proposal, supersedes the old suffix, creates the new Runs, and advances
+the first package plus parent Task atomically before read-only Designer dispatch.
 An abort response alone never releases a lease: the old writer must be observed
 terminal. Unknown writer state keeps the lease and blocks Recovery and Automation.
 `ADMITTED` must always correspond to the same Task as the non-released lease holder.

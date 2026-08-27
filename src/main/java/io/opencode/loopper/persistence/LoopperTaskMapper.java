@@ -305,6 +305,12 @@ public interface LoopperTaskMapper {
     @Insert("INSERT INTO error_event(id,task_id,stage_id,attempt_id,session_id,layer,code,message,retryable,evidence_json,occurred_at) VALUES(#{id},#{taskId},#{stageId},#{attemptId},#{sessionId},#{layer},#{code},#{message},#{retryable},#{evidenceJson},#{occurredAt})")
     int insertError(ErrorEventRow row);
     @Select("SELECT * FROM error_event WHERE task_id=#{taskId} ORDER BY occurred_at DESC") List<ErrorEventRow> listErrors(String taskId);
+    @Select("""
+            SELECT code FROM error_event WHERE task_id=#{taskId}
+              AND json_extract(evidence_json,'$.resolution')='WAITING_INPUT'
+            ORDER BY occurred_at DESC,id DESC LIMIT 1
+            """)
+    Optional<String> findTaskWaitingReasonCode(String taskId);
 
     @Select("SELECT COALESCE(MAX(sequence), 0) FROM task_event WHERE task_id=#{taskId}") long maxEventSequence(String taskId);
     @Insert("INSERT INTO task_event(id,task_id,sequence,type,payload_json,occurred_at) VALUES(#{id},#{taskId},#{sequence},#{type},#{payloadJson},#{occurredAt})")

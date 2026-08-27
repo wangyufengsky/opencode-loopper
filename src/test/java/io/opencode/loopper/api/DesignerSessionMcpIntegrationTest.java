@@ -672,7 +672,8 @@ class DesignerSessionMcpIntegrationTest {
                 .andExpect(jsonPath("$.stopStatus").value("STOPPING"))
                 .andExpect(jsonPath("$.archived").value(false))
                 .andExpect(jsonPath("$.stoppedSessions").value(1))
-                .andExpect(jsonPath("$.failedSessions").value(1));
+                .andExpect(jsonPath("$.failedSessions").value(1))
+                .andExpect(jsonPath("$.pendingFinalizations").value(0));
         assertThat(designerSessions.get(created.id()).state()).isEqualTo("STOPPING");
 
         designerSessions.pollActiveHandoffs();
@@ -684,7 +685,8 @@ class DesignerSessionMcpIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.stopStatus").value("CANCELLED"))
                 .andExpect(jsonPath("$.archived").value(true))
-                .andExpect(jsonPath("$.failedSessions").value(0));
+                .andExpect(jsonPath("$.failedSessions").value(0))
+                .andExpect(jsonPath("$.pendingFinalizations").value(0));
         assertThat(fake().abortedSessionIds()).contains(designerRemote, routerRemote);
         assertThat(mapper.listActiveTaskProfileRouterRuns()).noneMatch(row -> created.id().equals(row.designerSessionId()));
 

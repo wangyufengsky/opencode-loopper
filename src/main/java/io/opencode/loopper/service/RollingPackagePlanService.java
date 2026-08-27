@@ -38,10 +38,12 @@ public class RollingPackagePlanService {
     private final WorkPackageRoleService roles;
     private final TaskEventService events;
     private final TransactionTemplate transactions;
+    private final RollingPackageCommandPolicy commandPolicy;
 
     public RollingPackagePlanService(LoopperMapper mapper, ObjectMapper json, RollingPackageService rolling,
                                      LifecycleTransitionService lifecycle, TaskWorkspaceCheckpointService checkpoints,
                                      WorkPackageRoleService roles, TaskEventService events,
+                                     RollingPackageCommandPolicy commandPolicy,
                                      PlatformTransactionManager transactionManager) {
         this.mapper = mapper;
         this.json = json;
@@ -50,6 +52,7 @@ public class RollingPackagePlanService {
         this.checkpoints = checkpoints;
         this.roles = roles;
         this.events = events;
+        this.commandPolicy = commandPolicy;
         this.transactions = new TransactionTemplate(transactionManager);
     }
 
@@ -59,7 +62,10 @@ public class RollingPackagePlanService {
 
     private Proposal propose(String taskId, long expectedTaskVersion, List<PlanPackage> packages,
                              boolean allowCompletedSuffix, String origin) {
-        Context context = safeContext(taskId, expectedTaskVersion, allowCompletedSuffix);
+        RollingPackageCommandPolicy.Command command = "CORRECTION".equals(origin)
+                ? RollingPackageCommandPolicy.Command.ADD_CORRECTION
+                : RollingPackageCommandPolicy.Command.REPLAN;
+        Context context = safeContext(taskId, expectedTaskVersion, allowCompletedSuffix, command);
         List<PlanPackage> normalized = normalize(packages);
         int revision = mapper.listTaskPackagePlanRevisions(taskId).stream()
                 .mapToInt(TaskPackagePlanRevisionRow::revision).max().orElse(0) + 1;
@@ -79,7 +85,8 @@ public class RollingPackagePlanService {
 
     public Proposal correction(String taskId, long expectedTaskVersion, String correctionOfPackageRunId,
                                String title, String objective) {
-        Context context = safeContext(taskId, expectedTaskVersion, true);
+        Context context = safeContext(taskId, expectedTaskVersion, true,
+                RollingPackageCommandPolicy.Command.ADD_CORRECTION);
         TaskPackageRunRow frozen = mapper.findTaskPackageRun(correctionOfPackageRunId).orElseThrow(() ->
                 new NotFoundException("Package run not found: " + correctionOfPackageRunId));
         if (!taskId.equals(frozen.taskId()) || !TaskPackageRunState.FACT_FROZEN.name().equals(frozen.state())) {
@@ -106,15 +113,18 @@ public class RollingPackagePlanService {
 
     public Proposal confirm(String taskId, String proposalId, long expectedTaskVersion,
                             long expectedProposalVersion) {
-        Context context = safeContext(taskId, expectedTaskVersion, true);
         TaskPackagePlanRevisionRow proposed = mapper.findTaskPackagePlanRevision(proposalId).orElseThrow(() ->
                 new NotFoundException("Package plan proposal not found: " + proposalId));
         if (!taskId.equals(proposed.taskId()) || proposed.version() != expectedProposalVersion
                 || !PackagePlanRevisionState.PROPOSED.name().equals(proposed.state())) {
             throw new ConflictException("PACKAGE_PLAN_PROPOSAL_STALE", "剩余拆包提案已更新，请刷新后重试");
         }
+        RollingPackageCommandPolicy.Command command = "CORRECTION".equals(proposed.origin())
+                ? RollingPackageCommandPolicy.Command.ADD_CORRECTION
+                : RollingPackageCommandPolicy.Command.REPLAN;
+        Context context = safeContext(taskId, expectedTaskVersion, true, command);
         List<PlanPackage> packages = readPackages(proposed.planJson());
-        String firstRunId = transactions.execute(ignored -> {
+        DispatchAnchor dispatch = transactions.execute(ignored -> {
             String now = now();
             TaskPackagePlanRevisionRow old = mapper.activeTaskPackagePlanRevision(taskId).orElseThrow();
             TaskPackagePlanRevisionRow superseded = copy(old, PackagePlanRevisionState.SUPERSEDED,
@@ -145,9 +155,11 @@ public class RollingPackagePlanService {
                 PlanPackage item = packages.get(ordinal);
                 DesignWorkPackageRow source = source(context, item);
                 DesignWorkPackageRow design = cloneDesign(context.session(), proposed, item, source, ordinal, now);
-                if (mapper.insertDesignWorkPackage(design) != 1) {
-                    throw new ConflictException("PACKAGE_PLAN_DESIGN_CREATE_CONFLICT", "新计划工作包无法保存");
-                }
+                lifecycle.create(new LifecycleTransitionService.Subject(LifecycleMachineType.DESIGN_WORK_PACKAGE,
+                                design.id(), LifecycleScopeType.PROJECT, context.session().projectId()), design.state(),
+                        Map.of("packageId", design.packageId(), "planRevision", proposed.revision()),
+                        () -> mapper.insertDesignWorkPackage(design),
+                        () -> new ConflictException("PACKAGE_PLAN_DESIGN_CREATE_CONFLICT", "新计划工作包无法保存"));
                 roles.assign(design);
                 TaskPackageRunRow run = new TaskPackageRunRow(UUID.randomUUID().toString(), taskId, proposed.id(),
                         design.id(), item.packageKey(), ordinal, item.title(), TaskPackageRunState.PLANNED.name(),
@@ -156,15 +168,19 @@ public class RollingPackagePlanService {
                         run.packageKey(), run.ordinal(), run.title(), run.state(), run.correctionOfPackageRunId(),
                         run.discussionRevision(), run.designRevision(), run.acceptedDesignRevision(),
                         run.waitingReasonCode(), run.createdAt(), run.updatedAt(), run.version(), resumeCheckpointId);
-                if (mapper.insertTaskPackageRun(run) != 1) {
-                    throw new ConflictException("PACKAGE_PLAN_RUN_CREATE_CONFLICT", "新计划工作包运行记录无法保存");
-                }
+                TaskPackageRunRow createdRun = run;
+                lifecycle.create(packageSubject(createdRun), createdRun.state(),
+                        Map.of("packageKey", createdRun.packageKey(), "planRevision", proposed.revision()),
+                        () -> mapper.insertTaskPackageRun(createdRun),
+                        () -> new ConflictException("PACKAGE_PLAN_RUN_CREATE_CONFLICT", "新计划工作包运行记录无法保存"));
                 if (first == null) first = run.id();
             }
-            return first;
+            if (first == null) throw new ConflictException("PACKAGE_PLAN_EMPTY", "新计划没有可设计的工作包");
+            rolling.beginPlannedDesignInTransaction(taskId, first, command);
+            return new DispatchAnchor(first, resumeCheckpointId);
         });
-        if (firstRunId == null) throw new ConflictException("PACKAGE_PLAN_EMPTY", "新计划没有可设计的工作包");
-        rolling.beginPlannedDesign(taskId, firstRunId);
+        if (dispatch == null) throw new ConflictException("PACKAGE_PLAN_EMPTY", "新计划没有可设计的工作包");
+        rolling.dispatchPlannedDesign(taskId, dispatch.packageRunId(), dispatch.checkpointId());
         events.emit(taskId, "package.plan_approved", Map.of("revision", proposed.revision(),
                 "packageCount", packages.size()));
         return proposal(mapper.findTaskPackagePlanRevision(proposalId).orElseThrow());
@@ -175,7 +191,8 @@ public class RollingPackagePlanService {
         return mapper.listTaskPackagePlanRevisions(taskId).stream().map(this::proposal).toList();
     }
 
-    Context safeContext(String taskId, long expectedTaskVersion, boolean allowCompletedSuffix) {
+    Context safeContext(String taskId, long expectedTaskVersion, boolean allowCompletedSuffix,
+                        RollingPackageCommandPolicy.Command command) {
         var task = mapper.findTask(taskId).orElseThrow(() -> new NotFoundException("Task not found: " + taskId));
         if (!rolling.rolling(taskId) || task.version() != expectedTaskVersion) {
             throw new ConflictException("PACKAGE_PLAN_TASK_VERSION_CONFLICT", "任务状态已更新，请刷新后重试");
@@ -193,10 +210,11 @@ public class RollingPackagePlanService {
                 TaskPackageRunState.DESIGNING.name(), TaskPackageRunState.DESIGN_REVIEW.name(),
                 TaskPackageRunState.EXECUTION_READY.name(), TaskPackageRunState.WAITING_INPUT.name())
                 .contains(current.state());
+        commandPolicy.require(command, rolling.policyContext(task, current));
         if (activeDesigner || activeWriter || checkpoint == null
                 || !Set.of("READY", "RESTORED").contains(checkpoint.state())
                 || (!replannable && !allowCompletedSuffix)) {
-            throw new ConflictException("PACKAGE_REPLAN_UNSAFE", "只有 writer 已停止且当前成功事实点可验证时才能调整剩余拆包");
+            throw new ConflictException("PACKAGE_COMMAND_NOT_AVAILABLE", "只有 writer 已停止且当前成功事实点可验证时才能调整剩余拆包");
         }
         checkpoints.designSnapshot(task, checkpoint);
         TaskPackagePlanRevisionRow active = mapper.activeTaskPackagePlanRevision(taskId).orElseThrow();
@@ -205,7 +223,8 @@ public class RollingPackagePlanService {
 
     SuggestionAnchor beginSuggestion(String taskId, long expectedTaskVersion,
                                      String expectedPackageRunId, long expectedPackageVersion) {
-        Context context = safeContext(taskId, expectedTaskVersion, false);
+        Context context = safeContext(taskId, expectedTaskVersion, false,
+                RollingPackageCommandPolicy.Command.REPLAN);
         if (context.current() == null || !context.current().id().equals(expectedPackageRunId)
                 || context.current().version() != expectedPackageVersion) {
             throw new ConflictException("PACKAGE_PLAN_SUGGESTION_STALE", "当前工作包已更新，请刷新后重试");
@@ -456,6 +475,11 @@ public class RollingPackagePlanService {
                 LifecycleScopeType.TASK, row.taskId());
     }
 
+    private LifecycleTransitionService.Subject packageSubject(TaskPackageRunRow row) {
+        return new LifecycleTransitionService.Subject(LifecycleMachineType.TASK_PACKAGE_RUN, row.id(),
+                LifecycleScopeType.TASK, row.taskId());
+    }
+
     private String bounded(String detail) {
         if (detail == null || detail.isBlank()) return "AI 拆包建议生成失败";
         String stripped = detail.strip();
@@ -480,4 +504,5 @@ public class RollingPackagePlanService {
                    io.opencode.loopper.persistence.TaskWorkspaceCheckpointRow checkpoint,
                    TaskPackageRunRow current) { }
     record SuggestionAnchor(TaskPackagePlanRevisionRow revision, Context context) { }
+    private record DispatchAnchor(String packageRunId, String checkpointId) { }
 }

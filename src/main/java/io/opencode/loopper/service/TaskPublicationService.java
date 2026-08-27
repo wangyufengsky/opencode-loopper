@@ -148,8 +148,8 @@ public class TaskPublicationService {
             if ("PUSHED".equals(before.state()) || "SYNCED_LOCAL".equals(before.state())
                     || "LOCAL_SYNC_CONFLICT".equals(before.state())) {
                 if ("PUSHED".equals(before.state()) || "SYNCED_LOCAL".equals(before.state())) {
-                    confirmAwaitingDecision(task, "PUBLICATION_ALREADY_CONFIRMED", before.commitSha());
                     tasks.releaseWorkspaceAfterTaskCommit(task.id());
+                    confirmAwaitingDecision(task, "PUBLICATION_ALREADY_CONFIRMED", before.commitSha());
                 }
                 return status(task.id());
             }
@@ -187,8 +187,8 @@ public class TaskPublicationService {
                     throw new ConflictException("LOCAL_SOURCE_SYNC_UNCONFIRMED", "源代码同步完成，但同步证据未能确认");
                 }
                 observe(task, synced);
-                confirmAwaitingDecision(task, "LOCAL_COMMIT", committed.commitSha());
                 tasks.releaseWorkspaceAfterTaskCommit(task.id());
+                confirmAwaitingDecision(task, "LOCAL_COMMIT", committed.commitSha());
                 return status(task.id());
             }
             runRequired(workspace,
@@ -200,8 +200,8 @@ public class TaskPublicationService {
                 throw new ConflictException("GIT_PUSH_STATE_UNCONFIRMED", "Git push 返回成功，但远端跟踪分支尚未与本地提交一致");
             }
             observe(task, pushed);
-            confirmAwaitingDecision(task, "REMOTE_PUSH", pushed.commitSha());
             tasks.releaseWorkspaceAfterTaskCommit(task.id());
+            confirmAwaitingDecision(task, "REMOTE_PUSH", pushed.commitSha());
             return status(task.id());
         } finally {
             lock.unlock();

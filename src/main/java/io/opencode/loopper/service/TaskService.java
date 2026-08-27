@@ -108,7 +108,7 @@ public class TaskService {
     private final TaskExecutionPromptFactory executionPrompts;
     private final TaskStateStore taskStates;
     private final TaskEvidenceService taskEvidence;
-    private final TaskCancellationCoordinator cancellations;
+    private final TaskCancellationCoordinator cancellations; private final TaskTerminalConsistencyService terminalConsistency;
     private final TaskWriterTerminationService writerTermination;
     private final RollingPackageTaskHooks rollingPackages;
     public TaskService(LoopperMapper mapper, LifecycleTransitionService lifecycle, ObjectMapper json, ProjectService projects,
@@ -128,6 +128,7 @@ public class TaskService {
                        TaskExecutionCycleService executionCycles,
                        TaskWorkspaceCheckpointService workspaceCheckpoints,
                        TaskEvidenceService taskEvidence, RollingPackageTaskHooks rollingPackages,
+                       DesignerTerminationService designerTermination, TaskTerminalConsistencyService terminalConsistency,
                        LoopperProperties defaults,
                        PlatformTransactionManager transactionManager) {
         this.mapper = mapper; this.lifecycle = lifecycle; this.json = json; this.projects = projects;
@@ -147,11 +148,12 @@ public class TaskService {
         this.judgeDecisions = new TaskJudgeDecisionParser(aiOutputExtractor);
         this.executionPrompts = new TaskExecutionPromptFactory(mapper, json, rolePrompts);
         this.taskStates = new TaskStateStore(mapper, lifecycle);
-        this.taskEvidence = taskEvidence;
+        this.taskEvidence = taskEvidence; this.terminalConsistency = terminalConsistency;
         this.writerTermination = new TaskWriterTerminationService(mapper, taskStates, lifecycle, openCode,
                 usageInsights, directLeases, projects, defaults, events, json);
         this.cancellations = new TaskCancellationCoordinator(mapper, taskStates, managedVerifierRuntimes,
-                directLeases, events, executionCycles, writerTermination);
+                events, executionCycles, writerTermination, designerTermination,
+                rollingPackages, transactionManager);
     }
     public TaskRow createFromDraft(LoopDraftRow draft, String title) {
         return createFromDraft(draft, title, "MANUAL");
@@ -340,10 +342,10 @@ public class TaskService {
         } catch (Exception unreadable) {
             throw new ConflictException("TASK_ACCEPT_MANIFEST_INVALID", "Task checkpoint manifest cannot be verified");
         }
-        taskStates.updateTask(taskStates.taskState(task, TaskState.COMPLETED), LifecycleEvent.ACCEPT_RESULT,
+        TaskRow completed = terminalConsistency.complete(task, LifecycleEvent.ACCEPT_RESULT,
                 Map.of("cycleId", executionCycles.latest(taskId).id(), "confirmation", "NO_CHANGES_ACCEPTED"));
         events.emit(taskId, "task.completed", Map.of("confirmation", "NO_CHANGES_ACCEPTED"));
-        return get(taskId);
+        return completed;
     }
 
     /** Publication calls this only after a durable local commit or confirmed push. */
@@ -351,12 +353,12 @@ public class TaskService {
         TaskRow task = get(taskId);
         if (TaskState.COMPLETED.name().equals(task.state())) return task;
         requireSuccessfulDecision(taskId);
-        taskStates.updateTask(taskStates.taskState(task, TaskState.COMPLETED), LifecycleEvent.COMPLETE,
+        TaskRow completed = terminalConsistency.complete(task, LifecycleEvent.COMPLETE,
                 Map.of("cycleId", executionCycles.latest(taskId).id(), "confirmation", confirmation,
                         "commitSha", commitSha == null ? "" : commitSha));
         events.emit(taskId, "task.completed", Map.of("confirmation", confirmation,
                 "commitSha", commitSha == null ? "" : commitSha));
-        return get(taskId);
+        return completed;
     }
 
     public TaskRow supersede(String taskId, String childTaskId, String mode) {
@@ -364,10 +366,10 @@ public class TaskService {
         if (!TaskState.AWAITING_DECISION.name().equals(task.state())) {
             throw new ConflictException("TASK_DECISION_NOT_AVAILABLE", "Only a Task awaiting disposition can be superseded");
         }
-        taskStates.updateTask(taskStates.taskState(task, TaskState.SUPERSEDED), LifecycleEvent.SUPERSEDE,
+        TaskRow superseded = terminalConsistency.supersede(task,
                 Map.of("successorTaskId", childTaskId, "mode", mode));
         events.emit(taskId, "task.superseded", Map.of("successorTaskId", childTaskId, "mode", mode));
-        return get(taskId);
+        return superseded;
     }
 
     private TaskRow requireSuccessfulDecision(String taskId) {
@@ -551,10 +553,9 @@ public class TaskService {
     /** Restores the Task start branch and releases the registered checkout after the Task commit is durable. */
     public void releaseWorkspaceAfterTaskCommit(String taskId) {
         TaskRow task = get(taskId);
-        if (!TaskState.SUCCEEDED.name().equals(task.state()) && !TaskState.COMPLETED.name().equals(task.state())) {
-            throw new ConflictException("TASK_PUBLICATION_LEASE_NOT_RELEASABLE",
-                    "Only a confirmed completed Task can release its workspace after publication");
-        }
+        if (TaskState.AWAITING_DECISION.name().equals(task.state())) requireSuccessfulDecision(taskId);
+        else if (!TaskState.SUCCEEDED.name().equals(task.state()) && !TaskState.COMPLETED.name().equals(task.state()))
+            throw new ConflictException("TASK_PUBLICATION_LEASE_NOT_RELEASABLE", "只有成功待确认或已完成 Task 才能在发布后释放工作区");
         if (!isAdmittedInPlace(task)) return;
         if (!GitWorktreeManager.DIRECT_BRANCH.equals(task.branchName())) {
             worktrees.restoreSourceBranch(inPlaceRoot(task), task.branchName(), task.sourceBranch());
@@ -753,10 +754,10 @@ public class TaskService {
     }
     public TaskRow start(String taskId) { return start(taskId, "MANUAL"); }
     public TaskRow startRollingPackage(String taskId, String packageRunId, long expectedTaskVersion, long expectedPackageVersion) {
-        rollingPackages.requestExecution(taskId, packageRunId, expectedTaskVersion, expectedPackageVersion); return start(taskId, "PACKAGE");
+        var request = rollingPackages.executionRequest(taskId, packageRunId, expectedTaskVersion, expectedPackageVersion);
+        return request.disposition() == RollingPackageCommandPolicy.StartDisposition.IDEMPOTENT ? get(taskId) : requestTaskStart(get(taskId), "PACKAGE", request);
     }
-    public TaskRow retryRollingPackageCandidate(String taskId, String packageRunId,
-                                                long expectedTaskVersion, long expectedPackageVersion) {
+    public TaskRow retryRollingPackageCandidate(String taskId, String packageRunId, long expectedTaskVersion, long expectedPackageVersion) {
         var run = rollingPackages.prepareRetry(taskId, packageRunId, expectedTaskVersion, expectedPackageVersion);
         return startRollingPackage(taskId, run.id(), get(taskId).version(), run.version());
     }
@@ -780,7 +781,9 @@ public class TaskService {
         }
         throw new ConflictException("TASK_ALREADY_ACTIVE", "Task is already active");
     }
-    private TaskRow requestTaskStart(TaskRow task, String admissionSource) {
+    private TaskRow requestTaskStart(TaskRow task, String admissionSource) { return requestTaskStart(task, admissionSource, null); }
+    private TaskRow requestTaskStart(TaskRow task, String admissionSource,
+                                     RollingPackageService.ExecutionRequest packageRequest) {
         try {
             rollingPackages.ensureExecutionCycle(task, cycleBudgetSnapshot(spec(task)));
             ProjectRow project = projects.get(task.projectId());
@@ -801,6 +804,7 @@ public class TaskService {
                     throw new ConflictException("TASK_START_REQUEST_CONFLICT",
                             "Task no longer waits for an execution request");
                 }
+                if (packageRequest != null) rollingPackages.requestExecutionInTransaction(packageRequest);
                 DirectWorkspaceLeaseCoordinator.Admission acquired = directLeases.acquireOrEnqueueInTransaction(
                         workspace, current.id(), source, null);
                 taskStates.updateTask(taskStates.taskState(current, TaskState.QUEUED), LifecycleEvent.REQUEST_START);
@@ -1219,7 +1223,6 @@ public class TaskService {
     private TaskRow settleCancelledLease(TaskRow task) {
         if (!TaskState.CANCELLED.name().equals(task.state())) return get(task.id());
         settleTerminalInPlaceLease(task, true, "TASK_CANCELLED");
-        rollingPackages.cancelRuns(task);
         return get(task.id());
     }
     public void recoverAfterRestart() {
@@ -2554,7 +2557,7 @@ public class TaskService {
     }
 
     private void settleTerminalInPlaceLease(TaskRow task, boolean writerTerminationConfirmed, String reason) {
-        if (!isAdmittedInPlace(task)) return;
+        if (!isAdmittedInPlace(task)) { mapper.findTaskQueue(task.id()).filter(row -> TaskQueueState.QUEUED.name().equals(row.state())).ifPresent(row -> directLeases.cancelQueued(task.id())); return; }
         // The persisted Session/runtime evidence remains authoritative. The boolean is retained
         // at this call boundary so cancellation and cleanup cannot accidentally discard their
         // immediate termination result before that evidence has been written.
@@ -2709,12 +2712,8 @@ public class TaskService {
         Duration remaining = remainingTaskDuration(task, spec);
         return configured.compareTo(remaining) <= 0 ? configured : remaining;
     }
-    private long effectiveMaxDurationSeconds(LoopSpec spec) {
-        return Math.min(spec.limits().maxDurationSeconds(), defaults.getMaxDuration().toSeconds());
-    }
-    private long effectiveAttemptTimeoutSeconds(LoopSpec spec) {
-        return Math.min(spec.limits().attemptTimeoutSeconds(), defaults.getAttemptTimeout().toSeconds());
-    }
+    private long effectiveMaxDurationSeconds(LoopSpec spec) { return Math.min(spec.limits().maxDurationSeconds(), defaults.getMaxDuration().toSeconds()); }
+    private long effectiveAttemptTimeoutSeconds(LoopSpec spec) { return Math.min(spec.limits().attemptTimeoutSeconds(), defaults.getAttemptTimeout().toSeconds()); }
     private boolean blank(String value) { return value == null || value.isBlank(); }
     private String safeMessage(Throwable t) { return safeMessage(t.getMessage()); }
     private String safeMessage(String value) { return value == null ? "Unknown error" : value.substring(0, Math.min(value.length(), 4000)); }

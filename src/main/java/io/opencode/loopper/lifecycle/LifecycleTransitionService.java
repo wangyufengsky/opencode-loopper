@@ -41,7 +41,7 @@ public final class LifecycleTransitionService {
 
     public void create(Subject subject, String initialState, Map<String, ?> metadata,
                        IntSupplier mutation, Supplier<? extends RuntimeException> conflict) {
-        registry.requireState(subject.machineType(), subject.entityId(), initialState);
+        registry.requireCreatableState(subject.machineType(), subject.entityId(), initialState);
         execute(subject, null, initialState, LifecycleEvent.CREATED, null, metadata, mutation, conflict, true);
     }
 

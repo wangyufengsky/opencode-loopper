@@ -1,16 +1,16 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { api, ApiError, subscribeTaskEvents, type TaskEventStream, type TaskSummaryQuery } from '@/api/client'
-import { demoArtifacts, demoProjects, demoRuntime, demoTasks } from '@/mock/demoData'
+import { demoArtifacts, demoProjects, demoRuntime, demoTasks, demoTaskStatusGroups } from '@/mock/demoData'
 import type { Artifact, DirtyWorkspaceAction, Project, RuntimeInfo, Task, TaskEvent, TaskStatus } from '@/types/domain'
+import { STAGE_STATUSES, TASK_STATUSES, requirePublicState } from '@/types/states'
 
 function copy<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
 }
 
 function taskStatus(value: unknown): TaskStatus | undefined {
-  const valid = ['PENDING_START', 'QUEUED', 'PREPARING', 'READY', 'RUNNING', 'VERIFYING', 'RETRY_WAIT', 'PAUSED', 'PACKAGE_DESIGNING', 'WAITING_INPUT', 'JUDGING', 'STOPPING', 'AWAITING_DECISION', 'COMPLETED', 'SUPERSEDED', 'SUCCEEDED', 'FAILED', 'CANCELLED']
-  return typeof value === 'string' && valid.includes(value) ? value as TaskStatus : undefined
+  return typeof value === 'string' && (TASK_STATUSES as readonly string[]).includes(value) ? value as TaskStatus : undefined
 }
 
 export function reduceTaskEvent(task: Task, event: TaskEvent): Task {
@@ -22,9 +22,7 @@ export function reduceTaskEvent(task: Task, event: TaskEvent): Task {
   }
   if (event.type === 'stage.status' && typeof event.data.stageId === 'string' && next.stages) {
     const stage = next.stages.find((item) => item.id === event.data.stageId)
-    if (stage && typeof event.data.status === 'string') {
-      stage.status = event.data.status as typeof stage.status
-    }
+    if (stage && typeof event.data.status === 'string') stage.status = requirePublicState(STAGE_STATUSES, event.data.status, 'Stage event')
   }
   if (event.type === 'attempt.created' && typeof event.data.attemptCount === 'number') {
     next.attemptCount = event.data.attemptCount
@@ -69,13 +67,20 @@ export const useTaskStore = defineStore('task', () => {
   let snapshotTimer: number | undefined
   let auditTimer: number | undefined
 
-  const activeTasks = computed(() => tasks.value.filter((task) => ['RUNNING', 'VERIFYING', 'RETRY_WAIT', 'PACKAGE_DESIGNING', 'JUDGING'].includes(task.status)))
   const selectedTask = (id: string) => computed(() => tasks.value.find((task) => task.id === id))
 
   function activateDemo() {
     usingDemo.value = true
     projects.value = copy(demoProjects)
     tasks.value = copy(demoTasks)
+    taskFacets.value = tasks.value.reduce<Record<string, number>>((facets, task) => {
+      facets[task.status] = (facets[task.status] ?? 0) + 1
+      const group = demoTaskStatusGroups[task.status]
+      if (group) facets[group] = (facets[group] ?? 0) + 1
+      facets.MATCHED_TOTAL = (facets.MATCHED_TOTAL ?? 0) + 1
+      if (task.archived) facets.ARCHIVED_TOTAL = (facets.ARCHIVED_TOTAL ?? 0) + 1
+      return facets
+    }, { ARCHIVED_TOTAL: 0 })
     runtime.value = copy(demoRuntime)
     artifacts.value = copy(demoArtifacts)
     error.value = undefined
@@ -411,7 +416,7 @@ export const useTaskStore = defineStore('task', () => {
   }
 
   return { projects, tasks, runtime, artifacts, taskNotices, loading, auditLoading, auditErrors,
-    taskNextCursor, taskFacets, error, usingDemo, streamState, activeTasks, selectedTask, activateDemo,
+    taskNextCursor, taskFacets, error, usingDemo, streamState, selectedTask, activateDemo,
     deactivateDemo, loadOverview, loadProjects, loadTaskSummaries, loadTaskOverview, loadTaskAudit, loadTask,
     updateTask, retryJudges, retryWaitingLoop, resolveDirtyWorkspace, cancelDirtyWorkspace, reworkTask,
     setTaskArchived, deleteArchivedTask, watchTask, stopWatching, refreshRuntime, restartRuntime, startRuntime }

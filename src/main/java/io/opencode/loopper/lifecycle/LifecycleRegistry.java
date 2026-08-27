@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.springframework.stereotype.Component;
 
 /** Authoritative topology for every persisted business lifecycle. */
@@ -15,30 +16,55 @@ public final class LifecycleRegistry {
     private final Map<LifecycleMachineType, RegisteredMachine<?>> machines = new EnumMap<>(LifecycleMachineType.class);
 
     public LifecycleRegistry() {
-        register(LifecycleMachineType.TASK, TaskState.class, task());
-        register(LifecycleMachineType.STAGE, StageState.class, stage());
-        register(LifecycleMachineType.ATTEMPT, AttemptState.class, attempt());
-        register(LifecycleMachineType.EXECUTION_SESSION, SessionState.class, session());
-        register(LifecycleMachineType.JUDGE_RUN, JudgeRunState.class, judge());
-        register(LifecycleMachineType.LOOP_DRAFT, LoopDraftStatus.class, draft());
-        register(LifecycleMachineType.DESIGNER_SESSION, DesignerSessionState.class, designer());
-        register(LifecycleMachineType.DESIGNER_AUTO_MODE, DesignerAutoModeState.class, designerAutoMode());
-        register(LifecycleMachineType.LOOPSPEC_COMPILATION, LoopSpecCompilationState.class, compilation());
-        register(LifecycleMachineType.DESIGN_REQUIREMENT_REVISION, DesignRequirementRevisionState.class, requirementRevision());
-        register(LifecycleMachineType.TASK_DECOMPOSITION, TaskDecompositionState.class, decomposition());
-        register(LifecycleMachineType.DESIGN_WORK_PACKAGE, DesignWorkPackageState.class, workPackage());
-        register(LifecycleMachineType.PROJECT_CONVENTION, ProjectConventionState.class, convention());
-        register(LifecycleMachineType.INTERACTION, InteractionState.class, interaction());
-        register(LifecycleMachineType.WORKSPACE_LEASE, WorkspaceLeaseState.class, lease());
-        register(LifecycleMachineType.TASK_QUEUE, TaskQueueState.class, queue());
-        register(LifecycleMachineType.LOOPSPEC_TEMPLATE, LoopSpecTemplateState.class, template());
-        register(LifecycleMachineType.AUTOMATION_RULE, AutomationRuleState.class, rule());
-        register(LifecycleMachineType.AUTOMATION_RUN, AutomationRunState.class, automationRun());
-        register(LifecycleMachineType.TASK_PUBLICATION, TaskPublicationState.class, taskPublication());
-        register(LifecycleMachineType.TASK_EXECUTION_CYCLE, ExecutionCycleState.class, executionCycle());
-        register(LifecycleMachineType.WORKSPACE_CHECKPOINT, WorkspaceCheckpointState.class, workspaceCheckpoint());
-        register(LifecycleMachineType.TASK_PACKAGE_RUN, TaskPackageRunState.class, packageRun());
-        register(LifecycleMachineType.PACKAGE_PLAN_REVISION, PackagePlanRevisionState.class, packagePlanRevision());
+        register(LifecycleMachineType.TASK, TaskState.class, task(), set(TaskState.PENDING_START),
+                set(TaskState.SUCCEEDED, TaskState.FAILED));
+        register(LifecycleMachineType.STAGE, StageState.class, stage(), set(StageState.PENDING), Set.of());
+        register(LifecycleMachineType.ATTEMPT, AttemptState.class, attempt(),
+                set(AttemptState.RUNNING, AttemptState.SUCCEEDED), Set.of());
+        register(LifecycleMachineType.EXECUTION_SESSION, SessionState.class, session(),
+                set(SessionState.CREATING, SessionState.COMPLETED), set(SessionState.TIMED_OUT));
+        register(LifecycleMachineType.JUDGE_RUN, JudgeRunState.class, judge(), set(JudgeRunState.CREATING),
+                set(JudgeRunState.FAILED, JudgeRunState.TIMED_OUT));
+        register(LifecycleMachineType.LOOP_DRAFT, LoopDraftStatus.class, draft(), set(LoopDraftStatus.DRAFT_READY),
+                set(LoopDraftStatus.DRAFTING, LoopDraftStatus.HANDOFF_FAILED));
+        register(LifecycleMachineType.DESIGNER_SESSION, DesignerSessionState.class, designer(),
+                set(DesignerSessionState.PENDING_HANDOFF), Set.of());
+        register(LifecycleMachineType.DESIGNER_AUTO_MODE, DesignerAutoModeState.class, designerAutoMode(),
+                set(DesignerAutoModeState.DISABLED, DesignerAutoModeState.ACTIVE), Set.of());
+        register(LifecycleMachineType.LOOPSPEC_COMPILATION, LoopSpecCompilationState.class, compilation(),
+                set(LoopSpecCompilationState.PENDING_HANDOFF), Set.of());
+        register(LifecycleMachineType.DESIGN_REQUIREMENT_REVISION, DesignRequirementRevisionState.class,
+                requirementRevision(), set(DesignRequirementRevisionState.ACTIVE), Set.of());
+        register(LifecycleMachineType.TASK_DECOMPOSITION, TaskDecompositionState.class, decomposition(),
+                set(TaskDecompositionState.PENDING_HANDOFF), Set.of());
+        register(LifecycleMachineType.DESIGN_WORK_PACKAGE, DesignWorkPackageState.class, workPackage(),
+                set(DesignWorkPackageState.PENDING), set(DesignWorkPackageState.COMPLETED));
+        register(LifecycleMachineType.PROJECT_CONVENTION, ProjectConventionState.class, convention(),
+                set(ProjectConventionState.RUNNING), Set.of());
+        register(LifecycleMachineType.INTERACTION, InteractionState.class, interaction(),
+                set(InteractionState.PENDING, InteractionState.HARD_DENIED), Set.of());
+        register(LifecycleMachineType.WORKSPACE_LEASE, WorkspaceLeaseState.class, lease(),
+                set(WorkspaceLeaseState.HELD), Set.of());
+        register(LifecycleMachineType.TASK_QUEUE, TaskQueueState.class, queue(),
+                set(TaskQueueState.QUEUED, TaskQueueState.ADMITTED), Set.of());
+        register(LifecycleMachineType.LOOPSPEC_TEMPLATE, LoopSpecTemplateState.class, template(),
+                set(LoopSpecTemplateState.ACTIVE), Set.of());
+        register(LifecycleMachineType.AUTOMATION_RULE, AutomationRuleState.class, rule(),
+                set(AutomationRuleState.DISABLED), Set.of());
+        register(LifecycleMachineType.AUTOMATION_RUN, AutomationRunState.class, automationRun(),
+                set(AutomationRunState.DETECTED), Set.of());
+        register(LifecycleMachineType.TASK_PUBLICATION, TaskPublicationState.class, taskPublication(),
+                set(TaskPublicationState.NOT_STARTED, TaskPublicationState.COMMITTED, TaskPublicationState.PUSHED,
+                        TaskPublicationState.LOCAL_COMPLETED, TaskPublicationState.NOT_APPLICABLE), Set.of());
+        register(LifecycleMachineType.TASK_EXECUTION_CYCLE, ExecutionCycleState.class, executionCycle(),
+                set(ExecutionCycleState.RUNNING), Set.of());
+        register(LifecycleMachineType.WORKSPACE_CHECKPOINT, WorkspaceCheckpointState.class, workspaceCheckpoint(),
+                set(WorkspaceCheckpointState.CAPTURING), Set.of());
+        register(LifecycleMachineType.TASK_PACKAGE_RUN, TaskPackageRunState.class, packageRun(),
+                set(TaskPackageRunState.PLANNED, TaskPackageRunState.EXECUTION_READY), Set.of());
+        register(LifecycleMachineType.PACKAGE_PLAN_REVISION, PackagePlanRevisionState.class, packagePlanRevision(),
+                set(PackagePlanRevisionState.GENERATING, PackagePlanRevisionState.PROPOSED,
+                        PackagePlanRevisionState.ACTIVE), Set.of());
         if (machines.size() != LifecycleMachineType.values().length) {
             throw new IllegalStateException("Every lifecycle machine type must be registered");
         }
@@ -55,6 +81,10 @@ public final class LifecycleRegistry {
         machines.get(type).requireState(entityId, state);
     }
 
+    public void requireCreatableState(LifecycleMachineType type, String entityId, String state) {
+        machines.get(type).requireCreatableState(entityId, state);
+    }
+
     List<DefinedTransition> definitions() {
         List<DefinedTransition> definitions = new ArrayList<>();
         machines.forEach((type, machine) -> definitions.addAll(machine.definitions(type)));
@@ -63,12 +93,23 @@ public final class LifecycleRegistry {
 
     List<String> states(LifecycleMachineType type) { return machines.get(type).states(); }
 
+    Set<String> creationStates(LifecycleMachineType type) { return machines.get(type).creationStates(); }
+
+    Set<String> compatibilityStates(LifecycleMachineType type) { return machines.get(type).compatibilityStates(); }
+
     private <S extends Enum<S> & DescribedEnum> void register(LifecycleMachineType type, Class<S> stateType,
-                                                               FiniteStateMachine<S, LifecycleEvent> machine) {
-        if (machines.putIfAbsent(type, new RegisteredMachine<>(stateType, machine)) != null) {
+                                                               FiniteStateMachine<S, LifecycleEvent> machine,
+                                                               Set<S> creationStates, Set<S> compatibilityStates) {
+        RegisteredMachine<S> registered = new RegisteredMachine<>(type, stateType, machine,
+                Set.copyOf(creationStates), Set.copyOf(compatibilityStates));
+        registered.validateTopology();
+        if (machines.putIfAbsent(type, registered) != null) {
             throw new IllegalStateException("Duplicate lifecycle machine: " + type);
         }
     }
+
+    @SafeVarargs
+    private static <S> Set<S> set(S... states) { return Set.of(states); }
 
     private static FiniteStateMachine<TaskState, LifecycleEvent> task() {
         var b = machine(LifecycleMachineType.TASK, TaskState.class);
@@ -93,7 +134,6 @@ public final class LifecycleRegistry {
                 .transition(TaskState.WAITING_INPUT, RETRY_FINAL_REVIEW, TaskState.JUDGING)
                 .transition(TaskState.WAITING_INPUT, RECOVER, TaskState.RUNNING)
                 .transition(TaskState.WAITING_INPUT, RETRY_PREPARATION, TaskState.PREPARING)
-                .transition(TaskState.SUCCEEDED, REOPEN_FINAL_REVIEW, TaskState.JUDGING)
                 .transition(TaskState.RUNNING, PAUSE, TaskState.PAUSED)
                 .transition(TaskState.VERIFYING, PAUSE, TaskState.PAUSED)
                 .transition(TaskState.RETRY_WAIT, PAUSE, TaskState.PAUSED)
@@ -456,7 +496,8 @@ public final class LifecycleRegistry {
     }
 
     private record RegisteredMachine<S extends Enum<S> & DescribedEnum>(
-            Class<S> stateType, FiniteStateMachine<S, LifecycleEvent> machine) {
+            LifecycleMachineType type, Class<S> stateType, FiniteStateMachine<S, LifecycleEvent> machine,
+            Set<S> creation, Set<S> compatibility) {
         ResolvedTransition resolve(String entityId, String fromValue, String toValue, LifecycleEvent explicitEvent) {
             S from = machine.parse(fromValue, entityId);
             S to = machine.parse(toValue, entityId);
@@ -465,7 +506,35 @@ public final class LifecycleRegistry {
             return new ResolvedTransition(event, from.name(), to.name());
         }
         void requireState(String entityId, String value) { machine.parse(value, entityId); }
+        void requireCreatableState(String entityId, String value) {
+            S parsed = machine.parse(value, entityId);
+            if (!creation.contains(parsed)) {
+                throw new InvalidStateTransitionException(type, value, LifecycleEvent.CREATED.name(), value);
+            }
+        }
         List<String> states() { return java.util.Arrays.stream(stateType.getEnumConstants()).map(Enum::name).toList(); }
+        Set<String> creationStates() { return creation.stream().map(Enum::name).collect(java.util.stream.Collectors.toUnmodifiableSet()); }
+        Set<String> compatibilityStates() { return compatibility.stream().map(Enum::name).collect(java.util.stream.Collectors.toUnmodifiableSet()); }
+        void validateTopology() {
+            if (creation.isEmpty()) throw new IllegalStateException(type + " requires a creation state");
+            if (creation.stream().anyMatch(compatibility::contains)) {
+                throw new IllegalStateException(type + " compatibility state cannot be a creation state");
+            }
+            if (machine.definitions().values().stream().anyMatch(compatibility::contains)) {
+                throw new IllegalStateException(type + " transition cannot target a compatibility state");
+            }
+            Set<S> reached = new java.util.HashSet<>(creation);
+            boolean changed;
+            do {
+                changed = machine.definitions().entrySet().stream()
+                        .filter(edge -> reached.contains(edge.getKey().state()))
+                        .map(Map.Entry::getValue).anyMatch(reached::add);
+            } while (changed);
+            Set<S> missing = java.util.Arrays.stream(stateType.getEnumConstants())
+                    .filter(state -> !compatibility.contains(state) && !reached.contains(state))
+                    .collect(java.util.stream.Collectors.toSet());
+            if (!missing.isEmpty()) throw new IllegalStateException(type + " has unreachable states: " + missing);
+        }
         List<DefinedTransition> definitions(LifecycleMachineType type) {
             return machine.definitions().entrySet().stream()
                     .map(entry -> new DefinedTransition(type, entry.getKey().state().name(),

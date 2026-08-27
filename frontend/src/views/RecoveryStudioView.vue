@@ -24,7 +24,7 @@ const eligible = computed(() => parent.value?.status === 'FAILED' || parent.valu
 const failureContexts = computed<FailureContext[]>(() => parent.value?.errors ?? [])
 const selectedStage = computed(() => {
   const stages = parent.value?.stages ?? []
-  return stages.find((stage) => stage.status === 'BLOCKED')
+  return stages.find((stage) => stage.status === 'FAILED')
     ?? stages.find((stage) => stage.status === 'RUNNING' || stage.status === 'PAUSED')
     ?? stages.find((stage) => stage.status !== 'SUCCEEDED')
     ?? stages.at(-1)

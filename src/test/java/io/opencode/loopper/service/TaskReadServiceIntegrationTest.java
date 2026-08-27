@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.opencode.loopper.LoopperApplication;
 import io.opencode.loopper.api.AutomationController;
+import io.opencode.loopper.domain.TaskState;
+import io.opencode.loopper.domain.TaskStatusGroup;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -79,6 +81,40 @@ class TaskReadServiceIntegrationTest {
     }
 
     @Test
+    void taskStatusGroupsAndFacetsUseTheSameScopedPopulation() {
+        int index = 0;
+        for (TaskState state : TaskState.values()) {
+            jdbc.update("INSERT INTO task(id,project_id,title,state,created_at,updated_at) VALUES(?,?,?,?,?,?)",
+                    "state-" + state.name(), "p", "Scoped " + state.name(), state.name(),
+                    "2026-01-01T00:00:00Z", "2026-01-03T00:00:" + String.format("%02d", index++) + "Z");
+        }
+        jdbc.update("INSERT INTO task_archive(task_id,archived_at) VALUES(?,?)",
+                "state-CANCELLED", "2026-01-04T00:00:00Z");
+
+        var processing = reads.summaries("p", List.of(), TaskStatusGroup.PROCESSING.name(),
+                "ACTIVE", "Scoped", "newest", null, 100);
+        var successful = reads.summaries("p", List.of(), TaskStatusGroup.SUCCESSFUL.name(),
+                "ACTIVE", "Scoped", "newest", null, 100);
+        var terminated = reads.summaries("p", List.of(), TaskStatusGroup.TERMINATED.name(),
+                "ALL", "Scoped", "newest", null, 100);
+
+        assertThat(processing.items()).extracting(TaskReadService.TaskSummary::status)
+                .containsExactlyInAnyOrderElementsOf(java.util.Arrays.stream(TaskState.values())
+                        .filter(state -> !state.terminal()).map(Enum::name).toList());
+        assertThat(successful.items()).extracting(TaskReadService.TaskSummary::status)
+                .containsExactlyInAnyOrder("COMPLETED", "SUCCEEDED");
+        assertThat(terminated.items()).extracting(TaskReadService.TaskSummary::status)
+                .containsExactlyInAnyOrder("FAILED", "CANCELLED");
+        assertThat(processing.facets()).containsEntry("PROCESSING", 13L)
+                .containsEntry("SUCCESSFUL", 2L).containsEntry("TERMINATED", 1L)
+                .containsEntry("MATCHED_TOTAL", 13L).containsEntry("ARCHIVED_TOTAL", 0L);
+        assertThat(terminated.facets()).containsEntry("ARCHIVED_TOTAL", 1L);
+        assertThatThrownBy(() -> reads.summaries("p", List.of("RUNNING"), TaskStatusGroup.PROCESSING.name(),
+                "ACTIVE", null, "newest", null, 50))
+                .isInstanceOf(BadRequestException.class);
+    }
+
+    @Test
     void overviewAndAuditExcludeLargeBodiesUntilScopedContentRequest() {
         var overview = reads.overview("task-a");
         var audit = reads.audit("task-a");
@@ -148,6 +184,21 @@ class TaskReadServiceIntegrationTest {
         var blocked = reads.overview("task-a").packageCapabilities();
         assertThat(blocked.canRetryPackage()).isTrue();
         assertThat(blocked.canRedesignPackage()).isFalse();
+
+        jdbc.update("UPDATE task SET state='RUNNING' WHERE id='task-a'");
+        jdbc.update("UPDATE task_package_run SET state='EXECUTION_READY',waiting_reason_code=NULL WHERE id='rolling-run'");
+        assertThat(reads.overview("task-a").packageCapabilities().canStartPackage()).isFalse();
+    }
+
+    @Test
+    void cancelledStagesProduceCancelledWorkPackageAggregate() {
+        jdbc.update("UPDATE stage SET state='SUCCEEDED',work_package_id='WP-1' WHERE id='stage-a'");
+        jdbc.update("INSERT INTO stage(id,task_id,ordinal,objective,allowed_paths_json,forbidden_paths_json,deliverables_json,verifiers_json,state,work_package_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                "stage-cancelled", "task-a", 1, "cancelled", "[]", "[]", "[]", "[]", "CANCELLED", "WP-1",
+                "2026-01-01T00:00:00Z", "2026-01-01T00:00:00Z");
+
+        assertThat(reads.overview("task-a").workPackages()).singleElement().satisfies(progress ->
+                assertThat(progress.status()).isEqualTo("CANCELLED"));
     }
 
     @Test
@@ -192,7 +243,7 @@ class TaskReadServiceIntegrationTest {
 
         queries.reset();
         designerReads.history(null, null, "ALL", null, "newest", null, 50);
-        assertThat(queries.count()).isEqualTo(1);
+        assertThat(queries.count()).isEqualTo(2);
 
         queries.reset();
         projectReads.summaries(false);
@@ -292,6 +343,21 @@ class TaskReadServiceIntegrationTest {
             assertThat(project.taskCount()).isEqualTo(2);
             assertThat(project.openDesignerSessionCount()).isEqualTo(2);
         });
+    }
+
+    @Test
+    void stoppingDesignerHistoryIsNotResumableAndOnlyOffersStopRetry() {
+        jdbc.update("INSERT INTO loop_draft(id,project_id,goal,spec_json,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?)",
+                "draft-stopping", "p", "Stopping", "{}", "DRAFT_READY", "2026-01-01T00:00:00Z", "2026-01-01T00:00:00Z");
+        jdbc.update("INSERT INTO designer_session(id,project_id,state,access_mode,loop_draft_id,workflow_phase,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)",
+                "designer-stopping", "p", "STOPPING", "READ_ONLY", "draft-stopping", "DISCUSSING_REQUIREMENT",
+                "2026-01-01T00:00:00Z", "2026-01-02T00:00:00Z");
+
+        assertThat(designerReads.history("p", null, "ACTIVE", "Stopping", "newest", null, 50).items())
+                .singleElement().satisfies(item -> {
+                    assertThat(item.resumable()).isFalse();
+                    assertThat(item.stopRetryAvailable()).isTrue();
+                });
     }
 
     private void insertDesigner(String id, String draftId, String updatedAt) {

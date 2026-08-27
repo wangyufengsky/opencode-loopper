@@ -10,8 +10,9 @@ import { useTaskStore } from '@/stores/taskStore'
 import { formatCompactDateTime } from '@/utils/dateTime'
 import { userFacingError } from '@/utils/displayLabels'
 import type { Task, TaskStatus } from '@/types/domain'
+import { demoTaskStatusGroups } from '@/mock/demoData'
 
-type StatusFilter = 'ALL' | 'ACTIVE' | 'TERMINATED' | TaskStatus
+type StatusFilter = 'ALL' | 'ACTIVE' | 'SUCCESSFUL' | 'TERMINATED' | TaskStatus
 type ArchiveFilter = 'ACTIVE' | 'ARCHIVED' | 'ALL'
 
 const store = useTaskStore()
@@ -50,6 +51,7 @@ function retryRemaining(task: Task) {
 const statusOptions: Array<{ value: StatusFilter; label: string }> = [
   { value: 'ALL', label: '全部' },
   { value: 'ACTIVE', label: '处理中' },
+  { value: 'SUCCESSFUL', label: '已成功' },
   { value: 'WAITING_INPUT', label: '等待输入' },
   { value: 'PAUSED', label: '已暂停' },
   { value: 'JUDGING', label: '评审中' },
@@ -62,7 +64,6 @@ const statusOptions: Array<{ value: StatusFilter; label: string }> = [
 ]
 const validStatuses = new Set(statusOptions.map((item) => item.value))
 validStatuses.add('TERMINATED')
-const activeStatuses: TaskStatus[] = ['PENDING_START', 'QUEUED', 'PREPARING', 'READY', 'RUNNING', 'VERIFYING', 'RETRY_WAIT', 'JUDGING', 'AWAITING_DECISION']
 const terminalStatuses: TaskStatus[] = ['COMPLETED', 'SUPERSEDED', 'SUCCEEDED', 'FAILED', 'CANCELLED']
 
 const projectOptions = computed(() => (store.usingDemo
@@ -75,8 +76,9 @@ const visibleTasks = computed(() => {
     .filter((task) => archiveFilter.value === 'ALL'
       || (archiveFilter.value === 'ARCHIVED' ? task.archived : !task.archived))
     .filter((task) => filter.value === 'ALL'
-      || (filter.value === 'ACTIVE' ? activeStatuses.includes(task.status)
-        : filter.value === 'TERMINATED' ? ['FAILED', 'CANCELLED'].includes(task.status) : task.status === filter.value))
+      || (filter.value === 'ACTIVE' ? demoTaskStatusGroups[task.status] === 'PROCESSING'
+        : filter.value === 'SUCCESSFUL' ? demoTaskStatusGroups[task.status] === 'SUCCESSFUL'
+        : filter.value === 'TERMINATED' ? demoTaskStatusGroups[task.status] === 'TERMINATED' : task.status === filter.value))
     .filter((task) => projectFilter.value === 'ALL' || task.projectId === projectFilter.value)
     .filter((task) => !search.value.trim() || [task.title, task.goal, task.projectName, task.branch]
       .some((value) => value.toLocaleLowerCase('zh-CN').includes(search.value.trim().toLocaleLowerCase('zh-CN'))))
@@ -93,11 +95,11 @@ const taskGroups = computed(() => {
   }
   return [...groups.values()].sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'))
 })
-const finished = computed(() => store.taskFacets.SUCCEEDED ?? 0)
-const terminated = computed(() => (store.taskFacets.FAILED ?? 0) + (store.taskFacets.CANCELLED ?? 0))
+const finished = computed(() => store.taskFacets.SUCCESSFUL ?? 0)
+const terminated = computed(() => store.taskFacets.TERMINATED ?? 0)
 const waitingInput = computed(() => store.taskFacets.WAITING_INPUT ?? 0)
-const activeCount = computed(() => activeStatuses.reduce((total, status) => total + (store.taskFacets[status] ?? 0), 0))
-const archivedCount = computed(() => store.tasks.filter((task) => task.archived).length)
+const activeCount = computed(() => store.taskFacets.PROCESSING ?? 0)
+const archivedCount = computed(() => store.taskFacets.ARCHIVED_TOTAL ?? 0)
 const noRegisteredProject = computed(() => !store.usingDemo && store.projects.length === 0)
 
 function queryValue(value: unknown) {
@@ -134,17 +136,17 @@ watch([filter, projectFilter, timeOrder, archiveFilter, search], () => {
   reloadTimer = window.setTimeout(() => { void reloadTasks() }, 180)
 })
 
-function selectedStatuses(): string[] | undefined {
-  if (filter.value === 'ALL') return undefined
-  if (filter.value === 'ACTIVE') return activeStatuses
-  if (filter.value === 'TERMINATED') return ['FAILED', 'CANCELLED']
-  return [filter.value]
+function selectedStatusQuery(): { status?: string[]; statusGroup?: 'PROCESSING' | 'SUCCESSFUL' | 'TERMINATED' } {
+  if (filter.value === 'ACTIVE') return { statusGroup: 'PROCESSING' }
+  if (filter.value === 'SUCCESSFUL') return { statusGroup: 'SUCCESSFUL' }
+  if (filter.value === 'TERMINATED') return { statusGroup: 'TERMINATED' }
+  return filter.value === 'ALL' ? {} : { status: [filter.value] }
 }
 
 async function reloadTasks(append = false) {
   await store.loadTaskSummaries({
     projectId: projectFilter.value === 'ALL' ? undefined : projectFilter.value,
-    status: selectedStatuses(),
+    ...selectedStatusQuery(),
     archive: archiveFilter.value,
     q: search.value.trim() || undefined,
     order: timeOrder.value === 'OLDEST' ? 'oldest' : 'newest',
@@ -229,7 +231,7 @@ async function confirmDelete(task: Task) {
     <template v-if="!noRegisteredProject || store.tasks.length">
       <section class="metric-grid" aria-label="任务概览与快速筛选">
         <MetricCard label="处理中" :value="activeCount" icon="lucide:orbit" accent="var(--color-accent-cyan)" interactive :active="filter === 'ACTIVE'" @select="selectMetric('ACTIVE')" />
-        <MetricCard label="已成功" :value="finished" icon="lucide:badge-check" accent="var(--color-success)" interactive :active="filter === 'SUCCEEDED'" @select="selectMetric('SUCCEEDED')" />
+        <MetricCard label="已成功" :value="finished" icon="lucide:badge-check" accent="var(--color-success)" interactive :active="filter === 'SUCCESSFUL'" @select="selectMetric('SUCCESSFUL')" />
         <MetricCard label="需要输入" :value="waitingInput" icon="lucide:message-square-warning" accent="var(--color-accent-ai)" interactive :active="filter === 'WAITING_INPUT'" @select="selectMetric('WAITING_INPUT')" />
         <MetricCard label="已终止" :value="terminated" icon="lucide:shield-x" accent="var(--color-task-danger)" interactive :active="filter === 'TERMINATED'" @select="selectMetric('TERMINATED')" />
       </section>

@@ -25,6 +25,8 @@ const archiveFilter = ref<ArchiveFilter>('ACTIVE')
 const timeOrder = ref<'NEWEST' | 'OLDEST'>('NEWEST')
 const search = ref('')
 const archivingId = ref('')
+const stoppingId = ref('')
+const historyFacets = ref<Record<string, number>>({})
 const nextCursor = ref<string>()
 let reloadTimer: number | undefined
 const ready = ref(false)
@@ -40,9 +42,9 @@ const statusOptions: Array<{ value: StatusFilter; label: string }> = [
 
 const projectOptions = computed(() => store.projects.slice()
   .sort((left, right) => left.name.localeCompare(right.name, 'zh-CN')))
-const archivedCount = computed(() => designs.value.filter((item) => item.archived).length)
-const confirmedCount = computed(() => designs.value.filter(isConfirmed).length)
-const resumableCount = computed(() => designs.value.filter((item) => !item.archived && !isConfirmed(item) && !isTerminal(item)).length)
+const archivedCount = computed(() => historyFacets.value.ARCHIVED_TOTAL ?? 0)
+const confirmedCount = computed(() => historyFacets.value.CONFIRMED_TOTAL ?? 0)
+const resumableCount = computed(() => historyFacets.value.RESUMABLE_TOTAL ?? 0)
 
 function isConfirmed(item: DesignerHistoryItem) {
   return item.draftStatus === 'CONFIRMED' || Boolean(item.taskId)
@@ -122,6 +124,7 @@ async function loadHistory(append = false) {
     })
     designs.value = append ? [...designs.value, ...page.items] : page.items
     nextCursor.value = page.nextCursor
+    historyFacets.value = page.facets
   } catch (cause) {
     error.value = userFacingError(cause, '无法读取历史设计')
   } finally {
@@ -130,7 +133,7 @@ async function loadHistory(append = false) {
 }
 
 function openDesign(item: DesignerHistoryItem, mode: 'continue' | 'edit') {
-  if (item.archived || isConfirmed(item) || isTerminal(item)) return
+  if (!item.resumable) return
   void router.push({
     path: '/designer',
     query: { sessionId: item.id, projectId: item.projectId, ...(mode === 'edit' ? { mode: 'edit' } : {}) },
@@ -147,7 +150,7 @@ function clearWorkspacePointer(item: DesignerHistoryItem) {
 }
 
 async function toggleArchive(item: DesignerHistoryItem) {
-  if (archivingId.value || isConfirmed(item)) return
+  if (archivingId.value || isConfirmed(item) || item.stopRetryAvailable) return
   archivingId.value = item.id
   try {
     if (item.archived) {
@@ -169,6 +172,22 @@ async function toggleArchive(item: DesignerHistoryItem) {
     ElMessage.error(userFacingError(cause, '归档状态更新失败'))
   } finally {
     archivingId.value = ''
+  }
+}
+
+async function retryStop(item: DesignerHistoryItem) {
+  if (stoppingId.value || !item.stopRetryAvailable) return
+  stoppingId.value = item.id
+  try {
+    const result = await api.stopDesignerSession(item.id)
+    if (result.failedSessions > 0) ElMessage.error(`仍有 ${result.failedSessions} 个远端会话未确认停止`)
+    else if (result.pendingFinalizations > 0) ElMessage.warning(`远端已停止，仍有 ${result.pendingFinalizations} 项本地状态待收束`)
+    else ElMessage.success('设计会话已停止，历史记录已保留')
+    await loadHistory()
+  } catch (cause) {
+    ElMessage.error(userFacingError(cause, '停止设计会话失败'))
+  } finally {
+    stoppingId.value = ''
   }
 }
 
@@ -228,12 +247,15 @@ onBeforeUnmount(() => { if (reloadTimer) window.clearTimeout(reloadTimer) })
           <div class="history-meta"><span><Icon icon="lucide:folder" />{{ item.projectName }}</span><span><Icon icon="lucide:clock-3" />更新于 {{ formatDateTime(item.updatedAt) }}</span><span v-if="item.taskState"><Icon icon="lucide:list-checks" />任务：{{ statusLabel(item.taskState) }}</span><span v-if="item.archivedAt"><Icon icon="lucide:archive" />归档于 {{ formatDateTime(item.archivedAt) }}</span></div>
         </div>
         <div class="history-actions">
-          <template v-if="isConfirmed(item)">
+          <template v-if="item.stopRetryAvailable">
+            <el-button size="small" type="danger" plain :loading="stoppingId === item.id" @click="retryStop(item)"><Icon icon="lucide:rotate-ccw" />重试停止</el-button>
+          </template>
+          <template v-else-if="isConfirmed(item)">
             <el-button v-if="item.taskId" size="small" plain @click="router.push(`/tasks/${item.taskId}/design`)"><Icon icon="lucide:messages-square" />查看设计</el-button>
           </template>
           <template v-else-if="isTerminal(item)"><span class="mono tiny muted">只读记录</span></template>
           <template v-else>
-            <template v-if="!item.archived">
+            <template v-if="item.resumable">
               <el-button size="small" type="primary" @click="openDesign(item, 'continue')"><Icon icon="lucide:play" />继续</el-button>
               <el-button size="small" plain @click="openDesign(item, 'edit')"><Icon icon="lucide:pencil" />修改</el-button>
             </template>

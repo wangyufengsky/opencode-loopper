@@ -776,6 +776,13 @@ failures must retain it, while malformed, archived, confirmed, or missing record
 may be discarded. Selecting a persisted entry reloads the authoritative Session
 and draft before reconnecting live transport; it never manufactures a Task.
 
+History actions are explicit server capabilities. Every item carries required
+`resumable` and `stopRetryAvailable`; `STOPPING` contributes to neither resumable
+counts nor ordinary actions and renders only **重试停止**. `CANCELLED` is read-only.
+The stop response distinguishes remote `failedSessions` from local
+`pendingFinalizations`, so the page never labels a version-conflicted local closure
+as a remote abort failure.
+
 V27 stores every requirement/package turn as a complete Markdown snapshot with
 its decision log, mandatory-question state, candidate compilation reference,
 approval revision, and invalidation reason. Refresh and process restart restore

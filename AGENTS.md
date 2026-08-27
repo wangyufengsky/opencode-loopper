@@ -42,10 +42,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.2.64.jar
-   jar tf target/opencode-loopper-0.2.64.jar \
+   test -s target/opencode-loopper-0.2.65.jar
+   jar tf target/opencode-loopper-0.2.65.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.2.64.jar
+   shasum -a 256 target/opencode-loopper-0.2.65.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -95,8 +95,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.2.64`。
-- 正式产物：`target/opencode-loopper-0.2.64.jar`。
+- Maven 项目版本：`0.2.65`。
+- 正式产物：`target/opencode-loopper-0.2.65.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -219,6 +219,8 @@ Task 详情 `overview` 必须投影 `loopRetryAvailable`、`cancellationAvailabl
 
 新任务的执行结果与用户确认终态必须分离：每次开始/继续对应独立持久化 Execution Cycle；确定性验证和双 Judge 成功或 Task 级失败均进入 `AWAITING_DECISION`。继续当前任务必须创建新 Cycle、Attempt 和 Session，并从失败/用户选择的 Stage 起重跑后续阶段与最终双 Judge；轮次预算重新计算，历史用量和证据不得改写。成功结果经本地提交或确认推送进入 `COMPLETED`，继承/重做派生后父任务进入 `SUPERSEDED`，取消进入 `CANCELLED`；旧 `SUCCEEDED`/`FAILED` 只作历史终态兼容，不得静默重开。
 
+所有新 Task 进入 `COMPLETED / SUPERSEDED / CANCELLED` 前必须经过统一聚合终态守卫：非终态 PackageRun、Attempt、Stage、Execution Cycle 和 Designer 子流程必须已收束或在同一短事务内收束，Queue/Lease 必须无活动占用。远端停止未确认、乐观锁冲突、活动 writer/Verifier/Judge 或 Queue/Lease 混合状态一律失败关闭并保持父 Task 非终态；历史 `SUCCEEDED/FAILED` 只能读取，不得作为新建状态或新转换目标。
+
 ### 5.3 Designer 和 LoopSpec
 
 - V35 在设计流程前冻结 `TaskIntent / WorkflowTemplate / MutationMode / ArtifactKind / TestPolicy / ExecutionStrategy` 任务画像和版本化 Role Pack；V36 引入独立 `ROUTER_NO_TOOLS` 和 Reviewer 运行态；V37 把工作包 Role Pack、版本、技术栈和测试策略复制到每个确认 Stage，Implementation/Recovery 必须复用；V38 持久化每次 Router 的完整需求快照、外部 Session、响应模式、标签和错误，重启继续同一 Session，新讨论必须 abort 并废弃旧运行；V39 把 Reviewer 升级为固定 `REVIEWER_REPORT_V1` findings 合同并持久化合同版本。服务端结合有界仓库事实决定最终流程，格式/Session 失败降级为通用画像提问而不终止 Designer。置信度低于 80 或证据冲突必须人工确认；历史缺失画像投影为 `LEGACY_SOFTWARE`，Recovery 复用冻结画像。Role Pack `2026-08-dynamic-v6` 必须先把技术别名归并为 Java/Python/Node/Other 软件族：JavaScript/TypeScript 不得命中 Java，JUnit/Jupiter/Surefire 仍属于 Java，同族别名不得生成混合栈，真实跨族使用 `software-mixed`，显式未知单栈使用 `software-generic`；工作包技术信号使用词边界，业务符号中的 `Node`/`node` 子串不得误判为 Node 技术栈；每个可编译角色使用栈原生规划示例，文档、表格和只读报告明确走服务端或 Reviewer 绕过。新软件任务默认使用 `DIRECT_SOFTWARE_DESIGN` 和单一 `WP-1`，只有画像冻结前由用户显式打开“大型任务”才使用 `FULL_PACKAGE_DESIGN`；两种软件流程都冻结工作包自己的技术栈、Role Pack、执行和测试策略，其中默认单包必须继承已确认的软件任务画像，需求正文中的否定性“依赖/配置”措辞不得把它降级为维护角色，已冻结的冲突快照在下次权威使用时修复；只有大型任务的显式分包允许按包内容专门化角色。简单文档/表格/维护继续使用既有专属流程；大型文档要求 2–6 个二级章节包并由服务端确定性聚合结构化片段；只读 Reviewer 只开放 `read/glob/grep`，服务端逐条校验 finding 的受管路径、精确行号与源哈希且不创建 Task、Attempt、租约、分支或可写 Session；转换入口只创建关联 Designer。冻结 v4/v5 工作包保持历史兼容，不得用 v6 改写既有设计快照。
@@ -269,6 +271,7 @@ Task 详情 `overview` 必须投影 `loopRetryAvailable`、`cancellationAvailabl
 - Designer 双栏和 PageHeader 操作区必须以 `min-width: 0`、换行和响应式单列保持在视口边界内；总体确认按钮除页头外还必须在 Review Gate 内提供同一权威动作，不能因窄视口变得不可点击。
 - Designer 双重验收矩阵的验收条件必须占据可伸缩主列，模式、机器验收和 AI 评审作为可换行状态组；禁止用固定窄列压缩长条件，窄屏时状态组整体下移并左对齐。
 - 聚合和滚动两种大型软件流程都只创建一个 Task、一个任务分支和一次发布；Stage/包严格串行。滚动模式中每包设计确认和执行开始始终是两次人工动作，全自动只能推进 Router、拆包和只读设计生成；最后一次包事实冻结后只运行一次 Requirement/Risk 双 Judge。
+- 滚动工作包命令能力和写入校验统一由 `RollingPackageCommandPolicy` 持有；读模型与命令必须输入同一 Task/Run/Queue、等待原因、Checkpoint 和活动 owner 事实。计划确认原子推进提案、后缀 Run、首包设计和父 Task；包启动原子推进 Run、Task、Queue 与 Lease。三者混合状态不得当作幂等成功。Task 取消只有在 Designer、PackageRun、Attempt、Stage 和 Cycle 全部收束后才能从 `STOPPING` 进入 `CANCELLED`。
 - 新建、导入和模板新版本使用 LoopSpec v2：每阶段必须显式声明 `implementationKind`，并至少有一个可观察 `acceptanceCriteria`。条件通过 `verificationMode` 选择 `MACHINE`、`JUDGE` 或 `BOTH`；机器模式必须由服务端分类为 `BEHAVIOR` 的验证器通过 `criterionIds` 覆盖，Judge 模式必须提供 `judgeRubric`，仅 Judge 还必须提供 `judgeOnlyReason` 且不能已有机器行为映射。每阶段无论模式都至少有一个阻断性确定性验证器。旧 v2 缺少 `implementationKind` 时只允许查看，再次保存、发布模板或确认前必须补齐；已持久化且未写模式的 v2 条件默认 `MACHINE`；v1 继续兼容且不得原地改版，只能复制为新 v2 草稿后补齐计划。
 
 - 聚焦测试到验收场景的映射必须来自正向交付、明确覆盖关系或无歧义的阶段回指。包内只有一个正向交付声明的聚焦测试时，未显式点名其他测试的新增场景均由该目标覆盖，“同一/该/本聚焦测试类”也可回指该目标；存在多个交付测试时不得猜测。既有测试“保持通过/继续回归”和“测试风格一致”只形成独立必跑约束，不得凭词汇相似度覆盖新增业务场景。
@@ -436,7 +439,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.2.64.jar
+JAR=target/opencode-loopper-0.2.65.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -538,6 +541,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-08-27 | 前后端行为一致性与状态可达性治理，交付 0.2.65 | 服务端集中滚动包命令能力、Task 状态分组/Facet、工作包聚合和 Designer 可继续/停止能力；Task 取消、发布确认与 Designer 子流程按终态合同收束，生命周期注册表声明创建态和历史兼容态并校验拓扑；前端公开状态改为运行时闭集并失败关闭；同步 README、架构、设计、七特性、代码设计和本公约正文，无 Flyway 迁移 | 发布/本地同步终态聚焦 2/2、Recovery Vitest 2/2；首次 `./scripts/verify.sh` 由终态一致性门禁发现发布确认早于 Queue/Lease 结算，改为以持久化 `PUSHED/LOCAL_COMPLETED` 证据安全释放后同版本完整重试通过：Java 633 项（0 失败、0 错误、2 跳过）、Vitest 227/227，`BUILD SUCCESS`；JAR `target/opencode-loopper-0.2.65.jar` 为 283846229 字节，含 112 个 SPA 静态条目，SHA-256 `b22389d7bb16ccf4fa4cd67b35c3e2f5db8b821750c897d4008d064b3de3d34a`；未启动或替换运行实例，未推送、未打标签、未创建 Release |
 | 2026-08-27 | 修复执行结果卡片无法取消，交付 0.2.64 | `AWAITING_DECISION` 的版本化结果取消不再误用会拒绝该状态的普通取消命令，改为专用处置命令并复用 `STOPPING` writer 终止确认；已结束 Cycle/Stage 证据保持不变，前端对未确认停止显示等待提示；同步 README、架构、设计合同和本公约正文 | 聚焦后端 79/79、TaskDecisionPanel 3/3；首次 `./scripts/verify.sh` 的 618 项行为测试仅结构门禁发现 `TaskService` 由 2727 增至 2728 行，收缩取消 facade 后同版本诊断重试通过：Java 618 项（0 失败、0 错误、2 跳过）、Vitest 220/220，`BUILD SUCCESS`；JAR `target/opencode-loopper-0.2.64.jar` 为 283807448 字节，含 112 个 SPA 静态条目，SHA-256 `a79cce734ac92e97b83b3307e9f242189198a94d53337aaf0f41c1cf8ca8502f`；未启动或替换运行实例，未推送、未打标签、未创建 Release |
 | 2026-08-26 | 大型软件任务逐包闭环，交付 0.2.63 | 新建大型软件任务采用单 Task、逐包设计/执行/机器验收/事实冻结和最终一次双 Judge；新增独立包运行、计划修订、累计 TaskSpec、事实快照和 AI 剩余计划建议状态轴，Git 包间释放租约、Direct 全程持锁，旧任务与大型文档保持聚合兼容；任务工作台按已证明证据、已接受合同和导航摘要分层，并同步 README、架构、Designer、OpenCode、AI 角色、Recovery、代码结构与本公约正文 | 聚焦后端 32 项、聚焦 Vitest 112/112、前端类型检查通过；`./scripts/verify.sh`：Java 616 项（0 失败、0 错误、2 跳过）、Vitest 219/219，`BUILD SUCCESS`；JAR `target/opencode-loopper-0.2.63.jar` 为 283807221 字节，含 112 个 SPA 静态条目，SHA-256 `712757182bbe15b99977a17ea25980a7cf5c2d2402b11bbac204873e4c092cd4`；未启动或替换运行实例，未推送、未打标签、未创建 Release |
 | 2026-08-26 | 任务历史错误与当前告警分离，交付 0.2.61 | Task 详情按权威生命周期选择当前 `TASK` 错误：当前等待原因、失败轮次待处置或历史失败终态仅展示最新一条，排队、准备、运行、验证等继续态隐藏旧轮次红色告警但不删除审计记录；同步 README、设计合同与本公约正文 | TaskDetail 聚焦 16/16、前端类型检查通过；`./scripts/verify.sh`：Java 608 项（0 失败、0 错误、2 跳过）、Vitest 214/214，`BUILD SUCCESS`；JAR `target/opencode-loopper-0.2.61.jar` 为 283653135 字节，含 112 个 SPA 静态条目，SHA-256 `770107b178d0863db6b3db8b277c6c23b4a67b6568eb7d4d75a84b74a51407fa`；未启动或替换运行实例，未推送、未打标签、未创建 Release |

@@ -114,11 +114,43 @@ public interface ReadModelMapper {
     List<TaskStageReadRow> taskOverviewStages(String taskId);
 
     @Select("""
-            SELECT t.state,COUNT(*) AS count FROM task t
-            LEFT JOIN task_archive archive ON archive.task_id=t.id
-            WHERE archive.task_id IS NULL GROUP BY t.state
+            <script>
+            WITH scoped AS (
+              SELECT t.id,t.state,CASE WHEN archive.task_id IS NULL THEN 0 ELSE 1 END AS archived
+              FROM task t JOIN project p ON p.id=t.project_id
+              LEFT JOIN loop_draft d ON d.id=t.loop_draft_id
+              LEFT JOIN task_archive archive ON archive.task_id=t.id
+              WHERE 1=1
+              <if test="projectId != null">AND t.project_id=#{projectId}</if>
+              <if test="queryPattern != null">
+                AND (lower(t.title) LIKE #{queryPattern} ESCAPE '\\'
+                  OR lower(COALESCE(d.goal,'')) LIKE #{queryPattern} ESCAPE '\\'
+                  OR lower(p.name) LIKE #{queryPattern} ESCAPE '\\'
+                  OR lower(COALESCE(t.branch_name,'')) LIKE #{queryPattern} ESCAPE '\\')
+              </if>
+            ), base AS (
+              SELECT * FROM scoped WHERE 1=1
+              <choose>
+                <when test="archiveMode == 'ACTIVE'">AND archived=0</when>
+                <when test="archiveMode == 'ARCHIVED'">AND archived=1</when>
+              </choose>
+            )
+            SELECT state,COUNT(*) AS count FROM base GROUP BY state
+            UNION ALL
+            SELECT 'MATCHED_TOTAL' AS state,COUNT(*) AS count FROM base
+            <if test="states != null and !states.isEmpty()">
+              WHERE state IN
+              <foreach collection="states" item="state" open="(" separator="," close=")">#{state}</foreach>
+            </if>
+            UNION ALL
+            SELECT 'ARCHIVED_TOTAL' AS state,COUNT(*) AS count FROM base WHERE archived=1
+            </script>
             """)
-    List<TaskFacetRow> taskFacets();
+    List<TaskFacetRow> taskFacets(
+            @Param("projectId") String projectId,
+            @Param("states") List<String> states,
+            @Param("archiveMode") String archiveMode,
+            @Param("queryPattern") String queryPattern);
 
     @Select("""
             SELECT result.id,result.attempt_id,result.verifier_index,result.type,result.state,result.summary,
@@ -250,6 +282,41 @@ public interface ReadModelMapper {
             @Param("archiveMode") String archiveMode, @Param("queryPattern") String queryPattern,
             @Param("cursorValue") String cursorValue, @Param("cursorId") String cursorId,
             @Param("oldest") boolean oldest, @Param("limit") int limit);
+
+    @Select("""
+            WITH latest AS (
+              SELECT s.id,s.project_id,s.loop_draft_id,s.state,s.workflow_phase,
+                ROW_NUMBER() OVER (PARTITION BY s.loop_draft_id ORDER BY s.created_at DESC,s.id DESC) AS row_number
+              FROM designer_session s
+            ), scoped AS (
+              SELECT latest.id,latest.state,latest.workflow_phase,d.status AS draft_status,t.id AS task_id,
+                CASE WHEN archive.designer_session_id IS NULL THEN 0 ELSE 1 END AS archived
+              FROM latest JOIN loop_draft d ON d.id=latest.loop_draft_id
+              JOIN project p ON p.id=latest.project_id
+              LEFT JOIN designer_session_archive archive ON archive.designer_session_id=latest.id
+              LEFT JOIN task t ON t.loop_draft_id=d.id
+              WHERE latest.row_number=1
+                AND (#{projectId} IS NULL OR latest.project_id=#{projectId})
+                AND (#{queryPattern} IS NULL OR lower(d.goal) LIKE #{queryPattern} ESCAPE '\\'
+                  OR lower(p.name) LIKE #{queryPattern} ESCAPE '\\')
+            ), base AS (
+              SELECT * FROM scoped WHERE (#{archiveMode}='ALL'
+                OR (#{archiveMode}='ACTIVE' AND archived=0)
+                OR (#{archiveMode}='ARCHIVED' AND archived=1))
+            )
+            SELECT 'CONFIRMED_TOTAL' AS state,COUNT(*) AS count FROM base
+              WHERE draft_status='CONFIRMED' OR task_id IS NOT NULL
+            UNION ALL SELECT 'RESUMABLE_TOTAL',COUNT(*) FROM base
+              WHERE archived=0 AND draft_status!='CONFIRMED' AND task_id IS NULL
+                AND state NOT IN ('STOPPING','CANCELLED')
+            UNION ALL SELECT 'STOP_RETRY_TOTAL',COUNT(*) FROM base
+              WHERE archived=0 AND draft_status!='CONFIRMED' AND task_id IS NULL AND state='STOPPING'
+            UNION ALL SELECT 'ARCHIVED_TOTAL',COUNT(*) FROM base WHERE archived=1
+            UNION ALL SELECT 'MATCHED_TOTAL',COUNT(*) FROM base
+            """)
+    List<TaskFacetRow> designerHistoryFacets(
+            @Param("projectId") String projectId, @Param("archiveMode") String archiveMode,
+            @Param("queryPattern") String queryPattern);
 
     @Select("""
             WITH task_counts AS (

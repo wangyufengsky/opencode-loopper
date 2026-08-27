@@ -15,15 +15,14 @@ function connectorTone(index: number) {
   const current = props.stages[index]
   const next = props.stages[index + 1]
   if (current?.status === 'SUCCEEDED' && next?.status === 'SUCCEEDED') return 'connector-complete'
-  if (current?.status === 'SUCCEEDED' && next && ['RUNNING', 'VERIFYING'].includes(next.status)) return 'connector-active'
+  if (current?.status === 'SUCCEEDED' && next?.status === 'RUNNING') return 'connector-active'
   return 'connector-pending'
 }
 
 function stageIcon(status: Stage['status']) {
   if (status === 'SUCCEEDED') return 'lucide:check'
   if (status === 'RUNNING') return 'lucide:radio-tower'
-  if (status === 'VERIFYING') return 'lucide:scan-search'
-  if (status === 'BLOCKED') return 'lucide:triangle-alert'
+  if (status === 'FAILED') return 'lucide:triangle-alert'
   if (status === 'CANCELLED') return 'lucide:circle-x'
   if (status === 'PAUSED') return 'lucide:pause'
   return 'lucide:circle-dashed'

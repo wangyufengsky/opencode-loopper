@@ -1,26 +1,7 @@
+import type { DesignerSessionState, DesignWorkPackageState, LoopDraftStatus, StageStatus, TaskPackageRunState, TaskStatus, WorkPackageAggregateStatus } from '@/types/states'
+export type { DesignerSessionState, DesignWorkPackageState, LoopDraftStatus, SessionStatus, StageStatus, TaskPackageRunState, TaskStatus, WorkPackageAggregateStatus } from '@/types/states'
+
 export type ErrorLayer = 'FIELD' | 'VERIFICATION' | 'SESSION' | 'TASK'
-
-export type TaskStatus =
-  | 'PENDING_START'
-  | 'QUEUED'
-  | 'PREPARING'
-  | 'READY'
-  | 'RUNNING'
-  | 'VERIFYING'
-  | 'RETRY_WAIT'
-  | 'PAUSED'
-  | 'PACKAGE_DESIGNING'
-  | 'WAITING_INPUT'
-  | 'JUDGING'
-  | 'STOPPING'
-  | 'AWAITING_DECISION'
-  | 'COMPLETED'
-  | 'SUPERSEDED'
-  | 'SUCCEEDED'
-  | 'FAILED'
-  | 'CANCELLED'
-
-export type SessionStatus = 'CREATING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'TIMED_OUT' | 'DISCONNECTED' | 'ABORTED'
 
 export interface Project {
   id: string
@@ -228,14 +209,14 @@ export interface Stage {
   rolePackVersion?: string
   testPolicy?: 'REQUIRED' | 'OPTIONAL' | 'NOT_APPLICABLE'
   technologies?: string[]
-  status: 'PENDING' | 'RUNNING' | 'VERIFYING' | 'PAUSED' | 'SUCCEEDED' | 'BLOCKED' | 'CANCELLED'
+  status: StageStatus
   attempts: Attempt[]
 }
 
 export interface TaskWorkPackageProgress {
   id: string
   ordinal: number
-  status: 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED'
+  status: WorkPackageAggregateStatus
   stageCount: number
   completedStages: number
   attemptCount: number
@@ -301,7 +282,7 @@ export interface RollingPackageRun {
   packageKey: string
   ordinal: number
   title: string
-  state: 'PLANNED' | 'DESIGNING' | 'DESIGN_REVIEW' | 'EXECUTION_READY' | 'QUEUED' | 'RUNNING' | 'VERIFYING' | 'CHECKPOINTING' | 'FACT_FROZEN' | 'WAITING_INPUT' | 'SUPERSEDED' | 'CANCELLED'
+  state: TaskPackageRunState
   version: number
   discussionRevision: number
   designRevision: number
@@ -993,7 +974,7 @@ export interface AutomationImportResult {
 
 export interface LoopDraft {
   id: string
-  status: 'DRAFTING' | 'DRAFT_READY' | 'CONFIRMED' | 'HANDOFF_FAILED'
+  status: LoopDraftStatus
   updatedAt: string
   spec: LoopSpec
 }
@@ -1009,7 +990,6 @@ export interface DesignerMessage {
   createdAt: string
 }
 
-export type DesignerSessionState = 'PENDING_HANDOFF' | 'RUNNING' | 'REVIEWING' | 'WAITING_INPUT' | 'COMPLETED' | 'SESSION_ERROR' | 'STOPPING' | 'CANCELLED'
 export type DesignWorkflowPhase = 'ROUTING' | 'DISCUSSING_REQUIREMENT' | 'DECOMPOSING' | 'VALIDATING_DECOMPOSITION' | 'DESIGNING' | 'COMPILING' | 'VALIDATING' | 'REDESIGNING' | 'QUESTIONING_PACKAGE' | 'REVIEWING_PACKAGE' | 'AGGREGATING' | 'FINAL_REVIEW' | 'GENERATING_REPORT' | 'VALIDATING_REPORT' | 'REPORT_READY' | 'COMPLETED' | 'FAILED'
 export type DesignerActor = DesignerMessage['actor']
 export type StructuredModelStep = 'PLANNING' | 'SERVER_COMPILING' | 'GENERATING_JSON' | 'REPAIRING_JSON' | 'FINAL_JSON'
@@ -1033,7 +1013,9 @@ export interface DesignerHistoryItem extends DesignerSessionSummary {
   archived: boolean
   archivedAt?: string
   taskId?: string
-  taskState?: string
+  taskState?: TaskStatus
+  resumable: boolean
+  stopRetryAvailable: boolean
 }
 
 export interface DesignRequirementRevisionStatus {
@@ -1064,7 +1046,7 @@ export interface DesignWorkPackageStatus {
   ordinal: number
   title: string
   objective: string
-  state: string
+  state: DesignWorkPackageState
   dependencies: string[]
   redesignCount: number
   compilerRepairCount: number
@@ -1203,6 +1185,7 @@ export interface DesignerStopResult {
   archived: boolean
   stoppedSessions: number
   failedSessions: number
+  pendingFinalizations: number
 }
 export interface AnalysisReportSummary { id: string; state: string; title: string; contentSha256: string; stale: boolean; updatedAt: string }
 export interface AnalysisReportFinding { severity: string; title: string; detail: string; path: string; line: number; recommendation: string }
@@ -1304,7 +1287,7 @@ export interface TaskDesignHistory {
     ordinal: number
     title: string
     objective: string
-    state: string
+    state: DesignWorkPackageState
     compilerSummary?: string
     handoffSummary?: string
   }>

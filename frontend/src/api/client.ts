@@ -1,5 +1,6 @@
 import type { AppSettings, Artifact, Attempt, AutomationImportPreview, AutomationImportResult, AutomationRule, AutomationRuleMutation, AutomationRun, AutomationRunFeed, AvailableModel, BrowserAssertion, CommitMessageSuggestion, CreateAutomationRuleInput, DesignerActivity, DesignerAnsweredQuestion, DesignerAppendResult, DesignerHistoryItem, DesignerMessage, DesignerSession, DesignerSessionState, DesignerSessionSummary, DesignerStopResult, DesignerStreamEvent, DirectorySelection, DirtyWorkspaceAction, DirtyWorkspaceResolution, DirtyWorkspaceState, ErrorEvent, InsightsSnapshot, Interaction, InteractionAction, JudgeRun, LocalSyncConflictContent, LocalSyncConflictFile, LocalSyncConflictSession, LocalSyncResolution, LoopDraft, LoopSpec, LoopSpecAssessment, LoopSpecTemplate, LoopSpecTemplateVersion, LoopVerifierSpec, MergeRequestDraft, Project, ProjectConventionActivity, ProjectConventionDraft, ProjectConventionSnapshot, RecoveryDraft, RecoveryMode, RuntimeInfo, SessionCheckpoint, SessionForkResult, SessionRevertResult, SessionSummaryResult, SessionTodo, Stage, Task, TaskDecision, TaskDesignHistory, TaskDiffPreview, TaskEvent, TaskInsight, TaskPublicationStatus, TaskQueueStatus, TaskSessionActivity, TaskSessionActivityPart, TaskSessionPendingQuestion, TaskSessionSummary, UsageAggregate } from '@/types/domain'
 import type { AnalysisReport, DesignerTaskProfileUpdatePreview, ProjectStackProfile, RollingPackageCapabilities, RollingPackageDetail, RollingPackageFact, RollingPackageRun, RollingPackageWorkbench, RollingPlanPackage, RollingPlanProposal } from '@/types/domain'
+import { DESIGNER_SESSION_STATES, DESIGN_WORK_PACKAGE_STATES, LOOP_DRAFT_STATUSES, STAGE_STATUSES, TASK_PACKAGE_RUN_STATES, TASK_STATUSES, WORK_PACKAGE_AGGREGATE_STATUSES, requirePublicState } from '@/types/states'
 
 const apiBase = import.meta.env.VITE_API_BASE ?? '/api'
 
@@ -338,8 +339,7 @@ function normalizeAttempt(value: unknown): Attempt {
 
 function normalizeStage(value: unknown, attempts: Attempt[]): Stage {
   const raw = asRecord(value)
-  const state = asString(raw.status || raw.state)
-  const status = state === 'SUCCEEDED' ? 'SUCCEEDED' : state === 'RUNNING' ? 'RUNNING' : state === 'VERIFYING' ? 'VERIFYING' : state === 'PAUSED' ? 'PAUSED' : state === 'FAILED' ? 'BLOCKED' : state === 'CANCELLED' ? 'CANCELLED' : 'PENDING'
+  const status = requirePublicState(STAGE_STATUSES, raw.status || raw.state, 'Stage')
   const id = asString(raw.id)
   const testPolicy = asString(raw.testPolicy)
   return {
@@ -404,6 +404,7 @@ export interface CursorPage<T> {
 export interface TaskSummaryQuery {
   projectId?: string
   status?: string[]
+  statusGroup?: 'PROCESSING' | 'SUCCESSFUL' | 'TERMINATED'
   archive?: 'ACTIVE' | 'ARCHIVED' | 'ALL'
   q?: string
   order?: 'newest' | 'oldest'
@@ -425,6 +426,7 @@ function pageQuery(input: TaskSummaryQuery): string {
   const query = new URLSearchParams()
   if (input.projectId) query.set('projectId', input.projectId)
   input.status?.forEach((status) => query.append('status', status))
+  if (input.statusGroup) query.set('statusGroup', input.statusGroup)
   if (input.archive) query.set('archive', input.archive)
   if (input.q) query.set('q', input.q)
   if (input.order) query.set('order', input.order)
@@ -446,8 +448,10 @@ function normalizeTaskPage(value: unknown): CursorPage<Task> {
 
 function normalizeDesignerHistoryPage(value: unknown): CursorPage<DesignerHistoryItem> {
   const raw = asRecord(value)
+  const facets = asRecord(raw.facets)
   return { items: asArray(raw.items).map(normalizeDesignerHistoryItem),
-    nextCursor: asString(raw.nextCursor) || undefined, facets: {} }
+    nextCursor: asString(raw.nextCursor) || undefined,
+    facets: Object.fromEntries(Object.entries(facets).map(([key, count]) => [key, asNumber(count)])) }
 }
 
 function normalizeTaskAudit(value: unknown, taskId: string): Pick<Task, 'attempts' | 'errors' | 'judges' | 'artifacts'> {
@@ -476,13 +480,14 @@ function normalizeReadContent(value: unknown): ReadContent {
 
 function normalizeTask(value: unknown): Task {
   const raw = asRecord(value)
+  requireBooleanFields(raw, ['loopRetryAvailable', 'cancellationAvailable', 'hasDesignHistory', 'archived'], 'Task')
   const attempts = asArray(raw.attempts).map(normalizeAttempt)
   const stages = asArray(raw.stages).map((stage) => normalizeStage(stage, attempts))
   const taskId = asString(raw.id)
-  const workPackages = asArray(raw.workPackages).map((value) => { const item = asRecord(value); return { id: asString(item.id), ordinal: asNumber(item.ordinal), status: asString(item.status) as NonNullable<Task['workPackages']>[number]['status'], stageCount: asNumber(item.stageCount), completedStages: asNumber(item.completedStages), attemptCount: asNumber(item.attemptCount), attemptLimit: asNumber(item.attemptLimit) } })
+  const workPackages = asArray(raw.workPackages).map((value) => { const item = asRecord(value); return { id: asString(item.id), ordinal: asNumber(item.ordinal), status: requirePublicState(WORK_PACKAGE_AGGREGATE_STATUSES, item.status, 'WorkPackage'), stageCount: asNumber(item.stageCount), completedStages: asNumber(item.completedStages), attemptCount: asNumber(item.attemptCount), attemptLimit: asNumber(item.attemptLimit) } })
   const executionMode = asString(raw.executionMode) as Task['executionMode']
   const packageCapabilities = raw.packageCapabilities ? normalizeRollingCapabilities(raw.packageCapabilities) : undefined
-  return { id: taskId, projectId: asString(raw.projectId), projectName: asString(raw.projectName, 'Unknown project'), title: asString(raw.title), goal: asString(raw.goal), branch: asString(raw.branch) || '等待选择执行模式', worktreePath: asString(raw.worktreePath) || '等待准备执行目录', status: asString(raw.status) as Task['status'], retryCause: ['RATE_LIMIT', 'SESSION', 'VERIFICATION'].includes(asString(raw.retryCause)) ? asString(raw.retryCause) as Task['retryCause'] : undefined, retryOrdinal: typeof raw.retryOrdinal === 'number' ? raw.retryOrdinal : undefined, retryScheduledAt: asString(raw.retryScheduledAt) || undefined, retryDueAt: asString(raw.retryDueAt) || undefined, retryDelaySeconds: typeof raw.retryDelaySeconds === 'number' ? raw.retryDelaySeconds : undefined, waitingReasonCode: asString(raw.waitingReasonCode) || undefined, loopRetryAvailable: raw.loopRetryAvailable === true, cancellationAvailable: raw.cancellationAvailable === true, hasDesignHistory: raw.hasDesignHistory === true, archived: raw.archived === true, version: typeof raw.version === 'number' ? raw.version : undefined, executionMode: executionMode || undefined, workspacePolicy: asString(raw.workspacePolicy) as Task['workspacePolicy'] || undefined, currentPackage: raw.currentPackage ? normalizeRollingRun(raw.currentPackage) : undefined, plannedPackageCount: typeof raw.plannedPackageCount === 'number' ? raw.plannedPackageCount : undefined, frozenPackageCount: typeof raw.frozenPackageCount === 'number' ? raw.frozenPackageCount : undefined, packageCapabilities, executionResult: asString(raw.executionResult) as Task['executionResult'] || undefined, executionCycleOrdinal: typeof raw.executionCycleOrdinal === 'number' ? raw.executionCycleOrdinal : undefined, checkpointState: asString(raw.checkpointState) as Task['checkpointState'] || undefined, parentTaskId: asString(raw.parentTaskId) || undefined, successorTaskId: asString(raw.successorTaskId) || undefined, activeStage: stages.find((stage) => stage.status === 'RUNNING')?.ordinal, attemptCount: asNumber(raw.attemptCount, attempts.length), maxAttempts: asNumber(raw.maxAttempts, 12), createdAt: asString(raw.createdAt), updatedAt: asString(raw.updatedAt), stages, workPackages, attempts, errors: asArray(raw.errors).map(normalizeError), judges: asArray(raw.judges).map(normalizeJudge), artifacts: asArray(raw.artifacts).map((artifact) => normalizeArtifact(artifact, taskId)) }
+  return { id: taskId, projectId: asString(raw.projectId), projectName: asString(raw.projectName, 'Unknown project'), title: asString(raw.title), goal: asString(raw.goal), branch: asString(raw.branch) || '等待选择执行模式', worktreePath: asString(raw.worktreePath) || '等待准备执行目录', status: requirePublicState(TASK_STATUSES, raw.status, 'Task'), retryCause: ['RATE_LIMIT', 'SESSION', 'VERIFICATION'].includes(asString(raw.retryCause)) ? asString(raw.retryCause) as Task['retryCause'] : undefined, retryOrdinal: typeof raw.retryOrdinal === 'number' ? raw.retryOrdinal : undefined, retryScheduledAt: asString(raw.retryScheduledAt) || undefined, retryDueAt: asString(raw.retryDueAt) || undefined, retryDelaySeconds: typeof raw.retryDelaySeconds === 'number' ? raw.retryDelaySeconds : undefined, waitingReasonCode: asString(raw.waitingReasonCode) || undefined, loopRetryAvailable: raw.loopRetryAvailable === true, cancellationAvailable: raw.cancellationAvailable === true, hasDesignHistory: raw.hasDesignHistory === true, archived: raw.archived === true, version: typeof raw.version === 'number' ? raw.version : undefined, executionMode: executionMode || undefined, workspacePolicy: asString(raw.workspacePolicy) as Task['workspacePolicy'] || undefined, currentPackage: raw.currentPackage ? normalizeRollingRun(raw.currentPackage) : undefined, plannedPackageCount: typeof raw.plannedPackageCount === 'number' ? raw.plannedPackageCount : undefined, frozenPackageCount: typeof raw.frozenPackageCount === 'number' ? raw.frozenPackageCount : undefined, packageCapabilities, executionResult: asString(raw.executionResult) as Task['executionResult'] || undefined, executionCycleOrdinal: typeof raw.executionCycleOrdinal === 'number' ? raw.executionCycleOrdinal : undefined, checkpointState: asString(raw.checkpointState) as Task['checkpointState'] || undefined, parentTaskId: asString(raw.parentTaskId) || undefined, successorTaskId: asString(raw.successorTaskId) || undefined, activeStage: stages.find((stage) => stage.status === 'RUNNING')?.ordinal, attemptCount: asNumber(raw.attemptCount, attempts.length), maxAttempts: asNumber(raw.maxAttempts, 12), createdAt: asString(raw.createdAt), updatedAt: asString(raw.updatedAt), stages, workPackages, attempts, errors: asArray(raw.errors).map(normalizeError), judges: asArray(raw.judges).map(normalizeJudge), artifacts: asArray(raw.artifacts).map((artifact) => normalizeArtifact(artifact, taskId)) }
 }
 
 function normalizeRollingCapabilities(value: unknown): RollingPackageCapabilities {
@@ -497,7 +502,7 @@ function normalizeRollingCapabilities(value: unknown): RollingPackageCapabilitie
 function normalizeRollingRun(value: unknown): RollingPackageRun {
   const raw = asRecord(value)
   return { id: requiredString(raw, 'id', 'RollingPackageRun'), packageKey: requiredString(raw, 'packageKey', 'RollingPackageRun'),
-    ordinal: asNumber(raw.ordinal), title: asString(raw.title), state: asString(raw.state) as RollingPackageRun['state'],
+    ordinal: asNumber(raw.ordinal), title: asString(raw.title), state: requirePublicState(TASK_PACKAGE_RUN_STATES, raw.state, 'RollingPackageRun'),
     version: asNumber(raw.version), discussionRevision: asNumber(raw.discussionRevision), designRevision: asNumber(raw.designRevision),
     acceptedDesignRevision: typeof raw.acceptedDesignRevision === 'number' ? raw.acceptedDesignRevision : undefined,
     waitingReasonCode: asString(raw.waitingReasonCode) || undefined,
@@ -516,7 +521,7 @@ function normalizeRollingFact(value: unknown): RollingPackageFact {
 function normalizeRollingWorkbench(value: unknown): RollingPackageWorkbench {
   const raw = asRecord(value)
   return { taskId: requiredString(raw, 'taskId', 'RollingPackageWorkbench'), title: asString(raw.title),
-    taskState: asString(raw.taskState) as RollingPackageWorkbench['taskState'], taskVersion: asNumber(raw.taskVersion),
+    taskState: requirePublicState(TASK_STATUSES, raw.taskState, 'RollingPackageWorkbench'), taskVersion: asNumber(raw.taskVersion),
     executionMode: 'ROLLING_PACKAGES', workspacePolicy: asString(raw.workspacePolicy) as RollingPackageWorkbench['workspacePolicy'],
     planRevisionId: asString(raw.planRevisionId), planRevision: asNumber(raw.planRevision),
     plannedPackageCount: asNumber(raw.plannedPackageCount), frozenPackageCount: asNumber(raw.frozenPackageCount),
@@ -580,7 +585,7 @@ function normalizeTaskDesignHistory(value: unknown): TaskDesignHistory {
     } : undefined,
     requirement: raw.requirement ? (() => { const item = asRecord(raw.requirement); return { revision: asNumber(item.revision), state: asString(item.state), requirementText: asString(item.requirementText), modelCallsUsed: asNumber(item.modelCallsUsed), maxModelCalls: asNumber(item.maxModelCalls) } })() : undefined,
     decomposition: raw.decomposition ? (() => { const item = asRecord(raw.decomposition); return { state: asString(item.state), resultType: asString(item.resultType) || undefined, planJson: asString(item.planJson) } })() : undefined,
-    workPackages: asArray(raw.workPackages).map((value) => { const item = asRecord(value); return { id: asString(item.id), ordinal: asNumber(item.ordinal), title: asString(item.title), objective: asString(item.objective), state: asString(item.state), compilerSummary: asString(item.compilerSummary) || undefined, handoffSummary: asString(item.handoffSummary) || undefined } }),
+    workPackages: asArray(raw.workPackages).map((value) => { const item = asRecord(value); return { id: asString(item.id), ordinal: asNumber(item.ordinal), title: asString(item.title), objective: asString(item.objective), state: requirePublicState(DESIGN_WORK_PACKAGE_STATES, item.state, 'DesignWorkPackage'), compilerSummary: asString(item.compilerSummary) || undefined, handoffSummary: asString(item.handoffSummary) || undefined } }),
   }
 }
 
@@ -782,7 +787,7 @@ function normalizeDraft(value: unknown): LoopDraft {
   const raw = asRecord(value)
   let parsed: unknown = raw.spec
   if (typeof raw.specJson === 'string') { try { parsed = JSON.parse(raw.specJson) } catch { parsed = {} } }
-  return { id: asString(raw.id), status: asString(raw.status) as LoopDraft['status'], updatedAt: asString(raw.updatedAt), spec: parseLoopSpec(parsed) }
+  return { id: asString(raw.id), status: requirePublicState(LOOP_DRAFT_STATUSES, raw.status, 'LoopDraft'), updatedAt: asString(raw.updatedAt), spec: parseLoopSpec(parsed) }
 }
 
 function normalizeDesignerMessage(value: unknown): DesignerMessage {
@@ -822,9 +827,7 @@ function normalizeStructuredStep(value: unknown): DesignerStreamEvent['structure
 }
 
 function normalizeDesignerState(value: unknown): DesignerSessionState {
-  const state = asString(value)
-  return ['RUNNING', 'REVIEWING', 'WAITING_INPUT', 'COMPLETED', 'SESSION_ERROR', 'STOPPING', 'CANCELLED'].includes(state)
-    ? state as DesignerSessionState : 'PENDING_HANDOFF'
+  return requirePublicState(DESIGNER_SESSION_STATES, value, 'DesignerSession')
 }
 
 function normalizeDesignerSession(value: unknown): DesignerSession {
@@ -876,7 +879,7 @@ function normalizeDesignerSession(value: unknown): DesignerSession {
     })() : undefined,
     requirement: raw.requirement ? (() => { const item = asRecord(raw.requirement); return { revision: asNumber(item.revision), state: asString(item.state), modelCallsUsed: asNumber(item.modelCallsUsed), maxModelCalls: asNumber(item.maxModelCalls), sourceDraftVersion: asNumber(item.sourceDraftVersion) } })() : undefined,
     decomposition: raw.decomposition ? (() => { const item = asRecord(raw.decomposition); const resultType = asString(item.resultType); return { id: asString(item.id), state: asString(item.state), resultType: ['DIRECT_DESIGN', 'DECOMPOSED', 'NEEDS_INPUT', 'MULTI_TASK_REQUIRED'].includes(resultType) ? resultType as NonNullable<DesignerSession['decomposition']>['resultType'] : undefined, repairCount: asNumber(item.repairCount), transportRetryCount: asNumber(item.transportRetryCount), lastErrorCode: asString(item.lastErrorCode) || undefined, lastErrorDetail: asString(item.lastErrorDetail) || undefined, workflowStep: normalizeStructuredStep(item.workflowStep) ?? 'FINAL_JSON', planningRepairCount: asNumber(item.planningRepairCount), formatRepairCount: typeof item.formatRepairCount === 'number' ? item.formatRepairCount : asNumber(item.planningRepairCount), semanticRepairCount: asNumber(item.semanticRepairCount), serverCompiled: item.serverCompiled === true } })() : undefined,
-    workPackages: asArray(raw.workPackages).map((value) => { const item = asRecord(value); const planning = asRecord(item.acceptancePlanning); return { id: asString(item.id), ordinal: asNumber(item.ordinal), title: asString(item.title), objective: asString(item.objective), state: asString(item.state), dependencies: asArray(item.dependencies).map(String), redesignCount: asNumber(item.redesignCount), compilerRepairCount: asNumber(item.compilerRepairCount), compilerPlanningRepairCount: asNumber(item.compilerPlanningRepairCount), compilerFormatRepairCount: asNumber(item.compilerFormatRepairCount), compilerSemanticRepairCount: asNumber(item.compilerSemanticRepairCount), compilerServerCompiled: item.compilerServerCompiled === true, compilerSummary: asString(item.compilerSummary) || undefined, handoffSummary: asString(item.handoffSummary) || undefined, lastErrorCode: asString(item.lastErrorCode) || undefined, lastErrorDetail: asString(item.lastErrorDetail) || undefined, designRevision: asNumber(item.designRevision), approvedDesignRevision: typeof item.approvedDesignRevision === 'number' ? item.approvedDesignRevision : undefined, discussionRoundCount: asNumber(item.discussionRoundCount), invalidatedByPackageId: asString(item.invalidatedByPackageId) || undefined, approvedAt: asString(item.approvedAt) || undefined, rolePackId: asString(item.rolePackId) || undefined, rolePackVersion: asString(item.rolePackVersion) || undefined, executionStrategy: asString(item.executionStrategy) as NonNullable<DesignerSession['workPackages']>[number]['executionStrategy'], testPolicy: asString(item.testPolicy) as NonNullable<DesignerSession['workPackages']>[number]['testPolicy'], technologies: asArray(item.technologies).map(String), acceptancePlanning: item.acceptancePlanning ? { state: asString(planning.state, 'FAILED') as 'EXTRACTED' | 'BOUND' | 'COMPILED' | 'FAILED', bindingSource: asString(planning.bindingSource, 'LEGACY_UNKNOWN') as 'UNDECIDED' | 'SERVER_STAGE_HINTS' | 'AI_DISAMBIGUATION_V6' | 'LEGACY_UNKNOWN', routingReasons: asArray(planning.routingReasons).map(String), factCount: asNumber(planning.factCount), scenarioCount: asNumber(planning.scenarioCount), automatedCount: asNumber(planning.automatedCount), bothCount: asNumber(planning.bothCount), judgeCount: asNumber(planning.judgeCount), unresolvedCount: asNumber(planning.unresolvedCount), scenarios: asArray(planning.scenarios).map((scenario) => { const entry = asRecord(scenario); return { title: asString(entry.title), coverage: asString(entry.coverage, 'UNRESOLVED') as 'AUTOMATED' | 'BOTH' | 'JUDGE' | 'UNRESOLVED', capabilities: asArray(entry.capabilities).map(String) } }), issues: asArray(planning.issues).map(String) } : undefined } }),
+    workPackages: asArray(raw.workPackages).map((value) => { const item = asRecord(value); const planning = asRecord(item.acceptancePlanning); return { id: asString(item.id), ordinal: asNumber(item.ordinal), title: asString(item.title), objective: asString(item.objective), state: requirePublicState(DESIGN_WORK_PACKAGE_STATES, item.state, 'DesignWorkPackage'), dependencies: asArray(item.dependencies).map(String), redesignCount: asNumber(item.redesignCount), compilerRepairCount: asNumber(item.compilerRepairCount), compilerPlanningRepairCount: asNumber(item.compilerPlanningRepairCount), compilerFormatRepairCount: asNumber(item.compilerFormatRepairCount), compilerSemanticRepairCount: asNumber(item.compilerSemanticRepairCount), compilerServerCompiled: item.compilerServerCompiled === true, compilerSummary: asString(item.compilerSummary) || undefined, handoffSummary: asString(item.handoffSummary) || undefined, lastErrorCode: asString(item.lastErrorCode) || undefined, lastErrorDetail: asString(item.lastErrorDetail) || undefined, designRevision: asNumber(item.designRevision), approvedDesignRevision: typeof item.approvedDesignRevision === 'number' ? item.approvedDesignRevision : undefined, discussionRoundCount: asNumber(item.discussionRoundCount), invalidatedByPackageId: asString(item.invalidatedByPackageId) || undefined, approvedAt: asString(item.approvedAt) || undefined, rolePackId: asString(item.rolePackId) || undefined, rolePackVersion: asString(item.rolePackVersion) || undefined, executionStrategy: asString(item.executionStrategy) as NonNullable<DesignerSession['workPackages']>[number]['executionStrategy'], testPolicy: asString(item.testPolicy) as NonNullable<DesignerSession['workPackages']>[number]['testPolicy'], technologies: asArray(item.technologies).map(String), acceptancePlanning: item.acceptancePlanning ? { state: asString(planning.state, 'FAILED') as 'EXTRACTED' | 'BOUND' | 'COMPILED' | 'FAILED', bindingSource: asString(planning.bindingSource, 'LEGACY_UNKNOWN') as 'UNDECIDED' | 'SERVER_STAGE_HINTS' | 'AI_DISAMBIGUATION_V6' | 'LEGACY_UNKNOWN', routingReasons: asArray(planning.routingReasons).map(String), factCount: asNumber(planning.factCount), scenarioCount: asNumber(planning.scenarioCount), automatedCount: asNumber(planning.automatedCount), bothCount: asNumber(planning.bothCount), judgeCount: asNumber(planning.judgeCount), unresolvedCount: asNumber(planning.unresolvedCount), scenarios: asArray(planning.scenarios).map((scenario) => { const entry = asRecord(scenario); return { title: asString(entry.title), coverage: asString(entry.coverage, 'UNRESOLVED') as 'AUTOMATED' | 'BOTH' | 'JUDGE' | 'UNRESOLVED', capabilities: asArray(entry.capabilities).map(String) } }), issues: asArray(planning.issues).map(String) } : undefined } }),
     requirementRevision: typeof raw.requirementRevision === 'number' ? raw.requirementRevision : undefined,
     activeWorkPackageId: asString(raw.activeWorkPackageId) || undefined,
     discussionScope: asString(raw.discussionScope, 'REQUIREMENT'),
@@ -940,6 +943,7 @@ function normalizeDesignerSessionSummary(value: unknown): DesignerSessionSummary
 
 function normalizeDesignerHistoryItem(value: unknown): DesignerHistoryItem {
   const raw = asRecord(value)
+  requireBooleanFields(raw, ['archived', 'resumable', 'stopRetryAvailable'], 'DesignerHistoryItem')
   return {
     ...normalizeDesignerSessionSummary(raw),
     projectName: asString(raw.projectName),
@@ -947,8 +951,21 @@ function normalizeDesignerHistoryItem(value: unknown): DesignerHistoryItem {
     archived: raw.archived === true,
     archivedAt: asString(raw.archivedAt) || undefined,
     taskId: asString(raw.taskId) || undefined,
-    taskState: asString(raw.taskState) || undefined,
+    taskState: raw.taskState == null ? undefined : requirePublicState(TASK_STATUSES, raw.taskState, 'DesignerHistory task'),
+    resumable: raw.resumable as boolean,
+    stopRetryAvailable: raw.stopRetryAvailable as boolean,
   }
+}
+
+function normalizeDesignerStopResult(value: unknown): DesignerStopResult {
+  const raw = asRecord(value)
+  if (typeof raw.archived !== 'boolean' || typeof raw.stoppedSessions !== 'number'
+    || typeof raw.failedSessions !== 'number' || typeof raw.pendingFinalizations !== 'number') {
+    throw new TypeError('DesignerStopResult is incomplete')
+  }
+  const stopStatus = requirePublicState(['STOPPING', 'CANCELLED'] as const, raw.stopStatus, 'DesignerStopResult')
+  return { stopStatus, archived: raw.archived, stoppedSessions: raw.stoppedSessions,
+    failedSessions: raw.failedSessions, pendingFinalizations: raw.pendingFinalizations }
 }
 
 function normalizeDesignerStreamEvent(value: unknown): DesignerStreamEvent {
@@ -1291,7 +1308,7 @@ function normalizeTaskDecision(value: unknown): TaskDecision {
   const checkpoint = asRecord(raw.checkpoint)
   return {
     taskId: requiredString(raw, 'taskId', 'TaskDecision'),
-    taskState: asString(raw.taskState) as TaskDecision['taskState'],
+    taskState: requirePublicState(TASK_STATUSES, raw.taskState, 'TaskDecision'),
     taskVersion: asNumber(raw.taskVersion),
     cycle: raw.cycle ? {
       id: requiredString(cycle, 'id', 'TaskDecision.cycle'), ordinal: asNumber(cycle.ordinal),
@@ -1582,7 +1599,7 @@ export const api = {
     const usage = asRecord(raw.usage)
     return { actor: normalizeDesignerActor(raw.actor), remoteState: asString(raw.remoteState), connected: raw.connected === true, observedAt: asString(raw.observedAt), structuredStep: normalizeStructuredStep(raw.structuredStep), parts: asArray(raw.parts).map((value) => { const part = asRecord(value); return { id: asString(part.id), type: asString(part.type) as TaskSessionActivityPart['type'], label: asString(part.label), content: asString(part.content), status: asString(part.status), startedAt: asString(part.startedAt) } }), detail: asString(raw.detail) || undefined, usage: { totalTokens: asNullableNumber(usage.totalTokens), unknownUsageCount: asNumber(usage.unknownUsageCount), observedAt: asString(usage.observedAt) } }
   },
-  stopDesignerSession: async (id: string): Promise<DesignerStopResult> => request<DesignerStopResult>(`/designer-sessions/${encodeURIComponent(id)}/stop`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } }),
+  stopDesignerSession: async (id: string): Promise<DesignerStopResult> => normalizeDesignerStopResult(await request<unknown>(`/designer-sessions/${encodeURIComponent(id)}/stop`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' } })),
   enableDesignerLargeTaskMode: async (id: string, expectedDiscussionRevision: number, expectedProfileVersion: number) => request<DesignerSession['taskProfile']>(`/designer-sessions/${encodeURIComponent(id)}/large-task-mode/enable`, { method: 'POST', body: JSON.stringify({ expectedDiscussionRevision, expectedProfileVersion }) }),
   reopenDesignerRequirement: async (id: string, expectedDiscussionRevision: number) => request<void>(`/designer-sessions/${encodeURIComponent(id)}/requirement/reopen`, { method: 'POST', body: JSON.stringify({ expectedDiscussionRevision }) }),
   sendWorkPackageMessage: async (id: string, packageId: string, content: string, expectedDiscussionRevision: number, expectedDesignRevision: number): Promise<DesignerAppendResult> => {

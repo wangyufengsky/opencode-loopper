@@ -119,6 +119,57 @@ class FiniteStateMachineTest {
     }
 
     @Test
+    void taskTerminalStatesHaveNoOutgoingTransitions() {
+        LifecycleRegistry registry = new LifecycleRegistry();
+
+        assertThat(registry.definitions()).noneMatch(edge -> edge.machineType() == LifecycleMachineType.TASK
+                && TaskState.valueOf(edge.fromState()).terminal());
+    }
+
+    @Test
+    void compatibilityStatesCannotBeCreatedOrTargeted() {
+        LifecycleRegistry registry = new LifecycleRegistry();
+
+        assertThat(registry.compatibilityStates(LifecycleMachineType.TASK))
+                .containsExactlyInAnyOrder(TaskState.SUCCEEDED.name(), TaskState.FAILED.name());
+        assertThat(registry.compatibilityStates(LifecycleMachineType.JUDGE_RUN))
+                .containsExactlyInAnyOrder(JudgeRunState.FAILED.name(), JudgeRunState.TIMED_OUT.name());
+        assertThat(registry.compatibilityStates(LifecycleMachineType.DESIGN_WORK_PACKAGE))
+                .containsExactly(DesignWorkPackageState.COMPLETED.name());
+        assertThat(registry.compatibilityStates(LifecycleMachineType.EXECUTION_SESSION))
+                .containsExactly(SessionState.TIMED_OUT.name());
+        assertThat(registry.compatibilityStates(LifecycleMachineType.LOOP_DRAFT))
+                .containsExactlyInAnyOrder(LoopDraftStatus.DRAFTING.name(), LoopDraftStatus.HANDOFF_FAILED.name());
+
+        for (LifecycleMachineType type : LifecycleMachineType.values()) {
+            assertThat(java.util.Collections.disjoint(registry.creationStates(type), registry.compatibilityStates(type)))
+                    .as(type.name()).isTrue();
+            assertThat(registry.definitions()).noneMatch(edge -> edge.machineType() == type
+                    && registry.compatibilityStates(type).contains(edge.toState()));
+        }
+        assertThatThrownBy(() -> registry.requireCreatableState(LifecycleMachineType.TASK, "task-1", "SUCCEEDED"))
+                .isInstanceOf(InvalidStateTransitionException.class);
+    }
+
+    @Test
+    void everyNonCompatibilityStateIsReachableFromAnExplicitCreationState() {
+        LifecycleRegistry registry = new LifecycleRegistry();
+
+        for (LifecycleMachineType type : LifecycleMachineType.values()) {
+            Set<String> reached = new java.util.HashSet<>(registry.creationStates(type));
+            boolean changed;
+            do {
+                changed = registry.definitions().stream()
+                        .filter(edge -> edge.machineType() == type && reached.contains(edge.fromState()))
+                        .map(LifecycleRegistry.DefinedTransition::toState)
+                        .anyMatch(reached::add);
+            } while (changed);
+            assertThat(reached).as(type.name()).containsAll(registry.states(type).stream()
+                    .filter(state -> !registry.compatibilityStates(type).contains(state)).toList());
+        }
+    }
+
+    @Test
     void everyDescribedDomainEnumValueHasTrimmedChineseDescription() throws Exception {
         Path domainDirectory = Path.of(DescribedEnum.class.getProtectionDomain().getCodeSource().getLocation().toURI())
                 .resolve("io/opencode/loopper/domain");

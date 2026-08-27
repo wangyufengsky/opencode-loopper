@@ -72,6 +72,10 @@ ownership rules:
   workbench/fact projections. None may rewrite the immutable LoopDraft or derive UI capabilities.
   `RollingPackageTaskHooks` is the narrow bridge from the legacy Task facade, not a second workflow
   implementation. `TaskEvidenceService` remains the sole owner of proven diff/evidence material.
+  `RollingPackageCommandPolicy` is the only authority for package command capabilities and
+  write validation; read projections and mutations must pass the same persisted Task/Run/Queue,
+  checkpoint, writer, Judge, and Designer facts to it. Controllers and Vue components may not
+  duplicate the state matrix or repair inconsistent aggregates after commit.
 - `ProjectStackAnalyzer` owns bounded filesystem evidence and manifest fingerprinting;
   `ProjectStackProfileService` owns immutable snapshot persistence and freshness checks.
   Analyzer snapshot collections must be emitted in canonical lexical order so filesystem

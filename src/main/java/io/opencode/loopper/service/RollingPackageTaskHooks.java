@@ -37,8 +37,12 @@ final class RollingPackageTaskHooks {
     }
 
     boolean applies(String taskId) { return rolling.rolling(taskId); }
-    void requestExecution(String taskId, String packageRunId, long taskVersion, long packageVersion) {
-        rolling.requestExecution(taskId, packageRunId, taskVersion, packageVersion);
+    RollingPackageService.ExecutionRequest executionRequest(String taskId, String packageRunId,
+                                                             long taskVersion, long packageVersion) {
+        return rolling.executionRequest(taskId, packageRunId, taskVersion, packageVersion);
+    }
+    void requestExecutionInTransaction(RollingPackageService.ExecutionRequest request) {
+        rolling.requestExecutionInTransaction(request);
     }
 
     TaskPackageRunRow prepareRetry(String taskId, String packageRunId, long taskVersion, long packageVersion) {
@@ -116,8 +120,19 @@ final class RollingPackageTaskHooks {
         rolling.packageFailed(task, code, message, writersStopped);
     }
 
-    void cancelRuns(TaskRow task) {
-        if (TaskState.CANCELLED.name().equals(task.state())) rolling.cancelRuns(task.id());
+    void cancelRunsInTransaction(String taskId) {
+        if (applies(taskId)) rolling.cancelRuns(taskId);
+    }
+
+    void supersedeRunsInTransaction(String taskId) {
+        if (applies(taskId)) rolling.runs(taskId).forEach(rolling::supersedeRun);
+    }
+
+    void requireTerminalRuns(String taskId) {
+        if (applies(taskId) && rolling.runs(taskId).stream()
+                .anyMatch(run -> !TaskPackageRunState.valueOf(run.state()).terminal())) {
+            throw new ConflictException("TASK_PACKAGE_RUN_ACTIVE", "工作包尚未收束，不能完成父任务");
+        }
     }
 
     void deleteEvidenceBeforeAttempts(String taskId) {

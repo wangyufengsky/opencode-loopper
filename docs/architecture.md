@@ -91,6 +91,14 @@ so its three database queries are independent of the number of Attempts. Large
 `spec_json`, `evidence_json.output`, `raw_output`, and artifact `content` columns
 never enter summary, overview, or audit responses.
 
+Task summary grouping is server-owned. `statusGroup=PROCESSING | SUCCESSFUL |
+TERMINATED` is mutually exclusive with explicit `status`; processing means every
+nonterminal Task, successful means `COMPLETED` plus historical `SUCCEEDED`, and
+terminated means historical `FAILED` plus `CANCELLED`. Facets expose those three
+groups, `MATCHED_TOTAL`, and `ARCHIVED_TOTAL` from the same project/search/archive
+population without depending on pagination. The browser consumes these values and
+must not maintain a second production status-group list.
+
 Designer history uses a window function to select the latest Session per draft,
 and project counters use grouped CTEs instead of per-project lookups. Projects,
 insights, templates and automation runs are assembled in bounded batch queries.
@@ -240,6 +248,16 @@ enters `VERIFYING` in a short transaction, runs process/HTTP/browser checks
 outside the database lock, and commits their results plus the next lifecycle
 decision in a second short transaction. Restart recovery handles the deliberate
 post-commit gaps, and final evidence capture is idempotent.
+
+Every new Task terminal transition is guarded by one aggregate consistency
+boundary. Before `COMPLETED`, `SUPERSEDED`, or `CANCELLED` commits, all package
+Runs, Attempts, Stages, Execution Cycles, Designer-owned child lifecycles, Queue
+rows, and Leases must already be terminal or be finalized in that same short
+transaction. A remote stop failure, optimistic conflict, active writer, active
+Verifier/Judge, or inconsistent Queue/Lease pair fails closed and leaves the
+parent nonterminal. Historical `SUCCEEDED` and `FAILED` remain readable
+compatibility states but are never valid creation states or new transition
+targets.
 
 The transition history is forward-only from Flyway V15: existing rows are not
 given fabricated creation events. `GET /api/state-transitions` can page either
@@ -511,6 +529,12 @@ requirement/package Designer, Decomposer, Compiler, repair/finalizer, and Review
 Partial failure preserves `STOPPING` and the unarchived workspace so the same local-UI request
 can retry. Complete stop terminalizes child projections, records `CANCELLED`, and archives;
 the operation never equates a local state write with an unconfirmed remote stop.
+`failedSessions` counts only remote Sessions whose stop is unconfirmed;
+`pendingFinalizations` separately reports optimistic local closure conflicts. Router,
+profile, decomposition, package, compilation, report, and the Designer Session are
+finalized row-by-row with their own version predicates; lifecycle-owned rows use
+`LifecycleTransitionService`, and the local terminalization plus optional archive is
+one transaction after all remote stops have succeeded.
 
 Designer activity is a bounded read model over the current remote Session plus persisted
 workflow step. Interactive Designer may expose thinking/output/tool parts; structured roles
@@ -924,6 +948,11 @@ the Task, its lease, and evidence in `STOPPING`; restart and the monitor resume 
 same intent. Only a fully confirmed stop cancels running Attempts and nonterminal
 Stages, records the active Execution Cycle as `INTERRUPTED`, and advances the Task
 to `CANCELLED`. This prevents local terminal state from getting ahead of remote work.
+For rolling Tasks the same final transaction also cancels every nonterminal package
+Run and closes the bound Designer subflow. A remote Designer stop failure or any
+optimistic conflict leaves the parent in `STOPPING`, retains Queue/Lease ownership,
+and permits the same cancellation command to retry. Queue settlement and lease
+release occur only after that complete parent-and-child closure commits.
 Task, Queue, and Lease remain separate lifecycle machines. Their cross-machine
 invariant is coordinated by `WorkspaceLeaseReconciliationService`: an `ADMITTED`
 queue row must name the same Task as the non-`RELEASED` lease holder, and a terminal

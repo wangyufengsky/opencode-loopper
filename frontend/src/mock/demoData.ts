@@ -1,6 +1,15 @@
-import type { Artifact, DesignerMessage, LoopDraft, Project, RuntimeInfo, Task } from '@/types/domain'
+import type { Artifact, DesignerMessage, LoopDraft, Project, RuntimeInfo, Task, TaskStatus } from '@/types/domain'
 
 const now = '2026-08-04T10:12:00+08:00'
+
+export type DemoTaskStatusGroup = 'PROCESSING' | 'SUCCESSFUL' | 'TERMINATED'
+export const demoTaskStatusGroups: Record<TaskStatus, DemoTaskStatusGroup | null> = {
+  PENDING_START: 'PROCESSING', QUEUED: 'PROCESSING', PREPARING: 'PROCESSING', READY: 'PROCESSING',
+  RUNNING: 'PROCESSING', VERIFYING: 'PROCESSING', RETRY_WAIT: 'PROCESSING', PAUSED: 'PROCESSING',
+  PACKAGE_DESIGNING: 'PROCESSING', WAITING_INPUT: 'PROCESSING', JUDGING: 'PROCESSING', STOPPING: 'PROCESSING',
+  AWAITING_DECISION: 'PROCESSING', COMPLETED: 'SUCCESSFUL', SUPERSEDED: null, SUCCEEDED: 'SUCCESSFUL',
+  FAILED: 'TERMINATED', CANCELLED: 'TERMINATED',
+}
 
 export const demoProjects: Project[] = [
   { id: 'prj-loopper', name: 'OpenCode Loopper', rootPath: '/Users/wangyufeng/IdeaProjects/opencode-loopper', branch: 'main', description: '本地 OpenCode Loop 管理台', status: 'READY', updatedAt: now, taskCount: 3, openDesignerSessionCount: 1 },

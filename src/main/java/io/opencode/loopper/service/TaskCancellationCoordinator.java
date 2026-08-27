@@ -4,19 +4,18 @@ import io.opencode.loopper.domain.AttemptState;
 import io.opencode.loopper.domain.ExecutionCycleState;
 import io.opencode.loopper.domain.LifecycleEvent;
 import io.opencode.loopper.domain.StageState;
-import io.opencode.loopper.domain.TaskQueueState;
 import io.opencode.loopper.domain.TaskState;
 import io.opencode.loopper.domain.VerificationState;
 import io.opencode.loopper.persistence.AttemptRow;
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.StageRow;
-import io.opencode.loopper.persistence.TaskQueueRow;
 import io.opencode.loopper.persistence.TaskRow;
-import io.opencode.loopper.runtime.DirectWorkspaceLeaseCoordinator;
 import io.opencode.loopper.verification.VerifierOutcome;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /** Owns the durable Task cancellation protocol after TaskService accepts the command. */
 final class TaskCancellationCoordinator {
@@ -24,23 +23,30 @@ final class TaskCancellationCoordinator {
     private final LoopperMapper mapper;
     private final TaskStateStore states;
     private final ManagedVerificationRuntimeService verifierRuntimes;
-    private final DirectWorkspaceLeaseCoordinator leases;
     private final TaskEventService events;
     private final TaskExecutionCycleService executionCycles;
     private final TaskWriterTerminationService writers;
+    private final DesignerTerminationService designerTermination;
+    private final RollingPackageTaskHooks rollingPackages;
+    private final TransactionTemplate transactions;
 
     TaskCancellationCoordinator(LoopperMapper mapper, TaskStateStore states,
                                 ManagedVerificationRuntimeService verifierRuntimes,
-                                DirectWorkspaceLeaseCoordinator leases, TaskEventService events,
+                                TaskEventService events,
                                 TaskExecutionCycleService executionCycles,
-                                TaskWriterTerminationService writers) {
+                                TaskWriterTerminationService writers,
+                                DesignerTerminationService designerTermination,
+                                RollingPackageTaskHooks rollingPackages,
+                                PlatformTransactionManager transactionManager) {
         this.mapper = mapper;
         this.states = states;
         this.verifierRuntimes = verifierRuntimes;
-        this.leases = leases;
         this.events = events;
         this.executionCycles = executionCycles;
         this.writers = writers;
+        this.designerTermination = designerTermination;
+        this.rollingPackages = rollingPackages;
+        this.transactions = new TransactionTemplate(transactionManager);
     }
 
     TaskRow cancel(String taskId) {
@@ -69,8 +75,6 @@ final class TaskCancellationCoordinator {
 
     private TaskRow requestCancellation(TaskRow current) {
         states.cancelRetrySchedule(current.id(), RETRY_CANCELLED);
-        TaskQueueRow queue = mapper.findTaskQueue(current.id()).orElse(null);
-        if (queue != null && TaskQueueState.QUEUED.name().equals(queue.state())) leases.cancelQueued(current.id());
         states.updateTask(states.taskState(current, TaskState.STOPPING), LifecycleEvent.CANCEL,
                 Map.of("remoteTerminationRequired", hasExternalWriter(current)));
         events.emit(current.id(), "task.cancellation_requested", Map.of("state", TaskState.STOPPING.name()));
@@ -84,12 +88,17 @@ final class TaskCancellationCoordinator {
         boolean verifierStopped = verifierRuntimes.confirmTaskStopped(taskId);
         boolean sessionsStopped = writers.stopSessions(current);
         boolean judgesStopped = writers.stopJudges(current);
-        if (!verifierStopped || !sessionsStopped || !judgesStopped || writers.hasUnconfirmedWriter(taskId)) {
+        DesignerTerminationService.Result designerStopped = designerTermination.stopTaskDesignerRemotely(taskId);
+        if (!verifierStopped || !sessionsStopped || !judgesStopped || designerStopped.failedSessions() > 0
+                || writers.hasUnconfirmedWriter(taskId)) {
             Map<String, Object> pending = new LinkedHashMap<>();
             pending.put("state", TaskState.STOPPING.name());
             pending.put("sessionTerminationConfirmed", sessionsStopped && !writers.hasUnconfirmedWriter(taskId));
             pending.put("judgeTerminationConfirmed", judgesStopped);
             pending.put("verifierTerminationConfirmed", verifierStopped);
+            pending.put("designerTerminationConfirmed", designerStopped.failedSessions() == 0);
+            pending.put("designerFailedSessions", designerStopped.failedSessions());
+            pending.put("designerPendingFinalizations", designerStopped.pendingFinalizations());
             if (runtimeStop != null && runtimeStop.state() == VerificationState.ERROR) {
                 pending.put("verifierDetail", safeMessage(runtimeStop.summary()));
             }
@@ -102,27 +111,45 @@ final class TaskCancellationCoordinator {
     private TaskRow finalizeCancellation(String taskId) {
         TaskRow current = task(taskId);
         if (!TaskState.STOPPING.name().equals(current.state())) return current;
-        for (AttemptRow attempt : mapper.listAttempts(taskId)) {
-            if (AttemptState.RUNNING.name().equals(attempt.state())) {
-                states.updateAttempt(states.finishAttempt(attempt, AttemptState.CANCELLED, "CANCELLED", "Task cancelled"));
-            }
+        try {
+            transactions.executeWithoutResult(ignored -> {
+                TaskRow locked = task(taskId);
+                if (!TaskState.STOPPING.name().equals(locked.state())) return;
+                designerTermination.finalizeTaskDesignerInTransaction(taskId);
+                for (AttemptRow attempt : mapper.listAttempts(taskId)) {
+                    if (AttemptState.RUNNING.name().equals(attempt.state())) {
+                        states.updateAttempt(states.finishAttempt(attempt, AttemptState.CANCELLED,
+                                "CANCELLED", "Task cancelled"));
+                    }
+                }
+                for (StageRow stage : mapper.listStages(taskId)) {
+                    if (List.of(StageState.PENDING.name(), StageState.RUNNING.name(), StageState.PAUSED.name())
+                            .contains(stage.state())) {
+                        states.updateStage(states.stageState(stage, StageState.CANCELLED), LifecycleEvent.CANCEL);
+                    }
+                }
+                if (executionCycles.active(taskId) != null) {
+                    executionCycles.finish(taskId, ExecutionCycleState.INTERRUPTED, "TASK_CANCELLED",
+                            "Task was cancelled by the user");
+                }
+                rollingPackages.cancelRunsInTransaction(taskId);
+                states.updateTask(states.taskState(task(taskId), TaskState.CANCELLED), LifecycleEvent.COMPLETE,
+                        Map.of("remoteTerminationConfirmed", true));
+            });
+        } catch (ConflictException conflict) {
+            events.emit(taskId, "task.cancellation_waiting", Map.of("state", TaskState.STOPPING.name(),
+                    "designerTerminationConfirmed", true, "designerPendingFinalizations", 1,
+                    "reason", conflict.code()));
+            return task(taskId);
         }
-        for (StageRow stage : mapper.listStages(taskId)) {
-            if (List.of(StageState.PENDING.name(), StageState.RUNNING.name(), StageState.PAUSED.name()).contains(stage.state())) {
-                states.updateStage(states.stageState(stage, StageState.CANCELLED), LifecycleEvent.CANCEL);
-            }
-        }
-        if (executionCycles.active(taskId) != null) {
-            executionCycles.finish(taskId, ExecutionCycleState.INTERRUPTED, "TASK_CANCELLED", "Task was cancelled by the user");
-        }
-        states.updateTask(states.taskState(task(taskId), TaskState.CANCELLED), LifecycleEvent.COMPLETE,
-                Map.of("remoteTerminationConfirmed", true));
         events.emit(taskId, "task.cancelled", Map.of("state", TaskState.CANCELLED.name()));
         return task(taskId);
     }
 
     private boolean hasExternalWriter(TaskRow current) {
         return !mapper.activeSessions(current.id()).isEmpty() || !mapper.activeJudgeRuns(current.id()).isEmpty()
+                || mapper.findDesignerSessionByTask(current.id())
+                .map(session -> !mapper.listDesignerRemoteSessionIds(session.id()).isEmpty()).orElse(false)
                 || mapper.listVerifierRuntimes(current.id()).stream()
                 .anyMatch(runtime -> List.of("STARTING", "RUNNING", "STOPPING", "DISCONNECTED").contains(runtime.state()));
     }
