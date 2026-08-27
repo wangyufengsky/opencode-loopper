@@ -28,6 +28,7 @@ canonicalize 后不属于登记项目根的路径。它不是本设计可自动�
 ```text
 obligationId
 pathRule
+pathKind = EXACT_PATH | PATH_RULE
 operation = WRITE | DELETE_REQUEST | MOVE_SOURCE | MOVE_DESTINATION
 sourceKind = REQUIREMENT | DESIGN_DELIVERABLE | DESIGN_SCOPE
 sourceRef
@@ -85,17 +86,17 @@ every Stage GIT_DIFF uses the same normalized path contract as the Stage and foc
 - 受控设计“影响与交付”中的正向 `DELIVERABLE / SCOPE` 路径；
 - 已冻结工作包的精确 `scopeIn` 和 `deliverables` 路径。
 
-否定句、保持不变、示例路径、项目根外路径和纯符号不生成自动写入义务。无法唯一识别正负作用域时形成定点缺口，不通过宽泛 glob 猜测。
+否定句、保持不变、示例路径、项目根外路径和纯符号不生成自动写入义务。正向宽泛 glob 保留为
+`PATH_RULE` 义务以防静默丢失，但不能证明精确 Stage 归属；无法唯一识别正负作用域时形成定点缺口，
+不通过宽泛 glob 猜测或扩大权限。
 
-### 4.3 绑定输出
+### 4.3 服务端守恒输出
 
-v7 binding 在现有事实分配和能力偏好之外增加：
-
-```text
-mutationAssignments: [{ obligationIndex, stageIndex }]
-```
-
-它只能填写服务端列出的未决义务和候选 Stage。Stage 标题、目标、顺序、依赖、路径文本、命令和测试目标仍由服务端锁定。
+v7 不扩展弱模型 binding schema，继续使用 `PACKAGE_ACCEPTANCE_DISAMBIGUATION_V6` 的
+`summary / factAssignments / capabilityPreferences / handoffSummary` 闭集。Mutation Obligation 不进入模型输入或
+输出；服务端在 Stage 组装后，根据各 Stage 自己引用的受控正向 `DELIVERABLE / SCOPE` 路径来源证明归属并执行守恒门禁。
+义务记录中的候选/分配索引只作历史兼容的空字段读取，不由模型或启发式回填。Stage 标题、目标、顺序、依赖、
+路径文本、命令和测试目标仍由服务端锁定。
 
 `diagnostics_json` 保存有界的人类可读结果：
 
@@ -103,8 +104,8 @@ mutationAssignments: [{ obligationIndex, stageIndex }]
 - `resolvedMutationObligationCount`；
 - `unresolvedMutationObligationCount`；
 - `pathConservation`；
-- `compilerAvoidedReason` 或 `compilerRequiredReason`；
-- 被采用的安全规范化代码。
+- `fastPathDecision / routingReasons`；
+- 未决事实、歧义能力索引和 Solver 的安全规范化代码。
 
 API/UI 不展示内部索引、原始 JSON 或项目根外绝对路径。
 
@@ -116,24 +117,23 @@ API/UI 不展示内部索引、原始 JSON 或项目根外绝对路径。
 
 完成条件：DesignFact、能力和 Mutation Obligation 使用同一设计修订与来源哈希持久化。
 
-### 5.2 唯一自动绑定
+### 5.2 服务端路径归属证明
 
-按以下优先级产生候选 Stage：
+Stage 先按既有事实分配组装。每条 Mutation Obligation 只在以下条件同时成立时算作已守恒：
 
-1. Stage 原样引用了产生义务的 `DELIVERABLE / SCOPE` 事实；
-2. Stage 现有路径规则按运行期路径语义唯一覆盖该义务；
-3. 只有一个 Stage；
-4. 否则保持未决。
+1. 至少一个 Stage 自己引用了受控正向 `DELIVERABLE / SCOPE` 事实；
+2. 该事实产生的路径规则按运行期语义覆盖义务；
+3. Stage、focused test 和显式 `GIT_DIFF` 使用同一 allowed/forbidden 集合；
+4. 义务不与任一禁止规则相交。
 
-只有候选集合恰好为一个时自动绑定。不得按“最后一个 Stage”、标题相似度、目录词相似度或技术栈宽泛默认值分配。
+包级 `scopeIn`、全局事实、技术栈 fallback 和“只有一个 Stage”都不能证明路径归属。不得按最后一个 Stage、
+标题相似度、目录词相似度或宽泛默认值分配。
 
 ### 5.3 局部闭集消歧
 
-存在多个候选时，只向一次 v7 Compiler 提供：
+只有闭集事实或能力候选仍无法唯一绑定时，才向一次沿用 V6 schema 的 Compiler 提供：
 
-- 义务的有界来源摘录；
-- 候选 Stage 的标题和目标；
-- 闭集 `obligationIndex -> stageIndex`；
+- 未决事实及其候选 Stage；
 - 真正同分的能力候选。
 
 Parser 可以接受唯一可逆的字段别名、单项集合和无害额外说明字段，但前提是所有必需选择完整、索引均在闭集内、没有重复或冲突。任何命令、路径、拓扑或安全字段仍不能由模型写入。被忽略字段必须记录 `AI_OUTPUT_NORMALIZED`；闭集缺口继续返回 `AMBIGUOUS_ACCEPTANCE_INTENT`。

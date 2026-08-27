@@ -14,9 +14,10 @@ import org.springframework.stereotype.Component;
 /** Versioned prompt capabilities; permissions and workflow remain server-owned. */
 @Component
 public final class RolePackRegistry {
-    public static final String VERSION = "2026-08-dynamic-v6";
+    public static final String VERSION = "2026-08-dynamic-v7";
+    static final String ACCEPTANCE_V6_VERSION = "2026-08-dynamic-v6";
     private static final Set<String> DETERMINISTIC_ACCEPTANCE_VERSIONS = Set.of(
-            "2026-08-dynamic-v4", "2026-08-dynamic-v5", VERSION);
+            "2026-08-dynamic-v4", "2026-08-dynamic-v5", ACCEPTANCE_V6_VERSION, VERSION);
 
     public RolePack resolve(TaskIntent intent, List<String> technologies, List<ArtifactKind> artifacts) {
         if (intent == TaskIntent.SOFTWARE_CHANGE || intent == TaskIntent.LEGACY_SOFTWARE) {
@@ -66,6 +67,10 @@ public final class RolePackRegistry {
 
     static boolean supportsDeterministicAcceptance(String version) {
         return DETERMINISTIC_ACCEPTANCE_VERSIONS.contains(version);
+    }
+
+    static boolean supportsClosedAcceptance(String version) {
+        return ACCEPTANCE_V6_VERSION.equals(version) || VERSION.equals(version);
     }
 
     private static SoftwareFamily softwareFamily(String technology) {

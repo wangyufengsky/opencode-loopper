@@ -100,12 +100,21 @@ ownership rules:
   owns fact grouping, closed capability selection and Stage assembly;
   `DesignerAcceptancePathPolicy` alone decides whether Designer-owned text is a standalone repository-relative
   path rule. Natural-language scope descriptions must not leak into executable `GIT_DIFF` policies.
-- `DesignerAcceptanceFastPathResolver` alone owns v6 exact-reference normalization, Stage topology
+- `DesignerAcceptanceFastPathResolver` alone owns v6/v7 exact-reference normalization, Stage topology
   validation, direct/AI/incomplete routing, and the merge of closed-set Compiler assignments. It must
   never perform fuzzy or substring matching. `DesignerAcceptanceWorkflow` owns persistence and solver
   coordination; `DesignerCompilerPromptContracts` owns both legacy and v6 Compiler prompt construction.
   `DesignerSessionService` may select the route and coordinate lifecycle only. Adding this path must
   lower or preserve its legacy line-count ratchet; prompt text and parsing rules do not move back into it.
+- `DesignerMutationObligationExtractor` alone freezes source-backed positive repository mutation obligations;
+  the shared polarity classifier must classify path-bearing facts as positive, negative/example, or ambiguous,
+  `DesignerRequirementMutationActionPolicy` binds actions to each referenced path without treating nearby business nouns
+  as delete/move commands, while `DesignerRepositoryPathSyntax` owns common root-file, explicit-directory, and
+  exact-path/path-rule typing. Clause/list scope, external-path rejection, source excerpts, and hashes must remain deterministic.
+  `DesignerAcceptanceStagePathPlanner` owns executable Stage path selection and path provenance; package scope,
+  global fact and technology fallbacks may shape execution but cannot prove a Stage owns a frozen obligation.
+  `MutationConservationPolicy` runs before lowering and may only use bounded rule-containment/overlap relations
+  shared with `VerifierPathPolicy`; unproved containment, forbidden overlap, delete, or move-source must fail closed.
 - `LoopSpecAcceptanceService` owns the final cross-source acceptance contract. A focused Maven/Gradle
   test with no criterion mapping is a valid blocking gate only for a `JAVA_PRODUCTION` Stage whose
   criteria are all Judge-only; machine or mixed criteria still require explicit focused-test coverage.

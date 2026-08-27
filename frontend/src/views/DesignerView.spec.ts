@@ -1045,7 +1045,8 @@ describe('Designer draft composer', () => {
           scenarios: [
             { title: 'pinBlock 路径缺失', coverage: 'AUTOMATED', capabilities: ['MAVEN · PinTransTest'] },
             { title: '特殊渠道类型', coverage: 'UNRESOLVED', capabilities: [] },
-          ], issues: ['VERIFICATION_CAPABILITY_UNAVAILABLE:[6]'] } }],
+          ], issues: ['VERIFICATION_CAPABILITY_UNAVAILABLE:[6]', 'MUTATION_PATH_SCOPE_CONFLICT',
+            'AMBIGUOUS_MUTATION_PATH_SCOPE'] } }],
     }
     vi.spyOn(api, 'createDraft').mockImplementation(async (spec) => draftFrom(spec))
     vi.spyOn(api, 'createDesignerSession').mockResolvedValue(acceptanceSession)
@@ -1065,7 +1066,11 @@ describe('Designer draft composer', () => {
     expect(card.text()).toContain('pinBlock 路径缺失')
     expect(card.text()).toContain('MAVEN · PinTransTest')
     expect(card.text()).toContain('部分验收场景缺少可执行的验证能力')
+    expect(card.text()).toContain('必改路径与禁止修改范围冲突')
+    expect(card.text()).toContain('同一路径的修改与保持不变要求冲突')
     expect(card.text()).not.toContain('VERIFICATION_CAPABILITY_UNAVAILABLE')
+    expect(card.text()).not.toContain('MUTATION_PATH_SCOPE_CONFLICT')
+    expect(card.text()).not.toContain('AMBIGUOUS_MUTATION_PATH_SCOPE')
     expect(card.text()).not.toContain('[6]')
   })
 

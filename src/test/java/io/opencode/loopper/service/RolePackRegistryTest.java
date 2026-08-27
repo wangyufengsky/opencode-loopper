@@ -16,8 +16,10 @@ class RolePackRegistryTest {
                 List.of(ArtifactKind.SOURCE_CODE));
 
         assertThat(pack.id()).isEqualTo("software-java");
-        assertThat(pack.version()).isEqualTo("2026-08-dynamic-v6");
+        assertThat(pack.version()).isEqualTo("2026-08-dynamic-v7");
         assertThat(RolePackRegistry.supportsDeterministicAcceptance("2026-08-dynamic-v4")).isTrue();
+        assertThat(RolePackRegistry.supportsDeterministicAcceptance("2026-08-dynamic-v6")).isTrue();
+        assertThat(RolePackRegistry.supportsClosedAcceptance("2026-08-dynamic-v6")).isTrue();
         assertThat(RolePackRegistry.supportsDeterministicAcceptance(pack.version())).isTrue();
     }
 
@@ -33,6 +35,18 @@ class RolePackRegistryTest {
                 .isFalse();
         assertThat(WorkPackageRoleService.hasNodeSignal("Node.js + Vue 前端测试"))
                 .isTrue();
+    }
+
+    @Test void frozenV6WorkPackagesKeepTheV6AcceptanceContractAfterV7Ships() {
+        WorkPackageRoleService.View historical = new WorkPackageRoleService.View(
+                "software-java", "2026-08-dynamic-v6", null, null, List.of("java"));
+        WorkPackageRoleService.View current = new WorkPackageRoleService.View(
+                "software-java", RolePackRegistry.VERSION, null, null, List.of("java"));
+
+        assertThat(DesignerAcceptanceWorkflow.contractVersion(historical))
+                .isEqualTo(DesignerAcceptancePlanning.CONTRACT_VERSION_V6);
+        assertThat(DesignerAcceptanceWorkflow.contractVersion(current))
+                .isEqualTo(DesignerAcceptancePlanning.CONTRACT_VERSION_V7);
     }
 
     @Test void onlyRealCrossFamilyWorkIsMixedAndUnknownStacksStayGeneric() {

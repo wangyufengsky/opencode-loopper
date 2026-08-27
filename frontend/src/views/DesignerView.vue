@@ -163,6 +163,11 @@ function acceptanceIssueLabel(value: string) {
   if (value === 'REQUIRED_FOCUSED_TEST_UNAVAILABLE') return '尚未识别到必需的聚焦测试目标'
   if (value === 'MISSING_ACCEPTANCE_INTENT') return '设计稿缺少可观察的验收场景'
   if (value === 'AMBIGUOUS_ACCEPTANCE_INTENT') return '部分验收意图仍有歧义，需要补充设计'
+  if (value === 'AMBIGUOUS_MUTATION_PATH_SCOPE') return '同一路径的修改与保持不变要求冲突'
+  if (value === 'MUTATION_PATH_SCOPE_CONFLICT') return '必改路径与禁止修改范围冲突'
+  if (value === 'REQUIRED_MUTATION_PATH_UNASSIGNED') return '必改路径尚未进入任何执行阶段'
+  if (value === 'REQUIRED_MUTATION_PATH_FORBIDDEN') return '必改路径被安全边界禁止'
+  if (value === 'PROJECT_ROOT_EXTERNAL_PATH') return '需求包含当前项目之外的写入路径'
   if (value.startsWith('ACCEPTANCE_BINDING_')) return '验收意图分组未通过确定性校验'
   if (value.startsWith('DESIGN_ACCEPTANCE_')) return '验收意图快照未通过确定性校验'
   return userFacingError(value)

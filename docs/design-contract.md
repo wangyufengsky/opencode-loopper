@@ -295,8 +295,8 @@ downgrade it to local maintenance or clear its software family. A previously fro
 row with a non-software Role Pack is an inconsistent snapshot and is repaired on the next
 authoritative package-role use, including manual recompilation. Package-local document or
 configuration specialization is reserved for explicit `FULL_PACKAGE_DESIGN` packages.
-Role Pack version `2026-08-dynamic-v6` first normalizes aliases into Java, Python, Node,
-and Other families. JavaScript/TypeScript cannot trigger Java, multiple labels from the
+Current Role Pack version `2026-08-dynamic-v7` inherits the v6 normalization of aliases into
+Java, Python, Node, and Other families. JavaScript/TypeScript cannot trigger Java, multiple labels from the
 same family remain one stack, real cross-family work selects the mixed pack, and an explicit
 unknown single stack selects the generic software pack. Package-local matching uses token
 boundaries, so a Java domain type containing `Node` does not create a Node family. Each Compiler-capable pack receives
@@ -487,7 +487,22 @@ fresh design instead of merging duplicate tables. Negative framework constraints
 `无 @SpringBootTest` cannot become executable test capabilities.
 
 Before acceptance binding, the server persists immutable DesignFact and capability
-snapshots. Exact matching applies Unicode NFKC, edge trimming, whitespace collapse, and Latin
+snapshots. Current `DESIGN_ACCEPTANCE_V7` snapshots also freeze typed mutation obligations from
+positively scoped repository-relative paths in the requirement, controlled deliverable/scope facts,
+and explicit frozen package path rules. Each obligation is typed as an exact path or path rule and retains
+its source reference, bounded excerpt, and SHA-256. Negative/invariant/example text, symbols, and
+project-external paths produce no write obligation. Broad globs from requirements, controlled design, or
+frozen package fields remain auditable path-rule obligations, but cannot create write permission or prove
+precise Stage ownership and therefore remain a targeted gap in this ticket. Delete requests and move sources remain
+explicit blocking operations. Historical v5/v6 JSON without this catalog reads as an empty catalog and
+is never reinterpreted from newer requirement text; a frozen `dynamic-v6` package that compiles after an
+upgrade still creates a V6 acceptance snapshot rather than being rewritten as V7.
+Explicit directory references are subtree `PATH_RULE` obligations and require a recursive runtime-compatible allow
+rule; API routes and controlled business symbols remain symbols rather than repository paths. Mutation verbs bind by
+path position, while mixed write/delete/move ownership in one clause fails closed instead of assigning one verb to
+every path. These classifications are v7-only and do not reinterpret frozen v5/v6 Stage path selection.
+
+Exact matching applies Unicode NFKC, edge trimming, whitespace collapse, and Latin
 case-folding only; punctuation is retained and substring/fuzzy matching is forbidden. The UI renders
 an **验收意图识别** card with fact/scenario totals and
 machine, machine+human, human-only, and unresolved counts. Expanded rows show only
@@ -529,6 +544,18 @@ fields and can materialize the equivalent verifier blueprint before validation.
 Loopper never invents a test from prose, a broad full-suite command, or an ambiguous
 set of focused tests. Ambiguous or absent source matches and semantically incomplete
 test evidence still fail the authoritative validation.
+
+For v7 plans, `MutationConservationPolicy` runs after Stage assembly and before package lowering.
+Every frozen `WRITE` or move destination must have a Stage owner justified by that Stage's referenced
+controlled material facts and whose `allowedPaths`
+covers it with the runtime `VerifierPathPolicy` semantics, and no effective forbidden rule may cover
+the same path. A technology-only fallback such as `src/main/java/**` cannot prove an explicit
+obligation; package scope and global-fact fallbacks have the same limitation. The owning Stage,
+focused-test evidence, and explicit `GIT_DIFF` must reuse the same
+normalized allowed/forbidden sets. Missing ownership returns
+`REQUIRED_MUTATION_PATH_UNASSIGNED`; forbidden, delete, and move-source obligations return
+`REQUIRED_MUTATION_PATH_FORBIDDEN`. These gaps stay `DESIGN_INCOMPLETE` and cannot be converted to
+Judge-only acceptance or a catch-all Stage.
 
 Stage grouping preserves the non-acceptance facts referenced by each group. Those
 positive deliverable/scope facts produce that Stage's path and deliverable boundary;

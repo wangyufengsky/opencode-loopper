@@ -56,8 +56,8 @@ and SIMPLE/PACKAGED while the server combines them with the latest immutable V42
 created by deterministic bounded filesystem analysis, not by Router output or `AGENTS.md`.
 Relative paths, module names, and requirement text may select only repository-backed component
 keys. Ambiguous multi-stack and missing/partial evidence require user confirmation; an empty
-project cannot become Java from an AI guess. The `2026-08-dynamic-v6` selector
-normalizes technology aliases into Java, Python, Node, or Other families before choosing
+project cannot become Java from an AI guess. The current `2026-08-dynamic-v7` selector inherits
+the v6 normalization of technology aliases into Java, Python, Node, or Other families before choosing
 a frozen Role Pack: JavaScript is never a Java signal, same-family aliases do not create a
 mixed pack, and an explicit unknown single stack uses the generic software pack. The result
 chooses Java, Python, Node, mixed, generic, document, tabular, report, or maintenance prompts; it cannot

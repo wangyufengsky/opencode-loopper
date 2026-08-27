@@ -18,6 +18,21 @@ public final class VerifierPathPolicy {
 
     private VerifierPathPolicy() {}
 
+    /** Uses the same bounded matcher as runtime GIT_DIFF verification for one path/rule pair. */
+    public static boolean matchesChangedPath(String path, String rule) {
+        return matches(path, rule, new SlashGlobMatcher.WorkBudget(PATH_POLICY_WORK_BUDGET));
+    }
+
+    /** Applies the runtime slash and leading-dot normalization used for path-policy comparison. */
+    public static String normalizePathRule(String rule) {
+        return normalized(rule);
+    }
+
+    /** Creates one bounded relation evaluator for a complete compile-time path-conservation pass. */
+    public static RuleRelations boundedRuleRelations() {
+        return new RuleRelations(new SlashGlobMatcher.WorkBudget(PATH_POLICY_WORK_BUDGET));
+    }
+
     public static List<String> validationErrors(String pathPrefix, List<String> allowedPaths,
                                                 List<String> forbiddenPaths) {
         List<String> allowed = allowedPaths == null ? List.of() : allowedPaths;
@@ -142,6 +157,17 @@ public final class VerifierPathPolicy {
         return false;
     }
 
+    private static String literalRoot(String rule) {
+        int wildcard = rule.length();
+        for (char marker : new char[]{'*', '?', '[', '{'}) {
+            int index = rule.indexOf(marker);
+            if (index >= 0) wildcard = Math.min(wildcard, index);
+        }
+        String prefix = rule.substring(0, wildcard);
+        int slash = prefix.lastIndexOf('/');
+        return stripTrailingSlashes(slash < 0 ? "" : prefix.substring(0, slash));
+    }
+
     private static boolean rootedWithin(String allowed, String root, boolean includesRoot) {
         if (root.isEmpty()) return false;
         if (includesRoot && allowed.equals(root)) return true;
@@ -162,6 +188,127 @@ public final class VerifierPathPolicy {
     private static boolean containsGlob(String value) {
         return value.indexOf('*') >= 0 || value.indexOf('?') >= 0
                 || value.indexOf('[') >= 0 || value.indexOf('{') >= 0;
+    }
+
+    /**
+     * Proves rule containment and conservative overlap with one shared work budget.
+     * Unsupported glob relationships are never accepted as containment and are treated as overlapping.
+     */
+    public static final class RuleRelations {
+        private final SlashGlobMatcher.WorkBudget budget;
+
+        private RuleRelations(SlashGlobMatcher.WorkBudget budget) {
+            this.budget = budget;
+        }
+
+        public boolean allowedRuleCovers(String requiredRule, String allowedRule) {
+            validateRule(requiredRule, budget);
+            validateRule(allowedRule, budget);
+            String required = normalized(requiredRule);
+            String allowed = normalized(allowedRule);
+            return definitelyCovers(allowed, required);
+        }
+
+        /** Proves that the runtime allow rule accepts one explicitly typed exact repository path. */
+        public boolean allowedRuleCoversExactPath(String requiredPath, String allowedRule) {
+            validateRule(requiredPath, budget);
+            validateRule(allowedRule, budget);
+            String required = normalized(requiredPath);
+            if (containsGlob(required)) return false;
+            return matches(required, allowedRule, budget);
+        }
+
+        /** Tests one explicitly typed exact repository path against a runtime path rule. */
+        public boolean ruleMatchesExactPath(String exactPath, String rule) {
+            validateRule(exactPath, budget);
+            validateRule(rule, budget);
+            String required = normalized(exactPath);
+            if (containsGlob(required)) return true;
+            return matches(required, rule, budget);
+        }
+
+        public boolean rulesMayOverlap(String leftRule, String rightRule) {
+            validateRule(leftRule, budget);
+            validateRule(rightRule, budget);
+            String left = normalized(leftRule);
+            String right = normalized(rightRule);
+            if (definitelyCovers(left, right) || definitelyCovers(right, left)) return true;
+            boolean leftGlob = containsGlob(left);
+            boolean rightGlob = containsGlob(right);
+            if (!leftGlob && !rightGlob) {
+                return matches(left, right, budget) || matches(right, left, budget);
+            }
+            if (!leftGlob) return subtreeMayOverlapGlob(left, right, budget);
+            if (!rightGlob) return subtreeMayOverlapGlob(right, left, budget);
+            if (provenGlobDisjoint(left, right, budget)) return false;
+            String leftRoot = literalRoot(left);
+            String rightRoot = literalRoot(right);
+            if (leftRoot.isEmpty() || rightRoot.isEmpty()) return true;
+            return rootedWithin(leftRoot, rightRoot, true) || rootedWithin(rightRoot, leftRoot, true);
+        }
+
+        private static boolean subtreeMayOverlapGlob(String subtree, String glob,
+                                                     SlashGlobMatcher.WorkBudget budget) {
+            if (matches(subtree, glob, budget)) return true;
+            String globRoot = literalRoot(glob);
+            if (globRoot.isEmpty()) {
+                if (glob.contains("**") || glob.indexOf('{') >= 0) return true;
+                return segmentCount(glob) > segmentCount(subtree);
+            }
+            if (rootedWithin(globRoot, subtree, true)) return true;
+            if (!rootedWithin(subtree, globRoot, true)) return false;
+            if (glob.contains("**") || glob.indexOf('{') >= 0) return true;
+            return segmentCount(glob) > segmentCount(subtree);
+        }
+
+        private static int segmentCount(String value) {
+            if (value.isEmpty()) return 0;
+            int count = 1;
+            for (int index = 0; index < value.length(); index++) {
+                if (value.charAt(index) == '/') count++;
+            }
+            return count;
+        }
+
+        private static boolean provenGlobDisjoint(String left, String right,
+                                                   SlashGlobMatcher.WorkBudget budget) {
+            boolean leftSimple = simpleStarGlob(left);
+            boolean rightSimple = simpleStarGlob(right);
+            if (leftSimple && rightSimple) {
+                String[] leftSegments = left.split("/", -1);
+                String[] rightSegments = right.split("/", -1);
+                if (leftSegments.length != rightSegments.length) return true;
+                for (int index = 0; index < leftSegments.length; index++) {
+                    if (simpleSegmentsDisjoint(leftSegments[index], rightSegments[index])) return true;
+                }
+            }
+            if (leftSimple && simpleGlobCannotReachRoot(left, right, budget)) return true;
+            return rightSimple && simpleGlobCannotReachRoot(right, left, budget);
+        }
+
+        private static boolean simpleGlobCannotReachRoot(String simpleGlob, String other,
+                                                          SlashGlobMatcher.WorkBudget budget) {
+            String otherRoot = literalRoot(other);
+            if (otherRoot.isEmpty()) return false;
+            int fixedDepth = segmentCount(simpleGlob);
+            int rootDepth = segmentCount(otherRoot);
+            if (fixedDepth < rootDepth) return true;
+            return fixedDepth == rootDepth && !matches(otherRoot, simpleGlob, budget);
+        }
+
+        private static boolean simpleStarGlob(String value) {
+            return value.indexOf('*') >= 0 && !value.contains("**")
+                    && value.indexOf('?') < 0 && value.indexOf('[') < 0 && value.indexOf('{') < 0;
+        }
+
+        private static boolean simpleSegmentsDisjoint(String left, String right) {
+            String leftPrefix = left.substring(0, Math.max(0, left.indexOf('*')));
+            String rightPrefix = right.substring(0, Math.max(0, right.indexOf('*')));
+            if (!leftPrefix.startsWith(rightPrefix) && !rightPrefix.startsWith(leftPrefix)) return true;
+            String leftSuffix = left.substring(left.lastIndexOf('*') + 1);
+            String rightSuffix = right.substring(right.lastIndexOf('*') + 1);
+            return !leftSuffix.endsWith(rightSuffix) && !rightSuffix.endsWith(leftSuffix);
+        }
     }
 
     static final class InvalidRule extends IllegalArgumentException {

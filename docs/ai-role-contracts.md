@@ -23,7 +23,7 @@ Decomposer 新会话只需一次机器规划调用；Compiler 只在服务端无
 需求首先形成任务画像。Router 只提供软件、文档、数据转换、只读评审、调研、配置或
 本地维护等语义标签；服务端把标签与有界仓库事实合并，决定置信度、流程、权限、测试
 策略和最终执行方式。格式不可用或结果冲突时退回通用画像并提问，不能让首次路由失败
-终止 Designer。内置 Role Pack 以 `2026-08-dynamic-v6` 版本冻结。服务端先把同义技术标签
+终止 Designer。当前内置 Role Pack 以 `2026-08-dynamic-v7` 版本冻结，并继承 v6 的技术族归并。服务端先把同义技术标签
 归并为 Java、Python、Node 和 Other 软件族，再选择 Role Pack：`java`、`java 8` 与
 `spring boot` 仍是同一 Java 族，`javascript/typescript` 只属于 Node，只有跨族组合才是
 `software-mixed`；显式但未知的单栈使用 `software-generic`，不再回退到 Java/Maven。
@@ -137,9 +137,17 @@ POLICY / DEPENDENCY` DesignFact。每项事实保存精确 Designer 原文、稳
 设计没有固定字节上限，仍限制为 64 个场景和 128 个总事实。随后服务端根据冻结 Role Pack、技术栈、测试策略、
 明确测试类/目标、范围与外部依赖限制生成闭集验证能力。AI 不再生成命令、路径、测试目标或验证器。
 
+当前 Role Pack 的新软件包同时冻结 `DESIGN_ACCEPTANCE_V7` Mutation Obligation。服务端只从冻结需求
+的正向新增/修改/实现/写入路径、受控 `DELIVERABLE / SCOPE` 正向路径以及冻结工作包中的显式路径规则生成
+`WRITE / DELETE_REQUEST / MOVE_SOURCE / MOVE_DESTINATION`；每项区分精确路径与路径规则，并保存来源引用、有界原文和 SHA-256。
+否定、不变、示例、纯符号和项目根外路径不生成义务。需求、受控设计或冻结包级的宽泛 glob 会保留为
+可审计路径规则义务，但不会变成写权限或精确 Stage 归属证明，因而在本轮形成定点缺口。冻结 v5/v6 JSON 缺少该列表时按空列表恢复，不重新
+读取新需求推断；冻结 `dynamic-v6` 工作包升级后首次编译仍使用 V6 合同。
+
 服务端先用 `DesignerAcceptanceFastPathResolver` 解析 v6 阶段表。符号只做 Unicode NFKC、首尾裁剪、
 连续空白折叠和拉丁字符大小写归一；标点保留，禁止子串或模糊自动匹配。`SCENARIO / REVIEW`
-必须恰好属于一个阶段，`DELIVERABLE` 可重复引用，`SCOPE / POLICY` 保持包级；阶段名唯一、数量为
+必须恰好属于一个阶段，`DELIVERABLE` 可重复引用；V6 的 `SCOPE / POLICY` 保持包级，V7 只有正向
+受控 `SCOPE` 可被阶段精确引用作路径 provenance，`POLICY` 仍保持包级；阶段名唯一、数量为
 1–6，依赖只能指向更早阶段。完整的普通 `DIRECT_SOFTWARE_DESIGN / WP-1` 直接使用冻结拓扑，
 不创建 Compiler Session，也不增加模型调用。
 
@@ -152,6 +160,13 @@ capabilityPreferences / handoffSummary`，只填写服务端列出的 unresolved
 确定性降级为贪心选择并复核。每个分组以零未覆盖为硬条件，再优先减少 Judge-only、提高确定性证据
 强度和减少能力数量，AI 偏好只作为稳定排序参考。结果仍须经过现有
 `DesignerPackagePlanCompiler` 和 LoopSpec v2 全量校验。
+
+Stage 组装完成后、lowering 前必须执行路径守恒：每个 `WRITE/MOVE_DESTINATION` 都要由该 Stage 自己引用
+的受控交付/范围事实形成的路径合同覆盖，且不能同时命中禁止路径；包级范围、全局事实和技术栈 fallback
+不能证明归属。Stage、focused test 和显式 `GIT_DIFF` 必须复用同一
+allowed/forbidden 集合。遗漏返回 `REQUIRED_MUTATION_PATH_UNASSIGNED`，冲突、删除和移动源端返回
+`REQUIRED_MUTATION_PATH_FORBIDDEN`。该门禁完全由服务端和运行期同一匹配语义决定，不交给弱模型、
+Judge 或 catch-all Stage 降级；现有 `PACKAGE_ACCEPTANCE_DISAMBIGUATION_V6` 输出形状保持不变。
 
 测试能力只从“新增/修改/测试代码”等正向交付物、正向验收约束和阶段交付关系中发现；“不变、禁止、
 不修改、不引入、无 `@SpringBootTest`/无框架上下文”等负向子句只保留为约束，不能生成 focused-test

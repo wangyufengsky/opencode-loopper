@@ -182,8 +182,8 @@ without an OpenCode Session. Large documents require 2–6 level-two sections; t
 structured blocks are kept in source order and deterministically aggregated into one
 frozen plan. Every decomposed software package freezes its own detected technology list,
 Role Pack version, execution strategy and test policy before its Designer/Compiler prompt.
-Role Pack `2026-08-dynamic-v6` groups normalized technology aliases into Java, Python,
-Node and Other software families. Node matching precedes Java so JavaScript is not Java;
+Current Role Pack `2026-08-dynamic-v7` inherits the v6 grouping of normalized technology aliases into
+Java, Python, Node and Other software families. Node matching precedes Java so JavaScript is not Java;
 same-family aliases do not create a mixed pack, real cross-family work does, and explicit
 unknown single stacks use `software-generic` instead of inheriting Java/Maven. Document,
 tabular and report profiles keep their server-owned or Reviewer execution paths and never
@@ -194,9 +194,9 @@ Package-local technology discovery uses token boundaries, so domain symbols such
 Acceptance compilation consumes only positive deliverable-to-test relationships, uses target-symbol
 and title-weighted semantic competition with one unique winner to bind each scenario once, preserves
 independent required test targets exactly once as source-backed criteria, and derives the final outcome
-on the server. New v6 designs carry an exact stage table; ordinary `DIRECT_SOFTWARE_DESIGN / WP-1`
-uses that frozen topology directly when every fact and capability has one legal binding. Frozen v5 packages may resume
-through their compatible historical path; newly frozen packages use v6.
+on the server. New v7 designs carry the exact stage table introduced by v6; ordinary `DIRECT_SOFTWARE_DESIGN / WP-1`
+uses that frozen topology directly when every fact and capability has one legal binding. Frozen v5/v6 packages may resume
+through their compatible historical path; newly frozen packages use v7.
 Rows created before that freeze is complete are not valid Role Pack snapshots: read-only
 Designer projection omits the incomplete snapshot, and the next package-role use repairs it
 from the current or legacy task profile instead of parsing nullable enum columns.
@@ -581,6 +581,25 @@ Large software packages still take that single disambiguation turn so they can p
 summary, but their Stage names, order, objectives, and dependencies remain server-locked.
 Historical rows upgraded from V41 use `LEGACY_UNKNOWN`; `serverCompiled` remains compatibility data and
 never decides the source label or whether a remote Session should be polled.
+
+New current-role software compilations extend the same immutable V41 JSON row with
+`DESIGN_ACCEPTANCE_V7` mutation obligations; no new mutable column or V46 migration is involved.
+The freeze boundary receives the exact persisted requirement revision, controlled design, and frozen
+package scope/deliverables once, then stores each positive repository-relative write/delete/move
+obligation as an exact path or path rule with source evidence and hash. Broad globs from requirements,
+controlled design, and frozen package fields remain obligations but cannot become precise Stage proof. v5/v6 rows deserialize missing
+obligation fields as empty and resume under their original semantics; frozen `dynamic-v6` packages create
+V6 snapshots even when their first compilation happens after the upgrade. Before lowering, a server-owned conservation gate proves
+that every write or move destination has a Stage owner justified by that Stage's referenced controlled
+material facts, is not forbidden, and
+uses the same path contract in the Stage, focused test, and `GIT_DIFF`. Unassigned paths return
+`REQUIRED_MUTATION_PATH_UNASSIGNED`; forbidden paths, deletion, and move sources return
+`REQUIRED_MUTATION_PATH_FORBIDDEN`. Diagnostics expose only bounded counts and
+`NOT_EVALUATED/CONSERVED/BLOCKED`, while runtime `VerifierEngine` remains unchanged and authoritative.
+Package scope, global-fact, and technology fallbacks cannot prove ownership. V7 may use only a Stage's explicit,
+positive controlled `DELIVERABLE/SCOPE` reference as provenance; V5/V6 keep their pre-v7 material-path selection.
+Positive project-external
+paths are rejected before a Compilation row is created and are never classified as model transport failures.
 
 V42 adds immutable `project_stack_profile` snapshots and their
 `project_stack_component` rows. Registration of a new or re-managed project schedules one

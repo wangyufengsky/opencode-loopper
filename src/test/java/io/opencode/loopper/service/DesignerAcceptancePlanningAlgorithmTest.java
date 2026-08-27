@@ -510,7 +510,9 @@ class DesignerAcceptancePlanningAlgorithmTest {
                 | --- | --- | --- |
                 | 事件投递 | Listener 投递事件 | 无 |
                 """;
-        Catalog facts = extractor.extract("WP-1", 1, design);
+        Catalog facts = new DesignerMutationObligationExtractor().extract(
+                extractor.extract("WP-1", 1, design, CONTRACT_VERSION_V7),
+                "修改 `src/main/java/example/Listener.java`", List.of(), List.of(), List.of());
         WorkPackageRoleService.View role = role("software-java", List.of("java"));
         CapabilityCatalog capabilities = registry.build(facts, role, design);
         assertThat(capabilities.issues()).contains("REQUIRED_FOCUSED_TEST_UNAVAILABLE");
@@ -525,6 +527,1283 @@ class DesignerAcceptancePlanningAlgorithmTest {
             assertThat(gap.detail()).contains("Listener 投递事件");
         });
         assertThat(result.normalizations()).contains("SERVER_DERIVED_DESIGN_INCOMPLETE");
+        assertThat(result.mutationConservation()).satisfies(evaluation -> {
+            assertThat(evaluation.obligationCount()).isEqualTo(1);
+            assertThat(evaluation.unresolvedCount()).isEqualTo(1);
+            assertThat(evaluation.pathConservation()).isEqualTo("NOT_EVALUATED");
+        });
+    }
+
+    @Test
+    void v7RejectsExplicitRequiredMutationPathOmittedFromEveryStageBeforeLowering() {
+        String design = """
+                ## 目标与范围
+                修改 Service 并保持外部适配配置与实现一致。
+
+                ## 影响与交付
+                | 类型 | 相对路径或符号 | 说明 |
+                | --- | --- | --- |
+                | 修改 | src/main/java/example/Service.java | 服务实现 |
+                | 新增测试 | src/test/java/example/ServiceTest.java | 聚焦验收 |
+
+                ## 验收场景
+                | 场景 | 前置/触发 | 操作 | 可观察结果 | 保持不变 |
+                | --- | --- | --- | --- | --- |
+                | 外部适配生效 | 已配置 adapter | 调用服务 | 返回适配结果 | 无外部写入 |
+
+                ## 验收约束
+                ServiceTest 必须独立通过。
+
+                ## 阶段与依赖
+                | 阶段 | 目标 | 包含场景/评审/交付 | 前置阶段 |
+                | --- | --- | --- | --- |
+                | 服务实现 | 实现并验证服务 | 外部适配生效；src/main/java/example/Service.java；src/test/java/example/ServiceTest.java | 无 |
+                """;
+        Catalog extracted = extractor.extract("WP-1", 1, design, CONTRACT_VERSION_V7);
+        MutationObligation missing = new MutationObligation(1, "MO-2",
+                "config/external-adapter.yml", MutationOperation.WRITE,
+                MutationSourceKind.REQUIREMENT, "REQUIREMENT:L003",
+                "- config/external-adapter.yml", "1".repeat(64), List.of(), List.of());
+        Catalog facts = new Catalog(extracted.contractVersion(), extracted.workPackageId(),
+                extracted.designRevision(), extracted.designSha256(), extracted.controlledFormat(),
+                extracted.facts(), extracted.stageHints(), List.of(missing), List.of(), extracted.issues());
+        WorkPackageRoleService.View role = role("software-java", List.of("java"));
+        CapabilityCatalog capabilities = registry.build(facts, role, design);
+        List<Integer> groupFacts = facts.facts().stream()
+                .filter(fact -> fact.kind() == FactKind.SCENARIO || fact.kind() == FactKind.DELIVERABLE)
+                .map(Fact::index).toList();
+
+        DesignerAcceptancePlanCompiler.Result result = compiler.compile(workPackage(), design, facts, capabilities,
+                new CompactAcceptanceBindingPlan("外部适配验收",
+                        List.of(new AcceptanceGroupHint("服务实现", "实现并验证服务",
+                                groupFacts, List.of())), List.of(), "待验证"),
+                role, List.of("src/main/java/**", "src/test/java/**"), List.of(),
+                List.of("服务实现"), 6, true);
+
+        assertThat(result.plan().status()).isEqualTo("DESIGN_INCOMPLETE");
+        assertThat(result.plan().designGaps()).singleElement().satisfies(gap -> {
+            assertThat(gap.code()).isEqualTo(DesignGapCode.REQUIRED_MUTATION_PATH_UNASSIGNED);
+            assertThat(gap.detail()).contains("config/external-adapter.yml");
+        });
+        assertThat(result.normalizations()).contains("MUTATION_PATH_CONSERVATION_BLOCKED");
+    }
+
+    @Test
+    void v7ExtractsOnlyPositiveProjectMutationObligationsWithExactSourceEvidence() {
+        String requirement = """
+                请完成外部适配能力：
+                - 修改 `src/main/java/example/Service.java`
+                - 新增 `config/external-adapter.yml`
+                - 将 `config/adapter-old.yml` 重命名为 `config/adapter.yml`
+                - 删除 `config/obsolete.yml`
+                - `docs/example.yml` 只是示例，不要修改
+                - 不得写入 `/tmp/external-adapter.yml`
+                """;
+        String design = """
+                ## 目标与范围
+                修改 Service 并补齐配置测试。
+
+                ## 影响与交付
+                | 类型 | 相对路径或符号 | 说明 |
+                | --- | --- | --- |
+                | 修改 | src/main/java/example/Service.java | 服务实现 |
+                | 新增测试 | src/test/java/example/ServiceTest.java | 聚焦验收 |
+                | 保持不变 | docs/example.yml | 文档示例 |
+
+                ## 验收场景
+                | 场景 | 前置/触发 | 操作 | 可观察结果 | 保持不变 |
+                | --- | --- | --- | --- | --- |
+                | 外部适配生效 | 已配置 adapter | 调用服务 | 返回适配结果 | 示例文档不变 |
+
+                ## 验收约束
+                ServiceTest 必须独立通过。
+
+                ## 阶段与依赖
+                | 阶段 | 目标 | 包含场景/评审/交付 | 前置阶段 |
+                | --- | --- | --- | --- |
+                | 服务实现 | 实现并验证服务 | 外部适配生效；src/main/java/example/Service.java；src/test/java/example/ServiceTest.java | 无 |
+                """;
+        Catalog base = extractor.extract("WP-1", 1, design, CONTRACT_VERSION_V7);
+
+        Catalog enriched = new DesignerMutationObligationExtractor().extract(base, requirement,
+                List.of("config/**"), List.of("docs/**"), List.of("config/external-adapter.yml"));
+
+        assertThat(enriched.mutationObligations())
+                .extracting(MutationObligation::pathRule, MutationObligation::operation)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("src/main/java/example/Service.java", MutationOperation.WRITE),
+                        org.assertj.core.groups.Tuple.tuple("config/external-adapter.yml", MutationOperation.WRITE),
+                        org.assertj.core.groups.Tuple.tuple("config/adapter-old.yml", MutationOperation.MOVE_SOURCE),
+                        org.assertj.core.groups.Tuple.tuple("config/adapter.yml", MutationOperation.MOVE_DESTINATION),
+                        org.assertj.core.groups.Tuple.tuple("config/obsolete.yml", MutationOperation.DELETE_REQUEST),
+                        org.assertj.core.groups.Tuple.tuple("src/test/java/example/ServiceTest.java", MutationOperation.WRITE),
+                        org.assertj.core.groups.Tuple.tuple("config/**", MutationOperation.WRITE));
+        assertThat(enriched.mutationObligations()).allSatisfy(obligation -> {
+            assertThat(obligation.obligationId()).startsWith("MO-");
+            assertThat(obligation.sourceRef()).isNotBlank();
+            assertThat(obligation.sourceExcerpt()).isNotBlank();
+            assertThat(obligation.sourceSha256()).matches("[0-9a-f]{64}");
+            assertThat(obligation.candidateStageIndexes()).isEmpty();
+            assertThat(obligation.assignedStageIndexes()).isEmpty();
+        });
+        assertThat(enriched.mutationObligations()).extracting(MutationObligation::pathRule)
+                .doesNotContain("docs/example.yml", "/tmp/external-adapter.yml", "tmp/external-adapter.yml");
+        assertThat(enriched.mutationIssues()).isEmpty();
+    }
+
+    @Test
+    void v7KeepsPositiveMutationScopeAcrossEveryBareMarkdownListPath() {
+        Catalog base = extractor.extract("WP-1", 1, PIN_TRANS_DESIGN, CONTRACT_VERSION_V7);
+
+        Catalog enriched = new DesignerMutationObligationExtractor().extract(base, """
+                需要修改以下文件：
+                - `src/main/java/example/Service.java`
+                - `config/external-adapter.yml`
+                """, List.of(), List.of(), List.of());
+
+        assertThat(enriched.mutationObligations()).extracting(MutationObligation::pathRule)
+                .contains("src/main/java/example/Service.java", "config/external-adapter.yml");
+    }
+
+    @Test
+    void v7BindsPositiveAndNegativePathsToTheirOwnClauses() {
+        Catalog base = extractor.extract("WP-1", 1, PIN_TRANS_DESIGN, CONTRACT_VERSION_V7);
+
+        Catalog enriched = new DesignerMutationObligationExtractor().extract(base,
+                "修改 `src/main/java/example/Service.java`，但不要修改 `config/reference.yml`",
+                List.of(), List.of(), List.of());
+
+        assertThat(enriched.mutationObligations()).extracting(MutationObligation::pathRule)
+                .contains("src/main/java/example/Service.java")
+                .doesNotContain("config/reference.yml");
+        assertThat(enriched.mutationIssues()).isEmpty();
+    }
+
+    @Test
+    void v7RecognizesObjectInsertedAndCommonNegatedMutationPhrases() {
+        Catalog base = extractor.extract("WP-1", 1, PIN_TRANS_DESIGN, CONTRACT_VERSION_V7);
+        DesignerMutationObligationExtractor mutationExtractor = new DesignerMutationObligationExtractor();
+
+        for (String requirement : List.of(
+                "请勿修改 config/a.yml",
+                "禁止对 config/a.yml 进行修改",
+                "不要对 config/a.yml 做任何修改",
+                "无需在 config/a.yml 中新增",
+                "无须修改 config/a.yml",
+                "不对 config/a.yml 进行修改",
+                "不能修改 config/a.yml",
+                "不允许修改 config/a.yml",
+                "不需要修改 config/a.yml",
+                "不用修改 config/a.yml",
+                "不准修改 config/a.yml",
+                "不许修改 config/a.yml",
+                "避免修改 config/a.yml",
+                "防止对 config/a.yml 进行修改")) {
+            Catalog enriched = mutationExtractor.extract(base, requirement,
+                    List.of(), List.of(), List.of());
+
+            assertThat(enriched.mutationObligations()).extracting(MutationObligation::pathRule)
+                    .as(requirement).doesNotContain("config/a.yml");
+            assertThat(enriched.mutationIssues()).as(requirement).isEmpty();
+        }
+    }
+
+    @Test
+    void v7DoesNotTurnALongObjectInsertedNegationIntoAWrite() {
+        Catalog base = extractor.extract("WP-1", 1, PIN_TRANS_DESIGN, CONTRACT_VERSION_V7);
+        String path = "config/" + "nested/".repeat(30) + "reference.yml";
+
+        Catalog enriched = new DesignerMutationObligationExtractor().extract(base,
+                "禁止对 " + path + " 进行修改", List.of(), List.of(), List.of());
+
+        assertThat(enriched.mutationObligations()).extracting(MutationObligation::pathRule)
+                .doesNotContain(path);
+        assertThat(enriched.mutationIssues()).isEmpty();
+    }
+
+    @Test
+    void v7FailsClosedWhenScopedNegationAndPositiveMutationShareOneUnseparatedClause() {
+        Catalog base = extractor.extract("WP-1", 1, PIN_TRANS_DESIGN, CONTRACT_VERSION_V7);
+        Catalog enriched = new DesignerMutationObligationExtractor().extract(base,
+                "不得对 config/a.yml 进行修改同时修改 config/b.yml",
+                List.of(), List.of(), List.of());
+
+        assertThat(enriched.mutationIssues()).contains("AMBIGUOUS_MUTATION_PATH_SCOPE");
+        assertThat(enriched.mutationObligations()).extracting(MutationObligation::pathRule)
+                .doesNotContain("config/a.yml", "config/b.yml");
+    }
+
+    @Test
+    void v7KeepsControlledCannotModifyFactsNegative() {
+        Fact negative = new Fact(0, FactKind.SCOPE, "config/a.yml", null, null,
+                null, null, "不需要修改：安全边界", "DS-L001", "受控负向事实", "1".repeat(64));
+        Catalog catalog = new Catalog(CONTRACT_VERSION_V7, "WP-1", 1, "0".repeat(64), true,
+                List.of(negative), List.of(), List.of());
+
+        Catalog enriched = new DesignerMutationObligationExtractor().extract(catalog,
+                "修改 config/a.yml", List.of(), List.of(), List.of());
+
+        assertThat(enriched.mutationIssues()).contains("AMBIGUOUS_MUTATION_PATH_SCOPE");
+    }
+
+    @Test
+    void v7BlocksAnUnseparatedMixedMutationScopeInsteadOfDroppingEveryPath() {
+        Catalog base = extractor.extract("WP-1", 1, PIN_TRANS_DESIGN, CONTRACT_VERSION_V7);
+        Catalog enriched = new DesignerMutationObligationExtractor().extract(base,
+                "修改 `src/main/java/example/Service.java` 不要修改 `config/reference.yml`",
+                List.of(), List.of(), List.of());
+        CapabilityCatalog capabilities = registry.build(enriched, role("software-java", List.of("java")),
+                PIN_TRANS_DESIGN);
+
+        assertThat(enriched.mutationIssues()).containsExactly("AMBIGUOUS_MUTATION_PATH_SCOPE");
+        assertThat(enriched.mutationObligations()).extracting(MutationObligation::pathRule)
+                .doesNotContain("src/main/java/example/Service.java", "config/reference.yml");
+        assertThat(new DesignerAcceptanceFastPathResolver().resolve(enriched, capabilities).outcome())
+                .isEqualTo(DesignerAcceptanceFastPathResolver.Outcome.DESIGN_INCOMPLETE);
+    }
+
+    @Test
+    void v7BlocksReverseOrderedUnseparatedMixedMutationScopeInsteadOfTreatingEveryPathAsReadOnly() {
+        Catalog base = extractor.extract("WP-1", 1, PIN_TRANS_DESIGN, CONTRACT_VERSION_V7);
+
+        Catalog enriched = new DesignerMutationObligationExtractor().extract(base,
+                "保持 `docs/reference.yml` 不变并修改 `src/main/java/example/Service.java`",
+                List.of(), List.of(), List.of());
+
+        assertThat(enriched.mutationIssues()).containsExactly("AMBIGUOUS_MUTATION_PATH_SCOPE");
+        assertThat(enriched.mutationObligations()).extracting(MutationObligation::pathRule)
+                .doesNotContain("docs/reference.yml", "src/main/java/example/Service.java");
+    }
+
+    @Test
+    void v7BlocksCrossLinePositiveAndNegativeMutationScopesForTheSamePath() {
+        Catalog base = extractor.extract("WP-1", 1, PIN_TRANS_DESIGN, CONTRACT_VERSION_V7);
+
+        Catalog enriched = new DesignerMutationObligationExtractor().extract(base, """
+                需要修改以下文件：
+                - `src/main/java/example/Service.java`
+                以下文件必须保持不变：
+                - `src/main/java/example/Service.java`
+                """, List.of(), List.of(), List.of());
+
+        assertThat(enriched.mutationIssues()).contains("AMBIGUOUS_MUTATION_PATH_SCOPE");
+        assertThat(enriched.mutationObligations()).extracting(MutationObligation::pathRule)
+                .contains("src/main/java/example/Service.java");
+    }
+
+    @Test
+    void v7DoesNotTurnUncOrPureSymbolsIntoProjectMutationPaths() {
+        Catalog base = extractor.extract("WP-1", 1, PIN_TRANS_DESIGN, CONTRACT_VERSION_V7);
+        DesignerMutationObligationExtractor mutationExtractor = new DesignerMutationObligationExtractor();
+
+        assertThatThrownBy(() -> mutationExtractor.extract(base,
+                "修改 `\\\\server\\share\\external-adapter.yml`", List.of(), List.of(), List.of()))
+                .isInstanceOfSatisfying(BadRequestException.class, error ->
+                        assertThat(error.code()).isEqualTo("PROJECT_ROOT_EXTERNAL_PATH"));
+        Catalog symbols = mutationExtractor.extract(base, "修改 `Service.handle`", List.of(), List.of(), List.of());
+        assertThat(symbols.mutationObligations()).extracting(MutationObligation::pathRule)
+                .doesNotContain("Service.handle");
+        Catalog uri = mutationExtractor.extract(base, "更新 https://example.com/api 客户端", List.of(), List.of(), List.of());
+        assertThat(uri.mutationObligations()).extracting(MutationObligation::pathRule)
+                .noneMatch(path -> path.contains("example.com"));
+    }
+
+    @Test
+    void v7RejectsWindowsRootAndFileUriMutationsAsProjectExternal() {
+        Catalog base = extractor.extract("WP-1", 1, PIN_TRANS_DESIGN, CONTRACT_VERSION_V7);
+        DesignerMutationObligationExtractor mutationExtractor = new DesignerMutationObligationExtractor();
+
+        for (String requirement : List.of("修改 `\\outside\\x.yml`", "修改 `C:outside\\x.yml`",
+                "修改 `file:///tmp/x.yml`")) {
+            assertThatThrownBy(() -> mutationExtractor.extract(base, requirement,
+                    List.of(), List.of(), List.of()))
+                    .isInstanceOfSatisfying(BadRequestException.class, error -> {
+                        assertThat(error.code()).isEqualTo("PROJECT_ROOT_EXTERNAL_PATH");
+                        assertThat(error.getMessage()).doesNotContain("outside").doesNotContain("/tmp/x.yml");
+                    });
+        }
+    }
+
+    @Test
+    void v7FreezesCommonRootFileMutationsWithoutTurningPureSymbolsIntoPaths() {
+        Catalog base = extractor.extract("WP-1", 1, PIN_TRANS_DESIGN, CONTRACT_VERSION_V7);
+
+        Catalog enriched = new DesignerMutationObligationExtractor().extract(base,
+                "修改 Dockerfile，更新 LICENSE，修改 NOTICE，更新 mvnw，修改 .gitignore，修改 Service.handle",
+                List.of(), List.of(), List.of());
+
+        assertThat(enriched.mutationObligations()).extracting(MutationObligation::pathRule)
+                .contains("Dockerfile", "LICENSE", "NOTICE", "mvnw", ".gitignore")
+                .doesNotContain("Service.handle");
+    }
+
+    @Test
+    void v7RecognizesCommonPositiveVerbsAndFailsClosedOnUnclassifiedPathScope() {
+        Catalog base = extractor.extract("WP-1", 1, PIN_TRANS_DESIGN, CONTRACT_VERSION_V7);
+        DesignerMutationObligationExtractor mutationExtractor = new DesignerMutationObligationExtractor();
+
+        Catalog positive = mutationExtractor.extract(base,
+                "修复 config/a.yml，变更 config/b.yml，替换 config/c.yml，编辑 config/d.yml",
+                List.of(), List.of(), List.of());
+        Catalog ambiguous = mutationExtractor.extract(base, "处理 config/unclassified.yml",
+                List.of(), List.of(), List.of());
+
+        assertThat(positive.mutationObligations()).extracting(MutationObligation::pathRule)
+                .contains("config/a.yml", "config/b.yml", "config/c.yml", "config/d.yml");
+        assertThat(ambiguous.mutationIssues()).contains("AMBIGUOUS_MUTATION_PATH_SCOPE");
+    }
+
+    @Test
+    void v7RejectsUnclassifiedExternalPathsInsteadOfSilentlyDroppingThem() {
+        Catalog base = extractor.extract("WP-1", 1, PIN_TRANS_DESIGN, CONTRACT_VERSION_V7);
+
+        assertThatThrownBy(() -> new DesignerMutationObligationExtractor().extract(base,
+                "处理 /tmp/unclassified.yml", List.of(), List.of(), List.of()))
+                .isInstanceOfSatisfying(BadRequestException.class, error ->
+                        assertThat(error.code()).isEqualTo("PROJECT_ROOT_EXTERNAL_PATH"));
+    }
+
+    @Test
+    void v7TreatsApiRoutesAsSymbolsWhileStillFreezingRepositoryFilesInTheSameClause() {
+        Catalog base = extractor.extract("WP-1", 1, PIN_TRANS_DESIGN, CONTRACT_VERSION_V7);
+        DesignerMutationObligationExtractor mutationExtractor = new DesignerMutationObligationExtractor();
+
+        Catalog routeOnly = mutationExtractor.extract(base, "实现 /api/users 接口",
+                List.of(), List.of(), List.of());
+        Catalog mixed = mutationExtractor.extract(base,
+                "实现 /v1/users/{id} 端点并修改 src/main/java/example/UserController.java",
+                List.of(), List.of(), List.of());
+
+        assertThat(routeOnly.mutationObligations()).extracting(MutationObligation::pathRule)
+                .noneMatch(path -> path.startsWith("api/") || path.startsWith("v1/"));
+        assertThat(mixed.mutationObligations()).extracting(MutationObligation::pathRule)
+                .contains("src/main/java/example/UserController.java")
+                .noneMatch(path -> path.startsWith("api/") || path.startsWith("v1/"));
+    }
+
+    @Test
+    void v7TreatsHttpMethodRoutesAndControlledRouteCellsAsSymbols() {
+        Catalog base = extractor.extract("WP-1", 1, PIN_TRANS_DESIGN, CONTRACT_VERSION_V7);
+        Catalog requirement = new DesignerMutationObligationExtractor().extract(base,
+                "实现 GET /api/users 并修改 src/main/java/example/UserController.java",
+                List.of(), List.of(), List.of());
+        Fact route = new Fact(0, FactKind.DELIVERABLE, "/v1/users", null, null,
+                null, null, "新增接口：用户查询", "DS-L001", "受控接口符号", "1".repeat(64));
+        Catalog routeCatalog = new Catalog(CONTRACT_VERSION_V7, "WP-1", 1, "0".repeat(64), true,
+                List.of(route), List.of(), List.of());
+        Catalog controlled = new DesignerMutationObligationExtractor().extract(routeCatalog, "",
+                List.of(), List.of(), List.of());
+
+        assertThat(requirement.mutationObligations()).extracting(MutationObligation::pathRule)
+                .contains("src/main/java/example/UserController.java")
+                .noneMatch(path -> path.startsWith("api/") || path.startsWith("v1/"));
+        assertThat(controlled.mutationObligations()).isEmpty();
+        assertThat(controlled.mutationIssues()).isEmpty();
+    }
+
+    @Test
+    void v7TreatsHanSlashConceptsAsSymbolsWithoutHidingARepositoryPath() {
+        Catalog base = extractor.extract("WP-1", 1, PIN_TRANS_DESIGN, CONTRACT_VERSION_V7);
+        String requirement = "实现发布/订阅能力并修改 src/main/java/example/EventBus.java";
+        assertThat(DesignerMutationPolarity.negative(requirement)).isFalse();
+        assertThat(new DesignerRequirementMutationActionPolicy().hasMultipleOperations(requirement,
+                List.of("发布/订阅", "src/main/java/example/EventBus.java"))).isFalse();
+        DesignerMutationObligationExtractor mutationExtractor = new DesignerMutationObligationExtractor();
+        assertThat(mutationExtractor.extract(base, "", List.of(), List.of(), List.of()).mutationIssues()).isEmpty();
+        Catalog enriched = mutationExtractor.extract(base,
+                requirement,
+                List.of(), List.of(), List.of());
+
+        assertThat(enriched.mutationIssues()).isEmpty();
+        assertThat(enriched.mutationObligations()).extracting(MutationObligation::pathRule)
+                .contains("src/main/java/example/EventBus.java")
+                .doesNotContain("发布/订阅");
+    }
+
+    @Test
+    void v7IgnoresControlledHanSlashSymbolsWithoutCreatingAPathGap() {
+        Fact symbol = new Fact(0, FactKind.DELIVERABLE, "发布/订阅", null, null,
+                null, null, "新增能力：进程内事件投递", "DS-L001", "受控业务符号", "1".repeat(64));
+        Catalog catalog = new Catalog(CONTRACT_VERSION_V7, "WP-1", 1, "0".repeat(64), true,
+                List.of(symbol), List.of(), List.of());
+
+        Catalog enriched = new DesignerMutationObligationExtractor().extract(catalog, "",
+                List.of(), List.of(), List.of());
+
+        assertThat(enriched.mutationObligations()).isEmpty();
+        assertThat(enriched.mutationIssues()).isEmpty();
+    }
+
+    @Test
+    void v7KeepsNegatedDeleteAndMoveAsSafetyConstraintsButFreezesPositiveOperations() {
+        Catalog base = extractor.extract("WP-1", 1, PIN_TRANS_DESIGN, CONTRACT_VERSION_V7);
+        Catalog enriched = new DesignerMutationObligationExtractor().extract(base, """
+                不得删除 config/a.yml
+                禁止移除 config/b.yml
+                不要重命名 config/c.yml
+                删除 config/d.yml
+                将 config/e.yml 重命名为 config/f.yml
+                """, List.of(), List.of(), List.of());
+
+        assertThat(enriched.mutationObligations())
+                .extracting(MutationObligation::pathRule, MutationObligation::operation)
+                .doesNotContain(
+                        org.assertj.core.groups.Tuple.tuple("config/a.yml", MutationOperation.DELETE_REQUEST),
+                        org.assertj.core.groups.Tuple.tuple("config/b.yml", MutationOperation.DELETE_REQUEST),
+                        org.assertj.core.groups.Tuple.tuple("config/c.yml", MutationOperation.MOVE_SOURCE))
+                .contains(
+                        org.assertj.core.groups.Tuple.tuple("config/d.yml", MutationOperation.DELETE_REQUEST),
+                        org.assertj.core.groups.Tuple.tuple("config/e.yml", MutationOperation.MOVE_SOURCE),
+                        org.assertj.core.groups.Tuple.tuple("config/f.yml", MutationOperation.MOVE_DESTINATION));
+    }
+
+    @Test
+    void v7BindsTheFirstExplicitPathActionInsteadOfBusinessMigrationOrDeleteNouns() {
+        Catalog base = extractor.extract("WP-1", 1, PIN_TRANS_DESIGN, CONTRACT_VERSION_V7);
+        Catalog enriched = new DesignerMutationObligationExtractor().extract(base, """
+                修改 src/main/java/example/MigrationService.java 的迁移逻辑
+                新增 src/main/java/example/DeleteMarker.java 的删除标记
+                迁移逻辑需要修改 src/main/java/example/ReverseMigrationService.java
+                删除标记需要新增 src/main/java/example/ReverseDeleteMarker.java
+                为数据库迁移修改 src/main/resources/db/migration/V46__path.sql
+                src/main/java/example/PathFirstMigrationService.java 的迁移逻辑需要修改
+                src/main/java/example/PathFirstDeleteMarker.java 的删除标记需要新增
+                src/main/java/example/DeleteService.java 的删除功能需要新增
+                src/main/java/example/MigrationTask.java 的迁移任务需要修改
+                修改 src/main/java/example/BusinessDeleteService.java 以实现删除功能
+                修改 src/main/java/example/BusinessMigrationService.java 以实现数据库迁移
+                """, List.of(), List.of(), List.of());
+
+        assertThat(enriched.mutationObligations())
+                .filteredOn(obligation -> obligation.pathRule().contains("MigrationService")
+                        || obligation.pathRule().contains("DeleteMarker")
+                        || obligation.pathRule().contains("DeleteService")
+                        || obligation.pathRule().contains("MigrationTask")
+                        || obligation.pathRule().contains("BusinessDeleteService")
+                        || obligation.pathRule().contains("BusinessMigrationService")
+                        || obligation.pathRule().contains("PathFirst")
+                        || obligation.pathRule().contains("V46__path.sql"))
+                .extracting(MutationObligation::pathRule, MutationObligation::operation)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple(
+                                "src/main/java/example/MigrationService.java", MutationOperation.WRITE),
+                        org.assertj.core.groups.Tuple.tuple(
+                                "src/main/java/example/DeleteMarker.java", MutationOperation.WRITE),
+                        org.assertj.core.groups.Tuple.tuple(
+                                "src/main/java/example/ReverseMigrationService.java", MutationOperation.WRITE),
+                        org.assertj.core.groups.Tuple.tuple(
+                                "src/main/java/example/ReverseDeleteMarker.java", MutationOperation.WRITE),
+                        org.assertj.core.groups.Tuple.tuple(
+                                "src/main/resources/db/migration/V46__path.sql", MutationOperation.WRITE),
+                        org.assertj.core.groups.Tuple.tuple(
+                                "src/main/java/example/PathFirstMigrationService.java", MutationOperation.WRITE),
+                        org.assertj.core.groups.Tuple.tuple(
+                                "src/main/java/example/PathFirstDeleteMarker.java", MutationOperation.WRITE),
+                        org.assertj.core.groups.Tuple.tuple(
+                                "src/main/java/example/DeleteService.java", MutationOperation.WRITE),
+                        org.assertj.core.groups.Tuple.tuple(
+                                "src/main/java/example/MigrationTask.java", MutationOperation.WRITE),
+                        org.assertj.core.groups.Tuple.tuple(
+                                "src/main/java/example/BusinessDeleteService.java", MutationOperation.WRITE),
+                        org.assertj.core.groups.Tuple.tuple(
+                                "src/main/java/example/BusinessMigrationService.java", MutationOperation.WRITE));
+    }
+
+    @Test
+    void v7FailsClosedWhenOneClauseAssignsDifferentOperationsToMultiplePaths() {
+        Catalog base = extractor.extract("WP-1", 1, PIN_TRANS_DESIGN, CONTRACT_VERSION_V7);
+        DesignerMutationObligationExtractor mutationExtractor = new DesignerMutationObligationExtractor();
+
+        for (String requirement : List.of(
+                "修改 config/a.yml 并删除 config/b.yml",
+                "删除 config/a.yml 并新增 config/b.yml")) {
+            Catalog enriched = mutationExtractor.extract(base, requirement,
+                    List.of(), List.of(), List.of());
+
+            assertThat(enriched.mutationIssues()).as(requirement)
+                    .contains("AMBIGUOUS_MUTATION_PATH_SCOPE");
+            assertThat(enriched.mutationObligations()).extracting(MutationObligation::pathRule)
+                    .as(requirement).doesNotContain("config/a.yml", "config/b.yml");
+        }
+    }
+
+    @Test
+    void v7FailsClosedWhenOnePathHasBothMoveAndWriteCommands() {
+        Catalog base = new Catalog(CONTRACT_VERSION_V7, "WP-1", 1, "0".repeat(64), true,
+                List.of(), List.of(), List.of());
+        DesignerMutationObligationExtractor mutationExtractor = new DesignerMutationObligationExtractor();
+
+        for (String requirement : List.of(
+                "移动并修改 config/a.yml",
+                "重命名后修改 config/a.yml",
+                "实现删除 config/a.yml",
+                "实现删除旧配置文件 config/obsolete.yml",
+                "实现删除后台配置文件 config/backend.yml",
+                "实现删除后端配置文件 config/server.yml",
+                "实现删除并发配置文件 config/concurrency.yml",
+                "实现删除待更新配置文件 config/pending.yml",
+                "实现删除自动生成配置文件 config/generated.yml",
+                "实现删除变更记录文件 config/history.yml",
+                "实现删除生成记录 config/generated-records.yml",
+                "删除生成文件 config/generated.yml",
+                "删除更新记录文件 config/update-history.yml",
+                "删除修改记录文件 config/change-history.yml",
+                "为清理删除生成文件 config/purpose-generated.yml",
+                "为了清理删除更新记录文件 config/purpose-update.yml",
+                "为兼容迁移更新配置文件 config/app.yml")) {
+            Catalog enriched = mutationExtractor.extract(base, requirement,
+                    List.of(), List.of(), List.of());
+
+            assertThat(enriched.mutationIssues()).as(requirement)
+                    .contains("AMBIGUOUS_MUTATION_PATH_SCOPE");
+            assertThat(enriched.mutationObligations()).extracting(MutationObligation::pathRule)
+                    .as(requirement).noneMatch(path -> path.startsWith("config/"));
+        }
+    }
+
+    @Test
+    void v7DoesNotTreatBusinessMutationNounsAsSecondPathOperations() {
+        Catalog base = new Catalog(CONTRACT_VERSION_V7, "WP-1", 1, "0".repeat(64), true,
+                List.of(), List.of(), List.of());
+        DesignerMutationObligationExtractor mutationExtractor = new DesignerMutationObligationExtractor();
+
+        for (String requirement : List.of(
+                "为数据库迁移修改 db/V46.sql 和 src/Test.java",
+                "为删除标记新增 src/Marker.java 和 src/MarkerTest.java",
+                "实现删除能力 src/main/java/example/DeleteService.java",
+                "实现数据库迁移脚本 db/V46.sql")) {
+            Catalog enriched = mutationExtractor.extract(base, requirement,
+                    List.of(), List.of(), List.of());
+
+            assertThat(enriched.mutationIssues()).as(requirement).isEmpty();
+            assertThat(enriched.mutationObligations()).extracting(MutationObligation::operation)
+                    .as(requirement).containsOnly(MutationOperation.WRITE);
+        }
+    }
+
+    @Test
+    void v7DoesNotTreatMutationWordsInsideRepositoryPathsAsCommands() {
+        Catalog base = new Catalog(CONTRACT_VERSION_V7, "WP-1", 1, "0".repeat(64), true,
+                List.of(), List.of(), List.of());
+
+        Catalog enriched = new DesignerMutationObligationExtractor().extract(base,
+                "修改 src/删除记录/config.yml", List.of(), List.of(), List.of());
+
+        assertThat(enriched.mutationIssues()).isEmpty();
+        assertThat(enriched.mutationObligations())
+                .extracting(MutationObligation::pathRule, MutationObligation::operation)
+                .containsExactly(org.assertj.core.groups.Tuple.tuple(
+                        "src/删除记录/config.yml", MutationOperation.WRITE));
+    }
+
+    @Test
+    void v7KeepsCommandsOutsideHanSlashBusinessSymbols() {
+        Catalog base = new Catalog(CONTRACT_VERSION_V7, "WP-1", 1, "0".repeat(64), true,
+                List.of(), List.of(), List.of());
+
+        Catalog enriched = new DesignerMutationObligationExtractor().extract(base,
+                "实现新增/删除能力并修改 src/main/java/example/Feature.java",
+                List.of(), List.of(), List.of());
+
+        assertThat(enriched.mutationIssues()).isEmpty();
+        assertThat(enriched.mutationObligations())
+                .extracting(MutationObligation::pathRule, MutationObligation::operation)
+                .containsExactly(org.assertj.core.groups.Tuple.tuple(
+                        "src/main/java/example/Feature.java", MutationOperation.WRITE));
+    }
+
+    @Test
+    void v7SuppressesClauseAndListExamplesWithoutSuppressingRealPathsNamedExample() {
+        Catalog base = extractor.extract("WP-1", 1, PIN_TRANS_DESIGN, CONTRACT_VERSION_V7);
+        Catalog enriched = new DesignerMutationObligationExtractor().extract(base, """
+                例如修改 config/clause-example.yml
+                示例：
+                - 修改 config/list-example.yml
+                修改 src/main/java/example/RealService.java
+                """, List.of(), List.of(), List.of());
+
+        assertThat(enriched.mutationObligations()).extracting(MutationObligation::pathRule)
+                .contains("src/main/java/example/RealService.java")
+                .doesNotContain("config/clause-example.yml", "config/list-example.yml");
+    }
+
+    @Test
+    void v7IgnoresAPureExampleThatListsMultiplePaths() {
+        Catalog base = extractor.extract("WP-1", 1, PIN_TRANS_DESIGN, CONTRACT_VERSION_V7);
+
+        Catalog enriched = new DesignerMutationObligationExtractor().extract(base,
+                "例如修改 config/a.yml 和 config/b.yml", List.of(), List.of(), List.of());
+
+        assertThat(enriched.mutationIssues()).isEmpty();
+        assertThat(enriched.mutationObligations()).extracting(MutationObligation::pathRule)
+                .doesNotContain("config/a.yml", "config/b.yml");
+    }
+
+    @Test
+    void v7FailsClosedWhenOneClauseMixesAWritePathWithAnInvariant() {
+        Catalog base = extractor.extract("WP-1", 1, PIN_TRANS_DESIGN, CONTRACT_VERSION_V7);
+        Catalog enriched = new DesignerMutationObligationExtractor().extract(base,
+                "修改 config/a.yml 并保持外部行为不变", List.of(), List.of(), List.of());
+
+        assertThat(enriched.mutationIssues()).contains("AMBIGUOUS_MUTATION_PATH_SCOPE");
+        assertThat(enriched.mutationObligations()).extracting(MutationObligation::pathRule)
+                .doesNotContain("config/a.yml");
+    }
+
+    @Test
+    void v7DoesNotTreatInvariantOrReadOnlyCapabilityNounsAsPathNegation() {
+        Catalog base = new Catalog(CONTRACT_VERSION_V7, "WP-1", 1, "0".repeat(64), true,
+                List.of(), List.of(), List.of());
+        DesignerMutationObligationExtractor mutationExtractor = new DesignerMutationObligationExtractor();
+
+        Catalog invariant = mutationExtractor.extract(base,
+                "修改 config/rules.yml 以支持不变量校验", List.of(), List.of(), List.of());
+        Catalog readOnlyView = mutationExtractor.extract(base,
+                "修改 config/view.yml 实现只读视图", List.of(), List.of(), List.of());
+        Catalog readOnlyDatasource = mutationExtractor.extract(base,
+                "修改 config/datasource.yml 实现只读数据源", List.of(), List.of(), List.of());
+        Catalog keepReadOnlyView = mutationExtractor.extract(base,
+                "修改 config/view.yml 以保持只读视图可用", List.of(), List.of(), List.of());
+        Catalog pageReadOnlyMode = mutationExtractor.extract(base,
+                "修改 config/ui.yml 支持把页面设为只读模式", List.of(), List.of(), List.of());
+
+        assertThat(invariant.mutationIssues()).isEmpty();
+        assertThat(invariant.mutationObligations()).extracting(MutationObligation::pathRule)
+                .containsExactly("config/rules.yml");
+        assertThat(readOnlyView.mutationIssues()).isEmpty();
+        assertThat(readOnlyView.mutationObligations()).extracting(MutationObligation::pathRule)
+                .containsExactly("config/view.yml");
+        assertThat(readOnlyDatasource.mutationIssues()).isEmpty();
+        assertThat(readOnlyDatasource.mutationObligations()).extracting(MutationObligation::pathRule)
+                .containsExactly("config/datasource.yml");
+        assertThat(keepReadOnlyView.mutationIssues()).isEmpty();
+        assertThat(keepReadOnlyView.mutationObligations()).extracting(MutationObligation::pathRule)
+                .containsExactly("config/view.yml");
+        assertThat(pageReadOnlyMode.mutationIssues()).isEmpty();
+        assertThat(pageReadOnlyMode.mutationObligations()).extracting(MutationObligation::pathRule)
+                .containsExactly("config/ui.yml");
+    }
+
+    @Test
+    void v7MakesPathBearingNeutralDesignFactsAmbiguousAndNegativeFactsUnableToAuthorizeWrites() {
+        Catalog base = extractor.extract("WP-1", 1, PIN_TRANS_DESIGN, CONTRACT_VERSION_V7);
+        Fact template = base.facts().getFirst();
+        Fact neutral = new Fact(template.index(), FactKind.DELIVERABLE, "config/a.yml", null, null,
+                null, null, "影响：中性说明", template.sourceRef(), template.sourceExcerpt(),
+                template.sourceSha256());
+        Fact negative = new Fact(template.index(), FactKind.DELIVERABLE, "config/a.yml", null, null,
+                null, null, "保持不变：安全边界", template.sourceRef(), template.sourceExcerpt(),
+                template.sourceSha256());
+        Catalog neutralCatalog = new Catalog(base.contractVersion(), base.workPackageId(), base.designRevision(),
+                base.designSha256(), base.controlledFormat(), List.of(neutral), base.stageHints(), base.issues());
+        Catalog negativeCatalog = new Catalog(base.contractVersion(), base.workPackageId(), base.designRevision(),
+                base.designSha256(), base.controlledFormat(), List.of(negative), base.stageHints(), base.issues());
+
+        Catalog neutralResult = new DesignerMutationObligationExtractor().extract(neutralCatalog, "",
+                List.of(), List.of(), List.of());
+        Catalog negativeResult = new DesignerMutationObligationExtractor().extract(negativeCatalog,
+                "修改 config/a.yml", List.of(), List.of(), List.of());
+        DesignerAcceptanceStagePathPlanner.Selection selection = new DesignerAcceptanceStagePathPlanner()
+                .select(negativeCatalog, List.of(negative.index()), List.of(),
+                        role("software-java", List.of("java")));
+
+        assertThat(neutralResult.mutationIssues()).contains("AMBIGUOUS_MUTATION_PATH_SCOPE");
+        assertThat(negativeResult.mutationIssues()).contains("AMBIGUOUS_MUTATION_PATH_SCOPE");
+        assertThat(selection.justifiedPaths()).isEmpty();
+    }
+
+    @Test
+    void v7FreezesControlledScopeDirectoriesAsSubtreeRules() {
+        Catalog base = extractor.extract("WP-1", 1, PIN_TRANS_DESIGN, CONTRACT_VERSION_V7);
+        Fact template = base.facts().getFirst();
+        Fact scope = new Fact(template.index(), FactKind.SCOPE, "config/templates", null, null,
+                null, null, "范围内：模板目录", template.sourceRef(), template.sourceExcerpt(),
+                template.sourceSha256());
+        Catalog catalog = new Catalog(base.contractVersion(), base.workPackageId(), base.designRevision(),
+                base.designSha256(), base.controlledFormat(), List.of(scope), base.stageHints(), base.issues());
+
+        Catalog enriched = new DesignerMutationObligationExtractor().extract(catalog, "",
+                List.of(), List.of(), List.of());
+
+        assertThat(enriched.mutationObligations()).singleElement().satisfies(obligation -> {
+            assertThat(obligation.pathRule()).isEqualTo("config/templates");
+            assertThat(obligation.pathKind()).isEqualTo(MutationPathKind.PATH_RULE);
+        });
+    }
+
+    @Test
+    void v7FreezesRequirementAndDeliverableDirectoriesAsSubtreeRules() {
+        Catalog base = new Catalog(CONTRACT_VERSION_V7, "WP-1", 1, "0".repeat(64), true,
+                List.of(), List.of(), List.of());
+        DesignerMutationObligationExtractor mutationExtractor = new DesignerMutationObligationExtractor();
+        Catalog requirement = mutationExtractor.extract(base, "新增 config/templates 目录",
+                List.of(), List.of(), List.of());
+        Catalog deliverable = mutationExtractor.extract(base, "",
+                List.of(), List.of(), List.of("config/templates"));
+        MutationObligation requirementDirectory = requirement.mutationObligations().stream()
+                .filter(item -> "config/templates".equals(item.pathRule())).findFirst().orElseThrow();
+        MutationObligation deliverableDirectory = deliverable.mutationObligations().stream()
+                .filter(item -> "config/templates".equals(item.pathRule())).findFirst().orElseThrow();
+        CompactStage shallow = policyStage(List.of("config/*"), List.of());
+        CompactStage deep = policyStage(List.of("config/**"), List.of());
+
+        assertThat(requirementDirectory.pathKind()).isEqualTo(MutationPathKind.PATH_RULE);
+        assertThat(deliverableDirectory.pathKind()).isEqualTo(MutationPathKind.PATH_RULE);
+        assertThat(new MutationConservationPolicy().evaluate(requirement, List.of(shallow),
+                List.of(shallow.allowedPaths())).passed()).isFalse();
+        assertThat(new MutationConservationPolicy().evaluate(requirement, List.of(deep),
+                List.of(deep.allowedPaths())).passed()).isTrue();
+    }
+
+    @Test
+    void v7FreezesExplicitRootDirectoriesAcrossRequirementControlledAndFrozenSources() {
+        Catalog empty = new Catalog(CONTRACT_VERSION_V7, "WP-1", 1, "0".repeat(64), true,
+                List.of(), List.of(), List.of());
+        Fact controlledDirectory = new Fact(0, FactKind.DELIVERABLE, "config", null, null,
+                null, null, "新增目录：模板根目录", "DS-L001", "受控根目录", "1".repeat(64));
+        Catalog controlledBase = new Catalog(CONTRACT_VERSION_V7, "WP-1", 1, "0".repeat(64), true,
+                List.of(controlledDirectory), List.of(), List.of());
+        DesignerMutationObligationExtractor mutationExtractor = new DesignerMutationObligationExtractor();
+
+        Catalog requirement = mutationExtractor.extract(empty, "新增 config 目录",
+                List.of(), List.of(), List.of());
+        Catalog controlled = mutationExtractor.extract(controlledBase, "",
+                List.of(), List.of(), List.of());
+        Catalog frozen = mutationExtractor.extract(empty, "",
+                List.of(), List.of(), List.of("config"));
+        Catalog symbol = mutationExtractor.extract(empty, "",
+                List.of(), List.of(), List.of("backend"));
+        DesignerAcceptanceStagePathPlanner.Selection controlledSelection =
+                new DesignerAcceptanceStagePathPlanner().select(controlledBase, List.of(0), List.of(),
+                        role("software-java", List.of("java")));
+
+        for (Catalog catalog : List.of(requirement, controlled, frozen)) {
+            assertThat(catalog.mutationObligations()).singleElement().satisfies(obligation -> {
+                assertThat(obligation.pathRule()).isEqualTo("config");
+                assertThat(obligation.pathKind()).isEqualTo(MutationPathKind.PATH_RULE);
+            });
+        }
+        assertThat(symbol.mutationObligations()).isEmpty();
+        assertThat(controlledSelection.paths()).containsExactly("config");
+        assertThat(controlledSelection.justifiedPaths()).containsExactly("config");
+    }
+
+    @Test
+    void v7DoesNotTreatAnExactPathAsOverlappingItsDescendantExclusionRule() {
+        Catalog base = extractor.extract("WP-1", 1, PIN_TRANS_DESIGN, CONTRACT_VERSION_V7);
+
+        Catalog enriched = new DesignerMutationObligationExtractor().extract(base,
+                "修改 config/a.yml", List.of(), List.of("config/a.yml/child/**"), List.of());
+
+        assertThat(enriched.mutationObligations()).extracting(MutationObligation::pathRule)
+                .contains("config/a.yml");
+        assertThat(enriched.mutationIssues()).doesNotContain("MUTATION_PATH_SCOPE_CONFLICT");
+    }
+
+    @Test
+    void v7PreservesBareRootScopeOutAsAConflictAndRuntimeForbiddenRule() {
+        Catalog v7 = new Catalog(CONTRACT_VERSION_V7, "WP-1", 1, "0".repeat(64), true,
+                List.of(), List.of(), List.of());
+        Catalog v6 = new Catalog(CONTRACT_VERSION_V6, "WP-1", 1, "0".repeat(64), true,
+                List.of(), List.of(), List.of());
+
+        Catalog enriched = new DesignerMutationObligationExtractor().extract(v7,
+                "新增 config 目录", List.of(), List.of("config"), List.of());
+        DesignerAcceptanceStagePathPlanner planner = new DesignerAcceptanceStagePathPlanner();
+
+        assertThat(enriched.mutationIssues()).contains("MUTATION_PATH_SCOPE_CONFLICT");
+        assertThat(planner.forbiddenPaths(v7, List.of("config"))).contains("config");
+        assertThat(planner.forbiddenPaths(v6, List.of("config"))).doesNotContain("config");
+    }
+
+    @Test
+    void v7DetectsControlledPositiveAndNegativeRootDirectoryConflict() {
+        Fact positive = new Fact(0, FactKind.DELIVERABLE, "config", null, null,
+                null, null, "新增目录：模板", "DS-L001", "正向目录", "1".repeat(64));
+        Fact negative = new Fact(1, FactKind.SCOPE, "config", null, null,
+                null, null, "范围外目录：禁止修改", "DS-L002", "负向目录", "2".repeat(64));
+        Catalog catalog = new Catalog(CONTRACT_VERSION_V7, "WP-1", 1, "0".repeat(64), true,
+                List.of(positive, negative), List.of(), List.of());
+
+        Catalog enriched = new DesignerMutationObligationExtractor().extract(catalog, "",
+                List.of(), List.of(), List.of());
+
+        assertThat(enriched.mutationObligations()).extracting(MutationObligation::pathRule)
+                .contains("config");
+        assertThat(enriched.mutationIssues()).contains("AMBIGUOUS_MUTATION_PATH_SCOPE");
+    }
+
+    @Test
+    void v7PreservesTheStricterScopeRuleWhenTheRequirementNamesTheSameExactPath() {
+        Catalog base = extractor.extract("WP-1", 1, PIN_TRANS_DESIGN, CONTRACT_VERSION_V7);
+        Catalog enriched = new DesignerMutationObligationExtractor().extract(base,
+                "修改 config/cache.v1", List.of("config/cache.v1"), List.of(), List.of());
+        CompactStage shallow = policyStage(List.of("config/*.v1"), List.of());
+
+        MutationConservationPolicy.Evaluation evaluation = new MutationConservationPolicy().evaluate(
+                enriched, List.of(shallow), List.of(shallow.allowedPaths()));
+
+        assertThat(enriched.mutationObligations()).filteredOn(obligation ->
+                        "config/cache.v1".equals(obligation.pathRule()))
+                .extracting(MutationObligation::pathKind)
+                .containsExactly(MutationPathKind.EXACT_PATH, MutationPathKind.PATH_RULE);
+        assertThat(evaluation.passed()).isFalse();
+    }
+
+    @Test
+    void javaProductionDirectoryRulesKeepTheFocusedTestGateClassification() {
+        DesignerAcceptanceStagePathPlanner planner = new DesignerAcceptanceStagePathPlanner();
+        WorkPackageRoleService.View javaRole = role("software-java", List.of("java"));
+
+        assertThat(planner.implementationKind(javaRole, List.of("src/main/java")))
+                .isEqualTo(io.opencode.loopper.domain.ImplementationKind.JAVA_PRODUCTION);
+        assertThat(planner.implementationKind(javaRole, List.of("module/src/main/java")))
+                .isEqualTo(io.opencode.loopper.domain.ImplementationKind.JAVA_PRODUCTION);
+        assertThat(planner.implementationKind(javaRole, List.of("src/test/java")))
+                .isEqualTo(io.opencode.loopper.domain.ImplementationKind.JAVA_TEST_ONLY);
+    }
+
+    @Test
+    void historicalV6StagePathsKeepTheirFrozenPrePolaritySemantics() {
+        Fact negative = new Fact(0, FactKind.DELIVERABLE, "docs/reference.yml", null, null,
+                null, null, "保持不变：历史边界", "DS-L001", "历史事实", "1".repeat(64));
+        Fact neutral = new Fact(1, FactKind.DELIVERABLE, "config/legacy.yml", null, null,
+                null, null, "影响：历史中性类型", "DS-L002", "历史事实", "2".repeat(64));
+        Catalog v6 = new Catalog(CONTRACT_VERSION_V6, "WP-1", 1, "0".repeat(64), true,
+                List.of(negative, neutral), List.of(), List.of());
+
+        DesignerAcceptanceStagePathPlanner.Selection selection = new DesignerAcceptanceStagePathPlanner()
+                .select(v6, List.of(0, 1), List.of(), role("software-java", List.of("java")));
+
+        assertThat(selection.paths()).containsExactly("docs/reference.yml", "config/legacy.yml");
+    }
+
+    @Test
+    void historicalV6StagePathsDoNotGainV7BareDirectorySemantics() {
+        Fact directory = new Fact(0, FactKind.DELIVERABLE, "config", null, null,
+                null, null, "新增目录：历史目录", "DS-L001", "历史事实", "1".repeat(64));
+        Catalog v6 = new Catalog(CONTRACT_VERSION_V6, "WP-1", 1, "0".repeat(64), true,
+                List.of(directory), List.of(), List.of());
+
+        DesignerAcceptanceStagePathPlanner.Selection selection = new DesignerAcceptanceStagePathPlanner()
+                .select(v6, List.of(0), List.of(), role("software-java", List.of("java")));
+
+        assertThat(selection.paths()).containsExactly("src/main/java/**", "src/test/java/**");
+        assertThat(selection.justifiedPaths()).isEmpty();
+    }
+
+    @Test
+    void v7DoesNotInventConflictBetweenProvablyDisjointSiblingGlobs() {
+        Catalog base = extractor.extract("WP-1", 1, PIN_TRANS_DESIGN, CONTRACT_VERSION_V7);
+        Catalog enriched = new DesignerMutationObligationExtractor().extract(base,
+                "修改 config/public-*.yml，但不要修改 config/secret-*.yml",
+                List.of(), List.of(), List.of());
+
+        assertThat(enriched.mutationObligations()).extracting(MutationObligation::pathRule)
+                .contains("config/public-*.yml");
+        assertThat(enriched.mutationIssues()).isEmpty();
+    }
+
+    @Test
+    void v7FreezesExplicitPackageGlobRulesWithoutTreatingThemAsPreciseStageOwnership() {
+        Catalog base = extractor.extract("WP-1", 1, PIN_TRANS_DESIGN, CONTRACT_VERSION_V7);
+
+        Catalog enriched = new DesignerMutationObligationExtractor().extract(base, "",
+                List.of("config/**"), List.of(), List.of("scripts/*.sh"));
+
+        assertThat(enriched.mutationObligations()).extracting(MutationObligation::pathRule)
+                .contains("config/**", "scripts/*.sh");
+    }
+
+    @Test
+    void v7HashesTheFullMutationSourceAndReusesControlledFactHashes() {
+        Catalog base = extractor.extract("WP-1", 1, PIN_TRANS_DESIGN, CONTRACT_VERSION_V7);
+        DesignerMutationObligationExtractor mutationExtractor = new DesignerMutationObligationExtractor();
+        String prefix = "修改 config/a.yml " + "完整来源".repeat(1_100);
+
+        MutationObligation first = mutationExtractor.extract(base, prefix + "甲",
+                        List.of(), List.of(), List.of()).mutationObligations().stream()
+                .filter(item -> "config/a.yml".equals(item.pathRule())).findFirst().orElseThrow();
+        MutationObligation second = mutationExtractor.extract(base, prefix + "乙",
+                        List.of(), List.of(), List.of()).mutationObligations().stream()
+                .filter(item -> "config/a.yml".equals(item.pathRule())).findFirst().orElseThrow();
+        Fact productionFact = base.facts().stream()
+                .filter(fact -> "upfs-common/src/main/java/com/spdb/upfs/pin/PinTrans.java".equals(fact.title()))
+                .findFirst().orElseThrow();
+        MutationObligation inherited = mutationExtractor.extract(base, "",
+                        List.of(), List.of(), List.of()).mutationObligations().stream()
+                .filter(item -> productionFact.title().equals(item.pathRule())).findFirst().orElseThrow();
+
+        assertThat(first.sourceExcerpt()).hasSize(4_000).isEqualTo(second.sourceExcerpt());
+        assertThat(first.sourceSha256()).isNotEqualTo(second.sourceSha256());
+        assertThat(inherited.sourceSha256()).isEqualTo(productionFact.sourceSha256());
+    }
+
+    @Test
+    void v7RejectsExternalControlledDesignFactsSkipsSymbolsAndFreezesExplicitGlobs() {
+        DesignerMutationObligationExtractor mutationExtractor = new DesignerMutationObligationExtractor();
+        Catalog symbol = extractor.extract("WP-1", 1,
+                PIN_TRANS_DESIGN.replace(
+                        "upfs-common/src/main/java/com/spdb/upfs/pin/PinTrans.java", "Service.handle"),
+                CONTRACT_VERSION_V7);
+        Catalog broad = extractor.extract("WP-1", 1,
+                PIN_TRANS_DESIGN.replace(
+                        "upfs-common/src/main/java/com/spdb/upfs/pin/PinTrans.java", "src/**"),
+                CONTRACT_VERSION_V7);
+        Catalog external = extractor.extract("WP-1", 1,
+                PIN_TRANS_DESIGN.replace(
+                        "upfs-common/src/main/java/com/spdb/upfs/pin/PinTrans.java", "/tmp/PinTrans.java"),
+                CONTRACT_VERSION_V7);
+
+        assertThat(mutationExtractor.extract(symbol, "", List.of(), List.of(), List.of())
+                .mutationObligations()).extracting(MutationObligation::pathRule).doesNotContain("Service.handle");
+        assertThat(mutationExtractor.extract(broad, "修改 src/**", List.of(), List.of(), List.of())
+                .mutationObligations()).extracting(MutationObligation::pathRule).contains("src/**");
+        assertThat(mutationExtractor.extract(broad, "修改 src/**", List.of(), List.of(), List.of())
+                .mutationIssues()).isEmpty();
+        assertThatThrownBy(() -> mutationExtractor.extract(external, "", List.of(), List.of(), List.of()))
+                .isInstanceOfSatisfying(BadRequestException.class, error -> {
+                    assertThat(error.code()).isEqualTo("PROJECT_ROOT_EXTERNAL_PATH");
+                    assertThat(error.getMessage()).doesNotContain("/tmp/PinTrans.java");
+                });
+    }
+
+    @Test
+    void v7DoesNotUseCatchAllStageFactsAsMutationOwnerProof() {
+        Catalog broad = extractor.extract("WP-1", 1,
+                PIN_TRANS_DESIGN.replace(
+                        "upfs-common/src/main/java/com/spdb/upfs/pin/PinTrans.java", "src/**"),
+                CONTRACT_VERSION_V7);
+        int broadFact = broad.facts().stream().filter(fact -> "src/**".equals(fact.title()))
+                .map(Fact::index).findFirst().orElseThrow();
+
+        DesignerAcceptanceStagePathPlanner.Selection selection = new DesignerAcceptanceStagePathPlanner()
+                .select(broad, List.of(broadFact), List.of(), role("software-java", List.of("java")));
+
+        assertThat(selection.paths()).contains("src/**");
+        assertThat(selection.justifiedPaths()).isEmpty();
+    }
+
+    @Test
+    void v7RejectsPositiveProjectExternalMutationInsteadOfDroppingItFromTheFrozenContract() {
+        Catalog base = extractor.extract("WP-1", 1, PIN_TRANS_DESIGN, CONTRACT_VERSION_V7);
+
+        assertThatThrownBy(() -> new DesignerMutationObligationExtractor().extract(base,
+                "修改 `/tmp/external-adapter.yml`", List.of(), List.of(), List.of()))
+                .isInstanceOfSatisfying(BadRequestException.class, error -> {
+                    assertThat(error.code()).isEqualTo("PROJECT_ROOT_EXTERNAL_PATH");
+                    assertThat(error.getMessage()).doesNotContain("/tmp/external-adapter.yml");
+                });
+    }
+
+    @Test
+    void v7DoesNotTreatBroadTechnologyFallbackAsProofOfAnExplicitMutationObligation() {
+        String design = """
+                ## 目标与范围
+                实现 EventService 的事件投递行为。
+
+                ## 影响与交付
+                | 类型 | 相对路径或符号 | 说明 |
+                | --- | --- | --- |
+                | 修改 | EventService | 服务符号 |
+
+                ## 验收场景
+                | 场景 | 前置/触发 | 操作 | 可观察结果 | 保持不变 |
+                | --- | --- | --- | --- | --- |
+                | 事件投递 | 已注册监听器 | 调用 publish | 监听器收到事件 | 注册表不变 |
+
+                ## 验收约束
+                EventServiceTest 必须独立通过。
+
+                ## 阶段与依赖
+                | 阶段 | 目标 | 包含场景/评审/交付 | 前置阶段 |
+                | --- | --- | --- | --- |
+                | 事件服务 | 实现并验证事件投递 | 事件投递；EventService | 无 |
+                """;
+        Catalog base = extractor.extract("WP-1", 1, design, CONTRACT_VERSION_V7);
+        MutationObligation obligation = new MutationObligation(0, "MO-1",
+                "src/main/java/example/EventService.java", MutationOperation.WRITE,
+                MutationSourceKind.REQUIREMENT, "REQUIREMENT:L001", "修改 EventService.java",
+                "2".repeat(64), List.of(), List.of());
+        Catalog facts = new Catalog(base.contractVersion(), base.workPackageId(), base.designRevision(),
+                base.designSha256(), base.controlledFormat(), base.facts(), base.stageHints(),
+                List.of(obligation), List.of(), base.issues());
+        WorkPackageRoleService.View role = role("software-java", List.of("java"));
+        CapabilityCatalog capabilities = registry.build(facts, role, design);
+
+        DesignerAcceptancePlanCompiler.Result result = compiler.compile(workPackage(), design, facts, capabilities,
+                new CompactAcceptanceBindingPlan("事件服务验收", List.of(), List.of(), "待验证"),
+                role, List.of(), List.of(), List.of("EventService"), 6, true);
+
+        assertThat(result.plan().status()).isEqualTo("DESIGN_INCOMPLETE");
+        assertThat(result.plan().designGaps()).singleElement().satisfies(gap ->
+                assertThat(gap.code()).isEqualTo(DesignGapCode.REQUIRED_MUTATION_PATH_UNASSIGNED));
+    }
+
+    @Test
+    void v7DoesNotTreatPackageScopeFallbackAsStageOwnerProof() {
+        String design = """
+                ## 目标与范围
+                实现 EventService 的事件投递行为。
+
+                ## 影响与交付
+                | 类型 | 相对路径或符号 | 说明 |
+                | --- | --- | --- |
+                | 修改 | EventService | 服务符号 |
+
+                ## 验收场景
+                | 场景 | 前置/触发 | 操作 | 可观察结果 | 保持不变 |
+                | --- | --- | --- | --- | --- |
+                | 事件投递 | 已注册监听器 | 调用 publish | 监听器收到事件 | 注册表不变 |
+
+                ## 验收约束
+                EventServiceTest 必须独立通过。
+
+                ## 阶段与依赖
+                | 阶段 | 目标 | 包含场景/评审/交付 | 前置阶段 |
+                | --- | --- | --- | --- |
+                | 事件服务 | 实现并验证事件投递 | 事件投递；EventService | 无 |
+                """;
+        Catalog base = extractor.extract("WP-1", 1, design, CONTRACT_VERSION_V7);
+        Catalog facts = mutationCatalog(base, List.of(
+                mutation(0, "config/external-adapter.yml", MutationOperation.WRITE)));
+        WorkPackageRoleService.View role = role("software-java", List.of("java"));
+        CapabilityCatalog capabilities = registry.build(facts, role, design);
+
+        DesignerAcceptancePlanCompiler.Result result = compiler.compile(workPackage(), design, facts, capabilities,
+                new CompactAcceptanceBindingPlan("事件服务验收", List.of(), List.of(), "待验证"),
+                role, List.of("config/**"), List.of(), List.of("EventService"), 6, true);
+
+        assertThat(result.plan().status()).isEqualTo("DESIGN_INCOMPLETE");
+        assertThat(result.plan().designGaps()).singleElement().satisfies(gap ->
+                assertThat(gap.code()).isEqualTo(DesignGapCode.REQUIRED_MUTATION_PATH_UNASSIGNED));
+    }
+
+    @Test
+    void mutationConservationAcceptsSingleAndMultipleJustifiedStageOwners() {
+        Catalog facts = mutationCatalog(List.of(
+                mutation(0, "src/main/java/example/Service.java", MutationOperation.WRITE),
+                mutation(1, "config/external-adapter.yml", MutationOperation.WRITE),
+                mutation(2, "src/test/java/example/ServiceTest.java", MutationOperation.MOVE_DESTINATION)));
+        List<CompactStage> stages = List.of(
+                policyStage(List.of("src/main/java/example/Service.java"), List.of()),
+                policyStage(List.of("config/**", "src/test/java/**"), List.of()));
+
+        MutationConservationPolicy.Evaluation evaluation = new MutationConservationPolicy().evaluate(
+                facts, stages, stages.stream().map(CompactStage::allowedPaths).toList());
+
+        assertThat(evaluation.passed()).isTrue();
+        assertThat(evaluation.obligationCount()).isEqualTo(3);
+        assertThat(evaluation.resolvedCount()).isEqualTo(3);
+        assertThat(evaluation.unresolved()).isEmpty();
+        assertThat(evaluation.pathConservation()).isEqualTo("CONSERVED");
+    }
+
+    @Test
+    void mutationConservationRequiresProvableGlobRuleContainment() {
+        Catalog facts = mutationCatalog(List.of(
+                mutation(0, "src/**/Service.java", MutationOperation.WRITE)));
+        CompactStage narrower = policyStage(List.of("src/*/Service.java"), List.of());
+        CompactStage covering = policyStage(List.of("src/**"), List.of());
+
+        MutationConservationPolicy.Evaluation rejected = new MutationConservationPolicy().evaluate(
+                facts, List.of(narrower), List.of(narrower.allowedPaths()));
+        MutationConservationPolicy.Evaluation accepted = new MutationConservationPolicy().evaluate(
+                facts, List.of(covering), List.of(covering.allowedPaths()));
+        Catalog overlappingFacts = mutationCatalog(List.of(
+                mutation(0, "config/*.yml", MutationOperation.WRITE)));
+        CompactStage overlapping = policyStage(List.of("config/**"), List.of("config/secret*.yml"));
+        MutationConservationPolicy.Evaluation forbidden = new MutationConservationPolicy().evaluate(
+                overlappingFacts, List.of(overlapping), List.of(overlapping.allowedPaths()));
+        Catalog exactFileFacts = mutationCatalog(List.of(
+                mutation(0, "config/a.yml", MutationOperation.WRITE)));
+        CompactStage boundedFileGlob = policyStage(List.of("config/*.yml"), List.of());
+        MutationConservationPolicy.Evaluation boundedFileCoverage = new MutationConservationPolicy().evaluate(
+                exactFileFacts, List.of(boundedFileGlob), List.of(boundedFileGlob.allowedPaths()));
+
+        assertThat(rejected.passed()).isFalse();
+        assertThat(rejected.unresolved()).singleElement().satisfies(unresolved ->
+                assertThat(unresolved.code()).isEqualTo(DesignGapCode.REQUIRED_MUTATION_PATH_UNASSIGNED));
+        assertThat(accepted.passed()).isTrue();
+        assertThat(boundedFileCoverage.passed()).isTrue();
+        assertThat(forbidden.unresolved()).singleElement().satisfies(unresolved ->
+                assertThat(unresolved.code()).isEqualTo(DesignGapCode.REQUIRED_MUTATION_PATH_FORBIDDEN));
+
+        CompactStage directoryForbidden = policyStage(List.of("config/**"), List.of("config"));
+        MutationConservationPolicy.Evaluation forbiddenByDirectory = new MutationConservationPolicy().evaluate(
+                overlappingFacts, List.of(directoryForbidden), List.of(directoryForbidden.allowedPaths()));
+        assertThat(forbiddenByDirectory.unresolved()).singleElement().satisfies(unresolved ->
+                assertThat(unresolved.code()).isEqualTo(DesignGapCode.REQUIRED_MUTATION_PATH_FORBIDDEN));
+
+        Catalog directoryFacts = mutationCatalog(List.of(
+                mutation(0, "config/templates", MutationPathKind.PATH_RULE, MutationOperation.WRITE)));
+        CompactStage shallowGlob = policyStage(List.of("config/*"), List.of());
+        MutationConservationPolicy.Evaluation shallowCoverage = new MutationConservationPolicy().evaluate(
+                directoryFacts, List.of(shallowGlob), List.of(shallowGlob.allowedPaths()));
+        assertThat(shallowCoverage.unresolved()).singleElement().satisfies(unresolved ->
+                assertThat(unresolved.code()).isEqualTo(DesignGapCode.REQUIRED_MUTATION_PATH_UNASSIGNED));
+
+        CompactStage sameDirectory = policyStage(List.of("config/templates"), List.of());
+        CompactStage ancestorDirectory = policyStage(List.of("config"), List.of());
+        assertThat(new MutationConservationPolicy().evaluate(directoryFacts, List.of(sameDirectory),
+                List.of(sameDirectory.allowedPaths())).passed()).isTrue();
+        assertThat(new MutationConservationPolicy().evaluate(directoryFacts, List.of(ancestorDirectory),
+                List.of(ancestorDirectory.allowedPaths())).passed()).isTrue();
+
+        CompactStage nestedForbidden = policyStage(List.of("config/templates"),
+                List.of("config/templates/secret/**"));
+        MutationConservationPolicy.Evaluation forbiddenSubtree = new MutationConservationPolicy().evaluate(
+                directoryFacts, List.of(nestedForbidden), List.of(nestedForbidden.allowedPaths()));
+        assertThat(forbiddenSubtree.unresolved()).singleElement().satisfies(unresolved ->
+                assertThat(unresolved.code()).isEqualTo(DesignGapCode.REQUIRED_MUTATION_PATH_FORBIDDEN));
+    }
+
+    @Test
+    void mutationConservationProvesCommonSiblingGlobExclusionsAreDisjoint() {
+        Catalog facts = mutationCatalog(List.of(
+                mutation(0, "config/*.yml", MutationPathKind.PATH_RULE, MutationOperation.WRITE)));
+        CompactStage generatedSubtree = policyStage(List.of("config/**"), List.of("config/generated/**"));
+        CompactStage differentSuffix = policyStage(List.of("config/**"), List.of("config/*.json"));
+
+        MutationConservationPolicy.Evaluation subtree = new MutationConservationPolicy().evaluate(
+                facts, List.of(generatedSubtree), List.of(generatedSubtree.allowedPaths()));
+        MutationConservationPolicy.Evaluation suffix = new MutationConservationPolicy().evaluate(
+                facts, List.of(differentSuffix), List.of(differentSuffix.allowedPaths()));
+
+        assertThat(subtree.passed()).isTrue();
+        assertThat(suffix.passed()).isTrue();
+    }
+
+    @Test
+    void mutationConservationUsesTypedExactAndSubtreeSemanticsWithoutDotNameHeuristics() {
+        CompactStage shallowGlob = policyStage(List.of("config/*.d"), List.of());
+        Catalog exact = mutationCatalog(List.of(
+                mutation(0, "config/config.d", MutationPathKind.EXACT_PATH, MutationOperation.WRITE)));
+        Catalog subtree = mutationCatalog(List.of(
+                mutation(0, "config/config.d", MutationPathKind.PATH_RULE, MutationOperation.WRITE)));
+
+        MutationConservationPolicy.Evaluation exactEvaluation = new MutationConservationPolicy().evaluate(
+                exact, List.of(shallowGlob), List.of(shallowGlob.allowedPaths()));
+        MutationConservationPolicy.Evaluation subtreeEvaluation = new MutationConservationPolicy().evaluate(
+                subtree, List.of(shallowGlob), List.of(shallowGlob.allowedPaths()));
+
+        assertThat(exactEvaluation.passed()).isTrue();
+        assertThat(subtreeEvaluation.passed()).isFalse();
+    }
+
+    @Test
+    void mutationConservationUsesOnlyThePublicThreeStateDiagnosticContract() {
+        Catalog empty = mutationCatalog(List.of());
+
+        MutationConservationPolicy.Evaluation routed =
+                MutationConservationPolicy.Evaluation.notEvaluated(empty);
+        MutationConservationPolicy.Evaluation compiled = new MutationConservationPolicy().evaluate(
+                empty, List.of(), List.of());
+
+        assertThat(routed.pathConservation()).isEqualTo("NOT_EVALUATED");
+        assertThat(routed.passed()).isFalse();
+        assertThat(compiled.pathConservation()).isEqualTo("CONSERVED");
+        assertThat(compiled.passed()).isTrue();
+    }
+
+    @Test
+    void unevaluatedMutationConservationKeepsFrozenObligationCounts() {
+        Catalog facts = mutationCatalog(List.of(
+                mutation(0, "src/main/java/example/Service.java", MutationOperation.WRITE),
+                mutation(1, "config/external-adapter.yml", MutationOperation.WRITE)));
+
+        MutationConservationPolicy.Evaluation evaluation =
+                MutationConservationPolicy.Evaluation.notEvaluated(facts);
+
+        assertThat(evaluation.obligationCount()).isEqualTo(2);
+        assertThat(evaluation.resolvedCount()).isZero();
+        assertThat(evaluation.unresolvedCount()).isEqualTo(2);
+        assertThat(evaluation.pathConservation()).isEqualTo("NOT_EVALUATED");
+        assertThat(evaluation.passed()).isFalse();
+    }
+
+    @Test
+    void mutationConservationBlocksForbiddenDeleteAndMoveSourceObligations() {
+        Catalog facts = mutationCatalog(List.of(
+                mutation(0, "config/external-adapter.yml", MutationOperation.WRITE),
+                mutation(1, "config/obsolete.yml", MutationOperation.DELETE_REQUEST),
+                mutation(2, "config/adapter-old.yml", MutationOperation.MOVE_SOURCE)));
+        CompactStage stage = policyStage(List.of("config/**"), List.of("config/external-adapter.yml"));
+
+        MutationConservationPolicy.Evaluation evaluation = new MutationConservationPolicy().evaluate(
+                facts, List.of(stage), List.of(stage.allowedPaths()));
+
+        assertThat(evaluation.passed()).isFalse();
+        assertThat(evaluation.unresolved()).extracting(MutationConservationPolicy.Unresolved::code)
+                .containsExactly(
+                        DesignGapCode.REQUIRED_MUTATION_PATH_FORBIDDEN,
+                        DesignGapCode.REQUIRED_MUTATION_PATH_FORBIDDEN,
+                        DesignGapCode.REQUIRED_MUTATION_PATH_FORBIDDEN);
+        assertThat(evaluation.resolvedCount()).isZero();
+        assertThat(evaluation.pathConservation()).isEqualTo("BLOCKED");
+    }
+
+    @Test
+    void mutationConservationRejectsDivergentStageAndEvidencePathContracts() {
+        Catalog facts = mutationCatalog(List.of(
+                mutation(0, "src/main/java/example/Service.java", MutationOperation.WRITE)));
+        CompactStage divergent = policyStage(List.of("src/main/java/**"), List.of(),
+                List.of("src/main/java/example/Service.java"));
+
+        MutationConservationPolicy.Evaluation evaluation = new MutationConservationPolicy().evaluate(
+                facts, List.of(divergent), List.of(divergent.allowedPaths()));
+
+        assertThat(evaluation.passed()).isFalse();
+        assertThat(evaluation.unresolved()).singleElement().satisfies(unresolved -> {
+            assertThat(unresolved.code()).isEqualTo(DesignGapCode.REQUIRED_MUTATION_PATH_UNASSIGNED);
+            assertThat(unresolved.reason()).contains("路径合同不一致");
+        });
+    }
+
+    @Test
+    void mutationConservationComparesStageAndEvidencePathsAfterRuntimeNormalization() {
+        Catalog facts = mutationCatalog(List.of(
+                mutation(0, "src/main/java/example/Service.java", MutationOperation.WRITE)));
+        CompactStage equivalent = policyStage(List.of("./src/main/java/**"), List.of(".\\.env"),
+                List.of("src/main/java/**"));
+        CompactStage normalizedEvidence = new CompactStage(equivalent.objective(), equivalent.implementationKind(),
+                equivalent.allowedPaths(), equivalent.forbiddenPaths(), equivalent.deliverables(),
+                equivalent.criteria(), equivalent.evidence().stream().map(evidence -> new CompactEvidence(
+                        evidence.kind(), evidence.command(), evidence.covers(), evidence.successMarker(), evidence.path(),
+                        evidence.requireChanges(), evidence.allowedPaths(), List.of(".env"), evidence.forbidDeletes(),
+                        evidence.url(), evidence.httpMethod(), evidence.expectedStatus(), evidence.jsonPath(),
+                        evidence.expectedValue(), evidence.matchMode(), evidence.expectedContent(),
+                        evidence.expectedSha256(), evidence.sql(), evidence.expectedRowCount(), evidence.assertions(),
+                        evidence.documentAssertions(), evidence.tabularAssertions())).toList(), null);
+
+        MutationConservationPolicy.Evaluation evaluation = new MutationConservationPolicy().evaluate(
+                facts, List.of(normalizedEvidence), List.of(normalizedEvidence.allowedPaths()));
+
+        assertThat(evaluation.passed()).isTrue();
+    }
+
+    @Test
+    void historicalV5V6FactsJsonDefaultsMissingMutationCatalogAndV7RoundTripsExactly() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+        String historical = """
+                {"contractVersion":"DESIGN_ACCEPTANCE_V6","workPackageId":"WP-1","designRevision":3,
+                 "designSha256":"%s","controlledFormat":true,"facts":[],"stageHints":[],"issues":[]}
+                """.formatted("a".repeat(64));
+
+        for (String version : List.of(CONTRACT_VERSION_V5, CONTRACT_VERSION_V6)) {
+            Catalog restored = json.readValue(historical.replace(CONTRACT_VERSION_V6, version), Catalog.class);
+            assertThat(restored.mutationObligations()).isEmpty();
+            assertThat(restored.mutationIssues()).isEmpty();
+        }
+
+        Catalog v7 = mutationCatalog(List.of(
+                mutation(0, "config/external-adapter.yml", MutationOperation.WRITE)));
+        Catalog restoredV7 = json.readValue(json.writeValueAsString(v7), Catalog.class);
+        assertThat(restoredV7).isEqualTo(v7);
+        assertThat(restoredV7.mutationObligations()).singleElement().satisfies(obligation -> {
+            assertThat(obligation.sourceRef()).isEqualTo("REQUIREMENT:L001");
+            assertThat(obligation.sourceSha256()).isEqualTo("3".repeat(64));
+        });
     }
 
     @Test
@@ -747,6 +2026,46 @@ class DesignerAcceptancePlanningAlgorithmTest {
                     assertThat(verifier.forbiddenPaths()).containsExactly(".env", ".env.*", "target/**"));
         });
         assertThat(result.normalizations()).contains("JAVA_PRODUCTION_STAGE_GATE_BOUND");
+    }
+
+    private static Catalog mutationCatalog(List<MutationObligation> obligations) {
+        return new Catalog(CONTRACT_VERSION_V7, "WP-1", 1, "b".repeat(64), true,
+                List.of(), List.of(), obligations, List.of(), List.of());
+    }
+
+    private static Catalog mutationCatalog(Catalog base, List<MutationObligation> obligations) {
+        return new Catalog(base.contractVersion(), base.workPackageId(), base.designRevision(), base.designSha256(),
+                base.controlledFormat(), base.facts(), base.stageHints(), obligations, List.of(), base.issues());
+    }
+
+    private static MutationObligation mutation(int index, String path, MutationOperation operation) {
+        return mutation(index, path, path.contains("*") ? MutationPathKind.PATH_RULE : MutationPathKind.EXACT_PATH,
+                operation);
+    }
+
+    private static MutationObligation mutation(int index, String path, MutationPathKind pathKind,
+                                                 MutationOperation operation) {
+        return new MutationObligation(index, "MO-" + (index + 1), path, pathKind, operation,
+                MutationSourceKind.REQUIREMENT, "REQUIREMENT:L001", "修改 " + path,
+                "3".repeat(64), List.of(), List.of());
+    }
+
+    private static CompactStage policyStage(List<String> allowedPaths, List<String> forbiddenPaths) {
+        return policyStage(allowedPaths, forbiddenPaths, allowedPaths);
+    }
+
+    private static CompactStage policyStage(List<String> allowedPaths, List<String> forbiddenPaths,
+                                            List<String> evidenceAllowedPaths) {
+        CompactEvidence focused = new CompactEvidence("FOCUSED_TEST", List.of("mvn", "test"), List.of(),
+                null, null, null, evidenceAllowedPaths, forbiddenPaths, null,
+                null, null, null, null, null, null, null, null, null, null,
+                List.of(), List.of(), List.of());
+        CompactEvidence gitDiff = new CompactEvidence("GIT_DIFF", List.of(), List.of(),
+                null, null, true, evidenceAllowedPaths, forbiddenPaths, true,
+                null, null, null, null, null, null, null, null, null, null,
+                List.of(), List.of(), List.of());
+        return new CompactStage("实现并验证", io.opencode.loopper.domain.ImplementationKind.JAVA_PRODUCTION,
+                allowedPaths, forbiddenPaths, List.of(), List.of(), List.of(focused, gitDiff), null);
     }
 
     private void assertNativeCapability(List<String> technologies, String rolePack, String design,

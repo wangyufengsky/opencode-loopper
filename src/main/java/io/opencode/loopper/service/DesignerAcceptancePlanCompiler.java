@@ -18,7 +18,8 @@ final class DesignerAcceptancePlanCompiler {
     private static final long NODE_LIMIT = 100_000;
     private final DesignerPackagePlanCompiler packageCompiler;
     private final DesignerAcceptanceStageEvidenceBinder evidenceBinder = new DesignerAcceptanceStageEvidenceBinder();
-    private final DesignerAcceptancePathPolicy pathPolicy = new DesignerAcceptancePathPolicy();
+    private final DesignerAcceptanceStagePathPlanner stagePathPlanner = new DesignerAcceptanceStagePathPlanner();
+    private final MutationConservationPolicy mutationConservationPolicy = new MutationConservationPolicy();
 
     DesignerAcceptancePlanCompiler(DesignerPackagePlanCompiler packageCompiler) {
         this.packageCompiler = packageCompiler;
@@ -41,6 +42,7 @@ final class DesignerAcceptancePlanCompiler {
         }
         ensureAcyclic(groups);
         List<CompactStage> stages = new ArrayList<>();
+        List<List<String>> justifiedMutationPaths = new ArrayList<>();
         List<ScenarioView> scenarioViews = new ArrayList<>();
         List<String> normalizations = new ArrayList<>();
         long explored = 0;
@@ -57,9 +59,12 @@ final class DesignerAcceptancePlanCompiler {
                 independentRequired.stream().filter(capability -> selected.stream()
                         .noneMatch(existing -> existing.index() == capability.index())).forEach(selected::add);
             }
-            List<String> allowedPaths = allowedPaths(facts, group.materialFactIndexes(), scopeIn, role);
-            List<String> stageDeliverables = deliverables(facts, group.materialFactIndexes(), deliverables);
-            ImplementationKind kind = implementationKind(role, allowedPaths);
+            DesignerAcceptanceStagePathPlanner.Selection allowedPathSelection = stagePathPlanner.select(
+                    facts, group.materialFactIndexes(), scopeIn, role);
+            List<String> allowedPaths = allowedPathSelection.paths();
+            List<String> stageDeliverables = stagePathPlanner.deliverables(
+                    facts, group.materialFactIndexes(), deliverables);
+            ImplementationKind kind = stagePathPlanner.implementationKind(role, allowedPaths);
             Capability stageGate = javaProductionGate(group, facts, capabilities.capabilities(), selected, kind);
             if (solved.uncovered().isEmpty() && kind == ImplementationKind.JAVA_PRODUCTION
                     && selected.stream().noneMatch(DesignerAcceptancePlanCompiler::focused)
@@ -75,10 +80,18 @@ final class DesignerAcceptancePlanCompiler {
             allUncovered.addAll(solved.uncovered());
             stages.add(stage(group, facts, selected, stageGate, allowedPaths, scopeOut,
                     stageDeliverables, kind, scenarioViews));
+            justifiedMutationPaths.add(allowedPathSelection.justifiedPaths());
         }
         if (!allUncovered.isEmpty()) {
             return incomplete(workPackage, design, facts, capabilities, binding, allUncovered,
                     explored, fallback, selectedCapabilityIndexes.size(), scenarioViews, stageLimit, directSoftwareMode);
+        }
+        MutationConservationPolicy.Evaluation conservation = mutationConservationPolicy.evaluate(
+                facts, stages, justifiedMutationPaths);
+        if (!conservation.passed()) {
+            return incompleteMutation(workPackage, design, facts, capabilities, binding, conservation,
+                    explored, fallback, selectedCapabilityIndexes.size(), scenarioViews, stageLimit,
+                    directSoftwareMode);
         }
         CompactPackageCompilationPlan compact = new CompactPackageCompilationPlan("COMPILED", binding.summary(),
                 stages, binding.handoffSummary(), List.of());
@@ -93,7 +106,32 @@ final class DesignerAcceptancePlanCompiler {
                 ? "DETERMINISTIC_GREEDY_2OPT" : "EXACT_BRANCH_AND_BOUND", explored, fallback,
                 acceptanceFacts.size(), capabilities.capabilities().size(), selectedCapabilityIndexes.size(),
                 List.copyOf(allUncovered), normalizations);
-        return new Result(lowered.plan(), List.copyOf(normalizations), diagnostics, List.copyOf(scenarioViews));
+        return new Result(lowered.plan(), List.copyOf(normalizations), diagnostics,
+                List.copyOf(scenarioViews), conservation);
+    }
+
+    private Result incompleteMutation(DesignWorkPackageRow workPackage, String design, Catalog facts,
+                                      CapabilityCatalog capabilities, CompactAcceptanceBindingPlan binding,
+                                      MutationConservationPolicy.Evaluation conservation,
+                                      long explored, boolean fallback, int selectedCount,
+                                      List<ScenarioView> scenarioViews, int stageLimit,
+                                      boolean directSoftwareMode) {
+        MutationConservationPolicy.Unresolved first = conservation.unresolved().getFirst();
+        String detail = bounded(first.reason() + "：" + first.pathRule(), 2_000);
+        CompactPackageCompilationPlan incomplete = new CompactPackageCompilationPlan(
+                "DESIGN_INCOMPLETE", binding.summary(), List.of(), binding.handoffSummary(),
+                List.of(new DesignGap(first.code(), detail)));
+        DesignerPackagePlanCompiler.Result lowered = packageCompiler.compile(
+                workPackage, design, incomplete, stageLimit, directSoftwareMode);
+        List<String> normalizations = new ArrayList<>(lowered.normalizations());
+        normalizations.add("MUTATION_PATH_CONSERVATION_BLOCKED");
+        SolverDiagnostics diagnostics = new SolverDiagnostics(fallback
+                ? "DETERMINISTIC_GREEDY_2OPT" : "EXACT_BRANCH_AND_BOUND", explored, fallback,
+                facts.facts().stream().filter(fact -> fact.kind() == FactKind.SCENARIO
+                        || fact.kind() == FactKind.REVIEW).toList().size(),
+                capabilities.capabilities().size(), selectedCount, List.of(), normalizations);
+        return new Result(lowered.plan(), List.copyOf(normalizations), diagnostics,
+                List.copyOf(scenarioViews), conservation);
     }
 
     private Result incomplete(DesignWorkPackageRow workPackage, String design, Catalog facts,
@@ -115,7 +153,8 @@ final class DesignerAcceptancePlanCompiler {
                 facts.facts().stream().filter(fact -> fact.kind() == FactKind.SCENARIO
                         || fact.kind() == FactKind.REVIEW).toList().size(),
                 capabilities.capabilities().size(), selectedCount, List.copyOf(uncovered), normalizations);
-        return new Result(lowered.plan(), List.copyOf(normalizations), diagnostics, List.copyOf(scenarioViews));
+        return new Result(lowered.plan(), List.copyOf(normalizations), diagnostics,
+                List.copyOf(scenarioViews), MutationConservationPolicy.Evaluation.notEvaluated(facts));
     }
 
     private Result incompleteStageGate(DesignWorkPackageRow workPackage, String design, Catalog facts,
@@ -136,14 +175,15 @@ final class DesignerAcceptancePlanCompiler {
                 facts.facts().stream().filter(fact -> fact.kind() == FactKind.SCENARIO
                         || fact.kind() == FactKind.REVIEW).toList().size(),
                 capabilities.capabilities().size(), selectedCount, group.acceptanceFactIndexes(), normalizations);
-        return new Result(lowered.plan(), List.copyOf(normalizations), diagnostics, List.copyOf(scenarioViews));
+        return new Result(lowered.plan(), List.copyOf(normalizations), diagnostics,
+                List.copyOf(scenarioViews), MutationConservationPolicy.Evaluation.notEvaluated(facts));
     }
 
     private CompactStage stage(Group group, Catalog catalog, List<Capability> selected, Capability stageGate,
                                List<String> allowedPaths, List<String> scopeOut, List<String> deliverables,
                                ImplementationKind kind,
                                List<ScenarioView> views) {
-        List<String> effectiveForbiddenPaths = forbiddenPaths(scopeOut);
+        List<String> effectiveForbiddenPaths = stagePathPlanner.forbiddenPaths(catalog, scopeOut);
         DesignerAcceptanceStageEvidenceBinder.Binding binding = evidenceBinder.bind(
                 group.acceptanceFactIndexes(), catalog, selected, stageGate, allowedPaths, effectiveForbiddenPaths);
         views.addAll(binding.views());
@@ -235,35 +275,6 @@ final class DesignerAcceptancePlanCompiler {
         }
     }
 
-    private List<String> allowedPaths(Catalog facts, List<Integer> materialFactIndexes,
-                                      List<String> scopeIn, WorkPackageRoleService.View role) {
-        LinkedHashSet<String> paths = new LinkedHashSet<>();
-        paths.addAll(pathPolicy.paths(facts, materialFactIndexes));
-        if (paths.isEmpty()) paths.addAll(pathPolicy.paths(scopeIn));
-        if (paths.isEmpty()) paths.addAll(pathPolicy.paths(facts,
-                facts.facts().stream().map(Fact::index).toList()));
-        if (paths.isEmpty() && role.technologies().contains("java")) {
-            paths.add("src/main/java/**"); paths.add("src/test/java/**");
-        } else if (paths.isEmpty() && role.technologies().contains("python")) {
-            paths.add("**/*.py");
-        } else if (paths.isEmpty()) paths.add("src/**");
-        return List.copyOf(paths);
-    }
-
-    private static List<String> deliverables(Catalog facts, List<Integer> materialFactIndexes,
-                                             List<String> frozen) {
-        LinkedHashSet<String> values = new LinkedHashSet<>();
-        LinkedHashSet<Integer> selected = new LinkedHashSet<>(materialFactIndexes);
-        facts.facts().stream().filter(fact -> selected.contains(fact.index()))
-                .filter(fact -> fact.kind() == FactKind.DELIVERABLE)
-                .map(Fact::title).filter(value -> !blank(value)).forEach(values::add);
-        if (values.isEmpty() && frozen != null) frozen.stream().filter(value -> !blank(value)).forEach(values::add);
-        if (values.isEmpty()) facts.facts().stream().filter(fact -> fact.kind() == FactKind.DELIVERABLE)
-                .map(Fact::title).filter(value -> !blank(value)).forEach(values::add);
-        if (values.isEmpty()) values.add("实现与聚焦验收测试");
-        return List.copyOf(values);
-    }
-
     private static Capability javaProductionGate(Group group, Catalog catalog, List<Capability> capabilities,
                                                  List<Capability> selected, ImplementationKind kind) {
         if (kind != ImplementationKind.JAVA_PRODUCTION || selected.stream().anyMatch(
@@ -284,20 +295,6 @@ final class DesignerAcceptancePlanCompiler {
     private static boolean focused(Capability capability) {
         return "FOCUSED_TEST".equals(capability.kind()) && !capability.command().isEmpty()
                 && !capability.testTargets().isEmpty();
-    }
-
-    private static ImplementationKind implementationKind(WorkPackageRoleService.View role,
-                                                          List<String> allowedPaths) {
-        if (!role.technologies().contains("java")) return ImplementationKind.NON_JAVA;
-        boolean production = allowedPaths.stream().map(value -> value.replace('\\', '/').toLowerCase())
-                .anyMatch(value -> value.contains("/src/main/java/") || value.startsWith("src/main/java/"));
-        return production ? ImplementationKind.JAVA_PRODUCTION : ImplementationKind.JAVA_TEST_ONLY;
-    }
-
-    private List<String> forbiddenPaths(List<String> scopeOut) {
-        LinkedHashSet<String> values = new LinkedHashSet<>(List.of(".env", ".env.*"));
-        values.addAll(pathPolicy.paths(scopeOut));
-        return List.copyOf(values);
     }
 
     private static Fact fact(Catalog catalog, int index) {
@@ -324,7 +321,8 @@ final class DesignerAcceptancePlanCompiler {
     }
 
     record Result(PackageCompilationPlanEnvelope plan, List<String> normalizations,
-                  SolverDiagnostics diagnostics, List<ScenarioView> scenarios) { }
+                  SolverDiagnostics diagnostics, List<ScenarioView> scenarios,
+                  MutationConservationPolicy.Evaluation mutationConservation) { }
     private record Group(String objective, List<Integer> acceptanceFactIndexes,
                          List<Integer> materialFactIndexes, List<Integer> dependsOn) { }
     private record SolveResult(List<Capability> selected, List<Integer> uncovered,

@@ -6,6 +6,7 @@ import java.util.List;
 final class DesignerAcceptancePlanning {
     static final String CONTRACT_VERSION_V5 = "DESIGN_ACCEPTANCE_V5";
     static final String CONTRACT_VERSION_V6 = "DESIGN_ACCEPTANCE_V6";
+    static final String CONTRACT_VERSION_V7 = "DESIGN_ACCEPTANCE_V7";
 
     private DesignerAcceptancePlanning() { }
 
@@ -13,13 +14,53 @@ final class DesignerAcceptancePlanning {
 
     enum CoverageMode { AUTOMATED, BOTH, JUDGE, UNRESOLVED }
 
+    enum MutationOperation { WRITE, DELETE_REQUEST, MOVE_SOURCE, MOVE_DESTINATION }
+
+    enum MutationPathKind { EXACT_PATH, PATH_RULE }
+
+    enum MutationSourceKind { REQUIREMENT, DESIGN_DELIVERABLE, DESIGN_SCOPE }
+
     record Catalog(String contractVersion, String workPackageId, int designRevision, String designSha256,
                    boolean controlledFormat, List<Fact> facts, List<StageHint> stageHints,
+                   List<MutationObligation> mutationObligations, List<String> mutationIssues,
                    List<String> issues) {
+        Catalog(String contractVersion, String workPackageId, int designRevision, String designSha256,
+                boolean controlledFormat, List<Fact> facts, List<StageHint> stageHints,
+                List<String> issues) {
+            this(contractVersion, workPackageId, designRevision, designSha256, controlledFormat,
+                    facts, stageHints, List.of(), List.of(), issues);
+        }
+
         Catalog {
             facts = facts == null ? List.of() : List.copyOf(facts);
             stageHints = stageHints == null ? List.of() : List.copyOf(stageHints);
+            mutationObligations = mutationObligations == null ? List.of() : List.copyOf(mutationObligations);
+            mutationIssues = mutationIssues == null ? List.of() : List.copyOf(mutationIssues);
             issues = issues == null ? List.of() : List.copyOf(issues);
+        }
+    }
+
+    record MutationObligation(int index, String obligationId, String pathRule, MutationPathKind pathKind,
+                              MutationOperation operation,
+                              MutationSourceKind sourceKind, String sourceRef, String sourceExcerpt,
+                              String sourceSha256, List<Integer> candidateStageIndexes,
+                              List<Integer> assignedStageIndexes) {
+        MutationObligation(int index, String obligationId, String pathRule, MutationOperation operation,
+                           MutationSourceKind sourceKind, String sourceRef, String sourceExcerpt,
+                           String sourceSha256, List<Integer> candidateStageIndexes,
+                           List<Integer> assignedStageIndexes) {
+            this(index, obligationId, pathRule,
+                    pathRule != null && (pathRule.contains("*") || pathRule.contains("?")
+                            || pathRule.contains("[") || pathRule.contains("{"))
+                            ? MutationPathKind.PATH_RULE : MutationPathKind.EXACT_PATH,
+                    operation, sourceKind, sourceRef, sourceExcerpt, sourceSha256,
+                    candidateStageIndexes, assignedStageIndexes);
+        }
+
+        MutationObligation {
+            pathKind = pathKind == null ? MutationPathKind.PATH_RULE : pathKind;
+            candidateStageIndexes = candidateStageIndexes == null ? List.of() : List.copyOf(candidateStageIndexes);
+            assignedStageIndexes = assignedStageIndexes == null ? List.of() : List.copyOf(assignedStageIndexes);
         }
     }
 

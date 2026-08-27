@@ -157,6 +157,25 @@ class DesignerAcceptanceFastPathResolverTest {
         assertThat(merged.groupHints().get(1).dependsOnHintIndexes()).containsExactly(0);
     }
 
+    @Test
+    void v7MakesControlledScopeFactsReferableWithoutChangingHistoricalV6Resolution() {
+        List<Fact> facts = List.of(fact(0, FactKind.SCENARIO, "成功"),
+                fact(1, FactKind.SCOPE, "config/a.yml"));
+        List<StageHint> stages = List.of(stage("实现", "实现", List.of("成功", "config/a.yml"), List.of()));
+        Catalog v7 = new Catalog(CONTRACT_VERSION_V7, "WP-1", 1, "0".repeat(64), true,
+                facts, stages, List.of());
+        Catalog v6 = new Catalog(CONTRACT_VERSION_V6, "WP-1", 1, "0".repeat(64), true,
+                facts, stages, List.of());
+
+        var current = resolver.resolve(v7, capabilities(0));
+        var historical = resolver.resolve(v6, capabilities(0));
+
+        assertThat(current.outcome()).isEqualTo(DesignerAcceptanceFastPathResolver.Outcome.RESOLVED);
+        assertThat(current.groupHints().getFirst().factIndexes()).containsExactly(0, 1);
+        assertThat(historical.outcome()).isEqualTo(DesignerAcceptanceFastPathResolver.Outcome.DESIGN_INCOMPLETE);
+        assertThat(historical.routingReasons()).containsExactly("ACCEPTANCE_FACT_REFERENCE_INVALID");
+    }
+
     private static Catalog catalog(List<StageHint> stages, List<Fact> facts) {
         return new Catalog(CONTRACT_VERSION_V6, "WP-1", 1, "0".repeat(64), true,
                 facts, stages, List.of());

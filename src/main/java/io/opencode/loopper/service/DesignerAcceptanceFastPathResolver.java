@@ -18,6 +18,15 @@ final class DesignerAcceptanceFastPathResolver {
     private static final int MAX_STAGES = 6;
 
     Resolution resolve(Catalog catalog, CapabilityCatalog capabilities) {
+        if (!catalog.mutationIssues().isEmpty()) {
+            String issue = catalog.mutationIssues().getFirst();
+            DesignGapCode code = "MUTATION_PATH_SCOPE_CONFLICT".equals(issue)
+                    ? DesignGapCode.REQUIRED_MUTATION_PATH_FORBIDDEN
+                    : DesignGapCode.AMBIGUOUS_ACCEPTANCE_INTENT;
+            return new Resolution(Outcome.DESIGN_INCOMPLETE, List.of(), List.of(), List.of(),
+                    catalog.mutationIssues(), List.of(new DesignGap(code,
+                    "冻结修改路径的正负作用域存在冲突，需要先明确路径边界")));
+        }
         List<StageHint> stages = catalog.stageHints();
         if (stages.size() > MAX_STAGES) {
             return new Resolution(Outcome.DESIGN_INCOMPLETE, List.of(), List.of(), List.of(),
@@ -41,7 +50,7 @@ final class DesignerAcceptanceFastPathResolver {
         Map<String, List<Fact>> factSymbols = new LinkedHashMap<>();
         List<Fact> acceptanceFacts = catalog.facts().stream().filter(DesignerAcceptanceFastPathResolver::acceptance)
                 .toList();
-        catalog.facts().stream().filter(DesignerAcceptanceFastPathResolver::referable)
+        catalog.facts().stream().filter(fact -> referable(catalog, fact))
                 .forEach(fact -> factSymbols.computeIfAbsent(symbol(fact.title()), ignored -> new ArrayList<>()).add(fact));
         List<LinkedHashSet<Integer>> assignments = new ArrayList<>();
         List<List<Integer>> dependencies = new ArrayList<>();
@@ -207,8 +216,9 @@ final class DesignerAcceptanceFastPathResolver {
         return fact.kind() == FactKind.SCENARIO || fact.kind() == FactKind.REVIEW;
     }
 
-    private static boolean referable(Fact fact) {
-        return acceptance(fact) || fact.kind() == FactKind.DELIVERABLE;
+    private static boolean referable(Catalog catalog, Fact fact) {
+        return acceptance(fact) || fact.kind() == FactKind.DELIVERABLE
+                || CONTRACT_VERSION_V7.equals(catalog.contractVersion()) && fact.kind() == FactKind.SCOPE;
     }
 
     private static boolean blank(String value) { return value == null || value.isBlank(); }

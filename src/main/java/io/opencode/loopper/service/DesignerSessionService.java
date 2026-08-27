@@ -178,28 +178,23 @@ public class DesignerSessionService {
         if (!"ROUTING".equals(profile.decisionState())) completeRouting(session.id());
         return get(session.id());
     }
-
     public DesignerSessionRow get(String sessionId) {
         return mapper.findDesignerSession(sessionId)
                 .orElseThrow(() -> new NotFoundException("Designer session not found: " + sessionId));
     }
-
     public List<DesignerSessionRow> listOpen(String projectId) {
         projects.get(projectId);
         return mapper.listOpenDesignerSessionsForProject(projectId);
     }
-
     public List<DesignerSessionHistoryRow> history(String projectId) {
         String scopedProjectId = projectId == null || projectId.isBlank() ? null : projectId;
         if (scopedProjectId != null) projects.get(scopedProjectId);
         return mapper.listDesignerSessionHistory(scopedProjectId);
     }
-
     public boolean archived(String sessionId) {
         get(sessionId);
         return mapper.isDesignerSessionArchived(sessionId);
     }
-
     @Transactional
     public void archive(String sessionId) {
         DesignerSessionRow session = get(sessionId);
@@ -237,7 +232,6 @@ public class DesignerSessionService {
                         row.serverCompiled()))
                 .orElse(null);
     }
-
     public RequirementRevisionStatus requirementStatus(String sessionId) {
         get(sessionId);
         return mapper.findCurrentDesignRequirementRevision(sessionId)
@@ -245,7 +239,6 @@ public class DesignerSessionService {
                         row.maxModelCalls(), row.sourceDraftVersion()))
                 .orElse(null);
     }
-
     public DecompositionStatus decompositionStatus(String sessionId) {
         get(sessionId);
         return mapper.findLatestTaskDecomposition(sessionId)
@@ -255,7 +248,6 @@ public class DesignerSessionService {
                         row.serverCompiled()))
                 .orElse(null);
     }
-
     public List<WorkPackageStatus> workPackageStatuses(String sessionId) {
         if (get(sessionId).currentRequirementRevision() == null) return List.of();
         DesignRequirementRevisionRow revision = mapper.findCurrentDesignRequirementRevision(sessionId).orElse(null);
@@ -284,7 +276,6 @@ public class DesignerSessionService {
                     role == null ? List.of() : role.technologies(), acceptanceWorkflow.status(compiler));
         }).toList();
     }
-
     public CandidateStatus candidateStatus(String sessionId) {
         DesignerSessionRow session = get(sessionId);
         if (session.currentRequirementRevision() == null) {
@@ -1966,14 +1957,22 @@ public class DesignerSessionService {
                     failure.getMessage(), true);
         }
     }
-
-    private void startCompilation(DesignerSessionRow session, DesignWorkPackageRow workPackage,
-                                  DesignerMessageRow source) {
+    private void startCompilation(DesignerSessionRow session, DesignWorkPackageRow workPackage, DesignerMessageRow source) {
         DesignRequirementRevisionRow revision = getRequirement(workPackage.requirementRevisionId());
         requirementDraftGuard.requireUnchanged(session, revision.sourceDraftVersion());
         WorkPackageRoleService.View role = workPackageRoles.get(workPackage);
         boolean deterministicAcceptance = acceptanceWorkflow.applies(role);
-        boolean v6Acceptance = deterministicAcceptance && RolePackRegistry.VERSION.equals(role.rolePackVersion());
+        boolean v6Acceptance = deterministicAcceptance && RolePackRegistry.supportsClosedAcceptance(role.rolePackVersion());
+        if (deterministicAcceptance) {
+            try {
+                acceptanceWorkflow.preflight(workPackage, revision.requirementText(), source.content(),
+                        strings(workPackage.scopeInJson()), strings(workPackage.scopeOutJson()),
+                        strings(workPackage.deliverablesJson()), role);
+            } catch (BadRequestException invalid) {
+                failPackageDesigner(workPackage, session, invalid.code(), invalid.getMessage(), false);
+                return;
+            }
+        }
         String now = now();
         ModelResponseMode responseMode = preferredResponseMode();
         LoopSpecCompilationRow pending = new LoopSpecCompilationRow(UUID.randomUUID().toString(), session.id(),
@@ -1991,7 +1990,8 @@ public class DesignerSessionService {
                 () -> new ConflictException("LOOPSPEC_COMPILATION_CREATE_CONFLICT",
                         "Work-package compilation could not be created"));
         if (deterministicAcceptance) {
-            acceptanceWorkflow.freeze(pending, workPackage, source.content(), role, now);
+            acceptanceWorkflow.freeze(pending, workPackage, revision.requirementText(), source.content(),
+                    strings(workPackage.scopeInJson()), strings(workPackage.scopeOutJson()), strings(workPackage.deliverablesJson()), role, now);
             DesignerAcceptanceWorkflow.RoutingResult routing = acceptanceWorkflow.route(
                     pending.id(), !directSoftwareMode(session.id()));
             if (v6Acceptance && directSoftwareMode(session.id()) && !routing.compilerRequired()) {
