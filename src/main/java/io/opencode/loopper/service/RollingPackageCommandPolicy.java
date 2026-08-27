@@ -34,8 +34,8 @@ public final class RollingPackageCommandPolicy {
                 && (!"PACKAGE_EXECUTION_FAILED".equals(context.packageWaitingReason()) || context.safeCheckpoint());
         boolean safeOwner = context.writerFree() && context.designerFree() && context.safeCheckpoint();
         boolean canReplan = designParent && safeOwner && run != null
-                && Set.of(TaskPackageRunState.PLANNED, TaskPackageRunState.DESIGNING,
-                TaskPackageRunState.DESIGN_REVIEW, TaskPackageRunState.EXECUTION_READY,
+                && Set.of(TaskPackageRunState.PLANNED, TaskPackageRunState.DESIGN_REVIEW,
+                TaskPackageRunState.EXECUTION_READY,
                 TaskPackageRunState.WAITING_INPUT).contains(run);
         boolean canCorrect = context.taskState() == TaskState.WAITING_INPUT
                 && containsNullableSafe(JUDGE_CORRECTION_REASONS, context.taskWaitingReason())

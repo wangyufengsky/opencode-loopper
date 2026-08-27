@@ -69,13 +69,17 @@ ownership rules:
   unfinished-suffix revisions and correction packages; `RollingPackagePlanGenerationService`
   owns only read-only AI suggestion Session dispatch, polling, bounded extraction, and base-snapshot
   verification; `RollingPackageReadService` owns bounded
-  workbench/fact projections. None may rewrite the immutable LoopDraft or derive UI capabilities.
+  workbench/fact projections. It may project policy-owned capabilities but may not derive a second
+  UI state matrix. None may rewrite the immutable LoopDraft.
   `RollingPackageTaskHooks` is the narrow bridge from the legacy Task facade, not a second workflow
   implementation. `TaskEvidenceService` remains the sole owner of proven diff/evidence material.
   `RollingPackageCommandPolicy` is the only authority for package command capabilities and
-  write validation; read projections and mutations must pass the same persisted Task/Run/Queue,
-  checkpoint, writer, Judge, and Designer facts to it. Controllers and Vue components may not
-  duplicate the state matrix or repair inconsistent aggregates after commit.
+  write validation; `RollingPackageCommandContextService` is the single builder of persisted
+  Task/Run/Queue, checkpoint, writer, Judge, verifier, and Designer facts passed to that policy.
+  Both Task overview and rolling workbench reads use this context, and the workbench response owns
+  its `taskVersion`, `currentPackageRunId`, package versions, and complete capability snapshot.
+  Controllers and Vue components may not mix that response with an older overview, duplicate the
+  state matrix, or repair inconsistent aggregates after commit.
 - `ProjectStackAnalyzer` owns bounded filesystem evidence and manifest fingerprinting;
   `ProjectStackProfileService` owns immutable snapshot persistence and freshness checks.
   Analyzer snapshot collections must be emitted in canonical lexical order so filesystem

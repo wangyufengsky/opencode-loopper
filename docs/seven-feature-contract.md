@@ -125,8 +125,11 @@ and lease transfer are individually idempotent recovery boundaries. Startup reus
 durable checkpoint/fact; it never falls back to the original baseline when the latest fact cannot
 be proven.
 
-Only the unexecuted suffix may be replanned, and only with no active writer, verifier, or Designer
-and a verified current checkpoint. Confirmation supersedes old unfinished package and design rows,
+Only the unexecuted suffix may be replanned, and only with no active writer, verifier, Judge, or
+Designer/Compiler/Validator and a verified current checkpoint. A package run in `DESIGNING` is
+itself not replannable, including the dispatch gap before the external Session becomes visible.
+Both read and command paths use the same persisted owner/checkpoint facts. Confirmation supersedes
+old unfinished package and design rows,
 then starts read-only design for the new first suffix package. Frozen facts, their Stage/Attempt
 history, and previous TaskSpec revisions remain immutable. A correction appends a package linked to
 the frozen run; a final Judge request for changes follows this same correction path rather than

@@ -314,6 +314,8 @@ export interface RollingPackageWorkbench {
   planRevision: number
   plannedPackageCount: number
   frozenPackageCount: number
+  currentPackageRunId?: string
+  packageCapabilities: RollingPackageCapabilities
   packages: RollingPackageRun[]
 }
 

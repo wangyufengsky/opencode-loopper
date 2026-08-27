@@ -198,11 +198,6 @@ public class RollingPackagePlanService {
             throw new ConflictException("PACKAGE_PLAN_TASK_VERSION_CONFLICT", "任务状态已更新，请刷新后重试");
         }
         DesignerSessionRow session = mapper.findDesignerSessionByTask(taskId).orElseThrow();
-        boolean activeDesigner = "RUNNING".equals(session.state()) || mapper.activeDesignWorkPackages().stream()
-                .anyMatch(row -> session.id().equals(row.designerSessionId()));
-        boolean activeWriter = !mapper.activeSessions(taskId).isEmpty() || !mapper.activeJudgeRuns(taskId).isEmpty()
-                || mapper.listVerifierRuntimes(taskId).stream()
-                .anyMatch(runtime -> Set.of("STARTING", "RUNNING", "STOPPING", "DISCONNECTED").contains(runtime.state()));
         var fact = mapper.listPackageFactSnapshots(taskId).stream().reduce((left, right) -> right).orElse(null);
         var checkpoint = fact == null ? null : mapper.findTaskWorkspaceCheckpoint(fact.checkpointId()).orElse(null);
         TaskPackageRunRow current = mapper.currentTaskPackageRun(taskId).orElse(null);
@@ -210,9 +205,10 @@ public class RollingPackagePlanService {
                 TaskPackageRunState.DESIGNING.name(), TaskPackageRunState.DESIGN_REVIEW.name(),
                 TaskPackageRunState.EXECUTION_READY.name(), TaskPackageRunState.WAITING_INPUT.name())
                 .contains(current.state());
-        commandPolicy.require(command, rolling.policyContext(task, current));
-        if (activeDesigner || activeWriter || checkpoint == null
-                || !Set.of("READY", "RESTORED").contains(checkpoint.state())
+        RollingPackageCommandPolicy.Context commandContext = rolling.policyContext(task, current);
+        commandPolicy.require(command, commandContext);
+        if (!commandContext.designerFree() || !commandContext.writerFree() || !commandContext.safeCheckpoint()
+                || checkpoint == null || !Set.of("READY", "RESTORED").contains(checkpoint.state())
                 || (!replannable && !allowCompletedSuffix)) {
             throw new ConflictException("PACKAGE_COMMAND_NOT_AVAILABLE", "只有 writer 已停止且当前成功事实点可验证时才能调整剩余拆包");
         }

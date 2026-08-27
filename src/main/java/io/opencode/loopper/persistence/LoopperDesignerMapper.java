@@ -373,6 +373,8 @@ public interface LoopperDesignerMapper {
                                                                @Param("packageId") String packageId);
     @Select("SELECT * FROM design_work_package WHERE designer_session_id=#{sessionId} ORDER BY created_at,id")
     List<DesignWorkPackageRow> listDesignerWorkPackages(String sessionId);
+    @Select("SELECT COUNT(*) FROM design_work_package WHERE designer_session_id=#{sessionId} AND state IN ('QUESTIONING','DESIGNING','COMPILING','VALIDATING')")
+    int countActiveDesignWorkPackages(String sessionId);
     @Select("SELECT * FROM design_work_package WHERE state IN ('QUESTIONING','DESIGNING') AND designer_external_session_id IS NOT NULL ORDER BY updated_at")
     List<DesignWorkPackageRow> activeDesignWorkPackages();
     @Update("""

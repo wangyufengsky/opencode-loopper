@@ -34,7 +34,11 @@ describe('Loopper REST contract adapter', () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(json({ taskId: 'task-1', taskState: 'FUTURE_STATE', packages: [] }))
       .mockResolvedValueOnce(json({
-        taskId: 'task-1', taskState: 'PACKAGE_DESIGNING', packages: [{
+        taskId: 'task-1', taskState: 'PACKAGE_DESIGNING', packageCapabilities: {
+          canDiscuss: false, canApproveDesign: false, canStartPackage: false,
+          canRetryPackage: false, canRedesignPackage: false, canReplanRemaining: false,
+          canAddCorrectionPackage: false,
+        }, packages: [{
           id: 'run-1', packageKey: 'WP-1', ordinal: 1, state: 'FUTURE_PACKAGE_STATE', dependencies: [],
         }],
       }))
@@ -587,6 +591,31 @@ describe('Loopper REST contract adapter', () => {
     })
     await expect(api.getTaskOverview('rolling-1')).rejects.toThrow(
       'TaskOverview.packageCapabilities is required for rolling tasks',
+    )
+  })
+
+  it('uses the workbench-owned current package and capabilities and fails closed when they are incomplete', async () => {
+    const base = {
+      taskId: 'rolling-1', title: 'Rolling', taskState: 'PACKAGE_DESIGNING', taskVersion: 9,
+      executionMode: 'ROLLING_PACKAGES', workspacePolicy: 'RELEASE_BETWEEN_PACKAGES',
+      planRevisionId: 'plan-2', planRevision: 2, plannedPackageCount: 2, frozenPackageCount: 1,
+      currentPackageRunId: 'run-2', packages: [{ id: 'run-2', packageKey: 'WP-2', ordinal: 1,
+        title: '第二包', state: 'DESIGNING', version: 4, discussionRevision: 2, designRevision: 3,
+        dependencies: [] }],
+    }
+    const capabilities = { canDiscuss: true, canApproveDesign: false, canStartPackage: false,
+      canRetryPackage: false, canRedesignPackage: false, canReplanRemaining: false,
+      canAddCorrectionPackage: false }
+    const fetchMock = vi.fn().mockResolvedValueOnce(json({ ...base, packageCapabilities: capabilities }))
+      .mockResolvedValueOnce(json(base))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(api.getRollingPackageWorkbench('rolling-1')).resolves.toMatchObject({
+      taskVersion: 9, currentPackageRunId: 'run-2',
+      packageCapabilities: { canDiscuss: true, canReplanRemaining: false },
+    })
+    await expect(api.getRollingPackageWorkbench('rolling-1')).rejects.toThrow(
+      'RollingPackageCapabilities.canDiscuss must be boolean',
     )
   })
 

@@ -12,7 +12,6 @@ import io.opencode.loopper.domain.StageState;
 import io.opencode.loopper.domain.TaskExecutionMode;
 import io.opencode.loopper.domain.TaskIntent;
 import io.opencode.loopper.domain.TaskPackageRunState;
-import io.opencode.loopper.domain.TaskQueueState;
 import io.opencode.loopper.domain.TaskState;
 import io.opencode.loopper.domain.TaskWorkspacePolicy;
 import io.opencode.loopper.domain.WorkflowTemplate;
@@ -63,6 +62,7 @@ public class RollingPackageService {
     private final ObjectProvider<DesignerSessionService> designers;
     private final TransactionTemplate transactions;
     private final RollingPackageCommandPolicy commandPolicy;
+    private final RollingPackageCommandContextService commandContexts;
     public RollingPackageService(LoopperMapper mapper, LifecycleTransitionService lifecycle, ObjectMapper json,
                                  ProjectService projects, GitWorktreeManager worktrees,
                                  LoopperProperties properties,
@@ -70,6 +70,7 @@ public class RollingPackageService {
                                  RollingPackageCheckpointService checkpointSaga, TaskEventService events,
                                  ObjectProvider<DesignerSessionService> designers,
                                  RollingPackageCommandPolicy commandPolicy,
+                                 RollingPackageCommandContextService commandContexts,
                                  PlatformTransactionManager transactionManager) {
         this.mapper = mapper;
         this.lifecycle = lifecycle;
@@ -82,6 +83,7 @@ public class RollingPackageService {
         this.events = events;
         this.designers = designers;
         this.commandPolicy = commandPolicy;
+        this.commandContexts = commandContexts;
         this.transactions = new TransactionTemplate(transactionManager);
     }
     public boolean eligible(String designerSessionId) {
@@ -321,26 +323,7 @@ public class RollingPackageService {
     }
 
     RollingPackageCommandPolicy.Context policyContext(TaskRow task, TaskPackageRunRow run) {
-        boolean safeCheckpoint = mapper.listPackageFactSnapshots(task.id()).stream().reduce((left, right) -> right)
-                .flatMap(fact -> mapper.findTaskWorkspaceCheckpoint(fact.checkpointId()))
-                .map(checkpoint -> Set.of("READY", "RESTORED").contains(checkpoint.state())).orElse(false);
-        boolean writerFree = mapper.activeSessions(task.id()).isEmpty()
-                && mapper.activeJudgeRuns(task.id()).isEmpty()
-                && mapper.listVerifierRuntimes(task.id()).stream().noneMatch(runtime ->
-                Set.of("STARTING", "RUNNING", "STOPPING", "DISCONNECTED").contains(runtime.state()));
-        boolean designerFree = mapper.findDesignerSessionByTask(task.id())
-                .map(session -> !"RUNNING".equals(session.state()) && mapper.activeDesignWorkPackages().stream()
-                        .noneMatch(row -> session.id().equals(row.designerSessionId())))
-                .orElse(true);
-        TaskQueueState queueState = mapper.findTaskQueue(task.id())
-                .map(row -> TaskQueueState.valueOf(row.state())).orElse(null);
-        int frozen = (int) mapper.listTaskPackageRuns(task.id()).stream()
-                .filter(row -> TaskPackageRunState.FACT_FROZEN.name().equals(row.state())).count();
-        return new RollingPackageCommandPolicy.Context(TaskState.valueOf(task.state()),
-                mapper.findTaskWaitingReasonCode(task.id()).orElse(null),
-                run == null ? null : TaskPackageRunState.valueOf(run.state()),
-                run == null ? null : run.waitingReasonCode(), queueState, writerFree, designerFree,
-                safeCheckpoint, frozen);
+        return commandContexts.context(task, run);
     }
 
     private void beginDesign(CommandContext context) {

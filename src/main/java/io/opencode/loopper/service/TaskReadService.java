@@ -5,8 +5,6 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import io.opencode.loopper.api.CursorPage;
 import io.opencode.loopper.domain.TaskState;
-import io.opencode.loopper.domain.TaskPackageRunState;
-import io.opencode.loopper.domain.TaskQueueState;
 import io.opencode.loopper.domain.TaskStatusGroup;
 import io.opencode.loopper.domain.WorkPackageAggregateState;
 import io.opencode.loopper.persistence.ErrorEventRow;
@@ -43,14 +41,17 @@ public class TaskReadService {
     private final ObjectMapper json;
     private final MeterRegistry meters;
     private final RollingPackageCommandPolicy packageCommands;
+    private final RollingPackageCommandContextService packageCommandContexts;
 
     public TaskReadService(ReadModelMapper reads, LoopperMapper mapper, ObjectMapper json, MeterRegistry meters,
-                           RollingPackageCommandPolicy packageCommands) {
+                           RollingPackageCommandPolicy packageCommands,
+                           RollingPackageCommandContextService packageCommandContexts) {
         this.reads = reads;
         this.mapper = mapper;
         this.json = json;
         this.meters = meters;
         this.packageCommands = packageCommands;
+        this.packageCommandContexts = packageCommandContexts;
     }
 
     public CursorPage<TaskSummary> summaries(String projectId, List<String> states, String archive,
@@ -116,7 +117,7 @@ public class TaskReadService {
             var currentPackage = rolling ? mapper.currentTaskPackageRun(taskId).orElse(null) : null;
             int frozenPackages = (int) packageRuns.stream().filter(run -> "FACT_FROZEN".equals(run.state())).count();
             PackageCapabilities packageCapabilities = rolling
-                    ? packageCapabilities(task, currentPackage, frozenPackages) : null;
+                    ? packageCapabilities(task, currentPackage) : null;
             return new TaskOverview(task.id(), task.projectId(), task.projectName(), task.title(), task.goal(),
                     blankToDefault(task.branchName(), "等待选择执行模式"), task.worktreePath(), task.state(),
                     task.retryCause(), task.retryOrdinal(), task.retryCreatedAt(), task.retryDueAt(),
@@ -134,27 +135,9 @@ public class TaskReadService {
     }
 
     private PackageCapabilities packageCapabilities(TaskOverviewRow task,
-                                                     io.opencode.loopper.persistence.TaskPackageRunRow run,
-                                                     int frozenPackages) {
-        boolean safeCheckpoint = mapper.listPackageFactSnapshots(task.id()).stream().reduce((left, right) -> right)
-                .flatMap(fact -> mapper.findTaskWorkspaceCheckpoint(fact.checkpointId()))
-                .map(checkpoint -> "READY".equals(checkpoint.state()) || "RESTORED".equals(checkpoint.state()))
-                .orElse(false);
-        boolean writerFree = mapper.activeSessions(task.id()).isEmpty()
-                && mapper.activeJudgeRuns(task.id()).isEmpty()
-                && mapper.listVerifierRuntimes(task.id()).stream()
-                .noneMatch(runtime -> Set.of("STARTING", "RUNNING", "STOPPING", "DISCONNECTED")
-                        .contains(runtime.state()));
-        boolean designerFree = mapper.findDesignerSessionByTask(task.id())
-                .map(session -> !"RUNNING".equals(session.state()) && mapper.activeDesignWorkPackages().stream()
-                        .noneMatch(row -> session.id().equals(row.designerSessionId())))
-                .orElse(true);
-        TaskQueueState queueState = mapper.findTaskQueue(task.id()).map(row -> TaskQueueState.valueOf(row.state())).orElse(null);
+                                                     io.opencode.loopper.persistence.TaskPackageRunRow run) {
         RollingPackageCommandPolicy.Capabilities result = packageCommands.capabilities(
-                new RollingPackageCommandPolicy.Context(TaskState.valueOf(task.state()), task.waitingReasonCode(),
-                        run == null ? null : TaskPackageRunState.valueOf(run.state()),
-                        run == null ? null : run.waitingReasonCode(), queueState, writerFree, designerFree,
-                        safeCheckpoint, frozenPackages));
+                packageCommandContexts.context(task, run));
         return new PackageCapabilities(result.canDiscuss(), result.canApproveDesign(), result.canStartPackage(),
                 result.canRetryPackage(), result.canRedesignPackage(), result.canReplanRemaining(),
                 result.canAddCorrectionPackage());

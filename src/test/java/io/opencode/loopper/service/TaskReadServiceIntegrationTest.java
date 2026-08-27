@@ -36,6 +36,7 @@ class TaskReadServiceIntegrationTest {
     @Autowired private Flyway flyway;
     @Autowired private JdbcTemplate jdbc;
     @Autowired private TaskReadService reads;
+    @Autowired private RollingPackageReadService rollingReads;
     @Autowired private DesignerReadService designerReads;
     @Autowired private ProjectReadService projectReads;
     @Autowired private InsightReadService insightReads;
@@ -180,6 +181,25 @@ class TaskReadServiceIntegrationTest {
             assertThat(capabilities.canReplanRemaining()).isFalse();
         });
 
+        jdbc.update("INSERT INTO task_execution_cycle(id,task_id,ordinal,kind,state,budget_json,authorized_at,started_at,ended_at) VALUES(?,?,?,?,?,?,?,?,?)",
+                "rolling-cycle", "task-a", 1, "INITIAL", "SUCCEEDED", "{}", "now", "now", "now");
+        jdbc.update("INSERT INTO task_workspace_checkpoint(id,task_id,cycle_id,state,canonical_root,root_fingerprint,branch_name,manifest_json,manifest_sha256,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                "rolling-checkpoint", "task-a", "rolling-cycle", "READY", "/tmp/read-model-project",
+                "root", "loopper/task-a", "{}", "manifest", "now", "now");
+        jdbc.update("INSERT INTO package_fact_snapshot(id,task_id,package_run_id,checkpoint_id,successful_attempt_id,output_tree,manifest_sha256,diff_sha256,evidence_sha256,proven_json,accepted_contract_json,navigation_summary,task_spec_sha256,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "rolling-fact", "task-a", "rolling-run", "rolling-checkpoint", "attempt-a", "tree",
+                "manifest", "diff", "evidence", "{}", "{}", "navigation", "spec", "now");
+        jdbc.update("UPDATE task SET state='PACKAGE_DESIGNING' WHERE id='task-a'");
+        jdbc.update("UPDATE task_package_run SET state='DESIGN_REVIEW' WHERE id='rolling-run'");
+        assertThat(reads.overview("task-a").packageCapabilities().canReplanRemaining()).isTrue();
+        assertThat(rollingReads.workbench("task-a").packageCapabilities().canReplanRemaining()).isTrue();
+
+        jdbc.update("UPDATE design_work_package SET state='COMPILING' WHERE id='rolling-package'");
+        assertThat(reads.overview("task-a").packageCapabilities().canReplanRemaining()).isFalse();
+        assertThat(rollingReads.workbench("task-a").packageCapabilities().canReplanRemaining()).isFalse();
+
+        jdbc.update("UPDATE task SET state='WAITING_INPUT' WHERE id='task-a'");
+        jdbc.update("UPDATE design_work_package SET state='APPROVED' WHERE id='rolling-package'");
         jdbc.update("UPDATE task_package_run SET state='WAITING_INPUT',waiting_reason_code='PACKAGE_CHECKPOINT_BLOCKED' WHERE id='rolling-run'");
         var blocked = reads.overview("task-a").packageCapabilities();
         assertThat(blocked.canRetryPackage()).isTrue();

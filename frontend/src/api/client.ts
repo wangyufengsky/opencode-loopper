@@ -525,6 +525,8 @@ function normalizeRollingWorkbench(value: unknown): RollingPackageWorkbench {
     executionMode: 'ROLLING_PACKAGES', workspacePolicy: asString(raw.workspacePolicy) as RollingPackageWorkbench['workspacePolicy'],
     planRevisionId: asString(raw.planRevisionId), planRevision: asNumber(raw.planRevision),
     plannedPackageCount: asNumber(raw.plannedPackageCount), frozenPackageCount: asNumber(raw.frozenPackageCount),
+    currentPackageRunId: asString(raw.currentPackageRunId) || undefined,
+    packageCapabilities: normalizeRollingCapabilities(raw.packageCapabilities),
     packages: asArray(raw.packages).map(normalizeRollingRun) }
 }
 

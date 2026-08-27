@@ -430,9 +430,13 @@ the Task-wide authoritative components below the rolling workspace.
 The only package actions are server capabilities: `canDiscuss`, `canApproveDesign`,
 `canStartPackage`, `canRetryPackage`, `canRedesignPackage`, `canReplanRemaining`, and
 `canAddCorrectionPackage`. Missing any capability fails overview normalization and falls
-back to full task detail; no button is inferred from a state name. All writes carry Task,
-package-run, discussion, and design versions and refresh after a successful empty `202/204`;
-stale input returns 409. **继续失败候选**, **回到上一事实点重新设计**, **AI 调整剩余拆包**,
+back to full task detail; no button is inferred from a state name. The rolling workbench response
+must return `taskVersion`, `currentPackageRunId`, package versions, and the complete capability
+snapshot together; its Vue component must not gate a freshly loaded workbench with an older Task
+overview capability. `DESIGNING` and any persisted active Designer, Compiler, Validator, writer,
+verifier, or Judge fail closed for suffix replan. All writes carry Task, package-run, discussion,
+and design versions and refresh after a successful empty `202/204`; a stale 409 also reloads the
+workbench before another action is offered. **继续失败候选**, **回到上一事实点重新设计**, **AI 调整剩余拆包**,
 **人工调整剩余拆包**,
 **新增修正包**, and **修改整体需求并重开任务** are distinct decisions. Direct mode shows
 before first execution that the registered directory remains leased until completion or

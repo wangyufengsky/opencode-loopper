@@ -16,10 +16,16 @@ import tools.jackson.databind.ObjectMapper;
 public class RollingPackageReadService {
     private final LoopperMapper mapper;
     private final ObjectMapper json;
+    private final RollingPackageCommandPolicy commandPolicy;
+    private final RollingPackageCommandContextService commandContexts;
 
-    public RollingPackageReadService(LoopperMapper mapper, ObjectMapper json) {
+    public RollingPackageReadService(LoopperMapper mapper, ObjectMapper json,
+                                     RollingPackageCommandPolicy commandPolicy,
+                                     RollingPackageCommandContextService commandContexts) {
         this.mapper = mapper;
         this.json = json;
+        this.commandPolicy = commandPolicy;
+        this.commandContexts = commandContexts;
     }
 
     public Workbench workbench(String taskId) {
@@ -30,14 +36,18 @@ public class RollingPackageReadService {
         var plan = mapper.activeTaskPackagePlanRevision(taskId).orElseThrow(() ->
                 new ConflictException("PACKAGE_PLAN_MISSING", "滚动任务缺少活动拆包计划"));
         var runs = mapper.listTaskPackageRuns(taskId);
+        var current = mapper.currentTaskPackageRun(taskId).orElse(null);
         List<PackageView> packages = Stream.concat(
                 runs.stream().filter(run -> "FACT_FROZEN".equals(run.state())),
                 runs.stream().filter(run -> plan.id().equals(run.planRevisionId()))
                         .filter(run -> !List.of("FACT_FROZEN", "SUPERSEDED", "CANCELLED").contains(run.state())))
                 .map(this::packageView).toList();
         int frozen = (int) packages.stream().filter(item -> "FACT_FROZEN".equals(item.state())).count();
+        RollingPackageCommandPolicy.Capabilities capabilities = commandPolicy.capabilities(
+                commandContexts.context(task, current));
         return new Workbench(task.id(), task.title(), task.state(), task.version(), task.executionMode(),
-                task.workspacePolicy(), plan.id(), plan.revision(), packages.size(), frozen, packages);
+                task.workspacePolicy(), plan.id(), plan.revision(), packages.size(), frozen,
+                current == null ? null : current.id(), capabilities, packages);
     }
 
     public PackageDetail packageDetail(String taskId, String runId) {
@@ -89,6 +99,8 @@ public class RollingPackageReadService {
     public record Workbench(String taskId, String title, String taskState, long taskVersion,
                             String executionMode, String workspacePolicy, String planRevisionId,
                             int planRevision, int plannedPackageCount, int frozenPackageCount,
+                            String currentPackageRunId,
+                            RollingPackageCommandPolicy.Capabilities packageCapabilities,
                             List<PackageView> packages) { }
     public record PackageView(String id, String packageKey, int ordinal, String title, String state,
                               long version, int discussionRevision, int designRevision,

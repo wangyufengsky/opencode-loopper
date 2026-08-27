@@ -20,8 +20,16 @@ const replanOpen = ref(false)
 const planDraft = ref<RollingPlanPackage[]>([])
 
 const selected = computed(() => workbench.value?.packages.find(item => item.id === selectedId.value))
-const current = computed(() => props.task.currentPackage?.id === selectedId.value)
-const capabilities = computed(() => current.value ? props.task.packageCapabilities : undefined)
+const current = computed(() => workbench.value?.currentPackageRunId === selectedId.value)
+const capabilities = computed(() => current.value ? workbench.value?.packageCapabilities : undefined)
+const snapshotChanged = computed(() => {
+  const wb = workbench.value
+  if (!wb || props.task.version === undefined) return false
+  const currentRun = wb.packages.find(item => item.id === wb.currentPackageRunId)
+  return props.task.version !== wb.taskVersion
+    || props.task.currentPackage?.id !== wb.currentPackageRunId
+    || props.task.currentPackage?.version !== currentRun?.version
+})
 const policyCopy = computed(() => workbench.value?.workspacePolicy === 'PINNED_DIRECT'
   ? 'Direct 模式：从首次执行开始到任务完成或取消，登记目录会持续由本任务占用；包间会复核目录是否漂移。'
   : 'Git 模式：每包事实冻结后释放登记目录租约；下一包执行时从已验证 Checkpoint 精确恢复。')
@@ -34,6 +42,17 @@ function pretty(value?: string) {
 function cancelled(cause: unknown) {
   return cause === 'cancel' || cause === 'close'
     || cause instanceof Error && ['cancel', 'close'].includes(cause.message)
+}
+
+async function reportActionFailure(cause: unknown, fallback: string, preferred?: string) {
+  const message = userFacingError(cause, fallback)
+  if (cause && typeof cause === 'object' && 'status' in cause && cause.status === 409) {
+    emit('refresh')
+    await load(preferred)
+    error.value = `${message}；工作包状态已刷新。`
+    return
+  }
+  error.value = message
 }
 
 async function load(preferred?: string) {
@@ -80,7 +99,7 @@ async function act(action: 'approve' | 'start' | 'redesign' | 'discuss' | 'check
     emit('refresh')
     await load(run.id)
   } catch (cause) {
-    error.value = userFacingError(cause, '工作包操作失败；请刷新后基于最新版本重试')
+    await reportActionFailure(cause, '工作包操作失败；请刷新后基于最新版本重试', run.id)
   } finally {
     busy.value = false
   }
@@ -171,7 +190,7 @@ async function confirmReplan() {
     replanOpen.value = false; emit('refresh'); await load()
   } catch (cause) {
     if (cancelled(cause)) return
-    error.value = userFacingError(cause, '剩余拆包调整失败')
+    await reportActionFailure(cause, '剩余拆包调整失败', anchor.id)
   } finally { busy.value = false }
 }
 
@@ -206,7 +225,7 @@ async function aiReplan() {
     emit('refresh'); await load()
   } catch (cause) {
     if (cancelled(cause)) return
-    error.value = userFacingError(cause, 'AI 剩余拆包建议失败')
+    await reportActionFailure(cause, 'AI 剩余拆包建议失败', anchor.id)
   } finally { busy.value = false }
 }
 
@@ -247,6 +266,7 @@ watch(() => props.task.updatedAt, () => void load(selectedId.value))
       <span class="plan-chip">计划 R{{ workbench?.planRevision ?? 1 }}</span>
     </header>
     <el-alert v-if="error" :title="error" type="error" :closable="false" show-icon />
+    <el-alert v-if="snapshotChanged" title="工作包状态已更新，操作已按最新服务端状态刷新。" type="info" :closable="false" show-icon />
     <el-alert :title="policyCopy" :type="workbench?.workspacePolicy === 'PINNED_DIRECT' ? 'warning' : 'info'" :closable="false" show-icon />
     <div v-if="workbench" class="mobile-package-select">
       <el-select v-model="selectedId" aria-label="选择工作包" @change="load(selectedId)">
@@ -288,7 +308,7 @@ watch(() => props.task.updatedAt, () => void load(selectedId.value))
         <section class="fact-card proven"><p class="eyebrow">已证明</p><pre>{{ pretty(detail.fact?.provenJson) }}</pre></section>
         <section class="fact-card accepted"><p class="eyebrow">已接受合同</p><pre>{{ pretty(detail.fact?.acceptedContractJson) }}</pre></section>
         <section class="fact-card navigation"><p class="eyebrow">AI 导航摘要 · 非证据</p><p>{{ detail.fact?.navigationSummary || detail.handoffSummary || '尚未形成' }}</p></section>
-        <el-button v-if="selected?.state === 'FACT_FROZEN' && task.packageCapabilities?.canAddCorrectionPackage" plain @click="addCorrection">新增修正包</el-button>
+        <el-button v-if="selected?.state === 'FACT_FROZEN' && workbench?.packageCapabilities.canAddCorrectionPackage" plain @click="addCorrection">新增修正包</el-button>
       </aside>
     </div>
     <el-dialog v-model="replanOpen" title="调整未执行工作包" width="min(760px, 92vw)">

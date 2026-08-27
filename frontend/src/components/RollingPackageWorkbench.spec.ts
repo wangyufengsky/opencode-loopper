@@ -26,7 +26,7 @@ const reviewing: RollingPackageRun = {
 function task(run: RollingPackageRun, capabilities: NonNullable<Task['packageCapabilities']>): Task {
   return {
     id: 'task-1', projectId: 'project-1', projectName: 'Project', title: '三包任务', goal: '逐包交付',
-    branch: 'loopper/task-1', worktreePath: '/tmp/project', status: 'PACKAGE_DESIGNING',
+    branch: 'loopper/task-1', worktreePath: '/tmp/project', status: 'PACKAGE_DESIGNING', version: 8,
     executionMode: 'ROLLING_PACKAGES', workspacePolicy: 'RELEASE_BETWEEN_PACKAGES', currentPackage: run,
     plannedPackageCount: 2, frozenPackageCount: 1, packageCapabilities: capabilities,
     cancellationAvailable: true, hasDesignHistory: true, archived: false, attemptCount: 1, maxAttempts: 6,
@@ -50,6 +50,10 @@ describe('RollingPackageWorkbench', () => {
       taskId: 'task-1', title: '三包任务', taskState: 'PACKAGE_DESIGNING', taskVersion: 8,
       executionMode: 'ROLLING_PACKAGES', workspacePolicy: 'RELEASE_BETWEEN_PACKAGES',
       planRevisionId: 'plan-2', planRevision: 2, plannedPackageCount: 2, frozenPackageCount: 1,
+      currentPackageRunId: reviewing.id,
+      packageCapabilities: { canDiscuss: true, canApproveDesign: true, canStartPackage: false,
+        canRetryPackage: false, canRedesignPackage: false, canReplanRemaining: true,
+        canAddCorrectionPackage: true },
       packages: [frozen, reviewing],
     })
     apiMocks.getRollingPackageDetail.mockImplementation((_taskId: string, runId: string) => Promise.resolve({
@@ -85,7 +89,16 @@ describe('RollingPackageWorkbench', () => {
       expectedDiscussionRevision: 5, expectedDesignRevision: 6,
     })
 
-    await wrapper.setProps({ task: { ...task({ ...reviewing, state: 'EXECUTION_READY', version: 4 }, {
+    const executionReady = { ...reviewing, state: 'EXECUTION_READY' as const, version: 4 }
+    apiMocks.getRollingPackageWorkbench.mockResolvedValue({
+      taskId: 'task-1', title: '三包任务', taskState: 'PENDING_START', taskVersion: 8,
+      executionMode: 'ROLLING_PACKAGES', workspacePolicy: 'RELEASE_BETWEEN_PACKAGES',
+      planRevisionId: 'plan-2', planRevision: 2, plannedPackageCount: 2, frozenPackageCount: 1,
+      currentPackageRunId: executionReady.id,
+      packageCapabilities: { ...capabilities, canDiscuss: false, canApproveDesign: false, canStartPackage: true },
+      packages: [frozen, executionReady],
+    })
+    await wrapper.setProps({ task: { ...task(executionReady, {
       ...capabilities, canDiscuss: false, canApproveDesign: false, canStartPackage: true,
     }), updatedAt: 'later' } })
     await flushPromises()
@@ -100,6 +113,10 @@ describe('RollingPackageWorkbench', () => {
       taskId: 'task-1', title: '三包任务', taskState: 'WAITING_INPUT', taskVersion: 11,
       executionMode: 'ROLLING_PACKAGES', workspacePolicy: 'RELEASE_BETWEEN_PACKAGES',
       planRevisionId: 'plan-2', planRevision: 2, plannedPackageCount: 2, frozenPackageCount: 1,
+      currentPackageRunId: blocked.id,
+      packageCapabilities: { canDiscuss: false, canApproveDesign: false,
+        canStartPackage: false, canRetryPackage: true, canRedesignPackage: false,
+        canReplanRemaining: false, canAddCorrectionPackage: true },
       packages: [frozen, blocked],
     })
     const wrapper = mountWorkbench(task(blocked, { canDiscuss: false, canApproveDesign: false,
@@ -148,5 +165,66 @@ describe('RollingPackageWorkbench', () => {
     expect(apiMocks.confirmRollingPlan).toHaveBeenCalledWith('task-1', 'proposal-ai', expect.objectContaining({
       expectedProposalVersion: 2,
     }))
+  })
+
+  it('fails closed when the workbench is newer than the task capability snapshot', async () => {
+    const designing = { ...reviewing, state: 'DESIGNING' as const, version: 4, designRevision: 7 }
+    apiMocks.getRollingPackageWorkbench.mockResolvedValue({
+      taskId: 'task-1', title: '三包任务', taskState: 'PACKAGE_DESIGNING', taskVersion: 9,
+      executionMode: 'ROLLING_PACKAGES', workspacePolicy: 'RELEASE_BETWEEN_PACKAGES',
+      planRevisionId: 'plan-2', planRevision: 2, plannedPackageCount: 2, frozenPackageCount: 1,
+      currentPackageRunId: designing.id,
+      packageCapabilities: { canDiscuss: true, canApproveDesign: false, canStartPackage: false,
+        canRetryPackage: false, canRedesignPackage: false, canReplanRemaining: false,
+        canAddCorrectionPackage: false },
+      packages: [frozen, designing],
+    })
+    apiMocks.getRollingPackageDetail.mockResolvedValue({
+      packageRun: designing, objective: '正在生成详细设计', deliverablesJson: '[]',
+      acceptanceIntentJson: '[]', designMarkdown: '',
+    })
+    const wrapper = mountWorkbench({ ...task(reviewing, {
+      canDiscuss: true, canApproveDesign: false, canStartPackage: false,
+      canRetryPackage: false, canRedesignPackage: false, canReplanRemaining: true,
+      canAddCorrectionPackage: true,
+    }), version: 8 })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('工作包状态已更新')
+    expect(wrapper.text()).not.toContain('AI 调整剩余拆包')
+    expect(wrapper.text()).not.toContain('人工调整剩余拆包')
+    expect(apiMocks.suggestRollingPlan).not.toHaveBeenCalled()
+    expect(apiMocks.proposeRollingPlan).not.toHaveBeenCalled()
+  })
+
+  it('refreshes the workbench after a concurrent replan conflict', async () => {
+    const wrapper = mountWorkbench(task(reviewing, {
+      canDiscuss: true, canApproveDesign: true, canStartPackage: false,
+      canRetryPackage: false, canRedesignPackage: false, canReplanRemaining: true,
+      canAddCorrectionPackage: true,
+    }))
+    await flushPromises()
+    const designing = { ...reviewing, state: 'DESIGNING' as const, version: 4, designRevision: 7 }
+    apiMocks.getRollingPackageWorkbench.mockResolvedValue({
+      taskId: 'task-1', title: '三包任务', taskState: 'PACKAGE_DESIGNING', taskVersion: 9,
+      executionMode: 'ROLLING_PACKAGES', workspacePolicy: 'RELEASE_BETWEEN_PACKAGES',
+      planRevisionId: 'plan-2', planRevision: 2, plannedPackageCount: 2, frozenPackageCount: 1,
+      currentPackageRunId: designing.id,
+      packageCapabilities: { canDiscuss: true, canApproveDesign: false, canStartPackage: false,
+        canRetryPackage: false, canRedesignPackage: false, canReplanRemaining: false,
+        canAddCorrectionPackage: false },
+      packages: [frozen, designing],
+    })
+    apiMocks.suggestRollingPlan.mockRejectedValue(Object.assign(
+      new Error('PACKAGE_COMMAND_NOT_AVAILABLE: 当前状态不允许调整剩余拆包'), { status: 409 },
+    ))
+
+    await wrapper.findAll('button').find(button => button.text().includes('AI 调整剩余拆包'))!.trigger('click')
+    await flushPromises()
+
+    expect(apiMocks.getRollingPackageWorkbench).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).toContain('工作包状态已刷新')
+    expect(wrapper.text()).not.toContain('AI 调整剩余拆包')
+    expect(wrapper.emitted('refresh')).toBeTruthy()
   })
 })

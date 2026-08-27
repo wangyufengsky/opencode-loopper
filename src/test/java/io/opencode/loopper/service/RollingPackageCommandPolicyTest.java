@@ -72,6 +72,15 @@ class RollingPackageCommandPolicyTest {
     }
 
     @Test
+    void activePackageDesignCannotExposeReplanDuringTheDesignerDispatchGap() {
+        var dispatching = context(TaskState.PACKAGE_DESIGNING, TaskPackageRunState.DESIGNING);
+        var review = context(TaskState.PACKAGE_DESIGNING, TaskPackageRunState.DESIGN_REVIEW);
+
+        assertThat(policy.capabilities(dispatching).canReplanRemaining()).isFalse();
+        assertThat(policy.capabilities(review).canReplanRemaining()).isTrue();
+    }
+
+    @Test
     void awaitingStoppingAndTerminalTasksExposeNoPackageCommands() {
         for (TaskState state : new TaskState[]{TaskState.AWAITING_DECISION, TaskState.STOPPING,
                 TaskState.COMPLETED, TaskState.SUPERSEDED, TaskState.SUCCEEDED,
