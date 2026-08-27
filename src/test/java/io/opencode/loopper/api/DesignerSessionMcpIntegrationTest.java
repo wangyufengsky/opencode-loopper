@@ -4610,8 +4610,11 @@ class DesignerSessionMcpIntegrationTest {
                     .append(" | 产生可观察结果 ").append(index)
                     .append(" | 已有边界保持不变 |\n");
             stages.append("| 阶段 ").append(index).append(" | 完成能力 ").append(index)
-                    .append(" | 场景 ").append(index)
-                    .append("；src/test/java/example/AcceptanceContractTest.java | ")
+                    .append(" | 场景 ").append(index);
+            if (index == 1) {
+                stages.append("；src/test/java/example/AcceptanceContractTest.java");
+            }
+            stages.append(" | ")
                     .append(index == 1 ? "无" : "阶段 " + (index - 1)).append(" |\n");
         }
         return markdown + """
