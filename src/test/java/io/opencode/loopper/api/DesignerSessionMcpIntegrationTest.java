@@ -26,6 +26,7 @@ import io.opencode.loopper.service.BadRequestException;
 import io.opencode.loopper.service.ConflictException;
 import io.opencode.loopper.service.DesignerSessionService;
 import io.opencode.loopper.service.DesignerAutoModeService;
+import io.opencode.loopper.service.DesignerAcceptanceV7MeasurementRegistry;
 import io.opencode.loopper.service.AnalysisReportService;
 import io.opencode.loopper.service.DirectArtifactDesignService;
 import io.opencode.loopper.service.DirectMaintenanceDesignService;
@@ -2833,6 +2834,7 @@ class DesignerSessionMcpIntegrationTest {
                 | 场景 | 前置/触发 | 操作 | 可观察结果 | 保持不变 |
                 | --- | --- | --- | --- | --- |
                 | ObjectRegistry 重复键拒绝 | 已注册 key=A | 再次注册 key=A | 抛出 IllegalArgumentException | 首次注册仍可查询 |
+                | ObjectRegistry 已有键读取 | 已注册 key=A | 查询 key=A | 返回首次注册值 | 重复键拒绝规则不变 |
 
                 ## 验收约束
                 ObjectRegistryTest 必须独立通过，不依赖外部网络、数据库或 Spring 上下文。
@@ -2840,7 +2842,8 @@ class DesignerSessionMcpIntegrationTest {
                 ## 阶段与依赖
                 | 阶段 | 目标 | 包含场景/评审/交付 | 前置阶段 |
                 | --- | --- | --- | --- |
-                | 注册表单元测试 | 验证重复键拒绝行为 | 需消歧的重复键场景；src/test/java/example/ObjectRegistryTest.java | 无 |
+                | 注册表写入测试 | 验证重复键拒绝行为 | ObjectRegistry 重复键拒绝；src/test/java/example/ObjectRegistryTest.java | 无 |
+                | 注册表读取测试 | 验证已有键读取行为 | 需消歧的读取场景 | 注册表写入测试 |
                 """;
         fake().setDesignerOutput(designerOutput(design, legacySpec(project.id())));
         setPackageDesignerOutput("WP-1", design);
@@ -3164,6 +3167,19 @@ class DesignerSessionMcpIntegrationTest {
             assertThat(stage.verifiers()).allSatisfy(verifier ->
                     assertThat(verifier.allowedPaths()).containsExactlyElementsOf(stage.allowedPaths()));
         });
+        var measured = designerSessions.workPackageStatuses(reviewing.id()).getFirst();
+        DesignerAcceptanceV7MeasurementRegistry.record("server-direct-path-conservation", Map.ofEntries(
+                Map.entry("v7CompilerCalls", (int) fake().promptHistory().stream()
+                        .filter(call -> call.prompt().contains("factAssignments")).count()),
+                Map.entry("v7Redesigns", measured.redesignCount()),
+                Map.entry("v7MutationTotal", measured.acceptancePlanning().mutationObligationCount()),
+                Map.entry("v7MutationResolved", measured.acceptancePlanning().resolvedMutationObligationCount()),
+                Map.entry("v7MutationUnresolved", measured.acceptancePlanning().unresolvedMutationObligationCount()),
+                Map.entry("v7Acceptance", measured.acceptancePlanning().scenarioCount()),
+                Map.entry("v7JudgeOnly", measured.acceptancePlanning().judgeCount()),
+                Map.entry("v7FocusedCovered", measured.acceptancePlanning().automatedCount()
+                        + measured.acceptancePlanning().bothCount())),
+                Set.of("SERVER_COMPILED", measured.acceptancePlanning().pathConservation()));
         assertThat(mapper.listTasks()).isEmpty();
     }
 
@@ -3220,6 +3236,9 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(designerSessions.workPackageStatuses(reviewing.id())).singleElement().satisfies(workPackage -> {
             assertThat(workPackage.lastErrorCode()).isEqualTo("DESIGN_INCOMPLETE");
             assertThat(workPackage.redesignCount()).isZero();
+            assertThat(workPackage.acceptancePlanning().mutationObligationCount()).isEqualTo(4);
+            assertThat(workPackage.acceptancePlanning().resolvedMutationObligationCount()).isEqualTo(2);
+            assertThat(workPackage.acceptancePlanning().unresolvedMutationObligationCount()).isEqualTo(2);
             assertThat(workPackage.acceptancePlanning().mutationBindingReasons())
                     .filteredOn(reason -> reason.contains("config/external-adapter.yml"))
                     .singleElement()
@@ -3231,6 +3250,22 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(compilation.externalSessionId()).isNull();
         assertThat(compilation.lastErrorDetail()).contains("REQUIRED_MUTATION_PATH_UNASSIGNED");
         assertThat(fake().promptHistory()).noneMatch(call -> call.prompt().contains("factAssignments"));
+        var measured = designerSessions.workPackageStatuses(reviewing.id()).getFirst();
+        int actualHardGaps = compilation.lastErrorDetail().contains("REQUIRED_MUTATION_PATH_UNASSIGNED") ? 1 : 0;
+        int blockedHardGaps = "WAITING_INPUT".equals(designerSessions.get(reviewing.id()).state())
+                && "DESIGN_INCOMPLETE".equals(measured.lastErrorCode()) ? actualHardGaps : 0;
+        Set<String> actualFlags = new LinkedHashSet<>();
+        if ("DESIGN_INCOMPLETE".equals(measured.lastErrorCode())) actualFlags.add("DESIGN_INCOMPLETE");
+        if (actualHardGaps > 0) actualFlags.add("REQUIRED_MUTATION_PATH_UNASSIGNED");
+        DesignerAcceptanceV7MeasurementRegistry.record("ambiguous-stage-safety", Map.ofEntries(
+                Map.entry("v7CompilerCalls", (int) fake().promptHistory().stream()
+                        .filter(call -> call.prompt().contains("factAssignments")).count()),
+                Map.entry("v7Redesigns", measured.redesignCount()),
+                Map.entry("v7MutationTotal", measured.acceptancePlanning().mutationObligationCount()),
+                Map.entry("v7MutationResolved", measured.acceptancePlanning().resolvedMutationObligationCount()),
+                Map.entry("v7MutationUnresolved", measured.acceptancePlanning().unresolvedMutationObligationCount()),
+                Map.entry("v7HardGaps", actualHardGaps), Map.entry("v7BlockedHardGaps", blockedHardGaps)),
+                actualFlags);
         assertThat(mapper.listTasks()).isEmpty();
     }
 
@@ -3443,9 +3478,25 @@ class DesignerSessionMcpIntegrationTest {
                     "SINGLETON_COLLECTION_NORMALIZED", "NULL_COLLECTION_NORMALIZED",
                     "UNKNOWN_FIELDS_IGNORED");
         });
-        assertThat(fake().promptHistory().stream()
+        int actualCompilerCalls = (int) fake().promptHistory().stream()
                 .filter(call -> call.prompt().contains("factAssignments")
-                        && call.prompt().contains("WP-1"))).hasSize(1);
+                        && call.prompt().contains("WP-1")).count();
+        assertThat(actualCompilerCalls).isEqualTo(1);
+        List<String> persistedCompilerSessionIds = jdbc.queryForList("""
+                        SELECT DISTINCT external_session_id
+                        FROM model_token_usage
+                        WHERE designer_session_id=?
+                        ORDER BY external_session_id
+                        """, String.class, reviewing.id()).stream()
+                .filter(sessionId -> fake().profileForSession(sessionId)
+                        == OpenCodeClient.SessionProfile.COMPILER_BINDING_NO_TOOLS)
+                .toList();
+        assertThat(persistedCompilerSessionIds).containsExactly(compilation.externalSessionId());
+        int actualCompilerSessions = persistedCompilerSessionIds.size();
+        DesignerAcceptanceV7MeasurementRegistry.record("closed-choice-workflow-calls", Map.of(
+                "actualCompilerCalls", actualCompilerCalls,
+                "actualCompilerSessions", actualCompilerSessions),
+                Set.of("COMPILER_BINDING_NO_TOOLS", "CLOSED_CHOICE_V7"));
         assertThat(fake().promptForSession(compilation.externalSessionId()))
                 .contains("Machine role contract 2026-08-semantic-v7", "server-locked stage topology",
                         "closed candidates")
@@ -3474,13 +3525,14 @@ class DesignerSessionMcpIntegrationTest {
                 OpenCodeClient.CapabilityState.AVAILABLE, OpenCodeClient.CapabilityState.AVAILABLE, null));
         ProjectRow project = project("controlled-acceptance-v7-schema-fallback");
         LoopDraftRow draft = drafts.create(legacySpec(project.id()));
-        String design = stageControlledDesign("# v7 marker 回退", 1)
-                .replace("| 阶段 1 | 完成能力 1 | 场景 1；", "| 阶段 1 | 完成能力 1 | 需消歧场景；");
+        String design = stageControlledDesign("# v7 marker 回退", 2)
+                .replace("| 阶段 2 | 完成能力 2 | 场景 2 |",
+                        "| 阶段 2 | 完成能力 2 | 需消歧场景 |");
         fake().setDesignerOutput(designerOutput(design, legacySpec(project.id())));
         setPackageDesignerOutput("WP-1", design);
         fake().setPackageCompilerPlanningOutput("WP-1", """
                 <!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->
-                {"factAssignments":[{"factIndex":1,"stageIndex":0}],"capabilityPreferences":[]}
+                {"factAssignments":[{"factIndex":2,"stageIndex":1}],"capabilityPreferences":[]}
                 <!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->
                 """);
         DesignerSessionRow reviewing = prepareReviewingSession(project.id(), draft.id(),
@@ -3563,6 +3615,12 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(drafts.spec(drafts.get(draft.id())).stages())
                 .extracting(LoopSpec.StageSpec::workPackageId)
                 .containsExactly("WP-1", "WP-2");
+        DesignerAcceptanceV7MeasurementRegistry.record("large-package-v6-v7-cost", Map.of(
+                "v7CompilerCalls", (int) fake().promptHistory().stream()
+                        .filter(call -> call.prompt().contains("factAssignments")).count(),
+                "v7Redesigns", designerSessions.workPackageStatuses(reviewing.id()).stream()
+                        .mapToInt(status -> status.redesignCount()).sum()),
+                Set.of("V7_SERVER_DIRECT"));
     }
 
     @Test
@@ -3612,8 +3670,14 @@ class DesignerSessionMcpIntegrationTest {
                         assertThat(planning.bindingSource()).isEqualTo("AI_DISAMBIGUATION_V6");
                     });
                 });
-        assertThat(fake().promptHistory().stream()
-                .filter(call -> call.prompt().contains("factAssignments"))).hasSize(2);
+        int measuredCompilerCalls = (int) fake().promptHistory().stream()
+                .filter(call -> call.prompt().contains("factAssignments")).count();
+        assertThat(measuredCompilerCalls).isEqualTo(2);
+        DesignerAcceptanceV7MeasurementRegistry.record("large-package-v6-v7-cost", Map.of(
+                "v6CompilerCalls", measuredCompilerCalls,
+                "v6Redesigns", designerSessions.workPackageStatuses(reviewing.id()).stream()
+                        .mapToInt(status -> status.redesignCount()).sum()),
+                Set.of("V6_FROZEN_COMPATIBILITY"));
     }
 
     @Test

@@ -12,7 +12,7 @@
 
     <groupId>io.opencode</groupId>
     <artifactId>opencode-loopper</artifactId>
-    <version>0.2.70</version>
+    <version>0.2.73</version>
     <name>OpenCode Loopper</name>
     <description>Local, task-branch-isolated OpenCode orchestration</description>
 
@@ -109,6 +109,11 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-webmvc-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.platform</groupId>
+            <artifactId>junit-platform-launcher</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

@@ -12,7 +12,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-/** Resolves the v6 Designer stage table without allowing fuzzy or substring binding. */
+/** Resolves frozen Designer stage tables without allowing fuzzy or substring binding. */
 final class DesignerAcceptanceFastPathResolver {
     private static final int MIN_STAGES = 1;
     private static final int MAX_STAGES = 6;
@@ -80,8 +80,9 @@ final class DesignerAcceptanceFastPathResolver {
             for (String reference : stage.includedReferences()) {
                 List<Fact> matches = factSymbols.getOrDefault(symbol(reference), List.of());
                 if (matches.size() != 1) {
-                    reasons.add((matches.isEmpty() ? "UNKNOWN_FACT_REFERENCE:" : "AMBIGUOUS_FACT_REFERENCE:")
-                            + reference);
+                    String reason = matches.isEmpty() ? "UNKNOWN_FACT_REFERENCE:" : "AMBIGUOUS_FACT_REFERENCE:";
+                    reasons.add(CONTRACT_VERSION_V7.equals(catalog.contractVersion()) && matches.isEmpty()
+                            ? "UNLISTED_STAGE_REFERENCE_DROPPED:" + reference : reason + reference);
                     continue;
                 }
                 Fact fact = matches.getFirst();
@@ -112,7 +113,15 @@ final class DesignerAcceptanceFastPathResolver {
         }
 
         for (Fact fact : acceptanceFacts) {
-            if (!acceptanceOwners.containsKey(fact.index())) unresolvedFacts.add(fact.index());
+            if (!acceptanceOwners.containsKey(fact.index())) {
+                if (CONTRACT_VERSION_V7.equals(catalog.contractVersion()) && stages.size() == 1) {
+                    acceptanceOwners.put(fact.index(), 0);
+                    assignments.getFirst().add(fact.index());
+                    reasons.add("SINGLE_STAGE_FACT_BOUND:" + fact.index());
+                } else {
+                    unresolvedFacts.add(fact.index());
+                }
+            }
             List<Capability> covering = capabilities.capabilities().stream()
                     .filter(capability -> capability.coversFactIndexes().contains(fact.index())).toList();
             if (fact.kind() == FactKind.SCENARIO && covering.isEmpty()) {

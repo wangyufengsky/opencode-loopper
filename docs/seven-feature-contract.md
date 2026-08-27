@@ -278,6 +278,17 @@ Attempt, or writable Session creation; the Compiler can spend its bounded
 planning-repair turn to correct generated conflicts. A broad allow rule with a
 narrower forbidden subtree remains a valid policy.
 
+The v7 release gate never weakens this runtime contract. Its read-only corpus and
+same-input shadow may report path-rule counts and path-conservation totals, but
+never path values or raw input. Corpus mutation/hard-gap counts are versioned
+expectations and cannot be passed to the evaluator as measurements; the actual same-input
+production-pipeline result is an authoritative but incomplete measurement. Key guards publish
+bounded actual cost, safety, and coverage counts through a deterministic test-only registry;
+complete qualification checks them and requires every exact executable guard.
+Per-sample regressions cannot be hidden by another sample's over-report. A gate cannot pass by disabling `GIT_DIFF`, making
+delete permissive, replacing focused tests with Judge-only criteria, or broadening
+fallback paths. See `weak-model-compiler-v7-evaluation.md`.
+
 For new LoopSpec v2 contracts, the server classifies verifier evidence rather
 than trusting a Designer label. Each observable criterion chooses deterministic
 machine verification, final AI Judge review, or both. Machine modes need mapped

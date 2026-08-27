@@ -478,6 +478,17 @@ typed, coverage, dependency, package-boundary, verifier, runtime, or frozen-plan
 validation. Project Convention Markdown follows the analogous marker, unique
 fence, then complete-response policy while retaining reserved-marker and size checks.
 
+The v7 corpus/shadow evaluator is not an OpenCode role. It has no HTTP adapter,
+permission profile, MCP discovery, response payload, or Session retry. A local
+same-input shadow may count that the authoritative v6 path would need a model call
+and that v7 would avoid it, but it cannot start either call or persist model output.
+Its corpus report contains only versioned expectations and exact local JUnit guard
+execution and is explicitly non-authoritative; the same-input production planning
+pipeline produces an authoritative measurement, key guards publish bounded actual call and
+safety counts through a test-only registry, and the complete gate checks those values before
+joining them with every exact production guard. Neither operation creates an OpenCode Session. It is
+defined in `weak-model-compiler-v7-evaluation.md`.
+
 The MCP `propose_loop_spec` tool uses the same session-bound update path, but is
 rejected while an active decomposed design workflow has not completed. It no
 longer creates an unrelated draft, so an external MCP client and the built-in

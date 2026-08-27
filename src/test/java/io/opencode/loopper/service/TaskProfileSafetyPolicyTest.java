@@ -43,6 +43,17 @@ class TaskProfileSafetyPolicyTest {
         assertThat(policy.requestsUnsafeOperation("监听器注册完成后发布新版本")).isTrue();
         assertThat(policy.requestsUnsafeOperation("由发布器发布新版本到生产环境")).isTrue();
         assertThat(policy.requestsUnsafeOperation("publish the release artifact")).isTrue();
+        var unsafeInputs = java.util.List.of(
+                "完成后发布", "提交代码并发布新版本", "发布领域事件并发布构建产物到 GitHub Release",
+                "发布领域事件，并完成开发后发布", "succeeded 构建完成后发布", "监听器注册完成后发布新版本",
+                "由发布器发布新版本到生产环境", "publish the release artifact");
+        int blockedRequests = (int) unsafeInputs.stream()
+                .filter(policy::requestsUnsafeOperation).count();
+        DesignerAcceptanceV7MeasurementRegistry.record("external-system-write-safety", java.util.Map.of(
+                "blockedRequests", blockedRequests,
+                "unsafeRequestsAllowed", unsafeInputs.size() - blockedRequests),
+                blockedRequests == unsafeInputs.size()
+                        ? java.util.Set.of("EXTERNAL_WRITE_BLOCKED") : java.util.Set.of());
     }
 
     @Test

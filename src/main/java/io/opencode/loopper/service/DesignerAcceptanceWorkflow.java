@@ -169,7 +169,7 @@ final class DesignerAcceptanceWorkflow {
                     ? DesignerCompilerPromptContracts.acceptanceClosedChoice(workPackageId,
                             closedChoiceFacts(facts(row), resolution),
                             closedChoiceCapabilities(capabilities(row), resolution),
-                            write(resolution), priorError)
+                            closedChoiceContract.resolution(resolution), priorError)
                     : DesignerCompilerPromptContracts.acceptanceDisambiguation(workPackageId, row.factsJson(),
                             row.capabilitiesJson(), write(resolution), priorError);
         }

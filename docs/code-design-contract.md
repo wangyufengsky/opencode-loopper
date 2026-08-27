@@ -132,6 +132,14 @@ ownership rules:
   `DesignerAcceptancePlanCompiler` only orchestrates Stage assembly and lowering.
   `MutationConservationPolicy` runs before lowering and may only use bounded rule-containment/overlap relations
   shared with `VerifierPathPolicy`; unproved containment, forbidden overlap, delete, or move-source must fail closed.
+- `DesignerAcceptanceShadowEvaluator` owns only bounded rollout arithmetic and per-sample count invariants. Its input
+  contract carries an independent expected mutation/hard-gap baseline, rejects negative or over-reported counts, and
+  forbids aggregate compensation of one sample's safety or focused-test regression by another sample. It excludes
+  prompts, model output, path values, record IDs, persistence, lifecycle, and OpenCode dependencies. The versioned
+  corpus executes its exact production guard methods, while the same-input compiler harness lives in tests. Key guards
+  publish only bounded actual counts through a deterministic test-only registry; complete qualification checks those
+  counts rather than inferring metrics from green test totals. All reports stay below `target/`, may block a release,
+  and must never become a second planning authority.
 - `LoopSpecAcceptanceService` owns the final cross-source acceptance contract. A focused Maven/Gradle
   test with no criterion mapping is a valid blocking gate only for a `JAVA_PRODUCTION` Stage whose
   criteria are all Judge-only; machine or mixed criteria still require explicit focused-test coverage.

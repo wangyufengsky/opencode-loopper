@@ -36,6 +36,7 @@ public final class MachineRoleContractCatalog {
         return "Machine role contract " + CLOSED_CHOICE_CONTRACT_VERSION
                 + ": Select every required fact assignment and capability preference only from the server's "
                 + "closed candidates. Do not emit paths, commands, tests, or stages; do not change topology, "
-                + "permissions, safety fields, or invent indexes.";
+                + "permissions, safety fields, or invent indexes. Stage indexes are explicit and zero-based; "
+                + "human-readable stage numbers are labels only.";
     }
 }

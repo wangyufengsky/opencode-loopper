@@ -507,7 +507,11 @@ path position, while mixed write/delete/move ownership in one clause fails close
 every path. These classifications are v7-only and do not reinterpret frozen v5/v6 Stage path selection.
 
 Exact matching applies Unicode NFKC, edge trimming, whitespace collapse, and Latin
-case-folding only; punctuation is retained and substring/fuzzy matching is forbidden. The UI renders
+case-folding only; punctuation is retained and substring/fuzzy matching is forbidden. For a newly frozen v7
+single-Stage design, the server deterministically assigns every omitted acceptance fact to that only Stage and
+audits away extra Stage-inclusion labels that do not name a frozen fact; frozen v5/v6 records retain their stricter
+historical rejection. A multi-Stage closed-choice prompt lists each zero-based `stageIndex` and every fact's complete
+allowed index set explicitly, so a human-readable “Stage 1” label cannot be mistaken for index `1`. The UI renders
 an **验收意图识别** card with fact/scenario totals and
 machine, machine+human, human-only, and unresolved counts. Expanded rows show only
 human-readable scenario/capability names and Chinese issues—never internal indexes,
@@ -526,6 +530,19 @@ closed-choice Session. That Session receives only candidates whose membership di
 optima, and its complete selected-index union must equal one listed optimum; common members, weaker alternatives,
 and mixed non-optimal combinations are rejected. A bounded non-exhaustive search is blocking diagnostic evidence,
 not permission to delegate authority to the model. The result may never trade a focused test for Judge-only acceptance.
+
+Release qualification uses the versioned corpus and read-only same-input shadow in
+`weak-model-compiler-v7-evaluation.md`. The UI does not display synthetic corpus
+counts as production confidence, and no shadow result can create a Session, Task,
+draft update, or Designer transition. Each corpus sample executes its exact guard
+and publishes versioned mutation/hard-gap expectations, but those hand-written
+counts are not measured gate input. The same-input shadow is an authoritative measurement
+produced by the production planning pipeline. Key guards publish bounded actual call, redesign,
+safety, and coverage counts through a test-only registry; only checked measurements together
+with every exact production guard form complete qualification. Unavailable ratios remain unavailable rather
+than defaulting to 100%. Only new v7 snapshots are eligible after all
+path, hard-gap, cost, Judge-only, focused-test, SQLite, restart, direct, rolling,
+and historical compatibility gates pass.
 
 Decomposer uses one persisted compact semantic turn per candidate. The optional current package Compiler uses
 one v7 closed-choice turn and cannot edit locked Stages; frozen v6 records retain their original fill-hole turn.

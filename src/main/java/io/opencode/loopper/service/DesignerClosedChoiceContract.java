@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.stream.IntStream;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -73,6 +74,35 @@ final class DesignerClosedChoiceContract {
                 .toList();
         return write(Map.of("contractVersion", DesignerAcceptancePlanning.CONTRACT_VERSION_V7,
                 "capabilities", values));
+    }
+
+    String resolution(DesignerAcceptanceFastPathResolver.Resolution resolution) {
+        List<Map<String, Object>> stages = IntStream.range(0, resolution.groupHints().size())
+                .mapToObj(index -> {
+                    DesignerSemanticContracts.AcceptanceGroupHint stage = resolution.groupHints().get(index);
+                    LinkedHashMap<String, Object> candidate = new LinkedHashMap<>();
+                    candidate.put("stageIndex", index);
+                    candidate.put("title", stage.title());
+                    candidate.put("objective", stage.objective());
+                    candidate.put("lockedFactIndexes", stage.factIndexes());
+                    return java.util.Collections.unmodifiableMap(candidate);
+                }).toList();
+        List<Map<String, Object>> factCandidates = resolution.unresolvedFactIndexes().stream()
+                .map(factIndex -> {
+                    LinkedHashMap<String, Object> candidate = new LinkedHashMap<>();
+                    candidate.put("factIndex", factIndex);
+                    candidate.put("allowedStageIndexes", IntStream.range(0, stages.size()).boxed().toList());
+                    return java.util.Collections.unmodifiableMap(candidate);
+                }).toList();
+        LinkedHashMap<String, Object> projection = new LinkedHashMap<>();
+        projection.put("outcome", resolution.outcome());
+        projection.put("stageCandidates", stages);
+        projection.put("factAssignmentCandidates", factCandidates);
+        projection.put("ambiguousCapabilityFactIndexes", resolution.ambiguousCapabilityFactIndexes());
+        projection.put("tiedCapabilityIndexesByFact", resolution.tiedCapabilityIndexesByFact());
+        projection.put("optimalTieChoiceSets", resolution.optimalTieChoiceSets());
+        projection.put("trueCapabilityTieCount", resolution.trueCapabilityTieCount());
+        return write(projection);
     }
 
     private static void validateTree(JsonNode node) {

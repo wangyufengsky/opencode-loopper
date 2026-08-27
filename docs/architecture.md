@@ -196,7 +196,9 @@ and title-weighted semantic competition with one unique winner to bind each scen
 independent required test targets exactly once as source-backed criteria, and derives the final outcome
 on the server. New v7 designs carry the exact stage table introduced by v6; ordinary `DIRECT_SOFTWARE_DESIGN / WP-1`
 uses that frozen topology directly when every fact and capability has one legal binding. Frozen v5/v6 packages may resume
-through their compatible historical path; newly frozen packages use v7.
+through their compatible historical path; newly frozen packages use v7. A v7 one-Stage topology is itself a unique
+acceptance owner, so omitted acceptance facts are server-bound without a model call; unlisted descriptive labels are
+audited and dropped without fuzzy matching. Multi-Stage closed choices expose explicit zero-based candidate indexes.
 Rows created before that freeze is complete are not valid Role Pack snapshots: read-only
 Designer projection omits the incomplete snapshot, and the next package-role use repairs it
 from the current or legacy task profile instead of parsing nullable enum columns.
@@ -609,6 +611,22 @@ capabilities are hard constraints; the business score then prefers fewer Judge-o
 capabilities, fewer total capabilities, and greater evidence strength. Stable indexes only order output. A unique optimum
 records `compilerAvoidedReason=UNIQUE_OPTIMUM` and avoids the model; only solutions tied on every business dimension
 contribute to `trueCapabilityTieCount` and can create one `COMPILER_BINDING_NO_TOOLS` Session.
+
+The v7 rollout gate is a separate, read-only evidence boundary documented in
+`weak-model-compiler-v7-evaluation.md`. Its versioned corpus and same-frozen-input
+shadow compare compile outcome, executable path coverage, selected capability
+counts, Judge-only ratio, focused tests, model calls, and stable gap codes without
+persisting raw inputs or touching Designer/Task lifecycle. Gate failure cannot be
+converted into a lifecycle transition. Corpus samples carry independent mutation/hard-gap
+expectations and execute their exact production guard methods, but their hand-written
+counts are never treated as measured gate input. The same-input production-pipeline
+observation is authoritative measurement but not complete qualification; key guards publish
+bounded actual call, redesign, safety, and coverage counts through a deterministic test-only
+registry. The authoritative local gate checks those measurements and joins them with all exact
+production guards. Count bounds and path, hard-gap,
+Judge-only, and focused-test non-regression are checked per sample before aggregation,
+so an over-report cannot compensate another sample. Passing the gate enables only newly frozen
+`dynamic-v7` designs; v5/v6 rows stay on their immutable historical contract.
 
 V42 adds immutable `project_stack_profile` snapshots and their
 `project_stack_component` rows. Registration of a new or re-managed project schedules one

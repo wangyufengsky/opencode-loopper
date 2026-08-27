@@ -1,6 +1,6 @@
 # 弱模型友好的 Designer Compiler v7
 
-状态：分票实施中；001、002、003 已完成，004 待执行。本文同时记录 004 的目标边界。
+状态：全部完成；001、002、003、004 均已交付并通过资格门禁与真实弱模型回放。
 
 ## 1. 目标
 
@@ -188,9 +188,9 @@ Stage 组装后、`DesignerPackagePlanCompiler` lowering 前执行 `MutationCons
 
 | 指标 | 目标 |
 | --- | --- |
-| 显式必改路径守恒 | 100% |
+| 显式必改路径守恒 | 每个适用样本基数一致且 100% |
 | 已知“编译成功、执行期路径遗漏”逃逸 | 0 |
-| 必须阻断硬缺口保持率 | 100% |
+| 必须阻断硬缺口保持率 | 每个适用样本基数一致且 100% |
 | 端到端可执行率 | 不低于 v6，且目标样本提升 |
 | Compiler 模型调用/计划 | 不高于 v6 |
 | 整稿重设计/计划 | 不高于 v6 |
@@ -215,11 +215,16 @@ Stage 组装后、`DesignerPackagePlanCompiler` lowering 前执行 `MutationCons
 10. 弱模型夹带摘要字段但闭集选择完整：安全规范化后通过并审计。
 11. 弱模型遗漏/越界/重复选择：阻断且保留冻结事实。
 12. v5/v6 历史 JSON、重启恢复和滚动工作包兼容。
+13. 同名冻结事实产生多匹配时继续失败关闭；仅零匹配的无害 Stage 说明标签可审计丢弃。
+14. 单样本基数消失、计数越界或覆盖退化不能被其他样本超报抵消；corpus 必须精确执行 guard，关键
+    guard 还必须把实际 Compiler 调用、重设计、修改义务、硬缺口、Judge/focused 和危险授权计数发布给
+    测试专用闭集 registry，闭集选择另记录工作流实际 prompt/Session 数；完整 qualification 不能只依赖
+    绿色测试数，未知字段、负值、冲突值以及未从实际结果推导的安全计数都必须失败关闭。
 
 ## 10. 发布策略
 
-1. 先用原型 10 样本和新增 golden corpus 做离线双编译。
-2. 再以只读 shadow 模式对冻结新设计同时运行 v6/v7，只记录有界差异，不改变权威计划或启动模型。
+1. 先用原型 10 样本和新增 golden corpus 固定预期并精确执行对应生产 guard；手填数字不进入测量门禁。
+2. 再以只读 shadow 模式让生产编译链对同一冻结新设计同时运行 v6/v7，只记录有界实测差异，不改变权威计划或启动模型。
 3. 只有路径守恒、硬阻断、端到端和 Judge-only 指标全部达标，才对新 `DIRECT_SOFTWARE_DESIGN / WP-1` 启用 v7。
 4. 大型滚动包在单包路径稳定后启用；历史包不迁移。
 5. 最终交付按仓库公约完成文档、版本、聚焦测试、全量验证、JAR、隔离运行和真实弱模型回放。
@@ -237,6 +242,6 @@ Stage 组装后、`DesignerPackagePlanCompiler` lowering 前执行 `MutationCons
 1. [001：Mutation Obligation 与路径守恒门禁](issues/001-mutation-obligation-conservation.md)
 2. [002：唯一自动绑定与局部路径消歧](issues/002-unique-binding-and-targeted-ambiguity.md)
 3. [003：弱模型闭集协议与唯一最优能力](issues/003-weak-model-closed-choice.md)
-4. [004：Shadow 评估、上线门槛与完整交付](issues/004-shadow-evaluation-and-rollout.md)
+4. [004：Shadow 评估、上线门槛与完整交付](issues/004-shadow-evaluation-and-rollout.md) ✅
 
 阻塞关系：`001 -> 002 -> 003 -> 004`。`004` 的 corpus/观测脚手架可提前准备，但权威对比必须基于前三票的冻结合同。

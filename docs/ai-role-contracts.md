@@ -151,13 +151,17 @@ POLICY / DEPENDENCY` DesignFact。每项事实保存精确 Designer 原文、稳
 必须恰好属于一个阶段，`DELIVERABLE` 可重复引用；V6 的 `SCOPE / POLICY` 保持包级，V7 只有正向
 受控 `SCOPE` 可被阶段精确引用作路径 provenance，`POLICY` 仍保持包级；阶段名唯一、数量为
 1–6，依赖只能指向更早阶段。完整的普通 `DIRECT_SOFTWARE_DESIGN / WP-1` 直接使用冻结拓扑，
-不创建 Compiler Session，也不增加模型调用。
+不创建 Compiler Session，也不增加模型调用。对新 V7 单 Stage 设计，遗漏的 `SCENARIO / REVIEW`
+事实由服务端归入唯一 Stage；Stage“包含”栏里不能对应任何冻结事实的附加说明标签会被审计丢弃，
+但不会做标题模糊匹配。V5/V6 继续按原合同阻断同类附加标签。
 
 只有闭集事实或能力仍无法唯一绑定时，才创建一次 `COMPILER_BINDING_NO_TOOLS` Session。当前 v7
 使用 `PACKAGE_ACCEPTANCE_CLOSED_CHOICE_V7`；冻结 v6 继续使用
 `PACKAGE_ACCEPTANCE_DISAMBIGUATION_V6`。二者都只承载 `summary / factAssignments /
 capabilityPreferences / handoffSummary`，只填写服务端列出的 unresolved facts 和候选能力；阶段名称、
-目标、顺序、依赖和已锁定事实均不可修改。服务端把全部可覆盖事实与能力构成一个全局二部图：先处理
+目标、顺序、依赖和已锁定事实均不可修改。V7 提示投影为每个候选 Stage 显式列出零基 `stageIndex`，
+并为每个未决事实列出完整 `allowedStageIndexes`；人类可读的“阶段 1”只作标签，不能被解释为索引 1。
+服务端把全部可覆盖事实与能力构成一个全局二部图：先处理
 强制独立测试和单候选事实，再按锁定 Stage 运行精确 branch-and-bound 集合覆盖；超过 100,000 个节点时
 确定性降级为贪心选择并复核。业务评分依次要求零未覆盖、强制能力完整、更少 Judge-only、更少
 非确定性能力、更少能力和更高证据强度；稳定索引只用于输出顺序。只有全部业务维度同分的多个最优集合
@@ -264,6 +268,17 @@ Stage 拓扑、权限或安全字段即使 Schema transport 接受也必须失�
 v3 历史活动仍按既有 `AI_SEMANTIC_PATCH_V1` 和最多 16 个补丁兼容；冻结 v4/v5 的在途工作包继续按
 自己的快照恢复，不会被 v6/v7 合同重解释。冻结 v6 使用原阶段表和 V6 Schema；当前 v7 新请求使用
 同一受控阶段表和 V7 最小闭集 Schema。
+
+v7 上线证据由 `weak-model-compiler-v7-evaluation.md` 的版本化 corpus 和只读同输入 shadow 提供。corpus
+逐样本固定独立的修改义务/硬缺口预期并精确执行引用的生产算法 guard，但期望汇总明确不是测量门禁；
+生产编译链在同一冻结输入上实际产生权威实测，关键 guard 还通过测试专用 registry 发布实际调用、
+重设计、安全与覆盖计数；单一样本不构成完整资格，只有这些实测与全部精确 guard
+共同通过的 qualification 才是权威本地门禁。实测计数为负、覆盖数超过基数、
+任一单样本路径/硬缺口/focused-test 退化都失败，不能用其他样本的超报抵消。单 Stage 只丢弃零匹配的
+无害说明标签；同名多匹配事实仍作为真实歧义失败关闭。
+shadow 不创建额外 Compiler Session，不保存原始模型输出或需求正文，也不能推进 Designer/Task；只比较
+稳定状态、计数和缺口码。Compiler 表面通过率不能单独放行，必须同时满足端到端路径守恒、硬阻断、
+模型调用、整稿重设计、Judge-only 与 focused-test 门槛。冻结 v5/v6 不参加迁移。
 `DIRECT_SOFTWARE_DESIGN` 的隐式 `WP-1` 继承已确认的软件任务画像；需求正文中的否定性
 “依赖/配置”措辞不得把它降级为 `local-maintenance`。若历史或中断记录出现这种与父画像
 冲突的非软件 Role Pack，人工重新编译前的权威读取会重新冻结软件 Role Pack，再进入 v6

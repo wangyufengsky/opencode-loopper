@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
 
@@ -46,6 +47,40 @@ class DesignerAcceptanceFastPathResolverTest {
     void rejectsExtraneousUnknownReferenceWhenCompilerHasNoClosedFactHoleToFill() {
         Catalog catalog = catalog(List.of(stage("实现", "实现行为", List.of("支付成功", "不存在"), List.of())),
                 List.of(fact(0, FactKind.SCENARIO, "支付成功")));
+
+        var result = resolver.resolve(catalog, capabilities(0));
+
+        assertThat(result.outcome()).isEqualTo(DesignerAcceptanceFastPathResolver.Outcome.DESIGN_INCOMPLETE);
+        assertThat(result.routingReasons()).containsExactly("ACCEPTANCE_FACT_REFERENCE_INVALID");
+    }
+
+    @Test
+    void v7BindsEverySingleStageAcceptanceFactAndDropsOnlyUnlistedStageLabels() {
+        Catalog catalog = new Catalog(CONTRACT_VERSION_V7, "WP-1", 1, "0".repeat(64), true,
+                List.of(fact(0, FactKind.SCENARIO, "格式化结果正确"),
+                        fact(1, FactKind.REVIEW, "中文措辞自然")),
+                List.of(stage("阶段 1：本地格式化", "实现本地格式化",
+                        List.of("格式化结果正确", "影响与交付", "本地格式化"), List.of())),
+                List.of());
+
+        var result = resolver.resolve(catalog, capabilities(0));
+
+        assertThat(result.outcome()).isEqualTo(DesignerAcceptanceFastPathResolver.Outcome.RESOLVED);
+        assertThat(result.unresolvedFactIndexes()).isEmpty();
+        assertThat(result.groupHints()).singleElement().satisfies(group ->
+                assertThat(group.factIndexes()).containsExactly(0, 1));
+        assertThat(result.routingReasons())
+                .contains("SINGLE_STAGE_FACT_BOUND:1",
+                        "UNLISTED_STAGE_REFERENCE_DROPPED:影响与交付",
+                        "UNLISTED_STAGE_REFERENCE_DROPPED:本地格式化");
+    }
+
+    @Test
+    void v7FailsClosedWhenAStageReferenceMatchesDuplicateFrozenFacts() {
+        Catalog catalog = new Catalog(CONTRACT_VERSION_V7, "WP-1", 1, "0".repeat(64), true,
+                List.of(fact(0, FactKind.SCENARIO, "同名事实"),
+                        fact(1, FactKind.REVIEW, "同名事实")),
+                List.of(stage("实现", "实现", List.of("同名事实"), List.of())), List.of());
 
         var result = resolver.resolve(catalog, capabilities(0));
 
@@ -173,6 +208,10 @@ class DesignerAcceptanceFastPathResolverTest {
         assertThat(resolution.outcome()).isEqualTo(DesignerAcceptanceFastPathResolver.Outcome.RESOLVED);
         assertThat(resolution.ambiguousCapabilityFactIndexes()).isEmpty();
         assertThat(resolution.routingReasons()).contains("COMPILER_AVOIDED_UNIQUE_OPTIMUM");
+        DesignerAcceptanceV7MeasurementRegistry.record("capability-resolution", java.util.Map.of(
+                "v7UniqueOptimumRequiredCompilerCalls",
+                resolution.outcome() == DesignerAcceptanceFastPathResolver.Outcome.NEEDS_COMPILER ? 1 : 0),
+                Set.of("UNIQUE_OPTIMUM_MEASURED"));
     }
 
     @Test
@@ -203,6 +242,13 @@ class DesignerAcceptanceFastPathResolverTest {
         assertThat(tied.ambiguousCapabilityFactIndexes()).containsExactly(0);
         assertThat(tied.trueCapabilityTieCount()).isEqualTo(2);
         assertThat(tied.tiedCapabilityIndexesByFact()).containsEntry(0, List.of(0, 2));
+        DesignerAcceptanceV7MeasurementRegistry.record("capability-resolution", java.util.Map.of(
+                "v7DeterministicWinnerRequiredCompilerCalls",
+                unique.outcome() == DesignerAcceptanceFastPathResolver.Outcome.NEEDS_COMPILER ? 1 : 0,
+                "v7TrueTieRequiredCompilerCalls",
+                tied.outcome() == DesignerAcceptanceFastPathResolver.Outcome.NEEDS_COMPILER ? 1 : 0,
+                "v7TrueTieOptimalSolutions", tied.trueCapabilityTieCount()),
+                Set.of("TRUE_TIE_MEASURED"));
     }
 
     @Test
@@ -276,6 +322,23 @@ class DesignerAcceptanceFastPathResolverTest {
     }
 
     @Test
+    void v7RejectsOutOfRangeCapabilityPreference() {
+        Catalog catalog = new Catalog(CONTRACT_VERSION_V7, "WP-1", 1, "0".repeat(64), true,
+                List.of(fact(0, FactKind.SCENARIO, "成功")),
+                List.of(stage("实现", "实现行为", List.of("成功"), List.of())), List.of());
+        CapabilityCatalog capabilities = new CapabilityCatalog(CONTRACT_VERSION_V7,
+                List.of(capability(0, 0), capability(1, 0)), List.of());
+        var resolution = resolver.resolve(catalog, capabilities);
+
+        assertThatThrownBy(() -> resolver.merge(resolution,
+                new CompactAcceptanceDisambiguationPlan(null, List.of(),
+                        List.of(new AcceptanceCapabilityPreference(0, List.of(99))), null),
+                catalog, capabilities))
+                .isInstanceOfSatisfying(BadRequestException.class,
+                        error -> assertThat(error.code()).isEqualTo("AMBIGUOUS_ACCEPTANCE_INTENT"));
+    }
+
+    @Test
     void v7UsesTheUniqueGlobalCapabilitySetInsteadOfMistakingLocalChoicesForTies() {
         Catalog catalog = new Catalog(CONTRACT_VERSION_V7, "WP-1", 1, "0".repeat(64), true,
                 List.of(fact(0, FactKind.SCENARIO, "成功"), fact(1, FactKind.SCENARIO, "失败")),
@@ -312,6 +375,23 @@ class DesignerAcceptanceFastPathResolverTest {
         assertThat(merged.groupHints().get(0).factIndexes()).containsExactly(0);
         assertThat(merged.groupHints().get(1).factIndexes()).containsExactly(1);
         assertThat(merged.groupHints().get(1).dependsOnHintIndexes()).containsExactly(0);
+    }
+
+    @Test
+    void v7PromptProjectionListsZeroBasedStageCandidatesForEveryUnresolvedFact() {
+        Catalog catalog = new Catalog(CONTRACT_VERSION_V7, "WP-1", 1, "0".repeat(64), true,
+                List.of(fact(0, FactKind.SCENARIO, "成功"), fact(1, FactKind.REVIEW, "安全评审")),
+                List.of(stage("阶段 1", "实现", List.of("成功"), List.of()),
+                        stage("阶段 2", "复核", List.of("未列出标签"), List.of("阶段 1"))),
+                List.of());
+        var resolution = resolver.resolve(catalog, capabilities(0));
+        ObjectMapper json = new ObjectMapper();
+        DesignerClosedChoiceContract contract = new DesignerClosedChoiceContract(json, new AiOutputExtractor(json));
+
+        assertThat(contract.resolution(resolution))
+                .contains("\"stageCandidates\":[{\"stageIndex\":0,\"title\":\"阶段 1\"",
+                        "{\"stageIndex\":1,\"title\":\"阶段 2\"",
+                        "\"factAssignmentCandidates\":[{\"factIndex\":1,\"allowedStageIndexes\":[0,1]}]");
     }
 
     @Test

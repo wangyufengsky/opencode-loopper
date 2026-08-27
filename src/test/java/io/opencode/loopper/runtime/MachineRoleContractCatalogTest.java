@@ -31,7 +31,7 @@ class MachineRoleContractCatalogTest {
                 .containsEntry("type", "object");
         assertThat(MachineRoleContractCatalog.closedChoiceCompilerCard())
                 .contains(MachineRoleContractCatalog.CLOSED_CHOICE_CONTRACT_VERSION,
-                        "closed candidates", "Do not emit paths, commands, tests, or stages");
+                        "closed candidates", "Do not emit paths, commands, tests, or stages", "zero-based");
         assertThat(Files.readString(Path.of("docs/ai-role-contracts.md")))
                 .contains(MachineRoleContractCatalog.CONTRACT_VERSION,
                         "MachineRoleContractCatalog", "OpenCodeStructuredSchemas");
