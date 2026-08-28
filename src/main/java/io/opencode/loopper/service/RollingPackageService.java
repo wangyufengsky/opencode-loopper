@@ -284,6 +284,13 @@ public class RollingPackageService {
         beginDesign(new CommandContext(context.task(), run, context.session()));
     }
 
+    public void resumeDesign(String taskId, String packageRunId, long expectedTaskVersion,
+                             long expectedPackageVersion) {
+        CommandContext context = command(taskId, packageRunId, expectedTaskVersion, expectedPackageVersion,
+                RollingPackageCommandPolicy.Command.RESUME_DESIGN);
+        checkpointSaga.resumeDesign(taskId, context.run());
+    }
+
     public void retryCheckpointRelease(String taskId, String packageRunId, long expectedTaskVersion,
                                        long expectedPackageVersion) {
         CommandContext context = command(taskId, packageRunId, expectedTaskVersion, expectedPackageVersion,

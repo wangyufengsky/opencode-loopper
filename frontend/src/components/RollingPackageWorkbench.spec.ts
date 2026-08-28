@@ -8,6 +8,7 @@ const apiMocks = vi.hoisted(() => ({
   getRollingPackageWorkbench: vi.fn(), getRollingPackageDetail: vi.fn(),
   approveRollingPackageDesign: vi.fn(), startRollingPackage: vi.fn(),
   retryRollingPackageCheckpoint: vi.fn(), redesignRollingPackage: vi.fn(),
+  resumeRollingPackageDesign: vi.fn(),
   discussRollingPackage: vi.fn(), resolveRollingPackageFailure: vi.fn(),
   proposeRollingPlan: vi.fn(), confirmRollingPlan: vi.fn(), addRollingCorrection: vi.fn(),
   suggestRollingPlan: vi.fn(), getRollingPlanRevisions: vi.fn(),
@@ -52,7 +53,7 @@ describe('RollingPackageWorkbench', () => {
       planRevisionId: 'plan-2', planRevision: 2, plannedPackageCount: 2, frozenPackageCount: 1,
       currentPackageRunId: reviewing.id,
       packageCapabilities: { canDiscuss: true, canApproveDesign: true, canStartPackage: false,
-        canRetryPackage: false, canRedesignPackage: false, canReplanRemaining: true,
+        canRetryPackage: false, canRedesignPackage: false, canResumeDesign: false, canReplanRemaining: true,
         canAddCorrectionPackage: true },
       packages: [frozen, reviewing],
     })
@@ -70,7 +71,7 @@ describe('RollingPackageWorkbench', () => {
 
   it('keeps design approval and execution start as separate manual boundaries', async () => {
     const capabilities = { canDiscuss: true, canApproveDesign: true, canStartPackage: false,
-      canRetryPackage: false, canRedesignPackage: false, canReplanRemaining: true,
+      canRetryPackage: false, canRedesignPackage: false, canResumeDesign: false, canReplanRemaining: true,
       canAddCorrectionPackage: true }
     const wrapper = mountWorkbench(task(reviewing, capabilities))
     await flushPromises()
@@ -115,12 +116,12 @@ describe('RollingPackageWorkbench', () => {
       planRevisionId: 'plan-2', planRevision: 2, plannedPackageCount: 2, frozenPackageCount: 1,
       currentPackageRunId: blocked.id,
       packageCapabilities: { canDiscuss: false, canApproveDesign: false,
-        canStartPackage: false, canRetryPackage: true, canRedesignPackage: false,
+        canStartPackage: false, canRetryPackage: true, canRedesignPackage: false, canResumeDesign: false,
         canReplanRemaining: false, canAddCorrectionPackage: true },
       packages: [frozen, blocked],
     })
     const wrapper = mountWorkbench(task(blocked, { canDiscuss: false, canApproveDesign: false,
-      canStartPackage: false, canRetryPackage: true, canRedesignPackage: false,
+      canStartPackage: false, canRetryPackage: true, canRedesignPackage: false, canResumeDesign: false,
       canReplanRemaining: false, canAddCorrectionPackage: true }))
     await flushPromises()
 
@@ -140,7 +141,7 @@ describe('RollingPackageWorkbench', () => {
 
   it('polls an AI read-only plan suggestion and keeps confirmation manual', async () => {
     const capabilities = { canDiscuss: true, canApproveDesign: true, canStartPackage: false,
-      canRetryPackage: false, canRedesignPackage: true, canReplanRemaining: true,
+      canRetryPackage: false, canRedesignPackage: true, canResumeDesign: false, canReplanRemaining: true,
       canAddCorrectionPackage: true }
     apiMocks.suggestRollingPlan.mockResolvedValue({ id: 'proposal-ai', revision: 3, state: 'GENERATING',
       version: 1, planJson: '[]', impactJson: '{}', origin: 'AI', externalSessionState: 'RUNNING',
@@ -175,7 +176,7 @@ describe('RollingPackageWorkbench', () => {
       planRevisionId: 'plan-2', planRevision: 2, plannedPackageCount: 2, frozenPackageCount: 1,
       currentPackageRunId: designing.id,
       packageCapabilities: { canDiscuss: true, canApproveDesign: false, canStartPackage: false,
-        canRetryPackage: false, canRedesignPackage: false, canReplanRemaining: false,
+        canRetryPackage: false, canRedesignPackage: false, canResumeDesign: true, canReplanRemaining: false,
         canAddCorrectionPackage: false },
       packages: [frozen, designing],
     })
@@ -185,7 +186,7 @@ describe('RollingPackageWorkbench', () => {
     })
     const wrapper = mountWorkbench({ ...task(reviewing, {
       canDiscuss: true, canApproveDesign: false, canStartPackage: false,
-      canRetryPackage: false, canRedesignPackage: false, canReplanRemaining: true,
+      canRetryPackage: false, canRedesignPackage: false, canResumeDesign: false, canReplanRemaining: true,
       canAddCorrectionPackage: true,
     }), version: 8 })
     await flushPromises()
@@ -197,10 +198,45 @@ describe('RollingPackageWorkbench', () => {
     expect(apiMocks.proposeRollingPlan).not.toHaveBeenCalled()
   })
 
+  it('offers an explicit versioned continuation when the current package design can be resumed', async () => {
+    const designing = { ...reviewing, state: 'DESIGNING' as const, version: 4, designRevision: 7 }
+    apiMocks.getRollingPackageWorkbench.mockResolvedValue({
+      taskId: 'task-1', title: '三包任务', taskState: 'PACKAGE_DESIGNING', taskVersion: 9,
+      executionMode: 'ROLLING_PACKAGES', workspacePolicy: 'RELEASE_BETWEEN_PACKAGES',
+      planRevisionId: 'plan-2', planRevision: 2, plannedPackageCount: 2, frozenPackageCount: 1,
+      currentPackageRunId: designing.id,
+      packageCapabilities: { canDiscuss: true, canApproveDesign: false, canStartPackage: false,
+        canRetryPackage: false, canRedesignPackage: false, canResumeDesign: true,
+        canReplanRemaining: false, canAddCorrectionPackage: false },
+      packages: [frozen, designing],
+    })
+    apiMocks.getRollingPackageDetail.mockResolvedValue({
+      packageRun: designing, objective: '正在生成详细设计', deliverablesJson: '[]',
+      acceptanceIntentJson: '[]', designMarkdown: '',
+    })
+    apiMocks.resumeRollingPackageDesign.mockResolvedValue(undefined)
+    const wrapper = mountWorkbench(task(designing, {
+      canDiscuss: true, canApproveDesign: false, canStartPackage: false,
+      canRetryPackage: false, canRedesignPackage: false, canResumeDesign: false, canReplanRemaining: false,
+      canAddCorrectionPackage: false,
+    }))
+    await flushPromises()
+
+    const resume = wrapper.findAll('button').find(button => button.text().includes('继续当前包设计'))
+    expect(resume).toBeDefined()
+    await resume!.trigger('click')
+    await flushPromises()
+
+    expect(apiMocks.resumeRollingPackageDesign).toHaveBeenCalledWith('task-1', 'run-2', {
+      expectedTaskVersion: 9, expectedPackageVersion: 4,
+      expectedDiscussionRevision: 5, expectedDesignRevision: 7,
+    })
+  })
+
   it('refreshes the workbench after a concurrent replan conflict', async () => {
     const wrapper = mountWorkbench(task(reviewing, {
       canDiscuss: true, canApproveDesign: true, canStartPackage: false,
-      canRetryPackage: false, canRedesignPackage: false, canReplanRemaining: true,
+      canRetryPackage: false, canRedesignPackage: false, canResumeDesign: false, canReplanRemaining: true,
       canAddCorrectionPackage: true,
     }))
     await flushPromises()
@@ -211,7 +247,7 @@ describe('RollingPackageWorkbench', () => {
       planRevisionId: 'plan-2', planRevision: 2, plannedPackageCount: 2, frozenPackageCount: 1,
       currentPackageRunId: designing.id,
       packageCapabilities: { canDiscuss: true, canApproveDesign: false, canStartPackage: false,
-        canRetryPackage: false, canRedesignPackage: false, canReplanRemaining: false,
+        canRetryPackage: false, canRedesignPackage: false, canResumeDesign: true, canReplanRemaining: false,
         canAddCorrectionPackage: false },
       packages: [frozen, designing],
     })

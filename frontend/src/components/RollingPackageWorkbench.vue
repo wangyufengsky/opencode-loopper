@@ -72,7 +72,7 @@ async function selectPackage(run: RollingPackageRun) {
   await load(run.id)
 }
 
-async function act(action: 'approve' | 'start' | 'redesign' | 'discuss' | 'checkpoint') {
+async function act(action: 'approve' | 'start' | 'redesign' | 'resume' | 'discuss' | 'checkpoint') {
   const run = selected.value
   const wb = workbench.value
   if (!run || !wb || busy.value) return
@@ -83,6 +83,7 @@ async function act(action: 'approve' | 'start' | 'redesign' | 'discuss' | 'check
       expectedDiscussionRevision: run.discussionRevision, expectedDesignRevision: run.designRevision }
     if (action === 'start') await api.startRollingPackage(props.task.id, run.id, versions)
     if (action === 'redesign') await api.redesignRollingPackage(props.task.id, run.id, versions)
+    if (action === 'resume') await api.resumeRollingPackageDesign(props.task.id, run.id, versions)
     if (action === 'checkpoint') await api.retryRollingPackageCheckpoint(props.task.id, run.id, versions)
     if (action === 'approve') await api.approveRollingPackageDesign(props.task.id, run.id, {
       ...versions,
@@ -95,7 +96,8 @@ async function act(action: 'approve' | 'start' | 'redesign' | 'discuss' | 'check
       })
       feedback.value = ''
     }
-    ElMessage.success(action === 'start' ? '工作包已请求执行' : action === 'approve' ? '工作包设计已确认' : '请求已提交')
+    ElMessage.success(action === 'start' ? '工作包已请求执行' : action === 'approve' ? '工作包设计已确认'
+      : action === 'resume' ? '已检查并继续当前包设计' : '请求已提交')
     emit('refresh')
     await load(run.id)
   } catch (cause) {
@@ -284,11 +286,12 @@ watch(() => props.task.updatedAt, () => void load(selectedId.value))
         <p class="objective">{{ detail.objective }}</p>
         <div class="package-phases"><span>设计</span><Icon icon="lucide:chevron-right" /><span>执行</span><Icon icon="lucide:chevron-right" /><span>事实冻结</span></div>
         <MarkdownDocument v-if="detail.designMarkdown" :content="detail.designMarkdown" collapsible />
-        <p v-else class="empty-copy">详细设计尚未生成。</p>
+        <p v-else class="empty-copy">{{ capabilities?.canResumeDesign ? '详细设计尚未生成，可检查并继续当前包设计。' : '详细设计尚未生成。' }}</p>
         <div v-if="current" class="package-actions">
           <el-button v-if="capabilities?.canApproveDesign" type="primary" :loading="busy" @click="act('approve')">确认本包设计</el-button>
           <el-button v-if="capabilities?.canStartPackage" type="success" :loading="busy" @click="act('start')">开始本包执行</el-button>
           <el-button v-if="capabilities?.canRedesignPackage" plain :loading="busy" @click="act('redesign')">重新设计当前包</el-button>
+          <el-button v-if="capabilities?.canResumeDesign" type="primary" plain :loading="busy" @click="act('resume')">继续当前包设计</el-button>
           <el-button v-if="capabilities?.canRetryPackage && selected.waitingReasonCode === 'PACKAGE_CHECKPOINT_BLOCKED'" type="warning" plain :loading="busy" @click="act('checkpoint')">重新检查并释放租约</el-button>
           <el-button v-if="capabilities?.canReplanRemaining" type="primary" plain :loading="busy" @click="aiReplan">AI 调整剩余拆包</el-button>
           <el-button v-if="capabilities?.canReplanRemaining" plain :loading="busy" @click="openReplan">人工调整剩余拆包</el-button>

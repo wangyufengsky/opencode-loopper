@@ -1,6 +1,7 @@
 package io.opencode.loopper.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.opencode.loopper.domain.TaskPackageRunState;
@@ -27,13 +28,13 @@ class RollingPackageCommandPolicyTest {
     void queuedStartIsIdempotentOnlyWhenTaskRunAndQueueAgree() {
         var consistent = new RollingPackageCommandPolicy.Context(TaskState.QUEUED, null,
                 TaskPackageRunState.QUEUED, null, TaskQueueState.ADMITTED,
-                true, true, true, 1);
+                true, true, false, true, 1);
         var missingQueue = new RollingPackageCommandPolicy.Context(TaskState.QUEUED, null,
                 TaskPackageRunState.QUEUED, null, null,
-                true, true, true, 1);
+                true, true, false, true, 1);
         var mixedParent = new RollingPackageCommandPolicy.Context(TaskState.WAITING_INPUT, null,
                 TaskPackageRunState.QUEUED, null, TaskQueueState.QUEUED,
-                true, true, true, 1);
+                true, true, false, true, 1);
 
         assertThat(policy.startDisposition(consistent)).isEqualTo(RollingPackageCommandPolicy.StartDisposition.IDEMPOTENT);
         assertThat(policy.startDisposition(missingQueue)).isEqualTo(RollingPackageCommandPolicy.StartDisposition.REJECTED);
@@ -43,11 +44,11 @@ class RollingPackageCommandPolicyTest {
     @Test
     void correctionRequiresJudgeInputFrozenFactsAndNoActiveOwner() {
         var valid = new RollingPackageCommandPolicy.Context(TaskState.WAITING_INPUT, "JUDGE_CONFLICT",
-                null, null, null, true, true, true, 1);
+                null, null, null, true, true, false, true, 1);
         var ordinaryInput = new RollingPackageCommandPolicy.Context(TaskState.WAITING_INPUT, "PACKAGE_EXECUTION_FAILED",
-                null, null, null, true, true, true, 1);
+                null, null, null, true, true, false, true, 1);
         var activeDesigner = new RollingPackageCommandPolicy.Context(TaskState.WAITING_INPUT, "JUDGE_REVIEW_NOT_APPROVED",
-                null, null, null, true, false, true, 1);
+                null, null, null, true, false, false, true, 1);
 
         assertThat(policy.capabilities(valid).canAddCorrectionPackage()).isTrue();
         assertThat(policy.capabilities(ordinaryInput).canAddCorrectionPackage()).isFalse();
@@ -58,13 +59,13 @@ class RollingPackageCommandPolicyTest {
     void redesignAllowsInitialDesignFailureButRequiresCheckpointAfterExecution() {
         var initialDesignFailure = new RollingPackageCommandPolicy.Context(TaskState.WAITING_INPUT, null,
                 TaskPackageRunState.WAITING_INPUT, "PACKAGE_DESIGN_SESSION_FAILED", null,
-                true, true, false, 0);
+                true, true, false, false, 0);
         var executionFailure = new RollingPackageCommandPolicy.Context(TaskState.WAITING_INPUT, null,
                 TaskPackageRunState.WAITING_INPUT, "PACKAGE_EXECUTION_FAILED", null,
-                true, true, false, 1);
+                true, true, false, false, 1);
         var executionWithCheckpoint = new RollingPackageCommandPolicy.Context(TaskState.WAITING_INPUT, null,
                 TaskPackageRunState.WAITING_INPUT, "PACKAGE_EXECUTION_FAILED", null,
-                true, true, true, 1);
+                true, true, false, true, 1);
 
         assertThat(policy.capabilities(initialDesignFailure).canRedesignPackage()).isTrue();
         assertThat(policy.capabilities(executionFailure).canRedesignPackage()).isFalse();
@@ -73,11 +74,16 @@ class RollingPackageCommandPolicyTest {
 
     @Test
     void activePackageDesignCannotExposeReplanDuringTheDesignerDispatchGap() {
-        var dispatching = context(TaskState.PACKAGE_DESIGNING, TaskPackageRunState.DESIGNING);
+        var dispatching = new RollingPackageCommandPolicy.Context(TaskState.PACKAGE_DESIGNING, null,
+                TaskPackageRunState.DESIGNING, null, null, true, false, true, true, 1);
         var review = context(TaskState.PACKAGE_DESIGNING, TaskPackageRunState.DESIGN_REVIEW);
 
         assertThat(policy.capabilities(dispatching).canReplanRemaining()).isFalse();
+        assertThat(policy.capabilities(dispatching).canResumeDesign()).isTrue();
+        assertThatCode(() -> policy.require(RollingPackageCommandPolicy.Command.RESUME_DESIGN, dispatching))
+                .doesNotThrowAnyException();
         assertThat(policy.capabilities(review).canReplanRemaining()).isTrue();
+        assertThat(policy.capabilities(review).canResumeDesign()).isFalse();
     }
 
     @Test
@@ -92,6 +98,6 @@ class RollingPackageCommandPolicyTest {
 
     private RollingPackageCommandPolicy.Context context(TaskState task, TaskPackageRunState run) {
         return new RollingPackageCommandPolicy.Context(task, null, run, null, null,
-                true, true, true, 1);
+                true, true, false, true, 1);
     }
 }

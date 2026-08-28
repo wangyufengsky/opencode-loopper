@@ -42,10 +42,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.2.73.jar
-   jar tf target/opencode-loopper-0.2.73.jar \
+   test -s target/opencode-loopper-0.2.74.jar
+   jar tf target/opencode-loopper-0.2.74.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.2.73.jar
+   shasum -a 256 target/opencode-loopper-0.2.74.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -95,8 +95,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.2.73`。
-- 正式产物：`target/opencode-loopper-0.2.73.jar`。
+- Maven 项目版本：`0.2.74`。
+- 正式产物：`target/opencode-loopper-0.2.74.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -261,6 +261,7 @@ Task 详情 `overview` 必须投影 `loopRetryAvailable`、`cancellationAvailabl
 - 历史 Designer/Task、大型文档和关闭滚动兼容开关时继续使用聚合流程：分包 Designer/Compiler 读取不可变执行前基线，前置包 `APPROVED` 只表示设计合同已接受，不表示生产文件已写入；全部包完成后由服务端确定性聚合 LoopDraft，禁止模型二次合并或普通草稿更新绕过映射保护。
 - 新建 `FULL_PACKAGE_DESIGN` 软件任务默认使用 `ROLLING_PACKAGES`：包 1 详细设计确认才创建唯一 `PENDING_START` Task，且不得申请 Queue/Lease、创建执行目录或可写 Session；后续包只在前一包确定性验收、Checkpoint 和 `PackageFactSnapshot` 成功冻结后设计。Git 每包释放租约并从精确 checkpoint tree 构造只读快照，Direct 全程持有租约并在每次设计前后复核目录 tree/manifest；两者都不得回退初始基线冒充当前事实。LoopDraft 保持不可变，每次包设计批准只追加完整 `TaskSpecRevision` 与新 Stage，不修改或重排已执行 Stage。
 - `TaskPackageRun` 是独立状态轴，状态变化必须经过生命周期服务；事实严格分为机器证明、人工接受合同和非证据 AI 导航摘要，提示每包最多 4 KiB、总计 24 KiB。失败候选 checkpoint 不得形成已证明事实；重规划只替换未执行后缀，来源映射必须能预览新增、删除、拆分、合并、排序和依赖变化；人工编辑或只读 AI 异步建议都只形成待确认计划，AI 建议必须持久化 Session、基线版本和 `GENERATING / PROPOSED / FAILED` 状态，重启继续轮询且不能越过人工确认；已冻结行为只能通过 `correctionOf` 修正包单调追加。包级 `JUDGE/BOTH` 只标记计划评审，最后一个有效包冻结后才创建唯一 Requirement/Risk Judge 批次。
+- 滚动包 Run 处于 `DESIGNING` 且关联设计包仍为 `PENDING / QUESTIONING / DESIGNING` 时，服务端必须投影 `canResumeDesign`，工作台显示版本化的“继续当前包设计”；显式继续与启动恢复共用同一幂等路径，必须复用已持久化的活动远程 Session，只在远程缺失或终态时按冻结事实重建，禁止并发派发第二个 Designer。所有 `package.*` SSE 都必须使 Task/工作台权威快照失效，不得让候选已到达的包仍显示旧设计态。任务列表 `/summaries` 使用独立精简适配器，不要求详情专属的 `loopRetryAvailable / cancellationAvailable`，也不得用默认 `false` 伪造操作能力；详情 overview 的四个布尔字段仍严格失败关闭。
 - 聚合 Stage 的 `workPackageId` 映射进入 Review Gate 后不可删除、改写或重排；前端读取、结构化编辑、保存和确认必须无损往返。普通草稿更新边界拒绝映射漂移，确认边界还要校验每个已批准工作包均存在且保持依赖顺序，禁止静默降级成无包 Stage 任务。
 - 工作包 Designer 在健康时复用该包自己的交互 Session；远端丢失时用持久化需求、当前完整包设计、决策和作用域消息重建，不得重跑已完成 Decomposer。每个候选都经过唯一权威 Validator；当前 v7 普通包、大型任务包和滚动执行当前包在闭集已解析时统一服务端直编，只有真实事实/能力歧义才按需创建独立只读 Compiler；冻结 v6 大型包和其他历史合同继续保持原有一次 Compiler 兼容语义。大型任务通过后进入 `REVIEWING`，只有人工接受或当前会话的全自动授权接受当前已验证修订才启动下一包；普通单包在服务端直编或按需 Compiler/Validator 通过后自动批准 `WP-1`、确定性聚合并直接进入总体确认，不显示包级接受步骤。初稿后每包最多 5 轮人工修改；失败候选不得覆盖上一版有效候选。重开已接受包时先展示影响，只把它的传递依赖标记 `STALE`，无关 `APPROVED` 包保持有效；最终确定性聚合必须推进需求的草稿乐观锁检查点但保持冻结正文和来源消息不变，旧版未推进检查点的聚合只有在草稿恰比 Decomposer 基线多一个版本且仍精确覆盖全部冻结包时才允许一次兼容恢复，任何后续外部编辑继续以 `DESIGNER_DRAFT_CHANGED` 阻断；从 `FINAL_REVIEW` 重开时必须在同一事务内把同一不可变需求版本从 `COMPLETED` 以 `RETRY` 恢复为 `ACTIVE`，显式重编译再经 `REVIEWING + RETRY -> COMPILING`，确保后续讨论、重设计或重编译不会被旧聚合终态阻断。
 - 全部工作包 `APPROVED` 后才允许服务端确定性聚合并进入 `FINAL_REVIEW`；重复聚合必须把冻结的 Decomposer 全局约束规范化为唯一一段可追踪 context，不得重复追加；包级阶段右侧候选只读，最终聚合阶段才开放结构化编辑。V27 持久化讨论与批准；历史未确认 `COMPLETED` 包迁移为 `REVIEWING`，已确认草稿和已创建 Task 不变。
@@ -444,7 +445,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.2.73.jar
+JAR=target/opencode-loopper-0.2.74.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -546,6 +547,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-08-28 | 修复下一包设计无法继续与非空任务摘要解析，交付 0.2.74 | 滚动工作台新增权威 `canResumeDesign` 和版本化继续命令，显式继续/启动恢复串行复用活动设计 Session，仅对缺失或终态远程重建；`package.*` 事件使权威 Task/工作台快照失效；任务列表使用独立摘要适配器，不再按详情 DTO 拒绝缺少操作能力的非空摘要，详情仍失败关闭；同步 README、架构、设计、七特性和本公约正文，无 Flyway 迁移 | 聚焦前端 66/66、聚焦后端 21/21；`./scripts/verify.sh`：Java 742 项（0 失败、0 错误、2 跳过）、Vitest 233/233，`BUILD SUCCESS`；JAR `target/opencode-loopper-0.2.74.jar` 为 283979250 字节，含 113 个 SPA 静态条目，SHA-256 `efd3ad7a595cafd862cdced762d438d49bbed9176bedca5ae3ae9cd505da9787`；未重启 8080，未做浏览器运行态验收，未推送、打标签或创建 Release |
 | 2026-08-27 | 弱模型 Compiler v7 资格门禁、真实回放与发布交付 0.2.73 | 新增版本化 golden corpus、只读同输入 shadow、测试专用闭集实测 registry 和唯一权威 qualification gate；全部 guard 从生产结果对象发布修改义务、硬缺口、Compiler prompt/Session、Judge/focused 和危险授权计数，未登记、负值和冲突证据失败关闭；新 v7 单 Stage 对遗漏场景/评审事实确定性绑定，零匹配的无害 Stage 说明审计丢弃，同名多匹配仍阻断，v5/v6 保持历史兼容；同步 README、架构、Designer、OpenCode、AI 角色、验证器、代码结构和 004 工单，无 Flyway 迁移 | `scripts/evaluate-weak-model-v7.sh` 精确通过 22/22 corpus guard、3/3 补充指标 guard 和 1/1 同输入实测；qualification SHA-256 `e96bc7d7904029f9160e12a5934b3968c177922c87f1a6360e34e95a3052d679`；`./scripts/verify.sh`：Java 742 项（0 失败、0 错误、2 跳过）、Vitest 230/230，`BUILD SUCCESS`；JAR `target/opencode-loopper-0.2.73.jar` 为 283975191 字节，含 112 个 SPA 静态条目，SHA-256 `8ff7b6ddc4df69fde1cc6ea80c1d193ef001da63f33886bcc00a1e9508aa615a`；隔离 18073 使用 OpenCode 1.18.23 + DeepSeek v4 Flash 真实进入 `FINAL_REVIEW`，Compiler 服务端直编、修复计数 0、3/3 修改义务守恒、Task 计数 0；隔离实例已停止，8080 未触碰 |
 | 2026-08-27 | 弱模型 Compiler v7 闭集选择与唯一全局最优，交付 0.2.70 | 当前 v7 对全部可覆盖验收事实一次求解完整业务评分，唯一全局最优零模型直编，真实同分只开放等价最优集合间的判别能力并要求选择一个完整最优集合；新增最小 Schema/marker、严格多候选与危险字段语义防火墙、安全机械规范化审计、非穷举失败关闭和已绑定事实保留，冻结 v5/v6 合同及 focused-test/Judge 门禁保持兼容；同步 README、架构、设计、OpenCode、AI 角色、代码结构、本公约和 003 工单，无 Flyway 迁移 | 聚焦 Designer/Compiler 后端 210/210，双轴代码评审无剩余 P0–P2；`./scripts/verify.sh`：Java 730 项（0 失败、0 错误、2 跳过）、Vitest 230/230，`BUILD SUCCESS`；JAR `target/opencode-loopper-0.2.70.jar` 为 283953904 字节，含 112 个 SPA 静态条目，SHA-256 `49ea4c26d054fa0163b657806876d6808b30205fcd41947b2528ce5aff41488d`；未启动或替换运行实例，尚未推送、未打标签、未创建 Release |
 | 2026-08-27 | 修复逐包工作台拆包调整入口状态漂移，交付 0.2.69 | 读模型与命令端共用 `RollingPackageCommandContextService` 构造 owner/Checkpoint 事实；工作台同一响应返回当前包、Task/包版本和完整命令能力，前端不再混用旧 Task overview；当前包仍在设计、编译或校验以及活动 writer/verifier/Judge 均失败关闭，并在并发 409 后自动刷新；同步 README、设计、七特性、代码结构和本公约正文，无 Flyway 迁移 | 聚焦后端 18/18、聚焦 Vitest 51/51、前端类型检查通过；首次 `./scripts/verify.sh` 的 707 项 Java 行为断言无失败，但既有并发测试偶发 `SQLITE_LOCKED_SHAREDCACHE`，该场景单独复跑 1/1 通过，源码不变的同版本诊断重试完整通过：Java 707 项（0 失败、0 错误、2 跳过）、Vitest 230/230，`BUILD SUCCESS`；JAR `target/opencode-loopper-0.2.69.jar` 为 283934316 字节，含 113 个 SPA 静态条目，SHA-256 `e146176f347af8aefdfd3e4d5f4382f660d6873c8c176f90fc55041ea9bba26c`；未启动或替换运行实例，未推送、未打标签、未创建 Release |

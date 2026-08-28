@@ -85,6 +85,14 @@ public class RollingPackageController {
         return ResponseEntity.accepted().build();
     }
 
+    @PostMapping("/{runId}/resume-design")
+    public ResponseEntity<Void> resumeDesign(@PathVariable String taskId, @PathVariable String runId,
+                                             @Valid @RequestBody VersionRequest request) {
+        requireVersions(taskId, runId, request);
+        packages.resumeDesign(taskId, runId, request.expectedTaskVersion(), request.expectedPackageVersion());
+        return ResponseEntity.accepted().build();
+    }
+
     @PostMapping("/{runId}/retry-checkpoint")
     public ResponseEntity<Void> retryCheckpoint(@PathVariable String taskId, @PathVariable String runId,
                                                 @Valid @RequestBody VersionRequest request) {

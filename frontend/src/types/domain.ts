@@ -273,6 +273,7 @@ export interface RollingPackageCapabilities {
   canStartPackage: boolean
   canRetryPackage: boolean
   canRedesignPackage: boolean
+  canResumeDesign: boolean
   canReplanRemaining: boolean
   canAddCorrectionPackage: boolean
 }

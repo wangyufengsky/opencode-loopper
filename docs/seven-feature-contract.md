@@ -128,7 +128,13 @@ be proven.
 Only the unexecuted suffix may be replanned, and only with no active writer, verifier, Judge, or
 Designer/Compiler/Validator and a verified current checkpoint. A package run in `DESIGNING` is
 itself not replannable, including the dispatch gap before the external Session becomes visible.
-Both read and command paths use the same persisted owner/checkpoint facts. Confirmation supersedes
+Both read and command paths use the same persisted owner/checkpoint facts. While that run's child
+work package is still `PENDING / QUESTIONING / DESIGNING`, the same fact projection exposes a
+versioned design-continuation capability. Explicit continuation and startup recovery serialize
+progress for that package, poll an existing live remote Session, and create a replacement only when
+the persisted remote is absent or terminal; they must never dispatch a second live Designer.
+`package.*` lifecycle events invalidate the browser's authoritative Task/workbench snapshot instead
+of relying on elapsed-time UI progress. Confirmation supersedes
 old unfinished package and design rows,
 then starts read-only design for the new first suffix package. Frozen facts, their Stage/Attempt
 history, and previous TaskSpec revisions remain immutable. A correction appends a package linked to

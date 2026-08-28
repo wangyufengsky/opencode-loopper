@@ -57,7 +57,17 @@ describe('task SSE reducer', () => {
     expect(requiresTaskSnapshot('session.failed')).toBe(true)
     expect(requiresTaskSnapshot('verification.failed')).toBe(true)
     expect(requiresTaskSnapshot('task.status')).toBe(true)
+    expect(requiresTaskSnapshot('package.design_review_required')).toBe(true)
     expect(requiresTaskSnapshot('log.appended')).toBe(false)
+  })
+
+  it('invalidates the rolling workbench projection for package lifecycle events', () => {
+    const next = reduceTaskEvent(demoTasks[0]!, {
+      id: 'evt-package', type: 'package.design_review_required',
+      at: '2026-08-04T10:24:00+08:00', data: { packageKey: 'WP-2' },
+    })
+
+    expect(next.updatedAt).toBe('2026-08-04T10:24:00+08:00')
   })
 
   it('renders normalization and finalizer events as ordinary informational notices', () => {

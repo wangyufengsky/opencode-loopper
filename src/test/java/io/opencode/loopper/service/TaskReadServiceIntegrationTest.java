@@ -194,6 +194,11 @@ class TaskReadServiceIntegrationTest {
         assertThat(reads.overview("task-a").packageCapabilities().canReplanRemaining()).isTrue();
         assertThat(rollingReads.workbench("task-a").packageCapabilities().canReplanRemaining()).isTrue();
 
+        jdbc.update("UPDATE task_package_run SET state='DESIGNING' WHERE id='rolling-run'");
+        jdbc.update("UPDATE design_work_package SET state='DESIGNING' WHERE id='rolling-package'");
+        assertThat(reads.overview("task-a").packageCapabilities().canResumeDesign()).isTrue();
+        assertThat(rollingReads.workbench("task-a").packageCapabilities().canResumeDesign()).isTrue();
+
         jdbc.update("UPDATE design_work_package SET state='COMPILING' WHERE id='rolling-package'");
         assertThat(reads.overview("task-a").packageCapabilities().canReplanRemaining()).isFalse();
         assertThat(rollingReads.workbench("task-a").packageCapabilities().canReplanRemaining()).isFalse();

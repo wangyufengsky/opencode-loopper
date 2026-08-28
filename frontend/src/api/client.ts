@@ -440,9 +440,27 @@ function normalizeTaskPage(value: unknown): CursorPage<Task> {
   const raw = asRecord(value)
   const facets = asRecord(raw.facets)
   return {
-    items: asArray(raw.items).map(normalizeTask),
+    items: asArray(raw.items).map(normalizeTaskSummary),
     nextCursor: asString(raw.nextCursor) || undefined,
     facets: Object.fromEntries(Object.entries(facets).map(([key, count]) => [key, asNumber(count)])),
+  }
+}
+
+function normalizeTaskSummary(value: unknown): Task {
+  const raw = asRecord(value)
+  requireBooleanFields(raw, ['hasDesignHistory', 'archived'], 'TaskSummary')
+  return {
+    id: requiredString(raw, 'id', 'TaskSummary'), projectId: asString(raw.projectId),
+    projectName: asString(raw.projectName, 'Unknown project'), title: asString(raw.title),
+    goal: asString(raw.goal), branch: asString(raw.branch) || '等待选择执行模式', worktreePath: '',
+    status: requirePublicState(TASK_STATUSES, raw.status, 'TaskSummary'),
+    retryCause: ['RATE_LIMIT', 'SESSION', 'VERIFICATION'].includes(asString(raw.retryCause))
+      ? asString(raw.retryCause) as Task['retryCause'] : undefined,
+    retryDueAt: asString(raw.retryDueAt) || undefined,
+    hasDesignHistory: raw.hasDesignHistory as boolean, archived: raw.archived as boolean,
+    attemptCount: asNumber(raw.attemptCount), maxAttempts: asNumber(raw.maxAttempts, 12),
+    createdAt: asString(raw.createdAt), updatedAt: asString(raw.updatedAt),
+    stages: [], workPackages: [], attempts: [], errors: [], judges: [], artifacts: [],
   }
 }
 
@@ -492,10 +510,11 @@ function normalizeTask(value: unknown): Task {
 
 function normalizeRollingCapabilities(value: unknown): RollingPackageCapabilities {
   const raw = asRecord(value)
-  requireBooleanFields(raw, ['canDiscuss', 'canApproveDesign', 'canStartPackage', 'canRetryPackage', 'canRedesignPackage', 'canReplanRemaining', 'canAddCorrectionPackage'], 'RollingPackageCapabilities')
+  requireBooleanFields(raw, ['canDiscuss', 'canApproveDesign', 'canStartPackage', 'canRetryPackage', 'canRedesignPackage', 'canResumeDesign', 'canReplanRemaining', 'canAddCorrectionPackage'], 'RollingPackageCapabilities')
   return { canDiscuss: raw.canDiscuss as boolean, canApproveDesign: raw.canApproveDesign as boolean,
     canStartPackage: raw.canStartPackage as boolean, canRetryPackage: raw.canRetryPackage as boolean,
-    canRedesignPackage: raw.canRedesignPackage as boolean, canReplanRemaining: raw.canReplanRemaining as boolean,
+    canRedesignPackage: raw.canRedesignPackage as boolean, canResumeDesign: raw.canResumeDesign as boolean,
+    canReplanRemaining: raw.canReplanRemaining as boolean,
     canAddCorrectionPackage: raw.canAddCorrectionPackage as boolean }
 }
 
@@ -1439,6 +1458,7 @@ export const api = {
   approveRollingPackageDesign: async (taskId: string, runId: string, input: RollingPackageCommandVersions) => request<void>(`/tasks/${encodeURIComponent(taskId)}/packages/${encodeURIComponent(runId)}/approve-design`, { method: 'POST', body: JSON.stringify(input) }),
   discussRollingPackage: async (taskId: string, runId: string, input: RollingPackageCommandVersions & { content: string }) => request<void>(`/tasks/${encodeURIComponent(taskId)}/packages/${encodeURIComponent(runId)}/messages`, { method: 'POST', body: JSON.stringify(input) }),
   redesignRollingPackage: async (taskId: string, runId: string, input: RollingPackageCommandVersions) => request<void>(`/tasks/${encodeURIComponent(taskId)}/packages/${encodeURIComponent(runId)}/redesign`, { method: 'POST', body: JSON.stringify(input) }),
+  resumeRollingPackageDesign: async (taskId: string, runId: string, input: RollingPackageCommandVersions) => request<void>(`/tasks/${encodeURIComponent(taskId)}/packages/${encodeURIComponent(runId)}/resume-design`, { method: 'POST', body: JSON.stringify(input) }),
   retryRollingPackageCheckpoint: async (taskId: string, runId: string, input: RollingPackageCommandVersions) => request<void>(`/tasks/${encodeURIComponent(taskId)}/packages/${encodeURIComponent(runId)}/retry-checkpoint`, { method: 'POST', body: JSON.stringify(input) }),
   resolveRollingPackageFailure: async (taskId: string, runId: string, input: RollingPackageCommandVersions & { action: 'CONTINUE_CANDIDATE' | 'REDESIGN_FROM_PREVIOUS' | 'ABANDON_TASK' }) => request<void>(`/tasks/${encodeURIComponent(taskId)}/packages/${encodeURIComponent(runId)}/continue-failure`, { method: 'POST', body: JSON.stringify(input) }),
   proposeRollingPlan: async (taskId: string, input: RollingPackageCommandVersions & { expectedPackageRunId: string; packages: RollingPlanPackage[] }) => request<RollingPlanProposal>(`/tasks/${encodeURIComponent(taskId)}/packages/plan-revisions`, { method: 'POST', body: JSON.stringify(input) }),

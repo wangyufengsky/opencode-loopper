@@ -15,7 +15,7 @@ function taskStatus(value: unknown): TaskStatus | undefined {
 
 export function reduceTaskEvent(task: Task, event: TaskEvent): Task {
   const next = copy(task)
-  if (event.type === 'task.status' || event.type.startsWith('task.')) {
+  if (event.type === 'task.status' || event.type.startsWith('task.') || event.type.startsWith('package.')) {
     const status = taskStatus(event.data.status ?? event.data.state)
     if (status) next.status = status
     next.updatedAt = event.at
@@ -34,7 +34,7 @@ export function reduceTaskEvent(task: Task, event: TaskEvent): Task {
  * snapshot so the Attempt timeline, verifier output and layered errors stay
  * authoritative without reconnecting EventSource or polling log events. */
 export function requiresTaskSnapshot(type: string): boolean {
-  return /^(task|stage|attempt|session|verification)\./.test(type)
+  return /^(task|package|stage|attempt|session|verification)\./.test(type)
 }
 
 export function aiOutputNotice(event: TaskEvent): string | undefined {
@@ -354,7 +354,7 @@ export const useTaskStore = defineStore('task', () => {
       if (notice) {
         taskNotices.value[id] = [...(taskNotices.value[id] ?? []), notice].slice(-4)
       }
-      if (/^(task|stage)\./.test(event.type) && !snapshotTimer) {
+      if (requiresTaskSnapshot(event.type) && !snapshotTimer) {
         // Events can arrive in short bursts (session + attempt + verification).
         // Coalesce them into one REST read after the persistence transaction ends.
         snapshotTimer = window.setTimeout(() => {

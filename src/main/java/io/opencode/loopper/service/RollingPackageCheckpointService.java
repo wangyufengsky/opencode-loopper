@@ -37,13 +37,13 @@ final class RollingPackageCheckpointService {
     private final TaskWorkspaceCheckpointService checkpoints;
     private final WorkspaceLeaseReconciliationService leases;
     private final TaskEventService events;
-    private final ObjectProvider<DesignerSessionService> designers;
+    private final RollingPackageDesignContinuationService designContinuation;
     private final ObjectProvider<TaskService> taskRunners;
 
     RollingPackageCheckpointService(LoopperMapper mapper, LifecycleTransitionService lifecycle, ObjectMapper json,
                                     TaskExecutionCycleService cycles, TaskWorkspaceCheckpointService checkpoints,
                                     WorkspaceLeaseReconciliationService leases, TaskEventService events,
-                                    ObjectProvider<DesignerSessionService> designers,
+                                    RollingPackageDesignContinuationService designContinuation,
                                     ObjectProvider<TaskService> taskRunners) {
         this.mapper = mapper;
         this.lifecycle = lifecycle;
@@ -52,7 +52,7 @@ final class RollingPackageCheckpointService {
         this.checkpoints = checkpoints;
         this.leases = leases;
         this.events = events;
-        this.designers = designers;
+        this.designContinuation = designContinuation;
         this.taskRunners = taskRunners;
     }
 
@@ -206,10 +206,27 @@ final class RollingPackageCheckpointService {
         if (run == null || !taskId.equals(run.taskId())
                 || !TaskPackageRunState.DESIGNING.name().equals(run.state())) return;
         DesignWorkPackageRow workPackage = mapper.findDesignWorkPackage(run.designWorkPackageId()).orElseThrow();
-        if ("PENDING".equals(workPackage.state())) {
-            try { dispatchDesign(taskId, workPackage); }
-            catch (RuntimeException failure) { blockDesignSnapshot(mapper.findTask(taskId).orElseThrow(), run, failure); }
+        if (!resumableDesign(workPackage)) return;
+        try { resumeDesign(taskId, run); }
+        catch (RuntimeException failure) {
+            blockDesignSnapshot(mapper.findTask(taskId).orElseThrow(), run, failure);
         }
+    }
+
+    void resumeDesign(String taskId, TaskPackageRunRow run) {
+        if (!taskId.equals(run.taskId()) || !TaskPackageRunState.DESIGNING.name().equals(run.state())) {
+            throw new ConflictException("PACKAGE_DESIGN_CONTINUATION_UNAVAILABLE",
+                    "当前工作包不在可继续的设计状态");
+        }
+        DesignWorkPackageRow workPackage = mapper.findDesignWorkPackage(run.designWorkPackageId()).orElseThrow(() ->
+                new ConflictException("DESIGN_WORK_PACKAGE_MISSING", "工作包设计来源不存在"));
+        if (!resumableDesign(workPackage)) {
+            throw new ConflictException("PACKAGE_DESIGN_CONTINUATION_UNAVAILABLE",
+                    "当前工作包设计阶段已更新，请刷新后重试");
+        }
+        DesignerSessionRow session = mapper.findDesignerSessionByTask(taskId).orElseThrow(() ->
+                new ConflictException("ROLLING_DESIGNER_MISSING", "滚动任务没有绑定设计会话"));
+        designContinuation.resume(session.id(), workPackage.id(), rollingDesignPrompt(taskId));
     }
 
     private void startNextDesign(TaskRow task, TaskPackageRunRow next, String factId) {
@@ -314,10 +331,17 @@ final class RollingPackageCheckpointService {
     private void dispatchDesign(String taskId, DesignWorkPackageRow workPackage) {
         DesignerSessionRow session = mapper.findDesignerSessionByTask(taskId).orElseThrow(() ->
                 new ConflictException("ROLLING_DESIGNER_MISSING", "滚动任务没有绑定设计会话"));
-        String prompt = "这是逐包闭环任务的下一工作包。只能把下列事实层和当前只读快照作为现状；"
+        designContinuation.resume(session.id(), workPackage.id(), rollingDesignPrompt(taskId));
+    }
+
+    private String rollingDesignPrompt(String taskId) {
+        return "这是逐包闭环任务的下一工作包。只能把下列事实层和当前只读快照作为现状；"
                 + "AI 导航摘要仅帮助定位，不属于机器证据。不得假设初始仓库仍是当前状态。"
                 + codec.factContext(mapper.listPackageFactSnapshots(taskId));
-        designers.getObject().dispatchPackageDesigner(session, workPackage, prompt, false);
+    }
+
+    private boolean resumableDesign(DesignWorkPackageRow workPackage) {
+        return java.util.Set.of("PENDING", "QUESTIONING", "DESIGNING").contains(workPackage.state());
     }
 
     private void updateRun(TaskPackageRunRow from, TaskPackageRunState state, LifecycleEvent event, String reason) {

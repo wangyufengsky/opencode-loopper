@@ -43,6 +43,12 @@ public final class RollingPackageCommandContextService {
                 .map(session -> !"RUNNING".equals(session.state())
                         && mapper.countActiveDesignWorkPackages(session.id()) == 0)
                 .orElse(true);
+        boolean designContinuationAvailable = run != null
+                && TaskPackageRunState.DESIGNING.name().equals(run.state())
+                && mapper.findDesignWorkPackage(run.designWorkPackageId())
+                .map(workPackage -> Set.of("PENDING", "QUESTIONING", "DESIGNING")
+                        .contains(workPackage.state()))
+                .orElse(false);
         TaskQueueState queueState = mapper.findTaskQueue(taskId)
                 .map(row -> TaskQueueState.valueOf(row.state())).orElse(null);
         int frozen = (int) mapper.listTaskPackageRuns(taskId).stream()
@@ -50,6 +56,6 @@ public final class RollingPackageCommandContextService {
         return new RollingPackageCommandPolicy.Context(taskState, taskWaitingReason,
                 run == null ? null : TaskPackageRunState.valueOf(run.state()),
                 run == null ? null : run.waitingReasonCode(), queueState, writerFree, designerFree,
-                safeCheckpoint, frozen);
+                designContinuationAvailable, safeCheckpoint, frozen);
     }
 }

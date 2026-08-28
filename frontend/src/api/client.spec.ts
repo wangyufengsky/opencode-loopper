@@ -36,7 +36,7 @@ describe('Loopper REST contract adapter', () => {
       .mockResolvedValueOnce(json({
         taskId: 'task-1', taskState: 'PACKAGE_DESIGNING', packageCapabilities: {
           canDiscuss: false, canApproveDesign: false, canStartPackage: false,
-          canRetryPackage: false, canRedesignPackage: false, canReplanRemaining: false,
+          canRetryPackage: false, canRedesignPackage: false, canResumeDesign: false, canReplanRemaining: false,
           canAddCorrectionPackage: false,
         }, packages: [{
           id: 'run-1', packageKey: 'WP-1', ordinal: 1, state: 'FUTURE_PACKAGE_STATE', dependencies: [],
@@ -67,6 +67,22 @@ describe('Loopper REST contract adapter', () => {
     await expect(api.getTaskSummaries({ statusGroup: 'PROCESSING', archive: 'ACTIVE' }))
       .resolves.toMatchObject({ items: [], facets: { PROCESSING: 3, MATCHED_TOTAL: 3 } })
     expect(fetchMock).toHaveBeenCalledWith('/api/tasks/summaries?statusGroup=PROCESSING&archive=ACTIVE', expect.any(Object))
+  })
+
+  it('accepts non-empty Task summaries without inventing detail-only action flags', async () => {
+    const item = {
+      id: 'task-1', projectId: 'project-1', projectName: 'Project', title: 'Task', goal: 'Goal',
+      branch: 'loopper/task-1', status: 'PACKAGE_DESIGNING', hasDesignHistory: true, archived: false,
+      attemptCount: 1, maxAttempts: 6, createdAt: 'start', updatedAt: 'now',
+    }
+    const fetchMock = vi.fn().mockResolvedValueOnce(json({ items: [item], facets: {} }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const page = await api.getTaskSummaries()
+    expect(page.items).toHaveLength(1)
+    expect(page.items[0]?.id).toBe('task-1')
+    expect(page.items[0]?.loopRetryAvailable).toBeUndefined()
+    expect(page.items[0]?.cancellationAvailable).toBeUndefined()
   })
 
   it('previews a Designer task-setting change without using the mutation endpoint', async () => {
@@ -579,7 +595,7 @@ describe('Loopper REST contract adapter', () => {
       createdAt: 'start', updatedAt: 'now', stages: [], errors: [], judges: [],
     }
     const capabilities = { canDiscuss: true, canApproveDesign: true, canStartPackage: false,
-      canRetryPackage: false, canRedesignPackage: false, canReplanRemaining: true,
+      canRetryPackage: false, canRedesignPackage: false, canResumeDesign: false, canReplanRemaining: true,
       canAddCorrectionPackage: true }
     const fetchMock = vi.fn().mockResolvedValueOnce(json({ ...base, packageCapabilities: capabilities }))
       .mockResolvedValueOnce(json(base))
@@ -604,7 +620,7 @@ describe('Loopper REST contract adapter', () => {
         dependencies: [] }],
     }
     const capabilities = { canDiscuss: true, canApproveDesign: false, canStartPackage: false,
-      canRetryPackage: false, canRedesignPackage: false, canReplanRemaining: false,
+      canRetryPackage: false, canRedesignPackage: false, canResumeDesign: true, canReplanRemaining: false,
       canAddCorrectionPackage: false }
     const fetchMock = vi.fn().mockResolvedValueOnce(json({ ...base, packageCapabilities: capabilities }))
       .mockResolvedValueOnce(json(base))
@@ -624,6 +640,7 @@ describe('Loopper REST contract adapter', () => {
       .mockResolvedValueOnce(new Response(null, { status: 204 }))
       .mockResolvedValueOnce(new Response(null, { status: 202 }))
       .mockResolvedValueOnce(new Response(null, { status: 202 }))
+      .mockResolvedValueOnce(new Response(null, { status: 202 }))
     vi.stubGlobal('fetch', fetchMock)
     const versions = { expectedTaskVersion: 8, expectedPackageVersion: 5,
       expectedDiscussionRevision: 3, expectedDesignRevision: 4 }
@@ -631,14 +648,16 @@ describe('Loopper REST contract adapter', () => {
     await expect(api.approveRollingPackageDesign('task 1', 'run 1', versions)).resolves.toBeUndefined()
     await expect(api.startRollingPackage('task 1', 'run 1', versions)).resolves.toBeUndefined()
     await expect(api.retryRollingPackageCheckpoint('task 1', 'run 1', versions)).resolves.toBeUndefined()
+    await expect(api.resumeRollingPackageDesign('task 1', 'run 1', versions)).resolves.toBeUndefined()
 
     expect(fetchMock.mock.calls.map(call => call[0])).toEqual([
       '/api/tasks/task%201/packages/run%201/approve-design',
       '/api/tasks/task%201/packages/run%201/start',
       '/api/tasks/task%201/packages/run%201/retry-checkpoint',
+      '/api/tasks/task%201/packages/run%201/resume-design',
     ])
     expect(fetchMock.mock.calls.map(call => JSON.parse(String(call[1]?.body)))).toEqual([
-      versions, versions, versions,
+      versions, versions, versions, versions,
     ])
   })
 

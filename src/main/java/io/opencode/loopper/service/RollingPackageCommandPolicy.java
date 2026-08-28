@@ -32,6 +32,8 @@ public final class RollingPackageCommandPolicy {
                 && context.writerFree() && context.designerFree()
                 && !"PACKAGE_CHECKPOINT_BLOCKED".equals(context.packageWaitingReason())
                 && (!"PACKAGE_EXECUTION_FAILED".equals(context.packageWaitingReason()) || context.safeCheckpoint());
+        boolean canResume = designParent && run == TaskPackageRunState.DESIGNING
+                && context.designContinuationAvailable();
         boolean safeOwner = context.writerFree() && context.designerFree() && context.safeCheckpoint();
         boolean canReplan = designParent && safeOwner && run != null
                 && Set.of(TaskPackageRunState.PLANNED, TaskPackageRunState.DESIGN_REVIEW,
@@ -40,7 +42,8 @@ public final class RollingPackageCommandPolicy {
         boolean canCorrect = context.taskState() == TaskState.WAITING_INPUT
                 && containsNullableSafe(JUDGE_CORRECTION_REASONS, context.taskWaitingReason())
                 && safeOwner && context.frozenPackageCount() > 0;
-        return new Capabilities(canDiscuss, canApprove, canStart, canRetry, canRedesign, canReplan, canCorrect);
+        return new Capabilities(canDiscuss, canApprove, canStart, canRetry, canRedesign, canResume,
+                canReplan, canCorrect);
     }
 
     public StartDisposition startDisposition(Context context) {
@@ -66,6 +69,7 @@ public final class RollingPackageCommandPolicy {
             case START -> capabilities.canStartPackage();
             case RETRY -> capabilities.canRetryPackage();
             case REDESIGN -> capabilities.canRedesignPackage();
+            case RESUME_DESIGN -> capabilities.canResumeDesign();
             case REPLAN -> capabilities.canReplanRemaining();
             case ADD_CORRECTION -> capabilities.canAddCorrectionPackage();
         };
@@ -83,21 +87,25 @@ public final class RollingPackageCommandPolicy {
         return candidate != null && values.contains(candidate);
     }
 
-    public enum Command { DISCUSS, APPROVE_DESIGN, START, RETRY, REDESIGN, REPLAN, ADD_CORRECTION }
+    public enum Command { DISCUSS, APPROVE_DESIGN, START, RETRY, REDESIGN, RESUME_DESIGN, REPLAN, ADD_CORRECTION }
     public enum StartDisposition { START, IDEMPOTENT, REJECTED }
 
     public record Context(TaskState taskState, String taskWaitingReason,
                           TaskPackageRunState packageState, String packageWaitingReason,
                           TaskQueueState queueState, boolean writerFree, boolean designerFree,
-                          boolean safeCheckpoint, int frozenPackageCount) { }
+                          boolean designContinuationAvailable, boolean safeCheckpoint,
+                          int frozenPackageCount) { }
 
     public record Capabilities(boolean canDiscuss, boolean canApproveDesign, boolean canStartPackage,
                                boolean canRetryPackage, boolean canRedesignPackage,
+                               boolean canResumeDesign,
                                boolean canReplanRemaining, boolean canAddCorrectionPackage) {
-        static Capabilities none() { return new Capabilities(false, false, false, false, false, false, false); }
+        static Capabilities none() {
+            return new Capabilities(false, false, false, false, false, false, false, false);
+        }
         public boolean anyAvailable() {
             return canDiscuss || canApproveDesign || canStartPackage || canRetryPackage
-                    || canRedesignPackage || canReplanRemaining || canAddCorrectionPackage;
+                    || canRedesignPackage || canResumeDesign || canReplanRemaining || canAddCorrectionPackage;
         }
     }
 }

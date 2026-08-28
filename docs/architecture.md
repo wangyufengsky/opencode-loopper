@@ -113,7 +113,9 @@ actions (`loopRetryAvailable`, `cancellationAvailable`) and adjacent history/arc
 controls. Those fields are required in the frontend overview adapter: an incomplete
 projection fails over to the compatibility detail endpoint instead of silently
 hiding an action by coercing a missing value to `false`. List summaries remain
-intentionally smaller and do not expose Task-detail capabilities.
+intentionally smaller and do not expose Task-detail capabilities; their dedicated frontend adapter
+requires only summary-owned history/archive flags and leaves detail-only action fields absent rather
+than applying the detail DTO contract or inventing `false` capabilities.
 Rolling overviews additionally require `executionMode`, workspace policy, current
 package/frozen counts, and the complete package capability object. Missing capability
 fields fail the frontend adapter and trigger the full-detail fallback; clients may

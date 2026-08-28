@@ -1784,7 +1784,7 @@ public class DesignerSessionService {
                         discussion.candidateCompilationId(), null, null);
             }
             OpenCodeClient.OpenCodeSession remote = !questionRepair && !blank(input.designerExternalSessionId())
-                    && !same(input.designerExternalSessionState(), "FAILED")
+                    && !Set.of("FAILED", "ABORTED", "SUPERSEDED").contains(String.valueOf(input.designerExternalSessionState()))
                     ? new OpenCodeClient.OpenCodeSession(input.designerExternalSessionId(), Path.of(project.rootPath()))
                     : openCode.createSession(Path.of(project.rootPath()),
                     "OpenCode Loopper Designer " + input.packageId() + " (READ_ONLY)", configuredModel(),
@@ -1825,7 +1825,7 @@ public class DesignerSessionService {
                     failure.getMessage(), true);
         }
     }
-    private void pollWorkPackageDesigner(DesignWorkPackageRow input) {
+    synchronized void pollWorkPackageDesigner(DesignWorkPackageRow input) {
         DesignWorkPackageRow workPackage = getWorkPackage(input.id());
         DesignerSessionRow session = get(workPackage.designerSessionId());
         DesignRequirementRevisionRow revision = getRequirement(workPackage.requirementRevisionId());

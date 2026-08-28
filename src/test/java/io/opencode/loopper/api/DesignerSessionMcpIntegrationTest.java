@@ -36,6 +36,7 @@ import io.opencode.loopper.service.ProjectService;
 import io.opencode.loopper.service.ProjectStackProfileService;
 import io.opencode.loopper.service.ProjectStackSnapshot;
 import io.opencode.loopper.service.RollingPackagePlanGenerationService;
+import io.opencode.loopper.service.RollingPackageService;
 import io.opencode.loopper.service.ServiceUnavailableException;
 import io.opencode.loopper.service.TaskService;
 import io.opencode.loopper.service.WorkPackageRoleService;
@@ -108,6 +109,7 @@ class DesignerSessionMcpIntegrationTest {
     @Autowired private TaskService tasks;
     @Autowired private WorkPackageRoleService workPackageRoles;
     @Autowired private RollingPackagePlanGenerationService rollingPlanGeneration;
+    @Autowired private RollingPackageService rollingPackages;
     @Autowired private LoopperMapper mapper;
     @Autowired private JdbcTemplate jdbc;
     @Autowired private OpenCodeClient openCode;
@@ -241,6 +243,41 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(mapper.findActiveWorkspaceLeaseByHolder(task.id())).isPresent();
         assertThat(Files.readString(Path.of(project.rootPath()).resolve("README.md")))
                 .contains("fact from package one");
+        var packageTwoDispatching = mapper.currentTaskPackageRun(task.id()).orElseThrow();
+        var packageTwoWorkPackage = mapper.findDesignWorkPackage(packageTwoDispatching.designWorkPackageId())
+                .orElseThrow();
+        String existingDesignerRemote = packageTwoWorkPackage.designerExternalSessionId();
+        fake().setSessionStatus(existingDesignerRemote, "RUNNING", "正在生成当前包设计");
+        long existingDesignerPromptCount = fake().promptHistory().stream()
+                .filter(call -> call.prompt().contains(
+                        "OpenCode Loopper Designer / 设计师 for exactly one work package"))
+                .count();
+        TaskRow packageDesigningTask = mapper.findTask(task.id()).orElseThrow();
+
+        rollingPackages.resumeDesign(task.id(), packageTwoDispatching.id(), packageDesigningTask.version(),
+                packageTwoDispatching.version());
+
+        assertThat(existingDesignerRemote).isNotBlank();
+        assertThat(fake().promptHistory().stream()
+                .filter(call -> call.prompt().contains(
+                        "OpenCode Loopper Designer / 设计师 for exactly one work package"))
+                .count()).isEqualTo(existingDesignerPromptCount);
+        fake().setSessionStatus(existingDesignerRemote, "ABORTED", null);
+        jdbc.update("UPDATE design_work_package SET designer_external_session_state='ABORTED' WHERE id=?",
+                packageTwoWorkPackage.id());
+        assertThat(mapper.findDesignWorkPackage(packageTwoWorkPackage.id()).orElseThrow()
+                .designerExternalSessionState()).isEqualTo("ABORTED");
+
+        rollingPackages.resumeDesign(task.id(), packageTwoDispatching.id(), packageDesigningTask.version(),
+                packageTwoDispatching.version());
+
+        var replacementDesigner = mapper.findDesignWorkPackage(packageTwoWorkPackage.id()).orElseThrow();
+        assertThat(fake().promptHistory().stream()
+                .filter(call -> call.prompt().contains(
+                        "OpenCode Loopper Designer / 设计师 for exactly one work package"))
+                .count()).isEqualTo(existingDesignerPromptCount + 1);
+        assertThat(replacementDesigner.designerExternalSessionId()).isNotEqualTo(existingDesignerRemote);
+        fake().setSessionStatus(replacementDesigner.designerExternalSessionId(), "COMPLETED", null);
         pollUntilRollingPackageReview(task.id(), session.id());
         assertThat(fake().promptHistory()).anySatisfy(call -> assertThat(call.prompt())
                 .contains("### 已冻结事实", "AI 导航摘要（非证据）"));

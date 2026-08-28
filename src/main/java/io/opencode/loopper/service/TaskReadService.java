@@ -139,7 +139,8 @@ public class TaskReadService {
         RollingPackageCommandPolicy.Capabilities result = packageCommands.capabilities(
                 packageCommandContexts.context(task, run));
         return new PackageCapabilities(result.canDiscuss(), result.canApproveDesign(), result.canStartPackage(),
-                result.canRetryPackage(), result.canRedesignPackage(), result.canReplanRemaining(),
+                result.canRetryPackage(), result.canRedesignPackage(), result.canResumeDesign(),
+                result.canReplanRemaining(),
                 result.canAddCorrectionPackage());
     }
 
@@ -365,6 +366,7 @@ public class TaskReadService {
                                  long version) { }
     public record PackageCapabilities(boolean canDiscuss, boolean canApproveDesign, boolean canStartPackage,
                                       boolean canRetryPackage, boolean canRedesignPackage,
+                                      boolean canResumeDesign,
                                       boolean canReplanRemaining, boolean canAddCorrectionPackage) { }
     public record StageSummary(String id, int ordinal, String objective, String status, JsonNode allowedPaths,
                                JsonNode forbiddenPaths, JsonNode deliverables, JsonNode verifiers,
