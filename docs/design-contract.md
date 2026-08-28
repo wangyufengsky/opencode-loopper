@@ -924,15 +924,18 @@ dialog, with no duplicate single-item dropdown step.
 
 When `GIT_DIFF` finds an outside-allow-list mutation of an existing baseline
 file, Task detail opens a dedicated decision dialog and keeps a visible reopen
-card after dismissal. The left side lists every affected existing file and
-requires an explicit allow/reject choice per file. The right side shows the
-Stage-baseline unified diff with old line, new line, removed content, added
-content, and hunk location. The continue action is disabled until all files have
-a choice. The page must describe this state as waiting for a decision, not as a
-failed verification; outside-scope new files are auto-accepted and disclosed,
-while forbidden paths and delete restrictions remain hard failures. Decisions
-are valid only for the displayed patch hashes; any later workspace mutation
-must reopen a fresh request.
+card after dismissal. This is a calm code-review surface rather than a warning
+wall: the left rail navigates affected existing files and shows each file's
+pending/accepted/rejected state, while the right pane centralizes the current
+file decision above the Stage-baseline unified diff with old line, new line,
+removed content, added content, and hunk location. A persistent footer reports
+accepted, rejected, and pending counts; the continue action is disabled until
+all files have a choice. The page must describe this state as waiting for a
+decision, not as a failed verification. Outside-scope new files are
+auto-accepted in a neutral disclosure and retained in audit evidence, while
+forbidden paths and delete restrictions remain hard failures. Decisions are
+valid only for the displayed patch hashes; any later workspace mutation must
+reopen a fresh request.
 
 Task detail renders execution and delivery separately: a Task can be **已成功**
 while delivery is **待提交**, **已推送**, **合并请求已创建**, **合并请求已关闭**,
@@ -991,10 +994,16 @@ available or a legacy/manual refresh produced a snapshot. Truncation and read
 failure are shown as projection details; Todo states never become completion
 badges for Stage, Task, verifier, or Judge. Designer and Judge Sessions do not
 receive Todo instructions or Todo UI.
-On desktop, the Todo card remains sticky at the top of the Session output scroll
-container while model parts continue beneath it. A long list gets a bounded internal
-scroll area so it cannot consume the whole console. At narrow viewport widths it returns
-to normal document flow to avoid obscuring output or answer controls.
+The card presents a compact completed/total projection, segmented Todo states,
+and one current item before the optional collapsible remainder. Completed items
+are visually subdued and the count is explicitly non-authoritative rather than
+a Stage percentage. On desktop, the card remains sticky at the top of the
+Session output scroll container while model parts continue beneath it, except
+while an OpenCode question is awaiting an answer. A long expanded list gets a
+bounded internal scroll area so it cannot consume the whole console. At narrow
+viewport widths it returns to normal document flow to avoid obscuring output or
+answer controls. Controls keep visible keyboard focus, and non-essential motion
+is removed when reduced motion is requested.
 
 Designer acceptance criteria are not advisory prose. `PROCESS` is classified by
 the server: compile/package/build/typecheck/lint/install are `BUILD`; a

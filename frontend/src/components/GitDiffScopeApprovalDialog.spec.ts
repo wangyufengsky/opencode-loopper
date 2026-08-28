@@ -39,17 +39,19 @@ describe('GitDiffScopeApprovalDialog', () => {
     })
     await flushPromises()
 
-    expect(document.body.textContent).toContain('决定是否接受既有文件的越界修改')
+    expect(document.body.textContent).toContain('审阅范围外修改')
+    expect(document.body.textContent).toContain('已接受 0 · 已拒绝 0 · 待决定 1')
     expect(document.body.textContent).toContain('src/Main.java')
     expect(document.querySelector('.diff-line.removed')?.textContent).toContain('10-old value')
     expect(document.querySelector('.diff-line.added')?.textContent).toContain('10+new value')
     expect(document.querySelector('.diff-line.hunk')?.textContent).toContain('@@ -10,2 +10,2 @@')
 
     const submit = [...document.querySelectorAll('button')]
-      .find((button) => button.textContent?.includes('按以上决定继续验证')) as HTMLButtonElement
+      .find((button) => button.textContent?.includes('确认决定并继续验证')) as HTMLButtonElement
     expect(submit.disabled).toBe(true)
     ;(document.querySelector('[data-decision="ALLOW"]') as HTMLButtonElement).click()
     await flushPromises()
+    expect(document.body.textContent).toContain('已接受 1 · 已拒绝 0 · 待决定 0')
     expect(submit.disabled).toBe(false)
     submit.click()
     await flushPromises()
@@ -74,7 +76,7 @@ describe('GitDiffScopeApprovalDialog', () => {
     later.click()
     await flushPromises()
 
-    expect(wrapper.text()).toContain('任务未被判定失败')
-    expect(wrapper.text()).toContain('查看差异并决定')
+    expect(wrapper.text()).toContain('任务没有失败')
+    expect(wrapper.text()).toContain('审阅文件')
   })
 })

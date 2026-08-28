@@ -97,10 +97,17 @@ describe('SessionMonitorPanel', () => {
 
     const panel = wrapper.get('[aria-label="OpenCode 实施计划"]')
     expect(panel.classes()).toContain('todo-panel-pinned')
-    expect(panel.text()).toContain('实施清单')
+    expect(panel.text()).toContain('OpenCode 实施进度')
+    expect(panel.text()).toContain('当前阶段的非权威执行清单')
+    expect(panel.text()).toContain('0 / 2')
     expect(panel.text()).toContain('实现 Todo 同步')
-    expect(panel.text()).toContain('进行中 · 高')
+    expect(panel.text()).toContain('进行中 · 高优先级')
     expect(panel.text()).not.toContain('IN_PROGRESS')
+    const toggle = panel.get('.todo-toggle')
+    expect(toggle.attributes('aria-expanded')).toBe('true')
+    await toggle.trigger('click')
+    expect(toggle.attributes('aria-expanded')).toBe('false')
+    expect(panel.find('.todo-list').exists()).toBe(false)
     wrapper.unmount()
   })
 
@@ -123,6 +130,7 @@ describe('SessionMonitorPanel', () => {
     await flushPromises()
 
     expect(wrapper.get('[aria-label="OpenCode 等待回答"]').text()).toContain('整体编译被历史问题阻塞')
+    expect(wrapper.get('[aria-label="OpenCode 实施计划"]').classes()).not.toContain('todo-panel-pinned')
     await wrapper.find('input[type="radio"]').setValue(true)
     const submit = wrapper.findAll('button').find((button) => button.text().includes('提交回答并继续'))
     expect(submit).toBeDefined()
