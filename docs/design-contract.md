@@ -530,6 +530,14 @@ Gate; the client cannot infer confirmation eligibility from this card. The sourc
 activity card and does not poll a nonexistent Session; `serverCompiled` remains compatibility data,
 not a source inference.
 
+The card styles diagnostics from the current bounded status rather than from the mere
+presence of historical arrays. Only a current failed state, unresolved acceptance count,
+unassigned mutation count, or blocked path-conservation result uses warning styling.
+Successful mutation bindings containing their Stage ownership render as green, collapsible
+"current proof" rows. Routing and issue reasons retained after a successful compilation are
+deduplicated and placed under a neutral, collapsed historical-disambiguation section marked
+resolved. This presentation split never weakens or infers the server Review Gate.
+
 Current v7 capability resolution is global across all coverable facts. The server selects the only optimum
 after complete coverage and mandatory-capability checks, then compares fewer Judge-only capabilities, fewer
 nondeterministic capabilities, fewer total capabilities, and greater evidence strength. Stable indexes order
@@ -971,6 +979,10 @@ available or a legacy/manual refresh produced a snapshot. Truncation and read
 failure are shown as projection details; Todo states never become completion
 badges for Stage, Task, verifier, or Judge. Designer and Judge Sessions do not
 receive Todo instructions or Todo UI.
+On desktop, the Todo card remains sticky at the top of the Session output scroll
+container while model parts continue beneath it. A long list gets a bounded internal
+scroll area so it cannot consume the whole console. At narrow viewport widths it returns
+to normal document flow to avoid obscuring output or answer controls.
 
 Designer acceptance criteria are not advisory prose. `PROCESS` is classified by
 the server: compile/package/build/typecheck/lint/install are `BUILD`; a

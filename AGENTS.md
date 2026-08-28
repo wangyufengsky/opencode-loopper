@@ -42,10 +42,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.2.75.jar
-   jar tf target/opencode-loopper-0.2.75.jar \
+   test -s target/opencode-loopper-0.2.76.jar
+   jar tf target/opencode-loopper-0.2.76.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.2.75.jar
+   shasum -a 256 target/opencode-loopper-0.2.76.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -95,8 +95,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.2.75`。
-- 正式产物：`target/opencode-loopper-0.2.75.jar`。
+- Maven 项目版本：`0.2.76`。
+- 正式产物：`target/opencode-loopper-0.2.76.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -384,6 +384,8 @@ Task 详情 `overview` 必须投影 `loopRetryAvailable`、`cancellationAvailabl
 - 所有 `TASK` 错误事件都作为不可变审计历史保留，但详情页红色当前告警必须跟随权威生命周期：`WAITING_INPUT` 只显示与当前 `waitingReasonCode` 精确匹配的最新错误，失败轮次 `AWAITING_DECISION` 和历史 `FAILED` 只显示最新 Task 错误；进入排队、准备、`READY`、运行、验证、重试、暂停、评审、停止中或成功/取消/接续终态后，不得把旧 Task 错误继续渲染成当前故障。`SOURCE_BRANCH_WORKSPACE_DIRTY` 同样遵守该通用规则。
 - `SOURCE_BRANCH_WORKSPACE_DIRTY` 必须打开不可静默关闭的文件处理弹窗，逐文件选择提交、stash 或移除；重新检查成功前不得制造任务分支已创建的状态，取消只能经确认后把任务标记为失败。
 - 服务端是权威状态；不要用计时器伪造阶段进度、用量、成本、Session 完成或 Judge 结果。
+- Task 实施 Session 的 OpenCode Todo 只能作为非权威进度投影：桌面端卡片固定在会话输出滚动区顶部且长列表内部有界滚动，窄屏回到正常文档流；不得让固定卡遮挡问题回答或把 Todo 状态冒充 Stage/Task 完成。
+- Designer 验收意图卡只把当前失败、待覆盖、路径待归属或路径守恒阻断显示为黄色告警；已成功归属的路径以成功样式显示为当前证明，成功编译后保留的历史消歧原因去重并折叠为中性说明，不得让历史数组继续伪装当前失败，也不得据此绕过服务端 Review Gate。
 - 动态 Token 窗口只消费服务端单调累计值；首次值静默建立基线，后续正增量短暂显示 `+xxx`，旧快照不得降低总量或显示负增量，切换 Designer/Task 作用域必须重置本地基线；动画只使用 `transform`/`opacity` 并尊重 `prefers-reduced-motion`。
 - 所有等待、问题、权限、可恢复错误和终止错误都必须真实可见，并提供可执行的恢复动作；不要永久显示含糊的“待评审”。
 - 使用 `displayLabels.ts` 和现有 `StatusBadge`/错误组件表达中文含义；不要在多个页面复制英文枚举到中文的映射。
@@ -445,7 +447,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.2.75.jar
+JAR=target/opencode-loopper-0.2.76.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -547,6 +549,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-08-28 | Task OpenCode 进度固定与 Designer 验收提示分层，交付 0.2.76 | 桌面会话输出将实施 Todo 固定在顶部并限制长清单高度，窄屏回到文档流；验收意图按当前阻断、绿色路径归属证明和已解决历史消歧分层并去重；同步 README、设计合同和本公约正文，无后端协议或 Flyway 变化 | 聚焦 Vitest `SessionMonitorPanel.spec.ts` + `DesignerView.spec.ts` 45/45；`ReleasePackagingContractTest` 9/9；`./scripts/verify.sh` 通过（Java 745，0 失败、0 错误、2 跳过；Vitest 234/234）；生成 `target/opencode-loopper-0.2.76.jar`（283989380 bytes，静态资源 112 项，SHA-256 `a5b88f8d58d03c43ee213536cd99039240f5223cf1940655668dde6ee4c84d60`），JAR 内已检出 sticky Todo 与验收证明/历史分层样式；未重启 8080、未做浏览器运行态验证，未推送、打标签或创建 Release |
 | 2026-08-28 | 单包多阶段必改路径唯一归属与定向恢复，交付 0.2.75 | v7 阶段表新增独立“负责路径”列并优先形成唯一写入责任；冻结 v6 四列表格仅以完整文件/类/末尾路径 token 的唯一 Stage 目标匹配兼容，重复或歧义继续阻断；相同设计修订禁止原样重编译，包级反馈与恢复提示携带全部未归属路径/候选阶段并生成完整替代设计；恢复投影提取到 `DesignerMutationOwnershipRecovery`，`DesignerAcceptanceWorkflow` 保持 599 行且 `DesignerSessionService` 未提高 5,401 行遗留上限；同步 README、架构、设计、OpenCode、AI 角色、代码结构和本公约正文，无 Flyway 迁移 | 聚焦后端 94/94、代码结构 2/2、Designer Vitest 41/41；`./scripts/verify.sh`：Java 745 项（0 失败、0 错误、2 跳过）、Vitest 234/234，`BUILD SUCCESS`；JAR `target/opencode-loopper-0.2.75.jar` 为 283988678 字节，含 112 个 SPA 静态条目，SHA-256 `bc2db1140d8137913a0aefd2e62445fa94006c69b6371189c659a34ad14c8413`；未重启 8080，未做浏览器运行态验收，未推送、打标签或创建 Release |
 | 2026-08-28 | 修复下一包设计无法继续与非空任务摘要解析，交付 0.2.74 | 滚动工作台新增权威 `canResumeDesign` 和版本化继续命令，显式继续/启动恢复串行复用活动设计 Session，仅对缺失或终态远程重建；`package.*` 事件使权威 Task/工作台快照失效；任务列表使用独立摘要适配器，不再按详情 DTO 拒绝缺少操作能力的非空摘要，详情仍失败关闭；同步 README、架构、设计、七特性和本公约正文，无 Flyway 迁移 | 聚焦前端 66/66、聚焦后端 21/21；`./scripts/verify.sh`：Java 742 项（0 失败、0 错误、2 跳过）、Vitest 233/233，`BUILD SUCCESS`；JAR `target/opencode-loopper-0.2.74.jar` 为 283979250 字节，含 113 个 SPA 静态条目，SHA-256 `efd3ad7a595cafd862cdced762d438d49bbed9176bedca5ae3ae9cd505da9787`；未重启 8080，未做浏览器运行态验收，未推送、打标签或创建 Release |
 | 2026-08-27 | 弱模型 Compiler v7 资格门禁、真实回放与发布交付 0.2.73 | 新增版本化 golden corpus、只读同输入 shadow、测试专用闭集实测 registry 和唯一权威 qualification gate；全部 guard 从生产结果对象发布修改义务、硬缺口、Compiler prompt/Session、Judge/focused 和危险授权计数，未登记、负值和冲突证据失败关闭；新 v7 单 Stage 对遗漏场景/评审事实确定性绑定，零匹配的无害 Stage 说明审计丢弃，同名多匹配仍阻断，v5/v6 保持历史兼容；同步 README、架构、Designer、OpenCode、AI 角色、验证器、代码结构和 004 工单，无 Flyway 迁移 | `scripts/evaluate-weak-model-v7.sh` 精确通过 22/22 corpus guard、3/3 补充指标 guard 和 1/1 同输入实测；qualification SHA-256 `e96bc7d7904029f9160e12a5934b3968c177922c87f1a6360e34e95a3052d679`；`./scripts/verify.sh`：Java 742 项（0 失败、0 错误、2 跳过）、Vitest 230/230，`BUILD SUCCESS`；JAR `target/opencode-loopper-0.2.73.jar` 为 283975191 字节，含 112 个 SPA 静态条目，SHA-256 `8ff7b6ddc4df69fde1cc6ea80c1d193ef001da63f33886bcc00a1e9508aa615a`；隔离 18073 使用 OpenCode 1.18.23 + DeepSeek v4 Flash 真实进入 `FINAL_REVIEW`，Compiler 服务端直编、修复计数 0、3/3 修改义务守恒、Task 计数 0；隔离实例已停止，8080 未触碰 |

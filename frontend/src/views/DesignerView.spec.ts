@@ -1080,6 +1080,8 @@ describe('Designer draft composer', () => {
     expect(card.text()).not.toContain('MUTATION_PATH_SCOPE_CONFLICT')
     expect(card.text()).not.toContain('AMBIGUOUS_MUTATION_PATH_SCOPE')
     expect(card.text()).not.toContain('[6]')
+    expect(card.findAll('.acceptance-intent-issue').length).toBeGreaterThan(0)
+    expect(card.find('.acceptance-history-details').exists()).toBe(false)
   })
 
   it('labels server direct compilation and does not mount remote activity polling', async () => {
@@ -1088,14 +1090,18 @@ describe('Designer draft composer', () => {
       requirementRevision: 1, activeWorkPackageId: 'WP-1', discussionScope: 'WP-1', finalConfirmationEligible: false,
       compiler: { id: 'compiler-server', state: 'RUNNING', externalSessionState: 'SERVER_DIRECT', repairCount: 0,
         designRevision: 1, workPackageId: 'WP-1', workflowStep: 'SERVER_COMPILING', planningRepairCount: 0,
-        formatRepairCount: 0, semanticRepairCount: 0, serverCompiled: false },
+        formatRepairCount: 0, semanticRepairCount: 0, serverCompiled: true },
       workPackages: [{ id: 'WP-1', ordinal: 0, title: '服务端编译', objective: '直接编译完整阶段',
         dependencies: [], state: 'COMPILING', redesignCount: 0, compilerRepairCount: 0,
         compilerPlanningRepairCount: 0, designRevision: 1, discussionRoundCount: 0,
-        acceptancePlanning: { state: 'EXTRACTED', bindingSource: 'SERVER_STAGE_HINTS', routingReasons: [],
+        acceptancePlanning: { state: 'COMPILED', bindingSource: 'SERVER_STAGE_HINTS',
+          routingReasons: ['验收绑定需要补充设计', '验收绑定需要补充设计'],
           factCount: 2, scenarioCount: 1, automatedCount: 1, bothCount: 0, judgeCount: 0,
-          unresolvedCount: 0, mutationObligationCount: 1, resolvedMutationObligationCount: 1,
-          unresolvedMutationObligationCount: 0, pathConservation: 'CONSERVED', mutationBindingReasons: [],
+          unresolvedCount: 0, mutationObligationCount: 2, resolvedMutationObligationCount: 2,
+          unresolvedMutationObligationCount: 0, pathConservation: 'CONSERVED', mutationBindingReasons: [
+            'src/main/java/example/Registry.java：阶段负责路径声明，归属阶段：阶段 1：注册',
+            'src/main/java/example/Scheduler.java：唯一阶段路径覆盖，归属阶段：阶段 2：调度',
+          ],
           scenarios: [{ title: '成功路径', coverage: 'AUTOMATED', capabilities: ['Vitest'] }],
           issues: [] } }],
     }
@@ -1111,6 +1117,14 @@ describe('Designer draft composer', () => {
 
     expect(wrapper.text()).toContain('服务端直接编译')
     expect(wrapper.find('.designer-current-activity-stub').exists()).toBe(false)
+    const card = wrapper.get('[aria-label="验收意图识别"]')
+    expect(card.text()).toContain('已确定性编译')
+    expect(card.findAll('.warning')).toHaveLength(0)
+    expect(card.get('.acceptance-proof-details summary').text()).toContain('已证明路径归属 2 条')
+    expect(card.findAll('.acceptance-intent-proof')).toHaveLength(2)
+    expect(card.get('.acceptance-history-details summary').text()).toContain('历史消歧说明 1 条')
+    expect(card.get('.acceptance-history-details summary').text()).toContain('当前已解决')
+    expect(card.find('.acceptance-intent-issue').exists()).toBe(false)
   })
 
   it('replaces the right-side LoopSpec when the completed Designer session returns its bound draft', async () => {

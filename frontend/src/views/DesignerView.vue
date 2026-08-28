@@ -202,6 +202,37 @@ const designerSteps = computed(() => {
 const currentPackage = computed(() => designerSession.value?.workPackages?.find((item) => item.id === designerSession.value?.activeWorkPackageId))
 const acceptancePackage = computed(() => designerSession.value?.workPackages?.find((item) =>
   item.id === (selectedWorkPackageId.value || designerSession.value?.activeWorkPackageId)) ?? currentPackage.value)
+const acceptancePlanning = computed(() => acceptancePackage.value?.acceptancePlanning)
+const acceptanceHasCurrentGap = computed(() => {
+  const planning = acceptancePlanning.value
+  return Boolean(planning && (planning.state === 'FAILED' || planning.unresolvedCount > 0
+    || planning.unresolvedMutationObligationCount > 0 || planning.pathConservation === 'BLOCKED'))
+})
+const acceptanceStatusText = computed(() => {
+  const planning = acceptancePlanning.value
+  if (!planning) return '识别中'
+  if (planning.unresolvedMutationObligationCount > 0) return `${planning.unresolvedMutationObligationCount} 项路径待归属`
+  if (planning.unresolvedCount > 0) return `${planning.unresolvedCount} 项待覆盖`
+  if (planning.state === 'FAILED') return '识别未通过'
+  return planning.state === 'COMPILED' ? '已确定性编译' : '识别中'
+})
+function uniqueAcceptanceNotes(values: string[]) {
+  return [...new Set(values.map(value => value.trim()).filter(Boolean))]
+}
+const acceptanceCurrentIssues = computed(() => acceptanceHasCurrentGap.value
+  ? uniqueAcceptanceNotes((acceptancePlanning.value?.issues ?? []).map(acceptanceIssueLabel)) : [])
+const acceptanceCurrentRoutingReasons = computed(() => acceptanceHasCurrentGap.value
+  ? uniqueAcceptanceNotes(acceptancePlanning.value?.routingReasons ?? []) : [])
+const acceptanceResolvedMutationProofs = computed(() => uniqueAcceptanceNotes(
+  (acceptancePlanning.value?.mutationBindingReasons ?? []).filter(reason => reason.includes('归属阶段：')),
+))
+const acceptanceCurrentMutationGaps = computed(() => acceptanceHasCurrentGap.value
+  ? uniqueAcceptanceNotes((acceptancePlanning.value?.mutationBindingReasons ?? [])
+    .filter(reason => !reason.includes('归属阶段：'))) : [])
+const acceptanceHistoricalNotes = computed(() => acceptanceHasCurrentGap.value ? [] : uniqueAcceptanceNotes([
+  ...(acceptancePlanning.value?.issues ?? []).map(acceptanceIssueLabel),
+  ...(acceptancePlanning.value?.routingReasons ?? []),
+]))
 const currentReport = computed(() => designerSession.value?.reports?.[0])
 watch(() => `${designerSession.value?.id ?? ''}:${currentReport.value?.id ?? ''}`, async () => {
   if (!designerSession.value?.id || !currentReport.value?.id || store.usingDemo) { reportDetail.value = undefined; return }
@@ -1399,7 +1430,7 @@ async function redesignPackage(packageId: string) {
         <section v-if="acceptancePackage?.acceptancePlanning" class="task-profile-card acceptance-intent-card" aria-label="验收意图识别">
           <header>
             <div><strong>验收意图识别 · {{ workPackageLabel(acceptancePackage.id) }}</strong><span>{{ acceptancePackage.acceptancePlanning.scenarioCount }} 个场景 · {{ acceptancePackage.acceptancePlanning.factCount }} 项设计事实</span><span>{{ acceptanceBindingSourceLabel(acceptancePackage.acceptancePlanning.bindingSource) }}</span></div>
-            <b :class="{ warning: acceptancePackage.acceptancePlanning.unresolvedCount > 0 || acceptancePackage.acceptancePlanning.unresolvedMutationObligationCount > 0 || acceptancePackage.acceptancePlanning.state === 'FAILED' }">{{ acceptancePackage.acceptancePlanning.unresolvedMutationObligationCount > 0 ? `${acceptancePackage.acceptancePlanning.unresolvedMutationObligationCount} 项路径待归属` : acceptancePackage.acceptancePlanning.unresolvedCount > 0 ? `${acceptancePackage.acceptancePlanning.unresolvedCount} 项待覆盖` : acceptancePackage.acceptancePlanning.state === 'COMPILED' ? '已确定性编译' : '识别中' }}</b>
+            <b :class="{ warning: acceptanceHasCurrentGap }">{{ acceptanceStatusText }}</b>
           </header>
           <div class="acceptance-intent-counts">
             <span>机器 {{ acceptancePackage.acceptancePlanning.automatedCount }}</span>
@@ -1411,9 +1442,21 @@ async function redesignPackage(packageId: string) {
           <details><summary>查看场景与验收方式</summary>
             <ul class="acceptance-intent-list"><li v-for="scenario in acceptancePackage.acceptancePlanning.scenarios" :key="scenario.title"><span><strong>{{ scenario.title }}</strong><small v-if="scenario.capabilities.length">{{ scenario.capabilities.join('、') }}</small></span><b :class="{ warning: scenario.coverage === 'UNRESOLVED' }">{{ acceptanceCoverageLabel(scenario.coverage) }}</b></li></ul>
           </details>
-          <p v-for="issue in acceptancePackage.acceptancePlanning.issues" :key="issue" class="acceptance-intent-issue">{{ acceptanceIssueLabel(issue) }}</p>
-          <p v-for="reason in acceptancePackage.acceptancePlanning.routingReasons" :key="reason" class="acceptance-intent-issue">{{ reason }}</p>
-          <p v-for="reason in acceptancePackage.acceptancePlanning.mutationBindingReasons" :key="reason" class="acceptance-intent-issue">{{ reason }}</p>
+          <p v-for="issue in acceptanceCurrentIssues" :key="issue" class="acceptance-intent-issue">{{ issue }}</p>
+          <p v-for="reason in acceptanceCurrentRoutingReasons" :key="reason" class="acceptance-intent-issue">{{ reason }}</p>
+          <p v-for="reason in acceptanceCurrentMutationGaps" :key="reason" class="acceptance-intent-issue">{{ reason }}</p>
+          <details v-if="acceptanceResolvedMutationProofs.length" class="acceptance-proof-details">
+            <summary>已证明路径归属 {{ acceptanceResolvedMutationProofs.length }} 条 <span>当前有效</span></summary>
+            <div class="acceptance-note-list">
+              <p v-for="reason in acceptanceResolvedMutationProofs" :key="reason" class="acceptance-intent-proof"><Icon icon="lucide:circle-check" width="13" />{{ reason }}</p>
+            </div>
+          </details>
+          <details v-if="acceptanceHistoricalNotes.length" class="acceptance-history-details">
+            <summary>历史消歧说明 {{ acceptanceHistoricalNotes.length }} 条 <span>当前已解决</span></summary>
+            <div class="acceptance-note-list">
+              <p v-for="reason in acceptanceHistoricalNotes" :key="reason" class="acceptance-intent-history"><Icon icon="lucide:history" width="13" />{{ reason }}</p>
+            </div>
+          </details>
         </section>
         <section v-if="currentReport" class="task-profile-card report-card">
           <header><div><strong>独立评审报告</strong><span>{{ currentReport.title }}</span></div><b :class="{ warning: currentReport.stale }">{{ currentReport.stale ? '证据已过期' : '证据有效' }}</b></header>
@@ -1729,6 +1772,12 @@ async function redesignPackage(packageId: string) {
 .acceptance-intent-list li span { display: grid; gap: 2px; }
 .acceptance-intent-list li small { color: var(--color-text-muted); font: 8px/1.4 var(--font-code); }
 .acceptance-intent-issue { color: var(--color-session-warning) !important; }
+.acceptance-proof-details,.acceptance-history-details { padding: 7px 9px; border: 1px solid rgb(148 163 184 / 13%); border-radius: 8px; background: rgb(7 11 20 / 24%); }
+.acceptance-proof-details { border-color: rgb(34 197 94 / 22%); background: rgb(34 197 94 / 4%); }
+.acceptance-proof-details summary,.acceptance-history-details summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--color-text-secondary); font: 700 9px/1.4 var(--font-code); cursor: pointer; }
+.acceptance-proof-details summary { color: var(--color-success); }.acceptance-proof-details summary span,.acceptance-history-details summary span { flex: 0 0 auto; color: var(--color-text-muted); font-size: 8px; font-weight: 600; }
+.acceptance-proof-details summary span { color: var(--color-success); }.acceptance-note-list { display: grid; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgb(148 163 184 / 12%); }
+.acceptance-intent-proof,.acceptance-intent-history { display: flex; align-items: flex-start; gap: 7px; overflow-wrap: anywhere; }.acceptance-intent-proof { color: var(--color-success) !important; }.acceptance-intent-history { color: var(--color-text-muted) !important; }.acceptance-intent-proof :deep(svg),.acceptance-intent-history :deep(svg) { flex: 0 0 auto; margin-top: 1px; }
 .profile-change-summary { display: grid; gap: 4px; padding: 8px; border-radius: 7px; background: rgb(245 158 11 / 8%); color: var(--color-text-secondary); font: 8px/1.5 var(--font-code); }
 .requirement-snapshot-card { border-color: rgb(99 102 241 / 28%); background: rgb(99 102 241 / 6%); }.requirement-snapshot-card details { min-width: 0; }.requirement-snapshot-card summary { cursor: pointer; color: var(--color-text-secondary); font: 9px/1.5 var(--font-code); }
 .profile-actions, .profile-edit-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }.profile-edit-actions { grid-column: 1 / -1; }.profile-evidence { display: flex; flex-wrap: wrap; gap: 5px; }.profile-evidence span { padding: 3px 6px; border: 1px solid var(--color-border-default); border-radius: 999px; color: var(--color-text-muted); font: 7px/1 var(--font-code); }.profile-override { display: grid; grid-template-columns: 1fr 1fr minmax(180px, auto); gap: 8px; }.large-task-switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; padding: 6px 10px; border: 1px solid var(--color-border-default); border-radius: 6px; }.large-task-switch span { display: grid; gap: 2px; min-width: 0; }.large-task-switch strong { font-size: 10px; }.large-task-switch small { color: var(--color-text-muted); font: 7px/1.2 var(--font-code); }.report-card { border-color: rgb(34 197 94 / 28%); background: rgb(34 197 94 / 5%); }

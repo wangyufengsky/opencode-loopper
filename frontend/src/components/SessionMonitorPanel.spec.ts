@@ -96,6 +96,7 @@ describe('SessionMonitorPanel', () => {
     await flushPromises()
 
     const panel = wrapper.get('[aria-label="OpenCode 实施计划"]')
+    expect(panel.classes()).toContain('todo-panel-pinned')
     expect(panel.text()).toContain('实施清单')
     expect(panel.text()).toContain('实现 Todo 同步')
     expect(panel.text()).toContain('进行中 · 高')
