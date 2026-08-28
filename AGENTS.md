@@ -42,10 +42,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.2.81.jar
-   jar tf target/opencode-loopper-0.2.81.jar \
+   test -s target/opencode-loopper-0.2.82.jar
+   jar tf target/opencode-loopper-0.2.82.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.2.81.jar
+   shasum -a 256 target/opencode-loopper-0.2.82.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -95,8 +95,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.2.81`。
-- 正式产物：`target/opencode-loopper-0.2.81.jar`。
+- Maven 项目版本：`0.2.82`。
+- 正式产物：`target/opencode-loopper-0.2.82.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -284,7 +284,7 @@ Task 详情 `overview` 必须投影 `loopRetryAvailable`、`cancellationAvailabl
 
 ### 5.3.1 Designer 附件上下文
 
-- 设计工作台拖放或文件选择只进入当前 composer 暂存区；必须随非空文字显式发送，纯附件消息拒绝。一次最多 10 个文件、每个最多 20 MiB、Designer Session 累计最多 50 MiB；PDF/OOXML 的确定性文本表示和严格 UTF-8 文本均不得超过 128 KiB，不截断、不跳过、不调用模型摘要。
+- 设计工作台拖放或文件选择只进入当前 composer 暂存区；未选文件时只显示轻量添加入口，选中后才显示独立“文件上下文”卡片并按当前作用域逐行列出类型、大小和移除操作，移除最后一个文件后整卡隐藏。文件必须随非空文字显式发送，纯附件消息拒绝。一次最多 10 个文件、每个最多 20 MiB、Designer Session 累计最多 50 MiB；PDF/OOXML 的确定性文本表示和严格 UTF-8 文本均不得超过 128 KiB，不截断、不跳过、不调用模型摘要。
 - `DesignerAttachmentContext` 是上传、类型识别、受管存储、逻辑替换、停用、Task 冻结和模型装配的唯一深模块。文件 I/O、格式解析、哈希和完整性检查必须在数据库事务外完成；公开 REST 不返回绝对受管路径。V46 的附件 submission、Designer 历史附件和 Task 冻结清单保持独立事实。
 - Requirement 附件是全局上下文，Work Package 附件只属于该包；Router 始终只有正文。Requirement/Package Designer、Decomposer、Compiler、只读 Reviewer、Implementation、Recovery 和双 Judge 只能通过 `withContext` 获得相应活动或冻结清单。
 - 附件是不可信补充资料，不能覆盖用户正文、确认需求、LoopSpec、路径授权、危险操作边界、验证证据或 Judge 合同。显式上传 `.env`/私钥只授权使用该文件快照，不放宽项目敏感文件读取策略。
@@ -457,7 +457,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.2.81.jar
+JAR=target/opencode-loopper-0.2.82.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -559,6 +559,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-08-28 | Designer 暂存文件独立上下文卡片，交付 0.2.82 | 起始页与会话 composer 抽取共用 `StagedFileContextCard`：无文件只显示轻量入口，有文件才按作用域、数量、类型和大小显示独立卡片，移除最后一项后整卡隐藏；失败保留、multipart、限制和安全门禁不变；同步 README、设计合同和本公约正文，无后端协议或 Flyway 变化 | TDD 回归先在旧 chip 界面稳定失败，聚焦 Designer Vitest 43/43 与前端类型检查通过；`./scripts/verify.sh` 通过：Java 762 项（0 失败、0 错误、2 条件跳过），前端 Vitest 240/240；JAR `target/opencode-loopper-0.2.82.jar` 为 287877871 字节，含 112 个 SPA 静态条目，SHA-256 `8cbec57aa6da0b4a0c44aebf46d124cb63fbcbdd711c4340e6b1ab3e7361b274`；隔离 18082 成品 JAR 在 1440×900 Chrome 验证空态隐藏、两文件卡片和移除后隐藏，卡片 746px 完整位于 788px composer 内，实例已停止且端口释放；未替换 8080，未推送、打标签或创建 Release |
 | 2026-08-28 | Designer 文件上下文，交付 0.2.81 | 设计工作台支持选择或整页拖入文本、代码、JSON/CSV、PDF、常见图片和 OOXML 文件；文件以不可变补充上下文按需求级或工作包级持久化、同作用域同名逻辑覆盖，冻结后传递到实施、恢复和双 Judge，Router 保持纯文本；新增 V46 附件提交/对象/任务快照迁移、确定性提取与受管文件协议，同步 README、架构、Designer/OpenCode 合同、专项设计文档和 ADR | 聚焦后端附件/OpenCode/Designer/Recovery/Task/结构测试 36/36、迁移测试 4/4、聚焦前端类型检查及 Vitest 93/93 通过；`./scripts/verify.sh` 通过：Java 762 项（0 失败、0 错误、2 条件跳过），前端 Vitest 240/240；JAR `target/opencode-loopper-0.2.81.jar` 为 287876901 字节，含 112 个 SPA 静态条目，SHA-256 `a5fba2533a0a3e77dea44e1738baf2d54bed375951b8c8d3ce19805e146d64fa`；未重启 8080、未做真实浏览器运行态验收，未推送、打标签或创建 Release |
 | 2026-08-28 | Designer v7 裸斜杠模块枚举路径误判修复，交付 0.2.80 | 无动作语义的无扩展名斜杠标识符不再只因 `/` 触发未分类路径；已知仓库根、扩展名、glob、明确路径上下文及显式写/删/移动动作仍保持失败关闭或生成修改义务；同步 README、Designer/OpenCode 合同和本公约正文，无 Flyway 迁移 | 回归测试先在旧实现稳定复现 `AMBIGUOUS_MUTATION_PATH_SCOPE`；聚焦 `DesignerAcceptancePlanningAlgorithmTest` 94/94、Vitest 237/237 通过；`./scripts/evaluate-weak-model-v7.sh` 的 corpus guards 22/22、metric guards 3/3、same-input measurement 1/1 均通过；完整 `./scripts/verify.sh` 通过：Java 751 项（0 失败、0 错误、2 条件跳过），前端 Vitest 237/237；JAR `target/opencode-loopper-0.2.80.jar` 为 284024254 字节，含 112 个 SPA 静态条目，SHA-256 `0ec35490625fcfd6ef8741a32f9cbc8a90670d935f0a35fd6c8dcf246cf8347a` |
 | 2026-08-28 | Task OpenCode 进度卡与模型输出分层布局修复，交付 0.2.79 | 将 OpenCode Todo 从输出滚动区内的 sticky 覆盖层拆成工具栏与输出之间的独立布局行，模型输出保留独立滚动；等待回答时 Todo 回到文档流，避免遮挡回答；抽取 `OpenCodeTodoProgress` 组件并同步 README、设计合同和本公约正文，无后端协议或 Flyway 变化 | 聚焦 `SessionMonitorPanel` Vitest 4/4、前端类型检查、前端构建与 `ReleasePackagingContractTest` 9/9 通过；`./scripts/verify.sh` 通过（Java 750，0 失败、0 错误、2 跳过；Vitest 237/237）；生成 `target/opencode-loopper-0.2.79.jar`（284023541 bytes，静态资源 112 项，SHA-256 `b68c79e20611213b2742a8e9e7ad5291591ba4aaf0f0436a1e477864d9b792e5`）；运行中的 IntelliJ `target/classes` 实例健康且浏览器几何检查确认进度卡与输出区无重叠，未重启 8080、未运行该 JAR，未推送、未打标签、未创建 Release |

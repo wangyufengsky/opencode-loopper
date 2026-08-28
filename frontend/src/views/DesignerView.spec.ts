@@ -637,17 +637,28 @@ describe('Designer draft composer', () => {
     expect(wrapper.find('textarea[aria-label="发送给只读设计师的消息"]').exists()).toBe(true)
   })
 
-  it('stages a dropped file in the current composer without sending it', async () => {
+  it('shows staged files in a standalone context card and hides it after the last file is removed', async () => {
     const createContextTurn = vi.spyOn(api, 'createDesignerContextTurn')
     const wrapper = mountDesigner()
     await flushPromises()
     const file = new File(['acceptance'], 'acceptance.txt', { type: 'text/plain' })
 
+    expect(wrapper.find('[data-testid="initial-attachment-card"]').exists()).toBe(false)
     await wrapper.get('#main-content').trigger('drop', { dataTransfer: { files: [file] } })
     await flushPromises()
 
-    expect(wrapper.get('[data-testid="initial-attachment-chip"]').text()).toContain('acceptance.txt')
+    const card = wrapper.get('[data-testid="initial-attachment-card"]')
+    expect(card.text()).toContain('文件上下文')
+    expect(card.text()).toContain('整体需求 · 1 个文件')
+    expect(card.get('[data-testid="initial-attachment-file"]').text()).toContain('acceptance.txt')
+    expect(card.get('[data-testid="initial-attachment-file"]').text()).toContain('TXT 文件')
+    expect(card.text()).toContain('最多 10 个，单个 20 MiB')
     expect(createContextTurn).not.toHaveBeenCalled()
+
+    await card.get('[aria-label="移除 acceptance.txt"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="initial-attachment-card"]').exists()).toBe(false)
   })
 
   it('requires risk confirmation before creating an auto-mode design', async () => {
@@ -772,7 +783,10 @@ describe('Designer draft composer', () => {
       content: '请结合文件继续设计', scopeKey: 'REQUIREMENT',
     }), [file])
     expect((input.element as HTMLTextAreaElement).value).toBe('请结合文件继续设计')
-    expect(wrapper.get('[data-testid="message-attachment-chip"]').text()).toContain('context.txt')
+    const attachmentCard = wrapper.get('[data-testid="message-attachment-card"]')
+    expect(attachmentCard.text()).toContain('整体需求 · 1 个文件')
+    expect(attachmentCard.text()).toContain('发送失败会保留当前文字和文件')
+    expect(attachmentCard.get('[data-testid="message-attachment-file"]').text()).toContain('context.txt')
   })
 
   it('keeps the chat answer composer available in auto mode when native question is unsupported', async () => {

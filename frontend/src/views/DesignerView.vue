@@ -15,6 +15,7 @@ import DesignerSystemMessageHistory from '@/components/DesignerSystemMessageHist
 import DesignerValidatorHistory from '@/components/DesignerValidatorHistory.vue'
 import DesignerCurrentActivity from '@/components/DesignerCurrentActivity.vue'
 import TaskProfileRouterDialog from '@/components/TaskProfileRouterDialog.vue'
+import StagedFileContextCard from '@/components/StagedFileContextCard.vue'
 import { ApiError, api, subscribeDesignerEvents, type DesignerEventStream } from '@/api/client'
 import { demoDraft, demoMessages } from '@/mock/demoData'
 import { useTaskStore } from '@/stores/taskStore'
@@ -1466,17 +1467,18 @@ async function redesignPackage(packageId: string) {
             />
           </div>
 
-          <div class="attachment-toolbar">
-            <input ref="initialFileInput" class="visually-hidden" type="file" multiple aria-label="选择初始设计附件" @change="selectedFiles" />
-            <el-button plain size="small" @click="initialFileInput?.click()"><Icon icon="lucide:paperclip" />添加文件</el-button>
-            <span class="tiny muted">最多 10 个，每个 20 MiB；必须和文字一起发送</span>
-          </div>
-          <div v-if="initialFiles.length" class="staged-attachments" aria-label="待发送初始附件">
-            <span v-for="(file, index) in initialFiles" :key="`${file.name}:${file.size}:${file.lastModified}`" data-testid="initial-attachment-chip" class="attachment-chip">
-              <Icon icon="lucide:file" /><b>{{ file.name }}</b><small>{{ formatFileSize(file.size) }}</small>
-              <button type="button" :aria-label="`移除 ${file.name}`" @click="removeStagedFile(index, true)"><Icon icon="lucide:x" /></button>
-            </span>
-          </div>
+          <input ref="initialFileInput" class="visually-hidden" type="file" multiple aria-label="选择初始设计附件" @change="selectedFiles" />
+          <StagedFileContextCard
+            class="initial-file-context"
+            :files="initialFiles"
+            scope-label="整体需求"
+            card-test-id="initial-attachment-card"
+            file-test-id="initial-attachment-file"
+            :disabled="busy"
+            retention-note="必须和文字一起发送"
+            @add="initialFileInput?.click()"
+            @remove="removeStagedFile($event, true)"
+          />
 
           <div class="brief-template-row" aria-label="需求模板">
             <span>快速起稿</span>
@@ -1681,17 +1683,16 @@ async function redesignPackage(packageId: string) {
               @keydown.meta.enter.prevent="sendMessage"
               @keydown.ctrl.enter.prevent="sendMessage"
             />
-            <div class="attachment-toolbar">
-              <input ref="messageFileInput" class="visually-hidden" type="file" multiple aria-label="选择设计消息附件" @change="selectedFiles" />
-              <el-button plain size="small" :disabled="!composerEnabled" @click="messageFileInput?.click()"><Icon icon="lucide:paperclip" />添加文件</el-button>
-              <span class="tiny muted">附件属于{{ discussionScopeLabel }}；发送失败会保留当前文字和文件</span>
-            </div>
-            <div v-if="messageFiles.length" class="staged-attachments" aria-label="待发送消息附件">
-              <span v-for="(file, index) in messageFiles" :key="`${file.name}:${file.size}:${file.lastModified}`" data-testid="message-attachment-chip" class="attachment-chip">
-                <Icon icon="lucide:file" /><b>{{ file.name }}</b><small>{{ formatFileSize(file.size) }}</small>
-                <button type="button" :aria-label="`移除 ${file.name}`" @click="removeStagedFile(index, false)"><Icon icon="lucide:x" /></button>
-              </span>
-            </div>
+            <input ref="messageFileInput" class="visually-hidden" type="file" multiple aria-label="选择设计消息附件" @change="selectedFiles" />
+            <StagedFileContextCard
+              :files="messageFiles"
+              :scope-label="discussionScopeLabel"
+              card-test-id="message-attachment-card"
+              file-test-id="message-attachment-file"
+              :disabled="!composerEnabled || busy"
+              @add="messageFileInput?.click()"
+              @remove="removeStagedFile($event, false)"
+            />
             <div class="compose-actions"><span class="tiny muted">⌘ / Ctrl + Enter</span><el-button type="primary" :loading="busy" :disabled="!composerEnabled || !userMessage.trim()" @click="sendMessage"><Icon icon="lucide:send" />{{ awaitingChatAnswer ? '提交回答' : '发送' }}</el-button></div>
             <div v-if="designerSession?.workflowPhase === 'DISCUSSING_REQUIREMENT' && designerSession.state === 'REVIEWING'" class="scope-primary-action"><el-button type="primary" :loading="busy" :disabled="autoModeActive || !designerSession.taskProfile.confirmationReady" @click="confirmRequirement"><Icon :icon="designerSession.taskProfile.workflowTemplate === 'READ_ONLY_REPORT' ? 'lucide:file-search' : ['DIRECT_ARTIFACT', 'PACKAGED_ARTIFACT'].includes(designerSession.taskProfile.workflowTemplate) ? 'lucide:file-output' : designerSession.taskProfile.workflowTemplate === 'LOCAL_MAINTENANCE' ? 'lucide:wrench' : designerSession.taskProfile.workflowTemplate === 'DIRECT_SOFTWARE_DESIGN' ? 'lucide:sparkles' : 'lucide:split'" />{{ autoModeActive ? '全自动模式将确认需求' : taskProfileRouting ? '任务设置识别中' : taskProfileNeedsConfirmation ? '请先确认任务设置' : designerSession.taskProfile.workflowTemplate === 'READ_ONLY_REPORT' ? '需求已明确，生成只读报告' : designerSession.taskProfile.workflowTemplate === 'DIRECT_ARTIFACT' ? '需求已明确，规划制品' : designerSession.taskProfile.workflowTemplate === 'PACKAGED_ARTIFACT' ? '需求已明确，规划章节制品' : designerSession.taskProfile.workflowTemplate === 'LOCAL_MAINTENANCE' ? '需求已明确，规划安全维护' : designerSession.taskProfile.workflowTemplate === 'DIRECT_SOFTWARE_DESIGN' ? '需求已明确，开始单包设计' : '需求已明确，开始拆包' }}</el-button></div>
             <div v-else-if="designerSession?.workflowPhase === 'REVIEWING_PACKAGE' && currentPackage?.state === 'REVIEWING'" class="scope-primary-action"><el-button type="primary" :loading="busy" :disabled="autoModeActive" @click="approvePackage"><Icon icon="lucide:check-check" />{{ autoModeActive ? `全自动模式将接受${workPackageLabel(currentPackage.id)}` : `接受${workPackageLabel(currentPackage.id)}并继续` }}</el-button></div>
@@ -1754,12 +1755,8 @@ async function redesignPackage(packageId: string) {
 .designer-drop-overlay svg { width: 34px; height: 34px; color: rgb(96 165 250); }
 .designer-drop-overlay span { color: var(--color-text-muted); }
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
-.attachment-toolbar { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
-.staged-attachments, .message-attachments { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-.attachment-chip { display: inline-flex; align-items: center; gap: 7px; max-width: 100%; padding: 7px 9px; border: 1px solid rgb(96 165 250 / 32%); border-radius: 9px; background: rgb(30 58 95 / 38%); }
-.attachment-chip b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.attachment-chip small { color: var(--color-text-muted); white-space: nowrap; }
-.attachment-chip button { display: inline-grid; place-items: center; padding: 2px; border: 0; background: transparent; color: var(--color-text-muted); cursor: pointer; }
+.initial-file-context { padding: 0 20px 12px; }
+.message-attachments { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .history-attachment { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: min(100%, 280px); padding: 8px 10px; border: 1px solid var(--color-border-default); border-radius: 9px; background: rgb(7 11 20 / 58%); }
 .history-attachment > span { display: grid; gap: 2px; }
 .history-attachment small { color: var(--color-text-muted); font-family: var(--font-code); font-size: 9px; }
