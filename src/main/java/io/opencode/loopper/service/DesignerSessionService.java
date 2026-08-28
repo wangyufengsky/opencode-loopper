@@ -2983,7 +2983,7 @@ public class DesignerSessionService {
         LoopSpec base = drafts.spec(draft);
         String context = DesignerAggregateContext.merge(json, base.context(), decomposition.globalConstraintsJson());
         LoopSpec.Limits limits = safeAggregateLimits(base.limits(), packages, compiled);
-        LoopSpec aggregate = new LoopSpec(base.schemaVersion(), base.projectId(), decomposition.normalizedGoal(),
+        LoopSpec aggregate = new LoopSpec(base.schemaVersion(), base.projectId(), DesignerAggregateContext.initialGoal(mapper.listDesignerMessages(session.id()), base.goal()),
                 context, stages, limits, base.model(), base.sessionPolicy(), base.nextAttemptPromptTemplate(), base.budget());
         try {
             LoopDraftRow aggregated = drafts.updateAggregatedAtVersion(draft.id(), aggregate,

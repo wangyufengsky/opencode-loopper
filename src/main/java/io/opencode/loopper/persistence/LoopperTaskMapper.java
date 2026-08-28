@@ -441,12 +441,25 @@ public interface LoopperTaskMapper {
     @Select("""
             SELECT interaction.* FROM interaction
             WHERE interaction.state IN ('PENDING','RESOLVING','HARD_DENIED')
-              AND interaction.local_session_id IN (
-                SELECT id FROM execution_session WHERE state NOT IN ('CREATING','RUNNING')
+              AND (
+                (interaction.scope_type='TASK' AND NOT EXISTS (
+                  SELECT 1 FROM execution_session session
+                  WHERE session.id=interaction.local_session_id
+                    AND session.state IN ('CREATING','RUNNING')
+                ))
+                OR
+                (interaction.scope_type='DESIGNER' AND NOT EXISTS (
+                  SELECT 1 FROM designer_session session
+                  WHERE session.id=interaction.local_session_id
+                    AND session.state='RUNNING'
+                    AND session.workflow_phase IN (
+                      'DISCUSSING_REQUIREMENT','DESIGNING','REDESIGNING','QUESTIONING_PACKAGE'
+                    )
+                ))
               )
             ORDER BY interaction.created_at
             """)
-    List<InteractionRow> terminalSessionInteractions();
+    List<InteractionRow> inactiveOwnerInteractions();
     @Update("""
             UPDATE interaction SET state='STALE',updated_at=#{updatedAt},version=version+1
             WHERE id=#{id} AND version=#{version} AND state IN ('PENDING','RESOLVING','HARD_DENIED')

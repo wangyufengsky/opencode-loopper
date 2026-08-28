@@ -9,6 +9,7 @@ import io.opencode.loopper.domain.InteractionAction;
 import io.opencode.loopper.domain.InteractionKind;
 import io.opencode.loopper.domain.InteractionState;
 import io.opencode.loopper.persistence.AttemptRow;
+import io.opencode.loopper.persistence.DesignerSessionRow;
 import io.opencode.loopper.persistence.ExecutionSessionRow;
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.ProjectRow;
@@ -288,6 +289,32 @@ class InteractionServiceIntegrationTest {
         assertThat(mapper.updateSessionState(new ExecutionSessionRow(session.id(), session.taskId(), session.stageId(),
                 session.attemptId(), session.externalSessionId(), "FAILED", session.createdAt(),
                 Instant.now().toString(), session.version()))).isEqualTo(1);
+
+        assertThat(interactions.listOpen()).isEmpty();
+        assertThat(mapper.findInteraction(pending.id()).orElseThrow().state()).isEqualTo("STALE");
+    }
+
+    @Test
+    void stoppedDesignerSessionCannotLeaveAnUnanswerableInboxItem() {
+        String now = Instant.now().toString();
+        DesignerSessionRow running = new DesignerSessionRow("designer-1", "project-1", "RUNNING",
+                DesignerSessionService.READ_ONLY, now, now, 0, "remote-designer", "BUSY", null,
+                "DISCUSSING_REQUIREMENT", 0, 0, null, null, "REQUIREMENT", 1, "NONE");
+        assertThat(mapper.insertDesignerSession(running)).isEqualTo(1);
+        fake.setPendingQuestion("remote-designer", new OpenCodeClient.PendingQuestion(
+                "designer-question", "remote-designer", List.of(new OpenCodeClient.QuestionPrompt(
+                "请选择需求边界", "需求边界", List.of(new OpenCodeClient.QuestionOption("保持当前范围", "继续")),
+                false, false))));
+
+        FeatureContracts.InteractionDto pending = interactions.listOpen().stream()
+                .filter(item -> "designer-question".equals(item.externalRequestId())).findFirst().orElseThrow();
+        DesignerSessionRow stopped = new DesignerSessionRow(running.id(), running.projectId(), "COMPLETED",
+                running.accessMode(), running.createdAt(), Instant.now().toString(), running.version(),
+                running.externalSessionId(), "IDLE", running.loopDraftId(), "FINAL_REVIEW",
+                running.designRevision(), running.redesignCount(), running.currentRequirementRevision(),
+                running.activeWorkPackageId(), running.discussionScope(), running.discussionRevision(),
+                running.candidateSyncState());
+        assertThat(mapper.updateDesignerSession(stopped)).isEqualTo(1);
 
         assertThat(interactions.listOpen()).isEmpty();
         assertThat(mapper.findInteraction(pending.id()).orElseThrow().state()).isEqualTo("STALE");

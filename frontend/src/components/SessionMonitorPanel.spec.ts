@@ -114,6 +114,21 @@ describe('SessionMonitorPanel', () => {
     wrapper.unmount()
   })
 
+  it('reserves substantially more vertical space for model output than the compact plan dock', async () => {
+    vi.spyOn(api, 'getTaskSessions').mockResolvedValue([session])
+    vi.spyOn(api, 'getTaskSessionActivity').mockResolvedValue(activity([{
+      id: 'output-1', type: 'OUTPUT', label: '模型输出', content: '正在按计划实现', status: 'running',
+    }]))
+
+    const wrapper = mount(SessionMonitorPanel, { props: { taskId: 'task-1' }, global: { plugins: [ElementPlus], stubs: { Icon: true } } })
+    await flushPromises()
+
+    const monitorStyle = (wrapper.get('.session-monitor').element as HTMLElement).style
+    expect(monitorStyle.getPropertyValue('--model-output-min-height')).toBe('500px')
+    expect(monitorStyle.getPropertyValue('--model-output-max-height')).toBe('680px')
+    wrapper.unmount()
+  })
+
   it('renders a pending OpenCode question and submits the selected answer', async () => {
     vi.useFakeTimers()
     vi.spyOn(api, 'getTaskSessions').mockResolvedValue([session])

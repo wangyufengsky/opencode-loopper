@@ -42,10 +42,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.2.82.jar
-   jar tf target/opencode-loopper-0.2.82.jar \
+   test -s target/opencode-loopper-0.2.83.jar
+   jar tf target/opencode-loopper-0.2.83.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.2.82.jar
+   shasum -a 256 target/opencode-loopper-0.2.83.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -95,8 +95,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.2.82`。
-- 正式产物：`target/opencode-loopper-0.2.82.jar`。
+- Maven 项目版本：`0.2.83`。
+- 正式产物：`target/opencode-loopper-0.2.83.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -199,6 +199,7 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 - 新确认任务必须停在 `PENDING_START`：确认事务只持久化 Task、Stage、冻结设计上下文和草稿确认，不得创建 Queue/Lease、fetch、创建/切换分支或分配执行目录。只有显式 `REQUEST_START` 才允许进入 `QUEUED` 并申请执行资源；准入后的准备、脏文件恢复和队列转移必须沿同一执行请求自动经过短暂 `READY` 继续到 `RUNNING`，不得要求第二次点击开始。
 - 服务端拥有的文档生成和一次性表格转换在显式 Start 后创建正常 Attempt，但不创建可写 OpenCode Session，也不得捕获或执行生产 Java focused-test 基线门禁；其阻断性业务证据分别由 `DOCUMENT_STRUCTURE` 和 `TABULAR_DATA` 提供。
 - OpenCode Todo 只允许作为实施 Session 的非权威进度投影：先探测 `todowrite`，可用时才注入提示；外部读取在 SQLite transaction 外，每两秒至多一次，只在内容变化时持久化。最多 64 项、单项 1 KiB、总计 64 KiB，稳定 ID 基于规范内容和重复序号；Todo 的成功、失败或完成状态都不得改变 Task/Stage/Attempt/Verifier/Judge 生命周期，Designer/Judge 不展示 Todo。
+- Pending Center 的交互只有在其本地拥有者仍属于可刷新 Session 时才可操作：Task 依赖 `CREATING/RUNNING` 执行 Session，Designer 依赖 `RUNNING` 且仍在交互设计阶段的会话；拥有者停止、丢失或离开交互阶段时，`PENDING/RESOLVING/HARD_DENIED` 必须经 Interaction 状态机收束为 `STALE` 并退出待处理列表。仍活动拥有者的 Provider 传输失败继续保留最后持久化状态，不能误删真实待处理请求。
 
 ### 5.2 错误层级
 
@@ -233,6 +234,7 @@ Task 详情 `overview` 必须投影 `loopRetryAvailable`、`cancellationAvailabl
 - `SERVER_DOCUMENT_MATERIALIZATION` 和 `SERVER_TABULAR_CONVERSION` 只能在显式 Task Start 后执行冻结 `artifact_plan`，创建正常 Attempt 但不伪造 OpenCode Session。`DOCUMENT_STRUCTURE`/`TABULAR_DATA` 是行为验证器；BUILD、GIT_DIFF 和报告证据仍不能冒充业务验收。
 
 - Designer 新建会话先进入 `DISCUSSING_REQUIREMENT`。普通软件需求的每个讨论修订只提问一次 1–3 个选择题；服务端必须先探测项目作用域 OpenCode 工具，只有 `AVAILABLE` 且明确包含 `question` 才创建 `DESIGNER_INTERACTIVE_READ_ONLY` 并调用原生问题接口。`UNKNOWN`、`UNAVAILABLE` 或列表不含 `question` 时使用 `GENERAL_READ_ONLY`：AI 只输出普通文本问题，服务端以 `CHAT_QUESTION` 保存，页面显示“对话回答模式”并在 `RUNNING`/全自动模式下开放聊天输入框；用户回答必须先写入同一决策日志，再由服务端生成普通需求快照或让同一大型工作包 Session 继续生成完整设计。能力缺失不是 Session 错误，不进入 `DESIGN_QUESTION_REQUIRED` 修复循环。原生回答后允许 AI 空正文，服务端按时间原样拼装原始需求、需求作用域补充和持久化最终回答，后写优先，禁止把 AI 自由文本、仓库推断或任务画像混入需求语义。快照以 `SERVER_REQUIREMENT_SNAPSHOT` 系统来源消息保存并作为冻结需求的精确 `source_message_id`，页面通过独立只读卡片展示且不重复进入系统消息折叠组；历史冻结 AI 快照作为兼容基线。超过 24 KiB UTF-8 必须以 `REQUIREMENT_SNAPSHOT_TOO_LARGE` 阻断，不得截断或调用 AI 压缩。大型任务继续在需求讨论和每个工作包初稿/人工修订中提问；大型完整需求替代快照仍受 24 KiB UTF-8 防护，工作包设计稿不设固定字节上限。只有已证明支持原生工具但遗漏必需问题时，才允许在全新 Session 补问一次，再次遗漏以 `DESIGN_QUESTION_REQUIRED` 进入 `WAITING_INPUT`。正常讨论/评审使用 Designer Session `REVIEWING`，不得滥用 `WAITING_INPUT`。
+- 最终工作包聚合只允许更新 Stage、上下文与执行限制，聚合 `goal` 必须来自 Designer 会话持久化的首条用户需求；服务端需求快照和 Decomposer `normalizedGoal` 只作冻结需求/规划证据，不得覆盖任务标题或后续 `loopper/<任务名>` 分支来源。
 - 已回答的 Designer 问题不得从讨论记录中消失：服务端从持久化决策日志权威投影原问题、标题、全部选项说明和规范化最终回答，页面默认折叠为“需求讨论”，展开后完整展示；刷新、进程重启和历史旧格式恢复不得依赖浏览器本地状态。新决策日志必须保存完整问题结构，旧版仅含问题文本与答案的日志继续兼容读取。
 - Recovery/重做生成的新 Task 必须持久化原始设计来源 Task、Loop Draft 和 Designer Session；任务历史设计使用子 Task 自己冻结的 LoopSpec，但需求、对话、问题、拆包和包设计从这条不可变来源读取。连续重做必须继续指向根设计来源，历史旧数据只允许沿 lineage 有界解析，不得复制对话或依赖当前子 Task 恰好存在 Designer Session。
 - 拆包前的需求消息只更新需求讨论，不调用 Decomposer；只有显式确认需求才冻结下一编号需求版本并拆包。拆包后旧 `/messages` 缺少作用域时必须返回 `DISCUSSION_SCOPE_REQUIRED`；修改整体需求要显式重开并废弃当前拆包/批准，包级消息只能修改当前包且不得创建新需求版本或重跑 Decomposer。全部作用域写请求和批准都携带期望讨论/设计修订，过期操作返回 409。
@@ -319,6 +321,7 @@ Task 详情 `overview` 必须投影 `loopRetryAvailable`、`cancellationAvailabl
 - Task 总 `maxDurationSeconds` 在 `VERIFYING` 期间继续生效；每个验证器和失败交接使用“验证器配置超时与剩余 Task 时限中的较小值”，Monitor 可让已在事务外运行的验证工作失败，迟到结果不得覆盖终态。
 - 确定性验证成功与 Judge 成功是两套证据。Requirement 和 Risk Judge 都是独立只读 Session，必须明确 `PASS`。
 - 两个最终 Judge 都接收所有阶段的 `JUDGE`/`BOTH` 条件与 rubric，以及已持久化的确定性摘要和差异；不为每个 Stage 额外启动 Judge，也不得把尚未执行的 Judge 计划显示成覆盖或通过。
+- 任务详情的当前双评审卡只显示 Requirement 与 Risk 各自最高 ordinal；新一轮开始后旧卡立即退出当前操作区，但全部旧 Judge 行继续作为不可变审计证据保留。
 - 最终 `VERIFICATION_SUMMARY` 必须按阶段顺序聚合每个成功 Stage 的最终成功 Attempt 与全部验证结果；单项证据摘录限制为 4 KiB UTF-8 并保留完整证据 SHA-256。确认目标、上下文和全部 Judge 合同总计不得超过 96 KiB UTF-8，完整 Judge 提示不得超过 128 KiB；每轮必须先批量构造并校验全部待启动角色的提示，任一超限时整批都不得创建 Judge row、只读 Session 或模型调用，直接进入 `WAITING_INPUT`，错误码为 `JUDGE_PROMPT_BUDGET_EXCEEDED`。
 - `REVISE`、`BLOCKED`、Judge 冲突或 JSON 无法解析时进入人工处理/重新评审，不得丢弃已有确定性证据或伪造成功。
 - Attempt 交接的差异扫描、文件读取、内容哈希和新 Session 创建都在 SQLite transaction 外执行；按实际读取字节限制 16 MiB，并在读取前后核对文件大小、修改时间和 file key；不可完整读取或读取期间变化的快照标记为不可比较，不得据此触发停滞。
@@ -457,7 +460,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.2.82.jar
+JAR=target/opencode-loopper-0.2.83.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -559,6 +562,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-08-28 | 需求身份、双评审当前态、会话输出比例与过期交互收束，交付 0.2.83 | 聚合从首条持久化用户需求恢复 goal，快照不再污染任务标题/分支；双评审操作区只显示每角色最新 ordinal；模型输出桌面高度扩大为 500–680px；Task/Designer 交互统一按可刷新拥有者失效，活动会话传输失败仍失败关闭；同步 README、设计/七特性合同和本公约，无 Flyway 变化 | TDD 红灯分别复现四个根因；首次完整验证的旧三包预期暴露基础草稿占位值边界，第二次结构门禁拒绝超大编排器净增，均收紧并补齐回归；最终 `./scripts/verify.sh` 通过：Java 763 项（0 失败、0 错误、2 条件跳过），前端 Vitest 241/241；JAR `target/opencode-loopper-0.2.83.jar` 为 287878772 字节，含 113 个 SPA 静态条目，SHA-256 `4d32aaee44e0df883c3953899b77769080651ac69deb1f8b497bda0a5140cc7f`；隔离 18083 成品 JAR 在 1440×900 Chrome 验证模型输出 500px（上限 680px）、三项 Todo dock 248.84px、比例 2.01 且不嵌入输出区，实例已停止、数据移入废纸篓且端口释放；未替换 8080，远端 Release 结果待交付报告 |
 | 2026-08-28 | Designer 暂存文件独立上下文卡片，交付 0.2.82 | 起始页与会话 composer 抽取共用 `StagedFileContextCard`：无文件只显示轻量入口，有文件才按作用域、数量、类型和大小显示独立卡片，移除最后一项后整卡隐藏；失败保留、multipart、限制和安全门禁不变；同步 README、设计合同和本公约正文，无后端协议或 Flyway 变化 | TDD 回归先在旧 chip 界面稳定失败，聚焦 Designer Vitest 43/43 与前端类型检查通过；`./scripts/verify.sh` 通过：Java 762 项（0 失败、0 错误、2 条件跳过），前端 Vitest 240/240；JAR `target/opencode-loopper-0.2.82.jar` 为 287877871 字节，含 112 个 SPA 静态条目，SHA-256 `8cbec57aa6da0b4a0c44aebf46d124cb63fbcbdd711c4340e6b1ab3e7361b274`；隔离 18082 成品 JAR 在 1440×900 Chrome 验证空态隐藏、两文件卡片和移除后隐藏，卡片 746px 完整位于 788px composer 内，实例已停止且端口释放；未替换 8080，未推送、打标签或创建 Release |
 | 2026-08-28 | Designer 文件上下文，交付 0.2.81 | 设计工作台支持选择或整页拖入文本、代码、JSON/CSV、PDF、常见图片和 OOXML 文件；文件以不可变补充上下文按需求级或工作包级持久化、同作用域同名逻辑覆盖，冻结后传递到实施、恢复和双 Judge，Router 保持纯文本；新增 V46 附件提交/对象/任务快照迁移、确定性提取与受管文件协议，同步 README、架构、Designer/OpenCode 合同、专项设计文档和 ADR | 聚焦后端附件/OpenCode/Designer/Recovery/Task/结构测试 36/36、迁移测试 4/4、聚焦前端类型检查及 Vitest 93/93 通过；`./scripts/verify.sh` 通过：Java 762 项（0 失败、0 错误、2 条件跳过），前端 Vitest 240/240；JAR `target/opencode-loopper-0.2.81.jar` 为 287876901 字节，含 112 个 SPA 静态条目，SHA-256 `a5fba2533a0a3e77dea44e1738baf2d54bed375951b8c8d3ce19805e146d64fa`；未重启 8080、未做真实浏览器运行态验收，未推送、打标签或创建 Release |
 | 2026-08-28 | Designer v7 裸斜杠模块枚举路径误判修复，交付 0.2.80 | 无动作语义的无扩展名斜杠标识符不再只因 `/` 触发未分类路径；已知仓库根、扩展名、glob、明确路径上下文及显式写/删/移动动作仍保持失败关闭或生成修改义务；同步 README、Designer/OpenCode 合同和本公约正文，无 Flyway 迁移 | 回归测试先在旧实现稳定复现 `AMBIGUOUS_MUTATION_PATH_SCOPE`；聚焦 `DesignerAcceptancePlanningAlgorithmTest` 94/94、Vitest 237/237 通过；`./scripts/evaluate-weak-model-v7.sh` 的 corpus guards 22/22、metric guards 3/3、same-input measurement 1/1 均通过；完整 `./scripts/verify.sh` 通过：Java 751 项（0 失败、0 错误、2 条件跳过），前端 Vitest 237/237；JAR `target/opencode-loopper-0.2.80.jar` 为 284024254 字节，含 112 个 SPA 静态条目，SHA-256 `0ec35490625fcfd6ef8741a32f9cbc8a90670d935f0a35fd6c8dcf246cf8347a` |

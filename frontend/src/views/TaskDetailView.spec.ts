@@ -360,7 +360,7 @@ describe('TaskDetailView judge action', () => {
           AttemptTimeline: true,
           LayeredErrorPanel: { props: ['error'], template: '<div class="layered-error-stub">{{ error.code }}</div>' },
           SessionMonitorPanel: true,
-          JudgeReviewCard: true,
+          JudgeReviewCard: { props: ['judge'], template: '<div class="judge-card-stub">{{ judge.id }}</div>' },
           TaskAuditEvidencePanel: true,
           TaskPublicationActions: true,
         },
@@ -370,6 +370,9 @@ describe('TaskDetailView judge action', () => {
 
     expect(wrapper.findAll('.layered-error-stub').map((panel) => panel.text())).toEqual(['PROCESS_FAILED'])
     expect(wrapper.find('#judge-review').exists()).toBe(true)
+    expect(wrapper.findAll('.judge-card-stub').map((card) => card.text())).toEqual(['requirement-2', 'risk-2'])
+    expect(wrapper.text()).not.toContain('requirement-1')
+    expect(wrapper.text()).not.toContain('risk-1')
   })
 
   it('offers one explicit fresh retry when unchanged loop protection is waiting for input', async () => {

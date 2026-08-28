@@ -143,10 +143,10 @@ public class InteractionService {
     }
 
     private void refreshActiveSessionsLocked() {
-        // A provider request cannot be acted on after its local writer has reached a terminal state.
-        // Reconcile these rows before listing the Inbox so a crashed/timed-out task cannot leave
-        // an indefinitely actionable-looking permission behind.
-        markStale(mapper.terminalSessionInteractions());
+        // A provider request is actionable only while its owning Task or Designer handoff is one
+        // of the same locally active sessions that can be refreshed below. Reconcile both owner
+        // domains first so a stopped handoff cannot strand an unanswerable Inbox item.
+        markStale(mapper.inactiveOwnerInteractions());
         for (ExecutionSessionRow session : mapper.activeExecutionSessions()) {
             if (session.externalSessionId() == null) continue;
             TaskRow task = mapper.findTask(session.taskId()).orElse(null);

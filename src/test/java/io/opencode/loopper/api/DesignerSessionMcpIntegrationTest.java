@@ -939,7 +939,11 @@ class DesignerSessionMcpIntegrationTest {
     void directDesignUsesIndependentReadOnlyRolesAndCreatesNoTaskBeforeConfirmation() throws Exception {
         ProjectRow project = project("direct");
         Files.writeString(Path.of(project.rootPath()).resolve("pom.xml"), "<project />\n");
-        LoopSpec sixStageSpec = legacySpecWithStages(project.id(), 6);
+        String originalRequirement = "实现缓存刷新并保留验收证据";
+        LoopSpec template = legacySpecWithStages(project.id(), 6);
+        LoopSpec sixStageSpec = new LoopSpec(template.schemaVersion(), template.projectId(), originalRequirement,
+                template.context(), template.stages(), template.limits(), template.model(), template.sessionPolicy(),
+                template.nextAttemptPromptTemplate(), template.budget());
         LoopDraftRow draft = drafts.create(sixStageSpec);
         fake().setDesignerOutput(designerOutput("# 单包设计\n\n缓存刷新后用户能看到新值。", sixStageSpec));
         fake().setJudgeOutput("DESIGNER", "");
@@ -949,7 +953,7 @@ class DesignerSessionMcpIntegrationTest {
         String largePackageDesign = stageControlledDesign(largePackageDesignBody, 6);
         setPackageDesignerOutput("WP-1", largePackageDesign);
 
-        DesignerSessionRow reviewing = prepareReviewingSession(project.id(), draft.id(), "实现缓存刷新并保留验收证据");
+        DesignerSessionRow reviewing = prepareReviewingSession(project.id(), draft.id(), originalRequirement);
         TaskProfileService.View directProfile = taskProfiles.current(reviewing.id());
         assertThat(directProfile.workflowTemplate().name()).isEqualTo("DIRECT_SOFTWARE_DESIGN");
         assertThat(directProfile.projectStackProfileId()).isNotBlank();
@@ -1016,10 +1020,14 @@ class DesignerSessionMcpIntegrationTest {
                 .anyMatch(message -> "WP-1".equals(message.workPackageId())
                         && largePackageDesign.strip().equals(message.content()));
         assertThat(mapper.listTasks()).isEmpty();
-        assertThat(drafts.spec(drafts.get(draft.id())).stages()).hasSize(6)
+        LoopSpec aggregatedSpec = drafts.spec(drafts.get(draft.id()));
+        assertThat(aggregatedSpec.goal()).isEqualTo(originalRequirement)
+                .doesNotStartWith("# 需求快照");
+        assertThat(aggregatedSpec.stages()).hasSize(6)
                 .allMatch(stage -> "WP-1".equals(stage.workPackageId()));
 
-        TaskRow task = drafts.confirm(draft.id(), "缓存刷新");
+        TaskRow task = drafts.confirm(draft.id(), null);
+        assertThat(task.title()).isEqualTo(originalRequirement);
         assertThat(task.state()).isEqualTo("PENDING_START");
         assertThat(mapper.findTaskQueue(task.id())).isEmpty();
         assertThat(mapper.findActiveWorkspaceLeaseByHolder(task.id())).isEmpty();
@@ -2485,7 +2493,7 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(fake().createReadOnlySessionCalls()).isEqualTo(11);
         assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(9);
         LoopSpec aggregate = drafts.spec(drafts.get(draft.id()));
-        assertThat(aggregate.goal()).isEqualTo("交付三段纵向能力");
+        assertThat(aggregate.goal()).isEqualTo("交付一个包含三个纵向能力的大型需求");
         assertThat(aggregate.stages()).extracting(LoopSpec.StageSpec::workPackageId)
                 .containsExactly("WP-1", "WP-2", "WP-3");
         assertThat(aggregate.limits().maxTaskAttempts()).isGreaterThanOrEqualTo(9);
@@ -2494,7 +2502,8 @@ class DesignerSessionMcpIntegrationTest {
                 .isInstanceOfSatisfying(BadRequestException.class, error ->
                         assertThat(error.code()).isEqualTo("WORK_PACKAGE_MAPPING_IMMUTABLE"));
 
-        TaskRow task = drafts.confirm(draft.id(), "三包任务");
+        TaskRow task = drafts.confirm(draft.id(), null);
+        assertThat(task.title()).isEqualTo("交付一个包含三个纵向能力的大型需求");
         assertThat(mapper.listTasks()).hasSize(1);
         assertThat(tasks.stages(task.id())).extracting(stage -> stage.workPackageId())
                 .containsExactly("WP-1", "WP-2", "WP-3");

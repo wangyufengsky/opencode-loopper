@@ -1,5 +1,7 @@
 package io.opencode.loopper.service;
 
+import io.opencode.loopper.domain.DesignerActor;
+import io.opencode.loopper.persistence.DesignerMessageRow;
 import io.opencode.loopper.service.DesignerSemanticContracts.GlobalConstraint;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -12,6 +14,13 @@ final class DesignerAggregateContext {
     private static final String HEADING = "全局约束（来源可追踪）：";
 
     private DesignerAggregateContext() { }
+
+    static String initialGoal(List<DesignerMessageRow> messages, String fallback) {
+        return messages.stream().filter(message -> DesignerActor.USER.name().equals(message.actor()))
+                .filter(message -> message.workPackageId() == null || message.workPackageId().isBlank())
+                .map(DesignerMessageRow::content).filter(content -> content != null && !content.isBlank())
+                .findFirst().orElse(fallback);
+    }
 
     static String merge(ObjectMapper json, String original, String constraintsJson) {
         List<GlobalConstraint> constraints;

@@ -62,6 +62,13 @@ permissions accept only `ONCE/SESSION/REJECT`. Resolve requests carry the
 persisted version and update only a still-`PENDING` row; stale versions return
 HTTP 409. Push, external-directory access, dangerous deletion and hard reset
 are hard-denied before the provider reply and cannot be overridden.
+An interaction is actionable only while its persisted local owner is one of the
+same refreshable sessions: Task owners require an execution Session in
+`CREATING/RUNNING`, and Designer owners require a `RUNNING` handoff in an
+interactive design phase. Inbox refresh reconciles both owner domains before
+provider polling; an open row whose local owner has stopped or disappeared moves
+to `STALE` and leaves the Inbox. A transport failure for a still-active owner
+does not erase its last pending snapshot.
 
 ## In-place workspace queue and lease
 

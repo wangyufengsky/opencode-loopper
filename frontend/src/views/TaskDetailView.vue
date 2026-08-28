@@ -385,7 +385,7 @@ async function confirmRework() {
         <div class="card-header"><div><p class="eyebrow">独立只读评审</p><h2 id="judge-heading" class="card-title">需求 / 风险双评审</h2></div><StatusBadge :status="task.status" /></div>
         <p v-if="!judges.length" class="judge-empty">暂无评审记录。</p>
         <div class="judge-grid">
-          <JudgeReviewCard v-for="judge in judges" :key="judge.id" :judge="judge" />
+          <JudgeReviewCard v-for="judge in currentJudges" :key="judge.id" :judge="judge" />
         </div>
       </section>
       <section class="task-detail-grid" style="margin-top: 16px">

@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.2.82`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.2.83`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -129,7 +129,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.2.82.jar
+java -jar target/opencode-loopper-0.2.83.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -359,7 +359,7 @@ Git 任务的最新 Execution Cycle 成功并处于 `AWAITING_DECISION` 或用�
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.2.82.jar`
+- `target/opencode-loopper-0.2.83.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -390,7 +390,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:51234
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.2.82.jar`
+- `opencode-loopper-0.2.83.jar`
 - `start-windows.bat`
 
 确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
@@ -428,7 +428,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.2.82.jar \
+jar tf target/opencode-loopper-0.2.83.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -518,7 +518,7 @@ Windows PowerShell：
 例如发布下一版本：
 
 ```bash
-VERSION=0.2.82
+VERSION=0.2.83
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -558,7 +558,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.2.82.jar
+java -jar target/opencode-loopper-0.2.83.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。
@@ -659,6 +659,8 @@ echo %PATHEXT%
 `0.1.95` 系统审计并修复动态 Role Pack 到 Compiler 的完整链路。Role Pack v3 按软件族规范化 Java/Python/Node/Other 标签，避免 JavaScript 误入 Java、同族别名误入混合栈和未知单栈默认 Java；每个可编译角色使用栈原生规划示例与测试目标解析，非软件流程明确绕过 Compiler。当前输出默认进入紧凑 `outcome` 合同，历史 `status` 解析只接受明确旧信封；格式与语义修复改用全新无工具 Session，JSON Schema 分别匹配完整规划与补丁信封，非法补丁不会覆盖有效语义快照，直接软件 1–6 Stage 的 Schema 上限也与产品合同一致。
 
 `0.2.0` 继续收缩历史 God Class：Designer 的紧凑包计划规范化、语义校验和可执行证据编译由独立确定性编译器负责，共享机器合同移出会话编排器；Task 的确认设计快照、验证汇总、Git diff 和 Judge 提示证据由独立证据服务负责。`DesignerSessionService` 与 `TaskService` 仍是待继续拆分的兼容编排器，结构门禁已同步下调，不把本次提取描述为债务清零。
+
+`0.2.83` 修复四个跨状态根因：Designer 聚合从持久化的首条用户需求恢复任务目标，需求快照只作冻结设计证据，不再覆盖任务标题与后续 `loopper/<任务名>` 分支来源；任务详情的双评审操作区只投影需求/风险各自最新一轮，完整旧记录继续保留在审计历史；桌面模型输出滚动区扩大到 500–680px，OpenCode 实施计划仍是独立且有界的非权威行；待处理中心统一按 Task/Designer 本地拥有者是否仍可处理来收束交互，已停止会话的问题与权限自动转为过期，活动会话的远端传输失败继续失败关闭并保留待处理状态。
 
 `0.2.82` 重做 Designer 暂存文件界面：起始页和会话输入区都只常驻“添加上下文文件”轻量入口；选中文件后才显示独立“文件上下文”卡片，按当前作用域列出文件类型、大小和移除操作，移除最后一个文件后整卡隐藏。发送失败继续保留文字、文件和幂等 submission，上传协议、限制与安全门禁不变。
 

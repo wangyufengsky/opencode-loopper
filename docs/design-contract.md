@@ -818,6 +818,11 @@ and opens Task detail. The left navigation's next **设计** visit therefore ope
 page; the confirmed design remains available only as read-only history. Manual navigation with
 dirty unsent or unconfirmed design still uses the leave warning.
 
+Deterministic package aggregation may normalize and freeze the complete requirement for planning
+evidence, but it must derive the aggregate `goal` from the first persisted user requirement. That
+immutable input remains the default Task title and therefore the source for a later `loopper/<任务名>` branch;
+the server-generated **需求快照** must never replace either user-facing identity.
+
 **清理并重新开始** calls the local-UI stop endpoint before clearing browser state. While the
 server is `STOPPING`, the composer and dispatch controls remain disabled. The page clears the
 workspace only after the server reports both `CANCELLED` and archived; a partial remote-stop
@@ -829,6 +834,10 @@ attempt pool. Historical design restores the frozen requirement, Decomposer
 summary, every package design/compilation summary, and the final Stage mapping.
 The interface states explicitly that only one final Requirement/Risk Judge batch
 runs after all packages pass.
+The operational review section projects only the highest-ordinal Requirement row
+and highest-ordinal Risk row. Starting a fresh batch immediately supersedes the
+previous cards in that section, while every historical Judge row remains immutable
+and available through audit history.
 For rolling Tasks, Stage/Judge rows are additionally filtered by the latest cumulative
 TaskSpec and successful fact chain: a failed package's stale Stage cannot leak into a
 later accepted contract or final Judge. Plan-revision previews show added, removed,
@@ -1017,6 +1026,9 @@ the answer path keeps priority. A long expanded list gets a bounded internal
 scroll area so it cannot consume the whole console. Narrow viewports also keep
 normal document flow. Controls keep visible keyboard focus, and non-essential
 motion is removed when reduced motion is requested.
+The desktop model-output viewport reserves 500 px minimum and 680 px maximum
+height, with smaller responsive bounds on narrow screens, so the bounded Todo row
+cannot dominate the visible Session monitor.
 
 Designer acceptance criteria are not advisory prose. `PROCESS` is classified by
 the server: compile/package/build/typecheck/lint/install are `BUILD`; a
