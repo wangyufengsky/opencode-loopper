@@ -12,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -382,27 +383,44 @@ public class VerifierEngine {
                     Map.of("exitCode", untrackedResult.exitCode(), "output", truncate(untrackedResult.output())));
         }
         List<GitChange> changes = gitChanges(result.output());
-        List<String> changed = changes.stream().flatMap(change -> policyPaths(change).stream()).collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+        List<String> changed = changes.stream().flatMap(change -> policyPaths(change).stream())
+                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
         List<String> untracked = paths(untrackedResult.output());
         changed.addAll(untracked);
-        List<String> violations = new ArrayList<>();
+        Map<String, String> changeTypes = new LinkedHashMap<>();
+        for (GitChange change : changes) {
+            for (String path : policyPaths(change)) changeTypes.put(path, changeType(change, path));
+        }
+        for (String path : untracked) changeTypes.put(path, "NEW");
+        List<String> hardViolations = new ArrayList<>();
+        LinkedHashSet<String> approvalRequired = new LinkedHashSet<>();
+        LinkedHashSet<String> autoAllowedNew = new LinkedHashSet<>();
         SlashGlobMatcher.WorkBudget policyBudget = new SlashGlobMatcher.WorkBudget(PATH_POLICY_WORK_BUDGET);
         try {
             for (String path : changed) {
-                if (isForbidden(path, spec.forbiddenPaths(), policyBudget)) violations.add("forbidden path: " + path);
-                if (!spec.allowedPaths().isEmpty() && !isAllowed(path, spec.allowedPaths(), policyBudget)) violations.add("outside allowed paths: " + path);
+                boolean forbidden = isForbidden(path, spec.forbiddenPaths(), policyBudget);
+                if (forbidden) {
+                    hardViolations.add("forbidden path: " + path);
+                }
+                if (!forbidden && !spec.allowedPaths().isEmpty()
+                        && !isAllowed(path, spec.allowedPaths(), policyBudget)) {
+                    if ("NEW".equals(changeTypes.get(path))) autoAllowedNew.add(path);
+                    else approvalRequired.add(path);
+                }
             }
         } catch (SlashGlobMatcher.WorkLimitExceeded exhausted) {
             throw new TaskFailure("VERIFIER_PATH_POLICY_LIMIT_EXCEEDED", "Verifier path policy exceeded its bounded matching budget");
         }
         if (Boolean.TRUE.equals(spec.forbidDeletes())) {
             for (GitChange change : changes) {
-                if (change.kind() == 'D') violations.add("deletion: " + change.paths().getLast());
-                if (change.kind() == 'R') violations.add("rename removes source path: " + change.paths().getFirst());
+                if (change.kind() == 'D') hardViolations.add("deletion: " + change.paths().getLast());
+                if (change.kind() == 'R') hardViolations.add("rename removes source path: " + change.paths().getFirst());
             }
         }
         boolean requiresChanges = Boolean.TRUE.equals(spec.requireChanges());
-        if (requiresChanges && changed.isEmpty()) violations.add("expected a Git diff, but no files changed");
+        if (requiresChanges && changed.isEmpty()) hardViolations.add("expected a Git diff, but no files changed");
+        List<String> violations = new ArrayList<>(hardViolations);
+        approvalRequired.forEach(path -> violations.add("user approval required for outside allowed existing file: " + path));
         boolean passed = violations.isEmpty();
         Map<String, Object> evidence = new LinkedHashMap<>();
         evidence.put("baseline", baseline);
@@ -410,6 +428,10 @@ public class VerifierEngine {
         if (stageId != null) evidence.put("stageId", stageId);
         evidence.put("changedPaths", changed);
         evidence.put("untrackedPaths", untracked);
+        evidence.put("changeTypes", changeTypes);
+        evidence.put("hardViolations", hardViolations);
+        evidence.put("approvalRequiredPaths", List.copyOf(approvalRequired));
+        evidence.put("autoAllowedOutsideNewPaths", List.copyOf(autoAllowedNew));
         evidence.put("violations", violations);
         return new VerifierOutcome("GIT_DIFF", passed ? VerificationState.PASS : VerificationState.FAIL,
                 passed ? "Git diff satisfies policy" : String.join("; ", violations), evidence);
@@ -456,6 +478,15 @@ public class VerifierEngine {
 
     private List<String> policyPaths(GitChange change) {
         return change.kind() == 'R' ? change.paths() : List.of(change.paths().getLast());
+    }
+
+    private String changeType(GitChange change, String path) {
+        return switch (change.kind()) {
+            case 'A', 'C' -> "NEW";
+            case 'D' -> "DELETED";
+            case 'R' -> path.equals(change.paths().getFirst()) ? "RENAMED_FROM" : "RENAMED_TO";
+            default -> "MODIFIED";
+        };
     }
 
     private boolean renameOrCopy(String status) {

@@ -42,10 +42,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.2.76.jar
-   jar tf target/opencode-loopper-0.2.76.jar \
+   test -s target/opencode-loopper-0.2.77.jar
+   jar tf target/opencode-loopper-0.2.77.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.2.76.jar
+   shasum -a 256 target/opencode-loopper-0.2.77.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -95,8 +95,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.2.76`。
-- 正式产物：`target/opencode-loopper-0.2.76.jar`。
+- Maven 项目版本：`0.2.77`。
+- 正式产物：`target/opencode-loopper-0.2.77.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -291,6 +291,7 @@ Task 详情 `overview` 必须投影 `loopRetryAvailable`、`cancellationAvailabl
 - Stage 的 `allowedPaths` / `forbiddenPaths` 只是 Agent 提示；只有显式 `GIT_DIFF` 才是路径/删除的强验收门槛。
 - v2 Compiler 规划、草稿保存和人工确认必须复用运行期规范化且有界的路径策略校验：非法 glob，或被单条 `forbiddenPaths` 完整覆盖的 `allowedPaths` 规则，必须在 Task/Attempt/可写 Session 创建前退回规划修复或拒绝；宽允许范围配合更窄的禁止子树仍然有效。
 - 普通可写 Stage 的显式 `GIT_DIFF` 与 Attempt handoff 必须使用该 Stage 首次 Attempt/Session 前捕获的私有基线；同一 Task 共用对象库、Stage 使用独立索引，重试和重启复用 `stage:<taskId>:<stageId>:<treeSha>`。前置 Stage 文件不得进入后续 Stage 差异或满足其 `requireChanges`，但后续 Stage 再次修改、删除或重命名前置文件必须可观测。`VERIFY_ONLY` 与最终自动差异继续使用任务基线，证据必须写明 `baselineScope`，Stage 范围还要包含 `stageId`。
+- 显式 `GIT_DIFF.allowedPaths` 对范围外新增文件自动放行并记录 `autoAllowedOutsideNewPaths`；命中禁止路径仍硬失败。范围外修改、删除或重命名 Stage 基线已有文件时不得直接关闭 Attempt，而应保持 Stage/Attempt 运行并让 Task 进入 `WAITING_INPUT`。本地弹窗必须按文件展示 Stage 基线的旧/新行号、修改前后内容和 hunk 位置，要求逐文件放行/拒绝；决定必须绑定 Task 版本、请求 ID、Stage 基线和文件 patch SHA-256，内容变化后旧决定失效并重新展示。用户拒绝后才进入普通验证失败；`forbidDeletes`、禁止路径、containment、预览截断和基线错误不得进入授权路径。
 - Stage 基线的文件扫描和 Git I/O 必须在 SQLite transaction 外执行；捕获后检查稳定性并只允许一次重试。已有 Attempt 的旧活动 Stage 缺失基线时以 `STAGE_WORKSPACE_BASELINE_MISSING` fail closed，不得按当前工作区补建或启动新 Session；启动清理只能删除 containment 校验后已无存活 Task 的私有目录，并在逐文件删除前清除 Windows Git 对象的只读属性。
 - 最终成功 Attempt 无论是否配置 `GIT_DIFF` 都必须持久化非门禁性的任务基线差异快照，供详情页列出真实变更；提交后切回源分支或进入下一任务分支时，预览必须比较基线与显式任务分支引用，不能读取当时 checkout 猜测旧任务差异。
 - `GIT_DIFF` 只证明改动范围，不能作为一个阶段唯一的功能验证。
@@ -447,7 +448,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.2.76.jar
+JAR=target/opencode-loopper-0.2.77.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -549,6 +550,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-08-28 | GIT_DIFF 范围外新增自动放行与已有文件逐项授权，交付 0.2.77 | 范围外新增文件写入审计后自动放行；已有文件的修改/删除/重命名保持当前 Stage/Attempt 并进入本地决策，弹窗展示 Stage 基线的旧/新行号、修改前后内容与 hunk，决定绑定 Task 版本和 patch SHA-256，拒绝才形成普通失败；禁止路径、删除限制和基线安全门保持硬失败；同步 README、架构、设计、七特性、代码结构和本公约，无 Flyway 迁移 | 聚焦 Java `VerifierEngineTest`、`TaskServiceIntegrationTest`、`CodeStructureContractTest`、`ReleasePackagingContractTest` 119/119；聚焦前端 66/66；`./scripts/verify.sh` 通过（Java 750，0 失败、0 错误、2 跳过；Vitest 237/237）；生成 `target/opencode-loopper-0.2.77.jar`（284021743 bytes，静态资源 112 项，SHA-256 `af5668a50f9fa3e083634d658764a6c8707e474c4e84c4f0acac77468b5971ec`），JAR 内已检出越界已有文件决策、自动放行新增与差异内容绑定文案；未重启 8080、未做浏览器运行态验证，未推送、未打标签、未创建 Release |
 | 2026-08-28 | Task OpenCode 进度固定与 Designer 验收提示分层，交付 0.2.76 | 桌面会话输出将实施 Todo 固定在顶部并限制长清单高度，窄屏回到文档流；验收意图按当前阻断、绿色路径归属证明和已解决历史消歧分层并去重；同步 README、设计合同和本公约正文，无后端协议或 Flyway 变化 | 聚焦 Vitest `SessionMonitorPanel.spec.ts` + `DesignerView.spec.ts` 45/45；`ReleasePackagingContractTest` 9/9；`./scripts/verify.sh` 通过（Java 745，0 失败、0 错误、2 跳过；Vitest 234/234）；生成 `target/opencode-loopper-0.2.76.jar`（283989380 bytes，静态资源 112 项，SHA-256 `a5b88f8d58d03c43ee213536cd99039240f5223cf1940655668dde6ee4c84d60`），JAR 内已检出 sticky Todo 与验收证明/历史分层样式；未重启 8080、未做浏览器运行态验证，未推送、打标签或创建 Release |
 | 2026-08-28 | 单包多阶段必改路径唯一归属与定向恢复，交付 0.2.75 | v7 阶段表新增独立“负责路径”列并优先形成唯一写入责任；冻结 v6 四列表格仅以完整文件/类/末尾路径 token 的唯一 Stage 目标匹配兼容，重复或歧义继续阻断；相同设计修订禁止原样重编译，包级反馈与恢复提示携带全部未归属路径/候选阶段并生成完整替代设计；恢复投影提取到 `DesignerMutationOwnershipRecovery`，`DesignerAcceptanceWorkflow` 保持 599 行且 `DesignerSessionService` 未提高 5,401 行遗留上限；同步 README、架构、设计、OpenCode、AI 角色、代码结构和本公约正文，无 Flyway 迁移 | 聚焦后端 94/94、代码结构 2/2、Designer Vitest 41/41；`./scripts/verify.sh`：Java 745 项（0 失败、0 错误、2 跳过）、Vitest 234/234，`BUILD SUCCESS`；JAR `target/opencode-loopper-0.2.75.jar` 为 283988678 字节，含 112 个 SPA 静态条目，SHA-256 `bc2db1140d8137913a0aefd2e62445fa94006c69b6371189c659a34ad14c8413`；未重启 8080，未做浏览器运行态验收，未推送、打标签或创建 Release |
 | 2026-08-28 | 修复下一包设计无法继续与非空任务摘要解析，交付 0.2.74 | 滚动工作台新增权威 `canResumeDesign` 和版本化继续命令，显式继续/启动恢复串行复用活动设计 Session，仅对缺失或终态远程重建；`package.*` 事件使权威 Task/工作台快照失效；任务列表使用独立摘要适配器，不再按详情 DTO 拒绝缺少操作能力的非空摘要，详情仍失败关闭；同步 README、架构、设计、七特性和本公约正文，无 Flyway 迁移 | 聚焦前端 66/66、聚焦后端 21/21；`./scripts/verify.sh`：Java 742 项（0 失败、0 错误、2 跳过）、Vitest 233/233，`BUILD SUCCESS`；JAR `target/opencode-loopper-0.2.74.jar` 为 283979250 字节，含 113 个 SPA 静态条目，SHA-256 `efd3ad7a595cafd862cdced762d438d49bbed9176bedca5ae3ae9cd505da9787`；未重启 8080，未做浏览器运行态验收，未推送、打标签或创建 Release |

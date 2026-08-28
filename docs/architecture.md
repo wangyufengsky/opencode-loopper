@@ -925,6 +925,20 @@ they already exist, while a later modification, deletion, or rename of those
 files remains visible. Evidence identifies `baselineScope: STAGE` and the
 `stageId`. `VERIFY_ONLY` Recovery deliberately keeps the Task baseline and
 reports `baselineScope: TASK`; the final automatic Task diff is also Task-wide.
+
+An explicit `GIT_DIFF.allowedPaths` gate distinguishes outside-scope additions
+from mutations of baseline files. A new file outside the allow-list is accepted
+and recorded as `autoAllowedOutsideNewPaths`; forbidden-path matches and delete
+policy violations remain hard failures. An outside-scope modification, deletion,
+or rename of a baseline file pauses the current Task in `WAITING_INPUT` without
+closing the running Stage/Attempt or persisting a failed verifier. The local UI
+must show the Stage-baseline unified patch, old/new line numbers, and every
+affected path. A decision covers every file and is bound to Task version,
+approval request, Stage baseline, and each patch SHA-256. A changed patch makes
+the decision stale and creates a fresh request; an allowed patch resumes the same
+verification, while a rejection becomes an ordinary verification failure. The
+append-only required/decided/stale evidence is the audit source of truth.
+
 An older active Stage with existing Attempts but no persisted Stage baseline
 fails closed with `STAGE_WORKSPACE_BASELINE_MISSING` before another Session is
 created. V25 persists the marker by Stage, cascades it with Task/Stage deletion,

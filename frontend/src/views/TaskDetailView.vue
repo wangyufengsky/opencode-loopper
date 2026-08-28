@@ -10,6 +10,7 @@ import AttemptTimeline from '@/components/AttemptTimeline.vue'
 import LayeredErrorPanel from '@/components/LayeredErrorPanel.vue'
 import JudgeReviewCard from '@/components/JudgeReviewCard.vue'
 import DirtyWorkspaceDialog from '@/components/DirtyWorkspaceDialog.vue'
+import GitDiffScopeApprovalDialog from '@/components/GitDiffScopeApprovalDialog.vue'
 import TaskDecisionPanel from '@/components/TaskDecisionPanel.vue'
 import RollingPackageWorkbench from '@/components/RollingPackageWorkbench.vue'
 import { api } from '@/api/client'
@@ -88,6 +89,7 @@ const currentJudges = computed(() => ['REQUIREMENT', 'RISK']
   .filter((judge) => judge !== undefined))
 const verifierErrors = computed<ErrorEvent[]>(() => (task.value?.errors ?? attempts.value.flatMap((attempt) => attempt.errors))
   .filter((error) => error.layer === 'VERIFICATION')
+  .filter((error) => error.code !== 'GIT_DIFF_SCOPE_APPROVAL_REQUIRED')
   .filter((error) => !error.code.startsWith('JUDGE_') || (task.value?.status === 'WAITING_INPUT' && !doubleReviewApproved.value)))
 const canRetryJudges = computed(() => deterministicAccepted.value
   && publicationState.value !== 'MERGED'
@@ -114,6 +116,7 @@ const nextAction = computed(() => {
   if (task.value.status === 'QUEUED') return '正在等待项目写租约。'
   if (task.value.status === 'RETRY_WAIT') return `${retryCauseLabel.value}，约 ${retryRemainingSeconds.value} 秒后重试。`
   if (waitingForWorkspaceCleanup.value) return '逐项处理源分支中的未提交文件；重新检查确认干净后，Loopper 才会创建任务分支。'
+  if (task.value.status === 'WAITING_INPUT' && task.value.waitingReasonCode === 'GIT_DIFF_SCOPE_APPROVAL_REQUIRED') return '查看允许范围外既有文件的修改前后差异，并逐项决定是否放行。'
   if (task.value.status === 'WAITING_INPUT' && canRetryJudges.value) return '查看未通过或异常的评审证据；补齐条件后可重新发起需求 / 风险双评审。'
   if (task.value.status === 'WAITING_INPUT' && canRetryLoop.value) return '循环已暂停，可确认后继续一轮。'
   if (task.value.status === 'WAITING_INPUT') return '回答页面中的待处理问题，任务将从当前阶段继续。'
@@ -370,6 +373,7 @@ async function confirmRework() {
         </div>
       </section>
       <section v-if="task.stages?.length" class="card card-pad" style="margin-top: 16px"><div class="card-header"><div><h2 class="card-title">阶段进度</h2></div></div><StageRail :stages="task.stages" /></section>
+      <GitDiffScopeApprovalDialog :task-id="task.id" :active="task.status === 'WAITING_INPUT'" @resolved="load" />
       <section v-for="error in verifierErrors" :key="error.id" style="margin-top: 16px"><LayeredErrorPanel :error="error" :judges="currentJudges" /></section>
       <section v-for="error in sessionErrors" :key="error.id" style="margin-top: 16px"><LayeredErrorPanel :error="error" /></section>
       <section v-for="error in taskErrors" :key="error.id" style="margin-top: 16px"><LayeredErrorPanel :error="error" /></section>

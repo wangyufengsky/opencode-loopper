@@ -25,6 +25,8 @@ import io.opencode.loopper.service.TaskEventHub;
 import io.opencode.loopper.service.TaskPublicationService;
 import io.opencode.loopper.service.TaskService;
 import io.opencode.loopper.service.TaskDesignOriginService;
+import io.opencode.loopper.service.GitDiffScopeApprovalService;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -55,14 +57,17 @@ public class TaskController {
     private final TaskPublicationService publication;
     private final LocalSyncConflictService localSyncConflicts;
     private final TaskDesignOriginService designOrigins;
+    private final GitDiffScopeApprovalService gitDiffScopeApprovals;
     public TaskController(TaskService service, LoopperMapper mapper, TaskEventHub events, ObjectMapper json,
                           LoopDraftService drafts, TaskPublicationService publication,
                           LocalSyncConflictService localSyncConflicts,
-                          TaskDesignOriginService designOrigins) {
+                          TaskDesignOriginService designOrigins,
+                          GitDiffScopeApprovalService gitDiffScopeApprovals) {
         this.service = service; this.mapper = mapper; this.events = events; this.json = json;
         this.drafts = drafts; this.publication = publication;
         this.localSyncConflicts = localSyncConflicts;
         this.designOrigins = designOrigins;
+        this.gitDiffScopeApprovals = gitDiffScopeApprovals;
     }
     @GetMapping public List<TaskDto> list() { return service.list().stream().map(this::dto).toList(); }
     @GetMapping("/{id}") public TaskDto get(@PathVariable String id) { return dto(service.get(id)); }
@@ -79,6 +84,38 @@ public class TaskController {
     public DiffPreviewDto diffPreview(@PathVariable String id, @RequestParam String path) {
         var preview = service.diffPreview(id, path);
         return new DiffPreviewDto(preview.path(), preview.changeType(), preview.patch(), preview.truncated());
+    }
+    @GetMapping("/{id}/git-diff-scope-approval")
+    public ResponseEntity<GitDiffScopeApprovalDto> gitDiffScopeApproval(@PathVariable String id) {
+        var approval = gitDiffScopeApprovals.pending(id);
+        if (approval == null) return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(new GitDiffScopeApprovalDto(approval.requestId(), approval.taskId(),
+                approval.stageId(), approval.attemptId(), approval.taskVersion(), approval.files().stream()
+                .map(file -> new GitDiffScopeApprovalFileDto(file.path(), file.changeType(), file.patchSha256()))
+                .toList()));
+    }
+    @GetMapping("/{id}/git-diff-scope-approval/{requestId}/diff-preview")
+    public DiffPreviewDto gitDiffScopeApprovalPreview(@PathVariable String id, @PathVariable String requestId,
+                                                       @RequestParam String path) {
+        var preview = gitDiffScopeApprovals.preview(id, requestId, path, Duration.ofSeconds(10));
+        return new DiffPreviewDto(preview.path(), preview.changeType(), preview.patch(), preview.truncated());
+    }
+    @PostMapping("/{id}/git-diff-scope-approval/{requestId}/resolve")
+    public TaskDto resolveGitDiffScopeApproval(
+            @PathVariable String id, @PathVariable String requestId,
+            @RequestHeader("X-Loopper-Local-UI") String localUi,
+            @RequestBody GitDiffScopeApprovalResolutionRequest request) {
+        requireLocalUi(localUi);
+        if (request == null || request.expectedTaskVersion() == null || request.decisions() == null) {
+            throw new io.opencode.loopper.service.BadRequestException("GIT_DIFF_SCOPE_DECISIONS_REQUIRED",
+                    "Task version and per-file decisions are required");
+        }
+        List<GitDiffScopeApprovalService.FileDecision> decisions = request.decisions().stream().map(decision ->
+                new GitDiffScopeApprovalService.FileDecision(decision.path(), decision.action(),
+                        decision.patchSha256())).toList();
+        gitDiffScopeApprovals.resolve(id, request.expectedTaskVersion(), requestId, decisions,
+                Duration.ofSeconds(10));
+        return dto(service.verify(id));
     }
     @GetMapping("/{id}/design-history")
     public TaskDesignHistoryDto designHistory(@PathVariable String id) {
@@ -324,6 +361,14 @@ public class TaskController {
                 service.judges(task.id()).stream().map(this::judge).toList(), service.artifacts(task.id()).stream().map(this::artifact).toList());
     }
     public record SseData(String type, String at, JsonNode data) { }
+    public record GitDiffScopeApprovalDto(String requestId, String taskId, String stageId, String attemptId,
+                                           long taskVersion, List<GitDiffScopeApprovalFileDto> files) { }
+    public record GitDiffScopeApprovalFileDto(String path, String changeType, String patchSha256) { }
+    public record GitDiffScopeApprovalResolutionRequest(Long expectedTaskVersion,
+                                                         List<GitDiffScopeApprovalDecisionDto> decisions) { }
+    public record GitDiffScopeApprovalDecisionDto(String path,
+                                                   GitDiffScopeApprovalService.DecisionAction action,
+                                                   String patchSha256) { }
     public record TaskDto(String id, String projectId, String projectName, String title, String goal, String branch,
                           String worktreePath, String status, String retryCause, Integer retryOrdinal,
                           String retryScheduledAt, String retryDueAt, Integer retryDelaySeconds,

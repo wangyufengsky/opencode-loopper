@@ -64,6 +64,7 @@ class TaskServiceIntegrationTest {
     @Autowired private LoopperMapper mapper;
     @Autowired private UsageInsightsService usageInsights;
     @Autowired private StageWorkspaceBaselineService stageWorkspaceBaselines;
+    @Autowired private GitDiffScopeApprovalService scopeApprovals;
     @Autowired private DesignerSessionService designerSessions;
     @Autowired private TaskProfileService taskProfiles;
     @Autowired private ArtifactMaterializationService artifactMaterializer;
@@ -670,6 +671,112 @@ class TaskServiceIntegrationTest {
     }
 
     @Test
+    void outsideAllowedNewFilePassesWhileExistingFileWaitsForAContentBoundDecision() throws Exception {
+        ProjectRow project = projects.create("scope-approval", gitProject());
+        LoopSpec.VerifierSpec diff = new LoopSpec.VerifierSpec(
+                "GIT_DIFF", null, null, true, List.of("src/**"), List.of("data/**"), true);
+        LoopSpec.VerifierSpec functional = new LoopSpec.VerifierSpec(
+                "FILE_EXISTS", null, "README.md", null, null, null, null);
+        LoopSpec contract = new LoopSpec("v1", project.id(), "Review existing files outside the allow-list", null,
+                List.of(new LoopSpec.StageSpec("Scoped change", List.of("src/**"), List.of("data/**"),
+                        List.of("scoped result"), List.of(functional, diff))), null, null, null, null);
+        TaskRow task = drafts.confirm(drafts.create(contract).id(), "scope approval");
+        task = tasks.start(task.id());
+        Path worktree = Path.of(task.worktreePath());
+        Files.writeString(worktree.resolve("README.md"), "changed outside scope\n");
+        Files.writeString(worktree.resolve("outside-new.txt"), "new outside scope\n");
+
+        TaskRow waiting = tasks.verify(task.id());
+
+        assertThat(waiting.state()).isEqualTo("WAITING_INPUT");
+        assertThat(mapper.listVerifications(tasks.attempts(task.id()).getFirst().id())).isEmpty();
+        GitDiffScopeApprovalService.PendingRequest approval = scopeApprovals.pending(task.id());
+        assertThat(approval).isNotNull();
+        assertThat(approval.files()).extracting(GitDiffScopeApprovalService.ApprovalFile::path)
+                .containsExactly("README.md");
+        assertThat(scopeApprovals.preview(task.id(), approval.requestId(), "README.md", Duration.ofSeconds(10)).patch())
+                .contains("-fixture", "+changed outside scope");
+
+        TaskRow judging = resolveScopeApproval(task.id(), approval,
+                List.of(new GitDiffScopeApprovalService.FileDecision("README.md",
+                        GitDiffScopeApprovalService.DecisionAction.ALLOW,
+                        approval.files().getFirst().patchSha256())));
+
+        assertThat(judging.state()).isEqualTo("JUDGING");
+        assertThat(mapper.listVerifications(tasks.attempts(task.id()).getFirst().id()))
+                .filteredOn(result -> "GIT_DIFF".equals(result.type()))
+                .singleElement().satisfies(result -> {
+                    assertThat(result.state()).isEqualTo("PASS");
+                    assertThat(result.evidenceJson()).contains(
+                            "\"userApprovedOutsideExistingPaths\":[\"README.md\"]",
+                            "\"autoAllowedOutsideNewPaths\":[\"outside-new.txt\"]");
+                });
+    }
+
+    @Test
+    void rejectingOutsideAllowedExistingFileBecomesAnOrdinaryVerificationFailure() throws Exception {
+        ProjectRow project = projects.create("scope-rejection", gitProject());
+        LoopSpec.VerifierSpec diff = new LoopSpec.VerifierSpec(
+                "GIT_DIFF", null, null, true, List.of("src/**"), List.of(), true);
+        LoopSpec.VerifierSpec functional = new LoopSpec.VerifierSpec(
+                "FILE_EXISTS", null, "README.md", null, null, null, null);
+        LoopSpec contract = new LoopSpec("v1", project.id(), "Reject an outside change", null,
+                List.of(new LoopSpec.StageSpec("Scoped change", List.of("src/**"), List.of(),
+                        List.of("scoped result"), List.of(functional, diff))), null, null, null, null);
+        TaskRow task = drafts.confirm(drafts.create(contract).id(), "scope rejection");
+        task = tasks.start(task.id());
+        Files.writeString(Path.of(task.worktreePath()).resolve("README.md"), "rejected change\n");
+        assertThat(tasks.verify(task.id()).state()).isEqualTo("WAITING_INPUT");
+        GitDiffScopeApprovalService.PendingRequest approval = scopeApprovals.pending(task.id());
+
+        TaskRow retrying = resolveScopeApproval(task.id(), approval,
+                List.of(new GitDiffScopeApprovalService.FileDecision("README.md",
+                        GitDiffScopeApprovalService.DecisionAction.REJECT,
+                        approval.files().getFirst().patchSha256())));
+
+        assertThat(retrying.state()).isEqualTo("RETRY_WAIT");
+        assertThat(mapper.listVerifications(tasks.attempts(task.id()).getFirst().id()))
+                .filteredOn(result -> "GIT_DIFF".equals(result.type()))
+                .singleElement().satisfies(result -> {
+                    assertThat(result.state()).isEqualTo("FAIL");
+                    assertThat(result.summary()).contains("rejected by user: README.md");
+                });
+    }
+
+    @Test
+    void changedExistingFileInvalidatesTheDisplayedScopeApprovalAndRequestsAFreshDiff() throws Exception {
+        ProjectRow project = projects.create("scope-stale", gitProject());
+        LoopSpec.VerifierSpec functional = new LoopSpec.VerifierSpec(
+                "FILE_EXISTS", null, "README.md", null, null, null, null);
+        LoopSpec.VerifierSpec diff = new LoopSpec.VerifierSpec(
+                "GIT_DIFF", null, null, true, List.of("src/**"), List.of(), true);
+        LoopSpec contract = new LoopSpec("v1", project.id(), "Refresh changed approval content", null,
+                List.of(new LoopSpec.StageSpec("Scoped change", List.of("src/**"), List.of(),
+                        List.of("scoped result"), List.of(functional, diff))), null, null, null, null);
+        TaskRow task = drafts.confirm(drafts.create(contract).id(), "scope stale");
+        task = tasks.start(task.id());
+        Path readme = Path.of(task.worktreePath()).resolve("README.md");
+        Files.writeString(readme, "first displayed change\n");
+        assertThat(tasks.verify(task.id()).state()).isEqualTo("WAITING_INPUT");
+        GitDiffScopeApprovalService.PendingRequest first = scopeApprovals.pending(task.id());
+
+        Files.writeString(readme, "changed after display\n");
+        TaskRow waitingAgain = resolveScopeApproval(task.id(), first,
+                List.of(new GitDiffScopeApprovalService.FileDecision("README.md",
+                        GitDiffScopeApprovalService.DecisionAction.ALLOW,
+                        first.files().getFirst().patchSha256())));
+
+        assertThat(waitingAgain.state()).isEqualTo("WAITING_INPUT");
+        GitDiffScopeApprovalService.PendingRequest refreshed = scopeApprovals.pending(task.id());
+        assertThat(refreshed.requestId()).isNotEqualTo(first.requestId());
+        assertThat(scopeApprovals.preview(task.id(), refreshed.requestId(), "README.md", Duration.ofSeconds(10)).patch())
+                .contains("+changed after display");
+        assertThat(tasks.errors(task.id())).anyMatch(error ->
+                GitDiffScopeApprovalService.STALE.equals(error.code()));
+        assertThat(mapper.listVerifications(tasks.attempts(task.id()).getFirst().id())).isEmpty();
+    }
+
+    @Test
     void deterministicVerifierRunsOutsideTheSQLiteTransaction() throws Exception {
         ProjectRow project = projects.create("verifier-transaction-boundary", gitProject());
         TaskRow task = drafts.confirm(drafts.create(spec(project.id())).id(), "short verification transaction");
@@ -997,14 +1104,21 @@ class TaskServiceIntegrationTest {
 
         startScheduledRetryNow(task.id());
         Files.writeString(root.resolve("first.txt"), "changed by the later stage");
-        assertThat(tasks.verify(task.id()).state()).isEqualTo("RETRY_WAIT");
+        assertThat(tasks.verify(task.id()).state()).isEqualTo("WAITING_INPUT");
+        GitDiffScopeApprovalService.PendingRequest scopeApproval = scopeApprovals.pending(task.id());
+        assertThat(scopeApproval.files()).extracting(GitDiffScopeApprovalService.ApprovalFile::path)
+                .containsExactly("first.txt");
+        assertThat(resolveScopeApproval(task.id(), scopeApproval,
+                List.of(new GitDiffScopeApprovalService.FileDecision("first.txt",
+                        GitDiffScopeApprovalService.DecisionAction.REJECT,
+                        scopeApproval.files().getFirst().patchSha256()))).state()).isEqualTo("RETRY_WAIT");
         AttemptRow secondStageTwoAttempt = tasks.attempts(task.id()).stream()
                 .filter(attempt -> attempt.stageId().equals(secondStage.id()) && attempt.ordinal() == 2)
                 .findFirst().orElseThrow();
         assertThat(mapper.listVerifications(secondStageTwoAttempt.id())).filteredOn(result -> result.type().equals("GIT_DIFF"))
                 .singleElement().satisfies(result -> {
                     assertThat(result.state()).isEqualTo("FAIL");
-                    assertThat(result.summary()).contains("outside allowed paths: first.txt");
+                    assertThat(result.summary()).contains("outside allowed existing file rejected by user: first.txt");
                 });
         assertThat(tasks.artifacts(task.id())).filteredOn(artifact ->
                         artifact.kind().equals("ATTEMPT_HANDOFF")
@@ -2099,6 +2213,14 @@ class TaskServiceIntegrationTest {
         assertThat(jdbc.update("UPDATE task_retry_schedule SET due_at=? WHERE task_id=? AND state='SCHEDULED'",
                 Instant.EPOCH.toString(), taskId)).isEqualTo(1);
         tasks.startDueRetries();
+    }
+
+    private TaskRow resolveScopeApproval(String taskId,
+                                         GitDiffScopeApprovalService.PendingRequest request,
+                                         List<GitDiffScopeApprovalService.FileDecision> decisions) {
+        scopeApprovals.resolve(taskId, request.taskVersion(), request.requestId(), decisions,
+                Duration.ofSeconds(10));
+        return tasks.verify(taskId);
     }
 
     private LoopSpec spec(String projectId) {

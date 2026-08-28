@@ -25,6 +25,9 @@ const store = vi.hoisted(() => ({
 
 vi.mock('@/stores/taskStore', () => ({ useTaskStore: () => store }))
 vi.mock('@/api/client', () => ({ api: apiMocks }))
+vi.mock('@/components/GitDiffScopeApprovalDialog.vue', () => ({
+  default: { name: 'GitDiffScopeApprovalDialog', template: '<div data-testid="scope-approval" />' },
+}))
 
 const reviewTask = {
   id: 'task-review', projectId: 'project-1', title: '待评审任务', goal: '验证显式评审入口',

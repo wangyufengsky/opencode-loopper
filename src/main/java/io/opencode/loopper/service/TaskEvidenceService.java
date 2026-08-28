@@ -14,6 +14,7 @@ import io.opencode.loopper.persistence.StageRow;
 import io.opencode.loopper.persistence.TaskArtifactRow;
 import io.opencode.loopper.persistence.TaskPackageRunRow;
 import io.opencode.loopper.persistence.TaskRow;
+import io.opencode.loopper.persistence.TaskWorkspaceCheckpointRow;
 import io.opencode.loopper.persistence.VerificationResultRow;
 import io.opencode.loopper.verification.VerifierEngine;
 import io.opencode.loopper.verification.VerifierOutcome;
@@ -51,6 +52,61 @@ final class TaskEvidenceService {
         this.mapper = mapper;
         this.json = json;
         this.verifiers = verifiers;
+    }
+
+    VerifierEngine.DiffPreview previewDiff(TaskRow task, String path, TaskWorkspaceCheckpointRow checkpoint) {
+        if (path == null || path.isBlank()) {
+            throw new BadRequestException("DIFF_PATH_INVALID", "Diff preview requires a file path");
+        }
+        boolean verified = false;
+        boolean untracked = false;
+        TaskArtifactRow snapshot = mapper.listTaskArtifacts(task.id()).stream()
+                .filter(artifact -> "GIT_DIFF".equals(artifact.kind())).findFirst().orElse(null);
+        if (snapshot != null) {
+            try {
+                var evidence = json.readTree(snapshot.metadataJson());
+                verified = contains(evidence.path("changedPaths"), path);
+                untracked = verified && contains(evidence.path("untrackedPaths"), path);
+            } catch (RuntimeException ignored) {
+                // Historical session-diff artifacts did not contain structured path metadata.
+            }
+        }
+        List<AttemptRow> attempts = mapper.listAttempts(task.id());
+        for (int attemptIndex = attempts.size() - 1; attemptIndex >= 0 && !verified; attemptIndex--) {
+            for (VerificationResultRow row : mapper.listVerifications(attempts.get(attemptIndex).id())) {
+                if (!"GIT_DIFF".equalsIgnoreCase(row.type())) continue;
+                try {
+                    var evidence = json.readTree(row.evidenceJson());
+                    verified = contains(evidence.path("changedPaths"), path);
+                    untracked = verified && contains(evidence.path("untrackedPaths"), path);
+                } catch (RuntimeException ignored) {
+                    // Unreadable historical evidence cannot authorize a file preview.
+                }
+            }
+        }
+        if (!verified) {
+            throw new BadRequestException("DIFF_PATH_NOT_VERIFIED",
+                    "The requested file is not present in persisted GIT_DIFF evidence");
+        }
+        if (task.worktreePath() == null || task.worktreePath().isBlank()) {
+            throw new BadRequestException("WORKTREE_UNAVAILABLE", "Task worktree is unavailable");
+        }
+        try {
+            if (checkpoint != null && checkpoint.checkpointTree() != null && !checkpoint.checkpointTree().isBlank()) {
+                return verifiers.previewDiffAtRef(Path.of(task.worktreePath()), task.baselineCommit(),
+                        checkpoint.checkpointTree(), path, untracked, Duration.ofSeconds(10));
+            }
+            return verifiers.previewDiff(Path.of(task.worktreePath()), task.baselineCommit(), task.branchName(),
+                    path, untracked, Duration.ofSeconds(10));
+        } catch (TaskFailure failure) {
+            throw new BadRequestException(failure.code(), failure.getMessage());
+        }
+    }
+
+    private boolean contains(tools.jackson.databind.JsonNode values, String expected) {
+        if (!values.isArray()) return false;
+        for (var item : values) if (expected.equals(item.asText())) return true;
+        return false;
     }
 
     void captureFinalEvidence(TaskRow task, AttemptRow attempt) {

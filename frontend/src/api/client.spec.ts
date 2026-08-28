@@ -710,6 +710,40 @@ describe('Loopper REST contract adapter', () => {
     expect(fetchMock).toHaveBeenCalledWith('/api/tasks/task%201/diff-preview?path=src%2Fnew%20file.ts', expect.any(Object))
   })
 
+  it('loads and resolves a content-bound outside-scope existing-file decision', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json({
+        requestId: 'approval/1', taskId: 'task 1', stageId: 'stage-1', attemptId: 'attempt-1', taskVersion: 7,
+        files: [{ path: 'src/old file.ts', changeType: 'MODIFIED', patchSha256: 'patch-sha' }],
+      }))
+      .mockResolvedValueOnce(json({
+        path: 'src/old file.ts', changeType: 'MODIFIED', patch: '-old\n+new', truncated: false,
+      }))
+      .mockResolvedValueOnce(json({
+        id: 'task 1', projectId: 'project-1', title: 'Task', status: 'JUDGING',
+        loopRetryAvailable: false, cancellationAvailable: true, hasDesignHistory: true, archived: false,
+        stages: [], attempts: [], errors: [], judges: [], artifacts: [],
+      }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(api.getGitDiffScopeApproval('task 1')).resolves.toMatchObject({
+      requestId: 'approval/1', taskVersion: 7, files: [{ path: 'src/old file.ts', patchSha256: 'patch-sha' }],
+    })
+    await expect(api.getGitDiffScopeApprovalPreview('task 1', 'approval/1', 'src/old file.ts'))
+      .resolves.toMatchObject({ patch: '-old\n+new' })
+    await expect(api.resolveGitDiffScopeApproval('task 1', 'approval/1', {
+      expectedTaskVersion: 7,
+      decisions: [{ path: 'src/old file.ts', action: 'ALLOW', patchSha256: 'patch-sha' }],
+    })).resolves.toMatchObject({ id: 'task 1', status: 'JUDGING' })
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/tasks/task%201/git-diff-scope-approval')
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/tasks/task%201/git-diff-scope-approval/approval%2F1/diff-preview?path=src%2Fold%20file.ts')
+    expect(fetchMock.mock.calls[2]).toEqual([
+      '/api/tasks/task%201/git-diff-scope-approval/approval%2F1/resolve',
+      expect.objectContaining({ method: 'POST', headers: expect.objectContaining({ 'X-Loopper-Local-UI': '1' }) }),
+    ])
+  })
+
   it('loads persisted task design history without opening a live Designer session', async () => {
     const fetchMock = vi.fn().mockResolvedValue(json({
       taskId: 'task-1', taskTitle: 'Durable history', projectName: 'Project',

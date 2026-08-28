@@ -95,6 +95,7 @@ public class TaskService {
     private final BinaryArtifactPersistenceService binaryArtifacts;
     private final ManagedVerificationRuntimeService managedVerifierRuntimes;
     private final StageWorkspaceBaselineService stageWorkspaceBaselines;
+    private final GitDiffScopeApprovalService gitDiffScopeApprovals;
     private final JavaChangeGateService javaChangeGate;
     private final UsageInsightsService usageInsights;
     private final TaskEventService events;
@@ -120,6 +121,7 @@ public class TaskService {
                        BinaryArtifactPersistenceService binaryArtifacts,
                        ManagedVerificationRuntimeService managedVerifierRuntimes,
                        StageWorkspaceBaselineService stageWorkspaceBaselines,
+                       GitDiffScopeApprovalService gitDiffScopeApprovals,
                        JavaChangeGateService javaChangeGate,
                        UsageInsightsService usageInsights,
                        TaskEventService events, AiOutputExtractor aiOutputExtractor,
@@ -138,6 +140,7 @@ public class TaskService {
         this.attemptHandoffs = attemptHandoffs; this.binaryArtifacts = binaryArtifacts;
         this.managedVerifierRuntimes = managedVerifierRuntimes;
         this.stageWorkspaceBaselines = stageWorkspaceBaselines;
+        this.gitDiffScopeApprovals = gitDiffScopeApprovals;
         this.javaChangeGate = javaChangeGate;
         this.usageInsights = usageInsights; this.events = events;
         this.executionCycles = executionCycles; this.workspaceCheckpoints = workspaceCheckpoints;
@@ -659,70 +662,7 @@ public class TaskService {
     public String goal(String taskId) { return spec(get(taskId)).goal(); }
 
     public VerifierEngine.DiffPreview diffPreview(String taskId, String path) {
-        TaskRow task = get(taskId);
-        if (path == null || path.isBlank()) {
-            throw new BadRequestException("DIFF_PATH_INVALID", "Diff preview requires a file path");
-        }
-        boolean verified = false;
-        boolean untracked = false;
-        TaskArtifactRow snapshot = mapper.listTaskArtifacts(taskId).stream()
-                .filter(artifact -> "GIT_DIFF".equals(artifact.kind()))
-                .findFirst().orElse(null);
-        if (snapshot != null) {
-            try {
-                var evidence = json.readTree(snapshot.metadataJson());
-                if (evidence.path("changedPaths").isArray()) {
-                    for (var item : evidence.path("changedPaths")) {
-                        if (path.equals(item.asText())) { verified = true; break; }
-                    }
-                    if (verified && evidence.path("untrackedPaths").isArray()) {
-                        for (var item : evidence.path("untrackedPaths")) {
-                            if (path.equals(item.asText())) { untracked = true; break; }
-                        }
-                    }
-                }
-            } catch (Exception ignored) {
-                // Historical session-diff artifacts did not contain structured path metadata.
-            }
-        }
-        List<AttemptRow> attempts = mapper.listAttempts(taskId);
-        for (int attemptIndex = attempts.size() - 1; attemptIndex >= 0 && !verified; attemptIndex--) {
-            for (VerificationResultRow row : mapper.listVerifications(attempts.get(attemptIndex).id())) {
-                if (!"GIT_DIFF".equalsIgnoreCase(row.type())) continue;
-                try {
-                    var evidence = json.readTree(row.evidenceJson());
-                    if (evidence.path("changedPaths").isArray()) {
-                        for (var item : evidence.path("changedPaths")) {
-                            if (path.equals(item.asText())) { verified = true; break; }
-                        }
-                    }
-                    if (verified && evidence.path("untrackedPaths").isArray()) {
-                        for (var item : evidence.path("untrackedPaths")) {
-                            if (path.equals(item.asText())) { untracked = true; break; }
-                        }
-                    }
-                } catch (Exception ignored) {
-                    // Unreadable historical evidence cannot authorize a file preview.
-                }
-            }
-        }
-        if (!verified) {
-            throw new BadRequestException("DIFF_PATH_NOT_VERIFIED", "The requested file is not present in persisted GIT_DIFF evidence");
-        }
-        if (task.worktreePath() == null || task.worktreePath().isBlank()) {
-            throw new BadRequestException("WORKTREE_UNAVAILABLE", "Task worktree is unavailable");
-        }
-        try {
-            io.opencode.loopper.persistence.TaskWorkspaceCheckpointRow checkpoint = workspaceCheckpoints.latest(taskId);
-            if (checkpoint != null && checkpoint.checkpointTree() != null && !checkpoint.checkpointTree().isBlank()) {
-                return verifiers.previewDiffAtRef(Path.of(task.worktreePath()), task.baselineCommit(),
-                        checkpoint.checkpointTree(), path, untracked, Duration.ofSeconds(10));
-            }
-            return verifiers.previewDiff(Path.of(task.worktreePath()), task.baselineCommit(), task.branchName(),
-                    path, untracked, Duration.ofSeconds(10));
-        } catch (TaskFailure failure) {
-            throw new BadRequestException(failure.code(), failure.getMessage());
-        }
+        return taskEvidence.previewDiff(get(taskId), path, workspaceCheckpoints.latest(taskId));
     }
     /** Applies time budgets before a monitor interprets an OpenCode status transition. */
     public void enforceTimeouts(String taskId) {
@@ -974,6 +914,14 @@ public class TaskService {
                         verifierSpecs, pending);
                 if (javaGateResult != null) pending.add(javaGateResult);
             }
+            GitDiffScopeApprovalService.PendingRequest scopeApproval = applyGitDiffScopeDecisions(
+                    initial, stage, attempt, verificationBaseline, pending, boundedVerifierTimeout(initial, spec));
+            if (scopeApproval != null) {
+                GitDiffScopeApprovalService.PendingRequest pendingApproval = scopeApproval;
+                transactions.executeWithoutResult(status -> waitForGitDiffScopeApproval(
+                        initial.id(), stage.id(), attempt.id(), pendingApproval));
+                return get(taskId);
+            }
             AttemptHandoffService.Capture handoff = null;
             PendingVerification failedPreview = pending.stream()
                     .filter(result -> result.outcome().state() != VerificationState.PASS)
@@ -995,6 +943,47 @@ public class TaskService {
             failTask(get(taskId), failure.code(), failure.getMessage(), null, null, null);
         }
         return get(taskId);
+    }
+
+    private GitDiffScopeApprovalService.PendingRequest applyGitDiffScopeDecisions(
+            TaskRow task, StageRow stage, AttemptRow attempt, String baseline,
+            List<PendingVerification> pending, Duration timeout) {
+        for (int index = 0; index < pending.size(); index++) {
+            PendingVerification candidate = pending.get(index);
+            GitDiffScopeApprovalService.Assessment assessment = gitDiffScopeApprovals.assess(
+                    task, stage, attempt.id(), baseline, candidate.outcome(), timeout);
+            if (assessment.pending() != null) return assessment.pending();
+            if (assessment.outcome() != candidate.outcome()) {
+                pending.set(index, new PendingVerification(candidate.id(), candidate.index(), assessment.outcome()));
+            }
+        }
+        return null;
+    }
+
+    private void waitForGitDiffScopeApproval(String taskId, String stageId, String attemptId,
+                                             GitDiffScopeApprovalService.PendingRequest request) {
+        TaskRow task = get(taskId);
+        StageRow stage = mapper.findStage(stageId)
+                .orElseThrow(() -> new ConflictException("GIT_DIFF_SCOPE_STAGE_MISSING",
+                        "The approval Stage is no longer available"));
+        AttemptRow attempt = mapper.findAttempt(attemptId)
+                .orElseThrow(() -> new ConflictException("GIT_DIFF_SCOPE_ATTEMPT_MISSING",
+                        "The approval Attempt is no longer available"));
+        if (!TaskState.VERIFYING.name().equals(task.state())
+                || !StageState.RUNNING.name().equals(stage.state())
+                || !AttemptState.RUNNING.name().equals(attempt.state())) {
+            throw new ConflictException("TASK_VERIFICATION_INTERRUPTED",
+                    "Task changed before the scope approval request could be persisted");
+        }
+        recordError(task, stage, attempt, null, ErrorLayer.VERIFICATION,
+                GitDiffScopeApprovalService.REQUIRED,
+                "Existing files outside the configured allow-list require a local diff decision",
+                true, request.evidence());
+        taskStates.updateTask(taskStates.taskState(task, TaskState.WAITING_INPUT), LifecycleEvent.REQUIRE_INPUT,
+                Map.of("scopeApprovalRequestId", request.requestId(), "fileCount", request.files().size()));
+        events.emit(taskId, "git_diff.scope_approval_required", Map.of(
+                "requestId", request.requestId(), "fileCount", request.files().size(),
+                "state", TaskState.WAITING_INPUT.name()));
     }
 
     private PendingVerification javaGateVerification(TaskRow task, StageRow stage,

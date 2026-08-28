@@ -277,6 +277,18 @@ is still observed. Their evidence records `baselineScope: STAGE` and `stageId`.
 `VERIFY_ONLY` Recovery and the final automatic Task diff retain the Task baseline
 and record `baselineScope: TASK`, preserving cumulative task audit evidence.
 
+For explicit allow-lists, outside-scope new files are accepted with auditable
+`autoAllowedOutsideNewPaths` evidence. Existing baseline files changed outside
+the allow-list require a local per-file decision instead of immediately failing
+the Attempt. The Task waits in `WAITING_INPUT` while Stage and Attempt remain
+running; no verifier result is persisted until the decision is complete. The UI
+must load the exact Stage-baseline patch and show old/new lines and hunk locations.
+Allow/reject decisions are complete, local-UI guarded, and content-bound by Task
+version plus per-file patch SHA-256; stale content must be shown again. Rejecting
+a file resumes verification as a normal FAIL. Forbidden paths, unsafe traversal,
+missing baselines, truncated previews, and configured delete restrictions are
+never eligible for this approval path.
+
 Compiler planning, draft persistence, and confirmation use the same normalized,
 bounded path-policy semantics as runtime `GIT_DIFF`. Malformed globs and any
 allowed rule entirely shadowed by a forbidden rule are rejected before Task,

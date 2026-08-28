@@ -385,6 +385,23 @@ export interface TaskDiffPreview {
   truncated: boolean
 }
 
+export type GitDiffScopeDecisionAction = 'ALLOW' | 'REJECT'
+
+export interface GitDiffScopeApprovalFile {
+  path: string
+  changeType: 'MODIFIED' | 'DELETED' | 'RENAMED_FROM' | 'RENAMED_TO'
+  patchSha256: string
+}
+
+export interface GitDiffScopeApproval {
+  requestId: string
+  taskId: string
+  stageId: string
+  attemptId: string
+  taskVersion: number
+  files: GitDiffScopeApprovalFile[]
+}
+
 export interface TaskPublicationStatus {
   state: 'UNAVAILABLE' | 'NO_CHANGES' | 'READY' | 'COMMITTED' | 'PUSHED' | 'SYNCED_LOCAL' | 'LOCAL_SYNC_CONFLICT' | 'MERGE_REQUEST_OPENED' | 'MERGE_REQUEST_CLOSED' | 'MERGED'
   available: boolean

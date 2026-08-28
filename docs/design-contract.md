@@ -922,6 +922,18 @@ file previews still address the completed Task branch explicitly. A pushed Task
 shows one ordinary **创建合并请求** button; one click opens the confirmation
 dialog, with no duplicate single-item dropdown step.
 
+When `GIT_DIFF` finds an outside-allow-list mutation of an existing baseline
+file, Task detail opens a dedicated decision dialog and keeps a visible reopen
+card after dismissal. The left side lists every affected existing file and
+requires an explicit allow/reject choice per file. The right side shows the
+Stage-baseline unified diff with old line, new line, removed content, added
+content, and hunk location. The continue action is disabled until all files have
+a choice. The page must describe this state as waiting for a decision, not as a
+failed verification; outside-scope new files are auto-accepted and disclosed,
+while forbidden paths and delete restrictions remain hard failures. Decisions
+are valid only for the displayed patch hashes; any later workspace mutation
+must reopen a fresh request.
+
 Task detail renders execution and delivery separately: a Task can be **已成功**
 while delivery is **待提交**, **已推送**, **合并请求已创建**, **合并请求已关闭**,
 or **已合并**. Opening a GitLab creation page changes only the available actions;

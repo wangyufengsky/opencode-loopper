@@ -1,4 +1,4 @@
-import type { AppSettings, Artifact, Attempt, AutomationImportPreview, AutomationImportResult, AutomationRule, AutomationRuleMutation, AutomationRun, AutomationRunFeed, AvailableModel, BrowserAssertion, CommitMessageSuggestion, CreateAutomationRuleInput, DesignerActivity, DesignerAnsweredQuestion, DesignerAppendResult, DesignerHistoryItem, DesignerMessage, DesignerSession, DesignerSessionState, DesignerSessionSummary, DesignerStopResult, DesignerStreamEvent, DirectorySelection, DirtyWorkspaceAction, DirtyWorkspaceResolution, DirtyWorkspaceState, ErrorEvent, InsightsSnapshot, Interaction, InteractionAction, JudgeRun, LocalSyncConflictContent, LocalSyncConflictFile, LocalSyncConflictSession, LocalSyncResolution, LoopDraft, LoopSpec, LoopSpecAssessment, LoopSpecTemplate, LoopSpecTemplateVersion, LoopVerifierSpec, MergeRequestDraft, Project, ProjectConventionActivity, ProjectConventionDraft, ProjectConventionSnapshot, RecoveryDraft, RecoveryMode, RuntimeInfo, SessionCheckpoint, SessionForkResult, SessionRevertResult, SessionSummaryResult, SessionTodo, Stage, Task, TaskDecision, TaskDesignHistory, TaskDiffPreview, TaskEvent, TaskInsight, TaskPublicationStatus, TaskQueueStatus, TaskSessionActivity, TaskSessionActivityPart, TaskSessionPendingQuestion, TaskSessionSummary, UsageAggregate } from '@/types/domain'
+import type { AppSettings, Artifact, Attempt, AutomationImportPreview, AutomationImportResult, AutomationRule, AutomationRuleMutation, AutomationRun, AutomationRunFeed, AvailableModel, BrowserAssertion, CommitMessageSuggestion, CreateAutomationRuleInput, DesignerActivity, DesignerAnsweredQuestion, DesignerAppendResult, DesignerHistoryItem, DesignerMessage, DesignerSession, DesignerSessionState, DesignerSessionSummary, DesignerStopResult, DesignerStreamEvent, DirectorySelection, DirtyWorkspaceAction, DirtyWorkspaceResolution, DirtyWorkspaceState, ErrorEvent, GitDiffScopeApproval, GitDiffScopeDecisionAction, InsightsSnapshot, Interaction, InteractionAction, JudgeRun, LocalSyncConflictContent, LocalSyncConflictFile, LocalSyncConflictSession, LocalSyncResolution, LoopDraft, LoopSpec, LoopSpecAssessment, LoopSpecTemplate, LoopSpecTemplateVersion, LoopVerifierSpec, MergeRequestDraft, Project, ProjectConventionActivity, ProjectConventionDraft, ProjectConventionSnapshot, RecoveryDraft, RecoveryMode, RuntimeInfo, SessionCheckpoint, SessionForkResult, SessionRevertResult, SessionSummaryResult, SessionTodo, Stage, Task, TaskDecision, TaskDesignHistory, TaskDiffPreview, TaskEvent, TaskInsight, TaskPublicationStatus, TaskQueueStatus, TaskSessionActivity, TaskSessionActivityPart, TaskSessionPendingQuestion, TaskSessionSummary, UsageAggregate } from '@/types/domain'
 import type { AnalysisReport, DesignerTaskProfileUpdatePreview, ProjectStackProfile, RollingPackageCapabilities, RollingPackageDetail, RollingPackageFact, RollingPackageRun, RollingPackageWorkbench, RollingPlanPackage, RollingPlanProposal } from '@/types/domain'
 import { DESIGNER_SESSION_STATES, DESIGN_WORK_PACKAGE_STATES, LOOP_DRAFT_STATUSES, STAGE_STATUSES, TASK_PACKAGE_RUN_STATES, TASK_STATUSES, WORK_PACKAGE_AGGREGATE_STATUSES, requirePublicState } from '@/types/states'
 
@@ -1086,6 +1086,29 @@ function normalizeTaskDiffPreview(value: unknown): TaskDiffPreview {
   }
 }
 
+function normalizeGitDiffScopeApproval(value: unknown): GitDiffScopeApproval {
+  const raw = asRecord(value)
+  const changeTypes = ['MODIFIED', 'DELETED', 'RENAMED_FROM', 'RENAMED_TO'] as const
+  return {
+    requestId: requiredString(raw, 'requestId', 'GitDiffScopeApproval'),
+    taskId: requiredString(raw, 'taskId', 'GitDiffScopeApproval'),
+    stageId: requiredString(raw, 'stageId', 'GitDiffScopeApproval'),
+    attemptId: requiredString(raw, 'attemptId', 'GitDiffScopeApproval'),
+    taskVersion: asNumber(raw.taskVersion),
+    files: asArray(raw.files).map((value) => {
+      const file = asRecord(value)
+      const rawChangeType = asString(file.changeType)
+      return {
+        path: requiredString(file, 'path', 'GitDiffScopeApprovalFile'),
+        changeType: changeTypes.includes(rawChangeType as typeof changeTypes[number])
+          ? rawChangeType as typeof changeTypes[number]
+          : 'MODIFIED',
+        patchSha256: requiredString(file, 'patchSha256', 'GitDiffScopeApprovalFile'),
+      }
+    }),
+  }
+}
+
 function normalizeTaskPublication(value: unknown): TaskPublicationStatus {
   const raw = asRecord(value)
   const state = asString(raw.state)
@@ -1485,6 +1508,12 @@ export const api = {
   acceptTaskDecision: async (id: string, input: { expectedTaskVersion: number; expectedCycleVersion: number }) => normalizeTaskDecision(await request<unknown>(`/tasks/${encodeURIComponent(id)}/decision/accept`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(input) })),
   cancelTaskDecision: async (id: string, input: { expectedTaskVersion: number; expectedCycleVersion: number }) => normalizeTaskDecision(await request<unknown>(`/tasks/${encodeURIComponent(id)}/decision/cancel`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(input) })),
   getTaskDiffPreview: async (id: string, path: string) => normalizeTaskDiffPreview(await request<unknown>(`/tasks/${encodeURIComponent(id)}/diff-preview?path=${encodeURIComponent(path)}`)),
+  getGitDiffScopeApproval: async (id: string) => {
+    const value = await request<unknown>(`/tasks/${encodeURIComponent(id)}/git-diff-scope-approval`)
+    return value === undefined ? undefined : normalizeGitDiffScopeApproval(value)
+  },
+  getGitDiffScopeApprovalPreview: async (id: string, requestId: string, path: string) => normalizeTaskDiffPreview(await request<unknown>(`/tasks/${encodeURIComponent(id)}/git-diff-scope-approval/${encodeURIComponent(requestId)}/diff-preview?path=${encodeURIComponent(path)}`)),
+  resolveGitDiffScopeApproval: async (id: string, requestId: string, input: { expectedTaskVersion: number; decisions: Array<{ path: string; action: GitDiffScopeDecisionAction; patchSha256: string }> }) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}/git-diff-scope-approval/${encodeURIComponent(requestId)}/resolve`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(input) })),
   getTaskDesignHistory: async (id: string) => normalizeTaskDesignHistory(await request<unknown>(`/tasks/${encodeURIComponent(id)}/design-history`)),
   getTaskSessions: async (id: string) => (await request<unknown[]>(`/tasks/${encodeURIComponent(id)}/sessions`)).map(normalizeTaskSession),
   getTaskSessionActivity: async (taskId: string, sessionKey: string) => normalizeTaskSessionActivity(await request<unknown>(`/tasks/${encodeURIComponent(taskId)}/sessions/${encodeURIComponent(sessionKey)}`)),

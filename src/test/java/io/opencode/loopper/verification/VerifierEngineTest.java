@@ -46,6 +46,45 @@ class VerifierEngineTest {
     }
 
     @Test
+    void gitDiffAutoAllowsOutsideNewFilesButRequiresApprovalForExistingFiles() throws Exception {
+        git("init"); git("config", "user.email", "test@example.invalid"); git("config", "user.name", "test");
+        Files.writeString(directory.resolve("existing.txt"), "before\n");
+        git("add", "existing.txt"); git("commit", "-m", "base");
+        String baseline = git("rev-parse", "HEAD").trim();
+
+        Files.writeString(directory.resolve("existing.txt"), "after\n");
+        Files.writeString(directory.resolve("outside-new.txt"), "new\n");
+        VerifierOutcome outcome = engine.verify(directory, baseline,
+                new VerifierSpec("GIT_DIFF", null, null, true, List.of("allowed/**"), List.of(), false),
+                Duration.ofSeconds(5));
+
+        assertThat(outcome.state()).isEqualTo(VerificationState.FAIL);
+        assertThat(outcome.evidence())
+                .containsEntry("approvalRequiredPaths", List.of("existing.txt"))
+                .containsEntry("autoAllowedOutsideNewPaths", List.of("outside-new.txt"));
+        assertThat(outcome.evidence().get("hardViolations")).isEqualTo(List.of());
+        assertThat(outcome.summary()).contains("user approval required for outside allowed existing file: existing.txt")
+                .doesNotContain("outside-new.txt");
+    }
+
+    @Test
+    void gitDiffKeepsForbiddenOutsideNewFilesAsHardFailures() throws Exception {
+        git("init"); git("config", "user.email", "test@example.invalid"); git("config", "user.name", "test");
+        Files.writeString(directory.resolve("README.md"), "base\n");
+        git("add", "README.md"); git("commit", "-m", "base");
+        String baseline = git("rev-parse", "HEAD").trim();
+        Files.writeString(directory.resolve("blocked.txt"), "new\n");
+
+        VerifierOutcome outcome = engine.verify(directory, baseline,
+                new VerifierSpec("GIT_DIFF", null, null, true, List.of("allowed/**"), List.of("blocked.txt"), false),
+                Duration.ofSeconds(5));
+
+        assertThat(outcome.state()).isEqualTo(VerificationState.FAIL);
+        assertThat(outcome.evidence().get("hardViolations")).isEqualTo(List.of("forbidden path: blocked.txt"));
+        assertThat(outcome.evidence().get("autoAllowedOutsideNewPaths")).isEqualTo(List.of());
+    }
+
+    @Test
     void previewsModifiedAndNewFilesAsUnifiedDiffs() throws Exception {
         git("init"); git("config", "user.email", "test@example.invalid"); git("config", "user.name", "test");
         Files.writeString(directory.resolve("tracked.txt"), "before\ncontext\n");
@@ -112,8 +151,8 @@ class VerifierEngineTest {
         assertThat(outcome.evidence().get("changedPaths")).isEqualTo(List.of("forbidden/secret.txt", "allowed/secret.txt"));
         assertThat(outcome.summary())
                 .contains("forbidden path: forbidden/secret.txt")
-                .contains("outside allowed paths: forbidden/secret.txt")
                 .contains("rename removes source path: forbidden/secret.txt");
+        assertThat(outcome.evidence().get("approvalRequiredPaths")).isEqualTo(List.of());
     }
 
     @Test
@@ -179,7 +218,8 @@ class VerifierEngineTest {
                 new VerifierSpec("GIT_DIFF", null, null, true,
                         List.of("second.txt"), List.of(), true), Duration.ofSeconds(5));
         assertThat(predecessorViolation.state()).isEqualTo(VerificationState.FAIL);
-        assertThat(predecessorViolation.summary()).contains("outside allowed paths: first.txt");
+        assertThat(predecessorViolation.summary())
+                .contains("user approval required for outside allowed existing file: first.txt");
         assertThat(project.resolve(".loopper-data/stage-baselines/task-stage/objects")).isDirectory();
         assertThat(project.resolve(".loopper-data/stage-baselines/task-stage/indexes/stage-one.index")).isRegularFile();
         assertThat(project.resolve(".loopper-data/stage-baselines/task-stage/indexes/stage-two.index")).isRegularFile();

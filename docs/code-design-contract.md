@@ -113,6 +113,11 @@ ownership rules:
   envelope and cannot authorize execution/topology/safety fields merely because an extra property is transport-valid.
   `DesignerSessionService` may select the route and coordinate lifecycle only. Adding this path must
   lower or preserve its legacy line-count ratchet; prompt text and parsing rules do not move back into it.
+- `GitDiffScopeApprovalService` alone classifies approval-eligible outside-allow-list existing-file
+  changes, builds Stage-baseline patch fingerprints, and resolves append-only local decisions. It must
+  not weaken forbidden-path, delete, containment, or baseline failures. `VerifierEngine` owns raw Git
+  change classification and remains fail-closed for callers outside Task orchestration; `TaskService`
+  owns only lifecycle coordination into and out of `WAITING_INPUT`.
 - `DesignerMutationObligationExtractor` alone freezes source-backed positive repository mutation obligations;
   the shared polarity classifier must classify path-bearing facts as positive, negative/example, or ambiguous,
   `DesignerRequirementMutationActionPolicy` binds actions to each referenced path without treating nearby business nouns
