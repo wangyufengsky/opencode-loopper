@@ -110,10 +110,16 @@ longer consuming work. The activity status map may remove an aborted Session bef
 message receives a completion timestamp, so it cannot override a positive abort acknowledgement. A tool-loop
 finalizer is likewise created only after the looping Session's termination is confirmed.
 
-New v6 software-package compilation first runs entirely on the server against frozen DesignFact and
-verification-capability catalogs. The exact Designer Stage table locks names, objectives, order,
+New software-package compilation first runs entirely on the server against frozen DesignFact and
+verification-capability catalogs. Current v7 Designer output separates a `负责路径` write-ownership column from
+scenario/review/delivery inclusion; frozen v6 output retains its historical four columns. The exact Stage table locks names, objectives, order,
 dependencies, and every uniquely resolved fact. A complete ordinary `DIRECT_SOFTWARE_DESIGN / WP-1`
 therefore creates no OpenCode Compiler Session and consumes no model call.
+
+When v7 path ownership is unresolved, recompiling the unchanged design revision is rejected before any new Session.
+Scoped package feedback and explicit package recovery remain read-only and create a full replacement-design prompt
+containing every unresolved project-relative path and candidate Stage. The model is asked to fill the responsibility
+column, but duplicate or ambiguous ownership remains a deterministic server block.
 
 For current v7, only unresolved closed-set facts or a true global capability-score tie create one
 `COMPILER_BINDING_NO_TOOLS` Session; package shape and a handoff summary alone do not. All built-in

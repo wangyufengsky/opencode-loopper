@@ -710,6 +710,131 @@ class DesignerAcceptancePlanningAlgorithmTest {
     }
 
     @Test
+    void v7UsesTheResponsiblePathColumnAsExplicitMultiStageOwnership() {
+        String design = """
+                ## 目标与范围
+                实现配置适配和回退行为。
+
+                ## 影响与交付
+                | 类型 | 相对路径或符号 | 说明 |
+                | --- | --- | --- |
+                | 修改 | config/external-adapter.yml | 适配配置 |
+                | 修改 | src/main/java/example/AdapterService.java | 适配实现 |
+                | 新增测试 | src/test/java/example/AdapterServiceTest.java | 适配配置生效 |
+                | 修改 | src/main/java/example/FallbackService.java | 回退实现 |
+                | 新增测试 | src/test/java/example/FallbackServiceTest.java | 回退策略生效 |
+
+                ## 验收场景
+                | 场景 | 前置/触发 | 操作 | 可观察结果 | 保持不变 |
+                | --- | --- | --- | --- | --- |
+                | 适配配置生效 | 配置 adapter | 调用适配服务 | 返回适配结果 | 不写外部系统 |
+                | 回退策略生效 | 适配器失败 | 调用回退服务 | 返回回退结果 | 原始错误保留 |
+
+                ## 验收约束
+                AdapterServiceTest 与 FallbackServiceTest 必须各自独立通过。
+
+                ## 阶段与依赖
+                | 阶段 | 目标 | 负责路径 | 包含场景/评审/交付 | 前置阶段 |
+                | --- | --- | --- | --- | --- |
+                | 适配配置 | 实现并验证配置适配 | config/external-adapter.yml | 适配配置生效；src/main/java/example/AdapterService.java；src/test/java/example/AdapterServiceTest.java | 无 |
+                | 回退实现 | 实现并验证回退策略 | src/main/java/example/FallbackService.java；src/test/java/example/FallbackServiceTest.java | 回退策略生效；src/main/java/example/FallbackService.java；src/test/java/example/FallbackServiceTest.java | 适配配置 |
+                """;
+        Catalog base = extractor.extract("WP-1", 1, design, CONTRACT_VERSION_V7);
+        Catalog facts = mutationCatalog(base, List.of(
+                mutation(0, "config/external-adapter.yml", MutationOperation.WRITE)));
+        WorkPackageRoleService.View role = role("software-java", List.of("java"));
+        CapabilityCatalog capabilities = registry.build(facts, role, design);
+        DesignerAcceptanceFastPathResolver.Resolution resolution =
+                new DesignerAcceptanceFastPathResolver().resolve(facts, capabilities);
+
+        assertThat(resolution.outcome()).isEqualTo(DesignerAcceptanceFastPathResolver.Outcome.RESOLVED);
+        DesignerAcceptancePlanCompiler.Result result = compiler.compile(workPackage(), design, facts, capabilities,
+                new CompactAcceptanceBindingPlan("两阶段验收", resolution.groupHints(), List.of(), "待验证"),
+                role, List.of(), List.of(), List.of("配置适配和回退行为"), 6, true);
+
+        assertThat(result.plan().status()).isEqualTo("COMPILED");
+        assertThat(result.plan().stages()).hasSize(2);
+        assertThat(result.plan().stages().getFirst().allowedPaths())
+                .contains("config/external-adapter.yml");
+        assertThat(result.plan().stages().get(1).allowedPaths())
+                .doesNotContain("config/external-adapter.yml");
+        assertThat(result.mutationConservation().pathConservation()).isEqualTo("CONSERVED");
+        assertThat(result.normalizations()).contains("MUTATION_PATH_EXPLICIT_RESPONSIBILITY_BOUND");
+    }
+
+    @Test
+    void v7BlocksAResponsiblePathDeclaredByMultipleStages() {
+        Catalog facts = new Catalog(CONTRACT_VERSION_V7, "WP-1", 1, "5".repeat(64), true,
+                List.of(), List.of(),
+                List.of(mutation(0, "config/external-adapter.yml", MutationOperation.WRITE)),
+                List.of(), List.of());
+        DesignerAcceptanceStagePathPlanner.Selection selection =
+                new DesignerAcceptanceStagePathPlanner.Selection(List.of("config/*.yml"), List.of("config/*.yml"));
+
+        DesignerMutationStageBinder.Resolution result = new DesignerMutationStageBinder().bind(facts, List.of(
+                new DesignerMutationStageBinder.StageInput("适配配置", "实现适配配置", List.of(), selection,
+                        List.of("config/*.yml")),
+                new DesignerMutationStageBinder.StageInput("回退配置", "实现回退配置", List.of(), selection,
+                        List.of("config/*.yml"))));
+
+        assertThat(result.assignments()).isEmpty();
+        assertThat(result.unresolved()).singleElement().satisfies(unresolved -> {
+            assertThat(unresolved.candidateStageIndexes()).containsExactly(0, 1);
+            assertThat(unresolved.reason()).contains("负责路径列", "适配配置", "回退配置");
+        });
+        assertThat(result.normalizations()).contains("MUTATION_PATH_AMBIGUOUS_STAGE_BLOCKED");
+    }
+
+    @Test
+    void v7UsesAnExactUniqueDeliverableSymbolToRecoverLegacyFourColumnOwnership() {
+        String design = """
+                ## 目标与范围
+                实现调度场景与引擎能力。
+
+                ## 影响与交付
+                | 类型 | 相对路径或符号 | 说明 |
+                | --- | --- | --- |
+                | 新增 | src/main/java/com/spdb/upfs/schedule/ScheduleSceneEnum.java | 调度场景枚举 |
+                | 新增 | src/main/java/com/spdb/upfs/schedule/SchedulerEngine.java | 调度引擎 |
+                | 新增测试 | src/test/java/com/spdb/upfs/schedule/SchedulerEngineTest.java | 引擎验收 |
+
+                ## 验收场景
+                | 场景 | 前置/触发 | 操作 | 可观察结果 | 保持不变 |
+                | --- | --- | --- | --- | --- |
+                | 场景编码可用 | 已定义调度场景 | 查询编码 | 返回稳定编码 | 枚举不可变 |
+                | 到期任务执行 | 已注册任务 | 调用 tick | 动作被调用 | 同步执行 |
+
+                ## 验收约束
+                SchedulerEngineTest 必须独立通过。
+
+                ## 阶段与依赖
+                | 阶段 | 目标 | 包含场景/评审/交付 | 前置阶段 |
+                | --- | --- | --- | --- |
+                | 任务定义 | 交付 ScheduleSceneEnum 与不可变任务定义 | 场景编码可用 | 无 |
+                | 调度引擎 | 交付 SchedulerEngine 并通过 SchedulerEngineTest | 到期任务执行；src/main/java/com/spdb/upfs/schedule/SchedulerEngine.java；src/test/java/com/spdb/upfs/schedule/SchedulerEngineTest.java | 任务定义 |
+                """;
+        Catalog base = extractor.extract("WP-1", 1, design, CONTRACT_VERSION_V7);
+        Catalog facts = mutationCatalog(base, List.of(mutation(0,
+                "src/main/java/com/spdb/upfs/schedule/ScheduleSceneEnum.java", MutationOperation.WRITE)));
+        WorkPackageRoleService.View role = role("software-java", List.of("java"));
+        CapabilityCatalog capabilities = registry.build(facts, role, design);
+        DesignerAcceptanceFastPathResolver.Resolution resolution =
+                new DesignerAcceptanceFastPathResolver().resolve(facts, capabilities);
+
+        assertThat(resolution.outcome()).isEqualTo(DesignerAcceptanceFastPathResolver.Outcome.RESOLVED);
+        DesignerAcceptancePlanCompiler.Result result = compiler.compile(workPackage(), design, facts, capabilities,
+                new CompactAcceptanceBindingPlan("两阶段验收", resolution.groupHints(), List.of(), "待验证"),
+                role, List.of(), List.of(), List.of("调度场景与引擎能力"), 6, true);
+
+        assertThat(result.plan().status()).isEqualTo("COMPILED");
+        assertThat(result.plan().stages().getFirst().allowedPaths())
+                .contains("src/main/java/com/spdb/upfs/schedule/ScheduleSceneEnum.java");
+        assertThat(result.plan().stages().get(1).allowedPaths())
+                .doesNotContain("src/main/java/com/spdb/upfs/schedule/ScheduleSceneEnum.java");
+        assertThat(result.normalizations()).contains("MUTATION_PATH_UNIQUE_DELIVERABLE_SYMBOL_BOUND");
+    }
+
+    @Test
     void v7KeepsMultipleIndirectStageCandidatesBlockedWithoutAWeakModelAssignment() {
         Fact sharedRule = new Fact(0, FactKind.DELIVERABLE, "config/*.yml", null, null,
                 null, null, "修改：共享配置规则", "DS-L010", "config/*.yml", "4".repeat(64));

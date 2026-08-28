@@ -130,7 +130,9 @@ Decomposer 返回 `READY | NEEDS_INPUT | MULTI_TASK_REQUIRED`、规范目标、�
 新软件设计先使用固定受控 Markdown：`目标与范围`、`影响与交付`、`验收场景`、可选
 `人工评审项`、`验收约束`、`阶段与依赖`。验收场景表固定为“场景 / 前置或触发 / 操作 /
 可观察结果 / 保持不变”，对应 EARS 条件/触发/响应/不变量，也可直接表达 Given/When/Then/And。
-`阶段与依赖` 表固定为“阶段 / 目标 / 包含场景/评审/交付 / 前置阶段”；“包含”只能原样引用
+当前 v7 的 `阶段与依赖` 表固定为“阶段 / 目标 / 负责路径 / 包含场景/评审/交付 / 前置阶段”，
+冻结 v6 继续读取历史四列。`负责路径` 只列该阶段承担写入责任的仓库相对路径/规则，每条必改路径必须有且仅有
+一个可证明阶段，不能把整包路径复制到每个阶段；“包含”只能原样引用
 前文标题，多项使用中文或英文分号分隔，前置阶段只能原样引用更早阶段，空值或“无”表示无依赖。
 原 Markdown 始终保留，不会被 AI 摘要替代。
 
@@ -143,7 +145,7 @@ POLICY / DEPENDENCY` DesignFact。每项事实保存精确 Designer 原文、稳
 的正向新增/修改/实现/写入路径、受控 `DELIVERABLE / SCOPE` 正向路径以及冻结工作包中的显式路径规则生成
 `WRITE / DELETE_REQUEST / MOVE_SOURCE / MOVE_DESTINATION`；每项区分精确路径与路径规则，并保存来源引用、有界原文和 SHA-256。
 否定、不变、示例、纯符号和项目根外路径不生成义务。需求、受控设计或冻结包级的宽泛 glob 会保留为
-可审计路径规则义务，但不会变成写权限或精确 Stage 归属证明，因而在本轮形成定点缺口。冻结 v5/v6 JSON 缺少该列表时按空列表恢复，不重新
+可审计路径规则义务，但不会自行变成写权限；必须由唯一 Stage 的显式负责路径或另一条运行期可证明规则承接。冻结 v5/v6 JSON 缺少该列表时按空列表恢复，不重新
 读取新需求推断；冻结 `dynamic-v6` 工作包升级后首次编译仍使用 V6 合同。
 
 服务端先用 `DesignerAcceptanceFastPathResolver` 解析 v6 阶段表。符号只做 Unicode NFKC、首尾裁剪、
@@ -171,16 +173,19 @@ capabilityPreferences / handoffSummary`，只填写服务端列出的 unresolved
 并失败关闭，不允许把贪心结果或模型选择冒充权威最优解。AI 偏好不参与服务端评分。结果仍须经过现有
 `DesignerPackagePlanCompiler` 和 LoopSpec v2 全量校验。
 
-Stage 组装完成后，服务端只接受三种路径归属证明：Stage 精确引用产生义务的受控交付/范围事实；恰好一个
-Stage 的既有精确路径规则按运行期语义覆盖义务；或计划恰好一个 Stage 时把精确 `WRITE/MOVE_DESTINATION`
-路径补入该 Stage。多个 Stage 均可覆盖时保留为定点阻断并显示候选 Stage 中文名，不交给 Compiler 选择。
+Stage 组装完成后，服务端优先接受 `负责路径` 的唯一显式声明，随后兼容 Stage 精确引用产生义务的受控
+交付/范围事实、恰好一个 Stage 的既有精确路径规则、旧四列表格中仅一个阶段目标出现的精确文件名/类名/
+末尾路径符号，或计划恰好一个 Stage 时补入精确 `WRITE/MOVE_DESTINATION`。旧格式符号恢复只做 NFKC 后的
+完整 token 匹配，不做包含、相似度或语义猜测。多个 Stage 声明、覆盖或出现同一符号时保留为定点阻断并
+显示候选 Stage 中文名，不交给 Compiler 选择。
 随后在 lowering 前执行路径守恒：义务不能命中禁止路径，包级范围、全局事实和技术栈 fallback 不能单独证明归属。
 Stage、focused test 和显式 `GIT_DIFF` 必须复用同一
 allowed/forbidden 集合。遗漏返回 `REQUIRED_MUTATION_PATH_UNASSIGNED`，冲突、删除和移动源端返回
 `REQUIRED_MUTATION_PATH_FORBIDDEN`。该门禁完全由服务端和运行期同一匹配语义决定，不交给弱模型、
 Judge 或 catch-all Stage 降级；路径义务不进入模型输入输出，v7 最小闭集输出形状不增加执行字段。
 当前 v7 普通包、大型任务包和滚动执行当前包在服务端绑定完整时都走 `SERVER_DIRECT`，不因包形态强制创建
-Compiler Session。路径归属缺口直接进入有界人工输入门，不消耗整份工作包的自动重设计次数。
+Compiler Session。路径归属缺口直接进入有界人工输入门，不消耗整份工作包的自动重设计次数；相同设计修订
+禁止原样重编译，工作包输入框与“恢复当前包设计”会把全部未归属路径和候选阶段注入完整替代设计提示。
 
 测试能力只从“新增/修改/测试代码”等正向交付物、正向验收约束和阶段交付关系中发现；“不变、禁止、
 不修改、不引入、无 `@SpringBootTest`/无框架上下文”等负向子句只保留为约束，不能生成 focused-test

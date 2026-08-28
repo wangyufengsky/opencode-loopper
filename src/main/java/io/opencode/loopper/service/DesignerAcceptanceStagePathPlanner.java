@@ -12,12 +12,21 @@ final class DesignerAcceptanceStagePathPlanner {
 
     Selection select(Catalog catalog, List<Integer> materialFactIndexes, List<String> scopeIn,
                      WorkPackageRoleService.View role) {
+        return select(catalog, materialFactIndexes, List.of(), scopeIn, role);
+    }
+
+    Selection select(Catalog catalog, List<Integer> materialFactIndexes, List<String> responsiblePaths,
+                     List<String> scopeIn, WorkPackageRoleService.View role) {
         boolean mutationContract = CONTRACT_VERSION_V7.equals(catalog.contractVersion());
         List<String> local = mutationContract ? pathPolicy.positivePaths(catalog, materialFactIndexes)
                 : pathPolicy.paths(catalog, materialFactIndexes);
         List<String> justified = mutationContract ? pathPolicy.precisePositivePaths(catalog, materialFactIndexes)
                 : pathPolicy.precisePaths(catalog, materialFactIndexes);
-        LinkedHashSet<String> paths = new LinkedHashSet<>(local);
+        List<String> declared = pathPolicy.paths(responsiblePaths);
+        LinkedHashSet<String> paths = new LinkedHashSet<>(declared);
+        paths.addAll(local);
+        LinkedHashSet<String> responsibilityEvidence = new LinkedHashSet<>(declared);
+        responsibilityEvidence.addAll(justified);
         if (paths.isEmpty()) paths.addAll(pathPolicy.paths(scopeIn));
         if (paths.isEmpty()) {
             List<Integer> allFacts = catalog.facts().stream().map(Fact::index).toList();
@@ -32,7 +41,7 @@ final class DesignerAcceptanceStagePathPlanner {
         } else if (paths.isEmpty()) {
             paths.add("src/**");
         }
-        return new Selection(List.copyOf(paths), List.copyOf(justified));
+        return new Selection(List.copyOf(paths), List.copyOf(responsibilityEvidence));
     }
 
     List<String> deliverables(Catalog catalog, List<Integer> materialFactIndexes, List<String> frozen) {

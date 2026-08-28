@@ -484,7 +484,10 @@ and stage dependencies. The acceptance table records scenario, precondition/trig
 action, observable result, and invariant. Designer must not emit internal WP/AC/DS-L
 ids, LoopSpec JSON, or executable argv; it names repository-native test classes or
 targets and independence constraints, while the server creates safe capabilities.
-The v6 Stage table is exactly `阶段 | 目标 | 包含场景/评审/交付 | 前置阶段`.
+Current v7 designs use exactly `阶段 | 目标 | 负责路径 | 包含场景/评审/交付 | 前置阶段`;
+frozen v6 designs keep the historical four-column shape.
+The responsibility cell lists repository-relative paths or path rules owned for writes by that Stage.
+Every required create/write/move destination must have one provable owner; repeating it across Stages is blocking.
 The inclusion cell copies earlier titles verbatim and separates multiple names with `；` or `;`;
 dependencies copy only earlier Stage titles, while blank or `无` means no dependency.
 This is a DMN-inspired decision-table input, not a second DMN runtime: rows stay readable
@@ -502,8 +505,8 @@ positively scoped repository-relative paths in the requirement, controlled deliv
 and explicit frozen package path rules. Each obligation is typed as an exact path or path rule and retains
 its source reference, bounded excerpt, and SHA-256. Negative/invariant/example text, symbols, and
 project-external paths produce no write obligation. Broad globs from requirements, controlled design, or
-frozen package fields remain auditable path-rule obligations, but cannot create write permission or prove
-precise Stage ownership and therefore remain a targeted gap in this ticket. Delete requests and move sources remain
+frozen package fields remain auditable path-rule obligations and cannot create write permission by themselves;
+they require one explicit Stage responsibility or another uniquely covering runtime-compatible Stage rule. Delete requests and move sources remain
 explicit blocking operations. Historical v5/v6 JSON without this catalog reads as an empty catalog and
 is never reinterpreted from newer requirement text; a frozen `dynamic-v6` package that compiles after an
 upgrade still creates a V6 acceptance snapshot rather than being rewritten as V7.
@@ -583,9 +586,11 @@ Loopper never invents a test from prose, a broad full-suite command, or an ambig
 set of focused tests. Ambiguous or absent source matches and semantically incomplete
 test evidence still fail the authoritative validation.
 
-For v7 plans, `DesignerMutationStageBinder` runs after Stage assembly and accepts only an exact controlled
-fact reference, one uniquely covering existing Stage rule, or an exact write/move-destination path added to
-the plan's only Stage. Multiple matching Stages remain blocked and are never delegated to the Compiler.
+For v7 plans, `DesignerMutationStageBinder` runs after Stage assembly. It first honors one explicit
+`负责路径` owner, then accepts an exact controlled fact reference, one uniquely covering existing Stage rule,
+an exact legacy file/class/path-tail symbol present in exactly one Stage title/objective, or an exact
+write/move-destination path added to the plan's only Stage. Symbol recovery is token-exact, never fuzzy; duplicate
+responsibility or multiple symbol/rule matches remain blocked and are never delegated to the Compiler.
 `MutationConservationPolicy` then runs before package lowering. Every frozen `WRITE` or move destination must
 have one of those justified Stage owners whose `allowedPaths`
 covers it with the runtime `VerifierPathPolicy` semantics, and no effective forbidden rule may cover
@@ -599,7 +604,9 @@ binding reasons, and Stage names without internal indexes or raw JSON. These gap
 Judge-only acceptance or a catch-all Stage.
 For the current V7 role pack, the same server-direct path applies to direct packages, large-task packages, and the
 active rolling package whenever closed facts and capabilities are resolved. Mutation ownership gaps wait for targeted
-human input and do not spend the package's complete-redesign budget.
+human input and do not spend the package's complete-redesign budget. The UI disables unchanged recompilation,
+keeps scoped package feedback open, and sends all unresolved paths/candidate Stage names into a complete-replacement
+Designer recovery prompt; generic compilation retry cannot loop over the same design revision.
 
 Stage grouping preserves the non-acceptance facts referenced by each group. Those
 positive deliverable/scope facts produce that Stage's path and deliverable boundary;

@@ -90,9 +90,10 @@ final class DesignerAcceptancePlanCompiler {
         }
         ensureAcyclic(groups);
         List<DesignerMutationStageBinder.StageInput> mutationStages = groups.stream()
-                .map(group -> new DesignerMutationStageBinder.StageInput(group.title(),
+                .map(group -> new DesignerMutationStageBinder.StageInput(group.title(), group.objective(),
                         group.materialFactIndexes(),
-                        stagePathPlanner.select(facts, group.materialFactIndexes(), scopeIn, role)))
+                        stagePathPlanner.select(facts, group.materialFactIndexes(), group.responsiblePaths(),
+                                scopeIn, role), group.responsiblePaths()))
                 .toList();
         DesignerMutationStageBinder.Resolution mutationBindings = mutationStageBinder.bind(facts, mutationStages);
         return new Preparation(binding, acceptanceFacts, groups, mutationBindings);
@@ -266,7 +267,7 @@ final class DesignerAcceptancePlanCompiler {
         List<Integer> allMaterial = validFacts.stream().filter(index -> !validAcceptance.contains(index)).toList();
         if (binding.groupHints().isEmpty()) {
             return List.of(new Group("实现与验证", "实现并验证验收场景",
-                    List.copyOf(validAcceptance), allMaterial, List.of()));
+                    List.copyOf(validAcceptance), allMaterial, List.of(), List.of()));
         }
         List<Group> result = new ArrayList<>();
         LinkedHashSet<Integer> assigned = new LinkedHashSet<>();
@@ -282,12 +283,19 @@ final class DesignerAcceptancePlanCompiler {
             result.add(new Group(blank(title) ? "实现与验证" : title,
                     blank(objective) ? "实现并验证验收场景" : objective, acceptanceIndexes,
                     materialIndexes,
-                    hint.dependsOnHintIndexes()));
+                    hint.dependsOnHintIndexes(), responsiblePaths(catalog, title)));
         }
         List<Integer> remaining = validAcceptance.stream().filter(index -> !assigned.contains(index)).toList();
         if (!remaining.isEmpty()) result.add(new Group("其余验收场景", "实现并验证其余验收场景",
-                remaining, List.of(), List.of()));
+                remaining, List.of(), List.of(), List.of()));
         return List.copyOf(result);
+    }
+
+    private static List<String> responsiblePaths(Catalog catalog, String title) {
+        if (blank(title)) return List.of();
+        List<StageHint> matches = catalog.stageHints().stream()
+                .filter(stage -> !blank(stage.title()) && stage.title().strip().equals(title.strip())).toList();
+        return matches.size() == 1 ? matches.getFirst().responsiblePaths() : List.of();
     }
 
     private static void ensureAcyclic(List<Group> groups) {
@@ -343,5 +351,6 @@ final class DesignerAcceptancePlanCompiler {
                               long explored, boolean fallback, int selectedCount, List<Integer> uncovered,
                               Group gateGap, List<Capability> independentRequired, boolean exhaustive) { }
     private record Group(String title, String objective, List<Integer> acceptanceFactIndexes,
-                         List<Integer> materialFactIndexes, List<Integer> dependsOn) { }
+                         List<Integer> materialFactIndexes, List<Integer> dependsOn,
+                         List<String> responsiblePaths) { }
 }

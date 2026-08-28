@@ -1350,6 +1350,69 @@ describe('Designer draft composer', () => {
     expect(redesign).toHaveBeenCalledWith(decomposedSession.id, 'WP-2')
   })
 
+  it('blocks unchanged recompilation and opens targeted package feedback for mutation ownership gaps', async () => {
+    const mutationGapSession: DesignerSession = {
+      ...session,
+      state: 'WAITING_INPUT', workflowPhase: 'FAILED', activeActor: 'SYSTEM',
+      finalConfirmationEligible: false,
+      requirementRevision: 2, activeWorkPackageId: 'WP-1', discussionScope: 'WP-1', discussionRevision: 4,
+      workPackages: [{
+        id: 'WP-1', ordinal: 0, title: '定时任务框架', objective: '交付单包多阶段定时任务框架',
+        dependencies: [], state: 'WAITING_INPUT', redesignCount: 0, compilerRepairCount: 0,
+        compilerPlanningRepairCount: 0, designRevision: 2, discussionRoundCount: 0,
+        lastErrorCode: 'DESIGN_INCOMPLETE',
+        acceptancePlanning: {
+          state: 'FAILED', bindingSource: 'SERVER_STAGE_HINTS', routingReasons: ['存在尚未归属阶段的验收事实'],
+          factCount: 47, scenarioCount: 18, automatedCount: 16, bothCount: 0, judgeCount: 2,
+          unresolvedCount: 0, mutationObligationCount: 24, resolvedMutationObligationCount: 0,
+          unresolvedMutationObligationCount: 24, pathConservation: 'BLOCKED',
+          mutationBindingReasons: [
+            'src/main/java/com/spdb/upfs/schedule/ScheduleSceneEnum.java：必改路径没有可证明的阶段归属',
+          ],
+          scenarios: [], issues: ['REQUIRED_MUTATION_PATH_UNASSIGNED'],
+        },
+      }],
+      messages: [{
+        id: 'mutation-gap', role: 'SYSTEM', actor: 'SYSTEM',
+        content: '工作流等待人工处理：必改路径没有可证明的阶段归属',
+        deliveryState: 'DESIGN_INCOMPLETE', requirementRevision: 2, workPackageId: 'WP-1', createdAt: 'now',
+      }],
+    }
+    vi.spyOn(api, 'createDraft').mockImplementation(async (spec) => draftFrom(spec))
+    vi.spyOn(api, 'createDesignerSession').mockResolvedValue(mutationGapSession)
+    vi.spyOn(api, 'getDesignerSession').mockResolvedValue(mutationGapSession)
+    const retry = vi.spyOn(api, 'retryWorkPackageCompiler').mockResolvedValue(undefined)
+    const redesign = vi.spyOn(api, 'redesignWorkPackage').mockResolvedValue(undefined)
+    const sendPackage = vi.spyOn(api, 'sendWorkPackageMessage').mockResolvedValue({
+      sessionId: mutationGapSession.id, state: 'RUNNING', persistedMessages: [], notice: 'saved',
+    })
+    const wrapper = mountDesigner()
+    await flushPromises()
+    await wrapper.get('textarea[aria-label="草案设计目标"]').setValue('设计一套定时任务框架')
+    await wrapper.get('.create-draft-button').trigger('click')
+    await flushPromises()
+
+    const retryButton = wrapper.findAll('button')
+      .find((button) => button.text().includes('重新编译当前包'))!
+    const redesignButton = wrapper.findAll('button')
+      .find((button) => button.text().includes('恢复当前包设计'))!
+    expect(retryButton.attributes('disabled')).toBeDefined()
+    expect(redesignButton.attributes('disabled')).toBeUndefined()
+    expect(wrapper.text()).toContain('当前设计稿未变化，不能原样重编译')
+    expect(wrapper.text()).toContain('补充阶段负责路径')
+
+    const input = wrapper.get('textarea[aria-label="发送给只读设计师的消息"]')
+    expect(input.attributes('disabled')).toBeUndefined()
+    await input.setValue('请将 ScheduleSceneEnum.java 明确归入任务定义阶段')
+    await wrapper.get('.compose-actions button').trigger('click')
+    await flushPromises()
+
+    expect(sendPackage).toHaveBeenCalledWith(mutationGapSession.id, 'WP-1',
+      '请将 ScheduleSceneEnum.java 明确归入任务定义阶段', 4, 2)
+    expect(retry).not.toHaveBeenCalled()
+    expect(redesign).not.toHaveBeenCalled()
+  })
+
   it('clears the restored workspace and local message drafts when starting over', async () => {
     vi.spyOn(api, 'createDesignerSession').mockResolvedValue({
       ...session, state: 'REVIEWING', workflowPhase: 'DISCUSSING_REQUIREMENT',

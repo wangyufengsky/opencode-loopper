@@ -120,9 +120,14 @@ ownership rules:
   exact-path/path-rule typing. Clause/list scope, external-path rejection, source excerpts, and hashes must remain deterministic.
   `DesignerAcceptanceStagePathPlanner` owns executable Stage path selection and path provenance; package scope,
   global fact and technology fallbacks may shape execution but cannot prove a Stage owns a frozen obligation.
-  `DesignerMutationStageBinder` alone owns v7 deterministic obligation-to-Stage binding: exact controlled fact
-  reference, one uniquely covering existing Stage rule, or an exact path added to the only Stage. It must keep
-  real multi-Stage candidates blocked and must not expose mutation choices to the model.
+  `DesignerMutationStageBinder` alone owns v7 deterministic obligation-to-Stage binding: one explicit responsible-path
+  owner, exact controlled fact reference, one uniquely covering existing Stage rule, one token-exact deliverable
+  symbol in a unique legacy Stage title/objective, or an exact path added to the only Stage. It must keep duplicate
+  responsibility and real multi-Stage candidates blocked and must not expose mutation choices to the model.
+  `DesignerMutationOwnershipRecovery` owns the bounded unresolved-path recovery projection and prompt;
+  `DesignerSessionService` may only gate unchanged retry and route scoped feedback/recovery through that
+  collaborator, not recreate path reasoning. `DesignerAcceptanceWorkflow` remains below the default source limit,
+  and this route must not raise the `DesignerSessionService` legacy ratchet.
   `DesignerAcceptanceCapabilitySolver` owns exact branch-and-bound capability cover, bounded greedy fallback,
   the complete business-score tuple, the full set of equal optimal solution signatures, and bounded
   non-exhaustive diagnostics. Stable candidate order may stabilize output but must not collapse a true business tie;

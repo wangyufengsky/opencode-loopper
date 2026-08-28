@@ -118,10 +118,12 @@ final class DesignerDesignFactExtractor {
             } else if (section.contains("阶段与依赖")) {
                 String title = first(values, "阶段建议", "阶段", "stage");
                 String objective = first(values, "目标", "objective");
+                String responsiblePaths = first(values, "负责路径", "责任路径", "ownedpaths", "paths");
                 String included = first(values, "包含场景评审交付", "包含场景交付", "包含场景或交付", "包含场景", "scope");
                 String dependencies = first(values, "前置阶段", "依赖", "depends");
                 stageHints.add(new StageHint(title, objective, references(included),
-                        noDependency(dependencies) ? List.of() : references(dependencies), List.of(), List.of()));
+                        noDependency(dependencies) ? List.of() : references(dependencies), List.of(), List.of(),
+                        references(responsiblePaths)));
                 add(facts, FactKind.DEPENDENCY, title, null, null, null, null,
                         "前置阶段：" + dependencies, ref, excerpt);
             }

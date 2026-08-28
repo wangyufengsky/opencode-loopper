@@ -95,13 +95,13 @@ public class DesignerSessionService {
     private final DesignerEvidenceIndexer evidenceIndexer;
     private final DesignerPackagePlanCompiler packagePlanCompiler;
     private final DesignerAcceptanceWorkflow acceptanceWorkflow;
+    private final DesignerMutationOwnershipRecovery mutationOwnershipRecovery;
     private final AiRepairPatchService repairPatchService;
     private final DesignerEventHub events;
     private final TaskProfileService taskProfiles;
     private final DesignerSessionRuntimeControl runtimeControl;
     private final RolePromptComposer rolePrompts;
-    private final DesignerConversationPromptFactory conversationPrompts =
-            new DesignerConversationPromptFactory();
+    private final DesignerConversationPromptFactory conversationPrompts = new DesignerConversationPromptFactory();
     private final DesignerDecompositionPromptFactory decompositionPrompts;
     private final DesignerPackageContext packageContext;
     private final DesignerPackagePromptFactory packagePrompts;
@@ -132,6 +132,7 @@ public class DesignerSessionService {
         this.evidenceIndexer = evidenceIndexer;
         this.packagePlanCompiler = new DesignerPackagePlanCompiler(evidenceIndexer);
         this.acceptanceWorkflow = new DesignerAcceptanceWorkflow(mapper, json, aiOutputExtractor, lifecycle, evidenceIndexer, packagePlanCompiler);
+        this.mutationOwnershipRecovery = new DesignerMutationOwnershipRecovery(mapper, acceptanceWorkflow);
         this.repairPatchService = repairPatchService;
         this.events = events;
         this.taskProfiles = taskProfiles;
@@ -841,7 +842,8 @@ public class DesignerSessionService {
             return answerPackageChatQuestion(session, workPackage, currentDiscussion, content,
                     expectedDesignRevision);
         }
-        if (!DesignWorkPackageState.REVIEWING.name().equals(workPackage.state())) {
+        var recovery = mutationOwnershipRecovery.forWaitingInput(session, workPackage);
+        if (!recovery.acceptsFeedback(workPackage)) {
             throw new ConflictException("WORK_PACKAGE_NOT_REVIEWING", "只有待确认工作包可以继续讨论");
         }
         if (workPackage.designRevision() != expectedDesignRevision) {
@@ -855,15 +857,16 @@ public class DesignerSessionService {
                 "PERSISTED", session.currentRequirementRevision(), packageId);
         int discussionRevision = nextDiscussionRevision(session.id(), packageId);
         boolean directSoftware = directSoftwareMode(session.id());
-        createDiscussion(session, packageId, packageId, discussionRevision, user.id(), 0, !directSoftware);
-        DesignWorkPackageRow revised = updateWorkPackage(workPackage, DesignWorkPackageState.REVIEWING,
+        if (recovery.required()) reactivateRequirement(currentRequirement(sessionId), true);
+        createDiscussion(session, packageId, packageId, discussionRevision, user.id(), 0, !recovery.required() && !directSoftware);
+        DesignWorkPackageRow revised = updateWorkPackage(workPackage, recovery.nextState(),
                 workPackage.designerExternalSessionId(), workPackage.designerExternalSessionState(),
                 workPackage.designMessageId(), workPackage.designRevision(), workPackage.redesignCount(),
                 workPackage.designerTransportRetryCount(), workPackage.compilerSummary(), workPackage.handoffSummary(),
                 null, null, null, workPackage.discussionRoundCount() + 1, null, null);
         dispatchPackageDesigner(get(session.id()), revised,
-                "User feedback for this package:\n" + user.content()
-                        + (directSoftware
+                recovery.promptPrefix() + "User feedback for this package:\n" + user.content()
+                        + (directSoftware || recovery.required()
                                 ? "\nProduce a complete replacement design directly. Do not ask questions."
                                 : "\nProduce a complete replacement design after the mandatory questions."), false);
         return List.of(user);
@@ -1280,6 +1283,7 @@ public class DesignerSessionService {
             throw new ConflictException("DESIGN_WORKFLOW_BUSY", "The design workflow is still running");
         }
         DesignWorkPackageRow workPackage = requireCurrentPackage(session, packageId);
+        mutationOwnershipRecovery.rejectUnchanged(session, workPackage);
         reactivateRequirement(currentRequirement(sessionId), true);
         DesignerMessageRow source = designMessage(workPackage);
         DesignWorkPackageRow compiling = updateWorkPackage(workPackage, DesignWorkPackageState.COMPILING,
@@ -1300,7 +1304,7 @@ public class DesignerSessionService {
         }
         DesignWorkPackageRow workPackage = requireCurrentPackage(session, packageId);
         reactivateRequirement(currentRequirement(sessionId), true);
-        dispatchPackageDesigner(session, workPackage, redesignPrompt("人工要求重新设计当前工作包完整方案"), true);
+        dispatchPackageDesigner(session, workPackage, mutationOwnershipRecovery.promptOr(session, workPackage, conversationPrompts.redesign("人工要求重新设计当前工作包完整方案")), true);
     }
 
     /** External model calls are deliberately outside a surrounding database transaction. */
@@ -2474,7 +2478,7 @@ public class DesignerSessionService {
             appendMessage(session.id(), DesignerActor.COMPILER,
                     "设计稿暂不可编译：\n" + summarizeGaps(gaps), "DESIGN_INCOMPLETE");
             if (session.redesignCount() < MAX_AUTOMATIC_REDESIGNS) {
-                dispatchDesigner(get(session.id()), redesignPrompt(summarizeGaps(gaps)),
+                dispatchDesigner(get(session.id()), conversationPrompts.redesign(summarizeGaps(gaps)),
                         DesignWorkflowPhase.REDESIGNING, session.redesignCount() + 1);
             } else {
                 failWorkflow(get(session.id()), "DESIGN_RETRY_EXHAUSTED",
@@ -2570,7 +2574,7 @@ public class DesignerSessionService {
                     "DESIGN_INCOMPLETE", session.currentRequirementRevision(), workPackage.packageId());
             DesignGap mutationGap = acceptanceWorkflow.targetedMutationGap(gaps);
             if (mutationGap == null && workPackage.redesignCount() < MAX_AUTOMATIC_REDESIGNS) {
-                dispatchPackageDesigner(get(session.id()), waiting, redesignPrompt(summarizeGaps(gaps)), true);
+                dispatchPackageDesigner(get(session.id()), waiting, conversationPrompts.redesign(summarizeGaps(gaps)), true);
             } else {
                 waitForDesignInput(session, currentRequirement(session.id()), waiting,
                         mutationGap == null ? "DESIGN_RETRY_EXHAUSTED" : mutationGap.code().name(), summarizeGaps(gaps));
@@ -4548,10 +4552,6 @@ public class DesignerSessionService {
 
     private String compilerRepairPrompt(LoopSpecCompilationRow compilation, String code, String detail) {
         return conversationPrompts.compilerRepair(compilation.repairCount(), MAX_COMPILER_REPAIRS, code, detail);
-    }
-
-    private String redesignPrompt(String gaps) {
-        return conversationPrompts.redesign(gaps);
     }
 
     private DesignerMessageRow latestDesign(String sessionId) {

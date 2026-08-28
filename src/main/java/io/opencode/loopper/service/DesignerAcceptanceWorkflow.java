@@ -532,8 +532,10 @@ final class DesignerAcceptanceWorkflow {
 
     private static String bindingReason(MutationConservationPolicy.Binding binding) {
         String source = switch (binding.source()) {
+            case EXPLICIT_RESPONSIBLE_PATH -> "阶段负责路径声明";
             case EXACT_FACT_REFERENCE -> "精确设计事实引用";
             case UNIQUE_PATH_COVERAGE -> "唯一阶段路径覆盖";
+            case UNIQUE_DELIVERABLE_SYMBOL -> "唯一交付符号匹配";
             case SINGLE_STAGE -> "单阶段精确路径补齐";
         };
         return binding.pathRule() + "：" + source + "，归属阶段："

@@ -102,8 +102,13 @@ final class DesignerPackagePromptFactory {
                 State repository-native test classes or test targets that must pass independently, forbidden
                 external dependencies, and test-isolation constraints. Do not write shell commands or argv.
                 ## 阶段与依赖
-                | 阶段 | 目标 | 包含场景/评审/交付 | 前置阶段 |
+                | 阶段 | 目标 | 负责路径 | 包含场景/评审/交付 | 前置阶段 |
                 Use 1-6 rows in direct mode or 1-3 rows in package mode. Keep stages vertical and dependency ordered.
+                The responsibility column must list repository-relative paths or path rules owned by this stage;
+                separate multiple paths with `；` or `;`. Every path that the requirement or delivery table says
+                must be created, modified, or moved to must have exactly one provable owning stage. Do not copy all
+                package paths into every stage. The responsibility column declares write ownership; it is separate
+                from acceptance and delivery grouping.
                 The inclusion column must quote the exact titles used above; separate multiple titles with `；` or
                 `;`. A prerequisite must quote the exact title of an earlier stage. Use an empty value or `无` when
                 there is no prerequisite. Do not abbreviate, fuzzily match, or refer to “all/remaining scenarios”.

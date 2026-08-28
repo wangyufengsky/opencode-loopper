@@ -3303,6 +3303,46 @@ class DesignerSessionMcpIntegrationTest {
                 Map.entry("v7MutationUnresolved", measured.acceptancePlanning().unresolvedMutationObligationCount()),
                 Map.entry("v7HardGaps", actualHardGaps), Map.entry("v7BlockedHardGaps", blockedHardGaps)),
                 actualFlags);
+
+        assertThatThrownBy(() -> designerSessions.retryPackageCompilation(reviewing.id(), "WP-1"))
+                .isInstanceOfSatisfying(ConflictException.class, error -> {
+                    assertThat(error.code()).isEqualTo("DESIGN_UNCHANGED_RECOMPILE_BLOCKED");
+                    assertThat(error.getMessage()).contains("必改路径", "恢复当前包设计");
+                });
+
+        DesignerSessionRow waitingForFeedback = designerSessions.get(reviewing.id());
+        var waitingPackage = designerSessions.workPackageStatuses(reviewing.id()).getFirst();
+        int feedbackPromptStart = fake().promptHistory().size();
+        designerSessions.appendPackageMessage(reviewing.id(), "WP-1", "请明确配置路径的唯一阶段责任",
+                waitingForFeedback.discussionRevision(), waitingPackage.designRevision());
+        pollUntilSettled(reviewing.id());
+        assertThat(fake().promptHistory().subList(feedbackPromptStart, fake().promptHistory().size()))
+                .anySatisfy(call -> assertThat(call.prompt())
+                        .contains("请明确配置路径的唯一阶段责任", "config/external-adapter.yml", "负责路径"));
+        assertThat(designerSessions.get(reviewing.id()).state()).isEqualTo("WAITING_INPUT");
+
+        String correctedDesign = design
+                .replace("| 阶段 | 目标 | 包含场景/评审/交付 | 前置阶段 |",
+                        "| 阶段 | 目标 | 负责路径 | 包含场景/评审/交付 | 前置阶段 |")
+                .replace("| --- | --- | --- | --- |", "| --- | --- | --- | --- | --- |")
+                .replace("| 适配阶段 | 实现配置适配 | 适配配置生效；config/*.yml；src/main/java/example/AdapterService.java；src/test/java/example/AdapterServiceTest.java | 无 |",
+                        "| 适配阶段 | 实现配置适配 | config/*.yml | 适配配置生效；src/main/java/example/AdapterService.java；src/test/java/example/AdapterServiceTest.java | 无 |")
+                .replace("| 回退阶段 | 实现配置回退 | 回退配置生效；config/*.yml | 适配阶段 |",
+                        "| 回退阶段 | 实现配置回退 | src/main/java/example/FallbackService.java | 回退配置生效 | 适配阶段 |");
+        setPackageDesignerOutput("WP-1", correctedDesign);
+        int promptCountBeforeRecovery = fake().promptHistory().size();
+        designerSessions.requestPackageRedesign(reviewing.id(), "WP-1");
+        pollUntilSettled(reviewing.id());
+
+        assertThat(fake().promptHistory().subList(promptCountBeforeRecovery, fake().promptHistory().size()))
+                .anySatisfy(call -> assertThat(call.prompt())
+                        .contains("config/external-adapter.yml", "适配阶段", "回退阶段", "负责路径"));
+        assertThat(designerSessions.get(reviewing.id()).workflowPhase()).isEqualTo("FINAL_REVIEW");
+        assertThat(designerSessions.workPackageStatuses(reviewing.id())).singleElement()
+                .satisfies(workPackage -> {
+                    assertThat(workPackage.acceptancePlanning().unresolvedMutationObligationCount()).isZero();
+                    assertThat(workPackage.acceptancePlanning().pathConservation()).isEqualTo("CONSERVED");
+                });
         assertThat(mapper.listTasks()).isEmpty();
     }
 

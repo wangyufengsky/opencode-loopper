@@ -591,11 +591,13 @@ New current-role software compilations extend the same immutable V41 JSON row wi
 The freeze boundary receives the exact persisted requirement revision, controlled design, and frozen
 package scope/deliverables once, then stores each positive repository-relative write/delete/move
 obligation as an exact path or path rule with source evidence and hash. Broad globs from requirements,
-controlled design, and frozen package fields remain obligations but cannot become precise Stage proof. v5/v6 rows deserialize missing
+controlled design, and frozen package fields remain obligations but need one explicit responsible Stage or another
+uniquely covering runtime-compatible Stage rule; package scope alone is not proof. v5/v6 rows deserialize missing
 obligation fields as empty and resume under their original semantics; frozen `dynamic-v6` packages create
 V6 snapshots even when their first compilation happens after the upgrade. Before lowering, a server-owned conservation gate proves
-that every write or move destination has a Stage owner justified by an exact controlled fact reference,
-one uniquely covering existing Stage path rule, or the exact path added to the plan's only Stage; is not forbidden; and
+that every write or move destination has a Stage owner justified first by one explicit `负责路径` declaration,
+then by an exact controlled fact reference, one uniquely covering existing Stage path rule, one exact file/class/path-tail
+symbol in a single legacy Stage title/objective, or the exact path added to the plan's only Stage; is not forbidden; and
 uses the same path contract in the Stage, focused test, and `GIT_DIFF`. Unassigned paths return
 `REQUIRED_MUTATION_PATH_UNASSIGNED`; forbidden paths, deletion, and move sources return
 `REQUIRED_MUTATION_PATH_FORBIDDEN`. Diagnostics expose only bounded counts and
@@ -608,6 +610,9 @@ paths are rejected before a Compilation row is created and are never classified 
 For the current V7 role pack, a fully resolved direct package, large-task package, or active rolling package is
 compiled through `SERVER_DIRECT`; package shape alone does not create a Compiler Session. A mutation ownership gap
 transitions the package and Designer session to bounded `WAITING_INPUT` without dispatching a whole-package redesign.
+The same design revision cannot be recompiled unchanged. Scoped human feedback and explicit package recovery both
+produce a full replacement design prompt containing every unresolved path and candidate Stage; ambiguous explicit or
+legacy symbol ownership remains blocked.
 V7 capability resolution evaluates one global closed cover over all coverable facts. Complete coverage and mandatory
 capabilities are hard constraints; the business score then prefers fewer Judge-only capabilities, fewer nondeterministic
 capabilities, fewer total capabilities, and greater evidence strength. Stable indexes only order output. A unique optimum

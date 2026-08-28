@@ -80,12 +80,20 @@ final class DesignerAcceptancePlanning {
 
     record StageHint(String title, String objective, List<String> includedReferences,
                      List<String> dependencyReferences, List<Integer> factIndexes,
-                     List<Integer> dependsOnIndexes) {
+                     List<Integer> dependsOnIndexes, List<String> responsiblePaths) {
+        StageHint(String title, String objective, List<String> includedReferences,
+                  List<String> dependencyReferences, List<Integer> factIndexes,
+                  List<Integer> dependsOnIndexes) {
+            this(title, objective, includedReferences, dependencyReferences, factIndexes,
+                    dependsOnIndexes, List.of());
+        }
+
         StageHint {
             includedReferences = includedReferences == null ? List.of() : List.copyOf(includedReferences);
             dependencyReferences = dependencyReferences == null ? List.of() : List.copyOf(dependencyReferences);
             factIndexes = factIndexes == null ? List.of() : List.copyOf(factIndexes);
             dependsOnIndexes = dependsOnIndexes == null ? List.of() : List.copyOf(dependsOnIndexes);
+            responsiblePaths = responsiblePaths == null ? List.of() : List.copyOf(responsiblePaths);
         }
     }
 
