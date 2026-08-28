@@ -121,6 +121,11 @@ Scoped package feedback and explicit package recovery remain read-only and creat
 containing every unresolved project-relative path and candidate Stage. The model is asked to fill the responsibility
 column, but duplicate or ambiguous ownership remains a deterministic server block.
 
+Requirement-side path discovery does not promote a bare slash-separated identifier to an unclassified mutation path
+from `/` alone. Without an explicit mutation operation, the identifier needs an extension, glob, known repository-root
+segment, or explicit path/directory/file context; explicit write/delete/move operations and all external-path safety
+checks retain their existing fail-closed behavior.
+
 For current v7, only unresolved closed-set facts or a true global capability-score tie create one
 `COMPILER_BINDING_NO_TOOLS` Session; package shape and a handoff summary alone do not. All built-in
 repository tools are denied. `PACKAGE_ACCEPTANCE_CLOSED_CHOICE_V7` returns only `summary`,

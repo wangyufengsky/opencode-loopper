@@ -155,7 +155,12 @@ final class DesignerMutationObligationExtractor {
                 if (active == null) {
                     if (tokens.stream().anyMatch(DesignerMutationObligationExtractor::external)
                             || externalMention(clause)) throw externalPath();
-                    if (!projectRules(tokens).isEmpty()) addIssue(issues, "AMBIGUOUS_MUTATION_PATH_SCOPE");
+                    List<String> unclassifiedPaths = tokens.stream()
+                            .filter(token -> DesignerRepositoryPathSyntax.strongUnclassifiedPath(token, clause))
+                            .toList();
+                    if (!projectRules(unclassifiedPaths).isEmpty()) {
+                        addIssue(issues, "AMBIGUOUS_MUTATION_PATH_SCOPE");
+                    }
                     continue;
                 }
                 if (externalMention(clause)) throw externalPath();

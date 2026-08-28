@@ -511,7 +511,11 @@ explicit blocking operations. Historical v5/v6 JSON without this catalog reads a
 is never reinterpreted from newer requirement text; a frozen `dynamic-v6` package that compiles after an
 upgrade still creates a V6 acceptance snapshot rather than being rewritten as V7.
 Explicit directory references are subtree `PATH_RULE` obligations and require a recursive runtime-compatible allow
-rule; API routes and controlled business symbols remain symbols rather than repository paths. Mutation verbs bind by
+rule; API routes and controlled business symbols remain symbols rather than repository paths. In requirement prose
+without a mutation operation, a bare slash-separated identifier is not classified as a path from `/` alone: an
+extension, glob, known repository-root segment, or explicit path/directory/file context is required to raise an
+unclassified-path block. An explicit write/delete/move operation still turns the complete identifier into a mutation
+obligation. Mutation verbs bind by
 path position, while mixed write/delete/move ownership in one clause fails closed instead of assigning one verb to
 every path. These classifications are v7-only and do not reinterpret frozen v5/v6 Stage path selection.
 

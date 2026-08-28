@@ -1241,6 +1241,32 @@ class DesignerAcceptancePlanningAlgorithmTest {
     }
 
     @Test
+    void v7DoesNotTreatABareSlashSeparatedModuleReferenceAsAnUnclassifiedPath() {
+        Catalog base = new Catalog(CONTRACT_VERSION_V7, "WP-1", 1, "0".repeat(64), true,
+                List.of(), List.of(), List.of());
+        DesignerMutationObligationExtractor mutationExtractor = new DesignerMutationObligationExtractor();
+
+        Catalog reference = mutationExtractor.extract(base,
+                "项目现有 chain/cache/state 均采用注解+工厂注册模式。",
+                List.of(), List.of(), List.of());
+        Catalog explicitMutation = mutationExtractor.extract(base,
+                "修改 chain/cache/state 目录",
+                List.of(), List.of(), List.of());
+        Catalog realUnclassifiedPath = mutationExtractor.extract(base,
+                "处理 src/main/java/example",
+                List.of(), List.of(), List.of());
+
+        assertThat(reference.mutationIssues()).isEmpty();
+        assertThat(reference.mutationObligations()).isEmpty();
+        assertThat(explicitMutation.mutationIssues()).isEmpty();
+        assertThat(explicitMutation.mutationObligations())
+                .extracting(MutationObligation::pathRule, MutationObligation::operation)
+                .containsExactly(org.assertj.core.groups.Tuple.tuple(
+                        "chain/cache/state", MutationOperation.WRITE));
+        assertThat(realUnclassifiedPath.mutationIssues()).contains("AMBIGUOUS_MUTATION_PATH_SCOPE");
+    }
+
+    @Test
     void v7IgnoresControlledHanSlashSymbolsWithoutCreatingAPathGap() {
         Fact symbol = new Fact(0, FactKind.DELIVERABLE, "发布/订阅", null, null,
                 null, null, "新增能力：进程内事件投递", "DS-L001", "受控业务符号", "1".repeat(64));
