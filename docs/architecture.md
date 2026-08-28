@@ -75,6 +75,14 @@ one Session but cannot be the only index, and a temporary API failure must not
 erase that pointer. Confirmation removes the draft from this recovery list at
 the same boundary where the persisted Task becomes discoverable.
 
+## Designer attachment context
+
+V46 adds a deep `DesignerAttachmentContext` module around immutable, untrusted file snapshots. The browser stages files in the current Requirement or Work Package composer and sends them only with non-empty text. The server validates the complete batch before creating the initial Designer Session or appending a later user message, stores bytes below `LOOPPER_DATA_DIR/design-attachments` using content hashes and owner-only paths, and publishes attachment metadata through short SQLite transactions. File I/O, extraction and SHA verification remain outside task-confirmation transactions.
+
+Requirement attachments are global; Work Package attachments are package-local. Router never receives filenames or bytes. Requirement/Package Designer, Decomposer, Compiler and read-only Reviewer receive the active Designer set; Task confirmation freezes it into `task_design_attachment`, and Implementation, Recovery and both Judges use that immutable manifest. Recovery copies the parent manifest with lineage rather than recalculating current Designer state. Same-scope, exact-name replacement and explicit stop-future-use preserve history, require positive termination proof for a reusable old OpenCode Session, and force the next role handoff to create a fresh Session. Attachment content is supplemental data and cannot expand paths, dangerous-operation authority, LoopSpec obligations or verifier/Judge contracts.
+
+The limits are 10 files per message, 20 MiB per file, 50 MiB accumulated per Designer Session and 128 KiB for any deterministic text representation. Supported families are strict UTF-8 text/source (including explicit sensitive filenames), PDF, validated raster images and macro-free DOCX/XLSX/PPTX. Archives, executables, legacy Office, active OOXML and unknown binaries fail closed. No truncation or model summarization is permitted. Preview endpoints recheck containment and SHA; only validated images/PDF are returned inline with `no-store`, `nosniff` and sandboxed CSP.
+
 ## Read models and bounded responses
 
 SQLite remains the authoritative store and runs in WAL mode. Query-facing APIs

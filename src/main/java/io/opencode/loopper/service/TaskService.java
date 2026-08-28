@@ -110,8 +110,8 @@ public class TaskService {
     private final TaskStateStore taskStates;
     private final TaskEvidenceService taskEvidence;
     private final TaskCancellationCoordinator cancellations; private final TaskTerminalConsistencyService terminalConsistency;
-    private final TaskWriterTerminationService writerTermination;
-    private final RollingPackageTaskHooks rollingPackages;
+    private final TaskWriterTerminationService writerTermination; private final RollingPackageTaskHooks rollingPackages;
+    private final DesignerAttachmentContext attachmentContext;
     public TaskService(LoopperMapper mapper, LifecycleTransitionService lifecycle, ObjectMapper json, ProjectService projects,
                        GitWorktreeManager worktrees, DirectWorkspaceLeaseCoordinator directLeases,
                        WorkspaceLeaseReconciliationService leaseReconciliation,
@@ -130,7 +130,7 @@ public class TaskService {
                        TaskExecutionCycleService executionCycles,
                        TaskWorkspaceCheckpointService workspaceCheckpoints,
                        TaskEvidenceService taskEvidence, RollingPackageTaskHooks rollingPackages,
-                       DesignerTerminationService designerTermination, TaskTerminalConsistencyService terminalConsistency,
+                       DesignerTerminationService designerTermination, TaskTerminalConsistencyService terminalConsistency, DesignerAttachmentContext attachmentContext,
                        LoopperProperties defaults,
                        PlatformTransactionManager transactionManager) {
         this.mapper = mapper; this.lifecycle = lifecycle; this.json = json; this.projects = projects;
@@ -144,7 +144,7 @@ public class TaskService {
         this.javaChangeGate = javaChangeGate;
         this.usageInsights = usageInsights; this.events = events;
         this.executionCycles = executionCycles; this.workspaceCheckpoints = workspaceCheckpoints;
-        this.rollingPackages = rollingPackages; this.aiOutputAudit = aiOutputAudit;
+        this.rollingPackages = rollingPackages; this.aiOutputAudit = aiOutputAudit; this.attachmentContext = attachmentContext;
         this.defaults = defaults;
         this.transactions = new TransactionTemplate(transactionManager);
         this.retryPolicy = new TaskRetryPolicy(defaults);
@@ -181,8 +181,10 @@ public class TaskService {
             throw new BadRequestException("REWORK_REPOSITORY_REQUIRED", "新分支重做需要可用的 Git 仓库根目录");
         }
         String source = normalizedAdmissionSource(admissionSource);
+        DesignerAttachmentContext.PreparedFreeze preparedAttachments = mapper.findLatestDesignerSessionByDraft(draft.id())
+                .map(session -> attachmentContext.prepareFreeze(session.id())).orElse(null);
         TaskCreation creation = transactions.execute(status -> persistTaskCreation(
-                draft, spec, project, title, source, isolatedBaseline, confirmDraft));
+                draft, spec, project, title, source, isolatedBaseline, confirmDraft, preparedAttachments));
         if (creation == null) {
             throw new ConflictException("TASK_CREATE_TRANSACTION_FAILED", "Task creation transaction did not complete");
         }
@@ -196,7 +198,8 @@ public class TaskService {
 
     private TaskCreation persistTaskCreation(LoopDraftRow inputDraft, LoopSpec spec, ProjectRow project,
                                              String title, String admissionSource, String isolatedBaseline,
-                                             boolean confirmDraft) {
+                                             boolean confirmDraft,
+                                             DesignerAttachmentContext.PreparedFreeze preparedAttachments) {
         LoopDraftRow draft = mapper.findDraft(inputDraft.id())
                 .orElseThrow(() -> new NotFoundException("Loop draft not found: " + inputDraft.id()));
         if (draft.version() != inputDraft.version()) {
@@ -217,6 +220,10 @@ public class TaskService {
         lifecycle.create(taskStates.subject(LifecycleMachineType.TASK, task.id(), task.id()), task.state(),
                 Map.of("source", admissionSource), () -> mapper.insertTask(task),
                 () -> new ConflictException("TASK_CREATE_CONFLICT", "Task could not be created"));
+        if (preparedAttachments != null) {
+            attachmentContext.freezePrepared(new DesignerAttachmentContext.FreezeForTask(
+                    task.id(), preparedAttachments.designerSessionId(), null), preparedAttachments);
+        }
         taskEvidence.persistConfirmedDesignContext(task, draft);
         int ordinal = 0;
         for (LoopSpec.StageSpec stage : spec.stages()) {
@@ -1461,7 +1468,9 @@ public class TaskService {
                 // row. Provider ids remain on that row and may change across retry.
                 directLeases.heartbeat(inPlaceRoot(freshTask), freshTask.id(), running.id());
             }
-            openCode.promptAsync(remote, boundedPrompt);
+            openCode.promptAsync(remote, attachmentContext.withContext(
+                    DesignerAttachmentContext.ContextUse.task(freshTask.id(), stage.workPackageId()),
+                    OpenCodeClient.PromptRequest.text(boundedPrompt)));
         } catch (SessionFailure failure) {
             handleSessionFailure(freshTask, stage, attempt, session, failure);
             return;
@@ -2111,12 +2120,15 @@ public class TaskService {
                     OpenCodeClient.SessionProfile.JUDGE_READ_ONLY);
             JudgeRunRow running = judgeState(judge, remote.id(), JudgeRunState.RUNNING, null, null, null, null);
             updateJudge(running);
+            OpenCodeClient.PromptRequest request;
             if (responseMode == ModelResponseMode.JSON_SCHEMA) {
-                openCode.promptAsync(remote, new OpenCodeClient.PromptRequest(prompt, null, null,
-                        OpenCodeStructuredSchemas.format(OpenCodeStructuredSchemas.JUDGE_DECISION_V1)));
+                request = new OpenCodeClient.PromptRequest(prompt, null, null,
+                        OpenCodeStructuredSchemas.format(OpenCodeStructuredSchemas.JUDGE_DECISION_V1));
             } else {
-                openCode.promptAsync(remote, OpenCodeClient.PromptRequest.text(prompt));
+                request = OpenCodeClient.PromptRequest.text(prompt);
             }
+            openCode.promptAsync(remote, attachmentContext.withContext(
+                    DesignerAttachmentContext.ContextUse.taskAllPackages(task.id()), request));
         } catch (SessionFailure failure) {
             handleJudgeSessionFailure(task, judge, failure);
             return;
@@ -2181,12 +2193,12 @@ public class TaskService {
             String prompt = taskEvidence.judgePrompt(task, attempt, judge.role(), spec(task))
                     + "\n\nFINALIZER RECOVERY: Do not call built-in tools. Configured MCP tools remain allowed; return the requested Judge object now."
                     + evidence;
-            if (ModelResponseMode.JSON_SCHEMA.name().equals(judge.responseMode())) {
-                openCode.promptAsync(finalizer, new OpenCodeClient.PromptRequest(prompt, null, null,
-                        OpenCodeStructuredSchemas.format(OpenCodeStructuredSchemas.JUDGE_DECISION_V1)));
-            } else {
-                openCode.promptAsync(finalizer, OpenCodeClient.PromptRequest.text(prompt));
-            }
+            OpenCodeClient.PromptRequest request = ModelResponseMode.JSON_SCHEMA.name().equals(judge.responseMode())
+                    ? new OpenCodeClient.PromptRequest(prompt, null, null,
+                    OpenCodeStructuredSchemas.format(OpenCodeStructuredSchemas.JUDGE_DECISION_V1))
+                    : OpenCodeClient.PromptRequest.text(prompt);
+            openCode.promptAsync(finalizer, attachmentContext.withContext(
+                    DesignerAttachmentContext.ContextUse.taskAllPackages(task.id()), request));
             events.emit(task.id(), "AI_TOOL_LOOP_FINALIZER_STARTED", Map.of(
                     "judgeRunId", judge.id(), "role", judge.role(), "externalSessionId", finalizer.id()));
             return true;

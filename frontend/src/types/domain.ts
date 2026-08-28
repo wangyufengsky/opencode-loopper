@@ -1007,7 +1007,22 @@ export interface DesignerMessage {
   deliveryState?: 'PERSISTED' | 'PENDING_HANDOFF' | 'SERVER_REQUIREMENT_SNAPSHOT' | 'CHAT_QUESTION' | 'COMPILED' | 'DESIGN_INCOMPLETE' | 'PASS' | 'NORMALIZED' | 'RETRYABLE_ERROR' | 'TERMINAL_ERROR' | 'SESSION_ERROR'
   requirementRevision?: number
   workPackageId?: string
+  attachments?: DesignerAttachment[]
   createdAt: string
+}
+
+export interface DesignerAttachment {
+  id: string
+  filename: string
+  mediaType: string
+  sizeBytes: number
+  sha256: string
+  scopeKey: string
+  workPackageId?: string
+  extractorId: string
+  previewKind: string
+  state: string
+  supersededByAttachmentId?: string
 }
 
 export type DesignWorkflowPhase = 'ROUTING' | 'DISCUSSING_REQUIREMENT' | 'DECOMPOSING' | 'VALIDATING_DECOMPOSITION' | 'DESIGNING' | 'COMPILING' | 'VALIDATING' | 'REDESIGNING' | 'QUESTIONING_PACKAGE' | 'REVIEWING_PACKAGE' | 'AGGREGATING' | 'FINAL_REVIEW' | 'GENERATING_REPORT' | 'VALIDATING_REPORT' | 'REPORT_READY' | 'COMPLETED' | 'FAILED'
@@ -1286,6 +1301,18 @@ export interface TaskDesignHistory {
   projectName: string
   designSourceTaskId?: string
   inheritedConversation?: boolean
+  frozenAttachments?: Array<{
+    id: string
+    filename: string
+    mediaType: string
+    sizeBytes: number
+    sha256: string
+    scopeKey: string
+    workPackageId?: string
+    extractorId?: string
+    sourceTaskId?: string
+    frozenAt: string
+  }>
   draft: LoopDraft
   designerSession?: {
     id: string

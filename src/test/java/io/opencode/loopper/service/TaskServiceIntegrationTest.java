@@ -13,6 +13,7 @@ import io.opencode.loopper.domain.TaskState;
 import io.opencode.loopper.persistence.AttemptRow;
 import io.opencode.loopper.persistence.ArtifactPlanRow;
 import io.opencode.loopper.persistence.DesignerSessionRow;
+import io.opencode.loopper.persistence.DesignerMessageRow;
 import io.opencode.loopper.persistence.ExecutionSessionRow;
 import io.opencode.loopper.persistence.ErrorEventRow;
 import io.opencode.loopper.persistence.LoopDraftRow;
@@ -66,6 +67,7 @@ class TaskServiceIntegrationTest {
     @Autowired private StageWorkspaceBaselineService stageWorkspaceBaselines;
     @Autowired private GitDiffScopeApprovalService scopeApprovals;
     @Autowired private DesignerSessionService designerSessions;
+    @Autowired private DesignerAttachmentContext attachmentContext;
     @Autowired private TaskProfileService taskProfiles;
     @Autowired private ArtifactMaterializationService artifactMaterializer;
     @Autowired private JdbcTemplate jdbc;
@@ -78,6 +80,37 @@ class TaskServiceIntegrationTest {
     void resetDatabase() {
         flyway.clean(); flyway.migrate();
         ((FakeOpenCodeClient) openCode).reset();
+    }
+
+    @Test
+    void confirmationFreezesTheActiveDesignerAttachmentManifest() throws Exception {
+        Path root = Files.createDirectory(temp.resolve("task-attachment-freeze"));
+        Files.writeString(root.resolve("README.md"), "fixture");
+        ProjectRow project = projects.create("task-attachment-freeze", root.toString());
+        LoopDraftRow draft = drafts.create(spec(project.id()));
+        DesignerSessionRow designer = designerSessions.create(project.id(), draft.id(),
+                "Use the exact attachment for implementation context.");
+        DesignerMessageRow message = designerSessions.messages(designer.id()).stream()
+                .filter(item -> "USER".equals(item.role())).findFirst().orElseThrow();
+        attachmentContext.change(new DesignerAttachmentContext.SubmitAttachmentMessage(
+                        UUID.randomUUID().toString(), designer.id(), message.id(),
+                        DesignerAttachmentContext.AttachmentScope.requirement(), message.content()),
+                List.of(new DesignerAttachmentContext.IncomingFile(
+                        "contract.txt", "text/plain", "frozen bytes".getBytes(java.nio.charset.StandardCharsets.UTF_8))));
+
+        TaskRow task = drafts.confirm(draft.id(), "freeze attachment context");
+
+        assertThat(mapper.listTaskDesignAttachments(task.id())).singleElement().satisfies(frozen -> {
+            assertThat(frozen.originalFilename()).isEqualTo("contract.txt");
+            assertThat(frozen.sha256()).hasSize(64);
+            assertThat(frozen.sourceDesignerAttachmentId()).isNotBlank();
+            assertThat(mapper.findDesignerAttachment(frozen.sourceDesignerAttachmentId())).hasValueSatisfying(
+                    source -> assertThat(source.state()).isEqualTo("FROZEN"));
+        });
+        tasks.start(task.id());
+        ExecutionSessionRow implementation = mapper.activeSessions(task.id()).getFirst();
+        assertThat(((FakeOpenCodeClient) openCode).promptRequestForSession(implementation.externalSessionId()).files())
+                .extracting(OpenCodeClient.FilePart::filename).containsExactly("contract.txt");
     }
 
     @Test
@@ -1677,7 +1710,17 @@ class TaskServiceIntegrationTest {
         ((FakeOpenCodeClient) openCode).setJudgeOutput("判定如下：\n```json\n"
                 + "{\"verdict\":\"PASS\",\"reason\":\"当前证据充分\"}\n```\n以上为最终判定。");
         ProjectRow project = projects.create("fixture", gitProject());
-        TaskRow task = drafts.confirm(drafts.create(judgeContractSpec(project.id())).id(), "two judges");
+        LoopDraftRow designDraft = drafts.create(judgeContractSpec(project.id()));
+        DesignerSessionRow designer = designerSessions.create(project.id(), designDraft.id(),
+                "Use the attached acceptance reference.");
+        DesignerMessageRow attachmentMessage = designerSessions.messages(designer.id()).stream()
+                .filter(message -> "USER".equals(message.role())).findFirst().orElseThrow();
+        attachmentContext.change(new DesignerAttachmentContext.SubmitAttachmentMessage(
+                        UUID.randomUUID().toString(), designer.id(), attachmentMessage.id(),
+                        DesignerAttachmentContext.AttachmentScope.requirement(), attachmentMessage.content()),
+                List.of(new DesignerAttachmentContext.IncomingFile(
+                        "acceptance.txt", "text/plain", "approved boundary".getBytes(java.nio.charset.StandardCharsets.UTF_8))));
+        TaskRow task = drafts.confirm(designDraft.id(), "two judges");
         tasks.start(task.id());
         String implementationSessionId = mapper.activeSessions(task.id()).getFirst().externalSessionId();
         assertThat(((FakeOpenCodeClient) openCode).modelForSession(implementationSessionId).thinking()).isTrue();
@@ -1699,6 +1742,8 @@ class TaskServiceIntegrationTest {
                     .contains("MACHINE 条件由确定性验证负责")
                     .contains("PASS|REVISE|BLOCKED")
                     .doesNotContain("## Evidence");
+            assertThat(((FakeOpenCodeClient) openCode).promptRequestForSession(judge.externalSessionId()).files())
+                    .extracting(OpenCodeClient.FilePart::filename).containsExactly("acceptance.txt");
         });
         assertThat(tasks.artifacts(task.id())).extracting(artifact -> artifact.kind())
                 .contains("GIT_DIFF", "VERIFICATION_SUMMARY", "JUDGE_LOG_METADATA");

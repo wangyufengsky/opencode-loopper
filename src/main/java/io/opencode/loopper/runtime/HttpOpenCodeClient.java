@@ -135,7 +135,16 @@ public class HttpOpenCodeClient implements OpenCodeClient {
         boolean structured = prompt != null && prompt.responseFormat() instanceof ResponseFormat.JsonSchema;
         try {
             Map<String, Object> body = new LinkedHashMap<>();
-            body.put("parts", List.of(Map.of("type", "text", "text", prompt == null ? "" : prompt.text())));
+            List<Map<String, Object>> parts = new ArrayList<>();
+            parts.add(Map.of("type", "text", "text", prompt == null ? "" : prompt.text()));
+            if (prompt != null) {
+                for (FilePart file : prompt.files()) {
+                    parts.add(Map.of("type", "file", "mime", file.mediaType(),
+                            "filename", file.filename(), "url", file.managedUri().toString()));
+                }
+                if (prompt.messageId() != null) body.put("messageID", prompt.messageId());
+            }
+            body.put("parts", parts);
             if (prompt != null && prompt.system() != null && !prompt.system().isBlank()) body.put("system", prompt.system());
             SessionProfile profile = sessionProfiles.get(session.id());
             if (prompt != null && prompt.agent() != null && !prompt.agent().isBlank()) {

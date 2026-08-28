@@ -54,6 +54,8 @@ public class DesignerAutoModeService {
     }
 
     public View initialize(String sessionId, boolean enabled) {
+        DesignerAutoModeRow existing = mapper.findDesignerAutoMode(sessionId).orElse(null);
+        if (existing != null) return view(existing);
         DesignerSessionRow session = designerSessions.get(sessionId);
         DesignerAutoModeState state = enabled ? DesignerAutoModeState.ACTIVE : DesignerAutoModeState.DISABLED;
         String now = now();

@@ -160,6 +160,29 @@ describe('Loopper REST contract adapter', () => {
     })
   })
 
+  it('sends Designer attachment context as multipart without overriding the browser boundary', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(json({
+      sessionId: 'designer-1', state: 'REVIEWING', persistedMessages: [], notice: 'saved',
+    }, 202))
+    vi.stubGlobal('fetch', fetchMock)
+    const file = new File(['context'], 'notes.txt', { type: 'text/plain' })
+
+    await api.sendDesignerContextTurn('designer 1', {
+      submissionId: 'submission-1', content: '请结合附件继续设计', scopeKey: 'REQUIREMENT',
+      expectedDiscussionRevision: 3, expectedDesignRevision: 0,
+    }, [file])
+
+    const init = fetchMock.mock.calls[0]?.[1] as RequestInit
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/designer-sessions/designer%201/context-turns')
+    expect(init.method).toBe('POST')
+    expect(init.headers).toMatchObject({ Accept: 'application/json', 'X-Loopper-Local-UI': '1' })
+    expect(init.headers).not.toHaveProperty('Content-Type')
+    expect(init.body).toBeInstanceOf(FormData)
+    const form = init.body as FormData
+    expect((form.get('metadata') as File).type).toBe('application/json')
+    expect(form.getAll('files')).toEqual([file])
+  })
+
   it('streams normalized Designer partial output and connection state', () => {
     class FakeEventSource {
       static latest?: FakeEventSource

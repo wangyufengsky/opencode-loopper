@@ -48,7 +48,7 @@ class AiSemanticContractCompilerTest {
 
     @Test
     void groupsStructuredMarkdownByBusinessSectionInsteadOfEveryPresentationLine() {
-        var segments = DesignerSessionService.segmentRequirements("""
+        var segments = DesignerRequirementSegmenter.segment("""
                 # 需求快照
 
                 - 版本：v1

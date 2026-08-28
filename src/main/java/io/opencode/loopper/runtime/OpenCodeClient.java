@@ -2,6 +2,7 @@ package io.opencode.loopper.runtime;
 
 import java.nio.file.Path;
 import java.math.BigDecimal;
+import java.net.URI;
 import java.util.List;
 import java.util.Map;
 
@@ -128,13 +129,29 @@ public interface OpenCodeClient {
             }
         }
     }
-    record PromptRequest(String text, String system, String agent, ResponseFormat responseFormat) {
+    record FilePart(String filename, String mediaType, URI managedUri, String sha256) {
+        public FilePart {
+            if (filename == null || filename.isBlank()) throw new IllegalArgumentException("File part filename is required");
+            if (mediaType == null || mediaType.isBlank()) throw new IllegalArgumentException("File part media type is required");
+            if (managedUri == null || !"file".equalsIgnoreCase(managedUri.getScheme())) {
+                throw new IllegalArgumentException("File part must use a managed file URI");
+            }
+            if (sha256 == null || sha256.isBlank()) throw new IllegalArgumentException("File part SHA-256 is required");
+        }
+    }
+    record PromptRequest(String text, String system, String agent, ResponseFormat responseFormat,
+                         String messageId, List<FilePart> files) {
         public PromptRequest {
             text = text == null ? "" : text;
             responseFormat = responseFormat == null ? new ResponseFormat.Text() : responseFormat;
+            messageId = messageId == null || messageId.isBlank() ? null : messageId;
+            files = files == null ? List.of() : List.copyOf(files);
+        }
+        public PromptRequest(String text, String system, String agent, ResponseFormat responseFormat) {
+            this(text, system, agent, responseFormat, null, List.of());
         }
         public static PromptRequest text(String text) {
-            return new PromptRequest(text, null, null, new ResponseFormat.Text());
+            return new PromptRequest(text, null, null, new ResponseFormat.Text(), null, List.of());
         }
     }
     record SessionResult(String text, Map<String, Object> structured, String errorType,

@@ -14,6 +14,9 @@ import io.opencode.loopper.service.TaskProfileRouterRunService;
 import io.opencode.loopper.service.AnalysisReportService;
 import io.opencode.loopper.service.DirectArtifactDesignService;
 import io.opencode.loopper.service.DirectMaintenanceDesignService;
+import io.opencode.loopper.service.DesignerAttachmentContext;
+import io.opencode.loopper.service.DesignerAttachmentReadService;
+import io.opencode.loopper.service.DesignerAttachmentCommandService;
 import io.opencode.loopper.domain.ExecutionStrategy;
 import io.opencode.loopper.domain.LoopSpec;
 import io.opencode.loopper.domain.ArtifactKind;
@@ -23,8 +26,13 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.net.URI;
+import java.io.IOException;
 import java.util.List;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicLong;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -36,7 +44,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /** REST surface for an actual read-only OpenCode Designer handoff. */
@@ -51,11 +61,15 @@ public class DesignerSessionController {
     private final AnalysisReportService reports;
     private final DirectArtifactDesignService directArtifacts;
     private final DirectMaintenanceDesignService directMaintenance;
+    private final DesignerAttachmentReadService attachmentReads;
+    private final DesignerAttachmentCommandService attachmentCommands;
 
     public DesignerSessionController(DesignerSessionService service, LoopDraftService drafts, DesignerEventHub events,
                                      DesignerAutoModeService autoMode, TaskProfileService profiles,
                                      AnalysisReportService reports, DirectArtifactDesignService directArtifacts,
-                                     DirectMaintenanceDesignService directMaintenance) {
+                                     DirectMaintenanceDesignService directMaintenance,
+                                     DesignerAttachmentReadService attachmentReads,
+                                     DesignerAttachmentCommandService attachmentCommands) {
         this.service = service;
         this.drafts = drafts;
         this.events = events;
@@ -64,6 +78,8 @@ public class DesignerSessionController {
         this.reports = reports;
         this.directArtifacts = directArtifacts;
         this.directMaintenance = directMaintenance;
+        this.attachmentReads = attachmentReads;
+        this.attachmentCommands = attachmentCommands;
     }
 
     @PostMapping
@@ -73,6 +89,19 @@ public class DesignerSessionController {
         if (request.autoModeEnabled()) requireLocalUi(localUi);
         DesignerSessionRow row = service.create(request.projectId(), request.draftId(), request.initialMessage());
         profiles.initialize(row.id(), request.initialMessage());
+        autoMode.initialize(row.id(), request.autoModeEnabled());
+        return ResponseEntity.created(URI.create("/api/designer-sessions/" + row.id())).body(dto(row));
+    }
+
+    @PostMapping(value = "/context-turns", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<DesignerSessionDto> createContextTurn(
+            @Valid @RequestPart("metadata") CreateContextTurnRequest request,
+            @RequestPart("files") List<MultipartFile> files,
+            @RequestHeader("X-Loopper-Local-UI") String localUi) {
+        requireLocalUi(localUi);
+        DesignerSessionRow row = attachmentCommands.create(request.projectId(), request.draftId(),
+                request.content(), request.submissionId(), incoming(files));
+        profiles.initialize(row.id(), request.content());
         autoMode.initialize(row.id(), request.autoModeEnabled());
         return ResponseEntity.created(URI.create("/api/designer-sessions/" + row.id())).body(dto(row));
     }
@@ -171,6 +200,59 @@ public class DesignerSessionController {
         DesignerSessionRow current = service.get(id);
         return ResponseEntity.accepted().body(new AppendMessageResult(id, current.state(), persisted,
                 "Requirement feedback was persisted without invoking the Task Decomposer."));
+    }
+
+    @PostMapping(value = "/{id}/context-turns", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<AppendMessageResult> appendContextTurn(
+            @PathVariable String id, @Valid @RequestPart("metadata") ContextTurnRequest request,
+            @RequestPart("files") List<MultipartFile> files,
+            @RequestHeader("X-Loopper-Local-UI") String localUi) {
+        requireLocalUi(localUi);
+        List<DesignerMessageRow> rows;
+        if ("REQUIREMENT".equals(request.scopeKey())) {
+            rows = service.appendRequirementContextTurn(id, request.content(), request.expectedDiscussionRevision(),
+                    request.submissionId(), incoming(files));
+        } else {
+            if (request.workPackageId() == null || !request.scopeKey().equals(request.workPackageId())) {
+                throw new io.opencode.loopper.service.BadRequestException(
+                        "ATTACHMENT_SCOPE_INVALID", "工作包附件必须携带完全相同的 scopeKey 和 workPackageId");
+            }
+            rows = service.appendPackageContextTurn(id, request.workPackageId(), request.content(),
+                    request.expectedDiscussionRevision(), request.expectedDesignRevision(), request.submissionId(),
+                    incoming(files));
+        }
+        DesignerSessionRow current = service.get(id);
+        return ResponseEntity.accepted().body(new AppendMessageResult(id, current.state(),
+                rows.stream().map(this::message).toList(), "Attachment context turn accepted as one batch."));
+    }
+
+    @GetMapping("/{id}/attachments")
+    public List<DesignerAttachmentDto> attachments(@PathVariable String id) {
+        service.get(id);
+        return attachmentReads.forSession(id).stream().map(this::attachment).toList();
+    }
+
+    @GetMapping("/{id}/attachments/{attachmentId}/preview")
+    public DesignerAttachmentReadService.Preview attachmentPreview(
+            @PathVariable String id, @PathVariable String attachmentId) {
+        service.get(id);
+        return attachmentReads.previewForSession(id, attachmentId);
+    }
+
+    @GetMapping("/{id}/attachments/{attachmentId}/content")
+    public ResponseEntity<byte[]> attachmentContent(
+            @PathVariable String id, @PathVariable String attachmentId) {
+        service.get(id);
+        return inlineContent(attachmentReads.contentForSession(id, attachmentId));
+    }
+
+    @PostMapping("/{id}/attachments/{attachmentId}/stop-future-use")
+    public DesignerAttachmentContext.ChangeReceipt stopAttachment(
+            @PathVariable String id, @PathVariable String attachmentId,
+            @Valid @RequestBody StopAttachmentRequest request,
+            @RequestHeader("X-Loopper-Local-UI") String localUi) {
+        requireLocalUi(localUi);
+        return attachmentCommands.stopFutureUse(id, attachmentId, request.commandId());
     }
 
     @PostMapping("/{id}/requirement/confirm")
@@ -393,12 +475,54 @@ public class DesignerSessionController {
 
     private DesignerMessageDto message(DesignerMessageRow row) {
         return new DesignerMessageDto(row.id(), row.ordinal(), row.role(), row.actor(), row.content(),
-                row.deliveryState(), row.createdAt(), row.requirementRevision(), row.workPackageId());
+                row.deliveryState(), row.createdAt(), row.requirementRevision(), row.workPackageId(),
+                attachmentReads.forMessage(row.id()).stream().map(this::attachment).toList());
+    }
+
+    private DesignerAttachmentDto attachment(DesignerAttachmentReadService.View row) {
+        return new DesignerAttachmentDto(row.id(), row.filename(), row.mediaType(), row.sizeBytes(), row.sha256(),
+                row.scopeKey(), row.workPackageId(), row.extractorId(), row.previewKind(), row.state(),
+                row.supersededByAttachmentId());
+    }
+
+    private List<DesignerAttachmentContext.IncomingFile> incoming(List<MultipartFile> files) {
+        if (files == null) return List.of();
+        try {
+            return files.stream().map(file -> {
+                try {
+                    return new DesignerAttachmentContext.IncomingFile(file.getOriginalFilename(),
+                            file.getContentType(), file.getBytes());
+                } catch (IOException failure) {
+                    throw new io.opencode.loopper.service.BadRequestException(
+                            "ATTACHMENT_UPLOAD_READ_FAILED", "无法读取上传附件：" + file.getOriginalFilename());
+                }
+            }).toList();
+        } catch (io.opencode.loopper.service.BadRequestException failure) { throw failure; }
+    }
+
+    private ResponseEntity<byte[]> inlineContent(DesignerAttachmentReadService.BinaryContent content) {
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(content.mediaType()))
+                .cacheControl(CacheControl.noStore())
+                .header("X-Content-Type-Options", "nosniff")
+                .header("Content-Security-Policy", "sandbox; default-src 'none'; img-src 'self' data:")
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.inline()
+                        .filename(content.filename(), StandardCharsets.UTF_8).build().toString())
+                .body(content.bytes());
     }
 
     public record CreateDesignerSessionRequest(@NotBlank String projectId, @NotBlank String draftId,
                                                @Size(max = 12_000) String initialMessage,
                                                boolean autoModeEnabled) { }
+    public record CreateContextTurnRequest(@NotBlank String submissionId, @NotBlank String projectId,
+                                           @NotBlank String draftId,
+                                           @NotBlank @Size(max = 12_000) String content,
+                                           boolean autoModeEnabled) { }
+    public record ContextTurnRequest(@NotBlank String submissionId,
+                                     @NotBlank @Size(max = 12_000) String content,
+                                     @NotBlank String scopeKey, String workPackageId,
+                                     int expectedDiscussionRevision, int expectedDesignRevision) { }
+    public record StopAttachmentRequest(@NotBlank String commandId) { }
     public record UpdateAutoModeRequest(boolean enabled, long expectedVersion) { }
     public record AppendDesignerMessageRequest(@NotBlank @Size(max = 12_000) String content) { }
     public record ScopedDesignerMessageRequest(@NotBlank @Size(max = 12_000) String content,
@@ -450,7 +574,12 @@ public class DesignerSessionController {
                                    io.opencode.loopper.domain.LoopSpec spec) { }
     public record DesignerMessageDto(String id, int ordinal, String role, String actor, String content,
                                      String deliveryState, String createdAt,
-                                     Integer requirementRevision, String workPackageId) { }
+                                     Integer requirementRevision, String workPackageId,
+                                     List<DesignerAttachmentDto> attachments) { }
+    public record DesignerAttachmentDto(String id, String filename, String mediaType, long sizeBytes,
+                                        String sha256, String scopeKey, String workPackageId,
+                                        String extractorId, String previewKind, String state,
+                                        String supersededByAttachmentId) { }
     public record AppendMessageResult(String sessionId, String state, List<DesignerMessageDto> persistedMessages, String notice) { }
     public record QuestionReplyRequest(List<List<String>> answers) { }
     public record ReopenPackageResult(List<String> invalidatedPackageIds) { }

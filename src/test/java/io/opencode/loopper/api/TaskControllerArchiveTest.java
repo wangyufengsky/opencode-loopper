@@ -23,6 +23,7 @@ import io.opencode.loopper.service.TaskEventHub;
 import io.opencode.loopper.service.TaskPublicationService;
 import io.opencode.loopper.service.TaskService;
 import io.opencode.loopper.service.TaskDesignOriginService;
+import io.opencode.loopper.service.DesignerAttachmentReadService;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -37,7 +38,7 @@ class TaskControllerArchiveTest {
     private final TaskController controller = new TaskController(tasks, mapper, mock(TaskEventHub.class),
             mock(ObjectMapper.class), mock(LoopDraftService.class), mock(TaskPublicationService.class),
             mock(LocalSyncConflictService.class), mock(TaskDesignOriginService.class),
-            mock(GitDiffScopeApprovalService.class));
+            mock(GitDiffScopeApprovalService.class), mock(DesignerAttachmentReadService.class));
     private final MockMvc mvc = MockMvcBuilders.standaloneSetup(controller)
             .setControllerAdvice(new ApiExceptionHandler()).build();
 

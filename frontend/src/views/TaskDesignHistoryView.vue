@@ -14,6 +14,8 @@ const id = computed(() => route.params.id as string)
 const record = ref<TaskDesignHistory>()
 const loading = ref(false)
 const error = ref('')
+const attachmentPreviews = ref<Record<string, string>>({})
+const attachmentPreviewBusy = ref('')
 
 const visibleMessages = computed(() => (record.value?.designerSession?.messages ?? []).filter((message) => !(
   message.role === 'SYSTEM'
@@ -42,6 +44,21 @@ function verifierSummary(verifier: LoopVerifierSpec) {
 function formatDate(value: string) {
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(date)
+}
+
+function formatFileSize(bytes: number) {
+  return bytes < 1024 * 1024 ? `${Math.max(1, Math.ceil(bytes / 1024))} KiB` : `${(bytes / 1024 / 1024).toFixed(1)} MiB`
+}
+
+async function loadAttachmentPreview(attachmentId: string) {
+  if (attachmentPreviews.value[attachmentId] !== undefined) return
+  attachmentPreviewBusy.value = attachmentId
+  try {
+    const preview = await api.getTaskDesignAttachmentPreview(id.value, attachmentId)
+    attachmentPreviews.value = { ...attachmentPreviews.value,
+      [attachmentId]: preview.text ?? '该文件使用经过验证的原始内容预览。' }
+  } catch (cause) { error.value = userFacingError(cause, '无法读取冻结附件预览') }
+  finally { attachmentPreviewBusy.value = '' }
 }
 
 watch(id, load, { immediate: true })
@@ -75,6 +92,18 @@ watch(id, load, { immediate: true })
         title="该重做/恢复任务沿用父任务冻结时的设计对话；下方执行规范仍是当前任务自己的冻结副本。"
       />
 
+      <section v-if="record.frozenAttachments?.length" class="card frozen-attachments card-pad" aria-label="冻结附件清单">
+        <div class="card-header"><div><p class="eyebrow">冻结附件清单</p><h2 class="card-title">设计与开发上下文</h2></div><span class="mono tiny">{{ record.frozenAttachments.length }} 个不可变文件</span></div>
+        <div class="frozen-attachment-grid">
+          <article v-for="attachment in record.frozenAttachments" :key="attachment.id">
+            <Icon icon="lucide:file-lock-2" /><span><b>{{ attachment.filename }}</b><small>{{ formatFileSize(attachment.sizeBytes) }} · {{ attachment.scopeKey === 'REQUIREMENT' ? '整体需求' : attachment.scopeKey }}</small><code>SHA-256 {{ attachment.sha256 }}</code>
+              <span class="frozen-preview-actions"><el-button text size="small" :loading="attachmentPreviewBusy === attachment.id" @click="loadAttachmentPreview(attachment.id)">安全预览</el-button><a v-if="attachment.mediaType.startsWith('image/') || attachment.mediaType === 'application/pdf'" :href="api.taskDesignAttachmentContentUrl(id, attachment.id)" target="_blank" rel="noopener">打开原文件</a></span>
+              <pre v-if="attachmentPreviews[attachment.id]">{{ attachmentPreviews[attachment.id] }}</pre>
+            </span>
+          </article>
+        </div>
+      </section>
+
       <section v-if="record.requirement || record.decomposition || record.workPackages?.length" class="card package-history card-pad">
         <div class="card-header"><div><p class="eyebrow">已确认设计</p><h2 class="card-title">需求与工作包</h2></div><span v-if="record.requirement" class="mono tiny">第 {{ record.requirement.revision }} 版 · 模型调用 {{ record.requirement.modelCallsUsed }}/{{ record.requirement.maxModelCalls }}</span></div>
         <p v-if="record.requirement" class="frozen-requirement">{{ record.requirement.requirementText }}</p>
@@ -96,6 +125,9 @@ watch(id, load, { immediate: true })
               <header><span><Icon :icon="actorIcons[message.actor]" />{{ actorLabels[message.actor] }}</span><time>{{ formatDate(message.createdAt) }}</time></header>
               <MarkdownDocument v-if="message.actor === 'DESIGNER'" :content="message.content" collapsible />
               <p v-else>{{ message.actor === 'SYSTEM' ? userFacingError(message.content) : message.content }}</p>
+              <div v-if="message.attachments?.length" class="history-message-attachments">
+                <span v-for="attachment in message.attachments" :key="attachment.id"><Icon icon="lucide:paperclip" /><b>{{ attachment.filename }}</b><small>{{ formatFileSize(attachment.sizeBytes) }} · {{ attachment.scopeKey === 'REQUIREMENT' ? '整体需求' : attachment.scopeKey }} · {{ attachment.state }}</small></span>
+              </div>
             </article>
           </div>
           <div v-else class="history-empty"><Icon icon="lucide:message-square-off" /><p>暂无历史设计对话。</p></div>
@@ -130,6 +162,14 @@ watch(id, load, { immediate: true })
 .history-overview h2 { margin: 5px 0 7px; font-size: 17px; }
 .history-overview p:not(.eyebrow) { max-width: 680px; margin: 0; color: var(--color-text-secondary); font-size: 11px; line-height: 1.6; }
 .inherited-conversation { margin-top: 16px; }
+.frozen-attachments { margin-top: 16px; }
+.frozen-attachment-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; margin-top: 12px; }
+.frozen-attachment-grid article { display: flex; align-items: flex-start; gap: 10px; padding: 12px; border: 1px solid rgb(34 211 238 / 24%); border-radius: 10px; background: rgb(34 211 238 / 5%); }
+.frozen-attachment-grid article > span { display: grid; min-width: 0; gap: 3px; }
+.frozen-attachment-grid small, .frozen-attachment-grid code { color: var(--color-text-muted); font: 9px/1.45 var(--font-code); overflow-wrap: anywhere; }
+.frozen-preview-actions { display: flex; align-items: center; gap: 8px; }
+.frozen-preview-actions a { color: var(--color-accent-cyan); font-size: 9px; text-decoration: none; }
+.frozen-attachment-grid pre { max-height: 220px; margin: 4px 0 0; padding: 9px; overflow: auto; border-radius: 7px; background: rgb(2 6 23 / 70%); color: var(--color-text-secondary); font: 10px/1.55 var(--font-code); white-space: pre-wrap; }
 .history-meta { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 9px; }
 .history-meta span { min-width: 120px; padding: 9px 11px; border: 1px solid var(--color-border-default); border-radius: 9px; color: var(--color-text-primary); background: rgb(2 6 23 / 28%); font: 10px/1.4 var(--font-code); }
 .history-meta b { display: block; margin-bottom: 3px; color: var(--color-text-muted); font-size: 8px; letter-spacing: .08em; text-transform: uppercase; }
@@ -152,6 +192,9 @@ watch(id, load, { immediate: true })
 .history-message > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; color: var(--color-text-muted); font: 9px/1.4 var(--font-code); }
 .history-message > header span { display: inline-flex; align-items: center; gap: 7px; color: var(--color-text-primary); font-weight: 700; }
 .history-message > p { margin: 0; color: var(--color-text-primary); font-size: 12px; line-height: 1.65; white-space: pre-wrap; }
+.history-message-attachments { display: grid; gap: 6px; margin-top: 10px; }
+.history-message-attachments span { display: flex; align-items: center; gap: 7px; padding: 7px 9px; border: 1px solid var(--color-border-default); border-radius: 8px; color: var(--color-text-secondary); font-size: 9px; }
+.history-message-attachments small { color: var(--color-text-muted); }
 .message-user { margin-left: 28px; border-color: rgb(34 211 238 / 24%); background: rgb(34 211 238 / 5%); }
 .message-decomposer { border-color: rgb(99 102 241 / 38%); background: rgb(99 102 241 / 7%); }
 .message-designer { border-color: rgb(139 92 246 / 28%); background: rgb(139 92 246 / 6%); }

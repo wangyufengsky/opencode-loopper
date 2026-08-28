@@ -66,6 +66,14 @@ resource errors remain observable as HTTP 404 responses.
    fresh Session will continue the Loop.
 4. Task failures stop scheduling and use the red terminal treatment.
 
+## Designer 附件交互
+
+Designer 起始页和会话工作台的完整内容区都接受文件拖放；拖放只把文件加入当前 composer 的暂存 chips，并显示当前“整体需求”或具体工作包作用域。文件选择按钮与拖放等价。每个 chip 显示名称、类型和大小并允许发送前移除；正文为空时禁止发送纯附件消息。一次最多 10 个文件，客户端提供 20 MiB/文件与 50 MiB/会话提示，服务端仍是权威门禁。
+
+带附件的发送使用一个 `FormData` 请求，浏览器不得手写 multipart `Content-Type`。接口失败时正文、文件和稳定 submission ID 保留供幂等重试；只有成功响应才同时清空。整批解析失败不得出现部分附件或单独文本回合。历史卡显示文件名、类型、大小、作用域、SHA-256、提取器和 `ACTIVE / SUPERSEDED / STOPPED / FROZEN` 状态；同一作用域完全同名是逻辑替换，不改写旧卡。停止未来使用需要确认，并明确不会撤回历史或已经发生的 OpenCode 读取。
+
+文本、Office 和 PDF 使用服务端安全文本预览；图片与 PDF 原文件只通过受限 inline endpoint 打开。页面不执行附件 HTML、SVG、Office 宏或脚本。Task 设计历史必须单独显示确认时的冻结附件清单、内容身份与 Recovery 来源，不能从当前 Designer 活动集合推断。
+
 ## 前端文案与可读性
 
 - 页面采用中文优先的极简文案。标题、状态标签或操作本身已经能表达含义时，不再追加重复的说明段落；“全自动”等明确模式只展示一个状态标签，只有阻断或需要用户选择时才补充原因和动作。

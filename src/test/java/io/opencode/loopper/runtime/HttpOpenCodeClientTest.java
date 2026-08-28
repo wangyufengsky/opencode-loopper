@@ -6,10 +6,12 @@ import io.opencode.loopper.config.LoopperProperties;
 import io.opencode.loopper.domain.SessionFailure;
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -546,6 +548,32 @@ class HttpOpenCodeClientTest {
                 .isEqualTo(OpenCodeClient.CapabilityState.AVAILABLE);
         assertThat(client.toolCapabilities(worktree).contains("todowrite")).isTrue();
         assertThat(client.agents()).extracting(OpenCodeClient.AgentInfo::name).containsExactly("build", "plan");
+    }
+
+    @Test
+    void sendsStableMessageIdentityAndOrderedFileParts() throws Exception {
+        LoopperProperties properties = new LoopperProperties();
+        properties.getOpenCode().setBaseUrl(new URI("http://127.0.0.1:" + server.getAddress().getPort()));
+        HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(), properties);
+        OpenCodeClient.OpenCodeSession session = client.createReadOnlySession(worktree, "Designer", null);
+        Path context = Files.writeString(worktree.resolve("requirements.txt"), "exact attachment context");
+
+        client.promptAsync(session, new OpenCodeClient.PromptRequest(
+                "Use the attached reference.", null, null, new OpenCodeClient.ResponseFormat.Text(),
+                "msg-designer-1", List.of(new OpenCodeClient.FilePart(
+                        "requirements.txt", "text/plain", context.toUri(), "sha-256-value"))));
+
+        assertThat(promptBody.get()).contains(
+                "\"messageID\":\"msg-designer-1\"",
+                "\"type\":\"text\"",
+                "\"text\":\"Use the attached reference.\"",
+                "\"type\":\"file\"",
+                "\"mime\":\"text/plain\"",
+                "\"filename\":\"requirements.txt\"",
+                "\"url\":\"" + context.toUri() + "\"");
+        assertThat(promptBody.get().indexOf("\"type\":\"text\""))
+                .isLessThan(promptBody.get().indexOf("\"type\":\"file\""));
+        assertThat(promptBody.get()).doesNotContain("sha-256-value");
     }
 
     private void session(HttpExchange exchange) throws IOException {

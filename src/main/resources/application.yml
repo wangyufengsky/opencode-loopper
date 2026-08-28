@@ -10,7 +10,7 @@ spring:
           enabled: false
         protocol: STREAMABLE
         name: opencode-loopper
-        version: 0.2.80
+        version: 0.2.81
         type: SYNC
         instructions: >-
           Use the six Loopper tools only. Designer access is READ_ONLY; proposals synchronize
@@ -34,6 +34,10 @@ spring:
   mvc:
     problemdetails:
       enabled: true
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 50MB
   task:
     scheduling:
       # Task and Designer monitors must not starve each other. Deterministic

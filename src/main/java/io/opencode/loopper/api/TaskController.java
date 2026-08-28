@@ -15,6 +15,8 @@ import io.opencode.loopper.persistence.TaskArtifactRow;
 import io.opencode.loopper.persistence.TaskRow;
 import io.opencode.loopper.persistence.TaskRetryScheduleRow;
 import io.opencode.loopper.persistence.TaskDecompositionRow;
+import io.opencode.loopper.persistence.DesignerAttachmentRow;
+import io.opencode.loopper.persistence.TaskDesignAttachmentRow;
 import io.opencode.loopper.persistence.VerificationResultRow;
 import io.opencode.loopper.domain.LoopSpec;
 import io.opencode.loopper.domain.TaskState;
@@ -26,11 +28,16 @@ import io.opencode.loopper.service.TaskPublicationService;
 import io.opencode.loopper.service.TaskService;
 import io.opencode.loopper.service.TaskDesignOriginService;
 import io.opencode.loopper.service.GitDiffScopeApprovalService;
+import io.opencode.loopper.service.DesignerAttachmentReadService;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.http.MediaType;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -58,16 +65,19 @@ public class TaskController {
     private final LocalSyncConflictService localSyncConflicts;
     private final TaskDesignOriginService designOrigins;
     private final GitDiffScopeApprovalService gitDiffScopeApprovals;
+    private final DesignerAttachmentReadService attachmentReads;
     public TaskController(TaskService service, LoopperMapper mapper, TaskEventHub events, ObjectMapper json,
                           LoopDraftService drafts, TaskPublicationService publication,
                           LocalSyncConflictService localSyncConflicts,
                           TaskDesignOriginService designOrigins,
-                          GitDiffScopeApprovalService gitDiffScopeApprovals) {
+                          GitDiffScopeApprovalService gitDiffScopeApprovals,
+                          DesignerAttachmentReadService attachmentReads) {
         this.service = service; this.mapper = mapper; this.events = events; this.json = json;
         this.drafts = drafts; this.publication = publication;
         this.localSyncConflicts = localSyncConflicts;
         this.designOrigins = designOrigins;
         this.gitDiffScopeApprovals = gitDiffScopeApprovals;
+        this.attachmentReads = attachmentReads;
     }
     @GetMapping public List<TaskDto> list() { return service.list().stream().map(this::dto).toList(); }
     @GetMapping("/{id}") public TaskDto get(@PathVariable String id) { return dto(service.get(id)); }
@@ -147,7 +157,27 @@ public class TaskController {
                 decomposition == null ? null : new DecompositionHistoryDto(decomposition.state(),
                         decomposition.resultType(), decomposition.planJson()),
                 packages.stream().map(row -> new WorkPackageHistoryDto(row.packageId(), row.ordinal(), row.title(),
-                        row.objective(), row.state(), row.compilerSummary(), row.handoffSummary())).toList());
+                        row.objective(), row.state(), row.compilerSummary(), row.handoffSummary())).toList(),
+                mapper.listTaskDesignAttachments(task.id()).stream().map(this::frozenAttachment).toList());
+    }
+    @GetMapping("/{id}/design-attachments/{attachmentId}/preview")
+    public DesignerAttachmentReadService.Preview designAttachmentPreview(
+            @PathVariable String id, @PathVariable String attachmentId) {
+        service.get(id);
+        return attachmentReads.previewForTask(id, attachmentId);
+    }
+    @GetMapping("/{id}/design-attachments/{attachmentId}/content")
+    public ResponseEntity<byte[]> designAttachmentContent(
+            @PathVariable String id, @PathVariable String attachmentId) {
+        service.get(id);
+        DesignerAttachmentReadService.BinaryContent content = attachmentReads.contentForTask(id, attachmentId);
+        return ResponseEntity.ok().contentType(MediaType.parseMediaType(content.mediaType()))
+                .cacheControl(CacheControl.noStore())
+                .header("X-Content-Type-Options", "nosniff")
+                .header("Content-Security-Policy", "sandbox; default-src 'none'; img-src 'self' data:")
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.inline()
+                        .filename(content.filename(), StandardCharsets.UTF_8).build().toString())
+                .body(content.bytes());
     }
     @PostMapping("/{id}/start") public TaskDto start(@PathVariable String id) { return dto(service.start(id)); }
     @PostMapping("/{id}/verify") public TaskDto verify(@PathVariable String id) { return dto(service.verify(id)); }
@@ -388,13 +418,22 @@ public class TaskController {
                                        DesignerHistorySessionDto designerSession,
                                        DesignRequirementHistoryDto requirement,
                                        DecompositionHistoryDto decomposition,
-                                       List<WorkPackageHistoryDto> workPackages) { }
+                                       List<WorkPackageHistoryDto> workPackages,
+                                       List<FrozenTaskAttachmentDto> frozenAttachments) { }
     public record TaskLoopDraftDto(String id, String status, String updatedAt, LoopSpec spec) { }
     public record DesignerHistorySessionDto(String id, String state, String accessMode, String createdAt,
                                              String updatedAt, List<DesignerHistoryMessageDto> messages) { }
     public record DesignerHistoryMessageDto(String id, int ordinal, String role, String actor, String content,
                                              String deliveryState, String createdAt,
-                                             Integer requirementRevision, String workPackageId) { }
+                                             Integer requirementRevision, String workPackageId,
+                                             List<DesignerHistoryAttachmentDto> attachments) { }
+    public record DesignerHistoryAttachmentDto(String id, String filename, String mediaType, long sizeBytes,
+                                                String sha256, String scopeKey, String workPackageId,
+                                                String extractorId, String previewKind, String state,
+                                                String supersededByAttachmentId) { }
+    public record FrozenTaskAttachmentDto(String id, String filename, String mediaType, long sizeBytes,
+                                          String sha256, String scopeKey, String workPackageId,
+                                          String extractorId, String sourceTaskId, String frozenAt) { }
     public record DesignRequirementHistoryDto(int revision, String state, String requirementText,
                                               int modelCallsUsed, int maxModelCalls) { }
     public record DecompositionHistoryDto(String state, String resultType, String planJson) { }
@@ -426,7 +465,17 @@ public class TaskController {
     private ErrorDto error(ErrorEventRow row) { return new ErrorDto(row.id(), row.layer(), row.code(), row.message(), row.retryable(), row.stageId(), row.attemptId(), row.sessionId(), row.occurredAt(), node(row.evidenceJson())); }
     private DesignerHistoryMessageDto designerHistoryMessage(DesignerMessageRow row) {
         return new DesignerHistoryMessageDto(row.id(), row.ordinal(), row.role(), row.actor(), row.content(),
-                row.deliveryState(), row.createdAt(), row.requirementRevision(), row.workPackageId());
+                row.deliveryState(), row.createdAt(), row.requirementRevision(), row.workPackageId(),
+                mapper.listDesignerAttachmentsForMessage(row.id()).stream().map(this::designerAttachment).toList());
+    }
+    private DesignerHistoryAttachmentDto designerAttachment(DesignerAttachmentRow row) {
+        return new DesignerHistoryAttachmentDto(row.id(), row.originalFilename(), row.detectedMediaType(),
+                row.sizeBytes(), row.sha256(), row.scopeKey(), row.workPackageId(), row.extractorId(),
+                row.previewKind(), row.state(), row.supersededByAttachmentId());
+    }
+    private FrozenTaskAttachmentDto frozenAttachment(TaskDesignAttachmentRow row) {
+        return new FrozenTaskAttachmentDto(row.id(), row.originalFilename(), row.detectedMediaType(), row.sizeBytes(),
+                row.sha256(), row.scopeKey(), row.workPackageId(), row.extractorId(), row.sourceTaskId(), row.frozenAt());
     }
 
     private List<WorkPackageProgressDto> workPackageProgress(List<StageRow> stages, List<AttemptRow> attempts,

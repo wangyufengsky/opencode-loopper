@@ -28,16 +28,19 @@ public class RecoveryService {
     private final RecoveryPersistence persistence;
     private final TaskService tasks;
     private final TaskDesignOriginService designOrigins;
+    private final DesignerAttachmentContext attachmentContext;
 
     public RecoveryService(LoopperMapper mapper, LoopDraftService drafts, ProjectService projects,
                            RecoveryPersistence persistence, TaskService tasks,
-                           TaskDesignOriginService designOrigins) {
+                           TaskDesignOriginService designOrigins,
+                           DesignerAttachmentContext attachmentContext) {
         this.mapper = mapper;
         this.drafts = drafts;
         this.projects = projects;
         this.persistence = persistence;
         this.tasks = tasks;
         this.designOrigins = designOrigins;
+        this.attachmentContext = attachmentContext;
     }
 
     public FeatureContracts.RecoveryDto create(String parentTaskId, RecoveryMode requestedMode) {
@@ -67,10 +70,13 @@ public class RecoveryService {
                 stages, parentSpec.limits(), parentSpec.model(), parentSpec.sessionPolicy(),
                 parentSpec.nextAttemptPromptTemplate(), parentSpec.budget());
 
+        DesignerAttachmentContext.PreparedInheritance inheritedAttachments =
+                attachmentContext.prepareInheritance(parent.id());
         LoopDraftRow childDraft = drafts.create(childSpec);
         TaskRow child = mode == RecoveryMode.REWORK_ALL_STAGES || checkpointSeeded
                 ? drafts.confirmAtBaseline(childDraft.id(), recoveryTitle(parent.title(), mode), "RECOVERY", parent.baselineCommit())
                 : drafts.confirm(childDraft.id(), recoveryTitle(parent.title(), mode), "RECOVERY");
+        attachmentContext.inheritPrepared(child.id(), inheritedAttachments);
         TaskDesignOriginService.Origin origin = designOrigins.sourceForChild(parent);
         persistence.link(new TaskLineageRow(child.id(), parent.id(), mode.name(),
                 recoveryPoint == null ? null : recoveryPoint.id(), fingerprint, Instant.now().toString(),

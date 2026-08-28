@@ -25,11 +25,18 @@ describe('TaskDesignHistoryView', () => {
         { id: 'WP-1', ordinal: 0, title: '历史入口', objective: '提供历史查看入口', state: 'COMPLETED', compilerSummary: '已编译入口阶段', handoffSummary: '入口可供后续包复用' },
         { id: 'WP-2', ordinal: 1, title: '历史展示', objective: '展示分包快照', state: 'COMPLETED', compilerSummary: '已编译展示阶段', handoffSummary: '无后续依赖' },
       ],
+      frozenAttachments: [{
+        id: 'frozen-1', filename: 'contract.pdf', mediaType: 'application/pdf', sizeBytes: 4096,
+        sha256: 'abcdef0123456789', scopeKey: 'REQUIREMENT', extractorId: 'PDF_TEXT', frozenAt: '2026-08-05T09:00:00Z',
+      }],
       designerSession: {
         id: 'designer-1', state: 'COMPLETED', accessMode: 'READ_ONLY', createdAt: '2026-08-05T08:00:00Z', updatedAt: '2026-08-05T09:00:00Z',
         messages: [
           { id: 'notice', role: 'SYSTEM', actor: 'SYSTEM', content: 'Designer session created in read-only mode.', deliveryState: 'PENDING_HANDOFF', createdAt: '2026-08-05T08:00:00Z' },
-          { id: 'user', role: 'USER', actor: 'USER', content: '请保留设计历史', deliveryState: 'PERSISTED', createdAt: '2026-08-05T08:01:00Z' },
+          { id: 'user', role: 'USER', actor: 'USER', content: '请保留设计历史', deliveryState: 'PERSISTED', createdAt: '2026-08-05T08:01:00Z', attachments: [{
+            id: 'attachment-1', filename: 'contract.pdf', mediaType: 'application/pdf', sizeBytes: 4096,
+            sha256: 'abcdef0123456789', scopeKey: 'REQUIREMENT', extractorId: 'PDF_TEXT', previewKind: 'PDF', state: 'ACTIVE',
+          }] },
           { id: 'assistant', role: 'ASSISTANT', actor: 'DESIGNER', content: '## 历史设计方案', deliveryState: 'PERSISTED', createdAt: '2026-08-05T08:02:00Z' },
           { id: 'decomposer', role: 'ASSISTANT', actor: 'DECOMPOSER', content: '已拆为两个纵向工作包', deliveryState: 'COMPILED', requirementRevision: 2, createdAt: '2026-08-05T08:01:30Z' },
         ],
@@ -63,6 +70,9 @@ describe('TaskDesignHistoryView', () => {
     expect(wrapper.text()).toContain('保留设计历史')
     expect(wrapper.text()).toContain('实现历史入口')
     expect(wrapper.text()).toContain('npm test')
+    expect(wrapper.text()).toContain('冻结附件清单')
+    expect(wrapper.text()).toContain('contract.pdf')
+    expect(wrapper.text()).toContain('abcdef012345')
     expect(wrapper.text()).not.toContain('查看完整 LoopSpec JSON')
     expect(wrapper.find('textarea').exists()).toBe(false)
   })

@@ -10,6 +10,7 @@ import io.opencode.loopper.persistence.DesignDiscussionRevisionRow;
 import io.opencode.loopper.persistence.DesignRequirementRevisionRow;
 import io.opencode.loopper.persistence.DesignWorkPackageRow;
 import io.opencode.loopper.persistence.DesignerAutoModeRow;
+import io.opencode.loopper.persistence.DesignerAttachmentRow;
 import io.opencode.loopper.persistence.DesignerMessageRow;
 import io.opencode.loopper.persistence.DesignerSessionRow;
 import io.opencode.loopper.persistence.LoopDraftRow;
@@ -27,6 +28,7 @@ import io.opencode.loopper.service.ConflictException;
 import io.opencode.loopper.service.DesignerSessionService;
 import io.opencode.loopper.service.DesignerAutoModeService;
 import io.opencode.loopper.service.DesignerAcceptanceV7MeasurementRegistry;
+import io.opencode.loopper.service.DesignerAttachmentContext;
 import io.opencode.loopper.service.AnalysisReportService;
 import io.opencode.loopper.service.DirectArtifactDesignService;
 import io.opencode.loopper.service.DirectMaintenanceDesignService;
@@ -51,6 +53,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -98,6 +101,7 @@ class DesignerSessionMcpIntegrationTest {
     @Autowired private Flyway flyway;
     @Autowired private ProjectService projects;
     @Autowired private DesignerSessionService designerSessions;
+    @Autowired private DesignerAttachmentContext attachmentContext;
     @Autowired private DesignerAutoModeService designerAutoMode;
     @Autowired private AnalysisReportService reports;
     @Autowired private DirectArtifactDesignService directArtifacts;
@@ -1168,6 +1172,13 @@ class DesignerSessionMcpIntegrationTest {
         LoopDraftRow draft = drafts.create(legacySpec(project.id()));
         fake().setDesignerOutput("# 只读评审范围\n\n检查 README.md 并输出带文件行号的报告。");
         DesignerSessionRow session = prepareReviewingSession(project.id(), draft.id(), "只读评审当前项目并给出证据报告");
+        DesignerMessageRow source = designerSessions.messages(session.id()).stream()
+                .filter(message -> "USER".equals(message.role())).findFirst().orElseThrow();
+        attachmentContext.change(new DesignerAttachmentContext.SubmitAttachmentMessage(
+                        UUID.randomUUID().toString(), session.id(), source.id(),
+                        DesignerAttachmentContext.AttachmentScope.requirement(), source.content()),
+                List.of(new DesignerAttachmentContext.IncomingFile("review-context.txt", "text/plain",
+                        "Review README.md line one.".getBytes(StandardCharsets.UTF_8))));
 
         TaskProfileService.View profile = taskProfiles.freeze(session.id());
         designerSessions.beginReadOnlyReport(session.id());
@@ -1187,6 +1198,8 @@ class DesignerSessionMcpIntegrationTest {
         var row = mapper.listAnalysisReports(session.id()).getFirst();
         assertThat(fake().profileForSession(row.externalSessionId()))
                 .isEqualTo(OpenCodeClient.SessionProfile.REVIEWER_READ_ONLY);
+        assertThat(fake().promptRequestForSession(row.externalSessionId()).files())
+                .extracting(OpenCodeClient.FilePart::filename).containsExactly("review-context.txt");
         assertThat(profile.executionStrategy().name()).isEqualTo("READ_ONLY_REPORT");
 
         mvc.perform(get("/api/designer-sessions/{id}/reports/{reportId}", session.id(), ready.id()))
@@ -2069,8 +2082,10 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(designerSessions.messages(session.id())).anyMatch(message ->
                 "CHAT_QUESTION".equals(message.deliveryState()) && message.content().contains("缓存更新失败"));
 
-        designerSessions.appendRequirementMessage(session.id(), "选择保留旧值并报错，同时记录失败原因。",
-                session.discussionRevision());
+        designerSessions.appendRequirementContextTurn(session.id(), "选择保留旧值并报错，同时记录失败原因。",
+                session.discussionRevision(), UUID.randomUUID().toString(), List.of(
+                        new DesignerAttachmentContext.IncomingFile("failure-policy.txt", "text/plain",
+                                "失败时保留旧值，并记录结构化失败原因。".getBytes(StandardCharsets.UTF_8))));
 
         assertThat(designerSessions.get(session.id()).state()).isEqualTo("REVIEWING");
         assertThat(mapper.listDesignDiscussionRevisions(session.id())).singleElement().satisfies(revision -> {
@@ -2080,6 +2095,9 @@ class DesignerSessionMcpIntegrationTest {
         });
         assertThat(mapper.findCurrentDesignRequirementRevision(session.id())).isEmpty();
         assertThat(mapper.listTasks()).isEmpty();
+        assertThat(mapper.listActiveDesignerAttachments(session.id()))
+                .singleElement().extracting(DesignerAttachmentRow::originalFilename)
+                .isEqualTo("failure-policy.txt");
 
         mvc.perform(get("/api/designer-sessions/{sessionId}", session.id()))
                 .andExpect(status().isOk())

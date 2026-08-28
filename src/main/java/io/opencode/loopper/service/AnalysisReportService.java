@@ -34,12 +34,13 @@ public class AnalysisReportService {
     private final OpenCodeClient openCode;
     private final LoopperProperties properties;
     private final RolePromptComposer prompts;
+    private final DesignerAttachmentContext attachmentContext;
 
     public AnalysisReportService(LoopperMapper mapper, ProjectService projects, ObjectMapper json,
                                  OpenCodeClient openCode, LoopperProperties properties,
-                                 RolePromptComposer prompts) {
+                                 RolePromptComposer prompts, DesignerAttachmentContext attachmentContext) {
         this.mapper = mapper; this.projects = projects; this.json = json; this.openCode = openCode;
-        this.properties = properties; this.prompts = prompts;
+        this.properties = properties; this.prompts = prompts; this.attachmentContext = attachmentContext;
     }
 
     /** Starts an independent Reviewer. It creates no Task, branch, lease, Attempt, or writable Session. */
@@ -77,6 +78,8 @@ public class AnalysisReportService {
                     ? new OpenCodeClient.PromptRequest(prompt, null, OpenCodeClient.STRUCTURED_AGENT,
                     OpenCodeStructuredSchemas.format(OpenCodeStructuredSchemas.REVIEWER_REPORT_V1))
                     : OpenCodeClient.PromptRequest.text(prompt);
+            request = attachmentContext.withContext(
+                    DesignerAttachmentContext.ContextUse.requirement(session.id()), request);
             openCode.promptAsync(remote, request);
             return view(session, update(row, "RUNNING", "只读分析报告", "", List.of(), null, null,
                     null, null, remote.id(), "RUNNING"));

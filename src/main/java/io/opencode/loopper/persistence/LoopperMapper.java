@@ -8,5 +8,5 @@ import org.apache.ibatis.annotations.Mapper;
  */
 @Mapper
 public interface LoopperMapper extends LoopperInfrastructureMapper, LoopperProjectMapper,
-        LoopperDesignerMapper, LoopperTaskMapper, ModelTokenUsageMapper {
+        LoopperDesignerMapper, LoopperTaskMapper, LoopperAttachmentMapper, ModelTokenUsageMapper {
 }

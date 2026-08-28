@@ -7,12 +7,15 @@ import io.opencode.loopper.domain.RecoveryMode;
 import io.opencode.loopper.persistence.ProjectRow;
 import io.opencode.loopper.persistence.StageRow;
 import io.opencode.loopper.persistence.TaskRow;
+import io.opencode.loopper.persistence.DesignerMessageRow;
+import io.opencode.loopper.persistence.DesignerSessionRow;
 import io.opencode.loopper.runtime.FakeOpenCodeClient;
 import io.opencode.loopper.runtime.OpenCodeClient;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,6 +33,8 @@ class RecoveryServiceIntegrationTest {
     @Autowired private LoopDraftService drafts;
     @Autowired private TaskService tasks;
     @Autowired private RecoveryService recoveries;
+    @Autowired private DesignerSessionService designerSessions;
+    @Autowired private DesignerAttachmentContext attachmentContext;
     @Autowired private io.opencode.loopper.persistence.LoopperMapper mapper;
     @Autowired private OpenCodeClient openCode;
     @Autowired private DataSource dataSource;
@@ -62,6 +67,31 @@ class RecoveryServiceIntegrationTest {
         assertThat(created.writableSession()).isTrue();
         assertThat(tasks.stages(created.taskId())).extracting(StageRow::objective).containsExactly("验证第二阶段");
         assertThat(recoveries.list(parent.id())).containsExactly(created);
+    }
+
+    @Test
+    void recoveryTaskInheritsTheParentsFrozenAttachmentManifest() throws Exception {
+        ProjectRow project = projects.create("recovery-attachments", gitProject());
+        var draft = drafts.create(singleStageSpec(project.id(), "README.md"));
+        DesignerSessionRow designer = designerSessions.create(project.id(), draft.id(),
+                "Use the attached recovery contract.");
+        DesignerMessageRow message = designerSessions.messages(designer.id()).stream()
+                .filter(item -> "USER".equals(item.role())).findFirst().orElseThrow();
+        attachmentContext.change(new DesignerAttachmentContext.SubmitAttachmentMessage(
+                        UUID.randomUUID().toString(), designer.id(), message.id(),
+                        DesignerAttachmentContext.AttachmentScope.requirement(), message.content()),
+                List.of(new DesignerAttachmentContext.IncomingFile(
+                        "recovery.txt", "text/plain", "frozen recovery context".getBytes(java.nio.charset.StandardCharsets.UTF_8))));
+        TaskRow parent = drafts.confirm(draft.id(), "attachment parent");
+        tasks.cancel(parent.id());
+
+        FeatureContracts.RecoveryDto child = recoveries.create(parent.id(), RecoveryMode.FROM_FAILED_STAGE);
+
+        assertThat(mapper.listTaskDesignAttachments(child.taskId())).singleElement().satisfies(attachment -> {
+            assertThat(attachment.originalFilename()).isEqualTo("recovery.txt");
+            assertThat(attachment.sourceTaskId()).isEqualTo(parent.id());
+            assertThat(attachment.sha256()).isEqualTo(mapper.listTaskDesignAttachments(parent.id()).getFirst().sha256());
+        });
     }
 
     @Test

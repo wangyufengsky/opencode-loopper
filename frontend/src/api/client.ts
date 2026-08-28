@@ -19,11 +19,12 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const multipart = typeof FormData !== 'undefined' && init?.body instanceof FormData
   const response = await fetch(`${apiBase}${path}`, {
     ...init,
     // Keep caller headers (for example the local-UI guard) without letting
     // RequestInit overwrite the JSON content type assembled here.
-    headers: { Accept: 'application/json', ...(init?.body ? { 'Content-Type': 'application/json' } : {}), ...init?.headers },
+    headers: { Accept: 'application/json', ...(init?.body && !multipart ? { 'Content-Type': 'application/json' } : {}), ...init?.headers },
   })
   if (!response.ok) {
     const problem = await response.json().catch(() => ({})) as { detail?: string; title?: string; errorCode?: string; errorLayer?: string }
@@ -595,6 +596,13 @@ function normalizeTaskDesignHistory(value: unknown): TaskDesignHistory {
     projectName: asString(raw.projectName, 'Unknown project'),
     designSourceTaskId: asString(raw.designSourceTaskId) || undefined,
     inheritedConversation: raw.inheritedConversation === true,
+    frozenAttachments: asArray(raw.frozenAttachments).map((value) => {
+      const item = asRecord(value)
+      return { id: asString(item.id), filename: asString(item.filename), mediaType: asString(item.mediaType),
+        sizeBytes: asNumber(item.sizeBytes), sha256: asString(item.sha256), scopeKey: asString(item.scopeKey),
+        workPackageId: asString(item.workPackageId) || undefined, extractorId: asString(item.extractorId) || undefined,
+        sourceTaskId: asString(item.sourceTaskId) || undefined, frozenAt: asString(item.frozenAt) }
+    }),
     draft: normalizeDraft(raw.draft),
     designerSession: raw.designerSession ? {
       id: asString(session.id),
@@ -825,8 +833,27 @@ function normalizeDesignerMessage(value: unknown): DesignerMessage {
       : undefined,
     requirementRevision: typeof raw.requirementRevision === 'number' ? raw.requirementRevision : undefined,
     workPackageId: asString(raw.workPackageId) || undefined,
+    attachments: asArray(raw.attachments).map(normalizeDesignerAttachment),
     createdAt: asString(raw.createdAt),
   }
+}
+
+function normalizeDesignerAttachment(value: unknown): NonNullable<DesignerMessage['attachments']>[number] {
+  const raw = asRecord(value)
+  return {
+    id: asString(raw.id), filename: asString(raw.filename), mediaType: asString(raw.mediaType),
+    sizeBytes: asNumber(raw.sizeBytes), sha256: asString(raw.sha256), scopeKey: asString(raw.scopeKey),
+    workPackageId: asString(raw.workPackageId) || undefined, extractorId: asString(raw.extractorId),
+    previewKind: asString(raw.previewKind), state: asString(raw.state),
+    supersededByAttachmentId: asString(raw.supersededByAttachmentId) || undefined,
+  }
+}
+
+function designerContextForm(metadata: object, files: File[]): FormData {
+  const form = new FormData()
+  form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }), 'metadata.json')
+  files.forEach(file => form.append('files', file, file.name))
+  return form
 }
 
 function normalizeWorkflowPhase(value: unknown): DesignerSession['workflowPhase'] {
@@ -1515,6 +1542,11 @@ export const api = {
   getGitDiffScopeApprovalPreview: async (id: string, requestId: string, path: string) => normalizeTaskDiffPreview(await request<unknown>(`/tasks/${encodeURIComponent(id)}/git-diff-scope-approval/${encodeURIComponent(requestId)}/diff-preview?path=${encodeURIComponent(path)}`)),
   resolveGitDiffScopeApproval: async (id: string, requestId: string, input: { expectedTaskVersion: number; decisions: Array<{ path: string; action: GitDiffScopeDecisionAction; patchSha256: string }> }) => normalizeTask(await request<unknown>(`/tasks/${encodeURIComponent(id)}/git-diff-scope-approval/${encodeURIComponent(requestId)}/resolve`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(input) })),
   getTaskDesignHistory: async (id: string) => normalizeTaskDesignHistory(await request<unknown>(`/tasks/${encodeURIComponent(id)}/design-history`)),
+  getTaskDesignAttachmentPreview: async (id: string, attachmentId: string) => {
+    const raw = asRecord(await request<unknown>(`/tasks/${encodeURIComponent(id)}/design-attachments/${encodeURIComponent(attachmentId)}/preview`))
+    return { filename: asString(raw.filename), previewKind: asString(raw.previewKind), mediaType: asString(raw.mediaType), text: asString(raw.text) || undefined, inlineContentAvailable: raw.inlineContentAvailable === true }
+  },
+  taskDesignAttachmentContentUrl: (id: string, attachmentId: string) => `${apiBase}/tasks/${encodeURIComponent(id)}/design-attachments/${encodeURIComponent(attachmentId)}/content`,
   getTaskSessions: async (id: string) => (await request<unknown[]>(`/tasks/${encodeURIComponent(id)}/sessions`)).map(normalizeTaskSession),
   getTaskSessionActivity: async (taskId: string, sessionKey: string) => normalizeTaskSessionActivity(await request<unknown>(`/tasks/${encodeURIComponent(taskId)}/sessions/${encodeURIComponent(sessionKey)}`)),
   getTaskSessionTodos: async (taskId: string, sessionId: string) => (await request<unknown[]>(`/tasks/${encodeURIComponent(taskId)}/sessions/${encodeURIComponent(sessionId)}/todos`)).map(normalizeSessionTodo),
@@ -1597,6 +1629,9 @@ export const api = {
   updateDraft: async (id: string, spec: LoopDraft['spec']) => normalizeDraft(await request<unknown>(`/loop-drafts/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify({ spec: backendLoopSpec(spec) }) })),
   confirmDraft: async (id: string) => { const task = asRecord(await request<unknown>(`/loop-drafts/${encodeURIComponent(id)}/confirm`, { method: 'POST' })); return { taskId: asString(task.taskId) } },
   createDesignerSession: async (projectId: string, draftId: string, initialMessage?: string, autoModeEnabled = false) => normalizeDesignerSession(await request<unknown>('/designer-sessions', { method: 'POST', headers: autoModeEnabled ? { 'X-Loopper-Local-UI': '1' } : undefined, body: JSON.stringify({ projectId, draftId, ...(initialMessage ? { initialMessage } : {}), autoModeEnabled }) })),
+  createDesignerContextTurn: async (input: { submissionId: string; projectId: string; draftId: string; content: string; autoModeEnabled: boolean }, files: File[]) => normalizeDesignerSession(await request<unknown>('/designer-sessions/context-turns', {
+    method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: designerContextForm(input, files),
+  })),
   listOpenDesignerSessions: async (projectId: string) => (await request<unknown[]>(`/designer-sessions?projectId=${encodeURIComponent(projectId)}`)).map(normalizeDesignerSessionSummary),
   listDesignerHistory: async (projectId?: string) => (await request<unknown[]>(`/designer-sessions/history${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`)).map(normalizeDesignerHistoryItem),
   listDesignerHistoryPage: async (input: DesignerHistoryQuery = {}) => {
@@ -1628,6 +1663,14 @@ export const api = {
     }
   },
   getDesignerMessages: async (id: string) => (await request<unknown[]>(`/designer-sessions/${encodeURIComponent(id)}/messages`)).map(normalizeDesignerMessage),
+  getDesignerAttachmentPreview: async (id: string, attachmentId: string) => {
+    const raw = asRecord(await request<unknown>(`/designer-sessions/${encodeURIComponent(id)}/attachments/${encodeURIComponent(attachmentId)}/preview`))
+    return { filename: asString(raw.filename), previewKind: asString(raw.previewKind), mediaType: asString(raw.mediaType), text: asString(raw.text) || undefined, inlineContentAvailable: raw.inlineContentAvailable === true }
+  },
+  designerAttachmentContentUrl: (id: string, attachmentId: string) => `${apiBase}/designer-sessions/${encodeURIComponent(id)}/attachments/${encodeURIComponent(attachmentId)}/content`,
+  stopDesignerAttachment: async (id: string, attachmentId: string, commandId: string) => request<unknown>(`/designer-sessions/${encodeURIComponent(id)}/attachments/${encodeURIComponent(attachmentId)}/stop-future-use`, {
+    method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify({ commandId }),
+  }),
   replyDesignerQuestion: async (id: string, questionId: string, answers: string[][]) => request<void>(`/designer-sessions/${encodeURIComponent(id)}/questions/${encodeURIComponent(questionId)}/reply`, { method: 'POST', body: JSON.stringify({ answers }) }),
   rejectDesignerQuestion: async (id: string, questionId: string) => request<void>(`/designer-sessions/${encodeURIComponent(id)}/questions/${encodeURIComponent(questionId)}/reject`, { method: 'POST' }),
   retryDesignerCompiler: async (id: string) => request<void>(`/designer-sessions/${encodeURIComponent(id)}/compiler/retry`, { method: 'POST' }),
@@ -1637,6 +1680,12 @@ export const api = {
   redesignWorkPackage: async (id: string, packageId: string) => request<void>(`/designer-sessions/${encodeURIComponent(id)}/work-packages/${encodeURIComponent(packageId)}/redesign`, { method: 'POST' }),
   sendRequirementMessage: async (id: string, content: string, expectedDiscussionRevision: number): Promise<DesignerAppendResult> => {
     const raw = asRecord(await request<unknown>(`/designer-sessions/${encodeURIComponent(id)}/requirement/messages`, { method: 'POST', body: JSON.stringify({ content, expectedDiscussionRevision }) }))
+    return { sessionId: asString(raw.sessionId), state: normalizeDesignerState(raw.state), persistedMessages: asArray(raw.persistedMessages).map(normalizeDesignerMessage), notice: asString(raw.notice) }
+  },
+  sendDesignerContextTurn: async (id: string, input: { submissionId: string; content: string; scopeKey: string; workPackageId?: string; expectedDiscussionRevision: number; expectedDesignRevision: number }, files: File[]): Promise<DesignerAppendResult> => {
+    const raw = asRecord(await request<unknown>(`/designer-sessions/${encodeURIComponent(id)}/context-turns`, {
+      method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: designerContextForm(input, files),
+    }))
     return { sessionId: asString(raw.sessionId), state: normalizeDesignerState(raw.state), persistedMessages: asArray(raw.persistedMessages).map(normalizeDesignerMessage), notice: asString(raw.notice) }
   },
   confirmDesignerRequirement: async (id: string, expectedDiscussionRevision: number) => request<void>(`/designer-sessions/${encodeURIComponent(id)}/requirement/confirm`, { method: 'POST', body: JSON.stringify({ expectedDiscussionRevision }) }),

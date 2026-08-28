@@ -66,6 +66,16 @@ const dismissedRouterRunId = ref('')
 const profileEditing = ref(false)
 const committedTaskNavigation = ref(false)
 const reportDetail = ref<AnalysisReport>()
+const initialFiles = ref<File[]>([])
+const messageFiles = ref<File[]>([])
+const initialFileInput = ref<HTMLInputElement>()
+const messageFileInput = ref<HTMLInputElement>()
+const dragActive = ref(false)
+let dragDepth = 0
+const initialSubmissionId = ref('')
+const messageSubmissionId = ref('')
+const attachmentPreviews = ref<Record<string, string>>({})
+const attachmentPreviewBusy = ref('')
 const designerWorkspaceKey = 'opencode-loopper.designer-workspace'
 const draftPromptKey = 'opencode-loopper.designer-draft-prompt'
 const messageDraftKey = 'opencode-loopper.designer-message-draft'
@@ -83,6 +93,69 @@ function persistSessionText(key: string, value: string) {
 
 const draftPrompt = ref(readSessionText(draftPromptKey))
 const userMessage = ref(readSessionText(messageDraftKey))
+
+function newSubmissionId() {
+  return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID() : `attachment-${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
+
+function formatFileSize(bytes: number) {
+  return bytes < 1024 * 1024 ? `${Math.max(1, Math.ceil(bytes / 1024))} KiB` : `${(bytes / 1024 / 1024).toFixed(1)} MiB`
+}
+
+function stageFiles(incoming: File[]) {
+  if (!incoming.length) return
+  if (incoming.some(file => file.size > 20 * 1024 * 1024)) {
+    ElMessage.error('单个附件不能超过 20 MiB。')
+    return
+  }
+  const target = draft.value ? messageFiles : initialFiles
+  const next = [...target.value]
+  for (const file of incoming) {
+    const existing = next.findIndex(item => item.name === file.name)
+    if (existing >= 0) next.splice(existing, 1, file)
+    else next.push(file)
+  }
+  if (next.length > 10) {
+    ElMessage.error('每条消息最多携带 10 个附件。')
+    return
+  }
+  target.value = next
+  if (draft.value) messageSubmissionId.value ||= newSubmissionId()
+  else initialSubmissionId.value ||= newSubmissionId()
+}
+
+function selectedFiles(event: Event) {
+  const input = event.target as HTMLInputElement
+  stageFiles(Array.from(input.files ?? []))
+  input.value = ''
+}
+
+function removeStagedFile(index: number, initial: boolean) {
+  const target = initial ? initialFiles : messageFiles
+  target.value = target.value.filter((_, itemIndex) => itemIndex !== index)
+  if (!target.value.length) {
+    if (initial) initialSubmissionId.value = ''
+    else messageSubmissionId.value = ''
+  }
+}
+
+function onDragEnter(event: DragEvent) {
+  if (!event.dataTransfer?.types.includes('Files')) return
+  dragDepth += 1
+  dragActive.value = true
+}
+
+function onDragLeave() {
+  dragDepth = Math.max(0, dragDepth - 1)
+  if (!dragDepth) dragActive.value = false
+}
+
+function onDrop(event: DragEvent) {
+  dragDepth = 0
+  dragActive.value = false
+  stageFiles(Array.from(event.dataTransfer?.files ?? []))
+}
 let designerPollTimer: ReturnType<typeof setTimeout> | undefined
 let designerPollInFlight = false
 let designerPollFailures = 0
@@ -810,13 +883,21 @@ async function startDraft() {
   try {
     const settings = await api.getSettings()
     const createdDraft = await api.createDraft(blankSpec(project.id, goal, settings))
-    designerSession.value = await api.createDesignerSession(project.id, createdDraft.id, goal, newAutoModeEnabled.value)
+    designerSession.value = initialFiles.value.length
+      ? await api.createDesignerContextTurn({
+          submissionId: initialSubmissionId.value || (initialSubmissionId.value = newSubmissionId()),
+          projectId: project.id, draftId: createdDraft.id, content: goal,
+          autoModeEnabled: newAutoModeEnabled.value,
+        }, initialFiles.value)
+      : await api.createDesignerSession(project.id, createdDraft.id, goal, newAutoModeEnabled.value)
     messages.value = designerSession.value.messages
     draft.value = designerSession.value.draft ?? createdDraft
     editorValue.value = JSON.stringify(draft.value.spec, null, 2)
     sessionStorage.setItem(designerWorkspaceKey, JSON.stringify({ sessionId: designerSession.value.id, draftId: draft.value.id }))
     designerRecoveryError.value = ''
     draftPrompt.value = ''
+    initialFiles.value = []
+    initialSubmissionId.value = ''
     newAutoModeEnabled.value = false
   } catch (error) { ElMessage.error(userFacingError(error, '无法创建设计草案')) } finally { busy.value = false }
 }
@@ -1110,15 +1191,26 @@ async function sendMessage() {
   busy.value = true
   try {
     const session = designerSession.value
-    const result = session.workflowPhase === 'DISCUSSING_REQUIREMENT'
-      ? await api.sendRequirementMessage(session.id, content, session.discussionRevision)
-      : currentPackage.value
-        ? await api.sendWorkPackageMessage(session.id, currentPackage.value.id, content,
-            session.discussionRevision, currentPackage.value.designRevision)
-        : await api.sendDesignerMessage(session.id, content)
+    const result = messageFiles.value.length
+      ? await api.sendDesignerContextTurn(session.id, {
+          submissionId: messageSubmissionId.value || (messageSubmissionId.value = newSubmissionId()),
+          content,
+          scopeKey: currentPackage.value?.id ?? 'REQUIREMENT',
+          workPackageId: currentPackage.value?.id,
+          expectedDiscussionRevision: session.discussionRevision,
+          expectedDesignRevision: currentPackage.value?.designRevision ?? 0,
+        }, messageFiles.value)
+      : session.workflowPhase === 'DISCUSSING_REQUIREMENT'
+        ? await api.sendRequirementMessage(session.id, content, session.discussionRevision)
+        : currentPackage.value
+          ? await api.sendWorkPackageMessage(session.id, currentPackage.value.id, content,
+              session.discussionRevision, currentPackage.value.designRevision)
+          : await api.sendDesignerMessage(session.id, content)
     mergeMessages(result.persistedMessages)
     designerSession.value = { ...designerSession.value, state: result.state }
     userMessage.value = ''
+    messageFiles.value = []
+    messageSubmissionId.value = ''
     ElMessage.info(result.notice ? userFacingError(result.notice) : '消息已交给只读设计师。')
     await refreshDesignerSession()
     startDesignerPolling()
@@ -1127,6 +1219,37 @@ async function sendMessage() {
   } finally {
     busy.value = false
   }
+}
+
+async function stopAttachmentFutureUse(attachment: NonNullable<DesignerMessage['attachments']>[number]) {
+  if (!designerSession.value || attachment.state !== 'ACTIVE') return
+  try {
+    await ElMessageBox.confirm(
+      `停止“${attachment.filename}”未来使用后，历史消息与已经发生的 OpenCode 读取仍会保留；下一条讨论会使用新 Session。`,
+      '停止附件未来使用？',
+      { type: 'warning', confirmButtonText: '确认停止', cancelButtonText: '保留附件' },
+    )
+  } catch { return }
+  busy.value = true
+  try {
+    await api.stopDesignerAttachment(designerSession.value.id, attachment.id, newSubmissionId())
+    await refreshDesignerSession()
+    ElMessage.success('附件已停止用于后续设计和开发上下文。')
+  } catch (error) {
+    ElMessage.error(userFacingError(error, '无法停止附件未来使用'))
+  } finally { busy.value = false }
+}
+
+async function loadAttachmentPreview(attachment: NonNullable<DesignerMessage['attachments']>[number]) {
+  if (!designerSession.value || attachmentPreviews.value[attachment.id] !== undefined) return
+  attachmentPreviewBusy.value = attachment.id
+  try {
+    const preview = await api.getDesignerAttachmentPreview(designerSession.value.id, attachment.id)
+    attachmentPreviews.value = { ...attachmentPreviews.value,
+      [attachment.id]: preview.text ?? '该文件使用经过验证的原始内容预览。' }
+  } catch (error) {
+    ElMessage.error(userFacingError(error, '无法读取附件预览'))
+  } finally { attachmentPreviewBusy.value = '' }
 }
 
 async function confirmRequirement() {
@@ -1285,7 +1408,11 @@ async function redesignPackage(packageId: string) {
     :session="designerSession" :busy="busy" @update:model-value="setRouterDialogVisible"
     @cancel="cancelTaskProfileRouting" @confirm="confirmTaskProfile" @reroute="rerouteTaskProfile"
     @save="saveTaskProfileFromDialog" />
-  <main id="main-content" class="content" tabindex="-1">
+  <main id="main-content" class="content designer-drop-surface" tabindex="-1"
+    @dragenter.prevent="onDragEnter" @dragover.prevent @dragleave.prevent="onDragLeave" @drop.prevent="onDrop">
+    <div v-if="dragActive" class="designer-drop-overlay" role="status">
+      <Icon icon="lucide:file-up" /><strong>放到当前输入框</strong><span>文件会暂存，点击发送后才交给 OpenCode</span>
+    </div>
     <section v-if="!draft && !store.usingDemo && !store.loading && !store.projects.length" class="card designer-onboarding" aria-labelledby="designer-onboarding-title">
       <span class="designer-onboarding-icon"><Icon icon="lucide:folder-plus" aria-hidden="true" /></span>
       <div><p class="eyebrow">需要项目</p><h2 id="designer-onboarding-title">先登记项目，再开始设计</h2></div>
@@ -1337,6 +1464,18 @@ async function redesignPackage(packageId: string) {
               @keydown.meta.enter.prevent="startDraft"
               @keydown.ctrl.enter.prevent="startDraft"
             />
+          </div>
+
+          <div class="attachment-toolbar">
+            <input ref="initialFileInput" class="visually-hidden" type="file" multiple aria-label="选择初始设计附件" @change="selectedFiles" />
+            <el-button plain size="small" @click="initialFileInput?.click()"><Icon icon="lucide:paperclip" />添加文件</el-button>
+            <span class="tiny muted">最多 10 个，每个 20 MiB；必须和文字一起发送</span>
+          </div>
+          <div v-if="initialFiles.length" class="staged-attachments" aria-label="待发送初始附件">
+            <span v-for="(file, index) in initialFiles" :key="`${file.name}:${file.size}:${file.lastModified}`" data-testid="initial-attachment-chip" class="attachment-chip">
+              <Icon icon="lucide:file" /><b>{{ file.name }}</b><small>{{ formatFileSize(file.size) }}</small>
+              <button type="button" :aria-label="`移除 ${file.name}`" @click="removeStagedFile(index, true)"><Icon icon="lucide:x" /></button>
+            </span>
           </div>
 
           <div class="brief-template-row" aria-label="需求模板">
@@ -1501,6 +1640,15 @@ async function redesignPackage(packageId: string) {
             </header>
             <MarkdownDocument v-if="item.message.actor === 'DESIGNER'" :content="item.message.content" collapsible />
             <p v-else class="plain-message-content">{{ ['RETRYABLE_ERROR', 'TERMINAL_ERROR', 'SESSION_ERROR'].includes(item.message.deliveryState ?? '') || item.message.content.includes('SYSTEM_ERROR') ? userFacingError(item.message.content) : item.message.content }}</p>
+            <div v-if="item.message.attachments?.length" class="message-attachments" aria-label="消息附件">
+              <span v-for="attachment in item.message.attachments" :key="attachment.id" class="history-attachment">
+                <Icon icon="lucide:file-check-2" /><span><b>{{ attachment.filename }}</b><small>{{ formatFileSize(attachment.sizeBytes) }} · {{ attachment.scopeKey === 'REQUIREMENT' ? '整体需求' : workPackageLabel(attachment.workPackageId) }} · SHA-256 {{ attachment.sha256.slice(0, 12) }}</small></span>
+                <el-button v-if="attachment.previewKind !== 'IMAGE'" text size="small" :loading="attachmentPreviewBusy === attachment.id" @click="loadAttachmentPreview(attachment)">安全预览</el-button>
+                <a v-if="['IMAGE', 'PDF'].includes(attachment.previewKind) && designerSession" class="attachment-preview-link" :href="api.designerAttachmentContentUrl(designerSession.id, attachment.id)" target="_blank" rel="noopener">打开原文件</a>
+                <el-button v-if="attachment.state === 'ACTIVE' && designerSession?.state === 'REVIEWING'" text size="small" :disabled="busy" @click="stopAttachmentFutureUse(attachment)">停止未来使用</el-button>
+                <pre v-if="attachmentPreviews[attachment.id]" class="attachment-preview-text">{{ attachmentPreviews[attachment.id] }}</pre>
+              </span>
+            </div>
           </article>
           </template>
           <PendingQuestionCard
@@ -1533,6 +1681,17 @@ async function redesignPackage(packageId: string) {
               @keydown.meta.enter.prevent="sendMessage"
               @keydown.ctrl.enter.prevent="sendMessage"
             />
+            <div class="attachment-toolbar">
+              <input ref="messageFileInput" class="visually-hidden" type="file" multiple aria-label="选择设计消息附件" @change="selectedFiles" />
+              <el-button plain size="small" :disabled="!composerEnabled" @click="messageFileInput?.click()"><Icon icon="lucide:paperclip" />添加文件</el-button>
+              <span class="tiny muted">附件属于{{ discussionScopeLabel }}；发送失败会保留当前文字和文件</span>
+            </div>
+            <div v-if="messageFiles.length" class="staged-attachments" aria-label="待发送消息附件">
+              <span v-for="(file, index) in messageFiles" :key="`${file.name}:${file.size}:${file.lastModified}`" data-testid="message-attachment-chip" class="attachment-chip">
+                <Icon icon="lucide:file" /><b>{{ file.name }}</b><small>{{ formatFileSize(file.size) }}</small>
+                <button type="button" :aria-label="`移除 ${file.name}`" @click="removeStagedFile(index, false)"><Icon icon="lucide:x" /></button>
+              </span>
+            </div>
             <div class="compose-actions"><span class="tiny muted">⌘ / Ctrl + Enter</span><el-button type="primary" :loading="busy" :disabled="!composerEnabled || !userMessage.trim()" @click="sendMessage"><Icon icon="lucide:send" />{{ awaitingChatAnswer ? '提交回答' : '发送' }}</el-button></div>
             <div v-if="designerSession?.workflowPhase === 'DISCUSSING_REQUIREMENT' && designerSession.state === 'REVIEWING'" class="scope-primary-action"><el-button type="primary" :loading="busy" :disabled="autoModeActive || !designerSession.taskProfile.confirmationReady" @click="confirmRequirement"><Icon :icon="designerSession.taskProfile.workflowTemplate === 'READ_ONLY_REPORT' ? 'lucide:file-search' : ['DIRECT_ARTIFACT', 'PACKAGED_ARTIFACT'].includes(designerSession.taskProfile.workflowTemplate) ? 'lucide:file-output' : designerSession.taskProfile.workflowTemplate === 'LOCAL_MAINTENANCE' ? 'lucide:wrench' : designerSession.taskProfile.workflowTemplate === 'DIRECT_SOFTWARE_DESIGN' ? 'lucide:sparkles' : 'lucide:split'" />{{ autoModeActive ? '全自动模式将确认需求' : taskProfileRouting ? '任务设置识别中' : taskProfileNeedsConfirmation ? '请先确认任务设置' : designerSession.taskProfile.workflowTemplate === 'READ_ONLY_REPORT' ? '需求已明确，生成只读报告' : designerSession.taskProfile.workflowTemplate === 'DIRECT_ARTIFACT' ? '需求已明确，规划制品' : designerSession.taskProfile.workflowTemplate === 'PACKAGED_ARTIFACT' ? '需求已明确，规划章节制品' : designerSession.taskProfile.workflowTemplate === 'LOCAL_MAINTENANCE' ? '需求已明确，规划安全维护' : designerSession.taskProfile.workflowTemplate === 'DIRECT_SOFTWARE_DESIGN' ? '需求已明确，开始单包设计' : '需求已明确，开始拆包' }}</el-button></div>
             <div v-else-if="designerSession?.workflowPhase === 'REVIEWING_PACKAGE' && currentPackage?.state === 'REVIEWING'" class="scope-primary-action"><el-button type="primary" :loading="busy" :disabled="autoModeActive" @click="approvePackage"><Icon icon="lucide:check-check" />{{ autoModeActive ? `全自动模式将接受${workPackageLabel(currentPackage.id)}` : `接受${workPackageLabel(currentPackage.id)}并继续` }}</el-button></div>
@@ -1590,6 +1749,22 @@ async function redesignPackage(packageId: string) {
 .designer-recovery-notice { display: flex; gap: 10px; margin-bottom: 14px; padding: 12px 14px; border: 1px solid rgb(245 158 11 / 36%); border-radius: 10px; color: #fbbf24; background: rgb(245 158 11 / 8%); }.designer-recovery-notice svg { flex: 0 0 auto; margin-top: 2px; }.designer-recovery-notice p { margin: 4px 0 0; color: var(--color-text-secondary); font-size: 11px; line-height: 1.55; }
 .designer-start-layout { display: grid; align-items: start; grid-template-columns: minmax(0, 1fr) 276px; gap: 16px; }
 .brief-composer { overflow: hidden; border-color: rgb(57 78 113 / 78%); background: linear-gradient(155deg, rgb(17 27 46 / 98%), rgb(10 16 29 / 98%)); box-shadow: 0 24px 70px rgb(0 0 0 / 25%); }
+.designer-drop-surface { position: relative; }
+.designer-drop-overlay { position: fixed; z-index: 50; inset: 78px 24px 24px; display: grid; place-content: center; justify-items: center; gap: 8px; border: 2px dashed rgb(96 165 250 / 80%); border-radius: 18px; background: rgb(7 16 31 / 92%); color: var(--color-text-primary); pointer-events: none; }
+.designer-drop-overlay svg { width: 34px; height: 34px; color: rgb(96 165 250); }
+.designer-drop-overlay span { color: var(--color-text-muted); }
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.attachment-toolbar { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.staged-attachments, .message-attachments { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.attachment-chip { display: inline-flex; align-items: center; gap: 7px; max-width: 100%; padding: 7px 9px; border: 1px solid rgb(96 165 250 / 32%); border-radius: 9px; background: rgb(30 58 95 / 38%); }
+.attachment-chip b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attachment-chip small { color: var(--color-text-muted); white-space: nowrap; }
+.attachment-chip button { display: inline-grid; place-items: center; padding: 2px; border: 0; background: transparent; color: var(--color-text-muted); cursor: pointer; }
+.history-attachment { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: min(100%, 280px); padding: 8px 10px; border: 1px solid var(--color-border-default); border-radius: 9px; background: rgb(7 11 20 / 58%); }
+.history-attachment > span { display: grid; gap: 2px; }
+.history-attachment small { color: var(--color-text-muted); font-family: var(--font-code); font-size: 9px; }
+.attachment-preview-link { color: var(--color-accent-cyan); font-size: 9px; text-decoration: none; }
+.attachment-preview-text { flex-basis: 100%; max-height: 220px; margin: 4px 0 0; padding: 9px; overflow: auto; border-radius: 7px; background: rgb(2 6 23 / 70%); color: var(--color-text-secondary); font: 10px/1.55 var(--font-code); white-space: pre-wrap; }
 .composer-project-row { display: flex; align-items: center; justify-content: space-between; gap: 18px; min-height: 66px; padding: 11px 18px; border-bottom: 1px solid var(--color-border-default); background: rgb(7 11 20 / 32%); }
 .composer-project-row :deep(.el-select) { width: min(280px, 48%); }
 .composer-project-label { display: flex; align-items: center; gap: 10px; min-width: 0; }

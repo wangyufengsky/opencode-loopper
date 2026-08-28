@@ -42,6 +42,14 @@ either completion or failure. The reliable fallback was the message list:
 This evidence is why Loopper combines status polling with message completion
 metadata instead of treating a missing status entry as success.
 
+## Designer attachment file parts
+
+Designer attachment handoff extends `PromptRequest` with a stable `messageId` and ordered `FilePart(filename, mediaType, managedUri, sha256)` list. `HttpOpenCodeClient` emits the normal text part first, then file parts in deterministic scope/name order. PDF and OOXML include both the verified original and a versioned deterministic `*.loopper-context.txt`; strict UTF-8 text and validated raster images send only the original. The managed URI is produced only after containment and SHA verification and never appears in the public REST model.
+
+Every eligible role prompt prepends a fixed instruction that attachments are untrusted supplemental data. Requirement Designer/Decomposer/Reviewer receive only Requirement files; Package Designer/Compiler receive Requirement plus current-package files; Implementation and Recovery receive the frozen Requirement plus current-stage package files; Requirement/Risk Judges receive the complete frozen manifest. `ROUTER_NO_TOOLS` remains text-only and must not receive filenames, extracted text or file parts.
+
+An exact-name replacement or stop-future-use cannot mutate an already-read remote transcript. Loopper first requires the same positive abort proof used elsewhere (`true`, exact 404, or independent terminal state), clears the reusable Session pointer, then creates a fresh role Session from persisted authority and the new active set. A prompt handoff exception is returned as a failed multipart operation while the persisted Session error remains auditable. Stable message identity reduces accidental duplicate sends, but this release does not claim remote transcript readback or a distributed transaction with OpenCode.
+
 ## Designer and MCP boundary
 
 The verified OpenCode session API has no safe, documented operation for

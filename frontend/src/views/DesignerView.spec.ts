@@ -637,6 +637,19 @@ describe('Designer draft composer', () => {
     expect(wrapper.find('textarea[aria-label="发送给只读设计师的消息"]').exists()).toBe(true)
   })
 
+  it('stages a dropped file in the current composer without sending it', async () => {
+    const createContextTurn = vi.spyOn(api, 'createDesignerContextTurn')
+    const wrapper = mountDesigner()
+    await flushPromises()
+    const file = new File(['acceptance'], 'acceptance.txt', { type: 'text/plain' })
+
+    await wrapper.get('#main-content').trigger('drop', { dataTransfer: { files: [file] } })
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="initial-attachment-chip"]').text()).toContain('acceptance.txt')
+    expect(createContextTurn).not.toHaveBeenCalled()
+  })
+
   it('requires risk confirmation before creating an auto-mode design', async () => {
     const confirmation = vi.spyOn(ElMessageBox, 'confirm').mockImplementation(() => Promise.resolve(undefined as never))
     const createSession = vi.spyOn(api, 'createDesignerSession').mockResolvedValue({
@@ -732,6 +745,34 @@ describe('Designer draft composer', () => {
 
     expect((messageInput.element as HTMLTextAreaElement).value).toBe('')
     expect(sessionStorage.getItem('opencode-loopper.designer-message-draft')).toBeNull()
+  })
+
+  it('keeps follow-up text and staged files after an atomic context-turn failure', async () => {
+    const discussionSession: DesignerSession = {
+      ...session, state: 'REVIEWING', workflowPhase: 'DISCUSSING_REQUIREMENT',
+      discussionScope: 'REQUIREMENT', finalConfirmationEligible: false,
+    }
+    vi.spyOn(api, 'createDesignerSession').mockResolvedValue(discussionSession)
+    vi.spyOn(api, 'createDraft').mockImplementation(async (spec) => draftFrom(spec))
+    const sendContext = vi.spyOn(api, 'sendDesignerContextTurn').mockRejectedValue(new Error('parse failed'))
+    const wrapper = mountDesigner()
+    await flushPromises()
+
+    await wrapper.get('textarea[aria-label="草案设计目标"]').setValue('创建可靠的执行计划')
+    await wrapper.get('.create-draft-button').trigger('click')
+    await flushPromises()
+    const file = new File(['context'], 'context.txt', { type: 'text/plain' })
+    await wrapper.get('#main-content').trigger('drop', { dataTransfer: { files: [file] } })
+    const input = wrapper.get('textarea[aria-label="发送给只读设计师的消息"]')
+    await input.setValue('请结合文件继续设计')
+    await wrapper.get('.compose-actions button').trigger('click')
+    await flushPromises()
+
+    expect(sendContext).toHaveBeenCalledWith(discussionSession.id, expect.objectContaining({
+      content: '请结合文件继续设计', scopeKey: 'REQUIREMENT',
+    }), [file])
+    expect((input.element as HTMLTextAreaElement).value).toBe('请结合文件继续设计')
+    expect(wrapper.get('[data-testid="message-attachment-chip"]').text()).toContain('context.txt')
   })
 
   it('keeps the chat answer composer available in auto mode when native question is unsupported', async () => {
