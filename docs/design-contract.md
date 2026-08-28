@@ -997,13 +997,14 @@ receive Todo instructions or Todo UI.
 The card presents a compact completed/total projection, segmented Todo states,
 and one current item before the optional collapsible remainder. Completed items
 are visually subdued and the count is explicitly non-authoritative rather than
-a Stage percentage. On desktop, the card remains sticky at the top of the
-Session output scroll container while model parts continue beneath it, except
-while an OpenCode question is awaiting an answer. A long expanded list gets a
-bounded internal scroll area so it cannot consume the whole console. At narrow
-viewport widths it returns to normal document flow to avoid obscuring output or
-answer controls. Controls keep visible keyboard focus, and non-essential motion
-is removed when reduced motion is requested.
+a Stage percentage. On desktop, the card occupies a dedicated layout row between
+the Session toolbar and the independently scrolling model output. It therefore
+remains visible without overlaying or covering any model part. While an OpenCode
+question is awaiting an answer, the card returns to the output document flow so
+the answer path keeps priority. A long expanded list gets a bounded internal
+scroll area so it cannot consume the whole console. Narrow viewports also keep
+normal document flow. Controls keep visible keyboard focus, and non-essential
+motion is removed when reduced motion is requested.
 
 Designer acceptance criteria are not advisory prose. `PROCESS` is classified by
 the server: compile/package/build/typecheck/lint/install are `BUILD`; a

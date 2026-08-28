@@ -42,10 +42,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.2.78.jar
-   jar tf target/opencode-loopper-0.2.78.jar \
+   test -s target/opencode-loopper-0.2.79.jar
+   jar tf target/opencode-loopper-0.2.79.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.2.78.jar
+   shasum -a 256 target/opencode-loopper-0.2.79.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -95,8 +95,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.2.78`。
-- 正式产物：`target/opencode-loopper-0.2.78.jar`。
+- Maven 项目版本：`0.2.79`。
+- 正式产物：`target/opencode-loopper-0.2.79.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -385,7 +385,7 @@ Task 详情 `overview` 必须投影 `loopRetryAvailable`、`cancellationAvailabl
 - 所有 `TASK` 错误事件都作为不可变审计历史保留，但详情页红色当前告警必须跟随权威生命周期：`WAITING_INPUT` 只显示与当前 `waitingReasonCode` 精确匹配的最新错误，失败轮次 `AWAITING_DECISION` 和历史 `FAILED` 只显示最新 Task 错误；进入排队、准备、`READY`、运行、验证、重试、暂停、评审、停止中或成功/取消/接续终态后，不得把旧 Task 错误继续渲染成当前故障。`SOURCE_BRANCH_WORKSPACE_DIRTY` 同样遵守该通用规则。
 - `SOURCE_BRANCH_WORKSPACE_DIRTY` 必须打开不可静默关闭的文件处理弹窗，逐文件选择提交、stash 或移除；重新检查成功前不得制造任务分支已创建的状态，取消只能经确认后把任务标记为失败。
 - 服务端是权威状态；不要用计时器伪造阶段进度、用量、成本、Session 完成或 Judge 结果。
-- Task 实施 Session 的 OpenCode Todo 只能作为非权威进度投影：卡片以完成数/总数、分段状态和一个当前项为首屏，其他实施项允许折叠且长列表内部有界滚动；桌面端在无待回答问题时固定于会话输出顶部，有问题时立即回到文档流让回答入口优先，窄屏始终按正常文档流展示。不得把 Todo 计数冒充 Stage 百分比或 Stage/Task 完成；键盘焦点和减少动态效果设置必须可用。
+- Task 实施 Session 的 OpenCode Todo 只能作为非权威进度投影：卡片以完成数/总数、分段状态和一个当前项为首屏，其他实施项允许折叠且长列表内部有界滚动；桌面端在无待回答问题时必须占用工具栏与模型输出之间的独立布局行，输出在其下方独立滚动，禁止用 sticky/fixed 覆盖输出；有问题时立即回到输出文档流让回答入口优先，窄屏始终按正常文档流展示。不得把 Todo 计数冒充 Stage 百分比或 Stage/Task 完成；键盘焦点和减少动态效果设置必须可用。
 - Designer 验收意图卡只把当前失败、待覆盖、路径待归属或路径守恒阻断显示为黄色告警；已成功归属的路径以成功样式显示为当前证明，成功编译后保留的历史消歧原因去重并折叠为中性说明，不得让历史数组继续伪装当前失败，也不得据此绕过服务端 Review Gate。
 - 动态 Token 窗口只消费服务端单调累计值；首次值静默建立基线，后续正增量短暂显示 `+xxx`，旧快照不得降低总量或显示负增量，切换 Designer/Task 作用域必须重置本地基线；动画只使用 `transform`/`opacity` 并尊重 `prefers-reduced-motion`。
 - 所有等待、问题、权限、可恢复错误和终止错误都必须真实可见，并提供可执行的恢复动作；不要永久显示含糊的“待评审”。
@@ -448,7 +448,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.2.78.jar
+JAR=target/opencode-loopper-0.2.79.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -550,6 +550,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-08-28 | Task OpenCode 进度卡与模型输出分层布局修复，交付 0.2.79 | 将 OpenCode Todo 从输出滚动区内的 sticky 覆盖层拆成工具栏与输出之间的独立布局行，模型输出保留独立滚动；等待回答时 Todo 回到文档流，避免遮挡回答；抽取 `OpenCodeTodoProgress` 组件并同步 README、设计合同和本公约正文，无后端协议或 Flyway 变化 | 聚焦 `SessionMonitorPanel` Vitest 4/4、前端类型检查、前端构建与 `ReleasePackagingContractTest` 9/9 通过；`./scripts/verify.sh` 通过（Java 750，0 失败、0 错误、2 跳过；Vitest 237/237）；生成 `target/opencode-loopper-0.2.79.jar`（284023541 bytes，静态资源 112 项，SHA-256 `b68c79e20611213b2742a8e9e7ad5291591ba4aaf0f0436a1e477864d9b792e5`）；运行中的 IntelliJ `target/classes` 实例健康且浏览器几何检查确认进度卡与输出区无重叠，未重启 8080、未运行该 JAR，未推送、未打标签、未创建 Release |
 | 2026-08-28 | Task OpenCode 进度与范围外差异审阅视觉重做，交付 0.2.78 | OpenCode Todo 收敛为当前项、完成数/总数、分段状态和可折叠清单，待回答问题时取消固定；范围外既有文件决定改为文件导航、单文件集中决定、实际 diff 和底部汇总，新增文件自动接受与全部安全门语义不变；同步 README、设计合同和本公约正文，无后端协议或 Flyway 变化 | 聚焦 Vitest 6/6、前端类型检查、`ReleasePackagingContractTest` 9/9 通过；`./scripts/verify.sh` 通过（Java 750，0 失败、0 错误、2 跳过；Vitest 237/237）；生成 `target/opencode-loopper-0.2.78.jar`（284023243 bytes，静态资源 112 项，SHA-256 `a8e0bad237c47b6b70d7d35f76b8d84c25878818fb737209fcae2dd7a0abba7a`），JAR 内已检出新进度、非权威说明、差异审阅与继续确认文案；未重启 8080、未做浏览器运行态验证，未推送、未打标签、未创建 Release |
 | 2026-08-28 | GIT_DIFF 范围外新增自动放行与已有文件逐项授权，交付 0.2.77 | 范围外新增文件写入审计后自动放行；已有文件的修改/删除/重命名保持当前 Stage/Attempt 并进入本地决策，弹窗展示 Stage 基线的旧/新行号、修改前后内容与 hunk，决定绑定 Task 版本和 patch SHA-256，拒绝才形成普通失败；禁止路径、删除限制和基线安全门保持硬失败；同步 README、架构、设计、七特性、代码结构和本公约，无 Flyway 迁移 | 聚焦 Java `VerifierEngineTest`、`TaskServiceIntegrationTest`、`CodeStructureContractTest`、`ReleasePackagingContractTest` 119/119；聚焦前端 66/66；`./scripts/verify.sh` 通过（Java 750，0 失败、0 错误、2 跳过；Vitest 237/237）；生成 `target/opencode-loopper-0.2.77.jar`（284021743 bytes，静态资源 112 项，SHA-256 `af5668a50f9fa3e083634d658764a6c8707e474c4e84c4f0acac77468b5971ec`），JAR 内已检出越界已有文件决策、自动放行新增与差异内容绑定文案；未重启 8080、未做浏览器运行态验证，未推送、未打标签、未创建 Release |
 | 2026-08-28 | Task OpenCode 进度固定与 Designer 验收提示分层，交付 0.2.76 | 桌面会话输出将实施 Todo 固定在顶部并限制长清单高度，窄屏回到文档流；验收意图按当前阻断、绿色路径归属证明和已解决历史消歧分层并去重；同步 README、设计合同和本公约正文，无后端协议或 Flyway 变化 | 聚焦 Vitest `SessionMonitorPanel.spec.ts` + `DesignerView.spec.ts` 45/45；`ReleasePackagingContractTest` 9/9；`./scripts/verify.sh` 通过（Java 745，0 失败、0 错误、2 跳过；Vitest 234/234）；生成 `target/opencode-loopper-0.2.76.jar`（283989380 bytes，静态资源 112 项，SHA-256 `a5b88f8d58d03c43ee213536cd99039240f5223cf1940655668dde6ee4c84d60`），JAR 内已检出 sticky Todo 与验收证明/历史分层样式；未重启 8080、未做浏览器运行态验证，未推送、打标签或创建 Release |
