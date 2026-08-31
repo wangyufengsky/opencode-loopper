@@ -69,6 +69,35 @@ class DecompositionCandidatePolicyTest {
         });
     }
 
+    @Test
+    void rejectedProblemDetailsNeverEchoFrozenOrCandidateValues() {
+        LoopperDesignerMapper mapper = mock(LoopperDesignerMapper.class);
+        when(mapper.findTaskDecomposition("dec")).thenReturn(Optional.of(owner()));
+        DesignRequirementRevisionRow sensitiveRevision = new DesignRequirementRevisionRow(
+                "rev", "session", 1, "message", "requirement",
+                "[{\"id\":\"must-not-persist\",\"text\":\"observable result\"}]", 0,
+                "ACTIVE", 0, 8, "now", "now", 0);
+        when(mapper.findDesignRequirementRevision("rev")).thenReturn(Optional.of(sensitiveRevision));
+        DecompositionCandidatePolicy policy = new DecompositionCandidatePolicy(
+                mapper, new DesignerDecompositionCandidateCompiler(new ObjectMapper()));
+        CandidatePolicy.Context context = new CandidatePolicy.Context("run", "session",
+                MachineCandidateSubmission.CandidateOwner.taskDecomposition("dec"),
+                MachineCandidateKind.DECOMPOSITION_PLAN_V2, "PLANNING", 1, 4,
+                "DECOMPOSITION_PLAN_V2", 5, 0);
+
+        CandidatePolicy.Decision decision = policy.evaluate(context, """
+                {"outcome":"READY","normalizedGoal":"goal","globalConstraints":[],
+                 "workPackages":[{"title":"Vertical result","objective":"result","scopeIn":[],"scopeOut":[],
+                 "deliverables":["x"],"acceptanceIntent":["y"],"dependsOn":[]}],
+                 "coverage":[],"designGaps":[],"reason":"candidate-secret"}
+                """);
+
+        assertThat(decision.accepted()).isFalse();
+        assertThat(decision.problems()).extracting(MachineCandidateSubmission.Problem::detail)
+                .allSatisfy(detail -> assertThat(detail)
+                        .doesNotContain("must-not-persist", "candidate-secret"));
+    }
+
     private TaskDecompositionRow owner() {
         return new TaskDecompositionRow("dec", "session", "rev", "RUNNING", null, null, null, null,
                 "remote", "RUNNING", 0, 0, 0, null, null, "now", "now", 4,

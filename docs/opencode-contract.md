@@ -97,6 +97,34 @@ readiness proof. Loopper instead requires the exact server to be `connected` in
 `/mcp` and keeps the one-tool name/input schema under its own MCP `tools/list`
 integration contract.
 
+`PACKAGE_DESIGN_V1` uses a fresh work-package-owned Session in the same managed
+process generation; Loopper never starts an OpenCode process per Task. Its normal
+profile exposes `read/glob/grep` plus the exact random private submit tool, and its
+interactive profile adds `question`. Both deny user MCP even though the managed
+process overlay still deep-merges and preserves all user/project MCP configuration
+for unrelated roles. This permission narrowing is Session-local and does not rewrite
+any OpenCode configuration file or change ordinary Designer/Implementation access.
+The same prompt carries the exact closed nested field template and states that `key`
+is only a candidate-local reference; the model must not infer field names or use
+server `id` fields.
+
+Dispatch checks the feature flag, owned generation, persisted Session binding and
+exact private-MCP connected status before opening a candidate run. If readiness is
+missing before dispatch, Loopper creates no run and uses the existing Designer plus
+Markdown compilation flow. After dispatch, generation/binding mismatch, timeout,
+transport failure or unconfirmed abort is terminal for that handoff: Loopper must not
+read the partial assistant text as fallback. Only a normally completed Session with
+nonempty final Markdown may take `MARKDOWN_FALLBACK`. An explicit frozen requirement for
+Markdown-only/no private submission is authoritative over the later MCP preference text and must
+complete with zero submissions; accepted MCP output first waits
+for normal completion or the existing positive abort proof.
+
+After the isolated packaged-JAR qualifications for same-Session MCP correction and
+zero-submission Markdown fallback, the package-design flag defaults on. Setting
+`LOOPPER_PACKAGE_DESIGN_CANDIDATE_V1_ENABLED=false` prevents only new package candidate
+runs and provides an operational rollback; persisted runs and accepted-result recovery
+remain available.
+
 The REST workflow uses specialized model roles plus a deterministic server validator.
 Before selecting those roles, the requirement Router supplies only intent, one primary artifact,
 and SIMPLE/PACKAGED while the server combines them with the latest immutable V42 project stack snapshot. The snapshot is

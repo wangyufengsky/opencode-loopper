@@ -320,6 +320,47 @@ class HttpOpenCodeClientTest {
     }
 
     @Test
+    void packageDesignCandidateProfilesRequirePrivateMcpAndNeverExposeUserMcp() throws Exception {
+        String internal = "loopper_internal_package_design";
+        HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(),
+                () -> new OpenCodeRuntimeManager.Connection(
+                        URI.create("http://127.0.0.1:" + server.getAddress().getPort()), "", "", true,
+                        "generation-package-design", internal));
+        mcpBody.set("{\"" + internal + "\":{\"status\":\"connected\"},"
+                + "\"user_probe\":{\"status\":\"connected\"}}");
+
+        client.createSession(worktree, "package design candidate", null,
+                OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_READ_ONLY);
+        assertThat(createBody.get()).contains(
+                        "\"permission\":\"read\"",
+                        "\"permission\":\"glob\"",
+                        "\"permission\":\"grep\"",
+                        "\"permission\":\"" + internal + "_submit_candidate\"")
+                .doesNotContain("\"permission\":\"question\"")
+                .doesNotContain("user_probe_*")
+                .doesNotContain(internal + "_*");
+
+        client.createSession(worktree, "interactive package design candidate", null,
+                OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY);
+        assertThat(createBody.get()).contains(
+                        "\"permission\":\"read\"",
+                        "\"permission\":\"glob\"",
+                        "\"permission\":\"grep\"",
+                        "\"permission\":\"question\"",
+                        "\"permission\":\"" + internal + "_submit_candidate\"")
+                .doesNotContain("user_probe_*")
+                .doesNotContain(internal + "_*");
+
+        mcpBody.set("{\"" + internal + "\":{\"status\":\"failed\"}}");
+        createBody.set(null);
+        assertThatThrownBy(() -> client.createSession(worktree, "package design candidate", null,
+                OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_READ_ONLY))
+                .isInstanceOfSatisfying(SessionFailure.class,
+                        failure -> assertThat(failure.code()).isEqualTo("OPENCODE_INTERNAL_MCP_NOT_READY"));
+        assertThat(createBody.get()).isNull();
+    }
+
+    @Test
     void routerSkipsInvalidMcpDiscoveryWhileEvidenceRolesStillFailClosed() throws Exception {
         LoopperProperties properties = new LoopperProperties();
         properties.getOpenCode().setBaseUrl(new java.net.URI("http://127.0.0.1:" + server.getAddress().getPort()));

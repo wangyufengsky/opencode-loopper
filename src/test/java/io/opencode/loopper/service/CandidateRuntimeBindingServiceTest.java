@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import io.opencode.loopper.domain.MachineCandidateKind;
 import io.opencode.loopper.domain.MachineCandidateRunState;
 import io.opencode.loopper.persistence.DesignRequirementRevisionRow;
+import io.opencode.loopper.persistence.DesignWorkPackageRow;
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.OpenCodeSessionRuntimeBindingRow;
 import io.opencode.loopper.persistence.TaskDecompositionRow;
@@ -109,6 +110,47 @@ class CandidateRuntimeBindingServiceTest {
         assertThat(binding.runtimeGenerationId()).isEqualTo(endpointBinding.runtimeGenerationId());
         assertThat(binding.ownershipMode()).isEqualTo("EXTERNAL");
         verify(mapper, never()).insertOpenCodeSessionRuntimeBinding(any());
+    }
+
+    @Test
+    void packageDesignGuardFreezesOwnerDesignRevisionAndRemoteSession() {
+        LoopperMapper mapper = mock(LoopperMapper.class);
+        InternalMcpRuntimeAccess access = new InternalMcpRuntimeAccess();
+        OpenCodeSessionRuntimeBindingRow binding = new OpenCodeSessionRuntimeBindingRow(
+                "package-remote", "external-" + "c".repeat(64), "EXTERNAL",
+                "c".repeat(64), null, "now");
+        when(mapper.findOpenCodeSessionRuntimeBinding("package-remote")).thenReturn(Optional.of(binding));
+        DesignWorkPackageRow owner = mock(DesignWorkPackageRow.class);
+        when(owner.designerSessionId()).thenReturn("designer-1");
+        when(owner.version()).thenReturn(4L);
+        when(owner.designRevision()).thenReturn(2);
+        when(owner.designerExternalSessionId()).thenReturn("package-remote");
+        when(owner.state()).thenReturn("DESIGNING");
+        when(mapper.findDesignWorkPackage("wp-1")).thenReturn(Optional.of(owner));
+        CandidateRuntimeBindingService service = new CandidateRuntimeBindingService(mapper, access);
+        MachineCandidateSubmission.RunSnapshot run = new MachineCandidateSubmission.RunSnapshot(
+                "package-run", "designer-1",
+                MachineCandidateSubmission.CandidateOwner.designWorkPackage("wp-1"),
+                MachineCandidateKind.PACKAGE_DESIGN_V1, "PACKAGE_DESIGN", 3, 4,
+                LEGACY, "PACKAGE_DESIGN_V1", binding.runtimeGenerationId(), "package-remote",
+                MachineCandidateRunState.OPEN, 3, 0, null, 0);
+
+        service.validate(run, LEGACY);
+
+        when(owner.state()).thenReturn("REVIEWING");
+        assertThatThrownBy(() -> service.validate(run, LEGACY))
+                .isInstanceOfSatisfying(ConflictException.class,
+                        failure -> assertThat(failure.code()).isEqualTo("CANDIDATE_OWNER_STATE_INVALID"));
+        when(owner.state()).thenReturn("QUESTIONING");
+        when(owner.designerExternalSessionId()).thenReturn("replacement-remote");
+        assertThatThrownBy(() -> service.validate(run, LEGACY))
+                .isInstanceOfSatisfying(ConflictException.class,
+                        failure -> assertThat(failure.code()).isEqualTo("CANDIDATE_OWNER_SESSION_STALE"));
+        when(owner.designerExternalSessionId()).thenReturn("package-remote");
+        when(owner.designRevision()).thenReturn(3);
+        assertThatThrownBy(() -> service.validate(run, LEGACY))
+                .isInstanceOfSatisfying(ConflictException.class,
+                        failure -> assertThat(failure.code()).isEqualTo("CANDIDATE_SOURCE_REVISION_STALE"));
     }
 
     private MachineCandidateSubmission.RunSnapshot run(

@@ -10,7 +10,7 @@ spring:
           enabled: false
         protocol: STREAMABLE
         name: opencode-loopper
-        version: 0.2.84
+        version: 0.2.90
         type: SYNC
         instructions: >-
           Use the six Loopper tools only. Designer access is READ_ONLY; proposals synchronize
@@ -101,6 +101,8 @@ loopper:
     bearer-token: ${LOOPPER_MCP_BEARER_TOKEN:}
   internal-candidate:
     decomposer-enabled: ${LOOPPER_DECOMPOSER_CANDIDATE_ENABLED:true}
+    # Qualified MCP-first package design is the default; set false for an operational rollback.
+    package-design-v1-enabled: ${LOOPPER_PACKAGE_DESIGN_CANDIDATE_V1_ENABLED:true}
     # Opt-in only after an isolated packaged-JAR real-model tool-use and self-correction replay passes.
     acceptance-closed-choice-v7-enabled: ${LOOPPER_ACCEPTANCE_CLOSED_CHOICE_V7_ENABLED:false}
   publication:

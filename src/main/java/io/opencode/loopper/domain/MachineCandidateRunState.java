@@ -5,6 +5,7 @@ public enum MachineCandidateRunState implements DescribedEnum {
     OPEN("候选提交已开放"),
     ACCEPTED("候选已接受"),
     WAITING_INPUT("候选提交等待人工输入"),
+    FALLBACK_REQUIRED("候选提交需要受控回退"),
     CLOSED("候选提交已关闭");
 
     private final String description;

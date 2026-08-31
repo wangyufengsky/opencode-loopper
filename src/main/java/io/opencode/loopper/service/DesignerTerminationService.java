@@ -200,7 +200,8 @@ public final class DesignerTerminationService {
                             row.planningJson(), row.planningRepairCount(), row.planningResponseMode(),
                             row.planningResponseSchemaId(), row.planningFormatFallbackUsed(), row.finalResponseMode(),
                             row.finalResponseSchemaId(), row.finalFormatFallbackUsed(), row.semanticPlanJson(),
-                            row.formatRepairCount(), row.semanticRepairCount(), row.serverCompiled());
+                            row.formatRepairCount(), row.semanticRepairCount(), row.serverCompiled(),
+                            row.compilationSource(), row.fallbackReason());
                     lifecycle.transition(compilationSubject(row, session), row.state(), stopped.state(),
                             LifecycleEvent.SESSION_FAIL, "DESIGNER_CANCELLED", Map.of(),
                             () -> mapper.updateLoopSpecCompilation(stopped), childConflict("LOOPSPEC_COMPILATION_VERSION_CONFLICT"));

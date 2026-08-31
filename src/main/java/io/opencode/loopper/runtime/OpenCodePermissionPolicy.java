@@ -35,14 +35,17 @@ final class OpenCodePermissionPolicy {
             rules.add(rule("read", "*", "allow"));
             rules.add(rule("glob", "*", "allow"));
             rules.add(rule("grep", "*", "allow"));
-            if (profile == OpenCodeClient.SessionProfile.DESIGNER_INTERACTIVE_READ_ONLY) {
+            if (profile == OpenCodeClient.SessionProfile.DESIGNER_INTERACTIVE_READ_ONLY
+                    || profile == OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY) {
                 rules.add(rule("question", "*", "allow"));
             }
             rules.add(rule("read", ".env", "deny"));
             rules.add(rule("read", ".env.*", "deny"));
             rules.add(rule("read", ".env.example", "allow"));
             rules.add(rule("external_directory", "*", "deny"));
-            if (profile == OpenCodeClient.SessionProfile.DECOMPOSER_CANDIDATE_READ_ONLY) {
+            if (profile == OpenCodeClient.SessionProfile.DECOMPOSER_CANDIDATE_READ_ONLY
+                    || profile == OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_READ_ONLY
+                    || profile == OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY) {
                 allowInternalSubmission(rules, internalMcpServer);
             } else {
                 allowMcp(rules, mcpServers, internalMcpServer);

@@ -231,13 +231,13 @@ final class DesignerDecompositionCandidateCompiler {
             }
             if (target == null || target < 0 || target >= packageIndex) {
                 problems.add("WORK_PACKAGE_DEPENDENCY_INVALID", itemPointer,
-                        packageId + " may depend only on a uniquely identified earlier package");
+                        "Dependency must identify one earlier work package");
                 continue;
             }
             String dependencyId = AiSemanticContractCompiler.workPackageId(target);
             if (result.contains(dependencyId)) {
                 problems.add("WORK_PACKAGE_DEPENDENCY_DUPLICATE", itemPointer,
-                        packageId + " contains a duplicate dependency on " + dependencyId);
+                        "Dependency duplicates an earlier work package dependency");
                 continue;
             }
             result.add(dependencyId);
@@ -311,7 +311,7 @@ final class DesignerDecompositionCandidateCompiler {
         missing.removeAll(mapped);
         if (!missing.isEmpty()) {
             problems.add("DECOMPOSITION_PLAN_COVERAGE_INCOMPLETE", "/coverage",
-                    "Every frozen requirement segment needs one valid coverage mapping: " + missing);
+                    "Every frozen requirement segment needs one valid coverage mapping");
         }
         return new CoverageCompilation(List.copyOf(result));
     }

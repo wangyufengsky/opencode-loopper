@@ -2,6 +2,7 @@ package io.opencode.loopper.service;
 
 import io.opencode.loopper.domain.ExecutionStrategy;
 import io.opencode.loopper.domain.TestPolicy;
+import io.opencode.loopper.persistence.CandidateSubmissionRunRow;
 import io.opencode.loopper.persistence.DesignRequirementRevisionRow;
 import io.opencode.loopper.persistence.LoopSpecCompilationRow;
 import io.opencode.loopper.persistence.LoopperMapper;
@@ -53,6 +54,14 @@ final class DesignerStatusProjector {
         return mapper.listDesignWorkPackages(revision.id()).stream().map(row -> {
             LoopSpecCompilationRow compiler = mapper
                     .findLatestLoopSpecCompilationForPackage(sessionId, row.packageId()).orElse(null);
+            long candidateSourceRevision = compiler == null
+                    ? (long) row.designRevision() + 1L
+                    : row.designRevision();
+            CandidateSubmissionRunRow candidateRun = mapper
+                    .findLatestCandidateSubmissionRunForWorkPackage(row.id(), candidateSourceRevision)
+                    .orElse(null);
+            int candidateSubmissions = candidateRun == null ? 0
+                    : mapper.countCandidateSubmissionAttemptsForRun(candidateRun.id());
             WorkPackageRoleService.View role = mapper.findWorkPackageRoleProfile(row.id())
                     .map(stored -> new WorkPackageRoleService.View(
                             stored.rolePackId(), stored.rolePackVersion(),
@@ -72,7 +81,12 @@ final class DesignerStatusProjector {
                     role == null ? null : role.rolePackId(), role == null ? null : role.rolePackVersion(),
                     role == null ? null : role.executionStrategy().name(),
                     role == null ? null : role.testPolicy().name(),
-                    role == null ? List.of() : role.technologies(), acceptanceWorkflow.status(compiler));
+                    role == null ? List.of() : role.technologies(), acceptanceWorkflow.status(compiler),
+                    candidateRun == null ? null : candidateRun.state(), candidateRun == null ? 0 : 1,
+                    candidateSubmissions, compiler == null ? null : compiler.compilationSource(),
+                    compiler != null && "MARKDOWN_FALLBACK".equals(compiler.compilationSource())
+                            ? compiler.fallbackReason() : null,
+                    compiler != null && compiler.serverCompiled());
         }).toList();
     }
 

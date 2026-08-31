@@ -14,6 +14,7 @@ import io.opencode.loopper.persistence.DesignerAttachmentRow;
 import io.opencode.loopper.persistence.DesignerMessageRow;
 import io.opencode.loopper.persistence.DesignerSessionRow;
 import io.opencode.loopper.persistence.LoopDraftRow;
+import io.opencode.loopper.persistence.LoopSpecCompilationRow;
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.ProjectRow;
 import io.opencode.loopper.persistence.TaskArtifactRow;
@@ -147,6 +148,7 @@ class DesignerSessionMcpIntegrationTest {
         // Candidate-specific tests opt in explicitly below.
         properties.getInternalCandidate().setDecomposerEnabled(false);
         properties.getInternalCandidate().setAcceptanceClosedChoiceV7Enabled(false);
+        properties.getInternalCandidate().setPackageDesignV1Enabled(false);
     }
 
     @Test
@@ -3793,6 +3795,155 @@ class DesignerSessionMcpIntegrationTest {
     }
 
     @Test
+    void packageDesignCandidateRepairsInOneSessionAndSkipsTheAiCompiler() throws Exception {
+        properties.getInternalCandidate().setPackageDesignV1Enabled(true);
+        InternalMcpCredentialProvider.Credentials credentials = activateManagedCandidateRuntime();
+        holdPackageCandidateProfiles(true);
+        ProjectRow project = project("package-design-candidate-accepted");
+        Files.writeString(Path.of(project.rootPath()).resolve("pom.xml"), "<project/>\n");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        setPackageDesignerOutput("WP-1", "# 此最终文本必须被忽略\n\n不能作为权威设计稿。");
+        DesignerSessionRow reviewing = prepareReviewingSession(project.id(), draft.id(),
+                "新增 Java EventBus 未注册事件安全分支，并使用 EventBusTest 聚焦验证");
+
+        designerSessions.confirmRequirement(reviewing.id(), reviewing.discussionRevision());
+        String runId = pollUntilPackageCandidateRun(reviewing.id());
+        assertThat(candidateUsage(reviewing.id(), "PACKAGE_DESIGN_V1",
+                OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY,
+                OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_READ_ONLY))
+                .isEqualTo(new CandidateUsage(1, 1, 0));
+        String remoteId = jdbc.queryForObject(
+                "SELECT external_session_id FROM ai_candidate_submission_run WHERE id=?",
+                String.class, runId);
+        assertThat(fake().promptForSession(remoteId))
+                .contains(credentials.exactToolName(), "PACKAGE_DESIGN_V1", "expectedSubmissionRevision")
+                .doesNotContain("allowedPaths", "testCommand");
+
+        String mcpSession = initializeInternalMcp(credentials);
+        long revision = jdbc.queryForObject(
+                "SELECT version FROM ai_candidate_submission_run WHERE id=?", Long.class, runId);
+        MvcResult rejected = mvc.perform(internalMcp(credentials,
+                        rpc(101, "tools/call", packageCandidateCall(runId, "package-invalid",
+                                packageDesignCandidate().replace("\"dependencies\": []",
+                                        "\"dependencies\":[\"STAGE-1\"]")
+                                        .replace("\"dependencies\":[]",
+                                                "\"dependencies\":[\"STAGE-1\"]"), revision)), mcpSession))
+                .andExpect(request().asyncStarted()).andReturn();
+        mvc.perform(asyncDispatch(rejected)).andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("REJECTED")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "PACKAGE_DESIGN_STAGE_DEPENDENCY_INVALID")));
+
+        long retryRevision = jdbc.queryForObject(
+                "SELECT version FROM ai_candidate_submission_run WHERE id=?", Long.class, runId);
+        MvcResult accepted = mvc.perform(internalMcp(credentials,
+                        rpc(102, "tools/call", packageCandidateCall(runId, "package-accepted",
+                                packageDesignCandidate(), retryRevision)), mcpSession))
+                .andExpect(request().asyncStarted()).andReturn();
+        mvc.perform(asyncDispatch(accepted)).andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("ACCEPTED")));
+
+        pollUntilPackageReview(reviewing.id());
+        LoopSpecCompilationRow compilation = mapper.findLatestLoopSpecCompilationForPackage(
+                reviewing.id(), "WP-1").orElseThrow();
+        assertThat(compilation.compilationSource()).isEqualTo("MCP_ACCEPTED");
+        assertThat(compilation.fallbackReason()).isNull();
+        assertThat(compilation.serverCompiled()).isTrue();
+        assertThat(compilation.externalSessionId()).isNull();
+        assertThat(compilation.externalSessionState()).isEqualTo("COMPLETED");
+        assertThat(candidateUsage(reviewing.id(), "PACKAGE_DESIGN_V1",
+                OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY,
+                OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_READ_ONLY))
+                .isEqualTo(new CandidateUsage(1, 1, 2));
+        assertThat(mapper.findPackageDesignAcceptedResult(runId)).hasValueSatisfying(result ->
+                assertThat(result.settledCompilationId()).isEqualTo(compilation.id()));
+        assertThat(fake().promptHistory()).noneMatch(call ->
+                fake().profileForSession(call.sessionId()) == OpenCodeClient.SessionProfile.COMPILER_READ_ONLY
+                        || fake().profileForSession(call.sessionId())
+                        == OpenCodeClient.SessionProfile.COMPILER_BINDING_NO_TOOLS);
+        assertThat(designerSessions.messages(reviewing.id()))
+                .filteredOn(message -> "DESIGNER".equals(message.actor()))
+                .anySatisfy(message -> assertThat(message.content())
+                        .contains("未注册事件被安全忽略").doesNotContain("此最终文本必须被忽略"));
+    }
+
+    @Test
+    void packageDesignerWithoutMcpSubmissionUsesTheExistingMarkdownCompilerRoute() throws Exception {
+        properties.getInternalCandidate().setPackageDesignV1Enabled(true);
+        activateManagedCandidateRuntime();
+        ProjectRow project = project("package-design-candidate-markdown-fallback");
+        Files.writeString(Path.of(project.rootPath()).resolve("README.md"), "event baseline\n");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        String design = rollingControlledDesign("# WP-1 Markdown 设计\n\n交付可独立验证的事件能力。");
+        setPackageDesignerOutput("WP-1", design);
+        fake().setPackageCompilerPlanningOutput("WP-1",
+                packageCompilationPlanV2("WP-1", "交付可独立验证的事件能力。", false));
+        DesignerSessionRow reviewing = prepareReviewingSession(project.id(), draft.id(),
+                "在 README 中补充事件能力说明并提供可执行自检");
+
+        designerSessions.confirmRequirement(reviewing.id(), reviewing.discussionRevision());
+        pollUntilPackageReview(reviewing.id());
+
+        LoopSpecCompilationRow compilation = mapper.findLatestLoopSpecCompilationForPackage(
+                reviewing.id(), "WP-1").orElseThrow();
+        assertThat(compilation.compilationSource()).isEqualTo("MARKDOWN_FALLBACK");
+        assertThat(compilation.fallbackReason()).isEqualTo("MODEL_COMPLETED_WITHOUT_SUBMISSION");
+        assertThat(candidateUsage(reviewing.id(), "PACKAGE_DESIGN_V1",
+                OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY,
+                OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_READ_ONLY))
+                .isEqualTo(new CandidateUsage(1, 1, 0));
+        assertThat(designerSessions.workPackageStatuses(reviewing.id())).singleElement().satisfies(status -> {
+            assertThat(status.compilationSource()).isEqualTo("MARKDOWN_FALLBACK");
+            assertThat(status.fallbackReason()).isEqualTo("MODEL_COMPLETED_WITHOUT_SUBMISSION");
+            assertThat(status.candidateSessions()).isEqualTo(1);
+            assertThat(status.candidateSubmissions()).isZero();
+        });
+    }
+
+    @Test
+    void packageDesignNeedsInputFailsClosedWithoutMarkdownFallback() throws Exception {
+        properties.getInternalCandidate().setPackageDesignV1Enabled(true);
+        InternalMcpCredentialProvider.Credentials credentials = activateManagedCandidateRuntime();
+        holdPackageCandidateProfiles(true);
+        ProjectRow project = project("package-design-candidate-needs-input");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        setPackageDesignerOutput("WP-1", rollingControlledDesign("# 不得采用的最终文本"));
+        DesignerSessionRow reviewing = prepareReviewingSession(project.id(), draft.id(),
+                "新增边界行为，但异常语义必须先由用户补充");
+
+        designerSessions.confirmRequirement(reviewing.id(), reviewing.discussionRevision());
+        String runId = pollUntilPackageCandidateRun(reviewing.id());
+        long revision = jdbc.queryForObject(
+                "SELECT version FROM ai_candidate_submission_run WHERE id=?", Long.class, runId);
+        String needsInput = """
+                {"contractVersion":"PACKAGE_DESIGN_V1","outcome":"NEEDS_INPUT",
+                 "requirements":[],"scenarios":[],"deliverables":[],"reviews":[],"stages":[],
+                 "gapCodes":["MISSING_EXCEPTION_SEMANTICS"]}
+                """;
+        String mcpSession = initializeInternalMcp(credentials);
+        MvcResult waiting = mvc.perform(internalMcp(credentials,
+                        rpc(103, "tools/call", packageCandidateCall(
+                                runId, "package-needs-input", needsInput, revision)), mcpSession))
+                .andExpect(request().asyncStarted()).andReturn();
+        mvc.perform(asyncDispatch(waiting)).andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("WAITING_INPUT")));
+
+        designerSessions.pollActiveHandoffs();
+
+        assertThat(designerSessions.get(reviewing.id()).state()).isEqualTo("WAITING_INPUT");
+        assertThat(jdbc.queryForObject(
+                "SELECT state FROM ai_candidate_submission_run WHERE id=?", String.class, runId))
+                .isEqualTo("WAITING_INPUT");
+        assertThat(mapper.findLatestLoopSpecCompilationForPackage(reviewing.id(), "WP-1")).isEmpty();
+        assertThat(designerSessions.workPackageStatuses(reviewing.id())).singleElement().satisfies(status -> {
+            assertThat(status.state()).isEqualTo("WAITING_INPUT");
+            assertThat(status.candidateRunState()).isEqualTo("WAITING_INPUT");
+            assertThat(status.candidateSubmissions()).isEqualTo(1);
+            assertThat(status.compilationSource()).isNull();
+        });
+    }
+
+    @Test
     void enabledV7TrueTieOnExternalRuntimeUsesFreshLegacyCandidateRun() throws Exception {
         properties.getInternalCandidate().setAcceptanceClosedChoiceV7Enabled(true);
         fake().setJudgeOutput("ACCEPTANCE_CANDIDATE", """
@@ -5214,6 +5365,90 @@ class DesignerSessionMcpIntegrationTest {
                 WHERE run.designer_session_id=? AND run.candidate_kind='ACCEPTANCE_CLOSED_CHOICE_V7'
                 """, Integer.class, designerSessionId);
         return new CandidateUsage(modelCalls, candidateSessions, candidateSubmissions);
+    }
+
+    private CandidateUsage candidateUsage(
+            String designerSessionId, String candidateKind, OpenCodeClient.SessionProfile... profiles) {
+        Set<OpenCodeClient.SessionProfile> expected = Set.of(profiles);
+        int modelCalls = (int) fake().promptHistory().stream()
+                .filter(call -> expected.contains(fake().profileForSession(call.sessionId()))).count();
+        int candidateSessions = jdbc.queryForObject("""
+                SELECT COUNT(*) FROM ai_candidate_submission_run
+                WHERE designer_session_id=? AND candidate_kind=?
+                """, Integer.class, designerSessionId, candidateKind);
+        int candidateSubmissions = jdbc.queryForObject("""
+                SELECT COUNT(*) FROM ai_candidate_submission_attempt attempt
+                JOIN ai_candidate_submission_run run ON run.id=attempt.run_id
+                WHERE run.designer_session_id=? AND run.candidate_kind=?
+                """, Integer.class, designerSessionId, candidateKind);
+        return new CandidateUsage(modelCalls, candidateSessions, candidateSubmissions);
+    }
+
+    private InternalMcpCredentialProvider.Credentials activateManagedCandidateRuntime() {
+        InternalMcpCredentialProvider.Credentials credentials = internalMcpCredentials.issue();
+        internalMcpRuntime.activate(credentials);
+        internalMcpRuntime.connected(credentials.generation());
+        fake().setManagedRuntime(credentials.generation(), credentials.serverName());
+        return credentials;
+    }
+
+    private void holdPackageCandidateProfiles(boolean hold) {
+        fake().holdProfileOpen(OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_READ_ONLY, hold);
+        fake().holdProfileOpen(OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY, hold);
+    }
+
+    private String pollUntilPackageCandidateRun(String sessionId) {
+        for (int attempt = 0; attempt < 80; attempt++) {
+            String runId = jdbc.query("""
+                            SELECT id FROM ai_candidate_submission_run
+                            WHERE designer_session_id=? AND candidate_kind='PACKAGE_DESIGN_V1'
+                            ORDER BY created_at DESC LIMIT 1
+                            """, result -> result.next() ? result.getString(1) : null, sessionId);
+            if (runId != null) return runId;
+            completeMandatoryDesignerQuestion(sessionId);
+            designerSessions.pollActiveHandoffs();
+        }
+        throw new AssertionError("package candidate run did not open: packages="
+                + designerSessions.workPackageStatuses(sessionId) + "; session=" + designerSessions.get(sessionId));
+    }
+
+    private String packageCandidateCall(
+            String runId, String idempotencyKey, String candidateJson, long expectedRevision) throws Exception {
+        Map<String, Object> arguments = new LinkedHashMap<>();
+        arguments.put("runId", runId);
+        arguments.put("idempotencyKey", idempotencyKey);
+        arguments.put("candidate", json.readValue(candidateJson, Map.class));
+        arguments.put("expectedSubmissionRevision", expectedRevision);
+        return json.writeValueAsString(Map.of("name", "submit_candidate", "arguments", arguments));
+    }
+
+    private String packageDesignCandidate() {
+        return """
+                {
+                  "contractVersion":"PACKAGE_DESIGN_V1",
+                  "outcome":"READY",
+                  "requirements":[{"key":"REQ-1","statement":"未注册事件必须被安全忽略"}],
+                  "scenarios":[{
+                    "key":"SC-1","title":"未注册事件被安全忽略",
+                    "precondition":"事件类型尚未注册","action":"发布该事件",
+                    "observableResult":"发布正常返回且没有处理器被调用",
+                    "invariant":"既有已注册事件分发不变","requirementRefs":["REQ-1"]
+                  }],
+                  "deliverables":[{
+                    "key":"DEL-1","kind":"DELIVERABLE",
+                    "target":"src/test/java/example/EventBusTest.java",
+                    "description":"EventBusTest 聚焦验证未注册事件分支",
+                    "requirementRefs":["REQ-1"]
+                  }],
+                  "reviews":[],
+                  "stages":[{
+                    "key":"STAGE-1","title":"事件分发测试",
+                    "objective":"实现并验证未注册事件分支",
+                    "includes":["SC-1","DEL-1"],"dependencies":[]
+                  }],
+                  "gapCodes":[]
+                }
+                """;
     }
 
     private record CandidateUsage(int modelCalls, int candidateSessions, int candidateSubmissions) {

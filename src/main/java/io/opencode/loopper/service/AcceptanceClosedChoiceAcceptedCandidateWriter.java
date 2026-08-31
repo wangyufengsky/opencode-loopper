@@ -74,7 +74,7 @@ final class AcceptanceClosedChoiceAcceptedCandidateWriter implements AcceptedCan
                 owner.planningResponseMode(), owner.planningResponseSchemaId(), owner.planningFormatFallbackUsed(),
                 owner.finalResponseMode(), owner.finalResponseSchemaId(), owner.finalFormatFallbackUsed(),
                 canonicalCandidateJson, owner.formatRepairCount(), owner.semanticRepairCount(),
-                owner.serverCompiled());
+                owner.serverCompiled(), owner.compilationSource(), owner.fallbackReason());
         if (mapper.updateLoopSpecCompilation(semantic) != 1) {
             throw new ConflictException("LOOPSPEC_COMPILATION_VERSION_CONFLICT",
                     "LoopSpec compilation was updated concurrently");

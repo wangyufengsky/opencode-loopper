@@ -57,6 +57,12 @@ const generalLabels: Record<string, string> = {
   HTTP_STATUS: 'HTTP 状态检查', JSON_PATH: 'JSON 内容检查', FILE_CONTENT: '文件内容检查', FILE_HASH: '文件完整性检查',
   JUNIT_XML: '测试报告检查', BROWSER: '浏览器验收', DATABASE_QUERY: '数据库检查', DOCUMENT_STRUCTURE: '文档结构检查', TABULAR_DATA: '表格数据检查',
   MACHINE: '机器验收', BOTH: '机器与 AI 验收',
+  MCP_ACCEPTED: 'MCP 候选已接受', MARKDOWN_FALLBACK: 'Markdown 兜底',
+  FEATURE_DISABLED: '功能未启用', MCP_NOT_READY_PRE_DISPATCH: 'MCP 启动前未就绪',
+  MODEL_COMPLETED_WITHOUT_SUBMISSION: '模型结束但未提交候选',
+  MODEL_COMPLETED_AFTER_MECHANICAL_REJECTION: '模型修正后结束但未提交可接受候选',
+  MECHANICAL_REJECTIONS_EXHAUSTED: '机械修正次数已用完',
+  PACKAGE_DESIGN_CANDIDATE_NOT_SCHEDULED: '当前工作包未调度 MCP 候选',
   FROM_FAILED_STAGE: '从失败阶段继续', ALL_STAGES: '重做全部阶段', VERIFY_ONLY: '只读复核', REWORK_ALL_STAGES: '重新实施全部阶段', INHERIT_CHANGES: '继承已有变更',
 }
 

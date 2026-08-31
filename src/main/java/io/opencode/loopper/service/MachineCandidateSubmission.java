@@ -28,17 +28,26 @@ public interface MachineCandidateSubmission {
                          long expectedSubmissionRevision, SubmissionChannel submissionChannel) { }
     record CloseCommand(String runId, long expectedVersion) { }
 
-    record CandidateOwner(String taskDecompositionId, String loopSpecCompilationId) {
+    record CandidateOwner(String taskDecompositionId, String loopSpecCompilationId, String designWorkPackageId) {
         public CandidateOwner {
-            boolean decomposition = taskDecompositionId != null && !taskDecompositionId.isBlank();
-            boolean compilation = loopSpecCompilationId != null && !loopSpecCompilationId.isBlank();
-            if (decomposition == compilation) {
+            taskDecompositionId = normalizedOwnerId(taskDecompositionId);
+            loopSpecCompilationId = normalizedOwnerId(loopSpecCompilationId);
+            designWorkPackageId = normalizedOwnerId(designWorkPackageId);
+            boolean decomposition = taskDecompositionId != null;
+            boolean compilation = loopSpecCompilationId != null;
+            boolean workPackage = designWorkPackageId != null;
+            if ((decomposition ? 1 : 0) + (compilation ? 1 : 0) + (workPackage ? 1 : 0) != 1) {
                 throw new IllegalArgumentException("Candidate owner must identify exactly one machine role run");
             }
         }
 
-        public static CandidateOwner taskDecomposition(String id) { return new CandidateOwner(id, null); }
-        public static CandidateOwner loopSpecCompilation(String id) { return new CandidateOwner(null, id); }
+        private static String normalizedOwnerId(String id) {
+            return id == null || id.isBlank() ? null : id;
+        }
+
+        public static CandidateOwner taskDecomposition(String id) { return new CandidateOwner(id, null, null); }
+        public static CandidateOwner loopSpecCompilation(String id) { return new CandidateOwner(null, id, null); }
+        public static CandidateOwner designWorkPackage(String id) { return new CandidateOwner(null, null, id); }
     }
 
     record RunSnapshot(

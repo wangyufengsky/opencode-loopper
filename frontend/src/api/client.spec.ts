@@ -102,6 +102,68 @@ describe('Loopper REST contract adapter', () => {
     })
   })
 
+  it('strictly normalizes package candidate source, run state, and persisted counters', async () => {
+    const base = {
+      id: 'designer-1', projectId: 'project-1', state: 'RUNNING', workflowPhase: 'DESIGNING',
+      activeActor: 'DESIGNER', messages: [],
+    }
+    const workPackage = {
+      id: 'WP-1', ordinal: 0, title: '核心能力', objective: '交付核心能力', state: 'DESIGNING',
+      dependencies: [], redesignCount: 0, compilerRepairCount: 0,
+      compilerPlanningRepairCount: 0, designRevision: 1, discussionRoundCount: 0,
+    }
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json({
+        ...base,
+        workPackages: [{
+          ...workPackage, candidateRunState: 'ACCEPTED', candidateSessions: 1,
+          candidateSubmissions: 2, compilationSource: 'MCP_ACCEPTED',
+          fallbackReason: 'MUST_NOT_LEAK', serverCompiled: true,
+        }],
+      }))
+      .mockResolvedValueOnce(json({
+        ...base,
+        workPackages: [{
+          ...workPackage, candidateRunState: 'OPEN', candidateSessions: -1,
+          candidateSubmissions: '2', compilationSource: 'MARKDOWN_FALLBACK',
+          fallbackReason: 'FEATURE_DISABLED', serverCompiled: false,
+        }],
+      }))
+      .mockResolvedValueOnce(json({
+        ...base,
+        workPackages: [{ ...workPackage, compilationSource: 'FUTURE_SOURCE' }],
+      }))
+      .mockResolvedValueOnce(json({
+        ...base,
+        workPackages: [{ ...workPackage, candidateRunState: 'FALLBACK_REQUIRED' }],
+      }))
+      .mockResolvedValueOnce(json({
+        ...base,
+        workPackages: [{ ...workPackage, candidateRunState: 'FUTURE_STATE' }],
+      }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(api.getDesignerSession('designer-1')).resolves.toMatchObject({
+      workPackages: [{
+        candidateRunState: 'ACCEPTED', candidateSessions: 1, candidateSubmissions: 2,
+        compilationSource: 'MCP_ACCEPTED', fallbackReason: undefined, serverCompiled: true,
+      }],
+    })
+    await expect(api.getDesignerSession('designer-1')).resolves.toMatchObject({
+      workPackages: [{
+        candidateRunState: 'OPEN', candidateSessions: 0, candidateSubmissions: 0,
+        compilationSource: 'MARKDOWN_FALLBACK', fallbackReason: 'FEATURE_DISABLED', serverCompiled: false,
+      }],
+    })
+    await expect(api.getDesignerSession('designer-1'))
+      .rejects.toThrow('DesignWorkPackage returned unknown compilation source: FUTURE_SOURCE')
+    await expect(api.getDesignerSession('designer-1')).resolves.toMatchObject({
+      workPackages: [{ candidateRunState: 'FALLBACK_REQUIRED' }],
+    })
+    await expect(api.getDesignerSession('designer-1'))
+      .rejects.toThrow('DesignWorkPackage returned unknown candidate run state: FUTURE_STATE')
+  })
+
   it('sends the server-owned Task status group without expanding client states', async () => {
     const fetchMock = vi.fn().mockResolvedValue(json({ items: [], facets: { PROCESSING: 3, MATCHED_TOTAL: 3 } }))
     vi.stubGlobal('fetch', fetchMock)

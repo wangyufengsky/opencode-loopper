@@ -165,6 +165,38 @@ describe('Designer draft composer', () => {
     wrapper.unmount()
   })
 
+  it('invalidates an in-flight poll when the Designer view unmounts', async () => {
+    vi.useFakeTimers()
+    routeQuery.sessionId = 'designer-unmount-poll'
+    const running: DesignerSession = {
+      ...session, id: 'designer-unmount-poll', state: 'RUNNING', workflowPhase: 'DESIGNING',
+      activeActor: 'DESIGNER', discussionScope: 'WP-1', finalConfirmationEligible: false,
+      draft: draftFrom({ schemaVersion: 'v2', projectId: project.id, goal: '验证卸载轮询', context: '', stages: [],
+        limits: { maxStageAttempts: 3, maxTaskAttempts: 7, maxDuration: '7200', attemptTimeout: '1800' } }),
+    }
+    let rejectRefresh!: (reason?: unknown) => void
+    const pendingRefresh = new Promise<DesignerSession>((_resolve, reject) => { rejectRefresh = reject })
+    const getSession = vi.spyOn(api, 'getDesignerSession')
+      .mockResolvedValueOnce(running)
+      .mockReturnValueOnce(pendingRefresh)
+    const warning = vi.spyOn(ElMessage, 'warning')
+
+    const wrapper = mountDesigner()
+    await flushPromises()
+    vi.advanceTimersByTime(0)
+    await flushPromises()
+    expect(getSession).toHaveBeenCalledTimes(2)
+
+    wrapper.unmount()
+    rejectRefresh(new Error('view already unmounted'))
+    await flushPromises()
+    vi.advanceTimersByTime(12000)
+    await flushPromises()
+
+    expect(warning).not.toHaveBeenCalled()
+    expect(getSession).toHaveBeenCalledTimes(2)
+  })
+
   it('cancels the active Router through the server and refreshes into manual selection', async () => {
     vi.useFakeTimers()
     routeQuery.sessionId = 'designer-cancel-router'
@@ -529,6 +561,67 @@ describe('Designer draft composer', () => {
     await wrapper.findAll('button').find(button => button.text().includes('改用大型任务'))!.trigger('click')
     await flushPromises()
     expect(enable).toHaveBeenCalledWith(overflow.id, 3, 2)
+  })
+
+  it('shows server-owned MCP candidate facts without restoring the package rail in direct mode', async () => {
+    routeQuery.sessionId = 'designer-direct-mcp-candidate'
+    const directCandidate: DesignerSession = {
+      ...session,
+      id: 'designer-direct-mcp-candidate', state: 'REVIEWING', workflowPhase: 'FINAL_REVIEW',
+      activeWorkPackageId: 'WP-1', discussionScope: 'WP-1', finalConfirmationEligible: true,
+      taskProfile: { ...session.taskProfile, id: 'profile-direct-candidate', workflowTemplate: 'DIRECT_SOFTWARE_DESIGN', largeTaskMode: false, version: 2 },
+      draft: draftFrom({ schemaVersion: 'v2', projectId: project.id, goal: '默认单包候选', context: '', stages: [],
+        limits: { maxStageAttempts: 3, maxTaskAttempts: 7, maxDuration: '7200', attemptTimeout: '1800' } }),
+      workPackages: [{
+        id: 'WP-1', ordinal: 0, title: '默认单包设计', objective: '完成单包设计', dependencies: [],
+        state: 'APPROVED', redesignCount: 0, compilerRepairCount: 0, compilerPlanningRepairCount: 0,
+        designRevision: 1, discussionRoundCount: 0, approvedDesignRevision: 1,
+        candidateRunState: 'ACCEPTED', candidateSessions: 1, candidateSubmissions: 2,
+        compilationSource: 'MCP_ACCEPTED', serverCompiled: true,
+      }],
+    }
+    vi.spyOn(api, 'getDesignerSession').mockResolvedValue(directCandidate)
+
+    const wrapper = mountDesigner()
+    await flushPromises()
+
+    expect(wrapper.find('[aria-label="工作包设计轨道"]').exists()).toBe(false)
+    const summary = wrapper.get('[aria-label="默认单包候选状态"]').text()
+    expect(summary).toContain('候选状态：已接受')
+    expect(summary).toContain('MCP 候选已接受')
+    expect(summary).toContain('服务端已编译')
+    expect(summary).toContain('候选会话 1')
+    expect(summary).toContain('候选修正 2')
+  })
+
+  it('shows the persisted Markdown fallback reason in the direct-mode candidate summary', async () => {
+    routeQuery.sessionId = 'designer-direct-markdown-fallback'
+    const directFallback: DesignerSession = {
+      ...session,
+      id: 'designer-direct-markdown-fallback', state: 'WAITING_INPUT', workflowPhase: 'FAILED',
+      activeWorkPackageId: 'WP-1', discussionScope: 'WP-1', finalConfirmationEligible: false,
+      taskProfile: { ...session.taskProfile, id: 'profile-direct-fallback', workflowTemplate: 'DIRECT_SOFTWARE_DESIGN', largeTaskMode: false, version: 2 },
+      draft: draftFrom({ schemaVersion: 'v2', projectId: project.id, goal: '默认单包兜底', context: '', stages: [],
+        limits: { maxStageAttempts: 3, maxTaskAttempts: 7, maxDuration: '7200', attemptTimeout: '1800' } }),
+      workPackages: [{
+        id: 'WP-1', ordinal: 0, title: '默认单包设计', objective: '完成单包设计', dependencies: [],
+        state: 'WAITING_INPUT', redesignCount: 0, compilerRepairCount: 0, compilerPlanningRepairCount: 0,
+        designRevision: 1, discussionRoundCount: 0,
+        candidateRunState: 'CLOSED', candidateSessions: 1, candidateSubmissions: 0,
+        compilationSource: 'MARKDOWN_FALLBACK', fallbackReason: 'MODEL_COMPLETED_WITHOUT_SUBMISSION', serverCompiled: false,
+      }],
+    }
+    vi.spyOn(api, 'getDesignerSession').mockResolvedValue(directFallback)
+
+    const wrapper = mountDesigner()
+    await flushPromises()
+
+    const summary = wrapper.get('[aria-label="默认单包候选状态"]').text()
+    expect(summary).toContain('候选状态：已关闭')
+    expect(summary).toContain('Markdown 兜底')
+    expect(summary).toContain('兜底原因：模型结束但未提交候选')
+    expect(summary).toContain('候选会话 1')
+    expect(summary).not.toContain('候选修正')
   })
 
   it('keeps the new-design page focused and restores a history session from an explicit route', async () => {
@@ -1382,8 +1475,8 @@ describe('Designer draft composer', () => {
       decomposition: { id: 'decomposition-3', state: 'COMPLETED', resultType: 'DECOMPOSED', repairCount: 1, planningRepairCount: 1, transportRetryCount: 0, workflowStep: 'FINAL_JSON', candidateSessions: 2, candidateSubmissions: 5 },
       compiler: { id: 'compiler-wp2', state: 'SESSION_ERROR', externalSessionState: 'FAILED', repairCount: 2, planningRepairCount: 2, designRevision: 1, workPackageId: 'WP-2', workflowStep: 'FINAL_JSON' },
       workPackages: [
-        { id: 'WP-1', ordinal: 0, title: '查询能力', objective: '可查询结果', dependencies: [], state: 'COMPLETED', redesignCount: 0, compilerRepairCount: 0, compilerPlanningRepairCount: 0, designRevision: 1, discussionRoundCount: 0 },
-        { id: 'WP-2', ordinal: 1, title: '变更能力', objective: '可变更结果', dependencies: ['WP-1'], state: 'WAITING_INPUT', redesignCount: 1, compilerRepairCount: 2, compilerPlanningRepairCount: 2, designRevision: 1, discussionRoundCount: 0, lastErrorCode: 'COMPILER_RETRY_EXHAUSTED' },
+        { id: 'WP-1', ordinal: 0, title: '查询能力', objective: '可查询结果', dependencies: [], state: 'COMPLETED', redesignCount: 0, compilerRepairCount: 0, compilerPlanningRepairCount: 0, designRevision: 1, discussionRoundCount: 0, compilationSource: 'MARKDOWN_FALLBACK', fallbackReason: 'FEATURE_DISABLED', serverCompiled: false },
+        { id: 'WP-2', ordinal: 1, title: '变更能力', objective: '可变更结果', dependencies: ['WP-1'], state: 'WAITING_INPUT', redesignCount: 1, compilerRepairCount: 2, compilerPlanningRepairCount: 2, designRevision: 1, discussionRoundCount: 0, lastErrorCode: 'COMPILER_RETRY_EXHAUSTED', candidateRunState: 'ACCEPTED', candidateSessions: 1, candidateSubmissions: 2, compilationSource: 'MCP_ACCEPTED', serverCompiled: true },
       ],
       messages: [
         { id: 'decomposer', role: 'ASSISTANT', actor: 'DECOMPOSER', content: '拆解校验通过：形成 2 个工作包。', deliveryState: 'COMPILED', requirementRevision: 3, createdAt: 'now' },
@@ -1411,6 +1504,14 @@ describe('Designer draft composer', () => {
     expect(statusStrip).toContain('候选 Session 2')
     expect(statusStrip).toContain('候选提交 5')
     expect(statusStrip).not.toContain('模型调用 14/32')
+    const packageRail = wrapper.get('[aria-label="工作包设计轨道"]').text()
+    expect(packageRail).toContain('Markdown 兜底')
+    expect(packageRail).toContain('兜底原因：功能未启用')
+    expect(packageRail).toContain('MCP 候选已接受')
+    expect(packageRail).toContain('服务端已编译')
+    expect(packageRail).toContain('候选状态：已接受')
+    expect(packageRail).toContain('候选会话 1')
+    expect(packageRail).toContain('候选修正 2')
     expect(wrapper.text()).not.toContain('"stages":["secret"]')
     const confirmButton = wrapper.findAll('button').find((button) => button.text().includes('确认设计并创建任务'))!
     expect(confirmButton.attributes('disabled')).toBeDefined()

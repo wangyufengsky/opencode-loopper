@@ -400,7 +400,7 @@ public interface LoopperDesignerMapper {
               planning_repair_count,planning_response_mode,planning_response_schema_id,
               planning_format_fallback_used,final_response_mode,final_response_schema_id,
               final_format_fallback_used,semantic_plan_json,format_repair_count,
-              semantic_repair_count,server_compiled)
+              semantic_repair_count,server_compiled,compilation_source,fallback_reason)
             VALUES(#{id},#{designerSessionId},#{designRevision},#{state},#{externalSessionId},
               #{externalSessionState},#{repairCount},#{sourceDesignMessageId},#{sourceDraftVersion},
               #{lastErrorCode},#{lastErrorDetail},#{createdAt},#{updatedAt},#{version},
@@ -408,7 +408,7 @@ public interface LoopperDesignerMapper {
               #{planningRepairCount},#{planningResponseMode},#{planningResponseSchemaId},
               #{planningFormatFallbackUsed},#{finalResponseMode},#{finalResponseSchemaId},
               #{finalFormatFallbackUsed},#{semanticPlanJson},#{formatRepairCount},
-              #{semanticRepairCount},#{serverCompiled})
+              #{semanticRepairCount},#{serverCompiled},#{compilationSource},#{fallbackReason})
             """)
     int insertLoopSpecCompilation(LoopSpecCompilationRow row);
 
@@ -471,6 +471,7 @@ public interface LoopperDesignerMapper {
               final_format_fallback_used=#{finalFormatFallbackUsed},
               semantic_plan_json=#{semanticPlanJson},format_repair_count=#{formatRepairCount},
               semantic_repair_count=#{semanticRepairCount},server_compiled=#{serverCompiled},
+              compilation_source=#{compilationSource},fallback_reason=#{fallbackReason},
               last_error_code=#{lastErrorCode},last_error_detail=#{lastErrorDetail},
               updated_at=#{updatedAt},version=version+1
             WHERE id=#{id} AND version=#{version}

@@ -97,6 +97,28 @@ Monitor 可在重启后继续；AI 完成只形成候选，不能确认计划、
 预设计，并在每个包的初稿和修订中提问；普通 WP-1 使用不含 `question` 的通用只读角色，初稿、
 反馈修订和重新设计都直接返回 1–6 Stage 的完整替代设计。
 
+工作包 Designer 在一次模型调用和一个独立 OpenCode Session 内优先提交
+`PACKAGE_DESIGN_V1`。每次提交都是完整替换对象，最多三次；服务端只返回闭集问题码和
+JSON Pointer，模型可以在同一 Session 读取拒绝原因并修正。模型只拥有需求语义、场景、
+交付物、评审点以及 Stage 目标/引用/依赖，不能决定命令、可写路径清单、测试命令、Verifier、
+权限、安全结论或稳定 ID。角色提示必须提供完整闭集字段模板：所有条目使用候选局部 `key`，
+场景使用 `precondition/action/observableResult/invariant/requirementRefs`，交付物使用
+`kind/target/description/requirementRefs`，Stage 使用 `title/objective/includes/dependencies`；
+不得让模型猜测字段或误用服务端 `id`。`NEEDS_INPUT` 是真实人工输入请求，不得转换成 Markdown 兜底。
+
+冻结需求明确要求 Markdown-only 或不使用私有提交时，工作包角色必须尊重该选择，不能让后置“优先调用”提示覆盖它；该候选 Session 以零提交完成并交给既有 Markdown 路线。候选被接受后，服务端忽略 assistant 最终文本，使用规范化候选生成可审计 Markdown，并通过
+与旧 Markdown 入口共用的 `PackageDesignCompilation` 内核产生确定性结果；因此 MCP 成功只
+省去 Markdown 语义解析和独立 AI Compiler Session。模型正常完成但从未调用 MCP，或三次都
+只有允许降级的机械问题时，非空最终 Markdown 才进入既有编译路线。运行代次、路径、安全、
+权限和修订冲突，以及超时、传输失败或停止未确认均失败关闭。
+
+隔离成品 JAR 已分别证明真实模型在同一 Session 读取 Stage 自依赖拒绝并修正到 `ACCEPTED`，
+以及冻结需求要求 Markdown-only 时两个真实工作包 Session 均零次调用私有工具并进入
+`MARKDOWN_FALLBACK`。因此当前版本默认开启工作包候选；环境变量显式设为 `false` 只阻止
+新候选 run，已有 run、accepted-result 与恢复适配器继续可用。Markdown 兜底后的既有
+确定性缺口仍可进入 `DESIGN_INCOMPLETE / WAITING_INPUT`，不能把“成功进入兜底路线”解释为
+“设计已编译成功”。
+
 文档 Compiler 的权威输出是受限 `DocumentPlan`；表格 Compiler 的权威输出是受限
 `TabularConversionPlan`。服务端生成路径、隐式 `WP-1`、验收 ID 与最终 DTO，并在最终
 确认前只冻结计划。报告 Reviewer 是真正独立的 `REVIEWER_READ_ONLY` 角色，只可读取仓库，

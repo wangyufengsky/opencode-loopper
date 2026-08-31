@@ -224,6 +224,11 @@ function workPackageLabel(packageId?: string) {
   const index = designerSession.value?.workPackages?.findIndex(item => item.id === packageId) ?? -1
   return index >= 0 ? `工作包 ${index + 1}` : '工作包'
 }
+function candidateRunStateLabel(value?: string) {
+  if (!value) return '未知'
+  return ({ OPEN: '提交中', ACCEPTED: '已接受', WAITING_INPUT: '等待输入',
+    FALLBACK_REQUIRED: '需要兜底', CLOSED: '已关闭' } as Record<string, string>)[value] ?? statusLabel(value)
+}
 function acceptanceCoverageLabel(value: string) {
   return ({ AUTOMATED: '机器验收', BOTH: '机器 + 人工', JUDGE: '人工评审', UNRESOLVED: '尚未覆盖' } as Record<string, string>)[value] ?? '尚未覆盖'
 }
@@ -274,6 +279,14 @@ const designerSteps = computed(() => {
   return ['需求讨论', '工作包设计', '总体确认', '创建任务']
 })
 const currentPackage = computed(() => designerSession.value?.workPackages?.find((item) => item.id === designerSession.value?.activeWorkPackageId))
+const directCandidatePackage = computed(() => directSoftwareMode.value
+  ? currentPackage.value ?? designerSession.value?.workPackages?.[0]
+  : undefined)
+const showDirectCandidateSummary = computed(() => {
+  const workPackage = directCandidatePackage.value
+  return Boolean(workPackage && (workPackage.candidateRunState || workPackage.compilationSource
+    || (workPackage.candidateSessions ?? 0) > 0 || (workPackage.candidateSubmissions ?? 0) > 0))
+})
 const acceptancePackage = computed(() => designerSession.value?.workPackages?.find((item) =>
   item.id === (selectedWorkPackageId.value || designerSession.value?.activeWorkPackageId)) ?? currentPackage.value)
 const acceptancePlanning = computed(() => acceptancePackage.value?.acceptancePlanning)
@@ -709,10 +722,11 @@ async function refreshDesignerSession() {
 
 function scheduleDesignerPoll(delay = 0) {
   if (designerPollTimer || !shouldPollDesigner.value || store.usingDemo) return
+  const generation = designerPollGeneration
   designerPollTimer = setTimeout(async () => {
     designerPollTimer = undefined
     await refreshDesignerSession()
-    if (shouldPollDesigner.value) {
+    if (generation === designerPollGeneration && shouldPollDesigner.value) {
       const retryDelay = designerPollFailures === 0 ? (taskProfileRouting.value ? 1200 : 1500) : Math.min(1500 * (2 ** Math.min(designerPollFailures, 3)), 12000)
       scheduleDesignerPoll(retryDelay)
     }
@@ -1080,6 +1094,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  designerPollGeneration += 1
   stopDesignerPolling()
   stopDesignerStream()
   window.removeEventListener('beforeunload', warnBeforeUnload)
@@ -1614,6 +1629,15 @@ async function redesignPackage(packageId: string) {
         <section v-if="blockedWorkflowMessage" class="designer-session-alert" role="status" aria-live="polite"><Icon icon="lucide:refresh-cw" /><div><strong>{{ largeTaskModeRequired ? '普通任务无法安全容纳当前设计' : designerSession?.state === 'WAITING_INPUT' ? '设计工作流需要人工恢复' : '设计工作流已停止' }}</strong><p>{{ userFacingError(blockedWorkflowMessage.content) }}</p><p v-if="mutationOwnershipRecoveryRequired">当前设计稿未变化，不能原样重编译；请在下方输入框补充阶段负责路径，或恢复当前包设计。</p><div class="recovery-actions"><el-button v-if="largeTaskModeRequired" type="primary" size="small" :loading="busy" @click="enableLargeTaskMode"><Icon icon="lucide:split" />改用大型任务</el-button><template v-else><el-button v-if="designerSession?.decomposition && !designerSession.activeWorkPackageId" plain size="small" :loading="busy" @click="retryDecomposition"><Icon icon="lucide:split" />重新拆解</el-button><el-button v-if="designerSession?.activeWorkPackageId" plain size="small" :loading="busy" :disabled="mutationOwnershipRecoveryRequired" @click="retryPackageCompiler(designerSession.activeWorkPackageId)"><Icon icon="lucide:braces" />重新编译当前包</el-button><el-button v-if="designerSession?.activeWorkPackageId" plain size="small" :loading="busy" @click="redesignPackage(designerSession.activeWorkPackageId)"><Icon icon="lucide:sparkles" />恢复当前包设计</el-button><template v-if="designerSession?.compiler && !designerSession?.decomposition"><el-button plain size="small" :loading="busy" @click="retryCompiler"><Icon icon="lucide:braces" />重新编译当前设计</el-button><el-button plain size="small" :loading="busy" @click="requestRedesign"><Icon icon="lucide:sparkles" />让设计师重新设计</el-button></template></template><el-button plain size="small" @click="restartDesigner"><Icon icon="lucide:rotate-ccw" />清理工作区</el-button></div></div></section>
         <section v-else-if="designerLiveError" class="designer-session-alert live-error" role="alert" aria-live="assertive"><Icon icon="lucide:triangle-alert" /><div><strong>OpenCode 实时错误</strong><p>{{ userFacingError(designerLiveError) }}</p></div></section>
         <div class="designer-conversation">
+          <section v-if="showDirectCandidateSummary && directCandidatePackage" class="direct-package-candidate-summary" aria-label="默认单包候选状态">
+            <Icon icon="lucide:route" />
+            <div>
+              <header><strong>结构化设计提交</strong><span v-if="directCandidatePackage.candidateRunState">候选状态：{{ candidateRunStateLabel(directCandidatePackage.candidateRunState) }}</span></header>
+              <p v-if="directCandidatePackage.compilationSource"><b>{{ displayLabel(directCandidatePackage.compilationSource) }}</b><template v-if="directCandidatePackage.serverCompiled"> · 服务端已编译</template></p>
+              <p v-if="directCandidatePackage.compilationSource === 'MARKDOWN_FALLBACK' && directCandidatePackage.fallbackReason">兜底原因：{{ displayLabel(directCandidatePackage.fallbackReason) }}</p>
+              <small v-if="(directCandidatePackage.candidateSessions ?? 0) > 0 || (directCandidatePackage.candidateSubmissions ?? 0) > 0"><template v-if="(directCandidatePackage.candidateSessions ?? 0) > 0">候选会话 {{ directCandidatePackage.candidateSessions }}</template><template v-if="(directCandidatePackage.candidateSessions ?? 0) > 0 && (directCandidatePackage.candidateSubmissions ?? 0) > 0"> · </template><template v-if="(directCandidatePackage.candidateSubmissions ?? 0) > 0">候选修正 {{ directCandidatePackage.candidateSubmissions }}</template></small>
+            </div>
+          </section>
           <section v-if="designerSession?.workPackages?.length && !directSoftwareMode" class="work-package-rail" aria-label="工作包设计轨道">
             <article v-for="item in designerSession.workPackages ?? []" :key="item.id" :class="['work-package-chip', `package-${item.state.toLowerCase()}`, { active: item.id === designerSession.activeWorkPackageId, selected: item.id === selectedWorkPackageId }]" role="button" tabindex="0" @click="selectedWorkPackageId = item.id" @keydown.enter="selectedWorkPackageId = item.id">
               <header><b>{{ workPackageLabel(item.id) }}</b><span>{{ statusLabel(item.state) }}</span></header>
@@ -1622,6 +1646,10 @@ async function redesignPackage(packageId: string) {
               <small v-if="item.state === 'STALE'">由{{ workPackageLabel(item.invalidatedByPackageId) }}修订导致失效</small>
               <small v-else-if="item.state === 'PENDING'">{{ item.dependencies.length ? `依赖${item.dependencies.map(workPackageLabel).join('、')}` : '无前置依赖' }}</small>
               <small v-else>讨论 {{ item.discussionRoundCount }}/5 · 设计 R{{ item.designRevision }}<template v-if="item.approvedDesignRevision"> · 已接受 R{{ item.approvedDesignRevision }}</template></small>
+              <small v-if="item.candidateRunState" class="package-candidate-state">候选状态：{{ candidateRunStateLabel(item.candidateRunState) }}</small>
+              <small v-if="item.compilationSource" class="package-candidate-source">{{ displayLabel(item.compilationSource) }}<template v-if="item.serverCompiled"> · 服务端已编译</template></small>
+              <small v-if="item.compilationSource === 'MARKDOWN_FALLBACK' && item.fallbackReason" class="package-candidate-fallback">兜底原因：{{ displayLabel(item.fallbackReason) }}</small>
+              <small v-if="(item.candidateSessions ?? 0) > 0 || (item.candidateSubmissions ?? 0) > 0" class="package-candidate-counts"><template v-if="(item.candidateSessions ?? 0) > 0">候选会话 {{ item.candidateSessions }}</template><template v-if="(item.candidateSessions ?? 0) > 0 && (item.candidateSubmissions ?? 0) > 0"> · </template><template v-if="(item.candidateSubmissions ?? 0) > 0">候选修正 {{ item.candidateSubmissions }}</template></small>
               <el-button v-if="item.state === 'APPROVED'" text size="small" :disabled="busy || designerSession?.state === 'RUNNING'" @click.stop="reopenPackage(item.id)">重新讨论</el-button>
             </article>
           </section>
@@ -1857,6 +1885,14 @@ async function redesignPackage(packageId: string) {
 .connection-dot.connected { background: var(--color-success); box-shadow: 0 0 9px rgb(34 197 94 / 60%); }
 .connection-dot.reconnecting, .connection-dot.error { background: var(--color-session-warning); box-shadow: 0 0 9px rgb(245 158 11 / 45%); }
 .designer-conversation { display: flex; flex-direction: column; min-height: 0; }
+.direct-package-candidate-summary { display: flex; gap: 10px; margin: 0 20px 8px; padding: 10px 12px; border: 1px solid rgb(34 211 238 / 30%); border-radius: 10px; color: var(--color-accent-cyan); background: rgb(34 211 238 / 6%); }
+.direct-package-candidate-summary > svg { flex: 0 0 auto; margin-top: 2px; }
+.direct-package-candidate-summary > div { min-width: 0; }
+.direct-package-candidate-summary header { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; }
+.direct-package-candidate-summary header strong { font-size: 10px; }
+.direct-package-candidate-summary header span, .direct-package-candidate-summary p, .direct-package-candidate-summary small { color: var(--color-text-secondary); font: 9px/1.5 var(--font-code); }
+.direct-package-candidate-summary p { margin: 3px 0 0; }.direct-package-candidate-summary p b { color: var(--color-accent-cyan); }
+.direct-package-candidate-summary small { display: block; margin-top: 3px; color: var(--color-text-muted); }
 .work-package-rail { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 0 20px 8px; padding: 10px; border: 1px solid rgb(99 102 241 / 25%); border-radius: 10px; background: rgb(49 46 129 / 7%); }
 .work-package-chip { min-width: 0; padding: 9px 10px; border: 1px solid rgb(71 85 105 / 45%); border-radius: 8px; background: rgb(2 6 23 / 35%); cursor: pointer; }
 .work-package-chip.active { border-color: rgb(99 102 241 / 70%); box-shadow: inset 2px 0 #818cf8, 0 0 16px rgb(99 102 241 / 13%); }

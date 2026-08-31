@@ -12,7 +12,11 @@ import io.opencode.loopper.domain.MachineCandidateKind;
 import io.opencode.loopper.domain.MachineCandidateOutcome;
 import io.opencode.loopper.domain.MachineCandidateRunState;
 import io.opencode.loopper.persistence.LoopperMapper;
+import io.opencode.loopper.persistence.PackageDesignAcceptedResultRow;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -40,7 +44,9 @@ class MachineCandidateSubmissionIntegrationTest {
     @Autowired private LoopperMapper mapper;
     @Autowired private MachineCandidateSubmission submissions;
     @MockitoBean(name = "decompositionCandidatePolicy", enforceOverride = true)
-    private CandidatePolicy candidatePolicy;
+    private CandidatePolicy decompositionCandidatePolicy;
+    @MockitoBean(name = "packageDesignCandidatePolicy", enforceOverride = true)
+    private CandidatePolicy packageDesignCandidatePolicy;
     @MockitoBean(name = "decompositionAcceptedCandidateWriter", enforceOverride = true)
     private AcceptedCandidateWriter acceptedCandidateWriter;
 
@@ -117,6 +123,116 @@ class MachineCandidateSubmissionIntegrationTest {
         assertThat(jdbc.queryForList("SELECT event FROM state_transition_event "
                 + "WHERE machine_type='CANDIDATE_SUBMISSION_RUN' AND entity_id='run-budget' ORDER BY sequence", String.class))
                 .containsExactly("CREATED", "REQUIRE_INPUT");
+    }
+
+    @Test
+    void packageDesignBudgetExhaustionTransitionsToFallbackRequired() {
+        MachineCandidateSubmission.RunSnapshot opened = submissions.open(packageRun("run-package", 3));
+
+        assertThat(opened.owner().designWorkPackageId()).isEqualTo("wp");
+        assertThat(MachineCandidateKind.PACKAGE_DESIGN_V1.maximumAttempts()).isEqualTo(3);
+        assertThat(submissions.submit(new MachineCandidateSubmission.SubmitCommand(
+                "run-package", "attempt-1", "{\"fallbackEligible\":true}", 0, LEGACY)).outcome())
+                .isEqualTo(MachineCandidateOutcome.REJECTED);
+        assertThat(submissions.submit(new MachineCandidateSubmission.SubmitCommand(
+                "run-package", "attempt-2", "{\"fallbackEligible\":true}", 1, LEGACY)).outcome())
+                .isEqualTo(MachineCandidateOutcome.REJECTED);
+        MachineCandidateSubmission.SubmissionResult terminal = submissions.submit(
+                new MachineCandidateSubmission.SubmitCommand(
+                        "run-package", "attempt-3", "{\"fallbackEligible\":true}", 2, LEGACY));
+
+        assertThat(terminal.outcome()).isEqualTo(MachineCandidateOutcome.FALLBACK_REQUIRED);
+        assertThat(terminal.runState()).isEqualTo(MachineCandidateRunState.FALLBACK_REQUIRED);
+        assertThat(terminal.remainingAttempts()).isZero();
+        assertThat(terminal.retryable()).isFalse();
+        assertThat(terminal.canonicalResultSha256()).isNull();
+        assertThat(submissions.terminal("run-package")).contains(terminal);
+        assertThat(jdbc.queryForList("SELECT event FROM state_transition_event "
+                + "WHERE machine_type='CANDIDATE_SUBMISSION_RUN' AND entity_id='run-package' ORDER BY sequence",
+                String.class)).containsExactly("CREATED", "REQUIRE_FALLBACK");
+    }
+
+    @Test
+    void fallbackEligibilityIsRejectedForExistingCandidateKinds() {
+        submissions.open(decomposerRun("run-invalid-fallback", 1));
+
+        assertThatThrownBy(() -> submissions.submit(new MachineCandidateSubmission.SubmitCommand(
+                "run-invalid-fallback", "attempt-1", "{\"fallbackEligible\":true}", 0, LEGACY)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Fallback eligibility is restricted to package-design candidates");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ai_candidate_submission_attempt "
+                + "WHERE run_id='run-invalid-fallback'", Integer.class)).isZero();
+    }
+
+    @Test
+    void fallbackEligibilityCannotTurnANonRetryablePackageProblemIntoMarkdownFallback() {
+        submissions.open(packageRun("run-invalid-package-fallback", 3));
+
+        assertThatThrownBy(() -> submissions.submit(new MachineCandidateSubmission.SubmitCommand(
+                "run-invalid-package-fallback", "attempt-1", "{\"nonRetryableFallback\":true}", 0, LEGACY)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Fallback eligibility requires a retryable package-design rejection");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ai_candidate_submission_attempt "
+                + "WHERE run_id='run-invalid-package-fallback'", Integer.class)).isZero();
+    }
+
+    @Test
+    void candidateOwnerRequiresExactlyOneOfTheThreeClosedOwnerTypes() {
+        assertThat(MachineCandidateSubmission.CandidateOwner.designWorkPackage("wp").designWorkPackageId())
+                .isEqualTo("wp");
+        assertThat(new MachineCandidateSubmission.CandidateOwner(" ", null, "wp").taskDecompositionId())
+                .isNull();
+        assertThatThrownBy(() -> new MachineCandidateSubmission.CandidateOwner(null, null, null))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new MachineCandidateSubmission.CandidateOwner("dec", "cmp", null))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new MachineCandidateSubmission.CandidateOwner(null, "cmp", "wp"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void packageAcceptedResultSupportsRecoveryReadsAndConcurrentSingleWinnerSettlement() throws Exception {
+        submissions.open(packageRun("accepted-package-run", 3));
+        PackageDesignAcceptedResultRow row = new PackageDesignAcceptedResultRow(
+                "accepted-package-run", "wp", 1, 0, "PACKAGE_DESIGN_V1",
+                "{\"design\":\"canonical\"}", "# Canonical package design",
+                "{\"compiled\":true}", "d".repeat(64), null,
+                "2026-08-31T00:00:00Z", "2026-08-31T00:00:00Z", 0);
+
+        assertThat(mapper.insertPackageDesignAcceptedResult(row)).isEqualTo(1);
+        assertThat(mapper.findPackageDesignAcceptedResult("accepted-package-run")).contains(row);
+        assertThat(mapper.findLatestPackageDesignAcceptedResultForWorkPackage("wp")).contains(row);
+        assertThat(mapper.listUnsettledPackageDesignAcceptedResults()).containsExactly(row);
+        assertThat(mapper.settlePackageDesignAcceptedResult(
+                "accepted-package-run", 0, null, "2026-08-31T00:00:00Z")).isZero();
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        CompletableFuture<Integer> first = CompletableFuture.supplyAsync(() -> settleAfter(
+                ready, start, "2026-08-31T00:00:01Z"));
+        CompletableFuture<Integer> second = CompletableFuture.supplyAsync(() -> settleAfter(
+                ready, start, "2026-08-31T00:00:02Z"));
+        assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+        start.countDown();
+        assertThat(List.of(first.get(5, TimeUnit.SECONDS), second.get(5, TimeUnit.SECONDS)))
+                .containsExactlyInAnyOrder(0, 1);
+        assertThat(mapper.findPackageDesignAcceptedResult("accepted-package-run")).get().satisfies(settled -> {
+            assertThat(settled.settledCompilationId()).isEqualTo("cmp");
+            assertThat(settled.version()).isEqualTo(1);
+            assertThat(settled.updatedAt()).isIn("2026-08-31T00:00:01Z", "2026-08-31T00:00:02Z");
+        });
+        assertThat(mapper.listUnsettledPackageDesignAcceptedResults()).isEmpty();
+    }
+
+    private int settleAfter(CountDownLatch ready, CountDownLatch start, String updatedAt) {
+        try {
+            ready.countDown();
+            if (!start.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("settlement start timed out");
+            return mapper.settlePackageDesignAcceptedResult(
+                    "accepted-package-run", 0, "cmp", updatedAt);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(interrupted);
+        }
     }
 
     @Test
@@ -229,7 +345,7 @@ class MachineCandidateSubmissionIntegrationTest {
     void productionDecomposerProblemsNeverPersistCandidateProvidedValues() {
         CandidatePolicy productionPolicy = new DecompositionCandidatePolicy(
                 mapper, new DesignerDecompositionCandidateCompiler(new ObjectMapper()));
-        when(candidatePolicy.evaluate(any(CandidatePolicy.Context.class), anyString()))
+        when(decompositionCandidatePolicy.evaluate(any(CandidatePolicy.Context.class), anyString()))
                 .thenAnswer(invocation -> productionPolicy.evaluate(invocation.getArgument(0), invocation.getArgument(1)));
         submissions.open(decomposerRun("run-redaction", 5));
         String candidate = """
@@ -259,10 +375,21 @@ class MachineCandidateSubmissionIntegrationTest {
                 LEGACY, "DECOMPOSITION_PLAN_V2", "generation-1", "remote-1", maxAttempts);
     }
 
+    private MachineCandidateSubmission.OpenCommand packageRun(String id, int maxAttempts) {
+        return new MachineCandidateSubmission.OpenCommand(
+                id, "s", MachineCandidateSubmission.CandidateOwner.designWorkPackage("wp"),
+                MachineCandidateKind.PACKAGE_DESIGN_V1, "PACKAGE_DESIGN", 1, 0,
+                LEGACY, "PACKAGE_DESIGN_V1", "generation-1", "remote-1", maxAttempts);
+    }
+
     private void configureCandidateAdapters() {
-        when(candidatePolicy.supports(any())).thenAnswer(invocation ->
+        when(decompositionCandidatePolicy.supports(any())).thenAnswer(invocation ->
                 invocation.getArgument(0) == MachineCandidateKind.DECOMPOSITION_PLAN_V2);
-        when(candidatePolicy.evaluate(any(CandidatePolicy.Context.class), anyString()))
+        when(decompositionCandidatePolicy.evaluate(any(CandidatePolicy.Context.class), anyString()))
+                .thenAnswer(invocation -> evaluateCandidate(invocation.getArgument(1)));
+        when(packageDesignCandidatePolicy.supports(any())).thenAnswer(invocation ->
+                invocation.getArgument(0) == MachineCandidateKind.PACKAGE_DESIGN_V1);
+        when(packageDesignCandidatePolicy.evaluate(any(CandidatePolicy.Context.class), anyString()))
                 .thenAnswer(invocation -> evaluateCandidate(invocation.getArgument(1)));
         when(acceptedCandidateWriter.supports(any())).thenAnswer(invocation ->
                 invocation.getArgument(0) == MachineCandidateKind.DECOMPOSITION_PLAN_V2);
@@ -280,6 +407,16 @@ class MachineCandidateSubmissionIntegrationTest {
     }
 
     private CandidatePolicy.Decision evaluateCandidate(String candidateJson) {
+        if (candidateJson.contains("nonRetryableFallback")) {
+            return CandidatePolicy.Decision.rejected(false, true, List.of(
+                    new MachineCandidateSubmission.Problem(
+                            "PACKAGE_DESIGN_INPUT_REQUIRED", "/design", "Package design requires user input")));
+        }
+        if (candidateJson.contains("fallbackEligible")) {
+            return CandidatePolicy.Decision.rejected(true, true, List.of(
+                    new MachineCandidateSubmission.Problem(
+                            "PACKAGE_DESIGN_INVALID", "/design", "Package design candidate is invalid")));
+        }
         if (candidateJson.contains("tooManyProblems")) {
             return CandidatePolicy.Decision.rejected(true, java.util.stream.IntStream.range(0, 17)
                     .mapToObj(index -> new MachineCandidateSubmission.Problem(
@@ -311,6 +448,12 @@ class MachineCandidateSubmissionIntegrationTest {
         jdbc.update("INSERT INTO loop_spec_compilation(id,designer_session_id,design_revision,state,"
                 + "source_design_message_id,source_draft_version,created_at,updated_at) "
                 + "VALUES('cmp','s',1,'RUNNING','m',0,'now','now')");
+        jdbc.update("INSERT INTO design_work_package(id,designer_session_id,requirement_revision_id,decomposition_id,"
+                + "package_id,ordinal,title,objective,scope_in_json,scope_out_json,dependencies_json,deliverables_json,"
+                + "acceptance_intent_json,requirement_refs_json,state,designer_external_session_id,"
+                + "designer_external_session_state,design_revision,created_at,updated_at) "
+                + "VALUES('wp','s','r','dec','WP-1',0,'Package','Deliver','[]','[]','[]','[]','[]','[]',"
+                + "'DESIGNING','remote-1','RUNNING',0,'now','now')");
         jdbc.update("INSERT INTO open_code_session_runtime_binding(external_session_id,runtime_generation_id,"
                 + "ownership_mode,endpoint_fingerprint,created_at) VALUES('remote-1','generation-1','MANAGED',?, 'now')",
                 "a".repeat(64));

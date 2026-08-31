@@ -71,7 +71,8 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
         String now = Instant.now().toString();
         CandidateSubmissionRunRow row = new CandidateSubmissionRunRow(
                 command.runId(), command.designerSessionId(), command.owner().taskDecompositionId(),
-                command.owner().loopSpecCompilationId(), command.candidateKind().name(), command.workflowStep(),
+                command.owner().loopSpecCompilationId(), command.owner().designWorkPackageId(),
+                command.candidateKind().name(), command.workflowStep(),
                 command.sourceRevision(), command.ownerVersion(), command.submissionChannel().name(),
                 command.contractVersion(), command.runtimeGenerationId(), command.externalSessionId(),
                 MachineCandidateRunState.OPEN.name(), command.maxAttempts(), 0, null, now, now, 0);
@@ -107,7 +108,7 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
 
         CandidatePolicy.Context context = context(run);
         CandidatePolicy.Decision decision = policy(run).evaluate(context, command.candidateJson());
-        ValidatedDecision validated = validateDecision(decision);
+        ValidatedDecision validated = validateDecision(decision, context.candidateKind());
         return persist(command, requestSha, run, context, validated);
     }
 
@@ -153,13 +154,19 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
     private SubmissionResult persist(SubmitCommand command, String requestSha, CandidateSubmissionRunRow run,
                                      CandidatePolicy.Context context, ValidatedDecision decision) {
         int ordinal = run.attemptsUsed() + 1;
-        MachineCandidateOutcome outcome = decision.accepted()
-                ? MachineCandidateOutcome.ACCEPTED
-                : (!decision.retryable() || ordinal >= run.maxAttempts()
-                    ? MachineCandidateOutcome.WAITING_INPUT : MachineCandidateOutcome.REJECTED);
+        MachineCandidateOutcome outcome;
+        if (decision.accepted()) {
+            outcome = MachineCandidateOutcome.ACCEPTED;
+        } else if (decision.retryable() && ordinal >= run.maxAttempts() && decision.fallbackEligible()) {
+            outcome = MachineCandidateOutcome.FALLBACK_REQUIRED;
+        } else {
+            outcome = !decision.retryable() || ordinal >= run.maxAttempts()
+                    ? MachineCandidateOutcome.WAITING_INPUT : MachineCandidateOutcome.REJECTED;
+        }
         MachineCandidateRunState target = switch (outcome) {
             case ACCEPTED -> MachineCandidateRunState.ACCEPTED;
             case WAITING_INPUT -> MachineCandidateRunState.WAITING_INPUT;
+            case FALLBACK_REQUIRED -> MachineCandidateRunState.FALLBACK_REQUIRED;
             case REJECTED -> MachineCandidateRunState.OPEN;
         };
         String attemptId = UUID.randomUUID().toString();
@@ -249,7 +256,7 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
         }
     }
 
-    private ValidatedDecision validateDecision(CandidatePolicy.Decision decision) {
+    private ValidatedDecision validateDecision(CandidatePolicy.Decision decision, MachineCandidateKind kind) {
         if (decision == null || decision.problems() == null || decision.problems().size() > MAX_PROBLEMS) {
             throw new IllegalStateException("Candidate policy returned an invalid problem set");
         }
@@ -267,16 +274,22 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
                     problem.allowedValues()));
         }
         if (decision.accepted()) {
-            if (!problems.isEmpty() || blank(decision.canonicalCandidateJson())) {
+            if (!problems.isEmpty() || blank(decision.canonicalCandidateJson()) || decision.fallbackEligible()) {
                 throw new IllegalStateException("Accepted candidate policy decision is incomplete");
             }
             validateJsonObject(decision.canonicalCandidateJson());
         } else if (problems.isEmpty() || decision.canonicalCandidateJson() != null) {
             throw new IllegalStateException("Rejected candidate policy decision is incomplete");
         }
+        if (decision.fallbackEligible() && kind != MachineCandidateKind.PACKAGE_DESIGN_V1) {
+            throw new IllegalStateException("Fallback eligibility is restricted to package-design candidates");
+        }
+        if (decision.fallbackEligible() && !decision.retryable()) {
+            throw new IllegalStateException("Fallback eligibility requires a retryable package-design rejection");
+        }
         boundedJson(problems, "Candidate problems");
         return new ValidatedDecision(decision.accepted(), decision.canonicalCandidateJson(),
-                decision.retryable(), List.copyOf(problems));
+                decision.retryable(), decision.fallbackEligible(), List.copyOf(problems));
     }
 
     private void validateJsonObject(String value) {
@@ -312,8 +325,11 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
                 || blank(command.externalSessionId())) {
             throw new BadRequestException("CANDIDATE_RUN_INVALID", "候选运行合同不完整");
         }
-        boolean ownerMatches = command.candidateKind() == MachineCandidateKind.DECOMPOSITION_PLAN_V2
-                ? command.owner().taskDecompositionId() != null : command.owner().loopSpecCompilationId() != null;
+        boolean ownerMatches = switch (command.candidateKind()) {
+            case DECOMPOSITION_PLAN_V2 -> command.owner().taskDecompositionId() != null;
+            case ACCEPTANCE_CLOSED_CHOICE_V7 -> command.owner().loopSpecCompilationId() != null;
+            case PACKAGE_DESIGN_V1 -> command.owner().designWorkPackageId() != null;
+        };
         if (!ownerMatches) throw new BadRequestException("CANDIDATE_OWNER_INVALID", "候选类型与拥有者不匹配");
         if (command.maxAttempts() < 1 || command.maxAttempts() > command.candidateKind().maximumAttempts()) {
             throw new BadRequestException("CANDIDATE_ATTEMPT_LIMIT_INVALID", "候选尝试预算超出角色上限");
@@ -335,6 +351,7 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
         return row.designerSessionId().equals(command.designerSessionId())
                 && Objects.equals(row.taskDecompositionId(), command.owner().taskDecompositionId())
                 && Objects.equals(row.loopSpecCompilationId(), command.owner().loopSpecCompilationId())
+                && Objects.equals(row.designWorkPackageId(), command.owner().designWorkPackageId())
                 && row.candidateKind().equals(command.candidateKind().name())
                 && row.workflowStep().equals(command.workflowStep()) && row.sourceRevision() == command.sourceRevision()
                 && row.ownerVersion() == command.ownerVersion()
@@ -365,13 +382,14 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
     }
 
     private CandidateOwner owner(CandidateSubmissionRunRow row) {
-        return new CandidateOwner(row.taskDecompositionId(), row.loopSpecCompilationId());
+        return new CandidateOwner(row.taskDecompositionId(), row.loopSpecCompilationId(),
+                row.designWorkPackageId());
     }
 
     private CandidateSubmissionRunRow updated(CandidateSubmissionRunRow row, MachineCandidateRunState state,
                                               int attemptsUsed, String terminalAttemptId, String updatedAt) {
         return new CandidateSubmissionRunRow(row.id(), row.designerSessionId(), row.taskDecompositionId(),
-                row.loopSpecCompilationId(), row.candidateKind(), row.workflowStep(), row.sourceRevision(),
+                row.loopSpecCompilationId(), row.designWorkPackageId(), row.candidateKind(), row.workflowStep(), row.sourceRevision(),
                 row.ownerVersion(), row.submissionChannel(), row.contractVersion(), row.runtimeGenerationId(),
                 row.externalSessionId(), state.name(), row.maxAttempts(), attemptsUsed, terminalAttemptId,
                 row.createdAt(), updatedAt, row.version());
@@ -411,5 +429,5 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
     private static String nullToEmpty(String value) { return value == null ? "" : value; }
 
     private record ValidatedDecision(boolean accepted, String canonicalCandidateJson,
-                                     boolean retryable, List<Problem> problems) { }
+                                     boolean retryable, boolean fallbackEligible, List<Problem> problems) { }
 }

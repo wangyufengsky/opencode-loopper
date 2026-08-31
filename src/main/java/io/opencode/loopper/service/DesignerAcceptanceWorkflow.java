@@ -472,7 +472,7 @@ final class DesignerAcceptanceWorkflow {
                 row.compiledPackageJson(), row.workflowStep(), row.planningJson(), planningRepairs,
                 row.planningResponseMode(), row.planningResponseSchemaId(), row.planningFormatFallbackUsed(),
                 row.finalResponseMode(), row.finalResponseSchemaId(), row.finalFormatFallbackUsed(), semanticJson,
-                formatRepairs, semanticRepairs, row.serverCompiled());
+                formatRepairs, semanticRepairs, row.serverCompiled(), row.compilationSource(), row.fallbackReason());
     }
 
     private void mutateCompilation(LoopSpecCompilationRow row) {

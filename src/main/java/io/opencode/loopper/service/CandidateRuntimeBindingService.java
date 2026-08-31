@@ -1,5 +1,6 @@
 package io.opencode.loopper.service;
 
+import io.opencode.loopper.domain.DesignWorkPackageState;
 import io.opencode.loopper.domain.MachineCandidateKind;
 import io.opencode.loopper.persistence.DesignRequirementRevisionRow;
 import io.opencode.loopper.persistence.LoopperMapper;
@@ -149,6 +150,30 @@ public final class CandidateRuntimeBindingService implements CandidateRunGuard {
                             && item.revision() == run.sourceRevision())
                     .orElseThrow(() -> new ConflictException("CANDIDATE_SOURCE_REVISION_STALE",
                             "Frozen requirement revision has changed"));
+            return;
+        }
+        if (run.candidateKind() == MachineCandidateKind.PACKAGE_DESIGN_V1) {
+            var owner = mapper.findDesignWorkPackage(run.owner().designWorkPackageId())
+                    .orElseThrow(() -> new ConflictException("CANDIDATE_OWNER_MISSING",
+                            "Package design candidate owner no longer exists"));
+            if (!run.designerSessionId().equals(owner.designerSessionId())
+                    || owner.version() != run.ownerVersion()) {
+                throw new ConflictException("CANDIDATE_OWNER_REVISION_STALE",
+                        "Package design candidate owner revision has changed");
+            }
+            if (!DesignWorkPackageState.DESIGNING.name().equals(owner.state())
+                    && !DesignWorkPackageState.QUESTIONING.name().equals(owner.state())) {
+                throw new ConflictException("CANDIDATE_OWNER_STATE_INVALID",
+                        "Package design candidate owner is no longer accepting candidates");
+            }
+            if (!run.externalSessionId().equals(owner.designerExternalSessionId())) {
+                throw new ConflictException("CANDIDATE_OWNER_SESSION_STALE",
+                        "Package design candidate owner remote Session has changed");
+            }
+            if ((long) owner.designRevision() + 1 != run.sourceRevision()) {
+                throw new ConflictException("CANDIDATE_SOURCE_REVISION_STALE",
+                        "Package design candidate source revision has changed");
+            }
             return;
         }
         var owner = mapper.findLoopSpecCompilation(run.owner().loopSpecCompilationId())

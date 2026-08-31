@@ -17,18 +17,23 @@ public interface CandidatePolicy {
             MachineCandidateKind candidateKind, String workflowStep, long sourceRevision, long ownerVersion,
             String contractVersion, int maxAttempts, int attemptsUsed) { }
 
-    record Decision(boolean accepted, String canonicalCandidateJson, boolean retryable,
+    record Decision(boolean accepted, String canonicalCandidateJson, boolean retryable, boolean fallbackEligible,
                     List<MachineCandidateSubmission.Problem> problems) {
         public Decision {
             problems = List.copyOf(Objects.requireNonNull(problems, "problems"));
         }
 
         public static Decision accepted(String canonicalCandidateJson) {
-            return new Decision(true, Objects.requireNonNull(canonicalCandidateJson), false, List.of());
+            return new Decision(true, Objects.requireNonNull(canonicalCandidateJson), false, false, List.of());
         }
 
         public static Decision rejected(boolean retryable, List<MachineCandidateSubmission.Problem> problems) {
-            return new Decision(false, null, retryable, problems);
+            return rejected(retryable, false, problems);
+        }
+
+        public static Decision rejected(boolean retryable, boolean fallbackEligible,
+                                        List<MachineCandidateSubmission.Problem> problems) {
+            return new Decision(false, null, retryable, fallbackEligible, problems);
         }
     }
 }

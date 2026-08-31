@@ -127,6 +127,8 @@ public class HttpOpenCodeClient implements OpenCodeClient {
                     ? OpenCodeMcpDiscovery.Access.empty()
                     : mcpDiscovery.discover(sessionClient, canonical, connection.internalMcpServer());
             if (effectiveProfile == SessionProfile.DECOMPOSER_CANDIDATE_READ_ONLY
+                    || effectiveProfile == SessionProfile.PACKAGE_DESIGN_CANDIDATE_READ_ONLY
+                    || effectiveProfile == SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY
                     || effectiveProfile == SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS) {
                 mcp.requireCandidateReady(connection.managed(), connection.generation(), connection.internalMcpServer());
             }
@@ -212,6 +214,8 @@ public class HttpOpenCodeClient implements OpenCodeClient {
     }
     private static boolean machineResponseProfile(SessionProfile profile) {
         return profile == SessionProfile.DECOMPOSER_CANDIDATE_READ_ONLY
+                || profile == SessionProfile.PACKAGE_DESIGN_CANDIDATE_READ_ONLY
+                || profile == SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY
                 || profile == SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS
                 || profile == SessionProfile.DECOMPOSER_READ_ONLY
                 || profile == SessionProfile.ROUTER_NO_TOOLS

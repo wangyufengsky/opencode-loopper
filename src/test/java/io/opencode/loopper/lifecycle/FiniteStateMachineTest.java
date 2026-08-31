@@ -61,7 +61,7 @@ class FiniteStateMachineTest {
     }
 
     @Test
-    void candidateSubmissionOnlyTransitionsFromOpenToItsThreeTerminalStates() {
+    void candidateSubmissionOnlyTransitionsFromOpenToItsFourTerminalStates() {
         LifecycleRegistry registry = new LifecycleRegistry();
 
         assertThat(registry.resolve(LifecycleMachineType.CANDIDATE_SUBMISSION_RUN, "candidate-1",
@@ -70,6 +70,9 @@ class FiniteStateMachineTest {
         assertThat(registry.resolve(LifecycleMachineType.CANDIDATE_SUBMISSION_RUN, "candidate-1",
                 MachineCandidateRunState.OPEN.name(), MachineCandidateRunState.WAITING_INPUT.name(), null).event())
                 .isEqualTo(LifecycleEvent.REQUIRE_INPUT);
+        assertThat(registry.resolve(LifecycleMachineType.CANDIDATE_SUBMISSION_RUN, "candidate-1",
+                MachineCandidateRunState.OPEN.name(), MachineCandidateRunState.FALLBACK_REQUIRED.name(), null).event())
+                .isEqualTo(LifecycleEvent.REQUIRE_FALLBACK);
         assertThat(registry.resolve(LifecycleMachineType.CANDIDATE_SUBMISSION_RUN, "candidate-1",
                 MachineCandidateRunState.OPEN.name(), MachineCandidateRunState.CLOSED.name(), null).event())
                 .isEqualTo(LifecycleEvent.ABORT);

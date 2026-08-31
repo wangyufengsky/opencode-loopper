@@ -69,12 +69,16 @@ public class LoopperProperties {
         private boolean decomposerEnabled = true;
         /** Acceptance closed-choice remains opt-in until a packaged real-model tool-use replay passes. */
         private boolean acceptanceClosedChoiceV7Enabled;
+        /** Qualified package-design candidate transport is on by default and may be disabled for rollback. */
+        private boolean packageDesignV1Enabled = true;
         public boolean isDecomposerEnabled() { return decomposerEnabled; }
         public void setDecomposerEnabled(boolean value) { this.decomposerEnabled = value; }
         public boolean isAcceptanceClosedChoiceV7Enabled() { return acceptanceClosedChoiceV7Enabled; }
         public void setAcceptanceClosedChoiceV7Enabled(boolean value) {
             this.acceptanceClosedChoiceV7Enabled = value;
         }
+        public boolean isPackageDesignV1Enabled() { return packageDesignV1Enabled; }
+        public void setPackageDesignV1Enabled(boolean value) { this.packageDesignV1Enabled = value; }
     }
     public static class RetryWait {
         private Duration rateLimitBase = Duration.ofSeconds(60);

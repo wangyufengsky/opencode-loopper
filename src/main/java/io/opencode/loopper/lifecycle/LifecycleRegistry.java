@@ -212,6 +212,8 @@ public final class LifecycleRegistry {
         return machine(LifecycleMachineType.CANDIDATE_SUBMISSION_RUN, MachineCandidateRunState.class)
                 .transition(MachineCandidateRunState.OPEN, APPROVE, MachineCandidateRunState.ACCEPTED)
                 .transition(MachineCandidateRunState.OPEN, REQUIRE_INPUT, MachineCandidateRunState.WAITING_INPUT)
+                .transition(MachineCandidateRunState.OPEN, REQUIRE_FALLBACK,
+                        MachineCandidateRunState.FALLBACK_REQUIRED)
                 .transition(MachineCandidateRunState.OPEN, ABORT, MachineCandidateRunState.CLOSED)
                 .build();
     }

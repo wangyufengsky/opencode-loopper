@@ -481,6 +481,26 @@ content fails closed. Rejected raw candidates are not persisted: only a digest,
 bounded problem codes/JSON Pointers and the safe response remain. Acceptance writes
 the canonical candidate and advances the owning workflow in one short transaction.
 
+V48 extends that domain with `PACKAGE_DESIGN_V1`, a `designWorkPackageId` owner and
+the package-only `FALLBACK_REQUIRED` terminal. A work-package candidate run is bound
+to one package revision, one fresh OpenCode Session and one managed runtime generation;
+it accepts at most three complete-replacement submissions. Its accepted-result row
+atomically stores the normalized candidate, canonical server-rendered Markdown,
+deterministic compilation result, digests and `settledCompilationId`. Restart recovery
+may settle an accepted row exactly once, but cannot reinterpret an old-generation or
+unterminated Session output as fallback input. V48 rebuilds the V47 candidate tables
+without losing historical rows, foreign keys, unique indexes or runtime bindings and
+adds one-active-run-per-package-step enforcement.
+
+`PackageDesignCompilation` is the single deep module behind both package-design
+entries. The MCP adapter maps `PACKAGE_DESIGN_V1` into the unified semantic model;
+the Markdown adapter preserves the existing CommonMark/GFM behavior. The hidden
+deterministic core closes references, scenario coverage and the Stage DAG, proves
+mutation-path ownership, applies frozen test and safety policy, and generates all
+stable IDs, commands, verifier mappings and permissions. A candidate is therefore
+never allowed to submit those authoritative fields. Equivalent MCP and Markdown
+semantics must compile to the same deterministic result.
+
 The managed Decomposer uses one OpenCode Session and at most five unique
 `INTERNAL_MCP` submissions. A rejected submission returns enough bounded evidence
 for the model to correct and resubmit in that same Session. `ACCEPTED` or
@@ -489,6 +509,22 @@ or explicitly compatibility-mode OpenCode uses a fresh `IN_PROCESS_LEGACY` run
 through the same policy. A channel cannot change within a run, and a managed MCP
 failure cannot silently reinterpret final text from the same Session as a legacy
 candidate.
+
+The qualified package-design flag defaults on; an explicit false value rolls back
+only newly dispatched work packages to the existing Designer plus Markdown route,
+while persisted candidate and accepted-result recovery remains installed. When the
+flag is enabled and the managed private MCP is ready before
+dispatch, Package Designer receives one candidate Session with `read/glob/grep` and
+only the exact private submit tool; the interactive variant additionally receives
+`question`. `ACCEPTED` bypasses only Markdown semantic adaptation and the independent
+AI Compiler Session, then waits for a proven remote terminal/abort before settling
+the deterministic result. If the model completes normally without accepting a
+candidate, or exhausts three explicitly fallback-eligible mechanical rejections,
+the same Session's nonempty final Markdown enters the existing compilation route.
+`NEEDS_INPUT`, path/safety/permission/revision/generation conflict, timeout, transport
+failure or unconfirmed stop never fall back. The work-package projection exposes
+the candidate state, Session/submission counts, `MCP_ACCEPTED | MARKDOWN_FALLBACK`,
+fallback reason and `serverCompiled` directly from persisted server facts.
 
 Qualified v7 acceptance closed-choice routing uses the same authority split with
 a stricter two-submission budget. A unique optimum remains server-direct; a

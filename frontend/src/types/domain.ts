@@ -1112,6 +1112,12 @@ export interface DesignWorkPackageStatus {
   testPolicy?: DesignerTaskProfile['testPolicy']
   technologies?: string[]
   acceptancePlanning?: DesignerAcceptancePlanningStatus
+  candidateRunState?: 'OPEN' | 'ACCEPTED' | 'WAITING_INPUT' | 'FALLBACK_REQUIRED' | 'CLOSED'
+  candidateSessions?: number
+  candidateSubmissions?: number
+  compilationSource?: 'MCP_ACCEPTED' | 'MARKDOWN_FALLBACK'
+  fallbackReason?: string
+  serverCompiled?: boolean
 }
 
 export interface DesignerAcceptancePlanningStatus {
