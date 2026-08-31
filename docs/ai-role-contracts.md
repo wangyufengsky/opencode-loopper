@@ -14,9 +14,9 @@ ID、状态、引用反向映射、精确来源摘录、测试目标、验证器
 只要唯一可解析、可规范化并通过业务与安全合同，就直接接受，不因包装或冗余字段
 消耗修复预算。
 
-Decomposer 新会话只需一次机器规划调用；当前 v7 Compiler 只在服务端无法唯一绑定闭集事实或能力时创建，
+Decomposer 新会话只需一次模型提示，但可在同一 Session 内通过内部 MCP 提交多个有界候选；当前 v7 Compiler 只在服务端无法唯一绑定闭集事实或能力时创建，
 普通包、大型任务包和滚动执行当前包均不因包形态或交接摘要强制调用；冻结 v6 大型包保留历史一次调用兼容。
-每个候选至多调用一次。规划通过后由服务端直接
+模型提示调用、OpenCode Session 和候选工具提交必须分别计数。规划通过后由服务端直接
 生成最终 `Decomposition` 或 `CompiledPackage`，不再要求模型进行第二次逐字段抄写。
 旧 final Schema 和字段仅用于历史读取与缺少规划快照的旧活动记录兼容。
 
@@ -66,9 +66,10 @@ Task 确认后每个 Stage 也保存同一快照，Implementation 与 Recovery �
 只读 getter/投影和验收复核词汇属于交付内容，不能把已有软件变更改路由为只读报告或伪造
 `mixed-mutation-conflict`。显式任务级“评审并修复”仍保留读写冲突并要求人工确认。
 
-所有机器角色在创建 Session 前都执行同一 MCP 发现，包括 Router、Compiler repair、工具循环
-finalizer 和双 Judge。MCP allow 只叠加到各角色既有权限模板，不能解除写文件、Bash、Git、外部
-目录或人工授权限制；发现失败时不发送模型提示。界面称谓统一为需求分析师、任务规划师、设计师、
+除真正零工具的 Router 外，机器角色在创建 Session 前执行有界 MCP 发现。普通角色只把已连接的
+用户 MCP allow 叠加到既有权限模板；候选角色移除用户 MCP 通配权限，只开放本代随机内部
+`submit_candidate` 精确工具。内部 MCP 不会进入 Judge、Router 或公共六工具 Provider，也不能解除写文件、
+Bash、Git、外部目录或人工授权限制；发现或精确就绪失败时不发送模型提示。界面称谓统一为需求分析师、任务规划师、设计师、
 规范工程师、评审员、验收工程师和开发工程师；需求与风险 Judge 分别显示为需求评审员和风险评审员，
 数据库及协议角色码保持不变。
 
@@ -125,6 +126,13 @@ Decomposer 返回 `READY | NEEDS_INPUT | MULTI_TASK_REQUIRED`、规范目标、�
 未知 RQ/目标、遗漏需求、前向或循环依赖、机械分层、超过六包和多任务边界继续阻断。
 旧 `coverageMappings`、目标引用和依赖证据会先转换到同一个内部语义模型。
 
+受管模式为每个 Decomposer 规划建立持久化 `DECOMPOSITION_PLAN_V2` 候选运行，绑定需求修订、
+TaskDecomposition 版本、外部 Session、运行时代际与 `INTERNAL_MCP` 通道，最多五次唯一提交。
+每次工具调用返回 `REJECTED / ACCEPTED / WAITING_INPUT`、剩余次数、下一提交修订和至多 16 个
+带 JSON Pointer 的问题。`REJECTED` 只让同一 Session 修正；`ACCEPTED` 与规范计划原子冻结；
+预算耗尽或不可修复边界进入人工输入。被拒原文不落库，只保存 SHA-256、问题和安全响应。
+外部/兼容模式使用 `IN_PROCESS_LEGACY`，但复用完全相同的编译、策略和 accepted writer；两种通道不可互投。
+
 ## Compiler
 
 新软件设计先使用固定受控 Markdown：`目标与范围`、`影响与交付`、`验收场景`、可选
@@ -172,6 +180,23 @@ capabilityPreferences / handoffSummary`，只填写服务端列出的 unresolved
 完整最优集合的判别索引；共同成员、较弱候选和非最优组合不进入选择面。若有界搜索未穷举，结果只作为诊断
 并失败关闭，不允许把贪心结果或模型选择冒充权威最优解。AI 偏好不参与服务端评分。结果仍须经过现有
 `DesignerPackagePlanCompiler` 和 LoopSpec v2 全量校验。
+
+验收闭集候选迁移由 `loopper.internal-candidate.acceptance-closed-choice-v7-enabled` 单独控制且默认关闭；只有隔离成品 JAR 证明当前真实模型会主动调用私有 MCP 并依据拒绝结果在同一 Session 自修正后才允许显式开启。关闭时真实同分继续走既有 `PACKAGE_ACCEPTANCE_CLOSED_CHOICE_V7` JSON 兼容路径。唯一最优始终由服务端直编；不可枚举、未穷举、路径归属或权限安全问题始终直接等待人工，不能为了启用候选协议扩大模型选择面。
+开关开启只允许已持久化 `compilerRequired` 路由且经服务端再次证明为 2–32 个穷举等价最优集合的真实同分
+建立 `ACCEPTANCE_CLOSED_CHOICE_V7` 候选运行。该运行固定 `INTERNAL_MCP` 通道、同一冻结 Compilation
+拥有者/设计修订/运行时代际和最多两次唯一提交；只开放专用候选 Session 的精确内部
+`submit_candidate`，不开放内置工具或用户 MCP。只有闭集选择遗漏、越界或组合错误
+`ACCEPTANCE_CANDIDATE_SELECTION_INVALID` 可在同一 Session 再提交一次；路径/权限/执行/拓扑字段、
+非对象合同和非枚举快照分别以 `ACCEPTANCE_CANDIDATE_SECURITY_BOUNDARY / CONTRACT_INVALID /
+NOT_ENUMERABLE` 失败关闭并进入人工输入，不创建修复 Session。Accepted writer 只从数据库冻结事实生成
+规范 binding，并通过通用 `MachineCandidateSubmission` 的短事务落库；模型提交不能写路径、命令、权限或安全策略。
+
+候选开关的启用资格与既有 v7 JSON 资格分开。测试专用 registry 从同一次真实运行原子记录
+`modelCalls / candidateSessions / candidateSubmissions` 三轴：唯一最优严格为 `0/0/0`；真实同分严格为
+`1/1/1..2`；非枚举与路径安全阻断严格为 `0/0/0`。当前 4 条真实 Designer/OpenCode guard 分别实测
+`0/0/0`、`1/1/2`、`0/0/0`、`0/0/0`，结构候选资格为 `complete=true / passed=true`；连同 22/22 精确 guard、
+7/7 指标 guard 和 1/1 同输入测量，证明服务端候选管道与三轴计数符合边界。当前 MCP 请求由测试驱动器发起，
+不构成真实模型工具采用或自修正证明，因此生产默认值保持关闭；这不移除恢复已有持久化 run 所需的 policy/writer/adapter。
 
 Stage 组装完成后，服务端优先接受 `负责路径` 的唯一显式声明，随后兼容 Stage 精确引用产生义务的受控
 交付/范围事实、恰好一个 Stage 的既有精确路径规则、旧四列表格中仅一个阶段目标出现的精确文件名/类名/
@@ -265,8 +290,10 @@ v7 消歧提示给出唯一小型对象形状和全部闭集候选。服务端�
 `null` 集合归一为空集合，并忽略不参与合同的说明字段；每个动作都写入 AI 输出 `NORMALIZED` 审计和
 `safeNormalizations` 诊断，不消耗格式/语义修复预算。原始响应在规范化前扫描：路径、命令、测试目标、
 Stage 拓扑、权限或安全字段即使 Schema transport 接受也必须失败关闭。缺少必选项、越界索引、重复或冲突
-选择、修改锁定事实，以及多个不等价的有效 JSON 候选都产生 `AMBIGUOUS_ACCEPTANCE_INTENT`，不创建
-格式或语义修复 Session，也不以空 binding、丢弃建议或 catch-all Stage 继续。无效结果保留冻结事实和
+选择、修改锁定事实，以及多个不等价的有效 JSON 候选在显式关闭开关的兼容路径继续产生
+`AMBIGUOUS_ACCEPTANCE_INTENT`，不创建格式或语义修复 Session；候选开关开启后只有纯机械闭集选择错误
+可由同一候选 Session 在总提交上限内重送，安全、合同和非枚举问题仍不可重试。两条路径都不得以空 binding、
+丢弃建议或 catch-all Stage 继续。无效结果保留冻结事实和
 已完成的唯一绑定，只更新失败诊断。结构缺失、依赖冲突和确定性验证能力缺失直接
 `DESIGN_INCOMPLETE`，不会为了取得一个无法改变结论的回答而调用 Compiler。
 

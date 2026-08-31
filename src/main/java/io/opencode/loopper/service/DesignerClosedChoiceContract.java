@@ -49,6 +49,19 @@ final class DesignerClosedChoiceContract {
                 AiOutputExtractor.CandidatePolicy.STRICT_CLOSED_CHOICE);
     }
 
+    CandidateBoundary inspectCandidateBoundary(String candidateJson) {
+        try {
+            JsonNode node = json.readTree(candidateJson);
+            if (node == null || !node.isObject()) return CandidateBoundary.CONTRACT_INVALID;
+            validateBoundaryTree(node, ObjectContext.ROOT);
+            return validCandidateShape(node) ? CandidateBoundary.SAFE : CandidateBoundary.CONTRACT_INVALID;
+        } catch (BoundaryViolation violation) {
+            return violation.boundary();
+        } catch (RuntimeException invalid) {
+            return CandidateBoundary.CONTRACT_INVALID;
+        }
+    }
+
     String facts(DesignerAcceptancePlanning.Catalog catalog,
                  DesignerAcceptanceFastPathResolver.Resolution resolution) {
         LinkedHashSet<Integer> indexes = new LinkedHashSet<>(resolution.unresolvedFactIndexes());
@@ -68,7 +81,8 @@ final class DesignerClosedChoiceContract {
         List<Map<String, Object>> values = catalog.capabilities().stream()
                 .filter(capability -> indexes.contains(capability.index()))
                 .map(capability -> Map.<String, Object>of(
-                        "index", capability.index(), "kind", capability.kind(), "label", capability.label(),
+                        "index", capability.index(), "kind", capability.kind(),
+                        "label", "closed-choice-" + capability.index(),
                         "coversFactIndexes", capability.coversFactIndexes(),
                         "deterministic", capability.deterministic(), "strength", capability.strength()))
                 .toList();
@@ -106,13 +120,18 @@ final class DesignerClosedChoiceContract {
     }
 
     private static void validateTree(JsonNode node) {
-        validateTree(node, ObjectContext.ROOT);
+        try {
+            validateBoundaryTree(node, ObjectContext.ROOT);
+        } catch (BoundaryViolation violation) {
+            throw new BadRequestException("AMBIGUOUS_ACCEPTANCE_INTENT",
+                    "Closed choice output cannot contain execution or topology fields");
+        }
     }
 
-    private static void validateTree(JsonNode node, ObjectContext context) {
+    private static void validateBoundaryTree(JsonNode node, ObjectContext context) {
         if (node == null) return;
         if (node.isArray()) {
-            node.forEach(item -> validateTree(item, context));
+            node.forEach(item -> validateBoundaryTree(item, context));
             return;
         }
         if (!node.isObject()) return;
@@ -120,20 +139,57 @@ final class DesignerClosedChoiceContract {
         for (Map.Entry<String, JsonNode> entry : node.properties()) {
             String field = normalized(entry.getKey());
             if (!fields.add(field)) {
-                throw new BadRequestException("AMBIGUOUS_ACCEPTANCE_INTENT",
-                        "Closed choice output contains conflicting field aliases: " + entry.getKey());
+                throw new BoundaryViolation(CandidateBoundary.CONTRACT_INVALID);
             }
-            if (!allowed(context, field) && (SELECTION_FIELDS.contains(field) || forbidden(field))) {
-                throw new BadRequestException("AMBIGUOUS_ACCEPTANCE_INTENT",
-                        "Closed choice output cannot contain execution or topology field: " + entry.getKey());
+            if (!allowed(context, field) && forbidden(field)) {
+                throw new BoundaryViolation(CandidateBoundary.SECURITY_BOUNDARY);
+            }
+            if (!allowed(context, field) && SELECTION_FIELDS.contains(field)) {
+                throw new BoundaryViolation(CandidateBoundary.CONTRACT_INVALID);
             }
             ObjectContext child = switch (field) {
                 case "factassignments" -> ObjectContext.FACT_ASSIGNMENT;
                 case "capabilitypreferences" -> ObjectContext.CAPABILITY_PREFERENCE;
                 default -> ObjectContext.UNKNOWN;
             };
-            validateTree(entry.getValue(), child);
+            validateBoundaryTree(entry.getValue(), child);
         }
+    }
+
+    private static boolean validCandidateShape(JsonNode root) {
+        for (Map.Entry<String, JsonNode> entry : root.properties()) {
+            String field = normalized(entry.getKey());
+            JsonNode value = entry.getValue();
+            if (!ROOT_FIELDS.contains(field)) return false;
+            if ((field.equals("summary") || field.equals("handoffsummary"))
+                    && !value.isNull() && !value.isTextual()) return false;
+            if (field.equals("factassignments") && !validObjectArray(value, FACT_ASSIGNMENT_FIELDS,
+                    Set.of("factindex", "stageindex"), Set.of())) return false;
+            if (field.equals("capabilitypreferences") && !validObjectArray(value,
+                    CAPABILITY_PREFERENCE_FIELDS, Set.of("factindex"), Set.of("capabilityindexes"))) return false;
+        }
+        return true;
+    }
+
+    private static boolean validObjectArray(JsonNode value, Set<String> allowed, Set<String> integerFields,
+                                            Set<String> integerArrayFields) {
+        if (!value.isArray()) return false;
+        for (JsonNode item : value) {
+            if (!item.isObject()) return false;
+            Set<String> seen = new LinkedHashSet<>();
+            for (Map.Entry<String, JsonNode> entry : item.properties()) {
+                String field = normalized(entry.getKey());
+                if (!allowed.contains(field) || !seen.add(field)) return false;
+                JsonNode fieldValue = entry.getValue();
+                if (integerFields.contains(field) && !fieldValue.isInt()) return false;
+                if (integerArrayFields.contains(field)) {
+                    if (!fieldValue.isArray()) return false;
+                    for (JsonNode index : fieldValue) if (!index.isInt()) return false;
+                }
+            }
+            if (!seen.containsAll(integerFields) || !seen.containsAll(integerArrayFields)) return false;
+        }
+        return true;
     }
 
     private static boolean allowed(ObjectContext context, String field) {
@@ -166,5 +222,11 @@ final class DesignerClosedChoiceContract {
         }
     }
 
+    enum CandidateBoundary { SAFE, CONTRACT_INVALID, SECURITY_BOUNDARY }
     private enum ObjectContext { ROOT, FACT_ASSIGNMENT, CAPABILITY_PREFERENCE, UNKNOWN }
+    private static final class BoundaryViolation extends RuntimeException {
+        private final CandidateBoundary boundary;
+        private BoundaryViolation(CandidateBoundary boundary) { this.boundary = boundary; }
+        private CandidateBoundary boundary() { return boundary; }
+    }
 }

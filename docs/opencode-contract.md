@@ -1,11 +1,13 @@
-# OpenCode 1.18.12 contract evidence
+# OpenCode 1.18.23 contract evidence
 
-Verified locally on 2026-08-04 with `opencode serve --hostname 127.0.0.1
---port 4097` in an isolated temporary directory.
+The base HTTP contract was verified locally on 2026-08-04 with OpenCode 1.18.12.
+The managed MCP overlay, merge, bearer, reconnect, tool-name and Session-generation
+claims below were re-verified on 2026-08-31 with OpenCode 1.18.23 in isolated
+temporary directories.
 
 | Operation | Endpoint | Observed result |
 | --- | --- | --- |
-| health | `GET /global/health` | `healthy=true`, version `1.18.12` |
+| health | `GET /global/health` | `healthy=true`, version `1.18.23` in the current protocol probe |
 | MCP status | `GET /mcp` | JSON object |
 | create Session | `POST /session?directory=...` | Session with canonical directory |
 | Session status | `GET /session/status` | JSON map |
@@ -52,11 +54,48 @@ An exact-name replacement or stop-future-use cannot mutate an already-read remot
 
 ## Designer and MCP boundary
 
-The verified OpenCode session API has no safe, documented operation for
-dynamically attaching Loopper's MCP server to an existing Session. Loopper does
-not invent one: a Designer uses an OpenCode `createReadOnlySession` against the
-registered project root, while Loopper's bearer-protected Spring AI MCP server
-is independently exposed at `/api/mcp-streamable`.
+The verified OpenCode session API still has no safe operation for dynamically
+attaching a new MCP server to an already-created Session. Loopper therefore
+injects its private MCP only when it starts a fresh managed OpenCode process.
+The child receives an `OPENCODE_CONFIG_CONTENT` overlay containing a random
+server name, loopback Streamable HTTP URL and generation-scoped Bearer. OpenCode
+merges that overlay with user and project configuration; Loopper never writes
+the user's OpenCode files, and its own deep merge also preserves inherited
+`OPENCODE_CONFIG_CONTENT` entries. The public six-tool MCP remains independently
+exposed at `/api/mcp-streamable` and is not aggregated with the private server.
+
+`managed` is the default mode and never reuses the configured 4096 endpoint.
+Every launch gets a new dynamic OpenCode port, Basic Auth secret, internal MCP
+server name, Bearer and generation. Startup is successful only when both
+`/global/health` and the exact internal entry in `/mcp` report ready. `auto` and
+`http` remain compatibility modes; a reused external process has no injected
+private MCP and therefore uses the explicit in-process legacy candidate adapter.
+Changing generation invalidates old managed Sessions before any new HTTP request.
+After Loopper's HTTP listener is ready, an `ApplicationReadyEvent` starts exactly
+one managed generation immediately; no Runtime-page or first-model-call trigger is
+required. `auto`, `http`, and `fake` remain lazy so application startup cannot
+silently claim an operator-owned process.
+
+V47 persists an `open_code_session_runtime_binding` before a newly created or
+forked Session ID is exposed. Every later HTTP use proves the same generation and
+endpoint fingerprint first; neither endpoint URLs nor credentials are stored.
+An `auto`/`http` candidate must reuse the `EXTERNAL` binding persisted when HTTP created the Session;
+it must not replace that identity with a worktree-derived fingerprint. Only the in-process fake adapter
+may synthesize its explicit fake binding.
+Pre-V47 Session IDs are backfilled as `LEGACY_UNKNOWN` and fail closed because
+their original runtime identity cannot be proven.
+
+The private `/api/internal-mcp-streamable` Router accepts only literal loopback
+addresses and constant-time Bearer matches. It registers exactly one tool,
+`submit_candidate`; it does not contribute a `ToolCallbackProvider`, resource,
+prompt or completion to the public MCP. A candidate role receives only its exact
+random `<server>_submit_candidate` permission. Router gets zero tools; Judge and
+ordinary roles never receive the private server; user MCP permissions remain
+governed by their existing role profiles. OpenCode 1.18.23's experimental tool
+endpoints list built-ins but not MCP tools, so they are not an internal-MCP
+readiness proof. Loopper instead requires the exact server to be `connected` in
+`/mcp` and keeps the one-tool name/input schema under its own MCP `tools/list`
+integration contract.
 
 The REST workflow uses specialized model roles plus a deterministic server validator.
 Before selecting those roles, the requirement Router supplies only intent, one primary artifact,
@@ -134,9 +173,12 @@ from `/` alone. Without an explicit mutation operation, the identifier needs an 
 segment, or explicit path/directory/file context; explicit write/delete/move operations and all external-path safety
 checks retain their existing fail-closed behavior.
 
-For current v7, only unresolved closed-set facts or a true global capability-score tie create one
-`COMPILER_BINDING_NO_TOOLS` Session; package shape and a handoff summary alone do not. All built-in
-repository tools are denied. `PACKAGE_ACCEPTANCE_CLOSED_CHOICE_V7` returns only `summary`,
+For current v7, a unique global optimum is compiled by the server with zero model
+calls, while non-enumerable, non-exhaustive, path-ownership, and permission-safety
+results stop for human input with zero candidate Sessions. Only a proven exhaustive
+true global capability-score tie can create one candidate Session; package shape
+and a handoff summary alone do not. The compatibility JSON contract
+`PACKAGE_ACCEPTANCE_CLOSED_CHOICE_V7` returns only `summary`,
 `factAssignments`, `capabilityPreferences`, and `handoffSummary`; it cannot create, remove, rename,
 merge, reorder, or change dependencies of a Stage, move a locked fact, or return outcome, gaps,
 commands, paths, test targets, IDs, verifier objects, permissions, or safety policy. Reversible aliases,
@@ -149,8 +191,32 @@ For a true current-v7 tie, the prompt exposes only candidates whose membership d
 optima. The response must name the complete discriminating index set of one listed optimum; common capabilities,
 weaker candidates, partial choices, duplicate indexes, and cross-optimum mixtures are not valid choices. If the
 bounded solver cannot prove exhaustiveness, no Compiler Session is created and the design remains incomplete.
-Configured MCP permissions stay subject
-to the ordinary additive server-name policy and cannot weaken this ownership boundary.
+
+The acceptance candidate transport is separately guarded by
+`loopper.internal-candidate.acceptance-closed-choice-v7-enabled`, which defaults
+to `false`. It may be explicitly enabled only after an isolated packaged-JAR replay proves that the
+configured real model invokes the private MCP tool and corrects a rejected candidate in the same Session.
+The disabled state keeps the existing JSON response path above as the authoritative behavior for new runs.
+When enabled, only an already
+persisted `compilerRequired` route that the server re-proves as a finite exhaustive
+true tie may create one
+`ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS` Session and an
+`ACCEPTANCE_CLOSED_CHOICE_V7` run on `INTERNAL_MCP`. This profile has no built-in
+tools and no user-MCP wildcard; its sole grant is the exact generation-scoped
+`<server>_submit_candidate`. It permits at most two unique submissions in that
+same Session. Only a mechanical closed-set selection error is retryable;
+contract, path, permission, execution, topology, non-enumerable, or non-exhaustive
+failures stop at `WAITING_INPUT`. The accepted projection is database-only and
+cannot expand the frozen topology, mutation ownership, verifier, or permission
+surface.
+
+The structural candidate qualification observes model prompt calls, OpenCode candidate Sessions, and MCP
+candidate submissions as three separate counters: unique optimum `0/0/0`, true tie `1/1/2`, and
+non-enumerable and path-safety blocks `0/0/0`. It records 22/22 exact guards, 7/7 metric guards,
+1/1 same-input measurement guard, and `candidateFeatureQualification.complete=true / passed=true`.
+Those MCP requests are issued by the integration driver, however, so the result proves the server pipeline,
+counter bounds, and persisted recovery but not real-model tool adoption or self-correction. It therefore cannot
+turn the production default on. Persisted-run recovery remains available regardless of the feature flag.
 
 Document and tabular direct-artifact workflows do not create an implementation Session:
 the server materializes their frozen plans only after Task Start. Read-only report
@@ -192,11 +258,26 @@ requirement messages repeat the selected contract without starting Decomposer. I
 requirement-confirm API freezes a numbered revision and the server creates `WP-1`
 directly; there is no Decomposer transport, prompt, Session, or role message. In
 explicitly enabled `FULL_PACKAGE_DESIGN`, confirmation supplies the frozen revision
-and read-only project context to Task Decomposer. Its built-in tools are limited to `read`,
-`glob`, and `grep`; configured MCP tools remain available. It returns a marked `DIRECT_DESIGN`, `DECOMPOSED`, `NEEDS_INPUT`, or
-`MULTI_TASK_REQUIRED` envelope. It cannot write, execute commands, ask a
-model-side question, or create a Task. The server verifies complete requirement
-coverage and dependency order before persisting packages.
+and read-only project context to Task Decomposer. On a ready managed generation,
+its built-ins are limited to `read/glob/grep` and its only MCP grant is the exact
+private `submit_candidate`; user MCP is intentionally absent from this candidate
+role. The tool result, not final assistant text, is authoritative. `REJECTED`
+returns all bounded deterministic problems and the next submission revision so
+the same Session can repair and resubmit; `ACCEPTED` atomically freezes the
+canonical plan; `WAITING_INPUT` stops the loop. Rejected raw candidates are not
+persisted. A compatibility Session still routes its final text through the same
+policy and accepted writer in process. It cannot write, execute commands, ask a
+model-side question, or create a Task.
+
+The 0.2.84 packaged-JAR acceptance used OpenCode 1.18.23 with the then-current
+`opencode/ling-3.0-flash-fin-free` model in an isolated repository. One real
+Decomposer Session invoked the private tool once; V47 recorded one
+`INTERNAL_MCP` attempt as `ACCEPTED`, compiled two ordered work packages, and
+left the Task table empty. Because the first candidate passed, this is evidence
+of real model tool adoption, not evidence that this model repaired a rejected
+candidate. Same-Session rejection/correction, five-attempt exhaustion, raw-value
+redaction and idempotency remain automated contract evidence until a separate
+real-model run naturally exercises rejection.
 
 For each large-task package in order, Loopper creates a scoped interactive read-only Designer
 conversation. A healthy remote Session is reused for that package's human
@@ -248,11 +329,12 @@ demo work; `FULL_TEST` and `BUILD` are supplemental only. A uniquely reversible 
 `/stages/<n>/verifiers...` pointer is normalized to compact `evidence`, and `replace` of a missing
 model-owned object leaf is normalized to `add`; neither normalization bypasses full validation.
 
-Session creation is role-scoped. Before every Session creation, the adapter reads
+Session creation is role-scoped. Except for the zero-tool Router, the adapter reads
 `GET /mcp?directory=<canonical-root>`, validates the bounded server-name object, and appends
-one `<server>_*` allow rule per configured server to every role profile. Discovery failure is
+one `<server>_*` allow rule per connected user server to eligible ordinary role profiles. Discovery failure is
 the explicit `OPENCODE_MCP_DISCOVERY_FAILED` Session error before any prompt is sent; Loopper
-never edits the user's OpenCode configuration. Decomposer, Compiler, Judge, and general
+never edits the user's OpenCode configuration. Candidate roles remove those wildcard user-MCP
+grants and re-allow only the exact private tool. Decomposer compatibility, Compiler, Judge, and general
 read-only roles start from a wildcard deny and allow only the built-in `read`, `glob`, and
 `grep`; the interactive Designer additionally allows the built-in `question` when the runtime
 actually registers it. All read-only roles deny
@@ -332,8 +414,14 @@ available-at-execution dependency rather than `MISSING_SCOPE`. Compiler may only
 report a dependency-related semantic gap when neither the current design nor the
 frozen predecessor contract defines the required behavior/API.
 
-Decomposer returns one compact semantic object from a read-only Session and maps numbered requirements
-to package/constraint indices. For v6 acceptance, the server preserves the Designer's 1–6 direct Stages
+Decomposer submits one compact semantic object from a read-only Session and maps numbered requirements
+to package/constraint indices. The persistent candidate run binds the exact owner/source revisions,
+submission channel, external Session and runtime generation. It allows at most five unique submissions;
+idempotency replays the same safe response, while key reuse with different content fails closed. Policy
+evaluation is deterministic and accepted projection shares one short transaction with the terminal attempt.
+Rejected payload values never appear in persisted problems or safe responses: problem codes, JSON Pointers,
+and detail text are selected from server-owned static templates only.
+For v6 acceptance, the server preserves the Designer's 1–6 direct Stages
 or 1–3 Stages per large package; an optional one-turn Compiler fills only enumerated fact/capability holes.
 Loopper validates and persists that binding, derives all mechanical fields and stable `DS-Lxxx` source
 references, and directly compiles the final package envelope. It does not send a second final-JSON prompt,
@@ -353,8 +441,10 @@ chooses among multiple candidates. Semantic preflight returns all errors with JS
 Pointers in one repair prompt; source-text search is never executable behavior
 evidence.
 
-New work uses stable server-owned response Schemas: compact Decomposer,
-v7 acceptance closed choice, frozen-v6 acceptance disambiguation, and final Judge. Legacy Decomposer/Compiler final Schemas remain
+Compatibility work uses stable server-owned response Schemas for compact Decomposer,
+v7 acceptance closed choice, frozen-v6 acceptance disambiguation, and final Judge. The managed
+private-MCP path uses normal text prompting and the tool input schema instead of treating final text as a response.
+Legacy Decomposer/Compiler final Schemas remain
 registered only for historical rows without a semantic snapshot. A typed prompt may choose text or one of those
 schemas and may set system/agent fields, but it never accepts caller-owned tools.
 Schema mode uses OpenCode `format.type=json_schema` with provider retry count
@@ -591,14 +681,19 @@ whose token boundary cannot be parsed safely is rejected for Designer repair.
 
 ## Runtime ownership and permissions
 
-`auto` mode first reuses a healthy loopback endpoint. Otherwise Loopper starts
-`opencode serve` on a random loopback port with random Basic credentials kept
-in memory and denies external directories, all commit/ref/branch and remote
+`managed` mode is the default and always starts a fresh owned `opencode serve`
+process on a random loopback port with random Basic credentials, a random
+private-MCP name, a generation identifier and a generation-scoped Bearer kept
+in memory. It never reuses port 4096. Availability requires both authenticated
+`/global/health` and the exact private entry in `/mcp` to be connected. The
+managed permission policy denies external directories, all commit/ref/branch and remote
 baseline mutations (`commit`, `update-ref`, `branch`, `fetch`, `pull`, `push`,
 and related Git operations), `git reset --hard`, and `rm -rf` in its managed
 permission policy. Restart and shutdown may terminate
-only that owned process; an operator-owned endpoint is never killed. `http`
-mode is connect-only and rejects non-loopback endpoints.
+only that owned process; an operator-owned endpoint is never killed. `auto`
+remains an explicit reuse-or-start compatibility mode. `http` is connect-only
+and rejects non-loopback endpoints; external modes do not claim private-MCP
+readiness and use the explicitly separated in-process candidate adapter.
 
 Release startup scripts do not assume that OpenCode listens on port 4096.
 Unless `OPENCODE_BASE_URL` is explicitly supplied, they inspect current
@@ -612,15 +707,16 @@ instead; it never accepts a port without the exact OpenCode health contract.
 and `OPENCODE_SERVER_USERNAME`/`OPENCODE_SERVER_PASSWORD` are accepted as the
 official OpenCode Basic Auth variables. Candidates are accepted only when the
 authenticated or anonymous loopback `/global/health` response reports
-`healthy=true`. If no endpoint can be reused, the scripts select `auto` mode
-so Loopper starts an owned OpenCode process on a dynamically allocated loopback
-port. Before Linux enters managed `auto` mode, the launcher resolves
+`healthy=true`. The release scripts default to `managed`, skip external discovery,
+and let Loopper start an isolated OpenCode process on a dynamically allocated
+loopback port. Only an explicitly selected `auto` mode performs the compatibility
+discovery above. Before Linux enters `managed` or needs to start under `auto`, the launcher resolves
 `OPENCODE_EXECUTABLE` or `opencode` from `PATH` to a concrete executable path
 and fails immediately when no executable is available. Discovery never treats
 an unrelated listener as OpenCode and never stops an externally owned process.
 
 Each managed launch records its newly allocated endpoint before the process is
-created. If process creation, early exit, or the bounded health wait fails, the
+created. If process creation, early exit, private-MCP connection, or the bounded health wait fails, the
 Runtime API returns `OFFLINE`, `managed=false`, the actual attempted endpoint,
 the running service's `loopperVersion`, and a sanitized `startupFailure`.
 `loopperVersion` is distinct from the OpenCode CLI `version` and must be rendered
@@ -629,10 +725,13 @@ probe endpoint (commonly `127.0.0.1:4096`) as a listener. Internal requests fail
 closed against an unused loopback endpoint until an explicit local-UI retry
 succeeds. Ordinary Runtime reads and internal client lookups must not repeatedly
 spawn processes after a recorded launch failure. `POST /api/runtime/opencode/start`
-is the local-UI-only recovery boundary: it clears the prior failure, performs one
-Auto launch attempt, and returns `AVAILABLE` only after the authenticated
-`/global/health` response reports `healthy=true`. A created process alone is not
-a successful connection.
+is the local-UI-only recovery boundary: it clears the prior failure and performs
+one launch attempt under the configured mode. Managed mode returns `AVAILABLE`
+only after both authenticated health and exact private-MCP readiness succeed; a
+created process or health response alone is insufficient.
+The Runtime response exposes only an eight-character generation display token plus the internal-MCP
+`status`, `configured`, and sanitized detail; it never returns the full generation, private Server name,
+Bearer, or private URL.
 During managed startup, each health request is capped at one second or the
 remaining startup budget, whichever is shorter. A general OpenCode request
 timeout must never consume the whole startup budget before another health probe

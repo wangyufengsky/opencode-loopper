@@ -1537,6 +1537,8 @@ async function redesignPackage(packageId: string) {
           <span class="active-role"><Icon :icon="activeActorMeta.icon" />{{ activeActorMeta.label }} · {{ activeDetailedWorkflowLabel }}</span>
           <span v-if="designerSession?.activeWorkPackageId">{{ workPackageLabel(designerSession.activeWorkPackageId) }}/{{ designerSession.workPackages?.length ?? 0 }}</span>
           <span v-if="designerSession?.requirement" class="mono">模型调用 {{ designerSession.requirement.modelCallsUsed }}/{{ designerSession.requirement.maxModelCalls }}</span>
+          <span v-if="(designerSession?.decomposition?.candidateSessions ?? 0) > 0" class="mono">候选 Session {{ designerSession?.decomposition?.candidateSessions }}</span>
+          <span v-if="(designerSession?.decomposition?.candidateSubmissions ?? 0) > 0" class="mono">候选提交 {{ designerSession?.decomposition?.candidateSubmissions }}</span>
           <span v-if="designerSession?.compiler">规范编译修复 {{ designerSession.compiler.formatRepairCount ?? 0 }}/2 · 语义修复 {{ designerSession.compiler.semanticRepairCount ?? 0 }}/2<span v-if="designerSession.compiler.serverCompiled"> · 已编译</span></span>
           <span v-else-if="designerSession?.decomposition">任务拆解修复 {{ designerSession.decomposition.formatRepairCount ?? 0 }}/2 · 语义修复 {{ designerSession.decomposition.semanticRepairCount ?? 0 }}/2<span v-if="designerSession.decomposition.serverCompiled"> · 已编译</span></span>
           <span v-if="serverDirectCompilation">服务端直接编译</span><span v-else>远端 {{ statusLabel(designerRemoteState || 'WAITING') }}</span>

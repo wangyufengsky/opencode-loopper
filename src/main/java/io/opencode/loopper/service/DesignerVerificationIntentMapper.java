@@ -19,6 +19,8 @@ final class DesignerVerificationIntentMapper {
     private static final Pattern CLAUSE = Pattern.compile("[。；;\\n]");
     private static final Pattern NEGATIVE = Pattern.compile(
             "(?i)(不变|保持原样|保持不变|不得|禁止|不允许|不新增|不修改|不重写|不删除|不引入|无需|排除|forbid|must not|do not|unchanged)");
+    private static final Pattern EXPLICIT_ALTERNATIVE = Pattern.compile(
+            "(?i)(任选|任一|均可|等价|同等|二选一|either|alternative|equivalent|one\\s+of)");
     private static final Set<String> GENERIC_IDENTIFIERS = Set.of(
             "test", "tests", "spec", "core", "unit", "integration", "behavior", "contract",
             "acceptance", "aggregate", "suite", "src", "main", "java", "python", "result", "context",
@@ -37,6 +39,11 @@ final class DesignerVerificationIntentMapper {
         profiles.forEach(profile -> coverage.put(profile.index(), new LinkedHashSet<>()));
         List<Fact> scenarios = catalog.facts().stream().filter(fact -> fact.kind() == FactKind.SCENARIO).toList();
         for (Fact scenario : scenarios) {
+            List<Profile> alternatives = explicitAlternatives(scenario, profiles, targetLists, design);
+            if (alternatives.size() >= 2) {
+                alternatives.forEach(profile -> coverage.get(profile.index()).add(scenario.index()));
+                continue;
+            }
             List<Profile> direct = profiles.stream().filter(profile -> directlyMentions(profile, scenario)).toList();
             if (direct.size() == 1) {
                 coverage.get(direct.getFirst().index()).add(scenario.index());
@@ -69,6 +76,24 @@ final class DesignerVerificationIntentMapper {
             result.add(new TargetMapping(List.copyOf(coverage.get(profile.index())), profile.mandatory()));
         }
         return List.copyOf(result);
+    }
+
+    private static List<Profile> explicitAlternatives(Fact scenario, List<Profile> profiles,
+                                                       List<List<String>> targetLists, String design) {
+        String scenarioKey = semanticKey(scenario.title());
+        if (scenarioKey.length() < 4) return List.of();
+        for (String clause : positiveClauses(design)) {
+            if (!EXPLICIT_ALTERNATIVE.matcher(clause).find()
+                    || !semanticKey(clause).contains(scenarioKey)
+                    || mentionCount(clause, targetLists) < 2) {
+                continue;
+            }
+            List<Profile> alternatives = profiles.stream()
+                    .filter(profile -> mentions(clause, targetLists.get(profile.index())))
+                    .toList();
+            if (alternatives.size() >= 2) return alternatives;
+        }
+        return List.of();
     }
 
     private static boolean directlyMentions(Profile profile, Fact fact) {

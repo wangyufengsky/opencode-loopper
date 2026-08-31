@@ -13,6 +13,10 @@ describe('RuntimeView managed startup diagnostics', () => {
     store.runtime = {
       loopperVersion: '0.1.75', status: 'ONLINE', version: '1.18.18', managed: true, pid: 71386,
       endpoint: 'http://127.0.0.1:55389', model: 'opencode-go/deepseek-v4-flash', checkedAt: '2026-08-18T04:03:00Z',
+      generation: '11111111',
+      internalMcp: {
+        status: 'CONNECTED', configured: true, detail: undefined,
+      },
       capabilities: {
         agentDiscovery: 'AVAILABLE', agents: [{ name: 'plan' }], nativePlanAgent: true,
         structuredOutputTransport: 'UNAVAILABLE', selectedModelStructuredOutput: 'UNKNOWN',
@@ -36,6 +40,14 @@ describe('RuntimeView managed startup diagnostics', () => {
     expect(wrapper.text()).not.toContain('执行授权边界')
     expect(wrapper.text()).not.toContain('NATIVE CAPABILITY DISCOVERY')
     expect(wrapper.text()).not.toContain('SAFETY GUARDRAILS')
+    expect(wrapper.text()).toContain('受管代次')
+    expect(wrapper.text()).toContain('11111111')
+    expect(wrapper.text()).toContain('内部 MCP')
+    expect(wrapper.text()).toContain('已就绪')
+    expect(wrapper.text()).toContain('配置已注入')
+    expect(wrapper.text()).not.toContain('11111111-2222-3333-4444-555555555555')
+    expect(wrapper.text()).not.toContain('loopper_internal_private123')
+    expect(wrapper.text()).not.toContain('bearer')
   })
 
   it('shows the launch failure and labels the random port as an attempted address', () => {

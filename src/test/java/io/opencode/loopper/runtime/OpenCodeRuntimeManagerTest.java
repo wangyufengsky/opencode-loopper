@@ -24,11 +24,167 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class OpenCodeRuntimeManagerTest {
+    @Test
+    void managedOverlayPreservesInheritedUserMcpEntriesWhileOwningItsPrivateContracts() throws Exception {
+        String merged = OpenCodeRuntimeManager.mergeManagedConfig("""
+                {
+                  "mcp":{"user_docs":{"type":"remote","url":"http://127.0.0.1:19000/mcp"}},
+                  "agent":{"personal":{"description":"user agent"},"loopper-router":{"steps":99}},
+                  "permission":{"question":"allow"}
+                }
+                """, java.util.Map.of(
+                "mcp", java.util.Map.of("loopper_internal_test", java.util.Map.of(
+                        "type", "remote", "url", "http://127.0.0.1:18083/api/internal-mcp-streamable")),
+                "agent", java.util.Map.of("loopper-router", java.util.Map.of("steps", 1)),
+                "permission", java.util.Map.of("external_directory", "deny")));
+
+        tools.jackson.databind.JsonNode root = new tools.jackson.databind.ObjectMapper().readTree(merged);
+        assertThat(root.path("mcp").path("user_docs").path("url").asText())
+                .isEqualTo("http://127.0.0.1:19000/mcp");
+        assertThat(root.path("mcp").path("loopper_internal_test").path("type").asText())
+                .isEqualTo("remote");
+        assertThat(root.path("agent").path("personal").path("description").asText())
+                .isEqualTo("user agent");
+        assertThat(root.path("agent").path("loopper-router").path("steps").asInt()).isEqualTo(1);
+        assertThat(root.path("permission").path("question").asText()).isEqualTo("allow");
+        assertThat(root.path("permission").path("external_directory").asText()).isEqualTo("deny");
+    }
+
     private final List<HttpServer> servers = new ArrayList<>();
     @TempDir Path temporaryDirectory;
 
     @AfterEach
     void stopServers() { servers.forEach(server -> server.stop(0)); }
+
+    @Test
+    void managedAlwaysStartsAnOwnedProcessInsteadOfReusingAHealthyConfiguredEndpoint() throws Exception {
+        HttpServer external = healthServer(0, null);
+        Path executable = executable();
+        LoopperProperties properties = properties("managed",
+                URI.create("http://127.0.0.1:" + external.getAddress().getPort()));
+        properties.getOpenCode().setExecutable(executable.toString());
+        AtomicInteger starts = new AtomicInteger();
+        List<FakeProcess> processes = new ArrayList<>();
+        OpenCodeRuntimeManager manager = new OpenCodeRuntimeManager(properties, (command, environment) -> {
+            starts.incrementAndGet();
+            int port = Integer.parseInt(command.get(command.indexOf("--port") + 1));
+            String expectedAuthorization = "Basic " + java.util.Base64.getEncoder().encodeToString(
+                    (environment.get("OPENCODE_SERVER_USERNAME") + ":" + environment.get("OPENCODE_SERVER_PASSWORD"))
+                            .getBytes(StandardCharsets.UTF_8));
+            healthServer(port, expectedAuthorization);
+            FakeProcess process = new FakeProcess(6100);
+            processes.add(process);
+            return process;
+        }, Clock.systemUTC());
+
+        OpenCodeRuntimeManager.Connection connection = manager.connectionForClient();
+
+        assertThat(starts).hasValue(1);
+        assertThat(connection.managed()).isTrue();
+        assertThat(connection.endpoint().getPort()).isNotEqualTo(external.getAddress().getPort());
+        manager.close();
+        assertThat(processes.getFirst().destroyed).isTrue();
+    }
+
+    @Test
+    void applicationReadyStartsManagedRuntimeButLeavesCompatibilityAutoLazy() throws Exception {
+        Path executable = executable();
+        LoopperProperties managedProperties = properties("managed", URI.create("http://127.0.0.1:4096"));
+        managedProperties.getOpenCode().setExecutable(executable.toString());
+        AtomicInteger managedStarts = new AtomicInteger();
+        OpenCodeRuntimeManager managed = new OpenCodeRuntimeManager(managedProperties, (command, environment) -> {
+            managedStarts.incrementAndGet();
+            int port = Integer.parseInt(command.get(command.indexOf("--port") + 1));
+            String authorization = "Basic " + java.util.Base64.getEncoder().encodeToString(
+                    (environment.get("OPENCODE_SERVER_USERNAME") + ":"
+                            + environment.get("OPENCODE_SERVER_PASSWORD")).getBytes(StandardCharsets.UTF_8));
+            healthServer(port, authorization);
+            return new FakeProcess(6125);
+        }, Clock.systemUTC());
+        LoopperProperties autoProperties = properties("auto", URI.create("http://127.0.0.1:1"));
+        autoProperties.getOpenCode().setExecutable(executable.toString());
+        AtomicInteger autoStarts = new AtomicInteger();
+        OpenCodeRuntimeManager auto = new OpenCodeRuntimeManager(autoProperties, (command, environment) -> {
+            autoStarts.incrementAndGet();
+            throw new AssertionError("compatibility auto must stay lazy at ApplicationReady");
+        }, Clock.systemUTC());
+
+        managed.startManagedOnApplicationReady();
+        auto.startManagedOnApplicationReady();
+
+        assertThat(managedStarts).hasValue(1);
+        assertThat(managed.status().status()).isEqualTo("AVAILABLE");
+        assertThat(autoStarts).hasValue(0);
+        managed.close();
+        auto.close();
+    }
+
+    @Test
+    void managedInjectsFreshInternalRemoteMcpForEachOwnedGeneration() throws Exception {
+        Path executable = executable();
+        LoopperProperties properties = properties("managed", URI.create("http://127.0.0.1:4096"));
+        properties.getOpenCode().setExecutable(executable.toString());
+        InternalMcpRuntimeAccess access = new InternalMcpRuntimeAccess();
+        InternalMcpCredentialProvider credentials = new InternalMcpCredentialProvider(() -> 18083);
+        List<Map<String, String>> launches = new ArrayList<>();
+        List<FakeProcess> processes = new ArrayList<>();
+        OpenCodeRuntimeManager manager = new OpenCodeRuntimeManager(properties, (command, environment) -> {
+            launches.add(Map.copyOf(environment));
+            int port = Integer.parseInt(command.get(command.indexOf("--port") + 1));
+            String expectedAuthorization = "Basic " + java.util.Base64.getEncoder().encodeToString(
+                    (environment.get("OPENCODE_SERVER_USERNAME") + ":" + environment.get("OPENCODE_SERVER_PASSWORD"))
+                            .getBytes(StandardCharsets.UTF_8));
+            String serverName = access.current().orElseThrow().serverName();
+            managedReadyServer(port, expectedAuthorization, serverName, "connected");
+            FakeProcess process = new FakeProcess(6150 + processes.size());
+            processes.add(process);
+            return process;
+        }, Clock.systemUTC(), credentials, access);
+
+        OpenCodeRuntimeManager.Connection first = manager.connectionForClient();
+        OpenCodeRuntimeManager.RuntimeSnapshot restarted = manager.restartOwned();
+
+        assertThat(launches).hasSize(2);
+        String firstConfig = launches.getFirst().get("OPENCODE_CONFIG_CONTENT");
+        String secondConfig = launches.getLast().get("OPENCODE_CONFIG_CONTENT");
+        assertThat(firstConfig).contains("\"mcp\"", "\"type\":\"remote\"",
+                "http://127.0.0.1:18083/api/internal-mcp-streamable",
+                "\"Authorization\":\"Bearer ");
+        assertThat(firstConfig).isNotEqualTo(secondConfig);
+        assertThat(first.generation()).isNotEqualTo(restarted.generation());
+        assertThat(first.internalMcpServer()).isNotEqualTo(restarted.internalMcpServer());
+        manager.close();
+    }
+
+    @Test
+    void managedFailsClosedAndRevokesTheGenerationWhenExactInternalMcpIsNotConnected() throws Exception {
+        Path executable = executable();
+        LoopperProperties properties = properties("managed", URI.create("http://127.0.0.1:4096"));
+        properties.getOpenCode().setExecutable(executable.toString());
+        properties.getOpenCode().setStartupTimeout(java.time.Duration.ofMillis(350));
+        InternalMcpRuntimeAccess access = new InternalMcpRuntimeAccess();
+        InternalMcpCredentialProvider credentials = new InternalMcpCredentialProvider(() -> 18083);
+        AtomicReference<FakeProcess> launched = new AtomicReference<>();
+        OpenCodeRuntimeManager manager = new OpenCodeRuntimeManager(properties, (command, environment) -> {
+            int port = Integer.parseInt(command.get(command.indexOf("--port") + 1));
+            String expectedAuthorization = "Basic " + java.util.Base64.getEncoder().encodeToString(
+                    (environment.get("OPENCODE_SERVER_USERNAME") + ":" + environment.get("OPENCODE_SERVER_PASSWORD"))
+                            .getBytes(StandardCharsets.UTF_8));
+            managedReadyServer(port, expectedAuthorization, access.current().orElseThrow().serverName(), "failed");
+            FakeProcess process = new FakeProcess(6170);
+            launched.set(process);
+            return process;
+        }, Clock.systemUTC(), credentials, access);
+
+        OpenCodeRuntimeManager.RuntimeSnapshot snapshot = manager.status();
+
+        assertThat(snapshot.status()).isEqualTo("OFFLINE");
+        assertThat(snapshot.startupFailure()).contains("startup-timeout");
+        assertThat(manager.connectionForClient().endpoint()).isEqualTo(URI.create("http://127.0.0.1:9"));
+        assertThat(access.current()).isEmpty();
+        assertThat(launched.get().destroyed).isTrue();
+        manager.close();
+    }
 
     @Test
     void autoReusesHealthyLoopbackWithoutTakingOwnership() throws Exception {
@@ -219,6 +375,26 @@ class OpenCodeRuntimeManagerTest {
         manager.close();
     }
 
+    @Test
+    void unknownModeFailsClosedWithoutProbingOrStartingAnyRuntime() {
+        LoopperProperties properties = properties("manged", URI.create("http://127.0.0.1:4096"));
+        AtomicInteger starts = new AtomicInteger();
+        OpenCodeRuntimeManager manager = new OpenCodeRuntimeManager(properties, (command, environment) -> {
+            starts.incrementAndGet();
+            throw new AssertionError("unknown mode must not scan, reuse, or start OpenCode");
+        }, Clock.systemUTC());
+
+        assertThatThrownBy(manager::connectionForClient)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Unsupported OpenCode mode")
+                .hasMessageContaining("manged");
+        assertThatThrownBy(manager::status)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Unsupported OpenCode mode");
+        assertThat(starts).hasValue(0);
+        manager.close();
+    }
+
     private LoopperProperties properties(String mode, URI endpoint) {
         LoopperProperties properties = new LoopperProperties();
         properties.getOpenCode().setMode(mode);
@@ -238,6 +414,23 @@ class OpenCodeRuntimeManagerTest {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", port), 0);
         server.createContext("/global/health", exchange -> health(exchange, expectedAuthorization));
         server.start(); servers.add(server);
+        return server;
+    }
+
+    private HttpServer managedReadyServer(int port, String expectedAuthorization,
+                                          String serverName, String status) throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", port), 0);
+        server.createContext("/global/health", exchange -> health(exchange, expectedAuthorization));
+        server.createContext("/mcp", exchange -> {
+            byte[] payload = ("{\"" + serverName + "\":{\"status\":\"" + status + "\"}}")
+                    .getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, payload.length);
+            exchange.getResponseBody().write(payload);
+            exchange.close();
+        });
+        server.start();
+        servers.add(server);
         return server;
     }
 

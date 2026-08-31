@@ -13,7 +13,7 @@ afterEach(() => vi.restoreAllMocks())
 function currentSettings(): AppSettings {
   return {
     runtime: { serverPort: 8080, openBrowser: true, allowedRoot: '', monitorDelaySeconds: 2, designerMonitorDelayMillis: 750, abortCleanupAttempts: 3 },
-    openCode: { cliPath: 'opencode', mode: 'auto', baseUrl: 'http://127.0.0.1:4096', provider: 'opencode', model: 'model-a', connectTimeoutSeconds: 5, requestTimeoutSeconds: 30, startupTimeoutSeconds: 15 },
+    openCode: { cliPath: 'opencode', mode: 'managed', baseUrl: 'http://127.0.0.1:4096', provider: 'opencode', model: 'model-a', connectTimeoutSeconds: 5, requestTimeoutSeconds: 30, startupTimeoutSeconds: 15 },
     limits: { maxStageAttempts: 3, maxTaskAttempts: 12, sessionErrorLimit: 3, maxDurationMinutes: 120, attemptTimeoutMinutes: 30, verifierTimeoutMinutes: 10, designerTimeoutMinutes: 30 },
     retryWait: { rateLimitBaseSeconds: 60, rateLimitMaxSeconds: 300, sessionBaseSeconds: 10, sessionMaxSeconds: 60, verificationBaseSeconds: 5, verificationMaxSeconds: 30 },
     publication: { httpWebHosts: ['gitlab.spdb.com'], gitlabHost: 'gitlab.spdb.com', gitlabApiBaseUrl: 'http://gitlab.spdb.com/api/v4', connectTimeoutSeconds: 3, requestTimeoutSeconds: 10 },
@@ -68,7 +68,9 @@ describe('Settings model selection', () => {
     expect(wrapper.text()).toContain('model-a')
     await wrapper.get('.settings-save').trigger('click')
     await flushPromises()
-    expect(update).toHaveBeenCalledWith(expect.objectContaining({ openCode: expect.objectContaining({ provider: 'opencode', model: 'model-a' }) }))
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({
+      openCode: expect.objectContaining({ mode: 'managed', provider: 'opencode', model: 'model-a' }),
+    }))
   })
 
   it('toggles demo data off and reloads the real overview', async () => {

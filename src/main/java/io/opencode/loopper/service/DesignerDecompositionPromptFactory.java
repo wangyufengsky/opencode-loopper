@@ -23,6 +23,52 @@ final class DesignerDecompositionPromptFactory {
         this.rolePrompts = rolePrompts;
     }
 
+    String candidate(DesignRequirementRevisionRow revision, String projectRoot, String runId,
+                     long expectedSubmissionRevision, String contractVersion, String submitCandidateToolId) {
+        return """
+                You are OpenCode Loopper Task Decomposer in one strictly read-only Session.
+                You may use only read, glob, and grep for repository evidence, plus the exact internal tool named
+                below. Do not invoke any other built-in or MCP tool.
+
+                Produce one compact DECOMPOSITION_PLAN_V2 candidate. The server derives status, GC/WP ids,
+                requirementRefs, dependency ids, and dependency evidence, then performs deterministic full
+                validation. READY contains 1-6 vertical business packages; never split by frontend/backend/database/
+                tests. NEEDS_INPUT must contain a concrete closed-set design gap. MULTI_TASK_REQUIRED must contain a
+                concrete multiple-root, independent-release, or more-than-six-package boundary reason.
+
+                Project root: %s
+                Requirement revision: R%d
+                Numbered immutable requirement segments:
+                %s
+
+                Complete immutable requirement:
+                %s
+
+                Submission contract:
+                runId: %s
+                expectedSubmissionRevision: %d
+                contractVersion: %s
+                exact submit_candidate tool: %s
+
+                Call %s with exactly runId, a new idempotencyKey, candidate containing one complete compact JSON
+                object, and expectedSubmissionRevision. Make exactly one call for each candidate. The tool result is
+                authoritative: on REJECTED, repair all returned problems in the same Session and call again with the
+                returned submissionRevision; on ACCEPTED or WAITING_INPUT, stop immediately.
+                The final text is non-authoritative and must not claim acceptance.
+
+                Compact shape:
+                {"outcome":"READY|NEEDS_INPUT|MULTI_TASK_REQUIRED","normalizedGoal":"...",
+                 "globalConstraints":[{"text":"..."}],
+                 "workPackages":[{"title":"vertical capability","objective":"observable result",
+                 "scopeIn":[],"scopeOut":[],"deliverables":["..."],"acceptanceIntent":["..."],
+                 "dependsOn":[{"packageIndex":0,"rationale":"..."}]}],
+                 "coverage":[{"requirementRef":"RQ-1","targetType":"GLOBAL_CONSTRAINT|WORK_PACKAGE",
+                 "targetIndex":0,"rationale":"..."}],"designGaps":[],"reason":null}
+                """.formatted(projectRoot, revision.revision(), numberedSegments(revision),
+                revision.requirementText(), runId, expectedSubmissionRevision, contractVersion,
+                submitCandidateToolId, submitCandidateToolId);
+    }
+
     String planning(DesignerSessionRow session, ProjectRow project,
                     DesignRequirementRevisionRow revision, boolean retry) {
         return """

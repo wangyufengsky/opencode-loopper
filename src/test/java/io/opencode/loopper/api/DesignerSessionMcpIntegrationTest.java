@@ -21,6 +21,9 @@ import io.opencode.loopper.persistence.TaskLineageRow;
 import io.opencode.loopper.persistence.TaskRow;
 import io.opencode.loopper.persistence.WorkPackageRoleProfileRow;
 import io.opencode.loopper.runtime.FakeOpenCodeClient;
+import io.opencode.loopper.runtime.InternalMcpContractCatalog;
+import io.opencode.loopper.runtime.InternalMcpCredentialProvider;
+import io.opencode.loopper.runtime.InternalMcpRuntimeAccess;
 import io.opencode.loopper.runtime.OpenCodeClient;
 import io.opencode.loopper.runtime.OpenCodeStructuredSchemas;
 import io.opencode.loopper.service.BadRequestException;
@@ -86,6 +89,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "loopper.opencode.mode=fake", "loopper.opencode.model=opencode/deepseek-v4-flash-free",
         "loopper.monitor-delay=1h", "loopper.designer-monitor-delay=1h",
         "loopper.mcp.bearer-token=designer-mcp-test-token",
+        "loopper.internal-candidate.acceptance-closed-choice-v7-enabled=true",
         "spring.ai.mcp.server.protocol=STREAMABLE", "spring.ai.mcp.server.name=opencode-loopper",
         "spring.ai.mcp.server.version=0.1.67", "spring.ai.mcp.server.annotation-scanner.enabled=false",
         "spring.ai.mcp.server.capabilities.resource=false", "spring.ai.mcp.server.capabilities.prompt=false",
@@ -117,6 +121,8 @@ class DesignerSessionMcpIntegrationTest {
     @Autowired private LoopperMapper mapper;
     @Autowired private JdbcTemplate jdbc;
     @Autowired private OpenCodeClient openCode;
+    @Autowired private InternalMcpCredentialProvider internalMcpCredentials;
+    @Autowired private InternalMcpRuntimeAccess internalMcpRuntime;
     @Autowired private ToolCallbackProvider loopperMcpToolCallbackProvider;
     @Autowired private ApplicationContext context;
     @Autowired private org.springframework.ai.mcp.server.common.autoconfigure.properties.McpServerProperties springAiMcpProperties;
@@ -129,12 +135,18 @@ class DesignerSessionMcpIntegrationTest {
         flyway.clean();
         flyway.migrate();
         fake().reset();
+        internalMcpRuntime.current().ifPresent(credentials ->
+                internalMcpRuntime.clear(credentials.generation()));
         legacyAcceptanceSessions.clear();
         fake().setStructuredCapability(new OpenCodeClient.StructuredOutputCapability(
                 OpenCodeClient.CapabilityState.UNAVAILABLE, OpenCodeClient.CapabilityState.UNKNOWN,
                 "marker compatibility fixture"));
         properties.setTaskProfileRouterTimeout(Duration.ofSeconds(240));
         properties.setRollingPackagesEnabled(false);
+        // Legacy Designer scenarios keep their historical JSON call/session assertions.
+        // Candidate-specific tests opt in explicitly below.
+        properties.getInternalCandidate().setDecomposerEnabled(false);
+        properties.getInternalCandidate().setAcceptanceClosedChoiceV7Enabled(false);
     }
 
     @Test
@@ -1678,6 +1690,7 @@ class DesignerSessionMcpIntegrationTest {
 
     @Test
     void compactSemanticRolesAreServerCompiledWithoutFinalModelPrompts() throws Exception {
+        properties.getInternalCandidate().setDecomposerEnabled(true);
         ProjectRow project = project("compact-semantic");
         LoopDraftRow draft = drafts.create(v2DocumentationSpec(project.id()));
         fake().setDecomposerPlanningOutput("""
@@ -1718,6 +1731,8 @@ class DesignerSessionMcpIntegrationTest {
             assertThat(status.serverCompiled()).isTrue();
             assertThat(status.formatRepairCount()).isZero();
             assertThat(status.semanticRepairCount()).isZero();
+            assertThat(status.candidateSessions()).isEqualTo(1);
+            assertThat(status.candidateSubmissions()).isEqualTo(1);
         });
         assertThat(designerSessions.compilerStatus(session.id())).satisfies(status -> {
             assertThat(status.serverCompiled()).isTrue();
@@ -1733,6 +1748,53 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed()).isEqualTo(5);
         assertThat(fake().promptHistory()).noneMatch(call -> call.prompt().contains("Frozen planning:")
                 && call.prompt().contains("final CompiledPackage JSON"));
+    }
+
+    @Test
+    void legacyCandidateRepairsRejectedSubmissionInTheSameSessionBeforeAcceptance() throws Exception {
+        properties.getInternalCandidate().setDecomposerEnabled(true);
+        ProjectRow project = project("candidate-repair-same-session");
+        LoopDraftRow draft = drafts.create(v2DocumentationSpec(project.id()));
+        fake().setDecomposerPlanningOutput("""
+                <!-- TASK_DECOMPOSITION_PLAN_JSON_START -->
+                {"outcome":"READY","normalizedGoal":"README 行为可验证","globalConstraints":[],
+                 "workPackages":[{"title":"","objective":"README 行为可验证","scopeIn":[],"scopeOut":[],
+                 "deliverables":["README"],"acceptanceIntent":["可自检"],"dependsOn":[]}],
+                 "coverage":[{"requirementRef":"RQ-1","targetType":"WORK_PACKAGE","targetIndex":0}],
+                 "designGaps":[],"reason":null}
+                <!-- TASK_DECOMPOSITION_PLAN_JSON_END -->
+                """);
+
+        DesignerSessionRow session = createConfirmedSession(project.id(), draft.id(), "补充 README 行为并可自检");
+        var initialOwner = mapper.findTaskDecompositionByRevision(
+                mapper.findCurrentDesignRequirementRevision(session.id()).orElseThrow().id()).orElseThrow();
+        String externalSessionId = initialOwner.externalSessionId();
+        int callsBeforeRejectedSubmit = designerSessions.requirementStatus(session.id()).modelCallsUsed();
+
+        designerSessions.pollActiveHandoffs();
+
+        assertThat(designerSessions.decompositionStatus(session.id())).satisfies(status -> {
+            assertThat(status.candidateSessions()).isEqualTo(1);
+            assertThat(status.candidateSubmissions()).isEqualTo(1);
+        });
+        assertThat(mapper.findTaskDecomposition(initialOwner.id()).orElseThrow().externalSessionId())
+                .isEqualTo(externalSessionId);
+        assertThat(designerSessions.requirementStatus(session.id()).modelCallsUsed())
+                .isEqualTo(callsBeforeRejectedSubmit + 1);
+        assertThat(designerSessions.messages(session.id())).anyMatch(message ->
+                message.content().contains("候选提交校验未通过")
+                        && message.content().contains("提交本身未增加模型调用"));
+
+        fake().setDecomposerPlanningOutput(directDecompositionPlan("README 能力", "README 行为可验证"));
+        designerSessions.pollActiveHandoffs();
+
+        assertThat(designerSessions.decompositionStatus(session.id())).satisfies(status -> {
+            assertThat(status.resultType()).isEqualTo("DIRECT_DESIGN");
+            assertThat(status.candidateSessions()).isEqualTo(1);
+            assertThat(status.candidateSubmissions()).isEqualTo(2);
+        });
+        assertThat(mapper.findTaskDecomposition(initialOwner.id()).orElseThrow().externalSessionId())
+                .isEqualTo(externalSessionId);
     }
 
     @Test
@@ -2597,6 +2659,7 @@ class DesignerSessionMcpIntegrationTest {
 
     @Test
     void decompositionInputAndMultiTaskBoundariesWaitWithoutCreatingTasks() throws Exception {
+        properties.getInternalCandidate().setDecomposerEnabled(true);
         for (String status : List.of("NEEDS_INPUT", "MULTI_TASK_REQUIRED")) {
             fake().reset();
             fake().setStructuredCapability(new OpenCodeClient.StructuredOutputCapability(
@@ -2609,7 +2672,11 @@ class DesignerSessionMcpIntegrationTest {
             designerSessions.pollActiveHandoffs();
             designerSessions.pollActiveHandoffs();
             assertThat(designerSessions.get(session.id()).state()).isEqualTo("WAITING_INPUT");
-            assertThat(designerSessions.decompositionStatus(session.id()).resultType()).isEqualTo(status);
+            assertThat(designerSessions.decompositionStatus(session.id())).satisfies(candidate -> {
+                assertThat(candidate.resultType()).isEqualTo(status);
+                assertThat(candidate.candidateSessions()).isEqualTo(1);
+                assertThat(candidate.candidateSubmissions()).isEqualTo(1);
+            });
             assertThat(mapper.countTasksForProject(project.id())).isZero();
             assertThatThrownBy(() -> drafts.confirm(draft.id(), "不可确认"))
                     .hasMessageContaining("every work package is approved");
@@ -3165,6 +3232,7 @@ class DesignerSessionMcpIntegrationTest {
 
     @Test
     void v7ServerCompilationAutoBindsAFrozenExactRequirementMutationToItsOnlyStage() throws Exception {
+        properties.getInternalCandidate().setAcceptanceClosedChoiceV7Enabled(true);
         ProjectRow project = project("controlled-acceptance-v7-missing-mutation");
         LoopDraftRow draft = drafts.create(legacySpec(project.id()));
         String design = """
@@ -3244,11 +3312,20 @@ class DesignerSessionMcpIntegrationTest {
                 Map.entry("v7FocusedCovered", measured.acceptancePlanning().automatedCount()
                         + measured.acceptancePlanning().bothCount())),
                 Set.of("SERVER_COMPILED", measured.acceptancePlanning().pathConservation()));
+        CandidateUsage candidateUsage = candidateUsage(reviewing.id());
+        assertThat(candidateUsage).isEqualTo(new CandidateUsage(0, 0, 0));
+        DesignerSessionService.CompilerStatus candidateStatus = designerSessions.compilerStatus(reviewing.id());
+        assertThat(candidateStatus.candidateSessions()).isEqualTo(candidateUsage.candidateSessions());
+        assertThat(candidateStatus.candidateSubmissions()).isEqualTo(candidateUsage.candidateSubmissions());
+        DesignerAcceptanceV7MeasurementRegistry.record(
+                "acceptance-candidate-unique-optimum-usage", candidateUsage.metrics(),
+                Set.of("UNIQUE_OPTIMUM"));
         assertThat(mapper.listTasks()).isEmpty();
     }
 
     @Test
     void v7AmbiguousMutationStagesWaitForTargetedInputWithoutCompilerOrWholeDesignRetry() throws Exception {
+        properties.getInternalCandidate().setAcceptanceClosedChoiceV7Enabled(true);
         fake().setTaskRouterOutput("{\"intent\":\"SOFTWARE_CHANGE\",\"artifactKinds\":[\"SOURCE_CODE\"],"
                 + "\"complexity\":\"SIMPLE\"}");
         ProjectRow project = project("controlled-acceptance-v7-ambiguous-mutation");
@@ -3314,6 +3391,14 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(compilation.externalSessionId()).isNull();
         assertThat(compilation.lastErrorDetail()).contains("REQUIRED_MUTATION_PATH_UNASSIGNED");
         assertThat(fake().promptHistory()).noneMatch(call -> call.prompt().contains("factAssignments"));
+        CandidateUsage candidateUsage = candidateUsage(reviewing.id());
+        assertThat(candidateUsage).isEqualTo(new CandidateUsage(0, 0, 0));
+        DesignerSessionService.CompilerStatus candidateStatus = designerSessions.compilerStatus(reviewing.id());
+        assertThat(candidateStatus.candidateSessions()).isEqualTo(candidateUsage.candidateSessions());
+        assertThat(candidateStatus.candidateSubmissions()).isEqualTo(candidateUsage.candidateSubmissions());
+        DesignerAcceptanceV7MeasurementRegistry.record(
+                "acceptance-candidate-non-enumerable-usage", candidateUsage.metrics(),
+                Set.of("NON_ENUMERABLE"));
         var measured = designerSessions.workPackageStatuses(reviewing.id()).getFirst();
         int actualHardGaps = compilation.lastErrorDetail().contains("REQUIRED_MUTATION_PATH_UNASSIGNED") ? 1 : 0;
         int blockedHardGaps = "WAITING_INPUT".equals(designerSessions.get(reviewing.id()).state())
@@ -3421,6 +3506,7 @@ class DesignerSessionMcpIntegrationTest {
 
     @Test
     void v7ProjectExternalMutationStopsBeforeCompilationWithoutTransportRetry() throws Exception {
+        properties.getInternalCandidate().setAcceptanceClosedChoiceV7Enabled(true);
         ProjectRow project = project("controlled-acceptance-v7-external-path");
         LoopSpec initial = legacySpec(project.id());
         LoopDraftRow draft = drafts.create(initial);
@@ -3440,6 +3526,12 @@ class DesignerSessionMcpIntegrationTest {
             assertThat(workPackage.lastErrorCode()).isEqualTo("PROJECT_ROOT_EXTERNAL_PATH");
             assertThat(workPackage.designerTransportRetryCount()).isZero();
         });
+        CandidateUsage candidateUsage = candidateUsage(reviewing.id());
+        assertThat(candidateUsage).isEqualTo(new CandidateUsage(0, 0, 0));
+        assertThat(designerSessions.compilerStatus(reviewing.id())).isNull();
+        DesignerAcceptanceV7MeasurementRegistry.record(
+                "acceptance-candidate-path-safety-usage", candidateUsage.metrics(),
+                Set.of("PATH_SAFETY"));
         assertThat(mapper.listTasks()).isEmpty();
     }
 
@@ -3621,6 +3713,178 @@ class DesignerSessionMcpIntegrationTest {
                         "SINGLETON_COLLECTION_NORMALIZED", "NULL_COLLECTION_NORMALIZED",
                         "UNKNOWN_FIELDS_IGNORED"));
         assertThat(drafts.spec(drafts.get(draft.id())).stages()).hasSize(2);
+    }
+
+    @Test
+    void enabledV7TrueTieUsesOneModelSessionAndTheRealPrivateMcpSubmission() throws Exception {
+        properties.getInternalCandidate().setAcceptanceClosedChoiceV7Enabled(true);
+        InternalMcpCredentialProvider.Credentials credentials = internalMcpCredentials.issue();
+        internalMcpRuntime.activate(credentials);
+        internalMcpRuntime.connected(credentials.generation());
+        fake().setManagedRuntime(credentials.generation(), credentials.serverName());
+        fake().holdProfileOpen(
+                OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS, true);
+        ProjectRow project = project("controlled-acceptance-v7-candidate-true-tie");
+        Files.writeString(Path.of(project.rootPath()).resolve("pom.xml"), "<project/>\n");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        String design = trueTieDesign("Java Flow 闭集选择");
+        fake().setDesignerOutput(designerOutput(design, legacySpec(project.id())));
+        setPackageDesignerOutput("WP-1", design);
+        DesignerSessionRow reviewing = prepareReviewingSession(project.id(), draft.id(),
+                "修改 Java Flow，并从两个同等确定性的聚焦测试方案中选择一个验证成功行为");
+
+        designerSessions.confirmRequirement(reviewing.id(), reviewing.discussionRevision());
+        DesignerSessionService.CompilerStatus opened = pollUntilCandidateSession(reviewing.id());
+
+        assertThat(opened.candidateSessions()).isEqualTo(1);
+        assertThat(opened.candidateSubmissions()).isZero();
+        assertThat(fake().profileForSession(opened.externalSessionId())).isEqualTo(
+                OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS);
+        assertThat(fake().promptForSession(opened.externalSessionId()))
+                .contains(credentials.exactToolName(), "expectedSubmissionRevision")
+                .doesNotContain("FlowATest", "FlowBTest", "-Dtest", "src/");
+
+        String runId = jdbc.queryForObject("""
+                SELECT id FROM ai_candidate_submission_run
+                WHERE loop_spec_compilation_id=? AND submission_channel='INTERNAL_MCP'
+                """, String.class, opened.id());
+        Long submissionRevision = jdbc.queryForObject(
+                "SELECT version FROM ai_candidate_submission_run WHERE id=?", Long.class, runId);
+        String mcpSession = initializeInternalMcp(credentials);
+        String rejectedArguments = "{\"name\":\"submit_candidate\",\"arguments\":{"
+                + "\"runId\":\"" + runId + "\",\"idempotencyKey\":\"true-tie-invalid\","
+                + "\"candidate\":{\"factAssignments\":[],\"capabilityPreferences\":[{"
+                + "\"factIndex\":1,\"capabilityIndexes\":[99]}]},"
+                + "\"expectedSubmissionRevision\":" + submissionRevision + "}}";
+        MvcResult rejected = mvc.perform(internalMcp(
+                        credentials, rpc(92, "tools/call", rejectedArguments), mcpSession))
+                .andExpect(request().asyncStarted()).andReturn();
+        mvc.perform(asyncDispatch(rejected)).andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("REJECTED")));
+
+        Long retryRevision = jdbc.queryForObject(
+                "SELECT version FROM ai_candidate_submission_run WHERE id=?", Long.class, runId);
+        String acceptedArguments = "{\"name\":\"submit_candidate\",\"arguments\":{"
+                + "\"runId\":\"" + runId + "\",\"idempotencyKey\":\"true-tie-accepted\","
+                + "\"candidate\":{\"factAssignments\":[],\"capabilityPreferences\":[{"
+                + "\"factIndex\":1,\"capabilityIndexes\":[0]}]},"
+                + "\"expectedSubmissionRevision\":" + retryRevision + "}}";
+        MvcResult accepted = mvc.perform(internalMcp(
+                        credentials, rpc(93, "tools/call", acceptedArguments), mcpSession))
+                .andExpect(request().asyncStarted()).andReturn();
+        mvc.perform(asyncDispatch(accepted)).andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("ACCEPTED")));
+
+        pollUntilSettled(reviewing.id());
+
+        DesignerSessionService.CompilerStatus completed = designerSessions.compilerStatus(reviewing.id());
+        CandidateUsage candidateUsage = candidateUsage(reviewing.id());
+        assertThat(designerSessions.get(reviewing.id()).workflowPhase()).isEqualTo("FINAL_REVIEW");
+        assertThat(candidateUsage).isEqualTo(new CandidateUsage(1, 1, 2));
+        assertThat(completed.candidateSessions()).isEqualTo(candidateUsage.candidateSessions());
+        assertThat(completed.candidateSubmissions()).isEqualTo(candidateUsage.candidateSubmissions());
+        assertThat(mapper.findDesignAcceptancePlanning(completed.id())).hasValueSatisfying(planning -> {
+            assertThat(planning.state()).isEqualTo("COMPILED");
+            assertThat(planning.bindingJson()).contains("\"capabilityIndexes\":[0]");
+            assertThat(planning.diagnosticsJson()).contains("candidateRunId", "INTERNAL_CANDIDATE_ACCEPTED");
+        });
+        DesignerAcceptanceV7MeasurementRegistry.record(
+                "acceptance-candidate-true-tie-usage", candidateUsage.metrics(), Set.of("TRUE_TIE"));
+    }
+
+    @Test
+    void enabledV7TrueTieOnExternalRuntimeUsesFreshLegacyCandidateRun() throws Exception {
+        properties.getInternalCandidate().setAcceptanceClosedChoiceV7Enabled(true);
+        fake().setJudgeOutput("ACCEPTANCE_CANDIDATE", """
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->
+                {"factAssignments":[],"capabilityPreferences":[{
+                  "factIndex":1,"capabilityIndexes":[0]}]}
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->
+                """);
+        ProjectRow project = project("external-acceptance-v7-candidate-true-tie");
+        Files.writeString(Path.of(project.rootPath()).resolve("pom.xml"), "<project/>\n");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        String design = trueTieDesign("Java Flow 外部运行时回退");
+        fake().setDesignerOutput(designerOutput(design, legacySpec(project.id())));
+        setPackageDesignerOutput("WP-1", design);
+        DesignerSessionRow reviewing = prepareReviewingSession(project.id(), draft.id(),
+                "修改 Java Flow，并在外部 OpenCode 上从同分测试方案中选择一个");
+
+        designerSessions.confirmRequirement(reviewing.id(), reviewing.discussionRevision());
+        pollUntilSettled(reviewing.id());
+
+        DesignerSessionService.CompilerStatus completed = designerSessions.compilerStatus(reviewing.id());
+        List<String> channels = jdbc.queryForList("""
+                SELECT submission_channel FROM ai_candidate_submission_run
+                WHERE loop_spec_compilation_id=? ORDER BY created_at
+                """, String.class, completed.id());
+        List<String> candidateRemotes = fake().promptHistory().stream()
+                .filter(call -> fake().profileForSession(call.sessionId())
+                        == OpenCodeClient.SessionProfile.COMPILER_BINDING_NO_TOOLS)
+                .filter(call -> call.prompt().contains("compatibility selector"))
+                .map(FakeOpenCodeClient.PromptCall::sessionId).toList();
+        List<String> attemptedInternal = fake().abortedSessionIds().stream()
+                .filter(id -> fake().profileForSession(id)
+                        == OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS)
+                .toList();
+
+        assertThat(designerSessions.get(reviewing.id()).workflowPhase()).isEqualTo("FINAL_REVIEW");
+        assertThat(channels).containsExactly("IN_PROCESS_LEGACY");
+        assertThat(completed.candidateSessions()).isEqualTo(1);
+        assertThat(completed.candidateSubmissions()).isEqualTo(1);
+        assertThat(candidateRemotes).hasSize(1);
+        assertThat(attemptedInternal).hasSize(1);
+    }
+
+    @Test
+    void disabledV7CandidateFlagKeepsThePreviousJsonCompilerPath() throws Exception {
+        properties.getInternalCandidate().setAcceptanceClosedChoiceV7Enabled(false);
+        fake().setPackageCompilerPlanningOutput("WP-1", """
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->
+                {"factAssignments":[],"capabilityPreferences":[{
+                  "factIndex":1,"capabilityIndexes":[0]}]}
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->
+                """);
+        ProjectRow project = project("disabled-acceptance-v7-candidate-true-tie");
+        Files.writeString(Path.of(project.rootPath()).resolve("pom.xml"), "<project/>\n");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        String design = trueTieDesign("Java Flow JSON 回滚");
+        fake().setDesignerOutput(designerOutput(design, legacySpec(project.id())));
+        setPackageDesignerOutput("WP-1", design);
+        DesignerSessionRow reviewing = prepareReviewingSession(project.id(), draft.id(),
+                "关闭候选开关后继续使用原 JSON 编译通道");
+
+        designerSessions.confirmRequirement(reviewing.id(), reviewing.discussionRevision());
+        pollUntilSettled(reviewing.id());
+
+        DesignerSessionService.CompilerStatus completed = designerSessions.compilerStatus(reviewing.id());
+        assertThat(designerSessions.get(reviewing.id()).workflowPhase()).isEqualTo("FINAL_REVIEW");
+        assertThat(completed.candidateSessions()).isZero();
+        assertThat(completed.candidateSubmissions()).isZero();
+        assertThat(fake().profileForSession(completed.externalSessionId()))
+                .isEqualTo(OpenCodeClient.SessionProfile.COMPILER_BINDING_NO_TOOLS);
+    }
+
+    @Test
+    void disabledDecomposerCandidateFlagUsesThePreviousJsonPathWithoutCandidateRuns() throws Exception {
+        properties.getInternalCandidate().setDecomposerEnabled(false);
+        ProjectRow project = project("disabled-decomposer-candidate-json-path");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        String design = controlledDesign("# JSON 回滚拆解\n\nPython 成功行为。");
+        fake().setDesignerOutput(designerOutput(design, legacySpec(project.id())));
+        setPackageDesignerOutput("WP-1", design);
+
+        DesignerSessionRow session = createConfirmedSession(
+                project.id(), draft.id(), "关闭 Decomposer 候选开关后使用原 JSON 通道");
+        pollUntilSettled(session.id());
+
+        DesignerSessionService.DecompositionStatus decomposition =
+                designerSessions.decompositionStatus(session.id());
+        var decompositionRow = mapper.findLatestTaskDecomposition(session.id()).orElseThrow();
+        assertThat(decomposition.candidateSessions()).isZero();
+        assertThat(decomposition.candidateSubmissions()).isZero();
+        assertThat(fake().profileForSession(decompositionRow.externalSessionId()))
+                .isEqualTo(OpenCodeClient.SessionProfile.DECOMPOSER_READ_ONLY);
     }
 
     @Test
@@ -4194,7 +4458,7 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(environment.getProperty("spring.ai.mcp.server.protocol")).isEqualTo("STREAMABLE");
         assertThat(springAiMcpProperties.getCapabilities().isTool()).isTrue();
         assertThat(context.getBeanNamesForType(org.springframework.web.servlet.function.RouterFunction.class))
-                .contains("webMvcStreamableServerRouterFunction");
+                .contains("webMvcStreamableServerRouterFunction", "internalMcpStreamableRouterFunction");
 
         String initialize = rpc(10, "initialize", "{\"protocolVersion\":\"2025-03-26\",\"capabilities\":{},\"clientInfo\":{\"name\":\"test\",\"version\":\"1\"}}");
         mvc.perform(post("/api/mcp-streamable").contentType(MediaType.APPLICATION_JSON)
@@ -4439,6 +4703,36 @@ class DesignerSessionMcpIntegrationTest {
             completeMandatoryDesignerQuestion(sessionId);
             designerSessions.pollActiveHandoffs();
         }
+    }
+
+    private DesignerSessionService.CompilerStatus pollUntilCandidateSession(String sessionId) {
+        for (int attempt = 0; attempt < 80; attempt++) {
+            DesignerSessionService.CompilerStatus compiler = designerSessions.compilerStatus(sessionId);
+            if (compiler != null && compiler.candidateSessions() == 1) return compiler;
+            completeMandatoryDesignerQuestion(sessionId);
+            designerSessions.pollActiveHandoffs();
+        }
+        DesignerSessionService.CompilerStatus compiler = designerSessions.compilerStatus(sessionId);
+        throw new AssertionError("candidate Session did not open: "
+                + compiler + "; planning=" + (compiler == null ? null
+                : mapper.findDesignAcceptancePlanning(compiler.id()).orElse(null)) + "; packages="
+                + designerSessions.workPackageStatuses(sessionId) + "; messages="
+                + designerSessions.messages(sessionId));
+    }
+
+    private String initializeInternalMcp(
+            InternalMcpCredentialProvider.Credentials credentials) throws Exception {
+        String initialize = rpc(90, "initialize",
+                "{\"protocolVersion\":\"2025-03-26\",\"capabilities\":{},"
+                        + "\"clientInfo\":{\"name\":\"designer-test\",\"version\":\"1\"}}");
+        MvcResult initialized = mvc.perform(internalMcp(credentials, initialize, null))
+                .andExpect(status().isOk()).andReturn();
+        String sessionId = initialized.getResponse().getHeader("Mcp-Session-Id");
+        assertThat(sessionId).isNotBlank();
+        mvc.perform(internalMcp(credentials,
+                "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\",\"params\":{}}",
+                sessionId)).andExpect(status().isAccepted());
+        return sessionId;
     }
 
     private void assertPackageStates(String sessionId, String... states) {
@@ -4760,6 +5054,33 @@ class DesignerSessionMcpIntegrationTest {
         fake().setPackageDesignerOutput(packageId, markdown);
     }
 
+    private String trueTieDesign(String title) {
+        return """
+                # %s
+
+                ## 目标与范围
+                实现并验证 Java Flow 成功行为。
+
+                ## 影响与交付
+                | 类型 | 相对路径或符号 | 说明 |
+                | --- | --- | --- |
+                | 生产代码 | src/main/java/example/Flow.java | Flow 实现 |
+
+                ## 验收场景
+                | 场景 | 前置/触发 | 操作 | 可观察结果 | 保持不变 |
+                | --- | --- | --- | --- | --- |
+                | Flow 成功行为 | 输入合法请求 | 调用 Flow | 返回成功结果 | 不写外部系统 |
+
+                ## 验收约束
+                FlowATest 或 FlowBTest 同等覆盖 Flow 成功行为，可任选一个：`mvn -Dtest=FlowATest test` 或 `mvn -Dtest=FlowBTest test`。
+
+                ## 阶段与依赖
+                | 阶段 | 目标 | 包含场景/评审/交付 | 前置阶段 |
+                | --- | --- | --- | --- |
+                | Flow 实现 | 实现并验证 Flow | Flow 成功行为；src/main/java/example/Flow.java | 无 |
+                """.formatted(title);
+    }
+
     private String controlledDesign(String markdown) {
         if (markdown != null && markdown.contains("## 目标与范围")) return markdown;
         String source = markdown == null ? "" : markdown;
@@ -4878,6 +5199,32 @@ class DesignerSessionMcpIntegrationTest {
                 """;
     }
 
+    private CandidateUsage candidateUsage(String designerSessionId) {
+        int modelCalls = (int) fake().promptHistory().stream()
+                .filter(call -> fake().profileForSession(call.sessionId())
+                        == OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS)
+                .count();
+        int candidateSessions = jdbc.queryForObject("""
+                SELECT COUNT(*) FROM ai_candidate_submission_run
+                WHERE designer_session_id=? AND candidate_kind='ACCEPTANCE_CLOSED_CHOICE_V7'
+                """, Integer.class, designerSessionId);
+        int candidateSubmissions = jdbc.queryForObject("""
+                SELECT COUNT(*) FROM ai_candidate_submission_attempt attempt
+                JOIN ai_candidate_submission_run run ON run.id=attempt.run_id
+                WHERE run.designer_session_id=? AND run.candidate_kind='ACCEPTANCE_CLOSED_CHOICE_V7'
+                """, Integer.class, designerSessionId);
+        return new CandidateUsage(modelCalls, candidateSessions, candidateSubmissions);
+    }
+
+    private record CandidateUsage(int modelCalls, int candidateSessions, int candidateSubmissions) {
+        Map<String, Integer> metrics() {
+            return Map.of(
+                    "modelCalls", modelCalls,
+                    "candidateSessions", candidateSessions,
+                    "candidateSubmissions", candidateSubmissions);
+        }
+    }
+
     private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder mcp(String requestBody) {
         return post("/api/mcp").header("Authorization", "Bearer " + TOKEN)
                 .contentType(MediaType.APPLICATION_JSON).content(requestBody);
@@ -4886,6 +5233,17 @@ class DesignerSessionMcpIntegrationTest {
     private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder streamable(String requestBody, String sessionId) {
         var builder = post("/api/mcp-streamable").header("Authorization", "Bearer " + TOKEN)
                 .contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON, MediaType.TEXT_EVENT_STREAM)
+                .content(requestBody);
+        if (sessionId != null) builder.header("Mcp-Session-Id", sessionId);
+        return builder;
+    }
+
+    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder internalMcp(
+            InternalMcpCredentialProvider.Credentials credentials, String requestBody, String sessionId) {
+        var builder = post(InternalMcpContractCatalog.ENDPOINT_PATH)
+                .header("Authorization", "Bearer " + credentials.bearerToken())
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON, MediaType.TEXT_EVENT_STREAM)
                 .content(requestBody);
         if (sessionId != null) builder.header("Mcp-Session-Id", sessionId);
         return builder;

@@ -10,7 +10,7 @@ spring:
           enabled: false
         protocol: STREAMABLE
         name: opencode-loopper
-        version: 0.2.83
+        version: 0.2.84
         type: SYNC
         instructions: >-
           Use the six Loopper tools only. Designer access is READ_ONLY; proposals synchronize
@@ -99,6 +99,10 @@ loopper:
     verification-max: ${LOOPPER_RETRY_VERIFICATION_MAX:30s}
   mcp:
     bearer-token: ${LOOPPER_MCP_BEARER_TOKEN:}
+  internal-candidate:
+    decomposer-enabled: ${LOOPPER_DECOMPOSER_CANDIDATE_ENABLED:true}
+    # Opt-in only after an isolated packaged-JAR real-model tool-use and self-correction replay passes.
+    acceptance-closed-choice-v7-enabled: ${LOOPPER_ACCEPTANCE_CLOSED_CHOICE_V7_ENABLED:false}
   publication:
     # Comma-separated exact hosts. Only ambiguous SSH remotes use HTTP; an
     # explicit http:// or https:// remote always keeps its declared scheme.
@@ -110,9 +114,9 @@ loopper:
       connect-timeout: ${LOOPPER_GITLAB_CONNECT_TIMEOUT:3s}
       request-timeout: ${LOOPPER_GITLAB_REQUEST_TIMEOUT:10s}
   opencode:
-    # auto first reuses a local healthy endpoint, then owns a new localhost process.
-    # http never starts or terminates an external OpenCode process; fake is for tests.
-    mode: ${LOOPPER_OPENCODE_MODE:auto}
+    # managed always owns one dedicated localhost process; Sessions reuse that process.
+    # auto/http retain legacy external-server behavior; fake is for tests.
+    mode: ${LOOPPER_OPENCODE_MODE:managed}
     base-url: ${OPENCODE_BASE_URL:http://127.0.0.1:4096}
     username: ${OPENCODE_USERNAME:${OPENCODE_SERVER_USERNAME:}}
     password: ${OPENCODE_PASSWORD:${OPENCODE_SERVER_PASSWORD:}}

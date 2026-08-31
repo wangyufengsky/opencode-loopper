@@ -65,6 +65,8 @@ public final class LifecycleRegistry {
         register(LifecycleMachineType.PACKAGE_PLAN_REVISION, PackagePlanRevisionState.class, packagePlanRevision(),
                 set(PackagePlanRevisionState.GENERATING, PackagePlanRevisionState.PROPOSED,
                         PackagePlanRevisionState.ACTIVE), Set.of());
+        register(LifecycleMachineType.CANDIDATE_SUBMISSION_RUN, MachineCandidateRunState.class,
+                candidateSubmissionRun(), set(MachineCandidateRunState.OPEN), Set.of());
         if (machines.size() != LifecycleMachineType.values().length) {
             throw new IllegalStateException("Every lifecycle machine type must be registered");
         }
@@ -203,6 +205,14 @@ public final class LifecycleRegistry {
                         PackagePlanRevisionState.ACTIVE)
                 .transition(PackagePlanRevisionState.ACTIVE, SUPERSEDE,
                         PackagePlanRevisionState.SUPERSEDED)
+                .build();
+    }
+
+    private static FiniteStateMachine<MachineCandidateRunState, LifecycleEvent> candidateSubmissionRun() {
+        return machine(LifecycleMachineType.CANDIDATE_SUBMISSION_RUN, MachineCandidateRunState.class)
+                .transition(MachineCandidateRunState.OPEN, APPROVE, MachineCandidateRunState.ACCEPTED)
+                .transition(MachineCandidateRunState.OPEN, REQUIRE_INPUT, MachineCandidateRunState.WAITING_INPUT)
+                .transition(MachineCandidateRunState.OPEN, ABORT, MachineCandidateRunState.CLOSED)
                 .build();
     }
 

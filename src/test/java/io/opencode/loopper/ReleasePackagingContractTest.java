@@ -38,7 +38,7 @@ class ReleasePackagingContractTest {
     }
 
     @Test
-    void startupScriptsPinCurrentJarAndDiscoverOpenCodeWithoutFixedPort() throws IOException {
+    void startupScriptsPinCurrentJarAndDefaultToAnIsolatedManagedOpenCode() throws IOException {
         String windows = Files.readString(PROJECT_ROOT.resolve("scripts/start-windows.bat"));
         String linux = Files.readString(PROJECT_ROOT.resolve("scripts/start-linux.sh"));
         String jarName = "opencode-loopper-" + projectVersion() + ".jar";
@@ -58,7 +58,8 @@ class ReleasePackagingContractTest {
                 .contains("Get-CimInstance Win32_Process")
                 .contains("--port[= ]+(\\d{1,5})")
                 .contains("$health.healthy -eq $true")
-                .contains("auto mode will start it on a dynamic loopback port")
+                .contains("if not defined LOOPPER_OPENCODE_MODE set \"LOOPPER_OPENCODE_MODE=managed\"")
+                .contains("managed mode will start an isolated OpenCode process on a dynamic loopback port")
                 .contains("cmd /d /c exit 7")
                 .contains("call :start_background \"Loopper Start Validation\"")
                 .contains("%WAIT_URL%/actuator/health")
@@ -84,8 +85,8 @@ class ReleasePackagingContractTest {
                 .contains("type -P opencode")
                 .contains("environment wildcard normalized to loopback")
                 .contains("running opencode process")
-                .contains("LOOPPER_OPENCODE_MODE=\"auto\"")
-                .contains("动态 loopback 端口")
+                .contains("LOOPPER_OPENCODE_MODE=\"${LOOPPER_OPENCODE_MODE:-managed}\"")
+                .contains("独立受管进程")
                 .doesNotContain("source \"${STARTUP_OVERRIDES}\"")
                 .doesNotContain("eval ")
                 .doesNotContain("127.0.0.1:4096");
@@ -126,7 +127,7 @@ class ReleasePackagingContractTest {
                 """);
         executable(bin.resolve("curl"), healthCurl("http://127.0.0.1:54321/global/health", null));
 
-        String output = runLinuxStartup(bin, javaHome, jar, Map.of());
+        String output = runLinuxStartup(bin, javaHome, jar, Map.of("LOOPPER_OPENCODE_MODE", "auto"));
 
         assertThat(output)
                 .contains("OpenCode：http://127.0.0.1:54321（来源：running opencode process）")
@@ -144,6 +145,7 @@ class ReleasePackagingContractTest {
 
         String output = runLinuxStartup(bin, javaHome, jar, Map.of(
                 "OPENCODE_BASE_URL", "http://0.0.0.0:54321",
+                "LOOPPER_OPENCODE_MODE", "http",
                 "OPENCODE_SERVER_PASSWORD", "secret"));
 
         assertThat(output)
@@ -155,7 +157,7 @@ class ReleasePackagingContractTest {
 
     @Test
     @EnabledOnOs({OS.LINUX, OS.MAC})
-    void linuxStartupPinsTheResolvedCliBeforeManagedAutoStartup() throws Exception {
+    void linuxStartupPinsTheResolvedCliBeforeIsolatedManagedStartup() throws Exception {
         Path bin = Files.createDirectories(tempDir.resolve("bin"));
         Path javaHome = fakeJavaHome();
         Path jar = Files.writeString(tempDir.resolve("loopper.jar"), "test");
@@ -168,11 +170,11 @@ class ReleasePackagingContractTest {
         String output = runLinuxStartup(bin, javaHome, jar, Map.of());
 
         assertThat(output)
-                .contains("OpenCode：未发现可复用端点，将由 auto 模式在动态 loopback 端口启动")
+                .contains("OpenCode：managed 独立受管进程")
                 .contains("OpenCode CLI：" + bin.resolve("opencode"))
                 .contains("JAVA_OPENCODE_EXECUTABLE=" + bin.resolve("opencode"))
                 .contains("JAVA_HTTP_WEB_HOSTS=gitlab.spdb.com")
-                .contains("JAVA_OPENCODE_MODE=auto");
+                .contains("JAVA_OPENCODE_MODE=managed");
     }
 
     @Test
@@ -239,7 +241,7 @@ class ReleasePackagingContractTest {
                 """ : "#!/usr/bin/env bash\nexit 0\n");
         executable(bin.resolve("curl"), healthCurl("http://127.0.0.1:54321/global/health", null));
 
-        String output = runLinuxStartup(bin, javaHome, jar, Map.of());
+        String output = runLinuxStartup(bin, javaHome, jar, Map.of("LOOPPER_OPENCODE_MODE", "auto"));
 
         assertThat(output)
                 .contains("OpenCode：http://127.0.0.1:54321（来源：running opencode process）")

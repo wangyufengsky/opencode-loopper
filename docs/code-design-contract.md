@@ -107,7 +107,9 @@ ownership rules:
 - `DesignerAcceptanceFastPathResolver` alone owns v6/v7 exact-reference normalization, Stage topology
   validation, direct/AI/incomplete routing, and the merge of closed-set Compiler assignments. It must
   never perform fuzzy or substring matching. `DesignerAcceptanceWorkflow` owns persistence and solver
-  coordination; `DesignerClosedChoiceContract` owns the current-v7 minimal prompt projection and raw-output
+  coordination; `DesignerAcceptanceStatusProjector` owns the bounded read projection from frozen facts,
+  capabilities, diagnostics, and failure metadata; `DesignerClosedChoiceContract` owns the current-v7
+  minimal prompt projection and raw-output
   semantic firewall, while `DesignerCompilerPromptContracts` owns legacy, frozen-v6, and current-v7 Compiler
   role instructions. `OpenCodeStructuredSchemas` owns only the transport
   envelope and cannot authorize execution/topology/safety fields merely because an extra property is transport-valid.
@@ -210,3 +212,33 @@ collaborators above; a later change may only preserve or lower those caps.
 - Are names concise and behavior-revealing, with no pass-through abstraction that
   merely adds indirection?
 - Do focused and integration tests prove the extracted boundary and the unchanged flow?
+## Designer facade 与候选提交依赖边界
+
+候选提交采用“传输端口与业务裁决分离”的依赖方向。通用 `MachineCandidateSubmission` 只提供 run 生命周期、幂等提交、版本并发与结果信封；角色专属的 policy/compiler/writer 才拥有候选语义。通用提交模块不得依赖 Designer facade、角色 prompt 或具体 Compiler 合同，内部 MCP adapter 也只能做参数规范化和端口调用，不能复制校验或直接写业务表。
+
+Designer 相关 collaborator 必须保持以下单向依赖：
+
+```text
+Designer facade
+  ├── Coordinator
+  ├── OutputCodec
+  └── StatusProjector
+
+Coordinator -> candidate/application ports -> server policy/compiler/writer
+OutputCodec -> frozen contract DTO / serialization
+StatusProjector -> persisted read snapshots
+```
+
+- Designer facade 持有用户命令编排、会话阶段和事务边界，可以调用上述 collaborator；任何新 collaborator 都不得保存 facade 引用、反向回调 facade，或通过事件监听绕回 facade 形成循环依赖。
+- `Coordinator` 只协调一次角色运行所需的冻结输入、候选 run 与明确结果，不承担输出格式解析、状态展示拼装或角色专属 DB mutation。
+- `OutputCodec` 只做冻结合同的机械编码、解析与有界错误归一化；不得调用 OpenCode、Mapper、candidate writer 或 Designer facade。
+- `StatusProjector` 只从持久化状态生成只读投影；不得启动 Session、提交 candidate、推进生命周期或用缺失值推断执行事实。
+- policy 必须是纯业务裁决，compiler 必须是确定性转换，accepted writer 必须是 DB-only 写入；三者不得相信模型的成功声明，也不得把 MCP transport 状态当作业务接受结果。
+
+`DECOMPOSITION_PLAN_V2` 的每 run 提交预算最多为 5；`ACCEPTANCE_CLOSED_CHOICE_V7` 最多为 2，且仅闭集选择的机械错误可重试。唯一解、非枚举、安全或路径问题必须在 candidate 层之外由服务端直接处理并失败关闭，不能为追求重试率而扩大模型权限。
+
+候选 profile 的 MCP 权限只允许精确私有 `submit_candidate`，不允许用户 MCP；Decomposer 另外保留只读仓库证据工具，验收闭集选择保持零内置工具。Router/Judge 的既有依赖与权限边界不因候选基础设施改变。外部 `auto/http` 通过新 Session 使用 `IN_PROCESS_LEGACY`，不能依赖受管 runtime 的私有凭据或 generation。
+
+Feature flag 只能位于“是否打开新 run”的应用决策点，不能包裹持久化 adapter、恢复 reader 或通用提交 Bean。这样关闭功能后仍能恢复和收束已存在 run，也避免应用重启把持久化协议变成不可读取状态。
+
+度量模型必须把 `candidateSessions` 与 `candidateSubmissions` 定义为两个非负独立计数，并与 `modelCalls` 分开采集；禁止从任一计数推导另一项。API/资格报告保留精确的 0，StatusProjector/界面可以隐藏 0 值，但不得把隐藏后的缺省字段当作未知或失败。

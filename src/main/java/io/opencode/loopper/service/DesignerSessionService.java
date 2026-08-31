@@ -19,6 +19,8 @@ import io.opencode.loopper.domain.ArtifactKind;
 import io.opencode.loopper.domain.LoopSpec;
 import io.opencode.loopper.domain.LoopSpecCompilationState;
 import io.opencode.loopper.domain.ModelResponseMode;
+import io.opencode.loopper.domain.MachineCandidateOutcome;
+import io.opencode.loopper.domain.MachineCandidateRunState;
 import io.opencode.loopper.domain.TaskDecompositionState;
 import io.opencode.loopper.domain.TaskIntent;
 import io.opencode.loopper.domain.WorkflowTemplate;
@@ -40,6 +42,7 @@ import io.opencode.loopper.persistence.TaskDecompositionRow;
 import io.opencode.loopper.runtime.OpenCodeClient;
 import io.opencode.loopper.runtime.OpenCodeStructuredSchemas;
 import io.opencode.loopper.runtime.MachineRoleContractCatalog;
+import io.opencode.loopper.runtime.InternalMcpContractCatalog;
 import io.opencode.loopper.verification.ProcessCommandPolicy;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -95,6 +98,8 @@ public class DesignerSessionService {
     private final DesignerEvidenceIndexer evidenceIndexer;
     private final DesignerPackagePlanCompiler packagePlanCompiler;
     private final DesignerAcceptanceWorkflow acceptanceWorkflow;
+    private final DesignerStatusProjector statusProjector;
+    private final DesignerAcceptanceCandidateOrchestrator acceptanceCandidates;
     private final DesignerMutationOwnershipRecovery mutationOwnershipRecovery;
     private final AiRepairPatchService repairPatchService;
     private final DesignerEventHub events;
@@ -103,13 +108,16 @@ public class DesignerSessionService {
     private final RolePromptComposer rolePrompts;
     private final DesignerConversationPromptFactory conversationPrompts = new DesignerConversationPromptFactory();
     private final DesignerDecompositionPromptFactory decompositionPrompts;
+    private final DesignerDecompositionCandidateCoordinator decompositionCandidates;
+    private final DesignerDecompositionOutputCodec decompositionOutputs;
     private final DesignerPackageContext packageContext;
     private final DesignerPackagePromptFactory packagePrompts;
     private final DesignerCompilerRepairPromptFactory compilerRepairPrompts;
     private final WorkPackageRoleService workPackageRoles;
     private final DesignerQuestionSupport questionSupport;
     private final RollingPackageService rollingPackages;
-    private final DesignerAttachmentContext attachmentContext; private final DesignerModelPromptTransport modelPrompts;
+    private final DesignerAttachmentContext attachmentContext;
+    private final DesignerModelPromptTransport modelPrompts;
     public DesignerSessionService(LoopperMapper mapper, LifecycleTransitionService lifecycle,
                                   ProjectService projects, OpenCodeClient openCode,
                                   LoopperProperties defaults, LoopDraftService drafts, ObjectMapper json,
@@ -117,9 +125,10 @@ public class DesignerSessionService {
                                   DesignerEvidenceIndexer evidenceIndexer, AiRepairPatchService repairPatchService,
                                   DesignerEventHub events, TaskProfileService taskProfiles,
                                   DesignerSessionRuntimeControl runtimeControl, RolePromptComposer rolePrompts,
+                                  DesignerAcceptanceCandidateOrchestrator acceptanceCandidates,
+                                  DesignerDecompositionCandidateCoordinator decompositionCandidates, DesignerDecompositionCandidateCompiler decompositionCandidateCompiler,
                                   WorkPackageRoleService workPackageRoles,
-                                  DesignerQuestionSupport questionSupport,
-                                  RollingPackageService rollingPackages,
+                                  DesignerQuestionSupport questionSupport, RollingPackageService rollingPackages,
                                   DesignerAttachmentContext attachmentContext) {
         this.mapper = mapper;
         this.lifecycle = lifecycle;
@@ -134,6 +143,8 @@ public class DesignerSessionService {
         this.evidenceIndexer = evidenceIndexer;
         this.packagePlanCompiler = new DesignerPackagePlanCompiler(evidenceIndexer);
         this.acceptanceWorkflow = new DesignerAcceptanceWorkflow(mapper, json, aiOutputExtractor, lifecycle, evidenceIndexer, packagePlanCompiler);
+        this.statusProjector = new DesignerStatusProjector(mapper, json, acceptanceWorkflow);
+        this.acceptanceCandidates = acceptanceCandidates;
         this.mutationOwnershipRecovery = new DesignerMutationOwnershipRecovery(mapper, acceptanceWorkflow);
         this.repairPatchService = repairPatchService;
         this.events = events;
@@ -141,6 +152,9 @@ public class DesignerSessionService {
         this.runtimeControl = runtimeControl;
         this.rolePrompts = rolePrompts;
         this.decompositionPrompts = new DesignerDecompositionPromptFactory(json, taskProfiles, rolePrompts);
+        this.decompositionCandidates = decompositionCandidates;
+        this.decompositionOutputs = new DesignerDecompositionOutputCodec(
+                json, aiOutputExtractor, decompositionCandidateCompiler, packagePlanCompiler);
         this.packageContext = new DesignerPackageContext(mapper, json);
         this.packagePrompts = new DesignerPackagePromptFactory(
                 taskProfiles, rolePrompts, workPackageRoles, packageContext);
@@ -148,7 +162,8 @@ public class DesignerSessionService {
         this.workPackageRoles = workPackageRoles;
         this.questionSupport = questionSupport;
         this.rollingPackages = rollingPackages;
-        this.attachmentContext = attachmentContext; this.modelPrompts = new DesignerModelPromptTransport(openCode, attachmentContext, json);
+        this.attachmentContext = attachmentContext;
+        this.modelPrompts = new DesignerModelPromptTransport(openCode, attachmentContext, json);
     }
     public DesignerSessionRow create(String projectId, String initialMessage) {
         return create(projectId, null, initialMessage);
@@ -228,13 +243,7 @@ public class DesignerSessionService {
     }
     public CompilerStatus compilerStatus(String sessionId) {
         get(sessionId);
-        return mapper.findLatestLoopSpecCompilation(sessionId)
-                .map(row -> new CompilerStatus(row.id(), row.state(), row.externalSessionId(),
-                        row.externalSessionState(), row.repairCount(), row.designRevision(),
-                        row.lastErrorCode(), row.lastErrorDetail(), row.workPackageId(), row.workflowStep(),
-                        row.planningRepairCount(), row.formatRepairCount(), row.semanticRepairCount(),
-                        row.serverCompiled()))
-                .orElse(null);
+        return statusProjector.compiler(sessionId);
     }
     public RequirementRevisionStatus requirementStatus(String sessionId) {
         get(sessionId);
@@ -245,40 +254,11 @@ public class DesignerSessionService {
     }
     public DecompositionStatus decompositionStatus(String sessionId) {
         get(sessionId);
-        return mapper.findLatestTaskDecomposition(sessionId)
-                .map(row -> new DecompositionStatus(row.id(), row.state(), row.resultType(), row.repairCount(),
-                        row.transportRetryCount(), row.lastErrorCode(), row.lastErrorDetail(), row.workflowStep(),
-                        row.planningRepairCount(), row.formatRepairCount(), row.semanticRepairCount(),
-                        row.serverCompiled()))
-                .orElse(null);
+        return statusProjector.decomposition(sessionId);
     }
     public List<WorkPackageStatus> workPackageStatuses(String sessionId) {
         if (get(sessionId).currentRequirementRevision() == null) return List.of();
-        DesignRequirementRevisionRow revision = mapper.findCurrentDesignRequirementRevision(sessionId).orElse(null);
-        if (revision == null) return List.of();
-        return mapper.listDesignWorkPackages(revision.id()).stream().map(row -> {
-            LoopSpecCompilationRow compiler = mapper.findLatestLoopSpecCompilationForPackage(sessionId, row.packageId())
-                    .orElse(null);
-            WorkPackageRoleService.View role = mapper.findWorkPackageRoleProfile(row.id())
-                    .map(stored -> new WorkPackageRoleService.View(stored.rolePackId(), stored.rolePackVersion(),
-                            io.opencode.loopper.domain.ExecutionStrategy.valueOf(stored.executionStrategy()),
-                            io.opencode.loopper.domain.TestPolicy.valueOf(stored.testPolicy()),
-                            strings(stored.technologiesJson())))
-                    .orElse(null);
-            return new WorkPackageStatus(row.packageId(), row.ordinal(), row.title(), row.objective(), row.state(),
-                    strings(row.dependenciesJson()), row.redesignCount(), compiler == null ? 0 : compiler.repairCount(),
-                    compiler == null ? 0 : compiler.planningRepairCount(),
-                    compiler == null ? 0 : compiler.formatRepairCount(),
-                    compiler == null ? 0 : compiler.semanticRepairCount(),
-                    compiler != null && compiler.serverCompiled(),
-                    row.compilerSummary(), row.handoffSummary(), row.lastErrorCode(), row.lastErrorDetail(),
-                    row.designRevision(), row.approvedDesignRevision(), row.discussionRoundCount(),
-                    row.invalidatedByPackageId(), row.approvedAt(),
-                    role == null ? null : role.rolePackId(), role == null ? null : role.rolePackVersion(),
-                    role == null ? null : role.executionStrategy().name(),
-                    role == null ? null : role.testPolicy().name(),
-                    role == null ? List.of() : role.technologies(), acceptanceWorkflow.status(compiler));
-        }).toList();
+        return statusProjector.workPackages(sessionId);
     }
     public CandidateStatus candidateStatus(String sessionId) {
         DesignerSessionRow session = get(sessionId);
@@ -702,8 +682,7 @@ public class DesignerSessionService {
 
     private void createDirectSoftwarePackage(DesignerSessionRow session, DesignRequirementRevisionRow revision) {
         requirementDraftGuard.requireUnchanged(session, revision.sourceDraftVersion());
-        List<String> requirementRefs = readSegments(revision.requirementSegmentsJson()).stream()
-                .map(RequirementSegment::id).toList();
+        List<String> requirementRefs = decompositionOutputs.requirementIds(revision.requirementSegmentsJson());
         DecomposedWorkPackage workPackage = new DecomposedWorkPackage("WP-1", "默认单包设计",
                 bounded(revision.requirementText(), 12_000), List.of("当前完整软件需求"), List.of(), List.of(),
                 List.of("完成当前需求的软件变更"), List.of("满足完整需求中的可观察业务结果"), requirementRefs);
@@ -714,7 +693,7 @@ public class DesignerSessionService {
         DecompositionPlanEnvelope plan = new DecompositionPlanEnvelope("DIRECT_DESIGN",
                 bounded(revision.requirementText(), 12_000), List.of(), List.of(workPackage), coverage,
                 List.of(), List.of(), null).normalized();
-        validateDecompositionPlan(plan, revision);
+        decompositionOutputs.validatePlan(plan, revision);
         String now = now();
         TaskDecompositionRow pending = new TaskDecompositionRow(UUID.randomUUID().toString(), session.id(),
                 revision.id(), TaskDecompositionState.PENDING_HANDOFF.name(), null, null, "[]", "{}",
@@ -1518,67 +1497,133 @@ public class DesignerSessionService {
         return getRequirement(row.id());
     }
 
-    private DesignerMessageRow dispatchDecomposer(DesignerSessionRow input,
-                                                   DesignRequirementRevisionRow revision,
+    private DesignerMessageRow dispatchDecomposer(DesignerSessionRow input, DesignRequirementRevisionRow revision,
                                                    boolean explicitRetry) {
         requirementDraftGuard.requireUnchanged(input, revision.sourceDraftVersion());
         if (!openCode.healthy()) {
-            DesignerSessionRow pending = updateDesignerProjection(input, DesignerSessionState.PENDING_HANDOFF,
-                    DesignWorkflowPhase.DECOMPOSING, null, "UNAVAILABLE", input.designRevision(), 0,
-                    revision.revision(), null);
-            DesignerMessageRow message = appendMessage(pending.id(), DesignerActor.SYSTEM,
-                    "SYSTEM_ERROR[SESSION] OPENCODE_DECOMPOSER_UNAVAILABLE: OpenCode 只读运行时不可用；需求版本已冻结，但尚未消耗模型调用。",
-                    "PENDING_HANDOFF", revision.revision(), null);
+            DesignerSessionRow pending = updateDesignerProjection(input, DesignerSessionState.PENDING_HANDOFF, DesignWorkflowPhase.DECOMPOSING,
+                    null, "UNAVAILABLE", input.designRevision(), 0, revision.revision(), null);
+            DesignerMessageRow message = appendMessage(pending.id(), DesignerActor.SYSTEM, "SYSTEM_ERROR[SESSION] "
+                    + "OPENCODE_DECOMPOSER_UNAVAILABLE: OpenCode 只读运行时不可用；需求版本已冻结，但尚未消耗模型调用。", "PENDING_HANDOFF", revision.revision(), null);
             publish(pending, "ERROR", DesignerActor.SYSTEM, false, "", message.content());
             return message;
         }
         String now = now();
-        ModelResponseMode responseMode = preferredResponseMode();
         TaskDecompositionRow pending = new TaskDecompositionRow(UUID.randomUUID().toString(), input.id(),
                 revision.id(), TaskDecompositionState.PENDING_HANDOFF.name(), null, null, "[]", "{}",
                 null, "PENDING", 0, 0, revision.sourceDraftVersion(), null, null, now, now, 0,
-                StructuredModelStep.PLANNING.name(), null, 0,
-                responseMode.name(), schemaId(responseMode, OpenCodeStructuredSchemas.DECOMPOSITION_SEMANTIC_V2), false,
-                responseMode.name(), schemaId(responseMode, OpenCodeStructuredSchemas.DECOMPOSITION_FINAL_V1), false,
+                StructuredModelStep.PLANNING.name(), null, 0, ModelResponseMode.TEXT_MARKER.name(), null, false,
+                ModelResponseMode.TEXT_MARKER.name(), null, false,
                 null, 0, 0, false);
-        lifecycle.create(decompositionSubject(pending, input.projectId()), pending.state(), Map.of(),
-                () -> mapper.insertTaskDecomposition(pending),
-                () -> new ConflictException("TASK_DECOMPOSITION_CREATE_CONFLICT",
-                        "Task decomposition could not be created"));
+        lifecycle.create(decompositionSubject(pending, input.projectId()), pending.state(), Map.of(), () -> mapper.insertTaskDecomposition(pending),
+                () -> new ConflictException("TASK_DECOMPOSITION_CREATE_CONFLICT", "Task decomposition could not be created"));
         ProjectRow project = projects.get(input.projectId());
         try {
-            OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
-                    "OpenCode Loopper Task Decomposer (READ_ONLY)", responseModel(responseMode),
-                    OpenCodeClient.SessionProfile.DECOMPOSER_READ_ONLY);
-            TaskDecompositionRow running = updateDecomposition(pending, TaskDecompositionState.RUNNING,
-                    null, null, "[]", "{}", remote.id(), "RUNNING", 0, 0, null, null);
-            DesignerSessionRow session = updateDesignerProjection(get(input.id()), DesignerSessionState.RUNNING,
-                    DesignWorkflowPhase.DECOMPOSING, remote.id(), "RUNNING", input.designRevision(), 0,
-                    revision.revision(), null);
-            if (!consumeModelCall(session, revision, "DECOMPOSER_MODEL_CALL_LIMIT")) {
-                runtimeControl.abortQuietly(remote.id(), input.projectId());
-                return appendMessage(session.id(), DesignerActor.SYSTEM,
-                        "需求版本的 " + MAX_MODEL_CALLS + " 次自动模型调用预算已耗尽，任务拆解已停止。", "TERMINAL_ERROR",
-                        revision.revision(), null);
+            if (!defaults.getInternalCandidate().isDecomposerEnabled()) {
+                return dispatchClassicJsonDecomposer(pending, input, revision, project, explicitRetry);
             }
-            modelPrompts.submit(remote, decomposerPlanningPrompt(session, project,
-                    getRequirement(revision.id()), explicitRetry), running.planningResponseMode(),
-                    running.planningResponseSchemaId(), session.id(), null);
-            publish(session, "STATUS", DesignerActor.DECOMPOSER, true, "",
-                    "任务规划师正在规划包边界、依赖并建立需求段覆盖映射");
-            return appendMessage(session.id(), DesignerActor.SYSTEM,
-                    "完整需求版本 R" + revision.revision() + " 已冻结并交给独立只读任务规划师。",
-                    "PENDING_HANDOFF", revision.revision(), null);
+            return dispatchInternalMcpDecomposer(pending, input, revision, project, explicitRetry);
         } catch (SessionFailure failure) {
-            failDecomposition(pending, input, failure.code(), failure.getMessage(), true);
+            if ("OPENCODE_INTERNAL_MCP_NOT_READY".equals(failure.code())) {
+                return dispatchLegacyDecomposer(getDecomposition(pending.id()), input, revision, project, explicitRetry,
+                        "内部 MCP 未连接，已使用显式进程内兼容通道");
+            }
+            MachineCandidateSubmission.RunSnapshot run = decompositionCandidates.find(pending.id()).orElse(null); if (run != null) closeCandidateQuietly(pending.id(), run.submissionChannel());
+            failDecomposition(pending, input, failure.code(), failure.getMessage(), run == null);
         } catch (RuntimeException failure) {
-            failDecomposition(pending, input, "OPENCODE_DECOMPOSER_HANDOFF_FAILED", failure.getMessage(), true);
+            MachineCandidateSubmission.RunSnapshot run = decompositionCandidates.find(pending.id()).orElse(null); if (run != null) closeCandidateQuietly(pending.id(), run.submissionChannel());
+            failDecomposition(pending, input, "OPENCODE_DECOMPOSER_HANDOFF_FAILED", failure.getMessage(), run == null);
         }
-        return appendMessage(input.id(), DesignerActor.SYSTEM,
-                "任务规划师启动失败，需求版本仍保留，可人工重试。", "TERMINAL_ERROR",
-                revision.revision(), null);
+        return appendMessage(input.id(), DesignerActor.SYSTEM, "任务规划师启动失败，需求版本仍保留，可人工重试。",
+                "TERMINAL_ERROR", revision.revision(), null);
     }
 
+    private DesignerMessageRow dispatchClassicJsonDecomposer(
+            TaskDecompositionRow pending, DesignerSessionRow input,
+            DesignRequirementRevisionRow revision, ProjectRow project, boolean explicitRetry) {
+        ModelResponseMode mode = preferredResponseMode();
+        OpenCodeClient.OpenCodeSession remote = openCode.createSession(
+                Path.of(project.rootPath()), "OpenCode Loopper Task Decomposer (READ_ONLY)",
+                responseModel(mode), OpenCodeClient.SessionProfile.DECOMPOSER_READ_ONLY);
+        TaskDecompositionRow transport = decompositionTransport(
+                pending, true, mode, schemaId(mode, OpenCodeStructuredSchemas.DECOMPOSITION_SEMANTIC_V2), false);
+        transport = decompositionTransport(
+                transport, false, mode, schemaId(mode, OpenCodeStructuredSchemas.DECOMPOSITION_FINAL_V1), false);
+        TaskDecompositionRow running = updateDecomposition(
+                transport, TaskDecompositionState.RUNNING, null, null, "[]", "{}",
+                remote.id(), "RUNNING", 0, 0, null, null, StructuredModelStep.PLANNING, null);
+        DesignerSessionRow session = updateDesignerProjection(
+                get(input.id()), DesignerSessionState.RUNNING, DesignWorkflowPhase.DECOMPOSING,
+                remote.id(), "RUNNING", input.designRevision(), 0, revision.revision(), null);
+        if (!consumeModelCall(session, revision, "DECOMPOSER_MODEL_CALL_LIMIT")) {
+            runtimeControl.abortQuietly(remote.id(), input.projectId());
+            return appendMessage(session.id(), DesignerActor.SYSTEM,
+                    "需求版本的 " + revision.maxModelCalls() + " 次自动模型调用预算已耗尽，任务拆解已停止。",
+                    "TERMINAL_ERROR", revision.revision(), null);
+        }
+        modelPrompts.submit(remote, decomposerPlanningPrompt(session, project, revision, explicitRetry),
+                running.planningResponseMode(), running.planningResponseSchemaId(), session.id(), null);
+        publish(session, "STATUS", DesignerActor.DECOMPOSER, true, "",
+                "任务规划师正在使用回滚 JSON 通道规划包边界、依赖与需求覆盖映射");
+        return appendMessage(session.id(), DesignerActor.SYSTEM,
+                "完整需求版本 R" + revision.revision() + " 已冻结并交给独立只读任务规划师（JSON 回滚通道）。",
+                "PENDING_HANDOFF", revision.revision(), null);
+    }
+
+    private DesignerMessageRow dispatchInternalMcpDecomposer(TaskDecompositionRow pending, DesignerSessionRow input,
+            DesignRequirementRevisionRow revision, ProjectRow project, boolean explicitRetry) {
+        OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()),
+                "OpenCode Loopper Task Decomposer candidate (READ_ONLY)", responseModel(ModelResponseMode.TEXT_MARKER),
+                OpenCodeClient.SessionProfile.DECOMPOSER_CANDIDATE_READ_ONLY);
+        TaskDecompositionRow running = updateDecomposition(pending, TaskDecompositionState.RUNNING,
+                null, null, "[]", "{}", remote.id(), "RUNNING", 0, 0, null, null);
+        MachineCandidateSubmission.RunSnapshot run;
+        try {
+            run = decompositionCandidates.open(running, revision, remote, MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP);
+        } catch (ConflictException unavailable) {
+            if (!Set.of("CANDIDATE_RUNTIME_BINDING_UNAVAILABLE", "CANDIDATE_MANAGED_RUNTIME_REQUIRED", "CANDIDATE_RUNTIME_GENERATION_STALE",
+                    "CANDIDATE_RUNTIME_BINDING_STALE").contains(unavailable.code())) throw unavailable;
+            openCode.abortWithConfirmation(remote);
+            return dispatchLegacyDecomposer(getDecomposition(running.id()), input, revision, project,
+                    explicitRetry, "当前 OpenCode 不属于已连接的受管 MCP 代次，已使用显式进程内兼容通道");
+        }
+        DesignerSessionRow session = updateDesignerProjection(get(input.id()), DesignerSessionState.RUNNING, DesignWorkflowPhase.DECOMPOSING,
+                remote.id(), "RUNNING", input.designRevision(), 0, revision.revision(), null);
+        if (!consumeModelCall(session, revision, "DECOMPOSER_MODEL_CALL_LIMIT")) {
+            decompositionCandidates.close(running.id(), MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP);
+            runtimeControl.abortQuietly(remote.id(), input.projectId());
+            return appendMessage(session.id(), DesignerActor.SYSTEM, "需求版本的 " + MAX_MODEL_CALLS
+                    + " 次自动模型调用预算已耗尽，任务拆解已停止。", "TERMINAL_ERROR", revision.revision(), null);
+        }
+        String tool = remote.internalMcpServer() + "_" + InternalMcpContractCatalog.TOOL_NAME;
+        modelPrompts.submit(remote, decompositionPrompts.candidate(revision, project.rootPath(), run.runId(),
+                run.version(), run.contractVersion(), tool), ModelResponseMode.TEXT_MARKER.name(), null, session.id(), null);
+        publish(session, "STATUS", DesignerActor.DECOMPOSER, true, "", "任务规划师正在同一只读 Session 中提交并修正候选；工具提交不计模型调用");
+        return appendMessage(session.id(), DesignerActor.SYSTEM,
+                "完整需求版本 R" + revision.revision() + " 已冻结并交给内部 MCP 候选校验回路。", "PENDING_HANDOFF", revision.revision(), null);
+    }
+    private DesignerMessageRow dispatchLegacyDecomposer(TaskDecompositionRow current, DesignerSessionRow input,
+            DesignRequirementRevisionRow revision, ProjectRow project, boolean explicitRetry, String reason) {
+        OpenCodeClient.OpenCodeSession remote = openCode.createSession(Path.of(project.rootPath()), "OpenCode Loopper Task Decomposer legacy candidate (READ_ONLY)",
+                responseModel(ModelResponseMode.TEXT_MARKER), OpenCodeClient.SessionProfile.DECOMPOSER_READ_ONLY);
+        TaskDecompositionRow running = updateDecomposition(current, TaskDecompositionState.RUNNING,
+                current.resultType(), current.normalizedGoal(), current.globalConstraintsJson(), current.planJson(),
+                remote.id(), "RUNNING", current.repairCount(), current.transportRetryCount(), null, null);
+        decompositionCandidates.open(running, revision, remote, MachineCandidateSubmission.SubmissionChannel.IN_PROCESS_LEGACY);
+        DesignerSessionRow session = updateDesignerProjection(get(input.id()), DesignerSessionState.RUNNING, DesignWorkflowPhase.DECOMPOSING,
+                remote.id(), "RUNNING", input.designRevision(), 0, revision.revision(), null);
+        if (!consumeModelCall(session, revision, "DECOMPOSER_MODEL_CALL_LIMIT")) {
+            decompositionCandidates.close(running.id(), MachineCandidateSubmission.SubmissionChannel.IN_PROCESS_LEGACY);
+            runtimeControl.abortQuietly(remote.id(), input.projectId());
+            return appendMessage(session.id(), DesignerActor.SYSTEM, "需求版本的 " + MAX_MODEL_CALLS
+                    + " 次自动模型调用预算已耗尽，任务拆解已停止。", "TERMINAL_ERROR", revision.revision(), null);
+        }
+        modelPrompts.submit(remote, decompositionPrompts.planning(session, project, revision, explicitRetry),
+                ModelResponseMode.TEXT_MARKER.name(), null, session.id(), null);
+        publish(session, "STATUS", DesignerActor.DECOMPOSER, true, "", reason);
+        return appendMessage(session.id(), DesignerActor.SYSTEM, "完整需求版本 R" + revision.revision()
+                + " 已冻结并交给独立只读任务规划师（兼容提交通道）。", "PENDING_HANDOFF", revision.revision(), null);
+    }
     private void pollDecomposer(TaskDecompositionRow decomposition) {
         DesignerSessionRow session = get(decomposition.designerSessionId());
         DesignRequirementRevisionRow revision = getRequirement(decomposition.requirementRevisionId());
@@ -1588,15 +1633,13 @@ public class DesignerSessionService {
                 decomposition.externalSessionId(), Path.of(project.rootPath()));
         try {
             requirementDraftGuard.requireUnchanged(session, revision.sourceDraftVersion());
+            if (pollCandidateDecomposer(decomposition, session, revision, project, remote)) return;
             if (!blank(decomposition.planningJson()) && Set.of(StructuredModelStep.GENERATING_JSON.name(),
-                    StructuredModelStep.REPAIRING_JSON.name(), StructuredModelStep.SERVER_COMPILING.name())
-                    .contains(decomposition.workflowStep())) {
+                    StructuredModelStep.REPAIRING_JSON.name(), StructuredModelStep.SERVER_COMPILING.name()).contains(decomposition.workflowStep())) {
                 runtimeControl.abortQuietly(remote.id(), session.projectId());
-                DecompositionPlanEnvelope plan = readDecompositionPlan(decomposition.planningJson());
-                TaskDecompositionRow recovered = markDecompositionServerCompiled(decomposition,
-                        decomposition.planningJson());
-                appendMessage(session.id(), DesignerActor.VALIDATOR,
-                        "检测到升级前已冻结拆解规划，已停止旧 final Session 并由服务端直接编译。",
+                DecompositionPlanEnvelope plan = decompositionOutputs.readPlan(decomposition.planningJson());
+                TaskDecompositionRow recovered = markDecompositionServerCompiled(decomposition, decomposition.planningJson());
+                appendMessage(session.id(), DesignerActor.VALIDATOR, "检测到升级前已冻结拆解规划，已停止旧 final Session 并由服务端直接编译。",
                         "NORMALIZED", revision.revision(), null);
                 handleDecompositionOutput(recovered, session, remote, write(plan.toEnvelope()));
                 return;
@@ -1604,42 +1647,33 @@ public class DesignerSessionService {
             List<OpenCodeClient.PendingQuestion> questions = openCode.pendingQuestions(remote);
             if (!questions.isEmpty()) {
                 questions.forEach(question -> { try { openCode.rejectQuestion(remote, question.id()); } catch (RuntimeException ignored) { } });
-                decompositionRejected(decomposition, session, remote, "DECOMPOSER_INTERACTION_FORBIDDEN",
-                        "Task Decomposer must return NEEDS_INPUT instead of asking a model-side question");
+                decompositionRejected(decomposition, session, remote, "DECOMPOSER_INTERACTION_FORBIDDEN", "Task Decomposer must return NEEDS_INPUT instead of asking a model-side question");
                 return;
             }
             if (timedOut(decomposition.updatedAt())) {
                 try { openCode.abort(remote); } catch (RuntimeException ignored) { }
-                failDecomposition(decomposition, session, "OPENCODE_DECOMPOSER_TIMEOUT",
-                        "Task Decomposer exceeded " + defaults.getDesignerTimeout(), true);
+                failDecomposition(decomposition, session, "OPENCODE_DECOMPOSER_TIMEOUT", "Task Decomposer exceeded " + defaults.getDesignerTimeout(), true);
                 return;
             }
             OpenCodeClient.SessionStatus status = openCode.sessionStatus(remote);
             if (status.retrying()) {
                 if (!same(decomposition.externalSessionState(), status.state())) {
                     updateDecomposition(decomposition, TaskDecompositionState.RUNNING, decomposition.resultType(),
-                            decomposition.normalizedGoal(), decomposition.globalConstraintsJson(), decomposition.planJson(),
-                            remote.id(), status.state(), decomposition.repairCount(), decomposition.transportRetryCount(),
-                            decomposition.lastErrorCode(), decomposition.lastErrorDetail());
-                    publish(session, "STATUS", DesignerActor.DECOMPOSER, true, "",
-                            "任务规划师正在等待 Provider 瞬态重试恢复");
+                            decomposition.normalizedGoal(), decomposition.globalConstraintsJson(), decomposition.planJson(), remote.id(), status.state(),
+                            decomposition.repairCount(), decomposition.transportRetryCount(), decomposition.lastErrorCode(), decomposition.lastErrorDetail());
+                    publish(session, "STATUS", DesignerActor.DECOMPOSER, true, "", "任务规划师正在等待 Provider 瞬态重试恢复");
                 }
             } else if (status.failed()) {
-                failDecomposition(decomposition, session, "OPENCODE_DECOMPOSER_" + safeState(status.state()),
-                        statusDetail(status), true);
+                failDecomposition(decomposition, session, "OPENCODE_DECOMPOSER_" + safeState(status.state()), statusDetail(status), true);
             } else if (status.completed()) {
-                if (StructuredModelStep.PLANNING.name().equals(decomposition.workflowStep())) {
-                    handleDecompositionPlanningOutput(decomposition, session, remote,
-                            modelPrompts.responseOutput(remote, decomposition.planningResponseMode()));
-                } else {
-                    handleDecompositionOutput(decomposition, session, remote,
-                            modelPrompts.responseOutput(remote, decomposition.finalResponseMode()));
-                }
+                if (StructuredModelStep.PLANNING.name().equals(decomposition.workflowStep())) handleDecompositionPlanningOutput(
+                        decomposition, session, remote, modelPrompts.responseOutput(remote, decomposition.planningResponseMode()));
+                else handleDecompositionOutput(decomposition, session, remote,
+                        modelPrompts.responseOutput(remote, decomposition.finalResponseMode()));
             } else if (!same(decomposition.externalSessionState(), status.state())) {
                 updateDecomposition(decomposition, TaskDecompositionState.RUNNING, decomposition.resultType(),
-                        decomposition.normalizedGoal(), decomposition.globalConstraintsJson(), decomposition.planJson(),
-                        remote.id(), status.state(), decomposition.repairCount(), decomposition.transportRetryCount(),
-                        decomposition.lastErrorCode(), decomposition.lastErrorDetail());
+                        decomposition.normalizedGoal(), decomposition.globalConstraintsJson(), decomposition.planJson(), remote.id(), status.state(),
+                        decomposition.repairCount(), decomposition.transportRetryCount(), decomposition.lastErrorCode(), decomposition.lastErrorDetail());
                 publish(session, "STATUS", DesignerActor.DECOMPOSER, true, "", "任务规划师正在生成结构化拆解计划");
             }
         } catch (ConflictException stale) {
@@ -1647,11 +1681,121 @@ public class DesignerSessionService {
         } catch (SessionFailure failure) {
             if (recoverDecompositionToolLoop(decomposition, session, remote, failure)) return;
             failDecomposition(decomposition, session, failure.code(), failure.getMessage(), true);
-        } catch (RuntimeException failure) {
-            failDecomposition(decomposition, session, "OPENCODE_DECOMPOSER_STATUS_FAILED", failure.getMessage(), true);
-        }
+        } catch (RuntimeException failure) { failDecomposition(decomposition, session, "OPENCODE_DECOMPOSER_STATUS_FAILED", failure.getMessage(), true); }
     }
-
+    private boolean pollCandidateDecomposer(TaskDecompositionRow input, DesignerSessionRow session,
+            DesignRequirementRevisionRow revision, ProjectRow project, OpenCodeClient.OpenCodeSession remote) {
+        MachineCandidateSubmission.RunSnapshot run = decompositionCandidates.find(input.id()).orElse(null);
+        if (run == null) return false;
+        try {
+            if (run.state() == MachineCandidateRunState.ACCEPTED) {
+                completeAcceptedDecompositionCandidate(input, session, revision, remote); return true;
+            }
+            if (run.state() == MachineCandidateRunState.WAITING_INPUT) {
+                completeWaitingDecompositionCandidate(input, session, revision, remote); return true;
+            }
+            if (run.state() == MachineCandidateRunState.CLOSED) {
+                if (run.submissionChannel() == MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP) {
+                    dispatchLegacyDecomposer(getDecomposition(input.id()), session, revision, project, true, "内部 MCP 候选代次已安全关闭，正在全新 Session 中恢复兼容提交");
+                } else failDecomposition(input, session, "DECOMPOSER_CANDIDATE_RUN_CLOSED", "进程内候选运行已关闭，未恢复旧代次", false);
+                return true;
+            }
+            List<OpenCodeClient.PendingQuestion> questions = openCode.pendingQuestions(remote);
+            if (!questions.isEmpty()) {
+                questions.forEach(question -> { try { openCode.rejectQuestion(remote, question.id()); } catch (RuntimeException ignored) { } });
+                closeCandidateQuietly(input.id(), run.submissionChannel());
+                failDecomposition(input, session, "DECOMPOSER_INTERACTION_FORBIDDEN",
+                        "Task Decomposer must submit NEEDS_INPUT instead of asking a model-side question", false);
+                return true;
+            }
+            if (timedOut(input.updatedAt())) {
+                openCode.abortWithConfirmation(remote); closeCandidateQuietly(input.id(), run.submissionChannel());
+                failDecomposition(input, session, "OPENCODE_DECOMPOSER_TIMEOUT",
+                        "Task Decomposer exceeded " + defaults.getDesignerTimeout(), false);
+                return true;
+            }
+            OpenCodeClient.SessionStatus status = openCode.sessionStatus(remote);
+            if (status.retrying()) {
+                updateDesignerProjection(get(session.id()), DesignerSessionState.RUNNING, DesignWorkflowPhase.DECOMPOSING,
+                        remote.id(), status.state(), session.designRevision(), session.redesignCount(), revision.revision(), null);
+                publish(session, "STATUS", DesignerActor.DECOMPOSER, true, "", "任务规划师正在等待 Provider 瞬态重试恢复；候选运行保持原代次");
+                return true;
+            }
+            if (status.failed()) {
+                closeCandidateQuietly(input.id(), run.submissionChannel()); failDecomposition(input, session,
+                        "OPENCODE_DECOMPOSER_" + safeState(status.state()), statusDetail(status), false); return true;
+            }
+            if (!status.completed()) {
+                if (!same(get(session.id()).externalSessionState(), status.state())) updateDesignerProjection(get(session.id()),
+                        DesignerSessionState.RUNNING, DesignWorkflowPhase.DECOMPOSING, remote.id(), status.state(),
+                        session.designRevision(), session.redesignCount(), revision.revision(), null);
+                return true;
+            }
+            if (run.submissionChannel() == MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP) {
+                openCode.abortWithConfirmation(remote); decompositionCandidates.close(input.id(), run.submissionChannel());
+                dispatchLegacyDecomposer(getDecomposition(input.id()), session, revision, project, true,
+                        "内部 MCP Session 已终止但未提交候选，正在全新 Session 中使用兼容提交");
+                return true;
+            }
+            MachineCandidateSubmission.SubmissionResult result = decompositionCandidates.submitLegacy(input.id(),
+                    modelPrompts.responseOutput(remote, ModelResponseMode.TEXT_MARKER.name()));
+            if (result.outcome() == MachineCandidateOutcome.ACCEPTED) completeAcceptedDecompositionCandidate(input, session, revision, remote);
+            else if (result.outcome() == MachineCandidateOutcome.WAITING_INPUT) completeWaitingDecompositionCandidate(input, session, revision, remote);
+            else retryLegacyDecompositionCandidate(input, session, revision, remote, result);
+        } catch (ConflictException stale) {
+            closeCandidateQuietly(input.id(), run.submissionChannel()); failDecomposition(input, session, stale.code(), stale.getMessage(), false);
+        } catch (SessionFailure failure) {
+            closeCandidateQuietly(input.id(), run.submissionChannel()); failDecomposition(input, session, failure.code(), failure.getMessage(), false);
+        } catch (RuntimeException failure) {
+            closeCandidateQuietly(input.id(), run.submissionChannel()); failDecomposition(input, session,
+                    "OPENCODE_DECOMPOSER_STATUS_FAILED", failure.getMessage(), false);
+        }
+        return true;
+    }
+    private void completeAcceptedDecompositionCandidate(TaskDecompositionRow input, DesignerSessionRow session,
+            DesignRequirementRevisionRow revision, OpenCodeClient.OpenCodeSession remote) {
+        TaskDecompositionRow accepted = getDecomposition(input.id());
+        if (blank(accepted.planningJson())) { failDecomposition(accepted, session, "DECOMPOSER_ACCEPTED_PLAN_MISSING",
+                "已接受候选缺少原子冻结的服务端规划", false); return; }
+        DecompositionPlanEnvelope plan = decompositionOutputs.readPlan(accepted.planningJson()); appendMessage(session.id(), DesignerActor.VALIDATOR, "候选规划已通过确定性校验并原子冻结；服务端正在生成最终拆解对象。",
+                "NORMALIZED", revision.revision(), null);
+        handleDecompositionOutput(accepted, session, remote, write(plan.toEnvelope()));
+    }
+    private void completeWaitingDecompositionCandidate(TaskDecompositionRow input, DesignerSessionRow session,
+            DesignRequirementRevisionRow revision, OpenCodeClient.OpenCodeSession remote) {
+        MachineCandidateSubmission.SubmissionResult terminal = decompositionCandidates.terminal(input.id()).orElseThrow(
+                () -> new ConflictException("DECOMPOSER_TERMINAL_RESPONSE_MISSING", "候选运行缺少安全终态响应"));
+        String detail = terminal.problems().stream().map(problem -> problem.code()
+                        + (blank(problem.pointer()) ? "" : " " + problem.pointer()) + ": " + problem.detail())
+                .collect(java.util.stream.Collectors.joining("\n"));
+        boolean multiTask = terminal.problems().stream().anyMatch(problem -> "DECOMPOSITION_MULTI_TASK_REQUIRED".equals(problem.code()));
+        TaskDecompositionRow current = getDecomposition(input.id());
+        TaskDecompositionRow validating = updateDecomposition(current, TaskDecompositionState.VALIDATING, multiTask ? "MULTI_TASK_REQUIRED" : "NEEDS_INPUT",
+                current.normalizedGoal(), current.globalConstraintsJson(), current.planJson(), remote.id(), "COMPLETED", current.repairCount(), current.transportRetryCount(), null, null);
+        TaskDecompositionState target = multiTask ? TaskDecompositionState.MULTI_TASK_REQUIRED : TaskDecompositionState.NEEDS_INPUT; updateDecomposition(validating, target,
+                multiTask ? "MULTI_TASK_REQUIRED" : "NEEDS_INPUT", validating.normalizedGoal(),
+                validating.globalConstraintsJson(), validating.planJson(), remote.id(), "COMPLETED", validating.repairCount(),
+                validating.transportRetryCount(), multiTask ? "MULTI_TASK_REQUIRED" : "DECOMPOSITION_NEEDS_INPUT", detail);
+        appendMessage(session.id(), DesignerActor.DECOMPOSER, (multiTask ? "该需求超出单个 Task 的安全边界：\n" : "拆解前仍需补充需求：\n")
+                + detail, multiTask ? "MULTI_TASK_REQUIRED" : "NEEDS_INPUT", revision.revision(), null);
+        waitForDesignInput(session, revision, null, multiTask ? "MULTI_TASK_REQUIRED" : "DECOMPOSITION_NEEDS_INPUT", detail);
+    }
+    private void retryLegacyDecompositionCandidate(TaskDecompositionRow input, DesignerSessionRow session,
+            DesignRequirementRevisionRow revision, OpenCodeClient.OpenCodeSession remote,
+            MachineCandidateSubmission.SubmissionResult result) {
+        MachineCandidateSubmission.Problem first = result.problems().getFirst();
+        appendMessage(session.id(), DesignerActor.VALIDATOR, "候选提交校验未通过（" + first.code() + "）：「" + first.detail()
+                + "」。提交本身未增加模型调用，正在请求同一兼容 Session 修正。", "RETRYABLE_ERROR", revision.revision(), null);
+        if (!consumeModelCall(session, revision, "DECOMPOSER_MODEL_CALL_LIMIT")) return;
+        modelPrompts.submit(remote, decompositionPrompts.planningRepair(input, revision, first.code(), first.detail()),
+                ModelResponseMode.TEXT_MARKER.name(), null, session.id(), null);
+        updateDesignerProjection(get(session.id()), DesignerSessionState.RUNNING, DesignWorkflowPhase.DECOMPOSING,
+                remote.id(), "CANDIDATE_REPAIRING_" + result.attemptOrdinal(), session.designRevision(),
+                session.redesignCount(), revision.revision(), null);
+    }
+    private void closeCandidateQuietly(String ownerId, MachineCandidateSubmission.SubmissionChannel channel) {
+        try { decompositionCandidates.close(ownerId, channel); } catch (RuntimeException ignored) { }
+    }
     private void handleDecompositionPlanningOutput(TaskDecompositionRow input, DesignerSessionRow session,
                                                    OpenCodeClient.OpenCodeSession remote, String output) {
         DecompositionPlanEnvelope plan;
@@ -1668,7 +1812,7 @@ public class DesignerSessionService {
             }
             DesignRequirementRevisionRow revision = getRequirement(input.requirementRevisionId());
             AiOutputExtractor.ExtractionResult<DecompositionPlanEnvelope> extracted =
-                    parseDecompositionPlan(output, revision);
+                    decompositionOutputs.parsePlan(output, revision);
             extracted = withAdditionalNormalizations(extracted, patchNormalizations);
             plan = extracted.value();
             recordNormalization(session, DesignerActor.DECOMPOSER, extracted,
@@ -1703,7 +1847,7 @@ public class DesignerSessionService {
         try {
             DesignRequirementRevisionRow revision = getRequirement(input.requirementRevisionId());
             AiOutputExtractor.ExtractionResult<DecompositionEnvelope> extracted =
-                    parseDecomposition(output, revision, input.planningJson());
+                    decompositionOutputs.parseFinal(output, revision, input.planningJson());
             envelope = extracted.value();
             recordNormalization(session, DesignerActor.DECOMPOSER, extracted,
                     revision.revision(), null);
@@ -2069,6 +2213,24 @@ public class DesignerSessionService {
             acceptanceWorkflow.freeze(pending, workPackage, revision.requirementText(), source.content(),
                     strings(workPackage.scopeInJson()), strings(workPackage.scopeOutJson()), strings(workPackage.deliverablesJson()), role, now);
             DesignerAcceptanceWorkflow.RoutingResult routing = acceptanceWorkflow.routeCurrent(pending.id(), directSoftwareMode(session.id()), role.rolePackVersion());
+            if (RolePackRegistry.VERSION.equals(role.rolePackVersion())) {
+                DesignAcceptancePlanningRow planning = acceptanceWorkflow.find(pending.id()).orElseThrow();
+                AcceptanceClosedChoiceCandidateCoordinator.Decision decision =
+                        acceptanceCandidates.decide(planning, routing);
+                if (decision.action() == AcceptanceClosedChoiceCandidateCoordinator.Action.SERVER_DIRECT) {
+                    runServerDirectCompilation(pending, session, workPackage, source.content(), role);
+                    return;
+                }
+                if (decision.action() == AcceptanceClosedChoiceCandidateCoordinator.Action.WAITING_INPUT) {
+                    waitAcceptanceCandidate(pending, session, workPackage, decision.reasonCode(),
+                            "冻结的 v7 验收规划不是可安全枚举的真实同分闭集", List.of());
+                    return;
+                }
+                if (decision.action() == AcceptanceClosedChoiceCandidateCoordinator.Action.OPEN_INTERNAL_MCP) {
+                    dispatchAcceptanceCandidate(pending, session, revision, workPackage, planning, routing);
+                    return;
+                }
+            }
             if (v6Acceptance && !routing.compilerRequired()) {
                 runServerDirectCompilation(pending, session, workPackage, source.content(), role);
                 return;
@@ -2109,9 +2271,109 @@ public class DesignerSessionService {
         }
     }
 
+    private void dispatchAcceptanceCandidate(
+            LoopSpecCompilationRow pending, DesignerSessionRow session,
+            DesignRequirementRevisionRow revision, DesignWorkPackageRow workPackage,
+            DesignAcceptancePlanningRow planning,
+            DesignerAcceptanceWorkflow.RoutingResult routing) {
+        ProjectRow project = designProject(session);
+        OpenCodeClient.OpenCodeSession remote = null;
+        boolean opened = false;
+        try {
+            remote = acceptanceCandidates.createInternal(
+                    Path.of(project.rootPath()), responseModel(ModelResponseMode.TEXT_MARKER));
+            LoopSpecCompilationRow running = updateCompilation(
+                    pending, LoopSpecCompilationState.RUNNING, remote.id(), "CANDIDATE_RUNNING", 0,
+                    null, null, session.projectId(), null);
+            DesignerAcceptanceCandidateOrchestrator.Start start =
+                    acceptanceCandidates.openInternal(running, planning, routing, remote);
+            opened = true;
+            DesignerSessionRow current = updateDesignerProjection(
+                    get(session.id()), DesignerSessionState.RUNNING, DesignWorkflowPhase.COMPILING,
+                    remote.id(), "CANDIDATE_RUNNING", session.designRevision(), session.redesignCount(),
+                    revision.revision(), workPackage.packageId());
+            if (!consumeModelCall(current, revision, "WORK_PACKAGE_MODEL_CALL_LIMIT")) {
+                acceptanceCandidates.closeQuietly(
+                        running.id(), MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP);
+                runtimeControl.abortQuietly(remote.id(), session.projectId());
+                return;
+            }
+            modelPrompts.submit(remote, start.prompt(), ModelResponseMode.TEXT_MARKER.name(), null,
+                    session.id(), workPackage.packageId());
+            publish(current, "STATUS", DesignerActor.COMPILER, true, "",
+                    workPackage.packageId() + " 正在同一无工具 Session 中提交 v7 验收闭集候选");
+        } catch (ConflictException unavailable) {
+            if (!opened && acceptanceCandidateFallbackEligible(unavailable.code()) && remote != null) {
+                openCode.abortWithConfirmation(remote);
+                dispatchLegacyAcceptanceCandidate(getCompilation(pending.id()), session, revision,
+                        workPackage, planning, routing, null);
+                return;
+            }
+            if (opened) acceptanceCandidates.closeQuietly(
+                    pending.id(), MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP);
+            failPackageCompilation(getCompilation(pending.id()), session,
+                    unavailable.code(), unavailable.getMessage(), false);
+        } catch (SessionFailure unavailable) {
+            if (!opened && acceptanceCandidateFallbackEligible(unavailable.code())) {
+                if (remote != null) openCode.abortWithConfirmation(remote);
+                dispatchLegacyAcceptanceCandidate(getCompilation(pending.id()), session, revision,
+                        workPackage, planning, routing, null);
+                return;
+            }
+            failPackageCompilation(getCompilation(pending.id()), session,
+                    unavailable.code(), unavailable.getMessage(), false);
+        } catch (RuntimeException failure) {
+            if (opened) acceptanceCandidates.closeQuietly(
+                    pending.id(), MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP);
+            failPackageCompilation(getCompilation(pending.id()), session,
+                    "OPENCODE_ACCEPTANCE_CANDIDATE_HANDOFF_FAILED", failure.getMessage(), false);
+        }
+    }
+
+    private void dispatchLegacyAcceptanceCandidate(
+            LoopSpecCompilationRow current, DesignerSessionRow session,
+            DesignRequirementRevisionRow revision, DesignWorkPackageRow workPackage,
+            DesignAcceptancePlanningRow planning,
+            DesignerAcceptanceWorkflow.RoutingResult routing,
+            MachineCandidateSubmission.SubmissionResult rejected) {
+        try {
+            ProjectRow project = designProject(session);
+            OpenCodeClient.OpenCodeSession remote = acceptanceCandidates.createLegacy(
+                    Path.of(project.rootPath()), responseModel(ModelResponseMode.TEXT_MARKER));
+            LoopSpecCompilationRow running = updateCompilation(
+                    current, LoopSpecCompilationState.RUNNING, remote.id(), "CANDIDATE_LEGACY_RUNNING",
+                    current.repairCount(), null, null, session.projectId(), current.compiledPackageJson());
+            DesignerAcceptanceCandidateOrchestrator.Start start =
+                    acceptanceCandidates.openLegacy(running, planning, routing, remote, rejected);
+            DesignerSessionRow projected = updateDesignerProjection(
+                    get(session.id()), DesignerSessionState.RUNNING, DesignWorkflowPhase.COMPILING,
+                    remote.id(), "CANDIDATE_LEGACY_RUNNING", session.designRevision(),
+                    session.redesignCount(), revision.revision(), workPackage.packageId());
+            if (!consumeModelCall(projected, revision, "WORK_PACKAGE_MODEL_CALL_LIMIT")) {
+                acceptanceCandidates.closeQuietly(
+                        running.id(), MachineCandidateSubmission.SubmissionChannel.IN_PROCESS_LEGACY);
+                runtimeControl.abortQuietly(remote.id(), session.projectId());
+                return;
+            }
+            modelPrompts.submit(remote, start.prompt(), ModelResponseMode.TEXT_MARKER.name(), null,
+                    session.id(), workPackage.packageId());
+            publish(projected, "STATUS", DesignerActor.COMPILER, true, "",
+                    workPackage.packageId() + " 正在全新无工具 Session 中使用进程内兼容候选通道");
+        } catch (RuntimeException failure) {
+            failPackageCompilation(getCompilation(current.id()), session,
+                    "OPENCODE_ACCEPTANCE_LEGACY_HANDOFF_FAILED", failure.getMessage(), false);
+        }
+    }
+
+    private static boolean acceptanceCandidateFallbackEligible(String code) {
+        return Set.of("CANDIDATE_RUNTIME_BINDING_UNAVAILABLE", "CANDIDATE_MANAGED_RUNTIME_REQUIRED",
+                "CANDIDATE_RUNTIME_GENERATION_STALE", "CANDIDATE_RUNTIME_BINDING_STALE",
+                "OPENCODE_INTERNAL_MCP_NOT_READY", "OPENCODE_INTERNAL_MCP_UNAVAILABLE").contains(code);
+    }
+
     private void runServerDirectCompilation(LoopSpecCompilationRow pending, DesignerSessionRow session,
-                                            DesignWorkPackageRow workPackage, String design,
-                                            WorkPackageRoleService.View role) {
+                                    DesignWorkPackageRow workPackage, String design,
+                                    WorkPackageRoleService.View role) {
         try {
             LoopSpecCompilationRow running = LoopSpecCompilationState.RUNNING.name().equals(pending.state())
                     ? pending : updateCompilation(pending, LoopSpecCompilationState.RUNNING,
@@ -2286,6 +2548,7 @@ public class DesignerSessionService {
                     designMessage(workPackage).content(), workPackageRoles.get(workPackage));
             return;
         }
+        if (pollAcceptanceCandidate(compilation, session)) return;
         ProjectRow project = projects.get(session.projectId());
         OpenCodeClient.OpenCodeSession remote = new OpenCodeClient.OpenCodeSession(
                 compilation.externalSessionId(), Path.of(project.rootPath()));
@@ -2355,6 +2618,116 @@ public class DesignerSessionService {
         } catch (RuntimeException failure) {
             failCompilation(compilation, session, "OPENCODE_COMPILER_STATUS_FAILED", failure.getMessage());
         }
+    }
+
+    private boolean pollAcceptanceCandidate(
+            LoopSpecCompilationRow compilation, DesignerSessionRow session) {
+        DesignAcceptancePlanningRow planning = acceptanceWorkflow.find(compilation.id()).orElse(null);
+        if (planning == null || !DesignerAcceptancePlanning.CONTRACT_VERSION_V7.equals(
+                planning.contractVersion())) return false;
+        DesignerAcceptanceWorkflow.RoutingResult routing = acceptanceWorkflow.frozenRoute(compilation.id());
+        ProjectRow project = projects.get(session.projectId());
+        DesignerAcceptanceCandidateOrchestrator.Poll polled = acceptanceCandidates.poll(
+                compilation, planning, routing, Path.of(project.rootPath()), timedOut(compilation.updatedAt()));
+        if (polled.action() == DesignerAcceptanceCandidateOrchestrator.Action.NONE) return false;
+        DesignRequirementRevisionRow revision = currentRequirement(session.id());
+        DesignWorkPackageRow workPackage = requireCurrentPackage(session, compilation.workPackageId());
+        switch (polled.action()) {
+            case RUNNING -> {
+                DesignerSessionRow current = get(session.id());
+                if (!same(current.externalSessionState(), polled.state())) {
+                    updateDesignerProjection(current, DesignerSessionState.RUNNING,
+                            DesignWorkflowPhase.COMPILING, polled.remote().id(), polled.state(),
+                            current.designRevision(), current.redesignCount(), revision.revision(),
+                            workPackage.packageId());
+                }
+            }
+            case ACCEPTED -> completeAcceptedAcceptanceCandidate(
+                    compilation, session, workPackage, polled.remote());
+            case WAITING_INPUT -> waitAcceptanceCandidate(
+                    compilation, session, workPackage, "ACCEPTANCE_CANDIDATE_WAITING_INPUT",
+                    candidateProblems(polled.submission()), polled.submission().problems());
+            case START_LEGACY -> dispatchLegacyAcceptanceCandidate(
+                    getCompilation(compilation.id()), session, revision, workPackage,
+                    planning, routing, null);
+            case REJECTED -> {
+                if (!consumeModelCall(session, revision, "WORK_PACKAGE_MODEL_CALL_LIMIT")) return true;
+                modelPrompts.submit(polled.remote(), polled.prompt(), ModelResponseMode.TEXT_MARKER.name(),
+                        null, session.id(), workPackage.packageId());
+                publish(session, "STATUS", DesignerActor.COMPILER, true, "",
+                        workPackage.packageId() + " 正在同一兼容 Session 中机械修正闭集选择");
+            }
+            case FAILED -> failPackageCompilation(
+                    getCompilation(compilation.id()), session, polled.code(), polled.detail(), false);
+            case NONE -> { }
+        }
+        return true;
+    }
+
+    private void completeAcceptedAcceptanceCandidate(
+            LoopSpecCompilationRow input, DesignerSessionRow session,
+            DesignWorkPackageRow workPackage, OpenCodeClient.OpenCodeSession remote) {
+        try {
+            LoopSpecCompilationRow compilation = getCompilation(input.id());
+            DesignAcceptancePlanningRow planning = acceptanceWorkflow.find(compilation.id()).orElseThrow();
+            WorkPackageRoleService.View role = workPackageRoles.get(workPackage);
+            DesignerAcceptanceWorkflow.BoundResult bound = acceptanceWorkflow.compileAcceptedCandidate(
+                    planning, workPackage, designMessage(workPackage).content(), role,
+                    strings(workPackage.scopeInJson()), strings(workPackage.scopeOutJson()),
+                    strings(workPackage.deliverablesJson()), packageStageLimit(session.id()),
+                    directSoftwareMode(session.id()));
+            recordNormalization(session, DesignerActor.COMPILER, bound.normalized(),
+                    session.currentRequirementRevision(), workPackage.packageId());
+            LoopSpecCompilationRow planned = updateCompilation(
+                    compilation, LoopSpecCompilationState.RUNNING, remote.id(), "CANDIDATE_ACCEPTED",
+                    compilation.repairCount(), null, null, session.projectId(),
+                    compilation.compiledPackageJson(), StructuredModelStep.SERVER_COMPILING,
+                    write(bound.plan()));
+            planned = markCompilationServerCompiled(planned, write(bound.plan()));
+            appendMessage(session.id(), DesignerActor.VALIDATOR,
+                    workPackage.packageId()
+                            + " 闭集候选已通过确定性校验并原子冻结；最终文本未参与编译。",
+                    "NORMALIZED", session.currentRequirementRevision(), workPackage.packageId());
+            handlePackageCompilationEnvelope(planned, session, remote, compilePackagePlan(bound.plan()));
+        } catch (RuntimeException failure) {
+            failPackageCompilation(getCompilation(input.id()), get(session.id()),
+                    failure instanceof ConflictException conflict ? conflict.code()
+                            : "SERVER_ACCEPTANCE_CANDIDATE_COMPILATION_FAILED",
+                    failure.getMessage(), false);
+        }
+    }
+
+    private void waitAcceptanceCandidate(
+            LoopSpecCompilationRow input, DesignerSessionRow session,
+            DesignWorkPackageRow workPackage, String code, String detail,
+            List<MachineCandidateSubmission.Problem> problems) {
+        LoopSpecCompilationRow compilation = getCompilation(input.id());
+        if (LoopSpecCompilationState.PENDING_HANDOFF.name().equals(compilation.state())) {
+            compilation = updateCompilation(compilation, LoopSpecCompilationState.RUNNING,
+                    null, "CANDIDATE_NOT_STARTED", compilation.repairCount(), null, null,
+                    session.projectId(), compilation.compiledPackageJson());
+        }
+        updateCompilation(compilation, LoopSpecCompilationState.DESIGN_INCOMPLETE,
+                compilation.externalSessionId(), "WAITING_INPUT", compilation.repairCount(), code,
+                safeMessage(detail), session.projectId(), compilation.compiledPackageJson());
+        DesignWorkPackageRow waiting = updateWorkPackage(
+                workPackage, DesignWorkPackageState.WAITING_INPUT,
+                workPackage.designerExternalSessionId(), workPackage.designerExternalSessionState(),
+                workPackage.designMessageId(), workPackage.designRevision(), workPackage.redesignCount(),
+                workPackage.designerTransportRetryCount(), workPackage.compilerSummary(),
+                workPackage.handoffSummary(), code, safeMessage(detail));
+        appendMessage(session.id(), DesignerActor.VALIDATOR,
+                workPackage.packageId() + " 验收闭集安全停止（" + code + "）：" + safeMessage(detail)
+                        + (problems.isEmpty() ? "" : "；候选问题已按有界安全响应保存。"),
+                "DESIGN_INCOMPLETE", session.currentRequirementRevision(), workPackage.packageId());
+        waitForDesignInput(session, currentRequirement(session.id()), waiting, code, detail);
+    }
+
+    private String candidateProblems(MachineCandidateSubmission.SubmissionResult result) {
+        return result.problems().stream().map(problem -> problem.code()
+                        + (blank(problem.pointer()) ? "" : " " + problem.pointer())
+                        + ": " + problem.detail())
+                .collect(java.util.stream.Collectors.joining("\n"));
     }
 
     private boolean recoverDecompositionToolLoop(TaskDecompositionRow row, DesignerSessionRow session,
@@ -3394,190 +3767,6 @@ public class DesignerSessionService {
                 "Compiler supplied criterion source entries that do not belong to the compiled LoopSpec");
     }
 
-    private AiOutputExtractor.ExtractionResult<DecompositionEnvelope> parseDecomposition(
-            String output, DesignRequirementRevisionRow revision, String planningJson) {
-        return aiOutputExtractor.extractJson(output, DECOMPOSITION_PAYLOAD, "DECOMPOSER_OUTPUT",
-                DecompositionEnvelope.class, DecompositionEnvelope::normalized, envelope -> {
-                    if (envelope == null || blank(envelope.status())) {
-                        throw new BadRequestException("DECOMPOSER_STATUS_MISSING", "Decomposer status is required");
-                    }
-                    if (!blank(planningJson)) {
-                        validateDecompositionAgainstPlan(readDecompositionPlan(planningJson), envelope);
-                    }
-                    validateDecomposition(envelope, revision);
-                });
-    }
-
-    private AiOutputExtractor.ExtractionResult<DecompositionPlanEnvelope> parseDecompositionPlan(
-            String output, DesignRequirementRevisionRow revision) {
-        if (output != null && Pattern.compile("\\\"outcome\\\"\\s*:", Pattern.CASE_INSENSITIVE)
-                .matcher(output).find()) {
-            AiOutputExtractor.ExtractionResult<CompactDecompositionPlan> compact = aiOutputExtractor.extractJson(
-                    output, DECOMPOSITION_PLAN_PAYLOAD, "DECOMPOSER_PLAN_OUTPUT",
-                    CompactDecompositionPlan.class, CompactDecompositionPlan::normalized, value -> {
-                        if (value == null || blank(value.outcome())) {
-                            throw new BadRequestException("DECOMPOSER_PLAN_OUTCOME_MISSING",
-                                    "Decomposer semantic outcome is required");
-                        }
-                    });
-            DecompositionPlanEnvelope compiled = compileCompactDecomposition(compact.value(), revision);
-            validateDecompositionPlan(compiled, revision);
-            List<String> notes = new ArrayList<>(compact.normalizations());
-            notes.add("STATUS_DERIVED");
-            notes.add("IDS_AND_REFERENCES_DERIVED");
-            if ("READY".equals(compact.value().outcome()) && !compact.value().designGaps().isEmpty()) {
-                notes.add("ADVISORY_GAPS_IGNORED");
-            }
-            return new AiOutputExtractor.ExtractionResult<>(compiled, compact.source(), List.copyOf(notes),
-                    write(compiled));
-        }
-        return aiOutputExtractor.extractJson(output, DECOMPOSITION_PLAN_PAYLOAD, "DECOMPOSER_PLAN_OUTPUT",
-                DecompositionPlanEnvelope.class,
-                envelope -> canonicalizeDecompositionPlan(envelope.normalized(), revision), envelope -> {
-                    if (envelope == null || blank(envelope.status())) {
-                        throw new BadRequestException("DECOMPOSER_PLAN_STATUS_MISSING",
-                                "Decomposer planning status is required");
-                    }
-                    validateDecompositionPlan(envelope, revision);
-                });
-    }
-
-    private DecompositionPlanEnvelope compileCompactDecomposition(CompactDecompositionPlan compact,
-                                                                  DesignRequirementRevisionRow revision) {
-        String outcome = compact.outcome();
-        if (!Set.of("READY", "NEEDS_INPUT", "MULTI_TASK_REQUIRED").contains(outcome))
-            AiSemanticContractCompiler.decompositionStatus(outcome, compact.workPackages().size());
-        if (!"READY".equals(outcome)) {
-            String status = "NEEDS_INPUT".equals(outcome) ? "NEEDS_INPUT" : "MULTI_TASK_REQUIRED";
-            DecompositionPlanEnvelope result = new DecompositionPlanEnvelope(status, compact.normalizedGoal(),
-                    List.of(), List.of(), List.of(), List.of(), compactDesignGaps(compact.designGaps()),
-                    compact.reason()).normalized();
-            validateDecompositionPlan(result, revision);
-            return result;
-        }
-        int packageCount = compact.workPackages().size();
-        String status = AiSemanticContractCompiler.decompositionStatus(outcome, packageCount);
-        List<GlobalConstraint> constraints = compact.globalConstraints().stream()
-                .map(item -> new GlobalConstraint(compactConstraintText(item), List.of())).toList();
-        List<DecomposedWorkPackage> packages = new ArrayList<>();
-        List<DependencyEvidence> dependencies = new ArrayList<>();
-        for (int index = 0; index < packageCount; index++) {
-            CompactWorkPackage item = compact.workPackages().get(index);
-            String packageId = AiSemanticContractCompiler.workPackageId(index);
-            List<String> dependsOn = new ArrayList<>();
-            for (JsonNode dependency : item.dependsOn()) {
-                int dependencyIndex;
-                String rationale = null;
-                if (dependency != null && dependency.isIntegralNumber()) {
-                    dependencyIndex = dependency.asInt();
-                } else if (dependency != null && dependency.isTextual()) {
-                    String reference = dependency.asText().trim();
-                    if (reference.matches("(?i)WP-[1-9][0-9]*")) {
-                        dependencyIndex = Integer.parseInt(reference.substring(3)) - 1;
-                    } else if (reference.matches("[0-9]+")) {
-                        dependencyIndex = Integer.parseInt(reference);
-                    } else {
-                        List<Integer> matches = new ArrayList<>();
-                        for (int previous = 0; previous < index; previous++) {
-                            if (reference.equals(compact.workPackages().get(previous).title())) matches.add(previous);
-                        }
-                        if (matches.size() != 1) {
-                            throw new BadRequestException("WORK_PACKAGE_DEPENDENCY_INVALID",
-                                    packageId + " dependency must uniquely identify an earlier package");
-                        }
-                        dependencyIndex = matches.getFirst();
-                    }
-                } else if (dependency != null && dependency.isObject()) {
-                    JsonNode indexNode = dependency.get("packageIndex");
-                    if (indexNode == null) indexNode = dependency.get("targetIndex");
-                    if (indexNode == null || !indexNode.isIntegralNumber()) {
-                        throw new BadRequestException("WORK_PACKAGE_DEPENDENCY_INVALID",
-                                packageId + " dependency must identify packageIndex");
-                    }
-                    dependencyIndex = indexNode.asInt();
-                    JsonNode reason = dependency.get("rationale");
-                    if (reason != null && reason.isTextual()) rationale = reason.asText();
-                } else {
-                    throw new BadRequestException("WORK_PACKAGE_DEPENDENCY_INVALID",
-                            packageId + " dependency must be an earlier package index");
-                }
-                if (dependencyIndex < 0 || dependencyIndex >= index) {
-                    throw new BadRequestException("WORK_PACKAGE_DEPENDENCY_INVALID",
-                            packageId + " may depend only on an earlier package index");
-                }
-                String dependencyId = AiSemanticContractCompiler.workPackageId(dependencyIndex);
-                if (!dependsOn.contains(dependencyId)) dependsOn.add(dependencyId);
-                dependencies.add(new DependencyEvidence(packageId, dependencyId,
-                        blank(rationale) ? packageId + " consumes the prerequisite delivered by " + dependencyId
-                                : rationale));
-            }
-            packages.add(new DecomposedWorkPackage(packageId, item.title(), item.objective(), item.scopeIn(),
-                    item.scopeOut(), dependsOn, item.deliverables(), item.acceptanceIntent(), List.of()));
-        }
-        List<RequirementCoverageMapping> mappings = new ArrayList<>();
-        for (CompactCoverage item : compact.coverage()) {
-            String type = item.targetType();
-            int limit = "GLOBAL_CONSTRAINT".equals(type) ? constraints.size() : packages.size();
-            if (!Set.of("GLOBAL_CONSTRAINT", "WORK_PACKAGE").contains(type)
-                    || item.targetIndex() < 0 || item.targetIndex() >= limit) {
-                throw new BadRequestException("DECOMPOSITION_PLAN_COVERAGE_TARGET_INVALID",
-                        "Coverage target is unknown: " + type + "[" + item.targetIndex() + "]");
-            }
-            String targetId = "GLOBAL_CONSTRAINT".equals(type)
-                    ? AiSemanticContractCompiler.globalConstraintId(item.targetIndex())
-                    : AiSemanticContractCompiler.workPackageId(item.targetIndex());
-            mappings.add(new RequirementCoverageMapping(item.requirementRef(), type, targetId,
-                    blank(item.rationale()) ? "Requirement is owned by " + targetId : item.rationale()));
-        }
-        return canonicalizeDecompositionPlan(new DecompositionPlanEnvelope(status, compact.normalizedGoal(),
-                constraints, packages, mappings, dependencies, List.of(), null).normalized(), revision);
-    }
-
-    private String compactConstraintText(JsonNode item) {
-        if (item == null || item.isNull()) return null;
-        if (item.isTextual()) return item.asText();
-        if (item.isObject()) {
-            JsonNode text = item.get("text");
-            return text == null || !text.isTextual() ? null : text.asText();
-        }
-        return null;
-    }
-
-    private List<DesignGap> compactDesignGaps(List<JsonNode> items) {
-        List<DesignGap> result = new ArrayList<>();
-        for (JsonNode item : items) {
-            if (item == null || item.isNull()) continue;
-            if (item.isTextual()) {
-                result.add(new DesignGap(DesignGapCode.MISSING_SCOPE, item.asText()));
-                continue;
-            }
-            if (!item.isObject()) {
-                throw new BadRequestException("DECOMPOSITION_GAP_INVALID",
-                        "Design gaps must be strings or objects with code and detail");
-            }
-            JsonNode code = item.get("code");
-            JsonNode detail = item.get("detail");
-            try {
-                result.add(new DesignGap(DesignGapCode.valueOf(code == null ? "" : code.asText()),
-                        detail == null ? null : detail.asText()));
-            } catch (IllegalArgumentException invalid) {
-                throw new BadRequestException("DECOMPOSITION_GAP_INVALID",
-                        "Design gap code is outside the closed set");
-            }
-        }
-        return List.copyOf(result);
-    }
-
-    private DecompositionPlanEnvelope readDecompositionPlan(String payload) {
-        try {
-            return json.readValue(payload, DecompositionPlanEnvelope.class).normalized();
-        } catch (JacksonException failure) {
-            throw new ConflictException("DECOMPOSER_PLAN_INVALID", "Frozen decomposition planning is unreadable");
-        } catch (RuntimeException failure) {
-            throw new ConflictException("DECOMPOSER_PLAN_INVALID", "Frozen decomposition planning is invalid");
-        }
-    }
-
     private AiOutputExtractor.ExtractionResult<PackageCompilationEnvelope> parsePackageCompilation(
             String output, String planningJson) {
         return aiOutputExtractor.extractJson(output, COMPILATION_PAYLOAD, "COMPILER_OUTPUT",
@@ -3640,212 +3829,6 @@ public class DesignerSessionService {
             throw new ConflictException("COMPILER_PLAN_INVALID", "Frozen package compilation planning is unreadable");
         } catch (RuntimeException failure) {
             throw new ConflictException("COMPILER_PLAN_INVALID", "Frozen package compilation planning is invalid");
-        }
-    }
-
-    private void validateDecomposition(DecompositionEnvelope envelope, DesignRequirementRevisionRow revision) {
-        Set<String> statuses = Set.of("DIRECT_DESIGN", "DECOMPOSED", "NEEDS_INPUT", "MULTI_TASK_REQUIRED");
-        if (!statuses.contains(envelope.status())) throw new BadRequestException("DECOMPOSER_STATUS_INVALID",
-                "Status must be DIRECT_DESIGN, DECOMPOSED, NEEDS_INPUT, or MULTI_TASK_REQUIRED");
-        if ("NEEDS_INPUT".equals(envelope.status())) {
-            if (envelope.designGaps().isEmpty()) throw new BadRequestException("DECOMPOSITION_GAPS_REQUIRED",
-                    "NEEDS_INPUT requires concrete closed-set design gaps");
-            validateDesignGaps(envelope.designGaps());
-            return;
-        }
-        if ("MULTI_TASK_REQUIRED".equals(envelope.status())) {
-            if (blank(envelope.reason())) throw new BadRequestException("MULTI_TASK_REASON_REQUIRED",
-                    "MULTI_TASK_REQUIRED requires a concrete boundary reason");
-            return;
-        }
-        if (blank(envelope.normalizedGoal())) throw new BadRequestException("DECOMPOSITION_GOAL_REQUIRED",
-                "A normalized overall goal is required");
-        if (envelope.normalizedGoal().length() > 12_000) throw new BadRequestException("DECOMPOSITION_GOAL_TOO_LONG",
-                "The normalized goal exceeds the LoopSpec limit");
-        int count = envelope.workPackages().size();
-        if ("DIRECT_DESIGN".equals(envelope.status()) && count != 1) {
-            throw new BadRequestException("DIRECT_DESIGN_PACKAGE_COUNT_INVALID",
-                    "DIRECT_DESIGN must produce exactly one work package");
-        }
-        if ("DECOMPOSED".equals(envelope.status()) && (count < 2 || count > MAX_WORK_PACKAGES)) {
-            throw new BadRequestException("DECOMPOSED_PACKAGE_COUNT_INVALID",
-                    "DECOMPOSED must produce 2-6 work packages");
-        }
-        List<RequirementSegment> segments = readSegments(revision.requirementSegmentsJson());
-        Set<String> validRefs = segments.stream().map(RequirementSegment::id)
-                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
-        Set<String> covered = new LinkedHashSet<>();
-        for (GlobalConstraint constraint : envelope.globalConstraints()) {
-            if (constraint == null || blank(constraint.text())) {
-                throw new BadRequestException("GLOBAL_CONSTRAINT_INVALID",
-                        "Each global constraint needs non-empty text");
-            }
-            validateRequirementRefs(constraint.requirementRefs(), validRefs, covered);
-        }
-        Set<String> ids = new LinkedHashSet<>();
-        Set<String> mechanicalTitles = Set.of("前端", "后端", "数据库", "测试", "frontend", "backend", "database", "tests");
-        for (int index = 0; index < count; index++) {
-            DecomposedWorkPackage workPackage = envelope.workPackages().get(index);
-            String expectedId = "WP-" + (index + 1);
-            if (workPackage == null || !expectedId.equals(workPackage.id())) {
-                throw new BadRequestException("WORK_PACKAGE_ID_INVALID",
-                        "Work package ids must be stable and ordered as WP-1..WP-n");
-            }
-            if (!ids.add(workPackage.id()) || blank(workPackage.title()) || blank(workPackage.objective())
-                    || workPackage.deliverables().isEmpty() || workPackage.acceptanceIntent().isEmpty()) {
-                throw new BadRequestException("WORK_PACKAGE_INCOMPLETE",
-                        expectedId + " requires title, objective, deliverables, and acceptance intent");
-            }
-            if (mechanicalTitles.contains(workPackage.title().trim().toLowerCase())) {
-                throw new BadRequestException("MECHANICAL_LAYER_SPLIT_FORBIDDEN",
-                        "Work packages must be vertical business capabilities, not isolated technical layers");
-            }
-            validateRequirementRefs(workPackage.requirementRefs(), validRefs, covered);
-            Set<String> earlier = envelope.workPackages().subList(0, index).stream()
-                    .map(DecomposedWorkPackage::id).collect(java.util.stream.Collectors.toSet());
-            if (!earlier.containsAll(workPackage.dependencies())) {
-                throw new BadRequestException("WORK_PACKAGE_DEPENDENCY_INVALID",
-                        expectedId + " may depend only on unique earlier work packages");
-            }
-            if (new HashSet<>(workPackage.dependencies()).size() != workPackage.dependencies().size()) {
-                throw new BadRequestException("WORK_PACKAGE_DEPENDENCY_DUPLICATE",
-                        expectedId + " contains duplicate dependencies");
-            }
-        }
-        Set<String> missing = new LinkedHashSet<>(validRefs);
-        missing.removeAll(covered);
-        if (!missing.isEmpty()) throw new BadRequestException("REQUIREMENT_SEGMENT_UNCOVERED",
-                "Every requirement segment must map to a global constraint or work package: " + missing);
-    }
-
-    private void validateDecompositionPlan(DecompositionPlanEnvelope plan,
-                                           DesignRequirementRevisionRow revision) {
-        DecompositionEnvelope projected = plan.toEnvelope();
-        validateDecomposition(projected, revision);
-        if (!Set.of("DIRECT_DESIGN", "DECOMPOSED").contains(plan.status())) return;
-        List<RequirementSegment> segments = readSegments(revision.requirementSegmentsJson());
-        Set<String> validRefs = segments.stream().map(RequirementSegment::id)
-                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
-        Set<String> mappedRefs = new LinkedHashSet<>();
-        Set<String> mappingKeys = new HashSet<>();
-        for (RequirementCoverageMapping mapping : plan.coverageMappings()) {
-            if (mapping == null || !validRefs.contains(mapping.requirementRef()) || blank(mapping.targetType())
-                    || blank(mapping.targetId()) || blank(mapping.rationale())) {
-                throw new BadRequestException("DECOMPOSITION_COVERAGE_MAPPING_INVALID",
-                        "Every coverage mapping needs a known requirement ref, target, and rationale");
-            }
-            String type = mapping.targetType().toUpperCase();
-            boolean targetMatches;
-            if ("GLOBAL_CONSTRAINT".equals(type) && mapping.targetId().matches("GC-[1-9][0-9]*")) {
-                int index = Integer.parseInt(mapping.targetId().substring(3)) - 1;
-                targetMatches = index >= 0 && index < plan.globalConstraints().size()
-                        && plan.globalConstraints().get(index).requirementRefs().contains(mapping.requirementRef());
-            } else if ("WORK_PACKAGE".equals(type)) {
-                targetMatches = plan.workPackages().stream().anyMatch(item -> mapping.targetId().equals(item.id())
-                        && item.requirementRefs().contains(mapping.requirementRef()));
-            } else {
-                targetMatches = false;
-            }
-            if (!targetMatches) throw new BadRequestException("DECOMPOSITION_COVERAGE_MAPPING_MISMATCH",
-                    "Coverage mapping target does not carry " + mapping.requirementRef() + ": " + mapping.targetId());
-            String key = mapping.requirementRef() + ":" + type + ":" + mapping.targetId();
-            if (!mappingKeys.add(key)) throw new BadRequestException("DECOMPOSITION_COVERAGE_MAPPING_DUPLICATE",
-                    "Coverage mapping is duplicated: " + key);
-            mappedRefs.add(mapping.requirementRef());
-        }
-        if (!mappedRefs.containsAll(validRefs)) {
-            Set<String> missing = new LinkedHashSet<>(validRefs);
-            missing.removeAll(mappedRefs);
-            throw new BadRequestException("DECOMPOSITION_PLAN_COVERAGE_INCOMPLETE",
-                    "Planning evidence does not explain requirement coverage: " + missing);
-        }
-        Set<String> expectedDependencies = new LinkedHashSet<>();
-        for (DecomposedWorkPackage workPackage : plan.workPackages()) {
-            for (String dependency : workPackage.dependencies()) {
-                expectedDependencies.add(workPackage.id() + ":" + dependency);
-            }
-        }
-        Set<String> explainedDependencies = new LinkedHashSet<>();
-        for (DependencyEvidence evidence : plan.dependencyEvidence()) {
-            if (evidence == null || blank(evidence.workPackageId()) || blank(evidence.dependsOn())
-                    || blank(evidence.rationale())) {
-                throw new BadRequestException("DECOMPOSITION_DEPENDENCY_EVIDENCE_INVALID",
-                        "Every dependency evidence entry needs package ids and a rationale");
-            }
-            String key = evidence.workPackageId() + ":" + evidence.dependsOn();
-            if (!expectedDependencies.contains(key) || !explainedDependencies.add(key)) {
-                throw new BadRequestException("DECOMPOSITION_DEPENDENCY_EVIDENCE_MISMATCH",
-                        "Dependency evidence is missing, extra, or duplicated: " + key);
-            }
-        }
-        if (!explainedDependencies.equals(expectedDependencies)) {
-            throw new BadRequestException("DECOMPOSITION_DEPENDENCY_EVIDENCE_INCOMPLETE",
-                    "Every planned dependency needs one concrete rationale");
-        }
-    }
-
-    private DecompositionPlanEnvelope canonicalizeDecompositionPlan(DecompositionPlanEnvelope plan,
-                                                                    DesignRequirementRevisionRow revision) {
-        if (plan == null || !Set.of("DIRECT_DESIGN", "DECOMPOSED").contains(plan.status())) return plan;
-        List<RequirementCoverageMapping> mappings = new ArrayList<>();
-        Set<String> mappingKeys = new LinkedHashSet<>();
-        for (RequirementCoverageMapping mapping : plan.coverageMappings()) {
-            if (mapping == null) {
-                mappings.add(null);
-                continue;
-            }
-            String key = mapping.requirementRef() + ":" + mapping.targetType() + ":" + mapping.targetId();
-            if (mappingKeys.add(key)) mappings.add(mapping);
-        }
-        List<String> requirementOrder = readSegments(revision.requirementSegmentsJson()).stream()
-                .map(RequirementSegment::id).toList();
-        Map<String, LinkedHashSet<String>> refsByTarget = new LinkedHashMap<>();
-        for (RequirementCoverageMapping mapping : mappings) {
-            if (mapping == null || blank(mapping.targetType()) || blank(mapping.targetId())
-                    || blank(mapping.requirementRef())) continue;
-            String type = mapping.targetType().toUpperCase();
-            String target = type + ":" + mapping.targetId();
-            refsByTarget.computeIfAbsent(target, ignored -> new LinkedHashSet<>()).add(mapping.requirementRef());
-        }
-        List<GlobalConstraint> constraints = new ArrayList<>();
-        for (int index = 0; index < plan.globalConstraints().size(); index++) {
-            GlobalConstraint constraint = plan.globalConstraints().get(index);
-            if (constraint == null) {
-                constraints.add(null);
-                continue;
-            }
-            Set<String> refs = refsByTarget.getOrDefault("GLOBAL_CONSTRAINT:GC-" + (index + 1),
-                    new LinkedHashSet<>());
-            constraints.add(new GlobalConstraint(constraint.text(), orderedRefs(requirementOrder, refs)));
-        }
-        List<DecomposedWorkPackage> packages = new ArrayList<>();
-        for (DecomposedWorkPackage workPackage : plan.workPackages()) {
-            if (workPackage == null) {
-                packages.add(null);
-                continue;
-            }
-            Set<String> refs = refsByTarget.getOrDefault("WORK_PACKAGE:" + workPackage.id(),
-                    new LinkedHashSet<>());
-            packages.add(new DecomposedWorkPackage(workPackage.id(), workPackage.title(), workPackage.objective(),
-                    workPackage.scopeIn(), workPackage.scopeOut(), workPackage.dependencies(),
-                    workPackage.deliverables(), workPackage.acceptanceIntent(), orderedRefs(requirementOrder, refs)));
-        }
-        return new DecompositionPlanEnvelope(plan.status(), plan.normalizedGoal(), constraints, packages,
-                mappings, plan.dependencyEvidence(), plan.designGaps(), plan.reason()).normalized();
-    }
-
-    private List<String> orderedRefs(List<String> requirementOrder, Set<String> refs) {
-        List<String> result = new ArrayList<>();
-        for (String requirement : requirementOrder) if (refs.contains(requirement)) result.add(requirement);
-        for (String requirement : refs) if (!result.contains(requirement)) result.add(requirement);
-        return List.copyOf(result);
-    }
-
-    private void validateDecompositionAgainstPlan(DecompositionPlanEnvelope plan,
-                                                  DecompositionEnvelope envelope) {
-        if (!plan.toEnvelope().equals(envelope)) {
-            throw new BadRequestException("DECOMPOSITION_PLAN_DRIFT",
-                    "Final decomposition JSON must preserve the frozen planning and coverage decisions exactly");
         }
     }
 
@@ -4387,17 +4370,8 @@ public class DesignerSessionService {
         return getDecomposition(row.id());
     }
 
-    private void validateRequirementRefs(List<String> refs, Set<String> valid, Set<String> covered) {
-        for (String ref : refs) {
-            if (!valid.contains(ref)) throw new BadRequestException("REQUIREMENT_REFERENCE_INVALID",
-                    "Unknown requirement segment reference: " + ref);
-            covered.add(ref);
-        }
-    }
-
-
     private String decomposerPlanningPrompt(DesignerSessionRow session, ProjectRow project,
-                                            DesignRequirementRevisionRow revision, boolean retry) {
+                                    DesignRequirementRevisionRow revision, boolean retry) {
         return decompositionPrompts.planning(session, project, revision, retry);
     }
 
@@ -4430,7 +4404,7 @@ public class DesignerSessionService {
         return switch (StructuredModelStep.valueOf(row.workflowStep())) {
             case PLANNING -> decomposerPlanningPrompt(get(row.designerSessionId()), project, revision, true);
             case SERVER_COMPILING -> decomposerPlanningPrompt(get(row.designerSessionId()), project, revision, true);
-            case GENERATING_JSON -> decomposerJsonPrompt(readDecompositionPlan(row.planningJson()));
+            case GENERATING_JSON -> decomposerJsonPrompt(decompositionOutputs.readPlan(row.planningJson()));
             case REPAIRING_JSON -> decompositionRepairPrompt(row, row.lastErrorCode(), row.lastErrorDetail());
             case FINAL_JSON -> decomposerPrompt(get(row.designerSessionId()), project, revision, true);
         };
@@ -5032,12 +5006,6 @@ public class DesignerSessionService {
         catch (JacksonException invalid) { return List.of(); }
     }
 
-    private List<RequirementSegment> readSegments(String source) {
-        try { return json.readValue(source, new TypeReference<List<RequirementSegment>>() { }); }
-        catch (JacksonException invalid) { throw new ConflictException("REQUIREMENT_SEGMENTS_INVALID",
-                "Frozen requirement segments are unreadable"); }
-    }
-
     private String boundedUtf8(String value, int maxBytes) {
         if (value == null) return "";
         if (value.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > maxBytes) {
@@ -5367,13 +5335,17 @@ public class DesignerSessionService {
                                  String externalSessionState, int repairCount,
                                  int designRevision, String lastErrorCode, String lastErrorDetail,
                                  String workPackageId, String workflowStep, int planningRepairCount,
-                                 int formatRepairCount, int semanticRepairCount, boolean serverCompiled) { }
+                                 int formatRepairCount, int semanticRepairCount, boolean serverCompiled,
+                                 int candidateSessions, int candidateSubmissions) { }
     public record RequirementRevisionStatus(int revision, String state, int modelCallsUsed,
                                             int maxModelCalls, long sourceDraftVersion) { }
-    public record DecompositionStatus(String id, String state, String resultType, int repairCount,
-                                      int transportRetryCount, String lastErrorCode, String lastErrorDetail,
+    public record DecompositionStatus(String id, String state, String resultType,
+                                      int repairCount, int transportRetryCount,
+                                      String lastErrorCode, String lastErrorDetail,
                                       String workflowStep, int planningRepairCount,
-                                      int formatRepairCount, int semanticRepairCount, boolean serverCompiled) { }
+                                      int formatRepairCount, int semanticRepairCount,
+                                      boolean serverCompiled, int candidateSessions,
+                                      int candidateSubmissions) { }
     public record WorkPackageStatus(String id, int ordinal, String title, String objective, String state,
                                     List<String> dependencies, int redesignCount, int compilerRepairCount,
                                     int compilerPlanningRepairCount, int compilerFormatRepairCount,

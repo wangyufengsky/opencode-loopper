@@ -35,7 +35,15 @@ class DesignerAcceptanceV7GoldenCorpusTest {
             "io.opencode.loopper.api.DesignerSessionMcpIntegrationTest"
                     + "#frozenV6LargePackagesKeepTheirSingleCompilerCompatibilityPass",
             "io.opencode.loopper.api.DesignerSessionMcpIntegrationTest"
-                    + "#v7AcceptanceAmbiguityCreatesExactlyOneLockedClosedChoiceSession");
+                    + "#v7AcceptanceAmbiguityCreatesExactlyOneLockedClosedChoiceSession",
+            "io.opencode.loopper.api.DesignerSessionMcpIntegrationTest"
+                    + "#v7ServerCompilationAutoBindsAFrozenExactRequirementMutationToItsOnlyStage",
+            "io.opencode.loopper.api.DesignerSessionMcpIntegrationTest"
+                    + "#enabledV7TrueTieUsesOneModelSessionAndTheRealPrivateMcpSubmission",
+            "io.opencode.loopper.api.DesignerSessionMcpIntegrationTest"
+                    + "#v7AmbiguousMutationStagesWaitForTargetedInputWithoutCompilerOrWholeDesignRetry",
+            "io.opencode.loopper.api.DesignerSessionMcpIntegrationTest"
+                    + "#v7ProjectExternalMutationStopsBeforeCompilationWithoutTransportRetry");
     private final ObjectMapper json = new ObjectMapper();
 
     @Test
@@ -77,15 +85,23 @@ class DesignerAcceptanceV7GoldenCorpusTest {
         List<String> guardedCategories = corpus.samples().stream().map(Sample::category).distinct().sorted().toList();
         List<String> guardedCompatibility = corpus.samples().stream()
                 .flatMap(sample -> sample.requiredCompatibility().stream()).distinct().sorted().toList();
+        DesignerAcceptanceV7MeasurementRegistry.CandidateQualification candidateQualification =
+                DesignerAcceptanceV7MeasurementRegistry.candidateQualification();
         boolean qualificationPassed = guardExecution.failed() == 0
                 && metricGuardExecution.failed() == 0
-                && shadowExecution.failed() == 0 && shadowMeasurementPassed;
+                && shadowExecution.failed() == 0 && shadowMeasurementPassed
+                && candidateQualification.complete() && candidateQualification.passed();
         assertThat(qualificationPassed).isTrue();
         QualificationReport qualification = new QualificationReport(true, qualificationPassed, false,
                 "complete local qualification requires all exact production guards and the authoritative "
-                        + "same-input production-pipeline measurement; corpus expectations are not measurements",
+                        + "same-input production-pipeline measurement; corpus expectations are not measurements; "
+                        + "candidate feature enablement is proven separately by four exact production workflows "
+                        + "that atomically observe model calls, candidate sessions, and candidate submissions",
                 guardExecution, metricGuardExecution, shadowExecution, shadowMeasurementPassed,
-                guardedCategories, guardedCompatibility, measuredEvidence);
+                guardedCategories, guardedCompatibility, measuredEvidence,
+                candidateQualification);
+        assertThat(qualification.candidateFeatureQualification().complete()).isTrue();
+        assertThat(qualification.candidateFeatureQualification().passed()).isTrue();
         Files.write(QUALIFICATION_REPORT,
                 json.writerWithDefaultPrettyPrinter().writeValueAsBytes(qualification));
         assertRedacted(Files.readString(QUALIFICATION_REPORT));
@@ -118,7 +134,12 @@ class DesignerAcceptanceV7GoldenCorpusTest {
         launcher.execute(request);
         var summary = listener.getSummary();
         assertThat(summary.getTestsFoundCount()).isEqualTo(guardTests.size());
-        assertThat(summary.getTestsFailedCount()).isZero();
+        assertThat(summary.getTestsFailedCount())
+                .as("guard failures: %s", summary.getFailures().stream()
+                        .map(failure -> failure.getTestIdentifier().getDisplayName() + " -> "
+                                + failure.getException().getMessage())
+                        .toList())
+                .isZero();
         assertThat(summary.getTestsSucceededCount()).isEqualTo(guardTests.size());
         return new GuardExecution(guardTests.size(), Math.toIntExact(summary.getTestsSucceededCount()),
                 Math.toIntExact(summary.getTestsFailedCount()));
@@ -167,7 +188,11 @@ class DesignerAcceptanceV7GoldenCorpusTest {
                 "same-input-production-pipeline", "server-direct-path-conservation",
                 "ambiguous-stage-safety", "large-package-v6-v7-cost",
                 "capability-resolution", "closed-choice-workflow-calls",
-                "external-system-write-safety");
+                "external-system-write-safety",
+                "acceptance-candidate-unique-optimum-usage",
+                "acceptance-candidate-true-tie-usage",
+                "acceptance-candidate-non-enumerable-usage",
+                "acceptance-candidate-path-safety-usage");
 
         var sameInput = byId.get("same-input-production-pipeline");
         assertThat(metric(sameInput, "v7Executable")).isGreaterThanOrEqualTo(metric(sameInput, "v6Executable"));
@@ -316,5 +341,7 @@ class DesignerAcceptanceV7GoldenCorpusTest {
                                boolean sameInputMeasurementPassed,
                                List<String> guardedCategories,
                                List<String> guardedCompatibility,
-                               List<DesignerAcceptanceV7MeasurementRegistry.Evidence> measuredEvidence) { }
+                               List<DesignerAcceptanceV7MeasurementRegistry.Evidence> measuredEvidence,
+                               DesignerAcceptanceV7MeasurementRegistry.CandidateQualification
+                                       candidateFeatureQualification) { }
 }

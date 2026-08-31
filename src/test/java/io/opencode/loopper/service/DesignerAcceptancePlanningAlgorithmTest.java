@@ -2599,6 +2599,44 @@ class DesignerAcceptancePlanningAlgorithmTest {
         assertThat(result.normalizations()).contains("JAVA_PRODUCTION_STAGE_GATE_BOUND");
     }
 
+    @Test
+    void mapsEveryExplicitlyEquivalentAlternativeTestToTheSameScenarioWithoutMakingEitherMandatory() {
+        String design = """
+                ## 目标与范围
+                实现并验证 Java Flow 成功行为。
+
+                ## 影响与交付
+                | 类型 | 相对路径或符号 | 说明 |
+                | --- | --- | --- |
+                | 生产代码 | src/main/java/example/Flow.java | Flow 实现 |
+
+                ## 验收场景
+                | 场景 | 前置/触发 | 操作 | 可观察结果 | 保持不变 |
+                | --- | --- | --- | --- | --- |
+                | Flow 成功行为 | 输入合法请求 | 调用 Flow | 返回成功结果 | 不写外部系统 |
+
+                ## 验收约束
+                FlowATest 或 FlowBTest 同等覆盖 Flow 成功行为，可任选一个：`mvn -Dtest=FlowATest test` 或 `mvn -Dtest=FlowBTest test`。
+
+                ## 阶段与依赖
+                | 阶段 | 目标 | 包含场景/评审/交付 | 前置阶段 |
+                | --- | --- | --- | --- |
+                | Flow 实现 | 实现并验证 Flow | Flow 成功行为；src/main/java/example/Flow.java | 无 |
+                """;
+
+        Catalog facts = extractor.extract("WP-1", 1, design, CONTRACT_VERSION_V7);
+        CapabilityCatalog capabilities = registry.build(facts, role("software-java", List.of("java")), design);
+        int scenarioIndex = factIndex(facts, FactKind.SCENARIO, "Flow 成功行为");
+
+        assertThat(capabilities.issues()).isEmpty();
+        assertThat(capabilities.capabilities()).hasSize(2).allSatisfy(capability -> {
+            assertThat(capability.coversFactIndexes()).containsExactly(scenarioIndex);
+            assertThat(capability.mandatory()).isFalse();
+        });
+        assertThat(capabilities.capabilities()).extracting(Capability::testTargets)
+                .containsExactlyInAnyOrder(List.of("FlowATest"), List.of("FlowBTest"));
+    }
+
     private static Catalog mutationCatalog(List<MutationObligation> obligations) {
         return new Catalog(CONTRACT_VERSION_V7, "WP-1", 1, "b".repeat(64), true,
                 List.of(), List.of(), obligations, List.of(), List.of());

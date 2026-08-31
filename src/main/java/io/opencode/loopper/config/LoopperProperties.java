@@ -26,6 +26,7 @@ public class LoopperProperties {
     /** Follow-up abort attempts after a mutating Session could not be confirmed stopped. */
     private int abortCleanupAttempts = 3;
     private RetryWait retryWait = new RetryWait();
+    private InternalCandidate internalCandidate = new InternalCandidate();
     private Mcp mcp = new Mcp();
     private OpenCode openCode = new OpenCode();
     private Publication publication = new Publication();
@@ -59,6 +60,22 @@ public class LoopperProperties {
     public void setAbortCleanupAttempts(int value) { this.abortCleanupAttempts = value; }
     public RetryWait getRetryWait() { return retryWait; }
     public void setRetryWait(RetryWait value) { this.retryWait = value == null ? new RetryWait() : value; }
+    public InternalCandidate getInternalCandidate() { return internalCandidate; }
+    public void setInternalCandidate(InternalCandidate value) {
+        this.internalCandidate = value == null ? new InternalCandidate() : value;
+    }
+    public static class InternalCandidate {
+        /** Decomposer is the first enabled internal-candidate role. */
+        private boolean decomposerEnabled = true;
+        /** Acceptance closed-choice remains opt-in until a packaged real-model tool-use replay passes. */
+        private boolean acceptanceClosedChoiceV7Enabled;
+        public boolean isDecomposerEnabled() { return decomposerEnabled; }
+        public void setDecomposerEnabled(boolean value) { this.decomposerEnabled = value; }
+        public boolean isAcceptanceClosedChoiceV7Enabled() { return acceptanceClosedChoiceV7Enabled; }
+        public void setAcceptanceClosedChoiceV7Enabled(boolean value) {
+            this.acceptanceClosedChoiceV7Enabled = value;
+        }
+    }
     public static class RetryWait {
         private Duration rateLimitBase = Duration.ofSeconds(60);
         private Duration rateLimitMax = Duration.ofSeconds(300);
@@ -118,10 +135,10 @@ public class LoopperProperties {
     }
     public static class OpenCode {
         /**
-         * fake is deterministic for tests, http connects to an operator-owned server,
-         * and auto may start a short-lived local server owned by this application.
+         * managed always starts a Loopper-owned server; auto and http retain the
+         * legacy external-server behavior, while fake is deterministic for tests.
          */
-        private String mode = "auto";
+        private String mode = "managed";
         private URI baseUrl = URI.create("http://127.0.0.1:4096");
         private String username = "";
         private String password = "";

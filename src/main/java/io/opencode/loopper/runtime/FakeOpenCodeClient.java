@@ -1,6 +1,7 @@
 package io.opencode.loopper.runtime;
 
 import java.nio.file.Path;
+import java.net.URI;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -12,6 +13,9 @@ import tools.jackson.databind.ObjectMapper;
 
 /** Deterministic local implementation used in tests and development without a provider. */
 public class FakeOpenCodeClient implements OpenCodeClient {
+    private static final String FAKE_ENDPOINT_FINGERPRINT = OpenCodeSessionConnectionGuard
+            .endpointFingerprint(URI.create("http://127.0.0.1/fake-opencode"));
+    private final OpenCodeSessionRuntimeBindings runtimeBindings;
     private final ConcurrentHashMap<String, String> states = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Boolean> readOnly = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> judgeRoleBySession = new ConcurrentHashMap<>();
@@ -44,6 +48,7 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     private final AtomicInteger createSessionCalls = new AtomicInteger();
     private final AtomicInteger createReadOnlySessionCalls = new AtomicInteger();
     private final AtomicInteger promptCalls = new AtomicInteger();
+    private final java.util.Set<SessionProfile> heldProfiles = ConcurrentHashMap.newKeySet();
     private final FakeOpenCodeResponseFactory responses = new FakeOpenCodeResponseFactory();
     private volatile String judgeOutput = "{\"verdict\":\"PASS\",\"reason\":\"确定性证据满足评审要求。\"}";
     private volatile String taskRouterOutputOverride;
@@ -52,6 +57,17 @@ public class FakeOpenCodeClient implements OpenCodeClient {
             List.of("read", "glob", "grep", "question", "todowrite"), null);
     private volatile StructuredOutputCapability structuredCapability = new StructuredOutputCapability(
             CapabilityState.AVAILABLE, CapabilityState.AVAILABLE, null);
+    private volatile String managedGeneration;
+    private volatile String managedInternalMcpServer;
+
+    public FakeOpenCodeClient() {
+        this(OpenCodeSessionRuntimeBindings.untracked());
+    }
+
+    FakeOpenCodeClient(OpenCodeSessionRuntimeBindings runtimeBindings) {
+        this.runtimeBindings = runtimeBindings == null
+                ? OpenCodeSessionRuntimeBindings.untracked() : runtimeBindings;
+    }
     @Override public boolean healthy() { return healthy; }
     @Override public OpenCodeSession createSession(Path worktree, String title, OpenCodeModel model) {
         createSessionCalls.incrementAndGet();
@@ -60,7 +76,7 @@ public class FakeOpenCodeClient implements OpenCodeClient {
         worktreeBySession.put(id, worktree);
         profileBySession.put(id, SessionProfile.IMPLEMENTATION);
         if (model != null) modelBySession.put(id, model);
-        return new OpenCodeSession(id, worktree);
+        return session(id, worktree);
     }
     @Override public OpenCodeSession createReadOnlySession(Path worktree, String title, OpenCodeModel model) {
         createReadOnlySessionCalls.incrementAndGet();
@@ -77,6 +93,7 @@ public class FakeOpenCodeClient implements OpenCodeClient {
         String role = normalizedTitle.contains("TASK ROUTER") ? "ROUTER"
                 : normalizedTitle.contains("REVIEWER") ? "REVIEWER"
                 : normalizedTitle.contains("TASK DECOMPOSER") ? "DECOMPOSER"
+                : normalizedTitle.contains("ACCEPTANCE CLOSED-CHOICE") ? "ACCEPTANCE_CANDIDATE"
                 : title != null && title.toUpperCase().contains("COMMIT MESSAGE") ? "COMMIT"
                 : normalizedTitle.contains("LOOPSPEC COMPILER") ? "COMPILER" + (packageId == null ? "" : ":" + packageId)
                 : normalizedTitle.contains("DESIGNER") ? "DESIGNER" + (packageId == null ? "" : ":" + packageId)
@@ -89,7 +106,7 @@ public class FakeOpenCodeClient implements OpenCodeClient {
         boolean shouldFail = roleFailures != null && roleFailures.getAndUpdate(value -> Math.max(0, value - 1)) > 0;
         if (!shouldFail) shouldFail = failedReadOnlySessions.getAndUpdate(value -> Math.max(0, value - 1)) > 0;
         states.put(id, shouldFail ? "FAILED" : "RUNNING");
-        return new OpenCodeSession(id, worktree);
+        return session(id, worktree);
     }
     @Override public OpenCodeSession createSession(Path worktree, String title, OpenCodeModel model,
                                                     SessionProfile profile) {
@@ -117,7 +134,8 @@ public class FakeOpenCodeClient implements OpenCodeClient {
         if (failedPrompts.getAndUpdate(value -> Math.max(0, value - 1)) > 0) {
             throw new SessionFailure("OPENCODE_PROMPT_FAILED", "Deterministic Designer prompt transport failure");
         }
-        states.computeIfPresent(session.id(), (id, state) -> "FAILED".equals(state) ? state : "COMPLETED");
+        states.computeIfPresent(session.id(), (id, state) -> "FAILED".equals(state) || heldProfiles.contains(
+                profileBySession.get(id)) ? state : "COMPLETED");
     }
     @Override public SessionStatus sessionStatus(OpenCodeSession session) {
         if (toolLoopStatusFailures.getAndUpdate(value -> Math.max(0, value - 1)) > 0) {
@@ -271,7 +289,7 @@ public class FakeOpenCodeClient implements OpenCodeClient {
         states.put(childId, "IDLE");
         todosBySession.put(childId, List.copyOf(todosBySession.getOrDefault(session.id(), List.of())));
         forkCalls.add(new ForkCall(session.id(), childId, messageId));
-        return new OpenCodeSession(childId, session.worktree());
+        return session(childId, session.worktree());
     }
     @Override public void revertSession(OpenCodeSession session, String messageId, String partId) {
         revertCalls.add(new RevertCall(session.id(), messageId, partId));
@@ -358,6 +376,13 @@ public class FakeOpenCodeClient implements OpenCodeClient {
         structuredCapability = capability == null
                 ? new StructuredOutputCapability(CapabilityState.UNKNOWN, CapabilityState.UNKNOWN, null) : capability;
     }
+    public void setManagedRuntime(String generation, String internalMcpServer) {
+        managedGeneration = generation;
+        managedInternalMcpServer = internalMcpServer;
+    }
+    public void holdProfileOpen(SessionProfile profile, boolean hold) {
+        if (hold) heldProfiles.add(profile); else heldProfiles.remove(profile);
+    }
     public void setSessionUsage(String sessionId, List<UsageRecord> usage) {
         usageBySession.put(sessionId, usage == null ? List.of() : List.copyOf(usage));
     }
@@ -367,7 +392,16 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     public void failNextReadOnlySessions(int count) { failedReadOnlySessions.set(Math.max(0, count)); }
     public void failNextReadOnlySessionCreations(int count) { failedReadOnlySessionCreations.set(Math.max(0, count)); }
     public void failNextReadOnlySessions(String role, int count) { failedReadOnlySessionsByRole.put(role.toUpperCase(), new AtomicInteger(Math.max(0, count))); }
-    public void reset() { states.clear(); readOnly.clear(); judgeRoleBySession.clear(); judgeOutputByRole.clear(); promptBySession.clear(); promptRequestBySession.clear(); profileBySession.clear(); promptHistory.clear(); modelBySession.clear(); worktreeBySession.clear(); detailBySession.clear(); pendingQuestionBySession.clear(); answersByQuestion.clear(); rejectedQuestions.clear(); pendingPermissionsBySession.clear(); permissionRepliesByRequest.clear(); todosBySession.clear(); usageBySession.clear(); forkCalls.clear(); revertCalls.clear(); summarizeCalls.clear(); abortedSessionIds.clear(); failedReadOnlySessionsByRole.clear(); failedReadOnlySessions.set(0); failedReadOnlySessionCreations.set(0); failedPrompts.set(0); failedStructuredPrompts.set(0); failedAborts.set(0); toolLoopStatusFailures.set(0); createSessionCalls.set(0); createReadOnlySessionCalls.set(0); promptCalls.set(0); judgeOutput = "{\"verdict\":\"PASS\",\"reason\":\"确定性证据满足评审要求。\"}"; taskRouterOutputOverride = null; healthy = true; toolCapability = new ToolCapabilityProbe(CapabilityState.AVAILABLE, List.of("read", "glob", "grep", "question", "todowrite"), null); structuredCapability = new StructuredOutputCapability(CapabilityState.AVAILABLE, CapabilityState.AVAILABLE, null); }
+    public void reset() { states.clear(); readOnly.clear(); judgeRoleBySession.clear(); judgeOutputByRole.clear(); promptBySession.clear(); promptRequestBySession.clear(); profileBySession.clear(); promptHistory.clear(); modelBySession.clear(); worktreeBySession.clear(); detailBySession.clear(); pendingQuestionBySession.clear(); answersByQuestion.clear(); rejectedQuestions.clear(); pendingPermissionsBySession.clear(); permissionRepliesByRequest.clear(); todosBySession.clear(); usageBySession.clear(); forkCalls.clear(); revertCalls.clear(); summarizeCalls.clear(); abortedSessionIds.clear(); failedReadOnlySessionsByRole.clear(); failedReadOnlySessions.set(0); failedReadOnlySessionCreations.set(0); failedPrompts.set(0); failedStructuredPrompts.set(0); failedAborts.set(0); toolLoopStatusFailures.set(0); createSessionCalls.set(0); createReadOnlySessionCalls.set(0); promptCalls.set(0); heldProfiles.clear(); managedGeneration = null; managedInternalMcpServer = null; judgeOutput = "{\"verdict\":\"PASS\",\"reason\":\"确定性证据满足评审要求。\"}"; taskRouterOutputOverride = null; healthy = true; toolCapability = new ToolCapabilityProbe(CapabilityState.AVAILABLE, List.of("read", "glob", "grep", "question", "todowrite"), null); structuredCapability = new StructuredOutputCapability(CapabilityState.AVAILABLE, CapabilityState.AVAILABLE, null); }
+    private OpenCodeSession session(String id, Path worktree) {
+        if (managedGeneration != null && !managedGeneration.isBlank()
+                && managedInternalMcpServer != null && !managedInternalMcpServer.isBlank()) {
+            runtimeBindings.register(new OpenCodeSessionRuntimeBindings.Binding(
+                    id, managedGeneration, OpenCodeSessionRuntimeBindings.OwnershipMode.MANAGED,
+                    FAKE_ENDPOINT_FINGERPRINT, managedInternalMcpServer));
+        }
+        return new OpenCodeSession(id, worktree, managedGeneration, managedInternalMcpServer);
+    }
     public record PermissionReplyCall(String sessionId, String requestId, PermissionReply reply, String message) { }
     public record PromptCall(String sessionId, String prompt) { }
     public record ForkCall(String parentSessionId, String childSessionId, String messageId) { }

@@ -22,7 +22,7 @@ import tools.jackson.databind.ObjectMapper;
 /** Thin adapter for the local OpenCode server; all transport faults become SessionFailure. */
 public class HttpOpenCodeClient implements OpenCodeClient {
     private final RestClient.Builder baseBuilder;
-    private final Supplier<ConnectionDetails> connectionSupplier;
+    private final Supplier<OpenCodeConnectionDetails> connectionSupplier;
     private final Duration connectTimeout;
     private final Duration requestTimeout;
     private final OpenCodeCapabilityRegistry capabilities;
@@ -30,20 +30,23 @@ public class HttpOpenCodeClient implements OpenCodeClient {
     private final Map<String, SessionProfile> sessionProfiles = new ConcurrentHashMap<>();
     private final Map<String, Boolean> managedSessions = new ConcurrentHashMap<>();
     private final Map<String, Boolean> structuredPrompts = new ConcurrentHashMap<>();
+    private final OpenCodeSessionConnectionGuard sessionConnections;
     private final ObjectMapper json = new ObjectMapper();
     private final OpenCodeResponseParser responses = new OpenCodeResponseParser();
+    private final OpenCodeMcpDiscovery mcpDiscovery = new OpenCodeMcpDiscovery(responses);
     private final OpenCodeMachineResponseInspector machineResponses =
             new OpenCodeMachineResponseInspector(json, responses);
     private final OpenCodeTodoParser todoParser = new OpenCodeTodoParser();
     public HttpOpenCodeClient(RestClient.Builder builder, LoopperProperties properties) {
-        this(builder, () -> new ConnectionDetails(properties.getOpenCode().getBaseUrl(), properties.getOpenCode().getUsername(), properties.getOpenCode().getPassword(), false),
+        this(builder, () -> new OpenCodeConnectionDetails(properties.getOpenCode().getBaseUrl(), properties.getOpenCode().getUsername(), properties.getOpenCode().getPassword(), false, null, null),
                 new Timeouts(properties.getOpenCode().getConnectTimeout(), properties.getOpenCode().getRequestTimeout()),
-                new OpenCodeCapabilityRegistry());
+                new OpenCodeCapabilityRegistry(), OpenCodeSessionRuntimeBindings.untracked(), false);
     }
     /** Runtime manager supplies an ephemeral connection without exposing its password in API DTOs. */
     public HttpOpenCodeClient(RestClient.Builder builder, URI baseUrl, String username, String password) {
-        this(builder, () -> new ConnectionDetails(baseUrl, username, password, false),
-                new Timeouts(Duration.ofSeconds(5), Duration.ofSeconds(30)), new OpenCodeCapabilityRegistry());
+        this(builder, () -> new OpenCodeConnectionDetails(baseUrl, username, password, false, null, null),
+                new Timeouts(Duration.ofSeconds(5), Duration.ofSeconds(30)), new OpenCodeCapabilityRegistry(),
+                OpenCodeSessionRuntimeBindings.untracked(), false);
     }
     /** Resolves credentials and endpoint for every request so managed restart can rotate both safely. */
     public HttpOpenCodeClient(RestClient.Builder builder, Supplier<OpenCodeRuntimeManager.Connection> connectionSupplier) {
@@ -59,23 +62,44 @@ public class HttpOpenCodeClient implements OpenCodeClient {
     public HttpOpenCodeClient(RestClient.Builder builder, Supplier<OpenCodeRuntimeManager.Connection> connectionSupplier,
                               LoopperProperties properties, OpenCodeCapabilityRegistry capabilities) {
         this(builder, connectionSupplier, properties.getOpenCode().getConnectTimeout(),
-                properties.getOpenCode().getRequestTimeout(), capabilities);
+                properties.getOpenCode().getRequestTimeout(), capabilities,
+                OpenCodeSessionRuntimeBindings.untracked(), false);
+    }
+    public HttpOpenCodeClient(RestClient.Builder builder,
+                              Supplier<OpenCodeRuntimeManager.Connection> connectionSupplier,
+                              LoopperProperties properties, OpenCodeCapabilityRegistry capabilities,
+                              OpenCodeSessionRuntimeBindings runtimeBindings) {
+        this(builder, connectionSupplier, properties.getOpenCode().getConnectTimeout(),
+                properties.getOpenCode().getRequestTimeout(), capabilities, runtimeBindings, true);
     }
     private HttpOpenCodeClient(RestClient.Builder builder, Supplier<OpenCodeRuntimeManager.Connection> connectionSupplier,
                                Duration connectTimeout, Duration requestTimeout,
                                OpenCodeCapabilityRegistry capabilities) {
+        this(builder, connectionSupplier, connectTimeout, requestTimeout, capabilities,
+                OpenCodeSessionRuntimeBindings.untracked(), false);
+    }
+    private HttpOpenCodeClient(RestClient.Builder builder, Supplier<OpenCodeRuntimeManager.Connection> connectionSupplier,
+                               Duration connectTimeout, Duration requestTimeout,
+                               OpenCodeCapabilityRegistry capabilities,
+                               OpenCodeSessionRuntimeBindings runtimeBindings,
+                               boolean requirePersistentBinding) {
         this(builder, () -> {
             OpenCodeRuntimeManager.Connection connection = connectionSupplier.get();
-            return new ConnectionDetails(connection.endpoint(), connection.username(), connection.password(), connection.managed());
-        }, new Timeouts(connectTimeout, requestTimeout), capabilities);
+            return new OpenCodeConnectionDetails(connection.endpoint(), connection.username(), connection.password(), connection.managed(),
+                    connection.generation(), connection.internalMcpServer());
+        }, new Timeouts(connectTimeout, requestTimeout), capabilities, runtimeBindings, requirePersistentBinding);
     }
-    private HttpOpenCodeClient(RestClient.Builder builder, Supplier<ConnectionDetails> connectionSupplier,
-                               Timeouts timeouts, OpenCodeCapabilityRegistry capabilities) {
+    private HttpOpenCodeClient(RestClient.Builder builder, Supplier<OpenCodeConnectionDetails> connectionSupplier,
+                               Timeouts timeouts, OpenCodeCapabilityRegistry capabilities,
+                               OpenCodeSessionRuntimeBindings runtimeBindings,
+                               boolean requirePersistentBinding) {
         this.baseBuilder = builder;
         this.connectionSupplier = connectionSupplier;
         this.connectTimeout = timeouts.connectTimeout();
         this.requestTimeout = timeouts.requestTimeout();
         this.capabilities = capabilities;
+        this.sessionConnections = new OpenCodeSessionConnectionGuard(connectionSupplier, runtimeBindings,
+                requirePersistentBinding);
     }
     @Override public boolean healthy() {
         try { client().get().uri("/global/health").retrieve().toBodilessEntity(); return true; }
@@ -92,16 +116,24 @@ public class HttpOpenCodeClient implements OpenCodeClient {
         try {
             Path canonical = worktree.toRealPath();
             SessionProfile effectiveProfile = profile == null ? SessionProfile.IMPLEMENTATION : profile;
+            OpenCodeConnectionDetails connection = connectionSupplier.get();
+            RestClient sessionClient = client(connection);
             Map<String, Object> request = new LinkedHashMap<>();
             if (title != null && !title.isBlank()) request.put("title", title);
             if (model != null && model.providerId() != null && !model.providerId().isBlank() && model.modelId() != null && !model.modelId().isBlank()) {
                 request.put("model", Map.of("id", model.modelId(), "providerID", model.providerId()));
             }
-            List<String> mcpServers = effectiveProfile == SessionProfile.ROUTER_NO_TOOLS
-                    ? List.of() : mcpServers(canonical);
-            List<Map<String, String>> permissions = OpenCodePermissionPolicy.rules(effectiveProfile, mcpServers);
+            OpenCodeMcpDiscovery.Access mcp = effectiveProfile == SessionProfile.ROUTER_NO_TOOLS
+                    ? OpenCodeMcpDiscovery.Access.empty()
+                    : mcpDiscovery.discover(sessionClient, canonical, connection.internalMcpServer());
+            if (effectiveProfile == SessionProfile.DECOMPOSER_CANDIDATE_READ_ONLY
+                    || effectiveProfile == SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS) {
+                mcp.requireCandidateReady(connection.managed(), connection.generation(), connection.internalMcpServer());
+            }
+            List<Map<String, String>> permissions = OpenCodePermissionPolicy.rules(effectiveProfile,
+                    mcp.connectedServers(), connection.internalMcpServer());
             request.put("permission", permissions);
-            JsonNode body = client().post().uri(uri -> directoryUri(uri, "/session", canonical))
+            JsonNode body = sessionClient.post().uri(uri -> directoryUri(uri, "/session", canonical))
                     .contentType(MediaType.APPLICATION_JSON).body(request)
                     .retrieve().body(JsonNode.class);
             String id = body == null ? null : body.path("id").asText(null);
@@ -120,10 +152,10 @@ public class HttpOpenCodeClient implements OpenCodeClient {
                 throw new SessionFailure("OPENCODE_DIRECTORY_MISMATCH",
                         "OpenCode created the session outside the requested execution workspace");
             }
-            OpenCodeSession session = new OpenCodeSession(id, canonical);
+            OpenCodeSession session = sessionConnections.created(id, canonical, connection);
             if (model != null) sessionModels.put(id, model);
             sessionProfiles.put(id, effectiveProfile);
-            managedSessions.put(id, connectionSupplier.get().managed());
+            managedSessions.put(id, connection.managed());
             return session;
         } catch (SessionFailure e) { throw e; }
         catch (Exception e) { throw new SessionFailure("OPENCODE_SESSION_CREATE_FAILED", e.getMessage()); }
@@ -164,12 +196,12 @@ public class HttpOpenCodeClient implements OpenCodeClient {
                 body.put("format", Map.of("type", "json_schema", "schema", format.schema(),
                         "retryCount", format.retryCount()));
             }
-            client().post().uri(uri -> sessionUri(uri, "/session/{id}/prompt_async", session)).contentType(MediaType.APPLICATION_JSON)
+            client(session).post().uri(uri -> sessionUri(uri, "/session/{id}/prompt_async", session)).contentType(MediaType.APPLICATION_JSON)
                     .body(body).retrieve().toBodilessEntity();
             structuredPrompts.put(session.id(), structured);
         } catch (RestClientResponseException failure) {
             if (structured && formatRejected(failure)) {
-                capabilities.transportUnsupported(connectionSupplier.get().baseUrl(), sessionModels.get(session.id()), failure.getMessage());
+                capabilities.transportUnsupported(connectionFor(session).baseUrl(), sessionModels.get(session.id()), failure.getMessage());
                 throw new SessionFailure("OPENCODE_STRUCTURED_FORMAT_UNSUPPORTED", failure.getMessage());
             }
             throw new SessionFailure("OPENCODE_PROMPT_FAILED", failure.getMessage());
@@ -179,7 +211,9 @@ public class HttpOpenCodeClient implements OpenCodeClient {
         return model != null && model.providerId() != null && "deepseek".equalsIgnoreCase(model.providerId().trim());
     }
     private static boolean machineResponseProfile(SessionProfile profile) {
-        return profile == SessionProfile.DECOMPOSER_READ_ONLY
+        return profile == SessionProfile.DECOMPOSER_CANDIDATE_READ_ONLY
+                || profile == SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS
+                || profile == SessionProfile.DECOMPOSER_READ_ONLY
                 || profile == SessionProfile.ROUTER_NO_TOOLS
                 || profile == SessionProfile.COMPILER_READ_ONLY
                 || profile == SessionProfile.COMPILER_BINDING_NO_TOOLS
@@ -191,7 +225,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
     }
     @Override public SessionStatus sessionStatus(OpenCodeSession session) {
         try {
-            JsonNode body = client().get().uri(uri -> directoryUri(uri, "/session/status", session.worktree()))
+            JsonNode body = client(session).get().uri(uri -> directoryUri(uri, "/session/status", session.worktree()))
                     .retrieve().body(JsonNode.class);
             JsonNode entry = body == null ? null : body.get(session.id());
             if (entry == null || entry.isNull()) {
@@ -240,7 +274,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
             String text = responses.assistantText(latest);
             int retryCount = info.path("structuredRetryCount").asInt(
                     info.path("structured_retry_count").asInt(0));
-            URI endpoint = connectionSupplier.get().baseUrl();
+            URI endpoint = connectionFor(session).baseUrl();
             OpenCodeModel model = sessionModels.get(session.id());
             if (!structuredValue.isEmpty()) capabilities.structured(endpoint, model);
             if (structuredError(errorType, errorDetail)) capabilities.modelUnsupported(endpoint, model, errorDetail);
@@ -275,7 +309,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
 
     @Override public List<PendingQuestion> pendingQuestions(OpenCodeSession session) {
         try {
-            JsonNode body = client().get().uri(uri -> directoryUri(uri, "/question", session.worktree()))
+            JsonNode body = client(session).get().uri(uri -> directoryUri(uri, "/question", session.worktree()))
                     .retrieve().body(JsonNode.class);
             List<PendingQuestion> result = responses.questions(body, session.id());
             if (result == null) {
@@ -288,7 +322,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
 
     @Override public void replyQuestion(OpenCodeSession session, String requestId, List<List<String>> answers) {
         try {
-            client().post().uri(uri -> directoryUri(uri, "/question/{requestId}/reply", session.worktree(),
+            client(session).post().uri(uri -> directoryUri(uri, "/question/{requestId}/reply", session.worktree(),
                             Map.of("requestId", requestId)))
                     .contentType(MediaType.APPLICATION_JSON).body(Map.of("answers", answers)).retrieve().toBodilessEntity();
         } catch (RuntimeException e) { throw new SessionFailure("OPENCODE_QUESTION_REPLY_FAILED", e.getMessage()); }
@@ -296,7 +330,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
 
     @Override public void rejectQuestion(OpenCodeSession session, String requestId) {
         try {
-            client().post().uri(uri -> directoryUri(uri, "/question/{requestId}/reject", session.worktree(),
+            client(session).post().uri(uri -> directoryUri(uri, "/question/{requestId}/reject", session.worktree(),
                             Map.of("requestId", requestId)))
                     .retrieve().toBodilessEntity();
         } catch (RuntimeException e) { throw new SessionFailure("OPENCODE_QUESTION_REJECT_FAILED", e.getMessage()); }
@@ -304,7 +338,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
 
     @Override public List<PendingPermission> pendingPermissions(OpenCodeSession session) {
         try {
-            JsonNode body = client().get().uri(uri -> directoryUri(uri, "/permission", session.worktree()))
+            JsonNode body = client(session).get().uri(uri -> directoryUri(uri, "/permission", session.worktree()))
                     .retrieve().body(JsonNode.class);
             List<PendingPermission> result = responses.permissions(body, session.id());
             if (result == null) {
@@ -326,7 +360,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
                 case REJECT -> "reject";
             });
             if (message != null && !message.isBlank()) request.put("message", message);
-            client().post().uri(uri -> directoryUri(uri, "/permission/{requestId}/reply", session.worktree(),
+            client(session).post().uri(uri -> directoryUri(uri, "/permission/{requestId}/reply", session.worktree(),
                             Map.of("requestId", requestId)))
                     .contentType(MediaType.APPLICATION_JSON).body(request).retrieve().toBodilessEntity();
         } catch (SessionFailure e) { throw e; }
@@ -335,7 +369,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
 
     @Override public SessionTodoSnapshot sessionTodoSnapshot(OpenCodeSession session) {
         try {
-            JsonNode body = client().get().uri(uri -> sessionUri(uri, "/session/{id}/todo", session))
+            JsonNode body = client(session).get().uri(uri -> sessionUri(uri, "/session/{id}/todo", session))
                     .retrieve().body(JsonNode.class);
             SessionTodoSnapshot snapshot = todoParser.parse(body);
             if (snapshot == null) {
@@ -368,27 +402,6 @@ public class HttpOpenCodeClient implements OpenCodeClient {
         }
     }
 
-    private List<String> mcpServers(Path worktree) {
-        try {
-            JsonNode body = client().get().uri(uri -> directoryUri(uri, "/mcp", worktree))
-                    .retrieve().body(JsonNode.class);
-            if (body == null || !body.isObject()) {
-                throw new SessionFailure("OPENCODE_MCP_DISCOVERY_FAILED",
-                        "OpenCode 未返回有效的 MCP Server 列表");
-            }
-            List<String> servers = new ArrayList<>();
-            body.propertyStream().limit(64).forEach(entry -> {
-                String name = entry.getKey();
-                if (name != null && !name.isBlank() && name.length() <= 128) servers.add(name);
-            });
-            return List.copyOf(servers);
-        } catch (SessionFailure failure) { throw failure; }
-        catch (RuntimeException failure) {
-            throw new SessionFailure("OPENCODE_MCP_DISCOVERY_FAILED",
-                    "无法读取当前项目的 MCP Server：" + responses.bounded(failure.getMessage()));
-        }
-    }
-
     @Override public List<AgentInfo> agents() {
         try {
             JsonNode body = client().get().uri("/agent").retrieve().body(JsonNode.class);
@@ -403,7 +416,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
     }
 
     @Override public StructuredOutputCapability structuredOutputCapability(OpenCodeModel model) {
-        ConnectionDetails connection = connectionSupplier.get();
+        OpenCodeConnectionDetails connection = connectionSupplier.get();
         try {
             JsonNode health = client().get().uri("/global/health").retrieve().body(JsonNode.class);
             capabilities.observeRuntime(connection.baseUrl(), health == null ? null : health.path("version").asText(null));
@@ -417,12 +430,19 @@ public class HttpOpenCodeClient implements OpenCodeClient {
         try {
             Map<String, Object> request = new LinkedHashMap<>();
             if (messageId != null && !messageId.isBlank()) request.put("messageID", messageId);
-            JsonNode body = client().post().uri(uri -> sessionUri(uri, "/session/{id}/fork", session))
+            OpenCodeConnectionDetails connection = connectionFor(session);
+            JsonNode body = client(connection).post().uri(uri -> sessionUri(uri, "/session/{id}/fork", session))
                     .contentType(MediaType.APPLICATION_JSON).body(request).retrieve().body(JsonNode.class);
             String id = body == null ? null : body.path("id").asText(null);
             if (id == null && body != null) id = body.path("session").path("id").asText(null);
             if (id == null || id.isBlank()) throw new SessionFailure("OPENCODE_FORK_INVALID_RESPONSE", "OpenCode did not return a forked session id");
-            return new OpenCodeSession(id, session.worktree());
+            OpenCodeSession fork = sessionConnections.created(id, session.worktree(), connection);
+            OpenCodeModel sessionModel = sessionModels.get(session.id());
+            if (sessionModel != null) sessionModels.put(id, sessionModel);
+            SessionProfile profile = sessionProfiles.get(session.id());
+            if (profile != null) sessionProfiles.put(id, profile);
+            managedSessions.put(id, connection.managed());
+            return fork;
         } catch (SessionFailure e) { throw e; }
         catch (RuntimeException e) { throw new SessionFailure("OPENCODE_FORK_FAILED", e.getMessage()); }
     }
@@ -433,7 +453,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
             Map<String, Object> request = new LinkedHashMap<>();
             request.put("messageID", messageId);
             if (partId != null && !partId.isBlank()) request.put("partID", partId);
-            client().post().uri(uri -> sessionUri(uri, "/session/{id}/revert", session))
+            client(session).post().uri(uri -> sessionUri(uri, "/session/{id}/revert", session))
                     .contentType(MediaType.APPLICATION_JSON).body(request).retrieve().toBodilessEntity();
         } catch (SessionFailure e) { throw e; }
         catch (RuntimeException e) { throw new SessionFailure("OPENCODE_REVERT_FAILED", e.getMessage()); }
@@ -447,7 +467,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
                 request.put("modelID", model.modelId());
             }
             request.put("auto", automatic);
-            client().post().uri(uri -> sessionUri(uri, "/session/{id}/summarize", session))
+            client(session).post().uri(uri -> sessionUri(uri, "/session/{id}/summarize", session))
                     .contentType(MediaType.APPLICATION_JSON).body(request).retrieve().toBodilessEntity();
         } catch (SessionFailure e) { throw e; }
         catch (RuntimeException e) { throw new SessionFailure("OPENCODE_SUMMARIZE_FAILED", e.getMessage()); }
@@ -462,14 +482,14 @@ public class HttpOpenCodeClient implements OpenCodeClient {
 
     private JsonNode sessionMessages(OpenCodeSession session) {
         try {
-            JsonNode body = client().get().uri(uri -> sessionUri(uri, "/session/{id}/message", session))
+            JsonNode body = client(session).get().uri(uri -> sessionUri(uri, "/session/{id}/message", session))
                     .retrieve().body(JsonNode.class);
             JsonNode messages = body != null && body.isArray() ? body : body == null ? null : body.path("data");
             if (messages == null || !messages.isArray()) throw new SessionFailure("OPENCODE_OUTPUT_MISSING", "OpenCode did not return a message list");
             return messages;
         } catch (RestClientResponseException failure) {
             if (Boolean.TRUE.equals(structuredPrompts.get(session.id())) && formatRejected(failure)) {
-                capabilities.transportUnsupported(connectionSupplier.get().baseUrl(), sessionModels.get(session.id()),
+                capabilities.transportUnsupported(connectionFor(session).baseUrl(), sessionModels.get(session.id()),
                         failure.getResponseBodyAsString());
                 throw new SessionFailure("OPENCODE_STRUCTURED_FORMAT_UNSUPPORTED", failure.getMessage());
             }
@@ -483,7 +503,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
     private void inspectMachineResponseProgress(OpenCodeSession session, JsonNode messages) {
         if (!machineResponseProfile(sessionProfiles.get(session.id()))) return;
         boolean structuredPrompt = Boolean.TRUE.equals(structuredPrompts.get(session.id()));
-        URI endpoint = connectionSupplier.get().baseUrl();
+        URI endpoint = connectionFor(session).baseUrl();
         OpenCodeModel model = sessionModels.get(session.id());
         machineResponses.inspect(messages, structuredPrompt,
                 () -> capabilities.structured(endpoint, model),
@@ -513,14 +533,14 @@ public class HttpOpenCodeClient implements OpenCodeClient {
     private String blankToNull(String value) { return value == null || value.isBlank() ? null : value; }
     @Override public String diff(OpenCodeSession session) {
         try {
-            return client().get().uri(uri -> sessionUri(uri, "/session/{id}/diff", session))
+            return client(session).get().uri(uri -> sessionUri(uri, "/session/{id}/diff", session))
                     .retrieve().body(String.class);
         } catch (RuntimeException e) { throw new SessionFailure("OPENCODE_DIFF_FAILED", e.getMessage()); }
     }
     @Override public void abort(OpenCodeSession session) { abortWithConfirmation(session); }
     @Override public AbortConfirmation abortWithConfirmation(OpenCodeSession session) {
         try {
-            Boolean acknowledged = client().post().uri(uri -> sessionUri(uri, "/session/{id}/abort", session))
+            Boolean acknowledged = client(session).post().uri(uri -> sessionUri(uri, "/session/{id}/abort", session))
                     .retrieve().body(Boolean.class);
             if (!Boolean.TRUE.equals(acknowledged)) {
                 throw new SessionFailure("OPENCODE_ABORT_UNCONFIRMED",
@@ -550,13 +570,20 @@ public class HttpOpenCodeClient implements OpenCodeClient {
         return uri.path(path).queryParam("directory", "{directory}").build(variables);
     }
     private RestClient client() {
-        ConnectionDetails connection = connectionSupplier.get();
+        return client(connectionSupplier.get());
+    }
+    private RestClient client(OpenCodeSession session) {
+        return client(connectionFor(session));
+    }
+    private OpenCodeConnectionDetails connectionFor(OpenCodeSession session) {
+        return sessionConnections.resolve(session);
+    }
+    private RestClient client(OpenCodeConnectionDetails connection) {
         var spec = OpenCodeHttpTransport.bounded(baseBuilder, connectTimeout, requestTimeout).baseUrl(connection.baseUrl().toString());
         if (connection.username() != null && !connection.username().isBlank()) {
             spec.defaultHeaders(headers -> headers.setBasicAuth(connection.username(), connection.password() == null ? "" : connection.password()));
         }
         return spec.build();
     }
-    private record ConnectionDetails(URI baseUrl, String username, String password, boolean managed) { }
     private record Timeouts(Duration connectTimeout, Duration requestTimeout) { }
 }

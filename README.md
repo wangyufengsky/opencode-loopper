@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.2.83`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.2.84`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -129,12 +129,12 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.2.83.jar
+java -jar target/opencode-loopper-0.2.84.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
 
-默认情况下，Loopper 会先探测配置的 loopback 地址；若没有可复用实例，则使用一个新分配的动态端口启动并管理本机 `opencode serve` 进程。`4096` 只是默认探测地址，不是受管进程的固定启动端口。
+默认 `managed` 模式会在 Loopper 完成 HTTP 监听后的应用就绪事件中立即启动一个由当前 Loopper 独占的 `opencode serve` 进程，使用新的动态 loopback 端口、Basic Auth 和内部 MCP 代次，不等待首次页面/API/模型调用，也不复用已经运行的 OpenCode。`auto` 仅作为兼容模式保留，可复用健康的外部 loopback 实例；`http` 只连接显式地址，这两种模式仍按首次实际使用惰性连接，避免启动时接管外部进程。
 
 ## 第一次使用
 
@@ -320,13 +320,15 @@ Git 任务的最新 Execution Cycle 成功并处于 `AWAITING_DECISION` 或用�
 | --- | --- | --- |
 | `LOOPPER_DATA_DIR` | `./data` | SQLite、证据、二进制工件、Direct 私有基线和旧版 worktree 兼容数据 |
 | `SERVER_PORT` | `8080` | Loopper HTTP 端口；监听地址固定为 loopback |
-| `LOOPPER_OPENCODE_MODE` | `auto` | `auto` 复用或启动本机服务；`http` 只连接；`fake` 仅用于测试 |
-| `OPENCODE_BASE_URL` | `http://127.0.0.1:4096` | 要探测或复用的 OpenCode loopback 端点 |
-| `OPENCODE_ENABLE_QUESTION_TOOL` | 成品启动脚本和受管 OpenCode 默认为 `true` | OpenCode v1.18.22 服务端注册原生 `question` 工具；已有外部进程必须在自身启动环境中带此变量并重启，Loopper 不能修改已运行进程的环境 |
+| `LOOPPER_OPENCODE_MODE` | `managed` | `managed` 每次启动独立受管进程；`auto` 兼容复用或启动；`http` 只连接；`fake` 仅用于测试 |
+| `OPENCODE_BASE_URL` | `http://127.0.0.1:4096` | 仅供 `auto/http` 探测或连接；`managed` 使用新的动态 loopback 端点 |
+| `OPENCODE_ENABLE_QUESTION_TOOL` | 成品启动脚本和受管 OpenCode 默认为 `true` | OpenCode v1.18.23 服务端注册原生 `question` 工具；已有外部进程必须在自身启动环境中带此变量并重启，Loopper 不能修改已运行进程的环境 |
 | `OPENCODE_USERNAME` | 空 | 外部 OpenCode 的 Basic Auth 用户名 |
 | `OPENCODE_PASSWORD` | 空 | Basic Auth 密码；只从进程环境读取，不持久化 |
-| `OPENCODE_EXECUTABLE` | 从 `PATH` 查找 | 受管 `auto` 模式使用的 OpenCode 可执行文件 |
+| `OPENCODE_EXECUTABLE` | 从 `PATH` 查找 | `managed/auto` 启动 OpenCode 时使用的可执行文件 |
 | `OPENCODE_MODEL` | OpenCode 默认值 | 可选的 `provider/model` 默认模型 |
+| `LOOPPER_DECOMPOSER_CANDIDATE_ENABLED` | `true` | 大型任务 Decomposer 使用受管内部 MCP 候选提交；设为 `false` 时新 run 使用旧 JSON 兼容路径 |
+| `LOOPPER_ACCEPTANCE_CLOSED_CHOICE_V7_ENABLED` | `false` | v7 真实同分候选提交的显式试运行开关；只有隔离成品 JAR 证明当前模型会真实调用 MCP 并依据拒绝结果自修正后才可开启，关闭时新 run 走旧 JSON 路径，唯一最优与安全阻断仍由服务端处理 |
 | `LOOPPER_TASK_PROFILE_ROUTER_TIMEOUT` | `240s` | Router 尚未建立远端 Session 时的连接等待；连接成功后不再使用总时限，而是等待真实终态 |
 | `LOOPPER_CHROME_EXECUTABLE` | 自动检测 | `BROWSER` 验证器使用的 Chrome/Chromium 绝对路径 |
 | `LOOPPER_MCP_BEARER_TOKEN` | 每次启动随机生成 | `/api/mcp-streamable` 和 `/api/mcp` 的 Bearer Token |
@@ -359,7 +361,7 @@ Git 任务的最新 Execution Cycle 成功并处于 `AWAITING_DECISION` 或用�
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.2.83.jar`
+- `target/opencode-loopper-0.2.84.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -371,9 +373,9 @@ LOOPPER_JAVA_HOME=/opt/java/jdk-21 ./start-linux.sh
 
 脚本也允许误用 `sh start-linux.sh`，它会先切换到 Bash。JDK 选择顺序是 `LOOPPER_JAVA_HOME`，然后是脚本内的 `DEFAULT_JAVA_HOME=/opt/jdk-21`；脚本故意忽略继承的 `JAVA_HOME`，避免旧 JDK 8 覆盖指定版本。
 
-Linux 启动脚本不再固定 OpenCode 端口。未设置 `OPENCODE_BASE_URL` 时，它会先识别当前主机的 OpenCode 进程，再读取命令行中的显式 `--port`，并通过 `lsof` 或 `ss` 解析该进程实际监听的 TCP 端口，因此也能覆盖直接运行 `opencode` 的 TUI 和 `opencode web` 所启动的动态端口。Linux 对非特权用户隐藏 socket 的 PID/进程名时，脚本会把本机 TCP 监听端口作为有界候选逐个检查；候选只有在 loopback `/global/health` 精确返回 `healthy=true` 后才会被识别为 OpenCode。发现后以 `http` 模式复用；没有可复用实例时使用 `auto` 模式。脚本会先把 `opencode` 解析为确定的可执行文件路径，找不到或不可执行时直接报错；通过检查后，Loopper 才在动态 loopback 端口启动并管理 OpenCode。脚本和受管进程默认启用 `OPENCODE_ENABLE_QUESTION_TOOL=true`。若复用的是启动前已经存在的外部 OpenCode，该进程不会继承新环境；Loopper 会先自动降级为“设计师普通消息提问、用户在聊天框直接回答”，不会再报 `DESIGN_QUESTION_REQUIRED`。要恢复选项卡式原生提问，应在外部 OpenCode 自己的 systemd、容器或启动命令中设置该变量并重启它；仅重启 Loopper 不会改变外部进程环境。
+Linux 启动脚本默认使用 `managed`，先把 `opencode` 解析为确定的可执行文件路径，再由 Loopper 在新的动态 loopback 端口启动独立进程；它不会扫描或接管当前主机上已有的 OpenCode。只有显式选择 `auto/http` 时，脚本才会读取命令行中的 `--port`，并通过 `lsof` 或 `ss` 解析已有进程的实际监听端口；候选仍必须由 loopback `/global/health` 精确验真。脚本和受管进程默认启用 `OPENCODE_ENABLE_QUESTION_TOOL=true`。复用外部进程时，该进程不会继承新环境；Loopper 会降级为普通消息提问，直到操作者在外部 OpenCode 自身环境中启用该变量并重启。
 
-受管进程启动失败时，运行环境页会显示明确的“OpenCode 自动启动失败”、失败原因和本次实际尝试的动态地址，不再把默认探测地址 `127.0.0.1:4096` 显示成正在监听的地址。失败后不会因页面刷新或普通状态读取反复启动进程；点击“启动 OpenCode 并检查连接”会执行一次明确的本地 Auto 启动，并且只有 `/global/health` 验证通过后才显示连接成功。
+受管进程启动成功必须同时满足 `/global/health` 和 `/mcp` 中本代随机内部 Server 精确为 `connected`；只健康但内部 MCP 未连通仍失败关闭。运行环境页只显示脱敏代次和内部 MCP 就绪状态。启动失败后不会因页面刷新反复拉起；点击“启动并检查连接”会执行一次明确重试。
 
 若 OpenCode 使用 Basic Auth，请在启动 Loopper 时保留相同的官方环境变量 `OPENCODE_SERVER_USERNAME`、`OPENCODE_SERVER_PASSWORD`；脚本会自动映射为 Loopper 连接凭据。显式地址仍可覆盖自动发现，`0.0.0.0` 或 `[::]` 监听地址会转换为对应 loopback 连接地址：
 
@@ -390,7 +392,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:51234
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.2.83.jar`
+- `opencode-loopper-0.2.84.jar`
 - `start-windows.bat`
 
 确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
@@ -405,7 +407,7 @@ PowerShell 默认不会从当前目录搜索命令，必须带 `./` 或 `.\`：
 .\start-windows.bat
 ```
 
-脚本按 `LOOPPER_JAVA_HOME`、`JAVA_HOME`、`PATH` 的顺序查找 Java，并拒绝低于 21 的版本。未显式设置 `OPENCODE_BASE_URL` 时，它通过 Windows 进程信息读取正在运行的 `opencode serve --port ...` 候选端口，优先复用最新且 `/global/health` 返回 `healthy=true` 的 loopback 实例。若没有可复用实例，则使用 `auto` 模式，由 Loopper 在动态 loopback 端口启动并管理 OpenCode，不再把 4096 写死为启动端口。
+脚本按 `LOOPPER_JAVA_HOME`、`JAVA_HOME`、`PATH` 的顺序查找 Java，并拒绝低于 21 的版本。默认 `managed` 直接由 Loopper 在动态 loopback 端口启动独立 OpenCode，不扫描已有进程。显式选择 `auto/http` 时才通过 Windows 进程信息读取 `opencode serve --port ...` 候选并要求 `/global/health` 精确验真。
 
 需要固定路径或端口时，可先设置环境变量：
 
@@ -416,7 +418,7 @@ set "SERVER_PORT=8080"
 start-windows.bat
 ```
 
-若显式设置了 `OPENCODE_BASE_URL`，脚本只连接该地址；该地址离线时会直接报错。发现需要认证的已有实例时，同时设置 `OPENCODE_USERNAME` 和 `OPENCODE_PASSWORD`，否则健康检查不会把它当成可复用端点。设置 `LOOPPER_OPEN_BROWSER=false` 可禁止自动打开页面。由 `auto` 模式启动的 OpenCode 归 Loopper 管理，Loopper 退出时会停止该进程；外部已运行实例不会被停止。
+若要连接外部地址，必须同时显式设置 `LOOPPER_OPENCODE_MODE=http` 和 `OPENCODE_BASE_URL`；地址离线时直接报错。需要认证时同时设置 `OPENCODE_USERNAME` 和 `OPENCODE_PASSWORD`。设置 `LOOPPER_OPEN_BROWSER=false` 可禁止自动打开页面。由 `managed/auto` 启动的 OpenCode 归 Loopper 管理，Loopper 退出时会停止；外部实例不会被停止。
 
 其他注意事项：
 
@@ -428,7 +430,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.2.83.jar \
+jar tf target/opencode-loopper-0.2.84.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -500,7 +502,7 @@ Windows PowerShell：
 ./scripts/evaluate-weak-model-v7.sh
 ```
 
-生成的脱敏 JSON 只落在 `target/`：corpus 报告仅记录版本化预期并明确 `authoritativeGate=false`；同一冻结输入经过生产编译链得到的只读 shadow 是权威实测，但明确不是完整资格；只有 22 个精确生产 guard、3 个补充指标 guard 与该实测共同通过，并校验它们发布的有界实际计数后，qualification 报告才可标记 `authoritativeGate=true`。三者都与真实弱模型/JAR 回放严格分开。样本范围、指标定义和失败条件见 [Compiler v7 评估合同](docs/weak-model-compiler-v7-evaluation.md)。
+生成的脱敏 JSON 只落在 `target/`：corpus 报告仅记录版本化预期并明确 `authoritativeGate=false`；同一冻结输入经过生产编译链得到的只读 shadow 是权威实测，但明确不是完整资格；只有 22 个精确生产 guard、7 个补充指标 guard 与 1 个同输入实测共同通过，并校验它们发布的有界实际计数后，qualification 报告才可标记 `authoritativeGate=true`。其中 4 条候选工作流还必须分别证明唯一最优 `0/0/0`、真实同分 `1/1/1..2`、不可枚举 `0/0/0`、路径安全阻断 `0/0/0` 的 `modelCalls / candidateSessions / candidateSubmissions`。三类报告都与真实弱模型/JAR 回放严格分开。样本范围、指标定义和失败条件见 [Compiler v7 评估合同](docs/weak-model-compiler-v7-evaluation.md)。
 
 生产代码同时遵守 [代码设计契约](docs/code-design-contract.md)：单一职责、组合优先、策略/工厂/适配器只用于真实变化轴，生产 Java 文件默认不超过 600 行。`CodeStructureContractTest` 对仍在拆分的历史大类使用只能下降的上限；修改这些文件时必须同步降低上限，不能用扩大阈值让构建通过。
 
@@ -518,7 +520,7 @@ Windows PowerShell：
 例如发布下一版本：
 
 ```bash
-VERSION=0.2.83
+VERSION=0.2.84
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -558,11 +560,13 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.2.83.jar
+java -jar target/opencode-loopper-0.2.84.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。
-Loopper 创建任何受管 OpenCode Session 前会读取项目作用域的 `GET /mcp`；发现成功后把每个已配置服务器的 `<server>_*` 工具权限加入对应角色。该能力同样适用于需求分析师、修复和收口角色，但不会解除内置 Bash、Git、写文件、外部目录或 Loopper 人工授权边界；发现失败会在发送提示前明确停止，本机用户的 OpenCode 配置不会被 Loopper 改写。
+上述六工具属于外部公共 MCP。另有一个不公开到公共 Provider 的内部 MCP，只注册 `submit_candidate`，使用每个受管 OpenCode 代次随机生成的 Server 名和 Bearer；它仅允许 loopback，并只授权给正在迁移的机器候选角色。Loopper 通过子进程的 `OPENCODE_CONFIG_CONTENT` 叠加该随机配置，不写用户文件；OpenCode 会继续合并用户/项目 MCP，Loopper 也会深度保留继承环境中的既有 MCP 条目。即使随机内部名称与继承配置碰撞，也只在该子进程的内存/环境叠加层覆盖同名项，不修改原配置。普通角色仍按既有权限模板使用用户 MCP；Router 和 Judge 不获得内部工具；Decomposer 候选保留 `read / glob / grep` 并只增加精确私有提交工具，验收闭集候选则没有内置工具且看不到用户 MCP。
+
+候选工具返回 `REJECTED / ACCEPTED / WAITING_INPUT` 以及有界错误码和 JSON Pointer。`REJECTED` 允许模型在同一 Session 内修正后再次提交；`ACCEPTED` 的规范结果与运行状态在同一短事务中冻结。被拒绝的原始候选不落库，只保存请求哈希、安全问题和响应。内部 MCP 故障不能在同一 Session 中静默切换协议；只有确认旧 Session 已终止后才允许创建全新的兼容 Session。
 
 ## 常见问题
 
@@ -583,7 +587,7 @@ lsof -nP -iTCP:8080 -sTCP:LISTEN
 
 ### Runtime 显示离线
 
-检查 `opencode --version`、OpenCode 的模型认证、`OPENCODE_BASE_URL` 和 `/global/health`。Linux 自动发现直接运行的 TUI/`opencode web` 动态端口时还需要 `lsof` 或 `ss` 至少一个可用；`http` 模式不会替你启动 OpenCode，`auto` 模式需要能从 `PATH` 或 `OPENCODE_EXECUTABLE` 找到 CLI。`0.1.21` 起，Linux 脚本会在启动 Loopper 前输出实际使用的 OpenCode CLI 路径；若子进程仍启动失败，运行环境页会显示退出码或超时原因及本次动态尝试地址。`0.1.22` 起，Auto 启动阶段的单次健康请求最多等待 1 秒并持续重试，避免通用 30 秒请求超时吞掉完整的 15 秒启动预算。`0.1.23` 起，失败卡片提供“启动 OpenCode 并检查连接”，成功标准是服务端完成受认证的 `/global/health` 检查，而不是仅创建了进程。
+检查 `opencode --version`、OpenCode 的模型认证和运行环境页中的启动诊断。默认 `managed` 模式需要能从 `PATH` 或 `OPENCODE_EXECUTABLE` 找到 CLI；它每次创建隔离进程，成功标准是受认证的 `/global/health` 和本代内部 MCP 均就绪，而不是仅创建进程。只有显式 `auto` 才发现并复用现有 loopback OpenCode；Linux 自动发现直接运行的 TUI/`opencode web` 动态端口时还需要 `lsof` 或 `ss` 至少一个可用。`http` 模式不会替你启动 OpenCode，也不具备内部 MCP，因此候选角色使用同一服务端校验器的兼容通道。运行环境页只显示代次短标识和内部 MCP 是否就绪，不显示完整代次、内部服务名或 Bearer。
 
 ### Windows 中 `mvn -v` 正常，但 PROCESS 报 `CreateProcess error=2`
 
@@ -659,6 +663,8 @@ echo %PATHEXT%
 `0.1.95` 系统审计并修复动态 Role Pack 到 Compiler 的完整链路。Role Pack v3 按软件族规范化 Java/Python/Node/Other 标签，避免 JavaScript 误入 Java、同族别名误入混合栈和未知单栈默认 Java；每个可编译角色使用栈原生规划示例与测试目标解析，非软件流程明确绕过 Compiler。当前输出默认进入紧凑 `outcome` 合同，历史 `status` 解析只接受明确旧信封；格式与语义修复改用全新无工具 Session，JSON Schema 分别匹配完整规划与补丁信封，非法补丁不会覆盖有效语义快照，直接软件 1–6 Stage 的 Schema 上限也与产品合同一致。
 
 `0.2.0` 继续收缩历史 God Class：Designer 的紧凑包计划规范化、语义校验和可执行证据编译由独立确定性编译器负责，共享机器合同移出会话编排器；Task 的确认设计快照、验证汇总、Git diff 和 Judge 提示证据由独立证据服务负责。`DesignerSessionService` 与 `TaskService` 仍是待继续拆分的兼容编排器，结构门禁已同步下调，不把本次提取描述为债务清零。
+
+`0.2.84` 将可纠错的机器结果迁移到服务端权威的 CandidateSubmission：V47 持久化候选 run/attempt 与 OpenCode Session 运行时代际，拒绝原文只保存摘要；问题码、JSON Pointer 和说明由服务端静态生成，不回显候选值。Decomposer 在受管私有 MCP 中最多提交 5 次，v7 只有服务端证明的真实同分才可用一个零内置工具 Session 最多提交 2 次，唯一最优、不可枚举和路径/权限阻断保持零调用。默认 `managed` 在应用就绪时立即启动独占 OpenCode，随机 loopback 端口、Basic Auth、私有 Server/Bearer 和代次都不写用户配置；现有用户/项目 MCP 继续合并，公共六工具、Router、Judge 与候选最小权限保持隔离。结构资格门实测 22/22 精确 guard、7/7 指标 guard、1/1 同输入测量，以及候选四类 `0/0/0、1/1/2、0/0/0、0/0/0` 三轴服务端证据。隔离成品 JAR 另以 OpenCode 1.18.23 和当前可用的 `opencode/ling-3.0-flash-fin-free` 完成真实 Decomposer 回放：模型在同一个候选 Session 主动调用私有 `submit_candidate` 一次，V47 以 `INTERNAL_MCP / ACCEPTED` 固化并生成两个有序工作包，期间未创建 Task；本次首个候选即通过，因此只证明模型会使用工具，不冒充“拒绝后自修正”的真实模型证据。v7 的两次 MCP 请求仍由测试驱动器发起，尚不能证明当前真实模型会在拒绝后自行修正，所以 v7 候选默认关闭，待独立回放得到该证据后才允许显式开启。
 
 `0.2.83` 修复四个跨状态根因：Designer 聚合从持久化的首条用户需求恢复任务目标，需求快照只作冻结设计证据，不再覆盖任务标题与后续 `loopper/<任务名>` 分支来源；任务详情的双评审操作区只投影需求/风险各自最新一轮，完整旧记录继续保留在审计历史；桌面模型输出滚动区扩大到 500–680px，OpenCode 实施计划仍是独立且有界的非权威行；待处理中心统一按 Task/Designer 本地拥有者是否仍可处理来收束交互，已停止会话的问题与权限自动转为过期，活动会话的远端传输失败继续失败关闭并保留待处理状态。
 

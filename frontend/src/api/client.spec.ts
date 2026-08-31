@@ -60,6 +60,48 @@ describe('Loopper REST contract adapter', () => {
       .rejects.toThrow('DesignWorkPackage returned unknown state: FUTURE_PACKAGE_STATE')
   })
 
+  it('normalizes decomposition candidate counters and defaults historical responses to zero', async () => {
+    const base = {
+      id: 'designer-1', projectId: 'project-1', state: 'RUNNING', workflowPhase: 'DECOMPOSING',
+      activeActor: 'DECOMPOSER', messages: [],
+    }
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json({
+        ...base,
+        decomposition: {
+          id: 'decomposition-1', state: 'RUNNING', workflowStep: 'PLANNING',
+          repairCount: 0, transportRetryCount: 0, planningRepairCount: 0,
+          candidateSessions: 2, candidateSubmissions: 5,
+        },
+      }))
+      .mockResolvedValueOnce(json({
+        ...base,
+        decomposition: {
+          id: 'decomposition-legacy', state: 'RUNNING', workflowStep: 'PLANNING',
+          repairCount: 0, transportRetryCount: 0, planningRepairCount: 0,
+        },
+      }))
+      .mockResolvedValueOnce(json({
+        ...base,
+        decomposition: {
+          id: 'decomposition-invalid', state: 'RUNNING', workflowStep: 'PLANNING',
+          repairCount: 0, transportRetryCount: 0, planningRepairCount: 0,
+          candidateSessions: -1, candidateSubmissions: '5',
+        },
+      }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(api.getDesignerSession('designer-1')).resolves.toMatchObject({
+      decomposition: { candidateSessions: 2, candidateSubmissions: 5 },
+    })
+    await expect(api.getDesignerSession('designer-1')).resolves.toMatchObject({
+      decomposition: { candidateSessions: 0, candidateSubmissions: 0 },
+    })
+    await expect(api.getDesignerSession('designer-1')).resolves.toMatchObject({
+      decomposition: { candidateSessions: 0, candidateSubmissions: 0 },
+    })
+  })
+
   it('sends the server-owned Task status group without expanding client states', async () => {
     const fetchMock = vi.fn().mockResolvedValue(json({ items: [], facets: { PROCESSING: 3, MATCHED_TOTAL: 3 } }))
     vi.stubGlobal('fetch', fetchMock)
@@ -254,10 +296,38 @@ describe('Loopper REST contract adapter', () => {
     })
   })
 
+  it('normalizes managed runtime generation and redacted internal MCP readiness only', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(json({
+      loopperVersion: '0.2.84', status: 'ONLINE', managed: true, checkedAt: 'now',
+      generation: '11111111',
+      internalMcpServer: 'loopper_internal_private123', bearerToken: 'must-not-cross-the-client-contract',
+      internalMcp: {
+        status: 'CONNECTED', configured: true, generation: '11111111-2222-3333-4444-555555555555',
+        serverName: 'loopper_internal_private123', detail: null, bearerToken: 'must-not-survive-normalization',
+      },
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const runtime = await api.getRuntime()
+
+    expect(runtime).toMatchObject({
+      managed: true,
+      generation: '11111111',
+      internalMcp: {
+        status: 'CONNECTED', configured: true,
+      },
+    })
+    expect(runtime).not.toHaveProperty('internalMcpServer')
+    expect(runtime).not.toHaveProperty('bearerToken')
+    expect(runtime.internalMcp).not.toHaveProperty('generation')
+    expect(runtime.internalMcp).not.toHaveProperty('serverName')
+    expect(runtime.internalMcp).not.toHaveProperty('bearerToken')
+  })
+
   it('loads and persists settings with a dynamic model catalog', async () => {
     const settings = {
       runtime: { serverPort: 8080, openBrowser: true, allowedRoot: '', monitorDelaySeconds: 2, designerMonitorDelayMillis: 750, abortCleanupAttempts: 3 },
-      openCode: { cliPath: 'opencode', mode: 'auto' as const, baseUrl: 'http://127.0.0.1:4096', provider: 'deepseek', model: 'deepseek-chat', connectTimeoutSeconds: 5, requestTimeoutSeconds: 30, startupTimeoutSeconds: 15 },
+      openCode: { cliPath: 'opencode', mode: 'managed' as const, baseUrl: 'http://127.0.0.1:4096', provider: 'deepseek', model: 'deepseek-chat', connectTimeoutSeconds: 5, requestTimeoutSeconds: 30, startupTimeoutSeconds: 15 },
       limits: { maxStageAttempts: 3, maxTaskAttempts: 12, sessionErrorLimit: 3, maxDurationMinutes: 120, attemptTimeoutMinutes: 30, verifierTimeoutMinutes: 10, designerTimeoutMinutes: 30 },
       retryWait: { rateLimitBaseSeconds: 60, rateLimitMaxSeconds: 300, sessionBaseSeconds: 10, sessionMaxSeconds: 60, verificationBaseSeconds: 5, verificationMaxSeconds: 30 },
       publication: { httpWebHosts: ['gitlab.spdb.com'], gitlabHost: 'gitlab.spdb.com', gitlabApiBaseUrl: 'http://gitlab.spdb.com/api/v4', connectTimeoutSeconds: 3, requestTimeoutSeconds: 10 },
@@ -269,13 +339,17 @@ describe('Loopper REST contract adapter', () => {
       .mockResolvedValueOnce(json(settings))
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(api.getSettings()).resolves.toMatchObject({ openCode: { provider: 'deepseek', model: 'deepseek-chat' } })
+    const loaded = await api.getSettings()
+    expect(loaded).toMatchObject({ openCode: { mode: 'managed', provider: 'deepseek', model: 'deepseek-chat' } })
     await expect(api.getSettingsModels('opencode')).resolves.toMatchObject([{ id: 'deepseek/deepseek-chat' }])
-    await api.updateSettings(settings)
+    await api.updateSettings(loaded)
 
     expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/settings/models?cliPath=opencode')
     expect(fetchMock.mock.calls[2]?.[0]).toBe('/api/settings')
     expect(fetchMock.mock.calls[2]?.[1]).toMatchObject({ method: 'PUT' })
+    expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toMatchObject({
+      openCode: { mode: 'managed' },
+    })
   })
 
   it('starts and checks OpenCode only through the explicit local UI endpoint', async () => {

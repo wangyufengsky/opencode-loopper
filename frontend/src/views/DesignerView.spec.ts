@@ -1379,7 +1379,7 @@ describe('Designer draft composer', () => {
       finalConfirmationEligible: false,
       requirementRevision: 3, activeWorkPackageId: 'WP-2',
       requirement: { revision: 3, state: 'WAITING_INPUT', modelCallsUsed: 9, maxModelCalls: 32, sourceDraftVersion: 4 },
-      decomposition: { id: 'decomposition-3', state: 'COMPLETED', resultType: 'DECOMPOSED', repairCount: 1, planningRepairCount: 1, transportRetryCount: 0, workflowStep: 'FINAL_JSON' },
+      decomposition: { id: 'decomposition-3', state: 'COMPLETED', resultType: 'DECOMPOSED', repairCount: 1, planningRepairCount: 1, transportRetryCount: 0, workflowStep: 'FINAL_JSON', candidateSessions: 2, candidateSubmissions: 5 },
       compiler: { id: 'compiler-wp2', state: 'SESSION_ERROR', externalSessionState: 'FAILED', repairCount: 2, planningRepairCount: 2, designRevision: 1, workPackageId: 'WP-2', workflowStep: 'FINAL_JSON' },
       workPackages: [
         { id: 'WP-1', ordinal: 0, title: '查询能力', objective: '可查询结果', dependencies: [], state: 'COMPLETED', redesignCount: 0, compilerRepairCount: 0, compilerPlanningRepairCount: 0, designRevision: 1, discussionRoundCount: 0 },
@@ -1406,7 +1406,11 @@ describe('Designer draft composer', () => {
     expect(wrapper.get('[aria-label="工作包设计轨道"]').text()).toContain('工作包 1')
     expect(wrapper.get('[aria-label="工作包设计轨道"]').text()).not.toContain('WP-1')
     expect(wrapper.get('[aria-label="工作包设计轨道"]').text()).toContain('讨论 0/5 · 设计 R1')
-    expect(wrapper.get('.designer-connection-strip').text()).toContain('模型调用 9/32')
+    const statusStrip = wrapper.get('.designer-connection-strip').text()
+    expect(statusStrip).toContain('模型调用 9/32')
+    expect(statusStrip).toContain('候选 Session 2')
+    expect(statusStrip).toContain('候选提交 5')
+    expect(statusStrip).not.toContain('模型调用 14/32')
     expect(wrapper.text()).not.toContain('"stages":["secret"]')
     const confirmButton = wrapper.findAll('button').find((button) => button.text().includes('确认设计并创建任务'))!
     expect(confirmButton.attributes('disabled')).toBeDefined()

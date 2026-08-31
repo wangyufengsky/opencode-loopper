@@ -42,7 +42,10 @@ only below `target/`:
 - `weak-model-compiler-v7-qualification.json` — the complete local qualification:
   all 22 exact production guards, three supplemental metric guards, the authoritative
   same-input measurement, and their bounded actual values. This is the only report
-  with `authoritativeGate=true`.
+  with `authoritativeGate=true` for the existing v7 JSON workflow. It also carries
+  a separate `candidateFeatureQualification`; until a real candidate workflow guard
+  records every required observation, that nested gate is explicitly
+  `complete=false` and `passed=false` and cannot authorize the candidate feature.
 
 All outputs are bounded contracts containing only sample IDs, stable gap codes,
 booleans and counts. They cannot contain requirement text, model output, absolute
@@ -90,6 +93,46 @@ per run and cannot carry prompts, paths, Session IDs, persistence identifiers, o
 arbitrary unregistered fields. Hard-gap and unsafe-authorization measurements are
 derived from the actual compilation/result objects exercised by their guards.
 
+### Acceptance candidate structural qualification
+
+The internal-MCP acceptance candidate feature has a separate structural qualification.
+The production property `loopper.internal-candidate.acceptance-closed-choice-v7-enabled`
+defaults to `false`; setting it to `true` is allowed only after an isolated packaged-JAR
+replay proves configured real-model MCP tool adoption and same-Session correction after
+a rejected submission. The test-only registry reserves four closed evidence IDs backed
+by real Designer/OpenCode guards:
+
+- unique global optimum;
+- exhaustive true capability tie;
+- non-enumerable or non-exhaustive capability result;
+- path-ownership or permission-safety block.
+
+Each evidence item must atomically record `modelCalls`, `candidateSessions`, and
+`candidateSubmissions` from the same observation. Partial records are rejected so
+separate runs cannot be combined into a false pass. The exact bounds are:
+
+| Scenario | Model calls | Candidate Sessions | Candidate submissions |
+| --- | ---: | ---: | ---: |
+| unique optimum / server direct | 0 | 0 | 0 |
+| exhaustive true tie | 1 | 1 | 1–2 |
+| non-enumerable or non-exhaustive | 0 | 0 | 0 |
+| path or permission safety block | 0 | 0 | 0 |
+
+Candidate submissions are MCP tool invocations inside the one candidate Session;
+they are not extra model calls or extra Sessions. The second submission is allowed
+only after a mechanical closed-set selection rejection. Security, contract,
+topology, execution, path, permission, and non-enumerable failures are terminal
+for the candidate loop. The current structural qualification observes those four workflows
+as `0/0/0`, `1/1/2`, `0/0/0`, and `0/0/0` respectively, with
+`candidateFeatureQualification.complete=true` and `passed=true`. Counts come from
+the same workflow's actual Fake OpenCode prompt history plus persisted candidate
+run/attempt rows. The two true-tie MCP submissions are issued by the integration driver,
+not by Fake OpenCode or a configured model. Coordinator unit tests and the legacy JSON
+Compiler guard cannot populate this evidence. The result therefore proves the server
+pipeline, retry bounds, persistence, and counters, but it does not prove model tool use
+or self-correction and cannot enable the production default. The evaluator reports the
+qualification but never mutates runtime configuration by itself.
+
 The v2 synthetic corpus currently contains 25 samples backed by 22 exact guards. Its versioned expected
 baseline is v6/v7 design compilation `14/25 -> 15/25`, end-to-end executable planning
 `11/25 -> 15/25`, Compiler calls `10 -> 8`, full redesigns `7 -> 0`, hard-gap
@@ -109,6 +152,12 @@ no model Session, writes no planning state, and creates no Task. After the compl
 frozen `2026-08-dynamic-v7` designs use v7 authoritatively. Existing v5/v6 snapshots
 are never migrated or reinterpreted. Runtime `GIT_DIFF`, focused-test, and Judge
 rules remain authoritative and cannot be disabled to make the gate pass.
+
+The same-input shadow and the existing one-Session JSON closed-choice probe are
+not candidate-transport observations: neither invokes the internal
+`submit_candidate` tool. They therefore cannot satisfy or partially populate
+`candidateFeatureQualification`; only the four separately executed production
+workflow guards described above can do so.
 
 Synthetic evidence does not replace an isolated packaged-JAR replay against the
 configured weak model. Each release must separately record the sample boundary,

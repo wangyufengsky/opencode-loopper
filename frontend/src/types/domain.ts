@@ -91,6 +91,12 @@ export interface RuntimeInfo {
   model?: string
   checkedAt: string
   startupFailure?: string
+  generation?: string
+  internalMcp?: {
+    status: 'INACTIVE' | 'CONNECTING' | 'CONNECTED' | 'UNAVAILABLE' | 'UNKNOWN'
+    configured: boolean
+    detail?: string
+  }
   capabilities?: {
     agentDiscovery: 'AVAILABLE' | 'UNAVAILABLE' | 'UNKNOWN'
     agents: Array<{ name: string; mode?: string; description?: string }>
@@ -110,7 +116,7 @@ export interface AppSettings {
     monitorDelaySeconds: number; designerMonitorDelayMillis: number; abortCleanupAttempts: number
   }
   openCode: {
-    cliPath: string; mode: 'auto' | 'http'; baseUrl: string; provider: string; model: string
+    cliPath: string; mode: 'managed' | 'auto' | 'http'; baseUrl: string; provider: string; model: string
     connectTimeoutSeconds: number; requestTimeoutSeconds: number; startupTimeoutSeconds: number
   }
   limits: {
@@ -1074,6 +1080,8 @@ export interface TaskDecompositionStatus {
   formatRepairCount?: number
   semanticRepairCount?: number
   serverCompiled?: boolean
+  candidateSessions?: number
+  candidateSubmissions?: number
 }
 
 export interface DesignWorkPackageStatus {

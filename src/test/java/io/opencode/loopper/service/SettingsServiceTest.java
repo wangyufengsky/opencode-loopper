@@ -19,6 +19,39 @@ import tools.jackson.databind.ObjectMapper;
 
 class SettingsServiceTest {
     @Test
+    void acceptsManagedModeWithoutDowngradingThePersistedStartupSetting() {
+        LoopperMapper mapper = mock(LoopperMapper.class);
+        when(mapper.findAppSettings()).thenReturn(Optional.empty());
+        OpenCodeModelCatalogService catalog = mock(OpenCodeModelCatalogService.class);
+        when(catalog.discover("opencode")).thenReturn(List.of(
+                new OpenCodeModelCatalogService.AvailableModel(
+                        "deepseek/deepseek-chat", "deepseek", "deepseek-chat", "DeepSeek")));
+        SettingsPersistence persistence = mock(SettingsPersistence.class);
+        when(persistence.save(any(AppSettingsRow.class), any(StartupSettingsFile.Prepared.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        StartupSettingsFile startupFile = mock(StartupSettingsFile.class);
+        when(startupFile.path()).thenReturn(java.nio.file.Path.of("/tmp/startup-overrides.properties"));
+        when(startupFile.prepare(any())).thenReturn(mock(StartupSettingsFile.Prepared.class));
+        LoopperProperties properties = new LoopperProperties();
+        SettingsService service = new SettingsService(
+                mapper, properties, catalog, persistence, startupFile, new ObjectMapper());
+
+        SettingsService.AppSettings saved = service.save(new SettingsService.AppSettings(
+                new SettingsService.RuntimeSettings(8080, true, "", 2, 750, 3),
+                new SettingsService.OpenCodeSettings("opencode", "managed", "http://127.0.0.1:4096",
+                        "deepseek", "deepseek-chat", 5, 30, 15),
+                new SettingsService.LimitSettings(3, 9, 3, 120, 25, 10, 30),
+                new SettingsService.RetryWaitSettings(60, 300, 10, 60, 5, 30),
+                new SettingsService.PublicationSettings(List.of("gitlab.spdb.com"), "gitlab.spdb.com",
+                        "http://gitlab.spdb.com/api/v4", 3, 10), null, List.of(), List.of(), null));
+
+        assertThat(saved.openCode().mode()).isEqualTo("managed");
+        assertThat(properties.getOpenCode().getMode()).isEqualTo("managed");
+        verify(startupFile).prepare(org.mockito.ArgumentMatchers.argThat(
+                values -> "managed".equals(values.get("LOOPPER_OPENCODE_MODE"))));
+    }
+
+    @Test
     void persistsAndAppliesASelectedModelToFutureSessions() {
         LoopperMapper mapper = mock(LoopperMapper.class);
         OpenCodeModelCatalogService catalog = mock(OpenCodeModelCatalogService.class);

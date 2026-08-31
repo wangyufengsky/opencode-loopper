@@ -270,8 +270,9 @@ class DesignerAcceptanceFastPathResolverTest {
                 new DesignerPackagePlanCompiler(new DesignerEvidenceIndexer()));
 
         assertThat(workflow.closedChoiceCapabilities(capabilities, resolution))
-                .contains("同分 A", "同分 B")
-                .doesNotContain("较弱 C", "command", "testTargets", "CTest");
+                .contains("closed-choice-0", "closed-choice-1")
+                .doesNotContain("同分 A", "同分 B", "较弱 C", "command", "testTargets",
+                        "ATest", "BTest", "CTest");
 
         for (List<Integer> invalid : List.of(List.of(2), List.of(0, 0))) {
             assertThatThrownBy(() -> resolver.merge(resolution,

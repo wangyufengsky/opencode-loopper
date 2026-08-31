@@ -13,6 +13,11 @@ final class OpenCodePermissionPolicy {
     }
 
     static List<Map<String, String>> rules(OpenCodeClient.SessionProfile profile, List<String> mcpServers) {
+        return rules(profile, mcpServers, null);
+    }
+
+    static List<Map<String, String>> rules(OpenCodeClient.SessionProfile profile, List<String> mcpServers,
+                                           String internalMcpServer) {
         if (profile != OpenCodeClient.SessionProfile.IMPLEMENTATION) {
             List<Map<String, String>> rules = new ArrayList<>();
             rules.add(rule("*", "*", "deny"));
@@ -20,7 +25,11 @@ final class OpenCodePermissionPolicy {
                 rules.add(rule("external_directory", "*", "deny"));
                 // Router receives a bounded server snapshot and must remain a true zero-tool classifier.
                 // Other no-built-in roles may still use explicitly configured MCP evidence sources.
-                if (profile != OpenCodeClient.SessionProfile.ROUTER_NO_TOOLS) allowMcp(rules, mcpServers);
+                if (profile == OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS) {
+                    allowInternalSubmission(rules, internalMcpServer);
+                } else if (profile != OpenCodeClient.SessionProfile.ROUTER_NO_TOOLS) {
+                    allowMcp(rules, mcpServers, internalMcpServer);
+                }
                 return List.copyOf(rules);
             }
             rules.add(rule("read", "*", "allow"));
@@ -33,7 +42,11 @@ final class OpenCodePermissionPolicy {
             rules.add(rule("read", ".env.*", "deny"));
             rules.add(rule("read", ".env.example", "allow"));
             rules.add(rule("external_directory", "*", "deny"));
-            allowMcp(rules, mcpServers);
+            if (profile == OpenCodeClient.SessionProfile.DECOMPOSER_CANDIDATE_READ_ONLY) {
+                allowInternalSubmission(rules, internalMcpServer);
+            } else {
+                allowMcp(rules, mcpServers, internalMcpServer);
+            }
             return List.copyOf(rules);
         }
         List<Map<String, String>> rules = new ArrayList<>(List.of(
@@ -66,7 +79,7 @@ final class OpenCodePermissionPolicy {
                 rule("bash", "*service*stop*", "deny"),
                 rule("bash", "*service*restart*", "deny"),
                 rule("todowrite", "*", "allow")));
-        allowMcp(rules, mcpServers);
+        allowMcp(rules, mcpServers, internalMcpServer);
         return List.copyOf(rules);
     }
 
@@ -74,12 +87,22 @@ final class OpenCodePermissionPolicy {
         return profile == OpenCodeClient.SessionProfile.MACHINE_FINALIZER_NO_TOOLS
                 || profile == OpenCodeClient.SessionProfile.COMPILER_BINDING_NO_TOOLS
                 || profile == OpenCodeClient.SessionProfile.COMPILER_REPAIR_NO_TOOLS
+                || profile == OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS
                 || profile == OpenCodeClient.SessionProfile.ROUTER_NO_TOOLS;
     }
 
-    private static void allowMcp(List<Map<String, String>> rules, List<String> servers) {
+    private static void allowInternalSubmission(List<Map<String, String>> rules, String internalMcpServer) {
+        if (internalMcpServer != null && !internalMcpServer.isBlank()) {
+            rules.add(rule(sanitize(internalMcpServer) + "_submit_candidate", "*", "allow"));
+        }
+    }
+
+    private static void allowMcp(List<Map<String, String>> rules, List<String> servers,
+                                 String internalMcpServer) {
         if (servers == null) return;
         servers.stream().filter(java.util.Objects::nonNull).map(OpenCodePermissionPolicy::sanitize)
+                .filter(server -> internalMcpServer == null
+                        || !server.equals(sanitize(internalMcpServer)))
                 .filter(value -> !value.isBlank()).distinct()
                 .forEach(server -> rules.add(rule(server + "_*", "*", "allow")));
     }

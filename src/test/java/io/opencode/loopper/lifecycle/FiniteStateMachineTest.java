@@ -61,6 +61,24 @@ class FiniteStateMachineTest {
     }
 
     @Test
+    void candidateSubmissionOnlyTransitionsFromOpenToItsThreeTerminalStates() {
+        LifecycleRegistry registry = new LifecycleRegistry();
+
+        assertThat(registry.resolve(LifecycleMachineType.CANDIDATE_SUBMISSION_RUN, "candidate-1",
+                MachineCandidateRunState.OPEN.name(), MachineCandidateRunState.ACCEPTED.name(), null).event())
+                .isEqualTo(LifecycleEvent.APPROVE);
+        assertThat(registry.resolve(LifecycleMachineType.CANDIDATE_SUBMISSION_RUN, "candidate-1",
+                MachineCandidateRunState.OPEN.name(), MachineCandidateRunState.WAITING_INPUT.name(), null).event())
+                .isEqualTo(LifecycleEvent.REQUIRE_INPUT);
+        assertThat(registry.resolve(LifecycleMachineType.CANDIDATE_SUBMISSION_RUN, "candidate-1",
+                MachineCandidateRunState.OPEN.name(), MachineCandidateRunState.CLOSED.name(), null).event())
+                .isEqualTo(LifecycleEvent.ABORT);
+        assertThat(registry.definitions()).noneMatch(edge ->
+                edge.machineType() == LifecycleMachineType.CANDIDATE_SUBMISSION_RUN
+                        && MachineCandidateRunState.valueOf(edge.fromState()).terminal());
+    }
+
+    @Test
     void duplicateStateAndEventDefinitionFailsFast() {
         var builder = FiniteStateMachine.builder(LifecycleMachineType.STAGE, StageState.class, LifecycleEvent.class)
                 .transition(StageState.PENDING, LifecycleEvent.START, StageState.RUNNING);

@@ -32,7 +32,8 @@ public class RuntimeController {
             @RequestHeader(value = "X-Loopper-Local-UI", required = false) String localUi) {
         requireLocalUi(localUi);
         if (!runtimeManager.manuallyStartable()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Only auto mode can start a managed OpenCode runtime");
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Only managed or auto mode can start a Loopper-owned OpenCode runtime");
         }
         return dto(runtimeManager.startAndCheck());
     }
@@ -45,13 +46,25 @@ public class RuntimeController {
         return dto(runtimeManager.restartOwned());
     }
     private RuntimeDto dto(OpenCodeRuntimeManager.RuntimeSnapshot snapshot) {
+        var readiness = snapshot.internalMcp();
+        InternalMcpDto internalMcp = readiness == null ? null : new InternalMcpDto(
+                readiness.status(), snapshot.internalMcpServer() != null && !snapshot.internalMcpServer().isBlank(),
+                readiness.detail());
         return new RuntimeDto(loopperVersion, snapshot.status(), snapshot.version(), snapshot.managed(), snapshot.pid(),
                 snapshot.endpoint(), snapshot.model(), snapshot.checkedAt().toString(), snapshot.startupFailure(),
+                shortGeneration(snapshot.generation()), internalMcp,
                 capabilityService.capabilities(snapshot));
     }
     public record RuntimeDto(String loopperVersion, String status, String version, boolean managed, Long pid, String endpoint,
-                             String model, String checkedAt, String startupFailure,
+                             String model, String checkedAt, String startupFailure, String generation,
+                             InternalMcpDto internalMcp,
                              OpenCodeCapabilityService.RuntimeCapabilities capabilities) { }
+    public record InternalMcpDto(String status, boolean configured, String detail) { }
+
+    private static String shortGeneration(String generation) {
+        if (generation == null || generation.isBlank()) return null;
+        return generation.substring(0, Math.min(8, generation.length()));
+    }
 
     private static void requireLocalUi(String localUi) {
         if (!"1".equals(localUi)) {

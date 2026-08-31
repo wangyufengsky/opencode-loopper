@@ -11,6 +11,19 @@ import { userFacingError } from '@/utils/displayLabels'
 const store = useTaskStore()
 const runtime = computed(() => store.runtime)
 const startingRuntime = ref(false)
+const managedGeneration = computed(() => {
+  return runtime.value?.generation ?? '—'
+})
+const internalMcpSummary = computed(() => {
+  const status = runtime.value?.internalMcp?.status
+  const label = status === 'CONNECTED' ? '已就绪'
+    : status === 'CONNECTING' ? '连接中'
+      : status === 'UNAVAILABLE' ? '不可用'
+        : status === 'INACTIVE' ? '未启用'
+          : '—'
+  const injected = runtime.value?.internalMcp?.configured === true
+  return injected ? `${label} · 配置已注入` : label
+})
 onMounted(() => { void store.refreshRuntime() })
 
 async function startRuntime() {
@@ -31,7 +44,7 @@ async function startRuntime() {
   <main id="main-content" class="content" tabindex="-1">
     <section v-if="store.error" class="error-panel error-panel-task" role="alert" aria-live="assertive" style="margin-bottom:16px"><Icon class="error-panel-icon" icon="lucide:circle-alert" /><div><h3>操作未完成</h3><p>{{ userFacingError(store.error) }}</p></div></section>
     <section v-if="runtime?.startupFailure" class="error-panel error-panel-task runtime-startup-error" role="alert" aria-live="assertive"><Icon class="error-panel-icon" icon="lucide:server-off" /><div><h3>OpenCode 启动失败</h3><p>{{ userFacingError(runtime.startupFailure, 'OpenCode 启动失败，请检查配置后重试') }}</p><p v-if="runtime.endpoint" class="mono">尝试地址：{{ runtime.endpoint }}</p></div></section>
-    <section v-if="runtime" class="runtime-grid"><article class="card card-pad runtime-hero"><div class="runtime-orb"><Icon icon="lucide:cpu" width="34" /></div><p class="eyebrow">OpenCode 服务</p><h2>{{ runtime.version ? `OpenCode ${runtime.version}` : '等待连接' }}</h2><StatusBadge :status="runtime.status" /><div class="runtime-model"><span>当前模型</span><strong translate="no">{{ runtime.model ?? '未配置' }}</strong></div></article><article class="card card-pad"><div class="card-header"><div><p class="eyebrow">进程信息</p><h2 class="card-title">受管进程</h2></div><Icon icon="lucide:shield-check" color="var(--color-success)" width="20" aria-hidden="true" /></div><dl class="definition-list"><div class="loopper-version"><dt>Loopper 版本</dt><dd class="mono" translate="no">{{ runtime.loopperVersion ?? '未知' }}</dd></div><div><dt>{{ runtime.startupFailure ? '尝试地址' : '监听地址' }}</dt><dd class="mono" translate="no">{{ runtime.endpoint ?? '—' }}</dd></div><div><dt>进程 PID</dt><dd class="mono">{{ runtime.pid ?? '—' }}</dd></div><div><dt>进程类型</dt><dd>{{ runtime.managed ? 'Loopper 受管' : runtime.startupFailure ? '未启动' : '外部服务' }}</dd></div><div><dt>上次检查</dt><dd class="mono"><time :datetime="runtime.checkedAt">{{ formatDateTime(runtime.checkedAt) }}</time></dd></div></dl></article></section>
+    <section v-if="runtime" class="runtime-grid"><article class="card card-pad runtime-hero"><div class="runtime-orb"><Icon icon="lucide:cpu" width="34" /></div><p class="eyebrow">OpenCode 服务</p><h2>{{ runtime.version ? `OpenCode ${runtime.version}` : '等待连接' }}</h2><StatusBadge :status="runtime.status" /><div class="runtime-model"><span>当前模型</span><strong translate="no">{{ runtime.model ?? '未配置' }}</strong></div></article><article class="card card-pad"><div class="card-header"><div><p class="eyebrow">进程信息</p><h2 class="card-title">{{ runtime.managed ? '受管进程' : '运行连接' }}</h2></div><Icon icon="lucide:shield-check" color="var(--color-success)" width="20" aria-hidden="true" /></div><dl class="definition-list"><div class="loopper-version"><dt>Loopper 版本</dt><dd class="mono" translate="no">{{ runtime.loopperVersion ?? '未知' }}</dd></div><div><dt>{{ runtime.startupFailure ? '尝试地址' : '监听地址' }}</dt><dd class="mono" translate="no">{{ runtime.endpoint ?? '—' }}</dd></div><div><dt>进程 PID</dt><dd class="mono">{{ runtime.pid ?? '—' }}</dd></div><div><dt>进程类型</dt><dd>{{ runtime.managed ? 'Loopper 受管' : runtime.startupFailure ? '未启动' : '外部服务' }}</dd></div><div v-if="runtime.managed"><dt>受管代次</dt><dd class="mono managed-generation">{{ managedGeneration }}</dd></div><div v-if="runtime.managed"><dt>内部 MCP</dt><dd class="internal-mcp-status">{{ internalMcpSummary }}</dd></div><div><dt>上次检查</dt><dd class="mono"><time :datetime="runtime.checkedAt">{{ formatDateTime(runtime.checkedAt) }}</time></dd></div></dl></article></section>
     <section v-else class="card empty-state"><div><Icon icon="lucide:server-off" width="30" /><strong>尚未读取运行环境</strong></div></section>
   </main>
 </template>

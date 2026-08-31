@@ -20,6 +20,8 @@ when Git HEAD is unavailable, directly inside that same registered root.
 - `task`: Task, Stage and Attempt aggregate
 - `orchestrator`: state transitions, retry policy and recovery
 - `opencode`: HTTP/SSE adapter and managed process lifecycle
+- `candidate submission`: generation-bound candidate runs, bounded validation attempts,
+  protocol-channel isolation, and same-transaction accepted-result publication
 - `verifier`: bounded-worker direct-process, file and Git diff evidence
 - `workspace`: source-branch/direct-root selection, FIFO writer lease, baseline lifecycle and path containment
 - `event`: persisted timeline and browser SSE
@@ -48,6 +50,21 @@ LoopDraft or absorbs package state into Stage/Attempt/Designer enums.
 `HttpOpenCodeClient` delegates permission policy and response/Todo/machine-output
 parsing; `GitWorktreeManager` delegates branch naming, dirty-workspace handling,
 and checkpoint operations. These collaborators do not own the parent lifecycle.
+
+`PersistentMachineCandidateSubmission` is the single authority for roles migrated
+from final-text JSON to candidate submission. A role-specific policy validates a
+candidate, an accepted-result writer publishes only the canonical accepted value,
+and `CandidateRuntimeBindingService` proves that an internal-MCP run still belongs
+to the same managed OpenCode generation and source revision. The private MCP and
+the in-process compatibility adapter are transports into that same service; they
+cannot implement their own validation or completion semantics.
+
+Managed runtime ownership is established at application readiness, after the
+Loopper loopback HTTP listener can serve the injected private MCP. Each launch is
+a fresh owned generation. V47 persists the generation and non-reversible endpoint
+fingerprint for every created/forked OpenCode Session before exposing its ID; old
+unprovable IDs are `LEGACY_UNKNOWN` and fail closed. `auto/http/fake` remain lazy
+compatibility modes and cannot claim internal-MCP readiness.
 
 `LoopperMapper` is a compatibility aggregate only. SQL statements are grouped by
 infrastructure, project, Designer, and Task mapper interfaces so new services can
@@ -454,6 +471,33 @@ and a six-package flow saves seven, so the latter needs 13 machine-role calls
 instead of 20. V27 retains the 96-call ceiling so
 interactive requirement/package revisions use the same explicit budget.
 Confirmed transport retries and all content repairs still count against it.
+
+V47 adds an independent candidate-submission state domain without merging it into
+Designer, OpenCode Session, or compilation lifecycle state. Each run freezes the
+candidate kind, owner/source revision, transport channel, submission budget and
+runtime binding. Every unique submission advances an optimistic revision; exact
+idempotent replay returns the stored safe response, while key reuse with different
+content fails closed. Rejected raw candidates are not persisted: only a digest,
+bounded problem codes/JSON Pointers and the safe response remain. Acceptance writes
+the canonical candidate and advances the owning workflow in one short transaction.
+
+The managed Decomposer uses one OpenCode Session and at most five unique
+`INTERNAL_MCP` submissions. A rejected submission returns enough bounded evidence
+for the model to correct and resubmit in that same Session. `ACCEPTED` or
+`WAITING_INPUT`, rather than assistant final text, is authoritative. An external
+or explicitly compatibility-mode OpenCode uses a fresh `IN_PROCESS_LEGACY` run
+through the same policy. A channel cannot change within a run, and a managed MCP
+failure cannot silently reinterpret final text from the same Session as a legacy
+candidate.
+
+Qualified v7 acceptance closed-choice routing uses the same authority split with
+a stricter two-submission budget. A unique optimum remains server-direct; a
+non-enumerable, non-exhaustive, path, or permission result opens no candidate run;
+only an exhaustive true tie opens one no-built-in-tools internal-MCP Session. The
+production flag defaults on after the independent `0/0/0`, `1/1/2`, `0/0/0`,
+`0/0/0` workflow qualification. Disabling it sends newly opened true ties through
+a fresh `IN_PROCESS_LEGACY` JSON Session without removing the adapters required to
+settle persisted runs.
 
 New Compiler rows treat the compact semantic object as the default. Only an explicit
 historical `evidenceMappings` member selects the legacy planning parser, so a malformed

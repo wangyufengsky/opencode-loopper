@@ -1074,3 +1074,31 @@ Windows); otherwise Designer selects an evidenced repository command such as
 `mvn`. Windows executable suffix resolution happens at execution time and does
 not widen the accepted LoopSpec shell syntax. A rejected correction never
 mutates the draft or creates a Task.
+## 机器候选提交与选择性角色迁移
+
+`MachineCandidateSubmission`/内部 MCP 只负责把机器候选送回 Loopper，并返回有界的接受、拒绝或等待输入结果；它不是设计事实、编译结果或状态转换的权威来源。候选是否可接受、如何编译以及如何写入，只能由服务端冻结版本对应的 `CandidatePolicy`、确定性 compiler 和 DB-only accepted writer 决定。模型声明成功、MCP 调用成功或候选 JSON 形状正确，都不能绕过服务端验证。
+
+当前只允许以下两个候选合同：
+
+- `DECOMPOSITION_PLAN_V2`：一个候选 run 最多接受 5 次提交；每次拒绝都必须返回有界、结构化、可修复的问题，超过预算或出现不可恢复问题时失败关闭。
+- `ACCEPTANCE_CLOSED_CHOICE_V7`：只允许服务端已经证明为自然可枚举、候选集合完备且存在真实机械同分的闭集选择，最多接受 2 次提交。第一次之后只有闭集选择值错误等机械问题可以重试一次。
+
+Compiler v7 的既有快速路径保持不变：
+
+- 唯一最优解由服务端直接绑定，模型调用、candidate Session 和 candidate submission 均为 0。
+- 非枚举歧义、路径守卫、安全边界、权限约束或合同问题不得交给候选角色修复，保持 0 个 candidate，并由服务端失败关闭到人工输入。
+- 真同分候选只允许在现有服务端路由明确 `compilerRequired=true` 且闭集证明成立后打开候选 run；不能由模型自行声称“这是闭集”。
+
+候选 OpenCode Session 必须使用独立的最小权限 profile：Decomposer 仍只保留形成仓库证据所需的 `read / glob / grep`，验收闭集选择不开放任何内置工具；两者都只可见精确命名的私有内部 `submit_candidate`，不可见用户 MCP。该内部 MCP 仅允许 Loopper 受管 OpenCode 通过 loopback 和代际 bearer 调用，不属于公共六工具目录。Router 的单次零工具边界、Requirement/Risk Judge 的既有只读与隔离边界均不改变，也不得借候选 profile 获得内部提交工具。
+
+外部 `auto/http` 兼容模式不注入私有 MCP。它们继续使用 `IN_PROCESS_LEGACY` 通道，而且每个候选 run 必须新建 OpenCode Session，不能把旧 JSON 会话升级为内部 MCP 会话。受管模式可在同一候选 Session 内根据服务端拒绝结果做有界重提，但不能跨 runtime generation 继续。
+
+候选 feature flag 只控制是否创建新的对应 run。关闭 flag 后不得再打开新 run；已经持久化的 run、恢复读取和兼容 adapter 必须继续可用，因此 persisted adapter 是常驻基础设施，不能通过条件 Bean 随 flag 一起消失。`ACCEPTANCE_CLOSED_CHOICE_V7` 的 4 条三轴真实工作流与完整 v7 资格门已全绿，生产默认值为开启；环境覆盖为 `false` 是新 run 的即时旧 JSON 回滚，不改变已有 run 的恢复语义。
+
+资格与界面必须分别统计 `candidateSessions` 和 `candidateSubmissions`，两者都是独立、非负的服务端事实，不能用模型调用数推导，也不能互相替代：
+
+- 唯一最优：`modelCalls=0`、`candidateSessions=0`、`candidateSubmissions=0`。
+- 真实闭集同分：`modelCalls=1`、`candidateSessions=1`、`candidateSubmissions=1..2`。
+- 非枚举或路径安全阻断：三项均为 0。
+
+读模型可以不展示值为 0 的 candidate 计数，避免制造无意义噪声；不展示只是一种呈现规则，不能把 0 解释为缺测或从其他计数补算。

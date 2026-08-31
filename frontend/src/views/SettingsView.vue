@@ -10,7 +10,7 @@ import { userFacingError } from '@/utils/displayLabels'
 
 const defaults = (): AppSettings => ({
   runtime: { serverPort: 8080, openBrowser: true, allowedRoot: '', monitorDelaySeconds: 2, designerMonitorDelayMillis: 750, abortCleanupAttempts: 3 },
-  openCode: { cliPath: 'opencode', mode: 'auto', baseUrl: 'http://127.0.0.1:4096', provider: '', model: '', connectTimeoutSeconds: 5, requestTimeoutSeconds: 30, startupTimeoutSeconds: 15 },
+  openCode: { cliPath: 'opencode', mode: 'managed', baseUrl: 'http://127.0.0.1:4096', provider: '', model: '', connectTimeoutSeconds: 5, requestTimeoutSeconds: 30, startupTimeoutSeconds: 15 },
   limits: { maxStageAttempts: 3, maxTaskAttempts: 12, sessionErrorLimit: 3, maxDurationMinutes: 120, attemptTimeoutMinutes: 30, verifierTimeoutMinutes: 10, designerTimeoutMinutes: 30 },
   retryWait: { rateLimitBaseSeconds: 60, rateLimitMaxSeconds: 300, sessionBaseSeconds: 10, sessionMaxSeconds: 60, verificationBaseSeconds: 5, verificationMaxSeconds: 30 },
   publication: { httpWebHosts: ['gitlab.spdb.com'], gitlabHost: 'gitlab.spdb.com', gitlabApiBaseUrl: 'http://gitlab.spdb.com/api/v4', connectTimeoutSeconds: 3, requestTimeoutSeconds: 10 },
@@ -123,7 +123,7 @@ onMounted(load)
         <div class="card-header"><div><p class="eyebrow">模型服务</p><h2 class="card-title">OpenCode 与默认模型</h2></div><el-button text :loading="refreshingModels" @click="refreshModels(true)"><Icon icon="lucide:refresh-cw" />刷新模型</el-button></div>
         <el-form label-position="top">
           <el-form-item label="命令行路径（下次会话生效）"><el-input v-model="settings.openCode.cliPath" class="mono" autocomplete="off" /></el-form-item>
-          <div class="form-grid"><el-form-item label="连接模式（重启生效）"><el-select v-model="settings.openCode.mode"><el-option label="自动发现" value="auto" /><el-option label="固定地址" value="http" /></el-select></el-form-item><el-form-item label="服务地址（重启生效）"><el-input v-model="settings.openCode.baseUrl" class="mono" /></el-form-item></div>
+          <div class="form-grid"><el-form-item label="连接模式（重启生效）"><el-select v-model="settings.openCode.mode"><el-option label="Loopper 受管（推荐）" value="managed" /><el-option label="自动发现（兼容）" value="auto" /><el-option label="固定地址" value="http" /></el-select></el-form-item><el-form-item label="服务地址（重启生效）"><el-input v-model="settings.openCode.baseUrl" class="mono" /></el-form-item></div>
           <div class="form-grid"><el-form-item label="模型提供方"><el-select v-model="settings.openCode.provider" filterable><el-option v-for="provider in providers" :key="provider" :label="provider" :value="provider" /></el-select></el-form-item><el-form-item label="模型"><el-select v-model="settings.openCode.model" filterable><el-option v-for="item in providerModels" :key="item.id" :label="item.model" :value="item.model" /></el-select></el-form-item></div>
           <div class="form-grid"><el-form-item label="连接超时（秒）"><el-input-number v-model="settings.openCode.connectTimeoutSeconds" :min="1" :max="120" /></el-form-item><el-form-item label="请求超时（秒）"><el-input-number v-model="settings.openCode.requestTimeoutSeconds" :min="1" :max="600" /></el-form-item><el-form-item label="启动超时（秒）"><el-input-number v-model="settings.openCode.startupTimeoutSeconds" :min="1" :max="300" /></el-form-item></div>
         </el-form>

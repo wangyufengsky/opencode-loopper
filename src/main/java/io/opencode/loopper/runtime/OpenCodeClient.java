@@ -103,11 +103,15 @@ public interface OpenCodeClient {
         abort(session);
         return AbortConfirmation.ACKNOWLEDGED;
     }
-    record OpenCodeSession(String id, Path worktree) { }
+    record OpenCodeSession(String id, Path worktree, String generation, String internalMcpServer) {
+        public OpenCodeSession(String id, Path worktree) { this(id, worktree, null, null); }
+    }
     enum AbortConfirmation { ACKNOWLEDGED, ALREADY_ABSENT }
     record OpenCodeModel(String providerId, String modelId, Boolean thinking) { }
     enum SessionProfile {
         ROUTER_NO_TOOLS,
+        DECOMPOSER_CANDIDATE_READ_ONLY,
+        ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS,
         DECOMPOSER_READ_ONLY,
         DESIGNER_INTERACTIVE_READ_ONLY,
         COMPILER_READ_ONLY,

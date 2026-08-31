@@ -11,7 +11,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Map;
 import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -156,6 +159,167 @@ class HttpOpenCodeClientTest {
     }
 
     @Test
+    void candidateSessionRequiresExactConnectedInternalServerAndExposesNoUserMcp() throws Exception {
+        String internal = "loopper_internal_generation1";
+        AtomicReference<OpenCodeRuntimeManager.Connection> connection = new AtomicReference<>(
+                new OpenCodeRuntimeManager.Connection(
+                        URI.create("http://127.0.0.1:" + server.getAddress().getPort()), "", "", true,
+                        "generation-1", internal));
+        HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(), connection::get);
+        mcpBody.set("{\"" + internal + "\":{\"status\":\"connected\"},"
+                + "\"user_probe\":{\"status\":\"connected\"}}");
+
+        OpenCodeClient.OpenCodeSession session = client.createSession(worktree, "candidate", null,
+                OpenCodeClient.SessionProfile.DECOMPOSER_CANDIDATE_READ_ONLY);
+
+        assertThat(session.generation()).isEqualTo("generation-1");
+        assertThat(session.internalMcpServer()).isEqualTo(internal);
+        assertThat(createBody.get()).contains("\"permission\":\"" + internal + "_submit_candidate\"")
+                .doesNotContain("user_probe_*");
+
+        connection.set(new OpenCodeRuntimeManager.Connection(
+                new URI("http://127.0.0.1:" + server.getAddress().getPort()), "", "", true,
+                "generation-2", "loopper_internal_generation2"));
+        lastPathAndQuery.set(null);
+        assertThatThrownBy(() -> client.sessionStatus(session))
+                .isInstanceOfSatisfying(SessionFailure.class,
+                        failure -> assertThat(failure.code()).isEqualTo("OPENCODE_SESSION_GENERATION_MISMATCH"));
+        assertThat(lastPathAndQuery.get()).isNull();
+        connection.set(new OpenCodeRuntimeManager.Connection(
+                new URI("http://127.0.0.1:" + server.getAddress().getPort()), "", "", true,
+                "generation-1", internal));
+
+        client.createSession(worktree, "judge", null, OpenCodeClient.SessionProfile.JUDGE_READ_ONLY);
+        assertThat(createBody.get()).contains("\"permission\":\"user_probe_*\"")
+                .doesNotContain(internal + "_*")
+                .doesNotContain(internal + "_submit_candidate");
+
+        mcpBody.set("{\"" + internal + "\":{\"status\":\"failed\"}}");
+        createBody.set(null);
+        assertThatThrownBy(() -> client.createSession(worktree, "candidate", null,
+                OpenCodeClient.SessionProfile.DECOMPOSER_CANDIDATE_READ_ONLY))
+                .isInstanceOfSatisfying(SessionFailure.class,
+                        failure -> assertThat(failure.code()).isEqualTo("OPENCODE_INTERNAL_MCP_NOT_READY"));
+        assertThat(createBody.get()).isNull();
+    }
+
+    @Test
+    void recoveredSessionCannotConsumeANewRuntime404AfterManagedGenerationRotation() throws Exception {
+        String firstServer = "loopper_internal_first";
+        AtomicReference<OpenCodeRuntimeManager.Connection> connection = new AtomicReference<>(
+                new OpenCodeRuntimeManager.Connection(
+                        URI.create("http://127.0.0.1:" + server.getAddress().getPort()), "", "", true,
+                        "generation-first", firstServer));
+        InMemoryRuntimeBindings bindings = new InMemoryRuntimeBindings();
+        LoopperProperties properties = new LoopperProperties();
+        mcpBody.set("{\"" + firstServer + "\":{\"status\":\"connected\"}}");
+        HttpOpenCodeClient firstJvm = new HttpOpenCodeClient(RestClient.builder(), connection::get,
+                properties, new OpenCodeCapabilityRegistry(), bindings);
+        OpenCodeClient.OpenCodeSession created = firstJvm.createSession(worktree, "writer", null);
+
+        connection.set(new OpenCodeRuntimeManager.Connection(
+                URI.create("http://127.0.0.1:" + server.getAddress().getPort()), "", "", true,
+                "generation-second", "loopper_internal_second"));
+        HttpOpenCodeClient restartedJvm = new HttpOpenCodeClient(RestClient.builder(), connection::get,
+                properties, new OpenCodeCapabilityRegistry(), bindings);
+        OpenCodeClient.OpenCodeSession recovered = new OpenCodeClient.OpenCodeSession(created.id(), worktree);
+        abortStatusCode.set(404);
+        lastPathAndQuery.set(null);
+
+        assertThatThrownBy(() -> restartedJvm.sessionStatus(recovered))
+                .isInstanceOfSatisfying(SessionFailure.class,
+                        failure -> assertThat(failure.code())
+                                .isEqualTo("OPENCODE_SESSION_GENERATION_MISMATCH"));
+        assertThat(lastPathAndQuery.get()).isNull();
+        assertThatThrownBy(() -> restartedJvm.abortWithConfirmation(recovered))
+                .isInstanceOfSatisfying(SessionFailure.class,
+                        failure -> assertThat(failure.code())
+                                .isEqualTo("OPENCODE_SESSION_GENERATION_MISMATCH"));
+        assertThat(lastPathAndQuery.get()).isNull();
+    }
+
+    @Test
+    void recoveredLegacyOrUnboundSessionFailsBeforeAnyNetworkRequest() {
+        AtomicReference<OpenCodeRuntimeManager.Connection> connection = new AtomicReference<>(
+                new OpenCodeRuntimeManager.Connection(
+                        URI.create("http://127.0.0.1:" + server.getAddress().getPort()), "", "", true,
+                        "generation-current", "loopper_internal_current"));
+        InMemoryRuntimeBindings bindings = new InMemoryRuntimeBindings();
+        bindings.register(new OpenCodeSessionRuntimeBindings.Binding("legacy", "legacy-unbound-legacy",
+                OpenCodeSessionRuntimeBindings.OwnershipMode.LEGACY_UNKNOWN, "0".repeat(64), null));
+        HttpOpenCodeClient restartedJvm = new HttpOpenCodeClient(RestClient.builder(), connection::get,
+                new LoopperProperties(), new OpenCodeCapabilityRegistry(), bindings);
+        lastPathAndQuery.set(null);
+
+        assertThatThrownBy(() -> restartedJvm.abortWithConfirmation(
+                new OpenCodeClient.OpenCodeSession("legacy", worktree)))
+                .isInstanceOfSatisfying(SessionFailure.class,
+                        failure -> assertThat(failure.code())
+                                .isEqualTo("OPENCODE_SESSION_RUNTIME_BINDING_UNKNOWN"));
+        assertThatThrownBy(() -> restartedJvm.abortWithConfirmation(
+                new OpenCodeClient.OpenCodeSession("missing", worktree)))
+                .isInstanceOfSatisfying(SessionFailure.class,
+                        failure -> assertThat(failure.code())
+                                .isEqualTo("OPENCODE_SESSION_RUNTIME_BINDING_MISSING"));
+        assertThat(lastPathAndQuery.get()).isNull();
+    }
+
+    @Test
+    void candidateReadinessFindsTheExactPrivateServerAfterTheBoundedUserMcpWindow() throws Exception {
+        String internal = "loopper_internal_after_user_window";
+        HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(),
+                () -> new OpenCodeRuntimeManager.Connection(
+                        URI.create("http://127.0.0.1:" + server.getAddress().getPort()), "", "", true,
+                        "generation-after-window", internal));
+        StringBuilder statuses = new StringBuilder("{");
+        for (int index = 0; index < 70; index++) {
+            if (index > 0) statuses.append(',');
+            statuses.append('"').append("user_").append(index).append("\":{\"status\":\"connected\"}");
+        }
+        statuses.append(',').append('"').append(internal)
+                .append("\":{\"status\":\"connected\"}}");
+        mcpBody.set(statuses.toString());
+
+        OpenCodeClient.OpenCodeSession session = client.createSession(worktree, "candidate", null,
+                OpenCodeClient.SessionProfile.DECOMPOSER_CANDIDATE_READ_ONLY);
+
+        assertThat(session.generation()).isEqualTo("generation-after-window");
+        assertThat(createBody.get()).contains("\"permission\":\"" + internal + "_submit_candidate\"")
+                .doesNotContain("user_0_*");
+    }
+
+    @Test
+    void acceptanceCandidateHasOnlyTheExactInternalSubmissionToolAndRequiresReadiness() throws Exception {
+        String internal = "loopper_internal_acceptance";
+        HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(),
+                () -> new OpenCodeRuntimeManager.Connection(
+                        URI.create("http://127.0.0.1:" + server.getAddress().getPort()), "", "", true,
+                        "generation-acceptance", internal));
+        mcpBody.set("{\"" + internal + "\":{\"status\":\"connected\"},"
+                + "\"user_probe\":{\"status\":\"connected\"}}");
+
+        OpenCodeClient.OpenCodeSession session = client.createSession(worktree, "acceptance candidate", null,
+                OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS);
+
+        assertThat(session.internalMcpServer()).isEqualTo(internal);
+        assertThat(createBody.get()).contains("\"permission\":\"" + internal + "_submit_candidate\"")
+                .doesNotContain("\"permission\":\"read\"")
+                .doesNotContain("\"permission\":\"glob\"")
+                .doesNotContain("\"permission\":\"grep\"")
+                .doesNotContain("\"permission\":\"question\"")
+                .doesNotContain("user_probe_*")
+                .doesNotContain(internal + "_*");
+
+        mcpBody.set("{\"" + internal + "\":{\"status\":\"failed\"}}");
+        createBody.set(null);
+        assertThatThrownBy(() -> client.createSession(worktree, "acceptance candidate", null,
+                OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS))
+                .isInstanceOfSatisfying(SessionFailure.class,
+                        failure -> assertThat(failure.code()).isEqualTo("OPENCODE_INTERNAL_MCP_NOT_READY"));
+        assertThat(createBody.get()).isNull();
+    }
+
+    @Test
     void routerSkipsInvalidMcpDiscoveryWhileEvidenceRolesStillFailClosed() throws Exception {
         LoopperProperties properties = new LoopperProperties();
         properties.getOpenCode().setBaseUrl(new java.net.URI("http://127.0.0.1:" + server.getAddress().getPort()));
@@ -294,7 +458,8 @@ class HttpOpenCodeClientTest {
     void selectsBoundedStructuredAgentOnlyForManagedMachineResponseSessions() throws Exception {
         java.net.URI endpoint = new java.net.URI("http://127.0.0.1:" + server.getAddress().getPort());
         HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(),
-                () -> new OpenCodeRuntimeManager.Connection(endpoint, "", "", true));
+                () -> new OpenCodeRuntimeManager.Connection(endpoint, "", "", true,
+                        "generation-agent", "loopper_internal_agent"));
         OpenCodeClient.OpenCodeSession session = client.createSession(worktree, "decomposer", null,
                 OpenCodeClient.SessionProfile.DECOMPOSER_READ_ONLY);
 
@@ -307,7 +472,8 @@ class HttpOpenCodeClientTest {
     void selectsSingleShotNoThinkingAgentForManagedRouter() throws Exception {
         java.net.URI endpoint = new java.net.URI("http://127.0.0.1:" + server.getAddress().getPort());
         HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(),
-                () -> new OpenCodeRuntimeManager.Connection(endpoint, "", "", true));
+                () -> new OpenCodeRuntimeManager.Connection(endpoint, "", "", true,
+                        "generation-router", "loopper_internal_router"));
         OpenCodeClient.OpenCodeSession session = client.createSession(worktree, "router",
                 new OpenCodeClient.OpenCodeModel("deepseek", "deepseek-v4-flash", true),
                 OpenCodeClient.SessionProfile.ROUTER_NO_TOOLS);
@@ -630,5 +796,14 @@ class HttpOpenCodeClientTest {
         if (delayMillis <= 0) return;
         try { Thread.sleep(delayMillis); }
         catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); throw new IOException("test server interrupted", interrupted); }
+    }
+
+    private static final class InMemoryRuntimeBindings implements OpenCodeSessionRuntimeBindings {
+        private final Map<String, Binding> values = new ConcurrentHashMap<>();
+
+        @Override public void register(Binding binding) { values.put(binding.externalSessionId(), binding); }
+        @Override public Optional<Binding> find(String externalSessionId) {
+            return Optional.ofNullable(values.get(externalSessionId));
+        }
     }
 }

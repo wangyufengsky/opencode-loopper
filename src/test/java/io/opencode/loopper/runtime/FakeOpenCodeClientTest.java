@@ -4,6 +4,8 @@ import java.nio.file.Path;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -55,5 +57,32 @@ class FakeOpenCodeClientTest {
         assertThat(client.revertCalls()).containsExactly(new FakeOpenCodeClient.RevertCall(session.id(), "message-1", "part-1"));
         assertThat(client.summarizeCalls()).containsExactly(new FakeOpenCodeClient.SummarizeCall(session.id(),
                 new OpenCodeClient.OpenCodeModel("opencode", "model-1", null), true));
+    }
+
+    @Test
+    void managedFakePersistsRuntimeBindingBeforeExposingSessionAndFork() {
+        InMemoryBindings bindings = new InMemoryBindings();
+        FakeOpenCodeClient client = new FakeOpenCodeClient(bindings);
+        client.setManagedRuntime("generation-7", "loopper-private-7");
+
+        OpenCodeClient.OpenCodeSession session = client.createReadOnlySession(temp, "Designer", null);
+        OpenCodeClient.OpenCodeSession fork = client.forkSession(session, "message-1");
+
+        assertThat(bindings.find(session.id())).hasValueSatisfying(binding -> {
+            assertThat(binding.runtimeGenerationId()).isEqualTo("generation-7");
+            assertThat(binding.ownershipMode()).isEqualTo(OpenCodeSessionRuntimeBindings.OwnershipMode.MANAGED);
+            assertThat(binding.internalMcpServer()).isEqualTo("loopper-private-7");
+        });
+        assertThat(bindings.find(fork.id())).isPresent();
+        assertThat(fork.generation()).isEqualTo("generation-7");
+    }
+
+    private static final class InMemoryBindings implements OpenCodeSessionRuntimeBindings {
+        private final Map<String, Binding> values = new ConcurrentHashMap<>();
+
+        @Override public void register(Binding binding) { values.put(binding.externalSessionId(), binding); }
+        @Override public Optional<Binding> find(String externalSessionId) {
+            return Optional.ofNullable(values.get(externalSessionId));
+        }
     }
 }

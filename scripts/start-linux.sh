@@ -50,7 +50,7 @@ validate_startup_value() {
     SERVER_PORT|LOOPPER_ABORT_CLEANUP_ATTEMPTS|LOOPPER_MAX_STAGE_ATTEMPTS|LOOPPER_MAX_TASK_ATTEMPTS|LOOPPER_SESSION_ERROR_LIMIT)
       [[ "${value}" =~ ^[0-9]+$ ]] ;;
     LOOPPER_OPEN_BROWSER|OPENCODE_ENABLE_QUESTION_TOOL) [[ "${value}" == "true" || "${value}" == "false" ]] ;;
-    LOOPPER_OPENCODE_MODE) [[ "${value}" == "auto" || "${value}" == "http" ]] ;;
+    LOOPPER_OPENCODE_MODE) [[ "${value}" == "managed" || "${value}" == "auto" || "${value}" == "http" ]] ;;
     OPENCODE_BASE_URL|LOOPPER_GITLAB_API_BASE_URL) [[ "${value}" =~ ^https?://[^[:space:]]+$ ]] ;;
     LOOPPER_MONITOR_DELAY|LOOPPER_DESIGNER_MONITOR_DELAY|LOOPPER_OPENCODE_CONNECT_TIMEOUT|\
     LOOPPER_OPENCODE_REQUEST_TIMEOUT|LOOPPER_OPENCODE_STARTUP_TIMEOUT|LOOPPER_MAX_DURATION|LOOPPER_ATTEMPT_TIMEOUT|\
@@ -116,12 +116,12 @@ fi
 
 if [[ -n "${LOOPPER_JAR_PATH:-}" ]]; then
   JAR_PATH="${LOOPPER_JAR_PATH}"
-elif [[ -f "${APP_HOME}/target/opencode-loopper-0.2.83.jar" ]]; then
-  JAR_PATH="${APP_HOME}/target/opencode-loopper-0.2.83.jar"
-elif [[ -f "${APP_HOME}/opencode-loopper-0.2.83.jar" ]]; then
-  JAR_PATH="${APP_HOME}/opencode-loopper-0.2.83.jar"
+elif [[ -f "${APP_HOME}/target/opencode-loopper-0.2.84.jar" ]]; then
+  JAR_PATH="${APP_HOME}/target/opencode-loopper-0.2.84.jar"
+elif [[ -f "${APP_HOME}/opencode-loopper-0.2.84.jar" ]]; then
+  JAR_PATH="${APP_HOME}/opencode-loopper-0.2.84.jar"
 else
-  fail "找不到成品 JAR。请把 opencode-loopper-0.2.83.jar 放到 ${APP_HOME}，或设置 LOOPPER_JAR_PATH。"
+  fail "找不到成品 JAR。请把 opencode-loopper-0.2.84.jar 放到 ${APP_HOME}，或设置 LOOPPER_JAR_PATH。"
 fi
 
 [[ -f "${JAR_PATH}" ]] || fail "JAR 不存在：${JAR_PATH}"
@@ -242,6 +242,7 @@ discover_opencode_base_url() {
   return 1
 }
 
+export LOOPPER_OPENCODE_MODE="${LOOPPER_OPENCODE_MODE:-managed}"
 OPENCODE_BASE_URL_SOURCE="environment"
 if [[ "${OPENCODE_BASE_URL:-}" =~ ^http://0\.0\.0\.0:([0-9]{1,5})/?$ ]]; then
   export OPENCODE_BASE_URL="http://127.0.0.1:${BASH_REMATCH[1]}"
@@ -249,23 +250,16 @@ if [[ "${OPENCODE_BASE_URL:-}" =~ ^http://0\.0\.0\.0:([0-9]{1,5})/?$ ]]; then
 elif [[ "${OPENCODE_BASE_URL:-}" =~ ^http://\[::\]:([0-9]{1,5})/?$ ]]; then
   export OPENCODE_BASE_URL="http://[::1]:${BASH_REMATCH[1]}"
   OPENCODE_BASE_URL_SOURCE="environment wildcard normalized to loopback"
-elif [[ -z "${OPENCODE_BASE_URL:-}" ]]; then
-  OPENCODE_BASE_URL_SOURCE="managed auto startup"
+elif [[ "${LOOPPER_OPENCODE_MODE}" != "managed" && -z "${OPENCODE_BASE_URL:-}" ]]; then
+  OPENCODE_BASE_URL_SOURCE="compatible auto discovery"
   if DISCOVERED_OPENCODE_BASE_URL="$(discover_opencode_base_url)"; then
     export OPENCODE_BASE_URL="${DISCOVERED_OPENCODE_BASE_URL}"
     OPENCODE_BASE_URL_SOURCE="running opencode process"
+    [[ "${LOOPPER_OPENCODE_MODE}" == "auto" ]] && export LOOPPER_OPENCODE_MODE="http"
   fi
 fi
 
-if [[ -z "${LOOPPER_OPENCODE_MODE:-}" ]]; then
-  if [[ -n "${OPENCODE_BASE_URL:-}" ]]; then
-    export LOOPPER_OPENCODE_MODE="http"
-  else
-    export LOOPPER_OPENCODE_MODE="auto"
-  fi
-fi
-
-if [[ "${LOOPPER_OPENCODE_MODE}" == "auto" ]]; then
+if [[ "${LOOPPER_OPENCODE_MODE}" == "managed" || "${LOOPPER_OPENCODE_MODE}" == "auto" ]]; then
   OPENCODE_CLI_PATH=""
   if [[ -n "${OPENCODE_EXECUTABLE:-}" ]]; then
     if [[ "${OPENCODE_EXECUTABLE}" == */* ]]; then
@@ -280,7 +274,7 @@ if [[ "${LOOPPER_OPENCODE_MODE}" == "auto" ]]; then
     OPENCODE_CLI_PATH="$(type -P opencode 2>/dev/null || true)"
   fi
   [[ -n "${OPENCODE_CLI_PATH}" ]] \
-    || fail "auto 模式需要 OpenCode CLI，但当前 PATH 中找不到 opencode。请安装 OpenCode，或设置 OPENCODE_EXECUTABLE=/绝对路径/opencode。"
+    || fail "${LOOPPER_OPENCODE_MODE} 模式需要 OpenCode CLI，但当前 PATH 中找不到 opencode。请安装 OpenCode，或设置 OPENCODE_EXECUTABLE=/绝对路径/opencode。"
   export OPENCODE_EXECUTABLE="${OPENCODE_CLI_PATH}"
 fi
 
@@ -297,17 +291,20 @@ echo "[Loopper] JDK 来源：${JAVA_HOME_SOURCE}"
 echo "[Loopper] Java：${JAVA_VERSION_LINE}"
 echo "[Loopper] JAR：${JAR_PATH}"
 echo "[Loopper] 数据目录：${LOOPPER_DATA_DIR}"
-if [[ -n "${OPENCODE_BASE_URL:-}" ]]; then
+if [[ "${LOOPPER_OPENCODE_MODE}" == "managed" ]]; then
+  echo "[Loopper] OpenCode：managed 独立受管进程（每次启动使用新的动态 loopback 端口和内部 MCP 代次）"
+  echo "[Loopper] OpenCode CLI：${OPENCODE_EXECUTABLE}"
+elif [[ -n "${OPENCODE_BASE_URL:-}" ]]; then
   echo "[Loopper] OpenCode：${OPENCODE_BASE_URL}（来源：${OPENCODE_BASE_URL_SOURCE}）"
 else
-  echo "[Loopper] OpenCode：未发现可复用端点，将由 auto 模式在动态 loopback 端口启动"
+  echo "[Loopper] OpenCode：未发现可复用端点，将由兼容 auto 模式在动态 loopback 端口启动"
   echo "[Loopper] OpenCode CLI：${OPENCODE_EXECUTABLE}"
 fi
 echo "[Loopper] 项目公约超时：${LOOPPER_DESIGNER_TIMEOUT}"
 echo "[Loopper] 页面：${APP_URL}"
 echo "[Loopper] Java AWT：${JAVA_AWT_MODE}"
 
-if [[ -n "${OPENCODE_BASE_URL:-}" ]] && command -v curl >/dev/null 2>&1; then
+if [[ "${LOOPPER_OPENCODE_MODE}" != "managed" && -n "${OPENCODE_BASE_URL:-}" ]] && command -v curl >/dev/null 2>&1; then
   if ! opencode_health "${OPENCODE_BASE_URL}"; then
     echo "[Loopper] 警告：当前无法访问 OpenCode 健康检查；Loopper 仍会启动，但 Runtime 会显示离线。" >&2
   fi

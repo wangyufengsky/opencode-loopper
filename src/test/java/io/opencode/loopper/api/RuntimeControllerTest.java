@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import io.opencode.loopper.runtime.OpenCodeRuntimeManager;
 import io.opencode.loopper.runtime.OpenCodeCapabilityService;
+import io.opencode.loopper.runtime.InternalMcpReadiness;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -39,6 +40,25 @@ class RuntimeControllerTest {
                 .andExpect(jsonPath("$.version").value("1.18.16"))
                 .andExpect(jsonPath("$.capabilities.nativePlanAgent").value(true))
                 .andExpect(jsonPath("$.capabilities.defaultResponseMode").value("JSON_SCHEMA"));
+    }
+
+    @Test
+    void managedRuntimeExposesOnlyAShortGenerationAndRedactedInternalMcpState() throws Exception {
+        when(runtime.status()).thenReturn(new OpenCodeRuntimeManager.RuntimeSnapshot(
+                "AVAILABLE", "1.18.23", true, 6401L, "http://127.0.0.1:34021", "deepseek/test",
+                Instant.parse("2026-08-31T04:00:00Z"), null,
+                "11111111-2222-3333-4444-555555555555", "loopper_internal_private123",
+                new InternalMcpReadiness("CONNECTED", "11111111-2222-3333-4444-555555555555",
+                        "loopper_internal_private123", null)));
+
+        mvc.perform(get("/api/runtime/opencode"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.generation").value("11111111"))
+                .andExpect(jsonPath("$.internalMcp.status").value("CONNECTED"))
+                .andExpect(jsonPath("$.internalMcp.configured").value(true))
+                .andExpect(jsonPath("$.internalMcpServer").doesNotExist())
+                .andExpect(jsonPath("$.internalMcp.generation").doesNotExist())
+                .andExpect(jsonPath("$.internalMcp.serverName").doesNotExist());
     }
 
     @Test

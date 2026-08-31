@@ -300,8 +300,8 @@ public class SettingsService {
 
     private static String normalizedMode(String value) {
         String mode = value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
-        if (!Set.of("auto", "http").contains(mode)) {
-            throw new BadRequestException("OPENCODE_MODE_INVALID", "OpenCode mode must be auto or http");
+        if (!Set.of("managed", "auto", "http").contains(mode)) {
+            throw new BadRequestException("OPENCODE_MODE_INVALID", "OpenCode mode must be managed, auto, or http");
         }
         return mode;
     }
