@@ -116,8 +116,9 @@ class AcceptanceClosedChoiceCandidatePolicyTest {
     }
 
     private CandidatePolicy.Context context(int attemptsUsed) {
-        return new CandidatePolicy.Context("run", "session",
-                MachineCandidateSubmission.CandidateOwner.loopSpecCompilation("cmp"),
+        return new CandidatePolicy.Context("run",
+                MachineCandidateSubmission.CandidateScope.designerSession("session"),
+                MachineCandidateSubmission.CandidateOwnerRef.loopSpecCompilation("cmp"),
                 MachineCandidateKind.ACCEPTANCE_CLOSED_CHOICE_V7,
                 "ACCEPTANCE_CLOSED_CHOICE_V7", 3, 4,
                 "ACCEPTANCE_CLOSED_CHOICE_V7", 2, attemptsUsed);

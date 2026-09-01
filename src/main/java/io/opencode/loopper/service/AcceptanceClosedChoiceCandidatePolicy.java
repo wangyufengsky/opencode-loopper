@@ -34,10 +34,10 @@ final class AcceptanceClosedChoiceCandidatePolicy implements CandidatePolicy {
 
     @Override
     public Decision evaluate(Context context, String candidateJson) {
-        LoopSpecCompilationRow owner = mapper.findLoopSpecCompilation(context.owner().loopSpecCompilationId())
+        LoopSpecCompilationRow owner = mapper.findLoopSpecCompilation(context.owner().id())
                 .orElseThrow(() -> new ConflictException(
                         "CANDIDATE_OWNER_MISSING", "LoopSpec compilation candidate owner no longer exists"));
-        if (!context.designerSessionId().equals(owner.designerSessionId())
+        if (!context.scope().id().equals(owner.designerSessionId())
                 || owner.version() != context.ownerVersion()
                 || owner.designRevision() != context.sourceRevision()) {
             throw new ConflictException("CANDIDATE_OWNER_REVISION_STALE",
@@ -53,7 +53,7 @@ final class AcceptanceClosedChoiceCandidatePolicy implements CandidatePolicy {
                 .orElseThrow(() -> new ConflictException(
                         "DESIGN_ACCEPTANCE_PLANNING_MISSING", "Frozen acceptance planning no longer exists"));
         if (!owner.id().equals(planning.compilationId())
-                || !context.designerSessionId().equals(planning.designerSessionId())
+                || !context.scope().id().equals(planning.designerSessionId())
                 || planning.designRevision() != context.sourceRevision()
                 || !DesignerAcceptancePlanning.CONTRACT_VERSION_V7.equals(planning.contractVersion())
                 || !AcceptanceBindingSource.AI_DISAMBIGUATION_V6.name().equals(planning.bindingSource())

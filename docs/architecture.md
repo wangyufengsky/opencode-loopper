@@ -492,6 +492,21 @@ unterminated Session output as fallback input. V48 rebuilds the V47 candidate ta
 without losing historical rows, foreign keys, unique indexes or runtime bindings and
 adds one-active-run-per-package-step enforcement.
 
+V49 generalizes the persistence boundary without changing those three live role
+workflows. Every run now carries one typed aggregate scope
+(`DESIGNER_SESSION | TASK | PROJECT`, with exactly one real foreign key) and one
+typed owner reference. Existing decomposition, acceptance and package rows migrate
+losslessly to their designer scope and stable owner ID; attempts, package accepted
+results, optimistic versions, external Session/runtime-generation bindings and
+one-open-run uniqueness are preserved. Owner/scope membership is checked on insert,
+the identity tuple is immutable, and deleting an owner removes its candidate run and
+dependent attempts/results. V49 also reserves bounded contracts for
+`ROLLING_PACKAGE_PLAN_V1` (3), `REVIEWER_REPORT_V1` (3),
+`PROJECT_CONVENTION_V1` (3), and `JUDGE_DECISION_V1` (2), but does not connect any
+of them to a Coordinator, policy or writer: opening them fails closed until that
+role is integrated. Fallback compatibility is an explicit per-kind contract;
+only `PACKAGE_DESIGN_V1` may request Markdown fallback.
+
 `PackageDesignCompilation` is the single deep module behind both package-design
 entries. The MCP adapter maps `PACKAGE_DESIGN_V1` into the unified semantic model;
 the Markdown adapter preserves the existing CommonMark/GFM behavior. The hidden
@@ -530,8 +545,8 @@ Qualified v7 acceptance closed-choice routing uses the same authority split with
 a stricter two-submission budget. A unique optimum remains server-direct; a
 non-enumerable, non-exhaustive, path, or permission result opens no candidate run;
 only an exhaustive true tie opens one no-built-in-tools internal-MCP Session. The
-production flag defaults on after the independent `0/0/0`, `1/1/2`, `0/0/0`,
-`0/0/0` workflow qualification. Disabling it sends newly opened true ties through
+production flag remains off until an isolated real-model run proves private-MCP
+use and correction after rejection in the same Session. Disabling it sends newly opened true ties through
 a fresh `IN_PROCESS_LEGACY` JSON Session without removing the adapters required to
 settle persisted runs.
 

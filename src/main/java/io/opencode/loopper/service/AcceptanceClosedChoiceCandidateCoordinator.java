@@ -89,8 +89,9 @@ final class AcceptanceClosedChoiceCandidateCoordinator {
                     "验收闭集候选运行与冻结编译拥有者不一致");
         }
         return submissions.open(new MachineCandidateSubmission.OpenCommand(
-                request.runId(), compilation.designerSessionId(),
-                MachineCandidateSubmission.CandidateOwner.loopSpecCompilation(compilation.id()),
+                request.runId(), MachineCandidateSubmission.CandidateScope.designerSession(
+                        compilation.designerSessionId()),
+                MachineCandidateSubmission.CandidateOwnerRef.loopSpecCompilation(compilation.id()),
                 MachineCandidateKind.ACCEPTANCE_CLOSED_CHOICE_V7, WORKFLOW_STEP,
                 planning.designRevision(), compilation.version(),
                 MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP,
@@ -118,8 +119,8 @@ final class AcceptanceClosedChoiceCandidateCoordinator {
                 MachineCandidateSubmission.SubmissionChannel.IN_PROCESS_LEGACY);
         return submissions.open(new MachineCandidateSubmission.OpenCommand(
                 runId(compilation.id(), MachineCandidateSubmission.SubmissionChannel.IN_PROCESS_LEGACY),
-                compilation.designerSessionId(),
-                MachineCandidateSubmission.CandidateOwner.loopSpecCompilation(compilation.id()),
+                MachineCandidateSubmission.CandidateScope.designerSession(compilation.designerSessionId()),
+                MachineCandidateSubmission.CandidateOwnerRef.loopSpecCompilation(compilation.id()),
                 MachineCandidateKind.ACCEPTANCE_CLOSED_CHOICE_V7, WORKFLOW_STEP,
                 planning.designRevision(), compilation.version(),
                 MachineCandidateSubmission.SubmissionChannel.IN_PROCESS_LEGACY,

@@ -23,13 +23,11 @@ public interface LoopperMachineCandidateMapper {
 
     @Insert("""
             INSERT INTO ai_candidate_submission_run(
-              id,designer_session_id,task_decomposition_id,loop_spec_compilation_id,design_work_package_id,
-              candidate_kind,workflow_step,
+              id,designer_session_id,task_id,project_id,owner_type,owner_id,candidate_kind,workflow_step,
               source_revision,owner_version,submission_channel,contract_version,runtime_generation_id,
               external_session_id,state,max_attempts,
               attempts_used,terminal_attempt_id,created_at,updated_at,version)
-            VALUES(#{id},#{designerSessionId},#{taskDecompositionId},#{loopSpecCompilationId},
-              #{designWorkPackageId},#{candidateKind},
+            VALUES(#{id},#{designerSessionId},#{taskId},#{projectId},#{ownerType},#{ownerId},#{candidateKind},
               #{workflowStep},#{sourceRevision},#{ownerVersion},#{submissionChannel},#{contractVersion},
               #{runtimeGenerationId},#{externalSessionId},#{state},#{maxAttempts},#{attemptsUsed},
               #{terminalAttemptId},#{createdAt},#{updatedAt},#{version})
@@ -65,29 +63,36 @@ public interface LoopperMachineCandidateMapper {
     @Select("SELECT * FROM ai_candidate_submission_attempt WHERE run_id=#{runId} ORDER BY ordinal")
     List<CandidateSubmissionAttemptRow> listCandidateSubmissionAttempts(String runId);
 
-    @Select("SELECT COUNT(*) FROM ai_candidate_submission_run WHERE task_decomposition_id=#{taskDecompositionId}")
+    @Select("""
+            SELECT COUNT(*) FROM ai_candidate_submission_run
+            WHERE owner_type='TASK_DECOMPOSITION' AND owner_id=#{taskDecompositionId}
+            """)
     int countCandidateSubmissionRunsForDecomposition(String taskDecompositionId);
 
     @Select("""
             SELECT COUNT(*) FROM ai_candidate_submission_attempt attempt
             JOIN ai_candidate_submission_run run ON run.id=attempt.run_id
-            WHERE run.task_decomposition_id=#{taskDecompositionId}
+            WHERE run.owner_type='TASK_DECOMPOSITION' AND run.owner_id=#{taskDecompositionId}
             """)
     int countCandidateSubmissionAttemptsForDecomposition(String taskDecompositionId);
 
-    @Select("SELECT COUNT(*) FROM ai_candidate_submission_run WHERE loop_spec_compilation_id=#{compilationId}")
+    @Select("""
+            SELECT COUNT(*) FROM ai_candidate_submission_run
+            WHERE owner_type='LOOP_SPEC_COMPILATION' AND owner_id=#{compilationId}
+            """)
     int countCandidateSubmissionRunsForCompilation(String compilationId);
 
     @Select("""
             SELECT COUNT(*) FROM ai_candidate_submission_attempt attempt
             JOIN ai_candidate_submission_run run ON run.id=attempt.run_id
-            WHERE run.loop_spec_compilation_id=#{compilationId}
+            WHERE run.owner_type='LOOP_SPEC_COMPILATION' AND run.owner_id=#{compilationId}
             """)
     int countCandidateSubmissionAttemptsForCompilation(String compilationId);
 
     @Select("""
             SELECT * FROM ai_candidate_submission_run
-            WHERE design_work_package_id=#{designWorkPackageId} AND source_revision=#{sourceRevision}
+            WHERE owner_type='DESIGN_WORK_PACKAGE' AND owner_id=#{designWorkPackageId}
+              AND source_revision=#{sourceRevision}
             ORDER BY created_at DESC,id DESC LIMIT 1
             """)
     Optional<CandidateSubmissionRunRow> findLatestCandidateSubmissionRunForWorkPackage(

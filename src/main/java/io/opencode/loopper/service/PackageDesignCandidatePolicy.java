@@ -34,7 +34,8 @@ final class PackageDesignCandidatePolicy implements CandidatePolicy {
                 || !WORKFLOW_STEP.equals(context.workflowStep())
                 || !PackageDesignCandidateCodec.CONTRACT_VERSION.equals(context.contractVersion())
                 || context.maxAttempts() != MAX_ATTEMPTS
-                || context.owner().designWorkPackageId() == null) {
+                || context.owner().type()
+                    != MachineCandidateSubmission.CandidateOwnerType.DESIGN_WORK_PACKAGE) {
             return Decision.rejected(false, false, List.of(new MachineCandidateSubmission.Problem(
                     "PACKAGE_DESIGN_RUN_CONTRACT_INVALID", "/candidate",
                     "候选运行不属于 PACKAGE_DESIGN_V1 冻结合同", List.of())));

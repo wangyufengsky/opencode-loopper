@@ -22,16 +22,16 @@ final class DecompositionCandidatePolicy implements CandidatePolicy {
 
     @Override
     public Decision evaluate(Context context, String candidateJson) {
-        TaskDecompositionRow owner = mapper.findTaskDecomposition(context.owner().taskDecompositionId())
+        TaskDecompositionRow owner = mapper.findTaskDecomposition(context.owner().id())
                 .orElseThrow(() -> new ConflictException(
                         "CANDIDATE_OWNER_MISSING", "Task decomposition candidate owner no longer exists"));
-        if (!context.designerSessionId().equals(owner.designerSessionId())
+        if (!context.scope().id().equals(owner.designerSessionId())
                 || owner.version() != context.ownerVersion()) {
             throw new ConflictException("CANDIDATE_OWNER_REVISION_STALE",
                     "Task decomposition candidate owner revision has changed");
         }
         DesignRequirementRevisionRow revision = mapper.findDesignRequirementRevision(owner.requirementRevisionId())
-                .filter(item -> context.designerSessionId().equals(item.designerSessionId())
+                .filter(item -> context.scope().id().equals(item.designerSessionId())
                         && item.revision() == context.sourceRevision())
                 .orElseThrow(() -> new ConflictException(
                         "CANDIDATE_REQUIREMENT_MISSING", "Frozen requirement revision no longer exists"));

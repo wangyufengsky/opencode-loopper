@@ -129,7 +129,8 @@ class MachineCandidateSubmissionIntegrationTest {
     void packageDesignBudgetExhaustionTransitionsToFallbackRequired() {
         MachineCandidateSubmission.RunSnapshot opened = submissions.open(packageRun("run-package", 3));
 
-        assertThat(opened.owner().designWorkPackageId()).isEqualTo("wp");
+        assertThat(opened.owner()).isEqualTo(
+                MachineCandidateSubmission.CandidateOwnerRef.designWorkPackage("wp"));
         assertThat(MachineCandidateKind.PACKAGE_DESIGN_V1.maximumAttempts()).isEqualTo(3);
         assertThat(submissions.submit(new MachineCandidateSubmission.SubmitCommand(
                 "run-package", "attempt-1", "{\"fallbackEligible\":true}", 0, LEGACY)).outcome())
@@ -177,17 +178,53 @@ class MachineCandidateSubmissionIntegrationTest {
     }
 
     @Test
-    void candidateOwnerRequiresExactlyOneOfTheThreeClosedOwnerTypes() {
-        assertThat(MachineCandidateSubmission.CandidateOwner.designWorkPackage("wp").designWorkPackageId())
-                .isEqualTo("wp");
-        assertThat(new MachineCandidateSubmission.CandidateOwner(" ", null, "wp").taskDecompositionId())
-                .isNull();
-        assertThatThrownBy(() -> new MachineCandidateSubmission.CandidateOwner(null, null, null))
+    void candidateScopeAndOwnerAreTypedStableReferences() {
+        assertThat(MachineCandidateSubmission.CandidateScope.designerSession("s"))
+                .extracting(MachineCandidateSubmission.CandidateScope::type,
+                        MachineCandidateSubmission.CandidateScope::id)
+                .containsExactly(MachineCandidateSubmission.CandidateScopeType.DESIGNER_SESSION, "s");
+        assertThat(MachineCandidateSubmission.CandidateScope.task("task").type())
+                .isEqualTo(MachineCandidateSubmission.CandidateScopeType.TASK);
+        assertThat(MachineCandidateSubmission.CandidateScope.project("project").type())
+                .isEqualTo(MachineCandidateSubmission.CandidateScopeType.PROJECT);
+        assertThat(MachineCandidateSubmission.CandidateOwnerRef.designWorkPackage("wp"))
+                .extracting(MachineCandidateSubmission.CandidateOwnerRef::type,
+                        MachineCandidateSubmission.CandidateOwnerRef::id)
+                .containsExactly(MachineCandidateSubmission.CandidateOwnerType.DESIGN_WORK_PACKAGE, "wp");
+        assertThatThrownBy(() -> MachineCandidateSubmission.CandidateScope.task(" "))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new MachineCandidateSubmission.CandidateOwner("dec", "cmp", null))
+        assertThatThrownBy(() -> MachineCandidateSubmission.CandidateOwnerRef.judgeRun(null))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new MachineCandidateSubmission.CandidateOwner(null, "cmp", "wp"))
-                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void reservedCandidateKindsExposeBudgetsButFailClosedUntilTheirAdaptersExist() {
+        assertThat(MachineCandidateKind.ROLLING_PACKAGE_PLAN_V1.maximumAttempts()).isEqualTo(3);
+        assertThat(MachineCandidateKind.REVIEWER_REPORT_V1.maximumAttempts()).isEqualTo(3);
+        assertThat(MachineCandidateKind.PROJECT_CONVENTION_V1.maximumAttempts()).isEqualTo(3);
+        assertThat(MachineCandidateKind.JUDGE_DECISION_V1.maximumAttempts()).isEqualTo(2);
+
+        List<MachineCandidateSubmission.OpenCommand> commands = List.of(
+                futureRun("future-rolling", MachineCandidateSubmission.CandidateScope.task("task"),
+                        MachineCandidateSubmission.CandidateOwnerRef.taskPackagePlanRevision("plan"),
+                        MachineCandidateKind.ROLLING_PACKAGE_PLAN_V1, 3),
+                futureRun("future-reviewer", MachineCandidateSubmission.CandidateScope.designerSession("s"),
+                        MachineCandidateSubmission.CandidateOwnerRef.analysisReport("report"),
+                        MachineCandidateKind.REVIEWER_REPORT_V1, 3),
+                futureRun("future-convention", MachineCandidateSubmission.CandidateScope.project("p"),
+                        MachineCandidateSubmission.CandidateOwnerRef.projectConventionDraft("convention"),
+                        MachineCandidateKind.PROJECT_CONVENTION_V1, 3),
+                futureRun("future-judge", MachineCandidateSubmission.CandidateScope.task("task"),
+                        MachineCandidateSubmission.CandidateOwnerRef.judgeRun("judge"),
+                        MachineCandidateKind.JUDGE_DECISION_V1, 2));
+
+        for (MachineCandidateSubmission.OpenCommand command : commands) {
+            assertThatThrownBy(() -> submissions.open(command))
+                    .isInstanceOfSatisfying(BadRequestException.class,
+                            failure -> assertThat(failure.code()).isEqualTo("CANDIDATE_KIND_NOT_INTEGRATED"));
+        }
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ai_candidate_submission_run WHERE id LIKE 'future-%'",
+                Integer.class)).isZero();
     }
 
     @Test
@@ -259,7 +296,8 @@ class MachineCandidateSubmissionIntegrationTest {
     @Test
     void v7CandidateBudgetIsHardBoundedAtTwoSubmissions() {
         MachineCandidateSubmission.OpenCommand command = new MachineCandidateSubmission.OpenCommand(
-                "run-v7", "s", MachineCandidateSubmission.CandidateOwner.loopSpecCompilation("cmp"),
+                "run-v7", MachineCandidateSubmission.CandidateScope.designerSession("s"),
+                MachineCandidateSubmission.CandidateOwnerRef.loopSpecCompilation("cmp"),
                 MachineCandidateKind.ACCEPTANCE_CLOSED_CHOICE_V7, "CLOSED_CHOICE", 1, 0,
                 LEGACY, "ACCEPTANCE_CLOSED_CHOICE_V7", "generation-1", "remote-1", 3);
 
@@ -370,16 +408,26 @@ class MachineCandidateSubmissionIntegrationTest {
 
     private MachineCandidateSubmission.OpenCommand decomposerRun(String id, int maxAttempts) {
         return new MachineCandidateSubmission.OpenCommand(
-                id, "s", MachineCandidateSubmission.CandidateOwner.taskDecomposition("dec"),
+                id, MachineCandidateSubmission.CandidateScope.designerSession("s"),
+                MachineCandidateSubmission.CandidateOwnerRef.taskDecomposition("dec"),
                 MachineCandidateKind.DECOMPOSITION_PLAN_V2, "PLANNING", 1, 0,
                 LEGACY, "DECOMPOSITION_PLAN_V2", "generation-1", "remote-1", maxAttempts);
     }
 
     private MachineCandidateSubmission.OpenCommand packageRun(String id, int maxAttempts) {
         return new MachineCandidateSubmission.OpenCommand(
-                id, "s", MachineCandidateSubmission.CandidateOwner.designWorkPackage("wp"),
+                id, MachineCandidateSubmission.CandidateScope.designerSession("s"),
+                MachineCandidateSubmission.CandidateOwnerRef.designWorkPackage("wp"),
                 MachineCandidateKind.PACKAGE_DESIGN_V1, "PACKAGE_DESIGN", 1, 0,
                 LEGACY, "PACKAGE_DESIGN_V1", "generation-1", "remote-1", maxAttempts);
+    }
+
+    private MachineCandidateSubmission.OpenCommand futureRun(
+            String id, MachineCandidateSubmission.CandidateScope scope,
+            MachineCandidateSubmission.CandidateOwnerRef owner, MachineCandidateKind kind, int maxAttempts) {
+        return new MachineCandidateSubmission.OpenCommand(
+                id, scope, owner, kind, kind.name(), 1, 0, LEGACY, kind.name(),
+                "generation-1", "remote-1", maxAttempts);
     }
 
     private void configureCandidateAdapters() {
@@ -401,7 +449,7 @@ class MachineCandidateSubmissionIntegrationTest {
             }
             assertThat(jdbc.update("UPDATE task_decomposition SET planning_json=?, version=version+1 "
                             + "WHERE id=? AND version=?", canonicalCandidateJson,
-                    context.owner().taskDecompositionId(), context.ownerVersion())).isEqualTo(1);
+                    context.owner().id(), context.ownerVersion())).isEqualTo(1);
             return null;
         }).when(acceptedCandidateWriter).write(any(CandidatePolicy.Context.class), anyString(), anyString());
     }
@@ -474,13 +522,13 @@ class MachineCandidateSubmissionIntegrationTest {
                 if (run.candidateKind() == MachineCandidateKind.DECOMPOSITION_PLAN_V2) {
                     Long ownerRevision = jdbc.queryForObject(
                             "SELECT version FROM task_decomposition WHERE id=?", Long.class,
-                            run.owner().taskDecompositionId());
+                            run.owner().id());
                     if (ownerRevision == null || ownerRevision != run.ownerVersion()) {
                         throw new ConflictException("CANDIDATE_OWNER_REVISION_STALE", "候选拥有者修订已经变化");
                     }
                     Long sourceRevision = jdbc.queryForObject("SELECT r.revision FROM task_decomposition d "
                                     + "JOIN design_requirement_revision r ON r.id=d.requirement_revision_id "
-                                    + "WHERE d.id=?", Long.class, run.owner().taskDecompositionId());
+                                    + "WHERE d.id=?", Long.class, run.owner().id());
                     if (sourceRevision == null || sourceRevision != run.sourceRevision()) {
                         throw new ConflictException("CANDIDATE_SOURCE_REVISION_STALE", "候选来源修订已经变化");
                     }

@@ -49,7 +49,8 @@ class DesignerAcceptanceCandidatePromptFactoryTest {
 
     private MachineCandidateSubmission.RunSnapshot run() {
         return new MachineCandidateSubmission.RunSnapshot(
-                "run-7", "session", MachineCandidateSubmission.CandidateOwner.loopSpecCompilation("cmp"),
+                "run-7", MachineCandidateSubmission.CandidateScope.designerSession("session"),
+                MachineCandidateSubmission.CandidateOwnerRef.loopSpecCompilation("cmp"),
                 MachineCandidateKind.ACCEPTANCE_CLOSED_CHOICE_V7,
                 AcceptanceClosedChoiceCandidateCoordinator.WORKFLOW_STEP, 3, 4,
                 MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP,

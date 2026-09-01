@@ -19,7 +19,6 @@ import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -70,8 +69,9 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
         }
         String now = Instant.now().toString();
         CandidateSubmissionRunRow row = new CandidateSubmissionRunRow(
-                command.runId(), command.designerSessionId(), command.owner().taskDecompositionId(),
-                command.owner().loopSpecCompilationId(), command.owner().designWorkPackageId(),
+                command.runId(), scopeId(command.scope(), CandidateScopeType.DESIGNER_SESSION),
+                scopeId(command.scope(), CandidateScopeType.TASK), scopeId(command.scope(), CandidateScopeType.PROJECT),
+                command.owner().type().name(), command.owner().id(),
                 command.candidateKind().name(), command.workflowStep(),
                 command.sourceRevision(), command.ownerVersion(), command.submissionChannel().name(),
                 command.contractVersion(), command.runtimeGenerationId(), command.externalSessionId(),
@@ -281,7 +281,7 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
         } else if (problems.isEmpty() || decision.canonicalCandidateJson() != null) {
             throw new IllegalStateException("Rejected candidate policy decision is incomplete");
         }
-        if (decision.fallbackEligible() && kind != MachineCandidateKind.PACKAGE_DESIGN_V1) {
+        if (decision.fallbackEligible() && !MachineCandidateProtocolPolicy.contract(kind).fallbackAllowed()) {
             throw new IllegalStateException("Fallback eligibility is restricted to package-design candidates");
         }
         if (decision.fallbackEligible() && !decision.retryable()) {
@@ -318,21 +318,23 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
     }
 
     private void validateOpen(OpenCommand command) {
-        if (command == null || blank(command.runId()) || blank(command.designerSessionId()) || command.owner() == null
+        if (command == null || blank(command.runId()) || command.scope() == null || command.owner() == null
                 || command.candidateKind() == null || blank(command.workflowStep()) || command.sourceRevision() < 0
                 || command.ownerVersion() < 0 || command.submissionChannel() == null
                 || blank(command.contractVersion()) || blank(command.runtimeGenerationId())
                 || blank(command.externalSessionId())) {
             throw new BadRequestException("CANDIDATE_RUN_INVALID", "候选运行合同不完整");
         }
-        boolean ownerMatches = switch (command.candidateKind()) {
-            case DECOMPOSITION_PLAN_V2 -> command.owner().taskDecompositionId() != null;
-            case ACCEPTANCE_CLOSED_CHOICE_V7 -> command.owner().loopSpecCompilationId() != null;
-            case PACKAGE_DESIGN_V1 -> command.owner().designWorkPackageId() != null;
-        };
-        if (!ownerMatches) throw new BadRequestException("CANDIDATE_OWNER_INVALID", "候选类型与拥有者不匹配");
+        MachineCandidateProtocolPolicy.Contract protocol = MachineCandidateProtocolPolicy.contract(
+                command.candidateKind());
+        if (command.scope().type() != protocol.scopeType() || command.owner().type() != protocol.ownerType()) {
+            throw new BadRequestException("CANDIDATE_OWNER_INVALID", "候选类型、作用域与拥有者不匹配");
+        }
         if (command.maxAttempts() < 1 || command.maxAttempts() > command.candidateKind().maximumAttempts()) {
             throw new BadRequestException("CANDIDATE_ATTEMPT_LIMIT_INVALID", "候选尝试预算超出角色上限");
+        }
+        if (!protocol.integrated()) {
+            throw new BadRequestException("CANDIDATE_KIND_NOT_INTEGRATED", "候选类型尚未接入业务适配器");
         }
     }
 
@@ -348,10 +350,8 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
     }
 
     private boolean sameContract(CandidateSubmissionRunRow row, OpenCommand command) {
-        return row.designerSessionId().equals(command.designerSessionId())
-                && Objects.equals(row.taskDecompositionId(), command.owner().taskDecompositionId())
-                && Objects.equals(row.loopSpecCompilationId(), command.owner().loopSpecCompilationId())
-                && Objects.equals(row.designWorkPackageId(), command.owner().designWorkPackageId())
+        return scope(row).equals(command.scope())
+                && owner(row).equals(command.owner())
                 && row.candidateKind().equals(command.candidateKind().name())
                 && row.workflowStep().equals(command.workflowStep()) && row.sourceRevision() == command.sourceRevision()
                 && row.ownerVersion() == command.ownerVersion()
@@ -368,28 +368,34 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
     }
 
     private CandidatePolicy.Context context(CandidateSubmissionRunRow run) {
-        return new CandidatePolicy.Context(run.id(), run.designerSessionId(), owner(run),
+        return new CandidatePolicy.Context(run.id(), scope(run), owner(run),
                 MachineCandidateKind.valueOf(run.candidateKind()), run.workflowStep(), run.sourceRevision(),
                 run.ownerVersion(), run.contractVersion(), run.maxAttempts(), run.attemptsUsed());
     }
 
     private RunSnapshot snapshot(CandidateSubmissionRunRow row) {
-        return new RunSnapshot(row.id(), row.designerSessionId(), owner(row),
+        return new RunSnapshot(row.id(), scope(row), owner(row),
                 MachineCandidateKind.valueOf(row.candidateKind()), row.workflowStep(), row.sourceRevision(),
                 row.ownerVersion(), SubmissionChannel.valueOf(row.submissionChannel()), row.contractVersion(),
                 row.runtimeGenerationId(), row.externalSessionId(), MachineCandidateRunState.valueOf(row.state()),
                 row.maxAttempts(), row.attemptsUsed(), row.terminalAttemptId(), row.version());
     }
 
-    private CandidateOwner owner(CandidateSubmissionRunRow row) {
-        return new CandidateOwner(row.taskDecompositionId(), row.loopSpecCompilationId(),
-                row.designWorkPackageId());
+    private CandidateOwnerRef owner(CandidateSubmissionRunRow row) {
+        return new CandidateOwnerRef(CandidateOwnerType.valueOf(row.ownerType()), row.ownerId());
+    }
+
+    private CandidateScope scope(CandidateSubmissionRunRow row) {
+        if (!blank(row.designerSessionId())) return CandidateScope.designerSession(row.designerSessionId());
+        if (!blank(row.taskId())) return CandidateScope.task(row.taskId());
+        if (!blank(row.projectId())) return CandidateScope.project(row.projectId());
+        throw new IllegalStateException("Stored candidate run has no scope");
     }
 
     private CandidateSubmissionRunRow updated(CandidateSubmissionRunRow row, MachineCandidateRunState state,
                                               int attemptsUsed, String terminalAttemptId, String updatedAt) {
-        return new CandidateSubmissionRunRow(row.id(), row.designerSessionId(), row.taskDecompositionId(),
-                row.loopSpecCompilationId(), row.designWorkPackageId(), row.candidateKind(), row.workflowStep(), row.sourceRevision(),
+        return new CandidateSubmissionRunRow(row.id(), row.designerSessionId(), row.taskId(), row.projectId(),
+                row.ownerType(), row.ownerId(), row.candidateKind(), row.workflowStep(), row.sourceRevision(),
                 row.ownerVersion(), row.submissionChannel(), row.contractVersion(), row.runtimeGenerationId(),
                 row.externalSessionId(), state.name(), row.maxAttempts(), attemptsUsed, terminalAttemptId,
                 row.createdAt(), updatedAt, row.version());
@@ -397,7 +403,19 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
 
     private LifecycleTransitionService.Subject subject(CandidateSubmissionRunRow row) {
         return new LifecycleTransitionService.Subject(LifecycleMachineType.CANDIDATE_SUBMISSION_RUN,
-                row.id(), LifecycleScopeType.DESIGNER, row.designerSessionId());
+                row.id(), lifecycleScope(scope(row).type()), scope(row).id());
+    }
+
+    private static LifecycleScopeType lifecycleScope(CandidateScopeType type) {
+        return switch (type) {
+            case DESIGNER_SESSION -> LifecycleScopeType.DESIGNER;
+            case TASK -> LifecycleScopeType.TASK;
+            case PROJECT -> LifecycleScopeType.PROJECT;
+        };
+    }
+
+    private static String scopeId(CandidateScope scope, CandidateScopeType expected) {
+        return scope.type() == expected ? scope.id() : null;
     }
 
     private void validateGuards(CandidateSubmissionRunRow row, SubmissionChannel submissionChannel) {

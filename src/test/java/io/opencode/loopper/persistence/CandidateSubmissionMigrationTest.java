@@ -16,7 +16,7 @@ class CandidateSubmissionMigrationTest {
     @TempDir Path temporaryDirectory;
 
     @Test
-    void createsV48CandidateSubmissionContractsOnFreshAndV46Databases() throws Exception {
+    void createsV49CandidateSubmissionContractsOnFreshAndV46Databases() throws Exception {
         verifyMigration(temporaryDirectory.resolve("fresh.db"), false);
         verifyMigration(temporaryDirectory.resolve("upgrade-v46.db"), true);
     }
@@ -31,7 +31,7 @@ class CandidateSubmissionMigrationTest {
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
 
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("48");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("49");
         assertThat(flyway.migrate().migrationsExecuted).isZero();
         try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
             statement.execute("PRAGMA foreign_keys=ON");
@@ -64,8 +64,9 @@ class CandidateSubmissionMigrationTest {
             try (var result = statement.executeQuery("PRAGMA table_info(ai_candidate_submission_run)")) {
                 while (result.next()) runColumns.add(result.getString("name"));
             }
-            assertThat(runColumns).contains("source_revision", "owner_version", "submission_channel",
-                    "design_work_package_id");
+            assertThat(runColumns).contains("designer_session_id", "task_id", "project_id", "owner_type",
+                            "owner_id", "source_revision", "owner_version", "submission_channel")
+                    .doesNotContain("task_decomposition_id", "loop_spec_compilation_id", "design_work_package_id");
 
             List<String> compilationColumns = new ArrayList<>();
             try (var result = statement.executeQuery("PRAGMA table_info(loop_spec_compilation)")) {
@@ -102,18 +103,18 @@ class CandidateSubmissionMigrationTest {
                     """);
             statement.executeUpdate("""
                     INSERT INTO ai_candidate_submission_run(
-                      id,designer_session_id,task_decomposition_id,candidate_kind,workflow_step,source_revision,
+                      id,designer_session_id,owner_type,owner_id,candidate_kind,workflow_step,source_revision,
                       owner_version,submission_channel,contract_version,runtime_generation_id,external_session_id,
                       state,max_attempts,attempts_used,created_at,updated_at,version)
-                    VALUES('run-1','s','dec','DECOMPOSITION_PLAN_V2','PLANNING',1,0,'IN_PROCESS_LEGACY',
+                    VALUES('run-1','s','TASK_DECOMPOSITION','dec','DECOMPOSITION_PLAN_V2','PLANNING',1,0,'IN_PROCESS_LEGACY',
                       'DECOMPOSITION_PLAN_V2','generation-1','remote-1','OPEN',5,0,'now','now',0)
                     """);
             statement.executeUpdate("""
                     INSERT INTO ai_candidate_submission_run(
-                      id,designer_session_id,design_work_package_id,candidate_kind,workflow_step,source_revision,
+                      id,designer_session_id,owner_type,owner_id,candidate_kind,workflow_step,source_revision,
                       owner_version,submission_channel,contract_version,runtime_generation_id,external_session_id,
                       state,max_attempts,attempts_used,terminal_attempt_id,created_at,updated_at,version)
-                    VALUES('package-run','s','wp','PACKAGE_DESIGN_V1','PACKAGE_DESIGN',1,0,'INTERNAL_MCP',
+                    VALUES('package-run','s','DESIGN_WORK_PACKAGE','wp','PACKAGE_DESIGN_V1','PACKAGE_DESIGN',1,0,'INTERNAL_MCP',
                       'PACKAGE_DESIGN_V1','generation-1','remote-1','FALLBACK_REQUIRED',3,3,
                       'package-attempt','now','now',0)
                     """);
@@ -127,50 +128,84 @@ class CandidateSubmissionMigrationTest {
                     """);
             assertThatThrownBy(() -> statement.executeUpdate("""
                     INSERT INTO ai_candidate_submission_run(
-                      id,designer_session_id,task_decomposition_id,design_work_package_id,candidate_kind,
+                      id,designer_session_id,owner_type,owner_id,candidate_kind,
                       workflow_step,source_revision,owner_version,submission_channel,contract_version,
                       runtime_generation_id,external_session_id,state,max_attempts,attempts_used,created_at,updated_at,version)
-                    VALUES('bad-package-owner','s','dec','wp','PACKAGE_DESIGN_V1','PACKAGE_DESIGN',1,0,
+                    VALUES('bad-package-owner','s','TASK_DECOMPOSITION','dec','PACKAGE_DESIGN_V1','PACKAGE_DESIGN',1,0,
                       'INTERNAL_MCP','PACKAGE_DESIGN_V1','generation-1','remote-1','OPEN',3,0,'now','now',0)
                     """))
                     .hasMessageContaining("CHECK constraint failed");
+            assertThatThrownBy(() -> statement.executeUpdate("""
+                    INSERT INTO ai_candidate_submission_run(
+                      id,designer_session_id,task_id,owner_type,owner_id,candidate_kind,
+                      workflow_step,source_revision,owner_version,submission_channel,contract_version,
+                      runtime_generation_id,external_session_id,state,max_attempts,attempts_used,created_at,updated_at,version)
+                    VALUES('bad-two-scopes','s','missing-task','TASK_DECOMPOSITION','dec','DECOMPOSITION_PLAN_V2',
+                      'PLANNING',1,0,'IN_PROCESS_LEGACY','DECOMPOSITION_PLAN_V2','generation-1','remote-1',
+                      'OPEN',5,0,'now','now',0)
+                    """))
+                    .hasMessageContaining("CHECK constraint failed");
+            assertThatThrownBy(() -> statement.executeUpdate("""
+                    INSERT INTO ai_candidate_submission_run(
+                      id,designer_session_id,owner_type,owner_id,candidate_kind,
+                      workflow_step,source_revision,owner_version,submission_channel,contract_version,
+                      runtime_generation_id,external_session_id,state,max_attempts,attempts_used,created_at,updated_at,version)
+                    VALUES('bad-owner-scope','s-other','TASK_DECOMPOSITION','dec','DECOMPOSITION_PLAN_V2',
+                      'PLANNING',1,0,'IN_PROCESS_LEGACY','DECOMPOSITION_PLAN_V2','generation-1','remote-1',
+                      'OPEN',5,0,'now','now',0)
+                    """))
+                    .hasMessageContaining("candidate owner scope mismatch");
+            assertThatThrownBy(() -> statement.executeUpdate(
+                    "UPDATE ai_candidate_submission_run SET owner_id='cmp' WHERE id='run-1'"))
+                    .hasMessageContaining("candidate owner and scope are immutable");
             try (var result = statement.executeQuery("PRAGMA foreign_key_check")) {
                 assertThat(result.next()).isFalse();
             }
 
             assertThatThrownBy(() -> statement.executeUpdate("""
                     INSERT INTO ai_candidate_submission_run(
-                      id,designer_session_id,loop_spec_compilation_id,candidate_kind,workflow_step,source_revision,
+                      id,designer_session_id,owner_type,owner_id,candidate_kind,workflow_step,source_revision,
                       owner_version,submission_channel,contract_version,runtime_generation_id,external_session_id,
                       state,max_attempts,attempts_used,created_at,updated_at,version)
-                    VALUES('bad-generation','s','cmp','ACCEPTANCE_CLOSED_CHOICE_V7','CHOICE',1,0,'INTERNAL_MCP',
+                    VALUES('bad-generation','s','LOOP_SPEC_COMPILATION','cmp','ACCEPTANCE_CLOSED_CHOICE_V7','CHOICE',1,0,'INTERNAL_MCP',
                       'ACCEPTANCE_CLOSED_CHOICE_V7','generation-other','remote-1','OPEN',2,0,'now','now',0)
                     """))
                     .hasMessageContaining("FOREIGN KEY constraint failed");
             assertThatThrownBy(() -> statement.executeUpdate("""
                     INSERT INTO ai_candidate_submission_run(
-                      id,designer_session_id,task_decomposition_id,candidate_kind,workflow_step,source_revision,
+                      id,designer_session_id,owner_type,owner_id,candidate_kind,workflow_step,source_revision,
                       owner_version,submission_channel,contract_version,runtime_generation_id,external_session_id,
                       state,max_attempts,attempts_used,created_at,updated_at,version)
-                    VALUES('bad-owner','s','dec','ACCEPTANCE_CLOSED_CHOICE_V7','CHOICE',1,0,'INTERNAL_MCP',
+                    VALUES('bad-owner','s','TASK_DECOMPOSITION','dec','ACCEPTANCE_CLOSED_CHOICE_V7','CHOICE',1,0,'INTERNAL_MCP',
                       'ACCEPTANCE_CLOSED_CHOICE_V7','generation-1','remote-1','OPEN',2,0,'now','now',0)
                     """))
                     .hasMessageContaining("CHECK constraint failed");
+            statement.executeUpdate("DELETE FROM design_work_package WHERE id='wp'");
+            try (var result = statement.executeQuery("SELECT COUNT(*) FROM ai_candidate_submission_run "
+                    + "WHERE id='package-run'")) {
+                assertThat(result.next()).isTrue();
+                assertThat(result.getInt(1)).isZero();
+            }
+            try (var result = statement.executeQuery("SELECT COUNT(*) FROM ai_candidate_submission_attempt "
+                    + "WHERE id='package-attempt'")) {
+                assertThat(result.next()).isTrue();
+                assertThat(result.getInt(1)).isZero();
+            }
             assertThatThrownBy(() -> statement.executeUpdate("""
                     INSERT INTO ai_candidate_submission_run(
-                      id,designer_session_id,loop_spec_compilation_id,candidate_kind,workflow_step,source_revision,
+                      id,designer_session_id,owner_type,owner_id,candidate_kind,workflow_step,source_revision,
                       owner_version,submission_channel,contract_version,runtime_generation_id,external_session_id,
                       state,max_attempts,attempts_used,created_at,updated_at,version)
-                    VALUES('bad-state','s','cmp','ACCEPTANCE_CLOSED_CHOICE_V7','CHOICE',1,0,'INTERNAL_MCP',
+                    VALUES('bad-state','s','LOOP_SPEC_COMPILATION','cmp','ACCEPTANCE_CLOSED_CHOICE_V7','CHOICE',1,0,'INTERNAL_MCP',
                       'ACCEPTANCE_CLOSED_CHOICE_V7','generation-1','remote-1','FAILED',2,0,'now','now',0)
                     """))
                     .hasMessageContaining("CHECK constraint failed");
             assertThatThrownBy(() -> statement.executeUpdate("""
                     INSERT INTO ai_candidate_submission_run(
-                      id,designer_session_id,loop_spec_compilation_id,candidate_kind,workflow_step,source_revision,
+                      id,designer_session_id,owner_type,owner_id,candidate_kind,workflow_step,source_revision,
                       owner_version,submission_channel,contract_version,runtime_generation_id,external_session_id,
                       state,max_attempts,attempts_used,created_at,updated_at,version)
-                    VALUES('bad-channel','s','cmp','ACCEPTANCE_CLOSED_CHOICE_V7','CHOICE',1,0,'PUBLIC_MCP',
+                    VALUES('bad-channel','s','LOOP_SPEC_COMPILATION','cmp','ACCEPTANCE_CLOSED_CHOICE_V7','CHOICE',1,0,'PUBLIC_MCP',
                       'ACCEPTANCE_CLOSED_CHOICE_V7','generation-1','remote-1','OPEN',2,0,'now','now',0)
                     """))
                     .hasMessageContaining("CHECK constraint failed");
@@ -213,13 +248,14 @@ class CandidateSubmissionMigrationTest {
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
 
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("48");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("49");
         try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
             statement.execute("PRAGMA foreign_keys=ON");
-            try (var result = statement.executeQuery("SELECT design_work_package_id,state,version "
+            try (var result = statement.executeQuery("SELECT owner_type,owner_id,state,version "
                     + "FROM ai_candidate_submission_run WHERE id='preserved-run'")) {
                 assertThat(result.next()).isTrue();
-                assertThat(result.getString("design_work_package_id")).isNull();
+                assertThat(result.getString("owner_type")).isEqualTo("TASK_DECOMPOSITION");
+                assertThat(result.getString("owner_id")).isEqualTo("dec");
                 assertThat(result.getString("state")).isEqualTo("WAITING_INPUT");
                 assertThat(result.getLong("version")).isEqualTo(1);
             }
@@ -232,9 +268,8 @@ class CandidateSubmissionMigrationTest {
             try (var result = statement.executeQuery("SELECT name FROM sqlite_master WHERE type='index'")) {
                 while (result.next()) indexes.add(result.getString(1));
             }
-            assertThat(indexes).contains("ux_candidate_submission_open_decomposition",
-                    "ux_candidate_submission_open_compilation", "ux_candidate_submission_open_package",
-                    "idx_candidate_submission_attempt_run");
+            assertThat(indexes).contains("ux_candidate_submission_open_owner",
+                    "idx_candidate_submission_scope_state", "idx_candidate_submission_attempt_run");
             assertThatThrownBy(() -> statement.executeUpdate("""
                     INSERT INTO ai_candidate_submission_attempt(
                       id,run_id,ordinal,idempotency_key,request_sha256,outcome,retryable,problems_json,response_json,
@@ -244,6 +279,83 @@ class CandidateSubmissionMigrationTest {
                       'REJECTED',1,'[]','{}','now')
                     """))
                     .hasMessageContaining("FOREIGN KEY constraint failed");
+            try (var result = statement.executeQuery("PRAGMA foreign_key_check")) {
+                assertThat(result.next()).isFalse();
+            }
+        }
+    }
+
+    @Test
+    void upgradingFromV48PreservesPackageAcceptedResultAndMapsTypedScopeOwner() throws Exception {
+        String url = "jdbc:sqlite:" + temporaryDirectory.resolve("upgrade-v48-with-data.db");
+        Flyway.configure().dataSource(url, null, null)
+                .target(MigrationVersion.fromVersion("48")).load().migrate();
+        try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
+            statement.execute("PRAGMA foreign_keys=ON");
+            insertCandidateOwners(statement);
+            statement.executeUpdate("""
+                    INSERT INTO open_code_session_runtime_binding(
+                      external_session_id,runtime_generation_id,ownership_mode,endpoint_fingerprint,created_at)
+                    VALUES('package-remote','package-generation','MANAGED',
+                      'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','now')
+                    """);
+            statement.executeUpdate("""
+                    INSERT INTO ai_candidate_submission_run(
+                      id,designer_session_id,design_work_package_id,candidate_kind,workflow_step,source_revision,
+                      owner_version,submission_channel,contract_version,runtime_generation_id,external_session_id,
+                      state,max_attempts,attempts_used,terminal_attempt_id,created_at,updated_at,version)
+                    VALUES('preserved-package-run','s','wp','PACKAGE_DESIGN_V1','PACKAGE_DESIGN_V1',1,0,
+                      'INTERNAL_MCP','PACKAGE_DESIGN_V1','package-generation','package-remote',
+                      'ACCEPTED',3,1,'preserved-package-attempt','now','now',1)
+                    """);
+            statement.executeUpdate("""
+                    INSERT INTO ai_candidate_submission_attempt(
+                      id,run_id,ordinal,idempotency_key,request_sha256,outcome,retryable,problems_json,response_json,
+                      canonical_result_sha256,created_at)
+                    VALUES('preserved-package-attempt','preserved-package-run',1,'key',
+                      'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+                      'ACCEPTED',0,'[]','{}',
+                      'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc','now')
+                    """);
+            statement.executeUpdate("""
+                    INSERT INTO package_design_candidate_accepted_result(
+                      candidate_run_id,design_work_package_id,source_revision,owner_version,contract_version,
+                      canonical_candidate_json,canonical_markdown,compiled_result_json,canonical_result_sha256,
+                      created_at,updated_at,version)
+                    VALUES('preserved-package-run','wp',1,0,'PACKAGE_DESIGN_V1','{}','# Package','{}',
+                      'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc','now','now',0)
+                    """);
+        }
+
+        Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
+        flyway.migrate();
+
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("49");
+        try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
+            statement.execute("PRAGMA foreign_keys=ON");
+            try (var result = statement.executeQuery("""
+                    SELECT designer_session_id,task_id,project_id,owner_type,owner_id,state,version
+                    FROM ai_candidate_submission_run WHERE id='preserved-package-run'
+                    """)) {
+                assertThat(result.next()).isTrue();
+                assertThat(result.getString("designer_session_id")).isEqualTo("s");
+                assertThat(result.getString("task_id")).isNull();
+                assertThat(result.getString("project_id")).isNull();
+                assertThat(result.getString("owner_type")).isEqualTo("DESIGN_WORK_PACKAGE");
+                assertThat(result.getString("owner_id")).isEqualTo("wp");
+                assertThat(result.getString("state")).isEqualTo("ACCEPTED");
+                assertThat(result.getLong("version")).isEqualTo(1);
+            }
+            try (var result = statement.executeQuery("SELECT COUNT(*) FROM ai_candidate_submission_attempt "
+                    + "WHERE run_id='preserved-package-run'")) {
+                assertThat(result.next()).isTrue();
+                assertThat(result.getInt(1)).isEqualTo(1);
+            }
+            try (var result = statement.executeQuery("SELECT COUNT(*) FROM package_design_candidate_accepted_result "
+                    + "WHERE candidate_run_id='preserved-package-run'")) {
+                assertThat(result.next()).isTrue();
+                assertThat(result.getInt(1)).isEqualTo(1);
+            }
             try (var result = statement.executeQuery("PRAGMA foreign_key_check")) {
                 assertThat(result.next()).isFalse();
             }
@@ -269,6 +381,10 @@ class CandidateSubmissionMigrationTest {
                 + "VALUES('d','p','G','{}','DRAFT_READY','now','now')");
         statement.executeUpdate("INSERT INTO designer_session(id,project_id,state,access_mode,loop_draft_id,created_at,updated_at) "
                 + "VALUES('s','p','RUNNING','READ_ONLY','d','now','now')");
+        statement.executeUpdate("INSERT INTO loop_draft(id,project_id,goal,spec_json,status,created_at,updated_at) "
+                + "VALUES('d-other','p','G','{}','DRAFT_READY','now','now')");
+        statement.executeUpdate("INSERT INTO designer_session(id,project_id,state,access_mode,loop_draft_id,created_at,updated_at) "
+                + "VALUES('s-other','p','RUNNING','READ_ONLY','d-other','now','now')");
         statement.executeUpdate("INSERT INTO designer_message(id,designer_session_id,ordinal,role,content,delivery_state,created_at) "
                 + "VALUES('m','s',1,'ASSISTANT','design','PERSISTED','now')");
         statement.executeUpdate("INSERT INTO design_requirement_revision(id,designer_session_id,revision,source_message_id,"

@@ -77,8 +77,9 @@ final class DesignerPackageCandidateOrchestrator {
                         "CANDIDATE_RUNTIME_BINDING_UNAVAILABLE", "候选运行时绑定服务不可用"))
                 .bind(remote, MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP);
         MachineCandidateSubmission.RunSnapshot run = submissions.open(new MachineCandidateSubmission.OpenCommand(
-                runId(workPackage), workPackage.designerSessionId(),
-                MachineCandidateSubmission.CandidateOwner.designWorkPackage(workPackage.id()),
+                runId(workPackage), MachineCandidateSubmission.CandidateScope.designerSession(
+                        workPackage.designerSessionId()),
+                MachineCandidateSubmission.CandidateOwnerRef.designWorkPackage(workPackage.id()),
                 MachineCandidateKind.PACKAGE_DESIGN_V1, WORKFLOW_STEP, workPackage.designRevision() + 1L,
                 workPackage.version(), MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP,
                 CONTRACT_VERSION, binding.runtimeGenerationId(), remote.id(), MAX_ATTEMPTS));

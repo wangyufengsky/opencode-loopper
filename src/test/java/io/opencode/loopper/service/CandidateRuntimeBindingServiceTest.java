@@ -129,8 +129,8 @@ class CandidateRuntimeBindingServiceTest {
         when(mapper.findDesignWorkPackage("wp-1")).thenReturn(Optional.of(owner));
         CandidateRuntimeBindingService service = new CandidateRuntimeBindingService(mapper, access);
         MachineCandidateSubmission.RunSnapshot run = new MachineCandidateSubmission.RunSnapshot(
-                "package-run", "designer-1",
-                MachineCandidateSubmission.CandidateOwner.designWorkPackage("wp-1"),
+                "package-run", MachineCandidateSubmission.CandidateScope.designerSession("designer-1"),
+                MachineCandidateSubmission.CandidateOwnerRef.designWorkPackage("wp-1"),
                 MachineCandidateKind.PACKAGE_DESIGN_V1, "PACKAGE_DESIGN", 3, 4,
                 LEGACY, "PACKAGE_DESIGN_V1", binding.runtimeGenerationId(), "package-remote",
                 MachineCandidateRunState.OPEN, 3, 0, null, 0);
@@ -156,8 +156,9 @@ class CandidateRuntimeBindingServiceTest {
     private MachineCandidateSubmission.RunSnapshot run(
             String externalSessionId, String generation, long ownerVersion, long sourceRevision,
             MachineCandidateSubmission.SubmissionChannel channel) {
-        return new MachineCandidateSubmission.RunSnapshot("run-1", "designer-1",
-                MachineCandidateSubmission.CandidateOwner.taskDecomposition("dec-1"),
+        return new MachineCandidateSubmission.RunSnapshot("run-1",
+                MachineCandidateSubmission.CandidateScope.designerSession("designer-1"),
+                MachineCandidateSubmission.CandidateOwnerRef.taskDecomposition("dec-1"),
                 MachineCandidateKind.DECOMPOSITION_PLAN_V2, "PLANNING", sourceRevision, ownerVersion,
                 channel, "DECOMPOSITION_PLAN_V2", generation, externalSessionId,
                 MachineCandidateRunState.OPEN, 5, 0, null, 0);

@@ -3748,7 +3748,8 @@ class DesignerSessionMcpIntegrationTest {
 
         String runId = jdbc.queryForObject("""
                 SELECT id FROM ai_candidate_submission_run
-                WHERE loop_spec_compilation_id=? AND submission_channel='INTERNAL_MCP'
+                WHERE owner_type='LOOP_SPEC_COMPILATION' AND owner_id=?
+                  AND submission_channel='INTERNAL_MCP'
                 """, String.class, opened.id());
         Long submissionRevision = jdbc.queryForObject(
                 "SELECT version FROM ai_candidate_submission_run WHERE id=?", Long.class, runId);
@@ -3967,7 +3968,7 @@ class DesignerSessionMcpIntegrationTest {
         DesignerSessionService.CompilerStatus completed = designerSessions.compilerStatus(reviewing.id());
         List<String> channels = jdbc.queryForList("""
                 SELECT submission_channel FROM ai_candidate_submission_run
-                WHERE loop_spec_compilation_id=? ORDER BY created_at
+                WHERE owner_type='LOOP_SPEC_COMPILATION' AND owner_id=? ORDER BY created_at
                 """, String.class, completed.id());
         List<String> candidateRemotes = fake().promptHistory().stream()
                 .filter(call -> fake().profileForSession(call.sessionId())

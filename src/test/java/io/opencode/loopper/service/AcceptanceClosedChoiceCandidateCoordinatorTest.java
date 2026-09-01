@@ -92,8 +92,10 @@ class AcceptanceClosedChoiceCandidateCoordinatorTest {
                 .isEqualTo(OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS);
         assertThat(submissions.opened).satisfies(command -> {
             assertThat(command.candidateKind()).isEqualTo(MachineCandidateKind.ACCEPTANCE_CLOSED_CHOICE_V7);
+            assertThat(command.scope()).isEqualTo(
+                    MachineCandidateSubmission.CandidateScope.designerSession("session"));
             assertThat(command.owner()).isEqualTo(
-                    MachineCandidateSubmission.CandidateOwner.loopSpecCompilation("cmp"));
+                    MachineCandidateSubmission.CandidateOwnerRef.loopSpecCompilation("cmp"));
             assertThat(command.workflowStep()).isEqualTo("ACCEPTANCE_CLOSED_CHOICE_V7");
             assertThat(command.contractVersion()).isEqualTo("ACCEPTANCE_CLOSED_CHOICE_V7");
             assertThat(command.sourceRevision()).isEqualTo(3);
@@ -213,7 +215,7 @@ class AcceptanceClosedChoiceCandidateCoordinatorTest {
         @Override
         public RunSnapshot open(OpenCommand command) {
             opened = command;
-            return new RunSnapshot(command.runId(), command.designerSessionId(), command.owner(),
+            return new RunSnapshot(command.runId(), command.scope(), command.owner(),
                     command.candidateKind(), command.workflowStep(), command.sourceRevision(),
                     command.ownerVersion(), command.submissionChannel(), command.contractVersion(),
                     command.runtimeGenerationId(), command.externalSessionId(),

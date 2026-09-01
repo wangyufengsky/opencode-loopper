@@ -21,8 +21,9 @@ class DecompositionCandidatePolicyTest {
         when(mapper.findDesignRequirementRevision("rev")).thenReturn(Optional.of(revision()));
         DecompositionCandidatePolicy policy = new DecompositionCandidatePolicy(
                 mapper, new DesignerDecompositionCandidateCompiler(new ObjectMapper()));
-        CandidatePolicy.Context context = new CandidatePolicy.Context("run", "session",
-                MachineCandidateSubmission.CandidateOwner.taskDecomposition("dec"),
+        CandidatePolicy.Context context = new CandidatePolicy.Context("run",
+                MachineCandidateSubmission.CandidateScope.designerSession("session"),
+                MachineCandidateSubmission.CandidateOwnerRef.taskDecomposition("dec"),
                 MachineCandidateKind.DECOMPOSITION_PLAN_V2, "PLANNING", 1, 4,
                 "DECOMPOSITION_PLAN_V2", 5, 0);
 
@@ -47,8 +48,9 @@ class DecompositionCandidatePolicyTest {
         when(mapper.findDesignRequirementRevision("rev")).thenReturn(Optional.of(revision()));
         DecompositionCandidatePolicy policy = new DecompositionCandidatePolicy(
                 mapper, new DesignerDecompositionCandidateCompiler(new ObjectMapper()));
-        CandidatePolicy.Context context = new CandidatePolicy.Context("run", "session",
-                MachineCandidateSubmission.CandidateOwner.taskDecomposition("dec"),
+        CandidatePolicy.Context context = new CandidatePolicy.Context("run",
+                MachineCandidateSubmission.CandidateScope.designerSession("session"),
+                MachineCandidateSubmission.CandidateOwnerRef.taskDecomposition("dec"),
                 MachineCandidateKind.DECOMPOSITION_PLAN_V2, "PLANNING", 1, 4,
                 "DECOMPOSITION_PLAN_V2", 5, 0);
 
@@ -80,8 +82,9 @@ class DecompositionCandidatePolicyTest {
         when(mapper.findDesignRequirementRevision("rev")).thenReturn(Optional.of(sensitiveRevision));
         DecompositionCandidatePolicy policy = new DecompositionCandidatePolicy(
                 mapper, new DesignerDecompositionCandidateCompiler(new ObjectMapper()));
-        CandidatePolicy.Context context = new CandidatePolicy.Context("run", "session",
-                MachineCandidateSubmission.CandidateOwner.taskDecomposition("dec"),
+        CandidatePolicy.Context context = new CandidatePolicy.Context("run",
+                MachineCandidateSubmission.CandidateScope.designerSession("session"),
+                MachineCandidateSubmission.CandidateOwnerRef.taskDecomposition("dec"),
                 MachineCandidateKind.DECOMPOSITION_PLAN_V2, "PLANNING", 1, 4,
                 "DECOMPOSITION_PLAN_V2", 5, 0);
 

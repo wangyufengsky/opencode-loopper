@@ -135,28 +135,34 @@ public final class CandidateRuntimeBindingService implements CandidateRunGuard {
     }
 
     private void validateOwnerAndSource(MachineCandidateSubmission.RunSnapshot run) {
+        MachineCandidateProtocolPolicy.Contract protocol = MachineCandidateProtocolPolicy.contract(run.candidateKind());
+        if (!protocol.integrated() || run.scope().type() != protocol.scopeType()
+                || run.owner().type() != protocol.ownerType()) {
+            throw new ConflictException("CANDIDATE_KIND_NOT_INTEGRATED",
+                    "Candidate kind is not connected to an authoritative owner adapter");
+        }
         if (run.candidateKind() == MachineCandidateKind.DECOMPOSITION_PLAN_V2) {
-            TaskDecompositionRow owner = mapper.findTaskDecomposition(run.owner().taskDecompositionId())
+            TaskDecompositionRow owner = mapper.findTaskDecomposition(run.owner().id())
                     .orElseThrow(() -> new ConflictException("CANDIDATE_OWNER_MISSING",
                             "Task decomposition candidate owner no longer exists"));
-            if (!run.designerSessionId().equals(owner.designerSessionId())
+            if (!run.scope().id().equals(owner.designerSessionId())
                     || owner.version() != run.ownerVersion()) {
                 throw new ConflictException("CANDIDATE_OWNER_REVISION_STALE",
                         "Task decomposition candidate owner revision has changed");
             }
             DesignRequirementRevisionRow revision = mapper
                     .findDesignRequirementRevision(owner.requirementRevisionId())
-                    .filter(item -> run.designerSessionId().equals(item.designerSessionId())
+                    .filter(item -> run.scope().id().equals(item.designerSessionId())
                             && item.revision() == run.sourceRevision())
                     .orElseThrow(() -> new ConflictException("CANDIDATE_SOURCE_REVISION_STALE",
                             "Frozen requirement revision has changed"));
             return;
         }
         if (run.candidateKind() == MachineCandidateKind.PACKAGE_DESIGN_V1) {
-            var owner = mapper.findDesignWorkPackage(run.owner().designWorkPackageId())
+            var owner = mapper.findDesignWorkPackage(run.owner().id())
                     .orElseThrow(() -> new ConflictException("CANDIDATE_OWNER_MISSING",
                             "Package design candidate owner no longer exists"));
-            if (!run.designerSessionId().equals(owner.designerSessionId())
+            if (!run.scope().id().equals(owner.designerSessionId())
                     || owner.version() != run.ownerVersion()) {
                 throw new ConflictException("CANDIDATE_OWNER_REVISION_STALE",
                         "Package design candidate owner revision has changed");
@@ -176,10 +182,10 @@ public final class CandidateRuntimeBindingService implements CandidateRunGuard {
             }
             return;
         }
-        var owner = mapper.findLoopSpecCompilation(run.owner().loopSpecCompilationId())
+        var owner = mapper.findLoopSpecCompilation(run.owner().id())
                 .orElseThrow(() -> new ConflictException("CANDIDATE_OWNER_MISSING",
                         "LoopSpec compilation candidate owner no longer exists"));
-        if (!run.designerSessionId().equals(owner.designerSessionId())
+        if (!run.scope().id().equals(owner.designerSessionId())
                 || owner.version() != run.ownerVersion()
                 || owner.designRevision() != run.sourceRevision()) {
             throw new ConflictException("CANDIDATE_OWNER_REVISION_STALE",

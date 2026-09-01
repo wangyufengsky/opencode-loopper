@@ -64,8 +64,9 @@ class PackageDesignCandidatePolicyTest {
     }
 
     private CandidatePolicy.Context context() {
-        return new CandidatePolicy.Context("run-1", "designer",
-                MachineCandidateSubmission.CandidateOwner.designWorkPackage("package-row"),
+        return new CandidatePolicy.Context("run-1",
+                MachineCandidateSubmission.CandidateScope.designerSession("designer"),
+                MachineCandidateSubmission.CandidateOwnerRef.designWorkPackage("package-row"),
                 MachineCandidateKind.PACKAGE_DESIGN_V1, PackageDesignCandidatePolicy.WORKFLOW_STEP,
                 2, 0, PackageDesignCandidateCodec.CONTRACT_VERSION,
                 PackageDesignCandidatePolicy.MAX_ATTEMPTS, 0);

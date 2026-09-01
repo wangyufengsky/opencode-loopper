@@ -85,6 +85,18 @@ may synthesize its explicit fake binding.
 Pre-V47 Session IDs are backfilled as `LEGACY_UNKNOWN` and fail closed because
 their original runtime identity cannot be proven.
 
+V49 represents every candidate run with `CandidateScope(type,id)` plus
+`CandidateOwnerRef(type,id)`. The scope type is a closed aggregate set
+(`DESIGNER_SESSION`, `TASK`, `PROJECT`) backed by exactly one matching database
+foreign key; the owner is a closed stable type/ID reference whose row must belong
+to that scope. V47/V48 decomposition, closed-choice and package-design runs keep
+their original Session, generation, revisions, attempts and accepted results while
+migrating to the typed form. `ROLLING_PACKAGE_PLAN_V1`, `REVIEWER_REPORT_V1`,
+`PROJECT_CONVENTION_V1` and `JUDGE_DECISION_V1` plus their owner types are reserved
+for later adapters, but this release does not grant them a Session profile or tool
+permission and rejects attempts to open them. Only `PACKAGE_DESIGN_V1` retains the
+explicit Markdown-fallback compatibility policy; reserved kinds fail closed.
+
 The private `/api/internal-mcp-streamable` Router accepts only literal loopback
 addresses and constant-time Bearer matches. It registers exactly one tool,
 `submit_candidate`; it does not contribute a `ToolCallbackProvider`, resource,

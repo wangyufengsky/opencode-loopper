@@ -13,7 +13,8 @@ public interface CandidatePolicy {
     Decision evaluate(Context context, String candidateJson);
 
     record Context(
-            String runId, String designerSessionId, MachineCandidateSubmission.CandidateOwner owner,
+            String runId, MachineCandidateSubmission.CandidateScope scope,
+            MachineCandidateSubmission.CandidateOwnerRef owner,
             MachineCandidateKind candidateKind, String workflowStep, long sourceRevision, long ownerVersion,
             String contractVersion, int maxAttempts, int attemptsUsed) { }
 

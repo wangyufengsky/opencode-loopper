@@ -27,21 +27,21 @@ interface PackageDesignCompilationInputLoader {
 
         @Override
         public PackageDesignCompilation.Input load(CandidatePolicy.Context context) {
-            String ownerId = context.owner().designWorkPackageId();
+            String ownerId = context.owner().id();
             DesignWorkPackageRow owner = mapper.findDesignWorkPackage(ownerId).orElseThrow(() ->
                     new ConflictException("CANDIDATE_OWNER_MISSING", "Package design candidate owner no longer exists"));
-            if (!context.designerSessionId().equals(owner.designerSessionId())
+            if (!context.scope().id().equals(owner.designerSessionId())
                     || owner.version() != context.ownerVersion()
                     || context.sourceRevision() != owner.designRevision() + 1L) {
                 throw new ConflictException("CANDIDATE_OWNER_REVISION_STALE",
                         "Package design candidate owner revision has changed");
             }
             DesignRequirementRevisionRow requirement = mapper.findDesignRequirementRevision(owner.requirementRevisionId())
-                    .filter(row -> context.designerSessionId().equals(row.designerSessionId()))
+                    .filter(row -> context.scope().id().equals(row.designerSessionId()))
                     .orElseThrow(() -> new ConflictException(
                             "CANDIDATE_REQUIREMENT_MISSING", "Frozen package requirement no longer exists"));
             WorkPackageRoleProfileRow frozenRole = mapper.findWorkPackageRoleProfile(owner.id())
-                    .filter(row -> context.designerSessionId().equals(row.designerSessionId()))
+                    .filter(row -> context.scope().id().equals(row.designerSessionId()))
                     .orElseThrow(() -> new ConflictException(
                             "CANDIDATE_PACKAGE_ROLE_MISSING", "Frozen package role no longer exists"));
             var profile = mapper.findDesignerTaskProfile(frozenRole.taskProfileId())

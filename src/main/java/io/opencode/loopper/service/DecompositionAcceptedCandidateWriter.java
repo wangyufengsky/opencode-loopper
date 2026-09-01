@@ -22,10 +22,10 @@ final class DecompositionAcceptedCandidateWriter implements AcceptedCandidateWri
     @Override
     public void write(CandidatePolicy.Context context, String canonicalCandidateJson,
                       String canonicalResultSha256) {
-        TaskDecompositionRow row = mapper.findTaskDecomposition(context.owner().taskDecompositionId())
+        TaskDecompositionRow row = mapper.findTaskDecomposition(context.owner().id())
                 .orElseThrow(() -> new ConflictException(
                         "CANDIDATE_OWNER_MISSING", "Task decomposition candidate owner no longer exists"));
-        if (!context.designerSessionId().equals(row.designerSessionId())
+        if (!context.scope().id().equals(row.designerSessionId())
                 || row.version() != context.ownerVersion()) {
             throw new ConflictException("CANDIDATE_OWNER_REVISION_STALE",
                     "Task decomposition candidate owner revision has changed");

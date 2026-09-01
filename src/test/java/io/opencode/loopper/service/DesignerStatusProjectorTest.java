@@ -106,7 +106,8 @@ class DesignerStatusProjectorTest {
     }
 
     private static CandidateSubmissionRunRow candidateRun(long sourceRevision, String state) {
-        return new CandidateSubmissionRunRow("run", "designer", null, null, "package-mcp",
+        return new CandidateSubmissionRunRow("run", "designer", null, null,
+                "DESIGN_WORK_PACKAGE", "package-mcp",
                 "PACKAGE_DESIGN_V1", "PACKAGE_DESIGN_V1", sourceRevision, 0, "INTERNAL_MCP", "PACKAGE_DESIGN_V1",
                 "generation", "remote", state, 5, 2, "attempt-2", "now", "now", 2);
     }

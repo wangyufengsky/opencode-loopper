@@ -51,7 +51,7 @@ class DesignerPackageCandidateOrchestratorTest {
         when(submissions.open(any())).thenAnswer(call -> {
             MachineCandidateSubmission.OpenCommand command = call.getArgument(0);
             return new MachineCandidateSubmission.RunSnapshot(
-                    command.runId(), command.designerSessionId(), command.owner(), command.candidateKind(),
+                    command.runId(), command.scope(), command.owner(), command.candidateKind(),
                     command.workflowStep(), command.sourceRevision(), command.ownerVersion(),
                     command.submissionChannel(), command.contractVersion(), command.runtimeGenerationId(),
                     command.externalSessionId(), MachineCandidateRunState.OPEN, command.maxAttempts(), 0, null, 0);
@@ -60,7 +60,8 @@ class DesignerPackageCandidateOrchestratorTest {
         DesignerPackageCandidateOrchestrator.Start start = orchestrator.open(workPackage, remote, "base prompt");
 
         assertThat(start.run().candidateKind()).isEqualTo(MachineCandidateKind.PACKAGE_DESIGN_V1);
-        assertThat(start.run().owner().designWorkPackageId()).isEqualTo(workPackage.id());
+        assertThat(start.run().owner()).isEqualTo(
+                MachineCandidateSubmission.CandidateOwnerRef.designWorkPackage(workPackage.id()));
         assertThat(start.run().sourceRevision()).isEqualTo(workPackage.designRevision() + 1L);
         assertThat(start.run().ownerVersion()).isEqualTo(workPackage.version());
         assertThat(start.run().maxAttempts()).isEqualTo(3);
@@ -174,8 +175,9 @@ class DesignerPackageCandidateOrchestratorTest {
     private MachineCandidateSubmission.RunSnapshot run(
             DesignWorkPackageRow workPackage, MachineCandidateRunState state, int attempts) {
         return new MachineCandidateSubmission.RunSnapshot(
-                orchestrator.runId(workPackage), workPackage.designerSessionId(),
-                MachineCandidateSubmission.CandidateOwner.designWorkPackage(workPackage.id()),
+                orchestrator.runId(workPackage),
+                MachineCandidateSubmission.CandidateScope.designerSession(workPackage.designerSessionId()),
+                MachineCandidateSubmission.CandidateOwnerRef.designWorkPackage(workPackage.id()),
                 MachineCandidateKind.PACKAGE_DESIGN_V1, DesignerPackageCandidateOrchestrator.WORKFLOW_STEP,
                 workPackage.designRevision() + 1L, workPackage.version(),
                 MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP, "PACKAGE_DESIGN_V1",

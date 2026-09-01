@@ -50,9 +50,10 @@ class DesignerDecompositionCandidateCoordinatorTest {
         assertThat(command.getValue()).satisfies(value -> {
             assertThat(value.runId()).isEqualTo(
                     coordinator.runId(owner.id(), MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP));
-            assertThat(value.designerSessionId()).isEqualTo(owner.designerSessionId());
+            assertThat(value.scope()).isEqualTo(
+                    MachineCandidateSubmission.CandidateScope.designerSession(owner.designerSessionId()));
             assertThat(value.owner()).isEqualTo(
-                    MachineCandidateSubmission.CandidateOwner.taskDecomposition(owner.id()));
+                    MachineCandidateSubmission.CandidateOwnerRef.taskDecomposition(owner.id()));
             assertThat(value.candidateKind()).isEqualTo(MachineCandidateKind.DECOMPOSITION_PLAN_V2);
             assertThat(value.workflowStep()).isEqualTo("PLANNING");
             assertThat(value.sourceRevision()).isEqualTo(revision.revision());
@@ -167,7 +168,7 @@ class DesignerDecompositionCandidateCoordinatorTest {
     private MachineCandidateSubmission.RunSnapshot snapshot(
             MachineCandidateSubmission.OpenCommand command, MachineCandidateRunState state,
             int attempts, long version) {
-        return new MachineCandidateSubmission.RunSnapshot(command.runId(), command.designerSessionId(),
+        return new MachineCandidateSubmission.RunSnapshot(command.runId(), command.scope(),
                 command.owner(), command.candidateKind(), command.workflowStep(), command.sourceRevision(),
                 command.ownerVersion(), command.submissionChannel(), command.contractVersion(),
                 command.runtimeGenerationId(), command.externalSessionId(), state, command.maxAttempts(),
@@ -177,8 +178,9 @@ class DesignerDecompositionCandidateCoordinatorTest {
     private MachineCandidateSubmission.RunSnapshot snapshot(
             String runId, MachineCandidateSubmission.SubmissionChannel channel,
             MachineCandidateRunState state, String externalSessionId, int attempts, long version) {
-        return new MachineCandidateSubmission.RunSnapshot(runId, "designer",
-                MachineCandidateSubmission.CandidateOwner.taskDecomposition("decomposition"),
+        return new MachineCandidateSubmission.RunSnapshot(runId,
+                MachineCandidateSubmission.CandidateScope.designerSession("designer"),
+                MachineCandidateSubmission.CandidateOwnerRef.taskDecomposition("decomposition"),
                 MachineCandidateKind.DECOMPOSITION_PLAN_V2, "PLANNING", 3, 2, channel,
                 "DECOMPOSITION_PLAN_V2", "generation", externalSessionId, state, 5, attempts, null, version);
     }

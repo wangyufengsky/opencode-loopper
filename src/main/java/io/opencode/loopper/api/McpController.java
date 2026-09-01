@@ -72,7 +72,7 @@ public class McpController {
             throw new BadRequestException("MCP_PROTOCOL_UNSUPPORTED", "Unsupported MCP protocol version: " + requested);
         }
         return Map.of("protocolVersion", PROTOCOL_VERSION, "capabilities", Map.of("tools", Map.of()),
-                "serverInfo", Map.of("name", "opencode-loopper", "version", "0.2.90"),
+                "serverInfo", Map.of("name", "opencode-loopper", "version", "0.2.92"),
                 "instructions", "Designer access is read-only. Proposals synchronize the session-bound DRAFT_READY LoopSpec; a human must confirm before create_task.");
     }
 

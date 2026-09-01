@@ -20,8 +20,9 @@ class DecompositionAcceptedCandidateWriterTest {
         when(mapper.findTaskDecomposition("dec")).thenReturn(Optional.of(owner()));
         when(mapper.updateTaskDecomposition(any())).thenReturn(1);
         DecompositionAcceptedCandidateWriter writer = new DecompositionAcceptedCandidateWriter(mapper);
-        CandidatePolicy.Context context = new CandidatePolicy.Context("run", "session",
-                MachineCandidateSubmission.CandidateOwner.taskDecomposition("dec"),
+        CandidatePolicy.Context context = new CandidatePolicy.Context("run",
+                MachineCandidateSubmission.CandidateScope.designerSession("session"),
+                MachineCandidateSubmission.CandidateOwnerRef.taskDecomposition("dec"),
                 MachineCandidateKind.DECOMPOSITION_PLAN_V2, "PLANNING", 1, 4,
                 "DECOMPOSITION_PLAN_V2", 5, 0);
         String canonical = "{\"status\":\"DIRECT_DESIGN\"}";

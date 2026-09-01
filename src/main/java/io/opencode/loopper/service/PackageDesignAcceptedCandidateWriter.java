@@ -46,7 +46,7 @@ final class PackageDesignAcceptedCandidateWriter implements AcceptedCandidateWri
         }
         String now = Instant.now().toString();
         PackageDesignAcceptedResultRow row = new PackageDesignAcceptedResultRow(
-                context.runId(), context.owner().designWorkPackageId(), context.sourceRevision(),
+                context.runId(), context.owner().id(), context.sourceRevision(),
                 context.ownerVersion(), context.contractVersion(), result.canonicalCandidateJson(),
                 result.canonicalMarkdown(), result.compiledResultJson(), canonicalResultSha256,
                 null, now, now, 0);

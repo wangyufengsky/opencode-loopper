@@ -46,8 +46,9 @@ final class DesignerDecompositionCandidateCoordinator {
                         "候选运行时绑定服务不可用"))
                 .bind(remote, channel);
         return submissions.open(new MachineCandidateSubmission.OpenCommand(
-                runId(owner.id(), channel), owner.designerSessionId(),
-                MachineCandidateSubmission.CandidateOwner.taskDecomposition(owner.id()),
+                runId(owner.id(), channel), MachineCandidateSubmission.CandidateScope.designerSession(
+                        owner.designerSessionId()),
+                MachineCandidateSubmission.CandidateOwnerRef.taskDecomposition(owner.id()),
                 MachineCandidateKind.DECOMPOSITION_PLAN_V2, WORKFLOW_STEP, revision.revision(), owner.version(),
                 channel, CONTRACT_VERSION, binding.runtimeGenerationId(), remote.id(), MAX_ATTEMPTS));
     }

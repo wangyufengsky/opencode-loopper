@@ -214,7 +214,7 @@ collaborators above; a later change may only preserve or lower those caps.
 - Do focused and integration tests prove the extracted boundary and the unchanged flow?
 ## Designer facade 与候选提交依赖边界
 
-候选提交采用“传输端口与业务裁决分离”的依赖方向。通用 `MachineCandidateSubmission` 只提供 run 生命周期、幂等提交、版本并发与结果信封；角色专属的 policy/compiler/writer 才拥有候选语义。通用提交模块不得依赖 Designer facade、角色 prompt 或具体 Compiler 合同，内部 MCP adapter 也只能做参数规范化和端口调用，不能复制校验或直接写业务表。
+候选提交采用“传输端口与业务裁决分离”的依赖方向。通用 `MachineCandidateSubmission` 只提供 run 生命周期、幂等提交、版本并发与结果信封；每个 run 以 `CandidateScope(type,id)` 指向一个 `DESIGNER_SESSION / TASK / PROJECT` 聚合，并以 `CandidateOwnerRef(type,id)` 指向作用域内稳定 owner。角色专属的 policy/compiler/writer 才拥有候选语义。通用提交模块不得依赖 Designer facade、角色 prompt 或具体 Compiler 合同，内部 MCP adapter 也只能做参数规范化和端口调用，不能复制校验或直接写业务表。
 
 Designer 相关 collaborator 必须保持以下单向依赖：
 
@@ -235,7 +235,7 @@ StatusProjector -> persisted read snapshots
 - `StatusProjector` 只从持久化状态生成只读投影；不得启动 Session、提交 candidate、推进生命周期或用缺失值推断执行事实。
 - policy 必须是纯业务裁决，compiler 必须是确定性转换，accepted writer 必须是 DB-only 写入；三者不得相信模型的成功声明，也不得把 MCP transport 状态当作业务接受结果。
 
-`DECOMPOSITION_PLAN_V2` 的每 run 提交预算最多为 5；`ACCEPTANCE_CLOSED_CHOICE_V7` 最多为 2，且仅闭集选择的机械错误可重试。唯一解、非枚举、安全或路径问题必须在 candidate 层之外由服务端直接处理并失败关闭，不能为追求重试率而扩大模型权限。
+`DECOMPOSITION_PLAN_V2` 的每 run 提交预算最多为 5；`ACCEPTANCE_CLOSED_CHOICE_V7` 最多为 2；`PACKAGE_DESIGN_V1` 最多为 3 且是唯一允许 Markdown fallback 的 kind。V49 为后续分阶段接入预留 `ROLLING_PACKAGE_PLAN_V1 / REVIEWER_REPORT_V1 / PROJECT_CONVENTION_V1` 各 3 次和 `JUDGE_DECISION_V1` 2 次预算，但没有 Coordinator、policy 或 writer 时必须在 open 边界失败关闭，预留枚举不得等同默认启用。唯一解、非枚举、安全或路径问题必须在 candidate 层之外由服务端直接处理并失败关闭，不能为追求重试率而扩大模型权限。
 
 候选 profile 的 MCP 权限只允许精确私有 `submit_candidate`，不允许用户 MCP；Decomposer 另外保留只读仓库证据工具，验收闭集选择保持零内置工具。Router/Judge 的既有依赖与权限边界不因候选基础设施改变。外部 `auto/http` 通过新 Session 使用 `IN_PROCESS_LEGACY`，不能依赖受管 runtime 的私有凭据或 generation。
 
