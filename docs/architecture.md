@@ -510,11 +510,22 @@ same transaction; package-design deletion also removes its accepted result, whil
 the other kinds have no separate accepted-result table. V49 also reserves bounded contracts for
 `ROLLING_PACKAGE_PLAN_V1` (3), `REVIEWER_REPORT_V1` (3),
 `PROJECT_CONVENTION_V1` (3), and `JUDGE_DECISION_V1` (2). V56 connects
-`ROLLING_PACKAGE_PLAN_V1`; 0.3.10 adds the Reviewer single deterministic compiler but not its
-Candidate Coordinator, policy, accepted writer, durable launch, or qualification switch.
-Reviewer Candidate runs therefore still fail closed at the open boundary; Convention and Judge
-remain equally inactive until their role adapters exist. Fallback compatibility is an explicit per-kind contract;
+`ROLLING_PACKAGE_PLAN_V1`; 0.3.10 adds the Reviewer single deterministic compiler. V57 then reserves a
+shared durable internal-launch protocol for Reviewer, Convention and Judge without activating their role
+adapters. Their Candidate runs therefore still fail closed at the application open boundary until each
+Coordinator, policy, accepted writer and qualification switch exists. Fallback compatibility is an explicit per-kind contract;
 only `PACKAGE_DESIGN_V1` may request Markdown fallback.
+
+V57 separates the existing Acceptance `ACCEPTANCE_V55` launch from a new `GENERIC_V1` launch reference.
+The two prompt columns are mutually exclusive, and Java carries the distinction as a typed launch reference.
+For Reviewer, Convention and Judge, only `INTERNAL_MCP` runs require the generic launch; their Legacy runs
+remain launch-free. The database freezes exact kind/scope/owner/workflow/contract/budget, creation request and
+permission digests, runtime generation and managed attestation before remote I/O; run opening and its settlement
+certificate remain one transaction. INITIAL and CORRECTION prompts must bind the same settled launch, a
+correction requires its acknowledged INITIAL, and an active termination intent fences new submissions and prompt
+progress. Live run/launch/cleanup deletion and owner terminal transitions fail closed until the run, prompt and all
+remotes are quiet. This is persistence infrastructure only: no role can treat the existence of V57 as MCP
+qualification or default enablement.
 
 V56 gives rolling replanning the same dual-entry/single-core boundary. The candidate
 contains only `packageKey/title/objective/replaces/dependencies/requirementRefs`;

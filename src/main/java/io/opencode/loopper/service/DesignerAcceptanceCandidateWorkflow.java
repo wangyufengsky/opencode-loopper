@@ -27,6 +27,7 @@ final class DesignerAcceptanceCandidateWorkflow {
     private final AcceptanceCandidateLegacyHandoffCoordinator acceptanceLegacyHandoffs;
     private final ProjectService projects;
     private final DesignerModelPromptTransport modelPrompts;
+    private final CandidatePromptDispatchService.PromptIo candidatePromptIo;
     private final CandidatePromptDispatchService candidatePromptDispatches;
     private final AcceptanceCandidateInternalLaunchPreparer internalLaunchPreparer;
     private final AcceptanceCandidateInternalLaunchCoordinator internalLaunches;
@@ -47,6 +48,7 @@ final class DesignerAcceptanceCandidateWorkflow {
         this.acceptanceLegacyHandoffs = acceptanceLegacyHandoffs;
         this.projects = projects;
         this.modelPrompts = modelPrompts;
+        this.candidatePromptIo = new CandidatePromptTransportIo(modelPrompts);
         this.candidatePromptDispatches = candidatePromptDispatches;
         this.internalLaunchPreparer = internalLaunchPreparer;
         this.internalLaunches = internalLaunches;
@@ -193,8 +195,9 @@ final class DesignerAcceptanceCandidateWorkflow {
             var prompt = modelPrompts.prepare(start.prompt(), ModelResponseMode.TEXT_MARKER.name(), null,
                     session.id(), workPackage.packageId(), messageId);
             CandidatePromptDispatchService.Result dispatched = candidatePromptDispatches.advanceInitial(
-                    start.run(), start.internalLaunchId(), start.remote(), prompt.request(),
-                    () -> reserveModelCall(host, revision), promptIo(),
+                    start.run(), CandidateLaunchRef.acceptanceV55(start.internalLaunchId()),
+                    start.remote(), prompt.request(),
+                    () -> reserveModelCall(host, revision), candidatePromptIo,
                     "acceptance-initial:" + compilation.id(), Instant.now());
             if (dispatched.status() != CandidatePromptDispatchService.Status.ACKNOWLEDGED) {
                 if (initialPromptFailures != null) initialPromptFailures.request(host, compilation, session,
@@ -218,10 +221,16 @@ final class DesignerAcceptanceCandidateWorkflow {
                 polled.run().runId(), polled.submission().attemptOrdinal());
         DesignerModelPromptTransport.PreparedPrompt prepared = modelPrompts.prepare(polled.prompt(),
                 ModelResponseMode.TEXT_MARKER.name(), null, session.id(), workPackage.packageId(), messageId);
-        CandidatePromptDispatchService.Result result = candidatePromptDispatches.advance(
-                polled.run(), polled.submission(), internalLaunchId, polled.remote(), prepared.request(),
-                () -> reserveModelCall(host, revision), promptIo(),
-                "acceptance-correction:" + compilation.id(), Instant.now());
+        CandidatePromptDispatchService.Result result = internalLaunchId == null
+                ? candidatePromptDispatches.advance(
+                        polled.run(), polled.submission(), polled.remote(), prepared.request(),
+                        () -> reserveModelCall(host, revision), candidatePromptIo,
+                        "acceptance-correction:" + compilation.id(), Instant.now())
+                : candidatePromptDispatches.advance(
+                        polled.run(), polled.submission(), CandidateLaunchRef.acceptanceV55(internalLaunchId),
+                        polled.remote(), prepared.request(),
+                        () -> reserveModelCall(host, revision), candidatePromptIo,
+                        "acceptance-correction:" + compilation.id(), Instant.now());
         if (result.status() == CandidatePromptDispatchService.Status.ACKNOWLEDGED) {
             host.publish().apply(session, "STATUS", DesignerActor.COMPILER, true, "",
                     workPackage.packageId() + " 正在同一兼容 Session 中机械修正闭集选择");
@@ -411,20 +420,6 @@ final class DesignerAcceptanceCandidateWorkflow {
             if (latest.modelCallsUsed() >= latest.maxModelCalls()) return false;
             throw concurrent;
         }
-    }
-    private CandidatePromptDispatchService.PromptIo promptIo() {
-        return new CandidatePromptDispatchService.PromptIo() {
-            @Override public OpenCodeClient.MessageLookup lookup(OpenCodeClient.OpenCodeSession remote,
-                    OpenCodeClient.PromptRequest request, String sha256) {
-                return modelPrompts.lookupPrompt(remote,
-                        new DesignerModelPromptTransport.PreparedPrompt(request, sha256));
-            }
-            @Override public void dispatch(OpenCodeClient.OpenCodeSession remote,
-                    OpenCodeClient.PromptRequest request) {
-                modelPrompts.dispatchPrompt(remote, new DesignerModelPromptTransport.PreparedPrompt(
-                        request, OpenCodeClient.promptRequestSha256(request)));
-            }
-        };
     }
     private static String internalLaunchId(MachineCandidateSubmission.RunSnapshot run, String launchId) {
         if (run.submissionChannel() != MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP) return null;

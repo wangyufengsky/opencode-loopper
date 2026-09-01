@@ -3,7 +3,6 @@ package io.opencode.loopper.service;
 import io.opencode.loopper.config.LoopperProperties;
 import io.opencode.loopper.domain.CandidatePromptDispatchKind;
 import io.opencode.loopper.domain.CandidatePromptDispatchState;
-import io.opencode.loopper.domain.MachineCandidateKind;
 import io.opencode.loopper.domain.MachineCandidateOutcome;
 import io.opencode.loopper.domain.MachineCandidateRunState;
 import io.opencode.loopper.persistence.CandidatePromptDispatchRow;
@@ -30,26 +29,26 @@ final class CandidatePromptDispatchCoordinator {
     }
 
     CandidatePromptDispatchService.Result advanceInitial(MachineCandidateSubmission.RunSnapshot run,
-            String internalLaunchId,
+            CandidateLaunchRef launch,
             OpenCodeClient.OpenCodeSession remote, OpenCodeClient.PromptRequest request,
             CandidatePromptDispatchService.BudgetReservation budget,
             CandidatePromptDispatchService.PromptIo io, String claimant, Instant instant) {
-        validateChannelLaunch(run, internalLaunchId);
+        validateChannelLaunch(run, launch);
         validateInitial(run, remote, request, budget, io, claimant, instant);
         return advance(new CandidatePromptDispatchStore.Command(CandidatePromptDispatchKind.INITIAL,
-                run, internalLaunchId, null, request), remote, budget, io, claimant, instant);
+                run, launch, null, request), remote, budget, io, claimant, instant);
     }
 
     CandidatePromptDispatchService.Result advanceCorrection(MachineCandidateSubmission.RunSnapshot run,
             MachineCandidateSubmission.SubmissionResult rejected,
-            String internalLaunchId,
+            CandidateLaunchRef launch,
             OpenCodeClient.OpenCodeSession remote, OpenCodeClient.PromptRequest request,
             CandidatePromptDispatchService.BudgetReservation budget,
             CandidatePromptDispatchService.PromptIo io, String claimant, Instant instant) {
-        validateChannelLaunch(run, internalLaunchId);
+        validateChannelLaunch(run, launch);
         validateCorrection(run, rejected, remote, request, budget, io, claimant, instant);
         return advance(new CandidatePromptDispatchStore.Command(CandidatePromptDispatchKind.CORRECTION,
-                run, internalLaunchId, rejected.attemptOrdinal(), request), remote, budget, io, claimant, instant);
+                run, launch, rejected.attemptOrdinal(), request), remote, budget, io, claimant, instant);
     }
 
     private CandidatePromptDispatchService.Result advance(CandidatePromptDispatchStore.Command command,
@@ -202,18 +201,16 @@ final class CandidatePromptDispatchCoordinator {
     }
 
     private static void validateChannelLaunch(
-            MachineCandidateSubmission.RunSnapshot run, String internalLaunchId) {
+            MachineCandidateSubmission.RunSnapshot run, CandidateLaunchRef launch) {
         if (run == null || run.submissionChannel() == null) {
             throw new IllegalArgumentException("Candidate prompt run channel is required");
         }
         if (run.submissionChannel() == MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP) {
-            if (internalLaunchId == null || internalLaunchId.isBlank()) {
-                throw new IllegalArgumentException("INTERNAL_MCP candidate prompt requires internalLaunchId");
-            }
+            CandidatePromptRunContract.validateInternal(run, launch);
             return;
         }
-        if (internalLaunchId != null) {
-            throw new IllegalArgumentException("IN_PROCESS_LEGACY candidate prompt forbids internalLaunchId");
+        if (launch != null) {
+            throw new IllegalArgumentException("IN_PROCESS_LEGACY candidate prompt forbids a launch reference");
         }
     }
 
@@ -224,11 +221,8 @@ final class CandidatePromptDispatchCoordinator {
         if (run == null || remote == null || request == null || budget == null || io == null
                 || claimant == null || claimant.isBlank() || instant == null
                 || run.state() != MachineCandidateRunState.OPEN || run.attemptsUsed() != 0
-                || run.candidateKind() != MachineCandidateKind.ACCEPTANCE_CLOSED_CHOICE_V7
                 || run.submissionChannel() != MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP
-                || !AcceptanceClosedChoiceCandidateCoordinator.WORKFLOW_STEP.equals(run.workflowStep())
-                || !"ACCEPTANCE_CLOSED_CHOICE_V7".equals(run.contractVersion())
-                || run.maxAttempts() != 2 || !remote.id().equals(run.externalSessionId())
+                || !remote.id().equals(run.externalSessionId())
                 || !CandidatePromptDispatchService.initialMessageId(run.runId()).equals(request.messageId())) {
             throw new IllegalArgumentException("Initial candidate prompt dispatch is incomplete or stale");
         }

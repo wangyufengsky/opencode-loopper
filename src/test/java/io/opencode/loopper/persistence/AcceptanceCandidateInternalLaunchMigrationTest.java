@@ -624,7 +624,7 @@ class AcceptanceCandidateInternalLaunchMigrationTest {
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
 
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("56");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("57");
         try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
             statement.execute("PRAGMA foreign_keys=ON");
             List<String> tables = new ArrayList<>();

@@ -100,7 +100,8 @@ class DesignerAcceptanceCandidateWorkflowTest {
         when(prompts.prepare(eq("initial"), eq("TEXT_MARKER"), any(), eq("designer-1"),
                 eq("WP-1"), eq(CandidatePromptDispatchService.initialMessageId("run-1"))))
                 .thenReturn(new DesignerModelPromptTransport.PreparedPrompt(request, "a".repeat(64)));
-        when(dispatches.advanceInitial(eq(run), eq("launch-1"), eq(remote), eq(request),
+        when(dispatches.advanceInitial(eq(run), eq(CandidateLaunchRef.acceptanceV55("launch-1")),
+                eq(remote), eq(request),
                 any(), any(), eq("acceptance-initial:compilation-1"), any()))
                 .thenReturn(CandidatePromptDispatchService.Result.acknowledged());
         when(candidates.poll(any(), eq(planning), eq(routing), eq(Path.of("/tmp/project")), eq(false)))
@@ -127,7 +128,8 @@ class DesignerAcceptanceCandidateWorkflowTest {
         order.verify(candidates).settledInternal(settled, planning, routing);
         order.verify(prompts).prepare(eq("initial"), eq("TEXT_MARKER"), any(), eq("designer-1"),
                 eq("WP-1"), eq(CandidatePromptDispatchService.initialMessageId("run-1")));
-        order.verify(dispatches).advanceInitial(eq(run), eq("launch-1"), eq(remote), eq(request),
+        order.verify(dispatches).advanceInitial(eq(run), eq(CandidateLaunchRef.acceptanceV55("launch-1")),
+                eq(remote), eq(request),
                 any(), any(), eq("acceptance-initial:compilation-1"), any());
         order.verify(mark).apply(compilation, "launch-1", run);
     }
@@ -269,7 +271,7 @@ class DesignerAcceptanceCandidateWorkflowTest {
         OpenCodeClient.PromptRequest request = OpenCodeClient.PromptRequest.text("repair");
         when(prompts.prepare(anyString(), anyString(), any(), anyString(), anyString(), anyString()))
                 .thenReturn(new DesignerModelPromptTransport.PreparedPrompt(request, "a".repeat(64)));
-        when(dispatches.advance(any(), any(), any(), any(), any(), any(), any(), anyString(), any()))
+        when(dispatches.advance(any(), any(), any(), any(), any(), any(), anyString(), any()))
                 .thenReturn(CandidatePromptDispatchService.Result.budgetExhausted());
         when(dispatches.prepareRunTermination(anyString(), any())).thenReturn(false, true);
         when(candidates.stopOpened(remote, run)).thenReturn(

@@ -27,11 +27,11 @@ final class CandidatePromptDispatchService {
 
     Result advance(MachineCandidateSubmission.RunSnapshot run,
             MachineCandidateSubmission.SubmissionResult rejected,
-            String internalLaunchId,
+            CandidateLaunchRef launch,
             OpenCodeClient.OpenCodeSession remote, OpenCodeClient.PromptRequest request,
             BudgetReservation budget, PromptIo io, String claimant, Instant instant) {
         return coordinator.advanceCorrection(
-                run, rejected, internalLaunchId, remote, request, budget, io, claimant, instant);
+                run, rejected, launch, remote, request, budget, io, claimant, instant);
     }
 
     Result advance(MachineCandidateSubmission.RunSnapshot run,
@@ -39,22 +39,23 @@ final class CandidatePromptDispatchService {
             OpenCodeClient.OpenCodeSession remote, OpenCodeClient.PromptRequest request,
             BudgetReservation budget, PromptIo io, String claimant, Instant instant) {
         requireLegacyChannel(run);
-        return advance(run, rejected, null, remote, request, budget, io, claimant, instant);
+        return coordinator.advanceCorrection(
+                run, rejected, null, remote, request, budget, io, claimant, instant);
     }
 
     Result advanceInitial(MachineCandidateSubmission.RunSnapshot run,
-            String internalLaunchId,
+            CandidateLaunchRef launch,
             OpenCodeClient.OpenCodeSession remote, OpenCodeClient.PromptRequest request,
             BudgetReservation budget, PromptIo io, String claimant, Instant instant) {
         return coordinator.advanceInitial(
-                run, internalLaunchId, remote, request, budget, io, claimant, instant);
+                run, launch, remote, request, budget, io, claimant, instant);
     }
 
     Result advanceInitial(MachineCandidateSubmission.RunSnapshot run,
             OpenCodeClient.OpenCodeSession remote, OpenCodeClient.PromptRequest request,
             BudgetReservation budget, PromptIo io, String claimant, Instant instant) {
         requireLegacyChannel(run);
-        return advanceInitial(run, null, remote, request, budget, io, claimant, instant);
+        return coordinator.advanceInitial(run, null, remote, request, budget, io, claimant, instant);
     }
 
     private static void requireLegacyChannel(MachineCandidateSubmission.RunSnapshot run) {

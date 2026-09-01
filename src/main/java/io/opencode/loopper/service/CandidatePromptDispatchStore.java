@@ -55,8 +55,11 @@ final class CandidatePromptDispatchStore {
         }
         String now = instant.toString();
         String token = UUID.randomUUID().toString();
+        CandidateLaunchRef launch = command.launch();
         CandidatePromptDispatchRow created = new CandidatePromptDispatchRow(id, command.run().runId(),
-                command.internalLaunchId(), command.kind().name(), command.sourceAttemptOrdinal(), remoteId(command.run()),
+                launch == null ? null : launch.internalLaunchId(),
+                launch == null ? null : launch.candidateLaunchId(),
+                command.kind().name(), command.sourceAttemptOrdinal(), remoteId(command.run()),
                 command.run().runtimeGenerationId(), command.request().messageId(), write(command.request()),
                 requestSha, CandidatePromptDispatchState.PROMPTING.name(), true, now,
                 claimant, token, instant.plus(ttl).toString(), 1,
@@ -318,15 +321,20 @@ final class CandidatePromptDispatchStore {
                 || !Objects.equals(run.runtimeGenerationId(), dispatch.runtimeGenerationId())) throw conflict();
         CandidatePromptDispatchKind kind = CandidatePromptDispatchKind.valueOf(dispatch.dispatchKind());
         if (kind == CandidatePromptDispatchKind.INITIAL) {
-            if (run.attemptsUsed() != 0
-                    || !MachineCandidateKind.ACCEPTANCE_CLOSED_CHOICE_V7.name().equals(run.candidateKind())
-                    || !MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP.name()
-                            .equals(run.submissionChannel())
-                    || !AcceptanceClosedChoiceCandidateCoordinator.WORKFLOW_STEP.equals(run.workflowStep())
-                    || !AcceptanceClosedChoiceCandidateCoordinator.CONTRACT_VERSION.equals(run.contractVersion())
-                    || run.maxAttempts() != 2) throw conflict();
+            if (run.attemptsUsed() != 0) throw conflict();
         } else if (dispatch.sourceAttemptOrdinal() == null
                 || run.attemptsUsed() != dispatch.sourceAttemptOrdinal()) throw conflict();
+        try {
+            CandidateLaunchRef launch = CandidateLaunchRef.fromColumns(
+                    dispatch.internalLaunchId(), dispatch.candidateLaunchId());
+            if (MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP.name().equals(run.submissionChannel())) {
+                CandidatePromptRunContract.validateInternal(snapshot(run), launch);
+            } else if (launch != null) {
+                throw new IllegalArgumentException();
+            }
+        } catch (IllegalArgumentException invalid) {
+            throw conflict();
+        }
         validateGuards(run);
         return run;
     }
@@ -356,7 +364,8 @@ final class CandidatePromptDispatchStore {
 
     private void requireIdentity(CandidatePromptDispatchRow row, Command command, String requestSha) {
         if (!row.runId().equals(command.run().runId())
-                || !Objects.equals(row.internalLaunchId(), command.internalLaunchId())
+                || !Objects.equals(row.internalLaunchId(), internalLaunchId(command.launch()))
+                || !Objects.equals(row.candidateLaunchId(), candidateLaunchId(command.launch()))
                 || !row.dispatchKind().equals(command.kind().name())
                 || !Objects.equals(row.sourceAttemptOrdinal(), command.sourceAttemptOrdinal())
                 || !row.externalSessionId().equals(remoteId(command.run()))
@@ -416,7 +425,8 @@ final class CandidatePromptDispatchStore {
             String claimOwner, String claimToken, String claimExpiresAt, long fence,
             boolean attempted, String attemptedAt, boolean acknowledged, String ackedAt,
             String proof, String proofAt, String code, String detail) {
-        return new CandidatePromptDispatchRow(row.id(), row.runId(), row.internalLaunchId(), row.dispatchKind(),
+        return new CandidatePromptDispatchRow(row.id(), row.runId(), row.internalLaunchId(), row.candidateLaunchId(),
+                row.dispatchKind(),
                 row.sourceAttemptOrdinal(), row.externalSessionId(), row.runtimeGenerationId(),
                 row.messageId(), row.requestJson(),
                 row.requestSha256(), state, consumed, row.modelCallConsumedAt(), claimOwner, claimToken,
@@ -435,6 +445,7 @@ final class CandidatePromptDispatchStore {
         LinkedHashMap<String, Object> audit = new LinkedHashMap<>();
         audit.put("dispatchKind", row.dispatchKind());
         if (row.internalLaunchId() != null) audit.put("internalLaunchId", row.internalLaunchId());
+        if (row.candidateLaunchId() != null) audit.put("candidateLaunchId", row.candidateLaunchId());
         if (row.sourceAttemptOrdinal() != null) audit.put("sourceAttemptOrdinal", row.sourceAttemptOrdinal());
         audit.put("modelCallConsumed", row.modelCallConsumed());
         audit.put("dispatchAttempted", row.dispatchAttempted());
@@ -452,6 +463,12 @@ final class CandidatePromptDispatchStore {
     private static String remoteId(MachineCandidateSubmission.RunSnapshot run) {
         if (run.externalSessionId() == null || run.externalSessionId().isBlank()) throw conflict();
         return run.externalSessionId();
+    }
+    private static String internalLaunchId(CandidateLaunchRef launch) {
+        return launch == null ? null : launch.internalLaunchId();
+    }
+    private static String candidateLaunchId(CandidateLaunchRef launch) {
+        return launch == null ? null : launch.candidateLaunchId();
     }
     private static boolean active(String expiresAt, Instant instant) {
         return expiresAt != null && Instant.parse(expiresAt).isAfter(instant);
@@ -472,7 +489,7 @@ final class CandidatePromptDispatchStore {
     }
 
     record Command(CandidatePromptDispatchKind kind, MachineCandidateSubmission.RunSnapshot run,
-                   String internalLaunchId, Integer sourceAttemptOrdinal,
+                   CandidateLaunchRef launch, Integer sourceAttemptOrdinal,
                    OpenCodeClient.PromptRequest request) { }
     record Claim(boolean acquired, String token, long fence) {
         static Claim unavailable(long fence) { return new Claim(false, null, fence); }

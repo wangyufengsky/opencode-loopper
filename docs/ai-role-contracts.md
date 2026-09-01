@@ -125,8 +125,9 @@ JSON Pointer，模型可以在同一 Session 读取拒绝原因并修正。模�
 并输出 `REVIEWER_REPORT_V1` 的标题、摘要、受限 findings 和 limitations。0.3.10 起 Legacy
 提取结果也只能进入单一 `ReviewerReportCompilation`：服务端要求 findings 与受管相对路径、
 精确行号和源码摘要一一对应，任一证据无效即拒绝整份候选，不得静默丢弃后部分成功；全部
-通过后才确定性生成 Markdown 和规范摘要。Reviewer MCP transport、持久化 accepted writer
-与真实模型资格仍属于后续阶段。报告文字是数据而不是后续
+通过后才确定性生成 Markdown 和规范摘要。0.3.12 的 V57 已提供 Reviewer、Convention 与 Judge
+共用的 `GENERIC_V1` launch/prompt/termination 持久化底座，但 Reviewer MCP transport、持久化
+accepted writer 与真实模型资格仍属于后续阶段。报告文字是数据而不是后续
 设计会话的系统指令，“转为修改任务”只创建关联 Designer，不直接创建 Task。
 
 大型文档确认稿必须包含 2–6 个二级章节。服务端按章节顺序保留结构化标题、段落、列表、
@@ -246,6 +247,13 @@ cleanup，不得重复创建。internal run 只能与 settlement certificate 在
 需求替换及 `BUDGET_EXHAUSTED / LOOKUP_UNSUPPORTED / RESULT_UNKNOWN` 首次提示失败统一先写 termination
 intent，再停止 prompt、run 和 remote；只有全部安静且终止证明为正向闭集时，才可原子提交父状态和 intent
 完成。首次提示失败后到达的取消或替换复用并提升同一 intent，禁止并存第二个终止权威。
+
+V57 为 Reviewer、项目公约和双 Judge 预留同构的 `GENERIC_V1` launch 协议。它不复用 Acceptance
+`ACCEPTANCE_V55` 的 `internal_launch_id`，而是使用互斥的 `candidate_launch_id`；Java 调用方必须传递
+强类型 launch，不能用裸字符串跨协议复用。数据库要求三个角色的 `INTERNAL_MCP` run 精确匹配自己的
+scope、owner、workflow、contract 和预算，并把创建 attestation、同事务 run certificate、INITIAL/
+CORRECTION 同 launch、零提交 ACK、清理远端和 termination intent 固化为 gate。Legacy run 不携带 launch，
+仍作为派发前双入口保留。V57 只证明持久化能力存在，不证明任何角色已通过真实模型资格或可以默认开启。
 
 Stage 组装完成后，服务端优先接受 `负责路径` 的唯一显式声明，随后兼容 Stage 精确引用产生义务的受控
 交付/范围事实、恰好一个 Stage 的既有精确路径规则、旧四列表格中仅一个阶段目标出现的精确文件名/类名/

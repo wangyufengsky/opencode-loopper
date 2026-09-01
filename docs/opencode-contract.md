@@ -108,11 +108,22 @@ share the caller transaction. V49 initially gave only package design a separate
 accepted-result row; V56 adds the rolling-plan accepted result and its exact owner/run
 cascade. `ROLLING_PACKAGE_PLAN_V1`, `REVIEWER_REPORT_V1`,
 `PROJECT_CONVENTION_V1` and `JUDGE_DECISION_V1` plus their owner types were reserved
-for staged adapters. V56 activates only `ROLLING_PACKAGE_PLAN_V1`; Reviewer,
-Convention and Judge remain rejected at open. Rolling uses a dedicated
+for staged adapters. V56 activates only `ROLLING_PACKAGE_PLAN_V1`; V57 adds the shared
+`GENERIC_V1` durable creation/prompt/termination schema for the other three roles, but
+Reviewer, Convention and Judge remain rejected at application open. Rolling uses a dedicated
 `ROLLING_PACKAGE_CANDIDATE_READ_ONLY` profile with `read/glob/grep` and only the
 exact private submission tool. It has no Markdown/marker fallback after dispatch.
 Only `PACKAGE_DESIGN_V1` retains the explicit Markdown-fallback compatibility policy.
+
+V57 does not reuse the historical Acceptance launch ID. `CandidateLaunchRef` maps
+`ACCEPTANCE_V55` only to `internal_launch_id` and `GENERIC_V1` only to
+`candidate_launch_id`; both columns cannot be set. Reviewer, Convention and Judge
+`INTERNAL_MCP` prompts require the latter and an exact settled launch, while their
+`IN_PROCESS_LEGACY` runs remain valid without either reference. The generic launch freezes
+the managed Session plan and attestation before I/O, opens its run with a deferred
+settlement certificate in the same transaction, and fences INITIAL/CORRECTION progress,
+termination and deletion at the database boundary. Role-specific orchestration and
+qualification must still be delivered before a role flag can be enabled.
 
 The private `/api/internal-mcp-streamable` Router accepts only literal loopback
 addresses and constant-time Bearer matches. It registers exactly one tool,

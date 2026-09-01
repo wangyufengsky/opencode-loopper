@@ -250,7 +250,8 @@ class MachineCandidateSubmissionIntegrationTest {
                 CandidatePromptDispatchService.initialMessageId(run.runId()), List.of());
 
         CandidatePromptDispatchService.Result result = promptDispatches.advanceInitial(
-                run, "launch-run-initial", remote(), request, reserveModelCall(), noOpPromptIo(),
+                run, CandidateLaunchRef.acceptanceV55("launch-run-initial"),
+                remote(), request, reserveModelCall(), noOpPromptIo(),
                 "acceptance-initial", Instant.now());
 
         assertThat(result.status()).isEqualTo(CandidatePromptDispatchService.Status.ACKNOWLEDGED);

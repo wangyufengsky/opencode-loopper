@@ -62,40 +62,38 @@ class CandidatePromptDispatchServiceTest {
         CandidatePromptDispatchService.PromptIo io = countingIo(lookups, posts);
 
         assertThatThrownBy(() -> service.advance(
-                internal.run(), internal.rejected(), (String) null, internal.remote(), internal.request(),
+                internal.run(), internal.rejected(), (CandidateLaunchRef) null,
+                internal.remote(), internal.request(),
                 budget, io, "worker", Instant.now()))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("requires internalLaunchId");
-        assertThatThrownBy(() -> service.advance(
-                internal.run(), internal.rejected(), "  ", internal.remote(), internal.request(),
-                budget, io, "worker", Instant.now()))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("requires internalLaunchId");
+                .hasMessageContaining("typed launch");
         assertThatThrownBy(() -> service.advance(
                 internal.run(), internal.rejected(), internal.remote(), internal.request(),
                 budget, io, "worker", Instant.now()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("reserved for IN_PROCESS_LEGACY");
         assertThatThrownBy(() -> service.advance(
-                legacy.run(), legacy.rejected(), "launch-not-allowed", legacy.remote(), legacy.request(),
+                legacy.run(), legacy.rejected(), CandidateLaunchRef.acceptanceV55("launch-not-allowed"),
+                legacy.remote(), legacy.request(),
                 budget, io, "worker", Instant.now()))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("forbids internalLaunchId");
+                .hasMessageContaining("forbids a launch reference");
         assertThatThrownBy(() -> service.advanceInitial(
-                internal.run(), (String) null, internal.remote(), internal.request(),
+                internal.run(), (CandidateLaunchRef) null, internal.remote(), internal.request(),
                 budget, io, "worker", Instant.now()))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("requires internalLaunchId");
+                .hasMessageContaining("typed launch");
         assertThatThrownBy(() -> service.advanceInitial(
                 internal.run(), internal.remote(), internal.request(),
                 budget, io, "worker", Instant.now()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("reserved for IN_PROCESS_LEGACY");
         assertThatThrownBy(() -> service.advanceInitial(
-                legacy.run(), "launch-not-allowed", legacy.remote(), legacy.request(),
+                legacy.run(), CandidateLaunchRef.acceptanceV55("launch-not-allowed"),
+                legacy.remote(), legacy.request(),
                 budget, io, "worker", Instant.now()))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("forbids internalLaunchId");
+                .hasMessageContaining("forbids a launch reference");
 
         assertThat(budgets).hasValue(0);
         assertThat(lookups).hasValue(0);
@@ -120,7 +118,8 @@ class CandidatePromptDispatchServiceTest {
         AtomicInteger posts = new AtomicInteger();
 
         CandidatePromptDispatchService.Result internalResult = service.advance(
-                internal.run(), internal.rejected(), "launch-internal-ok", internal.remote(), internal.request(),
+                internal.run(), internal.rejected(), CandidateLaunchRef.acceptanceV55("launch-internal-ok"),
+                internal.remote(), internal.request(),
                 () -> budgets.incrementAndGet() > 0, countingIo(lookups, posts), "worker", Instant.now());
         CandidatePromptDispatchService.Result legacyResult = service.advance(
                 legacy.run(), legacy.rejected(), legacy.remote(), legacy.request(),
@@ -135,36 +134,92 @@ class CandidatePromptDispatchServiceTest {
     }
 
     @Test
+    void genericLaunchSupportsOnlyTheThreeDeclaredGenericInitialContracts() {
+        CandidatePromptDispatchStore store = mock(CandidatePromptDispatchStore.class);
+        CandidatePromptDispatchService service = service(store);
+        when(store.reserve(any(), any(), any(), any(), any())).thenAnswer(invocation -> {
+            CandidatePromptDispatchStore.Command command = invocation.getArgument(0);
+            return new CandidatePromptDispatchStore.Reservation(acknowledged(command), null);
+        });
+        AtomicInteger lookups = new AtomicInteger();
+        AtomicInteger posts = new AtomicInteger();
+
+        for (MachineCandidateSubmission.RunSnapshot run : List.of(
+                genericInitialRun("reviewer-run", MachineCandidateKind.REVIEWER_REPORT_V1,
+                        MachineCandidateSubmission.CandidateScope.designerSession("designer-1"),
+                        MachineCandidateSubmission.CandidateOwnerRef.analysisReport("report-1")),
+                genericInitialRun("convention-run", MachineCandidateKind.PROJECT_CONVENTION_V1,
+                        MachineCandidateSubmission.CandidateScope.project("project-1"),
+                        MachineCandidateSubmission.CandidateOwnerRef.projectConventionDraft("draft-1")),
+                genericInitialRun("judge-run", MachineCandidateKind.JUDGE_DECISION_V1,
+                        MachineCandidateSubmission.CandidateScope.task("task-1"),
+                        MachineCandidateSubmission.CandidateOwnerRef.judgeRun("judge-1")))) {
+            OpenCodeClient.PromptRequest request = new OpenCodeClient.PromptRequest(
+                    "submit candidate", null, null, new OpenCodeClient.ResponseFormat.Text(),
+                    CandidatePromptDispatchService.initialMessageId(run.runId()), List.of());
+
+            CandidatePromptDispatchService.Result result = service.advanceInitial(
+                    run, CandidateLaunchRef.genericV1("launch-" + run.runId()),
+                    new OpenCodeClient.OpenCodeSession("remote-1", Path.of("/tmp/project")), request,
+                    () -> true, countingIo(lookups, posts), "worker", Instant.now());
+
+            assertThat(result.status()).isEqualTo(CandidatePromptDispatchService.Status.ACKNOWLEDGED);
+        }
+        verify(store, times(3)).reserve(any(), any(), any(), any(), any());
+        assertThat(lookups).hasValue(0);
+        assertThat(posts).hasValue(0);
+    }
+
+    @Test
+    void launchProtocolCannotBeReusedAcrossAcceptanceAndGenericContracts() {
+        CandidatePromptDispatchStore store = mock(CandidatePromptDispatchStore.class);
+        CandidatePromptDispatchService service = service(store);
+        MachineCandidateSubmission.RunSnapshot acceptance = correctionFixture(
+                "acceptance-run", MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP).run();
+        MachineCandidateSubmission.RunSnapshot reviewer = genericInitialRun(
+                "reviewer-run", MachineCandidateKind.REVIEWER_REPORT_V1,
+                MachineCandidateSubmission.CandidateScope.designerSession("designer-1"),
+                MachineCandidateSubmission.CandidateOwnerRef.analysisReport("report-1"));
+
+        assertThatThrownBy(() -> service.advanceInitial(
+                zeroAttempt(acceptance), CandidateLaunchRef.genericV1("generic-launch"),
+                remote(), initialRequest(acceptance.runId()), () -> true,
+                countingIo(new AtomicInteger(), new AtomicInteger()), "worker", Instant.now()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("ACCEPTANCE_V55");
+        assertThatThrownBy(() -> service.advanceInitial(
+                reviewer, CandidateLaunchRef.acceptanceV55("acceptance-launch"),
+                remote(), initialRequest(reviewer.runId()), () -> true,
+                countingIo(new AtomicInteger(), new AtomicInteger()), "worker", Instant.now()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("GENERIC_V1");
+
+        verifyNoInteractions(store);
+    }
+
+    @Test
     void durablePostBoundaryCannotBeFencedBeforeItsSinglePost() {
         CandidatePromptDispatchStore store = mock(CandidatePromptDispatchStore.class);
         LoopperProperties properties = new LoopperProperties();
         CandidatePromptDispatchCoordinator coordinator = new CandidatePromptDispatchCoordinator(
                 store, new CandidatePromptDispatchBarrier(), properties);
-        MachineCandidateSubmission.RunSnapshot run = mock(MachineCandidateSubmission.RunSnapshot.class);
-        MachineCandidateSubmission.SubmissionResult rejected = mock(
-                MachineCandidateSubmission.SubmissionResult.class);
+        CorrectionFixture fixture = correctionFixture(
+                "run-1", MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP);
+        MachineCandidateSubmission.RunSnapshot run = fixture.run();
+        MachineCandidateSubmission.SubmissionResult rejected = fixture.rejected();
         OpenCodeClient.OpenCodeSession remote = new OpenCodeClient.OpenCodeSession(
                 "remote-1", Path.of("/tmp/project"));
         OpenCodeClient.PromptRequest request = new OpenCodeClient.PromptRequest(
                 "repair", null, null, new OpenCodeClient.ResponseFormat.Text(),
                 CandidatePromptDispatchService.messageId("run-1", 1), List.of());
         CandidatePromptDispatchRow row = new CandidatePromptDispatchRow(
-                "dispatch-1", "run-1", "launch-1", CandidatePromptDispatchKind.CORRECTION.name(), 1,
+                "dispatch-1", "run-1", "launch-1", null,
+                CandidatePromptDispatchKind.CORRECTION.name(), 1,
                 "remote-1", "generation-1", request.messageId(), "{}", "a".repeat(64),
                 CandidatePromptDispatchState.PROMPTING.name(), true, "now",
                 "worker", "claim-1", "2099-01-01T00:00:00Z", 1,
                 false, null, false, null, null, null, null, null, "now", "now", 0);
         CandidatePromptDispatchStore.Claim claim = new CandidatePromptDispatchStore.Claim(true, "claim-1", 1);
-        when(run.runId()).thenReturn("run-1");
-        when(run.submissionChannel()).thenReturn(
-                MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP);
-        when(run.state()).thenReturn(io.opencode.loopper.domain.MachineCandidateRunState.OPEN);
-        when(run.attemptsUsed()).thenReturn(1);
-        when(run.externalSessionId()).thenReturn("remote-1");
-        when(rejected.runId()).thenReturn("run-1");
-        when(rejected.attemptOrdinal()).thenReturn(1);
-        when(rejected.outcome()).thenReturn(io.opencode.loopper.domain.MachineCandidateOutcome.REJECTED);
-        when(rejected.retryable()).thenReturn(true);
         when(store.reserve(any(), any(), any(), any(), any()))
                 .thenReturn(new CandidatePromptDispatchStore.Reservation(row, claim));
         when(store.get("dispatch-1")).thenReturn(row);
@@ -186,7 +241,8 @@ class CandidatePromptDispatchServiceTest {
         };
 
         CandidatePromptDispatchService.Result result = coordinator.advanceCorrection(
-                run, rejected, "launch-1", remote, request, () -> true, io, "worker", Instant.now());
+                run, rejected, CandidateLaunchRef.acceptanceV55("launch-1"),
+                remote, request, () -> true, io, "worker", Instant.now());
 
         assertThat(result.status()).isEqualTo(CandidatePromptDispatchService.Status.ACKNOWLEDGED);
         assertThat(posts).hasValue(1);
@@ -218,6 +274,35 @@ class CandidatePromptDispatchServiceTest {
         return new CorrectionFixture(run, rejected, remote, request);
     }
 
+    private static MachineCandidateSubmission.RunSnapshot genericInitialRun(
+            String runId, MachineCandidateKind kind, MachineCandidateSubmission.CandidateScope scope,
+            MachineCandidateSubmission.CandidateOwnerRef owner) {
+        return new MachineCandidateSubmission.RunSnapshot(
+                runId, scope, owner, kind, kind.name(), 1, 1,
+                MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP, kind.name(),
+                "generation-1", "remote-1", MachineCandidateRunState.OPEN,
+                kind.maximumAttempts(), 0, null, 0);
+    }
+
+    private static MachineCandidateSubmission.RunSnapshot zeroAttempt(
+            MachineCandidateSubmission.RunSnapshot run) {
+        return new MachineCandidateSubmission.RunSnapshot(
+                run.runId(), run.scope(), run.owner(), run.candidateKind(), run.workflowStep(),
+                run.sourceRevision(), run.ownerVersion(), run.submissionChannel(), run.contractVersion(),
+                run.runtimeGenerationId(), run.externalSessionId(), run.state(), run.maxAttempts(), 0,
+                null, run.version());
+    }
+
+    private static OpenCodeClient.OpenCodeSession remote() {
+        return new OpenCodeClient.OpenCodeSession("remote-1", Path.of("/tmp/project"));
+    }
+
+    private static OpenCodeClient.PromptRequest initialRequest(String runId) {
+        return new OpenCodeClient.PromptRequest(
+                "submit candidate", null, null, new OpenCodeClient.ResponseFormat.Text(),
+                CandidatePromptDispatchService.initialMessageId(runId), List.of());
+    }
+
     private static CandidatePromptDispatchService.PromptIo countingIo(
             AtomicInteger lookups, AtomicInteger posts) {
         return new CandidatePromptDispatchService.PromptIo() {
@@ -235,7 +320,9 @@ class CandidatePromptDispatchServiceTest {
 
     private static CandidatePromptDispatchRow acknowledged(CandidatePromptDispatchStore.Command command) {
         return new CandidatePromptDispatchRow(
-                "dispatch-" + command.run().runId(), command.run().runId(), command.internalLaunchId(),
+                "dispatch-" + command.run().runId(), command.run().runId(),
+                command.launch() == null ? null : command.launch().internalLaunchId(),
+                command.launch() == null ? null : command.launch().candidateLaunchId(),
                 command.kind().name(), command.sourceAttemptOrdinal(), command.run().externalSessionId(),
                 command.run().runtimeGenerationId(), command.request().messageId(), "{}", "a".repeat(64),
                 CandidatePromptDispatchState.ACKNOWLEDGED.name(), true, "now",

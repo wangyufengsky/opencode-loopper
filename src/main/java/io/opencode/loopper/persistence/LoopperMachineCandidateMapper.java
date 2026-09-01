@@ -11,14 +11,14 @@ import org.apache.ibatis.annotations.Update;
 public interface LoopperMachineCandidateMapper {
     @Insert("""
             INSERT INTO ai_candidate_prompt_dispatch(
-              id,run_id,internal_launch_id,dispatch_kind,source_attempt_ordinal,
+              id,run_id,internal_launch_id,candidate_launch_id,dispatch_kind,source_attempt_ordinal,
               external_session_id,runtime_generation_id,message_id,
               request_json,request_sha256,state,
               model_call_consumed,model_call_consumed_at,claim_owner,claim_token,claim_expires_at,fence,
               dispatch_attempted,dispatch_started_at,acknowledged,acked_at,
               termination_proof,termination_proof_at,last_error_code,last_error_detail,
               created_at,updated_at,version)
-            VALUES(#{id},#{runId},#{internalLaunchId},#{dispatchKind},#{sourceAttemptOrdinal},
+            VALUES(#{id},#{runId},#{internalLaunchId},#{candidateLaunchId},#{dispatchKind},#{sourceAttemptOrdinal},
               #{externalSessionId},#{runtimeGenerationId},#{messageId},#{requestJson},#{requestSha256},#{state},
               #{modelCallConsumed},#{modelCallConsumedAt},#{claimOwner},#{claimToken},#{claimExpiresAt},#{fence},
               #{dispatchAttempted},#{dispatchStartedAt},#{acknowledged},#{ackedAt},
