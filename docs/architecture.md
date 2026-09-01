@@ -499,8 +499,12 @@ typed owner reference. Existing decomposition, acceptance and package rows migra
 losslessly to their designer scope and stable owner ID; attempts, package accepted
 results, optimistic versions, external Session/runtime-generation bindings and
 one-open-run uniqueness are preserved. Owner/scope membership is checked on insert,
-the identity tuple is immutable, and deleting an owner removes its candidate run and
-dependent attempts/results. V49 also reserves bounded contracts for
+including every row copied from the V47/V48 tables; one mismatched historical owner
+aborts the whole V49 migration and leaves the V48 schema/data recoverable instead of
+silently normalizing it. The identity tuple is immutable, and deleting any of the
+seven concrete owner rows removes its candidate run and dependent attempts in the
+same transaction; package-design deletion also removes its accepted result, while
+the other kinds have no separate accepted-result table. V49 also reserves bounded contracts for
 `ROLLING_PACKAGE_PLAN_V1` (3), `REVIEWER_REPORT_V1` (3),
 `PROJECT_CONVENTION_V1` (3), and `JUDGE_DECISION_V1` (2), but does not connect any
 of them to a Coordinator, policy or writer: opening them fails closed until that

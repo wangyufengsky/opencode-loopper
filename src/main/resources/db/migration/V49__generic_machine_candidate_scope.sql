@@ -1,6 +1,7 @@
 -- Generalize V47/V48 candidate ownership without weakening the role-specific
 -- owner/scope relationship. Scope keeps a real aggregate FK while the typed
--- owner reference is checked by triggers and cleaned when its row is deleted.
+-- owner reference is checked during historical copy and every later insert,
+-- then cleaned when its row is deleted.
 ALTER TABLE package_design_candidate_accepted_result
     RENAME TO package_design_candidate_accepted_result_v48;
 ALTER TABLE ai_candidate_submission_attempt RENAME TO ai_candidate_submission_attempt_v48;
@@ -105,6 +106,44 @@ CREATE TABLE package_design_candidate_accepted_result (
     UNIQUE(design_work_package_id,source_revision,owner_version)
 );
 
+-- Install the owner/scope guard before copying V47/V48 history. This makes the
+-- migration itself fail closed instead of silently normalizing a legacy run
+-- whose owner belongs to another aggregate scope.
+CREATE TRIGGER trg_candidate_owner_scope_insert
+BEFORE INSERT ON ai_candidate_submission_run
+BEGIN
+    SELECT CASE
+        WHEN NEW.owner_type='TASK_DECOMPOSITION' AND NOT EXISTS (
+            SELECT 1 FROM task_decomposition owner
+            WHERE owner.id=NEW.owner_id AND owner.designer_session_id=NEW.designer_session_id)
+            THEN RAISE(ABORT,'candidate owner scope mismatch')
+        WHEN NEW.owner_type='LOOP_SPEC_COMPILATION' AND NOT EXISTS (
+            SELECT 1 FROM loop_spec_compilation owner
+            WHERE owner.id=NEW.owner_id AND owner.designer_session_id=NEW.designer_session_id)
+            THEN RAISE(ABORT,'candidate owner scope mismatch')
+        WHEN NEW.owner_type='DESIGN_WORK_PACKAGE' AND NOT EXISTS (
+            SELECT 1 FROM design_work_package owner
+            WHERE owner.id=NEW.owner_id AND owner.designer_session_id=NEW.designer_session_id)
+            THEN RAISE(ABORT,'candidate owner scope mismatch')
+        WHEN NEW.owner_type='TASK_PACKAGE_PLAN_REVISION' AND NOT EXISTS (
+            SELECT 1 FROM task_package_plan_revision owner
+            WHERE owner.id=NEW.owner_id AND owner.task_id=NEW.task_id)
+            THEN RAISE(ABORT,'candidate owner scope mismatch')
+        WHEN NEW.owner_type='ANALYSIS_REPORT' AND NOT EXISTS (
+            SELECT 1 FROM analysis_report owner
+            WHERE owner.id=NEW.owner_id AND owner.designer_session_id=NEW.designer_session_id)
+            THEN RAISE(ABORT,'candidate owner scope mismatch')
+        WHEN NEW.owner_type='PROJECT_CONVENTION_DRAFT' AND NOT EXISTS (
+            SELECT 1 FROM project_convention_draft owner
+            WHERE owner.id=NEW.owner_id AND owner.project_id=NEW.project_id)
+            THEN RAISE(ABORT,'candidate owner scope mismatch')
+        WHEN NEW.owner_type='JUDGE_RUN' AND NOT EXISTS (
+            SELECT 1 FROM judge_run owner
+            WHERE owner.id=NEW.owner_id AND owner.task_id=NEW.task_id)
+            THEN RAISE(ABORT,'candidate owner scope mismatch')
+    END;
+END;
+
 INSERT INTO ai_candidate_submission_run(
     id,designer_session_id,task_id,project_id,owner_type,owner_id,candidate_kind,workflow_step,
     source_revision,owner_version,submission_channel,contract_version,runtime_generation_id,
@@ -154,41 +193,6 @@ CREATE INDEX idx_package_design_result_unsettled
     ON package_design_candidate_accepted_result(settled_compilation_id,created_at,candidate_run_id);
 CREATE INDEX idx_package_design_result_package_latest
     ON package_design_candidate_accepted_result(design_work_package_id,created_at DESC,candidate_run_id DESC);
-
-CREATE TRIGGER trg_candidate_owner_scope_insert
-BEFORE INSERT ON ai_candidate_submission_run
-BEGIN
-    SELECT CASE
-        WHEN NEW.owner_type='TASK_DECOMPOSITION' AND NOT EXISTS (
-            SELECT 1 FROM task_decomposition owner
-            WHERE owner.id=NEW.owner_id AND owner.designer_session_id=NEW.designer_session_id)
-            THEN RAISE(ABORT,'candidate owner scope mismatch')
-        WHEN NEW.owner_type='LOOP_SPEC_COMPILATION' AND NOT EXISTS (
-            SELECT 1 FROM loop_spec_compilation owner
-            WHERE owner.id=NEW.owner_id AND owner.designer_session_id=NEW.designer_session_id)
-            THEN RAISE(ABORT,'candidate owner scope mismatch')
-        WHEN NEW.owner_type='DESIGN_WORK_PACKAGE' AND NOT EXISTS (
-            SELECT 1 FROM design_work_package owner
-            WHERE owner.id=NEW.owner_id AND owner.designer_session_id=NEW.designer_session_id)
-            THEN RAISE(ABORT,'candidate owner scope mismatch')
-        WHEN NEW.owner_type='TASK_PACKAGE_PLAN_REVISION' AND NOT EXISTS (
-            SELECT 1 FROM task_package_plan_revision owner
-            WHERE owner.id=NEW.owner_id AND owner.task_id=NEW.task_id)
-            THEN RAISE(ABORT,'candidate owner scope mismatch')
-        WHEN NEW.owner_type='ANALYSIS_REPORT' AND NOT EXISTS (
-            SELECT 1 FROM analysis_report owner
-            WHERE owner.id=NEW.owner_id AND owner.designer_session_id=NEW.designer_session_id)
-            THEN RAISE(ABORT,'candidate owner scope mismatch')
-        WHEN NEW.owner_type='PROJECT_CONVENTION_DRAFT' AND NOT EXISTS (
-            SELECT 1 FROM project_convention_draft owner
-            WHERE owner.id=NEW.owner_id AND owner.project_id=NEW.project_id)
-            THEN RAISE(ABORT,'candidate owner scope mismatch')
-        WHEN NEW.owner_type='JUDGE_RUN' AND NOT EXISTS (
-            SELECT 1 FROM judge_run owner
-            WHERE owner.id=NEW.owner_id AND owner.task_id=NEW.task_id)
-            THEN RAISE(ABORT,'candidate owner scope mismatch')
-    END;
-END;
 
 CREATE TRIGGER trg_candidate_owner_scope_update
 BEFORE UPDATE OF designer_session_id,task_id,project_id,owner_type,owner_id,candidate_kind

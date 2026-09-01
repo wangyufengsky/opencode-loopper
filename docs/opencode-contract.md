@@ -91,7 +91,11 @@ V49 represents every candidate run with `CandidateScope(type,id)` plus
 foreign key; the owner is a closed stable type/ID reference whose row must belong
 to that scope. V47/V48 decomposition, closed-choice and package-design runs keep
 their original Session, generation, revisions, attempts and accepted results while
-migrating to the typed form. `ROLLING_PACKAGE_PLAN_V1`, `REVIEWER_REPORT_V1`,
+migrating to the typed form. The owner/scope guard is active before that historical
+copy, so a V48 cross-scope row fails the complete migration and remains recoverable
+under V48; it is never silently rewritten. Owner deletion and its run/attempt cleanup
+share the caller transaction, and only package design has a separate accepted-result
+row to cascade. `ROLLING_PACKAGE_PLAN_V1`, `REVIEWER_REPORT_V1`,
 `PROJECT_CONVENTION_V1` and `JUDGE_DECISION_V1` plus their owner types are reserved
 for later adapters, but this release does not grant them a Session profile or tool
 permission and rejects attempts to open them. Only `PACKAGE_DESIGN_V1` retains the
