@@ -18,13 +18,13 @@ class AcceptanceClosedChoiceCandidateConfigurationTest {
             .withBean(ObjectMapper.class, ObjectMapper::new);
 
     @Test
-    void safeDefaultOffStillKeepsAdaptersAvailableToSettlePersistedRuns() {
+    void qualifiedDefaultOnStillKeepsAdaptersAvailableToSettlePersistedRuns() {
         context.run(application -> {
             assertThat(application).hasSingleBean(AcceptanceClosedChoiceCandidateCoordinator.class);
             assertThat(application).hasSingleBean(AcceptanceClosedChoiceCandidatePolicy.class);
             assertThat(application).hasSingleBean(AcceptanceClosedChoiceAcceptedCandidateWriter.class);
             assertThat(application.getBean(LoopperProperties.class).getInternalCandidate()
-                    .isAcceptanceClosedChoiceV7Enabled()).isFalse();
+                    .isAcceptanceClosedChoiceV7Enabled()).isTrue();
         });
     }
 

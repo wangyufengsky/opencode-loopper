@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.3.5`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.3.6`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -130,7 +130,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.3.5.jar
+java -jar target/opencode-loopper-0.3.6.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -330,7 +330,7 @@ Git 任务的最新 Execution Cycle 成功并处于 `AWAITING_DECISION` 或用�
 | `OPENCODE_MODEL` | OpenCode 默认值 | 可选的 `provider/model` 默认模型 |
 | `LOOPPER_DECOMPOSER_CANDIDATE_ENABLED` | `true` | 大型任务 Decomposer 使用受管内部 MCP 候选提交；设为 `false` 时新 run 使用旧 JSON 兼容路径 |
 | `LOOPPER_PACKAGE_DESIGN_CANDIDATE_V1_ENABLED` | `true` | 工作包 Designer 默认使用 `PACKAGE_DESIGN_V1` MCP 主路；设为 `false` 时新工作包直接使用既有 Designer + Markdown 编译路线，已持久化候选仍可恢复 |
-| `LOOPPER_ACCEPTANCE_CLOSED_CHOICE_V7_ENABLED` | `false` | v7 真实同分候选提交的显式试运行开关；只有隔离成品 JAR 证明当前模型会真实调用 MCP 并依据拒绝结果自修正后才可开启。`ACCEPTED/WAITING_INPUT/CLOSED` 仍须取得并持久化 `REMOTE_COMPLETED / ABORT_ACKNOWLEDGED / ALREADY_ABSENT` 才可编译、等待人工、失败收束或切 legacy；停止未确认保持同一 run `DISCONNECTED`，不创建 Task。只有正常完成且零提交的精确关闭原因可切旧 JSON 路径；超时、Provider/交互失败和历史缺失原因均失败关闭 |
+| `LOOPPER_ACCEPTANCE_CLOSED_CHOICE_V7_ENABLED` | `true` | 已获真实模型同 Session 拒绝后自修正资格的 v7 闭集候选开关；设为 `false` 只回滚新运行到旧 JSON 路径，持久化候选仍可恢复和结算。`ACCEPTED/WAITING_INPUT/CLOSED` 仍须取得并持久化 `REMOTE_COMPLETED / ABORT_ACKNOWLEDGED / ALREADY_ABSENT` 才可编译、等待人工、失败收束或切 legacy；停止未确认保持同一 run `DISCONNECTED`，不创建 Task。只有正常完成且零提交的精确关闭原因可切旧 JSON 路径；超时、Provider/交互失败和历史缺失原因均失败关闭 |
 | `LOOPPER_TASK_PROFILE_ROUTER_TIMEOUT` | `240s` | Router 尚未建立远端 Session 时的连接等待；连接成功后不再使用总时限，而是等待真实终态 |
 | `LOOPPER_CHROME_EXECUTABLE` | 自动检测 | `BROWSER` 验证器使用的 Chrome/Chromium 绝对路径 |
 | `LOOPPER_MCP_BEARER_TOKEN` | 每次启动随机生成 | `/api/mcp-streamable` 和 `/api/mcp` 的 Bearer Token |
@@ -363,7 +363,7 @@ Git 任务的最新 Execution Cycle 成功并处于 `AWAITING_DECISION` 或用�
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.3.5.jar`
+- `target/opencode-loopper-0.3.6.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -394,7 +394,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:51234
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.3.5.jar`
+- `opencode-loopper-0.3.6.jar`
 - `start-windows.bat`
 
 确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
@@ -432,7 +432,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.3.5.jar \
+jar tf target/opencode-loopper-0.3.6.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -522,7 +522,7 @@ Windows PowerShell：
 例如发布下一版本：
 
 ```bash
-VERSION=0.3.5
+VERSION=0.3.6
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -562,7 +562,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.3.5.jar
+java -jar target/opencode-loopper-0.3.6.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。
@@ -692,7 +692,9 @@ echo %PATHEXT%
 
 `0.3.2` 修复 0.3.1 隔离真实模型资格中暴露的 OpenCode HTTP 契约不兼容：OpenCode 1.18.23 要求调用方提供的 `messageID` 以 `msg` 开头，而验收候选 INITIAL/CORRECTION 提示原先使用 `loopper-candidate-prompt-*`，导致持久化 launch/run 已打开后提示在 POST 边界被 400 拒绝。新候选提示统一使用稳定的 `msg_loopper_candidate_prompt_<name-uuid>`，并在哈希、持久化、精确回读和派发之间保持同一身份；既有历史 dispatch 不改写。该修复不放宽候选校验或兜底策略，Acceptance V7 默认开关继续保持 `false`，直到隔离成品 JAR 补齐同一真实 Session 的“主动 MCP 提交 → 拒绝 → 自修正 → 接受”证据。
 
-`0.3.5` 继续收窄处理 0.3.4 隔离真实模型连续复现的组合机械误写：模型把 capability 选择同时写成 `factAssignments:[{factIndex, capabilityIndex}]` 与 `capabilityPreferences:[n]`。服务端只在根字段仍严格闭集、两个数组非空且前者每项仅有整数 `factIndex/capabilityIndex`、后者全为整数时，返回一次 `ACCEPTANCE_CANDIDATE_SELECTION_INVALID` 和完整对象数组允许值；该组合本身仍不接受，必须由同一 Session 的第二次完整候选通过确定性合同。混合项、未知字段和全部路径、命令、测试目标、权限、安全、执行或拓扑内容继续不可纠错地失败关闭；默认开关仍保持 `false`，等待 0.3.5 隔离成品 JAR 的真实同 Session 自修正资格证据。
+`0.3.6` 在 0.3.5 隔离成品 JAR 资格通过后默认启用验收闭集 MCP 候选；`LOOPPER_ACCEPTANCE_CLOSED_CHOICE_V7_ENABLED=false` 只阻止新候选运行，保留既有持久化运行的恢复与结算能力。唯一最优仍由服务端直接编译，不可枚举、未穷举、路径归属或权限安全问题仍以零候选调用失败关闭，已获资格的一次机械纠错范围与确定性接受合同不变。
+
+`0.3.5` 继续收窄处理 0.3.4 隔离真实模型连续复现的组合机械误写：模型把 capability 选择同时写成 `factAssignments:[{factIndex, capabilityIndex}]` 与 `capabilityPreferences:[n]`。服务端只在根字段仍严格闭集、两个数组非空且前者每项仅有整数 `factIndex/capabilityIndex`、后者全为整数时，返回一次 `ACCEPTANCE_CANDIDATE_SELECTION_INVALID` 和完整对象数组允许值；该组合本身仍不接受，必须由同一 Session 的第二次完整候选通过确定性合同。混合项、未知字段和全部路径、命令、测试目标、权限、安全、执行或拓扑内容继续不可纠错地失败关闭。隔离 18039 的成品 JAR 已证明 `opencode/gpt-5.4` 在同一私有 MCP Session 内经历“机械简写拒绝 → 按完整允许值自修正 → 接受”，因此下一版本 0.3.6 默认启用。
 
 `0.3.4` 继续修复 0.3.3 隔离真实模型资格暴露的第二种安全机械简写：真实模型提交了合法 `factAssignments`，但把 `capabilityPreferences` 的 `{factIndex, capabilityIndexes:[n]}` 写成 `{factIndex, capabilityIndex:n}`，0.3.3 仍不可纠错地进入 `WAITING_INPUT`。服务端现在只对每项严格由整数 `factIndex` 与整数 `capabilityIndex` 组成的非空对象数组返回同一次 `ACCEPTANCE_CANDIDATE_SELECTION_INVALID`，并给出完整对象数组允许值；该简写本身仍不接受，第二次提交仍须通过同一确定性合同。混合项、未知字段、路径、权限、安全、执行、拓扑和其他合同错误继续失败关闭；默认开关仍保持 `false`。0.3.4 隔离成品 JAR 的两次真实资格均因模型改为组合机械误写而失败关闭，未获资格。
 

@@ -14,4 +14,14 @@ class LoopperPropertiesTest {
         properties.getInternalCandidate().setPackageDesignV1Enabled(false);
         assertThat(properties.getInternalCandidate().isPackageDesignV1Enabled()).isFalse();
     }
+
+    @Test
+    void qualifiedAcceptanceCandidateDefaultsOnAndCanBeDisabledExplicitly() {
+        LoopperProperties properties = new LoopperProperties();
+
+        assertThat(properties.getInternalCandidate().isAcceptanceClosedChoiceV7Enabled()).isTrue();
+
+        properties.getInternalCandidate().setAcceptanceClosedChoiceV7Enabled(false);
+        assertThat(properties.getInternalCandidate().isAcceptanceClosedChoiceV7Enabled()).isFalse();
+    }
 }

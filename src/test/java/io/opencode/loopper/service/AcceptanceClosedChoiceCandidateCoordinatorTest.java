@@ -20,8 +20,8 @@ import org.junit.jupiter.api.Test;
 
 class AcceptanceClosedChoiceCandidateCoordinatorTest {
     @Test
-    void featureFlagDefaultsOffUntilPackagedRealModelToolUseIsProven() {
-        assertThat(new LoopperProperties().getInternalCandidate().isAcceptanceClosedChoiceV7Enabled()).isFalse();
+    void featureFlagDefaultsOnAfterPackagedRealModelToolUseWasQualified() {
+        assertThat(new LoopperProperties().getInternalCandidate().isAcceptanceClosedChoiceV7Enabled()).isTrue();
     }
 
     @Test

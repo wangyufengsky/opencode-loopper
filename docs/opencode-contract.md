@@ -248,9 +248,10 @@ bounded solver cannot prove exhaustiveness, no Compiler Session is created and t
 
 The acceptance candidate transport is separately guarded by
 `loopper.internal-candidate.acceptance-closed-choice-v7-enabled`, which defaults
-to `false`. It may be explicitly enabled only after an isolated packaged-JAR replay proves that the
-configured real model invokes the private MCP tool and corrects a rejected candidate in the same Session.
-The disabled state keeps the existing JSON response path above as the authoritative behavior for new runs.
+to `true` after the isolated 0.3.5 packaged-JAR replay proved that the configured real model invokes the
+private MCP tool and corrects a rejected candidate in the same Session. Setting
+`LOOPPER_ACCEPTANCE_CLOSED_CHOICE_V7_ENABLED=false` prevents only new candidate runs and keeps the
+existing JSON response path above as the authoritative rollback behavior; persisted candidate recovery remains available.
 When enabled, only an already
 persisted `compilerRequired` route that the server re-proves as a finite exhaustive
 true tie may create one

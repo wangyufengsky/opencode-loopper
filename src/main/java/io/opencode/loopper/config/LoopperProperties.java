@@ -67,8 +67,8 @@ public class LoopperProperties {
     public static class InternalCandidate {
         /** Decomposer is the first enabled internal-candidate role. */
         private boolean decomposerEnabled = true;
-        /** Acceptance closed-choice remains opt-in until a packaged real-model tool-use replay passes. */
-        private boolean acceptanceClosedChoiceV7Enabled;
+        /** Qualified acceptance closed-choice candidate transport is on by default and may be disabled for rollback. */
+        private boolean acceptanceClosedChoiceV7Enabled = true;
         /** Qualified package-design candidate transport is on by default and may be disabled for rollback. */
         private boolean packageDesignV1Enabled = true;
         public boolean isDecomposerEnabled() { return decomposerEnabled; }

@@ -203,7 +203,7 @@ capabilityPreferences / handoffSummary`，只填写服务端列出的 unresolved
 并失败关闭，不允许把贪心结果或模型选择冒充权威最优解。AI 偏好不参与服务端评分。结果仍须经过现有
 `DesignerPackagePlanCompiler` 和 LoopSpec v2 全量校验。
 
-验收闭集候选迁移由 `loopper.internal-candidate.acceptance-closed-choice-v7-enabled` 单独控制且默认关闭；只有隔离成品 JAR 证明当前真实模型会主动调用私有 MCP 并依据拒绝结果在同一 Session 自修正后才允许显式开启。关闭时真实同分继续走既有 `PACKAGE_ACCEPTANCE_CLOSED_CHOICE_V7` JSON 兼容路径。唯一最优始终由服务端直编；不可枚举、未穷举、路径归属或权限安全问题始终直接等待人工，不能为了启用候选协议扩大模型选择面。
+验收闭集候选迁移由 `loopper.internal-candidate.acceptance-closed-choice-v7-enabled` 单独控制。0.3.5 隔离成品 JAR 已证明当前真实模型会主动调用私有 MCP，并依据拒绝结果在同一 Session 自修正后接受，因此 0.3.6 起默认开启；显式设置 `LOOPPER_ACCEPTANCE_CLOSED_CHOICE_V7_ENABLED=false` 只阻止新候选运行，既有持久化运行仍可恢复和结算，新的真实同分则回到 `PACKAGE_ACCEPTANCE_CLOSED_CHOICE_V7` JSON 兼容路径。唯一最优始终由服务端直编；不可枚举、未穷举、路径归属或权限安全问题始终直接等待人工，不能为了启用候选协议扩大模型选择面。
 开关开启只允许已持久化 `compilerRequired` 路由且经服务端再次证明为 2–32 个穷举等价最优集合的真实同分
 建立 `ACCEPTANCE_CLOSED_CHOICE_V7` 候选运行。该运行固定 `INTERNAL_MCP` 通道、同一冻结 Compilation
 拥有者/设计修订/运行时代际和最多两次唯一提交；只开放专用候选 Session 的精确内部

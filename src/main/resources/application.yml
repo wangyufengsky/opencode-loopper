@@ -10,7 +10,7 @@ spring:
           enabled: false
         protocol: STREAMABLE
         name: opencode-loopper
-        version: 0.3.5
+        version: 0.3.6
         type: SYNC
         instructions: >-
           Use the six Loopper tools only. Designer access is READ_ONLY; proposals synchronize
@@ -103,8 +103,8 @@ loopper:
     decomposer-enabled: ${LOOPPER_DECOMPOSER_CANDIDATE_ENABLED:true}
     # Qualified MCP-first package design is the default; set false for an operational rollback.
     package-design-v1-enabled: ${LOOPPER_PACKAGE_DESIGN_CANDIDATE_V1_ENABLED:true}
-    # Opt-in only after an isolated packaged-JAR real-model tool-use and self-correction replay passes.
-    acceptance-closed-choice-v7-enabled: ${LOOPPER_ACCEPTANCE_CLOSED_CHOICE_V7_ENABLED:false}
+    # Qualified MCP-first acceptance selection is the default; set false for an operational rollback.
+    acceptance-closed-choice-v7-enabled: ${LOOPPER_ACCEPTANCE_CLOSED_CHOICE_V7_ENABLED:true}
   publication:
     # Comma-separated exact hosts. Only ambiguous SSH remotes use HTTP; an
     # explicit http:// or https:// remote always keeps its declared scheme.

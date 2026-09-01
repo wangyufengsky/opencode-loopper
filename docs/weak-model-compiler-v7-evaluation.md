@@ -97,9 +97,10 @@ derived from the actual compilation/result objects exercised by their guards.
 
 The internal-MCP acceptance candidate feature has a separate structural qualification.
 The production property `loopper.internal-candidate.acceptance-closed-choice-v7-enabled`
-defaults to `false`; setting it to `true` is allowed only after an isolated packaged-JAR
-replay proves configured real-model MCP tool adoption and same-Session correction after
-a rejected submission. The test-only registry reserves four closed evidence IDs backed
+defaults to `true` after the isolated 0.3.5 packaged-JAR replay proved configured real-model
+MCP tool adoption and same-Session correction after a rejected submission. Setting it to
+`false` remains an operational rollback for new runs and does not disable recovery of
+persisted candidate state. The test-only registry reserves four closed evidence IDs backed
 by real Designer/OpenCode guards:
 
 - unique global optimum;
