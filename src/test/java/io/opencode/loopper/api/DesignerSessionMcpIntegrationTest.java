@@ -1377,7 +1377,8 @@ class DesignerSessionMcpIntegrationTest {
                 "SELECT external_session_id FROM ai_candidate_submission_run WHERE id=?",
                 String.class, runId);
         assertThat(fake().promptForSession(remoteId))
-                .contains(credentials.exactToolName(), "PROJECT_CONVENTION_V1", "fallbackAllowed: false");
+                .contains(credentials.exactToolName(), "PROJECT_CONVENTION_V1", "fallbackAllowed: false",
+                        "expectedSubmissionRevision: 0", "returned submissionRevision");
         assertThat(fake().profileForSession(remoteId))
                 .isEqualTo(OpenCodeClient.SessionProfile.PROJECT_CONVENTION_CANDIDATE_READ_ONLY);
 

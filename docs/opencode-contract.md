@@ -143,7 +143,7 @@ attempt and no remote, may hand the owner to one fresh `PROJECT_CONVENTION_READ_
 dispatch, normal completion without a submission, transport failure, interaction, security rejection, attempt
 exhaustion, generation conflict or uncertain stop must close or retain the Candidate recovery point; none may start
 Legacy. Accepted content becomes `READY` only after `REMOTE_COMPLETED`, `ABORT_ACKNOWLEDGED` or `ALREADY_ABSENT`
-proof. The 0.3.16 application flag remains false pending packaged real-model qualification, but does not disable
+proof. The 0.3.17 application flag remains false pending packaged real-model qualification, but does not disable
 recovery of already persisted Convention runs.
 
 The private `/api/internal-mcp-streamable` Router accepts only literal loopback

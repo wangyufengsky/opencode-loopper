@@ -25,7 +25,7 @@ class ProjectConventionCandidatePromptFactoryTest {
                 MachineCandidateKind.PROJECT_CONVENTION_V1, "PROJECT_CONVENTION_V1", 1, 1,
                 MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP,
                 "PROJECT_CONVENTION_V1", "generation-1", "remote-1",
-                MachineCandidateRunState.OPEN, 3, 0, null, 0, null);
+                MachineCandidateRunState.OPEN, 3, 0, null, 7, null);
 
         String prompt = new ProjectConventionCandidatePromptFactory().internal(
                 run, evidence, "loopper_internal_submit_candidate");
@@ -35,6 +35,8 @@ class ProjectConventionCandidatePromptFactoryTest {
                         "component-java", "component-java:maven:test",
                         "component-java:manifest:pom.xml")
                 .contains("componentKeys", "commandIds", "pathIds")
+                .contains("expectedSubmissionRevision: 7")
+                .contains("returned submissionRevision")
                 .contains("Do not return the candidate as final assistant text")
                 .doesNotContain("fallbackAllowed: true");
     }

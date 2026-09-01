@@ -264,7 +264,7 @@ CORRECTION 同 launch、零提交 ACK、清理远端和 termination intent 固�
 accepted-result 和取消优先级；V62 再激活项目公约的冻结源文/证据目录、单一编译内核、accepted result
 与恢复编排，Judge 仍未激活。Reviewer 的结构/Fake MCP 证明不能替代
 真实模型资格；0.3.13 隔离成品 JAR 已补齐模型实际调用及同一 Session 拒绝后修正为 `ACCEPTED` 的证据，
-所以 0.3.14 默认开启。Convention 0.3.16 仍默认关闭等待自己的隔离成品 JAR 资格；Judge 必须另行完成
+所以 0.3.14 默认开启。Convention 0.3.17 补齐精确提交修订提示后仍默认关闭，等待自己的隔离成品 JAR 资格；Judge 必须另行完成
 接入与资格，二者都不能继承 Reviewer 结论。
 
 Stage 组装完成后，服务端优先接受 `负责路径` 的唯一显式声明，随后兼容 Stage 精确引用产生义务的受控

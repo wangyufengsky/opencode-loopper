@@ -550,8 +550,10 @@ may settle `project_convention_draft=READY` only with the same frozen source and
 assistant text, post-run repository reads and interactive questions never become authority. Only a proven
 pre-dispatch managed-runtime or exact-lookup capability absence may transfer the owner to a fresh Legacy Session.
 Once create may have been attempted, zero submission, timeout, interaction, transport, security, generation,
-budget or uncertain-stop failures remain Candidate failures. The 0.3.16 flag defaults off until an isolated
-packaged-JAR real-model run proves private-tool use and same-Session correction; persisted run recovery ignores the
+budget or uncertain-stop failures remain Candidate failures. The prompt must publish the exact current
+`expectedSubmissionRevision`, and a mechanical rejection may advance only with the tool-returned
+`submissionRevision`. The 0.3.17 flag defaults off until an isolated packaged-JAR real-model run proves
+private-tool use and same-Session correction; persisted run recovery ignores the
 current flag. Judge cannot inherit that future qualification.
 
 V56 gives rolling replanning the same dual-entry/single-core boundary. The candidate

@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.3.16`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.3.17`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -37,11 +37,11 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 - **设计附件上下文**：可把文件拖入整个 Designer 工作台或用“添加上下文文件”加入当前输入区；未选择文件时只保留轻量入口，选择后在输入框下方显示独立“文件上下文”卡片，按行展示作用域、文件名、类型、大小和移除操作。拖入只暂存，必须随非空文字显式发送；发送失败时卡片和文字都保留。整体需求附件供所有设计角色使用，工作包附件只进入对应包；Router 永远不读取附件。支持严格 UTF-8 文本/源码、JSON、CSV、PDF、PNG/JPEG/GIF/WebP 和无宏 DOCX/XLSX/PPTX，限制为每条 10 个、每个 20 MiB、每会话累计 50 MiB，确定性文本表示超过 128 KiB 直接拒绝而不截断。附件是不可信参考，不能扩大需求、路径、安全或验收授权；确认设计后以 SHA-256 冻结并继续提供给实施、Recovery、只读 Reviewer 和双 Judge。历史支持安全预览、完全同名的作用域内逻辑覆盖，以及确认前停止未来使用。
 - **动态任务画像与专属流程**：服务端先从 Maven/Gradle、`package.json`、Python、Go 和 Rust 证据建立结构化组件画像，再用需求中的相对路径、模块名和明确技术词约束到真实组件。Router 是单次快速分类器：不发现或调用内置/MCP 工具，不搜索仓库、不做设计或方案推演；受管运行时使用单步、零温度和非思考专用 Agent，只返回任务意图、一个主要制品和 SIMPLE/PACKAGED 三项闭集标签。技术栈、组件和置信度完全由服务端证据与标签一致性计算，失败或降级时页面显示“识别置信度 未产生”，不再把占位值展示成 `0%`。任务设置识别只在尚未建立远端 Session 时保留 240 秒连接等待；连接成功后一直等待真实终态。运行弹窗只显示真实已用时间、远端状态、最新安全活动和 Provider Token，不显示超时上限、估算百分比或原始 Router JSON，并提供“取消识别，手动设置”；服务端确认远端 Session 已取消后直接打开人工选择控件，全自动模式也不会采用该结果。Router 固定使用安全 marker 信封和同一服务端闭集校验，不再向 OpenCode 持久化会触发部分桌面版本加载错误的 JSON Schema 响应格式。普通模式在中文结果页明确选择“确认并进入设计 / 重新识别 / 手动修改”，决定前不会创建需求 Designer Session；重新识别只使用服务端保存的同一需求快照。单栈自动选择；明确跨组件使用混合栈；多栈但无法定位、分析不完整，或无 Manifest 且需求未明确技术时必须确认，不再默认 Java。页面统一称为“任务设置”，只在多栈歧义时展示组件选择器。画像仍按 `ROUTING / NEEDS_CONFIRMATION / CONFIRMED / FROZEN` 投影；确认后同时冻结画像指纹和组件键，普通 WP-1、Stage 与 Recovery 复用该快照，后续项目重析不能改写老任务。安全判定按动作对象和否定作用域区分外部写入/发版与进程内领域事件、消息或通知；执行轨迹的发布/可观测语义、事件总线“监听器注册、发布、按类型分发”、生命周期 `started/succeeded/failed/compensated` 事件示例与受控的 `CHAIN_STARTED/SUCCEEDED/FAILED/COMPENSATED` 事件常量保持为软件领域行为，“发布器/发布者/发布-订阅器”按组件名词处理，“进程内同步发布”按事件投递上下文处理；同句“重复/再次/重新发布”仅可继承前一个已证明的业务事件对象，普通第二次裸发布不继承。版本、制品、镜像、环境、提交推送和无法判定的裸发布仍失败关闭，单纯声明“不伪造外部系统结果”不会被当成写请求。“可配置”、“不新增依赖”等软件约束或“某类维护调用身份/MDC”等源码职责描述不会把开发任务降级为本地维护，完整设计中的人工评审点、只读 getter 或验收复核措辞也不会把明确的软件交付改路由为只读报告；只有任务级评审/诊断请求才进入 Reviewer 或形成读写冲突。只有 Manifest 指纹、组件选择、意图和流程均不变时，完整需求重算才能继承原确认。
 - **只读 Reviewer 的确定性证据合同**：Legacy Reviewer 输出和 MCP 候选都必须进入同一 `ReviewerReportCompilation`。确认无问题时允许空 findings，但 summary 仍必填；每条实际 finding 必须一一绑定受管相对路径、精确行号和源码 SHA-256，只要一条证据缺失、越界或不安全，整份报告失败且不保留部分 findings。全部通过后才由服务端生成 Markdown、规范 findings 和内容/源码摘要。
-- **通用 Candidate launch 协议底座**：V57 为 `REVIEWER_REPORT_V1 / PROJECT_CONVENTION_V1 / JUDGE_DECISION_V1` 增加独立的 `GENERIC_V1` 创建、提示、清理与终止持久化约束，并让 prompt dispatch 使用与既有 Acceptance `ACCEPTANCE_V55` 互斥的强类型 launch 引用。只有 `INTERNAL_MCP` 运行必须绑定 Generic launch；Legacy 双入口仍保持无 launch。Reviewer 已通过真实模型资格并默认启用；V62 已接通项目公约的冻结证据、accepted result、Coordinator 与恢复协议，但 0.3.16 仍默认关闭新公约 Candidate，必须先通过隔离成品 JAR 资格；Judge 继续失败关闭等待专属接入。
+- **通用 Candidate launch 协议底座**：V57 为 `REVIEWER_REPORT_V1 / PROJECT_CONVENTION_V1 / JUDGE_DECISION_V1` 增加独立的 `GENERIC_V1` 创建、提示、清理与终止持久化约束，并让 prompt dispatch 使用与既有 Acceptance `ACCEPTANCE_V55` 互斥的强类型 launch 引用。只有 `INTERNAL_MCP` 运行必须绑定 Generic launch；Legacy 双入口仍保持无 launch。Reviewer 已通过真实模型资格并默认启用；V62 已接通项目公约的冻结证据、accepted result、Coordinator 与恢复协议，0.3.17 补齐私有工具必需的提交修订提示，但仍默认关闭新公约 Candidate，必须先通过隔离成品 JAR 资格；Judge 继续失败关闭等待专属接入。
 - **实时活动与可终止设计会话**：Designer 页面在消息列表现有的“当前角色正在处理”卡片中，每 1.2 秒用 Markdown 样式替换展示一条最新活动，不单独放置顶部面板，也不保留活动历史。卡片内的纯数字窗口按服务端权威投影累计当前设计全部模型 Session 的 Token，正增量短暂显示 `+xxx`，不显示额度、成本或说明文案。交互设计师可显示最新文字、思考和普通/MCP 工具调用；任务设置 Router 在专用弹窗展示有界思考、文字和工具片段，但一旦检测到 marker 或结构化对象就统一替换为“正在整理任务设置识别结果”；任务规划师、规范工程师等其他结构化角色仍只显示最新工具活动和权威步骤。“清理并重新开始”先进入 `STOPPING`，停止该设计下全部远端角色 Session，全部成功后才进入 `CANCELLED` 并归档，失败时保留工作区供重试。确认设计并获得 Task 后会清除当前设计工作区并直接打开任务详情，再点左侧“设计”从新建页开始。
 - **Role Pack v6、验收事实 v7 与按需 Compiler**：技术标签先归并为 Java、Python、Node 和 Other 软件族，JUnit/Jupiter/Surefire 等测试标签不会把 Java 任务误判为混合栈，工作包识别使用技术词边界，`ChainNodeInvoker` 等业务符号不会误触发 Node。当前 v7 Designer 使用“阶段 / 目标 / 负责路径 / 包含场景/评审/交付 / 前置阶段”，把阶段写入责任与验收/交付分组分开；冻结 v6 四列表格继续兼容。新软件包把冻结需求与正向设计交付中的显式仓库相对必改路径连同来源和 SHA-256 写入 v7 不可变事实快照；唯一 `负责路径` 声明、精确义务来源、恰好一个现有 Stage 路径规则、旧设计中只命中一个阶段目标的精确文件/类/末尾路径符号，或单 Stage 的精确写入/移动目标，均可由服务端形成 Stage、focused test 和 `GIT_DIFF` 的同一路径合同。旧格式符号恢复只做完整 token 匹配，不做模糊猜测。真实多 Stage 候选保留为具体 `DESIGN_INCOMPLETE` 并显示候选 Stage 中文名，不交给弱模型选择。路径缺口时相同设计修订不能原样重编译；页面保持当前包输入框和“恢复当前包设计”，由服务端把全部未归属路径/候选阶段放进完整替代设计提示。包级范围、全局事实、技术栈、模糊标题、目录词和最后 Stage 不能冒充归属证明。遗漏路径、删除、移动源端、正负冲突或禁区交集直接形成具体缺口；项目根外路径在创建编译记录前收束，不会被误当成模型传输失败。上述缺口不会等执行期才以 `outside allowed paths` 失败，也不会放宽运行期验证器。当前 v7 的普通 `WP-1`、大型任务包和滚动执行当前包在事实与能力均可确定时，都由服务端完成全局能力求解、EARS 条件与 LoopSpec v2 lowering，不创建 Compiler Session 或消耗模型调用；一个事实有多个候选并不自动算歧义，只有全部业务评分维度真实同分才调用一次无工具 Compiler。该 Session 使用 v7 最小闭集 Schema，只选择服务端列出的事实归属和能力；路径义务不进入模型输入输出，阶段拓扑始终锁定。弱模型的可逆别名、单项集合、`null` 集合和无害说明字段会被机械规范化并审计，不消耗修复轮次；命令、路径、测试目标、拓扑和安全字段仍在规范化前阻断。非法输出保留冻结事实和已完成绑定，不丢弃为空建议或降级成通用单阶段；Schema 不支持时只在全新零工具 marker Session 中回退一次，不扩大预算。V44 记录服务端直编、AI 消歧或历史来源；冻结 v4/v5 及 v6 事实快照保持原语义兼容。
 - **可选的 Designer 全自动模式**：新建设计和进行中会话均可单独授权，默认关闭。开启后只自动采用已成功且通过服务端安全校验的任务设置，再选择推荐答案和确认整体需求；普通任务继续按原合同推进。逐包闭环任务中，全自动最多完成 Router、拆包和只读候选设计，不能确认包设计，也不能开始包执行。Router 未连接超时、运行失败、安全冲突或必须选择组件时仍停在人工确认门。执行期问题、危险权限、异常恢复、结果确认、提交、推送和发布仍保持人工边界。
-- **项目公约**：点击“AI 更新 Loopper 公约”会先在事务外强制刷新技术栈画像。V62 的 MCP 路线在任何远端 I/O 前冻结当前 `AGENTS.md`、技术栈指纹及组件/命令/路径证据目录；模型只能提交 `componentKeys / commandIds / pathIds` 闭集引用，不能提交原始命令、路径、权限、生命周期或最终 Markdown。Legacy Markdown 与 MCP 候选统一进入 `ProjectConventionCompilation`，由服务端确定性生成“技术栈与模块 / 构建与测试 / 目录与边界”。派发前仅确认缺少受管运行时或精确回读能力时可新建 Legacy Session；一旦可能派发，零提交、超时、传输、交互、安全、代次和停止不确定都失败关闭，最终 assistant text 不参与结算。完整预览仍须用户确认才写入，写前复核原 `AGENTS.md` 哈希和 Manifest 指纹；首次追加管理区块，后续只替换该区块，区块外人工内容始终保留。0.3.16 的新 Candidate 默认关闭，等待隔离成品 JAR 真实模型资格。
+- **项目公约**：点击“AI 更新 Loopper 公约”会先在事务外强制刷新技术栈画像。V62 的 MCP 路线在任何远端 I/O 前冻结当前 `AGENTS.md`、技术栈指纹及组件/命令/路径证据目录；模型只能提交 `componentKeys / commandIds / pathIds` 闭集引用，不能提交原始命令、路径、权限、生命周期或最终 Markdown。Legacy Markdown 与 MCP 候选统一进入 `ProjectConventionCompilation`，由服务端确定性生成“技术栈与模块 / 构建与测试 / 目录与边界”。派发前仅确认缺少受管运行时或精确回读能力时可新建 Legacy Session；一旦可能派发，零提交、超时、传输、交互、安全、代次和停止不确定都失败关闭，最终 assistant text 不参与结算。完整预览仍须用户确认才写入，写前复核原 `AGENTS.md` 哈希和 Manifest 指纹；首次追加管理区块，后续只替换该区块，区块外人工内容始终保留。0.3.17 的新 Candidate 默认关闭，等待隔离成品 JAR 真实模型资格。
 - **分阶段执行循环**：按依赖顺序执行 Stage，每个阶段都携带目标、交付物、路径约束和可立即运行的验收规则。
 - **循环降噪**：验证失败后固化 Attempt 交接包，并用失败签名和可靠工作区指纹识别无进展重试；连续停滞时转入人工确认，不继续烧预算。
 - **实施 Todo 投影**：OpenCode 暴露 `todowrite` 时，实施 Session 可维护非权威 Todo；Loopper 有界同步并在任务详情展示。桌面端进度卡固定在会话输出滚动区顶部，长清单在卡内有界滚动；窄屏回到正常文档流。真实完成状态仍只由 Task、Stage、验证器和 Judge 决定。
@@ -132,7 +132,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.3.16.jar
+java -jar target/opencode-loopper-0.3.17.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -367,7 +367,7 @@ Git 任务的最新 Execution Cycle 成功并处于 `AWAITING_DECISION` 或用�
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.3.16.jar`
+- `target/opencode-loopper-0.3.17.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -398,7 +398,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:51234
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.3.16.jar`
+- `opencode-loopper-0.3.17.jar`
 - `start-windows.bat`
 
 确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
@@ -436,7 +436,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.3.16.jar \
+jar tf target/opencode-loopper-0.3.17.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -526,7 +526,7 @@ Windows PowerShell：
 例如发布下一版本：
 
 ```bash
-VERSION=0.3.16
+VERSION=0.3.17
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -566,7 +566,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.3.16.jar
+java -jar target/opencode-loopper-0.3.17.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。
@@ -707,6 +707,8 @@ echo %PATHEXT%
 `0.3.14` 在 0.3.13 隔离成品 JAR 资格通过后默认启用 Reviewer MCP 候选。真实 `opencode/gpt-5.4` 的 `REVIEWER_CANDIDATE_READ_ONLY` Session 先以 `src/ReviewTarget.java:99` 主动提交，被冻结源码 manifest 以 `REVIEWER_EVIDENCE_LINE_INVALID` 和允许范围 `1..1` 机械拒绝，随后在同一 run/Session 自行第二次提交 `line=1` 并接受；两次提交均发生在同一个已确认 INITIAL 模型调用内，远端取得 `ABORT_ACKNOWLEDGED` 后才把不可变 accepted result 原子结算为 `READY`，报告内容与接受结果哈希一致，Task、租约和执行 Session 均为 0。最终自由文本没有进入编译或结算输入。显式设置 `LOOPPER_REVIEWER_REPORT_CANDIDATE_V1_ENABLED=false` 只回滚新报告，已持久化 Candidate 的恢复与失败关闭边界不变。
 
 `0.3.16` 完成 `PROJECT_CONVENTION_V1` 资格前实现。V62 在远端创建前冻结公约源文、技术栈画像与服务端证据目录，并保存不可变 accepted result；MCP Candidate 只选择服务端给出的组件、命令和路径 ID，Legacy Markdown 与候选都进入同一个 `ProjectConventionCompilation`，命令 argv、路径、Markdown 和哈希由服务端生成。`PROJECT_CONVENTION_CANDIDATE_READ_ONLY` 只开放 `read/glob/grep` 与精确私有提交工具；模型最终文本不参与权威结果。只有派发前机械能力缺失可在确认无远端后创建全新 Legacy Session，派发后零提交、超时、交互、传输/停止不确定、安全或预算耗尽都失败关闭；accepted result 只有在正向停止证明后才与公约草稿 `READY` 原子结算。`LOOPPER_PROJECT_CONVENTION_CANDIDATE_V1_ENABLED=true` 只用于新公约资格试运行，0.3.16 默认仍为 `false`，已持久化运行的恢复不依赖当前开关。0.3.15 的首次完整验证仅因 V57 旧迁移测试未建立 V62 Convention owner/source 修订锚点而失败，未形成 JAR 交付；补齐真实前置夹具后按版本规则顺延。
+
+`0.3.17` 修复 0.3.16 隔离资格暴露的私有工具调用合同缺口：Convention 提示原先只公布 `sourceRevision / ownerVersion`，没有公布工具 schema 必需的 `expectedSubmissionRevision`。真实 `opencode/gpt-5.4` 因而连续猜测随机大整数，均在 attempt 落库前被 revision conflict 拒绝，最终远端停止证明为 `ABORT_ACKNOWLEDGED`，公约草稿失败关闭且 Task、租约、执行 Session 均为 0。新提示现在精确公布当前 run version，并明确机械拒绝后使用工具返回的 `submissionRevision` 在同一 Session 提交完整替换候选；默认开关继续为 `false`，必须用 0.3.17 成品 JAR 重新取得资格。
 
 `0.3.9` 在 0.3.8 隔离成品 JAR 资格通过后默认启用滚动计划 MCP 候选；真实 `opencode/gpt-5.4` Session 首次以前向依赖提交被服务端机械拒绝，随后在同一 Session 修正为有序依赖并接受，V56 结果经 `ABORT_ACKNOWLEDGED` 结算为待人工确认计划，候选派发后未读取 marker。`LOOPPER_ROLLING_PACKAGE_PLAN_V1_ENABLED=false` 仍只回滚新建议，既有候选运行、接受结果和失败关闭边界不变。
 
