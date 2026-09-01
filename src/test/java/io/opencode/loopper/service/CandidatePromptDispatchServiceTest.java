@@ -32,7 +32,7 @@ class CandidatePromptDispatchServiceTest {
 
         assertThat(CandidatePromptDispatchService.messageId("run-1", 1)).isEqualTo(first);
         assertThat(CandidatePromptDispatchService.messageId("run-1", 2)).isNotEqualTo(first);
-        assertThat(first).startsWith("loopper-candidate-prompt-");
+        assertThat(first).startsWith("msg_");
     }
 
     @Test
@@ -41,7 +41,7 @@ class CandidatePromptDispatchServiceTest {
 
         assertThat(CandidatePromptDispatchService.initialMessageId("run-1")).isEqualTo(initial);
         assertThat(initial).isNotEqualTo(CandidatePromptDispatchService.messageId("run-1", 1));
-        assertThat(initial).startsWith("loopper-candidate-prompt-");
+        assertThat(initial).startsWith("msg_");
     }
 
     @Test

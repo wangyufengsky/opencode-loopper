@@ -15,6 +15,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 /** Stable seam for durable INITIAL and CORRECTION candidate prompt dispatch. */
 @Service
 final class CandidatePromptDispatchService {
+    private static final String MESSAGE_ID_PREFIX = "msg_loopper_candidate_prompt_";
     private final CandidatePromptDispatchCoordinator coordinator;
     private final TransactionTemplate transactions;
 
@@ -99,13 +100,13 @@ final class CandidatePromptDispatchService {
 
     static String initialMessageId(String runId) {
         if (runId == null || runId.isBlank()) throw new IllegalArgumentException();
-        return "loopper-candidate-prompt-" + UUID.nameUUIDFromBytes(
+        return MESSAGE_ID_PREFIX + UUID.nameUUIDFromBytes(
                 (runId + ":INITIAL").getBytes(StandardCharsets.UTF_8));
     }
 
     static String messageId(String runId, int attemptOrdinal) {
         if (runId == null || runId.isBlank() || attemptOrdinal < 1) throw new IllegalArgumentException();
-        return "loopper-candidate-prompt-" + UUID.nameUUIDFromBytes(
+        return MESSAGE_ID_PREFIX + UUID.nameUUIDFromBytes(
                 (runId + ":" + attemptOrdinal).getBytes(StandardCharsets.UTF_8));
     }
 

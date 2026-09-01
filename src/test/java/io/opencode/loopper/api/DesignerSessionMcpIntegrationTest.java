@@ -3746,6 +3746,8 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(fake().promptForSession(opened.externalSessionId()))
                 .contains(credentials.exactToolName(), "expectedSubmissionRevision")
                 .doesNotContain("FlowATest", "FlowBTest", "-Dtest", "src/");
+        assertThat(fake().promptRequestForSession(opened.externalSessionId()).messageId())
+                .startsWith("msg_");
 
         String runId = jdbc.queryForObject("""
                 SELECT id FROM ai_candidate_submission_run

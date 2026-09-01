@@ -44,6 +44,16 @@ either completion or failure. The reliable fallback was the message list:
 This evidence is why Loopper combines status polling with message completion
 metadata instead of treating a missing status entry as success.
 
+OpenCode 1.18.23 additionally validates every caller-supplied `messageID` at the
+HTTP boundary and requires it to start with `msg`. Candidate prompt dispatch
+therefore derives both INITIAL and CORRECTION identities as deterministic
+`msg_loopper_candidate_prompt_<name-uuid>` values before request hashing and
+durable persistence. `HttpOpenCodeClient` must transmit that persisted identity
+unchanged: rewriting it only during serialization would make
+`promptRequestSha256` disagree with exact-message recovery. Existing dispatch
+rows keep their immutable historical identity; the compatible prefix applies to
+new candidate prompts.
+
 ## Designer attachment file parts
 
 Designer attachment handoff extends `PromptRequest` with a stable `messageId` and ordered `FilePart(filename, mediaType, managedUri, sha256)` list. `HttpOpenCodeClient` emits the normal text part first, then file parts in deterministic scope/name order. PDF and OOXML include both the verified original and a versioned deterministic `*.loopper-context.txt`; strict UTF-8 text and validated raster images send only the original. The managed URI is produced only after containment and SHA verification and never appears in the public REST model.

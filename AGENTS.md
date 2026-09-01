@@ -42,10 +42,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.3.1.jar
-   jar tf target/opencode-loopper-0.3.1.jar \
+   test -s target/opencode-loopper-0.3.2.jar
+   jar tf target/opencode-loopper-0.3.2.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.3.1.jar
+   shasum -a 256 target/opencode-loopper-0.3.2.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -95,8 +95,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.3.1`。
-- 正式产物：`target/opencode-loopper-0.3.1.jar`。
+- Maven 项目版本：`0.3.2`。
+- 正式产物：`target/opencode-loopper-0.3.2.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -466,7 +466,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.3.1.jar
+JAR=target/opencode-loopper-0.3.2.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -568,6 +568,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-09-01 | Acceptance 候选提示 OpenCode `messageID` 兼容修复，交付 0.3.2 资格版本 | INITIAL/CORRECTION 的稳定提示身份改为 OpenCode 1.18.23 接受的 `msg_loopper_candidate_prompt_<name-uuid>`；ID 在请求哈希、持久化、精确回读和 HTTP 派发之间保持不变，历史 dispatch 不迁移；同步 README、OpenCode 合同与本公约，生产开关仍默认 `false` | TDD 红灯先由生成器 2 项与真实 Designer MCP 流 1 项稳定复现旧前缀，最小修复后聚焦 Java 6/6、前端 Vitest 247/247 通过；首次 `./scripts/verify.sh` 在只读子评审误启动并发聚焦编译时与 `clean` 争用 `target`，未进入编译测试，结束争用后按同一次构建重试成功：Java 1062 项（0 失败、0 错误、2 条件跳过）、Vitest 247/247；JAR `target/opencode-loopper-0.3.2.jar` 共 288575775 bytes、112 个静态条目、SHA-256 `767f66ed7c2657085aa10940ef076a6bf4af367d8027a7d21f0bf10c6732ef5b`；既有 8080 health 仍为 `UP` 且未重启，隔离真实模型资格待继续，默认开关仍为 `false` |
 | 2026-09-01 | `ACCEPTANCE_CLOSED_CHOICE_V7` V51-V55 可恢复 launch/prompt/termination 协议，交付 0.3.1 资格版本 | Legacy handoff 与 internal launch 在远端 I/O 前冻结请求和一次性凭证；attestation、settlement certificate、prompt dispatch、cleanup 与唯一 termination intent 共同阻断重复 writer；既有 handoff 成为唯一权威，仅远端创建前明确缺少受管能力可直接进入 Legacy；内部无效候选耗尽进入 `WAITING_INPUT`；取消/需求替换可提升首次提示失败 intent，并与父状态原子收束；同步 README、架构、设计、OpenCode、AI 角色、弱模型资格、代码设计和本公约，生产开关仍默认 `false`。0.3.0 的首次完整验证失败，未形成交付 JAR；修复后按版本规则递增至 0.3.1 | 扩展 Acceptance/迁移/运行时/状态机回归 378/378、结构门禁 2/2 已通过；`evaluate-weak-model-v7.sh` 通过精确 corpus 22/22、指标门禁 7/7、同输入测量 1/1、前端 247/247，资格摘要 SHA-256 `2cc86d6ba2d1ee77ddbbf554e60e7761d2829da4a3491bd08edee2f714de9834`；`./scripts/verify.sh` 通过 Java 1062 项（0 失败、0 错误、2 条件跳过）与 Vitest 247/247；JAR `target/opencode-loopper-0.3.1.jar` 共 288575724 字节、113 个静态条目、SHA-256 `e598d8d8ec50d722cbdb8922526c5092653a5520f9f71e0e1f7a868fa2d463f6`；隔离真实模型资格待继续，默认开关仍为 `false` |
 | 2026-09-01 | `ACCEPTANCE_CLOSED_CHOICE_V7` terminal recovery/settlement 闭环，交付 0.2.99 | OPEN 与 pre-open handoff 的 transport/status/abort/generation 不确定统一保持原 run/Session 或 compilation/Session `DISCONNECTED`，只有 ACK/ALREADY_ABSENT 才 fresh Legacy；V50 固化精确 close reason 并对历史 `CLOSED + NULL` 失败关闭；独立短 proof 事务阻断 `STOPPING/CANCELLED`、stale owner/session/source，proof 后只允许 `SERVER_COMPILING/serverCompiled` 精确两步；workflow 改用窄 `Port`，同步 README、架构、OpenCode、代码设计和本公约正文，试运行开关仍默认 `false` | TDD 红灯先证明 close reason/V50 缺失及 OPEN `DISCONNECTED +1` 被误判 stale；0.2.98 首次 `./scripts/verify.sh` 的 Java 911 项出现 3 failures（两项 latest migration 仍断言 49、外部 runtime 的合法 ACK→Legacy 被误收束 `FAILED`），修复真实状态路径后按版本规则顺延 0.2.99；最终聚焦 compiler/候选/proof/migration/真实 Designer Monitor/结构门禁通过，`./scripts/verify.sh` Java 912 项全部通过（跳过 2）、Vitest 247/247；JAR `target/opencode-loopper-0.2.99.jar` 为 288204737 bytes，含 112 个 SPA 静态条目，SHA-256 `519f996f4b8c3e52f1333a5da93f911b9b91188b161aac5c2c99ac35c98f0d44`；未运行 JAR、未触碰 8080，未推送、打标签或创建 Release |
 | 2026-09-01 | `ACCEPTANCE_CLOSED_CHOICE_V7` 远端终止证明与恢复结算加固，交付 0.2.97 | 将候选业务接受与远端 Session 停止拆为两条状态轴；共享 `CandidateSessionTerminationProof` 只接受 `REMOTE_COMPLETED / ABORT_ACKNOWLEDGED / ALREADY_ABSENT`，proof 前复核活动代次与精确 owner/source/version，proof 后允许 JVM 代次轮换但拒绝额外 owner 漂移；停止未确认保持同一 run `DISCONNECTED`，不编译、不建 Task、不切 legacy、不重复 prompt/submission；新增窄的 `DesignerAcceptanceCandidateWorkflow` 承接轮询结果分派，主 Designer facade 5387 行且未提高 5401 门禁；同步 README、架构、OpenCode、代码设计和本公约正文，试运行开关仍默认 `false`，未形成真实模型资格结论 | 0.2.94 TDD 红灯 1/1 失败证明 accepted 旧分支跳过 binding/停止证明；0.2.95 首次实现因旧调用点缺 proof 参数编译失败；0.2.96 聚焦 Java 15/15、Vitest 247/247 通过后结构审计触发行数职责提取并顺延；0.2.97 结构+聚焦 Java 17/17、Vitest 247/247 通过，`./scripts/verify.sh` Java 898 项全部通过（跳过 2）、Vitest 247/247；JAR `target/opencode-loopper-0.2.97.jar` 为 288180296 bytes，含 112 个 SPA 静态条目及新 proof/workflow 类，SHA-256 `54427da8608c1257465d8067433b47e817d934568448c779fac299261194161e`；未运行 JAR、未做真实模型资格、未触碰 8080，未推送、打标签或创建 Release |
