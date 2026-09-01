@@ -61,6 +61,24 @@ class AcceptanceClosedChoiceAcceptedCandidateWriterTest {
         });
     }
 
+    @Test
+    void writesAfterTheSinglePersistedDisconnectedCheckpoint() {
+        LoopperDesignerMapper mapper = mock(LoopperDesignerMapper.class);
+        when(mapper.findLoopSpecCompilation("cmp")).thenReturn(Optional.of(disconnectedCompilation()));
+        when(mapper.findDesignAcceptancePlanning("cmp")).thenReturn(Optional.of(planning()));
+        when(mapper.updateLoopSpecCompilation(any())).thenReturn(1);
+        when(mapper.updateDesignAcceptancePlanning(any())).thenReturn(1);
+        AcceptanceClosedChoiceAcceptedCandidateWriter writer =
+                new AcceptanceClosedChoiceAcceptedCandidateWriter(mapper, new ObjectMapper());
+
+        writer.write(context(), "{\"capabilityPreferences\":[]}", "b".repeat(64));
+
+        ArgumentCaptor<LoopSpecCompilationRow> update = ArgumentCaptor.forClass(LoopSpecCompilationRow.class);
+        verify(mapper).updateLoopSpecCompilation(update.capture());
+        assertThat(update.getValue().version()).isEqualTo(5);
+        assertThat(update.getValue().externalSessionState()).isEqualTo("DISCONNECTED");
+    }
+
     private CandidatePolicy.Context context() {
         return new CandidatePolicy.Context("candidate-run",
                 MachineCandidateSubmission.CandidateScope.designerSession("session"),
@@ -81,6 +99,14 @@ class AcceptanceClosedChoiceAcceptedCandidateWriterTest {
         return new LoopSpecCompilationRow("cmp", "session", 3, "RUNNING", "remote", "RUNNING",
                 0, "message", 1, "OLD", "old", "created", "updated", 4,
                 "WP-1", 0, null, "PLANNING", null, 0,
+                "TEXT_MARKER", null, false, "TEXT_MARKER", null, false,
+                null, 0, 0, false);
+    }
+
+    private LoopSpecCompilationRow disconnectedCompilation() {
+        return new LoopSpecCompilationRow("cmp", "session", 3, "RUNNING", "remote", "DISCONNECTED",
+                0, "message", 1, "OPENCODE_ACCEPTANCE_CANDIDATE_STATUS_UNCONFIRMED", "transport",
+                "created", "updated", 5, "WP-1", 0, null, "PLANNING", null, 0,
                 "TEXT_MARKER", null, false, "TEXT_MARKER", null, false,
                 null, 0, 0, false);
     }

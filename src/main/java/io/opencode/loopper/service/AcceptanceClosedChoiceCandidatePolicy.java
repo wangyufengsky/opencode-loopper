@@ -38,7 +38,8 @@ final class AcceptanceClosedChoiceCandidatePolicy implements CandidatePolicy {
                 .orElseThrow(() -> new ConflictException(
                         "CANDIDATE_OWNER_MISSING", "LoopSpec compilation candidate owner no longer exists"));
         if (!context.scope().id().equals(owner.designerSessionId())
-                || owner.version() != context.ownerVersion()
+                || !"RUNNING".equals(owner.state())
+                || !AcceptanceCandidateOwnerCheckpoint.openVersionMatches(context.ownerVersion(), owner)
                 || owner.designRevision() != context.sourceRevision()) {
             throw new ConflictException("CANDIDATE_OWNER_REVISION_STALE",
                     "LoopSpec compilation candidate owner revision has changed");

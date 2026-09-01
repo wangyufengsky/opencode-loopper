@@ -26,7 +26,23 @@ public interface MachineCandidateSubmission {
 
     record SubmitCommand(String runId, String idempotencyKey, String candidateJson,
                          long expectedSubmissionRevision, SubmissionChannel submissionChannel) { }
-    record CloseCommand(String runId, long expectedVersion) { }
+    record CloseCommand(String runId, long expectedVersion, CandidateCloseReason reason) {
+        public CloseCommand(String runId, long expectedVersion) {
+            this(runId, expectedVersion, CandidateCloseReason.OWNER_REQUESTED);
+        }
+    }
+
+    enum CandidateCloseReason implements DescribedEnum {
+        NORMAL_COMPLETION_ZERO_SUBMISSION("远端正常完成且未提交候选"),
+        INTERACTION_FORBIDDEN("模型请求了禁止的交互"),
+        TIMEOUT("候选会话超时"),
+        REMOTE_FAILED("候选会话远端失败"),
+        OWNER_REQUESTED("拥有者显式关闭");
+
+        private final String description;
+        CandidateCloseReason(String description) { this.description = description; }
+        @Override public String description() { return description; }
+    }
 
     enum CandidateScopeType implements DescribedEnum {
         DESIGNER_SESSION("设计会话"),
@@ -98,7 +114,19 @@ public interface MachineCandidateSubmission {
             String runId, CandidateScope scope, CandidateOwnerRef owner, MachineCandidateKind candidateKind,
             String workflowStep, long sourceRevision, long ownerVersion, SubmissionChannel submissionChannel,
             String contractVersion, String runtimeGenerationId, String externalSessionId,
-            MachineCandidateRunState state, int maxAttempts, int attemptsUsed, String terminalAttemptId, long version) { }
+            MachineCandidateRunState state, int maxAttempts, int attemptsUsed, String terminalAttemptId, long version,
+            CandidateCloseReason closeReason) {
+        public RunSnapshot(
+                String runId, CandidateScope scope, CandidateOwnerRef owner, MachineCandidateKind candidateKind,
+                String workflowStep, long sourceRevision, long ownerVersion, SubmissionChannel submissionChannel,
+                String contractVersion, String runtimeGenerationId, String externalSessionId,
+                MachineCandidateRunState state, int maxAttempts, int attemptsUsed, String terminalAttemptId,
+                long version) {
+            this(runId, scope, owner, candidateKind, workflowStep, sourceRevision, ownerVersion, submissionChannel,
+                    contractVersion, runtimeGenerationId, externalSessionId, state, maxAttempts, attemptsUsed,
+                    terminalAttemptId, version, null);
+        }
+    }
 
     enum SubmissionChannel implements DescribedEnum {
         INTERNAL_MCP("内部 MCP"),

@@ -47,6 +47,18 @@ class AcceptanceClosedChoiceCandidatePolicyTest {
     }
 
     @Test
+    void acceptsTheSinglePersistedDisconnectedCheckpointForTheSameOpenRun() {
+        when(mapper.findLoopSpecCompilation("cmp")).thenReturn(Optional.of(disconnectedCompilation()));
+
+        CandidatePolicy.Decision decision = policy.evaluate(context(0), """
+                {"factAssignments":[],
+                 "capabilityPreferences":[{"factIndex":0,"capabilityIndexes":[0]}]}
+                """);
+
+        assertThat(decision.accepted()).isTrue();
+    }
+
+    @Test
     void onlyMechanicalClosedSetSelectionErrorsCanUseTheSecondAttempt() {
         CandidatePolicy.Decision decision = policy.evaluate(context(0), """
                 {"factAssignments":[],
@@ -128,6 +140,14 @@ class AcceptanceClosedChoiceCandidatePolicyTest {
         return new LoopSpecCompilationRow("cmp", "session", 3, "RUNNING", "remote", "RUNNING",
                 0, "message", 1, null, null, "created", "updated", 4,
                 "WP-1", 0, null, "PLANNING", null, 0,
+                "TEXT_MARKER", null, false, "TEXT_MARKER", null, false,
+                null, 0, 0, false);
+    }
+
+    private LoopSpecCompilationRow disconnectedCompilation() {
+        return new LoopSpecCompilationRow("cmp", "session", 3, "RUNNING", "remote", "DISCONNECTED",
+                0, "message", 1, "OPENCODE_ACCEPTANCE_CANDIDATE_STATUS_UNCONFIRMED", "transport",
+                "created", "updated", 5, "WP-1", 0, null, "PLANNING", null, 0,
                 "TEXT_MARKER", null, false, "TEXT_MARKER", null, false,
                 null, 0, 0, false);
     }

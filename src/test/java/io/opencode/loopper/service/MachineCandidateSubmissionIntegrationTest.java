@@ -358,10 +358,22 @@ class MachineCandidateSubmissionIntegrationTest {
     void closeAndPolicyBoundsFailClosedWithoutCandidateAttempts() {
         MachineCandidateSubmission.RunSnapshot open = submissions.open(decomposerRun("run-close", 5));
         MachineCandidateSubmission.RunSnapshot closed = submissions.close(
-                new MachineCandidateSubmission.CloseCommand(open.runId(), open.version()));
+                new MachineCandidateSubmission.CloseCommand(open.runId(), open.version(),
+                        MachineCandidateSubmission.CandidateCloseReason.TIMEOUT));
         assertThat(closed.state()).isEqualTo(MachineCandidateRunState.CLOSED);
+        assertThat(closed.closeReason()).isEqualTo(MachineCandidateSubmission.CandidateCloseReason.TIMEOUT);
+        assertThat(submissions.find(open.runId())).get().extracting(
+                MachineCandidateSubmission.RunSnapshot::closeReason)
+                .isEqualTo(MachineCandidateSubmission.CandidateCloseReason.TIMEOUT);
+        assertThat(jdbc.queryForObject("SELECT close_reason FROM ai_candidate_submission_run WHERE id='run-close'",
+                String.class)).isEqualTo("TIMEOUT");
         assertThat(submissions.close(new MachineCandidateSubmission.CloseCommand(
-                closed.runId(), closed.version()))).isEqualTo(closed);
+                closed.runId(), closed.version(), MachineCandidateSubmission.CandidateCloseReason.TIMEOUT)))
+                .isEqualTo(closed);
+        assertThatThrownBy(() -> submissions.close(new MachineCandidateSubmission.CloseCommand(
+                closed.runId(), closed.version(), MachineCandidateSubmission.CandidateCloseReason.REMOTE_FAILED)))
+                .isInstanceOfSatisfying(ConflictException.class,
+                        failure -> assertThat(failure.code()).isEqualTo("CANDIDATE_CLOSE_REASON_CONFLICT"));
         assertThatThrownBy(() -> submissions.submit(new MachineCandidateSubmission.SubmitCommand(
                 "run-close", "attempt-1", INVALID, closed.version(), LEGACY)))
                 .isInstanceOfSatisfying(ConflictException.class,

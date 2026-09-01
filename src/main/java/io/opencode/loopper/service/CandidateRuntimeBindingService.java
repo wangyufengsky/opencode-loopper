@@ -206,9 +206,11 @@ public final class CandidateRuntimeBindingService implements CandidateRunGuard {
             throw new ConflictException("CANDIDATE_OWNER_REVISION_STALE",
                     "LoopSpec compilation candidate owner or source revision has changed");
         }
-        if ((run.state() == MachineCandidateRunState.ACCEPTED
-                || run.state() == MachineCandidateRunState.WAITING_INPUT)
-                && !run.externalSessionId().equals(owner.externalSessionId())) {
+        if (!"RUNNING".equals(owner.state())) {
+            throw new ConflictException("CANDIDATE_OWNER_STATE_INVALID",
+                    "LoopSpec compilation candidate owner is no longer running");
+        }
+        if (!run.externalSessionId().equals(owner.externalSessionId())) {
             throw new ConflictException("CANDIDATE_OWNER_SESSION_STALE",
                     "LoopSpec compilation candidate remote Session has changed");
         }
@@ -224,7 +226,8 @@ public final class CandidateRuntimeBindingService implements CandidateRunGuard {
                 expected++;
                 if (!blank(owner.lastErrorCode())) expected++;
             }
-            return owner.version() == expected;
+            if (owner.version() == expected) return true;
+            return acceptedServerCompilationCheckpoint(owner, expected);
         }
         if (run.state() == MachineCandidateRunState.WAITING_INPUT) {
             long expected = run.ownerVersion();
@@ -244,7 +247,20 @@ public final class CandidateRuntimeBindingService implements CandidateRunGuard {
             }
             return owner.version() == expected;
         }
-        return owner.version() == run.ownerVersion();
+        return AcceptanceCandidateOwnerCheckpoint.openVersionMatches(run.ownerVersion(), owner);
+    }
+
+    private boolean acceptedServerCompilationCheckpoint(
+            io.opencode.loopper.persistence.LoopSpecCompilationRow owner, long proofVersion) {
+        if (!CandidateSessionTerminationProof.persisted(owner.externalSessionState())
+                || !"RUNNING".equals(owner.state())
+                || !"SERVER_COMPILING".equals(owner.workflowStep())
+                || blank(owner.planningJson())) return false;
+        if (!owner.serverCompiled()) {
+            return owner.version() == proofVersion + 1 && blank(owner.semanticPlanJson());
+        }
+        return owner.version() == proofVersion + 2
+                && owner.planningJson().equals(owner.semanticPlanJson());
     }
 
     private boolean managed(OpenCodeClient.OpenCodeSession session) {

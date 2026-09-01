@@ -170,6 +170,7 @@ class CandidateRuntimeBindingServiceTest {
         LoopSpecCompilationRow owner = mock(LoopSpecCompilationRow.class);
         when(owner.designerSessionId()).thenReturn("designer-1");
         when(owner.designRevision()).thenReturn(3);
+        when(owner.state()).thenReturn("RUNNING");
         when(owner.externalSessionId()).thenReturn("acceptance-remote");
         when(mapper.findLoopSpecCompilation("compilation-1")).thenReturn(Optional.of(owner));
         CandidateRuntimeBindingService service = new CandidateRuntimeBindingService(mapper, access);
@@ -222,6 +223,7 @@ class CandidateRuntimeBindingServiceTest {
         LoopSpecCompilationRow owner = mock(LoopSpecCompilationRow.class);
         when(owner.designerSessionId()).thenReturn("designer-1");
         when(owner.designRevision()).thenReturn(3);
+        when(owner.state()).thenReturn("RUNNING");
         when(owner.externalSessionId()).thenReturn("acceptance-remote");
         when(mapper.findLoopSpecCompilation("compilation-1")).thenReturn(Optional.of(owner));
         CandidateRuntimeBindingService service = new CandidateRuntimeBindingService(mapper, access);
@@ -238,6 +240,77 @@ class CandidateRuntimeBindingServiceTest {
 
         when(owner.version()).thenReturn(9L);
         assertThatThrownBy(() -> service.validate(waiting, INTERNAL))
+                .isInstanceOfSatisfying(ConflictException.class,
+                        failure -> assertThat(failure.code()).isEqualTo("CANDIDATE_OWNER_REVISION_STALE"));
+    }
+
+    @Test
+    void openAcceptanceRunAllowsOnlyItsExactDisconnectedCheckpoint() {
+        LoopperMapper mapper = mock(LoopperMapper.class);
+        InternalMcpRuntimeAccess access = new InternalMcpRuntimeAccess();
+        InternalMcpCredentialProvider.Credentials credentials =
+                new InternalMcpCredentialProvider(() -> 18083).issue();
+        access.activate(credentials);
+        access.connected(credentials.generation());
+        when(mapper.findOpenCodeSessionRuntimeBinding("acceptance-remote")).thenReturn(Optional.of(
+                new OpenCodeSessionRuntimeBindingRow("acceptance-remote", credentials.generation(), "MANAGED",
+                        "d".repeat(64), credentials.serverName(), "now")));
+        LoopSpecCompilationRow owner = mock(LoopSpecCompilationRow.class);
+        when(owner.designerSessionId()).thenReturn("designer-1");
+        when(owner.designRevision()).thenReturn(3);
+        when(owner.state()).thenReturn("RUNNING");
+        when(owner.externalSessionId()).thenReturn("acceptance-remote");
+        when(owner.externalSessionState()).thenReturn("DISCONNECTED");
+        when(owner.lastErrorCode()).thenReturn("OPENCODE_ACCEPTANCE_CANDIDATE_STATUS_UNCONFIRMED");
+        when(mapper.findLoopSpecCompilation("compilation-1")).thenReturn(Optional.of(owner));
+        CandidateRuntimeBindingService service = new CandidateRuntimeBindingService(mapper, access);
+        MachineCandidateSubmission.RunSnapshot open = acceptanceRun(
+                credentials.generation(), MachineCandidateRunState.OPEN);
+
+        when(owner.version()).thenReturn(8L);
+        service.validate(open, INTERNAL);
+
+        when(owner.version()).thenReturn(9L);
+        assertThatThrownBy(() -> service.validate(open, INTERNAL))
+                .isInstanceOfSatisfying(ConflictException.class,
+                        failure -> assertThat(failure.code()).isEqualTo("CANDIDATE_OWNER_REVISION_STALE"));
+    }
+
+    @Test
+    void acceptedProofAllowsOnlyTheTwoExactServerCompilationCheckpoints() {
+        LoopperMapper mapper = mock(LoopperMapper.class);
+        InternalMcpRuntimeAccess access = new InternalMcpRuntimeAccess();
+        InternalMcpCredentialProvider.Credentials credentials =
+                new InternalMcpCredentialProvider(() -> 18083).issue();
+        OpenCodeSessionRuntimeBindingRow binding = new OpenCodeSessionRuntimeBindingRow(
+                "acceptance-remote", credentials.generation(), "MANAGED",
+                "f".repeat(64), credentials.serverName(), "now");
+        when(mapper.findOpenCodeSessionRuntimeBinding("acceptance-remote"))
+                .thenReturn(Optional.of(binding));
+        LoopSpecCompilationRow owner = mock(LoopSpecCompilationRow.class);
+        when(owner.designerSessionId()).thenReturn("designer-1");
+        when(owner.designRevision()).thenReturn(3);
+        when(owner.externalSessionId()).thenReturn("acceptance-remote");
+        when(owner.externalSessionState()).thenReturn("ABORT_ACKNOWLEDGED");
+        when(owner.state()).thenReturn("RUNNING");
+        when(owner.workflowStep()).thenReturn("SERVER_COMPILING");
+        when(owner.planningJson()).thenReturn("{\"status\":\"READY\"}");
+        when(mapper.findLoopSpecCompilation("compilation-1")).thenReturn(Optional.of(owner));
+        CandidateRuntimeBindingService service = new CandidateRuntimeBindingService(mapper, access);
+        MachineCandidateSubmission.RunSnapshot accepted = acceptanceRun(
+                credentials.generation(), MachineCandidateRunState.ACCEPTED);
+
+        when(owner.version()).thenReturn(10L);
+        when(owner.serverCompiled()).thenReturn(false);
+        service.validate(accepted, INTERNAL);
+
+        when(owner.version()).thenReturn(11L);
+        when(owner.serverCompiled()).thenReturn(true);
+        when(owner.semanticPlanJson()).thenReturn("{\"status\":\"READY\"}");
+        service.validate(accepted, INTERNAL);
+
+        when(owner.version()).thenReturn(12L);
+        assertThatThrownBy(() -> service.validate(accepted, INTERNAL))
                 .isInstanceOfSatisfying(ConflictException.class,
                         failure -> assertThat(failure.code()).isEqualTo("CANDIDATE_OWNER_REVISION_STALE"));
     }

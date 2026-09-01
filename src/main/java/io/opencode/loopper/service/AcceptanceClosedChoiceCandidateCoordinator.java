@@ -151,10 +151,16 @@ final class AcceptanceClosedChoiceCandidateCoordinator {
 
     MachineCandidateSubmission.RunSnapshot close(
             String compilationId, MachineCandidateSubmission.SubmissionChannel channel) {
+        return close(compilationId, channel, MachineCandidateSubmission.CandidateCloseReason.OWNER_REQUESTED);
+    }
+
+    MachineCandidateSubmission.RunSnapshot close(
+            String compilationId, MachineCandidateSubmission.SubmissionChannel channel,
+            MachineCandidateSubmission.CandidateCloseReason reason) {
         MachineCandidateSubmission.RunSnapshot run = submissions.find(runId(compilationId, channel))
                 .orElseThrow(() -> new ConflictException("ACCEPTANCE_CANDIDATE_RUN_MISSING",
                         "验收闭集候选运行不存在"));
-        return submissions.close(new MachineCandidateSubmission.CloseCommand(run.runId(), run.version()));
+        return submissions.close(new MachineCandidateSubmission.CloseCommand(run.runId(), run.version(), reason));
     }
 
     void validate(MachineCandidateSubmission.RunSnapshot run) {

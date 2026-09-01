@@ -234,7 +234,8 @@ StatusProjector -> persisted read snapshots
 - `OutputCodec` 只做冻结合同的机械编码、解析与有界错误归一化；不得调用 OpenCode、Mapper、candidate writer 或 Designer facade。
 - `StatusProjector` 只从持久化状态生成只读投影；不得启动 Session、提交 candidate、推进生命周期或用缺失值推断执行事实。
 - policy 必须是纯业务裁决，compiler 必须是确定性转换，accepted writer 必须是 DB-only 写入；三者不得相信模型的成功声明，也不得把 MCP transport 状态当作业务接受结果。
-- 候选远端终止证明必须由窄的共享 `CandidateSessionTerminationProof` 闭集持有；角色 orchestrator、通用 runtime guard 与 Designer host 只能共同依赖该 policy，通用 guard 不得反向依赖具体角色 orchestrator。验收候选的轮询结果分派由 `DesignerAcceptanceCandidateWorkflow` 以 host 参数接回既有 Designer 状态机，不得把 transport 结算继续堆入 Designer facade。候选 `ACCEPTED/WAITING_INPUT` 与远端停止是两个状态轴，owner 版本只允许 accepted writer、恢复投影和 proof 投影的精确已知步数，不得使用 `>=` 接受无关 mutation。
+- 候选远端终止证明必须由窄的共享 `CandidateSessionTerminationProof` 闭集持有；角色 orchestrator、通用 runtime guard 与 Designer host 只能共同依赖该 policy，通用 guard 不得反向依赖具体角色 orchestrator。验收候选的轮询结果分派只通过 `DesignerAcceptanceCandidateWorkflow.Port` 的窄命令/结果函数接回既有 Designer 状态机，workflow 不得持有完整 `DesignerSessionService` facade；外部 I/O 后的 proof CAS 由独立 `AcceptanceCandidateProofService` 短事务负责。候选 `ACCEPTED/WAITING_INPUT/CLOSED` 与远端停止是两个状态轴，owner 版本只允许 accepted writer、单个 `DISCONNECTED` 恢复投影、proof 投影及 `SERVER_COMPILING/serverCompiled` 的精确已知步数，不得使用 `>=` 接受无关 mutation。
+- internal run 创建前的 managed-binding 拒绝不得用 owner 已进入 `RUNNING` 冒充 run 已打开，也不得直接失败或切 legacy；应用动作只在旧 remote 得到 ACK/ALREADY_ABSENT 后启动 fresh legacy，未确认时持久化同 compilation/Session 的 `DISCONNECTED` 恢复点，Monitor 只重试 abort，不补发 prompt 或虚构 run。
 
 `DECOMPOSITION_PLAN_V2` 的每 run 提交预算最多为 5；`ACCEPTANCE_CLOSED_CHOICE_V7` 最多为 2；`PACKAGE_DESIGN_V1` 最多为 3 且是唯一允许 Markdown fallback 的 kind。V49 为后续分阶段接入预留 `ROLLING_PACKAGE_PLAN_V1 / REVIEWER_REPORT_V1 / PROJECT_CONVENTION_V1` 各 3 次和 `JUDGE_DECISION_V1` 2 次预算，但没有 Coordinator、policy 或 writer 时必须在 open 边界失败关闭，预留枚举不得等同默认启用。唯一解、非枚举、安全或路径问题必须在 candidate 层之外由服务端直接处理并失败关闭，不能为追求重试率而扩大模型权限。
 

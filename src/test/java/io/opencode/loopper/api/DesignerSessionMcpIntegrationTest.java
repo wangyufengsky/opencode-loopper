@@ -4005,6 +4005,69 @@ class DesignerSessionMcpIntegrationTest {
     }
 
     @Test
+    void externalRuntimeFallbackWaitsForAbortProofAndRecoversWithoutDuplicatingCandidateWork() throws Exception {
+        properties.getInternalCandidate().setAcceptanceClosedChoiceV7Enabled(true);
+        fake().setJudgeOutput("ACCEPTANCE_CANDIDATE", """
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->
+                {"factAssignments":[],"capabilityPreferences":[{
+                  "factIndex":1,"capabilityIndexes":[0]}]}
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->
+                """);
+        ProjectRow project = project("external-acceptance-v7-abort-recovery");
+        Files.writeString(Path.of(project.rootPath()).resolve("pom.xml"), "<project/>\n");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        String design = trueTieDesign("Java Flow 外部运行时停止恢复");
+        fake().setDesignerOutput(designerOutput(design, legacySpec(project.id())));
+        setPackageDesignerOutput("WP-1", design);
+        DesignerSessionRow reviewing = prepareReviewingSession(project.id(), draft.id(),
+                "修改 Java Flow，并在外部 OpenCode 上安全停止旧选择器后使用兼容通道");
+
+        fake().failNextAborts(
+                OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS, 1_000);
+        designerSessions.confirmRequirement(reviewing.id(), reviewing.discussionRevision());
+
+        DesignerSessionService.CompilerStatus disconnected = null;
+        for (int attempt = 0; attempt < 120 && disconnected == null; attempt++) {
+            completeMandatoryDesignerQuestion(reviewing.id());
+            designerSessions.pollActiveHandoffs();
+            DesignerSessionService.CompilerStatus current = designerSessions.compilerStatus(reviewing.id());
+            if (current != null && "DISCONNECTED".equals(current.externalSessionState())) disconnected = current;
+        }
+        assertThat(disconnected).withFailMessage("owner=%s compiler=%s prompts=%s aborts=%s",
+                designerSessions.get(reviewing.id()), designerSessions.compilerStatus(reviewing.id()),
+                fake().promptHistory(), fake().abortedSessionIds()).isNotNull();
+        String originalRemote = disconnected.externalSessionId();
+        assertThat(disconnected.state()).isEqualTo("RUNNING");
+        assertThat(disconnected.externalSessionState()).isEqualTo("DISCONNECTED");
+        assertThat(disconnected.lastErrorCode())
+                .isEqualTo("OPENCODE_ACCEPTANCE_CANDIDATE_STOP_UNCONFIRMED");
+        assertThat(designerSessions.get(reviewing.id())).satisfies(owner -> {
+            assertThat(owner.state()).isEqualTo("RUNNING");
+            assertThat(owner.workflowPhase()).isEqualTo("COMPILING");
+            assertThat(owner.externalSessionId()).isEqualTo(originalRemote);
+        });
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM ai_candidate_submission_run
+                WHERE owner_type='LOOP_SPEC_COMPILATION' AND owner_id=?
+                """, Integer.class, disconnected.id())).isZero();
+        assertThat(fake().promptHistory()).noneMatch(call -> call.sessionId().equals(originalRemote));
+        assertThat(mapper.listTasks()).isEmpty();
+
+        fake().failNextAborts(
+                OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS, 0);
+        pollUntilSettled(reviewing.id());
+
+        assertThat(designerSessions.get(reviewing.id()).workflowPhase()).isEqualTo("FINAL_REVIEW");
+        assertThat(fake().abortedSessionIds()).contains(originalRemote);
+        assertThat(jdbc.queryForList("""
+                SELECT submission_channel FROM ai_candidate_submission_run
+                WHERE owner_type='LOOP_SPEC_COMPILATION' AND owner_id=? ORDER BY created_at
+                """, String.class, disconnected.id())).containsExactly("IN_PROCESS_LEGACY");
+        assertThat(designerSessions.compilerStatus(reviewing.id()).candidateSubmissions()).isEqualTo(1);
+        assertThat(mapper.listTasks()).isEmpty();
+    }
+
+    @Test
     void disabledV7CandidateFlagKeepsThePreviousJsonCompilerPath() throws Exception {
         properties.getInternalCandidate().setAcceptanceClosedChoiceV7Enabled(false);
         fake().setPackageCompilerPlanningOutput("WP-1", """

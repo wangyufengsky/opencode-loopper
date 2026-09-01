@@ -20,7 +20,7 @@ class CandidateSubmissionMigrationTest {
     @TempDir Path temporaryDirectory;
 
     @Test
-    void createsV49CandidateSubmissionContractsOnFreshAndV46Databases() throws Exception {
+    void createsCurrentCandidateSubmissionContractsOnFreshAndV46Databases() throws Exception {
         verifyMigration(temporaryDirectory.resolve("fresh.db"), false);
         verifyMigration(temporaryDirectory.resolve("upgrade-v46.db"), true);
     }
@@ -35,7 +35,7 @@ class CandidateSubmissionMigrationTest {
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
 
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("49");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("50");
         assertThat(flyway.migrate().migrationsExecuted).isZero();
         try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
             statement.execute("PRAGMA foreign_keys=ON");
@@ -69,7 +69,7 @@ class CandidateSubmissionMigrationTest {
                 while (result.next()) runColumns.add(result.getString("name"));
             }
             assertThat(runColumns).contains("designer_session_id", "task_id", "project_id", "owner_type",
-                            "owner_id", "source_revision", "owner_version", "submission_channel")
+                            "owner_id", "source_revision", "owner_version", "submission_channel", "close_reason")
                     .doesNotContain("task_decomposition_id", "loop_spec_compilation_id", "design_work_package_id");
 
             List<String> compilationColumns = new ArrayList<>();
@@ -252,7 +252,7 @@ class CandidateSubmissionMigrationTest {
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
 
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("49");
+            assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("50");
         try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
             statement.execute("PRAGMA foreign_keys=ON");
             try (var result = statement.executeQuery("SELECT owner_type,owner_id,state,version "
@@ -334,7 +334,7 @@ class CandidateSubmissionMigrationTest {
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
 
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("49");
+            assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("50");
         try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
             statement.execute("PRAGMA foreign_keys=ON");
             try (var result = statement.executeQuery("""
@@ -392,6 +392,15 @@ class CandidateSubmissionMigrationTest {
                       '2026-08-31T01:00:01Z','2026-08-31T01:00:03Z',2)
                     """);
             statement.executeUpdate("""
+                    INSERT INTO ai_candidate_submission_run(
+                      id,designer_session_id,loop_spec_compilation_id,candidate_kind,workflow_step,source_revision,
+                      owner_version,submission_channel,contract_version,runtime_generation_id,external_session_id,
+                      state,max_attempts,attempts_used,created_at,updated_at,version)
+                    VALUES('historical-closed-acceptance-run','s','cmp','ACCEPTANCE_CLOSED_CHOICE_V7','CLOSED_CHOICE',7,3,
+                      'INTERNAL_MCP','ACCEPTANCE_CLOSED_CHOICE_V7','acceptance-generation','acceptance-remote',
+                      'CLOSED',2,0,'2026-08-31T01:00:01Z','2026-08-31T01:00:03Z',1)
+                    """);
+            statement.executeUpdate("""
                     INSERT INTO ai_candidate_submission_attempt(
                       id,run_id,ordinal,idempotency_key,request_sha256,outcome,retryable,problems_json,response_json,
                       canonical_result_sha256,created_at)
@@ -415,7 +424,7 @@ class CandidateSubmissionMigrationTest {
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
 
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("49");
+            assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("50");
         try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
             statement.execute("PRAGMA foreign_keys=ON");
             try (var result = statement.executeQuery("""
@@ -446,6 +455,14 @@ class CandidateSubmissionMigrationTest {
                 assertThat(result.getString("created_at")).isEqualTo("2026-08-31T01:00:01Z");
                 assertThat(result.getString("updated_at")).isEqualTo("2026-08-31T01:00:03Z");
                 assertThat(result.getInt("version")).isEqualTo(2);
+            }
+            try (var result = statement.executeQuery("""
+                    SELECT state,close_reason FROM ai_candidate_submission_run
+                    WHERE id='historical-closed-acceptance-run'
+                    """)) {
+                assertThat(result.next()).isTrue();
+                assertThat(result.getString("state")).isEqualTo("CLOSED");
+                assertThat(result.getString("close_reason")).isNull();
             }
             try (var result = statement.executeQuery("""
                     SELECT id,ordinal,idempotency_key,request_sha256,outcome,retryable,problems_json,response_json,

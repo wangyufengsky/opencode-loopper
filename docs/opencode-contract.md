@@ -263,10 +263,24 @@ or `abortWithConfirmation` returns `ACKNOWLEDGED / ALREADY_ABSENT`. The positive
 proof is persisted as `REMOTE_COMPLETED / ABORT_ACKNOWLEDGED / ALREADY_ABSENT`;
 `CANDIDATE_ACCEPTED` is never used as a stop claim. Transport, abort, or generation
 uncertainty keeps the same run/Session recoverable as `DISCONNECTED` and creates
-no Task or compiled plan. Once a positive proof is persisted, restart settlement
+no Task or compiled plan. The unchanged open run recognizes exactly one persisted
+`DISCONNECTED` owner checkpoint, so a late submission from that same external Session
+can still settle without another prompt; a second owner drift is rejected. Run close
+persists its exact reason. Only remote-completed zero-submission close may start legacy;
+timeout, provider failure, forbidden interaction, owner-requested close, and historical
+`CLOSED` rows with no reason never fall back. After any external termination I/O, a
+short proof transaction revalidates the original run/version, Designer state, owner,
+source, external Session and runtime binding before CAS; `STOPPING/CANCELLED` and stale
+ownership preserve the current run and do not invoke generic failure settlement.
+If an external runtime is rejected by the managed binding guard before an internal run exists,
+its compilation and remote remain `RUNNING / DISCONNECTED`; Monitor retries abort without
+creating a candidate run or prompt and opens the fresh legacy run only after ACK/absence proof.
+Once a positive proof is persisted, restart settlement
 may validate its frozen binding identity and owner/source without requiring the
 old managed process generation to remain active; before proof, the original active
-generation remains mandatory. A legacy output is read only after its own Session
+generation remains mandatory. The exact proof + `SERVER_COMPILING` + `serverCompiled`
+version checkpoints are resumable, while any additional owner drift fails closed.
+A legacy output is read only after its own Session
 normally completes and still passes the same closed candidate policy.
 
 The structural candidate qualification observes model prompt calls, OpenCode candidate Sessions, and MCP

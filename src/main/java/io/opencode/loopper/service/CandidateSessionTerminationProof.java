@@ -17,6 +17,9 @@ enum CandidateSessionTerminationProof {
     }
 
     static CandidateSessionTerminationProof from(OpenCodeClient.AbortConfirmation confirmation) {
+        if (confirmation == null) throw new ConflictException(
+                "OPENCODE_ACCEPTANCE_CANDIDATE_STOP_UNCONFIRMED",
+                "OpenCode abort did not return a positive acknowledgement");
         return confirmation == OpenCodeClient.AbortConfirmation.ALREADY_ABSENT
                 ? ALREADY_ABSENT : ABORT_ACKNOWLEDGED;
     }

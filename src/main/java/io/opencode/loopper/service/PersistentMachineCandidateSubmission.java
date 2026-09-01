@@ -114,18 +114,25 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
 
     @Override
     public synchronized RunSnapshot close(CloseCommand command) {
-        if (command == null || blank(command.runId()) || command.expectedVersion() < 0) {
+        if (command == null || blank(command.runId()) || command.expectedVersion() < 0 || command.reason() == null) {
             throw new BadRequestException("CANDIDATE_CLOSE_INVALID", "候选运行关闭参数不完整");
         }
         CandidateSubmissionRunRow run = requireRun(command.runId());
         MachineCandidateRunState state = MachineCandidateRunState.valueOf(run.state());
-        if (state.terminal()) return snapshot(run);
+        if (state.terminal()) {
+            if (state == MachineCandidateRunState.CLOSED
+                    && !command.reason().name().equals(run.closeReason())) {
+                throw new ConflictException("CANDIDATE_CLOSE_REASON_CONFLICT", "候选运行已按其他原因关闭");
+            }
+            return snapshot(run);
+        }
         if (run.version() != command.expectedVersion()) {
             throw new ConflictException("CANDIDATE_RUN_VERSION_CONFLICT", "候选运行已被其他请求更新");
         }
         CandidateSubmissionRunRow closed = updated(run, MachineCandidateRunState.CLOSED,
-                run.attemptsUsed(), run.terminalAttemptId(), Instant.now().toString());
-        lifecycle.transition(subject(run), run.state(), closed.state(), "CANDIDATE_RUN_CLOSED", Map.of(),
+                run.attemptsUsed(), run.terminalAttemptId(), Instant.now().toString(), command.reason());
+        lifecycle.transition(subject(run), run.state(), closed.state(), "CANDIDATE_RUN_CLOSED",
+                Map.of("closeReason", command.reason().name()),
                 () -> mapper.updateCandidateSubmissionRun(closed),
                 () -> new ConflictException("CANDIDATE_RUN_VERSION_CONFLICT", "候选运行已被其他请求更新"));
         return snapshot(mapper.findCandidateSubmissionRun(run.id()).orElseThrow());
@@ -378,7 +385,8 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
                 MachineCandidateKind.valueOf(row.candidateKind()), row.workflowStep(), row.sourceRevision(),
                 row.ownerVersion(), SubmissionChannel.valueOf(row.submissionChannel()), row.contractVersion(),
                 row.runtimeGenerationId(), row.externalSessionId(), MachineCandidateRunState.valueOf(row.state()),
-                row.maxAttempts(), row.attemptsUsed(), row.terminalAttemptId(), row.version());
+                row.maxAttempts(), row.attemptsUsed(), row.terminalAttemptId(), row.version(),
+                blank(row.closeReason()) ? null : CandidateCloseReason.valueOf(row.closeReason()));
     }
 
     private CandidateOwnerRef owner(CandidateSubmissionRunRow row) {
@@ -394,11 +402,17 @@ public final class PersistentMachineCandidateSubmission implements MachineCandid
 
     private CandidateSubmissionRunRow updated(CandidateSubmissionRunRow row, MachineCandidateRunState state,
                                               int attemptsUsed, String terminalAttemptId, String updatedAt) {
+        return updated(row, state, attemptsUsed, terminalAttemptId, updatedAt, null);
+    }
+
+    private CandidateSubmissionRunRow updated(CandidateSubmissionRunRow row, MachineCandidateRunState state,
+                                              int attemptsUsed, String terminalAttemptId, String updatedAt,
+                                              CandidateCloseReason closeReason) {
         return new CandidateSubmissionRunRow(row.id(), row.designerSessionId(), row.taskId(), row.projectId(),
                 row.ownerType(), row.ownerId(), row.candidateKind(), row.workflowStep(), row.sourceRevision(),
                 row.ownerVersion(), row.submissionChannel(), row.contractVersion(), row.runtimeGenerationId(),
                 row.externalSessionId(), state.name(), row.maxAttempts(), attemptsUsed, terminalAttemptId,
-                row.createdAt(), updatedAt, row.version());
+                row.createdAt(), updatedAt, row.version(), closeReason == null ? row.closeReason() : closeReason.name());
     }
 
     private LifecycleTransitionService.Subject subject(CandidateSubmissionRunRow row) {

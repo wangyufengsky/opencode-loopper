@@ -560,9 +560,22 @@ Candidate acceptance and remote Session termination remain separate state axes.
 runtime guard, and Designer host all depend on that policy rather than inferring
 termination from `ACCEPTED`. Until one proof is persisted, binding/generation,
 owner/source, and exact owner-version checks must pass and an uncertain stop stays
-on the same recoverable run as `DISCONNECTED`. After proof, a restarted JVM may
+on the same recoverable run as `DISCONNECTED`. An open run may consume exactly one
+such persisted recovery checkpoint and still accept a later submission from its
+unchanged Session; every additional owner mutation is stale. Closing a run persists
+one exact reason, and only `NORMAL_COMPLETION_ZERO_SUBMISSION` plus remote completion
+may start legacy; timeout, provider failure, forbidden interaction, owner-requested
+close, and historical `CLOSED + NULL` all fail closed. After external status/abort I/O,
+`AcceptanceCandidateProofService` re-reads the original run, Designer state, owner,
+source revision, external Session and version in one short transaction before it may
+CAS the proof; `STOPPING/CANCELLED` or a replaced owner/session leaves the run untouched.
+If an external runtime fails the managed binding guard before the internal run is opened,
+the compilation retains that remote as `RUNNING / DISCONNECTED`; Monitor retries its abort
+without a prompt or candidate run and creates the fresh legacy run only after ACK/absence proof.
+After proof, a restarted JVM may
 settle from the frozen binding identity even if the managed generation has rotated,
-but unrelated owner-version drift still fails closed. Compilation, human-input
+and the exact `SERVER_COMPILING` then `serverCompiled` checkpoints may resume
+idempotently, but unrelated owner-version drift still fails closed. Compilation, human-input
 transition, run close, and legacy handoff all occur strictly after this boundary.
 
 New Compiler rows treat the compact semantic object as the default. Only an explicit

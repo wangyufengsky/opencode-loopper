@@ -94,7 +94,9 @@ public class DesignerSessionService {
     private final DesignerAcceptanceWorkflow acceptanceWorkflow;
     private final DesignerStatusProjector statusProjector;
     private final DesignerAcceptanceCandidateOrchestrator acceptanceCandidates;
+    private final AcceptanceCandidateProofService acceptanceCandidateProofs;
     private final DesignerAcceptanceCandidateWorkflow acceptanceCandidateWorkflow;
+    private final DesignerAcceptanceCandidateWorkflow.Port acceptanceCandidatePort;
     private final DesignerMutationOwnershipRecovery mutationOwnershipRecovery;
     private final AiRepairPatchService repairPatchService;
     private final DesignerEventHub events;
@@ -123,7 +125,7 @@ public class DesignerSessionService {
                                   DesignerEvidenceIndexer evidenceIndexer, AiRepairPatchService repairPatchService,
                                   DesignerEventHub events, TaskProfileService taskProfiles,
                                   DesignerSessionRuntimeControl runtimeControl, RolePromptComposer rolePrompts,
-                                  DesignerAcceptanceCandidateOrchestrator acceptanceCandidates,
+                                  DesignerAcceptanceCandidateOrchestrator acceptanceCandidates, AcceptanceCandidateProofService acceptanceCandidateProofs,
                                   DesignerDecompositionCandidateCoordinator decompositionCandidates, DesignerDecompositionCandidateCompiler decompositionCandidateCompiler,
                                   DesignerPackageCandidateOrchestrator packageDesignCandidates,
                                   WorkPackageRoleService workPackageRoles,
@@ -143,7 +145,7 @@ public class DesignerSessionService {
         this.packagePlanCompiler = new DesignerPackagePlanCompiler(evidenceIndexer);
         this.acceptanceWorkflow = new DesignerAcceptanceWorkflow(mapper, json, aiOutputExtractor, lifecycle, evidenceIndexer, packagePlanCompiler);
         this.statusProjector = new DesignerStatusProjector(mapper, json, acceptanceWorkflow);
-        this.acceptanceCandidates = acceptanceCandidates;
+        this.acceptanceCandidates = acceptanceCandidates; this.acceptanceCandidateProofs = acceptanceCandidateProofs;
         this.mutationOwnershipRecovery = new DesignerMutationOwnershipRecovery(mapper, acceptanceWorkflow);
         this.repairPatchService = repairPatchService;
         this.events = events;
@@ -166,8 +168,11 @@ public class DesignerSessionService {
         this.rollingPackages = rollingPackages;
         this.attachmentContext = attachmentContext;
         this.modelPrompts = new DesignerModelPromptTransport(openCode, attachmentContext, json);
-        this.acceptanceCandidateWorkflow = new DesignerAcceptanceCandidateWorkflow(
-                acceptanceWorkflow, acceptanceCandidates, projects, modelPrompts);
+        this.acceptanceCandidateWorkflow = new DesignerAcceptanceCandidateWorkflow(acceptanceWorkflow, acceptanceCandidates, acceptanceCandidateProofs, projects, modelPrompts);
+        this.acceptanceCandidatePort = new DesignerAcceptanceCandidateWorkflow.Port(
+                this::currentRequirement, this::requireCurrentPackage, this::completeAcceptedAcceptanceCandidate,
+                this::waitAcceptanceCandidate, this::dispatchLegacyAcceptanceCandidate, this::consumeModelCall,
+                this::publish, this::get, this::getCompilation, this::updateCompilation, this::updateDesignerProjection, this::failPackageCompilation);
     }
     public DesignerSessionRow create(String projectId, String initialMessage) {
         return create(projectId, null, initialMessage);
@@ -2296,13 +2301,18 @@ public class DesignerSessionService {
             DesignerAcceptanceWorkflow.RoutingResult routing) {
         ProjectRow project = designProject(session);
         OpenCodeClient.OpenCodeSession remote = null;
+        LoopSpecCompilationRow running = null;
         boolean opened = false;
         try {
             remote = acceptanceCandidates.createInternal(
                     Path.of(project.rootPath()), responseModel(ModelResponseMode.TEXT_MARKER));
-            LoopSpecCompilationRow running = updateCompilation(
+            running = updateCompilation(
                     pending, LoopSpecCompilationState.RUNNING, remote.id(), "CANDIDATE_RUNNING", 0,
                     null, null, session.projectId(), null);
+            if (!consumeModelCall(get(session.id()), revision, "WORK_PACKAGE_MODEL_CALL_LIMIT")) {
+                runtimeControl.abortQuietly(remote.id(), session.projectId());
+                return;
+            }
             DesignerAcceptanceCandidateOrchestrator.Start start =
                     acceptanceCandidates.openInternal(running, planning, routing, remote);
             opened = true;
@@ -2310,42 +2320,54 @@ public class DesignerSessionService {
                     get(session.id()), DesignerSessionState.RUNNING, DesignWorkflowPhase.COMPILING,
                     remote.id(), "CANDIDATE_RUNNING", session.designRevision(), session.redesignCount(),
                     revision.revision(), workPackage.packageId());
-            if (!consumeModelCall(current, revision, "WORK_PACKAGE_MODEL_CALL_LIMIT")) {
-                acceptanceCandidates.closeQuietly(
-                        running.id(), MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP);
-                runtimeControl.abortQuietly(remote.id(), session.projectId());
-                return;
-            }
             modelPrompts.submit(remote, start.prompt(), ModelResponseMode.TEXT_MARKER.name(), null,
                     session.id(), workPackage.packageId());
             publish(current, "STATUS", DesignerActor.COMPILER, true, "",
                     workPackage.packageId() + " 正在同一无工具 Session 中提交 v7 验收闭集候选");
         } catch (ConflictException unavailable) {
             if (!opened && acceptanceCandidateFallbackEligible(unavailable.code()) && remote != null) {
-                openCode.abortWithConfirmation(remote);
-                dispatchLegacyAcceptanceCandidate(getCompilation(pending.id()), session, revision,
-                        workPackage, planning, routing, null);
+                var stopped = acceptanceCandidates.stopUnopened(remote);
+                if (!stopped.confirmed()) { disconnectAcceptanceCandidateHandoff(running, session, remote,
+                        "OPENCODE_ACCEPTANCE_CANDIDATE_STOP_UNCONFIRMED", stopped.detail()); return; }
+                dispatchLegacyAcceptanceCandidate(getCompilation(pending.id()), session, revision, workPackage, planning, routing, null);
                 return;
             }
-            if (opened) acceptanceCandidates.closeQuietly(
-                    pending.id(), MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP);
+            if (opened) { disconnectAcceptanceCandidateHandoff(
+                    running, session, remote, unavailable.code(), unavailable.getMessage()); return; }
             failPackageCompilation(getCompilation(pending.id()), session,
                     unavailable.code(), unavailable.getMessage(), false);
         } catch (SessionFailure unavailable) {
+            if (opened) { disconnectAcceptanceCandidateHandoff(
+                    running, session, remote, unavailable.code(), unavailable.getMessage()); return; }
             if (!opened && acceptanceCandidateFallbackEligible(unavailable.code())) {
-                if (remote != null) openCode.abortWithConfirmation(remote);
-                dispatchLegacyAcceptanceCandidate(getCompilation(pending.id()), session, revision,
-                        workPackage, planning, routing, null);
+                if (remote != null) {
+                    var stopped = acceptanceCandidates.stopUnopened(remote);
+                    if (!stopped.confirmed()) { disconnectAcceptanceCandidateHandoff(running, session, remote,
+                            "OPENCODE_ACCEPTANCE_CANDIDATE_STOP_UNCONFIRMED", stopped.detail()); return; }
+                }
+                dispatchLegacyAcceptanceCandidate(getCompilation(pending.id()), session, revision, workPackage, planning, routing, null);
                 return;
             }
             failPackageCompilation(getCompilation(pending.id()), session,
                     unavailable.code(), unavailable.getMessage(), false);
         } catch (RuntimeException failure) {
-            if (opened) acceptanceCandidates.closeQuietly(
-                    pending.id(), MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP);
+            if (opened) { disconnectAcceptanceCandidateHandoff(running, session, remote,
+                    "OPENCODE_ACCEPTANCE_CANDIDATE_HANDOFF_UNCONFIRMED", failure.getMessage()); return; }
             failPackageCompilation(getCompilation(pending.id()), session,
                     "OPENCODE_ACCEPTANCE_CANDIDATE_HANDOFF_FAILED", failure.getMessage(), false);
         }
+    }
+
+    private void disconnectAcceptanceCandidateHandoff(LoopSpecCompilationRow running, DesignerSessionRow session, OpenCodeClient.OpenCodeSession remote, String code, String detail) {
+        LoopSpecCompilationRow current = getCompilation(running.id());
+        updateCompilation(current, LoopSpecCompilationState.RUNNING, remote.id(), "DISCONNECTED",
+                current.repairCount(), code, safeMessage(detail), session.projectId(), current.compiledPackageJson());
+        DesignerSessionRow owner = get(session.id());
+        if (DesignerSessionState.STOPPING.name().equals(owner.state())
+                || DesignerSessionState.CANCELLED.name().equals(owner.state())) return;
+        updateDesignerProjection(owner, DesignerSessionState.RUNNING, DesignWorkflowPhase.COMPILING,
+                remote.id(), "DISCONNECTED", owner.designRevision(), owner.redesignCount(),
+                owner.currentRequirementRevision(), owner.activeWorkPackageId());
     }
 
     void dispatchLegacyAcceptanceCandidate(
@@ -2361,18 +2383,16 @@ public class DesignerSessionService {
             LoopSpecCompilationRow running = updateCompilation(
                     current, LoopSpecCompilationState.RUNNING, remote.id(), "CANDIDATE_LEGACY_RUNNING",
                     current.repairCount(), null, null, session.projectId(), current.compiledPackageJson());
+            if (!consumeModelCall(get(session.id()), revision, "WORK_PACKAGE_MODEL_CALL_LIMIT")) {
+                runtimeControl.abortQuietly(remote.id(), session.projectId());
+                return;
+            }
             DesignerAcceptanceCandidateOrchestrator.Start start =
                     acceptanceCandidates.openLegacy(running, planning, routing, remote, rejected);
             DesignerSessionRow projected = updateDesignerProjection(
                     get(session.id()), DesignerSessionState.RUNNING, DesignWorkflowPhase.COMPILING,
                     remote.id(), "CANDIDATE_LEGACY_RUNNING", session.designRevision(),
                     session.redesignCount(), revision.revision(), workPackage.packageId());
-            if (!consumeModelCall(projected, revision, "WORK_PACKAGE_MODEL_CALL_LIMIT")) {
-                acceptanceCandidates.closeQuietly(
-                        running.id(), MachineCandidateSubmission.SubmissionChannel.IN_PROCESS_LEGACY);
-                runtimeControl.abortQuietly(remote.id(), session.projectId());
-                return;
-            }
             modelPrompts.submit(remote, start.prompt(), ModelResponseMode.TEXT_MARKER.name(), null,
                     session.id(), workPackage.packageId());
             publish(projected, "STATUS", DesignerActor.COMPILER, true, "",
@@ -2573,7 +2593,7 @@ public class DesignerSessionService {
                     designMessage(workPackage).content(), workPackageRoles.get(workPackage));
             return;
         }
-        if (acceptanceCandidateWorkflow.poll(this, compilation, session,
+        if (acceptanceCandidateWorkflow.poll(acceptanceCandidatePort, compilation, session,
                 timedOut(compilation.updatedAt()))) return;
         ProjectRow project = projects.get(session.projectId());
         OpenCodeClient.OpenCodeSession remote = new OpenCodeClient.OpenCodeSession(
@@ -2645,14 +2665,20 @@ public class DesignerSessionService {
             failCompilation(compilation, session, "OPENCODE_COMPILER_STATUS_FAILED", failure.getMessage());
         }
     }
-
-    void completeAcceptedAcceptanceCandidate(
-            LoopSpecCompilationRow input, DesignerSessionRow session,
+    void completeAcceptedAcceptanceCandidate(LoopSpecCompilationRow input, DesignerSessionRow session,
             DesignWorkPackageRow workPackage, OpenCodeClient.OpenCodeSession remote,
-            String terminationProof) {
+            MachineCandidateSubmission.RunSnapshot run, String terminationProof) {
+        LoopSpecCompilationRow compilation = acceptanceCandidateProofs
+                .persistIfOwned(run, terminationProof).orElse(null);
+        if (compilation == null) return;
         try {
-            LoopSpecCompilationRow compilation = persistAcceptanceCandidateProof(
-                    getCompilation(input.id()), session, remote, terminationProof);
+            if (StructuredModelStep.SERVER_COMPILING.name().equals(compilation.workflowStep()) && !blank(compilation.planningJson())) {
+                PackageCompilationPlanEnvelope frozen = readPackageCompilationPlan(compilation.planningJson());
+                LoopSpecCompilationRow recovered = compilation.serverCompiled() ? compilation
+                        : markCompilationServerCompiled(compilation, compilation.planningJson());
+                handlePackageCompilationEnvelope(recovered, session, remote, compilePackagePlan(frozen));
+                return;
+            }
             DesignAcceptancePlanningRow planning = acceptanceWorkflow.find(compilation.id()).orElseThrow();
             WorkPackageRoleService.View role = workPackageRoles.get(workPackage);
             DesignerAcceptanceWorkflow.BoundResult bound = acceptanceWorkflow.compileAcceptedCandidate(
@@ -2681,23 +2707,27 @@ public class DesignerSessionService {
                     failure.getMessage(), false);
         }
     }
-
     void waitAcceptanceCandidate(
             LoopSpecCompilationRow input, DesignerSessionRow session,
             DesignWorkPackageRow workPackage, String code, String detail,
             List<MachineCandidateSubmission.Problem> problems) {
         waitAcceptanceCandidate(input, session, workPackage, code, detail, problems, null);
     }
-
     void waitAcceptanceCandidate(
             LoopSpecCompilationRow input, DesignerSessionRow session,
             DesignWorkPackageRow workPackage, String code, String detail,
             List<MachineCandidateSubmission.Problem> problems, String terminationProof) {
+        waitAcceptanceCandidate(input, session, workPackage, code, detail, problems, null, terminationProof);
+    }
+    void waitAcceptanceCandidate(
+            LoopSpecCompilationRow input, DesignerSessionRow session,
+            DesignWorkPackageRow workPackage, String code, String detail,
+            List<MachineCandidateSubmission.Problem> problems,
+            MachineCandidateSubmission.RunSnapshot run, String terminationProof) {
         LoopSpecCompilationRow compilation = getCompilation(input.id());
         if (terminationProof != null) {
-            compilation = persistAcceptanceCandidateProof(compilation, session,
-                    new OpenCodeClient.OpenCodeSession(input.externalSessionId(),
-                            Path.of(designProject(session).rootPath())), terminationProof);
+            compilation = acceptanceCandidateProofs.persistIfOwned(run, terminationProof).orElse(null);
+            if (compilation == null) return;
         }
         if (LoopSpecCompilationState.PENDING_HANDOFF.name().equals(compilation.state())) {
             compilation = updateCompilation(compilation, LoopSpecCompilationState.RUNNING,
@@ -2720,21 +2750,6 @@ public class DesignerSessionService {
                 "DESIGN_INCOMPLETE", session.currentRequirementRevision(), workPackage.packageId());
         waitForDesignInput(session, currentRequirement(session.id()), waiting, code, detail);
     }
-
-    LoopSpecCompilationRow persistAcceptanceCandidateProof(
-            LoopSpecCompilationRow compilation, DesignerSessionRow session,
-            OpenCodeClient.OpenCodeSession remote, String proof) {
-        if (!CandidateSessionTerminationProof.persisted(proof)) {
-            throw new ConflictException("ACCEPTANCE_CANDIDATE_STOP_UNCONFIRMED",
-                    "验收闭集候选缺少远端终止证明");
-        }
-        if (same(compilation.externalSessionState(), proof)) return compilation;
-        return updateCompilation(compilation, LoopSpecCompilationState.RUNNING,
-                remote.id(), proof, compilation.repairCount(), compilation.lastErrorCode(),
-                compilation.lastErrorDetail(),
-                session.projectId(), compilation.compiledPackageJson());
-    }
-
     private boolean recoverDecompositionToolLoop(TaskDecompositionRow row, DesignerSessionRow session,
                                                  OpenCodeClient.OpenCodeSession failedRemote,
                                                  SessionFailure failure) {
@@ -2772,7 +2787,6 @@ public class DesignerSessionService {
             return false;
         }
     }
-
     private boolean recoverCompilationToolLoop(LoopSpecCompilationRow row, DesignerSessionRow session,
                                                OpenCodeClient.OpenCodeSession failedRemote,
                                                SessionFailure failure) {

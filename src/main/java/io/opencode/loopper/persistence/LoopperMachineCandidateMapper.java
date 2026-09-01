@@ -26,11 +26,11 @@ public interface LoopperMachineCandidateMapper {
               id,designer_session_id,task_id,project_id,owner_type,owner_id,candidate_kind,workflow_step,
               source_revision,owner_version,submission_channel,contract_version,runtime_generation_id,
               external_session_id,state,max_attempts,
-              attempts_used,terminal_attempt_id,created_at,updated_at,version)
+              attempts_used,terminal_attempt_id,created_at,updated_at,version,close_reason)
             VALUES(#{id},#{designerSessionId},#{taskId},#{projectId},#{ownerType},#{ownerId},#{candidateKind},
               #{workflowStep},#{sourceRevision},#{ownerVersion},#{submissionChannel},#{contractVersion},
               #{runtimeGenerationId},#{externalSessionId},#{state},#{maxAttempts},#{attemptsUsed},
-              #{terminalAttemptId},#{createdAt},#{updatedAt},#{version})
+              #{terminalAttemptId},#{createdAt},#{updatedAt},#{version},#{closeReason})
             """)
     int insertCandidateSubmissionRun(CandidateSubmissionRunRow row);
 
@@ -39,7 +39,8 @@ public interface LoopperMachineCandidateMapper {
 
     @Update("""
             UPDATE ai_candidate_submission_run SET state=#{state},attempts_used=#{attemptsUsed},
-              terminal_attempt_id=#{terminalAttemptId},updated_at=#{updatedAt},version=version+1
+              terminal_attempt_id=#{terminalAttemptId},updated_at=#{updatedAt},close_reason=#{closeReason},
+              version=version+1
             WHERE id=#{id} AND version=#{version}
             """)
     int updateCandidateSubmissionRun(CandidateSubmissionRunRow row);
