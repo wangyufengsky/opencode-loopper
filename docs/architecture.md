@@ -233,9 +233,11 @@ from the current or legacy task profile instead of parsing nullable enum columns
 V37 copies that package decision into each confirmed Stage, so retries and Recovery compose
 implementation prompts from the immutable Stage snapshot. Read-only review/research creates
 an independent `REVIEWER_READ_ONLY` Session. V39 requires `REVIEWER_REPORT_V1` structured
-findings, validates every managed path and exact line before deterministically rendering
-Markdown and hashing sources, persists the contract version/findings/response mode/deadline
-in `analysis_report`, and never
+findings. Since 0.3.10 the extracted Legacy payload enters one `ReviewerReportCompilation`:
+the service binds every finding to one managed relative path, exact line and source digest,
+rejects the whole candidate if any binding is absent or unsafe, and only then renders Markdown
+and hashes the canonical result. Partial finding filtering is forbidden. The contract version,
+canonical findings, response mode and deadline remain persisted in `analysis_report`, which never
 creates a Task, lease, branch, Attempt, or writable Session. Safe local maintenance uses
 one implicit package with exact relative paths and a mandatory no-delete `GIT_DIFF`; the
 draft confirmation gate rejects wildcard paths, process/browser/database verifiers,
@@ -507,9 +509,11 @@ seven concrete owner rows removes its candidate run and dependent attempts in th
 same transaction; package-design deletion also removes its accepted result, while
 the other kinds have no separate accepted-result table. V49 also reserves bounded contracts for
 `ROLLING_PACKAGE_PLAN_V1` (3), `REVIEWER_REPORT_V1` (3),
-`PROJECT_CONVENTION_V1` (3), and `JUDGE_DECISION_V1` (2). V56 connects only
-`ROLLING_PACKAGE_PLAN_V1`; Reviewer, Convention, and Judge still fail closed until
-their role adapters exist. Fallback compatibility is an explicit per-kind contract;
+`PROJECT_CONVENTION_V1` (3), and `JUDGE_DECISION_V1` (2). V56 connects
+`ROLLING_PACKAGE_PLAN_V1`; 0.3.10 adds the Reviewer single deterministic compiler but not its
+Candidate Coordinator, policy, accepted writer, durable launch, or qualification switch.
+Reviewer Candidate runs therefore still fail closed at the open boundary; Convention and Judge
+remain equally inactive until their role adapters exist. Fallback compatibility is an explicit per-kind contract;
 only `PACKAGE_DESIGN_V1` may request Markdown fallback.
 
 V56 gives rolling replanning the same dual-entry/single-core boundary. The candidate

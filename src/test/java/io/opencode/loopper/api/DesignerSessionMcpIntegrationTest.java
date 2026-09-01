@@ -1248,6 +1248,37 @@ class DesignerSessionMcpIntegrationTest {
     }
 
     @Test
+    void readOnlyReviewRejectsTheWholeReportWhenAnyFindingLacksManagedEvidence() throws Exception {
+        ProjectRow project = project("independent-reviewer-all-findings");
+        Files.writeString(Path.of(project.rootPath()).resolve("README.md"), "# Baseline\n\nreview target\n");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        fake().setDesignerOutput("# 只读评审范围\n\n逐条验证 Reviewer finding 的受管证据。");
+        fake().setJudgeOutput("REVIEWER", """
+                <!-- REVIEWER_REPORT_JSON_START -->
+                {"title":"只读评审报告","summary":"包含一条有效与一条无效引用。","findings":[
+                  {"severity":"INFO","title":"有效引用","detail":"README 存在。","path":"README.md","line":1,"recommendation":"保留。"},
+                  {"severity":"HIGH","title":"无效引用","detail":"文件不存在。","path":"missing.txt","line":1,"recommendation":"不得静默忽略。"}
+                ],"limitations":[]}
+                <!-- REVIEWER_REPORT_JSON_END -->
+                """);
+        DesignerSessionRow session = prepareReviewingSession(project.id(), draft.id(),
+                "只读评审当前项目并逐条验证证据");
+
+        taskProfiles.freeze(session.id());
+        designerSessions.beginReadOnlyReport(session.id());
+        AnalysisReportService.View started = reports.startReviewer(session.id());
+        reports.pollActive();
+        AnalysisReportService.View failed = reports.get(session.id(), started.id());
+
+        assertThat(failed.state()).isEqualTo("FAILED");
+        assertThat(failed.errorCode()).isEqualTo("REPORT_EVIDENCE_INVALID");
+        assertThat(failed.evidence()).isEmpty();
+        assertThat(failed.findings()).isEmpty();
+        assertThat(mapper.listTasks()).isEmpty();
+        assertThat(mapper.findWorkspaceLease(Path.of(project.rootPath()).toRealPath().toString())).isEmpty();
+    }
+
+    @Test
     void mixedPackagesFreezeIndependentStackAndTestPolicies() throws Exception {
         ProjectRow project = project("mixed-role-packs");
         Files.writeString(Path.of(project.rootPath()).resolve("pom.xml"), "<project/>\n");

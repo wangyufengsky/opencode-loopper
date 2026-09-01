@@ -9,7 +9,6 @@ import io.opencode.loopper.persistence.DesignerTaskProfileRow;
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.runtime.OpenCodeClient;
 import io.opencode.loopper.runtime.OpenCodeStructuredSchemas;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -35,12 +34,17 @@ public class AnalysisReportService {
     private final LoopperProperties properties;
     private final RolePromptComposer prompts;
     private final DesignerAttachmentContext attachmentContext;
+    private final ReviewerReportCompilation compilation;
+    private final ReviewerReportLiveSourceAdapter liveSources;
 
     public AnalysisReportService(LoopperMapper mapper, ProjectService projects, ObjectMapper json,
                                  OpenCodeClient openCode, LoopperProperties properties,
-                                 RolePromptComposer prompts, DesignerAttachmentContext attachmentContext) {
+                                 RolePromptComposer prompts, DesignerAttachmentContext attachmentContext,
+                                 ReviewerReportCompilation compilation,
+                                 ReviewerReportLiveSourceAdapter liveSources) {
         this.mapper = mapper; this.projects = projects; this.json = json; this.openCode = openCode;
         this.properties = properties; this.prompts = prompts; this.attachmentContext = attachmentContext;
+        this.compilation = compilation; this.liveSources = liveSources;
     }
 
     /** Starts an independent Reviewer. It creates no Task, branch, lease, Attempt, or writable Session. */
@@ -136,37 +140,34 @@ public class AnalysisReportService {
         if (!status.completed()) return null;
         AnalysisReportRow validating = update(row, "VALIDATING", row.title(), row.markdown(), List.of(), null, null,
                 null, null, remote.id(), status.state());
-        ReviewerEnvelope envelope;
-        try { envelope = reviewerResult(row, remote); }
+        ReviewerReportCompilation.Candidate candidate;
+        try { candidate = reviewerResult(row, remote); }
         catch (RuntimeException failure) {
             update(validating, "FAILED", row.title(), "", List.of(), null, null,
                     "REVIEWER_CONTRACT_INVALID", safeMessage(failure.getMessage()), remote.id(), status.state());
             return new PollResult(row.designerSessionId(), row.id(), false,
                     "REVIEWER_CONTRACT_INVALID", safeMessage(failure.getMessage()));
         }
-        String markdown = render(envelope);
-        if (markdown.getBytes(StandardCharsets.UTF_8).length > 65_536) {
+        ReviewerReportCompilation.Result compiled = compilation.compile(new ReviewerReportCompilation.Input(
+                candidate, liveSources.capture(root, candidate.findings())));
+        if (!compiled.accepted()) {
+            ReviewerReportCompilation.Problem problem = compiled.problems().getFirst();
+            boolean evidenceFailure = compiled.problems().stream().anyMatch(item ->
+                    item.code().contains("EVIDENCE") || item.code().contains("SOURCE_MANIFEST"));
+            String code = evidenceFailure ? "REPORT_EVIDENCE_INVALID" : problem.code();
             update(validating, "FAILED", row.title(), "", List.of(), null, null,
-                    "REPORT_CONTENT_INVALID", "Reviewer report must be 1-64 KiB Markdown", remote.id(), status.state());
-            return new PollResult(row.designerSessionId(), row.id(), false,
-                    "REPORT_CONTENT_INVALID", "Reviewer report must be 1-64 KiB Markdown");
+                    code, safeMessage(problem.staticDetail()), remote.id(), status.state());
+            return new PollResult(row.designerSessionId(), row.id(), false, code,
+                    safeMessage(problem.staticDetail()));
         }
-        List<Evidence> evidence = evidence(root, envelope.findings());
-        if (evidence.isEmpty()) {
-            update(validating, "FAILED", reportTitle(markdown), markdown, evidence, null, null,
-                    "REPORT_EVIDENCE_REQUIRED", "Reviewer report contains no valid managed path:line evidence",
-                    remote.id(), status.state());
-            return new PollResult(row.designerSessionId(), row.id(), false, "REPORT_EVIDENCE_REQUIRED",
-                    "Reviewer report contains no valid managed path:line evidence");
-        }
-        String contentHash = sha256(markdown.getBytes(StandardCharsets.UTF_8));
-        String sourceHash = sha256(evidence.stream().map(item -> item.path() + ":" + item.sha256())
-                .sorted().reduce("", (left, right) -> left + "\n" + right).getBytes(StandardCharsets.UTF_8));
-        updateReady(validating, envelope, markdown, evidence, contentHash, sourceHash, remote.id(), status.state());
+        List<Evidence> evidence = compiled.evidence().stream()
+                .map(item -> new Evidence(item.path(), item.line(), item.sha256())).toList();
+        updateReady(validating, candidate, compiled, evidence, remote.id(), status.state());
         return new PollResult(row.designerSessionId(), row.id(), true, null, null);
     }
 
-    private ReviewerEnvelope reviewerResult(AnalysisReportRow row, OpenCodeClient.OpenCodeSession remote) {
+    private ReviewerReportCompilation.Candidate reviewerResult(
+            AnalysisReportRow row, OpenCodeClient.OpenCodeSession remote) {
         try {
             String value;
             if ("JSON_SCHEMA".equals(row.responseMode())) {
@@ -185,7 +186,7 @@ public class AnalysisReportService {
             Map<String, Object> raw = json.readValue(value, new TypeReference<>() { });
             String title = bounded(raw.get("title"), 200, "title");
             String summary = bounded(raw.get("summary"), 8000, "summary");
-            List<ReviewerFinding> findings = new ArrayList<>();
+            List<ReviewerReportCompilation.Finding> findings = new ArrayList<>();
             if (!(raw.get("findings") instanceof List<?> values) || values.isEmpty() || values.size() > 128) {
                 throw new IllegalArgumentException("Reviewer findings must contain 1-128 items");
             }
@@ -197,13 +198,14 @@ public class AnalysisReportService {
                 }
                 int line = finding.get("line") instanceof Number number ? number.intValue() : -1;
                 if (line < 1 || line > 10_000_000) throw new IllegalArgumentException("Reviewer line is invalid");
-                findings.add(new ReviewerFinding(severity, bounded(finding.get("title"), 300, "finding title"),
+                findings.add(new ReviewerReportCompilation.Finding(
+                        severity, bounded(finding.get("title"), 300, "finding title"),
                         bounded(finding.get("detail"), 4000, "finding detail"),
                         bounded(finding.get("path"), 1024, "finding path"), line,
                         bounded(finding.get("recommendation"), 4000, "recommendation")));
             }
             List<String> limitations = strings(raw.get("limitations"), 32, 2000);
-            return new ReviewerEnvelope(title, summary, List.copyOf(findings), limitations);
+            return new ReviewerReportCompilation.Candidate(title, summary, List.copyOf(findings), limitations);
         } catch (RuntimeException failure) { throw failure; }
         catch (Exception failure) { throw new IllegalArgumentException(failure.getMessage(), failure); }
     }
@@ -232,14 +234,15 @@ public class AnalysisReportService {
         return mapper.findAnalysisReport(row.designerSessionId(), row.id()).orElseThrow();
     }
 
-    private AnalysisReportRow updateReady(AnalysisReportRow row, ReviewerEnvelope envelope, String markdown,
-                                          List<Evidence> evidence, String contentHash, String sourceHash,
+    private AnalysisReportRow updateReady(AnalysisReportRow row, ReviewerReportCompilation.Candidate candidate,
+                                          ReviewerReportCompilation.Result compiled, List<Evidence> evidence,
                                           String externalId, String externalState) {
         AnalysisReportRow updated = new AnalysisReportRow(row.id(), row.designerSessionId(), row.taskProfileId(),
-                "READY", envelope.title(), markdown, write(evidence), contentHash, sourceHash, null, null,
+                "READY", candidate.title(), compiled.markdown(), write(evidence), compiled.contentSha256(),
+                compiled.sourceSnapshotSha256(), null, null,
                 row.createdAt(), Instant.now().toString(), row.version(), externalId, externalState,
                 row.sourceRequirement(), row.rolePackId(), row.rolePackVersion(), row.reviewerContractVersion(),
-                row.responseMode(), write(envelope.findings()), row.deadlineAt());
+                row.responseMode(), compiled.canonicalFindingsJson(), row.deadlineAt());
         if (mapper.updateAnalysisReport(updated) != 1) throw new ConflictException("REPORT_VERSION_CONFLICT", "报告状态已并发变化");
         return mapper.findAnalysisReport(row.designerSessionId(), row.id()).orElseThrow();
     }
@@ -259,21 +262,6 @@ public class AnalysisReportService {
                 readFindings(row.findingsJson()));
     }
 
-    private List<Evidence> evidence(Path root, List<ReviewerFinding> findings) {
-        List<Evidence> result = new ArrayList<>();
-        for (ReviewerFinding finding : findings) {
-            try {
-                Path file = safe(root, finding.path());
-                if (!Files.isRegularFile(file) || Files.size(file) > 16_000_000) continue;
-                long lineCount;
-                try (var lines = Files.lines(file, StandardCharsets.UTF_8)) { lineCount = lines.limit(1_000_001).count(); }
-                if (finding.line() > lineCount) continue;
-                result.add(new Evidence(finding.path().replace('\\','/'), finding.line(), sha256(Files.readAllBytes(file))));
-            } catch (Exception ignored) { }
-        }
-        return List.copyOf(result);
-    }
-
     private static Path safe(Path root, String relative) throws Exception {
         Path input = Path.of(relative); if (input.isAbsolute()) throw new IllegalArgumentException();
         Path file = root.resolve(input).normalize(); if (!file.startsWith(root) || Files.isSymbolicLink(file)) throw new IllegalArgumentException();
@@ -285,22 +273,6 @@ public class AnalysisReportService {
                 + requirement + "\n\nREVIEWER_REPORT_JSON contract: return title, summary, 1-128 findings, and limitations. "
                 + "Every finding contains severity, title, detail, managed relative path, exact line, and recommendation."
                 + (schema ? "" : "\n" + REVIEWER_START + "\n{\"title\":\"...\",\"summary\":\"...\",\"findings\":[],\"limitations\":[]}\n" + REVIEWER_END);
-    }
-
-    private String render(ReviewerEnvelope envelope) {
-        StringBuilder out = new StringBuilder("# ").append(envelope.title()).append("\n\n")
-                .append(envelope.summary()).append("\n\n## 已确认发现\n");
-        for (ReviewerFinding finding : envelope.findings()) {
-            out.append("\n### [").append(finding.severity()).append("] ").append(finding.title()).append("\n\n")
-                    .append("证据：`").append(finding.path()).append(":").append(finding.line()).append("`\n\n")
-                    .append(finding.detail()).append("\n\n建议：").append(finding.recommendation()).append("\n");
-        }
-        if (!envelope.limitations().isEmpty()) {
-            out.append("\n## 限制\n");
-            envelope.limitations().forEach(value -> out.append("\n- ").append(value));
-            out.append("\n");
-        }
-        return out.toString();
     }
 
     private static String bounded(Object value, int max, String field) {
@@ -349,7 +321,6 @@ public class AnalysisReportService {
     private String write(Object value) { try { return json.writeValueAsString(value); } catch (Exception failure) { throw new IllegalStateException(failure); } }
     private List<Evidence> readEvidence(String value) { try { return json.readValue(value, new TypeReference<>() { }); } catch (Exception ignored) { return List.of(); } }
     private DesignerSessionRow session(String id) { return mapper.findDesignerSession(id).orElseThrow(() -> new NotFoundException("Designer session not found: " + id)); }
-    private static String reportTitle(String content) { return content.lines().map(String::strip).filter(line -> !line.isBlank()).findFirst().orElse("只读分析报告").replaceFirst("^#+\\s*", ""); }
     private static String sha256(byte[] bytes) { try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes)); } catch (Exception failure) { throw new IllegalStateException(failure); } }
     private static String safeMessage(String value) { return value == null || value.isBlank() ? "unknown Reviewer failure" : value.substring(0, Math.min(2000, value.length())); }
 
@@ -362,7 +333,5 @@ public class AnalysisReportService {
                        String reviewerContractVersion, List<ReviewerFinding> findings) { }
     public record ReviewerFinding(String severity, String title, String detail, String path, int line,
                                   String recommendation) { }
-    private record ReviewerEnvelope(String title, String summary, List<ReviewerFinding> findings,
-                                    List<String> limitations) { }
     public record Summary(String id, String state, String title, String contentSha256, boolean stale, String updatedAt) { }
 }

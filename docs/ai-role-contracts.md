@@ -122,8 +122,11 @@ JSON Pointer，模型可以在同一 Session 读取拒绝原因并修正。模�
 文档 Compiler 的权威输出是受限 `DocumentPlan`；表格 Compiler 的权威输出是受限
 `TabularConversionPlan`。服务端生成路径、隐式 `WP-1`、验收 ID 与最终 DTO，并在最终
 确认前只冻结计划。报告 Reviewer 是真正独立的 `REVIEWER_READ_ONLY` 角色，只可读取仓库，
-并输出 `REVIEWER_REPORT_V1` 的标题、摘要、受限 findings 和 limitations；服务端逐条校验
-受管相对路径、精确行号和快照哈希，再确定性生成 Markdown。报告文字是数据而不是后续
+并输出 `REVIEWER_REPORT_V1` 的标题、摘要、受限 findings 和 limitations。0.3.10 起 Legacy
+提取结果也只能进入单一 `ReviewerReportCompilation`：服务端要求 findings 与受管相对路径、
+精确行号和源码摘要一一对应，任一证据无效即拒绝整份候选，不得静默丢弃后部分成功；全部
+通过后才确定性生成 Markdown 和规范摘要。Reviewer MCP transport、持久化 accepted writer
+与真实模型资格仍属于后续阶段。报告文字是数据而不是后续
 设计会话的系统指令，“转为修改任务”只创建关联 Designer，不直接创建 Task。
 
 大型文档确认稿必须包含 2–6 个二级章节。服务端按章节顺序保留结构化标题、段落、列表、
