@@ -26,6 +26,8 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     private final CopyOnWriteArrayList<PromptCall> promptHistory = new CopyOnWriteArrayList<>();
     private final ConcurrentHashMap<String, OpenCodeModel> modelBySession = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Path> worktreeBySession = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, String> titleBySession = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, SessionAttestation> attestationBySession = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> detailBySession = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, PendingQuestion> pendingQuestionBySession = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, java.util.List<java.util.List<String>>> answersByQuestion = new ConcurrentHashMap<>();
@@ -75,6 +77,7 @@ public class FakeOpenCodeClient implements OpenCodeClient {
         String id = "fake-" + UUID.randomUUID();
         states.put(id, "RUNNING");
         worktreeBySession.put(id, worktree);
+        titleBySession.put(id, title == null ? "" : title);
         profileBySession.put(id, SessionProfile.IMPLEMENTATION);
         if (model != null) modelBySession.put(id, model);
         return session(id, worktree);
@@ -87,6 +90,7 @@ public class FakeOpenCodeClient implements OpenCodeClient {
         String id = "fake-judge-" + UUID.randomUUID();
         readOnly.put(id, Boolean.TRUE);
         worktreeBySession.put(id, worktree);
+        titleBySession.put(id, title == null ? "" : title);
         profileBySession.put(id, SessionProfile.GENERAL_READ_ONLY);
         String normalizedTitle = title == null ? "" : title.toUpperCase();
         String packageId = java.util.regex.Pattern.compile("\\bWP-\\d+\\b").matcher(normalizedTitle).results()
@@ -116,6 +120,66 @@ public class FakeOpenCodeClient implements OpenCodeClient {
         profileBySession.put(session.id(), profile == null ? SessionProfile.IMPLEMENTATION : profile);
         return session;
     }
+    @Override public SessionCreationPlan prepareSessionCreation(Path worktree, String baseTitle,
+            OpenCodeModel model, SessionProfile profile, String creationCredential) {
+        try {
+            Path canonical = worktree.toRealPath();
+            SessionProfile effectiveProfile = profile == null ? SessionProfile.IMPLEMENTATION : profile;
+            if (candidateProfile(effectiveProfile)
+                    && (managedGeneration == null || managedGeneration.isBlank()
+                    || managedInternalMcpServer == null || managedInternalMcpServer.isBlank())) {
+                throw new SessionFailure("CANDIDATE_MANAGED_RUNTIME_REQUIRED",
+                        "Candidate sessions require the current managed OpenCode generation");
+            }
+            boolean managed = managedGeneration != null && !managedGeneration.isBlank();
+            String generation = managed ? managedGeneration : "external-" + FAKE_ENDPOINT_FINGERPRINT;
+            List<SessionPermissionRule> permissions = permissionRules(effectiveProfile,
+                    managed ? managedInternalMcpServer : null);
+            String permissionDigest = OpenCodeClient.permissionPolicyDigest(permissions);
+            String exactTitle = OpenCodeClient.recoveryTitle(baseTitle, creationCredential);
+            String requestDigest = creationRequestDigest(canonical, exactTitle, generation, managed,
+                    managed ? managedInternalMcpServer : null, model, effectiveProfile,
+                    permissionDigest, creationCredential);
+            return new SessionCreationPlan(canonical, exactTitle, generation, managed,
+                    managed ? managedInternalMcpServer : null, FAKE_ENDPOINT_FINGERPRINT, model,
+                    effectiveProfile, permissions, permissionDigest, creationCredential, requestDigest);
+        } catch (SessionFailure failure) {
+            throw failure;
+        } catch (Exception failure) {
+            throw new SessionFailure("OPENCODE_SESSION_RECOVERY_PLAN_FAILED", failure.getMessage());
+        }
+    }
+    @Override public SessionCreationPlan prepareCandidateSessionCreationLocally(
+            Path worktree, String baseTitle, OpenCodeModel model,
+            SessionProfile profile, String creationCredential) {
+        return prepareSessionCreation(worktree, baseTitle, model, profile, creationCredential);
+    }
+    @Override public void requireCandidateSessionReady(SessionCreationPlan persistedPlan) {
+        requireCurrentPlan(persistedPlan);
+    }
+    @Override public SessionAttestation createSession(SessionCreationPlan plan) {
+        requireCurrentPlan(plan);
+        OpenCodeSession session = createSession(plan.canonicalDirectory(), plan.exactTitle(),
+                plan.model(), plan.profile());
+        SessionAttestation attestation = attestation(session.id(), plan);
+        attestationBySession.put(session.id(), attestation);
+        return attestation;
+    }
+    @Override public SessionLookup findSessionsByExactTitle(SessionCreationPlan plan) {
+        requireCurrentPlan(plan);
+        List<SessionAttestation> matches = titleBySession.entrySet().stream()
+                .filter(entry -> java.util.Objects.equals(plan.exactTitle(), entry.getValue()))
+                .filter(entry -> java.util.Objects.equals(plan.canonicalDirectory(), worktreeBySession.get(entry.getKey())))
+                .filter(entry -> !"ABORTED".equals(states.get(entry.getKey())))
+                .map(entry -> recoveredAttestation(entry.getKey(), plan))
+                .filter(attestation -> attestation.plan().equals(plan))
+                .toList();
+        return new SessionLookup(true, matches);
+    }
+    @Override public SessionLookup findSessionsByExactTitle(Path worktree, String exactTitle,
+            OpenCodeModel model, SessionProfile profile) {
+        return new SessionLookup(false, List.of());
+    }
     @Override public void promptAsync(OpenCodeSession session, String prompt) {
         submitPrompt(session, PromptRequest.text(prompt));
     }
@@ -137,6 +201,30 @@ public class FakeOpenCodeClient implements OpenCodeClient {
         }
         states.computeIfPresent(session.id(), (id, state) -> "FAILED".equals(state) || heldProfiles.contains(
                 profileBySession.get(id)) ? state : "COMPLETED");
+    }
+    @Override public MessageLookup findPromptMessage(OpenCodeSession session, String messageId) {
+        return new MessageLookup(false, false, null);
+    }
+    @Override public MessageLookup findPromptMessage(OpenCodeSession session, PromptRequest expectedRequest,
+            String persistedRequestSha256) {
+        if (expectedRequest == null || expectedRequest.messageId() == null) {
+            throw new SessionFailure("OPENCODE_PROMPT_LOOKUP_INVALID_REQUEST",
+                    "Exact prompt recovery requires a deterministic message id");
+        }
+        String calculated = OpenCodeClient.promptRequestSha256(expectedRequest);
+        if (!java.util.Objects.equals(calculated, persistedRequestSha256)) {
+            throw new SessionFailure("OPENCODE_PROMPT_REQUEST_HASH_MISMATCH",
+                    "Persisted prompt request hash does not match the exact request");
+        }
+        PromptRequest found = promptRequestBySession.get(session.id());
+        if (found == null || !java.util.Objects.equals(expectedRequest.messageId(), found.messageId())) {
+            return new MessageLookup(true, false, null);
+        }
+        if (!found.equals(expectedRequest)) {
+            throw new SessionFailure("OPENCODE_PROMPT_LOOKUP_INVALID_RESPONSE",
+                    "The remote prompt content does not match the persisted request hash");
+        }
+        return new MessageLookup(true, true, calculated);
     }
     @Override public SessionStatus sessionStatus(OpenCodeSession session) {
         if (toolLoopStatusFailures.getAndUpdate(value -> Math.max(0, value - 1)) > 0) {
@@ -398,13 +486,81 @@ public class FakeOpenCodeClient implements OpenCodeClient {
     public void failNextReadOnlySessions(int count) { failedReadOnlySessions.set(Math.max(0, count)); }
     public void failNextReadOnlySessionCreations(int count) { failedReadOnlySessionCreations.set(Math.max(0, count)); }
     public void failNextReadOnlySessions(String role, int count) { failedReadOnlySessionsByRole.put(role.toUpperCase(), new AtomicInteger(Math.max(0, count))); }
-    public void reset() { states.clear(); readOnly.clear(); judgeRoleBySession.clear(); judgeOutputByRole.clear(); promptBySession.clear(); promptRequestBySession.clear(); profileBySession.clear(); promptHistory.clear(); modelBySession.clear(); worktreeBySession.clear(); detailBySession.clear(); pendingQuestionBySession.clear(); answersByQuestion.clear(); rejectedQuestions.clear(); pendingPermissionsBySession.clear(); permissionRepliesByRequest.clear(); todosBySession.clear(); usageBySession.clear(); forkCalls.clear(); revertCalls.clear(); summarizeCalls.clear(); abortedSessionIds.clear(); failedReadOnlySessionsByRole.clear(); failedReadOnlySessions.set(0); failedReadOnlySessionCreations.set(0); failedPrompts.set(0); failedStructuredPrompts.set(0); failedAborts.set(0); failedAbortsByProfile.clear(); toolLoopStatusFailures.set(0); createSessionCalls.set(0); createReadOnlySessionCalls.set(0); promptCalls.set(0); heldProfiles.clear(); managedGeneration = null; managedInternalMcpServer = null; judgeOutput = "{\"verdict\":\"PASS\",\"reason\":\"确定性证据满足评审要求。\"}"; taskRouterOutputOverride = null; healthy = true; toolCapability = new ToolCapabilityProbe(CapabilityState.AVAILABLE, List.of("read", "glob", "grep", "question", "todowrite"), null); structuredCapability = new StructuredOutputCapability(CapabilityState.AVAILABLE, CapabilityState.AVAILABLE, null); }
+    public void reset() { states.clear(); readOnly.clear(); judgeRoleBySession.clear(); judgeOutputByRole.clear(); promptBySession.clear(); promptRequestBySession.clear(); profileBySession.clear(); promptHistory.clear(); modelBySession.clear(); worktreeBySession.clear(); titleBySession.clear(); attestationBySession.clear(); detailBySession.clear(); pendingQuestionBySession.clear(); answersByQuestion.clear(); rejectedQuestions.clear(); pendingPermissionsBySession.clear(); permissionRepliesByRequest.clear(); todosBySession.clear(); usageBySession.clear(); forkCalls.clear(); revertCalls.clear(); summarizeCalls.clear(); abortedSessionIds.clear(); failedReadOnlySessionsByRole.clear(); failedReadOnlySessions.set(0); failedReadOnlySessionCreations.set(0); failedPrompts.set(0); failedStructuredPrompts.set(0); failedAborts.set(0); failedAbortsByProfile.clear(); toolLoopStatusFailures.set(0); createSessionCalls.set(0); createReadOnlySessionCalls.set(0); promptCalls.set(0); heldProfiles.clear(); managedGeneration = null; managedInternalMcpServer = null; judgeOutput = "{\"verdict\":\"PASS\",\"reason\":\"确定性证据满足评审要求。\"}"; taskRouterOutputOverride = null; healthy = true; toolCapability = new ToolCapabilityProbe(CapabilityState.AVAILABLE, List.of("read", "glob", "grep", "question", "todowrite"), null); structuredCapability = new StructuredOutputCapability(CapabilityState.AVAILABLE, CapabilityState.AVAILABLE, null); }
+
+    private void requireCurrentPlan(SessionCreationPlan plan) {
+        if (plan == null) throw new SessionFailure("OPENCODE_SESSION_CREATION_PLAN_INVALID",
+                "Session creation plan is required");
+        boolean managed = managedGeneration != null && !managedGeneration.isBlank();
+        String generation = managed ? managedGeneration : "external-" + FAKE_ENDPOINT_FINGERPRINT;
+        if (plan.managed() != managed
+                || !java.util.Objects.equals(plan.runtimeGenerationId(), generation)
+                || !java.util.Objects.equals(plan.endpointFingerprint(), FAKE_ENDPOINT_FINGERPRINT)
+                || !java.util.Objects.equals(plan.internalMcpServer(), managed ? managedInternalMcpServer : null)) {
+            throw new SessionFailure("OPENCODE_SESSION_CREATION_PLAN_STALE",
+                    "The frozen session creation endpoint or runtime generation has changed");
+        }
+        List<SessionPermissionRule> current = permissionRules(plan.profile(),
+                managed ? managedInternalMcpServer : null);
+        if (!current.equals(plan.permissionPolicy())
+                || !OpenCodeClient.permissionPolicyDigest(current).equals(plan.permissionPolicyDigest())
+                || !OpenCodeClient.sessionCreationRequestSha256(plan).equals(plan.createRequestSha256())) {
+            throw new SessionFailure("OPENCODE_SESSION_CREATION_PLAN_STALE",
+                    "The frozen session creation model, profile, or permission request has changed");
+        }
+    }
+
+    private static List<SessionPermissionRule> permissionRules(SessionProfile profile, String internalMcpServer) {
+        return OpenCodePermissionPolicy.rules(profile, List.of(), internalMcpServer).stream()
+                .map(rule -> new SessionPermissionRule(rule.get("permission"), rule.get("pattern"), rule.get("action")))
+                .toList();
+    }
+
+    private static String creationRequestDigest(Path canonical, String exactTitle, String generation,
+            boolean managed, String internalMcpServer, OpenCodeModel model, SessionProfile profile,
+            String permissionDigest, String credential) {
+        return OpenCodeClient.sessionCreationRequestSha256(canonical, exactTitle, generation, managed,
+                internalMcpServer, FAKE_ENDPOINT_FINGERPRINT, model, profile, permissionDigest, credential);
+    }
+
+    private static SessionAttestation attestation(String sessionId, SessionCreationPlan plan) {
+        return new SessionAttestation(sessionId, plan.canonicalDirectory(), plan.exactTitle(),
+                plan.runtimeGenerationId(), plan.managed(), plan.internalMcpServer(),
+                plan.endpointFingerprint(), plan.model(), plan.profile(), plan.permissionPolicy(),
+                plan.permissionPolicyDigest(), plan.creationCredential(), plan.createRequestSha256(),
+                SessionAttestationKind.LOCAL_REQUEST_ATTESTED);
+    }
+
+    private SessionAttestation recoveredAttestation(String sessionId, SessionCreationPlan plan) {
+        SessionAttestation existing = attestationBySession.get(sessionId);
+        if (existing != null) return existing;
+        if (!java.util.Objects.equals(modelBySession.get(sessionId), plan.model())
+                || !java.util.Objects.equals(profileBySession.get(sessionId), plan.profile())) {
+            throw new SessionFailure("OPENCODE_SESSION_LOOKUP_INVALID_RESPONSE",
+                    "Exact-title fake session does not match the frozen model and profile request");
+        }
+        SessionAttestation recovered = attestation(sessionId, plan);
+        attestationBySession.putIfAbsent(sessionId, recovered);
+        return attestationBySession.get(sessionId);
+    }
+
+    private static boolean candidateProfile(SessionProfile profile) {
+        return profile == SessionProfile.DECOMPOSER_CANDIDATE_READ_ONLY
+                || profile == SessionProfile.PACKAGE_DESIGN_CANDIDATE_READ_ONLY
+                || profile == SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY
+                || profile == SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS;
+    }
     private OpenCodeSession session(String id, Path worktree) {
         if (managedGeneration != null && !managedGeneration.isBlank()
                 && managedInternalMcpServer != null && !managedInternalMcpServer.isBlank()) {
             runtimeBindings.register(new OpenCodeSessionRuntimeBindings.Binding(
                     id, managedGeneration, OpenCodeSessionRuntimeBindings.OwnershipMode.MANAGED,
                     FAKE_ENDPOINT_FINGERPRINT, managedInternalMcpServer));
+        } else {
+            runtimeBindings.register(new OpenCodeSessionRuntimeBindings.Binding(
+                    id, "external-" + FAKE_ENDPOINT_FINGERPRINT,
+                    OpenCodeSessionRuntimeBindings.OwnershipMode.EXTERNAL,
+                    FAKE_ENDPOINT_FINGERPRINT, null));
         }
         return new OpenCodeSession(id, worktree, managedGeneration, managedInternalMcpServer);
     }

@@ -2,6 +2,7 @@ package io.opencode.loopper.service;
 
 import io.opencode.loopper.domain.MachineCandidateOutcome;
 import io.opencode.loopper.domain.MachineCandidateRunState;
+import io.opencode.loopper.persistence.AcceptanceCandidateInternalLaunchRow;
 import io.opencode.loopper.persistence.DesignAcceptancePlanningRow;
 import io.opencode.loopper.persistence.LoopSpecCompilationRow;
 import io.opencode.loopper.runtime.InternalMcpContractCatalog;
@@ -35,25 +36,45 @@ final class DesignerAcceptanceCandidateOrchestrator {
         return candidates.decide(planning, routing);
     }
 
-    OpenCodeClient.OpenCodeSession createInternal(Path projectRoot, OpenCodeClient.OpenCodeModel model) {
-        return openCode.createSession(projectRoot,
-                "OpenCode Loopper acceptance closed-choice candidate (NO_TOOLS)", model,
-                AcceptanceClosedChoiceCandidateCoordinator.SESSION_PROFILE);
-    }
-
-    Start openInternal(LoopSpecCompilationRow compilation, DesignAcceptancePlanningRow planning,
-                       DesignerAcceptanceWorkflow.RoutingResult routing,
-                       OpenCodeClient.OpenCodeSession remote) {
-        MachineCandidateSubmission.RunSnapshot run = candidates.openInternal(
-                compilation, planning, routing, remote);
-        String tool = remote.internalMcpServer() + "_" + InternalMcpContractCatalog.TOOL_NAME;
-        return new Start(remote, run, prompts.internal(planning, routing, run, tool));
+    Start settledInternal(AcceptanceCandidateInternalLaunchCoordinator.Result result,
+            DesignAcceptancePlanningRow planning, DesignerAcceptanceWorkflow.RoutingResult routing) {
+        AcceptanceCandidateInternalLaunchRow launch = result == null ? null : result.launch();
+        MachineCandidateSubmission.RunSnapshot run = result == null ? null : result.run();
+        OpenCodeClient.OpenCodeSession remote = result == null ? null : result.remote();
+        if (result == null || result.status() != AcceptanceCandidateInternalLaunchCoordinator.Status.SETTLED
+                || launch == null || !"SETTLED".equals(launch.state()) || run == null || remote == null
+                || !launch.candidateRunId().equals(run.runId())
+                || !launch.compilationId().equals(run.owner().id())
+                || launch.settledOwnerVersion() == null
+                || launch.settledOwnerVersion() != run.ownerVersion()
+                || !launch.externalSessionId().equals(remote.id())
+                || !launch.externalSessionId().equals(run.externalSessionId())
+                || run.submissionChannel() != MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP) {
+            throw new ConflictException("ACCEPTANCE_INTERNAL_SETTLEMENT_STALE",
+                    "验收候选 internal launch 尚未形成精确的 SETTLED 运行");
+        }
+        String tool = launch.internalMcpServer() + "_" + InternalMcpContractCatalog.TOOL_NAME;
+        return new Start(remote, run, prompts.internal(planning, routing, run, tool), launch.id());
     }
 
     OpenCodeClient.OpenCodeSession createLegacy(Path projectRoot, OpenCodeClient.OpenCodeModel model) {
+        return createLegacy(projectRoot, model,
+                "OpenCode Loopper acceptance closed-choice legacy candidate (NO_TOOLS)");
+    }
+
+    OpenCodeClient.OpenCodeSession createLegacy(Path projectRoot, OpenCodeClient.OpenCodeModel model, String title) {
         return openCode.createSession(projectRoot,
-                "OpenCode Loopper acceptance closed-choice legacy candidate (NO_TOOLS)", model,
+                title, model,
                 OpenCodeClient.SessionProfile.COMPILER_BINDING_NO_TOOLS);
+    }
+
+    OpenCodeClient.SessionLookup findLegacy(Path projectRoot, OpenCodeClient.OpenCodeModel model, String title) {
+        return openCode.findSessionsByExactTitle(projectRoot, title, model,
+                OpenCodeClient.SessionProfile.COMPILER_BINDING_NO_TOOLS);
+    }
+
+    CandidateRuntimeBindingService.Binding bindLegacy(OpenCodeClient.SessionAttestation attestation) {
+        return candidates.bindLegacy(attestation);
     }
 
     Start openLegacy(LoopSpecCompilationRow compilation, DesignAcceptancePlanningRow planning,
@@ -62,7 +83,13 @@ final class DesignerAcceptanceCandidateOrchestrator {
                      MachineCandidateSubmission.SubmissionResult rejected) {
         MachineCandidateSubmission.RunSnapshot run = candidates.openLegacy(
                 compilation, planning, routing, remote);
-        return new Start(remote, run, prompts.legacy(planning, routing, rejected));
+        return new Start(remote, run, prompts.legacy(planning, routing, rejected), null);
+    }
+
+    String legacyPrompt(DesignAcceptancePlanningRow planning,
+            DesignerAcceptanceWorkflow.RoutingResult routing,
+            MachineCandidateSubmission.SubmissionResult rejected) {
+        return prompts.legacy(planning, routing, rejected);
     }
 
     Poll poll(LoopSpecCompilationRow compilation, DesignAcceptancePlanningRow planning,
@@ -93,14 +120,14 @@ final class DesignerAcceptanceCandidateOrchestrator {
                                 "ACCEPTANCE_CANDIDATE_TERMINAL_MISSING",
                                 "验收闭集候选运行缺少安全终态响应")), proof);
             }
+            if (run.state() == MachineCandidateRunState.FALLBACK_REQUIRED) {
+                step = PollStep.TERMINATION;
+                return routeTerminal(compilation.id(), remote, run, terminationProof(compilation, remote));
+            }
             if (run.state() == MachineCandidateRunState.CLOSED) {
                 step = PollStep.TERMINATION;
                 String proof = terminationProof(compilation, remote);
-                return run.submissionChannel() == MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP
-                        && run.closeReason()
-                        == MachineCandidateSubmission.CandidateCloseReason.NORMAL_COMPLETION_ZERO_SUBMISSION
-                        ? Poll.startLegacy(remote, run, proof)
-                        : closedFailure(remote, run, proof);
+                return routeTerminal(compilation.id(), remote, run, proof);
             }
             step = PollStep.STATUS;
             List<OpenCodeClient.PendingQuestion> questions = openCode.pendingQuestions(remote);
@@ -109,19 +136,22 @@ final class DesignerAcceptanceCandidateOrchestrator {
                 step = PollStep.TERMINATION;
                 String proof = abortProof(remote);
                 step = PollStep.CLOSE;
-                MachineCandidateSubmission.RunSnapshot closed = close(compilation.id(), run,
+                MachineCandidateSubmission.RunSnapshot closed = close(run,
                         MachineCandidateSubmission.CandidateCloseReason.INTERACTION_FORBIDDEN);
-                return Poll.failed(remote, closed, proof, "ACCEPTANCE_CANDIDATE_INTERACTION_FORBIDDEN",
+                return routeAfterClose(compilation.id(), remote, closed, proof,
+                        MachineCandidateSubmission.CandidateCloseReason.INTERACTION_FORBIDDEN,
+                        "ACCEPTANCE_CANDIDATE_INTERACTION_FORBIDDEN",
                         "验收闭集选择器不得请求模型侧交互");
             }
             if (timedOut) {
                 step = PollStep.TERMINATION;
                 String proof = abortProof(remote);
                 step = PollStep.CLOSE;
-                MachineCandidateSubmission.RunSnapshot closed = close(compilation.id(), run,
+                MachineCandidateSubmission.RunSnapshot closed = close(run,
                         MachineCandidateSubmission.CandidateCloseReason.TIMEOUT);
-                return Poll.failed(remote, closed, proof, "OPENCODE_ACCEPTANCE_CANDIDATE_TIMEOUT",
-                        "验收闭集候选 Session 超时");
+                return routeAfterClose(compilation.id(), remote, closed, proof,
+                        MachineCandidateSubmission.CandidateCloseReason.TIMEOUT,
+                        "OPENCODE_ACCEPTANCE_CANDIDATE_TIMEOUT", "验收闭集候选 Session 超时");
             }
             step = PollStep.STATUS;
             OpenCodeClient.SessionStatus status = openCode.sessionStatus(remote);
@@ -132,17 +162,18 @@ final class DesignerAcceptanceCandidateOrchestrator {
                 step = PollStep.TERMINATION;
                 String proof = abortProof(remote);
                 step = PollStep.CLOSE;
-                MachineCandidateSubmission.RunSnapshot closed = close(compilation.id(), run,
+                MachineCandidateSubmission.RunSnapshot closed = close(run,
                         MachineCandidateSubmission.CandidateCloseReason.REMOTE_FAILED);
-                return Poll.failed(remote, closed, proof,
-                        "OPENCODE_ACCEPTANCE_CANDIDATE_" + safe(status.state()),
-                        status.detail());
+                return routeAfterClose(compilation.id(), remote, closed, proof,
+                        MachineCandidateSubmission.CandidateCloseReason.REMOTE_FAILED,
+                        "OPENCODE_ACCEPTANCE_CANDIDATE_" + safe(status.state()), status.detail());
             }
             if (run.submissionChannel() == MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP) {
                 step = PollStep.CLOSE;
-                MachineCandidateSubmission.RunSnapshot closed = close(compilation.id(), run,
+                MachineCandidateSubmission.RunSnapshot closed = close(run,
                         MachineCandidateSubmission.CandidateCloseReason.NORMAL_COMPLETION_ZERO_SUBMISSION);
-                return Poll.startLegacy(remote, closed, CandidateSessionTerminationProof.REMOTE_COMPLETED.name());
+                return routeTerminal(compilation.id(), remote, closed,
+                        CandidateSessionTerminationProof.REMOTE_COMPLETED.name());
             }
             step = PollStep.STATUS;
             MachineCandidateSubmission.SubmissionResult result = candidates.submitLegacy(
@@ -155,11 +186,16 @@ final class DesignerAcceptanceCandidateOrchestrator {
                 return Poll.waiting(remote, candidates.find(compilation.id()).orElseThrow(), result,
                         CandidateSessionTerminationProof.REMOTE_COMPLETED.name());
             }
+            if (result.outcome() == MachineCandidateOutcome.FALLBACK_REQUIRED) {
+                return Poll.waiting(remote, candidates.find(compilation.id()).orElseThrow(), result,
+                        CandidateSessionTerminationProof.REMOTE_COMPLETED.name());
+            }
             return Poll.rejected(remote, run, result,
                     prompts.legacy(planning, routing, result));
         } catch (RuntimeException failure) {
             if (run.state() == MachineCandidateRunState.ACCEPTED
                     || run.state() == MachineCandidateRunState.WAITING_INPUT
+                    || run.state() == MachineCandidateRunState.FALLBACK_REQUIRED
                     || run.state() == MachineCandidateRunState.CLOSED
                     || recoverableOpenFailure(step, failure)) {
                 return Poll.recovering(remote, run, "DISCONNECTED",
@@ -169,6 +205,21 @@ final class DesignerAcceptanceCandidateOrchestrator {
             return Poll.failed(remote, run, failure instanceof ConflictException conflict
                     ? conflict.code() : "OPENCODE_ACCEPTANCE_CANDIDATE_STATUS_FAILED", failure.getMessage());
         }
+    }
+
+    CorrectionStopTarget correctionStopTarget(LoopSpecCompilationRow compilation, Path projectRoot) {
+        MachineCandidateSubmission.RunSnapshot run = candidates.find(compilation.id())
+                .orElseThrow(() -> new ConflictException("ACCEPTANCE_CANDIDATE_RUN_MISSING",
+                        "验收闭集候选运行已不存在"));
+        candidates.validateCorrectionStopRecovery(run);
+        String internalServer = run.submissionChannel()
+                == MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP
+                ? runtimeAccess.current().filter(credentials -> credentials.generation()
+                        .equals(run.runtimeGenerationId())).map(credentials -> credentials.serverName()).orElse(null)
+                : null;
+        OpenCodeClient.OpenCodeSession remote = new OpenCodeClient.OpenCodeSession(
+                run.externalSessionId(), projectRoot, run.runtimeGenerationId(), internalServer);
+        return new CorrectionStopTarget(remote, run);
     }
 
     private static boolean recoverableOpenFailure(PollStep step, RuntimeException failure) {
@@ -196,15 +247,124 @@ final class DesignerAcceptanceCandidateOrchestrator {
         return Poll.failed(remote, run, proof, code, "验收闭集候选运行已关闭，不允许切换兼容通道");
     }
 
+    private Poll routeTerminal(String compilationId, OpenCodeClient.OpenCodeSession remote,
+                               MachineCandidateSubmission.RunSnapshot run, String proof) {
+        return switch (run.state()) {
+            case ACCEPTED -> Poll.accepted(remote, run, proof);
+            case WAITING_INPUT -> Poll.waiting(remote, run,
+                    candidates.terminal(compilationId).orElseThrow(() -> new ConflictException(
+                            "ACCEPTANCE_CANDIDATE_TERMINAL_MISSING",
+                            "验收闭集候选运行缺少安全终态响应")), proof);
+            case FALLBACK_REQUIRED -> run.submissionChannel()
+                    == MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP
+                    ? Poll.startLegacy(remote, run, proof)
+                    : Poll.waiting(remote, run,
+                    candidates.terminal(compilationId).orElseThrow(() -> new ConflictException(
+                            "ACCEPTANCE_CANDIDATE_TERMINAL_MISSING",
+                            "验收闭集兼容候选运行缺少安全终态响应")), proof);
+            case CLOSED -> run.submissionChannel()
+                    == MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP
+                    && run.closeReason()
+                    == MachineCandidateSubmission.CandidateCloseReason.NORMAL_COMPLETION_ZERO_SUBMISSION
+                    && CandidateSessionTerminationProof.REMOTE_COMPLETED.name().equals(proof)
+                    ? Poll.startLegacy(remote, run, proof)
+                    : closedFailure(remote, run, proof);
+            default -> throw new ConflictException("ACCEPTANCE_CANDIDATE_TERMINAL_STALE",
+                    "验收闭集候选运行关闭时发生了未收束的并发变化");
+        };
+    }
+
+    Poll routeTerminalAfterStop(String compilationId, OpenCodeClient.OpenCodeSession remote,
+                                StopResult stopped) {
+        if (stopped == null || stopped.outcome() != StopOutcome.TERMINAL_RACE
+                || stopped.terminalRun() == null
+                || !CandidateSessionTerminationProof.persisted(stopped.proof())) {
+            throw new ConflictException("ACCEPTANCE_CANDIDATE_TERMINAL_RACE_UNPROVEN",
+                    "验收闭集候选终态竞态缺少类型化正向停止证明");
+        }
+        return routeTerminal(compilationId, remote, stopped.terminalRun(), stopped.proof());
+    }
+
+    private Poll routeAfterClose(String compilationId, OpenCodeClient.OpenCodeSession remote,
+                                 MachineCandidateSubmission.RunSnapshot run, String proof,
+                                 MachineCandidateSubmission.CandidateCloseReason requestedReason,
+                                 String requestedCode, String requestedDetail) {
+        if (run.state() == MachineCandidateRunState.CLOSED && run.closeReason() == requestedReason) {
+            return Poll.failed(remote, run, proof, requestedCode, requestedDetail);
+        }
+        return routeTerminal(compilationId, remote, run, proof);
+    }
+
     void closeQuietly(String compilationId, MachineCandidateSubmission.SubmissionChannel channel) {
         try { candidates.close(compilationId, channel); } catch (RuntimeException ignored) { }
     }
 
     StopResult stopUnopened(OpenCodeClient.OpenCodeSession remote) {
-        try { return new StopResult(true, abortProof(remote), null, null); }
+        try { return StopResult.ownerStopped(abortProof(remote)); }
         catch (RuntimeException failure) {
-            return new StopResult(false, null, recoveryCode(PollStep.TERMINATION, failure), failure.getMessage());
+            return StopResult.unconfirmed(
+                    recoveryCode(PollStep.TERMINATION, failure), failure.getMessage());
         }
+    }
+
+    StopResult stopOpened(OpenCodeClient.OpenCodeSession remote,
+            MachineCandidateSubmission.RunSnapshot run) {
+        StopResult stopped = stopUnopened(remote);
+        if (!stopped.confirmed()) return stopped;
+        try {
+            close(run, MachineCandidateSubmission.CandidateCloseReason.OWNER_REQUESTED);
+            return classifyStoppedRun(run, stopped.proof());
+        } catch (RuntimeException failure) {
+            try {
+                return classifyStoppedRun(run, stopped.proof());
+            } catch (RuntimeException rereadFailure) {
+                return StopResult.unconfirmed(
+                        recoveryCode(PollStep.CLOSE, rereadFailure), rereadFailure.getMessage());
+            }
+        }
+    }
+
+    StopResult observeStopped(OpenCodeClient.OpenCodeSession remote,
+            MachineCandidateSubmission.RunSnapshot run) {
+        try {
+            OpenCodeClient.SessionStatus status = openCode.sessionStatus(remote);
+            if (!status.completed()) {
+                return StopResult.unconfirmed("OPENCODE_ACCEPTANCE_CANDIDATE_STOP_UNCONFIRMED",
+                        "OpenCode Session 尚无可恢复的远端终态证明");
+            }
+            MachineCandidateSubmission.RunSnapshot latest = exactRun(run);
+            if (latest.state() == MachineCandidateRunState.OPEN) {
+                close(latest, MachineCandidateSubmission.CandidateCloseReason.OWNER_REQUESTED);
+            }
+            return classifyStoppedRun(run, CandidateSessionTerminationProof.REMOTE_COMPLETED.name());
+        } catch (RuntimeException failure) {
+            return StopResult.unconfirmed(
+                    recoveryCode(PollStep.TERMINATION, failure), failure.getMessage());
+        }
+    }
+
+    private StopResult classifyStoppedRun(
+            MachineCandidateSubmission.RunSnapshot expected, String proof) {
+        MachineCandidateSubmission.RunSnapshot latest = exactRun(expected);
+        if (latest.state() == MachineCandidateRunState.CLOSED
+                && latest.closeReason() == MachineCandidateSubmission.CandidateCloseReason.OWNER_REQUESTED) {
+            return StopResult.ownerStopped(proof);
+        }
+        if (latest.state().terminal()) return StopResult.terminalRace(latest, proof);
+        return StopResult.unconfirmed("ACCEPTANCE_CANDIDATE_TERMINAL_CHANGED",
+                "验收闭集候选在停止期间仍未进入可恢复的权威终态");
+    }
+
+    private MachineCandidateSubmission.RunSnapshot exactRun(
+            MachineCandidateSubmission.RunSnapshot expected) {
+        MachineCandidateSubmission.RunSnapshot latest = candidates.find(expected.owner().id())
+                .orElseThrow(() -> new ConflictException("ACCEPTANCE_CANDIDATE_RUN_MISSING",
+                        "验收闭集候选运行已不存在"));
+        if (!expected.runId().equals(latest.runId())) {
+            throw new ConflictException("ACCEPTANCE_CANDIDATE_RUN_STALE",
+                    "验收闭集候选停止后的精确运行已经变化");
+        }
+        return latest;
     }
 
     private Poll recoverUnopenedHandoff(LoopSpecCompilationRow compilation, Path projectRoot) {
@@ -238,9 +398,9 @@ final class DesignerAcceptanceCandidateOrchestrator {
     }
 
     private MachineCandidateSubmission.RunSnapshot close(
-            String compilationId, MachineCandidateSubmission.RunSnapshot run,
+            MachineCandidateSubmission.RunSnapshot run,
             MachineCandidateSubmission.CandidateCloseReason reason) {
-        return candidates.close(compilationId, run.submissionChannel(), reason);
+        return candidates.closeOpen(run, reason);
     }
 
     private void reject(OpenCodeClient.OpenCodeSession remote, String questionId) {
@@ -252,7 +412,9 @@ final class DesignerAcceptanceCandidateOrchestrator {
     }
 
     record Start(OpenCodeClient.OpenCodeSession remote,
-                 MachineCandidateSubmission.RunSnapshot run, String prompt) { }
+                 MachineCandidateSubmission.RunSnapshot run, String prompt, String internalLaunchId) { }
+    record CorrectionStopTarget(OpenCodeClient.OpenCodeSession remote,
+                                MachineCandidateSubmission.RunSnapshot run) { }
     private enum PollStep { VALIDATE, STATUS, TERMINATION, CLOSE }
     enum Action { NONE, RUNNING, ACCEPTED, WAITING_INPUT, START_LEGACY, START_LEGACY_HANDOFF, REJECTED, FAILED }
     record Poll(Action action, OpenCodeClient.OpenCodeSession remote,
@@ -293,5 +455,29 @@ final class DesignerAcceptanceCandidateOrchestrator {
                            String state, String code, String detail) {
             return new Poll(Action.FAILED, remote, run, null, null, state, code, detail); }
     }
-    record StopResult(boolean confirmed, String proof, String code, String detail) { }
+    enum StopOutcome { OWNER_STOPPED, TERMINAL_RACE, UNCONFIRMED }
+
+    record StopResult(StopOutcome outcome, String proof,
+                      MachineCandidateSubmission.RunSnapshot terminalRun,
+                      String code, String detail) {
+        StopResult(boolean confirmed, String proof, String code, String detail) {
+            this(confirmed ? StopOutcome.OWNER_STOPPED : StopOutcome.UNCONFIRMED,
+                    proof, null, code, detail);
+        }
+
+        boolean confirmed() { return outcome == StopOutcome.OWNER_STOPPED; }
+
+        static StopResult ownerStopped(String proof) {
+            return new StopResult(StopOutcome.OWNER_STOPPED, proof, null, null, null);
+        }
+
+        static StopResult terminalRace(
+                MachineCandidateSubmission.RunSnapshot run, String proof) {
+            return new StopResult(StopOutcome.TERMINAL_RACE, proof, run, null, null);
+        }
+
+        static StopResult unconfirmed(String code, String detail) {
+            return new StopResult(StopOutcome.UNCONFIRMED, null, null, code, detail);
+        }
+    }
 }

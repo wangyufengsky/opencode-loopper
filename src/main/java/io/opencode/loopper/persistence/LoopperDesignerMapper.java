@@ -455,10 +455,29 @@ public interface LoopperDesignerMapper {
                 OR EXISTS (
                   SELECT 1 FROM design_acceptance_planning planning
                   WHERE planning.compilation_id=compilation.id
-                    AND planning.binding_source='SERVER_STAGE_HINTS'))
+                    AND (planning.binding_source='SERVER_STAGE_HINTS'
+                      OR planning.contract_version='DESIGN_ACCEPTANCE_V7'
+                        AND planning.binding_source='AI_DISAMBIGUATION_V6')))
             ORDER BY compilation.updated_at
             """)
     List<LoopSpecCompilationRow> activeLoopSpecCompilations();
+    @Update("""
+            UPDATE loop_spec_compilation SET external_session_state='CANDIDATE_RUNNING',
+              last_error_code=NULL,last_error_detail=NULL,updated_at=#{updatedAt}
+            WHERE id=#{compilationId} AND state='RUNNING' AND version=#{ownerVersion}
+              AND external_session_id=#{externalSessionId}
+              AND external_session_state='CANDIDATE_PROMPT_PENDING'
+              AND EXISTS (
+                SELECT 1 FROM acceptance_candidate_internal_launch launch
+                WHERE launch.id=#{launchId} AND launch.compilation_id=#{compilationId}
+                  AND launch.state='SETTLED' AND launch.candidate_run_id=#{runId}
+                  AND launch.external_session_id=#{externalSessionId}
+                  AND launch.settled_owner_version=#{ownerVersion})
+            """)
+    int markAcceptanceInternalCandidateRunning(
+            @Param("compilationId") String compilationId, @Param("ownerVersion") long ownerVersion,
+            @Param("externalSessionId") String externalSessionId, @Param("launchId") String launchId,
+            @Param("runId") String runId, @Param("updatedAt") String updatedAt);
     @Update("""
             UPDATE loop_spec_compilation SET state=#{state},external_session_id=#{externalSessionId},
               external_session_state=#{externalSessionState},repair_count=#{repairCount},
@@ -483,6 +502,24 @@ public interface LoopperDesignerMapper {
     @Select("""
             SELECT external_session_id FROM designer_session
             WHERE id=#{sessionId} AND external_session_id IS NOT NULL
+              AND NOT EXISTS (
+                SELECT 1 FROM acceptance_candidate_legacy_handoff handoff
+                WHERE handoff.designer_session_id=designer_session.id AND (
+                  handoff.old_external_session_id=designer_session.external_session_id
+                    AND handoff.old_termination_proof IS NOT NULL
+                  OR handoff.legacy_external_session_id=designer_session.external_session_id
+                    AND (handoff.legacy_termination_proof IS NOT NULL
+                      OR handoff.prompt_claim_owner IS NOT NULL
+                        AND handoff.prompt_claim_expires_at>
+                          strftime('%Y-%m-%dT%H:%M:%fZ','now'))))
+              AND NOT EXISTS (
+                SELECT 1 FROM ai_candidate_prompt_dispatch dispatch
+                JOIN ai_candidate_submission_run run ON run.id=dispatch.run_id
+                WHERE run.designer_session_id=designer_session.id
+                  AND dispatch.external_session_id=designer_session.external_session_id
+                  AND (dispatch.termination_proof IS NOT NULL
+                    OR dispatch.claim_owner IS NOT NULL AND dispatch.claim_expires_at>
+                      strftime('%Y-%m-%dT%H:%M:%fZ','now')))
             UNION SELECT external_session_id FROM task_profile_router_run
             WHERE designer_session_id=#{sessionId} AND state IN ('PENDING','RUNNING')
               AND external_session_id IS NOT NULL
@@ -495,9 +532,45 @@ public interface LoopperDesignerMapper {
             UNION SELECT external_session_id FROM loop_spec_compilation
             WHERE designer_session_id=#{sessionId} AND state IN ('PENDING_HANDOFF','RUNNING')
               AND external_session_id IS NOT NULL
+              AND NOT EXISTS (
+                SELECT 1 FROM acceptance_candidate_legacy_handoff handoff
+                WHERE handoff.compilation_id=loop_spec_compilation.id AND (
+                  handoff.old_external_session_id=loop_spec_compilation.external_session_id
+                    AND handoff.old_termination_proof IS NOT NULL
+                  OR handoff.legacy_external_session_id=loop_spec_compilation.external_session_id
+                    AND (handoff.legacy_termination_proof IS NOT NULL
+                      OR handoff.prompt_claim_owner IS NOT NULL
+                        AND handoff.prompt_claim_expires_at>
+                          strftime('%Y-%m-%dT%H:%M:%fZ','now'))))
+              AND NOT EXISTS (
+                SELECT 1 FROM ai_candidate_prompt_dispatch dispatch
+                JOIN ai_candidate_submission_run run ON run.id=dispatch.run_id
+                WHERE run.designer_session_id=loop_spec_compilation.designer_session_id
+                  AND dispatch.external_session_id=loop_spec_compilation.external_session_id
+                  AND (dispatch.termination_proof IS NOT NULL
+                    OR dispatch.claim_owner IS NOT NULL AND dispatch.claim_expires_at>
+                      strftime('%Y-%m-%dT%H:%M:%fZ','now')))
             UNION SELECT external_session_id FROM analysis_report
             WHERE designer_session_id=#{sessionId} AND state IN ('RUNNING','VALIDATING')
               AND external_session_id IS NOT NULL
+            UNION SELECT old_external_session_id FROM acceptance_candidate_legacy_handoff
+            WHERE designer_session_id=#{sessionId}
+              AND state NOT IN ('SETTLED','FAILED_STOPPED','CANCELLED','STALE')
+              AND old_termination_proof IS NULL
+            UNION SELECT legacy_external_session_id FROM acceptance_candidate_legacy_handoff
+            WHERE designer_session_id=#{sessionId}
+              AND state NOT IN ('SETTLED','FAILED_STOPPED','CANCELLED','STALE')
+              AND legacy_external_session_id IS NOT NULL
+              AND legacy_termination_proof IS NULL
+              AND NOT (prompt_claim_owner IS NOT NULL AND prompt_claim_expires_at>
+                strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+            UNION SELECT dispatch.external_session_id FROM ai_candidate_prompt_dispatch dispatch
+            JOIN ai_candidate_submission_run run ON run.id=dispatch.run_id
+            WHERE run.designer_session_id=#{sessionId}
+              AND dispatch.state NOT IN ('STOPPED','CANCELLED')
+              AND dispatch.termination_proof IS NULL
+              AND NOT (dispatch.claim_owner IS NOT NULL AND dispatch.claim_expires_at>
+                strftime('%Y-%m-%dT%H:%M:%fZ','now'))
             """)
     List<String> listDesignerRemoteSessionIds(@Param("sessionId") String sessionId);
 

@@ -7,6 +7,7 @@ public enum LifecycleEvent implements DescribedEnum {
     BEGIN_VERIFICATION("开始验证"), SCHEDULE_RETRY("安排重试"), RETRY("执行重试"),
     ADVANCE_STAGE("推进到下一阶段"), BEGIN_FINAL_REVIEW("开始最终评审"),
     RETRY_FINAL_REVIEW("重试最终评审"), REOPEN_FINAL_REVIEW("重新打开最终评审"),
+    REOPEN_REQUIREMENT("重新打开整体需求"),
     APPROVE("评审通过"), REQUIRE_INPUT("需要人工输入"), REQUIRE_FALLBACK("需要受控回退"),
     PAUSE("暂停"), RESUME("恢复"),
     RESUME_RETRY("恢复等待重试"),

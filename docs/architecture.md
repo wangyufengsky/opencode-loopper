@@ -578,6 +578,28 @@ and the exact `SERVER_COMPILING` then `serverCompiled` checkpoints may resume
 idempotently, but unrelated owner-version drift still fails closed. Compilation, human-input
 transition, run close, and legacy handoff all occur strictly after this boundary.
 
+V51-V55 close the remaining crash windows around that boundary. A legacy handoff is a
+durable saga whose old-remote stop, attested successor creation, prompt dispatch, model-call
+consumption and successor stop are separate irreversible checkpoints; it cannot project a
+fresh Legacy Session until the old writer has positive termination proof. An internal-MCP
+candidate launch likewise freezes the exact owner/source/planning route, runtime generation,
+permission digest, create-request digest and one-time local creation credential before any
+remote create. The created remote must be recovered by that credential and attested against
+the frozen request before a settlement certificate may atomically open its run and transfer
+ownership. Unknown create results enter a cleanup ledger and never authorize a second writer.
+
+Prompt delivery is another durable protocol: `INITIAL` and correction dispatches consume a
+model call and record dispatch intent before external I/O, then either acknowledge the exact
+message or remain recoverable without blind resend. Database gates prevent a settled launch,
+open run, live prompt, cleanup remote and terminal parent projection from contradicting each
+other. Cancellation and requirement replacement first persist a typed termination intent;
+the same coordinator stops prompt/run/remote work and reaches quiescence before the parent is
+allowed to become `CANCELLED` or the requirement revision `SUPERSEDED`. V55 applies that same
+ledger to initial-prompt failures (`BUDGET_EXHAUSTED / LOOKUP_UNSUPPORTED / RESULT_UNKNOWN`).
+A later user cancellation or requirement replacement may promote the ready failure intent to
+the corresponding parent action, but cannot bypass the original evidence or create a parallel
+intent. Parent projection, terminal launch state and intent completion commit together.
+
 New Compiler rows treat the compact semantic object as the default. Only an explicit
 historical `evidenceMappings` member selects the legacy planning parser, so a malformed
 current object without `outcome` cannot be misreported as a missing legacy `status` field.

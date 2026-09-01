@@ -196,7 +196,7 @@ class DesignerAcceptanceCandidateOrchestratorTest {
                 MachineCandidateRunState.CLOSED, MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP,
                 MachineCandidateSubmission.CandidateCloseReason.NORMAL_COMPLETION_ZERO_SUBMISSION);
         when(candidates.find(compilation.id())).thenReturn(Optional.of(open));
-        when(candidates.close(compilation.id(), MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP,
+        when(candidates.closeOpen(open,
                 MachineCandidateSubmission.CandidateCloseReason.NORMAL_COMPLETION_ZERO_SUBMISSION))
                 .thenReturn(closed);
         when(openCode.pendingQuestions(any())).thenReturn(java.util.List.of());
@@ -208,10 +208,76 @@ class DesignerAcceptanceCandidateOrchestratorTest {
         assertThat(result.action()).isEqualTo(DesignerAcceptanceCandidateOrchestrator.Action.START_LEGACY);
         assertThat(result.state()).isEqualTo("REMOTE_COMPLETED");
         assertThat(result.run()).isSameAs(closed);
-        verify(candidates).close(compilation.id(),
-                MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP,
+        verify(candidates).closeOpen(open,
                 MachineCandidateSubmission.CandidateCloseReason.NORMAL_COMPLETION_ZERO_SUBMISSION);
         verify(openCode, never()).abortWithConfirmation(any());
+    }
+
+    @Test
+    void lateAcceptedRunWinsOverAnOpenSnapshotDuringNormalCompletionClose() {
+        LoopSpecCompilationRow compilation = compilation();
+        MachineCandidateSubmission.RunSnapshot open = run(MachineCandidateRunState.OPEN);
+        MachineCandidateSubmission.RunSnapshot accepted = run(MachineCandidateRunState.ACCEPTED);
+        when(candidates.find(compilation.id())).thenReturn(Optional.of(open));
+        when(candidates.closeOpen(open,
+                MachineCandidateSubmission.CandidateCloseReason.NORMAL_COMPLETION_ZERO_SUBMISSION))
+                .thenReturn(accepted);
+        when(openCode.pendingQuestions(any())).thenReturn(java.util.List.of());
+        when(openCode.sessionStatus(any())).thenReturn(new OpenCodeClient.SessionStatus("COMPLETED"));
+
+        DesignerAcceptanceCandidateOrchestrator.Poll result = orchestrator.poll(
+                compilation, null, null, Path.of("/tmp/project"), false);
+
+        assertThat(result.action()).isEqualTo(DesignerAcceptanceCandidateOrchestrator.Action.ACCEPTED);
+        assertThat(result.run()).isSameAs(accepted);
+        assertThat(result.state()).isEqualTo("REMOTE_COMPLETED");
+    }
+
+    @Test
+    void lateWaitingRunWinsOverAnOpenSnapshotDuringNormalCompletionClose() {
+        LoopSpecCompilationRow compilation = compilation();
+        MachineCandidateSubmission.RunSnapshot open = run(MachineCandidateRunState.OPEN);
+        MachineCandidateSubmission.RunSnapshot waiting = run(MachineCandidateRunState.WAITING_INPUT);
+        MachineCandidateSubmission.SubmissionResult terminal = waitingResult();
+        when(candidates.find(compilation.id())).thenReturn(Optional.of(open));
+        when(candidates.closeOpen(open,
+                MachineCandidateSubmission.CandidateCloseReason.NORMAL_COMPLETION_ZERO_SUBMISSION))
+                .thenReturn(waiting);
+        when(candidates.terminal(compilation.id())).thenReturn(Optional.of(terminal));
+        when(openCode.pendingQuestions(any())).thenReturn(java.util.List.of());
+        when(openCode.sessionStatus(any())).thenReturn(new OpenCodeClient.SessionStatus("COMPLETED"));
+
+        DesignerAcceptanceCandidateOrchestrator.Poll result = orchestrator.poll(
+                compilation, null, null, Path.of("/tmp/project"), false);
+
+        assertThat(result.action()).isEqualTo(DesignerAcceptanceCandidateOrchestrator.Action.WAITING_INPUT);
+        assertThat(result.run()).isSameAs(waiting);
+        assertThat(result.submission()).isSameAs(terminal);
+        assertThat(result.state()).isEqualTo("REMOTE_COMPLETED");
+    }
+
+    @Test
+    void lateNonNormalClosedRunWinsOverAnOpenSnapshotDuringNormalCompletionClose() {
+        LoopSpecCompilationRow compilation = compilation();
+        MachineCandidateSubmission.RunSnapshot open = run(MachineCandidateRunState.OPEN);
+        MachineCandidateSubmission.RunSnapshot timeout = candidateRun(
+                MachineCandidateRunState.CLOSED,
+                MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP,
+                MachineCandidateSubmission.CandidateCloseReason.TIMEOUT);
+        when(candidates.find(compilation.id())).thenReturn(Optional.of(open));
+        when(candidates.closeOpen(open,
+                MachineCandidateSubmission.CandidateCloseReason.NORMAL_COMPLETION_ZERO_SUBMISSION))
+                .thenReturn(timeout);
+        when(openCode.pendingQuestions(any())).thenReturn(java.util.List.of());
+        when(openCode.sessionStatus(any())).thenReturn(new OpenCodeClient.SessionStatus("COMPLETED"));
+
+        DesignerAcceptanceCandidateOrchestrator.Poll result = orchestrator.poll(
+                compilation, null, null, Path.of("/tmp/project"), false);
+
+        assertThat(result.action()).isEqualTo(DesignerAcceptanceCandidateOrchestrator.Action.FAILED);
+        assertThat(result.run()).isSameAs(timeout);
+        assertThat(result.code()).isEqualTo("OPENCODE_ACCEPTANCE_CANDIDATE_TIMEOUT");
+        assertThat(result.state()).isEqualTo("REMOTE_COMPLETED");
     }
 
     @Test
@@ -268,6 +334,90 @@ class DesignerAcceptanceCandidateOrchestratorTest {
     }
 
     @Test
+    void correctionStopReturnsTypedAcceptedRaceAfterPositiveAbortProofAndExactReread() {
+        MachineCandidateSubmission.RunSnapshot open = run(MachineCandidateRunState.OPEN);
+        MachineCandidateSubmission.RunSnapshot accepted = run(MachineCandidateRunState.ACCEPTED);
+        when(openCode.abortWithConfirmation(any())).thenReturn(OpenCodeClient.AbortConfirmation.ACKNOWLEDGED);
+        when(candidates.closeOpen(open, MachineCandidateSubmission.CandidateCloseReason.OWNER_REQUESTED))
+                .thenReturn(accepted);
+        when(candidates.find("compilation-1")).thenReturn(Optional.of(accepted));
+
+        DesignerAcceptanceCandidateOrchestrator.StopResult result = orchestrator.stopOpened(
+                new OpenCodeClient.OpenCodeSession("remote-1", Path.of("/tmp/project")), open);
+
+        assertThat(result.confirmed()).isFalse();
+        assertThat(result.outcome()).isEqualTo(
+                DesignerAcceptanceCandidateOrchestrator.StopOutcome.TERMINAL_RACE);
+        assertThat(result.proof()).isEqualTo("ABORT_ACKNOWLEDGED");
+        assertThat(result.terminalRun()).isSameAs(accepted);
+        verify(candidates).find("compilation-1");
+    }
+
+    @Test
+    void abortDispatchedRecoveryRoutesAConcurrentWaitingInputWithoutAnotherAbortOrOwnerClose() {
+        MachineCandidateSubmission.RunSnapshot waiting = run(MachineCandidateRunState.WAITING_INPUT);
+        MachineCandidateSubmission.SubmissionResult terminal = waitingResult();
+        OpenCodeClient.OpenCodeSession remote = new OpenCodeClient.OpenCodeSession(
+                "remote-1", Path.of("/tmp/project"));
+        when(openCode.sessionStatus(remote)).thenReturn(new OpenCodeClient.SessionStatus("COMPLETED"));
+        when(candidates.find("compilation-1")).thenReturn(Optional.of(waiting));
+        when(candidates.terminal("compilation-1")).thenReturn(Optional.of(terminal));
+
+        DesignerAcceptanceCandidateOrchestrator.StopResult stopped =
+                orchestrator.observeStopped(remote, waiting);
+        DesignerAcceptanceCandidateOrchestrator.Poll routed =
+                orchestrator.routeTerminalAfterStop("compilation-1", remote, stopped);
+
+        assertThat(stopped.outcome()).isEqualTo(
+                DesignerAcceptanceCandidateOrchestrator.StopOutcome.TERMINAL_RACE);
+        assertThat(stopped.confirmed()).isFalse();
+        assertThat(stopped.proof()).isEqualTo("REMOTE_COMPLETED");
+        assertThat(routed.action()).isEqualTo(
+                DesignerAcceptanceCandidateOrchestrator.Action.WAITING_INPUT);
+        assertThat(routed.run()).isSameAs(waiting);
+        assertThat(routed.submission()).isSameAs(terminal);
+        verify(openCode, never()).abortWithConfirmation(any());
+        verify(candidates, never()).closeOpen(any(), any());
+    }
+
+    @Test
+    void abortDispatchedRecoveryWithoutRemoteTerminalProofRemainsUnconfirmed() {
+        MachineCandidateSubmission.RunSnapshot waiting = run(MachineCandidateRunState.WAITING_INPUT);
+        OpenCodeClient.OpenCodeSession remote = new OpenCodeClient.OpenCodeSession(
+                "remote-1", Path.of("/tmp/project"));
+        when(openCode.sessionStatus(remote)).thenReturn(new OpenCodeClient.SessionStatus("RUNNING"));
+
+        DesignerAcceptanceCandidateOrchestrator.StopResult result =
+                orchestrator.observeStopped(remote, waiting);
+
+        assertThat(result.outcome()).isEqualTo(
+                DesignerAcceptanceCandidateOrchestrator.StopOutcome.UNCONFIRMED);
+        assertThat(result.proof()).isNull();
+        assertThat(result.terminalRun()).isNull();
+        verify(candidates, never()).find(any());
+        verify(openCode, never()).abortWithConfirmation(any());
+    }
+
+    @Test
+    void abortAcknowledgementDoesNotTurnAConcurrentZeroSubmissionCloseIntoFallback() {
+        MachineCandidateSubmission.RunSnapshot closed = candidateRun(
+                MachineCandidateRunState.CLOSED,
+                MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP,
+                MachineCandidateSubmission.CandidateCloseReason.NORMAL_COMPLETION_ZERO_SUBMISSION);
+        OpenCodeClient.OpenCodeSession remote = new OpenCodeClient.OpenCodeSession(
+                "remote-1", Path.of("/tmp/project"));
+        DesignerAcceptanceCandidateOrchestrator.StopResult stopped =
+                DesignerAcceptanceCandidateOrchestrator.StopResult.terminalRace(
+                        closed, "ABORT_ACKNOWLEDGED");
+
+        DesignerAcceptanceCandidateOrchestrator.Poll routed =
+                orchestrator.routeTerminalAfterStop("compilation-1", remote, stopped);
+
+        assertThat(routed.action()).isEqualTo(DesignerAcceptanceCandidateOrchestrator.Action.FAILED);
+        assertThat(routed.code()).isEqualTo("ACCEPTANCE_CANDIDATE_RUN_CLOSED");
+    }
+
+    @Test
     void legacyOutputIsSubmittedOnlyAfterItsOriginalSessionNormallyCompletes() {
         LoopSpecCompilationRow compilation = compilation();
         MachineCandidateSubmission.RunSnapshot open = legacyRun(MachineCandidateRunState.OPEN);
@@ -288,6 +438,46 @@ class DesignerAcceptanceCandidateOrchestratorTest {
         assertThat(result.action()).isEqualTo(DesignerAcceptanceCandidateOrchestrator.Action.ACCEPTED);
         assertThat(result.state()).isEqualTo("REMOTE_COMPLETED");
         verify(candidates).submitLegacy(compilation.id(), "valid legacy candidate");
+    }
+
+    @Test
+    void persistedInternalFallbackRequiredUsesPositiveProofThenStartsSingleLegacyHandoff() {
+        LoopSpecCompilationRow compilation = withExternalState("REMOTE_COMPLETED");
+        MachineCandidateSubmission.RunSnapshot fallback =
+                candidateRun(MachineCandidateRunState.FALLBACK_REQUIRED,
+                        MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP);
+        when(candidates.find(compilation.id())).thenReturn(Optional.of(fallback));
+
+        DesignerAcceptanceCandidateOrchestrator.Poll result = orchestrator.poll(
+                compilation, null, null, Path.of("/tmp/project"), false);
+
+        assertThat(result.action()).isEqualTo(DesignerAcceptanceCandidateOrchestrator.Action.START_LEGACY);
+        assertThat(result.state()).isEqualTo("REMOTE_COMPLETED");
+        verify(openCode, never()).abortWithConfirmation(any());
+    }
+
+    @Test
+    void legacyFallbackRequiredFailsClosedAsWaitingInputInsteadOfRecursiveFallback() {
+        LoopSpecCompilationRow compilation = compilation();
+        MachineCandidateSubmission.RunSnapshot open = legacyRun(MachineCandidateRunState.OPEN);
+        MachineCandidateSubmission.RunSnapshot fallback = legacyRun(MachineCandidateRunState.FALLBACK_REQUIRED);
+        MachineCandidateSubmission.SubmissionResult terminal = new MachineCandidateSubmission.SubmissionResult(
+                "run-1", MachineCandidateOutcome.FALLBACK_REQUIRED, MachineCandidateRunState.FALLBACK_REQUIRED,
+                2, 0, false, java.util.List.of(new MachineCandidateSubmission.Problem(
+                        "ACCEPTANCE_CANDIDATE_SELECTION_INVALID", "/capabilityPreferences", "still ambiguous")),
+                null, 2, "{}");
+        when(candidates.find(compilation.id())).thenReturn(Optional.of(open), Optional.of(fallback));
+        when(openCode.pendingQuestions(any())).thenReturn(java.util.List.of());
+        when(openCode.sessionStatus(any())).thenReturn(new OpenCodeClient.SessionStatus("COMPLETED"));
+        when(openCode.sessionOutput(any())).thenReturn("invalid legacy candidate");
+        when(candidates.submitLegacy(compilation.id(), "invalid legacy candidate")).thenReturn(terminal);
+
+        DesignerAcceptanceCandidateOrchestrator.Poll result = orchestrator.poll(
+                compilation, null, null, Path.of("/tmp/project"), false);
+
+        assertThat(result.action()).isEqualTo(DesignerAcceptanceCandidateOrchestrator.Action.WAITING_INPUT);
+        assertThat(result.submission()).isSameAs(terminal);
+        assertThat(result.state()).isEqualTo("REMOTE_COMPLETED");
     }
 
     private LoopSpecCompilationRow compilation() {

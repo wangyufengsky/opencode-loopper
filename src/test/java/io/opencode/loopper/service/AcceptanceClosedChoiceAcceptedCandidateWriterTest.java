@@ -77,6 +77,9 @@ class AcceptanceClosedChoiceAcceptedCandidateWriterTest {
         verify(mapper).updateLoopSpecCompilation(update.capture());
         assertThat(update.getValue().version()).isEqualTo(5);
         assertThat(update.getValue().externalSessionState()).isEqualTo("DISCONNECTED");
+        assertThat(update.getValue().lastErrorCode())
+                .isEqualTo("OPENCODE_ACCEPTANCE_CANDIDATE_STATUS_UNCONFIRMED");
+        assertThat(update.getValue().lastErrorDetail()).isEqualTo("transport");
     }
 
     private CandidatePolicy.Context context() {

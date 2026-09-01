@@ -3,6 +3,7 @@ package io.opencode.loopper.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -25,8 +26,10 @@ import org.mockito.ArgumentCaptor;
 class AcceptanceCandidateProofServiceTest {
     private final LoopperMapper mapper = mock(LoopperMapper.class);
     private final LifecycleTransitionService lifecycle = mock(LifecycleTransitionService.class);
+    private final AcceptanceCandidateHandoffSettlementService handoffSettlements =
+            mock(AcceptanceCandidateHandoffSettlementService.class);
     private final AcceptanceCandidateProofService service =
-            new AcceptanceCandidateProofService(mapper, lifecycle, Optional.empty());
+            new AcceptanceCandidateProofService(mapper, lifecycle, Optional.empty(), handoffSettlements);
 
     @Test
     void persistsProofOnlyAfterRevalidatingTheOriginalRunAndOwner() {
@@ -51,6 +54,50 @@ class AcceptanceCandidateProofServiceTest {
         verify(mapper).updateLoopSpecCompilation(update.capture());
         assertThat(update.getValue().externalSessionId()).isEqualTo("remote-1");
         assertThat(update.getValue().designRevision()).isEqualTo(3);
+        verify(handoffSettlements).settle(run, "ABORT_ACKNOWLEDGED", persisted);
+    }
+
+    @Test
+    void acceptedTerminalRacePersistsProofOnlyAtTheExactCorrectionAbortCheckpoint() {
+        MachineCandidateSubmission.RunSnapshot run = run();
+        LoopSpecCompilationRow marker = correctionOwner(10, "CORRECTION_ABORT_DISPATCHED");
+        DesignerSessionRow session = mock(DesignerSessionRow.class);
+        when(session.state()).thenReturn("RUNNING");
+        when(mapper.findCandidateSubmissionRun("run-1")).thenReturn(Optional.of(storedRun()));
+        when(mapper.findLoopSpecCompilation("compilation-1")).thenReturn(Optional.of(marker));
+        when(mapper.findDesignerSession("designer-1")).thenReturn(Optional.of(session));
+        when(mapper.updateLoopSpecCompilation(any())).thenReturn(1);
+        doAnswer(invocation -> {
+            ((IntSupplier) invocation.getArgument(0)).getAsInt();
+            return null;
+        }).when(lifecycle).mutateWithoutTransition(any(), any());
+
+        LoopSpecCompilationRow persisted = service.persist(run, "ABORT_ACKNOWLEDGED");
+
+        assertThat(persisted.version()).isEqualTo(11);
+        assertThat(persisted.externalSessionState()).isEqualTo("ABORT_ACKNOWLEDGED");
+        assertThat(persisted.lastErrorCode())
+                .isEqualTo("ACCEPTANCE_CORRECTION_WAITING_INPUT_PENDING");
+        verify(handoffSettlements).settle(run, "ABORT_ACKNOWLEDGED", persisted);
+    }
+
+    @Test
+    void rejectsTheProofResultWhenTheMatchingHandoffCannotBeSettled() {
+        MachineCandidateSubmission.RunSnapshot run = run();
+        DesignerSessionRow session = mock(DesignerSessionRow.class);
+        when(session.state()).thenReturn("RUNNING");
+        when(mapper.findCandidateSubmissionRun("run-1")).thenReturn(Optional.of(storedRun()));
+        when(mapper.findLoopSpecCompilation("compilation-1")).thenReturn(Optional.of(owner("remote-1", 8)));
+        when(mapper.findDesignerSession("designer-1")).thenReturn(Optional.of(session));
+        when(mapper.updateLoopSpecCompilation(any())).thenReturn(1);
+        doAnswer(invocation -> {
+            ((IntSupplier) invocation.getArgument(0)).getAsInt();
+            return null;
+        }).when(lifecycle).mutateWithoutTransition(any(), any());
+        doThrow(new ConflictException("ACCEPTANCE_LEGACY_HANDOFF_SETTLEMENT_STALE", "stale"))
+                .when(handoffSettlements).settle(any(), any(), any());
+
+        assertThat(service.persistIfOwned(run, "ABORT_ACKNOWLEDGED")).isEmpty();
     }
 
     @Test
@@ -79,6 +126,42 @@ class AcceptanceCandidateProofServiceTest {
         verify(mapper, never()).updateLoopSpecCompilation(any());
     }
 
+    @Test
+    void settlementRejectsAStaleRuntimeCheckpointBeforeGenericFailureCanTouchTheOwner() {
+        CandidateRuntimeBindingService bindings = mock(CandidateRuntimeBindingService.class);
+        AcceptanceCandidateProofService guarded =
+                new AcceptanceCandidateProofService(mapper, lifecycle, Optional.of(bindings), handoffSettlements);
+        DesignerSessionRow session = mock(DesignerSessionRow.class);
+        when(session.id()).thenReturn("designer-1");
+        when(session.state()).thenReturn("RUNNING");
+        when(mapper.findDesignerSession("designer-1")).thenReturn(Optional.of(session));
+        when(mapper.findLoopSpecCompilation("compilation-1"))
+                .thenReturn(Optional.of(owner("remote-1", 10)));
+        doThrow(new ConflictException("CANDIDATE_OWNER_REVISION_STALE", "stale"))
+                .when(bindings).validate(run(), run().submissionChannel());
+
+        assertThat(guarded.settlementIfOwned(run())).isEmpty();
+    }
+
+    @Test
+    void recognizesOnlyARealCanonicalServerCompilationCheckpointAsRecoverable() {
+        CandidateRuntimeBindingService bindings = mock(CandidateRuntimeBindingService.class);
+        AcceptanceCandidateProofService guarded =
+                new AcceptanceCandidateProofService(mapper, lifecycle, Optional.of(bindings), handoffSettlements);
+        DesignerSessionRow session = mock(DesignerSessionRow.class);
+        when(session.id()).thenReturn("designer-1");
+        when(session.state()).thenReturn("RUNNING");
+        when(mapper.findDesignerSession("designer-1")).thenReturn(Optional.of(session));
+        when(mapper.findLoopSpecCompilation("compilation-1"))
+                .thenReturn(Optional.of(serverCompiling("{\"summary\":\"accepted\"}",
+                        "{\"status\":\"READY\"}")))
+                .thenReturn(Optional.of(serverCompiling(null, "{\"status\":\"READY\"}")));
+
+        assertThat(guarded.recoverableServerCompilationCheckpoint(run())).isPresent();
+        assertThat(guarded.recoverableServerCompilationCheckpoint(run())).isEmpty();
+        verify(bindings, org.mockito.Mockito.times(2)).validate(run(), run().submissionChannel());
+    }
+
     private MachineCandidateSubmission.RunSnapshot run() {
         return new MachineCandidateSubmission.RunSnapshot(
                 "run-1", MachineCandidateSubmission.CandidateScope.designerSession("designer-1"),
@@ -103,5 +186,21 @@ class AcceptanceCandidateProofServiceTest {
         return new LoopSpecCompilationRow(
                 "compilation-1", "designer-1", 3, "RUNNING", remote, "RUNNING", 0,
                 "message-1", 1, null, null, "now", "now", version);
+    }
+
+    private LoopSpecCompilationRow correctionOwner(long version, String remoteState) {
+        return new LoopSpecCompilationRow(
+                "compilation-1", "designer-1", 3, "RUNNING", "remote-1", remoteState, 0,
+                "message-1", 1, "ACCEPTANCE_CORRECTION_WAITING_INPUT_PENDING",
+                "BUDGET_EXHAUSTED", "now", "now", version);
+    }
+
+    private LoopSpecCompilationRow serverCompiling(String canonicalCandidate, String compiledPlan) {
+        return new LoopSpecCompilationRow(
+                "compilation-1", "designer-1", 3, "RUNNING", "remote-1", "ABORT_ACKNOWLEDGED", 0,
+                "message-1", 1, null, null, "now", "now", 10,
+                "WP-1", 0, null, "SERVER_COMPILING", compiledPlan, 0,
+                "TEXT_MARKER", null, false, "TEXT_MARKER", null, false,
+                canonicalCandidate, 0, 0, false, "MCP_ACCEPTED", null);
     }
 }

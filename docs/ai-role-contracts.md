@@ -220,6 +220,15 @@ NOT_ENUMERABLE` 失败关闭并进入人工输入，不创建修复 Session。Ac
 7/7 指标 guard 和 1/1 同输入测量，证明服务端候选管道与三轴计数符合边界。当前 MCP 请求由测试驱动器发起，
 不构成真实模型工具采用或自修正证明，因此生产默认值保持关闭；这不移除恢复已有持久化 run 所需的 policy/writer/adapter。
 
+验收候选的远端创建、提示和停止都不是瞬时调用。V51-V55 要求在 I/O 前分别冻结 Legacy handoff、
+internal launch、prompt dispatch 和 termination intent：创建请求必须带服务端生成的一次性本地凭证，
+回读 Session 必须与请求摘要、权限摘要、运行代次和受管 binding 完全一致；创建结果不确定时只进入远端
+cleanup，不得重复创建。internal run 只能与 settlement certificate 在同一事务打开。首次提示及修正提示
+必须先持久化模型调用消耗与可能已派发事实，再由精确消息回读确认；不能确认时不得盲重发。Designer 取消、
+需求替换及 `BUDGET_EXHAUSTED / LOOKUP_UNSUPPORTED / RESULT_UNKNOWN` 首次提示失败统一先写 termination
+intent，再停止 prompt、run 和 remote；只有全部安静且终止证明为正向闭集时，才可原子提交父状态和 intent
+完成。首次提示失败后到达的取消或替换复用并提升同一 intent，禁止并存第二个终止权威。
+
 Stage 组装完成后，服务端优先接受 `负责路径` 的唯一显式声明，随后兼容 Stage 精确引用产生义务的受控
 交付/范围事实、恰好一个 Stage 的既有精确路径规则、旧四列表格中仅一个阶段目标出现的精确文件名/类名/
 末尾路径符号，或计划恰好一个 Stage 时补入精确 `WRITE/MOVE_DESTINATION`。旧格式符号恢复只做 NFKC 后的

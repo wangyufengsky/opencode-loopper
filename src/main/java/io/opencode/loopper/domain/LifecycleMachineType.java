@@ -14,7 +14,13 @@ public enum LifecycleMachineType implements DescribedEnum {
     AUTOMATION_RUN("自动化运行状态机"), TASK_PUBLICATION("任务发布状态机"),
     TASK_EXECUTION_CYCLE("任务执行轮次状态机"), WORKSPACE_CHECKPOINT("工作区冻结点状态机"),
     TASK_PACKAGE_RUN("任务工作包状态机"), PACKAGE_PLAN_REVISION("工作包计划修订状态机"),
-    CANDIDATE_SUBMISSION_RUN("候选提交运行状态机");
+    CANDIDATE_SUBMISSION_RUN("候选提交运行状态机"),
+    CANDIDATE_PROMPT_DISPATCH("候选提示派发状态机"),
+    ACCEPTANCE_CANDIDATE_HANDOFF("验收候选兼容交接状态机"),
+    ACCEPTANCE_CANDIDATE_HANDOFF_CLEANUP("验收候选兼容交接清理状态机"),
+    ACCEPTANCE_CANDIDATE_INTERNAL_LAUNCH("验收候选内部启动状态机"),
+    ACCEPTANCE_CANDIDATE_INTERNAL_LAUNCH_CLEANUP("验收候选内部启动清理状态机"),
+    ACCEPTANCE_CANDIDATE_INTERNAL_TERMINATION_INTENT("验收候选内部终止意图状态机");
 
     private final String description;
     LifecycleMachineType(String description) { this.description = description; }

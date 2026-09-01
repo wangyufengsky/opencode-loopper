@@ -12,6 +12,7 @@ import io.opencode.loopper.domain.MachineCandidateKind;
 import io.opencode.loopper.domain.MachineCandidateRunState;
 import io.opencode.loopper.persistence.DesignRequirementRevisionRow;
 import io.opencode.loopper.persistence.DesignWorkPackageRow;
+import io.opencode.loopper.persistence.DesignerSessionRow;
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.LoopSpecCompilationRow;
 import io.opencode.loopper.persistence.OpenCodeSessionRuntimeBindingRow;
@@ -20,6 +21,7 @@ import io.opencode.loopper.runtime.InternalMcpCredentialProvider;
 import io.opencode.loopper.runtime.InternalMcpRuntimeAccess;
 import io.opencode.loopper.runtime.OpenCodeClient;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -29,6 +31,27 @@ class CandidateRuntimeBindingServiceTest {
             MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP;
     private static final MachineCandidateSubmission.SubmissionChannel LEGACY =
             MachineCandidateSubmission.SubmissionChannel.IN_PROCESS_LEGACY;
+
+    @Test
+    void everyNonRunningDesignerScopeRejectsCandidateAdvanceBeforeAnyRuntimeOrOwnerWrite() {
+        LoopperMapper mapper = mock(LoopperMapper.class);
+        DesignerSessionRow session = mock(DesignerSessionRow.class);
+        when(mapper.findDesignerSession("designer-1")).thenReturn(Optional.of(session));
+        CandidateRuntimeBindingService service = new CandidateRuntimeBindingService(
+                mapper, new InternalMcpRuntimeAccess());
+
+        for (String state : java.util.List.of(
+                "WAITING_INPUT", "STOPPING", "SESSION_ERROR", "COMPLETED", "CANCELLED")) {
+            when(session.state()).thenReturn(state);
+            assertThatThrownBy(() -> service.validate(run(
+                    "remote-1", "external-" + "a".repeat(64), 4, 2, LEGACY), LEGACY))
+                    .as(state)
+                    .isInstanceOfSatisfying(ConflictException.class,
+                            failure -> assertThat(failure.code()).isEqualTo("CANDIDATE_SCOPE_NOT_WRITABLE"));
+        }
+        verify(mapper, never()).findOpenCodeSessionRuntimeBinding(any());
+        verify(mapper, never()).findTaskDecomposition(any());
+    }
 
     @Test
     void bindsAndGuardsOneManagedSessionAgainstTheActivePrivateMcpGeneration() {
@@ -90,6 +113,44 @@ class CandidateRuntimeBindingServiceTest {
 
         assertThatThrownBy(() -> service.bind(
                 new OpenCodeClient.OpenCodeSession("external-2", Path.of("/tmp/project")), INTERNAL))
+                .isInstanceOfSatisfying(ConflictException.class,
+                        failure -> assertThat(failure.code()).isEqualTo("CANDIDATE_MANAGED_RUNTIME_REQUIRED"));
+    }
+
+    @Test
+    void internalAttestationMustExactlyEqualTheFrozenManagedPlanWithoutWideningLegacy() {
+        LoopperMapper mapper = mock(LoopperMapper.class);
+        InternalMcpRuntimeAccess access = new InternalMcpRuntimeAccess();
+        InternalMcpCredentialProvider.Credentials credentials =
+                new InternalMcpCredentialProvider(() -> 18083).issue();
+        access.activate(credentials);
+        access.connected(credentials.generation());
+        CandidateRuntimeBindingService service = new CandidateRuntimeBindingService(mapper, access);
+        OpenCodeClient.SessionCreationPlan frozen = internalPlan(credentials, "A".repeat(43));
+        OpenCodeClient.SessionAttestation attestation = new OpenCodeClient.SessionAttestation(
+                "internal-remote", frozen.canonicalDirectory(), frozen.exactTitle(),
+                frozen.runtimeGenerationId(), frozen.managed(), frozen.internalMcpServer(),
+                frozen.endpointFingerprint(), frozen.model(), frozen.profile(), frozen.permissionPolicy(),
+                frozen.permissionPolicyDigest(), frozen.creationCredential(), frozen.createRequestSha256(),
+                OpenCodeClient.SessionAttestationKind.LOCAL_REQUEST_ATTESTED);
+        when(mapper.findOpenCodeSessionRuntimeBinding("internal-remote")).thenReturn(Optional.empty());
+        when(mapper.insertOpenCodeSessionRuntimeBinding(any())).thenReturn(1);
+
+        CandidateRuntimeBindingService.Binding binding = service.bindInternalAttested(attestation, frozen);
+
+        assertThat(binding.ownershipMode()).isEqualTo("MANAGED");
+        assertThat(binding.runtimeGenerationId()).isEqualTo(credentials.generation());
+        ArgumentCaptor<OpenCodeSessionRuntimeBindingRow> inserted =
+                ArgumentCaptor.forClass(OpenCodeSessionRuntimeBindingRow.class);
+        verify(mapper).insertOpenCodeSessionRuntimeBinding(inserted.capture());
+        assertThat(inserted.getValue().internalMcpServer()).isEqualTo(credentials.serverName());
+
+        OpenCodeClient.SessionCreationPlan drifted = internalPlan(credentials, "B".repeat(43));
+        assertThatThrownBy(() -> service.bindInternalAttested(attestation, drifted))
+                .isInstanceOfSatisfying(ConflictException.class,
+                        failure -> assertThat(failure.code())
+                                .isEqualTo("CANDIDATE_INTERNAL_ATTESTATION_MISMATCH"));
+        assertThatThrownBy(() -> service.bindAttested(attestation, INTERNAL))
                 .isInstanceOfSatisfying(ConflictException.class,
                         failure -> assertThat(failure.code()).isEqualTo("CANDIDATE_MANAGED_RUNTIME_REQUIRED"));
     }
@@ -277,6 +338,96 @@ class CandidateRuntimeBindingServiceTest {
     }
 
     @Test
+    void correctionStopMarkerAndOwnerClosedProofRemainExactRuntimeCheckpointsAcrossRestart() {
+        LoopperMapper mapper = mock(LoopperMapper.class);
+        InternalMcpRuntimeAccess access = new InternalMcpRuntimeAccess();
+        InternalMcpCredentialProvider.Credentials credentials =
+                new InternalMcpCredentialProvider(() -> 18083).issue();
+        access.activate(credentials);
+        access.connected(credentials.generation());
+        when(mapper.findOpenCodeSessionRuntimeBinding("acceptance-remote")).thenReturn(Optional.of(
+                new OpenCodeSessionRuntimeBindingRow("acceptance-remote", credentials.generation(), "MANAGED",
+                        "d".repeat(64), credentials.serverName(), "now")));
+        LoopSpecCompilationRow owner = mock(LoopSpecCompilationRow.class);
+        when(owner.designerSessionId()).thenReturn("designer-1");
+        when(owner.designRevision()).thenReturn(3);
+        when(owner.state()).thenReturn("RUNNING");
+        when(owner.externalSessionId()).thenReturn("acceptance-remote");
+        when(owner.lastErrorCode()).thenReturn("ACCEPTANCE_CORRECTION_WAITING_INPUT_PENDING");
+        when(owner.lastErrorDetail()).thenReturn("BUDGET_EXHAUSTED");
+        when(owner.version()).thenReturn(8L);
+        when(owner.externalSessionState()).thenReturn("CORRECTION_STOP_REQUESTED");
+        when(mapper.findLoopSpecCompilation("compilation-1")).thenReturn(Optional.of(owner));
+        CandidateRuntimeBindingService service = new CandidateRuntimeBindingService(mapper, access);
+
+        MachineCandidateSubmission.RunSnapshot open = acceptanceRun(
+                credentials.generation(), MachineCandidateRunState.OPEN);
+        assertThatThrownBy(() -> service.validate(open, INTERNAL))
+                .isInstanceOfSatisfying(ConflictException.class,
+                        failure -> assertThat(failure.code()).isEqualTo("CANDIDATE_OWNER_REVISION_STALE"));
+        service.validateCorrectionStopRecovery(open, INTERNAL);
+        MachineCandidateSubmission.RunSnapshot closed = acceptanceRun(credentials.generation(),
+                MachineCandidateRunState.CLOSED,
+                MachineCandidateSubmission.CandidateCloseReason.OWNER_REQUESTED);
+        service.validateCorrectionStopRecovery(closed, INTERNAL);
+        when(owner.version()).thenReturn(9L);
+        when(owner.externalSessionState()).thenReturn("CORRECTION_ABORT_DISPATCHED");
+        service.validateCorrectionStopRecovery(open, INTERNAL);
+        service.validateCorrectionStopRecovery(closed, INTERNAL);
+        when(owner.version()).thenReturn(10L);
+        when(owner.externalSessionState()).thenReturn("ABORT_ACKNOWLEDGED");
+        service.validateCorrectionStopRecovery(closed, INTERNAL);
+
+        when(owner.lastErrorDetail()).thenReturn("untrusted historical detail");
+        assertThatThrownBy(() -> service.validateCorrectionStopRecovery(closed, INTERNAL))
+                .isInstanceOfSatisfying(ConflictException.class,
+                        failure -> assertThat(failure.code()).isEqualTo("CANDIDATE_OWNER_REVISION_STALE"));
+    }
+
+    @Test
+    void acceptedAndWaitingCorrectionRacesUseTheirDifferentExactOwnerOffsets() {
+        LoopperMapper mapper = mock(LoopperMapper.class);
+        InternalMcpRuntimeAccess access = new InternalMcpRuntimeAccess();
+        InternalMcpCredentialProvider.Credentials credentials =
+                new InternalMcpCredentialProvider(() -> 18083).issue();
+        access.activate(credentials);
+        access.connected(credentials.generation());
+        when(mapper.findOpenCodeSessionRuntimeBinding("acceptance-remote")).thenReturn(Optional.of(
+                new OpenCodeSessionRuntimeBindingRow("acceptance-remote", credentials.generation(), "MANAGED",
+                        "d".repeat(64), credentials.serverName(), "now")));
+        LoopSpecCompilationRow owner = mock(LoopSpecCompilationRow.class);
+        when(owner.designerSessionId()).thenReturn("designer-1");
+        when(owner.designRevision()).thenReturn(3);
+        when(owner.state()).thenReturn("RUNNING");
+        when(owner.externalSessionId()).thenReturn("acceptance-remote");
+        when(owner.lastErrorCode()).thenReturn("ACCEPTANCE_CORRECTION_WAITING_INPUT_PENDING");
+        when(owner.lastErrorDetail()).thenReturn("BUDGET_EXHAUSTED");
+        when(mapper.findLoopSpecCompilation("compilation-1")).thenReturn(Optional.of(owner));
+        CandidateRuntimeBindingService service = new CandidateRuntimeBindingService(mapper, access);
+        MachineCandidateSubmission.RunSnapshot accepted = acceptanceRun(
+                credentials.generation(), MachineCandidateRunState.ACCEPTED);
+        MachineCandidateSubmission.RunSnapshot waiting = acceptanceRun(
+                credentials.generation(), MachineCandidateRunState.WAITING_INPUT);
+
+        when(owner.version()).thenReturn(10L);
+        when(owner.externalSessionState()).thenReturn("CORRECTION_ABORT_DISPATCHED");
+        service.validateCorrectionStopRecovery(accepted, INTERNAL);
+        assertThatThrownBy(() -> service.validateCorrectionStopRecovery(waiting, INTERNAL))
+                .isInstanceOfSatisfying(ConflictException.class,
+                        failure -> assertThat(failure.code()).isEqualTo("CANDIDATE_OWNER_REVISION_STALE"));
+
+        when(owner.version()).thenReturn(9L);
+        service.validateCorrectionStopRecovery(waiting, INTERNAL);
+        assertThatThrownBy(() -> service.validateCorrectionStopRecovery(accepted, INTERNAL))
+                .isInstanceOfSatisfying(ConflictException.class,
+                        failure -> assertThat(failure.code()).isEqualTo("CANDIDATE_OWNER_REVISION_STALE"));
+
+        when(owner.version()).thenReturn(11L);
+        when(owner.externalSessionState()).thenReturn("REMOTE_COMPLETED");
+        service.validate(accepted, INTERNAL);
+    }
+
+    @Test
     void acceptedProofAllowsOnlyTheTwoExactServerCompilationCheckpoints() {
         LoopperMapper mapper = mock(LoopperMapper.class);
         InternalMcpRuntimeAccess access = new InternalMcpRuntimeAccess();
@@ -287,32 +438,58 @@ class CandidateRuntimeBindingServiceTest {
                 "f".repeat(64), credentials.serverName(), "now");
         when(mapper.findOpenCodeSessionRuntimeBinding("acceptance-remote"))
                 .thenReturn(Optional.of(binding));
-        LoopSpecCompilationRow owner = mock(LoopSpecCompilationRow.class);
-        when(owner.designerSessionId()).thenReturn("designer-1");
-        when(owner.designRevision()).thenReturn(3);
-        when(owner.externalSessionId()).thenReturn("acceptance-remote");
-        when(owner.externalSessionState()).thenReturn("ABORT_ACKNOWLEDGED");
-        when(owner.state()).thenReturn("RUNNING");
-        when(owner.workflowStep()).thenReturn("SERVER_COMPILING");
-        when(owner.planningJson()).thenReturn("{\"status\":\"READY\"}");
-        when(mapper.findLoopSpecCompilation("compilation-1")).thenReturn(Optional.of(owner));
         CandidateRuntimeBindingService service = new CandidateRuntimeBindingService(mapper, access);
         MachineCandidateSubmission.RunSnapshot accepted = acceptanceRun(
                 credentials.generation(), MachineCandidateRunState.ACCEPTED);
+        String canonicalCandidate = "{\"summary\":\"accepted choice\",\"capabilityPreferences\":[1]}";
+        String compiledPlan = "{\"status\":\"READY\",\"stages\":[{\"objective\":\"compile\"}]}";
 
-        when(owner.version()).thenReturn(10L);
-        when(owner.serverCompiled()).thenReturn(false);
+        when(mapper.findLoopSpecCompilation("compilation-1")).thenReturn(Optional.of(
+                acceptedCompilationCheckpoint(10, false, canonicalCandidate, compiledPlan)));
         service.validate(accepted, INTERNAL);
 
-        when(owner.version()).thenReturn(11L);
-        when(owner.serverCompiled()).thenReturn(true);
-        when(owner.semanticPlanJson()).thenReturn("{\"status\":\"READY\"}");
+        when(mapper.findLoopSpecCompilation("compilation-1")).thenReturn(Optional.of(
+                acceptedCompilationCheckpoint(11, true, canonicalCandidate, compiledPlan)));
         service.validate(accepted, INTERNAL);
 
-        when(owner.version()).thenReturn(12L);
+        when(mapper.findLoopSpecCompilation("compilation-1")).thenReturn(Optional.of(
+                acceptedCompilationCheckpoint(12, true, canonicalCandidate, compiledPlan)));
         assertThatThrownBy(() -> service.validate(accepted, INTERNAL))
                 .isInstanceOfSatisfying(ConflictException.class,
                         failure -> assertThat(failure.code()).isEqualTo("CANDIDATE_OWNER_REVISION_STALE"));
+    }
+
+    private LoopSpecCompilationRow acceptedCompilationCheckpoint(
+            long version, boolean serverCompiled, String canonicalCandidate, String compiledPlan) {
+        return new LoopSpecCompilationRow(
+                "compilation-1", "designer-1", 3, "RUNNING",
+                "acceptance-remote", "ABORT_ACKNOWLEDGED", 0,
+                "message-1", 1, null, null, "now", "now", version,
+                "WP-1", 0, null, "SERVER_COMPILING", compiledPlan, 0,
+                "TEXT_MARKER", null, false, "TEXT_MARKER", null, false,
+                canonicalCandidate, 0, 0, serverCompiled, "MCP_ACCEPTED", null);
+    }
+
+    private OpenCodeClient.SessionCreationPlan internalPlan(
+            InternalMcpCredentialProvider.Credentials credentials, String creationCredential) {
+        Path directory = Path.of("/tmp/internal-attestation");
+        String title = OpenCodeClient.recoveryTitle("Acceptance binding", creationCredential);
+        String tool = credentials.serverName().replaceAll("[^a-zA-Z0-9_-]", "_") + "_submit_candidate";
+        List<OpenCodeClient.SessionPermissionRule> policy = List.of(
+                new OpenCodeClient.SessionPermissionRule("*", "*", "deny"),
+                new OpenCodeClient.SessionPermissionRule("external_directory", "*", "deny"),
+                new OpenCodeClient.SessionPermissionRule(tool, "*", "allow"));
+        String policyDigest = OpenCodeClient.permissionPolicyDigest(policy);
+        String requestDigest = OpenCodeClient.sessionCreationRequestSha256(
+                directory, title, credentials.generation(), true, credentials.serverName(),
+                "a".repeat(64), null,
+                OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS,
+                policyDigest, creationCredential);
+        return new OpenCodeClient.SessionCreationPlan(
+                directory, title, credentials.generation(), true, credentials.serverName(),
+                "a".repeat(64), null,
+                OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS,
+                policy, policyDigest, creationCredential, requestDigest);
     }
 
     private MachineCandidateSubmission.RunSnapshot run(
@@ -328,12 +505,18 @@ class CandidateRuntimeBindingServiceTest {
 
     private MachineCandidateSubmission.RunSnapshot acceptanceRun(
             String generation, MachineCandidateRunState state) {
+        return acceptanceRun(generation, state, null);
+    }
+
+    private MachineCandidateSubmission.RunSnapshot acceptanceRun(
+            String generation, MachineCandidateRunState state,
+            MachineCandidateSubmission.CandidateCloseReason closeReason) {
         return new MachineCandidateSubmission.RunSnapshot(
                 "acceptance-run", MachineCandidateSubmission.CandidateScope.designerSession("designer-1"),
                 MachineCandidateSubmission.CandidateOwnerRef.loopSpecCompilation("compilation-1"),
                 MachineCandidateKind.ACCEPTANCE_CLOSED_CHOICE_V7, "ACCEPTANCE_CLOSED_CHOICE_V7",
                 3, 7, INTERNAL, "ACCEPTANCE_CLOSED_CHOICE_V7", generation,
-                "acceptance-remote", state, 2, 1, "attempt-1", 0);
+                "acceptance-remote", state, 2, 1, "attempt-1", 0, closeReason);
     }
 
     private TaskDecompositionRow decomposition(long version) {

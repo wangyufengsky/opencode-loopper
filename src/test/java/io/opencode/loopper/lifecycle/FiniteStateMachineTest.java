@@ -40,6 +40,18 @@ class FiniteStateMachineTest {
     }
 
     @Test
+    void requirementReopenUsesOneExplicitDesignerTransitionFromBlockedStates() {
+        LifecycleRegistry registry = new LifecycleRegistry();
+
+        assertThat(registry.resolve(LifecycleMachineType.DESIGNER_SESSION, "designer-1",
+                DesignerSessionState.WAITING_INPUT.name(), DesignerSessionState.REVIEWING.name(),
+                LifecycleEvent.REOPEN_REQUIREMENT).event()).isEqualTo(LifecycleEvent.REOPEN_REQUIREMENT);
+        assertThat(registry.resolve(LifecycleMachineType.DESIGNER_SESSION, "designer-2",
+                DesignerSessionState.SESSION_ERROR.name(), DesignerSessionState.REVIEWING.name(),
+                LifecycleEvent.REOPEN_REQUIREMENT).event()).isEqualTo(LifecycleEvent.REOPEN_REQUIREMENT);
+    }
+
+    @Test
     void activeStageCanEnterFailedStateAtTheTaskFatalBoundary() {
         LifecycleRegistry registry = new LifecycleRegistry();
 
@@ -79,6 +91,105 @@ class FiniteStateMachineTest {
         assertThat(registry.definitions()).noneMatch(edge ->
                 edge.machineType() == LifecycleMachineType.CANDIDATE_SUBMISSION_RUN
                         && MachineCandidateRunState.valueOf(edge.fromState()).terminal());
+    }
+
+    @Test
+    void handedOffAcceptanceCandidateOnlySettlesThroughPositiveCompletion() {
+        LifecycleRegistry registry = new LifecycleRegistry();
+
+        assertThat(registry.resolve(LifecycleMachineType.ACCEPTANCE_CANDIDATE_HANDOFF, "handoff-1",
+                AcceptanceCandidateHandoffState.HANDED_OFF.name(),
+                AcceptanceCandidateHandoffState.SETTLED.name(), LifecycleEvent.COMPLETE).event())
+                .isEqualTo(LifecycleEvent.COMPLETE);
+        assertThat(registry.definitions()).noneMatch(edge ->
+                edge.machineType() == LifecycleMachineType.ACCEPTANCE_CANDIDATE_HANDOFF
+                        && AcceptanceCandidateHandoffState.SETTLED.name().equals(edge.fromState()));
+    }
+
+    @Test
+    void acceptanceHandoffCleanupRequiresAuditedStoppingAndPositiveCompletion() {
+        LifecycleRegistry registry = new LifecycleRegistry();
+
+        assertThat(registry.resolve(LifecycleMachineType.ACCEPTANCE_CANDIDATE_HANDOFF_CLEANUP, "cleanup-1",
+                AcceptanceCandidateHandoffCleanupState.DISCOVERED.name(),
+                AcceptanceCandidateHandoffCleanupState.STOPPING.name(), LifecycleEvent.ABORT).event())
+                .isEqualTo(LifecycleEvent.ABORT);
+        assertThat(registry.resolve(LifecycleMachineType.ACCEPTANCE_CANDIDATE_HANDOFF_CLEANUP, "cleanup-1",
+                AcceptanceCandidateHandoffCleanupState.STOPPING.name(),
+                AcceptanceCandidateHandoffCleanupState.DISCONNECTED.name(), LifecycleEvent.DISCONNECT).event())
+                .isEqualTo(LifecycleEvent.DISCONNECT);
+        assertThat(registry.resolve(LifecycleMachineType.ACCEPTANCE_CANDIDATE_HANDOFF_CLEANUP, "cleanup-1",
+                AcceptanceCandidateHandoffCleanupState.DISCONNECTED.name(),
+                AcceptanceCandidateHandoffCleanupState.STOPPING.name(), LifecycleEvent.ABORT).event())
+                .isEqualTo(LifecycleEvent.ABORT);
+        assertThat(registry.resolve(LifecycleMachineType.ACCEPTANCE_CANDIDATE_HANDOFF_CLEANUP, "cleanup-1",
+                AcceptanceCandidateHandoffCleanupState.STOPPING.name(),
+                AcceptanceCandidateHandoffCleanupState.STOPPED.name(), LifecycleEvent.COMPLETE).event())
+                .isEqualTo(LifecycleEvent.COMPLETE);
+    }
+
+    @Test
+    void acceptanceInternalLaunchAndCleanupHaveIndependentAuditedTopologies() {
+        LifecycleRegistry registry = new LifecycleRegistry();
+
+        assertThat(registry.resolve(LifecycleMachineType.ACCEPTANCE_CANDIDATE_INTERNAL_LAUNCH, "launch-1",
+                AcceptanceCandidateInternalLaunchState.PREPARED.name(),
+                AcceptanceCandidateInternalLaunchState.CREATING.name(), LifecycleEvent.DISPATCH).event())
+                .isEqualTo(LifecycleEvent.DISPATCH);
+        assertThat(registry.resolve(LifecycleMachineType.ACCEPTANCE_CANDIDATE_INTERNAL_LAUNCH, "launch-1",
+                AcceptanceCandidateInternalLaunchState.CREATING.name(),
+                AcceptanceCandidateInternalLaunchState.CREATED.name(), LifecycleEvent.COMPLETE).event())
+                .isEqualTo(LifecycleEvent.COMPLETE);
+        assertThat(registry.resolve(LifecycleMachineType.ACCEPTANCE_CANDIDATE_INTERNAL_LAUNCH, "launch-1",
+                AcceptanceCandidateInternalLaunchState.CREATED.name(),
+                AcceptanceCandidateInternalLaunchState.SETTLED.name(), LifecycleEvent.COMPLETE).event())
+                .isEqualTo(LifecycleEvent.COMPLETE);
+        assertThat(registry.resolve(LifecycleMachineType.ACCEPTANCE_CANDIDATE_INTERNAL_LAUNCH, "launch-2",
+                AcceptanceCandidateInternalLaunchState.CREATING.name(),
+                AcceptanceCandidateInternalLaunchState.DISCONNECTED.name(), LifecycleEvent.DISCONNECT).event())
+                .isEqualTo(LifecycleEvent.DISCONNECT);
+        assertThat(registry.resolve(LifecycleMachineType.ACCEPTANCE_CANDIDATE_INTERNAL_LAUNCH, "launch-2",
+                AcceptanceCandidateInternalLaunchState.DISCONNECTED.name(),
+                AcceptanceCandidateInternalLaunchState.STOPPING.name(), LifecycleEvent.ABORT).event())
+                .isEqualTo(LifecycleEvent.ABORT);
+        assertThat(registry.resolve(LifecycleMachineType.ACCEPTANCE_CANDIDATE_INTERNAL_LAUNCH, "launch-3",
+                AcceptanceCandidateInternalLaunchState.SETTLED.name(),
+                AcceptanceCandidateInternalLaunchState.CANCELLED.name(), LifecycleEvent.CANCEL).event())
+                .isEqualTo(LifecycleEvent.CANCEL);
+        assertThat(registry.resolve(LifecycleMachineType.ACCEPTANCE_CANDIDATE_INTERNAL_LAUNCH, "launch-4",
+                AcceptanceCandidateInternalLaunchState.SETTLED.name(),
+                AcceptanceCandidateInternalLaunchState.FAILED_STOPPED.name(), LifecycleEvent.FAIL).event())
+                .isEqualTo(LifecycleEvent.FAIL);
+        assertThat(registry.resolve(LifecycleMachineType.ACCEPTANCE_CANDIDATE_INTERNAL_LAUNCH_CLEANUP, "cleanup-1",
+                AcceptanceCandidateInternalLaunchCleanupState.DISCOVERED.name(),
+                AcceptanceCandidateInternalLaunchCleanupState.STOPPING.name(), LifecycleEvent.ABORT).event())
+                .isEqualTo(LifecycleEvent.ABORT);
+        assertThat(registry.resolve(LifecycleMachineType.ACCEPTANCE_CANDIDATE_INTERNAL_LAUNCH_CLEANUP, "cleanup-1",
+                AcceptanceCandidateInternalLaunchCleanupState.STOPPING.name(),
+                AcceptanceCandidateInternalLaunchCleanupState.DISCONNECTED.name(), LifecycleEvent.DISCONNECT).event())
+                .isEqualTo(LifecycleEvent.DISCONNECT);
+        assertThat(registry.resolve(LifecycleMachineType.ACCEPTANCE_CANDIDATE_INTERNAL_LAUNCH_CLEANUP, "cleanup-1",
+                AcceptanceCandidateInternalLaunchCleanupState.STOPPING.name(),
+                AcceptanceCandidateInternalLaunchCleanupState.STOPPED.name(), LifecycleEvent.COMPLETE).event())
+                .isEqualTo(LifecycleEvent.COMPLETE);
+        assertThat(registry.definitions()).noneMatch(edge ->
+                edge.machineType() == LifecycleMachineType.ACCEPTANCE_CANDIDATE_INTERNAL_LAUNCH
+                        && AcceptanceCandidateInternalLaunchState.valueOf(edge.fromState()).terminal());
+    }
+
+    @Test
+    void acceptanceInternalTerminationIntentHasRecoverableFailClosedTopology() {
+        LifecycleRegistry registry = new LifecycleRegistry();
+        LifecycleMachineType type = LifecycleMachineType.ACCEPTANCE_CANDIDATE_INTERNAL_TERMINATION_INTENT;
+
+        assertThat(registry.resolve(type, "intent-1", "REQUESTED", "DISCONNECTED",
+                LifecycleEvent.DISCONNECT).event()).isEqualTo(LifecycleEvent.DISCONNECT);
+        assertThat(registry.resolve(type, "intent-1", "DISCONNECTED", "REQUESTED",
+                LifecycleEvent.RECOVER).event()).isEqualTo(LifecycleEvent.RECOVER);
+        assertThat(registry.resolve(type, "intent-1", "REQUESTED", "READY",
+                LifecycleEvent.COMPLETE).event()).isEqualTo(LifecycleEvent.COMPLETE);
+        assertThat(registry.resolve(type, "intent-1", "READY", "COMPLETED",
+                LifecycleEvent.FINISH).event()).isEqualTo(LifecycleEvent.FINISH);
     }
 
     @Test
@@ -125,6 +236,8 @@ class FiniteStateMachineTest {
         assertThat(selfTransitions).containsExactlyInAnyOrder(
                 key(LifecycleMachineType.TASK, "RUNNING", LifecycleEvent.RECOVER),
                 key(LifecycleMachineType.DESIGNER_SESSION, "PENDING_HANDOFF", LifecycleEvent.DEFER),
+                key(LifecycleMachineType.ACCEPTANCE_CANDIDATE_HANDOFF,
+                        "STOPPING_LEGACY", LifecycleEvent.UPDATE),
                 key(LifecycleMachineType.WORKSPACE_LEASE, "HELD", LifecycleEvent.TRANSFER));
     }
 

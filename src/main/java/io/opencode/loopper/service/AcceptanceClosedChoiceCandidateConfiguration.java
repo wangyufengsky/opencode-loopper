@@ -13,8 +13,10 @@ class AcceptanceClosedChoiceCandidateConfiguration {
     @Bean
     AcceptanceClosedChoiceCandidateCoordinator acceptanceClosedChoiceCandidateCoordinator(
             MachineCandidateSubmission submissions, LoopperProperties properties,
-            Optional<CandidateRuntimeBindingService> bindings, ObjectMapper json) {
-        return new AcceptanceClosedChoiceCandidateCoordinator(submissions, properties, bindings, json);
+            Optional<CandidateRuntimeBindingService> bindings,
+            Optional<AcceptanceCandidateInternalLaunchStore> internalLaunches, ObjectMapper json) {
+        return new AcceptanceClosedChoiceCandidateCoordinator(
+                submissions, properties, bindings, internalLaunches, json);
     }
 
     @Bean

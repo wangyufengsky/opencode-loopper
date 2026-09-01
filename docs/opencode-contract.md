@@ -283,6 +283,26 @@ version checkpoints are resumable, while any additional owner drift fails closed
 A legacy output is read only after its own Session
 normally completes and still passes the same closed candidate policy.
 
+V51-V55 make remote creation, prompt dispatch and termination independently recoverable.
+Before creating either an internal candidate Session or a fresh Legacy successor, Loopper
+persists the exact directory, title, generation, model, profile, permission digest, request
+digest and an unguessable one-time local creation credential. A returned or recovered Session
+is usable only when its attested creation request and managed binding match that frozen plan;
+an unknown create result is fenced into a cleanup ledger and cannot be treated as success or
+retried as a second create. The internal run opens only in the same transaction that writes a
+settlement certificate and transfers the compilation to the attested external Session.
+
+Each initial/correction prompt has one durable dispatch identity. Model-call consumption and
+the fact that dispatch may have crossed the transport boundary are recorded before the HTTP
+call; a missing lookup capability or unknown result remains `DISCONNECTED` and must be
+reconciled rather than resent blindly. Designer cancellation, requirement replacement and
+the three admitted initial-prompt failure facts persist a typed termination intent before
+abort/status I/O. New submissions, prompts and launch progress are fenced while that intent
+is active. Only positive stop proof plus no open run, live prompt or unresolved cleanup remote
+permits the launch and parent to settle terminally. A user action that arrives after an
+initial-prompt failure promotes the existing ready intent to cancellation/replacement instead
+of creating a competing termination authority.
+
 The structural candidate qualification observes model prompt calls, OpenCode candidate Sessions, and MCP
 candidate submissions as three separate counters: unique optimum `0/0/0`, true tie `1/1/2`, and
 non-enumerable and path-safety blocks `0/0/0`. It records 22/22 exact guards, 7/7 metric guards,

@@ -3,6 +3,7 @@ package io.opencode.loopper.service;
 import io.opencode.loopper.config.LoopperProperties;
 import io.opencode.loopper.domain.AcceptanceBindingSource;
 import io.opencode.loopper.domain.MachineCandidateKind;
+import io.opencode.loopper.domain.MachineCandidateRunState;
 import io.opencode.loopper.persistence.DesignAcceptancePlanningRow;
 import io.opencode.loopper.persistence.LoopSpecCompilationRow;
 import io.opencode.loopper.runtime.OpenCodeClient;
@@ -26,20 +27,30 @@ final class AcceptanceClosedChoiceCandidateCoordinator {
     private final MachineCandidateSubmission submissions;
     private final LoopperProperties properties;
     private final Optional<CandidateRuntimeBindingService> bindings;
+    private final Optional<AcceptanceCandidateInternalLaunchStore> internalLaunches;
     private final DesignerAcceptanceCandidatePromptFactory prompts;
 
     AcceptanceClosedChoiceCandidateCoordinator(MachineCandidateSubmission submissions,
                                                LoopperProperties properties) {
-        this(submissions, properties, Optional.empty(), new ObjectMapper());
+        this(submissions, properties, Optional.empty(), Optional.empty(), new ObjectMapper());
     }
 
     AcceptanceClosedChoiceCandidateCoordinator(MachineCandidateSubmission submissions,
                                                 LoopperProperties properties,
                                                 Optional<CandidateRuntimeBindingService> bindings,
                                                 ObjectMapper json) {
+        this(submissions, properties, bindings, Optional.empty(), json);
+    }
+
+    AcceptanceClosedChoiceCandidateCoordinator(MachineCandidateSubmission submissions,
+                                                LoopperProperties properties,
+                                                Optional<CandidateRuntimeBindingService> bindings,
+                                                Optional<AcceptanceCandidateInternalLaunchStore> internalLaunches,
+                                                ObjectMapper json) {
         this.submissions = submissions;
         this.properties = properties;
         this.bindings = bindings;
+        this.internalLaunches = internalLaunches;
         this.prompts = new DesignerAcceptanceCandidatePromptFactory(json);
     }
 
@@ -128,10 +139,10 @@ final class AcceptanceClosedChoiceCandidateCoordinator {
     }
 
     Optional<MachineCandidateSubmission.RunSnapshot> find(String compilationId) {
-        Optional<MachineCandidateSubmission.RunSnapshot> legacy = submissions.find(runId(
-                compilationId, MachineCandidateSubmission.SubmissionChannel.IN_PROCESS_LEGACY));
-        return legacy.isPresent() ? legacy : submissions.find(runId(
-                compilationId, MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP));
+        Optional<MachineCandidateSubmission.RunSnapshot> legacy = find(
+                compilationId, MachineCandidateSubmission.SubmissionChannel.IN_PROCESS_LEGACY);
+        return legacy.isPresent() ? legacy : find(
+                compilationId, MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP);
     }
 
     Optional<MachineCandidateSubmission.SubmissionResult> terminal(String compilationId) {
@@ -157,16 +168,50 @@ final class AcceptanceClosedChoiceCandidateCoordinator {
     MachineCandidateSubmission.RunSnapshot close(
             String compilationId, MachineCandidateSubmission.SubmissionChannel channel,
             MachineCandidateSubmission.CandidateCloseReason reason) {
-        MachineCandidateSubmission.RunSnapshot run = submissions.find(runId(compilationId, channel))
+        MachineCandidateSubmission.RunSnapshot run = find(compilationId, channel)
                 .orElseThrow(() -> new ConflictException("ACCEPTANCE_CANDIDATE_RUN_MISSING",
                         "验收闭集候选运行不存在"));
-        return submissions.close(new MachineCandidateSubmission.CloseCommand(run.runId(), run.version(), reason));
+        return closeOpen(run, reason);
+    }
+
+    private Optional<MachineCandidateSubmission.RunSnapshot> find(
+            String compilationId, MachineCandidateSubmission.SubmissionChannel channel) {
+        if (channel == MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP) {
+            Optional<String> exact = internalLaunches.flatMap(store -> store.findForCompilation(compilationId))
+                    .map(io.opencode.loopper.persistence.AcceptanceCandidateInternalLaunchRow::candidateRunId);
+            if (exact.isPresent()) return submissions.find(exact.orElseThrow());
+        }
+        return submissions.find(runId(compilationId, channel));
+    }
+
+    MachineCandidateSubmission.RunSnapshot closeOpen(
+            MachineCandidateSubmission.RunSnapshot open,
+            MachineCandidateSubmission.CandidateCloseReason reason) {
+        if (open == null || open.state() != MachineCandidateRunState.OPEN) {
+            throw new ConflictException("ACCEPTANCE_CANDIDATE_RUN_NOT_OPEN",
+                    "验收闭集候选运行不再处于可关闭状态");
+        }
+        try {
+            return submissions.close(new MachineCandidateSubmission.CloseCommand(
+                    open.runId(), open.version(), reason));
+        } catch (ConflictException concurrent) {
+            MachineCandidateSubmission.RunSnapshot latest = submissions.find(open.runId())
+                    .orElseThrow(() -> concurrent);
+            if (latest.state() != MachineCandidateRunState.OPEN) return latest;
+            throw concurrent;
+        }
     }
 
     void validate(MachineCandidateSubmission.RunSnapshot run) {
         bindings.orElseThrow(() -> new ConflictException("CANDIDATE_RUNTIME_BINDING_UNAVAILABLE",
                         "候选运行时绑定服务不可用"))
                 .validate(run, run.submissionChannel());
+    }
+
+    void validateCorrectionStopRecovery(MachineCandidateSubmission.RunSnapshot run) {
+        bindings.orElseThrow(() -> new ConflictException("CANDIDATE_RUNTIME_BINDING_UNAVAILABLE",
+                        "候选运行时绑定服务不可用"))
+                .validateCorrectionStopRecovery(run, run.submissionChannel());
     }
 
     String runId(String compilationId, MachineCandidateSubmission.SubmissionChannel channel) {
@@ -183,6 +228,12 @@ final class AcceptanceClosedChoiceCandidateCoordinator {
         return bindings.orElseThrow(() -> new ConflictException("CANDIDATE_RUNTIME_BINDING_UNAVAILABLE",
                         "候选运行时绑定服务不可用"))
                 .bind(remote, channel);
+    }
+
+    CandidateRuntimeBindingService.Binding bindLegacy(OpenCodeClient.SessionAttestation attestation) {
+        return bindings.orElseThrow(() -> new ConflictException("CANDIDATE_RUNTIME_BINDING_UNAVAILABLE",
+                        "候选运行时绑定服务不可用"))
+                .bindAttested(attestation, MachineCandidateSubmission.SubmissionChannel.IN_PROCESS_LEGACY);
     }
 
     static boolean exactTrueTie(DesignerAcceptanceWorkflow.RoutingResult routing) {

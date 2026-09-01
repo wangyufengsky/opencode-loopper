@@ -1096,7 +1096,14 @@ Compiler v7 的既有快速路径保持不变：
 
 外部 `auto/http` 兼容模式不注入私有 MCP。它们继续使用 `IN_PROCESS_LEGACY` 通道，而且每个候选 run 必须新建 OpenCode Session，不能把旧 JSON 会话升级为内部 MCP 会话。受管模式可在同一候选 Session 内根据服务端拒绝结果做有界重提，但不能跨 runtime generation 继续。
 
-候选 feature flag 只控制是否创建新的对应 run。关闭 flag 后不得再打开新 run；已经持久化的 run、恢复读取和兼容 adapter 必须继续可用，因此 persisted adapter 是常驻基础设施，不能通过条件 Bean 随 flag 一起消失。`PACKAGE_DESIGN_V1` 已由隔离成品 JAR 真实证明同 Session 拒绝后修正接受，以及 Markdown-only 下零次提交进入现有编译路线，生产默认值为开启；环境覆盖为 `false` 时新工作包直接使用既有 Designer + Markdown 编译路线，已有候选照常恢复。`ACCEPTANCE_CLOSED_CHOICE_V7` 的 4 条三轴真实工作流与完整 v7 资格门已全绿，生产默认值为开启；环境覆盖为 `false` 是新 run 的即时旧 JSON 回滚，不改变已有 run 的恢复语义。
+候选 feature flag 只控制是否创建新的对应 run。关闭 flag 后不得再打开新 run；已经持久化的 run、恢复读取和兼容 adapter 必须继续可用，因此 persisted adapter 是常驻基础设施，不能通过条件 Bean 随 flag 一起消失。`PACKAGE_DESIGN_V1` 已由隔离成品 JAR 真实证明同 Session 拒绝后修正接受，以及 Markdown-only 下零次提交进入现有编译路线，生产默认值为开启；环境覆盖为 `false` 时新工作包直接使用既有 Designer + Markdown 编译路线，已有候选照常恢复。`ACCEPTANCE_CLOSED_CHOICE_V7` 的 4 条三轴结构工作流与完整 v7 资格门已全绿，但其中拒绝后的两次 MCP 提交由集成驱动器发起，尚不能证明真实模型采用工具并自修正，因此生产默认值保持关闭；环境覆盖为 `false` 是新 run 的即时旧 JSON 回滚，不改变已有 run 的恢复语义。
+
+验收候选创建、提示、停止和父流程收束必须使用 V51-V55 的持久化协议。internal launch 在远端创建前冻结
+owner/source、路由、运行代次、权限/请求摘要和一次性创建凭证，只有回读远端与冻结计划完全一致时才可用
+settlement certificate 原子打开 run；未知创建结果只允许 cleanup。每个提示先持久化模型调用和派发边界，
+不能确认时不得盲重发。取消、需求替换和首次提示失败先写唯一 termination intent，停止 run/prompt/remote
+并取得正向证明后，才允许父 Designer、需求修订和 compilation 收束；后到的取消/替换只能提升既有 ready
+失败 intent，不能新建竞态终止路径。
 
 资格与界面必须分别统计 `candidateSessions` 和 `candidateSubmissions`，两者都是独立、非负的服务端事实，不能用模型调用数推导，也不能互相替代：
 

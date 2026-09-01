@@ -10,9 +10,76 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class FakeOpenCodeClientTest {
     @TempDir Path temp;
+
+    @Test
+    void exactRecoveryUsesFrozenCreationPlanAndCanonicalPromptHash() {
+        FakeOpenCodeClient client = new FakeOpenCodeClient();
+        String credential = "0123456789abcdefghijklmnopqrstuvwxyz_ABCD12";
+        OpenCodeClient.OpenCodeModel model = new OpenCodeClient.OpenCodeModel(
+                "opencode-go", "deepseek-v4-flash", false);
+
+        OpenCodeClient.SessionCreationPlan plan = client.prepareSessionCreation(temp,
+                "Acceptance legacy", model, OpenCodeClient.SessionProfile.COMPILER_BINDING_NO_TOOLS,
+                credential);
+        OpenCodeClient.SessionAttestation created = client.createSession(plan);
+
+        assertThat(plan.exactTitle()).contains(credential);
+        assertThat(plan.permissionPolicyDigest())
+                .isEqualTo(OpenCodeClient.permissionPolicyDigest(plan.permissionPolicy()));
+        assertThat(plan.createRequestSha256())
+                .isEqualTo(OpenCodeClient.sessionCreationRequestSha256(plan));
+        assertThat(created.attestationKind())
+                .isEqualTo(OpenCodeClient.SessionAttestationKind.LOCAL_REQUEST_ATTESTED);
+        assertThat(client.findSessionsByExactTitle(plan).matches()).containsExactly(created);
+
+        OpenCodeClient.PromptRequest request = new OpenCodeClient.PromptRequest(
+                "Choose candidate 1", null, null, new OpenCodeClient.ResponseFormat.Text(),
+                "message-1", List.of());
+        String requestSha256 = OpenCodeClient.promptRequestSha256(request);
+        client.promptAsync(created.session(), request);
+
+        assertThat(client.findPromptMessage(created.session(), request, requestSha256))
+                .isEqualTo(new OpenCodeClient.MessageLookup(true, true, requestSha256));
+        OpenCodeClient.PromptRequest drifted = new OpenCodeClient.PromptRequest(
+                "Choose candidate 2", null, null, new OpenCodeClient.ResponseFormat.Text(),
+                "message-1", List.of());
+        assertThatThrownBy(() -> client.findPromptMessage(created.session(), drifted, requestSha256))
+                .isInstanceOf(io.opencode.loopper.domain.SessionFailure.class)
+                .hasMessageContaining("hash");
+        assertThatThrownBy(() -> client.prepareSessionCreation(temp, "Acceptance legacy",
+                new OpenCodeClient.OpenCodeModel("", "deepseek-v4-flash", false),
+                OpenCodeClient.SessionProfile.COMPILER_BINDING_NO_TOOLS, credential))
+                .isInstanceOf(io.opencode.loopper.domain.SessionFailure.class)
+                .hasMessageContaining("provider and id");
+    }
+
+    @Test
+    void candidatePlanningIsLocalAndReadinessRejectsManagedRuntimeDrift() {
+        FakeOpenCodeClient client = new FakeOpenCodeClient();
+        client.setManagedRuntime("generation-7", "loopper-private-7");
+        String credential = "0123456789abcdefghijklmnopqrstuvwxyz_ABCD12";
+
+        OpenCodeClient.SessionCreationPlan plan = client.prepareCandidateSessionCreationLocally(temp,
+                "Acceptance internal", null,
+                OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS,
+                credential);
+
+        assertThat(plan.managed()).isTrue();
+        assertThat(plan.runtimeGenerationId()).isEqualTo("generation-7");
+        assertThat(client.createSessionCalls()).isZero();
+        assertThat(client.createReadOnlySessionCalls()).isZero();
+        assertThat(client.promptCalls()).isZero();
+        client.requireCandidateSessionReady(plan);
+
+        client.setManagedRuntime("generation-8", "loopper-private-8");
+        assertThatThrownBy(() -> client.requireCandidateSessionReady(plan))
+                .isInstanceOf(io.opencode.loopper.domain.SessionFailure.class)
+                .hasMessageContaining("runtime generation has changed");
+    }
 
     @Test
     void readOnlySessionAllowsTheRuntimeDefaultModel() {

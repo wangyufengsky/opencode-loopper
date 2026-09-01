@@ -66,9 +66,100 @@ public final class CandidateRuntimeBindingService implements CandidateRunGuard {
         return binding(desired);
     }
 
+    /** Persists the first binding from the exact locally attested create request. */
+    public synchronized Binding bindAttested(OpenCodeClient.SessionAttestation attestation,
+                                             MachineCandidateSubmission.SubmissionChannel channel) {
+        if (attestation == null
+                || attestation.attestationKind() != OpenCodeClient.SessionAttestationKind.LOCAL_REQUEST_ATTESTED) {
+            throw new BadRequestException("CANDIDATE_RUNTIME_BINDING_INVALID",
+                    "候选运行缺少本地创建请求证明");
+        }
+        OpenCodeSessionRuntimeBindingRow existing = mapper
+                .findOpenCodeSessionRuntimeBinding(attestation.remoteId()).orElse(null);
+        String ownership = attestation.managed() ? "MANAGED" : "EXTERNAL";
+        OpenCodeSessionRuntimeBindingRow desired = new OpenCodeSessionRuntimeBindingRow(
+                attestation.remoteId(), attestation.runtimeGenerationId(), ownership,
+                attestation.endpointFingerprint(), attestation.internalMcpServer(), Instant.now().toString());
+        if (existing == null) {
+            if (mapper.insertOpenCodeSessionRuntimeBinding(desired) != 1) {
+                throw new ConflictException("CANDIDATE_RUNTIME_BINDING_CONFLICT",
+                        "OpenCode Session 运行时代际绑定未能持久化");
+            }
+            existing = desired;
+        }
+        if (!existing.runtimeGenerationId().equals(desired.runtimeGenerationId())
+                || !existing.ownershipMode().equals(desired.ownershipMode())
+                || !existing.endpointFingerprint().equals(desired.endpointFingerprint())
+                || !java.util.Objects.equals(existing.internalMcpServer(), desired.internalMcpServer())) {
+            throw new ConflictException("CANDIDATE_RUNTIME_BINDING_STALE",
+                    "OpenCode Session 本地创建证明与持久化绑定不一致");
+        }
+        if (channel != MachineCandidateSubmission.SubmissionChannel.IN_PROCESS_LEGACY) {
+            throw new ConflictException("CANDIDATE_MANAGED_RUNTIME_REQUIRED",
+                    "本地创建证明只用于进程内兼容候选通道");
+        }
+        if (attestation.managed()) validateActiveManaged(existing);
+        return binding(existing);
+    }
+
+    /**
+     * Binds an Acceptance internal-MCP remote only when its complete attestation is the
+     * byte-for-byte semantic equivalent of the locally frozen create plan.  This is a
+     * separate entry point so the legacy attestation seam above keeps its deliberately
+     * narrow channel contract.
+     */
+    public synchronized Binding bindInternalAttested(
+            OpenCodeClient.SessionAttestation attestation,
+            OpenCodeClient.SessionCreationPlan frozenPlan) {
+        if (attestation == null || frozenPlan == null
+                || attestation.attestationKind()
+                != OpenCodeClient.SessionAttestationKind.LOCAL_REQUEST_ATTESTED
+                || !frozenPlan.equals(attestation.plan())
+                || !attestation.managed()
+                || blank(attestation.internalMcpServer())) {
+            throw new ConflictException("CANDIDATE_INTERNAL_ATTESTATION_MISMATCH",
+                    "内部 MCP 候选 Session 与冻结创建计划不一致");
+        }
+        OpenCodeSessionRuntimeBindingRow desired = new OpenCodeSessionRuntimeBindingRow(
+                attestation.remoteId(), attestation.runtimeGenerationId(), "MANAGED",
+                attestation.endpointFingerprint(), attestation.internalMcpServer(), Instant.now().toString());
+        OpenCodeSessionRuntimeBindingRow existing = mapper
+                .findOpenCodeSessionRuntimeBinding(attestation.remoteId()).orElse(null);
+        if (existing == null) {
+            if (mapper.insertOpenCodeSessionRuntimeBinding(desired) != 1) {
+                throw new ConflictException("CANDIDATE_RUNTIME_BINDING_CONFLICT",
+                        "OpenCode Session 运行时代际绑定未能持久化");
+            }
+            existing = desired;
+        }
+        if (!existing.runtimeGenerationId().equals(desired.runtimeGenerationId())
+                || !"MANAGED".equals(existing.ownershipMode())
+                || !existing.endpointFingerprint().equals(desired.endpointFingerprint())
+                || !java.util.Objects.equals(existing.internalMcpServer(), desired.internalMcpServer())) {
+            throw new ConflictException("CANDIDATE_RUNTIME_BINDING_STALE",
+                    "内部 MCP 候选 Session 证明与持久化绑定不一致");
+        }
+        validateActiveManaged(existing);
+        return binding(existing);
+    }
+
     @Override
     public void validate(MachineCandidateSubmission.RunSnapshot run,
                          MachineCandidateSubmission.SubmissionChannel submissionChannel) {
+        validate(run, submissionChannel, false);
+    }
+
+    void validateCorrectionStopRecovery(MachineCandidateSubmission.RunSnapshot run,
+            MachineCandidateSubmission.SubmissionChannel submissionChannel) {
+        if (run == null || run.candidateKind() != MachineCandidateKind.ACCEPTANCE_CLOSED_CHOICE_V7) {
+            throw new IllegalArgumentException("Correction stop recovery requires an acceptance candidate run");
+        }
+        validate(run, submissionChannel, true);
+    }
+
+    private void validate(MachineCandidateSubmission.RunSnapshot run,
+            MachineCandidateSubmission.SubmissionChannel submissionChannel, boolean correctionStopRecovery) {
+        validateDesignerScopeWritable(run);
         OpenCodeSessionRuntimeBindingRow binding = mapper
                 .findOpenCodeSessionRuntimeBinding(run.externalSessionId())
                 .orElseThrow(() -> new ConflictException("CANDIDATE_RUNTIME_BINDING_STALE",
@@ -88,13 +179,24 @@ public final class CandidateRuntimeBindingService implements CandidateRunGuard {
             // it must never revive a Session from an earlier process generation.
             if (!persistedAcceptanceTerminationProof(run)) validateActiveManaged(binding);
         }
-        validateOwnerAndSource(run);
+        validateOwnerAndSource(run, correctionStopRecovery);
+    }
+
+    private void validateDesignerScopeWritable(MachineCandidateSubmission.RunSnapshot run) {
+        if (run.scope().type() != MachineCandidateSubmission.CandidateScopeType.DESIGNER_SESSION) return;
+        mapper.findDesignerSession(run.scope().id()).ifPresent(session -> {
+            if (!"RUNNING".equals(session.state())) {
+                throw new ConflictException("CANDIDATE_SCOPE_NOT_WRITABLE",
+                        "Designer session is not RUNNING and cannot create or advance a candidate writer");
+            }
+        });
     }
 
     private boolean persistedAcceptanceTerminationProof(MachineCandidateSubmission.RunSnapshot run) {
         if (run.candidateKind() != MachineCandidateKind.ACCEPTANCE_CLOSED_CHOICE_V7
                 || run.state() != MachineCandidateRunState.ACCEPTED
                 && run.state() != MachineCandidateRunState.WAITING_INPUT
+                && run.state() != MachineCandidateRunState.FALLBACK_REQUIRED
                 && run.state() != MachineCandidateRunState.CLOSED) return false;
         return mapper.findLoopSpecCompilation(run.owner().id())
                 .filter(owner -> run.scope().id().equals(owner.designerSessionId())
@@ -149,7 +251,8 @@ public final class CandidateRuntimeBindingService implements CandidateRunGuard {
         }
     }
 
-    private void validateOwnerAndSource(MachineCandidateSubmission.RunSnapshot run) {
+    private void validateOwnerAndSource(
+            MachineCandidateSubmission.RunSnapshot run, boolean correctionStopRecovery) {
         MachineCandidateProtocolPolicy.Contract protocol = MachineCandidateProtocolPolicy.contract(run.candidateKind());
         if (!protocol.integrated() || run.scope().type() != protocol.scopeType()
                 || run.owner().type() != protocol.ownerType()) {
@@ -200,8 +303,10 @@ public final class CandidateRuntimeBindingService implements CandidateRunGuard {
         var owner = mapper.findLoopSpecCompilation(run.owner().id())
                 .orElseThrow(() -> new ConflictException("CANDIDATE_OWNER_MISSING",
                         "LoopSpec compilation candidate owner no longer exists"));
-        if (!run.scope().id().equals(owner.designerSessionId())
-                || !acceptanceOwnerVersionMatches(run, owner)
+        boolean versionMatches = correctionStopRecovery
+                ? AcceptanceCandidateOwnerCheckpoint.correctionStopRecoveryMatches(run, owner)
+                : acceptanceOwnerVersionMatches(run, owner);
+        if (!run.scope().id().equals(owner.designerSessionId()) || !versionMatches
                 || owner.designRevision() != run.sourceRevision()) {
             throw new ConflictException("CANDIDATE_OWNER_REVISION_STALE",
                     "LoopSpec compilation candidate owner or source revision has changed");
@@ -219,6 +324,12 @@ public final class CandidateRuntimeBindingService implements CandidateRunGuard {
     private boolean acceptanceOwnerVersionMatches(
             MachineCandidateSubmission.RunSnapshot run,
             io.opencode.loopper.persistence.LoopSpecCompilationRow owner) {
+        if (AcceptanceCandidateOwnerCheckpoint.settledCorrectionStopMarker(owner)) {
+            long proofVersion = AcceptanceCandidateOwnerCheckpoint.correctionProofVersion(run);
+            if (owner.version() == proofVersion && run.state().terminal()) return true;
+            return run.state() == MachineCandidateRunState.ACCEPTED
+                    && acceptedServerCompilationCheckpoint(owner, proofVersion);
+        }
         if (run.state() == MachineCandidateRunState.ACCEPTED) {
             long expected = run.ownerVersion() + 1;
             if ("DISCONNECTED".equals(owner.externalSessionState())) expected++;
@@ -229,7 +340,8 @@ public final class CandidateRuntimeBindingService implements CandidateRunGuard {
             if (owner.version() == expected) return true;
             return acceptedServerCompilationCheckpoint(owner, expected);
         }
-        if (run.state() == MachineCandidateRunState.WAITING_INPUT) {
+        if (run.state() == MachineCandidateRunState.WAITING_INPUT
+                || run.state() == MachineCandidateRunState.FALLBACK_REQUIRED) {
             long expected = run.ownerVersion();
             if ("DISCONNECTED".equals(owner.externalSessionState())) expected++;
             if (CandidateSessionTerminationProof.persisted(owner.externalSessionState())) {
@@ -255,12 +367,12 @@ public final class CandidateRuntimeBindingService implements CandidateRunGuard {
         if (!CandidateSessionTerminationProof.persisted(owner.externalSessionState())
                 || !"RUNNING".equals(owner.state())
                 || !"SERVER_COMPILING".equals(owner.workflowStep())
-                || blank(owner.planningJson())) return false;
+                || blank(owner.planningJson())
+                || blank(owner.semanticPlanJson())) return false;
         if (!owner.serverCompiled()) {
-            return owner.version() == proofVersion + 1 && blank(owner.semanticPlanJson());
+            return owner.version() == proofVersion + 1;
         }
-        return owner.version() == proofVersion + 2
-                && owner.planningJson().equals(owner.semanticPlanJson());
+        return owner.version() == proofVersion + 2;
     }
 
     private boolean managed(OpenCodeClient.OpenCodeSession session) {

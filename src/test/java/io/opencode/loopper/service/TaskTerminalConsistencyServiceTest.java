@@ -3,6 +3,7 @@ package io.opencode.loopper.service;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -40,6 +41,33 @@ class TaskTerminalConsistencyServiceTest {
         StageRow running = new StageRow("stage", fixture.task.id(), 0, "running", "[]", "[]", "[]", "[]",
                 StageState.RUNNING.name(), "2026-01-01T00:00:00Z", "2026-01-01T00:00:00Z", 0);
         when(fixture.mapper.listStages(fixture.task.id())).thenReturn(List.of(running));
+
+        assertThatThrownBy(() -> fixture.service.complete(fixture.task, LifecycleEvent.COMPLETE, Map.of()))
+                .isInstanceOfSatisfying(ConflictException.class, failure ->
+                        org.assertj.core.api.Assertions.assertThat(failure.code())
+                                .isEqualTo("TASK_TERMINAL_CHILDREN_ACTIVE"));
+        verify(fixture.designers, never()).completeTaskDesignerInTransaction(fixture.task.id());
+        verify(fixture.states, never()).updateTask(any(), any(), any());
+    }
+
+    @Test
+    void completionDoesNotWriteTheTaskWhenTheDesignerCandidateGuardRejectsIt() {
+        Fixture fixture = new Fixture();
+        doThrow(new ConflictException("DESIGNER_CANDIDATE_WRITER_STILL_ACTIVE", "active"))
+                .when(fixture.designers).completeTaskDesignerInTransaction(fixture.task.id());
+
+        assertThatThrownBy(() -> fixture.service.complete(fixture.task, LifecycleEvent.COMPLETE, Map.of()))
+                .isInstanceOfSatisfying(ConflictException.class, failure ->
+                        org.assertj.core.api.Assertions.assertThat(failure.code())
+                                .isEqualTo("DESIGNER_CANDIDATE_WRITER_STILL_ACTIVE"));
+        verify(fixture.states, never()).updateTask(any(), any(), any());
+    }
+
+    @Test
+    void completionExplicitlyRejectsUnstoppedHandoffCleanupUnderAnyParentState() {
+        Fixture fixture = new Fixture();
+        when(fixture.mapper.existsUnstoppedAcceptanceCandidateHandoffCleanupForTask(fixture.task.id()))
+                .thenReturn(true);
 
         assertThatThrownBy(() -> fixture.service.complete(fixture.task, LifecycleEvent.COMPLETE, Map.of()))
                 .isInstanceOfSatisfying(ConflictException.class, failure ->

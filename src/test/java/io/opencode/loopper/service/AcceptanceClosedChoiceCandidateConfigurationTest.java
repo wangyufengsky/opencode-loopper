@@ -23,6 +23,8 @@ class AcceptanceClosedChoiceCandidateConfigurationTest {
             assertThat(application).hasSingleBean(AcceptanceClosedChoiceCandidateCoordinator.class);
             assertThat(application).hasSingleBean(AcceptanceClosedChoiceCandidatePolicy.class);
             assertThat(application).hasSingleBean(AcceptanceClosedChoiceAcceptedCandidateWriter.class);
+            assertThat(application.getBean(LoopperProperties.class).getInternalCandidate()
+                    .isAcceptanceClosedChoiceV7Enabled()).isFalse();
         });
     }
 

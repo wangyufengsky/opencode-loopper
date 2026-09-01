@@ -21,14 +21,41 @@ final class DesignerModelPromptTransport {
 
     void submit(OpenCodeClient.OpenCodeSession remote, String prompt, String responseMode, String schemaId,
             String designerSessionId, String workPackageId) {
+        openCode.promptAsync(remote, prepare(prompt, responseMode, schemaId,
+                designerSessionId, workPackageId, null).request());
+    }
+
+    PreparedPrompt prepare(String prompt, String responseMode, String schemaId,
+            String designerSessionId, String workPackageId, String messageId) {
         OpenCodeClient.PromptRequest request = ModelResponseMode.JSON_SCHEMA.name().equals(responseMode)
                 && schemaId != null && !schemaId.isBlank()
                 ? new OpenCodeClient.PromptRequest(prompt, null, null, OpenCodeStructuredSchemas.format(schemaId))
                 : OpenCodeClient.PromptRequest.text(prompt);
+        request = new OpenCodeClient.PromptRequest(request.text(), request.system(), request.agent(),
+                request.responseFormat(), messageId, request.files());
         DesignerAttachmentContext.ContextUse use = workPackageId == null || workPackageId.isBlank()
                 ? DesignerAttachmentContext.ContextUse.requirement(designerSessionId)
                 : DesignerAttachmentContext.ContextUse.workPackage(designerSessionId, workPackageId);
-        openCode.promptAsync(remote, attachments.withContext(use, request));
+        OpenCodeClient.PromptRequest contextual = attachments.withContext(use, request);
+        return new PreparedPrompt(contextual, OpenCodeClient.promptRequestSha256(contextual));
+    }
+
+    OpenCodeClient.MessageLookup lookupPrompt(OpenCodeClient.OpenCodeSession remote, PreparedPrompt prompt) {
+        OpenCodeClient.MessageLookup lookup = openCode.findPromptMessage(
+                remote, prompt.request(), prompt.sha256());
+        if (!lookup.supported()) {
+            throw new SessionFailure("OPENCODE_PROMPT_LOOKUP_UNAVAILABLE",
+                    "OpenCode cannot recover a deterministic prompt acknowledgement");
+        }
+        if (lookup.exists() && !prompt.sha256().equals(lookup.verifiedRequestSha256())) {
+            throw new SessionFailure("OPENCODE_PROMPT_REQUEST_STALE",
+                    "OpenCode prompt acknowledgement does not match the frozen request");
+        }
+        return lookup;
+    }
+
+    void dispatchPrompt(OpenCodeClient.OpenCodeSession remote, PreparedPrompt prompt) {
+        openCode.promptAsync(remote, prompt.request());
     }
 
     String responseOutput(OpenCodeClient.OpenCodeSession remote, String responseMode) {
@@ -47,4 +74,7 @@ final class DesignerModelPromptTransport {
                 : "OpenCode completed without the requested structured object";
         throw new SessionFailure("OPENCODE_STRUCTURED_OUTPUT_FAILED", detail);
     }
+
+    record PreparedPrompt(OpenCodeClient.PromptRequest request, String sha256) { }
+
 }

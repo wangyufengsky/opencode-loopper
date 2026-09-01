@@ -11,6 +11,7 @@ import io.opencode.loopper.domain.AcceptanceBindingSource;
 import io.opencode.loopper.domain.MachineCandidateKind;
 import io.opencode.loopper.persistence.DesignAcceptancePlanningRow;
 import io.opencode.loopper.persistence.LoopSpecCompilationRow;
+import io.opencode.loopper.persistence.AcceptanceCandidateInternalLaunchRow;
 import io.opencode.loopper.runtime.OpenCodeClient;
 import java.util.List;
 import java.util.Map;
@@ -150,6 +151,23 @@ class AcceptanceClosedChoiceCandidateCoordinatorTest {
 
         assertThat(submissions.opened.submissionChannel())
                 .isEqualTo(MachineCandidateSubmission.SubmissionChannel.IN_PROCESS_LEGACY);
+    }
+
+    @Test
+    void findsTheExactFrozenInternalRunInsteadOfReDerivingItsIdentity() {
+        MachineCandidateSubmission submissions = mock(MachineCandidateSubmission.class);
+        AcceptanceCandidateInternalLaunchStore launches = mock(AcceptanceCandidateInternalLaunchStore.class);
+        AcceptanceCandidateInternalLaunchRow launch = mock(AcceptanceCandidateInternalLaunchRow.class);
+        MachineCandidateSubmission.RunSnapshot exact = mock(MachineCandidateSubmission.RunSnapshot.class);
+        when(launch.candidateRunId()).thenReturn("frozen-run");
+        when(launches.findForCompilation("cmp")).thenReturn(Optional.of(launch));
+        when(submissions.find("frozen-run")).thenReturn(Optional.of(exact));
+        LoopperProperties properties = new LoopperProperties();
+        var coordinator = new AcceptanceClosedChoiceCandidateCoordinator(
+                submissions, properties, Optional.empty(), Optional.of(launches),
+                new tools.jackson.databind.ObjectMapper());
+
+        assertThat(coordinator.find("cmp")).containsSame(exact);
     }
 
     private AcceptanceClosedChoiceCandidateCoordinator coordinator(

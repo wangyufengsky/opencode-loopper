@@ -41,26 +41,45 @@ class HttpOpenCodeClientTest {
     private final AtomicReference<String> todoBody = new AtomicReference<>("[]");
     private final AtomicReference<String> sessionActionBody = new AtomicReference<>();
     private final AtomicReference<String> mcpBody = new AtomicReference<>("{}");
+    private final AtomicInteger mcpRequests = new AtomicInteger();
     private final AtomicReference<String> promptBody = new AtomicReference<>();
+    private final AtomicInteger promptRequests = new AtomicInteger();
     private final AtomicReference<String> createResponseDirectory = new AtomicReference<>();
+    private final AtomicReference<String> sessionListBody = new AtomicReference<>("[]");
+    private final AtomicInteger sessionListStatusCode = new AtomicInteger(200);
+    private final AtomicInteger sessionListRequests = new AtomicInteger();
+    private final AtomicReference<String> exactMessageBody = new AtomicReference<>("{}");
+    private final AtomicInteger exactMessageStatusCode = new AtomicInteger(200);
     private final AtomicReference<String> abortBody = new AtomicReference<>("true");
     private final AtomicInteger abortStatusCode = new AtomicInteger(200);
     private final AtomicLong responseDelayMillis = new AtomicLong();
+    private final AtomicInteger httpRequests = new AtomicInteger();
     @TempDir Path worktree;
 
     @BeforeEach
     void server() throws IOException {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        server.createContext("/session", this::session);
-        server.createContext("/session/status", exchange -> reply(exchange, statusBody.get()));
-        server.createContext("/global/health", exchange -> reply(exchange, healthBody.get()));
-        server.createContext("/question", this::question);
-        server.createContext("/permission", this::permission);
-        server.createContext("/experimental/tool/ids", exchange -> reply(exchange, "[\"read\",\"todowrite\"]"));
-        server.createContext("/mcp", exchange -> reply(exchange, mcpBody.get()));
-        server.createContext("/agent", exchange -> reply(exchange,
+        context("/session", this::session);
+        context("/session/status", exchange -> reply(exchange, statusBody.get()));
+        context("/global/health", exchange -> reply(exchange, healthBody.get()));
+        context("/question", this::question);
+        context("/permission", this::permission);
+        context("/experimental/tool/ids", exchange -> reply(exchange, "[\"read\",\"todowrite\"]"));
+        context("/mcp", exchange -> { mcpRequests.incrementAndGet(); reply(exchange, mcpBody.get()); });
+        context("/agent", exchange -> reply(exchange,
                 "[{\"name\":\"build\",\"mode\":\"primary\"},{\"name\":\"plan\",\"mode\":\"primary\"}]"));
         server.start();
+    }
+
+    private void context(String path, com.sun.net.httpserver.HttpHandler handler) {
+        com.sun.net.httpserver.HttpContext context = server.createContext(path, handler);
+        context.getFilters().add(new com.sun.net.httpserver.Filter() {
+            @Override public void doFilter(HttpExchange exchange, Chain chain) throws IOException {
+                httpRequests.incrementAndGet();
+                chain.doFilter(exchange);
+            }
+            @Override public String description() { return "count every HTTP request"; }
+        });
     }
     @AfterEach void stop() { server.stop(0); }
 
@@ -783,19 +802,256 @@ class HttpOpenCodeClientTest {
         assertThat(promptBody.get()).doesNotContain("sha-256-value");
     }
 
+    @Test
+    void candidatePlanPreparationIsLocalAndReadinessIsTheFirstRemoteBoundary() throws Exception {
+        AtomicInteger remoteConnectionResolutions = new AtomicInteger();
+        AtomicReference<OpenCodeRuntimeManager.Connection> connection = new AtomicReference<>(
+                new OpenCodeRuntimeManager.Connection(endpoint(), null, null,
+                        true, "generation-7", "loopper-private-7"));
+        HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(), () -> {
+            remoteConnectionResolutions.incrementAndGet();
+            return connection.get();
+        }, () -> new OpenCodeRuntimeManager.RuntimeIdentity(
+                endpoint(), true, "generation-7", "loopper-private-7"),
+                properties(), new OpenCodeCapabilityRegistry(), new InMemoryRuntimeBindings());
+        OpenCodeClient.OpenCodeModel model = new OpenCodeClient.OpenCodeModel(
+                "opencode-go", "deepseek-v4-flash", false);
+        String credential = "0123456789abcdefghijklmnopqrstuvwxyz_ABCD12";
+
+        OpenCodeClient.SessionCreationPlan first = client.prepareCandidateSessionCreationLocally(
+                worktree, "Acceptance internal", model,
+                OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS,
+                credential);
+        OpenCodeClient.SessionCreationPlan replay = client.prepareCandidateSessionCreationLocally(
+                worktree, "Acceptance internal", model,
+                OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS,
+                credential);
+
+        assertThat(remoteConnectionResolutions).hasValue(0);
+        assertThat(httpRequests).hasValue(0);
+        assertThat(mcpRequests).hasValue(0);
+        assertThat(sessionListRequests).hasValue(0);
+        assertThat(first).isEqualTo(replay);
+        assertThat(first.permissionPolicy()).containsExactly(
+                new OpenCodeClient.SessionPermissionRule("*", "*", "deny"),
+                new OpenCodeClient.SessionPermissionRule("external_directory", "*", "deny"),
+                new OpenCodeClient.SessionPermissionRule(
+                        "loopper-private-7_submit_candidate", "*", "allow"));
+        assertThat(first.permissionPolicyDigest()).hasSize(64);
+        assertThat(first.createRequestSha256()).hasSize(64);
+
+        mcpBody.set("{\"loopper-private-7\":{\"status\":\"connected\"}}");
+        client.requireCandidateSessionReady(first);
+
+        assertThat(remoteConnectionResolutions).hasValue(1);
+        assertThat(httpRequests).hasValue(1);
+        assertThat(mcpRequests).hasValue(1);
+        assertThat(first).isEqualTo(replay);
+
+        connection.set(new OpenCodeRuntimeManager.Connection(endpoint(), null, null,
+                true, "generation-8", "loopper-private-8"));
+        assertThatThrownBy(() -> client.requireCandidateSessionReady(first))
+                .isInstanceOfSatisfying(SessionFailure.class, failure -> assertThat(failure.code())
+                        .isEqualTo("OPENCODE_SESSION_CREATION_PLAN_STALE"));
+        assertThat(mcpRequests).hasValue(1);
+        assertThat(httpRequests).hasValue(1);
+    }
+
+    @Test
+    void candidateLocalPlanRejectsWrongProfileAndIncompleteOrExternalRuntimeIdentity() throws Exception {
+        AtomicInteger remoteConnectionResolutions = new AtomicInteger();
+        AtomicReference<OpenCodeRuntimeManager.RuntimeIdentity> identity = new AtomicReference<>(
+                new OpenCodeRuntimeManager.RuntimeIdentity(
+                        endpoint(), true, "generation-7", "loopper-private-7"));
+        HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(), () -> {
+            remoteConnectionResolutions.incrementAndGet();
+            return new OpenCodeRuntimeManager.Connection(endpoint(), null, null,
+                    true, "generation-7", "loopper-private-7");
+        }, identity::get, properties(), new OpenCodeCapabilityRegistry(), new InMemoryRuntimeBindings());
+        String credential = "0123456789abcdefghijklmnopqrstuvwxyz_ABCD12";
+
+        assertThatThrownBy(() -> client.prepareCandidateSessionCreationLocally(worktree,
+                "Acceptance internal", null, OpenCodeClient.SessionProfile.COMPILER_BINDING_NO_TOOLS,
+                credential)).isInstanceOfSatisfying(SessionFailure.class, failure -> assertThat(failure.code())
+                .isEqualTo("OPENCODE_CANDIDATE_PROFILE_INVALID"));
+
+        identity.set(new OpenCodeRuntimeManager.RuntimeIdentity(endpoint(), false, null, null));
+        assertThatThrownBy(() -> client.prepareCandidateSessionCreationLocally(worktree,
+                "Acceptance internal", null,
+                OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS,
+                credential)).isInstanceOfSatisfying(SessionFailure.class, failure -> assertThat(failure.code())
+                .isEqualTo("CANDIDATE_MANAGED_RUNTIME_REQUIRED"));
+
+        identity.set(new OpenCodeRuntimeManager.RuntimeIdentity(
+                endpoint(), true, null, "loopper-private-7"));
+        assertThatThrownBy(() -> client.prepareCandidateSessionCreationLocally(worktree,
+                "Acceptance internal", null,
+                OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS,
+                credential)).isInstanceOfSatisfying(SessionFailure.class, failure -> assertThat(failure.code())
+                .isEqualTo("OPENCODE_CANDIDATE_RUNTIME_IDENTITY_INCOMPLETE"));
+
+        OpenCodeClient.SessionProfile candidate =
+                OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS;
+        List<OpenCodeClient.SessionPermissionRule> externalPermissions = List.of(
+                new OpenCodeClient.SessionPermissionRule("*", "*", "deny"),
+                new OpenCodeClient.SessionPermissionRule("external_directory", "*", "deny"));
+        String permissionDigest = OpenCodeClient.permissionPolicyDigest(externalPermissions);
+        String fingerprint = OpenCodeSessionConnectionGuard.endpointFingerprint(endpoint());
+        String title = OpenCodeClient.recoveryTitle("Acceptance external", credential);
+        String requestDigest = OpenCodeClient.sessionCreationRequestSha256(worktree.toRealPath(), title,
+                "external-" + fingerprint, false, null, fingerprint, null, candidate,
+                permissionDigest, credential);
+        OpenCodeClient.SessionCreationPlan unmanaged = new OpenCodeClient.SessionCreationPlan(
+                worktree.toRealPath(), title, "external-" + fingerprint, false, null,
+                fingerprint, null, candidate, externalPermissions, permissionDigest,
+                credential, requestDigest);
+        assertThatThrownBy(() -> client.requireCandidateSessionReady(unmanaged))
+                .isInstanceOfSatisfying(SessionFailure.class, failure -> assertThat(failure.code())
+                        .isEqualTo("CANDIDATE_MANAGED_RUNTIME_REQUIRED"));
+
+        assertThat(remoteConnectionResolutions).hasValue(0);
+        assertThat(httpRequests).hasValue(0);
+        assertThat(mcpRequests).hasValue(0);
+    }
+
+    @Test
+    void attestedCreateAndExactTitleLookupFailClosedOnMalformedMatches() throws Exception {
+        AtomicReference<OpenCodeRuntimeManager.Connection> connection = new AtomicReference<>(
+                new OpenCodeRuntimeManager.Connection(endpoint(), null, null, false));
+        InMemoryRuntimeBindings bindings = new InMemoryRuntimeBindings();
+        HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(), connection::get,
+                properties(), new OpenCodeCapabilityRegistry(), bindings);
+        OpenCodeClient.OpenCodeModel model = new OpenCodeClient.OpenCodeModel(
+                "opencode-go", "deepseek-v4-flash", false);
+        mcpBody.set("{\"project evidence\":{\"status\":\"connected\"}}");
+        OpenCodeClient.SessionCreationPlan plan = client.prepareSessionCreation(worktree,
+                "Acceptance legacy", model, OpenCodeClient.SessionProfile.COMPILER_BINDING_NO_TOOLS,
+                "0123456789abcdefghijklmnopqrstuvwxyz_ABCD12");
+        mcpBody.set("{\"changed after checkpoint\":{\"status\":\"connected\"}}");
+        sessionListBody.set("null");
+        sessionListStatusCode.set(500);
+
+        OpenCodeClient.SessionAttestation created = client.createSession(plan);
+
+        assertThat(created.remoteId()).isEqualTo("s1");
+        assertThat(created.plan()).isEqualTo(plan);
+        assertThat(created.attestationKind())
+                .isEqualTo(OpenCodeClient.SessionAttestationKind.LOCAL_REQUEST_ATTESTED);
+        assertThat(mcpRequests.get()).isEqualTo(1);
+        assertThat(sessionListRequests.get()).isZero();
+        assertThat(createBody.get()).contains("project_evidence_*")
+                .doesNotContain("changed_after_checkpoint_*");
+        sessionListStatusCode.set(200);
+        sessionListBody.set(sessionList(plan.exactTitle(), "s1", worktree.toRealPath().toString()));
+        assertThat(client.findSessionsByExactTitle(plan).matches()).containsExactly(created);
+
+        Path otherDirectory = Files.createDirectory(worktree.resolve("other"));
+        List<String> malformed = List.of(
+                "null",
+                "{}",
+                "[1]",
+                "[{\"title\":1}]",
+                "[{\"title\":\"" + json(plan.exactTitle()) + "\",\"directory\":\""
+                        + json(worktree.toRealPath().toString()) + "\"}]",
+                "[{\"title\":\"" + json(plan.exactTitle()) + "\",\"id\":1,\"directory\":\""
+                        + json(worktree.toRealPath().toString()) + "\"}]",
+                "[{\"title\":\"" + json(plan.exactTitle()) + "\",\"id\":\"s1\"}]",
+                "[{\"title\":\"" + json(plan.exactTitle()) + "\",\"id\":\"s1\",\"directory\":1}]",
+                sessionList(plan.exactTitle(), "s1", otherDirectory.toRealPath().toString()),
+                "[{\"title\":\"" + json(plan.exactTitle()) + "\",\"id\":\"s1\",\"directory\":\"\\u0000\"}]"
+        );
+        for (String body : malformed) {
+            sessionListBody.set(body);
+            assertThatThrownBy(() -> client.findSessionsByExactTitle(plan))
+                    .as("body %s", body)
+                    .isInstanceOfSatisfying(SessionFailure.class, failure -> assertThat(failure.code())
+                            .isEqualTo("OPENCODE_SESSION_LOOKUP_INVALID_RESPONSE"));
+        }
+
+        connection.set(new OpenCodeRuntimeManager.Connection(endpoint(), null, null,
+                true, "generation-2", "loopper-private-2"));
+        assertThatThrownBy(() -> client.findSessionsByExactTitle(plan))
+                .isInstanceOfSatisfying(SessionFailure.class, failure -> assertThat(failure.code())
+                        .isEqualTo("OPENCODE_SESSION_CREATION_PLAN_STALE"));
+    }
+
+    @Test
+    void exactPromptLookupTreatsOnly404AsAbsentAndRejectsMalformedOrDrifted200() throws Exception {
+        AtomicReference<OpenCodeRuntimeManager.Connection> connection = new AtomicReference<>(
+                new OpenCodeRuntimeManager.Connection(endpoint(), null, null, false));
+        HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(), connection::get,
+                properties(), new OpenCodeCapabilityRegistry(), new InMemoryRuntimeBindings());
+        OpenCodeClient.SessionCreationPlan plan = client.prepareSessionCreation(worktree,
+                "Acceptance legacy", new OpenCodeClient.OpenCodeModel(
+                        "opencode-go", "deepseek-v4-flash", false),
+                OpenCodeClient.SessionProfile.COMPILER_BINDING_NO_TOOLS,
+                "0123456789abcdefghijklmnopqrstuvwxyz_ABCD12");
+        sessionListBody.set(sessionList(plan.exactTitle(), "s1", worktree.toRealPath().toString()));
+        OpenCodeClient.OpenCodeSession session = client.createSession(plan).session();
+        OpenCodeClient.PromptRequest expected = new OpenCodeClient.PromptRequest(
+                "Choose candidate 1", null, null, new OpenCodeClient.ResponseFormat.Text(),
+                "message-1", List.of());
+        String requestSha256 = OpenCodeClient.promptRequestSha256(expected);
+        exactMessageBody.set("{\"info\":{\"id\":\"message-1\",\"role\":\"user\"},"
+                + "\"parts\":[{\"type\":\"text\",\"text\":\"Choose candidate 1\"}]}");
+
+        assertThat(client.findPromptMessage(session, expected, requestSha256))
+                .isEqualTo(new OpenCodeClient.MessageLookup(true, true, requestSha256));
+
+        exactMessageStatusCode.set(404);
+        assertThat(client.findPromptMessage(session, expected, requestSha256))
+                .isEqualTo(new OpenCodeClient.MessageLookup(true, false, null));
+        exactMessageStatusCode.set(410);
+        assertThatThrownBy(() -> client.findPromptMessage(session, expected, requestSha256))
+                .isInstanceOfSatisfying(SessionFailure.class, failure -> assertThat(failure.code())
+                        .isEqualTo("OPENCODE_PROMPT_LOOKUP_FAILED"));
+
+        exactMessageStatusCode.set(200);
+        List<String> malformed = List.of(
+                "null",
+                "[]",
+                "{}",
+                "{\"info\":{\"id\":1,\"role\":\"user\"},\"parts\":[]}",
+                "{\"info\":{\"id\":\"other\",\"role\":\"user\"},\"parts\":[]}",
+                "{\"info\":{\"id\":\"message-1\",\"role\":\"assistant\"},\"parts\":[]}",
+                "{\"info\":{\"id\":\"message-1\",\"role\":\"user\"},\"parts\":{}}",
+                "{\"info\":{\"id\":\"message-1\",\"role\":\"user\"},"
+                        + "\"parts\":[{\"type\":\"text\",\"text\":\"Choose candidate 2\"}]}"
+        );
+        int promptsBefore = promptRequests.get();
+        for (String body : malformed) {
+            exactMessageBody.set(body);
+            assertThatThrownBy(() -> client.findPromptMessage(session, expected, requestSha256))
+                    .as("body %s", body)
+                    .isInstanceOfSatisfying(SessionFailure.class, failure -> assertThat(failure.code())
+                            .isEqualTo("OPENCODE_PROMPT_LOOKUP_INVALID_RESPONSE"));
+        }
+        assertThatThrownBy(() -> client.findPromptMessage(session, expected, "f".repeat(64)))
+                .isInstanceOfSatisfying(SessionFailure.class, failure -> assertThat(failure.code())
+                        .isEqualTo("OPENCODE_PROMPT_REQUEST_HASH_MISMATCH"));
+        assertThat(promptRequests.get()).isEqualTo(promptsBefore);
+    }
+
     private void session(HttpExchange exchange) throws IOException {
         lastPathAndQuery.set(exchange.getRequestURI().getPath() + "?" + exchange.getRequestURI().getRawQuery());
         sleep(responseDelayMillis.get());
         String path = exchange.getRequestURI().getPath();
-        if (path.equals("/session")) {
+        if (path.equals("/session") && "GET".equals(exchange.getRequestMethod())) {
+            sessionListRequests.incrementAndGet();
+            reply(exchange, sessionListStatusCode.get(), sessionListBody.get());
+        }
+        else if (path.equals("/session")) {
             createBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
             String directory = createResponseDirectory.get();
             if (directory == null) directory = worktree.toRealPath().toString();
             if (directory.isEmpty()) reply(exchange, "{\"id\":\"s1\"}");
             else reply(exchange, "{\"id\":\"s1\",\"directory\":\"" + json(directory) + "\"}");
         }
+        else if (path.matches("/session/[^/]+/message/[^/]+")) {
+            reply(exchange, exactMessageStatusCode.get(), exactMessageBody.get());
+        }
         else if (path.endsWith("/message")) reply(exchange, messageStatusCode.get(), messageBody.get());
-        else if (path.endsWith("/prompt_async")) { promptBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)); reply(exchange, "true"); }
+        else if (path.endsWith("/prompt_async")) { promptRequests.incrementAndGet(); promptBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)); reply(exchange, "true"); }
         else if (path.endsWith("/abort")) reply(exchange, abortStatusCode.get(), abortBody.get());
         else if (path.endsWith("/todo")) reply(exchange, todoBody.get());
         else if (path.endsWith("/fork")) { sessionActionBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)); reply(exchange, "{\"id\":\"fork-1\"}"); }
@@ -831,6 +1087,21 @@ class HttpOpenCodeClientTest {
     }
     private String json(String value) {
         return value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    private URI endpoint() {
+        return URI.create("http://127.0.0.1:" + server.getAddress().getPort());
+    }
+
+    private LoopperProperties properties() {
+        LoopperProperties properties = new LoopperProperties();
+        properties.getOpenCode().setBaseUrl(endpoint());
+        return properties;
+    }
+
+    private String sessionList(String title, String id, String directory) {
+        return "[{\"id\":\"" + json(id) + "\",\"title\":\"" + json(title)
+                + "\",\"directory\":\"" + json(directory) + "\"}]";
     }
 
     private static void sleep(long delayMillis) throws IOException {

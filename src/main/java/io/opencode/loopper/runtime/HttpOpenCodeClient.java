@@ -1,5 +1,6 @@
 package io.opencode.loopper.runtime;
-
+import static io.opencode.loopper.runtime.OpenCodeHttpTransport.directoryUri;
+import static io.opencode.loopper.runtime.OpenCodeHttpTransport.sessionUri;
 import tools.jackson.databind.JsonNode;
 import io.opencode.loopper.config.LoopperProperties;
 import io.opencode.loopper.domain.SessionFailure;
@@ -10,7 +11,6 @@ import java.util.Map;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 import org.springframework.http.MediaType;
@@ -18,13 +18,10 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
-
 /** Thin adapter for the local OpenCode server; all transport faults become SessionFailure. */
 public class HttpOpenCodeClient implements OpenCodeClient {
-    private final RestClient.Builder baseBuilder;
     private final Supplier<OpenCodeConnectionDetails> connectionSupplier;
-    private final Duration connectTimeout;
-    private final Duration requestTimeout;
+    private final OpenCodeHttpTransport http;
     private final OpenCodeCapabilityRegistry capabilities;
     private final Map<String, OpenCodeModel> sessionModels = new ConcurrentHashMap<>();
     private final Map<String, SessionProfile> sessionProfiles = new ConcurrentHashMap<>();
@@ -37,14 +34,17 @@ public class HttpOpenCodeClient implements OpenCodeClient {
     private final OpenCodeMachineResponseInspector machineResponses =
             new OpenCodeMachineResponseInspector(json, responses);
     private final OpenCodeTodoParser todoParser = new OpenCodeTodoParser();
+    private final OpenCodeExactRecoveryTransport exactRecovery;
     public HttpOpenCodeClient(RestClient.Builder builder, LoopperProperties properties) {
         this(builder, () -> new OpenCodeConnectionDetails(properties.getOpenCode().getBaseUrl(), properties.getOpenCode().getUsername(), properties.getOpenCode().getPassword(), false, null, null),
+                () -> OpenCodeHttpClientSemantics.externalIdentity(properties.getOpenCode().getBaseUrl()),
                 new Timeouts(properties.getOpenCode().getConnectTimeout(), properties.getOpenCode().getRequestTimeout()),
                 new OpenCodeCapabilityRegistry(), OpenCodeSessionRuntimeBindings.untracked(), false);
     }
     /** Runtime manager supplies an ephemeral connection without exposing its password in API DTOs. */
     public HttpOpenCodeClient(RestClient.Builder builder, URI baseUrl, String username, String password) {
         this(builder, () -> new OpenCodeConnectionDetails(baseUrl, username, password, false, null, null),
+                () -> OpenCodeHttpClientSemantics.externalIdentity(baseUrl),
                 new Timeouts(Duration.ofSeconds(5), Duration.ofSeconds(30)), new OpenCodeCapabilityRegistry(),
                 OpenCodeSessionRuntimeBindings.untracked(), false);
     }
@@ -72,6 +72,15 @@ public class HttpOpenCodeClient implements OpenCodeClient {
         this(builder, connectionSupplier, properties.getOpenCode().getConnectTimeout(),
                 properties.getOpenCode().getRequestTimeout(), capabilities, runtimeBindings, true);
     }
+    public HttpOpenCodeClient(RestClient.Builder builder,
+                              Supplier<OpenCodeRuntimeManager.Connection> connectionSupplier,
+                              Supplier<OpenCodeRuntimeManager.RuntimeIdentity> localIdentitySupplier,
+                              LoopperProperties properties, OpenCodeCapabilityRegistry capabilities,
+                              OpenCodeSessionRuntimeBindings runtimeBindings) {
+        this(builder, connectionSupplier, localIdentitySupplier,
+                properties.getOpenCode().getConnectTimeout(), properties.getOpenCode().getRequestTimeout(),
+                capabilities, runtimeBindings, true);
+    }
     private HttpOpenCodeClient(RestClient.Builder builder, Supplier<OpenCodeRuntimeManager.Connection> connectionSupplier,
                                Duration connectTimeout, Duration requestTimeout,
                                OpenCodeCapabilityRegistry capabilities) {
@@ -83,23 +92,35 @@ public class HttpOpenCodeClient implements OpenCodeClient {
                                OpenCodeCapabilityRegistry capabilities,
                                OpenCodeSessionRuntimeBindings runtimeBindings,
                                boolean requirePersistentBinding) {
+        this(builder, connectionSupplier, OpenCodeHttpClientSemantics.unavailableLocalIdentity(), connectTimeout, requestTimeout,
+                capabilities, runtimeBindings, requirePersistentBinding);
+    }
+    private HttpOpenCodeClient(RestClient.Builder builder,
+                               Supplier<OpenCodeRuntimeManager.Connection> connectionSupplier,
+                               Supplier<OpenCodeRuntimeManager.RuntimeIdentity> localIdentitySupplier,
+                               Duration connectTimeout, Duration requestTimeout,
+                               OpenCodeCapabilityRegistry capabilities,
+                               OpenCodeSessionRuntimeBindings runtimeBindings,
+                               boolean requirePersistentBinding) {
         this(builder, () -> {
             OpenCodeRuntimeManager.Connection connection = connectionSupplier.get();
             return new OpenCodeConnectionDetails(connection.endpoint(), connection.username(), connection.password(), connection.managed(),
                     connection.generation(), connection.internalMcpServer());
-        }, new Timeouts(connectTimeout, requestTimeout), capabilities, runtimeBindings, requirePersistentBinding);
+        }, localIdentitySupplier, new Timeouts(connectTimeout, requestTimeout), capabilities,
+                runtimeBindings, requirePersistentBinding);
     }
     private HttpOpenCodeClient(RestClient.Builder builder, Supplier<OpenCodeConnectionDetails> connectionSupplier,
+                               Supplier<OpenCodeRuntimeManager.RuntimeIdentity> localIdentitySupplier,
                                Timeouts timeouts, OpenCodeCapabilityRegistry capabilities,
                                OpenCodeSessionRuntimeBindings runtimeBindings,
                                boolean requirePersistentBinding) {
-        this.baseBuilder = builder;
         this.connectionSupplier = connectionSupplier;
-        this.connectTimeout = timeouts.connectTimeout();
-        this.requestTimeout = timeouts.requestTimeout();
+        this.http = new OpenCodeHttpTransport(builder, timeouts.connectTimeout(), timeouts.requestTimeout());
         this.capabilities = capabilities;
         this.sessionConnections = new OpenCodeSessionConnectionGuard(connectionSupplier, runtimeBindings,
                 requirePersistentBinding);
+        this.exactRecovery = new OpenCodeExactRecoveryTransport(connectionSupplier, localIdentitySupplier,
+                http, mcpDiscovery, sessionConnections, runtimeBindings, requirePersistentBinding);
     }
     @Override public boolean healthy() {
         try { client().get().uri("/global/health").retrieve().toBodilessEntity(); return true; }
@@ -162,6 +183,29 @@ public class HttpOpenCodeClient implements OpenCodeClient {
         } catch (SessionFailure e) { throw e; }
         catch (Exception e) { throw new SessionFailure("OPENCODE_SESSION_CREATE_FAILED", e.getMessage()); }
     }
+    @Override public SessionCreationPlan prepareSessionCreation(Path worktree, String baseTitle,
+            OpenCodeModel model, SessionProfile profile, String creationCredential) {
+        return exactRecovery.prepare(worktree, baseTitle, model, profile, creationCredential);
+    }
+    @Override public SessionCreationPlan prepareCandidateSessionCreationLocally(
+            Path worktree, String baseTitle, OpenCodeModel model,
+            SessionProfile profile, String creationCredential) {
+        return exactRecovery.prepareCandidateLocally(
+                worktree, baseTitle, model, profile, creationCredential);
+    }
+    @Override public void requireCandidateSessionReady(SessionCreationPlan persistedPlan) {
+        exactRecovery.requireCandidateReady(persistedPlan);
+    }
+    @Override public SessionAttestation createSession(SessionCreationPlan plan) {
+        SessionAttestation created = exactRecovery.create(plan);
+        cachePlan(created.remoteId(), created.plan());
+        return created;
+    }
+    @Override public SessionLookup findSessionsByExactTitle(SessionCreationPlan plan) {
+        SessionLookup lookup = exactRecovery.findSessions(plan);
+        lookup.matches().forEach(match -> cachePlan(match.remoteId(), match.plan()));
+        return lookup;
+    }
     @Override public void promptAsync(OpenCodeSession session, String prompt) {
         promptAsync(session, PromptRequest.text(prompt));
     }
@@ -185,11 +229,11 @@ public class HttpOpenCodeClient implements OpenCodeClient {
                 body.put("agent", prompt.agent());
             } else if (Boolean.TRUE.equals(managedSessions.get(session.id()))) {
                 if (profile == SessionProfile.ROUTER_NO_TOOLS) body.put("agent", ROUTER_AGENT);
-                else if (machineResponseProfile(profile)) body.put("agent", STRUCTURED_AGENT);
+                else if (OpenCodeHttpClientSemantics.machineResponseProfile(profile)) body.put("agent", STRUCTURED_AGENT);
             }
             OpenCodeModel selectedModel = sessionModels.get(session.id());
             boolean managed = Boolean.TRUE.equals(managedSessions.get(session.id()));
-            if (isDeepSeek(selectedModel) && (structured && Boolean.FALSE.equals(selectedModel.thinking())
+            if (OpenCodeHttpClientSemantics.isDeepSeek(selectedModel) && (structured && Boolean.FALSE.equals(selectedModel.thinking())
                     || managed && profile == SessionProfile.ROUTER_NO_TOOLS)) {
                 body.put("variant", STRUCTURED_NO_THINKING_VARIANT);
             }
@@ -202,30 +246,16 @@ public class HttpOpenCodeClient implements OpenCodeClient {
                     .body(body).retrieve().toBodilessEntity();
             structuredPrompts.put(session.id(), structured);
         } catch (RestClientResponseException failure) {
-            if (structured && formatRejected(failure)) {
+            if (structured && OpenCodeHttpClientSemantics.formatRejected(failure)) {
                 capabilities.transportUnsupported(connectionFor(session).baseUrl(), sessionModels.get(session.id()), failure.getMessage());
                 throw new SessionFailure("OPENCODE_STRUCTURED_FORMAT_UNSUPPORTED", failure.getMessage());
             }
             throw new SessionFailure("OPENCODE_PROMPT_FAILED", failure.getMessage());
         } catch (RuntimeException e) { throw new SessionFailure("OPENCODE_PROMPT_FAILED", e.getMessage()); }
     }
-    private static boolean isDeepSeek(OpenCodeModel model) {
-        return model != null && model.providerId() != null && "deepseek".equalsIgnoreCase(model.providerId().trim());
-    }
-    private static boolean machineResponseProfile(SessionProfile profile) {
-        return profile == SessionProfile.DECOMPOSER_CANDIDATE_READ_ONLY
-                || profile == SessionProfile.PACKAGE_DESIGN_CANDIDATE_READ_ONLY
-                || profile == SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY
-                || profile == SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS
-                || profile == SessionProfile.DECOMPOSER_READ_ONLY
-                || profile == SessionProfile.ROUTER_NO_TOOLS
-                || profile == SessionProfile.COMPILER_READ_ONLY
-                || profile == SessionProfile.COMPILER_BINDING_NO_TOOLS
-                || profile == SessionProfile.COMPILER_REPAIR_NO_TOOLS
-                || profile == SessionProfile.REVIEWER_READ_ONLY
-                || profile == SessionProfile.JUDGE_READ_ONLY
-                || profile == SessionProfile.PROJECT_CONVENTION_READ_ONLY
-                || profile == SessionProfile.MACHINE_FINALIZER_NO_TOOLS;
+    @Override public MessageLookup findPromptMessage(OpenCodeSession session, PromptRequest expectedRequest,
+            String persistedRequestSha256) {
+        return exactRecovery.findPrompt(session, expectedRequest, persistedRequestSha256);
     }
     @Override public SessionStatus sessionStatus(OpenCodeSession session) {
         try {
@@ -281,7 +311,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
             URI endpoint = connectionFor(session).baseUrl();
             OpenCodeModel model = sessionModels.get(session.id());
             if (!structuredValue.isEmpty()) capabilities.structured(endpoint, model);
-            if (structuredError(errorType, errorDetail)) capabilities.modelUnsupported(endpoint, model, errorDetail);
+            if (OpenCodeHttpClientSemantics.structuredError(errorType, errorDetail)) capabilities.modelUnsupported(endpoint, model, errorDetail);
             return new SessionResult(text, structuredValue, blankToNull(errorType), blankToNull(errorDetail), retryCount);
         } catch (SessionFailure e) { throw e; }
         catch (RuntimeException e) { throw new SessionFailure("OPENCODE_OUTPUT_FAILED", e.getMessage()); }
@@ -492,7 +522,8 @@ public class HttpOpenCodeClient implements OpenCodeClient {
             if (messages == null || !messages.isArray()) throw new SessionFailure("OPENCODE_OUTPUT_MISSING", "OpenCode did not return a message list");
             return messages;
         } catch (RestClientResponseException failure) {
-            if (Boolean.TRUE.equals(structuredPrompts.get(session.id())) && formatRejected(failure)) {
+            if (Boolean.TRUE.equals(structuredPrompts.get(session.id()))
+                    && OpenCodeHttpClientSemantics.formatRejected(failure)) {
                 capabilities.transportUnsupported(connectionFor(session).baseUrl(), sessionModels.get(session.id()),
                         failure.getResponseBodyAsString());
                 throw new SessionFailure("OPENCODE_STRUCTURED_FORMAT_UNSUPPORTED", failure.getMessage());
@@ -501,11 +532,11 @@ public class HttpOpenCodeClient implements OpenCodeClient {
         }
     }
     private void inspectMachineResponseProgress(OpenCodeSession session) {
-        if (!machineResponseProfile(sessionProfiles.get(session.id()))) return;
+        if (!OpenCodeHttpClientSemantics.machineResponseProfile(sessionProfiles.get(session.id()))) return;
         inspectMachineResponseProgress(session, sessionMessages(session));
     }
     private void inspectMachineResponseProgress(OpenCodeSession session, JsonNode messages) {
-        if (!machineResponseProfile(sessionProfiles.get(session.id()))) return;
+        if (!OpenCodeHttpClientSemantics.machineResponseProfile(sessionProfiles.get(session.id()))) return;
         boolean structuredPrompt = Boolean.TRUE.equals(structuredPrompts.get(session.id()));
         URI endpoint = connectionFor(session).baseUrl();
         OpenCodeModel model = sessionModels.get(session.id());
@@ -520,19 +551,6 @@ public class HttpOpenCodeClient implements OpenCodeClient {
             return responses.messageStatus(messages);
         } catch (SessionFailure e) { throw e; }
         catch (RuntimeException e) { throw new SessionFailure("OPENCODE_MESSAGES_FAILED", e.getMessage()); }
-    }
-    private boolean formatRejected(RestClientResponseException failure) {
-        int status = failure.getStatusCode().value();
-        if (status != 400 && status != 404 && status != 415 && status != 422) return false;
-        String body = failure.getResponseBodyAsString();
-        String detail = (failure.getMessage() + " " + (body == null ? "" : body)).toLowerCase(Locale.ROOT);
-        return detail.contains("format") || detail.contains("json_schema") || detail.contains("schema");
-    }
-    private boolean structuredError(String type, String detail) {
-        String value = ((type == null ? "" : type) + " " + (detail == null ? "" : detail))
-                .toLowerCase(Locale.ROOT);
-        return value.contains("structuredoutput") || value.contains("structured_output")
-                || value.contains("json schema") || value.contains("json_schema");
     }
     private String blankToNull(String value) { return value == null || value.isBlank() ? null : value; }
     @Override public String diff(OpenCodeSession session) {
@@ -561,17 +579,10 @@ public class HttpOpenCodeClient implements OpenCodeClient {
             throw new SessionFailure("OPENCODE_ABORT_FAILED", e.getMessage());
         }
     }
-    private static URI sessionUri(org.springframework.web.util.UriBuilder uri, String path, OpenCodeSession session) {
-        return directoryUri(uri, path, session.worktree(), Map.of("id", session.id()));
-    }
-    private static URI directoryUri(org.springframework.web.util.UriBuilder uri, String path, Path directory) {
-        return directoryUri(uri, path, directory, Map.of());
-    }
-    private static URI directoryUri(org.springframework.web.util.UriBuilder uri, String path, Path directory,
-                                    Map<String, ?> pathVariables) {
-        Map<String, Object> variables = new LinkedHashMap<>(pathVariables);
-        variables.put("directory", directory.toString());
-        return uri.path(path).queryParam("directory", "{directory}").build(variables);
+    private void cachePlan(String id, SessionCreationPlan plan) {
+        if (plan.model() != null) sessionModels.put(id, plan.model());
+        sessionProfiles.put(id, plan.profile());
+        managedSessions.put(id, plan.managed());
     }
     private RestClient client() {
         return client(connectionSupplier.get());
@@ -583,11 +594,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
         return sessionConnections.resolve(session);
     }
     private RestClient client(OpenCodeConnectionDetails connection) {
-        var spec = OpenCodeHttpTransport.bounded(baseBuilder, connectTimeout, requestTimeout).baseUrl(connection.baseUrl().toString());
-        if (connection.username() != null && !connection.username().isBlank()) {
-            spec.defaultHeaders(headers -> headers.setBasicAuth(connection.username(), connection.password() == null ? "" : connection.password()));
-        }
-        return spec.build();
+        return http.client(connection);
     }
     private record Timeouts(Duration connectTimeout, Duration requestTimeout) { }
 }

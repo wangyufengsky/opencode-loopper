@@ -71,6 +71,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -121,7 +122,7 @@ class DesignerSessionMcpIntegrationTest {
     @Autowired private RollingPackageService rollingPackages;
     @Autowired private LoopperMapper mapper;
     @Autowired private JdbcTemplate jdbc;
-    @Autowired private OpenCodeClient openCode;
+    @MockitoSpyBean private OpenCodeClient openCode;
     @Autowired private InternalMcpCredentialProvider internalMcpCredentials;
     @Autowired private InternalMcpRuntimeAccess internalMcpRuntime;
     @Autowired private ToolCallbackProvider loopperMcpToolCallbackProvider;
@@ -3780,11 +3781,21 @@ class DesignerSessionMcpIntegrationTest {
 
         int promptsBeforeStopRetry = fake().promptCalls();
         fake().failNextAborts(1);
+        assertThat(mapper.activeLoopSpecCompilations()).extracting(LoopSpecCompilationRow::id)
+                .contains(opened.id());
         designerSessions.pollActiveHandoffs();
 
         DesignerSessionService.CompilerStatus disconnected = designerSessions.compilerStatus(reviewing.id());
         assertThat(disconnected.state()).isEqualTo("RUNNING");
-        assertThat(disconnected.externalSessionState()).isEqualTo("DISCONNECTED");
+        assertThat(disconnected.externalSessionState()).withFailMessage(
+                "launch=%s run=%s dispatch=%s aborted=%s",
+                jdbc.queryForList("SELECT state,last_error_code FROM acceptance_candidate_internal_launch "
+                        + "WHERE compilation_id=?", opened.id()),
+                jdbc.queryForList("SELECT state,attempts_used FROM ai_candidate_submission_run WHERE owner_id=?",
+                        opened.id()),
+                jdbc.queryForList("SELECT state,termination_proof FROM ai_candidate_prompt_dispatch "
+                        + "WHERE run_id=?", runId),
+                fake().abortedSessionIds()).isEqualTo("DISCONNECTED");
         assertThat(disconnected.serverCompiled()).isFalse();
         assertThat(fake().promptCalls()).isEqualTo(promptsBeforeStopRetry);
         assertThat(candidateUsage(reviewing.id())).isEqualTo(new CandidateUsage(1, 1, 2));
@@ -3809,6 +3820,76 @@ class DesignerSessionMcpIntegrationTest {
         });
         DesignerAcceptanceV7MeasurementRegistry.record(
                 "acceptance-candidate-true-tie-usage", candidateUsage.metrics(), Set.of("TRUE_TIE"));
+    }
+
+    @Test
+    void stoppingRaceAfterTerminationProofKeepsTheAcceptedRunAndCompilationOpen() throws Exception {
+        properties.getInternalCandidate().setAcceptanceClosedChoiceV7Enabled(true);
+        InternalMcpCredentialProvider.Credentials credentials = activateManagedCandidateRuntime();
+        fake().holdProfileOpen(
+                OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS, true);
+        ProjectRow project = project("acceptance-proof-stopping-race");
+        Files.writeString(Path.of(project.rootPath()).resolve("pom.xml"), "<project/>\n");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        String design = trueTieDesign("Java Flow proof 后停止竞态");
+        fake().setDesignerOutput(designerOutput(design, legacySpec(project.id())));
+        setPackageDesignerOutput("WP-1", design);
+        DesignerSessionRow reviewing = prepareReviewingSession(project.id(), draft.id(),
+                "修改 Java Flow，并在候选 proof 后停止 Designer 时保持同一运行可审计");
+
+        designerSessions.confirmRequirement(reviewing.id(), reviewing.discussionRevision());
+        DesignerSessionService.CompilerStatus opened = pollUntilCandidateSession(reviewing.id());
+        String runId = jdbc.queryForObject("""
+                SELECT id FROM ai_candidate_submission_run
+                WHERE owner_type='LOOP_SPEC_COMPILATION' AND owner_id=?
+                  AND submission_channel='INTERNAL_MCP'
+                """, String.class, opened.id());
+        long revision = jdbc.queryForObject(
+                "SELECT version FROM ai_candidate_submission_run WHERE id=?", Long.class, runId);
+        String mcpSession = initializeInternalMcp(credentials);
+        String acceptedArguments = "{\"name\":\"submit_candidate\",\"arguments\":{"
+                + "\"runId\":\"" + runId + "\",\"idempotencyKey\":\"proof-stop-accepted\","
+                + "\"candidate\":{\"factAssignments\":[],\"capabilityPreferences\":[{"
+                + "\"factIndex\":1,\"capabilityIndexes\":[0]}]},"
+                + "\"expectedSubmissionRevision\":" + revision + "}}";
+        MvcResult accepted = mvc.perform(internalMcp(
+                        credentials, rpc(109, "tools/call", acceptedArguments), mcpSession))
+                .andExpect(request().asyncStarted()).andReturn();
+        mvc.perform(asyncDispatch(accepted)).andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("ACCEPTED")));
+
+        jdbc.execute("DROP TRIGGER IF EXISTS test_acceptance_stop_after_proof");
+        jdbc.execute("""
+                CREATE TRIGGER test_acceptance_stop_after_proof
+                AFTER UPDATE OF external_session_state ON loop_spec_compilation
+                WHEN NEW.external_session_state IN (
+                    'REMOTE_COMPLETED','ABORT_ACKNOWLEDGED','ALREADY_ABSENT')
+                  AND OLD.external_session_state NOT IN (
+                    'REMOTE_COMPLETED','ABORT_ACKNOWLEDGED','ALREADY_ABSENT')
+                BEGIN
+                  UPDATE designer_session SET state='STOPPING',version=version+1
+                  WHERE id=NEW.designer_session_id;
+                END
+                """);
+        try {
+            designerSessions.pollActiveHandoffs();
+
+            assertThat(designerSessions.get(reviewing.id()).state()).isEqualTo("STOPPING");
+            assertThat(mapper.findLoopSpecCompilation(opened.id())).hasValueSatisfying(compilation -> {
+                assertThat(compilation.state()).isEqualTo("RUNNING");
+                assertThat(compilation.externalSessionState())
+                        .isIn("REMOTE_COMPLETED", "ABORT_ACKNOWLEDGED", "ALREADY_ABSENT");
+                assertThat(compilation.serverCompiled()).isFalse();
+                assertThat(compilation.planningJson()).isNull();
+            });
+            assertThat(mapper.findDesignAcceptancePlanning(opened.id())).hasValueSatisfying(planning ->
+                    assertThat(planning.state()).isEqualTo("BOUND"));
+            assertThat(jdbc.queryForObject("SELECT state FROM ai_candidate_submission_run WHERE id=?",
+                    String.class, runId)).isEqualTo("ACCEPTED");
+            assertThat(mapper.listTasks()).isEmpty();
+        } finally {
+            jdbc.execute("DROP TRIGGER IF EXISTS test_acceptance_stop_after_proof");
+        }
     }
 
     @Test
@@ -3961,7 +4042,7 @@ class DesignerSessionMcpIntegrationTest {
     }
 
     @Test
-    void enabledV7TrueTieOnExternalRuntimeUsesFreshLegacyCandidateRun() throws Exception {
+    void unmanagedRuntimeUsesDurableFreshLegacyCandidateWithoutOpeningAnInternalRemote() throws Exception {
         properties.getInternalCandidate().setAcceptanceClosedChoiceV7Enabled(true);
         fake().setJudgeOutput("ACCEPTANCE_CANDIDATE", """
                 <!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->
@@ -3995,75 +4076,280 @@ class DesignerSessionMcpIntegrationTest {
                 .filter(id -> fake().profileForSession(id)
                         == OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS)
                 .toList();
+        List<Map<String, Object>> handoffs = jdbc.queryForList("""
+                SELECT state,old_external_session_id,old_termination_proof,
+                       legacy_external_session_id,legacy_runtime_generation_id,
+                       successor_managed,successor_internal_mcp_server,
+                       model_call_consumed,legacy_termination_proof,last_error_code,last_error_detail
+                FROM acceptance_candidate_legacy_handoff WHERE compilation_id=?
+                """, completed.id());
 
-        assertThat(designerSessions.get(reviewing.id()).workflowPhase()).isEqualTo("FINAL_REVIEW");
+        assertThat(designerSessions.get(reviewing.id()).workflowPhase())
+                .withFailMessage("session=%s compilation=%s handoffs=%s channels=%s aborted=%s",
+                        designerSessions.get(reviewing.id()), completed, handoffs, channels, attemptedInternal)
+                .isEqualTo("FINAL_REVIEW");
         assertThat(channels).containsExactly("IN_PROCESS_LEGACY");
         assertThat(completed.candidateSessions()).isEqualTo(1);
         assertThat(completed.candidateSubmissions()).isEqualTo(1);
         assertThat(candidateRemotes).hasSize(1);
-        assertThat(attemptedInternal).hasSize(1);
+        assertThat(attemptedInternal).isEmpty();
+        assertThat(jdbc.queryForMap("""
+                SELECT state,old_external_session_id,old_termination_proof,
+                       legacy_external_session_id,legacy_runtime_generation_id,
+                       successor_managed,successor_internal_mcp_server,model_call_consumed,
+                       legacy_termination_proof
+                FROM acceptance_candidate_legacy_handoff WHERE compilation_id=?
+                """, completed.id()))
+                .containsEntry("state", "SETTLED")
+                .containsEntry("old_external_session_id", null)
+                .containsEntry("old_termination_proof", null)
+                .containsEntry("legacy_external_session_id", candidateRemotes.getFirst())
+                .containsEntry("successor_managed", 0)
+                .containsEntry("successor_internal_mcp_server", null)
+                .containsEntry("legacy_termination_proof", "REMOTE_COMPLETED")
+                .containsEntry("model_call_consumed", 1);
+        assertThat(mapper.listTasks()).isEmpty();
     }
 
     @Test
-    void externalRuntimeFallbackWaitsForAbortProofAndRecoversWithoutDuplicatingCandidateWork() throws Exception {
+    void preDispatchLookupUnsupportedUsesDurableFreshLegacyWithoutOpeningAnInternalRun() throws Exception {
         properties.getInternalCandidate().setAcceptanceClosedChoiceV7Enabled(true);
+        activateManagedCandidateRuntime();
+        java.util.concurrent.atomic.AtomicInteger internalLookupAttempts =
+                new java.util.concurrent.atomic.AtomicInteger();
+        java.util.concurrent.atomic.AtomicBoolean injectLookupUnsupported =
+                new java.util.concurrent.atomic.AtomicBoolean();
+        java.util.concurrent.atomic.AtomicInteger legacyCreateAttempts =
+                new java.util.concurrent.atomic.AtomicInteger();
+        org.mockito.Mockito.doAnswer(invocation -> {
+            OpenCodeClient.SessionCreationPlan plan = invocation.getArgument(0);
+            if (plan.profile()
+                    == OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS
+                    && injectLookupUnsupported.compareAndSet(false, true)) {
+                internalLookupAttempts.incrementAndGet();
+                return new OpenCodeClient.SessionLookup(false, List.of());
+            }
+            return invocation.callRealMethod();
+        }).when(openCode).findSessionsByExactTitle(
+                org.mockito.ArgumentMatchers.any(OpenCodeClient.SessionCreationPlan.class));
+        org.mockito.Mockito.doAnswer(invocation -> {
+            OpenCodeClient.SessionProfile profile = invocation.getArgument(3);
+            if (profile == OpenCodeClient.SessionProfile.COMPILER_BINDING_NO_TOOLS) {
+                legacyCreateAttempts.incrementAndGet();
+            }
+            return invocation.callRealMethod();
+        }).when(openCode).createSession(
+                org.mockito.ArgumentMatchers.any(Path.class), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.nullable(OpenCodeClient.OpenCodeModel.class),
+                org.mockito.ArgumentMatchers.any(OpenCodeClient.SessionProfile.class));
         fake().setJudgeOutput("ACCEPTANCE_CANDIDATE", """
                 <!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->
                 {"factAssignments":[],"capabilityPreferences":[{
                   "factIndex":1,"capabilityIndexes":[0]}]}
                 <!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->
                 """);
-        ProjectRow project = project("external-acceptance-v7-abort-recovery");
+        ProjectRow project = project("acceptance-v7-predispatch-capability-fallback");
         Files.writeString(Path.of(project.rootPath()).resolve("pom.xml"), "<project/>\n");
         LoopDraftRow draft = drafts.create(legacySpec(project.id()));
-        String design = trueTieDesign("Java Flow 外部运行时停止恢复");
+        String design = trueTieDesign("Java Flow 派发前能力回退");
         fake().setDesignerOutput(designerOutput(design, legacySpec(project.id())));
         setPackageDesignerOutput("WP-1", design);
         DesignerSessionRow reviewing = prepareReviewingSession(project.id(), draft.id(),
-                "修改 Java Flow，并在外部 OpenCode 上安全停止旧选择器后使用兼容通道");
+                "修改 Java Flow，内部 MCP 派发前不可用时使用唯一持久化兼容候选");
 
-        fake().failNextAborts(
-                OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS, 1_000);
         designerSessions.confirmRequirement(reviewing.id(), reviewing.discussionRevision());
+        pollUntilSettled(reviewing.id());
 
-        DesignerSessionService.CompilerStatus disconnected = null;
-        for (int attempt = 0; attempt < 120 && disconnected == null; attempt++) {
-            completeMandatoryDesignerQuestion(reviewing.id());
+        DesignerSessionService.CompilerStatus completed = designerSessions.compilerStatus(reviewing.id());
+        List<Map<String, Object>> runs = jdbc.queryForList("""
+                SELECT submission_channel,state,attempts_used,external_session_id,runtime_generation_id
+                FROM ai_candidate_submission_run
+                WHERE owner_type='LOOP_SPEC_COMPILATION' AND owner_id=? ORDER BY created_at,id
+                """, completed.id());
+        List<Map<String, Object>> handoffs = jdbc.queryForList("""
+                SELECT state,old_external_session_id,old_termination_proof,legacy_external_session_id,
+                       legacy_runtime_generation_id,successor_managed,successor_internal_mcp_server,
+                       model_call_consumed,legacy_termination_proof,last_error_code,last_error_detail,
+                       current_owner_version
+                FROM acceptance_candidate_legacy_handoff WHERE compilation_id=?
+                """, completed.id());
+        List<FakeOpenCodeClient.PromptCall> legacyPrompts = fake().promptHistory().stream()
+                .filter(call -> fake().profileForSession(call.sessionId())
+                        == OpenCodeClient.SessionProfile.COMPILER_BINDING_NO_TOOLS)
+                .filter(call -> call.prompt().contains("compatibility selector"))
+                .toList();
+
+        assertThat(designerSessions.get(reviewing.id()).workflowPhase()).withFailMessage(
+                "owner=%s compilation=%s planning=%s active=%s handoffs=%s runs=%s prompts=%s "
+                        + "internalLookups=%s legacyAttempts=%s",
+                designerSessions.get(reviewing.id()), completed,
+                mapper.findDesignAcceptancePlanning(completed.id()), mapper.activeLoopSpecCompilations(),
+                handoffs, runs, fake().promptHistory(),
+                internalLookupAttempts, legacyCreateAttempts).isEqualTo("FINAL_REVIEW");
+        assertThat(internalLookupAttempts).hasValue(1);
+        assertThat(legacyCreateAttempts).hasValue(1);
+        assertThat(runs).singleElement().satisfies(run -> assertThat(run)
+                .containsEntry("submission_channel", "IN_PROCESS_LEGACY")
+                .containsEntry("state", "ACCEPTED")
+                .containsEntry("attempts_used", 1));
+        assertThat(handoffs).singleElement().satisfies(handoff -> assertThat(handoff)
+                .containsEntry("state", "SETTLED")
+                .containsEntry("old_external_session_id", null)
+                .containsEntry("old_termination_proof", null)
+                .containsEntry("legacy_external_session_id", runs.getFirst().get("external_session_id"))
+                .containsEntry("legacy_runtime_generation_id", runs.getFirst().get("runtime_generation_id"))
+                .containsEntry("successor_managed", 1)
+                .containsEntry("legacy_termination_proof", "REMOTE_COMPLETED")
+                .containsEntry("model_call_consumed", 1));
+        assertThat((String) handoffs.getFirst().get("successor_internal_mcp_server")).isNotBlank();
+        assertThat(legacyPrompts).hasSize(1);
+        assertThat(fake().promptHistory()).noneMatch(call -> fake().profileForSession(call.sessionId())
+                == OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS);
+        assertThat(completed.candidateSessions()).isEqualTo(1);
+        assertThat(completed.candidateSubmissions()).isEqualTo(1);
+        assertThat(mapper.listTasks()).isEmpty();
+    }
+
+    @Test
+    void normalCompletedInternalAcceptanceUsesOneDurableSuccessorWithoutReusingTheOldRun() throws Exception {
+        properties.getInternalCandidate().setAcceptanceClosedChoiceV7Enabled(true);
+        activateManagedCandidateRuntime();
+        fake().holdProfileOpen(
+                OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS, true);
+        fake().setJudgeOutput("ACCEPTANCE_CANDIDATE", """
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_START -->
+                {"factAssignments":[],"capabilityPreferences":[{
+                  "factIndex":1,"capabilityIndexes":[0]}]}
+                <!-- LOOPSPEC_COMPILATION_PLAN_JSON_END -->
+                """);
+        ProjectRow project = project("managed-acceptance-v7-normal-completion-fallback");
+        Files.writeString(Path.of(project.rootPath()).resolve("pom.xml"), "<project/>\n");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        String design = trueTieDesign("Java Flow 受管候选正常完成回退");
+        fake().setDesignerOutput(designerOutput(design, legacySpec(project.id())));
+        setPackageDesignerOutput("WP-1", design);
+        DesignerSessionRow reviewing = prepareReviewingSession(project.id(), draft.id(),
+                "修改 Java Flow，并在内部候选正常完成但零提交时用唯一兼容候选继续");
+
+        designerSessions.confirmRequirement(reviewing.id(), reviewing.discussionRevision());
+        DesignerSessionService.CompilerStatus opened = pollUntilCandidateSession(reviewing.id());
+        int modelCallsBeforeFallback = designerSessions.requirementStatus(reviewing.id()).modelCallsUsed();
+        int createsBeforeFallback = fake().createReadOnlySessionCalls();
+        int promptsBeforeFallback = fake().promptCalls();
+        assertThat(opened.candidateSessions()).isEqualTo(1);
+        assertThat(opened.candidateSubmissions()).isZero();
+        fake().holdProfileOpen(
+                OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS, false);
+        fake().setSessionState(opened.externalSessionId(), "COMPLETED");
+        pollUntilSettled(reviewing.id());
+        for (int attempt = 0; attempt < 120; attempt++) {
+            int acceptedLegacy = jdbc.queryForObject("""
+                    SELECT COUNT(*) FROM ai_candidate_submission_run
+                    WHERE owner_type='LOOP_SPEC_COMPILATION' AND owner_id=?
+                      AND submission_channel='IN_PROCESS_LEGACY'
+                      AND state='ACCEPTED' AND attempts_used=1
+                    """, Integer.class, opened.id());
+            int settledHandoff = jdbc.queryForObject("""
+                    SELECT COUNT(*) FROM acceptance_candidate_legacy_handoff
+                    WHERE compilation_id=? AND state='SETTLED'
+                    """, Integer.class, opened.id());
+            if (acceptedLegacy == 1 && settledHandoff == 1
+                    && "FINAL_REVIEW".equals(designerSessions.get(reviewing.id()).workflowPhase())) break;
             designerSessions.pollActiveHandoffs();
-            DesignerSessionService.CompilerStatus current = designerSessions.compilerStatus(reviewing.id());
-            if (current != null && "DISCONNECTED".equals(current.externalSessionState())) disconnected = current;
         }
-        assertThat(disconnected).withFailMessage("owner=%s compiler=%s prompts=%s aborts=%s",
-                designerSessions.get(reviewing.id()), designerSessions.compilerStatus(reviewing.id()),
-                fake().promptHistory(), fake().abortedSessionIds()).isNotNull();
-        String originalRemote = disconnected.externalSessionId();
-        assertThat(disconnected.state()).isEqualTo("RUNNING");
-        assertThat(disconnected.externalSessionState()).isEqualTo("DISCONNECTED");
-        assertThat(disconnected.lastErrorCode())
-                .isEqualTo("OPENCODE_ACCEPTANCE_CANDIDATE_STOP_UNCONFIRMED");
-        assertThat(designerSessions.get(reviewing.id())).satisfies(owner -> {
-            assertThat(owner.state()).isEqualTo("RUNNING");
-            assertThat(owner.workflowPhase()).isEqualTo("COMPILING");
-            assertThat(owner.externalSessionId()).isEqualTo(originalRemote);
-        });
+
+        DesignerSessionService.CompilerStatus completed = designerSessions.compilerStatus(reviewing.id());
+        List<Map<String, Object>> runs = jdbc.queryForList("""
+                SELECT submission_channel,state,attempts_used,close_reason,external_session_id
+                FROM ai_candidate_submission_run
+                WHERE owner_type='LOOP_SPEC_COMPILATION' AND owner_id=? ORDER BY created_at,id
+                """, completed.id());
+        List<Map<String, Object>> handoffs = jdbc.queryForList("""
+                SELECT state,old_external_session_id,old_termination_proof,legacy_external_session_id,
+                       model_call_consumed,legacy_termination_proof
+                FROM acceptance_candidate_legacy_handoff WHERE compilation_id=?
+                """, completed.id());
+
+        assertThat(runs).withFailMessage("owner=%s compilation=%s packages=%s handoffs=%s messages=%s",
+                designerSessions.get(reviewing.id()), completed,
+                designerSessions.workPackageStatuses(reviewing.id()), handoffs,
+                designerSessions.messages(reviewing.id())).hasSize(2);
+        assertThat(handoffs).hasSize(1);
+        Map<String, Object> handoff = handoffs.getFirst();
+        assertThat(runs.get(0))
+                .containsEntry("submission_channel", "INTERNAL_MCP")
+                .containsEntry("state", "CLOSED")
+                .containsEntry("attempts_used", 0)
+                .containsEntry("close_reason", "NORMAL_COMPLETION_ZERO_SUBMISSION");
+        assertThat(runs.get(1))
+                .containsEntry("submission_channel", "IN_PROCESS_LEGACY")
+                .containsEntry("state", "ACCEPTED")
+                .containsEntry("attempts_used", 1);
+        assertThat(handoff)
+                .containsEntry("state", "SETTLED")
+                .containsEntry("old_external_session_id", runs.get(0).get("external_session_id"))
+                .containsEntry("old_termination_proof", "REMOTE_COMPLETED")
+                .containsEntry("legacy_external_session_id", runs.get(1).get("external_session_id"))
+                .containsEntry("legacy_termination_proof", "REMOTE_COMPLETED")
+                .containsEntry("model_call_consumed", 1);
+        assertThat(designerSessions.requirementStatus(reviewing.id()).modelCallsUsed())
+                .isEqualTo(modelCallsBeforeFallback + 1);
+        assertThat(fake().createReadOnlySessionCalls()).isEqualTo(createsBeforeFallback + 1);
+        assertThat(fake().promptCalls()).isEqualTo(promptsBeforeFallback + 1);
+        assertThat(fake().promptHistory()).filteredOn(call ->
+                fake().profileForSession(call.sessionId())
+                        == OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS)
+                .hasSize(1);
+        assertThat(fake().promptHistory()).filteredOn(call ->
+                fake().profileForSession(call.sessionId())
+                        == OpenCodeClient.SessionProfile.COMPILER_BINDING_NO_TOOLS)
+                .hasSize(1);
+        assertThat(mapper.listTasks()).isEmpty();
+    }
+
+    @Test
+    void invalidManagedCandidateExhaustionWaitsForInputWithoutOpeningLegacyFallback() throws Exception {
+        properties.getInternalCandidate().setAcceptanceClosedChoiceV7Enabled(true);
+        InternalMcpCredentialProvider.Credentials credentials = activateManagedCandidateRuntime();
+        fake().holdProfileOpen(
+                OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS, true);
+        ProjectRow project = project("managed-acceptance-v7-invalid-exhaustion");
+        Files.writeString(Path.of(project.rootPath()).resolve("pom.xml"), "<project/>\\n");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        String design = trueTieDesign("Java Flow 无效候选耗尽");
+        fake().setDesignerOutput(designerOutput(design, legacySpec(project.id())));
+        setPackageDesignerOutput("WP-1", design);
+        DesignerSessionRow reviewing = prepareReviewingSession(project.id(), draft.id(),
+                "修改 Java Flow；两次无效闭集选择必须等待人工输入，禁止转入兼容通道");
+
+        designerSessions.confirmRequirement(reviewing.id(), reviewing.discussionRevision());
+        ManagedAcceptanceExhaustion exhausted = exhaustManagedAcceptanceCandidate(
+                reviewing.id(), credentials, "invalid-exhaustion");
+        pollUntilSettled(reviewing.id());
+
+        DesignerSessionRow waiting = designerSessions.get(reviewing.id());
+        DesignerSessionService.CompilerStatus compilation = designerSessions.compilerStatus(reviewing.id());
+        assertThat(waiting.state()).isEqualTo("WAITING_INPUT");
+        assertThat(compilation.state()).isEqualTo("DESIGN_INCOMPLETE");
+        assertThat(compilation.lastErrorCode()).isEqualTo("ACCEPTANCE_CANDIDATE_WAITING_INPUT");
+        assertThat(jdbc.queryForMap("""
+                SELECT state,attempts_used,submission_channel
+                FROM ai_candidate_submission_run WHERE id=?
+                """, exhausted.runId()))
+                .containsEntry("state", "WAITING_INPUT")
+                .containsEntry("attempts_used", 2)
+                .containsEntry("submission_channel", "INTERNAL_MCP");
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM acceptance_candidate_legacy_handoff WHERE compilation_id=?
+                """, Integer.class, compilation.id())).isZero();
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*) FROM ai_candidate_submission_run
                 WHERE owner_type='LOOP_SPEC_COMPILATION' AND owner_id=?
-                """, Integer.class, disconnected.id())).isZero();
-        assertThat(fake().promptHistory()).noneMatch(call -> call.sessionId().equals(originalRemote));
-        assertThat(mapper.listTasks()).isEmpty();
-
-        fake().failNextAborts(
-                OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS, 0);
-        pollUntilSettled(reviewing.id());
-
-        assertThat(designerSessions.get(reviewing.id()).workflowPhase()).isEqualTo("FINAL_REVIEW");
-        assertThat(fake().abortedSessionIds()).contains(originalRemote);
-        assertThat(jdbc.queryForList("""
-                SELECT submission_channel FROM ai_candidate_submission_run
-                WHERE owner_type='LOOP_SPEC_COMPILATION' AND owner_id=? ORDER BY created_at
-                """, String.class, disconnected.id())).containsExactly("IN_PROCESS_LEGACY");
-        assertThat(designerSessions.compilerStatus(reviewing.id()).candidateSubmissions()).isEqualTo(1);
+                  AND submission_channel='IN_PROCESS_LEGACY'
+                """, Integer.class, compilation.id())).isZero();
+        assertThat(fake().promptHistory())
+                .filteredOn(call -> call.sessionId().equals(exhausted.opened().externalSessionId()))
+                .hasSize(1);
         assertThat(mapper.listTasks()).isEmpty();
     }
 
@@ -4939,7 +5225,9 @@ class DesignerSessionMcpIntegrationTest {
     private DesignerSessionService.CompilerStatus pollUntilCandidateSession(String sessionId) {
         for (int attempt = 0; attempt < 80; attempt++) {
             DesignerSessionService.CompilerStatus compiler = designerSessions.compilerStatus(sessionId);
-            if (compiler != null && compiler.candidateSessions() == 1) return compiler;
+            if (compiler != null && compiler.candidateSessions() == 1
+                    && "CANDIDATE_RUNNING".equals(compiler.externalSessionState())
+                    && "RUNNING".equals(designerSessions.get(sessionId).state())) return compiler;
             completeMandatoryDesignerQuestion(sessionId);
             designerSessions.pollActiveHandoffs();
         }
@@ -4964,6 +5252,49 @@ class DesignerSessionMcpIntegrationTest {
                 "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\",\"params\":{}}",
                 sessionId)).andExpect(status().isAccepted());
         return sessionId;
+    }
+
+    private ManagedAcceptanceExhaustion exhaustManagedAcceptanceCandidate(
+            String designerSessionId, InternalMcpCredentialProvider.Credentials credentials,
+            String keyPrefix) throws Exception {
+        DesignerSessionService.CompilerStatus opened = pollUntilCandidateSession(designerSessionId);
+        String runId = jdbc.queryForObject("""
+                SELECT id FROM ai_candidate_submission_run
+                WHERE owner_type='LOOP_SPEC_COMPILATION' AND owner_id=?
+                  AND submission_channel='INTERNAL_MCP'
+                """, String.class, opened.id());
+        String mcpSession = initializeInternalMcp(credentials);
+        submitInvalidAcceptanceCandidate(
+                credentials, mcpSession, runId, keyPrefix + "-1", 131, "REJECTED");
+        // Internal MCP returns the rejection directly to the same model tool loop;
+        // no second model prompt is dispatched for the mechanical correction.
+        assertThat(fake().promptHistory()).filteredOn(call -> call.sessionId().equals(opened.externalSessionId()))
+                .hasSize(1);
+        submitInvalidAcceptanceCandidate(
+                credentials, mcpSession, runId, keyPrefix + "-2", 132, "WAITING_INPUT");
+        assertThat(jdbc.queryForMap("""
+                SELECT state,attempts_used FROM ai_candidate_submission_run WHERE id=?
+                """, runId))
+                .containsEntry("state", "WAITING_INPUT")
+                .containsEntry("attempts_used", 2);
+        return new ManagedAcceptanceExhaustion(opened, runId);
+    }
+
+    private void submitInvalidAcceptanceCandidate(
+            InternalMcpCredentialProvider.Credentials credentials, String mcpSession,
+            String runId, String idempotencyKey, int rpcId, String expectedOutcome) throws Exception {
+        long revision = jdbc.queryForObject(
+                "SELECT version FROM ai_candidate_submission_run WHERE id=?", Long.class, runId);
+        String arguments = "{\"name\":\"submit_candidate\",\"arguments\":{"
+                + "\"runId\":\"" + runId + "\",\"idempotencyKey\":\"" + idempotencyKey + "\","
+                + "\"candidate\":{\"factAssignments\":[],\"capabilityPreferences\":[{"
+                + "\"factIndex\":1,\"capabilityIndexes\":[99]}]},"
+                + "\"expectedSubmissionRevision\":" + revision + "}}";
+        MvcResult submitted = mvc.perform(internalMcp(
+                        credentials, rpc(rpcId, "tools/call", arguments), mcpSession))
+                .andExpect(request().asyncStarted()).andReturn();
+        mvc.perform(asyncDispatch(submitted)).andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(expectedOutcome)));
     }
 
     private void assertPackageStates(String sessionId, String... states) {
@@ -5539,6 +5870,9 @@ class DesignerSessionMcpIntegrationTest {
                     "candidateSubmissions", candidateSubmissions);
         }
     }
+
+    private record ManagedAcceptanceExhaustion(
+            DesignerSessionService.CompilerStatus opened, String runId) { }
 
     private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder mcp(String requestBody) {
         return post("/api/mcp").header("Authorization", "Bearer " + TOKEN)

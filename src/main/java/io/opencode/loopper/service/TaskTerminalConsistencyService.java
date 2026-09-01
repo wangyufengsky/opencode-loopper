@@ -69,7 +69,9 @@ final class TaskTerminalConsistencyService {
                 .anyMatch(row -> !ExecutionCycleState.valueOf(row.state()).terminal());
         boolean openQueue = mapper.findTaskQueue(taskId).map(row -> Set.of(
                 TaskQueueState.QUEUED.name(), TaskQueueState.ADMITTED.name()).contains(row.state())).orElse(false);
-        if (openAttempt || openStage || openCycle || openQueue || mapper.findActiveWorkspaceLeaseByHolder(taskId).isPresent()) {
+        boolean openCandidateCleanup = mapper.existsUnstoppedAcceptanceCandidateHandoffCleanupForTask(taskId);
+        if (openAttempt || openStage || openCycle || openQueue || openCandidateCleanup
+                || mapper.findActiveWorkspaceLeaseByHolder(taskId).isPresent()) {
             throw new ConflictException("TASK_TERMINAL_CHILDREN_ACTIVE",
                     "任务仍有未收束的执行子状态、队列或租约，不能进入终态");
         }

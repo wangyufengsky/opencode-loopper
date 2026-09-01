@@ -67,6 +67,25 @@ public final class LifecycleRegistry {
                         PackagePlanRevisionState.ACTIVE), Set.of());
         register(LifecycleMachineType.CANDIDATE_SUBMISSION_RUN, MachineCandidateRunState.class,
                 candidateSubmissionRun(), set(MachineCandidateRunState.OPEN), Set.of());
+        register(LifecycleMachineType.CANDIDATE_PROMPT_DISPATCH, CandidatePromptDispatchState.class,
+                CandidateLifecycleTopologies.promptDispatch(), set(CandidatePromptDispatchState.PROMPTING), Set.of());
+        register(LifecycleMachineType.ACCEPTANCE_CANDIDATE_HANDOFF, AcceptanceCandidateHandoffState.class,
+                CandidateLifecycleTopologies.acceptanceHandoff(), set(AcceptanceCandidateHandoffState.STOPPING_OLD,
+                        AcceptanceCandidateHandoffState.CREATING_LEGACY), Set.of());
+        register(LifecycleMachineType.ACCEPTANCE_CANDIDATE_HANDOFF_CLEANUP,
+                AcceptanceCandidateHandoffCleanupState.class, CandidateLifecycleTopologies.handoffCleanup(),
+                set(AcceptanceCandidateHandoffCleanupState.DISCOVERED), Set.of());
+        register(LifecycleMachineType.ACCEPTANCE_CANDIDATE_INTERNAL_LAUNCH,
+                AcceptanceCandidateInternalLaunchState.class, CandidateLifecycleTopologies.internalLaunch(),
+                set(AcceptanceCandidateInternalLaunchState.PREPARED), Set.of());
+        register(LifecycleMachineType.ACCEPTANCE_CANDIDATE_INTERNAL_LAUNCH_CLEANUP,
+                AcceptanceCandidateInternalLaunchCleanupState.class,
+                CandidateLifecycleTopologies.internalLaunchCleanup(),
+                set(AcceptanceCandidateInternalLaunchCleanupState.DISCOVERED), Set.of());
+        register(LifecycleMachineType.ACCEPTANCE_CANDIDATE_INTERNAL_TERMINATION_INTENT,
+                AcceptanceCandidateInternalTerminationIntentState.class,
+                CandidateLifecycleTopologies.internalTerminationIntent(),
+                set(AcceptanceCandidateInternalTerminationIntentState.REQUESTED), Set.of());
         if (machines.size() != LifecycleMachineType.values().length) {
             throw new IllegalStateException("Every lifecycle machine type must be registered");
         }
@@ -331,6 +350,11 @@ public final class LifecycleRegistry {
                 .transition(DesignerSessionState.RUNNING, REQUIRE_INPUT, DesignerSessionState.WAITING_INPUT)
                 .transition(DesignerSessionState.REVIEWING, REQUIRE_INPUT, DesignerSessionState.WAITING_INPUT)
                 .transition(DesignerSessionState.RUNNING, REQUIRE_REVIEW, DesignerSessionState.REVIEWING)
+                .transition(DesignerSessionState.PENDING_HANDOFF, REOPEN_REQUIREMENT, DesignerSessionState.REVIEWING)
+                .transition(DesignerSessionState.RUNNING, REOPEN_REQUIREMENT, DesignerSessionState.REVIEWING)
+                .transition(DesignerSessionState.WAITING_INPUT, REOPEN_REQUIREMENT, DesignerSessionState.REVIEWING)
+                .transition(DesignerSessionState.SESSION_ERROR, REOPEN_REQUIREMENT, DesignerSessionState.REVIEWING)
+                .transition(DesignerSessionState.COMPLETED, REOPEN_REQUIREMENT, DesignerSessionState.REVIEWING)
                 .transition(DesignerSessionState.REVIEWING, COMPLETE, DesignerSessionState.COMPLETED)
                 .transition(DesignerSessionState.RUNNING, COMPLETE, DesignerSessionState.COMPLETED)
                 .transition(DesignerSessionState.RUNNING, SESSION_FAIL, DesignerSessionState.SESSION_ERROR)

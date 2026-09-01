@@ -109,10 +109,21 @@ class OpenCodeRuntimeManagerTest {
             throw new AssertionError("compatibility auto must stay lazy at ApplicationReady");
         }, Clock.systemUTC());
 
+        assertThatThrownBy(managed::currentIdentityNoIo)
+                .hasMessageContaining("without starting or probing");
+        assertThatThrownBy(auto::currentIdentityNoIo)
+                .hasMessageContaining("without starting or probing");
+        assertThat(managedStarts).hasValue(0);
+        assertThat(autoStarts).hasValue(0);
         managed.startManagedOnApplicationReady();
         auto.startManagedOnApplicationReady();
 
+        OpenCodeRuntimeManager.RuntimeIdentity identity = managed.currentIdentityNoIo();
         assertThat(managedStarts).hasValue(1);
+        assertThat(identity.managed()).isTrue();
+        assertThat(identity.endpoint()).isNotNull();
+        assertThat(identity.generation()).isNotBlank();
+        assertThat(identity.internalMcpServer()).isNotBlank();
         assertThat(managed.status().status()).isEqualTo("AVAILABLE");
         assertThat(autoStarts).hasValue(0);
         managed.close();
@@ -176,10 +187,16 @@ class OpenCodeRuntimeManagerTest {
             return process;
         }, Clock.systemUTC(), credentials, access);
 
+        manager.startManagedOnApplicationReady();
         OpenCodeRuntimeManager.RuntimeSnapshot snapshot = manager.status();
 
+        OpenCodeRuntimeManager.RuntimeIdentity identity = manager.currentIdentityNoIo();
         assertThat(snapshot.status()).isEqualTo("OFFLINE");
         assertThat(snapshot.startupFailure()).contains("startup-timeout");
+        assertThat(identity.endpoint()).isEqualTo(URI.create("http://127.0.0.1:9"));
+        assertThat(identity.managed()).isFalse();
+        assertThat(identity.generation()).isNull();
+        assertThat(identity.internalMcpServer()).isNull();
         assertThat(manager.connectionForClient().endpoint()).isEqualTo(URI.create("http://127.0.0.1:9"));
         assertThat(access.current()).isEmpty();
         assertThat(launched.get().destroyed).isTrue();
@@ -355,6 +372,11 @@ class OpenCodeRuntimeManagerTest {
             starts.incrementAndGet(); throw new AssertionError("http mode must not launch a process");
         }, Clock.systemUTC());
 
+        OpenCodeRuntimeManager.RuntimeIdentity identity = manager.currentIdentityNoIo();
+        assertThat(identity.endpoint()).isEqualTo(URI.create("http://127.0.0.1:1"));
+        assertThat(identity.managed()).isFalse();
+        assertThat(identity.generation()).isNull();
+        assertThat(identity.internalMcpServer()).isNull();
         assertThat(manager.connectionForClient().managed()).isFalse();
         assertThat(manager.status().status()).isEqualTo("OFFLINE");
         assertThat(starts).hasValue(0);

@@ -50,7 +50,7 @@ class OpenCodeConfiguration {
         if ("fake".equalsIgnoreCase(properties.getOpenCode().getMode())) {
             return new FakeOpenCodeClient(runtimeBindings);
         }
-        return new HttpOpenCodeClient(RestClient.builder(), runtimeManager::connectionForClient, properties,
-                capabilities, runtimeBindings);
+        return new HttpOpenCodeClient(RestClient.builder(), runtimeManager::connectionForClient,
+                runtimeManager::currentIdentityNoIo, properties, capabilities, runtimeBindings);
     }
 }

@@ -3,8 +3,14 @@ package io.opencode.loopper.runtime;
 import java.nio.file.Path;
 import java.math.BigDecimal;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public interface OpenCodeClient {
     /** Private managed-runtime variant used to keep DeepSeek structured output out of Thinking mode. */
@@ -38,10 +44,53 @@ public interface OpenCodeClient {
                 ? createSession(worktree, title, model)
                 : createReadOnlySession(worktree, title, model);
     }
+    /** Freezes the complete create request before crossing the remote create boundary. */
+    default SessionCreationPlan prepareSessionCreation(Path worktree, String baseTitle, OpenCodeModel model,
+                                                       SessionProfile profile, String creationCredential) {
+        throw new UnsupportedOperationException("OpenCode session recovery planning is not supported by this adapter");
+    }
+    /**
+     * Freezes a candidate-session create request using process-local runtime identity only.
+     * Implementations must not resolve a live connection, start or probe a runtime, or perform HTTP/MCP I/O.
+     */
+    default SessionCreationPlan prepareCandidateSessionCreationLocally(
+            Path worktree, String baseTitle, OpenCodeModel model,
+            SessionProfile profile, String creationCredential) {
+        throw new UnsupportedOperationException("Local candidate session planning is not supported by this adapter");
+    }
+    /**
+     * Revalidates a previously persisted candidate plan at the first permitted remote-read boundary.
+     * The supplied plan is immutable and must not be recomputed from remote discovery.
+     */
+    default void requireCandidateSessionReady(SessionCreationPlan persistedPlan) {
+        throw new UnsupportedOperationException("Candidate session readiness is not supported by this adapter");
+    }
+    /** Creates a Session from the exact persisted request plan and returns its verified recovery attestation. */
+    default SessionAttestation createSession(SessionCreationPlan plan) {
+        throw new UnsupportedOperationException("OpenCode attested session creation is not supported by this adapter");
+    }
+    /** Exact recovery query used to close the create-POST/local-checkpoint gap. */
+    default SessionLookup findSessionsByExactTitle(SessionCreationPlan plan) {
+        return new SessionLookup(false, List.of());
+    }
+    /** Compatibility seam; callers requiring crash-safe recovery must use a persisted SessionCreationPlan. */
+    default SessionLookup findSessionsByExactTitle(Path worktree, String exactTitle,
+                                                   OpenCodeModel model, SessionProfile profile) {
+        return new SessionLookup(false, List.of());
+    }
     void promptAsync(OpenCodeSession session, String prompt);
     /** Typed prompt transport. No caller-controlled tool list is accepted at this boundary. */
     default void promptAsync(OpenCodeSession session, PromptRequest prompt) {
         promptAsync(session, prompt == null ? "" : prompt.text());
+    }
+    /** Exact request recovery query used before retrying an asynchronous prompt. */
+    default MessageLookup findPromptMessage(OpenCodeSession session, PromptRequest expectedRequest,
+                                            String persistedRequestSha256) {
+        return new MessageLookup(false, false, null);
+    }
+    /** Compatibility seam; message identity alone is insufficient crash-recovery proof. */
+    default MessageLookup findPromptMessage(OpenCodeSession session, String messageId) {
+        return new MessageLookup(false, false, null);
     }
     SessionStatus sessionStatus(OpenCodeSession session);
     /** Returns the latest assistant text after a completed session, preserving the original model response. */
@@ -106,6 +155,109 @@ public interface OpenCodeClient {
     record OpenCodeSession(String id, Path worktree, String generation, String internalMcpServer) {
         public OpenCodeSession(String id, Path worktree) { this(id, worktree, null, null); }
     }
+    record SessionPermissionRule(String permission, String pattern, String action) {
+        public SessionPermissionRule {
+            if (blank(permission) || blank(pattern) || blank(action)) {
+                throw new IllegalArgumentException("Complete permission rule fields are required");
+            }
+        }
+    }
+    record SessionCreationPlan(Path canonicalDirectory, String exactTitle,
+                               String runtimeGenerationId, boolean managed, String internalMcpServer,
+                               String endpointFingerprint, OpenCodeModel model, SessionProfile profile,
+                               List<SessionPermissionRule> permissionPolicy, String permissionPolicyDigest,
+                               String creationCredential, String createRequestSha256) {
+        public SessionCreationPlan {
+            if (canonicalDirectory == null || !canonicalDirectory.isAbsolute()) {
+                throw new IllegalArgumentException("Canonical session directory must be absolute");
+            }
+            canonicalDirectory = canonicalDirectory.normalize();
+            if (blank(exactTitle) || blank(runtimeGenerationId) || profile == null) {
+                throw new IllegalArgumentException("Complete session creation identity is required");
+            }
+            if (model != null && (blank(model.providerId()) || blank(model.modelId()))) {
+                throw new IllegalArgumentException("Session model provider and id must be present together");
+            }
+            if (managed != !blank(internalMcpServer)) {
+                throw new IllegalArgumentException("Managed session creation requires one internal MCP identity");
+            }
+            requireSha256(endpointFingerprint, "Endpoint fingerprint");
+            if (creationCredential == null || !creationCredential.matches("[A-Za-z0-9_-]{43}")) {
+                throw new IllegalArgumentException("Session creation credential must be 256-bit base64url without padding");
+            }
+            String marker = "[loopper-create:" + creationCredential + "]";
+            if (!exactTitle.endsWith(marker)) {
+                throw new IllegalArgumentException("Exact title is not bound to the session creation credential");
+            }
+            permissionPolicy = permissionPolicy == null ? List.of() : List.copyOf(permissionPolicy);
+            requireSha256(permissionPolicyDigest, "Permission policy digest");
+            if (!permissionPolicyDigest.equals(OpenCodeClient.permissionPolicyDigest(permissionPolicy))) {
+                throw new IllegalArgumentException("Permission policy digest does not match the frozen policy");
+            }
+            requireSha256(createRequestSha256, "Create request digest");
+            String calculated = sessionCreationRequestSha256(canonicalDirectory, exactTitle,
+                    runtimeGenerationId, managed, internalMcpServer, endpointFingerprint, model, profile,
+                    permissionPolicyDigest, creationCredential);
+            if (!createRequestSha256.equals(calculated)) {
+                throw new IllegalArgumentException("Create request digest does not match the frozen request");
+            }
+        }
+
+        public static SessionCreationPlan fromPersisted(Path canonicalDirectory, String exactTitle,
+                String runtimeGenerationId, boolean managed, String internalMcpServer,
+                String endpointFingerprint, OpenCodeModel model, SessionProfile profile,
+                List<SessionPermissionRule> permissionPolicy, String permissionPolicyDigest,
+                String creationCredential, String createRequestSha256) {
+            return new SessionCreationPlan(canonicalDirectory, exactTitle, runtimeGenerationId, managed,
+                    internalMcpServer, endpointFingerprint, model, profile, permissionPolicy,
+                    permissionPolicyDigest, creationCredential, createRequestSha256);
+        }
+    }
+    enum SessionAttestationKind { LOCAL_REQUEST_ATTESTED }
+    record SessionAttestation(String remoteId, Path canonicalDirectory, String exactTitle,
+                              String runtimeGenerationId, boolean managed, String internalMcpServer,
+                              String endpointFingerprint, OpenCodeModel model, SessionProfile profile,
+                              List<SessionPermissionRule> permissionPolicy, String permissionPolicyDigest,
+                              String creationCredential, String createRequestSha256,
+                              SessionAttestationKind attestationKind) {
+        public SessionAttestation {
+            if (blank(remoteId)) throw new IllegalArgumentException("Remote session id is required");
+            SessionCreationPlan validated = SessionCreationPlan.fromPersisted(
+                    canonicalDirectory, exactTitle, runtimeGenerationId, managed,
+                    internalMcpServer, endpointFingerprint, model, profile, permissionPolicy,
+                    permissionPolicyDigest, creationCredential, createRequestSha256);
+            canonicalDirectory = validated.canonicalDirectory();
+            permissionPolicy = validated.permissionPolicy();
+            if (attestationKind == null) throw new IllegalArgumentException("Session attestation kind is required");
+        }
+        public SessionCreationPlan plan() {
+            return SessionCreationPlan.fromPersisted(canonicalDirectory, exactTitle, runtimeGenerationId, managed,
+                    internalMcpServer, endpointFingerprint, model, profile, permissionPolicy,
+                    permissionPolicyDigest, creationCredential, createRequestSha256);
+        }
+        public OpenCodeSession session() {
+            return new OpenCodeSession(remoteId, canonicalDirectory,
+                    managed ? runtimeGenerationId : null, managed ? internalMcpServer : null);
+        }
+    }
+    record SessionLookup(boolean supported, List<SessionAttestation> matches) {
+        public SessionLookup { matches = matches == null ? List.of() : List.copyOf(matches); }
+    }
+    record MessageLookup(boolean supported, boolean exists, String verifiedRequestSha256) {
+        public MessageLookup(boolean supported, boolean exists) { this(supported, exists, null); }
+        public MessageLookup {
+            if (!supported && exists) {
+                throw new IllegalArgumentException("An unsupported lookup cannot report an existing message");
+            }
+            if (exists && verifiedRequestSha256 == null) {
+                throw new IllegalArgumentException("An existing message requires a verified request digest");
+            }
+            if (!exists && verifiedRequestSha256 != null) {
+                throw new IllegalArgumentException("An absent message cannot carry a verified request digest");
+            }
+            if (verifiedRequestSha256 != null) requireSha256(verifiedRequestSha256, "Verified request digest");
+        }
+    }
     enum AbortConfirmation { ACKNOWLEDGED, ALREADY_ABSENT }
     record OpenCodeModel(String providerId, String modelId, Boolean thinking) { }
     enum SessionProfile {
@@ -160,6 +312,109 @@ public interface OpenCodeClient {
             return new PromptRequest(text, null, null, new ResponseFormat.Text(), null, List.of());
         }
     }
+
+    static String recoveryTitle(String baseTitle, String creationCredential) {
+        if (blank(baseTitle)) throw new IllegalArgumentException("Session recovery title is required");
+        if (creationCredential == null || !creationCredential.matches("[A-Za-z0-9_-]{43}")) {
+            throw new IllegalArgumentException("Session creation credential must be 256-bit base64url without padding");
+        }
+        return baseTitle.strip() + " [loopper-create:" + creationCredential + "]";
+    }
+
+    static String permissionPolicyDigest(List<SessionPermissionRule> permissionPolicy) {
+        List<SessionPermissionRule> policy = permissionPolicy == null ? List.of() : permissionPolicy;
+        return canonicalSha256(policy.stream()
+                .map(rule -> List.of(rule.permission(), rule.pattern(), rule.action()))
+                .toList());
+    }
+
+    static String sessionCreationRequestSha256(SessionCreationPlan plan) {
+        Objects.requireNonNull(plan, "Session creation plan is required");
+        return sessionCreationRequestSha256(plan.canonicalDirectory(), plan.exactTitle(),
+                plan.runtimeGenerationId(), plan.managed(), plan.internalMcpServer(),
+                plan.endpointFingerprint(), plan.model(), plan.profile(), plan.permissionPolicyDigest(),
+                plan.creationCredential());
+    }
+
+    static String promptRequestSha256(PromptRequest request) {
+        Objects.requireNonNull(request, "Prompt request is required");
+        List<Object> canonical = new ArrayList<>();
+        canonical.add(request.text());
+        canonical.add(request.system());
+        canonical.add(request.agent());
+        canonical.add(request.messageId());
+        if (request.responseFormat() instanceof ResponseFormat.JsonSchema format) {
+            List<Object> responseFormat = new ArrayList<>();
+            responseFormat.add("JSON_SCHEMA");
+            responseFormat.add(format.schemaId());
+            responseFormat.add(format.retryCount());
+            responseFormat.add(format.schema());
+            canonical.add(responseFormat);
+        } else {
+            canonical.add("TEXT");
+        }
+        canonical.add(request.files().stream().map(file -> List.of(file.filename(), file.mediaType(),
+                file.managedUri().normalize().toASCIIString(), file.sha256())).toList());
+        return canonicalSha256(canonical);
+    }
+
+    static String sessionCreationRequestSha256(Path canonicalDirectory, String exactTitle,
+            String runtimeGenerationId, boolean managed, String internalMcpServer,
+            String endpointFingerprint, OpenCodeModel model, SessionProfile profile,
+            String permissionPolicyDigest, String creationCredential) {
+        return canonicalSha256(List.of(canonicalDirectory.toString(), exactTitle, runtimeGenerationId,
+                managed, internalMcpServer == null ? "" : internalMcpServer, endpointFingerprint,
+                model == null ? List.of() : List.of(model.providerId() == null ? "" : model.providerId(),
+                        model.modelId() == null ? "" : model.modelId(), model.thinking() == null ? "" : model.thinking()),
+                profile.name(), permissionPolicyDigest, creationCredential));
+    }
+
+    private static String canonicalSha256(Object value) {
+        try {
+            StringBuilder canonical = new StringBuilder();
+            appendCanonical(canonical, value);
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(canonical.toString().getBytes(StandardCharsets.UTF_8)));
+        } catch (Exception impossible) {
+            throw new IllegalStateException("SHA-256 unavailable", impossible);
+        }
+    }
+
+    private static void appendCanonical(StringBuilder target, Object value) {
+        if (value == null) {
+            target.append('N');
+        } else if (value instanceof CharSequence text) {
+            byte[] bytes = text.toString().getBytes(StandardCharsets.UTF_8);
+            target.append('S').append(bytes.length).append(':').append(text);
+        } else if (value instanceof Boolean bool) {
+            target.append(bool ? "B1" : "B0");
+        } else if (value instanceof Number number) {
+            target.append('D').append(number);
+        } else if (value instanceof Enum<?> item) {
+            appendCanonical(target, item.name());
+        } else if (value instanceof Map<?, ?> map) {
+            target.append('M').append(map.size()).append(':');
+            map.entrySet().stream().sorted(Comparator.comparing(entry -> String.valueOf(entry.getKey())))
+                    .forEach(entry -> {
+                        appendCanonical(target, String.valueOf(entry.getKey()));
+                        appendCanonical(target, entry.getValue());
+                    });
+        } else if (value instanceof Iterable<?> values) {
+            target.append('L');
+            for (Object item : values) appendCanonical(target, item);
+            target.append('E');
+        } else {
+            appendCanonical(target, String.valueOf(value));
+        }
+    }
+
+    private static void requireSha256(String value, String label) {
+        if (value == null || !value.matches("[0-9a-f]{64}")) {
+            throw new IllegalArgumentException(label + " must be lowercase SHA-256");
+        }
+    }
+
+    private static boolean blank(String value) { return value == null || value.isBlank(); }
     record SessionResult(String text, Map<String, Object> structured, String errorType,
                          String errorDetail, int structuredRetryCount) {
         public SessionResult {

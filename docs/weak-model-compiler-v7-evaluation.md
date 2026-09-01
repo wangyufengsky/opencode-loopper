@@ -133,6 +133,15 @@ pipeline, retry bounds, persistence, and counters, but it does not prove model t
 or self-correction and cannot enable the production default. The evaluator reports the
 qualification but never mutates runtime configuration by itself.
 
+The V51-V55 durability guards are prerequisites rather than substitutes for that real-model
+qualification. They prove that legacy handoff, attested internal launch, one-shot prompt
+dispatch, termination intent promotion, restart recovery, cancellation and requirement
+replacement cannot create overlapping writers or infer success from uncertain transport.
+The packaged-JAR qualification must still show one configured model Session issuing the
+private MCP call, receiving a server rejection, correcting within that same Session and
+ending in a server-accepted candidate. Until that evidence is recorded, the default remains
+`false` even when every structural and durability guard is green.
+
 The v2 synthetic corpus currently contains 25 samples backed by 22 exact guards. Its versioned expected
 baseline is v6/v7 design compilation `14/25 -> 15/25`, end-to-end executable planning
 `11/25 -> 15/25`, Compiler calls `10 -> 8`, full redesigns `7 -> 0`, hard-gap

@@ -42,10 +42,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.2.99.jar
-   jar tf target/opencode-loopper-0.2.99.jar \
+   test -s target/opencode-loopper-0.3.1.jar
+   jar tf target/opencode-loopper-0.3.1.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.2.99.jar
+   shasum -a 256 target/opencode-loopper-0.3.1.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -95,8 +95,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.2.99`。
-- 正式产物：`target/opencode-loopper-0.2.99.jar`。
+- Maven 项目版本：`0.3.1`。
+- 正式产物：`target/opencode-loopper-0.3.1.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -258,6 +258,7 @@ Task 详情 `overview` 必须投影 `loopRetryAvailable`、`cancellationAvailabl
 - Decomposer、Compiler 和最终 Judge 只有在当前持久化步骤实际使用 `JSON_SCHEMA` 时才显式使用 `thinking=false`；Loopper 管理的 DeepSeek Runtime 为当前配置模型注入 `loopper-no-thinking` variant（`thinking.type=disabled`），且 HTTP 适配器只允许 Schema Prompt 选择它，避免 Thinking 与 JSON Schema 强制工具选择冲突。`TEXT_MARKER` 初始、重试、Schema 回退和 finalizer Session 必须保留配置的 thinking 或 Provider 默认值，并继续通过同一 JSON 提取、确定性校验和修复预算。机器角色仍使用零温度和禁止重复/虚构工具调用的固定指令。OpenCode 1.18.12–1.18.18 已确认会在读取自身持久化 Schema 时返回 400，必须直接使用 marker 兼容模式；后续版本恢复能力探测。交互式 Markdown Designer 和可写 Implementation 继续保留配置/LoopSpec 的 thinking 选择；复用外部 DeepSeek Runtime 时由操作者提供同名 variant，缺失时不得绕过既有全新 Session marker 回退。
 - OpenCode Session 使用角色权限模板。普通角色在创建前按项目目录读取 `/mcp`，把已连接用户 Server 的 `<server>_*` allow 叠加到既有模板；发现失败必须在提示发送前明确停止，不得修改用户配置。Router 固定零工具且跳过 MCP 发现；Requirement/Risk Judge 保留原只读内置工具和用户 MCP，但永远看不到私有内部 Server；Decomposer 候选只保留 `read/glob/grep` 与本代精确 `<random-server>_submit_candidate`，验收闭集候选不开放内置工具或用户 MCP，只开放同一个精确私有工具。私有名称即使与继承配置碰撞，也只允许覆盖受管子进程的环境叠加层，不得写用户/项目 OpenCode 文件；公共六工具 Provider 与私有内部 MCP 必须保持分离。只读角色仍拒绝 `.env`/`.env.*`、外部目录和全部其他内置工具，MCP allow 不得解除写文件、Bash、Git、外部目录或 Loopper 人工授权边界。Runtime 可展示 agent、原生 `plan`、代际短标识和内部 MCP 就绪，但不得返回私有 Server 全名、Bearer 或让 Designer 接管原生 plan。
 - V47 的 `MachineCandidateSubmission` 是独立权威状态域：run 冻结角色 kind、唯一 owner、来源/owner 版本、通道、外部 Session、运行时代际和提交预算；精确幂等重放返回同一安全响应，复用 key 但 payload 不同、乐观锁冲突、跨 owner/kind/channel/generation 均失败关闭。拒绝原始候选不得落库，只保存 SHA-256；有界问题码、JSON Pointer、说明和安全响应只能由服务端静态模板生成，不得回显候选值。accepted writer 必须在同一短事务中从数据库冻结事实生成规范结果并推进 owner，MCP/模型成功本身不具权威性。Decomposer 上限 5 次，v7 闭集上限 2 次。v7 验收闭集的 `ACCEPTED/WAITING_INPUT/CLOSED` 不是远端停止证明：每次恢复仍须复核 binding/owner/source/external Session 和精确已知 owner 版本步数，只有 `REMOTE_COMPLETED / ABORT_ACKNOWLEDGED / ALREADY_ABSENT` 持久化后才可编译、进入人工输入、失败收束或切 legacy；停止/传输/代次未确认保持同一 run 的 `DISCONNECTED` 投影并由 Monitor 重试，不得编译、建 Task、重复 prompt/submission、关闭 run 或放开新 writer。OPEN run 只允许一个精确 `DISCONNECTED` owner checkpoint 后继续同 Session 提交，额外漂移拒绝。外部运行时在 internal run 创建前被绑定守卫拒绝时也必须先确认旧 remote abort；未确认保持原 compilation/Session `RUNNING + DISCONNECTED` 且不建 run/prompt/Task，由 Monitor 重试，只有 ACK/ALREADY_ABSENT 后才创建全新 Legacy run。V50 持久化 close reason，只有 `NORMAL_COMPLETION_ZERO_SUBMISSION` 配合真实远端完成可切 legacy；timeout/provider/interaction/owner close 和历史 `CLOSED + NULL` 失败关闭。外部 I/O 后必须由短事务重新核验原 run/version、Designer 非 `STOPPING/CANCELLED`、owner/source/external Session/binding 后 CAS proof，拒绝不得进入通用失败收束。proof 已持久化后允许 JVM/受管代次轮换及精确 `SERVER_COMPILING/serverCompiled` 两步幂等恢复，额外 owner 漂移仍拒绝；proof 前仍必须校验原活动代次。终止证明闭集由共享 `CandidateSessionTerminationProof` 持有，通用 runtime guard 不得依赖具体角色 orchestrator，workflow 只可通过窄 `Port` 调用 Designer facade。
+- V51-V55 把 Acceptance Legacy handoff、internal launch、prompt dispatch 与 termination 分成四个持久化协议：所有远端创建参数、权限/请求摘要、运行代次和一次性本地 credential 必须在 I/O 前冻结，回读 remote 未通过 attestation 只能 cleanup，run open 与 settlement certificate 必须同事务；提示的模型调用消耗和可能派发必须在 HTTP 前不可逆记录，结果不确定不得盲重发。取消、需求替换和首次提示 `BUDGET_EXHAUSTED / LOOKUP_UNSUPPORTED / RESULT_UNKNOWN` 只能先创建唯一 typed termination intent，取得 prompt/run/remote 安静及正向停止证明后才可原子推进父状态。首次失败后到达的取消或替换只提升同一 ready intent，不得并存第二条终止权威。新内部 launch、prompt、submission 和父终态均受数据库 gate 约束，应用层检查不能替代迁移级不变量。
 - V48 的 `PACKAGE_DESIGN_V1` 为工作包设计增加 MCP 主路与 Markdown 兜底：每个包修订使用一个独立候选 Session、最多 3 次完整替换提交，候选不得携带命令、可写路径清单、测试命令、Verifier、权限、安全结论或稳定 ID；MCP/Markdown 两入口必须共用 `PackageDesignCompilation` 确定性内核。只有远端 `COMPLETED` 且最终 Markdown 非空的未提交，或三次均为明确可降级机械错误，才允许 `MARKDOWN_FALLBACK`；`NEEDS_INPUT`、路径/安全/权限/修订/运行代次冲突、超时、传输失败和停止未确认全部失败关闭。接受结果原子保存规范候选、服务端 Markdown、编译结果、SHA 和 `settledCompilationId`，重启幂等推进。页面只读取候选状态、Session/提交计数、来源和兜底原因，不得反推；大型任务在工作包轨道展示，默认单包继续隐藏审批轨道但必须用独立摘要展示同一组服务端事实。隔离成品 JAR 已真实证明同 Session 拒绝后修正接受与 Markdown-only 零提交兜底，因此生产默认开启；`LOOPPER_PACKAGE_DESIGN_CANDIDATE_V1_ENABLED=false` 只回滚新工作包，已有候选与接受结果仍须恢复。
 - V49 将 CandidateSubmission run 的 `designerSessionId + nullable owner` 升级为 `CandidateScope(DESIGNER_SESSION/TASK/PROJECT,type+id)` 与 `CandidateOwnerRef(type+id)`：数据库必须保持恰一作用域外键，owner 必须真实属于该作用域，作用域/owner/kind 创建后不可变；V47/V48 的 run、attempt、accepted result、外部 Session/代际绑定、乐观版本、唯一 open run 与级联删除必须无损保留。新增 `ROLLING_PACKAGE_PLAN_V1 / REVIEWER_REPORT_V1 / PROJECT_CONVENTION_V1` 各 3 次及 `JUDGE_DECISION_V1` 2 次预算和对应 owner 仅作后续接入预留；没有角色 Coordinator/policy/writer 时 open 必须失败关闭且不得默认启用。fallback 必须由逐 kind 显式兼容策略决定，现阶段只有 `PACKAGE_DESIGN_V1` 允许，现有 Decomposer/Acceptance/Package 行为不得放宽。
 - V49 历史复制前必须安装 owner/scope 守卫，跨 scope 的 V48 脏行必须中止整个迁移且不破坏旧数据。现有七种 owner 删除均要验证同事务 run/attempt 级联和 rollback；只有 `PACKAGE_DESIGN_V1` 存在独立 accepted result，不得为其他 kind 虚构结果表。
@@ -465,7 +466,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.2.99.jar
+JAR=target/opencode-loopper-0.3.1.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -567,6 +568,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-09-01 | `ACCEPTANCE_CLOSED_CHOICE_V7` V51-V55 可恢复 launch/prompt/termination 协议，交付 0.3.1 资格版本 | Legacy handoff 与 internal launch 在远端 I/O 前冻结请求和一次性凭证；attestation、settlement certificate、prompt dispatch、cleanup 与唯一 termination intent 共同阻断重复 writer；既有 handoff 成为唯一权威，仅远端创建前明确缺少受管能力可直接进入 Legacy；内部无效候选耗尽进入 `WAITING_INPUT`；取消/需求替换可提升首次提示失败 intent，并与父状态原子收束；同步 README、架构、设计、OpenCode、AI 角色、弱模型资格、代码设计和本公约，生产开关仍默认 `false`。0.3.0 的首次完整验证失败，未形成交付 JAR；修复后按版本规则递增至 0.3.1 | 扩展 Acceptance/迁移/运行时/状态机回归 378/378、结构门禁 2/2 已通过；`evaluate-weak-model-v7.sh` 通过精确 corpus 22/22、指标门禁 7/7、同输入测量 1/1、前端 247/247，资格摘要 SHA-256 `2cc86d6ba2d1ee77ddbbf554e60e7761d2829da4a3491bd08edee2f714de9834`；`./scripts/verify.sh` 通过 Java 1062 项（0 失败、0 错误、2 条件跳过）与 Vitest 247/247；JAR `target/opencode-loopper-0.3.1.jar` 共 288575724 字节、113 个静态条目、SHA-256 `e598d8d8ec50d722cbdb8922526c5092653a5520f9f71e0e1f7a868fa2d463f6`；隔离真实模型资格待继续，默认开关仍为 `false` |
 | 2026-09-01 | `ACCEPTANCE_CLOSED_CHOICE_V7` terminal recovery/settlement 闭环，交付 0.2.99 | OPEN 与 pre-open handoff 的 transport/status/abort/generation 不确定统一保持原 run/Session 或 compilation/Session `DISCONNECTED`，只有 ACK/ALREADY_ABSENT 才 fresh Legacy；V50 固化精确 close reason 并对历史 `CLOSED + NULL` 失败关闭；独立短 proof 事务阻断 `STOPPING/CANCELLED`、stale owner/session/source，proof 后只允许 `SERVER_COMPILING/serverCompiled` 精确两步；workflow 改用窄 `Port`，同步 README、架构、OpenCode、代码设计和本公约正文，试运行开关仍默认 `false` | TDD 红灯先证明 close reason/V50 缺失及 OPEN `DISCONNECTED +1` 被误判 stale；0.2.98 首次 `./scripts/verify.sh` 的 Java 911 项出现 3 failures（两项 latest migration 仍断言 49、外部 runtime 的合法 ACK→Legacy 被误收束 `FAILED`），修复真实状态路径后按版本规则顺延 0.2.99；最终聚焦 compiler/候选/proof/migration/真实 Designer Monitor/结构门禁通过，`./scripts/verify.sh` Java 912 项全部通过（跳过 2）、Vitest 247/247；JAR `target/opencode-loopper-0.2.99.jar` 为 288204737 bytes，含 112 个 SPA 静态条目，SHA-256 `519f996f4b8c3e52f1333a5da93f911b9b91188b161aac5c2c99ac35c98f0d44`；未运行 JAR、未触碰 8080，未推送、打标签或创建 Release |
 | 2026-09-01 | `ACCEPTANCE_CLOSED_CHOICE_V7` 远端终止证明与恢复结算加固，交付 0.2.97 | 将候选业务接受与远端 Session 停止拆为两条状态轴；共享 `CandidateSessionTerminationProof` 只接受 `REMOTE_COMPLETED / ABORT_ACKNOWLEDGED / ALREADY_ABSENT`，proof 前复核活动代次与精确 owner/source/version，proof 后允许 JVM 代次轮换但拒绝额外 owner 漂移；停止未确认保持同一 run `DISCONNECTED`，不编译、不建 Task、不切 legacy、不重复 prompt/submission；新增窄的 `DesignerAcceptanceCandidateWorkflow` 承接轮询结果分派，主 Designer facade 5387 行且未提高 5401 门禁；同步 README、架构、OpenCode、代码设计和本公约正文，试运行开关仍默认 `false`，未形成真实模型资格结论 | 0.2.94 TDD 红灯 1/1 失败证明 accepted 旧分支跳过 binding/停止证明；0.2.95 首次实现因旧调用点缺 proof 参数编译失败；0.2.96 聚焦 Java 15/15、Vitest 247/247 通过后结构审计触发行数职责提取并顺延；0.2.97 结构+聚焦 Java 17/17、Vitest 247/247 通过，`./scripts/verify.sh` Java 898 项全部通过（跳过 2）、Vitest 247/247；JAR `target/opencode-loopper-0.2.97.jar` 为 288180296 bytes，含 112 个 SPA 静态条目及新 proof/workflow 类，SHA-256 `54427da8608c1257465d8067433b47e817d934568448c779fac299261194161e`；未运行 JAR、未做真实模型资格、未触碰 8080，未推送、打标签或创建 Release |
 | 2026-09-01 | V49 历史 owner/scope 迁移与删除事务加固，交付 0.2.94 | owner/scope INSERT 守卫前移到 V47/V48 历史 run 复制之前，跨作用域脏数据使 V49 整体失败关闭并保留可恢复的 V48 数据；补齐 `ACCEPTANCE_CLOSED_CHOICE_V7` run/attempt 无损升级、七种真实 owner 删除级联及调用者事务回滚契约，明确只有工作包存在独立 accepted result；同步 README、架构、OpenCode、代码设计和本公约正文 | 0.2.93 TDD 红灯先证明旧 V49 会静默接受跨作用域历史 run，修复迁移源码后按版本规则顺延到 0.2.94；聚焦 `CandidateSubmissionMigrationTest` 13/13、`MachineCandidateSubmissionIntegrationTest` 15/15 通过，随两次 Maven 执行的 Vitest 均 247/247；`./scripts/verify.sh` Java 888 项全部通过（跳过 2）、Vitest 247/247；JAR `target/opencode-loopper-0.2.94.jar` 为 288172236 bytes，含 112 个 SPA 静态条目及 V49，SHA-256 `7f481e900d5fdab2bdc5e0bf958a7c18467fe423be9933ad9ec048e775e5063a`；未运行 JAR，未推送、打标签或创建 Release |

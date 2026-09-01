@@ -69,7 +69,8 @@ final class AcceptanceClosedChoiceAcceptedCandidateWriter implements AcceptedCan
         LoopSpecCompilationRow semantic = new LoopSpecCompilationRow(
                 owner.id(), owner.designerSessionId(), owner.designRevision(), owner.state(),
                 owner.externalSessionId(), owner.externalSessionState(), owner.repairCount(),
-                owner.sourceDesignMessageId(), owner.sourceDraftVersion(), null, null,
+                owner.sourceDesignMessageId(), owner.sourceDraftVersion(), owner.lastErrorCode(),
+                owner.lastErrorDetail(),
                 owner.createdAt(), now, owner.version(), owner.workPackageId(), owner.transportRetryCount(),
                 owner.compiledPackageJson(), owner.workflowStep(), owner.planningJson(), owner.planningRepairCount(),
                 owner.planningResponseMode(), owner.planningResponseSchemaId(), owner.planningFormatFallbackUsed(),

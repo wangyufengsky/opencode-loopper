@@ -101,6 +101,37 @@ public final class OpenCodeRuntimeManager implements AutoCloseable {
     }
 
     /**
+     * Returns only the already-known non-secret runtime identity. This method deliberately
+     * does not start, probe, refresh, or otherwise contact OpenCode.
+     */
+    public RuntimeIdentity currentIdentityNoIo() {
+        synchronized (monitor) {
+            Mode currentMode = mode();
+            if (currentMode == Mode.HTTP) {
+                Connection configured = configuredConnection();
+                if (!isSafeLoopback(configured.endpoint())) {
+                    throw new IllegalStateException("loopper.opencode.base-url must use a loopback host in http mode");
+                }
+                return identity(configured);
+            }
+            if (currentMode == Mode.FAKE) return identity(configuredConnection());
+            Connection known = connection;
+            if (known == null) {
+                throw new IllegalStateException(
+                        "OpenCode runtime identity is not available without starting or probing the runtime");
+            }
+            if (known.managed() && (owned == null || !owned.process().isAlive())) {
+                throw new IllegalStateException("The known managed OpenCode runtime is no longer active");
+            }
+            if (known.managed() && (known.endpoint() == null || blank(known.generation())
+                    || blank(known.internalMcpServer()))) {
+                throw new IllegalStateException("The known managed OpenCode runtime identity is incomplete");
+            }
+            return identity(known);
+        }
+    }
+
+    /**
      * Starts the default isolated generation after Loopper's HTTP port is
      * bound, so the injected private MCP endpoint is reachable during the
      * OpenCode handshake. Compatibility auto/http/fake modes stay lazy.
@@ -472,6 +503,11 @@ public final class OpenCodeRuntimeManager implements AutoCloseable {
         return value.equals("localhost") || value.equals("127.0.0.1") || value.equals("::1") || value.equals("[::1]");
     }
 
+    private static RuntimeIdentity identity(Connection connection) {
+        return new RuntimeIdentity(connection.endpoint(), connection.managed(),
+                connection.generation(), connection.internalMcpServer());
+    }
+
     private void stopOwned() {
         ManagedProcess local = owned;
         owned = null;
@@ -547,6 +583,9 @@ public final class OpenCodeRuntimeManager implements AutoCloseable {
         }
         Connection asExternal() { return new Connection(endpoint, username, password, false, null, null); }
     }
+    /** Non-secret, already-observed identity used by local-only Session planning. */
+    public record RuntimeIdentity(URI endpoint, boolean managed,
+                                  String generation, String internalMcpServer) { }
     public record RuntimeSnapshot(String status, String version, boolean managed, Long pid, String endpoint,
                                   String model, Instant checkedAt, String startupFailure, String generation,
                                   String internalMcpServer, InternalMcpReadiness internalMcp) {
