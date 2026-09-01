@@ -151,6 +151,7 @@ class DesignerSessionMcpIntegrationTest {
         properties.getInternalCandidate().setAcceptanceClosedChoiceV7Enabled(false);
         properties.getInternalCandidate().setPackageDesignV1Enabled(false);
         properties.getInternalCandidate().setRollingPackagePlanV1Enabled(false);
+        properties.getInternalCandidate().setReviewerReportV1Enabled(false);
     }
 
     @Test
@@ -1245,6 +1246,112 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(mapper.listTasks()).isEmpty();
         assertThat(mapper.findWorkspaceLease(Path.of(project.rootPath()).toRealPath().toString())).isEmpty();
         assertThat(fake().createSessionCalls()).isZero();
+    }
+
+    @Test
+    void reviewerCandidateRepairsInOneSessionAndIgnoresLegacyFinalText() throws Exception {
+        properties.getInternalCandidate().setReviewerReportV1Enabled(true);
+        InternalMcpCredentialProvider.Credentials credentials = activateManagedCandidateRuntime();
+        fake().holdProfileOpen(OpenCodeClient.SessionProfile.REVIEWER_CANDIDATE_READ_ONLY, true);
+        fake().setJudgeOutput("REVIEWER", """
+                <!-- REVIEWER_REPORT_JSON_START -->
+                {"title":"不得采用的旧 final text","summary":"此内容不是 MCP Candidate。",
+                 "findings":[{"severity":"CRITICAL","title":"错误来源","detail":"不得采用。",
+                 "path":"README.md","line":1,"recommendation":"不得采用。"}],"limitations":[]}
+                <!-- REVIEWER_REPORT_JSON_END -->
+                """);
+        ProjectRow project = project("reviewer-candidate-mcp");
+        Files.writeString(Path.of(project.rootPath()).resolve("README.md"),
+                "# Baseline\n\nreview target\n");
+        LoopDraftRow draft = drafts.create(legacySpec(project.id()));
+        fake().setDesignerOutput("# 只读评审范围\n\n检查 README.md 并输出带文件行号的报告。");
+        DesignerSessionRow session = prepareReviewingSession(project.id(), draft.id(),
+                "只读评审当前项目并通过 MCP 提交证据报告");
+
+        taskProfiles.freeze(session.id());
+        designerSessions.beginReadOnlyReport(session.id());
+        AnalysisReportService.View started = reports.startReviewer(session.id());
+        String runId = jdbc.queryForObject("""
+                SELECT id FROM ai_candidate_submission_run
+                WHERE owner_type='ANALYSIS_REPORT' AND owner_id=?
+                  AND candidate_kind='REVIEWER_REPORT_V1'
+                  AND submission_channel='INTERNAL_MCP'
+                """, String.class, started.id());
+        String remoteId = jdbc.queryForObject(
+                "SELECT external_session_id FROM ai_candidate_submission_run WHERE id=?",
+                String.class, runId);
+        assertThat(fake().profileForSession(remoteId))
+                .isEqualTo(OpenCodeClient.SessionProfile.REVIEWER_CANDIDATE_READ_ONLY);
+        assertThat(fake().promptForSession(remoteId))
+                .contains(credentials.exactToolName(), "REVIEWER_REPORT_V1", "expectedSubmissionRevision")
+                .contains("final assistant text is ignored");
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM reviewer_report_candidate_source_snapshot
+                WHERE candidate_run_id=?
+                """, Integer.class, runId)).isEqualTo(1);
+
+        String mcpSession = initializeInternalMcp(credentials);
+        long revision = jdbc.queryForObject(
+                "SELECT version FROM ai_candidate_submission_run WHERE id=?", Long.class, runId);
+        String invalid = """
+                {"title":"MCP Reviewer 报告","summary":"检查 README。","findings":[
+                  {"severity":"INFO","title":"行号越界","detail":"机械错误用于同 Session 修正。",
+                   "path":"README.md","line":99,"recommendation":"改用精确行号。"}],"limitations":[]}
+                """;
+        MvcResult rejected = mvc.perform(internalMcp(credentials,
+                        rpc(120, "tools/call", packageCandidateCall(
+                                runId, "reviewer-invalid-line", invalid, revision)), mcpSession))
+                .andExpect(request().asyncStarted()).andReturn();
+        mvc.perform(asyncDispatch(rejected)).andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("REJECTED")));
+
+        long retryRevision = jdbc.queryForObject(
+                "SELECT version FROM ai_candidate_submission_run WHERE id=?", Long.class, runId);
+        String valid = """
+                {"title":"MCP Reviewer 报告","summary":"README 基线存在。","findings":[
+                  {"severity":"INFO","title":"基线存在","detail":"README 第一行声明项目基线。",
+                   "path":"README.md","line":1,"recommendation":"保持说明与实现同步。"}],
+                 "limitations":["仅评审当前冻结文件清单。"]}
+                """;
+        MvcResult accepted = mvc.perform(internalMcp(credentials,
+                        rpc(121, "tools/call", packageCandidateCall(
+                                runId, "reviewer-accepted", valid, retryRevision)), mcpSession))
+                .andExpect(request().asyncStarted()).andReturn();
+        mvc.perform(asyncDispatch(accepted)).andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("ACCEPTED")));
+
+        fake().failNextAborts(1);
+        reports.pollActive();
+        assertThat(reports.get(session.id(), started.id()).state()).isEqualTo("RUNNING");
+        assertThat(jdbc.queryForObject("""
+                SELECT settled_analysis_report_id
+                FROM reviewer_report_candidate_accepted_result WHERE candidate_run_id=?
+                """, String.class, runId)).isNull();
+
+        fake().setSessionState(remoteId, "COMPLETED");
+        reports.pollActive();
+        AnalysisReportService.View ready = reports.get(session.id(), started.id());
+        assertThat(ready.state()).isEqualTo("READY");
+        assertThat(ready.title()).isEqualTo("MCP Reviewer 报告");
+        assertThat(ready.markdown()).contains("README 基线存在").doesNotContain("不得采用的旧 final text");
+        assertThat(ready.findings()).singleElement().satisfies(finding -> {
+            assertThat(finding.path()).isEqualTo("README.md");
+            assertThat(finding.line()).isEqualTo(1);
+        });
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM ai_candidate_submission_attempt WHERE run_id=?
+                """, Integer.class, runId)).isEqualTo(2);
+        assertThat(jdbc.queryForMap("""
+                SELECT launch.state,launch.termination_proof,
+                       result.settled_analysis_report_id AS settled_report
+                FROM ai_candidate_internal_launch launch
+                JOIN reviewer_report_candidate_accepted_result result
+                  ON result.candidate_run_id=launch.candidate_run_id
+                WHERE launch.candidate_run_id=?
+                """, runId)).containsEntry("state", "COMPLETED")
+                .containsEntry("settled_report", started.id());
+        assertThat(mapper.listTasks()).isEmpty();
+        assertThat(mapper.findWorkspaceLease(Path.of(project.rootPath()).toRealPath().toString())).isEmpty();
     }
 
     @Test

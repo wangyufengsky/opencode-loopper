@@ -18,6 +18,9 @@ import io.opencode.loopper.domain.AcceptanceCandidateInternalLaunchCleanupState;
 import io.opencode.loopper.domain.AcceptanceCandidateInternalLaunchState;
 import io.opencode.loopper.domain.AcceptanceCandidateInternalTerminationIntentState;
 import io.opencode.loopper.domain.CandidatePromptDispatchState;
+import io.opencode.loopper.domain.GenericCandidateInternalLaunchCleanupState;
+import io.opencode.loopper.domain.GenericCandidateInternalLaunchState;
+import io.opencode.loopper.domain.GenericCandidateInternalTerminationIntentState;
 import io.opencode.loopper.domain.LifecycleEvent;
 import io.opencode.loopper.domain.LifecycleMachineType;
 
@@ -172,6 +175,86 @@ final class CandidateLifecycleTopologies {
                         AcceptanceCandidateInternalTerminationIntentState.READY)
                 .transition(AcceptanceCandidateInternalTerminationIntentState.READY, FINISH,
                         AcceptanceCandidateInternalTerminationIntentState.COMPLETED)
+                .build();
+    }
+
+    static FiniteStateMachine<GenericCandidateInternalLaunchState, LifecycleEvent> genericInternalLaunch() {
+        var b = FiniteStateMachine.builder(LifecycleMachineType.GENERIC_CANDIDATE_INTERNAL_LAUNCH,
+                GenericCandidateInternalLaunchState.class, LifecycleEvent.class);
+        b.transition(GenericCandidateInternalLaunchState.PREPARED, DISPATCH,
+                        GenericCandidateInternalLaunchState.CREATING)
+                .transition(GenericCandidateInternalLaunchState.CREATING, COMPLETE,
+                        GenericCandidateInternalLaunchState.CREATED)
+                .transition(GenericCandidateInternalLaunchState.CREATING, DISCONNECT,
+                        GenericCandidateInternalLaunchState.DISCONNECTED)
+                .transition(GenericCandidateInternalLaunchState.DISCONNECTED, COMPLETE,
+                        GenericCandidateInternalLaunchState.CREATED)
+                .transition(GenericCandidateInternalLaunchState.CREATED, COMPLETE,
+                        GenericCandidateInternalLaunchState.SETTLED)
+                .transition(GenericCandidateInternalLaunchState.SETTLED, FAIL,
+                        GenericCandidateInternalLaunchState.FAILED_STOPPED)
+                .transition(GenericCandidateInternalLaunchState.SETTLED, CANCEL,
+                        GenericCandidateInternalLaunchState.CANCELLED)
+                .transition(GenericCandidateInternalLaunchState.SETTLED, STALE,
+                        GenericCandidateInternalLaunchState.STALE)
+                .transition(GenericCandidateInternalLaunchState.SETTLED, FINISH,
+                        GenericCandidateInternalLaunchState.COMPLETED)
+                .transition(GenericCandidateInternalLaunchState.PREPARED, CANCEL,
+                        GenericCandidateInternalLaunchState.CANCELLED)
+                .transition(GenericCandidateInternalLaunchState.PREPARED, FAIL,
+                        GenericCandidateInternalLaunchState.FAILED_STOPPED)
+                .transition(GenericCandidateInternalLaunchState.PREPARED, STALE,
+                        GenericCandidateInternalLaunchState.STALE);
+        for (GenericCandidateInternalLaunchState state : java.util.List.of(
+                GenericCandidateInternalLaunchState.PREPARED,
+                GenericCandidateInternalLaunchState.CREATING,
+                GenericCandidateInternalLaunchState.CREATED,
+                GenericCandidateInternalLaunchState.DISCONNECTED)) {
+            b.transition(state, ABORT, GenericCandidateInternalLaunchState.STOPPING);
+        }
+        return b.transition(GenericCandidateInternalLaunchState.STOPPING, DISCONNECT,
+                        GenericCandidateInternalLaunchState.DISCONNECTED)
+                .transition(GenericCandidateInternalLaunchState.STOPPING, FAIL,
+                        GenericCandidateInternalLaunchState.FAILED_STOPPED)
+                .transition(GenericCandidateInternalLaunchState.STOPPING, CANCEL,
+                        GenericCandidateInternalLaunchState.CANCELLED)
+                .transition(GenericCandidateInternalLaunchState.STOPPING, STALE,
+                        GenericCandidateInternalLaunchState.STALE)
+                .transition(GenericCandidateInternalLaunchState.STOPPING, FINISH,
+                        GenericCandidateInternalLaunchState.COMPLETED)
+                .build();
+    }
+
+    static FiniteStateMachine<GenericCandidateInternalLaunchCleanupState, LifecycleEvent>
+            genericInternalLaunchCleanup() {
+        var b = FiniteStateMachine.builder(LifecycleMachineType.GENERIC_CANDIDATE_INTERNAL_LAUNCH_CLEANUP,
+                GenericCandidateInternalLaunchCleanupState.class, LifecycleEvent.class);
+        return b.transition(GenericCandidateInternalLaunchCleanupState.DISCOVERED, ABORT,
+                        GenericCandidateInternalLaunchCleanupState.STOPPING)
+                .transition(GenericCandidateInternalLaunchCleanupState.STOPPING, DISCONNECT,
+                        GenericCandidateInternalLaunchCleanupState.DISCONNECTED)
+                .transition(GenericCandidateInternalLaunchCleanupState.DISCONNECTED, ABORT,
+                        GenericCandidateInternalLaunchCleanupState.STOPPING)
+                .transition(GenericCandidateInternalLaunchCleanupState.STOPPING, COMPLETE,
+                        GenericCandidateInternalLaunchCleanupState.STOPPED)
+                .build();
+    }
+
+    static FiniteStateMachine<GenericCandidateInternalTerminationIntentState, LifecycleEvent>
+            genericInternalTerminationIntent() {
+        var b = FiniteStateMachine.builder(
+                LifecycleMachineType.GENERIC_CANDIDATE_INTERNAL_TERMINATION_INTENT,
+                GenericCandidateInternalTerminationIntentState.class, LifecycleEvent.class);
+        return b.transition(GenericCandidateInternalTerminationIntentState.REQUESTED, DISCONNECT,
+                        GenericCandidateInternalTerminationIntentState.DISCONNECTED)
+                .transition(GenericCandidateInternalTerminationIntentState.DISCONNECTED, RECOVER,
+                        GenericCandidateInternalTerminationIntentState.REQUESTED)
+                .transition(GenericCandidateInternalTerminationIntentState.REQUESTED, COMPLETE,
+                        GenericCandidateInternalTerminationIntentState.READY)
+                .transition(GenericCandidateInternalTerminationIntentState.DISCONNECTED, COMPLETE,
+                        GenericCandidateInternalTerminationIntentState.READY)
+                .transition(GenericCandidateInternalTerminationIntentState.READY, FINISH,
+                        GenericCandidateInternalTerminationIntentState.COMPLETED)
                 .build();
     }
 }

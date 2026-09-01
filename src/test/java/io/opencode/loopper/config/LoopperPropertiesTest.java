@@ -2,9 +2,25 @@ package io.opencode.loopper.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 
 class LoopperPropertiesTest {
+    @Test
+    void reviewerReportCandidateDefaultsOffAndCanBeEnabledExplicitly() throws Exception {
+        LoopperProperties properties = new LoopperProperties();
+
+        assertThat(properties.getInternalCandidate().isReviewerReportV1Enabled()).isFalse();
+
+        properties.getInternalCandidate().setReviewerReportV1Enabled(true);
+        assertThat(properties.getInternalCandidate().isReviewerReportV1Enabled()).isTrue();
+        assertThat(Files.readString(Path.of(System.getProperty("user.dir"),
+                "src/main/resources/application.yml")))
+                .contains("reviewer-report-v1-enabled: "
+                        + "${LOOPPER_REVIEWER_REPORT_CANDIDATE_V1_ENABLED:false}");
+    }
+
     @Test
     void qualifiedRollingPackageCandidateDefaultsOnAndCanBeDisabledExplicitly() {
         LoopperProperties properties = new LoopperProperties();

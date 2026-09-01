@@ -53,7 +53,8 @@ public final class DeterministicReviewerReportCompilation implements ReviewerRep
             SourceFile file = manifest.get(path.canonical());
             if (file == null) {
                 problems.add(problem("REVIEWER_EVIDENCE_PATH_MISSING", pointer + "/path",
-                        "finding 必须引用冻结源码清单中的受管文件", List.copyOf(manifest.keySet()), MECHANICAL));
+                        "finding 必须引用冻结源码清单中的受管文件",
+                        manifest.keySet().stream().limit(32).toList(), MECHANICAL));
                 continue;
             }
             if (file.sizeBytes() < 0 || file.sizeBytes() > 16_000_000 || file.lineCount() < 1
@@ -96,9 +97,9 @@ public final class DeterministicReviewerReportCompilation implements ReviewerRep
         String title = text(source.title(), 200, true, "/title", "REVIEWER_TITLE_INVALID", problems);
         String summary = text(source.summary(), 8_000, false, "/summary", "REVIEWER_SUMMARY_INVALID", problems);
         List<Finding> findings = source.findings();
-        if (findings.isEmpty() || findings.size() > MAX_FINDINGS) {
+        if (findings.size() > MAX_FINDINGS) {
             problems.add(problem("REVIEWER_FINDINGS_SIZE_INVALID", "/findings",
-                    "findings 必须包含 1-128 项", List.of("1..128"), MECHANICAL));
+                    "findings 最多包含 128 项", List.of("0..128"), MECHANICAL));
         }
         List<Finding> normalized = new ArrayList<>();
         for (int index = 0; index < findings.size() && index < MAX_FINDINGS; index++) {
@@ -144,6 +145,7 @@ public final class DeterministicReviewerReportCompilation implements ReviewerRep
     private String render(Candidate candidate) {
         StringBuilder out = new StringBuilder("# ").append(heading(candidate.title())).append("\n\n")
                 .append(candidate.summary()).append("\n\n## 已确认发现\n");
+        if (candidate.findings().isEmpty()) out.append("\n无。\n");
         for (Finding finding : candidate.findings()) {
             out.append("\n### [").append(finding.severity()).append("] ").append(heading(finding.title()))
                     .append("\n\n证据：").append(code(finding.path() + ":" + finding.line())).append("\n\n")

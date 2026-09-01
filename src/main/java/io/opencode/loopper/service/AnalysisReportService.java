@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import tools.jackson.core.type.TypeReference;
@@ -36,15 +37,18 @@ public class AnalysisReportService {
     private final DesignerAttachmentContext attachmentContext;
     private final ReviewerReportCompilation compilation;
     private final ReviewerReportLiveSourceAdapter liveSources;
+    private final ReviewerReportCandidateWorkflow candidateWorkflow;
 
     public AnalysisReportService(LoopperMapper mapper, ProjectService projects, ObjectMapper json,
                                  OpenCodeClient openCode, LoopperProperties properties,
                                  RolePromptComposer prompts, DesignerAttachmentContext attachmentContext,
                                  ReviewerReportCompilation compilation,
-                                 ReviewerReportLiveSourceAdapter liveSources) {
+                                 ReviewerReportLiveSourceAdapter liveSources,
+                                 ReviewerReportCandidateWorkflow candidateWorkflow) {
         this.mapper = mapper; this.projects = projects; this.json = json; this.openCode = openCode;
         this.properties = properties; this.prompts = prompts; this.attachmentContext = attachmentContext;
         this.compilation = compilation; this.liveSources = liveSources;
+        this.candidateWorkflow = candidateWorkflow;
     }
 
     /** Starts an independent Reviewer. It creates no Task, branch, lease, Attempt, or writable Session. */
@@ -63,31 +67,39 @@ public class AnalysisReportService {
         }
         Path root = Path.of(projects.get(session.projectId()).rootPath()).toAbsolutePath().normalize();
         OpenCodeClient.OpenCodeModel model = configuredModel();
-        OpenCodeClient.StructuredOutputCapability capability = openCode.structuredOutputCapability(model);
-        boolean schema = capability.transport() != OpenCodeClient.CapabilityState.UNAVAILABLE
-                && capability.selectedModel() != OpenCodeClient.CapabilityState.UNAVAILABLE;
-        String responseMode = schema ? "JSON_SCHEMA" : "TEXT_MARKER";
+        boolean candidate = properties.getInternalCandidate().isReviewerReportV1Enabled();
+        boolean schema = !candidate && legacySchema(model);
+        String responseMode = candidate ? ReviewerReportCandidateWorkflow.RESPONSE_MODE
+                : schema ? "JSON_SCHEMA" : "TEXT_MARKER";
         String now = Instant.now().toString();
         AnalysisReportRow row = new AnalysisReportRow(UUID.randomUUID().toString(), sessionId, profile.id(),
                 "RUNNING", "只读分析报告", "", "[]", null, null, null, null, now, now, 0,
                 null, "PENDING", discussion.snapshotMarkdown(), profile.rolePackId(), profile.rolePackVersion(),
-                REVIEWER_CONTRACT, responseMode, "[]", Instant.now().plusSeconds(120).toString());
+                REVIEWER_CONTRACT, responseMode, "[]", Instant.now().plusSeconds(120).toString(),
+                discussion.revision());
         if (mapper.insertAnalysisReport(row) != 1) throw new ConflictException("REPORT_CREATE_CONFLICT", "报告无法持久化");
         try {
-            OpenCodeClient.OpenCodeSession remote = openCode.createSession(root,
-                    "OpenCode Loopper Independent Reviewer (READ_ONLY)", model,
-                    OpenCodeClient.SessionProfile.REVIEWER_READ_ONLY);
-            String prompt = reviewerPrompt(profile, root, discussion.snapshotMarkdown(), schema);
-            OpenCodeClient.PromptRequest request = schema
-                    ? new OpenCodeClient.PromptRequest(prompt, null, OpenCodeClient.STRUCTURED_AGENT,
-                    OpenCodeStructuredSchemas.format(OpenCodeStructuredSchemas.REVIEWER_REPORT_V1))
-                    : OpenCodeClient.PromptRequest.text(prompt);
-            request = attachmentContext.withContext(
-                    DesignerAttachmentContext.ContextUse.requirement(session.id()), request);
-            openCode.promptAsync(remote, request);
-            return view(session, update(row, "RUNNING", "只读分析报告", "", List.of(), null, null,
-                    null, null, remote.id(), "RUNNING"));
+            if (candidate) {
+                ReviewerReportCandidateWorkflow.Result result = candidateWorkflow.advance(
+                        candidateContext(row, session, profile, root, discussion.revision(), false));
+                if (result.action() == ReviewerReportCandidateWorkflow.Action.LEGACY_FALLBACK) {
+                    AnalysisReportRow legacy = changeResponseMode(row, legacySchema(model)
+                            ? "JSON_SCHEMA" : "TEXT_MARKER");
+                    return startLegacy(session, profile, root, model, legacy);
+                }
+                if (result.action() == ReviewerReportCandidateWorkflow.Action.FAILED) {
+                    throw new ServiceUnavailableException(result.code(), result.detail());
+                }
+                return view(session, mapper.findAnalysisReport(session.id(), row.id()).orElseThrow());
+            }
+            return startLegacy(session, profile, root, model, row);
         } catch (RuntimeException failure) {
+            AnalysisReportRow current = mapper.findAnalysisReport(session.id(), row.id()).orElse(row);
+            if (candidateWorkflow.owns(current)
+                    && Set.of("RUNNING", "VALIDATING").contains(current.state())) {
+                return view(session, current);
+            }
+            if ("FAILED".equals(current.state())) throw failure;
             update(row, "FAILED", "只读分析报告", "", List.of(), null, null,
                     "REVIEWER_START_FAILED", safeMessage(failure.getMessage()), null, "FAILED");
             throw new ServiceUnavailableException("REVIEWER_START_FAILED", safeMessage(failure.getMessage()));
@@ -100,9 +112,11 @@ public class AnalysisReportService {
         List<PollResult> results = new ArrayList<>();
         for (AnalysisReportRow row : mapper.activeAnalysisReports()) {
             DesignerSessionRow owner = session(row.designerSessionId());
-            if ("STOPPING".equals(owner.state()) || "CANCELLED".equals(owner.state())) continue;
+            boolean candidate = candidateWorkflow.owns(row);
+            if (!candidate && ("STOPPING".equals(owner.state()) || "CANCELLED".equals(owner.state()))) continue;
             try { PollResult result = poll(row); if (result != null) results.add(result); }
             catch (RuntimeException failure) {
+                if (candidate) continue;
                 AnalysisReportRow latest = mapper.findAnalysisReport(row.designerSessionId(), row.id()).orElse(row);
                 update(latest, "FAILED", latest.title(), latest.markdown(), readEvidence(latest.evidenceJson()),
                         latest.contentSha256(), latest.sourceSnapshotSha256(), "REVIEWER_POLL_FAILED",
@@ -117,6 +131,30 @@ public class AnalysisReportService {
     private PollResult poll(AnalysisReportRow row) {
         DesignerSessionRow session = session(row.designerSessionId());
         Path root = Path.of(projects.get(session.projectId()).rootPath()).toAbsolutePath().normalize();
+        if (candidateWorkflow.owns(row)) {
+            DesignerTaskProfileRow profileRow = mapper.findDesignerTaskProfile(row.taskProfileId())
+                    .orElseThrow(() -> new ConflictException("TASK_PROFILE_MISSING",
+                            "只读报告缺少冻结任务画像"));
+            ReviewerReportCandidateWorkflow.Result result = candidateWorkflow.advance(
+                    candidateContext(row, session, profile(profileRow), root,
+                            requireSourceRevision(row),
+                            "STOPPING".equals(session.state()) || "CANCELLED".equals(session.state())));
+            if (result.action() == ReviewerReportCandidateWorkflow.Action.LEGACY_FALLBACK) {
+                AnalysisReportRow legacy = changeResponseMode(
+                        mapper.findAnalysisReport(row.designerSessionId(), row.id()).orElseThrow(),
+                        legacySchema(configuredModel()) ? "JSON_SCHEMA" : "TEXT_MARKER");
+                startLegacy(session, profile(profileRow), root, configuredModel(), legacy);
+                return null;
+            }
+            if (result.action() == ReviewerReportCandidateWorkflow.Action.READY) {
+                return new PollResult(row.designerSessionId(), row.id(), true, null, null);
+            }
+            if (result.action() == ReviewerReportCandidateWorkflow.Action.FAILED) {
+                return new PollResult(row.designerSessionId(), row.id(), false,
+                        result.code(), result.detail());
+            }
+            return null;
+        }
         OpenCodeClient.OpenCodeSession remote = new OpenCodeClient.OpenCodeSession(row.externalSessionId(), root);
         if (row.deadlineAt() != null && Instant.now().isAfter(Instant.parse(row.deadlineAt()))) {
             try { openCode.abort(remote); } catch (Exception ignored) { }
@@ -187,8 +225,8 @@ public class AnalysisReportService {
             String title = bounded(raw.get("title"), 200, "title");
             String summary = bounded(raw.get("summary"), 8000, "summary");
             List<ReviewerReportCompilation.Finding> findings = new ArrayList<>();
-            if (!(raw.get("findings") instanceof List<?> values) || values.isEmpty() || values.size() > 128) {
-                throw new IllegalArgumentException("Reviewer findings must contain 1-128 items");
+            if (!(raw.get("findings") instanceof List<?> values) || values.size() > 128) {
+                throw new IllegalArgumentException("Reviewer findings must contain 0-128 items");
             }
             for (Object item : values) {
                 if (!(item instanceof Map<?, ?> finding)) throw new IllegalArgumentException("Reviewer finding must be an object");
@@ -229,7 +267,7 @@ public class AnalysisReportService {
                 title, markdown, write(evidence), contentHash, sourceHash, errorCode, errorDetail, row.createdAt(),
                 Instant.now().toString(), row.version(), externalId, externalState, row.sourceRequirement(),
                 row.rolePackId(), row.rolePackVersion(), row.reviewerContractVersion(), row.responseMode(),
-                row.findingsJson(), row.deadlineAt());
+                row.findingsJson(), row.deadlineAt(), row.sourceRequirementRevision());
         if (mapper.updateAnalysisReport(updated) != 1) throw new ConflictException("REPORT_VERSION_CONFLICT", "报告状态已并发变化");
         return mapper.findAnalysisReport(row.designerSessionId(), row.id()).orElseThrow();
     }
@@ -242,7 +280,8 @@ public class AnalysisReportService {
                 compiled.sourceSnapshotSha256(), null, null,
                 row.createdAt(), Instant.now().toString(), row.version(), externalId, externalState,
                 row.sourceRequirement(), row.rolePackId(), row.rolePackVersion(), row.reviewerContractVersion(),
-                row.responseMode(), compiled.canonicalFindingsJson(), row.deadlineAt());
+                row.responseMode(), compiled.canonicalFindingsJson(), row.deadlineAt(),
+                row.sourceRequirementRevision());
         if (mapper.updateAnalysisReport(updated) != 1) throw new ConflictException("REPORT_VERSION_CONFLICT", "报告状态已并发变化");
         return mapper.findAnalysisReport(row.designerSessionId(), row.id()).orElseThrow();
     }
@@ -270,9 +309,65 @@ public class AnalysisReportService {
     }
     private String reviewerPrompt(TaskProfileService.View profile, Path root, String requirement, boolean schema) {
         return prompts.reviewerInstructions(profile) + "\n\nProject root: " + root + "\nFrozen review requirement:\n"
-                + requirement + "\n\nREVIEWER_REPORT_JSON contract: return title, summary, 1-128 findings, and limitations. "
+                + requirement + "\n\nREVIEWER_REPORT_JSON contract: return title, summary, 0-128 findings, and limitations. "
                 + "Every finding contains severity, title, detail, managed relative path, exact line, and recommendation."
                 + (schema ? "" : "\n" + REVIEWER_START + "\n{\"title\":\"...\",\"summary\":\"...\",\"findings\":[],\"limitations\":[]}\n" + REVIEWER_END);
+    }
+
+    private View startLegacy(DesignerSessionRow session, TaskProfileService.View profile, Path root,
+                             OpenCodeClient.OpenCodeModel model, AnalysisReportRow input) {
+        AnalysisReportRow row = mapper.findAnalysisReport(session.id(), input.id()).orElseThrow();
+        boolean schema = "JSON_SCHEMA".equals(row.responseMode());
+        OpenCodeClient.OpenCodeSession remote = openCode.createSession(root,
+                "OpenCode Loopper Independent Reviewer (READ_ONLY)", model,
+                OpenCodeClient.SessionProfile.REVIEWER_READ_ONLY);
+        String prompt = reviewerPrompt(profile, root, row.sourceRequirement(), schema);
+        OpenCodeClient.PromptRequest request = schema
+                ? new OpenCodeClient.PromptRequest(prompt, null, OpenCodeClient.STRUCTURED_AGENT,
+                OpenCodeStructuredSchemas.format(OpenCodeStructuredSchemas.REVIEWER_REPORT_V1))
+                : OpenCodeClient.PromptRequest.text(prompt);
+        request = attachmentContext.withContext(
+                DesignerAttachmentContext.ContextUse.requirement(session.id()), request);
+        openCode.promptAsync(remote, request);
+        return view(session, update(row, "RUNNING", "只读分析报告", "", List.of(), null, null,
+                null, null, remote.id(), "RUNNING"));
+    }
+
+    private AnalysisReportRow changeResponseMode(AnalysisReportRow row, String responseMode) {
+        AnalysisReportRow updated = new AnalysisReportRow(
+                row.id(), row.designerSessionId(), row.taskProfileId(), row.state(), row.title(),
+                row.markdown(), row.evidenceJson(), row.contentSha256(), row.sourceSnapshotSha256(),
+                row.errorCode(), row.errorDetail(), row.createdAt(), Instant.now().toString(), row.version(),
+                row.externalSessionId(), row.externalSessionState(), row.sourceRequirement(), row.rolePackId(),
+                row.rolePackVersion(), row.reviewerContractVersion(), responseMode, row.findingsJson(),
+                row.deadlineAt(), row.sourceRequirementRevision());
+        if (mapper.updateAnalysisReport(updated) != 1) {
+            throw new ConflictException("REPORT_VERSION_CONFLICT", "报告状态已并发变化");
+        }
+        return mapper.findAnalysisReport(row.designerSessionId(), row.id()).orElseThrow();
+    }
+
+    private ReviewerReportCandidateWorkflow.Context candidateContext(
+            AnalysisReportRow row, DesignerSessionRow session, TaskProfileService.View profile,
+            Path root, long sourceRevision, boolean ownerStopping) {
+        AnalysisReportRow current = mapper.findAnalysisReport(session.id(), row.id()).orElse(row);
+        return new ReviewerReportCandidateWorkflow.Context(
+                current, root, sourceRevision, configuredModel(), prompts.reviewerInstructions(profile),
+                current.sourceRequirement(), ownerStopping);
+    }
+
+    private boolean legacySchema(OpenCodeClient.OpenCodeModel model) {
+        OpenCodeClient.StructuredOutputCapability capability = openCode.structuredOutputCapability(model);
+        return capability.transport() != OpenCodeClient.CapabilityState.UNAVAILABLE
+                && capability.selectedModel() != OpenCodeClient.CapabilityState.UNAVAILABLE;
+    }
+
+    private static long requireSourceRevision(AnalysisReportRow row) {
+        if (row.sourceRequirementRevision() == null || row.sourceRequirementRevision() < 0) {
+            throw new ConflictException("REVIEWER_SOURCE_REVISION_MISSING",
+                    "Reviewer candidate report lacks its frozen requirement revision");
+        }
+        return row.sourceRequirementRevision();
     }
 
     private static String bounded(Object value, int max, String field) {

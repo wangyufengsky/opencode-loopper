@@ -10,5 +10,6 @@ import org.apache.ibatis.annotations.Mapper;
 public interface LoopperMapper extends LoopperInfrastructureMapper, LoopperProjectMapper,
         LoopperDesignerMapper, LoopperTaskMapper, LoopperAttachmentMapper, LoopperMachineCandidateMapper,
         LoopperAcceptanceCandidateLaunchMapper, LoopperAcceptanceCandidateTerminationMapper,
+        LoopperGenericCandidateLaunchMapper, LoopperGenericCandidateTerminationMapper,
         ModelTokenUsageMapper {
 }

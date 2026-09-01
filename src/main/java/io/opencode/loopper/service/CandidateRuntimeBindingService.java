@@ -320,6 +320,10 @@ public final class CandidateRuntimeBindingService implements CandidateRunGuard {
             validateRollingPackagePlanOwner(run);
             return;
         }
+        if (run.candidateKind() == MachineCandidateKind.REVIEWER_REPORT_V1) {
+            validateReviewerReportOwner(run);
+            return;
+        }
         if (run.candidateKind() != MachineCandidateKind.ACCEPTANCE_CLOSED_CHOICE_V7) {
             throw new ConflictException("CANDIDATE_KIND_NOT_INTEGRATED",
                     "Candidate kind is not connected to an authoritative owner adapter");
@@ -342,6 +346,38 @@ public final class CandidateRuntimeBindingService implements CandidateRunGuard {
         if (!run.externalSessionId().equals(owner.externalSessionId())) {
             throw new ConflictException("CANDIDATE_OWNER_SESSION_STALE",
                     "LoopSpec compilation candidate remote Session has changed");
+        }
+    }
+
+    private void validateReviewerReportOwner(MachineCandidateSubmission.RunSnapshot run) {
+        var owner = mapper.findAnalysisReport(run.scope().id(), run.owner().id())
+                .orElseThrow(() -> new ConflictException("CANDIDATE_OWNER_MISSING",
+                        "Reviewer candidate owner no longer exists"));
+        if (!run.scope().id().equals(owner.designerSessionId())
+                || owner.version() != run.ownerVersion()
+                || owner.sourceRequirementRevision() == null
+                || owner.sourceRequirementRevision() != run.sourceRevision()
+                || !run.contractVersion().equals(owner.reviewerContractVersion())) {
+            throw new ConflictException("CANDIDATE_OWNER_REVISION_STALE",
+                    "Reviewer candidate owner revision has changed");
+        }
+        if (!"RUNNING".equals(owner.state())) {
+            throw new ConflictException("CANDIDATE_OWNER_STATE_INVALID",
+                    "Reviewer candidate owner is no longer running");
+        }
+        if (!run.externalSessionId().equals(owner.externalSessionId())) {
+            throw new ConflictException("CANDIDATE_OWNER_SESSION_STALE",
+                    "Reviewer candidate owner remote Session has changed");
+        }
+        var snapshot = mapper.findReviewerReportSourceSnapshot(run.runId())
+                .orElseThrow(() -> new ConflictException("CANDIDATE_SOURCE_REVISION_STALE",
+                        "Frozen Reviewer source manifest is missing"));
+        if (!run.owner().id().equals(snapshot.analysisReportId())
+                || run.sourceRevision() != snapshot.sourceRevision()
+                || run.ownerVersion() != snapshot.preparedOwnerVersion() + 1
+                || !run.contractVersion().equals(snapshot.contractVersion())) {
+            throw new ConflictException("CANDIDATE_SOURCE_REVISION_STALE",
+                    "Frozen Reviewer source manifest has changed");
         }
     }
 

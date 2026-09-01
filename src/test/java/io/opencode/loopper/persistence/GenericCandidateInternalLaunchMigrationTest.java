@@ -67,7 +67,7 @@ class GenericCandidateInternalLaunchMigrationTest {
 
             assertThatThrownBy(() -> statement.executeUpdate(reviewerLaunchInsert(
                     "bad-reviewer-launch", "bad-reviewer-run", "s-other", 0)))
-                    .hasMessageContaining("Reviewer owner anchor mismatch");
+                    .hasMessageContaining("Reviewer candidate launch requirement revision mismatch");
             assertThatThrownBy(() -> statement.executeUpdate(reviewerLaunchInsert(
                     "bad-contract-launch", "bad-contract-run", "s", 0).replace(
                     "'REVIEWER_REPORT_V1',7,'REVIEWER_REPORT_V1',3",
@@ -119,6 +119,7 @@ class GenericCandidateInternalLaunchMigrationTest {
             statement.execute("PRAGMA foreign_keys=ON");
             insertGenericOwnerFixture(statement);
             statement.executeUpdate(reviewerLaunchInsert("reviewer-launch", "reviewer-run", "s", 0));
+            insertReviewerSourceSnapshot(statement);
             insertRuntimeBinding(statement, "reviewer-remote");
             markReviewerLaunchCreatedAndAttachOwner(statement);
 
@@ -129,6 +130,16 @@ class GenericCandidateInternalLaunchMigrationTest {
             settleReviewerLaunch(connection, statement);
             assertThat(count(statement, "ai_candidate_internal_launch_run_requirement")).isOne();
             assertThat(count(statement, "ai_candidate_internal_launch_settlement_certificate")).isOne();
+
+            assertThatThrownBy(() -> statement.executeUpdate("""
+                    INSERT INTO ai_candidate_submission_attempt(
+                      id,run_id,ordinal,idempotency_key,request_sha256,outcome,retryable,
+                      problems_json,response_json,created_at)
+                    VALUES('attempt-before-initial-ack','reviewer-run',1,'early-key',
+                      'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+                      'REJECTED',1,'[]','{}','now')
+                    """))
+                    .hasMessageContaining("Reviewer candidate submission requires acknowledged initial prompt");
 
             assertThatThrownBy(() -> statement.executeUpdate(promptInsert(
                     "missing-launch-prompt", null, null, "PROMPTING", 0)))
@@ -168,6 +179,7 @@ class GenericCandidateInternalLaunchMigrationTest {
             statement.execute("PRAGMA foreign_keys=ON");
             insertGenericOwnerFixture(statement);
             statement.executeUpdate(reviewerLaunchInsert("reviewer-launch", "reviewer-run", "s", 0));
+            insertReviewerSourceSnapshot(statement);
             insertRuntimeBinding(statement, "reviewer-remote");
             markReviewerLaunchCreatedAndAttachOwner(statement);
             settleReviewerLaunch(connection, statement);
@@ -269,8 +281,10 @@ class GenericCandidateInternalLaunchMigrationTest {
         statement.executeUpdate("""
                 INSERT INTO analysis_report(
                   id,designer_session_id,task_profile_id,state,title,markdown,evidence_json,
+                  reviewer_contract_version,source_requirement,source_requirement_revision,
                   created_at,updated_at,version)
-                VALUES('report','s','profile','RUNNING','Report','','[]','now','now',0)
+                VALUES('report','s','profile','RUNNING','Report','','[]','REVIEWER_REPORT_V1',
+                  'requirement',7,'now','now',0)
                 """);
         statement.executeUpdate("""
                 INSERT INTO project_convention_draft(
@@ -360,6 +374,16 @@ class GenericCandidateInternalLaunchMigrationTest {
                   'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
                   'loopper_internal_generic','now')
                 """.formatted(remoteId));
+    }
+
+    private void insertReviewerSourceSnapshot(Statement statement) throws Exception {
+        statement.executeUpdate("""
+                INSERT INTO reviewer_report_candidate_source_snapshot(
+                  candidate_run_id,analysis_report_id,source_revision,prepared_owner_version,
+                  contract_version,canonical_source_manifest_json,source_manifest_sha256,created_at)
+                VALUES('reviewer-run','report',7,0,'REVIEWER_REPORT_V1','[]',
+                  'dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd','now')
+                """);
     }
 
     private void markReviewerLaunchCreatedAndAttachOwner(Statement statement) throws Exception {

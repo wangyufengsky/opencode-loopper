@@ -13,6 +13,8 @@ public interface LoopperDesignerMapper {
     @Insert("INSERT INTO designer_session(id,project_id,state,access_mode,external_session_id,external_session_state,loop_draft_id,workflow_phase,design_revision,redesign_count,current_requirement_revision,active_work_package_id,discussion_scope,discussion_revision,candidate_sync_state,created_at,updated_at,version) VALUES(#{id},#{projectId},#{state},#{accessMode},#{externalSessionId},#{externalSessionState},#{loopDraftId},#{workflowPhase},#{designRevision},#{redesignCount},#{currentRequirementRevision},#{activeWorkPackageId},#{discussionScope},#{discussionRevision},#{candidateSyncState},#{createdAt},#{updatedAt},#{version})")
     int insertDesignerSession(DesignerSessionRow row);
     @Select("SELECT * FROM designer_session WHERE id=#{id}") Optional<DesignerSessionRow> findDesignerSession(String id);
+    @Select("SELECT * FROM designer_session WHERE state='STOPPING' ORDER BY updated_at,id")
+    List<DesignerSessionRow> listStoppingDesignerSessions();
     @Select("SELECT * FROM designer_session WHERE task_id=#{taskId} ORDER BY updated_at DESC LIMIT 1")
     Optional<DesignerSessionRow> findDesignerSessionByTask(String taskId);
     @Update("UPDATE designer_session SET task_id=#{taskId},updated_at=#{updatedAt},version=version+1 WHERE id=#{sessionId} AND version=#{version} AND task_id IS NULL")
@@ -158,18 +160,18 @@ public interface LoopperDesignerMapper {
             INSERT INTO analysis_report(id,designer_session_id,task_profile_id,state,title,markdown,evidence_json,
               content_sha256,source_snapshot_sha256,error_code,error_detail,created_at,updated_at,version,
               external_session_id,external_session_state,source_requirement,role_pack_id,role_pack_version,
-              reviewer_contract_version,response_mode,findings_json,deadline_at)
+              reviewer_contract_version,response_mode,findings_json,deadline_at,source_requirement_revision)
             VALUES(#{id},#{designerSessionId},#{taskProfileId},#{state},#{title},#{markdown},#{evidenceJson},
               #{contentSha256},#{sourceSnapshotSha256},#{errorCode},#{errorDetail},#{createdAt},#{updatedAt},#{version},
               #{externalSessionId},#{externalSessionState},#{sourceRequirement},#{rolePackId},#{rolePackVersion},
-              #{reviewerContractVersion},#{responseMode},#{findingsJson},#{deadlineAt})
+              #{reviewerContractVersion},#{responseMode},#{findingsJson},#{deadlineAt},#{sourceRequirementRevision})
             """)
     int insertAnalysisReport(AnalysisReportRow row);
     @Select("SELECT * FROM analysis_report WHERE id=#{id} AND designer_session_id=#{sessionId}")
     Optional<AnalysisReportRow> findAnalysisReport(@Param("sessionId") String sessionId, @Param("id") String id);
     @Select("SELECT * FROM analysis_report WHERE designer_session_id=#{sessionId} ORDER BY created_at DESC")
     List<AnalysisReportRow> listAnalysisReports(String sessionId);
-    @Select("SELECT * FROM analysis_report WHERE state IN ('RUNNING','VALIDATING') AND external_session_id IS NOT NULL ORDER BY updated_at")
+    @Select("SELECT * FROM analysis_report WHERE state IN ('RUNNING','VALIDATING') AND (external_session_id IS NOT NULL OR response_mode='INTERNAL_MCP') ORDER BY updated_at")
     List<AnalysisReportRow> activeAnalysisReports();
     @Update("""
             UPDATE analysis_report SET state=#{state},title=#{title},markdown=#{markdown},evidence_json=#{evidenceJson},
@@ -179,6 +181,7 @@ public interface LoopperDesignerMapper {
               role_pack_id=#{rolePackId},role_pack_version=#{rolePackVersion},
               reviewer_contract_version=#{reviewerContractVersion},response_mode=#{responseMode},
               findings_json=#{findingsJson},deadline_at=#{deadlineAt},
+              source_requirement_revision=#{sourceRequirementRevision},
               updated_at=#{updatedAt},version=version+1 WHERE id=#{id} AND version=#{version}
             """)
     int updateAnalysisReport(AnalysisReportRow row);

@@ -323,7 +323,7 @@ public final class OpenCodeStructuredSchemas {
           "properties":{
             "title":{"type":"string","minLength":1,"maxLength":200},
             "summary":{"type":"string","minLength":1,"maxLength":8000},
-            "findings":{"type":"array","minItems":1,"maxItems":128,"items":{
+            "findings":{"type":"array","maxItems":128,"items":{
               "type":"object","additionalProperties":false,
               "required":["severity","title","detail","path","line","recommendation"],
               "properties":{

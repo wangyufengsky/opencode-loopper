@@ -10,12 +10,14 @@ import static org.mockito.Mockito.when;
 
 import io.opencode.loopper.domain.MachineCandidateKind;
 import io.opencode.loopper.domain.MachineCandidateRunState;
+import io.opencode.loopper.persistence.AnalysisReportRow;
 import io.opencode.loopper.persistence.DesignRequirementRevisionRow;
 import io.opencode.loopper.persistence.DesignWorkPackageRow;
 import io.opencode.loopper.persistence.DesignerSessionRow;
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.LoopSpecCompilationRow;
 import io.opencode.loopper.persistence.OpenCodeSessionRuntimeBindingRow;
+import io.opencode.loopper.persistence.ReviewerReportSourceSnapshotRow;
 import io.opencode.loopper.persistence.TaskDecompositionRow;
 import io.opencode.loopper.persistence.TaskPackagePlanRevisionRow;
 import io.opencode.loopper.runtime.InternalMcpCredentialProvider;
@@ -269,19 +271,39 @@ class CandidateRuntimeBindingServiceTest {
     }
 
     @Test
-    void ownerValidationNeverFallsThroughUnknownReservedKindsToAcceptance() {
+    void reviewerGuardRequiresExactRunningOwnerRemoteAndPreIoSourceSnapshot() {
+        LoopperMapper mapper = mock(LoopperMapper.class);
         CandidateRuntimeBindingService service = new CandidateRuntimeBindingService(
-                mock(LoopperMapper.class), new InternalMcpRuntimeAccess());
+                mapper, new InternalMcpRuntimeAccess());
         MachineCandidateSubmission.RunSnapshot reviewer = new MachineCandidateSubmission.RunSnapshot(
                 "reviewer-run", MachineCandidateSubmission.CandidateScope.designerSession("designer-1"),
                 MachineCandidateSubmission.CandidateOwnerRef.analysisReport("report-1"),
-                MachineCandidateKind.REVIEWER_REPORT_V1, "REVIEWER_REPORT_V1", 1, 1,
+                MachineCandidateKind.REVIEWER_REPORT_V1, "REVIEWER_REPORT_V1", 7, 1,
                 INTERNAL, "REVIEWER_REPORT_V1", "generation-1", "reviewer-remote",
                 MachineCandidateRunState.OPEN, 3, 0, null, 0);
+        AnalysisReportRow owner = mock(AnalysisReportRow.class);
+        when(owner.designerSessionId()).thenReturn("designer-1");
+        when(owner.state()).thenReturn("RUNNING");
+        when(owner.version()).thenReturn(1L);
+        when(owner.sourceRequirementRevision()).thenReturn(7);
+        when(owner.externalSessionId()).thenReturn("reviewer-remote");
+        when(owner.reviewerContractVersion()).thenReturn("REVIEWER_REPORT_V1");
+        when(mapper.findAnalysisReport("designer-1", "report-1")).thenReturn(Optional.of(owner));
+        when(mapper.findReviewerReportSourceSnapshot("reviewer-run")).thenReturn(Optional.of(
+                new ReviewerReportSourceSnapshotRow("reviewer-run", "report-1", 7, 0,
+                        "REVIEWER_REPORT_V1", "[]", "a".repeat(64), "now")));
 
+        service.validateIntegratedOwnerAndSource(reviewer);
+
+        when(owner.externalSessionId()).thenReturn("replacement-remote");
         assertThatThrownBy(() -> service.validateIntegratedOwnerAndSource(reviewer))
                 .isInstanceOfSatisfying(ConflictException.class,
-                        failure -> assertThat(failure.code()).isEqualTo("CANDIDATE_KIND_NOT_INTEGRATED"));
+                        failure -> assertThat(failure.code()).isEqualTo("CANDIDATE_OWNER_SESSION_STALE"));
+        when(owner.externalSessionId()).thenReturn("reviewer-remote");
+        when(mapper.findReviewerReportSourceSnapshot("reviewer-run")).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service.validateIntegratedOwnerAndSource(reviewer))
+                .isInstanceOfSatisfying(ConflictException.class,
+                        failure -> assertThat(failure.code()).isEqualTo("CANDIDATE_SOURCE_REVISION_STALE"));
     }
 
     @Test

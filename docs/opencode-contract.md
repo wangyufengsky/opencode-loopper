@@ -108,9 +108,10 @@ share the caller transaction. V49 initially gave only package design a separate
 accepted-result row; V56 adds the rolling-plan accepted result and its exact owner/run
 cascade. `ROLLING_PACKAGE_PLAN_V1`, `REVIEWER_REPORT_V1`,
 `PROJECT_CONVENTION_V1` and `JUDGE_DECISION_V1` plus their owner types were reserved
-for staged adapters. V56 activates only `ROLLING_PACKAGE_PLAN_V1`; V57 adds the shared
-`GENERIC_V1` durable creation/prompt/termination schema for the other three roles, but
-Reviewer, Convention and Judge remain rejected at application open. Rolling uses a dedicated
+for staged adapters. V56 activates `ROLLING_PACKAGE_PLAN_V1`; V57 adds the shared
+`GENERIC_V1` durable creation/prompt/termination schema for the other three roles, and V58–V61
+connect Reviewer behind its staged feature flag. Convention and Judge remain rejected at
+application open. Rolling uses a dedicated
 `ROLLING_PACKAGE_CANDIDATE_READ_ONLY` profile with `read/glob/grep` and only the
 exact private submission tool. It has no Markdown/marker fallback after dispatch.
 Only `PACKAGE_DESIGN_V1` retains the explicit Markdown-fallback compatibility policy.
@@ -122,8 +123,13 @@ V57 does not reuse the historical Acceptance launch ID. `CandidateLaunchRef` map
 `IN_PROCESS_LEGACY` runs remain valid without either reference. The generic launch freezes
 the managed Session plan and attestation before I/O, opens its run with a deferred
 settlement certificate in the same transaction, and fences INITIAL/CORRECTION progress,
-termination and deletion at the database boundary. Role-specific orchestration and
-qualification must still be delivered before a role flag can be enabled.
+termination and deletion at the database boundary. Reviewer freezes its bounded source manifest
+before the first exact-title lookup or remote create, uses `REVIEWER_CANDIDATE_READ_ONLY`
+(`read/glob/grep` plus only the exact private tool), and never reads assistant final text. Only a
+proven pre-dispatch managed-runtime/lookup capability absence may hand the owner to Legacy. Once
+dispatch may have occurred, zero submission, timeout, questions, transport/stop uncertainty,
+safety failure and exhaustion remain Candidate failures. Convention and Judge still require
+their own role orchestration and qualification before their flags can be enabled.
 
 The private `/api/internal-mcp-streamable` Router accepts only literal loopback
 addresses and constant-time Bearer matches. It registers exactly one tool,

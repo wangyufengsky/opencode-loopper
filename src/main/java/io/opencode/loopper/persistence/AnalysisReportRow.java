@@ -8,6 +8,7 @@ public record AnalysisReportRow(
         String errorCode, String errorDetail, String createdAt, String updatedAt, long version,
         String externalSessionId, String externalSessionState, String sourceRequirement,
         String rolePackId, String rolePackVersion, String reviewerContractVersion,
-        String responseMode, String findingsJson, String deadlineAt) {
+        String responseMode, String findingsJson, String deadlineAt,
+        Integer sourceRequirementRevision) {
     @AutomapConstructor public AnalysisReportRow { }
 }

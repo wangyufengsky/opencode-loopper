@@ -40,6 +40,7 @@ public final class DesignerTerminationService {
     private final CandidatePromptDispatchService candidatePromptDispatches;
     private final MachineCandidateSubmission candidateSubmissions;
     private final AcceptanceCandidateInternalTerminationWorkflow internalTerminations;
+    private final GenericCandidateDesignerTerminationWorkflow genericTerminations;
 
     public DesignerTerminationService(LoopperMapper mapper, DesignerSessionRuntimeControl runtimeControl,
                                       LifecycleTransitionService lifecycle,
@@ -48,7 +49,8 @@ public final class DesignerTerminationService {
                                       AcceptanceCandidateLegacyHandoffCoordinator acceptanceHandoffRecovery,
                                       CandidatePromptDispatchService candidatePromptDispatches,
                                       MachineCandidateSubmission candidateSubmissions,
-                                      AcceptanceCandidateInternalTerminationWorkflow internalTerminations) {
+                                      AcceptanceCandidateInternalTerminationWorkflow internalTerminations,
+                                      GenericCandidateDesignerTerminationWorkflow genericTerminations) {
         this.mapper = mapper;
         this.runtimeControl = runtimeControl;
         this.lifecycle = lifecycle;
@@ -58,6 +60,7 @@ public final class DesignerTerminationService {
         this.candidatePromptDispatches = candidatePromptDispatches;
         this.candidateSubmissions = candidateSubmissions;
         this.internalTerminations = internalTerminations;
+        this.genericTerminations = genericTerminations;
     }
 
     public Result stop(String sessionId, boolean archiveWhenComplete) {
@@ -83,10 +86,12 @@ public final class DesignerTerminationService {
     }
 
     void recoverInternalCancellations() {
-        internalTerminations.activeParentActionDesigners(
-                io.opencode.loopper.domain.AcceptanceCandidateInternalParentAction.DESIGNER_CANCEL)
-                .forEach(sessionId -> {
-                    try { stop(sessionId, internalTerminations.archiveRequested(sessionId)); }
+        Set<String> stopping = new LinkedHashSet<>(internalTerminations.activeParentActionDesigners(
+                io.opencode.loopper.domain.AcceptanceCandidateInternalParentAction.DESIGNER_CANCEL));
+        mapper.listStoppingDesignerSessions().stream().map(DesignerSessionRow::id).forEach(stopping::add);
+        stopping.forEach(sessionId -> {
+                    try { stop(sessionId, internalTerminations.archiveRequested(sessionId)
+                            || genericTerminations.archiveRequested(sessionId)); }
                     catch (RuntimeException ignoredConcurrentRecovery) { }
                 });
     }
@@ -119,7 +124,8 @@ public final class DesignerTerminationService {
         boolean activeHandoff = !mapper.listAcceptanceCandidateHandoffsForDesigner(designerSessionId).isEmpty();
         boolean activeCleanup = mapper
                 .existsUnstoppedAcceptanceCandidateHandoffCleanupForDesigner(designerSessionId);
-        if (openRun || activePrompt || activeHandoff || activeCleanup) {
+        boolean activeGeneric = genericTerminations.hasActiveWriters(designerSessionId);
+        if (openRun || activePrompt || activeHandoff || activeCleanup || activeGeneric) {
             throw new ConflictException("DESIGNER_CANDIDATE_WRITER_STILL_ACTIVE",
                     "Designer candidate run, prompt dispatch, or handoff is still active");
         }
@@ -137,6 +143,13 @@ public final class DesignerTerminationService {
             return new Result(DesignerSessionState.STOPPING.name(), false, internal.stoppedSessions(),
                     Math.max(1, internal.failedSessions()), 0);
         }
+        GenericCandidateDesignerTerminationWorkflow.Batch generic =
+                genericTerminations.requestDesignerCancellation(session.id(), archiveWhenComplete);
+        if (!generic.ready()) {
+            return new Result(DesignerSessionState.STOPPING.name(), false,
+                    internal.stoppedSessions() + generic.stoppedSessions(),
+                    Math.max(1, generic.failedSessions()), 0);
+        }
         Instant now = Instant.now();
         acceptanceHandoffs.prepareDesignerCancellation(session.id(), now);
         AcceptanceCandidateLegacyHandoffCoordinator.CancellationRecovery recovered =
@@ -148,11 +161,13 @@ public final class DesignerTerminationService {
             return new Result(DesignerSessionState.STOPPING.name(), false,
                     recovered.stoppedSessions(), Math.max(1, recovered.failedSessions()), 0);
         }
-        int stopped = recovered.stoppedSessions() + internal.stoppedSessions();
+        int stopped = recovered.stoppedSessions() + internal.stoppedSessions() + generic.stoppedSessions();
         int failed = 0;
         Map<String, String> proofs = new LinkedHashMap<>(recovered.proofs());
+        proofs.putAll(generic.proofs());
         for (String remoteId : remoteIds(session.id())) {
-            if (internalTerminations.ownsExternalSession(remoteId)) continue;
+            if (internalTerminations.ownsExternalSession(remoteId)
+                    || genericTerminations.ownsExternalSession(remoteId)) continue;
             try {
                 OpenCodeClient.AbortConfirmation confirmation = runtimeControl.abort(remoteId, session.projectId());
                 proofs.put(remoteId, CandidateSessionTerminationProof.from(confirmation).name());
@@ -301,7 +316,7 @@ public final class DesignerTerminationService {
                             "Designer session was cancelled", row.createdAt(), at, row.version(),
                             row.externalSessionId(), "ABORTED", row.sourceRequirement(), row.rolePackId(),
                             row.rolePackVersion(), row.reviewerContractVersion(), row.responseMode(),
-                            row.findingsJson(), row.deadlineAt());
+                            row.findingsJson(), row.deadlineAt(), row.sourceRequirementRevision());
                     lifecycle.mutateWithoutTransition(() -> mapper.updateAnalysisReport(stopped),
                             () -> new ConflictException("REPORT_VERSION_CONFLICT", "报告状态已并发变化"));
                 });

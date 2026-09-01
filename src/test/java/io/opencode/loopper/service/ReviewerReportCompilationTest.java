@@ -2,11 +2,13 @@ package io.opencode.loopper.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.opencode.loopper.runtime.OpenCodeStructuredSchemas;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
 
@@ -35,6 +37,22 @@ class ReviewerReportCompilationTest {
     }
 
     @Test
+    void compilesAnEmptyFindingSetWithoutInventingEvidence() {
+        ReviewerReportCompilation.Result result = compilation.compile(new ReviewerReportCompilation.Input(
+                candidate(List.of()), List.of()));
+
+        assertThat(result.accepted()).isTrue();
+        assertThat(result.evidence()).isEmpty();
+        assertThat(result.markdown()).contains("## 已确认发现\n\n无。");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> properties = (Map<String, Object>) OpenCodeStructuredSchemas
+                .schema(OpenCodeStructuredSchemas.REVIEWER_REPORT_V1).get("properties");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> findings = (Map<String, Object>) properties.get("findings");
+        assertThat(findings).containsEntry("maxItems", 128).doesNotContainKey("minItems");
+    }
+
+    @Test
     void rejectsTheWholeCandidateWhenOneFindingIsMissingFromTheSourceManifest() {
         ReviewerReportCompilation.Result result = compilation.compile(new ReviewerReportCompilation.Input(
                 candidate(List.of(finding("src/Main.java", 1), finding("missing.java", 1))),
@@ -48,6 +66,25 @@ class ReviewerReportCompilationTest {
             assertThat(problem.problemClass()).isEqualTo(ReviewerReportCompilation.ProblemClass.MECHANICAL);
         });
         assertThat(result.retryable()).isTrue();
+    }
+
+    @Test
+    void boundsMissingPathAllowedValuesForLargePreIoManifest() {
+        List<ReviewerReportCompilation.SourceFile> manifest = new ArrayList<>();
+        for (int index = 0; index < 40; index++) {
+            manifest.add(source("src/File%02d.java".formatted(index), 1, "line\n"));
+        }
+
+        ReviewerReportCompilation.Result result = compilation.compile(new ReviewerReportCompilation.Input(
+                candidate(List.of(finding("missing.java", 1))), manifest));
+
+        assertThat(result.accepted()).isFalse();
+        assertThat(result.problems()).singleElement().satisfies(problem -> {
+            assertThat(problem.code()).isEqualTo("REVIEWER_EVIDENCE_PATH_MISSING");
+            assertThat(problem.allowedValues()).hasSize(32)
+                    .containsExactlyElementsOf(manifest.stream().limit(32)
+                            .map(ReviewerReportCompilation.SourceFile::path).toList());
+        });
     }
 
     @Test

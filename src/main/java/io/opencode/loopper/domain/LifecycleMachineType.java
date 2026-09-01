@@ -20,7 +20,10 @@ public enum LifecycleMachineType implements DescribedEnum {
     ACCEPTANCE_CANDIDATE_HANDOFF_CLEANUP("验收候选兼容交接清理状态机"),
     ACCEPTANCE_CANDIDATE_INTERNAL_LAUNCH("验收候选内部启动状态机"),
     ACCEPTANCE_CANDIDATE_INTERNAL_LAUNCH_CLEANUP("验收候选内部启动清理状态机"),
-    ACCEPTANCE_CANDIDATE_INTERNAL_TERMINATION_INTENT("验收候选内部终止意图状态机");
+    ACCEPTANCE_CANDIDATE_INTERNAL_TERMINATION_INTENT("验收候选内部终止意图状态机"),
+    GENERIC_CANDIDATE_INTERNAL_LAUNCH("通用候选内部启动状态机"),
+    GENERIC_CANDIDATE_INTERNAL_LAUNCH_CLEANUP("通用候选内部启动清理状态机"),
+    GENERIC_CANDIDATE_INTERNAL_TERMINATION_INTENT("通用候选内部终止意图状态机");
 
     private final String description;
     LifecycleMachineType(String description) { this.description = description; }

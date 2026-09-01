@@ -82,6 +82,37 @@ class FakeOpenCodeClientTest {
     }
 
     @Test
+    void reviewerCandidatePlanningRequiresManagedRuntimeAndFreezesExactPrivatePermission() {
+        FakeOpenCodeClient client = new FakeOpenCodeClient();
+        String credential = "0123456789abcdefghijklmnopqrstuvwxyz_ABCD12";
+
+        assertThatThrownBy(() -> client.prepareCandidateSessionCreationLocally(temp,
+                "Reviewer internal", null,
+                OpenCodeClient.SessionProfile.REVIEWER_CANDIDATE_READ_ONLY,
+                credential))
+                .isInstanceOf(io.opencode.loopper.domain.SessionFailure.class)
+                .hasMessageContaining("managed OpenCode generation");
+
+        client.setManagedRuntime("generation-reviewer", "loopper-private-reviewer");
+        OpenCodeClient.SessionCreationPlan plan = client.prepareCandidateSessionCreationLocally(temp,
+                "Reviewer internal", null,
+                OpenCodeClient.SessionProfile.REVIEWER_CANDIDATE_READ_ONLY,
+                credential);
+
+        assertThat(plan.permissionPolicy()).containsExactly(
+                new OpenCodeClient.SessionPermissionRule("*", "*", "deny"),
+                new OpenCodeClient.SessionPermissionRule("read", "*", "allow"),
+                new OpenCodeClient.SessionPermissionRule("glob", "*", "allow"),
+                new OpenCodeClient.SessionPermissionRule("grep", "*", "allow"),
+                new OpenCodeClient.SessionPermissionRule("read", ".env", "deny"),
+                new OpenCodeClient.SessionPermissionRule("read", ".env.*", "deny"),
+                new OpenCodeClient.SessionPermissionRule("read", ".env.example", "allow"),
+                new OpenCodeClient.SessionPermissionRule("external_directory", "*", "deny"),
+                new OpenCodeClient.SessionPermissionRule(
+                        "loopper-private-reviewer_submit_candidate", "*", "allow"));
+    }
+
+    @Test
     void readOnlySessionAllowsTheRuntimeDefaultModel() {
         FakeOpenCodeClient client = new FakeOpenCodeClient();
 

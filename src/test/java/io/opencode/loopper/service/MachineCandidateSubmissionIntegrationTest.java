@@ -680,6 +680,9 @@ class MachineCandidateSubmissionIntegrationTest {
         jdbc.update("INSERT INTO open_code_session_runtime_binding(external_session_id,runtime_generation_id,"
                 + "ownership_mode,endpoint_fingerprint,internal_mcp_server,created_at) "
                 + "VALUES('cleanup-remote','cleanup-generation','MANAGED',?,'mcp','now')", "9".repeat(64));
+        jdbc.update("INSERT INTO open_code_session_runtime_binding(external_session_id,runtime_generation_id,"
+                + "ownership_mode,endpoint_fingerprint,internal_mcp_server,created_at) "
+                + "VALUES('remote-legacy','generation-legacy','MANAGED',?,'mcp','now')", "b".repeat(64));
         alignHandoffSourceAnchors();
         assertThat(mapper.insertAcceptanceCandidateLegacyHandoff(handedOffHandoff())).isEqualTo(1);
         jdbc.update("UPDATE acceptance_candidate_legacy_handoff SET state='STOPPING_LEGACY' "
@@ -709,6 +712,9 @@ class MachineCandidateSubmissionIntegrationTest {
         jdbc.update("INSERT INTO open_code_session_runtime_binding(external_session_id,runtime_generation_id,"
                 + "ownership_mode,endpoint_fingerprint,internal_mcp_server,created_at) "
                 + "VALUES('cleanup-remote','cleanup-generation','MANAGED',?,'mcp','now')", "9".repeat(64));
+        jdbc.update("INSERT INTO open_code_session_runtime_binding(external_session_id,runtime_generation_id,"
+                + "ownership_mode,endpoint_fingerprint,internal_mcp_server,created_at) "
+                + "VALUES('remote-legacy','generation-legacy','MANAGED',?,'mcp','now')", "b".repeat(64));
         alignHandoffSourceAnchors();
         assertThat(mapper.insertAcceptanceCandidateLegacyHandoff(handedOffHandoff())).isEqualTo(1);
         jdbc.update("UPDATE acceptance_candidate_legacy_handoff SET state='STOPPING_LEGACY' "
@@ -968,7 +974,7 @@ class MachineCandidateSubmissionIntegrationTest {
     }
 
     @Test
-    void rollingIsIntegratedWhileRemainingReservedKindsFailClosedUntilTheirAdaptersExist() {
+    void rollingAndReviewerAreIntegratedWhileRemainingReservedKindsFailClosedUntilTheirAdaptersExist() {
         assertThat(MachineCandidateKind.ROLLING_PACKAGE_PLAN_V1.maximumAttempts()).isEqualTo(3);
         assertThat(MachineCandidateKind.REVIEWER_REPORT_V1.maximumAttempts()).isEqualTo(3);
         assertThat(MachineCandidateKind.PROJECT_CONVENTION_V1.maximumAttempts()).isEqualTo(3);
@@ -984,10 +990,17 @@ class MachineCandidateSubmissionIntegrationTest {
                             .isEqualTo(MachineCandidateSubmission.CandidateOwnerType.TASK_PACKAGE_PLAN_REVISION);
                 });
 
+        assertThat(MachineCandidateProtocolPolicy.contract(MachineCandidateKind.REVIEWER_REPORT_V1))
+                .satisfies(contract -> {
+                    assertThat(contract.integrated()).isTrue();
+                    assertThat(contract.fallbackAllowed()).isFalse();
+                    assertThat(contract.scopeType())
+                            .isEqualTo(MachineCandidateSubmission.CandidateScopeType.DESIGNER_SESSION);
+                    assertThat(contract.ownerType())
+                            .isEqualTo(MachineCandidateSubmission.CandidateOwnerType.ANALYSIS_REPORT);
+                });
+
         List<MachineCandidateSubmission.OpenCommand> commands = List.of(
-                futureRun("future-reviewer", MachineCandidateSubmission.CandidateScope.designerSession("s"),
-                        MachineCandidateSubmission.CandidateOwnerRef.analysisReport("report"),
-                        MachineCandidateKind.REVIEWER_REPORT_V1, 3),
                 futureRun("future-convention", MachineCandidateSubmission.CandidateScope.project("p"),
                         MachineCandidateSubmission.CandidateOwnerRef.projectConventionDraft("convention"),
                         MachineCandidateKind.PROJECT_CONVENTION_V1, 3),

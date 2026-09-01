@@ -478,4 +478,59 @@ public interface LoopperMachineCandidateMapper {
             @Param("expectedVersion") long expectedVersion,
             @Param("settledPlanRevisionId") String settledPlanRevisionId,
             @Param("updatedAt") String updatedAt);
+
+    @Insert("""
+            INSERT INTO reviewer_report_candidate_source_snapshot(
+              candidate_run_id,analysis_report_id,source_revision,prepared_owner_version,contract_version,
+              canonical_source_manifest_json,source_manifest_sha256,created_at)
+            VALUES(#{candidateRunId},#{analysisReportId},#{sourceRevision},#{preparedOwnerVersion},
+              #{contractVersion},#{canonicalSourceManifestJson},#{sourceManifestSha256},#{createdAt})
+            """)
+    int insertReviewerReportSourceSnapshot(ReviewerReportSourceSnapshotRow row);
+
+    @Select("""
+            SELECT * FROM reviewer_report_candidate_source_snapshot
+            WHERE candidate_run_id=#{candidateRunId}
+            """)
+    Optional<ReviewerReportSourceSnapshotRow> findReviewerReportSourceSnapshot(String candidateRunId);
+
+    @Insert("""
+            INSERT INTO reviewer_report_candidate_accepted_result(
+              candidate_run_id,analysis_report_id,source_revision,owner_version,contract_version,
+              canonical_candidate_json,canonical_findings_json,markdown,evidence_json,
+              content_sha256,source_snapshot_sha256,candidate_payload_sha256,canonical_result_sha256,
+              settled_analysis_report_id,created_at,updated_at,version)
+            VALUES(#{candidateRunId},#{analysisReportId},#{sourceRevision},#{ownerVersion},#{contractVersion},
+              #{canonicalCandidateJson},#{canonicalFindingsJson},#{markdown},#{evidenceJson},
+              #{contentSha256},#{sourceSnapshotSha256},#{candidatePayloadSha256},#{canonicalResultSha256},
+              #{settledAnalysisReportId},#{createdAt},#{updatedAt},#{version})
+            """)
+    int insertReviewerReportAcceptedResult(ReviewerReportAcceptedResultRow row);
+
+    @Select("""
+            SELECT * FROM reviewer_report_candidate_accepted_result
+            WHERE candidate_run_id=#{candidateRunId}
+            """)
+    Optional<ReviewerReportAcceptedResultRow> findReviewerReportAcceptedResult(String candidateRunId);
+
+    @Select("""
+            SELECT * FROM reviewer_report_candidate_accepted_result
+            WHERE settled_analysis_report_id IS NULL
+            ORDER BY created_at,candidate_run_id
+            """)
+    List<ReviewerReportAcceptedResultRow> listUnsettledReviewerReportAcceptedResults();
+
+    @Update("""
+            UPDATE reviewer_report_candidate_accepted_result
+            SET settled_analysis_report_id=#{settledAnalysisReportId},updated_at=#{updatedAt},version=version+1
+            WHERE candidate_run_id=#{candidateRunId} AND version=#{expectedVersion}
+              AND settled_analysis_report_id IS NULL
+              AND analysis_report_id=#{settledAnalysisReportId}
+              AND #{settledAnalysisReportId} IS NOT NULL AND length(#{settledAnalysisReportId}) > 0
+            """)
+    int settleReviewerReportAcceptedResult(
+            @Param("candidateRunId") String candidateRunId,
+            @Param("expectedVersion") long expectedVersion,
+            @Param("settledAnalysisReportId") String settledAnalysisReportId,
+            @Param("updatedAt") String updatedAt);
 }

@@ -19,7 +19,7 @@ final class MachineCandidateProtocolPolicy {
                     MachineCandidateSubmission.CandidateOwnerType.TASK_PACKAGE_PLAN_REVISION,
                     false, true);
             case REVIEWER_REPORT_V1 -> designer(
-                    MachineCandidateSubmission.CandidateOwnerType.ANALYSIS_REPORT, false, false);
+                    MachineCandidateSubmission.CandidateOwnerType.ANALYSIS_REPORT, false, true);
             case PROJECT_CONVENTION_V1 -> project(
                     MachineCandidateSubmission.CandidateOwnerType.PROJECT_CONVENTION_DRAFT);
             case JUDGE_DECISION_V1 -> task(MachineCandidateSubmission.CandidateOwnerType.JUDGE_RUN);

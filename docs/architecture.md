@@ -234,7 +234,7 @@ V37 copies that package decision into each confirmed Stage, so retries and Recov
 implementation prompts from the immutable Stage snapshot. Read-only review/research creates
 an independent `REVIEWER_READ_ONLY` Session. V39 requires `REVIEWER_REPORT_V1` structured
 findings. Since 0.3.10 the extracted Legacy payload enters one `ReviewerReportCompilation`:
-the service binds every finding to one managed relative path, exact line and source digest,
+an empty finding list is valid when the required summary records that no issue was confirmed; otherwise the service binds every finding to one managed relative path, exact line and source digest,
 rejects the whole candidate if any binding is absent or unsafe, and only then renders Markdown
 and hashes the canonical result. Partial finding filtering is forbidden. The contract version,
 canonical findings, response mode and deadline remain persisted in `analysis_report`, which never
@@ -510,10 +510,10 @@ same transaction; package-design deletion also removes its accepted result, whil
 the other kinds have no separate accepted-result table. V49 also reserves bounded contracts for
 `ROLLING_PACKAGE_PLAN_V1` (3), `REVIEWER_REPORT_V1` (3),
 `PROJECT_CONVENTION_V1` (3), and `JUDGE_DECISION_V1` (2). V56 connects
-`ROLLING_PACKAGE_PLAN_V1`; 0.3.10 adds the Reviewer single deterministic compiler. V57 then reserves a
-shared durable internal-launch protocol for Reviewer, Convention and Judge without activating their role
-adapters. Their Candidate runs therefore still fail closed at the application open boundary until each
-Coordinator, policy, accepted writer and qualification switch exists. Fallback compatibility is an explicit per-kind contract;
+`ROLLING_PACKAGE_PLAN_V1`; 0.3.10 adds the Reviewer single deterministic compiler. V57 reserves a
+shared durable internal-launch protocol for Reviewer, Convention and Judge. V58–V61 connect Reviewer
+behind a default-off staged flag; Convention and Judge still fail closed at application open until their
+own Coordinator, policy, accepted writer and qualification switch exists. Fallback compatibility is an explicit per-kind contract;
 only `PACKAGE_DESIGN_V1` may request Markdown fallback.
 
 V57 separates the existing Acceptance `ACCEPTANCE_V55` launch from a new `GENERIC_V1` launch reference.
@@ -524,8 +524,14 @@ permission digests, runtime generation and managed attestation before remote I/O
 certificate remain one transaction. INITIAL and CORRECTION prompts must bind the same settled launch, a
 correction requires its acknowledged INITIAL, and an active termination intent fences new submissions and prompt
 progress. Live run/launch/cleanup deletion and owner terminal transitions fail closed until the run, prompt and all
-remotes are quiet. This is persistence infrastructure only: no role can treat the existence of V57 as MCP
-qualification or default enablement.
+remotes are quiet. Reviewer additionally freezes one canonical source-manifest hash before all OpenCode
+I/O, anchors it to the exact requirement revision/report version, persists deterministic accepted
+Markdown/evidence separately from the candidate payload hash, and settles `analysis_report=READY` only
+in the same prompt-settlement transaction after positive remote-stop proof. Assistant final text and
+post-run live-file capture are never inputs. V61 gives later Designer cancellation monotonic priority on
+the existing termination intent, so an accepted candidate cannot make the report READY after cancellation.
+Reviewer remains default-off until packaged-JAR real-model qualification; persisted recovery ignores the
+current flag. Convention and Judge cannot treat V57 as qualification or default enablement.
 
 V56 gives rolling replanning the same dual-entry/single-core boundary. The candidate
 contains only `packageKey/title/objective/replaces/dependencies/requirementRefs`;

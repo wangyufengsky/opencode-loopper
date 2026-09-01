@@ -38,7 +38,7 @@ class DesignerTerminationServiceTest {
                 mock(PlatformTransactionManager.class), mock(AcceptanceCandidateLegacyHandoffService.class),
                 mock(AcceptanceCandidateLegacyHandoffCoordinator.class),
                 mock(CandidatePromptDispatchService.class), mock(MachineCandidateSubmission.class),
-                mock(AcceptanceCandidateInternalTerminationWorkflow.class));
+                mock(AcceptanceCandidateInternalTerminationWorkflow.class), readyGenericTerminations());
 
         assertThatThrownBy(() -> service.completeTaskDesignerInTransaction("task-1"))
                 .isInstanceOfSatisfying(ConflictException.class, failure ->
@@ -66,7 +66,7 @@ class DesignerTerminationServiceTest {
                 recovery,
                 mock(CandidatePromptDispatchService.class),
                 mock(MachineCandidateSubmission.class),
-                readyInternalTerminations());
+                readyInternalTerminations(), readyGenericTerminations());
 
         DesignerTerminationService.Result result = service.stop("designer-1", false);
 
@@ -95,7 +95,7 @@ class DesignerTerminationServiceTest {
                 mock(PlatformTransactionManager.class), mock(AcceptanceCandidateLegacyHandoffService.class),
                 mock(AcceptanceCandidateLegacyHandoffCoordinator.class),
                 mock(CandidatePromptDispatchService.class), mock(MachineCandidateSubmission.class),
-                mock(AcceptanceCandidateInternalTerminationWorkflow.class));
+                mock(AcceptanceCandidateInternalTerminationWorkflow.class), readyGenericTerminations());
 
         assertThatThrownBy(() -> service.completeTaskDesignerInTransaction("task-1"))
                 .isInstanceOfSatisfying(ConflictException.class, failure ->
@@ -108,6 +108,16 @@ class DesignerTerminationServiceTest {
         when(workflow.requestDesignerCancellation(
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyBoolean()))
                 .thenReturn(new AcceptanceCandidateInternalTerminationWorkflow.Batch(List.of()));
+        return workflow;
+    }
+
+    private GenericCandidateDesignerTerminationWorkflow readyGenericTerminations() {
+        GenericCandidateDesignerTerminationWorkflow workflow =
+                mock(GenericCandidateDesignerTerminationWorkflow.class);
+        when(workflow.requestDesignerCancellation(
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyBoolean()))
+                .thenReturn(new GenericCandidateDesignerTerminationWorkflow.Batch(
+                        java.util.Map.of(), 0, 0));
         return workflow;
     }
 }

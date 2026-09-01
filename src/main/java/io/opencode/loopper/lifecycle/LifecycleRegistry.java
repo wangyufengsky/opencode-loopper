@@ -86,6 +86,18 @@ public final class LifecycleRegistry {
                 AcceptanceCandidateInternalTerminationIntentState.class,
                 CandidateLifecycleTopologies.internalTerminationIntent(),
                 set(AcceptanceCandidateInternalTerminationIntentState.REQUESTED), Set.of());
+        register(LifecycleMachineType.GENERIC_CANDIDATE_INTERNAL_LAUNCH,
+                GenericCandidateInternalLaunchState.class,
+                CandidateLifecycleTopologies.genericInternalLaunch(),
+                set(GenericCandidateInternalLaunchState.PREPARED), Set.of());
+        register(LifecycleMachineType.GENERIC_CANDIDATE_INTERNAL_LAUNCH_CLEANUP,
+                GenericCandidateInternalLaunchCleanupState.class,
+                CandidateLifecycleTopologies.genericInternalLaunchCleanup(),
+                set(GenericCandidateInternalLaunchCleanupState.DISCOVERED), Set.of());
+        register(LifecycleMachineType.GENERIC_CANDIDATE_INTERNAL_TERMINATION_INTENT,
+                GenericCandidateInternalTerminationIntentState.class,
+                CandidateLifecycleTopologies.genericInternalTerminationIntent(),
+                set(GenericCandidateInternalTerminationIntentState.REQUESTED), Set.of());
         if (machines.size() != LifecycleMachineType.values().length) {
             throw new IllegalStateException("Every lifecycle machine type must be registered");
         }
