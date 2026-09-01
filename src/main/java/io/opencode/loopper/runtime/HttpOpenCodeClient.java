@@ -147,10 +147,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
             OpenCodeMcpDiscovery.Access mcp = effectiveProfile == SessionProfile.ROUTER_NO_TOOLS
                     ? OpenCodeMcpDiscovery.Access.empty()
                     : mcpDiscovery.discover(sessionClient, canonical, connection.internalMcpServer());
-            if (effectiveProfile == SessionProfile.DECOMPOSER_CANDIDATE_READ_ONLY
-                    || effectiveProfile == SessionProfile.PACKAGE_DESIGN_CANDIDATE_READ_ONLY
-                    || effectiveProfile == SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY
-                    || effectiveProfile == SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS) {
+            if (OpenCodeHttpClientSemantics.candidateProfile(effectiveProfile)) {
                 mcp.requireCandidateReady(connection.managed(), connection.generation(), connection.internalMcpServer());
             }
             List<Map<String, String>> permissions = OpenCodePermissionPolicy.rules(effectiveProfile,

@@ -14,8 +14,10 @@ final class MachineCandidateProtocolPolicy {
                     MachineCandidateSubmission.CandidateOwnerType.LOOP_SPEC_COMPILATION, false, true);
             case PACKAGE_DESIGN_V1 -> designer(
                     MachineCandidateSubmission.CandidateOwnerType.DESIGN_WORK_PACKAGE, true, true);
-            case ROLLING_PACKAGE_PLAN_V1 -> task(
-                    MachineCandidateSubmission.CandidateOwnerType.TASK_PACKAGE_PLAN_REVISION);
+            case ROLLING_PACKAGE_PLAN_V1 -> new Contract(
+                    MachineCandidateSubmission.CandidateScopeType.TASK,
+                    MachineCandidateSubmission.CandidateOwnerType.TASK_PACKAGE_PLAN_REVISION,
+                    false, true);
             case REVIEWER_REPORT_V1 -> designer(
                     MachineCandidateSubmission.CandidateOwnerType.ANALYSIS_REPORT, false, false);
             case PROJECT_CONVENTION_V1 -> project(

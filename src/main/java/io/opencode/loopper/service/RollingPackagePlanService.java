@@ -10,16 +10,16 @@ import io.opencode.loopper.lifecycle.LifecycleTransitionService;
 import io.opencode.loopper.persistence.DesignWorkPackageRow;
 import io.opencode.loopper.persistence.DesignerSessionRow;
 import io.opencode.loopper.persistence.LoopperMapper;
+import io.opencode.loopper.persistence.RollingPackagePlanAcceptedResultRow;
 import io.opencode.loopper.persistence.TaskPackagePlanRevisionRow;
 import io.opencode.loopper.persistence.TaskPackageRunRow;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -39,11 +39,15 @@ public class RollingPackagePlanService {
     private final TaskEventService events;
     private final TransactionTemplate transactions;
     private final RollingPackageCommandPolicy commandPolicy;
+    private final RollingPackagePlanCompilation compilation;
+    private final RollingPackagePlanCompilationInputLoader compilationInputs;
 
     public RollingPackagePlanService(LoopperMapper mapper, ObjectMapper json, RollingPackageService rolling,
                                      LifecycleTransitionService lifecycle, TaskWorkspaceCheckpointService checkpoints,
                                      WorkPackageRoleService roles, TaskEventService events,
                                      RollingPackageCommandPolicy commandPolicy,
+                                     RollingPackagePlanCompilation compilation,
+                                     RollingPackagePlanCompilationInputLoader compilationInputs,
                                      PlatformTransactionManager transactionManager) {
         this.mapper = mapper;
         this.json = json;
@@ -53,6 +57,8 @@ public class RollingPackagePlanService {
         this.roles = roles;
         this.events = events;
         this.commandPolicy = commandPolicy;
+        this.compilation = compilation;
+        this.compilationInputs = compilationInputs;
         this.transactions = new TransactionTemplate(transactionManager);
     }
 
@@ -66,20 +72,20 @@ public class RollingPackagePlanService {
                 ? RollingPackageCommandPolicy.Command.ADD_CORRECTION
                 : RollingPackageCommandPolicy.Command.REPLAN;
         Context context = safeContext(taskId, expectedTaskVersion, allowCompletedSuffix, command);
-        List<PlanPackage> normalized = normalize(packages);
+        RollingPackagePlanCompilation.Result compiled = compilePlan(taskId, packages);
         int revision = mapper.listTaskPackagePlanRevisions(taskId).stream()
                 .mapToInt(TaskPackagePlanRevisionRow::revision).max().orElse(0) + 1;
-        Map<String, Object> impact = impact(context, normalized);
         String now = now();
         TaskPackagePlanRevisionRow proposal = new TaskPackagePlanRevisionRow(UUID.randomUUID().toString(), taskId,
                 context.session().id(), context.active().requirementRevisionId(), revision,
-                PackagePlanRevisionState.PROPOSED.name(), origin, write(normalized), write(impact),
+                PackagePlanRevisionState.PROPOSED.name(), origin, compiled.canonicalPlanJson(),
+                compiled.canonicalImpactJson(),
                 null, null, null, null, context.checkpoint().id(), context.task().version(),
                 context.current().id(), context.current().version(), now, now, null, null, 0);
         lifecycle.create(planSubject(proposal), proposal.state(), Map.of("origin", origin, "revision", revision),
                 () -> mapper.insertTaskPackagePlanRevision(proposal),
                 () -> new ConflictException("PACKAGE_PLAN_PROPOSAL_CONFLICT", "剩余拆包提案被并发创建"));
-        events.emit(taskId, "package.plan_proposed", Map.of("revision", revision, "impact", impact));
+        events.emit(taskId, "package.plan_proposed", Map.of("revision", revision, "impact", compiled.impact()));
         return proposal(proposal);
     }
 
@@ -263,26 +269,100 @@ public class RollingPackagePlanService {
     }
 
     public Proposal completeSuggestion(TaskPackagePlanRevisionRow input, List<PlanPackage> packages) {
-        Context context = suggestionContext(input);
-        List<PlanPackage> normalized = normalize(packages);
-        Map<String, Object> impact = impact(context, normalized);
+        suggestionContext(input);
+        RollingPackagePlanCompilation.Result compiled = compilePlan(input.taskId(), packages);
         TaskPackagePlanRevisionRow proposed = copy(input, PackagePlanRevisionState.PROPOSED,
-                write(normalized), write(impact), input.externalSessionId(), "COMPLETED", null, null,
+                compiled.canonicalPlanJson(), compiled.canonicalImpactJson(),
+                input.externalSessionId(), "COMPLETED", null, null,
                 now(), null, null);
         lifecycle.transition(planSubject(input), input.state(), proposed.state(),
                 LifecycleEvent.COMPLETE_PACKAGE_REPLAN, null, Map.of("revision", input.revision()),
                 () -> mapper.updateTaskPackagePlanRevision(proposed),
                 () -> new ConflictException("PACKAGE_PLAN_SUGGESTION_STALE", "AI 拆包建议已被并发更新"));
-        events.emit(input.taskId(), "package.plan_proposed", Map.of("revision", input.revision(), "impact", impact,
-                "origin", "AI"));
+        events.emit(input.taskId(), "package.plan_proposed", Map.of(
+                "revision", input.revision(), "impact", compiled.impact(), "origin", "AI"));
         return proposal(mapper.findTaskPackagePlanRevision(input.id()).orElse(proposed));
     }
 
+    public Proposal completeCandidateSuggestion(TaskPackagePlanRevisionRow input,
+                                                RollingPackagePlanAcceptedResultRow accepted,
+                                                String terminationProof) {
+        if (!CandidateSessionTerminationProof.persisted(terminationProof)) {
+            throw new ConflictException("ROLLING_PACKAGE_CANDIDATE_STOP_UNCONFIRMED",
+                    "Rolling package candidate remote Session has no positive termination proof");
+        }
+        AtomicBoolean changed = new AtomicBoolean();
+        TaskPackagePlanRevisionRow settled = transactions.execute(ignored -> {
+            TaskPackagePlanRevisionRow current = mapper.findTaskPackagePlanRevision(input.id()).orElseThrow();
+            RollingPackagePlanAcceptedResultRow result = mapper
+                    .findRollingPackagePlanAcceptedResult(accepted.candidateRunId()).orElseThrow(() ->
+                            new ConflictException("ROLLING_PACKAGE_ACCEPTED_RESULT_MISSING",
+                                    "Accepted rolling package result no longer exists"));
+            if (PackagePlanRevisionState.PROPOSED.name().equals(current.state())
+                    && current.id().equals(result.settledPlanRevisionId())) return current;
+            if (!PackagePlanRevisionState.GENERATING.name().equals(current.state())
+                    || result.settledPlanRevisionId() != null
+                    || !current.id().equals(result.taskPackagePlanRevisionId())
+                    || result.sourceRevision() != current.revision()) {
+                throw new ConflictException("ROLLING_PACKAGE_ACCEPTED_RESULT_STALE",
+                        "Accepted rolling package result no longer matches its generating owner");
+            }
+            var run = mapper.findCandidateSubmissionRun(result.candidateRunId()).orElseThrow();
+            if (!"ACCEPTED".equals(run.state()) || !"ROLLING_PACKAGE_PLAN_V1".equals(run.candidateKind())
+                    || !"TASK_PACKAGE_PLAN_REVISION".equals(run.ownerType())
+                    || !current.id().equals(run.ownerId()) || !current.taskId().equals(run.taskId())
+                    || run.sourceRevision() != result.sourceRevision()
+                    || run.ownerVersion() != result.ownerVersion()
+                    || !java.util.Objects.equals(current.externalSessionId(), run.externalSessionId())) {
+                throw new ConflictException("ROLLING_PACKAGE_ACCEPTED_RESULT_STALE",
+                        "Accepted rolling package run no longer matches its frozen owner");
+            }
+            suggestionContext(current);
+            RollingPackagePlanCompilation.Result compiled = compilation.compileCandidate(
+                    compilationInputs.loadTask(current.taskId()), result.canonicalCandidateJson());
+            if (!compiled.accepted()
+                    || !result.canonicalCandidateJson().equals(compiled.canonicalCandidateJson())
+                    || !result.canonicalPlanJson().equals(compiled.canonicalPlanJson())
+                    || !result.impactJson().equals(compiled.canonicalImpactJson())) {
+                throw new ConflictException("ROLLING_PACKAGE_ACCEPTED_RESULT_INVALID",
+                        "Accepted rolling package result no longer compiles from frozen task facts");
+            }
+            String now = now();
+            TaskPackagePlanRevisionRow proposed = copy(current, PackagePlanRevisionState.PROPOSED,
+                    result.canonicalPlanJson(), result.impactJson(), current.externalSessionId(),
+                    terminationProof, null, null, now, null, null);
+            lifecycle.transition(planSubject(current), current.state(), proposed.state(),
+                    LifecycleEvent.COMPLETE_PACKAGE_REPLAN, null, Map.of("revision", current.revision()),
+                    () -> mapper.updateTaskPackagePlanRevision(proposed),
+                    () -> new ConflictException("PACKAGE_PLAN_SUGGESTION_STALE",
+                            "AI 拆包建议已被并发更新"));
+            if (mapper.settleRollingPackagePlanAcceptedResult(result.candidateRunId(), result.version(),
+                    current.id(), now) != 1) {
+                throw new ConflictException("ROLLING_PACKAGE_ACCEPTED_RESULT_CONFLICT",
+                        "Accepted rolling package result could not be settled");
+            }
+            changed.set(true);
+            return mapper.findTaskPackagePlanRevision(current.id()).orElse(proposed);
+        });
+        if (settled == null) throw new ConflictException(
+                "ROLLING_PACKAGE_ACCEPTED_RESULT_CONFLICT", "Accepted rolling package result was not settled");
+        if (changed.get()) {
+            events.emit(settled.taskId(), "package.plan_proposed", Map.of(
+                    "revision", settled.revision(), "origin", "AI", "candidate", true));
+        }
+        return proposal(settled);
+    }
+
     public Proposal failSuggestion(TaskPackagePlanRevisionRow input, String code, String detail) {
+        return failSuggestion(input, code, detail, "FAILED");
+    }
+
+    public Proposal failSuggestion(TaskPackagePlanRevisionRow input, String code, String detail,
+                                   String externalSessionState) {
         TaskPackagePlanRevisionRow current = mapper.findTaskPackagePlanRevision(input.id()).orElse(input);
         if (!PackagePlanRevisionState.GENERATING.name().equals(current.state())) return proposal(current);
         TaskPackagePlanRevisionRow failed = copy(current, PackagePlanRevisionState.FAILED,
-                current.planJson(), current.impactJson(), current.externalSessionId(), "FAILED", code,
+                current.planJson(), current.impactJson(), current.externalSessionId(), externalSessionState, code,
                 bounded(detail), now(), null, null);
         lifecycle.transition(planSubject(current), current.state(), failed.state(),
                 LifecycleEvent.FAIL_PACKAGE_REPLAN, code, Map.of("revision", current.revision()),
@@ -290,6 +370,18 @@ public class RollingPackagePlanService {
                 () -> new ConflictException("PACKAGE_PLAN_SUGGESTION_STALE", "AI 拆包建议已被并发更新"));
         events.emit(input.taskId(), "package.plan_suggestion_failed", Map.of("revision", input.revision(), "code", code));
         return proposal(mapper.findTaskPackagePlanRevision(input.id()).orElse(failed));
+    }
+
+    public TaskPackagePlanRevisionRow disconnectSuggestion(TaskPackagePlanRevisionRow input,
+                                                           String code, String detail) {
+        TaskPackagePlanRevisionRow current = mapper.findTaskPackagePlanRevision(input.id()).orElse(input);
+        if (!PackagePlanRevisionState.GENERATING.name().equals(current.state())) return current;
+        TaskPackagePlanRevisionRow disconnected = copy(current, PackagePlanRevisionState.GENERATING,
+                current.planJson(), current.impactJson(), current.externalSessionId(), "DISCONNECTED", code,
+                bounded(detail), now(), null, null);
+        lifecycle.mutateWithoutTransition(() -> mapper.updateTaskPackagePlanRevision(disconnected),
+                () -> new ConflictException("PACKAGE_PLAN_SUGGESTION_STALE", "AI 拆包建议已被并发更新"));
+        return mapper.findTaskPackagePlanRevision(input.id()).orElse(disconnected);
     }
 
     private Context suggestionContext(TaskPackagePlanRevisionRow row) {
@@ -323,74 +415,6 @@ public class RollingPackagePlanService {
                 Map.of("packageId", row.packageId(), "planRevision", row.planRevision()),
                 () -> mapper.updateDesignWorkPackage(superseded),
                 () -> new ConflictException("PACKAGE_PLAN_DESIGN_CONFLICT", "未执行工作包已被并发更新"));
-    }
-
-    private List<PlanPackage> normalize(List<PlanPackage> input) {
-        if (input == null || input.isEmpty() || input.size() > 6) {
-            throw new BadRequestException("PACKAGE_PLAN_SIZE_INVALID", "剩余拆包必须包含 1–6 个工作包");
-        }
-        Set<String> keys = new HashSet<>();
-        List<PlanPackage> result = new ArrayList<>();
-        for (PlanPackage item : input) {
-            if (item == null || item.packageKey() == null || !item.packageKey().matches("[A-Za-z0-9_-]{1,40}")
-                    || item.title() == null || item.title().isBlank() || !keys.add(item.packageKey())) {
-                throw new BadRequestException("PACKAGE_PLAN_ITEM_INVALID", "工作包编号和标题必须非空且编号唯一");
-            }
-            result.add(new PlanPackage(item.packageKey(), item.title().strip(),
-                    item.objective() == null ? item.title().strip() : item.objective().strip(),
-                    item.sourcePackageRunId(), sourceIds(item), item.correctionOfPackageRunId(),
-                    item.dependencies() == null ? List.of() : List.copyOf(item.dependencies()),
-                    item.requirementRefs() == null ? List.of() : List.copyOf(item.requirementRefs())));
-        }
-        return List.copyOf(result);
-    }
-
-    private Map<String, Object> impact(Context context, List<PlanPackage> proposed) {
-        List<TaskPackageRunRow> current = mapper.listTaskPackageRuns(context.task().id()).stream()
-                .filter(run -> context.active().id().equals(run.planRevisionId()))
-                .filter(run -> !TaskPackageRunState.valueOf(run.state()).terminal())
-                .toList();
-        List<String> before = current.stream().map(TaskPackageRunRow::packageKey).toList();
-        List<String> after = proposed.stream().map(PlanPackage::packageKey).toList();
-        Set<String> dependencyTargets = new HashSet<>(after);
-        mapper.listTaskPackageRuns(context.task().id()).stream()
-                .filter(run -> TaskPackageRunState.FACT_FROZEN.name().equals(run.state()))
-                .map(TaskPackageRunRow::packageKey).forEach(dependencyTargets::add);
-        for (PlanPackage item : proposed) {
-            for (String dependency : item.dependencies()) {
-                if (item.packageKey().equals(dependency) || !dependencyTargets.contains(dependency)) {
-                    throw new BadRequestException("PACKAGE_PLAN_DEPENDENCY_INVALID",
-                            "工作包依赖必须引用已冻结包或当前提案中的其他包: " + dependency);
-                }
-            }
-        }
-        Map<String, Object> impact = new LinkedHashMap<>();
-        impact.put("before", before);
-        impact.put("after", after);
-        impact.put("added", after.stream().filter(key -> !before.contains(key)).toList());
-        impact.put("removed", before.stream().filter(key -> !after.contains(key)).toList());
-        impact.put("reordered", before.stream().filter(after::contains).toList().equals(
-                after.stream().filter(before::contains).toList()) ? List.of() : after);
-        Map<String, List<String>> beforeDependencies = new LinkedHashMap<>();
-        current.forEach(run -> beforeDependencies.put(run.packageKey(), dependencies(run)));
-        impact.put("dependencyChanges", proposed.stream()
-                .filter(item -> beforeDependencies.containsKey(item.packageKey()))
-                .filter(item -> !beforeDependencies.get(item.packageKey()).equals(item.dependencies()))
-                .map(item -> Map.of("packageKey", item.packageKey(),
-                        "before", beforeDependencies.get(item.packageKey()), "after", item.dependencies()))
-                .toList());
-        Map<String, String> sourceKeys = current.stream().collect(java.util.stream.Collectors.toMap(
-                TaskPackageRunRow::id, TaskPackageRunRow::packageKey, (left, right) -> left, LinkedHashMap::new));
-        Map<String, List<String>> splitTargets = new LinkedHashMap<>();
-        proposed.forEach(item -> sourceIds(item).forEach(source ->
-                splitTargets.computeIfAbsent(source, ignored -> new ArrayList<>()).add(item.packageKey())));
-        impact.put("split", splitTargets.entrySet().stream().filter(entry -> entry.getValue().size() > 1)
-                .map(entry -> Map.of("source", sourceKeys.getOrDefault(entry.getKey(), entry.getKey()),
-                        "targets", entry.getValue())).toList());
-        impact.put("merged", proposed.stream().filter(item -> sourceIds(item).size() > 1)
-                .map(item -> Map.of("target", item.packageKey(), "sources", sourceIds(item).stream()
-                        .map(source -> sourceKeys.getOrDefault(source, source)).toList())).toList());
-        return impact;
     }
 
     private List<String> dependencies(TaskPackageRunRow run) {
@@ -439,8 +463,17 @@ public class RollingPackagePlanService {
     }
 
     private List<PlanPackage> readPackages(String value) {
-        try { return normalize(json.readValue(value, new TypeReference<List<PlanPackage>>() { })); }
+        try { return List.copyOf(json.readValue(value, new TypeReference<List<PlanPackage>>() { })); }
         catch (JacksonException failure) { throw new ConflictException("PACKAGE_PLAN_JSON_INVALID", "拆包提案无法读取"); }
+    }
+
+    private RollingPackagePlanCompilation.Result compilePlan(String taskId, List<PlanPackage> packages) {
+        RollingPackagePlanCompilation.Result result = compilation.compilePlan(
+                compilationInputs.loadTask(taskId), packages);
+        if (result.accepted()) return result;
+        RollingPackagePlanCompilation.Problem problem = result.problems().isEmpty() ? null : result.problems().getFirst();
+        throw new BadRequestException(problem == null ? "PACKAGE_PLAN_INVALID" : problem.code(),
+                problem == null ? "剩余拆包提案无法编译" : problem.staticDetail());
     }
 
     private List<String> readStrings(String value) {

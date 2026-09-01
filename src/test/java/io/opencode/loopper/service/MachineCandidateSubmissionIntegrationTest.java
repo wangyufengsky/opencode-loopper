@@ -967,16 +967,23 @@ class MachineCandidateSubmissionIntegrationTest {
     }
 
     @Test
-    void reservedCandidateKindsExposeBudgetsButFailClosedUntilTheirAdaptersExist() {
+    void rollingIsIntegratedWhileRemainingReservedKindsFailClosedUntilTheirAdaptersExist() {
         assertThat(MachineCandidateKind.ROLLING_PACKAGE_PLAN_V1.maximumAttempts()).isEqualTo(3);
         assertThat(MachineCandidateKind.REVIEWER_REPORT_V1.maximumAttempts()).isEqualTo(3);
         assertThat(MachineCandidateKind.PROJECT_CONVENTION_V1.maximumAttempts()).isEqualTo(3);
         assertThat(MachineCandidateKind.JUDGE_DECISION_V1.maximumAttempts()).isEqualTo(2);
 
+        assertThat(MachineCandidateProtocolPolicy.contract(MachineCandidateKind.ROLLING_PACKAGE_PLAN_V1))
+                .satisfies(contract -> {
+                    assertThat(contract.integrated()).isTrue();
+                    assertThat(contract.fallbackAllowed()).isFalse();
+                    assertThat(contract.scopeType())
+                            .isEqualTo(MachineCandidateSubmission.CandidateScopeType.TASK);
+                    assertThat(contract.ownerType())
+                            .isEqualTo(MachineCandidateSubmission.CandidateOwnerType.TASK_PACKAGE_PLAN_REVISION);
+                });
+
         List<MachineCandidateSubmission.OpenCommand> commands = List.of(
-                futureRun("future-rolling", MachineCandidateSubmission.CandidateScope.task("task"),
-                        MachineCandidateSubmission.CandidateOwnerRef.taskPackagePlanRevision("plan"),
-                        MachineCandidateKind.ROLLING_PACKAGE_PLAN_V1, 3),
                 futureRun("future-reviewer", MachineCandidateSubmission.CandidateScope.designerSession("s"),
                         MachineCandidateSubmission.CandidateOwnerRef.analysisReport("report"),
                         MachineCandidateKind.REVIEWER_REPORT_V1, 3),
@@ -994,6 +1001,50 @@ class MachineCandidateSubmissionIntegrationTest {
         }
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ai_candidate_submission_run WHERE id LIKE 'future-%'",
                 Integer.class)).isZero();
+    }
+
+    @Test
+    void rollingProductionPolicyRejectsThenAcceptsAndPersistsOnlyServerCompiledPlan() {
+        insertRollingCandidateOwner();
+        MachineCandidateSubmission.RunSnapshot opened = submissions.open(new MachineCandidateSubmission.OpenCommand(
+                "rolling-candidate-run", MachineCandidateSubmission.CandidateScope.task("task-rolling"),
+                MachineCandidateSubmission.CandidateOwnerRef.taskPackagePlanRevision("rolling-plan"),
+                MachineCandidateKind.ROLLING_PACKAGE_PLAN_V1, "ROLLING_PACKAGE_PLAN_V1", 2, 0,
+                MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP, "ROLLING_PACKAGE_PLAN_V1",
+                "generation-1", "remote-1", 3));
+        String invalid = """
+                {"packages":[{"packageKey":"WP-2A","title":"拆分","objective":"拆分入口",
+                "replaces":["WP-X"],"dependencies":["WP-1"],"requirementRefs":["RQ-1"]}]}
+                """;
+
+        MachineCandidateSubmission.SubmissionResult rejected = submissions.submit(
+                new MachineCandidateSubmission.SubmitCommand(opened.runId(), "rolling-attempt-1",
+                        invalid, 0, MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP));
+
+        assertThat(rejected.outcome()).isEqualTo(MachineCandidateOutcome.REJECTED);
+        assertThat(rejected.retryable()).isTrue();
+        assertThat(rejected.problems()).singleElement().satisfies(problem -> {
+            assertThat(problem.code()).isEqualTo("ROLLING_PACKAGE_SOURCE_INVALID");
+            assertThat(problem.allowedValues()).containsExactly("WP-2");
+        });
+        String valid = invalid.replace("WP-X", "WP-2");
+        MachineCandidateSubmission.SubmissionResult accepted = submissions.submit(
+                new MachineCandidateSubmission.SubmitCommand(opened.runId(), "rolling-attempt-2",
+                        valid, rejected.submissionRevision(),
+                        MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP));
+
+        assertThat(accepted.outcome()).isEqualTo(MachineCandidateOutcome.ACCEPTED);
+        assertThat(mapper.findRollingPackagePlanAcceptedResult(opened.runId())).hasValueSatisfying(result -> {
+            assertThat(result.taskPackagePlanRevisionId()).isEqualTo("rolling-plan");
+            assertThat(result.sourceRevision()).isEqualTo(2);
+            assertThat(result.ownerVersion()).isZero();
+            assertThat(result.canonicalCandidateJson()).doesNotContain("rolling-run-2", "remote-1");
+            assertThat(result.canonicalPlanJson()).contains("rolling-run-2", "WP-2A");
+            assertThat(result.impactJson()).contains("before", "after", "WP-2", "WP-2A");
+            assertThat(result.settledPlanRevisionId()).isNull();
+        });
+        assertThat(jdbc.queryForObject("SELECT state FROM task_package_plan_revision WHERE id='rolling-plan'",
+                String.class)).isEqualTo("GENERATING");
     }
 
     @Test
@@ -1460,6 +1511,29 @@ class MachineCandidateSubmissionIntegrationTest {
         jdbc.update("INSERT INTO open_code_session_runtime_binding(external_session_id,runtime_generation_id,"
                 + "ownership_mode,endpoint_fingerprint,created_at) VALUES('remote-1','generation-1','MANAGED',?, 'now')",
                 "a".repeat(64));
+    }
+
+    private void insertRollingCandidateOwner() {
+        jdbc.update("INSERT INTO task(id,project_id,loop_draft_id,title,state,created_at,updated_at) "
+                + "VALUES('task-rolling','p','d','Rolling','RUNNING','now','now')");
+        jdbc.update("INSERT INTO task_package_plan_revision(id,task_id,designer_session_id,requirement_revision_id,"
+                + "revision,state,origin,plan_json,impact_json,created_at,updated_at) "
+                + "VALUES('rolling-active','task-rolling','s','r',1,'ACTIVE','INITIAL','[]','{}','now','now')");
+        jdbc.update("INSERT INTO design_work_package(id,designer_session_id,requirement_revision_id,decomposition_id,"
+                + "package_id,ordinal,title,objective,scope_in_json,scope_out_json,dependencies_json,deliverables_json,"
+                + "acceptance_intent_json,requirement_refs_json,state,design_revision,created_at,updated_at) "
+                + "VALUES('rolling-wp2','s','r','dec','WP-2',1,'Rolling package','Deliver rolling package',"
+                + "'[]','[]','[\"WP-1\"]','[]','[]','[\"RQ-1\"]','PENDING',0,'now','now')");
+        jdbc.update("INSERT INTO task_package_run(id,task_id,plan_revision_id,design_work_package_id,package_key,"
+                + "ordinal,title,state,created_at,updated_at) VALUES('rolling-run-2','task-rolling','rolling-active',"
+                + "'rolling-wp2','WP-2',0,'Rolling package','PLANNED','now','now')");
+        jdbc.update("INSERT INTO task_package_run(id,task_id,plan_revision_id,design_work_package_id,package_key,"
+                + "ordinal,title,state,created_at,updated_at) VALUES('rolling-run-1','task-rolling','rolling-active',"
+                + "'wp','WP-1',1,'Frozen package','FACT_FROZEN','now','now')");
+        jdbc.update("INSERT INTO task_package_plan_revision(id,task_id,designer_session_id,requirement_revision_id,"
+                + "revision,state,origin,plan_json,impact_json,external_session_id,external_session_state,"
+                + "base_package_run_id,created_at,updated_at) VALUES('rolling-plan','task-rolling','s','r',2,"
+                + "'GENERATING','AI','[]','{}','remote-1','PROMPTING','rolling-run-2','now','now')");
     }
 
     @TestConfiguration

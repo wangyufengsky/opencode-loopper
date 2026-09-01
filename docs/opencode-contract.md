@@ -104,12 +104,15 @@ their original Session, generation, revisions, attempts and accepted results whi
 migrating to the typed form. The owner/scope guard is active before that historical
 copy, so a V48 cross-scope row fails the complete migration and remains recoverable
 under V48; it is never silently rewritten. Owner deletion and its run/attempt cleanup
-share the caller transaction, and only package design has a separate accepted-result
-row to cascade. `ROLLING_PACKAGE_PLAN_V1`, `REVIEWER_REPORT_V1`,
-`PROJECT_CONVENTION_V1` and `JUDGE_DECISION_V1` plus their owner types are reserved
-for later adapters, but this release does not grant them a Session profile or tool
-permission and rejects attempts to open them. Only `PACKAGE_DESIGN_V1` retains the
-explicit Markdown-fallback compatibility policy; reserved kinds fail closed.
+share the caller transaction. V49 initially gave only package design a separate
+accepted-result row; V56 adds the rolling-plan accepted result and its exact owner/run
+cascade. `ROLLING_PACKAGE_PLAN_V1`, `REVIEWER_REPORT_V1`,
+`PROJECT_CONVENTION_V1` and `JUDGE_DECISION_V1` plus their owner types were reserved
+for staged adapters. V56 activates only `ROLLING_PACKAGE_PLAN_V1`; Reviewer,
+Convention and Judge remain rejected at open. Rolling uses a dedicated
+`ROLLING_PACKAGE_CANDIDATE_READ_ONLY` profile with `read/glob/grep` and only the
+exact private submission tool. It has no Markdown/marker fallback after dispatch.
+Only `PACKAGE_DESIGN_V1` retains the explicit Markdown-fallback compatibility policy.
 
 The private `/api/internal-mcp-streamable` Router accepts only literal loopback
 addresses and constant-time Bearer matches. It registers exactly one tool,

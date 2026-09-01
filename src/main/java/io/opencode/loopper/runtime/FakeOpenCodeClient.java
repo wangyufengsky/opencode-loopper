@@ -548,7 +548,8 @@ public class FakeOpenCodeClient implements OpenCodeClient {
         return profile == SessionProfile.DECOMPOSER_CANDIDATE_READ_ONLY
                 || profile == SessionProfile.PACKAGE_DESIGN_CANDIDATE_READ_ONLY
                 || profile == SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY
-                || profile == SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS;
+                || profile == SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS
+                || profile == SessionProfile.ROLLING_PACKAGE_CANDIDATE_READ_ONLY;
     }
     private OpenCodeSession session(String id, Path worktree) {
         if (managedGeneration != null && !managedGeneration.isBlank()

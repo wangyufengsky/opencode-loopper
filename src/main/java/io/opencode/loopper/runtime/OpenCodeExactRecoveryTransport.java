@@ -417,7 +417,8 @@ final class OpenCodeExactRecoveryTransport {
         return profile == SessionProfile.DECOMPOSER_CANDIDATE_READ_ONLY
                 || profile == SessionProfile.PACKAGE_DESIGN_CANDIDATE_READ_ONLY
                 || profile == SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY
-                || profile == SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS;
+                || profile == SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS
+                || profile == SessionProfile.ROLLING_PACKAGE_CANDIDATE_READ_ONLY;
     }
 
     private static void requireCandidatePolicy(SessionCreationPlan plan) {

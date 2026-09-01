@@ -116,12 +116,12 @@ fi
 
 if [[ -n "${LOOPPER_JAR_PATH:-}" ]]; then
   JAR_PATH="${LOOPPER_JAR_PATH}"
-elif [[ -f "${APP_HOME}/target/opencode-loopper-0.3.6.jar" ]]; then
-  JAR_PATH="${APP_HOME}/target/opencode-loopper-0.3.6.jar"
-elif [[ -f "${APP_HOME}/opencode-loopper-0.3.6.jar" ]]; then
-  JAR_PATH="${APP_HOME}/opencode-loopper-0.3.6.jar"
+elif [[ -f "${APP_HOME}/target/opencode-loopper-0.3.8.jar" ]]; then
+  JAR_PATH="${APP_HOME}/target/opencode-loopper-0.3.8.jar"
+elif [[ -f "${APP_HOME}/opencode-loopper-0.3.8.jar" ]]; then
+  JAR_PATH="${APP_HOME}/opencode-loopper-0.3.8.jar"
 else
-  fail "找不到成品 JAR。请把 opencode-loopper-0.3.6.jar 放到 ${APP_HOME}，或设置 LOOPPER_JAR_PATH。"
+  fail "找不到成品 JAR。请把 opencode-loopper-0.3.8.jar 放到 ${APP_HOME}，或设置 LOOPPER_JAR_PATH。"
 fi
 
 [[ -f "${JAR_PATH}" ]] || fail "JAR 不存在：${JAR_PATH}"

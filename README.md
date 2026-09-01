@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.3.6`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.3.8`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -130,7 +130,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.3.6.jar
+java -jar target/opencode-loopper-0.3.8.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -331,6 +331,7 @@ Git 任务的最新 Execution Cycle 成功并处于 `AWAITING_DECISION` 或用�
 | `LOOPPER_DECOMPOSER_CANDIDATE_ENABLED` | `true` | 大型任务 Decomposer 使用受管内部 MCP 候选提交；设为 `false` 时新 run 使用旧 JSON 兼容路径 |
 | `LOOPPER_PACKAGE_DESIGN_CANDIDATE_V1_ENABLED` | `true` | 工作包 Designer 默认使用 `PACKAGE_DESIGN_V1` MCP 主路；设为 `false` 时新工作包直接使用既有 Designer + Markdown 编译路线，已持久化候选仍可恢复 |
 | `LOOPPER_ACCEPTANCE_CLOSED_CHOICE_V7_ENABLED` | `true` | 已获真实模型同 Session 拒绝后自修正资格的 v7 闭集候选开关；设为 `false` 只回滚新运行到旧 JSON 路径，持久化候选仍可恢复和结算。`ACCEPTED/WAITING_INPUT/CLOSED` 仍须取得并持久化 `REMOTE_COMPLETED / ABORT_ACKNOWLEDGED / ALREADY_ABSENT` 才可编译、等待人工、失败收束或切 legacy；停止未确认保持同一 run `DISCONNECTED`，不创建 Task。只有正常完成且零提交的精确关闭原因可切旧 JSON 路径；超时、Provider/交互失败和历史缺失原因均失败关闭 |
+| `LOOPPER_ROLLING_PACKAGE_PLAN_V1_ENABLED` | `false` | 滚动任务剩余计划的 MCP 资格开关。`false` 时新建议使用既有只读 JSON marker 路线；一旦候选 Session/run 已建立，零提交、超时、传输、安全、代次和停止不确定均失败关闭且不读取 marker。已有候选运行和 V56 接受结果始终保留恢复/结算 adapter；只有远端完成或确认停止后才形成待人工确认的 `PROPOSED` 计划 |
 | `LOOPPER_TASK_PROFILE_ROUTER_TIMEOUT` | `240s` | Router 尚未建立远端 Session 时的连接等待；连接成功后不再使用总时限，而是等待真实终态 |
 | `LOOPPER_CHROME_EXECUTABLE` | 自动检测 | `BROWSER` 验证器使用的 Chrome/Chromium 绝对路径 |
 | `LOOPPER_MCP_BEARER_TOKEN` | 每次启动随机生成 | `/api/mcp-streamable` 和 `/api/mcp` 的 Bearer Token |
@@ -363,7 +364,7 @@ Git 任务的最新 Execution Cycle 成功并处于 `AWAITING_DECISION` 或用�
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.3.6.jar`
+- `target/opencode-loopper-0.3.8.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -394,7 +395,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:51234
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.3.6.jar`
+- `opencode-loopper-0.3.8.jar`
 - `start-windows.bat`
 
 确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
@@ -432,7 +433,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.3.6.jar \
+jar tf target/opencode-loopper-0.3.8.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -522,7 +523,7 @@ Windows PowerShell：
 例如发布下一版本：
 
 ```bash
-VERSION=0.3.6
+VERSION=0.3.8
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -562,7 +563,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.3.6.jar
+java -jar target/opencode-loopper-0.3.8.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。
@@ -691,6 +692,8 @@ echo %PATHEXT%
 `0.3.1` 通过 V51-V55 把验收候选的 Legacy handoff、受管 internal launch、提示派发和终止收束升级为可恢复协议：远端创建前冻结完整请求摘要、权限摘要、运行代次和一次性本地凭证，回读 Session 未通过 attestation 时不能打开 run，未知创建结果只进入 cleanup；首次及修正提示在 HTTP 前持久化模型调用消耗和可能派发边界，避免崩溃后盲重发。取消、需求替换和首次提示的预算耗尽、回读不支持、结果不确定统一使用唯一 termination intent，在 run、prompt、remote 全部取得安静证明后才原子推进父状态；后到用户动作只提升既有失败 intent。已有 handoff 一旦建立即成为唯一权威，不重复执行 internal launch 预检；仅受管运行时能力在远端创建前明确缺失时可直接建立新 Legacy handoff，内部候选无效耗尽则进入 `WAITING_INPUT`，不得降级。`0.3.0` 的首次完整验证暴露并修复了这些协议与结构门禁问题，因此不作为交付版本；`0.3.1` 仍以默认关闭进行资格验证，只有隔离真实模型完成同一 Session“主动 MCP 提交 → 服务端拒绝 → 自修正 → 接受”后，后续新版本才允许默认开启。
 
 `0.3.2` 修复 0.3.1 隔离真实模型资格中暴露的 OpenCode HTTP 契约不兼容：OpenCode 1.18.23 要求调用方提供的 `messageID` 以 `msg` 开头，而验收候选 INITIAL/CORRECTION 提示原先使用 `loopper-candidate-prompt-*`，导致持久化 launch/run 已打开后提示在 POST 边界被 400 拒绝。新候选提示统一使用稳定的 `msg_loopper_candidate_prompt_<name-uuid>`，并在哈希、持久化、精确回读和派发之间保持同一身份；既有历史 dispatch 不改写。该修复不放宽候选校验或兜底策略，Acceptance V7 默认开关继续保持 `false`，直到隔离成品 JAR 补齐同一真实 Session 的“主动 MCP 提交 → 拒绝 → 自修正 → 接受”证据。
+
+`0.3.8` 接入 `ROLLING_PACKAGE_PLAN_V1` 资格版：MCP 与手工/Legacy 入口共用同一确定性编译器，模型只提交包局部语义和闭集引用，服务端生成稳定运行映射、依赖有序计划与 impact；V56 在候选接受事务中保存不可变 canonical result，取得远端完成/停止正向证明后才结算为待人工确认的 `PROPOSED`。派发前 flag/MCP 不可用可使用全新 Legacy Session，派发后零提交、超时、传输、安全、代次和停止不确定不读取 marker；`DISCONNECTED` 保留同一拥有者且不自动推进。该版默认开关保持 `false`，待隔离成品 JAR 真实模型证明主动 MCP 调用与同 Session 机械拒绝后自修正后，再由下一版本默认开启。
 
 `0.3.6` 在 0.3.5 隔离成品 JAR 资格通过后默认启用验收闭集 MCP 候选；`LOOPPER_ACCEPTANCE_CLOSED_CHOICE_V7_ENABLED=false` 只阻止新候选运行，保留既有持久化运行的恢复与结算能力。唯一最优仍由服务端直接编译，不可枚举、未穷举、路径归属或权限安全问题仍以零候选调用失败关闭，已获资格的一次机械纠错范围与确定性接受合同不变。
 

@@ -382,7 +382,7 @@ class CandidateSubmissionMigrationTest {
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
 
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("55");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("56");
         assertThat(flyway.migrate().migrationsExecuted).isZero();
         try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
             statement.execute("PRAGMA foreign_keys=ON");
@@ -392,7 +392,7 @@ class CandidateSubmissionMigrationTest {
             }
             assertThat(tables).contains("ai_candidate_submission_run", "ai_candidate_submission_attempt",
                     "open_code_session_runtime_binding", "package_design_candidate_accepted_result",
-                    "acceptance_candidate_legacy_handoff");
+                    "rolling_package_plan_candidate_accepted_result", "acceptance_candidate_legacy_handoff");
 
             List<String> bindingColumns = new ArrayList<>();
             try (var result = statement.executeQuery("PRAGMA table_info(open_code_session_runtime_binding)")) {
@@ -484,6 +484,16 @@ class CandidateSubmissionMigrationTest {
                     "contract_version", "canonical_candidate_json", "canonical_markdown",
                     "compiled_result_json", "canonical_result_sha256", "settled_compilation_id",
                     "created_at", "updated_at", "version");
+
+            List<String> rollingAcceptedResultColumns = new ArrayList<>();
+            try (var result = statement.executeQuery(
+                    "PRAGMA table_info(rolling_package_plan_candidate_accepted_result)")) {
+                while (result.next()) rollingAcceptedResultColumns.add(result.getString("name"));
+            }
+            assertThat(rollingAcceptedResultColumns).containsExactly(
+                    "candidate_run_id", "task_package_plan_revision_id", "source_revision", "owner_version",
+                    "contract_version", "canonical_candidate_json", "canonical_plan_json", "impact_json",
+                    "canonical_result_sha256", "settled_plan_revision_id", "created_at", "updated_at", "version");
 
             insertCandidateOwners(statement);
             statement.executeUpdate("""
@@ -897,6 +907,112 @@ class CandidateSubmissionMigrationTest {
     }
 
     @Test
+    void v56GuardsAndSettlesImmutableRollingPackagePlanAcceptedResults() throws Exception {
+        String url = "jdbc:sqlite:" + temporaryDirectory.resolve("rolling-plan-accepted-result.db");
+        Flyway.configure().dataSource(url, null, null).load().migrate();
+        try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
+            statement.execute("PRAGMA foreign_keys=ON");
+            insertAllCandidateOwners(statement);
+            insertSharedRuntimeBinding(statement);
+            statement.executeUpdate("""
+                    INSERT INTO task_package_plan_revision(
+                      id,task_id,designer_session_id,requirement_revision_id,revision,state,origin,plan_json,
+                      base_task_version,base_package_version,created_at,updated_at,version)
+                    VALUES('plan-sibling','task','s','r',2,'PROPOSED','AI','{}',0,0,'now','now',0)
+                    """);
+            statement.executeUpdate("""
+                    INSERT INTO task(id,project_id,loop_draft_id,title,state,created_at,updated_at)
+                    VALUES('task-other','p','d-other','Other','PENDING_START','now','now')
+                    """);
+            statement.executeUpdate("""
+                    INSERT INTO task_package_plan_revision(
+                      id,task_id,designer_session_id,requirement_revision_id,revision,state,origin,plan_json,
+                      base_task_version,base_package_version,created_at,updated_at,version)
+                    VALUES('plan-other','task-other','s','r',1,'PROPOSED','AI','{}',0,0,'now','now',0)
+                    """);
+            insertRollingCandidateRun(statement, "rolling-run", "task", "plan", 1, 0,
+                    "ROLLING_PACKAGE_PLAN_V1", "OPEN");
+
+            statement.executeUpdate("""
+                    INSERT INTO rolling_package_plan_candidate_accepted_result(
+                      candidate_run_id,task_package_plan_revision_id,source_revision,owner_version,
+                      contract_version,canonical_candidate_json,canonical_plan_json,impact_json,
+                      canonical_result_sha256,created_at,updated_at,version)
+                    VALUES('rolling-run','plan',1,0,'ROLLING_PACKAGE_PLAN_V1','{}','{"packages":[]}','{}',
+                      'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','now','now',0)
+                    """);
+            assertThat(count(statement, "rolling_package_plan_candidate_accepted_result",
+                    "candidate_run_id='rolling-run' AND settled_plan_revision_id IS NULL AND version=0"))
+                    .isEqualTo(1);
+
+            insertCandidateRunAttemptAndOptionalResult(statement,
+                    new OwnerDeleteCase("DESIGN_WORK_PACKAGE", "wp", "design_work_package",
+                            "designer_session_id", "s", "PACKAGE_DESIGN_V1", 3, false),
+                    "package-kind-run");
+            assertThatThrownBy(() -> insertRollingAcceptedResult(statement,
+                    "package-kind-run", "plan", 1, 0, "ROLLING_PACKAGE_PLAN_V1"))
+                    .hasMessageContaining("rolling package plan accepted result run mismatch");
+
+            insertRollingCandidateRun(statement, "wrong-owner-run", "task", "plan", 1, 0,
+                    "ROLLING_PACKAGE_PLAN_V1", "OPEN");
+            assertThatThrownBy(() -> insertRollingAcceptedResult(statement,
+                    "wrong-owner-run", "plan-sibling", 1, 0, "ROLLING_PACKAGE_PLAN_V1"))
+                    .hasMessageContaining("rolling package plan accepted result run mismatch");
+
+            insertRollingCandidateRun(statement, "bad-source-run", "task", "plan-sibling", 2, 0,
+                    "ROLLING_PACKAGE_PLAN_V1", "OPEN");
+            assertThatThrownBy(() -> insertRollingAcceptedResult(statement,
+                    "bad-source-run", "plan-sibling", 1, 0, "ROLLING_PACKAGE_PLAN_V1"))
+                    .hasMessageContaining("rolling package plan accepted result source mismatch");
+            assertThatThrownBy(() -> insertRollingAcceptedResult(statement,
+                    "bad-source-run", "plan-sibling", 2, 1, "ROLLING_PACKAGE_PLAN_V1"))
+                    .hasMessageContaining("rolling package plan accepted result owner version mismatch");
+            assertThatThrownBy(() -> insertRollingAcceptedResult(statement,
+                    "bad-source-run", "plan-sibling", 2, 0, "ROLLING_PACKAGE_PLAN_V2"))
+                    .hasMessageContaining("rolling package plan accepted result contract mismatch");
+
+            statement.executeUpdate("DROP TRIGGER trg_candidate_owner_scope_insert");
+            insertRollingCandidateRun(statement, "bad-scope-run", "task-other", "plan-sibling", 2, 0,
+                    "ROLLING_PACKAGE_PLAN_V1", "OPEN");
+            assertThatThrownBy(() -> insertRollingAcceptedResult(statement,
+                    "bad-scope-run", "plan-sibling", 2, 0, "ROLLING_PACKAGE_PLAN_V1"))
+                    .hasMessageContaining("rolling package plan accepted result task scope mismatch");
+
+            assertThatThrownBy(() -> statement.executeUpdate("""
+                    UPDATE rolling_package_plan_candidate_accepted_result
+                    SET settled_plan_revision_id='plan-sibling',updated_at='settled',version=version+1
+                    WHERE candidate_run_id='rolling-run' AND version=0 AND settled_plan_revision_id IS NULL
+                    """)).hasMessageContaining("rolling package plan accepted result settlement owner mismatch");
+            assertThat(statement.executeUpdate("""
+                    UPDATE rolling_package_plan_candidate_accepted_result
+                    SET settled_plan_revision_id='plan',updated_at='settled',version=version+1
+                    WHERE candidate_run_id='rolling-run' AND version=0 AND settled_plan_revision_id IS NULL
+                    """)).isEqualTo(1);
+            assertThat(statement.executeUpdate("""
+                    UPDATE rolling_package_plan_candidate_accepted_result
+                    SET settled_plan_revision_id='plan',updated_at='again',version=version+1
+                    WHERE candidate_run_id='rolling-run' AND version=0 AND settled_plan_revision_id IS NULL
+                    """)).isZero();
+            assertThatThrownBy(() -> statement.executeUpdate("""
+                    UPDATE rolling_package_plan_candidate_accepted_result
+                    SET canonical_plan_json='{"changed":true}' WHERE candidate_run_id='rolling-run'
+                    """)).hasMessageContaining("rolling package plan accepted result payload is immutable");
+
+            insertRollingCandidateRun(statement, "cascade-run", "task", "plan-sibling", 2, 0,
+                    "ROLLING_PACKAGE_PLAN_V1", "OPEN");
+            insertRollingAcceptedResult(statement, "cascade-run", "plan-sibling",
+                    2, 0, "ROLLING_PACKAGE_PLAN_V1");
+            statement.executeUpdate("DELETE FROM task_package_plan_revision WHERE id='plan-sibling'");
+            assertThat(count(statement, "ai_candidate_submission_run", "id='cascade-run'")).isZero();
+            assertThat(count(statement, "rolling_package_plan_candidate_accepted_result",
+                    "candidate_run_id='cascade-run'")).isZero();
+            try (var result = statement.executeQuery("PRAGMA foreign_key_check")) {
+                assertThat(result.next()).isFalse();
+            }
+        }
+    }
+
+    @Test
     void upgradingFromV47PreservesRunsAttemptsIndexesAndForeignKeys() throws Exception {
         String url = "jdbc:sqlite:" + temporaryDirectory.resolve("upgrade-v47-with-data.db");
         Flyway.configure().dataSource(url, null, null)
@@ -932,7 +1048,7 @@ class CandidateSubmissionMigrationTest {
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
 
-            assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("55");
+            assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("56");
         try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
             statement.execute("PRAGMA foreign_keys=ON");
             try (var result = statement.executeQuery("SELECT owner_type,owner_id,state,version "
@@ -1014,7 +1130,7 @@ class CandidateSubmissionMigrationTest {
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
 
-            assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("55");
+            assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("56");
         try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
             statement.execute("PRAGMA foreign_keys=ON");
             try (var result = statement.executeQuery("""
@@ -1104,7 +1220,7 @@ class CandidateSubmissionMigrationTest {
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
 
-            assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("55");
+            assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("56");
         try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
             statement.execute("PRAGMA foreign_keys=ON");
             try (var result = statement.executeQuery("""
@@ -1364,6 +1480,33 @@ class CandidateSubmissionMigrationTest {
                       'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc','now','now',0)
                     """.formatted(runId));
         }
+    }
+
+    private void insertRollingCandidateRun(java.sql.Statement statement, String runId, String taskId,
+                                           String ownerId, long sourceRevision, long ownerVersion,
+                                           String contractVersion, String state) throws Exception {
+        statement.executeUpdate("""
+                INSERT INTO ai_candidate_submission_run(
+                  id,task_id,owner_type,owner_id,candidate_kind,workflow_step,source_revision,owner_version,
+                  submission_channel,contract_version,runtime_generation_id,external_session_id,state,max_attempts,
+                  attempts_used,created_at,updated_at,version)
+                VALUES('%s','%s','TASK_PACKAGE_PLAN_REVISION','%s','ROLLING_PACKAGE_PLAN_V1','%s',
+                  %d,%d,'IN_PROCESS_LEGACY','%s','shared-generation','shared-remote','%s',3,0,'now','now',0)
+                """.formatted(runId, taskId, ownerId, runId,
+                sourceRevision, ownerVersion, contractVersion, state));
+    }
+
+    private void insertRollingAcceptedResult(java.sql.Statement statement, String runId,
+                                             String ownerId, long sourceRevision,
+                                             long ownerVersion, String contractVersion) throws Exception {
+        statement.executeUpdate("""
+                INSERT INTO rolling_package_plan_candidate_accepted_result(
+                  candidate_run_id,task_package_plan_revision_id,source_revision,owner_version,
+                  contract_version,canonical_candidate_json,canonical_plan_json,impact_json,
+                  canonical_result_sha256,created_at,updated_at,version)
+                VALUES('%s','%s',%d,%d,'%s','{}','{"packages":[]}','{}',
+                  'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb','now','now',0)
+                """.formatted(runId, ownerId, sourceRevision, ownerVersion, contractVersion));
     }
 
     private void insertSharedRuntimeBinding(java.sql.Statement statement) throws Exception {

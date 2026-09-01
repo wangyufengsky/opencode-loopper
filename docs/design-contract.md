@@ -1078,11 +1078,12 @@ mutates the draft or creates a Task.
 
 `MachineCandidateSubmission`/内部 MCP 只负责把机器候选送回 Loopper，并返回有界的接受、拒绝或等待输入结果；它不是设计事实、编译结果或状态转换的权威来源。候选是否可接受、如何编译以及如何写入，只能由服务端冻结版本对应的 `CandidatePolicy`、确定性 compiler 和 DB-only accepted writer 决定。模型声明成功、MCP 调用成功或候选 JSON 形状正确，都不能绕过服务端验证。
 
-当前只允许以下三个候选合同：
+当前只允许以下四个候选合同：
 
 - `DECOMPOSITION_PLAN_V2`：一个候选 run 最多接受 5 次提交；每次拒绝都必须返回有界、结构化、可修复的问题，超过预算或出现不可恢复问题时失败关闭。
 - `ACCEPTANCE_CLOSED_CHOICE_V7`：只允许服务端已经证明为自然可枚举、候选集合完备且存在真实机械同分的闭集选择，最多接受 2 次提交。第一次之后只有闭集选择值错误，或在其余根字段仍满足闭集且 `factAssignments` 合法时，把 `capabilityPreferences` 对象数组机械简写成非空整数数组，或把每项严格简写为整数 `{factIndex, capabilityIndex}`；以及把同一个 capability 选择同时严格机械写成非空 `factAssignments:[{factIndex, capabilityIndex}]` 与整数 `capabilityPreferences:[n]`，才可按服务端返回的完整对象数组允许值重试一次；简写候选本身永不被接受，混合项和未知字段不属于纠错面。
 - `PACKAGE_DESIGN_V1`：每次提交完整替换的工作包语义对象，包含 `READY | NEEDS_INPUT`、需求语义、场景、交付物、评审点、Stage 目标/语义引用/依赖和闭集 gap code，最多提交 3 次；Package Designer 提示必须给出精确闭集字段模板，所有跨项引用使用候选局部 `key`，不得以 `id` 冒充；命令、可写路径清单、测试命令、Verifier、权限结论和稳定 ID 属于服务端权威字段，候选一旦携带就直接拒绝。
+- `ROLLING_PACKAGE_PLAN_V1`：每次提交 1–6 个完整替换的剩余包，只允许 `packageKey/title/objective/replaces/dependencies/requirementRefs`，最多提交 3 次。替换来源、冻结需求引用以及“已冻结包或提案中更早包”的依赖均由服务端闭集校验；稳定 run ID、checkpoint、顺序、impact、路径、命令、Verifier、权限和生命周期字段一旦进入候选即失败关闭。
 
 工作包设计采用“双入口、单内核、单权威”。MCP 候选接受后由服务端生成规范 Markdown 作为设计历史，并直接进入确定性 `PackageDesignCompilation`，不创建独立 AI Compiler Session；模型最终自由文本被忽略。未调用 MCP，或三次均为明确可降级的机械问题时，只有远端已经 `COMPLETED` 且最终 Markdown 非空，才完整复用现有 Markdown 编译路线。冻结需求明确选择 Markdown-only 或不使用私有提交时，Package Designer 的后置候选提示必须尊重该选择，不得用“优先调用”覆盖它；该 Session 仍受候选最小权限 profile 管控，但应以零次提交正常完成并走 Markdown 兜底。`NEEDS_INPUT`、路径/安全/权限/修订/运行代次冲突、超时、传输失败和停止未确认都失败关闭，不得把可能不完整的输出当作兜底。
 
@@ -1092,11 +1093,13 @@ Compiler v7 的既有快速路径保持不变：
 - 非枚举歧义、路径守卫、安全边界、权限约束或合同问题不得交给候选角色修复，保持 0 个 candidate，并由服务端失败关闭到人工输入。
 - 真同分候选只允许在现有服务端路由明确 `compilerRequired=true` 且闭集证明成立后打开候选 run；不能由模型自行声称“这是闭集”。
 
-候选 OpenCode Session 必须使用独立的最小权限 profile：Decomposer 与工作包设计候选只保留形成仓库证据所需的 `read / glob / grep`，交互式工作包候选可额外使用 `question`，验收闭集选择不开放任何内置工具；三者都只可见精确命名的私有内部 `submit_candidate`，不可见用户 MCP。该内部 MCP 仅允许 Loopper 受管 OpenCode 通过 loopback 和代际 bearer 调用，不属于公共六工具目录。Router 的单次零工具边界、Requirement/Risk Judge 的既有只读与隔离边界均不改变，也不得借候选 profile 获得内部提交工具。
+候选 OpenCode Session 必须使用独立的最小权限 profile：Decomposer、工作包设计和滚动计划候选只保留形成仓库证据所需的 `read / glob / grep`，交互式工作包候选可额外使用 `question`，验收闭集选择不开放任何内置工具；四者都只可见精确命名的私有内部 `submit_candidate`，不可见用户 MCP。该内部 MCP 仅允许 Loopper 受管 OpenCode 通过 loopback 和代际 bearer 调用，不属于公共六工具目录。Router 的单次零工具边界、Requirement/Risk Judge 的既有只读与隔离边界均不改变，也不得借候选 profile 获得内部提交工具。
+
+滚动计划继续保持人工确认边界。启用 `ROLLING_PACKAGE_PLAN_V1` 后，派发前 flag 或私有 MCP 就绪证明缺失才允许创建全新的既有只读 Legacy Session；候选 Session/run 一旦存在，零提交、超时、Provider/传输、交互、安全、代次或停止不确定都不得读取 marker 输出。接受结果先以 V56 不可变行保存，只有远端完成或 abort/不存在的正向证明才与 `GENERATING -> PROPOSED` 在同一结算事务中绑定；未确认停止时保持 `GENERATING + DISCONNECTED`，不得自动确认计划或派发后续包。0.3.7 的开关默认关闭，只有隔离成品 JAR 的真实模型主动调用、拒绝后同 Session 自修正并接受，才允许下一版本默认开启。
 
 外部 `auto/http` 兼容模式不注入私有 MCP。它们继续使用 `IN_PROCESS_LEGACY` 通道，而且每个候选 run 必须新建 OpenCode Session，不能把旧 JSON 会话升级为内部 MCP 会话。受管模式可在同一候选 Session 内根据服务端拒绝结果做有界重提，但不能跨 runtime generation 继续。
 
-候选 feature flag 只控制是否创建新的对应 run。关闭 flag 后不得再打开新 run；已经持久化的 run、恢复读取和兼容 adapter 必须继续可用，因此 persisted adapter 是常驻基础设施，不能通过条件 Bean 随 flag 一起消失。`PACKAGE_DESIGN_V1` 已由隔离成品 JAR 真实证明同 Session 拒绝后修正接受，以及 Markdown-only 下零次提交进入现有编译路线，生产默认值为开启；环境覆盖为 `false` 时新工作包直接使用既有 Designer + Markdown 编译路线，已有候选照常恢复。`ACCEPTANCE_CLOSED_CHOICE_V7` 的 4 条三轴结构工作流与完整 v7 资格门已全绿，但其中拒绝后的两次 MCP 提交由集成驱动器发起，尚不能证明真实模型采用工具并自修正，因此生产默认值保持关闭；环境覆盖为 `false` 是新 run 的即时旧 JSON 回滚，不改变已有 run 的恢复语义。
+候选 feature flag 只控制是否创建新的对应 run。关闭 flag 后不得再打开新 run；已经持久化的 run、恢复读取和兼容 adapter 必须继续可用，因此 persisted adapter 是常驻基础设施，不能通过条件 Bean 随 flag 一起消失。`PACKAGE_DESIGN_V1` 已由隔离成品 JAR 真实证明 MCP 修正接受和 Markdown-only 零提交兼容路线，生产默认开启。`ACCEPTANCE_CLOSED_CHOICE_V7` 已在 0.3.5 隔离成品 JAR 证明真实模型采用私有工具并同 Session 自修正，0.3.6 起默认开启；环境覆盖为 `false` 只把新真同分送回全新旧 JSON Session，不改变已有 run 的恢复。`ROLLING_PACKAGE_PLAN_V1` 在 0.3.7 仍处于默认关闭的真实模型资格阶段。
 
 验收候选创建、提示、停止和父流程收束必须使用 V51-V55 的持久化协议。internal launch 在远端创建前冻结
 owner/source、路由、运行代次、权限/请求摘要和一次性创建凭证，只有回读远端与冻结计划完全一致时才可用

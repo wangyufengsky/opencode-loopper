@@ -6,6 +6,16 @@ import org.junit.jupiter.api.Test;
 
 class LoopperPropertiesTest {
     @Test
+    void rollingPackageCandidateDefaultsOffUntilQualifiedAndCanBeEnabledExplicitly() {
+        LoopperProperties properties = new LoopperProperties();
+
+        assertThat(properties.getInternalCandidate().isRollingPackagePlanV1Enabled()).isFalse();
+
+        properties.getInternalCandidate().setRollingPackagePlanV1Enabled(true);
+        assertThat(properties.getInternalCandidate().isRollingPackagePlanV1Enabled()).isTrue();
+    }
+
+    @Test
     void packageDesignCandidateDefaultsOnAndCanBeDisabledExplicitly() {
         LoopperProperties properties = new LoopperProperties();
 

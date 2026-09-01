@@ -150,6 +150,7 @@ class DesignerSessionMcpIntegrationTest {
         properties.getInternalCandidate().setDecomposerEnabled(false);
         properties.getInternalCandidate().setAcceptanceClosedChoiceV7Enabled(false);
         properties.getInternalCandidate().setPackageDesignV1Enabled(false);
+        properties.getInternalCandidate().setRollingPackagePlanV1Enabled(false);
     }
 
     @Test
@@ -306,9 +307,9 @@ class DesignerSessionMcpIntegrationTest {
                 <!-- ROLLING_PACKAGE_PLAN_JSON_START -->
                 {"packages":[
                   {"packageKey":"WP-2","title":"业务接入","objective":"按包1真实产物接入业务能力",\
-                   "replaces":["WP-2"],"dependencies":["WP-1"],"requirementRefs":["RQ-2"]},
+                   "replaces":["WP-2"],"dependencies":["WP-1"],"requirementRefs":[]},
                   {"packageKey":"WP-3","title":"集成收口","objective":"基于前两包事实完成集成",\
-                   "replaces":["WP-3"],"dependencies":["WP-2"],"requirementRefs":["RQ-3"]}
+                   "replaces":["WP-3"],"dependencies":["WP-2"],"requirementRefs":[]}
                 ]}
                 <!-- ROLLING_PACKAGE_PLAN_JSON_END -->
                 """);
@@ -317,7 +318,8 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(generating.state()).isEqualTo("GENERATING");
         rollingPlanGeneration.pollGenerating();
         assertThat(mapper.findTaskPackagePlanRevision(generating.id())).hasValueSatisfying(proposal -> {
-            assertThat(proposal.state()).isEqualTo("PROPOSED");
+            assertThat(proposal.state()).as("%s: %s", proposal.lastErrorCode(), proposal.lastErrorDetail())
+                    .isEqualTo("PROPOSED");
             assertThat(proposal.origin()).isEqualTo("AI");
             assertThat(proposal.impactJson()).contains("dependencyChanges", "split", "merged");
             assertThat(proposal.baseCheckpointId())

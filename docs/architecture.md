@@ -44,7 +44,8 @@ design/verification/diff/Judge evidence assembly;
 `RollingPackageService`, `RollingPackageCheckpointService`, and
 `RollingPackagePlanService` separately own rolling package commands, the
 Checkpoint-to-fact saga, and confirmed plan revisions; `RollingPackagePlanGenerationService`
-owns the restart-safe read-only AI suggestion transport and `RollingPackageReadService` owns the
+owns the read-only AI suggestion transport, delegates the qualified path to
+`RollingPackagePlanCandidateOrchestrator`, and `RollingPackageReadService` owns the
 lightweight workbench projection. None of those collaborators rewrites an accepted
 LoopDraft or absorbs package state into Stage/Attempt/Designer enums.
 `HttpOpenCodeClient` delegates permission policy and response/Todo/machine-output
@@ -492,7 +493,7 @@ unterminated Session output as fallback input. V48 rebuilds the V47 candidate ta
 without losing historical rows, foreign keys, unique indexes or runtime bindings and
 adds one-active-run-per-package-step enforcement.
 
-V49 generalizes the persistence boundary without changing those three live role
+V49 generalizes the persistence boundary without changing the then-live role
 workflows. Every run now carries one typed aggregate scope
 (`DESIGNER_SESSION | TASK | PROJECT`, with exactly one real foreign key) and one
 typed owner reference. Existing decomposition, acceptance and package rows migrate
@@ -506,10 +507,25 @@ seven concrete owner rows removes its candidate run and dependent attempts in th
 same transaction; package-design deletion also removes its accepted result, while
 the other kinds have no separate accepted-result table. V49 also reserves bounded contracts for
 `ROLLING_PACKAGE_PLAN_V1` (3), `REVIEWER_REPORT_V1` (3),
-`PROJECT_CONVENTION_V1` (3), and `JUDGE_DECISION_V1` (2), but does not connect any
-of them to a Coordinator, policy or writer: opening them fails closed until that
-role is integrated. Fallback compatibility is an explicit per-kind contract;
+`PROJECT_CONVENTION_V1` (3), and `JUDGE_DECISION_V1` (2). V56 connects only
+`ROLLING_PACKAGE_PLAN_V1`; Reviewer, Convention, and Judge still fail closed until
+their role adapters exist. Fallback compatibility is an explicit per-kind contract;
 only `PACKAGE_DESIGN_V1` may request Markdown fallback.
+
+V56 gives rolling replanning the same dual-entry/single-core boundary. The candidate
+contains only `packageKey/title/objective/replaces/dependencies/requirementRefs`;
+stable package-run IDs, lifecycle, checkpoints, commands, paths, permissions and the
+impact projection remain server-owned. Both the MCP adapter and the existing manual/
+Legacy adapter pass through `RollingPackagePlanCompilation`, which closes replacement,
+requirement and dependency references and requires dependencies to point only to a
+frozen package or an earlier package in the proposed order. The accepted transaction
+persists an immutable canonical candidate, authoritative plan and impact row, while the
+generating owner remains unchanged until the remote Session has `REMOTE_COMPLETED`,
+`ABORT_ACKNOWLEDGED`, or `ALREADY_ABSENT` proof. Once a candidate run exists, timeout,
+transport, interaction, generation, safety and uncertain-stop failures never inspect
+assistant final text or start Legacy; uncertain stop keeps the same owner `GENERATING +
+DISCONNECTED`. `LOOPPER_ROLLING_PACKAGE_PLAN_V1_ENABLED` gates only new dispatches and
+defaults off until an isolated real model proves active MCP use and same-Session repair.
 
 `PackageDesignCompilation` is the single deep module behind both package-design
 entries. The MCP adapter maps `PACKAGE_DESIGN_V1` into the unified semantic model;

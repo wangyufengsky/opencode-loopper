@@ -223,6 +223,16 @@ NOT_ENUMERABLE` 失败关闭并进入人工输入，不创建修复 Session。Ac
 7/7 指标 guard 和 1/1 同输入测量，证明服务端候选管道与三轴计数符合边界。当前 MCP 请求由测试驱动器发起，
 不构成真实模型工具采用或自修正证明，因此生产默认值保持关闭；这不移除恢复已有持久化 run 所需的 policy/writer/adapter。
 
+`ROLLING_PACKAGE_PLAN_V1` 是滚动任务剩余后缀的候选合同。模型只提交 1–6 个包的
+`packageKey/title/objective/replaces/dependencies/requirementRefs`；不得提交 run/stage/requirement ID、
+checkpoint、ordinal/version、路径、命令、测试目标、Verifier、权限、安全或 impact。服务端从当前未终态包、
+已冻结包和冻结需求引用建立闭集，将 `replaces` 映射为稳定 package-run ID，并要求依赖只指向已冻结包或
+候选列表中更早的包，从结构上排除前向依赖与环。MCP 与手工/Legacy 入口共用同一编译内核和 impact 算法。
+只有闭集引用、缺失/类型/未知字段等有界机械错误可在同一 Session 最多修正三次；权威字段、安全或非枚举
+问题失败关闭且不可 fallback。接受只先写 V56 不可变 canonical result；远端完成或确认停止后才能把拥有者
+结算为 `PROPOSED`，人工确认计划的既有边界不变。0.3.7 默认关闭新候选派发，保留常驻 policy/writer 读取
+已有运行；资格必须证明真实模型能看到精确私有工具、主动调用并在机械拒绝后同 Session 自修正。
+
 验收候选的远端创建、提示和停止都不是瞬时调用。V51-V55 要求在 I/O 前分别冻结 Legacy handoff、
 internal launch、prompt dispatch 和 termination intent：创建请求必须带服务端生成的一次性本地凭证，
 回读 Session 必须与请求摘要、权限摘要、运行代次和受管 binding 完全一致；创建结果不确定时只进入远端

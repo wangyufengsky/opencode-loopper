@@ -71,6 +71,8 @@ public class LoopperProperties {
         private boolean acceptanceClosedChoiceV7Enabled = true;
         /** Qualified package-design candidate transport is on by default and may be disabled for rollback. */
         private boolean packageDesignV1Enabled = true;
+        /** Rolling plan candidate transport remains off until its real-model qualification is recorded. */
+        private boolean rollingPackagePlanV1Enabled;
         public boolean isDecomposerEnabled() { return decomposerEnabled; }
         public void setDecomposerEnabled(boolean value) { this.decomposerEnabled = value; }
         public boolean isAcceptanceClosedChoiceV7Enabled() { return acceptanceClosedChoiceV7Enabled; }
@@ -79,6 +81,8 @@ public class LoopperProperties {
         }
         public boolean isPackageDesignV1Enabled() { return packageDesignV1Enabled; }
         public void setPackageDesignV1Enabled(boolean value) { this.packageDesignV1Enabled = value; }
+        public boolean isRollingPackagePlanV1Enabled() { return rollingPackagePlanV1Enabled; }
+        public void setRollingPackagePlanV1Enabled(boolean value) { this.rollingPackagePlanV1Enabled = value; }
     }
     public static class RetryWait {
         private Duration rateLimitBase = Duration.ofSeconds(60);

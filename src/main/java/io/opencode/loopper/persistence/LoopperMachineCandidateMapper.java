@@ -439,4 +439,43 @@ public interface LoopperMachineCandidateMapper {
             @Param("expectedVersion") long expectedVersion,
             @Param("settledCompilationId") String settledCompilationId,
             @Param("updatedAt") String updatedAt);
+
+    @Insert("""
+            INSERT INTO rolling_package_plan_candidate_accepted_result(
+              candidate_run_id,task_package_plan_revision_id,source_revision,owner_version,contract_version,
+              canonical_candidate_json,canonical_plan_json,impact_json,canonical_result_sha256,
+              settled_plan_revision_id,created_at,updated_at,version)
+            VALUES(#{candidateRunId},#{taskPackagePlanRevisionId},#{sourceRevision},#{ownerVersion},
+              #{contractVersion},#{canonicalCandidateJson},#{canonicalPlanJson},#{impactJson},
+              #{canonicalResultSha256},#{settledPlanRevisionId},#{createdAt},#{updatedAt},#{version})
+            """)
+    int insertRollingPackagePlanAcceptedResult(RollingPackagePlanAcceptedResultRow row);
+
+    @Select("""
+            SELECT * FROM rolling_package_plan_candidate_accepted_result
+            WHERE candidate_run_id=#{candidateRunId}
+            """)
+    Optional<RollingPackagePlanAcceptedResultRow> findRollingPackagePlanAcceptedResult(
+            String candidateRunId);
+
+    @Select("""
+            SELECT * FROM rolling_package_plan_candidate_accepted_result
+            WHERE settled_plan_revision_id IS NULL
+            ORDER BY created_at,candidate_run_id
+            """)
+    List<RollingPackagePlanAcceptedResultRow> listUnsettledRollingPackagePlanAcceptedResults();
+
+    @Update("""
+            UPDATE rolling_package_plan_candidate_accepted_result
+            SET settled_plan_revision_id=#{settledPlanRevisionId},updated_at=#{updatedAt},version=version+1
+            WHERE candidate_run_id=#{candidateRunId} AND version=#{expectedVersion}
+              AND settled_plan_revision_id IS NULL
+              AND task_package_plan_revision_id=#{settledPlanRevisionId}
+              AND #{settledPlanRevisionId} IS NOT NULL AND length(#{settledPlanRevisionId}) > 0
+            """)
+    int settleRollingPackagePlanAcceptedResult(
+            @Param("candidateRunId") String candidateRunId,
+            @Param("expectedVersion") long expectedVersion,
+            @Param("settledPlanRevisionId") String settledPlanRevisionId,
+            @Param("updatedAt") String updatedAt);
 }

@@ -17,6 +17,7 @@ import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.LoopSpecCompilationRow;
 import io.opencode.loopper.persistence.OpenCodeSessionRuntimeBindingRow;
 import io.opencode.loopper.persistence.TaskDecompositionRow;
+import io.opencode.loopper.persistence.TaskPackagePlanRevisionRow;
 import io.opencode.loopper.runtime.InternalMcpCredentialProvider;
 import io.opencode.loopper.runtime.InternalMcpRuntimeAccess;
 import io.opencode.loopper.runtime.OpenCodeClient;
@@ -213,6 +214,74 @@ class CandidateRuntimeBindingServiceTest {
         assertThatThrownBy(() -> service.validate(run, LEGACY))
                 .isInstanceOfSatisfying(ConflictException.class,
                         failure -> assertThat(failure.code()).isEqualTo("CANDIDATE_SOURCE_REVISION_STALE"));
+    }
+
+    @Test
+    void rollingPackageGuardAllowsOnlyTheFrozenGeneratingOwnerAndItsSingleRunningDispatchStep() {
+        LoopperMapper mapper = mock(LoopperMapper.class);
+        TaskPackagePlanRevisionRow owner = mock(TaskPackagePlanRevisionRow.class);
+        when(mapper.findTaskPackagePlanRevision("plan-1")).thenReturn(Optional.of(owner));
+        when(owner.taskId()).thenReturn("task-1");
+        when(owner.revision()).thenReturn(3);
+        when(owner.state()).thenReturn("GENERATING");
+        when(owner.externalSessionId()).thenReturn("rolling-remote");
+        when(owner.version()).thenReturn(7L);
+        CandidateRuntimeBindingService service = new CandidateRuntimeBindingService(
+                mapper, new InternalMcpRuntimeAccess());
+        MachineCandidateSubmission.RunSnapshot run = rollingRun(7);
+
+        service.validateIntegratedOwnerAndSource(run);
+
+        when(owner.version()).thenReturn(8L);
+        when(owner.externalSessionState()).thenReturn("RUNNING");
+        service.validateIntegratedOwnerAndSource(run);
+
+        when(owner.externalSessionState()).thenReturn("DISCONNECTED");
+        assertThatThrownBy(() -> service.validateIntegratedOwnerAndSource(run))
+                .isInstanceOfSatisfying(ConflictException.class,
+                        failure -> assertThat(failure.code()).isEqualTo("CANDIDATE_OWNER_REVISION_STALE"));
+        when(owner.externalSessionState()).thenReturn("RUNNING");
+        when(owner.version()).thenReturn(9L);
+        assertThatThrownBy(() -> service.validateIntegratedOwnerAndSource(run))
+                .isInstanceOfSatisfying(ConflictException.class,
+                        failure -> assertThat(failure.code()).isEqualTo("CANDIDATE_OWNER_REVISION_STALE"));
+
+        when(owner.version()).thenReturn(7L);
+        when(owner.state()).thenReturn("PROPOSED");
+        assertThatThrownBy(() -> service.validateIntegratedOwnerAndSource(run))
+                .isInstanceOfSatisfying(ConflictException.class,
+                        failure -> assertThat(failure.code()).isEqualTo("CANDIDATE_OWNER_STATE_INVALID"));
+        when(owner.state()).thenReturn("GENERATING");
+        when(owner.taskId()).thenReturn("task-2");
+        assertThatThrownBy(() -> service.validateIntegratedOwnerAndSource(run))
+                .isInstanceOfSatisfying(ConflictException.class,
+                        failure -> assertThat(failure.code()).isEqualTo("CANDIDATE_OWNER_REVISION_STALE"));
+        when(owner.taskId()).thenReturn("task-1");
+        when(owner.revision()).thenReturn(4);
+        assertThatThrownBy(() -> service.validateIntegratedOwnerAndSource(run))
+                .isInstanceOfSatisfying(ConflictException.class,
+                        failure -> assertThat(failure.code()).isEqualTo("CANDIDATE_SOURCE_REVISION_STALE"));
+        when(owner.revision()).thenReturn(3);
+        when(owner.externalSessionId()).thenReturn("replacement-remote");
+        assertThatThrownBy(() -> service.validateIntegratedOwnerAndSource(run))
+                .isInstanceOfSatisfying(ConflictException.class,
+                        failure -> assertThat(failure.code()).isEqualTo("CANDIDATE_OWNER_SESSION_STALE"));
+    }
+
+    @Test
+    void ownerValidationNeverFallsThroughUnknownReservedKindsToAcceptance() {
+        CandidateRuntimeBindingService service = new CandidateRuntimeBindingService(
+                mock(LoopperMapper.class), new InternalMcpRuntimeAccess());
+        MachineCandidateSubmission.RunSnapshot reviewer = new MachineCandidateSubmission.RunSnapshot(
+                "reviewer-run", MachineCandidateSubmission.CandidateScope.designerSession("designer-1"),
+                MachineCandidateSubmission.CandidateOwnerRef.analysisReport("report-1"),
+                MachineCandidateKind.REVIEWER_REPORT_V1, "REVIEWER_REPORT_V1", 1, 1,
+                INTERNAL, "REVIEWER_REPORT_V1", "generation-1", "reviewer-remote",
+                MachineCandidateRunState.OPEN, 3, 0, null, 0);
+
+        assertThatThrownBy(() -> service.validateIntegratedOwnerAndSource(reviewer))
+                .isInstanceOfSatisfying(ConflictException.class,
+                        failure -> assertThat(failure.code()).isEqualTo("CANDIDATE_KIND_NOT_INTEGRATED"));
     }
 
     @Test
@@ -517,6 +586,15 @@ class CandidateRuntimeBindingServiceTest {
                 MachineCandidateKind.ACCEPTANCE_CLOSED_CHOICE_V7, "ACCEPTANCE_CLOSED_CHOICE_V7",
                 3, 7, INTERNAL, "ACCEPTANCE_CLOSED_CHOICE_V7", generation,
                 "acceptance-remote", state, 2, 1, "attempt-1", 0, closeReason);
+    }
+
+    private MachineCandidateSubmission.RunSnapshot rollingRun(long ownerVersion) {
+        return new MachineCandidateSubmission.RunSnapshot(
+                "rolling-run", MachineCandidateSubmission.CandidateScope.task("task-1"),
+                MachineCandidateSubmission.CandidateOwnerRef.taskPackagePlanRevision("plan-1"),
+                MachineCandidateKind.ROLLING_PACKAGE_PLAN_V1, "ROLLING_PACKAGE_PLAN_V1",
+                3, ownerVersion, INTERNAL, "ROLLING_PACKAGE_PLAN_V1", "generation-1",
+                "rolling-remote", MachineCandidateRunState.OPEN, 3, 0, null, 0);
     }
 
     private TaskDecompositionRow decomposition(long version) {

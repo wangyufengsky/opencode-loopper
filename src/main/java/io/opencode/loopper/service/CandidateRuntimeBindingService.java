@@ -7,6 +7,7 @@ import io.opencode.loopper.persistence.DesignRequirementRevisionRow;
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.OpenCodeSessionRuntimeBindingRow;
 import io.opencode.loopper.persistence.TaskDecompositionRow;
+import io.opencode.loopper.persistence.TaskPackagePlanRevisionRow;
 import io.opencode.loopper.runtime.InternalMcpCredentialProvider;
 import io.opencode.loopper.runtime.InternalMcpReadiness;
 import io.opencode.loopper.runtime.InternalMcpRuntimeAccess;
@@ -259,6 +260,21 @@ public final class CandidateRuntimeBindingService implements CandidateRunGuard {
             throw new ConflictException("CANDIDATE_KIND_NOT_INTEGRATED",
                     "Candidate kind is not connected to an authoritative owner adapter");
         }
+        validateIntegratedOwnerAndSource(run, correctionStopRecovery);
+    }
+
+    /** Package-local seam for owner guards whose protocol integration is enabled by their coordinator. */
+    void validateIntegratedOwnerAndSource(MachineCandidateSubmission.RunSnapshot run) {
+        MachineCandidateProtocolPolicy.Contract protocol = MachineCandidateProtocolPolicy.contract(run.candidateKind());
+        if (run.scope().type() != protocol.scopeType() || run.owner().type() != protocol.ownerType()) {
+            throw new ConflictException("CANDIDATE_KIND_NOT_INTEGRATED",
+                    "Candidate kind is not connected to an authoritative owner adapter");
+        }
+        validateIntegratedOwnerAndSource(run, false);
+    }
+
+    private void validateIntegratedOwnerAndSource(
+            MachineCandidateSubmission.RunSnapshot run, boolean correctionStopRecovery) {
         if (run.candidateKind() == MachineCandidateKind.DECOMPOSITION_PLAN_V2) {
             TaskDecompositionRow owner = mapper.findTaskDecomposition(run.owner().id())
                     .orElseThrow(() -> new ConflictException("CANDIDATE_OWNER_MISSING",
@@ -300,6 +316,14 @@ public final class CandidateRuntimeBindingService implements CandidateRunGuard {
             }
             return;
         }
+        if (run.candidateKind() == MachineCandidateKind.ROLLING_PACKAGE_PLAN_V1) {
+            validateRollingPackagePlanOwner(run);
+            return;
+        }
+        if (run.candidateKind() != MachineCandidateKind.ACCEPTANCE_CLOSED_CHOICE_V7) {
+            throw new ConflictException("CANDIDATE_KIND_NOT_INTEGRATED",
+                    "Candidate kind is not connected to an authoritative owner adapter");
+        }
         var owner = mapper.findLoopSpecCompilation(run.owner().id())
                 .orElseThrow(() -> new ConflictException("CANDIDATE_OWNER_MISSING",
                         "LoopSpec compilation candidate owner no longer exists"));
@@ -318,6 +342,36 @@ public final class CandidateRuntimeBindingService implements CandidateRunGuard {
         if (!run.externalSessionId().equals(owner.externalSessionId())) {
             throw new ConflictException("CANDIDATE_OWNER_SESSION_STALE",
                     "LoopSpec compilation candidate remote Session has changed");
+        }
+    }
+
+    private void validateRollingPackagePlanOwner(MachineCandidateSubmission.RunSnapshot run) {
+        TaskPackagePlanRevisionRow owner = mapper.findTaskPackagePlanRevision(run.owner().id())
+                .orElseThrow(() -> new ConflictException("CANDIDATE_OWNER_MISSING",
+                        "Rolling package plan candidate owner no longer exists"));
+        if (!"GENERATING".equals(owner.state())) {
+            throw new ConflictException("CANDIDATE_OWNER_STATE_INVALID",
+                    "Rolling package plan candidate owner is no longer generating");
+        }
+        if (!run.scope().id().equals(owner.taskId())) {
+            throw new ConflictException("CANDIDATE_OWNER_REVISION_STALE",
+                    "Rolling package plan candidate task scope has changed");
+        }
+        if (owner.revision() != run.sourceRevision()) {
+            throw new ConflictException("CANDIDATE_SOURCE_REVISION_STALE",
+                    "Rolling package plan candidate source revision has changed");
+        }
+        if (!run.externalSessionId().equals(owner.externalSessionId())) {
+            throw new ConflictException("CANDIDATE_OWNER_SESSION_STALE",
+                    "Rolling package plan candidate remote Session has changed");
+        }
+        boolean exactOwnerVersion = owner.version() == run.ownerVersion();
+        boolean runningDispatchStep = run.ownerVersion() != Long.MAX_VALUE
+                && "RUNNING".equals(owner.externalSessionState())
+                && owner.version() == run.ownerVersion() + 1;
+        if (!exactOwnerVersion && !runningDispatchStep) {
+            throw new ConflictException("CANDIDATE_OWNER_REVISION_STALE",
+                    "Rolling package plan candidate owner revision has changed");
         }
     }
 

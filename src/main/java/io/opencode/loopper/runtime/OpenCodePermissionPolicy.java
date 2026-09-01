@@ -45,7 +45,8 @@ final class OpenCodePermissionPolicy {
             rules.add(rule("external_directory", "*", "deny"));
             if (profile == OpenCodeClient.SessionProfile.DECOMPOSER_CANDIDATE_READ_ONLY
                     || profile == OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_READ_ONLY
-                    || profile == OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY) {
+                    || profile == OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY
+                    || profile == OpenCodeClient.SessionProfile.ROLLING_PACKAGE_CANDIDATE_READ_ONLY) {
                 allowInternalSubmission(rules, internalMcpServer);
             } else {
                 allowMcp(rules, mcpServers, internalMcpServer);

@@ -238,7 +238,7 @@ StatusProjector -> persisted read snapshots
 - internal run 创建前的 managed-binding 拒绝不得用 owner 已进入 `RUNNING` 冒充 run 已打开，也不得直接失败或切 legacy；应用动作只在旧 remote 得到 ACK/ALREADY_ABSENT 后启动 fresh legacy，未确认时持久化同 compilation/Session 的 `DISCONNECTED` 恢复点，Monitor 只重试 abort，不补发 prompt 或虚构 run。
 - Acceptance 的 Legacy handoff、internal launch、prompt dispatch 与 termination 必须各自拥有窄状态机和持久化 ledger。所有远端创建输入及一次性 credential 在 I/O 前冻结，回读 remote 由请求摘要和 binding 证明；创建结果不确定只进入 cleanup。run open 与 settlement certificate 同事务，提示的模型调用消耗/可能派发在 HTTP 前不可逆落库。取消、需求替换和首次提示失败只能通过唯一 typed termination intent 取得停止权威；父状态、终端 launch 与 intent 完成同事务，后到用户动作提升既有 ready intent 而不是建立第二条终止 saga。
 
-`DECOMPOSITION_PLAN_V2` 的每 run 提交预算最多为 5；`ACCEPTANCE_CLOSED_CHOICE_V7` 最多为 2；`PACKAGE_DESIGN_V1` 最多为 3 且是唯一允许 Markdown fallback 的 kind。V49 为后续分阶段接入预留 `ROLLING_PACKAGE_PLAN_V1 / REVIEWER_REPORT_V1 / PROJECT_CONVENTION_V1` 各 3 次和 `JUDGE_DECISION_V1` 2 次预算，但没有 Coordinator、policy 或 writer 时必须在 open 边界失败关闭，预留枚举不得等同默认启用。唯一解、非枚举、安全或路径问题必须在 candidate 层之外由服务端直接处理并失败关闭，不能为追求重试率而扩大模型权限。
+`DECOMPOSITION_PLAN_V2` 的每 run 提交预算最多为 5；`ACCEPTANCE_CLOSED_CHOICE_V7` 最多为 2；`PACKAGE_DESIGN_V1` 最多为 3 且是唯一允许 Markdown fallback 的 kind；V56 已接入的 `ROLLING_PACKAGE_PLAN_V1` 最多为 3 且派发后不允许 fallback。`REVIEWER_REPORT_V1 / PROJECT_CONVENTION_V1` 各 3 次和 `JUDGE_DECISION_V1` 2 次仍只是后续阶段预留，没有 Coordinator、policy 或 writer 时必须在 open 边界失败关闭。滚动计划的候选/手工入口必须共用 `RollingPackagePlanCompilation`；accepted writer 只能从 DB 冻结事实生成不可变计划与 impact，Session 停止证明落定前不能推进 owner。唯一解、非枚举、安全或路径问题必须在 candidate 层之外由服务端直接处理并失败关闭，不能为追求重试率而扩大模型权限。
 
 候选 profile 的 MCP 权限只允许精确私有 `submit_candidate`，不允许用户 MCP；Decomposer 另外保留只读仓库证据工具，验收闭集选择保持零内置工具。Router/Judge 的既有依赖与权限边界不因候选基础设施改变。外部 `auto/http` 通过新 Session 使用 `IN_PROCESS_LEGACY`，不能依赖受管 runtime 的私有凭据或 generation。
 

@@ -380,6 +380,39 @@ class HttpOpenCodeClientTest {
     }
 
     @Test
+    void rollingPackageCandidateRequiresPrivateMcpAndNeverExposesQuestionOrUserMcp() throws Exception {
+        String internal = "loopper_internal_rolling_package";
+        HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(),
+                () -> new OpenCodeRuntimeManager.Connection(
+                        URI.create("http://127.0.0.1:" + server.getAddress().getPort()), "", "", true,
+                        "generation-rolling-package", internal));
+        mcpBody.set("{\"" + internal + "\":{\"status\":\"connected\"},"
+                + "\"user_probe\":{\"status\":\"connected\"}}");
+
+        client.createSession(worktree, "rolling package candidate", null,
+                OpenCodeClient.SessionProfile.ROLLING_PACKAGE_CANDIDATE_READ_ONLY);
+
+        assertThat(createBody.get()).contains(
+                        "\"permission\":\"read\"",
+                        "\"permission\":\"glob\"",
+                        "\"permission\":\"grep\"",
+                        "\"permission\":\"" + internal + "_submit_candidate\"")
+                .doesNotContain("\"permission\":\"question\"")
+                .doesNotContain("\"permission\":\"bash\"")
+                .doesNotContain("\"permission\":\"write\"")
+                .doesNotContain("user_probe_*")
+                .doesNotContain(internal + "_*");
+
+        mcpBody.set("{\"" + internal + "\":{\"status\":\"failed\"}}");
+        createBody.set(null);
+        assertThatThrownBy(() -> client.createSession(worktree, "rolling package candidate", null,
+                OpenCodeClient.SessionProfile.ROLLING_PACKAGE_CANDIDATE_READ_ONLY))
+                .isInstanceOfSatisfying(SessionFailure.class,
+                        failure -> assertThat(failure.code()).isEqualTo("OPENCODE_INTERNAL_MCP_NOT_READY"));
+        assertThat(createBody.get()).isNull();
+    }
+
+    @Test
     void routerSkipsInvalidMcpDiscoveryWhileEvidenceRolesStillFailClosed() throws Exception {
         LoopperProperties properties = new LoopperProperties();
         properties.getOpenCode().setBaseUrl(new java.net.URI("http://127.0.0.1:" + server.getAddress().getPort()));
@@ -826,6 +859,10 @@ class HttpOpenCodeClientTest {
                 worktree, "Acceptance internal", model,
                 OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS,
                 credential);
+        OpenCodeClient.SessionCreationPlan rolling = client.prepareCandidateSessionCreationLocally(
+                worktree, "Rolling package internal", model,
+                OpenCodeClient.SessionProfile.ROLLING_PACKAGE_CANDIDATE_READ_ONLY,
+                credential);
 
         assertThat(remoteConnectionResolutions).hasValue(0);
         assertThat(httpRequests).hasValue(0);
@@ -839,13 +876,25 @@ class HttpOpenCodeClientTest {
                         "loopper-private-7_submit_candidate", "*", "allow"));
         assertThat(first.permissionPolicyDigest()).hasSize(64);
         assertThat(first.createRequestSha256()).hasSize(64);
+        assertThat(rolling.permissionPolicy()).containsExactly(
+                new OpenCodeClient.SessionPermissionRule("*", "*", "deny"),
+                new OpenCodeClient.SessionPermissionRule("read", "*", "allow"),
+                new OpenCodeClient.SessionPermissionRule("glob", "*", "allow"),
+                new OpenCodeClient.SessionPermissionRule("grep", "*", "allow"),
+                new OpenCodeClient.SessionPermissionRule("read", ".env", "deny"),
+                new OpenCodeClient.SessionPermissionRule("read", ".env.*", "deny"),
+                new OpenCodeClient.SessionPermissionRule("read", ".env.example", "allow"),
+                new OpenCodeClient.SessionPermissionRule("external_directory", "*", "deny"),
+                new OpenCodeClient.SessionPermissionRule(
+                        "loopper-private-7_submit_candidate", "*", "allow"));
 
         mcpBody.set("{\"loopper-private-7\":{\"status\":\"connected\"}}");
         client.requireCandidateSessionReady(first);
+        client.requireCandidateSessionReady(rolling);
 
-        assertThat(remoteConnectionResolutions).hasValue(1);
-        assertThat(httpRequests).hasValue(1);
-        assertThat(mcpRequests).hasValue(1);
+        assertThat(remoteConnectionResolutions).hasValue(2);
+        assertThat(httpRequests).hasValue(2);
+        assertThat(mcpRequests).hasValue(2);
         assertThat(first).isEqualTo(replay);
 
         connection.set(new OpenCodeRuntimeManager.Connection(endpoint(), null, null,
@@ -853,8 +902,8 @@ class HttpOpenCodeClientTest {
         assertThatThrownBy(() -> client.requireCandidateSessionReady(first))
                 .isInstanceOfSatisfying(SessionFailure.class, failure -> assertThat(failure.code())
                         .isEqualTo("OPENCODE_SESSION_CREATION_PLAN_STALE"));
-        assertThat(mcpRequests).hasValue(1);
-        assertThat(httpRequests).hasValue(1);
+        assertThat(mcpRequests).hasValue(2);
+        assertThat(httpRequests).hasValue(2);
     }
 
     @Test

@@ -38,12 +38,14 @@ public class RollingPackagePlanGenerationService {
     private final OpenCodeClient openCode;
     private final LoopperProperties properties;
     private final AiOutputExtractor extractor;
+    private final RollingPackagePlanCandidateOrchestrator candidates;
 
     public RollingPackagePlanGenerationService(LoopperMapper mapper, RollingPackagePlanService plans,
                                                tools.jackson.databind.ObjectMapper json,
                                                TaskWorkspaceCheckpointService checkpoints,
                                                OpenCodeClient openCode, LoopperProperties properties,
-                                               AiOutputExtractor extractor) {
+                                               AiOutputExtractor extractor,
+                                               RollingPackagePlanCandidateOrchestrator candidates) {
         this.mapper = mapper;
         this.plans = plans;
         this.codec = new RollingPackageCodec(json);
@@ -51,6 +53,7 @@ public class RollingPackagePlanGenerationService {
         this.openCode = openCode;
         this.properties = properties;
         this.extractor = extractor;
+        this.candidates = candidates;
     }
 
     public RollingPackagePlanService.Proposal suggest(String taskId, long expectedTaskVersion,
@@ -70,13 +73,27 @@ public class RollingPackagePlanGenerationService {
             } catch (RuntimeException failure) {
                 TaskPackagePlanRevisionRow current = mapper.findTaskPackagePlanRevision(row.id()).orElse(row);
                 if (PackagePlanRevisionState.GENERATING.name().equals(current.state())) {
-                    plans.failSuggestion(current, code(failure), failure.getMessage());
+                    if (candidates.find(current).isPresent()) {
+                        try {
+                            handleCandidate(current, candidates.terminateAfterDispatchFailure(
+                                    current, verifiedSnapshot(current), code(failure), failure.getMessage()));
+                        } catch (RuntimeException unavailable) {
+                            plans.disconnectSuggestion(current, code(failure), failure.getMessage());
+                        }
+                    } else {
+                        plans.failSuggestion(current, code(failure), failure.getMessage());
+                    }
                 }
             }
         }
     }
 
     private void poll(TaskPackagePlanRevisionRow row) {
+        if (candidates.find(row).isPresent()) {
+            handleCandidate(row, candidates.poll(row, verifiedSnapshot(row), timedOut(row.createdAt())));
+            return;
+        }
+        if ("DISCONNECTED".equals(row.externalSessionState())) return;
         if (row.externalSessionId() == null || row.externalSessionId().isBlank()
                 || "PENDING".equals(row.externalSessionState())) {
             dispatch(row);
@@ -120,6 +137,14 @@ public class RollingPackagePlanGenerationService {
     }
 
     private void dispatch(TaskPackagePlanRevisionRow input) {
+        if (candidates.eligibility().candidate()) {
+            dispatchCandidate(input);
+        } else {
+            dispatchLegacy(input);
+        }
+    }
+
+    private void dispatchLegacy(TaskPackagePlanRevisionRow input) {
         TaskPackagePlanRevisionRow row = mapper.findTaskPackagePlanRevision(input.id()).orElse(input);
         try {
             if (!openCode.healthy()) throw new ConflictException(
@@ -141,6 +166,60 @@ public class RollingPackagePlanGenerationService {
         }
     }
 
+    private void dispatchCandidate(TaskPackagePlanRevisionRow input) {
+        TaskPackagePlanRevisionRow row = mapper.findTaskPackagePlanRevision(input.id()).orElse(input);
+        Path snapshot;
+        try {
+            if (!openCode.healthy()) throw new ConflictException(
+                    "PACKAGE_PLAN_OPENCODE_UNAVAILABLE", "OpenCode 只读运行时不可用");
+            snapshot = verifiedSnapshot(row);
+            OpenCodeClient.OpenCodeSession remote = candidates.create(snapshot, row.id(), configuredModel());
+            row = plans.attachSuggestionSession(row, remote.id(), "PROMPTING");
+            RollingPackagePlanCandidateOrchestrator.Start start = candidates.open(
+                    row, remote, candidateFacts(row));
+            openCode.promptAsync(remote, new OpenCodeClient.PromptRequest(start.prompt(),
+                    OpenCodeClient.STRUCTURED_AGENT_PROMPT, OpenCodeClient.STRUCTURED_AGENT,
+                    new OpenCodeClient.ResponseFormat.Text()));
+            plans.updateSuggestionState(mapper.findTaskPackagePlanRevision(row.id()).orElse(row), "RUNNING");
+        } catch (RuntimeException failure) {
+            TaskPackagePlanRevisionRow current = mapper.findTaskPackagePlanRevision(row.id()).orElse(row);
+            try {
+                snapshot = verifiedSnapshot(current);
+            } catch (RuntimeException unavailable) {
+                plans.disconnectSuggestion(current, code(failure), failure.getMessage());
+                return;
+            }
+            handleCandidate(current, candidates.terminateAfterDispatchFailure(
+                    current, snapshot, code(failure), failure.getMessage()));
+        }
+    }
+
+    private void handleCandidate(TaskPackagePlanRevisionRow input,
+                                 RollingPackagePlanCandidateOrchestrator.Poll result) {
+        switch (result.action()) {
+            case RUNNING -> { }
+            case ACCEPTED -> {
+                var accepted = mapper.findRollingPackagePlanAcceptedResult(result.run().runId())
+                        .orElseThrow(() -> new ConflictException("ROLLING_PACKAGE_ACCEPTED_RESULT_MISSING",
+                                "Accepted rolling package result no longer exists"));
+                plans.completeCandidateSuggestion(
+                        mapper.findTaskPackagePlanRevision(input.id()).orElse(input),
+                        accepted, result.terminationProof());
+            }
+            case FAILED -> {
+                TaskPackagePlanRevisionRow current = mapper.findTaskPackagePlanRevision(input.id()).orElse(input);
+                if (CandidateSessionTerminationProof.persisted(result.terminationProof())) {
+                    plans.failSuggestion(current, result.reasonCode(), result.detail(), result.terminationProof());
+                } else {
+                    plans.disconnectSuggestion(current, result.reasonCode(), result.detail());
+                }
+            }
+            case DISCONNECTED -> plans.disconnectSuggestion(
+                    mapper.findTaskPackagePlanRevision(input.id()).orElse(input),
+                    result.reasonCode(), result.detail());
+        }
+    }
+
     private Path verifiedSnapshot(TaskPackagePlanRevisionRow row) {
         var task = mapper.findTask(row.taskId()).orElseThrow();
         var run = mapper.findTaskPackageRun(row.basePackageRunId()).orElseThrow();
@@ -153,6 +232,16 @@ public class RollingPackagePlanGenerationService {
     }
 
     private String prompt(TaskPackagePlanRevisionRow row) {
+        return candidateFacts(row) + """
+
+                仅返回以下 marker 包裹的 JSON，不要解释：
+                <!-- ROLLING_PACKAGE_PLAN_JSON_START -->
+                {"packages":[{"packageKey":"WP-2","title":"标题","objective":"目标","replaces":["WP-2"],"dependencies":["WP-1"],"requirementRefs":[]}]}
+                <!-- ROLLING_PACKAGE_PLAN_JSON_END -->
+                """;
+    }
+
+    private String candidateFacts(TaskPackagePlanRevisionRow row) {
         var requirement = mapper.findDesignRequirementRevision(row.requirementRevisionId()).orElseThrow();
         List<Map<String, Object>> unfinished = new ArrayList<>();
         for (TaskPackageRunRow run : mapper.listTaskPackageRuns(row.taskId())) {
@@ -182,11 +271,6 @@ public class RollingPackagePlanGenerationService {
 
                 已冻结事实索引：
                 %s
-
-                仅返回以下 marker 包裹的 JSON，不要解释：
-                <!-- ROLLING_PACKAGE_PLAN_JSON_START -->
-                {"packages":[{"packageKey":"WP-2","title":"标题","objective":"目标","replaces":["WP-2"],"dependencies":["WP-1"],"requirementRefs":["RQ-2"]}]}
-                <!-- ROLLING_PACKAGE_PLAN_JSON_END -->
                 """.formatted(requirement.requirementText(), codec.write(unfinished), facts);
     }
 
