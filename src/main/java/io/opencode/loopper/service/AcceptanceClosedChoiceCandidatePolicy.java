@@ -85,7 +85,8 @@ final class AcceptanceClosedChoiceCandidatePolicy implements CandidatePolicy {
             if (contract.isMechanicalCapabilityPreferenceShorthand(candidateJson)) {
                 return rejected(SELECTION_INVALID, "/capabilityPreferences",
                         "capabilityPreferences 必须是包含 factIndex 与 capabilityIndexes 整数数组的对象数组；"
-                                + "不能直接提交整数数组，也不能使用单数 capabilityIndex 字段",
+                                + "不能直接提交整数数组，不能使用单数 capabilityIndex 字段，"
+                                + "也不能把 capabilityIndex 选择写入 factAssignments",
                         allowedPreferenceValues(resolution));
             }
             return rejected(CONTRACT_INVALID, "/candidate",

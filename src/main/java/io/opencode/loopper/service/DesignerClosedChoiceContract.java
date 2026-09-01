@@ -77,19 +77,19 @@ final class DesignerClosedChoiceContract {
                 if ((field.equals("summary") || field.equals("handoffsummary"))
                         && !value.isNull() && !value.isTextual()) return false;
             }
-            if (!validObjectArray(root.get("factAssignments"), FACT_ASSIGNMENT_FIELDS,
-                    Set.of("factindex", "stageindex"), Set.of())) return false;
+            JsonNode assignments = root.get("factAssignments");
+            boolean ordinaryAssignments = validObjectArray(assignments, FACT_ASSIGNMENT_FIELDS,
+                    Set.of("factindex", "stageindex"), Set.of());
+            boolean capabilitySelectionAssignments = !assignments.isEmpty()
+                    && validObjectArray(assignments, SINGULAR_CAPABILITY_PREFERENCE_FIELDS,
+                    SINGULAR_CAPABILITY_PREFERENCE_FIELDS, Set.of());
+            if (!ordinaryAssignments && !capabilitySelectionAssignments) return false;
             JsonNode preferences = root.get("capabilityPreferences");
             if (!preferences.isArray() || preferences.isEmpty()) return false;
-            boolean integerArray = true;
-            for (JsonNode preference : preferences) {
-                if (!preference.isIntegralNumber() || !preference.canConvertToInt()) {
-                    integerArray = false;
-                    break;
-                }
-            }
+            boolean integerArray = validIntegerArray(preferences);
+            if (capabilitySelectionAssignments) return integerArray;
             if (integerArray) return true;
-            return validObjectArray(preferences, SINGULAR_CAPABILITY_PREFERENCE_FIELDS,
+            return ordinaryAssignments && validObjectArray(preferences, SINGULAR_CAPABILITY_PREFERENCE_FIELDS,
                     SINGULAR_CAPABILITY_PREFERENCE_FIELDS, Set.of());
         } catch (RuntimeException invalid) {
             return false;
@@ -222,6 +222,14 @@ final class DesignerClosedChoiceContract {
                 }
             }
             if (!seen.containsAll(integerFields) || !seen.containsAll(integerArrayFields)) return false;
+        }
+        return true;
+    }
+
+    private static boolean validIntegerArray(JsonNode value) {
+        if (!value.isArray()) return false;
+        for (JsonNode item : value) {
+            if (!item.isIntegralNumber() || !item.canConvertToInt()) return false;
         }
         return true;
     }

@@ -1081,7 +1081,7 @@ mutates the draft or creates a Task.
 当前只允许以下三个候选合同：
 
 - `DECOMPOSITION_PLAN_V2`：一个候选 run 最多接受 5 次提交；每次拒绝都必须返回有界、结构化、可修复的问题，超过预算或出现不可恢复问题时失败关闭。
-- `ACCEPTANCE_CLOSED_CHOICE_V7`：只允许服务端已经证明为自然可枚举、候选集合完备且存在真实机械同分的闭集选择，最多接受 2 次提交。第一次之后只有闭集选择值错误，或在其余根字段仍满足闭集且 `factAssignments` 合法时，把 `capabilityPreferences` 对象数组机械简写成非空整数数组，或把每项严格简写为整数 `{factIndex, capabilityIndex}`，才可按服务端返回的完整对象数组允许值重试一次；简写候选本身永不被接受，混合项和未知字段不属于纠错面。
+- `ACCEPTANCE_CLOSED_CHOICE_V7`：只允许服务端已经证明为自然可枚举、候选集合完备且存在真实机械同分的闭集选择，最多接受 2 次提交。第一次之后只有闭集选择值错误，或在其余根字段仍满足闭集且 `factAssignments` 合法时，把 `capabilityPreferences` 对象数组机械简写成非空整数数组，或把每项严格简写为整数 `{factIndex, capabilityIndex}`；以及把同一个 capability 选择同时严格机械写成非空 `factAssignments:[{factIndex, capabilityIndex}]` 与整数 `capabilityPreferences:[n]`，才可按服务端返回的完整对象数组允许值重试一次；简写候选本身永不被接受，混合项和未知字段不属于纠错面。
 - `PACKAGE_DESIGN_V1`：每次提交完整替换的工作包语义对象，包含 `READY | NEEDS_INPUT`、需求语义、场景、交付物、评审点、Stage 目标/语义引用/依赖和闭集 gap code，最多提交 3 次；Package Designer 提示必须给出精确闭集字段模板，所有跨项引用使用候选局部 `key`，不得以 `id` 冒充；命令、可写路径清单、测试命令、Verifier、权限结论和稳定 ID 属于服务端权威字段，候选一旦携带就直接拒绝。
 
 工作包设计采用“双入口、单内核、单权威”。MCP 候选接受后由服务端生成规范 Markdown 作为设计历史，并直接进入确定性 `PackageDesignCompilation`，不创建独立 AI Compiler Session；模型最终自由文本被忽略。未调用 MCP，或三次均为明确可降级的机械问题时，只有远端已经 `COMPLETED` 且最终 Markdown 非空，才完整复用现有 Markdown 编译路线。冻结需求明确选择 Markdown-only 或不使用私有提交时，Package Designer 的后置候选提示必须尊重该选择，不得用“优先调用”覆盖它；该 Session 仍受候选最小权限 profile 管控，但应以零次提交正常完成并走 Markdown 兜底。`NEEDS_INPUT`、路径/安全/权限/修订/运行代次冲突、超时、传输失败和停止未确认都失败关闭，不得把可能不完整的输出当作兜底。

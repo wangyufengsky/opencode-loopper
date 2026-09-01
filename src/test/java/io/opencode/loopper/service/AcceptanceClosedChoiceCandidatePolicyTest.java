@@ -112,6 +112,25 @@ class AcceptanceClosedChoiceCandidatePolicyTest {
     }
 
     @Test
+    void safeCapabilitySelectionWrittenIntoBothSelectionArraysGetsOneMechanicalCorrectionOpportunity() {
+        CandidatePolicy.Decision decision = policy.evaluate(context(0), """
+                {"factAssignments":[{"factIndex":0,"capabilityIndex":0}],
+                 "capabilityPreferences":[0]}
+                """);
+
+        assertThat(decision.accepted()).isFalse();
+        assertThat(decision.retryable()).isTrue();
+        assertThat(decision.problems()).singleElement().satisfies(problem -> {
+            assertThat(problem.code()).isEqualTo("ACCEPTANCE_CANDIDATE_SELECTION_INVALID");
+            assertThat(problem.pointer()).isEqualTo("/capabilityPreferences");
+            assertThat(problem.detail()).contains("factAssignments", "capabilityIndex", "capabilityPreferences");
+            assertThat(problem.allowedValues()).containsExactly(
+                    "[{\"factIndex\":0,\"capabilityIndexes\":[0]}]",
+                    "[{\"factIndex\":0,\"capabilityIndexes\":[1]}]");
+        });
+    }
+
+    @Test
     void safetyPathPermissionAndNonSelectionShapesAreNeverRetryable() {
         for (String candidate : List.of(
                 "{\"factAssignments\":[],\"capabilityPreferences\":[],\"allowedPaths\":[\"src/**\"]}",
