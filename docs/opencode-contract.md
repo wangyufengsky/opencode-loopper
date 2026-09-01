@@ -110,8 +110,10 @@ cascade. `ROLLING_PACKAGE_PLAN_V1`, `REVIEWER_REPORT_V1`,
 `PROJECT_CONVENTION_V1` and `JUDGE_DECISION_V1` plus their owner types were reserved
 for staged adapters. V56 activates `ROLLING_PACKAGE_PLAN_V1`; V57 adds the shared
 `GENERIC_V1` durable creation/prompt/termination schema for the other three roles, and V58–V61
-connect Reviewer behind its staged feature flag. Convention and Judge remain rejected at
-application open. Rolling uses a dedicated
+connect Reviewer behind its staged feature flag. The isolated 0.3.13 packaged JAR then proved real
+`opencode/gpt-5.4` private-tool adoption and same-Session `line=99` rejection/`line=1` repair, so Reviewer
+defaults on from 0.3.14 while an explicit false affects only new reports. Convention and Judge remain
+rejected at application open and require their own qualification. Rolling uses a dedicated
 `ROLLING_PACKAGE_CANDIDATE_READ_ONLY` profile with `read/glob/grep` and only the
 exact private submission tool. It has no Markdown/marker fallback after dispatch.
 Only `PACKAGE_DESIGN_V1` retains the explicit Markdown-fallback compatibility policy.

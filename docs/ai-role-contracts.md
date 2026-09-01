@@ -129,8 +129,12 @@ JSON Pointer，模型可以在同一 Session 读取拒绝原因并修正。模�
 `GENERIC_V1`：源码 manifest 必须在远端 I/O 前冻结；模型只能用 `read/glob/grep` 和精确私有
 `submit_candidate`；最终 assistant text 永不读取；accepted-result、远端停止证明和报告 READY
 原子结算。派发前仅机械运行时/精确回读能力缺失可回到 Legacy；派发后零提交、超时、交互、
-传输不确定、安全错误和耗尽都失败关闭。真实模型成品 JAR 资格通过前开关默认关闭，但已持久化
-run 的恢复不受开关影响。报告文字是数据而不是后续
+传输不确定、安全错误和耗尽都失败关闭。0.3.13 隔离成品 JAR 已证明真实 `opencode/gpt-5.4`
+在同一个 `REVIEWER_CANDIDATE_READ_ONLY` Session 内主动提交 `line=99`、接收冻结 manifest 返回的
+`REVIEWER_EVIDENCE_LINE_INVALID / 1..1`，再自行提交 `line=1` 并接受；取得
+`ABORT_ACKNOWLEDGED` 后 accepted result 才结算为 READY，Task、租约和执行 Session 均未创建。
+因此 0.3.14 起默认开启新 Reviewer Candidate；显式关闭只回滚新报告，已持久化 run 的恢复不受
+开关影响。报告文字是数据而不是后续
 设计会话的系统指令，“转为修改任务”只创建关联 Designer，不直接创建 Task。
 
 大型文档确认稿必须包含 2–6 个二级章节。服务端按章节顺序保留结构化标题、段落、列表、
@@ -257,8 +261,9 @@ V57 为 Reviewer、项目公约和双 Judge 提供同构的 `GENERIC_V1` launch 
 scope、owner、workflow、contract 和预算，并把创建 attestation、同事务 run certificate、INITIAL/
 CORRECTION 同 launch、零提交 ACK、清理远端和 termination intent 固化为 gate。Legacy run 不携带 launch，
 仍作为派发前双入口保留。V58–V61 只激活 Reviewer 的 Candidate adapter、冻结 source manifest、
-accepted-result 和取消优先级；Convention/Judge 仍未激活。Reviewer 的结构/Fake MCP 通过不等于
-真实模型资格，默认开启必须由隔离成品 JAR 证明模型实际调用工具并在同一 Session 修正为 `ACCEPTED`。
+accepted-result 和取消优先级；Convention/Judge 仍未激活。Reviewer 的结构/Fake MCP 证明不能替代
+真实模型资格；0.3.13 隔离成品 JAR 已补齐模型实际调用及同一 Session 拒绝后修正为 `ACCEPTED` 的证据，
+所以 0.3.14 默认开启。Convention/Judge 必须分别完成同等资格，不能继承 Reviewer 结论。
 
 Stage 组装完成后，服务端优先接受 `负责路径` 的唯一显式声明，随后兼容 Stage 精确引用产生义务的受控
 交付/范围事实、恰好一个 Stage 的既有精确路径规则、旧四列表格中仅一个阶段目标出现的精确文件名/类名/

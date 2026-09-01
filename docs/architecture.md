@@ -512,7 +512,8 @@ the other kinds have no separate accepted-result table. V49 also reserves bounde
 `PROJECT_CONVENTION_V1` (3), and `JUDGE_DECISION_V1` (2). V56 connects
 `ROLLING_PACKAGE_PLAN_V1`; 0.3.10 adds the Reviewer single deterministic compiler. V57 reserves a
 shared durable internal-launch protocol for Reviewer, Convention and Judge. V58–V61 connect Reviewer
-behind a default-off staged flag; Convention and Judge still fail closed at application open until their
+behind a staged flag; after the isolated 0.3.13 real-model qualification that flag defaults on from 0.3.14.
+Convention and Judge still fail closed at application open until their
 own Coordinator, policy, accepted writer and qualification switch exists. Fallback compatibility is an explicit per-kind contract;
 only `PACKAGE_DESIGN_V1` may request Markdown fallback.
 
@@ -530,8 +531,11 @@ Markdown/evidence separately from the candidate payload hash, and settles `analy
 in the same prompt-settlement transaction after positive remote-stop proof. Assistant final text and
 post-run live-file capture are never inputs. V61 gives later Designer cancellation monotonic priority on
 the existing termination intent, so an accepted candidate cannot make the report READY after cancellation.
-Reviewer remains default-off until packaged-JAR real-model qualification; persisted recovery ignores the
-current flag. Convention and Judge cannot treat V57 as qualification or default enablement.
+The isolated 0.3.13 packaged-JAR qualification proved that real `opencode/gpt-5.4` used the exact private
+tool, received a frozen-manifest line rejection for `99`, and repaired it to line `1` in the same run and
+OpenCode Session before positive abort settlement. Reviewer therefore defaults on from 0.3.14; an explicit
+false value rolls back only new reports, while persisted recovery ignores the current flag. Convention and
+Judge cannot treat either V57 or the Reviewer qualification as their own qualification/default enablement.
 
 V56 gives rolling replanning the same dual-entry/single-core boundary. The candidate
 contains only `packageKey/title/objective/replaces/dependencies/requirementRefs`;

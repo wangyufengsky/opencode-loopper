@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.3.13`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.3.14`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -132,7 +132,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.3.13.jar
+java -jar target/opencode-loopper-0.3.14.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -334,6 +334,7 @@ Git 任务的最新 Execution Cycle 成功并处于 `AWAITING_DECISION` 或用�
 | `LOOPPER_PACKAGE_DESIGN_CANDIDATE_V1_ENABLED` | `true` | 工作包 Designer 默认使用 `PACKAGE_DESIGN_V1` MCP 主路；设为 `false` 时新工作包直接使用既有 Designer + Markdown 编译路线，已持久化候选仍可恢复 |
 | `LOOPPER_ACCEPTANCE_CLOSED_CHOICE_V7_ENABLED` | `true` | 已获真实模型同 Session 拒绝后自修正资格的 v7 闭集候选开关；设为 `false` 只回滚新运行到旧 JSON 路径，持久化候选仍可恢复和结算。`ACCEPTED/WAITING_INPUT/CLOSED` 仍须取得并持久化 `REMOTE_COMPLETED / ABORT_ACKNOWLEDGED / ALREADY_ABSENT` 才可编译、等待人工、失败收束或切 legacy；停止未确认保持同一 run `DISCONNECTED`，不创建 Task。只有正常完成且零提交的精确关闭原因可切旧 JSON 路径；超时、Provider/交互失败和历史缺失原因均失败关闭 |
 | `LOOPPER_ROLLING_PACKAGE_PLAN_V1_ENABLED` | `true` | 已获真实模型同 Session 机械拒绝后自修正资格的滚动任务剩余计划 MCP 开关。`false` 时新建议使用既有只读 JSON marker 路线；一旦候选 Session/run 已建立，零提交、超时、传输、安全、代次和停止不确定均失败关闭且不读取 marker。已有候选运行和 V56 接受结果始终保留恢复/结算 adapter；只有远端完成或确认停止后才形成待人工确认的 `PROPOSED` 计划 |
+| `LOOPPER_REVIEWER_REPORT_CANDIDATE_V1_ENABLED` | `true` | 已获隔离成品 JAR 真实模型同 Session 机械拒绝后自修正资格的 Reviewer MCP 开关。`false` 只让新报告使用既有只读 Legacy 路线；已有 Candidate run、冻结源码快照、accepted result 与终止结算继续恢复。派发后零提交、超时、交互、传输/停止不确定、安全失败和耗尽均失败关闭，模型最终文本永不作为报告输入 |
 | `LOOPPER_TASK_PROFILE_ROUTER_TIMEOUT` | `240s` | Router 尚未建立远端 Session 时的连接等待；连接成功后不再使用总时限，而是等待真实终态 |
 | `LOOPPER_CHROME_EXECUTABLE` | 自动检测 | `BROWSER` 验证器使用的 Chrome/Chromium 绝对路径 |
 | `LOOPPER_MCP_BEARER_TOKEN` | 每次启动随机生成 | `/api/mcp-streamable` 和 `/api/mcp` 的 Bearer Token |
@@ -366,7 +367,7 @@ Git 任务的最新 Execution Cycle 成功并处于 `AWAITING_DECISION` 或用�
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.3.13.jar`
+- `target/opencode-loopper-0.3.14.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -397,7 +398,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:51234
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.3.13.jar`
+- `opencode-loopper-0.3.14.jar`
 - `start-windows.bat`
 
 确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
@@ -435,7 +436,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.3.13.jar \
+jar tf target/opencode-loopper-0.3.14.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -525,7 +526,7 @@ Windows PowerShell：
 例如发布下一版本：
 
 ```bash
-VERSION=0.3.13
+VERSION=0.3.14
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -565,7 +566,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.3.13.jar
+java -jar target/opencode-loopper-0.3.14.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。
@@ -702,6 +703,8 @@ echo %PATHEXT%
 `0.3.12` 新增 V57 通用内部 launch 持久化底座：Reviewer、Convention 和 Judge 的 `INTERNAL_MCP` run 必须通过精确 kind/scope/owner/workflow/contract、受管 Session attestation、同事务 run certificate、强类型 INITIAL/CORRECTION prompt 与终止意图 gate；`candidate_launch_id` 与 Acceptance 的 `internal_launch_id` 互斥。三个角色的 `IN_PROCESS_LEGACY` run 不受该 gate 影响，因此保留双入口；本版仍不激活三个角色的新 Candidate run。候选提示的 OpenCode lookup/dispatch 适配器已独立，避免协议编排类重新超过结构门禁。
 
 `0.3.13` 完成 Reviewer 的 MCP Candidate 路线并继续默认关闭等待真实模型资格。Reviewer 在任何 OpenCode I/O 前冻结受限源码 manifest，Candidate 只包含 `title/summary/findings/limitations`，服务端沿用同一个 `ReviewerReportCompilation` 校验受管相对路径、精确行号并生成 Markdown、证据和摘要；模型最终文本与结束后的实时文件都不是权威输入。只有派发前确认的受管运行时或精确回读能力缺失可回到 Legacy；派发后零提交、超时、交互、传输/停止不确定、安全失败和尝试耗尽均失败关闭。V58–V61 还固化 accepted-result、首次提交必须已有 INITIAL ACK、正向停止证明后的原子 READY 结算，以及 Designer 取消对既有终止意图的单调优先级。`LOOPPER_REVIEWER_REPORT_CANDIDATE_V1_ENABLED=true` 只为新报告显式试运行；已持久化 Candidate 的恢复不依赖当前开关。
+
+`0.3.14` 在 0.3.13 隔离成品 JAR 资格通过后默认启用 Reviewer MCP 候选。真实 `opencode/gpt-5.4` 的 `REVIEWER_CANDIDATE_READ_ONLY` Session 先以 `src/ReviewTarget.java:99` 主动提交，被冻结源码 manifest 以 `REVIEWER_EVIDENCE_LINE_INVALID` 和允许范围 `1..1` 机械拒绝，随后在同一 run/Session 自行第二次提交 `line=1` 并接受；两次提交均发生在同一个已确认 INITIAL 模型调用内，远端取得 `ABORT_ACKNOWLEDGED` 后才把不可变 accepted result 原子结算为 `READY`，报告内容与接受结果哈希一致，Task、租约和执行 Session 均为 0。最终自由文本没有进入编译或结算输入。显式设置 `LOOPPER_REVIEWER_REPORT_CANDIDATE_V1_ENABLED=false` 只回滚新报告，已持久化 Candidate 的恢复与失败关闭边界不变。
 
 `0.3.9` 在 0.3.8 隔离成品 JAR 资格通过后默认启用滚动计划 MCP 候选；真实 `opencode/gpt-5.4` Session 首次以前向依赖提交被服务端机械拒绝，随后在同一 Session 修正为有序依赖并接受，V56 结果经 `ABORT_ACKNOWLEDGED` 结算为待人工确认计划，候选派发后未读取 marker。`LOOPPER_ROLLING_PACKAGE_PLAN_V1_ENABLED=false` 仍只回滚新建议，既有候选运行、接受结果和失败关闭边界不变。
 

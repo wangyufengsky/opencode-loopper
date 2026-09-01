@@ -8,17 +8,17 @@ import org.junit.jupiter.api.Test;
 
 class LoopperPropertiesTest {
     @Test
-    void reviewerReportCandidateDefaultsOffAndCanBeEnabledExplicitly() throws Exception {
+    void qualifiedReviewerReportCandidateDefaultsOnAndCanBeDisabledExplicitly() throws Exception {
         LoopperProperties properties = new LoopperProperties();
 
-        assertThat(properties.getInternalCandidate().isReviewerReportV1Enabled()).isFalse();
-
-        properties.getInternalCandidate().setReviewerReportV1Enabled(true);
         assertThat(properties.getInternalCandidate().isReviewerReportV1Enabled()).isTrue();
+
+        properties.getInternalCandidate().setReviewerReportV1Enabled(false);
+        assertThat(properties.getInternalCandidate().isReviewerReportV1Enabled()).isFalse();
         assertThat(Files.readString(Path.of(System.getProperty("user.dir"),
                 "src/main/resources/application.yml")))
                 .contains("reviewer-report-v1-enabled: "
-                        + "${LOOPPER_REVIEWER_REPORT_CANDIDATE_V1_ENABLED:false}");
+                        + "${LOOPPER_REVIEWER_REPORT_CANDIDATE_V1_ENABLED:true}");
     }
 
     @Test

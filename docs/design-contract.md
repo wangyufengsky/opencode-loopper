@@ -1099,7 +1099,7 @@ Compiler v7 的既有快速路径保持不变：
 
 外部 `auto/http` 兼容模式不注入私有 MCP。它们继续使用 `IN_PROCESS_LEGACY` 通道，而且每个候选 run 必须新建 OpenCode Session，不能把旧 JSON 会话升级为内部 MCP 会话。受管模式可在同一候选 Session 内根据服务端拒绝结果做有界重提，但不能跨 runtime generation 继续。
 
-候选 feature flag 只控制是否创建新的对应 run。关闭 flag 后不得再打开新 run；已经持久化的 run、恢复读取和兼容 adapter 必须继续可用，因此 persisted adapter 是常驻基础设施，不能通过条件 Bean 随 flag 一起消失。`PACKAGE_DESIGN_V1` 已由隔离成品 JAR 真实证明 MCP 修正接受和 Markdown-only 零提交兼容路线，生产默认开启。`ACCEPTANCE_CLOSED_CHOICE_V7` 已在 0.3.5 隔离成品 JAR 证明真实模型采用私有工具并同 Session 自修正，0.3.6 起默认开启；环境覆盖为 `false` 只把新真同分送回全新旧 JSON Session，不改变已有 run 的恢复。`ROLLING_PACKAGE_PLAN_V1` 已在 0.3.8 隔离成品 JAR 取得主动私有工具调用、机械拒绝后同 Session 自修正及 V56 结算证据，0.3.9 起默认开启；显式关闭只影响新建议。
+候选 feature flag 只控制是否创建新的对应 run。关闭 flag 后不得再打开新 run；已经持久化的 run、恢复读取和兼容 adapter 必须继续可用，因此 persisted adapter 是常驻基础设施，不能通过条件 Bean 随 flag 一起消失。`PACKAGE_DESIGN_V1` 已由隔离成品 JAR 真实证明 MCP 修正接受和 Markdown-only 零提交兼容路线，生产默认开启。`ACCEPTANCE_CLOSED_CHOICE_V7` 已在 0.3.5 隔离成品 JAR 证明真实模型采用私有工具并同 Session 自修正，0.3.6 起默认开启；环境覆盖为 `false` 只把新真同分送回全新旧 JSON Session，不改变已有 run 的恢复。`ROLLING_PACKAGE_PLAN_V1` 已在 0.3.8 隔离成品 JAR 取得主动私有工具调用、机械拒绝后同 Session 自修正及 V56 结算证据，0.3.9 起默认开启；显式关闭只影响新建议。`REVIEWER_REPORT_V1` 已在 0.3.13 隔离成品 JAR 证明真实模型主动调用精确私有工具，并在同一 Session 将冻结源码范围拒绝的第 99 行修正为第 1 行；0.3.14 起默认开启，显式关闭只回滚新报告到全新 Legacy Session，不改变已有 run、源码快照、accepted result 和终止结算的恢复。
 
 验收候选创建、提示、停止和父流程收束必须使用 V51-V55 的持久化协议。internal launch 在远端创建前冻结
 owner/source、路由、运行代次、权限/请求摘要和一次性创建凭证，只有回读远端与冻结计划完全一致时才可用
