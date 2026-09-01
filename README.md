@@ -7,7 +7,7 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.3.2`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.3.4`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
 ## 目录
 
@@ -130,7 +130,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.3.2.jar
+java -jar target/opencode-loopper-0.3.4.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -363,7 +363,7 @@ Git 任务的最新 Execution Cycle 成功并处于 `AWAITING_DECISION` 或用�
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.3.2.jar`
+- `target/opencode-loopper-0.3.4.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -394,7 +394,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:51234
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.3.2.jar`
+- `opencode-loopper-0.3.4.jar`
 - `start-windows.bat`
 
 确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
@@ -432,7 +432,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.3.2.jar \
+jar tf target/opencode-loopper-0.3.4.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -522,7 +522,7 @@ Windows PowerShell：
 例如发布下一版本：
 
 ```bash
-VERSION=0.3.2
+VERSION=0.3.4
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -562,7 +562,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.3.2.jar
+java -jar target/opencode-loopper-0.3.4.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。
@@ -691,6 +691,10 @@ echo %PATHEXT%
 `0.3.1` 通过 V51-V55 把验收候选的 Legacy handoff、受管 internal launch、提示派发和终止收束升级为可恢复协议：远端创建前冻结完整请求摘要、权限摘要、运行代次和一次性本地凭证，回读 Session 未通过 attestation 时不能打开 run，未知创建结果只进入 cleanup；首次及修正提示在 HTTP 前持久化模型调用消耗和可能派发边界，避免崩溃后盲重发。取消、需求替换和首次提示的预算耗尽、回读不支持、结果不确定统一使用唯一 termination intent，在 run、prompt、remote 全部取得安静证明后才原子推进父状态；后到用户动作只提升既有失败 intent。已有 handoff 一旦建立即成为唯一权威，不重复执行 internal launch 预检；仅受管运行时能力在远端创建前明确缺失时可直接建立新 Legacy handoff，内部候选无效耗尽则进入 `WAITING_INPUT`，不得降级。`0.3.0` 的首次完整验证暴露并修复了这些协议与结构门禁问题，因此不作为交付版本；`0.3.1` 仍以默认关闭进行资格验证，只有隔离真实模型完成同一 Session“主动 MCP 提交 → 服务端拒绝 → 自修正 → 接受”后，后续新版本才允许默认开启。
 
 `0.3.2` 修复 0.3.1 隔离真实模型资格中暴露的 OpenCode HTTP 契约不兼容：OpenCode 1.18.23 要求调用方提供的 `messageID` 以 `msg` 开头，而验收候选 INITIAL/CORRECTION 提示原先使用 `loopper-candidate-prompt-*`，导致持久化 launch/run 已打开后提示在 POST 边界被 400 拒绝。新候选提示统一使用稳定的 `msg_loopper_candidate_prompt_<name-uuid>`，并在哈希、持久化、精确回读和派发之间保持同一身份；既有历史 dispatch 不改写。该修复不放宽候选校验或兜底策略，Acceptance V7 默认开关继续保持 `false`，直到隔离成品 JAR 补齐同一真实 Session 的“主动 MCP 提交 → 拒绝 → 自修正 → 接受”证据。
+
+`0.3.4` 继续修复 0.3.3 隔离真实模型资格暴露的第二种安全机械简写：真实模型提交了合法 `factAssignments`，但把 `capabilityPreferences` 的 `{factIndex, capabilityIndexes:[n]}` 写成 `{factIndex, capabilityIndex:n}`，0.3.3 仍不可纠错地进入 `WAITING_INPUT`。服务端现在只对每项严格由整数 `factIndex` 与整数 `capabilityIndex` 组成的非空对象数组返回同一次 `ACCEPTANCE_CANDIDATE_SELECTION_INVALID`，并给出完整对象数组允许值；该简写本身仍不接受，第二次提交仍须通过同一确定性合同。混合项、未知字段、路径、权限、安全、执行、拓扑和其他合同错误继续失败关闭；默认开关仍保持 `false`，等待 0.3.4 隔离成品 JAR 的同 Session 自修正资格证据。
+
+`0.3.3` 修复 0.3.2 隔离真实模型资格暴露的闭集候选形状死路：真实模型已主动调用私有 MCP，但把 `capabilityPreferences` 的对象数组机械简写为整数数组，旧策略直接进入不可纠错 `WAITING_INPUT`。服务端现在只对“根字段仍在闭集内、`factAssignments` 合法、且 `capabilityPreferences` 仅为非空整数数组”的精确安全形状返回一次 `ACCEPTANCE_CANDIDATE_SELECTION_INVALID`，并给出服务端枚举的对象数组允许值；候选仍不会被接受，第二次提交仍须通过同一确定性合同。路径、权限、安全、执行、拓扑、未知根字段和其他合同错误继续失败关闭；默认开关仍保持 `false`，等待后续隔离成品 JAR 的同 Session 自修正资格证据。
 
 `0.2.83` 修复四个跨状态根因：Designer 聚合从持久化的首条用户需求恢复任务目标，需求快照只作冻结设计证据，不再覆盖任务标题与后续 `loopper/<任务名>` 分支来源；任务详情的双评审操作区只投影需求/风险各自最新一轮，完整旧记录继续保留在审计历史；桌面模型输出滚动区扩大到 500–680px，OpenCode 实施计划仍是独立且有界的非权威行；待处理中心统一按 Task/Designer 本地拥有者是否仍可处理来收束交互，已停止会话的问题与权限自动转为过期，活动会话的远端传输失败继续失败关闭并保留待处理状态。
 

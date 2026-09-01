@@ -313,6 +313,15 @@ permits the launch and parent to settle terminally. A user action that arrives a
 initial-prompt failure promotes the existing ready intent to cancellation/replacement instead
 of creating a competing termination authority.
 
+The closed-choice tool never accepts a shorthand for `capabilityPreferences`. If the candidate
+otherwise stays inside the safe root contract and uses a valid `factAssignments` array, only a
+non-empty integer array or a non-empty object array whose every item is strictly
+`{factIndex: integer, capabilityIndex: integer}` is classified as one mechanical
+`ACCEPTANCE_CANDIDATE_SELECTION_INVALID` response with server-enumerated full
+`{factIndex, capabilityIndexes:[...]}` values. The same Session may submit one full replacement;
+mixed items, unknown fields, other contract shapes and all path, permission, execution,
+topology or safety content remain non-retryable.
+
 The structural candidate qualification observes model prompt calls, OpenCode candidate Sessions, and MCP
 candidate submissions as three separate counters: unique optimum `0/0/0`, true tie `1/1/2`, and
 non-enumerable and path-safety blocks `0/0/0`. It records 22/22 exact guards, 7/7 metric guards,

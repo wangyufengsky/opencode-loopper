@@ -207,9 +207,11 @@ capabilityPreferences / handoffSummary`，只填写服务端列出的 unresolved
 开关开启只允许已持久化 `compilerRequired` 路由且经服务端再次证明为 2–32 个穷举等价最优集合的真实同分
 建立 `ACCEPTANCE_CLOSED_CHOICE_V7` 候选运行。该运行固定 `INTERNAL_MCP` 通道、同一冻结 Compilation
 拥有者/设计修订/运行时代际和最多两次唯一提交；只开放专用候选 Session 的精确内部
-`submit_candidate`，不开放内置工具或用户 MCP。只有闭集选择遗漏、越界或组合错误
-`ACCEPTANCE_CANDIDATE_SELECTION_INVALID` 可在同一 Session 再提交一次；路径/权限/执行/拓扑字段、
-非对象合同和非枚举快照分别以 `ACCEPTANCE_CANDIDATE_SECURITY_BOUNDARY / CONTRACT_INVALID /
+`submit_candidate`，不开放内置工具或用户 MCP。只有闭集选择遗漏、越界、组合错误，或其余根字段仍合法且
+`factAssignments` 合法时，把 `capabilityPreferences` 对象数组机械简写成非空整数数组，或把每项精确简写为
+整数 `{factIndex, capabilityIndex}`，才以
+`ACCEPTANCE_CANDIDATE_SELECTION_INVALID` 返回服务端枚举的对象数组允许值并可在同一 Session 再提交一次；
+简写候选本身不被接受。混合项、未知字段、路径/权限/执行/拓扑字段、其他非对象/合同错误和非枚举快照分别以 `ACCEPTANCE_CANDIDATE_SECURITY_BOUNDARY / CONTRACT_INVALID /
 NOT_ENUMERABLE` 失败关闭并进入人工输入，不创建修复 Session。Accepted writer 只从数据库冻结事实生成
 规范 binding，并通过通用 `MachineCandidateSubmission` 的短事务落库；模型提交不能写路径、命令、权限或安全策略。
 

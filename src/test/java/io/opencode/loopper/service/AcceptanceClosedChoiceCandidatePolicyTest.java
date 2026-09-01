@@ -75,6 +75,43 @@ class AcceptanceClosedChoiceCandidatePolicyTest {
     }
 
     @Test
+    void safeIntegerPreferenceShorthandIsRejectedAsOneMechanicalCorrectionOpportunity() {
+        CandidatePolicy.Decision decision = policy.evaluate(context(0), """
+                {"factAssignments":[],"capabilityPreferences":[0]}
+                """);
+
+        assertThat(decision.accepted()).isFalse();
+        assertThat(decision.retryable()).isTrue();
+        assertThat(decision.problems()).singleElement().satisfies(problem -> {
+            assertThat(problem.code()).isEqualTo("ACCEPTANCE_CANDIDATE_SELECTION_INVALID");
+            assertThat(problem.pointer()).isEqualTo("/capabilityPreferences");
+            assertThat(problem.detail()).contains("对象数组", "factIndex", "capabilityIndexes");
+            assertThat(problem.allowedValues()).containsExactly(
+                    "[{\"factIndex\":0,\"capabilityIndexes\":[0]}]",
+                    "[{\"factIndex\":0,\"capabilityIndexes\":[1]}]");
+        });
+    }
+
+    @Test
+    void safeSingularCapabilityPreferenceIsRejectedAsOneMechanicalCorrectionOpportunity() {
+        CandidatePolicy.Decision decision = policy.evaluate(context(0), """
+                {"factAssignments":[{"factIndex":0,"stageIndex":0}],
+                 "capabilityPreferences":[{"factIndex":0,"capabilityIndex":0}]}
+                """);
+
+        assertThat(decision.accepted()).isFalse();
+        assertThat(decision.retryable()).isTrue();
+        assertThat(decision.problems()).singleElement().satisfies(problem -> {
+            assertThat(problem.code()).isEqualTo("ACCEPTANCE_CANDIDATE_SELECTION_INVALID");
+            assertThat(problem.pointer()).isEqualTo("/capabilityPreferences");
+            assertThat(problem.detail()).contains("capabilityIndex", "capabilityIndexes");
+            assertThat(problem.allowedValues()).containsExactly(
+                    "[{\"factIndex\":0,\"capabilityIndexes\":[0]}]",
+                    "[{\"factIndex\":0,\"capabilityIndexes\":[1]}]");
+        });
+    }
+
+    @Test
     void safetyPathPermissionAndNonSelectionShapesAreNeverRetryable() {
         for (String candidate : List.of(
                 "{\"factAssignments\":[],\"capabilityPreferences\":[],\"allowedPaths\":[\"src/**\"]}",

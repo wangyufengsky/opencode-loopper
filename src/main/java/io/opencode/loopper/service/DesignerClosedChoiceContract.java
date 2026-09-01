@@ -30,6 +30,8 @@ final class DesignerClosedChoiceContract {
             "summary", "factassignments", "capabilitypreferences", "handoffsummary");
     private static final Set<String> FACT_ASSIGNMENT_FIELDS = Set.of("factindex", "stageindex");
     private static final Set<String> CAPABILITY_PREFERENCE_FIELDS = Set.of("factindex", "capabilityindexes");
+    private static final Set<String> SINGULAR_CAPABILITY_PREFERENCE_FIELDS =
+            Set.of("factindex", "capabilityindex");
     private static final Set<String> SELECTION_FIELDS = Set.of(
             "factassignments", "capabilitypreferences", "factindex", "stageindex", "capabilityindexes");
 
@@ -59,6 +61,38 @@ final class DesignerClosedChoiceContract {
             return violation.boundary();
         } catch (RuntimeException invalid) {
             return CandidateBoundary.CONTRACT_INVALID;
+        }
+    }
+
+    boolean isMechanicalCapabilityPreferenceShorthand(String candidateJson) {
+        try {
+            JsonNode root = json.readTree(candidateJson);
+            if (root == null || !root.isObject()
+                    || !root.has("factAssignments") || !root.has("capabilityPreferences")) return false;
+            validateBoundaryTree(root, ObjectContext.ROOT);
+            for (Map.Entry<String, JsonNode> entry : root.properties()) {
+                String field = normalized(entry.getKey());
+                JsonNode value = entry.getValue();
+                if (!ROOT_FIELDS.contains(field)) return false;
+                if ((field.equals("summary") || field.equals("handoffsummary"))
+                        && !value.isNull() && !value.isTextual()) return false;
+            }
+            if (!validObjectArray(root.get("factAssignments"), FACT_ASSIGNMENT_FIELDS,
+                    Set.of("factindex", "stageindex"), Set.of())) return false;
+            JsonNode preferences = root.get("capabilityPreferences");
+            if (!preferences.isArray() || preferences.isEmpty()) return false;
+            boolean integerArray = true;
+            for (JsonNode preference : preferences) {
+                if (!preference.isIntegralNumber() || !preference.canConvertToInt()) {
+                    integerArray = false;
+                    break;
+                }
+            }
+            if (integerArray) return true;
+            return validObjectArray(preferences, SINGULAR_CAPABILITY_PREFERENCE_FIELDS,
+                    SINGULAR_CAPABILITY_PREFERENCE_FIELDS, Set.of());
+        } catch (RuntimeException invalid) {
+            return false;
         }
     }
 

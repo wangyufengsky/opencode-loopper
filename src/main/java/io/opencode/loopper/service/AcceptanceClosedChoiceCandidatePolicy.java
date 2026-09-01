@@ -82,6 +82,12 @@ final class AcceptanceClosedChoiceCandidatePolicy implements CandidatePolicy {
                     "候选包含路径、权限、安全、执行或拓扑字段", List.of());
         }
         if (boundary == DesignerClosedChoiceContract.CandidateBoundary.CONTRACT_INVALID) {
+            if (contract.isMechanicalCapabilityPreferenceShorthand(candidateJson)) {
+                return rejected(SELECTION_INVALID, "/capabilityPreferences",
+                        "capabilityPreferences 必须是包含 factIndex 与 capabilityIndexes 整数数组的对象数组；"
+                                + "不能直接提交整数数组，也不能使用单数 capabilityIndex 字段",
+                        allowedPreferenceValues(resolution));
+            }
             return rejected(CONTRACT_INVALID, "/candidate",
                     "候选不是 ACCEPTANCE_CLOSED_CHOICE_V7 的 JSON object 合同", List.of());
         }
@@ -107,6 +113,21 @@ final class AcceptanceClosedChoiceCandidatePolicy implements CandidatePolicy {
     private List<String> allowedValues(DesignerAcceptanceFastPathResolver.Resolution resolution) {
         return resolution.optimalTieChoiceSets().stream().map(choice -> {
             try { return json.writeValueAsString(choice); }
+            catch (JacksonException impossible) { throw new IllegalStateException(impossible); }
+        }).toList();
+    }
+
+    private List<String> allowedPreferenceValues(
+            DesignerAcceptanceFastPathResolver.Resolution resolution) {
+        return resolution.optimalTieChoiceSets().stream().map(choice -> {
+            List<DesignerSemanticContracts.AcceptanceCapabilityPreference> preferences =
+                    resolution.ambiguousCapabilityFactIndexes().stream().map(factIndex ->
+                            new DesignerSemanticContracts.AcceptanceCapabilityPreference(factIndex,
+                                    choice.stream().filter(index -> resolution.tiedCapabilityIndexesByFact()
+                                            .get(factIndex).contains(index)).toList()))
+                            .filter(DesignerSemanticContracts.AcceptanceCapabilityPreference::usable)
+                            .toList();
+            try { return json.writeValueAsString(preferences); }
             catch (JacksonException impossible) { throw new IllegalStateException(impossible); }
         }).toList();
     }
