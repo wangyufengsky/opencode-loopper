@@ -533,4 +533,68 @@ public interface LoopperMachineCandidateMapper {
             @Param("expectedVersion") long expectedVersion,
             @Param("settledAnalysisReportId") String settledAnalysisReportId,
             @Param("updatedAt") String updatedAt);
+
+    @Insert("""
+            INSERT INTO project_convention_candidate_source_snapshot(
+              candidate_run_id,project_id,project_convention_draft_id,source_revision,
+              prepared_owner_version,contract_version,source_exists,source_agents_sha256,
+              source_content,source_content_sha256,project_stack_profile_id,stack_fingerprint,
+              canonical_evidence_json,evidence_sha256,created_at)
+            VALUES(#{candidateRunId},#{projectId},#{projectConventionDraftId},#{sourceRevision},
+              #{preparedOwnerVersion},#{contractVersion},#{sourceExists},#{sourceAgentsSha256},
+              #{sourceContent},#{sourceContentSha256},#{projectStackProfileId},#{stackFingerprint},
+              #{canonicalEvidenceJson},#{evidenceSha256},#{createdAt})
+            """)
+    int insertProjectConventionCandidateSourceSnapshot(
+            ProjectConventionCandidateSourceSnapshotRow row);
+
+    @Select("""
+            SELECT * FROM project_convention_candidate_source_snapshot
+            WHERE candidate_run_id=#{candidateRunId}
+            """)
+    Optional<ProjectConventionCandidateSourceSnapshotRow>
+            findProjectConventionCandidateSourceSnapshot(String candidateRunId);
+
+    @Insert("""
+            INSERT INTO project_convention_candidate_accepted_result(
+              candidate_run_id,project_id,project_convention_draft_id,source_revision,owner_version,
+              contract_version,canonical_candidate_json,candidate_payload_sha256,
+              canonical_result_sha256,proposed_content,proposed_content_sha256,settled_draft_id,
+              created_at,updated_at,version)
+            VALUES(#{candidateRunId},#{projectId},#{projectConventionDraftId},#{sourceRevision},
+              #{ownerVersion},#{contractVersion},#{canonicalCandidateJson},#{candidatePayloadSha256},
+              #{canonicalResultSha256},#{proposedContent},#{proposedContentSha256},#{settledDraftId},
+              #{createdAt},#{updatedAt},#{version})
+            """)
+    int insertProjectConventionCandidateAcceptedResult(
+            ProjectConventionCandidateAcceptedResultRow row);
+
+    @Select("""
+            SELECT * FROM project_convention_candidate_accepted_result
+            WHERE candidate_run_id=#{candidateRunId}
+            """)
+    Optional<ProjectConventionCandidateAcceptedResultRow>
+            findProjectConventionCandidateAcceptedResult(String candidateRunId);
+
+    @Select("""
+            SELECT * FROM project_convention_candidate_accepted_result
+            WHERE settled_draft_id IS NULL
+            ORDER BY created_at,candidate_run_id
+            """)
+    List<ProjectConventionCandidateAcceptedResultRow>
+            listUnsettledProjectConventionCandidateAcceptedResults();
+
+    @Update("""
+            UPDATE project_convention_candidate_accepted_result
+            SET settled_draft_id=#{settledDraftId},updated_at=#{updatedAt},version=version+1
+            WHERE candidate_run_id=#{candidateRunId} AND version=#{expectedVersion}
+              AND settled_draft_id IS NULL
+              AND project_convention_draft_id=#{settledDraftId}
+              AND #{settledDraftId} IS NOT NULL AND length(#{settledDraftId})>0
+            """)
+    int settleProjectConventionCandidateAcceptedResult(
+            @Param("candidateRunId") String candidateRunId,
+            @Param("expectedVersion") long expectedVersion,
+            @Param("settledDraftId") String settledDraftId,
+            @Param("updatedAt") String updatedAt);
 }

@@ -112,8 +112,8 @@ for staged adapters. V56 activates `ROLLING_PACKAGE_PLAN_V1`; V57 adds the share
 `GENERIC_V1` durable creation/prompt/termination schema for the other three roles, and V58–V61
 connect Reviewer behind its staged feature flag. The isolated 0.3.13 packaged JAR then proved real
 `opencode/gpt-5.4` private-tool adoption and same-Session `line=99` rejection/`line=1` repair, so Reviewer
-defaults on from 0.3.14 while an explicit false affects only new reports. Convention and Judge remain
-rejected at application open and require their own qualification. Rolling uses a dedicated
+defaults on from 0.3.14 while an explicit false affects only new reports. V62 connects Convention behind a
+default-off qualification flag; Judge remains rejected at application open and requires its own qualification. Rolling uses a dedicated
 `ROLLING_PACKAGE_CANDIDATE_READ_ONLY` profile with `read/glob/grep` and only the
 exact private submission tool. It has no Markdown/marker fallback after dispatch.
 Only `PACKAGE_DESIGN_V1` retains the explicit Markdown-fallback compatibility policy.
@@ -130,8 +130,21 @@ before the first exact-title lookup or remote create, uses `REVIEWER_CANDIDATE_R
 (`read/glob/grep` plus only the exact private tool), and never reads assistant final text. Only a
 proven pre-dispatch managed-runtime/lookup capability absence may hand the owner to Legacy. Once
 dispatch may have occurred, zero submission, timeout, questions, transport/stop uncertainty,
-safety failure and exhaustion remain Candidate failures. Convention and Judge still require
-their own role orchestration and qualification before their flags can be enabled.
+safety failure and exhaustion remain Candidate failures. V62 adds Convention orchestration but still requires its
+own packaged real-model qualification before default enablement; Judge still requires both orchestration and qualification.
+
+V62 supplies Convention's role orchestration while preserving the same launch gates. Its source `AGENTS.md`,
+source revision/owner version, stack profile/fingerprint and canonical component/command/path evidence catalog are
+persisted before the first exact-title lookup or remote create. `PROJECT_CONVENTION_CANDIDATE_READ_ONLY` allows only
+`read/glob/grep` plus the exact private submit tool; it forbids shell, write, question and every user MCP tool. The
+model submits only closed evidence IDs. Final assistant text is never read for compilation or fallback. A proven
+pre-dispatch `CANDIDATE_MANAGED_RUNTIME_REQUIRED` or `OPENCODE_EXACT_LOOKUP_UNSUPPORTED` condition, with no create
+attempt and no remote, may hand the owner to one fresh `PROJECT_CONVENTION_READ_ONLY` Legacy Session. After possible
+dispatch, normal completion without a submission, transport failure, interaction, security rejection, attempt
+exhaustion, generation conflict or uncertain stop must close or retain the Candidate recovery point; none may start
+Legacy. Accepted content becomes `READY` only after `REMOTE_COMPLETED`, `ABORT_ACKNOWLEDGED` or `ALREADY_ABSENT`
+proof. The 0.3.16 application flag remains false pending packaged real-model qualification, but does not disable
+recovery of already persisted Convention runs.
 
 The private `/api/internal-mcp-streamable` Router accepts only literal loopback
 addresses and constant-time Bearer matches. It registers exactly one tool,

@@ -324,6 +324,10 @@ public final class CandidateRuntimeBindingService implements CandidateRunGuard {
             validateReviewerReportOwner(run);
             return;
         }
+        if (run.candidateKind() == MachineCandidateKind.PROJECT_CONVENTION_V1) {
+            validateProjectConventionOwner(run);
+            return;
+        }
         if (run.candidateKind() != MachineCandidateKind.ACCEPTANCE_CLOSED_CHOICE_V7) {
             throw new ConflictException("CANDIDATE_KIND_NOT_INTEGRATED",
                     "Candidate kind is not connected to an authoritative owner adapter");
@@ -378,6 +382,59 @@ public final class CandidateRuntimeBindingService implements CandidateRunGuard {
                 || !run.contractVersion().equals(snapshot.contractVersion())) {
             throw new ConflictException("CANDIDATE_SOURCE_REVISION_STALE",
                     "Frozen Reviewer source manifest has changed");
+        }
+    }
+
+    private void validateProjectConventionOwner(MachineCandidateSubmission.RunSnapshot run) {
+        var owner = mapper.findProjectConventionDraft(run.owner().id())
+                .orElseThrow(() -> new ConflictException("CANDIDATE_OWNER_MISSING",
+                        "Convention candidate owner no longer exists"));
+        if (!run.scope().id().equals(owner.projectId())
+                || owner.version() != run.ownerVersion()
+                || !"INTERNAL_MCP".equals(owner.responseMode())
+                || !"PROJECT_CONVENTION_V1".equals(run.contractVersion())) {
+            throw new ConflictException("CANDIDATE_OWNER_REVISION_STALE",
+                    "Convention candidate project scope or owner revision has changed");
+        }
+        if (owner.sourceRevision() == null || owner.sourceRevision() != run.sourceRevision()) {
+            throw new ConflictException("CANDIDATE_SOURCE_REVISION_STALE",
+                    "Convention candidate source revision has changed");
+        }
+        if (!"RUNNING".equals(owner.state())) {
+            throw new ConflictException("CANDIDATE_OWNER_STATE_INVALID",
+                    "Convention candidate owner is no longer running");
+        }
+        if (!run.externalSessionId().equals(owner.externalSessionId())) {
+            throw new ConflictException("CANDIDATE_OWNER_SESSION_STALE",
+                    "Convention candidate remote Session has changed");
+        }
+        var snapshot = mapper.findProjectConventionCandidateSourceSnapshot(run.runId())
+                .orElseThrow(() -> new ConflictException("CANDIDATE_SOURCE_REVISION_STALE",
+                        "Frozen Convention source and evidence snapshot is missing"));
+        boolean preparedVersionMatches = snapshot.preparedOwnerVersion() != Long.MAX_VALUE
+                && snapshot.preparedOwnerVersion() + 1 == run.ownerVersion();
+        boolean evidenceAnchorMatches = !blank(snapshot.canonicalEvidenceJson())
+                && !blank(snapshot.evidenceSha256())
+                && snapshot.evidenceSha256().equals(sha256(snapshot.canonicalEvidenceJson()));
+        boolean sourceAnchorMatches = snapshot.sourceContent() != null
+                && !blank(snapshot.sourceContentSha256())
+                && snapshot.sourceContentSha256().equals(sha256(snapshot.sourceContent()))
+                && java.util.Objects.equals(owner.sourceSha256(), snapshot.sourceAgentsSha256())
+                && java.util.Objects.equals(owner.sourceSha256(), snapshot.sourceContentSha256())
+                && java.util.Objects.equals(owner.sourceContent(), snapshot.sourceContent())
+                && owner.sourceExists() == snapshot.sourceExists();
+        boolean stackAnchorMatches = java.util.Objects.equals(
+                owner.projectStackProfileId(), snapshot.projectStackProfileId())
+                && java.util.Objects.equals(owner.stackFingerprint(), snapshot.stackFingerprint());
+        if (!run.runId().equals(snapshot.candidateRunId())
+                || !run.scope().id().equals(snapshot.projectId())
+                || !run.owner().id().equals(snapshot.projectConventionDraftId())
+                || run.sourceRevision() != snapshot.sourceRevision()
+                || !preparedVersionMatches
+                || !run.contractVersion().equals(snapshot.contractVersion())
+                || !sourceAnchorMatches || !stackAnchorMatches || !evidenceAnchorMatches) {
+            throw new ConflictException("CANDIDATE_SOURCE_REVISION_STALE",
+                    "Frozen Convention source or evidence snapshot has changed");
         }
     }
 

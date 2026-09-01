@@ -17,6 +17,8 @@ import io.opencode.loopper.persistence.DesignerSessionRow;
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.LoopSpecCompilationRow;
 import io.opencode.loopper.persistence.OpenCodeSessionRuntimeBindingRow;
+import io.opencode.loopper.persistence.ProjectConventionCandidateSourceSnapshotRow;
+import io.opencode.loopper.persistence.ProjectConventionDraftRow;
 import io.opencode.loopper.persistence.ReviewerReportSourceSnapshotRow;
 import io.opencode.loopper.persistence.TaskDecompositionRow;
 import io.opencode.loopper.persistence.TaskPackagePlanRevisionRow;
@@ -304,6 +306,79 @@ class CandidateRuntimeBindingServiceTest {
         assertThatThrownBy(() -> service.validateIntegratedOwnerAndSource(reviewer))
                 .isInstanceOfSatisfying(ConflictException.class,
                         failure -> assertThat(failure.code()).isEqualTo("CANDIDATE_SOURCE_REVISION_STALE"));
+    }
+
+    @Test
+    void conventionGuardRejectsEveryCrossProjectDraftRevisionVersionSessionAndSnapshotBinding() {
+        LoopperMapper mapper = mock(LoopperMapper.class);
+        CandidateRuntimeBindingService service = new CandidateRuntimeBindingService(
+                mapper, new InternalMcpRuntimeAccess());
+        MachineCandidateSubmission.RunSnapshot run = conventionRun();
+        ProjectConventionDraftRow owner = mock(ProjectConventionDraftRow.class);
+        when(owner.projectId()).thenReturn("project-1");
+        when(owner.state()).thenReturn("RUNNING");
+        when(owner.version()).thenReturn(1L);
+        when(owner.sourceRevision()).thenReturn(7L);
+        when(owner.responseMode()).thenReturn("INTERNAL_MCP");
+        when(owner.externalSessionId()).thenReturn("convention-remote");
+        when(owner.sourceExists()).thenReturn(1);
+        when(owner.sourceSha256()).thenReturn("aef277fb6a70a89681a85e1b6d23f44ee2a6cc58490f9f5c95fc99db6d2d3542");
+        when(owner.sourceContent()).thenReturn("# Project\n");
+        when(owner.projectStackProfileId()).thenReturn("profile-1");
+        when(owner.stackFingerprint()).thenReturn("c".repeat(64));
+        when(mapper.findProjectConventionDraft("draft-1")).thenReturn(Optional.of(owner));
+        when(mapper.findProjectConventionCandidateSourceSnapshot("convention-run"))
+                .thenReturn(Optional.of(conventionSnapshot(
+                        "project-1", "draft-1", 7, 0,
+                        "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a")));
+
+        service.validateIntegratedOwnerAndSource(run);
+
+        when(owner.projectId()).thenReturn("project-2");
+        assertConventionRejected(service, run, "CANDIDATE_OWNER_REVISION_STALE");
+        when(owner.projectId()).thenReturn("project-1");
+        when(owner.version()).thenReturn(2L);
+        assertConventionRejected(service, run, "CANDIDATE_OWNER_REVISION_STALE");
+        when(owner.version()).thenReturn(1L);
+        when(owner.state()).thenReturn("READY");
+        assertConventionRejected(service, run, "CANDIDATE_OWNER_STATE_INVALID");
+        when(owner.state()).thenReturn("RUNNING");
+        when(owner.sourceRevision()).thenReturn(8L);
+        assertConventionRejected(service, run, "CANDIDATE_SOURCE_REVISION_STALE");
+        when(owner.sourceRevision()).thenReturn(7L);
+        when(owner.responseMode()).thenReturn("TEXT_MARKER");
+        assertConventionRejected(service, run, "CANDIDATE_OWNER_REVISION_STALE");
+        when(owner.responseMode()).thenReturn("INTERNAL_MCP");
+        when(owner.externalSessionId()).thenReturn("replacement-remote");
+        assertConventionRejected(service, run, "CANDIDATE_OWNER_SESSION_STALE");
+        when(owner.externalSessionId()).thenReturn("convention-remote");
+        assertConventionRejected(service, conventionRun("PROJECT_CONVENTION_V2"),
+                "CANDIDATE_OWNER_REVISION_STALE");
+
+        when(mapper.findProjectConventionCandidateSourceSnapshot("convention-run"))
+                .thenReturn(Optional.of(conventionSnapshot(
+                        "project-2", "draft-1", 7, 0,
+                        "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a")));
+        assertConventionRejected(service, run, "CANDIDATE_SOURCE_REVISION_STALE");
+        when(mapper.findProjectConventionCandidateSourceSnapshot("convention-run"))
+                .thenReturn(Optional.of(conventionSnapshot(
+                        "project-1", "draft-2", 7, 0,
+                        "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a")));
+        assertConventionRejected(service, run, "CANDIDATE_SOURCE_REVISION_STALE");
+        when(mapper.findProjectConventionCandidateSourceSnapshot("convention-run"))
+                .thenReturn(Optional.of(conventionSnapshot(
+                        "project-1", "draft-1", 8, 0,
+                        "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a")));
+        assertConventionRejected(service, run, "CANDIDATE_SOURCE_REVISION_STALE");
+        when(mapper.findProjectConventionCandidateSourceSnapshot("convention-run"))
+                .thenReturn(Optional.of(conventionSnapshot(
+                        "project-1", "draft-1", 7, 1,
+                        "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a")));
+        assertConventionRejected(service, run, "CANDIDATE_SOURCE_REVISION_STALE");
+        when(mapper.findProjectConventionCandidateSourceSnapshot("convention-run"))
+                .thenReturn(Optional.of(conventionSnapshot(
+                        "project-1", "draft-1", 7, 0, "b".repeat(64))));
+        assertConventionRejected(service, run, "CANDIDATE_SOURCE_REVISION_STALE");
     }
 
     @Test
@@ -617,6 +692,40 @@ class CandidateRuntimeBindingServiceTest {
                 MachineCandidateKind.ROLLING_PACKAGE_PLAN_V1, "ROLLING_PACKAGE_PLAN_V1",
                 3, ownerVersion, INTERNAL, "ROLLING_PACKAGE_PLAN_V1", "generation-1",
                 "rolling-remote", MachineCandidateRunState.OPEN, 3, 0, null, 0);
+    }
+
+    private MachineCandidateSubmission.RunSnapshot conventionRun() {
+        return conventionRun("PROJECT_CONVENTION_V1");
+    }
+
+    private MachineCandidateSubmission.RunSnapshot conventionRun(String contractVersion) {
+        return new MachineCandidateSubmission.RunSnapshot(
+                "convention-run", MachineCandidateSubmission.CandidateScope.project("project-1"),
+                MachineCandidateSubmission.CandidateOwnerRef.projectConventionDraft("draft-1"),
+                MachineCandidateKind.PROJECT_CONVENTION_V1, "PROJECT_CONVENTION_V1",
+                7, 1, INTERNAL, contractVersion, "generation-1",
+                "convention-remote", MachineCandidateRunState.OPEN, 3, 0, null, 0);
+    }
+
+    private ProjectConventionCandidateSourceSnapshotRow conventionSnapshot(
+            String projectId, String draftId, long sourceRevision,
+            long preparedOwnerVersion, String evidenceSha256) {
+        return new ProjectConventionCandidateSourceSnapshotRow(
+                "convention-run", projectId, draftId, sourceRevision, preparedOwnerVersion,
+                "PROJECT_CONVENTION_V1", 1,
+                "aef277fb6a70a89681a85e1b6d23f44ee2a6cc58490f9f5c95fc99db6d2d3542",
+                "# Project\n",
+                "aef277fb6a70a89681a85e1b6d23f44ee2a6cc58490f9f5c95fc99db6d2d3542",
+                "profile-1", "c".repeat(64), "{}", evidenceSha256, "now");
+    }
+
+    private void assertConventionRejected(
+            CandidateRuntimeBindingService service,
+            MachineCandidateSubmission.RunSnapshot run,
+            String expectedCode) {
+        assertThatThrownBy(() -> service.validateIntegratedOwnerAndSource(run))
+                .isInstanceOfSatisfying(ConflictException.class,
+                        failure -> assertThat(failure.code()).isEqualTo(expectedCode));
     }
 
     private TaskDecompositionRow decomposition(long version) {

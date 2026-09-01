@@ -19,14 +19,25 @@ public record ProjectConventionDraftRow(
         String updatedAt,
         long version,
         String projectStackProfileId,
-        String stackFingerprint) {
+        String stackFingerprint,
+        String responseMode,
+        Long sourceRevision) {
     @AutomapConstructor public ProjectConventionDraftRow { }
+    public ProjectConventionDraftRow(
+            String id, String projectId, String state, String externalSessionId, String externalSessionState,
+            int sourceExists, String sourceSha256, String sourceContent, String proposedContent,
+            String normalizationNotice, String errorMessage, String createdAt, String updatedAt, long version,
+            String projectStackProfileId, String stackFingerprint) {
+        this(id, projectId, state, externalSessionId, externalSessionState, sourceExists, sourceSha256,
+                sourceContent, proposedContent, normalizationNotice, errorMessage, createdAt, updatedAt,
+                version, projectStackProfileId, stackFingerprint, null, null);
+    }
     public ProjectConventionDraftRow(
             String id, String projectId, String state, String externalSessionId, String externalSessionState,
             int sourceExists, String sourceSha256, String sourceContent, String proposedContent,
             String normalizationNotice, String errorMessage, String createdAt, String updatedAt, long version) {
         this(id, projectId, state, externalSessionId, externalSessionState, sourceExists, sourceSha256,
                 sourceContent, proposedContent, normalizationNotice, errorMessage, createdAt, updatedAt,
-                version, null, null);
+                version, null, null, null, null);
     }
 }

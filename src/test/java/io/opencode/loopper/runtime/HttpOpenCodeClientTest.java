@@ -448,6 +448,41 @@ class HttpOpenCodeClientTest {
     }
 
     @Test
+    void projectConventionCandidateRequiresPrivateMcpAndNeverExposesQuestionOrUserMcp() throws Exception {
+        String internal = "loopper_internal_convention";
+        HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(),
+                () -> new OpenCodeRuntimeManager.Connection(
+                        URI.create("http://127.0.0.1:" + server.getAddress().getPort()), "", "", true,
+                        "generation-convention", internal));
+        mcpBody.set("{\"" + internal + "\":{\"status\":\"connected\"},"
+                + "\"user_probe\":{\"status\":\"connected\"}}");
+
+        OpenCodeClient.OpenCodeSession session = client.createSession(worktree, "convention candidate", null,
+                OpenCodeClient.SessionProfile.PROJECT_CONVENTION_CANDIDATE_READ_ONLY);
+
+        assertThat(createBody.get()).contains(
+                        "\"permission\":\"read\"",
+                        "\"permission\":\"glob\"",
+                        "\"permission\":\"grep\"",
+                        "\"permission\":\"" + internal + "_submit_candidate\"")
+                .doesNotContain("\"permission\":\"question\"")
+                .doesNotContain("\"permission\":\"bash\"")
+                .doesNotContain("\"permission\":\"write\"")
+                .doesNotContain("user_probe_*")
+                .doesNotContain(internal + "_*");
+        client.promptAsync(session, "submit the project convention candidate");
+        assertThat(promptBody.get()).contains("\"agent\":\"loopper-structured\"");
+
+        mcpBody.set("{\"" + internal + "\":{\"status\":\"failed\"}}");
+        createBody.set(null);
+        assertThatThrownBy(() -> client.createSession(worktree, "convention candidate", null,
+                OpenCodeClient.SessionProfile.PROJECT_CONVENTION_CANDIDATE_READ_ONLY))
+                .isInstanceOfSatisfying(SessionFailure.class,
+                        failure -> assertThat(failure.code()).isEqualTo("OPENCODE_INTERNAL_MCP_NOT_READY"));
+        assertThat(createBody.get()).isNull();
+    }
+
+    @Test
     void routerSkipsInvalidMcpDiscoveryWhileEvidenceRolesStillFailClosed() throws Exception {
         LoopperProperties properties = new LoopperProperties();
         properties.getOpenCode().setBaseUrl(new java.net.URI("http://127.0.0.1:" + server.getAddress().getPort()));
@@ -902,6 +937,10 @@ class HttpOpenCodeClientTest {
                 worktree, "Reviewer internal", model,
                 OpenCodeClient.SessionProfile.REVIEWER_CANDIDATE_READ_ONLY,
                 credential);
+        OpenCodeClient.SessionCreationPlan convention = client.prepareCandidateSessionCreationLocally(
+                worktree, "Project convention internal", model,
+                OpenCodeClient.SessionProfile.PROJECT_CONVENTION_CANDIDATE_READ_ONLY,
+                credential);
 
         assertThat(remoteConnectionResolutions).hasValue(0);
         assertThat(httpRequests).hasValue(0);
@@ -927,15 +966,17 @@ class HttpOpenCodeClientTest {
                 new OpenCodeClient.SessionPermissionRule(
                         "loopper-private-7_submit_candidate", "*", "allow"));
         assertThat(reviewer.permissionPolicy()).isEqualTo(rolling.permissionPolicy());
+        assertThat(convention.permissionPolicy()).isEqualTo(rolling.permissionPolicy());
 
         mcpBody.set("{\"loopper-private-7\":{\"status\":\"connected\"}}");
         client.requireCandidateSessionReady(first);
         client.requireCandidateSessionReady(rolling);
         client.requireCandidateSessionReady(reviewer);
+        client.requireCandidateSessionReady(convention);
 
-        assertThat(remoteConnectionResolutions).hasValue(3);
-        assertThat(httpRequests).hasValue(3);
-        assertThat(mcpRequests).hasValue(3);
+        assertThat(remoteConnectionResolutions).hasValue(4);
+        assertThat(httpRequests).hasValue(4);
+        assertThat(mcpRequests).hasValue(4);
         assertThat(first).isEqualTo(replay);
 
         connection.set(new OpenCodeRuntimeManager.Connection(endpoint(), null, null,
@@ -943,8 +984,8 @@ class HttpOpenCodeClientTest {
         assertThatThrownBy(() -> client.requireCandidateSessionReady(first))
                 .isInstanceOfSatisfying(SessionFailure.class, failure -> assertThat(failure.code())
                         .isEqualTo("OPENCODE_SESSION_CREATION_PLAN_STALE"));
-        assertThat(mcpRequests).hasValue(3);
-        assertThat(httpRequests).hasValue(3);
+        assertThat(mcpRequests).hasValue(4);
+        assertThat(httpRequests).hasValue(4);
     }
 
     @Test

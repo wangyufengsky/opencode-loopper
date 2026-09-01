@@ -17,26 +17,17 @@ import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.HexFormat;
 import java.util.UUID;
-import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 
-/**
- * Generates only a project-specific context section with a read-only model.
- * Stable Looper safety and acceptance rules are supplied by this program and
- * the resulting file is written only after an explicit, hash-guarded apply.
- */
+/** Generates a hash-guarded project context proposal through one deterministic authority. */
 @Service
 public class ProjectConventionService {
     public static final String START_MARKER = ProjectConventionDocumentStore.START_MARKER;
     public static final String END_MARKER = ProjectConventionDocumentStore.END_MARKER;
-    private static final int MAX_AI_CONTENT = 24_000;
     private static final int MAX_PROJECT_CONTEXT_REPAIR_ATTEMPTS = 2;
     private static final String PROJECT_CONTEXT_REPAIR_STATE = "REPAIRING_PROJECT_CONTEXT_";
     private static final String STOP_USER_CANCEL = "USER_CANCEL";
     private static final String STOP_POLL_FAILED = "POLL_FAILED";
-    private static final Pattern AI_PAYLOAD = Pattern.compile(
-            "<!--\\s*LOOPPER_PROJECT_CONTEXT_START\\s*-->(.*?)<!--\\s*LOOPPER_PROJECT_CONTEXT_END\\s*-->",
-            Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
     private final LoopperMapper mapper;
     private final LifecycleTransitionService lifecycle;
     private final ProjectService projects;
@@ -44,7 +35,9 @@ public class ProjectConventionService {
     private final ProjectConventionStackPolicy stackPolicy;
     private final OpenCodeClient openCode;
     private final LoopperProperties properties;
-    private final AiOutputExtractor aiOutputExtractor;
+    private final ProjectConventionLegacyAdapter legacyAdapter;
+    private final ProjectConventionCandidateWorkflow candidateWorkflow;
+    private final ProjectConventionCandidateDraftCreator candidateDrafts;
     private final AiOutputAuditService aiOutputAudit;
     private final ProjectConventionDocumentStore documents;
 
@@ -52,7 +45,9 @@ public class ProjectConventionService {
                                     ProjectService projects, ProjectStackProfileService stackProfiles,
                                     ProjectConventionStackPolicy stackPolicy,
                                     OpenCodeClient openCode,
-                                    LoopperProperties properties, AiOutputExtractor aiOutputExtractor,
+                                    LoopperProperties properties, ProjectConventionLegacyAdapter legacyAdapter,
+                                    ProjectConventionCandidateWorkflow candidateWorkflow,
+                                    ProjectConventionCandidateDraftCreator candidateDrafts,
                                     AiOutputAuditService aiOutputAudit,
                                     ProjectConventionDocumentStore documents) {
         this.mapper = mapper;
@@ -62,7 +57,9 @@ public class ProjectConventionService {
         this.stackPolicy = stackPolicy;
         this.openCode = openCode;
         this.properties = properties;
-        this.aiOutputExtractor = aiOutputExtractor;
+        this.legacyAdapter = legacyAdapter;
+        this.candidateWorkflow = candidateWorkflow;
+        this.candidateDrafts = candidateDrafts;
         this.aiOutputAudit = aiOutputAudit;
         this.documents = documents;
     }
@@ -85,6 +82,9 @@ public class ProjectConventionService {
                     "OpenCode is unavailable; AGENTS.md generation requires a real read-only AI session");
         }
         ProjectConventionDocumentStore.SourceSnapshot source = documents.read(project);
+        if (properties.getInternalCandidate().isProjectConventionV1Enabled()) {
+            return startCandidate(project, source, stackProfile);
+        }
         OpenCodeClient.OpenCodeSession remote;
         try {
             remote = openCode.createSession(Path.of(project.rootPath()),
@@ -121,7 +121,6 @@ public class ProjectConventionService {
             return requestStop(row, STOP_POLL_FAILED, safeMessage(failure));
         }
     }
-
     public ProjectConventionDraftRow get(String projectId, String draftId) {
         projects.get(projectId);
         ProjectConventionDraftRow row = mapper.findProjectConventionDraft(draftId)
@@ -131,23 +130,33 @@ public class ProjectConventionService {
         }
         return row;
     }
-
     public CurrentConvention current(String projectId) {
         ProjectRow project = projects.get(projectId);
         ProjectConventionDocumentStore.SourceSnapshot source = documents.read(project);
         boolean loopperManaged = source.content().contains(START_MARKER) && source.content().contains(END_MARKER);
         return new CurrentConvention(project.id(), source.exists(), loopperManaged, source.content());
     }
-
     public void pollActiveGenerations() {
         for (ProjectConventionDraftRow row : mapper.activeProjectConventionDrafts()) {
             reconcileActiveGeneration(row);
         }
     }
-
     private ProjectConventionDraftRow reconcileActiveGeneration(ProjectConventionDraftRow row) {
         try {
             if (ProjectConventionState.APPLYING.name().equals(row.state())) return recoverApplying(row);
+            if (candidateWorkflow.owns(row)) {
+                ProjectConventionCandidateWorkflow.Result result = candidateWorkflow.advance(
+                        candidateContext(row, false));
+                if (result.action() == ProjectConventionCandidateWorkflow.Action.LEGACY_FALLBACK) {
+                    return startLegacyReplacement(get(row.projectId(), row.id()));
+                }
+                return get(row.projectId(), row.id());
+            }
+            if (ProjectConventionCandidateWorkflow.RESPONSE_MODE.equals(row.responseMode())
+                    && row.externalSessionId() == null
+                    && ProjectConventionState.RUNNING.name().equals(row.state())) {
+                return startLegacyReplacement(row);
+            }
             if (ProjectConventionState.STOPPING.name().equals(row.state())) {
                 pollStopping(row);
                 return get(row.projectId(), row.id());
@@ -157,6 +166,7 @@ public class ProjectConventionService {
         catch (RuntimeException failure) {
             try {
                 ProjectConventionDraftRow current = get(row.projectId(), row.id());
+                if (candidateWorkflow.owns(current)) return current;
                 if (ProjectConventionState.RUNNING.name().equals(current.state())) {
                     return requestStop(current, STOP_POLL_FAILED,
                             "项目公约会话轮询失败，已请求停止：" + safeMessage(failure));
@@ -166,7 +176,6 @@ public class ProjectConventionService {
         }
         return get(row.projectId(), row.id());
     }
-
     public ProjectConventionDraftRow apply(String projectId, String draftId) {
         ProjectConventionDraftRow row = get(projectId, draftId);
         if (!ProjectConventionState.READY.name().equals(row.state()) || row.proposedContent() == null) {
@@ -194,10 +203,13 @@ public class ProjectConventionService {
         }
         return completeApplying(applying);
     }
-
     public ProjectConventionDraftRow cancel(String projectId, String draftId) {
         ProjectConventionDraftRow row = get(projectId, draftId);
         if (ProjectConventionState.RUNNING.name().equals(row.state())) {
+            if (candidateWorkflow.owns(row)) {
+                candidateWorkflow.advance(candidateContext(row, true));
+                return get(projectId, draftId);
+            }
             return requestStop(row, STOP_USER_CANCEL, "用户取消了项目公约生成");
         }
         if (ProjectConventionState.STOPPING.name().equals(row.state())) {
@@ -206,7 +218,6 @@ public class ProjectConventionService {
         }
         return row;
     }
-
     private ProjectConventionDraftRow recoverApplying(ProjectConventionDraftRow input) {
         ProjectConventionDraftRow row = get(input.projectId(), input.id());
         if (!ProjectConventionState.APPLYING.name().equals(row.state())) return row;
@@ -237,7 +248,6 @@ public class ProjectConventionService {
                     latest.proposedContent(), safeMessage(failure));
         }
     }
-
     private ProjectConventionDraftRow completeApplying(ProjectConventionDraftRow input) {
         ProjectConventionDraftRow current = get(input.projectId(), input.id());
         if (ProjectConventionState.APPLIED.name().equals(current.state())) return current;
@@ -246,6 +256,50 @@ public class ProjectConventionService {
                     "AGENTS.md apply state changed before completion could be recorded");
         }
         return transition(current, ProjectConventionState.APPLIED, "APPLIED", current.proposedContent(), null);
+    }
+    private ProjectConventionDraftRow startCandidate(
+            ProjectRow project, ProjectConventionDocumentStore.SourceSnapshot source,
+            ProjectStackSnapshot stackProfile) {
+        ProjectConventionDraftRow created = candidateDrafts.create(project, source, stackProfile);
+        if (!ProjectConventionState.RUNNING.name().equals(created.state())) return created;
+        ProjectConventionCandidateWorkflow.Result result = candidateWorkflow.advance(
+                new ProjectConventionCandidateWorkflow.Context(created,
+                        Path.of(project.rootPath()).toAbsolutePath().normalize(), stackProfile,
+                        configuredModel(), false));
+        return result.action() == ProjectConventionCandidateWorkflow.Action.LEGACY_FALLBACK
+                ? startLegacyReplacement(get(project.id(), created.id()))
+                : get(project.id(), created.id());
+    }
+    private ProjectConventionDraftRow startLegacyReplacement(ProjectConventionDraftRow input) {
+        ProjectConventionDraftRow row = get(input.projectId(), input.id());
+        ProjectRow project = projects.get(row.projectId());
+        ProjectStackSnapshot snapshot = stackPolicy.snapshot(row);
+        OpenCodeClient.OpenCodeSession remote;
+        try {
+            remote = openCode.createSession(Path.of(project.rootPath()),
+                    "OpenCode Loopper AGENTS.md Designer (READ_ONLY)", configuredModel(),
+                    OpenCodeClient.SessionProfile.PROJECT_CONVENTION_READ_ONLY);
+        } catch (RuntimeException failure) {
+            return transition(row, ProjectConventionState.FAILED, "LEGACY_SESSION_FAILED", null,
+                    safeMessage(failure));
+        }
+        row = replaceRemote(row, remote.id(), "CREATED",
+                "结构化候选能力在派发前不可用，已切换只读兼容会话");
+        try {
+            openCode.promptAsync(remote, stackPolicy.prompt(project, row.sourceExists() == 1,
+                    row.sourceContent(), snapshot));
+            return row;
+        } catch (RuntimeException failure) {
+            return requestStop(row, STOP_POLL_FAILED, safeMessage(failure));
+        }
+    }
+    private ProjectConventionCandidateWorkflow.Context candidateContext(
+            ProjectConventionDraftRow row, boolean ownerStopping) {
+        ProjectConventionDraftRow current = get(row.projectId(), row.id());
+        ProjectRow project = projects.get(row.projectId());
+        return new ProjectConventionCandidateWorkflow.Context(current,
+                Path.of(project.rootPath()).toAbsolutePath().normalize(), stackPolicy.snapshot(current),
+                configuredModel(), ownerStopping);
     }
 
     private void poll(ProjectConventionDraftRow row) {
@@ -282,14 +336,15 @@ public class ProjectConventionService {
         }
         if (!status.completed()) return;
         String output = openCode.sessionOutput(session(row));
-        AiOutputExtractor.TextExtractionResult extracted;
+        ProjectConventionLegacyAdapter.Adapted adapted;
         try {
-            extracted = parseAiContext(output, stackPolicy.snapshot(row));
+            adapted = legacyAdapter.adapt(output, row.sourceContent(), stackPolicy.snapshot(row));
         } catch (BadRequestException failure) {
             if (requestProjectContextRepair(row, failure.getMessage())) return;
             throw failure;
         }
-        String proposed = documents.merge(row.sourceContent(), extracted.value());
+        AiOutputExtractor.TextExtractionResult extracted = adapted.extraction();
+        String proposed = adapted.compilation().proposedContent();
         String notice = extracted.normalized()
                 ? "AI 输出已自动规范化：" + String.join("、", extracted.normalizations())
                 : row.normalizationNotice();
@@ -298,7 +353,7 @@ public class ProjectConventionService {
         }
         if (extracted.normalized()) {
             aiOutputAudit.recordNormalization("PROJECT_CONVENTION", row.id(), "PROJECT_CONVENTION",
-                    "GENERATE", extracted.normalizations(), extracted.value());
+                    "GENERATE", extracted.normalizations(), adapted.compilation().projectContextMarkdown());
         }
         transition(row, ProjectConventionState.READY, safeState(status.state()), proposed, null, notice);
     }
@@ -334,7 +389,7 @@ public class ProjectConventionService {
         ProjectConventionDraftRow updated = new ProjectConventionDraftRow(row.id(), row.projectId(), row.state(),
                 externalSessionId, externalState, row.sourceExists(), row.sourceSha256(), row.sourceContent(),
                 row.proposedContent(), notice, row.errorMessage(), row.createdAt(), now(), row.version(),
-                row.projectStackProfileId(), row.stackFingerprint());
+                row.projectStackProfileId(), row.stackFingerprint(), row.responseMode(), row.sourceRevision());
         lifecycle.mutateWithoutTransition(() -> mapper.updateProjectConventionProjection(updated),
                 () -> new ConflictException("PROJECT_CONVENTION_VERSION_CONFLICT",
                         "AGENTS.md proposal was updated concurrently"));
@@ -484,18 +539,6 @@ public class ProjectConventionService {
         return new OpenCodeClient.OpenCodeSession(row.externalSessionId(), Path.of(project.rootPath()));
     }
 
-    private AiOutputExtractor.TextExtractionResult parseAiContext(String output, ProjectStackSnapshot profile) {
-        AiOutputExtractor.TextExtractionResult extracted = aiOutputExtractor.extractMarkdown(
-                output, AI_PAYLOAD, "PROJECT_CONTEXT_OUTPUT", MAX_AI_CONTENT);
-        String content = extracted.value();
-        if (content.contains(START_MARKER) || content.contains(END_MARKER)
-                || AI_PAYLOAD.matcher(content).find()) {
-            throw new BadRequestException("PROJECT_CONTEXT_OUTPUT_INVALID", "AI project context contains reserved markers");
-        }
-        stackPolicy.validateAiContent(content, profile);
-        return extracted;
-    }
-
     private ProjectConventionDraftRow transition(ProjectConventionDraftRow row, ProjectConventionState state, String externalState,
                                                  String proposedContent, String errorMessage) {
         return transition(row, state, externalState, proposedContent, errorMessage, row.normalizationNotice());
@@ -507,7 +550,7 @@ public class ProjectConventionService {
         ProjectConventionDraftRow updated = new ProjectConventionDraftRow(row.id(), row.projectId(), state.name(),
                 row.externalSessionId(), externalState, row.sourceExists(), row.sourceSha256(), row.sourceContent(),
                 proposedContent, normalizationNotice, errorMessage, row.createdAt(), now(), row.version(),
-                row.projectStackProfileId(), row.stackFingerprint());
+                row.projectStackProfileId(), row.stackFingerprint(), row.responseMode(), row.sourceRevision());
         if (row.state().equals(updated.state())) {
             lifecycle.mutateWithoutTransition(() -> mapper.updateProjectConventionProjection(updated),
                     () -> new ConflictException("PROJECT_CONVENTION_VERSION_CONFLICT", "AGENTS.md proposal was updated concurrently"));

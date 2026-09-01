@@ -382,7 +382,7 @@ class CandidateSubmissionMigrationTest {
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
 
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("61");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("62");
         assertThat(flyway.migrate().migrationsExecuted).isZero();
         try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
             statement.execute("PRAGMA foreign_keys=ON");
@@ -1048,7 +1048,7 @@ class CandidateSubmissionMigrationTest {
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
 
-            assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("61");
+            assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("62");
         try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
             statement.execute("PRAGMA foreign_keys=ON");
             try (var result = statement.executeQuery("SELECT owner_type,owner_id,state,version "
@@ -1130,7 +1130,7 @@ class CandidateSubmissionMigrationTest {
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
 
-            assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("61");
+            assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("62");
         try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
             statement.execute("PRAGMA foreign_keys=ON");
             try (var result = statement.executeQuery("""
@@ -1220,7 +1220,7 @@ class CandidateSubmissionMigrationTest {
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
 
-            assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("61");
+            assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("62");
         try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
             statement.execute("PRAGMA foreign_keys=ON");
             try (var result = statement.executeQuery("""

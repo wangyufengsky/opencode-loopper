@@ -37,7 +37,7 @@ final class MachineCandidateProtocolPolicy {
     }
 
     private static Contract project(MachineCandidateSubmission.CandidateOwnerType owner) {
-        return new Contract(MachineCandidateSubmission.CandidateScopeType.PROJECT, owner, false, false);
+        return new Contract(MachineCandidateSubmission.CandidateScopeType.PROJECT, owner, false, true);
     }
 
     record Contract(MachineCandidateSubmission.CandidateScopeType scopeType,

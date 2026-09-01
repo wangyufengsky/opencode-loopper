@@ -260,10 +260,12 @@ V57 为 Reviewer、项目公约和双 Judge 提供同构的 `GENERIC_V1` launch 
 强类型 launch，不能用裸字符串跨协议复用。数据库要求三个角色的 `INTERNAL_MCP` run 精确匹配自己的
 scope、owner、workflow、contract 和预算，并把创建 attestation、同事务 run certificate、INITIAL/
 CORRECTION 同 launch、零提交 ACK、清理远端和 termination intent 固化为 gate。Legacy run 不携带 launch，
-仍作为派发前双入口保留。V58–V61 只激活 Reviewer 的 Candidate adapter、冻结 source manifest、
-accepted-result 和取消优先级；Convention/Judge 仍未激活。Reviewer 的结构/Fake MCP 证明不能替代
+仍作为派发前双入口保留。V58–V61 激活 Reviewer 的 Candidate adapter、冻结 source manifest、
+accepted-result 和取消优先级；V62 再激活项目公约的冻结源文/证据目录、单一编译内核、accepted result
+与恢复编排，Judge 仍未激活。Reviewer 的结构/Fake MCP 证明不能替代
 真实模型资格；0.3.13 隔离成品 JAR 已补齐模型实际调用及同一 Session 拒绝后修正为 `ACCEPTED` 的证据，
-所以 0.3.14 默认开启。Convention/Judge 必须分别完成同等资格，不能继承 Reviewer 结论。
+所以 0.3.14 默认开启。Convention 0.3.16 仍默认关闭等待自己的隔离成品 JAR 资格；Judge 必须另行完成
+接入与资格，二者都不能继承 Reviewer 结论。
 
 Stage 组装完成后，服务端优先接受 `负责路径` 的唯一显式声明，随后兼容 Stage 精确引用产生义务的受控
 交付/范围事实、恰好一个 Stage 的既有精确路径规则、旧四列表格中仅一个阶段目标出现的精确文件名/类名/
@@ -410,6 +412,10 @@ Pointer 一次返回。AI 应在同一个补丁中修完全部列出问题，避
 Judge 优先读取唯一有效 JSON，也接受唯一、明确的 `VERDICT/判定` 与
 `REASON/理由` 标签。冲突或非法 verdict、空理由和自由散文猜测都不接受。
 
-项目公约接受专属 marker、单一 Markdown fence 或非空完整 Markdown，同时保持
-长度、保留 marker、人工预览和显式应用边界。Designer 只接收短合同卡，聚焦业务
+项目公约的 Legacy 入口接受专属 marker、单一 Markdown fence 或非空完整 Markdown；V62 MCP 入口只
+接受 `PROJECT_CONVENTION_V1` 的组件、命令与路径证据 ID 闭集。两个入口都进入同一个
+`ProjectConventionCompilation`，由服务端验证冻结技术栈、生成安全 argv/相对路径、渲染公约 Markdown
+并计算结果哈希。模型不能提交原始命令、原始路径、权限、生命周期、稳定 ID 或应用成功声明；最终自由
+文本不参与 MCP 权威结果。accepted result 必须等待正向远端停止证明，且仍保持长度、保留 marker、
+人工预览和显式应用边界。Designer 只接收短合同卡，聚焦业务
 结果、边界、异常和可观察验收；Implementation 的权限、Attempt 和执行合同不变。

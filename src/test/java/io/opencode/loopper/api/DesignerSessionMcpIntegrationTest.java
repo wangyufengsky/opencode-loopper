@@ -17,6 +17,7 @@ import io.opencode.loopper.persistence.LoopDraftRow;
 import io.opencode.loopper.persistence.LoopSpecCompilationRow;
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.ProjectRow;
+import io.opencode.loopper.persistence.ProjectConventionDraftRow;
 import io.opencode.loopper.persistence.TaskArtifactRow;
 import io.opencode.loopper.persistence.TaskLineageRow;
 import io.opencode.loopper.persistence.TaskRow;
@@ -39,6 +40,7 @@ import io.opencode.loopper.service.DirectMaintenanceDesignService;
 import io.opencode.loopper.service.TaskProfileService;
 import io.opencode.loopper.service.LoopDraftService;
 import io.opencode.loopper.service.ProjectService;
+import io.opencode.loopper.service.ProjectConventionService;
 import io.opencode.loopper.service.ProjectStackProfileService;
 import io.opencode.loopper.service.ProjectStackSnapshot;
 import io.opencode.loopper.service.RollingPackagePlanGenerationService;
@@ -106,6 +108,7 @@ class DesignerSessionMcpIntegrationTest {
     @Autowired private ObjectMapper json;
     @Autowired private Flyway flyway;
     @Autowired private ProjectService projects;
+    @Autowired private ProjectConventionService projectConventions;
     @Autowired private DesignerSessionService designerSessions;
     @Autowired private DesignerAttachmentContext attachmentContext;
     @Autowired private DesignerAutoModeService designerAutoMode;
@@ -152,6 +155,7 @@ class DesignerSessionMcpIntegrationTest {
         properties.getInternalCandidate().setPackageDesignV1Enabled(false);
         properties.getInternalCandidate().setRollingPackagePlanV1Enabled(false);
         properties.getInternalCandidate().setReviewerReportV1Enabled(false);
+        properties.getInternalCandidate().setProjectConventionV1Enabled(false);
     }
 
     @Test
@@ -1350,6 +1354,71 @@ class DesignerSessionMcpIntegrationTest {
                 WHERE launch.candidate_run_id=?
                 """, runId)).containsEntry("state", "COMPLETED")
                 .containsEntry("settled_report", started.id());
+        assertThat(mapper.listTasks()).isEmpty();
+        assertThat(mapper.findWorkspaceLease(Path.of(project.rootPath()).toRealPath().toString())).isEmpty();
+    }
+
+    @Test
+    void projectConventionCandidateUsesTheRealPrivateMcpAndRepairsInTheSameSession() throws Exception {
+        properties.getInternalCandidate().setProjectConventionV1Enabled(true);
+        InternalMcpCredentialProvider.Credentials credentials = activateManagedCandidateRuntime();
+        fake().holdProfileOpen(OpenCodeClient.SessionProfile.PROJECT_CONVENTION_CANDIDATE_READ_ONLY, true);
+        ProjectRow project = project("project-convention-candidate-mcp");
+        Files.writeString(Path.of(project.rootPath()).resolve("pom.xml"), "<project />\n");
+
+        ProjectConventionDraftRow started = projectConventions.generate(project.id());
+        String runId = jdbc.queryForObject("""
+                SELECT id FROM ai_candidate_submission_run
+                WHERE owner_type='PROJECT_CONVENTION_DRAFT' AND owner_id=?
+                  AND candidate_kind='PROJECT_CONVENTION_V1'
+                  AND submission_channel='INTERNAL_MCP'
+                """, String.class, started.id());
+        String remoteId = jdbc.queryForObject(
+                "SELECT external_session_id FROM ai_candidate_submission_run WHERE id=?",
+                String.class, runId);
+        assertThat(fake().promptForSession(remoteId))
+                .contains(credentials.exactToolName(), "PROJECT_CONVENTION_V1", "fallbackAllowed: false");
+        assertThat(fake().profileForSession(remoteId))
+                .isEqualTo(OpenCodeClient.SessionProfile.PROJECT_CONVENTION_CANDIDATE_READ_ONLY);
+
+        String mcpSession = initializeInternalMcp(credentials);
+        long revision = jdbc.queryForObject(
+                "SELECT version FROM ai_candidate_submission_run WHERE id=?", Long.class, runId);
+        MvcResult rejected = mvc.perform(internalMcp(credentials,
+                        rpc(122, "tools/call", packageCandidateCall(runId, "convention-invalid", """
+                                {"contractVersion":"PROJECT_CONVENTION_V1","componentKeys":[],
+                                 "commandIds":["not-frozen"],"pathIds":[]}
+                                """, revision)), mcpSession))
+                .andExpect(request().asyncStarted()).andReturn();
+        mvc.perform(asyncDispatch(rejected)).andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("REJECTED")));
+
+        JsonNode evidence = json.readTree(jdbc.queryForObject("""
+                SELECT canonical_evidence_json
+                FROM project_convention_candidate_source_snapshot WHERE candidate_run_id=?
+                """, String.class, runId));
+        var candidate = json.createObjectNode();
+        candidate.put("contractVersion", "PROJECT_CONVENTION_V1");
+        var components = candidate.putArray("componentKeys");
+        evidence.path("components").forEach(item -> components.add(item.path("key").asText()));
+        var commands = candidate.putArray("commandIds");
+        evidence.path("commands").forEach(item -> commands.add(item.path("id").asText()));
+        var paths = candidate.putArray("pathIds");
+        evidence.path("paths").forEach(item -> paths.add(item.path("id").asText()));
+        long retryRevision = jdbc.queryForObject(
+                "SELECT version FROM ai_candidate_submission_run WHERE id=?", Long.class, runId);
+        MvcResult accepted = mvc.perform(internalMcp(credentials,
+                        rpc(123, "tools/call", packageCandidateCall(runId, "convention-accepted",
+                                json.writeValueAsString(candidate), retryRevision)), mcpSession))
+                .andExpect(request().asyncStarted()).andReturn();
+        mvc.perform(asyncDispatch(accepted)).andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("ACCEPTED")));
+
+        projectConventions.pollActiveGenerations();
+        ProjectConventionDraftRow ready = projectConventions.get(project.id(), started.id());
+        assertThat(ready.state()).isEqualTo("READY");
+        assertThat(ready.proposedContent()).contains("pom.xml", "LOOPPER:START");
+        assertThat(fake().promptHistory()).filteredOn(call -> call.sessionId().equals(remoteId)).hasSize(1);
         assertThat(mapper.listTasks()).isEmpty();
         assertThat(mapper.findWorkspaceLease(Path.of(project.rootPath()).toRealPath().toString())).isEmpty();
     }

@@ -974,7 +974,7 @@ class MachineCandidateSubmissionIntegrationTest {
     }
 
     @Test
-    void rollingAndReviewerAreIntegratedWhileRemainingReservedKindsFailClosedUntilTheirAdaptersExist() {
+    void rollingReviewerAndConventionAreIntegratedWhileRemainingReservedKindsFailClosedUntilTheirAdaptersExist() {
         assertThat(MachineCandidateKind.ROLLING_PACKAGE_PLAN_V1.maximumAttempts()).isEqualTo(3);
         assertThat(MachineCandidateKind.REVIEWER_REPORT_V1.maximumAttempts()).isEqualTo(3);
         assertThat(MachineCandidateKind.PROJECT_CONVENTION_V1.maximumAttempts()).isEqualTo(3);
@@ -1000,10 +1000,17 @@ class MachineCandidateSubmissionIntegrationTest {
                             .isEqualTo(MachineCandidateSubmission.CandidateOwnerType.ANALYSIS_REPORT);
                 });
 
+        assertThat(MachineCandidateProtocolPolicy.contract(MachineCandidateKind.PROJECT_CONVENTION_V1))
+                .satisfies(contract -> {
+                    assertThat(contract.integrated()).isTrue();
+                    assertThat(contract.fallbackAllowed()).isFalse();
+                    assertThat(contract.scopeType())
+                            .isEqualTo(MachineCandidateSubmission.CandidateScopeType.PROJECT);
+                    assertThat(contract.ownerType())
+                            .isEqualTo(MachineCandidateSubmission.CandidateOwnerType.PROJECT_CONVENTION_DRAFT);
+                });
+
         List<MachineCandidateSubmission.OpenCommand> commands = List.of(
-                futureRun("future-convention", MachineCandidateSubmission.CandidateScope.project("p"),
-                        MachineCandidateSubmission.CandidateOwnerRef.projectConventionDraft("convention"),
-                        MachineCandidateKind.PROJECT_CONVENTION_V1, 3),
                 futureRun("future-judge", MachineCandidateSubmission.CandidateScope.task("task"),
                         MachineCandidateSubmission.CandidateOwnerRef.judgeRun("judge"),
                         MachineCandidateKind.JUDGE_DECISION_V1, 2));

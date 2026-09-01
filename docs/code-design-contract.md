@@ -156,8 +156,10 @@ ownership rules:
   test with no criterion mapping is a valid blocking gate only for a `JAVA_PRODUCTION` Stage whose
   criteria are all Judge-only; machine or mixed criteria still require explicit focused-test coverage.
 - `ProjectConventionService` owns proposal/apply lifecycle coordination, while
-  `ProjectConventionStackPolicy` owns the stack-bound prompt, required-section validation,
-  unsupported-technology rejection, and apply-time fingerprint guard. Guarded AGENTS.md
+  `ProjectConventionCandidateWorkflow` owns one persisted Candidate launch/recovery loop,
+  `ProjectConventionCompilation` is the sole Legacy/MCP semantic authority, and
+  `ProjectConventionEvidenceCatalogCapture` freezes server-owned component/command/path facts before remote I/O.
+  `ProjectConventionStackPolicy` retains Legacy prompt and apply-time fingerprint guards. Guarded AGENTS.md
   reads, atomic writes, permission preservation and marker replacement belong only to
   `ProjectConventionDocumentStore`.
 - A responsibility is considered extracted only when the old implementation body
@@ -238,9 +240,9 @@ StatusProjector -> persisted read snapshots
 - internal run 创建前的 managed-binding 拒绝不得用 owner 已进入 `RUNNING` 冒充 run 已打开，也不得直接失败或切 legacy；应用动作只在旧 remote 得到 ACK/ALREADY_ABSENT 后启动 fresh legacy，未确认时持久化同 compilation/Session 的 `DISCONNECTED` 恢复点，Monitor 只重试 abort，不补发 prompt 或虚构 run。
 - Acceptance 的 Legacy handoff、internal launch、prompt dispatch 与 termination 必须各自拥有窄状态机和持久化 ledger。所有远端创建输入及一次性 credential 在 I/O 前冻结，回读 remote 由请求摘要和 binding 证明；创建结果不确定只进入 cleanup。run open 与 settlement certificate 同事务，提示的模型调用消耗/可能派发在 HTTP 前不可逆落库。取消、需求替换和首次提示失败只能通过唯一 typed termination intent 取得停止权威；父状态、终端 launch 与 intent 完成同事务，后到用户动作提升既有 ready intent 而不是建立第二条终止 saga。
 
-`DECOMPOSITION_PLAN_V2` 的每 run 提交预算最多为 5；`ACCEPTANCE_CLOSED_CHOICE_V7` 最多为 2；`PACKAGE_DESIGN_V1` 最多为 3 且是唯一允许 Markdown fallback 的 kind；V56 已接入的 `ROLLING_PACKAGE_PLAN_V1` 最多为 3 且派发后不允许 fallback。`REVIEWER_REPORT_V1 / PROJECT_CONVENTION_V1` 各 3 次和 `JUDGE_DECISION_V1` 2 次仍保留角色级候选预算；0.3.10 已提供纯 `ReviewerReportCompilation`，但没有 Reviewer Coordinator、policy、accepted writer 或 launch 协议时仍必须在 open 边界失败关闭。Reviewer 的 Legacy/MCP 入口只能做 transport 解码，不能另行过滤 finding、渲染 Markdown或计算业务接受结果；任一 finding 证据失败必须使整份候选无结果。滚动计划的候选/手工入口必须共用 `RollingPackagePlanCompilation`；accepted writer 只能从 DB 冻结事实生成不可变计划与 impact，Session 停止证明落定前不能推进 owner。唯一解、非枚举、安全或路径问题必须在 candidate 层之外由服务端直接处理并失败关闭，不能为追求重试率而扩大模型权限。
+`DECOMPOSITION_PLAN_V2` 的每 run 提交预算最多为 5；`ACCEPTANCE_CLOSED_CHOICE_V7` 最多为 2；`PACKAGE_DESIGN_V1` 最多为 3 且是唯一允许 Markdown fallback 的 kind；V56 已接入的 `ROLLING_PACKAGE_PLAN_V1` 最多为 3 且派发后不允许 fallback。`REVIEWER_REPORT_V1 / PROJECT_CONVENTION_V1` 各最多 3 次，`JUDGE_DECISION_V1` 最多 2 次。Reviewer 的 Legacy/MCP 入口只能做 transport 解码，不能另行过滤 finding、渲染 Markdown 或计算业务接受结果；任一 finding 证据失败必须使整份候选无结果。Convention 的 Legacy/MCP 入口同样只能调用 `ProjectConventionCompilation`，模型只可选择冻结证据 ID，安全 argv、路径、Markdown、内容哈希与应用边界属于服务端；accepted writer 只能从 DB 冻结事实写不可变结果，Session 停止证明落定前不能推进 owner。滚动计划的候选/手工入口必须共用 `RollingPackagePlanCompilation`。唯一解、非枚举、安全或路径问题必须在 candidate 层之外由服务端直接处理并失败关闭，不能为追求重试率而扩大模型权限。Judge 未接专属编排与 accepted writer 前仍必须在 open 边界失败关闭。
 
-候选 profile 的 MCP 权限只允许精确私有 `submit_candidate`，不允许用户 MCP；Decomposer 另外保留只读仓库证据工具，验收闭集选择保持零内置工具。Router/Judge 的既有依赖与权限边界不因候选基础设施改变。外部 `auto/http` 通过新 Session 使用 `IN_PROCESS_LEGACY`，不能依赖受管 runtime 的私有凭据或 generation。
+候选 profile 的 MCP 权限只允许精确私有 `submit_candidate`，不允许用户 MCP；Decomposer、Reviewer 与 Convention 另外保留只读仓库证据工具，验收闭集选择保持零内置工具。Router/Judge 的既有依赖与权限边界不因候选基础设施改变。外部 `auto/http` 通过新 Session 使用 `IN_PROCESS_LEGACY`，不能依赖受管 runtime 的私有凭据或 generation。
 
 Feature flag 只能位于“是否打开新 run”的应用决策点，不能包裹持久化 adapter、恢复 reader 或通用提交 Bean。这样关闭功能后仍能恢复和收束已存在 run，也避免应用重启把持久化协议变成不可读取状态。
 

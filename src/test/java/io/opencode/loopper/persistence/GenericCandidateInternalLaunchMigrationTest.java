@@ -74,6 +74,11 @@ class GenericCandidateInternalLaunchMigrationTest {
                     "'WRONG_STEP',7,'REVIEWER_REPORT_V1',3")))
                     .hasMessageContaining("CHECK constraint failed");
             statement.executeUpdate(reviewerLaunchInsert("reviewer-launch", "reviewer-run", "s", 0));
+            statement.executeUpdate("""
+                    UPDATE project_convention_draft
+                    SET response_mode='INTERNAL_MCP',source_revision=7
+                    WHERE id='convention'
+                    """);
             statement.executeUpdate(conventionLaunchInsert("convention-launch", "convention-run", 0));
             statement.executeUpdate(judgeLaunchInsert("judge-launch", "judge-candidate-run", 0));
 

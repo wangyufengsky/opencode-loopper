@@ -513,7 +513,8 @@ the other kinds have no separate accepted-result table. V49 also reserves bounde
 `ROLLING_PACKAGE_PLAN_V1`; 0.3.10 adds the Reviewer single deterministic compiler. V57 reserves a
 shared durable internal-launch protocol for Reviewer, Convention and Judge. V58–V61 connect Reviewer
 behind a staged flag; after the isolated 0.3.13 real-model qualification that flag defaults on from 0.3.14.
-Convention and Judge still fail closed at application open until their
+V62 connects Convention source capture, deterministic compilation, policy, accepted writer, Coordinator and
+restart recovery behind a default-off qualification flag. Judge still fails closed at application open until its
 own Coordinator, policy, accepted writer and qualification switch exists. Fallback compatibility is an explicit per-kind contract;
 only `PACKAGE_DESIGN_V1` may request Markdown fallback.
 
@@ -536,6 +537,22 @@ tool, received a frozen-manifest line rejection for `99`, and repaired it to lin
 OpenCode Session before positive abort settlement. Reviewer therefore defaults on from 0.3.14; an explicit
 false value rolls back only new reports, while persisted recovery ignores the current flag. Convention and
 Judge cannot treat either V57 or the Reviewer qualification as their own qualification/default enablement.
+
+V62 gives Project Convention its role-specific dual-entry/single-core path. Before remote creation, the database
+freezes the exact source `AGENTS.md` content and digest, source revision, owner version, project stack profile and
+fingerprint, plus a canonical evidence catalog of component keys, safe argv command IDs and managed relative-path
+IDs. An MCP candidate may contain only `contractVersion/componentKeys/commandIds/pathIds`; it cannot contribute raw
+commands, raw paths, Markdown, permissions, lifecycle, stable IDs or fallback instructions. The candidate decoder
+and the Legacy Markdown adapter both feed one `ProjectConventionCompilation`, which deterministically renders the
+managed context and proposed block. The immutable accepted-result row records candidate/result/content digests and
+may settle `project_convention_draft=READY` only with the same frozen source and a positive remote-stop proof.
+`PROJECT_CONVENTION_CANDIDATE_READ_ONLY` exposes `read/glob/grep` plus only the exact private submit tool; final
+assistant text, post-run repository reads and interactive questions never become authority. Only a proven
+pre-dispatch managed-runtime or exact-lookup capability absence may transfer the owner to a fresh Legacy Session.
+Once create may have been attempted, zero submission, timeout, interaction, transport, security, generation,
+budget or uncertain-stop failures remain Candidate failures. The 0.3.16 flag defaults off until an isolated
+packaged-JAR real-model run proves private-tool use and same-Session correction; persisted run recovery ignores the
+current flag. Judge cannot inherit that future qualification.
 
 V56 gives rolling replanning the same dual-entry/single-core boundary. The candidate
 contains only `packageKey/title/objective/replaces/dependencies/requirementRefs`;

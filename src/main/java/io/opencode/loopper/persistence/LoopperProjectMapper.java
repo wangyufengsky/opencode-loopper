@@ -70,10 +70,12 @@ public interface LoopperProjectMapper {
             INSERT INTO project_convention_draft(
               id,project_id,state,external_session_id,external_session_state,
               source_exists,source_sha256,source_content,proposed_content,normalization_notice,error_message,
-              created_at,updated_at,version,project_stack_profile_id,stack_fingerprint)
+              created_at,updated_at,version,project_stack_profile_id,stack_fingerprint,
+              response_mode,source_revision)
             VALUES(#{id},#{projectId},#{state},#{externalSessionId},#{externalSessionState},
               #{sourceExists},#{sourceSha256},#{sourceContent},#{proposedContent},#{normalizationNotice},#{errorMessage},
-              #{createdAt},#{updatedAt},#{version},#{projectStackProfileId},#{stackFingerprint})
+              #{createdAt},#{updatedAt},#{version},#{projectStackProfileId},#{stackFingerprint},
+              #{responseMode},#{sourceRevision})
             """)
     int insertProjectConventionDraft(ProjectConventionDraftRow row);
     @Select("SELECT * FROM project_convention_draft WHERE id=#{id}")
@@ -86,7 +88,7 @@ public interface LoopperProjectMapper {
     Optional<ProjectConventionDraftRow> activeProjectConventionDraft(String projectId);
     @Select("""
             SELECT * FROM project_convention_draft
-            WHERE (state IN ('RUNNING','STOPPING') AND external_session_id IS NOT NULL) OR state='APPLYING'
+            WHERE state IN ('RUNNING','STOPPING','APPLYING')
             ORDER BY updated_at
             """)
     List<ProjectConventionDraftRow> activeProjectConventionDrafts();
