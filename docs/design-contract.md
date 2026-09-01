@@ -1095,11 +1095,11 @@ Compiler v7 的既有快速路径保持不变：
 
 候选 OpenCode Session 必须使用独立的最小权限 profile：Decomposer、工作包设计和滚动计划候选只保留形成仓库证据所需的 `read / glob / grep`，交互式工作包候选可额外使用 `question`，验收闭集选择不开放任何内置工具；四者都只可见精确命名的私有内部 `submit_candidate`，不可见用户 MCP。该内部 MCP 仅允许 Loopper 受管 OpenCode 通过 loopback 和代际 bearer 调用，不属于公共六工具目录。Router 的单次零工具边界、Requirement/Risk Judge 的既有只读与隔离边界均不改变，也不得借候选 profile 获得内部提交工具。
 
-滚动计划继续保持人工确认边界。启用 `ROLLING_PACKAGE_PLAN_V1` 后，派发前 flag 或私有 MCP 就绪证明缺失才允许创建全新的既有只读 Legacy Session；候选 Session/run 一旦存在，零提交、超时、Provider/传输、交互、安全、代次或停止不确定都不得读取 marker 输出。接受结果先以 V56 不可变行保存，只有远端完成或 abort/不存在的正向证明才与 `GENERATING -> PROPOSED` 在同一结算事务中绑定；未确认停止时保持 `GENERATING + DISCONNECTED`，不得自动确认计划或派发后续包。0.3.7 的开关默认关闭，只有隔离成品 JAR 的真实模型主动调用、拒绝后同 Session 自修正并接受，才允许下一版本默认开启。
+滚动计划继续保持人工确认边界。启用 `ROLLING_PACKAGE_PLAN_V1` 后，派发前 flag 或私有 MCP 就绪证明缺失才允许创建全新的既有只读 Legacy Session；候选 Session/run 一旦存在，零提交、超时、Provider/传输、交互、安全、代次或停止不确定都不得读取 marker 输出。接受结果先以 V56 不可变行保存，只有远端完成或 abort/不存在的正向证明才与 `GENERATING -> PROPOSED` 在同一结算事务中绑定；未确认停止时保持 `GENERATING + DISCONNECTED`，不得自动确认计划或派发后续包。0.3.8 隔离成品 JAR 已证明真实模型主动调用私有工具、在前向依赖机械拒绝后于同一 Session 修正并接受，因此 0.3.9 起默认开启；显式设置 `LOOPPER_ROLLING_PACKAGE_PLAN_V1_ENABLED=false` 只把新建议送回全新 Legacy Session，不改变既有 run、接受结果和失败关闭边界。
 
 外部 `auto/http` 兼容模式不注入私有 MCP。它们继续使用 `IN_PROCESS_LEGACY` 通道，而且每个候选 run 必须新建 OpenCode Session，不能把旧 JSON 会话升级为内部 MCP 会话。受管模式可在同一候选 Session 内根据服务端拒绝结果做有界重提，但不能跨 runtime generation 继续。
 
-候选 feature flag 只控制是否创建新的对应 run。关闭 flag 后不得再打开新 run；已经持久化的 run、恢复读取和兼容 adapter 必须继续可用，因此 persisted adapter 是常驻基础设施，不能通过条件 Bean 随 flag 一起消失。`PACKAGE_DESIGN_V1` 已由隔离成品 JAR 真实证明 MCP 修正接受和 Markdown-only 零提交兼容路线，生产默认开启。`ACCEPTANCE_CLOSED_CHOICE_V7` 已在 0.3.5 隔离成品 JAR 证明真实模型采用私有工具并同 Session 自修正，0.3.6 起默认开启；环境覆盖为 `false` 只把新真同分送回全新旧 JSON Session，不改变已有 run 的恢复。`ROLLING_PACKAGE_PLAN_V1` 在 0.3.7 仍处于默认关闭的真实模型资格阶段。
+候选 feature flag 只控制是否创建新的对应 run。关闭 flag 后不得再打开新 run；已经持久化的 run、恢复读取和兼容 adapter 必须继续可用，因此 persisted adapter 是常驻基础设施，不能通过条件 Bean 随 flag 一起消失。`PACKAGE_DESIGN_V1` 已由隔离成品 JAR 真实证明 MCP 修正接受和 Markdown-only 零提交兼容路线，生产默认开启。`ACCEPTANCE_CLOSED_CHOICE_V7` 已在 0.3.5 隔离成品 JAR 证明真实模型采用私有工具并同 Session 自修正，0.3.6 起默认开启；环境覆盖为 `false` 只把新真同分送回全新旧 JSON Session，不改变已有 run 的恢复。`ROLLING_PACKAGE_PLAN_V1` 已在 0.3.8 隔离成品 JAR 取得主动私有工具调用、机械拒绝后同 Session 自修正及 V56 结算证据，0.3.9 起默认开启；显式关闭只影响新建议。
 
 验收候选创建、提示、停止和父流程收束必须使用 V51-V55 的持久化协议。internal launch 在远端创建前冻结
 owner/source、路由、运行代次、权限/请求摘要和一次性创建凭证，只有回读远端与冻结计划完全一致时才可用

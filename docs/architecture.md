@@ -525,7 +525,10 @@ generating owner remains unchanged until the remote Session has `REMOTE_COMPLETE
 transport, interaction, generation, safety and uncertain-stop failures never inspect
 assistant final text or start Legacy; uncertain stop keeps the same owner `GENERATING +
 DISCONNECTED`. `LOOPPER_ROLLING_PACKAGE_PLAN_V1_ENABLED` gates only new dispatches and
-defaults off until an isolated real model proves active MCP use and same-Session repair.
+defaults on from 0.3.9 after the isolated 0.3.8 executable JAR proved active private-MCP
+use and same-Session repair after a bounded mechanical rejection. An explicit `false`
+rolls back only new dispatches; persisted runs, accepted results and recovery adapters
+remain authoritative, and no post-dispatch failure may inspect the legacy marker.
 
 `PackageDesignCompilation` is the single deep module behind both package-design
 entries. The MCP adapter maps `PACKAGE_DESIGN_V1` into the unified semantic model;

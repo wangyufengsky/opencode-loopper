@@ -42,10 +42,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.3.8.jar
-   jar tf target/opencode-loopper-0.3.8.jar \
+   test -s target/opencode-loopper-0.3.9.jar
+   jar tf target/opencode-loopper-0.3.9.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.3.8.jar
+   shasum -a 256 target/opencode-loopper-0.3.9.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -95,8 +95,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.3.8`。
-- 正式产物：`target/opencode-loopper-0.3.8.jar`。
+- Maven 项目版本：`0.3.9`。
+- 正式产物：`target/opencode-loopper-0.3.9.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -268,7 +268,7 @@ Task 详情 `overview` 必须投影 `loopRetryAvailable`、`cancellationAvailabl
 - Compiler 的 `criteria` 只承载可观察业务结果；未被聚焦测试显式覆盖的代码风格、源码/注解/装配形态、构建/测试结果和交付卫生属于工程元数据，服务端可确定性降级并重排 `covers`，不得因此消耗语义修复。一个 Java Stage 只有一个聚焦测试候选时可补齐剩余业务条件映射；每个 `JAVA_PRODUCTION` Stage 即使只有 Judge 条件也必须保留 `covers:[]` 的聚焦 Maven/Gradle TEST，`FULL_TEST`/`BUILD` 不能替代，不得生成只有全量测试/构建的 Java 接线或演示 Stage。v5 服务端须先从该 Stage 引用的测试交付唯一匹配门禁；没有组内匹配时仅允许使用包内唯一聚焦能力。多个候选、缺少真实聚焦测试或不可唯一推导必须直接形成 `DESIGN_INCOMPLETE`，不得落入已知不可修复的模型 JSON 修复循环。语义预检应一次汇总全部问题并返回精确 JSON Pointer；源码搜索不得作为行为 `SELF_CHECK`。
 - 历史 Designer/Task、大型文档和关闭滚动兼容开关时继续使用聚合流程：分包 Designer/Compiler 读取不可变执行前基线，前置包 `APPROVED` 只表示设计合同已接受，不表示生产文件已写入；全部包完成后由服务端确定性聚合 LoopDraft，禁止模型二次合并或普通草稿更新绕过映射保护。
 - 新建 `FULL_PACKAGE_DESIGN` 软件任务默认使用 `ROLLING_PACKAGES`：包 1 详细设计确认才创建唯一 `PENDING_START` Task，且不得申请 Queue/Lease、创建执行目录或可写 Session；后续包只在前一包确定性验收、Checkpoint 和 `PackageFactSnapshot` 成功冻结后设计。Git 每包释放租约并从精确 checkpoint tree 构造只读快照，Direct 全程持有租约并在每次设计前后复核目录 tree/manifest；两者都不得回退初始基线冒充当前事实。LoopDraft 保持不可变，每次包设计批准只追加完整 `TaskSpecRevision` 与新 Stage，不修改或重排已执行 Stage。
-- `TaskPackageRun` 是独立状态轴，状态变化必须经过生命周期服务；事实严格分为机器证明、人工接受合同和非证据 AI 导航摘要，提示每包最多 4 KiB、总计 24 KiB。失败候选 checkpoint 不得形成已证明事实；重规划只替换未执行后缀，来源映射必须能预览新增、删除、拆分、合并、排序和依赖变化；依赖只允许指向已冻结包或提案中更早的包，不得形成前向依赖或环。人工编辑、Legacy JSON 或 `ROLLING_PACKAGE_PLAN_V1` MCP 都必须进入同一 `RollingPackagePlanCompilation`，只形成待确认计划；模型不得决定稳定 run ID、checkpoint、路径、命令、Verifier、权限、impact 或生命周期。V56 在候选接受事务中保存不可变 canonical candidate/plan/impact，远端 `REMOTE_COMPLETED / ABORT_ACKNOWLEDGED / ALREADY_ABSENT` 前不得把拥有者推进为 `PROPOSED`；停止未确认保持 `GENERATING + DISCONNECTED`，候选 run 建立后零提交、超时、传输、安全或代次失败均不得读取 marker 或切 Legacy。0.3.8 的 `LOOPPER_ROLLING_PACKAGE_PLAN_V1_ENABLED` 默认 `false`，仅控制新派发，policy/writer/恢复 reader 常驻；真实模型资格通过后才可在下一版本默认开启。已冻结行为只能通过 `correctionOf` 修正包单调追加。包级 `JUDGE/BOTH` 只标记计划评审，最后一个有效包冻结后才创建唯一 Requirement/Risk Judge 批次。
+- `TaskPackageRun` 是独立状态轴，状态变化必须经过生命周期服务；事实严格分为机器证明、人工接受合同和非证据 AI 导航摘要，提示每包最多 4 KiB、总计 24 KiB。失败候选 checkpoint 不得形成已证明事实；重规划只替换未执行后缀，来源映射必须能预览新增、删除、拆分、合并、排序和依赖变化；依赖只允许指向已冻结包或提案中更早的包，不得形成前向依赖或环。人工编辑、Legacy JSON 或 `ROLLING_PACKAGE_PLAN_V1` MCP 都必须进入同一 `RollingPackagePlanCompilation`，只形成待确认计划；模型不得决定稳定 run ID、checkpoint、路径、命令、Verifier、权限、impact 或生命周期。V56 在候选接受事务中保存不可变 canonical candidate/plan/impact，远端 `REMOTE_COMPLETED / ABORT_ACKNOWLEDGED / ALREADY_ABSENT` 前不得把拥有者推进为 `PROPOSED`；停止未确认保持 `GENERATING + DISCONNECTED`，候选 run 建立后零提交、超时、传输、安全或代次失败均不得读取 marker 或切 Legacy。0.3.9 的 `LOOPPER_ROLLING_PACKAGE_PLAN_V1_ENABLED` 默认 `true`，显式 `false` 仅控制新派发，policy/writer/恢复 reader 常驻；默认切换不放宽机械纠错或失败关闭边界。已冻结行为只能通过 `correctionOf` 修正包单调追加。包级 `JUDGE/BOTH` 只标记计划评审，最后一个有效包冻结后才创建唯一 Requirement/Risk Judge 批次。
 - 滚动包 Run 处于 `DESIGNING` 且关联设计包仍为 `PENDING / QUESTIONING / DESIGNING` 时，服务端必须投影 `canResumeDesign`，工作台显示版本化的“继续当前包设计”；显式继续与启动恢复共用同一幂等路径，必须复用已持久化的活动远程 Session，只在远程缺失或终态时按冻结事实重建，禁止并发派发第二个 Designer。所有 `package.*` SSE 都必须使 Task/工作台权威快照失效，不得让候选已到达的包仍显示旧设计态。任务列表 `/summaries` 使用独立精简适配器，不要求详情专属的 `loopRetryAvailable / cancellationAvailable`，也不得用默认 `false` 伪造操作能力；详情 overview 的四个布尔字段仍严格失败关闭。
 - 聚合 Stage 的 `workPackageId` 映射进入 Review Gate 后不可删除、改写或重排；前端读取、结构化编辑、保存和确认必须无损往返。普通草稿更新边界拒绝映射漂移，确认边界还要校验每个已批准工作包均存在且保持依赖顺序，禁止静默降级成无包 Stage 任务。
 - 工作包 Designer 在健康时复用该包自己的交互 Session；远端丢失时用持久化需求、当前完整包设计、决策和作用域消息重建，不得重跑已完成 Decomposer。每个候选都经过唯一权威 Validator；当前 v7 普通包、大型任务包和滚动执行当前包在闭集已解析时统一服务端直编，只有真实事实/能力歧义才按需创建独立只读 Compiler；冻结 v6 大型包和其他历史合同继续保持原有一次 Compiler 兼容语义。大型任务通过后进入 `REVIEWING`，只有人工接受或当前会话的全自动授权接受当前已验证修订才启动下一包；普通单包在服务端直编或按需 Compiler/Validator 通过后自动批准 `WP-1`、确定性聚合并直接进入总体确认，不显示包级接受步骤。初稿后每包最多 5 轮人工修改；失败候选不得覆盖上一版有效候选。重开已接受包时先展示影响，只把它的传递依赖标记 `STALE`，无关 `APPROVED` 包保持有效；最终确定性聚合必须推进需求的草稿乐观锁检查点但保持冻结正文和来源消息不变，旧版未推进检查点的聚合只有在草稿恰比 Decomposer 基线多一个版本且仍精确覆盖全部冻结包时才允许一次兼容恢复，任何后续外部编辑继续以 `DESIGNER_DRAFT_CHANGED` 阻断；从 `FINAL_REVIEW` 重开时必须在同一事务内把同一不可变需求版本从 `COMPLETED` 以 `RETRY` 恢复为 `ACTIVE`，显式重编译再经 `REVIEWING + RETRY -> COMPILING`，确保后续讨论、重设计或重编译不会被旧聚合终态阻断。
@@ -466,7 +466,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.3.8.jar
+JAR=target/opencode-loopper-0.3.9.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -568,6 +568,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-09-02 | `ROLLING_PACKAGE_PLAN_V1` 资格后默认启用，交付 0.3.9 | 0.3.8 隔离成品 JAR 已证明真实模型在同一私有 MCP Session 内完成“前向依赖机械拒绝 → 修正为有序依赖 → 接受”，因此默认开关改为 `true`；显式 `LOOPPER_ROLLING_PACKAGE_PLAN_V1_ENABLED=false` 只把新建议送回全新 Legacy Session，既有 run、V56 accepted result、恢复/结算 adapter 与派发后失败关闭边界不变；同步 README、架构、设计、AI 角色合同和本公约 | TDD 默认值红灯 1/3 已确认旧默认仍为 `false`，最小切换后 `LoopperPropertiesTest` 3/3 通过；`./scripts/verify.sh` 使用 JDK 21 完整通过：Java 1093 项（0 失败、0 错误、2 条件跳过）、Vitest 247/247，BUILD SUCCESS；JAR `target/opencode-loopper-0.3.9.jar` 为 288640453 字节，含 112 个 SPA 静态入口/assets，SHA-256 `e428225f5416d335b72622936b665161e5c2039fddfe1573a892e0628276820e`，内嵌 `application.yml` 已核对默认 `true`；真实模型资格沿用 0.3.8 隔离成品 JAR 证据，本版本未重复模型回放；现有 8080/PID 11520 保持 health `UP` 且未替换 |
 | 2026-09-02 | `ROLLING_PACKAGE_PLAN_V1` MCP 资格版，交付 0.3.8 | 手工/Legacy JSON 与 MCP 候选统一进入 `RollingPackagePlanCompilation`；V56 独立保存不可变 accepted candidate/服务端计划/impact，依赖仅能指向冻结包或提案中更早的包；候选派发后零提交、超时、传输、安全、代次或停止不确定均失败关闭且不读取 marker；新增只读权限/Profile/恢复路由和默认 `false` 的资格开关，模型仍不能决定稳定 ID、路径、命令、验证、权限、生命周期或 impact；同步 README、架构、设计、OpenCode、AI 角色、代码设计和本公约 | TDD/聚焦 Rolling、Candidate、迁移、运行时及真实三包流 135/135 通过，前向依赖红灯证明旧编译器可接受环后新增回归 8/8；0.3.7 首次 `./scripts/verify.sh` 的 Java 1093 项仅 3 个 latest migration 断言仍期望 V55，按规则修复并递增 0.3.8；最终 JDK 21 完整验证 Java 1093 项（0 失败、0 错误、2 条件跳过）和 Vitest 247/247，BUILD SUCCESS；JAR `target/opencode-loopper-0.3.8.jar` 为 288640474 字节，含打包 SPA 与 V56，SHA-256 `68ddf07511916c270e3a18971f877e54ce1c12d880d1c4565c63757b37ab0f58`。隔离 18040、OpenCode 1.18.23、`opencode/gpt-5.4` 真实资格创建 run `d10b93c0-54a3-3ee5-8aa6-9365d72979b1`/Session `ses_fa1c0e529ffe93Jf7Ynz2LBcxL`：第一次前向依赖以 `ROLLING_PACKAGE_DEPENDENCY_INVALID` 机械拒绝，第二次同 Session 修正为有序依赖并 `ACCEPTED`，canonical SHA-256 `7156156b537032ec88da4c2303ca401d9ce0320fb6837520eccfc70914b5b183`；V56 result 已结算到 proposal `24901bf1-be63-4d60-b273-5601d5c611c1`，远端证明 `ABORT_ACKNOWLEDGED`，派发后 AI output marker 事件 0；隔离 PID 38353/38392 已停止，现有 8080/PID 11520 保持 health `UP` 且未替换 |
 | 2026-09-02 | Acceptance 闭集候选资格后默认启用，交付 0.3.6 | 0.3.5 隔离成品 JAR 已证明真实模型在同一私有 MCP Session 内完成“拒绝后自修正并接受”，因此默认开关改为 `true`；显式 `LOOPPER_ACCEPTANCE_CLOSED_CHOICE_V7_ENABLED=false` 仍只阻止新运行，保留持久化恢复与 Legacy JSON 回滚；唯一最优、不可枚举、安全失败和机械纠错边界不变；同步 README、OpenCode/AI 角色/弱模型资格合同与本公约 | TDD 默认值红灯 3/3 已确认旧默认仍为 `false`，最小切换后 Acceptance 配置/Coordinator/Policy 与属性聚焦回归 22/22 通过；`./scripts/verify.sh` 使用 JDK 21 完整通过：Java 1066 项（0 失败、0 错误、2 条件跳过）、Vitest 247/247，BUILD SUCCESS；JAR `target/opencode-loopper-0.3.6.jar` 为 288577363 字节，含 112 个 SPA 静态入口/assets，SHA-256 `36abeee939e4c5fddb58bec0f8277b17b576c8dd2f339c093e5c94b787f8d232`，内嵌 `application.yml` 已核对默认 `true`；真实模型资格沿用 0.3.5 的隔离成品 JAR 证据，本版本未重复模型回放；现有 8080/PID 11520 保持 health `UP` 且未替换 |
 | 2026-09-02 | Acceptance 候选安全组合选择简写的一次机械纠错，交付 0.3.5 资格版本 | 0.3.4 隔离真实模型连续两轮都把同一 capability 选择写成 `factAssignments:[{factIndex,capabilityIndex}]` 加 `capabilityPreferences:[0]`；现在只对根字段仍严格闭集、两个数组非空、前者每项仅含整数 `factIndex/capabilityIndex` 且后者全为整数的精确组合返回一次 `ACCEPTANCE_CANDIDATE_SELECTION_INVALID` 和服务端枚举的完整对象数组；组合候选本身不接受，混合项、未知字段及路径/命令/测试/权限/安全/执行/拓扑继续失败关闭；同步 README、设计/OpenCode/AI 角色合同与本公约，默认开关仍为 `false` | TDD 红灯 1/1 已证明真实组合简写不可纠错，最小修复后 `AcceptanceClosedChoiceCandidatePolicyTest` 9/9 通过；相关 Candidate/Prompt/Orchestrator 集成回归通过；`./scripts/verify.sh` 使用 JDK 21 完整通过：Java 1065 项、Vitest 247/247，BUILD SUCCESS；JAR `target/opencode-loopper-0.3.5.jar` 为 288577403 字节，含 112 个 SPA 静态入口/assets，SHA-256 `f4eae79952423227ebe9febbab58c12542a4505d6c827d101aeb1a874af4f28c`；隔离 18039、OpenCode 1.18.23、`opencode/gpt-5.4` 真实资格建立真同分 `INTERNAL_MCP` run `dd1e2c39-bb4e-330b-bfb4-d9c6b5f138fc`，同一远端 Session 首次以单数 `capabilityIndex` 提交后获得可纠错拒绝与完整允许值，第二次改为 `capabilityIndexes:[0]` 并 `ACCEPTED`，两次修订为 0→1→2、规范结果 SHA-256 `c68136555d118d788cf204f9792d06cb66080738786a87494aa8eb66b097d535`；Designer 进入 `FINAL_REVIEW`，Compiler `COMPLETED/serverCompiled=1`，提示派发已 `STOPPED/ABORT_ACKNOWLEDGED`、内部 launch `SETTLED`、Task 0；该隔离场景显式关闭 Package 候选以只验证 Acceptance，因此 Compilation 的包级来源仍为 `MARKDOWN_FALLBACK/FEATURE_DISABLED`，不冒充 Package MCP 资格；现有 8080/PID 11520 保持 health `UP` 且未替换 |
