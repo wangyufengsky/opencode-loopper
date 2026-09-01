@@ -554,6 +554,17 @@ use and correction after rejection in the same Session. Disabling it sends newly
 a fresh `IN_PROCESS_LEGACY` JSON Session without removing the adapters required to
 settle persisted runs.
 
+Candidate acceptance and remote Session termination remain separate state axes.
+`CandidateSessionTerminationProof` is the shared closed policy for
+`REMOTE_COMPLETED / ABORT_ACKNOWLEDGED / ALREADY_ABSENT`; the acceptance transport,
+runtime guard, and Designer host all depend on that policy rather than inferring
+termination from `ACCEPTED`. Until one proof is persisted, binding/generation,
+owner/source, and exact owner-version checks must pass and an uncertain stop stays
+on the same recoverable run as `DISCONNECTED`. After proof, a restarted JVM may
+settle from the frozen binding identity even if the managed generation has rotated,
+but unrelated owner-version drift still fails closed. Compilation, human-input
+transition, run close, and legacy handoff all occur strictly after this boundary.
+
 New Compiler rows treat the compact semantic object as the default. Only an explicit
 historical `evidenceMappings` member selects the legacy planning parser, so a malformed
 current object without `outcome` cannot be misreported as a missing legacy `status` field.

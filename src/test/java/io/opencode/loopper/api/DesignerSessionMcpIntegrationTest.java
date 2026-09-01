@@ -3778,6 +3778,21 @@ class DesignerSessionMcpIntegrationTest {
         mvc.perform(asyncDispatch(accepted)).andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("ACCEPTED")));
 
+        int promptsBeforeStopRetry = fake().promptCalls();
+        fake().failNextAborts(1);
+        designerSessions.pollActiveHandoffs();
+
+        DesignerSessionService.CompilerStatus disconnected = designerSessions.compilerStatus(reviewing.id());
+        assertThat(disconnected.state()).isEqualTo("RUNNING");
+        assertThat(disconnected.externalSessionState()).isEqualTo("DISCONNECTED");
+        assertThat(disconnected.serverCompiled()).isFalse();
+        assertThat(fake().promptCalls()).isEqualTo(promptsBeforeStopRetry);
+        assertThat(candidateUsage(reviewing.id())).isEqualTo(new CandidateUsage(1, 1, 2));
+        assertThat(mapper.findDesignAcceptancePlanning(disconnected.id())).hasValueSatisfying(planning ->
+                assertThat(planning.state()).isEqualTo("BOUND"));
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM task WHERE project_id=?",
+                Integer.class, project.id())).isZero();
+
         pollUntilSettled(reviewing.id());
 
         DesignerSessionService.CompilerStatus completed = designerSessions.compilerStatus(reviewing.id());
@@ -3786,6 +3801,7 @@ class DesignerSessionMcpIntegrationTest {
         assertThat(candidateUsage).isEqualTo(new CandidateUsage(1, 1, 2));
         assertThat(completed.candidateSessions()).isEqualTo(candidateUsage.candidateSessions());
         assertThat(completed.candidateSubmissions()).isEqualTo(candidateUsage.candidateSubmissions());
+        assertThat(completed.externalSessionState()).isEqualTo("ABORT_ACKNOWLEDGED");
         assertThat(mapper.findDesignAcceptancePlanning(completed.id())).hasValueSatisfying(planning -> {
             assertThat(planning.state()).isEqualTo("COMPILED");
             assertThat(planning.bindingJson()).contains("\"capabilityIndexes\":[0]");

@@ -254,6 +254,21 @@ failures stop at `WAITING_INPUT`. The accepted projection is database-only and
 cannot expand the frozen topology, mutation ownership, verifier, or permission
 surface.
 
+An `ACCEPTED` or `WAITING_INPUT` run is not remote termination evidence. Every
+monitor pass revalidates the persisted runtime binding, owner, source revision,
+and the exact known owner-version step before it may settle the result. Loopper
+compiles an accepted candidate, exposes candidate `WAITING_INPUT`, closes a run,
+or switches to the fresh legacy Session only after `sessionStatus.completed()`
+or `abortWithConfirmation` returns `ACKNOWLEDGED / ALREADY_ABSENT`. The positive
+proof is persisted as `REMOTE_COMPLETED / ABORT_ACKNOWLEDGED / ALREADY_ABSENT`;
+`CANDIDATE_ACCEPTED` is never used as a stop claim. Transport, abort, or generation
+uncertainty keeps the same run/Session recoverable as `DISCONNECTED` and creates
+no Task or compiled plan. Once a positive proof is persisted, restart settlement
+may validate its frozen binding identity and owner/source without requiring the
+old managed process generation to remain active; before proof, the original active
+generation remains mandatory. A legacy output is read only after its own Session
+normally completes and still passes the same closed candidate policy.
+
 The structural candidate qualification observes model prompt calls, OpenCode candidate Sessions, and MCP
 candidate submissions as three separate counters: unique optimum `0/0/0`, true tie `1/1/2`, and
 non-enumerable and path-safety blocks `0/0/0`. It records 22/22 exact guards, 7/7 metric guards,

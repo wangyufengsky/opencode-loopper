@@ -2,6 +2,7 @@ package io.opencode.loopper.service;
 
 import io.opencode.loopper.domain.DesignWorkPackageState;
 import io.opencode.loopper.domain.MachineCandidateKind;
+import io.opencode.loopper.domain.MachineCandidateRunState;
 import io.opencode.loopper.persistence.DesignRequirementRevisionRow;
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.OpenCodeSessionRuntimeBindingRow;
@@ -81,13 +82,27 @@ public final class CandidateRuntimeBindingService implements CandidateRunGuard {
                 throw new ConflictException("CANDIDATE_MANAGED_RUNTIME_REQUIRED",
                         "内部 MCP 仅接受受管 OpenCode Session");
             }
-            validateActiveManaged(binding);
+            if (!persistedAcceptanceTerminationProof(run)) validateActiveManaged(binding);
         } else if ("MANAGED".equals(binding.ownershipMode())) {
             // A fresh in-process fallback may still use a managed Session, but
             // it must never revive a Session from an earlier process generation.
-            validateActiveManaged(binding);
+            if (!persistedAcceptanceTerminationProof(run)) validateActiveManaged(binding);
         }
         validateOwnerAndSource(run);
+    }
+
+    private boolean persistedAcceptanceTerminationProof(MachineCandidateSubmission.RunSnapshot run) {
+        if (run.candidateKind() != MachineCandidateKind.ACCEPTANCE_CLOSED_CHOICE_V7
+                || run.state() != MachineCandidateRunState.ACCEPTED
+                && run.state() != MachineCandidateRunState.WAITING_INPUT
+                && run.state() != MachineCandidateRunState.CLOSED) return false;
+        return mapper.findLoopSpecCompilation(run.owner().id())
+                .filter(owner -> run.scope().id().equals(owner.designerSessionId())
+                        && run.externalSessionId().equals(owner.externalSessionId())
+                        && owner.designRevision() == run.sourceRevision()
+                        && CandidateSessionTerminationProof.persisted(
+                                owner.externalSessionState()))
+                .isPresent();
     }
 
     private OpenCodeSessionRuntimeBindingRow externalBinding(
@@ -186,11 +201,50 @@ public final class CandidateRuntimeBindingService implements CandidateRunGuard {
                 .orElseThrow(() -> new ConflictException("CANDIDATE_OWNER_MISSING",
                         "LoopSpec compilation candidate owner no longer exists"));
         if (!run.scope().id().equals(owner.designerSessionId())
-                || owner.version() != run.ownerVersion()
+                || !acceptanceOwnerVersionMatches(run, owner)
                 || owner.designRevision() != run.sourceRevision()) {
             throw new ConflictException("CANDIDATE_OWNER_REVISION_STALE",
                     "LoopSpec compilation candidate owner or source revision has changed");
         }
+        if ((run.state() == MachineCandidateRunState.ACCEPTED
+                || run.state() == MachineCandidateRunState.WAITING_INPUT)
+                && !run.externalSessionId().equals(owner.externalSessionId())) {
+            throw new ConflictException("CANDIDATE_OWNER_SESSION_STALE",
+                    "LoopSpec compilation candidate remote Session has changed");
+        }
+    }
+
+    private boolean acceptanceOwnerVersionMatches(
+            MachineCandidateSubmission.RunSnapshot run,
+            io.opencode.loopper.persistence.LoopSpecCompilationRow owner) {
+        if (run.state() == MachineCandidateRunState.ACCEPTED) {
+            long expected = run.ownerVersion() + 1;
+            if ("DISCONNECTED".equals(owner.externalSessionState())) expected++;
+            if (CandidateSessionTerminationProof.persisted(owner.externalSessionState())) {
+                expected++;
+                if (!blank(owner.lastErrorCode())) expected++;
+            }
+            return owner.version() == expected;
+        }
+        if (run.state() == MachineCandidateRunState.WAITING_INPUT) {
+            long expected = run.ownerVersion();
+            if ("DISCONNECTED".equals(owner.externalSessionState())) expected++;
+            if (CandidateSessionTerminationProof.persisted(owner.externalSessionState())) {
+                expected++;
+                if (!blank(owner.lastErrorCode())) expected++;
+            }
+            return owner.version() == expected;
+        }
+        if (run.state() == MachineCandidateRunState.CLOSED) {
+            long expected = run.ownerVersion();
+            if ("DISCONNECTED".equals(owner.externalSessionState())) expected++;
+            if (CandidateSessionTerminationProof.persisted(owner.externalSessionState())) {
+                expected++;
+                if (!blank(owner.lastErrorCode())) expected++;
+            }
+            return owner.version() == expected;
+        }
+        return owner.version() == run.ownerVersion();
     }
 
     private boolean managed(OpenCodeClient.OpenCodeSession session) {

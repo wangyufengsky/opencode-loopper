@@ -78,28 +78,37 @@ final class DesignerAcceptanceCandidateOrchestrator {
         OpenCodeClient.OpenCodeSession remote = new OpenCodeClient.OpenCodeSession(
                 run.externalSessionId(), projectRoot, run.runtimeGenerationId(), internalServer);
         try {
-            if (run.state() == MachineCandidateRunState.ACCEPTED) return Poll.accepted(remote, run);
-            if (run.state() == MachineCandidateRunState.WAITING_INPUT) return Poll.waiting(remote, run,
-                    candidates.terminal(compilation.id()).orElseThrow(() -> new ConflictException(
-                            "ACCEPTANCE_CANDIDATE_TERMINAL_MISSING",
-                            "验收闭集候选运行缺少安全终态响应")));
+            candidates.validate(run);
+            if (run.state() == MachineCandidateRunState.ACCEPTED) {
+                String proof = terminationProof(compilation, remote);
+                return Poll.accepted(remote, run, proof);
+            }
+            if (run.state() == MachineCandidateRunState.WAITING_INPUT) {
+                String proof = terminationProof(compilation, remote);
+                return Poll.waiting(remote, run,
+                        candidates.terminal(compilation.id()).orElseThrow(() -> new ConflictException(
+                                "ACCEPTANCE_CANDIDATE_TERMINAL_MISSING",
+                                "验收闭集候选运行缺少安全终态响应")), proof);
+            }
             if (run.state() == MachineCandidateRunState.CLOSED) {
+                String proof = terminationProof(compilation, remote);
                 return run.submissionChannel() == MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP
-                        ? Poll.startLegacy(remote, run)
+                        ? Poll.startLegacy(remote, run, proof)
                         : Poll.failed(remote, run, "ACCEPTANCE_CANDIDATE_RUN_CLOSED",
                         "进程内兼容候选运行已关闭，未恢复旧代次");
             }
-            candidates.validate(run);
             List<OpenCodeClient.PendingQuestion> questions = openCode.pendingQuestions(remote);
             if (!questions.isEmpty()) {
                 questions.forEach(question -> reject(remote, question.id()));
-                terminateAndClose(compilation.id(), run, remote);
-                return Poll.failed(remote, run, "ACCEPTANCE_CANDIDATE_INTERACTION_FORBIDDEN",
+                String proof = abortProof(remote);
+                close(compilation.id(), run);
+                return Poll.failed(remote, run, proof, "ACCEPTANCE_CANDIDATE_INTERACTION_FORBIDDEN",
                         "验收闭集选择器不得请求模型侧交互");
             }
             if (timedOut) {
-                terminateAndClose(compilation.id(), run, remote);
-                return Poll.failed(remote, run, "OPENCODE_ACCEPTANCE_CANDIDATE_TIMEOUT",
+                String proof = abortProof(remote);
+                close(compilation.id(), run);
+                return Poll.failed(remote, run, proof, "OPENCODE_ACCEPTANCE_CANDIDATE_TIMEOUT",
                         "验收闭集候选 Session 超时");
             }
             OpenCodeClient.SessionStatus status = openCode.sessionStatus(remote);
@@ -107,25 +116,37 @@ final class DesignerAcceptanceCandidateOrchestrator {
                 return Poll.running(remote, run, status.state());
             }
             if (status.failed()) {
-                closeQuietly(compilation.id(), run.submissionChannel());
-                return Poll.failed(remote, run, "OPENCODE_ACCEPTANCE_CANDIDATE_" + safe(status.state()),
+                String proof = abortProof(remote);
+                close(compilation.id(), run);
+                return Poll.failed(remote, run, proof,
+                        "OPENCODE_ACCEPTANCE_CANDIDATE_" + safe(status.state()),
                         status.detail());
             }
             if (run.submissionChannel() == MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP) {
-                terminateAndClose(compilation.id(), run, remote);
-                return Poll.startLegacy(remote, run);
+                close(compilation.id(), run);
+                return Poll.startLegacy(remote, run, CandidateSessionTerminationProof.REMOTE_COMPLETED.name());
             }
             MachineCandidateSubmission.SubmissionResult result = candidates.submitLegacy(
                     compilation.id(), openCode.sessionOutput(remote));
             if (result.outcome() == MachineCandidateOutcome.ACCEPTED) {
-                return Poll.accepted(remote, candidates.find(compilation.id()).orElseThrow());
+                return Poll.accepted(remote, candidates.find(compilation.id()).orElseThrow(),
+                        CandidateSessionTerminationProof.REMOTE_COMPLETED.name());
             }
             if (result.outcome() == MachineCandidateOutcome.WAITING_INPUT) {
-                return Poll.waiting(remote, candidates.find(compilation.id()).orElseThrow(), result);
+                return Poll.waiting(remote, candidates.find(compilation.id()).orElseThrow(), result,
+                        CandidateSessionTerminationProof.REMOTE_COMPLETED.name());
             }
             return Poll.rejected(remote, run, result,
                     prompts.legacy(planning, routing, result));
         } catch (RuntimeException failure) {
+            if (run.state() == MachineCandidateRunState.ACCEPTED
+                    || run.state() == MachineCandidateRunState.WAITING_INPUT
+                    || run.state() == MachineCandidateRunState.CLOSED) {
+                return Poll.recovering(remote, run, "DISCONNECTED",
+                        failure instanceof ConflictException conflict ? conflict.code()
+                                : "OPENCODE_ACCEPTANCE_CANDIDATE_STOP_UNCONFIRMED",
+                        failure.getMessage());
+            }
             return Poll.failed(remote, run, failure instanceof ConflictException conflict
                     ? conflict.code() : "OPENCODE_ACCEPTANCE_CANDIDATE_STATUS_FAILED", failure.getMessage());
         }
@@ -135,9 +156,22 @@ final class DesignerAcceptanceCandidateOrchestrator {
         try { candidates.close(compilationId, channel); } catch (RuntimeException ignored) { }
     }
 
-    private void terminateAndClose(String compilationId, MachineCandidateSubmission.RunSnapshot run,
-                                   OpenCodeClient.OpenCodeSession remote) {
-        openCode.abortWithConfirmation(remote);
+    private String terminationProof(LoopSpecCompilationRow compilation,
+                                    OpenCodeClient.OpenCodeSession remote) {
+        if (CandidateSessionTerminationProof.persisted(compilation.externalSessionState())) {
+            return compilation.externalSessionState();
+        }
+        OpenCodeClient.SessionStatus status = openCode.sessionStatus(remote);
+        return status.completed() ? CandidateSessionTerminationProof.REMOTE_COMPLETED.name()
+                : abortProof(remote);
+    }
+
+    private String abortProof(OpenCodeClient.OpenCodeSession remote) {
+        return CandidateSessionTerminationProof.from(
+                openCode.abortWithConfirmation(remote)).name();
+    }
+
+    private void close(String compilationId, MachineCandidateSubmission.RunSnapshot run) {
         candidates.close(compilationId, run.submissionChannel());
     }
 
@@ -156,21 +190,36 @@ final class DesignerAcceptanceCandidateOrchestrator {
                 MachineCandidateSubmission.RunSnapshot run,
                 MachineCandidateSubmission.SubmissionResult submission,
                 String prompt, String state, String code, String detail) {
+        String problemSummary() {
+            return submission.problems().stream().map(problem -> problem.code()
+                            + (problem.pointer() == null || problem.pointer().isBlank()
+                            ? "" : " " + problem.pointer()) + ": " + problem.detail())
+                    .collect(java.util.stream.Collectors.joining("\n"));
+        }
+
         static Poll none() { return new Poll(Action.NONE, null, null, null, null, null, null, null); }
         static Poll running(OpenCodeClient.OpenCodeSession remote, MachineCandidateSubmission.RunSnapshot run,
                             String state) { return new Poll(Action.RUNNING, remote, run, null, null, state, null, null); }
-        static Poll accepted(OpenCodeClient.OpenCodeSession remote, MachineCandidateSubmission.RunSnapshot run) {
-            return new Poll(Action.ACCEPTED, remote, run, null, null, null, null, null); }
+        static Poll accepted(OpenCodeClient.OpenCodeSession remote, MachineCandidateSubmission.RunSnapshot run,
+                             String proof) {
+            return new Poll(Action.ACCEPTED, remote, run, null, null, proof, null, null); }
         static Poll waiting(OpenCodeClient.OpenCodeSession remote, MachineCandidateSubmission.RunSnapshot run,
-                            MachineCandidateSubmission.SubmissionResult result) {
-            return new Poll(Action.WAITING_INPUT, remote, run, result, null, null, null, null); }
-        static Poll startLegacy(OpenCodeClient.OpenCodeSession remote, MachineCandidateSubmission.RunSnapshot run) {
-            return new Poll(Action.START_LEGACY, remote, run, null, null, null, null, null); }
+                            MachineCandidateSubmission.SubmissionResult result, String proof) {
+            return new Poll(Action.WAITING_INPUT, remote, run, result, null, proof, null, null); }
+        static Poll startLegacy(OpenCodeClient.OpenCodeSession remote, MachineCandidateSubmission.RunSnapshot run,
+                                String proof) {
+            return new Poll(Action.START_LEGACY, remote, run, null, null, proof, null, null); }
+        static Poll recovering(OpenCodeClient.OpenCodeSession remote, MachineCandidateSubmission.RunSnapshot run,
+                               String state, String code, String detail) {
+            return new Poll(Action.RUNNING, remote, run, null, null, state, code, detail); }
         static Poll rejected(OpenCodeClient.OpenCodeSession remote, MachineCandidateSubmission.RunSnapshot run,
                              MachineCandidateSubmission.SubmissionResult result, String prompt) {
             return new Poll(Action.REJECTED, remote, run, result, prompt, null, null, null); }
         static Poll failed(OpenCodeClient.OpenCodeSession remote, MachineCandidateSubmission.RunSnapshot run,
                            String code, String detail) {
-            return new Poll(Action.FAILED, remote, run, null, null, null, code, detail); }
+            return failed(remote, run, null, code, detail); }
+        static Poll failed(OpenCodeClient.OpenCodeSession remote, MachineCandidateSubmission.RunSnapshot run,
+                           String state, String code, String detail) {
+            return new Poll(Action.FAILED, remote, run, null, null, state, code, detail); }
     }
 }
