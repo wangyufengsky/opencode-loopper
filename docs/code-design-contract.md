@@ -250,7 +250,7 @@ V49 的 owner/scope 守卫必须在复制 V47/V48 历史 run 之前就生效；�
 
 度量模型必须把 `candidateSessions` 与 `candidateSubmissions` 定义为两个非负独立计数，并与 `modelCalls` 分开采集；禁止从任一计数推导另一项。API/资格报告保留精确的 0，StatusProjector/界面可以隐藏 0 值，但不得把隐藏后的缺省字段当作未知或失败。
 
-## Task experience responsibilities (0.3.24)
+## Task experience responsibilities (0.3.27)
 
 `TaskJudgeApprovalService` owns versioned local human review acceptance and checkpoint handoff,
 with `TaskJudgeApprovalMapper` storing separate immutable evidence. It never mutates Judge verdicts.
@@ -260,3 +260,7 @@ shared filtered facts and aggregates. `OpenCodeToolInventory` owns runtime disco
 `McpToolCatalogReader` owns bounded MCP transport/schema discovery, with no task lifecycle effects.
 Frozen history projects persisted decisions through `DesignerQuestionSupport` and reuses the same
 frontend discussion card as active requirements rather than interpreting Markdown as questions.
+
+### SQLite 并发回归环境
+
+涉及多个数据库连接的队列准入、租约交接和后续启动，应使用独立文件型 SQLite，启用与生产一致的 `foreign_keys=on`、`busy_timeout=5000` 和 `journal_mode=WAL`。共享内存 `cache=shared` 的表锁行为不同，不能据此判断生产 WAL 下的读写并发。`DirectWorkspaceProductionForeignKeyIntegrationTest` 验证人工/自动交接同时触发时只准入一个 FIFO 等待者，只建立一个 Attempt/Session，并且只释放一次旧租约。

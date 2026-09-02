@@ -411,7 +411,7 @@ same `PENDING_START -> REQUEST_START -> QUEUED` boundary, permissions, verifiers
 and both Judges. A review-required detection creates only a draft; its explicit
 approval confirms the Task and immediately invokes that same Start boundary.
 
-## Cancellation checkout and advisory review (0.3.24)
+## Cancellation checkout and advisory review (0.3.27)
 
 A stopped cancelled Git holder preserves dirty content in the existing durable checkpoint/stash
 before restoring the local default branch and releasing its lease. Root identity, ownership and

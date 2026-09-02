@@ -931,7 +931,7 @@ capability, and `tools/list` exposes exactly six Loopper tools. Resources,
 prompts and completions are disabled. Both `/api/mcp-streamable` and the
 compatibility `/api/mcp` fail closed without the configured Bearer token.
 
-## Read-only MCP inventory (0.3.24)
+## Read-only MCP inventory (0.3.27)
 
 `OpenCodeToolInventory` reads project-scoped `/mcp` statuses and merged `/config` MCP definitions
 from the selected loopback OpenCode runtime. `/experimental/tool` only enumerates built-in tools

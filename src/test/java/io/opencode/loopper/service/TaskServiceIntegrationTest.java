@@ -1471,52 +1471,6 @@ class TaskServiceIntegrationTest {
     }
 
     @Test
-    void concurrentManualAndAutomaticReconciliationTransferExactlyOneFifoWaiter() throws Exception {
-        Path root = Path.of(gitProject());
-        ProjectRow project = projects.create("concurrent-reconcile", root.toString());
-        TaskRow holder = drafts.confirm(drafts.create(spec(project.id())).id(), "concurrent holder");
-        TaskRow firstWaiter = drafts.confirm(drafts.create(spec(project.id())).id(), "first waiter");
-        TaskRow secondWaiter = drafts.confirm(drafts.create(spec(project.id())).id(), "second waiter");
-        holder = tasks.start(holder.id());
-        tasks.start(firstWaiter.id());
-        tasks.start(secondWaiter.id());
-        Files.writeString(root.resolve("temporary.txt"), "block initial release\n");
-        blockCancellationCheckpoint(holder.id());
-        tasks.cancel(holder.id());
-        Files.delete(root.resolve("temporary.txt"));
-        run(root, "git", "switch", holder.sourceBranch());
-        CountDownLatch ready = new CountDownLatch(2);
-        CountDownLatch start = new CountDownLatch(1);
-
-        try (var pool = Executors.newFixedThreadPool(2)) {
-            Future<?> manual = pool.submit(() -> {
-                ready.countDown();
-                start.await(5, TimeUnit.SECONDS);
-                tasks.reconcileQueue(firstWaiter.id());
-                return null;
-            });
-            Future<?> automatic = pool.submit(() -> {
-                ready.countDown();
-                start.await(5, TimeUnit.SECONDS);
-                tasks.reconcileTerminalWorkspaceLeasesWithWaiters();
-                return null;
-            });
-            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
-            start.countDown();
-            manual.get(20, TimeUnit.SECONDS);
-            automatic.get(20, TimeUnit.SECONDS);
-        }
-
-        assertThat(mapper.findTaskQueue(holder.id()).orElseThrow().state()).isEqualTo("FINISHED");
-        assertThat(mapper.findTaskQueue(firstWaiter.id()).orElseThrow().state()).isEqualTo("ADMITTED");
-        assertThat(mapper.findTaskQueue(secondWaiter.id()).orElseThrow().state()).isEqualTo("QUEUED");
-        assertThat(tasks.get(firstWaiter.id()).state()).isEqualTo("RUNNING");
-        assertThat(tasks.get(secondWaiter.id()).state()).isEqualTo("QUEUED");
-        assertThat(mapper.eventsAfter(holder.id(), 0).stream()
-                .filter(event -> "workspace.lease_released".equals(event.type()))).hasSize(1);
-    }
-
-    @Test
     void unconfirmedDirectWriterKeepsNextTaskQueuedUntilCleanupObservesTerminalState() throws Exception {
         Path root = Files.createDirectory(temp.resolve("blocked-direct-root"));
         Files.writeString(root.resolve("README.md"), "fixture");
