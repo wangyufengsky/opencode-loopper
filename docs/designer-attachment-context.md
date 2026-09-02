@@ -94,6 +94,10 @@ record PromptRequest(String text, String system, String agent,
 
 `HttpOpenCodeClient` 携带由作用域、提示正文和附件身份计算出的稳定 `messageId`。首版以 OpenCode `promptAsync` 的同步接收结果作为本次 handoff 结果；HTTP/Session 失败进入既有 Designer/Package/Reviewer 错误状态，multipart 接口返回失败，使浏览器保留正文与文件。当前版本不宣称已经实现远端消息回读对账，也不写入虚假的 `REMOTE_ACCEPTED`。
 
+未显式提供消息身份时，附件装配统一生成 `msg_loopper_attachment_<SHA-256 前 32 位>`，满足 OpenCode 要求的 `msg` 前缀；相同上下文重试保持同一身份。显式传入的 Candidate/其他消息 ID 原样保留，无附件时不改写原请求。此规则覆盖活动 Designer 与冻结 Task/Recovery/Judge 附件，不迁移历史 dispatch，也不自动重放旧失败。回归同时覆盖真实存储的 TXT、DOCX 原文件与提取表示经过 HTTP adapter 后的协议校验，不能只用 FakeOpenCodeClient 或手写合法 ID 验证。
+
+设计恢复提示和系统消息历史先解析 `SYSTEM_ERROR[层级]` 外层，再显示实际故障类别。OpenCode 投递失败应说明请求未能发送，并提示检查版本兼容性与连接状态；无具体错误码的旧记录按层级使用中文兜底，不得只剩“错误”。原始错误仍保留在服务端审计，不把英文 HTTP 响应体直接回显到普通提示中。
+
 浏览器用相同 `submissionId`、正文、作用域和文件重试时，服务端返回既有 Session/用户消息，不重复占用 50 MiB 预算、不重复创建历史或再次写 blob；不同内容复用同一 ID 返回冲突。该幂等识别只确认本地 `PUBLISHED`，不会把既有 OpenCode Session 错误伪装成远端已接收，也不会隐式重复发送可能已被远端接受的 prompt。
 
 ## 6. Designer 生命周期

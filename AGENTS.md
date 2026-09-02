@@ -42,10 +42,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.3.28.jar
-   jar tf target/opencode-loopper-0.3.28.jar \
+   test -s target/opencode-loopper-0.3.30.jar
+   jar tf target/opencode-loopper-0.3.30.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.3.28.jar
+   shasum -a 256 target/opencode-loopper-0.3.30.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -95,8 +95,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.3.28`。
-- 正式产物：`target/opencode-loopper-0.3.28.jar`。
+- Maven 项目版本：`0.3.30`。
+- 正式产物：`target/opencode-loopper-0.3.30.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -296,6 +296,7 @@ Task 详情 `overview` 必须投影 `loopRetryAvailable`、`cancellationAvailabl
 - 设计工作台拖放或文件选择只进入当前 composer 暂存区；未选文件时只显示轻量添加入口，选中后才显示独立“文件上下文”卡片并按当前作用域逐行列出类型、大小和移除操作，移除最后一个文件后整卡隐藏。文件必须随非空文字显式发送，纯附件消息拒绝。一次最多 10 个文件、每个最多 20 MiB、Designer Session 累计最多 50 MiB；PDF/OOXML 的确定性文本表示和严格 UTF-8 文本均不得超过 128 KiB，不截断、不跳过、不调用模型摘要。
 - `DesignerAttachmentContext` 是上传、类型识别、受管存储、逻辑替换、停用、Task 冻结和模型装配的唯一深模块。文件 I/O、格式解析、哈希和完整性检查必须在数据库事务外完成；公开 REST 不返回绝对受管路径。V46 的附件 submission、Designer 历史附件和 Task 冻结清单保持独立事实。
 - Requirement 附件是全局上下文，Work Package 附件只属于该包；Router 始终只有正文。Requirement/Package Designer、Decomposer、Compiler、只读 Reviewer、Implementation、Recovery 和双 Judge 只能通过 `withContext` 获得相应活动或冻结清单。
+- 附件装配仅在调用方未提供消息 ID 时生成 `msg_loopper_attachment_<sha256-prefix>`，满足 OpenCode HTTP `messageID` 的 `msg` 前缀约束；显式身份与无附件请求不改写，历史 dispatch 不迁移、不自动重放。回归必须串联真实附件存储/装配与 HTTP adapter 的协议校验，覆盖 TXT 和 DOCX，不能只测手写合法 ID。设计错误展示先解开 `SYSTEM_ERROR[层级]`，保留实际错误类别与中文恢复方向；历史无具体码时按层级兜底，不能只显示“错误”。
 - 附件是不可信补充资料，不能覆盖用户正文、确认需求、LoopSpec、路径授权、危险操作边界、验证证据或 Judge 合同。显式上传 `.env`/私钥只授权使用该文件快照，不放宽项目敏感文件读取策略。
 - 支持严格 UTF-8 文本/源码、JSON、CSV、PDF、PNG/JPEG/GIF/WebP 及无宏 DOCX/XLSX/PPTX；压缩包、可执行文件、旧式 Office、宏/ActiveX OOXML、SVG 和未知二进制失败关闭。HTML 只按源码文本处理，任何预览都不得执行附件脚本或宏。
 - 同一作用域、文件名完全相同才逻辑替换；跨作用域同名并存。替换或停止未来使用不得改写历史；若旧 OpenCode Session 可复用，必须先取得正向停止证明、清空复用指针，再让后续 role handoff 创建新 Session。Task 确认冻结活动附件及 SHA，Recovery 从父 Task 清单继承，不能重算 Designer 当前集合。
@@ -476,7 +477,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.3.28.jar
+JAR=target/opencode-loopper-0.3.30.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -578,6 +579,7 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
+| 2026-09-02 | 附件设计投递与错误展示修复，交付 0.3.30 | 附件消息统一生成兼容 OpenCode 的稳定 msg 前缀；保留显式身份、作用域、冻结清单与安全约束；错误展示解析系统包装，恢复具体原因；更新附件、OpenCode、设计合同及 README | 红灯已复现 TXT/DOCX 在真实 HTTP adapter 下被消息 ID 校验拒绝及错误被包装码遮蔽；聚焦 Java 52/52、前端 52/52。`npm run test:e2e -- e2e/designer-discussion.spec.ts` 在本机 Chrome、隔离模拟 API 下 3/3 通过，覆盖附件告警、历史与刷新；同文件两处旧 Task 夹具补齐现有必填布尔字段。0.3.29 首次全门禁在 TypeScript 可空索引处失败，未生成 JAR；补齐边界判断后顺延 0.3.30，`./scripts/verify.sh` BUILD SUCCESS：Java 1239 项（0 失败、0 错误、2 既有条件跳过），Vitest 256/256。JAR `target/opencode-loopper-0.3.30.jar` 为 289143788 bytes，含 115 个 SPA 静态文件，内嵌版本与附件消息前缀已核对，SHA-256 `4dea1ebc435f8983f53a6bcc004e28fee80913a2fa9906af31c1116ffdde60b8`。未启动新 JAR、未重启现有服务，未用截图原 DOCX/远端模型回放；未推送、未打标签、未创建 Release |
 | 2026-09-02 | Windows 路径与 MCP 子进程收束，交付 0.3.28 | 四组 Candidate 创建/停止测试统一使用原生绝对临时路径；MCP 目录以文件身份校验 Windows 长短路径，生产目录读取等待 SDK graceful close 确认子进程退出，异常路径同样关闭；补充正常/错误响应的真实 stdio 子进程回归 | 联合聚焦 Java 41/41、Vitest 253/253；`./scripts/verify.sh` BUILD SUCCESS，Java 1236 项（0 失败、0 错误、2 既有跳过），Vitest 253/253。JAR `target/opencode-loopper-0.3.28.jar` 为 289143458 bytes，SHA-256 `49845dbed05d7d7f600756c197bd499d8d3ce0c41d0255627e0770e84c44e73a`；115 个静态文件与 0.3.26 六项浏览器验收版本逐字节相同。隔离 18058/PID 91264 与 18060/PID 91272 health UP，HTTP 首页与 JAR 相同；浏览器复核人工认定与可用提交按钮，无 console error。真实受管 OpenCode 1.18.23/PID 91279 的内部 MCP CONNECTED，submit_candidate 描述读取成功，Task/Designer 计数均零。全部隔离进程已退出，8080 未触碰；用户已授权提交推送发版 |
 | 2026-09-02 | 生产等效队列并发验证，交付 0.3.27 | 将人工/自动队列交接并发场景移入已有生产外键测试类，使用文件 SQLite、WAL、foreign_keys=on 和 busy_timeout=5000；重复 5 次并同时检查唯一 Attempt/Session、FIFO 与只释放一次；六项产品行为保持 0.3.26 已验证实现 | WAL/FK 并发 5/5、联合任务回归 90/90；`./scripts/verify.sh` BUILD SUCCESS，Java 1235 项（0 失败、0 错误、2 既有跳过），Vitest 253/253。JAR `target/opencode-loopper-0.3.27.jar` 为 289143435 bytes，SHA-256 `3536ff5405bbdbf21351dce42ee3f8635394db2fdfa145144c625ed5016c09bd`；115 个静态文件与已完成六项浏览器验收的 0.3.26 逐字节相同。隔离 18058/PID 79558 health UP，Runtime 版本 0.3.27，HTTP 首页与 JAR 相同，浏览器复核持久化人工认定及提交按钮可用；未重启或替换 8080。用户已授权提交推送发版；已提交 a461a3c 并推送 v0.3.27，后发现 Windows 路径夹具及 MCP 异步关闭问题，主动取消该版本 Release，顺延修复 |
 | 2026-09-02 | 六项任务体验优化，交付 0.3.26 | V64 人工最终评审认定；SSE 提示去重；冻结设计只读问答；系统 MCP 工具页；质量与用量服务端筛选；取消保存快照并返回主分支；Task 状态图按既有 topology 模式独立提取 | 0.3.23 首次完整门禁执行 Java 1231 项，2 失败/5 错误来自启动恢复缺失 mock 与六个取消旧夹具；未生成 JAR。集中适配为快照不可用时的安全阻塞，并补充恢复交接容错。0.3.24 完整门禁 Java 1231 项通过（2 跳过），前端 251/252 通过，旧取消提示断言失败，未生成 JAR；同步修正冻结聊天问题的快照锚点去重。0.3.25 全门禁通过并生成 JAR，但浏览器发现 API 丢弃 CHAT_QUESTION 标记与全局工具空选项显示问题；补充跨 API/时间线回归后一并修正。最终 0.3.26 `./scripts/verify.sh` BUILD SUCCESS：Java 1231 项（0 失败、0 错误、2 既有跳过）、Vitest 253/253；API/冻结历史/工具页聚焦 55/55。JAR `target/opencode-loopper-0.3.26.jar` 为 289143436 bytes，含 115 个静态入口/assets，SHA-256 `28252fdd9e5feb40e5c8d0cdaaf7dd61c9e975f5a61610578fe96b3a76d7a63b`。隔离 18058/PID 62144 的首页与 JAR 字节一致；真实浏览器完成六项终验，人工认定保留双 BLOCKED 原始证据并开放提交，重复进入只显示一条提示，冻结问答为三条记录且问题仅一次，工具默认选项/描述和筛选汇总正确；取消实际回到 main，未跟踪文件内容在 READY checkpoint 完整保留，租约为零。隔离 18060/PID 62268 + 真实受管 OpenCode 1.18.23/PID 62287 的 MCP inventory 与 submit_candidate 描述读取成功，未创建模型任务。未替换或重启 8080。已提交 e768819 并发布 v0.3.26；Release/Linux CI 成功，但 macOS CI 的共享内存队列并发夹具触发 SQLITE_LOCKED_SHAREDCACHE，后续由 0.3.27 改为生产等效文件 WAL 回归 |

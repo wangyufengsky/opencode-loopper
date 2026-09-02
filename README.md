@@ -7,7 +7,12 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.3.28`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.3.30`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+
+### 0.3.30 附件设计修复
+
+- 修复添加附件后设计请求被 OpenCode 拒绝：自动生成的附件消息 ID 现在满足其协议前缀要求，TXT、DOCX 等共用同一修复。文件完整性、作用域及“不可信参考”边界不变。
+- 设计恢复提示和系统消息不再被外层错误包装遮蔽，会显示“设计请求未能发送给 OpenCode”及版本兼容性、连接检查方向。历史附件与错误记录保留；升级不会自动重放已失败的设计，请使用新版本重新发起设计。
 
 ### 0.3.28 任务体验更新
 
@@ -141,7 +146,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.3.28.jar
+java -jar target/opencode-loopper-0.3.30.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -378,7 +383,7 @@ Git 任务的最新 Execution Cycle 成功并处于 `AWAITING_DECISION` 或用�
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.3.28.jar`
+- `target/opencode-loopper-0.3.30.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -409,7 +414,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:51234
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.3.28.jar`
+- `opencode-loopper-0.3.30.jar`
 - `start-windows.bat`
 
 确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
@@ -447,7 +452,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.3.28.jar \
+jar tf target/opencode-loopper-0.3.30.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -537,7 +542,7 @@ Windows PowerShell：
 例如发布下一版本：
 
 ```bash
-VERSION=0.3.28
+VERSION=0.3.30
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -577,7 +582,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.3.28.jar
+java -jar target/opencode-loopper-0.3.30.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。

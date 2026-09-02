@@ -88,7 +88,23 @@ const errorCodeLabels: Record<string, string> = {
   VERIFIER_RUNTIME_TERMINATION_UNCONFIRMED: '无法确认验收进程已停止',
   DIRECT_WORKSPACE_FINGERPRINT_MISMATCH: '项目目录身份与登记时不一致',
   DESIGNER_SESSION_NOT_FOUND: '设计会话不存在或已结束',
+  OPENCODE_DESIGNER_HANDOFF_FAILED: '设计请求未能发送给 OpenCode',
+  OPENCODE_PROMPT_FAILED: 'OpenCode 未能接收请求',
+  OPENCODE_DESIGNER_UNAVAILABLE: 'OpenCode 当前不可用',
   WRAPPER_TOLERATED: '已兼容常见外层格式', AI_OUTPUT_NORMALIZED: '输出已自动规范化',
+}
+
+const errorRecoveryMessages: Record<string, string> = {
+  OPENCODE_DESIGNER_HANDOFF_FAILED: '设计请求未能发送给 OpenCode，请检查运行环境中的版本兼容性与连接状态后重试',
+  OPENCODE_PROMPT_FAILED: 'OpenCode 未能接收请求，请检查运行环境中的版本兼容性与连接状态后重试',
+  OPENCODE_DESIGNER_UNAVAILABLE: 'OpenCode 当前不可用，请检查运行环境中的连接状态后重试',
+}
+
+const systemErrorFallbacks: Record<string, string> = {
+  FIELD: '输入有误，请检查填写内容后重试',
+  VERIFICATION: '验收未通过，请查看验收证据后处理',
+  SESSION: '会话出现错误，请检查运行环境后重试',
+  TASK: '任务出现错误，请查看任务详情后处理',
 }
 
 const tokenLabels: Record<string, string> = {
@@ -190,11 +206,15 @@ function containsChinese(value: string) {
 export function userFacingError(value: unknown, fallback = '操作未完成，请重试') {
   const raw = value instanceof Error ? value.message : typeof value === 'string' ? value : ''
   if (!raw.trim()) return fallback
-  const codes = raw.match(/\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/g) ?? []
-  const translated = codes.reduce((message, code) => message.split(code).join(errorCodeLabel(code)), raw)
-  if (containsChinese(raw)) return translated
-  if (codes.length) return `${errorCodeLabel(codes[0])}，请按页面提示处理后重试`
-  return fallback
+  const envelope = raw.match(/^\s*SYSTEM_ERROR\[(FIELD|VERIFICATION|SESSION|TASK)\]\s*:?\s*/)
+  const detail = envelope ? raw.slice(envelope[0].length) : raw
+  const codes = detail.match(/\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/g) ?? []
+  const translated = codes.reduce((message, code) => message.split(code).join(errorCodeLabel(code)), detail)
+  if (containsChinese(detail)) return translated
+  const code = codes[0]
+  if (code) return errorRecoveryMessages[code] ?? `${errorCodeLabel(code)}，请按页面提示处理后重试`
+  const layer = envelope?.[1]
+  return (layer ? systemErrorFallbacks[layer] : undefined) ?? fallback
 }
 
 export function errorEventMessage(code?: string, message?: string) {

@@ -1333,7 +1333,7 @@ describe('Designer draft composer', () => {
     expect(systemHistory.get('details').attributes('open')).toBeUndefined()
     expect(systemHistory.get('summary').text()).toContain('系统消息 1 条')
     expect(systemHistory.classes()).toContain('error')
-    expect(systemHistory.text()).toContain('错误，请按页面提示处理后重试')
+    expect(systemHistory.text()).toContain('会话出现错误，请检查运行环境后重试')
   })
 
   it('collects consecutive system notices into one disclosure even when their scope metadata changes', async () => {

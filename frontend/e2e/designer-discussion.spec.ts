@@ -154,6 +154,7 @@ async function installDesignerApi(page: Page) {
     if (path === '/api/tasks/task-e2e' || path === '/api/tasks/task-e2e/overview') return fulfill({
       id: 'task-e2e', projectId: project.id, projectName: project.name, title: '两包设计任务', goal: finalSpec.goal,
       status: 'PENDING_START', attemptCount: 0, maxAttempts: 7, hasDesignHistory: true, archived: false,
+      loopRetryAvailable: false, cancellationAvailable: true,
       createdAt: now, updatedAt: now, stages: [], attempts: [], errors: [], judges: [], artifacts: [], workPackages: [],
     })
     if (path === '/api/tasks/task-e2e/audit') return fulfill({ attempts: [], errors: [], judges: [], artifacts: [] })
@@ -205,6 +206,47 @@ test('需求提问后逐包讨论并确认为 PENDING_START 任务', async ({ pa
   await expect(page.getByRole('button', { name: '开始执行' })).toBeVisible()
 })
 
+test('附件设计投递失败时展示具体原因并在刷新后保留附件历史', async ({ page }) => {
+  await installDesignerApi(page)
+  await page.route('**/api/designer-sessions/designer-e2e', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({
+      ...session('requirement-review'), state: 'WAITING_INPUT',
+      messages: [
+        {
+          id: 'attachment-request', role: 'USER', actor: 'USER', content: '参考附件进行只读设计',
+          deliveryState: 'PERSISTED', requirementRevision: 1, createdAt: now,
+          attachments: [{
+            id: 'attachment-e2e', filename: '接口设计规范.docx',
+            mediaType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            sizeBytes: 664576, sha256: 'a'.repeat(64), scopeKey: 'REQUIREMENT',
+            extractorId: 'DOCX', previewKind: 'TEXT', state: 'ACTIVE',
+          }],
+        },
+        {
+          id: 'handoff-error', role: 'SYSTEM', actor: 'SYSTEM', deliveryState: 'TERMINAL_ERROR',
+          content: 'SYSTEM_ERROR[SESSION] OPENCODE_DESIGNER_HANDOFF_FAILED: 400 Bad Request: messageID must start with msg',
+          createdAt: now,
+        },
+      ],
+    }),
+  }))
+  await page.goto('/designer?sessionId=designer-e2e')
+
+  const alert = page.locator('.designer-session-alert')
+  await expect(alert).toContainText('设计工作流需要人工恢复')
+  await expect(alert).toContainText('设计请求未能发送给 OpenCode')
+  await expect(alert).toContainText('版本兼容性与连接状态')
+  await expect(page.getByText('接口设计规范.docx', { exact: true })).toBeVisible()
+  const history = page.locator('.designer-system-message-history')
+  await history.locator('summary').click()
+  await expect(history.locator('.system-message-body')).toContainText('设计请求未能发送给 OpenCode')
+  await expect(page.locator('body')).not.toContainText('SYSTEM_ERROR')
+  await expect(page.locator('body')).not.toContainText('OPENCODE_DESIGNER_HANDOFF_FAILED')
+  await page.reload()
+  await expect(alert).toContainText('设计请求未能发送给 OpenCode')
+  await expect(page.getByText('接口设计规范.docx', { exact: true })).toBeVisible()
+})
+
 test('只开启全自动后无需人工审批即可进入已启动任务', async ({ page }) => {
   let poll = 0
   await page.route('http://127.0.0.1:41773/api/**', async (route) => {
@@ -241,6 +283,7 @@ test('只开启全自动后无需人工审批即可进入已启动任务', async
     if (path === '/api/tasks/task-auto-e2e/overview' || path === '/api/tasks/task-auto-e2e') return fulfill({
       id: 'task-auto-e2e', projectId: project.id, projectName: project.name, title: '全自动设计任务', goal: finalSpec.goal,
       status: 'QUEUED', attemptCount: 0, maxAttempts: 7, hasDesignHistory: true, archived: false,
+      loopRetryAvailable: false, cancellationAvailable: true,
       createdAt: now, updatedAt: now, stages: [], attempts: [], errors: [], judges: [], artifacts: [], workPackages: [],
     })
     if (path === '/api/tasks/task-auto-e2e/audit') return fulfill({ attempts: [], errors: [], judges: [], artifacts: [] })

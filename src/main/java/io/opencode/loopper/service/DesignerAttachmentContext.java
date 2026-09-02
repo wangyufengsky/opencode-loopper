@@ -342,7 +342,7 @@ public class DesignerAttachmentContext {
         try {
             String digest = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
                     .digest(canonical.toString().getBytes(StandardCharsets.UTF_8)));
-            return "loopper-attachment-" + digest.substring(0, 32);
+            return "msg_loopper_attachment_" + digest.substring(0, 32);
         } catch (NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
     }
 

@@ -246,7 +246,7 @@ class DesignerAttachmentContextIntegrationTest {
         OpenCodeClient.PromptRequest designerPrompt = fake.promptRequestForSession(running.externalSessionId());
         assertThat(designerPrompt.files()).extracting(OpenCodeClient.FilePart::filename)
                 .containsExactly("contract.txt");
-        assertThat(designerPrompt.messageId()).startsWith("loopper-attachment-");
+        assertThat(designerPrompt.messageId()).startsWith("msg");
     }
 
     private DesignerAttachmentContext.ChangeReceipt submit(
