@@ -103,6 +103,12 @@ The limits are 10 files per message, 20 MiB per file, 50 MiB accumulated per Des
 
 ## Read models and bounded responses
 
+`InsightPageMapper` uses one `InsightSql` filtered facts CTE for the task page, reliable token
+aggregate and per-currency cost aggregates. `projectId/state/quality/archive/query` apply before
+pagination; title matching is literal, not SQL wildcard syntax. Human acceptance is projected
+separately from AI verdicts. Frontend filter changes reset the cursor and fence stale responses.
+
+
 SQLite remains the authoritative store and runs in WAL mode. Query-facing APIs
 use dedicated read-only services and mappers instead of rebuilding list and
 detail responses through lifecycle services. `CursorPage<T>` uses an opaque
@@ -1215,9 +1221,19 @@ SHA-256 for traceability. Confirmed goal/context/Judge criteria are limited to
 any pending Judge in a review batch, Loopper constructs and validates every
 pending role prompt. A runtime overflow in either role creates no Judge row,
 read-only Session, or model call for the entire batch and moves the Task to
-`WAITING_INPUT` with `JUDGE_PROMPT_BUDGET_EXCEEDED`. They must return an explicit `PASS`;
-conflicts, `REVISE`, `BLOCKED`, or unparseable output
-move the Task to `WAITING_INPUT`, never to a fabricated success.
+`WAITING_INPUT` with `JUDGE_PROMPT_BUDGET_EXCEEDED`. Automatic acceptance requires an explicit `PASS` from both roles;
+conflicts, `REVISE`, `BLOCKED`, or unparseable output move the Task to `WAITING_INPUT`.
+AI final reviews are advisory: the local user may explicitly accept a stopped final review
+through `POST /api/tasks/{taskId}/judge-approval`, with expected Task/Cycle versions and
+review batch ID. All Stages and their latest Attempts must have succeeded, and all writers,
+verifiers and candidate cleanup must be stopped. V64 persists immutable `task_judge_approval`
+separately from the original Judge verdicts. A short transaction finishes the running Cycle
+as SUCCEEDED and transitions the Task to AWAITING_DECISION with LOCAL_HUMAN audit evidence.
+Checkpoint capture and lease handoff run afterwards, outside SQLite transactions; the startup
+coordinator resumes interrupted handoffs. Exact retries are idempotent; stale generations
+and failed deterministic execution are rejected. Legacy reviews without a batch must still
+reference the latest successful final Attempt. The normal publication and merge-request
+flow then applies without another AI acceptance requirement.
 
 Independently of that optional acceptance gate, the final successful Attempt
 persists a bounded deterministic baseline-diff snapshot with changed and
@@ -1269,8 +1285,11 @@ active lease.
 A Task in the short-lived prepared `READY` state may likewise be explicitly cancelled
 before its first writable OpenCode Session starts. The ordinary Task cancellation transition
 preserves its branch, execution directory, and evidence, then reuses terminal-holder
-reconciliation to restore the recorded source branch and release the workspace lease
-only when the existing safety checks pass.
+reconciliation to return to the local default branch (origin/HEAD, then main/master) and
+release its workspace lease only when the existing safety checks pass. A cancelled holder's
+uncommitted and untracked files are first preserved using the private checkpoint/stash saga.
+Failure to capture or switch retains the lease and evidence; no forced checkout/reset is used.
+Pending/queued Tasks, Direct workspaces and a workspace transferred to another holder are not switched.
 All other active Task states share that stop protocol. `CANCEL` first persists
 `STOPPING`, then independently stops and rechecks implementation Sessions, Judge
 Sessions, and exact-identity managed verifier processes. Unconfirmed writers keep

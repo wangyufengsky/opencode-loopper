@@ -763,8 +763,31 @@ export interface TaskInsight {
     verificationPassedCount: number
     requirementJudgePassed: boolean
     riskJudgePassed: boolean
+    humanApproved?: boolean
   }
 }
+
+export interface JudgeApproval {
+  available: boolean
+  approved: boolean
+  taskVersion: number
+  cycleId: string
+  cycleVersion: number
+  reviewBatchId: string
+  approvedAt?: string
+}
+
+export interface InsightQuery {
+  cursor?: string
+  projectId?: string
+  state?: string
+  quality?: string
+  archive?: string
+  query?: string
+}
+
+export interface McpServerInfo { id: string; name: string; status: string; type: string }
+export interface McpToolCatalog { tools: Array<{ name: string; description: string }>; complete: boolean; detail?: string }
 
 export interface InsightsSnapshot {
   tasks: TaskInsight[]
@@ -1335,6 +1358,7 @@ export interface TaskDesignHistory {
     createdAt: string
     updatedAt: string
     messages: DesignerMessage[]
+    answeredQuestions?: DesignerAnsweredQuestion[]
   }
   requirement?: {
     revision: number

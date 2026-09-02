@@ -253,6 +253,37 @@ class TaskReadServiceIntegrationTest {
     }
 
     @Test
+    void insightFiltersScopeRowsTokensCurrenciesAndPaginationTogether() {
+        jdbc.update("INSERT INTO stage(id,task_id,ordinal,objective,allowed_paths_json,forbidden_paths_json,deliverables_json,verifiers_json,state,created_at,updated_at) VALUES('stage-b','task-b',0,'B','[]','[]','[]','[]','PENDING','now','now')");
+        jdbc.update("INSERT INTO attempt(id,task_id,stage_id,ordinal,state,created_at) VALUES('attempt-b','task-b','stage-b',1,'RUNNING','now')");
+        for (String suffix : List.of("a", "b")) {
+            jdbc.update("INSERT INTO execution_session(id,task_id,stage_id,attempt_id,external_session_id,state,created_at) VALUES(?,?,?,?,?,'COMPLETED','now')",
+                    "session-" + suffix, "task-" + suffix, "stage-" + suffix, "attempt-" + suffix, "remote-" + suffix);
+            jdbc.update("INSERT INTO session_usage(id,task_id,execution_session_id,external_message_id,idempotency_key,total_tokens,cost_amount,currency,reliable,observed_at) VALUES(?,?,?,?,?,?,?,?,1,'now')",
+                    "usage-" + suffix, "task-" + suffix, "session-" + suffix, "message-" + suffix,
+                    "key-" + suffix, suffix.equals("a") ? 10 : 90, suffix.equals("a") ? "1.25" : "9.00", suffix.equals("a") ? "USD" : "CNY");
+        }
+        var review = insightReads.page(new io.opencode.loopper.domain.InsightFilter("p", "RUNNING", "REVIEW_REQUIRED", "ACTIVE", "alpha"), null, 1);
+        assertThat(review.items()).extracting(InsightReadService.TaskInsight::taskId).containsExactly("task-a");
+        assertThat(review.usage().totalTokens()).isEqualTo(10);
+        assertThat(review.usage().costByCurrency()).containsOnlyKeys("USD");
+        var page = insightReads.page(null, 1);
+        assertThat(page.items()).hasSize(1);
+        assertThat(page.usage().totalTokens()).isEqualTo(100);
+        var next = insightReads.page(page.nextCursor(), 1);
+        assertThat(next.items()).extracting(InsightReadService.TaskInsight::taskId).containsExactly("task-a");
+        assertThat(next.usage().totalTokens()).isEqualTo(100);
+        jdbc.update("INSERT INTO task_archive(task_id,archived_at) VALUES('task-a','now')");
+        var active = insightReads.page(new io.opencode.loopper.domain.InsightFilter(null, null, null, "ACTIVE", null), null, 50);
+        assertThat(active.items()).extracting(InsightReadService.TaskInsight::taskId).containsExactly("task-b");
+        assertThat(active.usage().totalTokens()).isEqualTo(90);
+        var empty = insightReads.page(new io.opencode.loopper.domain.InsightFilter("other", null, null, "ALL", null), null, 50);
+        assertThat(empty.items()).isEmpty(); assertThat(empty.usage().totalTokens()).isNull();
+        assertThat(empty.usage().costByCurrency()).isEmpty();
+        assertThat(insightReads.page(new io.opencode.loopper.domain.InsightFilter(null, null, null, "ALL", "%"), null, 50).items()).isEmpty();
+    }
+
+    @Test
     void readModelsStayWithinFixedQueryBudgets() {
         queries.reset();
         reads.summaries(null, List.of(), "ACTIVE", null, "newest", null, 50);

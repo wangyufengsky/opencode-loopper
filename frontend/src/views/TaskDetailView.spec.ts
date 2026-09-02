@@ -90,7 +90,7 @@ describe('TaskDetailView judge action', () => {
     await action!.trigger('click')
     await flushPromises()
 
-    expect(ElMessageBox.confirm).toHaveBeenCalledWith(expect.stringContaining('保留执行目录和证据'), '取消当前任务？', expect.any(Object))
+    expect(ElMessageBox.confirm).toHaveBeenCalledWith(expect.stringContaining('安全切回主分支'), '取消当前任务？', expect.any(Object))
     expect(store.updateTask).toHaveBeenCalledWith('task-review', 'cancel')
   })
 

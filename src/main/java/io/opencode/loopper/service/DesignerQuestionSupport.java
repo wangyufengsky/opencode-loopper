@@ -166,6 +166,12 @@ public final class DesignerQuestionSupport {
                         "DESIGN_CHAT_QUESTION_MISSING", "兼容提问消息不存在，请刷新后重试"));
     }
 
+    public List<HistoryQuestion> history(String sessionId) {
+        return answeredDecisions(mapper.listDesignDiscussionRevisions(sessionId)).stream()
+                .map(entry -> new HistoryQuestion(entry.questionId(), entry.scope(), entry.discussionRevision(),
+                        entry.designMessageId(), entry.answeredAt(), entry.prompts())).toList();
+    }
+
     List<AnsweredDecision> answeredDecisions(List<DesignDiscussionRevisionRow> revisions) {
         List<AnsweredDecision> result = new ArrayList<>();
         for (DesignDiscussionRevisionRow revision : revisions) {
@@ -289,8 +295,10 @@ public final class DesignerQuestionSupport {
     record Interaction(String mode, boolean awaitingAnswer) { }
     record AnsweredDecision(String questionId, String scope, int discussionRevision,
                             String designMessageId, String answeredAt, List<AnsweredPrompt> prompts) { }
-    record AnsweredPrompt(String question, String header, List<Option> options,
+    public record HistoryQuestion(String id, String scope, int discussionRevision,
+                                  String designMessageId, String answeredAt, List<AnsweredPrompt> questions) { }
+    public record AnsweredPrompt(String question, String header, List<Option> options,
                           boolean multiple, boolean custom, List<String> answers) { }
-    record Option(String label, String description) { }
+    public record Option(String label, String description) { }
     private record DecodedDecision(String questionId, String answeredAt, List<AnsweredPrompt> prompts) { }
 }

@@ -1,6 +1,7 @@
 import type { AppSettings, Artifact, Attempt, AutomationImportPreview, AutomationImportResult, AutomationRule, AutomationRuleMutation, AutomationRun, AutomationRunFeed, AvailableModel, BrowserAssertion, CommitMessageSuggestion, CreateAutomationRuleInput, DesignerActivity, DesignerAnsweredQuestion, DesignerAppendResult, DesignerHistoryItem, DesignerMessage, DesignerSession, DesignerSessionState, DesignerSessionSummary, DesignerStopResult, DesignerStreamEvent, DirectorySelection, DirtyWorkspaceAction, DirtyWorkspaceResolution, DirtyWorkspaceState, ErrorEvent, GitDiffScopeApproval, GitDiffScopeDecisionAction, InsightsSnapshot, Interaction, InteractionAction, JudgeRun, LocalSyncConflictContent, LocalSyncConflictFile, LocalSyncConflictSession, LocalSyncResolution, LoopDraft, LoopSpec, LoopSpecAssessment, LoopSpecTemplate, LoopSpecTemplateVersion, LoopVerifierSpec, MergeRequestDraft, Project, ProjectConventionActivity, ProjectConventionDraft, ProjectConventionSnapshot, RecoveryDraft, RecoveryMode, RuntimeInfo, SessionCheckpoint, SessionForkResult, SessionRevertResult, SessionSummaryResult, SessionTodo, Stage, Task, TaskDecision, TaskDesignHistory, TaskDiffPreview, TaskEvent, TaskInsight, TaskPublicationStatus, TaskQueueStatus, TaskSessionActivity, TaskSessionActivityPart, TaskSessionPendingQuestion, TaskSessionSummary, UsageAggregate } from '@/types/domain'
 import type { AnalysisReport, DesignerTaskProfileUpdatePreview, ProjectStackProfile, RollingPackageCapabilities, RollingPackageDetail, RollingPackageFact, RollingPackageRun, RollingPackageWorkbench, RollingPlanPackage, RollingPlanProposal } from '@/types/domain'
 import { DESIGNER_SESSION_STATES, DESIGN_WORK_PACKAGE_STATES, LOOP_DRAFT_STATUSES, STAGE_STATUSES, TASK_PACKAGE_RUN_STATES, TASK_STATUSES, WORK_PACKAGE_AGGREGATE_STATUSES, requirePublicState } from '@/types/states'
+import type { InsightQuery, JudgeApproval, McpServerInfo, McpToolCatalog } from '@/types/domain'
 
 const apiBase = import.meta.env.VITE_API_BASE ?? '/api'
 
@@ -626,6 +627,7 @@ function normalizeTaskDesignHistory(value: unknown): TaskDesignHistory {
       createdAt: asString(session.createdAt),
       updatedAt: asString(session.updatedAt),
       messages: asArray(session.messages).map(normalizeDesignerMessage),
+      answeredQuestions: asArray(session.answeredQuestions).map(normalizeDesignerAnsweredQuestion),
     } : undefined,
     requirement: raw.requirement ? (() => { const item = asRecord(raw.requirement); return { revision: asNumber(item.revision), state: asString(item.state), requirementText: asString(item.requirementText), modelCallsUsed: asNumber(item.modelCallsUsed), maxModelCalls: asNumber(item.maxModelCalls) } })() : undefined,
     decomposition: raw.decomposition ? (() => { const item = asRecord(raw.decomposition); return { state: asString(item.state), resultType: asString(item.resultType) || undefined, planJson: asString(item.planJson) } })() : undefined,
@@ -853,7 +855,7 @@ function normalizeDesignerMessage(value: unknown): DesignerMessage {
     role: role === 'USER' || role === 'ASSISTANT' || role === 'SYSTEM' ? role : 'SYSTEM',
     actor: ['USER', 'ROUTER', 'DECOMPOSER', 'DESIGNER', 'COMPILER', 'REVIEWER', 'VALIDATOR', 'SYSTEM'].includes(actor) ? actor as DesignerMessage['actor'] : role === 'USER' ? 'USER' : role === 'ASSISTANT' ? 'DESIGNER' : 'SYSTEM',
     content: asString(raw.content),
-    deliveryState: ['PERSISTED', 'PENDING_HANDOFF', 'COMPILED', 'DESIGN_INCOMPLETE', 'PASS', 'RETRYABLE_ERROR', 'TERMINAL_ERROR', 'SESSION_ERROR'].includes(asString(raw.deliveryState))
+    deliveryState: ['PERSISTED', 'PENDING_HANDOFF', 'COMPILED', 'DESIGN_INCOMPLETE', 'PASS', 'RETRYABLE_ERROR', 'TERMINAL_ERROR', 'SESSION_ERROR', 'CHAT_QUESTION', 'SERVER_REQUIREMENT_SNAPSHOT'].includes(asString(raw.deliveryState))
       ? asString(raw.deliveryState) as DesignerMessage['deliveryState']
       : undefined,
     requirementRevision: typeof raw.requirementRevision === 'number' ? raw.requirementRevision : undefined,
@@ -1487,6 +1489,7 @@ function normalizeTaskInsight(value: unknown): TaskInsight {
       verificationPassedCount: asNumber(quality.verificationPassedCount),
       requirementJudgePassed: quality.requirementJudgePassed === true,
       riskJudgePassed: quality.riskJudgePassed === true,
+      humanApproved: quality.humanApproved === true,
     },
   }
 }
@@ -1554,6 +1557,8 @@ export const api = {
   getTaskRecoveries: async (id: string) => (await request<unknown[]>(`/tasks/${encodeURIComponent(id)}/recoveries`)).map(normalizeRecovery),
   createTaskRecovery: async (id: string, mode: RecoveryMode) => normalizeRecovery(await request<unknown>(`/tasks/${encodeURIComponent(id)}/recoveries`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify({ mode }) })),
   getTaskDecision: async (id: string) => normalizeTaskDecision(await request<unknown>(`/tasks/${encodeURIComponent(id)}/decision`)),
+  getJudgeApproval: (id: string) => request<JudgeApproval>(`/tasks/${encodeURIComponent(id)}/judge-approval`),
+  approveJudges: (id: string, input: { expectedTaskVersion: number; cycleId: string; expectedCycleVersion: number; reviewBatchId: string }) => request<JudgeApproval>(`/tasks/${encodeURIComponent(id)}/judge-approval`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(input) }),
   continueTaskDecision: async (id: string, input: { expectedTaskVersion: number; expectedCycleVersion: number; stageId?: string; supplementalRequirement?: string }) => normalizeTaskDecision(await request<unknown>(`/tasks/${encodeURIComponent(id)}/decision/continue`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(input) })),
   deriveTaskDecision: async (id: string, input: { expectedTaskVersion: number; expectedCycleVersion: number; mode: 'INHERIT_CHANGES' | 'REWORK_ALL_STAGES' }) => normalizeRecovery(await request<unknown>(`/tasks/${encodeURIComponent(id)}/decision/derive`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(input) })),
   auditTaskDecision: async (id: string, input: { expectedTaskVersion: number; expectedCycleVersion: number }) => normalizeRecovery(await request<unknown>(`/tasks/${encodeURIComponent(id)}/decision/audit`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify(input) })),
@@ -1582,8 +1587,13 @@ export const api = {
   revertTaskSession: async (taskId: string, sessionId: string, messageId: string, partId: string) => request<SessionRevertResult>(`/tasks/${encodeURIComponent(taskId)}/sessions/${encodeURIComponent(sessionId)}/revert`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify({ messageId, partId }) }),
   summarizeTaskSession: async (taskId: string, sessionId: string, automatic = false) => request<SessionSummaryResult>(`/tasks/${encodeURIComponent(taskId)}/sessions/${encodeURIComponent(sessionId)}/summarize`, { method: 'POST', headers: { 'X-Loopper-Local-UI': '1' }, body: JSON.stringify({ automatic }) }),
   getInsights: async () => normalizeInsights(await request<unknown>('/insights')),
-  getInsightsPage: async (cursor?: string) => {
-    const raw = asRecord(await request<unknown>(`/insights/page${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`))
+  getMcpServers: (projectId: string) => request<{ servers: McpServerInfo[]; checkedAt: string; complete: boolean }>(`/runtime/tools?projectId=${encodeURIComponent(projectId)}`),
+  getMcpTools: (projectId: string, serverId: string) => request<McpToolCatalog>(`/runtime/tools/catalog?projectId=${encodeURIComponent(projectId)}&serverId=${encodeURIComponent(serverId)}`),
+  getInsightsPage: async (input: InsightQuery | string = {}) => {
+    const query = typeof input === 'string' ? { cursor: input } : input
+    const params = new URLSearchParams()
+    for (const [key, value] of Object.entries(query)) if (value) params.set(key, value)
+    const raw = asRecord(await request<unknown>(`/insights/page${params.size ? `?${params}` : ''}`))
     return { tasks: asArray(raw.items).length ? asArray(raw.items).map(normalizeTaskInsight) : asArray(raw.tasks).map(normalizeTaskInsight), usage: normalizeUsageAggregate(raw.usage),
       generatedAt: asString(raw.generatedAt), nextCursor: asString(raw.nextCursor) || undefined }
   },

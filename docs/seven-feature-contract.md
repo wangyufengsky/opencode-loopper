@@ -385,6 +385,13 @@ template versions and imports require v2.
 
 ## Usage and automation
 
+The paged insight endpoint accepts `projectId`, `state`, `quality`, `archive` (ALL/ACTIVE/ARCHIVED),
+and literal `query` (up to 200 characters). All token/currency totals describe the full filtered
+population, independent of the current cursor page. Unknown usage stays null. The current Cycle's
+V64 human approval is a separate quality field; it can satisfy acceptance while both AI verdict
+fields remain false. The compatibility insight endpoint reports the same human source.
+
+
 Usage is idempotent per provider message. Missing provider usage/cost stays
 `null`/unknown, never zero. Only reliable usage can stop the next model call at
 a soft budget and move a Task to `WAITING_INPUT`.
@@ -403,3 +410,12 @@ an explicitly approved immutable template version and still passes through the
 same `PENDING_START -> REQUEST_START -> QUEUED` boundary, permissions, verifiers
 and both Judges. A review-required detection creates only a draft; its explicit
 approval confirms the Task and immediately invokes that same Start boundary.
+
+## Cancellation checkout and advisory review (0.3.24)
+
+A stopped cancelled Git holder preserves dirty content in the existing durable checkpoint/stash
+before restoring the local default branch and releasing its lease. Root identity, ownership and
+writer-stop proof remain mandatory. An unavailable default branch or unsafe checkpoint blocks
+handoff without discarding files. Direct, pending and queued Tasks cannot switch another holder.
+V64 human final-review acceptance is versioned, explicit local UI authority, separate from AI
+judgments, and never overrides deterministic execution failure or uncertain writer termination.

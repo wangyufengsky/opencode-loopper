@@ -31,7 +31,7 @@ class UsageInsightsServiceTest {
         ExecutionSessionRow session = new ExecutionSessionRow("session", "task", "stage", "attempt", "remote", "COMPLETED", task.createdAt(), task.updatedAt(), 0);
         when(mapper.findTask("task")).thenReturn(java.util.Optional.of(task)); when(mapper.listSessions("task")).thenReturn(List.of(session));
         openCode.setSessionUsage("remote", List.of(new OpenCodeClient.UsageRecord("message", null, null, null, null, null, null, null, false)));
-        UsageInsightsService service = new UsageInsightsService(mapper, openCode);
+        UsageInsightsService service = new UsageInsightsService(mapper, openCode, mock(io.opencode.loopper.persistence.TaskJudgeApprovalMapper.class));
         service.collectTaskUsage("task"); service.collectTaskUsage("task");
         ArgumentCaptor<SessionUsageRow> rows = ArgumentCaptor.forClass(SessionUsageRow.class);
         verify(mapper, times(2)).insertSessionUsage(rows.capture());
@@ -44,7 +44,7 @@ class UsageInsightsServiceTest {
         TaskRow task = new TaskRow("task", "project", "draft", "T", "RUNNING", Path.of(".").toAbsolutePath().toString(), "b", "c", "2026-08-05T00:00:00Z", "2026-08-05T00:00:01Z", 0);
         when(mapper.findTask("task")).thenReturn(java.util.Optional.of(task)); when(mapper.listSessions("task")).thenReturn(List.of());
         when(mapper.listTaskUsage("task")).thenReturn(List.of(new SessionUsageRow("u", "task", "s", null, "m", "k", null, null, 4L, 6L, 10L, "3.00", "CNY", true, task.updatedAt())));
-        UsageInsightsService service = new UsageInsightsService(mapper, openCode);
+        UsageInsightsService service = new UsageInsightsService(mapper, openCode, mock(io.opencode.loopper.persistence.TaskJudgeApprovalMapper.class));
         LoopSpec spec = new LoopSpec("v1", "project", "goal", null, List.of(), null, null, null, null, new LoopSpec.BudgetSpec(10L, "3.00", "USD"));
         assertThat(service.budget(task, spec).blocked()).isTrue();
         when(mapper.listTaskUsage("task")).thenReturn(List.of(new SessionUsageRow("u", "task", "s", null, "m", "k", null, null, null, null, null, null, null, false, task.updatedAt())));
@@ -65,7 +65,7 @@ class UsageInsightsServiceTest {
         openCode.setSessionUsage("judge-remote", List.of(new OpenCodeClient.UsageRecord(
                 "judge-message", "provider", "model", 4L, 6L, null, null, null, true)));
 
-        new UsageInsightsService(mapper, openCode).collectTaskUsage("task");
+        new UsageInsightsService(mapper, openCode, mock(io.opencode.loopper.persistence.TaskJudgeApprovalMapper.class)).collectTaskUsage("task");
 
         ArgumentCaptor<SessionUsageRow> row = ArgumentCaptor.forClass(SessionUsageRow.class);
         verify(mapper).insertSessionUsage(row.capture());
@@ -94,7 +94,7 @@ class UsageInsightsServiceTest {
         when(mapper.listVerifications(fork.id())).thenReturn(List.of());
         when(mapper.listJudgeRuns(task.id())).thenReturn(List.of());
 
-        Map<String, Object> insight = ((List<Map<String, Object>>) new UsageInsightsService(mapper, new FakeOpenCodeClient())
+        Map<String, Object> insight = ((List<Map<String, Object>>) new UsageInsightsService(mapper, new FakeOpenCodeClient(), mock(io.opencode.loopper.persistence.TaskJudgeApprovalMapper.class))
                 .insights().get("tasks")).getFirst();
 
         assertThat(insight.get("retryCount")).isEqualTo(0L);
@@ -128,7 +128,7 @@ class UsageInsightsServiceTest {
         when(mapper.listVerifications(succeeded.id())).thenReturn(finalPasses);
         when(mapper.listJudgeRuns(task.id())).thenReturn(List.of(requirement, risk));
 
-        Map<String, Object> insight = ((List<Map<String, Object>>) new UsageInsightsService(mapper, new FakeOpenCodeClient())
+        Map<String, Object> insight = ((List<Map<String, Object>>) new UsageInsightsService(mapper, new FakeOpenCodeClient(), mock(io.opencode.loopper.persistence.TaskJudgeApprovalMapper.class))
                 .insights().get("tasks")).getFirst();
         Map<String, Object> quality = (Map<String, Object>) insight.get("quality");
 
@@ -156,7 +156,7 @@ class UsageInsightsServiceTest {
         when(mapper.listVerifications(succeeded.id())).thenReturn(List.of(verification));
         when(mapper.listJudgeRuns(task.id())).thenReturn(List.of());
 
-        Map<String, Object> insight = ((List<Map<String, Object>>) new UsageInsightsService(mapper, new FakeOpenCodeClient())
+        Map<String, Object> insight = ((List<Map<String, Object>>) new UsageInsightsService(mapper, new FakeOpenCodeClient(), mock(io.opencode.loopper.persistence.TaskJudgeApprovalMapper.class))
                 .insights().get("tasks")).getFirst();
         Map<String, Object> quality = (Map<String, Object>) insight.get("quality");
 
@@ -189,7 +189,7 @@ class UsageInsightsServiceTest {
         when(mapper.listVerifications(succeeded.id())).thenReturn(List.of(verification));
         when(mapper.listJudgeRuns(task.id())).thenReturn(List.of(oldRequirementPass, latestRequirementBlocked, riskPass));
 
-        Map<String, Object> insight = ((List<Map<String, Object>>) new UsageInsightsService(mapper, new FakeOpenCodeClient())
+        Map<String, Object> insight = ((List<Map<String, Object>>) new UsageInsightsService(mapper, new FakeOpenCodeClient(), mock(io.opencode.loopper.persistence.TaskJudgeApprovalMapper.class))
                 .insights().get("tasks")).getFirst();
         Map<String, Object> quality = (Map<String, Object>) insight.get("quality");
 

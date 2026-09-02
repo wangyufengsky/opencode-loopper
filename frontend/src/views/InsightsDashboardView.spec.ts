@@ -2,9 +2,27 @@ import { flushPromises, mount } from '@vue/test-utils'
 import ElementPlus from 'element-plus'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import InsightsDashboardView from '@/views/InsightsDashboardView.vue'
+import { api } from '@/api/client'
 
-afterEach(() => { vi.unstubAllGlobals() })
+afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
 describe('InsightsDashboardView', () => {
+  it('keeps filters on pagination and clears the cursor when a new search is applied', async () => {
+    vi.spyOn(api, 'getProjects').mockResolvedValue([])
+    const page = vi.spyOn(api, 'getInsightsPage').mockResolvedValue({ tasks: [], nextCursor: 'page-2', generatedAt: 'now',
+      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 30, costByCurrency: {}, unknownUsageCount: 0 } })
+    const wrapper = mount(InsightsDashboardView, { global: { plugins: [ElementPlus], stubs: { Icon: true, PageHeader: true } } })
+    await flushPromises()
+    await wrapper.get('input[aria-label="搜索任务标题"]').setValue('design')
+    await wrapper.get('form').trigger('submit'); await flushPromises()
+    expect(page).toHaveBeenLastCalledWith(expect.objectContaining({ query: 'design', archive: 'ACTIVE', cursor: undefined }))
+    const more = wrapper.findAll('button').find(button => button.text().includes('加载更多'))!
+    await more.trigger('click'); await flushPromises()
+    expect(page).toHaveBeenLastCalledWith(expect.objectContaining({ query: 'design', cursor: 'page-2' }))
+    await wrapper.get('input[aria-label="搜索任务标题"]').setValue('changed')
+    await wrapper.get('form').trigger('submit'); await flushPromises()
+    expect(page).toHaveBeenLastCalledWith(expect.objectContaining({ query: 'changed', cursor: undefined }))
+    expect(wrapper.text()).toContain('筛选范围总用量')
+  })
   it('renders unknown provider usage as unknown instead of zero and keeps currencies separate', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ usage: { totalTokens: null, unknownUsageCount: 2, costByCurrency: { USD: '1.20', CNY: '8.00' } }, tasks: [] }) }))
     const wrapper = mount(InsightsDashboardView, { global: { plugins: [ElementPlus], stubs: { Icon: true, RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' }, PageHeader: { template: '<header><slot name="actions" /></header>' } } } })

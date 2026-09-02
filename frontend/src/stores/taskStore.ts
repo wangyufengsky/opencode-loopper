@@ -4,6 +4,7 @@ import { api, ApiError, subscribeTaskEvents, type TaskEventStream, type TaskSumm
 import { demoArtifacts, demoProjects, demoRuntime, demoTasks, demoTaskStatusGroups } from '@/mock/demoData'
 import type { Artifact, DirtyWorkspaceAction, Project, RuntimeInfo, Task, TaskEvent, TaskStatus } from '@/types/domain'
 import { STAGE_STATUSES, TASK_STATUSES, requirePublicState } from '@/types/states'
+import { displayLabel } from '@/utils/displayLabels'
 
 function copy<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
@@ -39,9 +40,9 @@ export function requiresTaskSnapshot(type: string): boolean {
 
 export function aiOutputNotice(event: TaskEvent): string | undefined {
   if (event.type !== 'AI_OUTPUT_NORMALIZED' && event.type !== 'AI_TOOL_LOOP_FINALIZER_STARTED') return undefined
-  const role = typeof event.data.role === 'string' ? event.data.role : 'AI'
+  const role = typeof event.data.role === 'string' ? displayLabel(event.data.role) : 'AI'
   const corrections = Array.isArray(event.data.corrections)
-    ? event.data.corrections.filter((item): item is string => typeof item === 'string').join('、') : ''
+    ? event.data.corrections.filter((item): item is string => typeof item === 'string').map(displayLabel).join('、') : ''
   return event.type === 'AI_OUTPUT_NORMALIZED'
     ? `${role} 输出已自动规范化${corrections ? `：${corrections}` : ''}`
     : `${role} 重复工具调用已停止，正在使用一次 MCP-only 收口会话`
@@ -352,7 +353,9 @@ export const useTaskStore = defineStore('task', () => {
       tasks.value = tasks.value.map((task) => task.id === id ? reduceTaskEvent(task, event) : task)
       const notice = aiOutputNotice(event)
       if (notice) {
-        taskNotices.value[id] = [...(taskNotices.value[id] ?? []), notice].slice(-4)
+        // SSE replays persisted events on every subscription. Notices are a bounded
+        // projection of distinct explanations, not a log of delivery attempts.
+        taskNotices.value[id] = [...new Set([...(taskNotices.value[id] ?? []), notice])].slice(-4)
       }
       if (requiresTaskSnapshot(event.type) && !snapshotTimer) {
         // Events can arrive in short bursts (session + attempt + verification).

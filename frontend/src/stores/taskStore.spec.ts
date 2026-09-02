@@ -2,6 +2,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { demoProjects, demoRuntime, demoTasks } from '@/mock/demoData'
 import { aiOutputNotice, reduceTaskEvent, requiresTaskSnapshot, useTaskStore } from '@/stores/taskStore'
+import { subscribeTaskEvents } from '@/api/client'
 
 const apiMocks = vi.hoisted(() => ({
   createTaskRecovery: vi.fn(),
@@ -73,7 +74,7 @@ describe('task SSE reducer', () => {
   it('renders normalization and finalizer events as ordinary informational notices', () => {
     expect(aiOutputNotice({ id: 'normalized', type: 'AI_OUTPUT_NORMALIZED', at: 'now',
       data: { role: 'RISK', corrections: ['WRAPPER_TOLERATED'] } }))
-      .toBe('RISK 输出已自动规范化：WRAPPER_TOLERATED')
+      .toBe('风险评审员 输出已自动规范化：已兼容常见外层格式')
     expect(aiOutputNotice({ id: 'finalizer', type: 'AI_TOOL_LOOP_FINALIZER_STARTED', at: 'now',
       data: { role: 'REQUIREMENT' } }))
       .toContain('MCP-only 收口会话')
@@ -95,6 +96,20 @@ describe('task SSE reducer', () => {
     expect(apiMocks.createTaskRecovery).toHaveBeenCalledWith(parent.id, 'REWORK_ALL_STAGES')
     expect(apiMocks.startTask).toHaveBeenCalledWith(child.id)
     expect(store.tasks).toContainEqual(child)
+  })
+
+  it('deduplicates normalization notices across reopen and SSE replay, independently per task', () => {
+    const store = useTaskStore()
+    store.usingDemo = false
+    vi.mocked(subscribeTaskEvents).mockImplementation((_id, receive) => {
+      receive({ id: 'same-event', type: 'AI_OUTPUT_NORMALIZED', at: 'now', data: { role: 'REQUIREMENT', corrections: ['WRAPPER_TOLERATED'] } })
+      return { close: vi.fn() }
+    })
+    store.watchTask('one'); store.stopWatching(); store.watchTask('one'); store.watchTask('two')
+    expect(store.taskNotices.one).toHaveLength(1)
+    expect(store.taskNotices.two).toHaveLength(1)
+    expect(store.taskNotices.one?.[0]).toContain('已兼容常见外层格式')
+    store.stopWatching()
   })
 
   it('removes an archived task and its loaded artifacts after backend deletion', async () => {

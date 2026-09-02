@@ -4,6 +4,7 @@ import io.opencode.loopper.service.AutomationService;
 import io.opencode.loopper.service.LocalSyncConflictService;
 import io.opencode.loopper.service.StageWorkspaceBaselineService;
 import io.opencode.loopper.service.TaskService;
+import io.opencode.loopper.service.TaskJudgeApprovalService;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.util.TestPropertyValues;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
@@ -52,6 +53,7 @@ class StartupRecoveryCoordinatorTest {
         context.registerBean(StageWorkspaceBaselineService.class, () -> stageBaselines);
         context.registerBean(TaskService.class, () -> tasks);
         context.registerBean(AutomationService.class, () -> automations);
+        context.registerBean(TaskJudgeApprovalService.class, () -> mock(TaskJudgeApprovalService.class));
         context.register(StartupRecoveryCoordinator.class);
         context.refresh();
         return context;

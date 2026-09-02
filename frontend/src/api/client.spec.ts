@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { api, backendAutomationRule, normalizeAutomationRule, subscribeDesignerEvents } from '@/api/client'
 import type { AutomationRule, LoopSpec } from '@/types/domain'
+import { frozenDesignTimeline } from '@/utils/frozenDesignTimeline'
 
 const spec: LoopSpec = {
   schemaVersion: 'v1', projectId: 'project-1', goal: 'Verify the contract', context: '',
@@ -919,6 +920,24 @@ describe('Loopper REST contract adapter', () => {
       designerSession: { id: 'designer-1', state: 'COMPLETED', messages: [{ role: 'USER', content: 'Original requirement' }] },
     })
     expect(fetchMock).toHaveBeenCalledWith('/api/tasks/task%201/design-history', expect.any(Object))
+  })
+
+  it('preserves chat question and server snapshot markers through the history API boundary', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({
+      taskId: 'task-1', draft: { id: 'draft-1', status: 'CONFIRMED', spec }, designerSession: {
+        id: 'designer-1', state: 'COMPLETED', messages: [
+          { id: 'q', role: 'ASSISTANT', actor: 'DESIGNER', content: 'Keep scope?', deliveryState: 'CHAT_QUESTION' },
+          { id: 'snapshot', role: 'SYSTEM', actor: 'SYSTEM', content: 'Internal snapshot', deliveryState: 'SERVER_REQUIREMENT_SNAPSHOT' },
+        ],
+        answeredQuestions: [{ id: 'chat-q', scope: 'REQUIREMENT', discussionRevision: 1, designMessageId: 'snapshot',
+          questions: [{ question: 'Keep scope?', header: 'Scope', options: [], answers: ['Yes'] }] }],
+      },
+    })))
+    const session = (await api.getTaskDesignHistory('task-1')).designerSession!
+    expect(session.messages.map(message => message.deliveryState)).toEqual(['CHAT_QUESTION', 'SERVER_REQUIREMENT_SNAPSHOT'])
+    const timeline = frozenDesignTimeline(session.messages, session.answeredQuestions ?? [])
+    expect(timeline).toHaveLength(1)
+    expect(timeline[0]).toMatchObject({ kind: 'discussion', entries: [{ id: 'chat-q', questions: [{ answers: ['Yes'] }] }] })
   })
 
   it('does not render a terminal Task attempt as still running', async () => {

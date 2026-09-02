@@ -28,10 +28,13 @@ import org.springframework.stereotype.Service;
 public class UsageInsightsService {
     private final LoopperMapper mapper;
     private final OpenCodeClient openCode;
+    private final io.opencode.loopper.persistence.TaskJudgeApprovalMapper approvals;
 
-    public UsageInsightsService(LoopperMapper mapper, OpenCodeClient openCode) {
+    public UsageInsightsService(LoopperMapper mapper, OpenCodeClient openCode,
+                               io.opencode.loopper.persistence.TaskJudgeApprovalMapper approvals) {
         this.mapper = mapper;
         this.openCode = openCode;
+        this.approvals = approvals;
     }
 
     /** Samples terminal implementation and Judge sessions; V13's idempotency key prevents duplicate polls. */
@@ -130,8 +133,11 @@ public class UsageInsightsService {
         quality.put("verificationPassedCount", passed);
         quality.put("requirementJudgePassed", requirementPassed);
         quality.put("riskJudgePassed", riskPassed);
+        boolean humanApproved = mapper.latestTaskExecutionCycle(task.id())
+                .flatMap(cycle -> approvals.find(cycle.id())).isPresent();
+        quality.put("humanApproved", humanApproved);
         quality.put("state", !deterministicPassed ? "PENDING"
-                : requirementPassed && riskPassed ? "PASS" : "REVIEW_REQUIRED");
+                : (requirementPassed && riskPassed || humanApproved) ? "PASS" : "REVIEW_REQUIRED");
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("taskId", task.id()); result.put("title", task.title()); result.put("state", task.state());
         result.put("durationMs", duration(task.createdAt(), terminalTask(task.state()) ? task.updatedAt() : Instant.now().toString()));

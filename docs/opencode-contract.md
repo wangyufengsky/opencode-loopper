@@ -930,3 +930,19 @@ The Spring AI Streamable HTTP initialize response advertises only the tools
 capability, and `tools/list` exposes exactly six Loopper tools. Resources,
 prompts and completions are disabled. Both `/api/mcp-streamable` and the
 compatibility `/api/mcp` fail closed without the configured Bearer token.
+
+## Read-only MCP inventory (0.3.24)
+
+`OpenCodeToolInventory` reads project-scoped `/mcp` statuses and merged `/config` MCP definitions
+from the selected loopback OpenCode runtime. `/experimental/tool` only enumerates built-in tools
+and must not be presented as the MCP catalog. The System Tools page lists every configured or
+reported server (bounded to 256); private generation server names are replaced by a stable alias.
+Expanding a connected, enabled server uses its existing configuration for an independent
+initialize/tools/list session. Local stdio uses the selected directory without a shell wrapper;
+remote Streamable HTTP falls back to SSE. No tools/call, sampling or configuration mutation is
+permitted. Credentials/configuration and stderr are never returned; raw exception messages are
+replaced with a safe unavailable explanation. OAuth credentials absent from the merged config
+are not harvested from private stores. Requests are bounded, pagination stops at 512 tools or
+its deadline with an explicit partial result, clients close, and complete catalogs cache for
+20 seconds with runtime/directory/config identity. Failures remain retryable and distinct from
+an empty successful tools list. This inventory does not expand any model role's tool permissions.

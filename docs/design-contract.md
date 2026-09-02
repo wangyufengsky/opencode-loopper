@@ -757,7 +757,15 @@ Gate cannot be edited as a complete LoopSpec before `FINAL_REVIEW`. Human recove
 actions target decomposition or the current package; the old generic
 compiler/redesign endpoints remain a compatibility alias.
 
-Message origin comes from the persisted `actor` (`USER`, `DECOMPOSER`,
+Frozen Task design history uses a separate read-only timeline: show only persisted USER and
+DESIGNER speech plus `DesignerDiscussionHistory` question cards. System, Validator, Compiler
+and Decomposer messages remain in the audit data but do not appear in that timeline. Questions
+come from the source Designer's persisted discussion decisions (including inherited Tasks),
+with options, descriptions and final answers; a hidden system snapshot may still anchor a card.
+Reopening must not duplicate replayed normalization notices: deduplicate per Task and translated
+explanation, retaining at most four distinct notices.
+
+The following grouping rules apply to the active Designer console. Message origin comes from the persisted `actor` (`USER`, `DECOMPOSER`,
 `DESIGNER`, `COMPILER`, `VALIDATOR`, or `SYSTEM`), never from role text
 inference. The console renders user cards blue, Decomposer summaries indigo,
 Designer Markdown purple, Compiler summaries/gaps cyan,
@@ -1131,3 +1139,17 @@ settlement certificate 原子打开 run；未知创建结果只允许 cleanup。
 显示独立的单包候选摘要，并投影同一组字段；不能因为隐藏审批轨道而同时隐藏 MCP/兜底事实。
 “MCP 已接受”“MCP 修正 N 次”“Markdown 兜底”和“等待人工补充”都只能由这些字段
 驱动；前端不得用模型调用次数、消息数量或 assistant 文本反推提交次数和采用路线。
+
+## Task review decisions and system tools (0.3.24)
+
+The final dual-review panel says AI results are advisory and exposes “人工认定通过” only from
+server capability data. Confirmation submits the exact displayed Task/Cycle/batch generation.
+After acceptance show its persisted human source without changing the original Judge cards;
+reload the Task so ordinary submission, push and merge-request actions become available.
+
+System navigation includes `/tools`. The user selects global runtime or a project, sees live
+MCP connection states, and expands a server to read names and descriptions. Descriptions are
+escaped text. Unavailable/incomplete tool lists are visibly different from an empty complete
+list; no model or tool execution is triggered. Search covers server names and loaded descriptions.
+The Quality & Usage page filters project, Task state, quality, archive and title, applying the
+same filters to page rows and aggregate values. Its loaded-task count is labelled as loaded.

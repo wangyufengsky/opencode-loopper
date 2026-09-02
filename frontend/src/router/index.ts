@@ -16,6 +16,7 @@ export const router = createRouter({
     { path: '/tasks/:id/recovery', component: () => import('@/views/RecoveryStudioView.vue') },
     { path: '/tasks/:id/design', component: () => import('@/views/TaskDesignHistoryView.vue') },
     { path: '/runtime', component: () => import('@/views/RuntimeView.vue') },
+    { path: '/tools', component: () => import('@/views/ToolsView.vue') },
     { path: '/settings', component: () => import('@/views/SettingsView.vue') },
     { path: '/:pathMatch(.*)*', redirect: '/tasks' },
   ],

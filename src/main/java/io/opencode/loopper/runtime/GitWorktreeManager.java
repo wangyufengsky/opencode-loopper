@@ -440,6 +440,25 @@ public class GitWorktreeManager {
         }
     }
 
+    /** Cancellation returns to the repository default branch without discarding files. */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public void restoreMainBranch(Path root, String taskBranch) {
+        String remoteHead = optionalOutput(root, List.of("git", "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"));
+        java.util.LinkedHashSet<String> candidates = new java.util.LinkedHashSet<>();
+        if (remoteHead != null && remoteHead.startsWith("refs/remotes/origin/")) {
+            candidates.add(remoteHead.substring("refs/remotes/origin/".length()));
+        }
+        candidates.add("main"); candidates.add("master");
+        for (String candidate : candidates) {
+            if (!candidate.equals(taskBranch) && !candidate.startsWith(BRANCH_NAMESPACE)
+                    && optionalOutput(root, List.of("git", "rev-parse", "--verify", "refs/heads/" + candidate)) != null) {
+                restoreSourceBranch(root, taskBranch, candidate);
+                return;
+            }
+        }
+        throw new TaskFailure("TASK_MAIN_BRANCH_UNAVAILABLE", "未找到本地主分支，已保留任务分支与修改快照");
+    }
+
     private String inferHistoricalSourceBranch(Path root, String taskBranch) {
         String reflog = optionalOutput(root, List.of("git", "reflog", "--format=%gs", "-n", "100", "HEAD"));
         if (reflog == null) return null;

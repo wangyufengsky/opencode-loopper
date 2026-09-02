@@ -66,18 +66,21 @@ public class TaskController {
     private final TaskDesignOriginService designOrigins;
     private final GitDiffScopeApprovalService gitDiffScopeApprovals;
     private final DesignerAttachmentReadService attachmentReads;
+    private final io.opencode.loopper.service.DesignerQuestionSupport questionSupport;
     public TaskController(TaskService service, LoopperMapper mapper, TaskEventHub events, ObjectMapper json,
                           LoopDraftService drafts, TaskPublicationService publication,
                           LocalSyncConflictService localSyncConflicts,
                           TaskDesignOriginService designOrigins,
                           GitDiffScopeApprovalService gitDiffScopeApprovals,
-                          DesignerAttachmentReadService attachmentReads) {
+                          DesignerAttachmentReadService attachmentReads,
+                          io.opencode.loopper.service.DesignerQuestionSupport questionSupport) {
         this.service = service; this.mapper = mapper; this.events = events; this.json = json;
         this.drafts = drafts; this.publication = publication;
         this.localSyncConflicts = localSyncConflicts;
         this.designOrigins = designOrigins;
         this.gitDiffScopeApprovals = gitDiffScopeApprovals;
         this.attachmentReads = attachmentReads;
+        this.questionSupport = questionSupport;
     }
     @GetMapping public List<TaskDto> list() { return service.list().stream().map(this::dto).toList(); }
     @GetMapping("/{id}") public TaskDto get(@PathVariable String id) { return dto(service.get(id)); }
@@ -150,7 +153,7 @@ public class TaskController {
                 designOrigin.sourceTask().id(), designOrigin.inherited(),
                 new TaskLoopDraftDto(draft.id(), draft.status(), draft.updatedAt(), drafts.spec(draft)),
                 session == null ? null : new DesignerHistorySessionDto(session.id(), session.state(), session.accessMode(),
-                        session.createdAt(), session.updatedAt(), messages),
+                        session.createdAt(), session.updatedAt(), messages, questionSupport.history(session.id())),
                 requirement == null ? null : new DesignRequirementHistoryDto(requirement.revision(),
                         requirement.state(), requirement.requirementText(), requirement.modelCallsUsed(),
                         requirement.maxModelCalls()),
@@ -422,7 +425,8 @@ public class TaskController {
                                        List<FrozenTaskAttachmentDto> frozenAttachments) { }
     public record TaskLoopDraftDto(String id, String status, String updatedAt, LoopSpec spec) { }
     public record DesignerHistorySessionDto(String id, String state, String accessMode, String createdAt,
-                                             String updatedAt, List<DesignerHistoryMessageDto> messages) { }
+                                             String updatedAt, List<DesignerHistoryMessageDto> messages,
+                                             List<io.opencode.loopper.service.DesignerQuestionSupport.HistoryQuestion> answeredQuestions) { }
     public record DesignerHistoryMessageDto(String id, int ordinal, String role, String actor, String content,
                                              String deliveryState, String createdAt,
                                              Integer requirementRevision, String workPackageId,

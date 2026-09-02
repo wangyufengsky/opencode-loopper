@@ -38,7 +38,8 @@ class TaskControllerArchiveTest {
     private final TaskController controller = new TaskController(tasks, mapper, mock(TaskEventHub.class),
             mock(ObjectMapper.class), mock(LoopDraftService.class), mock(TaskPublicationService.class),
             mock(LocalSyncConflictService.class), mock(TaskDesignOriginService.class),
-            mock(GitDiffScopeApprovalService.class), mock(DesignerAttachmentReadService.class));
+            mock(GitDiffScopeApprovalService.class), mock(DesignerAttachmentReadService.class),
+            mock(io.opencode.loopper.service.DesignerQuestionSupport.class));
     private final MockMvc mvc = MockMvcBuilders.standaloneSetup(controller)
             .setControllerAdvice(new ApiExceptionHandler()).build();
 

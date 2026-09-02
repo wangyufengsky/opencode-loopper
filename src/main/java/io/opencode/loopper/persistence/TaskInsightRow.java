@@ -4,4 +4,5 @@ public record TaskInsightRow(String id, String title, String state, String creat
                              int attemptCount, int attemptedStageCount, int judgeCount, int judgedRoleCount,
                              int verificationCount, int verificationPassedCount,
                              int requirementJudgePassed, int riskJudgePassed,
-                             Long inputTokens, Long outputTokens, Long totalTokens, long unknownUsageCount) { }
+                             Long inputTokens, Long outputTokens, Long totalTokens, long unknownUsageCount,
+                             int humanApproved) { }

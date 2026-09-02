@@ -80,6 +80,7 @@ class TaskServiceIntegrationTest {
     @Autowired private InternalMcpCredentialProvider internalMcpCredentials;
     @Autowired private InternalMcpRuntimeAccess internalMcpRuntime;
     @MockitoSpyBean private VerifierEngine verifierEngine;
+    @MockitoSpyBean private TaskWorkspaceCheckpointService workspaceCheckpoints;
     @TempDir Path temp;
 
     @BeforeEach
@@ -1338,6 +1339,7 @@ class TaskServiceIntegrationTest {
         tasks.start(waiter.id());
         Files.writeString(root.resolve("unfinished.txt"), "retain the lease\n");
 
+        blockCancellationCheckpoint(holder.id());
         tasks.cancel(holder.id());
 
         assertThat(tasks.get(holder.id()).state()).isEqualTo("CANCELLED");
@@ -1347,7 +1349,7 @@ class TaskServiceIntegrationTest {
             assertThat(queue.holderTaskTitle()).isEqualTo("dirty cancelled holder");
             assertThat(queue.holderTaskState()).isEqualTo("CANCELLED");
             assertThat(queue.holderArchived()).isFalse();
-            assertThat(queue.releaseReason()).isEqualTo("SOURCE_BRANCH_WORKSPACE_DIRTY");
+            assertThat(queue.releaseReason()).isEqualTo("CANCELLATION_CHECKPOINT_UNAVAILABLE");
             assertThat(queue.reconcileAvailable()).isTrue();
         });
         assertThatThrownBy(() -> tasks.reconcileQueue(waiter.id()))
@@ -1379,11 +1381,12 @@ class TaskServiceIntegrationTest {
         tasks.start(holder.id());
         tasks.start(waiter.id());
         Files.writeString(root.resolve("unpublished.txt"), "block archive\n");
+        blockCancellationCheckpoint(holder.id());
         tasks.cancel(holder.id());
 
         assertThatThrownBy(() -> tasks.archive(holder.id()))
                 .isInstanceOf(ConflictException.class)
-                .hasMessageContaining("释放完成前不能归档", "SOURCE_BRANCH_WORKSPACE_DIRTY");
+                .hasMessageContaining("释放完成前不能归档", "CANCELLATION_CHECKPOINT_UNAVAILABLE");
         assertThat(tasks.archived(holder.id())).isFalse();
 
         mapper.archiveTask(holder.id(), Instant.now().toString());
@@ -1410,6 +1413,7 @@ class TaskServiceIntegrationTest {
         tasks.start(holder.id());
         tasks.start(waiter.id());
         Files.writeString(root.resolve("temporary.txt"), "block initial release\n");
+        blockCancellationCheckpoint(holder.id());
         tasks.cancel(holder.id());
         Files.delete(root.resolve("temporary.txt"));
         String holderBranch = runOutput(root, "git", "branch", "--show-current").trim();
@@ -1437,6 +1441,7 @@ class TaskServiceIntegrationTest {
         tasks.start(unavailableHolder.id());
         tasks.start(unavailableWaiter.id());
         Files.writeString(unavailableRoot.resolve("temporary.txt"), "block initial release\n");
+        blockCancellationCheckpoint(unavailableHolder.id());
         tasks.cancel(unavailableHolder.id());
         Files.delete(unavailableRoot.resolve("temporary.txt"));
         Files.move(unavailableRoot, unavailableRoot.resolveSibling(unavailableRoot.getFileName() + "-moved"));
@@ -1453,6 +1458,7 @@ class TaskServiceIntegrationTest {
         tasks.start(branchHolder.id());
         tasks.start(branchWaiter.id());
         Files.writeString(branchRoot.resolve("temporary.txt"), "block initial release\n");
+        blockCancellationCheckpoint(branchHolder.id());
         tasks.cancel(branchHolder.id());
         Files.delete(branchRoot.resolve("temporary.txt"));
         run(branchRoot, "git", "switch", "-c", "unexpected-branch");
@@ -1475,6 +1481,7 @@ class TaskServiceIntegrationTest {
         tasks.start(firstWaiter.id());
         tasks.start(secondWaiter.id());
         Files.writeString(root.resolve("temporary.txt"), "block initial release\n");
+        blockCancellationCheckpoint(holder.id());
         tasks.cancel(holder.id());
         Files.delete(root.resolve("temporary.txt"));
         run(root, "git", "switch", holder.sourceBranch());
@@ -1627,6 +1634,7 @@ class TaskServiceIntegrationTest {
         TaskRow holder = drafts.confirm(drafts.create(spec(project.id())).id(), "terminal without waiter");
         tasks.start(holder.id());
         Files.writeString(root.resolve("temporary.txt"), "dirty\n");
+        blockCancellationCheckpoint(holder.id());
         tasks.cancel(holder.id());
         Files.delete(root.resolve("temporary.txt"));
 
@@ -2499,6 +2507,17 @@ class TaskServiceIntegrationTest {
                  "reason":"Frozen evidence satisfies the %s Judge contract.",
                  "evidenceIds":["loop-spec","verification-summary","task-diff"]}
                 """.formatted(role, verdict, role);
+    }
+
+    /** A cancelled holder can remain dirty only when its new preservation step is unavailable. */
+    private void blockCancellationCheckpoint(String taskId) {
+        var blocked = org.mockito.Mockito.mock(io.opencode.loopper.persistence.TaskWorkspaceCheckpointRow.class);
+        org.mockito.Mockito.when(blocked.state()).thenReturn("BLOCKED");
+        org.mockito.Mockito.when(blocked.blockerCode()).thenReturn("CANCELLATION_CHECKPOINT_UNAVAILABLE");
+        org.mockito.Mockito.when(blocked.blockerMessage()).thenReturn("未提交或未跟踪文件的快照暂不可用");
+        org.mockito.Mockito.doReturn(blocked).when(workspaceCheckpoints).freeze(
+                org.mockito.ArgumentMatchers.argThat(task -> task != null && taskId.equals(task.id())),
+                org.mockito.ArgumentMatchers.any());
     }
 
     private LoopSpec spec(String projectId) {

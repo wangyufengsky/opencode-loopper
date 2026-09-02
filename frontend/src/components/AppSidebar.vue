@@ -36,6 +36,7 @@ const navigation = [
     <p class="nav-label">系统</p>
     <nav aria-label="系统导航">
       <RouterLink class="nav-item" to="/runtime"><Icon icon="lucide:cpu" width="17" /><span>运行环境</span></RouterLink>
+      <RouterLink class="nav-item" to="/tools"><Icon icon="lucide:wrench" width="17" /><span>工具</span></RouterLink>
       <RouterLink class="nav-item" to="/settings"><Icon icon="lucide:settings-2" width="17" /><span>设置</span></RouterLink>
     </nav>
 

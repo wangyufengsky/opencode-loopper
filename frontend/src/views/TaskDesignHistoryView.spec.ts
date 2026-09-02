@@ -31,6 +31,9 @@ describe('TaskDesignHistoryView', () => {
       }],
       designerSession: {
         id: 'designer-1', state: 'COMPLETED', accessMode: 'READ_ONLY', createdAt: '2026-08-05T08:00:00Z', updatedAt: '2026-08-05T09:00:00Z',
+        answeredQuestions: [{ id: 'chat-question', scope: 'REQUIREMENT', discussionRevision: 1, designMessageId: 'snapshot',
+          questions: [{ header: '展示范围', question: '需要保留哪些对话？', multiple: false, custom: false,
+            options: [{ label: '用户与设计师', description: '保留讨论和最终选择' }], answers: ['用户与设计师'] }] }],
         messages: [
           { id: 'notice', role: 'SYSTEM', actor: 'SYSTEM', content: 'Designer session created in read-only mode.', deliveryState: 'PENDING_HANDOFF', createdAt: '2026-08-05T08:00:00Z' },
           { id: 'user', role: 'USER', actor: 'USER', content: '请保留设计历史', deliveryState: 'PERSISTED', createdAt: '2026-08-05T08:01:00Z', attachments: [{
@@ -38,7 +41,11 @@ describe('TaskDesignHistoryView', () => {
             sha256: 'abcdef0123456789', scopeKey: 'REQUIREMENT', extractorId: 'PDF_TEXT', previewKind: 'PDF', state: 'ACTIVE',
           }] },
           { id: 'assistant', role: 'ASSISTANT', actor: 'DESIGNER', content: '## 历史设计方案', deliveryState: 'PERSISTED', createdAt: '2026-08-05T08:02:00Z' },
+          { id: 'question', role: 'ASSISTANT', actor: 'DESIGNER', content: '需要保留哪些对话？', deliveryState: 'CHAT_QUESTION', createdAt: '2026-08-05T08:01:15Z' },
           { id: 'decomposer', role: 'ASSISTANT', actor: 'DECOMPOSER', content: '已拆为两个纵向工作包', deliveryState: 'COMPILED', requirementRevision: 2, createdAt: '2026-08-05T08:01:30Z' },
+          { id: 'snapshot', role: 'SYSTEM', actor: 'SYSTEM', content: '内部快照正文', deliveryState: 'SERVER_REQUIREMENT_SNAPSHOT', createdAt: '2026-08-05T08:01:30Z' },
+          { id: 'validator', role: 'ASSISTANT', actor: 'VALIDATOR', content: '验收内部细节', deliveryState: 'PERSISTED', createdAt: 'now' },
+          { id: 'compiler', role: 'ASSISTANT', actor: 'COMPILER', content: '编译内部细节', deliveryState: 'PERSISTED', createdAt: 'now' },
         ],
       },
     })
@@ -61,7 +68,16 @@ describe('TaskDesignHistoryView', () => {
     expect(api.getTaskDesignHistory).toHaveBeenCalledWith('task-1')
     expect(wrapper.text()).toContain('请保留设计历史')
     expect(wrapper.text()).toContain('历史设计方案')
-    expect(wrapper.text()).toContain('任务规划师')
+    expect(wrapper.text()).not.toContain('任务规划师')
+    expect(wrapper.text()).not.toContain('已拆为两个纵向工作包')
+    expect(wrapper.text()).not.toContain('验收内部细节')
+    expect(wrapper.text()).not.toContain('编译内部细节')
+    expect(wrapper.text()).not.toContain('内部快照正文')
+    expect(wrapper.find('.designer-discussion-history').exists()).toBe(true)
+    expect(wrapper.text()).toContain('需要保留哪些对话？')
+    expect(wrapper.text().split('需要保留哪些对话？')).toHaveLength(2)
+    expect(wrapper.text()).toContain('用户最终回答')
+    expect(wrapper.find('.answered-options .selected').text()).toContain('用户与设计师')
     expect(wrapper.text()).toContain('冻结后的完整需求')
     expect(wrapper.text()).toContain('模型调用 7/24')
     expect(wrapper.text()).not.toContain('WP-1')

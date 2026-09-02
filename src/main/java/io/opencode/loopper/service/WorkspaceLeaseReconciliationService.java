@@ -42,16 +42,18 @@ public class WorkspaceLeaseReconciliationService {
     private final DirectWorkspaceLeaseCoordinator leases;
     private final GitWorktreeManager worktrees;
     private final TaskEventService events;
+    private final TaskWorkspaceCheckpointService checkpoints;
     private final Map<String, ReentrantLock> rootLocks = new ConcurrentHashMap<>();
 
     public WorkspaceLeaseReconciliationService(LoopperMapper mapper,
                                                DirectWorkspaceLeaseCoordinator leases,
                                                GitWorktreeManager worktrees,
-                                               TaskEventService events) {
+                                               TaskEventService events, TaskWorkspaceCheckpointService checkpoints) {
         this.mapper = mapper;
         this.leases = leases;
         this.worktrees = worktrees;
         this.events = events;
+        this.checkpoints = checkpoints;
     }
 
     /** Reconciles one persisted holder; callers decide how to continue an admitted waiter. */
@@ -149,11 +151,20 @@ public class WorkspaceLeaseReconciliationService {
                         "项目登记目录的规范路径或稳定指纹已变化，拒绝切换分支或转移写租约");
             }
             if (task.branchName() != null && !GitWorktreeManager.DIRECT_BRANCH.equals(task.branchName())) {
+                if (TaskState.CANCELLED.name().equals(task.state()) && worktrees.sourceCheckoutHasChanges(root)) {
+                    var cycle = mapper.latestTaskExecutionCycle(task.id()).orElse(null);
+                    if (cycle == null) return block(task, lease, normalizedTrigger, false,
+                            "CANCELLATION_CHECKPOINT_UNAVAILABLE", "取消任务的修改尚无可保存的执行轮次，保留当前文件和分支");
+                    var checkpoint = checkpoints.freeze(task, cycle);
+                    if (!"READY".equals(checkpoint.state())) return block(task, lease, normalizedTrigger, false,
+                            checkpoint.blockerCode(), checkpoint.blockerMessage());
+                }
                 if (worktrees.sourceCheckoutHasChanges(root)) {
                     return block(task, lease, normalizedTrigger, false, "SOURCE_BRANCH_WORKSPACE_DIRTY",
                             "当前 holder 的任务分支仍有未提交或未跟踪文件，清理前不会切换分支或转移写租约");
                 }
-                worktrees.restoreSourceBranch(root, task.branchName(), task.sourceBranch());
+                if (TaskState.CANCELLED.name().equals(task.state())) worktrees.restoreMainBranch(root, task.branchName());
+                else worktrees.restoreSourceBranch(root, task.branchName(), task.sourceBranch());
             }
             DirectWorkspaceLeaseCoordinator.Release released = leases.releaseAfterWriterStopped(
                     root, task.id(), releaseReason == null || releaseReason.isBlank()

@@ -4,6 +4,8 @@ import { Icon } from '@iconify/vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
 import MarkdownDocument from '@/components/MarkdownDocument.vue'
+import DesignerDiscussionHistory from '@/components/DesignerDiscussionHistory.vue'
+import { frozenDesignTimeline } from '@/utils/frozenDesignTimeline'
 import { api } from '@/api/client'
 import type { LoopVerifierSpec, TaskDesignHistory } from '@/types/domain'
 import { displayLabel, statusLabel, userFacingError } from '@/utils/displayLabels'
@@ -17,11 +19,8 @@ const error = ref('')
 const attachmentPreviews = ref<Record<string, string>>({})
 const attachmentPreviewBusy = ref('')
 
-const visibleMessages = computed(() => (record.value?.designerSession?.messages ?? []).filter((message) => !(
-  message.role === 'SYSTEM'
-  && message.deliveryState === 'PENDING_HANDOFF'
-  && !message.content.startsWith('SYSTEM_ERROR')
-)))
+const timeline = computed(() => frozenDesignTimeline(record.value?.designerSession?.messages ?? [],
+  record.value?.designerSession?.answeredQuestions ?? []))
 const actorLabels = { USER: '你', ROUTER: '需求分析师', DECOMPOSER: '任务规划师', DESIGNER: '设计师', COMPILER: '规范工程师', REVIEWER: '评审员', VALIDATOR: '验收工程师', SYSTEM: '系统' } as const
 const actorIcons = { USER: 'lucide:user-round', ROUTER: 'lucide:route', DECOMPOSER: 'lucide:split', DESIGNER: 'lucide:sparkles', COMPILER: 'lucide:braces', REVIEWER: 'lucide:file-search', VALIDATOR: 'lucide:badge-check', SYSTEM: 'lucide:info' } as const
 
@@ -119,9 +118,11 @@ watch(id, load, { immediate: true })
 
       <section class="history-grid">
         <article class="card history-conversation">
-          <header class="history-card-header"><div><p class="eyebrow">设计记录</p><h2>历史设计对话</h2><p>{{ visibleMessages.length }} 条记录</p></div><Icon icon="lucide:messages-square" width="22" /></header>
-          <div v-if="visibleMessages.length" class="message-list">
-            <article v-for="message in visibleMessages" :key="message.id" :class="['history-message', `message-${message.actor.toLowerCase()}`]">
+          <header class="history-card-header"><div><p class="eyebrow">设计记录</p><h2>历史设计对话</h2><p>{{ timeline.length }} 条记录</p></div><Icon icon="lucide:messages-square" width="22" /></header>
+          <div v-if="timeline.length" class="message-list">
+            <template v-for="item in timeline" :key="item.key">
+            <DesignerDiscussionHistory v-if="item.kind === 'discussion'" :entries="item.entries" />
+            <article v-for="message in item.kind === 'message' ? [item.message] : []" :key="message.id" :class="['history-message', `message-${message.actor.toLowerCase()}`]">
               <header><span><Icon :icon="actorIcons[message.actor]" />{{ actorLabels[message.actor] }}</span><time>{{ formatDate(message.createdAt) }}</time></header>
               <MarkdownDocument v-if="message.actor === 'DESIGNER'" :content="message.content" collapsible />
               <p v-else>{{ message.actor === 'SYSTEM' ? userFacingError(message.content) : message.content }}</p>
@@ -129,6 +130,7 @@ watch(id, load, { immediate: true })
                 <span v-for="attachment in message.attachments" :key="attachment.id"><Icon icon="lucide:paperclip" /><b>{{ attachment.filename }}</b><small>{{ formatFileSize(attachment.sizeBytes) }} · {{ attachment.scopeKey === 'REQUIREMENT' ? '整体需求' : attachment.scopeKey }} · {{ attachment.state }}</small></span>
               </div>
             </article>
+            </template>
           </div>
           <div v-else class="history-empty"><Icon icon="lucide:message-square-off" /><p>暂无历史设计对话。</p></div>
         </article>

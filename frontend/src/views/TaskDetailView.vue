@@ -9,6 +9,7 @@ import StageRail from '@/components/StageRail.vue'
 import AttemptTimeline from '@/components/AttemptTimeline.vue'
 import LayeredErrorPanel from '@/components/LayeredErrorPanel.vue'
 import JudgeReviewCard from '@/components/JudgeReviewCard.vue'
+import TaskJudgeApprovalPanel from '@/components/TaskJudgeApprovalPanel.vue'
 import DirtyWorkspaceDialog from '@/components/DirtyWorkspaceDialog.vue'
 import GitDiffScopeApprovalDialog from '@/components/GitDiffScopeApprovalDialog.vue'
 import TaskDecisionPanel from '@/components/TaskDecisionPanel.vue'
@@ -211,10 +212,10 @@ async function confirmCancel() {
         : queued
         ? '将从等待队列中移除此任务并标记为已取消；当前正在执行的任务和项目写租约不会受影响。取消后可从任务列表归档或删除。'
         : ready
-          ? '任务尚未开始执行。取消后会保留任务分支、执行目录和已有证据，并按现有安全规则释放项目写租约。'
+          ? '任务尚未开始执行。取消后会保留已有文件和证据；Git 任务会安全切回主分支，并释放自身写租约。'
         : stopping
           ? '将再次请求停止尚未确认终止的远端会话、评审或验证器。只有确认全部停止后，任务才会进入已取消。'
-        : '将中止当前会话、停止验证器，并保留执行目录和证据。此操作无法自动恢复。',
+        : '将停止当前会话和验证器，保留已有文件和执行证据。Git 任务会把已有修改保存为可恢复快照，再安全切回主分支；任务分支会保留。',
       pending ? '取消待开始任务？' : queued ? '取消排队任务？' : ready ? '取消待执行任务？' : stopping ? '重试停止远端执行？' : '取消当前任务？',
       { type: 'warning', confirmButtonText: stopping ? '重试停止' : '取消任务', cancelButtonText: pending ? '保留待开始' : queued ? '继续排队' : ready ? '保留待执行' : '返回' },
     )
@@ -384,6 +385,7 @@ async function confirmRework() {
       <section v-if="judges.length || task.status === 'JUDGING' || task.status === 'WAITING_INPUT' || canRetryJudges" id="judge-review" class="card card-pad judge-section" style="margin-top: 16px" aria-labelledby="judge-heading">
         <div class="card-header"><div><p class="eyebrow">独立只读评审</p><h2 id="judge-heading" class="card-title">需求 / 风险双评审</h2></div><StatusBadge :status="task.status" /></div>
         <p v-if="!judges.length" class="judge-empty">暂无评审记录。</p>
+        <TaskJudgeApprovalPanel v-if="!store.usingDemo" :task-id="task.id" :task-version="task.version" @reload="load" />
         <div class="judge-grid">
           <JudgeReviewCard v-for="judge in currentJudges" :key="judge.id" :judge="judge" />
         </div>

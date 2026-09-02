@@ -19,7 +19,16 @@ public class InsightsController {
     @GetMapping public Map<String, Object> get() { return insights.insights(); }
     @GetMapping("/page") public InsightReadService.InsightPage page(
             @org.springframework.web.bind.annotation.RequestParam(required = false) String cursor,
-            @org.springframework.web.bind.annotation.RequestParam(required = false) Integer limit) {
-        return reads.page(cursor, limit);
+            @org.springframework.web.bind.annotation.RequestParam(required = false) Integer limit,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String projectId,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String state,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String quality,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String archive,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String query) {
+        try {
+            return reads.page(new io.opencode.loopper.domain.InsightFilter(projectId, state, quality, archive, query), cursor, limit);
+        } catch (IllegalArgumentException invalid) {
+            throw new io.opencode.loopper.service.BadRequestException("INSIGHT_FILTER_INVALID", "洞察筛选条件无效");
+        }
     }
 }
