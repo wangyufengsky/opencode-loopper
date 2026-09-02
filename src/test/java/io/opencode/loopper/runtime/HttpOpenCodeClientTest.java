@@ -880,29 +880,20 @@ class HttpOpenCodeClientTest {
     }
 
     @Test
-    void sendsStableMessageIdentityAndOrderedFileParts() throws Exception {
+    void rejectsFileDispatchWithoutPrivateManagedMcpRatherThanFallingBackToPaths() throws Exception {
         LoopperProperties properties = new LoopperProperties();
         properties.getOpenCode().setBaseUrl(new URI("http://127.0.0.1:" + server.getAddress().getPort()));
         HttpOpenCodeClient client = new HttpOpenCodeClient(RestClient.builder(), properties);
         OpenCodeClient.OpenCodeSession session = client.createReadOnlySession(worktree, "Designer", null);
         Path context = Files.writeString(worktree.resolve("requirements.txt"), "exact attachment context");
 
-        client.promptAsync(session, new OpenCodeClient.PromptRequest(
+        assertThatThrownBy(() -> client.promptAsync(session, new OpenCodeClient.PromptRequest(
                 "Use the attached reference.", null, null, new OpenCodeClient.ResponseFormat.Text(),
                 "msg-designer-1", List.of(new OpenCodeClient.FilePart(
-                        "requirements.txt", "text/plain", context.toUri(), "sha-256-value"))));
-
-        assertThat(promptBody.get()).contains(
-                "\"messageID\":\"msg-designer-1\"",
-                "\"type\":\"text\"",
-                "\"text\":\"Use the attached reference.\"",
-                "\"type\":\"file\"",
-                "\"mime\":\"text/plain\"",
-                "\"filename\":\"requirements.txt\"",
-                "\"url\":\"" + context.toUri() + "\"");
-        assertThat(promptBody.get().indexOf("\"type\":\"text\""))
-                .isLessThan(promptBody.get().indexOf("\"type\":\"file\""));
-        assertThat(promptBody.get()).doesNotContain("sha-256-value");
+                        "requirements.txt", "text/plain", context.toUri(), java.util.HexFormat.of().formatHex(
+                                java.security.MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(context))))))))
+                .hasMessageContaining("managed MCP");
+        assertThat(promptBody.get()).isNull();
     }
 
     @Test

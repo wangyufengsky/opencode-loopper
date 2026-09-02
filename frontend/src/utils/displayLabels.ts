@@ -95,6 +95,16 @@ const errorCodeLabels: Record<string, string> = {
 }
 
 const errorRecoveryMessages: Record<string, string> = {
+  ATTACHMENT_MCP_REQUIRED: '附件需要受管 OpenCode 的私有 MCP 连接，请检查运行环境后重新开始设计。',
+  ATTACHMENT_MCP_NOT_READ: 'OpenCode 未完整读取并确认附件，设计已阻断。请检查私有 MCP 连接后重试，无需清理项目文件。',
+  ATTACHMENT_MCP_CONTENT_UNVERIFIED: 'OpenCode 保存的附件内容不完整或已变化，设计已阻断。请检查版本兼容性后重新发送附件。',
+  ATTACHMENT_MCP_TOO_LARGE: '附件资源超过限制：文本最多 128 KiB，图片或 PDF 二进制最多 10 MiB。请缩小或拆分文件。',
+  ATTACHMENT_MCP_HASH_MISMATCH: '附件内容与已保存的校验值不一致，请重新上传文件；历史记录保持不变。',
+  ATTACHMENT_MCP_CAPACITY: '当前附件资源容量已满，请结束不用的设计会话或减少附件后重试。',
+  ATTACHMENT_MCP_RESOURCE_UNAVAILABLE: '附件资源已过期或撤销，请重新发起设计以获取新的资源。',
+  ATTACHMENT_MCP_MEDIA_UNSUPPORTED: '此附件无法作为 MCP 资源读取，Office 文件必须先生成有效的文本表示。',
+  ATTACHMENT_MCP_READ_FAILED: '附件快照无法读取或不是有效 UTF-8 文本，请检查并重新上传文件。',
+  ATTACHMENT_MCP_EMPTY: '附件没有可供读取的内容，请检查文件后重新上传。',
   OPENCODE_DESIGNER_HANDOFF_FAILED: '设计请求未能发送给 OpenCode，请检查运行环境中的版本兼容性与连接状态后重试',
   OPENCODE_PROMPT_FAILED: 'OpenCode 未能接收请求，请检查运行环境中的版本兼容性与连接状态后重试',
   OPENCODE_DESIGNER_UNAVAILABLE: 'OpenCode 当前不可用，请检查运行环境中的连接状态后重试',
@@ -208,7 +218,12 @@ export function userFacingError(value: unknown, fallback = '操作未完成，�
   if (!raw.trim()) return fallback
   const envelope = raw.match(/^\s*SYSTEM_ERROR\[(FIELD|VERIFICATION|SESSION|TASK)\]\s*:?\s*/)
   const detail = envelope ? raw.slice(envelope[0].length) : raw
+  if (/'file part media type [a-z0-9.+\/-]+' functionality not supported\./i.test(detail)) {
+    return '当前模型不支持直接读取此附件格式。请升级 Loopper 或换用支持该格式的模型后新建设计；无需清理项目文件。'
+  }
   const codes = detail.match(/\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/g) ?? []
+  const attachmentCode = codes.find(code => code.startsWith('ATTACHMENT_MCP_'))
+  if (attachmentCode) return errorRecoveryMessages[attachmentCode] ?? '附件资源读取失败，请检查运行环境和文件后重试。'
   const translated = codes.reduce((message, code) => message.split(code).join(errorCodeLabel(code)), detail)
   if (containsChinese(detail)) return translated
   const code = codes[0]

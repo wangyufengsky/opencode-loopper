@@ -171,7 +171,7 @@ class DesignerAttachmentContextIntegrationTest {
                 OpenCodeClient.PromptRequest.text("Continue the design."));
         assertThat(prompt.text()).contains("untrusted supplemental reference material", "Continue the design.");
         assertThat(prompt.files()).extracting(OpenCodeClient.FilePart::filename)
-                .containsExactly("design.docx", "design.docx.loopper-context.txt");
+                .containsExactly("design.docx.loopper-context.txt");
     }
 
     @Test

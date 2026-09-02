@@ -54,15 +54,19 @@ unchanged: rewriting it only during serialization would make
 rows keep their immutable historical identity; the compatible prefix applies to
 new candidate prompts.
 
-## Designer attachment file parts
+## Designer attachment MCP resources
 
-Designer attachment handoff extends `PromptRequest` with a stable `messageId` and ordered `FilePart(filename, mediaType, managedUri, sha256)` list. `HttpOpenCodeClient` emits the normal text part first, then file parts in deterministic scope/name order. PDF and OOXML include both the verified original and a versioned deterministic `*.loopper-context.txt`; strict UTF-8 text and validated raster images send only the original. The managed URI is produced only after containment and SHA verification and never appears in the public REST model.
+Designer attachment handoff extends `PromptRequest` with a stable `messageId` and ordered `FilePart(filename, mediaType, managedUri, sha256)` list. `HttpOpenCodeClient` emits the normal text part first, then file parts in deterministic scope/name order. OOXML sends only its versioned deterministic `*.loopper-context.txt`, never unsupported Office binary parts; the original remains stored, hash-verified on assembly, previewable as text and frozen in the manifest. Embedded images and layout are not represented and the prompt states this limit. PDF continues to send the verified original plus extracted text; raster images send the original, subject to model capability. The managed URI is produced only after containment and SHA verification and never appears in the public REST model.
+
+`OpenCodeAttachmentResources` issues native OpenCode `file` descriptors with `url=loopper-attachment://snapshot/<unguessable-grant>` and `source={type:resource,clientName,uri,text}`. No managed path or inline bytes cross the prompt endpoint. Private MCP `resources/read` returns strict UTF-8 `TextResourceContents` (128 KiB maximum, including JSON/CSV/XML) or `BlobResourceContents` for supported raster images/PDF (10 MiB maximum). Original and derived SHA identities remain authoritative; snapshots are validated before dispatch and immutable while granted. Resource URIs are generation-bound bearer capabilities, associated with the issuing remote Session, not additional user identities. Only a generic resource template is listed; resources/list is empty. Grants expire after 15 minutes and revoke on confirmed abort, with at most 1024 batches/24 representations per batch and a 64 MiB raw-byte cache. No external HTTP/file/data fallback, no Router attachments, no new directory or tool permissions.
+
+OpenCode can continue after a failed resource fetch. Therefore dispatch waits for read receipts (30 seconds), then polls its exact persisted user message (30 seconds plus the existing bounded HTTP request timeout), verifies ordered native expansion and complete text/blob SHA values, and only then succeeds. Candidate MCP calls wait for that delivery proof before compilation. Unknown/expired resources, missing reads, altered/omitted contents and unsupported media fail closed with stable ATTACHMENT_MCP_* codes; errors never disclose paths or content. Exact recovery accepts the validated native expansion as well as legacy exact file parts. A receipt/204/noReply is not proof of model comprehension: real qualification must observe attachment-only content in model output/questions.
 
 When the caller has no message identity, `DesignerAttachmentContext` derives `msg_loopper_attachment_<sha256-prefix>` from the existing scope, prompt and attachment identities. The `msg` prefix is required by the OpenCode HTTP schema for every attachment consumer, including frozen Task/Recovery/Judge contexts. An explicit caller identity (including durable candidate dispatch IDs) is preserved unchanged, and a prompt without eligible attachments is left untouched. Transport regression tests must pass generated TXT and DOCX prompts through the real HTTP adapter against an independent `msg`-prefix check; hand-written valid IDs alone do not cover this boundary. Existing persisted dispatch identities and attachment history are not migrated or replayed.
 
 Every eligible role prompt prepends a fixed instruction that attachments are untrusted supplemental data. Requirement Designer/Decomposer/Reviewer receive only Requirement files; Package Designer/Compiler receive Requirement plus current-package files; Implementation and Recovery receive the frozen Requirement plus current-stage package files; Requirement/Risk Judges receive the complete frozen manifest. `ROUTER_NO_TOOLS` remains text-only and must not receive filenames, extracted text or file parts.
 
-An exact-name replacement or stop-future-use cannot mutate an already-read remote transcript. Loopper first requires the same positive abort proof used elsewhere (`true`, exact 404, or independent terminal state), clears the reusable Session pointer, then creates a fresh role Session from persisted authority and the new active set. A prompt handoff exception is returned as a failed multipart operation while the persisted Session error remains auditable. Stable message identity reduces accidental duplicate sends, but this release does not claim remote transcript readback or a distributed transaction with OpenCode.
+An exact-name replacement or stop-future-use cannot mutate an already-read remote transcript. Loopper first requires the same positive abort proof used elsewhere (`true`, exact 404, or independent terminal state), clears the reusable Session pointer, then creates a fresh role Session from persisted authority and the new active set. A prompt handoff exception is returned as a failed multipart operation while the persisted Session error remains auditable. Stable identity and MCP input readback reduce duplicate sends; there is still no distributed transaction with OpenCode.
 
 ## Designer and MCP boundary
 
@@ -181,9 +185,9 @@ reliability claim.
 
 The private `/api/internal-mcp-streamable` Router accepts only literal loopback
 addresses and constant-time Bearer matches. It registers exactly one tool,
-`submit_candidate`; it does not contribute a `ToolCallbackProvider`, resource,
+`submit_candidate`, plus private non-enumerable attachment resources; it does not contribute a `ToolCallbackProvider`, resource,
 prompt or completion to the public MCP. A candidate role receives only its exact
-random `<server>_submit_candidate` permission. Router and ordinary roles never receive the private server;
+random `<server>_submit_candidate` permission. Router and ordinary roles never receive the private candidate tool;
 only the dedicated Judge Candidate profile receives it for the staged Judge path; user MCP permissions remain
 governed by their existing role profiles. OpenCode 1.18.23's experimental tool
 endpoints list built-ins but not MCP tools, so they are not an internal-MCP

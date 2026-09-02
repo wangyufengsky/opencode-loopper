@@ -220,8 +220,13 @@ public class DesignerAttachmentContext {
         if (selected.isEmpty()) return base;
         List<OpenCodeClient.FilePart> parts = new ArrayList<>();
         for (ContextFile row : selected) {
-            parts.add(new OpenCodeClient.FilePart(row.originalFilename(), row.detectedMediaType(),
-                    store.resolve(row.relativePath(), row.sha256()).toUri(), row.sha256()));
+            var original = store.resolve(row.relativePath(), row.sha256()).toUri();
+            boolean office = row.detectedMediaType().startsWith("application/vnd.openxmlformats-officedocument.");
+            if (office && row.extractedRelativePath() == null) {
+                throw new BadRequestException("ATTACHMENT_CONTEXT_MISSING", "Office 附件缺少已校验的文本表示");
+            }
+            if (!office) parts.add(new OpenCodeClient.FilePart(row.originalFilename(), row.detectedMediaType(),
+                    original, row.sha256()));
             if (row.extractedRelativePath() != null) {
                 parts.add(new OpenCodeClient.FilePart(row.originalFilename() + ".loopper-context.txt",
                         row.extractedMediaType(), store.resolve(row.extractedRelativePath(), row.extractedSha256()).toUri(),
@@ -229,7 +234,8 @@ public class DesignerAttachmentContext {
             }
         }
         String messageId = base.messageId() == null ? contextMessageId(use, base, selected) : base.messageId();
-        return new OpenCodeClient.PromptRequest(SAFETY_NOTICE + "\n\n" + base.text(), base.system(), base.agent(),
+        return new OpenCodeClient.PromptRequest(SAFETY_NOTICE + "\nOffice attachments are supplied as verified deterministic text; "
+                + "embedded images and layout are not represented.\n\n" + base.text(), base.system(), base.agent(),
                 base.responseFormat(), messageId, parts);
     }
 

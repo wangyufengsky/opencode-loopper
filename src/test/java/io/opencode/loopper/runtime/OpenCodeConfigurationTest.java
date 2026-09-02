@@ -24,7 +24,8 @@ class OpenCodeConfigurationTest {
                 URI.create("http://127.0.0.1:19999"), true,
                 "generation-configured", "loopper-internal-configured"));
         OpenCodeClient client = new OpenCodeConfiguration().openCodeClient(properties, runtimeManager,
-                new OpenCodeCapabilityRegistry(), OpenCodeSessionRuntimeBindings.untracked());
+                new OpenCodeCapabilityRegistry(), OpenCodeSessionRuntimeBindings.untracked(),
+                new OpenCodeAttachmentResources(new InternalMcpRuntimeAccess()));
 
         OpenCodeClient.SessionCreationPlan plan = client.prepareCandidateSessionCreationLocally(
                 worktree, "Acceptance configured", null,

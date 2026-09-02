@@ -4,6 +4,7 @@ import io.opencode.loopper.domain.MachineCandidateOutcome;
 import io.opencode.loopper.domain.MachineCandidateRunState;
 import io.opencode.loopper.runtime.InternalMcpCredentialProvider;
 import io.opencode.loopper.runtime.InternalMcpRuntimeAccess;
+import io.opencode.loopper.runtime.OpenCodeAttachmentResources;
 import io.opencode.loopper.service.MachineCandidateSubmission;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -31,13 +32,14 @@ class InternalMcpServerIntegrationTest {
     private InternalMcpCredentialProvider.Credentials credentials;
     private InternalMcpServerConfiguration.InternalMcpServerRuntime runtime;
     private MockMvc mvc;
+    private final OpenCodeAttachmentResources resources = new OpenCodeAttachmentResources(access);
 
     @BeforeEach
     void setUp() {
         credentials = new InternalMcpCredentialProvider(() -> 18083).issue();
         access.activate(credentials);
         InternalMcpServerConfiguration configuration = new InternalMcpServerConfiguration();
-        runtime = configuration.internalMcpServerRuntime(submissions(), new ObjectMapper(), "test");
+        runtime = configuration.internalMcpServerRuntime(submissions(), new ObjectMapper(), resources, "test");
         mvc = MockMvcBuilders.routerFunctions(runtime.routerFunction())
                 .addFilters(new InternalMcpStreamableBearerFilter(access))
                 .build();
@@ -100,7 +102,7 @@ class InternalMcpServerIntegrationTest {
     void unexpectedSubmissionFailureReturnsOnlyTheStablePublicError() throws Exception {
         runtime.close();
         runtime = new InternalMcpServerConfiguration().internalMcpServerRuntime(
-                failingSubmissions(), new ObjectMapper(), "test");
+                failingSubmissions(), new ObjectMapper(), resources, "test");
         mvc = MockMvcBuilders.routerFunctions(runtime.routerFunction())
                 .addFilters(new InternalMcpStreamableBearerFilter(access))
                 .build();
@@ -124,6 +126,62 @@ class InternalMcpServerIntegrationTest {
                         "INTERNAL_CANDIDATE_SUBMISSION_FAILED")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
                         org.hamcrest.Matchers.containsString("sqlite-secret-table"))));
+    }
+
+    @Test
+    void privateResourcesAreNonEnumerableButGrantedImmutableTextCanBeRead() throws Exception {
+        var file = java.nio.file.Files.createTempFile("mcp-resource-test-", ".txt");
+        try {
+            byte[] bytes = "Synthetic resource marker ORCHID-7319".getBytes(StandardCharsets.UTF_8);
+            java.nio.file.Files.write(file, bytes);
+            String hash = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(bytes));
+            String uri = (String) resources.prepare("ses-resource", credentials.generation(), credentials.serverName(),
+                    List.of(new io.opencode.loopper.runtime.OpenCodeClient.FilePart("reference.txt", "text/plain", file.toUri(), hash)))
+                    .getFirst().get("url");
+            MvcResult initialized = mvc.perform(internal(rpc(1, "initialize",
+                    "{\"protocolVersion\":\"2025-03-26\",\"capabilities\":{},\"clientInfo\":{\"name\":\"test\",\"version\":\"1\"}}"), null))
+                    .andExpect(status().isOk()).andReturn();
+            String sessionId = initialized.getResponse().getHeader("Mcp-Session-Id");
+            assertThat(initialized.getResponse().getContentAsString()).contains("resources");
+            mvc.perform(internal("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\",\"params\":{}}", sessionId))
+                    .andExpect(status().isAccepted());
+            String list = result(rpc(2, "resources/list", "{}"), sessionId);
+            assertThat(list).contains("\"resources\":[]").doesNotContain(uri, "reference.txt", "ORCHID");
+            assertThat(result(rpc(3, "resources/templates/list", "{}"), sessionId)).contains(OpenCodeAttachmentResources.URI_TEMPLATE).doesNotContain(uri);
+            String read = result(rpc(4, "resources/read", "{\"uri\":\"" + uri + "\"}"), sessionId);
+            assertThat(read).contains("ORCHID-7319", "text/plain").doesNotContain(file.toString());
+            resources.revoke("ses-resource");
+            assertThat(result(rpc(5, "resources/read", "{\"uri\":\"" + uri + "\"}"), sessionId))
+                    .contains("error").doesNotContain("ORCHID-7319", file.toString());
+        } finally {
+            java.nio.file.Files.deleteIfExists(file);
+        }
+    }
+
+    private String result(String body, String sessionId) throws Exception {
+        MvcResult call = mvc.perform(internal(body, sessionId)).andExpect(request().asyncStarted()).andReturn();
+        return mvc.perform(asyncDispatch(call)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+    }
+
+    @Test
+    void candidateCannotBypassFailedAttachmentDelivery() throws Exception {
+        runtime.close();
+        var gated = org.mockito.Mockito.mock(OpenCodeAttachmentResources.class);
+        var submission = org.mockito.Mockito.mock(MachineCandidateSubmission.class);
+        var run = org.mockito.Mockito.mock(MachineCandidateSubmission.RunSnapshot.class);
+        org.mockito.Mockito.when(run.externalSessionId()).thenReturn("ses-unverified");
+        org.mockito.Mockito.when(submission.find("run-1")).thenReturn(Optional.of(run));
+        org.mockito.Mockito.doThrow(new io.opencode.loopper.domain.SessionFailure("ATTACHMENT_MCP_NOT_READ", "Attachment not verified"))
+                .when(gated).awaitDelivery("ses-unverified");
+        runtime = new InternalMcpServerConfiguration().internalMcpServerRuntime(submission, new ObjectMapper(), gated, "test");
+        mvc = MockMvcBuilders.routerFunctions(runtime.routerFunction()).addFilters(new InternalMcpStreamableBearerFilter(access)).build();
+        String sessionId = mvc.perform(internal(rpc(1, "initialize",
+                "{\"protocolVersion\":\"2025-03-26\",\"capabilities\":{},\"clientInfo\":{\"name\":\"test\",\"version\":\"1\"}}"), null))
+                .andReturn().getResponse().getHeader("Mcp-Session-Id");
+        mvc.perform(internal("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\",\"params\":{}}", sessionId)).andExpect(status().isAccepted());
+        assertThat(result(rpc(2, "tools/call", "{\"name\":\"submit_candidate\",\"arguments\":{\"runId\":\"run-1\",\"idempotencyKey\":\"key\",\"candidate\":{},\"expectedSubmissionRevision\":0}}"), sessionId))
+                .contains("ATTACHMENT_MCP_NOT_READ");
+        org.mockito.Mockito.verify(submission, org.mockito.Mockito.never()).submit(org.mockito.ArgumentMatchers.any());
     }
 
     private MachineCandidateSubmission submissions() {

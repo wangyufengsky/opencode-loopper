@@ -331,6 +331,11 @@ final class OpenCodeExactRecoveryTransport {
             throw invalidPromptLookup("OpenCode prompt lookup did not return the original user message");
         }
         JsonNode parts = body.get("parts");
+        if (OpenCodeAttachmentMessageVerifier.isResourceExpansion(parts)) {
+            validateTextPart(parts.get(0), expected.text());
+            OpenCodeAttachmentMessageVerifier.verify(parts, expected.files());
+            return;
+        }
         if (parts == null || !parts.isArray() || parts.size() != expected.files().size() + 1) {
             throw invalidPromptLookup("OpenCode prompt lookup returned different message parts");
         }

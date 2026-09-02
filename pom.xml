@@ -12,7 +12,7 @@
 
     <groupId>io.opencode</groupId>
     <artifactId>opencode-loopper</artifactId>
-    <version>0.3.30</version>
+    <version>0.3.32</version>
     <name>OpenCode Loopper</name>
     <description>Local, task-branch-isolated OpenCode orchestration</description>
 

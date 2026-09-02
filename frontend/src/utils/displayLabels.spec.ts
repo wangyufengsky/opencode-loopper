@@ -47,4 +47,20 @@ describe('displayLabels', () => {
     expect(userFacingError('SYSTEM_ERROR[FIELD]: invalid request'))
       .toBe('输入有误，请检查填写内容后重试')
   })
+
+  it('explains unsupported attachment media without exposing remote details', () => {
+    const message = userFacingError("SYSTEM_ERROR[SESSION] OPENCODE_DESIGNER_FAILED: 'file part media type application/vnd.openxmlformats-officedocument.wordprocessingml.document' functionality not supported. Bearer private-test-value")
+    expect(message).toContain('模型不支持')
+    expect(message).toContain('附件格式')
+    expect(message).toContain('无需清理项目文件')
+    expect(message).not.toContain('private-test-value')
+    expect(message).not.toContain('application/vnd')
+  })
+
+  it('shows nested MCP attachment failure instead of the generic handoff wrapper', () => {
+    const message = userFacingError('SYSTEM_ERROR[SESSION] OPENCODE_DESIGNER_HANDOFF_FAILED: ATTACHMENT_MCP_CONTENT_UNVERIFIED /private/secret token=hidden')
+    expect(message).toContain('附件内容不完整')
+    expect(message).not.toMatch(/secret|hidden|private|ATTACHMENT_/)
+    expect(userFacingError('ATTACHMENT_MCP_TOO_LARGE')).toContain('10 MiB')
+  })
 })

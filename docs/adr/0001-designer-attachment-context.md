@@ -14,6 +14,16 @@ Designer 当前只接受文本消息，`OpenCodeClient.PromptRequest` 也只生�
 
 ## 决策
 
+### 2026-09-02 实测修正与 MCP Resource（0.3.32）
+
+0.3.30 成品 JAR、真实 OpenCode 1.18.23 和 `opencode-go/deepseek-v4-flash` 复现：DOCX 原始 file part 触发不支持媒体类型错误；同内容 TXT 因受管文件后缀 `.bin` 被 Read 拒绝，模型明确表示未读到附件。前述 noReply 探针不能证明模型消费成功。
+
+按用户明确选择采用 MCP Resource：Office 原件继续保存、校验及冻结，模型仅接收确定性文本表示，明确不含嵌入图片和布局。`OpenCodeAttachmentResources` 接收 `withContext` 已选定的清单，在 HTTP 发送前再次核对 SHA-256、严格 UTF-8 和大小，签发不可猜测的 `loopper-attachment://snapshot/{grant}`。OpenCode 输入仅含资源 URI/source 描述，经私有 MCP `resources/read` 得到文本或图片/PDF blob；不是公开 HTTP 链接，也不是模型自行调用任意下载工具。
+
+资源不可枚举，只有通用模板可发现；沿用私有 loopback/Bearer 边界，凭据绑定签发的 Session 和运行代际。MCP 客户端是整个受管进程，URI 是读取能力凭据，并非独立的终端用户身份鉴权；不得传播到其他会话。内存中保存不可变快照，15 分钟过期，确认停止即撤销；每代最多 1024 个批次、单批最多 24 个表示，资源原始字节缓存合计最多 64 MiB，超限失败关闭。Office/文本每个表示最多 128 KiB；图片/PDF blob 每个最多 10 MiB，避免 OpenCode 1.18.23 静默省略大二进制资源。非受管连接不降级为 file/data URI。
+
+OpenCode 资源读取失败仍可能继续调用模型，因此成功 handoff 必须同时取得 `resources/read` 回执和远端持久化输入内容的 SHA-256 回读证明。读取等待与输入回读各有 30 秒上限，后者的单次 HTTP 调用仍受原 transport timeout 约束；等待在数据库事务外。缺失、截断、错误文本、格式变化均拒绝，MCP candidate 提交等待投递证明后才进入既有编译服务。任务冻结身份和稳定消息 ID 不因临时 URI 改变；精确恢复兼容旧 file parts，并验证新的资源展开内容。真实验收必须在模型输出或问题中找到只存在于附件的标记，不能用 204/noReply 或单独回执代替。
+
 ### 1. 一个深 Module 拥有完整附件 turn
 
 建立 `DesignerAttachmentContext` Module，外部 Interface 收敛为：
@@ -79,7 +89,7 @@ Task 确认只冻结当前修订上已经成功投递且仍有效的附件清单
 
 SQLite 与 OpenCode 之间不存在物理分布式事务，因此不宣称远端调用可随 SQLite 回滚。Module 使用客户端稳定 `submissionId` 和持久化 submission 状态实现逻辑原子可见性：
 
-首版实际状态为 `PREPARED → PUBLISHED`，表示本地受管字节、消息关系和活动集合已经以一个数据库事务发布；它不表示远端模型已经完成处理。OpenCode handoff 继续使用现有 Designer/Package/Reviewer Session 状态和错误审计。稳定 `submissionId` 拒绝不同内容复用，并使相同本地提交保持幂等；当前版本没有实现远端 transcript 回读，因此不得把兼容预留的 `REMOTE_ACCEPTED / DELIVERY_UNKNOWN` 状态描述为已交付能力。
+实际状态仍为 `PREPARED → PUBLISHED`，表示本地受管字节、消息关系和活动集合已经以一个数据库事务发布；它不表示远端模型已经完成处理。OpenCode handoff 使用现有 Session 状态和错误审计，0.3.32 新增 MCP 投递后的远端输入回读而不更改 submission 状态机。稳定 `submissionId` 拒绝不同内容复用，并使相同本地提交保持幂等；兼容预留的 `REMOTE_ACCEPTED / DELIVERY_UNKNOWN` 仍不是实际发布的状态路径。
 
 相同 `submissionId` 的 HTTP 重试识别既有本地消息和附件后直接返回该事实，不再次扣减会话预算、不追加消息或重复远端 prompt；远端错误仍按 Session 状态展示并走显式后续处置。
 

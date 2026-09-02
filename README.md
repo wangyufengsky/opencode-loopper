@@ -7,9 +7,16 @@ OpenCode Loopper 是一个在本机运行的 AI 编程控制台。它把自然�
 
 它适合希望继续使用本地项目、Git 和 OpenCode，同时又需要明确执行边界、失败恢复与交付审计的开发者或小型团队。
 
-> 当前版本：`0.3.30`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
+> 当前版本：`0.3.32`。Loopper 默认只监听 `127.0.0.1`，面向单机本地使用，不是多租户远程执行平台。
 
-### 0.3.30 附件设计修复
+### 0.3.32 MCP 附件资源修复
+
+- 附件改为私有 MCP Resource：发给 OpenCode 的是受控资源 URI 和来源描述，不再发送受管文件路径或内联文件字节。OpenCode 通过 `resources/read` 读取完整快照，Loopper 再回读它保存的输入并校验内容哈希；读取失败或内容缺失均阻断，不静默忽略附件。
+- DOCX/XLSX/PPTX 原件仍保存、校验及冻结，模型只读取版本化确定性文本，不包含嵌入图片或页面布局。文本/JSON/CSV/XML 及提取文本限 128 KiB，规避 `.bin` 被误判及 Read 截断。图片/PDF 通过 MCP blob 保留可视内容，单个二进制资源最多 10 MiB，且仍需模型支持其格式。
+- 使用受管 OpenCode 的 loopback/Bearer 私有 MCP，不提供公开下载链接、不开放附件全局枚举、不扩大目录或候选工具权限；资源是按远端 Session 和运行代际签发的不可猜测读取凭据，15 分钟有效，确认停止会话即撤销。非受管连接明确拒绝附件，无附件流程不受影响。
+- 模型不支持附件格式时显示明确原因，不再只提示“设计失败”。升级不会修改历史或自动重放失败会话；确认“运行环境”的 Loopper 版本后重新开始设计。真实验收需验证模型引用仅存在于附件的内容，HTTP 接收成功不等于读到附件。
+
+### 0.3.30 附件消息 ID 修复
 
 - 修复添加附件后设计请求被 OpenCode 拒绝：自动生成的附件消息 ID 现在满足其协议前缀要求，TXT、DOCX 等共用同一修复。文件完整性、作用域及“不可信参考”边界不变。
 - 设计恢复提示和系统消息不再被外层错误包装遮蔽，会显示“设计请求未能发送给 OpenCode”及版本兼容性、连接检查方向。历史附件与错误记录保留；升级不会自动重放已失败的设计，请使用新版本重新发起设计。
@@ -146,7 +153,7 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 git clone https://github.com/wangyufengsky/opencode-loopper.git
 cd opencode-loopper
 ./mvnw clean verify
-java -jar target/opencode-loopper-0.3.30.jar
+java -jar target/opencode-loopper-0.3.32.jar
 ```
 
 浏览器打开 [http://127.0.0.1:8080](http://127.0.0.1:8080)。健康检查地址为 [http://127.0.0.1:8080/actuator/health](http://127.0.0.1:8080/actuator/health)。
@@ -383,7 +390,7 @@ Git 任务的最新 Execution Cycle 成功并处于 `AWAITING_DECISION` 或用�
 
 将下面两个文件复制到同一个可写目录：
 
-- `target/opencode-loopper-0.3.30.jar`
+- `target/opencode-loopper-0.3.32.jar`
 - `scripts/start-linux.sh`
 
 然后以前台方式启动：
@@ -414,7 +421,7 @@ export OPENCODE_BASE_URL=http://127.0.0.1:51234
 
 从同一个 GitHub Release 下载并放在同一目录：
 
-- `opencode-loopper-0.3.30.jar`
+- `opencode-loopper-0.3.32.jar`
 - `start-windows.bat`
 
 确认 JDK 21、Git 和 OpenCode CLI 已安装并可被脚本找到，然后双击 `start-windows.bat`，或在 CMD 中运行：
@@ -452,7 +459,7 @@ start-windows.bat
 可检查 JAR 是否包含当前前端：
 
 ```bash
-jar tf target/opencode-loopper-0.3.30.jar \
+jar tf target/opencode-loopper-0.3.32.jar \
   | rg 'BOOT-INF/classes/static/(index.html|assets/)'
 ```
 
@@ -542,7 +549,7 @@ Windows PowerShell：
 例如发布下一版本：
 
 ```bash
-VERSION=0.3.30
+VERSION=0.3.32
 git tag "v$VERSION"
 git push origin main
 git push origin "v$VERSION"
@@ -582,7 +589,7 @@ Loopper 通过 Spring AI Streamable HTTP MCP 暴露六个工具：
 
 ```bash
 export LOOPPER_MCP_BEARER_TOKEN='请替换为足够长的随机值'
-java -jar target/opencode-loopper-0.3.30.jar
+java -jar target/opencode-loopper-0.3.32.jar
 ```
 
 MCP 只开放 tools capability，不开放 resources、prompts 或 completions。Designer 仍是只读流程，`propose_loop_spec` 不能替代人工确认。

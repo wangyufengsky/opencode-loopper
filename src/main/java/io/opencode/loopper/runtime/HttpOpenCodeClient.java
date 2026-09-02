@@ -35,6 +35,7 @@ public class HttpOpenCodeClient implements OpenCodeClient {
             new OpenCodeMachineResponseInspector(json, responses);
     private final OpenCodeTodoParser todoParser = new OpenCodeTodoParser();
     private final OpenCodeExactRecoveryTransport exactRecovery;
+    private OpenCodeAttachmentResources attachmentResources;
     public HttpOpenCodeClient(RestClient.Builder builder, LoopperProperties properties) {
         this(builder, () -> new OpenCodeConnectionDetails(properties.getOpenCode().getBaseUrl(), properties.getOpenCode().getUsername(), properties.getOpenCode().getPassword(), false, null, null),
                 () -> OpenCodeHttpClientSemantics.externalIdentity(properties.getOpenCode().getBaseUrl()),
@@ -86,6 +87,12 @@ public class HttpOpenCodeClient implements OpenCodeClient {
                                OpenCodeCapabilityRegistry capabilities) {
         this(builder, connectionSupplier, connectTimeout, requestTimeout, capabilities,
                 OpenCodeSessionRuntimeBindings.untracked(), false);
+    }
+    public HttpOpenCodeClient(RestClient.Builder builder, Supplier<OpenCodeRuntimeManager.Connection> connectionSupplier,
+            Supplier<OpenCodeRuntimeManager.RuntimeIdentity> localIdentitySupplier, LoopperProperties properties,
+            OpenCodeCapabilityRegistry capabilities, OpenCodeSessionRuntimeBindings bindings, OpenCodeAttachmentResources resources) {
+        this(builder, connectionSupplier, localIdentitySupplier, properties, capabilities, bindings);
+        this.attachmentResources = resources;
     }
     private HttpOpenCodeClient(RestClient.Builder builder, Supplier<OpenCodeRuntimeManager.Connection> connectionSupplier,
                                Duration connectTimeout, Duration requestTimeout,
@@ -209,38 +216,22 @@ public class HttpOpenCodeClient implements OpenCodeClient {
     @Override public void promptAsync(OpenCodeSession session, PromptRequest prompt) {
         boolean structured = prompt != null && prompt.responseFormat() instanceof ResponseFormat.JsonSchema;
         try {
-            Map<String, Object> body = new LinkedHashMap<>();
-            List<Map<String, Object>> parts = new ArrayList<>();
-            parts.add(Map.of("type", "text", "text", prompt == null ? "" : prompt.text()));
-            if (prompt != null) {
-                for (FilePart file : prompt.files()) {
-                    parts.add(Map.of("type", "file", "mime", file.mediaType(),
-                            "filename", file.filename(), "url", file.managedUri().toString()));
-                }
-                if (prompt.messageId() != null) body.put("messageID", prompt.messageId());
-            }
-            body.put("parts", parts);
-            if (prompt != null && prompt.system() != null && !prompt.system().isBlank()) body.put("system", prompt.system());
             SessionProfile profile = sessionProfiles.get(session.id());
-            if (prompt != null && prompt.agent() != null && !prompt.agent().isBlank()) {
-                body.put("agent", prompt.agent());
-            } else if (Boolean.TRUE.equals(managedSessions.get(session.id()))) {
-                if (profile == SessionProfile.ROUTER_NO_TOOLS) body.put("agent", ROUTER_AGENT);
-                else if (OpenCodeHttpClientSemantics.machineResponseProfile(profile)) body.put("agent", STRUCTURED_AGENT);
+            boolean attached = prompt != null && !prompt.files().isEmpty();
+            List<Map<String, Object>> files = List.of();
+            if (attached) {
+                OpenCodeConnectionDetails connection = connectionFor(session);
+                if (attachmentResources == null || !connection.managed() || prompt.messageId() == null || profile == SessionProfile.ROUTER_NO_TOOLS) {
+                    throw new SessionFailure("ATTACHMENT_MCP_REQUIRED", "ATTACHMENT_MCP_REQUIRED: Attachments require a managed MCP runtime and a non-Router message identity");
+                }
+                files = attachmentResources.prepare(session.id(), connection.generation(), connection.internalMcpServer(), prompt.files());
             }
-            OpenCodeModel selectedModel = sessionModels.get(session.id());
-            boolean managed = Boolean.TRUE.equals(managedSessions.get(session.id()));
-            if (OpenCodeHttpClientSemantics.isDeepSeek(selectedModel) && (structured && Boolean.FALSE.equals(selectedModel.thinking())
-                    || managed && profile == SessionProfile.ROUTER_NO_TOOLS)) {
-                body.put("variant", STRUCTURED_NO_THINKING_VARIANT);
-            }
-            if (structured) {
-                ResponseFormat.JsonSchema format = (ResponseFormat.JsonSchema) prompt.responseFormat();
-                body.put("format", Map.of("type", "json_schema", "schema", format.schema(),
-                        "retryCount", format.retryCount()));
-            }
+            Map<String, Object> body = OpenCodePromptBody.encode(prompt, profile,
+                    Boolean.TRUE.equals(managedSessions.get(session.id())), sessionModels.get(session.id()), files);
             client(session).post().uri(uri -> sessionUri(uri, "/session/{id}/prompt_async", session)).contentType(MediaType.APPLICATION_JSON)
                     .body(body).retrieve().toBodilessEntity();
+            if (attached) attachmentResources.verifyDelivery(session.id(), () -> exactRecovery.findPrompt(
+                    session, prompt, OpenCodeClient.promptRequestSha256(prompt)).exists());
             structuredPrompts.put(session.id(), structured);
         } catch (RestClientResponseException failure) {
             if (structured && OpenCodeHttpClientSemantics.formatRejected(failure)) {
@@ -248,7 +239,8 @@ public class HttpOpenCodeClient implements OpenCodeClient {
                 throw new SessionFailure("OPENCODE_STRUCTURED_FORMAT_UNSUPPORTED", failure.getMessage());
             }
             throw new SessionFailure("OPENCODE_PROMPT_FAILED", failure.getMessage());
-        } catch (RuntimeException e) { throw new SessionFailure("OPENCODE_PROMPT_FAILED", e.getMessage()); }
+        } catch (SessionFailure failure) { throw failure; }
+        catch (RuntimeException e) { throw new SessionFailure("OPENCODE_PROMPT_FAILED", e.getMessage()); }
     }
     @Override public MessageLookup findPromptMessage(OpenCodeSession session, PromptRequest expectedRequest,
             String persistedRequestSha256) {
@@ -565,10 +557,14 @@ public class HttpOpenCodeClient implements OpenCodeClient {
                 throw new SessionFailure("OPENCODE_ABORT_UNCONFIRMED",
                         "OpenCode abort endpoint did not acknowledge termination");
             }
+            if (attachmentResources != null) attachmentResources.revoke(session.id());
             return AbortConfirmation.ACKNOWLEDGED;
         }
         catch (RestClientResponseException failure) {
-            if (failure.getStatusCode().value() == 404) return AbortConfirmation.ALREADY_ABSENT;
+            if (failure.getStatusCode().value() == 404) {
+                if (attachmentResources != null) attachmentResources.revoke(session.id());
+                return AbortConfirmation.ALREADY_ABSENT;
+            }
             throw new SessionFailure("OPENCODE_ABORT_FAILED", failure.getMessage());
         } catch (SessionFailure failure) {
             throw failure;

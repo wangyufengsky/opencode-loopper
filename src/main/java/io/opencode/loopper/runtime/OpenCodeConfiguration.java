@@ -16,6 +16,11 @@ class OpenCodeConfiguration {
     }
 
     @Bean
+    OpenCodeAttachmentResources openCodeAttachmentResources(InternalMcpRuntimeAccess access) {
+        return new OpenCodeAttachmentResources(access);
+    }
+
+    @Bean
     InternalMcpCredentialProvider internalMcpCredentialProvider(Environment environment) {
         return new InternalMcpCredentialProvider(() -> boundHttpPort(environment));
     }
@@ -46,11 +51,11 @@ class OpenCodeConfiguration {
     @Bean
     OpenCodeClient openCodeClient(LoopperProperties properties, OpenCodeRuntimeManager runtimeManager,
                                   OpenCodeCapabilityRegistry capabilities,
-                                  OpenCodeSessionRuntimeBindings runtimeBindings) {
+                                  OpenCodeSessionRuntimeBindings runtimeBindings, OpenCodeAttachmentResources resources) {
         if ("fake".equalsIgnoreCase(properties.getOpenCode().getMode())) {
             return new FakeOpenCodeClient(runtimeBindings);
         }
         return new HttpOpenCodeClient(RestClient.builder(), runtimeManager::connectionForClient,
-                runtimeManager::currentIdentityNoIo, properties, capabilities, runtimeBindings);
+                runtimeManager::currentIdentityNoIo, properties, capabilities, runtimeBindings, resources);
     }
 }
