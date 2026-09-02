@@ -3,10 +3,12 @@ package io.opencode.loopper.service;
 import io.opencode.loopper.config.LoopperProperties;
 import io.opencode.loopper.domain.ErrorLayer;
 import io.opencode.loopper.domain.JudgeRunState;
+import io.opencode.loopper.domain.JudgeReviewBatchState;
 import io.opencode.loopper.domain.LifecycleMachineType;
 import io.opencode.loopper.domain.SessionFailure;
 import io.opencode.loopper.domain.SessionState;
 import io.opencode.loopper.domain.TaskQueueState;
+import io.opencode.loopper.domain.TaskState;
 import io.opencode.loopper.persistence.AttemptRow;
 import io.opencode.loopper.persistence.ErrorEventRow;
 import io.opencode.loopper.persistence.ExecutionSessionRow;
@@ -38,12 +40,16 @@ final class TaskWriterTerminationService {
     private final LoopperProperties defaults;
     private final TaskEventService events;
     private final ObjectMapper json;
+    private final JudgeDecisionCandidateWorkflow judgeCandidates;
+    private final JudgeReviewBatchService judgeBatches;
 
     TaskWriterTerminationService(LoopperMapper mapper, TaskStateStore states,
                                  io.opencode.loopper.lifecycle.LifecycleTransitionService lifecycle,
                                  OpenCodeClient openCode, UsageInsightsService usage,
                                  DirectWorkspaceLeaseCoordinator leases, ProjectService projects,
-                                 LoopperProperties defaults, TaskEventService events, ObjectMapper json) {
+                                 LoopperProperties defaults, TaskEventService events, ObjectMapper json,
+                                 JudgeDecisionCandidateWorkflow judgeCandidates,
+                                 JudgeReviewBatchService judgeBatches) {
         this.mapper = mapper;
         this.states = states;
         this.lifecycle = lifecycle;
@@ -54,6 +60,8 @@ final class TaskWriterTerminationService {
         this.defaults = defaults;
         this.events = events;
         this.json = json;
+        this.judgeCandidates = judgeCandidates;
+        this.judgeBatches = judgeBatches;
     }
 
     boolean confirmStopped(TaskRow task, ExecutionSessionRow session, Map<String, Object> evidence) {
@@ -122,11 +130,25 @@ final class TaskWriterTerminationService {
 
     boolean stopJudges(TaskRow task) {
         List<JudgeRunRow> active = mapper.activeJudgeRuns(task.id());
-        if (active.isEmpty()) return true;
+        if (active.isEmpty()) {
+            if (TaskState.STOPPING.name().equals(task.state())) judgeBatches.findRunning(task.id()).ifPresent(batch ->
+                    judgeBatches.transition(batch.id(), JudgeReviewBatchState.CANCELLED));
+            return true;
+        }
         if (task.worktreePath() == null) return false;
         Path worktree = Path.of(task.worktreePath());
         boolean allStopped = true;
         for (JudgeRunRow judge : active) {
+            if (judgeCandidates.owns(judge)) {
+                JudgeDecisionCandidateWorkflow.Result result = judgeCandidates.cancel(judge);
+                if (result.action() == JudgeDecisionCandidateWorkflow.Action.RUNNING
+                        || result.action() == JudgeDecisionCandidateWorkflow.Action.DISCONNECTED) {
+                    allStopped = false;
+                } else if (result.judge() != null) {
+                    usage.collectTerminalJudgeUsage(task.id(), result.judge().id());
+                }
+                continue;
+            }
             boolean stopped = judge.externalSessionId() == null;
             if (judge.externalSessionId() != null) {
                 OpenCodeClient.OpenCodeSession remote = new OpenCodeClient.OpenCodeSession(judge.externalSessionId(), worktree);
@@ -149,11 +171,22 @@ final class TaskWriterTerminationService {
             JudgeRunRow aborted = new JudgeRunRow(judge.id(), judge.taskId(), judge.attemptId(), judge.role(),
                     judge.ordinal(), judge.externalSessionId(), JudgeRunState.ABORTED.name(), judge.verdict(),
                     safeNullable(judge.reason()), judge.rawOutput(), judge.createdAt(), now(), judge.version(),
-                    judge.responseMode(), judge.responseSchemaId());
+                    judge.responseMode(), judge.responseSchemaId(), judge.reviewBatchId(), judge.sourceRevision());
             updateJudge(aborted);
             usage.collectTerminalJudgeUsage(task.id(), aborted.id());
         }
+        if (allStopped && TaskState.STOPPING.name().equals(task.state())) {
+            judgeBatches.findRunning(task.id()).ifPresent(batch ->
+                    judgeBatches.transition(batch.id(), JudgeReviewBatchState.CANCELLED));
+        }
         return allStopped;
+    }
+
+    boolean stopJudgesForTaskFailure(TaskRow task) {
+        boolean stopped = stopJudges(task);
+        if (stopped) judgeBatches.findRunning(task.id()).ifPresent(batch ->
+                judgeBatches.transition(batch.id(), JudgeReviewBatchState.CANCELLED));
+        return stopped;
     }
 
     void retryDisconnectedSessions(TaskRow task) {

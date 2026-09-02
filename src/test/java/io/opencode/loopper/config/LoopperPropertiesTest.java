@@ -22,6 +22,20 @@ class LoopperPropertiesTest {
     }
 
     @Test
+    void judgeDecisionCandidateDefaultsOffAndCanBeEnabledExplicitly() throws Exception {
+        LoopperProperties properties = new LoopperProperties();
+
+        assertThat(properties.getInternalCandidate().isJudgeDecisionV1Enabled()).isFalse();
+
+        properties.getInternalCandidate().setJudgeDecisionV1Enabled(true);
+        assertThat(properties.getInternalCandidate().isJudgeDecisionV1Enabled()).isTrue();
+        assertThat(Files.readString(Path.of(System.getProperty("user.dir"),
+                "src/main/resources/application.yml")))
+                .contains("judge-decision-v1-enabled: "
+                        + "${LOOPPER_JUDGE_DECISION_CANDIDATE_V1_ENABLED:false}");
+    }
+
+    @Test
     void qualifiedReviewerReportCandidateDefaultsOnAndCanBeDisabledExplicitly() throws Exception {
         LoopperProperties properties = new LoopperProperties();
 

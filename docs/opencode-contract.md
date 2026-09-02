@@ -113,7 +113,7 @@ for staged adapters. V56 activates `ROLLING_PACKAGE_PLAN_V1`; V57 adds the share
 connect Reviewer behind its staged feature flag. The isolated 0.3.13 packaged JAR then proved real
 `opencode/gpt-5.4` private-tool adoption and same-Session `line=99` rejection/`line=1` repair, so Reviewer
 defaults on from 0.3.14 while an explicit false affects only new reports. V62 connects Convention behind a
-default-off qualification flag; Judge remains rejected at application open and requires its own qualification. Rolling uses a dedicated
+default-off qualification flag; V63 connects Judge behind its own default-off qualification flag. Rolling uses a dedicated
 `ROLLING_PACKAGE_CANDIDATE_READ_ONLY` profile with `read/glob/grep` and only the
 exact private submission tool. It has no Markdown/marker fallback after dispatch.
 Only `PACKAGE_DESIGN_V1` retains the explicit Markdown-fallback compatibility policy.
@@ -131,7 +131,8 @@ before the first exact-title lookup or remote create, uses `REVIEWER_CANDIDATE_R
 proven pre-dispatch managed-runtime/lookup capability absence may hand the owner to Legacy. Once
 dispatch may have occurred, zero submission, timeout, questions, transport/stop uncertainty,
 safety failure and exhaustion remain Candidate failures. V62 adds Convention orchestration but still requires its
-own packaged real-model qualification before default enablement; Judge still requires both orchestration and qualification.
+own packaged real-model qualification before default enablement; V63 adds Judge orchestration, but Requirement and
+Risk still require separate packaged real-model qualification before default enablement.
 
 V62 supplies Convention's role orchestration while preserving the same launch gates. Its source `AGENTS.md`,
 source revision/owner version, stack profile/fingerprint and canonical component/command/path evidence catalog are
@@ -146,12 +147,34 @@ Legacy. Accepted content becomes `READY` only after `REMOTE_COMPLETED`, `ABORT_A
 proof. The 0.3.17 application flag remains false pending packaged real-model qualification, but does not disable
 recovery of already persisted Convention runs.
 
+V63 supplies the Judge-specific orchestration. One `judge_review_batch` freezes the Task, active final-review
+Execution Cycle, final successful Attempt and source generation for both Requirement and Risk; a rolling final-review
+Cycle may reference the last frozen package Attempt without rewriting that Attempt's original Cycle. Role-local Session retries retain that batch, while
+explicit local retry creates a fresh generation and prevents cross-batch verdict aggregation. Before the exact-title
+lookup or create boundary, Loopper persists the exact Judge prompt plus a canonical bounded evidence catalog.
+`JUDGE_CANDIDATE_READ_ONLY` allows only `read/glob/grep` and the exact private submit tool; it forbids question,
+shell, write and every user MCP tool. Candidate fields are limited to
+`contractVersion/role/verdict/reason/evidenceIds`, and both the MCP decoder and Legacy adapter enter the same
+`JudgeDecisionCompilation`. Final assistant text is never read. A proven pre-dispatch
+`CANDIDATE_MANAGED_RUNTIME_REQUIRED` or `OPENCODE_EXACT_LOOKUP_UNSUPPORTED` condition may start one fresh
+`JUDGE_READ_ONLY` Legacy Session; after possible dispatch, zero submission, interaction, timeout, transport,
+security, generation, exhaustion or uncertain stop cannot fall back. CR/LF/TAB in `reason` and ordinary extra
+fields are bounded mechanical errors with exact same-Session correction guidance; NUL/BEL/C1 controls, mixed
+or oversized dangerous controls, permission and semantic server-owned authority fields remain fail-closed security
+errors. A non-retryable Candidate rejection stops the remote writer and current review batch for local input; it is
+not a Session transport error and cannot create a fresh automatic Judge Session. Legacy Judge transport freezes a
+canonical prompt/evidence snapshot artifact before `createSession`; completion and MCP tool-loop finalization must
+load the same artifact and SHA instead of rebuilding from current Task artifacts. An accepted
+result settles the Judge only after `REMOTE_COMPLETED`, `ABORT_ACKNOWLEDGED` or `ALREADY_ABSENT`. The 0.3.20
+application flag remains false until both roles prove real private-tool adoption and mechanical rejection correction in isolated packaged-JAR runs;
+persisted Judge Candidate recovery remains active regardless of the current flag.
+
 The private `/api/internal-mcp-streamable` Router accepts only literal loopback
 addresses and constant-time Bearer matches. It registers exactly one tool,
 `submit_candidate`; it does not contribute a `ToolCallbackProvider`, resource,
 prompt or completion to the public MCP. A candidate role receives only its exact
-random `<server>_submit_candidate` permission. Router gets zero tools; Judge and
-ordinary roles never receive the private server; user MCP permissions remain
+random `<server>_submit_candidate` permission. Router and ordinary roles never receive the private server;
+only the dedicated Judge Candidate profile receives it for the staged Judge path; user MCP permissions remain
 governed by their existing role profiles. OpenCode 1.18.23's experimental tool
 endpoints list built-ins but not MCP tools, so they are not an internal-MCP
 readiness proof. Loopper instead requires the exact server to be `connected` in

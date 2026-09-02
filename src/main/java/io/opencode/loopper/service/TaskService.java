@@ -32,6 +32,7 @@ import io.opencode.loopper.persistence.AttemptRow;
 import io.opencode.loopper.persistence.ErrorEventRow;
 import io.opencode.loopper.persistence.ExecutionSessionRow;
 import io.opencode.loopper.persistence.JudgeRunRow;
+import io.opencode.loopper.persistence.JudgeReviewBatchRow;
 import io.opencode.loopper.persistence.LoopDraftRow;
 import io.opencode.loopper.persistence.LoopperMapper;
 import io.opencode.loopper.persistence.ProjectRow;
@@ -105,7 +106,10 @@ public class TaskService {
     private final LoopperProperties defaults;
     private final TransactionTemplate transactions;
     private final TaskRetryPolicy retryPolicy;
-    private final TaskJudgeDecisionParser judgeDecisions;
+    private final JudgeDecisionCandidateWorkflow judgeCandidates;
+    private final JudgeReviewBatchService judgeBatches;
+    private final LegacyJudgeTransport legacyJudgeTransport;
+    private final LegacyJudgeCompletionService legacyJudgeCompletion;
     private final TaskExecutionPromptFactory executionPrompts;
     private final TaskStateStore taskStates;
     private final TaskEvidenceService taskEvidence;
@@ -124,12 +128,16 @@ public class TaskService {
                        GitDiffScopeApprovalService gitDiffScopeApprovals,
                        JavaChangeGateService javaChangeGate,
                        UsageInsightsService usageInsights,
-                       TaskEventService events, AiOutputExtractor aiOutputExtractor,
+                       TaskEventService events,
                        AiOutputAuditService aiOutputAudit,
                        RolePromptComposer rolePrompts,
                        TaskExecutionCycleService executionCycles,
                        TaskWorkspaceCheckpointService workspaceCheckpoints,
                        TaskEvidenceService taskEvidence, RollingPackageTaskHooks rollingPackages,
+                       JudgeDecisionCandidateWorkflow judgeCandidates,
+                       JudgeReviewBatchService judgeBatches,
+                       LegacyJudgeTransport legacyJudgeTransport,
+                       LegacyJudgeCompletionService legacyJudgeCompletion,
                        DesignerTerminationService designerTermination, TaskTerminalConsistencyService terminalConsistency, DesignerAttachmentContext attachmentContext,
                        LoopperProperties defaults,
                        PlatformTransactionManager transactionManager) {
@@ -148,12 +156,14 @@ public class TaskService {
         this.defaults = defaults;
         this.transactions = new TransactionTemplate(transactionManager);
         this.retryPolicy = new TaskRetryPolicy(defaults);
-        this.judgeDecisions = new TaskJudgeDecisionParser(aiOutputExtractor);
+        this.judgeCandidates = judgeCandidates; this.judgeBatches = judgeBatches;
+        this.legacyJudgeTransport = legacyJudgeTransport; this.legacyJudgeCompletion = legacyJudgeCompletion;
         this.executionPrompts = new TaskExecutionPromptFactory(mapper, json, rolePrompts);
         this.taskStates = new TaskStateStore(mapper, lifecycle);
         this.taskEvidence = taskEvidence; this.terminalConsistency = terminalConsistency;
         this.writerTermination = new TaskWriterTerminationService(mapper, taskStates, lifecycle, openCode,
-                usageInsights, directLeases, projects, defaults, events, json);
+                usageInsights, directLeases, projects, defaults, events, json,
+                judgeCandidates, judgeBatches);
         this.cancellations = new TaskCancellationCoordinator(mapper, taskStates, managedVerifierRuntimes,
                 events, executionCycles, writerTermination, designerTermination,
                 rollingPackages, transactionManager);
@@ -2012,12 +2022,14 @@ public class TaskService {
             if (!TaskState.JUDGING.name().equals(get(taskId).state())) break;
             pollJudge(get(taskId), judge);
         }
+        if (TaskState.JUDGING.name().equals(get(taskId).state())) recoverCandidateJudgeFailures(get(taskId));
         if (TaskState.JUDGING.name().equals(get(taskId).state())) evaluateJudgeDecision(get(taskId));
     }
-
     private void launchRequiredJudges(TaskRow task, AttemptRow finalAttempt) {
+        JudgeReviewBatchRow activeBatch = judgeBatches.findRunning(task.id()).orElse(null);
         List<String> pendingRoles = List.of("REQUIREMENT", "RISK").stream()
-                .filter(role -> mapper.latestJudgeRun(task.id(), role).isEmpty())
+                .filter(role -> activeBatch == null
+                        || mapper.latestJudgeRunForBatchRole(activeBatch.id(), role).isEmpty())
                 .toList();
         launchJudges(task, finalAttempt, pendingRoles, false);
         if (TaskState.JUDGING.name().equals(get(task.id()).state())) {
@@ -2036,9 +2048,9 @@ public class TaskService {
                 .filter(io.opencode.loopper.domain.TaskPublicationState.MERGED.name()::equals).isPresent()) {
             throw new ConflictException("TASK_PUBLICATION_MERGED", "任务已经合并，不能重新打开原任务评审；请使用新分支重做");
         }
-        if (!TaskState.WAITING_INPUT.name().equals(task.state()) && !TaskState.SUCCEEDED.name().equals(task.state())) {
+        if (!TaskState.WAITING_INPUT.name().equals(task.state())) {
             throw new ConflictException("JUDGE_REVIEW_NOT_ACTIONABLE",
-                    "只有等待评审处理或缺少最终评审的已完成任务可以重新发起双评审");
+                    "只有等待评审处理的当前任务可以重新发起双评审");
         }
         if (!mapper.activeJudgeRuns(task.id()).isEmpty()) {
             throw new ConflictException("JUDGE_REVIEW_ALREADY_RUNNING", "双评审仍在运行，无需重复启动");
@@ -2053,9 +2065,9 @@ public class TaskService {
             throw new ConflictException("JUDGE_DETERMINISTIC_ACCEPTANCE_REQUIRED",
                     "只有最终阶段确定性验收通过后才能启动双评审");
         }
-        JudgeRunRow requirement = mapper.latestJudgeRun(task.id(), "REQUIREMENT").orElse(null);
-        JudgeRunRow risk = mapper.latestJudgeRun(task.id(), "RISK").orElse(null);
-        if (approved(requirement) && approved(risk)) {
+        JudgeReviewBatchRow latestBatch = judgeBatches.latest(task.id()).orElse(null);
+        if (latestBatch != null && approved(mapper.latestJudgeRunForBatchRole(latestBatch.id(), "REQUIREMENT").orElse(null))
+                && approved(mapper.latestJudgeRunForBatchRole(latestBatch.id(), "RISK").orElse(null))) {
             throw new ConflictException("JUDGE_REVIEW_ALREADY_APPROVED", "需求与风险双评审已经通过");
         }
 
@@ -2074,16 +2086,19 @@ public class TaskService {
                               boolean explicitLocalRetry) {
         TaskRow task = get(inputTask.id());
         if (!TaskState.JUDGING.name().equals(task.state()) || roles.isEmpty()) return;
+        if (!explicitLocalRetry && blockModelCallForBudget(task, null, finalAttempt)) return;
+        JudgeReviewBatchRow batch = explicitLocalRetry ? judgeBatches.create(task, finalAttempt)
+                : judgeBatches.findRunning(task.id()).orElseGet(() -> judgeBatches.create(task, finalAttempt));
         LoopSpec spec = spec(task);
-        Map<String, String> prompts = new LinkedHashMap<>();
+        Map<String, TaskEvidenceService.JudgeCandidateSource> sources = new LinkedHashMap<>();
         for (String role : roles) {
-            if (!explicitLocalRetry && mapper.countJudgeSessionErrors(task.id(), role) >= retryPolicy.sessionErrorLimit(spec)) {
+            if (!explicitLocalRetry && mapper.countJudgeSessionErrorsForBatchRole(batch.id(), role) >= retryPolicy.sessionErrorLimit(spec)) {
                 waitForJudgeInput(task, finalAttempt, null, "JUDGE_SESSION_RETRY_EXHAUSTED",
                         role + " Judge exhausted its configured session retry limit");
                 return;
             }
             try {
-                prompts.put(role, taskEvidence.judgePrompt(task, finalAttempt, role, spec(task)));
+                sources.put(role, taskEvidence.judgeCandidateSource(task, finalAttempt, role, spec(task)));
             } catch (TaskFailure failure) {
                 if (!"JUDGE_PROMPT_BUDGET_EXCEEDED".equals(failure.code())) throw failure;
                 waitForJudgeInput(task, finalAttempt, null, failure.code(), failure.getMessage());
@@ -2092,29 +2107,47 @@ public class TaskService {
         }
         for (String role : roles) {
             if (!TaskState.JUDGING.name().equals(get(task.id()).state())) break;
-            launchJudge(get(task.id()), finalAttempt, role, explicitLocalRetry, prompts.get(role));
+            launchJudge(get(task.id()), finalAttempt, batch, role, explicitLocalRetry, false, sources.get(role));
         }
     }
 
-    private void launchJudge(TaskRow inputTask, AttemptRow finalAttempt, String role,
-                             boolean explicitLocalRetry, String prompt) {
+    private void launchJudge(TaskRow inputTask, AttemptRow finalAttempt, JudgeReviewBatchRow batch,
+                             String role, boolean explicitLocalRetry, boolean forceLegacy, TaskEvidenceService.JudgeCandidateSource source) {
         TaskRow task = get(inputTask.id());
         if (!TaskState.JUDGING.name().equals(task.state())) return;
         LoopSpec spec = spec(task);
-        if (!explicitLocalRetry && blockModelCallForBudget(task, null, finalAttempt)) return;
-        ModelResponseMode responseMode = judgeResponseMode(task, role, spec);
+        boolean candidate = defaults.getInternalCandidate().isJudgeDecisionV1Enabled() && !forceLegacy;
+        ModelResponseMode responseMode = candidate ? null : legacyJudgeTransport.responseMode(
+                task, role, judgeModel(spec, ModelResponseMode.JSON_SCHEMA));
         JudgeRunRow judge = new JudgeRunRow(UUID.randomUUID().toString(), task.id(), finalAttempt.id(), role,
                 mapper.nextJudgeOrdinal(task.id(), role), null, JudgeRunState.CREATING.name(), null, null, null,
-                now(), null, 0, responseMode.name(), responseMode == ModelResponseMode.JSON_SCHEMA
-                ? OpenCodeStructuredSchemas.JUDGE_DECISION_V1 : null);
+                now(), null, 0, candidate ? JudgeDecisionCandidateWorkflow.RESPONSE_MODE : responseMode.name(), !candidate
+                && responseMode == ModelResponseMode.JSON_SCHEMA ? OpenCodeStructuredSchemas.JUDGE_DECISION_V1 : null,
+                batch.id(), (long) batch.generation());
         lifecycle.create(taskStates.subject(LifecycleMachineType.JUDGE_RUN, judge.id(), judge.taskId()), judge.state(),
                 Map.of("role", judge.role()), () -> mapper.insertJudgeRun(judge),
                 () -> new ConflictException("JUDGE_CREATE_CONFLICT", "Judge run could not be created"));
         taskEvidence.persist(task, finalAttempt.id(), judge.id(), "JUDGE_LOG_METADATA", role.toLowerCase() + "-judge-start.json",
                 "application/json", write(Map.of("role", role, "state", JudgeRunState.CREATING.name(), "readOnly", true)),
                 Map.of("source", "judge-session", "readOnly", true));
+        if (candidate) {
+            JudgeDecisionCandidateWorkflow.Result result = judgeCandidates.advance(candidateContext(task, finalAttempt, batch, judge));
+            if (result.action() == JudgeDecisionCandidateWorkflow.Action.LEGACY_FALLBACK) {
+                launchJudge(get(task.id()), finalAttempt, batch, role, explicitLocalRetry, true, source);
+            } else {
+                handleCandidateJudgeResult(task, result);
+                JudgeRunRow current = mapper.findJudgeRun(judge.id()).orElse(judge);
+                if (JudgeRunState.RUNNING.name().equals(current.state())) {
+                    events.emit(task.id(), "judge.started", Map.of(
+                            "judgeRunId", current.id(), "role", role, "externalSessionId", current.externalSessionId(),
+                            "readOnly", true, "responseMode", JudgeDecisionCandidateWorkflow.RESPONSE_MODE));
+                }
+            }
+            return;
+        }
         OpenCodeClient.OpenCodeSession remote;
         try {
+            TaskEvidenceService.FrozenJudgeSource frozen = taskEvidence.freezeLegacyJudgeSource(task, finalAttempt, judge, source);
             Path worktree = Path.of(requireWorktree(task));
             remote = openCode.createSession(worktree, roleTitle(role), judgeModel(spec, responseMode),
                     OpenCodeClient.SessionProfile.JUDGE_READ_ONLY);
@@ -2122,10 +2155,10 @@ public class TaskService {
             updateJudge(running);
             OpenCodeClient.PromptRequest request;
             if (responseMode == ModelResponseMode.JSON_SCHEMA) {
-                request = new OpenCodeClient.PromptRequest(prompt, null, null,
+                request = new OpenCodeClient.PromptRequest(frozen.source().prompt(), null, null,
                         OpenCodeStructuredSchemas.format(OpenCodeStructuredSchemas.JUDGE_DECISION_V1));
             } else {
-                request = OpenCodeClient.PromptRequest.text(prompt);
+                request = OpenCodeClient.PromptRequest.text(frozen.source().prompt());
             }
             openCode.promptAsync(remote, attachmentContext.withContext(
                     DesignerAttachmentContext.ContextUse.taskAllPackages(task.id()), request));
@@ -2138,9 +2171,71 @@ public class TaskService {
         }
         events.emit(task.id(), "judge.started", Map.of("judgeRunId", judge.id(), "role", role, "externalSessionId", remote.id(), "readOnly", true));
     }
-
+    private JudgeDecisionCandidateWorkflow.Context candidateContext(TaskRow task, AttemptRow attempt, JudgeReviewBatchRow batch, JudgeRunRow judge) {
+        LoopSpec frozen = spec(task);
+        return new JudgeDecisionCandidateWorkflow.Context(judge, batch, Path.of(requireWorktree(task)),
+                judgeModel(frozen, ModelResponseMode.TEXT_MARKER), taskEvidence.judgeCandidateSource(task, attempt, judge.role(), frozen),
+                Instant.parse(judge.createdAt()).plusSeconds(frozen.limits().attemptTimeoutSeconds()));
+    }
+    private void handleCandidateJudgeResult(TaskRow inputTask, JudgeDecisionCandidateWorkflow.Result result) {
+        if (result == null || result.judge() == null) return;
+        TaskRow task = get(inputTask.id());
+        JudgeRunRow judge = result.judge();
+        if (result.action() == JudgeDecisionCandidateWorkflow.Action.COMPLETED) {
+            usageInsights.collectTerminalJudgeUsage(task.id(), judge.id());
+            taskEvidence.persist(task, judge.attemptId(), judge.id(), "JUDGE_RESULT", judge.role().toLowerCase()
+                    + "-judge-result.json", "application/json", judge.rawOutput() == null ? "" : judge.rawOutput(),
+                    Map.of("role", judge.role(), "verdict", judge.verdict(), "reason", judge.reason(),
+                            "state", judge.state(), "source", "INTERNAL_MCP"));
+            events.emit(task.id(), "judge.completed", Map.of("judgeRunId", judge.id(),
+                    "role", judge.role(), "verdict", judge.verdict()));
+        } else if (result.action() == JudgeDecisionCandidateWorkflow.Action.SESSION_ERROR) {
+            usageInsights.collectTerminalJudgeUsage(task.id(), judge.id());
+            String reason = judge.reason() == null ? "JUDGE_CANDIDATE_FAILED" : judge.reason();
+            String code = reason.contains(":") ? reason.substring(0, reason.indexOf(':')) : reason;
+            AttemptRow attempt = mapper.findAttempt(judge.attemptId()).orElse(null);
+            recordError(task, null, attempt, null, ErrorLayer.SESSION, code, reason, true, Map.of(
+                    "judgeRunId", judge.id(), "judgeRole", judge.role(), "judgeSession", true, "responseMode", "INTERNAL_MCP"));
+            events.emit(task.id(), "judge.session_failed", Map.of("judgeRunId", judge.id(), "role",
+                    judge.role(), "code", code, "recovery", "fresh_read_only_session"));
+        } else if (result.action() == JudgeDecisionCandidateWorkflow.Action.WAITING_INPUT) {
+            waitForJudgeInput(task, mapper.findAttempt(judge.attemptId()).orElse(null), judge,
+                    "JUDGE_CANDIDATE_WAITING_INPUT", judge.reason() == null
+                            ? "Judge candidate requires local input" : judge.reason());
+        }
+    }
+    private void recoverCandidateJudgeFailures(TaskRow task) {
+        for (String role : List.of("REQUIREMENT", "RISK")) {
+            JudgeRunRow failed = mapper.latestJudgeRun(task.id(), role).orElse(null);
+            if (failed == null || !JudgeDecisionCandidateWorkflow.RESPONSE_MODE.equals(failed.responseMode())
+                    || !JudgeRunState.SESSION_ERROR.name().equals(failed.state())) continue;
+            AttemptRow attempt = mapper.findAttempt(failed.attemptId()).orElse(null);
+            if (attempt == null) continue;
+            if (mapper.countJudgeSessionErrorsForBatchRole(failed.reviewBatchId(), role) >= retryPolicy.sessionErrorLimit(spec(task))) {
+                waitForJudgeInput(task, attempt, failed, "JUDGE_SESSION_RETRY_EXHAUSTED",
+                        role + " Judge exhausted its configured session retry limit: "
+                                + safeMessage(failed.reason()));
+                return;
+            }
+            launchJudges(get(task.id()), attempt, List.of(role), false);
+        }
+    }
     private void pollJudge(TaskRow inputTask, JudgeRunRow inputJudge) {
         JudgeRunRow judge = mapper.findJudgeRun(inputJudge.id()).orElse(inputJudge);
+        if (judgeCandidates.owns(judge)) {
+            AttemptRow attempt = mapper.findAttempt(judge.attemptId()).orElseThrow(() -> new ConflictException(
+                    "JUDGE_FINAL_ATTEMPT_MISSING", "Judge final attempt is missing"));
+            JudgeReviewBatchRow batch = judgeBatches.require(judge.reviewBatchId());
+            JudgeDecisionCandidateWorkflow.Result result = judgeCandidates.advance(candidateContext(
+                    get(inputTask.id()), attempt, batch, judge));
+            if (result.action() == JudgeDecisionCandidateWorkflow.Action.LEGACY_FALLBACK) {
+                launchJudge(get(inputTask.id()), attempt, batch, judge.role(), false, true,
+                        taskEvidence.judgeCandidateSource(get(inputTask.id()), attempt, judge.role(), spec(inputTask)));
+            } else {
+                handleCandidateJudgeResult(inputTask, result);
+            }
+            return;
+        }
         if (!JudgeRunState.RUNNING.name().equals(judge.state()) || judge.externalSessionId() == null) return;
         try {
             long timeoutSeconds = spec(inputTask).limits().attemptTimeoutSeconds();
@@ -2157,7 +2252,8 @@ public class TaskService {
                 handleJudgeSessionFailure(inputTask, judge, new SessionFailure("JUDGE_SESSION_" + status.state(), message));
                 return;
             }
-            if (status.completed()) completeJudge(inputTask, judge, judgeOutput(judge, remote));
+            if (status.completed()) legacyJudgeCompletion.complete(
+                    inputTask, judge, legacyJudgeTransport.output(judge, remote));
         } catch (SessionFailure failure) {
             if (recoverJudgeToolLoop(inputTask, judge,
                     new OpenCodeClient.OpenCodeSession(judge.externalSessionId(), Path.of(requireWorktree(inputTask))),
@@ -2174,80 +2270,12 @@ public class TaskService {
     private boolean recoverJudgeToolLoop(TaskRow inputTask, JudgeRunRow judge,
                                          OpenCodeClient.OpenCodeSession failedRemote,
                                          SessionFailure failure) {
-        if (!"OPENCODE_MACHINE_TOOL_LOOP".equals(failure.code())
-                || !aiOutputAudit.claimToolLoopRecovery("JUDGE_RUN", judge.id(), judge.role(),
-                "JUDGE", failure.getMessage())) return false;
+        if (!"OPENCODE_MACHINE_TOOL_LOOP".equals(failure.code())) return false;
         TaskRow task = get(inputTask.id());
         AttemptRow attempt = mapper.findAttempt(judge.attemptId()).orElse(null);
         if (attempt == null || blockModelCallForBudget(task, null, attempt)) return true;
-        String evidence = boundedJudgeToolEvidence(failedRemote);
-        try {
-            try { openCode.abort(failedRemote); } catch (RuntimeException ignored) { }
-            OpenCodeClient.OpenCodeSession finalizer = openCode.createSession(Path.of(requireWorktree(task)),
-                    roleTitle(judge.role()) + " Finalizer (MCP_ONLY)",
-                    judgeModel(spec(task), judge.responseMode()),
-                    OpenCodeClient.SessionProfile.MACHINE_FINALIZER_NO_TOOLS);
-            JudgeRunRow recovered = judgeState(judge, finalizer.id(), JudgeRunState.RUNNING,
-                    null, null, null, null);
-            updateJudge(recovered);
-            String prompt = taskEvidence.judgePrompt(task, attempt, judge.role(), spec(task))
-                    + "\n\nFINALIZER RECOVERY: Do not call built-in tools. Configured MCP tools remain allowed; return the requested Judge object now."
-                    + evidence;
-            OpenCodeClient.PromptRequest request = ModelResponseMode.JSON_SCHEMA.name().equals(judge.responseMode())
-                    ? new OpenCodeClient.PromptRequest(prompt, null, null,
-                    OpenCodeStructuredSchemas.format(OpenCodeStructuredSchemas.JUDGE_DECISION_V1))
-                    : OpenCodeClient.PromptRequest.text(prompt);
-            openCode.promptAsync(finalizer, attachmentContext.withContext(
-                    DesignerAttachmentContext.ContextUse.taskAllPackages(task.id()), request));
-            events.emit(task.id(), "AI_TOOL_LOOP_FINALIZER_STARTED", Map.of(
-                    "judgeRunId", judge.id(), "role", judge.role(), "externalSessionId", finalizer.id()));
-            return true;
-        } catch (RuntimeException recoveryFailure) {
-            return false;
-        }
-    }
-
-    private String boundedJudgeToolEvidence(OpenCodeClient.OpenCodeSession remote) {
-        java.util.LinkedHashSet<String> evidence = new java.util.LinkedHashSet<>();
-        try {
-            for (OpenCodeClient.SessionPart part : openCode.sessionTranscript(remote).parts()) {
-                if (!"TOOL".equals(part.type())) continue;
-                String content = part.content() == null ? "completed" : part.content();
-                evidence.add("- " + (part.label() == null ? "tool" : part.label()) + ": "
-                        + content.substring(0, Math.min(content.length(), 800)));
-                if (evidence.size() >= 12) break;
-            }
-        } catch (RuntimeException ignored) { }
-        return "\nBounded prior tool evidence:\n" + (evidence.isEmpty()
-                ? "- No reusable tool evidence was available." : String.join("\n", evidence));
-    }
-
-    private void completeJudge(TaskRow inputTask, JudgeRunRow inputJudge, String rawOutput) {
-        JudgeRunRow judge = mapper.findJudgeRun(inputJudge.id()).orElse(inputJudge);
-        if (!JudgeRunState.RUNNING.name().equals(judge.state())) return;
-        TaskJudgeDecisionParser.Decision decision = judgeDecisions.parse(rawOutput);
-        String verdict = decision.verdict();
-        String reason = decision.reason();
-        if (verdict == null) {
-            verdict = "UNPARSEABLE";
-            reason = decision.parseError();
-        }
-        JudgeRunRow completed = judgeState(judge, judge.externalSessionId(), JudgeRunState.COMPLETED,
-                verdict, reason, rawOutput, now());
-        updateJudge(completed);
-        if (!decision.normalizations().isEmpty()) {
-            aiOutputAudit.recordNormalization("TASK", inputTask.id(), judge.role(),
-                    "JUDGE_" + judge.ordinal(), decision.normalizations(), rawOutput);
-            events.emit(inputTask.id(), "AI_OUTPUT_NORMALIZED", Map.of(
-                    "role", judge.role(), "judgeRunId", judge.id(),
-                    "corrections", decision.normalizations()));
-        }
-        usageInsights.collectTerminalJudgeUsage(inputTask.id(), completed.id());
-        taskEvidence.persist(inputTask, judge.attemptId(), judge.id(), "JUDGE_RESULT", judge.role().toLowerCase() + "-judge-result.txt",
-                "text/plain", rawOutput == null ? "" : rawOutput,
-                Map.of("role", judge.role(), "verdict", verdict, "reason", reason,
-                        "state", JudgeRunState.COMPLETED.name()));
-        events.emit(inputTask.id(), "judge.completed", Map.of("judgeRunId", judge.id(), "role", judge.role(), "verdict", verdict));
+        return legacyJudgeTransport.recoverToolLoop(task, judge, failedRemote, failure,
+                judgeModel(spec(task), judge.responseMode()));
     }
 
     private void handleJudgeSessionFailure(TaskRow inputTask, JudgeRunRow inputJudge, SessionFailure failure) {
@@ -2268,7 +2296,7 @@ public class TaskService {
         recordError(task, null, attempt, null, ErrorLayer.SESSION, failure.code(), failure.getMessage(), true,
                 Map.of("judgeRunId", judge.id(), "judgeRole", judge.role(), "judgeSession", true));
         LoopSpec spec = spec(task);
-        if (mapper.countJudgeSessionErrors(task.id(), judge.role()) >= retryPolicy.sessionErrorLimit(spec)) {
+        if (judge.reviewBatchId() != null && mapper.countJudgeSessionErrorsForBatchRole(judge.reviewBatchId(), judge.role()) >= retryPolicy.sessionErrorLimit(spec)) {
             waitForJudgeInput(task, attempt, judge, "JUDGE_SESSION_RETRY_EXHAUSTED",
                     judge.role() + " Judge exhausted its configured session retry limit: " + safeMessage(failure.getMessage()));
             return;
@@ -2278,8 +2306,11 @@ public class TaskService {
     }
 
     private void evaluateJudgeDecision(TaskRow task) {
-        JudgeRunRow requirement = mapper.latestJudgeRun(task.id(), "REQUIREMENT").orElse(null);
-        JudgeRunRow risk = mapper.latestJudgeRun(task.id(), "RISK").orElse(null);
+        JudgeReviewBatchRow batch = judgeBatches.findRunning(task.id()).orElse(null);
+        if (batch == null) return;
+        JudgeRunRow requirement = mapper.latestJudgeRunForBatchRole(
+                batch.id(), "REQUIREMENT").orElse(null);
+        JudgeRunRow risk = mapper.latestJudgeRunForBatchRole(batch.id(), "RISK").orElse(null);
         if (requirement == null || risk == null
                 || !JudgeRunState.COMPLETED.name().equals(requirement.state())
                 || !JudgeRunState.COMPLETED.name().equals(risk.state())) return;
@@ -2291,10 +2322,8 @@ public class TaskService {
             waitForJudgeInput(task, attempt, null, code, message);
             return;
         }
-        // Reconcile both final-review sessions before the task becomes terminal. This also
-        // repairs a prior terminal Judge row after a restart or an optimistic-lock retry;
-        // session_usage uses the judge-run/message idempotency key, so repeated polling is safe.
         usageInsights.collectTaskUsage(task.id());
+        judgeBatches.transition(batch.id(), io.opencode.loopper.domain.JudgeReviewBatchState.COMPLETED);
         finishCycleAndAwaitDecision(get(task.id()), ExecutionCycleState.SUCCEEDED, null,
                 "Requirement and Risk judges passed", !writerTermination.hasUnconfirmedWriter(task.id()));
     }
@@ -2302,10 +2331,13 @@ public class TaskService {
     private void waitForJudgeInput(TaskRow inputTask, AttemptRow attempt, JudgeRunRow judge, String code, String message) {
         TaskRow task = get(inputTask.id());
         if (!TaskState.JUDGING.name().equals(task.state())) return;
-        writerTermination.stopJudges(task);
-        // Final review is a verification outcome, not a field-validation issue and not a
-        // terminal task fault.  Keeping it visible in the existing verification panel makes
-        // the WAITING_INPUT reason discoverable without violating task/session error layering.
+        if (!writerTermination.stopJudges(task)) {
+            events.emit(task.id(), "task.judge_cleanup_pending", Map.of(
+                    "state", task.state(), "code", code, "message", safeMessage(message)));
+            return;
+        }
+        judgeBatches.findRunning(task.id()).ifPresent(batch -> judgeBatches.transition(
+                batch.id(), io.opencode.loopper.domain.JudgeReviewBatchState.WAITING_INPUT));
         recordError(task, null, attempt, null, ErrorLayer.VERIFICATION, code, message, false,
                 Map.of("judgeRunId", judge == null ? "" : judge.id(), "judgeRole", judge == null ? "" : judge.role(),
                         "resolution", TaskState.WAITING_INPUT.name()));
@@ -2346,44 +2378,12 @@ public class TaskService {
         return decision;
     }
 
-    private ModelResponseMode judgeResponseMode(TaskRow task, String role, LoopSpec spec) {
-        JudgeRunRow previous = mapper.latestJudgeRun(task.id(), role).orElse(null);
-        if (previous != null && ModelResponseMode.JSON_SCHEMA.name().equals(previous.responseMode())
-                && JudgeRunState.SESSION_ERROR.name().equals(previous.state())
-                && previous.reason() != null
-                && (previous.reason().startsWith("OPENCODE_STRUCTURED_FORMAT_UNSUPPORTED:")
-                || previous.reason().startsWith("OPENCODE_STRUCTURED_OUTPUT_FAILED:"))) {
-            return ModelResponseMode.TEXT_MARKER;
-        }
-        OpenCodeClient.StructuredOutputCapability capability = openCode.structuredOutputCapability(
-                judgeModel(spec, ModelResponseMode.JSON_SCHEMA));
-        return capability.transport() == OpenCodeClient.CapabilityState.UNAVAILABLE
-                || capability.selectedModel() == OpenCodeClient.CapabilityState.UNAVAILABLE
-                ? ModelResponseMode.TEXT_MARKER : ModelResponseMode.JSON_SCHEMA;
-    }
-
-    private String judgeOutput(JudgeRunRow judge, OpenCodeClient.OpenCodeSession remote) {
-        if (!ModelResponseMode.JSON_SCHEMA.name().equals(judge.responseMode())) return openCode.sessionOutput(remote);
-        OpenCodeClient.SessionResult result = openCode.sessionResult(remote);
-        if (result.structuredRetryCount() != 0) {
-            throw new SessionFailure("OPENCODE_STRUCTURED_RETRY_UNEXPECTED",
-                    "OpenCode performed an unbudgeted structured-output retry");
-        }
-        if (result.hasStructured()) return write(result.structured());
-        String rawOutput = openCode.sessionOutput(remote);
-        if (judgeDecisions.isLabeled(rawOutput)) return rawOutput;
-        String detail = result.errorDetail() != null && !result.errorDetail().isBlank() ? result.errorDetail()
-                : result.errorType() != null && !result.errorType().isBlank() ? result.errorType()
-                : "OpenCode completed without the requested structured Judge object";
-        throw new SessionFailure("OPENCODE_STRUCTURED_OUTPUT_FAILED", detail);
-    }
-
     private String roleTitle(String role) { return "REQUIREMENT".equals(role) ? "Requirement Judge" : "Risk Judge"; }
     private JudgeRunRow judgeState(JudgeRunRow row, String externalSessionId, JudgeRunState state, String verdict, String reason,
                                    String rawOutput, String endedAt) {
         return new JudgeRunRow(row.id(), row.taskId(), row.attemptId(), row.role(), row.ordinal(), externalSessionId, state.name(),
                 verdict, safeNullable(reason), rawOutput, row.createdAt(), endedAt, row.version(),
-                row.responseMode(), row.responseSchemaId());
+                row.responseMode(), row.responseSchemaId(), row.reviewBatchId(), row.sourceRevision());
     }
     private void updateJudge(JudgeRunRow row) {
         JudgeRunRow current = mapper.findJudgeRun(row.id()).orElseThrow(() -> new NotFoundException("Judge run not found: " + row.id()));
@@ -2406,7 +2406,7 @@ public class TaskService {
         if (TaskState.valueOf(current.state()).terminal()) return;
         taskStates.cancelRetrySchedule(current.id(), RETRY_CANCELLED);
         boolean writersStopped = writerTermination.stopSessions(current);
-        writerTermination.stopJudges(current);
+        writersStopped = writerTermination.stopJudgesForTaskFailure(current) && writersStopped;
         // The task-fatal boundary closes every active attempt. Some failures are
         // discovered before a caller has an AttemptRow reference (for example a
         // malformed persisted verifier), but no child may remain RUNNING after

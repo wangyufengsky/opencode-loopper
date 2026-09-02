@@ -328,6 +328,10 @@ public final class CandidateRuntimeBindingService implements CandidateRunGuard {
             validateProjectConventionOwner(run);
             return;
         }
+        if (run.candidateKind() == MachineCandidateKind.JUDGE_DECISION_V1) {
+            validateJudgeOwner(run);
+            return;
+        }
         if (run.candidateKind() != MachineCandidateKind.ACCEPTANCE_CLOSED_CHOICE_V7) {
             throw new ConflictException("CANDIDATE_KIND_NOT_INTEGRATED",
                     "Candidate kind is not connected to an authoritative owner adapter");
@@ -435,6 +439,44 @@ public final class CandidateRuntimeBindingService implements CandidateRunGuard {
                 || !sourceAnchorMatches || !stackAnchorMatches || !evidenceAnchorMatches) {
             throw new ConflictException("CANDIDATE_SOURCE_REVISION_STALE",
                     "Frozen Convention source or evidence snapshot has changed");
+        }
+    }
+
+    private void validateJudgeOwner(MachineCandidateSubmission.RunSnapshot run) {
+        var owner = mapper.findJudgeRun(run.owner().id())
+                .orElseThrow(() -> new ConflictException("CANDIDATE_OWNER_MISSING",
+                        "Judge candidate owner no longer exists"));
+        if (!run.scope().id().equals(owner.taskId()) || owner.version() != run.ownerVersion()
+                || !"INTERNAL_MCP".equals(owner.responseMode()) || owner.sourceRevision() == null
+                || owner.sourceRevision() != run.sourceRevision()) {
+            throw new ConflictException("CANDIDATE_OWNER_REVISION_STALE",
+                    "Judge candidate owner, task scope, or source revision changed");
+        }
+        if (!"RUNNING".equals(owner.state()) || !run.externalSessionId().equals(owner.externalSessionId())) {
+            throw new ConflictException("CANDIDATE_OWNER_STATE_INVALID",
+                    "Judge candidate owner is no longer running on the bound Session");
+        }
+        var snapshot = mapper.findJudgeCandidateSourceSnapshot(run.runId())
+                .orElseThrow(() -> new ConflictException("CANDIDATE_SOURCE_REVISION_STALE",
+                        "Frozen Judge source snapshot is missing"));
+        var batch = owner.reviewBatchId() == null ? null
+                : mapper.findJudgeReviewBatch(owner.reviewBatchId()).orElse(null);
+        boolean hashes = !blank(snapshot.sourcePrompt()) && !blank(snapshot.sourcePromptSha256())
+                && snapshot.sourcePromptSha256().equals(sha256(snapshot.sourcePrompt()))
+                && !blank(snapshot.canonicalEvidenceJson()) && !blank(snapshot.evidenceSha256())
+                && snapshot.evidenceSha256().equals(sha256(snapshot.canonicalEvidenceJson()));
+        if (batch == null || !"RUNNING".equals(batch.state())
+                || !run.runId().equals(snapshot.candidateRunId())
+                || !owner.id().equals(snapshot.judgeRunId()) || !owner.taskId().equals(snapshot.taskId())
+                || !batch.id().equals(snapshot.reviewBatchId())
+                || !batch.executionCycleId().equals(snapshot.executionCycleId())
+                || !owner.attemptId().equals(snapshot.finalAttemptId())
+                || !owner.role().equals(snapshot.role()) || owner.ordinal() != snapshot.ordinal()
+                || run.sourceRevision() != snapshot.sourceRevision()
+                || run.ownerVersion() != snapshot.preparedOwnerVersion() + 1
+                || !run.contractVersion().equals(snapshot.contractVersion()) || !hashes) {
+            throw new ConflictException("CANDIDATE_SOURCE_REVISION_STALE",
+                    "Frozen Judge batch, source, or evidence snapshot changed");
         }
     }
 

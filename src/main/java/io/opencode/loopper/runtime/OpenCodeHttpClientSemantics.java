@@ -22,6 +22,7 @@ final class OpenCodeHttpClientSemantics {
                 || profile == OpenCodeClient.SessionProfile.ROLLING_PACKAGE_CANDIDATE_READ_ONLY
                 || profile == OpenCodeClient.SessionProfile.REVIEWER_CANDIDATE_READ_ONLY
                 || profile == OpenCodeClient.SessionProfile.PROJECT_CONVENTION_CANDIDATE_READ_ONLY
+                || profile == OpenCodeClient.SessionProfile.JUDGE_CANDIDATE_READ_ONLY
                 || profile == OpenCodeClient.SessionProfile.DECOMPOSER_READ_ONLY
                 || profile == OpenCodeClient.SessionProfile.ROUTER_NO_TOOLS
                 || profile == OpenCodeClient.SessionProfile.COMPILER_READ_ONLY
@@ -40,7 +41,8 @@ final class OpenCodeHttpClientSemantics {
                 || profile == OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS
                 || profile == OpenCodeClient.SessionProfile.ROLLING_PACKAGE_CANDIDATE_READ_ONLY
                 || profile == OpenCodeClient.SessionProfile.REVIEWER_CANDIDATE_READ_ONLY
-                || profile == OpenCodeClient.SessionProfile.PROJECT_CONVENTION_CANDIDATE_READ_ONLY;
+                || profile == OpenCodeClient.SessionProfile.PROJECT_CONVENTION_CANDIDATE_READ_ONLY
+                || profile == OpenCodeClient.SessionProfile.JUDGE_CANDIDATE_READ_ONLY;
     }
 
     static boolean formatRejected(RestClientResponseException failure) {

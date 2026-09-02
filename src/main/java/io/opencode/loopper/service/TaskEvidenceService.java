@@ -293,7 +293,8 @@ final class TaskEvidenceService {
                         "designerMessageId", message.id(), "deliveryState", message.deliveryState()));
     }
 
-    String judgePrompt(TaskRow task, AttemptRow attempt, String role, LoopSpec loopSpec) {
+    JudgeCandidateSource judgeCandidateSource(
+            TaskRow task, AttemptRow attempt, String role, LoopSpec loopSpec) {
         String objectives = effectiveStages(task).stream()
                 .filter(stage -> StageState.SUCCEEDED.name().equals(stage.state()))
                 .map(stage -> "- 阶段 " + (stage.ordinal() + 1) + "：" + stage.objective())
@@ -303,7 +304,93 @@ final class TaskEvidenceService {
                 "No verification summary was persisted.");
         String diff = artifact(task.id(), attempt.id(), "GIT_DIFF", content -> true,
                 "No diff artifact was persisted.");
-        return JudgePromptPolicy.prompt(loopSpec, role, objectives, verification, diff, attempt.id());
+        String contract = write(loopSpec);
+        var evidence = new JudgeDecisionCompilation.EvidenceCatalog(List.of(
+                evidence("loop-spec", "LOOP_SPEC", "Confirmed LoopSpec contract", contract),
+                evidence("stage-objectives", "STAGE_OBJECTIVES",
+                        "Completed stage objectives", objectives),
+                evidence("verification-summary", "VERIFICATION_SUMMARY",
+                        "Persisted deterministic verification summary", verification),
+                evidence("task-diff", "GIT_DIFF", "Persisted task diff", diff),
+                evidence("final-attempt", "ATTEMPT",
+                        "Final successful attempt " + attempt.id(), attempt.id())));
+        return new JudgeCandidateSource(
+                JudgePromptPolicy.prompt(loopSpec, role, objectives, verification, diff, attempt.id()),
+                evidence);
+    }
+
+    FrozenJudgeSource freezeLegacyJudgeSource(
+            TaskRow task, AttemptRow attempt, io.opencode.loopper.persistence.JudgeRunRow judge,
+            JudgeCandidateSource source) {
+        if (task == null || attempt == null || judge == null || source == null
+                || !task.id().equals(judge.taskId()) || !attempt.id().equals(judge.attemptId())
+                || source.prompt() == null || source.prompt().isBlank()) {
+            throw invalidJudgeSource("Legacy Judge source identity is incomplete");
+        }
+        TaskArtifactRow existing = mapper.listTaskArtifacts(task.id()).stream()
+                .filter(row -> "JUDGE_SOURCE_SNAPSHOT".equals(row.kind())
+                        && judge.id().equals(row.judgeRunId())).findFirst().orElse(null);
+        String content = write(source);
+        String sourceSha256 = sha256(content);
+        if (existing != null) {
+            FrozenJudgeSource frozen = readFrozenJudgeSource(task, judge, existing);
+            if (!content.equals(existing.content())) {
+                throw invalidJudgeSource("Legacy Judge source changed after it was frozen");
+            }
+            return frozen;
+        }
+        persist(task, attempt.id(), judge.id(), "JUDGE_SOURCE_SNAPSHOT",
+                judge.role().toLowerCase() + "-judge-source.json", "application/json", content,
+                Map.of("schemaVersion", "JUDGE_SOURCE_SNAPSHOT_V1", "sourceSha256", sourceSha256,
+                        "authority", "SERVER_FROZEN_BEFORE_REMOTE_IO"));
+        TaskArtifactRow stored = mapper.listTaskArtifacts(task.id()).stream()
+                .filter(row -> "JUDGE_SOURCE_SNAPSHOT".equals(row.kind())
+                        && judge.id().equals(row.judgeRunId())).findFirst()
+                .orElseThrow(() -> invalidJudgeSource("Legacy Judge source snapshot disappeared"));
+        return readFrozenJudgeSource(task, judge, stored);
+    }
+
+    FrozenJudgeSource frozenLegacyJudgeSource(TaskRow task, io.opencode.loopper.persistence.JudgeRunRow judge) {
+        TaskArtifactRow stored = mapper.listTaskArtifacts(task.id()).stream()
+                .filter(row -> "JUDGE_SOURCE_SNAPSHOT".equals(row.kind())
+                        && judge.id().equals(row.judgeRunId())).findFirst()
+                .orElseThrow(() -> invalidJudgeSource("Legacy Judge source snapshot is missing"));
+        return readFrozenJudgeSource(task, judge, stored);
+    }
+
+    private FrozenJudgeSource readFrozenJudgeSource(
+            TaskRow task, io.opencode.loopper.persistence.JudgeRunRow judge, TaskArtifactRow row) {
+        try {
+            if (!task.id().equals(row.taskId()) || !judge.id().equals(row.judgeRunId())
+                    || !judge.attemptId().equals(row.attemptId())) {
+                throw invalidJudgeSource("Legacy Judge source snapshot owner changed");
+            }
+            String expectedSha256 = json.readTree(row.metadataJson()).path("sourceSha256").asText();
+            if (!expectedSha256.matches("[0-9a-f]{64}") || !expectedSha256.equals(sha256(row.content()))) {
+                throw invalidJudgeSource("Legacy Judge source snapshot hash changed");
+            }
+            JudgeCandidateSource source = json.readValue(row.content(), JudgeCandidateSource.class);
+            if (source == null || source.prompt() == null || source.prompt().isBlank()
+                    || source.evidenceCatalog() == null || !row.content().equals(write(source))) {
+                throw invalidJudgeSource("Legacy Judge source snapshot is not canonical");
+            }
+            return new FrozenJudgeSource(source, expectedSha256);
+        } catch (ConflictException invalid) {
+            throw invalid;
+        } catch (JacksonException invalid) {
+            throw invalidJudgeSource("Legacy Judge source snapshot cannot be decoded");
+        } catch (RuntimeException invalid) {
+            throw invalidJudgeSource("Legacy Judge source snapshot cannot be decoded");
+        }
+    }
+
+    private static ConflictException invalidJudgeSource(String detail) {
+        return new ConflictException("JUDGE_SOURCE_SNAPSHOT_INVALID", detail);
+    }
+
+    private JudgeDecisionCompilation.EvidenceItem evidence(
+            String id, String kind, String label, String content) {
+        return new JudgeDecisionCompilation.EvidenceItem(id, kind, label, sha256(content));
     }
 
     private String persistOnce(TaskRow task, String attemptId, String kind, String name,
@@ -401,4 +488,7 @@ final class TaskEvidenceService {
     }
 
     private String nullToEmpty(String value) { return value == null ? "" : value; }
+
+    record JudgeCandidateSource(String prompt, JudgeDecisionCompilation.EvidenceCatalog evidenceCatalog) { }
+    record FrozenJudgeSource(JudgeCandidateSource source, String sourceSha256) { }
 }

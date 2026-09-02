@@ -2,6 +2,7 @@ package io.opencode.loopper.service;
 
 import io.opencode.loopper.domain.AttemptState;
 import io.opencode.loopper.domain.ExecutionCycleState;
+import io.opencode.loopper.domain.JudgeReviewBatchState;
 import io.opencode.loopper.domain.LifecycleEvent;
 import io.opencode.loopper.domain.StageState;
 import io.opencode.loopper.domain.TaskQueueState;
@@ -70,7 +71,10 @@ final class TaskTerminalConsistencyService {
         boolean openQueue = mapper.findTaskQueue(taskId).map(row -> Set.of(
                 TaskQueueState.QUEUED.name(), TaskQueueState.ADMITTED.name()).contains(row.state())).orElse(false);
         boolean openCandidateCleanup = mapper.existsUnstoppedAcceptanceCandidateHandoffCleanupForTask(taskId);
-        if (openAttempt || openStage || openCycle || openQueue || openCandidateCleanup
+        boolean openJudge = !mapper.activeJudgeRuns(taskId).isEmpty();
+        boolean openJudgeBatch = mapper.listJudgeReviewBatches(taskId).stream()
+                .anyMatch(row -> JudgeReviewBatchState.RUNNING.name().equals(row.state()));
+        if (openAttempt || openStage || openCycle || openQueue || openCandidateCleanup || openJudge || openJudgeBatch
                 || mapper.findActiveWorkspaceLeaseByHolder(taskId).isPresent()) {
             throw new ConflictException("TASK_TERMINAL_CHILDREN_ACTIVE",
                     "任务仍有未收束的执行子状态、队列或租约，不能进入终态");

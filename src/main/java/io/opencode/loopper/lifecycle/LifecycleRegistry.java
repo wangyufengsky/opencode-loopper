@@ -25,6 +25,9 @@ public final class LifecycleRegistry {
                 set(SessionState.CREATING, SessionState.COMPLETED), set(SessionState.TIMED_OUT));
         register(LifecycleMachineType.JUDGE_RUN, JudgeRunState.class, judge(), set(JudgeRunState.CREATING),
                 set(JudgeRunState.FAILED, JudgeRunState.TIMED_OUT));
+        register(LifecycleMachineType.JUDGE_REVIEW_BATCH, JudgeReviewBatchState.class, machine(LifecycleMachineType.JUDGE_REVIEW_BATCH, JudgeReviewBatchState.class)
+                .transition(JudgeReviewBatchState.RUNNING, COMPLETE, JudgeReviewBatchState.COMPLETED).transition(JudgeReviewBatchState.RUNNING, REQUIRE_INPUT, JudgeReviewBatchState.WAITING_INPUT)
+                .transition(JudgeReviewBatchState.RUNNING, CANCEL, JudgeReviewBatchState.CANCELLED).build(), set(JudgeReviewBatchState.RUNNING), Set.of());
         register(LifecycleMachineType.LOOP_DRAFT, LoopDraftStatus.class, draft(), set(LoopDraftStatus.DRAFT_READY),
                 set(LoopDraftStatus.DRAFTING, LoopDraftStatus.HANDOFF_FAILED));
         register(LifecycleMachineType.DESIGNER_SESSION, DesignerSessionState.class, designer(),

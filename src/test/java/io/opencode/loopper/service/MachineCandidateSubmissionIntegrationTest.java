@@ -974,7 +974,7 @@ class MachineCandidateSubmissionIntegrationTest {
     }
 
     @Test
-    void rollingReviewerAndConventionAreIntegratedWhileRemainingReservedKindsFailClosedUntilTheirAdaptersExist() {
+    void rollingReviewerConventionAndJudgeKindsExposeTheirIntegratedTypedContracts() {
         assertThat(MachineCandidateKind.ROLLING_PACKAGE_PLAN_V1.maximumAttempts()).isEqualTo(3);
         assertThat(MachineCandidateKind.REVIEWER_REPORT_V1.maximumAttempts()).isEqualTo(3);
         assertThat(MachineCandidateKind.PROJECT_CONVENTION_V1.maximumAttempts()).isEqualTo(3);
@@ -1009,19 +1009,15 @@ class MachineCandidateSubmissionIntegrationTest {
                     assertThat(contract.ownerType())
                             .isEqualTo(MachineCandidateSubmission.CandidateOwnerType.PROJECT_CONVENTION_DRAFT);
                 });
-
-        List<MachineCandidateSubmission.OpenCommand> commands = List.of(
-                futureRun("future-judge", MachineCandidateSubmission.CandidateScope.task("task"),
-                        MachineCandidateSubmission.CandidateOwnerRef.judgeRun("judge"),
-                        MachineCandidateKind.JUDGE_DECISION_V1, 2));
-
-        for (MachineCandidateSubmission.OpenCommand command : commands) {
-            assertThatThrownBy(() -> submissions.open(command))
-                    .isInstanceOfSatisfying(BadRequestException.class,
-                            failure -> assertThat(failure.code()).isEqualTo("CANDIDATE_KIND_NOT_INTEGRATED"));
-        }
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ai_candidate_submission_run WHERE id LIKE 'future-%'",
-                Integer.class)).isZero();
+        assertThat(MachineCandidateProtocolPolicy.contract(MachineCandidateKind.JUDGE_DECISION_V1))
+                .satisfies(contract -> {
+                    assertThat(contract.integrated()).isTrue();
+                    assertThat(contract.fallbackAllowed()).isFalse();
+                    assertThat(contract.scopeType())
+                            .isEqualTo(MachineCandidateSubmission.CandidateScopeType.TASK);
+                    assertThat(contract.ownerType())
+                            .isEqualTo(MachineCandidateSubmission.CandidateOwnerType.JUDGE_RUN);
+                });
     }
 
     @Test
@@ -1432,14 +1428,6 @@ class MachineCandidateSubmissionIntegrationTest {
                 MachineCandidateSubmission.CandidateOwnerRef.designWorkPackage("wp"),
                 MachineCandidateKind.PACKAGE_DESIGN_V1, "PACKAGE_DESIGN", 1, 0,
                 LEGACY, "PACKAGE_DESIGN_V1", "generation-1", "remote-1", maxAttempts);
-    }
-
-    private MachineCandidateSubmission.OpenCommand futureRun(
-            String id, MachineCandidateSubmission.CandidateScope scope,
-            MachineCandidateSubmission.CandidateOwnerRef owner, MachineCandidateKind kind, int maxAttempts) {
-        return new MachineCandidateSubmission.OpenCommand(
-                id, scope, owner, kind, kind.name(), 1, 0, LEGACY, kind.name(),
-                "generation-1", "remote-1", maxAttempts);
     }
 
     private void configureCandidateAdapters() {

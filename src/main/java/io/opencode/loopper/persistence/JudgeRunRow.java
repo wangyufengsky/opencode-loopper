@@ -10,13 +10,22 @@ import org.apache.ibatis.annotations.AutomapConstructor;
 public record JudgeRunRow(String id, String taskId, String attemptId, String role, int ordinal,
                           String externalSessionId, String state, String verdict, String reason,
                           String rawOutput, String createdAt, String endedAt, long version,
-                          String responseMode, String responseSchemaId) {
+                          String responseMode, String responseSchemaId,
+                          String reviewBatchId, Long sourceRevision) {
     @AutomapConstructor public JudgeRunRow { }
+
+    public JudgeRunRow(String id, String taskId, String attemptId, String role, int ordinal,
+                       String externalSessionId, String state, String verdict, String reason,
+                       String rawOutput, String createdAt, String endedAt, long version,
+                       String responseMode, String responseSchemaId) {
+        this(id, taskId, attemptId, role, ordinal, externalSessionId, state, verdict, reason,
+                rawOutput, createdAt, endedAt, version, responseMode, responseSchemaId, null, null);
+    }
 
     public JudgeRunRow(String id, String taskId, String attemptId, String role, int ordinal,
                        String externalSessionId, String state, String verdict, String reason,
                        String rawOutput, String createdAt, String endedAt, long version) {
         this(id, taskId, attemptId, role, ordinal, externalSessionId, state, verdict, reason,
-                rawOutput, createdAt, endedAt, version, "TEXT_MARKER", null);
+                rawOutput, createdAt, endedAt, version, "TEXT_MARKER", null, null, null);
     }
 }

@@ -26,6 +26,10 @@ final class GenericCandidateInternalLaunchPreIoGuard {
             requireProjectConvention(launch);
             return;
         }
+        if (kind == MachineCandidateKind.JUDGE_DECISION_V1) {
+            requireJudge(launch);
+            return;
+        }
         if (kind != MachineCandidateKind.REVIEWER_REPORT_V1) return;
         var owner = mapper.findAnalysisReport(launch.designerSessionId(), launch.analysisReportId())
                 .orElseThrow(GenericCandidateInternalLaunchPreIoGuard::stale);
@@ -42,6 +46,40 @@ final class GenericCandidateInternalLaunchPreIoGuard {
                 || launch.sourceRevision() != snapshot.sourceRevision()
                 || launch.preparedOwnerVersion() != snapshot.preparedOwnerVersion()
                 || !launch.contractVersion().equals(snapshot.contractVersion())) throw stale();
+    }
+
+    private void requireJudge(GenericCandidateInternalLaunchRow launch) {
+        var owner = mapper.findJudgeRun(launch.judgeRunId())
+                .orElseThrow(GenericCandidateInternalLaunchPreIoGuard::judgeStale);
+        var batch = owner.reviewBatchId() == null ? null
+                : mapper.findJudgeReviewBatch(owner.reviewBatchId()).orElse(null);
+        var snapshot = mapper.findJudgeCandidateSourceSnapshot(launch.candidateRunId())
+                .orElseThrow(GenericCandidateInternalLaunchPreIoGuard::judgeStale);
+        boolean sourceHash = !blank(snapshot.sourcePrompt()) && !blank(snapshot.sourcePromptSha256())
+                && snapshot.sourcePromptSha256().equals(sha256(snapshot.sourcePrompt()));
+        boolean evidenceHash = !blank(snapshot.canonicalEvidenceJson()) && !blank(snapshot.evidenceSha256())
+                && snapshot.evidenceSha256().equals(sha256(snapshot.canonicalEvidenceJson()));
+        if (!"JUDGE_RUN".equals(launch.ownerType()) || !Objects.equals(launch.ownerId(), owner.id())
+                || !Objects.equals(launch.taskId(), owner.taskId())
+                || !"JUDGE_DECISION_V1".equals(launch.workflowStep())
+                || !"JUDGE_DECISION_V1".equals(launch.contractVersion())
+                || launch.maxAttempts() != MachineCandidateKind.JUDGE_DECISION_V1.maximumAttempts()
+                || !"CREATING".equals(owner.state()) || owner.externalSessionId() != null
+                || owner.version() != launch.preparedOwnerVersion()
+                || !"INTERNAL_MCP".equals(owner.responseMode()) || owner.sourceRevision() == null
+                || owner.sourceRevision() != launch.sourceRevision() || batch == null
+                || !"RUNNING".equals(batch.state()) || !owner.taskId().equals(batch.taskId())
+                || !owner.attemptId().equals(batch.finalAttemptId())
+                || !launch.candidateRunId().equals(snapshot.candidateRunId())
+                || !owner.id().equals(snapshot.judgeRunId()) || !owner.taskId().equals(snapshot.taskId())
+                || !batch.id().equals(snapshot.reviewBatchId())
+                || !batch.executionCycleId().equals(snapshot.executionCycleId())
+                || !owner.attemptId().equals(snapshot.finalAttemptId())
+                || !owner.role().equals(snapshot.role()) || owner.ordinal() != snapshot.ordinal()
+                || launch.sourceRevision() != snapshot.sourceRevision()
+                || launch.preparedOwnerVersion() != snapshot.preparedOwnerVersion()
+                || !launch.contractVersion().equals(snapshot.contractVersion())
+                || !sourceHash || !evidenceHash) throw judgeStale();
     }
 
     private void requireProjectConvention(GenericCandidateInternalLaunchRow launch) {
@@ -107,5 +145,10 @@ final class GenericCandidateInternalLaunchPreIoGuard {
     private static ConflictException conventionStale() {
         return new ConflictException("PROJECT_CONVENTION_SOURCE_SNAPSHOT_PRE_IO_REQUIRED",
                 "Convention launch requires its exact immutable source and evidence snapshot before OpenCode I/O");
+    }
+
+    private static ConflictException judgeStale() {
+        return new ConflictException("JUDGE_SOURCE_SNAPSHOT_PRE_IO_REQUIRED",
+                "Judge launch requires its exact immutable batch, source, and evidence snapshot before OpenCode I/O");
     }
 }

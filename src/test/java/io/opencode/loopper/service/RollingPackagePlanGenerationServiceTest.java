@@ -1,6 +1,7 @@
 package io.opencode.loopper.service;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -97,7 +98,7 @@ class RollingPackagePlanGenerationServiceTest {
         when(mapper.findTaskPackagePlanRevision("plan-1")).thenReturn(Optional.of(running));
         MachineCandidateSubmission.RunSnapshot run = run();
         when(candidates.find(running)).thenReturn(Optional.of(run));
-        when(candidates.poll(running, Path.of("/tmp/snapshot"), false)).thenReturn(
+        when(candidates.poll(eq(running), eq(Path.of("/tmp/snapshot")), anyBoolean())).thenReturn(
                 RollingPackagePlanCandidateOrchestrator.Poll.failed(null, run,
                         "ROLLING_PACKAGE_ZERO_SUBMISSION", "no submission", "REMOTE_COMPLETED"));
 
@@ -114,7 +115,7 @@ class RollingPackagePlanGenerationServiceTest {
         when(mapper.findTaskPackagePlanRevision("plan-1")).thenReturn(Optional.of(running));
         MachineCandidateSubmission.RunSnapshot run = run();
         when(candidates.find(running)).thenReturn(Optional.of(run));
-        when(candidates.poll(running, Path.of("/tmp/snapshot"), false)).thenReturn(
+        when(candidates.poll(eq(running), eq(Path.of("/tmp/snapshot")), anyBoolean())).thenReturn(
                 RollingPackagePlanCandidateOrchestrator.Poll.disconnected(
                         null, run, "OPENCODE_ABORT_UNCONFIRMED", "uncertain"));
 
@@ -138,7 +139,7 @@ class RollingPackagePlanGenerationServiceTest {
         when(mapper.listGeneratingTaskPackagePlanRevisions()).thenReturn(List.of(disconnected));
         when(mapper.findTaskPackagePlanRevision("plan-1")).thenReturn(Optional.of(disconnected));
         when(candidates.find(disconnected)).thenReturn(Optional.of(acceptedRun));
-        when(candidates.poll(disconnected, Path.of("/tmp/snapshot"), false)).thenReturn(
+        when(candidates.poll(eq(disconnected), eq(Path.of("/tmp/snapshot")), anyBoolean())).thenReturn(
                 RollingPackagePlanCandidateOrchestrator.Poll.accepted(
                         null, acceptedRun, "ALREADY_ABSENT"));
         when(mapper.findRollingPackagePlanAcceptedResult("candidate-run")).thenReturn(Optional.of(accepted));

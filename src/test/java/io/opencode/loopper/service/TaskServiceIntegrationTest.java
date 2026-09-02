@@ -7,6 +7,7 @@ import io.opencode.loopper.domain.ErrorLayer;
 import io.opencode.loopper.domain.ExecutionStrategy;
 import io.opencode.loopper.domain.ImplementationKind;
 import io.opencode.loopper.domain.LoopSpec;
+import io.opencode.loopper.domain.MachineCandidateOutcome;
 import io.opencode.loopper.domain.StageKind;
 import io.opencode.loopper.domain.TaskFailure;
 import io.opencode.loopper.domain.TaskState;
@@ -26,6 +27,8 @@ import io.opencode.loopper.persistence.TaskExecutionCycleRow;
 import io.opencode.loopper.persistence.TaskRow;
 import io.opencode.loopper.persistence.WorkspaceLeaseRow;
 import io.opencode.loopper.runtime.FakeOpenCodeClient;
+import io.opencode.loopper.runtime.InternalMcpCredentialProvider;
+import io.opencode.loopper.runtime.InternalMcpRuntimeAccess;
 import io.opencode.loopper.runtime.OpenCodeClient;
 import io.opencode.loopper.verification.VerifierEngine;
 import io.opencode.loopper.verification.ArtifactMaterializationService;
@@ -73,6 +76,9 @@ class TaskServiceIntegrationTest {
     @Autowired private JdbcTemplate jdbc;
     @Autowired private LoopperProperties properties;
     @Autowired private TaskEventHub taskEvents;
+    @Autowired private MachineCandidateSubmission candidateSubmissions;
+    @Autowired private InternalMcpCredentialProvider internalMcpCredentials;
+    @Autowired private InternalMcpRuntimeAccess internalMcpRuntime;
     @MockitoSpyBean private VerifierEngine verifierEngine;
     @TempDir Path temp;
 
@@ -80,6 +86,7 @@ class TaskServiceIntegrationTest {
     void resetDatabase() {
         flyway.clean(); flyway.migrate();
         ((FakeOpenCodeClient) openCode).reset();
+        properties.getInternalCandidate().setJudgeDecisionV1Enabled(false);
     }
 
     @Test
@@ -524,6 +531,31 @@ class TaskServiceIntegrationTest {
         assertThat(tasks.judges(task.id()).stream().filter(row -> row.id().equals(risk.id())).findFirst().orElseThrow().state())
                 .isEqualTo("RUNNING");
         assertThat(tasks.errors(task.id())).noneMatch(error -> error.code().equals("BUDGET_TOKEN_LIMIT_REACHED"));
+    }
+
+    @Test
+    void softBudgetBlocksBeforeCreatingJudgeBatchOrReadOnlySessions() throws Exception {
+        ProjectRow project = projects.create("judge-preflight-budget", gitProject());
+        LoopSpec limited = new LoopSpec("v1", project.id(), "Budget before judges", null,
+                List.of(new LoopSpec.StageSpec("Check README", null, null, null,
+                        List.of(new LoopSpec.VerifierSpec("FILE_EXISTS", null, "README.md", null, null, null, null)))),
+                null, null, null, null, new LoopSpec.BudgetSpec(10L, null, null));
+        TaskRow task = drafts.confirm(drafts.create(limited).id(), "judge preflight budget gate");
+        tasks.start(task.id());
+        ExecutionSessionRow implementation = mapper.listSessions(task.id()).getFirst();
+        mapper.insertSessionUsage(new SessionUsageRow("judge-preflight-usage", task.id(), implementation.id(), null,
+                "judge-preflight-message", "usage:judge-preflight", "provider", "model", 4L, 6L, 10L,
+                null, null, true, Instant.now().toString()));
+        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
+        int readOnlyCalls = fake.createReadOnlySessionCalls();
+
+        TaskRow waiting = tasks.verify(task.id());
+
+        assertThat(waiting.state()).isEqualTo("WAITING_INPUT");
+        assertThat(tasks.judges(task.id())).isEmpty();
+        assertThat(mapper.listJudgeReviewBatches(task.id())).isEmpty();
+        assertThat(fake.createReadOnlySessionCalls()).isEqualTo(readOnlyCalls);
+        assertThat(tasks.errors(task.id())).anyMatch(error -> error.code().equals("BUDGET_TOKEN_LIMIT_REACHED"));
     }
 
     @Test
@@ -1746,10 +1778,21 @@ class TaskServiceIntegrationTest {
                     .extracting(OpenCodeClient.FilePart::filename).containsExactly("acceptance.txt");
         });
         assertThat(tasks.artifacts(task.id())).extracting(artifact -> artifact.kind())
-                .contains("GIT_DIFF", "VERIFICATION_SUMMARY", "JUDGE_LOG_METADATA");
+                .contains("GIT_DIFF", "VERIFICATION_SUMMARY", "JUDGE_LOG_METADATA", "JUDGE_SOURCE_SNAPSHOT");
 
         FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
         var startedJudges = tasks.judges(task.id());
+        var sourceSnapshots = tasks.artifacts(task.id()).stream()
+                .filter(artifact -> "JUDGE_SOURCE_SNAPSHOT".equals(artifact.kind()))
+                .toList();
+        assertThat(sourceSnapshots).hasSize(2).allSatisfy(snapshot -> {
+            assertThat(snapshot.judgeRunId()).isNotBlank();
+            assertThat(snapshot.metadataJson()).contains("sourceSha256");
+        });
+        mapper.insertTaskArtifact(new TaskArtifactRow(UUID.randomUUID().toString(), task.id(),
+                startedJudges.getFirst().attemptId(), null, "GIT_DIFF", "post-launch-drift.json",
+                "application/json", "{\"changedPaths\":[\"post-launch-drift\"]}", "{}",
+                Instant.now().plusSeconds(30).toString()));
         fake.setSessionUsage(startedJudges.get(0).externalSessionId(), List.of(new OpenCodeClient.UsageRecord(
                 "requirement-message", "provider", "model", 3L, 5L, null, new BigDecimal("0.12"), "CNY", true)));
         fake.setSessionUsage(startedJudges.get(1).externalSessionId(), List.of(new OpenCodeClient.UsageRecord(
@@ -1762,6 +1805,13 @@ class TaskServiceIntegrationTest {
             assertThat(judge.rawOutput()).contains("PASS");
         });
         assertThat(tasks.artifacts(task.id())).extracting(artifact -> artifact.kind()).contains("JUDGE_RESULT");
+        for (TaskArtifactRow snapshot : sourceSnapshots) {
+            String sourceSha = new tools.jackson.databind.ObjectMapper().readTree(snapshot.metadataJson())
+                    .path("sourceSha256").asText();
+            assertThat(tasks.artifacts(task.id())).filteredOn(artifact -> "JUDGE_RESULT".equals(artifact.kind())
+                            && snapshot.judgeRunId().equals(artifact.judgeRunId()))
+                    .singleElement().satisfies(result -> assertThat(result.metadataJson()).contains(sourceSha));
+        }
         assertThat(mapper.eventsAfter(task.id(), 0)).anySatisfy(event -> {
             assertThat(event.type()).isEqualTo("AI_OUTPUT_NORMALIZED");
             assertThat(event.payloadJson()).contains("WRAPPER_TOLERATED");
@@ -1784,6 +1834,125 @@ class TaskServiceIntegrationTest {
         assertThat(tasks.get(task.id()).state()).isEqualTo("AWAITING_DECISION");
         assertThat(tasks.attempts(task.id())).hasSize(attemptsAfterSuccess);
         assertThat(tasks.errors(task.id())).hasSize(errorsAfterSuccess);
+    }
+
+    @Test
+    void judgeCandidateUsesMcpOnlyRejectionCorrectionAndIgnoresFinalAssistantText() throws Exception {
+        properties.getInternalCandidate().setJudgeDecisionV1Enabled(true);
+        InternalMcpCredentialProvider.Credentials credentials = internalMcpCredentials.issue();
+        internalMcpRuntime.activate(credentials);
+        internalMcpRuntime.connected(credentials.generation());
+        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
+        fake.setManagedRuntime(credentials.generation(), credentials.serverName());
+        fake.holdProfileOpen(OpenCodeClient.SessionProfile.JUDGE_CANDIDATE_READ_ONLY, true);
+        fake.setJudgeOutput("{\"verdict\":\"BLOCKED\",\"reason\":\"Untrusted final assistant text\"}");
+        ProjectRow project = projects.create("judge-candidate", gitProject());
+        TaskRow task = drafts.confirm(drafts.create(judgeContractSpec(project.id())).id(),
+                "judge candidate authority");
+        tasks.start(task.id());
+
+        assertThat(tasks.verify(task.id()).state()).isEqualTo("JUDGING");
+        for (int i = 0; i < 20 && tasks.judges(task.id()).stream()
+                .anyMatch(judge -> judge.externalSessionId() == null); i++) tasks.pollJudges(task.id());
+        assertThat(tasks.judges(task.id())).hasSize(2).allSatisfy(judge -> {
+            assertThat(judge.responseMode()).isEqualTo("INTERNAL_MCP");
+            assertThat(judge.reviewBatchId()).isNotBlank();
+            assertThat(judge.sourceRevision()).isEqualTo(1L);
+            assertThat(judge.externalSessionId()).isNotBlank();
+            assertThat(fake.profileForSession(judge.externalSessionId()))
+                    .isEqualTo(OpenCodeClient.SessionProfile.JUDGE_CANDIDATE_READ_ONLY);
+            assertThat(fake.promptForSession(judge.externalSessionId()))
+                    .contains("JUDGE_DECISION_V1 PRIVATE SUBMISSION CONTRACT",
+                            "Do not return the candidate as final assistant text", "fallbackAllowed: false");
+        });
+
+        for (var judge : tasks.judges(task.id())) {
+            var launch = mapper.findGenericCandidateInternalLaunchForJudgeRun(judge.id()).orElseThrow();
+            var run = candidateSubmissions.find(launch.candidateRunId()).orElseThrow();
+            long revision = run.version();
+            if ("REQUIREMENT".equals(judge.role())) {
+                var rejected = candidateSubmissions.submit(new MachineCandidateSubmission.SubmitCommand(
+                        run.runId(), "reject-once", judgeCandidate(judge.role(), "MAYBE"), revision,
+                        MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP));
+                assertThat(rejected.outcome()).isEqualTo(MachineCandidateOutcome.REJECTED);
+                assertThat(rejected.retryable()).isTrue();
+                revision = rejected.submissionRevision();
+                assertThat(candidateSubmissions.find(run.runId())).hasValueSatisfying(current -> {
+                    assertThat(current.externalSessionId()).isEqualTo(judge.externalSessionId());
+                    assertThat(current.state().name()).isEqualTo("OPEN");
+                });
+            }
+            var accepted = candidateSubmissions.submit(new MachineCandidateSubmission.SubmitCommand(
+                    run.runId(), "accept-" + judge.role().toLowerCase(),
+                    judgeCandidate(judge.role(), "PASS"), revision,
+                    MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP));
+            assertThat(accepted.outcome()).isEqualTo(MachineCandidateOutcome.ACCEPTED);
+        }
+
+        for (int i = 0; i < 3 && "JUDGING".equals(tasks.get(task.id()).state()); i++) {
+            tasks.pollJudges(task.id());
+        }
+
+        assertThat(tasks.get(task.id()).state()).isEqualTo("AWAITING_DECISION");
+        assertThat(tasks.judges(task.id())).allSatisfy(judge -> {
+            assertThat(judge.state()).isEqualTo("COMPLETED");
+            assertThat(judge.verdict()).isEqualTo("PASS");
+            assertThat(judge.rawOutput()).contains("JUDGE_DECISION_V1", "loop-spec");
+            assertThat(judge.rawOutput()).doesNotContain("Untrusted final assistant text");
+            var launch = mapper.findGenericCandidateInternalLaunchForJudgeRun(judge.id()).orElseThrow();
+            assertThat(mapper.findJudgeCandidateAcceptedResult(launch.candidateRunId()))
+                    .hasValueSatisfying(result -> assertThat(result.settledJudgeRunId()).isEqualTo(judge.id()));
+        });
+        assertThat(mapper.listJudgeReviewBatches(task.id())).singleElement()
+                .satisfies(batch -> assertThat(batch.state()).isEqualTo("COMPLETED"));
+    }
+
+    @Test
+    void judgeCandidateSecurityRejectionStopsTheBatchWithoutStartingAFreshSession() throws Exception {
+        properties.getInternalCandidate().setJudgeDecisionV1Enabled(true);
+        InternalMcpCredentialProvider.Credentials credentials = internalMcpCredentials.issue();
+        internalMcpRuntime.activate(credentials);
+        internalMcpRuntime.connected(credentials.generation());
+        FakeOpenCodeClient fake = (FakeOpenCodeClient) openCode;
+        fake.setManagedRuntime(credentials.generation(), credentials.serverName());
+        fake.holdProfileOpen(OpenCodeClient.SessionProfile.JUDGE_CANDIDATE_READ_ONLY, true);
+        ProjectRow project = projects.create("judge-candidate-security", gitProject());
+        TaskRow task = drafts.confirm(drafts.create(judgeContractSpec(project.id())).id(),
+                "judge candidate security failure");
+        tasks.start(task.id());
+        assertThat(tasks.verify(task.id()).state()).isEqualTo("JUDGING");
+        for (int i = 0; i < 20 && tasks.judges(task.id()).stream()
+                .anyMatch(judge -> judge.externalSessionId() == null); i++) tasks.pollJudges(task.id());
+
+        var requirement = tasks.judges(task.id()).stream()
+                .filter(judge -> "REQUIREMENT".equals(judge.role())).findFirst().orElseThrow();
+        var launch = mapper.findGenericCandidateInternalLaunchForJudgeRun(requirement.id()).orElseThrow();
+        var run = candidateSubmissions.find(launch.candidateRunId()).orElseThrow();
+        var rejected = candidateSubmissions.submit(new MachineCandidateSubmission.SubmitCommand(
+                run.runId(), "security-rejection",
+                judgeCandidate(requirement.role(), "PASS")
+                        .replace("\"reason\"", "\"permission\":\"write\",\"reason\""),
+                run.version(), MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP));
+        assertThat(rejected.outcome()).isEqualTo(MachineCandidateOutcome.WAITING_INPUT);
+        assertThat(rejected.retryable()).isFalse();
+        int judgeCount = tasks.judges(task.id()).size();
+
+        for (int i = 0; i < 5 && "JUDGING".equals(tasks.get(task.id()).state()); i++) {
+            tasks.pollJudges(task.id());
+        }
+
+        assertThat(tasks.get(task.id()).state()).isEqualTo("WAITING_INPUT");
+        assertThat(tasks.judges(task.id())).hasSize(judgeCount);
+        assertThat(mapper.latestJudgeRun(task.id(), "REQUIREMENT")).hasValueSatisfying(judge -> {
+            assertThat(judge.id()).isEqualTo(requirement.id());
+            assertThat(judge.state()).isEqualTo("ABORTED");
+            assertThat(judge.reason()).startsWith("JUDGE_CANDIDATE_WAITING_INPUT:");
+        });
+        assertThat(tasks.errors(task.id())).anySatisfy(error -> {
+            assertThat(error.code()).isEqualTo("JUDGE_CANDIDATE_WAITING_INPUT");
+            assertThat(error.layer()).isEqualTo(ErrorLayer.VERIFICATION.name());
+            assertThat(error.retryable()).isFalse();
+        });
     }
 
     @Test
@@ -1965,12 +2134,26 @@ class TaskServiceIntegrationTest {
 
         assertThat(tasks.get(task.id()).state()).isEqualTo("WAITING_INPUT");
         assertThat(tasks.judges(task.id())).hasSize(2);
+        var firstBatch = mapper.listJudgeReviewBatches(task.id()).getFirst();
+        assertThat(firstBatch.generation()).isEqualTo(1);
+        assertThat(firstBatch.state()).isEqualTo("WAITING_INPUT");
+        assertThat(tasks.judges(task.id())).allSatisfy(judge ->
+                assertThat(judge.reviewBatchId()).isEqualTo(firstBatch.id()));
 
         fake.setJudgeOutput("判定：PASS\n理由：当前证据充分");
         TaskRow judging = tasks.retryJudges(task.id());
 
         assertThat(judging.state()).isEqualTo("JUDGING");
         assertThat(tasks.judges(task.id())).hasSize(4);
+        assertThat(mapper.listJudgeReviewBatches(task.id())).hasSize(2).satisfiesExactly(
+                batch -> {
+                    assertThat(batch.id()).isEqualTo(firstBatch.id());
+                    assertThat(batch.state()).isEqualTo("WAITING_INPUT");
+                },
+                batch -> {
+                    assertThat(batch.generation()).isEqualTo(2);
+                    assertThat(batch.state()).isEqualTo("RUNNING");
+                });
         assertThat(mapper.latestJudgeRun(task.id(), "REQUIREMENT")).hasValueSatisfying(judge -> {
             assertThat(judge.ordinal()).isEqualTo(2);
             assertThat(judge.state()).isEqualTo("RUNNING");
@@ -1982,10 +2165,47 @@ class TaskServiceIntegrationTest {
         assertThat(tasks.get(task.id()).state()).isEqualTo("AWAITING_DECISION");
         assertThat(mapper.latestJudgeRun(task.id(), "REQUIREMENT")).hasValueSatisfying(judge -> assertThat(judge.verdict()).isEqualTo("PASS"));
         assertThat(mapper.latestJudgeRun(task.id(), "RISK")).hasValueSatisfying(judge -> assertThat(judge.verdict()).isEqualTo("PASS"));
+        assertThat(mapper.listJudgeReviewBatches(task.id())).extracting(batch -> batch.state())
+                .containsExactly("WAITING_INPUT", "COMPLETED");
         assertThat(mapper.eventsAfter(task.id(), 0)).anySatisfy(event -> {
             assertThat(event.type()).isEqualTo("AI_OUTPUT_NORMALIZED");
             assertThat(event.payloadJson()).contains("LABELED_JUDGE_OUTPUT_NORMALIZED");
         });
+    }
+
+    @Test
+    void successfulContinuationUsesAFreshJudgeBatchInsteadOfReusingPriorCycleVerdicts() throws Exception {
+        ProjectRow project = projects.create("judge-continuation-batch", gitProject());
+        TaskRow task = drafts.confirm(drafts.create(spec(project.id())).id(), "fresh continuation judges");
+        tasks.start(task.id());
+        tasks.verify(task.id());
+        tasks.pollJudges(task.id());
+
+        assertThat(tasks.get(task.id()).state()).isEqualTo("AWAITING_DECISION");
+        var firstBatch = mapper.listJudgeReviewBatches(task.id()).getFirst();
+        assertThat(firstBatch.state()).isEqualTo("COMPLETED");
+        assertThat(tasks.judges(task.id())).hasSize(2);
+
+        StageRow restart = tasks.stages(task.id()).getFirst();
+        TaskRow continued = tasks.continueExecution(task.id(), restart.id(), "继续优化并重新验收");
+        assertThat(continued.state()).isEqualTo("RUNNING");
+        assertThat(tasks.verify(task.id()).state()).isEqualTo("JUDGING");
+
+        assertThat(mapper.listJudgeReviewBatches(task.id())).hasSize(2).satisfiesExactly(
+                batch -> assertThat(batch.id()).isEqualTo(firstBatch.id()),
+                batch -> {
+                    assertThat(batch.generation()).isEqualTo(2);
+                    assertThat(batch.state()).isEqualTo("RUNNING");
+                });
+        String secondBatchId = mapper.listJudgeReviewBatches(task.id()).get(1).id();
+        assertThat(tasks.judges(task.id())).hasSize(4);
+        assertThat(mapper.latestJudgeRunForBatchRole(secondBatchId, "REQUIREMENT")).isPresent();
+        assertThat(mapper.latestJudgeRunForBatchRole(secondBatchId, "RISK")).isPresent();
+
+        tasks.pollJudges(task.id());
+        assertThat(tasks.get(task.id()).state()).isEqualTo("AWAITING_DECISION");
+        assertThat(mapper.listJudgeReviewBatches(task.id())).extracting(batch -> batch.state())
+                .containsExactly("COMPLETED", "COMPLETED");
     }
 
     @Test
@@ -2266,6 +2486,14 @@ class TaskServiceIntegrationTest {
         scopeApprovals.resolve(taskId, request.taskVersion(), request.requestId(), decisions,
                 Duration.ofSeconds(10));
         return tasks.verify(taskId);
+    }
+
+    private String judgeCandidate(String role, String verdict) {
+        return """
+                {"contractVersion":"JUDGE_DECISION_V1","role":"%s","verdict":"%s",
+                 "reason":"Frozen evidence satisfies the %s Judge contract.",
+                 "evidenceIds":["loop-spec","verification-summary","task-diff"]}
+                """.formatted(role, verdict, role);
     }
 
     private LoopSpec spec(String projectId) {

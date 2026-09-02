@@ -38,7 +38,7 @@ class GenericCandidateInternalLaunchPreparerTest {
         when(openCode.prepareCandidateSessionCreationLocally(
                 any(Path.class), anyString(), any(), any(), anyString()))
                 .thenAnswer(invocation -> plan(invocation.getArgument(0), invocation.getArgument(1),
-                        invocation.getArgument(4)));
+                        invocation.getArgument(3), invocation.getArgument(4)));
         when(store.insert(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         GenericCandidateInternalLaunchPreparer.Prepared prepared = preparer.prepare(command);
@@ -55,22 +55,59 @@ class GenericCandidateInternalLaunchPreparerTest {
         verify(openCode, never()).createSession(any(OpenCodeClient.SessionCreationPlan.class));
     }
 
-    private OpenCodeClient.SessionCreationPlan plan(Path root, String baseTitle, String credential)
+    @Test
+    void acceptsJudgeCandidateReadOnlyProfileForTheGenericLaunchProtocol() throws Exception {
+        OpenCodeClient openCode = mock(OpenCodeClient.class);
+        GenericCandidateInternalLaunchStore store = mock(GenericCandidateInternalLaunchStore.class);
+        GenericCandidateInternalLaunchPlanCodec plans =
+                new GenericCandidateInternalLaunchPlanCodec(new ObjectMapper());
+        GenericCandidateInternalLaunchPreparer preparer = new GenericCandidateInternalLaunchPreparer(
+                openCode, store, plans, new AcceptanceCandidateCreationCredentialSource());
+        var command = new GenericCandidateInternalLaunchPreparer.PrepareCommand(
+                MachineCandidateKind.JUDGE_DECISION_V1,
+                MachineCandidateSubmission.CandidateScope.task("task"),
+                MachineCandidateSubmission.CandidateOwnerRef.judgeRun("judge-run"),
+                11, 3, projectRoot, null,
+                OpenCodeClient.SessionProfile.JUDGE_CANDIDATE_READ_ONLY);
+        when(store.findActive(command.owner(), "JUDGE_DECISION_V1")).thenReturn(Optional.empty());
+        when(openCode.prepareCandidateSessionCreationLocally(
+                any(Path.class), anyString(), any(), any(), anyString()))
+                .thenAnswer(invocation -> plan(invocation.getArgument(0), invocation.getArgument(1),
+                        invocation.getArgument(3), invocation.getArgument(4)));
+        when(store.insert(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        GenericCandidateInternalLaunchPreparer.Prepared prepared = preparer.prepare(command);
+
+        assertThat(prepared.row().candidateKind()).isEqualTo("JUDGE_DECISION_V1");
+        assertThat(prepared.row().taskId()).isEqualTo("task");
+        assertThat(prepared.row().judgeRunId()).isEqualTo("judge-run");
+        assertThat(prepared.row().profile()).isEqualTo("JUDGE_CANDIDATE_READ_ONLY");
+        assertThat(prepared.plan().profile())
+                .isEqualTo(OpenCodeClient.SessionProfile.JUDGE_CANDIDATE_READ_ONLY);
+    }
+
+    private OpenCodeClient.SessionCreationPlan plan(Path root, String baseTitle,
+            OpenCodeClient.SessionProfile profile, String credential)
             throws Exception {
         String server = "loopper_internal_generic";
         List<OpenCodeClient.SessionPermissionRule> permissions = List.of(
                 new OpenCodeClient.SessionPermissionRule("*", "*", "deny"),
                 new OpenCodeClient.SessionPermissionRule("read", "*", "allow"),
+                new OpenCodeClient.SessionPermissionRule("glob", "*", "allow"),
+                new OpenCodeClient.SessionPermissionRule("grep", "*", "allow"),
+                new OpenCodeClient.SessionPermissionRule("read", ".env", "deny"),
+                new OpenCodeClient.SessionPermissionRule("read", ".env.*", "deny"),
+                new OpenCodeClient.SessionPermissionRule("read", ".env.example", "allow"),
                 new OpenCodeClient.SessionPermissionRule("external_directory", "*", "deny"),
                 new OpenCodeClient.SessionPermissionRule(server + "_submit_candidate", "*", "allow"));
         String title = OpenCodeClient.recoveryTitle(baseTitle, credential);
         String digest = OpenCodeClient.permissionPolicyDigest(permissions);
         String request = OpenCodeClient.sessionCreationRequestSha256(
                 root.toRealPath(), title, "generation-1", true, server, "a".repeat(64), null,
-                OpenCodeClient.SessionProfile.REVIEWER_CANDIDATE_READ_ONLY, digest, credential);
+                profile, digest, credential);
         return OpenCodeClient.SessionCreationPlan.fromPersisted(
                 root.toRealPath(), title, "generation-1", true, server, "a".repeat(64), null,
-                OpenCodeClient.SessionProfile.REVIEWER_CANDIDATE_READ_ONLY,
+                profile,
                 permissions, digest, credential, request);
     }
 }

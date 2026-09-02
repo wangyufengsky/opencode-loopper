@@ -143,6 +143,32 @@ class OpenCodePermissionPolicyTest {
     }
 
     @Test
+    void judgeCandidateAllowsReadEvidenceAndOnlyTheExactInternalSubmissionTool() {
+        var rules = OpenCodePermissionPolicy.rules(
+                OpenCodeClient.SessionProfile.JUDGE_CANDIDATE_READ_ONLY,
+                java.util.List.of("github", "loopper_internal_generation"),
+                "loopper_internal_generation");
+
+        assertThat(rules).contains(
+                java.util.Map.of("permission", "*", "pattern", "*", "action", "deny"),
+                java.util.Map.of("permission", "read", "pattern", "*", "action", "allow"),
+                java.util.Map.of("permission", "glob", "pattern", "*", "action", "allow"),
+                java.util.Map.of("permission", "grep", "pattern", "*", "action", "allow"),
+                java.util.Map.of("permission", "external_directory", "pattern", "*", "action", "deny"),
+                java.util.Map.of("permission", "loopper_internal_generation_submit_candidate",
+                        "pattern", "*", "action", "allow"));
+        assertThat(rules.stream().filter(rule -> "allow".equals(rule.get("action")))
+                .map(rule -> rule.get("permission")).toList())
+                .containsExactly("read", "glob", "grep", "read",
+                        "loopper_internal_generation_submit_candidate");
+        assertThat(rules).noneMatch(rule -> "allow".equals(rule.get("action"))
+                && (java.util.Set.of("bash", "write", "edit", "question", "todowrite")
+                        .contains(rule.get("permission"))
+                || "github_*".equals(rule.get("permission"))
+                || "loopper_internal_generation_*".equals(rule.get("permission"))));
+    }
+
+    @Test
     void interactivePackageDesignCandidateAddsQuestionWithoutUserMcp() {
         var rules = OpenCodePermissionPolicy.rules(
                 OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY,
@@ -183,6 +209,7 @@ class OpenCodePermissionPolicyTest {
                     || profile == OpenCodeClient.SessionProfile.ROLLING_PACKAGE_CANDIDATE_READ_ONLY
                     || profile == OpenCodeClient.SessionProfile.REVIEWER_CANDIDATE_READ_ONLY
                     || profile == OpenCodeClient.SessionProfile.PROJECT_CONVENTION_CANDIDATE_READ_ONLY
+                    || profile == OpenCodeClient.SessionProfile.JUDGE_CANDIDATE_READ_ONLY
                     || profile == OpenCodeClient.SessionProfile.PACKAGE_DESIGN_CANDIDATE_INTERACTIVE_READ_ONLY) continue;
             var rules = OpenCodePermissionPolicy.rules(profile, java.util.List.of("project mcp"));
             assertThat(rules)

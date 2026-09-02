@@ -332,6 +332,23 @@ Judge row, read-only Session, or model call in that batch. `POST
 /api/loop-drafts/validate` and MCP return the same classification and planning
 result.
 
+V63 makes that review batch a durable authority boundary. One
+`judge_review_batch` binds the Task, current final-review Execution Cycle, final successful Attempt and source generation;
+for rolling packages the Cycle may reference the last frozen package Attempt without changing that Attempt's original Cycle;
+Requirement/Risk rows and role-local Session retries must retain its ID. A blocked or malformed
+decision closes the batch as `WAITING_INPUT`; explicit local retry creates a new generation, and
+the aggregate decision reads only the current batch, never a PASS from another generation. The
+default-off `JUDGE_DECISION_V1` Candidate route freezes the exact prompt and evidence catalog before
+remote I/O, accepts only role/verdict/reason/closed evidence IDs, and compiles both MCP and Legacy
+inputs through one deterministic core. Candidate final text is ignored, and accepted results require
+positive Session termination proof before settling Judge completion. CR/LF/TAB in `reason` and
+ordinary extra fields are bounded same-Session mechanical corrections; NUL/BEL/C1 controls, mixed
+or oversized dangerous controls, permission and semantic server-authority fields remain non-retryable security
+failures and move the stopped current batch to local input rather than automatic Session retry. Legacy review stores
+an immutable prompt/evidence/SHA artifact before remote create and reuses it at completion/finalization. Cancellation, Task failure,
+timeout, interaction, transport, security, generation, budget and uncertain-stop paths close or
+retain the batch fail-closed; they cannot synthesize a successful final review.
+
 Every v2 Stage also declares `implementationKind`. A `JAVA_PRODUCTION` plan is
 invalid unless it includes an unskipped focused Maven/Gradle `PROCESS TEST`,
 concrete `testTargets`, and mappings from that test to all `MACHINE`/`BOTH`

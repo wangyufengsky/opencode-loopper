@@ -379,6 +379,14 @@ class DesignerSessionMcpIntegrationTest {
                 .containsExactly("FACT_FROZEN", "FACT_FROZEN", "FACT_FROZEN");
         assertThat(tasks.judges(task.id())).extracting(row -> row.role())
                 .containsExactlyInAnyOrder("REQUIREMENT", "RISK");
+        var reviewBatch = mapper.listJudgeReviewBatches(task.id()).getFirst();
+        var reviewCycle = mapper.findTaskExecutionCycle(reviewBatch.executionCycleId()).orElseThrow();
+        var finalPackageAttempt = mapper.findAttempt(reviewBatch.finalAttemptId()).orElseThrow();
+        assertThat(reviewCycle.cycleType()).isEqualTo("FINAL_REVIEW");
+        assertThat(reviewCycle.state()).isEqualTo("RUNNING");
+        assertThat(finalPackageAttempt.executionCycleId()).isNotEqualTo(reviewCycle.id());
+        assertThat(mapper.listPackageFactSnapshots(task.id())).anySatisfy(fact ->
+                assertThat(fact.successfulAttemptId()).isEqualTo(finalPackageAttempt.id()));
         assertThat(mapper.listTaskSpecRevisions(task.id())).hasSize(3);
         assertThat(mapper.listStages(task.id())).hasSize(3);
         for (String packageId : List.of("WP-1", "WP-2", "WP-3")) {

@@ -12,6 +12,7 @@ import io.opencode.loopper.domain.LifecycleEvent;
 import io.opencode.loopper.domain.StageState;
 import io.opencode.loopper.domain.TaskState;
 import io.opencode.loopper.persistence.LoopperMapper;
+import io.opencode.loopper.persistence.JudgeReviewBatchRow;
 import io.opencode.loopper.persistence.StageRow;
 import io.opencode.loopper.persistence.TaskRow;
 import java.util.List;
@@ -77,6 +78,20 @@ class TaskTerminalConsistencyServiceTest {
         verify(fixture.states, never()).updateTask(any(), any(), any());
     }
 
+    @Test
+    void completionRejectsRunningJudgeReviewBatchEvenWhenNoJudgeRowIsActive() {
+        Fixture fixture = new Fixture();
+        when(fixture.mapper.listJudgeReviewBatches(fixture.task.id())).thenReturn(List.of(
+                new JudgeReviewBatchRow("batch", fixture.task.id(), "cycle", "attempt", 1,
+                        "RUNNING", "now", "now", null, 0)));
+
+        assertThatThrownBy(() -> fixture.service.complete(fixture.task, LifecycleEvent.COMPLETE, Map.of()))
+                .isInstanceOfSatisfying(ConflictException.class, failure ->
+                        org.assertj.core.api.Assertions.assertThat(failure.code())
+                                .isEqualTo("TASK_TERMINAL_CHILDREN_ACTIVE"));
+        verify(fixture.states, never()).updateTask(any(), any(), any());
+    }
+
     private static final class Fixture {
         private final LoopperMapper mapper = mock(LoopperMapper.class);
         private final TaskStateStore states = mock(TaskStateStore.class);
@@ -92,6 +107,8 @@ class TaskTerminalConsistencyServiceTest {
             when(mapper.listAttempts(task.id())).thenReturn(List.of());
             when(mapper.listStages(task.id())).thenReturn(List.of());
             when(mapper.listTaskExecutionCycles(task.id())).thenReturn(List.of());
+            when(mapper.listJudgeReviewBatches(task.id())).thenReturn(List.of());
+            when(mapper.activeJudgeRuns(task.id())).thenReturn(List.of());
             when(mapper.findTaskQueue(task.id())).thenReturn(Optional.empty());
             when(mapper.findActiveWorkspaceLeaseByHolder(task.id())).thenReturn(Optional.empty());
             service = new TaskTerminalConsistencyService(mapper, states, rolling, designers, transactionManager);

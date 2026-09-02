@@ -22,7 +22,10 @@ final class MachineCandidateProtocolPolicy {
                     MachineCandidateSubmission.CandidateOwnerType.ANALYSIS_REPORT, false, true);
             case PROJECT_CONVENTION_V1 -> project(
                     MachineCandidateSubmission.CandidateOwnerType.PROJECT_CONVENTION_DRAFT);
-            case JUDGE_DECISION_V1 -> task(MachineCandidateSubmission.CandidateOwnerType.JUDGE_RUN);
+            case JUDGE_DECISION_V1 -> new Contract(
+                    MachineCandidateSubmission.CandidateScopeType.TASK,
+                    MachineCandidateSubmission.CandidateOwnerType.JUDGE_RUN,
+                    false, true);
         };
     }
 

@@ -10,7 +10,7 @@ spring:
           enabled: false
         protocol: STREAMABLE
         name: opencode-loopper
-        version: 0.3.17
+        version: 0.3.20
         type: SYNC
         instructions: >-
           Use the six Loopper tools only. Designer access is READ_ONLY; proposals synchronize
@@ -111,6 +111,8 @@ loopper:
     reviewer-report-v1-enabled: ${LOOPPER_REVIEWER_REPORT_CANDIDATE_V1_ENABLED:true}
     # Project-convention MCP submission remains opt-in until packaged real-model qualification succeeds.
     project-convention-v1-enabled: ${LOOPPER_PROJECT_CONVENTION_CANDIDATE_V1_ENABLED:false}
+    # Requirement/Risk Judge MCP submission remains opt-in until both roles pass packaged real-model qualification.
+    judge-decision-v1-enabled: ${LOOPPER_JUDGE_DECISION_CANDIDATE_V1_ENABLED:false}
   publication:
     # Comma-separated exact hosts. Only ambiguous SSH remotes use HTTP; an
     # explicit http:// or https:// remote always keeps its declared scheme.

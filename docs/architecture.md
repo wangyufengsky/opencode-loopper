@@ -514,8 +514,9 @@ the other kinds have no separate accepted-result table. V49 also reserves bounde
 shared durable internal-launch protocol for Reviewer, Convention and Judge. V58–V61 connect Reviewer
 behind a staged flag; after the isolated 0.3.13 real-model qualification that flag defaults on from 0.3.14.
 V62 connects Convention source capture, deterministic compilation, policy, accepted writer, Coordinator and
-restart recovery behind a default-off qualification flag. Judge still fails closed at application open until its
-own Coordinator, policy, accepted writer and qualification switch exists. Fallback compatibility is an explicit per-kind contract;
+restart recovery behind a default-off qualification flag. V63 connects Judge evidence generations, deterministic
+compilation, policy, accepted writer, Coordinator and restart recovery behind a separate default-off qualification
+flag. Fallback compatibility is an explicit per-kind contract;
 only `PACKAGE_DESIGN_V1` may request Markdown fallback.
 
 V57 separates the existing Acceptance `ACCEPTANCE_V55` launch from a new `GENERIC_V1` launch reference.
@@ -552,9 +553,35 @@ pre-dispatch managed-runtime or exact-lookup capability absence may transfer the
 Once create may have been attempted, zero submission, timeout, interaction, transport, security, generation,
 budget or uncertain-stop failures remain Candidate failures. The prompt must publish the exact current
 `expectedSubmissionRevision`, and a mechanical rejection may advance only with the tool-returned
-`submissionRevision`. The 0.3.17 flag defaults off until an isolated packaged-JAR real-model run proves
-private-tool use and same-Session correction; persisted run recovery ignores the
-current flag. Judge cannot inherit that future qualification.
+`submissionRevision`. Two isolated 0.3.17 packaged-JAR real-model runs proved private-tool use and first-pass
+acceptance, including one prompt-injection lure, but neither produced a mechanical rejection followed by
+same-Session correction. The flag therefore remains off; persisted run recovery ignores the current flag.
+
+V63 gives Requirement/Risk Judge the same dual-entry/single-core authority boundary without weakening the
+final-review gate. Each final-review attempt creates one immutable `judge_review_batch` anchored to the Task,
+active final-review Execution Cycle, final successful Attempt and source generation. For rolling packages, that
+Cycle references the last frozen package Attempt without rewriting the Attempt's original execution Cycle. Both roles and all role-local Session retries remain inside
+that batch; an explicit human retry first closes the old batch as `WAITING_INPUT` and creates a new generation.
+Decision aggregation reads only the latest current batch, so a Requirement PASS can never be paired with a Risk
+PASS from another evidence generation. Before any OpenCode I/O, each Judge freezes its exact bounded prompt and a
+canonical evidence catalog. An MCP payload may contain only
+`contractVersion/role/verdict/reason/evidenceIds`; evidence bodies, batch identity, stable IDs, lifecycle and final
+Task state remain server-owned. `JudgeDecisionLegacyAdapter` and the MCP decoder feed one
+`JudgeDecisionCompilation`, which validates role, closed evidence references and verdict semantics and renders the
+canonical decision. `JUDGE_CANDIDATE_READ_ONLY` grants `read/glob/grep` plus only the exact private submit tool.
+Assistant final text, post-run live repository reads and interactive input are never authority. Only a proven
+pre-dispatch managed-runtime or exact-lookup capability absence may create one fresh Legacy Judge Session. Once
+dispatch may have occurred, zero submission, timeout, interaction, transport, security, generation, budget and
+uncertain-stop failures remain Candidate failures. An immutable accepted result may settle a Judge as `COMPLETED`
+only after positive remote-stop proof; cancellation and Task failure close the active batch and candidate writers
+through the same termination protocol. In 0.3.20, CR/LF/TAB in `reason` and non-authority extra fields are bounded
+mechanical errors that return exact one-line/field guidance to the same Session. NUL, BEL, C1 controls, mixed
+or oversized dangerous controls, permission and semantic server-authority fields remain non-retryable security
+failures; after positive stop proof they close the current batch to local input instead of starting a fresh Session.
+Legacy Judges persist an immutable prompt/evidence/SHA artifact before remote creation, and completion/finalizer
+recovery must read that artifact rather than reconstruct current evidence. The 0.3.20 flag
+defaults off until both Requirement and Risk independently pass packaged-JAR real-model private-tool and
+same-Session correction qualification.
 
 V56 gives rolling replanning the same dual-entry/single-core boundary. The candidate
 contains only `packageKey/title/objective/replaces/dependencies/requirementRefs`;

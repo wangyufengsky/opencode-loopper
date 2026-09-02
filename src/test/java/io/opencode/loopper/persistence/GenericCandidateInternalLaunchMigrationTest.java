@@ -80,6 +80,7 @@ class GenericCandidateInternalLaunchMigrationTest {
                     WHERE id='convention'
                     """);
             statement.executeUpdate(conventionLaunchInsert("convention-launch", "convention-run", 0));
+            insertJudgeSourceSnapshot(statement, "judge-candidate-run");
             statement.executeUpdate(judgeLaunchInsert("judge-launch", "judge-candidate-run", 0));
 
             assertThat(count(statement, "ai_candidate_internal_launch")).isEqualTo(3);
@@ -300,38 +301,53 @@ class GenericCandidateInternalLaunchMigrationTest {
                 """);
         statement.executeUpdate("""
                 INSERT INTO task(id,project_id,loop_draft_id,title,state,created_at,updated_at)
-                VALUES('task','p','d','Task','RUNNING','now','now')
+                VALUES('task','p','d','Task','JUDGING','now','now')
                 """);
         statement.executeUpdate("""
                 INSERT INTO stage(
                   id,task_id,ordinal,objective,allowed_paths_json,forbidden_paths_json,
                   deliverables_json,verifiers_json,state,created_at,updated_at)
-                VALUES('stage','task',0,'Stage','[]','[]','[]','[]','RUNNING','now','now')
+                VALUES('stage','task',0,'Stage','[]','[]','[]','[]','SUCCEEDED','now','now')
                 """);
         statement.executeUpdate("""
-                INSERT INTO attempt(id,task_id,stage_id,ordinal,state,created_at)
-                VALUES('attempt','task','stage',1,'RUNNING','now')
+                INSERT INTO task_execution_cycle(
+                  id,task_id,ordinal,kind,state,budget_json,authorized_at,started_at,version)
+                VALUES('cycle','task',1,'INITIAL','RUNNING','{}','now','now',0)
                 """);
         statement.executeUpdate("""
-                INSERT INTO judge_run(id,task_id,attempt_id,role,ordinal,state,created_at,version)
-                VALUES('judge','task','attempt','REQUIREMENT',1,'CREATING','now',0)
+                INSERT INTO attempt(
+                  id,task_id,stage_id,execution_cycle_id,ordinal,state,created_at,ended_at,version)
+                VALUES('attempt','task','stage','cycle',1,'SUCCEEDED','now','now',0)
+                """);
+        statement.executeUpdate("""
+                INSERT INTO judge_review_batch(
+                  id,task_id,execution_cycle_id,final_attempt_id,generation,state,
+                  created_at,updated_at,version)
+                VALUES('batch','task','cycle','attempt',1,'RUNNING','now','now',0)
+                """);
+        statement.executeUpdate("""
+                INSERT INTO judge_run(
+                  id,task_id,attempt_id,role,ordinal,state,created_at,version,response_mode,
+                  review_batch_id,source_revision)
+                VALUES('judge','task','attempt','REQUIREMENT',1,'CREATING','now',0,
+                  'INTERNAL_MCP','batch',1)
                 """);
     }
 
     private String reviewerLaunchInsert(String launchId, String runId, String designerSessionId, int ownerVersion) {
         return launchInsert(launchId, runId, "REVIEWER_REPORT_V1", designerSessionId, null, null,
-                "ANALYSIS_REPORT", "report", "report", null, null, 3, ownerVersion, "R");
+                "ANALYSIS_REPORT", "report", "report", null, null, 7, 3, ownerVersion, "R");
     }
 
     private String conventionLaunchInsert(String launchId, String runId, int ownerVersion) {
         return launchInsert(launchId, runId, "PROJECT_CONVENTION_V1", null, null, "p",
                 "PROJECT_CONVENTION_DRAFT", "convention", null, "convention", null,
-                3, ownerVersion, "C");
+                7, 3, ownerVersion, "C");
     }
 
     private String judgeLaunchInsert(String launchId, String runId, int ownerVersion) {
         return launchInsert(launchId, runId, "JUDGE_DECISION_V1", null, "task", null,
-                "JUDGE_RUN", "judge", null, null, "judge", 2, ownerVersion, "J");
+                "JUDGE_RUN", "judge", null, null, "judge", 1, 2, ownerVersion, "J");
     }
 
     private String launchInsert(
@@ -346,6 +362,7 @@ class GenericCandidateInternalLaunchMigrationTest {
             String analysisReportId,
             String conventionId,
             String judgeRunId,
+            int sourceRevision,
             int maxAttempts,
             int ownerVersion,
             String credentialCharacter) {
@@ -358,7 +375,7 @@ class GenericCandidateInternalLaunchMigrationTest {
                   endpoint_fingerprint,profile,permission_policy_json,permission_policy_digest,
                   create_request_sha256,creation_credential,attestation_type,created_at,updated_at,version)
                 VALUES('%s','%s','%s',%s,%s,%s,'%s','%s',%s,%s,%s,
-                  '%s',7,'%s',%d,'PREPARED',%d,'%s','/tmp/p','generation-1',1,
+                  '%s',%d,'%s',%d,'PREPARED',%d,'%s','/tmp/p','generation-1',1,
                   'loopper_internal_generic','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
                   'GENERIC_CANDIDATE_NO_TOOLS','[]',
                   'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
@@ -367,7 +384,21 @@ class GenericCandidateInternalLaunchMigrationTest {
                 """.formatted(
                 launchId, runId, kind, sqlString(designerSessionId), sqlString(taskId), sqlString(projectId),
                 ownerType, ownerId, sqlString(analysisReportId), sqlString(conventionId), sqlString(judgeRunId),
-                kind, kind, maxAttempts, ownerVersion, launchId, credentialCharacter.repeat(43));
+                kind, sourceRevision, kind, maxAttempts, ownerVersion, launchId, credentialCharacter.repeat(43));
+    }
+
+    private void insertJudgeSourceSnapshot(Statement statement, String candidateRunId) throws Exception {
+        statement.executeUpdate("""
+                INSERT INTO judge_candidate_source_snapshot(
+                  candidate_run_id,judge_run_id,task_id,execution_cycle_id,final_attempt_id,
+                  review_batch_id,role,ordinal,source_revision,prepared_owner_version,
+                  contract_version,source_prompt,source_prompt_sha256,canonical_evidence_json,
+                  evidence_sha256,created_at)
+                VALUES('%s','judge','task','cycle','attempt','batch','REQUIREMENT',1,1,0,
+                  'JUDGE_DECISION_V1','Frozen Judge prompt',
+                  'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','{}',
+                  'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb','now')
+                """.formatted(candidateRunId));
     }
 
     private void insertRuntimeBinding(Statement statement, String remoteId) throws Exception {

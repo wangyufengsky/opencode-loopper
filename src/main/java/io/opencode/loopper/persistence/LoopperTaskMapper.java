@@ -285,14 +285,13 @@ public interface LoopperTaskMapper {
             """)
     int updateVerifierRuntime(VerifierRuntimeRow row);
 
-    @Insert("INSERT INTO judge_run(id,task_id,attempt_id,role,ordinal,external_session_id,state,verdict,reason,raw_output,created_at,ended_at,version,response_mode,response_schema_id) VALUES(#{id},#{taskId},#{attemptId},#{role},#{ordinal},#{externalSessionId},#{state},#{verdict},#{reason},#{rawOutput},#{createdAt},#{endedAt},#{version},#{responseMode},#{responseSchemaId})")
+    @Insert("INSERT INTO judge_run(id,task_id,attempt_id,role,ordinal,external_session_id,state,verdict,reason,raw_output,created_at,ended_at,version,response_mode,response_schema_id,review_batch_id,source_revision) VALUES(#{id},#{taskId},#{attemptId},#{role},#{ordinal},#{externalSessionId},#{state},#{verdict},#{reason},#{rawOutput},#{createdAt},#{endedAt},#{version},#{responseMode},#{responseSchemaId},#{reviewBatchId},#{sourceRevision})")
     int insertJudgeRun(JudgeRunRow row);
     @Select("SELECT * FROM judge_run WHERE id=#{id}") Optional<JudgeRunRow> findJudgeRun(String id);
     @Select("SELECT * FROM judge_run WHERE task_id=#{taskId} ORDER BY created_at, role, ordinal") List<JudgeRunRow> listJudgeRuns(String taskId);
     @Select("SELECT * FROM judge_run WHERE task_id=#{taskId} AND state IN ('CREATING','RUNNING') ORDER BY created_at") List<JudgeRunRow> activeJudgeRuns(String taskId);
     @Select("SELECT * FROM judge_run WHERE task_id=#{taskId} AND role=#{role} ORDER BY ordinal DESC LIMIT 1") Optional<JudgeRunRow> latestJudgeRun(@Param("taskId") String taskId, @Param("role") String role);
     @Select("SELECT COALESCE(MAX(ordinal), 0) + 1 FROM judge_run WHERE task_id=#{taskId} AND role=#{role}") int nextJudgeOrdinal(@Param("taskId") String taskId, @Param("role") String role);
-    @Select("SELECT COUNT(*) FROM judge_run WHERE task_id=#{taskId} AND role=#{role} AND state='SESSION_ERROR'") int countJudgeSessionErrors(@Param("taskId") String taskId, @Param("role") String role);
     @Update("UPDATE judge_run SET external_session_id=#{externalSessionId}, state=#{state}, verdict=#{verdict}, reason=#{reason}, raw_output=#{rawOutput}, ended_at=#{endedAt}, response_mode=#{responseMode}, response_schema_id=#{responseSchemaId}, version=version+1 WHERE id=#{id} AND version=#{version}")
     int updateJudgeRun(JudgeRunRow row);
 

@@ -262,10 +262,28 @@ scope、owner、workflow、contract 和预算，并把创建 attestation、同�
 CORRECTION 同 launch、零提交 ACK、清理远端和 termination intent 固化为 gate。Legacy run 不携带 launch，
 仍作为派发前双入口保留。V58–V61 激活 Reviewer 的 Candidate adapter、冻结 source manifest、
 accepted-result 和取消优先级；V62 再激活项目公约的冻结源文/证据目录、单一编译内核、accepted result
-与恢复编排，Judge 仍未激活。Reviewer 的结构/Fake MCP 证明不能替代
+与恢复编排；V63 激活双 Judge 的冻结评审批次、证据目录、单一编译内核、accepted result 与恢复编排。Reviewer 的结构/Fake MCP 证明不能替代
 真实模型资格；0.3.13 隔离成品 JAR 已补齐模型实际调用及同一 Session 拒绝后修正为 `ACCEPTED` 的证据，
-所以 0.3.14 默认开启。Convention 0.3.17 补齐精确提交修订提示后仍默认关闭，等待自己的隔离成品 JAR 资格；Judge 必须另行完成
-接入与资格，二者都不能继承 Reviewer 结论。
+所以 0.3.14 默认开启。Convention 0.3.17 补齐精确提交修订提示并取得两次真实首投接受，但没有拒绝后
+同 Session 修正证据，仍默认关闭。Judge Candidate 也默认关闭；Requirement 与 Risk 必须分别通过隔离
+成品 JAR 的主动私有工具提交和机械拒绝后同 Session 修正，三者都不能继承 Reviewer 结论。
+
+V63 的 Requirement/Risk Candidate 不提交完整评审文档，而只提交
+`contractVersion / role / verdict / reason / evidenceIds`。`evidenceIds` 必须完全来自服务端冻结的当前批次
+目录，模型不能定义证据内容、批次、source revision、稳定 ID、生命周期或 Task 终态。Legacy JSON/marker
+经 `JudgeDecisionLegacyAdapter` 规范成同一候选，再与 MCP 输入共同进入 `JudgeDecisionCompilation`；两条
+入口因此只有一个确定性接受权威。每一轮两个角色绑定同一 `judge_review_batch`；滚动任务的最终评审 Cycle 可引用
+最后一个已冻结事实的成功 Attempt，但不得改写该 Attempt 原有 Cycle。Session 重试不换批次，
+人工重试必须换新代次，聚合器禁止跨代拼接结论。只有闭集字段、枚举、证据引用等有界机械错误可在同一
+Candidate Session 内最多修正两次。`reason` 中的 CR/LF/TAB 返回
+`JUDGE_DECISION_REASON_LINE_BREAK_INVALID`，普通额外说明字段返回 `JUDGE_DECISION_FIELD_INVALID`，
+两者都必须按工具返回的精确约束提交完整替换候选；NUL/BEL/C1、混合危险控制字符、权限和服务端权威字段
+不可纠正，危险控制字符检查必须先于长度检查，权威字段的通用语义前缀不能降级成普通附加说明。不可纠正
+候选取得停止证明后直接关闭当前批次到人工输入，不得自动创建新 Session。Legacy 入口同样必须在远端创建前
+冻结 prompt、证据目录和 SHA，完成与 finalizer 只能复用该快照。代次、传输、停止不确定和派发后零提交同样失败关闭。
+`JUDGE_CANDIDATE_READ_ONLY` 只允许 `read/glob/grep` 与精确私有提交工具，不允许 question、shell、写入
+或用户 MCP；最终 assistant text 不读取。accepted result 在候选接受事务冻结，取得正向远端停止证明后
+才与 Judge `COMPLETED` 原子结算。
 
 Stage 组装完成后，服务端优先接受 `负责路径` 的唯一显式声明，随后兼容 Stage 精确引用产生义务的受控
 交付/范围事实、恰好一个 Stage 的既有精确路径规则、旧四列表格中仅一个阶段目标出现的精确文件名/类名/

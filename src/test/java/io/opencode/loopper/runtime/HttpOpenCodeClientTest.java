@@ -941,6 +941,10 @@ class HttpOpenCodeClientTest {
                 worktree, "Project convention internal", model,
                 OpenCodeClient.SessionProfile.PROJECT_CONVENTION_CANDIDATE_READ_ONLY,
                 credential);
+        OpenCodeClient.SessionCreationPlan judge = client.prepareCandidateSessionCreationLocally(
+                worktree, "Judge internal", model,
+                OpenCodeClient.SessionProfile.JUDGE_CANDIDATE_READ_ONLY,
+                credential);
 
         assertThat(remoteConnectionResolutions).hasValue(0);
         assertThat(httpRequests).hasValue(0);
@@ -967,16 +971,18 @@ class HttpOpenCodeClientTest {
                         "loopper-private-7_submit_candidate", "*", "allow"));
         assertThat(reviewer.permissionPolicy()).isEqualTo(rolling.permissionPolicy());
         assertThat(convention.permissionPolicy()).isEqualTo(rolling.permissionPolicy());
+        assertThat(judge.permissionPolicy()).isEqualTo(rolling.permissionPolicy());
 
         mcpBody.set("{\"loopper-private-7\":{\"status\":\"connected\"}}");
         client.requireCandidateSessionReady(first);
         client.requireCandidateSessionReady(rolling);
         client.requireCandidateSessionReady(reviewer);
         client.requireCandidateSessionReady(convention);
+        client.requireCandidateSessionReady(judge);
 
-        assertThat(remoteConnectionResolutions).hasValue(4);
-        assertThat(httpRequests).hasValue(4);
-        assertThat(mcpRequests).hasValue(4);
+        assertThat(remoteConnectionResolutions).hasValue(5);
+        assertThat(httpRequests).hasValue(5);
+        assertThat(mcpRequests).hasValue(5);
         assertThat(first).isEqualTo(replay);
 
         connection.set(new OpenCodeRuntimeManager.Connection(endpoint(), null, null,
@@ -984,8 +990,8 @@ class HttpOpenCodeClientTest {
         assertThatThrownBy(() -> client.requireCandidateSessionReady(first))
                 .isInstanceOfSatisfying(SessionFailure.class, failure -> assertThat(failure.code())
                         .isEqualTo("OPENCODE_SESSION_CREATION_PLAN_STALE"));
-        assertThat(mcpRequests).hasValue(4);
-        assertThat(httpRequests).hasValue(4);
+        assertThat(mcpRequests).hasValue(5);
+        assertThat(httpRequests).hasValue(5);
     }
 
     @Test

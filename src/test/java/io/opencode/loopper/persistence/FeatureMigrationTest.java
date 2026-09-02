@@ -70,7 +70,7 @@ class FeatureMigrationTest {
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
 
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("62");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("63");
         try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
             try (var result = statement.executeQuery("SELECT state,workflow_phase,discussion_scope FROM designer_session WHERE id='s27'")) {
                 assertThat(result.next()).isTrue();
@@ -125,7 +125,7 @@ class FeatureMigrationTest {
         Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
         flyway.migrate();
 
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("62");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("63");
         try (var connection = DriverManager.getConnection(url);
              var statement = connection.prepareStatement("SELECT name FROM sqlite_master WHERE type='table'")) {
             try (var result = statement.executeQuery()) {
@@ -151,7 +151,9 @@ class FeatureMigrationTest {
                         "ai_candidate_submission_run", "ai_candidate_submission_attempt",
                         "package_design_candidate_accepted_result", "acceptance_candidate_legacy_handoff",
                         "project_convention_candidate_source_snapshot",
-                        "project_convention_candidate_accepted_result"));
+                        "project_convention_candidate_accepted_result",
+                        "judge_review_batch", "judge_candidate_source_snapshot",
+                        "judge_candidate_accepted_result"));
             }
         }
         try (var connection = DriverManager.getConnection(url); var statement = connection.createStatement()) {
@@ -188,6 +190,11 @@ class FeatureMigrationTest {
                 var columns = new java.util.ArrayList<String>();
                 while (result.next()) columns.add(result.getString("name"));
                 assertThat(columns).contains("response_mode", "source_revision");
+            }
+            try (var result = statement.executeQuery("PRAGMA table_info(judge_run)")) {
+                var columns = new java.util.ArrayList<String>();
+                while (result.next()) columns.add(result.getString("name"));
+                assertThat(columns).contains("review_batch_id", "source_revision");
             }
             try (var result = statement.executeQuery("PRAGMA table_info(task_package_plan_revision)")) {
                 var columns = new java.util.ArrayList<String>();
