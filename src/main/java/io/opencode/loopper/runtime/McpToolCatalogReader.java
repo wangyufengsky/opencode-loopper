@@ -37,7 +37,8 @@ public class McpToolCatalogReader {
     }
 
     private Catalog list(McpClientTransport transport) {
-        try (var client = McpClient.sync(transport).requestTimeout(TIMEOUT).initializationTimeout(TIMEOUT).build()) {
+        var client = McpClient.sync(transport).requestTimeout(TIMEOUT).initializationTimeout(TIMEOUT).build();
+        try {
             var initialized = client.initialize();
             if (initialized.capabilities().tools() == null) return new Catalog(List.of(), true, null);
             var tools = new ArrayList<Tool>();
@@ -56,6 +57,9 @@ public class McpToolCatalogReader {
                 }
             } while (cursor != null && !cursor.isBlank());
             return new Catalog(List.copyOf(tools), true, null);
+        } finally {
+            // AutoCloseable.close() starts asynchronous cleanup; wait for the stdio child to exit.
+            if (!client.closeGracefully()) throw new IllegalStateException("MCP catalog client shutdown timed out");
         }
     }
 

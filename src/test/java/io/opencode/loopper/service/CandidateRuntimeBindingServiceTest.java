@@ -29,9 +29,11 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 
 class CandidateRuntimeBindingServiceTest {
+    @TempDir static Path workspace;
     private static final MachineCandidateSubmission.SubmissionChannel INTERNAL =
             MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP;
     private static final MachineCandidateSubmission.SubmissionChannel LEGACY =
@@ -638,7 +640,7 @@ class CandidateRuntimeBindingServiceTest {
 
     private OpenCodeClient.SessionCreationPlan internalPlan(
             InternalMcpCredentialProvider.Credentials credentials, String creationCredential) {
-        Path directory = Path.of("/tmp/internal-attestation");
+        Path directory = workspace.toAbsolutePath().normalize();
         String title = OpenCodeClient.recoveryTitle("Acceptance binding", creationCredential);
         String tool = credentials.serverName().replaceAll("[^a-zA-Z0-9_-]", "_") + "_submit_candidate";
         List<OpenCodeClient.SessionPermissionRule> policy = List.of(

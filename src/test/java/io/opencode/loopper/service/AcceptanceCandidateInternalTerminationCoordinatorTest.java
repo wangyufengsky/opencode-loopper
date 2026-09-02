@@ -22,9 +22,11 @@ import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.InOrder;
 
 class AcceptanceCandidateInternalTerminationCoordinatorTest {
+    @TempDir static Path workspace;
     private AcceptanceCandidateInternalTerminationIntentStore intents;
     private AcceptanceCandidateInternalLaunchService launches;
     private AcceptanceCandidateInternalLaunchCleanupLedger cleanup;
@@ -199,7 +201,7 @@ class AcceptanceCandidateInternalTerminationCoordinatorTest {
                 3, "AI_DISAMBIGUATION_V6", "{}", "e".repeat(64), "{}", "f".repeat(64), "run",
                 "ACCEPTANCE_CLOSED_CHOICE_V7", "ACCEPTANCE_CLOSED_CHOICE_V7", state, 4,
                 "SETTLED".equals(state) ? 5L : null, "SETTLED".equals(state) ? "settled" : null,
-                "Acceptance termination", "/tmp/project", "generation-1", true,
+                "Acceptance termination", workspace.toAbsolutePath().normalize().toString(), "generation-1", true,
                 "loopper_internal_generation_1", "a".repeat(64), null, null, null,
                 "ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS", "[]", "1".repeat(64), "2".repeat(64),
                 "A".repeat(43), "LOCAL_REQUEST_ATTESTED", null, null, null, 1, dispatched,
@@ -213,12 +215,12 @@ class AcceptanceCandidateInternalTerminationCoordinatorTest {
         List<OpenCodeClient.SessionPermissionRule> permissions = List.of();
         String permissionDigest = OpenCodeClient.permissionPolicyDigest(permissions);
         String requestDigest = OpenCodeClient.sessionCreationRequestSha256(
-                Path.of("/tmp/project"), title, "generation-1", true,
+                workspace.toAbsolutePath().normalize(), title, "generation-1", true,
                 "loopper_internal_generation_1", "a".repeat(64), null,
                 OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS,
                 permissionDigest, credential);
         return OpenCodeClient.SessionCreationPlan.fromPersisted(
-                Path.of("/tmp/project"), title, "generation-1", true,
+                workspace.toAbsolutePath().normalize(), title, "generation-1", true,
                 "loopper_internal_generation_1", "a".repeat(64), null,
                 OpenCodeClient.SessionProfile.ACCEPTANCE_CLOSED_CHOICE_CANDIDATE_NO_TOOLS,
                 permissions, permissionDigest, credential, requestDigest);

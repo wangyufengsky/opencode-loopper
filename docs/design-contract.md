@@ -1140,7 +1140,7 @@ settlement certificate 原子打开 run；未知创建结果只允许 cleanup。
 “MCP 已接受”“MCP 修正 N 次”“Markdown 兜底”和“等待人工补充”都只能由这些字段
 驱动；前端不得用模型调用次数、消息数量或 assistant 文本反推提交次数和采用路线。
 
-## Task review decisions and system tools (0.3.27)
+## Task review decisions and system tools (0.3.28)
 
 The final dual-review panel says AI results are advisory and exposes “人工认定通过” only from
 server capability data. Confirmation submits the exact displayed Task/Cycle/batch generation.

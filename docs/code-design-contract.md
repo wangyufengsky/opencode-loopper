@@ -88,6 +88,8 @@ ownership rules:
 - Tests that mock canonical workspace/session paths must derive both the registered project root
   and the expected runtime key from the same normalized absolute `@TempDir`; Unix-only literals
   such as `/tmp` must not encode path equality assumptions into cross-platform contracts.
+  Filesystem identity checks must also accept Windows long and 8.3 aliases via `Files.isSameFile`,
+  and stdio fixtures must prove their child process has exited before temporary-directory cleanup.
 - `TaskProfileRouter` owns deterministic selection from a supplied stack snapshot,
   `TaskProfileSafetyPolicy` owns requested external-mutation and publication-target classification,
   `TaskProfileIntentPolicy` owns task-level read-only review and positive-mutation classification,
@@ -250,7 +252,7 @@ V49 的 owner/scope 守卫必须在复制 V47/V48 历史 run 之前就生效；�
 
 度量模型必须把 `candidateSessions` 与 `candidateSubmissions` 定义为两个非负独立计数，并与 `modelCalls` 分开采集；禁止从任一计数推导另一项。API/资格报告保留精确的 0，StatusProjector/界面可以隐藏 0 值，但不得把隐藏后的缺省字段当作未知或失败。
 
-## Task experience responsibilities (0.3.27)
+## Task experience responsibilities (0.3.28)
 
 `TaskJudgeApprovalService` owns versioned local human review acceptance and checkpoint handoff,
 with `TaskJudgeApprovalMapper` storing separate immutable evidence. It never mutates Judge verdicts.

@@ -20,9 +20,11 @@ import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.InOrder;
 
 class AcceptanceCandidateInternalLaunchCoordinatorTest {
+    @TempDir static Path workspace;
     private AcceptanceCandidateInternalLaunchService launches;
     private AcceptanceCandidateInternalLaunchCleanupLedger cleanup;
     private AcceptanceCandidateInternalLaunchSettlementService settlements;
@@ -239,7 +241,7 @@ class AcceptanceCandidateInternalLaunchCoordinatorTest {
     }
 
     private OpenCodeClient.SessionCreationPlan plan() {
-        Path directory = Path.of("/tmp/acceptance-internal");
+        Path directory = workspace.toAbsolutePath().normalize();
         String credential = "A".repeat(43);
         String title = OpenCodeClient.recoveryTitle("Acceptance internal", credential);
         List<OpenCodeClient.SessionPermissionRule> policy = List.of(

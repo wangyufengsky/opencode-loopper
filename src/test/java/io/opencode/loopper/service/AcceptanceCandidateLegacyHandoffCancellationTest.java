@@ -22,10 +22,12 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.InOrder;
 import tools.jackson.databind.ObjectMapper;
 
 class AcceptanceCandidateLegacyHandoffCancellationTest {
+    @TempDir static Path workspace;
     @Test
     void zeroExactMatchesAfterCreateCheckpointCannotCompleteDesignerCancellation() {
         Fixture fixture = fixture();
@@ -185,7 +187,7 @@ class AcceptanceCandidateLegacyHandoffCancellationTest {
         when(row.state()).thenReturn("STOPPING_LEGACY");
         when(row.createDispatchAttempted()).thenReturn(true);
         when(row.legacyExternalSessionId()).thenReturn(legacyId);
-        when(row.successorCanonicalDirectory()).thenReturn("/tmp/p");
+        when(row.successorCanonicalDirectory()).thenReturn(workspace.toAbsolutePath().normalize().toString());
         when(row.successorManaged()).thenReturn(true);
         when(row.successorRuntimeGenerationId()).thenReturn("generation-1");
         when(row.successorInternalMcpServer()).thenReturn("mcp-1");
@@ -199,7 +201,7 @@ class AcceptanceCandidateLegacyHandoffCancellationTest {
     }
 
     private static OpenCodeClient.SessionCreationPlan plan() {
-        Path directory = Path.of("/tmp/p");
+        Path directory = workspace.toAbsolutePath().normalize();
         String credential = "c".repeat(43);
         String title = "legacy [loopper-create:" + credential + "]";
         String endpoint = "b".repeat(64);

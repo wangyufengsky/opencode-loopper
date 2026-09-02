@@ -42,10 +42,10 @@
 6. 确认生成新的可执行 JAR：
 
    ```bash
-   test -s target/opencode-loopper-0.3.27.jar
-   jar tf target/opencode-loopper-0.3.27.jar \
+   test -s target/opencode-loopper-0.3.28.jar
+   jar tf target/opencode-loopper-0.3.28.jar \
      | rg 'BOOT-INF/classes/static/(index.html|assets/)'
-   shasum -a 256 target/opencode-loopper-0.3.27.jar
+   shasum -a 256 target/opencode-loopper-0.3.28.jar
    ```
 
 7. 执行 `git diff --check` 和 `git status --short`，确认没有误改、生成物污染或用户改动被覆盖。
@@ -95,8 +95,8 @@ OpenCode Loopper 是一个本机 AI 编程控制平面：将自然语言需求�
 
 ### 构建产物
 
-- Maven 项目版本：`0.3.27`。
-- 正式产物：`target/opencode-loopper-0.3.27.jar`。
+- Maven 项目版本：`0.3.28`。
+- 正式产物：`target/opencode-loopper-0.3.28.jar`。
 - Maven 固定准备 Node.js `v22.14.0` 和 npm `10.9.2`，执行 `npm ci`、类型检查、Vitest 和 Vite build，再将 `frontend/dist` 复制到 `target/classes/static` 后构建 JAR。
 - `target/`、`frontend/dist/`、`frontend/node_modules/` 和运行时 `data/` 都是生成或运行目录，不作为手工编辑的源码来源。
 
@@ -365,7 +365,7 @@ Task 详情 `overview` 必须投影 `loopRetryAvailable`、`cancellationAvailabl
 - 历史记录删除不得删除源文件、Git 分支或 worktree。
 
 
-### 5.7 人工评审认定、冻结历史、工具与筛选（0.3.27）
+### 5.7 人工评审认定、冻结历史、工具与筛选（0.3.28）
 
 - AI 最终 Requirement/Risk 双评审只供参考。`TaskJudgeApprovalService` 在当前 `WAITING_INPUT`、所有 Stage 与最新 Attempt 成功、最终批次已停止且无未确认 writer/candidate/verification cleanup 时，允许本地 UI 携带 Task/Cycle/batch 版本明确人工通过。V64 `task_judge_approval` 独立记录不可变认定，同一事务结束当前 Cycle 为 SUCCEEDED 并转 AWAITING_DECISION，不修改任何 Judge verdict/accepted result。事务外冻结工作区并协调租约；启动恢复负责补完中断的认定后交接。缺少批次的历史 Judge 可绑定当前成功 Attempt；过期、运行中、失败验收或停止不确定继续拒绝。新操作使用 `X-Loopper-Local-UI: 1`，不开放给公共 MCP。
 - 冻结任务设计历史从其源 Designer 的持久化 discussion revisions 投影 answeredQuestions；`frozenDesignTimeline` 只展示 USER/DESIGNER 与复用 `DesignerDiscussionHistory` 的问答卡片，即使锚点为隐藏的系统快照也保留原位置。设计中页面与完整审计记录保持独立。SSE 规范化提示按任务/内容去重，最多四种并翻译公开标签。
@@ -476,7 +476,7 @@ npm --prefix frontend run build
 完整命令成功后必须检查：
 
 ```bash
-JAR=target/opencode-loopper-0.3.27.jar
+JAR=target/opencode-loopper-0.3.28.jar
 test -s "$JAR"
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/index.html'
 jar tf "$JAR" | rg 'BOOT-INF/classes/static/assets/'
@@ -578,7 +578,8 @@ Runtime 页只通过要求本地 UI 标识的显式动作重新启动，并且�
 
 | 日期 | 范围 | 文档/契约变化 | 验证与 JAR |
 | --- | --- | --- | --- |
-| 2026-09-02 | 生产等效队列并发验证，交付 0.3.27 | 将人工/自动队列交接并发场景移入已有生产外键测试类，使用文件 SQLite、WAL、foreign_keys=on 和 busy_timeout=5000；重复 5 次并同时检查唯一 Attempt/Session、FIFO 与只释放一次；六项产品行为保持 0.3.26 已验证实现 | WAL/FK 并发 5/5、联合任务回归 90/90；`./scripts/verify.sh` BUILD SUCCESS，Java 1235 项（0 失败、0 错误、2 既有跳过），Vitest 253/253。JAR `target/opencode-loopper-0.3.27.jar` 为 289143435 bytes，SHA-256 `3536ff5405bbdbf21351dce42ee3f8635394db2fdfa145144c625ed5016c09bd`；115 个静态文件与已完成六项浏览器验收的 0.3.26 逐字节相同。隔离 18058/PID 79558 health UP，Runtime 版本 0.3.27，HTTP 首页与 JAR 相同，浏览器复核持久化人工认定及提交按钮可用；未重启或替换 8080。用户已授权提交推送发版 |
+| 2026-09-02 | Windows 路径与 MCP 子进程收束，交付 0.3.28 | 四组 Candidate 创建/停止测试统一使用原生绝对临时路径；MCP 目录以文件身份校验 Windows 长短路径，生产目录读取等待 SDK graceful close 确认子进程退出，异常路径同样关闭；补充正常/错误响应的真实 stdio 子进程回归 | 聚焦、完整验证与 JAR 结果待回填；用户已授权提交推送发版 |
+| 2026-09-02 | 生产等效队列并发验证，交付 0.3.27 | 将人工/自动队列交接并发场景移入已有生产外键测试类，使用文件 SQLite、WAL、foreign_keys=on 和 busy_timeout=5000；重复 5 次并同时检查唯一 Attempt/Session、FIFO 与只释放一次；六项产品行为保持 0.3.26 已验证实现 | WAL/FK 并发 5/5、联合任务回归 90/90；`./scripts/verify.sh` BUILD SUCCESS，Java 1235 项（0 失败、0 错误、2 既有跳过），Vitest 253/253。JAR `target/opencode-loopper-0.3.27.jar` 为 289143435 bytes，SHA-256 `3536ff5405bbdbf21351dce42ee3f8635394db2fdfa145144c625ed5016c09bd`；115 个静态文件与已完成六项浏览器验收的 0.3.26 逐字节相同。隔离 18058/PID 79558 health UP，Runtime 版本 0.3.27，HTTP 首页与 JAR 相同，浏览器复核持久化人工认定及提交按钮可用；未重启或替换 8080。用户已授权提交推送发版；已提交 a461a3c 并推送 v0.3.27，后发现 Windows 路径夹具及 MCP 异步关闭问题，主动取消该版本 Release，顺延修复 |
 | 2026-09-02 | 六项任务体验优化，交付 0.3.26 | V64 人工最终评审认定；SSE 提示去重；冻结设计只读问答；系统 MCP 工具页；质量与用量服务端筛选；取消保存快照并返回主分支；Task 状态图按既有 topology 模式独立提取 | 0.3.23 首次完整门禁执行 Java 1231 项，2 失败/5 错误来自启动恢复缺失 mock 与六个取消旧夹具；未生成 JAR。集中适配为快照不可用时的安全阻塞，并补充恢复交接容错。0.3.24 完整门禁 Java 1231 项通过（2 跳过），前端 251/252 通过，旧取消提示断言失败，未生成 JAR；同步修正冻结聊天问题的快照锚点去重。0.3.25 全门禁通过并生成 JAR，但浏览器发现 API 丢弃 CHAT_QUESTION 标记与全局工具空选项显示问题；补充跨 API/时间线回归后一并修正。最终 0.3.26 `./scripts/verify.sh` BUILD SUCCESS：Java 1231 项（0 失败、0 错误、2 既有跳过）、Vitest 253/253；API/冻结历史/工具页聚焦 55/55。JAR `target/opencode-loopper-0.3.26.jar` 为 289143436 bytes，含 115 个静态入口/assets，SHA-256 `28252fdd9e5feb40e5c8d0cdaaf7dd61c9e975f5a61610578fe96b3a76d7a63b`。隔离 18058/PID 62144 的首页与 JAR 字节一致；真实浏览器完成六项终验，人工认定保留双 BLOCKED 原始证据并开放提交，重复进入只显示一条提示，冻结问答为三条记录且问题仅一次，工具默认选项/描述和筛选汇总正确；取消实际回到 main，未跟踪文件内容在 READY checkpoint 完整保留，租约为零。隔离 18060/PID 62268 + 真实受管 OpenCode 1.18.23/PID 62287 的 MCP inventory 与 submit_candidate 描述读取成功，未创建模型任务。未替换或重启 8080。已提交 e768819 并发布 v0.3.26；Release/Linux CI 成功，但 macOS CI 的共享内存队列并发夹具触发 SQLITE_LOCKED_SHAREDCACHE，后续由 0.3.27 改为生产等效文件 WAL 回归 |
 | 2026-09-02 | Convention/双 Judge 资格完成后默认启用，交付 0.3.22 | 现有 0.3.20 JAR 的真实 `opencode/gpt-5.4` 三角色均完成机械拒绝后原 Session 第二投接受，三个 launch 均正向停止并结算；0.3.22 默认开启 Convention/Judge，显式关闭仅回滚新运行。集中补齐关闭后恢复测试、双 Judge 换行修正测试、历史 Legacy 夹具、七合同文档及公共兼容 MCP 版本同源，未修改安全/权限/校验策略。资格方法、限制和原始证据见 `docs/mcp-default-enablement-qualification.md` | 首轮组合聚焦 Java 254/254；0.3.21 完整门禁跑完 1220 项，仅 Recovery 的 Legacy 夹具遗漏 Judge 开关隔离导致一项失败，未生成 JAR。统一检查全部 Judge 断言用法并补齐该夹具后，合并聚焦 27/27；最终 0.3.22 `./scripts/verify.sh` 通过 Java 1220 项（0 失败、0 错误、2 条件跳过）、Vitest 247/247，BUILD SUCCESS。JAR `target/opencode-loopper-0.3.22.jar` 为 289091252 bytes，含 112 个 SPA 静态入口/assets，SHA-256 `6140f35e82205b40ba5d41b459817fa75d2bc54d548b2ec63bace7242d260295`。无开关覆盖的成品配置两项均 true；新 JAR 在隔离 18057/PID 9558 health UP，Runtime 与两个公共 MCP initialize 均报告 0.3.22，HTTP 首页 SHA 与 JAR 相同，未新增模型调用、未做浏览器操作。真实三角色资格复用本轮已验证的 0.3.20 核心，未重复回放。资格/启动验收端口 18056/18057 及进程已释放，8080/PID 11520 health UP 且未替换；未推送、未打标签、未创建 Release |
 | 2026-09-02 | `JUDGE_DECISION_V1` MCP Candidate 资格与机械纠错收口，交付 0.3.20 | V63 固化双评审批次、冻结提示/证据目录、Legacy/MCP 单一 `JudgeDecisionCompilation`、不可变 accepted result、正向停止后结算、`JUDGE_CANDIDATE_READ_ONLY` 权限与默认关闭的资格开关；批次级 Session 重试和聚合禁止跨代拼接。0.3.20 将 CR/LF/TAB 与普通额外字段限定为同 Session 可纠正的机械错误；危险控制字符先于长度检查，NUL/BEL/C1、混合/超长危险字符、权限和语义权威字段继续失败关闭；不可纠正 Candidate 停止后直接进入当前批次人工输入，Legacy 入口在远端创建前冻结 prompt/evidence/SHA。同步 README、架构、设计、OpenCode、AI 角色、七特性、代码设计与本公约 | 0.3.18 首次完整验证在 Java 1213 项暴露 6 失败/2 错误且未形成 JAR。批量修正全部已知结构、V63 夹具、滚动锚点、终态/预算与过期断言后，0.3.19 `./scripts/verify.sh` 通过 Java 1216 项（0 失败、0 错误、2 条件跳过）和 Vitest 247/247；JAR `target/opencode-loopper-0.3.19.jar` 为 289086483 字节，SHA-256 `65ed37df74da989c3cc55c7f178e7e56322b23011503c0d800ca12ce1eb7a539`。隔离真实 `opencode/gpt-5.4` 中 Requirement 主动私有提交因多行 `reason` 被旧策略误判安全错误，批次安全进入 `WAITING_INPUT`、Risk 取消、两个远端均 `ABORT_ACKNOWLEDGED` 且无 accepted result。集中红灯一次暴露并确认权威字段、超长危险控制字符、Legacy 来源漂移与安全拒绝自动重试四项缺口；一次组合回归通过 Java 258 项与 Vitest 247/247，随后唯一一次 0.3.20 `./scripts/verify.sh` 通过 Java 1218 项（0 失败、0 错误、2 条件跳过）和 Vitest 247/247。JAR `target/opencode-loopper-0.3.20.jar` 为 289091213 字节，含 112 个 SPA 静态入口/assets，SHA-256 `5cc75cf4f6d15692399d95adcd1b71e2036b548e000a10db5b5926bb06bc77e5`。隔离成品 JAR 的真实 `opencode/gpt-5.4` 双 Judge 同批次并发：Requirement/Risk 均以 `JUDGE_CANDIDATE_READ_ONLY` 主动调用各自精确私有工具，首投接受并结算，两个远端均为 `ABORT_ACKNOWLEDGED`；因本次未实际覆盖机械拒绝后同 Session 修正，资格仍不完整，默认开关保持关闭。隔离端口 18055 和受管子进程已释放；现有 8080/PID 11520 保持 health `UP`，未替换且不作为本 JAR 运行证据 |
