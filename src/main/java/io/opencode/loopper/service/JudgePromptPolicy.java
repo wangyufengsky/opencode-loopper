@@ -9,6 +9,14 @@ final class JudgePromptPolicy {
     static final int MAX_CONTRACT_UTF8_BYTES = 96 * 1024;
     static final int MAX_PROMPT_UTF8_BYTES = 128 * 1024;
     static final int MAX_EVIDENCE_EXCERPT_UTF8_BYTES = 4 * 1024;
+    private static final String LEGACY_RESPONSE_INSTRUCTIONS = "\n返回一个 JSON 对象："
+            + "{\"verdict\":\"PASS|REVISE|BLOCKED\",\"reason\":\"简洁、基于证据的中文 Markdown\"}。"
+            + "推荐直接返回对象或放在 `<LOOPPER_JUDGE_JSON>...</LOOPPER_JUDGE_JSON>` 中；"
+            + "系统也会确定性提取代码围栏或简短说明中的唯一有效对象。"
+            + "`verdict` 必须保留上述英文协议值；`reason` 必须使用简体中文。"
+            + "在 `reason` 中先写一句结论，再写 `## 证据` 标题和编号列表；命令与文件路径使用行内代码。"
+            + "若结论不是 PASS，再增加 `## 必须处理` 标题和编号列表。"
+            + "不要使用围栏代码块，并将 `reason` 内的每个换行正确转义为 JSON 字符串。";
 
     private JudgePromptPolicy() { }
 
@@ -51,16 +59,16 @@ final class JudgePromptPolicy {
                 + contract(spec)
                 + "\n已完成阶段目标：\n" + text(objectives) + "\n跨阶段确定性验证摘要：\n" + text(verification)
                 + "\n已持久化的 Git 差异证据：\n" + text(diff) + "\n尝试记录：" + text(attemptId)
-                + "\n返回一个 JSON 对象："
-                + "{\"verdict\":\"PASS|REVISE|BLOCKED\",\"reason\":\"简洁、基于证据的中文 Markdown\"}。"
-                + "推荐直接返回对象或放在 `<LOOPPER_JUDGE_JSON>...</LOOPPER_JUDGE_JSON>` 中；"
-                + "系统也会确定性提取代码围栏或简短说明中的唯一有效对象。"
-                + "`verdict` 必须保留上述英文协议值；`reason` 必须使用简体中文。"
-                + "在 `reason` 中先写一句结论，再写 `## 证据` 标题和编号列表；命令与文件路径使用行内代码。"
-                + "若结论不是 PASS，再增加 `## 必须处理` 标题和编号列表。"
-                + "不要使用围栏代码块，并将 `reason` 内的每个换行正确转义为 JSON 字符串。";
+                + LEGACY_RESPONSE_INSTRUCTIONS;
         requirePromptWithinBudget(prompt);
         return prompt;
+    }
+
+    /** Remove only our exact legacy transport suffix; never rewrite frozen evaluation evidence. */
+    static String candidateEvaluationContext(String frozenPrompt) {
+        return frozenPrompt.endsWith(LEGACY_RESPONSE_INSTRUCTIONS)
+                ? frozenPrompt.substring(0, frozenPrompt.length() - LEGACY_RESPONSE_INSTRUCTIONS.length())
+                : frozenPrompt;
     }
 
     static int utf8Bytes(String value) {

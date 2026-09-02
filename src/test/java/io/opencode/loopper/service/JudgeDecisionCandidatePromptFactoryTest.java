@@ -27,8 +27,13 @@ class JudgeDecisionCandidatePromptFactoryTest {
                 "JUDGE_DECISION_V1", "generation-1", "remote-1",
                 MachineCandidateRunState.OPEN, 2, 0, null, 7, null);
 
+        var spec = org.mockito.Mockito.mock(io.opencode.loopper.domain.LoopSpec.class);
+        org.mockito.Mockito.when(spec.goal()).thenReturn("Frozen evaluation context");
+        org.mockito.Mockito.when(spec.stages()).thenReturn(List.of());
+        String legacy = JudgePromptPolicy.prompt(spec, "RISK", "Objectives", "Verification", "Diff", "attempt");
+        assertThat(legacy).contains("## 证据", "每个换行正确转义");
         String prompt = new JudgeDecisionCandidatePromptFactory().internal(
-                run, "RISK", "Frozen evaluation context", evidence,
+                run, "RISK", legacy, evidence,
                 "loopper_internal_submit_candidate", new JudgeDecisionCandidateCodec(new ObjectMapper()));
 
         assertThat(prompt)
@@ -36,8 +41,10 @@ class JudgeDecisionCandidatePromptFactoryTest {
                         "verification-v2", "task-diff", "loopper_internal_submit_candidate")
                 .contains("expectedSubmissionRevision: 7", "returned submissionRevision")
                 .contains("one line", "no CR, LF, or TAB")
+                .contains("JSON object, not a JSON-encoded string", "semicolon-separated sentences")
+                .contains("JUDGE_DECISION_REASON_LINE_BREAK_INVALID", "do not resend the same reason")
                 .contains("Do not return the candidate as final assistant text", "fallbackAllowed: false")
-                .doesNotContain("fallbackAllowed: true");
+                .doesNotContain("fallbackAllowed: true", "## 证据", "每个换行正确转义", "LOOPPER_JUDGE_JSON");
     }
 
     @Test

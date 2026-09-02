@@ -137,6 +137,8 @@ JSON Pointer，模型可以在同一 Session 读取拒绝原因并修正。模�
 开关影响。报告文字是数据而不是后续
 设计会话的系统指令，“转为修改任务”只创建关联 Designer，不直接创建 Task。
 
+Reviewer MCP 候选恰好包含 `title`、`summary`、`findings`、`limitations`；前两项为字符串，后两项为数组，`limitations` 的每个元素必须为字符串。无 finding/limitation 时使用 `[]`。`contractVersion` 是服务端 run 元数据，不属于此候选。类型错误返回具体字段指针与修复说明，不以“缺少字段”诱导添加身份或权限字段；未知字段仍不可重试。
+
 大型文档确认稿必须包含 2–6 个二级章节。服务端按章节顺序保留结构化标题、段落、列表、
 代码块和表格片段并确定性聚合为一个冻结 `DocumentPlan`，不会让模型执行第二次自由合并。
 简单配置/维护生成隐式 `WP-1`，只接受确认稿中反引号标明的相对路径；执行合同必须包含
@@ -436,6 +438,8 @@ Pointer 一次返回。AI 应在同一个补丁中修完全部列出问题，避
 
 Judge 优先读取唯一有效 JSON，也接受唯一、明确的 `VERDICT/判定` 与
 `REASON/理由` 标签。冲突或非法 verdict、空理由和自由散文猜测都不接受。
+
+上述自由文本提取仅用于 Legacy。MCP `JUDGE_DECISION_V1` 使用严格私有工具：`candidate` 是对象而非 JSON 字符串，`reason` 为简体中文单行短文，可用分号分隔结论、证据和整改要求。提示装配仅移除冻结源末尾服务端拥有的完整 Legacy Markdown 格式指令，不修改评审事实或历史源快照。CR/LF/TAB 继续拒绝并提供单行改写反馈；不得为格式通过而改变 verdict。危险控制字符、身份/权限字段和证据错误仍失败关闭。
 
 项目公约的 Legacy 入口接受专属 marker、单一 Markdown fence 或非空完整 Markdown；V62 MCP 入口只
 接受 `PROJECT_CONVENTION_V1` 的组件、命令与路径证据 ID 闭集。两个入口都进入同一个

@@ -88,11 +88,11 @@ record PromptRequest(String text, String system, String agent,
                      List<FilePart> files) {}
 ```
 
-`HttpOpenCodeClient` 生成一个 text part 加有序 file parts。对 PDF/OOXML，同时发送原文件和确定性提取的 `*.loopper-context.txt`；文本和图片只发送原文件。`FakeOpenCodeClient` 保存完整 `PromptRequest`，使测试通过现有 Seam 观察附件上下文。
+`HttpOpenCodeClient` 生成一个 text part 加有序原生 Resource file descriptors，只传私有 `loopper-attachment://` URI 和来源描述，不传文件路径或内联字节。OOXML 只提供确定性提取的 `*.loopper-context.txt`（原件仍校验、保存与冻结），PDF 提供原件与提取文本，文本与图片提供原件。私有 MCP `resources/read` 返回不可变快照，文本最多 128 KiB、图片/PDF 二进制最多 10 MiB。`FakeOpenCodeClient` 保存完整 `PromptRequest`，使测试通过现有 Seam 观察附件上下文。
 
 每个附件回合在正文前加入固定安全说明和清单，但不把提取正文再次拼入主文本。OpenCode 的 file part 处理可以读取显式附件，即使现有 Session 权限仍拒绝项目 `.env` 和 `external_directory`；权限表不增加任何允许规则。
 
-`HttpOpenCodeClient` 携带由作用域、提示正文和附件身份计算出的稳定 `messageId`。首版以 OpenCode `promptAsync` 的同步接收结果作为本次 handoff 结果；HTTP/Session 失败进入既有 Designer/Package/Reviewer 错误状态，multipart 接口返回失败，使浏览器保留正文与文件。当前版本不宣称已经实现远端消息回读对账，也不写入虚假的 `REMOTE_ACCEPTED`。
+`HttpOpenCodeClient` 携带稳定 `messageId`，必须先取得资源读取回执，再回读远端持久化输入并验证完整有序内容 SHA，两个阶段各等待最多 30 秒（HTTP 请求仍受既有 timeout 约束）。私有 candidate 编译也等待投递证明；HTTP 204 不等于附件读取成功。失败进入既有 Designer/Package/Reviewer 错误状态，multipart 接口返回失败使浏览器保留正文与文件。资源按运行代际与 Session 签发，15 分钟失效、确认 abort 后撤销；不提供资源枚举、公开链接或额外目录权限。
 
 未显式提供消息身份时，附件装配统一生成 `msg_loopper_attachment_<SHA-256 前 32 位>`，满足 OpenCode 要求的 `msg` 前缀；相同上下文重试保持同一身份。显式传入的 Candidate/其他消息 ID 原样保留，无附件时不改写原请求。此规则覆盖活动 Designer 与冻结 Task/Recovery/Judge 附件，不迁移历史 dispatch，也不自动重放旧失败。回归同时覆盖真实存储的 TXT、DOCX 原文件与提取表示经过 HTTP adapter 后的协议校验，不能只用 FakeOpenCodeClient 或手写合法 ID 验证。
 
@@ -141,6 +141,8 @@ Task 确认顺序：创建 Task 行 → `freezeForTask` → 现有需求/分包/
 `TaskExecutionPromptFactory` 继续负责权威文本提示；调用方再用 `withContext` 装配冻结附件。Implementation 的首次 Attempt、验证失败后的新 Attempt 和 Recovery 新 Session 都使用相同 Task manifest。
 
 双 Judge 获得全局与全部包附件；固定提示说明附件不能覆盖 LoopSpec、deterministic verifier evidence 或 Judge 合同。Machine finalizer 只在同一个 Judge run 中复用相同冻结 manifest。
+
+默认 `JudgeDecisionCandidateWorkflow` 必须在持久化初始派发前调用 `withContext(taskAllPackages(launch.taskId()), request)`，保留 Candidate 的确定性消息 ID；不得只在 Legacy Judge 路径装配附件。回归必须经过真实 `advance` 派发入口覆盖 REQUIREMENT/RISK 两种角色，不能以共享装配器测试替代入口测试。MCP Judge 只移除服务端精确的旧版 Markdown 输出后缀，评审事实与冻结快照不变；单行理由与严格证据闭集不放宽。
 
 `RecoveryPersistence` 除现有设计 artifact 外复制 `task_design_attachment` 绑定，并保留 `source_task_id` 与 manifest SHA。
 

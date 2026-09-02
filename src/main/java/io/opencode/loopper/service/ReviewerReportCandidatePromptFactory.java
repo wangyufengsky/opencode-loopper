@@ -25,17 +25,24 @@ final class ReviewerReportCandidatePromptFactory {
                 Submit one complete replacement candidate containing exactly title, summary, findings, and
                 limitations. findings may contain zero to 128 objects with exactly severity, title, detail, path,
                 line, and recommendation. An empty list means no confirmed finding; summary remains required.
+                title and summary: strings. limitations: an array of strings, never a single string;
+                use [] when there is no limitation. Finding text fields are strings; line is a positive integer.
+                candidate has only those four fields: do not add contractVersion, runId, status, or evidence.
+                Shape example only, not a review conclusion:
+                {"title":"Review title","summary":"Evidence-grounded review summary","findings":[],"limitations":["Describe an actual review limitation"]}
                 severity is CRITICAL, HIGH, MEDIUM, LOW, or INFO. Every finding must cite one
                 managed relative path and exact line observed in this project. Do not submit absolute paths,
                 commands, permissions, source contents, hashes, stable server IDs, or lifecycle conclusions.
 
                 runId: %s
                 expectedSubmissionRevision: 0
-                contractVersion: REVIEWER_REPORT_V1
+                Server-owned contract (not a candidate field): REVIEWER_REPORT_V1
                 exact submit_candidate tool: %s
 
                 Call %s with runId, a fresh idempotencyKey, the complete candidate object, and
                 expectedSubmissionRevision. You may call that same exact tool at most three times in this Session.
+                candidate must be a JSON object, not a JSON-encoded string. When a type error points at
+                /limitations, replace that value with an array of strings; never invent missing authority fields.
                 On REJECTED, use only its bounded code, JSON Pointer, allowed values, and returned
                 submissionRevision to replace the complete candidate and retry. On ACCEPTED or WAITING_INPUT stop.
                 Never emit a compatibility payload. The final assistant text is ignored and is never authoritative.

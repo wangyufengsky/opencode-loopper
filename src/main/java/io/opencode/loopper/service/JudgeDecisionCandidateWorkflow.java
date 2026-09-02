@@ -36,6 +36,7 @@ final class JudgeDecisionCandidateWorkflow {
     private final JudgeDecisionCandidateSettlementService settlements;
     private final JudgeDecisionCandidateCodec codec;
     private final OpenCodeClient openCode;
+    private final DesignerAttachmentContext attachments;
     private final CandidatePromptDispatchService.PromptIo promptIo;
     private final JudgeDecisionCandidatePromptFactory promptFactory =
             new JudgeDecisionCandidatePromptFactory();
@@ -49,7 +50,8 @@ final class JudgeDecisionCandidateWorkflow {
             MachineCandidateSubmission submissions, CandidatePromptDispatchService promptDispatches,
             JudgeDecisionCandidateSourceSnapshotStore snapshots,
             JudgeDecisionCandidateSettlementService settlements,
-            JudgeDecisionCandidateCodec codec, OpenCodeClient openCode) {
+            JudgeDecisionCandidateCodec codec, OpenCodeClient openCode,
+            DesignerAttachmentContext attachments) {
         this.mapper = mapper;
         this.preparer = preparer;
         this.launches = launches;
@@ -62,6 +64,7 @@ final class JudgeDecisionCandidateWorkflow {
         this.settlements = settlements;
         this.codec = codec;
         this.openCode = openCode;
+        this.attachments = attachments;
         this.promptIo = new CandidatePromptDispatchService.PromptIo() {
             @Override public OpenCodeClient.MessageLookup lookup(
                     OpenCodeClient.OpenCodeSession remote,
@@ -314,6 +317,8 @@ final class JudgeDecisionCandidateWorkflow {
         OpenCodeClient.PromptRequest request = new OpenCodeClient.PromptRequest(
                 text, null, null, new OpenCodeClient.ResponseFormat.Text(),
                 CandidatePromptDispatchService.initialMessageId(run.runId()), List.of());
+        request = attachments.withContext(
+                DesignerAttachmentContext.ContextUse.taskAllPackages(launch.taskId()), request);
         return promptDispatches.advanceInitial(run, CandidateLaunchRef.genericV1(launch.id()),
                 remote(launch), request, () -> true, promptIo,
                 "judge-initial:" + run.owner().id(), Instant.now());

@@ -31,8 +31,15 @@ class ReviewerReportCandidatePromptFactoryTest {
                 .contains("final assistant text is ignored")
                 .contains("title, summary, findings, and limitations")
                 .contains("zero to 128 objects")
+                .contains("limitations: an array of strings", "do not add contractVersion")
+                .contains("\"limitations\":[\"Describe an actual review limitation\"]")
                 .contains("managed relative path and exact line")
                 .doesNotContain("JSON_SCHEMA")
                 .doesNotContain("legacy payload");
+        String example = prompt.lines().map(String::strip)
+                .filter(line -> line.startsWith("{\"title\":"))
+                .findFirst().orElseThrow();
+        assertThat(new ReviewerReportCandidateCodec(new tools.jackson.databind.ObjectMapper())
+                .decodeCandidate(example).valid()).isTrue();
     }
 }

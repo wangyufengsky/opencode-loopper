@@ -21,6 +21,19 @@ import org.mockito.ArgumentCaptor;
 import tools.jackson.databind.ObjectMapper;
 
 class ReviewerReportCandidatePolicyTest {
+    @Test
+    void wrongLimitationsTypePointsAtTheActualFieldWithoutInvitingAuthorityFields() throws Exception {
+        var result = policy.evaluate(context(), candidateJson().replace("\"limitations\":[]", "\"limitations\":\"not tested\""));
+        assertThat(result.retryable()).isTrue();
+        assertThat(result.problems()).singleElement().satisfies(problem -> {
+            assertThat(problem.pointer()).isEqualTo("/limitations");
+            assertThat(problem.detail()).contains("字符串数组", "[", "]").doesNotContain("缺少");
+        });
+        assertThat(policy.evaluate(context(), candidateJson().replace("\"limitations\":[]",
+                "\"limitations\":[\"not tested\"]")).accepted()).isTrue();
+        assertThat(policy.evaluate(context(), candidateJson().replace("\"limitations\":[]",
+                "\"limitations\":[],\"contractVersion\":\"REVIEWER_REPORT_V1\"")).retryable()).isFalse();
+    }
     private final ObjectMapper json = new ObjectMapper();
     private final ReviewerReportCompilation compilation =
             new DeterministicReviewerReportCompilation(json);

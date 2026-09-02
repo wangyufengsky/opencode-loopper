@@ -29,7 +29,7 @@ final class JudgeDecisionCandidatePromptFactory {
                 || !JudgeDecisionCompilation.CONTRACT_VERSION.equals(run.contractVersion())) {
             throw new IllegalArgumentException("Complete open Judge candidate contract is required");
         }
-        String prompt = frozenPrompt + """
+        String prompt = JudgePromptPolicy.candidateEvaluationContext(frozenPrompt) + """
 
 
                 JUDGE_DECISION_V1 PRIVATE SUBMISSION CONTRACT:
@@ -39,7 +39,7 @@ final class JudgeDecisionCandidatePromptFactory {
                 validation, normalization, hashes, lifecycle, retry policy, and the authoritative Judge result.
 
                 Submit exactly one complete candidate by calling `%s` with runId, a fresh idempotencyKey,
-                the candidate object, and expectedSubmissionRevision.
+                the candidate object, and expectedSubmissionRevision. candidate must be a JSON object, not a JSON-encoded string.
                 Do not return the candidate as final assistant text. If a mechanical value is rejected, replace the complete candidate and call the same tool
                 again in this Session using the returned submissionRevision. Stop on ACCEPTED or WAITING_INPUT.
 
@@ -50,6 +50,13 @@ final class JudgeDecisionCandidatePromptFactory {
                 - reason: 1..4000 UTF-8 bytes grounded only in the frozen evaluation context, on one line;
                   no CR, LF, or TAB and no other control characters
                 - evidenceIds: one or more unique IDs selected only from the frozen evidence catalog below
+
+                Write reason in concise Simplified Chinese using semicolon-separated sentences: conclusion;
+                evidence; required corrections if any. No Markdown headings, numbered lists, or escaped newlines.
+                The server renders the evidence list; do not duplicate it as a multiline report in reason.
+                If JUDGE_DECISION_REASON_LINE_BREAK_INVALID is returned, rewrite reason as a single line,
+                replacing line breaks and tabs with spaces or semicolons; do not resend the same reason.
+                Preserve the evidence-grounded verdict; never change a decision merely to pass validation.
 
                 runId: %s
                 expectedSubmissionRevision: %d

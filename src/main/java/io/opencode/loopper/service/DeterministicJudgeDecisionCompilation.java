@@ -65,7 +65,8 @@ public final class DeterministicJudgeDecisionCompilation implements JudgeDecisio
                     "reason 必须为 1..4000 UTF-8 字节", List.of()));
         } else if (rawReason.chars().anyMatch(value -> value == '\r' || value == '\n' || value == '\t')) {
             problems.add(mechanical("JUDGE_DECISION_REASON_LINE_BREAK_INVALID", "/reason",
-                    "Judge reason 必须为不含 CR、LF 或 TAB 的单行文本", List.of()));
+                    "Judge reason 必须为不含 CR、LF 或 TAB 的单行文本；请将换行和制表符改为空格或分号，"
+                            + "去掉标题和编号列表后重写完整 reason，不要原样重交；不要为通过格式校验而改变判定", List.of()));
         }
         LinkedHashSet<String> requested = new LinkedHashSet<>();
         if (source.evidenceIds().isEmpty()) {

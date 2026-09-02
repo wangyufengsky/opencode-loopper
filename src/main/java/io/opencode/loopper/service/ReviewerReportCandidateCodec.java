@@ -45,10 +45,25 @@ final class ReviewerReportCandidateCodec {
             if (unknown(root, CANDIDATE_FIELDS)) return authority("/candidate");
             JsonNode findings = root.get("findings");
             JsonNode limitations = root.get("limitations");
-            if (!root.has("title") || !root.has("summary") || findings == null || !findings.isArray()
-                    || limitations == null || !limitations.isArray()) {
-                return mechanical("REVIEWER_CANDIDATE_JSON_INVALID", "/candidate",
-                        "Reviewer 候选缺少固定合同字段");
+            for (String field : List.of("title", "summary")) {
+                if (!root.path(field).isTextual()) {
+                    return mechanical("REVIEWER_CANDIDATE_JSON_INVALID", "/" + field,
+                            "该字段必填且必须为字符串，不要添加合同之外的字段");
+                }
+            }
+            if (findings == null || !findings.isArray()) {
+                return mechanical("REVIEWER_CANDIDATE_JSON_INVALID", "/findings",
+                        "findings 必须为对象数组；确认无问题时使用 []");
+            }
+            if (limitations == null || !limitations.isArray()) {
+                return mechanical("REVIEWER_CANDIDATE_JSON_INVALID", "/limitations",
+                        "limitations 必须为字符串数组，例如 [\"未运行测试\"]；无限制时使用 []，不要添加其他字段");
+            }
+            for (int index = 0; index < limitations.size(); index++) {
+                if (!limitations.get(index).isTextual()) {
+                    return mechanical("REVIEWER_CANDIDATE_JSON_INVALID", "/limitations/" + index,
+                            "limitations 的每个元素必须为字符串");
+                }
             }
             for (int index = 0; index < findings.size(); index++) {
                 JsonNode finding = findings.get(index);
