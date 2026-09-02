@@ -112,8 +112,9 @@ for staged adapters. V56 activates `ROLLING_PACKAGE_PLAN_V1`; V57 adds the share
 `GENERIC_V1` durable creation/prompt/termination schema for the other three roles, and V58–V61
 connect Reviewer behind its staged feature flag. The isolated 0.3.13 packaged JAR then proved real
 `opencode/gpt-5.4` private-tool adoption and same-Session `line=99` rejection/`line=1` repair, so Reviewer
-defaults on from 0.3.14 while an explicit false affects only new reports. V62 connects Convention behind a
-default-off qualification flag; V63 connects Judge behind its own default-off qualification flag. Rolling uses a dedicated
+defaults on from 0.3.14 while an explicit false affects only new reports. V62 connects Convention and V63 connects
+Judge, initially behind separate default-off qualification flags. Both default on from 0.3.22 after independent
+real-model qualification; explicit false values affect only new runs. Rolling uses a dedicated
 `ROLLING_PACKAGE_CANDIDATE_READ_ONLY` profile with `read/glob/grep` and only the
 exact private submission tool. It has no Markdown/marker fallback after dispatch.
 Only `PACKAGE_DESIGN_V1` retains the explicit Markdown-fallback compatibility policy.
@@ -130,9 +131,9 @@ before the first exact-title lookup or remote create, uses `REVIEWER_CANDIDATE_R
 (`read/glob/grep` plus only the exact private tool), and never reads assistant final text. Only a
 proven pre-dispatch managed-runtime/lookup capability absence may hand the owner to Legacy. Once
 dispatch may have occurred, zero submission, timeout, questions, transport/stop uncertainty,
-safety failure and exhaustion remain Candidate failures. V62 adds Convention orchestration but still requires its
-own packaged real-model qualification before default enablement; V63 adds Judge orchestration, but Requirement and
-Risk still require separate packaged real-model qualification before default enablement.
+safety failure and exhaustion remain Candidate failures. Convention, Requirement Judge and Risk Judge each obtained
+their own packaged real-model qualification before default enablement; neither V57 nor Reviewer evidence substitutes
+for another role's [qualification](mcp-default-enablement-qualification.md).
 
 V62 supplies Convention's role orchestration while preserving the same launch gates. Its source `AGENTS.md`,
 source revision/owner version, stack profile/fingerprint and canonical component/command/path evidence catalog are
@@ -144,8 +145,10 @@ attempt and no remote, may hand the owner to one fresh `PROJECT_CONVENTION_READ_
 dispatch, normal completion without a submission, transport failure, interaction, security rejection, attempt
 exhaustion, generation conflict or uncertain stop must close or retain the Candidate recovery point; none may start
 Legacy. Accepted content becomes `READY` only after `REMOTE_COMPLETED`, `ABORT_ACKNOWLEDGED` or `ALREADY_ABSENT`
-proof. The 0.3.17 application flag remains false pending packaged real-model qualification, but does not disable
-recovery of already persisted Convention runs.
+proof. The 0.3.17 application flag remained false after first-pass-only acceptance evidence. A subsequent isolated
+0.3.20 JAR run proved private-tool use, duplicate component-key rejection and second-submission acceptance in the
+same Session. From 0.3.22 the flag defaults true; `LOOPPER_PROJECT_CONVENTION_CANDIDATE_V1_ENABLED=false` rolls back
+only new runs and does not disable recovery of already persisted Convention runs.
 
 V63 supplies the Judge-specific orchestration. One `judge_review_batch` freezes the Task, active final-review
 Execution Cycle, final successful Attempt and source generation for both Requirement and Risk; a rolling final-review
@@ -166,8 +169,13 @@ not a Session transport error and cannot create a fresh automatic Judge Session.
 canonical prompt/evidence snapshot artifact before `createSession`; completion and MCP tool-loop finalization must
 load the same artifact and SHA instead of rebuilding from current Task artifacts. An accepted
 result settles the Judge only after `REMOTE_COMPLETED`, `ABORT_ACKNOWLEDGED` or `ALREADY_ABSENT`. The 0.3.20
-application flag remains false until both roles prove real private-tool adoption and mechanical rejection correction in isolated packaged-JAR runs;
-persisted Judge Candidate recovery remains active regardless of the current flag.
+application flag was default-off pending qualification. Both roles subsequently proved real private-tool adoption,
+line-break rejection and second-submission correction in their respective same run/Session on that isolated JAR.
+From 0.3.22 the flag defaults true; `LOOPPER_JUDGE_DECISION_CANDIDATE_V1_ENABLED=false` rolls back only new runs,
+while persisted Judge Candidate recovery remains active regardless of the current flag. The three-role
+[qualification record](mcp-default-enablement-qualification.md) distinguishes its test-only, one-time system-prompt
+fault induction from the unchanged server/tool/permission protocol; it is not a natural error-rate or statistical
+reliability claim.
 
 The private `/api/internal-mcp-streamable` Router accepts only literal loopback
 addresses and constant-time Bearer matches. It registers exactly one tool,

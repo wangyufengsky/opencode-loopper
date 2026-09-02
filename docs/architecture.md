@@ -514,9 +514,9 @@ the other kinds have no separate accepted-result table. V49 also reserves bounde
 shared durable internal-launch protocol for Reviewer, Convention and Judge. V58–V61 connect Reviewer
 behind a staged flag; after the isolated 0.3.13 real-model qualification that flag defaults on from 0.3.14.
 V62 connects Convention source capture, deterministic compilation, policy, accepted writer, Coordinator and
-restart recovery behind a default-off qualification flag. V63 connects Judge evidence generations, deterministic
-compilation, policy, accepted writer, Coordinator and restart recovery behind a separate default-off qualification
-flag. Fallback compatibility is an explicit per-kind contract;
+restart recovery; V63 connects Judge evidence generations and the same role-specific seams. Both initially used
+default-off qualification flags. Their independent packaged-JAR qualification is now complete, so both default on
+from 0.3.22; an explicit false rolls back only new runs. Fallback compatibility is an explicit per-kind contract;
 only `PACKAGE_DESIGN_V1` may request Markdown fallback.
 
 V57 separates the existing Acceptance `ACCEPTANCE_V55` launch from a new `GENERIC_V1` launch reference.
@@ -555,7 +555,11 @@ budget or uncertain-stop failures remain Candidate failures. The prompt must pub
 `expectedSubmissionRevision`, and a mechanical rejection may advance only with the tool-returned
 `submissionRevision`. Two isolated 0.3.17 packaged-JAR real-model runs proved private-tool use and first-pass
 acceptance, including one prompt-injection lure, but neither produced a mechanical rejection followed by
-same-Session correction. The flag therefore remains off; persisted run recovery ignores the current flag.
+same-Session correction, so the flag remained off in those versions. The subsequent isolated 0.3.20 JAR qualification
+proved that real `opencode/gpt-5.4` repaired a duplicate component-key rejection in the same run and Session and
+settled the draft as `READY` after positive stop proof. Convention therefore defaults on from 0.3.22;
+`LOOPPER_PROJECT_CONVENTION_CANDIDATE_V1_ENABLED=false` rolls back only new runs, while persisted recovery ignores
+the current flag. See the [qualification evidence and controlled-fault boundary](mcp-default-enablement-qualification.md).
 
 V63 gives Requirement/Risk Judge the same dual-entry/single-core authority boundary without weakening the
 final-review gate. Each final-review attempt creates one immutable `judge_review_batch` anchored to the Task,
@@ -579,9 +583,16 @@ mechanical errors that return exact one-line/field guidance to the same Session.
 or oversized dangerous controls, permission and semantic server-authority fields remain non-retryable security
 failures; after positive stop proof they close the current batch to local input instead of starting a fresh Session.
 Legacy Judges persist an immutable prompt/evidence/SHA artifact before remote creation, and completion/finalizer
-recovery must read that artifact rather than reconstruct current evidence. The 0.3.20 flag
-defaults off until both Requirement and Risk independently pass packaged-JAR real-model private-tool and
-same-Session correction qualification.
+recovery must read that artifact rather than reconstruct current evidence. The 0.3.20 flag was default-off pending
+independent role qualification. The isolated 0.3.20 JAR subsequently proved real `opencode/gpt-5.4` private-tool use
+and same-run, same-Session correction after `JUDGE_DECISION_REASON_LINE_BREAK_INVALID` for each role. Both second
+submissions were accepted and settled as PASS in one batch after `ABORT_ACKNOWLEDGED`; the Task reached
+`AWAITING_DECISION / SUCCEEDED`. Judge therefore defaults on from 0.3.22;
+`LOOPPER_JUDGE_DECISION_CANDIDATE_V1_ENABLED=false` rolls back only new runs, not persisted recovery.
+The [qualification](mcp-default-enablement-qualification.md) used a test-only startup wrapper to append a one-time
+model system prompt inducing mechanical defects. It did not change server validation, permissions, tool requests
+or responses. This proves controlled rejection/correction and settlement, not a natural error rate or statistical
+model reliability; no fault-injection instruction is part of the production default.
 
 V56 gives rolling replanning the same dual-entry/single-core boundary. The candidate
 contains only `packageKey/title/objective/replaces/dependencies/requirementRefs`;

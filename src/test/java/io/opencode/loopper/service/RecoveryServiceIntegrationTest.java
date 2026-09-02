@@ -2,6 +2,7 @@ package io.opencode.loopper.service;
 
 import io.opencode.loopper.LoopperApplication;
 import io.opencode.loopper.api.FeatureContracts;
+import io.opencode.loopper.config.LoopperProperties;
 import io.opencode.loopper.domain.LoopSpec;
 import io.opencode.loopper.domain.RecoveryMode;
 import io.opencode.loopper.persistence.ProjectRow;
@@ -37,6 +38,7 @@ class RecoveryServiceIntegrationTest {
     @Autowired private DesignerAttachmentContext attachmentContext;
     @Autowired private io.opencode.loopper.persistence.LoopperMapper mapper;
     @Autowired private OpenCodeClient openCode;
+    @Autowired private LoopperProperties properties;
     @Autowired private DataSource dataSource;
     @TempDir Path temp;
 
@@ -45,6 +47,8 @@ class RecoveryServiceIntegrationTest {
         flyway.clean();
         flyway.migrate();
         ((FakeOpenCodeClient) openCode).reset();
+        // These recovery scenarios exercise the historical Legacy Judge transport.
+        properties.getInternalCandidate().setJudgeDecisionV1Enabled(false);
     }
 
     @Test
@@ -107,7 +111,8 @@ class RecoveryServiceIntegrationTest {
         assertThat(mapper.listSessions(created.taskId())).isEmpty();
         assertThat(tasks.attempts(created.taskId())).hasSize(1);
         assertThat(afterStart.state()).isEqualTo("JUDGING");
-        assertThat(tasks.judges(created.taskId())).allSatisfy(judge -> assertThat(judge.externalSessionId()).isNotBlank());
+        assertThat(tasks.judges(created.taskId())).hasSize(2)
+                .allSatisfy(judge -> assertThat(judge.externalSessionId()).isNotBlank());
 
         tasks.pollJudges(created.taskId());
         assertThat(tasks.get(created.taskId()).state()).isEqualTo("AWAITING_DECISION");

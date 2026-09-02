@@ -6,6 +6,7 @@ import io.opencode.loopper.service.ConflictException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -28,11 +29,14 @@ public class McpController {
     private final McpTokenProvider token;
     private final ObjectMapper json;
     private final LoopperMcpTools tools;
+    private final String version;
 
-    public McpController(McpTokenProvider token, ObjectMapper json, LoopperMcpTools tools) {
+    public McpController(McpTokenProvider token, ObjectMapper json, LoopperMcpTools tools,
+                         @Value("${spring.ai.mcp.server.version:unknown}") String version) {
         this.token = token;
         this.json = json;
         this.tools = tools;
+        this.version = version;
     }
 
     @PostMapping
@@ -72,7 +76,7 @@ public class McpController {
             throw new BadRequestException("MCP_PROTOCOL_UNSUPPORTED", "Unsupported MCP protocol version: " + requested);
         }
         return Map.of("protocolVersion", PROTOCOL_VERSION, "capabilities", Map.of("tools", Map.of()),
-                "serverInfo", Map.of("name", "opencode-loopper", "version", "0.3.12"),
+                "serverInfo", Map.of("name", "opencode-loopper", "version", version),
                 "instructions", "Designer access is read-only. Proposals synchronize the session-bound DRAFT_READY LoopSpec; a human must confirm before create_task.");
     }
 

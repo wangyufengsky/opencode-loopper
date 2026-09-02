@@ -1837,7 +1837,8 @@ class TaskServiceIntegrationTest {
     }
 
     @Test
-    void judgeCandidateUsesMcpOnlyRejectionCorrectionAndIgnoresFinalAssistantText() throws Exception {
+    void bothJudgeCandidatesRepairAndSettleAfterRollbackIgnoringFinalAssistantText() throws Exception {
+        var json = new tools.jackson.databind.ObjectMapper();
         properties.getInternalCandidate().setJudgeDecisionV1Enabled(true);
         InternalMcpCredentialProvider.Credentials credentials = internalMcpCredentials.issue();
         internalMcpRuntime.activate(credentials);
@@ -1870,18 +1871,21 @@ class TaskServiceIntegrationTest {
             var launch = mapper.findGenericCandidateInternalLaunchForJudgeRun(judge.id()).orElseThrow();
             var run = candidateSubmissions.find(launch.candidateRunId()).orElseThrow();
             long revision = run.version();
-            if ("REQUIREMENT".equals(judge.role())) {
-                var rejected = candidateSubmissions.submit(new MachineCandidateSubmission.SubmitCommand(
-                        run.runId(), "reject-once", judgeCandidate(judge.role(), "MAYBE"), revision,
-                        MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP));
-                assertThat(rejected.outcome()).isEqualTo(MachineCandidateOutcome.REJECTED);
-                assertThat(rejected.retryable()).isTrue();
-                revision = rejected.submissionRevision();
-                assertThat(candidateSubmissions.find(run.runId())).hasValueSatisfying(current -> {
-                    assertThat(current.externalSessionId()).isEqualTo(judge.externalSessionId());
-                    assertThat(current.state().name()).isEqualTo("OPEN");
-                });
-            }
+            var invalid = json.readTree(judgeCandidate(judge.role(), "PASS"));
+            ((tools.jackson.databind.node.ObjectNode) invalid).put("reason", "Evidence verified.\nNo changes.");
+            var rejected = candidateSubmissions.submit(new MachineCandidateSubmission.SubmitCommand(
+                    run.runId(), "reject-once", json.writeValueAsString(invalid), revision,
+                    MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP));
+            assertThat(rejected.outcome()).isEqualTo(MachineCandidateOutcome.REJECTED);
+            assertThat(rejected.retryable()).isTrue();
+            assertThat(rejected.problems()).singleElement()
+                    .satisfies(problem -> assertThat(problem.code())
+                            .isEqualTo("JUDGE_DECISION_REASON_LINE_BREAK_INVALID"));
+            revision = rejected.submissionRevision();
+            assertThat(candidateSubmissions.find(run.runId())).hasValueSatisfying(current -> {
+                assertThat(current.externalSessionId()).isEqualTo(judge.externalSessionId());
+                assertThat(current.state().name()).isEqualTo("OPEN");
+            });
             var accepted = candidateSubmissions.submit(new MachineCandidateSubmission.SubmitCommand(
                     run.runId(), "accept-" + judge.role().toLowerCase(),
                     judgeCandidate(judge.role(), "PASS"), revision,
@@ -1889,6 +1893,7 @@ class TaskServiceIntegrationTest {
             assertThat(accepted.outcome()).isEqualTo(MachineCandidateOutcome.ACCEPTED);
         }
 
+        properties.getInternalCandidate().setJudgeDecisionV1Enabled(false);
         for (int i = 0; i < 3 && "JUDGING".equals(tasks.get(task.id()).state()); i++) {
             tasks.pollJudges(task.id());
         }

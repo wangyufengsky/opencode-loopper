@@ -73,12 +73,12 @@ public class LoopperProperties {
         private boolean packageDesignV1Enabled = true;
         /** Qualified rolling-plan candidate transport is on by default and may be disabled for rollback. */
         private boolean rollingPackagePlanV1Enabled = true;
-        /** Reviewer candidate transport stays off until real-model qualification succeeds. */
+        /** Qualified Reviewer candidate transport is on by default and may be disabled for rollback. */
         private boolean reviewerReportV1Enabled = true;
-        /** Project-convention candidate transport stays off until real-model qualification succeeds. */
-        private boolean projectConventionV1Enabled = false;
-        /** Final Judge candidate transport stays off until both roles pass real-model qualification. */
-        private boolean judgeDecisionV1Enabled = false;
+        /** Qualified Convention candidate transport is on by default and may be disabled for rollback. */
+        private boolean projectConventionV1Enabled = true;
+        /** Both qualified Judge roles default on; rollback affects only newly created runs. */
+        private boolean judgeDecisionV1Enabled = true;
         public boolean isDecomposerEnabled() { return decomposerEnabled; }
         public void setDecomposerEnabled(boolean value) { this.decomposerEnabled = value; }
         public boolean isAcceptanceClosedChoiceV7Enabled() { return acceptanceClosedChoiceV7Enabled; }

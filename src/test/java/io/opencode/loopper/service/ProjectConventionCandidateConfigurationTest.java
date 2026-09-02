@@ -18,7 +18,17 @@ class ProjectConventionCandidateConfigurationTest {
 
     @Test
     void registersExactlyOnePolicyWriterAndEveryDbOnlyRecoverySeam() {
-        context.run(application -> {
+        assertRecoveryBeans(context);
+    }
+
+    @Test
+    void explicitRollbackKeepsEveryPersistedRunRecoveryBean() {
+        assertRecoveryBeans(context.withPropertyValues(
+                "loopper.internal-candidate.project-convention-v1-enabled=false"));
+    }
+
+    private void assertRecoveryBeans(ApplicationContextRunner configured) {
+        configured.run(application -> {
             assertThat(application).hasSingleBean(ProjectConventionCandidateCodec.class);
             assertThat(application).hasSingleBean(ProjectConventionCompilationInputLoader.class);
             assertThat(application).hasSingleBean(ProjectConventionCandidateSourceSnapshotStore.class);

@@ -8,31 +8,31 @@ import org.junit.jupiter.api.Test;
 
 class LoopperPropertiesTest {
     @Test
-    void projectConventionCandidateDefaultsOffAndCanBeEnabledExplicitly() throws Exception {
+    void qualifiedProjectConventionCandidateDefaultsOnAndCanBeDisabledExplicitly() throws Exception {
         LoopperProperties properties = new LoopperProperties();
 
-        assertThat(properties.getInternalCandidate().isProjectConventionV1Enabled()).isFalse();
-
-        properties.getInternalCandidate().setProjectConventionV1Enabled(true);
         assertThat(properties.getInternalCandidate().isProjectConventionV1Enabled()).isTrue();
+
+        properties.getInternalCandidate().setProjectConventionV1Enabled(false);
+        assertThat(properties.getInternalCandidate().isProjectConventionV1Enabled()).isFalse();
         assertThat(Files.readString(Path.of(System.getProperty("user.dir"),
                 "src/main/resources/application.yml")))
                 .contains("project-convention-v1-enabled: "
-                        + "${LOOPPER_PROJECT_CONVENTION_CANDIDATE_V1_ENABLED:false}");
+                        + "${LOOPPER_PROJECT_CONVENTION_CANDIDATE_V1_ENABLED:true}");
     }
 
     @Test
-    void judgeDecisionCandidateDefaultsOffAndCanBeEnabledExplicitly() throws Exception {
+    void qualifiedJudgeDecisionCandidateDefaultsOnAndCanBeDisabledExplicitly() throws Exception {
         LoopperProperties properties = new LoopperProperties();
 
-        assertThat(properties.getInternalCandidate().isJudgeDecisionV1Enabled()).isFalse();
-
-        properties.getInternalCandidate().setJudgeDecisionV1Enabled(true);
         assertThat(properties.getInternalCandidate().isJudgeDecisionV1Enabled()).isTrue();
+
+        properties.getInternalCandidate().setJudgeDecisionV1Enabled(false);
+        assertThat(properties.getInternalCandidate().isJudgeDecisionV1Enabled()).isFalse();
         assertThat(Files.readString(Path.of(System.getProperty("user.dir"),
                 "src/main/resources/application.yml")))
                 .contains("judge-decision-v1-enabled: "
-                        + "${LOOPPER_JUDGE_DECISION_CANDIDATE_V1_ENABLED:false}");
+                        + "${LOOPPER_JUDGE_DECISION_CANDIDATE_V1_ENABLED:true}");
     }
 
     @Test

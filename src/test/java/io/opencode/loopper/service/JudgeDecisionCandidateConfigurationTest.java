@@ -17,7 +17,17 @@ class JudgeDecisionCandidateConfigurationTest {
 
     @Test
     void registersOnePolicyWriterAndAllDbOnlyRecoverySeams() {
-        context.run(application -> {
+        assertRecoveryBeans(context);
+    }
+
+    @Test
+    void explicitRollbackKeepsEveryPersistedRunRecoveryBean() {
+        assertRecoveryBeans(context.withPropertyValues(
+                "loopper.internal-candidate.judge-decision-v1-enabled=false"));
+    }
+
+    private void assertRecoveryBeans(ApplicationContextRunner configured) {
+        configured.run(application -> {
             assertThat(application).hasSingleBean(JudgeDecisionCandidateCodec.class);
             assertThat(application).hasSingleBean(JudgeDecisionCompilationInputLoader.class);
             assertThat(application).hasSingleBean(JudgeDecisionCandidateSourceSnapshotStore.class);

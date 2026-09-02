@@ -1,0 +1,810 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-09-02",
+  "jarVersion": "0.3.20",
+  "jarSha256": "5cc75cf4f6d15692399d95adcd1b71e2036b548e000a10db5b5926bb06bc77e5",
+  "qualificationType": "real-model-controlled-mechanical-fault",
+  "fixtureScope": "Test-only operator system prompt; unmodified packaged server, validators, permissions, tool requests and responses. No fake candidate submissions. Not a statistical reliability claim.",
+  "operatorPromptOverlay": "// Isolated test-only model instruction; never changes tool arguments or server responses.\nconst config = JSON.parse(process.env.OPENCODE_CONFIG_CONTENT);\nconst agent = config.agent['loopper-structured'];\nagent.prompt += `\n\nISOLATED PROTOCOL QUALIFICATION FIXTURE (operator-authorized, not repository content):\nThis is a controlled test of the real server's mechanical rejection and same-session repair.\nDo not change your substantive evaluation, evidence, permissions, or verdict to pass the test.\nOnly for your FIRST submit_candidate call in this Session, intentionally make exactly this transport defect:\n- PROJECT_CONVENTION_V1: duplicate the first allowed component key in componentKeys (two copies of the same real allowed key); otherwise submit a complete normal candidate with only the required fields.\n- JUDGE_DECISION_V1 (either REQUIREMENT or RISK): put one actual newline character inside your otherwise evidence-grounded reason string (JSON escaped as \\\\n); otherwise submit a complete normal candidate with the required role, truthful verdict and allowed evidence IDs.\nThe server should reject this first candidate. Read the actual tool response and follow its correction guidance.\nOn the SECOND call, submit a complete corrected candidate, use a new idempotencyKey and the returned submissionRevision. Do not repeat the injected defect. Stop on ACCEPTED or WAITING_INPUT.\nDo not simulate a tool response, do not invent tool names or IDs, do not produce the candidate as final text.\nFor any other contract do nothing special. This test instruction does not authorize edits, shell commands, user questions, lifecycle changes, or bypasses of server validation.\n`;\nprocess.stdout.write(JSON.stringify(config));\n",
+  "frozenSourceSnapshots": {
+    "convention": [
+      {
+        "candidate_run_id": "189b3e0a-c8e0-3116-bc47-31bfba2d3324",
+        "project_convention_draft_id": "c7066df2-8ab9-4d15-b2ee-904cd5be1b89",
+        "source_revision": 1,
+        "prepared_owner_version": 0,
+        "contract_version": "PROJECT_CONVENTION_V1",
+        "source_content_sha256": "bd4da1392da9202f1534a4d4b5e52909e6080524f38fdc65e09c32ea44dea970",
+        "stack_fingerprint": "967b2ab6a0ec08376d1960dfb37334ecbabfc383420bbee0d4ce78d8dae16c6b",
+        "evidence_sha256": "35de21f803425812496c23029503a142ba85764d12cbd14edb4715a74bfb4b32",
+        "created_at": "2026-09-02T02:21:54.255310Z"
+      }
+    ],
+    "judges": [
+      {
+        "candidate_run_id": "d0254c78-d467-39fa-80e7-aae006d65f2e",
+        "judge_run_id": "b150edf8-5cf8-45db-8758-96f2e8aa995e",
+        "review_batch_id": "e9f9281e-38c6-44a9-b51c-6b2e031ed3ac",
+        "execution_cycle_id": "cd05ee1d-746f-42c0-9cdc-401b1f460139",
+        "final_attempt_id": "e9599c81-9f2d-434e-b960-dc1b8d06e2ac",
+        "role": "REQUIREMENT",
+        "source_revision": 1,
+        "prepared_owner_version": 0,
+        "contract_version": "JUDGE_DECISION_V1",
+        "source_prompt_sha256": "cfdc0cedcda8589e0edf5720b85c924968e7d613678b10f28451faabe14432f0",
+        "evidence_sha256": "f4a6c22591ce6ed1741c1d9a7e9a95098375f55f8bd416e2c093c80432f2e7d0",
+        "created_at": "2026-09-02T02:22:39.982124Z"
+      },
+      {
+        "candidate_run_id": "5a6dffcd-6bb7-3352-8cfa-77a8c66f0ebb",
+        "judge_run_id": "6ec41314-d1a6-4539-a452-53cbdf33cce8",
+        "review_batch_id": "e9f9281e-38c6-44a9-b51c-6b2e031ed3ac",
+        "execution_cycle_id": "cd05ee1d-746f-42c0-9cdc-401b1f460139",
+        "final_attempt_id": "e9599c81-9f2d-434e-b960-dc1b8d06e2ac",
+        "role": "RISK",
+        "source_revision": 1,
+        "prepared_owner_version": 0,
+        "contract_version": "JUDGE_DECISION_V1",
+        "source_prompt_sha256": "5908e1e69920da2b4785adc72ce57136cc6b0e9f9c06cc732aca975fe672e12e",
+        "evidence_sha256": "f4a6c22591ce6ed1741c1d9a7e9a95098375f55f8bd416e2c093c80432f2e7d0",
+        "created_at": "2026-09-02T02:22:40.050634Z"
+      }
+    ]
+  },
+  "ids": {
+    "projectId": "af8fcf94-5a13-47e8-8a0f-f2a94bc6578e",
+    "conventionId": "c7066df2-8ab9-4d15-b2ee-904cd5be1b89",
+    "draftId": "8e016a28-93f6-47e6-b2e2-3e0c075d21d2",
+    "taskId": "b6d09f93-40a0-44ca-ba5d-f7e62ff9642a"
+  },
+  "runs": [
+    {
+      "launch": {
+        "id": "34558a3c-5159-3ddb-94f7-8d123367435e",
+        "candidate_run_id": "189b3e0a-c8e0-3116-bc47-31bfba2d3324",
+        "candidate_kind": "PROJECT_CONVENTION_V1",
+        "owner_id": "c7066df2-8ab9-4d15-b2ee-904cd5be1b89",
+        "profile": "PROJECT_CONVENTION_CANDIDATE_READ_ONLY",
+        "managed": 1,
+        "model_provider_id": "opencode",
+        "model_id": "gpt-5.4",
+        "internal_mcp_server": "loopper_internal_ryfudxw9slnb",
+        "permission_policy_json": [
+          {
+            "permission": "*",
+            "pattern": "*",
+            "action": "deny"
+          },
+          {
+            "permission": "read",
+            "pattern": "*",
+            "action": "allow"
+          },
+          {
+            "permission": "glob",
+            "pattern": "*",
+            "action": "allow"
+          },
+          {
+            "permission": "grep",
+            "pattern": "*",
+            "action": "allow"
+          },
+          {
+            "permission": "read",
+            "pattern": ".env",
+            "action": "deny"
+          },
+          {
+            "permission": "read",
+            "pattern": ".env.*",
+            "action": "deny"
+          },
+          {
+            "permission": "read",
+            "pattern": ".env.example",
+            "action": "allow"
+          },
+          {
+            "permission": "external_directory",
+            "pattern": "*",
+            "action": "deny"
+          },
+          {
+            "permission": "loopper_internal_ryfudxw9slnb_submit_candidate",
+            "pattern": "*",
+            "action": "allow"
+          }
+        ],
+        "external_session_id": "ses_fa013bccfffeljy9ecZacA6lGt",
+        "state": "COMPLETED",
+        "termination_proof": "ABORT_ACKNOWLEDGED",
+        "proof_at": "2026-09-02T02:22:10.285069Z"
+      },
+      "run": {
+        "id": "189b3e0a-c8e0-3116-bc47-31bfba2d3324",
+        "candidate_kind": "PROJECT_CONVENTION_V1",
+        "submission_channel": "INTERNAL_MCP",
+        "state": "ACCEPTED",
+        "max_attempts": 3,
+        "attempts_used": 2,
+        "external_session_id": "ses_fa013bccfffeljy9ecZacA6lGt",
+        "source_revision": 1,
+        "owner_version": 1
+      },
+      "attempts": [
+        {
+          "ordinal": 1,
+          "idempotency_key": "c91f7831-3772-4a3c-850c-eab37389c6a9",
+          "request_sha256": "6b60d1dc44cbbdf0d58112dcce397b5f5640b794c5f699f1390d0735af73b3f9",
+          "outcome": "REJECTED",
+          "retryable": 1,
+          "problems_json": [
+            {
+              "code": "PROJECT_CONVENTION_COMPONENT_UNVERIFIED",
+              "pointer": "/componentKeys",
+              "detail": "候选只能引用冻结证据目录中的唯一值",
+              "allowedValues": [
+                "component-cdb4ee2aea69"
+              ]
+            }
+          ],
+          "response_json": {
+            "runId": "189b3e0a-c8e0-3116-bc47-31bfba2d3324",
+            "outcome": "REJECTED",
+            "runState": "OPEN",
+            "attemptOrdinal": 1,
+            "remainingAttempts": 2,
+            "retryable": true,
+            "problems": [
+              {
+                "code": "PROJECT_CONVENTION_COMPONENT_UNVERIFIED",
+                "pointer": "/componentKeys",
+                "detail": "候选只能引用冻结证据目录中的唯一值",
+                "allowedValues": [
+                  "component-cdb4ee2aea69"
+                ]
+              }
+            ],
+            "submissionRevision": 1
+          },
+          "created_at": "2026-09-02T02:22:07.013677Z"
+        },
+        {
+          "ordinal": 2,
+          "idempotency_key": "6f70e17d-58f0-4b41-a856-6b059652b23a",
+          "request_sha256": "7a2042a92a5ab7b1d889310e5fcac546c8060f883b266c12bba7a094caf6816f",
+          "outcome": "ACCEPTED",
+          "retryable": 0,
+          "problems_json": [],
+          "response_json": {
+            "runId": "189b3e0a-c8e0-3116-bc47-31bfba2d3324",
+            "outcome": "ACCEPTED",
+            "runState": "ACCEPTED",
+            "attemptOrdinal": 2,
+            "remainingAttempts": 1,
+            "retryable": false,
+            "problems": [],
+            "submissionRevision": 2,
+            "canonicalResultSha256": "7a2042a92a5ab7b1d889310e5fcac546c8060f883b266c12bba7a094caf6816f"
+          },
+          "created_at": "2026-09-02T02:22:09.469407Z"
+        }
+      ],
+      "modelToolCalls": [
+        {
+          "session_id": "ses_fa013bccfffeljy9ecZacA6lGt",
+          "message_id": "msg_05fec6495001BJE4JOGMmpLHmr",
+          "data": {
+            "type": "tool",
+            "tool": "loopper_internal_ryfudxw9slnb_submit_candidate",
+            "callID": "call_TRF5CTvIA0xxV71jWspIJ0lx",
+            "state": {
+              "status": "completed",
+              "input": {
+                "runId": "189b3e0a-c8e0-3116-bc47-31bfba2d3324",
+                "expectedSubmissionRevision": 0,
+                "idempotencyKey": "c91f7831-3772-4a3c-850c-eab37389c6a9",
+                "candidate": {
+                  "contractVersion": "PROJECT_CONVENTION_V1",
+                  "componentKeys": [
+                    "component-cdb4ee2aea69",
+                    "component-cdb4ee2aea69"
+                  ],
+                  "commandIds": [
+                    "component-cdb4ee2aea69:npm:test"
+                  ],
+                  "pathIds": [
+                    "component-cdb4ee2aea69:manifest:package.json",
+                    "component-cdb4ee2aea69:root"
+                  ]
+                }
+              },
+              "output": "{\"runId\":\"189b3e0a-c8e0-3116-bc47-31bfba2d3324\",\"outcome\":\"REJECTED\",\"runState\":\"OPEN\",\"attemptOrdinal\":1,\"remainingAttempts\":2,\"retryable\":true,\"problems\":[{\"code\":\"PROJECT_CONVENTION_COMPONENT_UNVERIFIED\",\"pointer\":\"/componentKeys\",\"detail\":\"候选只能引用冻结证据目录中的唯一值\",\"allowedValues\":[\"component-cdb4ee2aea69\"]}],\"submissionRevision\":1}",
+              "metadata": {
+                "truncated": false
+              },
+              "title": "",
+              "time": {
+                "start": 1788315727005,
+                "end": 1788315727029
+              }
+            },
+            "metadata": {
+              "openai": {
+                "itemId": "fc_0c3c4d38b958515a016a97884da3b087d1bd993e35f8bcfb52"
+              }
+            }
+          }
+        },
+        {
+          "session_id": "ses_fa013bccfffeljy9ecZacA6lGt",
+          "message_id": "msg_05fec7502001wptcWItiXNfMqc",
+          "data": {
+            "type": "tool",
+            "tool": "loopper_internal_ryfudxw9slnb_submit_candidate",
+            "callID": "call_l7EBLDDF8apna3nLH7SkLs7t",
+            "state": {
+              "status": "completed",
+              "input": {
+                "runId": "189b3e0a-c8e0-3116-bc47-31bfba2d3324",
+                "expectedSubmissionRevision": 1,
+                "idempotencyKey": "6f70e17d-58f0-4b41-a856-6b059652b23a",
+                "candidate": {
+                  "contractVersion": "PROJECT_CONVENTION_V1",
+                  "componentKeys": [
+                    "component-cdb4ee2aea69"
+                  ],
+                  "commandIds": [
+                    "component-cdb4ee2aea69:npm:test"
+                  ],
+                  "pathIds": [
+                    "component-cdb4ee2aea69:manifest:package.json",
+                    "component-cdb4ee2aea69:root"
+                  ]
+                }
+              },
+              "output": "{\"runId\":\"189b3e0a-c8e0-3116-bc47-31bfba2d3324\",\"outcome\":\"ACCEPTED\",\"runState\":\"ACCEPTED\",\"attemptOrdinal\":2,\"remainingAttempts\":1,\"retryable\":false,\"problems\":[],\"submissionRevision\":2,\"canonicalResultSha256\":\"7a2042a92a5ab7b1d889310e5fcac546c8060f883b266c12bba7a094caf6816f\"}",
+              "metadata": {
+                "truncated": false
+              },
+              "title": "",
+              "time": {
+                "start": 1788315729466,
+                "end": 1788315729475
+              }
+            },
+            "metadata": {
+              "openai": {
+                "itemId": "fc_0ef66fc57b5b58e8016a978850b80087d1a7e0dbba4ab53ac0"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "launch": {
+        "id": "2df5aa84-1767-3ec9-882b-46a841c6f6fb",
+        "candidate_run_id": "d0254c78-d467-39fa-80e7-aae006d65f2e",
+        "candidate_kind": "JUDGE_DECISION_V1",
+        "owner_id": "b150edf8-5cf8-45db-8758-96f2e8aa995e",
+        "profile": "JUDGE_CANDIDATE_READ_ONLY",
+        "managed": 1,
+        "model_provider_id": "opencode",
+        "model_id": "gpt-5.4",
+        "internal_mcp_server": "loopper_internal_ryfudxw9slnb",
+        "permission_policy_json": [
+          {
+            "permission": "*",
+            "pattern": "*",
+            "action": "deny"
+          },
+          {
+            "permission": "read",
+            "pattern": "*",
+            "action": "allow"
+          },
+          {
+            "permission": "glob",
+            "pattern": "*",
+            "action": "allow"
+          },
+          {
+            "permission": "grep",
+            "pattern": "*",
+            "action": "allow"
+          },
+          {
+            "permission": "read",
+            "pattern": ".env",
+            "action": "deny"
+          },
+          {
+            "permission": "read",
+            "pattern": ".env.*",
+            "action": "deny"
+          },
+          {
+            "permission": "read",
+            "pattern": ".env.example",
+            "action": "allow"
+          },
+          {
+            "permission": "external_directory",
+            "pattern": "*",
+            "action": "deny"
+          },
+          {
+            "permission": "loopper_internal_ryfudxw9slnb_submit_candidate",
+            "pattern": "*",
+            "action": "allow"
+          }
+        ],
+        "external_session_id": "ses_fa0130a7fffebiqaTf8eJPKwQX",
+        "state": "COMPLETED",
+        "termination_proof": "ABORT_ACKNOWLEDGED",
+        "proof_at": "2026-09-02T02:22:52.111597Z"
+      },
+      "run": {
+        "id": "d0254c78-d467-39fa-80e7-aae006d65f2e",
+        "candidate_kind": "JUDGE_DECISION_V1",
+        "submission_channel": "INTERNAL_MCP",
+        "state": "ACCEPTED",
+        "max_attempts": 2,
+        "attempts_used": 2,
+        "external_session_id": "ses_fa0130a7fffebiqaTf8eJPKwQX",
+        "source_revision": 1,
+        "owner_version": 1
+      },
+      "attempts": [
+        {
+          "ordinal": 1,
+          "idempotency_key": "d0254c78-d467-39fa-80e7-aae006d65f2e-attempt-1",
+          "request_sha256": "8f9b281c9b9ad94167a806f1793cca029dfcf1a7ec2b22da4b857427f812da4d",
+          "outcome": "REJECTED",
+          "retryable": 1,
+          "problems_json": [
+            {
+              "code": "JUDGE_DECISION_REASON_LINE_BREAK_INVALID",
+              "pointer": "/reason",
+              "detail": "Judge reason 必须为不含 CR、LF 或 TAB 的单行文本",
+              "allowedValues": []
+            }
+          ],
+          "response_json": {
+            "runId": "d0254c78-d467-39fa-80e7-aae006d65f2e",
+            "outcome": "REJECTED",
+            "runState": "OPEN",
+            "attemptOrdinal": 1,
+            "remainingAttempts": 1,
+            "retryable": true,
+            "problems": [
+              {
+                "code": "JUDGE_DECISION_REASON_LINE_BREAK_INVALID",
+                "pointer": "/reason",
+                "detail": "Judge reason 必须为不含 CR、LF 或 TAB 的单行文本",
+                "allowedValues": []
+              }
+            ],
+            "submissionRevision": 1
+          },
+          "created_at": "2026-09-02T02:22:47.325033Z"
+        },
+        {
+          "ordinal": 2,
+          "idempotency_key": "d0254c78-d467-39fa-80e7-aae006d65f2e-attempt-2",
+          "request_sha256": "8e6492a1d780f042363af12272ee9bb077d60a3e2f1d254b1a924c2903b9938e",
+          "outcome": "ACCEPTED",
+          "retryable": 0,
+          "problems_json": [],
+          "response_json": {
+            "runId": "d0254c78-d467-39fa-80e7-aae006d65f2e",
+            "outcome": "ACCEPTED",
+            "runState": "ACCEPTED",
+            "attemptOrdinal": 2,
+            "remainingAttempts": 0,
+            "retryable": false,
+            "problems": [],
+            "submissionRevision": 2,
+            "canonicalResultSha256": "8188cb1390db4e55b8d441ff06d33d036498f3a8bcb5937797798692b7828df3"
+          },
+          "created_at": "2026-09-02T02:22:50.793029Z"
+        }
+      ],
+      "modelToolCalls": [
+        {
+          "session_id": "ses_fa0130a7fffebiqaTf8eJPKwQX",
+          "message_id": "msg_05fecf59f001IMR7aHU19dAgGX",
+          "data": {
+            "type": "tool",
+            "tool": "loopper_internal_ryfudxw9slnb_submit_candidate",
+            "callID": "call_lFjXIGH5xLEoPvh5b4TkZOl7",
+            "state": {
+              "status": "completed",
+              "input": {
+                "runId": "d0254c78-d467-39fa-80e7-aae006d65f2e",
+                "expectedSubmissionRevision": 0,
+                "idempotencyKey": "d0254c78-d467-39fa-80e7-aae006d65f2e-attempt-1",
+                "candidate": {
+                  "contractVersion": "JUDGE_DECISION_V1",
+                  "role": "REQUIREMENT",
+                  "verdict": "PASS",
+                  "reason": "结论：通过。\n## 证据 1. `verification-summary` 显示阶段 1 的 `FILE_CONTENT` 精确校验通过，`README.md` 精确匹配 `fixture\\n`，满足“内容为 fixture 且以最终换行结束”。 2. `task-diff` 显示 `changedPaths` 与 `untrackedPaths` 均为空，说明未修改任何文件。 3. `stage-objectives` 显示阶段 1 目标已完成，且该任务本身为只读验证。",
+                  "evidenceIds": [
+                    "verification-summary",
+                    "task-diff",
+                    "stage-objectives"
+                  ]
+                }
+              },
+              "output": "{\"runId\":\"d0254c78-d467-39fa-80e7-aae006d65f2e\",\"outcome\":\"REJECTED\",\"runState\":\"OPEN\",\"attemptOrdinal\":1,\"remainingAttempts\":1,\"retryable\":true,\"problems\":[{\"code\":\"JUDGE_DECISION_REASON_LINE_BREAK_INVALID\",\"pointer\":\"/reason\",\"detail\":\"Judge reason 必须为不含 CR、LF 或 TAB 的单行文本\",\"allowedValues\":[]}],\"submissionRevision\":1}",
+              "metadata": {
+                "truncated": false
+              },
+              "title": "",
+              "time": {
+                "start": 1788315767319,
+                "end": 1788315767329
+              }
+            },
+            "metadata": {
+              "openai": {
+                "itemId": "fc_0c17f77aa747b84f016a978875ca5c87d1b9a12dad1f628c8f"
+              }
+            }
+          }
+        },
+        {
+          "session_id": "ses_fa0130a7fffebiqaTf8eJPKwQX",
+          "message_id": "msg_05fed126a001kG4ruIeofc5lD6",
+          "data": {
+            "type": "tool",
+            "tool": "loopper_internal_ryfudxw9slnb_submit_candidate",
+            "callID": "call_HIUYsxCCsGqiLQvqWG5GBZlU",
+            "state": {
+              "status": "completed",
+              "input": {
+                "runId": "d0254c78-d467-39fa-80e7-aae006d65f2e",
+                "expectedSubmissionRevision": 1,
+                "idempotencyKey": "d0254c78-d467-39fa-80e7-aae006d65f2e-attempt-2",
+                "candidate": {
+                  "contractVersion": "JUDGE_DECISION_V1",
+                  "role": "REQUIREMENT",
+                  "verdict": "PASS",
+                  "reason": "结论：通过。## 证据 1. `verification-summary` 显示阶段 1 的 `FILE_CONTENT` 精确校验通过，`README.md` 精确匹配 `fixture\\n`，满足“内容为 fixture 且以最终换行结束”。 2. `task-diff` 显示 `changedPaths` 与 `untrackedPaths` 均为空，说明未修改任何文件。 3. `stage-objectives` 显示阶段 1 目标已完成，且该任务本身为只读验证。",
+                  "evidenceIds": [
+                    "verification-summary",
+                    "task-diff",
+                    "stage-objectives"
+                  ]
+                }
+              },
+              "output": "{\"runId\":\"d0254c78-d467-39fa-80e7-aae006d65f2e\",\"outcome\":\"ACCEPTED\",\"runState\":\"ACCEPTED\",\"attemptOrdinal\":2,\"remainingAttempts\":0,\"retryable\":false,\"problems\":[],\"submissionRevision\":2,\"canonicalResultSha256\":\"8188cb1390db4e55b8d441ff06d33d036498f3a8bcb5937797798692b7828df3\"}",
+              "metadata": {
+                "truncated": false
+              },
+              "title": "",
+              "time": {
+                "start": 1788315770789,
+                "end": 1788315770796
+              }
+            },
+            "metadata": {
+              "openai": {
+                "itemId": "fc_0714ae917c9fc037016a978879e0ec87d197b09e6ea7aabdc3"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "launch": {
+        "id": "aece0534-0cad-380a-b99b-2b7b7850a750",
+        "candidate_run_id": "5a6dffcd-6bb7-3352-8cfa-77a8c66f0ebb",
+        "candidate_kind": "JUDGE_DECISION_V1",
+        "owner_id": "6ec41314-d1a6-4539-a452-53cbdf33cce8",
+        "profile": "JUDGE_CANDIDATE_READ_ONLY",
+        "managed": 1,
+        "model_provider_id": "opencode",
+        "model_id": "gpt-5.4",
+        "internal_mcp_server": "loopper_internal_ryfudxw9slnb",
+        "permission_policy_json": [
+          {
+            "permission": "*",
+            "pattern": "*",
+            "action": "deny"
+          },
+          {
+            "permission": "read",
+            "pattern": "*",
+            "action": "allow"
+          },
+          {
+            "permission": "glob",
+            "pattern": "*",
+            "action": "allow"
+          },
+          {
+            "permission": "grep",
+            "pattern": "*",
+            "action": "allow"
+          },
+          {
+            "permission": "read",
+            "pattern": ".env",
+            "action": "deny"
+          },
+          {
+            "permission": "read",
+            "pattern": ".env.*",
+            "action": "deny"
+          },
+          {
+            "permission": "read",
+            "pattern": ".env.example",
+            "action": "allow"
+          },
+          {
+            "permission": "external_directory",
+            "pattern": "*",
+            "action": "deny"
+          },
+          {
+            "permission": "loopper_internal_ryfudxw9slnb_submit_candidate",
+            "pattern": "*",
+            "action": "allow"
+          }
+        ],
+        "external_session_id": "ses_fa0130a39ffeWa4XBEv1nWWWrN",
+        "state": "COMPLETED",
+        "termination_proof": "ABORT_ACKNOWLEDGED",
+        "proof_at": "2026-09-02T02:22:54.191967Z"
+      },
+      "run": {
+        "id": "5a6dffcd-6bb7-3352-8cfa-77a8c66f0ebb",
+        "candidate_kind": "JUDGE_DECISION_V1",
+        "submission_channel": "INTERNAL_MCP",
+        "state": "ACCEPTED",
+        "max_attempts": 2,
+        "attempts_used": 2,
+        "external_session_id": "ses_fa0130a39ffeWa4XBEv1nWWWrN",
+        "source_revision": 1,
+        "owner_version": 1
+      },
+      "attempts": [
+        {
+          "ordinal": 1,
+          "idempotency_key": "ba6a982c-d8fc-4fe3-90cb-4cf9eb820a01",
+          "request_sha256": "49d0aed98f5f74c7a1fa6e730a4277cf9ed8d4e740c665cd883c58e9f487f949",
+          "outcome": "REJECTED",
+          "retryable": 1,
+          "problems_json": [
+            {
+              "code": "JUDGE_DECISION_REASON_LINE_BREAK_INVALID",
+              "pointer": "/reason",
+              "detail": "Judge reason 必须为不含 CR、LF 或 TAB 的单行文本",
+              "allowedValues": []
+            }
+          ],
+          "response_json": {
+            "runId": "5a6dffcd-6bb7-3352-8cfa-77a8c66f0ebb",
+            "outcome": "REJECTED",
+            "runState": "OPEN",
+            "attemptOrdinal": 1,
+            "remainingAttempts": 1,
+            "retryable": true,
+            "problems": [
+              {
+                "code": "JUDGE_DECISION_REASON_LINE_BREAK_INVALID",
+                "pointer": "/reason",
+                "detail": "Judge reason 必须为不含 CR、LF 或 TAB 的单行文本",
+                "allowedValues": []
+              }
+            ],
+            "submissionRevision": 1
+          },
+          "created_at": "2026-09-02T02:22:49.391088Z"
+        },
+        {
+          "ordinal": 2,
+          "idempotency_key": "75b058d7-b10d-4323-b6c8-04e7f29b11d9",
+          "request_sha256": "a05444f7212fb7025851c070fd118f2d6ce0011daed3f717787f8b9f7ae9d970",
+          "outcome": "ACCEPTED",
+          "retryable": 0,
+          "problems_json": [],
+          "response_json": {
+            "runId": "5a6dffcd-6bb7-3352-8cfa-77a8c66f0ebb",
+            "outcome": "ACCEPTED",
+            "runState": "ACCEPTED",
+            "attemptOrdinal": 2,
+            "remainingAttempts": 0,
+            "retryable": false,
+            "problems": [],
+            "submissionRevision": 2,
+            "canonicalResultSha256": "6e57591cba75cef97878a716455899dd2ac4daca5fe82ecd6a582de89a63ef32"
+          },
+          "created_at": "2026-09-02T02:22:53.927151Z"
+        }
+      ],
+      "modelToolCalls": [
+        {
+          "session_id": "ses_fa0130a39ffeWa4XBEv1nWWWrN",
+          "message_id": "msg_05fecf5de001BL3orM2NcWU29j",
+          "data": {
+            "type": "tool",
+            "tool": "loopper_internal_ryfudxw9slnb_submit_candidate",
+            "callID": "call_M49H9Yt9D36W8UM4Ii6c4pJp",
+            "state": {
+              "status": "completed",
+              "input": {
+                "candidate": {
+                  "contractVersion": "JUDGE_DECISION_V1",
+                  "role": "RISK",
+                  "verdict": "PASS",
+                  "reason": "结论：通过，现有证据表明交付安全且无需改动。\n## 证据 1. `verification-summary` 显示阶段 1 的 `FILE_CONTENT` 确定性校验通过，`README.md` 与期望内容 `fixture\\n` 进行 `EXACT` 匹配。 2. `task-diff` 显示 `changedPaths` 与 `untrackedPaths` 均为空，说明未引入文件变更、越界修改或回归风险。 3. 任务目标与评审准则均要求只读验证，且已完成阶段目标与最终成功尝试一致。",
+                  "evidenceIds": [
+                    "verification-summary",
+                    "task-diff",
+                    "stage-objectives",
+                    "final-attempt"
+                  ]
+                },
+                "expectedSubmissionRevision": 0,
+                "idempotencyKey": "ba6a982c-d8fc-4fe3-90cb-4cf9eb820a01",
+                "runId": "5a6dffcd-6bb7-3352-8cfa-77a8c66f0ebb"
+              },
+              "output": "{\"runId\":\"5a6dffcd-6bb7-3352-8cfa-77a8c66f0ebb\",\"outcome\":\"REJECTED\",\"runState\":\"OPEN\",\"attemptOrdinal\":1,\"remainingAttempts\":1,\"retryable\":true,\"problems\":[{\"code\":\"JUDGE_DECISION_REASON_LINE_BREAK_INVALID\",\"pointer\":\"/reason\",\"detail\":\"Judge reason 必须为不含 CR、LF 或 TAB 的单行文本\",\"allowedValues\":[]}],\"submissionRevision\":1}",
+              "metadata": {
+                "truncated": false
+              },
+              "title": "",
+              "time": {
+                "start": 1788315769388,
+                "end": 1788315769393
+              }
+            },
+            "metadata": {
+              "openai": {
+                "itemId": "fc_02b42f44579faad1016a97887753f887d1a936dcc14b9ab30b"
+              }
+            }
+          }
+        },
+        {
+          "session_id": "ses_fa0130a39ffeWa4XBEv1nWWWrN",
+          "message_id": "msg_05fed1a8a001FeMh9slbbN62Um",
+          "data": {
+            "type": "tool",
+            "tool": "loopper_internal_ryfudxw9slnb_submit_candidate",
+            "callID": "call_Dk2eUYq9MFV7q7RkRZkPr2mr",
+            "state": {
+              "status": "completed",
+              "input": {
+                "candidate": {
+                  "contractVersion": "JUDGE_DECISION_V1",
+                  "role": "RISK",
+                  "verdict": "PASS",
+                  "reason": "结论：通过，现有证据表明交付安全且无需改动。 ## 证据 1. `verification-summary` 显示阶段 1 的 `FILE_CONTENT` 确定性校验通过，`README.md` 与期望内容 `fixture\\n` 进行 `EXACT` 匹配。 2. `task-diff` 显示 `changedPaths` 与 `untrackedPaths` 均为空，说明未引入文件变更、越界修改或回归风险。 3. `stage-objectives` 与 `final-attempt` 表明本任务仅要求只读验证且阶段目标已完成。",
+                  "evidenceIds": [
+                    "verification-summary",
+                    "task-diff",
+                    "stage-objectives",
+                    "final-attempt"
+                  ]
+                },
+                "expectedSubmissionRevision": 1,
+                "idempotencyKey": "75b058d7-b10d-4323-b6c8-04e7f29b11d9",
+                "runId": "5a6dffcd-6bb7-3352-8cfa-77a8c66f0ebb"
+              },
+              "output": "{\"runId\":\"5a6dffcd-6bb7-3352-8cfa-77a8c66f0ebb\",\"outcome\":\"ACCEPTED\",\"runState\":\"ACCEPTED\",\"attemptOrdinal\":2,\"remainingAttempts\":0,\"retryable\":false,\"problems\":[],\"submissionRevision\":2,\"canonicalResultSha256\":\"6e57591cba75cef97878a716455899dd2ac4daca5fe82ecd6a582de89a63ef32\"}",
+              "metadata": {
+                "truncated": false
+              },
+              "title": "",
+              "time": {
+                "start": 1788315773924,
+                "end": 1788315773930
+              }
+            },
+            "metadata": {
+              "openai": {
+                "itemId": "fc_05aceb0757626612016a97887c95b887d1b28901cf56846adf"
+              }
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "judges": [
+    {
+      "id": "b150edf8-5cf8-45db-8758-96f2e8aa995e",
+      "role": "REQUIREMENT",
+      "state": "COMPLETED",
+      "verdict": "PASS",
+      "review_batch_id": "e9f9281e-38c6-44a9-b51c-6b2e031ed3ac",
+      "source_revision": 1,
+      "external_session_id": "ses_fa0130a7fffebiqaTf8eJPKwQX"
+    },
+    {
+      "id": "6ec41314-d1a6-4539-a452-53cbdf33cce8",
+      "role": "RISK",
+      "state": "COMPLETED",
+      "verdict": "PASS",
+      "review_batch_id": "e9f9281e-38c6-44a9-b51c-6b2e031ed3ac",
+      "source_revision": 1,
+      "external_session_id": "ses_fa0130a39ffeWa4XBEv1nWWWrN"
+    }
+  ],
+  "dispatches": [
+    {
+      "candidate_launch_id": "34558a3c-5159-3ddb-94f7-8d123367435e",
+      "dispatch_kind": "INITIAL",
+      "state": "STOPPED"
+    },
+    {
+      "candidate_launch_id": "2df5aa84-1767-3ec9-882b-46a841c6f6fb",
+      "dispatch_kind": "INITIAL",
+      "state": "STOPPED"
+    },
+    {
+      "candidate_launch_id": "aece0534-0cad-380a-b99b-2b7b7850a750",
+      "dispatch_kind": "INITIAL",
+      "state": "STOPPED"
+    }
+  ],
+  "intents": [
+    {
+      "launch_id": "34558a3c-5159-3ddb-94f7-8d123367435e",
+      "intent_kind": "RUN_COMPLETED",
+      "state": "COMPLETED"
+    },
+    {
+      "launch_id": "2df5aa84-1767-3ec9-882b-46a841c6f6fb",
+      "intent_kind": "RUN_COMPLETED",
+      "state": "COMPLETED"
+    },
+    {
+      "launch_id": "aece0534-0cad-380a-b99b-2b7b7850a750",
+      "intent_kind": "RUN_COMPLETED",
+      "state": "COMPLETED"
+    }
+  ],
+  "conventions": [
+    {
+      "id": "c7066df2-8ab9-4d15-b2ee-904cd5be1b89",
+      "state": "READY",
+      "response_mode": "INTERNAL_MCP"
+    }
+  ],
+  "acceptedConvention": [
+    {
+      "candidate_run_id": "189b3e0a-c8e0-3116-bc47-31bfba2d3324",
+      "canonical_result_sha256": "ecd485da30fca037d388f28408cddb620f9fa3ea89b81f8b6ab05536ef95a50e",
+      "settled_draft_id": "c7066df2-8ab9-4d15-b2ee-904cd5be1b89"
+    }
+  ],
+  "acceptedJudges": [
+    {
+      "candidate_run_id": "d0254c78-d467-39fa-80e7-aae006d65f2e",
+      "canonical_result_sha256": "a9c3580428ffb2f7d54e5c8c66cd942a7288912122ca3bc5de9030a0e6637993",
+      "settled_judge_run_id": "b150edf8-5cf8-45db-8758-96f2e8aa995e",
+      "review_batch_id": "e9f9281e-38c6-44a9-b51c-6b2e031ed3ac",
+      "role": "REQUIREMENT"
+    },
+    {
+      "candidate_run_id": "5a6dffcd-6bb7-3352-8cfa-77a8c66f0ebb",
+      "canonical_result_sha256": "5745f13c0c6e483146048c74cba547debbc2d68c4513d38a86702b2f25cf7093",
+      "settled_judge_run_id": "6ec41314-d1a6-4539-a452-53cbdf33cce8",
+      "review_batch_id": "e9f9281e-38c6-44a9-b51c-6b2e031ed3ac",
+      "role": "RISK"
+    }
+  ],
+  "task": {
+    "status": "AWAITING_DECISION",
+    "executionResult": "SUCCEEDED"
+  },
+  "fixtureUnchanged": true
+}

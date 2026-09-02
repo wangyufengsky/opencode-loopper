@@ -156,6 +156,7 @@ class DesignerSessionMcpIntegrationTest {
         properties.getInternalCandidate().setRollingPackagePlanV1Enabled(false);
         properties.getInternalCandidate().setReviewerReportV1Enabled(false);
         properties.getInternalCandidate().setProjectConventionV1Enabled(false);
+        properties.getInternalCandidate().setJudgeDecisionV1Enabled(false);
     }
 
     @Test
@@ -5198,6 +5199,8 @@ class DesignerSessionMcpIntegrationTest {
                 .contains("webMvcStreamableServerRouterFunction", "internalMcpStreamableRouterFunction");
 
         String initialize = rpc(10, "initialize", "{\"protocolVersion\":\"2025-03-26\",\"capabilities\":{},\"clientInfo\":{\"name\":\"test\",\"version\":\"1\"}}");
+        mvc.perform(mcp(initialize)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.serverInfo.version").value("0.1.67"));
         mvc.perform(post("/api/mcp-streamable").contentType(MediaType.APPLICATION_JSON)
                         .accept(MediaType.APPLICATION_JSON, MediaType.TEXT_EVENT_STREAM).content(initialize))
                 .andExpect(status().isUnauthorized());

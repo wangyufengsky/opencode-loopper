@@ -338,8 +338,8 @@ for rolling packages the Cycle may reference the last frozen package Attempt wit
 Requirement/Risk rows and role-local Session retries must retain its ID. A blocked or malformed
 decision closes the batch as `WAITING_INPUT`; explicit local retry creates a new generation, and
 the aggregate decision reads only the current batch, never a PASS from another generation. The
-default-off `JUDGE_DECISION_V1` Candidate route freezes the exact prompt and evidence catalog before
-remote I/O, accepts only role/verdict/reason/closed evidence IDs, and compiles both MCP and Legacy
+`JUDGE_DECISION_V1` Candidate route, default-on from 0.3.22 after independent Requirement/Risk qualification,
+freezes the exact prompt and evidence catalog before remote I/O, accepts only role/verdict/reason/closed evidence IDs, and compiles both MCP and Legacy
 inputs through one deterministic core. Candidate final text is ignored, and accepted results require
 positive Session termination proof before settling Judge completion. CR/LF/TAB in `reason` and
 ordinary extra fields are bounded same-Session mechanical corrections; NUL/BEL/C1 controls, mixed
@@ -348,6 +348,10 @@ failures and move the stopped current batch to local input rather than automatic
 an immutable prompt/evidence/SHA artifact before remote create and reuses it at completion/finalization. Cancellation, Task failure,
 timeout, interaction, transport, security, generation, budget and uncertain-stop paths close or
 retain the batch fail-closed; they cannot synthesize a successful final review.
+`LOOPPER_JUDGE_DECISION_CANDIDATE_V1_ENABLED=false` rolls back only new runs; persisted recovery and settlement
+remain available. The [isolated 0.3.20 JAR qualification](mcp-default-enablement-qualification.md) proved both roles'
+same-Session line-break rejection/correction and positive-stop settlement in one batch. Its test-only controlled
+fault induction is not a natural error-rate or statistical model-reliability claim.
 
 Every v2 Stage also declares `implementationKind`. A `JAVA_PRODUCTION` plan is
 invalid unless it includes an unskipped focused Maven/Gradle `PROCESS TEST`,

@@ -57,7 +57,7 @@ class ProjectConventionServiceTest {
     }
 
     @Test
-    void conventionCandidateRepairsInOneSessionAndIgnoresLegacyFinalText() throws Exception {
+    void conventionCandidateRepairsInOneSessionAndSettlesAfterRollbackIgnoringLegacyFinalText() throws Exception {
         properties.getInternalCandidate().setProjectConventionV1Enabled(true);
         InternalMcpCredentialProvider.Credentials credentials = internalMcpCredentials.issue();
         internalMcpRuntime.activate(credentials);
@@ -119,6 +119,7 @@ class ProjectConventionServiceTest {
                         MachineCandidateSubmission.SubmissionChannel.INTERNAL_MCP));
         assertThat(accepted.outcome().name()).isEqualTo("ACCEPTED");
 
+        properties.getInternalCandidate().setProjectConventionV1Enabled(false);
         fake.failNextAborts(1);
         conventions.pollActiveGenerations();
         assertThat(conventions.get(project.id(), running.id()).state()).isEqualTo("RUNNING");
